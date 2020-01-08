@@ -553,7 +553,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testArrayRefMemo() {
-    checkMemo(ArrayRef(arr, I32(0)), justB, Array(TArray(justB), null))
+    checkMemo(ArrayRef(arr, I32(0)), justB, Array(TArray(justB), null, null))
   }
 
   @Test def testArrayLenMemo() {

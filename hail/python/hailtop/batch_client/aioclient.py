@@ -352,7 +352,7 @@ class BatchBuilder:
         self.callback = callback
 
     def create_job(self, image, command, env=None, mount_docker_socket=False,
-                   resources=None, secrets=None,
+                   port=None, resources=None, secrets=None,
                    service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False, pvc_size=None):
         if self._submitted:
@@ -399,6 +399,8 @@ class BatchBuilder:
 
         if env:
             job_spec['env'] = [{'name': k, 'value': v} for (k, v) in env.items()]
+        if port is not None:
+            job_spec['port'] = port
         if resources:
             job_spec['resources'] = resources
         if secrets:

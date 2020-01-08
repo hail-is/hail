@@ -45,6 +45,8 @@ spec:
     spec:
       serviceAccountName: router-resolver
       priorityClassName: infrastructure
+      nodeSelector:
+        preemptible: "true"
       tolerations:
        - key: preemptible
          value: "true"

@@ -664,7 +664,8 @@ object IRParser {
       case "ArrayRef" =>
         val a = ir_value_expr(env)(it)
         val i = ir_value_expr(env)(it)
-        ArrayRef(a, i)
+        val s = ir_value_expr(env)(it)
+        ArrayRef(a, i, s)
       case "ArrayLen" => ArrayLen(ir_value_expr(env)(it))
       case "ArrayRange" =>
         val start = ir_value_expr(env)(it)
@@ -932,12 +933,6 @@ object IRParser {
         val rt = type_expr(env.typEnv)(it)
         val args = ir_value_children(env)(it)
         invoke(function, rt, args: _*)
-      case "Uniroot" =>
-        val name = identifier(it)
-        val function = ir_value_expr(env + (name -> TFloat64()))(it)
-        val min = ir_value_expr(env)(it)
-        val max = ir_value_expr(env)(it)
-        Uniroot(name, function, min, max)
       case "TableCount" =>
         val child = table_ir(env.withRefMap(Map.empty))(it)
         TableCount(child)

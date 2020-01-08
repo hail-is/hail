@@ -14,6 +14,7 @@ import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
 
+import scala.collection.mutable
 import scala.util.matching.Regex
 
 abstract class TextReaderOptions {
@@ -274,6 +275,7 @@ object TextTableReader {
       }
 
     val sb = new StringBuilder
+    val categoryCounts = mutable.Map.empty[String, Int]
 
     val namesAndTypes = {
       if (impute) {
@@ -285,14 +287,17 @@ object TextTableReader {
           types.get(name) match {
             case Some(t) =>
               sb.append(s"\n  Loading column '$name' as type '$t' (user-specified)")
+              categoryCounts.updateValue(s"user-specified $t", 0, _ + 1)
               (name, t)
             case None =>
               imputedType match {
                 case Some(t) =>
                   sb.append(s"\n  Loading column '$name' as type '$t' (imputed)")
+                  categoryCounts.updateValue(s"imputed $t", 0, _ + 1)
                   (name, t)
                 case None =>
                   sb.append(s"\n  Loading column '$name' as type 'str' (no non-missing values for imputation)")
+                  categoryCounts.updateValue(s"str (no non-missing values for imputation)", 0, _ + 1)
                   (name, TString())
               }
           }
@@ -303,16 +308,28 @@ object TextTableReader {
           types.get(c) match {
             case Some(t) =>
               sb.append(s"  Loading column '$c' as type '$t' (user-specified)\n")
+              categoryCounts.updateValue(s"user-specified $t", 0, _ + 1)
               (c, t)
             case None =>
               sb.append(s"  Loading column '$c' as type 'str' (type not specified)\n")
+              categoryCounts.updateValue(s"str (type not specified)", 0, _ + 1)
               (c, TString())
           }
         }
       }
     }
 
-    info(sb.result())
+    if (namesAndTypes.length < 50)
+      info(sb.result())
+    else {
+      val countStrs = categoryCounts.toArray
+        .sortBy { case (_, n) => -n }
+        .map { case (category, n) => s"\n  $n ${ plural(n, "field") }: $category" }
+        .mkString("")
+
+      info(s"Loading ${ namesAndTypes.length } fields. Counts by type:$countStrs")
+      log.info(sb.result())
+    }
 
     val t = TableType(TStruct(namesAndTypes: _*), FastIndexedSeq(), TStruct())
     TextTableReaderMetadata(globbedFiles, header, t)

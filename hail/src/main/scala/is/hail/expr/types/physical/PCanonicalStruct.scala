@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations._
-import is.hail.asm4s.{???, Code, MethodBuilder}
+import is.hail.asm4s.{???, Code, MethodBuilder, const}
 import is.hail.expr.types.BaseStruct
 import is.hail.expr.types.virtual.{Field, TStruct, Type}
 import is.hail.utils._
@@ -264,4 +264,75 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     PCanonicalStruct(ab.result(), required)
   }
 
+
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
+    allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
+    assert(srcPType.isInstanceOf[PBaseStruct])
+
+    val sourceType = srcPType.asInstanceOf[PBaseStruct]
+
+    assert(sourceType.size == this.size)
+
+    if(this.types == sourceType.types) {
+      if(!forceDeep || allFieldsRequired) {
+        return this.copyFrom(mb, region, srcAddress)
+      }
+    }
+
+    val dstAddress = mb.newField[Long]
+    val numberOfElements = mb.newLocal[Int]
+    val currentField = mb.newLocal[Long]
+    val currentIdx = mb.newLocal[Int]
+
+    var c: Code[_] = Code(
+      dstAddress := this.allocate(region),
+      this.clearMissingBits(dstAddress),
+      currentIdx := const(0)
+    )
+
+    var loop: Code[Unit] = if (!sourceType.elementType.isPrimitive) {
+      // recurse
+      Region.storeAddress(
+        currentElementAddress,
+        this.elementType.copyFromType(
+          mb,
+          region,
+          sourceType.elementType,
+          sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx),
+          allowDowncast,
+          forceDeep
+        )
+      )
+    } else {
+      sourceType.elementType.storeShallowAtOffset(
+        currentElementAddress,
+        sourceType.loadElement(region, srcAddress, numberOfElements, currentIdx)
+      )
+    }
+
+    if(!sourceType.elementType.required && this.elementType.required) {
+      if (!allowDowncast) {
+        return Code._fatal("Downcast isn't allowed and source elementType isn't required")
+      }
+
+      c = Code(sourceType.hasMissingValues(srcAddress).orEmpty(
+        Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
+      ), c)
+    } else if(!this.elementType.required) {
+      loop = sourceType.isElementMissing(srcAddress, currentIdx).mux(
+        this.setElementMissing(dstAddress, currentIdx),
+        loop
+      )
+    }
+
+    Code(
+      c,
+      Code.whileLoop(currentIdx < numberOfElements,
+        loop,
+        currentElementAddress := this.nextElementAddress(currentElementAddress),
+        currentIdx := currentIdx + const(1)
+      ),
+      dstAddress
+    )
+  }
 }

@@ -1304,11 +1304,11 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
     key_field_name = '__key'
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
-    mt = mt._annotate_all(col_exprs=dict(**{y_field_name: y},
-                                         **dict(zip(cov_field_names, covariates))),
-                          row_exprs={weight_field_name: weight_expr,
-                                     key_field_name: key_expr},
-                          entry_exprs=entry_expr)
+    mt = mt._select_all(col_exprs=dict(**{y_field_name: y},
+                                       **dict(zip(cov_field_names, covariates))),
+                        row_exprs={weight_field_name: weight_expr,
+                                   key_field_name: key_expr},
+                        entry_exprs=entry_expr)
 
     config = {
         'name': 'Skat',

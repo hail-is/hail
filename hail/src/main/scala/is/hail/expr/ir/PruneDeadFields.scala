@@ -922,10 +922,12 @@ object PruneDeadFields {
       case MakeArray(args, _) =>
         val eltType = requestedType.asInstanceOf[TStreamable].elementType
         unifyEnvsSeq(args.map(a => memoizeValueIR(a, eltType, memo)))
-      case ArrayRef(a, i) =>
+      case ArrayRef(a, i, s) =>
         unifyEnvs(
           memoizeValueIR(a, a.typ.asInstanceOf[TStreamable].copyStreamable(requestedType), memo),
-          memoizeValueIR(i, i.typ, memo))
+          memoizeValueIR(i, i.typ, memo),
+          memoizeValueIR(s, s.typ, memo)
+        )
       case ArrayLen(a) =>
         memoizeValueIR(a, minimal(a.typ), memo)
       case ArrayMap(a, name, body) =>
@@ -1638,12 +1640,6 @@ object PruneDeadFields {
         val depStruct = requestedType.asInstanceOf[TStruct]
         val old2 = rebuildIR(old, env, memo)
         SelectFields(old2, fields.filter(f => old2.typ.asInstanceOf[TStruct].hasField(f) && depStruct.hasField(f)))
-      case Uniroot(argname, function, min, max) =>
-        assert(requestedType == TFloat64Optional)
-        Uniroot(argname,
-          rebuildIR(function, env.bindEval(argname -> TFloat64Optional), memo),
-          rebuildIR(min, env, memo),
-          rebuildIR(max, env, memo))
       case TableAggregate(child, query) =>
         val child2 = rebuild(child, memo)
         val query2 = rebuildIR(query, BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.rowEnv)), memo)

@@ -109,6 +109,8 @@ def test_ndarray_eval():
     nd_expr = hl.nd.array(data_list)
     evaled = hl.eval(nd_expr)
     np_equiv = np.array(data_list, dtype=np.int32)
+    np_equiv_fortran_style = np.asfortranarray(np_equiv)
+    np_equiv_extra_dimension = np_equiv.reshape((3, 1, 3))
     assert(np.array_equal(evaled, np_equiv))
     assert(evaled.strides == np_equiv.strides)
 
@@ -120,6 +122,10 @@ def test_ndarray_eval():
 
     assert np.array_equal(evaled_zero_array, zero_array)
     assert zero_array.dtype == evaled_zero_array.dtype
+
+    # Testing correct interpretation of numpy strides
+    assert np.array_equal(hl.eval(hl.literal(np_equiv_fortran_style)), np_equiv_fortran_style)
+    assert np.array_equal(hl.eval(hl.literal(np_equiv_extra_dimension)), np_equiv_extra_dimension)
 
     # Testing from hail arrays
     assert np.array_equal(hl.eval(hl.nd.array(hl.range(6))), np.arange(6))
@@ -423,6 +429,8 @@ def test_ndarray_matmul():
     np_broadcasted_mat = np.arange(4).reshape((1, 2, 2))
     np_six_dim_tensor = np.arange(3 * 7 * 1 * 9 * 4 * 5).reshape((3, 7, 1, 9, 4, 5))
     np_five_dim_tensor = np.arange(7 * 5 * 1 * 5 * 3).reshape((7, 5, 1, 5, 3))
+    np_ones_int32 = np.ones((4, 4), dtype=np.int32)
+    np_ones_float64 = np.ones((4, 4), dtype=np.float64)
 
     v = hl.nd.array(np_v)
     m = hl.nd.array(np_m)
@@ -432,6 +440,8 @@ def test_ndarray_matmul():
     broadcasted_mat = hl.nd.array(np_broadcasted_mat)
     six_dim_tensor = hl.nd.array(np_six_dim_tensor)
     five_dim_tensor = hl.nd.array(np_five_dim_tensor)
+    ones_int32 = hl.nd.array(np_ones_int32)
+    ones_float64 = hl.nd.array(np_ones_float64)
 
     assert_ndarrays_eq(
         (v @ v, np_v @ np_v),
@@ -455,6 +465,8 @@ def test_ndarray_matmul():
     assert hl.eval(hl.null(hl.tndarray(hl.tfloat64, 2)) @ hl.null(hl.tndarray(hl.tfloat64, 2))) is None
     assert hl.eval(hl.null(hl.tndarray(hl.tint64, 2)) @ hl.nd.array(np.arange(10).reshape(5, 2))) is None
     assert hl.eval(hl.nd.array(np.arange(10).reshape(5, 2)) @ hl.null(hl.tndarray(hl.tint64, 2))) is None
+
+    assert np.array_equal(hl.eval(ones_int32 @ ones_float64), np_ones_int32 @ np_ones_float64)
 
     with pytest.raises(ValueError):
         m @ 5

@@ -16,42 +16,6 @@ class MathFunctionsSuite extends HailSuite {
 
   val tfloat = TFloat64()
 
-  @Test def basicUnirootFunction() {
-    implicit val execStrats = ExecStrategy.javaOnly
-
-    val ir = Uniroot("x",
-      ApplyBinaryPrimOp(Add(), Ref("x", tfloat), F64(3)),
-      F64(-6), F64(0))
-
-    assertEvalsTo(ir, -3.0)
-  }
-
-  @Test def unirootWithExternalBinding() {
-    implicit val execStrats = ExecStrategy.javaOnly
-
-    val fn = ApplyBinaryPrimOp(Add(),
-      Ref("x", tfloat),
-      Ref("b", tfloat))
-    val ir = Let("b", F64(3),
-      Uniroot("x", fn, F64(-6), F64(0)))
-
-    assertEvalsTo(ir, -3.0)
-  }
-
-  @Test def unirootWithRegionManipulation() {
-    implicit val execStrats = ExecStrategy.javaOnly
-
-    def sum(array: IR): IR =
-      ArrayFold(array, F64(0), "sum", "i", ApplyBinaryPrimOp(Add(), Ref("sum", tfloat), Ref("i", tfloat)))
-    val fn = ApplyBinaryPrimOp(Add(),
-      sum(MakeArray(Seq(Ref("x", tfloat), Ref("x", tfloat)), TArray(tfloat))),
-      Ref("b", tfloat))
-    val ir = Let("b", F64(6),
-      Uniroot("x", fn, F64(-6), F64(0)))
-
-    assertEvalsTo(ir, -3.0)
-  }
-
   @Test def isnan() {
     implicit val execStrats = ExecStrategy.javaOnly
 
@@ -140,17 +104,6 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("entropy", TFloat64(), Str("aa")), 0.0)
     assertEvalsTo(invoke("entropy", TFloat64(), Str("ac")), 1.0)
     assertEvalsTo(invoke("entropy", TFloat64(), Str("accctg")), 1.7924812503605778)
-  }
-
-  @Test def unirootIsStrictInMinAndMax() {
-    implicit val execStrats = ExecStrategy.javaOnly
-
-    assertEvalsTo(
-      Uniroot("x", Ref("x", tfloat), F64(-6), NA(tfloat)),
-      null)
-    assertEvalsTo(
-      Uniroot("x", Ref("x", tfloat), NA(tfloat), F64(0)),
-      null)
   }
 
   @DataProvider(name = "chi_squared_test")

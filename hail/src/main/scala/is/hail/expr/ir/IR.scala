@@ -195,7 +195,12 @@ object MakeArray {
 
 final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
 final case class MakeStream(args: Seq[IR], _typ: TStream) extends IR
-final case class ArrayRef(a: IR, i: IR) extends IR
+
+object ArrayRef {
+  def apply(a: IR, i: IR): ArrayRef = ArrayRef(a, i, Str(""))
+}
+
+final case class ArrayRef(a: IR, i: IR, msg: IR) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR
 final case class StreamRange(start: IR, stop: IR, step: IR) extends IR
@@ -396,8 +401,6 @@ final case class Apply(function: String, args: Seq[IR], returnType: Type) extend
 final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, returnType: Type) extends AbstractApplyNode[SeededIRFunction]
 
 final case class ApplySpecial(function: String, args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithMissingness]
-
-final case class Uniroot(argname: String, function: IR, min: IR, max: IR) extends IR
 
 final case class TableCount(child: TableIR) extends IR
 final case class TableAggregate(child: TableIR, query: IR) extends IR

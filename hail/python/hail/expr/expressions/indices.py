@@ -73,4 +73,11 @@ class Aggregation(object):
         self.exprs = exprs
         from ..expressions import unify_all
         indices, agg = unify_all(*exprs)
+        self.nested = agg
         self.indices = indices
+
+    def agg_axes(self):
+        s = self.indices.axes.copy()
+        for a in self.nested:
+            s = s.union(a.agg_axes())
+        return s

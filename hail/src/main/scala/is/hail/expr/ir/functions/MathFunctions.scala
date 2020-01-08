@@ -79,24 +79,6 @@ object MathFunctions extends RegistryFunctions {
         D_==(x, y, tolerance)
     x == y || withinTol || (nanSame && x.isNaN && y.isNaN)
   }
-
-  def iruniroot(region: Region, irf: AsmFunction3[Region, Double, Boolean, Double], min: Double, max: Double): java.lang.Double = {
-    val f: Double => Double = irf(region, _, false)
-    if (!(min < max))
-      fatal(s"min must be less than max in call to uniroot, got: min $min, max $max")
-
-    val fmin = f(min)
-    val fmax = f(max)
-
-    if (fmin * fmax > 0.0)
-      fatal(s"sign of endpoints must have opposite signs, got: f(min) = $fmin, f(max) = $fmax")
-
-    val r = uniroot(f, min, max)
-    if (r.isEmpty)
-      null
-    else
-      r.get
-  }
   
   def irentropy(s: String): Double = entropy(s)
 

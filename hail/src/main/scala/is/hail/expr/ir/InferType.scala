@@ -73,8 +73,7 @@ object InferType {
         val argTypes = a.args.map(_.typ)
         a.implementation.unify(argTypes :+ a.returnType)
         a.returnType
-      case _: Uniroot => TFloat64()
-      case ArrayRef(a, i) =>
+      case ArrayRef(a, i, s) =>
         assert(i.typ.isOfType(TInt32()))
         coerce[TStreamable](a.typ).elementType.setRequired(a.typ.required && i.typ.required)
       case ArraySort(a, _, _, compare) =>

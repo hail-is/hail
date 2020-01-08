@@ -405,3 +405,14 @@ class Test(unittest.TestCase):
         b.submit()
         status = j.wait()
         assert j._get_exit_code(status, 'main') == 0, status
+
+    def test_port(self):
+        builder = self.client.create_batch()
+        j = builder.create_job('ubuntu:18.04', ['bash', '-c', '''
+echo $HAIL_BATCH_WORKER_PORT
+echo $HAIL_BATCH_WORKER_IP
+'''], port=5000)
+        b = builder.submit()
+        batch = b.wait()
+        print(j.log())
+        assert batch['state'] == 'success', batch

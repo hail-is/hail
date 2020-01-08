@@ -155,8 +155,9 @@ object TypeCheck {
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
           s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
         }
-      case x@ArrayRef(a, i) =>
+      case x@ArrayRef(a, i, s) =>
         assert(i.typ.isOfType(TInt32()))
+        assert(s.typ.isOfType(TString()))
         assert(x.typ == -coerce[TStreamable](a.typ).elementType)
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TStreamable])
@@ -217,7 +218,7 @@ object TypeCheck {
         assert(r.typ.isInstanceOf[TNDArray])
         val lType = l.typ.asInstanceOf[TNDArray]
         val rType = r.typ.asInstanceOf[TNDArray]
-        assert(lType.elementType == rType.elementType, "element type did not match")
+        assert(lType.elementType isOfType rType.elementType, "element type did not match")
         assert(lType.nDims > 0)
         assert(rType.nDims > 0)
         assert(lType.nDims == 1 || rType.nDims == 1 || lType.nDims == rType.nDims)
@@ -355,10 +356,6 @@ object TypeCheck {
       case x@ApplyIR(fn, args) =>
       case x: AbstractApplyNode[_] =>
         assert(x.implementation.unify(x.args.map(_.typ) :+ x.returnType))
-      case Uniroot(name, fn, min, max) =>
-        assert(fn.typ.isInstanceOf[TFloat64])
-        assert(min.typ.isInstanceOf[TFloat64])
-        assert(max.typ.isInstanceOf[TFloat64])
       case MatrixWrite(_, _) =>
       case MatrixMultiWrite(_, _) => // do nothing
       case x@TableAggregate(child, query) =>

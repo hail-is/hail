@@ -29,9 +29,8 @@ spec:
       labels:
         app: ukbb-rg-static
     spec:
-      tolerations:
-       - key: preemptible
-         value: "false"
+      nodeSelector:
+        preemptible: "false"
       containers:
        - name: ukbb-rg-static
          image: gcr.io/hail-vdc/ukbb-rg-static
@@ -76,9 +75,8 @@ spec:
       labels:
         app: ukbb-rg-browser
     spec:
-      tolerations:
-       - key: preemptible
-         value: "false"
+      nodeSelector:
+        preemptible: "false"
       containers:
        - name: ukbb-rg-browser
          image: gcr.io/hail-vdc/ukbb-rg-browser

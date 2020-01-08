@@ -3,6 +3,8 @@ kind: Pod
 metadata:
   name: test-apiserver
 spec:
+  nodeSelector:
+    preemptible: "true"
   tolerations:
    - key: preemptible
      value: "true"

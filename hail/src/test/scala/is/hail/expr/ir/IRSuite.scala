@@ -724,6 +724,30 @@ class IRSuite extends HailSuite {
     assertEvalsTo(If(True(), NA(TInt32()), I32(7)), null)
   }
 
+  @Test def testIfInferPType() {
+    assertPType(If(True(), In(0, PInt32(true)), In(1, PInt32(true))), PInt32(true))
+    assertPType(If(True(), In(0, PInt32(false)), In(1, PInt32(true))), PInt32(false))
+    assertPType(If(NA(TBoolean()), In(0, PInt32(true)), In(1, PInt32(true))), PInt32(false))
+
+    var cnsqBranch = In(0, PArray(PArray(PInt32(true), true), true))
+    var altrBranch = In(1, PArray(PArray(PInt32(true), true), true))
+
+    var ir = If(True(), cnsqBranch, altrBranch)
+    assertPType(ir, PArray(PArray(PInt32(true), true), true))
+
+    cnsqBranch = In(0, PArray(PArray(PInt32(true), true), true))
+    altrBranch = In(1, PArray(PArray(PInt32(false), true), true))
+
+    ir = If(True(), cnsqBranch, altrBranch)
+    assertPType(ir, PArray(PArray(PInt32(false), true), true))
+
+    cnsqBranch = In(0, PArray(PArray(PInt32(true), false), true))
+    altrBranch = In(1, PArray(PArray(PInt32(false), true), true))
+
+    ir = If(True(), cnsqBranch, altrBranch)
+    assertPType(ir, PArray(PArray(PInt32(false), false), true))
+  }
+
   @Test def testIfWithDifferentRequiredness() {
     val t = TStruct(true, "foo" -> TStruct("bar" -> TArray(TInt32Required, required = true)))
     val value = Row(Row(FastIndexedSeq(1, 2, 3)))
@@ -2408,7 +2432,6 @@ class IRSuite extends HailSuite {
       Die("mumblefoo", TFloat64()),
       invoke("&&", TBoolean(), b, c), // ApplySpecial
       invoke("toFloat64", TFloat64(), i), // Apply
-      Uniroot("x", F64(3.14), F64(-5.0), F64(5.0)),
       Literal(TStruct("x" -> TInt32()), Row(1)),
       TableCount(table),
       TableGetGlobals(table),
@@ -2785,68 +2808,6 @@ class IRSuite extends HailSuite {
       .bind("array" -> ((FastIndexedSeq(0), TArray(TInt32()))))
 
     assertEvalsTo(ir, FastIndexedSeq(true -> TBoolean(), FastIndexedSeq(0) -> TArray(TInt32())), FastIndexedSeq(0L))
-  }
-
-  @Test def setContainsSegfault(): Unit = {
-    hc // assert initialized
-    val irStr =
-      """
-        |(TableFilter
-        |  (TableMapRows
-        |    (TableKeyBy () False
-        |      (TableMapRows
-        |        (TableKeyBy () False
-        |          (TableMapRows
-        |            (TableRange 1 12)
-        |            (InsertFields
-        |              (Ref row)
-        |              None
-        |              (s
-        |                (Literal Set[String] "[\"foo\"]"))
-        |              (nested
-        |                (NA Struct{elt:String})))))
-        |        (InsertFields
-        |          (Ref row) None)))
-        |    (SelectFields (s nested)
-        |      (Ref row)))
-        |  (Let __uid_1
-        |    (If
-        |      (IsNA
-        |        (GetField s
-        |          (Ref row)))
-        |      (NA Boolean)
-        |      (Let __iruid_1
-        |        (LowerBoundOnOrderedCollection False
-        |          (GetField s
-        |            (Ref row))
-        |          (GetField elt
-        |            (GetField nested
-        |              (Ref row))))
-        |        (If
-        |          (ApplyComparisonOp EQ
-        |            (Ref __iruid_1)
-        |            (ArrayLen
-        |              (ToArray
-        |                (GetField s
-        |                  (Ref row)))))
-        |          (False)
-        |          (ApplyComparisonOp EQ
-        |            (ArrayRef
-        |              (ToArray
-        |                (GetField s
-        |                  (Ref row)))
-        |              (Ref __iruid_1))
-        |            (GetField elt
-        |              (GetField nested
-        |                (Ref row)))))))
-        |    (If
-        |      (IsNA
-        |        (Ref __uid_1))
-        |      (False)
-        |      (Ref __uid_1))))
-      """.stripMargin
-
-    Interpret(ir.IRParser.parse_table_ir(irStr), ctx, optimize = false).rvd.count()
   }
 
   @Test def testTableGetGlobalsSimplifyRules() {

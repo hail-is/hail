@@ -59,9 +59,9 @@ object Copy {
       case MakeStream(args, typ) =>
         assert(args.length == newChildren.length)
         MakeStream(newChildren.map(_.asInstanceOf[IR]), typ)
-      case ArrayRef(_, _) =>
-        assert(newChildren.length == 2)
-        ArrayRef(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
+      case ArrayRef(_, _, _) =>
+        assert(newChildren.length == 3)
+        ArrayRef(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
       case ArrayLen(_) =>
         assert(newChildren.length == 1)
         ArrayLen(newChildren(0).asInstanceOf[IR])
@@ -236,9 +236,6 @@ object Copy {
         ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed, t)
       case ApplySpecial(fn, args, t) =>
         ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]), t)
-      case Uniroot(argname, _, _, _) =>
-        assert(newChildren.length == 3)
-        Uniroot(argname, newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
       // from MatrixIR
       case MatrixWrite(_, writer) =>
         assert(newChildren.length == 1)

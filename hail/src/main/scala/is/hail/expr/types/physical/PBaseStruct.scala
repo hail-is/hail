@@ -46,7 +46,6 @@ abstract class PBaseStruct extends PType {
   val fields: IndexedSeq[PField]
 
   lazy val allFieldsRequired: Boolean = types.forall(_.required)
-
   lazy val fieldRequired: Array[Boolean] = types.map(_.required)
 
   lazy val fieldIdx: Map[String, Int] =
@@ -146,37 +145,33 @@ abstract class PBaseStruct extends PType {
   def byteOffsets: Array[Long]
 
   def allocate(region: Region): Long = {
-    region.allocate(alignment, this.byteSize)
+    region.allocate(alignment, byteSize)
   }
 
-  def allocate(region: Code[Region]): Code[Long] = region.allocate(alignment, this.byteSize)
+  def allocate(region: Code[Region]): Code[Long] = region.allocate(alignment, byteSize)
 
   def setAllMissing(off: Code[Long]): Code[Unit] = {
-    var c: Code[Unit] = Code._empty
-    var i = 0
-    while (i < nMissingBytes) {
-      c = Code(c, Region.storeByte(off + i.toLong, const(0xFF.toByte)))
-      i += 1
+    if(allFieldsRequired) {
+      return Code._empty
     }
-    c
+
+    Region.setMemory(off, const(nMissingBytes.toLong), const(0xFF.toByte))
   }
 
   def clearMissingBits(region: Region, off: Long) {
-    var i = 0
-    while (i < nMissingBytes) {
-      Region.storeByte(off + i, 0.toByte)
-      i += 1
+    if(allFieldsRequired) {
+      return
     }
+
+    Region.setMemory(off, nMissingBytes.toLong, 0.toByte)
   }
 
   def clearMissingBits(off: Code[Long]): Code[Unit] = {
-    var c: Code[Unit] = Code._empty
-    var i = 0
-    while (i < nMissingBytes) {
-      c = Code(c, Region.storeByte(off + i.toLong, const(0)))
-      i += 1
+    if(allFieldsRequired) {
+      return Code._empty
     }
-    c
+
+    Region.setMemory(off, const(nMissingBytes.toLong), const(0.toByte))
   }
 
   def clearMissingBits(region: Code[Region], off: Code[Long]): Code[Unit] =
@@ -267,7 +262,7 @@ abstract class PBaseStruct extends PType {
 
   def copyFrom(region: Region, srcOff: Long): Long = {
     val destOff = allocate(region)
-    Region.copyFrom(srcOff,  destOff, this.byteSize)
+    Region.copyFrom(srcOff,  destOff, byteSize)
     destOff
   }
 
@@ -281,88 +276,12 @@ abstract class PBaseStruct extends PType {
   }
 
   override def storeShallowAtOffset(destAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] = {
-    Region.copyFrom(srcAddress, destAddress, this.byteSize)
+    Region.copyFrom(srcAddress, destAddress, byteSize)
   }
 
   override def storeShallowAtOffset(destAddress: Long, srcAddress: Long) {
-    Region.copyFrom(srcAddress, destAddress, this.byteSize)
+    Region.copyFrom(srcAddress, destAddress, byteSize)
   }
-
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
-    allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-    assert(srcPType.isInstanceOf[PBaseStruct])
-
-    val sourceType = srcPType.asInstanceOf[PBaseStruct]
-
-    assert(sourceType.size == this.size)
-
-    val destTypes = this.types
-    val srcTypes = sourceType.types
-
-    if(this.types == sourceType.types) {
-      if(!forceDeep || this.types.forall(_.isPrimitive)) {
-        return this.copyFrom(mb, region, srcAddress)
-      }
-    }
-
-    val dstAddress = mb.newField[Long]
-    val numberOfElements = mb.newLocal[Int]
-    val currentElementAddress = mb.newLocal[Long]
-    val currentIdx = mb.newLocal[Int]
-
-    var c: Code[_] = Code(
-      dstAddress := this.allocate(region),
-      this.stagedInitialize(dstAddress, numberOfElements),
-      currentElementAddress := this.firstElementOffset(dstAddress, numberOfElements),
-      currentIdx := const(0)
-    )
-
-    var loop: Code[Unit] = if (!sourceType.elementType.isPrimitive) {
-      // recurse
-      Region.storeAddress(
-        currentElementAddress,
-        this.elementType.copyFromType(
-          mb,
-          region,
-          sourceType.elementType,
-          sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx),
-          allowDowncast,
-          forceDeep
-        )
-      )
-    } else {
-      sourceType.elementType.storeShallowAtOffset(
-        currentElementAddress,
-        sourceType.loadElement(region, srcAddress, numberOfElements, currentIdx)
-      )
-    }
-
-    if(!sourceType.elementType.required && this.elementType.required) {
-      if (!allowDowncast) {
-        return Code._fatal("Downcast isn't allowed and source elementType isn't required")
-      }
-
-      c = Code(sourceType.hasMissingValues(srcAddress).orEmpty(
-        Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
-      ), c)
-    } else if(!this.elementType.required) {
-      loop = sourceType.isElementMissing(srcAddress, currentIdx).mux(
-        this.setElementMissing(dstAddress, currentIdx),
-        loop
-      )
-    }
-
-    Code(
-      c,
-      Code.whileLoop(currentIdx < numberOfElements,
-        loop,
-        currentElementAddress := this.nextElementAddress(currentElementAddress),
-        currentIdx := currentIdx + const(1)
-      ),
-      dstAddress
-    )
-  }
-
 
   override def containsPointers: Boolean = types.exists(_.containsPointers)
 }

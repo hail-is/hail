@@ -1,4 +1,4 @@
-import sys
+import os
 import string
 import secrets
 import asyncio
@@ -6,7 +6,7 @@ from gear import Database
 
 
 async def main():
-    scope = sys.argv[1]
+    scope = os.environ['HAIL_SCOPE']
 
     worker_type = 'standard'
     if scope == 'deploy':

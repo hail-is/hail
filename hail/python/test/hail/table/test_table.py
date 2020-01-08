@@ -1018,6 +1018,22 @@ class Tests(unittest.TestCase):
         assert j.globals.dtype == hl.tstruct(glob1=hl.tint32, glob1_1=hl.tint32)
         j._force_count()
 
+    def test_join_with_filter_intervals(self):
+        ht = hl.utils.range_table(100, 5)
+        ht = ht.key_by(idx2=ht.idx // 2)
+
+        f1 = new_temp_file('ht')
+        f2 = new_temp_file('ht')
+
+        ht.write(f1)
+        ht.write(f2)
+
+        ht1 = hl.read_table(f1)
+        ht2 = hl.read_table(f2)
+
+        ht3 = ht1.join(ht2)
+        assert ht3.filter(ht3.idx2 == 10).count() == 4
+
     def test_key_by_aggregate_rewriting(self):
         ht = hl.utils.range_table(10)
         ht = ht.group_by(x=ht.idx % 5).aggregate(aggr = hl.agg.count())

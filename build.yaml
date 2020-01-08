@@ -73,6 +73,27 @@ steps:
    dependsOn:
     - base_image
  - kind: runImage
+   name: copy_files
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     cd /io
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+   outputs:
+     - from: /io/repo/auth/sql
+       to: /repo/auth/
+     - from: /io/repo/ci/sql
+       to: /repo/ci/
+     - from: /io/repo/batch/sql
+       to: /repo/batch/
+     - from: /io/repo/notebook/sql
+       to: /repo/notebook/
+   dependsOn:
+     - base_image
+ - kind: runImage
    name: check_gear
    image:
      valueFrom: service_base_image.image
@@ -84,21 +105,6 @@ steps:
      python3 -m pylint --rcfile pylintrc web_common
    dependsOn:
      - service_base_image
- - kind: runImage
-   name: copy_files
-   image:
-     valueFrom: base_image.image
-   script: |
-     set -ex
-     cd /io
-     mkdir repo
-     cd repo
-     {{ code.checkout_script }}
-   outputs:
-     - from: /io/repo/auth/delete-auth-tables.sql
-       to: /auth/
-   dependsOn:
-     - base_image
  - kind: createDatabase
    name: test_database_instance
    databaseName: test-instance
@@ -124,53 +130,43 @@ steps:
     - default_ns
     - base_image
     - test_database_instance
- - kind: createDatabase
-   name: auth_database
-   databaseName: auth
-   namespace:
-     valueFrom: default_ns.name
-   dependsOn:
-    - default_ns
- - kind: buildImage
-   name: create_auth_tables_image
-   dockerFile: auth/Dockerfile.create-tables
-   contextPath: auth
-   dependsOn:
-    - base_image
  - kind: runImage
-   name: cleanup_auth_tables
+   name: delete_auth_tables
    image:
-     valueFrom: base_image.image
+     valueFrom: service_base_image.image
    script: |
-     mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/delete-auth-tables.sql
-   scopes:
-     - dev
+     set -ex
+     mysql --defaults-extra-file=/database-server-config/sql-config.cnf < /io/sql/delete-auth-tables.sql
    inputs:
-    - from: /auth/delete-auth-tables.sql
+    - from: /repo/auth/sql
       to: /io/
    secrets:
     - name: database-server-config
       namespace:
         valueFrom: default_ns.name
-      mountPath: /sql-config
+      mountPath: /database-server-config
+   runIfRequested: true
+   scopes:
+    - dev
    dependsOn:
-     - default_ns
-     - base_image
-     - copy_files
- - kind: deploy
-   name: create_auth_tables
+    - default_ns
+    - service_base_image
+    - copy_files
+ - kind: createDatabase2
+   name: auth_database
+   databaseName: auth
+   migrations:
+    - name: initial
+      script: /io/sql/initial.sql
+   inputs:
+    - from: /repo/auth/sql
+      to: /io/
    namespace:
      valueFrom: default_ns.name
-   config: auth/create-auth-tables-pod.yaml
-   wait:
-    - kind: Pod
-      name: create-auth-tables
-      for: completed
-      timeout: 120
    dependsOn:
-     - default_ns
-     - create_auth_tables_image
-     - auth_database
+    - default_ns
+    - copy_files
+    - delete_auth_tables
  - kind: runImage
    name: create_deploy_config
    image:
@@ -311,7 +307,6 @@ steps:
     - deploy_default_admin_admin
     - auth_database
     - service_base_image
-    - create_auth_tables
     - create_deploy_config
  - kind: buildImage
    name: hail_build_image
@@ -730,89 +725,63 @@ steps:
     - create_session_key
     - deploy_router
     - auth_database
-    - create_auth_tables
     - auth_image
     - create_dummy_oauth2_client_secret
- - kind: createDatabase
+ - kind: runImage
+   name: delete_batch_tables
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     mysql --defaults-extra-file=/database-server-config/sql-config.cnf < /io/sql/delete-batch-tables.sql
+   inputs:
+    - from: /repo/batch/sql
+      to: /io/
+   secrets:
+    - name: database-server-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /database-server-config
+   runIfRequested: true
+   scopes:
+    - dev
+   dependsOn:
+    - default_ns
+    - service_base_image
+    - copy_files
+ - kind: createDatabase2
    name: ci_database
    databaseName: ci
+   migrations:
+    - name: initial
+      script: /io/sql/initial.sql
+   inputs:
+    - from: /repo/ci/sql
+      to: /io/
    namespace:
      valueFrom: default_ns.name
    dependsOn:
     - default_ns
- - kind: deploy
-   name: create_ci_tables
-   namespace:
-     valueFrom: default_ns.name
-   config: ci/create-ci-tables-pod.yaml
-   wait:
-    - kind: Pod
-      name: create-ci-tables
-      for: completed
-      timeout: 240
-   dependsOn:
-     - default_ns
-     - base_image
-     - ci_database
- - kind: createDatabase
+    - copy_files
+ - kind: createDatabase2
    name: batch_database
    databaseName: batch
+   migrations:
+    - name: initial
+      script: /io/sql/initial.sql
+    - name: insert-globals
+      script: /io/sql/insert_globals.py
+    - name: create-billing-projects
+      script: /io/sql/create-billing-projects.sql
+   inputs:
+    - from: /repo/batch/sql
+      to: /io/
    namespace:
      valueFrom: default_ns.name
    dependsOn:
     - default_ns
- - kind: buildImage
-   name: batch_tables_image
-   dockerFile: batch/Dockerfile.tables
-   contextPath: batch
-   dependsOn:
-    - service_base_image
- - kind: deploy
-   name: delete_batch_tables
-   namespace:
-     valueFrom: default_ns.name
-   config: batch/delete-batch-tables-pod.yaml
-   wait:
-    - kind: Pod
-      name: delete-batch-tables
-      for: completed
-      timeout: 120
-   scopes:
-     - dev
-   dependsOn:
-     - default_ns
-     - batch_tables_image
-     - batch_database
- - kind: deploy
-   name: create_batch_tables
-   namespace:
-     valueFrom: default_ns.name
-   config: batch/create-batch-tables-pod.yaml
-   wait:
-    - kind: Pod
-      name: create-batch-tables
-      for: completed
-      timeout: 120
-   dependsOn:
-     - default_ns
-     - batch_tables_image
-     - batch_database
-     - delete_batch_tables
- - kind: deploy
-   name: create_batch_tables_2
-   namespace:
-     valueFrom: default_ns.name
-   config: batch/create-batch-tables-pod.yaml
-   wait:
-    - kind: Pod
-      name: create-batch-tables
-      for: completed
-      timeout: 120
-   dependsOn:
-     - default_ns
-     - batch_tables_image
-     - batch_database
-     - create_batch_tables
+    - copy_files
+    - delete_batch_tables
  - kind: deploy
    name: deploy_batch
    namespace:
@@ -836,7 +805,6 @@ steps:
     - batch_worker_image
     - batch_database
     - deploy_auth
-    - create_batch_tables
  - kind: deploy
    name: test_batch
    namespace:
@@ -923,7 +891,6 @@ steps:
     - ci_utils_image
     - create_accounts
     - ci_database
-    - create_ci_tables
     - deploy_auth
     - deploy_batch
     - create_ci_test_repo
@@ -1048,33 +1015,20 @@ steps:
     - default_ns
     - deploy_router
     - hail_test_base_image
- - kind: createDatabase
+ - kind: createDatabase2
    name: notebook_database
    databaseName: notebook
+   migrations:
+    - name: initial
+      script: /io/sql/initial.sql
+   inputs:
+    - from: /repo/notebook/sql
+      to: /io/
    namespace:
      valueFrom: default_ns.name
    dependsOn:
     - default_ns
- - kind: buildImage
-   name: create_notebook_tables_image
-   dockerFile: notebook/Dockerfile.create-tables
-   contextPath: notebook
-   dependsOn:
-    - base_image
- - kind: deploy
-   name: create_notebook_tables
-   namespace:
-     valueFrom: default_ns.name
-   config: notebook/create-notebook-tables-pod.yaml
-   wait:
-    - kind: Pod
-      name: create-notebook-tables
-      for: completed
-      timeout: 120
-   dependsOn:
-     - default_ns
-     - create_notebook_tables_image
-     - notebook_database
+    - copy_files
  - kind: deploy
    name: deploy_notebook
    namespace:
@@ -1086,7 +1040,6 @@ steps:
     - notebook_image
     - deploy_router
     - deploy_auth
-    - create_notebook_tables
     - notebook_database
  - kind: deploy
    name: deploy_image_fetcher

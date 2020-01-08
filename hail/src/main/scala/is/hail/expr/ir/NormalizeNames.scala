@@ -195,9 +195,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           initOpArgs.map(a => normalize(a)),
           seqOpArgs.map(a => normalize(a, env.promoteScan)),
           aggSig)
-      case Uniroot(argname, function, min, max) =>
-        val newArgname = gen()
-        Uniroot(newArgname, normalize(function, env.bindEval(argname, newArgname)), normalize(min), normalize(max))
       case TableAggregate(child, query) =>
         TableAggregate(normalizeTable(child),
           normalizeIR(query, BindingEnv(child.typ.globalEnv, agg = Some(child.typ.rowEnv))

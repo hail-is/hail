@@ -442,14 +442,36 @@ class ArrayExpression(CollectionExpression):
         """
         if isinstance(item, slice):
             return self._slice(self.dtype, item.start, item.stop, item.step)
-        elif isinstance(item, str):
-            return CollectionExpression.__getitem__(self, item)
         item = to_expr(item)
         if not item.dtype == tint32:
             raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
                             "found expression of type '{}'".format(item._type))
         else:
-            return self._method("indexArray", self.dtype.element_type, item)
+            import traceback
+            stack = traceback.format_stack()
+            i = len(stack)
+            while i > 0:
+                candidate = stack[i - 1]
+                if 'IPython' in candidate:
+                    break
+                i -= 1
+            filt_stack = []
+
+            forbidden_phrases = [
+                '_ir_lambda_method',
+                'decorator.py',
+                'typecheck/check',
+                'interactiveshell.py',
+                'expressions.construct_variable',
+                'traceback.format_stack()'
+            ]
+            while i < len(stack):
+                candidate = stack[i]
+                i += 1
+                if any(phrase in candidate for phrase in forbidden_phrases):
+                    continue
+                filt_stack.append(candidate)
+            return self._method("indexArray", self.dtype.element_type, item, '\n'.join(filt_stack))
 
     @typecheck_method(item=expr_any)
     def contains(self, item):

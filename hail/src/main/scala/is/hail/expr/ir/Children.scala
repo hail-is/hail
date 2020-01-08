@@ -49,8 +49,8 @@ object Children {
       args.toFastIndexedSeq
     case MakeStream(args, typ) =>
       args.toFastIndexedSeq
-    case ArrayRef(a, i) =>
-      Array(a, i)
+    case ArrayRef(a, i, s) =>
+      Array(a, i, s)
     case ArrayLen(a) =>
       Array(a)
     case ArrayRange(start, stop, step) =>
@@ -158,8 +158,6 @@ object Children {
       args.toFastIndexedSeq
     case ApplySpecial(_, args, _) =>
       args.toFastIndexedSeq
-    case Uniroot(_, fn, min, max) =>
-      Array(fn, min, max)
     // from MatrixIR
     case MatrixWrite(child, _) => Array(child)
     case MatrixMultiWrite(children, _) => children

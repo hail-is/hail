@@ -2859,6 +2859,8 @@ class Tests(unittest.TestCase):
     def test_uniroot(self):
         tol = 1.220703e-4
 
+        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, hl.null('float'), tolerance=tol)), None)
+        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, hl.null('float'), 3, tolerance=tol)), None)
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3, tolerance=tol)), 1)
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: hl.log(x) - 1, 0, 3, tolerance=tol)), 2.718281828459045, delta=tol)
 
@@ -3230,10 +3232,6 @@ class Tests(unittest.TestCase):
         assert hl.eval(a["b"]["inner"]) == [[1, 2], [3]]
         assert hl.eval(a.b["inner"]) == [[1, 2], [3]]
 
-        self.assertRaises(AttributeError, lambda: hl.array([1,2,3]).a)
-        self.assertRaises(AttributeError, lambda: hl.array([1,2,3])["a"])
-        self.assertRaises(AttributeError, lambda: hl.array([[1],[2],[3]])["a"])
-        self.assertRaises(AttributeError, lambda: hl.array([{1},{2},{3}])["a"])
 
     def test_binary_search(self):
         a = hl.array([0, 2, 4, 8])
