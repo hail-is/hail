@@ -428,25 +428,22 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       currentIdx := const(0)
     )
 
-    var loop: Code[Unit] = if (!sourceType.elementType.isPrimitive) {
-      // recurse
-      Region.storeAddress(
+    var loop: Code[Unit] =
+      this.elementType.storeShallowAtOffset(
         currentElementAddress,
-        this.elementType.copyFromType(
-          mb,
-          region,
-          sourceType.elementType,
-          sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx),
-          allowDowncast,
-          forceDeep
-        )
+        if (sourceType.elementType.isPrimitive) {
+          sourceType.loadElement(region, srcAddress, numberOfElements, currentIdx)
+        } else {
+          this.elementType.copyFromType(
+            mb,
+            region,
+            sourceType.elementType,
+            sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx),
+            allowDowncast,
+            forceDeep
+          )
+        }
       )
-    } else {
-      sourceType.elementType.storeShallowAtOffset(
-        currentElementAddress,
-        sourceType.loadElement(region, srcAddress, numberOfElements, currentIdx)
-      )
-    }
 
     if(this.elementType.required > sourceType.elementType.required) {
       if (!allowDowncast) {
