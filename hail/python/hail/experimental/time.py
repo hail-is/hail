@@ -15,7 +15,7 @@ def strftime(format, time, zone_id):
     --------
 
     >>> hl.eval(hl.experimental.strftime("%Y.%m.%d %H:%M:%S %z", 1562569201, "America/New_York"))
-    "2019.07.08 03:00:01 America/New_York"
+    "2019.07.08 03:00:01 -04:00"
 
     >>> hl.eval(hl.experimental.strftime("%A, %B %e, %Y. %r", 876541523, "GMT+2"))
     "Saturday, October 11, 1997. 05:45:23 AM"
@@ -42,6 +42,11 @@ def strftime(format, time, zone_id):
         A long representing the time as a Unix timestamp.
     zone_id: str or :class:`.Expression` of type :py:data:`.tstr`
         An id representing the timezone. See notes above.
+
+    Returns
+    -------
+    :class:`StringExpression`
+        A string of the specified format based on the requested time.
     """
     return _func("strftime", hl.tstr, format, time, zone_id)
 
@@ -82,5 +87,10 @@ def strptime(time, format, zone_id):
         The format string describing how to parse the time.
     zone_id: str or :class:`.Expression` of type :py:data:`.tstr`
         An id representing the timezone. See notes above.
+
+    Returns
+    -------
+    :class:`Int64Expression`
+        The Unix timestamp associated with the given time string.
     """
     return _func("strptime", hl.tint64, time, format, zone_id)
