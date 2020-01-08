@@ -13,6 +13,7 @@ import is.hail.expr.types.virtual.Type
 
 import scala.collection.mutable.ArrayBuffer
 import is.hail.utils.richUtils.RichDenseMatrixDouble
+import org.apache.spark.sql.Row
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 
 import scala.collection.immutable.NumericRange
@@ -498,6 +499,67 @@ case class BlockMatrixFilter(
       bm.filter(rowIndices, colIndices)
     }
   }
+}
+
+case class BlockMatrixDensify(child: BlockMatrixIR) extends BlockMatrixIR {
+  def typ: BlockMatrixType = child.typ
+
+  def blockCostIsLinear: Boolean = child.blockCostIsLinear
+
+  val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR = {
+    val IndexedSeq(newChild: BlockMatrixIR) = newChildren
+    BlockMatrixDensify(newChild)
+  }
+
+  override def execute(ctx: ExecuteContext): BlockMatrix =
+    child.execute(ctx).densify()
+}
+
+sealed abstract class BlockMatrixSparsifier {
+  def sparsify(ctx: ExecuteContext, bm: BlockMatrix, value: IR): BlockMatrix
+}
+
+case class BandSparsifier(blocksOnly: Boolean) extends BlockMatrixSparsifier {
+  def sparsify(ctx: ExecuteContext, bm: BlockMatrix, value: IR): BlockMatrix = {
+    val Row(l: Long, u: Long) = CompileAndEvaluate[Row](ctx, value, optimize = true)
+    bm.filterBand(l, u, blocksOnly)
+  }
+}
+
+case class RowIntervalSparsifier(blocksOnly: Boolean) extends BlockMatrixSparsifier {
+  def sparsify(ctx: ExecuteContext, bm: BlockMatrix, value: IR): BlockMatrix = {
+    val Row(starts: IndexedSeq[Int], stops: IndexedSeq[Int]) = CompileAndEvaluate[Row](ctx, value, optimize = true)
+    bm.filterRowIntervals(starts.map(_.toLong).toArray, stops.map(_.toLong).toArray, blocksOnly)
+  }
+}
+
+case object RectangleSparsifier extends BlockMatrixSparsifier {
+  def sparsify(ctx: ExecuteContext, bm: BlockMatrix, value: IR): BlockMatrix = {
+    val rectangles = CompileAndEvaluate[IndexedSeq[Long]](ctx, value, optimize = true)
+    bm.filterRectangles(rectangles.toArray)
+  }
+}
+
+case class BlockMatrixSparsify(
+  child: BlockMatrixIR,
+  value: IR,
+  sparsifier: BlockMatrixSparsifier
+) extends BlockMatrixIR {
+  def typ: BlockMatrixType = child.typ
+
+  def blockCostIsLinear: Boolean = child.blockCostIsLinear
+
+  val children: IndexedSeq[BaseIR] = Array(child, value)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR = {
+    val IndexedSeq(newChild: BlockMatrixIR, newValue: IR) = newChildren
+    BlockMatrixSparsify(newChild, newValue, sparsifier)
+  }
+
+  override def execute(ctx: ExecuteContext): BlockMatrix =
+    sparsifier.sparsify(ctx, child.execute(ctx), value)
 }
 
 case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[Long]]) extends BlockMatrixIR {
