@@ -933,12 +933,14 @@ def nirvana(dataset: Union[MatrixTable, Table], config, block_size=500000, name=
 
 
 class _VariantSummary(object):
-    def __init__(self, rg, n_variants, alleles_per_variant, variants_per_contig, allele_types):
+    def __init__(self, rg, n_variants, alleles_per_variant, variants_per_contig, allele_types, nti, ntv):
         self.rg = rg
         self.n_variants = n_variants
         self.alleles_per_variant = alleles_per_variant
         self.variants_per_contig = variants_per_contig
         self.allele_types = allele_types
+        self.nti = nti
+        self.ntv = ntv
 
     def __repr__(self):
         return self.__str__()
@@ -976,7 +978,12 @@ class _VariantSummary(object):
         builder.append('Allele type distribution')
         builder.append('------------------------')
         for allele_type, count in Counter(self.allele_types).most_common():
-            builder.append(f'  {allele_type_formatter % allele_type}: {count} alternate alleles')
+            summary = f'  {allele_type_formatter % allele_type}: {count} alternate alleles'
+            if allele_type == 'SNP':
+                nti = self.nti
+                ntv = self.ntv
+                summary += f' (Ti: {nti}, Tv: {ntv}, ratio: {nti / ntv:.2f})'
+            builder.append(summary)
         builder.append(line_break)
         return '\n'.join(builder)
 
@@ -1008,6 +1015,15 @@ class _VariantSummary(object):
             builder.append(f'<td>{html.escape(allele_type)}</td>')
             builder.append(f'<td>{count}</td>')
             builder.append(f'</tr>')
+        builder.append('</tbody></table>')
+        builder.append('</li>')
+
+        builder.append(f'<li><p>Transitions/Transversions:</p>')
+        builder.append('<table><thead style="font-weight: bold;">')
+        builder.append('<tr><th>Metric</th><th>Value</th></tr></thead><tbody>')
+        builder.append(f'<tr><td>Transitions</td><td>{self.nti}</td></tr>')
+        builder.append(f'<tr><td>Transversions</td><td>{self.ntv}</td></tr>')
+        builder.append(f'<tr><td>Ratio</td><td>{self.nti / self.ntv:.2f}</td></tr>')
         builder.append('</tbody></table>')
         builder.append('</li>')
 
@@ -1062,7 +1078,7 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
     Notes
     -----
     The result returned if `show` is ``False`` is a  :class:`.Struct` with
-    four fields:
+    five fields:
 
     - `n_variants` (:obj:`int`): Number of variants present in the matrix table.
     - `allele_types` (:obj:`Dict[str, int]`): Number of alternate alleles in
@@ -1070,6 +1086,8 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
     - `contigs` (:obj:`Dict[str, int]`): Number of variants on each contig.
     - `allele_counts` (:obj:`Dict[int, int]`): Number of variants broken down
       by number of alleles (biallelic is 2, for example).
+    - `r_ti_tv` (:obj:`float`): Ratio of transition alternate alleles to
+      transversion alternate alleles.
 
     Returns
     -------
@@ -1081,15 +1099,22 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
         ht = mt.rows()
     else:
         ht = mt
-    alleles_per_variant = hl.range(1, hl.len(ht.alleles)).map(lambda i: hl.allele_type(ht.alleles[0], ht.alleles[i]))
-    allele_types, contigs, allele_counts, n_variants = ht.aggregate(
-        (hl.agg.explode(lambda elt: hl.agg.counter(elt), alleles_per_variant),
+    allele_pairs = hl.range(1, hl.len(ht.alleles)).map(lambda i: (ht.alleles[0], ht.alleles[i]))
+
+    def explode_result(alleles):
+        ref, alt = alleles
+        return hl.agg.counter(hl.allele_type(ref, alt)), \
+               hl.agg.count_where(hl.is_transition(ref, alt)), \
+               hl.agg.count_where(hl.is_transversion(ref, alt))
+
+    (allele_types, nti, ntv), contigs, allele_counts, n_variants = ht.aggregate(
+        (hl.agg.explode(explode_result, allele_pairs),
          hl.agg.counter(ht.locus.contig),
          hl.agg.counter(hl.len(ht.alleles)),
          hl.agg.count()))
     rg = ht.locus.dtype.reference_genome
     if show:
-        summary = _VariantSummary(rg, n_variants, allele_counts, contigs, allele_types)
+        summary = _VariantSummary(rg, n_variants, allele_counts, contigs, allele_types, nti, ntv)
         if handler is None:
             handler = hl.utils.default_handler()
         handler(summary)
@@ -1097,4 +1122,5 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
         return hl.Struct(allele_types=allele_types,
                          contigs=contigs,
                          allele_counts=allele_counts,
-                         n_variants=n_variants)
+                         n_variants=n_variants,
+                         r_ti_tv=nti / ntv)
