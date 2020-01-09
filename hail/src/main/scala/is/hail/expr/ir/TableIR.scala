@@ -1761,11 +1761,48 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
     val prev = child.execute(ctx)
     val prevRDD = prev.rvd
 
-    prevRDD.mapPartitionsWithIndex { ... =>
+    prevRDD.mapPartitionsWithIndex { (int, ctx, it) =>
+      val partRegion = ctx.freshRegion
 
+      new Iterator[RegionValue] {
+        var current: RegionValue = _
+        var isEnd = false
+
+        override def hasNext: Boolean = {
+          if (isEnd || current == null && !it.hasNext) {
+            isEnd = true
+            return false
+          }
+          if (current == null)
+            current = it.next()
+          true
+        }
+
+        override def next(): RegionValue = {
+          if (!hasNext)
+            throw new java.util.NoSuchElementException()
+
+          val region = current.region
+          val pointerArray = Array()
+          var i = 1
+          do {
+            val nextOffset = it.next().offset
+            pointerArray :+ nextOffset
+            if (i % n == 0 || !hasNext) {
+              val rvb = new RegionValueBuilder(partRegion)
+              ???
+              i = 1
+            }
+            else {
+              i += 1
+            }
+          } while (hasNext)
+
+        }
+      }
     }
 
-    TableValue(ctx, ???, ???, ???)
+    ???
   }
 }
 
