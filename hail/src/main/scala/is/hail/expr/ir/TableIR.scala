@@ -1759,6 +1759,11 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
 
   override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
+    val prevRDD = prev.rvd
+
+    prevRDD.mapPartitionsWithIndex { ... =>
+
+    }
 
     TableValue(ctx, ???, ???, ???)
   }
