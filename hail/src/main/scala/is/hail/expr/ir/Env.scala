@@ -38,6 +38,7 @@ case class BindingEnv[V](
     copy(eval = eval.bindIterable(bindings))
 
   def deleteEval(name: String): BindingEnv[V] = copy(eval = eval.delete(name))
+  def deleteEval(names: IndexedSeq[String]) : BindingEnv[V] = copy(eval = eval.delete(names))
 
   def bindAgg(name: String, v: V): BindingEnv[V] =
     copy(agg = Some(agg.get.bind(name, v)))

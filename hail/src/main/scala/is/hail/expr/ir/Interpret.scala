@@ -342,6 +342,27 @@ object Interpret {
             interpret(body, env.bind(name, element), args)
           }
         }
+      case ArrayZip(as, names, body, behavior) =>
+        val aValues = as.map(interpret(_, env, args).asInstanceOf[IndexedSeq[_]])
+        if (aValues.contains(null))
+          null
+        else {
+          val len = behavior match {
+            case ArrayZipBehavior.AssertSameLength | ArrayZipBehavior.AssumeSameLength =>
+              val lengths = aValues.map(_.length).toSet
+              if (lengths.size != 1)
+                fatal(s"zip: length mismatch: ${ lengths.mkString(", ") }")
+              lengths.head
+            case ArrayZipBehavior.TakeMinLength =>
+              aValues.map(_.length).min
+            case ArrayZipBehavior.ExtendNA =>
+              aValues.map(_.length).max
+          }
+          (0 until len).map { i =>
+            val e = env.bindIterable(names.zip(aValues.map(a => if (i >= a.length) null else a.apply(i))))
+            interpret(body, e, args)
+          }
+        }
       case ArrayFilter(a, name, cond) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)

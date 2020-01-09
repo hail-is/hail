@@ -107,19 +107,10 @@ object ArrayFunctions extends RegistryFunctions {
 
       registerIR(stringOp, TArray(argType), TArray(argType), TArray(retType)) { (array1, array2) =>
         val a1id = genUID()
-        val a1 = Ref(a1id, array1.typ)
+        val e1 = Ref(a1id, -coerce[TStreamable](array1.typ).elementType)
         val a2id = genUID()
-        val a2 = Ref(a2id, array2.typ)
-        val iid = genUID()
-        val i = Ref(iid, TInt32())
-        val body =
-          ArrayMap(ArrayRange(I32(0), ArrayLen(a1), I32(1)), iid,
-            irOp(ArrayRef(a1, i), ArrayRef(a2, i)))
-        val guarded =
-          If(ApplyComparisonOp(EQ(TInt32()), ArrayLen(a1), ArrayLen(a2)),
-            body,
-            Die("Arrays must have same length", body.typ))
-        Let(a1id, array1, Let(a2id, array2, guarded))
+        val e2 = Ref(a2id, -coerce[TStreamable](array2.typ).elementType)
+        ArrayZip(FastIndexedSeq(array1, array2), FastIndexedSeq(a1id, a2id), irOp(e1, e2), ArrayZipBehavior.AssertSameLength)
       }
     }
 

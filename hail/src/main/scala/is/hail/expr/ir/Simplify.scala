@@ -141,6 +141,8 @@ object Simplify {
 
     case x@ArrayMap(NA(_), _, _) => NA(x.typ)
 
+    case ArrayZip(as, names, body, _) if as.length == 1 => ArrayMap(as.head, names.head, body)
+
     case x@ArrayFlatMap(NA(_), _, _) => NA(x.typ)
 
     case x@ArrayFilter(NA(_), _, _) => NA(x.typ)

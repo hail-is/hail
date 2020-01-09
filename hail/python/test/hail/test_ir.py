@@ -67,6 +67,7 @@ class ValueIRTests(unittest.TestCase):
             ir.LowerBoundOnOrderedCollection(a, i, True),
             ir.GroupByKey(da),
             ir.ArrayMap(a, 'v', v),
+            ir.ArrayZip([a, a], ['a', 'b'], ir.TrueIR(), 'ExtendNA'),
             ir.ArrayFilter(a, 'v', v),
             ir.ArrayFlatMap(aa, 'v', v),
             ir.ArrayFold(a, ir.I32(0), 'x', 'v', v),

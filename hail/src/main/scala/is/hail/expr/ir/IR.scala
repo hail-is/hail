@@ -1,10 +1,11 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.Annotation
+import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.functions._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.io.{BufferSpec, AbstractTypedCodecSpec}
+import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
 import is.hail.utils.{FastIndexedSeq, _}
 
 import scala.language.existentials
@@ -237,6 +238,18 @@ final case class GroupByKey(collection: IR) extends IR
 final case class ArrayMap(a: IR, name: String, body: IR) extends IR {
   override def typ: TStreamable = coerce[TStreamable](super.typ)
   def elementTyp: Type = typ.elementType
+}
+
+object ArrayZipBehavior extends Enumeration {
+  type ArrayZipBehavior = Value
+  val AssumeSameLength: Value = Value(0)
+  val AssertSameLength: Value = Value(1)
+  val TakeMinLength: Value = Value(2)
+  val ExtendNA: Value = Value(3)
+}
+
+final case class ArrayZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior) extends IR {
+  override def typ: TStreamable = coerce[TStreamable](super.typ)
 }
 final case class ArrayFilter(a: IR, name: String, cond: IR) extends IR {
   override def typ: TStreamable = coerce[TStreamable](super.typ)

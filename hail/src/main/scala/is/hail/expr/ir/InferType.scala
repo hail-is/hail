@@ -97,6 +97,7 @@ object InferType {
         TDict(elt.types(0), TArray(elt.types(1)), collection.typ.required)
       case ArrayMap(a, name, body) =>
         coerce[TStreamable](a.typ).copyStreamable(body.typ.setRequired(false))
+      case ArrayZip(as, _, body, _) => as.head.typ.asInstanceOf[TStreamable].copyStreamable(body.typ, false)
       case ArrayFilter(a, name, cond) =>
         a.typ
       case ArrayFlatMap(a, name, body) =>

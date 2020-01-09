@@ -4,8 +4,8 @@ import is.hail.utils._
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
 import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.TStream
 import is.hail.annotations.{Region, RegionValue, StagedRegionValueBuilder}
+import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 
 import scala.language.existentials
 import scala.reflect.ClassTag
@@ -21,6 +21,146 @@ object EmitStream {
 
   def stepIf[A, S, X](k: Step[A, S] => Code[X], c: Code[Boolean], a: A, s: S): Code[X] =
     c.mux(k(Yield(a, s)), k(EOS))
+
+  def zip[P](
+    streams: IndexedSeq[Parameterized[P, EmitTriplet]],
+    behavior: ArrayZipBehavior,
+    f: (IndexedSeq[EmitTriplet], EmitTriplet => Code[Ctrl]) => Code[Ctrl]
+  ): Parameterized[P, EmitTriplet] = new Parameterized[P, EmitTriplet] {
+    type S = IndexedSeq[_]
+    implicit val stateP: ParameterPack[S] = ParameterPack.array(streams.map(_.stateP))
+
+    def emptyState: IndexedSeq[_] = streams.map(_.emptyState)
+
+    override def length(s0: IndexedSeq[_]): Option[Code[Int]] = behavior match {
+      case ArrayZipBehavior.AssertSameLength =>
+        streams.zip(s0)
+          .map { case (stream, state) => stream.length(state.asInstanceOf[stream.S]) }
+          .reduce[Option[Code[Int]]] {
+            case (Some(l1), Some(l2)) => Some((l1.cne(l2).mux(Code._fatal(const("zip: length mismatch: ")
+              .concat(l1.toS).concat(", ").concat(l2.toS)), l1)))
+            case _ => None
+          }
+      case ArrayZipBehavior.TakeMinLength =>
+        streams.zip(s0)
+          .map { case (stream, state) => stream.length(state.asInstanceOf[stream.S]) }
+          .reduce[Option[Code[Int]]] {
+            case (Some(l1), Some(l2)) => Some((l1 < l2).mux(l1, l2))
+            case _ => None
+          }
+      case ArrayZipBehavior.ExtendNA =>
+        streams.zip(s0)
+          .map { case (stream, state) => stream.length(state.asInstanceOf[stream.S]) }
+          .reduce[Option[Code[Int]]] {
+            case (Some(l1), Some(l2)) => Some((l1 > l2).mux(l1, l2))
+            case _ => None
+          }
+      case ArrayZipBehavior.AssumeSameLength =>
+        streams.zip(s0)
+          .flatMap { case (stream, state) => stream.length(state.asInstanceOf[stream.S]) }
+          .headOption
+    }
+
+    def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(
+      k: Init[S] => Code[Ctrl]
+    ): Code[Ctrl] = {
+      val missing = jb.joinPoint()
+      missing.define { _ => k(Missing) }
+
+      def loop(i: Int, ab: ArrayBuilder[Any]): Code[Ctrl] = {
+        if (i == streams.length)
+          k(Start(ab.result(): IndexedSeq[_]))
+        else
+          streams(i).init(mb, jb, param) {
+            case Missing => missing(())
+            case Start(s) =>
+              ab += s
+              loop(i + 1, ab)
+          }
+      }
+
+      loop(0, new ArrayBuilder)
+    }
+
+    def step(mb: MethodBuilder, jb: JoinPointBuilder, state: IndexedSeq[_])(k: Step[EmitTriplet, S] => Code[Ctrl]): Code[Ctrl] = {
+      behavior match {
+        case ArrayZipBehavior.AssertSameLength =>
+          val anyEOS = mb.newLocal[Boolean]
+          val allEOS = mb.newLocal[Boolean]
+          val labels = (0 to streams.size).map(_ => jb.joinPoint())
+
+          val ab = new ArrayBuilder[(EmitTriplet, Any)]
+          labels.indices.foreach { i =>
+            if (i == streams.size) {
+              val abr = ab.result()
+              val elts = abr.map(_._1)
+              val ss = abr.map(_._2)
+              labels(i).define(_ => anyEOS.mux(
+                allEOS.mux(
+                  k(EOS),
+                  Code._fatal("zip: length mismatch")),
+                f(elts, { b => k(Yield(b, ss)) })))
+            } else {
+              val streamI = streams(i)
+              labels(i).define(_ => streamI.step(mb, jb, state(i).asInstanceOf[streamI.S]) {
+                case EOS =>
+                  Code(anyEOS := true, labels(i + 1)(()))
+                case Yield(elt, s) =>
+                  ab += ((elt, s))
+                  Code(allEOS := false, labels(i + 1)(()))
+              })
+            }
+          }
+          Code(anyEOS := false, allEOS := true, labels(0)(()))
+        case ArrayZipBehavior.TakeMinLength | ArrayZipBehavior.AssumeSameLength =>
+          def loop(i: Int, ab: ArrayBuilder[(EmitTriplet, Any)]): Code[Ctrl] = {
+            if (i == streams.length) {
+              val abr = ab.result()
+              val elts = abr.map(_._1)
+              val ss = abr.map(_._2)
+              f(elts, { b => k(Yield(b, ss)) })
+            } else {
+              val streamI = streams(i)
+              streamI.step(mb, jb, state(i).asInstanceOf[streamI.S]) {
+                case Yield(elt, s) =>
+                  ab += ((elt, s))
+                  loop(i + 1, ab)
+                case EOS => k(EOS)
+              }
+            }
+          }
+
+          loop(0, new ArrayBuilder)
+
+        case ArrayZipBehavior.ExtendNA =>
+          val allEOS = mb.newLocal[Boolean]
+          val missing = streams.map(_ => mb.newLocal[Boolean])
+          val labels = (0 to streams.size).map(_ => jb.joinPoint())
+
+          val ab = new ArrayBuilder[(Code[_], Any)]
+          labels.indices.foreach { i =>
+            if (i == streams.size) {
+              val abr = ab.result()
+              val elts = missing.zip(abr).map { case (m, (v, _)) => EmitTriplet(Code._empty, m, v) }
+              val ss = abr.map(_._2)
+              labels(i).define(_ => allEOS.mux(
+                k(EOS),
+                f(elts, { b => k(Yield(b, ss)) })))
+            } else {
+              val streamI = streams(i)
+              labels(i).define(_ => streamI.step(mb, jb, state(i).asInstanceOf[streamI.S]) {
+                case EOS =>
+                  Code(missing(i) := true, labels(i + 1)(()))
+                case Yield(elt, s) =>
+                  ab += ((elt.v, s))
+                  Code(allEOS := false, elt.setup, missing(i) := elt.m, labels(i + 1)(()))
+              })
+            }
+          }
+          Code(allEOS := true, labels(0)(()))
+      }
+    }
+  }
 
   trait Parameterized[-P, +A] { self =>
     type S
@@ -426,6 +566,32 @@ object EmitStream {
               bodyt.m,
               bodyt.v)
           }
+
+        case ArrayZip(as, names, body, behavior) =>
+          val streams = as.map(emitStream(_, env))
+          val childEltTypes = as.map(_.pType.asInstanceOf[PStreamable].elementType)
+
+          EmitStream.zip[Any](streams, behavior, { (xs, k) =>
+            val mv = names.zip(childEltTypes).map { case (name, t) =>
+              val ti = typeToTypeInfo(t)
+              val eltm = fb.newField[Boolean](name + "_missing")
+              val eltv = fb.newField(name)(ti)
+              (t, ti, eltm, eltv)
+            }
+            val bodyt = emitIR(body,
+              env.bindIterable(names.zip(mv.map { case (_, ti, m, v) => (ti, m.load(), v.load()) })))
+            k(EmitTriplet(
+              Code(xs.zip(mv).foldLeft[Code[Unit]](Code._empty[Unit]) { case (acc, (et, (t, ti, m, v))) =>
+                Code(acc,
+                  et.setup,
+                  m := et.m,
+                  v.storeAny(m.mux(defaultValue(t), et.v)))
+              },
+                bodyt.setup),
+              bodyt.m,
+              bodyt.v)
+            )
+          })
 
         case ArrayFilter(childIR, name, condIR) =>
           val childEltType = childIR.pType.asInstanceOf[PStreamable].elementType

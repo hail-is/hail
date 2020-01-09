@@ -998,6 +998,42 @@ class ArrayMap(IR):
             return {}
 
 
+class ArrayZip(IR):
+    @typecheck_method(arrays=sequenceof(IR), names=sequenceof(str), body=IR, behavior=str)
+    def __init__(self, arrays, names, body, behavior):
+        super().__init__(*arrays, body)
+        self.arrays = arrays
+        self.names = names
+        self.body = body
+        self.behavior = behavior
+
+    @typecheck_method(children=IR)
+    def copy(self, *children):
+        return ArrayZip(children[:-1], self.names, children[-1], self.behavior)
+
+    def head_str(self):
+        return escape_id(self.behavior) + ' ({})'.format(' '.join(map(escape_id, self.names)))
+
+    def _eq(self, other):
+        return self.names == other.names and self.behavior == other.behavior
+
+    @property
+    def bound_variables(self):
+        return set(self.names) | super().bound_variables
+
+    def _compute_type(self, env, agg_env):
+        for a in self.arrays:
+            a._compute_type(env, agg_env)
+        self.body._compute_type(_env_bind(env, self.bindings(len(self.names))), agg_env)
+        self._type = tarray(self.body.typ)
+
+    def renderable_bindings(self, i, default_value=None):
+        if i == len(self.names):
+            return {name: default_value or a.typ.element_type for name, a in zip(self.names, self.arrays)}
+        else:
+            return {}
+
+
 class ArrayFilter(IR):
     @typecheck_method(a=IR, name=str, body=IR)
     def __init__(self, a, name, body):

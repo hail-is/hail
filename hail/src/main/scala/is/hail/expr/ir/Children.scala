@@ -79,6 +79,8 @@ object Children {
       Array(collection)
     case ArrayMap(a, name, body) =>
       Array(a, body)
+    case ArrayZip(as, names, body, _) =>
+      as ++ Array(body)
     case ArrayFilter(a, name, cond) =>
       Array(a, cond)
     case ArrayFlatMap(a, name, body) =>

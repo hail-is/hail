@@ -17,6 +17,7 @@ object Bindings {
       args.map { case (name, ir) => name -> ir.typ } :+
         name -> TTuple(TTuple(args.map(_._2.typ): _*), body.typ) else empty
     case ArrayMap(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
+    case ArrayZip(as, names, _, _) => if (i == as.length) names.zip(as.map(a => -coerce[TStreamable](a.typ).elementType)) else empty
     case ArrayFor(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayFlatMap(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayFilter(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty

@@ -109,6 +109,9 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
       case ArrayMap(a, name, body) =>
         val newName = gen()
         ArrayMap(normalize(a), newName, normalize(body, env.bindEval(name, newName)))
+      case ArrayZip(as, names, body, behavior) =>
+        val newNames = names.map(_ => gen())
+        ArrayZip(as.map(normalize(_)), newNames, normalize(body, env.bindEval(names.zip(newNames): _*)), behavior)
       case ArrayFilter(a, name, body) =>
         val newName = gen()
         ArrayFilter(normalize(a), newName, normalize(body, env.bindEval(name, newName)))
