@@ -20,3 +20,4 @@ DROP TABLE IF EXISTS `tokens`;
 DROP TABLE IF EXISTS `billing_project_users`;
 DROP TABLE IF EXISTS `billing_projects`;
 DROP TABLE IF EXISTS `batch_migration_version`;
+DROP TABLE IF EXISTS `batch_migrations`;

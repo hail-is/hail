@@ -25,6 +25,7 @@ from ..google_compute import GServices
 
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
+from .k8s_cache import K8sCache
 
 # uvloop.install()
 
@@ -411,6 +412,10 @@ async def on_startup(app):
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()
     app['k8s_client'] = k8s_client
+
+    k8s_cache = K8sCache(k8s_client, refresh_time=5)
+    await k8s_cache.async_init()
+    app['k8s_cache'] = k8s_cache
 
     db = Database()
     await db.async_init()
