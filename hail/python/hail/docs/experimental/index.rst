@@ -85,3 +85,5 @@ Functions
 .. autofunction:: separate
 .. autofunction:: spread
 .. autofunction:: full_outer_join_mt
+.. autofunction:: strftime
+.. autofunction:: strptime

@@ -173,16 +173,24 @@ abstract class PBaseStruct extends PType {
     Region.copyFrom(srcAddress, destAddress, byteSize)
   }
 
-  def setAllMissing(off: Code[Long]): Code[Unit] = {
-    if(allFieldsRequired) {
+  def initialize(structAddress: Long, setMissing: Boolean = false): Unit = {
+    if (allFieldsRequired) {
+      return
+    }
+
+    Region.setMemory(structAddress, nMissingBytes.toLong, if (setMissing) 0xFF.toByte else 0.toByte)
+  }
+
+  def stagedInitialize(structAddress: Code[Long], setMissing: Boolean = false): Code[Unit] = {
+    if (allFieldsRequired) {
       return Code._empty
     }
 
-    Region.setMemory(off, const(nMissingBytes.toLong), const(0xFF.toByte))
+    Region.setMemory(structAddress, const(nMissingBytes.toLong), const(if (setMissing) 0xFF.toByte else 0.toByte))
   }
 
   def clearMissingBits(region: Region, off: Long) {
-    if(allFieldsRequired) {
+    if (allFieldsRequired) {
       return
     }
 
@@ -190,7 +198,7 @@ abstract class PBaseStruct extends PType {
   }
 
   def clearMissingBits(off: Code[Long]): Code[Unit] = {
-    if(allFieldsRequired) {
+    if (allFieldsRequired) {
       return Code._empty
     }
 
