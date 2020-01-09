@@ -279,15 +279,18 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
 
     val dstStructAddress = mb.newField[Long]
     val dstFieldAddress = mb.newField[Long]
+//    val srcFieldAddress = mb.newField[Long]
 
     var c: Code[_] = Code(
-      dstStructAddress := this.allocate(region)
+      dstStructAddress := this.allocate(region),
+      this.stagedInitialize(dstStructAddress)
     )
 
     var i = 0
     while(i < this.size) {
       val dstField = this.fields(i)
       val srcField = sourceType.fields(i)
+
 
       assert((dstField.typ isOfType srcField.typ) && (dstField.name == srcField.name))
 
@@ -300,19 +303,19 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
       } else if(!srcField.typ.required) {
         c = Code(c, sourceType.isFieldMissing(srcStructAddress, i).mux(
           this.setFieldMissing(dstStructAddress, i),
-          this.storeShallowAtOffset(
+          dstField.typ.storeShallowAtOffset(
             dstFieldAddress,
             if(srcField.typ.isPrimitive) {
               sourceType.loadField(srcStructAddress, i)
             } else {
-              dstField.typ.copyFromType(
-                mb,
-                region,
-                srcField.typ,
-                sourceType.loadField(srcStructAddress, i),
-                allowDowncast,
-                forceDeep
-              )
+                dstField.typ.copyFromType(
+                  mb,
+                  region,
+                  srcField.typ,
+                  sourceType.loadField(srcStructAddress, i),
+                  allowDowncast,
+                  forceDeep
+                )
             }
           )
         ))
