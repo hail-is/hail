@@ -202,8 +202,8 @@ class ArrayFunctionsSuite extends HailSuite {
 
   @Test(dataProvider = "arrayOpsOperations")
   def arrayOpsDifferentLength(s: String, f: (Int, Int) => Int) {
-    assertFatal(invoke(s, TArray(TInt32()), IRArray(1, 2, 3), IRArray(1, 2)), "Arrays must have same length")
-    assertFatal(invoke(s, TArray(TInt32()), IRArray(1, 2), IRArray(1, 2, 3)), "Arrays must have same length")
+    assertFatal(invoke(s, TArray(TInt32()), IRArray(1, 2, 3), IRArray(1, 2)), "length mismatch")
+    assertFatal(invoke(s, TArray(TInt32()), IRArray(1, 2), IRArray(1, 2, 3)), "length mismatch")
   }
 
   @Test def indexing() {
