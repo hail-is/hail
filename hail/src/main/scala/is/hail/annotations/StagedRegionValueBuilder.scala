@@ -189,7 +189,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     if (t.size > 0)
       c = Code(c, elementsOffset := startOffset + t.byteOffsets(0))
     if (init)
-      c = Code(c, t.clearMissingBits(region, startOffset))
+      c = Code(c, t.stagedInitialize(startOffset))
     c
   }
 
