@@ -648,6 +648,41 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
+        t = hl.Table.parallelize([
+            {"cohort": None, "pop": "EUR", "GT": hl.Call([0, 0])},
+            {"cohort": None, "pop": "ASN", "GT": hl.Call([0, 1])},
+            {"cohort": None, "pop": None, "GT": hl.Call([0, 0])},
+            {"cohort": "SIGMA", "pop": "AFR", "GT": hl.Call([0, 1])},
+            {"cohort": "SIGMA", "pop": "EUR", "GT": hl.Call([1, 1])},
+            {"cohort": "IBD", "pop": "EUR", "GT": None},
+            {"cohort": "IBD", "pop": "EUR", "GT": hl.Call([0, 0])},
+            {"cohort": "IBD", "pop": None, "GT": hl.Call([0, 1])}
+        ], hl.tstruct(cohort=hl.tstr, pop=hl.tstr, GT=hl.tcall), n_partitions=3)
+
+        r = t.aggregate(hl.struct(count=hl.agg.group_by(t.cohort, hl.agg.group_by(t.pop, hl.agg.count_where(hl.is_defined(t.GT)))),
+                                  inbreeding=hl.agg.group_by(t.cohort, hl.agg.inbreeding(t.GT, 0.1))))
+
+        expected_count = {None: {'EUR': 1, 'ASN': 1, None: 1},
+                          'SIGMA': {'AFR': 1, 'EUR': 1},
+                          'IBD': {'EUR': 1, None: 1}}
+
+        self.assertEqual(r.count, expected_count)
+
+        self.assertAlmostEqual(r.inbreeding[None].f_stat, -0.8518518518518517)
+        self.assertEqual(r.inbreeding[None].n_called, 3)
+        self.assertAlmostEqual(r.inbreeding[None].expected_homs, 2.46)
+        self.assertEqual(r.inbreeding[None].observed_homs, 2)
+
+        self.assertAlmostEqual(r.inbreeding['SIGMA'].f_stat, -1.777777777777777)
+        self.assertEqual(r.inbreeding['SIGMA'].n_called, 2)
+        self.assertAlmostEqual(r.inbreeding['SIGMA'].expected_homs, 1.64)
+        self.assertEqual(r.inbreeding['SIGMA'].observed_homs, 1)
+
+        self.assertAlmostEqual(r.inbreeding['IBD'].f_stat, -1.777777777777777)
+        self.assertEqual(r.inbreeding['IBD'].n_called, 2)
+        self.assertAlmostEqual(r.inbreeding['IBD'].expected_homs, 1.64)
+        self.assertEqual(r.inbreeding['IBD'].observed_homs, 1)
+
     def test_agg_group_by_on_call(self):
         t = hl.utils.range_table(10)
         t = t.annotate(call = hl.call(0, 0), x = 1)
@@ -1020,42 +1055,6 @@ class Tests(unittest.TestCase):
         result = result[0].info
         self.assertAlmostEqual(result.score, -0.235041090, places=3)
         self.assertEqual(result.n_included, 8)
-
-    def test_aggregator_group_by(self):
-        t = hl.Table.parallelize([
-            {"cohort": None, "pop": "EUR", "GT": hl.Call([0, 0])},
-            {"cohort": None, "pop": "ASN", "GT": hl.Call([0, 1])},
-            {"cohort": None, "pop": None, "GT": hl.Call([0, 0])},
-            {"cohort": "SIGMA", "pop": "AFR", "GT": hl.Call([0, 1])},
-            {"cohort": "SIGMA", "pop": "EUR", "GT": hl.Call([1, 1])},
-            {"cohort": "IBD", "pop": "EUR", "GT": None},
-            {"cohort": "IBD", "pop": "EUR", "GT": hl.Call([0, 0])},
-            {"cohort": "IBD", "pop": None, "GT": hl.Call([0, 1])}
-        ], hl.tstruct(cohort=hl.tstr, pop=hl.tstr, GT=hl.tcall), n_partitions=3)
-
-        r = t.aggregate(hl.struct(count=hl.agg.group_by(t.cohort, hl.agg.group_by(t.pop, hl.agg.count_where(hl.is_defined(t.GT)))),
-                                  inbreeding=hl.agg.group_by(t.cohort, hl.agg.inbreeding(t.GT, 0.1))))
-
-        expected_count = {None: {'EUR': 1, 'ASN': 1, None: 1},
-                    'SIGMA': {'AFR': 1, 'EUR': 1},
-                    'IBD': {'EUR': 1, None: 1}}
-
-        self.assertEqual(r.count, expected_count)
-
-        self.assertAlmostEqual(r.inbreeding[None].f_stat, -0.8518518518518517)
-        self.assertEqual(r.inbreeding[None].n_called, 3)
-        self.assertAlmostEqual(r.inbreeding[None].expected_homs, 2.46)
-        self.assertEqual(r.inbreeding[None].observed_homs, 2)
-
-        self.assertAlmostEqual(r.inbreeding['SIGMA'].f_stat, -1.777777777777777)
-        self.assertEqual(r.inbreeding['SIGMA'].n_called, 2)
-        self.assertAlmostEqual(r.inbreeding['SIGMA'].expected_homs, 1.64)
-        self.assertEqual(r.inbreeding['SIGMA'].observed_homs, 1)
-
-        self.assertAlmostEqual(r.inbreeding['IBD'].f_stat, -1.777777777777777)
-        self.assertEqual(r.inbreeding['IBD'].n_called, 2)
-        self.assertAlmostEqual(r.inbreeding['IBD'].expected_homs, 1.64)
-        self.assertEqual(r.inbreeding['IBD'].observed_homs, 1)
 
     def test_aggregator_group_by_sorts_result(self):
         t = hl.Table.parallelize([ # the `s` key is stored before the `m` in java.util.HashMap
