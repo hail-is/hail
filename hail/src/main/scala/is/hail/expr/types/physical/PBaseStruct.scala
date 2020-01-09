@@ -149,12 +149,12 @@ abstract class PBaseStruct extends PType {
 
   def allocate(region: Code[Region]): Code[Long] = region.allocate(alignment, byteSize)
 
-  def setAllMissing(off: Code[Long]): Code[Unit] = {
+  def stagedInitialize(structAddress: Code[Long], allMissing: Boolean = false): Code[Unit] = {
     if(allFieldsRequired) {
       return Code._empty
     }
 
-    Region.setMemory(off, const(nMissingBytes.toLong), const(0xFF.toByte))
+    Region.setMemory(structAddress, const(nMissingBytes.toLong), const(if(allMissing) 0xFF.toByte else 0.toByte))
   }
 
   def clearMissingBits(region: Region, off: Long) {
