@@ -150,6 +150,29 @@ abstract class PBaseStruct extends PType {
 
   def allocate(region: Code[Region]): Code[Long] = region.allocate(alignment, byteSize)
 
+  def copyFrom(region: Region, srcOff: Long): Long = {
+    val destOff = allocate(region)
+    Region.copyFrom(srcOff,  destOff, byteSize)
+    destOff
+  }
+
+  def copyFrom(mb: MethodBuilder, region: Code[Region], srcOff: Code[Long]): Code[Long] = {
+    val destOff = mb.newField[Long]
+    Code(
+      destOff := allocate(region),
+      this.storeShallowAtOffset(srcOff,  destOff),
+      destOff
+    )
+  }
+
+  override def storeShallowAtOffset(destAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] = {
+    Region.copyFrom(srcAddress, destAddress, byteSize)
+  }
+
+  override def storeShallowAtOffset(destAddress: Long, srcAddress: Long) {
+    Region.copyFrom(srcAddress, destAddress, byteSize)
+  }
+
   def setAllMissing(off: Code[Long]): Code[Unit] = {
     if(allFieldsRequired) {
       return Code._empty
@@ -229,11 +252,11 @@ abstract class PBaseStruct extends PType {
   def setFieldPresent(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Unit] =
     setFieldPresent(offset, fieldIdx)
 
-  def fieldOffset(offset: Long, fieldIdx: Int): Long =
-    offset + byteOffsets(fieldIdx)
+  def fieldOffset(structAddress: Long, fieldIdx: Int): Long =
+    structAddress + byteOffsets(fieldIdx)
 
-  def fieldOffset(offset: Code[Long], fieldIdx: Int): Code[Long] =
-    offset + byteOffsets(fieldIdx)
+  def fieldOffset(structAddress: Code[Long], fieldIdx: Int): Code[Long] =
+    structAddress + byteOffsets(fieldIdx)
 
   def loadField(rv: RegionValue, fieldIdx: Int): Long = loadField(rv.region, rv.offset, fieldIdx)
 
@@ -258,29 +281,6 @@ abstract class PBaseStruct extends PType {
       case _: PArray | _: PBinary => Region.loadAddress(fieldOffset)
       case _ => fieldOffset
     }
-  }
-
-  def copyFrom(region: Region, srcOff: Long): Long = {
-    val destOff = allocate(region)
-    Region.copyFrom(srcOff,  destOff, byteSize)
-    destOff
-  }
-
-  def copyFrom(mb: MethodBuilder, region: Code[Region], srcOff: Code[Long]): Code[Long] = {
-    val destOff = mb.newField[Long]
-    Code(
-      destOff := allocate(region),
-      this.storeShallowAtOffset(srcOff,  destOff),
-      destOff
-    )
-  }
-
-  override def storeShallowAtOffset(destAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] = {
-    Region.copyFrom(srcAddress, destAddress, byteSize)
-  }
-
-  override def storeShallowAtOffset(destAddress: Long, srcAddress: Long) {
-    Region.copyFrom(srcAddress, destAddress, byteSize)
   }
 
   override def containsPointers: Boolean = types.exists(_.containsPointers)

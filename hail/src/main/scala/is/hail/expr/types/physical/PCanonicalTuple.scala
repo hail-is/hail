@@ -3,6 +3,7 @@ import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s.{Code, MethodBuilder}
 import is.hail.expr.types.BaseStruct
 import is.hail.utils._
+import is.hail.asm4s._
 
 object PCanonicalTuple {
   def apply(required: Boolean, args: PType*): PTuple = PCanonicalTuple(args.iterator.zipWithIndex.map { case (t, i) => PTupleField(i, t)}.toIndexedSeq, required)
@@ -38,4 +39,7 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
     else
       PCanonicalTuple(fundamentalFieldTypes, required)
   }
+
+    def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
+      allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = const(1L)
 }

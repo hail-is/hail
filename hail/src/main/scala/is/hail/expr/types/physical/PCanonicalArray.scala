@@ -420,7 +420,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val currentElementAddress = mb.newLocal[Long]
     val currentIdx = mb.newLocal[Int]
 
-    var c: Code[_] = Code(
+    var c = Code(
       numberOfElements := sourceType.loadLength(srcAddress),
       dstAddress := this.allocate(region, numberOfElements),
       this.stagedInitialize(dstAddress, numberOfElements),
@@ -432,7 +432,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       this.elementType.storeShallowAtOffset(
         currentElementAddress,
         if (sourceType.elementType.isPrimitive) {
-          sourceType.loadElement(region, srcAddress, numberOfElements, currentIdx)
+          sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx)
         } else {
           this.elementType.copyFromType(
             mb,
@@ -446,9 +446,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       )
 
     if(this.elementType.required > sourceType.elementType.required) {
-      if (!allowDowncast) {
-        return Code._fatal("Downcast isn't allowed and source elementType isn't required")
-      }
+      assert(allowDowncast)
 
       c = Code(sourceType.hasMissingValues(srcAddress).orEmpty(
         Code._fatal("Found missing values. Cannot copy to type whose elements are required.")

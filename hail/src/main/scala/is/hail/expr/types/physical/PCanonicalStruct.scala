@@ -52,13 +52,12 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   }
 
   val missingIdx = new Array[Int](size)
+  // sets missingIdx indices
   val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
   val nMissingBytes = (nMissing + 7) >>> 3
   val byteOffsets = new Array[Long](size)
   override val byteSize: Long = PBaseStruct.getContentsByteSizeAndSetOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PBaseStruct.alignment(types)
-
-  def copyFrom(fields: IndexedSeq[PField] = this.fields, required: Boolean = this.required): PStruct = PCanonicalStruct(fields, required)
 
   def copy(fields: IndexedSeq[PField] = this.fields, required: Boolean = this.required): PStruct = PCanonicalStruct(fields, required)
 
@@ -264,8 +263,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     PCanonicalStruct(ab.result(), required)
   }
 
-
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcStructAddress: Code[Long],
     allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
     assert(srcPType.isInstanceOf[PBaseStruct])
 
@@ -274,65 +272,55 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     assert(sourceType.size == this.size)
 
     if(this.types == sourceType.types) {
-      if(!forceDeep || allFieldsRequired) {
-        return this.copyFrom(mb, region, srcAddress)
+      if(!forceDeep || types.forall(_.isPrimitive)) {
+        return this.copyFrom(mb, region, srcStructAddress)
       }
     }
 
-    val dstAddress = mb.newField[Long]
-    val numberOfElements = mb.newLocal[Int]
-    val currentField = mb.newLocal[Long]
-    val currentIdx = mb.newLocal[Int]
+    val dstStructAddress = mb.newField[Long]
+    val dstFieldAddress = mb.newField[Long]
 
     var c: Code[_] = Code(
-      dstAddress := this.allocate(region),
-      this.clearMissingBits(dstAddress),
-      currentIdx := const(0)
+      dstStructAddress := this.allocate(region)
     )
 
-    var loop: Code[Unit] = if (!sourceType.elementType.isPrimitive) {
-      // recurse
-      Region.storeAddress(
-        currentElementAddress,
-        this.elementType.copyFromType(
-          mb,
-          region,
-          sourceType.elementType,
-          sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx),
-          allowDowncast,
-          forceDeep
-        )
-      )
-    } else {
-      sourceType.elementType.storeShallowAtOffset(
-        currentElementAddress,
-        sourceType.loadElement(region, srcAddress, numberOfElements, currentIdx)
-      )
-    }
+    var i = 0
+    while(i < this.size) {
+      val dstField = this.fields(i)
+      val srcField = sourceType.fields(i)
 
-    if(!sourceType.elementType.required && this.elementType.required) {
-      if (!allowDowncast) {
-        return Code._fatal("Downcast isn't allowed and source elementType isn't required")
+      assert((dstField.typ isOfType srcField.typ) && (dstField.name == srcField.name))
+
+      if(dstField.typ.required > srcField.typ.required) {
+        assert(allowDowncast)
+
+        c = Code(c, this.isFieldMissing(srcStructAddress, i).orEmpty(
+          Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
+        ))
+      } else if(!srcField.typ.required) {
+        c = Code(c, sourceType.isFieldMissing(srcStructAddress, i).mux(
+          this.setFieldMissing(dstStructAddress, i),
+          this.storeShallowAtOffset(
+            dstFieldAddress,
+            if(srcField.typ.isPrimitive) {
+              sourceType.loadField(srcStructAddress, i)
+            } else {
+              dstField.typ.copyFromType(
+                mb,
+                region,
+                srcField.typ,
+                sourceType.loadField(srcStructAddress, i),
+                allowDowncast,
+                forceDeep
+              )
+            }
+          )
+        ))
       }
 
-      c = Code(sourceType.hasMissingValues(srcAddress).orEmpty(
-        Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
-      ), c)
-    } else if(!this.elementType.required) {
-      loop = sourceType.isElementMissing(srcAddress, currentIdx).mux(
-        this.setElementMissing(dstAddress, currentIdx),
-        loop
-      )
+      i += 1
     }
 
-    Code(
-      c,
-      Code.whileLoop(currentIdx < numberOfElements,
-        loop,
-        currentElementAddress := this.nextElementAddress(currentElementAddress),
-        currentIdx := currentIdx + const(1)
-      ),
-      dstAddress
-    )
+    Code(c, dstStructAddress)
   }
 }
