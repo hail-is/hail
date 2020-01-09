@@ -507,11 +507,12 @@ class RVD(
           )
         idx -> nDrop
     }
+    assert(nDrop < Int.MaxValue)
 
     val newRDD = crdd.cmapPartitionsAndContextWithIndex({ case (i, ctx, f) =>
       val it = f.next()(ctx)
       if (i == idxFirst) {
-        (0 until nDrop).foreach { _ =>
+        (0 until nDrop.toInt).foreach { _ =>
           ctx.region.clear()
           assert(it.hasNext)
           it.next()
