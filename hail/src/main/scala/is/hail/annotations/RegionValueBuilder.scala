@@ -109,7 +109,7 @@ class RegionValueBuilder(var region: Region) {
     indexstk.push(0)
 
     if (init)
-      t.clearMissingBits(region, off)
+      t.initialize(off)
   }
 
   def endBaseStruct() {

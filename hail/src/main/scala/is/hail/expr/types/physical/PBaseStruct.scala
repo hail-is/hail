@@ -149,32 +149,21 @@ abstract class PBaseStruct extends PType {
 
   def allocate(region: Code[Region]): Code[Long] = region.allocate(alignment, byteSize)
 
-  def setAllMissing(off: Code[Long]): Code[Unit] = {
-    if(allFieldsRequired) {
-      return Code._empty
-    }
-
-    Region.setMemory(off, const(nMissingBytes.toLong), const(0xFF.toByte))
-  }
-
-  def clearMissingBits(region: Region, off: Long) {
-    if(allFieldsRequired) {
+  def initialize(structAddress: Long, setMissing: Boolean = false): Unit = {
+    if (allFieldsRequired) {
       return
     }
 
-    Region.setMemory(off, nMissingBytes.toLong, 0.toByte)
+    Region.setMemory(structAddress, nMissingBytes.toLong, if (setMissing) 0xFF.toByte else 0.toByte)
   }
 
-  def clearMissingBits(off: Code[Long]): Code[Unit] = {
-    if(allFieldsRequired) {
+  def stagedInitialize(structAddress: Code[Long], setMissing: Boolean = false): Code[Unit] = {
+    if (allFieldsRequired) {
       return Code._empty
     }
 
-    Region.setMemory(off, const(nMissingBytes.toLong), const(0.toByte))
+    Region.setMemory(structAddress, const(nMissingBytes.toLong), const(if (setMissing) 0xFF.toByte else 0.toByte))
   }
-
-  def clearMissingBits(region: Code[Region], off: Code[Long]): Code[Unit] =
-    clearMissingBits(off)
 
   def isFieldDefined(rv: RegionValue, fieldIdx: Int): Boolean =
     isFieldDefined(rv.region, rv.offset, fieldIdx)

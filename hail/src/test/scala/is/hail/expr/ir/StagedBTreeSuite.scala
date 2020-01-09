@@ -24,7 +24,7 @@ class TestBTreeKey(mb: EmitMethodBuilder) extends BTreeKey {
 
   def storeKey(off: Code[Long], m: Code[Boolean], v: Code[Long]): Code[Unit] =
     Code(
-      storageType.clearMissingBits(off),
+      storageType.stagedInitialize(off),
       m.mux(
         storageType.setFieldMissing(off, 0),
         Region.storeLong(storageType.fieldOffset(off, 0), v)))
