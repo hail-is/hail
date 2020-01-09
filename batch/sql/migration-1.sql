@@ -196,8 +196,6 @@ BEGIN
   DECLARE cur_instance_state VARCHAR(40);
   SET delta_cores_mcpu = IFNULL(delta_cores_mcpu, 0);
 
-  START TRANSACTION;
-
   SET attempt_exists = EXISTS (SELECT * FROM attempts
                                WHERE batch_id = in_batch_id AND
                                  job_id = in_job_id AND attempt_id = in_attempt_id
@@ -211,7 +209,6 @@ BEGIN
       SET delta_cores_mcpu = -1 * in_cores_mcpu;
     END IF;
   END IF;
-  COMMIT;
 END $$
 
 DROP PROCEDURE IF EXISTS schedule_job;
