@@ -266,7 +266,7 @@ async def job_config(app, record, attempt_id):
 
         token_secret_name = sa.secrets[0].name
 
-        secret = await k8s_cache.read_namespaced_secret(
+        secret = await k8s_cache.read_secret(
             token_secret_name, namespace, KUBERNETES_TIMEOUT_IN_SECONDS)
 
         token = base64.b64decode(secret.data['token']).decode()
