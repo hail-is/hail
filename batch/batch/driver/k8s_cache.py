@@ -51,5 +51,5 @@ class K8sCache:
                     del self.service_accounts[id]
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
-            except:
+            except:  # pylint: disable=bare-except
                 log.exception(f'error while cleaning up the k8s cache')
