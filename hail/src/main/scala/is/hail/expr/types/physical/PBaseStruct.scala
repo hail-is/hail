@@ -151,26 +151,26 @@ abstract class PBaseStruct extends PType {
   def allocate(region: Code[Region]): Code[Long] =
     region.allocate(alignment, byteSize)
 
-  def copyFrom(region: Region, srcOff: Long): Long = {
-    val destOff = allocate(region)
-    this.storeShallowAtOffset(srcOff,  destOff)
-    destOff
+  def copyFrom(region: Region, srcAddress: Long): Long = {
+    val destAddress = this.allocate(region)
+    this.storeShallowAtOffset(destAddress, srcAddress)
+    destAddress
   }
 
-  def copyFrom(mb: MethodBuilder, region: Code[Region], srcOff: Code[Long]): Code[Long] = {
-    val destOff = mb.newField[Long]
+  def copyFrom(mb: MethodBuilder, region: Code[Region], srcAddress: Code[Long]): Code[Long] = {
+    val destAddress = mb.newField[Long]
     Code(
-      destOff := allocate(region),
-      this.storeShallowAtOffset(srcOff,  destOff),
-      destOff
+      destAddress := this.allocate(region),
+      this.storeShallowAtOffset(destAddress, srcAddress),
+      destAddress
     )
   }
 
   override def storeShallowAtOffset(destAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] =
-    Region.copyFrom(srcAddress, destAddress, byteSize)
+    Region.copyFrom(srcAddress, destAddress, this.byteSize)
 
   override def storeShallowAtOffset(destAddress: Long, srcAddress: Long) {
-    Region.copyFrom(srcAddress, destAddress, byteSize)
+    Region.copyFrom(srcAddress, destAddress, this.byteSize)
   }
 
   def initialize(structAddress: Long, setMissing: Boolean = false): Unit = {
@@ -274,17 +274,22 @@ abstract class PBaseStruct extends PType {
 
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcStructAddress: Code[Long],
     allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-    assert(srcPType.isInstanceOf[PBaseStruct])
+    assert(srcPType.isInstanceOf[PCanonicalStruct])
 
-    val sourceType = srcPType.asInstanceOf[PBaseStruct]
+    val sourceType = srcPType.asInstanceOf[PCanonicalStruct]
 
-    assert(sourceType.size == this.size)
+    if(this.fields == sourceType.fields) {
+      if(!forceDeep) {
+        println("shallow return")
+        return srcStructAddress
+      }
 
-    if(this.types == sourceType.types) {
-      if(!forceDeep || types.forall(_.isPrimitive)) {
+      if(types.forall(_.isPrimitive)) {
         return this.copyFrom(mb, region, srcStructAddress)
       }
     }
+
+    assert(sourceType.size == this.size)
 
     val dstStructAddress = mb.newField[Long]
 
@@ -301,30 +306,37 @@ abstract class PBaseStruct extends PType {
       assert((dstField.typ isOfType srcField.typ) && (dstField.name == srcField.name) && (dstField.index == srcField.index))
 
       if(dstField.typ.required > srcField.typ.required) {
+        println("in downcast regime")
         assert(allowDowncast)
 
         c = Code(c, sourceType.isFieldMissing(srcStructAddress, srcField.index).orEmpty(
           Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
         ))
-      } else if(!srcField.typ.required) {
-        c = Code(c, sourceType.isFieldMissing(srcStructAddress, srcField.index).mux(
-          this.setFieldMissing(dstStructAddress, dstField.index),
-          dstField.typ.storeShallowAtOffset(
-            this.loadField(dstStructAddress, dstField.index),
-            if(srcField.typ.isPrimitive) {
-              sourceType.loadField(srcStructAddress, srcField.index)
-            } else {
-              dstField.typ.copyFromType(
-                mb,
-                region,
-                srcField.typ,
-                sourceType.loadField(srcStructAddress, srcField.index),
-                allowDowncast,
-                forceDeep
-              )
-            }
-          )
-        ))
+      } else {
+        val body = dstField.typ.storeShallowAtOffset(
+          this.fieldOffset(dstStructAddress, dstField.index),
+          if(srcField.typ.isPrimitive) {
+            sourceType.loadField(srcStructAddress, srcField.index)
+          } else {
+            dstField.typ.copyFromType(
+              mb,
+              region,
+              srcField.typ,
+              sourceType.loadField(srcStructAddress, srcField.index),
+              allowDowncast,
+              forceDeep
+            )
+          }
+        )
+
+        if(!srcField.typ.required) {
+          c = Code(c, sourceType.isFieldMissing(srcStructAddress, srcField.index).mux(
+            this.setFieldMissing(dstStructAddress, dstField.index),
+            body
+          ))
+        } else {
+          c = Code(c, body)
+        }
       }
 
       i += 1

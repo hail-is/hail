@@ -399,7 +399,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   // semantically this function expects a non-null sourceAddress, and by that property, this function results in a non-null value
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
   allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-
+    println("Called array copyFromType")
     assert(srcPType.isInstanceOf[PArray])
 
     val sourceType = srcPType.asInstanceOf[PArray]
@@ -412,6 +412,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       }
 
       if(sourceType.elementType.isPrimitive) {
+        println("tuypes equal, so calling copyFrom")
         return this.copyFrom(mb, region, srcAddress)
       }
     }
@@ -433,8 +434,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       this.elementType.storeShallowAtOffset(
         currentElementAddress,
         if (sourceType.elementType.isPrimitive) {
+          println("Is primitive in pcanonicalarray")
           sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx)
         } else {
+          println("Not primitive in pcanonicalarray")
           this.elementType.copyFromType(
             mb,
             region,
