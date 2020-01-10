@@ -1029,7 +1029,7 @@ class ArrayZip(IR):
 
     def renderable_bindings(self, i, default_value=None):
         if i == len(self.names):
-            return {name: default_value or a.typ.element_type for name, a in zip(self.names, self.arrays)}
+            return {name: default_value if default_value is not None else a.typ.element_type for name, a in zip(self.names, self.arrays)}
         else:
             return {}
 
