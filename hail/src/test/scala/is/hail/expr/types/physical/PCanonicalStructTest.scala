@@ -54,8 +54,6 @@ class PCanonicalStructTest extends HailSuite {
 
           println(s"COPY ${copy}")
 
-
-
           println(s"Copied value: ${copy}, Source value: ${sourceValue}")
           assert(copy == sourceValue)
           runtimeSuccess = true

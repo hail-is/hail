@@ -39,7 +39,4 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
     else
       PCanonicalTuple(fundamentalFieldTypes, required)
   }
-
-    def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
-      allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = const(1L)
 }

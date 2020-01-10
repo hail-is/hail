@@ -79,17 +79,17 @@ abstract class PStruct extends PBaseStruct {
 
   def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long]
 
-  def loadField(offset: Code[Long], field: String): Code[Long]
+  def loadField(offset: Code[Long], fieldName: String): Code[Long]
 
-  final def isFieldDefined(offset: Code[Long], field: String): Code[Boolean] = !isFieldMissing(offset, field)
+  final def isFieldDefined(offset: Code[Long], fieldName: String): Code[Boolean] = !isFieldMissing(offset, fieldName)
 
-  def isFieldMissing(offset: Code[Long], field: String): Code[Boolean]
+  def isFieldMissing(offset: Code[Long], fieldName: String): Code[Boolean]
 
   def fieldOffset(offset: Code[Long], fieldName: String): Code[Long]
 
-  def setFieldPresent(offset: Code[Long], field: String): Code[Unit]
+  def setFieldPresent(offset: Code[Long], fieldName: String): Code[Unit]
 
-  def setFieldMissing(offset: Code[Long], field: String): Code[Unit]
+  def setFieldMissing(offset: Code[Long], fieldName: String): Code[Unit]
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct
 }
