@@ -1759,11 +1759,14 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
 
   override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
-    val prevRDD = prev.rvd
-    val groupedElementsPType = PArray(???, false)
+    val prevRVD = prev.rvd
 
-    prevRDD.mapPartitionsWithIndex { (int, ctx, it) =>
-      val partRegion = ctx.freshRegion
+    val groupedElementsPType = PArray(prevRVD.typ.rowType, false)
+    val rowType = this.typ.rowType.physicalType
+    val newRVDType = prevRVD.typ.copy(rowType = rowType)
+
+    val newRVD = prevRVD.mapPartitionsWithIndex(newRVDType, { (int, ctx, it) =>
+      val targetRegion = ctx.region
 
       new Iterator[RegionValue] {
         var current: RegionValue = _
@@ -1783,31 +1786,24 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
           if (!hasNext)
             throw new java.util.NoSuchElementException()
 
-          val region = current.region
           val regionValueArray = Array[RegionValue]()
-          var i = 1
+          var i = 0
           do {
             val nextRV = it.next()
             regionValueArray :+ nextRV
-            if (i % n == 0 || !hasNext) {
-              val rvb = new RegionValueBuilder(partRegion)
-              rvb.startArray(i, true)
-              regionValueArray.zipWithIndex.foreach { case (rv, arrIdx) =>
-                rvb.addElement(groupedElementsPType, rv, arrIdx)
-              }
-              ???
-              i = 1
-            }
-            else {
-              i += 1
-            }
-          } while (hasNext)
-
+            i += 1
+          } while (it.hasNext && i % n != 0)
+          val rvb = new RegionValueBuilder(targetRegion)
+          rvb.startArray(i, true)
+          regionValueArray.zipWithIndex.foreach { case (rv, arrIdx) =>
+            rvb.addElement(groupedElementsPType, rv, arrIdx)
+          }
+          rvb.result()
         }
       }
-    }
+    })
 
-    ???
+    prev.copy(rvd = newRVD, typ=this.typ)
   }
 }
 
