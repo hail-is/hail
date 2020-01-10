@@ -16,8 +16,6 @@ class PBoolean(override val required: Boolean) extends PType {
   def _asIdent = "bool"
   def _toPretty = "Boolean"
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = ???
-
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("bool")
   }

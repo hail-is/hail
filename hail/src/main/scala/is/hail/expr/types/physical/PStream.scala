@@ -46,8 +46,6 @@ final case class PStream(elementType: PType, override val required: Boolean = fa
     sb.append("]")
   }
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = ???
-
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
     throw new UnsupportedOperationException("Stream comparison is currently undefined.")
 }

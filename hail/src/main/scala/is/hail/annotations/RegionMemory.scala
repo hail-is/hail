@@ -61,7 +61,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   }
 
   def allocate(a: Long, n: Long): Long = {
-    val alignedOff = (offsetWithinBlock + a - 1) & ~(a - 1)
+    val alignedOff = (offsetWithinBlock + a - 1) & ~(a - 1);
     val r = if (alignedOff + n <= blockByteSize) {
       val off = currentBlock + alignedOff
       offsetWithinBlock = alignedOff + n

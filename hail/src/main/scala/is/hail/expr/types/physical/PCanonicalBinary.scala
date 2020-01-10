@@ -13,7 +13,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   override def byteSize: Long = 8
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, srcAddress: Code[Long],
+  override def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, srcAddress: Code[Long],
   allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
     if(this == sourcePType && !forceDeep) {
       return srcAddress

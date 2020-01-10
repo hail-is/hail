@@ -67,12 +67,12 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
     def includeEnd(off: Code[Long]): Code[Boolean] =
       Region.loadBoolean(representation.loadField(off, 3))
 
-    def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
+    override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
       allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-      assert(this isOfType srcPType)
+      assert(srcPType.isInstanceOf[PInterval])
 
-      val srcRepPType = srcPType.asInstanceOf[PCanonicalInterval].representation
+      val srcRepPType = srcPType.asInstanceOf[PInterval].representation
 
-      representation.copyFromType(mb, region, srcRepPType, srcAddress, allowDowncast, forceDeep)
+      this.representation.copyFromType(mb, region, srcRepPType, srcAddress, allowDowncast, forceDeep)
     }
 }

@@ -12,7 +12,5 @@ case object PVoid extends PType {
   def _asIdent = "void"
   override def _toPretty = "Void"
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = ???
-
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = null
 }

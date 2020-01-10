@@ -17,12 +17,6 @@ trait PArrayBackedContainer extends PContainer {
 
   override lazy val fundamentalType = PCanonicalArray(elementType.fundamentalType, required)
 
-  def afterLengthHeaderAddress(aoff: Long) =
-    arrayRep.afterLengthHeaderAddress(aoff)
-
-  def afterLengthHeaderAddress(aoff: Code[Long]) =
-    arrayRep.afterLengthHeaderAddress(aoff)
-
   def dataByteSize(length: Code[Int]): Code[Long] = arrayRep.dataByteSize(length)
 
   def dataByteSize(length: Int): Long = arrayRep.dataByteSize(length)
@@ -183,10 +177,10 @@ trait PArrayBackedContainer extends PContainer {
   override def unsafeOrdering(rightType: PType): UnsafeOrdering =
     arrayRep.unsafeOrdering(rightType)
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
+  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
   allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
     assert(srcPType.isInstanceOf[PArrayBackedContainer])
-    arrayRep.copyFromType(mb, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, allowDowncast, forceDeep)
+    this.arrayRep.copyFromType(mb, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, allowDowncast, forceDeep)
   }
 
   def nextElementAddress(currentOffset: Long) =

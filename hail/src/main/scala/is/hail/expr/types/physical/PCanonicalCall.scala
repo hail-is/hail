@@ -57,7 +57,7 @@ final case class PCanonicalCall(required: Boolean) extends PCall {
       )
     }
 
-    def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
+    override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
       allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
       assert(this isOfType srcPType)
 

@@ -51,8 +51,6 @@ class PInt64(override val required: Boolean) extends PIntegral {
     }
   }
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long], allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = ???
-
   override def byteSize: Long = 8
 
   override def zero = coerce[PInt64](const(0L))

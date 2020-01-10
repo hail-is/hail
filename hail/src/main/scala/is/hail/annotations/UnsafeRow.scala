@@ -29,9 +29,9 @@ class UnsafeIndexedSeq(
   def apply(i: Int): Annotation = {
     if (i < 0 || i >= length)
       throw new IndexOutOfBoundsException(i.toString)
-    if (t.isElementDefined(region, aoff, i))
+    if (t.isElementDefined(region, aoff, i)) {
       UnsafeRow.read(t.elementType, region, t.loadElement(region, aoff, length, i))
-    else
+    } else
       null
   }
 

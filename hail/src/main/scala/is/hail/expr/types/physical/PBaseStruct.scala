@@ -272,11 +272,11 @@ abstract class PBaseStruct extends PType {
     }
   }
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcStructAddress: Code[Long],
+  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcStructAddress: Code[Long],
     allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-    assert(srcPType.isInstanceOf[PCanonicalStruct])
+    assert(srcPType.isInstanceOf[PBaseStruct])
 
-    val sourceType = srcPType.fundamentalType.asInstanceOf[PCanonicalStruct]
+    val sourceType = srcPType.asInstanceOf[PBaseStruct]
 
     if(this.fields == sourceType.fields) {
       if(!forceDeep) {
@@ -309,18 +309,14 @@ abstract class PBaseStruct extends PType {
 
       val body = dstType.storeShallowAtOffset(
         this.fieldOffset(dstStructAddress, dstField.index),
-        if(srcType.isPrimitive) {
-          sourceType.loadField(srcStructAddress, srcField.index)
-        } else {
-          dstType.copyFromType(
-            mb,
-            region,
-            srcField.typ,
-            sourceType.loadField(srcStructAddress, srcField.index),
-            allowDowncast,
-            forceDeep
-          )
-        }
+        dstType.copyFromType(
+          mb,
+          region,
+          srcField.typ,
+          sourceType.loadField(srcStructAddress, srcField.index),
+          allowDowncast,
+          forceDeep
+        )
       )
 
       if(!srcField.typ.required) {

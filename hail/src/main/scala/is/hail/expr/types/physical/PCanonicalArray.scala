@@ -67,14 +67,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
     Region.storeInt(aoff, length)
 
-  def afterLengthHeaderAddress(aoff: Long) = {
-    aoff + lengthHeaderBytes
-  }
-
-  def afterLengthHeaderAddress(aoff: Code[Long]) = {
-    aoff + const(lengthHeaderBytes)
-  }
-
   def dataByteSize(length: Code[Int]): Code[Long] = {
     length.toL * elementByteSize
   }
@@ -397,12 +389,11 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   // semantically this function expects a non-null sourceAddress, and by that property, this function results in a non-null value
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
+  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
   allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-    val sourceType = srcPType.fundamentalType.asInstanceOf[PArray]
+    assert(srcPType.isInstanceOf[PArray])
 
-    assert(sourceType.isInstanceOf[PArray])
-
+    val sourceType = srcPType.asInstanceOf[PArray]
     val sourceElementType = sourceType.elementType.fundamentalType
     val destElementType = this.elementType.fundamentalType
 
@@ -434,27 +425,23 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     var loop: Code[Unit] =
       destElementType.storeShallowAtOffset(
         currentElementAddress,
-        if (sourceElementType.isPrimitive) {
-          sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx)
-        } else {
-          destElementType.copyFromType(
-            mb,
-            region,
-            sourceElementType,
-            sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx),
-            allowDowncast,
-            forceDeep
-          )
-        }
+        destElementType.copyFromType(
+          mb,
+          region,
+          sourceElementType,
+          sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx),
+          allowDowncast,
+          forceDeep
+        )
       )
 
-    if(destElementType.required > sourceType.elementType.required) {
+    if(destElementType.required > sourceElementType.required) {
       assert(allowDowncast)
 
       c = Code(sourceType.hasMissingValues(srcAddress).orEmpty(
         Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
       ), c)
-    } else if(!sourceType.elementType.required) {
+    } else if(!sourceElementType.required) {
       loop = sourceType.isElementMissing(srcAddress, currentIdx).mux(
         this.setElementMissing(dstAddress, currentIdx),
         loop

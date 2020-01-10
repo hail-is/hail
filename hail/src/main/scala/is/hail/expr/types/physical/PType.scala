@@ -307,7 +307,24 @@ abstract class PType extends BaseType with Serializable with Requiredness {
   }
 
   def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long],
-  allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long]
+  allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
+    this.fundamentalType match {
+      case t@(_: PBoolean| _: PInt32 | _: PInt64 | _: PFloat32 | _: PFloat64) => {
+        sourceOffset
+      }
+      case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
+    }
+  }
+
+  def copyFromType(region: Region, sourcePType: PType, sourceOffset: Long,
+    allowDowncast: Boolean, forceDeep: Boolean): Long = {
+    this.fundamentalType match {
+      case t@(_: PBoolean| _: PInt32 | _: PInt64 | _: PFloat32 | _: PFloat64) => {
+        sourceOffset
+      }
+      case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
+    }
+  }
 
   def storeShallowAtOffset(destOffset: Code[Long], valueAddress: Code[Long]): Code[Unit] = {
     this.fundamentalType match {
