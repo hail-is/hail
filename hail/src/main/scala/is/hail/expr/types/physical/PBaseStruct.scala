@@ -6,7 +6,7 @@ import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
 import is.hail.utils._
 
 object PBaseStruct {
-  def getContentsByteSizeAndSetOffsets(types: Array[PType], nMissingBytes: Long, byteOffsets: Array[Long]): Long = {
+  def getByteSizeAndOffsets(types: Array[PType], nMissingBytes: Long, byteOffsets: Array[Long]): Long = {
     assert(byteOffsets.length == types.length)
     val bp = new BytePacker()
 

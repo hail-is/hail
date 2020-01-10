@@ -1,9 +1,7 @@
 package is.hail.expr.types.physical
-import is.hail.annotations.{Region, UnsafeUtils}
-import is.hail.asm4s.{Code, MethodBuilder}
+import is.hail.annotations.UnsafeUtils
 import is.hail.expr.types.BaseStruct
 import is.hail.utils._
-import is.hail.asm4s._
 
 object PCanonicalTuple {
   def apply(required: Boolean, args: PType*): PTuple = PCanonicalTuple(args.iterator.zipWithIndex.map { case (t, i) => PTupleField(i, t)}.toIndexedSeq, required)
@@ -17,7 +15,7 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
   val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
   val nMissingBytes = UnsafeUtils.packBitsToBytes(nMissing)
   val byteOffsets = new Array[Long](size)
-  override val byteSize: Long = PBaseStruct.getContentsByteSizeAndSetOffsets(types, nMissingBytes, byteOffsets)
+  override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PBaseStruct.alignment(types)
 
   def copy(required: Boolean = this.required): PTuple = PCanonicalTuple(_types, required)

@@ -56,7 +56,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
   val nMissingBytes = (nMissing + 7) >>> 3
   val byteOffsets = new Array[Long](size)
-  override val byteSize: Long = PBaseStruct.getContentsByteSizeAndSetOffsets(types, nMissingBytes, byteOffsets)
+  override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PBaseStruct.alignment(types)
 
   def copy(fields: IndexedSeq[PField] = this.fields, required: Boolean = this.required): PStruct = PCanonicalStruct(fields, required)
