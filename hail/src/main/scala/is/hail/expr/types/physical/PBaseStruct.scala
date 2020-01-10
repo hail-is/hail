@@ -305,41 +305,41 @@ abstract class PBaseStruct extends PType {
 
       assert((dstField.typ isOfType srcField.typ) && (dstField.name == srcField.name) && (dstField.index == srcField.index))
 
-      if(dstField.typ.required > srcField.typ.required) {
-        println("in downcast regime")
-        assert(allowDowncast)
+      val body = dstField.typ.storeShallowAtOffset(
+        this.fieldOffset(dstStructAddress, dstField.index),
+        if(srcField.typ.isPrimitive) {
+          sourceType.loadField(srcStructAddress, srcField.index)
+        } else {
+          dstField.typ.copyFromType(
+            mb,
+            region,
+            srcField.typ,
+            sourceType.loadField(srcStructAddress, srcField.index),
+            allowDowncast,
+            forceDeep
+          )
+        }
+      )
 
-        c = Code(c, sourceType.isFieldMissing(srcStructAddress, srcField.index).orEmpty(
-          Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
+      if(!srcField.typ.required) {
+        c = Code(c, sourceType.isFieldMissing(srcStructAddress, srcField.index).mux(
+          Code(
+            if(dstField.typ.required) {
+              println("in downcast regime")
+              assert(allowDowncast)
+
+              Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
+            } else {
+              this.setFieldMissing(dstStructAddress, dstField.index)
+            }
+          ),
+          body
         ))
       } else {
-        val body = dstField.typ.storeShallowAtOffset(
-          this.fieldOffset(dstStructAddress, dstField.index),
-          if(srcField.typ.isPrimitive) {
-            sourceType.loadField(srcStructAddress, srcField.index)
-          } else {
-            dstField.typ.copyFromType(
-              mb,
-              region,
-              srcField.typ,
-              sourceType.loadField(srcStructAddress, srcField.index),
-              allowDowncast,
-              forceDeep
-            )
-          }
-        )
-
-        if(!srcField.typ.required) {
-          c = Code(c, sourceType.isFieldMissing(srcStructAddress, srcField.index).mux(
-            this.setFieldMissing(dstStructAddress, dstField.index),
-            body
-          ))
-        } else {
-          c = Code(c, body)
-        }
+        c = Code(c, body)
       }
 
-      i += 1
+      i+=1
     }
 
     Code(c, dstStructAddress)

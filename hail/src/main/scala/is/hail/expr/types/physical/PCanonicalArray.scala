@@ -402,16 +402,17 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     println("Called array copyFromType")
     assert(srcPType.isInstanceOf[PArray])
 
-    val sourceType = srcPType.asInstanceOf[PArray]
+    val sourceType = srcPType.fundamentalType.asInstanceOf[PArray]
+    val sourceElementType = sourceType.elementType.fundamentalType
 
-    assert(sourceType.elementType.isOfType(this.elementType))
+    assert(sourceElementType.isOfType(this.elementType))
 
-    if (this.elementType == sourceType.elementType) {
+    if (this.elementType == sourceElementType) {
       if(!forceDeep) {
         return srcAddress
       }
 
-      if(sourceType.elementType.isPrimitive) {
+      if(sourceElementType.isPrimitive) {
         println("tuypes equal, so calling copyFrom")
         return this.copyFrom(mb, region, srcAddress)
       }
@@ -433,7 +434,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     var loop: Code[Unit] =
       this.elementType.storeShallowAtOffset(
         currentElementAddress,
-        if (sourceType.elementType.isPrimitive) {
+        if (sourceElementType.isPrimitive) {
           println("Is primitive in pcanonicalarray")
           sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx)
         } else {
@@ -441,7 +442,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
           this.elementType.copyFromType(
             mb,
             region,
-            sourceType.elementType,
+            sourceElementType,
             sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx),
             allowDowncast,
             forceDeep

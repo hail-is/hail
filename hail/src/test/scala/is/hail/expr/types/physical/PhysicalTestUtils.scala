@@ -1,5 +1,5 @@
 package is.hail.expr.types.physical
-
+import is.hail.utils.log
 import is.hail.annotations.{Region, SafeIndexedSeq, SafeRow, ScalaToRegionValue, UnsafeRow}
 import is.hail.expr.ir.EmitFunctionBuilder
 
@@ -25,6 +25,7 @@ object PhysicalTestUtils {
         region.clear()
         srcRegion.clear()
         if(expectCompileErr) {
+          log.info("Caught expected compile-time error")
           return assert(true)
         }
 
@@ -44,7 +45,7 @@ object PhysicalTestUtils {
       val copyOff = f(region, srcOffset)
       val copy = UnsafeRow.read(destType, region, copyOff)
 
-      println(s"Copied value: ${copy}, Source value: ${sourceValue}")
+      log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
       assert(copy == sourceValue)
       runtimeSuccess = true
       region.clear()
@@ -54,7 +55,7 @@ object PhysicalTestUtils {
         region.clear()
         srcRegion.clear()
         if(expectRuntimeErr) {
-          println(s"Found expected failure: ${e.getMessage}")
+          log.info(s"Found expected runtime failure: ${e.getMessage}")
         } else {
           throw new Error(e)
         }
