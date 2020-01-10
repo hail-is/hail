@@ -148,11 +148,12 @@ abstract class PBaseStruct extends PType {
     region.allocate(alignment, byteSize)
   }
 
-  def allocate(region: Code[Region]): Code[Long] = region.allocate(alignment, byteSize)
+  def allocate(region: Code[Region]): Code[Long] =
+    region.allocate(alignment, byteSize)
 
   def copyFrom(region: Region, srcOff: Long): Long = {
     val destOff = allocate(region)
-    Region.copyFrom(srcOff,  destOff, byteSize)
+    this.storeShallowAtOffset(srcOff,  destOff)
     destOff
   }
 
@@ -165,9 +166,8 @@ abstract class PBaseStruct extends PType {
     )
   }
 
-  override def storeShallowAtOffset(destAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] = {
+  override def storeShallowAtOffset(destAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] =
     Region.copyFrom(srcAddress, destAddress, byteSize)
-  }
 
   override def storeShallowAtOffset(destAddress: Long, srcAddress: Long) {
     Region.copyFrom(srcAddress, destAddress, byteSize)
@@ -188,25 +188,6 @@ abstract class PBaseStruct extends PType {
 
     Region.setMemory(structAddress, const(nMissingBytes.toLong), const(if (setMissing) 0xFF.toByte else 0.toByte))
   }
-
-  def clearMissingBits(region: Region, off: Long) {
-    if (allFieldsRequired) {
-      return
-    }
-
-    Region.setMemory(off, nMissingBytes.toLong, 0.toByte)
-  }
-
-  def clearMissingBits(off: Code[Long]): Code[Unit] = {
-    if (allFieldsRequired) {
-      return Code._empty
-    }
-
-    Region.setMemory(off, const(nMissingBytes.toLong), const(0.toByte))
-  }
-
-  def clearMissingBits(region: Code[Region], off: Code[Long]): Code[Unit] =
-    clearMissingBits(off)
 
   def isFieldDefined(rv: RegionValue, fieldIdx: Int): Boolean =
     isFieldDefined(rv.region, rv.offset, fieldIdx)

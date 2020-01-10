@@ -31,7 +31,7 @@ class TypedKey(typ: PType, fb: EmitFunctionBuilder[_], region: Code[Region]) ext
     if (!typ.required)
       m.mux(
         Code(storageType.setFieldPresent(dest, 1), storageType.setFieldMissing(dest, 0)),
-        Code(storageType.clearMissingBits(dest), c))
+        Code(storageType.stagedInitialize(dest), c))
     else
       Code(storageType.setFieldPresent(dest, 1), c)
   }
