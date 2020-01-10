@@ -414,7 +414,6 @@ async def on_startup(app):
     app['k8s_client'] = k8s_client
 
     k8s_cache = K8sCache(k8s_client, refresh_time=5)
-    await k8s_cache.async_init()
     app['k8s_cache'] = k8s_cache
 
     db = Database()
