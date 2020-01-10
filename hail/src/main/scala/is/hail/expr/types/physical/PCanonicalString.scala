@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{???, Code, MethodBuilder}
+import is.hail.asm4s.{Code, MethodBuilder}
 
 class PCanonicalString(val required: Boolean) extends PString {
   def _asIdent = "string"
@@ -21,8 +21,11 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   override def containsPointers: Boolean = true
 
-  override def storeShallowAtOffset(destOffset: Code[Long], valueAddress: Code[Long]): Code[Unit] = {
-    Region.storeAddress(destOffset, valueAddress)
+  override def storeShallowAtOffset(destOffset: Code[Long], valueAddress: Code[Long]): Code[Unit] =
+    this.fundamentalType.storeShallowAtOffset(destOffset, valueAddress)
+
+  override def storeShallowAtOffset(destOffset: Long, valueAddress: Long) {
+    this.fundamentalType.storeShallowAtOffset(destOffset, valueAddress)
   }
 }
 

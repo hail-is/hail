@@ -1426,7 +1426,6 @@ class IRSuite extends HailSuite {
     assertPType(ir, PStruct(true, "a" -> PInt32(false), "b" -> PInt32(true), "c" -> PFloat64(true)))
 
     val ir2 = GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1")
-    println("testing last")
     assertPType(ir2, PInt32(true))
   }
 

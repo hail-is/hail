@@ -67,14 +67,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
     Region.storeInt(aoff, length)
 
-  def dataByteSize(length: Code[Int]): Code[Long] = {
-    length.toL * elementByteSize
-  }
-
-  def dataByteSize(length: Int): Long = {
-    length * elementByteSize
-  }
-
   def nMissingBytes(len: Code[Int]): Code[Int] = UnsafeUtils.packBitsToBytes(len)
 
   def nMissingBytes(len: Int): Int = UnsafeUtils.packBitsToBytes(len)

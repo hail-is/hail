@@ -11,10 +11,6 @@ abstract class PContainer extends PIterable {
 
   def contentsAlignment: Long
 
-  def dataByteSize(length: Code[Int]): Code[Long]
-
-  def dataByteSize(length: Int): Long
-
   def loadLength(region: Region, aoff: Long): Int
 
   def loadLength(aoff: Long): Int
