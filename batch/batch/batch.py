@@ -389,7 +389,9 @@ CALL schedule_job(%s, %s, %s, %s);
             instance.adjust_free_cores_in_memory(record['cores_mcpu'])
         return
 
-    if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
+    delta_cores_mcpu = rv['cores_mcpu'] if rv['delta_cores_mcpu'] == 0 else 0
+
+    if delta_cores_mcpu != 0 and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
     log.info(f'schedule job {id} on {instance}: updated database')
