@@ -38,5 +38,6 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
         (instance_id, secrets.token_urlsafe(32),
          worker_cores, worker_type, worker_disk_size_gb, max_instances, pool_size))
 
+
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main())
