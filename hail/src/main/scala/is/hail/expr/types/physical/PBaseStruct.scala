@@ -287,7 +287,6 @@ abstract class PBaseStruct extends PType {
     }
 
     val dstStructAddress = mb.newField[Long]
-    val dstFieldAddress = mb.newField[Long]
 
     var c: Code[_] = Code(
       dstStructAddress := this.allocate(region),
@@ -310,23 +309,20 @@ abstract class PBaseStruct extends PType {
       } else if(!srcField.typ.required) {
         c = Code(c, sourceType.isFieldMissing(srcStructAddress, srcField.index).mux(
           this.setFieldMissing(dstStructAddress, dstField.index),
-          Code(
-            dstFieldAddress := this.loadField(dstStructAddress, dstField.index),
-            dstField.typ.storeShallowAtOffset(
-              dstFieldAddress,
-              if(srcField.typ.isPrimitive) {
-                sourceType.loadField(srcStructAddress, srcField.index)
-              } else {
-                dstField.typ.copyFromType(
-                  mb,
-                  region,
-                  srcField.typ,
-                  sourceType.loadField(srcStructAddress, srcField.index),
-                  allowDowncast,
-                  forceDeep
-                )
-              }
-            )
+          dstField.typ.storeShallowAtOffset(
+            this.loadField(dstStructAddress, dstField.index),
+            if(srcField.typ.isPrimitive) {
+              sourceType.loadField(srcStructAddress, srcField.index)
+            } else {
+              dstField.typ.copyFromType(
+                mb,
+                region,
+                srcField.typ,
+                sourceType.loadField(srcStructAddress, srcField.index),
+                allowDowncast,
+                forceDeep
+              )
+            }
           )
         ))
       }

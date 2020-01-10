@@ -255,7 +255,7 @@ class PContainerTest extends HailSuite {
 
       // test downcast
       testArrayCopy(PArray(PInt32()), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4),
-        expectRuntimeErr = true, forceDeep = forceDeep)
+        expectCompileErr = true, forceDeep = forceDeep)
       testArrayCopy(PArray(PInt32()), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4),
         allowDowncast = true, forceDeep = forceDeep)
       testArrayCopy(PArray(PInt32()), PArray(PInt32(true)), IndexedSeq(1, null, 3, 4),
