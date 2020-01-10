@@ -788,8 +788,6 @@ steps:
       script: /io/sql/insert_globals.py
     - name: create-billing-projects
       script: /io/sql/create-billing-projects.sql
-    - name: jigold
-      script: /io/sql/setup-jigold.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
