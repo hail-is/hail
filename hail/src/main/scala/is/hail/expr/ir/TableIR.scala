@@ -1760,6 +1760,7 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
   override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
     val prevRDD = prev.rvd
+    val groupedElementsPType = PArray(???, false)
 
     prevRDD.mapPartitionsWithIndex { (int, ctx, it) =>
       val partRegion = ctx.freshRegion
@@ -1783,13 +1784,17 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
             throw new java.util.NoSuchElementException()
 
           val region = current.region
-          val pointerArray = Array()
+          val regionValueArray = Array[RegionValue]()
           var i = 1
           do {
-            val nextOffset = it.next().offset
-            pointerArray :+ nextOffset
+            val nextRV = it.next()
+            regionValueArray :+ nextRV
             if (i % n == 0 || !hasNext) {
               val rvb = new RegionValueBuilder(partRegion)
+              rvb.startArray(i, true)
+              regionValueArray.zipWithIndex.foreach { case (rv, arrIdx) =>
+                rvb.addElement(groupedElementsPType, rv, arrIdx)
+              }
               ???
               i = 1
             }
