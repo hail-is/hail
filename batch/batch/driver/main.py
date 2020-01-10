@@ -16,8 +16,6 @@ from hailtop.utils import time_msecs
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 
-import cProfile, pstats, io
-
 # import uvloop
 
 from ..batch import mark_job_complete, mark_job_started
@@ -408,19 +406,6 @@ async def get_user_resources(request, userdata):
                                  'user_resources.html', page_context)
 
 
-async def profile_loop(app):
-    while True:
-        pr = cProfile.Profile()
-        pr.enable()
-        await asyncio.sleep(60)
-        pr.disable()
-        s = io.StringIO()
-        sortby = 'cumulative'
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        log.info(s.getvalue())
-
-
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
@@ -464,8 +449,6 @@ async def on_startup(app):
     scheduler = Scheduler(app)
     await scheduler.async_init()
     app['scheduler'] = scheduler
-
-    # asyncio.ensure_future(profile_loop(app))
 
 
 async def on_cleanup(app):
