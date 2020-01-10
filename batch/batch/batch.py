@@ -383,7 +383,7 @@ async def schedule_job(app, record, instance):
 CALL schedule_job(%s, %s, %s, %s);
 ''',
             (batch_id, job_id, attempt_id, instance.name))
-    except:
+    except:  # pylint: disable=bare-except
         log.exception(f'error while scheduling job {id} on {instance}')
         if instance.state == 'active':
             instance.adjust_free_cores_in_memory(record['cores_mcpu'])
