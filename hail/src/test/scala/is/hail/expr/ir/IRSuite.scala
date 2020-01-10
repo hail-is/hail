@@ -85,7 +85,6 @@ class IRSuite extends HailSuite {
 
   def assertPType(node: IR, expected: PType, env: Env[PType] = Env.empty) {
     InferPType(node, env)
-    println(s"BYTE SIZE IS ${node._pType2.byteSize}")
     assert(node.pType2 == expected)
   }
 
