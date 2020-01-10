@@ -24,7 +24,8 @@ class K8sCache:
 
         lock = self.secret_locks.get(id)
         if lock is None:
-            self.secret_locks[id] = asyncio.Lock()
+            lock = asyncio.Lock()
+            self.secret_locks[id] = lock
 
         async with lock:
             secret, time_updated = self.secrets.get(id, (None, None))
@@ -49,7 +50,8 @@ class K8sCache:
 
         lock = self.service_account_locks.get(id)
         if lock is None:
-            self.service_account_locks[id] = asyncio.Lock()
+            lock = asyncio.Lock()
+            self.service_account_locks[id] = lock
 
         async with lock:
             sa, time_updated = self.service_accounts.get(id, (None, None))
