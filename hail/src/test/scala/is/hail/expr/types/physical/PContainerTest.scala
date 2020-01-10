@@ -1,9 +1,9 @@
 package is.hail.expr.types.physical
 
 import is.hail.HailSuite
-import is.hail.annotations.{Region, SafeIndexedSeq, ScalaToRegionValue, UnsafeUtils}
+import is.hail.annotations.{Annotation, Region, SafeIndexedSeq, ScalaToRegionValue, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder}
+import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.utils._
 import org.testng.annotations.Test
 
@@ -260,6 +260,11 @@ class PContainerTest extends HailSuite {
         complexNesting, allowDowncast = true, forceDeep = forceDeep)
       PhysicalTestUtils.copyTestExecutor(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true), true), true), true),
         complexNesting, allowDowncast = true, forceDeep = forceDeep)
+
+      val srcType = PArray(PStruct("a" -> PArray(PInt32(true)), "b" -> PInt64()))
+      val destType = PArray(PStruct("a" -> PArray(PInt32()), "b" -> PInt64()))
+      val expectedVal = IndexedSeq(Annotation(IndexedSeq(1,5,7,2,31415926), 31415926535897L))
+      PhysicalTestUtils.copyTestExecutor(srcType, destType, expectedVal, forceDeep = forceDeep)
     }
 
     runTests(true)

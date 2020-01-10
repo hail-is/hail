@@ -276,11 +276,10 @@ abstract class PBaseStruct extends PType {
     allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
     assert(srcPType.isInstanceOf[PCanonicalStruct])
 
-    val sourceType = srcPType.asInstanceOf[PCanonicalStruct]
+    val sourceType = srcPType.fundamentalType.asInstanceOf[PCanonicalStruct]
 
     if(this.fields == sourceType.fields) {
       if(!forceDeep) {
-        println("shallow return")
         return srcStructAddress
       }
 
@@ -305,12 +304,15 @@ abstract class PBaseStruct extends PType {
 
       assert((dstField.typ isOfType srcField.typ) && (dstField.name == srcField.name) && (dstField.index == srcField.index))
 
-      val body = dstField.typ.storeShallowAtOffset(
+      val srcType = srcField.typ.fundamentalType
+      val dstType = dstField.typ.fundamentalType
+
+      val body = dstType.storeShallowAtOffset(
         this.fieldOffset(dstStructAddress, dstField.index),
-        if(srcField.typ.isPrimitive) {
+        if(srcType.isPrimitive) {
           sourceType.loadField(srcStructAddress, srcField.index)
         } else {
-          dstField.typ.copyFromType(
+          dstType.copyFromType(
             mb,
             region,
             srcField.typ,
@@ -324,8 +326,7 @@ abstract class PBaseStruct extends PType {
       if(!srcField.typ.required) {
         c = Code(c, sourceType.isFieldMissing(srcStructAddress, srcField.index).mux(
           Code(
-            if(dstField.typ.required) {
-              println("in downcast regime")
+            if(dstType.required) {
               assert(allowDowncast)
 
               Code._fatal("Found missing values. Cannot copy to type whose elements are required.")

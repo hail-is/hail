@@ -399,21 +399,21 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   // semantically this function expects a non-null sourceAddress, and by that property, this function results in a non-null value
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
   allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-    println("Called array copyFromType")
-    assert(srcPType.isInstanceOf[PArray])
-
     val sourceType = srcPType.fundamentalType.asInstanceOf[PArray]
+
+    assert(sourceType.isInstanceOf[PArray])
+
     val sourceElementType = sourceType.elementType.fundamentalType
+    val destElementType = this.elementType.fundamentalType
 
-    assert(sourceElementType.isOfType(this.elementType))
+    assert(sourceElementType isOfType destElementType)
 
-    if (this.elementType == sourceElementType) {
+    if (sourceElementType == destElementType) {
       if(!forceDeep) {
         return srcAddress
       }
 
       if(sourceElementType.isPrimitive) {
-        println("tuypes equal, so calling copyFrom")
         return this.copyFrom(mb, region, srcAddress)
       }
     }
@@ -432,14 +432,12 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
 
     var loop: Code[Unit] =
-      this.elementType.storeShallowAtOffset(
+      destElementType.storeShallowAtOffset(
         currentElementAddress,
         if (sourceElementType.isPrimitive) {
-          println("Is primitive in pcanonicalarray")
           sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx)
         } else {
-          println("Not primitive in pcanonicalarray")
-          this.elementType.copyFromType(
+          destElementType.copyFromType(
             mb,
             region,
             sourceElementType,
@@ -450,7 +448,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         }
       )
 
-    if(this.elementType.required > sourceType.elementType.required) {
+    if(destElementType.required > sourceType.elementType.required) {
       assert(allowDowncast)
 
       c = Code(sourceType.hasMissingValues(srcAddress).orEmpty(
