@@ -306,44 +306,52 @@ abstract class PType extends BaseType with Serializable with Requiredness {
     this.isOfType(concrete)
   }
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long],
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
   allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
     this.fundamentalType match {
       case t@(_: PBoolean| _: PInt32 | _: PInt64 | _: PFloat32 | _: PFloat64) => {
-        sourceOffset
+        if (t.required > srcPType.required) {
+          assert(allowDowncast)
+        }
+
+        srcAddress
       }
       case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
     }
   }
 
-  def copyFromType(region: Region, sourcePType: PType, sourceOffset: Long,
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long,
     allowDowncast: Boolean, forceDeep: Boolean): Long = {
     this.fundamentalType match {
       case t@(_: PBoolean| _: PInt32 | _: PInt64 | _: PFloat32 | _: PFloat64) => {
-        sourceOffset
+        if(t.required > srcPType.required) {
+          assert(allowDowncast)
+        }
+
+        srcAddress
       }
       case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
     }
   }
 
-  def storeShallowAtOffset(destOffset: Code[Long], valueAddress: Code[Long]): Code[Unit] = {
+  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] = {
     this.fundamentalType match {
-      case _: PBoolean => Region.storeBoolean(destOffset, Region.loadBoolean(valueAddress))
-      case _: PInt32 => Region.storeInt(destOffset, Region.loadInt(valueAddress))
-      case _: PInt64 => Region.storeLong(destOffset, Region.loadLong(valueAddress))
-      case _: PFloat32 => Region.storeFloat(destOffset, Region.loadFloat(valueAddress))
-      case _: PFloat64 => Region.storeDouble(destOffset, Region.loadDouble(valueAddress))
+      case _: PBoolean => Region.storeBoolean(dstAddress, Region.loadBoolean(srcAddress))
+      case _: PInt32 => Region.storeInt(dstAddress, Region.loadInt(srcAddress))
+      case _: PInt64 => Region.storeLong(dstAddress, Region.loadLong(srcAddress))
+      case _: PFloat32 => Region.storeFloat(dstAddress, Region.loadFloat(srcAddress))
+      case _: PFloat64 => Region.storeDouble(dstAddress, Region.loadDouble(srcAddress))
       case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
     }
   }
 
-  def storeShallowAtOffset(destOffset: Long, valueAddress: Long) {
+  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) {
     this.fundamentalType match {
-      case _: PBoolean => Region.storeBoolean(destOffset, Region.loadBoolean(valueAddress))
-      case _: PInt32 => Region.storeInt(destOffset, Region.loadInt(valueAddress))
-      case _: PInt64 => Region.storeLong(destOffset, Region.loadLong(valueAddress))
-      case _: PFloat32 => Region.storeFloat(destOffset, Region.loadFloat(valueAddress))
-      case _: PFloat64 => Region.storeDouble(destOffset, Region.loadDouble(valueAddress))
+      case t: PBoolean => Region.storeIRIntermediate(t)(dstAddress, srcAddress)
+      case t: PInt32 => Region.storeInt(dstAddress, Region.loadInt(srcAddress))
+      case t: PInt64 => Region.storeLong(dstAddress, Region.loadLong(srcAddress))
+      case t: PFloat32 => Region.storeFloat(dstAddress, Region.loadFloat(srcAddress))
+      case t: PFloat64 => Region.storeDouble(dstAddress, Region.loadDouble(srcAddress))
       case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
     }
   }

@@ -13,10 +13,10 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   override def byteSize: Long = 8
 
-  override def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, srcAddress: Code[Long],
+  override def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceAddress: Code[Long],
   allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
     if(this == sourcePType && !forceDeep) {
-      return srcAddress
+      return sourceAddress
     }
 
     assert(this isOfType sourcePType)
@@ -24,25 +24,15 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     val dstAddress = mb.newField[Long]
     val length = mb.newLocal[Int]
 
-    // since the srcAddress must point to data by our semantics, sourcePType's requiredeness is accounted for
-    var c: Code[_] = Code._empty
-
+    // srcAddress must point to data by our semantics
     if(this.required > sourcePType.required) {
       assert(allowDowncast)
-
-      val maybeNull = new CodeNullable[Array[Byte]](PBinary.loadBytes(srcAddress))
-      c = Code(
-        maybeNull.isNull.orEmpty(
-          Code._fatal("Cannot downcast to required type when value is null")
-        )
-      )
     }
 
     Code(
-      c,
-      length := PCanonicalBinary.loadLength(region, srcAddress),
+      length := PCanonicalBinary.loadLength(region, sourceAddress),
       dstAddress := PCanonicalBinary.allocate(region, length),
-      Region.copyFrom(srcAddress, dstAddress, PCanonicalBinary.contentByteSize(length)),
+      Region.copyFrom(sourceAddress, dstAddress, PCanonicalBinary.contentByteSize(length)),
       dstAddress
     )
   }

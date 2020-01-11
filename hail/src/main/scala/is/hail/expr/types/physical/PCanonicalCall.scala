@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.variant.Genotype
 
-final case class PCanonicalCall(required: Boolean) extends PCall {
+final case class PCanonicalCall(required: Boolean = false) extends PCall {
     def _asIdent = "call"
     def _toPretty = "Call"
 
