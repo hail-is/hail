@@ -7,8 +7,7 @@ import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.utils._
 import org.testng.annotations.Test
 
-class PContainerTest extends HailSuite {
-
+class PContainerSuite extends HailSuite {
   def nullInByte(nElements: Int, missingElement: Int) = {
     IndexedSeq.tabulate(nElements)(i => {
       if (i == missingElement - 1)

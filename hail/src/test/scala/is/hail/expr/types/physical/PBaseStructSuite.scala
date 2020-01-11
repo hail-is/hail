@@ -4,7 +4,7 @@ import is.hail.HailSuite
 import is.hail.annotations.Annotation
 import org.testng.annotations.Test
 
-class PBaseStructTest extends HailSuite {
+class PBaseStructSuite extends HailSuite {
   @Test def testStructCopy() {
     def runTests(forceDeep: Boolean) {
       PhysicalTestUtils.copyTestExecutor(PStruct(), PStruct(), Annotation(),
