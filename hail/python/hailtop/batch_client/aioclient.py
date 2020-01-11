@@ -467,7 +467,7 @@ class BatchBuilder:
         group_size = 0
         for spec in byte_job_specs:
             n = len(spec)
-            if group_size + n < 12000000 and len(group) < 1000:
+            if group_size + n < 8000000 and len(group) < 1000:
                 group.append(spec)
                 group_size += n
             else:
