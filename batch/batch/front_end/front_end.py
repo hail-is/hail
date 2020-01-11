@@ -1014,6 +1014,6 @@ def run():
 
     web.run_app(deploy_config.prefix_application(app,
                                                  'batch',
-                                                 client_max_size=16 * 1024 * 1024),
+                                                 client_max_size=8 * 1024 * 1024),
                 host='0.0.0.0',
                 port=5000)
