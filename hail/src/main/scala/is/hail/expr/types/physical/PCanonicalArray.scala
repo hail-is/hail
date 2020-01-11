@@ -389,9 +389,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val sourceElementType = sourceType.elementType.fundamentalType
     val destElementType = this.elementType.fundamentalType
 
-    assert(sourceElementType isOfType destElementType)
-
-    if (sourceElementType == destElementType) {
+    if (sourceElementType != destElementType) {
+      assert(sourceElementType isOfType destElementType)
+    } else {
       if(!forceDeep) {
         return srcAddress
       }
