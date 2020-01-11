@@ -126,6 +126,8 @@ def active_instances_only(fun):
             log.info('instance, token not found in database')
             raise web.HTTPUnauthorized()
 
+        await instance.mark_healthy()
+
         return await fun(request, instance)
     return wrapped
 
