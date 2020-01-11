@@ -1,6 +1,5 @@
 package is.hail.expr.types.physical
-import is.hail.annotations.{CodeOrdering, ExtendedOrdering, Region}
-import is.hail.asm4s.{Code, MethodBuilder}
+import is.hail.annotations.CodeOrdering
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.{TVoid, Type}
 
