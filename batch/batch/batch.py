@@ -97,7 +97,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
             (batch_id, job_id, attempt_id, instance_name, new_state,
              json.dumps(status) if status is not None else None,
              start_time, end_time, reason, now))
-    except:
+    except Exception:
         log.exception(f'error while marking job {id} complete on instance {instance_name}')
         raise
 
@@ -138,7 +138,7 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
     CALL mark_job_started(%s, %s, %s, %s, %s);
     ''',
             (batch_id, job_id, attempt_id, instance.name, start_time))
-    except:
+    except Exception:
         log.exception(f'error while marking job {id} started on {instance}')
         raise
 
@@ -198,7 +198,7 @@ async def unschedule_job(app, record):
         rv = await db.execute_and_fetchone(
             'CALL unschedule_job(%s, %s, %s, %s, %s, %s);',
             (batch_id, job_id, attempt_id, instance_name, end_time, 'cancelled'))
-    except:
+    except Exception:
         log.exception(f'error while unscheduling job {id} on instance {instance_name}')
         raise
 
@@ -383,7 +383,7 @@ async def schedule_job(app, record, instance):
 CALL schedule_job(%s, %s, %s, %s);
 ''',
             (batch_id, job_id, attempt_id, instance.name))
-    except:  # pylint: disable=bare-except
+    except Exception:
         log.exception(f'error while scheduling job {id} on {instance}')
         if instance.state == 'active':
             instance.adjust_free_cores_in_memory(record['cores_mcpu'])
