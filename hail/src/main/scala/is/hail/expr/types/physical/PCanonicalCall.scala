@@ -63,6 +63,6 @@ final case class PCanonicalCall(required: Boolean) extends PCall {
 
       val srcRepPType = srcPType.asInstanceOf[PCanonicalCall].representation
 
-      representation.copyFromType(mb, region, srcRepPType, srcAddress, allowDowncast, forceDeep)
+      this.representation.copyFromType(mb, region, srcRepPType, srcAddress, allowDowncast, forceDeep)
     }
 }

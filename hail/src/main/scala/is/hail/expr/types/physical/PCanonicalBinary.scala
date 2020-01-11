@@ -21,7 +21,6 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
     assert(this isOfType sourcePType)
 
-    val srcType = sourcePType.asInstanceOf[PBinary]
     val dstAddress = mb.newField[Long]
     val length = mb.newLocal[Int]
 

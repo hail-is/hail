@@ -216,6 +216,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
     assert(this.elementType == sourceNDPType.elementType && this.nDims == sourceNDPType.nDims)
 
-    representation.copyFromType(mb, region, sourceNDPType.representation, srcAddress, allowDowncast, forceDeep)
+    this.representation.copyFromType(mb, region, sourceNDPType.representation, srcAddress, allowDowncast, forceDeep)
   }
 }
