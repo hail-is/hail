@@ -269,4 +269,33 @@ class PContainerSuite extends HailSuite {
     runTests(true)
     runTests(false)
   }
+
+  @Test def dictCopyTests() {
+    def runTests(forceDeep: Boolean) {
+      PhysicalTestUtils.copyTestExecutor(PDict(PString(), PInt32()), PDict(PString(), PInt32()), Map("test" -> 1),
+        forceDeep = forceDeep)
+
+      PhysicalTestUtils.copyTestExecutor(PDict(PString(true), PInt32(true)), PDict(PString(), PInt32()), Map("test2" -> 2),
+        forceDeep = forceDeep)
+
+      PhysicalTestUtils.copyTestExecutor(PDict(PString(), PInt32()), PDict(PString(true), PInt32()), Map("test3" -> 3),
+        expectCompileErr = true, forceDeep = forceDeep)
+
+      PhysicalTestUtils.copyTestExecutor(PDict(PString(), PInt32()), PDict(PString(true), PInt32()), Map("test4" -> 4),
+        allowDowncast = true, forceDeep = forceDeep)
+    }
+
+    runTests(true)
+    runTests(false)
+  }
+
+  @Test def setCopyTests() {
+    def runTests(forceDeep: Boolean) {
+      PhysicalTestUtils.copyTestExecutor(PSet(PString(true)), PSet(PString()), Set("1", "2"),
+        forceDeep = forceDeep)
+    }
+
+    runTests(true)
+    runTests(false)
+  }
 }

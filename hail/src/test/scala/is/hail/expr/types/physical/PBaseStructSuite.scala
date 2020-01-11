@@ -70,4 +70,14 @@ class PBaseStructSuite extends HailSuite {
     runTests(true)
     runTests(false)
   }
+
+  @Test def tupleCopyTests() {
+    def runTests(forceDeep: Boolean) {
+      PhysicalTestUtils.copyTestExecutor(PTuple(PString(true), PString(true)), PTuple(PString(), PString()), Annotation("1", "2"),
+        forceDeep = forceDeep)
+    }
+
+    runTests(true)
+    runTests(false)
+  }
 }
