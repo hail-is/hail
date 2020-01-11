@@ -508,7 +508,7 @@ WHERE user = %s;
 
 UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + %s;
 ''',
-                                         (n_ready, sum_cores_mcpu, user, sum_cores_mcpu))
+                                        (n_ready, sum_cores_mcpu, user, sum_cores_mcpu))
 
         return web.Response()
 
