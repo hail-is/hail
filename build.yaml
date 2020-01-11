@@ -89,6 +89,10 @@ steps:
        to: /repo/ci/
      - from: /io/repo/batch/sql
        to: /repo/batch/
+     - from: /io/repo/batch/test
+       to: /repo/batch/
+     - from: /io/repo/pipeline/test
+       to: /repo/pipeline/
      - from: /io/repo/notebook/sql
        to: /repo/notebook/
    dependsOn:
@@ -405,13 +409,6 @@ steps:
    dependsOn:
      - batch_image
  - kind: buildImage
-   name: test_batch_image
-   dockerFile: batch/Dockerfile.test
-   contextPath: .
-   publishAs: test-batch
-   dependsOn:
-     - base_image
- - kind: buildImage
    name: test_ci_image
    dockerFile: ci/Dockerfile.test
    contextPath: .
@@ -497,8 +494,6 @@ steps:
        to: /www-src.tar.gz
      - from: /io/repo/hail/cluster-tests.tar.gz
        to: /cluster-tests.tar.gz
-     - from: /io/repo/pipeline/test
-       to: /pipeline/
    dependsOn:
     - hail_build_image
  - kind: runImage
@@ -820,25 +815,37 @@ steps:
     - batch_worker_image
     - batch_database
     - deploy_auth
- - kind: deploy
+ - kind: runImage
    name: test_batch
-   namespace:
-     valueFrom: batch_pods_ns.name
-   config: batch/test-batch-pod.yaml
-   wait:
-    - kind: Pod
-      name: test-batch
-      for: completed
-      timeout: 1200
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+     export HAIL_BASE_IMAGE={{ base_image.image }}
+     export CI_UTILS_IMAGE={{ ci_utils_image.image }}
+     export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail -k "not test_scale" /io/test/
+   inputs:
+    - from: /repo/batch/test
+      to: /io/
+   port: 5000
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
    dependsOn:
     - default_ns
-    - base_image
     - batch_pods_ns
-    - deploy_batch
-    - test_batch_image
+    - copy_files
+    - base_image
+    - service_base_image
     - ci_utils_image
-    - deploy_ci_agent
-    - deploy_ci_agent_default
+    - deploy_batch
  - kind: runImage
    name: create_ci_test_repo
    image:
@@ -956,7 +963,7 @@ steps:
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
      gsutil -m cp -r /io/test/resources/*  gs://hail-test-dmk9z/{{ token }}/pipeline/input/
    inputs:
-    - from: /pipeline/test
+    - from: /repo/pipeline/test
       to: /io/
    secrets:
     - name: test-gsa-key
@@ -964,9 +971,9 @@ steps:
         valueFrom: batch_pods_ns.name
       mountPath: /test-gsa-key
    dependsOn:
-    - base_image
-    - build_hail
     - batch_pods_ns
+    - copy_files
+    - base_image
  - kind: runImage
    name: test_pipeline
    image:
@@ -976,7 +983,7 @@ steps:
      export SCRATCH=gs://hail-test-dmk9z/{{ setup_pipeline.token }}/pipeline
      python3 -m pytest --log-cli-level=INFO -s -v --instafail /io/test/
    inputs:
-    - from: /pipeline/test
+    - from: /repo/pipeline/test
       to: /io/
    secrets:
     - name: gce-deploy-config
@@ -990,8 +997,8 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
+    - copy_files
     - service_base_image
-    - build_hail
     - deploy_batch
     - setup_pipeline
  - kind: runImage
