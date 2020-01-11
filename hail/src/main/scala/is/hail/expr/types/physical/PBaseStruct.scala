@@ -283,7 +283,7 @@ abstract class PBaseStruct extends PType {
         return srcStructAddress
       }
 
-      if(types.forall(_.isPrimitive)) {
+      if(types.forall(_.fundamentalType.isPrimitive)) {
         return this.copyFrom(mb, region, srcStructAddress)
       }
     }
@@ -312,7 +312,7 @@ abstract class PBaseStruct extends PType {
         dstType.copyFromType(
           mb,
           region,
-          srcField.typ,
+          srcType,
           sourceType.loadField(srcStructAddress, srcField.index),
           allowDowncast,
           forceDeep
