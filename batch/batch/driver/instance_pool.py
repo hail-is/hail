@@ -340,7 +340,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch/logs/$IN
             log.warning(f'event has no payload')
             return
 
-        timestamp = event.timestamp.timestamp()
+        timestamp = event.timestamp.timestamp() * 1000
         payload = event.payload
         version = payload['version']
         if version != '1.2':
