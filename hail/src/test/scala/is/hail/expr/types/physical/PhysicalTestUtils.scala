@@ -45,7 +45,7 @@ object PhysicalTestUtils {
       val copyOff = f(region, srcOffset)
       val copy = UnsafeRow.read(destType, region, copyOff)
 
-      println(s"Copied value: ${copy}, Source value: ${sourceValue}")
+      log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
       assert(copy == sourceValue)
       runtimeSuccess = true
       region.clear()
