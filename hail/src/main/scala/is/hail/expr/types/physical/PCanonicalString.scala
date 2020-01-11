@@ -34,26 +34,21 @@ object PCanonicalString {
 
   def unapply(t: PString): Option[Boolean] = Option(t.required)
 
-  def loadString(boff: Long): String = {
-    val length = PBinary.loadLength(boff)
-    new String(Region.loadBytes(PBinary.bytesOffset(boff), length))
-  }
+  def loadString(bAddress: Long): String =
+    new String(PBinary.loadBytes(bAddress))
 
   def loadString(region: Region, boff: Long): String =
     loadString(boff)
 
-  def loadString(boff: Code[Long]): Code[String] = {
-    val length = PBinary.loadLength(boff)
-    Code.newInstance[String, Array[Byte]](
-      Region.loadBytes(PBinary.bytesOffset(boff), length))
-  }
+  def loadString(bAddress: Code[Long]): Code[String] =
+    Code.newInstance[String, Array[Byte]](PBinary.loadBytes(bAddress))
 
-  def loadString(region: Code[Region], boff: Code[Long]): Code[String] =
-    loadString(boff)
+  def loadString(region: Code[Region], bAddress: Code[Long]): Code[String] =
+    loadString(bAddress)
 
-  def loadLength(region: Region, boff: Long): Int =
-    PBinary.loadLength(region, boff)
+  def loadLength(region: Region, bAddress: Long): Int =
+    PBinary.loadLength(region, bAddress)
 
-  def loadLength(region: Code[Region], boff: Code[Long]): Code[Int] =
-    PBinary.loadLength(region, boff)
+  def loadLength(region: Code[Region], bAddress: Code[Long]): Code[Int] =
+    PBinary.loadLength(region, bAddress)
 }

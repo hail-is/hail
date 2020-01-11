@@ -79,13 +79,19 @@ object PBinary {
 
   def contentByteSize(length: Code[Int]): Code[Long] = PCanonicalBinary.contentByteSize(length)
 
-  def loadLength(boff: Long): Int = PCanonicalBinary.loadLength(boff)
+  def loadLength(bAddress: Long): Int = PCanonicalBinary.loadLength(bAddress)
 
-  def loadLength(region: Region, boff: Long): Int = PCanonicalBinary.loadLength(boff)
+  def loadLength(region: Region, bAddress: Long): Int = PCanonicalBinary.loadLength(bAddress)
 
-  def loadLength(boff: Code[Long]): Code[Int] = PCanonicalBinary.loadLength(boff)
+  def loadLength(bAddress: Code[Long]): Code[Int] = PCanonicalBinary.loadLength(bAddress)
 
-  def loadLength(region: Code[Region], boff: Code[Long]): Code[Int] = PCanonicalBinary.loadLength(boff)
+  def loadLength(region: Code[Region], bAddress: Code[Long]): Code[Int] = PCanonicalBinary.loadLength(bAddress)
+
+  def loadBytes(bAddress: Code[Long]): Code[Array[Byte]] =
+    Region.loadBytes(PBinary.bytesOffset(bAddress), PBinary.loadLength(bAddress))
+
+  def loadBytes(bAddress: Long): Array[Byte] =
+    Region.loadBytes(PBinary.bytesOffset(bAddress), PBinary.loadLength(bAddress))
 
   def storeLength(boff: Long, len: Int): Unit = PCanonicalBinary.storeLength(boff, len)
 

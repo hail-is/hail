@@ -21,11 +21,26 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
     assert(this isOfType sourcePType)
 
+    val srcType = sourcePType.asInstanceOf[PBinary]
     val dstAddress = mb.newField[Long]
     val length = mb.newLocal[Int]
 
     // since the srcAddress must point to data by our semantics, sourcePType's requiredeness is accounted for
+    var c: Code[_] = Code._empty
+
+    if(this.required > sourcePType.required) {
+      assert(allowDowncast)
+
+      val maybeNull = new CodeNullable[Array[Byte]](PBinary.loadBytes(srcAddress))
+      c = Code(
+        maybeNull.isNull.orEmpty(
+          Code._fatal("Cannot downcast to required type when value is null")
+        )
+      )
+    }
+
     Code(
+      c,
       length := PCanonicalBinary.loadLength(region, srcAddress),
       dstAddress := PCanonicalBinary.allocate(region, length),
       Region.copyFrom(srcAddress, dstAddress, PCanonicalBinary.contentByteSize(length)),
