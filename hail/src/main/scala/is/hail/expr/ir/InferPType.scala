@@ -60,12 +60,10 @@ object InferPType {
         PType.canonical(t, ir.pType2.required)
       }
       case NA(t) => {
-        val ptype = PType.canonical(t, false)
-        ptype.deepInnerRequired(false)
+        PType.canonical(t).deepInnerRequired(false)
       }
       case Die(_, t) => {
-        val ptype = PType.canonical(t, false)
-        ptype.deepInnerRequired(false)
+        PType.canonical(t).deepInnerRequired(true)
       }
       case IsNA(ir) => {
         InferPType(ir, env)
