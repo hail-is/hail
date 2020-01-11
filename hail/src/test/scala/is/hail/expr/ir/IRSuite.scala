@@ -2014,8 +2014,8 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testDieInferPType() {
-    assertPType(Die("mumblefoo", TFloat64()), PFloat64())
-    assertPType(Die("mumblefoo", TArray(TFloat64())), PArray(PFloat64(true)))
+    assertPType(Die("mumblefoo", TFloat64()), PFloat64(true))
+    assertPType(Die("mumblefoo", TArray(TFloat64())), PArray(PFloat64(true), true))
   }
 
   @Test def testArrayRange() {
