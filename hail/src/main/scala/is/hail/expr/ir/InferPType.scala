@@ -4,6 +4,8 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TNDArray, TTuple}
 import is.hail.utils._
 
+import scala.collection.mutable.ArrayBuffer
+
 object InferPType {
   def getNestedElementPTypes(ptypes: Seq[PType]): PType = {
     ptypes.head match {
@@ -413,6 +415,21 @@ object InferPType {
         val branchType = getNestedElementPTypes(IndexedSeq(cnsq.pType2, altr.pType2))
 
         branchType.setRequired(branchType.required && cond.pType2.required)
+      }
+
+      case Coalesce(values) => {
+        InferPType(values(0), env)
+        var pTypes = ArrayBuffer[PType](values(0)._pType2)
+
+        var i = 1
+        while(i < values.length) {
+          InferPType(values(i), env)
+          assert(values(i)._pType2 isOfType values(i-1)._pType2)
+          pTypes += values(i)._pType2
+          i += 1
+        }
+
+        getNestedElementPTypes(pTypes)
       }
       case In(_, pType: PType) => pType
       case _: ReadPartition | _: Coalesce | _: MakeStream => throw new Exception("Node not supported")

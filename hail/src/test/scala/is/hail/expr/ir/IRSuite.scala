@@ -219,6 +219,20 @@ class IRSuite extends HailSuite {
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), Die("foo", TInt32()))), 1)(ExecStrategy.javaOnly)
   }
 
+  @Test def testCoalesceInferPType() {
+    assertPType(Coalesce(FastSeq(In(0, PInt32()))), PInt32())
+    assertPType(Coalesce(FastSeq(In(0, PInt32()), In(0, PInt32(true)))), PInt32())
+    assertPType(Coalesce(FastSeq(In(0, PArray(PArray(PInt32()))), In(0, PArray(PArray(PInt32(true)))))), PArray(PArray(PInt32())))
+    assertPType(Coalesce(FastSeq(In(0, PArray(PArray(PInt32()))), In(0, PArray(PArray(PInt32(true), true))))), PArray(PArray(PInt32())))
+    assertPType(Coalesce(FastSeq(In(0, PArray(PArray(PInt32()))), In(0, PArray(PArray(PInt32(true), true), true)))), PArray(PArray(PInt32())))
+    assertPType(Coalesce(FastSeq(In(0, PArray(PArray(PInt32()))), In(0, PArray(PArray(PInt32(true), true), true)))), PArray(PArray(PInt32())))
+    assertPType(Coalesce(FastSeq(
+      In(0, PArray(PArray(PInt32()))),
+      In(0, PArray(PArray(PInt32(), true))),
+      In(0, PArray(PArray(PInt32(true)), true))
+    )), PArray(PArray(PInt32())))
+  }
+
   val i32na = NA(TInt32())
   val i64na = NA(TInt64())
   val f32na = NA(TFloat32())
