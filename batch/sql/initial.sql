@@ -194,29 +194,6 @@ BEGIN
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 END $$
 
-DROP TRIGGER IF EXISTS jobs_after_insert;
-CREATE TRIGGER jobs_after_insert AFTER INSERT ON jobs
-FOR EACH ROW
-BEGIN
-  DECLARE in_user VARCHAR(100);
-
-  SELECT user INTO in_user from batches
-  WHERE id = NEW.batch_id;
-
-  IF NEW.state = 'Ready' THEN
-    UPDATE user_resources
-      SET n_ready_jobs = n_ready_jobs + 1, ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu
-      WHERE user = in_user;
-    UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu;
-  END IF;
-
-  IF NEW.state = 'Running' THEN
-    UPDATE user_resources
-    SET n_running_jobs = n_running_jobs + 1, running_cores_mcpu = running_cores_mcpu + NEW.cores_mcpu
-    WHERE user = in_user;
-  END IF;
-END $$
-
 DROP TRIGGER IF EXISTS jobs_after_update;
 CREATE TRIGGER jobs_after_update AFTER UPDATE ON jobs
 FOR EACH ROW

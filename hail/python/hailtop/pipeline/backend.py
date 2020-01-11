@@ -281,10 +281,9 @@ class BatchBackend(Backend):
 
             parents = [task_to_job_mapping[t] for t in task._dependencies]
 
-            attributes = {'task_uid': task._uid}
+            attributes = task.attributes
             if task.name:
                 attributes['name'] = task.name
-            attributes.update(task.attributes)
 
             resources = {}
             if task._cpu:

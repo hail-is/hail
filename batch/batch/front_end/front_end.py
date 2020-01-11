@@ -410,6 +410,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
             job_parents_args = []
             job_attributes_args = []
 
+            n_ready = 0
+            sum_cores_mcpu = 0
+
             for spec in job_specs:
                 job_id = spec['job_id']
                 parent_ids = spec.pop('parent_ids', [])
@@ -436,6 +439,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         f'cpu cannot be 0')
 
                 cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
+                sum_cores_mcpu += cores_mcpu
 
                 if cores_mcpu > worker_cores * 1000:
                     total_memory_available = worker_memory_per_core_gb(worker_type) * worker_cores
@@ -460,7 +464,11 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     env = []
                     spec['env'] = env
 
-                state = 'Ready' if len(parent_ids) == 0 else 'Pending'
+                if len(parent_ids) == 0:
+                    state = 'Ready'
+                    n_ready += 1
+                else:
+                    state = 'Pending'
 
                 jobs_args.append(
                     (batch_id, job_id, state, json.dumps(spec),
@@ -492,6 +500,15 @@ INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 ''',
                                       job_attributes_args)
+
+                await tx.execute_update('''
+UPDATE user_resources
+SET n_ready_jobs = n_ready_jobs + %s, ready_cores_mcpu = ready_cores_mcpu + %s
+WHERE user = %s;
+
+UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + %s;
+''',
+                                 (n_ready, sum_cores_mcpu, user, sum_cores_mcpu))
 
         return web.Response()
 
