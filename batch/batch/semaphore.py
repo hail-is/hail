@@ -45,12 +45,14 @@ class FIFOWeightedSemaphore:
     def release(self, weight):
         self.value += weight
 
-        if self.queue:
+        while self.queue:
             head_event, head_weight = self.queue[0]
             if self.value >= head_weight:
                 head_event.set()
                 self.queue.popleft()
                 self.value -= head_weight
+            else:
+                break
 
     def __call__(self, weight):
         return FIFOWeightedSemaphoreContextManager(self, weight)
