@@ -1001,7 +1001,7 @@ async def on_cleanup(app):
 
 
 def run():
-    app = web.Application(client_max_size=None)
+    app = web.Application()
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'batch.front_end')
@@ -1012,4 +1012,8 @@ def run():
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    web.run_app(deploy_config.prefix_application(app, 'batch'), host='0.0.0.0', port=5000)
+    web.run_app(deploy_config.prefix_application(app,
+                                                 'batch',
+                                                 client_max_size=8 * 1024 * 1024),
+                host='0.0.0.0',
+                port=5000)
