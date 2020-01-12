@@ -188,7 +188,7 @@ SELECT job_id, batch_id, spec, cores_mcpu,
 FROM jobs
 STRAIGHT_JOIN batches ON batches.id = jobs.batch_id
 WHERE jobs.state = 'Ready' AND batches.closed AND batches.user = %s
-LIMIT 50;
+LIMIT 500;
 ''',
                 (user, ))
 
