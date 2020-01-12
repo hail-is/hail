@@ -44,9 +44,9 @@ class Scheduler:
 
         records = self.db.execute_and_fetchall(
             '''
-SELECT user, CAST(SUM(n_ready_jobs) AS SIGNED) AS n_ready_jobs, 
-  CAST(SUM(ready_cores_mcpu) AS SIGNED) AS ready_cores_mcpu, 
-  CAST(SUM(n_running_jobs) AS SIGNED) AS n_running_jobs, 
+SELECT user, CAST(SUM(n_ready_jobs) AS SIGNED) AS n_ready_jobs,
+  CAST(SUM(ready_cores_mcpu) AS SIGNED) AS ready_cores_mcpu,
+  CAST(SUM(n_running_jobs) AS SIGNED) AS n_running_jobs,
   CAST(SUM(running_cores_mcpu) AS SIGNED) AS running_cores_mcpu
 FROM user_resources
 GROUP BY user;
