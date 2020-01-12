@@ -7,6 +7,8 @@ DROP PROCEDURE IF EXISTS unschedule_job;
 DROP PROCEDURE IF EXISTS mark_job_started;
 DROP PROCEDURE IF EXISTS mark_job_complete;
 DROP PROCEDURE IF EXISTS add_attempt;
+DROP PROCEDURE IF EXISTS insert_ready_cores_tokens;
+DROP PROCEDURE IF EXISTS insert_user_resources_tokens;
 
 DROP TABLE IF EXISTS `globals`;
 DROP TABLE IF EXISTS `attempts`;
