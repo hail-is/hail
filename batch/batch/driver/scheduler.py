@@ -14,6 +14,19 @@ log = logging.getLogger('driver')
 OVERSCHEDULE_CORES_MCPU = 2000
 
 
+class LogAndIgnoreErrors:
+    def __init__(self, description, async_action):
+        async def with_error_handling():
+            try:
+                await async_action()
+            except Exception as result:  # pylint: disable=broad-except
+                log.info(f'error while {description}, {result!r}')
+        self.async_action = with_error_handling
+
+    async def __call__(self, *args, **kwargs):
+        return await self.async_action(*args, **kwargs)
+
+
 class Scheduler:
     def __init__(self, app):
         self.app = app
@@ -159,7 +172,7 @@ LIMIT 50;
 
         should_wait = True
 
-        to_schedule = []
+        async_work = []
         for user, resources in user_resources.items():
             allocated_cores_mcpu = resources['allocated_cores_mcpu']
             if allocated_cores_mcpu == 0:
@@ -188,9 +201,14 @@ LIMIT 50;
 
                 if record['cancel']:
                     log.info(f'cancelling job {id}')
-                    await mark_job_complete(self.app, batch_id, job_id, None, None,
-                                            'Cancelled', None, None, None, 'cancelled')
                     should_wait = False
+
+                    async_work.append(
+                        LogAndIgnoreErrors(
+                            'cancelling job {id}',
+                            functools.partial(mark_job_complete,
+                                              self.app, batch_id, job_id, None, None,
+                                              'Cancelled', None, None, None, 'cancelled')))
                     continue
 
                 if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
@@ -206,19 +224,11 @@ LIMIT 50;
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     should_wait = False
                     scheduled_cores_mcpu += record['cores_mcpu']
-                    to_schedule.append((record, instance))
 
-        results = await bounded_gather(*[functools.partial(schedule_job, self.app, record, instance)
-                                         for record, instance in to_schedule],
-                                       parallelism=100,
-                                       return_exceptions=True)
+                    async_work.append(
+                        LogAndIgnoreErrors(
+                            'scheduling job {id} on {instance}',
+                            functools.partial(schedule_job, self.app, record, instance)))
 
-        for ((record, instance), result) in zip(to_schedule, results):
-            batch_id = record['batch_id']
-            job_id = record['job_id']
-            id = (batch_id, job_id)
-
-            if isinstance(result, Exception):
-                log.info(f'error while scheduling job {id} on {instance}, {result!r}')
-
+        await bounded_gather(*[x.async_action for x in async_work], parallelism=100)
         return should_wait
