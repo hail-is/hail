@@ -411,8 +411,6 @@ async def on_startup(app):
 
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()
-    app['k8s_client'] = k8s_client
-
     k8s_cache = K8sCache(k8s_client, refresh_time=5)
     app['k8s_cache'] = k8s_cache
 
