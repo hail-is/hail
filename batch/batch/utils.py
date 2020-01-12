@@ -13,8 +13,9 @@ def cost_from_msec_mcpu(msec_mcpu):
     # https://cloud.google.com/compute/all-pricing
     # n1-standard-16: $0.16 / 16 cores = $0.01 / core*hour
     # 100 GB persistent disk: $0.17 GB/month
-    # = 0.17 * 100 * (1 / 30) * (1 / 24) * (1 / 16) = 0.0014757
-    cost_per_core_sec = 0.0114757 / 3600
+    # average number of days per month = 365.25 / 12 = 30.4375
+    # = 0.17 * 100 * (1 / 30.4375) * (1 / 24) * (1 / 16) = 0.0014545
+    cost_per_core_sec = 0.0114545 / 3600
     return msec_mcpu * cost_per_core_sec * 0.001 * 0.001
 
 
