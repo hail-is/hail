@@ -205,7 +205,7 @@ LIMIT 500;
 
                     async_work.append(
                         LogAndIgnoreErrors(
-                            'cancelling job {id}',
+                            f'cancelling job {id}',
                             functools.partial(mark_job_complete,
                                               self.app, batch_id, job_id, None, None,
                                               'Cancelled', None, None, None, 'cancelled')))
@@ -227,7 +227,7 @@ LIMIT 500;
 
                     async_work.append(
                         LogAndIgnoreErrors(
-                            'scheduling job {id} on {instance}',
+                            f'scheduling job {id} on {instance}',
                             functools.partial(schedule_job, self.app, record, instance)))
 
         await bounded_gather(*[x.async_action for x in async_work], parallelism=100)
