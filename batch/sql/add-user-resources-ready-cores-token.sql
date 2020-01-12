@@ -4,6 +4,30 @@ ALTER TABLE user_resources DROP PRIMARY KEY, ADD PRIMARY KEY(`user`, `token`);
 ALTER TABLE ready_cores ADD COLUMN token INT NOT NULL DEFAULT 0;
 ALTER TABLE ready_cores ADD PRIMARY KEY(`token`);
 
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS insert_ready_cores_tokens;
+CREATE PROCEDURE insert_ready_cores_tokens()
+BEGIN
+    DECLARE i int DEFAULT 0;
+    WHILE i < 32 DO
+        INSERT IGNORE INTO ready_cores (token) VALUES (i);
+        SET i = i + 1;
+    END WHILE;
+END $$
+
+DROP PROCEDURE IF EXISTS insert_user_resources_tokens;
+CREATE PROCEDURE insert_user_resources_tokens(
+  IN in_user VARCHAR(100)
+)
+BEGIN
+    DECLARE i int DEFAULT 0;
+    WHILE i < 32 DO
+        INSERT IGNORE INTO user_resources (user, token) VALUES (in_user, i);
+        SET i = i + 1;
+    END WHILE;
+END $$
+
 DROP TRIGGER IF EXISTS jobs_after_update;
 CREATE TRIGGER jobs_after_update AFTER UPDATE ON jobs
 FOR EACH ROW

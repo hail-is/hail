@@ -484,7 +484,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         job_attributes_args.append(
                             (batch_id, job_id, k, v))
 
-        rand_token = random.randint(0, 32)
+        rand_token = random.randint(0, 31)
 
         async with timer.step('insert jobs'):
             async with db.start() as tx:
@@ -554,7 +554,7 @@ WHERE billing_project = %s AND user = %s;
 
         await tx.just_execute(
             '''
-INSERT IGNORE INTO user_resources (user) VALUES (%s);
+CALL insert_user_resources_tokens(%s);
 ''',
             (user,))
 
