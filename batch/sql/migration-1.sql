@@ -1,6 +1,9 @@
 ALTER TABLE user_resources ADD COLUMN token INT NOT NULL DEFAULT 0;
 ALTER TABLE user_resources DROP PRIMARY KEY, ADD PRIMARY KEY(`user`, `token`);
 
+ALTER TABLE ready_cores ADD COLUMN token INT NOT NULL DEFAULT 0;
+ALTER TABLE ready_cores ADD PRIMARY KEY(`token`);
+
 DROP TRIGGER IF EXISTS jobs_after_update;
 CREATE TRIGGER jobs_after_update AFTER UPDATE ON jobs
 FOR EACH ROW
@@ -17,14 +20,20 @@ BEGIN
     UPDATE user_resources
       SET n_ready_jobs = n_ready_jobs - 1, ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu
       WHERE user = in_user AND token = rand_token;
-    UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu;
+
+    UPDATE ready_cores
+      SET ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu
+      WHERE token = rand_token;
   END IF;
 
   IF NEW.state = 'Ready' THEN
     UPDATE user_resources
       SET n_ready_jobs = n_ready_jobs + 1, ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu
       WHERE user = in_user AND token = rand_token;
-    UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu;
+
+    UPDATE ready_cores
+      SET ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu
+      WHERE token = rand_token;
   END IF;
 
   IF OLD.state = 'Running' THEN

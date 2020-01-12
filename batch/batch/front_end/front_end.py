@@ -509,10 +509,16 @@ UPDATE user_resources
 SET n_ready_jobs = n_ready_jobs + %s, ready_cores_mcpu = ready_cores_mcpu + %s
 WHERE user = %s AND token = %s;
 
-UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + %s;
+
 ''',
-                                        (n_ready, sum_ready_cores_mcpu, user, rand_token,
-                                         sum_ready_cores_mcpu))
+                                        (n_ready, sum_ready_cores_mcpu, user, rand_token))
+
+                await tx.execute_update('''
+UPDATE ready_cores
+SET ready_cores_mcpu = ready_cores_mcpu + %s
+WHERE token = %s;
+''',
+                                        (sum_ready_cores_mcpu, rand_token))
 
         return web.Response()
 

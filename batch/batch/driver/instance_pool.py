@@ -398,7 +398,11 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch/logs/$IN
         while True:
             try:
                 ready_cores = await self.db.select_and_fetchone(
-                    'SELECT * FROM ready_cores;')
+                    '''
+SELECT SUM(ready_cores_mcpu) AS ready_cores_mcpu
+FROM ready_cores
+GROUP BY token;
+''')
                 ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
                 log.info(f'n_instances {self.n_instances} {self.n_instances_by_state}'
