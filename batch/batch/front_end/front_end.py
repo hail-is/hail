@@ -411,7 +411,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
             job_attributes_args = []
 
             n_ready = 0
-            sum_cores_mcpu = 0
+            sum_ready_cores_mcpu = 0
 
             for spec in job_specs:
                 job_id = spec['job_id']
@@ -439,7 +439,6 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         f'cpu cannot be 0')
 
                 cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
-                sum_cores_mcpu += cores_mcpu
 
                 if cores_mcpu > worker_cores * 1000:
                     total_memory_available = worker_memory_per_core_gb(worker_type) * worker_cores
@@ -467,6 +466,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if len(parent_ids) == 0:
                     state = 'Ready'
                     n_ready += 1
+                    sum_ready_cores_mcpu += cores_mcpu
                 else:
                     state = 'Pending'
 
@@ -508,7 +508,7 @@ WHERE user = %s;
 
 UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + %s;
 ''',
-                                        (n_ready, sum_cores_mcpu, user, sum_cores_mcpu))
+                                        (n_ready, sum_ready_cores_mcpu, user, sum_ready_cores_mcpu))
 
         return web.Response()
 
