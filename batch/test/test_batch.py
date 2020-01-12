@@ -109,7 +109,7 @@ class Test(unittest.TestCase):
 
     def test_invalid_resource_requests(self):
         builder = self.client.create_batch()
-        resources = {'cpu': '1', 'memory': '28Gi'}
+        resources = {'cpu': '1', 'memory': '250Gi'}
         builder.create_job('ubuntu:18.04', ['true'], resources=resources)
         with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'resource requests.*unsatisfiable'):
             builder.submit()
