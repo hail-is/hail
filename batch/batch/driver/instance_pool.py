@@ -62,7 +62,11 @@ class InstancePool:
         self.pool_size = row['pool_size']
 
         async for record in self.db.select_and_fetchall(
-                'SELECT * FROM instances WHERE removed = 0;'):
+                '''
+SELECT * FROM instances
+INNER JOIN instance_healthchecks USING (name)
+WHERE removed = 0;
+'''):
             instance = Instance.from_record(self.app, record)
             self.add_instance(instance)
 

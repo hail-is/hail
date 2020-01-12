@@ -806,6 +806,8 @@ steps:
       script: /io/sql/add-lock-in-share-mode.sql
     - name: add-batch-create-token
       script: /io/sql/add-batch-create-token.sql
+    - name: split-instances-table
+      script: /io/sql/split-instances-table.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/

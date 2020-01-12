@@ -22,13 +22,19 @@ class Instance:
         state = 'pending'
         now = time_msecs()
         token = secrets.token_urlsafe(32)
-        await db.just_execute(
-            '''
-INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu, time_created, last_updated)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+
+        async with db.start() as tx:
+            await tx.just_execute(
+                '''
+INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu, time_created)
+VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
-            (name, state, activation_token, token, worker_cores_mcpu,
-             worker_cores_mcpu, now, now))
+                (name, state, activation_token, token, worker_cores_mcpu, worker_cores_mcpu, now))
+            await tx.just_execute(
+                '''
+INSERT INTO instance_healthchecks (name, last_updated) VALUES (%s, %s);
+''',
+                (name, now))
         return Instance(
             app, name, state, worker_cores_mcpu, worker_cores_mcpu, now, 0, now, None)
 
@@ -120,7 +126,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
         now = time_msecs()
         await self.db.execute_update(
             '''
-UPDATE instances
+UPDATE instance_healthchecks
 SET last_updated = %s,
   failed_request_count = 0
 WHERE name = %s;
@@ -135,7 +141,7 @@ WHERE name = %s;
     async def incr_failed_request_count(self):
         await self.db.execute_update(
             '''
-UPDATE instances
+UPDATE instance_healthchecks
 SET failed_request_count = failed_request_count + 1 WHERE name = %s;
 ''',
             (self.name,))
@@ -151,7 +157,7 @@ SET failed_request_count = failed_request_count + 1 WHERE name = %s;
     async def update_timestamp(self):
         now = time_msecs()
         await self.db.execute_update(
-            'UPDATE instances SET last_updated = %s WHERE name = %s;',
+            'UPDATE instance_healthchecks SET last_updated = %s WHERE name = %s;',
             (now, self.name))
 
         self.instance_pool.adjust_for_remove_instance(self)
