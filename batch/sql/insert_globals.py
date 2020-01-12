@@ -12,7 +12,7 @@ async def main():
     if scope == 'deploy':
         # warning: if you change worker_cores or worker_disk_size_gb,
         # make sure to change batch/utils.py::cost_from_msec_mcpu
-        worker_cores = 8
+        worker_cores = 16
         worker_disk_size_gb = 100
         max_instances = 10
         pool_size = 10
