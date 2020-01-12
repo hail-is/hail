@@ -243,7 +243,7 @@ async def unschedule_job(app, record):
 
 
 async def job_config(app, record, attempt_id):
-    k8s_client = app['k8s_client']
+    k8s_cache = app['k8s_cache']
 
     job_spec = json.loads(record['spec'])
     job_spec['attempt_id'] = attempt_id
@@ -252,9 +252,9 @@ async def job_config(app, record, attempt_id):
 
     secrets = job_spec['secrets']
     k8s_secrets = await asyncio.gather(*[
-        k8s_client.read_namespaced_secret(
+        k8s_cache.read_secret(
             secret['name'], secret['namespace'],
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+            KUBERNETES_TIMEOUT_IN_SECONDS)
         for secret in secrets
     ])
 
@@ -271,16 +271,14 @@ async def job_config(app, record, attempt_id):
         namespace = service_account['namespace']
         name = service_account['name']
 
-        sa = await k8s_client.read_namespaced_service_account(
-            name, namespace,
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        sa = await k8s_cache.read_service_account(
+            name, namespace, KUBERNETES_TIMEOUT_IN_SECONDS)
         assert len(sa.secrets) == 1
 
         token_secret_name = sa.secrets[0].name
 
-        secret = await k8s_client.read_namespaced_secret(
-            token_secret_name, namespace,
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        secret = await k8s_cache.read_secret(
+            token_secret_name, namespace, KUBERNETES_TIMEOUT_IN_SECONDS)
 
         token = base64.b64decode(secret.data['token']).decode()
         cert = secret.data['ca.crt']

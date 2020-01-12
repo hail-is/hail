@@ -22,7 +22,6 @@ class InstancePool:
         self.scheduler_state_changed = app['scheduler_state_changed']
         self.db = app['db']
         self.gservices = app['gservices']
-        self.k8s = app['k8s_client']
         self.machine_name_prefix = machine_name_prefix
 
         # set in async_init
