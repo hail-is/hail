@@ -8,8 +8,7 @@ async def main():
 
     await db.just_execute('CALL insert_ready_cores_tokens();')
 
-    users = await db.execute_and_fetchall('SELECT user FROM user_resources;')
-
+    users = db.execute_and_fetchall('SELECT user FROM user_resources;')
     async for user in users:
         await db.just_execute('CALL insert_user_resources_tokens(%s)',
                               (user,))
