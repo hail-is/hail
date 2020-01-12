@@ -654,7 +654,7 @@ class Worker:
 
         # already running
         if id in self.jobs:
-            return web.Response()
+            return web.HTTPForbidden()
 
         job = Job(batch_id, body['user'], body['gsa_key'], job_spec)
 
