@@ -11,6 +11,8 @@ from ..batch import schedule_job, unschedule_job, mark_job_complete
 
 log = logging.getLogger('driver')
 
+OVERSCHEDULE_CORES_MCPU = 2000
+
 
 class Scheduler:
     def __init__(self, app):
@@ -26,7 +28,10 @@ class Scheduler:
         asyncio.ensure_future(self.bump_loop())
 
     async def compute_fair_share(self):
-        free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.inst_pool.healthy_instances_by_free_cores])
+        free_cores_mcpu = sum([
+            worker.free_cores_mcpu + OVERSCHEDULE_CORES_MCPU
+            for worker in self.inst_pool.healthy_instances_by_free_cores
+        ])
 
         user_running_cores_mcpu = {}
         user_total_cores_mcpu = {}
@@ -194,7 +199,10 @@ LIMIT 50;
                 i = self.inst_pool.healthy_instances_by_free_cores.bisect_key_left(record['cores_mcpu'])
                 if i < len(self.inst_pool.healthy_instances_by_free_cores):
                     instance = self.inst_pool.healthy_instances_by_free_cores[i]
-                    assert record['cores_mcpu'] <= instance.free_cores_mcpu
+                else:
+                    instance = self.inst_pool.healthy_instances_by_free_cores[-1]
+                if (record['cores_mcpu'] <= instance.free_cores_mcpu + OVERSCHEDULE_CORES_MCPU or
+                        instance.free_cores_mcpu == 0):
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     should_wait = False
                     scheduled_cores_mcpu += record['cores_mcpu']
