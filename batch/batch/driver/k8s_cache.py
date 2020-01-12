@@ -2,6 +2,8 @@ import time
 import asyncio
 import sortedcontainers
 
+from hailtop.utils import retry_transient_errors
+
 
 class K8sCache:
     def __init__(self, client, refresh_time, max_size=100):
@@ -36,8 +38,11 @@ class K8sCache:
                 head_id = self.secret_ids.pop(0)
                 del self.secrets[head_id]
 
-            secret = await self.client.read_namespaced_secret(
-                name, namespace, _request_timeout=timeout)
+            secret = await retry_transient_errors(
+                self.client.read_namespaced_secret,
+                name,
+                namespace,
+                _request_timeout=timeout)
 
             self.secrets[id] = (secret, time.time())
             self.secret_ids.add(id)
@@ -62,8 +67,11 @@ class K8sCache:
                 head_id = self.service_account_ids.pop(0)
                 del self.service_accounts[head_id]
 
-            sa = await self.client.read_namespaced_service_account(
-                name, namespace, _request_timeout=timeout)
+            sa = await retry_transient_errors(
+                self.client.read_namespaced_service_account,
+                name,
+                namespace,
+                _request_timeout=timeout)
 
             self.service_accounts[id] = (sa, time.time())
             self.service_account_ids.add(id)
