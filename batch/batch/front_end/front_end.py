@@ -2,6 +2,7 @@ import os
 import concurrent
 import logging
 import json
+import random
 import asyncio
 import aiohttp
 from aiohttp import web
@@ -483,6 +484,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         job_attributes_args.append(
                             (batch_id, job_id, k, v))
 
+        rand_token = random.randint(0, 32)
+
         async with timer.step('insert jobs'):
             async with db.start() as tx:
                 await tx.execute_many('''
@@ -504,11 +507,12 @@ VALUES (%s, %s, %s, %s);
                 await tx.execute_update('''
 UPDATE user_resources
 SET n_ready_jobs = n_ready_jobs + %s, ready_cores_mcpu = ready_cores_mcpu + %s
-WHERE user = %s;
+WHERE user = %s AND token = %s;
 
 UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + %s;
 ''',
-                                        (n_ready, sum_ready_cores_mcpu, user, sum_ready_cores_mcpu))
+                                        (n_ready, sum_ready_cores_mcpu, user, rand_token,
+                                         sum_ready_cores_mcpu))
 
         return web.Response()
 

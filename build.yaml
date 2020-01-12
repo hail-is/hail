@@ -796,6 +796,8 @@ steps:
       script: /io/sql/create-billing-projects.sql
     - name: increase-spec-size
       script: /io/sql/increase-spec-size.sql
+    - name: migration-1
+      script: /io/sql/migration-1.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
