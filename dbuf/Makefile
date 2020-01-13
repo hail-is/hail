@@ -21,4 +21,4 @@ push: build
 
 deploy: push
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"dbuf_image":{"image":"$(DBUF_IMAGE)"},"default_ns":{"name":"default"},"global":{"project":"$(PROJECT)","zone":"$(ZONE)","domain":"$(DOMAIN)","k8s_server_url":"$(KUBERNETES_SERVER_URL)"}}' deployment.yaml deployment.yaml.out
-	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
+	kubectl -n default apply -f deployment.yaml.out
