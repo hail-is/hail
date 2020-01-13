@@ -1771,17 +1771,7 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
       val targetRegion = ctx.region
 
       new Iterator[RegionValue] {
-        //var current: RegionValue = _
-        var isEnd = false
-
         override def hasNext: Boolean = {
-//          if (isEnd || current == null && !it.hasNext) {
-//            isEnd = true
-//            return false
-//          }
-//          if (current == null)
-//            current = it.next()
-//          true
           it.hasNext
         }
 
@@ -1789,13 +1779,13 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
           if (!hasNext)
             throw new java.util.NoSuchElementException()
 
-          val regionValueArray = Array[RegionValue]()
+          var regionValueArray = Array[RegionValue]()
           var i = 0
-          do {
+          while (it.hasNext && i != n) {
             val nextRV = it.next()
-            regionValueArray :+ nextRV
+            regionValueArray = regionValueArray :+ nextRV
             i += 1
-          } while (it.hasNext && i % n != 0)
+          }
           val rvb = new RegionValueBuilder(targetRegion)
           rvb.start(rowType)
           rvb.startStruct()
