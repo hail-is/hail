@@ -417,3 +417,24 @@ class BatchTests(unittest.TestCase):
         t.command(f'cat {input}')
         p.write_output(input, f'{gcs_output_dir}/hello.txt')
         p.run(verbose=True)
+
+    def test_benchmark_lookalike_workflow(self):
+        p = self.pipeline()
+
+        setup_tasks = []
+        for i in range(10):
+            t = p.new_task(f'setup_{i}')
+            t.command(f'echo "foo" > {t.ofile}')
+            setup_tasks.append(t)
+
+        tasks = []
+        for i in range(1000):
+            t = p.new_task(f'create_file_{i}')
+            t.command(f'echo {setup_tasks[i % len(setup_tasks)].ofile} > {t.ofile}')
+            t.command(f'echo "bar" >> {t.ofile}')
+            tasks.append(t)
+
+        combine = p.new_task(f'combine_output')
+        for t in tasks:
+            combine.command(f'cat {t.ofile} >> {combine.ofile}')
+        p.write_output(combine.ofile, f'{gcs_output_dir}/pipeline_benchmark_test.txt')
