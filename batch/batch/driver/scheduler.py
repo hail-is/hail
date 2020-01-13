@@ -138,7 +138,7 @@ GROUP BY user;
 SELECT user
 FROM user_resources
 GROUP BY user
-HAVING CAST(SUM(running_cores_mcpu) AS SIGNED) > 0;
+HAVING SUM(running_cores_mcpu) > 0;
 ''')
 
         should_wait = True
