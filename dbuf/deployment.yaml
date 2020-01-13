@@ -7,7 +7,7 @@ spec:
   selector:
     matchLabels:
       app: dbuf
-  replicas: 4
+  replicas: 1
   volumeClaimTemplates:
     - metadata:
         name: dbuf
@@ -17,7 +17,7 @@ spec:
           - ReadWriteOnce
         resources:
           requests:
-            storage: 100Gi
+            storage: 20Gi
   template:
     metadata:
       name: dbuf
