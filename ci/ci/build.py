@@ -1068,7 +1068,7 @@ class CreateDatabase2Step(Step):
                                    json['databaseName'],
                                    json['namespace'],
                                    json['migrations'],
-                                   json['shutdowns'],
+                                   json.get('shutdowns', []),
                                    json.get('inputs'))
 
     def config(self, scope):  # pylint: disable=unused-argument
