@@ -765,6 +765,28 @@ steps:
     - default_ns
     - service_base_image
     - copy_files
+ - kind: runImage
+   name: delete_ci_tables
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     mysql --defaults-extra-file=/database-server-config/sql-config.cnf < /io/sql/delete-ci-tables.sql
+   inputs:
+    - from: /repo/ci/sql
+      to: /io/
+   secrets:
+    - name: database-server-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /database-server-config
+   runIfRequested: true
+   scopes:
+    - dev
+   dependsOn:
+    - default_ns
+    - service_base_image
+    - copy_files
  - kind: createDatabase
    name: ci_database
    databaseName: ci
@@ -784,7 +806,12 @@ steps:
    dependsOn:
     - default_ns
     - copy_files
+<<<<<<< HEAD
  - kind: createDatabase
+=======
+    - delete_ci_tables
+ - kind: createDatabase2
+>>>>>>> [ci] add zulip notification of deploy state
    name: batch_database
    databaseName: batch
    migrations:
