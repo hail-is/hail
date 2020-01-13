@@ -1760,26 +1760,29 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
   override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
     val prevRVD = prev.rvd
+    val prevKeyType = prev.rvd.typ.kType
 
     val groupedElementsPType = PArray(prevRVD.typ.rowType, false)
     val rowType = this.typ.rowType.physicalType
     val newRVDType = prevRVD.typ.copy(rowType = rowType)
+    val keyIndices = child.typ.keyFieldIdx
 
     val newRVD = prevRVD.mapPartitionsWithIndex(newRVDType, { (int, ctx, it) =>
       val targetRegion = ctx.region
 
       new Iterator[RegionValue] {
-        var current: RegionValue = _
+        //var current: RegionValue = _
         var isEnd = false
 
         override def hasNext: Boolean = {
-          if (isEnd || current == null && !it.hasNext) {
-            isEnd = true
-            return false
-          }
-          if (current == null)
-            current = it.next()
-          true
+//          if (isEnd || current == null && !it.hasNext) {
+//            isEnd = true
+//            return false
+//          }
+//          if (current == null)
+//            current = it.next()
+//          true
+          it.hasNext
         }
 
         override def next(): RegionValue = {
@@ -1794,10 +1797,15 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
             i += 1
           } while (it.hasNext && i % n != 0)
           val rvb = new RegionValueBuilder(targetRegion)
+          rvb.start(rowType)
+          rvb.startStruct()
+          rvb.addFields(prevKeyType, regionValueArray(0), keyIndices)
           rvb.startArray(i, true)
           regionValueArray.zipWithIndex.foreach { case (rv, arrIdx) =>
             rvb.addElement(groupedElementsPType, rv, arrIdx)
           }
+          rvb.endArray()
+          rvb.endStruct()
           rvb.result()
         }
       }
