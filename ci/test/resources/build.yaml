@@ -60,19 +60,12 @@ steps:
      python3 -m flake8 /hello/hello.py
    dependsOn:
      - hello_image
- - kind: createDatabase
+ - kind: createDatabase2
    name: hello_database
    databaseName: hello
-   namespace:
-     valueFrom: default_ns.name
-   dependsOn:
-    - default_ns
- - kind: createDatabase2
-   name: hello2_database
-   databaseName: hello2
    migrations:
     - name: create-tables
-      script: /io/sql/create-hello2-tables.sql
+      script: /io/sql/create-hello-tables.sql
     - name: insert
       script: /io/sql/insert.py
    inputs:
@@ -84,7 +77,7 @@ steps:
     - default_ns
     - copy_files
  - kind: runImage
-   name: test_hello2_database
+   name: test_hello_database
    image:
      valueFrom: service_base_image.image
    script: |
@@ -94,20 +87,20 @@ steps:
      async def async_main():
        db = Database()
        await db.async_init()
-       row = await db.execute_and_fetchone('SELECT version FROM hello2_migration_version;')
+       row = await db.execute_and_fetchone('SELECT version FROM hello_migration_version;')
        assert row['version'] == 3
      asyncio.get_event_loop().run_until_complete(async_main())
      EOF
      python3 test.py
    secrets:
     - name:
-        valueFrom: hello2_database.user_secret_name
+        valueFrom: hello_database.user_secret_name
       namespace:
         valueFrom: default_ns.name
       mountPath: /sql-config
    dependsOn:
     - default_ns
-    - hello2_database
+    - hello_database
     - service_base_image
  - kind: deploy
    name: deploy_hello
