@@ -120,12 +120,13 @@ async def shutdown():
         return
 
     shutdowns = create_database_config['shutdowns']
-    for s in shutdowns:
-        assert s['kind'] == 'Deployment'
-        await check_shell(f'''
+    if shutdowns:
+        for s in shutdowns:
+            assert s['kind'] == 'Deployment'
+            await check_shell(f'''
 kubectl -n {s["namespace"]} delete --ignore-not-found=true deployment {s["name"]}
 ''')
-
+    
     did_shutdown = True
 
 
