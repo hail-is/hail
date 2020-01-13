@@ -122,7 +122,7 @@ async def migrate(database_name, db, i, migration):
     print(f'script_sha1 {script_sha1}')
 
     row = await db.execute_and_fetchone(
-        f'SELECT version FROM {database_name}_migration_version;')
+        f'SELECT version FROM `{database_name}_migration_version`;')
     current_version = row['version']
 
     if current_version + 1 == to_version:
@@ -136,10 +136,10 @@ mysql --defaults-extra-file=/sql-config.cnf <{script}
 
         await db.just_execute(
             f'''
-UPDATE {database_name}_migration_version
+UPDATE `{database_name}_migration_version`
 SET version = %s;
 
-INSERT INTO {database_name}_migrations (version, name, script_sha1)
+INSERT INTO `{database_name}_migrations` (version, name, script_sha1)
 VALUES (%s, %s, %s);
 ''',
             (to_version, to_version, name, script_sha1))
@@ -148,7 +148,7 @@ VALUES (%s, %s, %s);
 
         # verify checksum
         row = await db.execute_and_fetchone(
-            f'SELECT * FROM {database_name}_migrations WHERE version = %s;', (to_version,))
+            f'SELECT * FROM `{database_name}_migrations` WHERE version = %s;', (to_version,))
         assert row is not None
         assert name == row['name']
         assert script_sha1 == row['script_sha1']
@@ -193,7 +193,7 @@ CREATE TABLE `{database_name}_migration_version` (
 ) ENGINE = InnoDB;
 INSERT INTO `{database_name}_migration_version` (`version`) VALUES (1);
 
-CREATE TABLE {database_name}_migrations (
+CREATE TABLE `{database_name}_migrations` (
   `version` BIGINT NOT NULL,
   `name` VARCHAR(100),
   `script_sha1` VARCHAR(40),
