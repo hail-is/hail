@@ -1748,7 +1748,7 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
   override lazy val typ: TableType = TableType(
-    child.typ.keyType ++ TStruct(("groupedValues", TArray(child.typ.rowType))),
+    child.typ.keyType ++ TStruct(("grouped_fields", TArray(child.typ.rowType))),
     child.typ.key,
     child.typ.globalType)
 
@@ -1763,7 +1763,7 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
     val prevRowType = prev.rvd.typ.rowType
     val prevKeyType = prev.rvd.typ.kType
 
-    val groupedElementsPType = PArray(prevRVD.typ.rowType, false)
+    val groupedElementsPType = PArray(prevRVD.typ.rowType, true)
     val rowType = this.typ.rowType.physicalType
     val newRVDType = prevRVD.typ.copy(rowType = rowType)
     val keyIndices = child.typ.keyFieldIdx
@@ -1785,6 +1785,7 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
           while (it.hasNext && i != n) {
             val nextRV = it.next()
             regionValueArray = regionValueArray :+ nextRV
+            log.info(s"Iterated, i = ${i}")
             i += 1
           }
           val rvb = new RegionValueBuilder(targetRegion)
