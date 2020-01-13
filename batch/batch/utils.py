@@ -24,7 +24,7 @@ def cost_from_msec_mcpu(app, msec_mcpu):
         assert app['worker_type'] == 'highmem'
         cpu_cost_per_core_hour = 0.0125
 
-    disk_cost_per_core_hour = 0.17 * app['worker_disk_size_gb'] * (1 / avg_n_days_per_month) * (1 / 24) * (1 / app['worker_cores'])
+    disk_cost_per_core_hour = 0.17 * app['worker_disk_size_gb'] / avg_n_days_per_month / 24 / app['worker_cores']
     cost_per_core_sec = (cpu_cost_per_core_hour + disk_cost_per_core_hour) / 3600
 
     return msec_mcpu * cost_per_core_sec * 0.001 * 0.001
