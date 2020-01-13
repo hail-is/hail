@@ -411,7 +411,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
             job_parents_args = []
             job_attributes_args = []
 
-            n_ready = 0
+            n_ready_jobs = 0
             sum_ready_cores_mcpu = 0
 
             for spec in job_specs:
@@ -466,7 +466,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 if len(parent_ids) == 0:
                     state = 'Ready'
-                    n_ready += 1
+                    n_ready_jobs += 1
                     sum_ready_cores_mcpu += cores_mcpu
                 else:
                     state = 'Pending'
@@ -505,20 +505,13 @@ VALUES (%s, %s, %s, %s);
                                       job_attributes_args)
 
                 await tx.execute_update('''
-UPDATE user_resources
-SET n_ready_jobs = n_ready_jobs + %s, ready_cores_mcpu = ready_cores_mcpu + %s
-WHERE user = %s AND token = %s;
-
-
+UPDATE batches_staging
+SET n_jobs = n_jobs + %s, 
+  n_ready_jobs = n_ready_jobs + %s,
+  ready_cores_mcpu = ready_cores_mcpu + %s
+WHERE batch_id = %s AND token = %s;
 ''',
-                                        (n_ready, sum_ready_cores_mcpu, user, rand_token))
-
-                await tx.execute_update('''
-UPDATE ready_cores
-SET ready_cores_mcpu = ready_cores_mcpu + %s
-WHERE token = %s;
-''',
-                                        (sum_ready_cores_mcpu, rand_token))
+                                        (len(jobs_args), n_ready_jobs, sum_ready_cores_mcpu, batch_id, rand_token))
 
         return web.Response()
 
@@ -567,6 +560,12 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
             (json.dumps(userdata), user, billing_project, json.dumps(attributes),
              batch_spec.get('callback'), batch_spec['n_jobs'],
              now))
+
+        await tx.just_execute(
+            '''
+CALL insert_batches_staging_tokens(%s);
+''',
+            (id,))
 
         if attributes:
             await tx.execute_many(

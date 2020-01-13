@@ -10,8 +10,7 @@ async def main():
 
     users = db.execute_and_fetchall('SELECT user FROM user_resources;')
     async for user in users:
-        await db.just_execute('CALL insert_user_resources_tokens(%s)',
-                              (user,))
+        await db.just_execute('CALL insert_user_resources_tokens(%s)', (user,))
 
 
 loop = asyncio.get_event_loop()
