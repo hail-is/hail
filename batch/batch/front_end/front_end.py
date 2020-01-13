@@ -151,7 +151,7 @@ LIMIT 50;
 '''
     sql_args = where_args
 
-    jobs = [job_record_to_dict(job)
+    jobs = [job_record_to_dict(request.app, job)
             async for job
             in db.select_and_fetchall(sql, sql_args)]
 
@@ -334,7 +334,7 @@ LIMIT 50;
 '''
     sql_args = where_args
 
-    batches = [batch_record_to_dict(batch)
+    batches = [batch_record_to_dict(request.app, batch)
                async for batch
                in db.select_and_fetchall(sql, sql_args)]
 
@@ -580,7 +580,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    return batch_record_to_dict(record)
+    return batch_record_to_dict(app, record)
 
 
 async def _cancel_batch(app, batch_id, user):
@@ -804,7 +804,7 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
         raise web.HTTPNotFound()
 
     running_status = await _get_job_running_status(record)
-    return job_record_to_dict(record, running_status)
+    return job_record_to_dict(app, record, running_status)
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
@@ -994,10 +994,11 @@ async def on_startup(app):
     app['db'] = db
 
     row = await db.select_and_fetchone(
-        'SELECT worker_type, worker_cores, instance_id, internal_token FROM globals;')
+        'SELECT worker_type, worker_cores, worker_disk_size_gb, instance_id, internal_token FROM globals;')
 
     app['worker_type'] = row['worker_type']
     app['worker_cores'] = row['worker_cores']
+    app['worker_disk_size_gb'] = row['worker_disk_size_gb']
 
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')

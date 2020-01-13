@@ -423,7 +423,12 @@ async def on_startup(app):
     app['db'] = db
 
     row = await db.select_and_fetchone(
-        'SELECT instance_id, internal_token FROM globals;')
+        'SELECT worker_type, worker_cores, worker_disk_size_gb, instance_id, internal_token FROM globals;')
+
+    app['worker_type'] = row['worker_type']
+    app['worker_cores'] = row['worker_cores']
+    app['worker_disk_size_gb'] = row['worker_disk_size_gb']
+
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
