@@ -796,6 +796,8 @@ steps:
       script: /io/sql/create-billing-projects.sql
     - name: increase-spec-size
       script: /io/sql/increase-spec-size.sql
+    - name: change-ready-cores-bigint
+      script: /io/sql/change-ready-cores-bigint.sql
     - name: add-user-resources-ready-cores-token-1
       script: /io/sql/add-user-resources-ready-cores-token.sql
     - name: add-user-resources-ready-cores-token-2

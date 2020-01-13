@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `batches_staging` (
   `token` INT NOT NULL,
   `n_jobs` INT NOT NULL DEFAULT 0,
   `n_ready_jobs` INT NOT NULL DEFAULT 0,
-  `ready_cores_mcpu` INT NOT NULL DEFAULT 0,
+  `ready_cores_mcpu` BIGINT NOT NULL DEFAULT 0,
   PRIMARY KEY (`batch_id`, `token`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
@@ -42,7 +42,7 @@ BEGIN
   WHILE i < 32 DO
     SET row_exists = EXISTS(SELECT * FROM ready_cores WHERE token = i FOR UPDATE);
     IF NOT row_exists THEN
-      INSERT INTO ready_cores (token) VALUES (i);
+      INSERT INTO ready_cores (token, ready_cores_mcpu) VALUES (i, 0);
     END IF;
     SET i = i + 1;
   END WHILE;
