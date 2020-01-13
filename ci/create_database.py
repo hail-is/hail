@@ -149,7 +149,7 @@ async def migrate(database_name, db, i, migration):
     current_version = row['version']
 
     if current_version + 1 == to_version:
-        shutdown()
+        await shutdown()
 
         # migrate
         if script.endswith('.py'):
