@@ -9,6 +9,7 @@ from aiohttp import web
 import aiohttp_session
 import cerberus
 import prometheus_client as pc
+import random
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 import google.oauth2.service_account
@@ -407,6 +408,16 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 batch_client.validate.validate_jobs(job_specs)
             except batch_client.validate.ValidationError as e:
                 raise web.HTTPBadRequest(reason=e.reason)
+
+        async with timer.step('idempotence check'):
+            if len(job_specs) > 0:
+                job_id = job_specs[0]['job_id']
+                record = await db.select_and_fetchone(
+                    'SELECT 1 FROM jobs WHERE batch_id = %s AND job_id = %s',
+                    (batch_id, job_id))
+                if record is not None:
+                    log.info(f'bunch containging job {(batch_id, job_id)} already inserted')
+                    return web.Response()
 
         async with timer.step('build db args'):
             jobs_args = []

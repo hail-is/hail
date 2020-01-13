@@ -5,15 +5,18 @@ import json
 import functools
 import asyncio
 import aiohttp
+import secrets
 from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import async_get_userinfo, service_auth_headers
-from hailtop.utils import bounded_gather, request_retry_transient_errors
+from hailtop.utils import bounded_gather, request_retry_transient_errors, is_transient_error
+from hailtop.exceptions import MultipleExceptions
 
 from .globals import tasks, complete_states
 
 log = logging.getLogger('batch_client.aioclient')
+log.setLevel('WARNING')
 
 
 class Job:
@@ -350,6 +353,9 @@ class BatchBuilder:
         self._submitted = False
         self.attributes = attributes
         self.callback = callback
+        self._batch_token = None
+        self._byte_job_spec_bunches = None
+        self._batch = None
 
     def create_job(self, image, command, env=None, mount_docker_socket=False,
                    port=None, resources=None, secrets=None,
@@ -423,8 +429,13 @@ class BatchBuilder:
         self._jobs.append(j)
         return j
 
-    async def _submit_jobs(self, batch_id, byte_job_specs):
-        assert len(byte_job_specs) > 0
+    async def _submit_jobs(self, batch_id, bunch_index, pbar):
+        byte_job_specs = self._byte_job_spec_bunches[bunch_index]
+        if byte_job_specs is None:
+            log.info(f'skipping already submitted bunch {bunch_index}')
+            return
+
+        assert len(byte_job_specs) > 0, byte_job_specs
 
         b = bytearray()
         b.append(ord('['))
@@ -443,55 +454,103 @@ class BatchBuilder:
             f'/api/v1alpha/batches/{batch_id}/jobs/create',
             data=aiohttp.BytesPayload(
                 b, content_type='application/json', encoding='utf-8'))
+        self._byte_job_spec_bunches[bunch_index] = None
 
-    async def submit(self):
+    async def _submit(self,
+                      max_bunch_bytesize=8 * 1024 * 1024,
+                      max_bunch_size=8 * 1024,
+                      max_job_submit_failures=10):
+        assert max_bunch_bytesize > 0
+        assert max_bunch_size > 0
+        assert max_job_submit_failures > 0
         if self._submitted:
             raise ValueError("cannot submit an already submitted batch")
-        self._submitted = True
 
-        batch_spec = {'billing_project': self._client.billing_project, 'n_jobs': len(self._job_specs)}
-        if self.attributes:
-            batch_spec['attributes'] = self.attributes
-        if self.callback:
-            batch_spec['callback'] = self.callback
+        self._batch_token = secrets.token_urlsafe(32)
 
-        b_resp = await self._client._post('/api/v1alpha/batches/create', json=batch_spec)
-        b = await b_resp.json()
-        log.info(f'created batch {b["id"]}')
-        batch = Batch(self._client, b['id'], self.attributes)
+        if self._batch is None:
+            batch_spec = {'billing_project': self._client.billing_project,
+                          'n_jobs': len(self._job_specs),
+                          'token': self._batch_token}
+            if self.attributes:
+                batch_spec['attributes'] = self.attributes
+            if self.callback:
+                batch_spec['callback'] = self.callback
 
-        byte_job_specs = [json.dumps(job_spec).encode('utf-8') for job_spec in self._job_specs]
+            batch_json = await (await self._client._post('/api/v1alpha/batches/create',
+                                                         json=batch_spec)).json()
+            log.info(f'created batch {batch_json["id"]}')
+            self._batch = Batch(self._client, batch_json['id'], self.attributes)
 
-        groups = []
-        group = []
-        group_size = 0
-        for spec in byte_job_specs:
-            n = len(spec)
-            if group_size + n < 8000000 and len(group) < 1000:
-                group.append(spec)
-                group_size += n
-            else:
-                groups.append(group)
-                group = [spec]
-                group_size = n
-        if group:
-            groups.append(group)
+        id = self._batch.id
 
-        await bounded_gather(*[functools.partial(self._submit_jobs, batch.id, group)
-                               for group in groups],
-                             parallelism=50)
+        if self._byte_job_spec_bunches is None:
+            self._byte_job_spec_bunches = []
+            byte_job_specs = [json.dumps(job_spec).encode('utf-8')
+                              for job_spec in self._job_specs]
+            bunch = []
+            bunch_n_bytes = 0
+            for spec in byte_job_specs:
+                if spec is not None:
+                    n_bytes = len(spec)
+                    assert n_bytes < max_bunch_bytesize, (
+                        f'every job spec must be less than max_bunch_bytesize,'
+                        f' { max_bunch_bytesize }B, but {spec} is larger')
+                    if bunch_n_bytes + n_bytes < max_bunch_bytesize and len(bunch) < max_bunch_size:
+                        bunch.append(spec)
+                        bunch_n_bytes += n_bytes
+                    else:
+                        self._byte_job_spec_bunches.append(bunch)
+                        bunch = [spec]
+                        bunch_n_bytes = n_bytes
+            if bunch:
+                self._byte_job_spec_bunches.append(bunch)
 
-        await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
-        log.info(f'closed batch {b["id"]}')
+        n_bunches = len(self._byte_job_spec_bunches)
+        results = await bounded_gather(
+            *[functools.partial(self._submit_jobs, id, bunch_index, pbar)
+              for bunch_index in range(n_bunches)],
+            parallelism=50,
+            return_exceptions=max_job_submit_failures)
+        exceptions = [r for r in results if isinstance(r, BaseException)]
+        if len(exceptions) > 0:
+            raise MultipleExceptions(
+                message='at least one job submission call failed',
+                causes=exceptions)
+
+        await self._client._patch(f'/api/v1alpha/batches/{id}/close')
+        log.info(f'closed batch {id}')
 
         for j in self._jobs:
-            j._job = j._job._submit(batch)
+            j._job = j._job._submit(self._batch)
 
         self._job_specs = []
         self._jobs = []
         self._job_idx = 0
 
-        return batch
+        self._submitted = True
+        return self._batch
+
+    async def submit(self,
+                     *args,
+                     max_failures_to_retry=0,
+                     log_every_n_failures=5,
+                     **kwargs):
+        assert max_failures_to_retry is None or max_failures_to_retry >= 0
+        assert log_every_n_failures is None or log_every_n_failures > 0
+        failures = 0
+        while True:
+            try:
+                return await self._submit(*args, **kwargs)
+            except Exception as exc:
+                if not is_transient_error(exc):
+                    raise
+                failures += 1
+                if max_failures_to_retry is not None and failures > max_failures_to_retry:
+                    raise
+                if log_every_n_failures is not None and failures % log_every_n_failures == 0:
+                    log.warn(f'attempted and failed to submit batch {failures} times',
+                             exc_info=True)
 
 
 @asyncinit

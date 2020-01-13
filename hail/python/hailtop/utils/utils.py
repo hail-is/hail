@@ -5,6 +5,8 @@ import asyncio
 import aiohttp
 from aiohttp import web
 
+from ..exceptions import MultipleExceptions
+
 log = logging.getLogger('hailtop.utils')
 
 
@@ -33,15 +35,16 @@ async def blocking_to_async(thread_pool, fun, *args, **kwargs):
         thread_pool, lambda: fun(*args, **kwargs))
 
 
-async def bounded_gather(*pfs, parallelism=10, return_exceptions=False):
-    gatherer = AsyncThrottledGather(*pfs,
-                                    parallelism=parallelism,
-                                    return_exceptions=return_exceptions)
+async def bounded_gather(*pfs, **kwargs):
+    gatherer = AsyncThrottledGather(*pfs, **kwargs)
     return await gatherer.wait()
 
 
 class AsyncThrottledGather:
     def __init__(self, *pfs, parallelism=10, return_exceptions=False):
+        assert (return_exceptions is False or
+                return_exceptions is True or
+                return_exceptions > 0), return_exceptions
         self.count = len(pfs)
         self.n_finished = 0
 
@@ -73,15 +76,15 @@ class AsyncThrottledGather:
                 raise
             except Exception as err:  # pylint: disable=broad-except
                 res = err
-                if not self._return_exceptions:
-                    self._errors.append(err)
+                self._errors.append(err)
+                if self._return_exceptions is False:
                     self._done.set()
                     return
 
             self._results[i] = res
             self.n_finished += 1
 
-            if self.n_finished == self.count:
+            if self.n_finished == self.count or self._return_exceptions == len(self._errors):
                 self._done.set()
 
     async def wait(self):
@@ -149,6 +152,8 @@ def is_transient_error(e):
     #
     # during aiohttp request
     # aiohttp.client_exceptions.ClientOSError: [Errno 104] Connection reset by peer
+    if isinstance(e, MultipleExceptions):
+        return all(is_transient_error(e) for e in e.causes)
     if isinstance(e, aiohttp.ClientResponseError):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 502 bad gateway, 503 service unavailable, 504 gateway timeout

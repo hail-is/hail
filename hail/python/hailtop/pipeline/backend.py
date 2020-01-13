@@ -194,7 +194,14 @@ class BatchBackend(Backend):
     def close(self):
         self._batch_client.close()
 
-    def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit, wait=True, open=False):  # pylint: disable-msg=R0915
+    def _run(self,
+             pipeline,
+             dry_run,
+             verbose,
+             delete_scratch_on_exit,
+             wait=True,
+             open=False,
+             batch_submit_args=None):  # pylint: disable-msg=R0915
         build_dag_start = time.time()
 
         bucket = self._batch_client.bucket
@@ -325,7 +332,7 @@ class BatchBackend(Backend):
             print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
 
         submit_batch_start = time.time()
-        batch = batch.submit()
+        batch = batch.submit(**(batch_submit_args or {}))
 
         jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 

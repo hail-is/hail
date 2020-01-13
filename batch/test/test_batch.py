@@ -1,6 +1,7 @@
 import random
 import math
 import collections
+import hailtop
 from hailtop.batch_client.client import BatchClient, Job
 import json
 import os
@@ -16,6 +17,7 @@ from hailtop.auth import service_auth_headers
 
 from .serverthread import ServerThread
 from .utils import legacy_batch_status
+from .failure_injecting_batch_client import FailureInjectingBatchClient
 
 deploy_config = get_deploy_config()
 
@@ -427,3 +429,28 @@ echo $HAIL_BATCH_WORKER_IP
             builder.create_job('ubuntu:18.04',
                                ['echo', 'a' * (3 * 1024 * 1024)])
         builder.submit()
+
+    def test_restartable_insert(self):
+        builder = self.client.create_batch()
+        i = 0
+
+        def every_third_time():
+            nonlocal i
+            i += 1
+            if i % 3 == 0:
+                return True
+            return False
+        for i in range(9):
+            builder.create_job('ubuntu:18.04', ['echo', 'a'])
+
+        real_client = builder._async_builder._client
+        builder._async_builder._client = FailureInjectingBatchClient(
+            builder._async_builder._client, every_third_time)
+        b = builder.submit(max_failures_to_retry=5,
+                           max_bunch_size=1,
+                           log_every_n_failures=None)
+        builder._async_builder._client = real_client
+        b._async_batch._client = real_client
+        batch = b.wait()
+        assert batch['state'] == 'success', batch
+        assert len(list(b.jobs())) == 9
