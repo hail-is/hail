@@ -9,6 +9,9 @@ from shlex import quote as shq
 from hailtop.utils import check_shell, check_shell_output
 from gear import Database
 
+assert len(sys.argv) == 2
+create_database_config = json.loads(sys.argv[1])
+
 
 def generate_token(size=12):
     assert size > 0
@@ -39,7 +42,7 @@ kubectl -n {shq(namespace)} create secret generic {shq(secret_name)} --from-file
 ''')
 
 
-async def create_database(create_database_config):
+async def create_database():
     with open('/sql-config/sql-config.json', 'r') as f:
         sql_config = json.loads(f.read())
 
@@ -107,6 +110,26 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
     })
 
 
+did_shutdown = False
+
+
+async def shutdown():
+    global did_shutdown
+
+    if did_shutdown:
+        return
+
+    shutdowns = create_database_config['shutdowns']
+    if shutdowns:
+        for s in shutdowns:
+            assert s['kind'] == 'Deployment'
+            await check_shell(f'''
+kubectl -n {s["namespace"]} delete --ignore-not-found=true deployment {s["name"]}
+''')
+    
+    did_shutdown = True
+
+
 async def migrate(database_name, db, i, migration):
     print(f'applying migration {i} {migration}')
 
@@ -126,6 +149,8 @@ async def migrate(database_name, db, i, migration):
     current_version = row['version']
 
     if current_version + 1 == to_version:
+        await shutdown()
+
         # migrate
         if script.endswith('.py'):
             await check_shell(f'python3 {script}')
@@ -155,10 +180,7 @@ VALUES (%s, %s, %s);
 
 
 async def async_main():
-    assert len(sys.argv) == 2
-    create_database_config = json.loads(sys.argv[1])
-
-    await create_database(create_database_config)
+    await create_database()
 
     namespace = create_database_config['namespace']
     scope = create_database_config['scope']

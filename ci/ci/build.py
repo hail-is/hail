@@ -1014,12 +1014,20 @@ true
 
 
 class CreateDatabase2Step(Step):
-    def __init__(self, params, database_name, namespace, migrations, inputs):
+    def __init__(self, params, database_name, namespace, migrations, shutdowns, inputs):
         super().__init__(params)
+
+        config = self.input_config(params.code, params.scope)
+
         # FIXME validate
         self.database_name = database_name
-        self.namespace = get_namespace(namespace, self.input_config(params.code, params.scope))
+        self.namespace = get_namespace(namespace, config)
         self.migrations = migrations
+
+        for s in shutdowns:
+            s['namespace'] = get_namespace(s['namespace'], config)
+        self.shutdowns = shutdowns
+
         self.inputs = inputs
         self.job = None
 
@@ -1060,6 +1068,7 @@ class CreateDatabase2Step(Step):
                                    json['databaseName'],
                                    json['namespace'],
                                    json['migrations'],
+                                   json['shutdowns'],
                                    json.get('inputs'))
 
     def config(self, scope):  # pylint: disable=unused-argument
@@ -1078,7 +1087,8 @@ class CreateDatabase2Step(Step):
             'admin_username': self.admin_username,
             'user_username': self.user_username,
             'cant_create_database': self.cant_create_database,
-            'migrations': self.migrations
+            'migrations': self.migrations,
+            'shutdowns': self.shutdowns
         }
 
         create_script = f'''
