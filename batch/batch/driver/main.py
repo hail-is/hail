@@ -365,11 +365,11 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
     #     lambda v: v in valid_worker_cores,
     #     f'one of {", ".join(str(v) for v in valid_worker_cores)}')
 
-    worker_disk_size_gb = validate_int(
-        'Worker disk size',
-        post['worker_disk_size_gb'],
-        lambda v: v > 0,
-        'a positive integer')
+    # worker_disk_size_gb = validate_int(
+    #     'Worker disk size',
+    #     post['worker_disk_size_gb'],
+    #     lambda v: v > 0,
+    #     'a positive integer')
 
     max_instances = validate_int(
         'Max instances',
@@ -384,8 +384,8 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
         'a positive integer')
 
     await inst_pool.configure(
-        # worker_type, worker_cores,
-        worker_disk_size_gb, max_instances, pool_size)
+        # worker_type, worker_cores, worker_disk_size_gb,
+        max_instances, pool_size)
 
     set_message(session,
                 'Updated batch configuration.',
