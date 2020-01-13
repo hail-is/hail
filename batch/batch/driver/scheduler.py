@@ -14,19 +14,6 @@ log = logging.getLogger('driver')
 OVERSCHEDULE_CORES_MCPU = 2000
 
 
-class LogAndIgnoreErrors:
-    def __init__(self, description, async_action):
-        async def with_error_handling():
-            try:
-                await async_action()
-            except Exception as result:  # pylint: disable=broad-except
-                log.info(f'error while {description}, {result!r}')
-        self.async_action = with_error_handling
-
-    async def __call__(self, *args, **kwargs):
-        return await self.async_action(*args, **kwargs)
-
-
 class Scheduler:
     def __init__(self, app):
         self.app = app
@@ -203,9 +190,15 @@ LIMIT 50;
                     log.info(f'cancelling job {id}')
                     should_wait = False
 
+                    async def with_error_handling(id, f):
+                        try:
+                            await f()
+                        except Exception:  # pylint: disable=broad-except
+                            log.info(f'error while cancelling job {id}', exc_info=True)
                     async_work.append(
-                        LogAndIgnoreErrors(
-                            f'cancelling job {id}',
+                        functools.partial(
+                            with_error_handling,
+                            id,
                             functools.partial(mark_job_complete,
                                               self.app, batch_id, job_id, None, None,
                                               'Cancelled', None, None, None, 'cancelled')))
@@ -225,10 +218,18 @@ LIMIT 50;
                     should_wait = False
                     scheduled_cores_mcpu += record['cores_mcpu']
 
+                    async def with_error_handling(id, instance, f):
+                        try:
+                            await f()
+                        except Exception:  # pylint: disable=broad-except
+                            log.info(f'scheduling job {id} on {instance}', exc_info=True)
                     async_work.append(
-                        LogAndIgnoreErrors(
-                            f'scheduling job {id} on {instance}',
-                            functools.partial(schedule_job, self.app, record, instance)))
+                        functools.partial(
+                            with_error_handling,
+                            id, instance,
+                            functools.partial(
+                                schedule_job,
+                                self.app, record, instance)))
 
-        await bounded_gather(*[x.async_action for x in async_work], parallelism=100)
+        await bounded_gather(*[x for x in async_work], parallelism=100)
         return should_wait
