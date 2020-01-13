@@ -1760,6 +1760,7 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
   override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
     val prevRVD = prev.rvd
+    val prevRowType = prev.rvd.typ.rowType
     val prevKeyType = prev.rvd.typ.kType
 
     val groupedElementsPType = PArray(prevRVD.typ.rowType, false)
@@ -1789,7 +1790,7 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
           val rvb = new RegionValueBuilder(targetRegion)
           rvb.start(rowType)
           rvb.startStruct()
-          rvb.addFields(prevKeyType, regionValueArray(0), keyIndices)
+          rvb.addFields(prevRowType, regionValueArray(0), keyIndices)
           rvb.startArray(i, true)
           regionValueArray.zipWithIndex.foreach { case (rv, arrIdx) =>
             rvb.addElement(groupedElementsPType, rv, arrIdx)
