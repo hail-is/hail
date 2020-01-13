@@ -16,8 +16,8 @@ build:
 	docker build -t dbuf -f Dockerfile.out .
 
 push: build
-    docker tag dbuf $(DBUF_IMAGE)
-    docker push $(DBUF_IMAGE)
+	docker tag dbuf $(DBUF_IMAGE)
+	docker push $(DBUF_IMAGE)
 
 deploy: push
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"batch_image":{"image":"$(DBUF_IMAGE)"},"default_ns":{"name":"default"},"global":{"project":"$(PROJECT)","zone":"$(ZONE)","domain":"$(DOMAIN)","k8s_server_url":"$(KUBERNETES_SERVER_URL)"}}' deployment.yaml deployment.yaml.out
