@@ -783,6 +783,8 @@ steps:
       script: /io/sql/insert_globals.py
     - name: create-billing-projects
       script: /io/sql/create-billing-projects.sql
+    - name: increase-spec-size
+      script: /io/sql/increase-spec-size.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
