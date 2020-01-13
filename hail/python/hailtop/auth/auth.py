@@ -5,10 +5,11 @@ from hailtop.utils import async_to_blocking, request_retry_transient_errors
 from .tokens import get_tokens
 
 
-async def async_get_userinfo(deploy_config=None):
-    if not deploy_config:
+async def async_get_userinfo(deploy_config=None, headers=None):
+    if deploy_config is None:
         deploy_config = get_deploy_config()
-    headers = service_auth_headers(deploy_config, 'auth')
+    if headers is None:
+        headers = service_auth_headers(deploy_config, 'auth')
     userinfo_url = deploy_config.url('auth', '/api/v1alpha/userinfo')
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
