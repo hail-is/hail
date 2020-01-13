@@ -14,7 +14,7 @@ from .utils import cost_from_msec_mcpu
 log = logging.getLogger('batch')
 
 
-def batch_record_to_dict(record):
+def batch_record_to_dict(app, record):
     if not record['closed']:
         state = 'open'
     elif record['n_failed'] > 0:
@@ -48,13 +48,13 @@ def batch_record_to_dict(record):
     msec_mcpu = record['msec_mcpu']
     d['msec_mcpu'] = msec_mcpu
 
-    cost = cost_from_msec_mcpu(msec_mcpu)
+    cost = cost_from_msec_mcpu(app, msec_mcpu)
     d['cost'] = f'${cost:.4f}'
 
     return d
 
 
-async def notify_batch_job_complete(db, batch_id):
+async def notify_batch_job_complete(app, db, batch_id):
     record = await db.select_and_fetchone(
         '''
 SELECT *
@@ -73,7 +73,7 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
     try:
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            await session.post(callback, json=batch_record_to_dict(record))
+            await session.post(callback, json=batch_record_to_dict(app, record))
             log.info(f'callback for batch {batch_id} successful')
     except Exception:
         log.exception(f'callback for batch {batch_id} failed, will not retry.')
@@ -122,7 +122,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
 
     log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
 
-    await notify_batch_job_complete(db, batch_id)
+    await notify_batch_job_complete(app, db, batch_id)
 
 
 async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_time):
@@ -146,7 +146,7 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
 
-def job_record_to_dict(record, running_status=None):
+def job_record_to_dict(app, record, running_status=None):
     spec = json.loads(record['spec'])
 
     attributes = spec.pop('attributes', None)
@@ -171,7 +171,7 @@ def job_record_to_dict(record, running_status=None):
     msec_mcpu = record['msec_mcpu']
     result['msec_mcpu'] = msec_mcpu
 
-    cost = cost_from_msec_mcpu(msec_mcpu)
+    cost = cost_from_msec_mcpu(app, msec_mcpu)
     result['cost'] = f'${cost:.4f}'
 
     return result
