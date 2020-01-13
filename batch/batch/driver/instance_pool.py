@@ -93,8 +93,8 @@ UPDATE globals
 SET max_instances = %s, pool_size = %s;
 ''',
             (
-                # worker_type, worker_cores,
-                worker_disk_size_gb, max_instances, pool_size))
+                # worker_type, worker_cores, worker_disk_size_gb,
+                max_instances, pool_size))
         # self.worker_type = worker_type
         # self.worker_cores = worker_cores
         # self.worker_disk_size_gb = worker_disk_size_gb
