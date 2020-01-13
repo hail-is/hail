@@ -84,7 +84,7 @@ steps:
     - kind: Deployment
       namespace:
         valueFrom: default_ns.name
-      name: name
+      name: hello
    dependsOn:
     - default_ns
     - copy_files
