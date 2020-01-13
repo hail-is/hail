@@ -167,6 +167,11 @@ steps:
       to: /io/
    namespace:
      valueFrom: default_ns.name
+   shutdowns:
+    - kind: Deployment
+      namespace:
+        valueFrom: default_ns.name
+      name: auth
    dependsOn:
     - default_ns
     - copy_files
@@ -770,6 +775,11 @@ steps:
       to: /io/
    namespace:
      valueFrom: default_ns.name
+   shutdowns:
+    - kind: Deployment
+      namespace:
+        valueFrom: default_ns.name
+      name: ci
    dependsOn:
     - default_ns
     - copy_files
@@ -788,6 +798,15 @@ steps:
       to: /io/
    namespace:
      valueFrom: default_ns.name
+   shutdowns:
+    - kind: Deployment
+      namespace:
+        valueFrom: default_ns.name
+      name: batch
+    - kind: Deployment
+      namespace:
+        valueFrom: default_ns.name
+      name: batch-driver
    dependsOn:
     - default_ns
     - copy_files
@@ -1054,6 +1073,11 @@ steps:
       to: /io/
    namespace:
      valueFrom: default_ns.name
+   shutdowns:
+    - kind: Deployment
+      namespace:
+        valueFrom: default_ns.name
+      name: notebook
    dependsOn:
     - default_ns
     - copy_files
