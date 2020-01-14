@@ -67,6 +67,11 @@ def matrix_table_take_entry(mt_path):
     mt = hl.read_matrix_table(mt_path)
     mt.GT.take(100)
 
+@benchmark(args=profile_25.handle('mt'))
+def matrix_table_entries_show(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    mt.entries().show()
+
 
 @benchmark(args=profile_25.handle('mt'))
 def matrix_table_take_row(mt_path):
