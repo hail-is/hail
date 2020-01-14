@@ -798,10 +798,8 @@ steps:
       script: /io/sql/increase-spec-size.sql
     - name: change-ready-cores-bigint
       script: /io/sql/change-ready-cores-bigint.sql
-    - name: add-user-resources-ready-cores-token-1
+    - name: add-user-resources-ready-cores-token
       script: /io/sql/add-user-resources-ready-cores-token.sql
-    - name: add-user-resources-ready-cores-token-2
-      script: /io/sql/add-user-resources-ready-cores-token.py      
    inputs:
     - from: /repo/batch/sql
       to: /io/

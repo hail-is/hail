@@ -484,7 +484,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         job_attributes_args.append(
                             (batch_id, job_id, k, v))
 
-        rand_token = random.randint(0, 31)
+        rand_token = random.randint(0, app['n_tokens'] - 1)
+        n_jobs = len(job_specs)
 
         async with timer.step('insert jobs'):
             async with db.start() as tx:
@@ -505,13 +506,15 @@ VALUES (%s, %s, %s, %s);
                                       job_attributes_args)
 
                 await tx.execute_update('''
-UPDATE batches_staging
-SET n_jobs = n_jobs + %s, 
+INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE
+  n_jobs = n_jobs + %s,
   n_ready_jobs = n_ready_jobs + %s,
-  ready_cores_mcpu = ready_cores_mcpu + %s
-WHERE batch_id = %s AND token = %s;
+  ready_cores_mcpu = ready_cores_mcpu + %s;
 ''',
-                                        (len(jobs_args), n_ready_jobs, sum_ready_cores_mcpu, batch_id, rand_token))
+                                        (batch_id, rand_token, n_jobs, n_ready_jobs, sum_ready_cores_mcpu,
+                                         n_jobs, n_ready_jobs, sum_ready_cores_mcpu))
 
         return web.Response()
 
@@ -547,7 +550,8 @@ WHERE billing_project = %s AND user = %s;
 
         await tx.just_execute(
             '''
-CALL insert_user_resources_tokens(%s);
+INSERT INTO user_resources (user, token) VALUES (%s, 0)
+ON DUPLICATE KEY UPDATE n_ready_jobs = n_ready_jobs;
 ''',
             (user,))
 
@@ -560,12 +564,6 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
             (json.dumps(userdata), user, billing_project, json.dumps(attributes),
              batch_spec.get('callback'), batch_spec['n_jobs'],
              now))
-
-        await tx.just_execute(
-            '''
-CALL insert_batches_staging_tokens(%s);
-''',
-            (id,))
 
         if attributes:
             await tx.execute_many(
@@ -1003,11 +1001,15 @@ async def on_startup(app):
     app['db'] = db
 
     row = await db.select_and_fetchone(
-        'SELECT worker_type, worker_cores, worker_disk_size_gb, instance_id, internal_token FROM globals;')
+        '''
+SELECT worker_type, worker_cores, worker_disk_size_gb,
+  instance_id, internal_token, n_tokens FROM globals;
+''')
 
     app['worker_type'] = row['worker_type']
     app['worker_cores'] = row['worker_cores']
     app['worker_disk_size_gb'] = row['worker_disk_size_gb']
+    app['n_tokens'] = row['n_tokens']
 
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')

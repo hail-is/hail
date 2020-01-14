@@ -1,8 +1,7 @@
-ALTER TABLE user_resources ADD COLUMN token INT NOT NULL DEFAULT 0;
-ALTER TABLE user_resources DROP PRIMARY KEY, ADD PRIMARY KEY(`user`, `token`);
+SET @n_tokens = 200;
 
-ALTER TABLE ready_cores ADD COLUMN token INT NOT NULL DEFAULT 0;
-ALTER TABLE ready_cores ADD PRIMARY KEY(`token`);
+ALTER TABLE globals ADD COLUMN n_tokens INT NOT NULL;
+UPDATE globals SET n_tokens = @n_tokens;
 
 CREATE TABLE IF NOT EXISTS `batches_staging` (
   `batch_id` BIGINT NOT NULL,
@@ -14,56 +13,58 @@ CREATE TABLE IF NOT EXISTS `batches_staging` (
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
+ALTER TABLE user_resources ADD COLUMN token INT NOT NULL DEFAULT 0;
+ALTER TABLE user_resources DROP PRIMARY KEY, ADD PRIMARY KEY(`user`, `token`);
+
+ALTER TABLE ready_cores ADD COLUMN token INT NOT NULL DEFAULT 0;
+ALTER TABLE ready_cores ADD PRIMARY KEY(`token`);
+
+CREATE TEMPORARY TABLE tmp_resources AS (
+  SELECT batch_id, user, closed,
+    0 as token,
+    COUNT(*) AS n_jobs,
+    SUM(state = 'Ready') AS n_ready_jobs,
+    SUM(state = 'Running') AS n_running_jobs,
+    SUM(IF(state = 'Ready', cores_mcpu, 0)) AS ready_cores_mcpu,
+    SUM(IF(state = 'Running', cores_mcpu, 0)) AS running_cores_mcpu
+  FROM jobs
+  INNER JOIN batches ON batches.id = jobs.batch_id
+  GROUP BY batch_id, user, closed
+);
+
+SELECT COALESCE(SUM(ready_cores_mcpu), 0) INTO @closed_ready_cores_mcpu
+FROM tmp_resources
+WHERE closed;
+
+UPDATE ready_cores SET ready_cores_mcpu = @closed_ready_cores_mcpu;
+
+UPDATE user_resources
+RIGHT JOIN (
+  SELECT user, token,
+    SUM(n_ready_jobs) as n_ready_jobs,
+    SUM(n_running_jobs) as n_running_jobs,
+    SUM(ready_cores_mcpu) as ready_cores_mcpu,
+    SUM(running_cores_mcpu) as running_cores_mcpu
+  FROM tmp_resources
+  WHERE closed
+  GROUP BY user, token) AS t
+ON user_resources.user = t.user AND user_resources.token = t.token
+SET
+  user_resources.n_ready_jobs = t.n_ready_jobs,
+  user_resources.n_running_jobs = t.n_running_jobs,
+  user_resources.ready_cores_mcpu = t.ready_cores_mcpu,
+  user_resources.running_cores_mcpu = t.running_cores_mcpu;
+
+INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+  SELECT tmp_resources.batch_id,
+    tmp_resources.token,
+    tmp_resources.n_jobs,
+    tmp_resources.n_ready_jobs,
+    tmp_resources.ready_cores_mcpu
+  FROM tmp_resources
+  WHERE NOT closed;
+
 DELIMITER $$
-
-DROP PROCEDURE IF EXISTS insert_batches_staging_tokens;
-CREATE PROCEDURE insert_batches_staging_tokens(
-  IN in_batch_id BIGINT
-)
-BEGIN
-  DECLARE i int DEFAULT 0;
-  DECLARE row_exists BOOLEAN;
-
-  WHILE i < 32 DO
-    SET row_exists = EXISTS(SELECT * FROM batches_staging WHERE batch_id = in_batch_id AND token = i FOR UPDATE);
-    IF NOT row_exists THEN
-      INSERT INTO batches_staging (batch_id, token) VALUES (in_batch_id, i);
-    END IF;
-    SET i = i + 1;
-  END WHILE;
-END $$
-
-DROP PROCEDURE IF EXISTS insert_ready_cores_tokens;
-CREATE PROCEDURE insert_ready_cores_tokens()
-BEGIN
-  DECLARE i int DEFAULT 0;
-  DECLARE row_exists BOOLEAN;
-
-  WHILE i < 32 DO
-    SET row_exists = EXISTS(SELECT * FROM ready_cores WHERE token = i FOR UPDATE);
-    IF NOT row_exists THEN
-      INSERT INTO ready_cores (token, ready_cores_mcpu) VALUES (i, 0);
-    END IF;
-    SET i = i + 1;
-  END WHILE;
-END $$
-
-DROP PROCEDURE IF EXISTS insert_user_resources_tokens;
-CREATE PROCEDURE insert_user_resources_tokens(
-  IN in_user VARCHAR(100)
-)
-BEGIN
-  DECLARE i int DEFAULT 0;
-  DECLARE row_exists BOOLEAN;
-
-  WHILE i < 32 DO
-    SET row_exists = EXISTS(SELECT * FROM user_resources WHERE user = in_user AND token = i FOR UPDATE);
-    IF NOT row_exists THEN
-      INSERT INTO user_resources (user, token) VALUES (in_user, i);
-    END IF;
-    SET i = i + 1;
-  END WHILE;
-END $$
 
 DROP TRIGGER IF EXISTS jobs_after_update;
 CREATE TRIGGER jobs_after_update AFTER UPDATE ON jobs
@@ -75,38 +76,42 @@ BEGIN
   SELECT user INTO in_user from batches
   WHERE id = NEW.batch_id;
 
-  SET rand_token = FLOOR(RAND() * 32);
+  SET rand_token = FLOOR(RAND() * @n_tokens);
 
   IF OLD.state = 'Ready' THEN
-    UPDATE user_resources
-      SET n_ready_jobs = n_ready_jobs - 1, ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu
-      WHERE user = in_user AND token = rand_token;
+    INSERT INTO user_resources (user, token) VALUES (in_user, rand_token)
+    ON DUPLICATE KEY UPDATE
+      n_ready_jobs = n_ready_jobs - 1,
+      ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu;
 
-    UPDATE ready_cores
-      SET ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu
-      WHERE token = rand_token;
+    INSERT INTO ready_cores (token, ready_cores_mcpu) VALUES (rand_token, 0)
+    ON DUPLICATE KEY UPDATE
+      ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu;
   END IF;
 
   IF NEW.state = 'Ready' THEN
-    UPDATE user_resources
-      SET n_ready_jobs = n_ready_jobs + 1, ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu
-      WHERE user = in_user AND token = rand_token;
+    INSERT INTO user_resources (user, token) VALUES (in_user, rand_token)
+    ON DUPLICATE KEY UPDATE
+      n_ready_jobs = n_ready_jobs + 1,
+      ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu;
 
-    UPDATE ready_cores
-      SET ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu
-      WHERE token = rand_token;
+    INSERT INTO ready_cores (token, ready_cores_mcpu) VALUES (rand_token, 0)
+    ON DUPLICATE KEY UPDATE
+      ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu;
   END IF;
 
   IF OLD.state = 'Running' THEN
-    UPDATE user_resources
-    SET n_running_jobs = n_running_jobs - 1, running_cores_mcpu = running_cores_mcpu - OLD.cores_mcpu
-    WHERE user = in_user AND token = rand_token;
+    INSERT INTO user_resources (user, token) VALUES (in_user, rand_token)
+    ON DUPLICATE KEY UPDATE
+      n_running_jobs = n_running_jobs - 1,
+      running_cores_mcpu = running_cores_mcpu - OLD.cores_mcpu;
   END IF;
 
   IF NEW.state = 'Running' THEN
-    UPDATE user_resources
-    SET n_running_jobs = n_running_jobs + 1, running_cores_mcpu = running_cores_mcpu + NEW.cores_mcpu
-    WHERE user = in_user AND token = rand_token;
+    INSERT INTO user_resources (user, token) VALUES (in_user, rand_token)
+    ON DUPLICATE KEY UPDATE
+      n_running_jobs = n_running_jobs + 1,
+      running_cores_mcpu = running_cores_mcpu + NEW.cores_mcpu;
   END IF;
 END $$
 
@@ -145,14 +150,14 @@ BEGIN
       UPDATE batches SET time_completed = in_timestamp
         WHERE id = in_batch_id AND n_completed = batches.n_jobs;
 
-      UPDATE ready_cores
-      SET ready_cores_mcpu = ready_cores_mcpu + staging_ready_cores_mcpu
-      WHERE token = 0;
+      INSERT INTO ready_cores (token, ready_cores_mcpu) VALUES (0, 0)
+      ON DUPLICATE KEY UPDATE
+        ready_cores_mcpu = ready_cores_mcpu + staging_ready_cores_mcpu;
 
-      UPDATE user_resources
-      SET n_ready_jobs = n_ready_jobs + staging_n_ready_jobs,
-         ready_cores_mcpu = ready_cores_mcpu + staging_ready_cores_mcpu
-      WHERE user = cur_user AND token = 0;
+      INSERT INTO user_resources (user, token) VALUES (cur_user, 0)
+      ON DUPLICATE KEY UPDATE
+        n_ready_jobs = n_ready_jobs + staging_n_ready_jobs,
+        ready_cores_mcpu = ready_cores_mcpu + staging_ready_cores_mcpu;
 
       DELETE FROM batches_staging WHERE batch_id = in_batch_id;
 

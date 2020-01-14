@@ -44,7 +44,7 @@ class Scheduler:
 
         records = self.db.execute_and_fetchall(
             '''
-SELECT user, 
+SELECT user,
   SUM(n_ready_jobs) AS n_ready_jobs,
   SUM(ready_cores_mcpu) AS ready_cores_mcpu,
   SUM(n_running_jobs) AS n_running_jobs,
