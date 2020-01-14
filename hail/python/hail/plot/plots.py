@@ -1410,7 +1410,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
 
 
 @typecheck(entry_field=expr_any, row_field=nullable(oneof(expr_numeric, expr_locus())), column_field=nullable(expr_str),
-           window=int, plot_width=int, plot_height=int)
+           window=nullable(int), plot_width=int, plot_height=int)
 def visualize_missingness(entry_field, row_field=None, column_field=None,
                           window=6000000, plot_width=1800, plot_height=900):
     """Visualize missingness in a MatrixTable.
@@ -1445,16 +1445,16 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
     :class:`bokeh.plotting.figure.Figure`
     """
     mt = entry_field._indices.source
+    if row_field is None:
+        row_field = mt.row_key
+    if column_field is None:
+        column_field = hail.str(mt.col_key)
     row_source = row_field._indices.source
     column_source = column_field._indices.source
     if mt is None or row_source is None or column_source is None:
         raise ValueError("visualize_missingness expects expressions of 'MatrixTable', found scalar expression")
     if isinstance(mt, hail.Table):
         raise ValueError("visualize_missingness requires source to be MatrixTable, not Table")
-    if column_field is None:
-        column_field = hail.str(mt.col_key)
-    if row_field is None:
-        row_field = mt.row_key
     locus = isinstance(row_field.dtype, hail.tlocus)
     columns = column_field.collect()
     if not (mt == row_source == column_source):
@@ -1473,8 +1473,8 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
             is_defined=hail.agg.fraction(hail.is_defined(entry_field))
         )
     else:
-        mt = mt.select_rows(_new_row_key=row_field)
-        mt = mt.select_entries(is_defined=hail.is_defined(entry_field))
+        mt = mt._select_all(row_exprs={'_new_row_key': row_field},
+                            entry_exprs={'is_defined': hail.is_defined(entry_field)})
     ht = mt.localize_entries('entry_fields', 'phenos')
     ht = ht.select(entry_fields=ht.entry_fields.map(lambda entry: entry.is_defined))
     data = ht.entry_fields.collect()
