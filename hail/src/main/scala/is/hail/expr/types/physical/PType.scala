@@ -275,8 +275,29 @@ abstract class PType extends Serializable with Requiredness {
   def containsPointers: Boolean = false
 
   def subsetTo(t: Type): PType = {
-    // FIXME
-    t.physicalType
+    this match {
+      case PCanonicalStruct(fields, r) =>
+        val ts = t.asInstanceOf[TStruct]
+        PCanonicalStruct(r, fields.flatMap { pf => ts.fieldOption(pf.name).map { vf => (pf.name, pf.typ.subsetTo(vf.typ)) } }: _*)
+      case PCanonicalTuple(fields, r) =>
+        val tt = t.asInstanceOf[TTuple]
+        PCanonicalTuple(fields.flatMap { pf => tt.fieldIndex.get(pf.index).map(vi => PTupleField(vi, pf.typ.subsetTo(tt.types(vi)))) }, r)
+      case PCanonicalArray(e, r) =>
+        val ta = t.asInstanceOf[TArray]
+        PCanonicalArray(e.subsetTo(ta.elementType), r)
+      case PCanonicalSet(e, r) =>
+        val ts = t.asInstanceOf[TSet]
+        PCanonicalSet(e.subsetTo(ts.elementType), r)
+      case PCanonicalDict(k, v, r) =>
+        val td = t.asInstanceOf[TDict]
+        PCanonicalDict(k.subsetTo(td.keyType), v.subsetTo(td.valueType), r)
+      case PCanonicalInterval(p, r) =>
+        val ti = t.asInstanceOf[TInterval]
+        PCanonicalInterval(p.subsetTo(ti.pointType), r)
+      case _ =>
+        assert(virtualType == t)
+        this
+    }
   }
 
   def deepInnerRequired(required: Boolean): PType =
