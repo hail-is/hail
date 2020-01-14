@@ -14,7 +14,7 @@ if __name__ == '__main__':
     N_REPLICATES = int(sys.argv[4])
     N_ITERS = int(sys.argv[5])
 
-    p = pl.Pipeline(name='benchmark',
+    p = pl.Pipeline(name=f'benchmark-{SHA}',
                     backend=pl.BatchBackend(billing_project='hail'),
                     default_image=BENCHMARK_IMAGE,
                     default_storage='100G',
@@ -46,7 +46,8 @@ if __name__ == '__main__':
                 resource_task = resource_tasks[resource_group]
                 t.command(f'mv {resource_task.ofile} benchmark-resources/{resource_group.name()}.tar')
                 t.command(f'time tar -xf benchmark-resources/{resource_group.name()}.tar')
-            t.command(f'hail-bench run -o {t.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {benchmark.name}')
+            t.command(f'PYSPARK_SUBMIT_ARGS="--driver-memory 6G pyspark-shell" '
+                      f'hail-bench run -o {t.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {benchmark.name}')
             all_output.append(t.ofile)
 
     combine = p.new_task('combine_output')
