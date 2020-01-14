@@ -179,6 +179,13 @@ trait PArrayBackedContainer extends PContainer {
     this.arrayRep.copyFromType(mb, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, allowDowncast, forceDeep)
   }
 
+  override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
+    this.arrayRep.storeShallowAtOffset(dstAddress, valueAddress)
+
+  override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
+    this.arrayRep.storeShallowAtOffset(dstAddress, valueAddress)
+  }
+
   def nextElementAddress(currentOffset: Long) =
     arrayRep.nextElementAddress(currentOffset)
 

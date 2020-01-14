@@ -376,8 +376,11 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
-  override def storeShallowAtOffset(destOffset: Code[Long], valueAddress: Code[Long]): Code[Unit] = {
-    Region.storeAddress(destOffset, valueAddress)
+  override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
+    Region.storeAddress(dstAddress, valueAddress)
+
+  override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
+    Region.storeAddress(dstAddress, valueAddress)
   }
 
   // semantically this function expects a non-null sourceAddress, and by that property, this function results in a non-null value
