@@ -305,10 +305,10 @@ async def get_index(request, userdata):
 
     ready_cores = await db.select_and_fetchone(
         '''
-SELECT CAST(SUM(ready_cores_mcpu) AS SIGNED) AS ready_cores_mcpu
+SELECT SUM(ready_cores_mcpu) AS ready_cores_mcpu
 FROM ready_cores;
 ''')
-    ready_cores_mcpu = ready_cores['ready_cores_mcpu']
+    ready_cores_mcpu = int(ready_cores['ready_cores_mcpu'])
 
     page_context = {
         'config': instance_pool.config(),
