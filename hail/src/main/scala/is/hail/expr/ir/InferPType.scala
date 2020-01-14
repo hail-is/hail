@@ -60,8 +60,10 @@ object InferPType {
         PType.canonical(t, ir.pType2.required)
       }
       case NA(t) => {
-        val ptype = PType.canonical(t, false)
-        ptype.deepInnerRequired(false)
+        PType.canonical(t).deepInnerRequired(false)
+      }
+      case Die(_, t) => {
+        PType.canonical(t).deepInnerRequired(true)
       }
       case IsNA(ir) => {
         InferPType(ir, env)
@@ -112,7 +114,6 @@ object InferPType {
       }
       case _: ArrayFor => PVoid
       case _: Begin => PVoid
-      case Die(_, t) => PType.canonical(t, true)
       case Let(name, value, body) => {
         InferPType(value, env)
         InferPType(body, env.bind(name, value.pType2))

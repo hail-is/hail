@@ -2013,6 +2013,11 @@ class IRSuite extends HailSuite {
     assertFatal(Die(NA(TString()), TFloat64()), "message missing")
   }
 
+  @Test def testDieInferPType() {
+    assertPType(Die("mumblefoo", TFloat64()), PFloat64(true))
+    assertPType(Die("mumblefoo", TArray(TFloat64())), PArray(PFloat64(true), true))
+  }
+
   @Test def testArrayRange() {
     def assertEquals(start: Integer, stop: Integer, step: Integer, expected: IndexedSeq[Int]) {
       assertEvalsTo(ArrayRange(In(0, TInt32()), In(1, TInt32()), In(2, TInt32())),
