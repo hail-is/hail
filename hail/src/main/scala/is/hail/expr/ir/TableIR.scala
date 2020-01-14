@@ -1761,9 +1761,7 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
     val prev = child.execute(ctx)
     val prevRVD = prev.rvd
     val prevRowType = prev.rvd.typ.rowType
-    val prevKeyType = prev.rvd.typ.kType
 
-    val groupedElementsPType = PArray(prevRVD.typ.rowType, true)
     val rowType = this.typ.rowType.physicalType
     val newRVDType = prevRVD.typ.copy(rowType = rowType)
     val keyIndices = child.typ.keyFieldIdx
@@ -1780,21 +1778,20 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
           if (!hasNext)
             throw new java.util.NoSuchElementException()
 
-          var regionValueArray = Array[RegionValue]()
-          var i = 0
-          while (it.hasNext && i != n) {
+          val offsetArray = new Array[Long](n) // May be longer than the amount of data
+          var childIterationCount = 0
+          while (it.hasNext && childIterationCount != n) {
             val nextRV = it.next()
-            regionValueArray = regionValueArray :+ nextRV
-            log.info(s"Iterated, i = ${i}")
-            i += 1
+            offsetArray(childIterationCount) = nextRV.offset
+            childIterationCount += 1
           }
           val rvb = new RegionValueBuilder(targetRegion)
           rvb.start(rowType)
           rvb.startStruct()
-          rvb.addFields(prevRowType, regionValueArray(0), keyIndices)
-          rvb.startArray(i, true)
-          regionValueArray.zipWithIndex.foreach { case (rv, arrIdx) =>
-            rvb.addElement(groupedElementsPType, rv, arrIdx)
+          rvb.addFields(prevRowType, ctx.region, offsetArray(0), keyIndices)
+          rvb.startArray(childIterationCount, true)
+          (0 until childIterationCount) foreach { rvArrayIndex =>
+            rvb.addRegionValue(prevRowType, ctx.region, offsetArray(rvArrayIndex))
           }
           rvb.endArray()
           rvb.endStruct()
