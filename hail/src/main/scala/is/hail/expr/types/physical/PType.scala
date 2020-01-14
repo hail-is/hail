@@ -307,7 +307,7 @@ abstract class PType extends BaseType with Serializable with Requiredness {
   }
 
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
-  allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
+  allowDowncast: Boolean, forceDeep: Boolean): Code[Long] = {
     this.fundamentalType match {
       case t@(_: PBoolean| _: PInt32 | _: PInt64 | _: PFloat32 | _: PFloat64) => {
         if (t.required > srcPType.required) {
@@ -320,8 +320,7 @@ abstract class PType extends BaseType with Serializable with Requiredness {
     }
   }
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long,
-    allowDowncast: Boolean, forceDeep: Boolean): Long = {
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, allowDowncast: Boolean, forceDeep: Boolean): Long = {
     this.fundamentalType match {
       case t@(_: PBoolean| _: PInt32 | _: PInt64 | _: PFloat32 | _: PFloat64) => {
         if(t.required > srcPType.required) {

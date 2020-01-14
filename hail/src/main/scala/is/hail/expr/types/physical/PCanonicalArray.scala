@@ -339,6 +339,14 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     Region.containsNonZeroBits(srcAddress + lengthHeaderBytes, loadLength(srcAddress).toL)
   }
 
+  def hasMissingValues(srcAddress: Long): Boolean = {
+    if(elementType.required) {
+      return false
+    }
+
+    Region.containsNonZeroBits(srcAddress + lengthHeaderBytes, loadLength(srcAddress).toLong)
+  }
+
   def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], srcAddress: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
     assert(sourceType.elementType.isPrimitive && this.isOfType(sourceType))
 
@@ -382,7 +390,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   // semantically this function expects a non-null sourceAddress, and by that property, this function results in a non-null value
   override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
-  allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
+  allowDowncast: Boolean, forceDeep: Boolean): Code[Long] = {
     assert(srcPType.isInstanceOf[PArray])
 
     val sourceType = srcPType.asInstanceOf[PArray]
@@ -449,5 +457,63 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       ),
       dstAddress
     )
+  }
+
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long,
+    allowDowncast: Boolean, forceDeep: Boolean): Long = {
+    assert(srcPType.isInstanceOf[PArray])
+
+    val sourceType = srcPType.asInstanceOf[PArray]
+    val sourceElementType = sourceType.elementType.fundamentalType
+    val destElementType = this.elementType.fundamentalType
+
+    assert(sourceElementType isOfType destElementType)
+
+    if (sourceElementType == destElementType) {
+      if(!forceDeep) {
+        return srcAddress
+      }
+
+      if(sourceElementType.isPrimitive) {
+        return this.copyFrom(region, srcAddress)
+      }
+    }
+
+    if(destElementType.required > sourceElementType.required) {
+      assert(allowDowncast)
+
+      if(sourceType.hasMissingValues(srcAddress)) {
+        fatal("Found missing values. Cannot copy to type whose elements are required.")
+      }
+    }
+
+    val numberOfElements = sourceType.loadLength(srcAddress)
+    val dstAddress = this.allocate(region, numberOfElements)
+    this.initialize(region, dstAddress, numberOfElements)
+
+    var currentElementAddress = this.firstElementOffset(dstAddress, numberOfElements)
+    var currentIdx = 0
+
+    while(currentIdx < numberOfElements) {
+      if(!sourceElementType.required && sourceType.isElementMissing(region, srcAddress, currentIdx)) {
+        this.setElementMissing(dstAddress, currentIdx)
+      } else {
+        destElementType.storeShallowAtOffset(
+          currentElementAddress,
+          destElementType.copyFromType(
+            region,
+            sourceElementType,
+            sourceType.loadElement(srcAddress, numberOfElements, currentIdx),
+            allowDowncast,
+            forceDeep
+          )
+        )
+      }
+
+      currentElementAddress = this.nextElementAddress(currentElementAddress)
+      currentIdx += 1
+    }
+
+    dstAddress
   }
 }
