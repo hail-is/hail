@@ -32,8 +32,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
   val fieldIdx: Map[String, Int] = fields.map(f => (f.name, f.index)).toMap
   def hasField(name: String): Boolean = fieldIdx.contains(name)
   def fieldType(name: String): EType = types(fieldIdx(name))
-  val missingIdx = new Array[Int](size)
-  val nMissing: Int = BaseStruct.getSetMissingness(types.map(_.required), missingIdx)
+  val (missingIdx: Array[Int], nMissing: Int) = BaseStruct.getMissingIndexAndCount(types.map(_.required))
   val nMissingBytes = UnsafeUtils.packBitsToBytes(nMissing)
 
   if (!fieldNames.areDistinct()) {

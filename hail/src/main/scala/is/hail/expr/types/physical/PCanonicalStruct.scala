@@ -49,8 +49,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
       s"${fieldNames.map(prettyIdentifier).mkString(", ")}", fieldNames.duplicates())
   }
 
-  val missingIdx = new Array[Int](size)
-  val nMissing: Int = BaseStruct.getSetMissingness(types.map(_.required), missingIdx)
+  val (missingIdx: Array[Int], nMissing: Int) = BaseStruct.getMissingIndexAndCount(types.map(_.required))
   val nMissingBytes = (nMissing + 7) >>> 3
   val byteOffsets = new Array[Long](size)
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)

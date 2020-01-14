@@ -543,8 +543,8 @@ object IRParser {
         punctuation(it, ",")
         identifier(it, "row")
         punctuation(it, ":")
-        val rowType = coerce[TStruct](type_expr(env)(it))
-        RVDType(rowType.physicalType, partitionKey ++ restKey)
+        val rowType = coerce[PStruct](ptype_expr(env)(it))
+        RVDType(rowType, partitionKey ++ restKey)
     }
   }
 
@@ -1036,9 +1036,9 @@ object IRParser {
         val tuple = ir_value_expr(env)(it)
         GetTupleElement(tuple, idx)
       case "In" =>
-        val typ = type_expr(env.typEnv)(it)
+        val typ = ptype_expr(env.typEnv)(it)
         val idx = int32_literal(it)
-        In(idx, typ.physicalType)
+        In(idx, typ)
       case "Die" =>
         val typ = type_expr(env.typEnv)(it)
         val msg = ir_value_expr(env)(it)

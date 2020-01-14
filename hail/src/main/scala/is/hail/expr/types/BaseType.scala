@@ -25,17 +25,16 @@ trait Requiredness {
 }
 
 object BaseStruct {
-  def getSetMissingness(req: Array[Boolean], missingIdx: Array[Int]): Int = {
-    assert(missingIdx.length == req.length)
+  def getMissingIndexAndCount(req: Array[Boolean]): (Array[Int], Int) = {
+    val missingIdx = new Array[Int](req.length)
     var i = 0
     var j = 0
     while (i < req.length) {
-      val r = req(i)
       missingIdx(i) = j
-      if (!r)
+      if (!req(i))
         j += 1
       i += 1
     }
-    j
+    (missingIdx, j)
   }
 }
