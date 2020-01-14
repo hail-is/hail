@@ -1099,6 +1099,10 @@ object IRParser {
         val expr = ir_value_expr(newEnv)(it)
         val newKey = ir_value_expr(newEnv)(it)
         TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize)
+      case "TableGroupWithinPartitions" =>
+        val n = int32_literal(it)
+        val child = table_ir(env)(it)
+        TableGroupWithinPartitions(child, n)
       case "TableRepartition" =>
         val n = int32_literal(it)
         val strategy = int32_literal(it)

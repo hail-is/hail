@@ -447,6 +447,8 @@ object PruneDeadFields {
             rowType = unify(child.typ.rowType, keyDep.rowType, exprDep.rowType),
             globalType = unify(child.typ.globalType, keyDep.globalType, exprDep.globalType, requestedType.globalType)),
           memo)
+      case TableGroupWithinPartitions(child, n) =>
+        memoizeTableIR(child, child.typ, memo)
       case MatrixColsTable(child) =>
         val mtDep = minimal(child.typ).copy(
           globalType = requestedType.globalType,
