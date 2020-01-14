@@ -12,7 +12,7 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
   lazy val fieldIndex: Map[Int, Int] = _types.zipWithIndex.map { case (tf, idx) => tf.index -> idx }.toMap
 
   val missingIdx = new Array[Int](size)
-  val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
+  val nMissing: Int = BaseStruct.getSetMissingness(types.map(_.required), missingIdx)
   val nMissingBytes = UnsafeUtils.packBitsToBytes(nMissing)
   val byteOffsets = new Array[Long](size)
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
@@ -24,8 +24,12 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
     PCanonicalTuple(_types.take(newSize), required)
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
-    sb.append("Tuple[")
-    types.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
+    sb.append("PCTuple[")
+    _types.foreachBetween { fd =>
+      sb.append(fd.index)
+      sb.append(':')
+      fd.typ.pretty(sb, indent, compact)
+    }(sb += ',')
     sb += ']'
   }
 

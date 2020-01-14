@@ -19,11 +19,8 @@ class PFloat32(override val required: Boolean) extends PNumeric {
   override type NType = PFloat32
 
   def _asIdent = "float32"
-  def _toPretty = "Float32"
 
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("float32")
-  }
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PFloat32")
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {

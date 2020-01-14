@@ -10,16 +10,9 @@ import is.hail.utils._
 
 final case class PCanonicalArray(elementType: PType, required: Boolean = false) extends PArray {
   def _asIdent = s"array_of_${elementType.asIdent}"
-  def _toPretty = s"Array[$elementType]"
-
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("array<")
-    elementType.pyString(sb)
-    sb.append('>')
-  }
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-    sb.append("Array[")
+    sb.append("PCArray[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")
   }

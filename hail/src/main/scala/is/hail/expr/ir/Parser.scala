@@ -2,12 +2,12 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.expr.ir.functions.RelationalFunctions
-import is.hail.expr.types.physical.PType
+import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.io.bgen.MatrixBGENReaderSerializer
-import is.hail.io.{BufferSpec, AbstractTypedCodecSpec}
+import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
 import is.hail.rvd.{AbstractRVDSpec, RVDType}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
@@ -311,6 +311,14 @@ object IRParser {
     (name, desc)
   }
 
+  def ptuple_subset_field(env: TypeParserEnvironment)(it: TokenIterator): (Int, PType) = {
+    val i = int32_literal(it)
+    punctuation(it, ":")
+    val t = ptype_expr(env)(it)
+    i -> t
+  }
+
+
   def tuple_subset_field(env: TypeParserEnvironment)(it: TokenIterator): (Int, Type) = {
     val i = int32_literal(it)
     punctuation(it, ":")
@@ -327,13 +335,90 @@ object IRParser {
     }
     (name, typ)
   }
+
+  def ptype_field(env: TypeParserEnvironment)(it: TokenIterator): (String, PType) = {
+    struct_field(ptype_expr(env))(it)
+  }
+
   def type_field(env: TypeParserEnvironment)(it: TokenIterator): (String, Type) = {
     struct_field(type_expr(env))(it)
   }
 
+  def ptype_expr(env: TypeParserEnvironment)(it: TokenIterator): PType = {
+    val req = it.head match {
+      case x: PunctuationToken if x.value == "+" =>
+        consumeToken(it)
+        true
+      case _ => false
+    }
+
+    val typ = identifier(it) match {
+      case "PCInterval" =>
+        punctuation(it, "[")
+        val pointType = ptype_expr(env)(it)
+        punctuation(it, "]")
+        PCanonicalInterval(pointType, req)
+      case "PBoolean" => PBoolean(req)
+      case "PInt32" => PInt32(req)
+      case "PInt64" => PInt64(req)
+      case "PFloat32" => PFloat32(req)
+      case "PFloat64" => PFloat64(req)
+      case "PCBinary" => PCanonicalBinary(req)
+      case "PCString" => PCanonicalString(req)
+      case "PCLocus" =>
+        punctuation(it, "(")
+        val rg = identifier(it)
+        punctuation(it, ")")
+        PCanonicalLocus(env.getReferenceGenome(rg), req)
+      case "PCCall" => PCanonicalCall(req)
+      case "PStream" =>
+        punctuation(it, "[")
+        val elementType = ptype_expr(env)(it)
+        punctuation(it, "]")
+        PStream(elementType, req)
+      case "PCArray" =>
+        punctuation(it, "[")
+        val elementType = ptype_expr(env)(it)
+        punctuation(it, "]")
+        PCanonicalArray(elementType, req)
+      case "PCNDArray" =>
+        punctuation(it, "[")
+        val elementType = ptype_expr(env)(it)
+        punctuation(it, ",")
+        val nDims = int32_literal(it)
+        punctuation(it, "]")
+        PCanonicalNDArray(elementType, nDims, req)
+      case "PCSet" =>
+        punctuation(it, "[")
+        val elementType = ptype_expr(env)(it)
+        punctuation(it, "]")
+        PCanonicalSet(elementType, req)
+      case "PCDict" =>
+        punctuation(it, "[")
+        val keyType = ptype_expr(env)(it)
+        punctuation(it, ",")
+        val valueType = ptype_expr(env)(it)
+        punctuation(it, "]")
+        PCanonicalDict(keyType, valueType, req)
+      case "PCTuple" =>
+        punctuation(it, "[")
+        val fields = repsepUntil(it, ptuple_subset_field(env), PunctuationToken(","), PunctuationToken("]"))
+        punctuation(it, "]")
+        PCanonicalTuple(fields.map { case (idx, t) => PTupleField(idx, t)}, req)
+      case "PCStruct" =>
+        punctuation(it, "{")
+        val args = repsepUntil(it, ptype_field(env), PunctuationToken(","), PunctuationToken("}"))
+        punctuation(it, "}")
+        val fields = args.zipWithIndex.map { case ((id, t), i) => PField(id, t, i) }
+        PCanonicalStruct(fields, req)
+    }
+    assert(typ.required == req)
+    typ
+  }
+
   def ptype_exprs(env: TypeParserEnvironment)(it: TokenIterator): Array[PType] = {
     punctuation(it, "(")
-    val types = repUntil(it, type_expr(env), PunctuationToken(")")).map(_.physicalType)
+    val types = repUntil(it, ptype_expr(env), PunctuationToken(")"))
     punctuation(it, ")")
     types
   }
@@ -1500,7 +1585,7 @@ object IRParser {
 
   def parseType(code: String, env: TypeParserEnvironment): Type = parse(code, type_expr(env))
 
-  def parsePType(code: String, env: TypeParserEnvironment): PType = parse(code, type_expr(env)).physicalType
+  def parsePType(code: String, env: TypeParserEnvironment): PType = parse(code, ptype_expr(env))
 
   def parseStructType(code: String, env: TypeParserEnvironment): TStruct = coerce[TStruct](parse(code, type_expr(env)))
 

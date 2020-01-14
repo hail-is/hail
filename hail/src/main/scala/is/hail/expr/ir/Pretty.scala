@@ -268,7 +268,7 @@ object Pretty {
             case ApplySpecial(function, _, t) => prettyIdentifier(function) + " " + t.parsableString()
             case SelectFields(_, fields) => fields.map(prettyIdentifier).mkString("(", " ", ")")
             case LowerBoundOnOrderedCollection(_, _, onKey) => prettyBooleanLiteral(onKey)
-            case In(i, typ) => s"${ typ.parsableString() } $i"
+            case In(i, typ) => s"$typ $i"
             case Die(message, typ) => typ.parsableString()
             case CollectDistributedArray(_, _, cname, gname, _) =>
               s"${ prettyIdentifier(cname) } ${ prettyIdentifier(gname) }"

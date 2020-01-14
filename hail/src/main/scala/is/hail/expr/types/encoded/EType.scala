@@ -33,7 +33,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   final def buildEncoderMethod(pt: PType, fb: EmitFunctionBuilder[_]): EmitMethodBuilder = {
     if (!encodeCompatible(pt))
-      throw new RuntimeException(s"encode incompatible:\n  PT: ${ pt.parsableString() }\n  ET: ${ parsableString() }")
+      throw new RuntimeException(s"encode incompatible:\n  PT: $pt\n  ET: ${ parsableString() }")
     require(encodeCompatible(pt))
     val ptti = typeToTypeInfo(pt)
     fb.getOrDefineMethod(s"ENCODE_${ pt.asIdent }_TO_${ asIdent }",
@@ -53,7 +53,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   final def buildDecoderMethod[T](pt: PType, fb: EmitFunctionBuilder[_]): EmitMethodBuilder = {
     if (!decodeCompatible(pt))
-      throw new RuntimeException(s"decode incompatible:\n  PT: ${ pt.parsableString() }\n  ET: ${ parsableString() }")
+      throw new RuntimeException(s"decode incompatible:\n  PT: $pt }\n  ET: ${ parsableString() }")
     fb.getOrDefineMethod(s"DECODE_${ asIdent }_TO_${ pt.asIdent }",
       (pt, this, "DECODE"),
       Array[TypeInfo[_]](typeInfo[Region], classInfo[InputBuffer]),
@@ -72,7 +72,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   final def buildInplaceDecoderMethod(pt: PType, fb: EmitFunctionBuilder[_]): EmitMethodBuilder = {
     if (!decodeCompatible(pt))
-      throw new RuntimeException(s"decode incompatible:\n  PT: ${ pt.parsableString() }\n  ET: ${ parsableString() }")
+      throw new RuntimeException(s"decode incompatible:\n  PT: $pt\n  ET: ${ parsableString() }")
     fb.getOrDefineMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
       (pt, this, "INPLACE_DECODE"),
       Array[TypeInfo[_]](typeInfo[Region], typeInfo[Long], classInfo[InputBuffer]),

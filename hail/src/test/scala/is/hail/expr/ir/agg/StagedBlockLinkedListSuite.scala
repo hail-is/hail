@@ -143,7 +143,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
   @Test def testPushStrsMissing() {
     Region.scoped { region =>
       val a = new ArrayBuilder[String]()
-      val b = new BlockLinkedList[String](region, PStringOptional)
+      val b = new BlockLinkedList[String](region, PString())
       for (i <- 1 to 100) {
         val elt = if(i%3 == 0) null else i.toString()
         a += elt
@@ -155,8 +155,8 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
 
   @Test def testAppendAnother() {
     Region.scoped { region =>
-      val b1 = new BlockLinkedList[String](region, PStringOptional)
-      val b2 = new BlockLinkedList[String](region, PStringOptional)
+      val b1 = new BlockLinkedList[String](region, PString())
+      val b2 = new BlockLinkedList[String](region, PString())
       b1 += "{"
       b2 ++= Seq("foo", "bar")
       b1 ++= b2

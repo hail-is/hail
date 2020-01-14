@@ -12,8 +12,8 @@ import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
 class PTypeSerializer extends CustomSerializer[PType](format => (
-  { case JString(s) => PType.canonical(IRParser.parseType(s)) },
-  { case t: PType => JString(t.parsableString()) }))
+  { case JString(s) => PType.canonical(IRParser.parsePType(s)) },
+  { case t: PType => JString(t.toString) }))
 
 
 object PType {
@@ -153,10 +153,16 @@ object PType {
   }
 }
 
-abstract class PType extends BaseType with Serializable with Requiredness {
+abstract class PType extends Serializable with Requiredness {
   self =>
 
   def virtualType: Type
+
+  override def toString: String = {
+    val sb = new StringBuilder
+    pretty(sb, 0, true)
+    sb.result()
+  }
 
   def unsafeOrdering(): UnsafeOrdering = ???
 
@@ -170,15 +176,6 @@ abstract class PType extends BaseType with Serializable with Requiredness {
   def unsafeInsert(typeToInsert: PType, path: List[String]): (PType, UnsafeInserter) =
     PStruct.empty().unsafeInsert(typeToInsert, path)
 
-  def insert(signature: PType, fields: String*): (PType, Inserter) = insert(signature, fields.toList)
-
-  def insert(signature: PType, path: List[String]): (PType, Inserter) = {
-    if (path.nonEmpty)
-      PStruct.empty().insert(signature, path)
-    else
-      (signature, (a, toIns) => toIns)
-  }
-
   def asIdent: String = (if (required) "r_" else "o_") + _asIdent
 
   def _asIdent: String
@@ -189,11 +186,7 @@ abstract class PType extends BaseType with Serializable with Requiredness {
     _pretty(sb, indent, compact)
   }
 
-  def _toPretty: String
-
-  def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
-    sb.append(_toPretty)
-  }
+  def _pretty(sb: StringBuilder, indent: Int, compact: Boolean)
 
   def codeOrdering(mb: EmitMethodBuilder): CodeOrdering =
     codeOrdering(mb, this)
@@ -300,8 +293,4 @@ abstract class PType extends BaseType with Serializable with Requiredness {
       case t =>
         t.setRequired(required)
     }
-
-  def unify(concrete: PType): Boolean = {
-    this.isOfType(concrete)
-  }
 }

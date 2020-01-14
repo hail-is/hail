@@ -50,7 +50,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   }
 
   val missingIdx = new Array[Int](size)
-  val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
+  val nMissing: Int = BaseStruct.getSetMissingness(types.map(_.required), missingIdx)
   val nMissingBytes = (nMissing + 7) >>> 3
   val byteOffsets = new Array[Long](size)
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
@@ -178,7 +178,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (compact) {
-      sb.append("Struct{")
+      sb.append("PCStruct{")
       fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
       sb += '}'
     } else {
