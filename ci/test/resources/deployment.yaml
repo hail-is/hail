@@ -16,6 +16,11 @@ spec:
         app: hello
         hail.is/sha: "{{ code.sha }}"
     spec:
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       containers:
         - name: hello
           image: "{{ hello_image.image }}"
