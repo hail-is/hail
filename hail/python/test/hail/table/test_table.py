@@ -1371,3 +1371,23 @@ def test_write_table_containing_ndarray():
     t.write(f)
     t2 = hl.read_table(f)
     assert t._same(t2)
+
+def test_group_within_partitions():
+    t = hl.utils.range_table(10).naive_coalesce(2)
+    t = t.annotate(sq=t.idx ** 2)
+
+    grouped1_collected = t._group_within_partitions(1).collect()
+    grouped2_collected = t._group_within_partitions(2).collect()
+    grouped3_collected = t._group_within_partitions(3).collect()
+    grouped5_collected = t._group_within_partitions(5).collect()
+    grouped6_collected = t._group_within_partitions(6).collect()
+
+    assert len(grouped1_collected) == 10
+    assert len(grouped2_collected) == 6
+    assert len(grouped3_collected) == 4
+    assert len(grouped5_collected) == 2
+    assert grouped5_collected == grouped6_collected
+    assert grouped3_collected == [hl.Struct(idx=0, grouped_fields=[hl.Struct(idx=0, sq=0.0), hl.Struct(idx=1, sq=1.0), hl.Struct(idx=2, sq=4.0)]),
+                                  hl.Struct(idx=3, grouped_fields=[hl.Struct(idx=3, sq=9.0), hl.Struct(idx=4, sq=16.0)]),
+                                  hl.Struct(idx=5, grouped_fields=[hl.Struct(idx=5, sq=25.0), hl.Struct(idx=6, sq=36.0), hl.Struct(idx=7, sq=49.0)]),
+                                  hl.Struct(idx=8, grouped_fields=[hl.Struct(idx=8, sq=64.0), hl.Struct(idx=9, sq=81.0)])]
