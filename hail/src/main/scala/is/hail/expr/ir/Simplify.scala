@@ -372,7 +372,7 @@ object Simplify {
         ApplyAggOp(
           FastIndexedSeq(),
           FastIndexedSeq(ArrayLen(ToArray(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)})).toL),
-          AggSignature(Sum(), FastSeq(), FastSeq(TInt64()), None)))
+          AggSignature(Sum(), FastSeq(), FastSeq(TInt64()))))
 
     case TableCount(TableRead(_, false, r: MatrixBGENReader)) if r.includedVariants.isEmpty =>
       I64(r.fileMetadata.map(_.nVariants).sum)
@@ -679,7 +679,7 @@ object Simplify {
       // n < 256 is arbitrary for memory concerns
       val row = Ref("row", child.typ.rowType)
       val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
-      val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()),  FastSeq(row.typ, keyStruct.typ), None)
+      val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()),  FastSeq(row.typ, keyStruct.typ))
       val te =
         TableExplode(
           TableKeyByAndAggregate(child,
