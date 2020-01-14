@@ -157,12 +157,6 @@ class RegionValueBuilder(var region: Region) {
 
   private def startArrayInternal(length: Int, init: Boolean, setMissing: Boolean) {
     val t = currentType().asInstanceOf[PArray]
-    if (region == null) {
-      throw new HailException("Region was null")
-    }
-    if (t == null) {
-      throw new HailException("Type was null")
-    }
     val aoff = t.allocate(region, length)
 
     if (typestk.nonEmpty) {
