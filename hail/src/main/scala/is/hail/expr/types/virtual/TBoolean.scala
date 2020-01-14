@@ -11,8 +11,6 @@ case object TBooleanOptional extends TBoolean(false)
 case object TBooleanRequired extends TBoolean(true)
 
 class TBoolean(override val required: Boolean) extends Type {
-  lazy val physicalType: PBoolean = PBoolean(required)
-
   def _toPretty = "Boolean"
 
   override def pyString(sb: StringBuilder): Unit = {

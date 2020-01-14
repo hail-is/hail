@@ -285,7 +285,7 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testEmitAggScan() {
     def assertAggScan(ir: IR, inType: Type, tests: (Any, Any)*) = {
-      val aggregate = compileStream(ir, inType.physicalType)
+      val aggregate = compileStream(ir, PType.canonical(inType))
       for ((inp, expected) <- tests)
         assert(aggregate(inp) == expected, Pretty(ir))
     }

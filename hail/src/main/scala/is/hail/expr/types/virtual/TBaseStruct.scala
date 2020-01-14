@@ -20,8 +20,6 @@ object TBaseStruct {
 }
 
 abstract class TBaseStruct extends Type {
-  def physicalType: PBaseStruct
-
   def types: Array[Type]
 
   def fields: IndexedSeq[Field]
