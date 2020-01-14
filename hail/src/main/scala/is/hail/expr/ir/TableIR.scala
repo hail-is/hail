@@ -1761,8 +1761,10 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
     val prev = child.execute(ctx)
     val prevRVD = prev.rvd
     val prevRowType = prev.rvd.typ.rowType
+    val prevKeyType = prev.rvd.typ.kType
 
-    val rowType = this.typ.rowType.physicalType
+    //val rowType = this.typ.rowType.physicalType
+    val rowType = prevKeyType ++ PStruct(("grouped_fields", PArray(prevRowType)))
     val newRVDType = prevRVD.typ.copy(rowType = rowType)
     val keyIndices = child.typ.keyFieldIdx
 
