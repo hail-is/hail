@@ -353,3 +353,4 @@ class BatchBackend(Backend):
             print(f'Waiting for batch {batch.id}...')
             status = batch.wait()
             print(f'Batch {batch.id} complete: {status["state"]}')
+        return batch
