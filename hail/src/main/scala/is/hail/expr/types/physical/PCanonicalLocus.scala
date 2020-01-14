@@ -103,11 +103,20 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
   }
 
   override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
-    allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
+    allowDowncast: Boolean, forceDeep: Boolean): Code[Long] = {
     assert(this isOfType srcPType)
 
     val srcRepPType = srcPType.asInstanceOf[PLocus].representation
 
     representation.copyFromType(mb, region, srcRepPType, srcAddress, allowDowncast, forceDeep)
+  }
+
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long,
+    allowDowncast: Boolean, forceDeep: Boolean): Long = {
+    assert(this isOfType srcPType)
+
+    val srcRepPType = srcPType.asInstanceOf[PLocus].representation
+
+    representation.copyFromType(region, srcRepPType, srcAddress, allowDowncast, forceDeep)
   }
 }

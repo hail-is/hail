@@ -11,11 +11,19 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   lazy val binaryFundamentalType: PBinary = PBinary(required)
 
-  override def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceOffset: Code[Long],
-  allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-    assert(sourcePType isOfType this)
+  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
+  allowDowncast: Boolean, forceDeep: Boolean): Code[Long] = {
+    assert(srcPType isOfType this)
     this.fundamentalType.copyFromType(
-      mb, region, sourcePType.asInstanceOf[PString].fundamentalType, sourceOffset, allowDowncast, forceDeep
+      mb, region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, allowDowncast, forceDeep
+    )
+  }
+
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long,
+    allowDowncast: Boolean, forceDeep: Boolean): Long  = {
+    assert(srcPType isOfType this)
+    this.fundamentalType.copyFromType(
+      region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, allowDowncast, forceDeep
     )
   }
 

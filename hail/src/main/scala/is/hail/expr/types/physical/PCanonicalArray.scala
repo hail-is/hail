@@ -384,8 +384,12 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
-  override def storeShallowAtOffset(destOffset: Code[Long], valueAddress: Code[Long]): Code[Unit] = {
-    Region.storeAddress(destOffset, valueAddress)
+  override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] = {
+    Region.storeAddress(dstAddress, valueAddress)
+  }
+
+  override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
+    Region.storeAddress(dstAddress, valueAddress)
   }
 
   // semantically this function expects a non-null sourceAddress, and by that property, this function results in a non-null value
@@ -495,6 +499,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     var currentIdx = 0
 
     while(currentIdx < numberOfElements) {
+      println(s"On index ${currentIdx}, type is ${sourceElementType}")
       if(!sourceElementType.required && sourceType.isElementMissing(region, srcAddress, currentIdx)) {
         this.setElementMissing(dstAddress, currentIdx)
       } else {

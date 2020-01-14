@@ -372,41 +372,35 @@ abstract class PBaseStruct extends PType {
 
       val srcType = srcField.typ.fundamentalType
       val dstType = dstField.typ.fundamentalType
+      val isMissing = sourceType.isFieldMissing(srcStructAddress, srcField.index)
 
-      if(!srcField.typ.required) {
-        c = Code(c, sourceType.isFieldMissing(srcStructAddress, srcField.index).mux(
-          Code(
-            if(dstType.required) {
-              assert(allowDowncast)
-
-              Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
-            } else {
-              this.setFieldMissing(dstStructAddress, dstField.index)
-            }
-          ),
-          body
-        ))
-      } else {
-        c = Code(c, body)
+      if (dstType.required > srcField.typ.required) {
+        assert(allowDowncast)
       }
 
-      val body = dstType.storeShallowAtOffset(
-        this.fieldOffset(dstStructAddress, dstField.index),
-        dstType.copyFromType(
-          region,
-          srcType,
-          sourceType.loadField(srcStructAddress, srcField.index),
-          allowDowncast,
-          forceDeep
+      if(isMissing) {
+        if (dstType.required) {
+          fatal("Found missing values. Cannot copy to type whose elements are required.")
+        }
+
+        this.setFieldMissing(dstStructAddress, dstField.index)
+      } else {
+        dstType.storeShallowAtOffset(
+          this.fieldOffset(dstStructAddress, dstField.index),
+          dstType.copyFromType(
+            region,
+            srcType,
+            sourceType.loadField(srcStructAddress, srcField.index),
+            allowDowncast,
+            forceDeep
+          )
         )
-      )
-
-
+      }
 
       i+=1
     }
 
-    Code(c, dstStructAddress)
+    dstStructAddress
   }
 
   override def containsPointers: Boolean = types.exists(_.containsPointers)

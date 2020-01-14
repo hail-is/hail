@@ -14,7 +14,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   override def byteSize: Long = 8
 
   override def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceAddress: Code[Long],
-  allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
+  allowDowncast: Boolean, forceDeep: Boolean): Code[Long] = {
     if(this == sourcePType && !forceDeep) {
       return sourceAddress
     }
@@ -37,10 +37,32 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     )
   }
 
+  override def copyFromType(region: Region, sourcePType: PType, sourceAddress: Long,
+    allowDowncast: Boolean, forceDeep: Boolean): Long = {
+    if(this == sourcePType && !forceDeep) {
+      return sourceAddress
+    }
+
+    assert(this isOfType sourcePType)
+
+    if(this.required > sourcePType.required) {
+      assert(allowDowncast)
+    }
+
+    val length = PCanonicalBinary.loadLength(region, sourceAddress)
+    val dstAddress = PCanonicalBinary.allocate(region, length)
+    Region.copyFrom(sourceAddress, dstAddress, PCanonicalBinary.contentByteSize(length))
+    dstAddress
+  }
+
   override def containsPointers: Boolean = true
 
-  override def storeShallowAtOffset(destOffset: Code[Long], valueAddress: Code[Long]): Code[Unit] = {
-    Region.storeAddress(destOffset, valueAddress)
+  override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] = {
+    Region.storeAddress(dstAddress, valueAddress)
+  }
+
+  override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
+    Region.storeAddress(dstAddress, valueAddress)
   }
 }
 
