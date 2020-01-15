@@ -574,11 +574,22 @@ object EmitStream {
           val childEltTypes = as.map(_.pType.asInstanceOf[PStreamable].elementType)
 
           EmitStream.zip[Any](streams, behavior, { (xs, k) =>
-            val bodyt = emitIR(body, env.bindIterable(
-              names.zip(xs.zip(childEltTypes)
-                .map { case (et, t) => (typeToTypeInfo(t), et.m, et.v) })))
+            val mv = names.zip(childEltTypes).map { case (name, t) =>
+              val ti = typeToTypeInfo(t)
+              val eltm = fb.newField[Boolean](name + "_missing")
+              val eltv = fb.newField(name)(ti)
+              (t, ti, eltm, eltv)
+            }
+            val bodyt = emitIR(body,
+              env.bindIterable(names.zip(mv.map { case (_, ti, m, v) => (ti, m.load(), v.load()) })))
             k(EmitTriplet(
-              Code(Code(xs.map(_.setup): _*), bodyt.setup),
+              Code(xs.zip(mv).foldLeft[Code[Unit]](Code._empty[Unit]) { case (acc, (et, (t, ti, m, v))) =>
+                Code(acc,
+                  et.setup,
+                  m := et.m,
+                  v.storeAny(m.mux(defaultValue(t), et.v)))
+              },
+                bodyt.setup),
               bodyt.m,
               bodyt.v)
             )
