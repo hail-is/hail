@@ -23,10 +23,10 @@ CREATE TEMPORARY TABLE tmp_resources AS (
   SELECT batch_id, user, closed,
     0 as token,
     COUNT(*) AS n_jobs,
-    SUM(state = 'Ready') AS n_ready_jobs,
-    SUM(state = 'Running') AS n_running_jobs,
-    SUM(IF(state = 'Ready', cores_mcpu, 0)) AS ready_cores_mcpu,
-    SUM(IF(state = 'Running', cores_mcpu, 0)) AS running_cores_mcpu
+    COALESCE(SUM(state = 'Ready'), 0) AS n_ready_jobs,
+    COALESCE(SUM(state = 'Running'), 0) AS n_running_jobs,
+    COALESCE(SUM(IF(state = 'Ready', cores_mcpu, 0)), 0) AS ready_cores_mcpu,
+    COALESCE(SUM(IF(state = 'Running', cores_mcpu, 0)), 0) AS running_cores_mcpu
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   GROUP BY batch_id, user, closed
@@ -44,10 +44,10 @@ UPDATE ready_cores SET ready_cores_mcpu = @closed_ready_cores_mcpu;
 UPDATE user_resources
 RIGHT JOIN (
   SELECT user, token,
-    SUM(n_ready_jobs) as n_ready_jobs,
-    SUM(n_running_jobs) as n_running_jobs,
-    SUM(ready_cores_mcpu) as ready_cores_mcpu,
-    SUM(running_cores_mcpu) as running_cores_mcpu
+    COALESCE(SUM(n_ready_jobs), 0) as n_ready_jobs,
+    COALESCE(SUM(n_running_jobs), 0) as n_running_jobs,
+    COALESCE(SUM(ready_cores_mcpu), 0) as ready_cores_mcpu,
+    COALESCE(SUM(running_cores_mcpu), 0) as running_cores_mcpu
   FROM tmp_resources
   WHERE closed
   GROUP BY user, token) AS t
@@ -74,12 +74,14 @@ CREATE TRIGGER jobs_after_update AFTER UPDATE ON jobs
 FOR EACH ROW
 BEGIN
   DECLARE in_user VARCHAR(100);
+  DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
 
   SELECT user INTO in_user from batches
   WHERE id = NEW.batch_id;
 
-  SET rand_token = FLOOR(RAND() * @n_tokens);
+  SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
+  SET rand_token = FLOOR(RAND() * cur_n_tokens);
 
   IF OLD.state = 'Ready' THEN
     INSERT INTO user_resources (user, token) VALUES (in_user, rand_token)
@@ -136,11 +138,11 @@ BEGIN
   SELECT n_jobs, closed INTO expected_n_jobs, cur_batch_closed FROM batches
   WHERE id = in_batch_id AND NOT deleted;
 
-  IF cur_batch_closed = 1 THEN
+  IF cur_batch_closed THEN
     COMMIT;
     SELECT 0 as rc;
-  ELSEIF cur_batch_closed = 0 THEN
-    SELECT SUM(n_jobs), SUM(n_ready_jobs), SUM(ready_cores_mcpu)
+  ELSE
+    SELECT COALESCE(SUM(n_jobs), 0), COALESCE(SUM(n_ready_jobs), 0), COALESCE(SUM(ready_cores_mcpu), 0)
     INTO staging_n_jobs, staging_n_ready_jobs, staging_ready_cores_mcpu
     FROM batches_staging
     WHERE batch_id = in_batch_id
@@ -153,11 +155,11 @@ BEGIN
       UPDATE batches SET time_completed = in_timestamp
         WHERE id = in_batch_id AND n_completed = batches.n_jobs;
 
-      INSERT INTO ready_cores (token, ready_cores_mcpu) VALUES (0, 0)
-      ON DUPLICATE KEY UPDATE
-        ready_cores_mcpu = ready_cores_mcpu + staging_ready_cores_mcpu;
+      INSERT INTO ready_cores (token, ready_cores_mcpu) VALUES (0, staging_ready_cores_mcpu)
+        ON DUPLICATE KEY UPDATE ready_cores_mcpu = ready_cores_mcpu + staging_ready_cores_mcpu;
 
-      INSERT INTO user_resources (user, token) VALUES (cur_user, 0)
+      INSERT INTO user_resources (user, token, n_ready_jobs, ready_cores_mcpu)
+      VALUES (cur_user, 0, staging_n_ready_jobs, staging_ready_cores_mcpu)
       ON DUPLICATE KEY UPDATE
         n_ready_jobs = n_ready_jobs + staging_n_ready_jobs,
         ready_cores_mcpu = ready_cores_mcpu + staging_ready_cores_mcpu;
@@ -170,9 +172,6 @@ BEGIN
       ROLLBACK;
       SELECT 2 as rc, expected_n_jobs, staging_n_jobs as actual_n_jobs, 'wrong number of jobs' as message;
     END IF;
-  ELSE
-    ROLLBACK;
-    SELECT 1 as rc, cur_batch_closed, 'batch closed is not 0 or 1' as message;
   END IF;
 END $$
 

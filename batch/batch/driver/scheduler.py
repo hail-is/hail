@@ -45,18 +45,18 @@ class Scheduler:
         records = self.db.execute_and_fetchall(
             '''
 SELECT user,
-  SUM(n_ready_jobs) AS n_ready_jobs,
-  SUM(ready_cores_mcpu) AS ready_cores_mcpu,
-  SUM(n_running_jobs) AS n_running_jobs,
-  SUM(running_cores_mcpu) AS running_cores_mcpu
+  CAST(SUM(n_ready_jobs) AS SIGNED) AS n_ready_jobs,
+  CAST(SUM(ready_cores_mcpu) AS SIGNED) AS ready_cores_mcpu,
+  CAST(SUM(n_running_jobs) AS SIGNED) AS n_running_jobs,
+  CAST(SUM(running_cores_mcpu) AS SIGNED) AS running_cores_mcpu
 FROM user_resources
 GROUP BY user;
 ''')
 
         async for record in records:
             user = record['user']
-            user_running_cores_mcpu[user] = int(record['running_cores_mcpu'])
-            user_total_cores_mcpu[user] = int(record['running_cores_mcpu']) + int(record['ready_cores_mcpu'])
+            user_running_cores_mcpu[user] = record['running_cores_mcpu']
+            user_total_cores_mcpu[user] = record['running_cores_mcpu'] + record['ready_cores_mcpu']
             pending_users_by_running_cores.add(user)
             record['allocated_cores_mcpu'] = 0
             result[user] = record
