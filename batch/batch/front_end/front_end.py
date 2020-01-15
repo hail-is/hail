@@ -563,7 +563,7 @@ WHERE billing_project = %s AND user = %s;
             assert len(rows) == 0
             raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
 
-        maybe_batch = tx.execute_and_fetchone(
+        maybe_batch = await tx.execute_and_fetchone(
             '''
 SELECT * FROM batches
 WHERE token = %s AND user = %s;
