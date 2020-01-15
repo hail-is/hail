@@ -78,7 +78,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
       Begin(
         deserializeSet(0, 0, spec) +:
           deserializeSet(1, 1, spec) +:
-          Array.tabulate(nAggs)(i => CombOp2(i, nAggs + i, aggs(i))) :+
+          Array.tabulate(nAggs)(i => CombOp(i, nAggs + i, aggs(i))) :+
           serializeSet(0, 0, spec)))
 
     { (c1: Array[Byte], c2: Array[Byte]) =>
@@ -93,7 +93,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
     }
   }
 
-  def results: IR = ResultOp2(0, aggs)
+  def results: IR = ResultOp(0, aggs)
 }
 
 object Extract {
@@ -189,7 +189,7 @@ object Extract {
   def getPType(aggSig: PhysicalAggSignature): PType = getAgg(aggSig).resultType
 
   def apply(ir: IR, resultName: String): Aggs = {
-    val ab = new ArrayBuilder[InitOp2]()
+    val ab = new ArrayBuilder[InitOp]()
     val seq = new ArrayBuilder[IR]()
     val let = new ArrayBuilder[AggLet]()
     val ref = Ref(resultName, null)
@@ -202,7 +202,7 @@ object Extract {
     Aggs(postAgg, Begin(initOps), addLets(Begin(seq.result()), let.result()), aggs)
   }
 
-  private def extract(ir: IR, ab: ArrayBuilder[InitOp2], seqBuilder: ArrayBuilder[IR], letBuilder: ArrayBuilder[AggLet], result: IR): IR = {
+  private def extract(ir: IR, ab: ArrayBuilder[InitOp], seqBuilder: ArrayBuilder[IR], letBuilder: ArrayBuilder[AggLet], result: IR): IR = {
     def extract(node: IR): IR = this.extract(node, ab, seqBuilder, letBuilder, result)
 
     ir match {
@@ -215,8 +215,8 @@ object Extract {
       case x: ApplyAggOp =>
         val i = ab.length
         val psig = x.aggSig.toPhysical(x.initOpArgs.map(_.pType), x.seqOpArgs.map(_.pType))
-        ab += InitOp2(i, x.initOpArgs, psig)
-        seqBuilder += SeqOp2(i, x.seqOpArgs, psig)
+        ab += InitOp(i, x.initOpArgs, psig)
+        seqBuilder += SeqOp(i, x.seqOpArgs, psig)
         GetTupleElement(result, i)
       case AggFilter(cond, aggIR, _) =>
         val newSeq = new ArrayBuilder[IR]()
@@ -237,7 +237,7 @@ object Extract {
         transformed
 
       case AggGroupBy(key, aggIR, _) =>
-        val newAggs = new ArrayBuilder[InitOp2]()
+        val newAggs = new ArrayBuilder[InitOp]()
         val newSeq = new ArrayBuilder[IR]()
         val newRef = Ref(genUID(), null)
         val transformed = this.extract(aggIR, newAggs, newSeq, letBuilder, GetField(newRef, "value"))
@@ -250,14 +250,14 @@ object Extract {
         newRef._typ = -rt.elementType
 
         val aggSig = PhysicalAggSignature(Group(), Seq(PVoid), FastSeq(key.pType, PVoid), Some(aggs))
-        ab += InitOp2(i, FastIndexedSeq(Begin(initOps)), aggSig)
-        seqBuilder += SeqOp2(i, FastIndexedSeq(key, Begin(newSeq.result().toFastIndexedSeq)), aggSig)
+        ab += InitOp(i, FastIndexedSeq(Begin(initOps)), aggSig)
+        seqBuilder += SeqOp(i, FastIndexedSeq(key, Begin(newSeq.result().toFastIndexedSeq)), aggSig)
 
         ToDict(ArrayMap(ToArray(GetTupleElement(result, i)), newRef.name, MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed))))
 
 
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
-        val newAggs = new ArrayBuilder[InitOp2]()
+        val newAggs = new ArrayBuilder[InitOp]()
         val newSeq = new ArrayBuilder[IR]()
         val newLet = new ArrayBuilder[AggLet]()
         val newRef = Ref(genUID(), null)
@@ -282,19 +282,19 @@ object Extract {
         val aRef = Ref(genUID(), a.typ)
         val iRef = Ref(genUID(), TInt32())
 
-        ab += InitOp2(i, knownLength.map(FastSeq(_)).getOrElse(FastSeq[IR]()) :+ Begin(initOps), aggSigCheck)
+        ab += InitOp(i, knownLength.map(FastSeq(_)).getOrElse(FastSeq[IR]()) :+ Begin(initOps), aggSigCheck)
         seqBuilder +=
           Let(
             aRef.name, a,
             Begin(FastIndexedSeq(
-              SeqOp2(i, FastIndexedSeq(ArrayLen(aRef)), aggSigCheck),
+              SeqOp(i, FastIndexedSeq(ArrayLen(aRef)), aggSigCheck),
               ArrayFor(
                 ArrayRange(I32(0), ArrayLen(aRef), I32(1)),
                 iRef.name,
                 Let(
                   elementName,
                   ArrayRef(aRef, iRef),
-                  addLets(SeqOp2(i,
+                  addLets(SeqOp(i,
                     FastIndexedSeq(iRef, Begin(newSeq.result().toFastIndexedSeq)),
                     aggSig), dependent))))))
 

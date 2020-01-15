@@ -986,21 +986,21 @@ object IRParser {
         val i = int32_literal(it)
         val aggSig = physical_agg_signature(env.typEnv)(it)
         val args = ir_value_exprs(env)(it)
-        InitOp2(i, args, aggSig)
+        InitOp(i, args, aggSig)
       case "SeqOp2" =>
         val i = int32_literal(it)
         val aggSig = physical_agg_signature(env.typEnv)(it)
         val args = ir_value_exprs(env)(it)
-        SeqOp2(i, args, aggSig)
+        SeqOp(i, args, aggSig)
       case "CombOp2" =>
         val i1 = int32_literal(it)
         val i2 = int32_literal(it)
         val aggSig = physical_agg_signature(env.typEnv)(it)
-        CombOp2(i1, i2, aggSig)
+        CombOp(i1, i2, aggSig)
       case "ResultOp2" =>
         val i = int32_literal(it)
         val aggSigs = physical_agg_signatures(env.typEnv)(it)
-        ResultOp2(i, aggSigs)
+        ResultOp(i, aggSigs)
       case "SerializeAggs" =>
         val i = int32_literal(it)
         val i2 = int32_literal(it)

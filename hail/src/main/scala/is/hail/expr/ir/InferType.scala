@@ -34,10 +34,10 @@ object InferType {
       case _: StreamRange => TStream(TInt32())
       case _: LowerBoundOnOrderedCollection => TInt32()
       case _: ArrayFor => TVoid
-      case _: InitOp2 => TVoid
-      case _: SeqOp2 => TVoid
-      case _: CombOp2 => TVoid
-      case ResultOp2(_, aggSigs) =>
+      case _: InitOp => TVoid
+      case _: SeqOp => TVoid
+      case _: CombOp => TVoid
+      case ResultOp(_, aggSigs) =>
         TTuple(aggSigs.map(agg.Extract.getAgg(_).resultType.virtualType): _*)
       case _: SerializeAggs => TVoid
       case _: DeserializeAggs => TVoid

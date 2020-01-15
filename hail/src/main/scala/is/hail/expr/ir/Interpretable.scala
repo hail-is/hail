@@ -7,10 +7,10 @@ object Interpretable {
     !ir.typ.isInstanceOf[TNDArray] &&
       (ir match {
       case
-        _: InitOp2 |
-        _: SeqOp2 |
-        _: CombOp2 |
-        _: ResultOp2 |
+        _: InitOp |
+        _: SeqOp |
+        _: CombOp |
+        _: ResultOp |
         _: SerializeAggs |
         _: DeserializeAggs |
         _: MakeNDArray |
