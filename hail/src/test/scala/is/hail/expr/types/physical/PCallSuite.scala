@@ -14,7 +14,7 @@ class PCallSuite extends HailSuite {
         2,
         forceDeep = forceDeep)
 
-      // downcast at top level allowed, since address and therefore value must be present
+      // downcast at top level allowed, since PCanonicalCall wraps a primitive
       PhysicalTestUtils.copyTestExecutor(PCanonicalCall(), PCanonicalCall(true),
         2,
         forceDeep = forceDeep)

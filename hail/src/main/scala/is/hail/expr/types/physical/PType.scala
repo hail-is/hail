@@ -306,7 +306,7 @@ abstract class PType extends BaseType with Serializable with Requiredness {
     this.isOfType(concrete)
   }
 
-  // Semantics: for non-nested types, srcAddress must be present, and therefore no requiredeness check needed
+  // Semantics: must be callable without requiredeness check: srcAddress must point to non-null value
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     this.fundamentalType match {
       case _: PBoolean | _: PInt32 | _: PInt64 | _: PFloat32 | _: PFloat64 =>

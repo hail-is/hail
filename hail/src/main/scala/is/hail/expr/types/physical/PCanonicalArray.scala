@@ -429,7 +429,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val destElementType = this.elementType.fundamentalType
 
     if (sourceElementType != destElementType) {
-      // downcast not allowed
       assert(destElementType.required <= sourceElementType.required && sourceElementType.isOfType(destElementType))
     } else {
       if(!forceDeep) {

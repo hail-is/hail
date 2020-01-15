@@ -52,7 +52,6 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   }
 
   val missingIdx = new Array[Int](size)
-  // sets missingIdx indices
   val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
   val nMissingBytes = (nMissing + 7) >>> 3
   val byteOffsets = new Array[Long](size)

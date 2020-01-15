@@ -19,7 +19,6 @@ object StagedRegionValueBuilder {
             val off = fb.newField[Long]
             Code(
               off := typ.fieldOffset(value, f.index),
-              // this allocates
               Region.storeAddress(off, deepCopyFromOffset(fb, region, t, coerce[Long](Region.loadIRIntermediate(t)(off))))
             )
           case t: PBaseStruct =>
@@ -44,7 +43,6 @@ object StagedRegionValueBuilder {
         val off = fb.newField[Long]
         Code(
           off := typ.elementOffset(value, len, i),
-          // this allocates
           Region.storeAddress(off, deepCopyFromOffset(fb, region, t, coerce[Long](Region.loadIRIntermediate(t)(off)))))
       case t: PBaseStruct =>
         val off = fb.newField[Long]
