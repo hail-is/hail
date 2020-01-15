@@ -982,22 +982,22 @@ object IRParser {
         val seqOpArgs = ir_value_exprs(env)(it)
         val aggSig = AggSignature(aggOp, initOpArgs.map(arg => -arg.typ), seqOpArgs.map(arg => -arg.typ), None)
         ApplyScanOp(initOpArgs, seqOpArgs, aggSig)
-      case "InitOp2" =>
+      case "InitOp" =>
         val i = int32_literal(it)
         val aggSig = physical_agg_signature(env.typEnv)(it)
         val args = ir_value_exprs(env)(it)
         InitOp(i, args, aggSig)
-      case "SeqOp2" =>
+      case "SeqOp" =>
         val i = int32_literal(it)
         val aggSig = physical_agg_signature(env.typEnv)(it)
         val args = ir_value_exprs(env)(it)
         SeqOp(i, args, aggSig)
-      case "CombOp2" =>
+      case "CombOp" =>
         val i1 = int32_literal(it)
         val i2 = int32_literal(it)
         val aggSig = physical_agg_signature(env.typEnv)(it)
         CombOp(i1, i2, aggSig)
-      case "ResultOp2" =>
+      case "ResultOp" =>
         val i = int32_literal(it)
         val aggSigs = physical_agg_signatures(env.typEnv)(it)
         ResultOp(i, aggSigs)
