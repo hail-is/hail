@@ -127,7 +127,7 @@ BEGIN
   DECLARE expected_n_jobs INT;
   DECLARE staging_n_jobs INT;
   DECLARE staging_n_ready_jobs INT;
-  DECLARE staging_ready_cores_mcpu INT;
+  DECLARE staging_ready_cores_mcpu BIGINT;
   DECLARE cur_user VARCHAR(100);
 
   START TRANSACTION;
