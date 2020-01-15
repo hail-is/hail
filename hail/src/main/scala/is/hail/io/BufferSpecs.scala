@@ -120,6 +120,8 @@ abstract class LZ4BlockBufferSpecCommon extends BlockBufferSpec {
 
   def lz4: LZ4
 
+  def stagedlz4: Code[LZ4]
+
   def blockSize: Int
 
   def child: BlockBufferSpec
@@ -129,21 +131,23 @@ abstract class LZ4BlockBufferSpecCommon extends BlockBufferSpec {
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new LZ4OutputBlockBuffer(lz4, blockSize, child.buildOutputBuffer(out))
 
   def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer] =
-    Code.newInstance[LZ4InputBlockBuffer, Int, InputBlockBuffer](blockSize, child.buildCodeInputBuffer(in))
+    Code.newInstance[LZ4InputBlockBuffer, LZ4, Int, InputBlockBuffer](stagedlz4, blockSize, child.buildCodeInputBuffer(in))
 
   def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
-    Code.newInstance[LZ4OutputBlockBuffer, Int, OutputBlockBuffer](blockSize, child.buildCodeOutputBuffer(out))
+    Code.newInstance[LZ4OutputBlockBuffer, LZ4, Int, OutputBlockBuffer](stagedlz4, blockSize, child.buildCodeOutputBuffer(out))
 }
 
 final case class LZ4HCBlockBufferSpec(blockSize: Int, child: BlockBufferSpec)
     extends LZ4BlockBufferSpecCommon {
   def lz4 = LZ4.hc
+  def stagedlz4: Code[LZ4] = Code.invokeScalaObject[LZ4](LZ4.getClass, "hc")
   def typeName = "LZ4HCBlockBufferSpec"
 }
 
 final case class LZ4FastBlockBufferSpec(blockSize: Int, child: BlockBufferSpec)
     extends LZ4BlockBufferSpecCommon {
   def lz4 = LZ4.fast
+  def stagedlz4: Code[LZ4] = Code.invokeScalaObject[LZ4](LZ4.getClass, "fast")
   def typeName = "LZ4FastBlockBufferSpec"
 }
 
