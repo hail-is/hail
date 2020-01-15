@@ -563,8 +563,9 @@ class Job:
             run_end_time = time_msecs()
             run_duration = run_end_time - run_start_time
 
-            log.info(f'{self}: marking complete')
-            asyncio.ensure_future(worker.post_job_complete(self, run_duration))
+            if not self.deleted:
+                log.info(f'{self}: marking complete')
+                asyncio.ensure_future(worker.post_job_complete(self, run_duration))
 
             log.info(f'{self}: cleaning up')
             try:
