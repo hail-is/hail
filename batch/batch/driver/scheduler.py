@@ -44,8 +44,13 @@ class Scheduler:
 
         records = self.db.execute_and_fetchall(
             '''
-SELECT user, n_ready_jobs, ready_cores_mcpu, n_running_jobs, running_cores_mcpu
-FROM user_resources;
+SELECT user,
+  CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
+  CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
+  CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
+  CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu
+FROM user_resources
+GROUP BY user;
 ''')
 
         async for record in records:
@@ -133,7 +138,8 @@ FROM user_resources;
             '''
 SELECT user
 FROM user_resources
-WHERE running_cores_mcpu > 0;
+GROUP BY user
+HAVING COALESCE(SUM(running_cores_mcpu), 0) > 0;
 ''')
 
         should_wait = True

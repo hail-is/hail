@@ -2,6 +2,7 @@ import os
 import concurrent
 import logging
 import json
+import random
 import asyncio
 import aiohttp
 from aiohttp import web
@@ -410,7 +411,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
             job_parents_args = []
             job_attributes_args = []
 
-            n_ready = 0
+            n_ready_jobs = 0
             sum_ready_cores_mcpu = 0
 
             for spec in job_specs:
@@ -465,7 +466,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 if len(parent_ids) == 0:
                     state = 'Ready'
-                    n_ready += 1
+                    n_ready_jobs += 1
                     sum_ready_cores_mcpu += cores_mcpu
                 else:
                     state = 'Pending'
@@ -482,6 +483,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     for k, v in attributes.items():
                         job_attributes_args.append(
                             (batch_id, job_id, k, v))
+
+        rand_token = random.randint(0, app['n_tokens'] - 1)
+        n_jobs = len(job_specs)
 
         async with timer.step('insert jobs'):
             async with db.start() as tx:
@@ -502,13 +506,16 @@ VALUES (%s, %s, %s, %s);
                                       job_attributes_args)
 
                 await tx.execute_update('''
-UPDATE user_resources
-SET n_ready_jobs = n_ready_jobs + %s, ready_cores_mcpu = ready_cores_mcpu + %s
-WHERE user = %s;
-
-UPDATE ready_cores SET ready_cores_mcpu = ready_cores_mcpu + %s;
+INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE
+  n_jobs = n_jobs + %s,
+  n_ready_jobs = n_ready_jobs + %s,
+  ready_cores_mcpu = ready_cores_mcpu + %s;
 ''',
-                                        (n_ready, sum_ready_cores_mcpu, user, sum_ready_cores_mcpu))
+                                        (batch_id, rand_token,
+                                         n_jobs, n_ready_jobs, sum_ready_cores_mcpu,
+                                         n_jobs, n_ready_jobs, sum_ready_cores_mcpu))
 
         return web.Response()
 
@@ -541,12 +548,6 @@ WHERE billing_project = %s AND user = %s;
         if len(rows) != 1:
             assert len(rows) == 0
             raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
-
-        await tx.just_execute(
-            '''
-INSERT IGNORE INTO user_resources (user) VALUES (%s);
-''',
-            (user,))
 
         now = time_msecs()
         id = await tx.execute_insertone(
@@ -994,11 +995,15 @@ async def on_startup(app):
     app['db'] = db
 
     row = await db.select_and_fetchone(
-        'SELECT worker_type, worker_cores, worker_disk_size_gb, instance_id, internal_token FROM globals;')
+        '''
+SELECT worker_type, worker_cores, worker_disk_size_gb,
+  instance_id, internal_token, n_tokens FROM globals;
+''')
 
     app['worker_type'] = row['worker_type']
     app['worker_cores'] = row['worker_cores']
     app['worker_disk_size_gb'] = row['worker_disk_size_gb']
+    app['n_tokens'] = row['n_tokens']
 
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')

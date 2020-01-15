@@ -796,6 +796,12 @@ steps:
       script: /io/sql/create-billing-projects.sql
     - name: increase-spec-size
       script: /io/sql/increase-spec-size.sql
+    - name: remove-fk-batches-user-resources
+      script: /io/sql/remove-fk-batches-user-resources.sql
+    - name: change-ready-cores-bigint
+      script: /io/sql/change-ready-cores-bigint.sql
+    - name: add-user-resources-ready-cores-token
+      script: /io/sql/add-user-resources-ready-cores-token.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/

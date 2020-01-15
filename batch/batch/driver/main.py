@@ -304,7 +304,10 @@ async def get_index(request, userdata):
     instance_pool = app['inst_pool']
 
     ready_cores = await db.select_and_fetchone(
-        'SELECT * FROM ready_cores;')
+        '''
+SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+FROM ready_cores;
+''')
     ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
     page_context = {
