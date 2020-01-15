@@ -365,14 +365,14 @@ async def schedule_job(app, record, instance):
                        f'/api/v1alpha/batches/jobs/create')
                 await session.post(url, json=body)
                 await instance.mark_healthy()
-        except Exception as e:
-            if isinstance(e, aiohttp.ClientResponseError):
-                await instance.mark_healthy()
-                if e.status == 403:
-                    log.info(f'attempt already exists for job {id} on {instance}, aborting')
-            else:
-                await instance.incr_failed_request_count()
+        except aiohttp.ClientResponseError as e:
+            await instance.mark_healthy()
+            if e.status == 403:
+                log.info(f'attempt already exists for job {id} on {instance}, aborting')
             raise e
+        except Exception:
+            await instance.incr_failed_request_count()
+            raise
 
         log.info(f'schedule job {id} on {instance}: called create job')
 
