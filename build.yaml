@@ -804,6 +804,8 @@ steps:
       script: /io/sql/add-user-resources-ready-cores-token.sql
     - name: add-lock-in-share-mode
       script: /io/sql/add-lock-in-share-mode.sql
+    - name: add-batch-create-token
+      script: /io/sql/add-batch-create-token.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/

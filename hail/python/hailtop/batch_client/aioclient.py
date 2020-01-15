@@ -429,7 +429,7 @@ class BatchBuilder:
         self._jobs.append(j)
         return j
 
-    async def _submit_jobs(self, batch_id, bunch_index, pbar):
+    async def _submit_jobs(self, batch_id, bunch_index):
         byte_job_specs = self._byte_job_spec_bunches[bunch_index]
         if byte_job_specs is None:
             log.info(f'skipping already submitted bunch {bunch_index}')
@@ -456,31 +456,34 @@ class BatchBuilder:
                 b, content_type='application/json', encoding='utf-8'))
         self._byte_job_spec_bunches[bunch_index] = None
 
-    async def _submit(self,
-                      max_bunch_bytesize=8 * 1024 * 1024,
-                      max_bunch_size=8 * 1024,
-                      max_job_submit_failures=10):
+    async def _create(self):
+        assert self._batch is None
+        self._batch_token = secrets.token_urlsafe(32)
+
+        batch_spec = {'billing_project': self._client.billing_project,
+                      'n_jobs': len(self._job_specs),
+                      'token': self._batch_token}
+        if self.attributes:
+            batch_spec['attributes'] = self.attributes
+        if self.callback:
+            batch_spec['callback'] = self.callback
+
+        batch_json = await (await self._client._post('/api/v1alpha/batches/create',
+                                                     json=batch_spec)).json()
+        return Batch(self._client, batch_json['id'], self.attributes)
+
+    async def submit(self,
+                     max_bunch_bytesize=8 * 1024 * 1024,
+                     max_bunch_size=8 * 1024,
+                     fail_on_first_bunch_failure=True):
         assert max_bunch_bytesize > 0
         assert max_bunch_size > 0
-        assert max_job_submit_failures > 0
         if self._submitted:
             raise ValueError("cannot submit an already submitted batch")
 
-        self._batch_token = secrets.token_urlsafe(32)
-
         if self._batch is None:
-            batch_spec = {'billing_project': self._client.billing_project,
-                          'n_jobs': len(self._job_specs),
-                          'token': self._batch_token}
-            if self.attributes:
-                batch_spec['attributes'] = self.attributes
-            if self.callback:
-                batch_spec['callback'] = self.callback
-
-            batch_json = await (await self._client._post('/api/v1alpha/batches/create',
-                                                         json=batch_spec)).json()
-            log.info(f'created batch {batch_json["id"]}')
-            self._batch = Batch(self._client, batch_json['id'], self.attributes)
+            self._batch = await self._create()
+            log.info(f'created batch {self._batch.id}')
 
         id = self._batch.id
 
@@ -508,10 +511,10 @@ class BatchBuilder:
 
         n_bunches = len(self._byte_job_spec_bunches)
         results = await bounded_gather(
-            *[functools.partial(self._submit_jobs, id, bunch_index, pbar)
+            *[functools.partial(self._submit_jobs, id, bunch_index)
               for bunch_index in range(n_bunches)],
             parallelism=50,
-            return_exceptions=max_job_submit_failures)
+            return_exceptions=1 if fail_on_first_bunch_failure else True)
         exceptions = [r for r in results if isinstance(r, BaseException)]
         if len(exceptions) > 0:
             raise MultipleExceptions(
@@ -530,27 +533,6 @@ class BatchBuilder:
 
         self._submitted = True
         return self._batch
-
-    async def submit(self,
-                     *args,
-                     max_failures_to_retry=0,
-                     log_every_n_failures=5,
-                     **kwargs):
-        assert max_failures_to_retry is None or max_failures_to_retry >= 0
-        assert log_every_n_failures is None or log_every_n_failures > 0
-        failures = 0
-        while True:
-            try:
-                return await self._submit(*args, **kwargs)
-            except Exception as exc:
-                if not is_transient_error(exc):
-                    raise
-                failures += 1
-                if max_failures_to_retry is not None and failures > max_failures_to_retry:
-                    raise
-                if log_every_n_failures is not None and failures % log_every_n_failures == 0:
-                    log.warn(f'attempted and failed to submit batch {failures} times',
-                             exc_info=True)
 
 
 @asyncinit

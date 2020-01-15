@@ -454,3 +454,21 @@ echo $HAIL_BATCH_WORKER_IP
         batch = b.wait()
         assert batch['state'] == 'success', batch
         assert len(list(b.jobs())) == 9
+
+    def test_create_idempotence(self):
+        builder = self.client.create_batch()
+        builder.create_job('ubuntu:18.04', ['/bin/true'])
+        b = builder._create()
+        b2 = builder._create()
+        assert b.id == b2.id
+
+    def test_create_error_on_changed_resubmit(self):
+        builder = self.client.create_batch()
+        builder.create_job('ubuntu:18.04', ['/bin/true'])
+        b = builder._create()
+        builder.create_job('ubuntu:18.04', ['/bin/true'])
+        try:
+            b2 = builder._create()
+            assert False, (b, b2)
+        except Exception as exc:
+            assert '"n_jobs": new 2, old 1' in exc.message

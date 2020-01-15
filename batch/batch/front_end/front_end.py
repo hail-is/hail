@@ -548,6 +548,7 @@ async def create_batch(request, userdata):
 
     user = userdata['username']
     billing_project = batch_spec['billing_project']
+    token = batch_spec['token']
 
     attributes = batch_spec.get('attributes')
     async with db.start() as tx:
@@ -562,15 +563,41 @@ WHERE billing_project = %s AND user = %s;
             assert len(rows) == 0
             raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
 
+        maybe_batch = tx.execute_and_fetchone(
+            '''
+SELECT * FROM batches
+WHERE token = %s AND user = %s;
+''',
+            (token, user))
+
+        if maybe_batch is not None:
+            fields_to_check = {
+                'billing_project': billing_project,
+                'attributes': json.dumps(attributes),
+                'callback': batch_spec.get('callback'),
+                'n_jobs': batch_spec['n_jobs']}
+            failures = {
+                k: (v, maybe_batch.get(k))
+                for k, v in fields_to_check.items()
+                if maybe_batch.get(k) != v}
+            if failures:
+                failures_message = '; '.join([
+                    f'"{k}": new {new}, old {old}'
+                    for k, (new, old) in failures.items()])
+                raise web.HTTPForbidden(
+                    reason=(f'batch {maybe_batch["id"]} with token {token} already exists with '
+                            f'differing configuration: {failures_message}'))
+            return web.json_response({'id': maybe_batch['id']})
+
         now = time_msecs()
         id = await tx.execute_insertone(
             '''
-INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created)
+INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, token)
 VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
             (json.dumps(userdata), user, billing_project, json.dumps(attributes),
              batch_spec.get('callback'), batch_spec['n_jobs'],
-             now))
+             now, token))
 
         if attributes:
             await tx.execute_many(

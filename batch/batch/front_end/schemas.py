@@ -6,5 +6,6 @@ batch_schema = {
     },
     'billing_project': {'type': 'string', 'nullable': False},
     'callback': {'type': 'string'},
-    'n_jobs': {'type': 'integer', 'nullable': False}
+    'n_jobs': {'type': 'integer', 'nullable': False},
+    'token': {'type': 'string', 'nullable': False}
 }
