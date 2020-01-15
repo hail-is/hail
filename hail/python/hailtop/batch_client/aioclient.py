@@ -458,7 +458,8 @@ class BatchBuilder:
 
     async def _create(self):
         assert self._batch is None
-        self._batch_token = secrets.token_urlsafe(32)
+        if self._batch_token is None:
+            self._batch_token = secrets.token_urlsafe(32)
 
         batch_spec = {'billing_project': self._client.billing_project,
                       'n_jobs': len(self._job_specs),
