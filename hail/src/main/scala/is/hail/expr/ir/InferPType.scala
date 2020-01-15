@@ -4,35 +4,42 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TNDArray, TTuple}
 import is.hail.utils._
 
+import scala.collection.mutable.ArrayBuffer
+
 object InferPType {
   def getNestedElementPTypes(ptypes: Seq[PType]): PType = {
+    assert(ptypes.forall(_.virtualType.isOfType(ptypes.head.virtualType)))
+    getNestedElementPTypesOfSameType(ptypes: Seq[PType])
+  }
+
+  def getNestedElementPTypesOfSameType(ptypes: Seq[PType]): PType = {
     ptypes.head match {
       case x: PStreamable => {
-        val elementType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PStreamable].elementType))
+        val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PStreamable].elementType))
         x.copyStreamable(elementType, ptypes.forall(_.required))
       }
       case _: PSet => {
-        val elementType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PSet].elementType))
+        val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PSet].elementType))
         PSet(elementType, ptypes.forall(_.required))
       }
       case x: PStruct => {
         PStruct(ptypes.forall(_.required), x.fieldNames.map( fieldName =>
-          fieldName -> getNestedElementPTypes(ptypes.map(_.asInstanceOf[PStruct].field(fieldName).typ))
+          fieldName -> getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PStruct].field(fieldName).typ))
         ):_*)
       }
       case x: PTuple => {
         PTuple( ptypes.forall(_.required), x._types.map( pTupleField =>
-          getNestedElementPTypes(ptypes.map(_.asInstanceOf[PTuple]._types(pTupleField.index).typ))
+          getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PTuple]._types(pTupleField.index).typ))
         ):_*)
       }
       case _: PDict => {
-        val keyType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PDict].keyType))
-        val valueType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PDict].valueType))
+        val keyType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PDict].keyType))
+        val valueType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PDict].valueType))
 
         PDict(keyType, valueType, ptypes.forall(_.required))
       }
       case _:PInterval => {
-        val pointType = getNestedElementPTypes(ptypes.map(_.asInstanceOf[PInterval].pointType))
+        val pointType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PInterval].pointType))
         PInterval(pointType, ptypes.forall(_.required))
       }
       case _ => ptypes.head.setRequired(ptypes.forall(_.required))
@@ -409,12 +416,18 @@ object InferPType {
         InferPType(cnsq, env)
         InferPType(altr, env)
 
-        assert((cnsq.pType2 isOfType altr.pType2) && (cond.pType2 isOfType PBoolean()))
+        assert(cond.pType2 isOfType PBoolean())
 
         val branchType = getNestedElementPTypes(IndexedSeq(cnsq.pType2, altr.pType2))
 
         branchType.setRequired(branchType.required && cond.pType2.required)
       }
+
+      case Coalesce(values) =>
+        getNestedElementPTypes(values.map( theIR => {
+          InferPType(theIR, env)
+          theIR._pType2
+        }))
       case In(_, pType: PType) => pType
       case _: ReadPartition | _: Coalesce | _: MakeStream => throw new Exception("Node not supported")
     }
