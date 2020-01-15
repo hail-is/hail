@@ -266,12 +266,12 @@ class PContainerTest extends HailSuite {
       val expectedVal = IndexedSeq(Annotation(IndexedSeq(1,5,7,2,31415926), 31415926535897L))
       PhysicalTestUtils.copyTestExecutor(srcType, destType, expectedVal, forceDeep = forceDeep, interpret = interpret)
     }
-//
-//    runTests(true, false)
-//    runTests(false, false)
+
+    runTests(true, false)
+    runTests(false, false)
 
     runTests(true, true)
-//    runTests(false, true)
+    runTests(false, true)
   }
 
   @Test def dictCopyTests() {

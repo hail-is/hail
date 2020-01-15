@@ -127,7 +127,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def isElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     isElementMissing(aoff, i)
 
-  def setElementMissing(region: Region, aoff: Long, i: Int) {
+  def setElementMissing(region: Region, aoff: Long, i: Int) =
+    setElementMissing(aoff, i)
+
+  def setElementMissing(aoff: Long, i: Int) {
     assert(!elementType.required)
     Region.setBit(aoff + lengthHeaderBytes, i)
   }
@@ -498,7 +501,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     var currentIdx = 0
 
     while(currentIdx < numberOfElements) {
-      println(s"On index ${currentIdx}, type is ${sourceElementType}, currentIdx is ${currentIdx}")
       if(!sourceElementType.required && sourceType.isElementMissing(region, srcAddress, currentIdx)) {
         this.setElementMissing(dstAddress, currentIdx)
       } else {

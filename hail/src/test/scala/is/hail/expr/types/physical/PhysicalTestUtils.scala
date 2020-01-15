@@ -9,9 +9,10 @@ object PhysicalTestUtils {
     allowDowncast: Boolean = false, forceDeep: Boolean = false, interpret: Boolean = false) {
 
     val srcRegion = Region()
+    val region = Region()
 
     val srcAddress = ScalaToRegionValue(srcRegion, sourceType, sourceValue)
-    println(s"testing ${sourceValue}")
+
     var runtimeSuccess = false
     var compileSuccess = false
     if(!interpret) {
@@ -26,6 +27,7 @@ object PhysicalTestUtils {
       } catch {
         case e: Throwable => {
           srcRegion.clear()
+          region.clear()
 
           if(expectCompileErr) {
             log.info("OK: Caught expected compile-time error")
@@ -37,13 +39,13 @@ object PhysicalTestUtils {
       }
 
       if(compileSuccess && expectCompileErr) {
+        region.clear()
         srcRegion.clear()
         throw new Error("Did not receive expected compile time error")
       }
 
       try {
         val f = fb.result()()
-        val region = Region()
         val copyOff = f(region, srcAddress)
         val copy = UnsafeRow.read(destType, region, copyOff)
 
@@ -62,17 +64,19 @@ object PhysicalTestUtils {
       }
     } else {
       try {
-        val region = Region()
         val copyOff = destType.copyFromType(region, sourceType, srcAddress,
           allowDowncast = allowDowncast, forceDeep = forceDeep)
-        println(s"MADE COPUY OFFSET ${copyOff}")
+
         val copy = UnsafeRow.read(destType, region, copyOff)
 
-        println(s"Copied value: ${copy}, Source value: ${sourceValue}")
+        log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
         assert(copy == sourceValue)
+        region.clear()
+        srcRegion.clear()
         runtimeSuccess = true
       } catch {
         case e: Throwable => {
+          region.clear()
           srcRegion.clear()
           if(expectRuntimeErr) {
             log.info(s"OK: Found expected runtime failure: ${e.getMessage}")
@@ -84,8 +88,6 @@ object PhysicalTestUtils {
         }
       }
     }
-
-    srcRegion.clear()
 
     if(runtimeSuccess && expectRuntimeErr) {
       throw new Error("Did not receive expected runtime error")

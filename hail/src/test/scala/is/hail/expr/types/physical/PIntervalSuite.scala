@@ -9,33 +9,36 @@ import org.testng.annotations.Test
 
 class PIntervalSuite extends HailSuite {
   @Test def copyTests() {
-    def runTests(forceDeep: Boolean) {
+    def runTests(forceDeep: Boolean, interpret: Boolean = false) {
       PhysicalTestUtils.copyTestExecutor(PCanonicalInterval(PInt64()), PCanonicalInterval(PInt64()),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
-        forceDeep = forceDeep)
+        forceDeep = forceDeep, interpret = interpret)
 
       PhysicalTestUtils.copyTestExecutor(PCanonicalInterval(PInt64(true)), PCanonicalInterval(PInt64()),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
-        forceDeep = forceDeep)
+        forceDeep = forceDeep, interpret = interpret)
 
       PhysicalTestUtils.copyTestExecutor(PCanonicalInterval(PInt64(true)), PCanonicalInterval(PInt64(true)),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
-        forceDeep = forceDeep)
+        forceDeep = forceDeep, interpret = interpret)
 
       PhysicalTestUtils.copyTestExecutor(PCanonicalInterval(PInt64()), PCanonicalInterval(PInt64(true)),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
-        expectCompileErr = true, forceDeep = forceDeep)
+        expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
 
       PhysicalTestUtils.copyTestExecutor(PCanonicalInterval(PInt64()), PCanonicalInterval(PInt64(true)),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
-        allowDowncast = true, forceDeep = forceDeep)
+        allowDowncast = true, forceDeep = forceDeep, interpret = interpret)
 
       PhysicalTestUtils.copyTestExecutor(PCanonicalInterval(PInt64()), PCanonicalInterval(PInt64(true)),
         Interval(IntervalEndpoint(null, 1), IntervalEndpoint(1000L, 1)),
-        allowDowncast = true, expectRuntimeErr = true, forceDeep = forceDeep)
+        allowDowncast = true, expectRuntimeErr = true, forceDeep = forceDeep, interpret = interpret)
     }
 
     runTests(true)
     runTests(false)
+
+    runTests(true, true)
+    runTests(false, true)
   }
 }

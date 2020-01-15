@@ -71,6 +71,9 @@ trait PArrayBackedContainer extends PContainer {
   def setElementMissing(region: Region, aoff: Long, i: Int) =
     arrayRep.setElementMissing(region, aoff, i)
 
+  def setElementMissing(aoff: Long, i: Int) =
+    arrayRep.setElementMissing(aoff, i)
+
   def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit] =
     arrayRep.setElementMissing(aoff, i)
 
