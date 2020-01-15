@@ -31,9 +31,6 @@ CREATE TEMPORARY TABLE tmp_resources AS (
   INNER JOIN batches ON batches.id = jobs.batch_id
   GROUP BY batch_id, user, closed
 );
-ALTER TABLE tmp_resources ADD INDEX (user);
-ALTER TABLE tmp_resources ADD INDEX (batch_id);
-ALTER TABLE tmp_resources ADD INDEX (closed);
 
 SELECT COALESCE(SUM(ready_cores_mcpu), 0) INTO @closed_ready_cores_mcpu
 FROM tmp_resources
