@@ -31,6 +31,7 @@ from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME
+from ..globals import HTTP_CLIENT_MAX_SIZE
 
 from . import schemas
 
@@ -1024,7 +1025,7 @@ async def on_cleanup(app):
 
 
 def run():
-    app = web.Application()
+    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'batch.front_end')
@@ -1037,6 +1038,6 @@ def run():
 
     web.run_app(deploy_config.prefix_application(app,
                                                  'batch',
-                                                 client_max_size=8 * 1024 * 1024),
+                                                 client_max_size=HTTP_CLIENT_MAX_SIZE),
                 host='0.0.0.0',
                 port=5000)

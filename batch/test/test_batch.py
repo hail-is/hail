@@ -420,3 +420,10 @@ echo $HAIL_BATCH_WORKER_IP
         batch = b.wait()
         print(j.log())
         assert batch['state'] == 'success', batch
+
+    def test_client_max_size(self):
+        builder = self.client.create_batch()
+        for i in range(4):
+            builder.create_job('ubuntu:18.04',
+                               ['echo', 'a' * (3 * 1024 * 1024)])
+        builder.submit()

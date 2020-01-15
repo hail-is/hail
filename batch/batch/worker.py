@@ -27,6 +27,7 @@ from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes, \
     adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes
 from .semaphore import FIFOWeightedSemaphore, NullWeightedSemaphore
 from .log_store import LogStore
+from .globals import HTTP_CLIENT_MAX_SIZE
 
 # uvloop.install()
 
@@ -712,7 +713,7 @@ class Worker:
         app_runner = None
         site = None
         try:
-            app = web.Application()
+            app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
             app.add_routes([
                 web.post('/api/v1alpha/batches/jobs/create', self.create_job),
                 web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),

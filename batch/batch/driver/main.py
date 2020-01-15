@@ -23,6 +23,7 @@ from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
     DEFAULT_NAMESPACE, BATCH_BUCKET_NAME
 from ..google_compute import GServices
+from ..globals import HTTP_CLIENT_MAX_SIZE
 
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
@@ -469,7 +470,7 @@ async def on_cleanup(app):
 
 
 def run():
-    app = web.Application()
+    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'batch.driver')
@@ -480,4 +481,8 @@ def run():
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    web.run_app(deploy_config.prefix_application(app, 'batch-driver'), host='0.0.0.0', port=5000)
+    web.run_app(deploy_config.prefix_application(app,
+                                                 'batch-driver',
+                                                 client_max_size=HTTP_CLIENT_MAX_SIZE),
+                host='0.0.0.0',
+                port=5000)
