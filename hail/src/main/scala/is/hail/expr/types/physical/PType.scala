@@ -359,11 +359,11 @@ abstract class PType extends BaseType with Serializable with Requiredness {
 
   def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) {
     this.fundamentalType match {
-      case t: PBoolean => Region.storeIRIntermediate(t)(dstAddress, srcAddress)
-      case t: PInt32 => Region.storeInt(dstAddress, Region.loadInt(srcAddress))
-      case t: PInt64 => Region.storeLong(dstAddress, Region.loadLong(srcAddress))
-      case t: PFloat32 => Region.storeFloat(dstAddress, Region.loadFloat(srcAddress))
-      case t: PFloat64 => Region.storeDouble(dstAddress, Region.loadDouble(srcAddress))
+      case _: PBoolean => Region.storeBoolean(dstAddress, Region.loadBoolean(srcAddress))
+      case _: PInt32 => Region.storeInt(dstAddress, Region.loadInt(srcAddress))
+      case _: PInt64 => Region.storeLong(dstAddress, Region.loadLong(srcAddress))
+      case _: PFloat32 => Region.storeFloat(dstAddress, Region.loadFloat(srcAddress))
+      case _: PFloat64 => Region.storeDouble(dstAddress, Region.loadDouble(srcAddress))
       case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
     }
   }

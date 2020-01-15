@@ -215,7 +215,10 @@ abstract class PBaseStruct extends PType {
   def isFieldDefined(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
     isFieldDefined(offset, fieldIdx)
 
-  def setFieldMissing(region: Region, offset: Long, fieldIdx: Int) {
+  def setFieldMissing(region: Region, offset: Long, fieldIdx: Int): Unit =
+    setFieldMissing(offset, fieldIdx)
+
+  def setFieldMissing(offset: Long, fieldIdx: Int) {
     assert(!fieldRequired(fieldIdx))
     Region.setBit(offset, missingIdx(fieldIdx))
   }
