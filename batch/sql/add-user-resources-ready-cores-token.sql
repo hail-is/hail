@@ -133,7 +133,8 @@ BEGIN
   START TRANSACTION;
 
   SELECT n_jobs, closed INTO expected_n_jobs, cur_batch_closed FROM batches
-  WHERE id = in_batch_id AND NOT deleted;
+  WHERE id = in_batch_id AND NOT deleted
+  FOR UPDATE;
 
   IF cur_batch_closed THEN
     COMMIT;
