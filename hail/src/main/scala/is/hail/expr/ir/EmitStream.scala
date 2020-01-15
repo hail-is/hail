@@ -6,6 +6,8 @@ import is.hail.asm4s.joinpoint._
 import is.hail.expr.types.physical._
 import is.hail.annotations.{Region, RegionValue, StagedRegionValueBuilder}
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
+import is.hail.expr.types.virtual.Type
+import is.hail.io.{AbstractTypedCodecSpec, InputBuffer}
 
 import scala.language.existentials
 import scala.reflect.ClassTag
@@ -300,6 +302,31 @@ object EmitStream {
       k(EOS)
   }
 
+  def read[P](dec: Code[InputBuffer] => Code[Long]): Parameterized[Code[InputBuffer], Code[Long]] = new Parameterized[Code[InputBuffer], Code[Long]] {
+    type S = Code[InputBuffer]
+    val stateP: ParameterPack[S] = implicitly
+
+    def emptyState: S = Code._null
+
+    def length(s0: S): Option[Code[Int]] = None
+
+    def init(
+      mb: MethodBuilder,
+      jb: JoinPointBuilder,
+      buf: Code[InputBuffer]
+    )(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
+      k(Start(buf))
+
+    def step(
+      mb: MethodBuilder,
+      jb: JoinPointBuilder,
+      state: S
+    )(k: Step[Code[Long], S] => Code[Ctrl]): Code[Ctrl] = {
+      stepIf(k, state.readByte().toZ, dec(state), state)
+    }
+  }
+
+
   def range(
     start: Code[Int],
     incr: Code[Int]
@@ -486,6 +513,18 @@ object EmitStream {
             .guardParam { (_, k) =>
               m.mux(k(None), k(Some(coerce[Iterator[RegionValue]](v))))
             }
+
+        case ReadPartition(path, spec, requestedType) =>
+          val p = emitIR(path, env)
+          val pathString = Code.invokeScalaObject[Long, String](
+            PString.getClass, "loadString", p.value[Long])
+
+          val (_, dec) = spec.buildEmitDecoderF(requestedType, fb)
+
+          read(dec(er.region, _)).map(present).guardParam { (_, k) =>
+            val rowBuf = spec.buildCodeInputBuffer(fb.getUnsafeReader(pathString, true))
+            Code(p.setup, p.m.mux(k(None), k(Some(rowBuf))))
+          }
 
         case MakeStream(elements, t) =>
           val e = t.elementType.physicalType
