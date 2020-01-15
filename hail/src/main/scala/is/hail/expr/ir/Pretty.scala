@@ -237,6 +237,12 @@ object Pretty {
             case MakeArray(_, typ) => typ.parsableString()
             case MakeStream(_, typ) => typ.parsableString()
             case ArrayMap(_, name, _) => prettyIdentifier(name)
+            case ArrayZip(_, names, _, behavior) => prettyIdentifier(behavior match {
+              case ArrayZipBehavior.AssertSameLength => "AssertSameLength"
+              case ArrayZipBehavior.TakeMinLength => "TakeMinLength"
+              case ArrayZipBehavior.ExtendNA => "ExtendNA"
+              case ArrayZipBehavior.AssumeSameLength => "AssumeSameLength"
+            }) + " " + prettyIdentifiers(names)
             case ArrayFilter(_, name, _) => prettyIdentifier(name)
             case ArrayFlatMap(_, name, _) => prettyIdentifier(name)
             case ArrayFold(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)

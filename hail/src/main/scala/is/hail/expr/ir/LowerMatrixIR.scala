@@ -497,16 +497,24 @@ object LowerMatrixIR {
             .dropFields(Symbol(rightCols)))
 
       case MatrixMapEntries(child, newEntries) =>
-        lower(child, ab).mapRows('row.insertFields(entriesField ->
-          irRange(0, 'global (colsField).len).map {
-            'i ~>
-              let(g = 'row (entriesField)('i),
-                sa = 'global (colsField)('i)) {
-                subst(lower(newEntries, ab), BindingEnv(Env(
-                  "global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*),
-                  "va" -> 'row.selectFields(child.typ.rowType.fieldNames: _*))))
-              }
-          }))
+        val loweredChild = lower(child, ab)
+        val rt = loweredChild.typ.rowType
+        val gt = loweredChild.typ.globalType
+        TableMapRows(
+          loweredChild,
+          InsertFields(
+            Ref("row", rt),
+            FastSeq((entriesFieldName, ArrayZip(
+              FastIndexedSeq(
+                GetField(Ref("row", rt), entriesFieldName),
+                GetField(Ref("global", gt), colsFieldName)),
+              FastIndexedSeq("g", "sa"),
+              Subst(lower(newEntries, ab), BindingEnv(Env(
+                "global" -> SelectFields(Ref("global", gt), child.typ.globalType.fieldNames),
+                "va" -> SelectFields(Ref("row", rt), child.typ.rowType.fieldNames)))),
+              ArrayZipBehavior.AssumeSameLength
+            ))))
+        )
 
       case MatrixRepartition(child, n, shuffle) => TableRepartition(lower(child, ab), n, shuffle)
 

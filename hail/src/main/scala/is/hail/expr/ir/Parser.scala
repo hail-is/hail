@@ -150,6 +150,7 @@ case class IRParserEnvironment(
   }
 
   def +(t: (String, Type)): IRParserEnvironment = copy(refMap = refMap + t, irMap)
+  def ++(ts: Array[(String, Type)]): IRParserEnvironment = copy(refMap = refMap ++ ts, irMap)
 }
 
 object IRParser {
@@ -779,6 +780,17 @@ object IRParser {
         val a = ir_value_expr(env)(it)
         val body = ir_value_expr(env + (name -> -coerce[TStreamable](a.typ).elementType))(it)
         ArrayMap(a, name, body)
+      case "ArrayZip" =>
+        val behavior = identifier(it) match {
+          case "AssertSameLength" => ArrayZipBehavior.AssertSameLength
+          case "TakeMinLength" => ArrayZipBehavior.TakeMinLength
+          case "ExtendNA" => ArrayZipBehavior.ExtendNA
+          case "AssumeSameLength" => ArrayZipBehavior.AssumeSameLength
+        }
+        val names = identifiers(it)
+        val as = names.map(_ => ir_value_expr(env)(it))
+        val body = ir_value_expr(env ++ names.zip(as.map(a => -coerce[TStreamable](a.typ).elementType)))(it)
+        ArrayZip(as, names, body, behavior)
       case "ArrayFilter" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)

@@ -228,6 +228,10 @@ object InferPType {
         InferPType(body, env.bind(name, a.pType2.asInstanceOf[PArray].elementType))
         coerce[PStreamable](a.pType2).copyStreamable(body.pType2, body.pType2.required)
       }
+      case ArrayZip(as, names, body, _) =>
+        as.foreach(InferPType(_, env))
+        InferPType(body, env.bindIterable(names.zip(as.map(_.pType2))))
+        coerce[PStreamable](as.head.pType2).copyStreamable(body.pType2, as.forall(_.pType2.required))
       case ArrayFilter(a, name, cond) => {
         InferPType(a, env)
         a.pType2

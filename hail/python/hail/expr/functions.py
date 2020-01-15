@@ -1083,7 +1083,7 @@ def pl_dosage(pl) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return hl.sum(pl_to_gp(pl) * [0, 1, 2], filter_missing=False)
+    return hl.sum(pl_to_gp(pl) * hl.range(3), filter_missing=False)
 
 
 @typecheck(pl=expr_array(expr_int32), _cache_size=int)
@@ -3260,24 +3260,15 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
     -------
     :class:`.ArrayExpression`
     """
-
     n_arrays = builtins.len(arrays)
-    if fill_missing:
-        def _(array_lens):
-            result_len = hl.max(array_lens)
-            indices = hl.range(0, result_len)
-            return hl.map(lambda i: builtins.tuple(
-                hl.cond(i < array_lens[j], arrays[j][i], hl.null(arrays[j].dtype.element_type))
-                for j in builtins.range(n_arrays)), indices)
-
-        return bind(_, [hl.len(a) for a in arrays])
-    else:
-        def _(array_lens):
-            result_len = hl.min(array_lens)
-            indices = hl.range(0, result_len)
-            return hl.map(lambda i: builtins.tuple(arrays[j][i] for j in builtins.range(n_arrays)), indices)
-
-        return bind(_, [hl.len(a) for a in arrays])
+    uids = [Env.get_uid() for _ in builtins.range(n_arrays)]
+    body_ir = MakeTuple([Ref(uid) for uid in uids])
+    indices, aggregations = unify_all(*arrays)
+    behavior = 'ExtendNA' if fill_missing else 'TakeMinLength'
+    return construct_expr(ArrayZip([a._ir for a in arrays], uids, body_ir, behavior),
+                          tarray(ttuple(*(a.dtype.element_type for a in arrays))),
+                          indices,
+                          aggregations)
 
 
 @typecheck(a=expr_array(), index_first=bool)

@@ -944,6 +944,23 @@ object PruneDeadFields {
           bodyEnv.deleteEval(name),
           memoizeValueIR(a, aType.copyStreamable(valueType), memo)
         )
+      case ArrayZip(as, names, body, behavior) =>
+        val bodyEnv = memoizeValueIR(body,
+          requestedType.asInstanceOf[TStreamable].elementType,
+          memo)
+        val valueTypes = names.zip(as).map { case (name, a) =>
+          bodyEnv.eval.lookupOption(name).map(ab => unifySeq(coerce[TStreamable](a.typ).elementType, ab.result()))
+        }
+        unifyEnvs(
+          as.zip(valueTypes).map { case (a, vtOption) =>
+            val at = coerce[TStreamable](a.typ)
+            if (behavior == ArrayZipBehavior.AssumeSameLength) {
+              vtOption.map { vt =>
+                memoizeValueIR(a, at.copyStreamable(vt), memo)
+              }.getOrElse(BindingEnv.empty)
+            } else
+              memoizeValueIR(a, at.copyStreamable(vtOption.getOrElse(minimal(at.elementType))), memo)
+          } ++ Array(bodyEnv.deleteEval(names)): _*)
       case ArrayFilter(a, name, cond) =>
         val aType = a.typ.asInstanceOf[TStreamable]
         val bodyEnv = memoizeValueIR(cond, cond.typ, memo)
@@ -1557,6 +1574,12 @@ object PruneDeadFields {
       case ArrayMap(a, name, body) =>
         val a2 = rebuildIR(a, env, memo)
         ArrayMap(a2, name, rebuildIR(body, env.bindEval(name, -a2.typ.asInstanceOf[TStreamable].elementType), memo))
+      case ArrayZip(as, names, body, b) =>
+        val (newAs, newNames) = as.zip(names)
+          .flatMap { case (a, name) => if (memo.requestedType.contains(a)) Some((rebuildIR(a, env, memo), name)) else None }
+          .unzip
+        ArrayZip(newAs, newNames, rebuildIR(body,
+          env.bindEval(newNames.zip(newAs.map(a => -a.typ.asInstanceOf[TStreamable].elementType)): _*), memo), b)
       case ArrayFilter(a, name, cond) =>
         val a2 = rebuildIR(a, env, memo)
         ArrayFilter(a2, name, rebuildIR(cond, env.bindEval(name, -a2.typ.asInstanceOf[TStreamable].elementType), memo))

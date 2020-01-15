@@ -4,6 +4,7 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
+import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
@@ -1500,6 +1501,42 @@ class IRSuite extends HailSuite {
       FastIndexedSeq(2, 2, -7, null))
   }
 
+  @Test def testArrayZip() {
+    val range12 = ArrayRange(0, 12, 1)
+    val range6 = ArrayRange(0, 12, 2)
+    val range8 = ArrayRange(0, 24, 3)
+    val empty = ArrayRange(0, 0, 1)
+    val lit6 = Literal(TArray(TFloat64()), FastIndexedSeq(0d, -1d, 2.5d, -3d, 4d, null))
+    val range6dup = ArrayRange(0, 6, 1)
+
+    def zipToTuple(behavior: ArrayZipBehavior, irs: IR*): ArrayZip = ArrayZip(
+      irs.toFastIndexedSeq,
+      irs.indices.map(_.toString),
+      MakeTuple.ordered(irs.zipWithIndex.map { case (ir, i) => Ref(i.toString, ir.typ.asInstanceOf[TStreamable].elementType) }),
+      behavior)
+
+    for (b <- Array(ArrayZipBehavior.TakeMinLength, ArrayZipBehavior.ExtendNA)) {
+      assertEvalSame(zipToTuple(b, range12), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, range6, range8), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, range6, range8), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, range6, range8, lit6), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, range12, lit6), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, range12, lit6, empty), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, empty, lit6), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, empty), FastIndexedSeq())
+    }
+
+    for (b <- Array(ArrayZipBehavior.AssumeSameLength, ArrayZipBehavior.AssertSameLength)) {
+      assertEvalSame(zipToTuple(b, range6, lit6), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, range6, lit6, range6dup), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, range12), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, empty), FastIndexedSeq())
+    }
+
+    assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range6, range8), "zip: length mismatch")
+    assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range12, lit6), "zip: length mismatch")
+  }
+
   @Test def testToSet() {
     implicit val execStrats = ExecStrategy.javaOnly
 
@@ -2418,6 +2455,7 @@ class IRSuite extends HailSuite {
       LowerBoundOnOrderedCollection(a, i, onKey = true),
       GroupByKey(da),
       ArrayMap(a, "v", v),
+      ArrayZip(FastIndexedSeq(aa, aa), FastIndexedSeq("foo", "bar"), True(), ArrayZipBehavior.TakeMinLength),
       ArrayFilter(a, "v", b),
       ArrayFlatMap(aa, "v", a),
       ArrayFold(a, I32(0), "x", "v", v),
