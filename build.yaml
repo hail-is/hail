@@ -10,6 +10,7 @@ steps:
     - test-gsa-key
     - auth-oauth2-client-secret
     - scorecard-github-access-token
+    - zulip-config
  - kind: deploy
    name: deploy_batch_sa
    namespace:
