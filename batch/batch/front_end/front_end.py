@@ -513,7 +513,8 @@ ON DUPLICATE KEY UPDATE
   n_ready_jobs = n_ready_jobs + %s,
   ready_cores_mcpu = ready_cores_mcpu + %s;
 ''',
-                                        (batch_id, rand_token, n_jobs, n_ready_jobs, sum_ready_cores_mcpu,
+                                        (batch_id, rand_token,
+                                         n_jobs, n_ready_jobs, sum_ready_cores_mcpu,
                                          n_jobs, n_ready_jobs, sum_ready_cores_mcpu))
 
         return web.Response()
@@ -547,13 +548,6 @@ WHERE billing_project = %s AND user = %s;
         if len(rows) != 1:
             assert len(rows) == 0
             raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
-
-        await tx.just_execute(
-            '''
-INSERT INTO user_resources (user, token) VALUES (%s, 0)
-ON DUPLICATE KEY UPDATE n_ready_jobs = n_ready_jobs;
-''',
-            (user,))
 
         now = time_msecs()
         id = await tx.execute_insertone(
