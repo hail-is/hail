@@ -704,4 +704,43 @@ class Aggregators2Suite extends HailSuite {
       Some(FastIndexedSeq()))))
     assertEvalsTo(ir, Row((0 until 10).map(i => Row(i, 2L * i + 12L)), Row()))(ExecStrategy.interpretOnly)
   }
+
+  @Test def testRunAggBasic(): Unit = {
+    implicit val execStrats = ExecStrategy.compileOnly
+    val sig = PhysicalAggSignature(Sum(), FastSeq(), FastSeq(PFloat64()), None)
+    val x = RunAgg(
+      Begin(FastSeq(
+        InitOp2(0, FastSeq(), sig),
+        SeqOp2(0, FastSeq(F64(1.0)), sig),
+        SeqOp2(0, FastSeq(F64(-5.0)), sig))),
+      ResultOp2(0, FastIndexedSeq(sig)),
+      FastIndexedSeq(sig))
+    assertEvalsTo(x, Row(-4.0))
+  }
+
+  @Test def testRunAggNested(): Unit = {
+    implicit val execStrats = ExecStrategy.compileOnly
+    val sumSig = PhysicalAggSignature(Sum(), FastSeq(), FastSeq(PFloat64()), None)
+    val takeSig = PhysicalAggSignature(Take(), FastSeq(PInt32()), FastSeq(PFloat64()), None)
+    val x = RunAgg(
+      Begin(FastSeq(
+        InitOp2(0, FastSeq(I32(5)), takeSig),
+        ArrayFor(
+          ArrayRange(I32(0), I32(10), I32(1)),
+          "foo",
+          SeqOp2(0, FastSeq(
+            RunAgg(
+              Begin(FastSeq(
+                InitOp2(0, FastSeq(), sumSig),
+                SeqOp2(0, FastSeq(F64(-1.0)), sumSig),
+                SeqOp2(0, FastSeq(Ref("foo", TInt32()).toD), sumSig))),
+              GetTupleElement(ResultOp2(0, FastIndexedSeq(sumSig)), 0),
+              FastIndexedSeq(sumSig))
+          ), takeSig)
+        ))
+      ),
+      GetTupleElement(ResultOp2(0, FastIndexedSeq(takeSig)), 0),
+      FastIndexedSeq(takeSig))
+    assertEvalsTo(x, FastIndexedSeq(-1d, 0d, 1d, 2d, 3d))
+  }
 }

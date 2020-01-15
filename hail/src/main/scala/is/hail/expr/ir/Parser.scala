@@ -841,6 +841,11 @@ object IRParser {
         val a = ir_value_expr(env)(it)
         val query = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
         ArrayAggScan(a, name, query)
+      case "RunAgg" =>
+        val signatures = physical_agg_signatures(env.typEnv)(it)
+        val body = ir_value_expr(env)(it)
+        val result = ir_value_expr(env)(it)
+        RunAgg(body, result, signatures)
       case "AggFilter" =>
         val isScan = boolean_literal(it)
         val cond = ir_value_expr(env)(it)

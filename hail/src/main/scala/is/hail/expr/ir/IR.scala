@@ -268,6 +268,8 @@ final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR
 final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
 final case class ArrayAggScan(a: IR, name: String, query: IR) extends IR
 
+final case class RunAgg(body: IR, result: IR, signature: IndexedSeq[PhysicalAggSignature]) extends IR
+
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
 sealed trait NDArrayIR extends TypedIR[TNDArray, PNDArray] {

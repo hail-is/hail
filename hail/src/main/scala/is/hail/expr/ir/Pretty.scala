@@ -187,6 +187,8 @@ object Pretty {
           sb.append(prettyStringLiteral(spec.toString))
           sb += '\n'
           prettyPhysAggSeq(aggSigs, depth + 2)
+        case RunAgg(_, _, signature) =>
+          prettyPhysAggSeq(signature, depth + 2)
         case InsertFields(old, fields, fieldOrder) =>
           sb += '\n'
           pretty(old, depth + 2)
