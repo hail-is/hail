@@ -2,10 +2,9 @@ package is.hail.expr.ir
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
+import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
@@ -13,7 +12,6 @@ import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.utils._
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 import scala.language.{existentials, postfixOps}
 
 object Emit {
@@ -1953,7 +1951,7 @@ private class Emit(
     Streamify(ir) match {
       case ToStream(x) =>
         emitOldArrayIterator(x, env, er, container)
-      case x => EmitStream(this, x, env, er, container).toArrayIterator(mb)
+      case x => EmitStream(this, x, env, er, container).toArrayIterator(mb, er.region)
     }
 
   private def emitOldArrayIterator(ir: IR, env: E, er: EmitRegion, container: Option[AggContainer]): ArrayIteratorTriplet = {

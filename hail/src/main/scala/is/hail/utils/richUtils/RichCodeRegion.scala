@@ -1,6 +1,6 @@
 package is.hail.utils.richUtils
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s.Code
 
 class RichCodeRegion(val region: Code[Region]) extends AnyVal {
@@ -28,11 +28,19 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def unreferenceRegionAtIndex(i: Code[Int]): Code[Unit] =
     region.invoke[Int, Unit]("unreferenceRegionAtIndex", i)
 
+  def addReferenceTo(r: Code[Region]): Code[Unit] = region.invoke[Region, Unit]("addReferenceTo", r)
+
   def isValid: Code[Boolean] = region.invoke[Boolean]("isValid")
 
   def invalidate(): Code[Unit] = region.invoke[Unit]("invalidate")
 
-  def getNewRegion(blockSize: Code[Int]): Code[Unit] = region.invoke[Int, Unit]("getNewRegion", blockSize)
+  def getNewRegion(blockSize: Code[Int] = Region.REGULAR): Code[Unit] = region.invoke[Int, Unit]("getNewRegion", blockSize)
+
+  def moveTo(r: Code[Region]): Code[Unit] = region.invoke[Region, Unit]("moveTo", r)
+
+  def allocateNewRegion(blockSize: Code[Int] = Region.REGULAR): Code[Region] = region.invoke[Int, Region]("allocateNewRegion", blockSize)
+
+  def newInvalidRegion(): Code[Region] = region.invoke[Region]("newInvalidRegion")
 
   def storeJavaObject(obj: Code[AnyRef]): Code[Int] = region.invoke[AnyRef, Int]("storeJavaObject", obj)
 

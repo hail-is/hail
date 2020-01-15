@@ -24,12 +24,13 @@ class EmitStreamSuite extends HailSuite {
     }
     val fb = new EmitFunctionBuilder[F](argTypeInfos.result(), GenericTypeInfo[Long])
     val mb = fb.apply_method
+    val er = EmitRegion.default(mb)
     val stream = ExecuteContext.scoped { ctx =>
-      EmitStream(new Emit(ctx, mb, 1), streamIR, Env.empty, EmitRegion.default(mb), None)
+      EmitStream(new Emit(ctx, mb, 1), streamIR, Env.empty, er, None)
     }
     mb.emit {
       val arrayt = stream
-        .toArrayIterator(mb)
+        .toArrayIterator(mb, er.region)
         .toEmitTriplet(mb, PArray(stream.elementType))
       Code(arrayt.setup, arrayt.m.mux(0L, arrayt.v))
     }
@@ -75,14 +76,15 @@ class EmitStreamSuite extends HailSuite {
   private def evalStreamLen(streamIR: IR): Option[Int] = {
     val fb = EmitFunctionBuilder[Region, Int]("eval_stream_len")
     val mb = fb.apply_method
+    val er = EmitRegion.default(mb)
     val stream = ExecuteContext.scoped { ctx =>
-      EmitStream(new Emit(ctx, mb, 1), streamIR, Env.empty, EmitRegion.default(mb), None)
+      EmitStream(new Emit(ctx, mb, 1), streamIR, Env.empty, er, None)
     }
     fb.emit {
       JoinPoint.CallCC[Code[Int]] { (jb, ret) =>
         val str = stream.stream
         val mb = fb.apply_method
-        str.init(mb, jb, ()) {
+        str.init(mb, jb, er.region, ()) {
           case EmitStream.Missing => ret(0)
           case EmitStream.Start(s0) =>
             str.length(s0) match {

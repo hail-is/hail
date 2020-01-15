@@ -361,6 +361,12 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory.addReferenceTo(r.memory)
   }
 
+  def moveTo(r: Region): Unit = {
+    r.addReferenceTo(this)
+    memory.release()
+    memory = null
+  }
+
   def nReferencedRegions(): Long = memory.nReferencedRegions()
 
   def getNewRegion(blockSize: Region.Size): Unit = {
@@ -368,6 +374,11 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
       memory.release()
     memory = pool.getMemory(blockSize)
   }
+
+  def allocateNewRegion(blockSize: Region.Size): Region =
+    pool.getRegion(blockSize)
+
+  def newInvalidRegion(): Region = new Region(blockSize, pool, null)
 
   def setNumParents(n: Int): Unit = {
     memory.setNumParents(n)
