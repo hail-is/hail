@@ -31,9 +31,9 @@ from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME
+from ..globals import HTTP_CLIENT_MAX_SIZE
 
 from . import schemas
-from .globals import HTTP_CLIENT_MAX_SIZE
 
 # uvloop.install()
 

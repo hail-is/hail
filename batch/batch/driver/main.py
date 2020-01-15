@@ -23,11 +23,11 @@ from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
     DEFAULT_NAMESPACE, BATCH_BUCKET_NAME
 from ..google_compute import GServices
+from ..globals import HTTP_CLIENT_MAX_SIZE
 
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
 from .k8s_cache import K8sCache
-from .globals import HTTP_CLIENT_MAX_SIZE
 
 # uvloop.install()
 
