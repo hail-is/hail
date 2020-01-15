@@ -139,7 +139,7 @@ GROUP BY user;
 SELECT user
 FROM user_resources
 GROUP BY user
-HAVING CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) > 0;
+HAVING COALESCE(SUM(running_cores_mcpu), 0) > 0;
 ''')
 
         should_wait = True
