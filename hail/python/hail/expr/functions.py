@@ -4033,8 +4033,6 @@ def _ndarray(collection, row_major=None):
         else:
             return current_level_correct & (hl.all(lambda inner: check_arrays_uniform(inner, shape_list, ndim - 1), nested_arr))
 
-
-
     if isinstance(collection, Expression):
         if isinstance(collection, ArrayNumericExpression):
             data_expr = collection
