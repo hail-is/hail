@@ -9,7 +9,6 @@ import org.apache.spark.sql.Row
 
 import collection.JavaConverters._
 
-// An in-line struct whose byteSize is the sum of all fields in the struct
 object PCanonicalStruct {
   private val requiredEmpty = PCanonicalStruct(Array.empty[PField], true)
   private val optionalEmpty = PCanonicalStruct(Array.empty[PField], false)
