@@ -9,7 +9,7 @@ import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
-import is.hail.linalg.LAPACK
+import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -327,8 +327,12 @@ private class Emit(
 
     def emitArrayIterator(ir: IR, env: E = env, container: Option[AggContainer] = container) = this.emitArrayIterator(ir, env, er, container)
 
-    def emitDeforestedNDArray(ir: NDArrayIR) =
-      deforestNDArray(resultRegion, ir, env).emit(ir.pType)
+    def emitDeforestedNDArray(ir: IR) =
+      deforestNDArray(resultRegion, ir, env).emit(coerce[PNDArray](ir.pType))
+
+    def emitNDArrayStandardStrides(ir: IR) =
+      // Currently relying on the fact that emitDeforestedNDArray always emits standard striding.
+      emitDeforestedNDArray(ir)
 
     val region = er.region
 
@@ -1344,8 +1348,8 @@ private class Emit(
       case x: NDArraySlice => emitDeforestedNDArray(x)
 
       case NDArrayMatMul(lChild, rChild) =>
-        val lT = emit(lChild)
-        val rT = emit(rChild)
+        val lT = emitNDArrayStandardStrides(lChild)
+        val rT = emitNDArrayStandardStrides(rChild)
 
         val lPType = coerce[PNDArray](lChild.pType)
         val rPType = coerce[PNDArray](rChild.pType)
@@ -1386,47 +1390,122 @@ private class Emit(
 
         val eVti = typeToTypeInfo(numericElementType.virtualType)
 
-        val emitter = new NDArrayEmitter(mb, outputPType.nDims, unifiedShapeArray, lPType.shape.pType, lPType.elementType, shapeSetup, missingSetup, lT.m || rT.m) {
-          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
-            val element = coerce[Any](mb.newField("matmul_element")(eVti))
-            val k = mb.newField[Long]
+        val isMissing = lT.m || rT.m
 
-            val (lIndices: Array[Code[Long]], rIndices: Array[Code[Long]]) = (lPType.nDims, rPType.nDims, idxVars.toSeq) match {
-              case (1, 1, Seq()) => (Array[Code[Long]](k), Array[Code[Long]](k))
-              case (1, _, stack :+ m) =>
-                val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, rightBroadcastMask)
-                (Array(k.load()), rStackVars :+ k.load() :+ m)
-              case (_, 1, stack :+ n) =>
-                val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, leftBroadcastMask)
-                (lStackVars :+ n :+ k.load(), Array(k.load()))
-              case (_, _, stack :+ n :+ m) => {
-                val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, leftBroadcastMask)
-                val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, rightBroadcastMask)
-                (lStackVars :+ n :+ k.load(), rStackVars :+ k.load() :+  m)
+        if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2) {
+          val leftDataAddress = lPType.data.load(region, leftND)
+          val rightDataAddress = rPType.data.load(region, rightND)
+
+          val leftColumnMajorAddress = mb.newLocal[Long]
+          val rightColumnMajorAddress = mb.newLocal[Long]
+          val answerColumnMajorAddress = mb.newLocal[Long]
+          val answerRowMajorPArrayAddress = mb.newField[Long]
+          val M = leftShapeArray(lPType.nDims - 2)
+          val N = rightShapeArray(rPType.nDims - 1)
+          val K = leftShapeArray(lPType.nDims - 1)
+
+          val LDA = M
+          val LDB = K
+          val LDC = M
+          
+          val elementByteSize = lPType.elementType.byteSize
+
+          val multiplyViaDGEMM = Code(
+            shapeSetup,
+            leftColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * K * elementByteSize),
+            rightColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", K * N * elementByteSize),
+            answerColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * N * elementByteSize),
+
+            LinalgCodeUtils.copyRowMajorToColumnMajor(lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, M, K, lPType.elementType, mb),
+            LinalgCodeUtils.copyRowMajorToColumnMajor(rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, K, N, rPType.elementType, mb),
+
+            lPType.elementType match {
+              case PFloat32(_) =>
+                Code.invokeScalaObject[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method="sgemm",
+                  "N",
+                  "N",
+                  M.toI,
+                  N.toI,
+                  K.toI,
+                  1.0f,
+                  leftColumnMajorAddress,
+                  LDA.toI,
+                  rightColumnMajorAddress,
+                  LDB.toI,
+                  0.0f,
+                  answerColumnMajorAddress,
+                  LDC.toI
+                )
+              case PFloat64(_) =>
+                Code.invokeScalaObject[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemm",
+                  "N",
+                  "N",
+                  M.toI,
+                  N.toI,
+                  K.toI,
+                  1.0,
+                  leftColumnMajorAddress,
+                  LDA.toI,
+                  rightColumnMajorAddress,
+                  LDB.toI,
+                  0.0,
+                  answerColumnMajorAddress,
+                  LDC.toI
+                )
+            },
+            answerRowMajorPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
+            outputPType.data.pType.stagedInitialize(answerRowMajorPArrayAddress, (M * N).toI),
+            LinalgCodeUtils.copyColumnMajorToRowMajor(answerColumnMajorAddress, outputPType.data.pType.firstElementOffset(answerRowMajorPArrayAddress, (M * N).toI), M, N, lPType.elementType, mb),
+            Code.invokeStatic[Memory, Long, Unit]("free", leftColumnMajorAddress.load()),
+            Code.invokeStatic[Memory, Long, Unit]("free", rightColumnMajorAddress.load()),
+            Code.invokeStatic[Memory, Long, Unit]("free", answerColumnMajorAddress.load()),
+            outputPType.construct(0, 0, outputPType.makeShapeBuilder(Array(M, N)), outputPType.makeDefaultStridesBuilder(Array(M, N), mb), answerRowMajorPArrayAddress, mb)
+          )
+
+          EmitTriplet(missingSetup, isMissing, multiplyViaDGEMM)
+        } else {
+          val emitter = new NDArrayEmitter(mb, outputPType.nDims, unifiedShapeArray, lPType.shape.pType, lPType.elementType, shapeSetup, missingSetup, isMissing) {
+            override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
+              val element = coerce[Any](mb.newField("matmul_element")(eVti))
+              val k = mb.newField[Long]
+
+              val (lIndices: Array[Code[Long]], rIndices: Array[Code[Long]]) = (lPType.nDims, rPType.nDims, idxVars.toSeq) match {
+                case (1, 1, Seq()) => (Array[Code[Long]](k), Array[Code[Long]](k))
+                case (1, _, stack :+ m) =>
+                  val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, rightBroadcastMask)
+                  (Array(k.load()), rStackVars :+ k.load() :+ m)
+                case (_, 1, stack :+ n) =>
+                  val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, leftBroadcastMask)
+                  (lStackVars :+ n :+ k.load(), Array(k.load()))
+                case (_, _, stack :+ n :+ m) => {
+                  val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, leftBroadcastMask)
+                  val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stack.toArray, rightBroadcastMask)
+                  (lStackVars :+ n :+ k.load(), rStackVars :+ k.load() :+  m)
+                }
               }
-            }
 
-            val lElem = lPType.loadElementToIRIntermediate(lIndices, leftND, region, mb)
-            val rElem = rPType.loadElementToIRIntermediate(rIndices, rightND, region, mb)
-            val kLen = mb.newField[Long]
+              val lElem = lPType.loadElementToIRIntermediate(lIndices, leftND, region, mb)
+              val rElem = rPType.loadElementToIRIntermediate(rIndices, rightND, region, mb)
+              val kLen = mb.newField[Long]
 
-            val innerMethod = mb.fb.newMethod(eVti)
+              val innerMethod = mb.fb.newMethod(eVti)
 
-            val loopCode = Code(
-              k := 0L,
-              kLen := leftShapeArray(lPType.nDims - 1),
-              element := numericElementType.zero,
-              Code.whileLoop(k < kLen,
+              val loopCode = Code(
+                k := 0L,
+                kLen := leftShapeArray(lPType.nDims - 1),
+                element := numericElementType.zero,
+                Code.whileLoop(k < kLen,
                   element := numericElementType.add(numericElementType.multiply(lElem, rElem), element),
                   k := k + 1L
-              ),
-              element
-            )
-            innerMethod.emit(loopCode)
-            innerMethod.invoke()
+                ),
+                element
+              )
+              innerMethod.emit(loopCode)
+              innerMethod.invoke()
+            }
           }
+          emitter.emit(outputPType)
         }
-        emitter.emit(outputPType)
 
       case x@NDArrayQR(nd, mode) =>
         // See here to understand different modes: https://docs.scipy.org/doc/numpy/reference/generated/numpy.linalg.qr.html
