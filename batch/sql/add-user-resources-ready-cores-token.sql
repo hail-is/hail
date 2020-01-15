@@ -81,36 +81,36 @@ BEGIN
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
 
   IF OLD.state = 'Ready' THEN
-    INSERT INTO user_resources (user, token) VALUES (in_user, rand_token)
+    INSERT INTO user_resources (user, token, n_ready_jobs, ready_cores_mcpu) VALUES (in_user, rand_token, -1, -1 * OLD.cores_mcpu)
     ON DUPLICATE KEY UPDATE
       n_ready_jobs = n_ready_jobs - 1,
       ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu;
 
-    INSERT INTO ready_cores (token, ready_cores_mcpu) VALUES (rand_token, 0)
+    INSERT INTO ready_cores (token, ready_cores_mcpu) VALUES (rand_token, -1 * OLD.cores_mcpu)
     ON DUPLICATE KEY UPDATE
       ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu;
   END IF;
 
   IF NEW.state = 'Ready' THEN
-    INSERT INTO user_resources (user, token) VALUES (in_user, rand_token)
+    INSERT INTO user_resources (user, token, n_ready_jobs, ready_cores_mcpu) VALUES (in_user, rand_token, 1, NEW.cores_mcpu)
     ON DUPLICATE KEY UPDATE
       n_ready_jobs = n_ready_jobs + 1,
       ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu;
 
-    INSERT INTO ready_cores (token, ready_cores_mcpu) VALUES (rand_token, 0)
+    INSERT INTO ready_cores (token, ready_cores_mcpu) VALUES (rand_token, NEW.cores_mcpu)
     ON DUPLICATE KEY UPDATE
       ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu;
   END IF;
 
   IF OLD.state = 'Running' THEN
-    INSERT INTO user_resources (user, token) VALUES (in_user, rand_token)
+    INSERT INTO user_resources (user, token, n_running_jobs, running_cores_mcpu) VALUES (in_user, rand_token, -1, -1 * OLD.cores_mcpu)
     ON DUPLICATE KEY UPDATE
       n_running_jobs = n_running_jobs - 1,
       running_cores_mcpu = running_cores_mcpu - OLD.cores_mcpu;
   END IF;
 
   IF NEW.state = 'Running' THEN
-    INSERT INTO user_resources (user, token) VALUES (in_user, rand_token)
+    INSERT INTO user_resources (user, token, n_running_jobs, running_cores_mcpu) VALUES (in_user, rand_token, 1, NEW.cores_mcpu)
     ON DUPLICATE KEY UPDATE
       n_running_jobs = n_running_jobs + 1,
       running_cores_mcpu = running_cores_mcpu + NEW.cores_mcpu;
