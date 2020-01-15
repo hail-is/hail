@@ -4036,6 +4036,29 @@ def _ndarray(collection, row_major=None):
             data_expr = array([collection])
             shape_expr = hl.tuple([])
             ndim = 0
+        elif isinstance(collection, ArrayExpression):
+            # step 1, determine nesting depth.
+            recursive_type = collection.dtype
+            ndim = 0
+            while isinstance(recursive_type, tarray):
+                recursive_type = recursive_type._element_type
+                ndim += 1
+
+            # step 2, flatten that many times - 1
+            flattened_collection = collection
+            #import pdb; pdb.set_trace()
+            for i in builtins.range(ndim - 1):
+                flattened_collection = hl.flatten(flattened_collection)
+            data_expr = flattened_collection
+
+            # step 3, Shape? Could just keep asking for the shape of the first element.
+            temp = collection
+            shape_list = []
+            for i in builtins.range(ndim - 1):
+                shape_list.append(hl.int64(hl.len(temp)))
+                temp = shape_list[0]
+
+            shape_expr = hl.tuple(shape_list)
         else:
             raise ValueError(f"{collection} cannot be converted into an ndarray")
 

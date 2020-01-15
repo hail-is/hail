@@ -131,6 +131,9 @@ def test_ndarray_eval():
     assert np.array_equal(hl.eval(hl.nd.array(hl.range(6))), np.arange(6))
     assert np.array_equal(hl.eval(hl.nd.array(hl.int64(4))), np.array(4))
 
+    # Testing from nested hail arrays
+    assert np.array_equal(hl.eval(hl.nd.array(hl.array([hl.array(x) for x in data_list]))), np.arange(9).reshape((3, 3)) + 1)
+
     # Testing missing data
     assert hl.eval(hl.nd.array(hl.null(hl.tarray(hl.tint32)))) is None
 
