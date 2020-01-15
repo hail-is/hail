@@ -103,9 +103,14 @@ def test_ndarray_slice():
         hl.eval(flat[::0])
     assert "Slice step cannot be zero" in str(exc)
 
+
 @skip_unless_spark_backend()
 def test_ndarray_eval():
     data_list = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    mishapen_data_list1 = [[4], [1, 2, 3]]
+    mishapen_data_list2 = [[[1], [2, 3]]]
+    mishapen_data_list3 = [[4], [1, 2, 3], 5]
+
     nd_expr = hl.nd.array(data_list)
     evaled = hl.eval(nd_expr)
     np_equiv = np.array(data_list, dtype=np.int32)
@@ -138,7 +143,19 @@ def test_ndarray_eval():
     assert hl.eval(hl.nd.array(hl.null(hl.tarray(hl.tint32)))) is None
 
     with pytest.raises(ValueError) as exc:
-        hl.nd.array([[4], [1, 2, 3], 5])
+        hl.nd.array(mishapen_data_list1)
+    assert "inner dimensions do not match" in str(exc.value)
+
+    with pytest.raises(FatalError) as exc:
+        hl.eval(hl.nd.array(hl.array(mishapen_data_list1)))
+    assert "inner dimensions do not match" in str(exc.value)
+
+    with pytest.raises(FatalError) as exc:
+        hl.eval(hl.nd.array(hl.array(mishapen_data_list2)))
+    assert "inner dimensions do not match" in str(exc.value)
+
+    with pytest.raises(ValueError) as exc:
+        hl.nd.array(mishapen_data_list3)
     assert "inner dimensions do not match" in str(exc.value)
 
 

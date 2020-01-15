@@ -4026,39 +4026,45 @@ def _ndarray(collection, row_major=None):
 
         return result
 
+    def check_arrays_uniform(nested_arr, shape_list, ndim):
+        current_level_correct = (hl.len(nested_arr) == shape_list[-ndim])
+        if ndim == 1:
+            return current_level_correct
+        else:
+            return current_level_correct & (hl.all(lambda inner: check_arrays_uniform(inner, shape_list, ndim - 1), nested_arr))
+
+
+
     if isinstance(collection, Expression):
         if isinstance(collection, ArrayNumericExpression):
             data_expr = collection
             shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ir.ttuple(tint64))
             ndim = 1
-
         elif isinstance(collection, NumericExpression):
             data_expr = array([collection])
             shape_expr = hl.tuple([])
             ndim = 0
         elif isinstance(collection, ArrayExpression):
-            # step 1, determine nesting depth.
             recursive_type = collection.dtype
             ndim = 0
             while isinstance(recursive_type, tarray):
                 recursive_type = recursive_type._element_type
                 ndim += 1
 
-            # step 2, flatten that many times - 1
             flattened_collection = collection
-            #import pdb; pdb.set_trace()
             for i in builtins.range(ndim - 1):
                 flattened_collection = hl.flatten(flattened_collection)
             data_expr = flattened_collection
 
-            # step 3, Shape? Could just keep asking for the shape of the first element.
-            temp = collection
+            nested_collection = collection
             shape_list = []
-            for i in builtins.range(ndim - 1):
-                shape_list.append(hl.int64(hl.len(temp)))
-                temp = shape_list[0]
+            for i in builtins.range(ndim):
+                shape_list.append(hl.int64(hl.len(nested_collection)))
+                nested_collection = nested_collection[0]
 
-            shape_expr = hl.tuple(shape_list)
+            shape_expr = (hl.case().when(check_arrays_uniform(collection, shape_list, ndim), hl.tuple(shape_list))
+                                   .or_error("inner dimensions do not match"))
+
         else:
             raise ValueError(f"{collection} cannot be converted into an ndarray")
 
