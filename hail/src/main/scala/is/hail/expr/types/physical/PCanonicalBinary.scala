@@ -24,7 +24,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     val dstAddress = mb.newField[Long]
     val length = mb.newLocal[Int]
 
-    // srcAddress must point to data by our semantics
+    // srcAddress must point to data by copyFromType semantics, so no runtime null-check needed
     if(this.required > sourcePType.required) {
       assert(allowDowncast)
     }

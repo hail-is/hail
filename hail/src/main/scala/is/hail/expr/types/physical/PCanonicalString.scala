@@ -29,11 +29,11 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   override def containsPointers: Boolean = true
 
-  override def storeShallowAtOffset(destOffset: Code[Long], valueAddress: Code[Long]): Code[Unit] =
-    this.fundamentalType.storeShallowAtOffset(destOffset, valueAddress)
+  override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
+    this.fundamentalType.storeShallowAtOffset(dstAddress, valueAddress)
 
-  override def storeShallowAtOffset(destOffset: Long, valueAddress: Long) {
-    this.fundamentalType.storeShallowAtOffset(destOffset, valueAddress)
+  override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
+    this.fundamentalType.storeShallowAtOffset(dstAddress, valueAddress)
   }
 }
 

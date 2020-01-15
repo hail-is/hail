@@ -384,9 +384,8 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
-  override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] = {
+  override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
     Region.storeAddress(dstAddress, valueAddress)
-  }
 
   override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
     Region.storeAddress(dstAddress, valueAddress)
@@ -401,9 +400,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val sourceElementType = sourceType.elementType.fundamentalType
     val destElementType = this.elementType.fundamentalType
 
-    assert(sourceElementType isOfType destElementType)
-
-    if (sourceElementType == destElementType) {
+    if (sourceElementType != destElementType) {
+      assert(sourceElementType isOfType destElementType)
+    } else {
       if(!forceDeep) {
         return srcAddress
       }
@@ -499,7 +498,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     var currentIdx = 0
 
     while(currentIdx < numberOfElements) {
-      println(s"On index ${currentIdx}, type is ${sourceElementType}")
+      println(s"On index ${currentIdx}, type is ${sourceElementType}, currentIdx is ${currentIdx}")
       if(!sourceElementType.required && sourceType.isElementMissing(region, srcAddress, currentIdx)) {
         this.setElementMissing(dstAddress, currentIdx)
       } else {

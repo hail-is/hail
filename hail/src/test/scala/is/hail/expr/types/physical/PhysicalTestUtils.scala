@@ -7,11 +7,11 @@ object PhysicalTestUtils {
   def copyTestExecutor(sourceType: PType, destType: PType, sourceValue: Any,
     expectCompileErr: Boolean = false, expectRuntimeErr: Boolean = false,
     allowDowncast: Boolean = false, forceDeep: Boolean = false, interpret: Boolean = false) {
-    val region = Region()
+
     val srcRegion = Region()
 
     val srcAddress = ScalaToRegionValue(srcRegion, sourceType, sourceValue)
-
+    println(s"testing ${sourceValue}")
     var runtimeSuccess = false
     var compileSuccess = false
     if(!interpret) {
@@ -25,8 +25,8 @@ object PhysicalTestUtils {
         compileSuccess = true
       } catch {
         case e: Throwable => {
-          region.clear()
           srcRegion.clear()
+
           if(expectCompileErr) {
             log.info("OK: Caught expected compile-time error")
             return assert(true)
@@ -37,24 +37,21 @@ object PhysicalTestUtils {
       }
 
       if(compileSuccess && expectCompileErr) {
-        region.clear()
         srcRegion.clear()
         throw new Error("Did not receive expected compile time error")
       }
 
       try {
         val f = fb.result()()
+        val region = Region()
         val copyOff = f(region, srcAddress)
         val copy = UnsafeRow.read(destType, region, copyOff)
 
         log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
         assert(copy == sourceValue)
         runtimeSuccess = true
-        region.clear()
-        srcRegion.clear()
       } catch {
         case e: Throwable => {
-          region.clear()
           srcRegion.clear()
           if(expectRuntimeErr) {
             log.info(s"OK: Found expected runtime failure: ${e.getMessage}")
@@ -65,18 +62,17 @@ object PhysicalTestUtils {
       }
     } else {
       try {
+        val region = Region()
         val copyOff = destType.copyFromType(region, sourceType, srcAddress,
           allowDowncast = allowDowncast, forceDeep = forceDeep)
+        println(s"MADE COPUY OFFSET ${copyOff}")
         val copy = UnsafeRow.read(destType, region, copyOff)
 
-        log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
+        println(s"Copied value: ${copy}, Source value: ${sourceValue}")
         assert(copy == sourceValue)
         runtimeSuccess = true
-        region.clear()
-        srcRegion.clear()
       } catch {
         case e: Throwable => {
-          region.clear()
           srcRegion.clear()
           if(expectRuntimeErr) {
             log.info(s"OK: Found expected runtime failure: ${e.getMessage}")
@@ -88,6 +84,8 @@ object PhysicalTestUtils {
         }
       }
     }
+
+    srcRegion.clear()
 
     if(runtimeSuccess && expectRuntimeErr) {
       throw new Error("Did not receive expected runtime error")
