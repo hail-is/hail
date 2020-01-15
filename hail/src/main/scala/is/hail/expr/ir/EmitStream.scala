@@ -83,6 +83,8 @@ object EmitStream {
     }
 
     def step(mb: MethodBuilder, jb: JoinPointBuilder, state: IndexedSeq[_])(k: Step[EmitTriplet, S] => Code[Ctrl]): Code[Ctrl] = {
+      val eos = jb.joinPoint()
+      eos.define(_ => k(EOS))
       behavior match {
         case ArrayZipBehavior.AssertSameLength =>
           val anyEOS = mb.newLocal[Boolean]
@@ -97,7 +99,7 @@ object EmitStream {
               val ss = abr.map(_._2)
               labels(i).define(_ => anyEOS.mux(
                 allEOS.mux(
-                  k(EOS),
+                  eos(()),
                   Code._fatal("zip: length mismatch")),
                 f(elts, { b => k(Yield(b, ss)) })))
             } else {
@@ -125,7 +127,7 @@ object EmitStream {
                 case Yield(elt, s) =>
                   ab += ((elt, s))
                   loop(i + 1, ab)
-                case EOS => k(EOS)
+                case EOS => eos(())
               }
             }
           }
@@ -144,7 +146,7 @@ object EmitStream {
               val elts = missing.zip(abr).map { case (m, (v, _)) => EmitTriplet(Code._empty, m, v) }
               val ss = abr.map(_._2)
               labels(i).define(_ => allEOS.mux(
-                k(EOS),
+                eos(()),
                 f(elts, { b => k(Yield(b, ss)) })))
             } else {
               val streamI = streams(i)
@@ -572,22 +574,11 @@ object EmitStream {
           val childEltTypes = as.map(_.pType.asInstanceOf[PStreamable].elementType)
 
           EmitStream.zip[Any](streams, behavior, { (xs, k) =>
-            val mv = names.zip(childEltTypes).map { case (name, t) =>
-              val ti = typeToTypeInfo(t)
-              val eltm = fb.newField[Boolean](name + "_missing")
-              val eltv = fb.newField(name)(ti)
-              (t, ti, eltm, eltv)
-            }
-            val bodyt = emitIR(body,
-              env.bindIterable(names.zip(mv.map { case (_, ti, m, v) => (ti, m.load(), v.load()) })))
+            val bodyt = emitIR(body, env.bindIterable(
+              names.zip(xs.zip(childEltTypes)
+                .map { case (et, t) => (typeToTypeInfo(t), et.m, et.v) })))
             k(EmitTriplet(
-              Code(xs.zip(mv).foldLeft[Code[Unit]](Code._empty[Unit]) { case (acc, (et, (t, ti, m, v))) =>
-                Code(acc,
-                  et.setup,
-                  m := et.m,
-                  v.storeAny(m.mux(defaultValue(t), et.v)))
-              },
-                bodyt.setup),
+              Code(Code(xs.map(_.setup): _*), bodyt.setup),
               bodyt.m,
               bodyt.v)
             )

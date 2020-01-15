@@ -1012,7 +1012,7 @@ class ArrayZip(IR):
         return ArrayZip(children[:-1], self.names, children[-1], self.behavior)
 
     def head_str(self):
-        return escape_id(self.behavior) + ' ({})'.format(' '.join(map(escape_id, self.names)))
+        return f'{escape_id(self.behavior)} ({" ".join(map(escape_id, self.names))})'
 
     def _eq(self, other):
         return self.names == other.names and self.behavior == other.behavior
