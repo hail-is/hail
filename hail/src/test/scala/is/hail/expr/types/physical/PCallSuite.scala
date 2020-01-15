@@ -14,17 +14,16 @@ class PCallSuite extends HailSuite {
         2,
         forceDeep = forceDeep)
 
+      // downcast at top level allowed, since address and therefore value must be present
       PhysicalTestUtils.copyTestExecutor(PCanonicalCall(), PCanonicalCall(true),
         2,
-        expectCompileErr = true, forceDeep = forceDeep)
+        forceDeep = forceDeep)
 
-      PhysicalTestUtils.copyTestExecutor(PCanonicalCall(), PCanonicalCall(true),
-        2,
-        allowDowncast = true, forceDeep = forceDeep)
+      PhysicalTestUtils.copyTestExecutor(PArray(PCanonicalCall(true), true), PArray(PCanonicalCall()),
+        IndexedSeq(2, 3), forceDeep = forceDeep)
 
-      PhysicalTestUtils.copyTestExecutor(PArray(PCanonicalCall()), PArray(PCanonicalCall(true)),
-        IndexedSeq(2, null),
-        allowDowncast = true, expectRuntimeErr = true, forceDeep = forceDeep)
+      PhysicalTestUtils.copyTestExecutor(PArray(PCanonicalCall(), true), PArray(PCanonicalCall(true)),
+        IndexedSeq(2, 3), expectCompileErr = true, forceDeep = forceDeep)
     }
 
     runTests(true)

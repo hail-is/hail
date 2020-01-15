@@ -18,21 +18,13 @@ class PIntervalSuite extends HailSuite {
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
         forceDeep = forceDeep)
 
-      PhysicalTestUtils.copyTestExecutor(PCanonicalInterval(PInt64(true)), PCanonicalInterval(PInt64(true)),
-        Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
-        forceDeep = forceDeep)
-
       PhysicalTestUtils.copyTestExecutor(PCanonicalInterval(PInt64()), PCanonicalInterval(PInt64(true)),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
         expectCompileErr = true, forceDeep = forceDeep)
 
-      PhysicalTestUtils.copyTestExecutor(PCanonicalInterval(PInt64()), PCanonicalInterval(PInt64(true)),
+      PhysicalTestUtils.copyTestExecutor(PCanonicalInterval(PInt64(true)), PCanonicalInterval(PInt64(true)),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
-        allowDowncast = true, forceDeep = forceDeep)
-
-      PhysicalTestUtils.copyTestExecutor(PCanonicalInterval(PInt64()), PCanonicalInterval(PInt64(true)),
-        Interval(IntervalEndpoint(null, 1), IntervalEndpoint(1000L, 1)),
-        allowDowncast = true, expectRuntimeErr = true, forceDeep = forceDeep)
+        forceDeep = forceDeep)
     }
 
     runTests(true)

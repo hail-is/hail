@@ -5,8 +5,7 @@ import is.hail.expr.ir.EmitFunctionBuilder
 
 object PhysicalTestUtils {
   def copyTestExecutor(sourceType: PType, destType: PType, sourceValue: Any,
-    expectCompileErr: Boolean = false, expectRuntimeErr: Boolean = false,
-    allowDowncast: Boolean = false, forceDeep: Boolean = false) {
+    expectCompileErr: Boolean = false, expectRuntimeErr: Boolean = false, forceDeep: Boolean = false) {
     val region = Region()
     val srcRegion = Region()
 
@@ -17,8 +16,7 @@ object PhysicalTestUtils {
     val value = fb.getArg[Long](2)
     var compileSuccess = false
     try {
-      fb.emit(destType.copyFromType(fb.apply_method, codeRegion, sourceType, value,
-        allowDowncast = allowDowncast, forceDeep = forceDeep))
+      fb.emit(destType.copyFromType(fb.apply_method, codeRegion, sourceType, value,  forceDeep = forceDeep))
       compileSuccess = true
     } catch {
       case e: Throwable => {

@@ -13,26 +13,20 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   override def byteSize: Long = 8
 
-  override def copyFromType(mb: MethodBuilder, region: Code[Region], sourcePType: PType, sourceAddress: Code[Long],
-  allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
-    if(this == sourcePType && !forceDeep) {
-      return sourceAddress
+  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+    if(this == srcPType && !forceDeep) {
+      return srcAddress
     }
 
-    assert(this isOfType sourcePType)
+    assert(this isOfType srcPType)
 
     val dstAddress = mb.newField[Long]
     val length = mb.newLocal[Int]
 
-    // srcAddress must point to data by copyFromType semantics, so no runtime null-check needed
-    if(this.required > sourcePType.required) {
-      assert(allowDowncast)
-    }
-
     Code(
-      length := PCanonicalBinary.loadLength(region, sourceAddress),
+      length := PCanonicalBinary.loadLength(region, srcAddress),
       dstAddress := PCanonicalBinary.allocate(region, length),
-      Region.copyFrom(sourceAddress, dstAddress, PCanonicalBinary.contentByteSize(length)),
+      Region.copyFrom(srcAddress, dstAddress, PCanonicalBinary.contentByteSize(length)),
       dstAddress
     )
   }

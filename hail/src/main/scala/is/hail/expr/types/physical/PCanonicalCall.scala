@@ -64,12 +64,11 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
       this.representation.storeShallowAtOffset(dstAddress, valueAddress)
     }
 
-    override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
-      allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
+    override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
       assert(this isOfType srcPType)
 
       val srcRepPType = srcPType.asInstanceOf[PCanonicalCall].representation
 
-      this.representation.copyFromType(mb, region, srcRepPType, srcAddress, allowDowncast, forceDeep)
+      this.representation.copyFromType(mb, region, srcRepPType, srcAddress, forceDeep)
     }
 }

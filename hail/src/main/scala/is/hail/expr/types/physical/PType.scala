@@ -306,33 +306,26 @@ abstract class PType extends BaseType with Serializable with Requiredness {
     this.isOfType(concrete)
   }
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
-  allowDowncast: Boolean = false, forceDeep: Boolean = false): Code[Long] = {
+  // Semantics: for non-nested types, srcAddress must be present, and therefore no requiredeness check needed
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     this.fundamentalType match {
-      case t@(_: PBoolean| _: PInt32 | _: PInt64 | _: PFloat32 | _: PFloat64) => {
-        if (t.required > srcPType.required) {
-          assert(allowDowncast)
-        }
-
+      case _: PBoolean | _: PInt32 | _: PInt64 | _: PFloat32 | _: PFloat64 =>
         srcAddress
-      }
       case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
     }
   }
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long]): Code[Long] =
+    this.copyFromType(mb, region, srcPType, srcAddress, false)
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long,
-    allowDowncast: Boolean, forceDeep: Boolean): Long = {
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = {
     this.fundamentalType match {
-      case t@(_: PBoolean| _: PInt32 | _: PInt64 | _: PFloat32 | _: PFloat64) => {
-        if(t.required > srcPType.required) {
-          assert(allowDowncast)
-        }
-
+      case _: PBoolean | _: PInt32 | _: PInt64 | _: PFloat32 | _: PFloat64 =>
         srcAddress
-      }
       case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
     }
   }
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long): Long =
+    this.copyFromType(region, srcPType, srcAddress, false)
 
   def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] = {
     this.fundamentalType match {
