@@ -224,4 +224,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
     this.representation.copyFromType(mb, region, sourceNDPType.representation, srcAddress, forceDeep)
   }
+
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = ???
 }

@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering}
-import is.hail.asm4s.{Code, MethodBuilder}
+import is.hail.asm4s.{???, Code, MethodBuilder}
 import is.hail.expr.ir.EmitMethodBuilder
 
 trait PArrayBackedContainer extends PContainer {
@@ -177,6 +177,8 @@ trait PArrayBackedContainer extends PContainer {
     assert(srcPType.isInstanceOf[PArrayBackedContainer])
     this.arrayRep.copyFromType(mb, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, forceDeep)
   }
+
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = ???
 
   override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
     this.arrayRep.storeShallowAtOffset(dstAddress, valueAddress)

@@ -282,15 +282,15 @@ abstract class PBaseStruct extends PType {
   }
 
   def deepPointerCopy(mb: MethodBuilder, region: Code[Region], dstStructAddress: Code[Long]): Code[Unit] = {
-    var loop: Code[Unit] = Code._empty
+    var c: Code[Unit] = Code._empty
 
     var i = 0
     while(i < this.size) {
       val dstFieldType = this.fields(i).typ.fundamentalType
       if(dstFieldType.containsPointers) {
         val dstFieldAddress = mb.newField[Long]
-        loop = Code(
-          loop,
+        c = Code(
+          c,
           this.isFieldDefined(dstStructAddress, i).orEmpty(
             Code(
               dstFieldAddress := this.fieldOffset(dstStructAddress, i),
@@ -309,7 +309,7 @@ abstract class PBaseStruct extends PType {
       i += 1
     }
 
-    loop
+    c
   }
 
   override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcStructAddress: Code[Long],
@@ -371,6 +371,8 @@ abstract class PBaseStruct extends PType {
       dstStructAddress
     )
   }
+
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = ???
 
   override def containsPointers: Boolean = types.exists(_.containsPointers)
 }

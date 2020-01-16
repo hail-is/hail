@@ -31,10 +31,16 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     )
   }
 
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = ???
+
   override def containsPointers: Boolean = true
 
-  override def storeShallowAtOffset(destOffset: Code[Long], valueAddress: Code[Long]): Code[Unit] = {
-    Region.storeAddress(destOffset, valueAddress)
+  override def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] = {
+    Region.storeAddress(dstAddress, srcAddress)
+  }
+
+  override def storeShallowAtOffset(dstAddress: Long, srcAddress: Long){
+    Region.storeAddress(dstAddress, srcAddress)
   }
 }
 

@@ -63,6 +63,18 @@ class PFloat64(override val required: Boolean) extends PNumeric {
   override def multiply(a: Code[_], b: Code[_]): Code[PFloat64] = {
     coerce[PFloat64](coerce[Double](a) * coerce[Double](b))
   }
+
+  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]) =
+    Region.storeDouble(dstAddress, Region.loadDouble(srcAddress))
+
+  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) =
+    Region.storeDouble(dstAddress, Region.loadDouble(srcAddress))
+
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long =
+    srcAddress
+
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] =
+    srcAddress
 }
 
 object PFloat64 {

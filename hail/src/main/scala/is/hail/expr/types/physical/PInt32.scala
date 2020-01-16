@@ -61,6 +61,18 @@ class PInt32(override val required: Boolean) extends PIntegral {
   override def multiply(a: Code[_], b: Code[_]): Code[PInt32] = {
     coerce[PInt32](coerce[Int](a) * coerce[Int](b))
   }
+
+  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]) =
+    Region.storeInt(dstAddress, Region.loadInt(srcAddress))
+
+  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) =
+    Region.storeInt(dstAddress, Region.loadInt(srcAddress))
+
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long =
+    srcAddress
+
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] =
+    srcAddress
 }
 
 object PInt32 {

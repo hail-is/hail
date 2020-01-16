@@ -37,31 +37,13 @@ object PhysicalTestUtils {
       throw new Error("Did not receive expected compile time error")
     }
 
-    var runtimeSuccess = false
-    try {
-      val f = fb.result()()
-      val copyOff = f(region, srcOffset)
-      val copy = UnsafeRow.read(destType, region, copyOff)
+    val f = fb.result()()
+    val copyOff = f(region, srcOffset)
+    val copy = UnsafeRow.read(destType, region, copyOff)
 
-      log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
-      assert(copy == sourceValue)
-      runtimeSuccess = true
-      region.clear()
-      srcRegion.clear()
-    } catch {
-      case e: Throwable => {
-        region.clear()
-        srcRegion.clear()
-        if(expectRuntimeErr) {
-          log.info(s"Found expected runtime failure: ${e.getMessage}")
-        } else {
-          throw new Error(e)
-        }
-      }
-    }
-
-    if(runtimeSuccess && expectRuntimeErr) {
-      throw new Error("Did not receive expected runtime error")
-    }
+    log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
+    assert(copy == sourceValue)
+    region.clear()
+    srcRegion.clear()
   }
 }

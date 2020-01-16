@@ -480,4 +480,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       dstAddress
     )
   }
+
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = ???
 }

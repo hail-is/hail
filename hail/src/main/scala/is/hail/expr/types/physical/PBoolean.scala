@@ -37,6 +37,18 @@ class PBoolean(override val required: Boolean) extends PType {
   }
 
   override def byteSize: Long = 1
+
+  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] =
+    Region.storeBoolean(dstAddress, Region.loadBoolean(srcAddress))
+
+  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) =
+    Region.storeBoolean(dstAddress, Region.loadBoolean(srcAddress))
+
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long =
+    srcAddress
+
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] =
+    srcAddress
 }
 
 object PBoolean {

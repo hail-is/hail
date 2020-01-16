@@ -30,4 +30,6 @@ abstract class ComplexPType extends PType {
 
     this.representation.copyFromType(mb, region, srcRepPType, srcAddress, forceDeep)
   }
+
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = ???
 }
