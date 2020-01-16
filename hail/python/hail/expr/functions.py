@@ -4026,16 +4026,42 @@ def _ndarray(collection, row_major=None):
 
         return result
 
+    def check_arrays_uniform(nested_arr, shape_list, ndim):
+        current_level_correct = (hl.len(nested_arr) == shape_list[-ndim])
+        if ndim == 1:
+            return current_level_correct
+        else:
+            return current_level_correct & (hl.all(lambda inner: check_arrays_uniform(inner, shape_list, ndim - 1), nested_arr))
+
     if isinstance(collection, Expression):
         if isinstance(collection, ArrayNumericExpression):
             data_expr = collection
             shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ir.ttuple(tint64))
             ndim = 1
-
         elif isinstance(collection, NumericExpression):
             data_expr = array([collection])
             shape_expr = hl.tuple([])
             ndim = 0
+        elif isinstance(collection, ArrayExpression):
+            recursive_type = collection.dtype
+            ndim = 0
+            while isinstance(recursive_type, tarray):
+                recursive_type = recursive_type._element_type
+                ndim += 1
+
+            data_expr = collection
+            for i in builtins.range(ndim - 1):
+                data_expr = hl.flatten(data_expr)
+
+            nested_collection = collection
+            shape_list = []
+            for i in builtins.range(ndim):
+                shape_list.append(hl.int64(hl.len(nested_collection)))
+                nested_collection = nested_collection[0]
+
+            shape_expr = (hl.case().when(check_arrays_uniform(collection, shape_list, ndim), hl.tuple(shape_list))
+                                   .or_error("inner dimensions do not match"))
+
         else:
             raise ValueError(f"{collection} cannot be converted into an ndarray")
 
