@@ -20,7 +20,7 @@ from hailtop import batch_client
 from hailtop.batch_client.aioclient import Job
 from gear import Database, setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
-    web_authenticated_developers_only, check_csrf_token
+    web_authenticated_developers_only, check_csrf_token, transaction
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 
@@ -491,7 +491,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
         n_jobs = len(job_specs)
 
         async with timer.step('insert jobs'):
-            async with db.start() as tx:
+            @transaction(db)
+            async def insert(tx):
                 try:
                     await tx.execute_many('''
 INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents)
@@ -524,7 +525,7 @@ ON DUPLICATE KEY UPDATE
                                         (batch_id, rand_token,
                                          n_jobs, n_ready_jobs, sum_ready_cores_mcpu,
                                          n_jobs, n_ready_jobs, sum_ready_cores_mcpu))
-
+            await insert()  # pylint: disable=no-value-for-parameter
         return web.Response()
 
 
@@ -546,11 +547,14 @@ async def create_batch(request, userdata):
     token = batch_spec['token']
 
     attributes = batch_spec.get('attributes')
-    async with db.start() as tx:
+
+    @transaction(db)
+    async def insert(tx):
         rows = tx.execute_and_fetchall(
             '''
 SELECT * FROM billing_project_users
-WHERE billing_project = %s AND user = %s;
+WHERE billing_project = %s AND user = %s
+LOCK IN SHARE MODE;
 ''',
             (billing_project, user))
         rows = [row async for row in rows]
@@ -585,8 +589,8 @@ INSERT INTO `batch_attributes` (batch_id, `key`, `value`)
 VALUES (%s, %s, %s)
 ''',
                 [(id, k, v) for k, v in attributes.items()])
-
-    return web.json_response({'id': id})
+        return web.json_response({'id': id})
+    return await insert()  # pylint: disable=no-value-for-parameter
 
 
 async def _get_batch(app, batch_id, user):
@@ -879,20 +883,23 @@ async def ui_get_billing_projects(request, userdata):
     db = request.app['db']
 
     billing_projects = {}
-    async with db.start(read_only=True) as tx:
+
+    @transaction(db, read_only=True)
+    async def select(tx):
         async for record in tx.execute_and_fetchall(
-                'SELECT * FROM billing_projects;'):
+                'SELECT * FROM billing_projects LOCK IN SHARE MODE;'):
             name = record['name']
             billing_projects[name] = []
         async for record in tx.execute_and_fetchall(
-                'SELECT * FROM billing_project_users;'):
+                'SELECT * FROM billing_project_users LOCK IN SHARE MODE;'):
             billing_project = record['billing_project']
             user = record['user']
             billing_projects[billing_project].append(user)
-    page_context = {
-        'billing_projects': billing_projects
-    }
-    return await render_template('batch', request, userdata, 'billing_projects.html', page_context)
+        page_context = {
+            'billing_projects': billing_projects
+        }
+        return await render_template('batch', request, userdata, 'billing_projects.html', page_context)
+    return await select()  # pylint: disable=no-value-for-parameter
 
 
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')
@@ -906,13 +913,14 @@ async def post_billing_projects_remove_user(request, userdata):  # pylint: disab
 
     session = await aiohttp_session.get_session(request)
 
-    async with db.start() as tx:
+    @transaction(db)
+    async def delete(tx):
         row = await tx.execute_and_fetchone(
             '''
 SELECT billing_projects.name as billing_project, user
 FROM billing_projects
 LEFT JOIN (SELECT * FROM billing_project_users
-    WHERE billing_project = %s AND user = %s) AS t
+    WHERE billing_project = %s AND user = %s FOR UPDATE) AS t
   ON billing_projects.name = t.billing_project
 WHERE billing_projects.name = %s;
 ''',
@@ -933,8 +941,9 @@ WHERE billing_project = %s AND user = %s;
 ''',
             (billing_project, user))
 
-    set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+        set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
+        return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+    return await delete()  # pylint: disable=no-value-for-parameter
 
 
 @routes.post('/billing_projects/{billing_project}/users/add')
@@ -949,13 +958,14 @@ async def post_billing_projects_add_user(request, userdata):  # pylint: disable=
 
     session = await aiohttp_session.get_session(request)
 
-    async with db.start() as tx:
+    @transaction(db)
+    async def insert(tx):
         row = await tx.execute_and_fetchone(
             '''
 SELECT billing_projects.name as billing_project, user
 FROM billing_projects
 LEFT JOIN (SELECT * FROM billing_project_users
-    WHERE billing_project = %s AND user = %s) AS t
+    WHERE billing_project = %s AND user = %s FOR UPDATE) AS t
   ON billing_projects.name = t.billing_project
 WHERE billing_projects.name = %s;
 ''',
@@ -975,8 +985,9 @@ VALUES (%s, %s);
 ''',
             (billing_project, user))
 
-    set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+        set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')
+        return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+    return await insert()  # pylint: disable=no-value-for-parameter
 
 
 @routes.post('/billing_projects/create')
@@ -990,11 +1001,13 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
 
     session = await aiohttp_session.get_session(request)
 
-    async with db.start() as tx:
+    @transaction(db)
+    async def insert(tx):
         row = await tx.execute_and_fetchone(
             '''
 SELECT 1 FROM billing_projects
-WHERE name = %s;
+WHERE name = %s
+FOR UPDATE;
 ''',
             (billing_project))
         if row is not None:
@@ -1008,8 +1021,9 @@ VALUES (%s);
 ''',
             (billing_project,))
 
-    set_message(session, f'Added billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+        set_message(session, f'Added billing project {billing_project}.', 'info')
+        return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+    return await insert()  # pylint: disable=no-value-for-parameter
 
 
 @routes.get('')
