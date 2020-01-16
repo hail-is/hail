@@ -91,13 +91,18 @@ class ManyPartitionsTables(ResourceGroup):
         return 'many_partitions_tables'
 
     def _create(self, resource_dir):
+
+        def compatible_checkpoint(obj, path):
+            obj.write(path, overwrite=True)
+            return hl.read_table(path)
+
         ht = hl.utils.range_table(10_000_000, 1000).annotate(**{f'f_{i}': hl.rand_unif(0, 1) for i in range(5)})
         logging.info('Writing 1000-partition table...')
-        ht = ht.checkpoint(os.path.join(resource_dir, 'table_10M_par_1000.ht'), overwrite=True)
+        ht = compatible_checkpoint(ht, os.path.join(resource_dir, 'table_10M_par_1000.ht'))
         logging.info('Writing 100-partition table...')
-        ht = ht.naive_coalesce(100).checkpoint(os.path.join(resource_dir, 'table_10M_par_100.ht'), overwrite=True)
+        ht = compatible_checkpoint(ht.repartition(100, shuffle=False), os.path.join(resource_dir, 'table_10M_par_100.ht'))
         logging.info('Writing 10-partition table...')
-        ht.naive_coalesce(10).write(os.path.join(resource_dir, 'table_10M_par_10.ht'), overwrite=True)
+        ht.repartition(10, shuffle=False).write(os.path.join(resource_dir, 'table_10M_par_10.ht'), overwrite=True)
         logging.info('done writing many-partitions tables.')
 
     def path(self, resource):
@@ -192,9 +197,9 @@ class SimUKBB(ResourceGroup):
 
     def path(self, resource):
         if resource == 'bgen':
-            return 'many_ints_table.ht'
+            return 'sim_ukb.bgen'
         elif resource == 'sample':
-            return 'many_ints_table.tsv.bgz'
+            return 'sim_ukb.sample'
 
 
 profile_25 = Profile25()
