@@ -147,7 +147,6 @@ def _run(benchmark: Benchmark, config: RunConfig, context):
     times = []
 
     timed_out = False
-    failed = False
     try:
         burn_in_time, burn_in_timed_out = run_with_timeout(benchmark, config)
         if burn_in_timed_out:
@@ -160,10 +159,12 @@ def _run(benchmark: Benchmark, config: RunConfig, context):
     except Exception as e:  # pylint: disable=broad-except
         if config.noisy:
             logging.error(f'burn in: Caught exception: {e}')
-        failed = True
+        config.handler({'name': benchmark.name,
+                        'failed': True})
+        return
 
     for i in range(config.n_iter):
-        if timed_out or failed:
+        if timed_out:
             continue
         try:
             t, run_timed_out = run_with_timeout(benchmark, config)

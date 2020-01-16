@@ -20,7 +20,7 @@ class PBinarySuite extends HailSuite {
     runTests(true)
     runTests(false)
 
-    runTests(true, true)
-    runTests(false, true)
+    runTests(true, interpret = true)
+    runTests(false, interpret = true)
   }
 }

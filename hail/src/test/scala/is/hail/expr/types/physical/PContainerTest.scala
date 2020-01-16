@@ -177,7 +177,7 @@ class PContainerTest extends HailSuite {
   @Test def arrayCopyTest() {
     // Note: can't test where data is null due to ArrayStack.top semantics (ScalaToRegionValue: assert(size_ > 0))
 
-    def runTests(forceDeep: Boolean, interpret: Boolean) {
+    def runTests(forceDeep: Boolean) {
       PhysicalTestUtils.copyTestExecutor(PArray(PInt32()), PArray(PInt64()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, 9),
         expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
 
@@ -222,7 +222,6 @@ class PContainerTest extends HailSuite {
         FastIndexedSeq(FastIndexedSeq(null)), forceDeep = forceDeep, interpret = interpret)
 
       // test 2D arrays
-      // this fails in interpreted for some reason
       PhysicalTestUtils.copyTestExecutor(PArray(PArray(PInt64())), PArray(PArray(PInt64())),
         FastIndexedSeq(null, FastIndexedSeq(null), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
         forceDeep = forceDeep, interpret = interpret)
@@ -253,8 +252,8 @@ class PContainerTest extends HailSuite {
     runTests(true, false)
     runTests(false, false)
 
-    runTests(true, true)
-    runTests(false, true)
+    runTests(true, interpret = true)
+    runTests(false, interpret = true)
   }
 
   @Test def dictCopyTests() {
@@ -271,8 +270,8 @@ class PContainerTest extends HailSuite {
 
     runTests(true, false)
     runTests(false, false)
-    runTests(true, true)
-    runTests(false, true)
+    runTests(true, interpret = true)
+    runTests(false, interpret = true)
   }
 
   @Test def setCopyTests() {
@@ -283,7 +282,7 @@ class PContainerTest extends HailSuite {
 
     runTests(true, false)
     runTests(false, false)
-    runTests(true, true)
-    runTests(false, true)
+    runTests(true, interpret = true)
+    runTests(false, interpret = true)
   }
 }

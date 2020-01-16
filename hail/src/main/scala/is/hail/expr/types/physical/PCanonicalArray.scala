@@ -335,14 +335,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     Region.containsNonZeroBits(srcAddress + lengthHeaderBytes, loadLength(srcAddress).toL)
   }
 
-  def hasMissingValues(srcAddress: Long): Boolean = {
-    if(elementType.required) {
-      return false
-    }
-
-    Region.containsNonZeroBits(srcAddress + lengthHeaderBytes, loadLength(srcAddress).toLong)
-  }
-
   def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], srcAddress: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
     assert(sourceType.elementType.isPrimitive && this.isOfType(sourceType))
 
