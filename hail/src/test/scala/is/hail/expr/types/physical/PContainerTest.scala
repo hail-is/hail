@@ -176,8 +176,7 @@ class PContainerTest extends HailSuite {
 
   @Test def arrayCopyTest() {
     // Note: can't test where data is null due to ArrayStack.top semantics (ScalaToRegionValue: assert(size_ > 0))
-
-    def runTests(forceDeep: Boolean) {
+    def runTests(forceDeep: Boolean, interpret: Boolean) {
       PhysicalTestUtils.copyTestExecutor(PArray(PInt32()), PArray(PInt64()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, 9),
         expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
 
