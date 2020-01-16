@@ -284,8 +284,8 @@ abstract class PBaseStruct extends PType {
     )
   }
 
-  def deepCopyFromAddress(region: Region, srcStructAddress: Long: Long = {
-    val dstAddress = this.copyFrom(mb, region, srcStructAddress)
+  def deepCopyFromAddress(region: Region, srcStructAddress: Long): Long = {
+    val dstAddress = this.copyFrom(region, srcStructAddress)
     this.deepPointerCopy(region, dstAddress)
     dstAddress
   }
@@ -329,7 +329,7 @@ abstract class PBaseStruct extends PType {
         val dstFieldAddress = this.fieldOffset(dstStructAddress, i)
         dstFieldType match {
           case t@(_: PBinary | _: PArray) =>
-            t.storeShallowAtOffset(dstFieldAddress, t.copyFromType(mb, region, dstFieldType, Region.loadAddress(dstFieldAddress)))
+            t.storeShallowAtOffset(dstFieldAddress, t.copyFromType(region, dstFieldType, Region.loadAddress(dstFieldAddress)))
           case t: PBaseStruct =>
             t.deepPointerCopy(region, dstFieldAddress)
           case t: PType =>
@@ -409,7 +409,7 @@ abstract class PBaseStruct extends PType {
         return srcStructAddress
       }
 
-      return this.deepCopyFromAddress(mb, region, srcStructAddress)
+      return this.deepCopyFromAddress(region, srcStructAddress)
     }
 
     assert(sourceType.size == this.size)

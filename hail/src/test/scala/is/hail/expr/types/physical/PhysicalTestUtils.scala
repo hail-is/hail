@@ -13,13 +13,28 @@ object PhysicalTestUtils {
     val srcAddress = ScalaToRegionValue(srcRegion, sourceType, sourceValue)
 
     if(interpret) {
-      val copyOff = destType.copyFromType(region, sourceType, srcAddress, forceDeep = forceDeep)
-      val copy = UnsafeRow.read(destType, region, copyOff)
-      
-      log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
-      assert(copy == sourceValue)
-      region.clear()
-      srcRegion.clear()
+      try {
+        val copyOff = destType.copyFromType(region, sourceType, srcAddress, forceDeep = forceDeep)
+        val copy = UnsafeRow.read(destType, region, copyOff)
+
+        log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
+        assert(copy == sourceValue)
+        region.clear()
+        srcRegion.clear()
+      } catch {
+        case e: AssertionError => {
+          srcRegion.clear()
+          region.clear()
+
+          if(expectCompileErr) {
+            log.info("OK: Caught expected compile-time error")
+            return
+          }
+
+          throw new Error(e)
+        }
+      }
+
       return
     }
     
@@ -37,7 +52,7 @@ object PhysicalTestUtils {
         region.clear()
 
         if(expectCompileErr) {
-          log.info("OK: Caught expected compile-time error ${e}")
+          log.info("OK: Caught expected compile-time error")
           return
         }
 

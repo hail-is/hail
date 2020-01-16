@@ -397,8 +397,8 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def deepCopyFromAddress(region: Region, srcArrayAddress: Long): Long = {
-    val dstAddress = this.copyFrom(mb, region, srcArrayAddress)
-    this.deepPointerCopy(mb, region, dstAddress)
+    val dstAddress = this.copyFrom(region, srcArrayAddress)
+    this.deepPointerCopy(region, dstAddress)
     dstAddress
   }
 
@@ -437,15 +437,15 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
 
     val numberOfElements = this.loadLength(dstAddress)
-    val currentIdx = 0    
+    var currentIdx = 0
     while(currentIdx < numberOfElements) {
       if(this.isElementDefined(dstAddress, currentIdx)) {
-        val currentElementAddress = this.elementOffset(dstAddress, numberOfElements, currentIdx),
+        val currentElementAddress = this.elementOffset(dstAddress, numberOfElements, currentIdx)
         this.elementType.fundamentalType match {
           case t@(_: PBinary | _: PArray) =>
-            t.storeShallowAtOffset(currentElementAddress, t.copyFromType(mb, region, t, Region.loadAddress(currentElementAddress)))
+            t.storeShallowAtOffset(currentElementAddress, t.copyFromType(region, t, Region.loadAddress(currentElementAddress)))
           case t: PBaseStruct =>
-            t.deepPointerCopy(mb, region, currentElementAddress)
+            t.deepPointerCopy(region, currentElementAddress)
           case t: PType => fatal(s"Type isn't supported ${t}")
         }
       }
