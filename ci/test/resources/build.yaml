@@ -60,7 +60,7 @@ steps:
      python3 -m flake8 /hello/hello.py
    dependsOn:
      - hello_image
- - kind: createDatabase2
+ - kind: createDatabase
    name: hello_database
    databaseName: hello
    migrations:
