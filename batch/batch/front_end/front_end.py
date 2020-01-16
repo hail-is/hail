@@ -409,7 +409,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 raise web.HTTPBadRequest(reason=e.reason)
 
         @retry_transient_mysql_errors
-        def transaction():
+        async def transaction():
             async with db.start() as tx:
                 async with timer.step('idempotence check'):
                     if len(job_specs) > 0:
@@ -532,7 +532,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                                              n_jobs, n_ready_jobs, sum_ready_cores_mcpu))
 
             return web.Response()
-        return transaction()
+        return await transaction()
 
 
 @routes.post('/api/v1alpha/batches/create')
