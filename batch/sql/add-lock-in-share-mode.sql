@@ -1,3 +1,22 @@
+/*
+422c37
+<   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name FOR UPDATE;
+---
+>   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
+473c88
+<   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name FOR UPDATE;
+---
+>   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
+525c140
+<   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name FOR UPDATE;
+---
+>   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
+574c189
+<   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name FOR UPDATE;
+---
+>   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
+*/
+
 DELIMITER $$
 
 DROP PROCEDURE IF EXISTS schedule_job;
