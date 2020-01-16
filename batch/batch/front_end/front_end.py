@@ -9,7 +9,6 @@ from aiohttp import web
 import aiohttp_session
 import cerberus
 import prometheus_client as pc
-import random
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 import google.oauth2.service_account
@@ -20,7 +19,7 @@ from hailtop import batch_client
 from hailtop.batch_client.aioclient import Job
 from gear import Database, setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
-    web_authenticated_developers_only, check_csrf_token
+    web_authenticated_developers_only, check_csrf_token, retry_transient_mysql_errors
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 
@@ -409,128 +408,131 @@ WHERE user = %s AND id = %s AND NOT deleted;
             except batch_client.validate.ValidationError as e:
                 raise web.HTTPBadRequest(reason=e.reason)
 
-        async with db.start() as tx:
-            async with timer.step('idempotence check'):
-                if len(job_specs) > 0:
-                    job_id = job_specs[0]['job_id']
-                    record = await tx.execute_and_fetchone(
-                        'SELECT 1 FROM jobs WHERE batch_id = %s AND job_id = %s FOR UPDATE',
-                        (batch_id, job_id))
-                    if record is not None:
-                        log.info(f'bunch containing job {(batch_id, job_id)} already inserted')
-                        return web.Response()
+        @retry_transient_mysql_errors
+        def transaction():
+            async with db.start() as tx:
+                async with timer.step('idempotence check'):
+                    if len(job_specs) > 0:
+                        job_id = job_specs[0]['job_id']
+                        record = await tx.execute_and_fetchone(
+                            'SELECT 1 FROM jobs WHERE batch_id = %s AND job_id = %s FOR UPDATE',
+                            (batch_id, job_id))
+                        if record is not None:
+                            log.info(f'bunch containing job {(batch_id, job_id)} already inserted')
+                            return web.Response()
 
-            async with timer.step('build db args'):
-                jobs_args = []
-                job_parents_args = []
-                job_attributes_args = []
+                async with timer.step('build db args'):
+                    jobs_args = []
+                    job_parents_args = []
+                    job_attributes_args = []
 
-                n_ready_jobs = 0
-                sum_ready_cores_mcpu = 0
+                    n_ready_jobs = 0
+                    sum_ready_cores_mcpu = 0
 
-                for spec in job_specs:
-                    job_id = spec['job_id']
-                    parent_ids = spec.pop('parent_ids', [])
-                    always_run = spec.pop('always_run', False)
-                    attributes = spec.get('attributes')
+                    for spec in job_specs:
+                        job_id = spec['job_id']
+                        parent_ids = spec.pop('parent_ids', [])
+                        always_run = spec.pop('always_run', False)
+                        attributes = spec.get('attributes')
 
-                    id = (batch_id, job_id)
+                        id = (batch_id, job_id)
 
-                    resources = spec.get('resources')
-                    if not resources:
-                        resources = {}
-                        spec['resources'] = resources
-                    if 'cpu' not in resources:
-                        resources['cpu'] = BATCH_JOB_DEFAULT_CPU
-                    if 'memory' not in resources:
-                        resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
+                        resources = spec.get('resources')
+                        if not resources:
+                            resources = {}
+                            spec['resources'] = resources
+                        if 'cpu' not in resources:
+                            resources['cpu'] = BATCH_JOB_DEFAULT_CPU
+                        if 'memory' not in resources:
+                            resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
 
-                    req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
-                    req_memory_bytes = parse_memory_in_bytes(resources['memory'])
+                        req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
+                        req_memory_bytes = parse_memory_in_bytes(resources['memory'])
 
-                    if req_cores_mcpu == 0:
-                        raise web.HTTPBadRequest(
-                            reason=f'bad resource request for job {id}: '
-                            f'cpu cannot be 0')
+                        if req_cores_mcpu == 0:
+                            raise web.HTTPBadRequest(
+                                reason=f'bad resource request for job {id}: '
+                                f'cpu cannot be 0')
 
-                    cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
+                        cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
 
-                    if cores_mcpu > worker_cores * 1000:
-                        total_memory_available = worker_memory_per_core_gb(worker_type) * worker_cores
-                        raise web.HTTPBadRequest(
-                            reason=f'resource requests for job {id} are unsatisfiable: '
-                            f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} '
-                            f'maximum: cpu={worker_cores}, memory={total_memory_available}G')
+                        if cores_mcpu > worker_cores * 1000:
+                            total_memory_available = worker_memory_per_core_gb(worker_type) * worker_cores
+                            raise web.HTTPBadRequest(
+                                reason=f'resource requests for job {id} are unsatisfiable: '
+                                f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} '
+                                f'maximum: cpu={worker_cores}, memory={total_memory_available}G')
 
-                    secrets = spec.get('secrets')
-                    if not secrets:
-                        secrets = []
-                        spec['secrets'] = secrets
-                    secrets.append({
-                        'namespace': BATCH_PODS_NAMESPACE,
-                        'name': userdata['gsa_key_secret_name'],
-                        'mount_path': '/gsa-key',
-                        'mount_in_copy': True
-                    })
+                        secrets = spec.get('secrets')
+                        if not secrets:
+                            secrets = []
+                            spec['secrets'] = secrets
+                        secrets.append({
+                            'namespace': BATCH_PODS_NAMESPACE,
+                            'name': userdata['gsa_key_secret_name'],
+                            'mount_path': '/gsa-key',
+                            'mount_in_copy': True
+                        })
 
-                    env = spec.get('env')
-                    if not env:
-                        env = []
-                        spec['env'] = env
+                        env = spec.get('env')
+                        if not env:
+                            env = []
+                            spec['env'] = env
 
-                    if len(parent_ids) == 0:
-                        state = 'Ready'
-                        n_ready_jobs += 1
-                        sum_ready_cores_mcpu += cores_mcpu
-                    else:
-                        state = 'Pending'
+                        if len(parent_ids) == 0:
+                            state = 'Ready'
+                            n_ready_jobs += 1
+                            sum_ready_cores_mcpu += cores_mcpu
+                        else:
+                            state = 'Pending'
 
-                    jobs_args.append(
-                        (batch_id, job_id, state, json.dumps(spec),
-                         always_run, cores_mcpu, len(parent_ids)))
+                        jobs_args.append(
+                            (batch_id, job_id, state, json.dumps(spec),
+                             always_run, cores_mcpu, len(parent_ids)))
 
-                    for parent_id in parent_ids:
-                        job_parents_args.append(
-                            (batch_id, job_id, parent_id))
+                        for parent_id in parent_ids:
+                            job_parents_args.append(
+                                (batch_id, job_id, parent_id))
 
-                    if attributes:
-                        for k, v in attributes.items():
-                            job_attributes_args.append(
-                                (batch_id, job_id, k, v))
+                        if attributes:
+                            for k, v in attributes.items():
+                                job_attributes_args.append(
+                                    (batch_id, job_id, k, v))
 
-            rand_token = random.randint(0, app['n_tokens'] - 1)
-            n_jobs = len(job_specs)
+                rand_token = random.randint(0, app['n_tokens'] - 1)
+                n_jobs = len(job_specs)
 
-            async with timer.step('insert jobs'):
-                await tx.execute_many('''
-INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents)
-VALUES (%s, %s, %s, %s, %s, %s, %s);
-''',
-                                      jobs_args)
-                await tx.execute_many('''
-INSERT INTO `job_parents` (batch_id, job_id, parent_id)
-VALUES (%s, %s, %s);
-''',
-                                      job_parents_args)
-                await tx.execute_many('''
-INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
-VALUES (%s, %s, %s, %s);
-''',
-                                      job_attributes_args)
+                async with timer.step('insert jobs'):
+                    await tx.execute_many('''
+    INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents)
+    VALUES (%s, %s, %s, %s, %s, %s, %s);
+    ''',
+                                          jobs_args)
+                    await tx.execute_many('''
+    INSERT INTO `job_parents` (batch_id, job_id, parent_id)
+    VALUES (%s, %s, %s);
+    ''',
+                                          job_parents_args)
+                    await tx.execute_many('''
+    INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
+    VALUES (%s, %s, %s, %s);
+    ''',
+                                          job_attributes_args)
 
-                await tx.execute_update('''
-INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s)
-ON DUPLICATE KEY UPDATE
-  n_jobs = n_jobs + %s,
-  n_ready_jobs = n_ready_jobs + %s,
-  ready_cores_mcpu = ready_cores_mcpu + %s;
-''',
-                                        (batch_id, rand_token,
-                                         n_jobs, n_ready_jobs, sum_ready_cores_mcpu,
-                                         n_jobs, n_ready_jobs, sum_ready_cores_mcpu))
+                    await tx.execute_update('''
+    INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+    VALUES (%s, %s, %s, %s, %s)
+    ON DUPLICATE KEY UPDATE
+      n_jobs = n_jobs + %s,
+      n_ready_jobs = n_ready_jobs + %s,
+      ready_cores_mcpu = ready_cores_mcpu + %s;
+    ''',
+                                            (batch_id, rand_token,
+                                             n_jobs, n_ready_jobs, sum_ready_cores_mcpu,
+                                             n_jobs, n_ready_jobs, sum_ready_cores_mcpu))
 
-        return web.Response()
+            return web.Response()
+        return transaction()
 
 
 @routes.post('/api/v1alpha/batches/create')
