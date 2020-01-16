@@ -79,11 +79,11 @@ object LowerTableIR {
           val globalsPath = r.spec.globalsComponent.absolutePath(path)
           val globalsSpec = AbstractRVDSpec.read(HailContext.get, globalsPath)
           val gPath = AbstractRVDSpec.partPath(globalsPath, globalsSpec.partFiles.head)
-          val gSpec = globalsSpec.typedCodecSpec
+          val globals = ArrayRef(ToArray(ReadPartition(Str(gPath), globalsSpec.typedCodecSpec, gType)), 0)
 
           if (dropRows) {
             TableStage(
-              MakeStruct(FastIndexedSeq(globalRef -> ArrayRef(ReadPartition(Str(gPath), gSpec, gType), 0))),
+              MakeStruct(FastIndexedSeq(globalRef -> globals)),
               globalRef,
               rvdType,
               RVDPartitioner.empty(rvdType),
@@ -99,7 +99,7 @@ object LowerTableIR {
 
             if (rowsSpec.key startsWith typ.key) {
               TableStage(
-                MakeStruct(FastIndexedSeq(globalRef -> ArrayRef(ToArray(ReadPartition(Str(gPath), gSpec, gType)), 0))),
+                MakeStruct(FastIndexedSeq(globalRef -> globals)),
                 globalRef,
                 rvdType,
                 partitioner,
