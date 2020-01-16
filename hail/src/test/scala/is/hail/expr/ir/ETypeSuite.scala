@@ -30,6 +30,10 @@ class ETypeSuite extends TestNGSuite {
     ).map(t => Array(t: Any))
   }
 
+  @Test def testDataProvider(): Unit = {
+    etypes()
+  }
+
   @Test(dataProvider="etypes")
   def testSerialization(etype: EType): Unit = {
     implicit val formats = AbstractRVDSpec.formats

@@ -526,8 +526,8 @@ object EmitStream {
             Code(p.setup, p.m.mux(k(None), k(Some(rowBuf))))
           }
 
-        case MakeStream(elements, t) =>
-          val e = t.elementType.physicalType
+        case x@MakeStream(elements, t) =>
+          val e = coerce[PStreamable](x.pType).elementType
           implicit val eP = TypedTriplet.pack(e)
           sequence(elements.map { ir => TypedTriplet(e, emitIR(ir, env)) })
             .map(_.untyped)

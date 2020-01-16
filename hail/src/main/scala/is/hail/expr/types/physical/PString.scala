@@ -6,15 +6,9 @@ import is.hail.annotations.{UnsafeOrdering, _}
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TString
 
-case object PStringOptional extends PCanonicalString(false)
-case object PStringRequired extends PCanonicalString(true)
 
 abstract class PString extends PType {
   lazy val virtualType: TString = TString(required)
-
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("str")
-  }
 
   override def unsafeOrdering(): UnsafeOrdering = PBinary(required).unsafeOrdering()
 
@@ -28,7 +22,7 @@ abstract class PString extends PType {
 }
 
 object PString {
-  def apply(required: Boolean = false): PString = if (required) PStringRequired else PStringOptional
+  def apply(required: Boolean = false): PString = PCanonicalString(required)
 
   def unapply(t: PString): Option[Boolean] = PCanonicalString.unapply(t)
 

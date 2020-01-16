@@ -1794,31 +1794,6 @@ class GetTupleElement(IR):
         self._type = self.o.typ.types[self.idx]
 
 
-class In(IR):
-    @typecheck_method(i=int, typ=hail_type)
-    def __init__(self, i, typ):
-        super().__init__()
-        self.i = i
-        self._typ = typ
-
-    @property
-    def typ(self):
-        return self._typ
-
-    def copy(self):
-        return In(self.i, self._typ)
-
-    def head_str(self):
-        return f'{self._typ._parsable_string()} {self.i}'
-
-    def _eq(self, other):
-        return other.i == self.i and \
-               other._typ == self._typ
-
-    def _compute_type(self, env, agg_env):
-        self._type = self._typ
-
-
 class Die(IR):
     @typecheck_method(message=IR, typ=hail_type)
     def __init__(self, message, typ):

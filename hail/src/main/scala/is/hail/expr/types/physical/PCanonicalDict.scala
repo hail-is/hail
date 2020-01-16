@@ -9,10 +9,9 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
     PCanonicalDict(keyType, valueType, required)
 
   def _asIdent = s"dict_of_${keyType.asIdent}AND${valueType.asIdent}"
-  def _toPretty = s"Dict[$keyType, $valueType]"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-    sb.append("Dict[")
+    sb.append("PCDict[")
     keyType.pretty(sb, indent, compact)
     if (compact)
       sb += ','

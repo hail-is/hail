@@ -9,11 +9,12 @@ case object PCanonicalBinaryRequired extends PCanonicalBinary(true)
 
 class PCanonicalBinary(val required: Boolean) extends PBinary {
   def _asIdent = "binary"
-  def _toPretty = "Binary"
 
   override def byteSize: Long = 8
 
   override def containsPointers: Boolean = true
+
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PCBinary")
 }
 
 object PCanonicalBinary {
