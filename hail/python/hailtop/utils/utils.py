@@ -5,8 +5,6 @@ import asyncio
 import aiohttp
 from aiohttp import web
 
-from ..exceptions import MultipleExceptions
-
 log = logging.getLogger('hailtop.utils')
 
 
@@ -152,8 +150,6 @@ def is_transient_error(e):
     #
     # during aiohttp request
     # aiohttp.client_exceptions.ClientOSError: [Errno 104] Connection reset by peer
-    if isinstance(e, MultipleExceptions):
-        return all(is_transient_error(e) for e in e.causes)
     if isinstance(e, aiohttp.ClientResponseError):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 502 bad gateway, 503 service unavailable, 504 gateway timeout

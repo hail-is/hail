@@ -353,9 +353,8 @@ class BatchBuilder:
         self._submitted = False
         self.attributes = attributes
         self.callback = callback
-        self._batch_token = None
         self._byte_job_spec_bunches = None
-        self._batch = None
+        self._bunch_sizes = None
 
     def create_job(self, image, command, env=None, mount_docker_socket=False,
                    port=None, resources=None, secrets=None,
@@ -457,13 +456,10 @@ class BatchBuilder:
         self._byte_job_spec_bunches[bunch_index] = None
 
     async def _create(self):
-        assert self._batch is None
-        if self._batch_token is None:
-            self._batch_token = secrets.token_urlsafe(32)
-
+        batch_token = secrets.token_urlsafe(32)
         batch_spec = {'billing_project': self._client.billing_project,
                       'n_jobs': len(self._job_specs),
-                      'token': self._batch_token}
+                      'token': batch_token}
         if self.attributes:
             batch_spec['attributes'] = self.attributes
         if self.callback:
@@ -475,18 +471,16 @@ class BatchBuilder:
 
     async def submit(self,
                      max_bunch_bytesize=8 * 1024 * 1024,
-                     max_bunch_size=8 * 1024,
-                     fail_on_first_bunch_failure=True):
+                     max_bunch_size=8 * 1024):
         assert max_bunch_bytesize > 0
         assert max_bunch_size > 0
         if self._submitted:
             raise ValueError("cannot submit an already submitted batch")
 
-        if self._batch is None:
-            self._batch = await self._create()
-            log.info(f'created batch {self._batch.id}')
+        batch = await self._create()
+        log.info(f'created batch {batch.id}')
 
-        id = self._batch.id
+        id = batch.id
 
         if self._byte_job_spec_bunches is None:
             self._byte_job_spec_bunches = []
@@ -514,25 +508,24 @@ class BatchBuilder:
             *[functools.partial(self._submit_jobs, id, bunch_index)
               for bunch_index in range(n_bunches)],
             parallelism=50,
-            return_exceptions=1 if fail_on_first_bunch_failure else True)
+            return_exceptions=1)
         exceptions = [r for r in results if isinstance(r, BaseException)]
         if len(exceptions) > 0:
-            raise MultipleExceptions(
-                message='at least one job submission call failed',
-                causes=exceptions)
+            assert len(exceptions) == 1
+            raise exceptions[0]
 
         await self._client._patch(f'/api/v1alpha/batches/{id}/close')
         log.info(f'closed batch {id}')
 
         for j in self._jobs:
-            j._job = j._job._submit(self._batch)
+            j._job = j._job._submit(batch)
 
         self._job_specs = []
         self._jobs = []
         self._job_idx = 0
 
         self._submitted = True
-        return self._batch
+        return batch
 
 
 @asyncinit

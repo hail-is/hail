@@ -431,29 +431,28 @@ echo $HAIL_BATCH_WORKER_IP
         builder.submit()
 
     def test_restartable_insert(self):
-        builder = self.client.create_batch()
-        i = 0
+        with aiohttp.ClientSession(raise_for_status=True,
+                                   timeout=aiohttp.ClientTimeout(total=60)) as real_session:
+            client = BatchClient('test', session=FailureInjectingClientSession(real_session))
+            builder = client.create_batch()
+            i = 0
 
-        def every_third_time():
-            nonlocal i
-            i += 1
-            if i % 3 == 0:
-                return True
-            return False
-        for i in range(9):
-            builder.create_job('ubuntu:18.04', ['echo', 'a'])
+            def every_third_time():
+                nonlocal i
+                i += 1
+                if i % 3 == 0:
+                    return True
+                return False
+            for _ in range(9):
+                builder.create_job('ubuntu:18.04', ['echo', 'a'])
 
-        real_session = builder._async_builder._client._session
-        builder._async_builder._client._session = FailureInjectingClientSession(
-            builder._async_builder._client._session, every_third_time)
-        b = builder.submit(max_failures_to_retry=5,
-                           max_bunch_size=1,
-                           log_every_n_failures=None)
-        builder._async_builder._client._session = real_session
-        b._async_batch._client._session = real_session
-        batch = b.wait()
-        assert batch['state'] == 'success', batch
-        assert len(list(b.jobs())) == 9
+            b = builder.submit(max_failures_to_retry=5,
+                               max_bunch_size=1,
+                               log_every_n_failures=None)
+            b = self.client.get_batch(b.id)  # get a batch untainted by the FailureInjectingClientSession
+            batch = b.wait()
+            assert batch['state'] == 'success', batch
+            assert len(list(b.jobs())) == 9
 
     def test_create_idempotence(self):
         builder = self.client.create_batch()
