@@ -409,99 +409,99 @@ WHERE user = %s AND id = %s AND NOT deleted;
             except batch_client.validate.ValidationError as e:
                 raise web.HTTPBadRequest(reason=e.reason)
 
-        async with timer.step('idempotence check'):
-            if len(job_specs) > 0:
-                job_id = job_specs[0]['job_id']
-                record = await db.select_and_fetchone(
-                    'SELECT 1 FROM jobs WHERE batch_id = %s AND job_id = %s',
-                    (batch_id, job_id))
-                if record is not None:
-                    log.info(f'bunch containging job {(batch_id, job_id)} already inserted')
-                    return web.Response()
+        async with db.start() as tx:
+            async with timer.step('idempotence check'):
+                if len(job_specs) > 0:
+                    job_id = job_specs[0]['job_id']
+                    record = await tx.select_and_fetchone(
+                        'SELECT 1 FROM jobs WHERE batch_id = %s AND job_id = %s FOR UPDATE',
+                        (batch_id, job_id))
+                    if record is not None:
+                        log.info(f'bunch containing job {(batch_id, job_id)} already inserted')
+                        return web.Response()
 
-        async with timer.step('build db args'):
-            jobs_args = []
-            job_parents_args = []
-            job_attributes_args = []
+            async with timer.step('build db args'):
+                jobs_args = []
+                job_parents_args = []
+                job_attributes_args = []
 
-            n_ready_jobs = 0
-            sum_ready_cores_mcpu = 0
+                n_ready_jobs = 0
+                sum_ready_cores_mcpu = 0
 
-            for spec in job_specs:
-                job_id = spec['job_id']
-                parent_ids = spec.pop('parent_ids', [])
-                always_run = spec.pop('always_run', False)
-                attributes = spec.get('attributes')
+                for spec in job_specs:
+                    job_id = spec['job_id']
+                    parent_ids = spec.pop('parent_ids', [])
+                    always_run = spec.pop('always_run', False)
+                    attributes = spec.get('attributes')
 
-                id = (batch_id, job_id)
+                    id = (batch_id, job_id)
 
-                resources = spec.get('resources')
-                if not resources:
-                    resources = {}
-                    spec['resources'] = resources
-                if 'cpu' not in resources:
-                    resources['cpu'] = BATCH_JOB_DEFAULT_CPU
-                if 'memory' not in resources:
-                    resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
+                    resources = spec.get('resources')
+                    if not resources:
+                        resources = {}
+                        spec['resources'] = resources
+                    if 'cpu' not in resources:
+                        resources['cpu'] = BATCH_JOB_DEFAULT_CPU
+                    if 'memory' not in resources:
+                        resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
 
-                req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
-                req_memory_bytes = parse_memory_in_bytes(resources['memory'])
+                    req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
+                    req_memory_bytes = parse_memory_in_bytes(resources['memory'])
 
-                if req_cores_mcpu == 0:
-                    raise web.HTTPBadRequest(
-                        reason=f'bad resource request for job {id}: '
-                        f'cpu cannot be 0')
+                    if req_cores_mcpu == 0:
+                        raise web.HTTPBadRequest(
+                            reason=f'bad resource request for job {id}: '
+                            f'cpu cannot be 0')
 
-                cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
+                    cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
 
-                if cores_mcpu > worker_cores * 1000:
-                    total_memory_available = worker_memory_per_core_gb(worker_type) * worker_cores
-                    raise web.HTTPBadRequest(
-                        reason=f'resource requests for job {id} are unsatisfiable: '
-                        f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} '
-                        f'maximum: cpu={worker_cores}, memory={total_memory_available}G')
+                    if cores_mcpu > worker_cores * 1000:
+                        total_memory_available = worker_memory_per_core_gb(worker_type) * worker_cores
+                        raise web.HTTPBadRequest(
+                            reason=f'resource requests for job {id} are unsatisfiable: '
+                            f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} '
+                            f'maximum: cpu={worker_cores}, memory={total_memory_available}G')
 
-                secrets = spec.get('secrets')
-                if not secrets:
-                    secrets = []
-                    spec['secrets'] = secrets
-                secrets.append({
-                    'namespace': BATCH_PODS_NAMESPACE,
-                    'name': userdata['gsa_key_secret_name'],
-                    'mount_path': '/gsa-key',
-                    'mount_in_copy': True
-                })
+                    secrets = spec.get('secrets')
+                    if not secrets:
+                        secrets = []
+                        spec['secrets'] = secrets
+                    secrets.append({
+                        'namespace': BATCH_PODS_NAMESPACE,
+                        'name': userdata['gsa_key_secret_name'],
+                        'mount_path': '/gsa-key',
+                        'mount_in_copy': True
+                    })
 
-                env = spec.get('env')
-                if not env:
-                    env = []
-                    spec['env'] = env
+                    env = spec.get('env')
+                    if not env:
+                        env = []
+                        spec['env'] = env
 
-                if len(parent_ids) == 0:
-                    state = 'Ready'
-                    n_ready_jobs += 1
-                    sum_ready_cores_mcpu += cores_mcpu
-                else:
-                    state = 'Pending'
+                    if len(parent_ids) == 0:
+                        state = 'Ready'
+                        n_ready_jobs += 1
+                        sum_ready_cores_mcpu += cores_mcpu
+                    else:
+                        state = 'Pending'
 
-                jobs_args.append(
-                    (batch_id, job_id, state, json.dumps(spec),
-                     always_run, cores_mcpu, len(parent_ids)))
+                    jobs_args.append(
+                        (batch_id, job_id, state, json.dumps(spec),
+                         always_run, cores_mcpu, len(parent_ids)))
 
-                for parent_id in parent_ids:
-                    job_parents_args.append(
-                        (batch_id, job_id, parent_id))
+                    for parent_id in parent_ids:
+                        job_parents_args.append(
+                            (batch_id, job_id, parent_id))
 
-                if attributes:
-                    for k, v in attributes.items():
-                        job_attributes_args.append(
-                            (batch_id, job_id, k, v))
+                    if attributes:
+                        for k, v in attributes.items():
+                            job_attributes_args.append(
+                                (batch_id, job_id, k, v))
 
-        rand_token = random.randint(0, app['n_tokens'] - 1)
-        n_jobs = len(job_specs)
+            rand_token = random.randint(0, app['n_tokens'] - 1)
+            n_jobs = len(job_specs)
 
-        async with timer.step('insert jobs'):
-            async with db.start() as tx:
+            async with timer.step('insert jobs'):
                 await tx.execute_many('''
 INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents)
 VALUES (%s, %s, %s, %s, %s, %s, %s);
@@ -571,22 +571,6 @@ WHERE token = %s AND user = %s;
             (token, user))
 
         if maybe_batch is not None:
-            fields_to_check = {
-                'billing_project': billing_project,
-                'attributes': json.dumps(attributes),
-                'callback': batch_spec.get('callback'),
-                'n_jobs': batch_spec['n_jobs']}
-            failures = {
-                k: (v, maybe_batch.get(k))
-                for k, v in fields_to_check.items()
-                if maybe_batch.get(k) != v}
-            if failures:
-                failures_message = '; '.join([
-                    f'"{k}": new {new}, old {old}'
-                    for k, (new, old) in failures.items()])
-                raise web.HTTPForbidden(
-                    reason=(f'batch {maybe_batch["id"]} with token {token} already exists with '
-                            f'differing configuration: {failures_message}'))
             return web.json_response({'id': maybe_batch['id']})
 
         now = time_msecs()
