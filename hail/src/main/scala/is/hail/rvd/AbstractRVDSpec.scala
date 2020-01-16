@@ -158,6 +158,8 @@ abstract class AbstractRVDSpec {
 
   def partFiles: Array[String]
 
+  def absolutePartPaths(path: String): Array[String] = partFiles.map(path + "/parts/" + _)
+
   def typedCodecSpec: AbstractTypedCodecSpec
 
   def indexed: Boolean = false

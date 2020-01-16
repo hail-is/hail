@@ -3,9 +3,13 @@ package is.hail.expr.types.physical
 import is.hail.annotations.Region
 import is.hail.asm4s.{???, Code, MethodBuilder}
 
-class PCanonicalString(val required: Boolean) extends PString {
+case object PCanonicalStringOptional extends PCanonicalString(false)
+case object PCanonicalStringRequired extends PCanonicalString(true)
+
+abstract class PCanonicalString(val required: Boolean) extends PString {
   def _asIdent = "string"
-  def _toPretty = "String"
+
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PCString")
 
   override def byteSize: Long = 8
 
@@ -31,7 +35,7 @@ class PCanonicalString(val required: Boolean) extends PString {
 }
 
 object PCanonicalString {
-  def apply(required: Boolean = false) = new PCanonicalString(required)
+  def apply(required: Boolean = false): PCanonicalString = if (required) PCanonicalStringRequired else PCanonicalStringOptional
 
   def unapply(t: PString): Option[Boolean] = Option(t.required)
 

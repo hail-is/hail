@@ -16,7 +16,7 @@ object ParameterPack {
       def push(v: Code[T]): Code[Unit] = coerce[Unit](v)
       def newLocals(mb: MethodBuilder): ParameterStore[Code[T]] = {
         val x = mb.newLocal(tti)
-        ParameterStore(x.storeInsn, x.load)
+        ParameterStore(x.storeInsn, x.load())
       }
     }
 
@@ -46,6 +46,19 @@ object ParameterPack {
     }
   }
 
+  def array(pps: IndexedSeq[ParameterPack[_]]): ParameterPack[IndexedSeq[_]] = new ParameterPack[IndexedSeq[_]] {
+    override def push(a: IndexedSeq[_]): Code[Unit] = pps.zip(a).foldLeft(Code._empty[Unit]) { case (acc, (pp, v)) => Code(acc, pp.pushAny(v)) }
+
+    override def newLocals(mb: MethodBuilder): ParameterStore[IndexedSeq[_]] = {
+      val subStores = pps.map(_.newLocals(mb))
+      val store = subStores.map(_.store).fold(Code._empty[Unit]) { case (acc, c) => Code(c, acc) } // order of c and acc is important
+      ParameterStore(
+        store,
+        subStores.map(_.load)
+      )
+    }
+  }
+
   def let[A: ParameterPack, X](mb: MethodBuilder, a0: A)(k: A => Code[X]): Code[X] = {
     val ap = implicitly[ParameterPack[A]]
     val as = ap.newLocals(mb)
@@ -59,6 +72,7 @@ object ParameterStore {
 
 trait ParameterPack[A] {
   def push(a: A): Code[Unit]
+  def pushAny(a: Any): Code[Unit] = push(a.asInstanceOf[A])
   def newLocals(mb: MethodBuilder): ParameterStore[A]
 }
 

@@ -130,6 +130,9 @@ object Copy {
       case ArrayMap(_, name, _) =>
         assert(newChildren.length == 2)
         ArrayMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
+      case ArrayZip(_, names, _, behavior) =>
+        assert(newChildren.length == names.length + 1)
+        ArrayZip(newChildren.init.asInstanceOf[IndexedSeq[IR]], names, newChildren(names.length).asInstanceOf[IR], behavior)
       case ArrayFilter(_, name, _) =>
         assert(newChildren.length == 2)
         ArrayFilter(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])

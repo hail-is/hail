@@ -8,10 +8,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def _asIdent: String = s"ndarray_of_${elementType.asIdent}"
 
-  override def _toPretty = throw new NotImplementedError("Only _pretty should be called.")
-
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-    sb.append("NDArray[")
+    sb.append("PCNDArray[")
     elementType.pretty(sb, indent, compact)
     sb.append(s",$nDims]")
   }

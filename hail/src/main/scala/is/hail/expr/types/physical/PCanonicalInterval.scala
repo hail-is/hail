@@ -5,15 +5,9 @@ import is.hail.asm4s.{Code, MethodBuilder}
 
 final case class PCanonicalInterval(pointType: PType, override val required: Boolean = false) extends PInterval {
     def _asIdent = s"interval_of_${pointType.asIdent}"
-    def _toPretty = s"""Interval[$pointType]"""
 
-    override def pyString(sb: StringBuilder): Unit = {
-      sb.append("interval<")
-      pointType.pyString(sb)
-      sb.append('>')
-    }
     override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-      sb.append("Interval[")
+      sb.append("PCInterval[")
       pointType.pretty(sb, indent, compact)
       sb.append("]")
     }

@@ -1,13 +1,17 @@
 import random
 import logging
 import asyncio
+import secrets
 import sortedcontainers
+import functools
 
-from hailtop.utils import time_msecs
+from hailtop.utils import time_msecs, bounded_gather
 
 from ..batch import schedule_job, unschedule_job, mark_job_complete
 
 log = logging.getLogger('driver')
+
+OVERSCHEDULE_CORES_MCPU = 2000
 
 
 class Scheduler:
@@ -24,7 +28,10 @@ class Scheduler:
         asyncio.ensure_future(self.bump_loop())
 
     async def compute_fair_share(self):
-        free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.inst_pool.healthy_instances_by_free_cores])
+        free_cores_mcpu = sum([
+            worker.free_cores_mcpu + OVERSCHEDULE_CORES_MCPU
+            for worker in self.inst_pool.healthy_instances_by_free_cores
+        ])
 
         user_running_cores_mcpu = {}
         user_total_cores_mcpu = {}
@@ -37,8 +44,13 @@ class Scheduler:
 
         records = self.db.execute_and_fetchall(
             '''
-SELECT user, n_ready_jobs, ready_cores_mcpu, n_running_jobs, running_cores_mcpu
-FROM user_resources;
+SELECT user,
+  CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
+  CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
+  CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
+  CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu
+FROM user_resources
+GROUP BY user;
 ''')
 
         async for record in records:
@@ -126,17 +138,18 @@ FROM user_resources;
             '''
 SELECT user
 FROM user_resources
-WHERE running_cores_mcpu > 0;
+GROUP BY user
+HAVING COALESCE(SUM(running_cores_mcpu), 0) > 0;
 ''')
 
         should_wait = True
         async for user_record in user_records:
             records = self.db.execute_and_fetchall(
                 '''
-SELECT jobs.job_id, jobs.batch_id, cores_mcpu, instance_name
-FROM jobs
-STRAIGHT_JOIN batches ON batches.id = jobs.batch_id
-STRAIGHT_JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
+SELECT attempts.job_id, attempts.batch_id, attempts.attempt_id, instance_name
+FROM attempts
+STRAIGHT_JOIN batches ON batches.id = attempts.batch_id
+STRAIGHT_JOIN jobs ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 WHERE jobs.state = 'Running' AND (NOT jobs.always_run) AND batches.closed AND batches.cancelled AND batches.user = %s
 LIMIT 50;
 ''',
@@ -152,6 +165,7 @@ LIMIT 50;
 
         should_wait = True
 
+        to_schedule = []
         for user, resources in user_resources.items():
             allocated_cores_mcpu = resources['allocated_cores_mcpu']
             if allocated_cores_mcpu == 0:
@@ -174,11 +188,13 @@ LIMIT 50;
             async for record in records:
                 batch_id = record['batch_id']
                 job_id = record['job_id']
+                attempt_id = ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(6)])
+                record['attempt_id'] = attempt_id
                 id = (batch_id, job_id)
 
                 if record['cancel']:
                     log.info(f'cancelling job {id}')
-                    await mark_job_complete(self.app, batch_id, job_id, None,
+                    await mark_job_complete(self.app, batch_id, job_id, None, None,
                                             'Cancelled', None, None, None, 'cancelled')
                     should_wait = False
                     continue
@@ -189,13 +205,26 @@ LIMIT 50;
                 i = self.inst_pool.healthy_instances_by_free_cores.bisect_key_left(record['cores_mcpu'])
                 if i < len(self.inst_pool.healthy_instances_by_free_cores):
                     instance = self.inst_pool.healthy_instances_by_free_cores[i]
-                    assert record['cores_mcpu'] <= instance.free_cores_mcpu
-                    log.info(f'scheduling job {id} on {instance}')
-                    try:
-                        await schedule_job(self.app, record, instance)
-                    except Exception:
-                        log.exception(f'while scheduling job {id} on {instance}')
+                else:
+                    instance = self.inst_pool.healthy_instances_by_free_cores[-1]
+                if (record['cores_mcpu'] <= instance.free_cores_mcpu + OVERSCHEDULE_CORES_MCPU or
+                        instance.free_cores_mcpu == 0):
+                    instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     should_wait = False
                     scheduled_cores_mcpu += record['cores_mcpu']
+                    to_schedule.append((record, instance))
+
+        results = await bounded_gather(*[functools.partial(schedule_job, self.app, record, instance)
+                                         for record, instance in to_schedule],
+                                       parallelism=100,
+                                       return_exceptions=True)
+
+        for ((record, instance), result) in zip(to_schedule, results):
+            batch_id = record['batch_id']
+            job_id = record['job_id']
+            id = (batch_id, job_id)
+
+            if isinstance(result, Exception):
+                log.info(f'error while scheduling job {id} on {instance}, {result!r}')
 
         return should_wait

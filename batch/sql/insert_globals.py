@@ -10,7 +10,7 @@ async def main():
 
     worker_type = 'standard'
     if scope == 'deploy':
-        worker_cores = 8
+        worker_cores = 16
         worker_disk_size_gb = 100
         max_instances = 10
         pool_size = 10

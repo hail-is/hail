@@ -45,6 +45,9 @@ object NestingDepth {
         case ArrayMap(a, name, body) =>
           computeIR(a, depth)
           computeIR(body, depth.incrementEval)
+        case ArrayZip(as, _, body, _) =>
+          as.foreach(computeIR(_, depth))
+          computeIR(body, depth.incrementEval)
         case ArrayFor(a, valueName, body) =>
           computeIR(a, depth)
           computeIR(body, depth.incrementEval)

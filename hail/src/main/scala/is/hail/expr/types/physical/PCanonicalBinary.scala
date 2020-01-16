@@ -9,7 +9,6 @@ case object PCanonicalBinaryRequired extends PCanonicalBinary(true)
 
 class PCanonicalBinary(val required: Boolean) extends PBinary {
   def _asIdent = "binary"
-  def _toPretty = "Binary"
 
   override def byteSize: Long = 8
 
@@ -42,6 +41,8 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   override def storeShallowAtOffset(dstAddress: Long, srcAddress: Long){
     Region.storeAddress(dstAddress, srcAddress)
   }
+
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PCBinary")
 }
 
 object PCanonicalBinary {

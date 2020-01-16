@@ -1,3 +1,4 @@
+
 package is.hail.expr.types.physical
 import is.hail.variant.ReferenceGenome
 import is.hail.annotations._
@@ -27,13 +28,8 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
   def rg: ReferenceGenome = rgBc.value
 
   def _asIdent = "locus"
-  def _toPretty = s"Locus($rg)"
 
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("locus<")
-    sb.append(prettyIdentifier(rg.name))
-    sb.append('>')
-  }
+  override def _pretty(sb: StringBuilder, indent: Call, compact: Boolean): Unit = sb.append(s"PCLocus($rg)")
 
   def copy(required: Boolean = this.required) = PCanonicalLocus(this.rgBc, required)
 

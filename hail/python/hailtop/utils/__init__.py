@@ -2,7 +2,7 @@ from .time import time_msecs, time_msecs_str, humanize_timedelta_msecs
 from .utils import unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool, \
     bounded_gather, grouped, sleep_and_backoff, is_transient_error, \
     request_retry_transient_errors, request_raise_transient_errors, \
-    collect_agen, retry_forever
+    collect_agen, retry_forever, retry_transient_errors
 from .process import CalledProcessError, check_shell, check_shell_output
 
 __all__ = [
@@ -20,6 +20,7 @@ __all__ = [
     'grouped',
     'is_transient_error',
     'sleep_and_backoff',
+    'retry_transient_errors',
     'request_retry_transient_errors',
     'request_raise_transient_errors',
     'collect_agen',

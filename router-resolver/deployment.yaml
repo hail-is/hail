@@ -78,10 +78,16 @@ spec:
          ports:
           - containerPort: 5000
          volumeMounts:
+          - mountPath: /deploy-config
+            name: deploy-config
+            readOnly: true
           - name: session-secret-key
             mountPath: /session-secret-key
             readOnly: true
       volumes:
+       - name: deploy-config
+         secret:
+           secretName: deploy-config
        - name: session-secret-key
          secret:
            optional: false

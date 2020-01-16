@@ -16,13 +16,8 @@ case object PInt32Required extends PInt32(true)
 class PInt32(override val required: Boolean) extends PIntegral {
   lazy val virtualType: TInt32 = TInt32(required)
   def _asIdent = "int32"
-  def _toPretty = "Int32"
-
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PInt32")
   override type NType = PInt32
-
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("int32")
-  }
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {

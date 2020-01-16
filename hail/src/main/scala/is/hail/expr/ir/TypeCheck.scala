@@ -252,6 +252,10 @@ object TypeCheck {
       case x@ArrayMap(a, name, body) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(x.elementTyp == body.typ)
+      case x@ArrayZip(as, names, body, _) =>
+        assert(as.length == names.length)
+        assert(x.typ.elementType == body.typ)
+        assert(as.forall(_.typ.isInstanceOf[TStreamable]))
       case x@ArrayFilter(a, name, cond) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(cond.typ.isOfType(TBoolean()))

@@ -38,7 +38,7 @@ object InferType {
       case _: SeqOp2 => TVoid
       case _: CombOp2 => TVoid
       case ResultOp2(_, aggSigs) =>
-        TTuple(aggSigs.map(agg.Extract.getType): _*)
+        TTuple(aggSigs.map(agg.Extract.getAgg(_).resultType.virtualType): _*)
       case _: SerializeAggs => TVoid
       case _: DeserializeAggs => TVoid
       case _: Begin => TVoid
@@ -97,6 +97,7 @@ object InferType {
         TDict(elt.types(0), TArray(elt.types(1)), collection.typ.required)
       case ArrayMap(a, name, body) =>
         coerce[TStreamable](a.typ).copyStreamable(body.typ.setRequired(false))
+      case ArrayZip(as, _, body, _) => as.head.typ.asInstanceOf[TStreamable].copyStreamable(body.typ, false)
       case ArrayFilter(a, name, cond) =>
         a.typ
       case ArrayFlatMap(a, name, body) =>

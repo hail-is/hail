@@ -41,14 +41,6 @@ abstract class PTuple extends PBaseStruct {
   }
 
   def identBase: String = "tuple"
-
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("tuple(")
-    fields.foreachBetween({ field =>
-      field.typ.pyString(sb)
-    }) { sb.append(", ")}
-    sb.append(')')
-  }
 }
 
 class CodePTuple(

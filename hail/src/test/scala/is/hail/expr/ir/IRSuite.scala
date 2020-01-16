@@ -4,6 +4,7 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
+import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
@@ -217,6 +218,20 @@ class IRSuite extends HailSuite {
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()), NA(TInt32()))), FastIndexedSeq((1, TInt32())), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), I32(1), NA(TInt32()), I32(1), NA(TInt32()), I32(1))), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), Die("foo", TInt32()))), 1)(ExecStrategy.javaOnly)
+  }
+
+  @Test def testCoalesceInferPType() {
+    assertPType(Coalesce(FastSeq(In(0, PInt32()))), PInt32())
+    assertPType(Coalesce(FastSeq(In(0, PInt32()), In(0, PInt32(true)))), PInt32())
+    assertPType(Coalesce(FastSeq(In(0, PArray(PArray(PInt32()))), In(0, PArray(PArray(PInt32(true)))))), PArray(PArray(PInt32())))
+    assertPType(Coalesce(FastSeq(In(0, PArray(PArray(PInt32()))), In(0, PArray(PArray(PInt32(true), true))))), PArray(PArray(PInt32())))
+    assertPType(Coalesce(FastSeq(In(0, PArray(PArray(PInt32()))), In(0, PArray(PArray(PInt32(true), true), true)))), PArray(PArray(PInt32())))
+    assertPType(Coalesce(FastSeq(In(0, PArray(PArray(PInt32()))), In(0, PArray(PArray(PInt32(true), true), true)))), PArray(PArray(PInt32())))
+    assertPType(Coalesce(FastSeq(
+      In(0, PArray(PArray(PInt32()))),
+      In(0, PArray(PArray(PInt32(), true))),
+      In(0, PArray(PArray(PInt32(true)), true))
+    )), PArray(PArray(PInt32())))
   }
 
   val i32na = NA(TInt32())
@@ -1486,6 +1501,42 @@ class IRSuite extends HailSuite {
       FastIndexedSeq(2, 2, -7, null))
   }
 
+  @Test def testArrayZip() {
+    val range12 = ArrayRange(0, 12, 1)
+    val range6 = ArrayRange(0, 12, 2)
+    val range8 = ArrayRange(0, 24, 3)
+    val empty = ArrayRange(0, 0, 1)
+    val lit6 = Literal(TArray(TFloat64()), FastIndexedSeq(0d, -1d, 2.5d, -3d, 4d, null))
+    val range6dup = ArrayRange(0, 6, 1)
+
+    def zipToTuple(behavior: ArrayZipBehavior, irs: IR*): ArrayZip = ArrayZip(
+      irs.toFastIndexedSeq,
+      irs.indices.map(_.toString),
+      MakeTuple.ordered(irs.zipWithIndex.map { case (ir, i) => Ref(i.toString, ir.typ.asInstanceOf[TStreamable].elementType) }),
+      behavior)
+
+    for (b <- Array(ArrayZipBehavior.TakeMinLength, ArrayZipBehavior.ExtendNA)) {
+      assertEvalSame(zipToTuple(b, range12), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, range6, range8), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, range6, range8), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, range6, range8, lit6), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, range12, lit6), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, range12, lit6, empty), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, empty, lit6), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, empty), FastIndexedSeq())
+    }
+
+    for (b <- Array(ArrayZipBehavior.AssumeSameLength, ArrayZipBehavior.AssertSameLength)) {
+      assertEvalSame(zipToTuple(b, range6, lit6), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, range6, lit6, range6dup), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, range12), FastIndexedSeq())
+      assertEvalSame(zipToTuple(b, empty), FastIndexedSeq())
+    }
+
+    assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range6, range8), "zip: length mismatch")
+    assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range12, lit6), "zip: length mismatch")
+  }
+
   @Test def testToSet() {
     implicit val execStrats = ExecStrategy.javaOnly
 
@@ -2013,6 +2064,11 @@ class IRSuite extends HailSuite {
     assertFatal(Die(NA(TString()), TFloat64()), "message missing")
   }
 
+  @Test def testDieInferPType() {
+    assertPType(Die("mumblefoo", TFloat64()), PFloat64(true))
+    assertPType(Die("mumblefoo", TArray(TFloat64())), PArray(PFloat64(true), true))
+  }
+
   @Test def testArrayRange() {
     def assertEquals(start: Integer, stop: Integer, step: Integer, expected: IndexedSeq[Int]) {
       assertEvalsTo(ArrayRange(In(0, TInt32()), In(1, TInt32()), In(2, TInt32())),
@@ -2335,8 +2391,10 @@ class IRSuite extends HailSuite {
 
     val callStatsSig = AggSignature(CallStats(), Seq(TInt32()), Seq(TCall()), None)
 
-    val callStatsSig2 = AggSignature(CallStats(), Seq(TInt32()), Seq(TCall()), None)
-    val collectSig2 = AggSignature(CallStats(), Seq(), Seq(TInt32()), None)
+    def canonical(ts: Type*): IndexedSeq[PType] = ts.map(PType.canonical).toFastIndexedSeq
+
+    val callStatsSig2 = PhysicalAggSignature(CallStats(), canonical(TInt32()), canonical(TCall()), None)
+    val collectSig2 = PhysicalAggSignature(CallStats(), canonical(), canonical(TInt32()), None)
 
     val takeBySig = AggSignature(TakeBy(), Seq(TInt32()), Seq(TFloat64(), TInt32()), None)
 
@@ -2397,6 +2455,7 @@ class IRSuite extends HailSuite {
       LowerBoundOnOrderedCollection(a, i, onKey = true),
       GroupByKey(da),
       ArrayMap(a, "v", v),
+      ArrayZip(FastIndexedSeq(aa, aa), FastIndexedSeq("foo", "bar"), True(), ArrayZipBehavior.TakeMinLength),
       ArrayFilter(a, "v", b),
       ArrayFlatMap(aa, "v", a),
       ArrayFold(a, I32(0), "x", "v", v),

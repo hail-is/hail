@@ -1742,6 +1742,69 @@ case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval],
   }
 }
 
+case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
+
+  override lazy val typ: TableType = TableType(
+    child.typ.keyType ++ TStruct(("grouped_fields", TArray(child.typ.rowType))),
+    child.typ.key,
+    child.typ.globalType)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
+    val IndexedSeq(newChild: TableIR) = newChildren
+    TableGroupWithinPartitions(newChild, n)
+  }
+
+  override def execute(ctx: ExecuteContext): TableValue = {
+    val prev = child.execute(ctx)
+    val prevRVD = prev.rvd
+    val prevRowType = prev.rvd.typ.rowType
+    val prevKeyType = prev.rvd.typ.kType
+
+    val rowType = prevKeyType ++ PStruct(("grouped_fields", PArray(prevRowType)))
+    val newRVDType = prevRVD.typ.copy(rowType = rowType)
+    val keyIndices = child.typ.keyFieldIdx
+
+    val newRVD = prevRVD.mapPartitionsWithIndex(newRVDType, { (int, ctx, it) =>
+      val targetRegion = ctx.region
+
+      new Iterator[RegionValue] {
+        override def hasNext: Boolean = {
+          it.hasNext
+        }
+
+        override def next(): RegionValue = {
+          if (!hasNext)
+            throw new java.util.NoSuchElementException()
+
+          val offsetArray = new Array[Long](n) // May be longer than the amount of data
+          var childIterationCount = 0
+          while (it.hasNext && childIterationCount != n) {
+            val nextRV = it.next()
+            offsetArray(childIterationCount) = nextRV.offset
+            childIterationCount += 1
+          }
+          val rvb = new RegionValueBuilder(targetRegion)
+          rvb.start(rowType)
+          rvb.startStruct()
+          rvb.addFields(prevRowType, ctx.region, offsetArray(0), keyIndices)
+          rvb.startArray(childIterationCount, true)
+          (0 until childIterationCount) foreach { rvArrayIndex =>
+            rvb.addRegionValue(prevRowType, ctx.region, offsetArray(rvArrayIndex))
+          }
+          rvb.endArray()
+          rvb.endStruct()
+          rvb.result()
+        }
+      }
+    })
+
+    prev.copy(rvd = newRVD, typ=this.typ)
+  }
+}
+
 case class MatrixToTableApply(child: MatrixIR, function: MatrixToTableFunction) extends TableIR {
   lazy val children: IndexedSeq[BaseIR] = Array(child)
 

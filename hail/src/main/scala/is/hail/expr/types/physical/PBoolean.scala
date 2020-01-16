@@ -14,11 +14,8 @@ class PBoolean(override val required: Boolean) extends PType {
   lazy val virtualType: TBoolean = TBoolean(required)
 
   def _asIdent = "bool"
-  def _toPretty = "Boolean"
 
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("bool")
-  }
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PBoolean")
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {

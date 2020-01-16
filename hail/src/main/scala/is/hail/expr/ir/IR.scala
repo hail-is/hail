@@ -1,10 +1,12 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.Annotation
+import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.functions._
+import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.io.{BufferSpec, AbstractTypedCodecSpec}
+import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
 import is.hail.utils.{FastIndexedSeq, _}
 
 import scala.language.existentials
@@ -243,6 +245,18 @@ final case class ArrayMap(a: IR, name: String, body: IR) extends IR {
   override def typ: TStreamable = coerce[TStreamable](super.typ)
   def elementTyp: Type = typ.elementType
 }
+
+object ArrayZipBehavior extends Enumeration {
+  type ArrayZipBehavior = Value
+  val AssumeSameLength: Value = Value(0)
+  val AssertSameLength: Value = Value(1)
+  val TakeMinLength: Value = Value(2)
+  val ExtendNA: Value = Value(3)
+}
+
+final case class ArrayZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior) extends IR {
+  override def typ: TStreamable = coerce[TStreamable](super.typ)
+}
 final case class ArrayFilter(a: IR, name: String, cond: IR) extends IR {
   override def typ: TStreamable = coerce[TStreamable](super.typ)
 }
@@ -320,13 +334,13 @@ final case class ApplyScanOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[I
   def op: AggOp = aggSig.op
 }
 
-final case class InitOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
-final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
-final case class CombOp2(i1: Int, i2: Int, aggSig: AggSignature) extends IR
-final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[AggSignature]) extends IR
+final case class InitOp2(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSignature) extends IR
+final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSignature) extends IR
+final case class CombOp2(i1: Int, i2: Int, aggSig: PhysicalAggSignature) extends IR
+final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[PhysicalAggSignature]) extends IR
 
-final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
-final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
+final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[PhysicalAggSignature]) extends IR
+final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[PhysicalAggSignature]) extends IR
 
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: Seq[(String, IR)]) extends IR
@@ -432,6 +446,7 @@ final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWrite
 final case class BlockMatrixMultiWrite(blockMatrices: IndexedSeq[BlockMatrixIR], writer: BlockMatrixMultiWriter) extends IR
 
 final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR) extends IR
+
 final case class ReadPartition(path: IR, spec: AbstractTypedCodecSpec, rowType: TStruct) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {

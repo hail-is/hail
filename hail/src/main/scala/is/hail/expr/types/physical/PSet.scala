@@ -19,10 +19,4 @@ abstract class PSet extends PContainer {
     assert(other isOfType this)
     CodeOrdering.setOrdering(this, other.asInstanceOf[PSet], mb)
   }
-
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("set<")
-    elementType.pyString(sb)
-    sb.append('>')
-  }
 }

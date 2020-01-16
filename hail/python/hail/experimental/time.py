@@ -56,7 +56,7 @@ def strftime(format, time, zone_id):
            zone_id=expr_str)
 def strptime(time, format, zone_id):
     """
-    Interpret a formatted datetime string as a Unix timestamp.
+    Interpret a formatted datetime string as a Unix timestamp (number of seconds since 1970-01-01T00:00Z (ISO)).
 
     Examples
     --------
@@ -78,6 +78,8 @@ def strptime(time, format, zone_id):
     Currently, the parser implicitly uses the "en_US" locale.
 
     This function will fail if there is not enough information in the string to determine a particular timestamp.
+    For example, if you have the string `"07/08/09"` and the format string `"%Y.%m.%d"`, this method will fail, since that's not specific
+    enough to determine seconds from. You can fix this by adding "00:00:00" to your date string and "%H:%M:%S" to your format string.
 
     Parameters
     ----------

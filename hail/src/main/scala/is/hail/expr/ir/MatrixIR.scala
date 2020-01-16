@@ -220,20 +220,26 @@ case class MatrixNativeReader(
         options,
         spec.rowsTableSpec(rowsPath),
         spec.entriesTableSpec(entriesPath))
-      var tr: TableIR = TableRead(tt, mr.dropRows, trdr)
-      val colsTable = TableRead(
-        TableType(
-          mr.typ.colType,
-          FastIndexedSeq(),
-          TStruct()
-        ),
-        dropRows = false,
-        TableNativeReader(colsPath, _spec = spec.colsTableSpec(colsPath))
-      )
+      val tr: TableIR = TableRead(tt, mr.dropRows, trdr)
+      val colsTableSpec = spec.colsTableSpec(colsPath)
+      val colsRVDSpec = colsTableSpec.rowsSpec(colsPath)
+      val partFiles = colsRVDSpec.absolutePartPaths(colsTableSpec.rowsComponent.absolutePath(colsPath))
+
+      val cols = if (partFiles.length == 1) {
+        ReadPartition(Str(partFiles.head), colsRVDSpec.typedCodecSpec, mr.typ.colType)
+      } else {
+        val partitionReads = partFiles.map(f => ToArray(ReadPartition(Str(f), colsRVDSpec.typedCodecSpec, mr.typ.colType)))
+        val partNames = MakeArray(partFiles.map(Str), TArray(TString()))
+        val elt = Ref(genUID(), TString())
+        ArrayFlatMap(
+          partNames,
+          elt.name,
+          ReadPartition(elt, colsRVDSpec.typedCodecSpec, mr.typ.colType))
+      }
 
       TableMapGlobals(tr, InsertFields(
         Ref("global", tr.typ.globalType),
-        FastSeq(LowerMatrixIR.colsFieldName -> GetField(TableCollect(colsTable), "rows"))
+        FastSeq(LowerMatrixIR.colsFieldName -> ToArray(cols))
       ))
     }
   }
