@@ -495,18 +495,17 @@ class BatchBuilder:
             bunch = []
             bunch_n_bytes = 0
             for spec in byte_job_specs:
-                if spec is not None:
-                    n_bytes = len(spec)
-                    assert n_bytes < max_bunch_bytesize, (
-                        f'every job spec must be less than max_bunch_bytesize,'
-                        f' { max_bunch_bytesize }B, but {spec} is larger')
-                    if bunch_n_bytes + n_bytes < max_bunch_bytesize and len(bunch) < max_bunch_size:
-                        bunch.append(spec)
-                        bunch_n_bytes += n_bytes
-                    else:
-                        self._byte_job_spec_bunches.append(bunch)
-                        bunch = [spec]
-                        bunch_n_bytes = n_bytes
+                n_bytes = len(spec)
+                assert n_bytes < max_bunch_bytesize, (
+                    f'every job spec must be less than max_bunch_bytesize,'
+                    f' { max_bunch_bytesize }B, but {spec} is larger')
+                if bunch_n_bytes + n_bytes < max_bunch_bytesize and len(bunch) < max_bunch_size:
+                    bunch.append(spec)
+                    bunch_n_bytes += n_bytes
+                else:
+                    self._byte_job_spec_bunches.append(bunch)
+                    bunch = [spec]
+                    bunch_n_bytes = n_bytes
             if bunch:
                 self._byte_job_spec_bunches.append(bunch)
 
