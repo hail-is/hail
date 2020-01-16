@@ -413,7 +413,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
             async with timer.step('idempotence check'):
                 if len(job_specs) > 0:
                     job_id = job_specs[0]['job_id']
-                    record = await tx.select_and_fetchone(
+                    record = await tx.execute_and_fetchone(
                         'SELECT 1 FROM jobs WHERE batch_id = %s AND job_id = %s FOR UPDATE',
                         (batch_id, job_id))
                     if record is not None:
