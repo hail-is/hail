@@ -193,8 +193,8 @@ class Step(abc.ABC):
             return CreateNamespaceStep.from_json(params)
         if kind == 'deploy':
             return DeployStep.from_json(params)
-        if kind == 'createDatabase2':
-            return CreateDatabase2Step.from_json(params)
+        if kind in ('createDatabase2', 'createDatabase2'):
+            return CreateDatabaseStep.from_json(params)
         raise ValueError(f'unknown build step kind: {kind}')
 
     def __eq__(self, other):
@@ -799,7 +799,7 @@ date
                                         always_run=True)
 
 
-class CreateDatabase2Step(Step):
+class CreateDatabaseStep(Step):
     def __init__(self, params, database_name, namespace, migrations, shutdowns, inputs):
         super().__init__(params)
 
@@ -850,12 +850,12 @@ class CreateDatabase2Step(Step):
     @staticmethod
     def from_json(params):
         json = params.json
-        return CreateDatabase2Step(params,
-                                   json['databaseName'],
-                                   json['namespace'],
-                                   json['migrations'],
-                                   json.get('shutdowns', []),
-                                   json.get('inputs'))
+        return CreateDatabaseStep(params,
+                                  json['databaseName'],
+                                  json['namespace'],
+                                  json['migrations'],
+                                  json.get('shutdowns', []),
+                                  json.get('inputs'))
 
     def config(self, scope):  # pylint: disable=unused-argument
         return {
