@@ -711,7 +711,7 @@ object Simplify {
         && child.typ.key.nonEmpty && canRepartition =>
       TableAggregateByKey(child, expr)
 
-    case TableAggregateByKey(TableKeyBy(child, keys, _), expr) if canRepartition =>
+    case TableAggregateByKey(TableKeyBy(child, keys, false), expr) if canRepartition && ! child.typ.key.startsWith(keys) =>
       TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))
 
     case TableParallelize(TableCollect(child), _) if isDeterministicallyRepartitionable(child) => child
