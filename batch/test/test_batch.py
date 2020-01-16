@@ -17,7 +17,7 @@ from hailtop.auth import service_auth_headers
 
 from .serverthread import ServerThread
 from .utils import legacy_batch_status
-from .failure_injecting_batch_client import FailureInjectingBatchClient
+from .failure_injecting_client_session import FailureInjectingClientSession
 
 deploy_config = get_deploy_config()
 
@@ -443,14 +443,14 @@ echo $HAIL_BATCH_WORKER_IP
         for i in range(9):
             builder.create_job('ubuntu:18.04', ['echo', 'a'])
 
-        real_client = builder._async_builder._client
-        builder._async_builder._client = FailureInjectingBatchClient(
-            builder._async_builder._client, every_third_time)
+        real_session = builder._async_builder._client._session
+        builder._async_builder._client._session = FailureInjectingClientSession(
+            builder._async_builder._client._session, every_third_time)
         b = builder.submit(max_failures_to_retry=5,
                            max_bunch_size=1,
                            log_every_n_failures=None)
-        builder._async_builder._client = real_client
-        b._async_batch._client = real_client
+        builder._async_builder._client._session = real_session
+        b._async_batch._client._session = real_session
         batch = b.wait()
         assert batch['state'] == 'success', batch
         assert len(list(b.jobs())) == 9
@@ -461,14 +461,3 @@ echo $HAIL_BATCH_WORKER_IP
         b = builder._create()
         b2 = builder._create()
         assert b.id == b2.id
-
-    def test_create_error_on_changed_resubmit(self):
-        builder = self.client.create_batch()
-        builder.create_job('ubuntu:18.04', ['/bin/true'])
-        b = builder._create()
-        builder.create_job('ubuntu:18.04', ['/bin/true'])
-        try:
-            b2 = builder._create()
-            assert False, (b, b2)
-        except Exception as exc:
-            assert '"n_jobs": new 2, old 1' in exc.message

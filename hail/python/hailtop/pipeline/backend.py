@@ -201,7 +201,7 @@ class BatchBackend(Backend):
              delete_scratch_on_exit,
              wait=True,
              open=False,
-             batch_submit_args=None):  # pylint: disable-msg=R0915
+             batch_submit_args=None):  # pylint: disable-msg=too-many-statements
         build_dag_start = time.time()
 
         bucket = self._batch_client.bucket
