@@ -1,6 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations._
+import is.hail.asm4s._
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir.{EmitMethodBuilder, IRParser, SortOrder}
 import is.hail.expr.types.virtual._
@@ -166,7 +167,7 @@ abstract class PType extends Serializable with Requiredness {
 
   def unsafeOrdering(): UnsafeOrdering = ???
 
-  def isCanonical: Boolean = PType.canonical(this) == this  // will recons, may need to rewrite this method
+  def isCanonical: Boolean = PType.canonical(this) == this // will recons, may need to rewrite this method
 
   def unsafeOrdering(rightType: PType): UnsafeOrdering = {
     require(this.isOfType(rightType))
@@ -281,7 +282,7 @@ abstract class PType extends Serializable with Requiredness {
 
   def deepInnerRequired(required: Boolean): PType =
     this match {
-      case t: PArray =>  PArray(t.elementType.deepInnerRequired(true), required)
+      case t: PArray => PArray(t.elementType.deepInnerRequired(true), required)
       case t: PSet => PSet(t.elementType.deepInnerRequired(true), required)
       case t: PDict => PDict(t.keyType.deepInnerRequired(true), t.valueType.deepInnerRequired(true), required)
       case t: PStruct =>
@@ -293,4 +294,19 @@ abstract class PType extends Serializable with Requiredness {
       case t =>
         t.setRequired(required)
     }
+
+  // Semantics: must be callable without requiredeness check: srcAddress must point to non-null value
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long]
+
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long]): Code[Long] =
+    this.copyFromType(mb, region, srcPType, srcAddress, false)
+
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long
+
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long): Long =
+    this.copyFromType(region, srcPType, srcAddress, false)
+
+  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]): Code[Unit]
+
+  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long)
 }

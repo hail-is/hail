@@ -83,6 +83,8 @@ abstract class PContainer extends PIterable {
 
   def loadElement(region: Region, aoff: Long, i: Int): Long
 
+  def loadElementAddress(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long]
+
   def loadElement(region: Code[Region], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long]
 
   def loadElement(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long]
@@ -110,4 +112,8 @@ abstract class PContainer extends PIterable {
   def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean]
 
   def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long]
+
+  def nextElementAddress(currentOffset: Long): Long
+
+  def nextElementAddress(currentOffset: Code[Long]): Code[Long]
 }

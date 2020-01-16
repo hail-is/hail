@@ -1,13 +1,7 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.{CodeOrdering, _}
-import is.hail.asm4s.Code
-import is.hail.check.Gen
-import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.virtual.TInterval
-import is.hail.utils._
-
-import scala.reflect.{ClassTag, classTag}
+import is.hail.annotations._
+import is.hail.asm4s.{Code, MethodBuilder}
 
 final case class PCanonicalInterval(pointType: PType, override val required: Boolean = false) extends PInterval {
     def _asIdent = s"interval_of_${pointType.asIdent}"

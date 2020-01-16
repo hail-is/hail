@@ -1,11 +1,9 @@
+
 package is.hail.expr.types.physical
 import is.hail.variant.ReferenceGenome
-
 import is.hail.annotations._
-import is.hail.asm4s.{Code, coerce}
-import is.hail.backend.BroadcastValue
+import is.hail.asm4s.{Code, MethodBuilder, coerce}
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.virtual.TLocus
 import is.hail.utils._
 import is.hail.variant._
 
@@ -27,23 +25,23 @@ object PCanonicalLocus {
 }
 
 final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) extends PLocus {
-    def rg: ReferenceGenome = rgBc.value
+  def rg: ReferenceGenome = rgBc.value
 
-    def _asIdent = "locus"
+  def _asIdent = "locus"
 
-    override def _pretty(sb: StringBuilder, indent: Call, compact: Boolean): Unit = sb.append(s"PCLocus($rg)")
+  override def _pretty(sb: StringBuilder, indent: Call, compact: Boolean): Unit = sb.append(s"PCLocus($rg)")
 
-    def copy(required: Boolean = this.required) = PCanonicalLocus(this.rgBc, required)
+  def copy(required: Boolean = this.required) = PCanonicalLocus(this.rgBc, required)
 
-    val representation: PStruct = PCanonicalLocus.representation(required)
+  val representation: PStruct = PCanonicalLocus.representation(required)
 
-    def contig(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(region, off, 0)
+  def contig(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(region, off, 0)
 
-    lazy val contigType: PString = representation.field("contig").typ.asInstanceOf[PString]
+  lazy val contigType: PString = representation.field("contig").typ.asInstanceOf[PString]
 
-    def position(region: Code[Region], off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(region, off, 1))
+  def position(region: Code[Region], off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(region, off, 1))
 
-    lazy val positionType: PInt32 = representation.field("position").typ.asInstanceOf[PInt32]
+  lazy val positionType: PInt32 = representation.field("position").typ.asInstanceOf[PInt32]
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
   override def unsafeOrdering(): UnsafeOrdering = {

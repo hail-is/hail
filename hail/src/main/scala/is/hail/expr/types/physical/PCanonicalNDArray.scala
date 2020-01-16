@@ -206,4 +206,22 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       srvb.end()
     ))
   }
+
+  override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
+    this.representation.storeShallowAtOffset(dstAddress, valueAddress)
+
+  override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
+    this.representation.storeShallowAtOffset(dstAddress, valueAddress)
+  }
+
+  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+    assert(srcPType.isInstanceOf[PNDArray])
+    val sourceNDPType = srcPType.asInstanceOf[PNDArray]
+
+    assert(this.elementType == sourceNDPType.elementType && this.nDims == sourceNDPType.nDims)
+
+    this.representation.copyFromType(mb, region, sourceNDPType.representation, srcAddress, forceDeep)
+  }
+
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = ???
 }

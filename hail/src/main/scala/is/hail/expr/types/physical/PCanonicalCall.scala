@@ -1,10 +1,11 @@
 package is.hail.expr.types.physical
 
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.variant.Genotype
 
-final case class PCanonicalCall(required: Boolean) extends PCall {
+final case class PCanonicalCall(required: Boolean = false) extends PCall {
     def _asIdent = "call"
 
     override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PCCall")
@@ -52,5 +53,4 @@ final case class PCanonicalCall(required: Boolean) extends PCall {
         )
       )
     }
-
 }

@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering}
-import is.hail.asm4s.{Code, MethodBuilder}
+import is.hail.asm4s.{???, Code, MethodBuilder}
 import is.hail.expr.ir.EmitMethodBuilder
 
 trait PArrayBackedContainer extends PContainer {
@@ -110,6 +110,9 @@ trait PArrayBackedContainer extends PContainer {
   def loadElement(aoff: Long, length: Int, i: Int): Long =
     arrayRep.loadElement(aoff, length, i)
 
+  def loadElementAddress(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
+    arrayRep.loadElementAddress(aoff, length, i)
+
   def loadElement(region: Region, aoff: Long, length: Int, i: Int): Long =
     arrayRep.loadElement(region, aoff, length, i)
 
@@ -164,7 +167,29 @@ trait PArrayBackedContainer extends PContainer {
   def copyFrom(mb: MethodBuilder, region: Code[Region], srcOff: Code[Long]): Code[Long] =
     arrayRep.copyFrom(mb, region, srcOff)
 
-  override def unsafeOrdering: UnsafeOrdering = unsafeOrdering(this)
+  override def unsafeOrdering: UnsafeOrdering =
+    unsafeOrdering(this)
 
-  override def unsafeOrdering(rightType: PType): UnsafeOrdering = arrayRep.unsafeOrdering(rightType)
+  override def unsafeOrdering(rightType: PType): UnsafeOrdering =
+    arrayRep.unsafeOrdering(rightType)
+
+  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+    assert(srcPType.isInstanceOf[PArrayBackedContainer])
+    this.arrayRep.copyFromType(mb, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, forceDeep)
+  }
+
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = ???
+
+  override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
+    this.arrayRep.storeShallowAtOffset(dstAddress, valueAddress)
+
+  override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
+    this.arrayRep.storeShallowAtOffset(dstAddress, valueAddress)
+  }
+
+  def nextElementAddress(currentOffset: Long) =
+    arrayRep.nextElementAddress(currentOffset)
+
+  def nextElementAddress(currentOffset: Code[Long]) =
+    arrayRep.nextElementAddress(currentOffset)
 }
