@@ -190,14 +190,14 @@ LIMIT 50;
                     log.info(f'cancelling job {id}')
                     should_wait = False
 
-                    async def with_error_handling(id, f):
+                    async def cancel_with_error_handling(id, f):
                         try:
                             await f()
-                        except Exception:  # pylint: disable=broad-except
+                        except Exception:
                             log.info(f'error while cancelling job {id}', exc_info=True)
                     async_work.append(
                         functools.partial(
-                            with_error_handling,
+                            cancel_with_error_handling,
                             id,
                             functools.partial(mark_job_complete,
                                               self.app, batch_id, job_id, None, None,
@@ -218,14 +218,14 @@ LIMIT 50;
                     should_wait = False
                     scheduled_cores_mcpu += record['cores_mcpu']
 
-                    async def with_error_handling(id, instance, f):
+                    async def schedule_with_error_handling(id, instance, f):
                         try:
                             await f()
-                        except Exception:  # pylint: disable=broad-except
+                        except Exception:
                             log.info(f'scheduling job {id} on {instance}', exc_info=True)
                     async_work.append(
                         functools.partial(
-                            with_error_handling,
+                            schedule_with_error_handling,
                             id, instance,
                             functools.partial(
                                 schedule_job,
