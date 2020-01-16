@@ -4049,10 +4049,9 @@ def _ndarray(collection, row_major=None):
                 recursive_type = recursive_type._element_type
                 ndim += 1
 
-            flattened_collection = collection
+            data_expr = collection
             for i in builtins.range(ndim - 1):
-                flattened_collection = hl.flatten(flattened_collection)
-            data_expr = flattened_collection
+                data_expr = hl.flatten(data_expr)
 
             nested_collection = collection
             shape_list = []
