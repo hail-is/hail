@@ -287,7 +287,7 @@ abstract class PBaseStruct extends PType {
     var i = 0
     while(i < this.size) {
       val dstFieldType = this.fields(i).typ.fundamentalType
-      if(!dstFieldType.isPrimitive) {
+      if(dstFieldType.containsPointers) {
         val dstFieldAddress = mb.newField[Long]
         loop = Code(
           loop,

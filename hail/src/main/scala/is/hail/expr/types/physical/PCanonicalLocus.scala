@@ -101,19 +101,4 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
       }
     }
   }
-
-  override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
-    this.representation.storeShallowAtOffset(dstAddress, valueAddress)
-
-  override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
-    this.representation.storeShallowAtOffset(dstAddress, valueAddress)
-  }
-
-  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
-    assert(this isOfType srcPType)
-
-    val srcRepPType = srcPType.asInstanceOf[PLocus].representation
-
-    representation.copyFromType(mb, region, srcRepPType, srcAddress, forceDeep)
-  }
 }

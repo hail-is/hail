@@ -56,19 +56,4 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
         )
       )
     }
-
-    override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
-      this.representation.storeShallowAtOffset(dstAddress, valueAddress)
-
-    override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
-      this.representation.storeShallowAtOffset(dstAddress, valueAddress)
-    }
-
-    override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
-      assert(this isOfType srcPType)
-
-      val srcRepPType = srcPType.asInstanceOf[PCanonicalCall].representation
-
-      this.representation.copyFromType(mb, region, srcRepPType, srcAddress, forceDeep)
-    }
 }

@@ -324,6 +324,7 @@ abstract class PType extends BaseType with Serializable with Requiredness {
       case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
     }
   }
+
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long): Long =
     this.copyFromType(region, srcPType, srcAddress, false)
 

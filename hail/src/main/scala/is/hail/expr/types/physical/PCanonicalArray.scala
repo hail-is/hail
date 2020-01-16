@@ -393,7 +393,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def fastDeepCopyLoop(mb: MethodBuilder, region: Code[Region], dstAddress: Code[Long]): Code[Unit] = {
-    if(this.elementType.fundamentalType.isPrimitive) {
+    if(!this.elementType.fundamentalType.containsPointers) {
       return Code._empty
     }
 
