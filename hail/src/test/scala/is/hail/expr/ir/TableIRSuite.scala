@@ -28,7 +28,6 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testRangeRead() {
-//    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.LoweredJVMCompile)
     val original = TableKeyBy(TableMapGlobals(TableRange(10, 3), MakeStruct(FastIndexedSeq("foo" -> I32(57)))), FastIndexedSeq())
 
     val path = tmpDir.createTempFile()
@@ -39,8 +38,6 @@ class TableIRSuite extends HailSuite {
 
     val expectedRows = Array.tabulate(10)(i => Row(i)).toFastIndexedSeq
     val expectedGlobals = Row(57)
-
-//    println(Pretty(collect(read)))
 
     assertEvalsTo(TableCollect(read), Row(expectedRows, expectedGlobals))
     assertEvalsTo(TableCollect(droppedRows), Row(FastIndexedSeq(), expectedGlobals))
