@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `time_activated` BIGINT,
   `time_deactivated` BIGINT,
   `removed` BOOLEAN NOT NULL DEFAULT FALSE,
+  `version` INT NOT NULL,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 CREATE INDEX `instances_removed` ON `instances` (`removed`);
@@ -70,6 +71,7 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `time_completed` BIGINT,
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   `token` VARCHAR(100) DEFAULT NULL,
+  `format_version` INT NOT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name)
 ) ENGINE = InnoDB;
@@ -115,6 +117,16 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `jobs_batch_id_state_always_run_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `cancelled`);
+
+CREATE TABLE IF NOT EXISTS `batch_bunches` (
+  `batch_id` BIGINT NOT NULL,
+  `token` VARCHAR(100) NOT NULL,
+  `start_job_id` INT NOT NULL,
+  PRIMARY KEY (`batch_id`, `token`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `start_job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE
+) ENGINE = InnoDB;
+CREATE INDEX `batch_bunches_start_job_id` ON `batch_bunches` (`batch_id`, `start_job_id`);
 
 CREATE TABLE IF NOT EXISTS `attempts` (
   `batch_id` BIGINT NOT NULL,
@@ -862,7 +874,7 @@ BEGIN
       'input attempt id does not match expected attempt id' as message;
   ELSEIF cur_job_state = 'Ready' OR cur_job_state = 'Running' THEN
     UPDATE jobs
-    SET state = new_state, status = new_status, attempt_id = NULL
+    SET state = new_state, status = new_status
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
     UPDATE batches SET n_completed = n_completed + 1 WHERE id = in_batch_id;

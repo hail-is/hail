@@ -832,6 +832,8 @@ steps:
       script: /io/sql/add-batch-create-token.sql
     - name: improve-cancel
       script: /io/sql/improve-cancel.sql
+    - name: store-specs-in-gcs
+      script: /io/sql/store-specs-in-gcs.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/

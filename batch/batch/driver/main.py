@@ -13,6 +13,7 @@ from gear import Database, setup_aiohttp_session, web_authenticated_developers_o
     check_csrf_token, transaction
 from hailtop.config import get_deploy_config
 from hailtop.utils import time_msecs
+from hailtop.batch_client.aioclient import Job
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 
@@ -219,6 +220,7 @@ async def job_complete_1(request, instance):
     batch_id = status['batch_id']
     job_id = status['job_id']
     attempt_id = status['attempt_id']
+    format_version = status['format_version']
 
     status_state = status['state']
     if status_state == 'succeeded':
@@ -231,6 +233,12 @@ async def job_complete_1(request, instance):
 
     start_time = status['start_time']
     end_time = status['end_time']
+
+    if format_version > 1:
+        status = {
+            'exit_code': Job.exit_code(body),
+            'duration': Job.total_duration_msecs(body)
+        }
 
     await mark_job_complete(request.app, batch_id, job_id, attempt_id, instance.name,
                             new_state, status, start_time, end_time, 'completed')

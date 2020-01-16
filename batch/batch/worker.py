@@ -286,7 +286,8 @@ class Container:
 
             async with self.step('uploading_log'):
                 await worker.log_store.write_log_file(
-                    self.job.batch_id, self.job.job_id, self.name,
+                    self.job.format_version, self.job.batch_id,
+                    self.job.job_id, self.job.attempt_id, self.name,
                     await self.get_container_log())
 
             async with self.step('deleting'):
@@ -427,11 +428,12 @@ class Job:
     def io_host_path(self):
         return f'{self.scratch}/io'
 
-    def __init__(self, batch_id, user, gsa_key, job_spec):
+    def __init__(self, batch_id, user, gsa_key, job_spec, format_version):
         self.batch_id = batch_id
         self.user = user
         self.gsa_key = gsa_key
         self.job_spec = job_spec
+        self.format_version = format_version
 
         self.deleted = False
 
@@ -590,6 +592,7 @@ class Job:
     #   attempt_id: int,
     #   user: str,
     #   state: str, (pending, initializing, running, succeeded, error, failed)
+    #   format_version: int
     #   error: str, (optional)
     #   container_statuses: [Container.status],
     #   start_time: int,
@@ -602,7 +605,8 @@ class Job:
             'job_id': self.job_spec['job_id'],
             'attempt_id': self.job_spec['attempt_id'],
             'user': self.user,
-            'state': self.state
+            'state': self.state,
+            'format_version': self.format_version
         }
         if self.error:
             status['error'] = self.error
@@ -649,15 +653,39 @@ class Worker:
         body = await request.json()
 
         batch_id = body['batch_id']
-        job_spec = body['job_spec']
-        job_id = job_spec['job_id']
+        job_id = body['job_id']
+
+        format_version = body['format_version']
+
+        if format_version > 1:
+            token = body['token']
+            start_job_id = body['start_job_id']
+            addtl_spec = body['job_spec']
+
+            job_spec = await self.log_store.read_spec_file(batch_id, token, start_job_id, job_id)
+            job_spec = json.loads(job_spec)
+
+            job_spec['attempt_id'] = addtl_spec['attempt_id']
+            job_spec['secrets'] = addtl_spec['secrets']
+
+            addtl_env = addtl_spec.get('env')
+            if addtl_env:
+                env = job_spec.get('env')
+                if not env:
+                    env = []
+                    job_spec['env'] = env
+                env.extend(addtl_env)
+        else:
+            job_spec = body['job_spec']
+
+        assert job_spec['job_id'] == job_id
         id = (batch_id, job_id)
 
         # already running
         if id in self.jobs:
             return web.HTTPForbidden()
 
-        job = Job(batch_id, body['user'], body['gsa_key'], job_spec)
+        job = Job(batch_id, body['user'], body['gsa_key'], job_spec, format_version)
 
         log.info(f'created {job}, adding to jobs')
 
@@ -757,9 +785,16 @@ class Worker:
                 log.info('cleaned up app runner')
 
     async def post_job_complete_1(self, job, run_duration):
+        status = await job.status()
         body = {
-            'status': await job.status()
+            'status': status
         }
+
+        if job.format_version > 1:
+            await self.log_store.write_status_file(job.batch_id,
+                                                   job.job_id,
+                                                   job.attempt_id,
+                                                   json.dumps(status))
 
         start_time = time_msecs()
         delay_secs = 0.1
