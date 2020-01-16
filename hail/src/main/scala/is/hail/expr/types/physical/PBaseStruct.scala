@@ -276,12 +276,12 @@ abstract class PBaseStruct extends PType {
     val dstAddress = mb.newField[Long]
     Code(
       dstAddress := this.copyFrom(mb, region, srcStructAddress),
-      this.fastDeepCopyLoop(mb, region, dstAddress),
+      this.deepPointerCopy(mb, region, dstAddress),
       dstAddress
     )
   }
 
-  def fastDeepCopyLoop(mb: MethodBuilder, region: Code[Region], dstStructAddress: Code[Long]): Code[Unit] = {
+  def deepPointerCopy(mb: MethodBuilder, region: Code[Region], dstStructAddress: Code[Long]): Code[Unit] = {
     var loop: Code[Unit] = Code._empty
 
     var i = 0
@@ -298,7 +298,7 @@ abstract class PBaseStruct extends PType {
                 case t@(_: PBinary | _: PArray) =>
                   t.storeShallowAtOffset(dstFieldAddress, t.copyFromType(mb, region, dstFieldType, Region.loadAddress(dstFieldAddress)))
                 case t: PBaseStruct =>
-                  t.fastDeepCopyLoop(mb, region, dstFieldAddress)
+                  t.deepPointerCopy(mb, region, dstFieldAddress)
                 case t: PType =>
                   fatal(s"Field type isn't supported ${t}")
               }
