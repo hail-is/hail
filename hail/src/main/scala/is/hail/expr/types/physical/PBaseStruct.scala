@@ -347,8 +347,7 @@ abstract class PBaseStruct extends PType {
 
     assert(sourceType.size == this.size)
 
-    val sourceFundamentalTypes = sourceType.fields.map(_.typ.fundamentalType)
-    if(this.fields.map(_.typ.fundamentalType) == sourceFundamentalTypes) {
+    if(this.fields.map(_.typ.fundamentalType) == sourceType.fields.map(_.typ.fundamentalType)) {
       if(!forceDeep) {
         return srcStructAddress
       }
@@ -403,8 +402,7 @@ abstract class PBaseStruct extends PType {
     assert(srcPType.isInstanceOf[PBaseStruct])
 
     val sourceType = srcPType.asInstanceOf[PBaseStruct]
-
-    if(this.fields == sourceType.fields) {
+    if(this.fields.map(_.typ.fundamentalType) == sourceType.fields.map(_.typ.fundamentalType)) {
       if(!forceDeep) {
         return srcStructAddress
       }
