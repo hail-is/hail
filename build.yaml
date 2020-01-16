@@ -830,6 +830,8 @@ steps:
       script: /io/sql/add-lock-in-share-mode.sql
     - name: add-batch-create-token
       script: /io/sql/add-batch-create-token.sql
+    - name: store-specs-in-gcs
+      script: /io/sql/store-specs-in-gcs.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/

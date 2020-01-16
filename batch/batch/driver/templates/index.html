@@ -42,6 +42,7 @@
       {% for instance in instances %}
       <tr>
         <td>{{ instance.name }}</td>
+        <td class="numeric-cell">{{ instance.version }}</td>
         <td>{{ instance.state }}</td>
         <td class="numeric-cell">{{ instance.free_cores_mcpu / 1000 }} / {{ instance.cores_mcpu / 1000 }}</td>
         <td class="numeric-cell">{{ instance.failed_request_count }}</td>

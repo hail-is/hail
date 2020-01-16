@@ -4,6 +4,7 @@ import asyncio
 import aiohttp
 import base64
 import traceback
+import google.api_core.exceptions
 from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
@@ -146,8 +147,48 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
 
-def job_record_to_dict(app, record, running_status=None):
-    spec = json.loads(record['spec'])
+async def job_record_to_dict(app, record, running_status=None):
+    log_store = app['log_store']
+    db = app['db']
+
+    batch_id = record['batch_id']
+    job_id = record['job_id']
+    attempt_id = record['attempt_id']
+    format_version = record['format_version']
+
+    if format_version > 1:
+        async def read_file_from_gcs(f, *args, **kwargs):
+            try:
+                return await f(*args, **kwargs)
+            except google.api_core.exceptions.NotFound:
+                return None
+
+        async def read_spec_file_from_gcs():
+            bunch_record = await db.select_and_fetchone(
+                '''
+SELECT token, start_job_id FROM batch_bunches
+WHERE batch_id = %s AND start_job_id <= %s
+ORDER BY start_job_id DESC
+LIMIT 1;
+''',
+                (batch_id, job_id))
+            token = bunch_record['token']
+            start_job_id = bunch_record['start_job_id']
+            await read_file_from_gcs(log_store.read_spec_file,
+                                     batch_id,
+                                     token,
+                                     start_job_id,
+                                     job_id)
+
+        status, spec = await asyncio.gather(
+            read_file_from_gcs(log_store.read_status_file, batch_id, job_id, attempt_id),
+            read_spec_file_from_gcs())
+    else:
+        status = record['status']
+        spec = record['spec']
+
+    if spec:
+        spec = json.loads(spec)
 
     attributes = spec.pop('attributes', None)
 
@@ -161,8 +202,8 @@ def job_record_to_dict(app, record, running_status=None):
     if attributes:
         result['attributes'] = attributes
 
-    if record['status']:
-        status = json.loads(record['status'])
+    if status:
+        status = json.loads(status)
     else:
         status = running_status
     if status:
@@ -244,6 +285,11 @@ async def unschedule_job(app, record):
 
 async def job_config(app, record, attempt_id):
     k8s_cache = app['k8s_cache']
+    db = app['db']
+
+    format_version = record['format_version']
+    batch_id = record['batch_id']
+    job_id = record['job_id']
 
     job_spec = json.loads(record['spec'])
     job_spec['attempt_id'] = attempt_id
@@ -319,8 +365,27 @@ users:
         env.append({'name': 'KUBECONFIG',
                     'value': '/.kube/config'})
 
+    if format_version == 1:
+        token = None
+        start_job_id = None
+    else:
+        bunch_record = await db.select_and_fetchone(
+            '''
+SELECT token, start_job_id FROM batch_bunches
+WHERE batch_id = %s AND start_job_id <= %s
+ORDER BY start_job_id DESC
+LIMIT 1;
+''',
+            (batch_id, job_id))
+        token = bunch_record['token']
+        start_job_id = bunch_record['start_job_id']
+
     return {
-        'batch_id': record['batch_id'],
+        'batch_id': batch_id,
+        'job_id': job_id,
+        'format_version': format_version,
+        'token': token,
+        'start_job_id': start_job_id,
         'user': record['user'],
         'gsa_key': gsa_key,
         'job_spec': job_spec
@@ -335,6 +400,8 @@ async def schedule_job(app, record, instance):
     batch_id = record['batch_id']
     job_id = record['job_id']
     attempt_id = record['attempt_id']
+    format_version = record['format_version']
+
     id = (batch_id, job_id)
 
     try:
@@ -352,6 +419,11 @@ async def schedule_job(app, record, instance):
                 'error': traceback.format_exc(),
                 'container_statuses': {k: {} for k in tasks}
             }
+
+            if format_version > 1:
+                await app['log_store'].write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
+                status = None
+
             await mark_job_complete(app, batch_id, job_id, attempt_id, instance.name,
                                     'Error', status, None, None, 'error')
             raise

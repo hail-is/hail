@@ -33,7 +33,8 @@ from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME
-from ..globals import HTTP_CLIENT_MAX_SIZE
+from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
+from ..spec_writer import SpecWriter
 
 from . import schemas
 
@@ -156,7 +157,7 @@ LIMIT 50;
 '''
     sql_args = where_args
 
-    jobs = [job_record_to_dict(request.app, job)
+    jobs = [await job_record_to_dict(request.app, job)
             async for job
             in db.select_and_fetchall(sql, sql_args)]
 
@@ -214,11 +215,12 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
 
         async def _read_log_from_gcs(task):
             try:
-                log = await log_store.read_log_file(batch_id, job_id, task)
+                log = await log_store.read_log_file(record['format_version'], batch_id, job_id, record['attempt_id'], task)
             except google.api_core.exceptions.NotFound:
                 log = None
             return task, log
 
+        # in format_version > 1, input_files and output_files are booleans
         spec = json.loads(record['spec'])
         tasks = []
         input_files = spec.get('input_files')
@@ -238,7 +240,7 @@ async def _get_job_log(app, batch_id, job_id, user):
     db = app['db']
 
     record = await db.select_and_fetchone('''
-SELECT jobs.state, jobs.spec, ip_address
+SELECT jobs.state, jobs.spec, ip_address, format_version, attempt_id
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -371,6 +373,7 @@ async def get_batches(request, userdata):
 async def create_jobs(request, userdata):
     app = request.app
     db = app['db']
+    log_store = app['log_store']
 
     worker_type = app['worker_type']
     worker_cores = app['worker_cores']
@@ -391,7 +394,7 @@ async def create_jobs(request, userdata):
         async with timer.step('fetch batch'):
             record = await db.select_and_fetchone(
                 '''
-SELECT closed FROM batches
+SELECT closed, format_version FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
                 (user, batch_id))
@@ -400,6 +403,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
             raise web.HTTPNotFound()
         if record['closed']:
             raise web.HTTPBadRequest(reason=f'batch {batch_id} is already closed')
+        batch_format_version = record['format_version']
 
         async with timer.step('get request json'):
             job_specs = await request.json()
@@ -411,12 +415,16 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 raise web.HTTPBadRequest(reason=e.reason)
 
         async with timer.step('build db args'):
+            spec_writer = SpecWriter(log_store, batch_id)
+
             jobs_args = []
             job_parents_args = []
             job_attributes_args = []
 
             n_ready_jobs = 0
             sum_ready_cores_mcpu = 0
+            last_job_idx = None
+            start_job_id = None
 
             for spec in job_specs:
                 job_id = spec['job_id']
@@ -425,6 +433,15 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 attributes = spec.get('attributes')
 
                 id = (batch_id, job_id)
+
+                if start_job_id is None:
+                    start_job_id = job_id
+
+                if batch_format_version > 1 and last_job_idx:
+                    if job_id != last_job_idx + 1:
+                        raise web.HTTPBadRequest(
+                            reason=f'noncontiguous job ids found in the spec: {last_job_idx} -> {job_id}')
+                last_job_idx = job_id
 
                 resources = spec.get('resources')
                 if not resources:
@@ -475,9 +492,18 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 else:
                     state = 'Pending'
 
+                spec_writer.add(json.dumps(spec))
+
+                if batch_format_version > 1:
+                    spec = {
+                        'secrets': spec.get('secrets'),
+                        'service_account': spec.get('service_account'),
+                        'input_files': len(spec.get('input_files', [])) > 0,
+                        'output_files': len(spec.get('output_files', [])) > 0
+                    }
+
                 jobs_args.append(
-                    (batch_id, job_id, state, json.dumps(spec),
-                     always_run, cores_mcpu, len(parent_ids)))
+                    (batch_id, job_id, state, spec, always_run, cores_mcpu, len(parent_ids)))
 
                 for parent_id in parent_ids:
                     job_parents_args.append(
@@ -487,6 +513,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     for k, v in attributes.items():
                         job_attributes_args.append(
                             (batch_id, job_id, k, v))
+
+        if batch_format_version > 1:
+            async with timer.step('write spec to gcs'):
+                await spec_writer.write()
 
         rand_token = random.randint(0, app['n_tokens'] - 1)
         n_jobs = len(job_specs)
@@ -526,7 +556,15 @@ ON DUPLICATE KEY UPDATE
                                         (batch_id, rand_token,
                                          n_jobs, n_ready_jobs, sum_ready_cores_mcpu,
                                          n_jobs, n_ready_jobs, sum_ready_cores_mcpu))
-            await insert()  # pylint: disable=no-value-for-parameter
+
+                if batch_format_version > 1:
+                    await tx.execute_update('''
+INSERT INTO batch_bunches (batch_id, token, start_job_id)
+VALUES (%s, %s, %s);
+''',
+                                            (batch_id, spec_writer.token, start_job_id))
+
+        await insert()  # pylint: disable=no-value-for-parameter
         return web.Response()
 
 
@@ -576,12 +614,13 @@ WHERE token = %s AND user = %s FOR UPDATE;
         now = time_msecs()
         id = await tx.execute_insertone(
             '''
-INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, token)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, token, format_version)
+
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (json.dumps(userdata), user, billing_project, json.dumps(attributes),
              batch_spec.get('callback'), batch_spec['n_jobs'],
-             now, token))
+             now, token, BATCH_FORMAT_VERSION))
 
         if attributes:
             await tx.execute_many(
@@ -813,7 +852,7 @@ async def _get_job(app, batch_id, job_id, user):
     db = app['db']
 
     record = await db.select_and_fetchone('''
-SELECT jobs.*, ip_address
+SELECT jobs.*, ip_address, format_version
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -828,7 +867,7 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
         raise web.HTTPNotFound()
 
     running_status = await _get_job_running_status(record)
-    return job_record_to_dict(app, record, running_status)
+    return await job_record_to_dict(app, record, running_status)
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')

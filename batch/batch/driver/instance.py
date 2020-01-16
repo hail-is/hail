@@ -4,6 +4,7 @@ import humanize
 from hailtop.utils import time_msecs, time_msecs_str
 
 from ..database import check_call_procedure
+from ..globals import INSTANCE_VERSION
 
 
 class Instance:
@@ -13,7 +14,7 @@ class Instance:
             app, record['name'], record['state'],
             record['cores_mcpu'], record['free_cores_mcpu'],
             record['time_created'], record['failed_request_count'],
-            record['last_updated'], record['ip_address'])
+            record['last_updated'], record['ip_address'], record['version'])
 
     @staticmethod
     async def create(app, name, activation_token, worker_cores_mcpu):
@@ -24,16 +25,18 @@ class Instance:
         token = secrets.token_urlsafe(32)
         await db.just_execute(
             '''
-INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu, time_created, last_updated)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu, time_created, last_updated, version)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (name, state, activation_token, token, worker_cores_mcpu,
-             worker_cores_mcpu, now, now))
+             worker_cores_mcpu, now, now, INSTANCE_VERSION))
         return Instance(
-            app, name, state, worker_cores_mcpu, worker_cores_mcpu, now, 0, now, None)
+            app, name, state, worker_cores_mcpu, worker_cores_mcpu, now,
+            0, now, None, INSTANCE_VERSION)
 
     def __init__(self, app, name, state, cores_mcpu, free_cores_mcpu,
-                 time_created, failed_request_count, last_updated, ip_address):
+                 time_created, failed_request_count, last_updated, ip_address,
+                 version):
         self.db = app['db']
         self.instance_pool = app['inst_pool']
         self.scheduler_state_changed = app['scheduler_state_changed']
@@ -46,6 +49,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
         self._failed_request_count = failed_request_count
         self._last_updated = last_updated
         self.ip_address = ip_address
+        self.version = version
 
     @property
     def state(self):

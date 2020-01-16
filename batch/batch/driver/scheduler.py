@@ -172,7 +172,7 @@ LIMIT 50;
                 '''
 SELECT job_id, batch_id, spec, cores_mcpu,
   ((jobs.cancelled OR batches.cancelled) AND NOT always_run) AS cancel,
-  userdata, user
+  userdata, user, format_version
 FROM jobs
 STRAIGHT_JOIN batches ON batches.id = jobs.batch_id
 WHERE jobs.state = 'Ready' AND batches.closed AND batches.user = %s
