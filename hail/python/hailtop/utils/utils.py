@@ -182,12 +182,12 @@ async def sleep_and_backoff(delay):
     return min(delay * 2, 60.0)
 
 
-async def request_retry_transient_errors(session, method, url, **kwargs):
+async def retry_transient_errors(f, *args, **kwargs):
     delay = 0.1
     errors = 0
     while True:
         try:
-            return await session.request(method, url, **kwargs)
+            return await f(*args, **kwargs)
         except Exception as e:
             errors += 1
             if errors % 10 == 0:
@@ -197,6 +197,10 @@ async def request_retry_transient_errors(session, method, url, **kwargs):
             else:
                 raise
         delay = await sleep_and_backoff(delay)
+
+
+async def request_retry_transient_errors(session, method, url, **kwargs):
+    return await retry_transient_errors(session.request, method, url, **kwargs)
 
 
 async def request_raise_transient_errors(session, method, url, **kwargs):

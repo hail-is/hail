@@ -1,3 +1,4 @@
+
 package is.hail.expr.types.physical
 import is.hail.variant.ReferenceGenome
 import is.hail.annotations._
@@ -27,13 +28,8 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
   def rg: ReferenceGenome = rgBc.value
 
   def _asIdent = "locus"
-  def _toPretty = s"Locus($rg)"
 
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("locus<")
-    sb.append(prettyIdentifier(rg.name))
-    sb.append('>')
-  }
+  override def _pretty(sb: StringBuilder, indent: Call, compact: Boolean): Unit = sb.append(s"PCLocus($rg)")
 
   def copy(required: Boolean = this.required) = PCanonicalLocus(this.rgBc, required)
 
@@ -100,30 +96,5 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
             codeRG.invoke[String, String, Int]("compare", s1, s2)))
       }
     }
-  }
-
-  override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
-    this.representation.storeShallowAtOffset(dstAddress, valueAddress)
-
-  override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
-    this.representation.storeShallowAtOffset(dstAddress, valueAddress)
-  }
-
-  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
-    allowDowncast: Boolean, forceDeep: Boolean): Code[Long] = {
-    assert(this isOfType srcPType)
-
-    val srcRepPType = srcPType.asInstanceOf[PLocus].representation
-
-    representation.copyFromType(mb, region, srcRepPType, srcAddress, allowDowncast, forceDeep)
-  }
-
-  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long,
-    allowDowncast: Boolean, forceDeep: Boolean): Long = {
-    assert(this isOfType srcPType)
-
-    val srcRepPType = srcPType.asInstanceOf[PLocus].representation
-
-    representation.copyFromType(region, srcRepPType, srcAddress, allowDowncast, forceDeep)
   }
 }

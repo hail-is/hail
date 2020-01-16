@@ -109,7 +109,7 @@ class Test(unittest.TestCase):
 
     def test_invalid_resource_requests(self):
         builder = self.client.create_batch()
-        resources = {'cpu': '1', 'memory': '28Gi'}
+        resources = {'cpu': '1', 'memory': '250Gi'}
         builder.create_job('ubuntu:18.04', ['true'], resources=resources)
         with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'resource requests.*unsatisfiable'):
             builder.submit()
@@ -420,3 +420,10 @@ echo $HAIL_BATCH_WORKER_IP
         batch = b.wait()
         print(j.log())
         assert batch['state'] == 'success', batch
+
+    def test_client_max_size(self):
+        builder = self.client.create_batch()
+        for i in range(4):
+            builder.create_job('ubuntu:18.04',
+                               ['echo', 'a' * (3 * 1024 * 1024)])
+        builder.submit()

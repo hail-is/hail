@@ -1,29 +1,31 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, MethodBuilder}
+import is.hail.asm4s.{???, Code, MethodBuilder}
 
-class PCanonicalString(val required: Boolean) extends PString {
+case object PCanonicalStringOptional extends PCanonicalString(false)
+case object PCanonicalStringRequired extends PCanonicalString(true)
+
+abstract class PCanonicalString(val required: Boolean) extends PString {
   def _asIdent = "string"
-  def _toPretty = "String"
+
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PCString")
 
   override def byteSize: Long = 8
 
   lazy val binaryFundamentalType: PBinary = PBinary(required)
 
-  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
-  allowDowncast: Boolean, forceDeep: Boolean): Code[Long] = {
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     assert(srcPType isOfType this)
     this.fundamentalType.copyFromType(
-      mb, region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, allowDowncast, forceDeep
+      mb, region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, forceDeep
     )
   }
 
-  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long,
-    allowDowncast: Boolean, forceDeep: Boolean): Long  = {
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long  = {
     assert(srcPType isOfType this)
     this.fundamentalType.copyFromType(
-      region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, allowDowncast, forceDeep
+      region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, forceDeep
     )
   }
 
@@ -38,7 +40,7 @@ class PCanonicalString(val required: Boolean) extends PString {
 }
 
 object PCanonicalString {
-  def apply(required: Boolean = false) = new PCanonicalString(required)
+  def apply(required: Boolean = false): PCanonicalString = if (required) PCanonicalStringRequired else PCanonicalStringOptional
 
   def unapply(t: PString): Option[Boolean] = Option(t.required)
 

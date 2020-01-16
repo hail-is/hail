@@ -2,6 +2,7 @@ import os
 import concurrent
 import logging
 import json
+import random
 import asyncio
 import aiohttp
 from aiohttp import web
@@ -30,6 +31,7 @@ from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME
+from ..globals import HTTP_CLIENT_MAX_SIZE
 
 from . import schemas
 
@@ -151,7 +153,7 @@ LIMIT 50;
 '''
     sql_args = where_args
 
-    jobs = [job_record_to_dict(job)
+    jobs = [job_record_to_dict(request.app, job)
             async for job
             in db.select_and_fetchall(sql, sql_args)]
 
@@ -334,7 +336,7 @@ LIMIT 50;
 '''
     sql_args = where_args
 
-    batches = [batch_record_to_dict(batch)
+    batches = [batch_record_to_dict(request.app, batch)
                async for batch
                in db.select_and_fetchall(sql, sql_args)]
 
@@ -410,6 +412,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
             job_parents_args = []
             job_attributes_args = []
 
+            n_ready_jobs = 0
+            sum_ready_cores_mcpu = 0
+
             for spec in job_specs:
                 job_id = spec['job_id']
                 parent_ids = spec.pop('parent_ids', [])
@@ -460,7 +465,12 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     env = []
                     spec['env'] = env
 
-                state = 'Ready' if len(parent_ids) == 0 else 'Pending'
+                if len(parent_ids) == 0:
+                    state = 'Ready'
+                    n_ready_jobs += 1
+                    sum_ready_cores_mcpu += cores_mcpu
+                else:
+                    state = 'Pending'
 
                 jobs_args.append(
                     (batch_id, job_id, state, json.dumps(spec),
@@ -474,6 +484,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     for k, v in attributes.items():
                         job_attributes_args.append(
                             (batch_id, job_id, k, v))
+
+        rand_token = random.randint(0, app['n_tokens'] - 1)
+        n_jobs = len(job_specs)
 
         async with timer.step('insert jobs'):
             async with db.start() as tx:
@@ -492,6 +505,18 @@ INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 ''',
                                       job_attributes_args)
+
+                await tx.execute_update('''
+INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE
+  n_jobs = n_jobs + %s,
+  n_ready_jobs = n_ready_jobs + %s,
+  ready_cores_mcpu = ready_cores_mcpu + %s;
+''',
+                                        (batch_id, rand_token,
+                                         n_jobs, n_ready_jobs, sum_ready_cores_mcpu,
+                                         n_jobs, n_ready_jobs, sum_ready_cores_mcpu))
 
         return web.Response()
 
@@ -525,12 +550,6 @@ WHERE billing_project = %s AND user = %s;
             assert len(rows) == 0
             raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
 
-        await tx.just_execute(
-            '''
-INSERT IGNORE INTO user_resources (user) VALUES (%s);
-''',
-            (user,))
-
         now = time_msecs()
         id = await tx.execute_insertone(
             '''
@@ -563,7 +582,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    return batch_record_to_dict(record)
+    return batch_record_to_dict(app, record)
 
 
 async def _cancel_batch(app, batch_id, user):
@@ -787,7 +806,7 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
         raise web.HTTPNotFound()
 
     running_status = await _get_job_running_status(record)
-    return job_record_to_dict(record, running_status)
+    return job_record_to_dict(app, record, running_status)
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
@@ -977,10 +996,15 @@ async def on_startup(app):
     app['db'] = db
 
     row = await db.select_and_fetchone(
-        'SELECT worker_type, worker_cores, instance_id, internal_token FROM globals;')
+        '''
+SELECT worker_type, worker_cores, worker_disk_size_gb,
+  instance_id, internal_token, n_tokens FROM globals;
+''')
 
     app['worker_type'] = row['worker_type']
     app['worker_cores'] = row['worker_cores']
+    app['worker_disk_size_gb'] = row['worker_disk_size_gb']
+    app['n_tokens'] = row['n_tokens']
 
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
@@ -1001,7 +1025,7 @@ async def on_cleanup(app):
 
 
 def run():
-    app = web.Application(client_max_size=None)
+    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'batch.front_end')
@@ -1012,4 +1036,8 @@ def run():
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    web.run_app(deploy_config.prefix_application(app, 'batch'), host='0.0.0.0', port=5000)
+    web.run_app(deploy_config.prefix_application(app,
+                                                 'batch',
+                                                 client_max_size=HTTP_CLIENT_MAX_SIZE),
+                host='0.0.0.0',
+                port=5000)

@@ -18,10 +18,6 @@ class PBaseStructSuite extends HailSuite {
 
       PhysicalTestUtils.copyTestExecutor(PStruct("a" -> PInt64(false)), PStruct("a" -> PInt64(true)), Annotation(3L),
         expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PStruct("a" -> PInt64(false)), PStruct("a" -> PInt64(true)), Annotation(14L),
-        allowDowncast = true, forceDeep = forceDeep, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PStruct("a" -> PInt64(false)), PStruct("a" -> PInt64(true)), Annotation(null),
-        allowDowncast = true, expectRuntimeErr = true, forceDeep = forceDeep, interpret = interpret)
 
       var srcType = PStruct("a" -> PInt64(true), "b" -> PInt32(true), "c" -> PFloat64(true), "d" -> PFloat32(true), "e" -> PBoolean(true))
       var destType = PStruct("a" -> PInt64(true), "b" -> PInt32(true), "c" -> PFloat64(true), "d" -> PFloat32(true), "e" -> PBoolean(true))
@@ -54,14 +50,12 @@ class PBaseStructSuite extends HailSuite {
 
       srcType = PStruct("a" -> PInt64(), "b" -> PInt32(true), "c" -> PFloat64(), "d" -> PFloat32(), "e" -> PBoolean())
       destType = PStruct("a" -> PInt64(), "b" -> PInt32(), "c" -> PFloat64(true), "d" -> PFloat32(), "e" -> PBoolean())
-      PhysicalTestUtils.copyTestExecutor(srcType, destType, expectedVal, expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(srcType, destType, expectedVal, allowDowncast = true, forceDeep = forceDeep, interpret = interpret)
+      PhysicalTestUtils.copyTestExecutor(srcType, destType, expectedVal, expectCompileErr = true, forceDeep = forceDeep)
 
       srcType = PStruct("a" -> srcType, "b" -> PFloat32())
       destType = PStruct("a" -> destType, "b" -> PFloat32())
       nestedExpectedVal = Annotation(expectedVal, 13F)
-      PhysicalTestUtils.copyTestExecutor(srcType, destType, nestedExpectedVal, expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(srcType, destType, nestedExpectedVal, allowDowncast = true, forceDeep = forceDeep, interpret = interpret)
+      PhysicalTestUtils.copyTestExecutor(srcType, destType, nestedExpectedVal, expectCompileErr = true, forceDeep = forceDeep)
 
       srcType = PStruct("a" -> PArray(PInt32(true)), "b" -> PInt64())
       destType = PStruct("a" -> PArray(PInt32()), "b" -> PInt64())
@@ -75,9 +69,12 @@ class PBaseStructSuite extends HailSuite {
 
       srcType = PStruct("a" -> PArray(PInt32(true)), "b" -> PInt64())
       destType = PStruct("a" -> PArray(PInt32(), true), "b" -> PInt64())
-      expectedVal = Annotation(null, 31415926535897L)
-      PhysicalTestUtils.copyTestExecutor(srcType, destType, expectedVal, allowDowncast = true,
-        expectRuntimeErr = true, forceDeep = forceDeep, interpret = interpret)
+      PhysicalTestUtils.copyTestExecutor(srcType, destType, expectedVal, expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
+
+      srcType = PStruct("a" -> PArray(PArray(PStruct("a" -> PInt32(true)))), "b" -> PInt64())
+      destType = PStruct("a" -> PArray(PArray(PStruct("a" -> PInt32(true)))), "b" -> PInt64())
+      expectedVal = Annotation(IndexedSeq(null, IndexedSeq(null, Annotation(1))), 31415926535897L)
+      PhysicalTestUtils.copyTestExecutor(srcType, destType, expectedVal, forceDeep = forceDeep, interpret = interpret)
     }
 
     runTests(true)

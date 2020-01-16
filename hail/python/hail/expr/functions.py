@@ -1083,7 +1083,7 @@ def pl_dosage(pl) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return hl.sum(pl_to_gp(pl) * [0, 1, 2], filter_missing=False)
+    return hl.sum(pl_to_gp(pl) * hl.range(3), filter_missing=False)
 
 
 @typecheck(pl=expr_array(expr_int32), _cache_size=int)
@@ -3260,24 +3260,15 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
     -------
     :class:`.ArrayExpression`
     """
-
     n_arrays = builtins.len(arrays)
-    if fill_missing:
-        def _(array_lens):
-            result_len = hl.max(array_lens)
-            indices = hl.range(0, result_len)
-            return hl.map(lambda i: builtins.tuple(
-                hl.cond(i < array_lens[j], arrays[j][i], hl.null(arrays[j].dtype.element_type))
-                for j in builtins.range(n_arrays)), indices)
-
-        return bind(_, [hl.len(a) for a in arrays])
-    else:
-        def _(array_lens):
-            result_len = hl.min(array_lens)
-            indices = hl.range(0, result_len)
-            return hl.map(lambda i: builtins.tuple(arrays[j][i] for j in builtins.range(n_arrays)), indices)
-
-        return bind(_, [hl.len(a) for a in arrays])
+    uids = [Env.get_uid() for _ in builtins.range(n_arrays)]
+    body_ir = MakeTuple([Ref(uid) for uid in uids])
+    indices, aggregations = unify_all(*arrays)
+    behavior = 'ExtendNA' if fill_missing else 'TakeMinLength'
+    return construct_expr(ArrayZip([a._ir for a in arrays], uids, body_ir, behavior),
+                          tarray(ttuple(*(a.dtype.element_type for a in arrays))),
+                          indices,
+                          aggregations)
 
 
 @typecheck(a=expr_array(), index_first=bool)
@@ -4035,16 +4026,42 @@ def _ndarray(collection, row_major=None):
 
         return result
 
+    def check_arrays_uniform(nested_arr, shape_list, ndim):
+        current_level_correct = (hl.len(nested_arr) == shape_list[-ndim])
+        if ndim == 1:
+            return current_level_correct
+        else:
+            return current_level_correct & (hl.all(lambda inner: check_arrays_uniform(inner, shape_list, ndim - 1), nested_arr))
+
     if isinstance(collection, Expression):
         if isinstance(collection, ArrayNumericExpression):
             data_expr = collection
             shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ir.ttuple(tint64))
             ndim = 1
-
         elif isinstance(collection, NumericExpression):
             data_expr = array([collection])
             shape_expr = hl.tuple([])
             ndim = 0
+        elif isinstance(collection, ArrayExpression):
+            recursive_type = collection.dtype
+            ndim = 0
+            while isinstance(recursive_type, tarray):
+                recursive_type = recursive_type._element_type
+                ndim += 1
+
+            data_expr = collection
+            for i in builtins.range(ndim - 1):
+                data_expr = hl.flatten(data_expr)
+
+            nested_collection = collection
+            shape_list = []
+            for i in builtins.range(ndim):
+                shape_list.append(hl.int64(hl.len(nested_collection)))
+                nested_collection = nested_collection[0]
+
+            shape_expr = (hl.case().when(check_arrays_uniform(collection, shape_list, ndim), hl.tuple(shape_list))
+                                   .or_error("inner dimensions do not match"))
+
         else:
             raise ValueError(f"{collection} cannot be converted into an ndarray")
 

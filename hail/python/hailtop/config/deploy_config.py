@@ -83,7 +83,7 @@ class DeployConfig:
             return f'{base_scheme}s://{service}.hail.is{path}'
         return f'{base_scheme}s://internal.hail.is/{ns}/{service}{path}'
 
-    def prefix_application(self, app, service):
+    def prefix_application(self, app, service, **kwargs):
         base_path = self.base_path(service)
         if not base_path:
             return app
@@ -94,7 +94,7 @@ class DeployConfig:
         async def get_healthcheck(request):  # pylint: disable=unused-argument,unused-variable
             return web.Response()
 
-        root_app = web.Application()
+        root_app = web.Application(**kwargs)
         root_app.add_routes(root_routes)
         root_app.add_subapp(base_path, app)
 

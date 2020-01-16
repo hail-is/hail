@@ -9,7 +9,6 @@ import org.apache.spark.sql.Row
 
 import collection.JavaConverters._
 
-// An in-line struct whose byteSize is the sum of all fields in the struct
 object PCanonicalStruct {
   private val requiredEmpty = PCanonicalStruct(Array.empty[PField], true)
   private val optionalEmpty = PCanonicalStruct(Array.empty[PField], false)
@@ -51,9 +50,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
       s"${fieldNames.map(prettyIdentifier).mkString(", ")}", fieldNames.duplicates())
   }
 
-  val missingIdx = new Array[Int](size)
-  // sets missingIdx indices
-  val nMissing: Int = BaseStruct.getMissingness[PType](types, missingIdx)
+  val (missingIdx: Array[Int], nMissing: Int) = BaseStruct.getMissingIndexAndCount(types.map(_.required))
   val nMissingBytes = (nMissing + 7) >>> 3
   val byteOffsets = new Array[Long](size)
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
@@ -181,7 +178,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (compact) {
-      sb.append("Struct{")
+      sb.append("PCStruct{")
       fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
       sb += '}'
     } else {

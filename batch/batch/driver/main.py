@@ -12,6 +12,7 @@ from prometheus_async.aio.web import server_stats
 from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
     check_csrf_token
 from hailtop.config import get_deploy_config
+from hailtop.utils import time_msecs
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 
@@ -22,9 +23,11 @@ from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
     DEFAULT_NAMESPACE, BATCH_BUCKET_NAME
 from ..google_compute import GServices
+from ..globals import HTTP_CLIENT_MAX_SIZE
 
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
+from .k8s_cache import K8sCache
 
 # uvloop.install()
 
@@ -125,6 +128,8 @@ def active_instances_only(fun):
             log.info('instance, token not found in database')
             raise web.HTTPUnauthorized()
 
+        await instance.mark_healthy()
+
         return await fun(request, instance)
     return wrapped
 
@@ -204,7 +209,8 @@ async def activate_instance_1(request, instance):
     ip_address = body['ip_address']
 
     log.info(f'activating {instance}')
-    token = await instance.activate(ip_address)
+    timestamp = time_msecs()
+    token = await instance.activate(ip_address, timestamp)
     await instance.mark_healthy()
 
     with open('/gsa-key/key.json', 'r') as f:
@@ -254,8 +260,8 @@ async def job_complete_1(request, instance):
     start_time = status['start_time']
     end_time = status['end_time']
 
-    await mark_job_complete(request.app, batch_id, job_id, attempt_id, new_state, status,
-                            start_time, end_time, 'completed')
+    await mark_job_complete(request.app, batch_id, job_id, attempt_id, instance.name,
+                            new_state, status, start_time, end_time, 'completed')
 
     await instance.mark_healthy()
 
@@ -277,7 +283,7 @@ async def job_started_1(request, instance):
     attempt_id = status['attempt_id']
     start_time = status['start_time']
 
-    await mark_job_started(request.app, batch_id, job_id, attempt_id, start_time)
+    await mark_job_started(request.app, batch_id, job_id, attempt_id, instance, start_time)
 
     await instance.mark_healthy()
 
@@ -299,7 +305,10 @@ async def get_index(request, userdata):
     instance_pool = app['inst_pool']
 
     ready_cores = await db.select_and_fetchone(
-        'SELECT * FROM ready_cores;')
+        '''
+SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+FROM ready_cores;
+''')
     ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
     page_context = {
@@ -360,11 +369,11 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
     #     lambda v: v in valid_worker_cores,
     #     f'one of {", ".join(str(v) for v in valid_worker_cores)}')
 
-    worker_disk_size_gb = validate_int(
-        'Worker disk size',
-        post['worker_disk_size_gb'],
-        lambda v: v > 0,
-        'a positive integer')
+    # worker_disk_size_gb = validate_int(
+    #     'Worker disk size',
+    #     post['worker_disk_size_gb'],
+    #     lambda v: v > 0,
+    #     'a positive integer')
 
     max_instances = validate_int(
         'Max instances',
@@ -379,8 +388,8 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
         'a positive integer')
 
     await inst_pool.configure(
-        # worker_type, worker_cores,
-        worker_disk_size_gb, max_instances, pool_size)
+        # worker_type, worker_cores, worker_disk_size_gb,
+        max_instances, pool_size)
 
     set_message(session,
                 'Updated batch configuration.',
@@ -410,14 +419,20 @@ async def on_startup(app):
 
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()
-    app['k8s_client'] = k8s_client
+    k8s_cache = K8sCache(k8s_client, refresh_time=5)
+    app['k8s_cache'] = k8s_cache
 
     db = Database()
     await db.async_init()
     app['db'] = db
 
     row = await db.select_and_fetchone(
-        'SELECT instance_id, internal_token FROM globals;')
+        'SELECT worker_type, worker_cores, worker_disk_size_gb, instance_id, internal_token FROM globals;')
+
+    app['worker_type'] = row['worker_type']
+    app['worker_cores'] = row['worker_cores']
+    app['worker_disk_size_gb'] = row['worker_disk_size_gb']
+
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
@@ -455,7 +470,7 @@ async def on_cleanup(app):
 
 
 def run():
-    app = web.Application()
+    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'batch.driver')
@@ -466,4 +481,8 @@ def run():
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    web.run_app(deploy_config.prefix_application(app, 'batch-driver'), host='0.0.0.0', port=5000)
+    web.run_app(deploy_config.prefix_application(app,
+                                                 'batch-driver',
+                                                 client_max_size=HTTP_CLIENT_MAX_SIZE),
+                host='0.0.0.0',
+                port=5000)

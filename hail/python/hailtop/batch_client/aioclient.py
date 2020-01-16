@@ -467,7 +467,7 @@ class BatchBuilder:
         group_size = 0
         for spec in byte_job_specs:
             n = len(spec)
-            if group_size + n < 1000000 and len(group) < 1000:
+            if group_size + n < 8000000 and len(group) < 1000:
                 group.append(spec)
                 group_size += n
             else:
@@ -479,7 +479,7 @@ class BatchBuilder:
 
         await bounded_gather(*[functools.partial(self._submit_jobs, batch.id, group)
                                for group in groups],
-                             parallelism=2)
+                             parallelism=50)
 
         await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
         log.info(f'closed batch {b["id"]}')

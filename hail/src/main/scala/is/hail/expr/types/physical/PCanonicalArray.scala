@@ -11,16 +11,9 @@ import is.hail.utils._
 // This is a pointer array, whose byteSize is the size of its pointer
 final case class PCanonicalArray(elementType: PType, required: Boolean = false) extends PArray {
   def _asIdent = s"array_of_${elementType.asIdent}"
-  def _toPretty = s"Array[$elementType]"
-
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("array<")
-    elementType.pyString(sb)
-    sb.append('>')
-  }
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-    sb.append("Array[")
+    sb.append("PCArray[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")
   }
@@ -394,9 +387,74 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     Region.storeAddress(dstAddress, valueAddress)
   }
 
-  // semantically this function expects a non-null sourceAddress, and by that property, this function results in a non-null value
-  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
-  allowDowncast: Boolean, forceDeep: Boolean): Code[Long] = {
+  def deepCopyFromAddress(mb: MethodBuilder, region: Code[Region], srcArrayAddress: Code[Long]): Code[Long] = {
+    val dstAddress = mb.newField[Long]
+    Code(
+      dstAddress := this.copyFrom(mb, region, srcArrayAddress),
+      this.deepPointerCopy(mb, region, dstAddress),
+      dstAddress
+    )
+  }
+
+  def deepCopyFromAddress(region: Region, srcArrayAddress: Long): Long = {
+    val dstAddress = this.copyFrom(mb, region, srcArrayAddress)
+    this.deepPointerCopy(mb, region, dstAddress)
+    dstAddress
+  }
+
+  def deepPointerCopy(mb: MethodBuilder, region: Code[Region], dstAddress: Code[Long]): Code[Unit] = {
+    if(!this.elementType.fundamentalType.containsPointers) {
+      return Code._empty
+    }
+
+    val numberOfElements = mb.newLocal[Int]
+    val currentIdx = mb.newLocal[Int]
+    val currentElementAddress = mb.newField[Long]
+    Code(
+      currentIdx := const(0),
+      numberOfElements := this.loadLength(dstAddress),
+      Code.whileLoop(currentIdx < numberOfElements,
+        this.isElementDefined(dstAddress, currentIdx).orEmpty(
+          Code(
+            currentElementAddress := this.elementOffset(dstAddress, numberOfElements, currentIdx),
+            this.elementType.fundamentalType match {
+              case t@(_: PBinary | _: PArray) =>
+                t.storeShallowAtOffset(currentElementAddress, t.copyFromType(mb, region, t, Region.loadAddress(currentElementAddress)))
+              case t: PBaseStruct =>
+                t.deepPointerCopy(mb, region, currentElementAddress)
+              case t: PType => fatal(s"Type isn't supported ${t}")
+            }
+          )
+        ),
+        currentIdx := currentIdx + const(1)
+      )
+    )
+  }
+
+  def deepPointerCopy(region: Region, dstAddress: Long) {
+    if(!this.elementType.fundamentalType.containsPointers) {
+      return
+    }
+
+    val numberOfElements = this.loadLength(dstAddress)
+    val currentIdx = 0    
+    while(currentIdx < numberOfElements) {
+      if(this.isElementDefined(dstAddress, currentIdx)) {
+        val currentElementAddress = this.elementOffset(dstAddress, numberOfElements, currentIdx),
+        this.elementType.fundamentalType match {
+          case t@(_: PBinary | _: PArray) =>
+            t.storeShallowAtOffset(currentElementAddress, t.copyFromType(mb, region, t, Region.loadAddress(currentElementAddress)))
+          case t: PBaseStruct =>
+            t.deepPointerCopy(mb, region, currentElementAddress)
+          case t: PType => fatal(s"Type isn't supported ${t}")
+        }
+      }
+
+      currentIdx += 1
+    }
+  }
+
+  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     assert(srcPType.isInstanceOf[PArray])
 
     val sourceType = srcPType.asInstanceOf[PArray]
@@ -404,15 +462,13 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val destElementType = this.elementType.fundamentalType
 
     if (sourceElementType != destElementType) {
-      assert(sourceElementType isOfType destElementType)
+      assert(destElementType.required <= sourceElementType.required && sourceElementType.isOfType(destElementType))
     } else {
       if(!forceDeep) {
         return srcAddress
       }
 
-      if(sourceElementType.isPrimitive) {
-        return this.copyFrom(mb, region, srcAddress)
-      }
+      return this.deepCopyFromAddress(mb, region, srcAddress)
     }
 
     val dstAddress = mb.newField[Long]
@@ -420,7 +476,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val currentElementAddress = mb.newLocal[Long]
     val currentIdx = mb.newLocal[Int]
 
-    var c = Code(
+    val init = Code(
       numberOfElements := sourceType.loadLength(srcAddress),
       dstAddress := this.allocate(region, numberOfElements),
       this.stagedInitialize(dstAddress, numberOfElements),
@@ -436,18 +492,11 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
           region,
           sourceElementType,
           sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx),
-          allowDowncast,
           forceDeep
         )
       )
 
-    if(destElementType.required > sourceElementType.required) {
-      assert(allowDowncast)
-
-      c = Code(sourceType.hasMissingValues(srcAddress).orEmpty(
-        Code._fatal("Found missing values. Cannot copy to type whose elements are required.")
-      ), c)
-    } else if(!sourceElementType.required) {
+    if(!sourceElementType.required) {
       loop = sourceType.isElementMissing(srcAddress, currentIdx).mux(
         this.setElementMissing(dstAddress, currentIdx),
         loop
@@ -455,7 +504,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
 
     Code(
-      c,
+      init,
       Code.whileLoop(currentIdx < numberOfElements,
         loop,
         currentElementAddress := this.nextElementAddress(currentElementAddress),
@@ -465,33 +514,22 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
-  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long,
-    allowDowncast: Boolean, forceDeep: Boolean): Long = {
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = {
     assert(srcPType.isInstanceOf[PArray])
 
     val sourceType = srcPType.asInstanceOf[PArray]
     val sourceElementType = sourceType.elementType.fundamentalType
     val destElementType = this.elementType.fundamentalType
 
-    assert(sourceElementType isOfType destElementType)
-
     if (sourceElementType == destElementType) {
       if(!forceDeep) {
         return srcAddress
       }
 
-      if(sourceElementType.isPrimitive) {
-        return this.copyFrom(region, srcAddress)
-      }
+      return this.deepCopyFromAddress(region, srcAddress)
     }
 
-    if(destElementType.required > sourceElementType.required) {
-      assert(allowDowncast)
-
-      if(sourceType.hasMissingValues(srcAddress)) {
-        fatal("Found missing values. Cannot copy to type whose elements are required.")
-      }
-    }
+    assert(destElementType.required <= sourceElementType.required && sourceElementType.isOfType(destElementType))
 
     val numberOfElements = sourceType.loadLength(srcAddress)
     val dstAddress = this.allocate(region, numberOfElements)
@@ -499,7 +537,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
     var currentElementAddress = this.firstElementOffset(dstAddress, numberOfElements)
     var currentIdx = 0
-
     while(currentIdx < numberOfElements) {
       if(!sourceElementType.required && sourceType.isElementMissing(region, srcAddress, currentIdx)) {
         this.setElementMissing(dstAddress, currentIdx)
@@ -510,7 +547,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
             region,
             sourceElementType,
             sourceType.loadElement(srcAddress, numberOfElements, currentIdx),
-            allowDowncast,
             forceDeep
           )
         )

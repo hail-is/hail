@@ -297,6 +297,9 @@ abstract class Type extends BaseType with Serializable with Requiredness {
         t.isInstanceOf[TNDArray] &&
         t.asInstanceOf[TNDArray].elementType.isOfType(t2.elementType) &&
         t.asInstanceOf[TNDArray].nDims == t2.nDims
+      case t2: TStream =>
+        t.isInstanceOf[TStream] &&
+          t.asInstanceOf[TStream].elementType.isOfType(t2.elementType)
       case TVoid => t == TVoid
     }
   }

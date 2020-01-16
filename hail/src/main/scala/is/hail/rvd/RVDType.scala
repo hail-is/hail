@@ -125,7 +125,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
     JObject(List(
       "partitionKey" -> JArray(key.map(JString).toList),
       "key" -> JArray(key.map(JString).toList),
-      "rowType" -> JString(rowType.parsableString())))
+      "rowType" -> JString(rowType.toString)))
 
   override def toString: String = {
     val sb = new StringBuilder()
@@ -134,7 +134,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
       key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
     }
     sb.append("]],row:")
-    sb.append(rowType.parsableString())
+    sb.append(rowType.toString)
     sb += '}'
     sb.result()
   }

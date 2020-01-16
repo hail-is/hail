@@ -5,15 +5,9 @@ import is.hail.asm4s.{Code, MethodBuilder}
 
 final case class PCanonicalInterval(pointType: PType, override val required: Boolean = false) extends PInterval {
     def _asIdent = s"interval_of_${pointType.asIdent}"
-    def _toPretty = s"""Interval[$pointType]"""
 
-    override def pyString(sb: StringBuilder): Unit = {
-      sb.append("interval<")
-      pointType.pyString(sb)
-      sb.append('>')
-    }
     override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-      sb.append("Interval[")
+      sb.append("PCInterval[")
       pointType.pretty(sb, indent, compact)
       sb.append("]")
     }
@@ -60,29 +54,4 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
     def includeEnd(off: Code[Long]): Code[Boolean] =
       Region.loadBoolean(representation.loadField(off, 3))
-
-    override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
-      this.representation.storeShallowAtOffset(dstAddress, valueAddress)
-
-    override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
-      this.representation.storeShallowAtOffset(dstAddress, valueAddress)
-    }
-
-    override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
-      allowDowncast: Boolean, forceDeep: Boolean): Code[Long] = {
-      assert(this isOfType srcPType)
-
-      val srcRepPType = srcPType.asInstanceOf[PInterval].representation
-
-      this.representation.copyFromType(mb, region, srcRepPType, srcAddress, allowDowncast, forceDeep)
-    }
-
-    override def copyFromType(region: Region, srcPType: PType, srcAddress: Long,
-      allowDowncast: Boolean, forceDeep: Boolean): Long = {
-      assert(this isOfType srcPType)
-
-      val srcRepPType = srcPType.asInstanceOf[PInterval].representation
-
-      this.representation.copyFromType(region, srcRepPType, srcAddress, allowDowncast, forceDeep)
-    }
 }

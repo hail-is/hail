@@ -13,8 +13,8 @@ import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
 class PTypeSerializer extends CustomSerializer[PType](format => (
-  { case JString(s) => PType.canonical(IRParser.parseType(s)) },
-  { case t: PType => JString(t.parsableString()) }))
+  { case JString(s) => PType.canonical(IRParser.parsePType(s)) },
+  { case t: PType => JString(t.toString) }))
 
 
 object PType {
@@ -154,10 +154,16 @@ object PType {
   }
 }
 
-abstract class PType extends BaseType with Serializable with Requiredness {
+abstract class PType extends Serializable with Requiredness {
   self =>
 
   def virtualType: Type
+
+  override def toString: String = {
+    val sb = new StringBuilder
+    pretty(sb, 0, true)
+    sb.result()
+  }
 
   def unsafeOrdering(): UnsafeOrdering = ???
 
@@ -171,15 +177,6 @@ abstract class PType extends BaseType with Serializable with Requiredness {
   def unsafeInsert(typeToInsert: PType, path: List[String]): (PType, UnsafeInserter) =
     PStruct.empty().unsafeInsert(typeToInsert, path)
 
-  def insert(signature: PType, fields: String*): (PType, Inserter) = insert(signature, fields.toList)
-
-  def insert(signature: PType, path: List[String]): (PType, Inserter) = {
-    if (path.nonEmpty)
-      PStruct.empty().insert(signature, path)
-    else
-      (signature, (a, toIns) => toIns)
-  }
-
   def asIdent: String = (if (required) "r_" else "o_") + _asIdent
 
   def _asIdent: String
@@ -190,11 +187,7 @@ abstract class PType extends BaseType with Serializable with Requiredness {
     _pretty(sb, indent, compact)
   }
 
-  def _toPretty: String
-
-  def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
-    sb.append(_toPretty)
-  }
+  def _pretty(sb: StringBuilder, indent: Int, compact: Boolean)
 
   def codeOrdering(mb: EmitMethodBuilder): CodeOrdering =
     codeOrdering(mb, this)
@@ -302,69 +295,18 @@ abstract class PType extends BaseType with Serializable with Requiredness {
         t.setRequired(required)
     }
 
-  def unify(concrete: PType): Boolean = {
-    this.isOfType(concrete)
-  }
-
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
-  allowDowncast: Boolean, forceDeep: Boolean): Code[Long] = {
-    this.fundamentalType match {
-      case t@(_: PBoolean| _: PInt32 | _: PInt64 | _: PFloat32 | _: PFloat64) => {
-        if (t.required > srcPType.required) {
-          assert(allowDowncast)
-        }
-
-        srcAddress
-      }
-      case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
-    }
-  }
-
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] =
-    copyFromType(mb, region, srcPType, srcAddress, false, forceDeep)
+  // Semantics: must be callable without requiredeness check: srcAddress must point to non-null value
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long]
 
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long]): Code[Long] =
-    copyFromType(mb, region, srcPType, srcAddress, false, false)
+    this.copyFromType(mb, region, srcPType, srcAddress, false)
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, allowDowncast: Boolean, forceDeep: Boolean): Long = {
-    this.fundamentalType match {
-      case t@(_: PBoolean| _: PInt32 | _: PInt64 | _: PFloat32 | _: PFloat64) => {
-        if(t.required > srcPType.required) {
-          assert(allowDowncast)
-        }
-
-        srcAddress
-      }
-      case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
-    }
-  }
-
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long =
-    copyFromType(region, srcPType, srcAddress, false, forceDeep)
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long
 
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long): Long =
-    copyFromType(region, srcPType, srcAddress, false, false)
+    this.copyFromType(region, srcPType, srcAddress, false)
 
+  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]): Code[Unit]
 
-  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] = {
-    this.fundamentalType match {
-      case _: PBoolean => Region.storeBoolean(dstAddress, Region.loadBoolean(srcAddress))
-      case _: PInt32 => Region.storeInt(dstAddress, Region.loadInt(srcAddress))
-      case _: PInt64 => Region.storeLong(dstAddress, Region.loadLong(srcAddress))
-      case _: PFloat32 => Region.storeFloat(dstAddress, Region.loadFloat(srcAddress))
-      case _: PFloat64 => Region.storeDouble(dstAddress, Region.loadDouble(srcAddress))
-      case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
-    }
-  }
-
-  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) {
-    this.fundamentalType match {
-      case _: PBoolean => Region.storeBoolean(dstAddress, Region.loadBoolean(srcAddress))
-      case _: PInt32 => Region.storeInt(dstAddress, Region.loadInt(srcAddress))
-      case _: PInt64 => Region.storeLong(dstAddress, Region.loadLong(srcAddress))
-      case _: PFloat32 => Region.storeFloat(dstAddress, Region.loadFloat(srcAddress))
-      case _: PFloat64 => Region.storeDouble(dstAddress, Region.loadDouble(srcAddress))
-      case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
-    }
-  }
+  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long)
 }

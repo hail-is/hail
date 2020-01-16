@@ -56,16 +56,6 @@ abstract class PStruct extends PBaseStruct {
 
   def identBase: String = "tuple"
 
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("struct{")
-    fields.foreachBetween({ field =>
-      sb.append(prettyIdentifier(field.name))
-      sb.append(": ")
-      field.typ.pyString(sb)
-    }) { sb.append(", ")}
-    sb.append('}')
-  }
-
   def selectFields(names: Seq[String]): PStruct
 
   def select(keep: IndexedSeq[String]): (PStruct, (Row) => Row)

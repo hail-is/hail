@@ -141,6 +141,9 @@ object Simplify {
 
     case x@ArrayMap(NA(_), _, _) => NA(x.typ)
 
+    case ArrayZip(as, names, body, _) if as.length == 1 => ArrayMap(as.head, names.head, body)
+    case ArrayMap(ArrayZip(as, names, zipBody, b), name, mapBody) => ArrayZip(as, names, Let(name, zipBody, mapBody), b)
+
     case x@ArrayFlatMap(NA(_), _, _) => NA(x.typ)
 
     case x@ArrayFilter(NA(_), _, _) => NA(x.typ)
@@ -372,7 +375,7 @@ object Simplify {
         ApplyAggOp(
           FastIndexedSeq(),
           FastIndexedSeq(ArrayLen(ToArray(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)})).toL),
-          AggSignature(Sum(), FastSeq(), FastSeq(TInt64()), None)))
+          AggSignature(Sum(), FastSeq(), FastSeq(TInt64()))))
 
     case TableCount(TableRead(_, false, r: MatrixBGENReader)) if r.includedVariants.isEmpty =>
       I64(r.fileMetadata.map(_.nVariants).sum)
@@ -543,7 +546,7 @@ object Simplify {
     case TableFilter(TableKeyBy(child, key, isSorted), p) if canRepartition => TableKeyBy(TableFilter(child, p), key, isSorted)
     case TableFilter(TableRepartition(child, n, strategy), p) => TableRepartition(TableFilter(child, p), n, strategy)
 
-    case TableOrderBy(TableKeyBy(child, _, _), sortFields) => TableOrderBy(child, sortFields)
+    case TableOrderBy(TableKeyBy(child, _, false), sortFields) => TableOrderBy(child, sortFields)
 
     case TableFilter(TableOrderBy(child, sortFields), pred) if canRepartition =>
       TableOrderBy(TableFilter(child, pred), sortFields)
@@ -679,7 +682,7 @@ object Simplify {
       // n < 256 is arbitrary for memory concerns
       val row = Ref("row", child.typ.rowType)
       val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
-      val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()),  FastSeq(row.typ, keyStruct.typ), None)
+      val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()),  FastSeq(row.typ, keyStruct.typ))
       val te =
         TableExplode(
           TableKeyByAndAggregate(child,

@@ -8,10 +8,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def _asIdent: String = s"ndarray_of_${elementType.asIdent}"
 
-  override def _toPretty = throw new NotImplementedError("Only _pretty should be called.")
-
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-    sb.append("NDArray[")
+    sb.append("PCNDArray[")
     elementType.pretty(sb, indent, compact)
     sb.append(s",$nDims]")
   }
@@ -216,23 +214,21 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     this.representation.storeShallowAtOffset(dstAddress, valueAddress)
   }
 
-  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
-  allowDowncast: Boolean, forceDeep: Boolean): Code[Long] = {
+  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     assert(srcPType.isInstanceOf[PNDArray])
     val sourceNDPType = srcPType.asInstanceOf[PNDArray]
 
     assert(this.elementType == sourceNDPType.elementType && this.nDims == sourceNDPType.nDims)
 
-    this.representation.copyFromType(mb, region, sourceNDPType.representation, srcAddress, allowDowncast, forceDeep)
+    this.representation.copyFromType(mb, region, sourceNDPType.representation, srcAddress, forceDeep)
   }
 
-  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long,
-    allowDowncast: Boolean, forceDeep: Boolean): Long  = {
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long  = {
     assert(srcPType.isInstanceOf[PNDArray])
     val sourceNDPType = srcPType.asInstanceOf[PNDArray]
 
     assert(this.elementType == sourceNDPType.elementType && this.nDims == sourceNDPType.nDims)
 
-    this.representation.copyFromType(region, sourceNDPType.representation, srcAddress, allowDowncast, forceDeep)
+    this.representation.copyFromType(region, sourceNDPType.representation, srcAddress, forceDeep)
   }
 }

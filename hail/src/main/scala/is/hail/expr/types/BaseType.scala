@@ -25,14 +25,16 @@ trait Requiredness {
 }
 
 object BaseStruct {
-  def getMissingness[Ty <: BaseType with Requiredness](types: Array[Ty], missingIdx: Array[Int]): Int = {
-    assert(missingIdx.length == types.length)
+  def getMissingIndexAndCount(req: Array[Boolean]): (Array[Int], Int) = {
+    val missingIdx = new Array[Int](req.length)
     var i = 0
-    types.zipWithIndex.foreach { case (t, idx) =>
-      missingIdx(idx) = i
-      if (!t.required)
-        i += 1
+    var j = 0
+    while (i < req.length) {
+      missingIdx(i) = j
+      if (!req(i))
+        j += 1
+      i += 1
     }
-    i
+    (missingIdx, j)
   }
 }

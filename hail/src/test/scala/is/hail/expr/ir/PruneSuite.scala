@@ -565,6 +565,26 @@ class PruneSuite extends HailSuite {
       TArray(justB), Array(TArray(justB), null))
   }
 
+  @Test def testArrayZipMemo() {
+    val a2 = arr.deepCopy()
+    val a3 = arr.deepCopy()
+    for (b <- Array(ArrayZipBehavior.ExtendNA, ArrayZipBehavior.TakeMinLength, ArrayZipBehavior.AssertSameLength)) {
+
+    checkMemo(ArrayZip(
+      FastIndexedSeq(arr, a2, a3),
+      FastIndexedSeq("foo", "bar", "baz"),
+      Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())), b),
+      TArray(TBoolean()), Array(TArray(justB), TArray(justA), TArray(empty), null))
+    }
+    checkMemo(ArrayZip(
+      FastIndexedSeq(arr, a2, a3),
+      FastIndexedSeq("foo", "bar", "baz"),
+      Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())),
+      ArrayZipBehavior.AssumeSameLength),
+      TArray(TBoolean()), Array(TArray(justB), TArray(justA), null, null))
+
+  }
+
   @Test def testArrayFilterMemo() {
     checkMemo(ArrayFilter(arr, "foo", Let("foo2", GetField(Ref("foo", ref.typ), "b"), False())),
       TArray(empty), Array(TArray(justB), null))
@@ -1008,7 +1028,28 @@ class PruneSuite extends HailSuite {
       })
   }
 
-  @Test def testArrayFlatmapRebuild() {
+  @Test def testArrayZipRebuild() {
+    val a2 = arr.deepCopy()
+    val a3 = arr.deepCopy()
+    for (b <- Array(ArrayZipBehavior.ExtendNA, ArrayZipBehavior.TakeMinLength, ArrayZipBehavior.AssertSameLength)) {
+
+      checkRebuild(ArrayZip(
+        FastIndexedSeq(arr, a2, a3),
+        FastIndexedSeq("foo", "bar", "baz"),
+        Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())), b),
+        TArray(TBoolean()),
+        (_: BaseIR, r: BaseIR) => r.asInstanceOf[ArrayZip].as.length == 3)
+    }
+    checkRebuild(ArrayZip(
+      FastIndexedSeq(arr, a2, a3),
+      FastIndexedSeq("foo", "bar", "baz"),
+      Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())),
+      ArrayZipBehavior.AssumeSameLength),
+      TArray(TBoolean()),
+      (_: BaseIR, r: BaseIR) => r.asInstanceOf[ArrayZip].as.length == 2)
+  }
+
+    @Test def testArrayFlatmapRebuild() {
     checkRebuild(ArrayFlatMap(MakeArray(Seq(NA(ts)), TArray(ts)), "x", MakeArray(Seq(Ref("x", ts)), TArray(ts))),
       TArray(subsetTS("b")),
       (_: BaseIR, r: BaseIR) => {

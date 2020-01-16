@@ -260,14 +260,14 @@ class EmitFunctionBuilder[F >: Null](
   private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
   private[this] var _backendField: ClassFieldRef[BackendUtils] = _
 
-  private[this] var _aggSigs: Array[AggSignature] = _
+  private[this] var _aggSigs: Array[PhysicalAggSignature] = _
   private[this] var _aggRegion: ClassFieldRef[Region] = _
   private[this] var _aggOff: ClassFieldRef[Long] = _
   private[this] var _aggState: agg.TupleAggregatorState = _
   private[this] var _nSerialized: Int = 0
   private[this] var _aggSerialized: ClassFieldRef[Array[Array[Byte]]] = _
 
-  def addAggStates(aggSigs: Array[AggSignature]): agg.TupleAggregatorState = {
+  def addAggStates(aggSigs: Array[PhysicalAggSignature]): agg.TupleAggregatorState = {
     if (_aggSigs != null) {
       assert(aggSigs sameElements _aggSigs)
       return _aggState
@@ -373,7 +373,7 @@ class EmitFunctionBuilder[F >: Null](
     val references = ReferenceGenome.getReferences(t.virtualType).toArray
     val setup = Code(Code(references.map(addReferenceGenome): _*),
       Code.invokeScalaObject[String, PType](
-        IRParser.getClass, "parsePType", const(t.parsableString())))
+        IRParser.getClass, "parsePType", const(t.toString)))
     pTypeMap.getOrElseUpdate(t,
       newLazyField[PType](setup))
   }

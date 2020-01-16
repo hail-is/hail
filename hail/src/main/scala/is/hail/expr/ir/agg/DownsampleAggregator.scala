@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion, EmitTriplet}
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical._
+import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 
@@ -524,6 +525,10 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
 
     mb.invoke()
   }
+}
+
+object DownsampleAggregator {
+  val resultType: TArray = TArray(TTuple(TFloat64(), TFloat64(), TArray(TString())))
 }
 
 class DownsampleAggregator(arrayType: PArray) extends StagedAggregator {

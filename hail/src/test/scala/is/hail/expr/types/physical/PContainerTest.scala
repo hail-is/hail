@@ -192,17 +192,22 @@ class PContainerTest extends HailSuite {
       PhysicalTestUtils.copyTestExecutor(PArray(PInt32(true)), PArray(PInt32()), IndexedSeq(1, 2, 3, 4),
         forceDeep = forceDeep, interpret = interpret)
 
-      // test mismatched top-level requiredeness
+      // test mismatched top-level requiredeness, allowed because by source value address must be present and therefore non-null
       PhysicalTestUtils.copyTestExecutor(PArray(PInt32()), PArray(PInt32(), true), IndexedSeq(1, 2, 3, 4),
         forceDeep = forceDeep, interpret = interpret)
 
-      // test downcast
+      // downcast disallowed
       PhysicalTestUtils.copyTestExecutor(PArray(PInt32()), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4),
         expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PArray(PInt32()), PArray(PInt32(true)), IndexedSeq(1, 2, 3, 4),
-        allowDowncast = true, forceDeep = forceDeep, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PArray(PInt32()), PArray(PInt32(true)), IndexedSeq(1, null, 3, 4),
-        expectRuntimeErr = true, allowDowncast = true, forceDeep = forceDeep, interpret = interpret)
+      PhysicalTestUtils.copyTestExecutor(PArray(PArray(PInt64())), PArray(PArray(PInt64(), true)),
+        FastIndexedSeq(FastIndexedSeq(20L), FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
+        expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
+      PhysicalTestUtils.copyTestExecutor(PArray(PArray(PInt64())), PArray(PArray(PInt64(), true)),
+        FastIndexedSeq(FastIndexedSeq(20L), FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
+        expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
+      PhysicalTestUtils.copyTestExecutor(PArray(PArray(PInt64())), PArray(PArray(PInt64(true))),
+        FastIndexedSeq(FastIndexedSeq(20L), FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
+        expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
 
       // test empty arrays
       PhysicalTestUtils.copyTestExecutor(PArray(PInt32()), PArray(PInt32()), FastIndexedSeq(),
@@ -222,20 +227,6 @@ class PContainerTest extends HailSuite {
         FastIndexedSeq(null, FastIndexedSeq(null), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
         forceDeep = forceDeep, interpret = interpret)
 
-      // test 2D array with missingness
-      PhysicalTestUtils.copyTestExecutor(PArray(PArray(PInt64())), PArray(PArray(PInt64(), true)),
-        FastIndexedSeq(FastIndexedSeq(20L), FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
-        allowDowncast = true, forceDeep = forceDeep, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PArray(PArray(PInt64())), PArray(PArray(PInt64(), true)),
-        FastIndexedSeq(null, FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
-        allowDowncast = true, expectRuntimeErr = true, forceDeep = forceDeep, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PArray(PArray(PInt64())), PArray(PArray(PInt64(true))),
-        FastIndexedSeq(FastIndexedSeq(99L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
-        allowDowncast = true, forceDeep = forceDeep, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PArray(PArray(PInt64())), PArray(PArray(PInt64(true))),
-        FastIndexedSeq(FastIndexedSeq(99L), FastIndexedSeq(20L,3L,31L,41L), FastIndexedSeq(1L,2L, null)),
-        allowDowncast = true, expectRuntimeErr = true, forceDeep = forceDeep, interpret = interpret)
-
       // test complex nesting
       val complexNesting = FastIndexedSeq(
         FastIndexedSeq( FastIndexedSeq(20L,30L,31L,41L), FastIndexedSeq(20L,22L,31L,43L) ),
@@ -252,14 +243,6 @@ class PContainerTest extends HailSuite {
         complexNesting, forceDeep = forceDeep, interpret = interpret)
       PhysicalTestUtils.copyTestExecutor(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64()))),
         complexNesting, forceDeep = forceDeep, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true)))),
-        complexNesting, allowDowncast = true, forceDeep = forceDeep, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true), true))),
-        complexNesting, allowDowncast = true, forceDeep = forceDeep, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true), true), true)),
-        complexNesting, allowDowncast = true, forceDeep = forceDeep, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PArray(PArray(PArray(PInt64()))), PArray(PArray(PArray(PInt64(true), true), true), true),
-        complexNesting, allowDowncast = true, forceDeep = forceDeep, interpret = interpret)
 
       val srcType = PArray(PStruct("a" -> PArray(PInt32(true)), "b" -> PInt64()))
       val destType = PArray(PStruct("a" -> PArray(PInt32()), "b" -> PInt64()))
@@ -284,9 +267,6 @@ class PContainerTest extends HailSuite {
 
       PhysicalTestUtils.copyTestExecutor(PDict(PString(), PInt32()), PDict(PString(true), PInt32()), Map("test3" -> 3),
         expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
-
-      PhysicalTestUtils.copyTestExecutor(PDict(PString(), PInt32()), PDict(PString(true), PInt32()), Map("test4" -> 4),
-        allowDowncast = true, forceDeep = forceDeep, interpret = interpret)
     }
 
     runTests(true, false)

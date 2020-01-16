@@ -51,13 +51,13 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
     def state(self):
         return self._state
 
-    async def activate(self, ip_address):
+    async def activate(self, ip_address, timestamp):
         assert self._state == 'pending'
 
         rv = await check_call_procedure(
             self.db,
-            'CALL activate_instance(%s, %s);',
-            (self.name, ip_address))
+            'CALL activate_instance(%s, %s, %s);',
+            (self.name, ip_address, timestamp))
 
         self.instance_pool.adjust_for_remove_instance(self)
         self._state = 'active'

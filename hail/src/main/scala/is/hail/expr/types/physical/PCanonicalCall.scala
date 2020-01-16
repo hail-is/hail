@@ -7,11 +7,8 @@ import is.hail.variant.Genotype
 
 final case class PCanonicalCall(required: Boolean = false) extends PCall {
     def _asIdent = "call"
-    def _toPretty = "Call"
 
-    override def pyString(sb: StringBuilder): Unit = {
-      sb.append("call")
-    }
+    override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PCCall")
 
     val representation: PType = PInt32(required)
 
@@ -55,30 +52,5 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
           )
         )
       )
-    }
-
-    override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
-      this.representation.storeShallowAtOffset(dstAddress, valueAddress)
-
-    override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
-      this.representation.storeShallowAtOffset(dstAddress, valueAddress)
-    }
-
-    override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long],
-      allowDowncast: Boolean, forceDeep: Boolean): Code[Long] = {
-      assert(this isOfType srcPType)
-
-      val srcRepPType = srcPType.asInstanceOf[PCanonicalCall].representation
-
-      this.representation.copyFromType(mb, region, srcRepPType, srcAddress, allowDowncast, forceDeep)
-    }
-
-    override def copyFromType(region: Region, srcPType: PType, srcAddress: Long,
-      allowDowncast: Boolean = false, forceDeep: Boolean = false): Long = {
-      assert(this isOfType srcPType)
-
-      val srcRepPType = srcPType.asInstanceOf[PCanonicalCall].representation
-
-      this.representation.copyFromType(region, srcRepPType, srcAddress, allowDowncast, forceDeep)
     }
 }

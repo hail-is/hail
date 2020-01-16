@@ -28,8 +28,7 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testRangeRead() {
-    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
-    val original = TableMapGlobals(TableRange(10, 3), MakeStruct(FastIndexedSeq("foo" -> I32(57))))
+    val original = TableKeyBy(TableMapGlobals(TableRange(10, 3), MakeStruct(FastIndexedSeq("foo" -> I32(57)))), FastIndexedSeq())
 
     val path = tmpDir.createTempFile()
     CompileAndEvaluate[Unit](ctx, TableWrite(original, TableNativeWriter(path, overwrite = true)), false)
@@ -40,8 +39,8 @@ class TableIRSuite extends HailSuite {
     val expectedRows = Array.tabulate(10)(i => Row(i)).toFastIndexedSeq
     val expectedGlobals = Row(57)
 
-    assertEvalsTo(collect(read), Row(expectedRows, expectedGlobals))
-    assertEvalsTo(collect(droppedRows), Row(FastIndexedSeq(), expectedGlobals))
+    assertEvalsTo(TableCollect(read), Row(expectedRows, expectedGlobals))
+    assertEvalsTo(TableCollect(droppedRows), Row(FastIndexedSeq(), expectedGlobals))
   }
 
   @Test def testRangeCollect() {

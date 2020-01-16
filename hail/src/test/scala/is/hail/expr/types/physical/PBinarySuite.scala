@@ -10,17 +10,10 @@ class PBinarySuite extends HailSuite {
       PhysicalTestUtils.copyTestExecutor(PString(), PString(), "",
         forceDeep = forceDeep, interpret = interpret)
 
-      PhysicalTestUtils.copyTestExecutor(PString(), PString(true), "DowncastDisabledByDefault",
-        expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
+      PhysicalTestUtils.copyTestExecutor(PString(), PString(true), "TopLevelDowncastAllowed",
+        forceDeep = forceDeep, interpret = interpret)
 
-      PhysicalTestUtils.copyTestExecutor(PString(), PString(true), "AllowDowncast",
-        allowDowncast = true, forceDeep = forceDeep, interpret = interpret)
-
-      // required because first stack entry in RVB must be non-null
-      PhysicalTestUtils.copyTestExecutor(PArray(PString()), PArray(PString(true)), IndexedSeq("DowncastRuntimeFailOnNull", null),
-        allowDowncast = true, expectRuntimeErr = true, forceDeep = forceDeep, interpret = interpret)
-
-      PhysicalTestUtils.copyTestExecutor(PString(true), PString(), "Upcast",
+      PhysicalTestUtils.copyTestExecutor(PString(true), PString(), "UpcastAllowed",
         forceDeep = forceDeep, interpret = interpret)
     }
 

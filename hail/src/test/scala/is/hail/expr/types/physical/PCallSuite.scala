@@ -14,17 +14,16 @@ class PCallSuite extends HailSuite {
         2,
         forceDeep = forceDeep, interpret = interpret)
 
+      // downcast at top level allowed, since PCanonicalCall wraps a primitive
       PhysicalTestUtils.copyTestExecutor(PCanonicalCall(), PCanonicalCall(true),
         2,
-        expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
+        forceDeep = forceDeep, interpret = interpret)
 
-      PhysicalTestUtils.copyTestExecutor(PCanonicalCall(), PCanonicalCall(true),
-        2,
-        allowDowncast = true, forceDeep = forceDeep, interpret = interpret)
+      PhysicalTestUtils.copyTestExecutor(PArray(PCanonicalCall(true), true), PArray(PCanonicalCall()),
+        IndexedSeq(2, 3), forceDeep = forceDeep, interpret = interpret)
 
-      PhysicalTestUtils.copyTestExecutor(PArray(PCanonicalCall()), PArray(PCanonicalCall(true)),
-        IndexedSeq(2, null),
-        allowDowncast = true, expectRuntimeErr = true, forceDeep = forceDeep, interpret = interpret)
+      PhysicalTestUtils.copyTestExecutor(PArray(PCanonicalCall(), true), PArray(PCanonicalCall(true)),
+        IndexedSeq(2, 3), expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
     }
 
     runTests(true)
