@@ -160,10 +160,6 @@ class BatchBuilder:
 
         return Job.from_async_job(async_job)
 
-    def _create(self, *args, **kwargs):
-        async_batch = async_to_blocking(self._async_builder._create(*args, **kwargs))
-        return Batch.from_async_batch(async_batch)
-
     def submit(self, *args, **kwargs):
         async_batch = async_to_blocking(self._async_builder.submit(*args, **kwargs))
         return Batch.from_async_batch(async_batch)
