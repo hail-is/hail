@@ -3,9 +3,9 @@ import json
 import pymysql
 import aiomysql
 import logging
+from inspect import isgeneratorfunction
 
 from hailtop.utils import sleep_and_backoff
-
 
 log = logging.getLogger('gear.database')
 
@@ -19,6 +19,8 @@ def retry_transient_mysql_errors(f):
         delay = 0.1
         while True:
             try:
+                if isgeneratorfunction(f):
+                    yield await f(*args, **kwargs)
                 return await f(*args, **kwargs)
             except pymysql.err.OperationalError as e:
                 if e.args[0] in retry_codes:
