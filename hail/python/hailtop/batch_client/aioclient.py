@@ -506,15 +506,10 @@ class BatchBuilder:
                 self._byte_job_spec_bunches.append(bunch)
 
         n_bunches = len(self._byte_job_spec_bunches)
-        results = await bounded_gather(
+        await bounded_gather(
             *[functools.partial(self._submit_jobs, id, bunch_index)
               for bunch_index in range(n_bunches)],
-            parallelism=50,
-            return_exceptions=1)
-        exceptions = [r for r in results if isinstance(r, BaseException)]
-        if len(exceptions) > 0:
-            assert len(exceptions) == 1
-            raise exceptions[0]
+            parallelism=50)
 
         await self._client._patch(f'/api/v1alpha/batches/{id}/close')
         log.info(f'closed batch {id}')
