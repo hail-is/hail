@@ -510,7 +510,7 @@ VALUES (%s, %s, %s, %s);
                                           job_attributes_args)
 
                     await tx.execute_update('''
-UPDATE batches_staging
+UPDATE batches_staging SET
   n_jobs = n_jobs + %s,
   n_ready_jobs = n_ready_jobs + %s,
   ready_cores_mcpu = ready_cores_mcpu + %s
