@@ -807,12 +807,8 @@ steps:
    dependsOn:
     - default_ns
     - copy_files
-<<<<<<< HEAD
- - kind: createDatabase
-=======
     - delete_ci_tables
- - kind: createDatabase2
->>>>>>> [ci] add zulip notification of deploy state
+ - kind: createDatabase
    name: batch_database
    databaseName: batch
    migrations:
