@@ -108,6 +108,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit] =
     Region.setBit(aoff + lengthHeaderBytes, i.toL)
 
+  def setElementPresent(aoff: Long, i: Int) {
+    Region.clearBit(aoff + lengthHeaderBytes, i.toLong)
+  }
+
   def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit] =
     Region.clearBit(aoff + lengthHeaderBytes, i.toL)
 

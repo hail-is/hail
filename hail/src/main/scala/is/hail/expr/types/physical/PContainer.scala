@@ -39,6 +39,8 @@ abstract class PContainer extends PIterable {
 
   def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit]
 
+  def setElementPresent(aoff: Long, i: Int)
+
   def firstElementOffset(aoff: Long, length: Int): Long
 
   def elementOffset(aoff: Long, length: Int, i: Int): Long
