@@ -431,18 +431,19 @@ echo $HAIL_BATCH_WORKER_IP
         builder.submit()
 
     def test_restartable_insert(self):
+        def every_third_time():
+            nonlocal i
+            i += 1
+            if i % 3 == 0:
+                return True
+            return False
         with aiohttp.ClientSession(raise_for_status=True,
                                    timeout=aiohttp.ClientTimeout(total=60)) as real_session:
-            client = BatchClient('test', session=FailureInjectingClientSession(real_session))
+            client = BatchClient('test', session=FailureInjectingClientSession(real_session,
+                                                                               every_third_time))
             builder = client.create_batch()
             i = 0
 
-            def every_third_time():
-                nonlocal i
-                i += 1
-                if i % 3 == 0:
-                    return True
-                return False
             for _ in range(9):
                 builder.create_job('ubuntu:18.04', ['echo', 'a'])
 
