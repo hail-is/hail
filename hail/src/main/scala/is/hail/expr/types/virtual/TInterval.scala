@@ -8,8 +8,6 @@ import is.hail.utils.{FastSeq, Interval}
 import scala.reflect.{ClassTag, classTag}
 
 case class TInterval(pointType: Type, override val required: Boolean = false) extends ComplexType {
-  lazy val physicalType: PInterval = PInterval(pointType.physicalType, required)
-
   override def children = FastSeq(pointType)
 
   def _toPretty = s"""Interval[$pointType]"""

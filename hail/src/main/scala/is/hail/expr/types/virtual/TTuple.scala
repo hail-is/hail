@@ -24,8 +24,6 @@ object TTuple {
 case class TupleField(index: Int, typ: Type)
 
 final case class TTuple(_types: IndexedSeq[TupleField], override val required: Boolean = false) extends TBaseStruct {
-  lazy val physicalType: PTuple = PTuple(_types.map(tf => PTupleField(tf.index, tf.typ.physicalType)), required)
-
   lazy val types: Array[Type] = _types.map(_.typ).toArray
 
   lazy val fields: IndexedSeq[Field] = _types.map { tf => Field(s"${ tf.index }", tf.typ, tf.index) }

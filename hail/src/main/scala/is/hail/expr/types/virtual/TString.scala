@@ -12,8 +12,6 @@ case object TStringOptional extends TString(false)
 case object TStringRequired extends TString(true)
 
 class TString(override val required: Boolean) extends Type {
-  lazy val physicalType: PString = PString(required)
-
   def _toPretty = "String"
 
   override def pyString(sb: StringBuilder): Unit = {

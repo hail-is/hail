@@ -9,8 +9,6 @@ import org.json4s.jackson.JsonMethods
 import scala.reflect.{ClassTag, classTag}
 
 final case class TSet(elementType: Type, override val required: Boolean = false) extends TContainer {
-  lazy val physicalType: PSet = PSet(elementType.physicalType, required)
-
   override lazy val fundamentalType: TArray = TArray(elementType.fundamentalType, required)
 
   def _toPretty = s"Set[$elementType]"

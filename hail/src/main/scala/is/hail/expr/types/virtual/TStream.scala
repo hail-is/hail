@@ -25,8 +25,6 @@ trait TStreamable extends TIterable {
 }
 
 final case class TStream(elementType: Type, override val required: Boolean = false) extends TStreamable {
-  lazy val physicalType: PStream = PStream(elementType.physicalType, required)
-
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("stream<")
     elementType.pyString(sb)
