@@ -352,8 +352,6 @@ class BatchBuilder:
         self._submitted = False
         self.attributes = attributes
         self.callback = callback
-        self._byte_job_spec_bunches = None
-        self._bunch_sizes = None
 
     def create_job(self, image, command, env=None, mount_docker_socket=False,
                    port=None, resources=None, secrets=None,
@@ -427,12 +425,7 @@ class BatchBuilder:
         self._jobs.append(j)
         return j
 
-    async def _submit_jobs(self, batch_id, bunch_index):
-        byte_job_specs = self._byte_job_spec_bunches[bunch_index]
-        if byte_job_specs is None:
-            log.info(f'skipping already submitted bunch {bunch_index}')
-            return
-
+    async def _submit_jobs(self, batch_id, byte_job_specs):
         assert len(byte_job_specs) > 0, byte_job_specs
 
         b = bytearray()
@@ -452,7 +445,6 @@ class BatchBuilder:
             f'/api/v1alpha/batches/{batch_id}/jobs/create',
             data=aiohttp.BytesPayload(
                 b, content_type='application/json', encoding='utf-8'))
-        self._byte_job_spec_bunches[bunch_index] = None
 
     async def _create(self):
         batch_token = secrets.token_urlsafe(32)
@@ -484,31 +476,29 @@ class BatchBuilder:
 
         id = batch.id
 
-        if self._byte_job_spec_bunches is None:
-            self._byte_job_spec_bunches = []
-            byte_job_specs = [json.dumps(job_spec).encode('utf-8')
-                              for job_spec in self._job_specs]
-            bunch = []
-            bunch_n_bytes = 0
-            for spec in byte_job_specs:
-                n_bytes = len(spec)
-                assert n_bytes < max_bunch_bytesize, (
-                    f'every job spec must be less than max_bunch_bytesize,'
-                    f' { max_bunch_bytesize }B, but {spec} is larger')
-                if bunch_n_bytes + n_bytes < max_bunch_bytesize and len(bunch) < max_bunch_size:
-                    bunch.append(spec)
-                    bunch_n_bytes += n_bytes
-                else:
-                    self._byte_job_spec_bunches.append(bunch)
-                    bunch = [spec]
-                    bunch_n_bytes = n_bytes
-            if bunch:
-                self._byte_job_spec_bunches.append(bunch)
+        _byte_job_spec_bunches = []
+        byte_job_specs = [json.dumps(job_spec).encode('utf-8')
+                          for job_spec in self._job_specs]
+        bunch = []
+        bunch_n_bytes = 0
+        for spec in byte_job_specs:
+            n_bytes = len(spec)
+            assert n_bytes < max_bunch_bytesize, (
+                f'every job spec must be less than max_bunch_bytesize,'
+                f' { max_bunch_bytesize }B, but {spec} is larger')
+            if bunch_n_bytes + n_bytes < max_bunch_bytesize and len(bunch) < max_bunch_size:
+                bunch.append(spec)
+                bunch_n_bytes += n_bytes
+            else:
+                _byte_job_spec_bunches.append(bunch)
+                bunch = [spec]
+                bunch_n_bytes = n_bytes
+        if bunch:
+            _byte_job_spec_bunches.append(bunch)
 
-        n_bunches = len(self._byte_job_spec_bunches)
         await bounded_gather(
-            *[functools.partial(self._submit_jobs, id, bunch_index)
-              for bunch_index in range(n_bunches)],
+            *[functools.partial(self._submit_jobs, id, bunch)
+              for bunch in _byte_job_spec_bunches],
             parallelism=50)
 
         await self._client._patch(f'/api/v1alpha/batches/{id}/close')
