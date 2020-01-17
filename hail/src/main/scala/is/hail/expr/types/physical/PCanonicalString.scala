@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{???, Code, MethodBuilder}
+import is.hail.asm4s.{Code, MethodBuilder}
 
 case object PCanonicalStringOptional extends PCanonicalString(false)
 case object PCanonicalStringRequired extends PCanonicalString(true)
@@ -47,18 +47,12 @@ object PCanonicalString {
   def loadString(bAddress: Long): String =
     new String(PBinary.loadBytes(bAddress))
 
-  def loadString(region: Region, boff: Long): String =
-    loadString(boff)
-
   def loadString(bAddress: Code[Long]): Code[String] =
     Code.newInstance[String, Array[Byte]](PBinary.loadBytes(bAddress))
 
-  def loadString(region: Code[Region], bAddress: Code[Long]): Code[String] =
-    loadString(bAddress)
+  def loadLength(bAddress: Long): Int =
+    PBinary.loadLength(bAddress)
 
-  def loadLength(region: Region, bAddress: Long): Int =
-    PBinary.loadLength(region, bAddress)
-
-  def loadLength(region: Code[Region], bAddress: Code[Long]): Code[Int] =
-    PBinary.loadLength(region, bAddress)
+  def loadLength(bAddress: Code[Long]): Code[Int] =
+    PBinary.loadLength(bAddress)
 }

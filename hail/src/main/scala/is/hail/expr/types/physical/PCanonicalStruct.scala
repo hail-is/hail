@@ -88,8 +88,8 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
                 rvb.setMissing()
               i += 1
             }
-            if (region != null && isFieldDefined(region, offset, j))
-              fieldInserter(region, loadField(region, offset, j), rvb, inserter)
+            if (region != null && isFieldDefined(offset, j))
+              fieldInserter(region, loadField(offset, j), rvb, inserter)
             else
               fieldInserter(null, 0, rvb, inserter)
             i += 1
@@ -228,18 +228,20 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     }
   }
 
-  def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long] =
-    loadField(region, offset, fieldIdx(fieldName))
+  def loadField(offset: Code[Long], fieldName: String): Code[Long] =
+    loadField(offset, fieldIdx(fieldName))
 
-  def loadField(offset: Code[Long], field: String): Code[Long] = loadField(offset, fieldIdx(field))
+  def isFieldMissing(offset: Code[Long], field: String): Code[Boolean] =
+    isFieldMissing(offset, fieldIdx(field))
 
-  def isFieldMissing(offset: Code[Long], field: String): Code[Boolean] = isFieldMissing(offset, fieldIdx(field))
+  def fieldOffset(offset: Code[Long], fieldName: String): Code[Long] =
+    fieldOffset(offset, fieldIdx(fieldName))
 
-  def fieldOffset(offset: Code[Long], fieldName: String): Code[Long] = fieldOffset(offset, fieldIdx(fieldName))
+  def setFieldPresent(offset: Code[Long], field: String): Code[Unit] =
+    setFieldPresent(offset, fieldIdx(field))
 
-  def setFieldPresent(offset: Code[Long], field: String): Code[Unit] = setFieldPresent(offset, fieldIdx(field))
-
-  def setFieldMissing(offset: Code[Long], field: String): Code[Unit] = setFieldMissing(offset, fieldIdx(field))
+  def setFieldMissing(offset: Code[Long], field: String): Code[Unit] =
+    setFieldMissing(offset, fieldIdx(field))
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct = {
     val ab = new ArrayBuilder[PField](fields.length)

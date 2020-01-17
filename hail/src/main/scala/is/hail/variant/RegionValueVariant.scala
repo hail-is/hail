@@ -11,7 +11,6 @@ class RegionValueVariant(rowType: PStruct) extends View {
   private val allelesIdx = allelesField.index
   private val tl: PStruct = locusField.typ.fundamentalType.asInstanceOf[PStruct]
   private val taa: PArray = allelesField.typ.asInstanceOf[PArray]
-  private var region: Region = _
   private var locusOffset: Long = _
   private var allelesOffset: Long = _
 
@@ -20,14 +19,12 @@ class RegionValueVariant(rowType: PStruct) extends View {
   private var cachedLocus: Locus = null
 
   def setRegion(region: Region, offset: Long) {
-    this.region = region
-
-    if (!rowType.isFieldDefined(region, offset, locusIdx))
+    if (!rowType.isFieldDefined(offset, locusIdx))
       fatal(s"The row field 'locus' cannot have missing values.")
-    if (!rowType.isFieldDefined(region, offset, allelesIdx))
+    if (!rowType.isFieldDefined(offset, allelesIdx))
       fatal(s"The row field 'alleles' cannot have missing values.")
-    this.locusOffset = rowType.loadField(region, offset, locusIdx)
-    this.allelesOffset = rowType.loadField(region, offset, allelesIdx)
+    this.locusOffset = rowType.loadField(offset, locusIdx)
+    this.allelesOffset = rowType.loadField(offset, allelesIdx)
     cachedContig = null
     cachedAlleles = null
     cachedLocus = null
@@ -35,22 +32,22 @@ class RegionValueVariant(rowType: PStruct) extends View {
 
   def contig(): String = {
     if (cachedContig == null)
-      cachedContig = PString.loadString(region, tl.loadField(region, locusOffset, 0))
+      cachedContig = PString.loadString(tl.loadField(locusOffset, 0))
     cachedContig
   }
 
   def position(): Int = {
-    Region.loadInt(tl.loadField(region, locusOffset, 1))
+    Region.loadInt(tl.loadField(locusOffset, 1))
   }
 
   def alleles(): Array[String] = {
     if (cachedAlleles == null) {
-      val nAlleles = taa.loadLength(region, allelesOffset)
+      val nAlleles = taa.loadLength(allelesOffset)
       cachedAlleles = new Array[String](nAlleles)
       var i = 0
       while (i < nAlleles) {
-        if (taa.isElementDefined(region, allelesOffset, i))
-         cachedAlleles(i) = PString.loadString(region, taa.loadElement(region, allelesOffset, i))
+        if (taa.isElementDefined(allelesOffset, i))
+         cachedAlleles(i) = PString.loadString(taa.loadElement(allelesOffset, i))
         i += 1
       }
     }

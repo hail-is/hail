@@ -14,23 +14,23 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     sb.append(s",$nDims]")
   }
 
-  @transient lazy val flags = new StaticallyKnownField(PInt32Required, (r, off) => Region.loadInt(representation.loadField(r, off, "flags")))
+  @transient lazy val flags = new StaticallyKnownField(PInt32Required, off => Region.loadInt(representation.loadField(off, "flags")))
   @transient lazy val offset = new StaticallyKnownField(
     PInt32Required,
-    (r, off) => Region.loadInt(representation.loadField(r, off, "offset"))
+    off => Region.loadInt(representation.loadField(off, "offset"))
   )
   @transient lazy val shape = new StaticallyKnownField(
     PTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*),
-    (r, off) => representation.loadField(r, off, "shape")
+    off => representation.loadField(off, "shape")
   )
   @transient lazy val strides = new StaticallyKnownField(
     PTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*),
-    (r, off) => representation.loadField(r, off, "strides")
+    (off) => representation.loadField(off, "strides")
   )
 
   @transient lazy val data: StaticallyKnownField[PArray, Long] = new StaticallyKnownField(
     PArray(elementType, required = true),
-    (r, off) => representation.loadField(r, off, "data")
+    off => representation.loadField(off, "data")
   )
 
   lazy val representation: PStruct = {
@@ -87,13 +87,13 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def getElementAddress(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long] = {
-    val stridesTuple  = new CodePTuple(strides.pType, region, strides.load(region, nd))
+  def getElementAddress(indices: Array[Code[Long]], nd: Code[Long], mb: MethodBuilder): Code[Long] = {
+    val stridesTuple  = new CodePTuple(strides.pType, strides.load(nd))
     val bytesAway = mb.newLocal[Long]
     val dataStore = mb.newLocal[Long]
 
     coerce[Long](Code(
-      dataStore := data.load(region, nd),
+      dataStore := data.load(nd),
       bytesAway := 0L,
       indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (requestedIndex: Code[Long], strideIndex: Int)) =>
         Code(
@@ -104,12 +104,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     ))
   }
 
-  def loadElementToIRIntermediate(indices: Array[Code[Long]], ndAddress: Code[Long], region: Code[Region], mb: MethodBuilder): Code[_] = {
-    Region.loadIRIntermediate(this.elementType)(this.getElementAddress(indices, ndAddress, region, mb))
+  def loadElementToIRIntermediate(indices: Array[Code[Long]], ndAddress: Code[Long], mb: MethodBuilder): Code[_] = {
+    Region.loadIRIntermediate(this.elementType)(this.getElementAddress(indices, ndAddress, mb))
   }
 
-  def outOfBounds(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Boolean] = {
-    val shapeTuple = new CodePTuple(shape.pType, region, shape.load(region, nd))
+  def outOfBounds(indices: Array[Code[Long]], nd: Code[Long], mb: MethodBuilder): Code[Boolean] = {
+    val shapeTuple = new CodePTuple(shape.pType, shape.load(nd))
     val outOfBounds = mb.newField[Boolean]
     Code(
       outOfBounds := false,
@@ -120,7 +120,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def linearizeIndicesRowMajor(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): Code[Long] = {
+  def linearizeIndicesRowMajor(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], mb: MethodBuilder): Code[Long] = {
     val index = mb.newField[Long]
     val elementsInProcessedDimensions = mb.newField[Long]
     Code(
@@ -136,7 +136,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): (Code[Unit], Array[Code[Long]]) = {
+  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: Array[Code[Long]], mb: MethodBuilder): (Code[Unit], Array[Code[Long]]) = {
     val nDim = shapeArray.length
     val newIndices = (0 until nDim).map(_ => mb.newField[Long]).toArray
     val elementsInProcessedDimensions = mb.newField[Long]

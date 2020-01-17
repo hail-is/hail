@@ -118,11 +118,11 @@ abstract class PBaseStruct extends PType {
       def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
         var i = 0
         while (i < types.length) {
-          val leftDefined = isFieldDefined(r1, o1, i)
-          val rightDefined = right.isFieldDefined(r2, o2, i)
+          val leftDefined = isFieldDefined(o1, i)
+          val rightDefined = right.isFieldDefined(o2, i)
 
           if (leftDefined && rightDefined) {
-            val c = fieldOrderings(i).compare(r1, loadField(r1, o1, i), r2, right.loadField(r2, o2, i))
+            val c = fieldOrderings(i).compare(r1, loadField(o1, i), r2, right.loadField(o2, i))
             if (c != 0)
               return c
           } else if (leftDefined != rightDefined) {
@@ -189,12 +189,6 @@ abstract class PBaseStruct extends PType {
     Region.setMemory(structAddress, const(nMissingBytes.toLong), const(if (setMissing) 0xFF.toByte else 0.toByte))
   }
 
-  def isFieldDefined(rv: RegionValue, fieldIdx: Int): Boolean =
-    isFieldDefined(rv.region, rv.offset, fieldIdx)
-
-  def isFieldDefined(region: Region, offset: Long, fieldIdx: Int): Boolean =
-    fieldRequired(fieldIdx) || !Region.loadBit(offset, missingIdx(fieldIdx))
-
   def isFieldDefined(offset: Long, fieldIdx: Int): Boolean =
     fieldRequired(fieldIdx) || !Region.loadBit(offset, missingIdx(fieldIdx))
 
@@ -206,17 +200,8 @@ abstract class PBaseStruct extends PType {
     else
       Region.loadBit(offset, missingIdx(fieldIdx).toLong)
 
-  def isFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
-    isFieldMissing(offset, fieldIdx)
-
   def isFieldDefined(offset: Code[Long], fieldIdx: Int): Code[Boolean] =
     !isFieldMissing(offset, fieldIdx)
-
-  def isFieldDefined(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
-    isFieldDefined(offset, fieldIdx)
-
-  def setFieldMissing(region: Region, offset: Long, fieldIdx: Int): Unit =
-    setFieldMissing(offset, fieldIdx)
 
   def setFieldMissing(offset: Long, fieldIdx: Int) {
     assert(!fieldRequired(fieldIdx))
@@ -228,31 +213,21 @@ abstract class PBaseStruct extends PType {
     Region.setBit(offset, missingIdx(fieldIdx).toLong)
   }
 
-  def setFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Unit] =
-    setFieldMissing(offset, fieldIdx)
-
-  def setFieldPresent(region: Region, offset: Long, fieldIdx: Int) {
+  def setFieldPresent(offset: Long, fieldIdx: Int) {
     assert(!fieldRequired(fieldIdx))
     Region.clearBit(offset, missingIdx(fieldIdx))
   }
 
   def setFieldPresent(offset: Code[Long], fieldIdx: Int): Code[Unit] = {
     assert(!fieldRequired(fieldIdx))
-    Region.clearBit(offset, missingIdx(fieldIdx))
+    Region.clearBit(offset, missingIdx(fieldIdx).toLong)
   }
-
-  def setFieldPresent(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Unit] =
-    setFieldPresent(offset, fieldIdx)
 
   def fieldOffset(structAddress: Long, fieldIdx: Int): Long =
     structAddress + byteOffsets(fieldIdx)
 
   def fieldOffset(structAddress: Code[Long], fieldIdx: Int): Code[Long] =
     structAddress + byteOffsets(fieldIdx)
-
-  def loadField(rv: RegionValue, fieldIdx: Int): Long = loadField(rv.region, rv.offset, fieldIdx)
-
-  def loadField(region: Region, offset: Long, fieldIdx: Int): Long = loadField(offset, fieldIdx)
 
   def loadField(offset: Long, fieldIdx: Int): Long = {
     val off = fieldOffset(offset, fieldIdx)
@@ -263,9 +238,6 @@ abstract class PBaseStruct extends PType {
   }
 
   def loadField(offset: Code[Long], fieldIdx: Int): Code[Long] =
-    loadField(fieldOffset(offset, fieldIdx), types(fieldIdx))
-
-  def loadField(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Long] =
     loadField(fieldOffset(offset, fieldIdx), types(fieldIdx))
 
   private def loadField(fieldOffset: Code[Long], fieldType: PType): Code[Long] = {

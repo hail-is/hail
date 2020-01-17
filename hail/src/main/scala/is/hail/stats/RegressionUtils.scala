@@ -24,15 +24,15 @@ object RegressionUtils {
     val n = completeColIdx.length
     var sum = 0.0
     val region = rv.region
-    val entryArrayOffset = rvRowType.loadField(rv, entryArrayIdx)
+    val entryArrayOffset = rvRowType.loadField(rv.offset, entryArrayIdx)
 
     var j = 0
     while (j < n) {
       val k = completeColIdx(j)
-      if (entryArrayType.isElementDefined(region, entryArrayOffset, k)) {
-        val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, k)
-        if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
-          val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
+      if (entryArrayType.isElementDefined(entryArrayOffset, k)) {
+        val entryOffset = entryArrayType.loadElement(entryArrayOffset, k)
+        if (entryType.isFieldDefined(entryOffset, fieldIdx)) {
+          val fieldOffset = entryType.loadField(entryOffset, fieldIdx)
           val e = Region.loadDouble(fieldOffset)
           sum += e
           data(offset + j) = e

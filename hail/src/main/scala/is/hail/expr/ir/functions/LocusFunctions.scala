@@ -153,12 +153,12 @@ object LocusFunctions extends RegistryFunctions {
     registerCode("contig", tlocus("T"), TString(),
       (x: PType) => -x.asInstanceOf[PLocus].contigType) {
       case (r, rt, (locusT: PLocus, locus: Code[Long])) =>
-        locusT.contig(r.region, locus)
+        locusT.contig(locus)
     }
 
     registerCode("position", tlocus("T"), TInt32(), null) {
       case (r, rt, (locusT: PLocus, locus: Code[Long])) =>
-        locusT.position(r.region, locus)
+        locusT.position(locus)
     }
 
     registerLocusCode("isAutosomalOrPseudoAutosomal")
@@ -245,10 +245,10 @@ object LocusFunctions extends RegistryFunctions {
               Code(
                 i := 0,
                 idx := 0,
-                len := coordT.loadLength(region, coordsPerContig),
+                len := coordT.loadLength(coordsPerContig),
                 len.ceq(0).mux(lastCoord := 0.0, lastCoord := getCoord(0)),
                 Code.whileLoop(i < len,
-                  coordT.isElementMissing(region, coordsPerContig, i).mux(
+                  coordT.isElementMissing( coordsPerContig, i).mux(
                     Code._fatal(
                       const("locus_windows: missing value for 'coord_expr' at row ")
                         .concat((offset + i).toS)),
@@ -264,9 +264,9 @@ object LocusFunctions extends RegistryFunctions {
 
         val srvb = new StagedRegionValueBuilder(r, rt)
         Code(
-          ncontigs := groupedT.loadLength(region, coords),
+          ncontigs := groupedT.loadLength(coords),
           totalLen := 0,
-          forAllContigs(totalLen := totalLen + coordT.loadLength(region, coordsPerContig)),
+          forAllContigs(totalLen := totalLen + coordT.loadLength(coordsPerContig)),
           srvb.start(),
           srvb.addArray(PArray(PInt32()), addIdxWithCondition(startCond, _)),
           srvb.advance(),

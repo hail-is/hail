@@ -17,26 +17,14 @@ trait PArrayBackedContainer extends PContainer {
 
   override lazy val fundamentalType = PCanonicalArray(elementType.fundamentalType, required)
 
-  def loadLength(region: Region, aoff: Long): Int =
-    arrayRep.loadLength(region, aoff)
-
   def loadLength(aoff: Long): Int =
     arrayRep.loadLength(aoff)
 
   def loadLength(aoff: Code[Long]): Code[Int] =
     arrayRep.loadLength(aoff)
 
-  def loadLength(region: Code[Region], aoff: Code[Long]): Code[Int] =
-    arrayRep.loadLength(region, aoff)
-
-  def storeLength(region: Region, aoff: Long, length: Int): Unit =
-    arrayRep.storeLength(region, aoff, length)
-
   def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
     arrayRep.storeLength(aoff, length)
-
-  def storeLength(region: Code[Region], aoff: Code[Long], length: Code[Int]): Code[Unit] =
-    arrayRep.storeLength(region, aoff, length)
 
   def nMissingBytes(len: Code[Int]): Code[Int] =
     arrayRep.nMissingBytes(len)
@@ -50,26 +38,14 @@ trait PArrayBackedContainer extends PContainer {
   def isElementDefined(aoff: Long, i: Int): Boolean =
     arrayRep.isElementDefined(aoff, i)
 
-  def isElementDefined(region: Region, aoff: Long, i: Int): Boolean =
-    arrayRep.isElementDefined(region, aoff, i)
-
   def isElementDefined(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     arrayRep.isElementDefined(aoff, i)
 
-  def isElementDefined(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
-    arrayRep.isElementDefined(region, aoff, i)
-
-  def isElementMissing(region: Region, aoff: Long, i: Int): Boolean =
-    arrayRep.isElementMissing(region, aoff, i)
+  def isElementMissing(aoff: Long, i: Int): Boolean =
+    arrayRep.isElementMissing(aoff, i)
 
   def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     arrayRep.isElementMissing(aoff, i)
-
-  def isElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
-    arrayRep.isElementMissing(region, aoff, i)
-
-  def setElementMissing(region: Region, aoff: Long, i: Int) =
-    arrayRep.setElementMissing(region, aoff, i)
 
   def setElementMissing(aoff: Long, i: Int) =
     arrayRep.setElementMissing(aoff, i)
@@ -77,17 +53,8 @@ trait PArrayBackedContainer extends PContainer {
   def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit] =
     arrayRep.setElementMissing(aoff, i)
 
-  def setElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] =
-    arrayRep.setElementMissing(region, aoff, i)
-
-  def setElementPresent(region: Region, aoff: Long, i: Int): Unit =
-    arrayRep.setElementPresent(region, aoff, i)
-
   def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit] =
     arrayRep.setElementPresent(aoff, i)
-
-  def setElementPresent(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] =
-    arrayRep.setElementPresent(region, aoff, i)
 
   def firstElementOffset(aoff: Long, length: Int): Long =
     arrayRep.firstElementOffset(aoff, length)
@@ -101,32 +68,26 @@ trait PArrayBackedContainer extends PContainer {
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
     arrayRep.elementOffset(aoff, length, i)
 
+  def elementOffset(aoff: Long, i: Int): Long =
+    arrayRep.elementOffset(aoff, loadLength(aoff), i)
+
+  def elementOffset(aoff: Code[Long], i: Code[Int]): Code[Long] =
+    arrayRep.elementOffset(aoff, loadLength(aoff), i)
+
   def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
     arrayRep.elementOffset(aoff, length, i)
-
-  def elementOffsetInRegion(region: Region, aoff: Long, i: Int): Long =
-    arrayRep.elementOffsetInRegion(region, aoff, i)
-
-  def elementOffsetInRegion(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
-    arrayRep.elementOffsetInRegion(region, aoff, i)
 
   def loadElement(aoff: Long, length: Int, i: Int): Long =
     arrayRep.loadElement(aoff, length, i)
 
-  def loadElementAddress(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
-    arrayRep.loadElementAddress(aoff, length, i)
+  def loadElement(aoff: Long, i: Int): Long =
+    arrayRep.loadElement(aoff, loadLength(aoff), i)
 
-  def loadElement(region: Region, aoff: Long, length: Int, i: Int): Long =
-    arrayRep.loadElement(region, aoff, length, i)
+  def loadElement(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
+    arrayRep.loadElement(aoff, length, i)
 
-  def loadElement(region: Region, aoff: Long, i: Int): Long =
-    arrayRep.loadElement(region, aoff, i)
-
-  def loadElement(region: Code[Region], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
-    arrayRep.loadElement(region, aoff, length, i)
-
-  def loadElement(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
-    arrayRep.loadElement(region, aoff, i)
+  def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] =
+    arrayRep.loadElement(aoff, loadLength(aoff), i)
 
   def allocate(region: Region, length: Int): Long =
     arrayRep.allocate(region, length)
@@ -134,14 +95,14 @@ trait PArrayBackedContainer extends PContainer {
   def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
     arrayRep.allocate(region, length)
 
-  def setAllMissingBits(region: Region, aoff: Long, length: Int) =
-    arrayRep.setAllMissingBits(region, aoff, length)
+  def setAllMissingBits(aoff: Long, length: Int) =
+    arrayRep.setAllMissingBits(aoff, length)
 
-  def clearMissingBits(region: Region, aoff: Long, length: Int) =
-    arrayRep.clearMissingBits(region, aoff, length)
+  def clearMissingBits(aoff: Long, length: Int) =
+    arrayRep.clearMissingBits(aoff, length)
 
-  def initialize(region: Region, aoff: Long, length: Int, setMissing: Boolean = false) =
-    arrayRep.initialize(region, aoff, length, setMissing)
+  def initialize(aoff: Long, length: Int, setMissing: Boolean = false) =
+    arrayRep.initialize(aoff, length, setMissing)
 
   def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Code[Unit] =
     arrayRep.stagedInitialize(aoff, length, setMissing)
@@ -155,8 +116,8 @@ trait PArrayBackedContainer extends PContainer {
   def anyMissing(mb: MethodBuilder, aoff: Code[Long]): Code[Boolean] =
     arrayRep.anyMissing(mb, aoff)
 
-  def forEach(mb: MethodBuilder, region: Code[Region], aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] =
-    arrayRep.forEach(mb, region, aoff, body)
+  def forEach(mb: MethodBuilder, aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] =
+    arrayRep.forEach(mb, aoff, body)
 
   def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean] =
     arrayRep.hasMissingValues(sourceOffset)
