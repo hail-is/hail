@@ -53,8 +53,10 @@ abstract class PCanonicalString(val required: Boolean) extends PString {
   def loadString(bAddress: Long): String =
     new String(this.fundamentalType.loadBytes(bAddress))
 
-  def loadString(bAddress: Code[Long]): Code[String] =
+  def loadString(bAddress: Code[Long]): Code[String] = {
+    println("called loadString")
     Code.newInstance[String, Array[Byte]](this.fundamentalType.loadBytes(bAddress))
+  }
 
   def allocate(region: Region, length: Int): Long =
     this.fundamentalType.allocate(region, length)
@@ -66,8 +68,10 @@ abstract class PCanonicalString(val required: Boolean) extends PString {
     this.fundamentalType.store(addr, bytes)
   }
 
-  def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] =
+  def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] = {
+    println("called string store")
     this.fundamentalType.store(addr, bytes)
+  }
 }
 
 object PCanonicalString {

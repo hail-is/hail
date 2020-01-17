@@ -273,6 +273,8 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def addBinary(bytes: Array[Byte]) {
+    println(s"called addBinary in RVB: ${bytes}")
+    println(s"called addbinary in RVB ${bytes.length}")
     assert(currentType().isInstanceOf[PBinary])
     val pt = currentType().asInstanceOf[PBinary]
     val boff = pt.allocate(region, bytes.length)

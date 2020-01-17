@@ -204,13 +204,17 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     }
   }
 
-  def checkType(knownType: Type): Unit = {
-    val current = ftype match {
-      case t: PArray => t.elementType.virtualType
+  def currentPType(): PType = {
+    ftype match {
+      case t: PArray => t.elementType
       case t: PBaseStruct =>
-        t.types(staticIdx).virtualType
-      case t => t.virtualType
+        t.types(staticIdx)
+      case t => t
     }
+  }
+
+  def checkType(knownType: Type): Unit = {
+    val current = currentPType().virtualType
     if (!current.isOfType(knownType))
       throw new RuntimeException(s"bad SRVB addition: expected $current, tried to add $knownType")
   }
@@ -241,18 +245,22 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   }
 
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
+    println(s"called binary in SRVB ${ftype} ${currentPType()}")
     val b = mb.newField[Array[Byte]]
     val boff = mb.newField[Long]
-    val pt = PCanonicalBinary()
+    val pt = currentPType()
+
+    assert(pt.isInstanceOf[PBinary])
+    val pbT = pt.asInstanceOf[PBinary]
     Code(
       b := bytes,
-      boff := pt.allocate(region, b.length()),
+      boff := pbT.allocate(region, b.length()),
       ftype match {
         case _: PBinary => startOffset := boff
         case _ =>
           Region.storeAddress(currentOffset, boff)
       },
-      pt.store(boff, b))
+      pbT.store(boff, b))
   }
 
 

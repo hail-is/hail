@@ -76,11 +76,16 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   def loadBytes(bAddress: Code[Long], length: Code[Int]): Code[Array[Byte]] =
     Region.loadBytes(this.bytesOffset(bAddress), length)
 
-  def loadBytes(bAddress: Code[Long]): Code[Array[Byte]] =
+  def loadBytes(bAddress: Code[Long]): Code[Array[Byte]] = {
+    println("called loadBytes")
     this.loadBytes(bAddress, this.loadLength(bAddress))
+  }
+
+  def loadBytes(bAddress: Long, length: Int): Array[Byte] =
+    Region.loadBytes(this.bytesOffset(bAddress), length)
 
   def loadBytes(bAddress: Long): Array[Byte] =
-    Region.loadBytes(this.bytesOffset(bAddress), this.loadLength(bAddress))
+    this.loadBytes(bAddress, this.loadLength(bAddress))
 
   def storeLength(boff: Long, len: Int): Unit = Region.storeInt(boff, len)
 
@@ -91,11 +96,13 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   def bytesOffset(boff: Code[Long]): Code[Long] = boff + lengthHeaderBytes
 
   def store(addr: Long, bytes: Array[Byte]) {
+    println(s"called binary store unstaged ${bytes.length}")
     Region.storeInt(addr, bytes.length)
     Region.storeBytes(bytesOffset(addr), bytes)
   }
 
   def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] = {
+    println("called binary store")
     Code(
       Region.storeInt(addr, bytes.length),
       Region.storeBytes(bytesOffset(addr), bytes)

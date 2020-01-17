@@ -85,6 +85,8 @@ abstract class PBinary extends PType {
 
   def loadBytes(bAddress: Long): Array[Byte]
 
+  def loadBytes(bAddress: Long, length: Int): Array[Byte]
+
   def storeLength(boff: Long, len: Int): Unit
 
   def storeLength(boff: Code[Long], len: Code[Int]): Code[Unit]
