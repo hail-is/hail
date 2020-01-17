@@ -7,7 +7,7 @@ import is.hail.backend.BroadcastValue
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{ExecuteContext, IRParser, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.physical.{PCanonicalString, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}

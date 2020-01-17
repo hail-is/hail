@@ -270,13 +270,11 @@ object Region {
       case _: PInt64 => v.visitInt64(Region.loadLong(off))
       case _: PFloat32 => v.visitFloat32(Region.loadFloat(off))
       case _: PFloat64 => v.visitFloat64(Region.loadDouble(off))
-      case _: PString =>
+      case t: PString =>
         val boff = off
-        v.visitString(PString.loadString(boff))
-      case _: PBinary =>
-        val boff = off
-        val length = PBinary.loadLength(boff)
-        val b = Region.loadBytes(PBinary.bytesOffset(boff), length)
+        v.visitString(t.loadString(boff))
+      case t: PBinary =>
+        val b = t.loadBytes(off)
         v.visitBinary(b)
       case t: PContainer =>
         val aoff = off

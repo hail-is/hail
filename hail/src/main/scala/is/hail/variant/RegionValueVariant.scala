@@ -32,7 +32,7 @@ class RegionValueVariant(rowType: PStruct) extends View {
 
   def contig(): String = {
     if (cachedContig == null)
-      cachedContig = PString.loadString(tl.loadField(locusOffset, 0))
+      cachedContig = tl.types(0).asInstanceOf[PString].loadString(tl.loadField(locusOffset, 0))
     cachedContig
   }
 
@@ -47,7 +47,7 @@ class RegionValueVariant(rowType: PStruct) extends View {
       var i = 0
       while (i < nAlleles) {
         if (taa.isElementDefined(allelesOffset, i))
-         cachedAlleles(i) = PString.loadString(taa.loadElement(allelesOffset, i))
+         cachedAlleles(i) = tl.types(i).asInstanceOf[PString].loadString(taa.loadElement(allelesOffset, i))
         i += 1
       }
     }

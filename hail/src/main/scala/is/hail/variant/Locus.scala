@@ -3,6 +3,7 @@ package is.hail.variant
 import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.expr.Parser
+import is.hail.expr.types.physical.{PCanonicalString, PInt32}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}

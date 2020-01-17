@@ -192,7 +192,7 @@ abstract class RegistryFunctions {
         r.region, coerce[Long](c))
   }
 
-  def unwrapReturn(r: EmitRegion, t: PType): Code[_] => Code[_] = t.virtualType match {
+  def unwrapReturn(r: EmitRegion, pt: PType): Code[_] => Code[_] = pt.virtualType match {
     case _: TBoolean => identity[Code[_]]
     case _: TInt32 => identity[Code[_]]
     case _: TInt64 => identity[Code[_]]
@@ -201,14 +201,15 @@ abstract class RegistryFunctions {
     case _: TString => c =>
       val bytes = r.mb.newLocal[Array[Byte]]
       val v = r.mb.newLocal[Long]
+      val psT = pt.asInstanceOf[PString]
       Code(
         bytes := coerce[String](c).invoke[Array[Byte]]("getBytes"),
-        v := PBinary.allocate(r.region, bytes.length()),
-        PBinary.store(v, bytes),
+        v := psT.allocate(r.region, bytes.length()),
+        psT.store(v, bytes),
         v)
     case _: TCall => coerce[Int]
     case TArray(_: TInt32, _) => c =>
-      val srvb = new StagedRegionValueBuilder(r, t)
+      val srvb = new StagedRegionValueBuilder(r, pt)
       val alocal = r.mb.newLocal[IndexedSeq[Int]]
       val len = r.mb.newLocal[Int]
       val v = r.mb.newLocal[java.lang.Integer]
@@ -224,7 +225,7 @@ abstract class RegistryFunctions {
             srvb.advance())),
         srvb.offset)
     case TArray(_: TFloat64, _) => c =>
-      val srvb = new StagedRegionValueBuilder(r, t)
+      val srvb = new StagedRegionValueBuilder(r, pt)
       val alocal = r.mb.newLocal[IndexedSeq[Double]]
       val len = r.mb.newLocal[Int]
       val v = r.mb.newLocal[java.lang.Double]
@@ -240,7 +241,7 @@ abstract class RegistryFunctions {
             srvb.advance())),
         srvb.offset)
     case TArray(_: TString, _) => c =>
-      val srvb = new StagedRegionValueBuilder(r, t)
+      val srvb = new StagedRegionValueBuilder(r, pt)
       val alocal = r.mb.newLocal[IndexedSeq[String]]
       val len = r.mb.newLocal[Int]
       val v = r.mb.newLocal[java.lang.String]

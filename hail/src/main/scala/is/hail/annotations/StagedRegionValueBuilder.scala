@@ -73,10 +73,10 @@ object StagedRegionValueBuilder {
     val offset = fb.newField[Long]
 
     val copy = typ.fundamentalType match {
-      case _: PBinary =>
+      case t: PBinary =>
         Code(
-          offset := PBinary.allocate(region, PBinary.loadLength(value)),
-          Region.copyFrom(value, offset, PBinary.contentByteSize(PBinary.loadLength(value))))
+          offset := t.allocate(region, t.loadLength(value)),
+          Region.copyFrom(value, offset, t.contentByteSize(t.loadLength(value))))
       case t: PArray =>
         Code(
           offset := t.copyFrom(fb.apply_method, region, value),
@@ -240,31 +240,19 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     Region.storeDouble(currentOffset, v)
   }
 
-  def allocateBinary(n: Code[Int]): Code[Long] = {
-    val boff = mb.newField[Long]
-    Code(
-      boff := PBinary.allocate(region, n),
-      Region.storeInt(boff, n),
-      ftype match {
-        case _: PBinary => startOffset := boff
-        case _ =>
-          Region.storeAddress(currentOffset, boff)
-      },
-      boff)
-  }
-
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
     val b = mb.newField[Array[Byte]]
     val boff = mb.newField[Long]
+    val pt = PCanonicalBinary()
     Code(
       b := bytes,
-      boff := PBinary.allocate(region, b.length()),
+      boff := pt.allocate(region, b.length()),
       ftype match {
         case _: PBinary => startOffset := boff
         case _ =>
           Region.storeAddress(currentOffset, boff)
       },
-      PBinary.store(boff, b))
+      pt.store(boff, b))
   }
 
 

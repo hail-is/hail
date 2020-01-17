@@ -19,22 +19,30 @@ abstract class PString extends PType {
 
   protected val binaryFundamentalType: PBinary
   override lazy val fundamentalType: PBinary = binaryFundamentalType
+
+  def bytesOffset(boff: Long): Long
+
+  def bytesOffset(boff: Code[Long]): Code[Long]
+
+  def loadLength(boff: Long): Int
+
+  def loadLength(boff: Code[Long]): Code[Int]
+
+  def loadString(boff: Long): String
+
+  def loadString(boff: Code[Long]): Code[String]
+
+  def allocate(region: Region, length: Int): Long
+
+  def allocate(region: Code[Region], length: Code[Int]): Code[Long]
+
+  def store(addr: Long, bytes: Array[Byte])
+
+  def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit]
 }
 
 object PString {
   def apply(required: Boolean = false): PString = PCanonicalString(required)
 
   def unapply(t: PString): Option[Boolean] = PCanonicalString.unapply(t)
-
-  def loadString(boff: Long): String = PCanonicalString.loadString(boff)
-
-  def loadString(region: Region, boff: Long): String = PCanonicalString.loadString(boff)
-
-  def loadString(boff: Code[Long]): Code[String] = PCanonicalString.loadString(boff)
-
-  def loadString(region: Code[Region], boff: Code[Long]): Code[String] = PCanonicalString.loadString(boff)
-
-  def loadLength(boff: Long): Int = PCanonicalString.loadLength(boff)
-
-  def loadLength(boff: Code[Long]): Code[Int] = PCanonicalString.loadLength(boff)
 }

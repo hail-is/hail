@@ -152,7 +152,7 @@ class BimAnnotationView(rowType: PStruct) extends View {
 
   def varid(): String = {
     if (cachedVarid == null)
-      cachedVarid = PString.loadString(varidOffset)
+      cachedVarid = varidField.typ.asInstanceOf[PString].loadString(varidOffset)
     cachedVarid
   }
 }
