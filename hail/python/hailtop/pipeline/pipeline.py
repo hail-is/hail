@@ -391,10 +391,7 @@ class Pipeline:
                     raise PipelineException("cycle detected in dependency graph")
 
         self._tasks = ordered_tasks
-        try:
-            self._backend._run(self, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs)
-        finally:
-            self._backend.close()
+        self._backend._run(self, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs)
 
     def __str__(self):
         return self._uid
