@@ -143,6 +143,7 @@ HAVING COALESCE(SUM(running_cores_mcpu), 0) > 0;
 ''')
 
         should_wait = True
+        async_work = []
         async for user_record in user_records:
             records = self.db.execute_and_fetchall(
                 '''
@@ -156,8 +157,21 @@ LIMIT 50;
                 (user_record['user'],))
             async for record in records:
                 should_wait = False
-                await unschedule_job(self.app, record)
 
+                async def unschedule_with_error_handling(id, instance, f):
+                    try:
+                        await f()
+                    except Exception:
+                        log.info(f'unscheduling job {id} on instance {instance}', exc_info=True)
+                async_work.append(
+                    functools.partial(
+                        unschedule_with_error_handling,
+                        id, record['instance_name'],
+                        functools.partial(
+                            unschedule_job,
+                            self.app, record)))
+
+        await bounded_gather(*[x for x in async_work], parallelism=100)
         return should_wait
 
     async def schedule_1(self):
