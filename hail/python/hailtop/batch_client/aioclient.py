@@ -479,16 +479,13 @@ class BatchBuilder:
         assert max_bunch_size > 0
         if self._submitted:
             raise ValueError("cannot submit an already submitted batch")
-
         batch = await self._create()
-        log.info(f'created batch {batch.id}')
-
         id = batch.id
-
-        byte_job_specs_bunches = []
-        bunch_sizes = []
+        log.info(f'created batch {id}')
         byte_job_specs = [json.dumps(job_spec).encode('utf-8')
                           for job_spec in self._job_specs]
+        byte_job_specs_bunches = []
+        bunch_sizes = []
         bunch = []
         bunch_n_bytes = 0
         bunch_n_jobs = 0
@@ -512,10 +509,13 @@ class BatchBuilder:
 
             bunch_sizes.append(bunch_n_jobs)
 
-        await bounded_gather(
-            *[functools.partial(self._submit_jobs, id, bunch, size)
-              for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)],
-            parallelism=50)
+        with tqdm(total=len(self._job_specs),
+                  disable=disable_progress_bar,
+                  desc='jobs submitted to queue') as pbar:
+            await bounded_gather(
+                *[functools.partial(self._submit_jobs, id, bunch, size, pbar)
+                  for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)],
+                parallelism=50)
 
         await self._client._patch(f'/api/v1alpha/batches/{id}/close')
         log.info(f'closed batch {id}')
