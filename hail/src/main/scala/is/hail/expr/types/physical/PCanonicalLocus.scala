@@ -35,17 +35,13 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   val representation: PStruct = PCanonicalLocus.representation(required)
 
-  def contig(off: Code[Long]): Code[Long] =
-    representation.loadField(off, 0)
+  def contig(off: Code[Long]): Code[Long] = representation.loadField(off, 0)
 
-  lazy val contigType: PString =
-    representation.field("contig").typ.asInstanceOf[PString]
+  lazy val contigType: PString = representation.field("contig").typ.asInstanceOf[PString]
 
-  def position(off: Code[Long]): Code[Int] =
-    Region.loadInt(representation.loadField(off, 1))
+  def position(off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(off, 1))
 
-  lazy val positionType: PInt32 =
-    representation.field("position").typ.asInstanceOf[PInt32]
+  lazy val positionType: PInt32 = representation.field("position").typ.asInstanceOf[PInt32]
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
   override def unsafeOrdering(): UnsafeOrdering = {

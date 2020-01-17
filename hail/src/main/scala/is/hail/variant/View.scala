@@ -7,6 +7,5 @@ trait View {
     setRegion(rv.region, rv.offset)
   }
 
-  // FIXME: Remove region?
   def setRegion(region: Region, offset: Long)
 }

@@ -100,15 +100,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     !isElementDefined(aoff, i)
 
-<<<<<<< HEAD
-=======
-  def isElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
-    isElementMissing(aoff, i)
-
-  def setElementMissing(region: Region, aoff: Long, i: Int) =
-    setElementMissing(aoff, i)
-
->>>>>>> bd022db8c76e2ef1e38960a687c620c99443e14e
   def setElementMissing(aoff: Long, i: Int) {
     assert(!elementType.required)
     Region.setBit(aoff + lengthHeaderBytes, i)

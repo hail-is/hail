@@ -2289,7 +2289,6 @@ private class Emit(
       mb.getArg(i)(typeToTypeInfo(pType)))
   }
 
-  // FIXME: is EmitRegion needed here?
   def deforestNDArray(er: EmitRegion, x: IR, env: Emit.E): NDArrayEmitter = {
     def deforest(nd: IR): NDArrayEmitter = deforestNDArray(er, nd, env)
 
