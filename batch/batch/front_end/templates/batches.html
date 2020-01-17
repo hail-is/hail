@@ -83,6 +83,12 @@
 		</form>
 	      </td>
 	    {% endif %}
+            <td>
+              <form action="{{ base_path }}/batches/{{ batch['id'] }}/delete" method="post">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+                  <button>Delete</button>
+              </form>
+            </td>
 	  </tr>
 	  {% endfor %}
 	</tbody>
