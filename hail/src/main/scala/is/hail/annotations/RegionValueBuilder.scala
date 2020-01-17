@@ -327,7 +327,7 @@ class RegionValueBuilder(var region: Region) {
         if (t.isElementDefined(fromAOff, i)) {
           t.elementType match {
             case t2: PBaseStruct =>
-              fixupStruct(t2, t.elementOffset(toAOff, length, i), fromRegion, t.elementOffset(length, i))
+              fixupStruct(t2, t.elementOffset(toAOff, length, i), fromRegion, t.elementOffset(fromAOff, length, i))
 
             case t2: PArray =>
               val toAOff2 = fixupArray(t2, fromRegion, t.loadElement(fromAOff, length, i))
