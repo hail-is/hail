@@ -28,11 +28,7 @@ object PString {
 
   def loadString(boff: Long): String = PCanonicalString.loadString(boff)
 
-  def loadString(region: Region, boff: Long): String = PCanonicalString.loadString(boff)
-
   def loadString(boff: Code[Long]): Code[String] = PCanonicalString.loadString(boff)
-
-  def loadString(region: Code[Region], boff: Code[Long]): Code[String] = PCanonicalString.loadString(boff)
 
   def loadLength(boff: Long): Int = PCanonicalString.loadLength(boff)
 
