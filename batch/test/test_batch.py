@@ -437,10 +437,8 @@ echo $HAIL_BATCH_WORKER_IP
             if i % 3 == 0:
                 return True
             return False
-        with aiohttp.ClientSession(raise_for_status=True,
-                                   timeout=aiohttp.ClientTimeout(total=60)) as real_session:
-            client = BatchClient('test', session=FailureInjectingClientSession(real_session,
-                                                                               every_third_time))
+        with FailureInjectingClientSession(every_third_time) as session:
+            client = BatchClient('test', session=session)
             builder = client.create_batch()
             i = 0
 
