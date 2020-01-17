@@ -10,6 +10,7 @@ from .utils import flatten, generate_token
 from .constants import BUCKET
 from .environment import GCP_PROJECT, GCP_ZONE, DOMAIN, IP, CI_UTILS_IMAGE, \
     DEFAULT_NAMESPACE, BATCH_PODS_NAMESPACE, KUBERNETES_SERVER_URL
+from .globals import is_test_deployment
 
 log = logging.getLogger('ci')
 
@@ -19,9 +20,6 @@ pretty_print_log = "jq -Rr '. as $raw | try \
     ([.levelname, .asctime, .filename, .funcNameAndLine, .message, .exc_info] | @tsv) \
     else $raw end) \
 catch $raw'"
-
-
-is_test_deployment = DEFAULT_NAMESPACE != 'default'
 
 
 def expand_value_from(value, config):
