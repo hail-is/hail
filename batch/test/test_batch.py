@@ -441,7 +441,7 @@ echo $HAIL_BATCH_WORKER_IP
             return False
 
         with FailureInjectingClientSession(every_third_time) as session:
-            client = BatchClient('hail', session=session)
+            client = BatchClient('test', session=session)
             builder = client.create_batch()
 
             for _ in range(9):
