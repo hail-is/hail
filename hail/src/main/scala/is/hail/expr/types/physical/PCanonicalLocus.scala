@@ -52,8 +52,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     val repr = representation.fundamentalType
 
     val localRGBc = rgBc
-    val contigPType = repr.fieldType("contig").asInstanceOf[PString]
-    val binaryOrd = contigPType.unsafeOrdering()
+    val binaryOrd = repr.fieldType("contig").asInstanceOf[PBinary].unsafeOrdering()
 
     new UnsafeOrdering {
       def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
@@ -65,8 +64,8 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
           val posOff2 = repr.loadField(o2, 1)
           java.lang.Integer.compare(Region.loadInt(posOff1), Region.loadInt(posOff2))
         } else {
-          val contig1 = contigPType.loadString(cOff1)
-          val contig2 = contigPType.loadString(cOff2)
+          val contig1 = contigType.loadString(cOff1)
+          val contig2 = contigType.loadString(cOff2)
           localRGBc.value.compare(contig1, contig2)
         }
       }
@@ -77,15 +76,14 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     assert(other isOfType this)
     new CodeOrderingCompareConsistentWithOthers {
       type T = Long
-      val contigPType = representation.fundamentalType.fieldType("contig").asInstanceOf[PString]
-      val bincmp = contigPType.codeOrdering(mb)
+      val bincmp = representation.fundamentalType.fieldType("contig").asInstanceOf[PBinary].codeOrdering(mb)
 
       override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
         val c1 = mb.newLocal[Long]("c1")
         val c2 = mb.newLocal[Long]("c2")
 
-        val s1 = contigPType.loadString(c1)
-        val s2 = contigPType.loadString(c2)
+        val s1 = contigType.loadString(c1)
+        val s2 = contigType.loadString(c2)
 
         val p1 = Region.loadInt(representation.fieldOffset(x, 1))
         val p2 = Region.loadInt(representation.fieldOffset(y, 1))
