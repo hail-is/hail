@@ -33,16 +33,15 @@ async def blocking_to_async(thread_pool, fun, *args, **kwargs):
         thread_pool, lambda: fun(*args, **kwargs))
 
 
-async def bounded_gather(*pfs, **kwargs):
-    gatherer = AsyncThrottledGather(*pfs, **kwargs)
+async def bounded_gather(*pfs, parallelism=10, return_exceptions=False):
+    gatherer = AsyncThrottledGather(*pfs,
+                                    parallelism=parallelism,
+                                    return_exceptions=return_exceptions)
     return await gatherer.wait()
 
 
 class AsyncThrottledGather:
     def __init__(self, *pfs, parallelism=10, return_exceptions=False):
-        assert (return_exceptions is False or
-                return_exceptions is True or
-                return_exceptions > 0), return_exceptions
         self.count = len(pfs)
         self.n_finished = 0
 
@@ -74,15 +73,15 @@ class AsyncThrottledGather:
                 raise
             except Exception as err:  # pylint: disable=broad-except
                 res = err
-                self._errors.append(err)
-                if self._return_exceptions is False:
+                if not self._return_exceptions:
+                    self._errors.append(err)
                     self._done.set()
                     return
 
             self._results[i] = res
             self.n_finished += 1
 
-            if self.n_finished == self.count or self._return_exceptions == len(self._errors):
+            if self.n_finished == self.count:
                 self._done.set()
 
     async def wait(self):
