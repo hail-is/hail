@@ -431,23 +431,23 @@ echo $HAIL_BATCH_WORKER_IP
         builder.submit()
 
     def test_restartable_insert(self):
+        i = 0
+
         def every_third_time():
             nonlocal i
             i += 1
             if i % 3 == 0:
                 return True
             return False
+
         with FailureInjectingClientSession(every_third_time) as session:
-            client = BatchClient('test', session=session)
+            client = BatchClient('hail', session=session)
             builder = client.create_batch()
-            i = 0
 
             for _ in range(9):
                 builder.create_job('ubuntu:18.04', ['echo', 'a'])
 
-            b = builder.submit(max_failures_to_retry=5,
-                               max_bunch_size=1,
-                               log_every_n_failures=None)
+            b = builder.submit(max_bunch_size=1)
             b = self.client.get_batch(b.id)  # get a batch untainted by the FailureInjectingClientSession
             batch = b.wait()
             assert batch['state'] == 'success', batch

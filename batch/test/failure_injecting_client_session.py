@@ -5,9 +5,8 @@ from hailtop.utils import async_to_blocking
 class FailureInjectingClientSession:
     def __init__(self, should_fail):
         self.should_fail = should_fail
-        self.real_session = async_to_blocking(
-            aiohttp.ClientSession(raise_for_status=True,
-                                  timeout=aiohttp.ClientTimeout(total=60)))
+        self.real_session = aiohttp.ClientSession(raise_for_status=True,
+                                                  timeout=aiohttp.ClientTimeout(total=60))
 
     def __enter__(self):
         return self
@@ -18,8 +17,8 @@ class FailureInjectingClientSession:
     def maybe_fail(self, method, path, headers):
         if self.should_fail():
             raise aiohttp.ClientResponseError(
-                status=500,
-                message='Internal Server Error from FailureInjectingClientSession',
+                status=503,
+                message='Service Unavailable from FailureInjectingClientSession',
                 request_info=aiohttp.RequestInfo(
                     url=path,
                     method=method,

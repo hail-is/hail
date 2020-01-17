@@ -175,6 +175,10 @@ class BatchClient:
     def bucket(self):
         return self._async_client.bucket
 
+    @property
+    def billing_project(self):
+        return self._async_client.billing_project
+
     def list_batches(self, q=None):
         for b in agen_to_blocking(self._async_client.list_batches(q)):
             yield Batch.from_async_batch(b)
