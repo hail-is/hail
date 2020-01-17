@@ -35,11 +35,7 @@ abstract class PContainer extends PIterable {
 
   def setElementMissing(aoff: Long, i: Int)
 
-  def setElementMissing(aoff: Long, i: Int)
-
   def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit]
-
-  def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit]
 
   def setElementPresent(aoff: Long, i: Int)
 
