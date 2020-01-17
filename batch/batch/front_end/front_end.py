@@ -510,14 +510,16 @@ VALUES (%s, %s, %s, %s);
                                           job_attributes_args)
 
                     await tx.execute_update('''
-UPDATE batches_staging SET
+INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE
   n_jobs = n_jobs + %s,
   n_ready_jobs = n_ready_jobs + %s,
-  ready_cores_mcpu = ready_cores_mcpu + %s
-WHERE batch_id = %s AND token = %s;
+  ready_cores_mcpu = ready_cores_mcpu + %s;
 ''',
-                                            (n_jobs, n_ready_jobs, sum_ready_cores_mcpu,
-                                             batch_id, rand_token))
+                                            (batch_id, rand_token,
+                                             n_jobs, n_ready_jobs, sum_ready_cores_mcpu,
+                                             n_jobs, n_ready_jobs, sum_ready_cores_mcpu))
         except pymysql.err.IntegrityError as err:
             if err.args[1] == 1022:
                 log.info(f'bunch containing job {(batch_id, job_id)} already inserted ({err})')
@@ -583,12 +585,6 @@ INSERT INTO `batch_attributes` (batch_id, `key`, `value`)
 VALUES (%s, %s, %s)
 ''',
                 [(id, k, v) for k, v in attributes.items()])
-
-        await tx.execute_many('''
-INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
-VALUES (%s, %s, 0, 0, 0)
-''',
-                              [(id, token) for token in range(app['n_tokens'])])
 
     return web.json_response({'id': id})
 
