@@ -3,6 +3,7 @@ import json
 import pymysql
 import aiomysql
 import logging
+import functools
 
 from hailtop.utils import sleep_and_backoff
 
@@ -15,6 +16,7 @@ retry_codes = (1213,)
 
 
 def retry_transient_mysql_errors(f):
+    @functools.wraps(f)
     async def wrapper(*args, **kwargs):
         delay = 0.1
         while True:
@@ -27,6 +29,17 @@ def retry_transient_mysql_errors(f):
                     raise
             delay = await sleep_and_backoff(delay)
     return wrapper
+
+
+def transaction(db, **transaction_kwargs):
+    def transformer(fun):
+        @functools.wraps(fun)
+        @retry_transient_mysql_errors
+        async def wrapper(*args, **kwargs):
+            async with db.start(**transaction_kwargs) as tx:
+                return await fun(tx, *args, **kwargs)
+        return wrapper
+    return transformer
 
 
 async def aenter(acontext_manager):
