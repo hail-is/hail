@@ -476,7 +476,7 @@ class BatchBuilder:
 
         id = batch.id
 
-        _byte_job_spec_bunches = []
+        byte_job_specs_bunches = []
         byte_job_specs = [json.dumps(job_spec).encode('utf-8')
                           for job_spec in self._job_specs]
         bunch = []
@@ -490,15 +490,15 @@ class BatchBuilder:
                 bunch.append(spec)
                 bunch_n_bytes += n_bytes
             else:
-                _byte_job_spec_bunches.append(bunch)
+                byte_job_specs_bunches.append(bunch)
                 bunch = [spec]
                 bunch_n_bytes = n_bytes
         if bunch:
-            _byte_job_spec_bunches.append(bunch)
+            byte_job_specs_bunches.append(bunch)
 
         await bounded_gather(
             *[functools.partial(self._submit_jobs, id, bunch)
-              for bunch in _byte_job_spec_bunches],
+              for bunch in byte_job_specs_bunches],
             parallelism=50)
 
         await self._client._patch(f'/api/v1alpha/batches/{id}/close')
