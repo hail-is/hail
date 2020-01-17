@@ -71,6 +71,9 @@ trait PArrayBackedContainer extends PContainer {
   def setElementMissing(region: Region, aoff: Long, i: Int) =
     arrayRep.setElementMissing(region, aoff, i)
 
+  def setElementMissing(aoff: Long, i: Int) =
+    arrayRep.setElementMissing(aoff, i)
+
   def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit] =
     arrayRep.setElementMissing(aoff, i)
 
@@ -178,7 +181,10 @@ trait PArrayBackedContainer extends PContainer {
     this.arrayRep.copyFromType(mb, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, forceDeep)
   }
 
-  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = ???
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = {
+    assert(srcPType.isInstanceOf[PArrayBackedContainer])
+    this.arrayRep.copyFromType(region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, forceDeep)
+  }
 
   override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
     this.arrayRep.storeShallowAtOffset(dstAddress, valueAddress)

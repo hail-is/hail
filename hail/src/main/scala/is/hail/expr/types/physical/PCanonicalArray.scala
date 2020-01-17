@@ -120,7 +120,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def isElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     isElementMissing(aoff, i)
 
-  def setElementMissing(region: Region, aoff: Long, i: Int) {
+  def setElementMissing(region: Region, aoff: Long, i: Int) =
+    setElementMissing(aoff, i)
+
+  def setElementMissing(aoff: Long, i: Int) {
     assert(!elementType.required)
     Region.setBit(aoff + lengthHeaderBytes, i)
   }
@@ -385,6 +388,12 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
+  def deepCopyFromAddress(region: Region, srcArrayAddress: Long): Long = {
+    val dstAddress = this.copyFrom(region, srcArrayAddress)
+    this.deepPointerCopy(region, dstAddress)
+    dstAddress
+  }
+
   def deepPointerCopy(mb: MethodBuilder, region: Code[Region], dstAddress: Code[Long]): Code[Unit] = {
     if(!this.elementType.fundamentalType.containsPointers) {
       return Code._empty
@@ -414,7 +423,30 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
-  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean = false): Code[Long] = {
+  def deepPointerCopy(region: Region, dstAddress: Long) {
+    if(!this.elementType.fundamentalType.containsPointers) {
+      return
+    }
+
+    val numberOfElements = this.loadLength(dstAddress)
+    var currentIdx = 0
+    while(currentIdx < numberOfElements) {
+      if(this.isElementDefined(dstAddress, currentIdx)) {
+        val currentElementAddress = this.elementOffset(dstAddress, numberOfElements, currentIdx)
+        this.elementType.fundamentalType match {
+          case t@(_: PBinary | _: PArray) =>
+            t.storeShallowAtOffset(currentElementAddress, t.copyFromType(region, t, Region.loadAddress(currentElementAddress)))
+          case t: PBaseStruct =>
+            t.deepPointerCopy(region, currentElementAddress)
+          case t: PType => fatal(s"Type isn't supported ${t}")
+        }
+      }
+
+      currentIdx += 1
+    }
+  }
+
+  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     assert(srcPType.isInstanceOf[PArray])
 
     val sourceType = srcPType.asInstanceOf[PArray]
@@ -474,5 +506,48 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
-  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = ???
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = {
+    assert(srcPType.isInstanceOf[PArray])
+
+    val sourceType = srcPType.asInstanceOf[PArray]
+    val sourceElementType = sourceType.elementType.fundamentalType
+    val destElementType = this.elementType.fundamentalType
+
+    if (sourceElementType == destElementType) {
+      if(!forceDeep) {
+        return srcAddress
+      }
+
+      return this.deepCopyFromAddress(region, srcAddress)
+    }
+
+    assert(destElementType.required <= sourceElementType.required && sourceElementType.isOfType(destElementType))
+
+    val numberOfElements = sourceType.loadLength(srcAddress)
+    val dstAddress = this.allocate(region, numberOfElements)
+    this.initialize(region, dstAddress, numberOfElements)
+
+    var currentElementAddress = this.firstElementOffset(dstAddress, numberOfElements)
+    var currentIdx = 0
+    while(currentIdx < numberOfElements) {
+      if(!sourceElementType.required && sourceType.isElementMissing(region, srcAddress, currentIdx)) {
+        this.setElementMissing(dstAddress, currentIdx)
+      } else {
+        destElementType.storeShallowAtOffset(
+          currentElementAddress,
+          destElementType.copyFromType(
+            region,
+            sourceElementType,
+            sourceType.loadElement(srcAddress, numberOfElements, currentIdx),
+            forceDeep
+          )
+        )
+      }
+
+      currentElementAddress = this.nextElementAddress(currentElementAddress)
+      currentIdx += 1
+    }
+
+    dstAddress
+  }
 }

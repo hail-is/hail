@@ -9,12 +9,15 @@ import org.testng.annotations.Test
 
 class PNDArraySuite extends HailSuite {
   @Test def copyTests() {
-    def runTests(forceDeep: Boolean) {
+    def runTests(forceDeep: Boolean, interpret: Boolean = false) {
       PhysicalTestUtils.copyTestExecutor(PNDArray(PInt64(true), 1), PNDArray(PInt64(true), 1), Annotation(0, 1, Annotation(1L), Annotation(1L), IndexedSeq(4L,5L,6L)),
-        forceDeep = forceDeep)
+        forceDeep = forceDeep, interpret = interpret)
     }
 
     runTests(true)
     runTests(false)
+
+    runTests(true, true)
+    runTests(false, true)
   }
 }

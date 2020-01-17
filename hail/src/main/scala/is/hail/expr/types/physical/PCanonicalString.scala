@@ -15,14 +15,19 @@ abstract class PCanonicalString(val required: Boolean) extends PString {
 
   lazy val binaryFundamentalType: PBinary = PBinary(required)
 
-  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcOffset: Code[Long], forceDeep: Boolean): Code[Long] = {
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     assert(srcPType isOfType this)
     this.fundamentalType.copyFromType(
-      mb, region, srcPType.asInstanceOf[PString].fundamentalType, srcOffset, forceDeep
+      mb, region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, forceDeep
     )
   }
 
-  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = ???
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long  = {
+    assert(srcPType isOfType this)
+    this.fundamentalType.copyFromType(
+      region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, forceDeep
+    )
+  }
 
   override def containsPointers: Boolean = true
 

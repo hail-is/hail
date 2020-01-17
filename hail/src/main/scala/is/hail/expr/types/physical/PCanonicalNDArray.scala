@@ -223,5 +223,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     this.representation.copyFromType(mb, region, sourceNDPType.representation, srcAddress, forceDeep)
   }
 
-  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = ???
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long  = {
+    assert(srcPType.isInstanceOf[PNDArray])
+    val sourceNDPType = srcPType.asInstanceOf[PNDArray]
+
+    assert(this.elementType == sourceNDPType.elementType && this.nDims == sourceNDPType.nDims)
+
+    this.representation.copyFromType(region, sourceNDPType.representation, srcAddress, forceDeep)
+  }
 }

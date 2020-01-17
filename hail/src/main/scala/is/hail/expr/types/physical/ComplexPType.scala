@@ -31,5 +31,11 @@ abstract class ComplexPType extends PType {
     this.representation.copyFromType(mb, region, srcRepPType, srcAddress, forceDeep)
   }
 
-  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = ???
+  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = {
+    assert(this isOfType srcPType)
+
+    val srcRepPType = srcPType.asInstanceOf[ComplexPType].representation
+
+    this.representation.copyFromType(region, srcRepPType, srcAddress, forceDeep)
+  }
 }

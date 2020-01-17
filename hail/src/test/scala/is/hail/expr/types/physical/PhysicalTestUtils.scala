@@ -5,26 +5,55 @@ import is.hail.expr.ir.EmitFunctionBuilder
 
 object PhysicalTestUtils {
   def copyTestExecutor(sourceType: PType, destType: PType, sourceValue: Any,
-    expectCompileErr: Boolean = false, expectRuntimeErr: Boolean = false, forceDeep: Boolean = false) {
-    val region = Region()
+    expectCompileErr: Boolean = false, forceDeep: Boolean = false, interpret: Boolean = false) {
+
     val srcRegion = Region()
+    val region = Region()
 
-    val srcOffset = ScalaToRegionValue(srcRegion, sourceType, sourceValue)
+    val srcAddress = ScalaToRegionValue(srcRegion, sourceType, sourceValue)
 
+    if(interpret) {
+      try {
+        val copyOff = destType.copyFromType(region, sourceType, srcAddress, forceDeep = forceDeep)
+        val copy = UnsafeRow.read(destType, region, copyOff)
+
+        log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
+        assert(copy == sourceValue)
+        region.clear()
+        srcRegion.clear()
+      } catch {
+        case e: AssertionError => {
+          srcRegion.clear()
+          region.clear()
+
+          if(expectCompileErr) {
+            log.info("OK: Caught expected compile-time error")
+            return
+          }
+
+          throw new Error(e)
+        }
+      }
+
+      return
+    }
+    
+    var compileSuccess = false
     val fb = EmitFunctionBuilder[Region, Long, Long]("not_empty")
     val codeRegion = fb.getArg[Region](1).load()
     val value = fb.getArg[Long](2)
-    var compileSuccess = false
+
     try {
-      fb.emit(destType.copyFromType(fb.apply_method, codeRegion, sourceType, value,  forceDeep = forceDeep))
+      fb.emit(destType.copyFromType(fb.apply_method, codeRegion, sourceType, value, forceDeep = forceDeep))
       compileSuccess = true
     } catch {
-      case e: Throwable => {
-        region.clear()
+      case e: AssertionError => {
         srcRegion.clear()
+        region.clear()
+
         if(expectCompileErr) {
-          log.info("Caught expected compile-time error")
-          return assert(true)
+          log.info("OK: Caught expected compile-time error")
+          return
         }
 
         throw new Error(e)
@@ -38,7 +67,7 @@ object PhysicalTestUtils {
     }
 
     val f = fb.result()()
-    val copyOff = f(region, srcOffset)
+    val copyOff = f(region, srcAddress)
     val copy = UnsafeRow.read(destType, region, copyOff)
 
     log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
