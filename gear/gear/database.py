@@ -15,20 +15,32 @@ retry_codes = (1213,)
 
 
 def retry_transient_mysql_errors(f):
-    async def wrapper(*args, **kwargs):
-        delay = 0.1
-        while True:
-            try:
-                if isgeneratorfunction(f):
+    if isgeneratorfunction(f):
+        async def wrapper(*args, **kwargs):
+            delay = 0.1
+            while True:
+                try:
                     yield await f(*args, **kwargs)
-                return await f(*args, **kwargs)
-            except pymysql.err.OperationalError as e:
-                if e.args[0] in retry_codes:
-                    log.warning(f'encountered pymysql error, retrying {e}', exc_info=True)
-                else:
-                    raise
-            delay = await sleep_and_backoff(delay)
-    return wrapper
+                except pymysql.err.OperationalError as e:
+                    if e.args[0] in retry_codes:
+                        log.warning(f'encountered pymysql error, retrying {e}', exc_info=True)
+                    else:
+                        raise
+                delay = await sleep_and_backoff(delay)
+        return wrapper
+    else:
+        async def wrapper(*args, **kwargs):
+            delay = 0.1
+            while True:
+                try:
+                    return await f(*args, **kwargs)
+                except pymysql.err.OperationalError as e:
+                    if e.args[0] in retry_codes:
+                        log.warning(f'encountered pymysql error, retrying {e}', exc_info=True)
+                    else:
+                        raise
+                delay = await sleep_and_backoff(delay)
+        return wrapper
 
 
 async def aenter(acontext_manager):
