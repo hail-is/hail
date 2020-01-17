@@ -52,6 +52,7 @@ REQUEST_TIME_PATCH_CLOSE_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batc
 REQUEST_TIME_DELETE_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id', verb="DELETE")
 REQUEST_TIME_GET_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id', verb='GET')
 REQUEST_TIME_POST_CANCEL_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/cancel', verb='POST')
+REQUEST_TIME_POST_DELETE_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/delete', verb='POST')
 REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET')
 REQUEST_TIME_GET_JOB_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id', verb="GET")
 REQUEST_TIME_GET_BILLING_PROJECTS_UI = REQUEST_TIME.labels(endpoint='/billing_projects', verb="GET")
@@ -612,6 +613,36 @@ WHERE user = %s AND id = %s AND NOT deleted;
     return web.Response()
 
 
+async def _delete_batch(app, batch_id, user):
+    db = app['db']
+
+    record = await db.select_and_fetchone(
+        '''
+SELECT closed FROM batches
+WHERE user = %s AND id = %s AND NOT deleted;
+''',
+        (user, batch_id))
+    if not record:
+        raise web.HTTPNotFound()
+
+    await db.execute_update(
+        'UPDATE batches SET cancelled = closed, deleted = 1 WHERE id = %s;', (batch_id,))
+
+    if record['closed']:
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            try:
+                await request_retry_transient_errors(
+                    session, 'DELETE',
+                    deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}'),
+                    headers=app['driver_headers'])
+            except aiohttp.ClientResponseError as e:
+                if e.status == 404:
+                    pass
+                else:
+                    raise
+
+
 @routes.get('/api/v1alpha/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_POST_GET_BATCH)
 @rest_authenticated_users_only
@@ -679,36 +710,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 async def delete_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-
-    app = request.app
-    db = app['db']
-
-    record = await db.select_and_fetchone(
-        '''
-SELECT closed FROM batches
-WHERE user = %s AND id = %s AND NOT deleted;
-''',
-        (user, batch_id))
-    if not record:
-        raise web.HTTPNotFound()
-
-    await db.execute_update(
-        'UPDATE batches SET cancelled = closed, deleted = 1 WHERE id = %s;', (batch_id,))
-
-    if record['closed']:
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            try:
-                await request_retry_transient_errors(
-                    session, 'DELETE',
-                    deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}'),
-                    headers=app['driver_headers'])
-            except aiohttp.ClientResponseError as e:
-                if e.status == 404:
-                    pass
-                else:
-                    raise
-
+    await _delete_batch(request.app, batch_id, user)
     return web.Response()
 
 
@@ -746,6 +748,20 @@ async def ui_cancel_batch(request, userdata):
     await _cancel_batch(request.app, batch_id, user)
     session = await aiohttp_session.get_session(request)
     set_message(session, f'Batch {batch_id} cancelled.', 'info')
+    location = request.app.router['batches'].url_for()
+    raise web.HTTPFound(location=location)
+
+
+@routes.post('/batches/{batch_id}/delete')
+@prom_async_time(REQUEST_TIME_POST_DELETE_BATCH_UI)
+@check_csrf_token
+@web_authenticated_users_only(redirect=False)
+async def ui_delete_batch(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    user = userdata['username']
+    await _delete_batch(request.app, batch_id, user)
+    session = await aiohttp_session.get_session(request)
+    set_message(session, f'Batch {batch_id} deleted.', 'info')
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 
