@@ -856,6 +856,22 @@ private class Emit(
           const(false),
           Code._empty)
 
+      case RunAgg(body, result, aggs) =>
+        val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(aggs.toArray, mb.fb, "run_agg")
+        val codeBody = emit(body, env = env, container = Some(newContainer))
+        val codeRes = emit(result, env = env, container = Some(newContainer))
+        val resm = mb.newField[Boolean]()
+        val resv = mb.newField("run_agg_result")(typeToTypeInfo(result.pType))
+        val aggregation = Code(
+          aggSetup,
+          codeBody.setup,
+          codeRes.setup,
+          resm := codeRes.m,
+          resv.storeAny(resm.mux(defaultValue(result.pType), codeRes.v)),
+          aggCleanup)
+
+        EmitTriplet(aggregation, resm, resv)
+
       case ArrayAgg(a, name, query) =>
         assert(!ContainsAggIntermediate(query))
         val tarray = coerce[TStreamable](a.typ)

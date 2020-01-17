@@ -1172,6 +1172,11 @@ object PruneDeadFields {
         unifyEnvs(
           BindingEnv(eval = concatEnvs(Array(queryEnv.eval.delete(name), queryEnv.scanOrEmpty.delete(name)))),
           aEnv)
+      case RunAgg(body, result, _) =>
+        unifyEnvs(
+          memoizeValueIR(body, body.typ, memo),
+          memoizeValueIR(result, requestedType, memo)
+        )
       case MakeStruct(fields) =>
         val sType = requestedType.asInstanceOf[TStruct]
         unifyEnvsSeq(fields.flatMap { case (fname, fir) =>
@@ -1710,6 +1715,10 @@ object PruneDeadFields {
         val a2 = rebuildIR(a, env, memo)
         val query2 = rebuildIR(query, env.copy(scan = Some(env.eval.bind(name -> a2.typ.asInstanceOf[TArray].elementType))), memo)
         ArrayAggScan(a2, name, query2)
+      case RunAgg(body, result, signatures) =>
+        val body2 = rebuildIR(body, env, memo)
+        val result2 = rebuildIR(result, env, memo)
+        RunAgg(body2, result2, signatures)
       case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
         val initOpArgs2 = initOpArgs.map(rebuildIR(_, env, memo))
         val seqOpArgs2 = seqOpArgs.map(rebuildIR(_, env.promoteAgg, memo))

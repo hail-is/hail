@@ -164,6 +164,8 @@ object Copy {
       case ArrayAggScan(_, name, _) =>
         assert(newChildren.length == 2)
         ArrayAggScan(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
+      case RunAgg(_, _, signatures) =>
+        RunAgg(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], signatures)
       case AggFilter(_, _, isScan) =>
         assert(newChildren.length == 2)
         AggFilter(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], isScan)
