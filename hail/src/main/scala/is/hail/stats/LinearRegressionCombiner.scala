@@ -46,7 +46,7 @@ class LinearRegressionCombiner(k: Int, k0: Int, t: PType) extends Serializable {
     n += 1
   }
 
-  def merge(y: Double, xOffset: Long) {
+  def merge(region: Region, y: Double, xOffset: Long) {
     val length = xType.loadLength(xOffset)
     assert(k == length)
 
