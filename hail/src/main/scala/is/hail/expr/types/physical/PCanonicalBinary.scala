@@ -96,8 +96,10 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   }
 
   def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] = {
-    Region.storeInt(addr, bytes.length)
-    Region.storeBytes(bytesOffset(addr), bytes)
+    Code(
+      Region.storeInt(addr, bytes.length),
+      Region.storeBytes(bytesOffset(addr), bytes)
+    )
   }
 }
 
