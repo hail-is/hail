@@ -33,13 +33,6 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
   val kRowOrd: UnsafeOrdering =
     RVDType.selectUnsafeOrdering(kType, Array.range(0, kType.size), rowType, kFieldIdx)
 
-  def subsetTo(requestedType: TStruct): RVDType = {
-    RVDType(
-      rowType.subsetTo(requestedType).asInstanceOf[PStruct],
-      key.takeWhile(requestedType.hasField)
-    )
-  }
-
   def kComp(other: RVDType): UnsafeOrdering =
     RVDType.selectUnsafeOrdering(
       this.rowType,
