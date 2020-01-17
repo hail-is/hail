@@ -446,8 +446,8 @@ class BatchBuilder:
             data=aiohttp.BytesPayload(
                 b, content_type='application/json', encoding='utf-8'))
 
-    async def _create(self):
-        batch_token = secrets.token_urlsafe(32)
+    async def _create(self, batch_token=None):
+        batch_token = batch_token or secrets.token_urlsafe(32)
         batch_spec = {'billing_project': self._client.billing_project,
                       'n_jobs': len(self._job_specs),
                       'token': batch_token}

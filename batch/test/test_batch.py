@@ -456,6 +456,7 @@ echo $HAIL_BATCH_WORKER_IP
     def test_create_idempotence(self):
         builder = self.client.create_batch()
         builder.create_job('ubuntu:18.04', ['/bin/true'])
-        b = builder._create()
-        b2 = builder._create()
+        batch_token = secrets.token_urlsafe(32)
+        b = builder._create(batch_token=batch_token)
+        b2 = builder._create(batch_token=batch_token)
         assert b.id == b2.id
