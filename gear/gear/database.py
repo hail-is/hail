@@ -6,6 +6,7 @@ import logging
 
 from hailtop.utils import sleep_and_backoff
 
+
 log = logging.getLogger('gear.database')
 
 
