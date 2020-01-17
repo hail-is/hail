@@ -16,8 +16,6 @@ from .globals import tasks, complete_states
 
 log = logging.getLogger('batch_client.aioclient')
 log.setLevel('WARNING')
-# To tqdm_notebook, None means do not display. To standard tqdm, None means
-# display only when connected to a TTY.
 
 
 class Job:
@@ -506,7 +504,6 @@ class BatchBuilder:
                 bunch_n_jobs = 1
         if bunch:
             byte_job_specs_bunches.append(bunch)
-
             bunch_sizes.append(bunch_n_jobs)
 
         with tqdm(total=len(self._job_specs),
