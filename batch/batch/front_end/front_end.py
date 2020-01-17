@@ -561,7 +561,7 @@ WHERE billing_project = %s AND user = %s;
         maybe_batch = await tx.execute_and_fetchone(
             '''
 SELECT * FROM batches
-WHERE token = %s AND user = %s;
+WHERE token = %s AND user = %s FOR UPDATE;
 ''',
             (token, user))
 
