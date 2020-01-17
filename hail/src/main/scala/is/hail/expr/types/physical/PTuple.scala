@@ -43,7 +43,6 @@ abstract class PTuple extends PBaseStruct {
   def identBase: String = "tuple"
 }
 
-// FIXME: Remove region here?
 class CodePTuple(
   val pType: PTuple,
   val offset: Code[Long]
