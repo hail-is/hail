@@ -9,6 +9,7 @@ from aiohttp import web
 import aiohttp_session
 import cerberus
 import prometheus_client as pc
+import pymysql
 from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 import google.oauth2.service_account
@@ -491,11 +492,16 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
         async with timer.step('insert jobs'):
             async with db.start() as tx:
-                await tx.execute_many('''
+                try:
+                    await tx.execute_many('''
 INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents)
 VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
-                                      jobs_args)
+                                          jobs_args)
+                except pymysql.err.IntegrityError as err:
+                    if err.args[1] == 1022:
+                        log.info(f'bunch containing job {(batch_id, jobs_args[0][1])} already inserted ({err})')
+                        return web.Response()
                 await tx.execute_many('''
 INSERT INTO `job_parents` (batch_id, job_id, parent_id)
 VALUES (%s, %s, %s);
@@ -537,6 +543,7 @@ async def create_batch(request, userdata):
 
     user = userdata['username']
     billing_project = batch_spec['billing_project']
+    token = batch_spec['token']
 
     attributes = batch_spec.get('attributes')
     async with db.start() as tx:
@@ -551,15 +558,25 @@ WHERE billing_project = %s AND user = %s;
             assert len(rows) == 0
             raise web.HTTPForbidden(reason=f'unknown billing project {billing_project}')
 
+        maybe_batch = await tx.execute_and_fetchone(
+            '''
+SELECT * FROM batches
+WHERE token = %s AND user = %s FOR UPDATE;
+''',
+            (token, user))
+
+        if maybe_batch is not None:
+            return web.json_response({'id': maybe_batch['id']})
+
         now = time_msecs()
         id = await tx.execute_insertone(
             '''
-INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created)
-VALUES (%s, %s, %s, %s, %s, %s, %s);
+INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, token)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (json.dumps(userdata), user, billing_project, json.dumps(attributes),
              batch_spec.get('callback'), batch_spec['n_jobs'],
-             now))
+             now, token))
 
         if attributes:
             await tx.execute_many(

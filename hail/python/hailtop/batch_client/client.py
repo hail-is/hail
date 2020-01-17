@@ -160,8 +160,12 @@ class BatchBuilder:
 
         return Job.from_async_job(async_job)
 
-    def submit(self):
-        async_batch = async_to_blocking(self._async_builder.submit())
+    def _create(self, *args, **kwargs):
+        async_batch = async_to_blocking(self._async_builder._create(*args, **kwargs))
+        return Batch.from_async_batch(async_batch)
+
+    def submit(self, *args, **kwargs):
+        async_batch = async_to_blocking(self._async_builder.submit(*args, **kwargs))
         return Batch.from_async_batch(async_batch)
 
 
@@ -174,6 +178,10 @@ class BatchClient:
     @property
     def bucket(self):
         return self._async_client.bucket
+
+    @property
+    def billing_project(self):
+        return self._async_client.billing_project
 
     def list_batches(self, q=None):
         for b in agen_to_blocking(self._async_client.list_batches(q)):

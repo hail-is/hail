@@ -5,6 +5,7 @@ import json
 import functools
 import asyncio
 import aiohttp
+import secrets
 from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config
@@ -14,6 +15,7 @@ from hailtop.utils import bounded_gather, request_retry_transient_errors
 from .globals import tasks, complete_states
 
 log = logging.getLogger('batch_client.aioclient')
+log.setLevel('WARNING')
 
 
 class Job:
@@ -424,7 +426,7 @@ class BatchBuilder:
         return j
 
     async def _submit_jobs(self, batch_id, byte_job_specs):
-        assert len(byte_job_specs) > 0
+        assert len(byte_job_specs) > 0, byte_job_specs
 
         b = bytearray()
         b.append(ord('['))
@@ -444,45 +446,63 @@ class BatchBuilder:
             data=aiohttp.BytesPayload(
                 b, content_type='application/json', encoding='utf-8'))
 
-    async def submit(self):
-        if self._submitted:
-            raise ValueError("cannot submit an already submitted batch")
-        self._submitted = True
-
-        batch_spec = {'billing_project': self._client.billing_project, 'n_jobs': len(self._job_specs)}
+    async def _create(self, batch_token=None):
+        batch_token = batch_token or secrets.token_urlsafe(32)
+        batch_spec = {'billing_project': self._client.billing_project,
+                      'n_jobs': len(self._job_specs),
+                      'token': batch_token}
         if self.attributes:
             batch_spec['attributes'] = self.attributes
         if self.callback:
             batch_spec['callback'] = self.callback
 
-        b_resp = await self._client._post('/api/v1alpha/batches/create', json=batch_spec)
-        b = await b_resp.json()
-        log.info(f'created batch {b["id"]}')
-        batch = Batch(self._client, b['id'], self.attributes)
+        batch_json = await (await self._client._post('/api/v1alpha/batches/create',
+                                                     json=batch_spec)).json()
+        return Batch(self._client, batch_json['id'], self.attributes)
 
-        byte_job_specs = [json.dumps(job_spec).encode('utf-8') for job_spec in self._job_specs]
+    MAX_BUNCH_BYTESIZE = 8 * 1024 * 1024 - 512 * 1024  # max request size minus room for headers etc
+    MAX_BUNCH_SIZE = 8 * 1024  # ???
 
-        groups = []
-        group = []
-        group_size = 0
+    async def submit(self,
+                     max_bunch_bytesize=MAX_BUNCH_BYTESIZE,
+                     max_bunch_size=MAX_BUNCH_SIZE):
+        assert max_bunch_bytesize > 0
+        assert max_bunch_size > 0
+        if self._submitted:
+            raise ValueError("cannot submit an already submitted batch")
+
+        batch = await self._create()
+        log.info(f'created batch {batch.id}')
+
+        id = batch.id
+
+        byte_job_specs_bunches = []
+        byte_job_specs = [json.dumps(job_spec).encode('utf-8')
+                          for job_spec in self._job_specs]
+        bunch = []
+        bunch_n_bytes = 0
         for spec in byte_job_specs:
-            n = len(spec)
-            if group_size + n < 8000000 and len(group) < 1000:
-                group.append(spec)
-                group_size += n
+            n_bytes = len(spec)
+            assert n_bytes < max_bunch_bytesize, (
+                f'every job spec must be less than max_bunch_bytesize,'
+                f' { max_bunch_bytesize }B, but {spec} is larger')
+            if bunch_n_bytes + n_bytes < max_bunch_bytesize and len(bunch) < max_bunch_size:
+                bunch.append(spec)
+                bunch_n_bytes += n_bytes
             else:
-                groups.append(group)
-                group = [spec]
-                group_size = n
-        if group:
-            groups.append(group)
+                byte_job_specs_bunches.append(bunch)
+                bunch = [spec]
+                bunch_n_bytes = n_bytes
+        if bunch:
+            byte_job_specs_bunches.append(bunch)
 
-        await bounded_gather(*[functools.partial(self._submit_jobs, batch.id, group)
-                               for group in groups],
-                             parallelism=50)
+        await bounded_gather(
+            *[functools.partial(self._submit_jobs, id, bunch)
+              for bunch in byte_job_specs_bunches],
+            parallelism=50)
 
-        await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
-        log.info(f'closed batch {b["id"]}')
+        await self._client._patch(f'/api/v1alpha/batches/{id}/close')
+        log.info(f'closed batch {id}')
 
         for j in self._jobs:
             j._job = j._job._submit(batch)
@@ -491,6 +511,7 @@ class BatchBuilder:
         self._jobs = []
         self._job_idx = 0
 
+        self._submitted = True
         return batch
 
 
