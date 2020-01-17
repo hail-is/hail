@@ -3,7 +3,6 @@ import json
 import pymysql
 import aiomysql
 import logging
-from inspect import isgeneratorfunction
 
 from hailtop.utils import sleep_and_backoff
 
