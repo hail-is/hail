@@ -468,9 +468,12 @@ class BatchBuilder:
                                                      json=batch_spec)).json()
         return Batch(self._client, batch_json['id'], self.attributes)
 
+    MAX_BUNCH_BYTESIZE = 8 * 1024 * 1024 - 512 * 1024  # max request size minus room for headers etc
+    MAX_BUNCH_SIZE = 8 * 1024  # ???
+
     async def submit(self,
-                     max_bunch_bytesize=8 * 1024 * 1024,
-                     max_bunch_size=8 * 1024):
+                     max_bunch_bytesize=MAX_BUNCH_BYTESIZE,
+                     max_bunch_size=MAX_BUNCH_SIZE):
         assert max_bunch_bytesize > 0
         assert max_bunch_size > 0
         if self._submitted:
