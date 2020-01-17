@@ -490,26 +490,30 @@ WHERE user = %s AND id = %s AND NOT deleted;
         rand_token = random.randint(0, app['n_tokens'] - 1)
         n_jobs = len(job_specs)
 
-        try:
-            async with timer.step('insert jobs'):
-                async with db.start() as tx:
+        async with timer.step('insert jobs'):
+            async with db.start() as tx:
+                try:
                     await tx.execute_many('''
 INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents)
 VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
                                           jobs_args)
-                    await tx.execute_many('''
+                except pymysql.err.IntegrityError as err:
+                    if err.args[1] == 1022:
+                        log.info(f'bunch containing job {(batch_id, job_id)} already inserted ({err})')
+                        return web.Response()
+                await tx.execute_many('''
 INSERT INTO `job_parents` (batch_id, job_id, parent_id)
 VALUES (%s, %s, %s);
 ''',
-                                          job_parents_args)
-                    await tx.execute_many('''
+                                      job_parents_args)
+                await tx.execute_many('''
 INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 ''',
-                                          job_attributes_args)
+                                      job_attributes_args)
 
-                    await tx.execute_update('''
+                await tx.execute_update('''
 INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
 VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
@@ -517,13 +521,9 @@ ON DUPLICATE KEY UPDATE
   n_ready_jobs = n_ready_jobs + %s,
   ready_cores_mcpu = ready_cores_mcpu + %s;
 ''',
-                                            (batch_id, rand_token,
-                                             n_jobs, n_ready_jobs, sum_ready_cores_mcpu,
-                                             n_jobs, n_ready_jobs, sum_ready_cores_mcpu))
-        except pymysql.err.IntegrityError as err:
-            if err.args[1] == 1022:
-                log.info(f'bunch containing job {(batch_id, job_id)} already inserted ({err})')
-                return web.Response()
+                                        (batch_id, rand_token,
+                                         n_jobs, n_ready_jobs, sum_ready_cores_mcpu,
+                                         n_jobs, n_ready_jobs, sum_ready_cores_mcpu))
 
         return web.Response()
 
