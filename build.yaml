@@ -109,7 +109,7 @@ steps:
      python3 -m pylint --rcfile pylintrc web_common
    dependsOn:
      - service_base_image
- - kind: createDatabase2
+ - kind: createDatabase
    name: test_database_instance
    databaseName: test-instance
    migrations: []
@@ -157,7 +157,7 @@ steps:
     - default_ns
     - service_base_image
     - copy_files
- - kind: createDatabase2
+ - kind: createDatabase
    name: auth_database
    databaseName: auth
    migrations:
@@ -765,7 +765,7 @@ steps:
     - default_ns
     - service_base_image
     - copy_files
- - kind: createDatabase2
+ - kind: createDatabase
    name: ci_database
    databaseName: ci
    migrations:
@@ -784,7 +784,7 @@ steps:
    dependsOn:
     - default_ns
     - copy_files
- - kind: createDatabase2
+ - kind: createDatabase
    name: batch_database
    databaseName: batch
    migrations:
@@ -1071,7 +1071,7 @@ steps:
     - default_ns
     - deploy_router
     - hail_test_base_image
- - kind: createDatabase2
+ - kind: createDatabase
    name: notebook_database
    databaseName: notebook
    migrations:
