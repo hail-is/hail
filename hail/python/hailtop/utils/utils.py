@@ -5,6 +5,8 @@ import asyncio
 import aiohttp
 from aiohttp import web
 
+from .time import time_msecs
+
 log = logging.getLogger('hailtop.utils')
 
 
@@ -227,3 +229,31 @@ async def retry_forever(f, msg=None):
             if msg:
                 log.info(msg(exc), exc_info=True)
         await sleep_and_backoff(delay)
+
+
+async def retry_long_running(name, f, *args, **kwargs):
+    delay_secs = 0.1
+    while True:
+        try:
+            start_time = time_msecs()
+            await f(*args, **kwargs)
+        except Exception:
+            end_time = time_msecs()
+
+            log.exception(f'in {name}')
+
+            t = delay_secs * random.uniform(0.7, 1.3)
+            await asyncio.sleep(t)
+
+            ran_for_secs = (end_time - start_time) * 1000
+            delay_secs = min(
+                max(0.1, 2 * delay_secs - min(0, (ran_for_secs - t) / 2)),
+                30.0)
+
+
+async def run_if_changed(changed, f, *args, **kwargs):
+    while True:
+        changed.clear()
+        should_wait = await f(*args, **kwargs)
+        if should_wait:
+            await changed.wait()
