@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, MethodBuilder}
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.virtual.TStream
+import is.hail.expr.types.virtual.{TArray, TStream, Type}
 
 trait PStreamable extends PIterable {
   def asPArray: PArray = PArray(this.elementType, this.required)
@@ -47,5 +47,10 @@ final case class PStream(elementType: PType, override val required: Boolean = fa
 
   def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) =
     throw new UnsupportedOperationException("Stream storeShallowAtOffset is currently undefined")
+
+  override def deepRename(t: Type) = deepRenameStream(t.asInstanceOf[TStream])
+
+  private def deepRenameStream(t: TStream): PStream =
+    PStream(this.elementType.deepRename(t.elementType), this.required)
 }
 

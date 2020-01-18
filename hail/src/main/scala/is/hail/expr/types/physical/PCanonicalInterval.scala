@@ -1,7 +1,8 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations._
-import is.hail.asm4s.{Code, MethodBuilder}
+import is.hail.asm4s.Code
+import is.hail.expr.types.virtual.{TInterval, Type}
 
 final case class PCanonicalInterval(pointType: PType, override val required: Boolean = false) extends PInterval {
     def _asIdent = s"interval_of_${pointType.asIdent}"
@@ -54,4 +55,9 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
     def includeEnd(off: Code[Long]): Code[Boolean] =
       Region.loadBoolean(representation.loadField(off, 3))
+
+    override def deepRename(t: Type) = deepRenameInterval(t.asInstanceOf[TInterval])
+
+    private def deepRenameInterval(t: TInterval) =
+      PCanonicalInterval(this.pointType.deepRename(t.pointType),  this.required)
 }

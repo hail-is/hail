@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.asm4s.Code
 import is.hail.expr.types.BaseStruct
-import is.hail.expr.types.virtual.Type
+import is.hail.expr.types.virtual.{TStruct, Type}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -258,5 +258,14 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
         ab += PField(name, typ, ab.length)
     }
     PCanonicalStruct(ab.result(), required)
+  }
+
+  override def deepRename(t: Type): PType = deepRenameStruct(t.asInstanceOf[TStruct])
+
+  private def deepRenameStruct(t: TStruct): PStruct = {
+    PCanonicalStruct((t.fields, this.fields).zipped.map( (tfield, pfield) => {
+      assert(tfield.index == pfield.index)
+      PField(tfield.name, pfield.typ.deepRename(tfield.typ), pfield.index)
+    }), this.required)
   }
 }

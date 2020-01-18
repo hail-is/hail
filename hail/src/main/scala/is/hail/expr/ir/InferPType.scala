@@ -46,23 +46,6 @@ object InferPType {
     }
   }
 
-  def deepRenameStruct(typeWithNames: Type, targetPType: PType): PType = {
-    targetPType match {
-      case pt: PArray => {
-        assert(typeWithNames.isInstanceOf[TArray])
-        pt.copy(deepRenameStruct(typeWithNames.asInstanceOf[TArray].elementType, pt.elementType))
-      }
-      case pt: PStruct => {
-        pt.copy(
-          (typeWithNames.asInstanceOf[TStruct].fields, pt.fields)
-            .zipped.map( (tfield, pfield) => {
-            assert(tfield.index == pfield.index && tfield.typ.isOfType(pfield.typ.virtualType))
-            PField(tfield.name, pfield.typ, pfield.index)
-          }))
-      }
-    }
-  }
-
   def apply(ir: IR, env: Env[PType]): Unit = {
     assert(ir._pType2 == null)
 
@@ -81,7 +64,7 @@ object InferPType {
       }
       case CastRename(ir, t) => {
         InferPType(ir, env)
-        deepRenameStruct(t, ir._pType2)
+        ir._pType2.deepRename(t)
       }
       case NA(t) => {
         PType.canonical(t).deepInnerRequired(false)
@@ -454,6 +437,7 @@ object InferPType {
     }
 
     // Allow only requiredeness to diverge
+    println(s"ptype2: ${ir.pType2.virtualType}, ir.typ: ${ir.typ}")
     assert(ir.pType2.virtualType isOfType ir.typ)
   }
 }
