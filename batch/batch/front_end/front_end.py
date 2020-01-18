@@ -872,7 +872,7 @@ WHERE batch_id = %s AND job_id = %s
             del attempt['start_time']
 
         end_time = attempt['end_time']
-        if start_time is not None:
+        if end_time is not None:
             attempt['end_time'] = time_msecs_str(end_time)
         else:
             del attempt['end_time']
