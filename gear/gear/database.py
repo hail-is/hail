@@ -3,6 +3,7 @@ import json
 import pymysql
 import aiomysql
 import logging
+import functools
 
 from hailtop.utils import sleep_and_backoff
 
@@ -14,7 +15,8 @@ log = logging.getLogger('gear.database')
 retry_codes = (1213,)
 
 
-def retry(f):
+def retry_transient_mysql_errors(f):
+    @functools.wraps(f)
     async def wrapper(*args, **kwargs):
         delay = 0.1
         while True:
@@ -27,6 +29,17 @@ def retry(f):
                     raise
             delay = await sleep_and_backoff(delay)
     return wrapper
+
+
+def transaction(db, **transaction_kwargs):
+    def transformer(fun):
+        @functools.wraps(fun)
+        @retry_transient_mysql_errors
+        async def wrapper(*args, **kwargs):
+            async with db.start(**transaction_kwargs) as tx:
+                return await fun(tx, *args, **kwargs)
+        return wrapper
+    return transformer
 
 
 async def aenter(acontext_manager):
@@ -110,13 +123,11 @@ class Transaction:
         await aexit(self.conn_context_manager)
         self.conn_context_manager = None
 
-    @retry
     async def just_execute(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
             await cursor.execute(sql, args)
 
-    @retry
     async def execute_and_fetchone(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
@@ -126,11 +137,9 @@ class Transaction:
     async def execute_and_fetchall(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            @retry
             async def execute(sql, args):
                 return await cursor.execute(sql, args)
 
-            @retry
             async def fetchmany():
                 return await cursor.fetchmany(100)
 
@@ -142,20 +151,17 @@ class Transaction:
                 for row in rows:
                     yield row
 
-    @retry
     async def execute_insertone(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
             await cursor.execute(sql, args)
             return cursor.lastrowid
 
-    @retry
     async def execute_update(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
             return await cursor.execute(sql, args)
 
-    @retry
     async def execute_many(self, sql, args_array):
         assert self.conn
         async with self.conn.cursor() as cursor:
@@ -172,14 +178,17 @@ class Database:
     def start(self, read_only=False):
         return TransactionAsyncContextManager(self.pool, read_only)
 
+    @retry_transient_mysql_errors
     async def just_execute(self, sql, args=None):
         async with self.start() as tx:
             await tx.just_execute(sql, args)
 
+    @retry_transient_mysql_errors
     async def execute_and_fetchone(self, sql, args=None):
         async with self.start() as tx:
             return await tx.execute_and_fetchone(sql, args)
 
+    @retry_transient_mysql_errors
     async def select_and_fetchone(self, sql, args=None):
         async with self.start(read_only=True) as tx:
             return await tx.execute_and_fetchone(sql, args)
@@ -194,14 +203,17 @@ class Database:
             async for row in tx.execute_and_fetchall(sql, args):
                 yield row
 
+    @retry_transient_mysql_errors
     async def execute_insertone(self, sql, args=None):
         async with self.start() as tx:
             return await tx.execute_insertone(sql, args)
 
+    @retry_transient_mysql_errors
     async def execute_update(self, sql, args=None):
         async with self.start() as tx:
             return await tx.execute_update(sql, args)
 
+    @retry_transient_mysql_errors
     async def execute_many(self, sql, args_array):
         async with self.start() as tx:
             return await tx.execute_many(sql, args_array)

@@ -160,47 +160,19 @@ SELECT state FROM batches WHERE user = %s AND id = %s;
     return web.Response()
 
 
-@routes.patch('/api/v1alpha/batches/{user}/{batch_id}/cancel')
+@routes.post('/api/v1alpha/batches/cancel')
 @batch_only
 async def cancel_batch(request):
-    db = request.app['db']
-
-    user = request.match_info['user']
-    batch_id = int(request.match_info['batch_id'])
-
-    record = db.select_and_fetchone(
-        '''
-SELECT state FROM batches WHERE user = %s AND id = %s;
-''',
-        (user, batch_id))
-    if not record:
-        raise web.HTTPNotFound()
-
     request.app['cancel_state_changed'].set()
     request.app['scheduler_state_changed'].set()
-
     return web.Response()
 
 
-@routes.delete('/api/v1alpha/batches/{user}/{batch_id}')
+@routes.post('/api/v1alpha/batches/delete')
 @batch_only
 async def delete_batch(request):
-    db = request.app['db']
-
-    user = request.match_info['user']
-    batch_id = int(request.match_info['batch_id'])
-
-    record = db.select_and_fetchone(
-        '''
-SELECT state FROM batches WHERE user = %s AND id = %s;
-''',
-        (user, batch_id))
-    if not record:
-        raise web.HTTPNotFound()
-
     request.app['cancel_state_changed'].set()
     request.app['scheduler_state_changed'].set()
-
     return web.Response()
 
 

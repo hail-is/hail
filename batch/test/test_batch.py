@@ -1,6 +1,7 @@
 import random
 import math
 import collections
+import hailtop
 from hailtop.batch_client.client import BatchClient, Job
 import json
 import os
@@ -16,6 +17,7 @@ from hailtop.auth import service_auth_headers
 
 from .serverthread import ServerThread
 from .utils import legacy_batch_status
+from .failure_injecting_client_session import FailureInjectingClientSession
 
 deploy_config = get_deploy_config()
 
@@ -427,3 +429,34 @@ echo $HAIL_BATCH_WORKER_IP
             builder.create_job('ubuntu:18.04',
                                ['echo', 'a' * (3 * 1024 * 1024)])
         builder.submit()
+
+    def test_restartable_insert(self):
+        i = 0
+
+        def every_third_time():
+            nonlocal i
+            i += 1
+            if i % 3 == 0:
+                return True
+            return False
+
+        with FailureInjectingClientSession(every_third_time) as session:
+            client = BatchClient('test', session=session)
+            builder = client.create_batch()
+
+            for _ in range(9):
+                builder.create_job('ubuntu:18.04', ['echo', 'a'])
+
+            b = builder.submit(max_bunch_size=1)
+            b = self.client.get_batch(b.id)  # get a batch untainted by the FailureInjectingClientSession
+            batch = b.wait()
+            assert batch['state'] == 'success', batch
+            assert len(list(b.jobs())) == 9
+
+    def test_create_idempotence(self):
+        builder = self.client.create_batch()
+        builder.create_job('ubuntu:18.04', ['/bin/true'])
+        batch_token = secrets.token_urlsafe(32)
+        b = builder._create(batch_token=batch_token)
+        b2 = builder._create(batch_token=batch_token)
+        assert b.id == b2.id

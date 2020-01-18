@@ -10,6 +10,7 @@ steps:
     - test-gsa-key
     - auth-oauth2-client-secret
     - scorecard-github-access-token
+    - zulip-config
  - kind: deploy
    name: deploy_batch_sa
    namespace:
@@ -765,6 +766,28 @@ steps:
     - default_ns
     - service_base_image
     - copy_files
+ - kind: runImage
+   name: delete_ci_tables
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     mysql --defaults-extra-file=/database-server-config/sql-config.cnf < /io/sql/delete-ci-tables.sql
+   inputs:
+    - from: /repo/ci/sql
+      to: /io/
+   secrets:
+    - name: database-server-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /database-server-config
+   runIfRequested: true
+   scopes:
+    - dev
+   dependsOn:
+    - default_ns
+    - service_base_image
+    - copy_files
  - kind: createDatabase
    name: ci_database
    databaseName: ci
@@ -784,6 +807,7 @@ steps:
    dependsOn:
     - default_ns
     - copy_files
+    - delete_ci_tables
  - kind: createDatabase
    name: batch_database
    databaseName: batch
@@ -802,6 +826,10 @@ steps:
       script: /io/sql/change-ready-cores-bigint.sql
     - name: add-user-resources-ready-cores-token
       script: /io/sql/add-user-resources-ready-cores-token.sql
+    - name: add-lock-in-share-mode
+      script: /io/sql/add-lock-in-share-mode.sql
+    - name: add-batch-create-token
+      script: /io/sql/add-batch-create-token.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
@@ -1251,7 +1279,7 @@ steps:
          --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
          --format="value(name)" \
          --project {{ global.project }} \
-       | xargs -r gcloud -q compute instances delete --zone {{ global.zone }} --project {{ global.project }}
+       | xargs -r gcloud -q compute instances delete --zone {{ global.zone }} --project {{ global.project }} || true
    secrets:
     - name: test-gsa-key
       namespace:

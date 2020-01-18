@@ -6,10 +6,13 @@ import asyncio
 import concurrent.futures
 import aiohttp
 import gidgethub
+import zulip
+
 from hailtop.config import get_deploy_config
 from hailtop.utils import check_shell, check_shell_output
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
 from .build import BuildConfiguration, Code
+from .globals import is_test_deployment
 
 
 repos_lock = asyncio.Lock()
@@ -17,6 +20,8 @@ repos_lock = asyncio.Lock()
 log = logging.getLogger('ci')
 
 CALLBACK_URL = get_deploy_config().url('ci', '/api/v1alpha/batch_callback')
+
+zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
 
 
 class Repo:
@@ -629,6 +634,19 @@ class WatchedBranch(Code):
                     self.deploy_state = 'success'
                 else:
                     self.deploy_state = 'failure'
+
+                if not is_test_deployment and self.deploy_state == 'failure':
+                    request = {
+                        'type': 'stream',
+                        'to': 'team',
+                        'topic': 'CI Deploy Failure',
+                        'content': f'''
+state: {self.deploy_state}
+branch: {self.branch.short_str()}
+sha: {self.sha}
+'''}
+                    zulip_client.send_message(request)
+
                 self.state_changed = True
 
     async def _heal_deploy(self, batch_client):

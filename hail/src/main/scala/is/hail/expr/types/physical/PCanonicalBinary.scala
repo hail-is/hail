@@ -70,8 +70,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   def loadLength(boff: Long): Int = Region.loadInt(boff)
 
-  def loadLength(boff: Code[Long]): Code[Int] =
-    Region.loadInt(boff)
+  def loadLength(boff: Code[Long]): Code[Int] = Region.loadInt(boff)
 
   def loadBytes(bAddress: Code[Long], length: Code[Int]): Code[Array[Byte]] =
     Region.loadBytes(this.bytesOffset(bAddress), length)

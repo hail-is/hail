@@ -74,6 +74,9 @@ spec:
            - mountPath: /user-tokens
              name: ci-tokens
              readOnly: true
+           - mountPath: /zulip-config
+             name: zulip-config
+             readOnly: true
           livenessProbe:
             httpGet:
               path: /healthcheck
@@ -104,6 +107,9 @@ spec:
        - name: ci-tokens
          secret:
            secretName: ci-tokens
+       - name: zulip-config
+         secret:
+           secretName: zulip-config
 ---
 apiVersion: v1
 kind: Service

@@ -12,8 +12,6 @@ case object TFloat32Optional extends TFloat32(false)
 case object TFloat32Required extends TFloat32(true)
 
 class TFloat32(override val required: Boolean) extends TNumeric {
-  lazy val physicalType: PFloat32 = PFloat32(required)
-
   def _toPretty = "Float32"
 
   override def pyString(sb: StringBuilder): Unit = {

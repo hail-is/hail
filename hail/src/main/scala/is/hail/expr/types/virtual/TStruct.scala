@@ -42,8 +42,6 @@ object TStruct {
 }
 
 final case class TStruct(fields: IndexedSeq[Field], override val required: Boolean = false) extends TBaseStruct {
-  lazy val physicalType: PStruct = PStruct(fields.map(f => PField(f.name, f.typ.physicalType, f.index)), required)
-
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
 
   lazy val types: Array[Type] = fields.map(_.typ).toArray

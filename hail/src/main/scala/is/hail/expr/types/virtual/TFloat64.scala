@@ -12,8 +12,6 @@ case object TFloat64Optional extends TFloat64(false)
 case object TFloat64Required extends TFloat64(true)
 
 class TFloat64(override val required: Boolean) extends TNumeric {
-  lazy val physicalType: PFloat64 = PFloat64(required)
-
   override def _toPretty = "Float64"
 
   override def pyString(sb: StringBuilder): Unit = {

@@ -23,7 +23,6 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val re
     assert(nDimsBase.isInstanceOf[Nat], s"Missing concrete number of dimensions.")
     nDimsBase.asInstanceOf[Nat].n
   }
-  lazy val physicalType: PNDArray = PNDArray(elementType.physicalType, nDims, required)
 
   override def fundamentalType: Type = representation.fundamentalType
 

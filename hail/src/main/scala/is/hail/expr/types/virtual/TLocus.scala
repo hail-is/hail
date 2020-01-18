@@ -29,8 +29,6 @@ object TLocus {
 case class TLocus(rgBc: BroadcastRG, override val required: Boolean = false) extends ComplexType {
   def rg: ReferenceGenome = rgBc.value
 
-  lazy val physicalType: PLocus = PLocus(rgBc, required)
-
   def _toPretty = s"Locus($rg)"
 
   override def pyString(sb: StringBuilder): Unit = {
