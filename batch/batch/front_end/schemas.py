@@ -5,7 +5,7 @@ batch_schema = {
         'valueschema': {'type': 'string'}
     },
     'billing_project': {'type': 'string', 'required': True},
-    'callback': {'type': 'string'},
+    'callback': {'type': 'string', 'nullable': True},
     'n_jobs': {'type': 'integer', 'required': True},
     'token': {'type': 'string', 'required': True}
 }
