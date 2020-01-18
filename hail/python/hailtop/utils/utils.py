@@ -236,7 +236,7 @@ async def retry_long_running(name, f, *args, **kwargs):
     while True:
         try:
             start_time = time_msecs()
-            await f(*args, **kwargs)
+            return await f(*args, **kwargs)
         except Exception:
             end_time = time_msecs()
 
