@@ -484,5 +484,5 @@ echo $HAIL_BATCH_WORKER_IP
         ]
         url = deploy_config.url('batch', '/api/v1alpha/batches/create')
         for config in bad_configs:
-            r = requests.post(full_url, json=config, allow_redirects=True)
+            r = requests.post(url, json=config, allow_redirects=True)
             assert r.status_code == 400, (config, r)
