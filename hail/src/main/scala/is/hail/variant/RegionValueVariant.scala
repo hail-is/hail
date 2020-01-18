@@ -12,7 +12,7 @@ class RegionValueVariant(rowType: PStruct) extends View {
   private val allelesIdx = allelesField.index
   private val tl: PStruct = locusPType.fundamentalType.asInstanceOf[PStruct]
   private val taa: PArray = allelesField.typ.asInstanceOf[PArray]
-  val allelePType = taa.elementType.asInstanceOf[PString]
+  private val allelePType = taa.elementType.asInstanceOf[PString]
   private var locusAddress: Long = _
   private var allelesOffset: Long = _
   private var cachedContig: String = null
