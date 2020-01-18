@@ -73,6 +73,8 @@ abstract class PBinary extends PType {
 
   def allocate(region: Code[Region], length: Code[Int]): Code[Long]
 
+  def contentByteSize(length: Int): Long
+
   def contentByteSize(length: Code[Int]): Code[Long]
 
   def loadLength(bAddress: Long): Int

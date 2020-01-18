@@ -53,10 +53,8 @@ abstract class PCanonicalString(val required: Boolean) extends PString {
   def loadString(bAddress: Long): String =
     new String(this.fundamentalType.loadBytes(bAddress))
 
-  def loadString(bAddress: Code[Long]): Code[String] = {
-    println("called loadString")
+  def loadString(bAddress: Code[Long]): Code[String] =
     Code.newInstance[String, Array[Byte]](this.fundamentalType.loadBytes(bAddress))
-  }
 
   def allocate(region: Region, length: Int): Long =
     this.fundamentalType.allocate(region, length)

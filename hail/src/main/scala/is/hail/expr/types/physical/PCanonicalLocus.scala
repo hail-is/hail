@@ -35,7 +35,9 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   val representation: PStruct = PCanonicalLocus.representation(required)
 
-  def contig(off: Code[Long]): Code[Long] = representation.loadField(off, 0)
+  def contig(address: Code[Long]): Code[Long] = representation.loadField(address, 0)
+
+  def contig(address: Long): Long = representation.loadField(address, 0)
 
   lazy val contigType: PString = representation.field("contig").typ.asInstanceOf[PString]
 

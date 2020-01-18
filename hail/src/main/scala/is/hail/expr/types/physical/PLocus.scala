@@ -23,6 +23,8 @@ abstract class PLocus extends ComplexPType {
 
   def rg: ReferenceGenome
 
+  def contig(address: Long): Long
+
   def contig(off: Code[Long]): Code[Long]
 
   def contigType: PString

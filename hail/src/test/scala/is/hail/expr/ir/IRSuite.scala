@@ -2678,9 +2678,9 @@ class IRSuite extends HailSuite {
 
   @Test def testIRConstruction(): Unit = {
     matrixIRs()
-//    tableIRs()
-//    valueIRs()
-//    blockMatrixIRs()
+    tableIRs()
+    valueIRs()
+    blockMatrixIRs()
   }
 
   @Test(dataProvider = "valueIRs")

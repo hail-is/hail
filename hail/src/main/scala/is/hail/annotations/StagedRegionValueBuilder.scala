@@ -245,7 +245,6 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   }
 
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
-    println(s"called binary in SRVB ${ftype} ${currentPType()}")
     val b = mb.newField[Array[Byte]]
     val boff = mb.newField[Long]
     val pt = currentPType()

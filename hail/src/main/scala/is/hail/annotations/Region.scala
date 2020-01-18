@@ -271,11 +271,8 @@ object Region {
       case _: PFloat32 => v.visitFloat32(Region.loadFloat(off))
       case _: PFloat64 => v.visitFloat64(Region.loadDouble(off))
       case t: PString =>
-        println("Called visit string")
-        val boff = off
-        v.visitString(t.loadString(boff))
+        v.visitString(t.loadString(off))
       case t: PBinary =>
-        println("Called visit binary")
         val b = t.loadBytes(off)
         v.visitBinary(b)
       case t: PContainer =>
@@ -410,13 +407,11 @@ object RegionUtils {
   def printAddr(off: Long, name: String): String = s"$name: ${"%016x".format(off)}"
   def printAddr(off: Code[Long], name: String): Code[String] = Code.invokeScalaObject[Long, String, String](RegionUtils.getClass, "printAddr", off, name)
 
-  def printBytes(off: Long, n: Int, header: String): String = {
-    println("Called region loadBytes")
+  def printBytes(off: Long, n: Int, header: String): String =
     Region.loadBytes(off, n).zipWithIndex
       .grouped(16)
       .map(bs => bs.map { case (b, _) => "%02x".format(b) }.mkString("  %016x: ".format(off + bs(0)._2), " ", ""))
       .mkString(if (header != null) s"$header\n" else "\n", "\n", "")
-  }
 
   def printBytes(off: Code[Long], n: Int, header: String): Code[String] =
     Code.invokeScalaObject[Long, Int, String, String](RegionUtils.getClass, "printBytes", off, n, asm4s.const(header))
