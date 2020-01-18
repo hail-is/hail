@@ -12,6 +12,7 @@
 	<th>Intance</th>
 	<th>Start</th>
 	<th>End</th>
+	<th>Duration</th>
 	<th>Reason</th>
       </tr>
     </thead>
@@ -20,8 +21,21 @@
       <tr>
 	<td class="numeric-cell">{{ attempt['attempt_id'] }}</td>
 	<td>{{ attempt['instance_name'] }}</td>
-	<td>{{ attempt['start_time'] }}</td>
-	<td>{{ attempt['end_time'] }}</td>
+	<td>
+	  {% if 'start_time' in attempt %}
+	  {{ attempt['start_time'] }}
+	  {% endif %}
+	</td>
+	<td>
+	  {% if 'end_time' in attempt %}
+	  {{ attempt['end_time'] }}
+	  {% endif %}
+	</td>
+	<td>
+	  {% if 'duration' in attempt %}
+	  {{ attempt['duration'] }}
+	  {% endif %}
+	</td>
 	<td>{{ attempt['reason'] }}</td>
       </tr>
       {% endfor %}
