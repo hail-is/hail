@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.{TNDArray, TTuple}
+import is.hail.expr.types.virtual.{TNDArray, TTuple, TArray, TStruct, Type}
 import is.hail.utils._
 
 import scala.collection.mutable.ArrayBuffer
@@ -46,6 +46,23 @@ object InferPType {
     }
   }
 
+  def deepRenameStruct(typeWithNames: Type, targetPType: PType): PType = {
+    targetPType match {
+      case pt: PArray => {
+        assert(typeWithNames.isInstanceOf[TArray])
+        pt.copy(deepRenameStruct(typeWithNames.asInstanceOf[TArray].elementType, pt.elementType))
+      }
+      case pt: PStruct => {
+        pt.copy(
+          (typeWithNames.asInstanceOf[TStruct].fields, pt.fields)
+            .zipped.map( (tfield, pfield) => {
+            assert(tfield.index == pfield.index && tfield.typ.isOfType(pfield.typ.virtualType))
+            PField(tfield.name, pfield.typ, pfield.index)
+          }))
+      }
+    }
+  }
+
   def apply(ir: IR, env: Env[PType]): Unit = {
     assert(ir._pType2 == null)
 
@@ -64,7 +81,7 @@ object InferPType {
       }
       case CastRename(ir, t) => {
         InferPType(ir, env)
-        PType.canonical(t, ir.pType2.required)
+        deepRenameStruct(t, ir._pType2)
       }
       case NA(t) => {
         PType.canonical(t).deepInnerRequired(false)

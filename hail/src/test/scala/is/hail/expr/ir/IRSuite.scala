@@ -199,6 +199,24 @@ class IRSuite extends HailSuite {
       FastIndexedSeq(Row(1)))
   }
 
+  @Test def testCastRenameIR() {
+    var expectedPType: PType = PCanonicalStruct(true, "foo" -> PInt32(true))
+    var childPType: PType = PCanonicalStruct(true, "x" -> PInt32(true))
+    var targetType: Type = TStruct("foo" -> TInt32())
+    assertPType(CastRename(In(0, childPType), targetType), expectedPType)
+
+    expectedPType = PCanonicalArray(PCanonicalStruct(true, "foo" -> PInt32(true)))
+    childPType = PCanonicalArray(PCanonicalStruct(true, "x" -> PInt32(true)))
+    targetType = TArray(TStruct("foo" -> TInt32()))
+    assertPType(CastRename(In(0, childPType), targetType), expectedPType)
+
+
+    expectedPType = PCanonicalArray(PCanonicalStruct("foo" -> PCanonicalArray(PFloat64(true), true), "bar" -> PBoolean()))
+    childPType = PCanonicalArray(PCanonicalStruct("x" -> PCanonicalArray(PFloat64(true), true), "y" -> PBoolean()))
+    targetType = TArray(TStruct("foo" -> TArray(TFloat64()), "bar" -> TBoolean()))
+    assertPType(CastRename(In(0, childPType), targetType), expectedPType)
+  }
+
   @Test def testNA() {
     assertEvalsTo(NA(TInt32()), null)
   }
