@@ -1,11 +1,10 @@
-import random
 import logging
 import asyncio
 import secrets
 import sortedcontainers
 import functools
 
-from hailtop.utils import time_msecs, bounded_gather
+from hailtop.utils import bounded_gather, retry_long_running, run_if_changed
 
 from ..batch import schedule_job, unschedule_job, mark_job_complete
 
@@ -23,9 +22,15 @@ class Scheduler:
         self.inst_pool = app['inst_pool']
 
     async def async_init(self):
-        asyncio.ensure_future(self.loop('schedule_loop', self.scheduler_state_changed, self.schedule_1))
-        asyncio.ensure_future(self.loop('cancel_loop', self.cancel_state_changed, self.cancel_1))
-        asyncio.ensure_future(self.bump_loop())
+        asyncio.ensure_future(retry_long_running(
+            'schedule_loop',
+            run_if_changed, self.scheduler_state_changed, self.schedule_loop_body))
+        asyncio.ensure_future(retry_long_running(
+            'cancel_loop',
+            run_if_changed, self.cancel_state_changed, self.cancel_loop_body))
+        asyncio.ensure_future(retry_long_running(
+            'bump_loop',
+            self.bump_loop))
 
     async def compute_fair_share(self):
         free_cores_mcpu = sum([
@@ -109,31 +114,7 @@ GROUP BY user;
             self.cancel_state_changed.set()
             await asyncio.sleep(60)
 
-    async def loop(self, name, changed, body):
-        delay_secs = 0.1
-        changed.clear()
-        while True:
-            should_wait = False
-            try:
-                start_time = time_msecs()
-                should_wait = await body()
-            except Exception:
-                end_time = time_msecs()
-
-                log.exception(f'in {name}')
-
-                t = delay_secs * random.uniform(0.7, 1.3)
-                await asyncio.sleep(t)
-
-                ran_for_secs = (end_time - start_time) * 1000
-                delay_secs = min(
-                    max(0.1, 2 * delay_secs - min(0, (ran_for_secs - t) / 2)),
-                    30.0)
-            if should_wait:
-                await changed.wait()
-                changed.clear()
-
-    async def cancel_1(self):
+    async def cancel_loop_body(self):
         user_records = self.db.select_and_fetchall(
             '''
 SELECT user
@@ -174,7 +155,7 @@ LIMIT 50;
         await bounded_gather(*[x for x in async_work], parallelism=100)
         return should_wait
 
-    async def schedule_1(self):
+    async def schedule_loop_body(self):
         user_resources = await self.compute_fair_share()
 
         should_wait = True

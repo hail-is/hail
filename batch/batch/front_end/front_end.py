@@ -14,7 +14,8 @@ from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 import google.oauth2.service_account
 import google.api_core.exceptions
-from hailtop.utils import time_msecs, humanize_timedelta_msecs, request_retry_transient_errors
+from hailtop.utils import time_msecs, humanize_timedelta_msecs, request_retry_transient_errors, \
+    run_if_changed, retry_long_running
 from hailtop.config import get_deploy_config
 from hailtop import batch_client
 from hailtop.batch_client.aioclient import Job
@@ -624,12 +625,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
     await db.execute_update(
         'UPDATE batches SET cancelled = closed WHERE id = %s;', (batch_id,))
 
-    async with aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-        await request_retry_transient_errors(
-            session, 'PATCH',
-            deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/cancel'),
-            headers=app['driver_headers'])
+    app['cancel_batch_state_changed'].set()
 
     return web.Response()
 
@@ -650,18 +646,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
         'UPDATE batches SET cancelled = closed, deleted = 1 WHERE id = %s;', (batch_id,))
 
     if record['closed']:
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            try:
-                await request_retry_transient_errors(
-                    session, 'DELETE',
-                    deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}'),
-                    headers=app['driver_headers'])
-            except aiohttp.ClientResponseError as e:
-                if e.status == 404:
-                    pass
-                else:
-                    raise
+        app['delete_batch_state_changed'].set()
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}')
@@ -1034,6 +1019,30 @@ async def index(request, userdata):
     raise web.HTTPFound(location=location)
 
 
+async def cancel_batch_loop_body(app):
+    async with aiohttp.ClientSession(
+            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+        await request_retry_transient_errors(
+            session, 'POST',
+            deploy_config.url('batch-driver', f'/api/v1alpha/batches/cancel'),
+            headers=app['driver_headers'])
+
+    should_wait = True
+    return should_wait
+
+
+async def delete_batch_loop_body(app):
+    async with aiohttp.ClientSession(
+            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+        await request_retry_transient_errors(
+            session, 'POST',
+            deploy_config.url('batch-driver', f'/api/v1alpha/batches/delete'),
+            headers=app['driver_headers'])
+
+    should_wait = True
+    return should_wait
+
+
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
@@ -1064,6 +1073,20 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
         '/gsa-key/key.json')
     app['log_store'] = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
+
+    cancel_batch_state_changed = asyncio.Event()
+    app['cancel_batch_state_changed'] = cancel_batch_state_changed
+
+    asyncio.ensure_future(retry_long_running(
+        'cancel_batch_loop',
+        run_if_changed, cancel_batch_state_changed, cancel_batch_loop_body, app))
+
+    delete_batch_state_changed = asyncio.Event()
+    app['delete_batch_state_changed'] = delete_batch_state_changed
+
+    asyncio.ensure_future(retry_long_running(
+        'delete_batch_loop',
+        run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app))
 
 
 async def on_cleanup(app):
