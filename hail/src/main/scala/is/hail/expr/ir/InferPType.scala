@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.{TNDArray, TTuple, TArray, TStruct, Type}
+import is.hail.expr.types.virtual.{TNDArray, TTuple}
 import is.hail.utils._
 
 import scala.collection.mutable.ArrayBuffer
@@ -437,7 +437,6 @@ object InferPType {
     }
 
     // Allow only requiredeness to diverge
-    println(s"ptype2: ${ir.pType2.virtualType}, ir.typ: ${ir.typ}")
     assert(ir.pType2.virtualType isOfType ir.typ)
   }
 }
