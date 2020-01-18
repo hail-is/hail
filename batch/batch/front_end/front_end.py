@@ -860,7 +860,7 @@ async def ui_get_job(request, userdata):
                 in db.select_and_fetchall(
                     '''
 SELECT * FROM attempts
-WHERE batch_id = %s, job_id = %s
+WHERE batch_id = %s AND job_id = %s
 ''',
                     (batch_id, job_id))]
 
