@@ -477,7 +477,6 @@ echo $HAIL_BATCH_WORKER_IP
             {'billing_project': 'foo', 'n_jobs': 5, 'token': None},
             {'billing_project': 'foo', 'n_jobs': 5},
             # attribute key/value None
-            {'attributes': {None: 'v'}, 'billing_project': 'foo', 'n_jobs': 5, 'token': 'baz'},
             {'attributes': {'k': None}, 'billing_project': 'foo', 'n_jobs': 5, 'token': 'baz'},
         ]
         url = deploy_config.url('batch', '/api/v1alpha/batches/create')
