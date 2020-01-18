@@ -847,11 +847,13 @@ async def get_job(request, userdata):
 @prom_async_time(REQUEST_TIME_GET_JOB_UI)
 @web_authenticated_users_only()
 async def ui_get_job(request, userdata):
+    app = request.app
+    db = app['db']
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
 
-    job_status = await _get_job(request.app, batch_id, job_id, user)
+    job_status = await _get_job(app, batch_id, job_id, user)
 
     attempts = [attempt
                 async for attempt
@@ -865,7 +867,7 @@ WHERE batch_id = %s, job_id = %s
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
-        'job_log': await _get_job_log(request.app, batch_id, job_id, user),
+        'job_log': await _get_job_log(app, batch_id, job_id, user),
         'attempts': attempts,
         'job_status': json.dumps(job_status, indent=2)
     }
