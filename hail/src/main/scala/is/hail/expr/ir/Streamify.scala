@@ -4,7 +4,7 @@ import is.hail.expr.types.virtual._
 
 object Streamify {
   def apply(ir: IR): IR = ir match {
-    case NA(t) => NA(t)
+    case NA(t: TStreamable) => NA(TStream(t.elementType, t.required))
     case MakeArray(xs, t) => MakeStream(xs, TStream(t.elementType, t.required))
     case ArrayRange(x, y, z) => StreamRange(x, y, z)
     case ArrayMap(a, n, b) => ArrayMap(apply(a), n, b)
@@ -15,6 +15,8 @@ object Streamify {
     case ArrayScan(a, z, an, en, b) => ArrayScan(apply(a), z, an, en, b)
     case ArrayAggScan(a, n, q) => ArrayAggScan(apply(a), n, q)
     case Let(n, v, b) => Let(n, v, apply(b))
+    case If(c, t, e) => If(c, apply(t), apply(e))
+    case x: ReadPartition => x
     case ir => ToStream(ir)
   }
 }

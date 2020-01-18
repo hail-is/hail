@@ -1,13 +1,12 @@
 package is.hail.expr.ir
 
-import is.hail.utils._
+import is.hail.annotations.{Region, RegionValue}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
-import is.hail.expr.types.physical._
-import is.hail.annotations.{Region, RegionValue, StagedRegionValueBuilder}
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
-import is.hail.expr.types.virtual.Type
+import is.hail.expr.types.physical._
 import is.hail.io.{AbstractTypedCodecSpec, InputBuffer}
+import is.hail.utils._
 
 import scala.language.existentials
 import scala.reflect.ClassTag
@@ -485,6 +484,72 @@ object EmitStream {
           k(EOS))
     }
 
+  def mux[P, A: ParameterPack](
+    cond: Code[Boolean],
+    left: Parameterized[P, A],
+    right: Parameterized[P, A]
+  ): Parameterized[P, A] = new Parameterized[P, A] {
+    implicit val lsP = left.stateP
+    implicit val rsP = right.stateP
+    type S = (Code[Boolean], left.S, right.S)
+    val stateP: ParameterPack[S] = implicitly
+    def emptyState: S = (true, left.emptyState, right.emptyState)
+
+    def length(s0: S): Option[Code[Int]] =
+      (left.length(s0._2) liftedZip right.length(s0._3))
+        .map { case (lLen, rLen) => cond.mux(lLen, rLen) }
+
+    def init(mb: MethodBuilder, jb: JoinPointBuilder, param: P)(k: Init[S] => Code[Ctrl]): Code[Ctrl] = {
+      val missing = jb.joinPoint()
+      val start = jb.joinPoint[S](mb)
+      missing.define { _ => k(Missing) }
+      start.define { s => k(Start(s)) }
+      cond.mux(
+        left.init(mb, jb, param) {
+          case Start(s0) => start((true, s0, right.emptyState))
+          case Missing => missing(())
+        },
+        right.init(mb, jb, param) {
+          case Start(s0) => start((false, left.emptyState, s0))
+          case Missing => missing(())
+        })
+    }
+
+    def step(mb: MethodBuilder, jb: JoinPointBuilder, state: S)(k: Step[A, S] => Code[Ctrl]): Code[Ctrl] = {
+      val (useLeft, lS, rS) = state
+      val eos = jb.joinPoint()
+      val push = jb.joinPoint[(A, left.S, right.S)](mb)
+      eos.define { _ => k(EOS) }
+      push.define { case (elt, lS, rS) => k(Yield(elt, (useLeft, lS, rS))) }
+      useLeft.mux(
+        left.step(mb, jb, lS) {
+          case Yield(a, lS1) => push((a, lS1, rS))
+          case EOS => eos(())
+        },
+        right.step(mb, jb, rS) {
+          case Yield(a, rS1) => push((a, lS, rS1))
+          case EOS => eos(())
+        })
+    }
+  }
+
+  def decode[T](region: Code[Region], spec: AbstractTypedCodecSpec)(
+    dec: spec.StagedDecoderF[T]
+  ): Parameterized[Code[InputBuffer], Code[T]] = new Parameterized[Code[InputBuffer], Code[T]] {
+    type S = Code[InputBuffer]
+    val stateP: ParameterPack[S] = implicitly
+    def emptyState: S = Code._null
+    def length(s0: S): Option[Code[Int]] = None
+
+    def init(mb: MethodBuilder, jb: JoinPointBuilder, ib: Code[InputBuffer])(k: Init[S] => Code[Ctrl]): Code[Ctrl] =
+      k(Start(ib))
+
+    def step(mb: MethodBuilder, jb: JoinPointBuilder, ib: Code[InputBuffer])(
+      k: Step[Code[T], S] => Code[Ctrl]
+    ): Code[Ctrl] =
+      (ib.isNull || !ib.readByte().toZ).mux(k(EOS), k(Yield(dec(region, ib), ib)))
+  }
+
   private[ir] def apply(
     emitter: Emit,
     streamIR0: IR,
@@ -761,6 +826,33 @@ object EmitStream {
               _ => Code(aggSetup, init.setup),
               aggCleanup
             )
+
+        case If(condIR, thn, els) =>
+          val t = thn.pType.asInstanceOf[PStreamable].elementType
+          implicit val tP = TypedTriplet.pack(t)
+          val cond = fb.newField[Boolean]
+          mux(cond,
+            emitStream(thn, env).map(TypedTriplet(t, _)),
+            emitStream(els, env).map(TypedTriplet(t, _))
+          ).map(_.untyped)
+            .guardParam { (param, k) =>
+              val condt = emitIR(condIR, env)
+              Code(condt.setup, condt.m.mux(
+                k(None),
+                Code(cond := condt.value, k(Some(param)))))
+            }
+
+        case ReadPartition(pathIR, spec, rowType) =>
+          val (returnedRowPType, rowDec) = spec.buildEmitDecoderF[Long](rowType, fb)
+          decode(er.region, spec)(rowDec)
+            .map(present)
+            .guardParam { (_, k) =>
+              val patht = emitIR(pathIR, env)
+              val pathString = Code.invokeScalaObject[Region, Long, String](
+                PString.getClass, "loadString", er.region, patht.value)
+              Code(patht.setup, patht.m.mux(k(None),
+                k(Some(spec.buildCodeInputBuffer(fb.getUnsafeReader(pathString, true))))))
+            }
 
         case _ =>
           fatal(s"not a streamable IR: ${Pretty(streamIR)}")

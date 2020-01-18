@@ -19,7 +19,7 @@ def batch_record_to_dict(app, record):
         state = 'open'
     elif record['n_failed'] > 0:
         state = 'failure'
-    elif record['n_cancelled'] > 0:
+    elif record['cancelled']:
         state = 'cancelled'
     elif record['closed'] and record['n_succeeded'] == record['n_jobs']:
         state = 'success'
@@ -365,14 +365,14 @@ async def schedule_job(app, record, instance):
                        f'/api/v1alpha/batches/jobs/create')
                 await session.post(url, json=body)
                 await instance.mark_healthy()
-        except Exception as e:
-            if (isinstance(e, aiohttp.ClientResponseError) and
-                    e.status == 403):  # pylint: disable=no-member
-                await instance.mark_healthy()
+        except aiohttp.ClientResponseError as e:
+            await instance.mark_healthy()
+            if e.status == 403:
                 log.info(f'attempt already exists for job {id} on {instance}, aborting')
-            else:
-                await instance.incr_failed_request_count()
             raise e
+        except Exception:
+            await instance.incr_failed_request_count()
+            raise
 
         log.info(f'schedule job {id} on {instance}: called create job')
 

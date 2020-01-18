@@ -193,7 +193,7 @@ class Step(abc.ABC):
             return CreateNamespaceStep.from_json(params)
         if kind == 'deploy':
             return DeployStep.from_json(params)
-        if kind in ('createDatabase2', 'createDatabase2'):
+        if kind in ('createDatabase', 'createDatabase2'):
             return CreateDatabaseStep.from_json(params)
         raise ValueError(f'unknown build step kind: {kind}')
 
