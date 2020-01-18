@@ -1027,8 +1027,8 @@ async def cancel_batch_loop_body(app):
             deploy_config.url('batch-driver', f'/api/v1alpha/batches/cancel'),
             headers=app['driver_headers'])
 
-    # wait
-    return True
+    should_wait = True
+    return should_wait
 
 
 async def delete_batch_loop_body(app):
@@ -1039,8 +1039,8 @@ async def delete_batch_loop_body(app):
             deploy_config.url('batch-driver', f'/api/v1alpha/batches/delete'),
             headers=app['driver_headers'])
 
-    # wait
-    return True
+    should_wait = True
+    return should_wait
 
 
 async def on_startup(app):
