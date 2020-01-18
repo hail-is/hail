@@ -502,7 +502,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
                 except pymysql.err.IntegrityError as err:
                     if err.args[1] == 1022:
                         log.info(f'bunch containing job {(batch_id, jobs_args[0][1])} already inserted ({err})')
-                        return web.Response()
+                        raise web.Response()
                 await tx.execute_many('''
 INSERT INTO `job_parents` (batch_id, job_id, parent_id)
 VALUES (%s, %s, %s);
@@ -526,7 +526,7 @@ ON DUPLICATE KEY UPDATE
                                          n_jobs, n_ready_jobs, sum_ready_cores_mcpu,
                                          n_jobs, n_ready_jobs, sum_ready_cores_mcpu))
             await insert()  # pylint: disable=no-value-for-parameter
-        return web.Response()
+    return web.Response()
 
 
 @routes.post('/api/v1alpha/batches/create')
@@ -570,7 +570,7 @@ WHERE token = %s AND user = %s FOR UPDATE;
             (token, user))
 
         if maybe_batch is not None:
-            return web.json_response({'id': maybe_batch['id']})
+            return maybe_batch['id']
 
         now = time_msecs()
         id = await tx.execute_insertone(
@@ -589,8 +589,9 @@ INSERT INTO `batch_attributes` (batch_id, `key`, `value`)
 VALUES (%s, %s, %s)
 ''',
                 [(id, k, v) for k, v in attributes.items()])
-        return web.json_response({'id': id})
-    return await insert()  # pylint: disable=no-value-for-parameter
+        return id
+    id = await insert()  # pylint: disable=no-value-for-parameter
+    return web.json_response({'id': id})
 
 
 async def _get_batch(app, batch_id, user):
@@ -882,10 +883,9 @@ async def ui_get_job(request, userdata):
 async def ui_get_billing_projects(request, userdata):
     db = request.app['db']
 
-    billing_projects = {}
-
     @transaction(db, read_only=True)
     async def select(tx):
+        billing_projects = {}
         async for record in tx.execute_and_fetchall(
                 'SELECT * FROM billing_projects LOCK IN SHARE MODE;'):
             name = record['name']
@@ -895,11 +895,12 @@ async def ui_get_billing_projects(request, userdata):
             billing_project = record['billing_project']
             user = record['user']
             billing_projects[billing_project].append(user)
-        page_context = {
-            'billing_projects': billing_projects
-        }
-        return await render_template('batch', request, userdata, 'billing_projects.html', page_context)
-    return await select()  # pylint: disable=no-value-for-parameter
+        return billing_projects
+    billing_projects = await select()  # pylint: disable=no-value-for-parameter
+    page_context = {
+        'billing_projects': billing_projects
+    }
+    return await render_template('batch', request, userdata, 'billing_projects.html', page_context)
 
 
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')
@@ -932,7 +933,7 @@ WHERE billing_projects.name = %s;
 
         if row['user'] is None:
             set_message(session, f'User {user} is not member of billing project {billing_project}.', 'info')
-            return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
         await tx.just_execute(
             '''
@@ -940,10 +941,9 @@ DELETE FROM billing_project_users
 WHERE billing_project = %s AND user = %s;
 ''',
             (billing_project, user))
-
-        set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
-        return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
-    return await delete()  # pylint: disable=no-value-for-parameter
+    await delete()  # pylint: disable=no-value-for-parameter
+    set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
+    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
 
 @routes.post('/billing_projects/{billing_project}/users/add')
@@ -976,7 +976,7 @@ WHERE billing_projects.name = %s;
 
         if row['user'] is not None:
             set_message(session, f'User {user} is already member of billing project {billing_project}.', 'info')
-            return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
+            raise web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
         await tx.execute_insertone(
             '''
@@ -984,10 +984,9 @@ INSERT INTO billing_project_users(billing_project, user)
 VALUES (%s, %s);
 ''',
             (billing_project, user))
-
-        set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')
-        return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
-    return await insert()  # pylint: disable=no-value-for-parameter
+    await insert()  # pylint: disable=no-value-for-parameter
+    set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')
+    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
 
 @routes.post('/billing_projects/create')
@@ -1020,10 +1019,9 @@ INSERT INTO billing_projects(name)
 VALUES (%s);
 ''',
             (billing_project,))
-
-        set_message(session, f'Added billing project {billing_project}.', 'info')
-        return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
-    return await insert()  # pylint: disable=no-value-for-parameter
+    await insert()  # pylint: disable=no-value-for-parameter
+    set_message(session, f'Added billing project {billing_project}.', 'info')
+    return web.HTTPFound(deploy_config.external_url('batch', f'/billing_projects'))
 
 
 @routes.get('')
