@@ -313,7 +313,7 @@ class BatchBackend(Backend):
 
         if dry_run:
             print("\n\n".join(commands))
-            return
+            return None
 
         if delete_scratch_on_exit and used_remote_tmpdir:
             parents = list(jobs_to_command.keys())
@@ -353,3 +353,4 @@ class BatchBackend(Backend):
             print(f'Waiting for batch {batch.id}...')
             status = batch.wait()
             print(f'Batch {batch.id} complete: {status["state"]}')
+        return batch

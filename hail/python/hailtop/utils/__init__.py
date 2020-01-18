@@ -4,6 +4,7 @@ from .utils import unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool,
     request_retry_transient_errors, request_raise_transient_errors, \
     collect_agen, retry_forever, retry_transient_errors
 from .process import CalledProcessError, check_shell, check_shell_output
+from .tqdm import tqdm, TQDM_DEFAULT_DISABLE
 
 __all__ = [
     'time_msecs',
@@ -24,5 +25,7 @@ __all__ = [
     'request_retry_transient_errors',
     'request_raise_transient_errors',
     'collect_agen',
-    'retry_forever'
+    'retry_forever',
+    'tqdm',
+    'TQDM_DEFAULT_DISABLE'
 ]
