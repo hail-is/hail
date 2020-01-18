@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `cores_mcpu` INT NOT NULL,
   `status` TEXT,
   `n_pending_parents` INT NOT NULL,
+  `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   `attempt_id` VARCHAR(40),
   PRIMARY KEY (`batch_id`, `job_id`),

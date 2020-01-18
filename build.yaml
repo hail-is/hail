@@ -830,8 +830,6 @@ steps:
       script: /io/sql/add-lock-in-share-mode.sql
     - name: add-batch-create-token
       script: /io/sql/add-batch-create-token.sql
-    - name: drop-jobs-cancelled
-      script: /io/sql/drop-jobs-cancelled.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
