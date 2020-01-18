@@ -67,7 +67,6 @@ abstract class PCanonicalString(val required: Boolean) extends PString {
   }
 
   def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] = {
-    println("called string store")
     this.fundamentalType.store(addr, bytes)
   }
 }
