@@ -1,11 +1,11 @@
 batch_schema = {
     'attributes': {
         'type': 'dict',
-        'keyschema': {'type': 'string', 'nullable': False},
-        'valueschema': {'type': 'string', 'nullable': False}
+        'keyschema': {'type': 'string'},
+        'valueschema': {'type': 'string'}
     },
-    'billing_project': {'type': 'string', 'nullable': False},
+    'billing_project': {'type': 'string', 'required': True},
     'callback': {'type': 'string'},
-    'n_jobs': {'type': 'integer', 'nullable': False},
-    'token': {'type': 'string', 'nullable': False}
+    'n_jobs': {'type': 'integer', 'required': True},
+    'token': {'type': 'string', 'required': True}
 }

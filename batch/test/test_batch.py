@@ -460,3 +460,29 @@ echo $HAIL_BATCH_WORKER_IP
         b = builder._create(batch_token=batch_token)
         b2 = builder._create(batch_token=batch_token)
         assert b.id == b2.id
+
+    def test_batch_create_validation(self):
+        bad_configs = [
+            # unexpected field fleep
+            {'billing_project': 'foo', 'n_jobs': 5, 'token': 'baz', 'fleep': 'quam'},
+            # billing project None/missing
+            {'billing_project': None, 'n_jobs': 5, 'token': 'baz'},
+            {'n_jobs': 5, 'token': 'baz'},
+            # n_jobs None/missing
+            {'billing_project': 'foo', 'n_jobs': None, 'token': 'baz'},
+            {'billing_project': 'foo', 'token': 'baz'},
+            # n_jobs wrong type
+            {'billing_project': 'foo', 'n_jobs': '5', 'token': 'baz'},
+            # token None/missing
+            {'billing_project': 'foo', 'n_jobs': 5, 'token': None},
+            {'billing_project': 'foo', 'n_jobs': 5},
+            # callback None
+            {'billing_project': 'foo', 'callback': None, 'n_jobs': 5, 'token': 'baz'},
+            # attribute key/value None
+            {'attributes': {None: 'v'}, 'billing_project': 'foo', 'n_jobs': 5, 'token': 'baz'},
+            {'attributes': {'k': None}, 'billing_project': 'foo', 'n_jobs': 5, 'token': 'baz'},
+        ]
+        url = deploy_config.url('batch', '/api/v1alpha/batches/create')
+        for config in bad_configs:
+            r = requests.post(full_url, json=config, allow_redirects=True)
+            assert r.status_code == 400, (config, r)
