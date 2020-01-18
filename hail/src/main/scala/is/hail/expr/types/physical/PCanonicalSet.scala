@@ -1,6 +1,6 @@
 package is.hail.expr.types.physical
 
-import is.hail.expr.types.virtual.{TDict, TSet, Type}
+import is.hail.expr.types.virtual.{TSet, Type}
 
 final case class PCanonicalSet(elementType: PType,  required: Boolean = false) extends PSet with PArrayBackedContainer {
   val arrayRep = PCanonicalArray(elementType, required)

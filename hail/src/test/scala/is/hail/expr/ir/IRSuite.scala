@@ -11,7 +11,7 @@ import is.hail.expr.ir.functions._
 import is.hail.expr.types.TableType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.expr.{Nat, NatBase, ir}
+import is.hail.expr.Nat
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix

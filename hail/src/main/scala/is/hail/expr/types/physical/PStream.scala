@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, MethodBuilder}
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.virtual.{TArray, TStream, Type}
+import is.hail.expr.types.virtual.{TStream, Type}
 
 trait PStreamable extends PIterable {
   def asPArray: PArray = PArray(this.elementType, this.required)

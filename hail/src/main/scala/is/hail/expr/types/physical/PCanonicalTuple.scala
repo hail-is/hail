@@ -18,7 +18,7 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PBaseStruct.alignment(types)
 
-  def copy(_required: Boolean = this.required): PTuple = PCanonicalTuple(_types, required)
+  def copy(required: Boolean = this.required): PTuple = PCanonicalTuple(_types, required)
 
   override def truncate(newSize: Int): PTuple =
     PCanonicalTuple(_types.take(newSize), required)
