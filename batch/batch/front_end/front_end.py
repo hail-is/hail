@@ -852,10 +852,21 @@ async def ui_get_job(request, userdata):
     user = userdata['username']
 
     job_status = await _get_job(request.app, batch_id, job_id, user)
+
+    attempts = [attempt
+                async for attempt
+                in db.select_and_fetchall(
+                    '''
+SELECT * FROM attempts
+WHERE batch_id = %s, job_id = %s
+''',
+                    (batch_id, job_id))]
+
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
         'job_log': await _get_job_log(request.app, batch_id, job_id, user),
+        'attempts': attempts,
         'job_status': json.dumps(job_status, indent=2)
     }
     return await render_template('batch', request, userdata, 'job.html', page_context)
