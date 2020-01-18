@@ -35,11 +35,11 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   val representation: PStruct = PCanonicalLocus.representation(required)
 
-  def contig(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(region, off, 0)
+  def contig(off: Code[Long]): Code[Long] = representation.loadField(off, 0)
 
   lazy val contigType: PString = representation.field("contig").typ.asInstanceOf[PString]
 
-  def position(region: Code[Region], off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(region, off, 1))
+  def position(off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(off, 1))
 
   lazy val positionType: PInt32 = representation.field("position").typ.asInstanceOf[PInt32]
 
@@ -52,16 +52,16 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
     new UnsafeOrdering {
       def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-        val cOff1 = repr.loadField(r1, o1, 0)
-        val cOff2 = repr.loadField(r2, o2, 0)
+        val cOff1 = repr.loadField(o1, 0)
+        val cOff2 = repr.loadField(o2, 0)
 
         if (binaryOrd.compare(r1, cOff1, r2, cOff2) == 0) {
-          val posOff1 = repr.loadField(r1, o1, 1)
-          val posOff2 = repr.loadField(r2, o2, 1)
+          val posOff1 = repr.loadField(o1, 1)
+          val posOff2 = repr.loadField(o2, 1)
           java.lang.Integer.compare(Region.loadInt(posOff1), Region.loadInt(posOff2))
         } else {
-          val contig1 = PString.loadString(r1, cOff1)
-          val contig2 = PString.loadString(r2, cOff2)
+          val contig1 = PString.loadString(cOff1)
+          val contig2 = PString.loadString(cOff2)
           localRGBc.value.compare(contig1, contig2)
         }
       }

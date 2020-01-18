@@ -44,7 +44,7 @@ object ExportVCF {
         else
           sb.append(x.formatted("%.6g"))
       case PString(_) =>
-        sb.append(PString.loadString(m, offset))
+        sb.append(PString.loadString(offset))
       case _: PCall =>
         val c = Region.loadInt(offset)
         Call.vcfString(c, sb)
@@ -59,8 +59,8 @@ object ExportVCF {
       while (i < length) {
         if (i > 0)
           sb += delim
-        if (t.isElementDefined(m, offset, i)) {
-          val eOffset = t.loadElement(m, offset, length, i)
+        if (t.isElementDefined(offset, i)) {
+          val eOffset = t.loadElement(offset, length, i)
           strVCF(sb, t.elementType, m, eOffset)
         } else
           sb += '.'
@@ -73,7 +73,7 @@ object ExportVCF {
   def emitInfo(sb: StringBuilder, f: PField, m: Region, offset: Long, wroteLast: Boolean): Boolean = {
     f.typ match {
       case it: PContainer if !it.elementType.virtualType.isOfType(TBoolean()) =>
-        val length = it.loadLength(m, offset)
+        val length = it.loadLength(offset)
         if (length == 0)
           wroteLast
         else {
@@ -170,7 +170,7 @@ object ExportVCF {
   def emitGenotype(sb: StringBuilder, formatFieldOrder: Array[Int], tg: PStruct, m: Region, offset: Long, fieldDefined: Array[Boolean], missingFormat: String) {
     var i = 0
     while (i < formatFieldOrder.length) {
-      fieldDefined(i) = tg.isFieldDefined(m, offset, formatFieldOrder(i))
+      fieldDefined(i) = tg.isFieldDefined(offset, formatFieldOrder(i))
       i += 1
     }
 
@@ -187,13 +187,13 @@ object ExportVCF {
           sb += ':'
         val j = formatFieldOrder(i)
         val fIsDefined = fieldDefined(i)
-        val fOffset = tg.loadField(m, offset, j)
+        val fOffset = tg.loadField(offset, j)
 
         tg.fields(j).typ match {
           case it: PContainer =>
             val pt = it
             if (fIsDefined) {
-              val fLength = pt.loadLength(m, fOffset)
+              val fLength = pt.loadLength(fOffset)
               iterableVCF(sb, pt, m, fLength, fOffset, ',')
             } else
               sb += '.'
@@ -386,9 +386,9 @@ object ExportVCF {
         sb.append(rvv.position())
         sb += '\t'
 
-        if (idExists && fullRowType.isFieldDefined(rv, idIdx)) {
-          val idOffset = fullRowType.loadField(rv, idIdx)
-          sb.append(PString.loadString(m, idOffset))
+        if (idExists && fullRowType.isFieldDefined(rv.offset, idIdx)) {
+          val idOffset = fullRowType.loadField(rv.offset, idIdx)
+          sb.append(PString.loadString(idOffset))
         } else
           sb += '.'
 
@@ -403,17 +403,17 @@ object ExportVCF {
         }
         sb += '\t'
 
-        if (qualExists && fullRowType.isFieldDefined(rv, qualIdx)) {
-          val qualOffset = fullRowType.loadField(rv, qualIdx)
+        if (qualExists && fullRowType.isFieldDefined(rv.offset, qualIdx)) {
+          val qualOffset = fullRowType.loadField(rv.offset, qualIdx)
           sb.append(Region.loadDouble(qualOffset).formatted("%.2f"))
         } else
           sb += '.'
 
         sb += '\t'
 
-        if (filtersExists && fullRowType.isFieldDefined(rv, filtersIdx)) {
-          val filtersOffset = fullRowType.loadField(rv, filtersIdx)
-          val filtersLength = filtersPType.loadLength(m, filtersOffset)
+        if (filtersExists && fullRowType.isFieldDefined(rv.offset, filtersIdx)) {
+          val filtersOffset = fullRowType.loadField(rv.offset, filtersIdx)
+          val filtersLength = filtersPType.loadLength(filtersOffset)
           if (filtersLength == 0)
             sb.append("PASS")
           else
@@ -424,13 +424,13 @@ object ExportVCF {
         sb += '\t'
 
         var wroteAnyInfo: Boolean = false
-        if (infoExists && fullRowType.isFieldDefined(rv, infoIdx)) {
+        if (infoExists && fullRowType.isFieldDefined(rv.offset, infoIdx)) {
           var wrote: Boolean = false
-          val infoOffset = fullRowType.loadField(rv, infoIdx)
+          val infoOffset = fullRowType.loadField(rv.offset, infoIdx)
           var i = 0
           while (i < tinfo.size) {
-            if (tinfo.isFieldDefined(m, infoOffset, i)) {
-              wrote = emitInfo(sb, tinfo.fields(i), m, tinfo.loadField(m, infoOffset, i), wrote)
+            if (tinfo.isFieldDefined(infoOffset, i)) {
+              wrote = emitInfo(sb, tinfo.fields(i), m, tinfo.loadField(infoOffset, i), wrote)
               wroteAnyInfo = wroteAnyInfo || wrote
             }
             i += 1
@@ -443,12 +443,12 @@ object ExportVCF {
           sb += '\t'
           sb.append(formatFieldString)
 
-          val gsOffset = fullRowType.loadField(rv, localEntriesIndex)
+          val gsOffset = fullRowType.loadField(rv.offset, localEntriesIndex)
           var i = 0
           while (i < localNSamples) {
             sb += '\t'
-            if (localEntriesType.isElementDefined(m, gsOffset, i))
-              emitGenotype(sb, formatFieldOrder, tg, m, localEntriesType.loadElement(m, gsOffset, localNSamples, i), formatDefinedArray, missingFormatStr)
+            if (localEntriesType.isElementDefined(gsOffset, i))
+              emitGenotype(sb, formatFieldOrder, tg, m, localEntriesType.loadElement(gsOffset, localNSamples, i), formatDefinedArray, missingFormatStr)
             else
               sb.append(missingFormatStr)
 

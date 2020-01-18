@@ -632,12 +632,12 @@ object EmitStream {
           range(0, 1)
             .map { i =>
               EmitTriplet(Code._empty,
-                pType.isElementMissing(region, aoff, i),
-                Region.loadIRIntermediate(eltPType)(pType.elementOffsetInRegion(region, aoff, i)))
+                pType.isElementMissing(aoff, i),
+                Region.loadIRIntermediate(eltPType)(pType.elementOffset(aoff, i)))
             }
             .guardParam { (_, k) =>
               val arrt = emitIR(containerIR, env)
-              val len = pType.loadLength(region, aoff)
+              val len = pType.loadLength(aoff)
               Code(arrt.setup,
                 arrt.m.mux(
                   k(None),

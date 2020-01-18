@@ -16,8 +16,8 @@ abstract class PBinary extends PType {
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-      val l1 = PBinary.loadLength(r1, o1)
-      val l2 = PBinary.loadLength(r2, o2)
+      val l1 = PBinary.loadLength(o1)
+      val l2 = PBinary.loadLength(o2)
 
       val bOff1 = PBinary.bytesOffset(o1)
       val bOff2 = PBinary.bytesOffset(o2)
@@ -81,11 +81,7 @@ object PBinary {
 
   def loadLength(bAddress: Long): Int = PCanonicalBinary.loadLength(bAddress)
 
-  def loadLength(region: Region, bAddress: Long): Int = PCanonicalBinary.loadLength(bAddress)
-
   def loadLength(bAddress: Code[Long]): Code[Int] = PCanonicalBinary.loadLength(bAddress)
-
-  def loadLength(region: Code[Region], bAddress: Code[Long]): Code[Int] = PCanonicalBinary.loadLength(bAddress)
 
   def loadBytes(bAddress: Code[Long]): Code[Array[Byte]] =
     Region.loadBytes(PBinary.bytesOffset(bAddress), PBinary.loadLength(bAddress))

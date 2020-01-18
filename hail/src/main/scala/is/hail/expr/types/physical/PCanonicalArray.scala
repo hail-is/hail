@@ -36,26 +36,14 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def copy(elementType: PType = this.elementType, required: Boolean = this.required): PCanonicalArray = PCanonicalArray(elementType, required)
 
-  def loadLength(region: Region, aoff: Long): Int =
-    loadLength(aoff)
-
   def loadLength(aoff: Long): Int =
     Region.loadInt(aoff)
 
   def loadLength(aoff: Code[Long]): Code[Int] =
     Region.loadInt(aoff)
 
-  def loadLength(region: Code[Region], aoff: Code[Long]): Code[Int] =
-    loadLength(aoff)
-
-  def storeLength(region: Region, aoff: Long, length: Int): Unit =
-    storeLength(aoff, length)
-
   def storeLength(aoff: Long, length: Int): Unit =
     Region.storeInt(aoff, length)
-
-  def storeLength(region: Code[Region], aoff: Code[Long], length: Code[Int]): Code[Unit] =
-    storeLength(aoff, length)
 
   def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
     Region.storeInt(aoff, length)
@@ -100,28 +88,17 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def isElementDefined(aoff: Long, i: Int): Boolean =
     elementType.required || !Region.loadBit(aoff + lengthHeaderBytes, i)
 
-  def isElementDefined(region: Region, aoff: Long, i: Int): Boolean = isElementDefined(aoff, i)
-
   def isElementDefined(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     if (elementType.required)
       true
     else
       !Region.loadBit(aoff + lengthHeaderBytes, i.toL)
 
-  def isElementDefined(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
-    isElementDefined(aoff, i)
-
-  def isElementMissing(region: Region, aoff: Long, i: Int): Boolean =
+  def isElementMissing(aoff: Long, i: Int): Boolean =
     !isElementDefined(aoff, i)
 
   def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     !isElementDefined(aoff, i)
-
-  def isElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
-    isElementMissing(aoff, i)
-
-  def setElementMissing(region: Region, aoff: Long, i: Int) =
-    setElementMissing(aoff, i)
 
   def setElementMissing(aoff: Long, i: Int) {
     assert(!elementType.required)
@@ -131,19 +108,12 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit] =
     Region.setBit(aoff + lengthHeaderBytes, i.toL)
 
-  def setElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] =
-    setElementMissing(aoff, i)
-
-  def setElementPresent(region: Region, aoff: Long, i: Int) {
-    assert(!elementType.required)
-    Region.clearBit(aoff + lengthHeaderBytes, i)
+  def setElementPresent(aoff: Long, i: Int) {
+    Region.clearBit(aoff + lengthHeaderBytes, i.toLong)
   }
 
   def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit] =
     Region.clearBit(aoff + lengthHeaderBytes, i.toL)
-
-  def setElementPresent(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] =
-    setElementPresent(aoff, i)
 
   def firstElementOffset(aoff: Long, length: Int): Long =
     aoff + elementsOffset(length)
@@ -157,14 +127,14 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
     firstElementOffset(aoff, length) + i * elementByteSize
 
+  def elementOffset(aoff: Long, i: Int): Long =
+    firstElementOffset(aoff, loadLength(aoff)) + i * elementByteSize
+
   def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
     firstElementOffset(aoff, length) + i.toL * const(elementByteSize)
 
-  def elementOffsetInRegion(region: Region, aoff: Long, i: Int): Long =
-    elementOffset(aoff, loadLength(region, aoff), i)
-
-  def elementOffsetInRegion(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
-    elementOffset(aoff, loadLength(region, aoff), i)
+  def elementOffset(aoff: Code[Long], i: Code[Int]): Code[Long] =
+    firstElementOffset(aoff, loadLength(aoff)) + i.toL * const(elementByteSize)
 
   def nextElementAddress(currentOffset: Long) =
     currentOffset + elementByteSize
@@ -180,14 +150,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def loadElement(region: Region, aoff: Long, length: Int, i: Int): Long = loadElement(aoff, length, i)
+  def loadElement(aoff: Long, i: Int): Long = loadElement(aoff, loadLength(aoff), i)
 
-  def loadElement(region: Region, aoff: Long, i: Int): Long = loadElement(aoff, loadLength(aoff), i)
-
-  def loadElement(region: Code[Region], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
-    loadElementAddress(aoff, length, i)
-
-  def loadElementAddress(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
+  def loadElement(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
     val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
       case _: PArray | _: PBinary => Region.loadAddress(off)
@@ -195,8 +160,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def loadElement(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
-    loadElement(region, aoff, loadLength(aoff), i)
+  def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] = loadElement(aoff, loadLength(aoff), i)
 
   def allocate(region: Region, length: Int): Long = {
     region.allocate(contentsAlignment, contentsByteSize(length))
@@ -205,28 +169,28 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
     region.allocate(contentsAlignment, contentsByteSize(length))
 
-  private def writeMissingness(region: Region, aoff: Long, length: Int, value: Byte) {
+  private def writeMissingness(aoff: Long, length: Int, value: Byte) {
     Region.setMemory(aoff + lengthHeaderBytes, nMissingBytes(length), value)
   }
 
-  def setAllMissingBits(region: Region, aoff: Long, length: Int) {
+  def setAllMissingBits(aoff: Long, length: Int) {
     if (elementType.required)
       return
-    writeMissingness(region, aoff, length, -1)
+    writeMissingness(aoff, length, -1)
   }
 
-  def clearMissingBits(region: Region, aoff: Long, length: Int) {
+  def clearMissingBits(aoff: Long, length: Int) {
     if (elementType.required)
       return
-    writeMissingness(region, aoff, length, 0)
+    writeMissingness(aoff, length, 0)
   }
 
-  def initialize(region: Region, aoff: Long, length: Int, setMissing: Boolean = false) {
+  def initialize(aoff: Long, length: Int, setMissing: Boolean = false) {
     Region.storeInt(aoff, length)
     if (setMissing)
-      setAllMissingBits(region, aoff, length)
+      setAllMissingBits(aoff, length)
     else
-      clearMissingBits(region, aoff, length)
+      clearMissingBits(aoff, length)
   }
 
   def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Code[Unit] = {
@@ -241,7 +205,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def zeroes(region: Region, length: Int): Long = {
     require(elementType.isNumeric)
     val aoff = allocate(region, length)
-    initialize(region, aoff, length)
+    initialize(aoff, length)
     Region.setMemory(aoff + elementsOffset(length), length * elementByteSize, 0.toByte)
     aoff
   }
@@ -279,7 +243,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       }
     }
 
-  def forEach(mb: MethodBuilder, region: Code[Region], aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] = {
+  def forEach(mb: MethodBuilder, aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] = {
     val i = mb.newLocal[Int]
     val n = mb.newLocal[Int]
     Code(
@@ -287,7 +251,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       i := 0,
       Code.whileLoop(i < n,
         isElementDefined(aoff, i).mux(
-          body(loadElement(region, aoff, n, i)),
+          body(loadElement(aoff, n, i)),
           Code._empty
         )))
   }
@@ -302,17 +266,17 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
     new UnsafeOrdering {
       override def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-        val length1 = loadLength(r1, o1)
-        val length2 = right.loadLength(r2, o2)
+        val length1 = loadLength(o1)
+        val length2 = right.loadLength(o2)
 
         var i = 0
         while (i < math.min(length1, length2)) {
-          val leftDefined = isElementDefined(r1, o1, i)
-          val rightDefined = right.isElementDefined(r2, o2, i)
+          val leftDefined = isElementDefined(o1, i)
+          val rightDefined = right.isElementDefined(o2, i)
 
           if (leftDefined && rightDefined) {
-            val eOff1 = loadElement(r1, o1, length1, i)
-            val eOff2 = right.loadElement(r2, o2, length2, i)
+            val eOff1 = loadElement(o1, length1, i)
+            val eOff2 = right.loadElement(o2, length2, i)
             val c = eltOrd.compare(r1, eOff1, r2, eOff2)
             if (c != 0)
               return c
@@ -483,7 +447,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
           mb,
           region,
           sourceElementType,
-          sourceType.loadElementAddress(srcAddress, numberOfElements, currentIdx),
+          sourceType.loadElement(srcAddress, numberOfElements, currentIdx),
           forceDeep
         )
       )
@@ -525,12 +489,12 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
     val numberOfElements = sourceType.loadLength(srcAddress)
     val dstAddress = this.allocate(region, numberOfElements)
-    this.initialize(region, dstAddress, numberOfElements)
+    this.initialize(dstAddress, numberOfElements)
 
     var currentElementAddress = this.firstElementOffset(dstAddress, numberOfElements)
     var currentIdx = 0
     while(currentIdx < numberOfElements) {
-      if(!sourceElementType.required && sourceType.isElementMissing(region, srcAddress, currentIdx)) {
+      if(!sourceElementType.required && sourceType.isElementMissing(srcAddress, currentIdx)) {
         this.setElementMissing(dstAddress, currentIdx)
       } else {
         destElementType.storeShallowAtOffset(

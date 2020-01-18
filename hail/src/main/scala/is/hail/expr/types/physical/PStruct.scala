@@ -67,8 +67,6 @@ abstract class PStruct extends PBaseStruct {
   protected val structFundamentalType: PStruct
   override lazy val fundamentalType: PStruct = structFundamentalType
 
-  def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long]
-
   def loadField(offset: Code[Long], fieldName: String): Code[Long]
 
   final def isFieldDefined(offset: Code[Long], fieldName: String): Code[Boolean] = !isFieldMissing(offset, fieldName)

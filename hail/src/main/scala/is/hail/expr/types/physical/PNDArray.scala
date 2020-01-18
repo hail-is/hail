@@ -1,6 +1,6 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, MethodBuilder, _}
 import is.hail.expr.Nat
 import is.hail.expr.ir.{EmitMethodBuilder}
@@ -8,7 +8,7 @@ import is.hail.expr.types.virtual.TNDArray
 
 final class StaticallyKnownField[T, U](
   val pType: T,
-  val load: (Code[Region], Code[Long]) => Code[U]
+  val load: Code[Long] => Code[U]
 )
 
 object PNDArray {
@@ -38,15 +38,15 @@ abstract class PNDArray extends PType {
 
   def makeDefaultStridesBuilder(sourceShapeArray: Array[Code[Long]], mb: MethodBuilder): StagedRegionValueBuilder => Code[Unit]
 
-  def getElementAddress(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Long]
+  def getElementAddress(indices: Array[Code[Long]], nd: Code[Long], mb: MethodBuilder): Code[Long]
 
-  def loadElementToIRIntermediate(indices: Array[Code[Long]], ndAddress: Code[Long], region: Code[Region], mb: MethodBuilder): Code[_]
+  def loadElementToIRIntermediate(indices: Array[Code[Long]], ndAddress: Code[Long], mb: MethodBuilder): Code[_]
 
-  def outOfBounds(indices: Array[Code[Long]], nd: Code[Long], region: Code[Region], mb: MethodBuilder): Code[Boolean]
+  def outOfBounds(indices: Array[Code[Long]], nd: Code[Long], mb: MethodBuilder): Code[Boolean]
 
-  def linearizeIndicesRowMajor(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): Code[Long]
+  def linearizeIndicesRowMajor(indices: Array[Code[Long]], shapeArray: Array[Code[Long]], mb: MethodBuilder): Code[Long]
 
-  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: Array[Code[Long]], region: Code[Region], mb: MethodBuilder): (Code[Unit], Array[Code[Long]])
+  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: Array[Code[Long]], mb: MethodBuilder): (Code[Unit], Array[Code[Long]])
 
   def copyRowMajorToColumnMajor(rowMajorAddress: Code[Long], targetAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: MethodBuilder): Code[Unit]
 

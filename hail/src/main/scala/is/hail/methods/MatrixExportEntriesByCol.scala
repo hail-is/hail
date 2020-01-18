@@ -79,7 +79,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
         it.foreach { rv =>
 
-          val entriesArray = new UnsafeIndexedSeq(entryArrayType, rv.region, rvType.loadField(rv, entriesIdx))
+          val entriesArray = new UnsafeIndexedSeq(entryArrayType, rv.region, rvType.loadField(rv.offset, entriesIdx))
 
           val fullRow = new UnsafeRow(rvType, rv)
 

@@ -408,7 +408,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
             Iterator.range(start, start + localPartCounts(i))
               .map { j =>
                 val off = localRowType.allocate(region)
-                localRowType.setFieldPresent(region, off, 0)
+                localRowType.setFieldPresent(off, 0)
                 Region.storeInt(localRowType.fieldOffset(off, 0), j)
                 rv.setOffset(off)
                 rv

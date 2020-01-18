@@ -336,7 +336,7 @@ class OrderingSuite extends HailSuite {
         val cktuple = fb.getArg[Long](3)
 
         val bs = new BinarySearch(fb.apply_method, pDict, keyOnly = true)
-        val m = ptuple.isFieldMissing(cregion, cktuple, 0)
+        val m = ptuple.isFieldMissing(cktuple, 0)
         val v = Region.loadIRIntermediate(pDict.keyType)(ptuple.fieldOffset(cktuple, 0))
         fb.emit(bs.getClosestIndex(cdict, m, v))
 

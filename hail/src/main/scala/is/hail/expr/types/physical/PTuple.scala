@@ -45,7 +45,6 @@ abstract class PTuple extends PBaseStruct {
 
 class CodePTuple(
   val pType: PTuple,
-  val region: Code[Region],
   val offset: Code[Long]
 ) {
   def apply[T](i: Int): Code[T] =

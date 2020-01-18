@@ -23,7 +23,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     val length = mb.newLocal[Int]
 
     Code(
-      length := PCanonicalBinary.loadLength(region, srcAddress),
+      length := PCanonicalBinary.loadLength(srcAddress),
       dstAddress := PCanonicalBinary.allocate(region, length),
       Region.copyFrom(srcAddress, dstAddress, PCanonicalBinary.contentByteSize(length)),
       dstAddress
@@ -37,7 +37,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
     assert(this isOfType srcPType)
 
-    val length = PCanonicalBinary.loadLength(region, srcAddress)
+    val length = PCanonicalBinary.loadLength(srcAddress)
     val dstAddress = PCanonicalBinary.allocate(region, length)
     Region.copyFrom(srcAddress, dstAddress, PCanonicalBinary.contentByteSize(length))
     dstAddress
@@ -70,13 +70,8 @@ object PCanonicalBinary {
 
   def loadLength(boff: Long): Int = Region.loadInt(boff)
 
-  def loadLength(region: Region, boff: Long): Int =
-    Region.loadInt(boff)
-
   def loadLength(boff: Code[Long]): Code[Int] =
     Region.loadInt(boff)
-
-  def loadLength(region: Code[Region], boff: Code[Long]): Code[Int] = loadLength(boff)
 
   def storeLength(boff: Long, len: Int): Unit = Region.storeInt(boff, len)
 
