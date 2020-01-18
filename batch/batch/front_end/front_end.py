@@ -14,8 +14,8 @@ from prometheus_async.aio import time as prom_async_time
 from prometheus_async.aio.web import server_stats
 import google.oauth2.service_account
 import google.api_core.exceptions
-from hailtop.utils import time_msecs, humanize_timedelta_msecs, request_retry_transient_errors, \
-    run_if_changed, retry_long_running
+from hailtop.utils import time_msecs, time_msecs_str, humanize_timedelta_msecs, \
+    request_retry_transient_errors, run_if_changed, retry_long_running
 from hailtop.config import get_deploy_config
 from hailtop import batch_client
 from hailtop.batch_client.aioclient import Job
@@ -847,15 +847,48 @@ async def get_job(request, userdata):
 @prom_async_time(REQUEST_TIME_GET_JOB_UI)
 @web_authenticated_users_only()
 async def ui_get_job(request, userdata):
+    app = request.app
+    db = app['db']
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
 
-    job_status = await _get_job(request.app, batch_id, job_id, user)
+    job_status = await _get_job(app, batch_id, job_id, user)
+
+    attempts = [
+        attempt
+        async for attempt
+        in db.select_and_fetchall(
+            '''
+SELECT * FROM attempts
+WHERE batch_id = %s AND job_id = %s
+''',
+            (batch_id, job_id))]
+    for attempt in attempts:
+        start_time = attempt['start_time']
+        if start_time:
+            attempt['start_time'] = time_msecs_str(start_time)
+        else:
+            del attempt['start_time']
+
+        end_time = attempt['end_time']
+        if end_time is not None:
+            attempt['end_time'] = time_msecs_str(end_time)
+        else:
+            del attempt['end_time']
+
+        if start_time is not None:
+            # elapsed time if attempt is still running
+            if end_time is None:
+                end_time = time_msecs()
+            duration_msecs = max(end_time - start_time, 0)
+            attempt['duration'] = humanize_timedelta_msecs(duration_msecs)
+
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
-        'job_log': await _get_job_log(request.app, batch_id, job_id, user),
+        'job_log': await _get_job_log(app, batch_id, job_id, user),
+        'attempts': attempts,
         'job_status': json.dumps(job_status, indent=2)
     }
     return await render_template('batch', request, userdata, 'job.html', page_context)
