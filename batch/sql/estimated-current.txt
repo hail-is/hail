@@ -297,7 +297,7 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT state INTO cur_state FROM instances WHERE name = in_instance_name FOR UPDATE ;
+  SELECT state INTO cur_state FROM instances WHERE name = in_instance_name FOR UPDATE;
 
   UPDATE instances
   SET time_deactivated = in_timestamp
