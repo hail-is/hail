@@ -19,7 +19,9 @@ repos_lock = asyncio.Lock()
 
 log = logging.getLogger('ci')
 
-CALLBACK_URL = get_deploy_config().url('ci', '/api/v1alpha/batch_callback')
+deploy_config = get_deploy_config()
+
+CALLBACK_URL = deploy_config.url('ci', '/api/v1alpha/batch_callback')
 
 zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
 
@@ -660,8 +662,10 @@ class WatchedBranch(Code):
 state: {self.deploy_state}
 branch: {self.branch.short_str()}
 sha: {self.sha}
+url: {deploy_config.url('ci', f'/batches/{self.deploy_batch.id}')}
 '''}
-                    zulip_client.send_message(request)
+                    result = zulip_client.send_message(request)
+                    log.info(result)
 
                 self.state_changed = True
 
