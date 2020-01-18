@@ -75,15 +75,11 @@ final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
     out.write(buf, 0, 8)
   }
 
-  def writeBytes(region: Region, off: Long, n: Int): Unit = {
-    println("Called writeBytes")
+  def writeBytes(region: Region, off: Long, n: Int): Unit =
     out.write(Region.loadBytes(off, n))
-  }
 
-  def writeBytes(addr: Long, n: Int): Unit = {
-    println("called writeBytes")
+  def writeBytes(addr: Long, n: Int): Unit =
     out.write(Region.loadBytes(addr, n))
-  }
 
   def writeDoubles(from: Array[Double], fromOff: Int, n: Int) {
     var i = 0
