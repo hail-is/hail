@@ -6,16 +6,15 @@ import is.hail.utils._
 
 class RegionValueVariant(rowType: PStruct) extends View {
   private val locusField = rowType.fieldByName("locus")
-  assert(locusField.typ.isInstanceOf[PLocus])
   private val locusPType = locusField.typ.asInstanceOf[PLocus]
   private val allelesField = rowType.fieldByName("alleles")
   private val locusIdx = locusField.index
   private val allelesIdx = allelesField.index
   private val tl: PStruct = locusPType.fundamentalType.asInstanceOf[PStruct]
   private val taa: PArray = allelesField.typ.asInstanceOf[PArray]
+  val allelePType = taa.elementType.asInstanceOf[PString]
   private var locusAddress: Long = _
   private var allelesOffset: Long = _
-
   private var cachedContig: String = null
   private var cachedAlleles: Array[String] = null
   private var cachedLocus: Locus = null
@@ -49,7 +48,7 @@ class RegionValueVariant(rowType: PStruct) extends View {
       var i = 0
       while (i < nAlleles) {
         if (taa.isElementDefined(allelesOffset, i))
-         cachedAlleles(i) = tl.types(i).asInstanceOf[PString].loadString(taa.loadElement(allelesOffset, i))
+         cachedAlleles(i) = allelePType.loadString(taa.loadElement(allelesOffset, i))
         i += 1
       }
     }
