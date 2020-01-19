@@ -127,14 +127,27 @@ object ApproxCDFCombiner {
     apply(numLevels, capacity, keepRatio, new java.util.Random())
 
   def deserializeFrom(ib: InputBuffer): ApproxCDFCombiner = {
-    val n = ib.readInt()
-    val a = new Array[Byte](n)
+    val levels = new Array[Int](ib.readInt())
     var i = 0
-    while (i < n) {
-      a(i) = ib.readByte()
+    while (i < levels.length) {
+      levels(i) = ib.readInt()
       i += 1
     }
-    SerializationUtils.deserialize(a).asInstanceOf[ApproxCDFCombiner]
+    val items = new Array[Double](ib.readInt())
+    i = 0
+    while (i < items.length) {
+      items(i) = ib.readDouble()
+      i += 1
+    }
+    val compactionCounts = new Array[Int](ib.readInt())
+    i = 0
+    while (i < compactionCounts.length) {
+      compactionCounts(i) = ib.readInt()
+      i += 1
+    }
+    val numLevels = ib.readInt()
+    val keepRatio = ib.readDouble()
+    new ApproxCDFCombiner(levels, items, compactionCounts, numLevels, keepRatio, new java.util.Random())
   }
 }
 
@@ -160,13 +173,14 @@ class ApproxCDFCombiner(
 ) extends Serializable {
 
   def serializeTo(ob: OutputBuffer): Unit = {
-    val bytes = SerializationUtils.serialize(this)
-    ob.writeInt(bytes.length)
-    var i = 0
-    while (i < bytes.size) {
-      ob.writeByte(bytes(i))
-      i += 1
-    }
+    ob.writeInt(levels.length)
+    levels.foreach(ob.writeInt)
+    ob.writeInt(items.length)
+    items.foreach(ob.writeDouble)
+    ob.writeInt(compactionCounts.length)
+    compactionCounts.foreach(ob.writeInt)
+    ob.writeInt(numLevels)
+    ob.writeDouble(keepRatio)
   }
 
   def copy(): ApproxCDFCombiner =
