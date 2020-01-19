@@ -98,7 +98,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       if (nMissingBytes > 1)
         c = Code(c, out.writeBytes(coerce[Long](v), missingBytes - 1))
       if (nMissingBytes > 0)
-        c = Code(c, out.writeByte((Region.loadByte(coerce[Long](v) + (missingBytes.toLong - 1)).toI & const(missingBitMask(nMissingBytes & 0x7))).toB))
+        c = Code(c, out.writeByte((Region.loadByte(coerce[Long](v) + (missingBytes.toLong - 1)).toI & const(missingBitMask(ft.nMissing & 0x7))).toB))
       c
     } else {
       val groupSize = 64
