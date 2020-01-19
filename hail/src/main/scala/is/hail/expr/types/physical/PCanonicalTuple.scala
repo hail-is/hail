@@ -1,6 +1,7 @@
 package is.hail.expr.types.physical
 import is.hail.annotations.UnsafeUtils
 import is.hail.expr.types.BaseStruct
+import is.hail.expr.types.virtual.{TTuple, Type}
 import is.hail.utils._
 
 object PCanonicalTuple {
@@ -39,5 +40,14 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
       this
     else
       PCanonicalTuple(fundamentalFieldTypes, required)
+  }
+
+  override def deepRename(t: Type) = deepTupleRename(t.asInstanceOf[TTuple])
+
+  private def deepTupleRename(t: TTuple) = {
+    PCanonicalTuple((t._types, this._types).zipped.map( (tfield, pfield) => {
+      assert(tfield.index == pfield.index)
+      PTupleField(pfield.index, pfield.typ.deepRename(tfield.typ))
+    }), this.required)
   }
 }

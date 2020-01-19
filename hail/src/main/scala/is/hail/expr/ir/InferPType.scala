@@ -64,7 +64,7 @@ object InferPType {
       }
       case CastRename(ir, t) => {
         InferPType(ir, env)
-        PType.canonical(t, ir.pType2.required)
+        ir._pType2.deepRename(t)
       }
       case NA(t) => {
         PType.canonical(t).deepInnerRequired(false)
