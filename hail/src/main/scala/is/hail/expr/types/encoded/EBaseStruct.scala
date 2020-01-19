@@ -90,10 +90,25 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       PNDArray(elementType, t.nDims, required)
   }
 
+  val lowBitMask: Array[Byte] = {
+    val a = new Array[Byte](8)
+    a(0) = (-1).toByte
+    (1 until 8).foreach { i =>
+      a(i) = ((1 << i) - 1).toByte
+    }
+    a
+  }
+
   def _buildEncoder(pt: PType, mb: EmitMethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
     val ft = pt.asInstanceOf[PBaseStruct]
     val writeMissingBytes = if (ft.size == size) {
-      out.writeBytes(coerce[Long](v), ft.nMissingBytes)
+      val missingBytes = ft.nMissingBytes
+      var c = Code._empty[Unit]
+      if (nMissingBytes > 1)
+        c = Code(c, out.writeBytes(coerce[Long](v), missingBytes - 1))
+      if (nMissingBytes > 0)
+        c = Code(c, out.writeByte((Region.loadByte(coerce[Long](v) + (missingBytes.toLong - 1)).toI & const(lowBitMask(ft.nMissing & 0x7))).toB))
+      c
     } else {
       val groupSize = 64
       var methodIdx = 0
