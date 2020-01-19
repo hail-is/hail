@@ -1,7 +1,8 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.{ Region, StagedRegionValueBuilder, UnsafeOrdering}
+import is.hail.annotations.{Region, StagedRegionValueBuilder, UnsafeOrdering}
 import is.hail.asm4s.{Code, MethodBuilder, _}
+import is.hail.expr.types.virtual.{TNDArray, Type}
 
 final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boolean = false) extends PNDArray  {
   assert(elementType.required, "elementType must be required")
@@ -236,4 +237,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     val elementType = this.elementType.deepPTypeUnifyOnSameVirtualTypes(ptypes.map(_.asInstanceOf[PCanonicalNDArray].elementType))
     PCanonicalNDArray(elementType, this.nDims, ptypes.forall(_.required))
   }
+
+  override def deepRename(t: Type) = deepRenameNDArray(t.asInstanceOf[TNDArray])
+
+  private def deepRenameNDArray(t: TNDArray) =
+    PCanonicalNDArray(this.elementType.deepRename(t.elementType), this.nDims, this.required)
 }

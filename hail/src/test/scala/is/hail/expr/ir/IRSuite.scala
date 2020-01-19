@@ -11,7 +11,7 @@ import is.hail.expr.ir.functions._
 import is.hail.expr.types.TableType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.expr.{Nat, ir}
+import is.hail.expr.Nat
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
@@ -197,6 +197,53 @@ class IRSuite extends HailSuite {
     assertEvalsTo(CastRename(MakeArray(FastSeq(MakeStruct(FastSeq(("x", I32(1))))),
       TArray(TStruct("x" -> TInt32()))), TArray(TStruct("foo" -> TInt32()))),
       FastIndexedSeq(Row(1)))
+  }
+
+  @Test def testCastRenameIR() {
+    var expectedPType: PType = PCanonicalStruct(true, "foo" -> PInt32(true))
+    var childPType: PType = PCanonicalStruct(true, "x" -> PInt32(true))
+    var targetType: Type = TStruct("foo" -> TInt32())
+    assertPType(CastRename(In(0, childPType), targetType), expectedPType)
+
+    expectedPType = PCanonicalArray(PCanonicalStruct(true, "foo" -> PInt64(true)))
+    childPType = PCanonicalArray(PCanonicalStruct(true, "c" -> PInt64(true)))
+    targetType = TArray(TStruct("foo" -> TInt64()))
+    assertPType(CastRename(In(0, childPType), targetType), expectedPType)
+
+    expectedPType = PCanonicalArray(PCanonicalStruct("foo" -> PCanonicalString(true)))
+    childPType = PCanonicalArray(PCanonicalStruct("q" -> PCanonicalString(true)))
+    targetType = TArray(TStruct("foo" -> TString()))
+    assertPType(CastRename(In(0, childPType), targetType), expectedPType)
+
+    expectedPType = PCanonicalArray(PCanonicalStruct(true, "foo" -> PCanonicalStruct("baz" -> PBoolean(true))))
+    childPType = PCanonicalArray(PCanonicalStruct(true, "b" -> PCanonicalStruct("a" -> PBoolean(true))))
+    targetType = TArray(TStruct("foo" -> TStruct("baz" -> TBoolean())))
+    assertPType(CastRename(In(0, childPType), targetType), expectedPType)
+
+    expectedPType = PCanonicalArray(PCanonicalStruct("foo" -> PCanonicalArray(PFloat64(true), true), "bar" -> PCanonicalBinary()))
+    childPType = PCanonicalArray(PCanonicalStruct("x" -> PCanonicalArray(PFloat64(true), true), "y" -> PCanonicalBinary()))
+    targetType = TArray(TStruct("foo" -> TArray(TFloat64()), "bar" -> TBinary()))
+    assertPType(CastRename(In(0, childPType), targetType), expectedPType)
+
+    expectedPType = PCanonicalTuple(true, PCanonicalStruct(true, "foo" -> PInterval(PFloat32())), PCanonicalStruct(false, "bar" -> PFloat64(true)))
+    childPType = PCanonicalTuple(true, PCanonicalStruct(true, "v" -> PInterval(PFloat32())), PCanonicalStruct(false, "q" -> PFloat64(true)))
+    targetType = TTuple(TStruct("foo" -> TInterval(TFloat32())), TStruct("bar" -> TFloat64()))
+    assertPType(CastRename(In(0, childPType), targetType), expectedPType)
+
+    expectedPType = PCanonicalDict(PString(), PCanonicalTuple(false,
+      PCanonicalStruct("foo" -> PCanonicalStruct("bar" -> PNDArray(PInt32(true), 3, true))),
+      PCanonicalStruct(false, "bar" -> PCanonicalBinary(true))))
+    childPType = PCanonicalDict(PString(), PCanonicalTuple(false,
+      PCanonicalStruct("xxxxxx" -> PCanonicalStruct("qqq" -> PNDArray(PInt32(true), 3, true))),
+      PCanonicalStruct(false, "ddd" -> PCanonicalBinary(true))))
+    targetType = TDict(TString(), TTuple(TStruct("foo" -> TStruct("bar" -> TNDArray(TInt32(), Nat(3)))),
+      TStruct("bar" -> TBinary())))
+    assertPType(CastRename(In(0, childPType), targetType), expectedPType)
+
+    expectedPType = PStream(PCanonicalStruct("foo2a" -> PCanonicalArray(PFloat64(true), true), "bar2a" -> PCanonicalBinary()))
+    childPType = PStream(PCanonicalStruct("q" -> PCanonicalArray(PFloat64(true), true), "yxxx" -> PCanonicalBinary()))
+    targetType = TStream(TStruct("foo2a" -> TArray(TFloat64()), "bar2a" -> TBinary()))
+    assertPType(CastRename(In(0, childPType), targetType), expectedPType)
   }
 
   @Test def testNA() {

@@ -1,5 +1,7 @@
 package is.hail.expr.types.physical
 
+import is.hail.expr.types.virtual.{TArray, TDict, Type}
+
 final case class PCanonicalDict(keyType: PType, valueType: PType, required: Boolean = false) extends PDict with PArrayBackedContainer {
   val elementType = PStruct(required = true, "key" -> keyType, "value" -> valueType)
 
@@ -27,4 +29,9 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
 
     PCanonicalDict(keyType, valueType, ptypes.forall(_.required))
   }
+
+  override def deepRename(t: Type) = deepRenameDict(t.asInstanceOf[TDict])
+
+  private def deepRenameDict(t: TDict) =
+    PCanonicalDict(this.keyType.deepRename(t.keyType), this.valueType.deepRename(t.valueType), this.required)
 }

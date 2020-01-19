@@ -1,5 +1,7 @@
 package is.hail.expr.types.physical
 
+import is.hail.expr.types.virtual.{TSet, Type}
+
 final case class PCanonicalSet(elementType: PType,  required: Boolean = false) extends PSet with PArrayBackedContainer {
   val arrayRep = PCanonicalArray(elementType, required)
 
@@ -17,4 +19,9 @@ final case class PCanonicalSet(elementType: PType,  required: Boolean = false) e
     val elementType = this.elementType.deepPTypeUnifyOnSameVirtualTypes(ptypes.map(_.asInstanceOf[PSet].elementType))
     PCanonicalSet(elementType, ptypes.forall(_.required))
   }
+
+  override def deepRename(t: Type) = deepRenameSet(t.asInstanceOf[TSet])
+
+  private def deepRenameSet(t: TSet) =
+    PCanonicalSet(this.elementType.deepRename(t.elementType),  this.required)
 }

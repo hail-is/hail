@@ -6,6 +6,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types.virtual.{TArray, Type}
 import is.hail.utils._
 
 // This is a pointer array, whose byteSize is the size of its pointer
@@ -519,4 +520,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val elementType = this.elementType.deepPTypeUnifyOnSameVirtualTypes(ptypes.map(_.asInstanceOf[PArray].elementType))
     PCanonicalArray(elementType, ptypes.forall(_.required))
   }
+
+  override def deepRename(t: Type): PType = deepRenameArray(t.asInstanceOf[TArray])
+
+  private def deepRenameArray(t: TArray): PArray =
+    PCanonicalArray(this.elementType.deepRename(t.elementType), this.required)
 }
