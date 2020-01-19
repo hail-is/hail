@@ -97,4 +97,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
       }
     }
   }
+
+  override def deepPTypeUnifyOnSameVirtualTypes(ptypes: Seq[PType]): PType =
+    PCanonicalLocus(rgBc, ptypes.forall(_.required))
 }

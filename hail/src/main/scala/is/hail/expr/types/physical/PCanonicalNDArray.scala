@@ -231,4 +231,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
     this.representation.copyFromType(region, sourceNDPType.representation, srcAddress, forceDeep)
   }
+
+  override def deepPTypeUnifyOnSameVirtualTypes(ptypes: Seq[PType]): PType = {
+    val elementType = this.elementType.deepPTypeUnifyOnSameVirtualTypes(ptypes.map(_.asInstanceOf[PCanonicalNDArray].elementType))
+    PCanonicalNDArray(elementType, this.nDims, ptypes.forall(_.required))
+  }
 }

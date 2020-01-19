@@ -40,4 +40,15 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
     else
       PCanonicalTuple(fundamentalFieldTypes, required)
   }
+
+  override def deepPTypeUnifyOnSameVirtualTypes(ptypes: Seq[PType]): PType = {
+    val pTupleFields = this._types.map(pTupleField =>
+      PTupleField(
+        pTupleField.index,
+        pTupleField.typ.deepPTypeUnifyOnSameVirtualTypes(ptypes.map(_.asInstanceOf[PTuple]._types(pTupleField.index).typ))
+      )
+    )
+
+    PCanonicalTuple(pTupleFields, ptypes.forall(_.required))
+  }
 }

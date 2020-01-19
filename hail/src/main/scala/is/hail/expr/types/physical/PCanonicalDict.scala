@@ -20,4 +20,11 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
     valueType.pretty(sb, indent, compact)
     sb.append("]")
   }
+
+  override def deepPTypeUnifyOnSameVirtualTypes(ptypes: Seq[PType]): PType = {
+    val keyType = this.keyType.deepPTypeUnifyOnSameVirtualTypes(ptypes.map(_.asInstanceOf[PDict].keyType))
+    val valueType = this.valueType.deepPTypeUnifyOnSameVirtualTypes(ptypes.map(_.asInstanceOf[PDict].valueType))
+
+    PCanonicalDict(keyType, valueType, ptypes.forall(_.required))
+  }
 }

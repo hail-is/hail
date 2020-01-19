@@ -514,4 +514,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
     dstAddress
   }
+
+  override def deepPTypeUnifyOnSameVirtualTypes(ptypes: Seq[PType]): PType = {
+    val elementType = this.elementType.deepPTypeUnifyOnSameVirtualTypes(ptypes.map(_.asInstanceOf[PArray].elementType))
+    PCanonicalArray(elementType, ptypes.forall(_.required))
+  }
 }

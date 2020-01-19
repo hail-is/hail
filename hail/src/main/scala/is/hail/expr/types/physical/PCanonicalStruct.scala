@@ -261,4 +261,10 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     }
     PCanonicalStruct(ab.result(), required)
   }
+
+  override def deepPTypeUnifyOnSameVirtualTypes(ptypes: Seq[PType]): PType = {
+    PCanonicalStruct(ptypes.forall(_.required), this.fields.map( field =>
+      field.name -> field.typ.deepPTypeUnifyOnSameVirtualTypes(ptypes.map(_.asInstanceOf[PStruct].field(field.name).typ))
+    ):_*)
+  }
 }

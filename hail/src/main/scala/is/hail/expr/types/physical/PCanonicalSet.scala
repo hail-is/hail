@@ -12,4 +12,9 @@ final case class PCanonicalSet(elementType: PType,  required: Boolean = false) e
     elementType.pretty(sb, indent, compact)
     sb.append("]")
   }
+
+  override def deepPTypeUnifyOnSameVirtualTypes(ptypes: Seq[PType]): PType = {
+    val elementType = this.elementType.deepPTypeUnifyOnSameVirtualTypes(ptypes.map(_.asInstanceOf[PSet].elementType))
+    PCanonicalSet(elementType, ptypes.forall(_.required))
+  }
 }

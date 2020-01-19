@@ -50,4 +50,9 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
     def includeEnd(off: Code[Long]): Code[Boolean] =
       Region.loadBoolean(representation.loadField(off, 3))
+
+    override def deepPTypeUnifyOnSameVirtualTypes(ptypes: Seq[PType]): PType = {
+      val unifiedPointType = this.pointType.deepPTypeUnifyOnSameVirtualTypes(ptypes.map(_.asInstanceOf[PInterval].pointType))
+      PCanonicalInterval(unifiedPointType, ptypes.forall(_.required))
+    }
 }

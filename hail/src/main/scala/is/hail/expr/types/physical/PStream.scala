@@ -47,5 +47,10 @@ final case class PStream(elementType: PType, override val required: Boolean = fa
 
   def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) =
     throw new UnsupportedOperationException("Stream storeShallowAtOffset is currently undefined")
+
+  override def deepPTypeUnifyOnSameVirtualTypes(ptypes: Seq[PType]): PType = {
+    val elementType = this.elementType.deepPTypeUnifyOnSameVirtualTypes(ptypes.map(_.asInstanceOf[PStream].elementType))
+    PStream(elementType, ptypes.forall(_.required))
+  }
 }
 

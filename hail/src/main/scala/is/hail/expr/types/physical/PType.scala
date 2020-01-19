@@ -152,6 +152,11 @@ object PType {
       case PVoid => PVoid
     }
   }
+
+  def deepTypeUnify(ptypes: Seq[PType]): PType = {
+    assert(ptypes.forall(_.virtualType.isOfType(ptypes.head.virtualType)))
+    ptypes.head.deepPTypeUnifyOnSameVirtualTypes(ptypes)
+  }
 }
 
 abstract class PType extends Serializable with Requiredness {
@@ -330,4 +335,7 @@ abstract class PType extends Serializable with Requiredness {
   def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]): Code[Unit]
 
   def storeShallowAtOffset(dstAddress: Long, srcAddress: Long)
+
+  def deepPTypeUnifyOnSameVirtualTypes(ptypes: Seq[PType]): PType =
+    ptypes.head.setRequired(ptypes.forall(_.required))
 }
