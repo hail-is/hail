@@ -898,6 +898,42 @@ class IRSuite extends HailSuite {
     assert(res == PInt32(true))
   }
 
+  @Test def testGetNestedElementPCall() {
+    var types = Seq(PCanonicalCall(true))
+    var res  = PType.deepTypeUnify(types)
+    assert(res == PCanonicalCall(true))
+
+    types = Seq(PCanonicalCall(false))
+    res  = PType.deepTypeUnify(types)
+    assert(res == PCanonicalCall(false))
+
+    types = Seq(PCanonicalCall(false), PCanonicalCall(true))
+    res  = PType.deepTypeUnify(types)
+    assert(res == PCanonicalCall(false))
+
+    types = Seq(PCanonicalCall(true), PCanonicalCall(true))
+    res  = PType.deepTypeUnify(types)
+    assert(res == PCanonicalCall(true))
+  }
+
+  @Test def testGetNestedElementPNDArray() {
+    var types = Seq(PCanonicalNDArray(PInt32(true), 3, true))
+    var res  = PType.deepTypeUnify(types)
+    assert(res == PCanonicalNDArray(PInt32(true), 3, true))
+
+    types = Seq(PCanonicalNDArray(PInt32(true), 3, false))
+    res  = PType.deepTypeUnify(types)
+    assert(res == PCanonicalNDArray(PInt32(true), 3, false))
+
+    types = Seq(PCanonicalNDArray(PInt32(true), 3, true), PCanonicalNDArray(PInt32(true), 3, false))
+    res  = PType.deepTypeUnify(types)
+    assert(res == PCanonicalNDArray(PInt32(true), 3, false))
+
+    types = Seq(PCanonicalNDArray(PInt32(true), 3, true), PCanonicalNDArray(PInt32(true), 3, true))
+    res  = PType.deepTypeUnify(types)
+    assert(res == PCanonicalNDArray(PInt32(true), 3, true))
+  }
+
   @Test def testGetNestedElementPTypesI64() {
     var types = Seq(PInt64(true))
     var res  = PType.deepTypeUnify(types)
