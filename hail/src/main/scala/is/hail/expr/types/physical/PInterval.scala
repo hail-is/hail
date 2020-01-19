@@ -25,7 +25,6 @@ abstract class PInterval extends ComplexPType {
 
   def copy(required: Boolean): PInterval
 
-  // FIXME: Remove region from ordering?
   override def unsafeOrdering(): UnsafeOrdering =
     new UnsafeOrdering {
       private val pOrd = pointType.unsafeOrdering()

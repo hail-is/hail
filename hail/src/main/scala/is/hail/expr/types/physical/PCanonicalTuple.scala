@@ -14,8 +14,8 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
   val (missingIdx: Array[Int], nMissing: Int) = BaseStruct.getMissingIndexAndCount(types.map(_.required))
   val nMissingBytes = UnsafeUtils.packBitsToBytes(nMissing)
   val byteOffsets = new Array[Long](size)
-  override val byteSize: Long = PCanonicalStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
-  override val alignment: Long = PCanonicalStruct.alignment(types)
+  override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
+  override val alignment: Long = PBaseStruct.alignment(types)
 
   def copy(required: Boolean = this.required): PTuple = PCanonicalTuple(_types, required)
 

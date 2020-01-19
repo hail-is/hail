@@ -505,13 +505,12 @@ private class Emit(
               c.concat("\n----------\nIR:\n").concat(prettied)
           case Str(s) => (c: Code[String]) => c.concat("\n----------\nPython traceback:\n").concat(const(s))
           case s =>
-            val pt = PCanonicalString()
             val codeS = emit(s)
             (c: Code[String]) =>
               Code(codeS.setup,
                 codeS.m.mux(c, c
                   .concat("\n----------\nPython traceback:\n")
-                  .concat(pt.loadString(coerce[Long](codeS.v)))))
+                  .concat(s.pType2.asInstanceOf[PString].loadString(coerce[Long](codeS.v)))))
         }
         val xma = mb.newLocal[Boolean]()
         val xa = mb.newLocal()(ati)

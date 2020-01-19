@@ -37,39 +37,6 @@ object PCanonicalStruct {
 
   def canonical(t: Type): PStruct = PType.canonical(t).asInstanceOf[PStruct]
   def canonical(t: PType): PStruct = PType.canonical(t).asInstanceOf[PStruct]
-
-  def getByteSizeAndOffsets(types: Array[PType], nMissingBytes: Long, byteOffsets: Array[Long]): Long = {
-    assert(byteOffsets.length == types.length)
-    val bp = new BytePacker()
-
-    var offset: Long = nMissingBytes
-    types.zipWithIndex.foreach { case (t, i) =>
-      val fSize = t.byteSize
-      val fAlignment = t.alignment
-
-      bp.getSpace(fSize, fAlignment) match {
-        case Some(start) =>
-          byteOffsets(i) = start
-        case None =>
-          val mod = offset % fAlignment
-          if (mod != 0) {
-            val shift = fAlignment - mod
-            bp.insertSpace(shift, offset)
-            offset += (fAlignment - mod)
-          }
-          byteOffsets(i) = offset
-          offset += fSize
-      }
-    }
-    offset
-  }
-
-  def alignment(types: Array[PType]): Long = {
-    if (types.isEmpty)
-      1
-    else
-      types.map(_.alignment).max
-  }
 }
 
 final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean = false) extends PStruct {
@@ -86,8 +53,8 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   val (missingIdx: Array[Int], nMissing: Int) = BaseStruct.getMissingIndexAndCount(types.map(_.required))
   val nMissingBytes = (nMissing + 7) >>> 3
   val byteOffsets = new Array[Long](size)
-  override val byteSize: Long = PCanonicalStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
-  override val alignment: Long = PCanonicalStruct.alignment(types)
+  override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
+  override val alignment: Long = if (types.isEmpty) 1 else types.map(_.alignment).max
 
   def copy(fields: IndexedSeq[PField] = this.fields, required: Boolean = this.required): PStruct = PCanonicalStruct(fields, required)
 
