@@ -672,8 +672,6 @@ package object utils extends Logging
       right
   }
 
-  val missingBitMask: Array[Byte] = (0 until 9).map { i => ((1 << i) - 1).toByte }.toArray
-
   def toMapFast[T, K, V](
     ts: TraversableOnce[T]
   )(key: T => K,
