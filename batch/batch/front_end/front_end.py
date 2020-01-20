@@ -420,7 +420,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
             job_attributes_args = []
 
             n_ready_jobs = 0
-            sum_ready_cores_mcpu = 0
+            ready_cores_mcpu = 0
+            n_ready_cancellable_jobs = 0
+            ready_cancellable_cores_mcpu = 0
 
             for spec in job_specs:
                 job_id = spec['job_id']
@@ -475,7 +477,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if len(parent_ids) == 0:
                     state = 'Ready'
                     n_ready_jobs += 1
-                    sum_ready_cores_mcpu += cores_mcpu
+                    ready_cores_mcpu += cores_mcpu
+                    if not always_run:
+                        n_ready_cancellable_jobs += 1
+                        ready_cancellable_cores_mcpu += cores_mcpu
                 else:
                     state = 'Pending'
 
@@ -519,7 +524,6 @@ INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 ''',
                                       job_attributes_args)
-
                 await tx.execute_update('''
 INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
 VALUES (%s, %s, %s, %s, %s)
@@ -529,8 +533,18 @@ ON DUPLICATE KEY UPDATE
   ready_cores_mcpu = ready_cores_mcpu + %s;
 ''',
                                         (batch_id, rand_token,
-                                         n_jobs, n_ready_jobs, sum_ready_cores_mcpu,
-                                         n_jobs, n_ready_jobs, sum_ready_cores_mcpu))
+                                         n_jobs, n_ready_jobs, ready_cores_mcpu,
+                                         n_jobs, n_ready_jobs, ready_cores_mcpu))
+                await tx.execute_update('''
+INSERT INTO batch_ready_cancellable (batch_id, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
+VALUES (%s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE
+  n_ready_cancellable_jobs = n_ready_cancellable_jobs + %s,
+  ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + %s;
+''',
+                                        (batch_id, rand_token,
+                                         n_ready_cancellable_jobs, ready_cancellable_cores_mcpu,
+                                         n_ready_cancellable_jobs, ready_cancellable_cores_mcpu))
             await insert()  # pylint: disable=no-value-for-parameter
     return web.Response()
 
