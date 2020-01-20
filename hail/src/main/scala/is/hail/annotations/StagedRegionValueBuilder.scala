@@ -247,9 +247,8 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
     val b = mb.newField[Array[Byte]]
     val boff = mb.newField[Long]
-    val pt = currentPType()
+    val pbT = currentPType().asInstanceOf[PBinary]
 
-    val pbT = pt.asInstanceOf[PBinary]
     Code(
       b := bytes,
       boff := pbT.allocate(region, b.length()),
