@@ -16,12 +16,12 @@ CREATE PROCEDURE recompute_incremental(
 
   START TRANSACTION;
 
-  DELETE FROM batch_staging;
+  DELETE FROM batches_staging;
   DELETE FROM batch_ready_cancellable;
   DELETE FROM ready_cores;
   DELETE FROM user_resources;
 
-  INSERT INTO batch_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+  INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
   SELECT t.batch_id, 0, t.n_jobs, t.n_ready_jobs, t.ready_cores_mcpu
   FROM (SELECT batch_id,
       COALESCE(SUM(1), 0) as n_jobs,
