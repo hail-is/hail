@@ -313,8 +313,6 @@ abstract class PBaseStruct extends PType {
   }
 
   override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcStructAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
-    assert(srcPType.isInstanceOf[PBaseStruct])
-
     val sourceType = srcPType.asInstanceOf[PBaseStruct]
 
     assert(sourceType.size == this.size)
@@ -371,8 +369,6 @@ abstract class PBaseStruct extends PType {
   }
 
   override def copyFromType(region: Region, srcPType: PType, srcStructAddress: Long, forceDeep: Boolean): Long = {
-    assert(srcPType.isInstanceOf[PBaseStruct])
-
     val sourceType = srcPType.asInstanceOf[PBaseStruct]
     if(this.fields.map(_.typ.fundamentalType) == sourceType.fields.map(_.typ.fundamentalType)) {
       if(!forceDeep) {

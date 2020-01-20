@@ -17,7 +17,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
       return srcAddress
     }
 
-    assert(this isOfType srcPType)
+    assert(srcPType.isInstanceOf[PBinary])
 
     val dstAddress = mb.newField[Long]
     val length = mb.newLocal[Int]
@@ -35,7 +35,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
       return srcAddress
     }
 
-    assert(this isOfType srcPType)
+    assert(srcPType.isInstanceOf[PBinary])
 
     val length = this.loadLength(srcAddress)
     val dstAddress = this.allocate(region, length)
