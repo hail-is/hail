@@ -1,3 +1,5 @@
+DROP PROCEDURE IF EXISTS recompute_incremental;
+DROP PROCEDURE IF EXISTS cancel_batch;
 DROP PROCEDURE IF EXISTS activate_instance;
 DROP PROCEDURE IF EXISTS deactivate_instance;
 DROP PROCEDURE IF EXISTS mark_instance_deleted;
@@ -13,6 +15,7 @@ DROP TRIGGER IF EXISTS attempts_before_update;
 DROP TRIGGER IF EXISTS attempts_after_update;
 DROP TRIGGER IF EXISTS jobs_after_update;
 
+DROP TABLE IF EXISTS `batch_ready_cancellable`;
 DROP TABLE IF EXISTS `globals`;
 DROP TABLE IF EXISTS `attempts`;
 DROP TABLE IF EXISTS `batch_attributes`;
