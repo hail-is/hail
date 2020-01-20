@@ -216,7 +216,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
-    assert(srcPType.isInstanceOf[PNDArray])
     val sourceNDPType = srcPType.asInstanceOf[PNDArray]
 
     assert(this.elementType == sourceNDPType.elementType && this.nDims == sourceNDPType.nDims)
@@ -225,7 +224,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long  = {
-    assert(srcPType.isInstanceOf[PNDArray])
     val sourceNDPType = srcPType.asInstanceOf[PNDArray]
 
     assert(this.elementType == sourceNDPType.elementType && this.nDims == sourceNDPType.nDims)
