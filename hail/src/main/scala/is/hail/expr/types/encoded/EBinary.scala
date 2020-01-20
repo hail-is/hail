@@ -16,7 +16,6 @@ class EBinary(override val required: Boolean) extends EType {
   def _buildEncoder(pt: PType, mb: EmitMethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
     val addr = coerce[Long](v)
     val len = mb.newLocal[Int]("len")
-    assert(pt.isInstanceOf[PBinary])
     val bT = pt.asInstanceOf[PBinary]
     Code(
       len := bT.loadLength(addr),
@@ -32,7 +31,6 @@ class EBinary(override val required: Boolean) extends EType {
   ): Code[_] = {
     val len = mb.newLocal[Int]("len")
     val barray = mb.newLocal[Long]("barray")
-    assert(pt.isInstanceOf[PBinary])
     val bT = pt.asInstanceOf[PBinary]
     Code(
       len := in.readInt(),

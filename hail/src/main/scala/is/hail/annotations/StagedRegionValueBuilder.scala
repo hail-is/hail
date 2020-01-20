@@ -249,7 +249,6 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     val boff = mb.newField[Long]
     val pt = currentPType()
 
-    assert(pt.isInstanceOf[PBinary])
     val pbT = pt.asInstanceOf[PBinary]
     Code(
       b := bytes,
