@@ -128,13 +128,13 @@ class GenAnnotationView(rowType: PStruct) extends View {
 
   def varid(): String = {
     if (cachedVarid == null)
-      cachedVarid = PString.loadString(varidOffset)
+      cachedVarid = varidField.typ.asInstanceOf[PString].loadString(varidOffset)
     cachedVarid
   }
 
   def rsid(): String = {
     if (cachedRsid == null)
-      cachedRsid = PString.loadString(rsidOffset)
+      cachedRsid = rsidField.typ.asInstanceOf[PString].loadString(rsidOffset)
     cachedRsid
   }
 }

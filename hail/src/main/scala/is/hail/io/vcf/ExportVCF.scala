@@ -43,8 +43,8 @@ object ExportVCF {
           sb += '.'
         else
           sb.append(x.formatted("%.6g"))
-      case PString(_) =>
-        sb.append(PString.loadString(offset))
+      case t@PString(_) =>
+        sb.append(t.loadString(offset))
       case _: PCall =>
         val c = Region.loadInt(offset)
         Call.vcfString(c, sb)
@@ -388,7 +388,7 @@ object ExportVCF {
 
         if (idExists && fullRowType.isFieldDefined(rv.offset, idIdx)) {
           val idOffset = fullRowType.loadField(rv.offset, idIdx)
-          sb.append(PString.loadString(idOffset))
+          sb.append(fullRowType.types(idIdx).asInstanceOf[PString].loadString(idOffset))
         } else
           sb += '.'
 

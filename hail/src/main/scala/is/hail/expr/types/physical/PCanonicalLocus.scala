@@ -2,9 +2,8 @@
 package is.hail.expr.types.physical
 import is.hail.variant.ReferenceGenome
 import is.hail.annotations._
-import is.hail.asm4s.{Code, MethodBuilder, coerce}
+import is.hail.asm4s.{Code, coerce}
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.utils._
 import is.hail.variant._
 
 
@@ -35,7 +34,9 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   val representation: PStruct = PCanonicalLocus.representation(required)
 
-  def contig(off: Code[Long]): Code[Long] = representation.loadField(off, 0)
+  def contig(address: Code[Long]): Code[Long] = representation.loadField(address, 0)
+
+  def contig(address: Long): Long = representation.loadField(address, 0)
 
   lazy val contigType: PString = representation.field("contig").typ.asInstanceOf[PString]
 
@@ -60,8 +61,8 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
           val posOff2 = repr.loadField(o2, 1)
           java.lang.Integer.compare(Region.loadInt(posOff1), Region.loadInt(posOff2))
         } else {
-          val contig1 = PString.loadString(cOff1)
-          val contig2 = PString.loadString(cOff2)
+          val contig1 = contigType.loadString(cOff1)
+          val contig2 = contigType.loadString(cOff2)
           localRGBc.value.compare(contig1, contig2)
         }
       }
@@ -72,15 +73,14 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     assert(other isOfType this)
     new CodeOrderingCompareConsistentWithOthers {
       type T = Long
-      val contigBin = representation.fundamentalType.fieldType("contig").asInstanceOf[PBinary]
-      val bincmp = contigBin.codeOrdering(mb)
+      val bincmp = representation.fundamentalType.fieldType("contig").asInstanceOf[PBinary].codeOrdering(mb)
 
       override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
         val c1 = mb.newLocal[Long]("c1")
         val c2 = mb.newLocal[Long]("c2")
 
-        val s1 = PString.loadString(c1)
-        val s2 = PString.loadString(c2)
+        val s1 = contigType.loadString(c1)
+        val s2 = contigType.loadString(c2)
 
         val p1 = Region.loadInt(representation.fieldOffset(x, 1))
         val p2 = Region.loadInt(representation.fieldOffset(y, 1))
