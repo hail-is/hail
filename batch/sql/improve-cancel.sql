@@ -102,7 +102,7 @@ CREATE PROCEDURE cancel_batch(
 )
 BEGIN
   DECLARE cur_user VARCHAR(100);
-  DECLARE cur_batch_state BOOLEAN;
+  DECLARE cur_batch_state VARCHAR(40);
   DECLARE cur_cancelled BOOLEAN;
   DECLARE cur_n_ready_cancelled_jobs INT;
   DECLARE cur_ready_cancelled_cores_mcpu BIGINT;
@@ -145,7 +145,7 @@ CREATE PROCEDURE close_batch(
   IN in_timestamp BIGINT
 )
 BEGIN
-  DECLARE cur_batch_state BOOLEAN;
+  DECLARE cur_batch_state VARCHAR(40);
   DECLARE expected_n_jobs INT;
   DECLARE staging_n_jobs INT;
   DECLARE staging_n_ready_jobs INT;
