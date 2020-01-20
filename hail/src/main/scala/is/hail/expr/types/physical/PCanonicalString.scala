@@ -55,23 +55,9 @@ abstract class PCanonicalString(val required: Boolean) extends PString {
   def loadString(bAddress: Code[Long]): Code[String] =
     Code.newInstance[String, Array[Byte]](this.fundamentalType.loadBytes(bAddress))
 
-  def allocate(region: Region, byteLength: Int): Long =
-    this.fundamentalType.allocate(region, byteLength)
-
-  def allocate(region: Code[Region], byteLength: Code[Int]): Code[Long] =
-    this.fundamentalType.allocate(region, byteLength)
-
-  def store(addr: Long, str: String) {
-    this.fundamentalType.store(addr, str.getBytes())
-  }
-
-  def store(addr: Code[Long], str: Code[String]): Code[Unit] = {
-    this.fundamentalType.store(addr, str.invoke[Array[Byte]]("getBytes"))
-  }
-
   def allocateAndStoreString(region: Region, str: String): Long = {
     val byteRep = str.getBytes()
-    val dstAddrss = this.allocate(region, byteRep.length)
+    val dstAddrss = this.fundamentalType.allocate(region, byteRep.length)
     this.fundamentalType.store(dstAddrss, byteRep)
     dstAddrss
   }
@@ -81,7 +67,7 @@ abstract class PCanonicalString(val required: Boolean) extends PString {
     val byteRep = mb.newField[Array[Byte]]
     Code(
       byteRep := str.invoke[Array[Byte]]("getBytes"),
-      dstAddress := this.allocate(region, byteRep.length),
+      dstAddress := this.fundamentalType.allocate(region, byteRep.length),
       this.fundamentalType.store(dstAddress, byteRep),
       dstAddress
     )
