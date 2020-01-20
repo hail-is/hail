@@ -582,12 +582,12 @@ WHERE token = %s AND user = %s FOR UPDATE;
         now = time_msecs()
         id = await tx.execute_insertone(
             '''
-INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, token)
+INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, token, state)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (json.dumps(userdata), user, billing_project, json.dumps(attributes),
              batch_spec.get('callback'), batch_spec['n_jobs'],
-             now, token))
+             now, token, 'open'))
 
         if attributes:
             await tx.execute_many(
