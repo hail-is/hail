@@ -510,7 +510,7 @@ private class Emit(
               Code(codeS.setup,
                 codeS.m.mux(c, c
                   .concat("\n----------\nPython traceback:\n")
-                  .concat(s.pType2.asInstanceOf[PString].loadString(coerce[Long](codeS.v)))))
+                  .concat(s.pType.asInstanceOf[PString].loadString(coerce[Long](codeS.v)))))
         }
         val xma = mb.newLocal[Boolean]()
         val xa = mb.newLocal()(ati)

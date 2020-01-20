@@ -31,6 +31,13 @@ object PBaseStruct {
     }
     offset
   }
+
+  def alignment(types: Array[PType]): Long = {
+    if (types.isEmpty)
+      1
+    else
+      types.map(_.alignment).max
+  }
 }
 
 abstract class PBaseStruct extends PType {

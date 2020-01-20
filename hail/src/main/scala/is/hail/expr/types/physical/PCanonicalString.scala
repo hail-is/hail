@@ -2,7 +2,6 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, MethodBuilder}
-
 case object PCanonicalStringOptional extends PCanonicalString(false)
 case object PCanonicalStringRequired extends PCanonicalString(true)
 
@@ -62,12 +61,30 @@ abstract class PCanonicalString(val required: Boolean) extends PString {
   def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
     this.fundamentalType.allocate(region, length)
 
-  def store(addr: Long, bytes: Array[Byte]) {
-    this.fundamentalType.store(addr, bytes)
+  def store(addr: Long, str: String) {
+    this.fundamentalType.store(addr, str.getBytes())
   }
 
-  def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] = {
-    this.fundamentalType.store(addr, bytes)
+  def store(addr: Code[Long], str: Code[String]): Code[Unit] = {
+    this.fundamentalType.store(addr, str.invoke[Array[Byte]]("getBytes"))
+  }
+
+  def allocateAndStoreString(region: Region, str: String): Long = {
+    val byteRep = str.getBytes()
+    val dstAddrss = this.allocate(region, byteRep.length)
+    this.fundamentalType.store(dstAddrss, byteRep)
+    dstAddrss
+  }
+
+  def allocateAndStoreString(mb: MethodBuilder, region: Code[Region], str: Code[String]): Code[Long] = {
+    val dstAddress = mb.newField[Long]
+    val byteRep = mb.newField[Array[Byte]]
+    Code(
+      byteRep := str.invoke[Array[Byte]]("getBytes"),
+      dstAddress := this.allocate(region, byteRep.length),
+      this.fundamentalType.store(dstAddress, byteRep),
+      dstAddress
+    )
   }
 }
 

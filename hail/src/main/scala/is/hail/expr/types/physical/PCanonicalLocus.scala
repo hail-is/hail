@@ -2,9 +2,8 @@
 package is.hail.expr.types.physical
 import is.hail.variant.ReferenceGenome
 import is.hail.annotations._
-import is.hail.asm4s.{Code, MethodBuilder, coerce}
+import is.hail.asm4s.{Code, coerce}
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.utils._
 import is.hail.variant._
 
 
