@@ -159,7 +159,7 @@ BEGIN
       INSERT INTO ready_cores (token, ready_cores_mcpu) VALUES (rand_token, -OLD.cores_mcpu)
       ON DUPLICATE KEY UPDATE
 	ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu;
-    ENDIF;
+    END IF;
   ELSEIF OLD.state = 'Running' THEN
     INSERT INTO user_resources (user, token, n_running_jobs, running_cores_mcpu) VALUES (cur_user, rand_token, -1, -OLD.cores_mcpu)
     ON DUPLICATE KEY UPDATE
