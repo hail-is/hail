@@ -6,7 +6,7 @@ CREATE TABLE `batch_ready_cancellable` (
   `n_ready_cancellable_jobs` INT NOT NULL DEFAULT 0,
   `ready_cancellable_cores_mcpu` BIGINT NOT NULL DEFAULT 0,
   PRIMARY KEY (`batch_id`, `token`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 DELIMITER $$
