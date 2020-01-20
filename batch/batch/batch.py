@@ -15,25 +15,27 @@ log = logging.getLogger('batch')
 
 
 def batch_record_to_dict(app, record):
-    if not record['closed']:
+    if record['state'] == 'open':
         state = 'open'
     elif record['n_failed'] > 0:
         state = 'failure'
-    elif record['cancelled']:
+    elif record['cancelled'] or record['n_cancelled'] > 0:
         state = 'cancelled'
-    elif record['closed'] and record['n_succeeded'] == record['n_jobs']:
+    elif record['state'] == 'complete':
+        assert record['n_succeeded'] == record['n_jobs']
         state = 'success'
     else:
         state = 'running'
 
-    complete = record['closed'] and record['n_completed'] == record['n_jobs']
+    complete = record['state'] == 'complete'
 
     d = {
         'id': record['id'],
         'billing_project': record['billing_project'],
+        # FIXME switching to record['state']
         'state': state,
-        'complete': complete,
-        'closed': record['closed'],
+        'complete': record['state'] == 'complete',
+        'closed': record['state'] != 'open',
         'n_jobs': record['n_jobs'],
         'n_completed': record['n_completed'],
         'n_succeeded': record['n_succeeded'],
@@ -60,7 +62,7 @@ async def notify_batch_job_complete(app, db, batch_id):
 SELECT *
 FROM batches
 WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
-   closed AND n_completed = n_jobs;
+   `state` = 'complete'
 ''',
         (batch_id,))
 

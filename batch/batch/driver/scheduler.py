@@ -132,7 +132,7 @@ SELECT attempts.job_id, attempts.batch_id, attempts.attempt_id, instance_name
 FROM attempts
 STRAIGHT_JOIN batches ON batches.id = attempts.batch_id
 STRAIGHT_JOIN jobs ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
-WHERE jobs.state = 'Running' AND (NOT jobs.always_run) AND batches.closed AND batches.cancelled AND batches.user = %s
+WHERE jobs.state = 'Running' AND (NOT jobs.always_run) AND batches.`state` = 'running' AND batches.cancelled AND batches.user = %s
 LIMIT 50;
 ''',
                 (user_record['user'],))
@@ -175,7 +175,7 @@ SELECT job_id, batch_id, spec, cores_mcpu,
   userdata, user
 FROM jobs
 STRAIGHT_JOIN batches ON batches.id = jobs.batch_id
-WHERE jobs.state = 'Ready' AND batches.closed AND batches.user = %s
+WHERE jobs.state = 'Ready' AND batches.`state` = 'running' AND batches.user = %s
 LIMIT 50;
 ''',
                 (user, ))

@@ -301,14 +301,27 @@ async def _query_batches(request, user):
            `batch_attributes`.`key` = %s))
 '''
             args = [k]
-        elif t == 'complete':
-            condition = '(closed AND n_jobs = n_completed)'
+        elif t == 'open':
+            condition = "(`state` = 'open')"
             args = []
         elif t == 'closed':
-            condition = '(closed)'
+            condition = "(`state` != 'open')"
             args = []
-        elif t in ('open', 'running', 'success', 'cancelled', 'failure'):
-            condition = '(state = %s)'
+        elif t == 'complete':
+            condition = "(`state` = 'complete')"
+            args = []
+        elif t == 'running':
+            condition = "(`state` = 'running')"
+            args = []
+        elif t == 'cancelled':
+            condition = '(cancelled)'
+            args = []
+        elif t == 'failure':
+            condition = '(n_failed > 0)'
+            args = []
+        elif t == 'success':
+            # need complete because there might be no jobs
+            condition = "(`state` = 'complete' AND n_succeeded = n_jobs)"
             args = [t]
         else:
             session = await aiohttp_session.get_session(request)
@@ -323,14 +336,7 @@ async def _query_batches(request, user):
 
     sql = f'''
 SELECT *
-FROM (SELECT *, CASE
-    WHEN NOT closed THEN 'open'
-    WHEN n_failed > 0 THEN 'failure'
-    WHEN n_cancelled > 0 THEN 'cancelled'
-    WHEN n_succeeded = n_jobs THEN 'success'
-    ELSE 'running'
-  END AS state
-FROM batches) as t
+FROM batches
 WHERE {' AND '.join(where_conditions)}
 ORDER BY id DESC
 LIMIT 50;
@@ -389,15 +395,15 @@ async def create_jobs(request, userdata):
         async with timer.step('fetch batch'):
             record = await db.select_and_fetchone(
                 '''
-SELECT closed FROM batches
+SELECT `state` FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
                 (user, batch_id))
 
         if not record:
             raise web.HTTPNotFound()
-        if record['closed']:
-            raise web.HTTPBadRequest(reason=f'batch {batch_id} is already closed')
+        if record['state'] != 'open':
+            raise web.HTTPBadRequest(reason=f'batch {batch_id} is not open')
 
         async with timer.step('get request json'):
             job_specs = await request.json()
@@ -614,13 +620,13 @@ async def _cancel_batch(app, batch_id, user):
 
     record = await db.select_and_fetchone(
         '''
-SELECT closed FROM batches
+SELECT `state` FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
         (user, batch_id))
     if not record:
         raise web.HTTPNotFound()
-    if not record['closed']:
+    if record['state'] == 'open':
         raise web.HTTPBadRequest(reason=f'cannot cancel open batch {batch_id}')
 
     await db.just_execute(
@@ -636,17 +642,19 @@ async def _delete_batch(app, batch_id, user):
 
     record = await db.select_and_fetchone(
         '''
-SELECT closed FROM batches
+SELECT `state` FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
         (user, batch_id))
     if not record:
         raise web.HTTPNotFound()
 
+    await db.just_execute(
+        'CALL cancel_batch(%s);', (batch_id,))
     await db.execute_update(
-        'UPDATE batches SET cancelled = closed, deleted = 1 WHERE id = %s;', (batch_id,))
+        'UPDATE batches SET deleted = 1 WHERE id = %s;', (batch_id,))
 
-    if record['closed']:
+    if record['state'] == 'running':
         app['delete_batch_state_changed'].set()
 
 
@@ -681,7 +689,7 @@ async def close_batch(request, userdata):
 
     record = await db.select_and_fetchone(
         '''
-SELECT closed FROM batches
+SELECT 1 FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
         (user, batch_id))
