@@ -322,7 +322,7 @@ async def _query_batches(request, user):
         elif t == 'success':
             # need complete because there might be no jobs
             condition = "(`state` = 'complete' AND n_succeeded = n_jobs)"
-            args = [t]
+            args = []
         else:
             session = await aiohttp_session.get_session(request)
             set_message(session, f'Invalid search term: {t}.', 'error')
