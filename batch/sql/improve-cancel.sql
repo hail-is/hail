@@ -177,7 +177,7 @@ BEGIN
       ELSE
         UPDATE batches SET `state` = 'running'
 	  WHERE id = in_batch_id;
-      ENDIF;
+      END IF;
 
       INSERT INTO ready_cores (token, ready_cores_mcpu)
       VALUES (0, staging_ready_cores_mcpu)
