@@ -581,8 +581,7 @@ object EmitStream {
 
         case ReadPartition(path, spec, requestedType) =>
           val p = emitIR(path, env)
-          val pathString = Code.invokeScalaObject[Long, String](
-            PString.getClass, "loadString", p.value[Long])
+          val pathString = path.pType.asInstanceOf[PString].loadString(p.value[Long])
 
           val (_, dec) = spec.buildEmitDecoderF(requestedType, fb)
 

@@ -221,14 +221,14 @@ object StringFunctions extends RegistryFunctions {
       val m = Code(
         v1 := e1.value[Long],
         v2 := e2.value[Long],
-        len := PBinary.loadLength(v1),
-        len.cne(PBinary.loadLength(v2)))
+        len := e1T.loadLength(v1),
+        len.cne(e2T.loadLength(v2)))
       val v =
         Code(n := 0,
           i := 0,
           Code.whileLoop(i < len,
-            Region.loadByte(PBinary.bytesOffset(v1) + i.toL)
-              .cne(Region.loadByte(PBinary.bytesOffset(v2) + i.toL)).mux(
+            Region.loadByte(e1T.bytesOffset(v1) + i.toL)
+              .cne(Region.loadByte(e2T.bytesOffset(v2) + i.toL)).mux(
               n += 1,
               Code._empty[Unit]),
             i += 1),

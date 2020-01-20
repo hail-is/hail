@@ -39,10 +39,8 @@ class UnsafeIndexedSeq(
 }
 
 object UnsafeRow {
-  def readBinary(region: Region, boff: Long, t: PBinary): Array[Byte] = {
-    val binLength = PBinary.loadLength(boff)
-    Region.loadBytes(PBinary.bytesOffset(boff), binLength)
-  }
+  def readBinary(region: Region, boff: Long, t: PBinary): Array[Byte] =
+    t.loadBytes(boff)
 
   def readArray(t: PContainer, region: Region, aoff: Long): IndexedSeq[Any] =
     new UnsafeIndexedSeq(t, region, aoff)

@@ -5,8 +5,6 @@ import is.hail.asm4s.{Code, MethodBuilder}
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TBoolean
 
-import scala.reflect.{ClassTag, _}
-
 case object PBooleanOptional extends PBoolean(false)
 case object PBooleanRequired extends PBoolean(true)
 
