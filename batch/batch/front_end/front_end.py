@@ -623,8 +623,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record['closed']:
         raise web.HTTPBadRequest(reason=f'cannot cancel open batch {batch_id}')
 
-    await db.execute_update(
-        'UPDATE batches SET cancelled = closed WHERE id = %s;', (batch_id,))
+    await db.just_execute(
+        'CALL cancel_batch(%s);', (batch_id,))
 
     app['cancel_batch_state_changed'].set()
 
