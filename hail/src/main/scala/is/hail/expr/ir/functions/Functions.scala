@@ -195,8 +195,7 @@ abstract class RegistryFunctions {
     case _: TFloat32 => identity[Code[_]]
     case _: TFloat64 => identity[Code[_]]
     case _: TString => c =>
-      val psT = pt.asInstanceOf[PString]
-      psT.allocateAndStoreString(r.mb, r.region, coerce[String](c))
+      pt.asInstanceOf[PString].allocateAndStoreString(r.mb, r.region, coerce[String](c))
     case _: TCall => coerce[Int]
     case TArray(_: TInt32, _) => c =>
       val srvb = new StagedRegionValueBuilder(r, pt)
