@@ -273,7 +273,6 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def addBinary(bytes: Array[Byte]) {
-    assert(currentType().isInstanceOf[PBinary])
     val pbt = currentType().asInstanceOf[PBinary]
     val valueAddress = pbt.allocate(region, bytes.length)
     pbt.store(valueAddress, bytes)
