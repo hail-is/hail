@@ -27,8 +27,6 @@ def batch_record_to_dict(app, record):
     else:
         state = 'running'
 
-    complete = record['state'] == 'complete'
-
     d = {
         'id': record['id'],
         'billing_project': record['billing_project'],
@@ -62,7 +60,7 @@ async def notify_batch_job_complete(app, db, batch_id):
 SELECT *
 FROM batches
 WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
-   `state` = 'complete'
+   batches.`state` = 'complete'
 ''',
         (batch_id,))
 

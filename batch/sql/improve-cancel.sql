@@ -217,7 +217,7 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT state, cores_mcpu, attempt_id,
+  SELECT jobs.state, cores_mcpu, attempt_id,
     (jobs.cancelled OR batches.cancelled) AND NOT always_run
   INTO cur_job_state, cur_cores_mcpu, cur_attempt_id, cur_job_cancel
   FROM jobs
@@ -272,7 +272,7 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT state, cores_mcpu,
+  SELECT jobs.state, cores_mcpu,
     (jobs.cancelled OR batches.cancelled) AND NOT always_run
   INTO cur_job_state, cur_cores_mcpu, cur_job_cancel
   FROM jobs
