@@ -32,9 +32,9 @@ abstract class PString extends PType {
 
   def loadString(boff: Code[Long]): Code[String]
 
-  def allocate(region: Region, length: Int): Long
+  def allocate(region: Region, byteLength: Int): Long
 
-  def allocate(region: Code[Region], length: Code[Int]): Code[Long]
+  def allocate(region: Code[Region], byteLength: Code[Int]): Code[Long]
 
   def store(addr: Long, bytes: String)
 
