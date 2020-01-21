@@ -162,6 +162,16 @@ trait EncoderAsmFunction { def apply(off: Long, out: OutputBuffer): Unit }
 
 object EType {
 
+  protected[encoded] val lowBitMask: Array[Byte] = {
+    val a = new Array[Byte](8)
+    a(0) = (-1).toByte
+    (1 until 8).foreach { i =>
+      a(i) = ((1 << i) - 1).toByte
+    }
+    a
+  }
+
+
   val cacheCapacity = 256
   protected val encoderCache = new util.LinkedHashMap[(EType, PType), () => EncoderAsmFunction](cacheCapacity, 0.75f, true) {
     override def removeEldestEntry(eldest: Entry[(EType, PType), () => EncoderAsmFunction]): Boolean = size() > cacheCapacity

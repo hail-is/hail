@@ -44,7 +44,18 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
     val writeLen = out.writeInt(prefixLen)
     val writeMissingBytes =
       if (!pt.elementType.required) {
-        out.writeBytes(array + const(pt.lengthHeaderBytes), pt.nMissingBytes(prefixLen))
+        val nMissingLocal = mb.newLocal[Int]("nMissingBytes")
+        Code(
+          nMissingLocal := pt.nMissingBytes(prefixLen),
+          (nMissingLocal > 0).orEmpty(
+            Code(
+              out.writeBytes(array + const(pt.lengthHeaderBytes), nMissingLocal - 1),
+              out.writeByte((Region.loadByte(array + const(pt.lengthHeaderBytes) +
+                (nMissingLocal - 1).toL) & Code.invokeScalaObject[Array[Byte]](EType.getClass, "lowBitMask")
+                .apply(nMissingLocal & 0x7)).toB)
+            )
+          )
+        )
       } else
         Code._empty[Unit]
 
