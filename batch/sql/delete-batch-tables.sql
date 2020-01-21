@@ -15,7 +15,7 @@ DROP TRIGGER IF EXISTS attempts_before_update;
 DROP TRIGGER IF EXISTS attempts_after_update;
 DROP TRIGGER IF EXISTS jobs_after_update;
 
-DROP TABLE IF EXISTS `batch_ready_cancellable`;
+DROP TABLE IF EXISTS `batch_cancellable_resources`;
 DROP TABLE IF EXISTS `globals`;
 DROP TABLE IF EXISTS `attempts`;
 DROP TABLE IF EXISTS `batch_attributes`;

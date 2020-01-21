@@ -536,7 +536,7 @@ ON DUPLICATE KEY UPDATE
                                          n_jobs, n_ready_jobs, ready_cores_mcpu,
                                          n_jobs, n_ready_jobs, ready_cores_mcpu))
                 await tx.execute_update('''
-INSERT INTO batch_ready_cancellable (batch_id, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
+INSERT INTO batch_cancellable_resources (batch_id, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
 VALUES (%s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_ready_cancellable_jobs = n_ready_cancellable_jobs + %s,
