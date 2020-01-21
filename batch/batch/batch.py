@@ -82,6 +82,7 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
 async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, new_state,
                             status, start_time, end_time, reason):
     scheduler_state_changed = app['scheduler_state_changed']
+    cancel_ready_changed = app['cancel_ready_changed']
     db = app['db']
     inst_pool = app['inst_pool']
 
@@ -107,6 +108,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
             if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
                 instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
                 scheduler_state_changed.set()
+                cancel_ready_changed.set()
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
 

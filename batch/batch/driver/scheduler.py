@@ -13,11 +13,17 @@ log = logging.getLogger('driver')
 OVERSCHEDULE_CORES_MCPU = 2000
 
 
+class Box:
+    def __init__(self, value):
+        self.value = value
+
+
 class Scheduler:
     def __init__(self, app):
         self.app = app
         self.scheduler_state_changed = app['scheduler_state_changed']
-        self.cancel_state_changed = app['cancel_state_changed']
+        self.cancel_ready_state_changed = app['cancel_ready_state_changed']
+        self.cancel_running_state_changed = app['cancel_running_state_changed']
         self.db = app['db']
         self.inst_pool = app['inst_pool']
 
@@ -26,8 +32,11 @@ class Scheduler:
             'schedule_loop',
             run_if_changed, self.scheduler_state_changed, self.schedule_loop_body))
         asyncio.ensure_future(retry_long_running(
-            'cancel_loop',
-            run_if_changed, self.cancel_state_changed, self.cancel_loop_body))
+            'cancel_cancelled_ready_jobs_loop',
+            run_if_changed, self.cancel_ready_state_changed, self.cancel_cancelled_ready_jobs_loop_body))
+        asyncio.ensure_future(retry_long_running(
+            'cancel_cancelled_running_jobs_loop',
+            run_if_changed, self.cancel_running_state_changed, self.cancel_cancelled_running_jobs_loop_body))
         asyncio.ensure_future(retry_long_running(
             'bump_loop',
             self.bump_loop))
@@ -111,33 +120,140 @@ GROUP BY user;
     async def bump_loop(self):
         while True:
             self.scheduler_state_changed.set()
-            self.cancel_state_changed.set()
+            self.cancel_ready_state_changed.set()
+            self.cancel_running_state_changed.set()
             await asyncio.sleep(60)
 
-    async def cancel_loop_body(self):
-        user_records = self.db.select_and_fetchall(
+    async def cancel_cancelled_ready_jobs_loop_body(self):
+        records = self.db.select_and_fetchall(
             '''
-SELECT user
-FROM user_resources
-GROUP BY user
-HAVING COALESCE(SUM(running_cores_mcpu), 0) > 0;
+SELECT user, n_cancelled_ready_jobs
+FROM (SELECT user,
+    CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS n_cancelled_ready_jobs
+  FROM user_resources
+  GROUP BY user) AS t
+WHERE n_cancelled_ready_jobs > 0;
 ''')
+        user_n_cancelled_ready_jobs = {
+            record['user']: record['n_cancelled_ready_jobs'] async for record in records
+        }
+
+        total = sum(user_n_cancelled_ready_jobs.values())
+        user_share = {
+            user: max(int(1000 * user_n_jobs / total), 20)
+            for user, user_n_jobs in user_n_cancelled_ready_jobs.items()
+        }
+
+        async def user_cancelled_ready_jobs(user, remaining):
+            async for batch in self.db.select_and_fetchall(
+                    '''
+SELECT id, cancelled
+FROM batches
+WHERE user = %s AND `state` = 'running';
+''',
+                    (user,)):
+                if batch['cancelled']:
+                    async for record in self.db.select_and_fetchall(
+                            '''
+SELECT jobs.batch_id, jobs.job_id
+FROM jobs
+WHERE batch_id = %s AND always_run = 0 AND state = 'Ready'
+LIMIT %s;
+''',
+                            (batch['id'], remaining.value)):
+                        yield record
+                else:
+                    async for record in self.db.select_and_fetchall(
+                            '''
+SELECT jobs.batch_id, jobs.job_id
+FROM jobs
+WHERE batch_id = %s AND always_run = 0 AND state = 'Ready' AND cancelled = 1
+LIMIT %s;
+''',
+                            (batch['id'], remaining.value)):
+                        yield record
 
         should_wait = True
         async_work = []
-        async for user_record in user_records:
-            records = self.db.execute_and_fetchall(
-                '''
-SELECT attempts.job_id, attempts.batch_id, attempts.attempt_id, instance_name
-FROM attempts
-STRAIGHT_JOIN batches ON batches.id = attempts.batch_id
-STRAIGHT_JOIN jobs ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
-WHERE jobs.state = 'Running' AND (NOT jobs.always_run) AND batches.`state` = 'running' AND batches.cancelled AND batches.user = %s
-LIMIT 50;
+        for user, share in user_share.items():
+            remaining = Box(share)
+            async for record in user_cancelled_ready_jobs(user, remaining):
+                batch_id = record['batch_id']
+                job_id = record['job_id']
+                id = (batch_id, job_id)
+                log.info(f'cancelling job {id}')
+
+                async def cancel_with_error_handling(id, f):
+                    try:
+                        await f()
+                    except Exception:
+                        log.info(f'error while cancelling job {id}', exc_info=True)
+                async_work.append(
+                    functools.partial(
+                        cancel_with_error_handling,
+                        id,
+                        functools.partial(mark_job_complete,
+                                          self.app, batch_id, job_id, None, None,
+                                          'Cancelled', None, None, None, 'cancelled')))
+
+                remaining.value -= 1
+                if remaining.value == 0:
+                    should_wait = False
+                    break
+
+        await bounded_gather(*[x for x in async_work], parallelism=100)
+        return should_wait
+
+    async def cancel_cancelled_running_jobs_loop_body(self):
+        records = self.db.select_and_fetchall(
+            '''
+SELECT user, n_cancelled_running_jobs
+FROM (SELECT user,
+    CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS n_cancelled_running_jobs
+  FROM user_resources
+  GROUP BY user) AS t
+WHERE n_cancelled_running_jobs > 0;
+''')
+        user_n_cancelled_running_jobs = {
+            record['user']: record['n_cancelled_running_jobs'] async for record in records
+        }
+
+        total = sum(user_n_cancelled_running_jobs.values())
+        user_share = {
+            user: max(int(1000 * user_n_jobs / total), 20)
+            for user, user_n_jobs in user_n_cancelled_running_jobs.items()
+        }
+
+        async def user_cancelled_running_jobs(user, remaining):
+            async for batch in self.db.select_and_fetchall(
+                    '''
+SELECT id
+FROM batches
+WHERE user = %s AND `state` = 'running' AND cancelled = 1;
 ''',
-                (user_record['user'],))
-            async for record in records:
-                should_wait = False
+                    (user,)):
+                async for record in self.db.select_and_fetchall(
+                        '''
+SELECT jobs.batch_id, jobs.job_id, jobs.attempt_id, attempts.instance_name,
+FROM jobs
+STRAIGHT_JOIN attempts
+ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
+AND attempts.attempt_id = jobs.attempt_id
+WHERE batch_id = %s AND always_run = 0 AND state = 'Running' AND cancelled = 0
+AND jobs.attempt_id IS NOT NULL
+LIMIT %s;
+''',
+                        (batch['id'], remaining.value)):
+                    yield record
+
+        async_work = []
+        should_wait = True
+        for user, share in user_share.items():
+            remaining = Box(share)
+            async for record in user_cancelled_running_jobs(user, remaining):
+                batch_id = record['batch_id']
+                job_id = record['job_id']
+                id = (batch_id, job_id)
 
                 async def unschedule_with_error_handling(id, instance, f):
                     try:
@@ -152,61 +268,69 @@ LIMIT 50;
                             unschedule_job,
                             self.app, record)))
 
+                remaining.value -= 1
+                if remaining.value == 0:
+                    should_wait = False
+                    break
+
         await bounded_gather(*[x for x in async_work], parallelism=100)
         return should_wait
 
     async def schedule_loop_body(self):
         user_resources = await self.compute_fair_share()
 
-        should_wait = True
+        async def user_runnable_jobs(user, remaining):
+            async for batch in self.db.select_and_fetchall(
+                    '''
+SELECT id, cancelled
+FROM batches
+WHERE user = %s AND `state` = 'running';
+            ''',
+                    (user,)):
+                async for record in self.db.select_and_fetchall(
+                        '''
+SELECT job_id, spec, cores_mcpu, userdata, user
+FROM jobs
+WHERE batch_id = %s AND always_run = 1 AND state = 'Ready'
+LIMIT %s;
+''',
+                        (batch['id'], remaining.value)):
+                    yield record
+                if not batch['cancelled']:
+                    async for record in self.db.select_and_fetchall(
+                            '''
+SELECT job_id, spec, cores_mcpu, userdata, user
+FROM jobs
+WHERE batch_id = %s AND always_run = 0 AND state = 'Ready' AND cancelled = 0
+LIMIT %s;
+''',
+                            (batch['id'], remaining.value)):
+                        yield record
+
+        total = sum(resources['allocated_cores_mcpu']
+                    for resources in user_resources.values())
+        user_share = {
+            user: max(1000 * resources['allocated_cores_mcpu'] / total, 20)
+            for user, resources in user_resources.items()
+        }
 
         async_work = []
+        should_wait = True
         for user, resources in user_resources.items():
             allocated_cores_mcpu = resources['allocated_cores_mcpu']
             if allocated_cores_mcpu == 0:
                 continue
 
             scheduled_cores_mcpu = 0
+            share = user_share[user]
 
-            records = self.db.select_and_fetchall(
-                '''
-SELECT job_id, batch_id, spec, cores_mcpu,
-  ((jobs.cancelled OR batches.cancelled) AND NOT always_run) AS cancel,
-  userdata, user
-FROM jobs
-STRAIGHT_JOIN batches ON batches.id = jobs.batch_id
-WHERE jobs.state = 'Ready' AND batches.`state` = 'running' AND batches.user = %s
-LIMIT 50;
-''',
-                (user, ))
-
-            async for record in records:
+            remaining = Box(share)
+            async for record in user_runnable_jobs(user, remaining):
                 batch_id = record['batch_id']
                 job_id = record['job_id']
+                id = (batch_id, job_id)
                 attempt_id = ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(6)])
                 record['attempt_id'] = attempt_id
-                id = (batch_id, job_id)
-
-                if record['cancel']:
-                    log.info(f'cancelling job {id}')
-                    should_wait = False
-
-                    async def cancel_with_error_handling(id, f):
-                        try:
-                            await f()
-                        except Exception:
-                            log.info(f'error while cancelling job {id}', exc_info=True)
-                    async_work.append(
-                        functools.partial(
-                            cancel_with_error_handling,
-                            id,
-                            functools.partial(mark_job_complete,
-                                              self.app, batch_id, job_id, None, None,
-                                              'Cancelled', None, None, None, 'cancelled')))
-                    continue
-
-                if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
-                    break
 
                 i = self.inst_pool.healthy_instances_by_free_cores.bisect_key_left(record['cores_mcpu'])
                 if i < len(self.inst_pool.healthy_instances_by_free_cores):
@@ -216,7 +340,6 @@ LIMIT 50;
                 if (record['cores_mcpu'] <= instance.free_cores_mcpu + OVERSCHEDULE_CORES_MCPU or
                         instance.free_cores_mcpu == 0):
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
-                    should_wait = False
                     scheduled_cores_mcpu += record['cores_mcpu']
 
                     async def schedule_with_error_handling(id, instance, f):
@@ -231,6 +354,14 @@ LIMIT 50;
                             functools.partial(
                                 schedule_job,
                                 self.app, record, instance)))
+
+                remaining.value -= 1
+                if remaining.value == 0:
+                    should_wait = False
+                    break
+                if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
+                    should_wait = False
+                    break
 
         await bounded_gather(*[x for x in async_work], parallelism=100)
         return should_wait

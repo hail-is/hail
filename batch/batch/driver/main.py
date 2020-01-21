@@ -163,16 +163,16 @@ SELECT state FROM batches WHERE user = %s AND id = %s;
 @routes.post('/api/v1alpha/batches/cancel')
 @batch_only
 async def cancel_batch(request):
-    request.app['cancel_state_changed'].set()
-    request.app['scheduler_state_changed'].set()
+    request.app['cancel_running_state_changed'].set()
+    request.app['cancel_ready_state_changed'].set()
     return web.Response()
 
 
 @routes.post('/api/v1alpha/batches/delete')
 @batch_only
 async def delete_batch(request):
-    request.app['cancel_state_changed'].set()
-    request.app['scheduler_state_changed'].set()
+    request.app['cancel_running_state_changed'].set()
+    request.app['cancel_ready_state_changed'].set()
     return web.Response()
 
 
@@ -421,8 +421,11 @@ async def on_startup(app):
     scheduler_state_changed = asyncio.Event()
     app['scheduler_state_changed'] = scheduler_state_changed
 
-    cancel_state_changed = asyncio.Event()
-    app['cancel_state_changed'] = cancel_state_changed
+    cancel_ready_state_changed = asyncio.Event()
+    app['cancel_ready_state_changed'] = cancel_ready_state_changed
+
+    cancel_running_state_changed = asyncio.Event()
+    app['cancel_running_state_changed'] = cancel_running_state_changed
 
     log_store = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
     app['log_store'] = log_store
