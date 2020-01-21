@@ -259,7 +259,6 @@ BEGIN
     AND job_id = in_job_id
   FOR UPDATE;
 
-  # FIXME if state is complete this will have the wrong cores_mcpu
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);
 
   IF delta_cores_mcpu = 0 THEN
@@ -270,7 +269,6 @@ BEGIN
 
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
 
-  # FIXME when making attempt for inactive instance, attempt endtime should match instance?
   IF cur_job_state = 'Ready' AND NOT cur_job_cancel AND cur_instance_state = 'active' THEN
     UPDATE jobs SET state = 'Running', attempt_id = in_attempt_id WHERE batch_id = in_batch_id AND job_id = in_job_id;
     COMMIT;
@@ -314,7 +312,6 @@ BEGIN
     AND job_id = in_job_id
   FOR UPDATE;
 
-  # FIXME if state is complete this will have the wrong cores_mcpu
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);
 
   UPDATE attempts SET start_time = new_start_time
