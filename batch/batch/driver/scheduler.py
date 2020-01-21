@@ -155,22 +155,24 @@ WHERE user = %s AND `state` = 'running';
                 if batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
                             '''
-SELECT jobs.batch_id, jobs.job_id
+SELECT jobs.job_id
 FROM jobs
 WHERE batch_id = %s AND always_run = 0 AND state = 'Ready'
 LIMIT %s;
 ''',
                             (batch['id'], remaining.value)):
+                        record['batch_id'] = batch['id']
                         yield record
                 else:
                     async for record in self.db.select_and_fetchall(
                             '''
-SELECT jobs.batch_id, jobs.job_id
+SELECT jobs.job_id
 FROM jobs
 WHERE batch_id = %s AND always_run = 0 AND state = 'Ready' AND cancelled = 1
 LIMIT %s;
 ''',
                             (batch['id'], remaining.value)):
+                        record['batch_id'] = batch['id']
                         yield record
 
         should_wait = True
@@ -197,7 +199,7 @@ LIMIT %s;
                                           'Cancelled', None, None, None, 'cancelled')))
 
                 remaining.value -= 1
-                if remaining.value == 0:
+                if remaining.value <= 0:
                     should_wait = False
                     break
 
@@ -234,7 +236,7 @@ WHERE user = %s AND `state` = 'running' AND cancelled = 1;
                     (user,)):
                 async for record in self.db.select_and_fetchall(
                         '''
-SELECT jobs.batch_id, jobs.job_id, jobs.attempt_id, attempts.instance_name,
+SELECT jobs.job_id, jobs.attempt_id, attempts.instance_name,
 FROM jobs
 STRAIGHT_JOIN attempts
 ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
@@ -244,6 +246,7 @@ AND jobs.attempt_id IS NOT NULL
 LIMIT %s;
 ''',
                         (batch['id'], remaining.value)):
+                    record['batch_id'] = batch['id']
                     yield record
 
         async_work = []
@@ -269,7 +272,7 @@ LIMIT %s;
                             self.app, record)))
 
                 remaining.value -= 1
-                if remaining.value == 0:
+                if remaining.value <= 0:
                     should_wait = False
                     break
 
@@ -291,29 +294,35 @@ LIMIT %s;
         async def user_runnable_jobs(user, remaining):
             async for batch in self.db.select_and_fetchall(
                     '''
-SELECT id, cancelled
+SELECT id, cancelled, userdata, user
 FROM batches
 WHERE user = %s AND `state` = 'running';
             ''',
                     (user,)):
                 async for record in self.db.select_and_fetchall(
                         '''
-SELECT job_id, spec, cores_mcpu, userdata, user
+SELECT job_id, spec, cores_mcpu
 FROM jobs
 WHERE batch_id = %s AND always_run = 1 AND state = 'Ready'
 LIMIT %s;
 ''',
                         (batch['id'], remaining.value)):
+                    record['batch_id'] = batch['id']
+                    record['userdata'] = batch['userdata']
+                    record['user'] = batch['user']
                     yield record
                 if not batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
                             '''
-SELECT job_id, spec, cores_mcpu, userdata, user
+SELECT job_id, spec, cores_mcpu
 FROM jobs
 WHERE batch_id = %s AND always_run = 0 AND state = 'Ready' AND cancelled = 0
 LIMIT %s;
 ''',
                             (batch['id'], remaining.value)):
+                        record['batch_id'] = batch['id']
+                        record['userdata'] = batch['userdata']
+                        record['user'] = batch['user']
                         yield record
 
         async_work = []
@@ -358,7 +367,7 @@ LIMIT %s;
                                 self.app, record, instance)))
 
                 remaining.value -= 1
-                if remaining.value == 0:
+                if remaining.value <= 0:
                     should_wait = False
                     break
                 if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
