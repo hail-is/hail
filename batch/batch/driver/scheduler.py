@@ -236,13 +236,13 @@ WHERE user = %s AND `state` = 'running' AND cancelled = 1;
                     (user,)):
                 async for record in self.db.select_and_fetchall(
                         '''
-SELECT jobs.job_id, jobs.attempt_id, attempts.instance_name,
+SELECT jobs.job_id, jobs.attempt_id, attempts.instance_name
 FROM jobs
 STRAIGHT_JOIN attempts
-ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
-AND attempts.attempt_id = jobs.attempt_id
+  ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
+    AND attempts.attempt_id = jobs.attempt_id
 WHERE batch_id = %s AND always_run = 0 AND state = 'Running' AND cancelled = 0
-AND jobs.attempt_id IS NOT NULL
+  AND jobs.attempt_id IS NOT NULL
 LIMIT %s;
 ''',
                         (batch['id'], remaining.value)):
