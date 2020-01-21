@@ -132,10 +132,10 @@ object Children {
       Array(old)
     case InsertFields(old, fields, _) =>
       (old +: fields.map(_._2)).toFastIndexedSeq
-    case InitOp2(_, args, _) => args
-    case SeqOp2(_, args, _) => args
-    case _: ResultOp2 => none
-    case _: CombOp2 => none
+    case InitOp(_, args, _) => args
+    case SeqOp(_, args, _) => args
+    case _: ResultOp => none
+    case _: CombOp => none
     case SerializeAggs(_, _, _, _) => none
     case DeserializeAggs(_, _, _, _) => none
     case Begin(xs) =>

@@ -302,12 +302,12 @@ object TypeCheck {
       case x@AggArrayPerElement(a, _, _, aggBody, knownLength, _) =>
         assert(x.typ == TArray(aggBody.typ))
         assert(knownLength.forall(_.typ == TInt32()))
-      case x@InitOp2(_, args, aggSig) =>
+      case x@InitOp(_, args, aggSig) =>
         assert(args.map(_.typ) == aggSig.initOpArgs)
-      case x@SeqOp2(_, args, aggSig) =>
+      case x@SeqOp(_, args, aggSig) =>
         assert(args.map(_.typ) == aggSig.seqOpArgs)
-      case _: CombOp2 =>
-      case _: ResultOp2 =>
+      case _: CombOp =>
+      case _: ResultOp =>
       case _: SerializeAggs =>
       case _: DeserializeAggs =>
       case x@Begin(xs) =>

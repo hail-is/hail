@@ -336,10 +336,10 @@ final case class ApplyScanOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[I
   def op: AggOp = aggSig.op
 }
 
-final case class InitOp2(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSignature) extends IR
-final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSignature) extends IR
-final case class CombOp2(i1: Int, i2: Int, aggSig: PhysicalAggSignature) extends IR
-final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[PhysicalAggSignature]) extends IR
+final case class InitOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSignature) extends IR
+final case class SeqOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSignature) extends IR
+final case class CombOp(i1: Int, i2: Int, aggSig: PhysicalAggSignature) extends IR
+final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[PhysicalAggSignature]) extends IR
 
 final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[PhysicalAggSignature]) extends IR
 final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[PhysicalAggSignature]) extends IR
