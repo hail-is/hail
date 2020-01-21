@@ -159,9 +159,9 @@ BEGIN
       n_cancelled_running_jobs = n_cancelled_running_jobs + cur_n_cancelled_running_jobs;
 
     INSERT INTO ready_cores (token, ready_cores_mcpu)
-    VALUES (0, -cur_ready_cancelled_cores_mcpu)
+    VALUES (0, -cur_cancelled_ready_cores_mcpu)
     ON DUPLICATE KEY UPDATE
-      ready_cores_mcpu = ready_cores_mcpu - cur_ready_cancelled_cores_mcpu;
+      ready_cores_mcpu = ready_cores_mcpu - cur_cancelled_ready_cores_mcpu;
 
     # there are no cancellable jobs left, they have been cancelled
     DELETE FROM batch_cancellable_resources WHERE batch_id = in_batch_id;
