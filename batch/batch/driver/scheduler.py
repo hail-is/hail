@@ -279,6 +279,15 @@ LIMIT %s;
     async def schedule_loop_body(self):
         user_resources = await self.compute_fair_share()
 
+        total = sum(resources['allocated_cores_mcpu']
+                    for resources in user_resources.values())
+        if not total:
+            return
+        user_share = {
+            user: max(1000 * resources['allocated_cores_mcpu'] / total, 20)
+            for user, resources in user_resources.items()
+        }
+
         async def user_runnable_jobs(user, remaining):
             async for batch in self.db.select_and_fetchall(
                     '''
@@ -306,13 +315,6 @@ LIMIT %s;
 ''',
                             (batch['id'], remaining.value)):
                         yield record
-
-        total = sum(resources['allocated_cores_mcpu']
-                    for resources in user_resources.values())
-        user_share = {
-            user: max(1000 * resources['allocated_cores_mcpu'] / total, 20)
-            for user, resources in user_resources.items()
-        }
 
         async_work = []
         should_wait = True
