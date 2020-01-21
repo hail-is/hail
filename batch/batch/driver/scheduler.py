@@ -140,7 +140,7 @@ WHERE n_cancelled_ready_jobs > 0;
 
         total = sum(user_n_cancelled_ready_jobs.values())
         user_share = {
-            user: max(int(1000 * user_n_jobs / total), 20)
+            user: max(int(1000 * user_n_jobs / total + 0.5), 20)
             for user, user_n_jobs in user_n_cancelled_ready_jobs.items()
         }
 
@@ -222,7 +222,7 @@ WHERE n_cancelled_running_jobs > 0;
 
         total = sum(user_n_cancelled_running_jobs.values())
         user_share = {
-            user: max(int(1000 * user_n_jobs / total), 20)
+            user: max(int(1000 * user_n_jobs / total + 0.5), 20)
             for user, user_n_jobs in user_n_cancelled_running_jobs.items()
         }
 
@@ -287,7 +287,7 @@ LIMIT %s;
         if not total:
             return
         user_share = {
-            user: max(1000 * resources['allocated_cores_mcpu'] / total, 20)
+            user: max(int(1000 * resources['allocated_cores_mcpu'] / total + 0.5), 20)
             for user, resources in user_resources.items()
         }
 
