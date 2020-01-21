@@ -61,27 +61,27 @@ final class StreamInputBuffer(in: InputStream) extends InputBuffer {
   def seek(offset: Long) = in.asInstanceOf[ByteTrackingInputStream].seek(offset)
 
   def readByte(): Byte = {
-    in.read(buff, 0, 1)
+    assert(in.read(buff, 0, 1) == 1)
     Memory.loadByte(buff, 0)
   }
 
   def readInt(): Int = {
-    in.read(buff, 0, 4)
+    assert(in.read(buff, 0, 4) == 4)
     Memory.loadInt(buff, 0)
   }
 
   def readLong(): Long = {
-    in.read(buff)
+    assert(in.read(buff) == 8)
     Memory.loadLong(buff, 0)
   }
 
   def readFloat(): Float = {
-    in.read(buff, 0, 4)
+    assert(in.read(buff, 0, 4) == 4)
     Memory.loadFloat(buff, 0)
   }
 
   def readDouble(): Double = {
-    in.read(buff)
+    assert(in.read(buff) == 8)
     Memory.loadDouble(buff, 0)
   }
 
@@ -89,17 +89,17 @@ final class StreamInputBuffer(in: InputStream) extends InputBuffer {
     Region.storeBytes(toOff, Array.tabulate(n)(_ => readByte()))
   }
 
-  def skipByte(): Unit = in.skip(1)
+  def skipByte(): Unit = assert(in.skip(1) == 1L)
 
-  def skipInt(): Unit = in.skip(4)
+  def skipInt(): Unit = assert(in.skip(4) == 4L)
 
-  def skipLong(): Unit = in.skip(8)
+  def skipLong(): Unit = assert(in.skip(8) == 8L)
 
-  def skipFloat(): Unit = in.skip(4)
+  def skipFloat(): Unit = assert(in.skip(4) == 4L)
 
-  def skipDouble(): Unit = in.skip(8)
+  def skipDouble(): Unit = assert(in.skip(8) == 8L)
 
-  def skipBytes(n: Int): Unit = in.skip(n)
+  def skipBytes(n: Int): Unit = assert(in.skip(n) == n)
 
   def readDoubles(to: Array[Double], off: Int, n: Int): Unit = {
     var i = 0
