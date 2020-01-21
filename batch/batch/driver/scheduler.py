@@ -241,7 +241,7 @@ FROM jobs
 STRAIGHT_JOIN attempts
   ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
     AND attempts.attempt_id = jobs.attempt_id
-WHERE batch_id = %s AND always_run = 0 AND state = 'Running' AND cancelled = 0
+WHERE jobs.batch_id = %s AND always_run = 0 AND state = 'Running' AND cancelled = 0
   AND jobs.attempt_id IS NOT NULL
 LIMIT %s;
 ''',
