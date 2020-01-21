@@ -464,12 +464,11 @@ BEGIN
 
     IF NOT OLD.always_run AND (OLD.cancelled OR cur_batch_cancelled) THEN
       # cancelled
-      INSERT INTO user_resources (user, token, n_cancelled_ready_jobs, cancelled_ready_cores_mcpu)
-      VALUES (cur_user, rand_token, -1, -OLD.cores_mcpu)
+      INSERT INTO user_resources (user, token, n_cancelled_ready_jobs)
+      VALUES (cur_user, rand_token, -1)
       ON DUPLICATE KEY UPDATE
-	n_cancelled_ready_jobs = n_cancelled_ready_jobs - 1,
-	cancelled_ready_cores_mcpu = cancelled_ready_cores_mcpu - OLD.cores_mcpu;
-    ELSE    
+	n_cancelled_ready_jobs = n_cancelled_ready_jobs - 1;
+    ELSE
       # runnable
       INSERT INTO user_resources (user, token, n_ready_jobs, ready_cores_mcpu)
       VALUES (cur_user, rand_token, -1, -OLD.cores_mcpu)
@@ -521,12 +520,11 @@ BEGIN
 
     IF NOT NEW.always_run AND (NEW.cancelled OR cur_batch_cancelled) THEN
       # cancelled
-      INSERT INTO user_resources (user, token, n_cancelled_ready_jobs, cancelled_ready_cores_mcpu)
-      VALUES (cur_user, rand_token, 1, NEW.cores_mcpu)
+      INSERT INTO user_resources (user, token, n_cancelled_ready_jobs)
+      VALUES (cur_user, rand_token, 1)
       ON DUPLICATE KEY UPDATE
-	n_cancelled_ready_jobs = n_cancelled_ready_jobs + 1,
-	cancelled_ready_cores_mcpu = cancelled_ready_cores_mcpu + NEW.cores_mcpu;
-    ELSE    
+	n_cancelled_ready_jobs = n_cancelled_ready_jobs + 1;
+    ELSE
       # runnable
       INSERT INTO user_resources (user, token, n_ready_jobs, ready_cores_mcpu)
       VALUES (cur_user, rand_token, 1, NEW.cores_mcpu)
