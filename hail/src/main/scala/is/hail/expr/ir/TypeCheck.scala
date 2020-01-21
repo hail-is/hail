@@ -308,6 +308,8 @@ object TypeCheck {
         assert(args.map(_.typ) == aggSig.seqOpArgs)
       case _: CombOp =>
       case _: ResultOp =>
+      case AggStateValue(i, sig) =>
+      case CombOpValue(i, value, sig) => assert(value.typ.isOfType(TBinary()))
       case _: SerializeAggs =>
       case _: DeserializeAggs =>
       case x@Begin(xs) =>

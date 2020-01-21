@@ -135,7 +135,9 @@ object Children {
     case InitOp(_, args, _) => args
     case SeqOp(_, args, _) => args
     case _: ResultOp => none
+    case _: AggStateValue => none
     case _: CombOp => none
+    case CombOpValue(_, value, _) => Array(value)
     case SerializeAggs(_, _, _, _) => none
     case DeserializeAggs(_, _, _, _) => none
     case Begin(xs) =>

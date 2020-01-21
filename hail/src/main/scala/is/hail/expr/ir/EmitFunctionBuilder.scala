@@ -364,6 +364,12 @@ class EmitFunctionBuilder[F >: Null](
     _hfield.load()
   }
 
+  val lazyFieldMemo: mutable.Map[Any, LazyFieldRef[_]] = mutable.Map.empty
+
+  def getOrDefineLazyField[T: TypeInfo](setup: Code[T], id: Any): LazyFieldRef[T] = {
+    lazyFieldMemo.getOrElseUpdate(id, newLazyField[T](setup)).asInstanceOf[LazyFieldRef[T]]
+  }
+
   def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
      getFS.invoke[String, Boolean, InputStream]("unsafeReader", path, checkCodec)
 

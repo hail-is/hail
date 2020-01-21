@@ -169,6 +169,16 @@ object Pretty {
           sb.append(i)
           sb += '\n'
           prettyPhysAggSeq(aggSigs, depth + 2)
+        case AggStateValue(i, sig) =>
+          sb += ' '
+          sb.append(i)
+          sb += ' '
+          prettyPhysAggSignature(sig, depth + 2)
+        case CombOpValue(i, _, sig) =>
+          sb += ' '
+          sb.append(i)
+          sb += ' '
+          prettyPhysAggSignature(sig, depth + 2)
         case SerializeAggs(i, i2, spec, aggSigs) =>
           sb += ' '
           sb.append(i)

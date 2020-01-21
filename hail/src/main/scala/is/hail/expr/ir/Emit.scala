@@ -969,6 +969,29 @@ private class Emit(
           sc.store,
           srvb.offset))
 
+      case CombOpValue(i, value, sig) =>
+        val AggContainer(_, sc) = container.get
+        val rvAgg = agg.Extract.getAgg(sig)
+        val newState = rvAgg.createState(mb.fb)
+
+        val t = value.pType.asInstanceOf[PBinary]
+        val xValue = emit(value)
+        EmitTriplet(
+          Code(xValue.setup,
+          xValue.m.mux(
+            Code._fatal("cannot combOp a missing value"),
+            Code(
+              newState.createState,
+              newState.deserializeFromBytes(t, coerce[Long](xValue.v)),
+              rvAgg.combOp(sc.states(i), newState)
+            ))),
+          const(false),
+          Code._empty[Unit])
+
+      case x@AggStateValue(i, _) =>
+        val AggContainer(_, sc) = container.get
+        present(sc.states(i).serializeToRegion(coerce[PBinary](x.pType), region))
+
       case SerializeAggs(start, sIdx, spec, aggSigs) =>
         val AggContainer(aggs, sc) = container.get
         val ob = mb.newField[OutputBuffer]

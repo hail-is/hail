@@ -7,10 +7,13 @@ object Interpretable {
     !ir.typ.isInstanceOf[TNDArray] &&
       (ir match {
       case
+        _: RunAgg |
         _: InitOp |
         _: SeqOp |
         _: CombOp |
         _: ResultOp |
+        _: CombOpValue |
+        _: AggStateValue |
         _: SerializeAggs |
         _: DeserializeAggs |
         _: MakeNDArray |
