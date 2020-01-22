@@ -336,13 +336,13 @@ private class Emit(
         present(const(x))
       case F64(x) =>
         present(const(x))
-      case Str(x) =>
-        present(mb.fb.addLiteral(x, TString(), er.baseRegion))
-      case Literal(t, v) =>
+      case s@Str(x) =>
+        present(mb.fb.addLiteral(x, coerce[PString](s.pType), er.baseRegion))
+      case x@Literal(t, v) =>
         if (v == null)
           emit(NA(t))
         else
-          present(mb.fb.addLiteral(v, t, er.baseRegion))
+          present(mb.fb.addLiteral(v, x.pType, er.baseRegion))
       case True() =>
         present(const(true))
       case False() =>
