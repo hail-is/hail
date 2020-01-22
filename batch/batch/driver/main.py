@@ -407,7 +407,8 @@ LOCK IN SHARE MODE;
 ''')
         computed_ready_cores_mcpu = computed_ready_cores['ready_cores_mcpu']
 
-        log.error(f'ready_cores corrupt: ready_cores_mcpu {ready_cores_mcpu} != computed_ready_cores_mcpu {computed_ready_cores_mcpu}')
+        if ready_cores_mcpu != computed_ready_cores_mcpu:
+            log.error(f'ready_cores corrupt: ready_cores_mcpu {ready_cores_mcpu} != computed_ready_cores_mcpu {computed_ready_cores_mcpu}')
 
         user_resources = tx.execute_and_fetchall('''
 SELECT user,
@@ -420,7 +421,7 @@ FROM user_resources
 GROUP BY user
 LOCK IN SHARE MODE;
 ''')
-        user_resources = [record async for record in user_resources]
+        user_resources = {record['user']: record async for record in user_resources}
 
         computed_user_resources = tx.execute_and_fetchall('''
 SELECT user,
@@ -442,7 +443,7 @@ FROM (SELECT
   LOCK IN SHARE MODE) AS s
 GROUP BY user;
 ''')
-        computed_user_resources = [record async for record in computed_user_resources]
+        computed_user_resources = {record['user']: record async for record in computed_user_resources}
 
         def user_get(d, u, f):
             if u not in d:
