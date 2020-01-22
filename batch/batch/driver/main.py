@@ -147,7 +147,7 @@ async def close_batch(request):
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
 
-    record = db.select_and_fetchone(
+    record = db.select_and_fetchone (
         '''
 SELECT state FROM batches WHERE user = %s AND id = %s;
 ''',
@@ -386,16 +386,16 @@ async def get_user_resources(request, userdata):
 
 
 async def check_incremental_loop(db):
-    @transaction(db)
+    @transaction(db, ready_only=True)
     async def check(tx):
-        ready_cores = await tx.select_and_fetchone('''
+        ready_cores = await tx.execute_and_fetchone('''
 SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
 FROM ready_cores
 LOCK IN SHARE MODE;
 ''')
         ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
-        computed_ready_cores = await tx.select_and_one('''
+        computed_ready_cores = await tx.execute_and_fetchone('''
 SELECT CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
 FROM jobs
 INNER JOIN batches ON batches.id = jobs.batch_id
@@ -409,7 +409,7 @@ LOCK IN SHARE MODE;
 
         log.error(f'ready_cores corrupt: ready_cores_mcpu {ready_cores_mcpu} != computed_ready_cores_mcpu {computed_ready_cores_mcpu}')
 
-        user_resources = tx.select_and_fetchall('''
+        user_resources = tx.execute_and_fetchall('''
 SELECT user,
   CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
   CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
@@ -422,7 +422,7 @@ LOCK IN SHARE MODE;
 ''')
         user_resources = [record async for record in user_resources]
 
-        computed_user_resources = tx.select_and_fetchall('''
+        computed_user_resources = tx.execute_and_fetchall('''
 SELECT user,
     COALESCE(SUM(state = 'Running' AND NOT cancelled), 0) as n_running_jobs,
     COALESCE(SUM(IF(state = 'Running' AND NOT cancelled, cores_mcpu, 0)), 0) as running_cores_mcpu,
