@@ -7,7 +7,6 @@ import asyncio
 import aiohttp
 from aiohttp import web
 import aiohttp_session
-import cerberus
 import prometheus_client as pc
 import pymysql
 from prometheus_async.aio import time as prom_async_time
@@ -17,7 +16,6 @@ import google.api_core.exceptions
 from hailtop.utils import time_msecs, time_msecs_str, humanize_timedelta_msecs, \
     request_retry_transient_errors, run_if_changed, retry_long_running
 from hailtop.config import get_deploy_config
-from hailtop import batch_client
 from hailtop.batch_client.aioclient import Job
 from gear import Database, setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
@@ -35,7 +33,7 @@ from ..database import CallError, check_call_procedure
 from ..batch_configuration import BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME
 from ..globals import HTTP_CLIENT_MAX_SIZE
 
-from . import schemas
+from .validate import ValidationError, validate_batch, validate_jobs
 
 # uvloop.install()
 
@@ -406,8 +404,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
         async with timer.step('validate job_specs'):
             try:
-                batch_client.validate.validate_jobs(job_specs)
-            except batch_client.validate.ValidationError as e:
+                validate_jobs(job_specs)
+            except ValidationError as e:
                 raise web.HTTPBadRequest(reason=e.reason)
 
         async with timer.step('build db args'):
@@ -540,9 +538,10 @@ async def create_batch(request, userdata):
 
     batch_spec = await request.json()
 
-    validator = cerberus.Validator(schemas.batch_schema)
-    if not validator.validate(batch_spec):
-        raise web.HTTPBadRequest(reason=f'invalid request: {validator.errors}')
+    try:
+        validate_batch(batch_spec)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
 
     user = userdata['username']
     billing_project = batch_spec['billing_project']

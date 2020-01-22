@@ -3,8 +3,8 @@ import logging
 import math
 
 from hailtop.utils import time_msecs
-from hailtop.batch_client.validate import CPU_REGEX, MEMORY_REGEX
 
+from .front_end.validate import CPU_REGEX, MEMORY_REGEX
 
 log = logging.getLogger('utils')
 
