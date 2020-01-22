@@ -59,16 +59,19 @@ def compare(args):
     for name in overlap:
         d1 = data1[name]
         d2 = data2[name]
-        d1_failed = d1.get('failed')
-        d2_failed = d2.get('failed')
+        d1_failed = d1.get('failed') or d1.get('times') == [] # rescue bugs in previous versions
+        d2_failed = d2.get('failed') or d2.get('times') == [] # rescue bugs in previous versions
         if d1_failed:
             failed_1.append(name)
         if d2_failed:
             failed_2.append(name)
         if d1_failed or d2_failed:
             continue
-        run1_metric = get_metric(d1)
-        run2_metric = get_metric(d2)
+        try:
+            run1_metric = get_metric(d1)
+            run2_metric = get_metric(d2)
+        except Exception as e:
+            raise ValueError(f"error while computing metric for {name}:\n  d1={d1}\n  d2={d2}") from e
         if run1_metric < min_time_for_inclusion and run2_metric < min_time_for_inclusion:
             continue
 

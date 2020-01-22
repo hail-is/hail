@@ -37,8 +37,8 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
 
   private def createNode(nodeBucket: Settable[Long]): Code[Unit] = Code(
     nodeBucket := region.allocate(storageType.alignment, storageType.byteSize),
-    storageType.setAllMissing(nodeBucket),
-    elementsType.setAllMissing(elements(nodeBucket)))
+    storageType.stagedInitialize(nodeBucket, true),
+    elementsType.stagedInitialize(elements(nodeBucket), true))
 
   private def isRoot(node: Code[Long]): Code[Boolean] = storageType.isFieldMissing(node, 0)
   private def isLeaf(node: Code[Long]): Code[Boolean] = storageType.isFieldMissing(node, 1)

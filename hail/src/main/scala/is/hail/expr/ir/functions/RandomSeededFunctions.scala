@@ -111,7 +111,7 @@ object RandomSeededFunctions extends RegistryFunctions {
       Code(
         aoff := a,
         i := 0,
-        length := aT.loadLength(r.region, aoff),
+        length := aT.loadLength(aoff),
         array := Code.newArray[Double](length),
         Code.whileLoop(i < length,
           array.load().update(i, Region.loadDouble(aT.elementOffset(aoff, length, i))),

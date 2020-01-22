@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion, EmitTriplet}
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical._
+import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 
@@ -209,8 +210,8 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
   }
 
   def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
-    val binDec = binET.buildInplaceDecoder(binType, fb)
-    val pointDec = pointET.buildInplaceDecoder(pointType, fb)
+    val binDec = binET.buildInplaceDecoderMethod(binType, fb)
+    val pointDec = pointET.buildInplaceDecoderMethod(pointType, fb)
 
     { _ib: Code[InputBuffer] =>
       val mb = fb.newMethod("downsample_deserialize", Array[TypeInfo[_]](typeInfo[InputBuffer]), UnitInfo)
@@ -233,8 +234,8 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
           tree.init,
           tree.bulkLoad(ib) { (ib, dest) =>
             Code(
-              binDec(region, key.storageType.fieldOffset(dest, "bin"), ib),
-              pointDec(region, key.storageType.fieldOffset(dest, "point"), ib),
+              binDec.invoke(region, key.storageType.fieldOffset(dest, "bin"), ib),
+              pointDec.invoke(region, key.storageType.fieldOffset(dest, "point"), ib),
               Region.storeBoolean(key.storageType.fieldOffset(dest, "empty"), false))
           },
           buffer.initialize(),
@@ -524,6 +525,10 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
 
     mb.invoke()
   }
+}
+
+object DownsampleAggregator {
+  val resultType: TArray = TArray(TTuple(TFloat64(), TFloat64(), TArray(TString())))
 }
 
 class DownsampleAggregator(arrayType: PArray) extends StagedAggregator {

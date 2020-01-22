@@ -12,7 +12,7 @@ from pyspark.find_spark_home import _find_spark_home
 
 import hail
 from hail.genetics.reference_genome import ReferenceGenome
-from hail.typecheck import nullable, typecheck, enumeration
+from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, dictof
 from hail.utils import get_env_or_default
 from hail.utils.java import Env, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler, scala_object
 from hail.backend import Backend, ServiceBackend, SparkBackend, DistributedBackend
@@ -131,14 +131,20 @@ class HailContext(object):
            default_reference=str,
            idempotent=bool,
            global_seed=nullable(int),
+           spark_conf=nullable(dictof(str, str)),
            optimizer_iterations=nullable(int))
 def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
                        log=None, quiet=False, append=False,
                        min_block_size=1, branching_factor=50, tmp_dir=None,
                        default_reference="GRCh37", idempotent=False,
-                       global_seed=6348563392232659379, optimizer_iterations=None):
+                       global_seed=6348563392232659379, spark_conf=None,
+                       optimizer_iterations=None):
     hail_jar_path = _find_hail_jar()
     conf = SparkConf()
+
+    base_conf = spark_conf or {}
+    for k, v in base_conf.items():
+        conf.set(k, v)
 
     jars = [hail_jar_path]
     if os.environ.get('HAIL_SPARK_MONITOR'):
@@ -256,6 +262,7 @@ def init_distributed_backend(hostname, log=None, quiet=False, append=False, min_
            default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38'),
            idempotent=bool,
            global_seed=nullable(int),
+           spark_conf=nullable(dictof(str, str)),
            _optimizer_iterations=nullable(int),
            _backend=nullable(Backend))
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
@@ -263,6 +270,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
          min_block_size=0, branching_factor=50, tmp_dir='/tmp',
          default_reference='GRCh37', idempotent=False,
          global_seed=6348563392232659379,
+         spark_conf=None,
          _optimizer_iterations=3,
          _backend=None):
     """Initialize Hail and Spark.
@@ -332,6 +340,8 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         If ``True``, calling this function is a no-op if Hail has already been initialized.
     global_seed : :obj:`int`, optional
         Global random seed.
+    spark_conf : :obj:`dict[str, str]`, optional
+        Spark configuration parameters.
     """
 
     if Env._hc:
@@ -357,7 +367,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
             init_spark_backend(sc, app_name, master, local, log, quiet, append,
                                min_block_size, branching_factor, tmp_dir,
                                default_reference, idempotent, global_seed,
-                               _optimizer_iterations)
+                               spark_conf, _optimizer_iterations)
 
 
 def _find_hail_jar():

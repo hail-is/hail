@@ -1018,6 +1018,22 @@ class Tests(unittest.TestCase):
         assert j.globals.dtype == hl.tstruct(glob1=hl.tint32, glob1_1=hl.tint32)
         j._force_count()
 
+    def test_join_with_filter_intervals(self):
+        ht = hl.utils.range_table(100, 5)
+        ht = ht.key_by(idx2=ht.idx // 2)
+
+        f1 = new_temp_file('ht')
+        f2 = new_temp_file('ht')
+
+        ht.write(f1)
+        ht.write(f2)
+
+        ht1 = hl.read_table(f1)
+        ht2 = hl.read_table(f2)
+
+        ht3 = ht1.join(ht2)
+        assert ht3.filter(ht3.idx2 == 10).count() == 4
+
     def test_key_by_aggregate_rewriting(self):
         ht = hl.utils.range_table(10)
         ht = ht.group_by(x=ht.idx % 5).aggregate(aggr = hl.agg.count())
@@ -1355,3 +1371,23 @@ def test_write_table_containing_ndarray():
     t.write(f)
     t2 = hl.read_table(f)
     assert t._same(t2)
+
+def test_group_within_partitions():
+    t = hl.utils.range_table(10).naive_coalesce(2)
+    t = t.annotate(sq=t.idx ** 2)
+
+    grouped1_collected = t._group_within_partitions(1).collect()
+    grouped2_collected = t._group_within_partitions(2).collect()
+    grouped3_collected = t._group_within_partitions(3).collect()
+    grouped5_collected = t._group_within_partitions(5).collect()
+    grouped6_collected = t._group_within_partitions(6).collect()
+
+    assert len(grouped1_collected) == 10
+    assert len(grouped2_collected) == 6
+    assert len(grouped3_collected) == 4
+    assert len(grouped5_collected) == 2
+    assert grouped5_collected == grouped6_collected
+    assert grouped3_collected == [hl.Struct(idx=0, grouped_fields=[hl.Struct(idx=0, sq=0.0), hl.Struct(idx=1, sq=1.0), hl.Struct(idx=2, sq=4.0)]),
+                                  hl.Struct(idx=3, grouped_fields=[hl.Struct(idx=3, sq=9.0), hl.Struct(idx=4, sq=16.0)]),
+                                  hl.Struct(idx=5, grouped_fields=[hl.Struct(idx=5, sq=25.0), hl.Struct(idx=6, sq=36.0), hl.Struct(idx=7, sq=49.0)]),
+                                  hl.Struct(idx=8, grouped_fields=[hl.Struct(idx=8, sq=64.0), hl.Struct(idx=9, sq=81.0)])]

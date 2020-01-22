@@ -11,8 +11,8 @@ import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
 from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
     check_csrf_token
-from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
+from hailtop.utils import time_msecs
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 
@@ -21,11 +21,13 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 from ..batch import mark_job_complete, mark_job_started
 from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
-    DEFAULT_NAMESPACE
+    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME
 from ..google_compute import GServices
+from ..globals import HTTP_CLIENT_MAX_SIZE
 
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
+from .k8s_cache import K8sCache
 
 # uvloop.install()
 
@@ -88,7 +90,7 @@ def activating_instances_only(fun):
             raise web.HTTPUnauthorized()
 
         db = request.app['db']
-        record = await db.execute_and_fetchone(
+        record = await db.select_and_fetchone(
             'SELECT state FROM instances WHERE name = %s AND activation_token = %s;',
             (instance.name, activation_token))
         if not record:
@@ -119,12 +121,14 @@ def active_instances_only(fun):
             raise web.HTTPUnauthorized()
 
         db = request.app['db']
-        record = await db.execute_and_fetchone(
+        record = await db.select_and_fetchone(
             'SELECT state FROM instances WHERE name = %s AND token = %s;',
             (instance.name, token))
         if not record:
             log.info('instance, token not found in database')
             raise web.HTTPUnauthorized()
+
+        await instance.mark_healthy()
 
         return await fun(request, instance)
     return wrapped
@@ -143,7 +147,7 @@ async def close_batch(request):
     user = request.match_info['user']
     batch_id = int(request.match_info['batch_id'])
 
-    record = db.execute_and_fetchone(
+    record = db.select_and_fetchone(
         '''
 SELECT state FROM batches WHERE user = %s AND id = %s;
 ''',
@@ -156,47 +160,19 @@ SELECT state FROM batches WHERE user = %s AND id = %s;
     return web.Response()
 
 
-@routes.patch('/api/v1alpha/batches/{user}/{batch_id}/cancel')
+@routes.post('/api/v1alpha/batches/cancel')
 @batch_only
 async def cancel_batch(request):
-    db = request.app['db']
-
-    user = request.match_info['user']
-    batch_id = int(request.match_info['batch_id'])
-
-    record = db.execute_and_fetchone(
-        '''
-SELECT state FROM batches WHERE user = %s AND id = %s;
-''',
-        (user, batch_id))
-    if not record:
-        raise web.HTTPNotFound()
-
     request.app['cancel_state_changed'].set()
     request.app['scheduler_state_changed'].set()
-
     return web.Response()
 
 
-@routes.delete('/api/v1alpha/batches/{user}/{batch_id}')
+@routes.post('/api/v1alpha/batches/delete')
 @batch_only
 async def delete_batch(request):
-    db = request.app['db']
-
-    user = request.match_info['user']
-    batch_id = int(request.match_info['batch_id'])
-
-    record = db.execute_and_fetchone(
-        '''
-SELECT state FROM batches WHERE user = %s AND id = %s;
-''',
-        (user, batch_id))
-    if not record:
-        raise web.HTTPNotFound()
-
     request.app['cancel_state_changed'].set()
     request.app['scheduler_state_changed'].set()
-
     return web.Response()
 
 
@@ -205,10 +181,11 @@ async def activate_instance_1(request, instance):
     ip_address = body['ip_address']
 
     log.info(f'activating {instance}')
-    token = await instance.activate(ip_address)
+    timestamp = time_msecs()
+    token = await instance.activate(ip_address, timestamp)
     await instance.mark_healthy()
 
-    with open('/batch-gsa-key/privateKeyData', 'r') as f:
+    with open('/gsa-key/key.json', 'r') as f:
         key = json.loads(f.read())
     return web.json_response({
         'token': token,
@@ -255,8 +232,8 @@ async def job_complete_1(request, instance):
     start_time = status['start_time']
     end_time = status['end_time']
 
-    await mark_job_complete(request.app, batch_id, job_id, attempt_id, new_state, status,
-                            start_time, end_time, 'completed')
+    await mark_job_complete(request.app, batch_id, job_id, attempt_id, instance.name,
+                            new_state, status, start_time, end_time, 'completed')
 
     await instance.mark_healthy()
 
@@ -278,7 +255,7 @@ async def job_started_1(request, instance):
     attempt_id = status['attempt_id']
     start_time = status['start_time']
 
-    await mark_job_started(request.app, batch_id, job_id, attempt_id, start_time)
+    await mark_job_started(request.app, batch_id, job_id, attempt_id, instance, start_time)
 
     await instance.mark_healthy()
 
@@ -299,8 +276,11 @@ async def get_index(request, userdata):
     db = app['db']
     instance_pool = app['inst_pool']
 
-    ready_cores = await db.execute_and_fetchone(
-        'SELECT * FROM ready_cores;')
+    ready_cores = await db.select_and_fetchone(
+        '''
+SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+FROM ready_cores;
+''')
     ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
     page_context = {
@@ -361,11 +341,11 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
     #     lambda v: v in valid_worker_cores,
     #     f'one of {", ".join(str(v) for v in valid_worker_cores)}')
 
-    worker_disk_size_gb = validate_int(
-        'Worker disk size',
-        post['worker_disk_size_gb'],
-        lambda v: v > 0,
-        'a positive integer')
+    # worker_disk_size_gb = validate_int(
+    #     'Worker disk size',
+    #     post['worker_disk_size_gb'],
+    #     lambda v: v > 0,
+    #     'a positive integer')
 
     max_instances = validate_int(
         'Max instances',
@@ -380,8 +360,8 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
         'a positive integer')
 
     await inst_pool.configure(
-        # worker_type, worker_cores,
-        worker_disk_size_gb, max_instances, pool_size)
+        # worker_type, worker_cores, worker_disk_size_gb,
+        max_instances, pool_size)
 
     set_message(session,
                 'Updated batch configuration.',
@@ -390,26 +370,41 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
     return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
 
+@routes.get('/user_resources')
+@web_authenticated_developers_only()
+async def get_user_resources(request, userdata):
+    app = request.app
+    user_resources = await app['scheduler'].compute_fair_share()
+    user_resources = sorted(user_resources.values(),
+                            key=lambda record: record['ready_cores_mcpu'] + record['running_cores_mcpu'],
+                            reverse=True)
+    page_context = {
+        'user_resources': user_resources
+    }
+    return await render_template('batch-driver', request, userdata,
+                                 'user_resources.html', page_context)
+
+
 async def on_startup(app):
-    userinfo = await async_get_userinfo()
-    log.info(f'running as {userinfo["username"]}')
-
-    bucket_name = userinfo['bucket_name']
-    log.info(f'bucket_name {bucket_name}')
-
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
 
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()
-    app['k8s_client'] = k8s_client
+    k8s_cache = K8sCache(k8s_client, refresh_time=5)
+    app['k8s_cache'] = k8s_cache
 
     db = Database()
     await db.async_init()
     app['db'] = db
 
-    row = await db.execute_and_fetchone(
-        'SELECT instance_id, internal_token FROM globals;')
+    row = await db.select_and_fetchone(
+        'SELECT worker_type, worker_cores, worker_disk_size_gb, instance_id, internal_token FROM globals;')
+
+    app['worker_type'] = row['worker_type']
+    app['worker_cores'] = row['worker_cores']
+    app['worker_disk_size_gb'] = row['worker_disk_size_gb']
+
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
@@ -419,7 +414,7 @@ async def on_startup(app):
     machine_name_prefix = f'batch-worker-{DEFAULT_NAMESPACE}-'
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-        '/batch-gsa-key/privateKeyData')
+        '/gsa-key/key.json')
     gservices = GServices(machine_name_prefix, credentials)
     app['gservices'] = gservices
 
@@ -429,7 +424,7 @@ async def on_startup(app):
     cancel_state_changed = asyncio.Event()
     app['cancel_state_changed'] = cancel_state_changed
 
-    log_store = LogStore(bucket_name, instance_id, pool, credentials=credentials)
+    log_store = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
     app['log_store'] = log_store
 
     inst_pool = InstancePool(app, machine_name_prefix)
@@ -447,7 +442,7 @@ async def on_cleanup(app):
 
 
 def run():
-    app = web.Application()
+    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'batch.driver')
@@ -458,4 +453,8 @@ def run():
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    web.run_app(deploy_config.prefix_application(app, 'batch-driver'), host='0.0.0.0', port=5000)
+    web.run_app(deploy_config.prefix_application(app,
+                                                 'batch-driver',
+                                                 client_max_size=HTTP_CLIENT_MAX_SIZE),
+                host='0.0.0.0',
+                port=5000)

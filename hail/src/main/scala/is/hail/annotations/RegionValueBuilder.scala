@@ -109,7 +109,7 @@ class RegionValueBuilder(var region: Region) {
     indexstk.push(0)
 
     if (init)
-      t.clearMissingBits(region, off)
+      t.initialize(off)
   }
 
   def endBaseStruct() {
@@ -171,13 +171,13 @@ class RegionValueBuilder(var region: Region) {
     offsetstk.push(aoff)
 
     if (init)
-      t.initialize(region, aoff, length, setMissing)
+      t.initialize(aoff, length, setMissing)
   }
 
   def endArray() {
     val t = typestk.top.asInstanceOf[PArray]
     val aoff = offsetstk.top
-    val length = t.loadLength(region, aoff)
+    val length = t.loadLength(aoff)
     assert(length == indexstk.top)
 
     endArrayUnchecked()
@@ -208,11 +208,11 @@ class RegionValueBuilder(var region: Region) {
       case t: PBaseStruct =>
         if (t.types(i).required)
           fatal(s"cannot set missing field for required type ${ t.types(i) }")
-        t.setFieldMissing(region, offsetstk.top, i)
+        t.setFieldMissing(offsetstk.top, i)
       case t: PArray =>
         if (t.elementType.required)
           fatal(s"cannot set missing field for required type ${ t.elementType }")
-        t.setElementMissing(region, offsetstk.top, i)
+        t.setElementMissing(offsetstk.top, i)
     }
     advance()
   }
@@ -221,9 +221,9 @@ class RegionValueBuilder(var region: Region) {
     val i = indexstk.top
     typestk.top match {
       case t: PBaseStruct =>
-        t.setFieldPresent(region, offsetstk.top, i)
+        t.setFieldPresent(offsetstk.top, i)
       case t: PArray =>
-        t.setElementPresent(region, offsetstk.top, i)
+        t.setElementPresent(offsetstk.top, i)
     }
   }
 
@@ -273,16 +273,14 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def addBinary(bytes: Array[Byte]) {
-    assert(currentType().isInstanceOf[PBinary])
+    val pbt = currentType().asInstanceOf[PBinary]
+    val valueAddress = pbt.allocate(region, bytes.length)
+    pbt.store(valueAddress, bytes)
 
-    val boff = PBinary.allocate(region, bytes.length)
-    PBinary.store(boff, bytes)
-
-    if (typestk.nonEmpty) {
-      val off = currentOffset()
-      Region.storeAddress(off, boff)
-    } else
-      start = boff
+    if (typestk.nonEmpty)
+      Region.storeAddress(currentOffset(), valueAddress)
+    else
+      start = valueAddress
 
     advance()
   }
@@ -302,11 +300,11 @@ class RegionValueBuilder(var region: Region) {
     endBaseStruct()
   }
 
-  def fixupBinary(fromRegion: Region, fromBOff: Long): Long = {
-    val length = PBinary.loadLength(fromRegion, fromBOff)
-    val toBOff = PBinary.allocate(region, length)
-    Region.copyFrom(fromBOff, toBOff, PBinary.contentByteSize(length))
-    toBOff
+  def fixupBinary(pt: PBinary, fromRegion: Region, fromAddress: Long): Long = {
+    val length = pt.loadLength(fromAddress)
+    val dstAddress = pt.allocate(region, length)
+    Region.copyFrom(fromAddress, dstAddress, pt.contentByteSize(length))
+    dstAddress
   }
 
   def requiresFixup(t: PType): Boolean = {
@@ -318,23 +316,23 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def fixupArray(t: PArray, fromRegion: Region, fromAOff: Long): Long = {
-    val length = t.loadLength(fromRegion, fromAOff)
+    val length = t.loadLength(fromAOff)
     val toAOff = t.copyFrom(region, fromAOff)
 
     if (region.ne(fromRegion) && requiresFixup(t.elementType)) {
       var i = 0
       while (i < length) {
-        if (t.isElementDefined(fromRegion, fromAOff, i)) {
+        if (t.isElementDefined(fromAOff, i)) {
           t.elementType match {
             case t2: PBaseStruct =>
               fixupStruct(t2, t.elementOffset(toAOff, length, i), fromRegion, t.elementOffset(fromAOff, length, i))
 
             case t2: PArray =>
-              val toAOff2 = fixupArray(t2, fromRegion, t.loadElement(fromRegion, fromAOff, length, i))
+              val toAOff2 = fixupArray(t2, fromRegion, t.loadElement(fromAOff, length, i))
               Region.storeAddress(t.elementOffset(toAOff, length, i), toAOff2)
 
-            case _: PBinary =>
-              val toBOff = fixupBinary(fromRegion, t.loadElement(fromRegion, fromAOff, length, i))
+            case t2: PBinary =>
+              val toBOff = fixupBinary(t2, fromRegion, t.loadElement(fromAOff, length, i))
               Region.storeAddress(t.elementOffset(toAOff, length, i), toBOff)
 
             case _ =>
@@ -352,17 +350,17 @@ class RegionValueBuilder(var region: Region) {
 
     var i = 0
     while (i < t.size) {
-      if (t.isFieldDefined(fromRegion, fromOff, i)) {
+      if (t.isFieldDefined(fromOff, i)) {
         t.types(i) match {
           case t2: PBaseStruct =>
             fixupStruct(t2, t.fieldOffset(toOff, i), fromRegion, t.fieldOffset(fromOff, i))
 
-          case _: PBinary =>
-            val toBOff = fixupBinary(fromRegion, t.loadField(fromRegion, fromOff, i))
+          case t2: PBinary =>
+            val toBOff = fixupBinary(t2, fromRegion, t.loadField(fromOff, i))
             Region.storeAddress(t.fieldOffset(toOff, i), toBOff)
 
           case t2: PArray =>
-            val toAOff = fixupArray(t2, fromRegion, t.loadField(fromRegion, fromOff, i))
+            val toAOff = fixupArray(t2, fromRegion, t.loadField(fromOff, i))
             Region.storeAddress(t.fieldOffset(toOff, i), toAOff)
 
           case _ =>
@@ -373,8 +371,8 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def addField(t: PBaseStruct, fromRegion: Region, fromOff: Long, i: Int) {
-    if (t.isFieldDefined(fromRegion, fromOff, i))
-      addRegionValue(t.types(i), fromRegion, t.loadField(fromRegion, fromOff, i))
+    if (t.isFieldDefined(fromOff, i))
+      addRegionValue(t.types(i), fromRegion, t.loadField(fromOff, i))
     else
       setMissing()
   }
@@ -416,9 +414,9 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def addElement(t: PArray, fromRegion: Region, fromAOff: Long, i: Int) {
-    if (t.isElementDefined(fromRegion, fromAOff, i))
+    if (t.isElementDefined(fromAOff, i))
       addRegionValue(t.elementType, fromRegion,
-        t.elementOffsetInRegion(fromRegion, fromAOff, i))
+        t.elementOffset(fromAOff, i))
     else
       setMissing()
   }
@@ -477,12 +475,12 @@ class RegionValueBuilder(var region: Region) {
           else
             start = toAOff
         }
-      case _: PBinary =>
+      case t2: PBinary =>
         if (region.eq(fromRegion)) {
           assert(!typestk.isEmpty)
           Region.storeAddress(toOff, fromOff)
         } else {
-          val toBOff = fixupBinary(fromRegion, fromOff)
+          val toBOff = fixupBinary(t2, fromRegion, fromOff)
           if (typestk.nonEmpty)
             Region.storeAddress(toOff, toBOff)
           else

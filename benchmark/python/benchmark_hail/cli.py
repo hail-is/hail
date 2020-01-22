@@ -29,6 +29,11 @@ def print_help():
         help='Combine parallelized benchmark metrics.',
         description='Combine parallelized benchmark metrics.')
 
+    subparsers.add_parser(
+        'summarize',
+        help='Summarize a benchmark json results file.',
+        description='Summarize a benchmark json results file')
+
     main_parser.print_help()
 
 
@@ -51,6 +56,9 @@ def main(args):
         elif module == 'combine':
             from .combine import combine
             combine.main(args)
+        elif module == 'summarize':
+            from .summarize import summarize
+            summarize.main(args)
         elif module in ('-h', '--help', 'help'):
             print_help()
         else:

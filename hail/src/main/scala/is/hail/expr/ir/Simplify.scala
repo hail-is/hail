@@ -141,6 +141,9 @@ object Simplify {
 
     case x@ArrayMap(NA(_), _, _) => NA(x.typ)
 
+    case ArrayZip(as, names, body, _) if as.length == 1 => ArrayMap(as.head, names.head, body)
+    case ArrayMap(ArrayZip(as, names, zipBody, b), name, mapBody) => ArrayZip(as, names, Let(name, zipBody, mapBody), b)
+
     case x@ArrayFlatMap(NA(_), _, _) => NA(x.typ)
 
     case x@ArrayFilter(NA(_), _, _) => NA(x.typ)
@@ -200,7 +203,7 @@ object Simplify {
 
     case ArrayLen(ArraySort(a, _, _, _)) => ArrayLen(a)
 
-    case ArrayRef(MakeArray(args, _), I32(i)) if i >= 0 && i < args.length => args(i)
+    case ArrayRef(MakeArray(args, _), I32(i), _) if i >= 0 && i < args.length => args(i)
 
     case ArrayFilter(a, _, True()) => a
 
@@ -261,7 +264,7 @@ object Simplify {
 
     case top@Let(x, Let(y, yVal, yBody), xBody) if (x != y) => Let(y, yVal, Let(x, yBody, xBody))
 
-    case Let(name, x@InsertFields(old, newFields, fieldOrder), body) if {
+    case Let(name, x@InsertFields(old, newFields, fieldOrder), body) if x.typ.size < 500  && {
       val r = Ref(name, x.typ)
       val nfSet = newFields.map(_._1).toSet
 
@@ -339,6 +342,15 @@ object Simplify {
       assert(x2.typ == x.typ)
       x2
 
+    case x@InsertFields(SelectFields(struct, selectFields), insertFields, _) if
+    insertFields.exists { case (name, f) => f == GetField(struct, name) } =>
+      val fields = x.typ.fieldNames
+      val insertNames = insertFields.map(_._1).toSet
+      val (oldFields, newFields) =
+        insertFields.partition {  case (name, f) => f == GetField(struct, name) }
+      val preservedFields = selectFields.filter(f => !insertNames.contains(f)) ++ oldFields.map(_._1)
+      InsertFields(SelectFields(struct, preservedFields), newFields, Some(fields))
+
     case GetTupleElement(MakeTuple(xs), idx) => xs.find(_._1 == idx).get._2
 
     case TableCount(MatrixColsTable(child)) if child.columnCount.isDefined => I64(child.columnCount.get)
@@ -362,9 +374,8 @@ object Simplify {
       TableAggregate(child,
         ApplyAggOp(
           FastIndexedSeq(),
-          None,
           FastIndexedSeq(ArrayLen(ToArray(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)})).toL),
-          AggSignature(Sum(), FastSeq(), None, FastSeq(TInt64()))))
+          AggSignature(Sum(), FastSeq(), FastSeq(TInt64()))))
 
     case TableCount(TableRead(_, false, r: MatrixBGENReader)) if r.includedVariants.isEmpty =>
       I64(r.fileMetadata.map(_.nVariants).sum)
@@ -535,7 +546,7 @@ object Simplify {
     case TableFilter(TableKeyBy(child, key, isSorted), p) if canRepartition => TableKeyBy(TableFilter(child, p), key, isSorted)
     case TableFilter(TableRepartition(child, n, strategy), p) => TableRepartition(TableFilter(child, p), n, strategy)
 
-    case TableOrderBy(TableKeyBy(child, _, _), sortFields) => TableOrderBy(child, sortFields)
+    case TableOrderBy(TableKeyBy(child, _, false), sortFields) => TableOrderBy(child, sortFields)
 
     case TableFilter(TableOrderBy(child, sortFields), pred) if canRepartition =>
       TableOrderBy(TableFilter(child, pred), sortFields)
@@ -671,14 +682,13 @@ object Simplify {
       // n < 256 is arbitrary for memory concerns
       val row = Ref("row", child.typ.rowType)
       val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
-      val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(row.typ, keyStruct.typ))
+      val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()),  FastSeq(row.typ, keyStruct.typ))
       val te =
         TableExplode(
           TableKeyByAndAggregate(child,
             MakeStruct(Seq(
               "row" -> ApplyAggOp(
                 FastIndexedSeq(I32(n.toInt)),
-                None,
                 Array(row, keyStruct),
                 aggSig))),
             MakeStruct(Seq()), // aggregate to one row
@@ -701,7 +711,7 @@ object Simplify {
         && child.typ.key.nonEmpty && canRepartition =>
       TableAggregateByKey(child, expr)
 
-    case TableAggregateByKey(TableKeyBy(child, keys, _), expr) if canRepartition =>
+    case TableAggregateByKey(x@TableKeyBy(child, keys, false), expr) if canRepartition && !x.definitelyDoesNotShuffle =>
       TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))
 
     case TableParallelize(TableCollect(child), _) if isDeterministicallyRepartitionable(child) => child
@@ -725,6 +735,8 @@ object Simplify {
       TableLeftJoinRightDistinct(TableFilterIntervals(child, intervals, true), TableFilterIntervals(right, intervals, true), root)
     case TableFilterIntervals(TableIntervalJoin(child, right, root, product), intervals, keep) =>
       TableIntervalJoin(TableFilterIntervals(child, intervals, keep), right, root, product)
+    case TableFilterIntervals(TableJoin(left, right, jt, jk), intervals, true) =>
+      TableJoin(TableFilterIntervals(left, intervals, true), TableFilterIntervals(right, intervals, true), jt, jk)
     case TableFilterIntervals(TableExplode(child, path), intervals, keep) =>
       TableExplode(TableFilterIntervals(child, intervals, keep), path)
     case TableFilterIntervals(TableAggregateByKey(child, expr), intervals, keep) =>
@@ -841,7 +853,7 @@ object Simplify {
     // prune and fuse anyway.
     case MatrixMapRows(MatrixMapRows(child, newRow1), newRow2) if !Mentions.inAggOrScan(newRow2, "va")
       && !Exists.inIR(newRow2, {
-      case a: ApplyAggOp => a.initOpArgs.exists(_.exists(Mentions(_, "va"))) // Lowering produces invalid IR
+      case a: ApplyAggOp => a.initOpArgs.exists(Mentions(_, "va")) // Lowering produces invalid IR
       case _ => false
     }) =>
       val uid = genUID()

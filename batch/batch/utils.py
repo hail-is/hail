@@ -9,8 +9,24 @@ from hailtop.batch_client.validate import CPU_REGEX, MEMORY_REGEX
 log = logging.getLogger('utils')
 
 
-def cost_from_msec_mcpu(msec_mcpu):
-    cost_per_core_sec = 0.013 / 3600
+def cost_from_msec_mcpu(app, msec_mcpu):
+    # https://cloud.google.com/compute/all-pricing
+    # persistent SSD: $0.17 GB/month
+    # average number of days per month = 365.25 / 12 = 30.4375
+
+    avg_n_days_per_month = 30.4375
+
+    if app['worker_type'] == 'standard':
+        cpu_cost_per_core_hour = 0.01
+    elif app['worker_type'] == 'highcpu':
+        cpu_cost_per_core_hour = 0.0075
+    else:
+        assert app['worker_type'] == 'highmem'
+        cpu_cost_per_core_hour = 0.0125
+
+    disk_cost_per_core_hour = 0.17 * app['worker_disk_size_gb'] / avg_n_days_per_month / 24 / app['worker_cores']
+    cost_per_core_sec = (cpu_cost_per_core_hour + disk_cost_per_core_hour) / 3600
+
     return msec_mcpu * cost_per_core_sec * 0.001 * 0.001
 
 

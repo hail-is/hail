@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.annotations._
-import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.asm4s.AsmFunction3
 import is.hail.expr.TypedAggregator
 import is.hail.expr.ir.lowering.LoweringPipeline
@@ -9,7 +8,6 @@ import is.hail.expr.types.physical.{PTuple, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.BufferSpec
 import is.hail.linalg.BlockMatrix
-import is.hail.methods._
 import is.hail.rvd.RVDContext
 import is.hail.utils._
 import is.hail.{HailContext, stats}
@@ -226,7 +224,7 @@ object Interpret {
           }
 
       case MakeArray(elements, _) => elements.map(interpret(_, env, args)).toFastIndexedSeq
-      case ArrayRef(a, i) =>
+      case x@ArrayRef(a, i, s) =>
         val aValue = interpret(a, env, args)
         val iValue = interpret(i, env, args)
         if (aValue == null || iValue == null)
@@ -234,9 +232,17 @@ object Interpret {
         else {
           val a = aValue.asInstanceOf[IndexedSeq[Any]]
           val i = iValue.asInstanceOf[Int]
-          if (i < 0 || i >= a.length)
-            fatal(s"array index out of bounds: $i / ${ a.length }")
-          else
+
+          if (i < 0 || i >= a.length) {
+            val msg = interpret(s, env, args)
+            val prettied = Pretty(x)
+            val irString =
+              if (prettied.size > 100) prettied.take(100) + " ..."
+              else prettied
+            val toAdd = if (msg == "") "" else s"\n----------\nPython traceback:\n${ msg }"
+            fatal(s"array index out of bounds: index=$i, length=${ a.length }" +
+              s"\n----------\nIR:\n${ irString }$s" + toAdd)
+          } else
             a.apply(i)
         }
       case ArrayLen(a) =>
@@ -342,6 +348,27 @@ object Interpret {
         else {
           aValue.asInstanceOf[IndexedSeq[Any]].map { element =>
             interpret(body, env.bind(name, element), args)
+          }
+        }
+      case ArrayZip(as, names, body, behavior) =>
+        val aValues = as.map(interpret(_, env, args).asInstanceOf[IndexedSeq[_]])
+        if (aValues.contains(null))
+          null
+        else {
+          val len = behavior match {
+            case ArrayZipBehavior.AssertSameLength | ArrayZipBehavior.AssumeSameLength =>
+              val lengths = aValues.map(_.length).toSet
+              if (lengths.size != 1)
+                fatal(s"zip: length mismatch: ${ lengths.mkString(", ") }")
+              lengths.head
+            case ArrayZipBehavior.TakeMinLength =>
+              aValues.map(_.length).min
+            case ArrayZipBehavior.ExtendNA =>
+              aValues.map(_.length).max
+          }
+          (0 until len).map { i =>
+            val e = env.bindIterable(names.zip(aValues.map(a => if (i >= a.length) null else a.apply(i))))
+            interpret(body, e, args)
           }
         }
       case ArrayFilter(a, name, cond) =>
@@ -540,14 +567,6 @@ object Interpret {
               fatal(s"error while calling '${ ir.implementation.name }'", e)
           }
         }
-      case Uniroot(functionid, fn, minIR, maxIR) =>
-        val f = { x: Double => interpret(fn, env.bind(functionid, x), args).asInstanceOf[Double] }
-        val min = interpret(minIR, env, args)
-        val max = interpret(maxIR, env, args)
-        if (min == null || max == null)
-          null
-        else
-          stats.uniroot(f, min.asInstanceOf[Double], max.asInstanceOf[Double]).orNull
       case TableCount(child) =>
         child.partitionCounts
           .map(_.sum)

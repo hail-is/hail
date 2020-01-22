@@ -1304,11 +1304,11 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
     key_field_name = '__key'
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
-    mt = mt._annotate_all(col_exprs=dict(**{y_field_name: y},
-                                         **dict(zip(cov_field_names, covariates))),
-                          row_exprs={weight_field_name: weight_expr,
-                                     key_field_name: key_expr},
-                          entry_exprs=entry_expr)
+    mt = mt._select_all(col_exprs=dict(**{y_field_name: y},
+                                       **dict(zip(cov_field_names, covariates))),
+                        row_exprs={weight_field_name: weight_expr,
+                                   key_field_name: key_expr},
+                        entry_exprs=entry_expr)
 
     config = {
         'name': 'Skat',
@@ -3384,7 +3384,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     locally_pruned_table = hl.read_table(locally_pruned_table_path).add_index()
 
     mt = mt.annotate_rows(info=locally_pruned_table[mt.row_key])
-    mt = mt.filter_rows(hl.is_defined(mt.info))
+    mt = mt.filter_rows(hl.is_defined(mt.info)).unfilter_entries()
 
     std_gt_bm = BlockMatrix.from_entry_expr(
         hl.or_else(

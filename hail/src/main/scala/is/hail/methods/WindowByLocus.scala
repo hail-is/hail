@@ -86,7 +86,7 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
 
       val pLocus = localRVRowType.field("locus").typ.asInstanceOf[PLocus]
       def getLocus(row: RegionValue): Locus =
-        UnsafeRow.readLocus(row.region, localRVRowType.loadField(row, locusIndex), pLocus)
+        UnsafeRow.readLocus(row.region, localRVRowType.loadField(row.offset, locusIndex), pLocus)
 
       val unsafeRow = new UnsafeRow(localRVRowType)
       val keyView = new KeyedRow(unsafeRow, localKeyFieldIdx)
@@ -96,7 +96,7 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
       }
 
       bit.map { rv =>
-        val locus = UnsafeRow.readLocus(rv.region, localRVRowType.loadField(rv, locusIndex), pLocus)
+        val locus = UnsafeRow.readLocus(rv.region, localRVRowType.loadField(rv.offset, locusIndex), pLocus)
 
         def discard(x: (Locus, RegionValue)): Boolean = x != null && (x._1.position < locus.position - basePairs
           || x._1.contig != locus.contig)
@@ -126,14 +126,14 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
 
         rvb.startArray(nCols)
 
-        val entriesOffset = localRVRowType.loadField(rv, entriesIndex)
-        val prevEntriesOffsets = rvs.map(localRVRowType.loadField(_, entriesIndex))
+        val entriesOffset = localRVRowType.loadField(rv.offset, entriesIndex)
+        val prevEntriesOffsets = rvs.map(rv => localRVRowType.loadField(rv.offset, entriesIndex))
 
         j = 0
         while (j < nCols) {
           rvb.startStruct()
-          if (entryArrayType.isElementDefined(rv.region, entriesOffset, j))
-            rvb.addAllFields(entryType, rv.region, entryArrayType.loadElement(rv.region, entriesOffset, j))
+          if (entryArrayType.isElementDefined(entriesOffset, j))
+            rvb.addAllFields(entryType, rv.region, entryArrayType.loadElement(entriesOffset, j))
           else
             rvb.skipFields(entryType.size)
 
@@ -142,8 +142,8 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
           var k = 0
           while (k < rvs.length) {
             rvb.startStruct()
-            if (entryArrayType.isElementDefined(rvs(k).region, prevEntriesOffsets(k), j))
-              rvb.addAllFields(entryType, rvs(k).region, entryArrayType.loadElement(rvs(k).region, prevEntriesOffsets(k), j))
+            if (entryArrayType.isElementDefined(prevEntriesOffsets(k), j))
+              rvb.addAllFields(entryType, rvs(k).region, entryArrayType.loadElement(prevEntriesOffsets(k), j))
             else
               rvb.skipFields(entryType.size)
             rvb.endStruct()

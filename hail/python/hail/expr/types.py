@@ -653,9 +653,16 @@ class tndarray(HailType):
 
     def _convert_to_json(self, x):
         data = x.reshape(x.size).tolist()
+
+        strides = []
+        axis_one_step_byte_size = x.itemsize
+        for dimension_size in reversed(x.shape):
+            strides.insert(0, axis_one_step_byte_size)
+            axis_one_step_byte_size *= (dimension_size if dimension_size > 0 else 1)
+
         json_dict = {
             "shape": x.shape,
-            "strides": x.strides,
+            "strides": strides,
             "flags": 0,
             "data": data,
             "offset": 0
@@ -696,7 +703,7 @@ class tarray(HailType):
     See Also
     --------
     :class:`.ArrayExpression`, :class:`.CollectionExpression`,
-    :func:`.array`, :ref:`sec-collection-functions`
+    :func:`~hail.expr.functions.array`, :ref:`sec-collection-functions`
     """
 
     @typecheck_method(element_type=hail_type)

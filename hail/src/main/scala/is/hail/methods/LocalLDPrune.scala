@@ -23,7 +23,6 @@ class BitPackedVectorView(rvRowType: PStruct) {
   val vView = new RegionValueVariant(rvRowType)
 
   // All types are required!
-  private var m: Region = _
   private var bpvOffset: Long = _
   private var bpvLength: Int = _
   private var bpvElementOffset: Long = _
@@ -33,15 +32,14 @@ class BitPackedVectorView(rvRowType: PStruct) {
   private val bpvPType = PArray(PInt64Required)
 
   def setRegion(mb: Region, offset: Long) {
-    this.m = mb
-    bpvOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("bpv"))
-    bpvLength = bpvPType.loadLength(m, bpvOffset)
+    bpvOffset = rvRowType.loadField(offset, rvRowType.fieldIdx("bpv"))
+    bpvLength = bpvPType.loadLength(bpvOffset)
     bpvElementOffset = bpvPType.elementOffset(bpvOffset, bpvLength, 0)
-    nSamplesOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("nSamples"))
-    meanOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("mean"))
-    centeredLengthRecOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("centered_length_rec"))
+    nSamplesOffset = rvRowType.loadField(offset, rvRowType.fieldIdx("nSamples"))
+    meanOffset = rvRowType.loadField(offset, rvRowType.fieldIdx("mean"))
+    centeredLengthRecOffset = rvRowType.loadField(offset, rvRowType.fieldIdx("centered_length_rec"))
 
-    vView.setRegion(m, offset)
+    vView.setRegion(mb, offset)
   }
 
   def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)

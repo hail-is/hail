@@ -31,6 +31,10 @@ object Children {
       Array(value, body)
     case AggLet(name, value, body, _) =>
       Array(value, body)
+    case TailLoop(_, args, body) =>
+      args.map(_._2).toFastIndexedSeq :+ body
+    case Recur(_, args, _) =>
+      args.toFastIndexedSeq
     case Ref(name, typ) =>
       none
     case RelationalRef(_, _) =>
@@ -45,8 +49,8 @@ object Children {
       args.toFastIndexedSeq
     case MakeStream(args, typ) =>
       args.toFastIndexedSeq
-    case ArrayRef(a, i) =>
-      Array(a, i)
+    case ArrayRef(a, i, s) =>
+      Array(a, i, s)
     case ArrayLen(a) =>
       Array(a)
     case ArrayRange(start, stop, step) =>
@@ -75,6 +79,8 @@ object Children {
       Array(collection)
     case ArrayMap(a, name, body) =>
       Array(a, body)
+    case ArrayZip(as, names, body, _) =>
+      as ++ Array(body)
     case ArrayFilter(a, name, cond) =>
       Array(a, cond)
     case ArrayFlatMap(a, name, body) =>
@@ -93,6 +99,8 @@ object Children {
       Array(a, query)
     case ArrayAggScan(a, name, query) =>
       Array(a, query)
+    case RunAgg(body, result, _) =>
+      Array(body, result)
     case NDArrayRef(nd, idxs) =>
       nd +: idxs
     case NDArraySlice(nd, slices) =>
@@ -107,6 +115,8 @@ object Children {
       Array(nd)
     case NDArrayMatMul(l, r) =>
       Array(l, r)
+    case NDArrayQR(nd, _) =>
+      Array(nd)
     case NDArrayWrite(nd, path) =>
       Array(nd, path)
     case AggFilter(cond, aggIR, _) =>
@@ -122,18 +132,18 @@ object Children {
       Array(old)
     case InsertFields(old, fields, _) =>
       (old +: fields.map(_._2)).toFastIndexedSeq
-    case InitOp2(_, args, _) => args
-    case SeqOp2(_, args, _) => args
-    case _: ResultOp2 => none
-    case _: CombOp2 => none
+    case InitOp(_, args, _) => args
+    case SeqOp(_, args, _) => args
+    case _: ResultOp => none
+    case _: CombOp => none
     case SerializeAggs(_, _, _, _) => none
     case DeserializeAggs(_, _, _, _) => none
     case Begin(xs) =>
       xs
-    case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
-      constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
-    case ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
-      constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
+    case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
+      initOpArgs ++ seqOpArgs
+    case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
+      initOpArgs ++ seqOpArgs
     case GetField(o, name) =>
       Array(o)
     case MakeTuple(fields) =>
@@ -152,8 +162,6 @@ object Children {
       args.toFastIndexedSeq
     case ApplySpecial(_, args, _) =>
       args.toFastIndexedSeq
-    case Uniroot(_, fn, min, max) =>
-      Array(fn, min, max)
     // from MatrixIR
     case MatrixWrite(child, _) => Array(child)
     case MatrixMultiWrite(children, _) => children

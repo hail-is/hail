@@ -3,7 +3,41 @@
     <b>/</b>
   </a>
 
-  {% if userdata['developer'] == 1 %}
+  {% if userdata['is_developer'] == 1 %}
+    <div class="header-dropdown">
+      <div class="header-dropdown-item-margin">
+	<span class="disabled-header-dropdown-item">Auth</span>
+	<div class="header-dropdown-menu">
+	  <div class="auth-caret header-dropdown-menu-caret"></div>
+	  <a class="header-dropdown-menu-link" href="{{ auth_base_url }}/users">Users</a>
+	</div>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if userdata['is_developer'] == 1 %}
+    <div class="header-dropdown">
+      <div class="header-dropdown-item-margin">
+	<a href="{{ batch_base_url }}" class="header-dropdown-link">Batch</a>
+	<div class="header-dropdown-menu">
+	  <div class="batch-caret header-dropdown-menu-caret"></div>
+	  <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}">Driver</a>
+	  <a class="header-dropdown-menu-link" href="{{ batch_base_url }}/billing_projects">Billing Projects</a>
+	  <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}/user_resources">User Resources</a>
+	</div>
+      </div>
+    </div>
+  {% else %}
+    <a class="header-link" href="{{ batch_base_url }}">Batch</a>
+  {% endif %}
+
+  {% if userdata['is_developer'] == 1 %}
+    <a class="header-link" href="{{ ci_base_url }}">
+      CI
+    </a>
+  {% endif %}
+
+  {% if userdata['is_developer'] == 1 %}
     <div class="header-dropdown">
       <div class="header-dropdown-item-margin">
 	<a href="{{ notebook_base_url }}/notebook" class="header-dropdown-link">Notebook</a>
@@ -20,29 +54,7 @@
     </a>
   {% endif %}
 
-  {% if userdata['developer'] == 1 %}
-    <div class="header-dropdown">
-      <div class="header-dropdown-item-margin">
-	<a href="{{ batch_base_url }}" class="header-dropdown-link">Batch</a>
-	<div class="header-dropdown-menu">
-	  <div class="batch-caret header-dropdown-menu-caret"></div>
-	  <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}">Driver</a>
-	</div>
-      </div>
-    </div>
-  {% else %}
-    <a class="header-link" href="{{ batch_base_url }}">Batch</a>
-  {% endif %}
-
-  {% if userdata['developer'] == 1 %}
-    <a class="header-link" href="{{ ci_base_url }}">
-      CI
-    </a>
-
-    <a class="header-link" href="{{ scorecard_base_url }}">
-      Scorecard
-    </a>
-
+  {% if userdata['is_developer'] == 1 %}
     <div class="header-dropdown">
       <div class="header-dropdown-item-margin">
 	<span class="disabled-header-dropdown-item">Monitoring</span>
@@ -60,6 +72,12 @@
 	</div>
       </div>
     </div>
+  {% endif %}
+
+  {% if userdata['is_developer'] == 1 %}
+    <a class="header-link" href="{{ scorecard_base_url }}">
+      Scorecard
+    </a>
   {% endif %}
 
   <div id="header-flex"></div>

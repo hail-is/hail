@@ -107,19 +107,10 @@ object ArrayFunctions extends RegistryFunctions {
 
       registerIR(stringOp, TArray(argType), TArray(argType), TArray(retType)) { (array1, array2) =>
         val a1id = genUID()
-        val a1 = Ref(a1id, array1.typ)
+        val e1 = Ref(a1id, -coerce[TStreamable](array1.typ).elementType)
         val a2id = genUID()
-        val a2 = Ref(a2id, array2.typ)
-        val iid = genUID()
-        val i = Ref(iid, TInt32())
-        val body =
-          ArrayMap(ArrayRange(I32(0), ArrayLen(a1), I32(1)), iid,
-            irOp(ArrayRef(a1, i), ArrayRef(a2, i)))
-        val guarded =
-          If(ApplyComparisonOp(EQ(TInt32()), ArrayLen(a1), ArrayLen(a2)),
-            body,
-            Die("Arrays must have same length", body.typ))
-        Let(a1id, array1, Let(a2id, array2, guarded))
+        val e2 = Ref(a2id, -coerce[TStreamable](array2.typ).elementType)
+        ArrayZip(FastIndexedSeq(array1, array2), FastIndexedSeq(a1id, a2id), irOp(e1, e2), ArrayZipBehavior.AssertSameLength)
       }
     }
 
@@ -250,12 +241,12 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("uniqueMaxIndex", TArray(tv("T")), TInt32())(uniqueIndex(_, GT(_)))
 
-    registerIR("indexArray", TArray(tv("T")), TInt32(), tv("T")) { (a, i) =>
+    registerIR("indexArray", TArray(tv("T")), TInt32(), TString(), tv("T")) { (a, i, s) =>
       ArrayRef(
         a,
         If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
           ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
-          i))
+          i), s)
     }
 
     registerIR("[:]", TArray(tv("T")), TArray(tv("T"))) { (a) => a }
@@ -313,8 +304,6 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("corr", TArray(TFloat64()), TArray(TFloat64()), TFloat64(), null) {
       case (r, rt, (t1: PArray, EmitTriplet(setup1, m1, v1)), (t2: PArray, EmitTriplet(setup2, m2, v2))) =>
-        val region = r.region
-
         val xSum = r.mb.newLocal[Double]
         val ySum = r.mb.newLocal[Double]
         val xSqSum = r.mb.newLocal[Double]
@@ -335,8 +324,8 @@ object ArrayFunctions extends RegistryFunctions {
             setup1,
             setup2),
           m1 || m2 || Code(
-            l1 := t1.loadLength(region, a1),
-            l2 := t2.loadLength(region, a2),
+            l1 := t1.loadLength(a1),
+            l2 := t2.loadLength(a2),
             l1.cne(l2).mux(
               Code._fatal(new CodeString("'corr': cannot compute correlation between arrays of different lengths: ")
                 .concat(l1.toS)
@@ -353,12 +342,12 @@ object ArrayFunctions extends RegistryFunctions {
             xySum := 0d,
             Code.whileLoop(i < l1,
               Code(
-                (t1.isElementDefined(region, a1, i) && t2.isElementDefined(region, a2, i)).mux(
+                (t1.isElementDefined(a1, i) && t2.isElementDefined(a2, i)).mux(
                   Code(
-                    x := Region.loadDouble(t1.loadElement(region, a1, i)),
+                    x := Region.loadDouble(t1.loadElement(a1, i)),
                     xSum := xSum + x,
                     xSqSum := xSqSum + x * x,
-                    y := Region.loadDouble(t2.loadElement(region, a2, i)),
+                    y := Region.loadDouble(t2.loadElement(a2, i)),
                     ySum := ySum + y,
                     ySqSum := ySqSum + y * y,
                     xySum := xySum + x * y,

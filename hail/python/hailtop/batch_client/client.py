@@ -98,8 +98,8 @@ class Batch:
         b._async_batch = batch
         return b
 
-    def __init__(self, client, id, attributes):
-        self._async_batch = aioclient.Batch(client, id, attributes)
+    def __init__(self, client, id, attributes, n_jobs):
+        self._async_batch = aioclient.Batch(client, id, attributes, n_jobs)
 
     @property
     def id(self):
@@ -144,7 +144,7 @@ class BatchBuilder:
         return self._async_builder.callback
 
     def create_job(self, image, command, env=None, mount_docker_socket=False,
-                   resources=None, secrets=None,
+                   port=None, resources=None, secrets=None,
                    service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False, pvc_size=None):
         if parents:
@@ -152,7 +152,7 @@ class BatchBuilder:
 
         async_job = self._async_builder.create_job(
             image, command, env=env, mount_docker_socket=mount_docker_socket,
-            resources=resources, secrets=secrets,
+            port=port, resources=resources, secrets=secrets,
             service_account=service_account,
             attributes=attributes, parents=parents,
             input_files=input_files, output_files=output_files, always_run=always_run,
@@ -160,8 +160,12 @@ class BatchBuilder:
 
         return Job.from_async_job(async_job)
 
-    def submit(self):
-        async_batch = async_to_blocking(self._async_builder.submit())
+    def _create(self, *args, **kwargs):
+        async_batch = async_to_blocking(self._async_builder._create(*args, **kwargs))
+        return Batch.from_async_batch(async_batch)
+
+    def submit(self, *args, **kwargs):
+        async_batch = async_to_blocking(self._async_builder.submit(*args, **kwargs))
         return Batch.from_async_batch(async_batch)
 
 
@@ -174,6 +178,10 @@ class BatchClient:
     @property
     def bucket(self):
         return self._async_client.bucket
+
+    @property
+    def billing_project(self):
+        return self._async_client.billing_project
 
     def list_batches(self, q=None):
         for b in agen_to_blocking(self._async_client.list_batches(q)):

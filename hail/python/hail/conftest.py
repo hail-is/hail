@@ -3,6 +3,7 @@ import os
 import pytest
 import shutil
 import tempfile
+import numpy as np
 
 import hail as hl
 
@@ -43,6 +44,7 @@ def init(doctest_namespace):
 
 def generate_datasets(doctest_namespace):
     doctest_namespace['hl'] = hl
+    doctest_namespace['np'] = np
 
     ds = hl.import_vcf('data/sample.vcf.bgz')
     ds = ds.sample_rows(0.03)

@@ -14,7 +14,7 @@ Regardless of installation method, you will need:
   Note: it *must* be Java **8**. Hail does not support versions 9+ due to our
   dependency on Spark.
 - Python 3.6 or 3.7. We recommend `Miniconda Python 3.7
-  <https://docs.conda.io/en/latest/miniconda.html>`_ Hail [does not support](https://github.com/hail-is/hail/issues/7513) Python 3.8.
+  <https://docs.conda.io/en/latest/miniconda.html>`_ Hail `does not support <https://github.com/hail-is/hail/issues/7513>`_ Python 3.8.
 
 Regardless of installation method, GNU/Linux users must obtain a recent version
 of the C and C++ standard library:
@@ -74,6 +74,18 @@ Running on the cloud
 ~~~~~~~~~~~~~~~~~~~~
 
 For more about computing on the cloud, see `Hail on the cloud <hail_on_the_cloud.html>`_.
+
+Running on a large server
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Running Hail on a large server is a great way to tackle medium-size compute tasks without
+the need to maintain an on-premise cluster. The above instructions for running on Linux apply,
+with one additional consideration -- in order to take advantage of all the machine's memory
+resources, it is necessary to set an environment variable:
+
+.. code-block:: sh
+
+    export PYSPARK_SUBMIT_ARGS="--driver-memory <YOUR_MEMORY_HERE>G pyspark-shell"
 
 Running on a Spark cluster
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

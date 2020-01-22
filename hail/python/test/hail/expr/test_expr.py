@@ -648,6 +648,41 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
+        t = hl.Table.parallelize([
+            {"cohort": None, "pop": "EUR", "GT": hl.Call([0, 0])},
+            {"cohort": None, "pop": "ASN", "GT": hl.Call([0, 1])},
+            {"cohort": None, "pop": None, "GT": hl.Call([0, 0])},
+            {"cohort": "SIGMA", "pop": "AFR", "GT": hl.Call([0, 1])},
+            {"cohort": "SIGMA", "pop": "EUR", "GT": hl.Call([1, 1])},
+            {"cohort": "IBD", "pop": "EUR", "GT": None},
+            {"cohort": "IBD", "pop": "EUR", "GT": hl.Call([0, 0])},
+            {"cohort": "IBD", "pop": None, "GT": hl.Call([0, 1])}
+        ], hl.tstruct(cohort=hl.tstr, pop=hl.tstr, GT=hl.tcall), n_partitions=3)
+
+        r = t.aggregate(hl.struct(count=hl.agg.group_by(t.cohort, hl.agg.group_by(t.pop, hl.agg.count_where(hl.is_defined(t.GT)))),
+                                  inbreeding=hl.agg.group_by(t.cohort, hl.agg.inbreeding(t.GT, 0.1))))
+
+        expected_count = {None: {'EUR': 1, 'ASN': 1, None: 1},
+                          'SIGMA': {'AFR': 1, 'EUR': 1},
+                          'IBD': {'EUR': 1, None: 1}}
+
+        self.assertEqual(r.count, expected_count)
+
+        self.assertAlmostEqual(r.inbreeding[None].f_stat, -0.8518518518518517)
+        self.assertEqual(r.inbreeding[None].n_called, 3)
+        self.assertAlmostEqual(r.inbreeding[None].expected_homs, 2.46)
+        self.assertEqual(r.inbreeding[None].observed_homs, 2)
+
+        self.assertAlmostEqual(r.inbreeding['SIGMA'].f_stat, -1.777777777777777)
+        self.assertEqual(r.inbreeding['SIGMA'].n_called, 2)
+        self.assertAlmostEqual(r.inbreeding['SIGMA'].expected_homs, 1.64)
+        self.assertEqual(r.inbreeding['SIGMA'].observed_homs, 1)
+
+        self.assertAlmostEqual(r.inbreeding['IBD'].f_stat, -1.777777777777777)
+        self.assertEqual(r.inbreeding['IBD'].n_called, 2)
+        self.assertAlmostEqual(r.inbreeding['IBD'].expected_homs, 1.64)
+        self.assertEqual(r.inbreeding['IBD'].observed_homs, 1)
+
     def test_agg_group_by_on_call(self):
         t = hl.utils.range_table(10)
         t = t.annotate(call = hl.call(0, 0), x = 1)
@@ -1020,42 +1055,6 @@ class Tests(unittest.TestCase):
         result = result[0].info
         self.assertAlmostEqual(result.score, -0.235041090, places=3)
         self.assertEqual(result.n_included, 8)
-
-    def test_aggregator_group_by(self):
-        t = hl.Table.parallelize([
-            {"cohort": None, "pop": "EUR", "GT": hl.Call([0, 0])},
-            {"cohort": None, "pop": "ASN", "GT": hl.Call([0, 1])},
-            {"cohort": None, "pop": None, "GT": hl.Call([0, 0])},
-            {"cohort": "SIGMA", "pop": "AFR", "GT": hl.Call([0, 1])},
-            {"cohort": "SIGMA", "pop": "EUR", "GT": hl.Call([1, 1])},
-            {"cohort": "IBD", "pop": "EUR", "GT": None},
-            {"cohort": "IBD", "pop": "EUR", "GT": hl.Call([0, 0])},
-            {"cohort": "IBD", "pop": None, "GT": hl.Call([0, 1])}
-        ], hl.tstruct(cohort=hl.tstr, pop=hl.tstr, GT=hl.tcall), n_partitions=3)
-
-        r = t.aggregate(hl.struct(count=hl.agg.group_by(t.cohort, hl.agg.group_by(t.pop, hl.agg.count_where(hl.is_defined(t.GT)))),
-                                  inbreeding=hl.agg.group_by(t.cohort, hl.agg.inbreeding(t.GT, 0.1))))
-
-        expected_count = {None: {'EUR': 1, 'ASN': 1, None: 1},
-                    'SIGMA': {'AFR': 1, 'EUR': 1},
-                    'IBD': {'EUR': 1, None: 1}}
-
-        self.assertEqual(r.count, expected_count)
-
-        self.assertAlmostEqual(r.inbreeding[None].f_stat, -0.8518518518518517)
-        self.assertEqual(r.inbreeding[None].n_called, 3)
-        self.assertAlmostEqual(r.inbreeding[None].expected_homs, 2.46)
-        self.assertEqual(r.inbreeding[None].observed_homs, 2)
-
-        self.assertAlmostEqual(r.inbreeding['SIGMA'].f_stat, -1.777777777777777)
-        self.assertEqual(r.inbreeding['SIGMA'].n_called, 2)
-        self.assertAlmostEqual(r.inbreeding['SIGMA'].expected_homs, 1.64)
-        self.assertEqual(r.inbreeding['SIGMA'].observed_homs, 1)
-
-        self.assertAlmostEqual(r.inbreeding['IBD'].f_stat, -1.777777777777777)
-        self.assertEqual(r.inbreeding['IBD'].n_called, 2)
-        self.assertAlmostEqual(r.inbreeding['IBD'].expected_homs, 1.64)
-        self.assertEqual(r.inbreeding['IBD'].observed_homs, 1)
 
     def test_aggregator_group_by_sorts_result(self):
         t = hl.Table.parallelize([ # the `s` key is stored before the `m` in java.util.HashMap
@@ -2857,7 +2856,26 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(hl.median(s), 3)
 
     def test_uniroot(self):
-        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3)), 1)
+        tol = 1.220703e-4
+
+        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, hl.null('float'), tolerance=tol)), None)
+        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, hl.null('float'), 3, tolerance=tol)), None)
+        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3, tolerance=tol)), 1)
+        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: hl.log(x) - 1, 0, 3, tolerance=tol)), 2.718281828459045, delta=tol)
+
+        with self.assertRaisesRegex(hl.utils.FatalError, "value of f\(x\) is missing"):
+            hl.eval(hl.uniroot(lambda x: hl.null('float'), 0, 1))
+        with self.assertRaisesRegex(hl.utils.FatalError, 'opposite signs'):
+            hl.eval(hl.uniroot(lambda x: x ** 2 - 0.5, -1, 1))
+        with self.assertRaisesRegex(hl.utils.FatalError, 'min must be less than max'):
+            hl.eval(hl.uniroot(lambda x: x, 1, -1))
+
+        def multiple_roots(x):
+            return (x - 1.5) * (x - 2) * (x - 3.3) * (x - 4.5) * (x - 5)
+
+        roots = [1.5, 2, 3.3, 4.5, 5]
+        result = hl.eval(hl.uniroot(multiple_roots, 0, 5.5, tolerance=tol))
+        self.assertTrue(any(abs(result - root) < tol for root in roots))
 
     def test_pT(self):
         self.assert_evals_to(hl.pT(0, 10), 0.5)
@@ -3213,10 +3231,6 @@ class Tests(unittest.TestCase):
         assert hl.eval(a["b"]["inner"]) == [[1, 2], [3]]
         assert hl.eval(a.b["inner"]) == [[1, 2], [3]]
 
-        self.assertRaises(AttributeError, lambda: hl.array([1,2,3]).a)
-        self.assertRaises(AttributeError, lambda: hl.array([1,2,3])["a"])
-        self.assertRaises(AttributeError, lambda: hl.array([[1],[2],[3]])["a"])
-        self.assertRaises(AttributeError, lambda: hl.array([{1},{2},{3}])["a"])
 
     def test_binary_search(self):
         a = hl.array([0, 2, 4, 8])
@@ -3252,3 +3266,12 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.tuple((3, 4, 5, 10))[1:]) == (4, 5, 10)
         assert hl.eval(hl.tuple((3, 4, 5, 10))[0:4:2]) == (3, 5)
         assert hl.eval(hl.tuple((3, 4, 5, 10))[-2:]) == (5, 10)
+
+    def test_numpy_conversions(self):
+        assert hl.eval(np.int32(3)) == 3
+        assert hl.eval(np.int64(1234)) == 1234
+        assert hl.eval(np.bool(True))
+        assert not hl.eval(np.bool(False))
+        assert np.allclose(hl.eval(np.float32(3.4)), 3.4)
+        assert np.allclose(hl.eval(np.float64(8.89)), 8.89)
+        assert hl.eval(np.str("cat")) == "cat"

@@ -22,7 +22,6 @@ class InstancePool:
         self.scheduler_state_changed = app['scheduler_state_changed']
         self.db = app['db']
         self.gservices = app['gservices']
-        self.k8s = app['k8s_client']
         self.machine_name_prefix = machine_name_prefix
 
         # set in async_init
@@ -53,7 +52,7 @@ class InstancePool:
     async def async_init(self):
         log.info('initializing instance pool')
 
-        row = await self.db.execute_and_fetchone(
+        row = await self.db.select_and_fetchone(
             'SELECT worker_type, worker_cores, worker_disk_size_gb, max_instances, pool_size FROM globals;')
 
         self.worker_type = row['worker_type']
@@ -62,8 +61,8 @@ class InstancePool:
         self.max_instances = row['max_instances']
         self.pool_size = row['pool_size']
 
-        async for record in self.db.execute_and_fetchall(
-                'SELECT * FROM instances;'):
+        async for record in self.db.select_and_fetchall(
+                'SELECT * FROM instances WHERE removed = 0;'):
             instance = Instance.from_record(self.app, record)
             self.add_instance(instance)
 
@@ -85,21 +84,20 @@ class InstancePool:
     # database
     async def configure(
             self,
-            # worker_type, worker_cores,
-            worker_disk_size_gb, max_instances, pool_size):
+            # worker_type, worker_cores, worker_disk_size_gb,
+            max_instances, pool_size):
         await self.db.just_execute(
-            # worker_type = %s, worker_cores = %s
+            # worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
             '''
 UPDATE globals
-SET worker_disk_size_gb = %s,
-    max_instances = %s, pool_size = %s;
+SET max_instances = %s, pool_size = %s;
 ''',
             (
-                # worker_type, worker_cores,
-                worker_disk_size_gb, max_instances, pool_size))
+                # worker_type, worker_cores, worker_disk_size_gb,
+                max_instances, pool_size))
         # self.worker_type = worker_type
         # self.worker_cores = worker_cores
-        self.worker_disk_size_gb = worker_disk_size_gb
+        # self.worker_disk_size_gb = worker_disk_size_gb
         self.max_instances = max_instances
         self.pool_size = pool_size
 
@@ -115,7 +113,7 @@ SET worker_disk_size_gb = %s,
         self.n_instances_by_state[instance.state] -= 1
 
         if instance.state in ('pending', 'active'):
-            self.live_free_cores_mcpu -= instance.free_cores_mcpu
+            self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
         if instance in self.healthy_instances_by_free_cores:
             self.healthy_instances_by_free_cores.remove(instance)
 
@@ -123,7 +121,7 @@ SET worker_disk_size_gb = %s,
         await instance.deactivate(reason, timestamp)
 
         await self.db.just_execute(
-            'DELETE FROM instances WHERE name = %s;', (instance.name,))
+            'UPDATE instances SET removed = 1 WHERE name = %s;', (instance.name,))
 
         self.adjust_for_remove_instance(instance)
         del self.name_instance[instance.name]
@@ -135,7 +133,7 @@ SET worker_disk_size_gb = %s,
 
         self.instances_by_last_updated.add(instance)
         if instance.state in ('pending', 'active'):
-            self.live_free_cores_mcpu += instance.free_cores_mcpu
+            self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
         if (instance.state == 'active' and
                 instance.failed_request_count <= 1):
             self.healthy_instances_by_free_cores.add(instance)
@@ -340,7 +338,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch/logs/$IN
             log.warning(f'event has no payload')
             return
 
-        timestamp = event.timestamp.timestamp()
+        timestamp = event.timestamp.timestamp() * 1000
         payload = event.payload
         version = payload['version']
         if version != '1.2':
@@ -399,8 +397,11 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch/logs/$IN
         log.info(f'starting control loop')
         while True:
             try:
-                ready_cores = await self.db.execute_and_fetchone(
-                    'SELECT * FROM ready_cores;')
+                ready_cores = await self.db.select_and_fetchone(
+                    '''
+SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+FROM ready_cores;
+''')
                 ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
                 log.info(f'n_instances {self.n_instances} {self.n_instances_by_state}'

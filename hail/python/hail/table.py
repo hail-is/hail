@@ -1247,7 +1247,7 @@ class Table(ExprContainer):
             if self._data is None:
                 t = self.table.flatten()
                 row_dtype = t.row.dtype
-                t = t.select(**{k: Table._hl_format(v, self.truncate) for (k, v) in t.row.items()})
+                t = t.select(**{k: hl._showstr(v, self.truncate) for (k, v) in t.row.items()})
                 rows, has_more = t._take_n(self.n)
                 self._data = (rows, has_more, row_dtype)
             return self._data
@@ -1377,37 +1377,9 @@ class Table(ExprContainer):
             rows = rows[:n]
         return rows, has_more
 
-
-    @staticmethod
-    def _hl_repr(v):
-        if v.dtype == hl.tfloat32 or v.dtype == hl.tfloat64:
-            s = hl.format('%.2e', v)
-        elif isinstance(v.dtype, hl.tarray):
-            s = "[" + hl.delimit(hl.map(Table._hl_repr, v), ",") + "]"
-        elif isinstance(v.dtype, hl.tset):
-            s = "{" + hl.delimit(hl.map(Table._hl_repr, hl.array(v)), ",") + "}"
-        elif isinstance(v.dtype, hl.tdict):
-            s = "{" + hl.delimit(hl.map(lambda x: Table._hl_repr(x[0]) + ":" + Table._hl_repr(x[1]), hl.array(v)), ",") + "}"
-        elif v.dtype == hl.tstr:
-            s = hl.str('"') + hl.expr.functions._escape_string(v) + '"'
-        elif isinstance(v.dtype, (hl.tstruct, hl.ttuple)):
-            if len(v) == 0:
-                s = '()'
-            else:
-                s = "(" + hl.delimit(hl.array([Table._hl_repr(v[i]) for i in range(len(v))]), ",") + ")"
-        else:
-            s = hl.str(v)
-        return hl.cond(hl.is_defined(v), s, "NA")
-
-    @staticmethod
-    def _hl_trunc(s, truncate):
-        return hl.cond(hl.len(s) > truncate,
-                       s[:truncate - 3] + "...",
-                       s)
-
     @staticmethod
     def _hl_format(v, truncate):
-        return hl.bind(lambda s: Table._hl_trunc(s, truncate), Table._hl_repr(v))
+        return hl._showstr(v, truncate)
 
     @typecheck_method(n=nullable(int), width=nullable(int), truncate=nullable(int), types=bool, handler=nullable(anyfunc), n_rows=nullable(int))
     def show(self, n=None, width=None, truncate=None, types=True, handler=None, n_rows=None):
@@ -3450,5 +3422,7 @@ class Table(ExprContainer):
         return Table(TableMultiWayZipJoin(
             [t._tir for t in tables], data_field_name, global_field_name))
 
+    def _group_within_partitions(self, n):
+        return Table(TableGroupWithinPartitions(self._tir, n))
 
 table_type.set(Table)

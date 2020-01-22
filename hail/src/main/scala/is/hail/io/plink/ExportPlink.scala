@@ -132,20 +132,17 @@ class BimAnnotationView(rowType: PStruct) extends View {
   private val varidIdx = varidField.index
   private val cmPosIdx = cmPosField.index
 
-  private var region: Region = _
   private var varidOffset: Long = _
   private var cmPosOffset: Long = _
 
   private var cachedVarid: String = _
 
   def setRegion(region: Region, offset: Long) {
-    this.region = region
+    assert(rowType.isFieldDefined(offset, varidIdx))
+    assert(rowType.isFieldDefined(offset, cmPosIdx))
 
-    assert(rowType.isFieldDefined(region, offset, varidIdx))
-    assert(rowType.isFieldDefined(region, offset, cmPosIdx))
-
-    this.varidOffset = rowType.loadField(region, offset, varidIdx)
-    this.cmPosOffset = rowType.loadField(region, offset, cmPosIdx)
+    this.varidOffset = rowType.loadField(offset, varidIdx)
+    this.cmPosOffset = rowType.loadField(offset, cmPosIdx)
 
     cachedVarid = null
   }
@@ -155,7 +152,7 @@ class BimAnnotationView(rowType: PStruct) extends View {
 
   def varid(): String = {
     if (cachedVarid == null)
-      cachedVarid = PString.loadString(region, varidOffset)
+      cachedVarid = varidField.typ.asInstanceOf[PString].loadString(varidOffset)
     cachedVarid
   }
 }

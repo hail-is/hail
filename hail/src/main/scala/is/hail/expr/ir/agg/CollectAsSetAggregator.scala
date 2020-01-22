@@ -31,7 +31,7 @@ class TypedKey(typ: PType, fb: EmitFunctionBuilder[_], region: Code[Region]) ext
     if (!typ.required)
       m.mux(
         Code(storageType.setFieldPresent(dest, 1), storageType.setFieldMissing(dest, 0)),
-        Code(storageType.clearMissingBits(dest), c))
+        Code(storageType.stagedInitialize(dest), c))
     else
       Code(storageType.setFieldPresent(dest, 1), c)
   }
@@ -162,7 +162,7 @@ class CollectAsSetAggregator(t: PType) extends StagedAggregator {
     other.foreach { (km, kv) => state.insert(km, kv) }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
-    srvb.addArray(resultType.fundamentalType.asPArray, sab =>
+    srvb.addArray(resultType.arrayFundamentalType, sab =>
       Code(
         sab.start(state.size),
         state.foreach { (km, kv) =>

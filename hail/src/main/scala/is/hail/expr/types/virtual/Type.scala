@@ -130,8 +130,6 @@ object Type {
 abstract class Type extends BaseType with Serializable with Requiredness {
   self =>
 
-  def physicalType: PType
-
   def children: Seq[Type] = FastSeq()
 
   def clear(): Unit = children.foreach(_.clear())
@@ -193,6 +191,18 @@ abstract class Type extends BaseType with Serializable with Requiredness {
   def schema: DataType = SparkAnnotationImpex.exportType(this)
 
   def str(a: Annotation): String = if (a == null) "NA" else a.toString
+
+  def _showStr(a: Annotation): String = str(a)
+
+  def showStr(a: Annotation): String = if (a == null) "NA" else _showStr(a)
+
+  def showStr(a: Annotation, trunc: Int): String = {
+    val s = showStr(a)
+    if (s.length > trunc)
+      s.substring(0, trunc - 3) + "..."
+    else
+      s
+  }
 
   def toJSON(a: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(a, this)
 
@@ -281,10 +291,14 @@ abstract class Type extends BaseType with Serializable with Requiredness {
       case t2: TArray => t.isInstanceOf[TArray] && t.asInstanceOf[TArray].elementType.isOfType(t2.elementType)
       case t2: TSet => t.isInstanceOf[TSet] && t.asInstanceOf[TSet].elementType.isOfType(t2.elementType)
       case t2: TDict => t.isInstanceOf[TDict] && t.asInstanceOf[TDict].keyType.isOfType(t2.keyType) && t.asInstanceOf[TDict].valueType.isOfType(t2.valueType)
+      case t2: TStream => t.isInstanceOf[TStream] && t.asInstanceOf[TStream].elementType.isOfType(t2.elementType)
       case t2: TNDArray =>
         t.isInstanceOf[TNDArray] &&
         t.asInstanceOf[TNDArray].elementType.isOfType(t2.elementType) &&
         t.asInstanceOf[TNDArray].nDims == t2.nDims
+      case t2: TStream =>
+        t.isInstanceOf[TStream] &&
+          t.asInstanceOf[TStream].elementType.isOfType(t2.elementType)
       case TVoid => t == TVoid
     }
   }

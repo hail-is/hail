@@ -17,6 +17,11 @@ spec:
         hail.is/sha: "{{ code.sha }}"
     spec:
       priorityClassName: infrastructure
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -27,18 +32,6 @@ spec:
                     values:
                     - internal-gateway
               topologyKey: "kubernetes.io/hostname"
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 50
-            preference:
-              matchExpressions:
-              - key: preemptible
-                operator: In
-                values:
-                - "true"
-      tolerations:
-       - key: preemptible
-         value: "true"
       containers:
        - name: internal-gateway
          image: "{{ internal_gateway_image.image }}"

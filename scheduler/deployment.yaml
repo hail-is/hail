@@ -19,6 +19,8 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      nodeSelector:
+        preemptible: "false"
       containers:
        - name: scheduler
          image: "{{ scheduler_image.image }}"

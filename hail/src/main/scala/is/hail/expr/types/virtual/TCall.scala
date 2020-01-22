@@ -12,8 +12,6 @@ case object TCallOptional extends TCall(false)
 case object TCallRequired extends TCall(true)
 
 class TCall(override val required: Boolean) extends ComplexType {
-  lazy val physicalType: PCall = PCall(required)
-
   def _toPretty = "Call"
 
   override def pyString(sb: StringBuilder): Unit = {

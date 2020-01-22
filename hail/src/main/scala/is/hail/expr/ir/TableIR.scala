@@ -4,27 +4,19 @@ import java.io.ByteArrayInputStream
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.annotations.aggregators.RegionValueAggregator
+import is.hail.expr.ir
+import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, TableToTableFunction}
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir
-import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, TableToTableFunction}
+import is.hail.io._
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
-import is.hail.variant._
-import java.io.{ObjectInputStream, ObjectOutputStream}
-
-import is.hail.io._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
-import org.json4s.{CustomSerializer, Formats, JObject, ShortTypeHints}
-import org.json4s.JsonAST._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods
+import org.json4s.{Formats, ShortTypeHints}
 
 import scala.reflect.ClassTag
 
@@ -357,6 +349,8 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
 
   val typ: TableType = child.typ.copy(key = keys)
 
+  def definitelyDoesNotShuffle: Boolean = child.typ.key.startsWith(keys) || isSorted
+
   def copy(newChildren: IndexedSeq[BaseIR]): TableKeyBy = {
     assert(newChildren.length == 1)
     TableKeyBy(newChildren(0).asInstanceOf[TableIR], keys, isSorted)
@@ -414,7 +408,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
             Iterator.range(start, start + localPartCounts(i))
               .map { j =>
                 val off = localRowType.allocate(region)
-                localRowType.setFieldPresent(region, off, 0)
+                localRowType.setFieldPresent(off, 0)
                 Region.storeInt(localRowType.fieldOffset(off, 0), j)
                 rv.setOffset(off)
                 rv
@@ -1747,6 +1741,69 @@ case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval],
       intervals,
       tv.rvd.typ.key.length - 1)
     TableValue(tv.typ, tv.globals, tv.rvd.filterIntervals(partitioner, keep))
+  }
+}
+
+case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
+
+  lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
+
+  override lazy val typ: TableType = TableType(
+    child.typ.keyType ++ TStruct(("grouped_fields", TArray(child.typ.rowType))),
+    child.typ.key,
+    child.typ.globalType)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
+    val IndexedSeq(newChild: TableIR) = newChildren
+    TableGroupWithinPartitions(newChild, n)
+  }
+
+  override def execute(ctx: ExecuteContext): TableValue = {
+    val prev = child.execute(ctx)
+    val prevRVD = prev.rvd
+    val prevRowType = prev.rvd.typ.rowType
+    val prevKeyType = prev.rvd.typ.kType
+
+    val rowType = prevKeyType ++ PStruct(("grouped_fields", PArray(prevRowType)))
+    val newRVDType = prevRVD.typ.copy(rowType = rowType)
+    val keyIndices = child.typ.keyFieldIdx
+
+    val newRVD = prevRVD.mapPartitionsWithIndex(newRVDType, { (int, ctx, it) =>
+      val targetRegion = ctx.region
+
+      new Iterator[RegionValue] {
+        override def hasNext: Boolean = {
+          it.hasNext
+        }
+
+        override def next(): RegionValue = {
+          if (!hasNext)
+            throw new java.util.NoSuchElementException()
+
+          val offsetArray = new Array[Long](n) // May be longer than the amount of data
+          var childIterationCount = 0
+          while (it.hasNext && childIterationCount != n) {
+            val nextRV = it.next()
+            offsetArray(childIterationCount) = nextRV.offset
+            childIterationCount += 1
+          }
+          val rvb = new RegionValueBuilder(targetRegion)
+          rvb.start(rowType)
+          rvb.startStruct()
+          rvb.addFields(prevRowType, ctx.region, offsetArray(0), keyIndices)
+          rvb.startArray(childIterationCount, true)
+          (0 until childIterationCount) foreach { rvArrayIndex =>
+            rvb.addRegionValue(prevRowType, ctx.region, offsetArray(rvArrayIndex))
+          }
+          rvb.endArray()
+          rvb.endStruct()
+          rvb.result()
+        }
+      }
+    })
+
+    prev.copy(rvd = newRVD, typ=this.typ)
   }
 }
 

@@ -13,3 +13,5 @@ valid_state_transitions = {
 }
 
 tasks = ('input', 'main', 'output')
+
+HTTP_CLIENT_MAX_SIZE = 8 * 1024 * 1024

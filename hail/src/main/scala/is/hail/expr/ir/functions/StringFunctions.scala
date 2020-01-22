@@ -7,6 +7,10 @@ import is.hail.expr.ir._
 import is.hail.expr.types.physical.{PArray, PBinary, PString}
 import is.hail.expr.types.virtual._
 import is.hail.utils._
+import java.util.Locale
+import java.time.{Instant, LocalDateTime, ZoneId}
+import java.time.temporal.ChronoField
+
 import org.json4s.JValue
 import org.json4s.jackson.JsonMethods
 
@@ -77,6 +81,18 @@ object StringFunctions extends RegistryFunctions {
   def softBounds(i: IR, len: IR): IR =
     If(i < -len, 0, If(i < 0, i + len, If(i >= len, len, i)))
 
+
+  private val locale: Locale = Locale.US
+
+  def strftime(fmtStr: String, epochSeconds: Long, zoneId: String): String =
+    DateFormatUtils.parseDateFormat(fmtStr, locale).withZone(ZoneId.of(zoneId))
+      .format(Instant.ofEpochSecond(epochSeconds))
+
+  def strptime(timeStr: String, fmtStr: String, zoneId: String): Long =
+    DateFormatUtils.parseDateFormat(fmtStr, locale).withZone(ZoneId.of(zoneId))
+      .parse(timeStr)
+      .getLong(ChronoField.INSTANT_SECONDS)
+
   def registerAll(): Unit = {
     val thisClass = getClass
 
@@ -121,6 +137,12 @@ object StringFunctions extends RegistryFunctions {
       val annotation = boxArg(r, aT)(a)
       val str = r.mb.getType(aT.virtualType).invoke[Any, String]("str", annotation)
       unwrapReturn(r, rt)(str)
+    }
+
+    registerCodeWithMissingness("showStr", tv("T"), TInt32(), TString(), null) { case (r, rt, (aT, a), (_, trunc)) =>
+      val annotation = Code(a.setup, a.m).mux(Code._null, boxArg(r, aT)(a.v))
+      val str = r.mb.getType(aT.virtualType).invoke[Any, Int, String]("showStr", annotation, trunc.value[Int])
+      EmitTriplet(trunc.setup, trunc.m, unwrapReturn(r, rt)(str))
     }
 
     registerCodeWithMissingness("json", tv("T"), TString(), null) { case (r, rt, (aT, a)) =>
@@ -192,7 +214,6 @@ object StringFunctions extends RegistryFunctions {
       val len = r.mb.newLocal[Int]
       val i = r.mb.newLocal[Int]
       val n = r.mb.newLocal[Int]
-      val region: Code[Region] = r.region
 
       val v1 = r.mb.newLocal[Long]
       val v2 = r.mb.newLocal[Long]
@@ -200,14 +221,14 @@ object StringFunctions extends RegistryFunctions {
       val m = Code(
         v1 := e1.value[Long],
         v2 := e2.value[Long],
-        len := PBinary.loadLength(region, v1),
-        len.cne(PBinary.loadLength(region, v2)))
+        len := e1T.loadLength(v1),
+        len.cne(e2T.loadLength(v2)))
       val v =
         Code(n := 0,
           i := 0,
           Code.whileLoop(i < len,
-            Region.loadByte(PBinary.bytesOffset(v1) + i.toL)
-              .cne(Region.loadByte(PBinary.bytesOffset(v2) + i.toL)).mux(
+            Region.loadByte(e1T.bytesOffset(v1) + i.toL)
+              .cne(Region.loadByte(e2T.bytesOffset(v2) + i.toL)).mux(
               n += 1,
               Code._empty[Unit]),
             i += 1),
@@ -220,5 +241,7 @@ object StringFunctions extends RegistryFunctions {
     }
 
     registerWrappedScalaFunction("escapeString", TString(), TString(), null)(thisClass, "escapeString")
+    registerWrappedScalaFunction("strftime", TString(), TInt64(), TString(), TString(), null)(thisClass, "strftime")
+    registerWrappedScalaFunction("strptime", TString(), TString(), TString(), TInt64(), null)(thisClass, "strptime")
   }
 }

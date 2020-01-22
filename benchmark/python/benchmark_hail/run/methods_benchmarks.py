@@ -19,7 +19,7 @@ def import_vcf_count_rows(vcf):
 
 @benchmark(args=profile_25.handle('mt'))
 def export_vcf(mt_path):
-    mt = hl.read_matrix_table(hl.read_matrix_table(mt_path))
+    mt = hl.read_matrix_table(mt_path)
     out = hl.utils.new_temp_file(suffix='vcf.bgz')
     hl.export_vcf(mt, out)
 
@@ -78,3 +78,9 @@ def genetics_pipeline(mt_path):
     mt = mt.filter_rows(mt.variant_qc.AC[1] > 5)
     mt = mt.filter_entries(hl.case().when(hl.is_indel(mt.alleles[0], mt.alleles[1]), mt.GQ > 20).default(mt.GQ > 10))
     mt.write('/tmp/genetics_pipeline.mt', overwrite=True)
+
+@benchmark(args=profile_25.handle('mt'))
+def ld_prune_profile_25(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    mt = mt.filter_rows(hl.len(mt.alleles) == 2)
+    hl.ld_prune(mt.GT)._force_count()

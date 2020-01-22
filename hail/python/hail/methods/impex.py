@@ -1388,6 +1388,20 @@ def import_table(paths,
     >>> t = hl.import_table('data/samples3.tsv', no_header=True)
     >>> t = t.annotate(sample = t.f0.split("_")[1]).key_by('sample')
 
+    Let's import a table from a file where one of the fields is a JSON object.
+
+    .. code-block: text
+
+        $cat data/table_with_json.tsv
+        id	json_field
+        1	{"foo": "bar", "x": 7}
+        4	{"foo": "baz", "x": 100}
+
+    To import, we need to specify the types argument.
+
+    >>> my_types = {"id": hl.tint32, "json_field":hl.tstruct(foo=hl.tstr, x=hl.tint32)}
+    >>> ht_with_json = hl.import_table('data/table_with_json.tsv', types=my_types)
+
     Notes
     -----
 

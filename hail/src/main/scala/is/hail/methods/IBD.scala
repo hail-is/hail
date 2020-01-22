@@ -24,14 +24,11 @@ object IBDInfo {
   val pType =
     PStruct(("Z0", PFloat64()), ("Z1", PFloat64()), ("Z2", PFloat64()), ("PI_HAT", PFloat64()))
 
-  def fromRegionValue(rv: RegionValue): IBDInfo =
-    fromRegionValue(rv.region, rv.offset)
-
-  def fromRegionValue(region: Region, offset: Long): IBDInfo = {
-    val Z0 = Region.loadDouble(pType.loadField(region, offset, 0))
-    val Z1 = Region.loadDouble(pType.loadField(region, offset, 1))
-    val Z2 = Region.loadDouble(pType.loadField(region, offset, 2))
-    val PI_HAT = Region.loadDouble(pType.loadField(region, offset, 3))
+  def fromRegionValue(offset: Long): IBDInfo = {
+    val Z0 = Region.loadDouble(pType.loadField(offset, 0))
+    val Z1 = Region.loadDouble(pType.loadField(offset, 1))
+    val Z2 = Region.loadDouble(pType.loadField(offset, 2))
+    val PI_HAT = Region.loadDouble(pType.loadField(offset, 3))
     IBDInfo(Z0, Z1, Z2, PI_HAT)
   }
 }
@@ -56,14 +53,11 @@ object ExtendedIBDInfo {
   val pType =
     PStruct(("ibd", IBDInfo.pType), ("ibs0", PInt64()), ("ibs1", PInt64()), ("ibs2", PInt64()))
 
-  def fromRegionValue(rv: RegionValue): ExtendedIBDInfo =
-    fromRegionValue(rv.region, rv.offset)
-
-  def fromRegionValue(region: Region, offset: Long): ExtendedIBDInfo = {
-    val ibd = IBDInfo.fromRegionValue(region, pType.loadField(region, offset, 0))
-    val ibs0 = Region.loadLong(pType.loadField(region, offset, 1))
-    val ibs1 = Region.loadLong(pType.loadField(region, offset, 2))
-    val ibs2 = Region.loadLong(pType.loadField(region, offset, 3))
+  def fromRegionValue(offset: Long): ExtendedIBDInfo = {
+    val ibd = IBDInfo.fromRegionValue(pType.loadField(offset, 0))
+    val ibs0 = Region.loadLong(pType.loadField(offset, 1))
+    val ibs1 = Region.loadLong(pType.loadField(offset, 2))
+    val ibs2 = Region.loadLong(pType.loadField(offset, 3))
     ExtendedIBDInfo(ibd, ibs0, ibs1, ibs2)
   }
 }
@@ -314,8 +308,8 @@ object IBD {
     val idx = rvRowType.fieldIdx(fieldName)
 
     (rv: RegionValue) => {
-      val isDefined = rvRowPType.isFieldDefined(rv, idx)
-      val maf = Region.loadDouble(rvRowPType.loadField(rv, idx))
+      val isDefined = rvRowPType.isFieldDefined(rv.offset, idx)
+      val maf = Region.loadDouble(rvRowPType.loadField(rv.offset, idx))
       if (!isDefined) {
         val row = new UnsafeRow(rvRowPType, rv).deleteField(entriesIdx)
         fatal(s"The minor allele frequency expression evaluated to NA at ${ rowKeysF(row) }.")

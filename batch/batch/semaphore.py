@@ -1,4 +1,5 @@
 import asyncio
+import collections
 
 
 class ANullContextManager:
@@ -14,7 +15,7 @@ class NullWeightedSemaphore:
         return ANullContextManager()
 
 
-class WeightedSemaphoreContextManager:
+class FIFOWeightedSemaphoreContextManager:
     def __init__(self, sem, weight):
         self.sem = sem
         self.weight = weight
@@ -23,24 +24,35 @@ class WeightedSemaphoreContextManager:
         await self.sem.acquire(self.weight)
 
     async def __aexit__(self, exc_type, exc, tb):
-        await self.sem.release(self.weight)
+        self.sem.release(self.weight)
 
 
-class WeightedSemaphore:
+class FIFOWeightedSemaphore:
     def __init__(self, value=1):
         self.value = value
-        self.cond = asyncio.Condition()
+        self.queue = collections.deque()
 
     async def acquire(self, weight):
-        while self.value < weight:
-            async with self.cond:
-                await self.cond.wait()
-        self.value -= weight
+        if not self.queue and self.value >= weight:
+            self.value -= weight
+            return
 
-    async def release(self, weight):
+        event = asyncio.Event()
+        self.queue.append((event, weight))
+        event.clear()
+        await event.wait()
+
+    def release(self, weight):
         self.value += weight
-        async with self.cond:
-            self.cond.notify_all()
+
+        while self.queue:
+            head_event, head_weight = self.queue[0]
+            if self.value >= head_weight:
+                head_event.set()
+                self.queue.popleft()
+                self.value -= head_weight
+            else:
+                break
 
     def __call__(self, weight):
-        return WeightedSemaphoreContextManager(self, weight)
+        return FIFOWeightedSemaphoreContextManager(self, weight)

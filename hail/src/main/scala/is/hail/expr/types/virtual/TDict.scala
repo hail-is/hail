@@ -9,8 +9,6 @@ import org.json4s.jackson.JsonMethods
 import scala.reflect.{ClassTag, classTag}
 
 final case class TDict(keyType: Type, valueType: Type, override val required: Boolean = false) extends TContainer {
-  lazy val physicalType: PDict = PDict(keyType.physicalType, valueType.physicalType, required)
-
   lazy val elementType: TBaseStruct = (+TStruct("key" -> keyType, "value" -> valueType)).asInstanceOf[TBaseStruct]
 
   override val fundamentalType: TArray = TArray(elementType.fundamentalType, required)
@@ -54,6 +52,11 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
 
   def _typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
     a.asInstanceOf[Map[_, _]].forall { case (k, v) => keyType.typeCheck(k) && valueType.typeCheck(v) })
+
+  override def _showStr(a: Annotation): String =
+    a.asInstanceOf[Map[Annotation, Annotation]]
+      .map { case (k, v) => s"${keyType.showStr(k)}:${valueType.showStr(v)}}" }
+      .mkString("{", ",", "}")
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 

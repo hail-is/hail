@@ -163,10 +163,8 @@ abstract class RegistryFunctions {
     case _: PFloat32 => coerce[Float]
     case _: PFloat64 => coerce[Double]
     case _: PCall => coerce[Int]
-    case _: PString => c =>
-      Code.invokeScalaObject[Region, Long, String](
-        PString.getClass, "loadString",
-        r.region, coerce[Long](c))
+    case t: PString => c =>
+      t.loadString(coerce[Long](c))
     case _ => c =>
       Code.invokeScalaObject[PType, Region, Long, Any](
         UnsafeRow.getClass, "read",
@@ -181,10 +179,8 @@ abstract class RegistryFunctions {
     case _: PFloat32 => c => Code.boxFloat(coerce[Float](c))
     case _: PFloat64 => c => Code.boxDouble(coerce[Double](c))
     case _: PCall => c => Code.boxInt(coerce[Int](c))
-    case _: PString => c =>
-      Code.invokeScalaObject[Region, Long, String](
-        PString.getClass, "loadString",
-        r.region, coerce[Long](c))
+    case t: PString => c =>
+      t.loadString(coerce[Long](c))
     case _ => c =>
       Code.invokeScalaObject[PType, Region, Long, AnyRef](
         UnsafeRow.getClass, "readAnyRef",
@@ -192,23 +188,17 @@ abstract class RegistryFunctions {
         r.region, coerce[Long](c))
   }
 
-  def unwrapReturn(r: EmitRegion, t: PType): Code[_] => Code[_] = t.virtualType match {
+  def unwrapReturn(r: EmitRegion, pt: PType): Code[_] => Code[_] = pt.virtualType match {
     case _: TBoolean => identity[Code[_]]
     case _: TInt32 => identity[Code[_]]
     case _: TInt64 => identity[Code[_]]
     case _: TFloat32 => identity[Code[_]]
     case _: TFloat64 => identity[Code[_]]
     case _: TString => c =>
-      val bytes = r.mb.newLocal[Array[Byte]]
-      val v = r.mb.newLocal[Long]
-      Code(
-        bytes := coerce[String](c).invoke[Array[Byte]]("getBytes"),
-        v := PBinary.allocate(r.region, bytes.length()),
-        PBinary.store(v, bytes),
-        v)
+      pt.asInstanceOf[PString].allocateAndStoreString(r.mb, r.region, coerce[String](c))
     case _: TCall => coerce[Int]
     case TArray(_: TInt32, _) => c =>
-      val srvb = new StagedRegionValueBuilder(r, t)
+      val srvb = new StagedRegionValueBuilder(r, pt)
       val alocal = r.mb.newLocal[IndexedSeq[Int]]
       val len = r.mb.newLocal[Int]
       val v = r.mb.newLocal[java.lang.Integer]
@@ -224,7 +214,7 @@ abstract class RegistryFunctions {
             srvb.advance())),
         srvb.offset)
     case TArray(_: TFloat64, _) => c =>
-      val srvb = new StagedRegionValueBuilder(r, t)
+      val srvb = new StagedRegionValueBuilder(r, pt)
       val alocal = r.mb.newLocal[IndexedSeq[Double]]
       val len = r.mb.newLocal[Int]
       val v = r.mb.newLocal[java.lang.Double]
@@ -240,7 +230,7 @@ abstract class RegistryFunctions {
             srvb.advance())),
         srvb.offset)
     case TArray(_: TString, _) => c =>
-      val srvb = new StagedRegionValueBuilder(r, t)
+      val srvb = new StagedRegionValueBuilder(r, pt)
       val alocal = r.mb.newLocal[IndexedSeq[String]]
       val len = r.mb.newLocal[Int]
       val v = r.mb.newLocal[java.lang.String]

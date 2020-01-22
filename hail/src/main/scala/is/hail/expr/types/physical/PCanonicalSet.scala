@@ -1,0 +1,22 @@
+package is.hail.expr.types.physical
+
+import is.hail.expr.types.virtual.{TSet, Type}
+
+final case class PCanonicalSet(elementType: PType,  required: Boolean = false) extends PSet with PArrayBackedContainer {
+  val arrayRep = PCanonicalArray(elementType, required)
+
+  def copy(elementType: PType = this.elementType, required: Boolean = this.required): PSet = PCanonicalSet(elementType, required)
+
+  def _asIdent = s"set_of_${elementType.asIdent}"
+
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+    sb.append("PCSet[")
+    elementType.pretty(sb, indent, compact)
+    sb.append("]")
+  }
+
+  override def deepRename(t: Type) = deepRenameSet(t.asInstanceOf[TSet])
+
+  private def deepRenameSet(t: TSet) =
+    PCanonicalSet(this.elementType.deepRename(t.elementType),  this.required)
+}

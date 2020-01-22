@@ -64,15 +64,13 @@ object IRBuilder {
 
   def applyAggOp(
     op: AggOp,
-    constructorArgs: IndexedSeq[IRProxy] = FastIndexedSeq(),
-    initOpArgs: Option[IndexedSeq[IRProxy]] = None,
+    initOpArgs: IndexedSeq[IRProxy] = FastIndexedSeq(),
     seqOpArgs: IndexedSeq[IRProxy] = FastIndexedSeq()): IRProxy = (env: E) => {
 
-    val c = constructorArgs.map(x => x(env))
-    val i = initOpArgs.map(_.map(x => x(env)))
+    val i = initOpArgs.map(x => x(env))
     val s = seqOpArgs.map(x => x(env))
 
-    ApplyAggOp(c, i, s, AggSignature(op, c.map(_.typ), i.map(_.map(_.typ)), s.map(_.typ)))
+    ApplyAggOp(i, s, AggSignature(op, i.map(_.typ), s.map(_.typ)))
   }
 
   def aggFilter(filterCond: IRProxy, query: IRProxy, isScan: Boolean = false): IRProxy = (env: E) =>

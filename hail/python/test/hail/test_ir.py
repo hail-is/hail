@@ -49,7 +49,7 @@ class ValueIRTests(unittest.TestCase):
             ir.ApplyUnaryPrimOp('-', i),
             ir.ApplyComparisonOp('EQ', i, j),
             ir.MakeArray([i, ir.NA(hl.tint32), ir.I32(-3)], hl.tarray(hl.tint32)),
-            ir.ArrayRef(a, i),
+            ir.ArrayRef(a, i, ir.Str('foo')),
             ir.ArrayLen(a),
             ir.ArrayRange(ir.I32(0), ir.I32(5), ir.I32(1)),
             ir.ArraySort(a, 'l', 'r', ir.ApplyComparisonOp("LT", ir.Ref('l'), ir.Ref('r'))),
@@ -67,6 +67,7 @@ class ValueIRTests(unittest.TestCase):
             ir.LowerBoundOnOrderedCollection(a, i, True),
             ir.GroupByKey(da),
             ir.ArrayMap(a, 'v', v),
+            ir.ArrayZip([a, a], ['a', 'b'], ir.TrueIR(), 'ExtendNA'),
             ir.ArrayFilter(a, 'v', v),
             ir.ArrayFlatMap(aa, 'v', v),
             ir.ArrayFold(a, ir.I32(0), 'x', 'v', v),
@@ -77,10 +78,10 @@ class ValueIRTests(unittest.TestCase):
             ir.AggExplode(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0), False),
             ir.AggGroupBy(ir.TrueIR(), ir.I32(0), False),
             ir.AggArrayPerElement(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', 'y', ir.I32(0), False),
-            ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]),
-            ir.ApplyScanOp('Collect', [], None, [ir.I32(0)]),
-            ir.ApplyAggOp('CallStats', [], [ir.I32(2)], [call]),
-            ir.ApplyAggOp('TakeBy', [ir.I32(10)], None, [ir.F64(-2.11), ir.F64(-2.11)]),
+            ir.ApplyAggOp('Collect', [], [ir.I32(0)]),
+            ir.ApplyScanOp('Collect', [], [ir.I32(0)]),
+            ir.ApplyAggOp('CallStats', [ir.I32(2)], [call]),
+            ir.ApplyAggOp('TakeBy', [ir.I32(10)], [ir.F64(-2.11), ir.F64(-2.11)]),
             ir.Begin([ir.Void()]),
             ir.MakeStruct([('x', i)]),
             ir.SelectFields(s, ['x', 'z']),
@@ -88,21 +89,19 @@ class ValueIRTests(unittest.TestCase):
             ir.GetField(s, 'x'),
             ir.MakeTuple([i, b]),
             ir.GetTupleElement(t, 1),
-            ir.In(2, hl.tfloat64),
             ir.Die(ir.Str('mumblefoo'), hl.tfloat64),
             ir.Apply('&&', hl.tbool, b, c),
             ir.Apply('toFloat64', hl.tfloat64, i),
-            ir.Uniroot('x', ir.F64(3.14), ir.F64(-5.0), ir.F64(5.0)),
             ir.Literal(hl.tarray(hl.tint32), [1, 2, None]),
             ir.TableCount(table),
             ir.TableGetGlobals(table),
             ir.TableCollect(ir.TableKeyBy(table, [], False)),
             ir.TableToValueApply(table, {'name': 'ForceCountTable'}),
             ir.MatrixToValueApply(matrix_read, {'name': 'ForceCountMatrixTable'}),
-            ir.TableAggregate(table, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])),
+            ir.TableAggregate(table, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], [ir.I32(0)]))])),
             ir.TableWrite(table, ir.TableNativeWriter(new_temp_file(), False, True, "fake_codec_spec$$")),
             ir.TableWrite(table, ir.TableTextWriter(new_temp_file(), None, True, 0, ",")),
-            ir.MatrixAggregate(matrix_read, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])),
+            ir.MatrixAggregate(matrix_read, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], [ir.I32(0)]))])),
             ir.MatrixWrite(matrix_read, ir.MatrixNativeWriter(new_temp_file(), False, False, "", None, None)),
             ir.MatrixWrite(matrix_read, ir.MatrixNativeWriter(new_temp_file(), False, False, "",
                                                               '[{"start":{"row_idx":0},"end":{"row_idx": 10},"includeStart":true,"includeEnd":false}]',
@@ -215,7 +214,7 @@ class MatrixIRTests(unittest.TestCase):
                       reference_genome=hl.get_reference('GRCh37'),
                       contig_recoding={'01': '1'})
 
-        collect = ir.MakeStruct([('x', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])
+        collect = ir.MakeStruct([('x', ir.ApplyAggOp('Collect', [], [ir.I32(0)]))])
 
         matrix_read = ir.MatrixRead(
             ir.MatrixNativeReader(
@@ -420,7 +419,7 @@ class CSETests(unittest.TestCase):
     def test_agg_cse(self):
         x = ir.GetField(ir.Ref('row'), 'idx')
         inner_sum = ir.ApplyBinaryPrimOp('+', x, x)
-        agg = ir.ApplyAggOp('AggOp', [], [], [inner_sum])
+        agg = ir.ApplyAggOp('AggOp', [], [inner_sum])
         outer_sum = ir.ApplyBinaryPrimOp('+', agg, agg)
         filter = ir.AggFilter(ir.TrueIR(), outer_sum, False)
         table_agg = ir.TableAggregate(ir.TableRange(5, 1), ir.MakeTuple([outer_sum, filter]))
@@ -428,39 +427,37 @@ class CSETests(unittest.TestCase):
             '(TableAggregate (TableRange 5 1)'
                 ' (AggLet __cse_1 False (GetField idx (Ref row))'
                 ' (AggLet __cse_3 False (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
-                ' (Let __cse_2 (ApplyAggOp AggOp () None ((Ref __cse_3)))'
+                ' (Let __cse_2 (ApplyAggOp AggOp () ((Ref __cse_3)))'
                 ' (MakeTuple (0 1)'
                     ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2))'
                     ' (AggFilter False (True)'
-                        ' (Let __cse_4 (ApplyAggOp AggOp () None ((Ref __cse_3)))'
+                        ' (Let __cse_4 (ApplyAggOp AggOp () ((Ref __cse_3)))'
                         ' (ApplyBinaryPrimOp `+` (Ref __cse_4) (Ref __cse_4)))))))))')
         assert expected == CSERenderer()(table_agg)
 
     def test_init_op(self):
         x = ir.I32(5)
         sum = ir.ApplyBinaryPrimOp('+', x, x)
-        agg = ir.ApplyAggOp('CallStats', [sum], [sum], [sum])
+        agg = ir.ApplyAggOp('CallStats', [sum], [sum])
         top = ir.ApplyBinaryPrimOp('+', sum, agg)
         expected = (
             '(Let __cse_1 (I32 5)'
-            ' (AggLet __cse_4 False (I32 5)'
+            ' (AggLet __cse_3 False (I32 5)'
             ' (ApplyBinaryPrimOp `+`'
                 ' (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
                 ' (ApplyAggOp CallStats'
-                    ' ((Let __cse_3 (I32 5)'
-                        ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3))))'
-                    ' ((Let __cse_3 (I32 5)'
-                        ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3))))'
-                    ' ((ApplyBinaryPrimOp `+` (Ref __cse_4) (Ref __cse_4)))))))')
+                    ' ((Let __cse_2 (I32 5)'
+                        ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2))))'
+                    ' ((ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3)))))))')
         assert expected == CSERenderer()(top)
 
     def test_agg_let(self):
-        agg = ir.ApplyAggOp('AggOp', [], [], [ir.Ref('foo')])
+        agg = ir.ApplyAggOp('AggOp', [], [ir.Ref('foo')])
         sum = ir.ApplyBinaryPrimOp('+', agg, agg)
         agglet = ir.AggLet('foo', ir.I32(2), sum, False)
         expected = (
             '(AggLet foo False (I32 2)'
-            ' (Let __cse_1 (ApplyAggOp AggOp () None ((Ref foo)))'
+            ' (Let __cse_1 (ApplyAggOp AggOp () ((Ref foo)))'
             ' (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))))'
         )
         assert expected == CSERenderer()(agglet)
