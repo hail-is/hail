@@ -139,6 +139,8 @@ WHERE n_cancelled_ready_jobs > 0;
         }
 
         total = sum(user_n_cancelled_ready_jobs.values())
+        if not total:
+            return
         user_share = {
             user: max(int(1000 * user_n_jobs / total + 0.5), 20)
             for user, user_n_jobs in user_n_cancelled_ready_jobs.items()
@@ -221,6 +223,8 @@ WHERE n_cancelled_running_jobs > 0;
         }
 
         total = sum(user_n_cancelled_running_jobs.values())
+        if not total:
+            return
         user_share = {
             user: max(int(1000 * user_n_jobs / total + 0.5), 20)
             for user, user_n_jobs in user_n_cancelled_running_jobs.items()
@@ -236,13 +240,11 @@ WHERE user = %s AND `state` = 'running' AND cancelled = 1;
                     (user,)):
                 async for record in self.db.select_and_fetchall(
                         '''
-SELECT jobs.job_id, jobs.attempt_id, attempts.instance_name
+SELECT jobs.job_id, attempts.attempt_id, attempts.instance_name
 FROM jobs
 STRAIGHT_JOIN attempts
   ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
-    AND attempts.attempt_id = jobs.attempt_id
 WHERE jobs.batch_id = %s AND always_run = 0 AND state = 'Running' AND cancelled = 0
-  AND jobs.attempt_id IS NOT NULL
 LIMIT %s;
 ''',
                         (batch['id'], remaining.value)):
@@ -297,7 +299,7 @@ LIMIT %s;
 SELECT id, cancelled, userdata, user
 FROM batches
 WHERE user = %s AND `state` = 'running';
-            ''',
+''',
                     (user,)):
                 async for record in self.db.select_and_fetchall(
                         '''

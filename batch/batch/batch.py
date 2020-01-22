@@ -30,7 +30,6 @@ def batch_record_to_dict(app, record):
     d = {
         'id': record['id'],
         'billing_project': record['billing_project'],
-        # FIXME switching to record['state']
         'state': state,
         'complete': record['state'] == 'complete',
         'closed': record['state'] != 'open',
