@@ -629,7 +629,6 @@ class Job:
 class Worker:
     def __init__(self):
         self.cores_mcpu = CORES * 1000
-        self.free_cores_mcpu = self.cores_mcpu
         self.last_updated = time_msecs()
         self.cpu_sem = FIFOWeightedSemaphore(self.cores_mcpu)
         self.cpu_null_sem = NullWeightedSemaphore()
