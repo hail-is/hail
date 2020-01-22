@@ -33,6 +33,8 @@ Released 2020-01-22
 - (hail#7787) Added transition/transversion information to `hl.summarize_variants`.
 - (hail#7792) Add Python stack trace to array index out of bounds errors in Hail pipelines.
 - (hail#7832) Add `spark_conf` argument to `hl.init`, permitting configuration of Spark runtime for a Hail session.
+- (hail#7823) Added datetime functions `hl.experimental.strptime` and `hl.experimental.strftime`.
+- (hail#7888) Added `hl.nd.array` constructor from nested standard arrays.
 
 ### File size
 
@@ -48,6 +50,8 @@ Released 2020-01-22
 
 - (hail#7922) Fix still-not-well-understood serialization error about ApproxCDFCombiner.
 - (hail#7906) Fix optimizer error by relaxing unnecessary assertion.
+- (hail#7788) Fix possible memory leak in `ht.tail` and `ht.head`.
+- (hail#7796) Fix bug in ingesting numpy arrays not in row-major orientation.
 
 ---
 
