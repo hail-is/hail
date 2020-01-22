@@ -691,7 +691,10 @@ class ArrayStructExpression(ArrayExpression):
     """
 
     def __getattr__(self, item):
-        return ArrayStructExpression.__getitem__(self, item)
+        try:
+            return ArrayStructExpression.__getitem__(self, item)
+        except KeyError as e:
+            raise AttributeError(str(e)) from e
 
     def __getitem__(self, item):
         """If a string, get a field from each struct in this array. If an integer, get
@@ -1176,7 +1179,10 @@ class SetStructExpression(SetExpression):
     """
 
     def __getattr__(self, item):
-        return SetStructExpression.__getitem__(self, item)
+        try:
+            return SetStructExpression.__getitem__(self, item)
+        except KeyError as e:
+            raise AttributeError(str(e)) from e
 
     @typecheck_method(item=oneof(str))
     def __getitem__(self, item):
