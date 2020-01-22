@@ -500,9 +500,9 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
                                           jobs_args)
                 except pymysql.err.IntegrityError as err:
-                    if err.args[1] in (1022, 1062, 1586, 1859, 3026):
+                    if err.args[1] == 1062:
                         log.info(f'bunch containing job {(batch_id, jobs_args[0][1])} already inserted ({err})')
-                        return web.Response()
+                        raise web.Response()
                     raise
                 await tx.execute_many('''
 INSERT INTO `job_parents` (batch_id, job_id, parent_id)
