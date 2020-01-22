@@ -415,6 +415,7 @@ SELECT user,
   CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
   CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
   CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
+  CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu,
   CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS n_cancelled_ready_jobs,
   CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS n_cancelled_running_jobs
 FROM user_resources
@@ -425,10 +426,10 @@ LOCK IN SHARE MODE;
 
         computed_user_resources = tx.execute_and_fetchall('''
 SELECT user,
-    COALESCE(SUM(state = 'Running' AND NOT cancelled), 0) as n_running_jobs,
-    COALESCE(SUM(IF(state = 'Running' AND NOT cancelled, cores_mcpu, 0)), 0) as running_cores_mcpu,
     COALESCE(SUM(state = 'Ready' AND runnable), 0) as n_ready_jobs,
     COALESCE(SUM(IF(state = 'Ready' AND runnable, cores_mcpu, 0)), 0) as ready_cores_mcpu,
+    COALESCE(SUM(state = 'Running' AND NOT cancelled), 0) as n_running_jobs,
+    COALESCE(SUM(IF(state = 'Running' AND NOT cancelled, cores_mcpu, 0)), 0) as running_cores_mcpu,
     COALESCE(SUM(state = 'Ready' AND cancelled), 0) as n_cancelled_ready_jobs,
     COALESCE(SUM(state = 'Running' AND cancelled), 0) as n_cancelled_running_jobs
 FROM (SELECT
