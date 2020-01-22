@@ -39,78 +39,68 @@ DELIMITER $$
 CREATE PROCEDURE recompute_incremental(
 ) BEGIN
 
-  START TRANSACTION;
-
   DELETE FROM batches_staging;
   DELETE FROM batch_cancellable_resources;
   DELETE FROM ready_cores;
   DELETE FROM user_resources;
 
-  INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
-  SELECT t.batch_id, 0, t.n_jobs, t.n_ready_jobs, t.ready_cores_mcpu
-  FROM (SELECT batch_id,
+  DROP TEMPORARY TABLE IF EXISTS `tmp_batch_resources`;
+
+  CREATE TEMPORARY TABLE `tmp_batch_resources` AS (
+    SELECT batch_id, state, user,
       COALESCE(SUM(1), 0) as n_jobs,
-      COALESCE(SUM(state = 'Ready'), 0) as n_ready_jobs,
-      COALESCE(SUM(IF(state = 'Ready', cores_mcpu, 0)), 0) as ready_cores_mcpu
-    FROM (SELECT
-        batches.id as batch_id,
+      COALESCE(SUM(state = 'Ready' AND cancellable), 0) as n_ready_cancellable_jobs,
+      COALESCE(SUM(IF(state = 'Ready' AND cancellable, cores_mcpu, 0)), 0) as ready_cancellable_cores_mcpu
+      COALESCE(SUM(state = 'Running' AND NOT cancelled), 0) as n_running_jobs,
+      COALESCE(SUM(IF(state = 'Running' AND NOT cancelled, cores_mcpu, 0)), 0) as running_cores_mcpu,
+      COALESCE(SUM(state = 'Ready' AND runnable), 0) as n_runnable_jobs,
+      COALESCE(SUM(IF(state = 'Ready' AND runnable, cores_mcpu, 0)), 0) as runnable_cores_mcpu,
+      COALESCE(SUM(state = 'Ready' AND cancelled), 0) as n_cancelled_ready_jobs,
+      COALESCE(SUM(state = 'Running' AND cancelled), 0) as n_cancelled_running_jobs
+    FROM (
+      SELECT jobs.batch_id,
         jobs.state,
         jobs.cores_mcpu
+        NOT (jobs.always_run OR jobs.cancelled OR batches.cancelled) AS cancellable,
+        (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled)) AS runnable,
+        (NOT jobs.always_run AND (jobs.cancelled OR batches.cancelled)) AS cancelled
       FROM jobs
-      INNER JOIN batches ON batches.id = jobs.batch_id
-      WHERE NOT batches.`state` = 'open') AS s
-    GROUP BY batch_id) as t;
+      INNER JOIN batches
+        ON batches.id = jobs.batch_id) as t
+    GROUP BY batch_id, state, user
+  );
+
+  INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+  SELECT batch_id, 0, n_jobs, n_runnable_jobs, runnable_cores_mcpu
+  FROM tmp_batch_resources
+  WHERE state = 'open';
 
   INSERT INTO batch_cancellable_resources (batch_id, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-  SELECT t.batch_id, 0, t.n_ready_cancellable_jobs, t.ready_cancellable_cores_mcpu
-  FROM (SELECT batch_id,
-      COALESCE(SUM(cancellable), 0) as n_ready_cancellable_jobs,
-      COALESCE(SUM(IF(cancellable, cores_mcpu, 0)), 0) as ready_cancellable_cores_mcpu
-    FROM (SELECT
-        batches.id as batch_id,
-        jobs.cores_mcpu,
-        NOT (jobs.always_run OR jobs.cancelled OR batches.cancelled) AS cancellable
-      FROM jobs
-      INNER JOIN batches ON batches.id = jobs.batch_id
-      WHERE batches.`state` = 'running'
-        AND jobs.state = 'Ready') AS s
-    GROUP BY batch_id) as t;
+  SELECT batch_id, 0, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu
+  FROM tmp_batch_resources;
 
   INSERT INTO ready_cores (token, ready_cores_mcpu)
-  SELECT 0, t.ready_cores_mcpu
-  FROM (SELECT COALESCE(SUM(cores_mcpu), 0) as ready_cores_mcpu
-    FROM jobs
-    INNER JOIN batches ON batches.id = jobs.batch_id
-    WHERE batches.`state` = 'running'
-            AND jobs.state = 'Ready'
-            # runnable
-            AND (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled))) as t;
+  SELECT 0, t.runnable_cores_mcpu
+  FROM (SELECT COALESCE(SUM(runnable_cores_mcpu), 0) as runnable_cores_mcpu
+    FROM tmp_batch_resources) as t;
 
   INSERT INTO user_resources (token, user, n_ready_jobs, ready_cores_mcpu,
     n_running_jobs, running_cores_mcpu,
     n_cancelled_ready_jobs, n_cancelled_running_jobs)
-  SELECT 0, t.user, t.n_ready_jobs, t.ready_cores_mcpu,
+  SELECT 0, t.user, t.n_runnable_jobs, t.runnable_cores_mcpu,
     t.n_running_jobs, t.running_cores_mcpu,
     t.n_cancelled_ready_jobs, t.n_cancelled_running_jobs
   FROM (SELECT user,
-      COALESCE(SUM(state = 'Running' AND NOT cancelled), 0) as n_running_jobs,
-      COALESCE(SUM(IF(state = 'Running' AND NOT cancelled, cores_mcpu, 0)), 0) as running_cores_mcpu,
-      COALESCE(SUM(state = 'Ready' AND runnable), 0) as n_ready_jobs,
-      COALESCE(SUM(IF(state = 'Ready' AND runnable, cores_mcpu, 0)), 0) as ready_cores_mcpu,
-      COALESCE(SUM(state = 'Ready' AND cancelled), 0) as n_cancelled_ready_jobs,
-      COALESCE(SUM(state = 'Running' AND cancelled), 0) as n_cancelled_running_jobs
-    FROM (SELECT
-        jobs.state,
-        jobs.cores_mcpu,
-        (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled)) AS runnable,
-        (NOT jobs.always_run AND (jobs.cancelled OR batches.cancelled)) AS cancelled,
-        batches.user
-      FROM jobs
-      INNER JOIN batches ON batches.id = jobs.batch_id
-      WHERE batches.`state` = 'running') AS s
-    GROUP BY user) as t;
+      COALESCE(SUM(n_running_jobs), 0) as n_running_jobs,
+      COALESCE(SUM(running_cores_mcpu), 0) as running_cores_mcpu,
+      COALESCE(SUM(n_runnable_jobs), 0) as n_runnable_jobs,
+      COALESCE(SUM(runnable_cores_mcpu), 0) as runnable_cores_mcpu,
+      COALESCE(SUM(n_cancelled_ready_jobs), 0) as n_cancelled_ready_jobs,
+      COALESCE(SUM(n_cancelled_running_jobs), 0) as n_cancelled_running_jobs
+    FROM tmp_batch_resources
+    GROUP by user) as t;
 
-  COMMIT;
+  DROP TEMPORARY TABLE IF EXISTS `tmp_batch_resources`;
 
 END $$
 
