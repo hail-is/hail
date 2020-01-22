@@ -162,15 +162,8 @@ trait EncoderAsmFunction { def apply(off: Long, out: OutputBuffer): Unit }
 
 object EType {
 
-  protected[encoded] val lowBitMask: Array[Byte] = {
-    val a = new Array[Byte](8)
-    a(0) = (-1).toByte
-    (1 until 8).foreach { i =>
-      a(i) = ((1 << i) - 1).toByte
-    }
-    a
-  }
-
+  protected[encoded] def lowBitMask(n: Int): Byte = (0xFF >>> ((-n) & 0x7)).toByte
+  protected[encoded] def lowBitMask(n: Code[Int]): Code[Byte] = (const(0xFF) >>> ((-n) & 0x7)).toB
 
   val cacheCapacity = 256
   protected val encoderCache = new util.LinkedHashMap[(EType, PType), () => EncoderAsmFunction](cacheCapacity, 0.75f, true) {
