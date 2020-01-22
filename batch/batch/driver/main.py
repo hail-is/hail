@@ -417,7 +417,8 @@ SELECT user,
   CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS n_cancelled_ready_jobs,
   CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS n_cancelled_running_jobs
 FROM user_resources
-GROUP BY user;
+GROUP BY user
+LOCK IN SHARE MODE;
 ''')
         user_resources = [record async for record in user_resources]
 
@@ -429,16 +430,17 @@ SELECT user,
     COALESCE(SUM(IF(state = 'Ready' AND runnable, cores_mcpu, 0)), 0) as ready_cores_mcpu,
     COALESCE(SUM(state = 'Ready' AND cancelled), 0) as n_cancelled_ready_jobs,
     COALESCE(SUM(state = 'Running' AND cancelled), 0) as n_cancelled_running_jobs
-  FROM (SELECT
-      jobs.state,
-      jobs.cores_mcpu,
-      (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled)) AS runnable,
-      (NOT jobs.always_run AND (jobs.cancelled OR batches.cancelled)) AS cancelled,
-      batches.user
-    FROM jobs
-    INNER JOIN batches ON batches.id = jobs.batch_id
-    WHERE batches.`state` = 'running') AS s
-  GROUP BY user;
+FROM (SELECT
+    jobs.state,
+    jobs.cores_mcpu,
+    (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled)) AS runnable,
+    (NOT jobs.always_run AND (jobs.cancelled OR batches.cancelled)) AS cancelled,
+    batches.user
+  FROM jobs
+  INNER JOIN batches ON batches.id = jobs.batch_id
+  WHERE batches.`state` = 'running'
+  LOCK IN SHARE MODE) AS s
+GROUP BY user;
 ''')
         computed_user_resources = [record async for record in computed_user_resources]
 
