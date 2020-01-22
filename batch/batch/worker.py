@@ -236,8 +236,6 @@ class Container:
         return status
 
     async def run(self, worker, cpu_sem):
-        name = f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}'
-
         try:
             async with self.step('pulling'):
                 if self.image.startswith('gcr.io/'):
@@ -270,9 +268,9 @@ class Container:
                 log.info(f'starting {self} config {config}')
                 self.container = await docker_call_retry(
                     docker.containers.create,
-                    config, name=name)
+                    config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
-            async with cpu_sem(self.cpu_in_mcpu, name):
+            async with cpu_sem(self.cpu_in_mcpu, f'{self}'):
                 async with self.step('runtime', state=None):
                     if self.name == 'main':
                         asyncio.ensure_future(worker.post_job_started(self.job))
