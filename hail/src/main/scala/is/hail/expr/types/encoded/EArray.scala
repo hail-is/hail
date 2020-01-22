@@ -52,7 +52,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
               out.writeBytes(array + const(pt.lengthHeaderBytes), nMissingLocal - 1),
               out.writeByte((Region.loadByte(array + const(pt.lengthHeaderBytes) +
                 (nMissingLocal - 1).toL) & Code.invokeScalaObject[Array[Byte]](EType.getClass, "lowBitMask")
-                .apply(nMissingLocal & 0x7)).toB)
+                .apply(prefixLen & 0x7)).toB)
             )
           )
         )
