@@ -386,7 +386,7 @@ async def get_user_resources(request, userdata):
 
 
 async def check_incremental_loop(db):
-    @transaction(db, ready_only=True)
+    @transaction(db, read_only=True)
     async def check(tx):
         ready_cores = await tx.execute_and_fetchone('''
 SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
