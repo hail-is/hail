@@ -47,19 +47,21 @@ CREATE PROCEDURE recompute_incremental(
   DROP TEMPORARY TABLE IF EXISTS `tmp_batch_resources`;
 
   CREATE TEMPORARY TABLE `tmp_batch_resources` AS (
-    SELECT batch_id, state, user,
+    SELECT batch_id, batch_state, user,
       COALESCE(SUM(1), 0) as n_jobs,
-      COALESCE(SUM(state = 'Ready' AND cancellable), 0) as n_ready_cancellable_jobs,
-      COALESCE(SUM(IF(state = 'Ready' AND cancellable, cores_mcpu, 0)), 0) as ready_cancellable_cores_mcpu,
-      COALESCE(SUM(state = 'Running' AND NOT cancelled), 0) as n_running_jobs,
-      COALESCE(SUM(IF(state = 'Running' AND NOT cancelled, cores_mcpu, 0)), 0) as running_cores_mcpu,
-      COALESCE(SUM(state = 'Ready' AND runnable), 0) as n_runnable_jobs,
-      COALESCE(SUM(IF(state = 'Ready' AND runnable, cores_mcpu, 0)), 0) as runnable_cores_mcpu,
-      COALESCE(SUM(state = 'Ready' AND cancelled), 0) as n_cancelled_ready_jobs,
-      COALESCE(SUM(state = 'Running' AND cancelled), 0) as n_cancelled_running_jobs
+      COALESCE(SUM(job_state = 'Ready' AND cancellable), 0) as n_ready_cancellable_jobs,
+      COALESCE(SUM(IF(job_state = 'Ready' AND cancellable, cores_mcpu, 0)), 0) as ready_cancellable_cores_mcpu,
+      COALESCE(SUM(job_state = 'Running' AND NOT cancelled), 0) as n_running_jobs,
+      COALESCE(SUM(IF(job_state = 'Running' AND NOT cancelled, cores_mcpu, 0)), 0) as running_cores_mcpu,
+      COALESCE(SUM(job_state = 'Ready' AND runnable), 0) as n_runnable_jobs,
+      COALESCE(SUM(IF(job_state = 'Ready' AND runnable, cores_mcpu, 0)), 0) as runnable_cores_mcpu,
+      COALESCE(SUM(job_state = 'Ready' AND cancelled), 0) as n_cancelled_ready_jobs,
+      COALESCE(SUM(job_state = 'Running' AND cancelled), 0) as n_cancelled_running_jobs
     FROM (
-      SELECT jobs.batch_id,
-        jobs.state,
+      SELECT batches.user,
+        batches.id as batch_id,
+	batches.state as batch_state,
+        jobs.state as job_state,
         jobs.cores_mcpu,
         NOT (jobs.always_run OR jobs.cancelled OR batches.cancelled) AS cancellable,
         (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled)) AS runnable,
@@ -67,13 +69,13 @@ CREATE PROCEDURE recompute_incremental(
       FROM jobs
       INNER JOIN batches
         ON batches.id = jobs.batch_id) as t
-    GROUP BY batch_id, state, user
+    GROUP BY batch_id, batch_state, user
   );
 
   INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
   SELECT batch_id, 0, n_jobs, n_runnable_jobs, runnable_cores_mcpu
   FROM tmp_batch_resources
-  WHERE state = 'open';
+  WHERE batch_state = 'open';
 
   INSERT INTO batch_cancellable_resources (batch_id, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
   SELECT batch_id, 0, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu
