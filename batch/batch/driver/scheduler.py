@@ -159,7 +159,7 @@ WHERE user = %s AND `state` = 'running';
                             '''
 SELECT jobs.job_id
 FROM jobs
-WHERE batch_id = %s AND always_run = 0 AND state = 'Ready'
+WHERE batch_id = %s AND state = 'Ready' AND always_run = 0
 LIMIT %s;
 ''',
                             (batch['id'], remaining.value)):
@@ -170,7 +170,7 @@ LIMIT %s;
                             '''
 SELECT jobs.job_id
 FROM jobs
-WHERE batch_id = %s AND always_run = 0 AND state = 'Ready' AND cancelled = 1
+WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 1
 LIMIT %s;
 ''',
                             (batch['id'], remaining.value)):
@@ -244,7 +244,7 @@ SELECT jobs.job_id, attempts.attempt_id, attempts.instance_name
 FROM jobs
 STRAIGHT_JOIN attempts
   ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
-WHERE jobs.batch_id = %s AND always_run = 0 AND state = 'Running' AND cancelled = 0
+WHERE jobs.batch_id = %s AND state = 'Running' always_run = 0 AND AND cancelled = 0
 LIMIT %s;
 ''',
                         (batch['id'], remaining.value)):
@@ -305,7 +305,7 @@ WHERE user = %s AND `state` = 'running';
                         '''
 SELECT job_id, spec, cores_mcpu
 FROM jobs
-WHERE batch_id = %s AND always_run = 1 AND state = 'Ready'
+WHERE batch_id = %s AND state = 'Ready' AND always_run = 1
 LIMIT %s;
 ''',
                         (batch['id'], remaining.value)):
@@ -318,7 +318,7 @@ LIMIT %s;
                             '''
 SELECT job_id, spec, cores_mcpu
 FROM jobs
-WHERE batch_id = %s AND always_run = 0 AND state = 'Ready' AND cancelled = 0
+WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 0
 LIMIT %s;
 ''',
                             (batch['id'], remaining.value)):

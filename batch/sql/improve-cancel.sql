@@ -16,7 +16,7 @@ DROP INDEX `batches_user` ON `batches`;
 CREATE INDEX `batches_user_state_cancelled` ON `batches` (`user`, `state`, `cancelled`);
 
 DROP INDEX `jobs_state` ON `jobs`;
-CREATE INDEX `jobs_batch_id_always_run_state_cancelled` ON `jobs` (`batch_id`, `always_run`, `state`, `cancelled`);
+CREATE INDEX `jobs_batch_id_state_always_run_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `cancelled`);
 
 ALTER TABLE `user_resources`
   ADD COLUMN `n_cancelled_ready_jobs` INT NOT NULL DEFAULT 0,
