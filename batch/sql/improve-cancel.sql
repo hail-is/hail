@@ -50,7 +50,7 @@ CREATE PROCEDURE recompute_incremental(
     SELECT batch_id, state, user,
       COALESCE(SUM(1), 0) as n_jobs,
       COALESCE(SUM(state = 'Ready' AND cancellable), 0) as n_ready_cancellable_jobs,
-      COALESCE(SUM(IF(state = 'Ready' AND cancellable, cores_mcpu, 0)), 0) as ready_cancellable_cores_mcpu
+      COALESCE(SUM(IF(state = 'Ready' AND cancellable, cores_mcpu, 0)), 0) as ready_cancellable_cores_mcpu,
       COALESCE(SUM(state = 'Running' AND NOT cancelled), 0) as n_running_jobs,
       COALESCE(SUM(IF(state = 'Running' AND NOT cancelled, cores_mcpu, 0)), 0) as running_cores_mcpu,
       COALESCE(SUM(state = 'Ready' AND runnable), 0) as n_runnable_jobs,
