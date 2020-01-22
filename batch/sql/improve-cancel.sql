@@ -60,7 +60,7 @@ CREATE PROCEDURE recompute_incremental(
     FROM (
       SELECT jobs.batch_id,
         jobs.state,
-        jobs.cores_mcpu
+        jobs.cores_mcpu,
         NOT (jobs.always_run OR jobs.cancelled OR batches.cancelled) AS cancellable,
         (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled)) AS runnable,
         (NOT jobs.always_run AND (jobs.cancelled OR batches.cancelled)) AS cancelled
