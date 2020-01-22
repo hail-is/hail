@@ -10,7 +10,7 @@ import kubernetes_asyncio as kube
 import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
 from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
-    check_csrf_token
+    check_csrf_token, transaction
 from hailtop.config import get_deploy_config
 from hailtop.utils import time_msecs
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
@@ -385,6 +385,89 @@ async def get_user_resources(request, userdata):
                                  'user_resources.html', page_context)
 
 
+async def check_incremental_loop(db):
+    @transaction(db)
+    async def check(tx):
+        ready_cores = await tx.select_and_fetchone('''
+SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+FROM ready_cores
+LOCK IN SHARE MODE;
+''')
+        ready_cores_mcpu = ready_cores['ready_cores_mcpu']
+
+        computed_ready_cores = await tx.select_and_one('''
+SELECT CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+FROM jobs
+INNER JOIN batches ON batches.id = jobs.batch_id
+WHERE batches.`state` = 'running'
+        AND jobs.state = 'Ready'
+        # runnable
+        AND (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled))
+LOCK IN SHARE MODE;
+''')
+        computed_ready_cores_mcpu = computed_ready_cores['ready_cores_mcpu']
+
+        log.error(f'ready_cores corrupt: ready_cores_mcpu {ready_cores_mcpu} != computed_ready_cores_mcpu {computed_ready_cores_mcpu}')
+
+        user_resources = tx.select_and_fetchall('''
+SELECT user,
+  CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
+  CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
+  CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
+  CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS n_cancelled_ready_jobs,
+  CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS n_cancelled_running_jobs
+FROM user_resources
+GROUP BY user;
+''')
+        user_resources = [record async for record in user_resources]
+
+        computed_user_resources = tx.select_and_fetchall('''
+SELECT user,
+    COALESCE(SUM(state = 'Running' AND NOT cancelled), 0) as n_running_jobs,
+    COALESCE(SUM(IF(state = 'Running' AND NOT cancelled, cores_mcpu, 0)), 0) as running_cores_mcpu,
+    COALESCE(SUM(state = 'Ready' AND runnable), 0) as n_ready_jobs,
+    COALESCE(SUM(IF(state = 'Ready' AND runnable, cores_mcpu, 0)), 0) as ready_cores_mcpu,
+    COALESCE(SUM(state = 'Ready' AND cancelled), 0) as n_cancelled_ready_jobs,
+    COALESCE(SUM(state = 'Running' AND cancelled), 0) as n_cancelled_running_jobs
+  FROM (SELECT
+      jobs.state,
+      jobs.cores_mcpu,
+      (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled)) AS runnable,
+      (NOT jobs.always_run AND (jobs.cancelled OR batches.cancelled)) AS cancelled,
+      batches.user
+    FROM jobs
+    INNER JOIN batches ON batches.id = jobs.batch_id
+    WHERE batches.`state` = 'running') AS s
+  GROUP BY user;
+''')
+        computed_user_resources = [record async for record in computed_user_resources]
+
+        def user_get(d, u, f):
+            if u not in d:
+                return 0
+            return d[u][f]
+
+        fields = ['n_running_jobs', 'running_cores_mcpu', 'n_ready_jobs', 'ready_cores_mcpu',
+                  'n_cancelled_ready_jobs', 'n_cancelled_running_jobs']
+        users = set(user_resources.keys())
+        users.update(computed_user_resources.keys())
+        for u in users:
+            for f in fields:
+                v = user_get(user_resources, u, f)
+                computed_v = user_get(user_resources, u, f)
+
+                if v != computed_v:
+                    log.error(f'user_resources corrupt: user_resources[{u}][{f}] {v} != computed_user_resources[{u}][{f}] {computed_v}')
+
+    while True:
+        try:
+            # 10/s
+            asyncio.sleep(0.1)
+            await check()  # pylint: disable=no-value-for-parameter
+        except Exception:
+            log.exception('while checking incremental')
+
+
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
@@ -437,6 +520,8 @@ async def on_startup(app):
     scheduler = Scheduler(app)
     await scheduler.async_init()
     app['scheduler'] = scheduler
+
+    asyncio.ensure_future(check_incremental_loop(db))
 
 
 async def on_cleanup(app):
