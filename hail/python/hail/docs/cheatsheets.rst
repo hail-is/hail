@@ -1,11 +1,11 @@
 .. _sec-cheatsheets:
 
 =============
-Cheatsheets
+Cheat Sheets
 =============
 
 .. note::
-    Hail's cheatsheets are relatively new. We welcome suggestions
+    Hail's cheat sheets are relatively new. We welcome suggestions
     for additional cheatsheets, as well as feedback about our documentation. If
     you'd like to add a cheatsheet to the documentation, make a pull request!
 
