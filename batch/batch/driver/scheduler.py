@@ -244,7 +244,7 @@ SELECT jobs.job_id, attempts.attempt_id, attempts.instance_name
 FROM jobs
 STRAIGHT_JOIN attempts
   ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
-WHERE jobs.batch_id = %s AND state = 'Running' always_run = 0 AND AND cancelled = 0
+WHERE jobs.batch_id = %s AND state = 'Running' AND always_run = 0 AND cancelled = 0
 LIMIT %s;
 ''',
                         (batch['id'], remaining.value)):
