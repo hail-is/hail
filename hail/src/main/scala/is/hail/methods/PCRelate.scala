@@ -129,6 +129,7 @@ case class PCRelate(
   minKinship: Option[Double] = None,
   statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset)
   extends BlockMatrixToTableFunction with Serializable {
+  @transient private[this] val hc = HailContext.get
 
   import PCRelate._
 
@@ -141,10 +142,9 @@ case class PCRelate(
     TableType(sig, keys, TStruct())
 
   def execute(ctx: ExecuteContext, g: M, value: Any): TableValue = {
-    val hc = HailContext.get
     val pcs = rowsToBDM(value.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Double]]])
     assert(pcs.rows == g.nCols)
-    val r = computeResult(hc, g, pcs)
+    val r = computeResult(g, pcs)
     val rdd = PCRelate.toRowRdd(r, blockSize, minKinship, statistics)
     TableValue(ctx, sig, keys, rdd)
   }
@@ -155,29 +155,33 @@ case class PCRelate(
   def badgt(gt: Double): Boolean =
     gt != 0.0 && gt != 1.0 && gt != 2.0
 
+  private def writeRead(m: M): M = {
+    val file = hc.getTemporaryFile(suffix=Some("bm"))
+    m.write(hc.sFS, file)
+    BlockMatrix.read(hc, file)
+  }
+
   private def gram(m: M): M = {
-    val mc = m.persist(storageLevel)
+    val mc = writeRead(m)
     mc.T.dot(mc)
   }
 
   private[this] def cacheWhen(statisticsLevel: StatisticSubset)(m: M): M =
-    if (statistics >= statisticsLevel) m.persist(storageLevel) else m
+    if (statistics >= statisticsLevel) writeRead(m) else m
 
-  def computeResult(hc: HailContext, blockedG: M, pcs: BDM[Double]): Result[M] = {
+  def computeResult(blockedG: M, pcs: BDM[Double]): Result[M] = {
     val preMu = this.mu(blockedG, pcs)
-    val mu = BlockMatrix.map2 { (g, mu) =>
+    val mu = writeRead(BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         Double.NaN
       else
         mu
-    } (blockedG, preMu).persist(storageLevel)
+    } (blockedG, preMu))
     val variance = cacheWhen(PhiK2)(
       mu.map(mu => if (mu.isNaN) 0.0 else mu * (1.0 - mu)))
 
     // write phi to cache and increase parallelism of multiplies before phi.diagonal()
-    val phiFile = hc.getTemporaryFile(suffix=Some("bm"))
-    this.phi(mu, variance, blockedG).write(hc.sFS, phiFile)
-    val phi = BlockMatrix.read(hc, phiFile)
+    val phi = writeRead(this.phi(mu, variance, blockedG))
 
     if (statistics >= PhiK2) {
       val k2 = cacheWhen(PhiK2K0)(
@@ -234,7 +238,7 @@ case class PCRelate(
         if (mu.isNaN || g != 0.0) 0.0 else 1.0
       } (g, mu)
 
-    val temp = homalt.T.dot(homref).persist(storageLevel)
+    val temp = writeRead(homalt.T.dot(homref))
 
     temp + temp.T
   }
