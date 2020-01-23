@@ -5,7 +5,7 @@ import aiomysql
 import logging
 import functools
 
-from hailtop.utils import sleep_and_backoff
+from hailtop.utils import sleep_and_backoff, LoggingTimer
 
 
 log = logging.getLogger('gear.database')
@@ -134,18 +134,20 @@ class Transaction:
             await cursor.execute(sql, args)
             return await cursor.fetchone()
 
-    async def execute_and_fetchall(self, sql, args=None):
+    async def execute_and_fetchall(self, sql, args=None, timer_description=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            async def execute(sql, args):
-                return await cursor.execute(sql, args)
-
-            async def fetchmany():
-                return await cursor.fetchmany(100)
-
-            await execute(sql, args)
+            if timer_description is None:
+                await cursor.execute(sql, args)
+            else:
+                async with LoggingTimer(f'{timer_description}: execute_and_fetchall: execute'):
+                    await cursor.execute(sql, args)
             while True:
-                rows = await fetchmany()
+                if timer_description is None:
+                    rows = await cursor.fetchmany(100)
+                else:
+                    async with LoggingTimer(f'{timer_description}: execute_and_fetchall: fetchmany'):
+                        rows = await cursor.fetchmany(100)
                 if not rows:
                     break
                 for row in rows:
@@ -193,14 +195,14 @@ class Database:
         async with self.start(read_only=True) as tx:
             return await tx.execute_and_fetchone(sql, args)
 
-    async def execute_and_fetchall(self, sql, args=None):
+    async def execute_and_fetchall(self, sql, args=None, timer_description=None):
         async with self.start() as tx:
-            async for row in tx.execute_and_fetchall(sql, args):
+            async for row in tx.execute_and_fetchall(sql, args, timer_description):
                 yield row
 
-    async def select_and_fetchall(self, sql, args=None):
+    async def select_and_fetchall(self, sql, args=None, timer_description=None):
         async with self.start(read_only=True) as tx:
-            async for row in tx.execute_and_fetchall(sql, args):
+            async for row in tx.execute_and_fetchall(sql, args, timer_description):
                 yield row
 
     @retry_transient_mysql_errors

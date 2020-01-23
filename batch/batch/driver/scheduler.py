@@ -65,7 +65,8 @@ SELECT user,
   CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu
 FROM user_resources
 GROUP BY user;
-''')
+''',
+            timer_description='in compute_fair_share: aggregate user_resources')
 
         async for record in records:
             user = record['user']
@@ -133,7 +134,8 @@ FROM (SELECT user,
   FROM user_resources
   GROUP BY user) AS t
 WHERE n_cancelled_ready_jobs > 0;
-''')
+''',
+            timer_description='in cancel_cancelled_ready_jobs: aggregate n_cancelled_ready_jobs')
         user_n_cancelled_ready_jobs = {
             record['user']: record['n_cancelled_ready_jobs'] async for record in records
         }
@@ -153,7 +155,8 @@ SELECT id, cancelled
 FROM batches
 WHERE user = %s AND `state` = 'running';
 ''',
-                    (user,)):
+                    (user,),
+                    timer_description=f'in cancel_cancelled_ready_jobs: get {user} running batches'):
                 if batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
                             '''
@@ -162,7 +165,8 @@ FROM jobs
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 0
 LIMIT %s;
 ''',
-                            (batch['id'], remaining.value)):
+                            (batch['id'], remaining.value),
+                            timer_description=f'in cancel_cancelled_ready_jobs: get {user} {batch["id"]} ready cancelled jobs (1)'):
                         record['batch_id'] = batch['id']
                         yield record
                 else:
@@ -173,7 +177,8 @@ FROM jobs
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 1
 LIMIT %s;
 ''',
-                            (batch['id'], remaining.value)):
+                            (batch['id'], remaining.value),
+                            timer_description=f'in cancel_cancelled_ready_jobs: get {user} {batch["id"]} ready cancelled jobs (2)'):
                         record['batch_id'] = batch['id']
                         yield record
 
@@ -217,7 +222,8 @@ FROM (SELECT user,
   FROM user_resources
   GROUP BY user) AS t
 WHERE n_cancelled_running_jobs > 0;
-''')
+''',
+            timer_description=f'in cancel_cancelled_running_jobs: aggregate n_cancelled_running_jobs')
         user_n_cancelled_running_jobs = {
             record['user']: record['n_cancelled_running_jobs'] async for record in records
         }
@@ -237,7 +243,8 @@ SELECT id
 FROM batches
 WHERE user = %s AND `state` = 'running' AND cancelled = 1;
 ''',
-                    (user,)):
+                    (user,),
+                    timer_description=f'in cancel_cancelled_running_jobs: get {user} cancelled batches'):
                 async for record in self.db.select_and_fetchall(
                         '''
 SELECT jobs.job_id, attempts.attempt_id, attempts.instance_name
@@ -247,7 +254,8 @@ STRAIGHT_JOIN attempts
 WHERE jobs.batch_id = %s AND state = 'Running' AND always_run = 0 AND cancelled = 0
 LIMIT %s;
 ''',
-                        (batch['id'], remaining.value)):
+                        (batch['id'], remaining.value),
+                        timer_description=f'in cancel_cancelled_running_jobs: get {user} {batch["id"]} running cancelled jobs'):
                     record['batch_id'] = batch['id']
                     yield record
 
@@ -300,7 +308,8 @@ SELECT id, cancelled, userdata, user
 FROM batches
 WHERE user = %s AND `state` = 'running';
 ''',
-                    (user,)):
+                    (user,),
+                    timer_description=f'in schedule: get {user} running batches'):
                 async for record in self.db.select_and_fetchall(
                         '''
 SELECT job_id, spec, cores_mcpu
@@ -308,7 +317,8 @@ FROM jobs
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 1
 LIMIT %s;
 ''',
-                        (batch['id'], remaining.value)):
+                        (batch['id'], remaining.value),
+                        timer_description=f'in schedule: get {user} {batch["id"]} runnable jobs (1)'):
                     record['batch_id'] = batch['id']
                     record['userdata'] = batch['userdata']
                     record['user'] = batch['user']
@@ -321,7 +331,8 @@ FROM jobs
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 0
 LIMIT %s;
 ''',
-                            (batch['id'], remaining.value)):
+                            (batch['id'], remaining.value),
+                            timer_description=f'in schedule: get {user} {batch["id"]} runnable jobs (2)'):
                         record['batch_id'] = batch['id']
                         record['userdata'] = batch['userdata']
                         record['user'] = batch['user']
