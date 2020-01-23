@@ -1772,8 +1772,6 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
     val blockSize = n
     val newRVD = prevRVD.mapPartitionsWithIndex(newRVDType, { (int, ctx, it) =>
       val targetRegion = ctx.region
-      val myRegion = Region(100)
-      myRegion.addReferenceTo(targetRegion)
 
       new Iterator[RegionValue] {
         override def hasNext: Boolean = {
@@ -1788,6 +1786,7 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
           var childIterationCount = 0
           while (it.hasNext && childIterationCount != blockSize) {
             val nextRV = it.next()
+            targetRegion.addReferenceTo(nextRV.region)
             offsetArray(childIterationCount) = nextRV.offset
             childIterationCount += 1
           }
