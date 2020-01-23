@@ -14,7 +14,8 @@ from prometheus_async.aio.web import server_stats
 import google.oauth2.service_account
 import google.api_core.exceptions
 from hailtop.utils import time_msecs, time_msecs_str, humanize_timedelta_msecs, \
-    request_retry_transient_errors, run_if_changed, retry_long_running
+    request_retry_transient_errors, run_if_changed, retry_long_running, \
+    LoggingTimer
 from hailtop.config import get_deploy_config
 from hailtop.batch_client.aioclient import Job
 from gear import Database, setup_aiohttp_session, \
@@ -26,7 +27,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 # import uvloop
 
 from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_memory_request, \
-    worker_memory_per_core_gb, LoggingTimer
+    worker_memory_per_core_gb
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
