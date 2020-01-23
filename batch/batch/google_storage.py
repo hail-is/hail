@@ -5,7 +5,7 @@ import google.cloud.storage
 from hailtop.utils import blocking_to_async
 
 
-logging.getLogger("google.cloud.storage").setLevel(logging.WARNING)
+logging.getLogger("google").setLevel(logging.WARNING)
 
 
 class GCS:
