@@ -335,6 +335,7 @@ LIMIT %s;
                         record['batch_id'] = batch['id']
                         record['userdata'] = batch['userdata']
                         record['user'] = batch['user']
+                        record['format_version'] = batch['format_version']
                         yield record
 
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
