@@ -142,7 +142,8 @@ WHERE n_cancelled_ready_jobs > 0;
 
         total = sum(user_n_cancelled_ready_jobs.values())
         if not total:
-            return
+            should_wait = True
+            return should_wait
         user_share = {
             user: max(int(1000 * user_n_jobs / total + 0.5), 20)
             for user, user_n_jobs in user_n_cancelled_ready_jobs.items()
@@ -230,7 +231,8 @@ WHERE n_cancelled_running_jobs > 0;
 
         total = sum(user_n_cancelled_running_jobs.values())
         if not total:
-            return
+            should_wait = True
+            return should_wait
         user_share = {
             user: max(int(1000 * user_n_jobs / total + 0.5), 20)
             for user, user_n_jobs in user_n_cancelled_running_jobs.items()
@@ -295,7 +297,8 @@ LIMIT %s;
         total = sum(resources['allocated_cores_mcpu']
                     for resources in user_resources.values())
         if not total:
-            return
+            should_wait = True
+            return should_wait
         user_share = {
             user: max(int(1000 * resources['allocated_cores_mcpu'] / total + 0.5), 20)
             for user, resources in user_resources.items()
