@@ -386,6 +386,8 @@ async def get_user_resources(request, userdata):
 
 
 async def check_incremental_loop(db):
+    clean = True
+
     @transaction(db, read_only=True)
     async def check(tx):
         ready_cores = await tx.execute_and_fetchone('''
@@ -408,6 +410,7 @@ LOCK IN SHARE MODE;
         computed_ready_cores_mcpu = computed_ready_cores['ready_cores_mcpu']
 
         if ready_cores_mcpu != computed_ready_cores_mcpu:
+            clean = False
             log.error(f'ready_cores corrupt: ready_cores_mcpu {ready_cores_mcpu} != computed_ready_cores_mcpu {computed_ready_cores_mcpu}')
 
         user_resources = tx.execute_and_fetchall('''
@@ -461,12 +464,13 @@ GROUP BY user;
                 computed_v = user_get(user_resources, u, f)
 
                 if v != computed_v:
+                    clean = False
                     log.error(f'user_resources corrupt: user_resources[{u}][{f}] {v} != computed_user_resources[{u}][{f}] {computed_v}')
 
-    while True:
+    while clean:
         try:
             # 10/s
-            asyncio.sleep(0.1)
+            await asyncio.sleep(0.1)
             await check()  # pylint: disable=no-value-for-parameter
         except Exception:
             log.exception('while checking incremental')
