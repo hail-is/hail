@@ -374,3 +374,9 @@ def group_by_collect_per_row(path):
 def group_by_take_rekey(path):
     ht = hl.read_matrix_table(path).localize_entries('e', 'c')
     ht.group_by(k=hl.int(ht.row_idx / 50)).aggregate(value=hl.agg.take(ht.row_value, 1))._force_count()
+
+@benchmark()
+def table_scan_sum_1k_partitions():
+    ht = hl.utils.range_table(1000000, n_partitions=1000)
+    ht = ht.annotate(x = hl.scan.sum(ht.idx))
+    ht._force_count()
