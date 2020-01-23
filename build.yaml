@@ -96,6 +96,8 @@ steps:
        to: /repo/pipeline/
      - from: /io/repo/notebook/sql
        to: /repo/notebook/
+     - from: /io/repo/hail/python/hailtop
+       to: /repo/hailtop/
    dependsOn:
      - base_image
  - kind: runImage
@@ -344,7 +346,7 @@ steps:
    contextPath: hail
    publishAs: hail-run
    dependsOn:
-     - base_image
+     - service_base_image
  - kind: buildImage
    name: scorecard_image
    dockerFile: scorecard/Dockerfile
@@ -660,9 +662,11 @@ steps:
        | pandoc -o python/hail/docs/change_log.rst
      make -C www
      make -C python/hail/docs BUILDDIR=_build clean html
+     make -C python/hailtop/pipeline/docs BUILDDIR=_build clean html
      mkdir -p www/docs
      rm -f www/*.md
      mv python/hail/docs/_build/html www/docs/0.2
+     mv python/hailtop/pipeline/docs/_build/html www/docs/batch
      HAIL_CACHE_VERSION=$(cat python/hail/hail_version)
      find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
      tar czf /io/www.tar.gz www
@@ -1065,6 +1069,36 @@ steps:
     - service_base_image
     - deploy_batch
     - setup_pipeline
+ - kind: runImage
+   name: test_pipeline_docs
+   image:
+     valueFrom: test_pipeline_docs_image.image
+   script: |
+     set -ex
+     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+     cd /io/hailtop/hailtop/pipeline
+     python3 -m pytest --instafail \
+       --doctest-modules \
+       --doctest-glob='*.rst' \
+       --ignore=docs/conf.py
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - test_pipeline_docs_image
+    - copy_files
+    - deploy_batch
+   inputs:
+    - from: /repo/hailtop
+      to: /io/
  - kind: runImage
    name: cleanup_pipeline
    image:
