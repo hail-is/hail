@@ -80,7 +80,9 @@ BEGIN
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
     UPDATE batches SET n_completed = n_completed + 1 WHERE id = in_batch_id;
-    UPDATE batches SET time_completed = new_timestamp
+    UPDATE batches
+      SET time_completed = new_timestamp,
+          `state` = 'complete'
       WHERE id = in_batch_id AND n_completed = batches.n_jobs;
 
     IF new_state = 'Cancelled' THEN
