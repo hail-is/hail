@@ -80,12 +80,14 @@ CREATE PROCEDURE recompute_incremental(
 
   INSERT INTO batch_cancellable_resources (batch_id, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
   SELECT batch_id, 0, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu
-  FROM tmp_batch_resources;
+  FROM tmp_batch_resources
+  WHERE batch_state != 'open';
 
   INSERT INTO ready_cores (token, ready_cores_mcpu)
   SELECT 0, t.runnable_cores_mcpu
   FROM (SELECT COALESCE(SUM(runnable_cores_mcpu), 0) as runnable_cores_mcpu
-    FROM tmp_batch_resources) as t;
+    FROM tmp_batch_resources
+    WHERE batch_state != 'open') as t;
 
   INSERT INTO user_resources (token, user, n_ready_jobs, ready_cores_mcpu,
     n_running_jobs, running_cores_mcpu,
@@ -101,6 +103,7 @@ CREATE PROCEDURE recompute_incremental(
       COALESCE(SUM(n_cancelled_ready_jobs), 0) as n_cancelled_ready_jobs,
       COALESCE(SUM(n_cancelled_running_jobs), 0) as n_cancelled_running_jobs
     FROM tmp_batch_resources
+    WHERE batch_state != 'open'
     GROUP by user) as t;
 
   DROP TEMPORARY TABLE IF EXISTS `tmp_batch_resources`;
