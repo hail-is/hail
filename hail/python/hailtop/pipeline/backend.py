@@ -305,7 +305,8 @@ class BatchBackend(Backend):
                                  resources=resources,
                                  input_files=inputs if len(inputs) > 0 else None,
                                  output_files=outputs if len(outputs) > 0 else None,
-                                 pvc_size=task._storage)
+                                 pvc_size=task._storage,
+                                 always_run=task._always_run)
             n_jobs_submitted += 1
 
             task_to_job_mapping[task] = j

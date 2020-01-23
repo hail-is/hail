@@ -80,6 +80,7 @@ class Task:
         self._mentioned = set()  # resources used in the command
         self._valid = set()  # resources declared in the appropriate place
         self._dependencies = set()
+        self._always_run = False
 
     def _get_resource(self, item):
         if item not in self._resources:
