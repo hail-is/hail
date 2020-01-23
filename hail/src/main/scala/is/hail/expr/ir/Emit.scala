@@ -983,7 +983,7 @@ private class Emit(
             Code(
               newState.createState,
               newState.deserializeFromBytes(t, coerce[Long](xValue.v)),
-              rvAgg.combOp(sc.states(i), newState)
+              rvAgg.combOp(sc.states(i), newState),
             ))),
           const(false),
           Code._empty[Unit])

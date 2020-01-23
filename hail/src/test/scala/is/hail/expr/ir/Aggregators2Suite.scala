@@ -751,7 +751,7 @@ class Aggregators2Suite extends HailSuite {
       "x",
       RunAgg(
         Begin(FastSeq(
-          InitOp(0, FastSeq(I32(5)), takeSig),
+          InitOp(0, FastSeq(I32(10)), takeSig),
           SeqOp(0, FastSeq(NA(TInt64())), takeSig),
           SeqOp(0, FastSeq(I64(-1l)), takeSig),
           SeqOp(0, FastSeq(I64(2l)), takeSig)
