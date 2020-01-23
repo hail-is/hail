@@ -68,7 +68,8 @@ CREATE PROCEDURE recompute_incremental(
         (NOT jobs.always_run AND (jobs.cancelled OR batches.cancelled)) AS cancelled
       FROM jobs
       INNER JOIN batches
-        ON batches.id = jobs.batch_id) as t
+        ON batches.id = jobs.batch_id
+      LOCK IN SHARE MODE) as t
     GROUP BY batch_id, batch_state, user
   );
 
