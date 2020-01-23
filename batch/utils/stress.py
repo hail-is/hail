@@ -27,7 +27,7 @@ def stress():
             if flip(0.2):
                 c._always_run = True
 
-    p.run(open=True, wait=False)
+    p.run(open=False, wait=False)
 
 if __name__ == "__main__":
     stress()
