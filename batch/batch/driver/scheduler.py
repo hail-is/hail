@@ -166,7 +166,7 @@ WHERE batch_id = %s AND state = 'Ready' AND always_run = 0
 LIMIT %s;
 ''',
                             (batch['id'], remaining.value),
-                            timer_description=f'in cancel_cancelled_ready_jobs: get {user} {batch["id"]} ready cancelled jobs (1)'):
+                            timer_description=f'in cancel_cancelled_ready_jobs: get {user} batch {batch["id"]} ready cancelled jobs (1)'):
                         record['batch_id'] = batch['id']
                         yield record
                 else:
@@ -178,7 +178,7 @@ WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 1
 LIMIT %s;
 ''',
                             (batch['id'], remaining.value),
-                            timer_description=f'in cancel_cancelled_ready_jobs: get {user} {batch["id"]} ready cancelled jobs (2)'):
+                            timer_description=f'in cancel_cancelled_ready_jobs: get {user} batch {batch["id"]} ready cancelled jobs (2)'):
                         record['batch_id'] = batch['id']
                         yield record
 
@@ -255,7 +255,7 @@ WHERE jobs.batch_id = %s AND state = 'Running' AND always_run = 0 AND cancelled 
 LIMIT %s;
 ''',
                         (batch['id'], remaining.value),
-                        timer_description=f'in cancel_cancelled_running_jobs: get {user} {batch["id"]} running cancelled jobs'):
+                        timer_description=f'in cancel_cancelled_running_jobs: get {user} batch {batch["id"]} running cancelled jobs'):
                     record['batch_id'] = batch['id']
                     yield record
 
@@ -318,7 +318,7 @@ WHERE batch_id = %s AND state = 'Ready' AND always_run = 1
 LIMIT %s;
 ''',
                         (batch['id'], remaining.value),
-                        timer_description=f'in schedule: get {user} {batch["id"]} runnable jobs (1)'):
+                        timer_description=f'in schedule: get {user} batch {batch["id"]} runnable jobs (1)'):
                     record['batch_id'] = batch['id']
                     record['userdata'] = batch['userdata']
                     record['user'] = batch['user']
@@ -332,7 +332,7 @@ WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 0
 LIMIT %s;
 ''',
                             (batch['id'], remaining.value),
-                            timer_description=f'in schedule: get {user} {batch["id"]} runnable jobs (2)'):
+                            timer_description=f'in schedule: get {user} batch {batch["id"]} runnable jobs (2)'):
                         record['batch_id'] = batch['id']
                         record['userdata'] = batch['userdata']
                         record['user'] = batch['user']
