@@ -140,33 +140,37 @@ def init_spark_backend(sc=None, app_name="Hail", master=None, local='local[*]',
                        global_seed=6348563392232659379, spark_conf=None,
                        optimizer_iterations=None):
     hail_jar_path = _find_hail_jar()
-    conf = SparkConf()
 
-    base_conf = spark_conf or {}
-    for k, v in base_conf.items():
-        conf.set(k, v)
+    if hail_jar_path is not None:
+        conf = SparkConf()
 
-    jars = [hail_jar_path]
-    if os.environ.get('HAIL_SPARK_MONITOR'):
-        import sparkmonitor
-        jars.append(os.path.join(os.path.dirname(sparkmonitor.__file__), 'listener.jar'))
-        conf.set("spark.extraListeners", "sparkmonitor.listener.JupyterSparkMonitorListener")
+        base_conf = spark_conf or {}
+        for k, v in base_conf.items():
+            conf.set(k, v)
 
-    conf.set('spark.jars', ','.join(jars))
-    conf.set('spark.driver.extraClassPath', ','.join(jars))
-    conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
+        jars = [hail_jar_path]
+        if os.environ.get('HAIL_SPARK_MONITOR'):
+            import sparkmonitor
+            jars.append(os.path.join(os.path.dirname(sparkmonitor.__file__), 'listener.jar'))
+            conf.set("spark.extraListeners", "sparkmonitor.listener.JupyterSparkMonitorListener")
 
-    if sc is None:
-        SparkContext._ensure_initialized(conf=conf)
+        conf.set('spark.jars', ','.join(jars))
+        conf.set('spark.driver.extraClassPath', ','.join(jars))
+        conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
+
+        if sc is None:
+            SparkContext._ensure_initialized(conf=conf)
+        else:
+            import warnings
+            warnings.warn(
+                'pip-installed Hail requires additional configuration options in Spark referring\n'
+                '  to the path to the Hail Python module directory HAIL_DIR,\n'
+                '  e.g. /path/to/python/site-packages/hail:\n'
+                '    spark.jars=HAIL_DIR/hail-all-spark.jar\n'
+                '    spark.driver.extraClassPath=HAIL_DIR/hail-all-spark.jar\n'
+                '    spark.executor.extraClassPath=./hail-all-spark.jar')
     else:
-        import warnings
-        warnings.warn(
-            'pip-installed Hail requires additional configuration options in Spark referring\n'
-            '  to the path to the Hail Python module directory HAIL_DIR,\n'
-            '  e.g. /path/to/python/site-packages/hail:\n'
-            '    spark.jars=HAIL_DIR/hail-all-spark.jar\n'
-            '    spark.driver.extraClassPath=HAIL_DIR/hail-all-spark.jar\n'
-            '    spark.executor.extraClassPath=./hail-all-spark.jar')
+        SparkContext._ensure_initialized()
 
     jvm = SparkContext._jvm
 
