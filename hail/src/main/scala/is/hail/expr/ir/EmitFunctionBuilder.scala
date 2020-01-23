@@ -8,7 +8,7 @@ import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.backend.BackendUtils
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.types.physical.{PTuple, PType}
+import is.hail.expr.types.physical.{PCanonicalTuple, PTuple, PType}
 import is.hail.expr.types.virtual.{TTuple, Type}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
@@ -220,7 +220,7 @@ class EmitFunctionBuilder[F >: Null](
 
   private[this] def encodeLiterals(): Array[Byte] = {
     val literals = literalsMap.toArray
-    val litType = PTuple(true, literals.map(_._1._1): _*)
+    val litType = PCanonicalTuple(true, literals.map(_._1._1): _*)
     val spec = TypedCodecSpec(litType, BufferSpec.defaultUncompressed)
 
     val (litRType, dec) = spec.buildEmitDecoderF[Long](litType.virtualType, this)
