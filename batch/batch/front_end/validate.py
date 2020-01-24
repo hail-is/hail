@@ -4,7 +4,6 @@ import re
 # jobs_schema = [{
 #   'always_run': bool,
 #   'attributes': {str: str},
-#   'callback': str,
 #   'command': [str],
 #   'env': [{
 #     'name': str,
@@ -34,7 +33,7 @@ import re
 # }]
 
 JOB_KEYS = {
-    'always_run', 'attributes', 'callback', 'command', 'env', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'resources', 'secrets', 'service_account'
+    'always_run', 'attributes', 'command', 'env', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'resources', 'secrets', 'service_account'
 }
 
 ENV_VAR_KEYS = {'name', 'value'}
@@ -90,11 +89,6 @@ def validate_job(i, job):
                 raise ValidationError(f'jobs[{i}].attributes has non-str key')
             if not isinstance(v, str):
                 raise ValidationError(f'jobs[{i}].attributes has non-str value')
-
-    if 'callback' in job:
-        callback = job['callback']
-        if not isinstance(callback, str):
-            raise ValidationError(f'jobs[{i}].callback not str')
 
     if 'command' not in job:
         raise ValidationError(f'no required key command in jobs[{i}]')
@@ -298,3 +292,59 @@ def validate_job(i, job):
             raise ValidationError(f'length of jobs[{i}].service_account.name must be <= 253')
         if not K8S_NAME_REGEX.fullmatch(name):
             raise ValidationError(f'jobs[{i}].service_account.name must match regex: {K8S_NAME_REGEXPAT}')
+
+
+# rough schema
+# batch_schema = {
+#   'attributes': {str: str},
+#   'billing_project': str,
+#   'callback': str,
+#   'n_jobs': int,
+#   'token': str
+# }
+
+BATCH_KEYS = {
+    'attributes', 'billing_project', 'callback', 'n_jobs', 'token'
+}
+
+
+def validate_batch(batch):
+    if not isinstance(batch, dict):
+        raise ValidationError(f'batch not dict')
+
+    for k in batch:
+        if k not in BATCH_KEYS:
+            raise ValidationError(f'unknown key in batch: {k}')
+
+    attributes = batch.get('attributes')
+    if attributes is not None:
+        if not isinstance(attributes, dict):
+            raise ValidationError(f'batch.attributes is not dict')
+        for k, v in attributes.items():
+            if not isinstance(k, str):
+                raise ValidationError(f'batch.attributes has non-str key')
+            if not isinstance(v, str):
+                raise ValidationError(f'batch.attributes has non-str value')
+
+    if 'billing_project' not in batch:
+        raise ValidationError('no required key billing_project in batch')
+    billing_project = batch['billing_project']
+    if not isinstance(billing_project, str):
+        raise ValidationError('batch.billing_project is not str')
+
+    callback = batch.get('callback')
+    if callback is not None:
+        if not isinstance(callback, str):
+            raise ValidationError(f'batch.callback not str')
+
+    if 'n_jobs' not in batch:
+        raise ValidationError('no required key n_jobs in batch')
+    n_jobs = batch['n_jobs']
+    if not isinstance(n_jobs, int):
+        raise ValidationError('batch.n_jobs is not int')
+
+    if 'token' not in batch:
+        raise ValidationError('no required key token in batch')
+    token = batch['token']
+    if not isinstance(token, str):
+        raise ValidationError('batch.token is not str')

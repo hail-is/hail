@@ -195,11 +195,11 @@ object Copy {
       case GetField(_, name) =>
         assert(newChildren.length == 1)
         GetField(newChildren(0).asInstanceOf[IR], name)
-      case InitOp2(i, _, aggSig) =>
-        InitOp2(i, newChildren.map(_.asInstanceOf[IR]), aggSig)
-      case SeqOp2(i, _, aggSig) =>
-        SeqOp2(i, newChildren.map(_.asInstanceOf[IR]), aggSig)
-      case x@(_: ResultOp2 | _: CombOp2) =>
+      case InitOp(i, _, aggSig) =>
+        InitOp(i, newChildren.map(_.asInstanceOf[IR]), aggSig)
+      case SeqOp(i, _, aggSig) =>
+        SeqOp(i, newChildren.map(_.asInstanceOf[IR]), aggSig)
+      case x@(_: ResultOp | _: CombOp) =>
         assert(newChildren.isEmpty)
         x
       case x: SerializeAggs => x

@@ -830,6 +830,8 @@ steps:
       script: /io/sql/add-lock-in-share-mode.sql
     - name: add-batch-create-token
       script: /io/sql/add-batch-create-token.sql
+    - name: improve-cancel
+      script: /io/sql/improve-cancel.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/

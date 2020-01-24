@@ -412,8 +412,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
-    assert(srcPType.isInstanceOf[PArray])
-
     val sourceType = srcPType.asInstanceOf[PArray]
     val sourceElementType = sourceType.elementType.fundamentalType
     val destElementType = this.elementType.fundamentalType
@@ -472,8 +470,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = {
-    assert(srcPType.isInstanceOf[PArray])
-
     val sourceType = srcPType.asInstanceOf[PArray]
     val sourceElementType = sourceType.elementType.fundamentalType
     val destElementType = this.elementType.fundamentalType

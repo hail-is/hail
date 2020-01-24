@@ -76,9 +76,9 @@ class PBaseStructSuite extends HailSuite {
       expectedVal = Annotation(IndexedSeq(null, IndexedSeq(null, Annotation(1))), 31415926535897L)
       PhysicalTestUtils.copyTestExecutor(srcType, destType, expectedVal, forceDeep = forceDeep, interpret = interpret)
 
-      srcType = PStruct(true, "a" -> PArray(PArray(PStruct(true, "a" -> PInt32(true)), true), true), "b" -> PInt64())
-      destType = PStruct("a" -> PArray(PArray(PStruct("a" -> PInt32(true)))), "b" -> PInt64())
-      expectedVal = Annotation(IndexedSeq(IndexedSeq(Annotation(3)), IndexedSeq(Annotation(1))), 31415926535897L)
+      srcType = PStruct(true, "foo" -> PStruct("bar" -> PArray(PInt32(true), true)))
+      destType = PStruct(false, "foo" -> PStruct("bar" -> PArray(PInt32(false), false)))
+      expectedVal = Annotation(Annotation(IndexedSeq(1, 2, 3)))
       PhysicalTestUtils.copyTestExecutor(srcType, destType, expectedVal, forceDeep = forceDeep, interpret = interpret)
     }
 

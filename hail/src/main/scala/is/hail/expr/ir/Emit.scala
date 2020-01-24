@@ -336,13 +336,13 @@ private class Emit(
         present(const(x))
       case F64(x) =>
         present(const(x))
-      case Str(x) =>
-        present(mb.fb.addLiteral(x, TString(), er.baseRegion))
-      case Literal(t, v) =>
+      case s@Str(x) =>
+        present(mb.fb.addLiteral(x, coerce[PString](s.pType), er.baseRegion))
+      case x@Literal(t, v) =>
         if (v == null)
           emit(NA(t))
         else
-          present(mb.fb.addLiteral(v, t, er.baseRegion))
+          present(mb.fb.addLiteral(v, x.pType, er.baseRegion))
       case True() =>
         present(const(true))
       case False() =>
@@ -510,7 +510,7 @@ private class Emit(
               Code(codeS.setup,
                 codeS.m.mux(c, c
                   .concat("\n----------\nPython traceback:\n")
-                  .concat(PString.loadString(coerce[Long](codeS.v)))))
+                  .concat(s.pType.asInstanceOf[PString].loadString(coerce[Long](codeS.v)))))
         }
         val xma = mb.newLocal[Boolean]()
         val xa = mb.newLocal()(ati)
@@ -923,7 +923,7 @@ private class Emit(
 
         EmitTriplet(aggregation, resm, resv)
 
-      case InitOp2(i, args, aggSig) =>
+      case InitOp(i, args, aggSig) =>
         val AggContainer(aggs, sc) = container.get
         assert(agg.Extract.compatible(aggs(i), aggSig))
         val rvAgg = agg.Extract.getAgg(aggSig)
@@ -933,7 +933,7 @@ private class Emit(
           sc.newState(i),
           rvAgg.initOp(sc.states(i), argVars))
 
-      case SeqOp2(i, args, aggSig) =>
+      case SeqOp(i, args, aggSig) =>
         val AggContainer(aggs, sc) = container.get
         assert(agg.Extract.compatible(aggs(i), aggSig), s"${ aggs(i) } vs $aggSig")
         val rvAgg = agg.Extract.getAgg(aggSig)
@@ -941,7 +941,7 @@ private class Emit(
         val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i, init = false)))).toArray
         void(rvAgg.seqOp(sc.states(i), argVars))
 
-      case CombOp2(i1, i2, aggSig) =>
+      case CombOp(i1, i2, aggSig) =>
         val AggContainer(aggs, sc) = container.get
         assert(agg.Extract.compatible(aggs(i1), aggSig), s"${ aggs(i1) } vs $aggSig")
         assert(agg.Extract.compatible(aggs(i2), aggSig), s"${ aggs(i2) } vs $aggSig")
@@ -949,7 +949,7 @@ private class Emit(
 
         void(rvAgg.combOp(sc.states(i1), sc.states(i2)))
 
-      case x@ResultOp2(start, aggSigs) =>
+      case x@ResultOp(start, aggSigs) =>
         val newRegion = mb.newField[Region]
         val AggContainer(aggs, sc) = container.get
         val srvb = new StagedRegionValueBuilder(EmitRegion(mb, newRegion), x.pType)

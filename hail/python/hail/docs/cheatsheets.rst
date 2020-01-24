@@ -1,12 +1,15 @@
 .. _sec-cheatsheets:
 
 =============
-Cheatsheets
+Cheat Sheets
 =============
 
 .. note::
-    Hail's cheatsheets are in their early stages. We welcome suggestions
+    Hail's cheat sheets are relatively new. We welcome suggestions
     for additional cheatsheets, as well as feedback about our documentation. If
     you'd like to add a cheatsheet to the documentation, make a pull request!
 
-`Hail Tables Cheatsheet <https://github.com/hail-is/hail/raw/master/hail/cheatsheets/hail_tables_cheat_sheet.pdf>`_
+`Hail Tables Cheat Sheet <./_static/cheatsheets/hail_tables_cheat_sheet.pdf>`_
+
+`Hail MatrixTables Cheat Sheet <./_static/cheatsheets/hail_matrix_tables_cheat_sheet.pdf>`_
+

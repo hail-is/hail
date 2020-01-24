@@ -1391,3 +1391,8 @@ def test_group_within_partitions():
                                   hl.Struct(idx=3, grouped_fields=[hl.Struct(idx=3, sq=9.0), hl.Struct(idx=4, sq=16.0)]),
                                   hl.Struct(idx=5, grouped_fields=[hl.Struct(idx=5, sq=25.0), hl.Struct(idx=6, sq=36.0), hl.Struct(idx=7, sq=49.0)]),
                                   hl.Struct(idx=8, grouped_fields=[hl.Struct(idx=8, sq=64.0), hl.Struct(idx=9, sq=81.0)])]
+
+    # Testing after a filter
+    ht = hl.utils.range_table(100).naive_coalesce(10)
+    filter_then_group = ht.filter(ht.idx % 2 == 0)._group_within_partitions(5).collect()
+    assert filter_then_group[0] == hl.Struct(idx=0, grouped_fields=[hl.Struct(idx=0), hl.Struct(idx=2), hl.Struct(idx=4), hl.Struct(idx=6), hl.Struct(idx=8)])

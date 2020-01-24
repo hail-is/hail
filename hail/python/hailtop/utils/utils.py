@@ -257,3 +257,37 @@ async def run_if_changed(changed, f, *args, **kwargs):
         should_wait = await f(*args, **kwargs)
         if should_wait:
             await changed.wait()
+
+
+class LoggingTimerStep:
+    def __init__(self, timer, name):
+        self.timer = timer
+        self.name = name
+        self.start_time = None
+
+    async def __aenter__(self):
+        self.start_time = time_msecs()
+
+    async def __aexit__(self, exc_type, exc, tb):
+        finish_time = time_msecs()
+        self.timer.timing[self.name] = finish_time - self.start_time
+
+
+class LoggingTimer:
+    def __init__(self, description):
+        self.description = description
+        self.timing = {}
+        self.start_time = None
+
+    def step(self, name):
+        return LoggingTimerStep(self, name)
+
+    async def __aenter__(self):
+        self.start_time = time_msecs()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        finish_time = time_msecs()
+        self.timing['total'] = finish_time - self.start_time
+
+        log.info(f'{self.description} timing {self.timing}')

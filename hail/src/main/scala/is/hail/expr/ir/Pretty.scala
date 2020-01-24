@@ -143,28 +143,28 @@ object Pretty {
           prettySeq(initOpArgs, depth + 2)
           sb += '\n'
           prettySeq(seqOpArgs, depth + 2)
-        case InitOp2(i, args, aggSig) =>
+        case InitOp(i, args, aggSig) =>
           sb += ' '
           sb.append(i)
           sb += ' '
           prettyPhysAggSignature(aggSig, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
-        case SeqOp2(i, args, aggSig) =>
+        case SeqOp(i, args, aggSig) =>
           sb += ' '
           sb.append(i)
           sb += ' '
           prettyPhysAggSignature(aggSig, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
-        case CombOp2(i1, i2, aggSig) =>
+        case CombOp(i1, i2, aggSig) =>
           sb += ' '
           sb.append(i1)
           sb += ' '
           sb.append(i2)
           sb += ' '
           prettyPhysAggSignature(aggSig, depth + 2)
-        case ResultOp2(i, aggSigs) =>
+        case ResultOp(i, aggSigs) =>
           sb += ' '
           sb.append(i)
           sb += '\n'

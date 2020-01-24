@@ -5,7 +5,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.BroadcastValue
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.{ExecuteContext, IRParser, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, PruneDeadFields, TableRead, TableValue}
+import is.hail.expr.ir.{ExecuteContext, IRParser, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
@@ -16,12 +16,10 @@ import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, SparkContext, TaskContext}
-import org.json4s.JsonAST.{JInt, JObject, JString}
+import org.json4s.JsonAST.{JInt, JObject}
 import org.json4s.jackson.JsonMethods
 
 import scala.annotation.meta.param

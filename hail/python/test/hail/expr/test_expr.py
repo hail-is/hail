@@ -3231,6 +3231,16 @@ class Tests(unittest.TestCase):
         assert hl.eval(a["b"]["inner"]) == [[1, 2], [3]]
         assert hl.eval(a.b["inner"]) == [[1, 2], [3]]
 
+    def test_struct_collection_getattr(self):
+        collection_types = [hl.array, hl.set]
+        for htyp in collection_types:
+            a = htyp([hl.struct(x='foo'), hl.struct(x='bar')])
+
+            assert hasattr(a, 'x') == True
+            assert hasattr(a, 'y') == False
+
+            with pytest.raises(AttributeError, match="has no field"):
+                getattr(a, 'y')
 
     def test_binary_search(self):
         a = hl.array([0, 2, 4, 8])

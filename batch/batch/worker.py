@@ -270,7 +270,7 @@ class Container:
                     docker.containers.create,
                     config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
-            async with cpu_sem(self.cpu_in_mcpu):
+            async with cpu_sem(self.cpu_in_mcpu, f'{self}'):
                 async with self.step('runtime', state=None):
                     if self.name == 'main':
                         asyncio.ensure_future(worker.post_job_started(self.job))
@@ -629,7 +629,6 @@ class Job:
 class Worker:
     def __init__(self):
         self.cores_mcpu = CORES * 1000
-        self.free_cores_mcpu = self.cores_mcpu
         self.last_updated = time_msecs()
         self.cpu_sem = FIFOWeightedSemaphore(self.cores_mcpu)
         self.cpu_null_sem = NullWeightedSemaphore()
@@ -732,7 +731,7 @@ class Worker:
 
             idle_duration = time_msecs() - self.last_updated
             while self.jobs or idle_duration < MAX_IDLE_TIME_MSECS:
-                log.info(f'n_jobs {len(self.jobs)} free_cores {self.free_cores_mcpu / 1000} idle {idle_duration}')
+                log.info(f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration}')
                 await asyncio.sleep(15)
                 idle_duration = time_msecs() - self.last_updated
 

@@ -53,6 +53,10 @@ Serve the built website on http://localhost:8000/ ::
 Running the tests
 ~~~~~~~~~~~~~~~~~
 
+Install development dependencies::
+
+    make install-dev-deps
+
 A couple Hail tests compare to PLINK 1.9 (not PLINK 2.0 [ignore the confusing
 URL]):
 

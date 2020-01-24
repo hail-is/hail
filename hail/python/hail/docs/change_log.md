@@ -24,6 +24,37 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.31
+
+Released 2020-01-22
+
+### New features
+
+- (hail#7787) Added transition/transversion information to `hl.summarize_variants`.
+- (hail#7792) Add Python stack trace to array index out of bounds errors in Hail pipelines.
+- (hail#7832) Add `spark_conf` argument to `hl.init`, permitting configuration of Spark runtime for a Hail session.
+- (hail#7823) Added datetime functions `hl.experimental.strptime` and `hl.experimental.strftime`.
+- (hail#7888) Added `hl.nd.array` constructor from nested standard arrays.
+
+### File size
+
+- (hail#7923) Fixed compression problem since 0.2.23 resulting in larger-than-expected matrix table files for datasets with few entry fields (e.g. GT-only datasets).
+
+### Performance
+
+- (hail#7867) Fix performance regression leading to extra scans of data when `order_by` and `key_by` appeared close together.
+- (hail#7901) Fix performance regression leading to extra scans of data when `group_by/aggregate` and `key_by` appeared close together.
+- (hail#7830) Improve performance of array arithmetic.
+ 
+### Bug fixes
+
+- (hail#7922) Fix still-not-well-understood serialization error about ApproxCDFCombiner.
+- (hail#7906) Fix optimizer error by relaxing unnecessary assertion.
+- (hail#7788) Fix possible memory leak in `ht.tail` and `ht.head`.
+- (hail#7796) Fix bug in ingesting numpy arrays not in row-major orientation.
+
+---
+
 ## Version 0.2.30
 
 Released 2019-12-20

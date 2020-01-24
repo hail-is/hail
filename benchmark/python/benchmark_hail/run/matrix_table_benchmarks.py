@@ -94,6 +94,12 @@ def write_range_matrix_table_p100():
 
 
 @benchmark(args=profile_25.handle('mt'))
+def write_profile_mt(mt_path):
+    with TemporaryDirectory() as tmpdir:
+        hl.read_matrix_table(mt_path).write(path.join(tmpdir, 'tmp.mt'))
+
+
+@benchmark(args=profile_25.handle('mt'))
 def matrix_table_rows_is_transition(mt_path):
     ht = hl.read_matrix_table(mt_path).rows().key_by()
     ht.select(is_snp=hl.is_snp(ht.alleles[0], ht.alleles[1]))._force_count()
