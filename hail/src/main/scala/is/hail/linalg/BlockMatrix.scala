@@ -1089,30 +1089,17 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       val iOffset = i.toLong * blockSize
       val jOffset = j.toLong * blockSize
       val size = lm.cols * lm.rows
-      if (lm.isCompact && !lm.isTranspose) {
-        var jj = 0
-        while (jj < lm.cols) {
-          var ii = 0
-          while (ii < lm.rows) {
-            lm.data(ii + jj * lm.rows) = op(iOffset + ii, jOffset + jj, lm(ii, jj))
-            ii += 1
-          }
-          jj += 1
+      val result = new Array[Double](size)
+      var jj = 0
+      while (jj < lm.cols) {
+        var ii = 0
+        while (ii < lm.rows) {
+          result(ii + jj * lm.rows) = op(iOffset + ii, jOffset + jj, lm(ii, jj))
+          ii += 1
         }
-        lm
-      } else {
-        val result = new Array[Double](size)
-        var jj = 0
-        while (jj < lm.cols) {
-          var ii = 0
-          while (ii < lm.rows) {
-            result(ii + jj * lm.rows) = op(iOffset + ii, jOffset + jj, lm(ii, jj))
-            ii += 1
-          }
-          jj += 1
-        }
-        new BDM(lm.rows, lm.cols, result)
+        jj += 1
       }
+      new BDM(lm.rows, lm.cols, result)
     }
     new BlockMatrix(newBlocks, blockSize, nRows, nCols)
   }
@@ -1141,30 +1128,17 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
           val iOffset = i1.toLong * blockSize
           val jOffset = j1.toLong * blockSize
           val size = lm1.cols * lm1.rows
-          if (lm1.isCompact && !lm1.isTranspose) {
-            var jj = 0
-            while (jj < lm1.cols) {
-              var ii = 0
-              while (ii < lm1.rows) {
-                lm1.data(ii + jj * lm1.rows) = op(iOffset + ii, jOffset + jj, lm1(ii, jj), lm2(ii, jj))
-                ii += 1
-              }
-              jj += 1
+          val result = new Array[Double](size)
+          var jj = 0
+          while (jj < lm1.cols) {
+            var ii = 0
+            while (ii < lm1.rows) {
+              result(ii + jj * lm1.rows) = op(iOffset + ii, jOffset + jj, lm1(ii, jj), lm2(ii, jj))
+              ii += 1
             }
-            ((i1, j1), lm1)
-          } else {
-            val result = new Array[Double](size)
-            var jj = 0
-            while (jj < lm1.cols) {
-              var ii = 0
-              while (ii < lm1.rows) {
-                result(ii + jj * lm1.rows) = op(iOffset + ii, jOffset + jj, lm1(ii, jj), lm2(ii, jj))
-                ii += 1
-              }
-              jj += 1
-            }
-            ((i1, j1), new BDM(lm1.rows, lm1.cols, result))
+            jj += 1
           }
+          ((i1, j1), new BDM(lm1.rows, lm1.cols, result))
         }
       }
     }
