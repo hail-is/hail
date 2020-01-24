@@ -571,10 +571,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     state = 'Pending'
 
                 spec_writer.add(json.dumps(spec))
-                spec_db = batch_format_version.spec_in_db(spec)
+                db_spec = batch_format_version.db_spec(spec)
 
                 jobs_args.append(
-                    (batch_id, job_id, state, json.dumps(spec_db),
+                    (batch_id, job_id, state, json.dumps(db_spec),
                      always_run, cores_mcpu, len(parent_ids)))
 
                 for parent_id in parent_ids:

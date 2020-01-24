@@ -11,10 +11,13 @@ class BatchFormatVersion:
     def has_full_status_in_gcs(self):
         return self.format_version > 1
 
+    def has_full_status_in_db(self):
+        return self.format_version == 1
+
     def has_attempt_in_log_path(self):
         return self.format_version > 1
 
-    def spec_in_db(self, spec):
+    def db_spec(self, spec):
         if self.format_version == 1:
             return spec
 
@@ -36,12 +39,12 @@ class BatchFormatVersion:
             return len(spec.get('output_files', [])) > 0
         return spec['has_output_files']
 
-    def status_in_db(self, status):
+    def db_status(self, status):
         if self.format_version == 1:
             return status
 
-        status = {'status': status}
+        job_status = {'status': status}
         return {
-            'exit_code': Job.exit_code(status),
-            'duration': Job.total_duration_msecs(status)
+            'exit_code': Job.exit_code(job_status),
+            'duration': Job.total_duration_msecs(job_status)
         }

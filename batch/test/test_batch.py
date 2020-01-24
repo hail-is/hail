@@ -70,7 +70,6 @@ class Test(unittest.TestCase):
         batch_msec_mcpu2 = 0
         for job in b.jobs():
             job_status = job.status()
-            
 
             # runs at 100mcpu
             job_msec_mcpu2 = 100 * max(job_status['status']['end_time'] - job_status['status']['start_time'], 0)

@@ -154,16 +154,16 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
 def job_record_to_dict(app, record):
     format_version = BatchFormatVersion(record['format_version'])
 
-    status_db = record['status']
-    if status_db:
-        status_db = json.loads(status_db)
-        if format_version.has_full_status_in_gcs():
-            exit_code = status_db.get('exit_code')
-            duration = humanize_timedelta_msecs(status_db.get('duration'))
+    db_status = record['status']
+    if db_status:
+        db_status = json.loads(db_status)
+        if format_version.has_full_status_in_db():
+            job_status = {'status': db_status}
+            exit_code = Job.exit_code(job_status)
+            duration = humanize_timedelta_msecs(Job.total_duration_msecs(job_status))
         else:
-            status_db = {'status': status_db}
-            exit_code = Job.exit_code(status_db)
-            duration = humanize_timedelta_msecs(Job.total_duration_msecs(status_db))
+            exit_code = db_status.get('exit_code')
+            duration = humanize_timedelta_msecs(db_status.get('duration'))
     else:
         exit_code = None
         duration = None
@@ -176,8 +176,8 @@ def job_record_to_dict(app, record):
         'duration': duration
     }
 
-    spec_db = json.loads(record['spec'])
-    attributes = spec_db.get('attributes')
+    db_spec = json.loads(record['spec'])
+    attributes = db_spec.get('attributes')
     if attributes:
         result['attributes'] = attributes
 
@@ -386,10 +386,11 @@ async def schedule_job(app, record, instance):
 
             if format_version.has_full_status_in_gcs():
                 await log_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
-                status = format_version.status_in_db(status=None)
+
+            db_status = format_version.db_status(status)
 
             await mark_job_complete(app, batch_id, job_id, attempt_id, instance.name,
-                                    'Error', status, None, None, 'error')
+                                    'Error', db_status, None, None, 'error')
             raise
 
         log.info(f'schedule job {id} on {instance}: made job config')

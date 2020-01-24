@@ -587,7 +587,7 @@ class Job:
             await c.delete()
 
     # {
-    #   name: str,
+    #   worker: str,
     #   batch_id: int,
     #   job_id: int,
     #   attempt_id: int,
@@ -787,15 +787,19 @@ class Worker:
 
     async def post_job_complete_1(self, job, run_duration):
         status = await job.status()
-        body = {
-            'status': status
-        }
 
         if job.format_version.has_full_status_in_gcs():
             await self.log_store.write_status_file(job.batch_id,
                                                    job.job_id,
                                                    job.attempt_id,
                                                    json.dumps(status))
+
+        status.pop('container_statuses', None)
+        status.pop('error', None)
+
+        body = {
+            'status': status
+        }
 
         start_time = time_msecs()
         delay_secs = 0.1
@@ -839,8 +843,12 @@ class Worker:
                 self.last_updated = time_msecs()
 
     async def post_job_started(self, job):
+        status = await job.status()
+        status.pop('container_statuses', None)
+        status.pop('error', None)
+
         body = {
-            'status': await job.status()
+            'status': status
         }
 
         async with aiohttp.ClientSession(
