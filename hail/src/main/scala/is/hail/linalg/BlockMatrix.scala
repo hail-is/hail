@@ -1865,12 +1865,16 @@ class WriteBlocksRDD(path: String,
 
           var blockCol = 0
           var colIdx = 0
+          val colIt = entryArrayType.elementIterator(
+            entryArrayOffset, entryArrayType.loadLength(entryArrayOffset))
           while (blockCol < gp.nBlockCols) {
             val n = gp.blockColNCols(blockCol)
             var j = 0
+
             while (j < n) {
-              if (entryArrayType.isElementDefined(entryArrayOffset, colIdx)) {
-                val entryOffset = entryArrayType.loadElement(entryArrayOffset, colIdx)
+              assert(colIt.hasNext)
+              if (colIt.isDefined) {
+                val entryOffset = colIt.value // entryArrayType.loadElement(entryArrayOffset, colIdx)
                 if (entryType.isFieldDefined(entryOffset, fieldIdx)) {
                   val fieldOffset = entryType.loadField(entryOffset, fieldIdx)
                   data(j) = Region.loadDouble(fieldOffset)
@@ -1883,6 +1887,7 @@ class WriteBlocksRDD(path: String,
                 fatal(s"Cannot create BlockMatrix: filtered entry at row $rowIdx and col $colIdx")
               }
               colIdx += 1
+              colIt.iterate()
               j += 1
             }
             outPerBlockCol(blockCol).writeDoubles(data, 0, n)
