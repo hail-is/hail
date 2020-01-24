@@ -211,9 +211,9 @@ case class PCRelate(
 
     val qr.QR(q, r) = qr.reduced(pcsWithIntercept)
 
-    val halfBeta = (inv(2.0 * r) * q.t).matrixMultiply(blockedG.T)
+    val halfBeta = writeRead((inv(2.0 * r) * q.t).matrixMultiply(blockedG.T))
 
-    pcsWithIntercept.matrixMultiply(halfBeta).T
+    writeRead(pcsWithIntercept.matrixMultiply(halfBeta).T)
   }
 
   private[methods] def phi(mu: M, variance: M, g: M): M = {
