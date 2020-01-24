@@ -70,10 +70,8 @@ class PInt64(override val required: Boolean) extends PIntegral {
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] =
     srcAddress
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] = {
-    assert(stackValue.isInstanceOf[Long])
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
     stackValue
-  }
 }
 
 object PInt64 {
