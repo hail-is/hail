@@ -607,7 +607,7 @@ class Job:
             'attempt_id': self.job_spec['attempt_id'],
             'user': self.user,
             'state': self.state,
-            'format_version': self.format_version
+            'format_version': self.format_version.format_version
         }
         if self.error:
             status['error'] = self.error
