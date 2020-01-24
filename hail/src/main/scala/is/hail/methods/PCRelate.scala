@@ -162,8 +162,7 @@ case class PCRelate(
   }
 
   private def gram(m: M): M = {
-    val mc = writeRead(m)
-    mc.T.dot(mc)
+    writeRead(m.T.dot(m))
   }
 
   private[this] def cacheWhen(statisticsLevel: StatisticSubset)(m: M): M =
@@ -267,7 +266,7 @@ case class PCRelate(
     val oneMinusMu2 =
       mu.map(mu => if (mu.isNaN) 0.0 else (1.0 - mu) * (1.0 - mu))
 
-    val temp = mu2.T.dot(oneMinusMu2)
+    val temp = writeRead(mu2.T.dot(oneMinusMu2))
     val denom = temp + temp.T
 
     BlockMatrix.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
