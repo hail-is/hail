@@ -2817,7 +2817,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
         fst = [0.1 for _ in range(n_populations)]
 
     if n_partitions is None:
-        n_partitions = max(8, int(n_samples * n_variants / 1000000))
+        n_partitions = max(8, int(n_samples * n_variants / (128 * 1024 * 1024)))
 
     # verify args
     for name, var in {"populations": n_populations,
