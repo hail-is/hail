@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import breeze.linalg.{DenseMatrix => BDM}
-import is.hail.linalg.BlockMatrix
+import is.hail.linalg._
 import is.hail.linalg.BlockMatrix.ops._
 import is.hail.utils._
 import is.hail.HailContext
@@ -170,14 +170,15 @@ case class PCRelate(
 
   def computeResult(blockedG: M, pcs: BDM[Double]): Result[M] = {
     val preMu = this.mu(blockedG, pcs)
-    val mu = writeRead(BlockMatrix.map2 { (g, mu) =>
+    val mu = writeRead(BlockMatrix.map2(new DDtoD() { def apply(g: Double, mu: Double): Double = {
       if (badgt(g) || badmu(mu))
         Double.NaN
       else
         mu
-    } (blockedG, preMu))
+    }}) (blockedG, preMu))
     val variance = cacheWhen(PhiK2)(
-      mu.map(mu => if (mu.isNaN) 0.0 else mu * (1.0 - mu)))
+      mu.map(new DtoD() { def apply(mu: Double): Double =
+        if (mu.isNaN) 0.0 else mu * (1.0 - mu)}))
 
     // write phi to cache and increase parallelism of multiplies before phi.diagonal()
     val phi = writeRead(this.phi(mu, variance, blockedG))
@@ -217,9 +218,9 @@ case class PCRelate(
   }
 
   private[methods] def phi(mu: M, variance: M, g: M): M = {
-    val centeredAF = BlockMatrix.map2 { (g, mu) =>
+    val centeredAF = BlockMatrix.map2(new DDtoD() { def apply(g: Double, mu: Double): Double = {
       if (mu.isNaN) 0.0 else g / 2 - mu
-    } (g, mu)
+    }}) (g, mu)
 
     val stddev = variance.sqrt()
 
@@ -228,14 +229,14 @@ case class PCRelate(
 
   private[methods] def ibs0(g: M, mu: M): M = {
     val homalt =
-      BlockMatrix.map2 { (g, mu) =>
+      BlockMatrix.map2(new DDtoD() { def apply(g: Double, mu: Double): Double = {
         if (mu.isNaN || g != 2.0) 0.0 else 1.0
-      } (g, mu)
+      }}) (g, mu)
 
     val homref =
-      BlockMatrix.map2 { (g, mu) =>
+      BlockMatrix.map2(new DDtoD() { def apply(g: Double, mu: Double): Double = {
         if (mu.isNaN || g != 0.0) 0.0 else 1.0
-      } (g, mu)
+      }}) (g, mu)
 
     val temp = writeRead(homalt.T.dot(homref))
 
@@ -261,19 +262,21 @@ case class PCRelate(
 
   private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
     val mu2 =
-      mu.map(mu => if (mu.isNaN) 0.0 else mu * mu)
+      mu.map(new DtoD() { def apply(mu: Double): Double =
+        if (mu.isNaN) 0.0 else mu * mu})
 
     val oneMinusMu2 =
-      mu.map(mu => if (mu.isNaN) 0.0 else (1.0 - mu) * (1.0 - mu))
+      mu.map(new DtoD() { def apply(mu: Double): Double =
+        if (mu.isNaN) 0.0 else (1.0 - mu) * (1.0 - mu)})
 
     val temp = writeRead(mu2.T.dot(oneMinusMu2))
     val denom = temp + temp.T
 
-    BlockMatrix.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>
+    BlockMatrix.map4(new DDDDtoD() { def apply(phi: Double, denom: Double, k2: Double, ibs0: Double): Double = {
       if (phi <= k0cutoff)
         1.0 - 4.0 * phi + k2
       else
         ibs0 / denom
-    } (phi, denom, k2, ibs0)
+    }}) (phi, denom, k2, ibs0)
   }
 }
