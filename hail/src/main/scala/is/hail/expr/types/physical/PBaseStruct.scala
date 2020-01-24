@@ -166,10 +166,10 @@ abstract class PBaseStruct extends PType {
     )
   }
 
-  override def storeShallowAtOffset(destAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] =
+  def storeShallowAtOffset(destAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] =
     Region.copyFrom(srcAddress, destAddress, this.byteSize)
 
-  override def storeShallowAtOffset(destAddress: Long, srcAddress: Long) {
+  def storeShallowAtOffset(destAddress: Long, srcAddress: Long) {
     Region.copyFrom(srcAddress, destAddress, this.byteSize)
   }
 
@@ -312,9 +312,8 @@ abstract class PBaseStruct extends PType {
     }
   }
 
-  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcStructAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcStructAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     assert(srcPType.isInstanceOf[PBaseStruct])
-
     val sourceType = srcPType.asInstanceOf[PBaseStruct]
 
     assert(sourceType.size == this.size)
@@ -370,7 +369,10 @@ abstract class PBaseStruct extends PType {
     )
   }
 
-  override def copyFromType(region: Region, srcPType: PType, srcStructAddress: Long, forceDeep: Boolean): Long = {
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
+    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], forceDeep)
+
+  def copyFromType(region: Region, srcPType: PType, srcStructAddress: Long, forceDeep: Boolean): Long = {
     assert(srcPType.isInstanceOf[PBaseStruct])
 
     val sourceType = srcPType.asInstanceOf[PBaseStruct]

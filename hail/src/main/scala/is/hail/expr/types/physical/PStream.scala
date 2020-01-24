@@ -34,19 +34,22 @@ final case class PStream(elementType: PType, override val required: Boolean = fa
   }
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
-    throw new UnsupportedOperationException("Stream comparison is currently undefined.")
+    throw new UnsupportedOperationException("PStream comparison is currently undefined.")
 
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean) =
-    throw new UnsupportedOperationException("Stream copyFromType is currently undefined")
+    throw new UnsupportedOperationException("PStream copyFromType is currently undefined")
 
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean) =
-    throw new UnsupportedOperationException("Stream copyFromType is currently undefined")
+    throw new UnsupportedOperationException("PStream copyFromType is currently undefined")
+
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
+    throw new UnsupportedOperationException("PStream copyFromTypeAndStackValue is currently undefined")
 
   def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] =
-    throw new UnsupportedOperationException("Stream storeShallowAtOffset is currently undefined")
+    throw new UnsupportedOperationException("PStream storeShallowAtOffset is currently undefined")
 
   def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) =
-    throw new UnsupportedOperationException("Stream storeShallowAtOffset is currently undefined")
+    throw new UnsupportedOperationException("PStream storeShallowAtOffset is currently undefined")
 
   override def deepRename(t: Type) = deepRenameStream(t.asInstanceOf[TStream])
 

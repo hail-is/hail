@@ -396,7 +396,7 @@ private class Emit(
         )
 
       case If(cond, cnsq, altr) =>
-        assert(cnsq.typ == altr.typ)
+        assert(cnsq.typ isOfType altr.typ)
 
         if (cnsq.typ == TVoid) {
           val codeCond = emit(cond)
@@ -407,7 +407,7 @@ private class Emit(
               codeCond.setup,
               codeCond.m.mux(
                 Code._empty,
-                coerce[Boolean](codeCond.v).mux(
+                codeCond.value[Boolean].mux(
                   codeCnsq.setup,
                   codeAltr.setup))),
             const(false),
@@ -419,19 +419,19 @@ private class Emit(
           val mout = mb.newLocal[Boolean]()
           val codeCnsq = emit(cnsq)
           val codeAltr = emit(altr)
+
           val setup = Code(
             codeCond.setup,
             codeCond.m.mux(
               Code(mout := true, out := defaultValue(typ)),
               coerce[Boolean](codeCond.v).mux(
-                Code(codeCnsq.setup, mout := codeCnsq.m, out := mout.mux(defaultValue(typ), codeCnsq.v)),
-                Code(codeAltr.setup, mout := codeAltr.m, out := mout.mux(defaultValue(typ), codeAltr.v)))))
+                Code(codeCnsq.setup, mout := codeCnsq.m, out := mout.mux(defaultValue(typ), ir.pType.copyFromTypeAndStackValue(mb, er.region, cnsq.pType, codeCnsq.v))),
+                Code(codeAltr.setup, mout := codeAltr.m, out := mout.mux(defaultValue(typ), ir.pType.copyFromTypeAndStackValue(mb, er.region, altr.pType, codeAltr.v))))))
 
           EmitTriplet(setup, mout, out)
         }
 
       case Let(name, value, body) =>
-        val typ = ir.typ
         val vti = typeToTypeInfo(value.typ)
         val mx = mb.newField[Boolean]()
         val x = coerce[Any](mb.newField(name)(vti))

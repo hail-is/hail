@@ -810,13 +810,14 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testIfWithDifferentRequiredness() {
-    val t = TStruct(true, "foo" -> TStruct("bar" -> TArray(TInt32Required, required = true)))
+    val t = TStruct(true, "foo" -> TStruct("bar" -> TArray(TInt32(true), true)))
     val value = Row(Row(FastIndexedSeq(1, 2, 3)))
     assertEvalsTo(
-      If.unify(
+      If(
         In(0, TBoolean()),
         In(1, t),
-        MakeStruct(Seq("foo" -> MakeStruct(Seq("bar" -> ArrayRange(I32(0), I32(1), I32(1))))))),
+        MakeStruct(Seq("foo" -> MakeStruct(Seq("bar" -> ArrayRange(I32(0), I32(1), I32(1))))))
+      ),
       FastIndexedSeq((true, TBoolean()), (value, t)),
       value
     )

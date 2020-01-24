@@ -22,6 +22,9 @@ abstract class PCanonicalString(val required: Boolean) extends PString {
     )
   }
 
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
+    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], forceDeep)
+
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long  = {
     assert(srcPType isOfType this)
     this.fundamentalType.copyFromType(
@@ -31,10 +34,10 @@ abstract class PCanonicalString(val required: Boolean) extends PString {
 
   override def containsPointers: Boolean = true
 
-  override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
+  def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
     this.fundamentalType.storeShallowAtOffset(dstAddress, valueAddress)
 
-  override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
+  def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
     this.fundamentalType.storeShallowAtOffset(dstAddress, valueAddress)
   }
 }
