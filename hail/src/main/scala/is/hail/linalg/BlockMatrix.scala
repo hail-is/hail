@@ -1657,7 +1657,7 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
         }
       })
 
-  def dgemm(c: BDM[Double], _a: BDM[Double], _b: BDM[Double]) {
+  def fma(c: BDM[Double], _a: BDM[Double], _b: BDM[Double]) {
     assert(_a.cols == _b.rows)
 
     val a = if (_a.majorStride < math.max(if (_a.isTranspose) _a.cols else _a.rows, 1)) _a.copy else _a
@@ -1682,7 +1682,7 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
       val left = block(l, lParts, lGP, context, i, k)
       val right = block(r, rParts, rGP, context, k, j)
       if (left.isDefined && right.isDefined) {
-        dgemm(product, left.get, right.get)
+        fma(product, left.get, right.get)
       }
       k += 1
     }
