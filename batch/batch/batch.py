@@ -5,7 +5,7 @@ import aiohttp
 import base64
 import traceback
 from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error, \
-    humanize_timedelta_msecs, request_retry_transient_errors
+    humanize_timedelta_msecs
 from hailtop.batch_client.aioclient import Job
 
 from .globals import complete_states, tasks
