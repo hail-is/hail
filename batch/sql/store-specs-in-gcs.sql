@@ -5,8 +5,7 @@ CREATE TABLE IF NOT EXISTS `batch_bunches` (
   `batch_id` BIGINT NOT NULL,
   `start_job_id` INT NOT NULL,
   `token` VARCHAR(100) NOT NULL,
-  PRIMARY KEY (`batch_id`, `start_job_id`, `token`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
+  PRIMARY KEY (`batch_id`, `start_job_id`),
   FOREIGN KEY (`batch_id`, `start_job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 

@@ -27,7 +27,7 @@ class SpecWriter:
     async def get_token_start_id(db, batch_id, job_id):
         bunch_record = await db.select_and_fetchone(
             '''
-SELECT token, start_job_id FROM batch_bunches
+SELECT start_job_id, token FROM batch_bunches
 WHERE batch_id = %s AND start_job_id <= %s
 ORDER BY start_job_id DESC
 LIMIT 1;
