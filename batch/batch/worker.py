@@ -28,6 +28,7 @@ from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes, \
 from .semaphore import FIFOWeightedSemaphore, NullWeightedSemaphore
 from .log_store import LogStore
 from .globals import HTTP_CLIENT_MAX_SIZE
+from .batch_format_version import BatchFormatVersion
 
 # uvloop.install()
 
@@ -655,9 +656,9 @@ class Worker:
         batch_id = body['batch_id']
         job_id = body['job_id']
 
-        format_version = body['format_version']
+        format_version = BatchFormatVersion(body['format_version'])
 
-        if format_version > 1:
+        if format_version.has_full_spec_in_gcs():
             token = body['token']
             start_job_id = body['start_job_id']
             addtl_spec = body['job_spec']
@@ -790,7 +791,7 @@ class Worker:
             'status': status
         }
 
-        if job.format_version > 1:
+        if job.format_version.has_full_status_in_gcs():
             await self.log_store.write_status_file(job.batch_id,
                                                    job.job_id,
                                                    job.attempt_id,

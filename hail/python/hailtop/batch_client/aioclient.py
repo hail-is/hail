@@ -160,15 +160,15 @@ class Job:
         return sum(durations)
 
     @staticmethod
-    def unsubmitted_job(batch_builder, job_id, attributes=None, parent_ids=None):
+    def unsubmitted_job(batch_builder, job_id, attributes=None):
         assert isinstance(batch_builder, BatchBuilder)
-        _job = UnsubmittedJob(batch_builder, job_id, attributes, parent_ids)
+        _job = UnsubmittedJob(batch_builder, job_id, attributes)
         return Job(_job)
 
     @staticmethod
-    def submitted_job(batch, job_id, attributes=None, parent_ids=None, _status=None):
+    def submitted_job(batch, job_id, attributes=None, _status=None):
         assert isinstance(batch, Batch)
-        _job = SubmittedJob(batch, job_id, attributes, parent_ids, _status)
+        _job = SubmittedJob(batch, job_id, attributes, _status)
         return Job(_job)
 
     def __init__(self, job):
@@ -190,10 +190,6 @@ class Job:
     def attributes(self):
         return self._job.attributes
 
-    @property
-    def parent_ids(self):
-        return self._job.parent_ids
-
     async def is_complete(self):
         return await self._job.is_complete()
 
@@ -213,18 +209,15 @@ class Job:
 
 class UnsubmittedJob:
     def _submit(self, batch):
-        return SubmittedJob(batch, self._job_id, self.attributes, self.parent_ids)
+        return SubmittedJob(batch, self._job_id, self.attributes)
 
-    def __init__(self, batch_builder, job_id, attributes=None, parent_ids=None):
-        if parent_ids is None:
-            parent_ids = []
+    def __init__(self, batch_builder, job_id, attributes=None):
         if attributes is None:
             attributes = {}
 
         self._batch_builder = batch_builder
         self._job_id = job_id
         self.attributes = attributes
-        self.parent_ids = parent_ids
 
     @property
     def batch_id(self):
@@ -256,18 +249,12 @@ class UnsubmittedJob:
 
 
 class SubmittedJob:
-    def __init__(self, batch, job_id, attributes=None, parent_ids=None, _status=None):
-        if parent_ids is None:
-            parent_ids = []
-        if attributes is None:
-            attributes = {}
-
+    def __init__(self, batch, job_id, attributes=None, _status=None):
         self._batch = batch
         self.batch_id = batch.id
         self.job_id = job_id
         self.id = (self.batch_id, self.job_id)
         self.attributes = attributes
-        self.parent_ids = parent_ids
         self._status = _status
 
     async def is_complete(self):
@@ -319,7 +306,7 @@ class Batch:
             resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/jobs', params=params)
             body = await resp.json()
             for job in body['jobs']:
-                yield job
+                yield Job.submitted_job(self, job['job_id'], attributes=job.get('attributes'))
             last_job_id = body.get('last_job_id')
             if last_job_id is None:
                 break
@@ -426,7 +413,7 @@ class BatchBuilder:
 
         self._job_specs.append(job_spec)
 
-        j = Job.unsubmitted_job(self, self._job_idx, attributes, parent_ids)
+        j = Job.unsubmitted_job(self, self._job_idx, attributes)
         self._jobs.append(j)
         return j
 
@@ -602,7 +589,6 @@ class BatchClient:
             b,
             j['job_id'],
             attributes=j.get('attributes'),
-            parent_ids=j.get('parent_ids', []),
             _status=j)
 
     async def get_batch(self, id):

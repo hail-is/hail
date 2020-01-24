@@ -33,6 +33,7 @@ from ..database import CallError, check_call_procedure
 from ..batch_configuration import BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
+from ..batch_format_version import BatchFormatVersion
 
 from .validate import ValidationError, validate_batch, validate_jobs
 
@@ -74,7 +75,7 @@ async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
 
 
-async def _query_batch_jobs(request, batch_id, include_spec_status=True):
+async def _query_batch_jobs(request, batch_id):
     state_query_values = {
         'pending': ['Pending'],
         'ready': ['Ready'],
@@ -156,8 +157,7 @@ LIMIT 50;
 '''
     sql_args = where_args
 
-    jobs = [await job_record_to_dict(request.app, job,
-                                     include_spec_status=include_spec_status)
+    jobs = [job_record_to_dict(request.app, job)
             async for job
             in db.select_and_fetchall(sql, sql_args)]
 
@@ -185,8 +185,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    jobs, last_job_id = await _query_batch_jobs(request, batch_id,
-                                                include_spec_status=True)
+    jobs, last_job_id = await _query_batch_jobs(request, batch_id)
     resp = {
         'jobs': jobs
     }
@@ -213,23 +212,26 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
 
     if state in ('Error', 'Failed', 'Success'):
         log_store = app['log_store']
+        batch_format_version = BatchFormatVersion(record['format_version'])
 
         async def _read_log_from_gcs(task):
             try:
-                log = await log_store.read_log_file(record['format_version'], batch_id, job_id, record['attempt_id'], task)
+                log = await log_store.read_log_file(batch_format_version, batch_id, job_id, record['attempt_id'], task)
             except google.api_core.exceptions.NotFound:
                 log = None
             return task, log
 
-        # in format_version > 1, input_files and output_files are booleans
         spec = json.loads(record['spec'])
         tasks = []
-        input_files = spec.get('input_files')
-        if input_files:
+
+        has_input_files = batch_format_version.get_spec_has_input_files(spec)
+        if has_input_files:
             tasks.append('input')
+
         tasks.append('main')
-        output_files = spec.get('output_files')
-        if output_files:
+
+        has_output_files = batch_format_version.get_spec_has_output_files(spec)
+        if has_output_files:
             tasks.append('output')
 
         return dict(await asyncio.gather(*[_read_log_from_gcs(task) for task in tasks]))
@@ -255,6 +257,69 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     if not record:
         raise web.HTTPNotFound()
     return await _get_job_log_from_record(app, batch_id, job_id, record)
+
+
+async def _get_full_job_spec(app, record):
+    db = app['db']
+    log_store = app['log_store']
+
+    batch_id = record['batch_id']
+    job_id = record['job_id']
+    format_version = BatchFormatVersion(record['format_version'])
+
+    if not format_version.has_full_spec_in_gcs():
+        return json.loads(record['spec'])
+
+    token, start_job_id = await SpecWriter.get_token_start_id(db, batch_id, job_id)
+
+    try:
+        spec = await log_store.read_spec_file(batch_id, token, start_job_id, job_id)
+        return json.loads(spec)
+    except google.api_core.exceptions.NotFound:
+        id = (batch_id, job_id)
+        log.exception(f'missing spec file for {id}')
+        return None
+
+
+async def _get_full_job_status(app, record):
+    log_store = app['log_store']
+
+    batch_id = record['batch_id']
+    job_id = record['job_id']
+    attempt_id = record['attempt_id']
+    state = record['state']
+    format_version = BatchFormatVersion(record['format_version'])
+
+    if state in ('Pending', 'Ready', 'Cancelled'):
+        return
+
+    if state in ('Error', 'Failed', 'Success'):
+        if not format_version.has_full_status_in_gcs():
+            return json.loads(record['status'])
+
+        try:
+            status = await log_store.read_status_file(batch_id, job_id, attempt_id)
+            return json.loads(status)
+        except google.api_core.exceptions.NotFound:
+            id = (batch_id, job_id)
+            log.exception(f'missing status file for {id}')
+            return None
+
+    assert state == 'Running'
+    assert record['status'] is None
+
+    ip_address = record['ip_address']
+    async with aiohttp.ClientSession(
+            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+        try:
+            url = (f'http://{ip_address}:5000'
+                   f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
+            resp = await request_retry_transient_errors(session, 'GET', url)
+            return await resp.json()
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                return None
+            raise
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
@@ -410,7 +475,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
             raise web.HTTPNotFound()
         if record['state'] != 'open':
             raise web.HTTPBadRequest(reason=f'batch {batch_id} is not open')
-        batch_format_version = record['format_version']
+        batch_format_version = BatchFormatVersion(record['format_version'])
 
         async with timer.step('get request json'):
             job_specs = await request.json()
@@ -433,7 +498,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
             n_ready_cancellable_jobs = 0
             ready_cancellable_cores_mcpu = 0
 
-            last_job_idx = None
+            prev_job_idx = None
             start_job_id = None
 
             for spec in job_specs:
@@ -447,11 +512,11 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if start_job_id is None:
                     start_job_id = job_id
 
-                if batch_format_version > 1 and last_job_idx:
-                    if job_id != last_job_idx + 1:
+                if batch_format_version.has_full_spec_in_gcs() and prev_job_idx:
+                    if job_id != prev_job_idx + 1:
                         raise web.HTTPBadRequest(
-                            reason=f'noncontiguous job ids found in the spec: {last_job_idx} -> {job_id}')
-                last_job_idx = job_id
+                            reason=f'noncontiguous job ids found in the spec: {prev_job_idx} -> {job_id}')
+                prev_job_idx = job_id
 
                 resources = spec.get('resources')
                 if not resources:
@@ -506,18 +571,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     state = 'Pending'
 
                 spec_writer.add(json.dumps(spec))
-
-                if batch_format_version > 1:
-                    spec = {
-                        'secrets': spec.get('secrets'),
-                        'service_account': spec.get('service_account'),
-                        'input_files': len(spec.get('input_files', [])) > 0,
-                        'output_files': len(spec.get('output_files', [])) > 0,
-                        'attributes': spec.get('attributes')
-                    }
+                spec_db = batch_format_version.spec_in_db(spec)
 
                 jobs_args.append(
-                    (batch_id, job_id, state, json.dumps(spec),
+                    (batch_id, job_id, state, json.dumps(spec_db),
                      always_run, cores_mcpu, len(parent_ids)))
 
                 for parent_id in parent_ids:
@@ -529,7 +586,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         job_attributes_args.append(
                             (batch_id, job_id, k, v))
 
-        if batch_format_version > 1:
+        if batch_format_version.has_full_spec_in_gcs():
             async with timer.step('write spec to gcs'):
                 await spec_writer.write()
 
@@ -583,7 +640,7 @@ ON DUPLICATE KEY UPDATE
                                          n_ready_cancellable_jobs, ready_cancellable_cores_mcpu,
                                          n_ready_cancellable_jobs, ready_cancellable_cores_mcpu))
 
-                if batch_format_version > 1:
+                if batch_format_version.has_full_spec_in_gcs():
                     await tx.execute_update('''
 INSERT INTO batch_bunches (batch_id, token, start_job_id)
 VALUES (%s, %s, %s);
@@ -798,7 +855,7 @@ async def ui_batch(request, userdata):
 
     batch = await _get_batch(app, batch_id, user)
 
-    jobs, last_job_id = await _query_batch_jobs(request, batch_id, include_spec_status=False)
+    jobs, last_job_id = await _query_batch_jobs(request, batch_id)
     batch['jobs'] = jobs
 
     page_context = {
@@ -869,7 +926,15 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     if not record:
         raise web.HTTPNotFound()
 
-    return await job_record_to_dict(app, record)
+    full_status, full_spec = await asyncio.gather(
+        _get_full_job_status(app, record),
+        _get_full_job_spec(app, record)
+    )
+
+    job = job_record_to_dict(app, record)
+    job['status'] = full_status
+    job['spec'] = full_spec
+    return job
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')

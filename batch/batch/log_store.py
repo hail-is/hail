@@ -22,7 +22,7 @@ class LogStore:
         return f'{self.log_root}/batch/{batch_id}'
 
     def log_path(self, format_version, batch_id, job_id, attempt_id, task):
-        if format_version == 1:
+        if not format_version.has_attempt_in_log_path():
             return f'{self.batch_log_dir(batch_id)}/{job_id}/{task}/log'
 
         return f'{self.batch_log_dir(batch_id)}/{job_id}/{attempt_id}/{task}/log'
@@ -58,7 +58,7 @@ class LogStore:
         return f'{self.log_root}/batch/{batch_id}/bunch/{token}'
 
     def specs_path(self, batch_id, token):
-        return f'{self.specs_dir(batch_id, token)}/specs.json'
+        return f'{self.specs_dir(batch_id, token)}/specs'
 
     def specs_index_path(self, batch_id, token):
         return f'{self.specs_dir(batch_id, token)}/specs.idx'
@@ -69,7 +69,7 @@ class LogStore:
         offsets = await self.gcs.read_binary_gs_file(idx_path, start=idx_start, end=idx_end)
 
         spec_path = self.specs_path(batch_id, token)
-        spec_start, spec_end = SpecWriter.read_spec_file_offsets(offsets)
+        spec_start, spec_end = SpecWriter.get_spec_file_offsets(offsets)
         return await self.gcs.read_gs_file(spec_path, start=spec_start, end=spec_end)
 
     async def write_spec_file(self, batch_id, token, data_bytes, offsets_bytes):

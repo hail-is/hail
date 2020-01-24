@@ -4,7 +4,6 @@ import asyncio
 import aiohttp
 import base64
 import traceback
-import google.api_core.exceptions
 from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error, \
     humanize_timedelta_msecs, request_retry_transient_errors
 from hailtop.batch_client.aioclient import Job
@@ -13,6 +12,8 @@ from .globals import complete_states, tasks
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
 from .utils import cost_from_msec_mcpu
+from .batch_format_version import BatchFormatVersion
+from .spec_writer import SpecWriter
 
 log = logging.getLogger('batch')
 
@@ -150,87 +151,19 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
 
-async def _get_full_job_spec(app, record):
-    db = app['db']
-    log_store = app['log_store']
+def job_record_to_dict(app, record):
+    format_version = BatchFormatVersion(record['format_version'])
 
-    batch_id = record['batch_id']
-    job_id = record['job_id']
-    format_version = record['format_version']
-
-    if format_version == 1:
-        return record['spec']
-
-    bunch_record = await db.select_and_fetchone(
-        '''
-SELECT token, start_job_id FROM batch_bunches
-WHERE batch_id = %s AND start_job_id <= %s
-ORDER BY start_job_id DESC
-LIMIT 1;
-''',
-        (batch_id, job_id))
-    token = bunch_record['token']
-    start_job_id = bunch_record['start_job_id']
-
-    try:
-        return await log_store.read_spec_file(batch_id, token, start_job_id, job_id)
-    except google.api_core.exceptions.NotFound:
-        return None
-
-
-async def _get_full_job_status(app, record):
-    log_store = app['log_store']
-
-    batch_id = record['batch_id']
-    job_id = record['job_id']
-    attempt_id = record['attempt_id']
-    state = record['state']
-    format_version = record['format_version']
-
-    if state in ('Pending', 'Ready', 'Cancelled'):
-        return
-
-    if state in ('Error', 'Failed', 'Success'):
-        if format_version == 1:
-            return json.loads(record['status'])
-
-        try:
-            status = await log_store.read_status_file(batch_id, job_id, attempt_id)
-            return json.loads(status)
-        except google.api_core.exceptions.NotFound:
-            log.exception(f'missing status file for {id}')
-            return None
-
-    assert state == 'Running'
-    assert record['status'] is None
-
-    ip_address = record['ip_address']
-    async with aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-        try:
-            url = (f'http://{ip_address}:5000'
-                   f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
-            resp = await request_retry_transient_errors(session, 'GET', url)
-            return await resp.json()
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                return None
-            raise
-
-
-async def job_record_to_dict(app, record, include_spec_status=True):
-    format_version = record['format_version']
-
-    status = record['status']
-    if status:
-        status = json.loads(status)
-        if format_version == 1:
-            status = {'status': status}
-            exit_code = Job.exit_code(status)
-            duration = humanize_timedelta_msecs(Job.total_duration_msecs(status))
+    status_db = record['status']
+    if status_db:
+        status_db = json.loads(status_db)
+        if format_version.has_full_status_in_gcs():
+            exit_code = status_db.get('exit_code')
+            duration = humanize_timedelta_msecs(status_db.get('duration'))
         else:
-            exit_code = status.get('exit_code')
-            duration = humanize_timedelta_msecs(status.get('duration'))
+            status_db = {'status': status_db}
+            exit_code = Job.exit_code(status_db)
+            duration = humanize_timedelta_msecs(Job.total_duration_msecs(status_db))
     else:
         exit_code = None
         duration = None
@@ -243,23 +176,10 @@ async def job_record_to_dict(app, record, include_spec_status=True):
         'duration': duration
     }
 
-    spec = json.loads(record['spec'])
-    attributes = spec.get('attributes')
+    spec_db = json.loads(record['spec'])
+    attributes = spec_db.get('attributes')
     if attributes:
         result['attributes'] = attributes
-
-    if include_spec_status:
-        full_status, full_spec = await asyncio.gather(
-            _get_full_job_status(app, record),
-            _get_full_job_spec(app, record)
-        )
-
-        if full_status:
-            result['status'] = full_status
-
-        if full_spec:
-            full_spec = json.loads(full_spec)
-            result['spec'] = full_spec
 
     msec_mcpu = record['msec_mcpu']
     result['msec_mcpu'] = msec_mcpu
@@ -339,7 +259,7 @@ async def job_config(app, record, attempt_id):
     k8s_cache = app['k8s_cache']
     db = app['db']
 
-    format_version = record['format_version']
+    format_version = BatchFormatVersion(record['format_version'])
     batch_id = record['batch_id']
     job_id = record['job_id']
 
@@ -417,20 +337,11 @@ users:
         env.append({'name': 'KUBECONFIG',
                     'value': '/.kube/config'})
 
-    if format_version == 1:
+    if format_version.has_full_spec_in_gcs():
+        token, start_job_id = await SpecWriter.get_token_start_id(db, batch_id, job_id)
+    else:
         token = None
         start_job_id = None
-    else:
-        bunch_record = await db.select_and_fetchone(
-            '''
-SELECT token, start_job_id FROM batch_bunches
-WHERE batch_id = %s AND start_job_id <= %s
-ORDER BY start_job_id DESC
-LIMIT 1;
-''',
-            (batch_id, job_id))
-        token = bunch_record['token']
-        start_job_id = bunch_record['start_job_id']
 
     return {
         'batch_id': batch_id,
@@ -453,7 +364,7 @@ async def schedule_job(app, record, instance):
     batch_id = record['batch_id']
     job_id = record['job_id']
     attempt_id = record['attempt_id']
-    format_version = record['format_version']
+    format_version = BatchFormatVersion(record['format_version'])
 
     id = (batch_id, job_id)
 
@@ -473,9 +384,9 @@ async def schedule_job(app, record, instance):
                 'container_statuses': {k: {} for k in tasks}
             }
 
-            if format_version > 1:
+            if format_version.has_full_status_in_gcs():
                 await log_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
-                status = None
+                status = format_version.status_in_db(status=None)
 
             await mark_job_complete(app, batch_id, job_id, attempt_id, instance.name,
                                     'Error', status, None, None, 'error')
