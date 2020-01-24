@@ -112,7 +112,7 @@ class Batch:
         return async_to_blocking(self._async_batch.status())
 
     def jobs(self):
-        return agen_to_blocking(self._async_batch.jobs())
+        return [Job.from_async_job(job) for job in agen_to_blocking(self._async_batch.jobs())]
 
     def wait(self):
         return async_to_blocking(self._async_batch.wait())
