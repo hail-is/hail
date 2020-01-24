@@ -119,10 +119,11 @@ class AsyncWorkerPool:
         await self._queue.put((f, args, kwargs))
 
 
-class WaitableSharedAsyncPool:
-    def __init__(self, pool):
-        self._pool = pool
+class WaitableSharedPool:
+    def __init__(self, worker_pool):
+        self._worker_pool = worker_pool
         self._n_submitted = 0
+        self._n_complete = 0
         self._waiting = False
         self._done = asyncio.Event()
 
@@ -132,13 +133,13 @@ class WaitableSharedAsyncPool:
 
         async def invoke():
             try:
-                await f(*args, **kargs)
+                await f(*args, **kwargs)
             finally:
                 self._n_complete += 1
                 if self._waiting and (self._n_complete == self._n_submitted):
                     self._done.set()
 
-        await self._pool.call(invoke)
+        await self._worker_pool.call(invoke)
 
     async def wait(self):
         assert not self._waiting
