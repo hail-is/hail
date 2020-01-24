@@ -162,13 +162,15 @@ case class PCRelate(
   }
 
   private def gram(m: M): M = {
-    writeRead(m.T.dot(m))
+    val pm = m.cache()
+    writeRead(pm.T.dot(pm))
   }
 
   private[this] def cacheWhen(statisticsLevel: StatisticSubset)(m: M): M =
     if (statistics >= statisticsLevel) writeRead(m) else m
 
-  def computeResult(blockedG: M, pcs: BDM[Double]): Result[M] = {
+  def computeResult(_blockedG: M, pcs: BDM[Double]): Result[M] = {
+    val blockedG = _blockedG.cache()
     val preMu = this.mu(blockedG, pcs)
     val mu = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
