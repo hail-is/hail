@@ -346,7 +346,7 @@ users:
     return {
         'batch_id': batch_id,
         'job_id': job_id,
-        'format_version': format_version,
+        'format_version': format_version.format_version,
         'token': token,
         'start_job_id': start_job_id,
         'user': record['user'],
