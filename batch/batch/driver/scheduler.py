@@ -210,7 +210,7 @@ LIMIT %s;
                     should_wait = False
                     break
 
-        waitable_pool.wait()
+        await waitable_pool.wait()
 
         return should_wait
 
