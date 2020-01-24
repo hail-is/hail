@@ -49,7 +49,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
 
     Notes
     -----
-
+    
     The dataset must have a column field named `s` which is a :class:`.StringExpression`
     and which uniquely identifies a column.
 
@@ -786,7 +786,7 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
         'covFields': cov_field_names,
         'passThrough': [x for x in row_fields if x not in mt.row_key]
     }
-
+    
     return Table(MatrixToTableApply(mt._mir, config)).persist()
 
 
