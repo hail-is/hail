@@ -1888,7 +1888,7 @@ class WriteBlocksRDD(path: String,
             while (j < n) {
               assert(colIt.hasNext)
               if (colIt.isDefined) {
-                val entryOffset = colIt.value // entryArrayType.loadElement(entryArrayOffset, colIdx)
+                val entryOffset = colIt.value
                 if (entryType.isFieldDefined(entryOffset, fieldIdx)) {
                   val fieldOffset = entryType.loadField(entryOffset, fieldIdx)
                   data(j) = Region.loadDouble(fieldOffset)
