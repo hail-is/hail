@@ -957,13 +957,12 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     val newBlocks = blocks.mapValues { lm =>
       assertCompatibleLocalMatrix(lm)
       val src = lm.data
-      val dst = new Array[Double](src.length)
       var i = 0
       while (i < src.length) {
-        dst(i) = op(src(i))
+        src(i) = op(src(i))
         i += 1
       }
-      new BDM(lm.rows, lm.cols, dst, 0, lm.majorStride, lm.isTranspose)
+      lm
     }
     new BlockMatrix(newBlocks, blockSize, nRows, nCols)
   }
@@ -995,11 +994,10 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
           val nCols = lm1.cols
           val src1 = lm1.data
           val src2 = lm2.data
-          val dst = new Array[Double](src1.length)
           if (lm1.isTranspose == lm2.isTranspose) {
             var k = 0
             while (k < src1.length) {
-              dst(k) = op(src1(k), src2(k))
+              src1(k) = op(src1(k), src2(k))
               k += 1
             }
           } else {
@@ -1008,14 +1006,14 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
             var k2 = 0
             while (k1 < length) {
               while (k2 < length) {
-                dst(k1) = op(src1(k1), src2(k2))
+                src1(k1) = op(src1(k1), src2(k2))
                 k1 += 1
                 k2 += lm2.majorStride
               }
               k2 += 1 - length
             }
           }
-          ((i1, j1), new BDM(nRows, nCols, dst, 0, lm1.majorStride, lm1.isTranspose))
+          ((i1, j1), lm1)
         }
       }
     }
@@ -1066,13 +1064,12 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
           val src2 = lm2.data
           val src3 = lm3.data
           val src4 = lm4.data
-          val dst = new Array[Double](src1.length)
           if (lm1.isTranspose == lm2.isTranspose
             && lm1.isTranspose == lm3.isTranspose
             && lm1.isTranspose == lm4.isTranspose) {
             var k = 0
             while (k < src1.length) {
-              dst(k) = op(src1(k), src2(k), src3(k), src4(k))
+              src1(k) = op(src1(k), src2(k), src3(k), src4(k))
               k += 1
             }
           } else {
@@ -1086,14 +1083,14 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
                 val v2 = if (lm1.isTranspose == lm2.isTranspose) src2(k1) else src2(kt)
                 val v3 = if (lm1.isTranspose == lm3.isTranspose) src3(k1) else src3(kt)
                 val v4 = if (lm1.isTranspose == lm4.isTranspose) src4(k1) else src4(kt)
-                dst(k1) = op(src1(k1), v2, v3, v4)
+                src1(k1) = op(src1(k1), v2, v3, v4)
                 k1 += 1
                 kt += lm1MinorSize
               }
               kt += 1 - length
             }
           }
-          ((i1, j1), new BDM(nRows, nCols, dst, 0, lm1.majorStride, lm1.isTranspose))
+          ((i1, j1), lm1)
         }
       }
     }
@@ -1109,17 +1106,30 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       val iOffset = i.toLong * blockSize
       val jOffset = j.toLong * blockSize
       val size = lm.cols * lm.rows
-      val result = new Array[Double](size)
-      var jj = 0
-      while (jj < lm.cols) {
-        var ii = 0
-        while (ii < lm.rows) {
-          result(ii + jj * lm.rows) = op(iOffset + ii, jOffset + jj, lm(ii, jj))
-          ii += 1
+      if (lm.isCompact && !lm.isTranspose) {
+        var jj = 0
+        while (jj < lm.cols) {
+          var ii = 0
+          while (ii < lm.rows) {
+            lm.data(ii + jj * lm.rows) = op(iOffset + ii, jOffset + jj, lm(ii, jj))
+            ii += 1
+          }
+          jj += 1
         }
-        jj += 1
+        lm
+      } else {
+        val result = new Array[Double](size)
+        var jj = 0
+        while (jj < lm.cols) {
+          var ii = 0
+          while (ii < lm.rows) {
+            result(ii + jj * lm.rows) = op(iOffset + ii, jOffset + jj, lm(ii, jj))
+            ii += 1
+          }
+          jj += 1
+        }
+        new BDM(lm.rows, lm.cols, result)
       }
-      new BDM(lm.rows, lm.cols, result)
     }
     new BlockMatrix(newBlocks, blockSize, nRows, nCols)
   }
@@ -1148,17 +1158,30 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
           val iOffset = i1.toLong * blockSize
           val jOffset = j1.toLong * blockSize
           val size = lm1.cols * lm1.rows
-          val result = new Array[Double](size)
-          var jj = 0
-          while (jj < lm1.cols) {
-            var ii = 0
-            while (ii < lm1.rows) {
-              result(ii + jj * lm1.rows) = op(iOffset + ii, jOffset + jj, lm1(ii, jj), lm2(ii, jj))
-              ii += 1
+          if (lm1.isCompact && !lm1.isTranspose) {
+            var jj = 0
+            while (jj < lm1.cols) {
+              var ii = 0
+              while (ii < lm1.rows) {
+                lm1.data(ii + jj * lm1.rows) = op(iOffset + ii, jOffset + jj, lm1(ii, jj), lm2(ii, jj))
+                ii += 1
+              }
+              jj += 1
             }
-            jj += 1
+            ((i1, j1), lm1)
+          } else {
+            val result = new Array[Double](size)
+            var jj = 0
+            while (jj < lm1.cols) {
+              var ii = 0
+              while (ii < lm1.rows) {
+                result(ii + jj * lm1.rows) = op(iOffset + ii, jOffset + jj, lm1(ii, jj), lm2(ii, jj))
+                ii += 1
+              }
+              jj += 1
+            }
+            ((i1, j1), new BDM(lm1.rows, lm1.cols, result))
           }
-          ((i1, j1), new BDM(lm1.rows, lm1.cols, result))
         }
       }
     }
