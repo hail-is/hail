@@ -30,22 +30,6 @@ import org.json4s._
 
 import scala.collection.immutable.NumericRange
 
-trait DtoD extends Serializable {
-  def apply (x: Double): Double
-}
-trait DDtoD extends Serializable {
-  def apply (x: Double, y: Double): Double
-}
-trait DDDDtoD extends Serializable {
-  def apply (x: Double, y: Double, z: Double, a: Double): Double
-}
-trait LLDtoD extends Serializable {
-  def apply (x: Long, y: Long, z: Double): Double
-}
-trait LLDDtoD extends Serializable {
-  def apply (x: Long, y: Long, z: Double, a: Double): Double
-}
-
 case class CollectMatricesRDDPartition(index: Int, firstPartition: Int, blockPartitions: Array[Partition], blockSize: Int, nRows: Int, nCols: Int) extends Partition {
   def nBlocks: Int = blockPartitions.length
 }
@@ -160,10 +144,10 @@ object BlockMatrix {
       ((i, j), BDM.rand[Double](gp.blockRowNRows(i), gp.blockColNCols(j), rand))
     } )
 
-  def map2(f: DDtoD)(l: M, r: M): M =
+  def map2(f: (Double, Double) => Double)(l: M, r: M): M =
     l.map2(r, f)
 
-  def map4(f: DDDDtoD)(a: M, b: M, c: M, d: M): M =
+  def map4(f: (Double, Double, Double, Double) => Double)(a: M, b: M, c: M, d: M): M =
     a.map4(b, c, d, f)
 
   val metadataRelativePath = "/metadata.json"
@@ -949,7 +933,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new BlockMatrix(newBlocks, blockSize, nRows, nCols)
   }
 
-  def map(op: DtoD,
+  def map(op: Double => Double,
     name: String = "operation",
     reqDense: Boolean = true): M = {
     if (reqDense)
@@ -968,7 +952,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def map2(that: M,
-    op: DDtoD,
+    op: (Double, Double) => Double,
     name: String = "operation",
     reqDense: Boolean = true): M = {
     if (reqDense) {
@@ -1020,9 +1004,8 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     new BlockMatrix(newBlocks, blockSize, nRows, nCols)
   }
 
-
   def map4(bm2: M, bm3: M, bm4: M,
-    op: DDDDtoD,
+    op: (Double, Double, Double, Double) => Double,
     name: String = "operation",
     reqDense: Boolean = true): M = {
     if (reqDense) {
