@@ -37,9 +37,14 @@ class IRRandomness(seed: Long) {
   def rgamma(shape: Double, scale: Double): Double = Gamma.random(shape, scale, random)
 
   def rcat(prob: Array[Double]): Int = {
-    val sum = prob.sum
-    var draw = random.nextDouble() * sum
     var i = 0
+    var sum = 0.0
+    while (i < prob.length) {
+      sum += prob(i)
+      i += 1
+    }
+    var draw = random.nextDouble() * sum
+    i = 0
     while (draw > prob(i)) {
       draw -= prob(i)
       i += 1
