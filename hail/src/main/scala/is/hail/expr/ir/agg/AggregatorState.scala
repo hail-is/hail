@@ -25,6 +25,27 @@ trait AggregatorState {
   def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit]
 
   def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit]
+
+  def deserializeFromBytes(t: PBinary, address: Code[Long]): Code[Unit] = {
+    val lazyBuffer = fb.getOrDefineLazyField[MemoryBufferWrapper](Code.newInstance[MemoryBufferWrapper](), (this, "buffer"))
+    val addr = fb.newField[Long]("addr")
+    Code(addr := address,
+      lazyBuffer.invoke[Long, Int, Unit]("clearAndSetFrom", t.bytesOffset(addr), t.loadLength(addr)),
+      deserialize(BufferSpec.defaultUncompressed)(lazyBuffer.load().invoke[InputBuffer]("buffer")))
+  }
+
+  def serializeToRegion(t: PBinary, r: Code[Region]): Code[Long] = {
+    val lazyBuffer = fb.getOrDefineLazyField[MemoryWriterWrapper](Code.newInstance[MemoryWriterWrapper](), (this, "buffer"))
+    val addr = fb.newField[Long]("addr")
+    Code(
+      lazyBuffer.invoke[Unit]("clear"),
+      serialize(BufferSpec.defaultUncompressed)(lazyBuffer.invoke[OutputBuffer]("buffer")),
+      addr := t.allocate(r, lazyBuffer.invoke[Int]("length")),
+      t.storeLength(addr, lazyBuffer.invoke[Int]("length")),
+      lazyBuffer.invoke[Long, Unit]("copyToAddress", t.bytesOffset(addr)),
+      addr
+    )
+  }
 }
 
 trait RegionBackedAggState extends AggregatorState {

@@ -743,4 +743,31 @@ class Aggregators2Suite extends HailSuite {
       FastIndexedSeq(takeSig))
     assertEvalsTo(x, FastIndexedSeq(-1d, 0d, 1d, 2d, 3d))
   }
+
+  @Test def testAggStateAndCombOp(): Unit = {
+    implicit val execStrats = ExecStrategy.compileOnly
+    val takeSig = PhysicalAggSignature(Take(), FastSeq(PInt32()), FastSeq(PInt64()), None)
+    val x = Let(
+      "x",
+      RunAgg(
+        Begin(FastSeq(
+          InitOp(0, FastSeq(I32(10)), takeSig),
+          SeqOp(0, FastSeq(NA(TInt64())), takeSig),
+          SeqOp(0, FastSeq(I64(-1l)), takeSig),
+          SeqOp(0, FastSeq(I64(2l)), takeSig)
+        )),
+        AggStateValue(0, takeSig),
+        FastIndexedSeq(takeSig)),
+      RunAgg(
+        Begin(FastSeq(
+          InitOp(0, FastSeq(I32(10)), takeSig),
+          CombOpValue(0, Ref("x", TBinary()), takeSig),
+          SeqOp(0, FastSeq(I64(3l)), takeSig),
+          CombOpValue(0, Ref("x", TBinary()), takeSig),
+          SeqOp(0, FastSeq(I64(0l)), takeSig))),
+        GetTupleElement(ResultOp(0, FastIndexedSeq(takeSig)), 0),
+        FastIndexedSeq(takeSig)))
+
+    assertEvalsTo(x, FastIndexedSeq(null, -1l, 2l, 3l, null, -1l, 2l, 0l))
+  }
 }
