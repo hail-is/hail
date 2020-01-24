@@ -799,12 +799,14 @@ object EmitStream {
           val postt = emitter.emit(result, bodyEnv, er, Some(newContainer))
 
           emitStream(array, env)
-            .contMap[EmitTriplet] { (eltt, k) =>
-              Code(
-                TypedTriplet(producerElementPType, eltt).storeTo(eltm, eltv),
-                TypedTriplet(resultPType, postt).storeTo(postm, postv),
-                seqPerElt.setup,
-                k(EmitTriplet(Code._empty, postm, postv)))
+            .map[EmitTriplet] { eltt =>
+              EmitTriplet(
+                Code(
+                  TypedTriplet(producerElementPType, eltt).storeTo(eltm, eltv),
+                  TypedTriplet(resultPType, postt).storeTo(postm, postv),
+                  seqPerElt.setup),
+                postm,
+                postv)
             }.addSetup(
             _ => Code(aggSetup, cInit.setup),
             aggCleanup
