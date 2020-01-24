@@ -511,7 +511,8 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
                                           jobs_args)
                 except pymysql.err.IntegrityError as err:
-                    if err.args[1] == 1022:
+                    # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
+                    if err.args[1] == 1062:
                         log.info(f'bunch containing job {(batch_id, jobs_args[0][1])} already inserted ({err})')
                         raise web.Response()
                     raise
