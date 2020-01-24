@@ -74,7 +74,7 @@ class Test(unittest.TestCase):
             # runs at 100mcpu
             job_msec_mcpu2 = 100 * max(job_status['end_time'] - job_status['start_time'], 0)
             # greater than in case there are multiple attempts
-            assert job['msec_mcpu'] >= job_msec_mcpu2, batch
+            assert job_status['msec_mcpu'] >= job_msec_mcpu2, batch
 
             batch_msec_mcpu2 += job_msec_mcpu2
 
