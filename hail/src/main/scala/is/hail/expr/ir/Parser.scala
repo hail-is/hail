@@ -943,6 +943,14 @@ object IRParser {
         val body = ir_value_expr(env)(it)
         val result = ir_value_expr(env)(it)
         RunAgg(body, result, signatures)
+      case "RunAggScan" =>
+        val name = identifier(it)
+        val signatures = physical_agg_signatures(env.typEnv)(it)
+        val array = ir_value_expr(env)(it)
+        val init = ir_value_expr(env)(it)
+        val seq = ir_value_expr(env)(it)
+        val result = ir_value_expr(env)(it)
+        RunAggScan(array, name, init, seq, result, signatures)
       case "AggFilter" =>
         val isScan = boolean_literal(it)
         val cond = ir_value_expr(env)(it)

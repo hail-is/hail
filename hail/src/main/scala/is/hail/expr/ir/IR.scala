@@ -283,6 +283,7 @@ final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
 final case class ArrayAggScan(a: IR, name: String, query: IR) extends IR
 
 final case class RunAgg(body: IR, result: IR, signature: IndexedSeq[PhysicalAggSignature]) extends IR
+final case class RunAggScan(array: IR, name: String, init: IR, seqs: IR, result: IR, signature: IndexedSeq[PhysicalAggSignature]) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
