@@ -337,7 +337,7 @@ abstract class PBaseStruct extends PType {
       val srcFieldType = srcField.typ.fundamentalType
       val dstFieldType = dstField.typ.fundamentalType
 
-      val body = srcFieldType.storeShallowAtOffset(
+      val body = dstFieldType.storeShallowAtOffset(
         this.fieldOffset(dstStructAddress, dstField.index),
         dstFieldType.copyFromType(
           mb,
