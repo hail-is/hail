@@ -30,19 +30,19 @@ import org.json4s._
 
 import scala.collection.immutable.NumericRange
 
-trait DtoD {
+trait DtoD extends Serializable {
   def apply (x: Double): Double
 }
-trait DDtoD {
+trait DDtoD extends Serializable {
   def apply (x: Double, y: Double): Double
 }
-trait DDDDtoD {
+trait DDDDtoD extends Serializable {
   def apply (x: Double, y: Double, z: Double, a: Double): Double
 }
-trait LLDtoD {
+trait LLDtoD extends Serializable {
   def apply (x: Long, y: Long, z: Double): Double
 }
-trait LLDDtoD {
+trait LLDDtoD extends Serializable {
   def apply (x: Long, y: Long, z: Double, a: Double): Double
 }
 
@@ -1700,18 +1700,35 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
         }
       })
 
+  def dgemm(c: BDM[Double], _a: BDM[Double], _b: BDM[Double]) {
+    assert(_a.cols == _b.rows)
+
+    val a = if (_a.majorStride < math.max(if (_a.isTranspose) _a.cols else _a.rows, 1)) _a.copy else _a
+    val b = if (_b.majorStride < math.max(if (_b.isTranspose) _b.cols else _b.rows, 1)) _b.copy else _b
+
+    import com.github.fommil.netlib.BLAS.{getInstance => blas}
+    blas.dgemm(
+      if (a.isTranspose) "T" else "N",
+      if (b.isTranspose) "T" else "N",
+      c.rows, c.cols, a.cols,
+      1.0, a.data, a.offset, a.majorStride,
+      b.data, b.offset, b.majorStride,
+      1.0, c.data, 0, c.rows)
+  }
+
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
     val (i, j) = gp.blockCoordinates(split.index)
     val (blockNRows, blockNCols) = gp.blockDims(split.index)
     val product = BDM.zeros[Double](blockNRows, blockNCols)
     var k = 0
     while (k < nProducts) {
-      block(l, lParts, lGP, context, i, k).foreach(left =>
-        block(r, rParts, rGP, context, k, j).foreach(right =>
-          product :+= left * right))
+      val left = block(l, lParts, lGP, context, i, k)
+      val right = block(r, rParts, rGP, context, k, j)
+      if (left.isDefined && right.isDefined) {
+        dgemm(product, left.get, right.get)
+      }
       k += 1
     }
-
     Iterator.single(((i, j), product))
   }
 

@@ -170,15 +170,14 @@ case class PCRelate(
 
   def computeResult(blockedG: M, pcs: BDM[Double]): Result[M] = {
     val preMu = this.mu(blockedG, pcs)
-    val mu = writeRead(BlockMatrix.map2(new DDtoD() { def apply(g: Double, mu: Double): Double = {
+    val mu = BlockMatrix.map2(new DDtoD() { def apply(g: Double, mu: Double): Double = {
       if (badgt(g) || badmu(mu))
         Double.NaN
       else
         mu
-    }}) (blockedG, preMu))
-    val variance = cacheWhen(PhiK2)(
-      mu.map(new DtoD() { def apply(mu: Double): Double =
-        if (mu.isNaN) 0.0 else mu * (1.0 - mu)}))
+    }}) (blockedG, preMu)
+    val variance = mu.map(new DtoD() { def apply(mu: Double): Double =
+      if (java.lang.Double.isNaN(mu)) 0.0 else mu * (1.0 - mu)})
 
     // write phi to cache and increase parallelism of multiplies before phi.diagonal()
     val phi = writeRead(this.phi(mu, variance, blockedG))
@@ -219,7 +218,7 @@ case class PCRelate(
 
   private[methods] def phi(mu: M, variance: M, g: M): M = {
     val centeredAF = BlockMatrix.map2(new DDtoD() { def apply(g: Double, mu: Double): Double = {
-      if (mu.isNaN) 0.0 else g / 2 - mu
+      if (java.lang.Double.isNaN(mu)) 0.0 else g / 2 - mu
     }}) (g, mu)
 
     val stddev = variance.sqrt()
@@ -230,12 +229,12 @@ case class PCRelate(
   private[methods] def ibs0(g: M, mu: M): M = {
     val homalt =
       BlockMatrix.map2(new DDtoD() { def apply(g: Double, mu: Double): Double = {
-        if (mu.isNaN || g != 2.0) 0.0 else 1.0
+        if (java.lang.Double.isNaN(mu) || g != 2.0) 0.0 else 1.0
       }}) (g, mu)
 
     val homref =
       BlockMatrix.map2(new DDtoD() { def apply(g: Double, mu: Double): Double = {
-        if (mu.isNaN || g != 0.0) 0.0 else 1.0
+        if (java.lang.Double.isNaN(mu) || g != 0.0) 0.0 else 1.0
       }}) (g, mu)
 
     val temp = writeRead(homalt.T.dot(homref))
@@ -246,7 +245,7 @@ case class PCRelate(
   private[methods] def k2(phi: M, mu: M, variance: M, g: M): M = {
     val twoPhi_ii = phi.diagonal().map(2.0 * _)
     val normalizedGD = g.map2WithIndex(mu, { case (_, i, g, mu) =>
-      if (mu.isNaN)
+      if (java.lang.Double.isNaN(mu))
         0.0 // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
       else {
         val gd = if (g == 0.0) mu
@@ -263,11 +262,11 @@ case class PCRelate(
   private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
     val mu2 =
       mu.map(new DtoD() { def apply(mu: Double): Double =
-        if (mu.isNaN) 0.0 else mu * mu})
+        if (java.lang.Double.isNaN(mu)) 0.0 else mu * mu})
 
     val oneMinusMu2 =
       mu.map(new DtoD() { def apply(mu: Double): Double =
-        if (mu.isNaN) 0.0 else (1.0 - mu) * (1.0 - mu)})
+        if (java.lang.Double.isNaN(mu)) 0.0 else (1.0 - mu) * (1.0 - mu)})
 
     val temp = writeRead(mu2.T.dot(oneMinusMu2))
     val denom = temp + temp.T
