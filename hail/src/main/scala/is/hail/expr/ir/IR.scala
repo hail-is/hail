@@ -129,15 +129,14 @@ final case class Coalesce(values: Seq[IR]) extends IR {
 final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 
 object If {
-  def unify(cond: IR, cnsq: IR, altr: IR, unifyType: Option[Type] = None): If = {
-    if (cnsq.typ == altr.typ)
+  def unify(cond: IR, cnsq: IR, altr: IR, unifyType: Type): If = {
+    if (cnsq.typ == altr.typ && unifyType == cnsq.typ)
       If(cond, cnsq, altr)
-    else {
-      val t = unifyType.getOrElse(cnsq.typ)
-      If(cond,
-        PruneDeadFields.upcast(cnsq, t),
-        PruneDeadFields.upcast(altr, t))
-    }
+
+    If(cond,
+      PruneDeadFields.upcast(cnsq, unifyType),
+      PruneDeadFields.upcast(altr, unifyType)
+    )
   }
 }
 

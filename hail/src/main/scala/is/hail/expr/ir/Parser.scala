@@ -712,7 +712,7 @@ object IRParser {
         val cond = ir_value_expr(env)(it)
         val consq = ir_value_expr(env)(it)
         val altr = ir_value_expr(env)(it)
-        If.unify(cond, consq, altr)
+        If(cond, consq, altr)
       case "Let" =>
         val name = identifier(it)
         val value = ir_value_expr(env)(it)
