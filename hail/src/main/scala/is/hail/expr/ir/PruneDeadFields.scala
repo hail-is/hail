@@ -1548,7 +1548,7 @@ object PruneDeadFields {
         val cond2 = rebuildIR(cond, env, memo)
         val cnsq2 = rebuildIR(cnsq, env, memo)
         val alt2 = rebuildIR(alt, env, memo)
-        If(cond2, cnsq2, alt2)
+        If.unify(cond2, cnsq2, alt2, unifyType = Some(requestedType))
       case Coalesce(values) =>
         Coalesce.unify(values.map(rebuildIR(_, env, memo)), unifyType = Some(requestedType))
       case Let(name, value, body) =>

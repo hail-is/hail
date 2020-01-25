@@ -128,6 +128,19 @@ final case class Coalesce(values: Seq[IR]) extends IR {
 
 final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 
+object If {
+  def unify(cond: IR, cnsq: IR, altr: IR, unifyType: Option[Type] = None): If = {
+    if (cnsq.typ == altr.typ)
+      If(cond, cnsq, altr)
+    else {
+      val t = unifyType.getOrElse(cnsq.typ)
+      If(cond,
+        PruneDeadFields.upcast(cnsq, t),
+        PruneDeadFields.upcast(altr, t))
+    }
+  }
+}
+
 final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) extends IR
 final case class Let(name: String, value: IR, body: IR) extends IR
 final case class Ref(name: String, var _typ: Type) extends IR
