@@ -30,7 +30,7 @@ object PCRelate {
 
   val defaultMinKinship: Double = Double.NegativeInfinity
   val defaultStatisticSubset: StatisticSubset = PhiK2K0K1
-  val defaultStorageLevel: StorageLevel = StorageLevel.DISK_ONLY
+  val defaultStorageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK
 
   private val sig = TStruct(
       ("i", TInt32()),
