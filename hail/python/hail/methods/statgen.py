@@ -1876,6 +1876,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
     col_keys = hl.literal(mt.select_cols().key_cols_by().cols().collect(), dtype=tarray(mt.col_key.dtype))
     if _unkeyed:
+        ht = ht.key_by()
         return ht.annotate(i=col_keys[ht.i], j=col_keys[ht.j])
     else:
         return ht.key_by(i=col_keys[ht.i], j=col_keys[ht.j])
