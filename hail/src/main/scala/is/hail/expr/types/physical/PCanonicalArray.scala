@@ -163,6 +163,22 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] = loadElement(aoff, loadLength(aoff), i)
 
+  class Iterator (
+    private[this] val aoff: Long,
+    private[this] val length: Int,
+    private[this] var i: Int = 0
+  ) extends PArrayIterator {
+    private[this] val firstElementOffset = PCanonicalArray.this.firstElementOffset(
+      aoff, length)
+    def hasNext: Boolean = i != length
+    def isDefined: Boolean = isElementDefined(aoff, i)
+    def value: Long =
+      firstElementOffset + i * elementByteSize
+    def iterate: Unit = i += 1
+  }
+
+  def elementIterator(aoff: Long, length: Int): Iterator = new Iterator(aoff, length)
+
   def allocate(region: Region, length: Int): Long = {
     region.allocate(contentsAlignment, contentsByteSize(length))
   }

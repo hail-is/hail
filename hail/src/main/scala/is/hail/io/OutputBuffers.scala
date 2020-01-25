@@ -107,7 +107,7 @@ final class MemoryOutputBuffer(mb: MemoryBuffer) extends OutputBuffer {
 
   def writeDouble(d: Double): Unit = mb.writeDouble(d)
 
-  def writeBytes(region: Region, off: Long, n: Int): Unit = mb.writeBytes(region, off, n)
+  def writeBytes(region: Region, off: Long, n: Int): Unit = mb.writeBytes(off, n)
 
   def writeBytes(addr: Long, n: Int): Unit = mb.writeBytes(addr, n)
 

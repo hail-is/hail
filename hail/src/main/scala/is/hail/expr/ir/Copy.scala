@@ -199,9 +199,12 @@ object Copy {
         InitOp(i, newChildren.map(_.asInstanceOf[IR]), aggSig)
       case SeqOp(i, _, aggSig) =>
         SeqOp(i, newChildren.map(_.asInstanceOf[IR]), aggSig)
-      case x@(_: ResultOp | _: CombOp) =>
+      case x@(_: ResultOp | _: CombOp | _: AggStateValue) =>
         assert(newChildren.isEmpty)
         x
+      case CombOpValue(i, _, aggSig) =>
+        assert(newChildren.length == 1)
+        CombOpValue(i, newChildren(0).asInstanceOf[IR], aggSig)
       case x: SerializeAggs => x
       case x: DeserializeAggs => x
       case Begin(_) =>

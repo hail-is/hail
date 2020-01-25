@@ -2,9 +2,8 @@ import logging
 import asyncio
 import secrets
 import sortedcontainers
-import functools
 
-from hailtop.utils import bounded_gather, retry_long_running, run_if_changed
+from hailtop.utils import AsyncWorkerPool, WaitableSharedPool, retry_long_running, run_if_changed
 
 from ..batch import schedule_job, unschedule_job, mark_job_complete
 
@@ -26,6 +25,7 @@ class Scheduler:
         self.cancel_running_state_changed = app['cancel_running_state_changed']
         self.db = app['db']
         self.inst_pool = app['inst_pool']
+        self.async_worker_pool = AsyncWorkerPool(parallelism=100, queue_size=100)
 
     async def async_init(self):
         asyncio.ensure_future(retry_long_running(
@@ -145,7 +145,7 @@ WHERE n_cancelled_ready_jobs > 0;
             should_wait = True
             return should_wait
         user_share = {
-            user: max(int(1000 * user_n_jobs / total + 0.5), 20)
+            user: max(int(300 * user_n_jobs / total + 0.5), 20)
             for user, user_n_jobs in user_n_cancelled_ready_jobs.items()
         }
 
@@ -183,8 +183,9 @@ LIMIT %s;
                         record['batch_id'] = batch['id']
                         yield record
 
+        waitable_pool = WaitableSharedPool(self.async_worker_pool)
+
         should_wait = True
-        async_work = []
         for user, share in user_share.items():
             remaining = Box(share)
             async for record in user_cancelled_ready_jobs(user, remaining):
@@ -193,25 +194,24 @@ LIMIT %s;
                 id = (batch_id, job_id)
                 log.info(f'cancelling job {id}')
 
-                async def cancel_with_error_handling(id, f):
+                async def cancel_with_error_handling(app, batch_id, job_id, id):
                     try:
-                        await f()
+                        await mark_job_complete(
+                            app, batch_id, job_id, None, None,
+                            'Cancelled', None, None, None, 'cancelled')
                     except Exception:
                         log.info(f'error while cancelling job {id}', exc_info=True)
-                async_work.append(
-                    functools.partial(
-                        cancel_with_error_handling,
-                        id,
-                        functools.partial(mark_job_complete,
-                                          self.app, batch_id, job_id, None, None,
-                                          'Cancelled', None, None, None, 'cancelled')))
+                await waitable_pool.call(
+                    cancel_with_error_handling,
+                    self.app, batch_id, job_id, id)
 
                 remaining.value -= 1
                 if remaining.value <= 0:
                     should_wait = False
                     break
 
-        await bounded_gather(*[x for x in async_work], parallelism=100)
+        await waitable_pool.wait()
+
         return should_wait
 
     async def cancel_cancelled_running_jobs_loop_body(self):
@@ -234,7 +234,7 @@ WHERE n_cancelled_running_jobs > 0;
             should_wait = True
             return should_wait
         user_share = {
-            user: max(int(1000 * user_n_jobs / total + 0.5), 20)
+            user: max(int(300 * user_n_jobs / total + 0.5), 20)
             for user, user_n_jobs in user_n_cancelled_running_jobs.items()
         }
 
@@ -261,7 +261,8 @@ LIMIT %s;
                     record['batch_id'] = batch['id']
                     yield record
 
-        async_work = []
+        waitable_pool = WaitableSharedPool(self.async_worker_pool)
+
         should_wait = True
         for user, share in user_share.items():
             remaining = Box(share)
@@ -270,25 +271,21 @@ LIMIT %s;
                 job_id = record['job_id']
                 id = (batch_id, job_id)
 
-                async def unschedule_with_error_handling(id, instance, f):
+                async def unschedule_with_error_handling(app, record, instance_name, id):
                     try:
-                        await f()
+                        await unschedule_job(app, record)
                     except Exception:
-                        log.info(f'unscheduling job {id} on instance {instance}', exc_info=True)
-                async_work.append(
-                    functools.partial(
-                        unschedule_with_error_handling,
-                        id, record['instance_name'],
-                        functools.partial(
-                            unschedule_job,
-                            self.app, record)))
+                        log.info(f'unscheduling job {id} on instance {instance_name}', exc_info=True)
+                await waitable_pool.call(
+                    unschedule_with_error_handling, self.app, record, record['instance_name'], id)
 
                 remaining.value -= 1
                 if remaining.value <= 0:
                     should_wait = False
                     break
 
-        await bounded_gather(*[x for x in async_work], parallelism=100)
+        await waitable_pool.wait()
+
         return should_wait
 
     async def schedule_loop_body(self):
@@ -300,7 +297,7 @@ LIMIT %s;
             should_wait = True
             return should_wait
         user_share = {
-            user: max(int(1000 * resources['allocated_cores_mcpu'] / total + 0.5), 20)
+            user: max(int(300 * resources['allocated_cores_mcpu'] / total + 0.5), 20)
             for user, resources in user_resources.items()
         }
 
@@ -341,7 +338,8 @@ LIMIT %s;
                         record['user'] = batch['user']
                         yield record
 
-        async_work = []
+        waitable_pool = WaitableSharedPool(self.async_worker_pool)
+
         should_wait = True
         for user, resources in user_resources.items():
             allocated_cores_mcpu = resources['allocated_cores_mcpu']
@@ -369,18 +367,13 @@ LIMIT %s;
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     scheduled_cores_mcpu += record['cores_mcpu']
 
-                    async def schedule_with_error_handling(id, instance, f):
+                    async def schedule_with_error_handling(app, record, id, instance):
                         try:
-                            await f()
+                            await schedule_job(app, record, instance)
                         except Exception:
                             log.info(f'scheduling job {id} on {instance}', exc_info=True)
-                    async_work.append(
-                        functools.partial(
-                            schedule_with_error_handling,
-                            id, instance,
-                            functools.partial(
-                                schedule_job,
-                                self.app, record, instance)))
+                    await waitable_pool.call(
+                        schedule_with_error_handling, self.app, record, id, instance)
 
                 remaining.value -= 1
                 if remaining.value <= 0:
@@ -390,5 +383,6 @@ LIMIT %s;
                     should_wait = False
                     break
 
-        await bounded_gather(*[x for x in async_work], parallelism=100)
+        await waitable_pool.wait()
+
         return should_wait

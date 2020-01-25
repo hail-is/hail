@@ -264,6 +264,12 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   def newLazyField[T: TypeInfo](name: String)(setup: Code[T]): LazyFieldRef[T] =
     new LazyFieldRef[T](this, s"field${ cn.fields.size() }_$name", setup)
 
+  val lazyFieldMemo: mutable.Map[Any, LazyFieldRef[_]] = mutable.Map.empty
+
+  def getOrDefineLazyField[T: TypeInfo](setup: Code[T], id: Any): LazyFieldRef[T] = {
+    lazyFieldMemo.getOrElseUpdate(id, newLazyField[T](setup)).asInstanceOf[LazyFieldRef[T]]
+  }
+
   def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = apply_method.allocLocal[T](name)
 
   def newLocal[T](implicit tti: TypeInfo[T]): LocalRef[T] = newLocal()
