@@ -1560,7 +1560,8 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
            scores_expr=nullable(expr_array(expr_float64)),
            min_kinship=nullable(numeric),
            statistics=enumeration('kin', 'kin2', 'kin20', 'all'),
-           block_size=nullable(int))
+           block_size=nullable(int),
+           _unkeyed=bool)
 def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
               min_kinship=None, statistics="all", block_size=None, _unkeyed=False) -> Table:
     r"""Compute relatedness estimates between individuals using a variant of the
