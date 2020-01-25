@@ -1562,7 +1562,7 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
            statistics=enumeration('kin', 'kin2', 'kin20', 'all'),
            block_size=nullable(int))
 def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
-              min_kinship=None, statistics="all", block_size=None) -> Table:
+              min_kinship=None, statistics="all", block_size=None, _unkeyed=False) -> Table:
     r"""Compute relatedness estimates between individuals using a variant of the
     PC-Relate method.
 
@@ -1874,7 +1874,10 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
         ht = ht.drop('ibd1')
 
     col_keys = hl.literal(mt.select_cols().key_cols_by().cols().collect(), dtype=tarray(mt.col_key.dtype))
-    return ht.key_by(i=col_keys[ht.i], j=col_keys[ht.j])
+    if _unkeyed:
+        return ht.key_by(i=col_keys[ht.i], j=col_keys[ht.j])
+    else:
+        return ht.annotate(i=col_keys[ht.i], j=col_keys[ht.j])
 
 
 @typecheck(ds=oneof(Table, MatrixTable),
