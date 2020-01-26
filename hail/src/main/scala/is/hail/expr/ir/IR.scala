@@ -157,31 +157,6 @@ final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends IR
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR
 final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR
 
-object MakeArray {
-  def unify(args: Seq[IR], typ: TArray = null): MakeArray = {
-    assert(typ != null || args.nonEmpty)
-    var t: TArray = typ
-    if (t == null) {
-      t = if (args.tail.forall(_.typ == args.head.typ)) {
-        TArray(args.head.typ)
-      } else TArray(args.head.typ.deepOptional())
-    }
-    assert(t.elementType.deepOptional() == t.elementType ||
-      args.forall(a => a.typ == t.elementType),
-      s"${ t.parsableString() }: ${ args.map(a => "\n    " + a.typ.parsableString()).mkString } ")
-
-    MakeArray(args.map { arg =>
-      if (arg.typ == t.elementType)
-        arg
-      else {
-        val upcast = PruneDeadFields.upcast(arg, t.elementType)
-        assert(upcast.typ == t.elementType)
-        upcast
-      }
-    }, t)
-  }
-}
-
 final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
 final case class MakeStream(args: Seq[IR], _typ: TStream) extends IR
 

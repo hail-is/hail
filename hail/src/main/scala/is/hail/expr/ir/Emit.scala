@@ -481,10 +481,11 @@ private class Emit(
               (rm, rm.mux(defaultValue(r.typ), codeR.v)))))
         }
 
-      case x@MakeArray(args, typ) =>
+      case x@MakeArray(args, _) =>
         val pType = x.pType.asInstanceOf[PArray]
         val srvb = new StagedRegionValueBuilder(mb, pType)
         val addElement = srvb.addIRIntermediate(pType.elementType)
+        args.toArray.map(v => println(s"${v.pType}"))
         val addElts = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
           Code(
             v.setup,

@@ -766,7 +766,7 @@ object IRParser {
       case "MakeArray" =>
         val typ = opt(it, type_expr(env.typEnv)).map(_.asInstanceOf[TArray]).orNull
         val args = ir_value_children(env)(it)
-        MakeArray.unify(args, typ)
+        MakeArray(args, typ)
       case "MakeStream" =>
         val typ = opt(it, type_expr(env.typEnv)).map(_.asInstanceOf[TStream]).orNull
         val args = ir_value_children(env)(it)
