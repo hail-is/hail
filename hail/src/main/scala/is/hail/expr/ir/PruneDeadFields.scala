@@ -1741,7 +1741,7 @@ object PruneDeadFields {
   }
 
   def upcast(ir: IR, rType: Type): IR = {
-    if (ir.typ == rType)
+    if (ir.typ.isOfType(rType))
       ir
     else {
       val result = ir.typ match {
