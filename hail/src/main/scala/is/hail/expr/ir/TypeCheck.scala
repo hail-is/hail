@@ -100,11 +100,8 @@ object TypeCheck {
         assert(!t.required)
       case IsNA(v) =>
       case Coalesce(values) =>
-        val t1 = values.head.typ
-        if (!values.tail.forall(_.typ isOfType t1))
-          throw new RuntimeException(s"Coalesce expects all children to have the same type:" +
-            s"${ values.map(v => s"\n  ${ v.typ.parsableString() }").mkString }")
-      case x@If(cond, cnsq, altr) => {
+        assert(values.tail.forall(_.typ.isOfType(values.head.typ)))
+      case x@If(cond, cnsq, altr) =>
         assert(cond.typ.isOfType(TBoolean()))
         assert(x.typ.isOfType(cnsq.typ) && x.typ.isOfType(altr.typ))
       case x@Let(_, _, body) =>
@@ -145,7 +142,7 @@ object TypeCheck {
         }
       case x@MakeArray(args, typ) =>
         assert(typ != null)
-        args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x isOfType typ.elementType,
+        args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x.isOfType(typ.elementType),
           s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
         }
       case x@MakeStream(args, typ) =>
