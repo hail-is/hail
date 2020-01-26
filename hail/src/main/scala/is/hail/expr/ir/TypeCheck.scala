@@ -101,7 +101,7 @@ object TypeCheck {
       case IsNA(v) =>
       case Coalesce(values) =>
         val t1 = values.head.typ
-        if (!values.tail.forall(_.typ == t1))
+        if (!values.tail.forall(_.typ isOfType t1))
           throw new RuntimeException(s"Coalesce expects all children to have the same type:" +
             s"${ values.map(v => s"\n  ${ v.typ.parsableString() }").mkString }")
       case x@If(cond, cnsq, altr) => {
@@ -109,15 +109,15 @@ object TypeCheck {
         assert(x.typ.isOfType(cnsq.typ) && x.typ.isOfType(altr.typ))
       }
       case x@Let(_, _, body) =>
-        assert(x.typ == body.typ)
+        assert(x.typ isOfType body.typ)
       case x@AggLet(_, _, body, _) =>
-        assert(x.typ == body.typ)
+        assert(x.typ isOfType body.typ)
       case x@Ref(name, _) =>
         val expected = env.eval.lookup(name)
-        assert(x.typ == expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
+        assert(x.typ isOfType expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
       case RelationalRef(_, _) =>
       case x@TailLoop(name, _, body) =>
-        assert(x.typ == body.typ)
+        assert(x.typ isOfType body.typ)
         def recurInTail(node: IR, tailPosition: Boolean): Boolean = node match {
           case x: Recur =>
             x.name != name || tailPosition
@@ -131,33 +131,33 @@ object TypeCheck {
         assert(recurInTail(body, tailPosition = true))
       case x@Recur(name, args, typ) =>
         val TTuple(IndexedSeq(TupleField(_, argTypes), TupleField(_, rt)), _) = env.eval.lookup(name)
-        assert(argTypes.asInstanceOf[TTuple].types.zip(args).forall { case (t, ir) => t == ir.typ } )
-        assert(typ == rt)
+        assert(argTypes.asInstanceOf[TTuple].types.zip(args).forall { case (t, ir) => t isOfType ir.typ } )
+        assert(typ isOfType rt)
       case x@ApplyBinaryPrimOp(op, l, r) =>
-        assert(x.typ == BinaryOp.getReturnType(op, l.typ, r.typ))
+        assert(x.typ isOfType BinaryOp.getReturnType(op, l.typ, r.typ))
       case x@ApplyUnaryPrimOp(op, v) =>
-        assert(x.typ == UnaryOp.getReturnType(op, v.typ))
+        assert(x.typ isOfType UnaryOp.getReturnType(op, v.typ))
       case x@ApplyComparisonOp(op, l, r) =>
-        assert(-op.t1.fundamentalType == -l.typ.fundamentalType)
-        assert(-op.t2.fundamentalType == -r.typ.fundamentalType)
+        assert(op.t1.fundamentalType isOfType l.typ.fundamentalType)
+        assert(op.t2.fundamentalType isOfType r.typ.fundamentalType)
         op match {
           case _: Compare => assert(x.typ.isInstanceOf[TInt32])
           case _ => assert(x.typ.isInstanceOf[TBoolean])
         }
       case x@MakeArray(args, typ) =>
         assert(typ != null)
-        args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x.isOfType(typ.elementType),
+        args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x isOfType typ.elementType,
           s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
         }
       case x@MakeStream(args, typ) =>
         assert(typ != null)
-        args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
+        args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x isOfType typ.elementType,
           s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
         }
       case x@ArrayRef(a, i, s) =>
         assert(i.typ.isOfType(TInt32()))
         assert(s.typ.isOfType(TString()))
-        assert(x.typ == -coerce[TStreamable](a.typ).elementType)
+        assert(x.typ.isOfType(coerce[TStreamable](a.typ).elementType))
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TStreamable])
       case x@ArrayRange(a, b, c) =>
@@ -187,7 +187,7 @@ object TypeCheck {
         val slicesTuple = slices.typ.asInstanceOf[TTuple]
         assert(slicesTuple.size == childTyp.nDims)
         assert(slicesTuple.types.forall { t =>
-          t == TTuple(TInt64(), TInt64(), TInt64()) || t == TInt64()
+          t.isOfType(TTuple(TInt64(), TInt64(), TInt64())) || t.isOfType(TInt64())
         })
       case x@NDArrayMap(_, _, body) =>
         assert(x.elementTyp isOfType body.typ)
@@ -239,21 +239,21 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TIterable])
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val elt = -coerce[TIterable](orderedCollection.typ).elementType
-        assert(-elem.typ == (if (onKey) elt match {
+        assert(elem.typ.isOfType(if (onKey) elt match {
           case t: TBaseStruct => -t.types(0)
           case t: TInterval => -t.pointType
         } else elt))
       case x@GroupByKey(collection) =>
         val telt = coerce[TBaseStruct](coerce[TStreamable](collection.typ).elementType)
         val td = coerce[TDict](x.typ)
-        assert(td.keyType == telt.types(0))
-        assert(td.valueType == TArray(telt.types(1)))
+        assert(td.keyType isOfType  telt.types(0))
+        assert(td.valueType isOfType TArray(telt.types(1)))
       case x@ArrayMap(a, name, body) =>
         assert(a.typ.isInstanceOf[TStreamable])
-        assert(x.elementTyp == body.typ)
+        assert(x.elementTyp isOfType body.typ)
       case x@ArrayZip(as, names, body, _) =>
         assert(as.length == names.length)
-        assert(x.typ.elementType == body.typ)
+        assert(x.typ.elementType isOfType body.typ)
         assert(as.forall(_.typ.isInstanceOf[TStreamable]))
       case x@ArrayFilter(a, name, cond) =>
         assert(a.typ.isInstanceOf[TStreamable])
@@ -263,21 +263,21 @@ object TypeCheck {
         assert(body.typ.isInstanceOf[TArray])
       case x@ArrayFold(a, zero, accumName, valueName, body) =>
         assert(a.typ.isInstanceOf[TStreamable])
-        assert(body.typ == zero.typ)
-        assert(x.typ == zero.typ)
+        assert(body.typ isOfType zero.typ)
+        assert(x.typ isOfType zero.typ)
       case x@ArrayFold2(a, accum, valueName, seq, res) =>
         assert(a.typ.isInstanceOf[TStreamable])
-        assert(x.typ == res.typ)
-        assert(accum.zip(seq).forall { case ((_, z), s) => s.typ == z.typ })
+        assert(x.typ isOfType res.typ)
+        assert(accum.zip(seq).forall { case ((_, z), s) => s.typ isOfType z.typ })
       case x@ArrayScan(a, zero, accumName, valueName, body) =>
         assert(a.typ.isInstanceOf[TStreamable])
-        assert(body.typ == zero.typ)
-        assert(coerce[TStreamable](x.typ).elementType == zero.typ)
+        assert(body.typ isOfType zero.typ)
+        assert(coerce[TStreamable](x.typ).elementType isOfType zero.typ)
       case x@ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         val ltyp = coerce[TStreamable](left.typ)
         val rtyp = coerce[TStreamable](right.typ)
         assert(compare.typ.isOfType(TInt32()))
-        assert(coerce[TStreamable](x.typ).elementType == join.typ)
+        assert(coerce[TStreamable](x.typ).elementType isOfType join.typ)
       case x@ArrayFor(a, valueName, body) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(body.typ == TVoid)
@@ -288,19 +288,19 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TStreamable])
         assert(env.scan.isEmpty)
       case x@RunAgg(body, result, _) =>
-        assert(x.typ == result.typ)
+        assert(x.typ isOfType result.typ)
         assert(body.typ == TVoid)
       case x@AggFilter(cond, aggIR, _) =>
         assert(cond.typ isOfType TBoolean())
-        assert(x.typ == aggIR.typ)
+        assert(x.typ isOfType aggIR.typ)
       case x@AggExplode(array, name, aggBody, _) =>
         assert(array.typ.isInstanceOf[TStreamable])
-        assert(x.typ == aggBody.typ)
+        assert(x.typ isOfType aggBody.typ)
       case x@AggGroupBy(key, aggIR, _) =>
-        assert(x.typ == TDict(key.typ, aggIR.typ))
+        assert(x.typ isOfType TDict(key.typ, aggIR.typ))
       case x@AggArrayPerElement(a, _, _, aggBody, knownLength, _) =>
-        assert(x.typ == TArray(aggBody.typ))
-        assert(knownLength.forall(_.typ == TInt32()))
+        assert(x.typ isOfType TArray(aggBody.typ))
+        assert(knownLength.forall(_.typ isOfType TInt32()))
       case x@InitOp(_, args, aggSig) =>
         assert(args.map(_.typ) == aggSig.initOpArgs)
       case x@SeqOp(_, args, aggSig) =>
@@ -316,15 +316,15 @@ object TypeCheck {
           assert(x.typ == TVoid)
         }
       case x@ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
-        assert(x.typ == aggSig.returnType)
+        assert(x.typ isOfType aggSig.returnType)
         assert(initOpArgs.map(_.typ) == aggSig.initOpArgs)
         assert(seqOpArgs.map(_.typ) == aggSig.seqOpArgs)
       case x@ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
-        assert(x.typ == aggSig.returnType)
+        assert(x.typ isOfType aggSig.returnType)
         assert(initOpArgs.map(_.typ) == aggSig.initOpArgs)
         assert(seqOpArgs.map(_.typ) == aggSig.seqOpArgs)
       case x@MakeStruct(fields) =>
-        assert(x.typ == TStruct(fields.map { case (name, a) =>
+        assert(x.typ isOfType TStruct(fields.map { case (name, a) =>
           (name, a.typ)
         }: _*))
       case x@SelectFields(old, fields) =>
@@ -344,16 +344,16 @@ object TypeCheck {
       case x@GetField(o, name) =>
         val t = coerce[TStruct](o.typ)
         assert(t.index(name).nonEmpty, s"$name not in $t")
-        assert(x.typ == -t.field(name).typ)
+        assert(x.typ isOfType t.field(name).typ)
       case x@MakeTuple(fields) =>
         val indices = fields.map(_._1)
         assert(indices.areDistinct())
         assert(indices.isSorted)
-        assert(x.typ == TTuple(fields.map { case (idx, f) => TupleField(idx, f.typ)}.toFastIndexedSeq))
+        assert(x.typ isOfType TTuple(fields.map { case (idx, f) => TupleField(idx, f.typ)}.toFastIndexedSeq))
       case x@GetTupleElement(o, idx) =>
         val t = coerce[TTuple](o.typ)
         val fd = t.fields(t.fieldIndex(idx))
-        assert(x.typ == -fd.typ)
+        assert(x.typ isOfType fd.typ)
       case In(i, typ) =>
         assert(typ != null)
       case Die(msg, typ) =>
@@ -364,9 +364,9 @@ object TypeCheck {
       case MatrixWrite(_, _) =>
       case MatrixMultiWrite(_, _) => // do nothing
       case x@TableAggregate(child, query) =>
-        assert(x.typ == query.typ)
+        assert(x.typ isOfType query.typ)
       case x@MatrixAggregate(child, query) =>
-        assert(x.typ == query.typ)
+        assert(x.typ isOfType query.typ)
       case RelationalLet(_, _, _) =>
       case TableWrite(_, _) =>
       case TableMultiWrite(_, _) =>
@@ -382,8 +382,8 @@ object TypeCheck {
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
         assert(ctxs.typ.isInstanceOf[TArray])
       case x@ReadPartition(path, _, rowType) =>
-        assert(path.typ == TString())
-        assert(x.typ == TStream(rowType))
+        assert(path.typ isOfType TString())
+        assert(x.typ isOfType TStream(rowType))
     }
   }
 }
