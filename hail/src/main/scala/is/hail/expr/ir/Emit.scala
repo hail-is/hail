@@ -367,26 +367,26 @@ private class Emit(
       case Coalesce(values) =>
         val va = values.toArray.map(emit(_))
         val mbs = Array.fill(va.length - 1)(mb.newLocal[Boolean])
-
+println("IN EMIT")
         val outType = values.head.typ
         val mout = mb.newLocal[Boolean]()
         val out = coerce[Any](mb.newLocal()(typeToTypeInfo(outType)))
-
+        values.toArray.map(v => println(s"PTYPE: ${v.pType}"))
         val setup = va.indices
           .init
           .foldRight(Code(
             mout := va.last.m,
             out := defaultValue(outType),
-            mout.mux(Code._empty, out := va.last.v))) { case (i, comb) =>
+            mout.mux(Code._empty, out := ir.pType.copyFromTypeAndStackValue(mb, er.region, values.last.pType, va.last.v)))) { case (i, comb) =>
             Code(
               mbs(i) := va(i).m,
               mbs(i).mux(
                 comb,
                 Code(
                   mout := false,
-                  out := va(i).v)))
+                  out := ir.pType.copyFromTypeAndStackValue(mb, er.region, values(i).pType, va(i).v))))
           }
-
+println("PAST")
         EmitTriplet(
           setup = Code(
             Code(va.map(_.setup): _*),
@@ -481,7 +481,7 @@ private class Emit(
               (rm, rm.mux(defaultValue(r.typ), codeR.v)))))
         }
 
-      case x@MakeArray(args, typ) =>
+      case x@MakeArray(args, _) =>
         val pType = x.pType.asInstanceOf[PArray]
         val srvb = new StagedRegionValueBuilder(mb, pType)
         val addElement = srvb.addIRIntermediate(pType.elementType)
