@@ -1779,7 +1779,7 @@ object PruneDeadFields {
           ToSet(upcast(ToArray(ir), TSet(rs.elementType)))
         case _ => ir
       }
-      assert(result.typ == rType)
+      assert(result.typ.isOfType(rType))
       result
     }
   }
