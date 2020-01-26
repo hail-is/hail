@@ -1744,7 +1744,7 @@ object PruneDeadFields {
   }
 
   def upcast(ir: IR, rType: Type): IR = {
-    if (ir.typ == rType)
+    if (ir.typ.isOfType(rType))
       ir
     else {
       val result = ir.typ match {
@@ -1779,7 +1779,7 @@ object PruneDeadFields {
           ToSet(upcast(ToArray(ir), TSet(rs.elementType)))
         case _ => ir
       }
-      assert(result.typ == rType)
+      assert(result.typ.isOfType(rType))
       result
     }
   }
