@@ -69,6 +69,7 @@ object PruneDeadFields {
   }
 
   def apply(ir: BaseIR): BaseIR = {
+    try {
       val irCopy = ir.deepCopy()
       val ms = ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
       irCopy match {
@@ -85,7 +86,9 @@ object PruneDeadFields {
           memoizeValueIR(vir, vir.typ, ms)
           rebuildIR(vir, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)), ms.rebuildState)
       }
-
+    } catch {
+      case e: Throwable => fatal(s"error trying to rebuild IR:\n${ Pretty(ir) }", e)
+    }
   }
 
   def selectKey(t: TStruct, k: IndexedSeq[String]): TStruct = t.filterSet(k.toSet)._1
