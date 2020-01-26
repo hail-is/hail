@@ -404,7 +404,7 @@ class Task:
         self._image = image
         return self
 
-    def always_run(self, always_run = True):
+    def always_run(self, always_run=True):
         """
         Set the task to always run, even if dependencies fail.
 
