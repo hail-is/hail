@@ -268,10 +268,11 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testCoalesceWithDifferentRequiredeness() {
-    val t1 = MakeArray(FastIndexedSeq(I32(1), I32(2), I32(3), I32(4)), TArray(TInt32(true)))
+    val t1 = In(0, TArray(TInt32(true)))
     val t2 = NA(TArray(TInt32()))
+    val value = FastIndexedSeq(1, 2, 3, 4)
 
-    assertEvalsTo(Coalesce(FastSeq(t1, t2)), FastIndexedSeq(1, 2, 3, 4))
+    assertEvalsTo(Coalesce(FastSeq(t1, t2)), FastIndexedSeq((value, TArray(TInt32()))), value)
   }
 
   @Test def testCoalesceInferPType() {

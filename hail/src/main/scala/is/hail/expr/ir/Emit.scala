@@ -367,11 +367,11 @@ private class Emit(
       case Coalesce(values) =>
         val va = values.toArray.map(emit(_))
         val mbs = Array.fill(va.length - 1)(mb.newLocal[Boolean])
-println("IN EMIT")
+
         val outType = values.head.typ
         val mout = mb.newLocal[Boolean]()
         val out = coerce[Any](mb.newLocal()(typeToTypeInfo(outType)))
-        values.toArray.map(v => println(s"PTYPE: ${v.pType}"))
+
         val setup = va.indices
           .init
           .foldRight(Code(
@@ -386,7 +386,7 @@ println("IN EMIT")
                   mout := false,
                   out := ir.pType.copyFromTypeAndStackValue(mb, er.region, values(i).pType, va(i).v))))
           }
-println("PAST")
+
         EmitTriplet(
           setup = Code(
             Code(va.map(_.setup): _*),
