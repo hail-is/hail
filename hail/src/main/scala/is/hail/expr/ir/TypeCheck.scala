@@ -107,7 +107,6 @@ object TypeCheck {
       case x@If(cond, cnsq, altr) => {
         assert(cond.typ.isOfType(TBoolean()))
         assert(x.typ.isOfType(cnsq.typ) && x.typ.isOfType(altr.typ))
-      }
       case x@Let(_, _, body) =>
         assert(x.typ isOfType body.typ)
       case x@AggLet(_, _, body, _) =>
