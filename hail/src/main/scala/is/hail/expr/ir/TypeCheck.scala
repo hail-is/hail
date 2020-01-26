@@ -102,7 +102,8 @@ object TypeCheck {
       case Coalesce(values) =>
         assert(values.tail.forall(_.typ.isOfType(values.head.typ)))
       case x@If(cond, cnsq, altr) =>
-        assert(cond.typ.isOfType(TBoolean()) && x.typ.isOfType(cnsq.typ) && x.typ.isOfType(altr.typ))
+        assert(cond.typ.isOfType(TBoolean()))
+        assert(x.typ.isOfType(cnsq.typ) && x.typ.isOfType(altr.typ))
       case x@Let(_, _, body) =>
         assert(x.typ == body.typ)
       case x@AggLet(_, _, body, _) =>
