@@ -485,11 +485,11 @@ private class Emit(
         val pType = x.pType.asInstanceOf[PArray]
         val srvb = new StagedRegionValueBuilder(mb, pType)
         val addElement = srvb.addIRIntermediate(pType.elementType)
-        args.toArray.map(v => println(s"${v.pType}"))
-        val addElts = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
+
+        val addElts = { (newMB: EmitMethodBuilder, pt: PType, v: EmitTriplet) =>
           Code(
             v.setup,
-            v.m.mux(srvb.setMissing(), addElement(v.v)),
+            v.m.mux(srvb.setMissing(), addElement(pType.elementType.copyFromTypeAndStackValue(newMB, er.region, pt, v.v))),
             srvb.advance())
         }
         present(Code(srvb.start(args.size, init = true), wrapToMethod(args)(addElts), srvb.offset))

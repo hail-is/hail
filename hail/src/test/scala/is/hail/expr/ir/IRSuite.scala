@@ -1498,9 +1498,9 @@ class IRSuite extends HailSuite {
     assertEvalsTo(
       MakeArray(
         Seq(NA(t.elementType), In(0, t.elementType)),
-        t
+        t.deepOptional().asInstanceOf[TArray]
       ),
-      FastIndexedSeq((value, t.elementType.deepOptional())),
+      FastIndexedSeq((value, t.elementType)),
       FastIndexedSeq(null, value)
     )
   }
