@@ -104,7 +104,7 @@ object Interpret {
           .headOption
           .orNull
       case If(cond, cnsq, altr) =>
-        assert(cnsq.typ == altr.typ)
+        assert(cnsq.typ isOfType altr.typ)
         val condValue = interpret(cond, env, args)
         if (condValue == null)
           null

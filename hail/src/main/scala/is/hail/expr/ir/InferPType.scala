@@ -433,7 +433,7 @@ object InferPType {
           theIR._pType2
         }))
       case In(_, pType: PType) => pType
-      case _: ReadPartition | _: Coalesce | _: MakeStream => throw new Exception("Node not supported")
+      case _: ReadPartition | _: MakeStream => throw new Exception("Node not supported")
     }
 
     // Allow only requiredeness to diverge

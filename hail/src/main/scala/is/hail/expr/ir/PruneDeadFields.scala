@@ -1548,7 +1548,14 @@ object PruneDeadFields {
         val cond2 = rebuildIR(cond, env, memo)
         val cnsq2 = rebuildIR(cnsq, env, memo)
         val alt2 = rebuildIR(alt, env, memo)
-        If.unify(cond2, cnsq2, alt2, unifyType = Some(requestedType))
+
+        if (cnsq2.typ.isOfType(alt2.typ) && requestedType.isOfType(cnsq2.typ))
+          If(cond2, cnsq2, alt2)
+        else
+          If(cond2,
+            upcast(cnsq2, requestedType),
+            upcast(alt2, requestedType)
+          )
       case Coalesce(values) =>
         Coalesce.unify(values.map(rebuildIR(_, env, memo)), unifyType = Some(requestedType))
       case Let(name, value, body) =>
@@ -1748,7 +1755,7 @@ object PruneDeadFields {
       ir
     else {
       val result = ir.typ match {
-        case ts: TStruct =>
+        case _: TStruct =>
           val rs = rType.asInstanceOf[TStruct]
           val uid = genUID()
           val ref = Ref(uid, ir.typ)
@@ -1763,7 +1770,7 @@ object PruneDeadFields {
           val uid = genUID()
           val ref = Ref(uid, -ta.elementType)
           ArrayMap(ir, uid, upcast(ref, ra.elementType))
-        case tt: TTuple =>
+        case _: TTuple =>
           val rt = rType.asInstanceOf[TTuple]
           val uid = genUID()
           val ref = Ref(uid, ir.typ)
@@ -1771,15 +1778,15 @@ object PruneDeadFields {
             fd.index -> upcast(GetTupleElement(ref, fd.index), fd.typ)
           })
           Let(uid, ir, If(IsNA(ref), NA(mt.typ), mt))
-        case td: TDict =>
+        case _: TDict =>
           val rd = rType.asInstanceOf[TDict]
           ToDict(upcast(ToArray(ir), TArray(rd.elementType)))
-        case ts: TSet =>
+        case _: TSet =>
           val rs = rType.asInstanceOf[TSet]
           ToSet(upcast(ToArray(ir), TSet(rs.elementType)))
-        case t => ir
+        case _ => ir
       }
-      assert(result.typ == rType)
+      assert(result.typ.isOfType(rType))
       result
     }
   }
