@@ -166,7 +166,8 @@ def main(args, pass_through_args):
     conf.flags['worker-machine-type'] = args.worker_machine_type
     conf.flags['zone'] = args.zone
     conf.flags['initialization-action-timeout'] = args.init_timeout
-    conf.flags['network'] = args.network
+    if args.network:
+        conf.flags['network'] = args.network
     if args.configuration:
         conf.flags['configuration'] = args.configuration
     if args.project:
