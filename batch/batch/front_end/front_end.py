@@ -259,6 +259,26 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     return await _get_job_log_from_record(app, batch_id, job_id, record)
 
 
+async def _get_attributes(app, record):
+    db = app['db']
+
+    batch_id = record['batch_id']
+    job_id = record['job_id']
+    format_version = BatchFormatVersion(record['format_version'])
+
+    if not format_version.has_full_spec_in_gcs():
+        spec = json.loads(record['spec'])
+        return spec.get('attributes')
+
+    records = db.select_and_fetchall('''
+SELECT key, value
+FROM job_attributes
+WHERE batch_id = %s AND job_id = %s; 
+''',
+                                     (batch_id, job_id))
+    return {k: v async for k, v in records}
+
+
 async def _get_full_job_spec(app, record):
     db = app['db']
     log_store = app['log_store']
@@ -926,14 +946,16 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     if not record:
         raise web.HTTPNotFound()
 
-    full_status, full_spec = await asyncio.gather(
+    full_status, full_spec, attributes = await asyncio.gather(
         _get_full_job_status(app, record),
-        _get_full_job_spec(app, record)
+        _get_full_job_spec(app, record),
+        _get_attributes(app, record)
     )
 
     job = job_record_to_dict(app, record)
     job['status'] = full_status
     job['spec'] = full_spec
+    job['attributes'] = attributes
     return job
 
 

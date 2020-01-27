@@ -786,16 +786,25 @@ class Worker:
                 log.info('cleaned up app runner')
 
     async def post_job_complete_1(self, job, run_duration):
-        status = await job.status()
+        full_status = await job.status()
 
         if job.format_version.has_full_status_in_gcs():
             await self.log_store.write_status_file(job.batch_id,
                                                    job.job_id,
                                                    job.attempt_id,
-                                                   json.dumps(status))
+                                                   json.dumps(full_status))
 
-        status.pop('container_statuses', None)
-        status.pop('error', None)
+        db_status = job.format_version.db_status(full_status)
+
+        status = {
+            'batch_id': full_status['batch_id'],
+            'job_id': full_status['job_id'],
+            'attempt_id': full_status['attempt_id'],
+            'format_version': full_status['format_version'],
+            'start_time': full_status['start_time'],
+            'end_time': full_status['end_time'],
+            'status': db_status
+        }
 
         body = {
             'status': status

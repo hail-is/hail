@@ -160,15 +160,15 @@ class Job:
         return sum(durations)
 
     @staticmethod
-    def unsubmitted_job(batch_builder, job_id, attributes=None):
+    def unsubmitted_job(batch_builder, job_id):
         assert isinstance(batch_builder, BatchBuilder)
-        _job = UnsubmittedJob(batch_builder, job_id, attributes)
+        _job = UnsubmittedJob(batch_builder, job_id)
         return Job(_job)
 
     @staticmethod
-    def submitted_job(batch, job_id, attributes=None, _status=None):
+    def submitted_job(batch, job_id, _status=None):
         assert isinstance(batch, Batch)
-        _job = SubmittedJob(batch, job_id, attributes, _status)
+        _job = SubmittedJob(batch, job_id, _status)
         return Job(_job)
 
     def __init__(self, job):
@@ -186,9 +186,8 @@ class Job:
     def id(self):
         return self._job.id
 
-    @property
-    def attributes(self):
-        return self._job.attributes
+    async def attributes(self):
+        return await self._job.attributes()
 
     async def is_complete(self):
         return await self._job.is_complete()
@@ -231,6 +230,9 @@ class UnsubmittedJob:
     def id(self):
         raise ValueError("cannot get the id of an unsubmitted job")
 
+    async def attributes(self):
+        raise ValueError("cannot get the attributes of an unsubmitted job")
+
     async def is_complete(self):
         raise ValueError("cannot determine if an unsubmitted job is complete")
 
@@ -249,13 +251,17 @@ class UnsubmittedJob:
 
 
 class SubmittedJob:
-    def __init__(self, batch, job_id, attributes=None, _status=None):
+    def __init__(self, batch, job_id, _status=None):
         self._batch = batch
         self.batch_id = batch.id
         self.job_id = job_id
         self.id = (self.batch_id, self.job_id)
-        self.attributes = attributes
         self._status = _status
+
+    async def attributes(self):
+        if not self._status:
+            await self.status()
+        return self._status['attributes']
 
     async def is_complete(self):
         if self._status:
@@ -306,7 +312,7 @@ class Batch:
             resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/jobs', params=params)
             body = await resp.json()
             for job in body['jobs']:
-                yield Job.submitted_job(self, job['job_id'], attributes=job.get('attributes'))
+                yield Job.submitted_job(self, job['job_id'])
             last_job_id = body.get('last_job_id')
             if last_job_id is None:
                 break
@@ -413,7 +419,7 @@ class BatchBuilder:
 
         self._job_specs.append(job_spec)
 
-        j = Job.unsubmitted_job(self, self._job_idx, attributes)
+        j = Job.unsubmitted_job(self, self._job_idx)
         self._jobs.append(j)
         return j
 

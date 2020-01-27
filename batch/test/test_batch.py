@@ -88,8 +88,7 @@ class Test(unittest.TestCase):
         builder = self.client.create_batch()
         j = builder.create_job('ubuntu:18.04', ['true'], attributes=a)
         builder.submit()
-        status = j.status()
-        assert(status['attributes'] == a)
+        assert(j.attributes() == a)
 
     def test_garbage_image(self):
         builder = self.client.create_batch()

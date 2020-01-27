@@ -157,13 +157,8 @@ def job_record_to_dict(app, record):
     db_status = record['status']
     if db_status:
         db_status = json.loads(db_status)
-        if format_version.has_full_status_in_db():
-            job_status = {'status': db_status}
-            exit_code = Job.exit_code(job_status)
-            duration = humanize_timedelta_msecs(Job.total_duration_msecs(job_status))
-        else:
-            exit_code = db_status.get('exit_code')
-            duration = humanize_timedelta_msecs(db_status.get('duration'))
+        exit_code, duration = format_version.get_status_exit_code_duration(db_status)
+        duration = humanize_timedelta_msecs(duration)
     else:
         exit_code = None
         duration = None
@@ -176,10 +171,10 @@ def job_record_to_dict(app, record):
         'duration': duration
     }
 
-    db_spec = json.loads(record['spec'])
-    attributes = db_spec.get('attributes')
-    if attributes:
-        result['attributes'] = attributes
+    # db_spec = json.loads(record['spec'])
+    # attributes = db_spec.get('attributes')
+    # if attributes:
+    #     result['attributes'] = attributes
 
     msec_mcpu = record['msec_mcpu']
     result['msec_mcpu'] = msec_mcpu
@@ -268,7 +263,7 @@ async def job_config(app, record, attempt_id):
 
     userdata = json.loads(record['userdata'])
 
-    secrets = job_spec['secrets']
+    secrets = format_version.get_spec_secrets(job_spec)
     k8s_secrets = await asyncio.gather(*[
         k8s_cache.read_secret(
             secret['name'], secret['namespace'],
@@ -284,7 +279,7 @@ async def job_config(app, record, attempt_id):
 
     assert gsa_key
 
-    service_account = job_spec.get('service_account')
+    service_account = format_version.get_spec_service_account(job_spec)
     if service_account:
         namespace = service_account['namespace']
         name = service_account['name']

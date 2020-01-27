@@ -50,8 +50,8 @@ class Job:
         j._async_job = job
         return j
 
-    def __init__(self, batch, job_id, attributes=None, _status=None):
-        j = aioclient.SubmittedJob(batch, job_id, attributes, _status)
+    def __init__(self, batch, job_id, _status=None):
+        j = aioclient.SubmittedJob(batch, job_id, _status)
         self._async_job = aioclient.Job(j)
 
     @property
@@ -70,9 +70,8 @@ class Job:
     def id(self):
         return self._async_job.id
 
-    @property
     def attributes(self):
-        return self._async_job.attributes
+        return async_to_blocking(self._async_job.attributes())
 
     def is_complete(self):
         return async_to_blocking(self._async_job.is_complete())

@@ -21,30 +21,54 @@ class BatchFormatVersion:
         if self.format_version == 1:
             return spec
 
-        return {
-            'secrets': spec.get('secrets'),
-            'service_account': spec.get('service_account'),
-            'has_input_files': len(spec.get('input_files', [])) > 0,
-            'has_output_files': len(spec.get('output_files', [])) > 0,
-            'attributes': spec.get('attributes')
-        }
+        secrets = spec.get('secrets')
+        secrets = [[secret['namespace'], secret['name'], secret['mount_path']] for secret in secrets]
+
+        service_account = spec.get('service_account')
+        service_account = [service_account['namespace'], service_account['name']]
+
+        return [
+            secrets,
+            service_account,
+            int(len(spec.get('input_files', [])) > 0),
+            int(len(spec.get('output_files', [])) > 0)
+        ]
+
+    def get_spec_secrets(self, spec):
+        if self.format_version == 1:
+            return spec.get('secrets')
+        secrets = spec[0]
+        return [{'namespace': secret[0],
+                 'name': secret[1],
+                 'mount_in_path': secret[2]} for secret in secrets]
+
+    def get_spec_service_account(self, spec):
+        if self.format_version == 1:
+            return spec.get('service_account')
+        sa = spec[1]
+        return {'namespace': sa[0],
+                'name': sa[1]}
 
     def get_spec_has_input_files(self, spec):
         if self.format_version == 1:
             return len(spec.get('input_files', [])) > 0
-        return spec['has_input_files']
+        return bool(spec[2])
 
     def get_spec_has_output_files(self, spec):
         if self.format_version == 1:
             return len(spec.get('output_files', [])) > 0
-        return spec['has_output_files']
+        return bool(spec[3])
 
     def db_status(self, status):
         if self.format_version == 1:
             return status
 
         job_status = {'status': status}
-        return {
-            'exit_code': Job.exit_code(job_status),
-            'duration': Job.total_duration_msecs(job_status)
-        }
+        return [Job.exit_code(job_status),
+                Job.total_duration_msecs(job_status)]
+
+    def get_status_exit_code_duration(self, status):
+        if self.format_version == 1:
+            return (Job.exit_code(status), Job.total_duration_msecs(status))
+        assert len(status) == 2
+        return status
