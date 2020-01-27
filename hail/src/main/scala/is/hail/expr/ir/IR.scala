@@ -109,19 +109,6 @@ final case class CastRename(v: IR, _typ: Type) extends IR
 final case class NA(_typ: Type) extends IR
 final case class IsNA(value: IR) extends IR
 
-object Coalesce {
-  def unify(values: Seq[IR], unifyType: Option[Type] = None): Coalesce = {
-    require(values.nonEmpty)
-    val t1 = values.head.typ
-    if (values.forall(_.typ == t1))
-      Coalesce(values)
-    else {
-      val t = unifyType.getOrElse(t1.deepOptional())
-      Coalesce(values.map(PruneDeadFields.upcast(_, t)))
-    }
-  }
-}
-
 final case class Coalesce(values: Seq[IR]) extends IR {
   require(values.nonEmpty)
 }
@@ -233,6 +220,7 @@ final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
 final case class ArrayAggScan(a: IR, name: String, query: IR) extends IR
 
 final case class RunAgg(body: IR, result: IR, signature: IndexedSeq[PhysicalAggSignature]) extends IR
+final case class RunAggScan(array: IR, name: String, init: IR, seqs: IR, result: IR, signature: IndexedSeq[PhysicalAggSignature]) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 

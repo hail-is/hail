@@ -286,6 +286,10 @@ object TypeCheck {
       case x@RunAgg(body, result, _) =>
         assert(x.typ isOfType result.typ)
         assert(body.typ == TVoid)
+      case x@RunAggScan(array, _, init, seqs, result, _) =>
+        assert(array.typ.isInstanceOf[TStreamable])
+        assert(init.typ == TVoid)
+        assert(seqs.typ == TVoid)
       case x@AggFilter(cond, aggIR, _) =>
         assert(cond.typ isOfType TBoolean())
         assert(x.typ isOfType aggIR.typ)

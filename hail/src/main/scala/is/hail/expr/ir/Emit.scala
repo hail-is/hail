@@ -377,14 +377,14 @@ private class Emit(
           .foldRight(Code(
             mout := va.last.m,
             out := defaultValue(outType),
-            mout.mux(Code._empty, out := va.last.v))) { case (i, comb) =>
+            mout.mux(Code._empty, out := ir.pType.copyFromTypeAndStackValue(mb, er.region, values.last.pType, va.last.v)))) { case (i, comb) =>
             Code(
               mbs(i) := va(i).m,
               mbs(i).mux(
                 comb,
                 Code(
                   mout := false,
-                  out := va(i).v)))
+                  out := ir.pType.copyFromTypeAndStackValue(mb, er.region, values(i).pType, va(i).v))))
           }
 
         EmitTriplet(
@@ -721,7 +721,7 @@ private class Emit(
               srvb.offset
             ))))
 
-      case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: ArrayAggScan | _: ReadPartition =>
+      case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: RunAggScan | _: ArrayAggScan | _: ReadPartition =>
         emitArrayIterator(ir).toEmitTriplet(mb, PArray(coerce[PStreamable](ir.pType).elementType))
 
       case ArrayFold(a, zero, name1, name2, body) =>

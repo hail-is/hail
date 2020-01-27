@@ -188,6 +188,7 @@ class Task:
 
         for t in tasks:
             self._dependencies.add(t)
+        return self
 
     def command(self, command):
         """

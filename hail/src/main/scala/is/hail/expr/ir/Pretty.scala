@@ -199,6 +199,8 @@ object Pretty {
           prettyPhysAggSeq(aggSigs, depth + 2)
         case RunAgg(_, _, signature) =>
           prettyPhysAggSeq(signature, depth + 2)
+        case RunAggScan(_, name, _, _, _, signature) =>
+          prettyIdentifier(name) + " " + prettyPhysAggSeq(signature, depth + 2)
         case InsertFields(old, fields, fieldOrder) =>
           sb += '\n'
           pretty(old, depth + 2)

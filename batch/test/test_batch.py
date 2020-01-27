@@ -427,7 +427,7 @@ echo $HAIL_BATCH_WORKER_IP
         builder = self.client.create_batch()
         for i in range(4):
             builder.create_job('ubuntu:18.04',
-                               ['echo', 'a' * (3 * 1024 * 1024)])
+                               ['echo', 'a' * (900 * 1024)])
         builder.submit()
 
     def test_restartable_insert(self):

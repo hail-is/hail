@@ -143,6 +143,10 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         // assert(env.agg.isEmpty)
         val newName = gen()
         ArrayAgg(normalize(a), newName, normalize(body, env.copy(agg = Some(env.eval.bind(name, newName)))))
+      case RunAggScan(a, name, init, seq, result, sig) =>
+        val newName = gen()
+        val e2 = env.bindEval(name, newName)
+        RunAggScan(normalize(a), newName, normalize(init, env), normalize(seq, e2), normalize(result, e2), sig)
       case ArrayAggScan(a, name, body) =>
         // FIXME: Uncomment when bindings are threaded through test suites
         // assert(env.scan.isEmpty)

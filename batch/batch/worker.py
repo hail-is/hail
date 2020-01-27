@@ -34,7 +34,7 @@ from .globals import HTTP_CLIENT_MAX_SIZE
 configure_logging()
 log = logging.getLogger('batch-worker')
 
-MAX_IDLE_TIME_MSECS = 5 * 60 * 1000
+MAX_IDLE_TIME_MSECS = 30 * 1000
 
 CORES = int(os.environ['CORES'])
 NAME = os.environ['NAME']

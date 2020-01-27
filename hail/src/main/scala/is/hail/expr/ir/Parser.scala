@@ -707,7 +707,8 @@ object IRParser {
       case "IsNA" => IsNA(ir_value_expr(env)(it))
       case "Coalesce" =>
         val children = ir_value_children(env)(it)
-        Coalesce.unify(children)
+        require(children.nonEmpty)
+        Coalesce(children)
       case "If" =>
         val cond = ir_value_expr(env)(it)
         val consq = ir_value_expr(env)(it)
@@ -949,6 +950,14 @@ object IRParser {
         val body = ir_value_expr(env)(it)
         val result = ir_value_expr(env)(it)
         RunAgg(body, result, signatures)
+      case "RunAggScan" =>
+        val name = identifier(it)
+        val signatures = physical_agg_signatures(env.typEnv)(it)
+        val array = ir_value_expr(env)(it)
+        val init = ir_value_expr(env)(it)
+        val seq = ir_value_expr(env)(it)
+        val result = ir_value_expr(env)(it)
+        RunAggScan(array, name, init, seq, result, signatures)
       case "AggFilter" =>
         val isScan = boolean_literal(it)
         val cond = ir_value_expr(env)(it)
