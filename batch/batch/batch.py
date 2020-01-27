@@ -252,12 +252,21 @@ async def job_config(app, record, attempt_id):
     batch_id = record['batch_id']
     job_id = record['job_id']
 
-    job_spec = json.loads(record['spec'])
+    db_spec = json.loads(record['spec'])
+
+    if format_version.has_full_spec_in_gcs():
+        job_spec = {
+            'secrets': format_version.get_spec_secrets(db_spec),
+            'service_account': format_version.get_spec_service_account(db_spec)
+        }
+    else:
+        job_spec = db_spec
+
     job_spec['attempt_id'] = attempt_id
 
     userdata = json.loads(record['userdata'])
 
-    secrets = format_version.get_spec_secrets(job_spec)
+    secrets = job_spec.get('secrets', [])
     k8s_secrets = await asyncio.gather(*[
         k8s_cache.read_secret(
             secret['name'], secret['namespace'],
@@ -273,7 +282,7 @@ async def job_config(app, record, attempt_id):
 
     assert gsa_key
 
-    service_account = format_version.get_spec_service_account(job_spec)
+    service_account = job_spec.get('service_account')
     if service_account:
         namespace = service_account['namespace']
         name = service_account['name']

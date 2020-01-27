@@ -49,10 +49,10 @@ class BatchFormatVersion:
     def get_spec_service_account(self, spec):
         if self.format_version == 1:
             return spec.get('service_account')
-        sa = spec[1]
-        if sa:
-            return {'namespace': sa[0],
-                    'name': sa[1]}
+        service_account = spec[1]
+        if service_account:
+            return {'namespace': service_account[0],
+                    'name': service_account[1]}
         return None
 
     def get_spec_has_input_files(self, spec):
