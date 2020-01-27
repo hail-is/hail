@@ -6,7 +6,6 @@ import base64
 import traceback
 from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error, \
     humanize_timedelta_msecs
-from hailtop.batch_client.aioclient import Job
 
 from .globals import complete_states, tasks
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
@@ -170,11 +169,6 @@ def job_record_to_dict(app, record):
         'exit_code': exit_code,
         'duration': duration
     }
-
-    # db_spec = json.loads(record['spec'])
-    # attributes = db_spec.get('attributes')
-    # if attributes:
-    #     result['attributes'] = attributes
 
     msec_mcpu = record['msec_mcpu']
     result['msec_mcpu'] = msec_mcpu

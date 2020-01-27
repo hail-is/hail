@@ -409,6 +409,7 @@ class Test(unittest.TestCase):
             })
         b.submit()
         status = j.wait()
+        print(status)
         assert j._get_exit_code(status, 'main') == 0, status
 
     def test_port(self):

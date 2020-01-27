@@ -955,7 +955,8 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     job = job_record_to_dict(app, record)
     job['status'] = full_status
     job['spec'] = full_spec
-    job['attributes'] = attributes
+    if attributes:
+        job['attributes'] = attributes
     return job
 
 
