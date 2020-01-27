@@ -1559,7 +1559,7 @@ object PruneDeadFields {
       case Coalesce(values) =>
         val values2 = values.map(rebuildIR(_, env, memo))
         require(values2.nonEmpty)
-        if (values2.head.typ.isOfType(requestedType) && values2.forall(_.typ.isOfType(values2.head.typ)))
+        if (values2.forall(_.typ.isOfType(values2.head.typ)))
           Coalesce(values2)
         else
           Coalesce(values2.map(upcast(_, requestedType)))
