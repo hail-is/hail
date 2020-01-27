@@ -208,15 +208,11 @@ class Job:
 
 class UnsubmittedJob:
     def _submit(self, batch):
-        return SubmittedJob(batch, self._job_id, self.attributes)
+        return SubmittedJob(batch, self._job_id)
 
-    def __init__(self, batch_builder, job_id, attributes=None):
-        if attributes is None:
-            attributes = {}
-
+    def __init__(self, batch_builder, job_id):
         self._batch_builder = batch_builder
         self._job_id = job_id
-        self.attributes = attributes
 
     @property
     def batch_id(self):
