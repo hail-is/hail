@@ -14,10 +14,12 @@ class SpecWriter:
         assert job_id >= start_job_id
         idx_start = SpecWriter.bytes_per_offset * (job_id - start_job_id)
         idx_end = (idx_start + SpecWriter.bytes_per_offset) - 1  # `end` parameter in gcs is inclusive of last byte to return
+        log.info(f'job_id={job_id} start_job_id={start_job_id} idx_start={idx_start} idx_end={idx_end}')
         return (idx_start, idx_end)
 
     @staticmethod
     def get_spec_file_offsets(offsets):
+        log.info(len(offsets))
         assert len(offsets) == 2 * SpecWriter.bytes_per_offset
         spec_start = int.from_bytes(offsets[:8], byteorder=SpecWriter.byteorder, signed=SpecWriter.signed)
         next_spec_start = int.from_bytes(offsets[8:], byteorder=SpecWriter.byteorder, signed=SpecWriter.signed)
