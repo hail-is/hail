@@ -1177,6 +1177,18 @@ object PruneDeadFields {
           memoizeValueIR(body, body.typ, memo),
           memoizeValueIR(result, requestedType, memo)
         )
+      case RunAggScan(array, name, init, seqs, result, signature) =>
+        val aType = array.typ.asInstanceOf[TStreamable]
+        val resultEnv = memoizeValueIR(result, requestedType.asInstanceOf[TStreamable].elementType, memo)
+        val seqEnv = memoizeValueIR(seqs, seqs.typ, memo)
+        val elemEnv = unifyEnvs(resultEnv, seqEnv)
+        val requestedElemType = unifySeq(aType.elementType,
+          elemEnv.eval.lookupOption(name).map(_.result()).getOrElse(Array()))
+        unifyEnvs(
+          elemEnv,
+          memoizeValueIR(array, aType.copyStreamable(requestedElemType), memo),
+          memoizeValueIR(init, init.typ, memo)
+        )
       case MakeStruct(fields) =>
         val sType = requestedType.asInstanceOf[TStruct]
         unifyEnvsSeq(fields.flatMap { case (fname, fir) =>
@@ -1726,6 +1738,13 @@ object PruneDeadFields {
         val body2 = rebuildIR(body, env, memo)
         val result2 = rebuildIR(result, env, memo)
         RunAgg(body2, result2, signatures)
+      case RunAggScan(array, name, init, seqs, result, signature) =>
+        val array2 = rebuildIR(array, env, memo)
+        val init2 = rebuildIR(init, env, memo)
+        val eltEnv = env.bindEval(name, array2.typ.asInstanceOf[TStreamable].elementType)
+        val seqs2 = rebuildIR(seqs, eltEnv, memo)
+        val result2 = rebuildIR(result, eltEnv, memo)
+        RunAggScan(array2, name, init2, seqs2, result2, signature)
       case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
         val initOpArgs2 = initOpArgs.map(rebuildIR(_, env, memo))
         val seqOpArgs2 = seqOpArgs.map(rebuildIR(_, env.promoteAgg, memo))

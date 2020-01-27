@@ -99,6 +99,8 @@ object Children {
       Array(a, query)
     case ArrayAggScan(a, name, query) =>
       Array(a, query)
+    case RunAggScan(array, _, init, seq, result, _) =>
+      Array(array, init, seq, result)
     case RunAgg(body, result, _) =>
       Array(body, result)
     case NDArrayRef(nd, idxs) =>

@@ -784,6 +784,34 @@ object EmitStream {
                 k(TypedTriplet(a, bodyt)))
             }).map(_.untyped)
 
+        case RunAggScan(array, name, init, seqs, result, signature) =>
+          val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(signature.toArray, fb, "array_agg_scan")
+
+          val producerElementPType = coerce[PStreamable](array.pType).elementType
+          val resultPType = result.pType
+          implicit val eP = TypedTriplet.pack(producerElementPType)
+          implicit val aP = TypedTriplet.pack(resultPType)
+          val (eltm, eltv) = eP.newFields(fb, "aggscan_elt")
+          val (postm, postv) = aP.newFields(fb, "aggscan_new_elt")
+          val bodyEnv = env.bind(name -> ((typeToTypeInfo(producerElementPType), eltm, eltv)))
+          val cInit = emitter.emit(init, env, er, Some(newContainer))
+          val seqPerElt = emitter.emit(seqs, bodyEnv, er, Some(newContainer))
+          val postt = emitter.emit(result, bodyEnv, er, Some(newContainer))
+
+          emitStream(array, env)
+            .map[EmitTriplet] { eltt =>
+              EmitTriplet(
+                Code(
+                  TypedTriplet(producerElementPType, eltt).storeTo(eltm, eltv),
+                  TypedTriplet(resultPType, postt).storeTo(postm, postv),
+                  seqPerElt.setup),
+                postm,
+                postv)
+            }.addSetup(
+            _ => Code(aggSetup, cInit.setup),
+            aggCleanup
+          )
+
         case ArrayAggScan(childIR, name, query) =>
           val res = genUID()
           val extracted =

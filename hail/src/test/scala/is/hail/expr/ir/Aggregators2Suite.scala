@@ -705,6 +705,19 @@ class Aggregators2Suite extends HailSuite {
     assertEvalsTo(ir, Row((0 until 10).map(i => Row(i, 2L * i + 12L)), Row()))(ExecStrategy.interpretOnly)
   }
 
+  @Test def testRunAggScan(): Unit = {
+    implicit val execStrats = ExecStrategy.compileOnly
+    val sig = PhysicalAggSignature(Sum(), FastSeq(), FastSeq(PFloat64()), None)
+    val x = RunAggScan(
+      ArrayRange(I32(0), I32(5), I32(1)),
+      "foo",
+      InitOp(0, FastSeq(), sig),
+      SeqOp(0, FastIndexedSeq(Ref("foo", TInt32()).toD), sig),
+      GetTupleElement(ResultOp(0, Array(sig)), 0),
+      Array(sig))
+    assertEvalsTo(x, FastIndexedSeq(0.0, 0.0, 1.0, 3.0, 6.0))
+  }
+
   @Test def testRunAggBasic(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
     val sig = PhysicalAggSignature(Sum(), FastSeq(), FastSeq(PFloat64()), None)

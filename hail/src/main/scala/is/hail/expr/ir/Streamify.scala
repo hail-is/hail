@@ -14,6 +14,7 @@ object Streamify {
     case ArrayLeftJoinDistinct(l, r, ln, rn, c, j) => ArrayLeftJoinDistinct(apply(l), apply(r), ln, rn, c, j)
     case ArrayScan(a, z, an, en, b) => ArrayScan(apply(a), z, an, en, b)
     case ArrayAggScan(a, n, q) => ArrayAggScan(apply(a), n, q)
+    case RunAggScan(a, name, init, seq, res, sig) => RunAggScan(apply(a), name, init, seq, res, sig)
     case Let(n, v, b) => Let(n, v, apply(b))
     case If(c, t, e) => If(c, apply(t), apply(e))
     case x: ReadPartition => x

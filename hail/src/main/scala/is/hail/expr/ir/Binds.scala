@@ -29,6 +29,7 @@ object Bindings {
         Array((valueName, -coerce[TStreamable](a.typ).elementType)) ++ accum.map { case (name, value) => (name, value.typ) }
       else
         accum.map { case (name, value) => (name, value.typ) }
+    case RunAggScan(a, name, _, _, _, _) => if (i == 2 || i == 3) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayScan(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayAggScan(a, name, _) => if (i == 1) FastIndexedSeq(name -> a.typ.asInstanceOf[TStreamable].elementType) else empty
     case ArrayLeftJoinDistinct(ll, rr, l, r, _, _) => if (i == 2 || i == 3) Array(l -> -coerce[TStreamable](ll.typ).elementType, r -> -coerce[TStreamable](rr.typ).elementType) else empty

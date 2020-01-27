@@ -14,6 +14,8 @@ object Interpretable {
         _: ResultOp |
         _: CombOpValue |
         _: AggStateValue |
+        _: RunAgg |
+        _: RunAggScan |
         _: SerializeAggs |
         _: DeserializeAggs |
         _: MakeNDArray |
