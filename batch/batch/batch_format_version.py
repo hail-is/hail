@@ -22,10 +22,12 @@ class BatchFormatVersion:
             return spec
 
         secrets = spec.get('secrets')
-        secrets = [[secret['namespace'], secret['name'], secret['mount_path']] for secret in secrets]
+        if secrets:
+            secrets = [[secret['namespace'], secret['name'], secret['mount_path']] for secret in secrets]
 
         service_account = spec.get('service_account')
-        service_account = [service_account['namespace'], service_account['name']]
+        if service_account:
+            service_account = [service_account['namespace'], service_account['name']]
 
         return [
             secrets,
@@ -38,16 +40,20 @@ class BatchFormatVersion:
         if self.format_version == 1:
             return spec.get('secrets')
         secrets = spec[0]
-        return [{'namespace': secret[0],
-                 'name': secret[1],
-                 'mount_in_path': secret[2]} for secret in secrets]
+        if secrets:
+            return [{'namespace': secret[0],
+                     'name': secret[1],
+                     'mount_in_path': secret[2]} for secret in secrets]
+        return None
 
     def get_spec_service_account(self, spec):
         if self.format_version == 1:
             return spec.get('service_account')
         sa = spec[1]
-        return {'namespace': sa[0],
-                'name': sa[1]}
+        if sa:
+            return {'namespace': sa[0],
+                    'name': sa[1]}
+        return None
 
     def get_spec_has_input_files(self, spec):
         if self.format_version == 1:
