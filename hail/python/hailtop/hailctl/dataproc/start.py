@@ -201,7 +201,7 @@ def main(args, pass_through_args):
         print("Starting cluster '{}'...".format(args.name))
         sp.check_call(cmd)
 
-    if args.master_tags:
-        sp.check_call([
-            'gcloud', 'compute', 'instances', 'add-tags', args.name + '-m', '--tags',
-            args.master_tags])
+        if args.master_tags:
+            sp.check_call([
+                'gcloud', 'compute', 'instances', 'add-tags', args.name + '-m', '--tags',
+                args.master_tags])
