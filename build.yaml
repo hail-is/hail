@@ -874,7 +874,7 @@ steps:
     - batch_image
     - batch_worker_image
     - batch_database
-    - deploy_auth
+#    - deploy_auth
  - kind: runImage
    name: test_batch
    image:
