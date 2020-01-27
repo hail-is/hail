@@ -594,7 +594,6 @@ class BatchClient:
         return Job.submitted_job(
             b,
             j['job_id'],
-            attributes=j.get('attributes'),
             _status=j)
 
     async def get_batch(self, id):

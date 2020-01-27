@@ -794,7 +794,7 @@ class Worker:
                                                    job.attempt_id,
                                                    json.dumps(full_status))
 
-        db_status = job.format_version.db_status(full_status)
+        db_status = job.format_version.db_status(full_status['status'])
 
         status = {
             'batch_id': full_status['batch_id'],
@@ -853,9 +853,14 @@ class Worker:
                 self.last_updated = time_msecs()
 
     async def post_job_started(self, job):
-        status = await job.status()
-        status.pop('container_statuses', None)
-        status.pop('error', None)
+        full_status = await job.status()
+
+        status = {
+            'batch_id': full_status['batch_id'],
+            'job_id': full_status['job_id'],
+            'attempt_id': full_status['attempt_id'],
+            'start_time': full_status['start_time'],
+        }
 
         body = {
             'status': status

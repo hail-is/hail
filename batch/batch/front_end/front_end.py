@@ -276,7 +276,7 @@ FROM job_attributes
 WHERE batch_id = %s AND job_id = %s; 
 ''',
                                      (batch_id, job_id))
-    return {k: v async for k, v in records}
+    return {record['key']: record['value'] async for record in records}
 
 
 async def _get_full_job_spec(app, record):
@@ -525,7 +525,11 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 job_id = spec['job_id']
                 parent_ids = spec.pop('parent_ids', [])
                 always_run = spec.pop('always_run', False)
-                attributes = spec.get('attributes')
+
+                if batch_format_version.has_full_spec_in_gcs():
+                    attributes = spec.pop('attributes')
+                else:
+                    attributes = spec.get('attributes')
 
                 id = (batch_id, job_id)
 
