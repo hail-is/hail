@@ -459,7 +459,8 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
         total_conc = [x[1:] for x in glob[1:]]
         on_diag = sum(total_conc[i][i] for i in range(len(total_conc)))
         total_obs = sum(sum(x) for x in total_conc)
-        info(f"concordance: total concordance {on_diag/total_obs * 100:.2f}%")
+        pct = on_diag/total_obs * 100 if total_obs > 0 else float('nan')
+        info(f"concordance: total concordance {pct:.2f}%")
 
     per_variant = joined.annotate_rows(concordance=aggr)
     per_variant = per_variant.select_rows(concordance=concordance_array(per_variant.concordance),
