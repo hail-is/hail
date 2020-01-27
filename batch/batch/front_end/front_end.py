@@ -271,7 +271,7 @@ async def _get_attributes(app, record):
         return spec.get('attributes')
 
     records = db.select_and_fetchall('''
-SELECT key, value
+SELECT `key`, `value`
 FROM job_attributes
 WHERE batch_id = %s AND job_id = %s;
 ''',
