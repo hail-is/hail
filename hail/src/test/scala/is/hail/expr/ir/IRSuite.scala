@@ -1501,14 +1501,16 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testMakeArrayWithDifferentRequiredness(): Unit = {
-    val t = TArray(TStruct("a" -> TInt32Required, "b" -> TArray(TInt32Optional, required = true)))
+    val pt = PArray(PStruct("a" -> PInt32(), "b" -> PArray(PInt32())))
+    val pt2 = PArray(PStruct("a" -> PInt32(true), "b" -> PArray(PInt32(true), required = true)))
+
     val value = Row(2, FastIndexedSeq(1))
     assertEvalsTo(
       MakeArray(
-        Seq(NA(t.elementType), In(0, t.elementType)),
-        t.deepOptional().asInstanceOf[TArray]
+        Seq(In(0, pt.elementType), In(1, pt.elementType)),
+        pt.virtualType
       ),
-      FastIndexedSeq((value, t.elementType)),
+      FastIndexedSeq((null, pt.elementType.virtualType), (value, pt2.elementType.virtualType)),
       FastIndexedSeq(null, value)
     )
   }
