@@ -84,6 +84,7 @@ def init_parser(parser):
     parser.add_argument('--max-age', type=str, help='If specified, maximum age before shutdown (e.g. 60m).')
     parser.add_argument('--bucket', type=str,
                         help='The Google Cloud Storage bucket to use for cluster staging (just the bucket name, no gs:// prefix).')
+    parser.add_argument('--master-tags', type=str, help='comma-separated list of instance tags to apply to the mastern node')
 
     parser.add_argument('--wheel', help='Non-default Hail installation. Warning: experimental.')
 
@@ -196,3 +197,8 @@ def main(args, pass_through_args):
     if not args.dry_run:
         print("Starting cluster '{}'...".format(args.name))
         sp.check_call(cmd)
+
+    if args.master_tags:
+        sp.check_call([
+            'gcloud', 'compute', 'instances', 'add-tags', args.name + '-m', '--tags',
+            args.master_tags])
