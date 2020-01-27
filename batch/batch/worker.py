@@ -794,7 +794,7 @@ class Worker:
                                                    job.attempt_id,
                                                    json.dumps(full_status))
 
-        db_status = job.format_version.db_status(full_status['status'])
+        db_status = job.format_version.db_status(full_status)
 
         status = {
             'batch_id': full_status['batch_id'],

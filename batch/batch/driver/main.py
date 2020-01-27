@@ -215,14 +215,14 @@ async def deactivate_instance(request, instance):  # pylint: disable=unused-argu
 
 async def job_complete_1(request, instance):
     body = await request.json()
-    status = body['status']
+    job_status = body['status']
 
-    batch_id = status['batch_id']
-    job_id = status['job_id']
-    attempt_id = status['attempt_id']
-    batch_format_version = BatchFormatVersion(status['format_version'])
+    batch_id = job_status['batch_id']
+    job_id = job_status['job_id']
+    attempt_id = job_status['attempt_id']
+    batch_format_version = BatchFormatVersion(job_status['format_version'])
 
-    status_state = status['state']
+    status_state = job_status['state']
     if status_state == 'succeeded':
         new_state = 'Success'
     elif status_state == 'error':
@@ -231,10 +231,10 @@ async def job_complete_1(request, instance):
         assert status_state == 'failed', status_state
         new_state = 'Failed'
 
-    start_time = status['start_time']
-    end_time = status['end_time']
+    start_time = job_status['start_time']
+    end_time = job_status['end_time']
 
-    db_status = batch_format_version.db_status(status)
+    db_status = batch_format_version.db_status(job_status['status'])
 
     await mark_job_complete(request.app, batch_id, job_id, attempt_id, instance.name,
                             new_state, db_status, start_time, end_time, 'completed')
@@ -252,12 +252,12 @@ async def job_complete(request, instance):
 
 async def job_started_1(request, instance):
     body = await request.json()
-    status = body['status']
+    job_status = body['status']
 
-    batch_id = status['batch_id']
-    job_id = status['job_id']
-    attempt_id = status['attempt_id']
-    start_time = status['start_time']
+    batch_id = job_status['batch_id']
+    job_id = job_status['job_id']
+    attempt_id = job_status['attempt_id']
+    start_time = job_status['start_time']
 
     await mark_job_started(request.app, batch_id, job_id, attempt_id, instance, start_time)
 
