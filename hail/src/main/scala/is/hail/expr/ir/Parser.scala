@@ -707,7 +707,8 @@ object IRParser {
       case "IsNA" => IsNA(ir_value_expr(env)(it))
       case "Coalesce" =>
         val children = ir_value_children(env)(it)
-        Coalesce.unify(children)
+        require(children.nonEmpty)
+        Coalesce(children)
       case "If" =>
         val cond = ir_value_expr(env)(it)
         val consq = ir_value_expr(env)(it)

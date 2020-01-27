@@ -377,14 +377,14 @@ private class Emit(
           .foldRight(Code(
             mout := va.last.m,
             out := defaultValue(outType),
-            mout.mux(Code._empty, out := va.last.v))) { case (i, comb) =>
+            mout.mux(Code._empty, out := ir.pType.copyFromTypeAndStackValue(mb, er.region, values.last.pType, va.last.v)))) { case (i, comb) =>
             Code(
               mbs(i) := va(i).m,
               mbs(i).mux(
                 comb,
                 Code(
                   mout := false,
-                  out := va(i).v)))
+                  out := ir.pType.copyFromTypeAndStackValue(mb, er.region, values(i).pType, va(i).v))))
           }
 
         EmitTriplet(

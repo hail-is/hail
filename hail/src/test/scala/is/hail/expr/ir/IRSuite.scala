@@ -261,10 +261,18 @@ class IRSuite extends HailSuite {
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()))), FastIndexedSeq((null, TInt32())), null)
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()))), FastIndexedSeq((1, TInt32())), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), In(0, TInt32()))), FastIndexedSeq((null, TInt32())), null)
-    assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), In(0, TInt32()))), FastIndexedSeq((1, TInt32())), 1)
+    assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), In(0, TInt32(true)))), FastIndexedSeq((1, TInt32(true))), 1)
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()), NA(TInt32()))), FastIndexedSeq((1, TInt32())), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), I32(1), NA(TInt32()), I32(1), NA(TInt32()), I32(1))), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), Die("foo", TInt32()))), 1)(ExecStrategy.javaOnly)
+  }
+
+  @Test def testCoalesceWithDifferentRequiredeness() {
+    val t1 = In(0, TArray(TInt32(true)))
+    val t2 = NA(TArray(TInt32()))
+    val value = FastIndexedSeq(1, 2, 3, 4)
+
+    assertEvalsTo(Coalesce(FastSeq(t1, t2)), FastIndexedSeq((value, TArray(TInt32()))), value)
   }
 
   @Test def testCoalesceInferPType() {

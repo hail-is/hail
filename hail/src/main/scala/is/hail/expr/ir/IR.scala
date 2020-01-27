@@ -109,19 +109,6 @@ final case class CastRename(v: IR, _typ: Type) extends IR
 final case class NA(_typ: Type) extends IR
 final case class IsNA(value: IR) extends IR
 
-object Coalesce {
-  def unify(values: Seq[IR], unifyType: Option[Type] = None): Coalesce = {
-    require(values.nonEmpty)
-    val t1 = values.head.typ
-    if (values.forall(_.typ == t1))
-      Coalesce(values)
-    else {
-      val t = unifyType.getOrElse(t1.deepOptional())
-      Coalesce(values.map(PruneDeadFields.upcast(_, t)))
-    }
-  }
-}
-
 final case class Coalesce(values: Seq[IR]) extends IR {
   require(values.nonEmpty)
 }
