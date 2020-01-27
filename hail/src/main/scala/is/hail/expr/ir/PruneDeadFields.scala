@@ -1792,7 +1792,7 @@ object PruneDeadFields {
         case ta: TStreamable =>
           val ra = rType.asInstanceOf[TStreamable]
           val uid = genUID()
-          val ref = Ref(uid, ta.elementType)
+          val ref = Ref(uid, -ta.elementType)
           ArrayMap(ir, uid, upcast(ref, ra.elementType))
         case _: TTuple =>
           val rt = rType.asInstanceOf[TTuple]
