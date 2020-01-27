@@ -273,7 +273,7 @@ async def _get_attributes(app, record):
     records = db.select_and_fetchall('''
 SELECT key, value
 FROM job_attributes
-WHERE batch_id = %s AND job_id = %s; 
+WHERE batch_id = %s AND job_id = %s;
 ''',
                                      (batch_id, job_id))
     return {record['key']: record['value'] async for record in records}
@@ -527,7 +527,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 always_run = spec.pop('always_run', False)
 
                 if batch_format_version.has_full_spec_in_gcs():
-                    attributes = spec.pop('attributes')
+                    attributes = spec.pop('attributes', None)
                 else:
                     attributes = spec.get('attributes')
 
