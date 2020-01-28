@@ -834,6 +834,8 @@ steps:
       script: /io/sql/improve-cancel.sql
     - name: store-specs-in-gcs
       script: /io/sql/store-specs-in-gcs.sql
+    - name: add-batches-time-closed
+      script: /io/sql/add-batches-time-closed.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/

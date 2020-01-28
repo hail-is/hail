@@ -16,6 +16,8 @@ from hailtop.utils import time_msecs
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 
+import cProfile, pstats, io
+
 # import uvloop
 
 from ..batch import mark_job_complete, mark_job_started
@@ -474,6 +476,19 @@ GROUP BY user;
         await asyncio.sleep(0.1)
 
 
+async def profile_loop():
+    while True:
+        pr = cProfile.Profile()
+        pr.enable()
+        await asyncio.sleep(60)
+        pr.disable()
+        s = io.StringIO()
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        log.info(s.getvalue())
+
+
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
@@ -528,6 +543,7 @@ async def on_startup(app):
     app['scheduler'] = scheduler
 
     # asyncio.ensure_future(check_incremental_loop(db))
+    # asyncio.ensure_future(profile_loop())
 
 
 async def on_cleanup(app):

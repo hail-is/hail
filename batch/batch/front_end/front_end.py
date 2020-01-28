@@ -216,12 +216,12 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
 
         async def _read_log_from_gcs(task):
             try:
-                log = await log_store.read_log_file(batch_format_version, batch_id, job_id, record['attempt_id'], task)
+                data = await log_store.read_log_file(batch_format_version, batch_id, job_id, record['attempt_id'], task)
             except google.api_core.exceptions.NotFound:
                 id = (batch_id, job_id)
                 log.exception(f'missing log file for {id}')
-                log = None
-            return task, log
+                data = None
+            return task, data
 
         spec = json.loads(record['spec'])
         tasks = []

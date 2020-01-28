@@ -59,7 +59,7 @@ log.info(f'PROJECT {PROJECT}')
 
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
-docker = aiodocker.Docker()
+docker = None
 
 port_allocator = None
 
@@ -80,11 +80,11 @@ class PortAllocator:
         self.ports.put_nowait(port)
 
 
-async def docker_call_retry(f, *args, **kwargs):
+async def docker_call_retry(f, timeout, *args, **kwargs):
     delay = 0.1
     while True:
         try:
-            return await f(*args, **kwargs)
+            return await asyncio.wait_for(f(*args, **kwargs), timeout=timeout)
         except DockerError as e:
             # 408 request timeout, 503 service unavailable
             if e.status == 408 or e.status == 503:
@@ -94,10 +94,14 @@ async def docker_call_retry(f, *args, **kwargs):
             elif e.status == 500 and ("request canceled while waiting for connection" in e.message or
                                       re.match("error creating overlay mount.*device or resource busy", e.message)):
                 log.exception('in docker call, retrying')
+            # DockerError(500, 'Error response from daemon: Conflict. The name * is already in use by container *. You have to remove (or rename) that container to be able to reuse that name.')
+            elif e.status == 500 and "You have to remove (or rename) that container to be able to reuse that name." in e.message:
+                return
             else:
                 raise
         except asyncio.TimeoutError:
-            log.exception('in docker call, retrying')
+            f_name = f.__name__
+            log.exception(f'in docker call {f_name}, retrying', stack_info=True)
         # exponentially back off, up to (expected) max of 30s
         t = delay * random.random()
         await asyncio.sleep(t)
@@ -214,7 +218,7 @@ class Container:
             return None
 
         try:
-            c = await docker_call_retry(self.container.show)
+            c = await docker_call_retry(self.container.show, 5)
         except DockerError as e:
             if e.status == 404:
                 return None
@@ -251,14 +255,14 @@ class Container:
                     # FIXME improve the performance of this with a
                     # per-user image cache.
                     await docker_call_retry(
-                        docker.images.pull, self.image, auth=auth)
+                        docker.images.pull, 300, self.image, auth=auth)
                 else:
                     # this caches public images
                     try:
-                        await docker_call_retry(docker.images.get, self.image)
+                        await docker_call_retry(docker.images.get, 5, self.image)
                     except DockerError as e:
                         if e.status == 404:
-                            await docker_call_retry(docker.images.pull, self.image)
+                            await docker_call_retry(docker.images.pull, 300, self.image)
 
             if self.port is not None:
                 async with self.step('allocating_port'):
@@ -268,7 +272,7 @@ class Container:
                 config = self.container_config()
                 log.info(f'starting {self} config {config}')
                 self.container = await docker_call_retry(
-                    docker.containers.create,
+                    docker.containers.create, 5,
                     config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
             async with cpu_sem(self.cpu_in_mcpu, f'{self}'):
@@ -277,10 +281,10 @@ class Container:
                         asyncio.ensure_future(worker.post_job_started(self.job))
 
                     async with self.step('starting'):
-                        await docker_call_retry(self.container.start)
+                        await docker_call_retry(self.container.start, 15)
 
                     async with self.step('running'):
-                        await docker_call_retry(self.container.wait)
+                        await docker_call_retry(self.container.wait, 300)
 
             self.container_status = await self.get_container_status()
             log.info(f'{self}: container status {self.container_status}')
@@ -309,7 +313,7 @@ class Container:
             await self.delete_container()
 
     async def get_container_log(self):
-        logs = await docker_call_retry(self.container.log, stderr=True, stdout=True)
+        logs = await docker_call_retry(self.container.log, 5, stderr=True, stdout=True)
         return "".join(logs)
 
     async def get_log(self):
@@ -325,12 +329,12 @@ class Container:
         if self.container:
             try:
                 log.info(f'{self}: deleting container')
-                await docker_call_retry(self.container.stop)
+                await docker_call_retry(self.container.stop, 5)
                 # v=True deletes anonymous volumes created by the container
-                await docker_call_retry(self.container.delete, v=True)
+                await docker_call_retry(self.container.delete, 5, v=True)
                 self.container = None
             except Exception:
-                log.exception('while deleting up container, ignoring')
+                log.exception('while deleting container, ignoring')
 
         if self.host_port is not None:
             port_allocator.free(self.host_port)
@@ -815,7 +819,7 @@ class Worker:
         while True:
             try:
                 async with aiohttp.ClientSession(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                     await session.post(
                         deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
                         json=body, headers=self.headers)
@@ -851,7 +855,7 @@ class Worker:
                 del self.jobs[job.id]
                 self.last_updated = time_msecs()
 
-    async def post_job_started(self, job):
+    async def post_job_started_1(self, job):
         full_status = await job.status()
 
         status = {
@@ -866,11 +870,17 @@ class Worker:
         }
 
         async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
             await request_retry_transient_errors(
                 session, 'POST',
                 deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started'),
                 json=body, headers=self.headers)
+
+    async def post_job_started(self, job):
+        try:
+            await self.post_job_started_1(job)
+        except Exception:
+            log.exception(f'error while posting {job} started')
 
     async def activate(self):
         async with aiohttp.ClientSession(
@@ -899,7 +909,9 @@ class Worker:
 
 
 async def async_main():
-    global port_allocator, worker
+    global port_allocator, worker, docker
+
+    docker = aiodocker.Docker()
 
     port_allocator = PortAllocator()
     worker = Worker()
