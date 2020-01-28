@@ -1561,7 +1561,7 @@ object PruneDeadFields {
         val cnsq2 = rebuildIR(cnsq, env, memo)
         val alt2 = rebuildIR(alt, env, memo)
 
-        if (cnsq2.typ.isOfType(alt2.typ) && requestedType.isOfType(cnsq2.typ))
+        if (cnsq2.typ.isOfType(alt2.typ))
           If(cond2, cnsq2, alt2)
         else
           If(cond2,
