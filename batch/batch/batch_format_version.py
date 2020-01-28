@@ -23,7 +23,9 @@ class BatchFormatVersion:
 
         secrets = spec.get('secrets')
         if secrets:
-            secrets = [[secret['namespace'], secret['name'], secret['mount_path']] for secret in secrets]
+            secrets = [[secret['namespace'], secret['name'],
+                        secret['mount_path'], int(secret.get('mount_in_copy', False))]
+                       for secret in secrets]
 
         service_account = spec.get('service_account')
         if service_account:
@@ -43,7 +45,8 @@ class BatchFormatVersion:
         if secrets:
             return [{'namespace': secret[0],
                      'name': secret[1],
-                     'mount_path': secret[2]} for secret in secrets]
+                     'mount_path': secret[2],
+                     'mount_in_copy': bool(secret[3])} for secret in secrets]
         return None
 
     def get_spec_service_account(self, spec):
