@@ -9,8 +9,6 @@ from ..batch import schedule_job, unschedule_job, mark_job_complete
 
 log = logging.getLogger('driver')
 
-OVERSCHEDULE_CORES_MCPU = 2000
-
 
 class Box:
     def __init__(self, value):
@@ -43,7 +41,7 @@ class Scheduler:
 
     async def compute_fair_share(self):
         free_cores_mcpu = sum([
-            worker.free_cores_mcpu + OVERSCHEDULE_CORES_MCPU
+            worker.free_cores_mcpu
             for worker in self.inst_pool.healthy_instances_by_free_cores
         ])
 
@@ -360,10 +358,9 @@ LIMIT %s;
                 i = self.inst_pool.healthy_instances_by_free_cores.bisect_key_left(record['cores_mcpu'])
                 if i < len(self.inst_pool.healthy_instances_by_free_cores):
                     instance = self.inst_pool.healthy_instances_by_free_cores[i]
-                else:
-                    instance = self.inst_pool.healthy_instances_by_free_cores[-1]
-                if (record['cores_mcpu'] <= instance.free_cores_mcpu + OVERSCHEDULE_CORES_MCPU or
-                        instance.free_cores_mcpu == 0):
+
+                    assert record['cores_mcpu'] <= instance.free_cores_mcpu
+
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     scheduled_cores_mcpu += record['cores_mcpu']
 
