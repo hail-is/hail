@@ -43,7 +43,7 @@ class BatchFormatVersion:
         if secrets:
             return [{'namespace': secret[0],
                      'name': secret[1],
-                     'mount_in_path': secret[2]} for secret in secrets]
+                     'mount_path': secret[2]} for secret in secrets]
         return None
 
     def get_spec_service_account(self, spec):
