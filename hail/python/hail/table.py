@@ -3378,6 +3378,8 @@ class Table(ExprContainer):
     @typecheck(tables=sequenceof(table_type), data_field_name=str, global_field_name=str)
     def multi_way_zip_join(tables, data_field_name, global_field_name) -> 'Table':
         """Combine many tables in a zip join
+        
+        .. include:: _templates/experimental.rst
 
         Notes
         -----
