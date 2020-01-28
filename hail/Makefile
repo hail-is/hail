@@ -243,13 +243,17 @@ TAG_EXISTS = $(shell git ls-remote --exit-code --tags origin $(HAIL_PIP_VERSION)
 check-tag:
 	if [ -z "$(TAG_EXISTS)" ]; then echo "ERROR: tag $(HAIL_PIP_VERSION) already exists"; exit 1; fi
 
-GITHUB_RELEASE_URL = https://github.com/hail-is/hail/releases/new
+GITHUB_RELEASE_URL := https://github.com/hail-is/hail/releases/new
+TERRA_DOCKER_IMAGE_URL := https://github.com/DataBiosphere/terra-docker/edit/master/terra-jupyter-hail/Dockerfile
 .PHONY: tag
 tag: check-tag pypi-deploy
 	git tag $(HAIL_PIP_VERSION) -m "Hail version $(HAIL_PIP_VERSION)"
 	git push $(DEPLOY_REMOTE) $(HAIL_PIP_VERSION)
 	@echo Please make a release: $(GITHUB_RELEASE_URL)
-	if [ `uname` == "Darwin" ]; then open $(GITHUB_RELEASE_URL); fi
+	if [ `uname` == "Darwin" ]; then \
+	    open $(GITHUB_RELEASE_URL) && open $(TERRA_DOCKER_IMAGE_URL); \
+	    else echo "Please visit the following URLs to make a release and update terra: $(GITHUB_RELEASE_URL) $(TERRA_DOCKER_IMAGE_URL)"; \
+	    fi
 
 annotation_db_json_url := gs://hail-common/annotationdb/$(HAIL_PIP_VERSION)-$(SHORT_REVISION)/annotation_db.json
 .PHONY: deploy-annotation-db
