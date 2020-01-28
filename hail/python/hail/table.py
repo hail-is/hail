@@ -3408,7 +3408,7 @@ class Table(ExprContainer):
         global_field_name : :obj:`str`
             The name of the resulting global field
 
-        .. include:: _templates/experimental.rst
+        
         """
         if not tables:
             raise ValueError('multi_way_zip_join must have at least one table as an argument')
