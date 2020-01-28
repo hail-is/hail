@@ -18,7 +18,6 @@ class SpecWriter:
 
     @staticmethod
     def get_spec_file_offsets(offsets):
-        log.info(len(offsets), str(offsets))
         assert len(offsets) == 2 * SpecWriter.bytes_per_offset
         spec_start = int.from_bytes(offsets[:8], byteorder=SpecWriter.byteorder, signed=SpecWriter.signed)
         next_spec_start = int.from_bytes(offsets[8:], byteorder=SpecWriter.byteorder, signed=SpecWriter.signed)
