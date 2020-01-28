@@ -884,7 +884,7 @@ steps:
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail -k "not test_scale" /io/test/
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail -k "test_input_dependency" /io/test/
    inputs:
     - from: /repo/batch/test
       to: /io/
