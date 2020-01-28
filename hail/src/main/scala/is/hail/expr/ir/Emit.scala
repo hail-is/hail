@@ -2289,7 +2289,7 @@ object NDArrayEmitter {
       case (Seq(l), rs :+ r2 :+ r1) =>
         ((l, r2), (rs :+ r1).toArray)
       case (ls :+ l2 :+ l1, Seq(r)) =>
-        ((l1, r), (ls :+ l1).toArray)
+        ((l1, r), (ls :+ l2).toArray)
       case (
         ls :+ l2 :+ l1,
         rs :+ r2 :+ r1
