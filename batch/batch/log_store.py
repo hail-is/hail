@@ -29,6 +29,7 @@ class LogStore:
 
     async def read_log_file(self, format_version, batch_id, job_id, attempt_id, task):
         path = self.log_path(format_version, batch_id, job_id, attempt_id, task)
+        log.info(path)
         return await self.gcs.read_gs_file(path)
 
     async def write_log_file(self, format_version, batch_id, job_id, attempt_id, task, data):
