@@ -268,10 +268,12 @@ class PR(Code):
             await gh_client.post(
                 f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}',
                 data=data)
+            return True
         except gidgethub.HTTPException as e:
             log.info(f'{self.short_str()}: notify github of build state failed due to exception: {e}')
         except aiohttp.client_exceptions.ClientResponseError as e:
             log.error(f'{self.short_str()}: Unexpected exception in post to github: {e}')
+        return False
 
     async def _update_github_review_state(self, gh):
         latest_state_by_login = {}
@@ -570,8 +572,11 @@ class WatchedBranch(Code):
             if pr.source_sha:
                 gh_status = pr.github_status()
                 if pr.source_sha not in self.statuses or self.statuses[pr.source_sha] != gh_status:
-                    await pr.post_github_status(gh, gh_status)
-                new_statuses[pr.source_sha] = gh_status
+                    successfully_updated_github = await pr.post_github_status(gh, gh_status)
+                    if successfully_updated_github:
+                        new_statuses[pr.source_sha] = gh_status
+                else:
+                    new_statuses[pr.source_sha] = gh_status
         self.statuses = new_statuses
 
     async def _update_github(self, gh):
