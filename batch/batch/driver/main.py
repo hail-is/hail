@@ -220,24 +220,22 @@ async def job_complete_1(request, instance):
     batch_id = job_status['batch_id']
     job_id = job_status['job_id']
     attempt_id = job_status['attempt_id']
-    batch_format_version = BatchFormatVersion(job_status['format_version'])
 
-    status_state = job_status['state']
-    if status_state == 'succeeded':
+    state = job_status['state']
+    if state == 'succeeded':
         new_state = 'Success'
-    elif status_state == 'error':
+    elif state == 'error':
         new_state = 'Error'
     else:
-        assert status_state == 'failed', status_state
+        assert state == 'failed', state
         new_state = 'Failed'
 
     start_time = job_status['start_time']
     end_time = job_status['end_time']
-
-    db_status = batch_format_version.db_status(job_status['status'])
+    status = job_status['status']
 
     await mark_job_complete(request.app, batch_id, job_id, attempt_id, instance.name,
-                            new_state, db_status, start_time, end_time, 'completed')
+                            new_state, status, start_time, end_time, 'completed')
 
     await instance.mark_healthy()
 

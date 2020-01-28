@@ -800,7 +800,6 @@ class Worker:
             'batch_id': full_status['batch_id'],
             'job_id': full_status['job_id'],
             'attempt_id': full_status['attempt_id'],
-            'format_version': full_status['format_version'],
             'state': full_status['state'],
             'start_time': full_status['start_time'],
             'end_time': full_status['end_time'],
