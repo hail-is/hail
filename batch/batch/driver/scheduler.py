@@ -359,7 +359,7 @@ LIMIT %s;
                 if i < len(self.inst_pool.healthy_instances_by_free_cores):
                     instance = self.inst_pool.healthy_instances_by_free_cores[i]
 
-                    assert record['cores_mcpu'] <= instance.free_cores_mcpu:
+                    assert record['cores_mcpu'] <= instance.free_cores_mcpu
 
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     scheduled_cores_mcpu += record['cores_mcpu']
