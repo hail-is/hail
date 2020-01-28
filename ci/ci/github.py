@@ -10,7 +10,7 @@ import zulip
 
 from hailtop.config import get_deploy_config
 from hailtop.utils import check_shell, check_shell_output
-from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
+from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS, GITHUB_STATUS_CONTEXT
 from .build import BuildConfiguration, Code
 from .globals import is_test_deployment
 
@@ -244,7 +244,7 @@ class PR(Code):
             'sha': self.sha
         }
 
-    def github_status(self):
+    def github_status_from_build_state(self):
         if self.build_state == 'failure' or self.build_state == 'error':
             return 'failure'
         if (self.build_state == 'success' and
@@ -262,18 +262,16 @@ class PR(Code):
             'target_url': f'https://ci.hail.is/watched_branches/{self.target_branch.index}/pr/{self.number}',
             # FIXME improve
             'description': gh_status,
-            'context': 'ci-test'
+            'context': GITHUB_STATUS_CONTEXT
         }
         try:
             await gh_client.post(
                 f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}',
                 data=data)
-            return True
         except gidgethub.HTTPException as e:
             log.info(f'{self.short_str()}: notify github of build state failed due to exception: {e}')
         except aiohttp.client_exceptions.ClientResponseError as e:
             log.error(f'{self.short_str()}: Unexpected exception in post to github: {e}')
-        return False
 
     async def _update_github_review_state(self, gh):
         latest_state_by_login = {}
@@ -483,7 +481,6 @@ class WatchedBranch(Code):
         self.batch_changed = True
         self.state_changed = True
 
-        self.statuses = {}
         self.n_running_batches = None
 
     @property
@@ -566,18 +563,26 @@ class WatchedBranch(Code):
                     self.state_changed = True
                     return
 
+    def _hail_github_status_from_statuses(self, statuses_json):
+        statuses = statuses_json["statuses"]
+        hail_status = [s for s in statuses if s["context"] == GITHUB_STATUS_CONTEXT]
+        n_hail_status = len(hail_status)
+        if n_hail_status == 0:
+            return None
+        if n_hail_status == 1:
+            return hail_status[1]
+        assert False, (f'github sent multiple status summaries for our one '
+                       'context {GITHUB_STATUS_CONTEXT}: {hail_status}\n\n{statuses_json}')
+
     async def update_statuses(self, gh):
-        new_statuses = {}
         for pr in self.prs.values():
             if pr.source_sha:
-                gh_status = pr.github_status()
-                if pr.source_sha not in self.statuses or self.statuses[pr.source_sha] != gh_status:
-                    successfully_updated_github = await pr.post_github_status(gh, gh_status)
-                    if successfully_updated_github:
-                        new_statuses[pr.source_sha] = gh_status
-                else:
-                    new_statuses[pr.source_sha] = gh_status
-        self.statuses = new_statuses
+                what_gh_status_should_be = pr.github_status_from_build_state()
+                source_sha_statuses = await gh.get(
+                    f'/repos/{pr.target_branch.branch.repo.short_str()}/commits/{pr.source_sha}/status')
+                what_gh_status_is = self._hail_github_status_from_statuses(source_sha_statuses)
+                if what_gh_status_is is None or what_gh_status_is != what_gh_status_should_be:
+                    await pr.post_github_status(gh, what_gh_status_should_be)
 
     async def _update_github(self, gh):
         log.info(f'update github {self.short_str()}')
