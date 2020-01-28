@@ -3378,6 +3378,8 @@ class Table(ExprContainer):
     @typecheck(tables=sequenceof(table_type), data_field_name=str, global_field_name=str)
     def multi_way_zip_join(tables, data_field_name, global_field_name) -> 'Table':
         """Combine many tables in a zip join
+        
+        .. include:: _templates/experimental.rst
 
         Notes
         -----
@@ -3408,7 +3410,7 @@ class Table(ExprContainer):
         global_field_name : :obj:`str`
             The name of the resulting global field
 
-        .. include:: _templates/experimental.rst
+        
         """
         if not tables:
             raise ValueError('multi_way_zip_join must have at least one table as an argument')
