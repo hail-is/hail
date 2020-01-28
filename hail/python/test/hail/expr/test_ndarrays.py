@@ -485,6 +485,7 @@ def test_ndarray_matmul():
         (r_f64 @ r_f64.T, np_r_f64 @ np_r_f64.T),
         (v @ m, np_v @ np_m),
         (m @ v, np_m @ np_v),
+        (v @ r, np_v @ np_r),
         (r @ y, np_r @ np_y),
         (cube @ cube, np_cube @ np_cube),
         (cube @ v, np_cube @ np_v),
