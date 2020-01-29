@@ -498,8 +498,16 @@ object InferPType {
         InferPType(resultIR, env)
         resultIR._pType2
       }
-//      case RunAggScan(_, _, _, _, result, _) =>
-//        TArray(result.typ)
+      case RunAggScan(arrayIR, name, initOpIR, seqOpIR, resultIR, _) => {
+        InferPType(arrayIR, env)
+        val e = env.bind(name -> arrayIR._pType2)
+
+        InferPType(initOpIR, e)
+        InferPType(seqOpIR, e)
+        InferPType(resultIR, e)
+
+        PCanonicalArray(resultIR._pType2, resultIR._pType2.required)
+      }
       case NDArrayAgg(ndIR, axes) => {
         InferPType(ndIR, env)
         val childPType = ndIR._pType2.asInstanceOf[PNDArray]
