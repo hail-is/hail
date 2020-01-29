@@ -2088,11 +2088,9 @@ class IRSuite extends HailSuite {
     }
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR = {
-      val t1 = TArray(TStruct("k1" -> TInt32(), "k2" -> TString(), "a" -> TInt64()))
-      val t2 = TArray(TStruct("b" -> TInt32(), "k2" -> TString(), "k1" -> TInt32(), "c" -> TString()))
       join(
-        MakeArray(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("k1" -> (if (n == null) NA(TInt32()) else I32(n)), "k2" -> Str("x"), "a" -> I64(idx))) }, t1),
-        MakeArray(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "k2" -> Str("x"), "k1" -> (if (n == null) NA(TInt32()) else I32(n)), "c" -> Str("foo"))) }, t2),
+        MakeArray.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("k1" -> (if (n == null) NA(TInt32()) else I32(n)), "k2" -> Str("x"), "a" -> I64(idx))) }),
+        MakeArray.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "k2" -> Str("x"), "k1" -> (if (n == null) NA(TInt32()) else I32(n)), "c" -> Str("foo"))) }),
         FastIndexedSeq("k1", "k2"))
     }
 
