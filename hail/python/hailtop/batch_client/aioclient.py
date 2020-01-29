@@ -15,7 +15,6 @@ from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, 
 from .globals import tasks, complete_states
 
 log = logging.getLogger('batch_client.aioclient')
-log.setLevel('WARNING')
 
 
 class Job:
