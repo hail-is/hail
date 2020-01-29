@@ -25,11 +25,7 @@ object InferType {
       case RelationalRef(_, t) => t
       case RelationalLet(_, _, body) => body.typ
       case In(_, t) => t.virtualType
-      case MakeArray(args, t) =>
-        if(args.forall(a => a.typ.isOfType(args.head.typ)))
-          t.copy(args.head.typ)
-        else
-          t.copy(args.head.typ.deepOptional())
+      case MakeArray(_, t) => t
       case MakeStream(_, t) => t
       case MakeNDArray(data, shape, _) =>
         TNDArray(coerce[TArray](data.typ).elementType.setRequired(true), Nat(shape.typ.asInstanceOf[TTuple].size))
