@@ -152,6 +152,7 @@ async def get_batch(request, userdata):
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(j))
         j['exit_code'] = Job.exit_code(j)
+        j['attributes'] = await j.attributes()
     page_context = {
         'batch': status,
         'jobs': jobs
