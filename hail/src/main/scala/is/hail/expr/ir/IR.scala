@@ -134,6 +134,7 @@ final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR
 
 object MakeArray {
   def unify(args: Seq[IR], requestedType: TArray = null): MakeArray = {
+    println("UNIFY CALLED")
     assert(requestedType != null || args.nonEmpty)
 
     if(args.nonEmpty) {
