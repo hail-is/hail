@@ -442,6 +442,7 @@ def test_ndarray_transpose():
 @skip_unless_spark_backend()
 def test_ndarray_matmul():
     np_v = np.array([1, 2])
+    np_y = np.array([1, 1, 1])
     np_m = np.array([[1, 2], [3, 4]])
     np_m_f32 = np_m.astype(np.float32)
     np_m_f64 = np_m.astype(np.float64)
@@ -457,6 +458,7 @@ def test_ndarray_matmul():
     np_ones_float64 = np.ones((4, 4), dtype=np.float64)
 
     v = hl.nd.array(np_v)
+    y = hl.nd.array(np_y)
     m = hl.nd.array(np_m)
     m_f32 = hl.nd.array(np_m_f32)
     m_f64 = hl.nd.array(np_m_f64)
@@ -483,6 +485,8 @@ def test_ndarray_matmul():
         (r_f64 @ r_f64.T, np_r_f64 @ np_r_f64.T),
         (v @ m, np_v @ np_m),
         (m @ v, np_m @ np_v),
+        (v @ r, np_v @ np_r),
+        (r @ y, np_r @ np_y),
         (cube @ cube, np_cube @ np_cube),
         (cube @ v, np_cube @ np_v),
         (v @ cube, np_v @ np_cube),

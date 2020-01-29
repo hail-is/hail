@@ -163,6 +163,22 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] = loadElement(aoff, loadLength(aoff), i)
 
+  class Iterator (
+    private[this] val aoff: Long,
+    private[this] val length: Int,
+    private[this] var i: Int = 0
+  ) extends PArrayIterator {
+    private[this] val firstElementOffset = PCanonicalArray.this.firstElementOffset(
+      aoff, length)
+    def hasNext: Boolean = i != length
+    def isDefined: Boolean = isElementDefined(aoff, i)
+    def value: Long =
+      firstElementOffset + i * elementByteSize
+    def iterate: Unit = i += 1
+  }
+
+  def elementIterator(aoff: Long, length: Int): Iterator = new Iterator(aoff, length)
+
   def allocate(region: Region, length: Int): Long = {
     region.allocate(contentsAlignment, contentsByteSize(length))
   }
@@ -337,10 +353,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
-  override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
+  def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
     Region.storeAddress(dstAddress, valueAddress)
 
-  override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
+  def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
     Region.storeAddress(dstAddress, valueAddress)
   }
 
@@ -411,7 +427,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     val sourceType = srcPType.asInstanceOf[PArray]
     val sourceElementType = sourceType.elementType.fundamentalType
     val destElementType = this.elementType.fundamentalType
@@ -469,7 +485,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
-  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = {
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = {
     val sourceType = srcPType.asInstanceOf[PArray]
     val sourceElementType = sourceType.elementType.fundamentalType
     val destElementType = this.elementType.fundamentalType
@@ -511,6 +527,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
     dstAddress
   }
+
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
+    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], forceDeep)
 
   override def deepRename(t: Type): PType = deepRenameArray(t.asInstanceOf[TArray])
 

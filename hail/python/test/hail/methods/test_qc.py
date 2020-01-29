@@ -212,6 +212,13 @@ class Tests(unittest.TestCase):
                       n_discordant=0),
         ]
 
+    def test_concordance_no_values_doesnt_error(self):
+        dataset = get_dataset().filter_rows(False)
+        _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
+        cols_conc._force_count()
+        rows_conc._force_count()
+
+
     def test_filter_alleles(self):
         # poor man's Gen
         paths = [resource('sample.vcf'),

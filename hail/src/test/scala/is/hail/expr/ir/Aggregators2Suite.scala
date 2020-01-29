@@ -705,6 +705,19 @@ class Aggregators2Suite extends HailSuite {
     assertEvalsTo(ir, Row((0 until 10).map(i => Row(i, 2L * i + 12L)), Row()))(ExecStrategy.interpretOnly)
   }
 
+  @Test def testRunAggScan(): Unit = {
+    implicit val execStrats = ExecStrategy.compileOnly
+    val sig = PhysicalAggSignature(Sum(), FastSeq(), FastSeq(PFloat64()), None)
+    val x = RunAggScan(
+      ArrayRange(I32(0), I32(5), I32(1)),
+      "foo",
+      InitOp(0, FastSeq(), sig),
+      SeqOp(0, FastIndexedSeq(Ref("foo", TInt32()).toD), sig),
+      GetTupleElement(ResultOp(0, Array(sig)), 0),
+      Array(sig))
+    assertEvalsTo(x, FastIndexedSeq(0.0, 0.0, 1.0, 3.0, 6.0))
+  }
+
   @Test def testRunAggBasic(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
     val sig = PhysicalAggSignature(Sum(), FastSeq(), FastSeq(PFloat64()), None)
@@ -742,5 +755,32 @@ class Aggregators2Suite extends HailSuite {
       GetTupleElement(ResultOp(0, FastIndexedSeq(takeSig)), 0),
       FastIndexedSeq(takeSig))
     assertEvalsTo(x, FastIndexedSeq(-1d, 0d, 1d, 2d, 3d))
+  }
+
+  @Test def testAggStateAndCombOp(): Unit = {
+    implicit val execStrats = ExecStrategy.compileOnly
+    val takeSig = PhysicalAggSignature(Take(), FastSeq(PInt32()), FastSeq(PInt64()), None)
+    val x = Let(
+      "x",
+      RunAgg(
+        Begin(FastSeq(
+          InitOp(0, FastSeq(I32(10)), takeSig),
+          SeqOp(0, FastSeq(NA(TInt64())), takeSig),
+          SeqOp(0, FastSeq(I64(-1l)), takeSig),
+          SeqOp(0, FastSeq(I64(2l)), takeSig)
+        )),
+        AggStateValue(0, takeSig),
+        FastIndexedSeq(takeSig)),
+      RunAgg(
+        Begin(FastSeq(
+          InitOp(0, FastSeq(I32(10)), takeSig),
+          CombOpValue(0, Ref("x", TBinary()), takeSig),
+          SeqOp(0, FastSeq(I64(3l)), takeSig),
+          CombOpValue(0, Ref("x", TBinary()), takeSig),
+          SeqOp(0, FastSeq(I64(0l)), takeSig))),
+        GetTupleElement(ResultOp(0, FastIndexedSeq(takeSig)), 0),
+        FastIndexedSeq(takeSig)))
+
+    assertEvalsTo(x, FastIndexedSeq(null, -1l, 2l, 3l, null, -1l, 2l, 0l))
   }
 }

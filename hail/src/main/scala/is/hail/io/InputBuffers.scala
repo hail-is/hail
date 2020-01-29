@@ -148,7 +148,7 @@ final class MemoryInputBuffer(mb: MemoryBuffer) extends InputBuffer {
 
   def readDouble(): Double = mb.readDouble()
 
-  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = mb.readBytes(toRegion, toOff, n)
+  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = mb.readBytes(toOff, n)
 
   def skipByte(): Unit = mb.skipByte()
 

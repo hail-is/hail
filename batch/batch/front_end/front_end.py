@@ -17,7 +17,6 @@ from hailtop.utils import time_msecs, time_msecs_str, humanize_timedelta_msecs, 
     request_retry_transient_errors, run_if_changed, retry_long_running, \
     LoggingTimer
 from hailtop.config import get_deploy_config
-from hailtop.batch_client.aioclient import Job
 from gear import Database, setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
     web_authenticated_developers_only, check_csrf_token, transaction
@@ -32,7 +31,9 @@ from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME
-from ..globals import HTTP_CLIENT_MAX_SIZE
+from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
+from ..spec_writer import SpecWriter
+from ..batch_format_version import BatchFormatVersion
 
 from .validate import ValidationError, validate_batch, validate_jobs
 
@@ -148,7 +149,8 @@ async def _query_batch_jobs(request, batch_id):
         where_args.extend(args)
 
     sql = f'''
-SELECT * FROM jobs
+SELECT *, format_version FROM jobs
+INNER JOIN batches ON jobs.batch_id = batches.id
 WHERE {' AND '.join(where_conditions)}
 ORDER BY batch_id, job_id ASC
 LIMIT 50;
@@ -210,22 +212,28 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
 
     if state in ('Error', 'Failed', 'Success'):
         log_store = app['log_store']
+        batch_format_version = BatchFormatVersion(record['format_version'])
 
         async def _read_log_from_gcs(task):
             try:
-                log = await log_store.read_log_file(batch_id, job_id, task)
+                data = await log_store.read_log_file(batch_format_version, batch_id, job_id, record['attempt_id'], task)
             except google.api_core.exceptions.NotFound:
-                log = None
-            return task, log
+                id = (batch_id, job_id)
+                log.exception(f'missing log file for {id}')
+                data = None
+            return task, data
 
         spec = json.loads(record['spec'])
         tasks = []
-        input_files = spec.get('input_files')
-        if input_files:
+
+        has_input_files = batch_format_version.get_spec_has_input_files(spec)
+        if has_input_files:
             tasks.append('input')
+
         tasks.append('main')
-        output_files = spec.get('output_files')
-        if output_files:
+
+        has_output_files = batch_format_version.get_spec_has_output_files(spec)
+        if has_output_files:
             tasks.append('output')
 
         return dict(await asyncio.gather(*[_read_log_from_gcs(task) for task in tasks]))
@@ -237,7 +245,7 @@ async def _get_job_log(app, batch_id, job_id, user):
     db = app['db']
 
     record = await db.select_and_fetchone('''
-SELECT jobs.state, jobs.spec, ip_address
+SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -251,6 +259,89 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     if not record:
         raise web.HTTPNotFound()
     return await _get_job_log_from_record(app, batch_id, job_id, record)
+
+
+async def _get_attributes(app, record):
+    db = app['db']
+
+    batch_id = record['batch_id']
+    job_id = record['job_id']
+    format_version = BatchFormatVersion(record['format_version'])
+
+    if not format_version.has_full_spec_in_gcs():
+        spec = json.loads(record['spec'])
+        return spec.get('attributes')
+
+    records = db.select_and_fetchall('''
+SELECT `key`, `value`
+FROM job_attributes
+WHERE batch_id = %s AND job_id = %s;
+''',
+                                     (batch_id, job_id))
+    return {record['key']: record['value'] async for record in records}
+
+
+async def _get_full_job_spec(app, record):
+    db = app['db']
+    log_store = app['log_store']
+
+    batch_id = record['batch_id']
+    job_id = record['job_id']
+    format_version = BatchFormatVersion(record['format_version'])
+
+    if not format_version.has_full_spec_in_gcs():
+        return json.loads(record['spec'])
+
+    token, start_job_id = await SpecWriter.get_token_start_id(db, batch_id, job_id)
+
+    try:
+        spec = await log_store.read_spec_file(batch_id, token, start_job_id, job_id)
+        return json.loads(spec)
+    except google.api_core.exceptions.NotFound:
+        id = (batch_id, job_id)
+        log.exception(f'missing spec file for {id}')
+        return None
+
+
+async def _get_full_job_status(app, record):
+    log_store = app['log_store']
+
+    batch_id = record['batch_id']
+    job_id = record['job_id']
+    attempt_id = record['attempt_id']
+    state = record['state']
+    format_version = BatchFormatVersion(record['format_version'])
+
+    if state in ('Pending', 'Ready', 'Cancelled'):
+        return
+
+    if state in ('Error', 'Failed', 'Success'):
+        if not format_version.has_full_status_in_gcs():
+            return json.loads(record['status'])
+
+        try:
+            status = await log_store.read_status_file(batch_id, job_id, attempt_id)
+            return json.loads(status)
+        except google.api_core.exceptions.NotFound:
+            id = (batch_id, job_id)
+            log.exception(f'missing status file for {id}')
+            return None
+
+    assert state == 'Running'
+    assert record['status'] is None
+
+    ip_address = record['ip_address']
+    async with aiohttp.ClientSession(
+            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+        try:
+            url = (f'http://{ip_address}:5000'
+                   f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
+            resp = await request_retry_transient_errors(session, 'GET', url)
+            return await resp.json()
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                return None
+            raise
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
@@ -376,6 +467,7 @@ async def get_batches(request, userdata):
 async def create_jobs(request, userdata):
     app = request.app
     db = app['db']
+    log_store = app['log_store']
 
     worker_type = app['worker_type']
     worker_cores = app['worker_cores']
@@ -396,7 +488,7 @@ async def create_jobs(request, userdata):
         async with timer.step('fetch batch'):
             record = await db.select_and_fetchone(
                 '''
-SELECT `state` FROM batches
+SELECT `state`, format_version FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
                 (user, batch_id))
@@ -405,6 +497,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
             raise web.HTTPNotFound()
         if record['state'] != 'open':
             raise web.HTTPBadRequest(reason=f'batch {batch_id} is not open')
+        batch_format_version = BatchFormatVersion(record['format_version'])
 
         async with timer.step('get request json'):
             job_specs = await request.json()
@@ -416,6 +509,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 raise web.HTTPBadRequest(reason=e.reason)
 
         async with timer.step('build db args'):
+            spec_writer = SpecWriter(log_store, batch_id)
+
             jobs_args = []
             job_parents_args = []
             job_attributes_args = []
@@ -425,13 +520,29 @@ WHERE user = %s AND id = %s AND NOT deleted;
             n_ready_cancellable_jobs = 0
             ready_cancellable_cores_mcpu = 0
 
+            prev_job_idx = None
+            start_job_id = None
+
             for spec in job_specs:
                 job_id = spec['job_id']
                 parent_ids = spec.pop('parent_ids', [])
                 always_run = spec.pop('always_run', False)
-                attributes = spec.get('attributes')
+
+                if batch_format_version.has_full_spec_in_gcs():
+                    attributes = spec.pop('attributes', None)
+                else:
+                    attributes = spec.get('attributes')
 
                 id = (batch_id, job_id)
+
+                if start_job_id is None:
+                    start_job_id = job_id
+
+                if batch_format_version.has_full_spec_in_gcs() and prev_job_idx:
+                    if job_id != prev_job_idx + 1:
+                        raise web.HTTPBadRequest(
+                            reason=f'noncontiguous job ids found in the spec: {prev_job_idx} -> {job_id}')
+                prev_job_idx = job_id
 
                 resources = spec.get('resources')
                 if not resources:
@@ -485,8 +596,11 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 else:
                     state = 'Pending'
 
+                spec_writer.add(json.dumps(spec))
+                db_spec = batch_format_version.db_spec(spec)
+
                 jobs_args.append(
-                    (batch_id, job_id, state, json.dumps(spec),
+                    (batch_id, job_id, state, json.dumps(db_spec),
                      always_run, cores_mcpu, len(parent_ids)))
 
                 for parent_id in parent_ids:
@@ -497,6 +611,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     for k, v in attributes.items():
                         job_attributes_args.append(
                             (batch_id, job_id, k, v))
+
+        if batch_format_version.has_full_spec_in_gcs():
+            async with timer.step('write spec to gcs'):
+                await spec_writer.write()
 
         rand_token = random.randint(0, app['n_tokens'] - 1)
         n_jobs = len(job_specs)
@@ -511,7 +629,8 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
                                           jobs_args)
                 except pymysql.err.IntegrityError as err:
-                    if err.args[1] == 1022:
+                    # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
+                    if err.args[1] == 1062:
                         log.info(f'bunch containing job {(batch_id, jobs_args[0][1])} already inserted ({err})')
                         raise web.Response()
                     raise
@@ -546,6 +665,14 @@ ON DUPLICATE KEY UPDATE
                                         (batch_id, rand_token,
                                          n_ready_cancellable_jobs, ready_cancellable_cores_mcpu,
                                          n_ready_cancellable_jobs, ready_cancellable_cores_mcpu))
+
+                if batch_format_version.has_full_spec_in_gcs():
+                    await tx.execute_update('''
+INSERT INTO batch_bunches (batch_id, token, start_job_id)
+VALUES (%s, %s, %s);
+''',
+                                            (batch_id, spec_writer.token, start_job_id))
+
             await insert()  # pylint: disable=no-value-for-parameter
     return web.Response()
 
@@ -597,12 +724,12 @@ WHERE token = %s AND user = %s FOR UPDATE;
         now = time_msecs()
         id = await tx.execute_insertone(
             '''
-INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, token, state)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, token, state, format_version)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (json.dumps(userdata), user, billing_project, json.dumps(attributes),
              batch_spec.get('callback'), batch_spec['n_jobs'],
-             now, token, 'open'))
+             now, token, 'open', BATCH_FORMAT_VERSION))
 
         if attributes:
             await tx.execute_many(
@@ -755,9 +882,6 @@ async def ui_batch(request, userdata):
     batch = await _get_batch(app, batch_id, user)
 
     jobs, last_job_id = await _query_batch_jobs(request, batch_id)
-    for job in jobs:
-        job['exit_code'] = Job.exit_code(job)
-        job['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(job))
     batch['jobs'] = jobs
 
     page_context = {
@@ -810,34 +934,11 @@ async def ui_batches(request, userdata):
     return await render_template('batch', request, userdata, 'batches.html', page_context)
 
 
-async def _get_job_running_status(record):
-    state = record['state']
-    if state != 'Running':
-        return None
-
-    assert record['status'] is None
-
-    batch_id = record['batch_id']
-    job_id = record['job_id']
-    ip_address = record['ip_address']
-    async with aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-        try:
-            url = (f'http://{ip_address}:5000'
-                   f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
-            resp = await request_retry_transient_errors(session, 'GET', url)
-            return await resp.json()
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                return None
-            raise
-
-
 async def _get_job(app, batch_id, job_id, user):
     db = app['db']
 
     record = await db.select_and_fetchone('''
-SELECT jobs.*, ip_address
+SELECT jobs.*, ip_address, format_version
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -851,8 +952,18 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     if not record:
         raise web.HTTPNotFound()
 
-    running_status = await _get_job_running_status(record)
-    return job_record_to_dict(app, record, running_status)
+    full_status, full_spec, attributes = await asyncio.gather(
+        _get_full_job_status(app, record),
+        _get_full_job_spec(app, record),
+        _get_attributes(app, record)
+    )
+
+    job = job_record_to_dict(app, record)
+    job['status'] = full_status
+    job['spec'] = full_spec
+    if attributes:
+        job['attributes'] = attributes
+    return job
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')

@@ -261,10 +261,18 @@ class IRSuite extends HailSuite {
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()))), FastIndexedSeq((null, TInt32())), null)
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()))), FastIndexedSeq((1, TInt32())), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), In(0, TInt32()))), FastIndexedSeq((null, TInt32())), null)
-    assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), In(0, TInt32()))), FastIndexedSeq((1, TInt32())), 1)
+    assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), In(0, TInt32(true)))), FastIndexedSeq((1, TInt32(true))), 1)
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()), NA(TInt32()))), FastIndexedSeq((1, TInt32())), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), I32(1), NA(TInt32()), I32(1), NA(TInt32()), I32(1))), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), Die("foo", TInt32()))), 1)(ExecStrategy.javaOnly)
+  }
+
+  @Test def testCoalesceWithDifferentRequiredeness() {
+    val t1 = In(0, TArray(TInt32(true)))
+    val t2 = NA(TArray(TInt32()))
+    val value = FastIndexedSeq(1, 2, 3, 4)
+
+    assertEvalsTo(Coalesce(FastSeq(t1, t2)), FastIndexedSeq((value, TArray(TInt32()))), value)
   }
 
   @Test def testCoalesceInferPType() {
@@ -810,13 +818,14 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testIfWithDifferentRequiredness() {
-    val t = TStruct(true, "foo" -> TStruct("bar" -> TArray(TInt32Required, required = true)))
+    val t = TStruct(true, "foo" -> TStruct("bar" -> TArray(TInt32(true), true)))
     val value = Row(Row(FastIndexedSeq(1, 2, 3)))
     assertEvalsTo(
-      If.unify(
+      If(
         In(0, TBoolean()),
         In(1, t),
-        MakeStruct(Seq("foo" -> MakeStruct(Seq("bar" -> ArrayRange(I32(0), I32(1), I32(1))))))),
+        MakeStruct(Seq("foo" -> MakeStruct(Seq("bar" -> ArrayRange(I32(0), I32(1), I32(1))))))
+      ),
       FastIndexedSeq((true, TBoolean()), (value, t)),
       value
     )
@@ -1492,13 +1501,13 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testMakeArrayWithDifferentRequiredness(): Unit = {
-    val t = TArray(TStruct("a" -> TInt32Required, "b" -> TArray(TInt32Optional, required = true)))
+    val pt1 = PArray(PStruct("a" -> PInt32(), "b" -> PArray(PInt32())))
+    val pt2 = PArray(PStruct(true, "a" -> PInt32(true), "b" -> PArray(PInt32(), true)))
+
     val value = Row(2, FastIndexedSeq(1))
     assertEvalsTo(
-      MakeArray.unify(
-        Seq(NA(t.elementType.deepOptional()), In(0, t.elementType))
-      ),
-      FastIndexedSeq((value, t.elementType)),
+      MakeArray(Seq(In(0, pt1.elementType), In(1, pt2.elementType)), pt1.virtualType),
+      FastIndexedSeq((null, pt1.virtualType.elementType), (value, pt2.virtualType.elementType)),
       FastIndexedSeq(null, value)
     )
   }
@@ -2446,6 +2455,7 @@ class IRSuite extends HailSuite {
     val takeBySig = AggSignature(TakeBy(), Seq(TInt32()), Seq(TFloat64(), TInt32()), None)
 
     val countSig = AggSignature(Count(), Seq(), Seq(), None)
+    val countPSig = PhysicalAggSignature(Count(), Seq(), Seq(), None)
     val count = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, countSig)
 
     val table = TableRange(100, 10)

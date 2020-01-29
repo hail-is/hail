@@ -109,46 +109,8 @@ final case class CastRename(v: IR, _typ: Type) extends IR
 final case class NA(_typ: Type) extends IR
 final case class IsNA(value: IR) extends IR
 
-object Coalesce {
-  def unify(values: Seq[IR], unifyType: Option[Type] = None): Coalesce = {
-    require(values.nonEmpty)
-    val t1 = values.head.typ
-    if (values.forall(_.typ == t1))
-      Coalesce(values)
-    else {
-      val t = unifyType.getOrElse(t1.deepOptional())
-      Coalesce(values.map(PruneDeadFields.upcast(_, t)))
-    }
-  }
-}
-
 final case class Coalesce(values: Seq[IR]) extends IR {
   require(values.nonEmpty)
-}
-
-object If {
-  def unify(cond: IR, cnsq: IR, altr: IR, unifyType: Option[Type] = None): If = {
-    if (cnsq.typ == altr.typ)
-      If(cond, cnsq, altr)
-    else {
-      cnsq match {
-        case NA(_) => If(cond, NA(altr.typ), altr)
-        case Die(msg, _) => If(cond, Die(msg, altr.typ), altr)
-        case Literal(_, value) if altr.typ.typeCheck(value) => If(cond, Literal(altr.typ, value), altr)
-        case _ =>
-          altr match {
-            case NA(_) => If(cond, cnsq, NA(cnsq.typ))
-            case Die(msg, _) => If(cond, cnsq, Die(msg, cnsq.typ))
-            case Literal(_, value) if cnsq.typ.typeCheck(value)  => If(cond, cnsq, Literal(cnsq.typ, value))
-            case _ =>
-              val t = unifyType.getOrElse(cnsq.typ.deepOptional())
-              If(cond,
-                PruneDeadFields.upcast(cnsq, t),
-                PruneDeadFields.upcast(altr, t))
-          }
-      }
-    }
-  }
 }
 
 final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
@@ -171,27 +133,24 @@ final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR
 final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR
 
 object MakeArray {
-  def unify(args: Seq[IR], typ: TArray = null): MakeArray = {
-    assert(typ != null || args.nonEmpty)
-    var t: TArray = typ
-    if (t == null) {
-      t = if (args.tail.forall(_.typ == args.head.typ)) {
-        TArray(args.head.typ)
-      } else TArray(args.head.typ.deepOptional())
+  def unify(args: Seq[IR], requestedType: TArray = null): MakeArray = {
+    assert(requestedType != null || args.nonEmpty)
+
+    if(args.nonEmpty) {
+      if (args.forall(_.typ == args.head.typ)) {
+        return MakeArray(args, TArray(args.head.typ))
+      }
+
+      if (args.forall(_.typ isOfType args.head.typ)) {
+        return MakeArray(args, TArray(args.head.typ.deepOptional()))
+      }
     }
-    assert(t.elementType.deepOptional() == t.elementType ||
-      args.forall(a => a.typ == t.elementType),
-      s"${ t.parsableString() }: ${ args.map(a => "\n    " + a.typ.parsableString()).mkString } ")
 
     MakeArray(args.map { arg =>
-      if (arg.typ == t.elementType)
-        arg
-      else {
-        val upcast = PruneDeadFields.upcast(arg, t.elementType)
-        assert(upcast.typ == t.elementType)
-        upcast
-      }
-    }, t)
+      val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
+      assert(upcast.typ isOfType requestedType.elementType)
+      upcast
+    }, requestedType)
   }
 }
 
@@ -283,6 +242,7 @@ final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
 final case class ArrayAggScan(a: IR, name: String, query: IR) extends IR
 
 final case class RunAgg(body: IR, result: IR, signature: IndexedSeq[PhysicalAggSignature]) extends IR
+final case class RunAggScan(array: IR, name: String, init: IR, seqs: IR, result: IR, signature: IndexedSeq[PhysicalAggSignature]) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
@@ -340,6 +300,8 @@ final case class InitOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSignatu
 final case class SeqOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSignature) extends IR
 final case class CombOp(i1: Int, i2: Int, aggSig: PhysicalAggSignature) extends IR
 final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[PhysicalAggSignature]) extends IR
+final case class CombOpValue(i: Int, value: IR, aggSig: PhysicalAggSignature) extends IR
+final case class AggStateValue(i: Int, aggSig: PhysicalAggSignature) extends IR
 
 final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[PhysicalAggSignature]) extends IR
 final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[PhysicalAggSignature]) extends IR

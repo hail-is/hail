@@ -72,8 +72,6 @@ final class MemoryBuffer extends Serializable {
     end += n
   }
 
-  def writeBytes(region: Region, off: Long, n: Int): Unit = writeBytes(off, n)
-
   def readByte(): Byte = {
     assert(pos + 1 <= end)
     val b = Memory.loadByte(mem, pos)
@@ -109,7 +107,7 @@ final class MemoryBuffer extends Serializable {
     d
   }
 
-  def readBytes(toRegion: Region, toOff: Long, n: Int) {
+  def readBytes(toOff: Long, n: Int) {
     assert(pos + n <= end)
     Memory.memcpy(toOff, mem, pos, n)
     pos += n

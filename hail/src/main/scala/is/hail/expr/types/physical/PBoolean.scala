@@ -44,6 +44,9 @@ class PBoolean(override val required: Boolean) extends PType {
 
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] =
     srcAddress
+
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
+    stackValue
 }
 
 object PBoolean {

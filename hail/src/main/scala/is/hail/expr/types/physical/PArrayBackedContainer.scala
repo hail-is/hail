@@ -141,18 +141,19 @@ trait PArrayBackedContainer extends PContainer {
   override def unsafeOrdering(rightType: PType): UnsafeOrdering =
     arrayRep.unsafeOrdering(rightType)
 
-  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] =
     this.arrayRep.copyFromType(mb, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, forceDeep)
-  }
 
-  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = {
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
+    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], forceDeep)
+
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long =
     this.arrayRep.copyFromType(region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, forceDeep)
-  }
 
-  override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
+  def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
     this.arrayRep.storeShallowAtOffset(dstAddress, valueAddress)
 
-  override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
+  def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
     this.arrayRep.storeShallowAtOffset(dstAddress, valueAddress)
   }
 

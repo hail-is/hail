@@ -166,6 +166,9 @@ object Copy {
         ArrayAggScan(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
       case RunAgg(_, _, signatures) =>
         RunAgg(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], signatures)
+      case RunAggScan(_, name, _, _, _, signatures) =>
+        RunAggScan(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR],
+          newChildren(2).asInstanceOf[IR], newChildren(3).asInstanceOf[IR], signatures)
       case AggFilter(_, _, isScan) =>
         assert(newChildren.length == 2)
         AggFilter(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], isScan)
@@ -199,9 +202,12 @@ object Copy {
         InitOp(i, newChildren.map(_.asInstanceOf[IR]), aggSig)
       case SeqOp(i, _, aggSig) =>
         SeqOp(i, newChildren.map(_.asInstanceOf[IR]), aggSig)
-      case x@(_: ResultOp | _: CombOp) =>
+      case x@(_: ResultOp | _: CombOp | _: AggStateValue) =>
         assert(newChildren.isEmpty)
         x
+      case CombOpValue(i, _, aggSig) =>
+        assert(newChildren.length == 1)
+        CombOpValue(i, newChildren(0).asInstanceOf[IR], aggSig)
       case x: SerializeAggs => x
       case x: DeserializeAggs => x
       case Begin(_) =>

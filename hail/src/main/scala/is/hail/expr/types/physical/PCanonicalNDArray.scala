@@ -208,14 +208,14 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     ))
   }
 
-  override def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
+  def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
     this.representation.storeShallowAtOffset(dstAddress, valueAddress)
 
-  override def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
+  def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
     this.representation.storeShallowAtOffset(dstAddress, valueAddress)
   }
 
-  override def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     val sourceNDPType = srcPType.asInstanceOf[PNDArray]
 
     assert(this.elementType == sourceNDPType.elementType && this.nDims == sourceNDPType.nDims)
@@ -223,7 +223,10 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     this.representation.copyFromType(mb, region, sourceNDPType.representation, srcAddress, forceDeep)
   }
 
-  override def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long  = {
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
+    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], forceDeep)
+
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long  = {
     val sourceNDPType = srcPType.asInstanceOf[PNDArray]
 
     assert(this.elementType == sourceNDPType.elementType && this.nDims == sourceNDPType.nDims)

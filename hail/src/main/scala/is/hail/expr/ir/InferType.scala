@@ -39,6 +39,8 @@ object InferType {
       case _: CombOp => TVoid
       case ResultOp(_, aggSigs) =>
         TTuple(aggSigs.map(agg.Extract.getAgg(_).resultType.virtualType): _*)
+      case AggStateValue(i, sig) => TBinary()
+      case _: CombOpValue => TVoid
       case _: SerializeAggs => TVoid
       case _: DeserializeAggs => TVoid
       case _: Begin => TVoid
@@ -115,6 +117,8 @@ object InferType {
         TArray(query.typ)
       case RunAgg(body, result, _) =>
         result.typ
+      case RunAggScan(_, _, _, _, result, _) =>
+        TArray(result.typ)
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         coerce[TStreamable](left.typ).copyStreamable(join.typ)
         TArray(join.typ)

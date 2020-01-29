@@ -100,15 +100,10 @@ object TypeCheck {
         assert(!t.required)
       case IsNA(v) =>
       case Coalesce(values) =>
-        val t1 = values.head.typ
-        if (!values.tail.forall(_.typ == t1))
-          throw new RuntimeException(s"Coalesce expects all children to have the same type:" +
-            s"${ values.map(v => s"\n  ${ v.typ.parsableString() }").mkString }")
+        assert(values.tail.forall(_.typ.isOfType(values.head.typ)))
       case x@If(cond, cnsq, altr) =>
         assert(cond.typ.isOfType(TBoolean()))
-        assert(cnsq.typ == altr.typ, s"Type mismatch:\n  cnsq: ${ cnsq.typ.parsableString() }\n  altr: ${ altr.typ.parsableString() }\n  $x")
-        assert(x.typ == cnsq.typ)
-
+        assert(x.typ.isOfType(cnsq.typ) && x.typ.isOfType(altr.typ))
       case x@Let(_, _, body) =>
         assert(x.typ == body.typ)
       case x@AggLet(_, _, body, _) =>
@@ -128,7 +123,7 @@ object TypeCheck {
                 case (c: IR, i) => recurInTail(c, tailPosition && InTailPosition(node, i))
                 case _ => true
               }
-          }
+        }
         assert(recurInTail(body, tailPosition = true))
       case x@Recur(name, args, typ) =>
         val TTuple(IndexedSeq(TupleField(_, argTypes), TupleField(_, rt)), _) = env.eval.lookup(name)
@@ -147,7 +142,7 @@ object TypeCheck {
         }
       case x@MakeArray(args, typ) =>
         assert(typ != null)
-        args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
+        args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x.isOfType(typ.elementType),
           s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
         }
       case x@MakeStream(args, typ) =>
@@ -291,6 +286,10 @@ object TypeCheck {
       case x@RunAgg(body, result, _) =>
         assert(x.typ == result.typ)
         assert(body.typ == TVoid)
+      case x@RunAggScan(array, _, init, seqs, result, _) =>
+        assert(array.typ.isInstanceOf[TStreamable])
+        assert(init.typ == TVoid)
+        assert(seqs.typ == TVoid)
       case x@AggFilter(cond, aggIR, _) =>
         assert(cond.typ isOfType TBoolean())
         assert(x.typ == aggIR.typ)
@@ -308,6 +307,8 @@ object TypeCheck {
         assert(args.map(_.typ) == aggSig.seqOpArgs)
       case _: CombOp =>
       case _: ResultOp =>
+      case AggStateValue(i, sig) =>
+      case CombOpValue(i, value, sig) => assert(value.typ.isOfType(TBinary()))
       case _: SerializeAggs =>
       case _: DeserializeAggs =>
       case x@Begin(xs) =>

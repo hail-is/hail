@@ -377,14 +377,14 @@ private class Emit(
           .foldRight(Code(
             mout := va.last.m,
             out := defaultValue(outType),
-            mout.mux(Code._empty, out := va.last.v))) { case (i, comb) =>
+            mout.mux(Code._empty, out := ir.pType.copyFromTypeAndStackValue(mb, er.region, values.last.pType, va.last.v)))) { case (i, comb) =>
             Code(
               mbs(i) := va(i).m,
               mbs(i).mux(
                 comb,
                 Code(
                   mout := false,
-                  out := va(i).v)))
+                  out := ir.pType.copyFromTypeAndStackValue(mb, er.region, values(i).pType, va(i).v))))
           }
 
         EmitTriplet(
@@ -396,7 +396,7 @@ private class Emit(
         )
 
       case If(cond, cnsq, altr) =>
-        assert(cnsq.typ == altr.typ)
+        assert(cnsq.typ isOfType altr.typ)
 
         if (cnsq.typ == TVoid) {
           val codeCond = emit(cond)
@@ -407,7 +407,7 @@ private class Emit(
               codeCond.setup,
               codeCond.m.mux(
                 Code._empty,
-                coerce[Boolean](codeCond.v).mux(
+                codeCond.value[Boolean].mux(
                   codeCnsq.setup,
                   codeAltr.setup))),
             const(false),
@@ -419,19 +419,19 @@ private class Emit(
           val mout = mb.newLocal[Boolean]()
           val codeCnsq = emit(cnsq)
           val codeAltr = emit(altr)
+
           val setup = Code(
             codeCond.setup,
             codeCond.m.mux(
               Code(mout := true, out := defaultValue(typ)),
               coerce[Boolean](codeCond.v).mux(
-                Code(codeCnsq.setup, mout := codeCnsq.m, out := mout.mux(defaultValue(typ), codeCnsq.v)),
-                Code(codeAltr.setup, mout := codeAltr.m, out := mout.mux(defaultValue(typ), codeAltr.v)))))
+                Code(codeCnsq.setup, mout := codeCnsq.m, out := mout.mux(defaultValue(typ), ir.pType.copyFromTypeAndStackValue(mb, er.region, cnsq.pType, codeCnsq.v))),
+                Code(codeAltr.setup, mout := codeAltr.m, out := mout.mux(defaultValue(typ), ir.pType.copyFromTypeAndStackValue(mb, er.region, altr.pType, codeAltr.v))))))
 
           EmitTriplet(setup, mout, out)
         }
 
       case Let(name, value, body) =>
-        val typ = ir.typ
         val vti = typeToTypeInfo(value.typ)
         val mx = mb.newField[Boolean]()
         val x = coerce[Any](mb.newField(name)(vti))
@@ -481,14 +481,15 @@ private class Emit(
               (rm, rm.mux(defaultValue(r.typ), codeR.v)))))
         }
 
-      case x@MakeArray(args, typ) =>
+      case x@MakeArray(args, _) =>
         val pType = x.pType.asInstanceOf[PArray]
         val srvb = new StagedRegionValueBuilder(mb, pType)
         val addElement = srvb.addIRIntermediate(pType.elementType)
-        val addElts = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
+
+        val addElts = { (newMB: EmitMethodBuilder, pt: PType, v: EmitTriplet) =>
           Code(
             v.setup,
-            v.m.mux(srvb.setMissing(), addElement(v.v)),
+            v.m.mux(srvb.setMissing(), addElement(pType.elementType.copyFromTypeAndStackValue(newMB, er.region, pt, v.v))),
             srvb.advance())
         }
         present(Code(srvb.start(args.size, init = true), wrapToMethod(args)(addElts), srvb.offset))
@@ -720,7 +721,7 @@ private class Emit(
               srvb.offset
             ))))
 
-      case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: ArrayAggScan | _: ReadPartition =>
+      case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: RunAggScan | _: ArrayAggScan | _: ReadPartition =>
         emitArrayIterator(ir).toEmitTriplet(mb, PArray(coerce[PStreamable](ir.pType).elementType))
 
       case ArrayFold(a, zero, name1, name2, body) =>
@@ -968,6 +969,29 @@ private class Emit(
           addFields,
           sc.store,
           srvb.offset))
+
+      case CombOpValue(i, value, sig) =>
+        val AggContainer(_, sc) = container.get
+        val rvAgg = agg.Extract.getAgg(sig)
+        val newState = rvAgg.createState(mb.fb)
+
+        val t = value.pType.asInstanceOf[PBinary]
+        val xValue = emit(value)
+        EmitTriplet(
+          Code(xValue.setup,
+          xValue.m.mux(
+            Code._fatal("cannot combOp a missing value"),
+            Code(
+              newState.createState,
+              newState.deserializeFromBytes(t, coerce[Long](xValue.v)),
+              rvAgg.combOp(sc.states(i), newState)
+            ))),
+          const(false),
+          Code._empty[Unit])
+
+      case x@AggStateValue(i, _) =>
+        val AggContainer(_, sc) = container.get
+        present(sc.states(i).serializeToRegion(coerce[PBinary](x.pType), region))
 
       case SerializeAggs(start, sIdx, spec, aggSigs) =>
         val AggContainer(aggs, sc) = container.get
@@ -2266,7 +2290,7 @@ object NDArrayEmitter {
       case (Seq(l), rs :+ r2 :+ r1) =>
         ((l, r2), (rs :+ r1).toArray)
       case (ls :+ l2 :+ l1, Seq(r)) =>
-        ((l1, r), (ls :+ l1).toArray)
+        ((l1, r), (ls :+ l2).toArray)
       case (
         ls :+ l2 :+ l1,
         rs :+ r2 :+ r1

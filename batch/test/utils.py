@@ -11,5 +11,5 @@ def batch_status_exit_codes(batch_status):
 
 def legacy_batch_status(batch):
     status = batch.status()
-    status['jobs'] = list(batch.jobs())
+    status['jobs'] = [j.status() for j in batch.jobs()]
     return status

@@ -1178,7 +1178,7 @@ class RVD(
 object RVD {
   def empty(sc: SparkContext, typ: RVDType): RVD = {
     RVD(typ,
-      RVDPartitioner.empty(typ),
+      RVDPartitioner.empty(typ.kType.virtualType),
       ContextRDD.empty[RVDContext, RegionValue](sc))
   }
 

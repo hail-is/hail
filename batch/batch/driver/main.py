@@ -16,6 +16,10 @@ from hailtop.utils import time_msecs
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 
+import cProfile
+import pstats
+import io
+
 # import uvloop
 
 from ..batch import mark_job_complete, mark_job_started
@@ -214,23 +218,24 @@ async def deactivate_instance(request, instance):  # pylint: disable=unused-argu
 
 async def job_complete_1(request, instance):
     body = await request.json()
-    status = body['status']
+    job_status = body['status']
 
-    batch_id = status['batch_id']
-    job_id = status['job_id']
-    attempt_id = status['attempt_id']
+    batch_id = job_status['batch_id']
+    job_id = job_status['job_id']
+    attempt_id = job_status['attempt_id']
 
-    status_state = status['state']
-    if status_state == 'succeeded':
+    state = job_status['state']
+    if state == 'succeeded':
         new_state = 'Success'
-    elif status_state == 'error':
+    elif state == 'error':
         new_state = 'Error'
     else:
-        assert status_state == 'failed', status_state
+        assert state == 'failed', state
         new_state = 'Failed'
 
-    start_time = status['start_time']
-    end_time = status['end_time']
+    start_time = job_status['start_time']
+    end_time = job_status['end_time']
+    status = job_status['status']
 
     await mark_job_complete(request.app, batch_id, job_id, attempt_id, instance.name,
                             new_state, status, start_time, end_time, 'completed')
@@ -248,12 +253,12 @@ async def job_complete(request, instance):
 
 async def job_started_1(request, instance):
     body = await request.json()
-    status = body['status']
+    job_status = body['status']
 
-    batch_id = status['batch_id']
-    job_id = status['job_id']
-    attempt_id = status['attempt_id']
-    start_time = status['start_time']
+    batch_id = job_status['batch_id']
+    job_id = job_status['job_id']
+    attempt_id = job_status['attempt_id']
+    start_time = job_status['start_time']
 
     await mark_job_started(request.app, batch_id, job_id, attempt_id, instance, start_time)
 
@@ -472,6 +477,19 @@ GROUP BY user;
         await asyncio.sleep(0.1)
 
 
+async def profile_loop():
+    while True:
+        pr = cProfile.Profile()
+        pr.enable()
+        await asyncio.sleep(60)
+        pr.disable()
+        s = io.StringIO()
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        log.info(s.getvalue())
+
+
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
@@ -482,7 +500,7 @@ async def on_startup(app):
     app['k8s_cache'] = k8s_cache
 
     db = Database()
-    await db.async_init()
+    await db.async_init(maxsize=50)
     app['db'] = db
 
     row = await db.select_and_fetchone(
@@ -526,6 +544,7 @@ async def on_startup(app):
     app['scheduler'] = scheduler
 
     # asyncio.ensure_future(check_incremental_loop(db))
+    # asyncio.ensure_future(profile_loop())
 
 
 async def on_cleanup(app):

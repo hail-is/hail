@@ -119,6 +119,36 @@ class AsyncWorkerPool:
         await self._queue.put((f, args, kwargs))
 
 
+class WaitableSharedPool:
+    def __init__(self, worker_pool):
+        self._worker_pool = worker_pool
+        self._n_submitted = 0
+        self._n_complete = 0
+        self._waiting = False
+        self._done = asyncio.Event()
+
+    async def call(self, f, *args, **kwargs):
+        assert not self._waiting
+        self._n_submitted += 1
+
+        async def invoke():
+            try:
+                await f(*args, **kwargs)
+            finally:
+                self._n_complete += 1
+                if self._waiting and (self._n_complete == self._n_submitted):
+                    self._done.set()
+
+        await self._worker_pool.call(invoke)
+
+    async def wait(self):
+        assert not self._waiting
+        self._waiting = True
+        if self._n_complete == self._n_submitted:
+            self._done.set()
+        await self._done.wait()
+
+
 def is_transient_error(e):
     # observed exceptions:
     #
