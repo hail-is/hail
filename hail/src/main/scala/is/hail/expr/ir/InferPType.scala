@@ -257,7 +257,7 @@ object InferPType {
       case ArrayFold2(a, acc, valueName, seq, res) =>
         InferPType(a, env)
         acc.foreach { case (_, accIR) => InferPType(accIR, env) }
-        InferPType(a, env)
+
         val resEnv = env.bind(acc.map { case (name, accIR) => (name, accIR._pType2)}: _*)
         val seqEnv = resEnv.bind(valueName -> a._pType2.asInstanceOf[PArray].elementType)
         seq.foreach(InferPType(_, seqEnv))
