@@ -566,7 +566,7 @@ object InferPType {
 
         aggSig.toPhysical(initOpTypes = iPTypes, seqOpTypes = sPTypes).returnType
       }
-      case AggStateValue(_, physicalAggSignature) => PBinary(physicalAggSignature.returnType.required)
+      case AggStateValue(_, _) => PBinary(true)
       case _ => throw new Exception("Node not supported")
     }
 
