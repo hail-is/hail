@@ -76,10 +76,8 @@ object InferPType {
         InferPType(ir, env)
         PBoolean(true)
       }
-      case Ref(name, t) => {
-        println(s"ENV: ${ir}, NAME: ${name}, env.t : ${t}, env.lookup: ${env.lookup(name)}")
+      case Ref(name, t) =>
         env.lookup(name)
-      }
       case MakeNDArray(data, shape, rowMajor) => {
         InferPType(data, env)
         InferPType(shape, env)
@@ -487,19 +485,21 @@ object InferPType {
       }
       case ArrayAgg(a, name, queryIR) => {
         InferPType(a, env)
-        InferPType(queryIR, env.bind(name -> a._pType2))
+        InferPType(queryIR, env.bind(name -> a._pType2.asInstanceOf[PArray].elementType))
         queryIR._pType2
       }
       case ArrayAggScan(a, name, queryIR)  => {
         InferPType(a, env)
-        InferPType(queryIR, env.bind(name -> a._pType2))
-        queryIR._pType2
+        InferPType(queryIR, env.bind(name -> a._pType2.asInstanceOf[PArray].elementType))
+        PCanonicalArray(queryIR._pType2, queryIR._pType2.required)
       }
       case RunAgg(bodyIR, resultIR, _) => {
         InferPType(bodyIR, env)
         InferPType(resultIR, env)
         resultIR._pType2
       }
+//      case RunAggScan(_, _, _, _, result, _) =>
+//        TArray(result.typ)
       case NDArrayAgg(ndIR, axes) => {
         InferPType(ndIR, env)
         val childPType = ndIR._pType2.asInstanceOf[PNDArray]
@@ -547,7 +547,6 @@ object InferPType {
         aggSig.toPhysical(initOpTypes = iPTypes, seqOpTypes = sPTypes).returnType
       }
       case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) => {
-        var i = 0
         val iPTypes = initOpArgs.map(i => {
           InferPType(i, env)
           i._pType2
