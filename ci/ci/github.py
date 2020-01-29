@@ -563,7 +563,7 @@ class WatchedBranch(Code):
                     self.state_changed = True
                     return
 
-    def _hail_github_status_from_statuses(self, statuses_json):
+    def _hail_github_status_from_statuses(statuses_json):
         statuses = statuses_json["statuses"]
         hail_status = [s for s in statuses if s["context"] == GITHUB_STATUS_CONTEXT]
         n_hail_status = len(hail_status)
@@ -571,8 +571,9 @@ class WatchedBranch(Code):
             return None
         if n_hail_status == 1:
             return hail_status[1]
-        assert False, (f'github sent multiple status summaries for our one '
-                       'context {GITHUB_STATUS_CONTEXT}: {hail_status}\n\n{statuses_json}')
+        raise ValueError(
+            f'github sent multiple status summaries for our one '
+            'context {GITHUB_STATUS_CONTEXT}: {hail_status}\n\n{statuses_json}')
 
     async def update_statuses(self, gh):
         for pr in self.prs.values():
@@ -580,7 +581,7 @@ class WatchedBranch(Code):
                 what_gh_status_should_be = pr.github_status_from_build_state()
                 source_sha_statuses = await gh.get(
                     f'/repos/{pr.target_branch.branch.repo.short_str()}/commits/{pr.source_sha}/status')
-                what_gh_status_is = self._hail_github_status_from_statuses(source_sha_statuses)
+                what_gh_status_is = WatchedBranch._hail_github_status_from_statuses(source_sha_statuses)
                 if what_gh_status_is is None or what_gh_status_is != what_gh_status_should_be:
                     await pr.post_github_status(gh, what_gh_status_should_be)
 
