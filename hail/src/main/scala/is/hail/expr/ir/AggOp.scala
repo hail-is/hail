@@ -13,7 +13,7 @@ case class AggSignature(
   def toPhysical(initOpTypes: Seq[PType], seqOpTypes: Seq[PType]): PhysicalAggSignature = {
     assert(nested.isEmpty)
     (initOpTypes, initOpArgs).zipped.foreach { case (pt, t) => assert(pt.virtualType isOfType t) }
-    (seqOpTypes, seqOpArgs).zipped.foreach { case (pt, t) => assert(pt.virtualType isOfType  t) }
+    (seqOpTypes, seqOpArgs).zipped.foreach { case (pt, t) => assert(pt.virtualType isOfType t) }
     PhysicalAggSignature(op, initOpTypes, seqOpTypes, None)
   }
 }
