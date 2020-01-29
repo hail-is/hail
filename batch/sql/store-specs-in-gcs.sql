@@ -121,4 +121,18 @@ BEGIN
   END IF;
 END $$
 
+DROP TRIGGER IF EXISTS attempts_before_update;
+CREATE TRIGGER attempts_before_update BEFORE UPDATE ON attempts
+FOR EACH ROW
+BEGIN
+  IF OLD.start_time IS NOT NULL AND (NEW.start_time IS NULL OR NEW.start_time < OLD.start_time) THEN
+    SET NEW.start_time = OLD.start_time;
+  END IF;
+
+  IF OLD.reason IS NOT NULL AND (NEW.end_time IS NULL OR NEW.end_time > OLD.end_time) THEN
+    SET NEW.end_time = OLD.end_time;
+    SET NEW.reason = OLD.reason;
+  END IF;
+END $$
+
 DELIMITER ;

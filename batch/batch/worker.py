@@ -80,11 +80,11 @@ class PortAllocator:
         self.ports.put_nowait(port)
 
 
-async def docker_call_retry(f, timeout, *args, **kwargs):
+async def docker_call_retry(f, *args, **kwargs):
     delay = 0.1
     while True:
         try:
-            return await asyncio.wait_for(f(*args, **kwargs), timeout=timeout)
+            return await f(*args, **kwargs)
         except DockerError as e:
             # 408 request timeout, 503 service unavailable
             if e.status == 408 or e.status == 503:
@@ -214,7 +214,7 @@ class Container:
             return None
 
         try:
-            c = await docker_call_retry(self.container.show, 5)
+            c = await docker_call_retry(self.container.show)
         except DockerError as e:
             if e.status == 404:
                 return None
@@ -251,14 +251,14 @@ class Container:
                     # FIXME improve the performance of this with a
                     # per-user image cache.
                     await docker_call_retry(
-                        docker.images.pull, 300, self.image, auth=auth)
+                        docker.images.pull, self.image, auth=auth)
                 else:
                     # this caches public images
                     try:
-                        await docker_call_retry(docker.images.get, 5, self.image)
+                        await docker_call_retry(docker.images.get, self.image)
                     except DockerError as e:
                         if e.status == 404:
-                            await docker_call_retry(docker.images.pull, 300, self.image)
+                            await docker_call_retry(docker.images.pull, self.image)
 
             if self.port is not None:
                 async with self.step('allocating_port'):
@@ -268,9 +268,9 @@ class Container:
                 config = self.container_config()
                 log.info(f'starting {self} config {config}')
                 self.container = await docker_call_retry(
-                    docker.containers.create_or_replace, 5,
-                    f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}',
-                    config)
+                    docker.containers.create,
+                    config,
+                    name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
             async with cpu_sem(self.cpu_in_mcpu, f'{self}'):
                 async with self.step('runtime', state=None):
@@ -278,10 +278,10 @@ class Container:
                         asyncio.ensure_future(worker.post_job_started(self.job))
 
                     async with self.step('starting'):
-                        await docker_call_retry(self.container.start, 15)
+                        await docker_call_retry(self.container.start)
 
                     async with self.step('running'):
-                        await docker_call_retry(self.container.wait, 300)
+                        await docker_call_retry(self.container.wait)
 
             self.container_status = await self.get_container_status()
             log.info(f'{self}: container status {self.container_status}')
@@ -310,7 +310,7 @@ class Container:
             await self.delete_container()
 
     async def get_container_log(self):
-        logs = await docker_call_retry(self.container.log, 5, stderr=True, stdout=True)
+        logs = await docker_call_retry(self.container.log, stderr=True, stdout=True)
         return "".join(logs)
 
     async def get_log(self):
@@ -326,9 +326,9 @@ class Container:
         if self.container:
             try:
                 log.info(f'{self}: deleting container')
-                await docker_call_retry(self.container.stop, 5)
+                await docker_call_retry(self.container.stop)
                 # v=True deletes anonymous volumes created by the container
-                await docker_call_retry(self.container.delete, 5, v=True)
+                await docker_call_retry(self.container.delete, v=True)
                 self.container = None
             except Exception:
                 log.exception('while deleting container, ignoring')

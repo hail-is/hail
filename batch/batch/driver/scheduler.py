@@ -118,6 +118,7 @@ GROUP BY user;
 
     async def bump_loop(self):
         while True:
+            log.info(f'bump loop')
             self.scheduler_state_changed.set()
             self.cancel_ready_state_changed.set()
             self.cancel_running_state_changed.set()
