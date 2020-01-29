@@ -294,6 +294,8 @@ object Copy {
       case ReadPartition(path, spec, rowType) =>
         assert(newChildren.length == 1)
         ReadPartition(newChildren(0).asInstanceOf[IR], spec, rowType)
+      case LiftMeOut(_) =>
+        LiftMeOut(newChildren(0).asInstanceOf[IR])
     }
   }
 }

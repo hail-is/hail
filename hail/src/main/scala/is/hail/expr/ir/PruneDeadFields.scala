@@ -1402,7 +1402,7 @@ object PruneDeadFields {
         // FIXME: remove this when all readers know how to read without keys
         val requestedTypeWithKeys = MatrixType(
           rowKey = typ.rowKey,
-          colKey = typ.colKey,
+          colKey = requestedType.colKey,
           rowType = unify(typ.rowType, selectKey(typ.rowType, typ.rowKey), requestedType.rowType),
           entryType = requestedType.entryType,
           colType = unify(typ.colType, selectKey(typ.colType, typ.colKey), requestedType.colType),

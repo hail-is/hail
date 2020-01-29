@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 object InterpretableButNotCompilable {
   def apply(x: IR): Boolean = x match {
+    case _: LiftMeOut => true
     case _: TableCount => true
     case _: TableGetGlobals => true
     case _: TableCollect => true
@@ -24,6 +25,7 @@ object InterpretableButNotCompilable {
 object Compilable {
   def apply(ir: IR): Boolean = {
     ir match {
+      case _: LiftMeOut => false
       case _: TableCount => false
       case _: TableGetGlobals => false
       case _: TableCollect => false
