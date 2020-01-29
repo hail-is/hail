@@ -74,8 +74,7 @@ object InferPType {
         InferPType(ir, env)
         PBoolean(true)
       }
-      case Ref(name, t) =>
-        env.lookup(name)
+      case Ref(name, t) => env.lookup(name)
       case MakeNDArray(data, shape, rowMajor) => {
         InferPType(data, env)
         InferPType(shape, env)
@@ -520,7 +519,7 @@ object InferPType {
       }
       case AggExplode(arrayIR, name, aggBody, _) => {
         InferPType(arrayIR, env)
-        InferPType(aggBody, env.bind(name -> arrayIR._pType2))
+        InferPType(aggBody, env.bind(name -> arrayIR._pType2.asInstanceOf[PIterable].elementType))
         aggBody._pType2
       }
       case AggGroupBy(keyIR, aggIR, _) => {
