@@ -1,10 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.{TArray, TNDArray, TTuple}
+import is.hail.expr.types.virtual.{TNDArray, TTuple}
 import is.hail.utils._
-
-import scala.collection.mutable.ArrayBuffer
 
 object InferPType {
   def getNestedElementPTypes(ptypes: Seq[PType]): PType = {
