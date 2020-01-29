@@ -60,7 +60,7 @@ object InferPType {
       case Void() => PVoid
       case Cast(ir, t) => {
         InferPType(ir, env)
-        PType.canonical(t, ir.pType2.required)
+        PType.canonical(t, ir._pType2.required)
       }
       case CastRename(ir, t) => {
         InferPType(ir, env)
@@ -76,61 +76,64 @@ object InferPType {
         InferPType(ir, env)
         PBoolean(true)
       }
-      case Ref(name, _) => env.lookup(name)
+      case Ref(name, t) => {
+        println(s"ENV: ${ir}, NAME: ${name}, env.t : ${t}, env.lookup: ${env.lookup(name)}")
+        env.lookup(name)
+      }
       case MakeNDArray(data, shape, rowMajor) => {
         InferPType(data, env)
         InferPType(shape, env)
         InferPType(rowMajor, env)
 
-        val nElem = shape.pType2.asInstanceOf[PTuple].size
+        val nElem = shape._pType2.asInstanceOf[PTuple].size
 
-        PNDArray(coerce[PArray](data.pType2).elementType.setRequired(true), nElem, data.pType2.required && shape.pType2.required)
+        PNDArray(coerce[PArray](data._pType2).elementType.setRequired(true), nElem, data._pType2.required && shape._pType2.required)
       }
       case ArrayRange(start: IR, stop: IR, step: IR) => {
         InferPType(start, env)
         InferPType(stop, env)
         InferPType(step, env)
 
-        assert(start.pType2 isOfType stop.pType2)
-        assert(start.pType2 isOfType step.pType2)
+        assert(start._pType2 isOfType stop._pType2)
+        assert(start._pType2 isOfType step._pType2)
 
-        val allRequired = start.pType2.required && stop.pType2.required && step.pType2.required
-        PArray(start.pType2.setRequired(true), allRequired)
+        val allRequired = start._pType2.required && stop._pType2.required && step._pType2.required
+        PArray(start._pType2.setRequired(true), allRequired)
       }
       case StreamRange(start: IR, stop: IR, step: IR) => {
         InferPType(start, env)
         InferPType(stop, env)
         InferPType(step, env)
 
-        assert(start.pType2 isOfType stop.pType2)
-        assert(start.pType2 isOfType step.pType2)
+        assert(start._pType2 isOfType stop._pType2)
+        assert(start._pType2 isOfType step._pType2)
 
-        val allRequired = start.pType2.required && stop.pType2.required && step.pType2.required
-        PArray(start.pType2.setRequired(true), allRequired)
+        val allRequired = start._pType2.required && stop._pType2.required && step._pType2.required
+        PArray(start._pType2.setRequired(true), allRequired)
       }
       case ArrayLen(a: IR) => {
         InferPType(a, env)
 
-        PInt32(a.pType2.required)
+        PInt32(a._pType2.required)
       }
       case LowerBoundOnOrderedCollection(orderedCollection: IR, bound: IR, _) => {
         InferPType(orderedCollection, env)
         InferPType(bound, env)
 
-        PInt32(orderedCollection.pType2.required)
+        PInt32(orderedCollection._pType2.required)
       }
       case _: ArrayFor => PVoid
       case _: Begin => PVoid
       case Let(name, value, body) => {
         InferPType(value, env)
-        InferPType(body, env.bind(name, value.pType2))
+        InferPType(body, env.bind(name, value._pType2))
 
-        body.pType2
+        body._pType2
       }
       case TailLoop(_, args, body) =>
         args.foreach { case (_, ir) => InferPType(ir, env) }
-        InferPType(body, env.bind(args.map { case (n, ir) => n -> ir.pType2 }: _*))
-        body.pType2
+        InferPType(body, env.bind(args.map { case (n, ir) => n -> ir._pType2 }: _*))
+        body._pType2
       case Recur(_, args, typ) =>
         // FIXME: This may be difficult to infer properly from a bottom-up pass.
         args.foreach { a => InferPType(a, env) }
@@ -140,40 +143,40 @@ object InferPType {
           InferPType(l, env)
           InferPType(r, env)
 
-          val required = l.pType2.required && r.pType2.required
-          val vType = BinaryOp.getReturnType(op, l.pType2.virtualType, r.pType2.virtualType).setRequired(required)
+          val required = l._pType2.required && r._pType2.required
+          val vType = BinaryOp.getReturnType(op, l._pType2.virtualType, r._pType2.virtualType).setRequired(required)
 
           PType.canonical(vType, vType.required)
       }
       case ApplyUnaryPrimOp(op, v) => {
         InferPType(v, env)
-        PType.canonical(UnaryOp.getReturnType(op, v.pType2.virtualType).setRequired(v.pType2.required))
+        PType.canonical(UnaryOp.getReturnType(op, v._pType2.virtualType).setRequired(v._pType2.required))
       }
       case ApplyComparisonOp(op, l, r) => {
         InferPType(l, env)
         InferPType(r, env)
 
-        assert(l.pType2 isOfType r.pType2)
+        assert(l._pType2 isOfType r._pType2)
         op match {
-          case _: Compare => PInt32(l.pType2.required && r.pType2.required)
-          case _ => PBoolean(l.pType2.required && r.pType2.required)
+          case _: Compare => PInt32(l._pType2.required && r._pType2.required)
+          case _ => PBoolean(l._pType2.required && r._pType2.required)
         }
       }
       case a: ApplyIR => {
         InferPType(a.explicitNode, env)
-        a.explicitNode.pType2
+        a.explicitNode._pType2
       }
       case a: AbstractApplyNode[_] => {
         val pTypes = a.args.map( i => {
           InferPType(i, env)
-          i.pType2
+          i._pType2
         })
         a.implementation.returnPType(pTypes, a.returnType)
       }
       case a@ApplySpecial(_, args, _) => {
         val pTypes = args.map( i => {
           InferPType(i, env)
-          i.pType2
+          i._pType2
         })
         a.implementation.returnPType(pTypes, a.returnType)
       }
@@ -181,163 +184,164 @@ object InferPType {
         InferPType(a, env)
         InferPType(i, env)
         InferPType(s, env)
-        assert(i.pType2 isOfType PInt32() )
+        assert(i._pType2 isOfType PInt32() )
 
-        coerce[PStreamable](a.pType2).elementType.setRequired(a.pType2.required && i.pType2.required)
+        coerce[PStreamable](a._pType2).elementType.setRequired(a._pType2.required && i._pType2.required)
       }
       case ArraySort(a, leftName, rightName, compare) => {
         InferPType(a, env)
-        val et = coerce[PStreamable](a.pType2).elementType
+        val et = coerce[PStreamable](a._pType2).elementType
 
         InferPType(compare, env.bind(leftName -> et, rightName -> et))
-        assert(compare.pType2.isOfType(PBoolean()))
+        assert(compare._pType2.isOfType(PBoolean()))
 
-        PArray(et, a.pType2.required)
+        PArray(et, a._pType2.required)
       }
       case ToSet(a) => {
         InferPType(a, env)
-        val et = coerce[PIterable](a.pType2).elementType
-        PSet(et, a.pType2.required)
+        val et = coerce[PIterable](a._pType2).elementType
+        PSet(et, a._pType2.required)
       }
       case ToDict(a) => {
         InferPType(a, env)
-        val elt = coerce[PBaseStruct](coerce[PIterable](a.pType2).elementType)
+        val elt = coerce[PBaseStruct](coerce[PIterable](a._pType2).elementType)
         // Dict key/value types don't depend on PIterable's requiredeness because we have an interface guarantee that
         // null PIterables are filtered out before dict construction
         val keyRequired = elt.types(0).required
         val valRequired =  elt.types(1).required
-        PDict(elt.types(0).setRequired(keyRequired), elt.types(1).setRequired(valRequired), a.pType2.required)
+        PDict(elt.types(0).setRequired(keyRequired), elt.types(1).setRequired(valRequired), a._pType2.required)
       }
       case ToArray(a) => {
         InferPType(a, env)
-        val elt = coerce[PIterable](a.pType2).elementType
-        PArray(elt, a.pType2.required)
+        val elt = coerce[PIterable](a._pType2).elementType
+        PArray(elt, a._pType2.required)
       }
       case ToStream(a) => {
         InferPType(a, env)
-        val elt = coerce[PIterable](a.pType2).elementType
-        PStream(elt, a.pType2.required)
+        val elt = coerce[PIterable](a._pType2).elementType
+        PStream(elt, a._pType2.required)
       }
       case GroupByKey(collection) => {
         InferPType(collection, env)
-        val elt = coerce[PBaseStruct](coerce[PStreamable](collection.pType2).elementType)
-        PDict(elt.types(0), PArray(elt.types(1)), collection.pType2.required)
+        val elt = coerce[PBaseStruct](coerce[PStreamable](collection._pType2).elementType)
+        PDict(elt.types(0), PArray(elt.types(1)), collection._pType2.required)
       }
       case ArrayMap(a, name, body) => {
         InferPType(a, env)
-        InferPType(body, env.bind(name, a.pType2.asInstanceOf[PArray].elementType))
-        coerce[PStreamable](a.pType2).copyStreamable(body.pType2, body.pType2.required)
+        InferPType(body, env.bind(name, a._pType2.asInstanceOf[PArray].elementType))
+        coerce[PStreamable](a._pType2).copyStreamable(body._pType2, body._pType2.required)
       }
       case ArrayZip(as, names, body, _) =>
-        as.foreach(InferPType(_, env))
-        InferPType(body, env.bindIterable(names.zip(as.map(_.pType2))))
-        coerce[PStreamable](as.head.pType2).copyStreamable(body.pType2, as.forall(_.pType2.required))
+        as.foreach(a => InferPType(a, env))
+
+        InferPType(body, env.bindIterable(names.zip(as.map(_._pType2.asInstanceOf[PArray].elementType))))
+        coerce[PStreamable](as.head._pType2).copyStreamable(body._pType2, as.forall(_._pType2.required))
       case ArrayFilter(a, name, cond) => {
         InferPType(a, env)
-        a.pType2
+        a._pType2
       }
       case ArrayFlatMap(a, name, body) => {
         InferPType(a, env)
-        InferPType(body, env.bind(name, a.pType2.asInstanceOf[PArray].elementType))
+        InferPType(body, env.bind(name, a._pType2.asInstanceOf[PArray].elementType))
 
         // Whether an array must return depends on a, but element requiredeness depends on body (null a elements elided)
-        coerce[PStreamable](a.pType2).copyStreamable(coerce[PIterable](body.pType2).elementType, a.pType2.required)
+        coerce[PStreamable](a._pType2).copyStreamable(coerce[PIterable](body._pType2).elementType, a._pType2.required)
       }
       case ArrayFold(a, zero, accumName, valueName, body) => {
         InferPType(zero, env)
 
         InferPType(a, env)
-        InferPType(body, env.bind(accumName -> zero.pType2, valueName -> a.pType2.asInstanceOf[PArray].elementType))
-        assert(body.pType2 isOfType zero.pType2)
+        InferPType(body, env.bind(accumName -> zero._pType2, valueName -> a._pType2.asInstanceOf[PArray].elementType))
+        assert(body._pType2 isOfType zero._pType2)
 
-        zero.pType2.setRequired(body.pType2.required)
+        zero._pType2.setRequired(body._pType2.required)
       }
       case ArrayFold2(a, acc, valueName, seq, res) =>
         InferPType(a, env)
         acc.foreach { case (_, accIR) => InferPType(accIR, env) }
         InferPType(a, env)
-        val resEnv = env.bind(acc.map { case (name, accIR) => (name, accIR.pType2)}: _*)
-        val seqEnv = resEnv.bind(valueName -> a.pType2.asInstanceOf[PArray].elementType)
+        val resEnv = env.bind(acc.map { case (name, accIR) => (name, accIR._pType2)}: _*)
+        val seqEnv = resEnv.bind(valueName -> a._pType2.asInstanceOf[PArray].elementType)
         seq.foreach(InferPType(_, seqEnv))
         InferPType(res, resEnv)
-        res.pType2.setRequired(res.pType2.required && a.pType2.required)
+        res._pType2.setRequired(res._pType2.required && a._pType2.required)
       case ArrayScan(a, zero, accumName, valueName, body) => {
         InferPType(zero, env)
 
         InferPType(a, env)
-        InferPType(body, env.bind(accumName -> zero.pType2, valueName -> a.pType2.asInstanceOf[PArray].elementType))
-        assert(body.pType2 isOfType zero.pType2)
+        InferPType(body, env.bind(accumName -> zero._pType2, valueName -> a._pType2.asInstanceOf[PArray].elementType))
+        assert(body._pType2 isOfType zero._pType2)
 
-        val elementPType = zero.pType2.setRequired(body.pType2.required && zero.pType2.required)
-        coerce[PStreamable](a.pType2).copyStreamable(elementPType, a.pType2.required)
+        val elementPType = zero._pType2.setRequired(body._pType2.required && zero._pType2.required)
+        coerce[PStreamable](a._pType2).copyStreamable(elementPType, a._pType2.required)
       }
       case ArrayLeftJoinDistinct(lIR, rIR, lName, rName, compare, join) => {
         InferPType(lIR, env)
         InferPType(rIR, env)
 
-        InferPType(join, env.bind(lName -> lIR.pType2.asInstanceOf[PArray].elementType, rName -> rIR.pType2.asInstanceOf[PArray].elementType))
+        InferPType(join, env.bind(lName -> lIR._pType2.asInstanceOf[PArray].elementType, rName -> rIR._pType2.asInstanceOf[PArray].elementType))
 
-        PArray(join.pType2, lIR.pType2.required)
+        PArray(join._pType2, lIR._pType2.required)
       }
       case NDArrayShape(nd) => {
         InferPType(nd, env)
-        PTuple(nd.pType2.required, IndexedSeq.tabulate(nd.pType2.asInstanceOf[PNDArray].nDims)(_ => PInt64(true)):_*)
+        PTuple(nd._pType2.required, IndexedSeq.tabulate(nd._pType2.asInstanceOf[PNDArray].nDims)(_ => PInt64(true)):_*)
       }
       case NDArrayReshape(nd, shape) => {
         InferPType(nd, env)
         InferPType(shape, env)
 
-        PNDArray(coerce[PNDArray](nd.pType2).elementType, shape.pType2.asInstanceOf[TTuple].size, nd.pType2.required)
+        PNDArray(coerce[PNDArray](nd._pType2).elementType, shape._pType2.asInstanceOf[TTuple].size, nd._pType2.required)
       }
       case NDArrayMap(nd, name, body) => {
         InferPType(nd, env)
-        InferPType(body, env.bind(name, nd.pType2))
+        InferPType(body, env.bind(name, nd._pType2))
 
-        PNDArray(body.pType2, coerce[PNDArray](nd.pType2).nDims, nd.pType2.required)
+        PNDArray(body._pType2, coerce[PNDArray](nd._pType2).nDims, nd._pType2.required)
       }
       case NDArrayMap2(l, r, lName, rName, body) => {
         InferPType(l, env)
         InferPType(body, env)
 
-        PNDArray(body.pType2, coerce[PNDArray](l.pType2).nDims, l.pType2.required)
+        PNDArray(body._pType2, coerce[PNDArray](l._pType2).nDims, l._pType2.required)
       }
       case NDArrayReindex(nd, indexExpr) => {
         InferPType(nd, env)
 
-        PNDArray(coerce[PNDArray](nd.pType2).elementType, indexExpr.length, nd.pType2.required)
+        PNDArray(coerce[PNDArray](nd._pType2).elementType, indexExpr.length, nd._pType2.required)
       }
       case NDArrayRef(nd, idxs) => {
         InferPType(nd, env)
 
-        var allRequired = nd.pType2.required
+        var allRequired = nd._pType2.required
         val it = idxs.iterator
         while(it.hasNext) {
           val idxIR = it.next()
 
           InferPType(idxIR, env)
 
-          assert(idxIR.pType2.isOfType(PInt64()) || idxIR.pType2.isOfType(PInt32()))
+          assert(idxIR._pType2.isOfType(PInt64()) || idxIR._pType2.isOfType(PInt32()))
 
-          if (allRequired == true && idxIR.pType2.required == false) {
+          if (allRequired == true && idxIR._pType2.required == false) {
             allRequired = false
           }
         }
 
-        coerce[PNDArray](nd.pType2).elementType.setRequired(allRequired)
+        coerce[PNDArray](nd._pType2).elementType.setRequired(allRequired)
       }
       case NDArraySlice(nd, slices) => {
         InferPType(nd, env)
         InferPType(slices, env)
 
-        val remainingDims = coerce[PTuple](slices.pType2).types.filter(_.isInstanceOf[PTuple])
+        val remainingDims = coerce[PTuple](slices._pType2).types.filter(_.isInstanceOf[PTuple])
 
-        PNDArray(coerce[PNDArray](nd.pType2).elementType, remainingDims.length, remainingDims.forall(_.required))
+        PNDArray(coerce[PNDArray](nd._pType2).elementType, remainingDims.length, remainingDims.forall(_.required))
       }
       case NDArrayMatMul(l, r) => {
         InferPType(l, env)
         InferPType(r, env)
-        val lTyp = coerce[PNDArray](l.pType2)
-        val rTyp = coerce[PNDArray](r.pType2)
+        val lTyp = coerce[PNDArray](l._pType2)
+        val rTyp = coerce[PNDArray](r._pType2)
         PNDArray(lTyp.elementType, TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims), lTyp.required && rTyp.required)
       }
       case NDArrayQR(nd, mode) => {
@@ -353,21 +357,21 @@ object InferPType {
         case (name, a) => {
           InferPType(a, env)
 
-          (name, a.pType2)
+          (name, a._pType2)
         }
       }: _*)
       case SelectFields(old, fields) => {
         InferPType(old, env)
-        val tbs = coerce[PStruct](old.pType2)
+        val tbs = coerce[PStruct](old._pType2)
         tbs.select(fields.toFastIndexedSeq)._1
       }
       case InsertFields(old, fields, fieldOrder) => {
         InferPType(old, env)
-        val tbs = coerce[PStruct](old.pType2)
+        val tbs = coerce[PStruct](old._pType2)
 
         val s = tbs.insertFields(fields.map(f =>  {
           InferPType(f._2, env)
-          (f._1, f._2.pType2)
+          (f._1, f._2._pType2)
         }))
 
         fieldOrder.map { fds =>
@@ -377,7 +381,7 @@ object InferPType {
       }
       case GetField(o, name) => {
         InferPType(o, env)
-        val t = coerce[PStruct](o.pType2)
+        val t = coerce[PStruct](o._pType2)
         if (t.index(name).isEmpty)
           throw new RuntimeException(s"$name not in $t")
         val fd = t.field(name).typ
@@ -385,7 +389,7 @@ object InferPType {
       }
       case MakeTuple(values) => PTuple(true, values.map(v => {
           InferPType(v._2, env)
-          v._2.pType2
+          v._2._pType2
       }):_*)
       case MakeArray(irs, t) => {
         if (irs.length == 0) {
@@ -393,7 +397,7 @@ object InferPType {
         } else {
           val elementTypes = irs.map { elt =>
             InferPType(elt, env)
-            elt.pType2
+            elt._pType2
           }
 
           val inferredElementType = getNestedElementPTypes(elementTypes)
@@ -403,7 +407,7 @@ object InferPType {
       }
       case GetTupleElement(o, idx) => {
         InferPType(o, env)
-        val t = coerce[PTuple](o.pType2)
+        val t = coerce[PTuple](o._pType2)
         assert(idx >= 0 && idx < t.size)
         val fd = t.types(idx)
         fd.setRequired(t.required && fd.required)
@@ -412,19 +416,19 @@ object InferPType {
         InferPType(contexts, env)
         InferPType(globals, env)
 
-        InferPType(body, env.bind(contextsName -> contexts.pType2, globalsName -> globals.pType2))
-        PArray(body.pType2)
+        InferPType(body, env.bind(contextsName -> contexts._pType2, globalsName -> globals._pType2))
+        PArray(body._pType2)
       }
       case If(cond, cnsq, altr) => {
         InferPType(cond, env)
         InferPType(cnsq, env)
         InferPType(altr, env)
 
-        assert(cond.pType2 isOfType PBoolean())
+        assert(cond._pType2 isOfType PBoolean())
 
-        val branchType = getNestedElementPTypes(IndexedSeq(cnsq.pType2, altr.pType2))
+        val branchType = getNestedElementPTypes(IndexedSeq(cnsq._pType2, altr._pType2))
 
-        branchType.setRequired(branchType.required && cond.pType2.required)
+        branchType.setRequired(branchType.required && cond._pType2.required)
       }
 
       case Coalesce(values) =>
@@ -559,7 +563,7 @@ object InferPType {
     }
 
     // Allow only requiredeness to diverge
-    assert(ir.pType2.virtualType isOfType ir.typ)
+    assert(ir._pType2.virtualType isOfType ir.typ)
   }
 }
 
