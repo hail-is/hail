@@ -118,6 +118,7 @@ GROUP BY user;
 
     async def bump_loop(self):
         while True:
+            log.info(f'bump loop')
             self.scheduler_state_changed.set()
             self.cancel_ready_state_changed.set()
             self.cancel_running_state_changed.set()
@@ -302,7 +303,7 @@ LIMIT %s;
         async def user_runnable_jobs(user, remaining):
             async for batch in self.db.select_and_fetchall(
                     '''
-SELECT id, cancelled, userdata, user
+SELECT id, cancelled, userdata, user, format_version
 FROM batches
 WHERE user = %s AND `state` = 'running';
 ''',
@@ -320,6 +321,7 @@ LIMIT %s;
                     record['batch_id'] = batch['id']
                     record['userdata'] = batch['userdata']
                     record['user'] = batch['user']
+                    record['format_version'] = batch['format_version']
                     yield record
                 if not batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
@@ -334,6 +336,7 @@ LIMIT %s;
                         record['batch_id'] = batch['id']
                         record['userdata'] = batch['userdata']
                         record['user'] = batch['user']
+                        record['format_version'] = batch['format_version']
                         yield record
 
         waitable_pool = WaitableSharedPool(self.async_worker_pool)

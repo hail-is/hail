@@ -4,12 +4,15 @@ import asyncio
 import aiohttp
 import base64
 import traceback
-from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error
+from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error, \
+    humanize_timedelta_msecs
 
 from .globals import complete_states, tasks
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
 from .utils import cost_from_msec_mcpu
+from .batch_format_version import BatchFormatVersion
+from .spec_writer import SpecWriter
 
 log = logging.getLogger('batch')
 
@@ -147,27 +150,25 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
 
-def job_record_to_dict(app, record, running_status=None):
-    spec = json.loads(record['spec'])
+def job_record_to_dict(app, record):
+    format_version = BatchFormatVersion(record['format_version'])
 
-    attributes = spec.pop('attributes', None)
+    db_status = record['status']
+    if db_status:
+        db_status = json.loads(db_status)
+        exit_code, duration = format_version.get_status_exit_code_duration(db_status)
+        duration = humanize_timedelta_msecs(duration)
+    else:
+        exit_code = None
+        duration = None
 
     result = {
         'batch_id': record['batch_id'],
         'job_id': record['job_id'],
         'state': record['state'],
-        'spec': spec
+        'exit_code': exit_code,
+        'duration': duration
     }
-
-    if attributes:
-        result['attributes'] = attributes
-
-    if record['status']:
-        status = json.loads(record['status'])
-    else:
-        status = running_status
-    if status:
-        result['status'] = status
 
     msec_mcpu = record['msec_mcpu']
     result['msec_mcpu'] = msec_mcpu
@@ -245,13 +246,27 @@ async def unschedule_job(app, record):
 
 async def job_config(app, record, attempt_id):
     k8s_cache = app['k8s_cache']
+    db = app['db']
 
-    job_spec = json.loads(record['spec'])
+    format_version = BatchFormatVersion(record['format_version'])
+    batch_id = record['batch_id']
+    job_id = record['job_id']
+
+    db_spec = json.loads(record['spec'])
+
+    if format_version.has_full_spec_in_gcs():
+        job_spec = {
+            'secrets': format_version.get_spec_secrets(db_spec),
+            'service_account': format_version.get_spec_service_account(db_spec)
+        }
+    else:
+        job_spec = db_spec
+
     job_spec['attempt_id'] = attempt_id
 
     userdata = json.loads(record['userdata'])
 
-    secrets = job_spec['secrets']
+    secrets = job_spec.get('secrets', [])
     k8s_secrets = await asyncio.gather(*[
         k8s_cache.read_secret(
             secret['name'], secret['namespace'],
@@ -320,8 +335,18 @@ users:
         env.append({'name': 'KUBECONFIG',
                     'value': '/.kube/config'})
 
+    if format_version.has_full_spec_in_gcs():
+        token, start_job_id = await SpecWriter.get_token_start_id(db, batch_id, job_id)
+    else:
+        token = None
+        start_job_id = None
+
     return {
-        'batch_id': record['batch_id'],
+        'batch_id': batch_id,
+        'job_id': job_id,
+        'format_version': format_version.format_version,
+        'token': token,
+        'start_job_id': start_job_id,
         'user': record['user'],
         'gsa_key': gsa_key,
         'job_spec': job_spec
@@ -331,11 +356,14 @@ users:
 async def schedule_job(app, record, instance):
     assert instance.state == 'active'
 
+    log_store = app['log_store']
     db = app['db']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
     attempt_id = record['attempt_id']
+    format_version = BatchFormatVersion(record['format_version'])
+
     id = (batch_id, job_id)
 
     try:
@@ -353,8 +381,14 @@ async def schedule_job(app, record, instance):
                 'error': traceback.format_exc(),
                 'container_statuses': {k: {} for k in tasks}
             }
+
+            if format_version.has_full_status_in_gcs():
+                await log_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
+
+            db_status = format_version.db_status(status)
+
             await mark_job_complete(app, batch_id, job_id, attempt_id, instance.name,
-                                    'Error', status, None, None, 'error')
+                                    'Error', db_status, None, None, 'error')
             raise
 
         log.info(f'schedule job {id} on {instance}: made job config')
