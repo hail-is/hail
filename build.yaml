@@ -886,7 +886,7 @@ steps:
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
-     python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(levelname) %(asctime)s %(filename)s %(funcNameAndLine)s %(message)s" --log-cli-level=INFO -s -vv --instafail -k "not test_scale" /io/test/
+     python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(asctime)s %(levelname) %(filename)s:%(lineno)d:%(funcName)s %(message)s" --log-cli-level=INFO -s -vv --instafail -k "not test_scale" /io/test/
    inputs:
     - from: /repo/batch/test
       to: /io/
