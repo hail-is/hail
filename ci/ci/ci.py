@@ -108,7 +108,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     if pr.batch:
         if hasattr(pr.batch, 'id'):
             status = await pr.batch.status()
-            jobs = await collect_agen(pr.batch.jobs())
+            jobs = [await j.status() for j in await collect_agen(pr.batch.jobs())]
             for j in jobs:
                 j['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(j))
                 j['exit_code'] = Job.exit_code(j)
@@ -148,7 +148,7 @@ async def get_batch(request, userdata):
     batch_client = request.app['batch_client']
     b = await batch_client.get_batch(batch_id)
     status = await b.status()
-    jobs = await collect_agen(b.jobs())
+    jobs = [await j.status() for j in await collect_agen(b.jobs())]
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(j))
         j['exit_code'] = Job.exit_code(j)
