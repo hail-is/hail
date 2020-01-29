@@ -16,5 +16,5 @@ tasks = ('input', 'main', 'output')
 
 HTTP_CLIENT_MAX_SIZE = 8 * 1024 * 1024
 
-BATCH_FORMAT_VERSION = 2
+BATCH_FORMAT_VERSION = 1
 INSTANCE_VERSION = 2
