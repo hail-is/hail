@@ -16,7 +16,9 @@ from hailtop.utils import time_msecs
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 
-import cProfile, pstats, io
+import cProfile
+import pstats
+import io
 
 # import uvloop
 
@@ -26,7 +28,6 @@ from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
     DEFAULT_NAMESPACE, BATCH_BUCKET_NAME
 from ..google_compute import GServices
 from ..globals import HTTP_CLIENT_MAX_SIZE
-from ..batch_format_version import BatchFormatVersion
 
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
