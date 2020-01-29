@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.{TNDArray, TTuple}
+import is.hail.expr.types.virtual.{TArray, TNDArray, TTuple}
 import is.hail.utils._
 
 import scala.collection.mutable.ArrayBuffer
@@ -433,7 +433,129 @@ object InferPType {
           theIR._pType2
         }))
       case In(_, pType: PType) => pType
-      case _: ReadPartition | _: Coalesce | _: MakeStream => throw new Exception("Node not supported")
+      case NDArrayWrite(_, _) => PVoid
+      case _: InitOp => PVoid
+      case _: SeqOp => PVoid
+      case _: CombOp => PVoid
+      case x@ResultOp(_, _) =>
+        PType.canonical(InferType(x))
+      case _: SerializeAggs => PVoid
+      case _: DeserializeAggs => PVoid
+      case _: Begin => PVoid
+      case _: TableWrite => PVoid
+      case _: TableMultiWrite => PVoid
+      case _: MatrixWrite => PVoid
+      case _: MatrixMultiWrite => PVoid
+      case _: BlockMatrixWrite => PVoid
+      case _: BlockMatrixMultiWrite => PVoid
+      case TableGetGlobals(child) => PType.canonical(child.typ.globalType)
+      case x@TableCollect(_) =>
+        PType.canonical(InferType(x))
+      case TableToValueApply(child, function) => PType.canonical(function.typ(child.typ))
+      case MatrixToValueApply(child, function) => PType.canonical(function.typ(child.typ))
+      case BlockMatrixToValueApply(child, function) =>
+        PType.canonical(function.typ(child.typ))
+      case CollectDistributedArray(contextsIR, globalsIR, contextsName, globalsName, bodyIR) => {
+        InferPType(contextsIR, env)
+        InferPType(globalsIR, env)
+        InferPType(bodyIR, env.bind(contextsName -> contextsIR._pType2, globalsName -> globalsIR._pType2))
+
+        PCanonicalArray(bodyIR._pType2, contextsIR._pType2.required)
+      }
+      case ReadPartition(rowIR, _, rowType) => {
+        InferPType(ir, env)
+        PStream(rowIR._pType2, rowIR._pType2.required)
+      }
+      case MakeStream(irs, t) => {
+        if (irs.length == 0) {
+          PType.canonical(t, true).deepInnerRequired(true)
+        }
+
+        PStream(getNestedElementPTypes(irs.map( theIR => {
+          InferPType(theIR, env)
+          theIR._pType2
+        })), true)
+      }
+      case AggLet(name, valueIR, bodyIR, _) => {
+        InferPType(valueIR, env)
+        InferPType(bodyIR, env.bind(name -> valueIR._pType2))
+        bodyIR._pType2
+      }
+      case ArrayAgg(a, name, queryIR) => {
+        InferPType(a, env)
+        InferPType(queryIR, env.bind(name -> a._pType2))
+        queryIR._pType2
+      }
+      case ArrayAggScan(a, name, queryIR)  => {
+        InferPType(a, env)
+        InferPType(queryIR, env.bind(name -> a._pType2))
+        queryIR._pType2
+      }
+      case RunAgg(bodyIR, resultIR, _) => {
+        InferPType(bodyIR, env)
+        InferPType(resultIR, env)
+        resultIR._pType2
+      }
+      case NDArrayAgg(ndIR, axes) => {
+        InferPType(ndIR, env)
+        val childPType = ndIR._pType2.asInstanceOf[PNDArray]
+        PCanonicalNDArray(childPType.elementType, childPType.nDims - axes.length, childPType.required)
+      }
+      case AggFilter(condIR, aggIR, _) => {
+        InferPType(condIR, env)
+        assert(condIR._pType2.isOfType(PBoolean()))
+
+        InferPType(aggIR, env)
+        aggIR._pType2
+      }
+      case AggExplode(arrayIR, name, aggBody, _) => {
+        InferPType(arrayIR, env)
+        InferPType(aggBody, env.bind(name -> arrayIR._pType2))
+        aggBody._pType2
+      }
+      case AggGroupBy(keyIR, aggIR, _) => {
+        InferPType(keyIR, env)
+        InferPType(aggIR, env)
+        PCanonicalDict(keyIR._pType2, aggIR._pType2, keyIR._pType2.required && aggIR._pType2.required)
+      }
+      case AggArrayPerElement(a: IR, elementName, indexName, aggBody, knownLength, _) => {
+        InferPType(a, env)
+
+        knownLength match {
+          case Some(kIR) => InferPType(kIR, env)
+        }
+
+        InferPType(aggBody, env.bind(elementName -> a._pType2))
+        PArray(aggBody._pType2, aggBody._pType2.required)
+      }
+        // TODO: need to bind name for initOpArgs to find
+      case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) => {
+        var i = 0
+        val iPTypes = initOpArgs.map(i => {
+          InferPType(i, env)
+          i._pType2
+        })
+        val sPTypes = seqOpArgs.map(s => {
+          InferPType(s, env)
+          s._pType2
+        })
+
+        aggSig.toPhysical(initOpTypes = iPTypes, seqOpTypes = sPTypes).returnType
+      }
+      case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) => {
+        var i = 0
+        val iPTypes = initOpArgs.map(i => {
+          InferPType(i, env)
+          i._pType2
+        })
+        val sPTypes = seqOpArgs.map(s => {
+          InferPType(s, env)
+          s._pType2
+        })
+
+        aggSig.toPhysical(initOpTypes = iPTypes, seqOpTypes = sPTypes).returnType
+      }
+      case _ => throw new Exception("Node not supported")
     }
 
     // Allow only requiredeness to diverge
