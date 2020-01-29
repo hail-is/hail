@@ -411,8 +411,8 @@ object InferPType {
         InferPType(contexts, env)
         InferPType(globals, env)
 
-        InferPType(body, env.bind(contextsName -> contexts._pType2, globalsName -> globals._pType2))
-        PArray(body._pType2)
+        InferPType(body, env.bind(contextsName -> contexts._pType2.asInstanceOf[PArray].elementType, globalsName -> globals._pType2))
+        PArray(body._pType2, body._pType2.required)
       }
       case If(cond, cnsq, altr) => {
         InferPType(cond, env)
@@ -461,9 +461,9 @@ object InferPType {
 
         PCanonicalArray(bodyIR._pType2, contextsIR._pType2.required)
       }
-      case ReadPartition(rowIR, _, rowType) => {
-        InferPType(ir, env)
-        PStream(rowIR._pType2, rowIR._pType2.required)
+      case ReadPartition(rowIR, codecSpec, _) => {
+        InferPType(rowIR, env)
+        PStream(codecSpec.encodedPhysicalType, codecSpec.encodedPhysicalType.required)
       }
       case MakeStream(irs, t) => {
         if (irs.length == 0) {
@@ -565,6 +565,15 @@ object InferPType {
         aggSig.toPhysical(initOpTypes = iPTypes, seqOpTypes = sPTypes).returnType
       }
       case AggStateValue(_, _) => PBinary(true)
+      case TableCount(_) => PInt64(true)
+      case TableAggregate(_, query) => {
+        InferPType(query, env)
+        query._pType2
+      }
+      case MatrixAggregate(_, query) => {
+        InferPType(query, env)
+        query._pType2
+      }
       case _ => throw new Exception("Node not supported")
     }
 

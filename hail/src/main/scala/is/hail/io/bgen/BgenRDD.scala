@@ -6,7 +6,7 @@ import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.PruneDeadFields
 import is.hail.expr.types._
 import is.hail.expr.types.encoded.{EArray, EBaseStruct, EBinaryOptional, EBinaryRequired, EField, EInt32Optional, EInt32Required, EInt64Required}
-import is.hail.expr.types.physical.{PArray, PCall, PCanonicalLocus, PFloat64Required, PInt32, PInt64, PLocus, PString, PStruct}
+import is.hail.expr.types.physical.{PArray, PCall, PCanonicalLocus, PCanonicalStruct, PField, PFloat64Required, PInt32, PInt64, PLocus, PString, PStruct}
 import is.hail.expr.types.virtual.{Field, TArray, TInt64Required, TLocus, TString, TStruct, Type}
 import is.hail.io.{AbstractTypedCodecSpec, BlockingBufferSpec, HadoopFSDataBinaryReader, LEB128BufferSpec, LZ4HCBlockBufferSpec, StreamBlockBufferSpec, TypedCodecSpec}
 import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}
@@ -22,9 +22,10 @@ import org.apache.spark.{OneToOneDependency, Partition, SparkContext, TaskContex
 import scala.language.reflectiveCalls
 
 object BgenSettings {
-  def indexKeyType(rg: Option[ReferenceGenome]): TStruct = TStruct(
-    "locus" -> rg.map(TLocus(_)).getOrElse(TLocus.representation(false)),
-    "alleles" -> TArray(TString()))
+  def indexKeyPType(rg: Option[ReferenceGenome]): PStruct = PStruct(
+    "locus" -> rg.map(PCanonicalLocus(_)).getOrElse(PCanonicalLocus.representation(false)),
+    "alleles" -> PArray(PString()))
+  def indexKeyType(rg: Option[ReferenceGenome]): TStruct = indexKeyPType(rg).virtualType
   val indexAnnotationType: Type = +TStruct()
 
   def indexCodecSpecs(rg: Option[ReferenceGenome]): (AbstractTypedCodecSpec, AbstractTypedCodecSpec) = {
@@ -33,7 +34,7 @@ object BgenSettings {
         LZ4HCBlockBufferSpec(32 * 1024,
           new StreamBlockBufferSpec)))
 
-    val keyVType = indexKeyType(rg)
+    val keyPType = indexKeyPType(rg)
     val keyEType = EBaseStruct(FastIndexedSeq(
       EField("locus", EBaseStruct(FastIndexedSeq(
         EField("contig", EBinaryRequired, 0),
@@ -43,7 +44,7 @@ object BgenSettings {
       required = false
     )
 
-    val annotationVType = +TStruct()
+    val annotationPType = PStruct(true)
     val annotationEType = EBaseStruct(FastIndexedSeq(), required = true)
 
     val leafEType = EBaseStruct(FastIndexedSeq(
@@ -54,12 +55,12 @@ object BgenSettings {
         EField("annotation", annotationEType, 2)
       ), required = true), required = true), 1)
     ))
-    val leafVType = TStruct(FastIndexedSeq(
-      Field("first_idx", TInt64Required, 0),
-      Field("keys", TArray(TStruct(FastIndexedSeq(
-        Field("key", keyVType, 0),
-        Field("offset", TInt64Required, 1),
-        Field("annotation", annotationVType, 2)
+    val leafPType = PCanonicalStruct(FastIndexedSeq(
+      PField("first_idx", PInt64(true), 0),
+      PField("keys", PArray(PStruct(FastIndexedSeq(
+        PField("key", keyPType, 0),
+        PField("offset", PInt64(true), 1),
+        PField("annotation", annotationPType, 2)
       ), required = true), required = true), 1)))
 
     val internalNodeEType = EBaseStruct(FastIndexedSeq(
@@ -72,17 +73,17 @@ object BgenSettings {
       ), required = true), required = true), 0)
     ))
 
-    val internalNodeVType = TStruct(FastIndexedSeq(
-      Field("children", TArray(TStruct(FastIndexedSeq(
-        Field("index_file_offset", TInt64Required, 0),
-        Field("first_idx", TInt64Required, 1),
-        Field("first_key", keyVType, 2),
-        Field("first_record_offset", TInt64Required, 3),
-        Field("first_annotation", annotationVType, 4)
+    val internalNodePType = PStruct(FastIndexedSeq(
+      PField("children", PArray(PStruct(FastIndexedSeq(
+        PField("index_file_offset", PInt64(true), 0),
+        PField("first_idx", PInt64(true), 1),
+        PField("first_key", keyPType, 2),
+        PField("first_record_offset", PInt64(true), 3),
+        PField("first_annotation", annotationPType, 4)
       ), required = true), required = true), 0)
     ))
 
-    (TypedCodecSpec(leafEType, leafVType, bufferSpec), (TypedCodecSpec(internalNodeEType, internalNodeVType, bufferSpec)))
+    (TypedCodecSpec(leafEType, leafPType, bufferSpec), (TypedCodecSpec(internalNodeEType, internalNodePType, bufferSpec)))
   }
 }
 
