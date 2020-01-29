@@ -89,10 +89,6 @@ async def docker_call_retry(f, timeout, *args, **kwargs):
             # 408 request timeout, 503 service unavailable
             if e.status == 408 or e.status == 503:
                 log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
-            # DockerError(409, 'Conflict. The container name \"/...\" is already in use by container \"...\". You have to remove (or rename) that container to be able to reuse that name.')
-            elif e.status == 409 and "You have to remove (or rename) that container to be able to reuse that name." in e.message:
-                log.exception(f'in docker call to {f.__name__}, ignoring', stack_info=True)
-                return
             # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
             # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
             elif e.status == 500 and ("request canceled while waiting for connection" in e.message or
@@ -272,7 +268,7 @@ class Container:
                 config = self.container_config()
                 log.info(f'starting {self} config {config}')
                 self.container = await docker_call_retry(
-                    docker.containers.create, 5,
+                    docker.containers.create_or_replace, 5,
                     config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
             async with cpu_sem(self.cpu_in_mcpu, f'{self}'):
