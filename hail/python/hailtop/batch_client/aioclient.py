@@ -15,7 +15,6 @@ from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, 
 from .globals import tasks, complete_states
 
 log = logging.getLogger('batch_client.aioclient')
-log.setLevel('WARNING')
 
 
 class Job:
@@ -279,6 +278,7 @@ class SubmittedJob:
             if await self.is_complete():
                 return self._status
             j = random.randrange(math.floor(1.1 ** i))
+            log.info('state {self._status["state"]} waiting {0.100 * j}')
             await asyncio.sleep(0.100 * j)
             # max 44.5s
             if i < 64:
@@ -328,6 +328,7 @@ class Batch:
                 if status['complete']:
                     return status
                 j = random.randrange(math.floor(1.1 ** i))
+                log.info('waiting {0.100 * j}')
                 await asyncio.sleep(0.100 * j)
                 # max 44.5s
                 if i < 64:

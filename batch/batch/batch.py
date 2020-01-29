@@ -180,6 +180,7 @@ def job_record_to_dict(app, record):
 
 
 async def unschedule_job(app, record):
+    cancel_ready_state_changed = app['cancel_ready_state_changed']
     scheduler_state_changed = app['scheduler_state_changed']
     db = app['db']
     inst_pool = app['inst_pool']
@@ -205,6 +206,9 @@ async def unschedule_job(app, record):
         raise
 
     log.info(f'unschedule job {id}: updated database {rv}')
+
+    # job that was running is now ready to be cancelled
+    cancel_ready_state_changed.set()
 
     instance = inst_pool.name_instance.get(instance_name)
     if not instance:
