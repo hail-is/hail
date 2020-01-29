@@ -205,7 +205,7 @@ BEGIN
     SET NEW.start_time = OLD.start_time;
   END IF;
 
-  IF OLD.reason IS NOT NULL AND (NEW.end_time IS NULL OR NEW.end_time > OLD.end_time) THEN
+  IF OLD.reason IS NOT NULL AND (OLD.end_time IS NULL OR NEW.end_time IS NULL OR NEW.end_time >= OLD.end_time) THEN
     SET NEW.end_time = OLD.end_time;
     SET NEW.reason = OLD.reason;
   END IF;
