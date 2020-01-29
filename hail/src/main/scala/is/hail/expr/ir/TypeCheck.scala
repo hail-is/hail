@@ -123,7 +123,7 @@ object TypeCheck {
                 case (c: IR, i) => recurInTail(c, tailPosition && InTailPosition(node, i))
                 case _ => true
               }
-          }
+        }
         assert(recurInTail(body, tailPosition = true))
       case x@Recur(name, args, typ) =>
         val TTuple(IndexedSeq(TupleField(_, argTypes), TupleField(_, rt)), _) = env.eval.lookup(name)

@@ -1599,7 +1599,8 @@ object PruneDeadFields {
       case RelationalRef(name, _) => RelationalRef(name, memo.relationalRefs(name))
       case MakeArray(args, _) =>
         val depArray = requestedType.asInstanceOf[TArray]
-        MakeArray(args.map(a => upcast(rebuildIR(a, env, memo), depArray.elementType)), depArray)
+        val args2 = args.map(a => rebuildIR(a, env, memo))
+        MakeArray.unify(args2, depArray)
       case ArrayMap(a, name, body) =>
         val a2 = rebuildIR(a, env, memo)
         ArrayMap(a2, name, rebuildIR(body, env.bindEval(name, -a2.typ.asInstanceOf[TStreamable].elementType), memo))
@@ -1810,7 +1811,8 @@ object PruneDeadFields {
           ToSet(upcast(ToArray(ir), TSet(rs.elementType)))
         case _ => ir
       }
-      assert(result.typ.isOfType(rType))
+
+      assert(result.typ == rType)
       result
     }
   }
