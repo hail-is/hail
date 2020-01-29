@@ -532,9 +532,10 @@ object InferPType {
 
         knownLength match {
           case Some(kIR) => InferPType(kIR, env)
+          case None =>
         }
 
-        InferPType(aggBody, env.bind(elementName -> a._pType2))
+        InferPType(aggBody, env.bind(elementName -> a._pType2.asInstanceOf[PArray].elementType))
         PArray(aggBody._pType2, aggBody._pType2.required)
       }
         // TODO: need to bind name for initOpArgs to find
