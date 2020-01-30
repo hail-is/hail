@@ -15,14 +15,16 @@ import is.hail.utils._
 object TypedCodecSpec {
   def apply(pt: PType, bufferSpec: BufferSpec): TypedCodecSpec = {
     val eType = EType.defaultFromPType(pt)
-    TypedCodecSpec(eType, pt, bufferSpec)
+    TypedCodecSpec(eType, pt.virtualType, bufferSpec)
   }
+
+  def apply(_eType: EType, pt: PType, bufferSpec: BufferSpec): TypedCodecSpec =
+    TypedCodecSpec(_eType, pt.virtualType, bufferSpec)
 }
 
-final case class TypedCodecSpec(_eType: EType, _pType: PType, _bufferSpec: BufferSpec) extends AbstractTypedCodecSpec {
+final case class TypedCodecSpec(_eType: EType, _type: Type, _bufferSpec: BufferSpec) extends AbstractTypedCodecSpec {
   val encodedType: EType = _eType
-  val encodedPhysicalType: PType = _pType
-  val encodedVirtualType: Type = _pType.virtualType
+  val encodedVirtualType: Type = _type
 
   def computeSubsetPType(requestedType: Type): PType = {
     _eType._decodedPType(requestedType)

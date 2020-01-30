@@ -4,7 +4,6 @@ import is.hail.HailContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.encoded._
-import is.hail.expr.types.physical.{PArray, PField, PInt64, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.rvd.{AbstractRVDSpec, IndexSpec2, IndexedRVDSpec2, RVD, RVDPartitioner}
@@ -33,12 +32,12 @@ case class IndexSpec private(
       EField("annotation", annotationEType, 2)
     ), required = true), required = true), 1)
   ))
-  val leafPType = PStruct(FastIndexedSeq(
-    PField("first_idx", PInt64(true), 0),
-    PField("keys", PArray(PStruct(FastIndexedSeq(
-      PField("key", PType.canonical(keyVType), 0),
-      PField("offset", PInt64(true), 1),
-      PField("annotation", PType.canonical(annotationVType), 2)
+  val leafVType = TStruct(FastIndexedSeq(
+    Field("first_idx", TInt64Required, 0),
+    Field("keys", TArray(TStruct(FastIndexedSeq(
+      Field("key", keyVType, 0),
+      Field("offset", TInt64Required, 1),
+      Field("annotation", annotationVType, 2)
     ), required = true), required = true), 1)))
 
   val internalNodeEType = EBaseStruct(FastIndexedSeq(
@@ -51,19 +50,19 @@ case class IndexSpec private(
     ), required = true), required = true), 0)
   ))
 
-  val internalNodePType = PStruct(FastIndexedSeq(
-    PField("children", PArray(PStruct(FastIndexedSeq(
-      PField("index_file_offset", PInt64(true), 0),
-      PField("first_idx", PInt64(true), 1),
-      PField("first_key", PType.canonical(keyVType), 2),
-      PField("first_record_offset", PInt64(true), 3),
-      PField("first_annotation", PType.canonical(annotationVType), 4)
+  val internalNodeVType = TStruct(FastIndexedSeq(
+    Field("children", TArray(TStruct(FastIndexedSeq(
+      Field("index_file_offset", TInt64Required, 0),
+      Field("first_idx", TInt64Required, 1),
+      Field("first_key", keyVType, 2),
+      Field("first_record_offset", TInt64Required, 3),
+      Field("first_annotation", annotationVType, 4)
     ), required = true), required = true), 0)
   ))
 
 
-  val leafCodec: AbstractTypedCodecSpec = TypedCodecSpec(leafEType, leafPType, baseSpec)
-  val internalNodeCodec: AbstractTypedCodecSpec = TypedCodecSpec(internalNodeEType, internalNodePType, baseSpec)
+  val leafCodec: AbstractTypedCodecSpec = TypedCodecSpec(leafEType, leafVType, baseSpec)
+  val internalNodeCodec: AbstractTypedCodecSpec = TypedCodecSpec(internalNodeEType, internalNodeVType, baseSpec)
 
   def toIndexSpec2: IndexSpec2 = IndexSpec2(
     relPath, leafCodec, internalNodeCodec, keyVType, annotationVType, offsetField
@@ -112,7 +111,7 @@ case class IndexedRVDSpec private(
   private val lRvdType = LegacyEncodedTypeParser.parseLegacyRVDType(rvdType)
 
   lazy val shim = IndexedRVDSpec2(lRvdType.key,
-    TypedCodecSpec(lRvdType.rowEType, PType.canonical(lRvdType.rowType), codecSpec.child),
+    TypedCodecSpec(lRvdType.rowEType, lRvdType.rowType, codecSpec.child),
     indexSpec.toIndexSpec2, partFiles, jRangeBounds, Map.empty[String, String])
 }
 
@@ -127,7 +126,7 @@ case class UnpartitionedRVDSpec private(
 
   def key: IndexedSeq[String] = FastIndexedSeq()
 
-  def typedCodecSpec: AbstractTypedCodecSpec = TypedCodecSpec(rowEType, PType.canonical(rowVType), codecSpec.child)
+  def typedCodecSpec: AbstractTypedCodecSpec = TypedCodecSpec(rowEType, rowVType, codecSpec.child)
 
   val attrs: Map[String, String] = Map.empty
 }
@@ -148,7 +147,7 @@ case class OrderedRVDSpec private(
       JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]])
   }
 
-  override def typedCodecSpec: AbstractTypedCodecSpec = TypedCodecSpec(lRvdType.rowEType, PType.canonical(lRvdType.rowType), codecSpec.child)
+  override def typedCodecSpec: AbstractTypedCodecSpec = TypedCodecSpec(lRvdType.rowEType, lRvdType.rowType, codecSpec.child)
 
   val attrs: Map[String, String] = Map.empty
 }

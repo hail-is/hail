@@ -16,7 +16,6 @@ import org.apache.spark.rdd.RDD
 trait AbstractTypedCodecSpec extends Spec {
   def encodedType: EType
   def encodedVirtualType: Type
-  def encodedPhysicalType: PType
 
   type StagedEncoderF[T] = (Code[Region], Code[T], Code[OutputBuffer]) => Code[Unit]
   type StagedDecoderF[T] = (Code[Region], Code[InputBuffer]) => Code[T]

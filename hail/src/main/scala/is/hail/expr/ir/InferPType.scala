@@ -461,9 +461,10 @@ object InferPType {
 
         PCanonicalArray(bodyIR._pType2, contextsIR._pType2.required)
       }
-      case ReadPartition(rowIR, codecSpec, _) => {
+      case ReadPartition(rowIR, codecSpec, rowType) => {
         InferPType(rowIR, env)
-        PStream(codecSpec.encodedPhysicalType, codecSpec.encodedPhysicalType.required)
+
+        codecSpec.buildDecoder(rowType)._1
       }
       case MakeStream(irs, t) => {
         if (irs.length == 0) {
