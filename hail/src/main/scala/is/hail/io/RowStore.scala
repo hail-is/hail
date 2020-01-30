@@ -17,9 +17,6 @@ object TypedCodecSpec {
     val eType = EType.defaultFromPType(pt)
     TypedCodecSpec(eType, pt.virtualType, bufferSpec)
   }
-
-  def apply(_eType: EType, pt: PType, bufferSpec: BufferSpec): TypedCodecSpec =
-    TypedCodecSpec(_eType, pt.virtualType, bufferSpec)
 }
 
 final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: BufferSpec) extends AbstractTypedCodecSpec {

@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.TNDArray
+import is.hail.expr.types.virtual.{TNDArray, TVoid}
 import is.hail.utils._
 
 object InferPType {
@@ -55,7 +55,6 @@ object InferPType {
       case Str(_) => PString(true)
       case Literal(t, _) => PType.canonical(t, true)
       case True() | False() => PBoolean(true)
-      case Void() => PVoid
       case Cast(ir, t) => {
         InferPType(ir, env)
         PType.canonical(t, ir.pType2.required)
@@ -117,8 +116,6 @@ object InferPType {
 
         PInt32(orderedCollection.pType2.required)
       }
-      case _: ArrayFor => PVoid
-      case _: Begin => PVoid
       case Let(name, value, body) => {
         InferPType(value, env)
         InferPType(body, env.bind(name, value.pType2))
@@ -271,9 +268,10 @@ object InferPType {
       case ArrayLeftJoinDistinct(lIR, rIR, lName, rName, compare, join) => {
         InferPType(lIR, env)
         InferPType(rIR, env)
-        InferPType(compare, env)
+        val e = env.bind(lName -> lIR.pType2.asInstanceOf[PArray].elementType, rName -> rIR.pType2.asInstanceOf[PArray].elementType)
 
-        InferPType(join, env.bind(lName -> lIR.pType2.asInstanceOf[PArray].elementType, rName -> rIR.pType2.asInstanceOf[PArray].elementType))
+        InferPType(compare, e)
+        InferPType(join, e)
 
         PArray(join.pType2, lIR.pType2.required)
       }
@@ -352,7 +350,6 @@ object InferPType {
           case "reduced" | "complete" => PTuple(PNDArray(PFloat64Required, 2), PNDArray(PFloat64Required, 2))
         }
       }
-      case NDArrayWrite(_, _) => PVoid
       case MakeStruct(fields) => PStruct(true, fields.map {
         case (name, a) => {
           InferPType(a, env)
@@ -436,28 +433,8 @@ object InferPType {
           theIR._pType2
         }))
       case In(_, pType: PType) => pType
-      case NDArrayWrite(_, _) => PVoid
-      case _: InitOp => PVoid
-      case _: SeqOp => PVoid
-      case _: CombOp => PVoid
-      case x@ResultOp(_, _) =>
-        PType.canonical(InferType(x))
-      case _: SerializeAggs => PVoid
-      case _: DeserializeAggs => PVoid
-      case _: Begin => PVoid
-      case _: TableWrite => PVoid
-      case _: TableMultiWrite => PVoid
-      case _: MatrixWrite => PVoid
-      case _: MatrixMultiWrite => PVoid
-      case _: BlockMatrixWrite => PVoid
-      case _: BlockMatrixMultiWrite => PVoid
-      case TableGetGlobals(child) => PType.canonical(child.typ.globalType)
-      case x@TableCollect(_) =>
-        PType.canonical(InferType(x))
-      case TableToValueApply(child, function) => PType.canonical(function.typ(child.typ))
-      case MatrixToValueApply(child, function) => PType.canonical(function.typ(child.typ))
-      case BlockMatrixToValueApply(child, function) =>
-        PType.canonical(function.typ(child.typ))
+      case x if x.typ == TVoid => PVoid
+      case x@ResultOp(_, _) =>  PType.canonical(x.typ)
       case CollectDistributedArray(contextsIR, globalsIR, contextsName, globalsName, bodyIR) => {
         InferPType(contextsIR, env)
         InferPType(globalsIR, env)
@@ -571,15 +548,6 @@ object InferPType {
         aggSig.toPhysical(initOpTypes = iPTypes, seqOpTypes = sPTypes).returnType
       }
       case AggStateValue(_, _) => PBinary(true)
-      case TableCount(_) => PInt64(true)
-      case TableAggregate(_, query) => {
-        InferPType(query, env)
-        query._pType2
-      }
-      case MatrixAggregate(_, query) => {
-        InferPType(query, env)
-        query._pType2
-      }
       case _ => throw new Exception("Node not supported")
     }
 
