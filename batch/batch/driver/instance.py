@@ -121,7 +121,14 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
         return self._failed_request_count
 
     async def mark_healthy(self):
+        if self._state != 'active':
+            return
+
         now = time_msecs()
+        changed = (self._failed_request_count > 1) or (now - self._last_updated) > 5000
+        if not changed:
+            return
+
         await self.db.execute_update(
             '''
 UPDATE instances

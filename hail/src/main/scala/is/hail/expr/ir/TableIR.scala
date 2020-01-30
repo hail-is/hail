@@ -865,8 +865,6 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     globalType = newGlobalType
   )
 
-  val rvdType: RVDType = typ.canonicalRVDType
-
   def copy(newChildren: IndexedSeq[BaseIR]): TableMultiWayZipJoin =
     TableMultiWayZipJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName, globalName)
 
@@ -950,7 +948,6 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
 
   private val newRowType = left.typ.rowType.structInsert(right.typ.valueType, List(root))._1
   val typ: TableType = left.typ.copy(rowType = newRowType)
-  val rvdType: RVDType = typ.canonicalRVDType
 
   override def partitionCounts: Option[IndexedSeq[Long]] = left.partitionCounts
 
@@ -1286,8 +1283,6 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
 
   val typ: TableType = children(0).typ
 
-  val rvdType: RVDType = typ.canonicalRVDType
-
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val tvs = children.map(_.execute(ctx))
     tvs(0).copy(
@@ -1378,8 +1373,6 @@ case class TableKeyByAndAggregate(
     globalType = child.typ.globalType,
     key = keyType.fieldNames
   )
-
-  val rvdType: RVDType = typ.canonicalRVDType
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
@@ -1519,8 +1512,6 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
   }
 
   val typ: TableType = child.typ.copy(rowType = child.typ.keyType ++ coerce[TStruct](expr.typ))
-
-  val rvdType: RVDType = typ.canonicalRVDType
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
