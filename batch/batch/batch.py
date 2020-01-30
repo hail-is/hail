@@ -103,13 +103,15 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
         log.exception(f'error while marking job {id} complete on instance {instance_name}')
         raise
 
+    scheduler_state_changed.set()
+    cancel_ready_state_changed.set()
+
     if instance_name:
         instance = inst_pool.name_instance.get(instance_name)
         if instance:
             if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
+                # may also create scheduling opportunities, set above
                 instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
-                scheduler_state_changed.set()
-                cancel_ready_state_changed.set()
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
 
