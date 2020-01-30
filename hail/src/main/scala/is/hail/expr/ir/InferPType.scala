@@ -586,7 +586,7 @@ object InferPType {
     }
 
     // Allow only requiredeness to diverge
-    assert(ir._pType2.virtualType isOfType ir.typ)
+    assert(ir.pType2.virtualType isOfType ir.typ)
   }
 }
 
