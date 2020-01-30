@@ -1,0 +1,2 @@
+ALTER TABLE `instances` ADD COLUMN `zone` VARCHAR(40) NOT NULL DEFAULT 'us-central1-a';
+ALTER TABLE `instances` MODIFY COLUMN `zone` VARCHAR(40) NOT NULL;

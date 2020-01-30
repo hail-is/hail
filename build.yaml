@@ -836,6 +836,8 @@ steps:
       script: /io/sql/store-specs-in-gcs.sql
     - name: add-batches-time-closed
       script: /io/sql/add-batches-time-closed.sql
+    - name: add-instance-zone
+      script: /io/sql/add-instance-zone.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/

@@ -52,8 +52,6 @@ spec:
            value: "{{ batch_pods_ns.name }}"
          - name: PROJECT
            value: "{{ global.project }}"
-         - name: ZONE
-           value: "{{ global.zone }}"
          - name: KUBERNETES_SERVER_URL
            value: "{{ global.k8s_server_url }}"
          - name: HAIL_BATCH_BUCKET_NAME
@@ -152,8 +150,6 @@ spec:
            value: "{{ batch_pods_ns.name }}"
          - name: PROJECT
            value: "{{ global.project }}"
-         - name: ZONE
-           value: "{{ global.zone }}"
          - name: KUBERNETES_SERVER_URL
            value: "{{ global.k8s_server_url }}"
 {% if not deploy %}

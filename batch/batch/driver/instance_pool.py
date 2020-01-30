@@ -1,4 +1,5 @@
 import secrets
+import random
 import asyncio
 import logging
 import sortedcontainers
@@ -7,7 +8,7 @@ import googleapiclient.errors
 from hailtop.utils import time_msecs
 
 from ..batch_configuration import DEFAULT_NAMESPACE, BATCH_WORKER_IMAGE, \
-    PROJECT, ZONE
+    PROJECT
 
 from .instance import Instance
 
@@ -153,15 +154,18 @@ SET max_instances = %s, pool_size = %s;
             if machine_name not in self.name_instance:
                 break
 
+        zone_letter = random.choice(['a', 'b', 'c', 'f'])
+        zone = f'us-central1-{zone_letter}'
+
         activation_token = secrets.token_urlsafe(32)
-        instance = await Instance.create(self.app, machine_name, activation_token, self.worker_cores * 1000)
+        instance = await Instance.create(self.app, machine_name, activation_token, self.worker_cores * 1000, zone)
         self.add_instance(instance)
 
         log.info(f'created {instance}')
 
         config = {
             'name': machine_name,
-            'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-{self.worker_type}-{self.worker_cores}',
+            'machineType': f'projects/{PROJECT}/zones/{zone}/machineTypes/n1-{self.worker_type}-{self.worker_cores}',
             'labels': {
                 'role': 'batch2-agent',
                 'namespace': DEFAULT_NAMESPACE
@@ -172,7 +176,7 @@ SET max_instances = %s, pool_size = %s;
                 'autoDelete': True,
                 'initializeParams': {
                     'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-7',
-                    'diskType': f'projects/{PROJECT}/zones/{ZONE}/diskTypes/pd-ssd',
+                    'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(self.worker_disk_size_gb)
                 }
             }],
@@ -304,7 +308,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch/logs/$IN
             },
         }
 
-        await self.gservices.create_instance(config)
+        await self.gservices.create_instance(config, zone)
 
         log.info(f'created machine {machine_name} for {instance} '
                  f' with logs at {self.log_store.worker_log_path(machine_name, "worker.log")}')
@@ -316,7 +320,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch/logs/$IN
             await instance.deactivate(reason, timestamp)
 
         try:
-            await self.gservices.delete_instance(instance.name)
+            await self.gservices.delete_instance(instance.name, instance.zone)
         except googleapiclient.errors.HttpError as e:
             if e.resp['status'] == '404':
                 log.info(f'{instance} already delete done')
@@ -441,7 +445,7 @@ FROM ready_cores;
                 await instance.incr_failed_request_count()
 
         try:
-            spec = await self.gservices.get_instance(instance.name)
+            spec = await self.gservices.get_instance(instance.name, instance.zone)
         except googleapiclient.errors.HttpError as e:
             if e.resp['status'] == '404':
                 await self.remove_instance(instance, 'does_not_exist')

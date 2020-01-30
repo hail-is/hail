@@ -149,7 +149,7 @@ async def _query_batch_jobs(request, batch_id):
         where_args.extend(args)
 
     sql = f'''
-SELECT *, format_version, job_attributes.value as name 
+SELECT *, format_version, job_attributes.value as name
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN job_attributes
