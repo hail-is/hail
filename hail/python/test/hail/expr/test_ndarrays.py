@@ -568,6 +568,18 @@ def test_ndarray_show():
     hl.nd.arange(6).reshape((2, 3)).show()
     hl.nd.arange(8).reshape((2, 2, 2)).show()
 
+
+@skip_unless_spark_backend()
+def test_ndarray_diagonal():
+    assert np.array_equal(hl.eval(hl.nd.diagonal(hl.nd.array([[1, 2], [3, 4]]))), np.array([1, 4]))
+    assert np.array_equal(hl.eval(hl.nd.diagonal(hl.nd.array([[1, 2, 3], [4, 5, 6]]))), np.array([1, 5]))
+    assert np.array_equal(hl.eval(hl.nd.diagonal(hl.nd.array([[1, 2], [3, 4], [5, 6]]))), np.array([1, 4]))
+
+    with pytest.raises(AssertionError) as exc:
+        hl.nd.diagonal(hl.nd.array([1, 2]))
+    assert "2 dimensional" in str(exc)
+
+
 @skip_unless_spark_backend()
 def test_ndarray_qr():
     def assert_raw_equivalence(hl_ndarray, np_ndarray):
