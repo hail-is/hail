@@ -430,7 +430,6 @@ object InferPType {
 
         branchType.setRequired(branchType.required && cond.pType2.required)
       }
-
       case Coalesce(values) =>
         getNestedElementPTypes(values.map( theIR => {
           InferPType(theIR, env)
