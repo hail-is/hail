@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.{TNDArray, TTuple}
+import is.hail.expr.types.virtual.TNDArray
 import is.hail.utils._
 
 object InferPType {
@@ -286,7 +286,7 @@ object InferPType {
         InferPType(nd, env)
         InferPType(shape, env)
 
-        PNDArray(coerce[PNDArray](nd._pType2).elementType, shape._pType2.asInstanceOf[TTuple].size, nd._pType2.required)
+        PNDArray(coerce[PNDArray](nd._pType2).elementType, shape._pType2.asInstanceOf[PTuple].size, nd._pType2.required)
       }
       case NDArrayMap(nd, name, body) => {
         InferPType(nd, env)
