@@ -222,7 +222,7 @@ object InferPType {
       case ArrayMap(a, name, body) => {
         InferPType(a, env)
         InferPType(body, env.bind(name, a.pType2.asInstanceOf[PArray].elementType))
-        coerce[PStreamable](a.pType2).copyStreamable(body.pType2, body.pType2.required)
+        coerce[PStreamable](a.pType2).copyStreamable(body.pType2, a.pType2.required)
       }
       case ArrayZip(as, names, body, _) =>
         as.foreach(InferPType(_, env))
@@ -292,7 +292,7 @@ object InferPType {
         val ndPType = nd.pType2.asInstanceOf[PNDArray]
         InferPType(body, env.bind(name -> ndPType.elementType))
 
-        PNDArray(body.pType2, ndPType.nDims, body.pType2.required)
+        PNDArray(body.pType2, ndPType.nDims, nd.pType2.required)
       }
       case NDArrayMap2(l, r, lName, rName, body) => {
         InferPType(l, env)
@@ -303,7 +303,7 @@ object InferPType {
 
         InferPType(body, env.bind(lName -> lPType.elementType, rName -> rPType.elementType))
 
-        PNDArray(body.pType2, lPType.nDims, body.pType2.required)
+        PNDArray(body.pType2, lPType.nDims, l.pType2.required || r.pType2.required)
       }
       case NDArrayReindex(nd, indexExpr) => {
         InferPType(nd, env)
