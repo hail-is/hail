@@ -1287,8 +1287,8 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
     if (children.forall(_.typ == children.head.typ)) {
       children.head.typ
     } else {
-      assert(children.forall(c => c.typ.rowType.isOfType(children.head.typ.rowType) && c.typ.globalType.isOfType(children.head.typ.globalType)))
-      TableType(children.head.typ.rowType.deepOptional().asInstanceOf[TStruct], children.head.typ.key, children.head.typ.globalType.deepOptional().asInstanceOf[TStruct])
+      assert(children.forall(c => c.typ.rowType.isOfType(children.head.typ.rowType)))
+      TableType(children.head.typ.rowType.deepOptional().asInstanceOf[TStruct], children.head.typ.key, children.head.typ.globalType)
     }
   }
 
