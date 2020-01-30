@@ -33,7 +33,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
              worker_cores_mcpu, now, now, INSTANCE_VERSION, zone))
         return Instance(
             app, name, state, worker_cores_mcpu, worker_cores_mcpu, now,
-            0, now, None, INSTANCE_VERSION)
+            0, now, None, INSTANCE_VERSION, zone)
 
     def __init__(self, app, name, state, cores_mcpu, free_cores_mcpu,
                  time_created, failed_request_count, last_updated, ip_address,
