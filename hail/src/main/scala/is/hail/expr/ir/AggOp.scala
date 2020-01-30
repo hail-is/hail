@@ -12,8 +12,8 @@ case class AggSignature(
   lazy val returnType: Type = agg.Extract.getResultType(this)
   def toPhysical(initOpTypes: Seq[PType], seqOpTypes: Seq[PType]): PhysicalAggSignature = {
     assert(nested.isEmpty)
-    (initOpTypes, initOpArgs).zipped.foreach { case (pt, t) => assert(pt.virtualType isOfType t) }
-    (seqOpTypes, seqOpArgs).zipped.foreach { case (pt, t) => assert(pt.virtualType isOfType t) }
+    (initOpTypes, initOpArgs).zipped.foreach { case (pt, t) => assert(pt.virtualType == t) }
+    (seqOpTypes, seqOpArgs).zipped.foreach { case (pt, t) => assert(pt.virtualType == t) }
     PhysicalAggSignature(op, initOpTypes, seqOpTypes, None)
   }
 }

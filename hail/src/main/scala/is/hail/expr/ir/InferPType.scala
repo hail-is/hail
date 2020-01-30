@@ -414,7 +414,7 @@ object InferPType {
         InferPType(globals, env)
 
         InferPType(body, env.bind(contextsName -> contexts.pType2.asInstanceOf[PArray].elementType, globalsName -> globals.pType2))
-        PArray(body.pType2, body.pType2.required)
+        PArray(body.pType2, true)
       }
       case If(cond, cnsq, altr) => {
         InferPType(cond, env)
@@ -434,7 +434,7 @@ object InferPType {
         }))
       case In(_, pType: PType) => pType
       case x if x.typ == TVoid => {
-        InferPType(x.children,env)
+        x.children.map(c => InferPType(c.asInstanceOf[IR], env))
         PVoid
       }
       case x@ResultOp(_, _) =>  PType.canonical(x.typ)
@@ -464,7 +464,6 @@ object InferPType {
       }
       case _:AggLet | _:ArrayAgg | _:ArrayAggScan | _:RunAgg | _:RunAggScan | _:NDArrayAgg | _:AggFilter | _:AggExplode |
            _:AggGroupBy | _:AggArrayPerElement | _:ApplyAggOp | _:ApplyScanOp | _:AggStateValue => PType.canonical(ir.typ)
-      case _ => throw new Exception("Node not supported")
     }
 
     // Allow only requiredeness to diverge
