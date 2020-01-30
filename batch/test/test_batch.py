@@ -80,7 +80,7 @@ class Test(unittest.TestCase):
         batch_msec_mcpu2 = 0
         for job in b.jobs():
             # I'm dying
-            job = self.client.get_job(job['job_id'])
+            job = self.client.get_job(job['batch_id'], job['job_id'])
             job = job.status()
 
             # runs at 100mcpu
