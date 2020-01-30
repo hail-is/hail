@@ -60,7 +60,7 @@ class Test(unittest.TestCase):
         b = builder.submit()
         status = j.wait()
         self.assertEqual(status['exit_code'], 7, status)
-        self.assertEqual(j._get_exit_code(status, 'main'), 8, status)
+        self.assertEqual(j._get_exit_code(status, 'main'), 7, status)
 
     def test_msec_mcpu(self):
         builder = self.client.create_batch()
