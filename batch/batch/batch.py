@@ -4,8 +4,7 @@ import asyncio
 import aiohttp
 import base64
 import traceback
-from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error, \
-    humanize_timedelta_msecs
+from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
@@ -104,13 +103,15 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
         log.exception(f'error while marking job {id} complete on instance {instance_name}')
         raise
 
+    scheduler_state_changed.set()
+    cancel_ready_state_changed.set()
+
     if instance_name:
         instance = inst_pool.name_instance.get(instance_name)
         if instance:
             if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
+                # may also create scheduling opportunities, set above
                 instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
-                scheduler_state_changed.set()
-                cancel_ready_state_changed.set()
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
 
@@ -157,7 +158,6 @@ def job_record_to_dict(app, record):
     if db_status:
         db_status = json.loads(db_status)
         exit_code, duration = format_version.get_status_exit_code_duration(db_status)
-        duration = humanize_timedelta_msecs(duration)
     else:
         exit_code = None
         duration = None
@@ -180,6 +180,7 @@ def job_record_to_dict(app, record):
 
 
 async def unschedule_job(app, record):
+    cancel_ready_state_changed = app['cancel_ready_state_changed']
     scheduler_state_changed = app['scheduler_state_changed']
     db = app['db']
     inst_pool = app['inst_pool']
@@ -205,6 +206,9 @@ async def unschedule_job(app, record):
         raise
 
     log.info(f'unschedule job {id}: updated database {rv}')
+
+    # job that was running is now ready to be cancelled
+    cancel_ready_state_changed.set()
 
     instance = inst_pool.name_instance.get(instance_name)
     if not instance:

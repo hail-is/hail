@@ -882,6 +882,8 @@ async def ui_batch(request, userdata):
     batch = await _get_batch(app, batch_id, user)
 
     jobs, last_job_id = await _query_batch_jobs(request, batch_id)
+    for j in jobs:
+        j['duration'] = humanize_timedelta_msecs(j['duration'])
     batch['jobs'] = jobs
 
     page_context = {

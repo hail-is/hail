@@ -11,7 +11,7 @@ import aiomysql
 import uvloop
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 from hailtop.utils import collect_agen, humanize_timedelta_msecs
-from hailtop.batch_client.aioclient import BatchClient, Job
+from hailtop.batch_client.aioclient import BatchClient
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, \
     rest_authenticated_developers_only, web_authenticated_developers_only, \
@@ -110,8 +110,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
             status = await pr.batch.status()
             jobs = await collect_agen(pr.batch.jobs())
             for j in jobs:
-                j['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(j))
-                j['exit_code'] = Job.exit_code(j)
+                j['duration'] = humanize_timedelta_msecs(j['duration'])
             page_context['batch'] = status
             page_context['jobs'] = jobs
             # [4:] strips off gs:/
@@ -150,8 +149,7 @@ async def get_batch(request, userdata):
     status = await b.status()
     jobs = await collect_agen(b.jobs())
     for j in jobs:
-        j['duration'] = humanize_timedelta_msecs(Job.total_duration_msecs(j))
-        j['exit_code'] = Job.exit_code(j)
+        j['duration'] = humanize_timedelta_msecs(j['duration'])
     page_context = {
         'batch': status,
         'jobs': jobs

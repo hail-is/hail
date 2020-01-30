@@ -8,7 +8,7 @@ from hailtop.batch_client.client import BatchClient, Job
 import hailtop.batch_client.aioclient as aioclient
 from hailtop.auth import get_userinfo
 
-from .utils import batch_status_job_counter, batch_status_exit_codes, \
+from .utils import batch_status_job_counter, \
     legacy_batch_status
 from .serverthread import ServerThread
 
@@ -28,8 +28,7 @@ def test_simple(client):
     batch.wait()
     status = legacy_batch_status(batch)
     assert batch_status_job_counter(status, 'Success') == 2, status
-    assert batch_status_exit_codes(status) == [
-        {'main': 0}, {'main': 0}], status
+    assert all([j['exit_code'] == 0 for j in status['jobs']])
 
 
 def test_missing_parent_is_400(client):
