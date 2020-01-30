@@ -12,21 +12,13 @@ import is.hail.utils.{FastIndexedSeq, _}
 import scala.language.existentials
 
 sealed trait IR extends BaseIR {
-  protected[ir] var _pType2: PType = null
-  private var _pType: PType = null
+  protected[ir] var _pType: PType = null
   private var _typ: Type = null
 
   def pType = {
-    if (_pType == null)
-      _pType = PType.canonical(typ)
+    assert(_pType != null)
 
     _pType
-  }
-
-  def pType2 = {
-    assert(_pType2 != null)
-
-    _pType2
   }
 
   def typ: Type = {
