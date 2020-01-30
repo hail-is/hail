@@ -4,8 +4,7 @@ import asyncio
 import aiohttp
 import base64
 import traceback
-from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error, \
-    humanize_timedelta_msecs
+from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
