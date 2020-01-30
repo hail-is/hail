@@ -225,7 +225,7 @@ object InferPType {
         coerce[PStreamable](a.pType2).copyStreamable(body.pType2, body.pType2.required)
       }
       case ArrayZip(as, names, body, _) =>
-        as.foreach(a => InferPType(a, env))
+        as.foreach(InferPType(_, env))
 
         InferPType(body, env.bindIterable(names.zip(as.map(_.pType2.asInstanceOf[PArray].elementType))))
         coerce[PStreamable](as.head.pType2).copyStreamable(body.pType2, as.forall(_.pType2.required))
@@ -245,7 +245,7 @@ object InferPType {
 
         InferPType(a, env)
         InferPType(body, env.bind(accumName -> zero.pType2, valueName -> a.pType2.asInstanceOf[PArray].elementType))
-        assert(body.pType2 isOfType zero._pType2)
+        assert(body.pType2 isOfType zero.pType2)
 
         zero.pType2.setRequired(body.pType2.required)
       }
@@ -308,7 +308,7 @@ object InferPType {
       case NDArrayReindex(nd, indexExpr) => {
         InferPType(nd, env)
 
-        PNDArray(coerce[PNDArray](nd.pType2).elementType, indexExpr.length, nd._pType2.required)
+        PNDArray(coerce[PNDArray](nd.pType2).elementType, indexExpr.length, nd.pType2.required)
       }
       case NDArrayRef(nd, idxs) => {
         InferPType(nd, env)
@@ -357,7 +357,7 @@ object InferPType {
         case (name, a) => {
           InferPType(a, env)
 
-          (name, a._pType2)
+          (name, a.pType2)
         }
       }: _*)
       case SelectFields(old, fields) => {
