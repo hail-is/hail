@@ -22,9 +22,9 @@ object TypedCodecSpec {
     TypedCodecSpec(_eType, pt.virtualType, bufferSpec)
 }
 
-final case class TypedCodecSpec(_eType: EType, _type: Type, _bufferSpec: BufferSpec) extends AbstractTypedCodecSpec {
+final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: BufferSpec) extends AbstractTypedCodecSpec {
   val encodedType: EType = _eType
-  val encodedVirtualType: Type = _type
+  val encodedVirtualType: Type = _vType
 
   def computeSubsetPType(requestedType: Type): PType = {
     _eType._decodedPType(requestedType)

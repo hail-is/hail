@@ -464,7 +464,9 @@ object InferPType {
       case ReadPartition(rowIR, codecSpec, rowType) => {
         InferPType(rowIR, env)
 
-        codecSpec.buildDecoder(rowType)._1
+        val child = codecSpec.buildDecoder(rowType)._1
+
+        PStream(child, child.required)
       }
       case MakeStream(irs, t) => {
         if (irs.length == 0) {
