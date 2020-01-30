@@ -78,6 +78,7 @@ class BatchFormatVersion:
 
     def get_status_exit_code_duration(self, status):
         if self.format_version == 1:
-            return (Job.exit_code(status), Job.total_duration_msecs(status))
+            job_status = {'status': status}
+            return (Job.exit_code(job_status), Job.total_duration_msecs(job_status))
         assert len(status) == 2
         return status

@@ -49,9 +49,18 @@ class Test(unittest.TestCase):
         status = j.wait()
         self.assertTrue('attributes' not in status, (status, j.log()))
         self.assertEqual(status['state'], 'Success', (status, j.log()))
+        self.assertEqual(status['exit_code'], 0, status)
         self.assertEqual(j._get_exit_code(status, 'main'), 0, (status, j.log()))
 
         self.assertEqual(j.log()['main'], 'test\n', status)
+
+    def test_exit_code(self):
+        builder = self.client.create_batch()
+        j = builder.create_job('ubuntu:18.04', ['exit', '7'])
+        b = builder.submit()
+        status = j.wait()
+        self.assertEqual(status['exit_code'], 7, status)
+        self.assertEqual(j._get_exit_code(status, 'main'), 8, status)
 
     def test_msec_mcpu(self):
         builder = self.client.create_batch()
