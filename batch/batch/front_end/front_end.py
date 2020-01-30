@@ -149,14 +149,15 @@ async def _query_batch_jobs(request, batch_id):
         where_args.extend(args)
 
     sql = f'''
-SELECT *, format_version, job_attributes.value as name FROM jobs
+SELECT *, format_version, job_attributes.value as name 
+FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN job_attributes
   ON jobs.batch_id = job_attributes.job_id AND
      jobs.job_id = job_attributes.job_id AND
      job_attributes.`key` = 'name'
 WHERE {' AND '.join(where_conditions)}
-ORDER BY batch_id, job_id ASC
+ORDER BY jobs.batch_id, jobs.job_id ASC
 LIMIT 50;
 '''
     sql_args = where_args
