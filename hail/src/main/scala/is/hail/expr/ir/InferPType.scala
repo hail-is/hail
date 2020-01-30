@@ -393,7 +393,8 @@ object InferPType {
           infer(theIR)
           theIR._pType2
         })), true)
-      case _: AggStateValue => PCanonicalBinary(true)
+      case _: AggLet | _: ArrayAgg | _: ArrayAggScan | _: RunAgg | _: RunAggScan | _: NDArrayAgg | _: AggFilter | _: AggExplode |
+           _: AggGroupBy | _: AggArrayPerElement | _: ApplyAggOp | _: ApplyScanOp | _: AggStateValue => PType.canonical(ir.typ)
     }
 
     // Allow only requiredeness to diverge
