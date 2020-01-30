@@ -135,7 +135,7 @@ object InferPType {
           case _ => PBoolean(l.pType2.required && r.pType2.required)
         }
       case a: ApplyIR =>
-        infer(a.explicitNode, env)
+        infer(a.explicitNode)
         a.explicitNode.pType2
       case a: AbstractApplyNode[_] =>
         val pTypes = a.args.map(i => {
@@ -216,7 +216,7 @@ object InferPType {
         zero.pType2.setRequired(body.pType2.required)
       case ArrayFold2(a, acc, valueName, seq, res) =>
         infer(a)
-        acc.foreach { case (_, accIR) => InferPType(accIR, env) }
+        acc.foreach { case (_, accIR) => infer(accIR) }
         val resEnv = env.bind(acc.map { case (name, accIR) => (name, accIR.pType2) }: _*)
         val seqEnv = resEnv.bind(valueName -> a.pType2.asInstanceOf[PArray].elementType)
         seq.foreach(infer(_, seqEnv))
@@ -315,7 +315,7 @@ object InferPType {
         val tbs = coerce[PStruct](old.pType2)
 
         val s = tbs.insertFields(fields.map(f => {
-          infer(f._2, env)
+          infer(f._2)
           (f._1, f._2.pType2)
         }))
 
@@ -331,7 +331,7 @@ object InferPType {
         val fd = t.field(name).typ
         fd.setRequired(t.required && fd.required)
       case MakeTuple(values) => PTuple(true, values.map(v => {
-        infer(v._2, env)
+        infer(v._2)
         v._2.pType2
       }): _*)
       case MakeArray(irs, t) =>
