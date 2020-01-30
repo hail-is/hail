@@ -56,7 +56,7 @@ class Test(unittest.TestCase):
 
     def test_exit_code_duration(self):
         builder = self.client.create_batch()
-        j = builder.create_job('ubuntu:18.04', ['exit', '7'])
+        j = builder.create_job('ubuntu:18.04', ['bash', '-c', 'exit 7'])
         b = builder.submit()
         status = j.wait()
         self.assertEqual(status['exit_code'], 7, status)
@@ -79,8 +79,12 @@ class Test(unittest.TestCase):
 
         batch_msec_mcpu2 = 0
         for job in b.jobs():
+            # I'm dying
+            job = self.client.get_job(job['job_id'])
+            job = job.status()
+
             # runs at 100mcpu
-            job_msec_mcpu2 = 100 * max(job['end_time'] - job['start_time'], 0)
+            job_msec_mcpu2 = 100 * max(job['status']['end_time'] - job['status']['start_time'], 0)
             # greater than in case there are multiple attempts
             assert job['msec_mcpu'] >= job_msec_mcpu2, batch
 
