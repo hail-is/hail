@@ -49,9 +49,19 @@ class Test(unittest.TestCase):
         status = j.wait()
         self.assertTrue('attributes' not in status, (status, j.log()))
         self.assertEqual(status['state'], 'Success', (status, j.log()))
+        self.assertEqual(status['exit_code'], 0, status)
         self.assertEqual(j._get_exit_code(status, 'main'), 0, (status, j.log()))
 
         self.assertEqual(j.log()['main'], 'test\n', status)
+
+    def test_exit_code_duration(self):
+        builder = self.client.create_batch()
+        j = builder.create_job('ubuntu:18.04', ['bash', '-c', 'exit 7'])
+        b = builder.submit()
+        status = j.wait()
+        self.assertEqual(status['exit_code'], 7, status)
+        assert isinstance(status['duration'], int)
+        self.assertEqual(j._get_exit_code(status, 'main'), 7, status)
 
     def test_msec_mcpu(self):
         builder = self.client.create_batch()
@@ -69,12 +79,14 @@ class Test(unittest.TestCase):
 
         batch_msec_mcpu2 = 0
         for job in b.jobs():
-            job_status = job.status()
+            # I'm dying
+            job = self.client.get_job(job['batch_id'], job['job_id'])
+            job = job.status()
 
             # runs at 100mcpu
-            job_msec_mcpu2 = 100 * max(job_status['status']['end_time'] - job_status['status']['start_time'], 0)
+            job_msec_mcpu2 = 100 * max(job['status']['end_time'] - job['status']['start_time'], 0)
             # greater than in case there are multiple attempts
-            assert job_status['msec_mcpu'] >= job_msec_mcpu2, batch
+            assert job['msec_mcpu'] >= job_msec_mcpu2, batch
 
             batch_msec_mcpu2 += job_msec_mcpu2
 
@@ -310,7 +322,7 @@ class Test(unittest.TestCase):
         assert n_cancelled <= 1, bstatus
         assert n_cancelled + n_complete == 3, bstatus
 
-        n_failed = sum([Job._get_exit_code(j, 'main') > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error')])
+        n_failed = sum([j['exit_code'] > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error')])
         assert n_failed == 1, bstatus
 
     def test_batch_status(self):

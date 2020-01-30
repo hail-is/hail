@@ -4,8 +4,7 @@ import asyncio
 import aiohttp
 import base64
 import traceback
-from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error, \
-    humanize_timedelta_msecs
+from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error
 
 from .globals import complete_states, tasks
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
@@ -157,7 +156,6 @@ def job_record_to_dict(app, record):
     if db_status:
         db_status = json.loads(db_status)
         exit_code, duration = format_version.get_status_exit_code_duration(db_status)
-        duration = humanize_timedelta_msecs(duration)
     else:
         exit_code = None
         duration = None
