@@ -149,7 +149,7 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
 
-def job_record_to_dict(app, record):
+def job_record_to_dict(app, record, name):
     format_version = BatchFormatVersion(record['format_version'])
 
     db_status = record['status']
@@ -163,6 +163,7 @@ def job_record_to_dict(app, record):
     result = {
         'batch_id': record['batch_id'],
         'job_id': record['job_id'],
+        'name': name,
         'state': record['state'],
         'exit_code': exit_code,
         'duration': duration

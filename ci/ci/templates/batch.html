@@ -27,9 +27,7 @@
 	    <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
 	  </td>
           <td>
-	    {% if 'attributes' in job and 'name' in job['attributes'] %}
-	    {{ job['attributes']['name'] }}</td>
-	    {% endif %}
+	    {{ job['name'] }}</td>
           <td>{{ job['state'] }}</td>
           <td>
             {% if 'exit_code' in job and job['exit_code'] is not none %}

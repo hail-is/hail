@@ -149,16 +149,20 @@ async def _query_batch_jobs(request, batch_id):
         where_args.extend(args)
 
     sql = f'''
-SELECT *, format_version FROM jobs
+SELECT *, format_version, job_attributes.value as name FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
+LEFT JOIN job_attributes 
+  ON jobs.batch_id = job_attributes.job_id AND
+     jobs.job_id = job_attributes.job_id AND
+     job_attributes.`key` = 'name'
 WHERE {' AND '.join(where_conditions)}
 ORDER BY batch_id, job_id ASC
 LIMIT 50;
 '''
     sql_args = where_args
 
-    jobs = [job_record_to_dict(request.app, job)
-            async for job
+    jobs = [job_record_to_dict(request.app, record, record['name'])
+            async for record
             in db.select_and_fetchall(sql, sql_args)]
 
     if len(jobs) == 50:
@@ -960,7 +964,7 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
         _get_attributes(app, record)
     )
 
-    job = job_record_to_dict(app, record)
+    job = job_record_to_dict(app, record, attributes.get('name'))
     job['status'] = full_status
     job['spec'] = full_spec
     if attributes:
