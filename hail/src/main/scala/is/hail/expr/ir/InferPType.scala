@@ -74,7 +74,7 @@ object InferPType {
         InferPType(ir, env)
         PBoolean(true)
       }
-      case Ref(name, t) => env.lookup(name)
+      case Ref(name, _) => env.lookup(name)
       case MakeNDArray(data, shape, rowMajor) => {
         InferPType(data, env)
         InferPType(shape, env)
@@ -133,15 +133,14 @@ object InferPType {
         // FIXME: This may be difficult to infer properly from a bottom-up pass.
         args.foreach { a => InferPType(a, env) }
         PType.canonical(typ)
-
       case ApplyBinaryPrimOp(op, l, r) => {
-          InferPType(l, env)
-          InferPType(r, env)
+        InferPType(l, env)
+        InferPType(r, env)
 
-          val required = l._pType2.required && r._pType2.required
-          val vType = BinaryOp.getReturnType(op, l._pType2.virtualType, r._pType2.virtualType).setRequired(required)
+        val required = l._pType2.required && r._pType2.required
+        val vType = BinaryOp.getReturnType(op, l._pType2.virtualType, r._pType2.virtualType).setRequired(required)
 
-          PType.canonical(vType, vType.required)
+        PType.canonical(vType, vType.required)
       }
       case ApplyUnaryPrimOp(op, v) => {
         InferPType(v, env)
@@ -290,15 +289,21 @@ object InferPType {
       }
       case NDArrayMap(nd, name, body) => {
         InferPType(nd, env)
-        InferPType(body, env.bind(name, nd._pType2))
+        val ndPType = nd._pType2.asInstanceOf[PNDArray]
+        InferPType(body, env.bind(name -> ndPType.elementType))
 
-        PNDArray(body._pType2, coerce[PNDArray](nd._pType2).nDims, nd._pType2.required)
+        PNDArray(body._pType2, ndPType.nDims, body._pType2.required)
       }
       case NDArrayMap2(l, r, lName, rName, body) => {
         InferPType(l, env)
-        InferPType(body, env)
+        InferPType(r, env)
 
-        PNDArray(body._pType2, coerce[PNDArray](l._pType2).nDims, l._pType2.required)
+        val lPType = l._pType2.asInstanceOf[PNDArray]
+        val rPType = r._pType2.asInstanceOf[PNDArray]
+
+        InferPType(body, env.bind(lName -> lPType.elementType, rName -> rPType.elementType))
+
+        PNDArray(body._pType2, lPType.nDims, body._pType2.required)
       }
       case NDArrayReindex(nd, indexExpr) => {
         InferPType(nd, env)
