@@ -1269,8 +1269,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
 
 case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
   assert(children.nonEmpty)
-  assert(children.tail.forall(_.typ.rowType == children(0).typ.rowType))
-  assert(children.tail.forall(_.typ.key == children(0).typ.key))
+  assert(children.tail.forall(_.typ.key == children(0).typ.key) )
 
   lazy val rowCountUpperBound: Option[Long] = {
     val definedChildren = children.flatMap(_.rowCountUpperBound)
@@ -1284,7 +1283,14 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
     TableUnion(newChildren.map(_.asInstanceOf[TableIR]))
   }
 
-  val typ: TableType = children(0).typ
+  val typ: TableType = {
+    if (children.forall(_.typ == children.head.typ)) {
+      children.head.typ
+    } else {
+      assert(children.forall(c => c.typ.rowType.isOfType(children.head.typ.rowType) && c.typ.globalType.isOfType(children.head.typ.globalType)))
+      TableType(children.head.typ.rowType.deepOptional().asInstanceOf[TStruct], children.head.typ.key, children.head.typ.globalType.deepOptional().asInstanceOf[TStruct])
+    }
+  }
 
   val rvdType: RVDType = typ.canonicalRVDType
 
