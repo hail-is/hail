@@ -14,10 +14,11 @@ class Instance:
             app, record['name'], record['state'],
             record['cores_mcpu'], record['free_cores_mcpu'],
             record['time_created'], record['failed_request_count'],
-            record['last_updated'], record['ip_address'], record['version'])
+            record['last_updated'], record['ip_address'], record['version'],
+            record['zone'])
 
     @staticmethod
-    async def create(app, name, activation_token, worker_cores_mcpu):
+    async def create(app, name, activation_token, worker_cores_mcpu, zone):
         db = app['db']
 
         state = 'pending'
@@ -25,18 +26,18 @@ class Instance:
         token = secrets.token_urlsafe(32)
         await db.just_execute(
             '''
-INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu, time_created, last_updated, version)
+INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu, time_created, last_updated, version, zone)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (name, state, activation_token, token, worker_cores_mcpu,
-             worker_cores_mcpu, now, now, INSTANCE_VERSION))
+             worker_cores_mcpu, now, now, INSTANCE_VERSION, zone))
         return Instance(
             app, name, state, worker_cores_mcpu, worker_cores_mcpu, now,
             0, now, None, INSTANCE_VERSION)
 
     def __init__(self, app, name, state, cores_mcpu, free_cores_mcpu,
                  time_created, failed_request_count, last_updated, ip_address,
-                 version):
+                 version, zone):
         self.db = app['db']
         self.instance_pool = app['inst_pool']
         self.scheduler_state_changed = app['scheduler_state_changed']
@@ -50,6 +51,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
         self._last_updated = last_updated
         self.ip_address = ip_address
         self.version = version
+        self.zone = zone
 
     @property
     def state(self):

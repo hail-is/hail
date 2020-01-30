@@ -7,7 +7,7 @@ import threading
 import googleapiclient.discovery
 import google.cloud.logging
 
-from .batch_configuration import PROJECT, ZONE
+from .batch_configuration import PROJECT
 
 log = logging.getLogger('google_compute')
 
@@ -126,21 +126,21 @@ jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.d
         return eit
 
     # compute
-    async def get_instance(self, instance):
+    async def get_instance(self, instance, zone):
         def get():
             clients = self.get_clients()
-            return clients.compute_client.instances().get(project=PROJECT, zone=ZONE, instance=instance).execute()  # pylint: disable=no-member
+            return clients.compute_client.instances().get(project=PROJECT, zone=zone, instance=instance).execute()  # pylint: disable=no-member
 
         return await self.run_in_pool(get)
 
-    async def create_instance(self, body):
+    async def create_instance(self, body, zone):
         def create():
             clients = self.get_clients()
-            return clients.compute_client.instances().insert(project=PROJECT, zone=ZONE, body=body).execute()  # pylint: disable=no-member
+            return clients.compute_client.instances().insert(project=PROJECT, zone=zone, body=body).execute()  # pylint: disable=no-member
         return await self.run_in_pool(create)
 
-    async def delete_instance(self, instance):
+    async def delete_instance(self, instance, zone):
         def delete():
             clients = self.get_clients()
-            return clients.compute_client.instances().delete(project=PROJECT, zone=ZONE, instance=instance).execute()  # pylint: disable=no-member
+            return clients.compute_client.instances().delete(project=PROJECT, zone=zone, instance=instance).execute()  # pylint: disable=no-member
         return await self.run_in_pool(delete)
