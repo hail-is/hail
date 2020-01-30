@@ -433,7 +433,10 @@ object InferPType {
           theIR._pType2
         }))
       case In(_, pType: PType) => pType
-      case x if x.typ == TVoid => PVoid
+      case x if x.typ == TVoid => {
+        InferPType(x.children,env)
+        PVoid
+      }
       case x@ResultOp(_, _) =>  PType.canonical(x.typ)
       case CollectDistributedArray(contextsIR, globalsIR, contextsName, globalsName, bodyIR) => {
         InferPType(contextsIR, env)
