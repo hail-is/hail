@@ -157,7 +157,6 @@ def job_record_to_dict(app, record):
     if db_status:
         db_status = json.loads(db_status)
         exit_code, duration = format_version.get_status_exit_code_duration(db_status)
-        duration = humanize_timedelta_msecs(duration)
     else:
         exit_code = None
         duration = None
