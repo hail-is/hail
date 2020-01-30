@@ -546,7 +546,6 @@ object InferPType {
         InferPType(aggBody, env.bind(elementName -> a._pType2.asInstanceOf[PArray].elementType))
         PArray(aggBody._pType2, aggBody._pType2.required)
       }
-        // TODO: need to bind name for initOpArgs to find
       case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) => {
         var i = 0
         val iPTypes = initOpArgs.map(i => {
