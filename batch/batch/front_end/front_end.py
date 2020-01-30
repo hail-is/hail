@@ -93,7 +93,7 @@ async def _query_batch_jobs(request, batch_id):
 
     # batch has already been validated
     where_conditions = [
-        '(batch_id = %s)'
+        '(jobs.batch_id = %s)'
     ]
     where_args = [batch_id]
 
@@ -153,7 +153,7 @@ SELECT *, format_version, job_attributes.value as name
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN job_attributes
-  ON jobs.batch_id = job_attributes.job_id AND
+  ON jobs.batch_id = job_attributes.batch_id AND
      jobs.job_id = job_attributes.job_id AND
      job_attributes.`key` = 'name'
 WHERE {' AND '.join(where_conditions)}
