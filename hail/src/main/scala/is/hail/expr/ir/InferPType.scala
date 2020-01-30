@@ -112,7 +112,7 @@ object InferPType {
         infer(body, env.bind(args.map { case (n, ir) => n -> ir.pType2 }: _*))
         body.pType2
       case Recur(_, args, typ) =>
-        args.foreach { a => infer(a, env) }
+        args.foreach { a => infer(a) }
         PType.canonical(typ)
       case ApplyBinaryPrimOp(op, l, r) =>
         infer(l)
@@ -379,7 +379,7 @@ object InferPType {
 
         PCanonicalArray(bodyIR._pType2, contextsIR._pType2.required)
       case ReadPartition(rowIR, codecSpec, rowType) =>
-        infer(rowIR, env)
+        infer(rowIR)
 
         val child = codecSpec.buildDecoder(rowType)._1
 
@@ -390,7 +390,7 @@ object InferPType {
         }
 
         PStream(getNestedElementPTypes(irs.map(theIR => {
-          infer(theIR, env)
+          infer(theIR)
           theIR._pType2
         })), true)
       case _: AggStateValue => PCanonicalBinary(true)
