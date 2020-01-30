@@ -20,7 +20,7 @@ import cProfile
 import pstats
 import io
 
-# import uvloop
+import uvloop
 
 from ..batch import mark_job_complete, mark_job_started
 from ..log_store import LogStore
@@ -33,7 +33,7 @@ from .instance_pool import InstancePool
 from .scheduler import Scheduler
 from .k8s_cache import K8sCache
 
-# uvloop.install()
+uvloop.install()
 
 log = logging.getLogger('batch')
 
