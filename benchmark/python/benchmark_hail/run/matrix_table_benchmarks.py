@@ -67,6 +67,11 @@ def matrix_table_take_entry(mt_path):
     mt = hl.read_matrix_table(mt_path)
     mt.GT.take(100)
 
+@benchmark(args=profile_25.handle('mt'))
+def matrix_table_entries_show(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    mt.entries().show()
+
 
 @benchmark(args=profile_25.handle('mt'))
 def matrix_table_take_row(mt_path):
@@ -89,6 +94,12 @@ def write_range_matrix_table_p100():
 
 
 @benchmark(args=profile_25.handle('mt'))
+def write_profile_mt(mt_path):
+    with TemporaryDirectory() as tmpdir:
+        hl.read_matrix_table(mt_path).write(path.join(tmpdir, 'tmp.mt'))
+
+
+@benchmark(args=profile_25.handle('mt'))
 def matrix_table_rows_is_transition(mt_path):
     ht = hl.read_matrix_table(mt_path).rows().key_by()
     ht.select(is_snp=hl.is_snp(ht.alleles[0], ht.alleles[1]))._force_count()
@@ -104,6 +115,17 @@ def matrix_table_filter_entries(mt_path):
 def matrix_table_filter_entries_unfilter(mt_path):
     mt = hl.read_matrix_table(mt_path)
     mt.filter_entries((mt.GQ > 8) & (mt.DP > 2)).unfilter_entries()._force_count_rows()
+
+
+@benchmark(args=profile_25.handle('mt'))
+def matrix_table_nested_annotate_rows_annotate_entries(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    mt = mt.annotate_rows(r0=mt.info.AF[0] + 1)
+    mt = mt.annotate_entries(e0=mt.GQ + 5)
+    for i in range(1, 20):
+        mt = mt.annotate_rows(**{f'r{i}': mt[f'r{i-1}'] + 1})
+        mt = mt.annotate_entries(**{f'e{i}': mt[f'e{i-1}'] + 1})
+    mt._force_count_rows()
 
 
 def many_aggs(mt):
@@ -327,3 +349,17 @@ def kyle_sex_specific_qc(mt_path):
     )
 
     mt.rows()._force_count()
+
+
+@benchmark()
+def matrix_table_scan_count_rows():
+    mt = hl.utils.range_matrix_table(n_rows=200_000_000, n_cols=10, n_partitions=16)
+    mt.annotate_rows(x=hl.scan.count())
+    mt._force_count_rows()
+
+
+@benchmark()
+def matrix_table_scan_count_cols():
+    mt = hl.utils.range_matrix_table(n_cols=10_000_000, n_rows=10)
+    mt.annotate_cols(x=hl.scan.count())
+    mt._force_count_rows()

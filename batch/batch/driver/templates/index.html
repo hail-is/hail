@@ -5,7 +5,7 @@
   <form action="{{ base_path }}/config-update" method="POST">
     <div>Worker cores: {{ config['worker_cores'] }}</div>
     <div>Worker type: {{ config['worker_type'] }}</div>
-    <div>Worker disk size (in GB): <input name="worker_disk_size_gb" value="{{ config['worker_disk_size_gb'] }}" /></div>
+    <div>Worker disk size (in GB): {{ config['worker_disk_size_gb'] }}</div>
     <div>Max instances: <input name="max_instances" value="{{ config['max_instances'] }}" /></div>
     <div>Worker pool size: <input name="pool_size" value="{{ config['pool_size'] }}" /></div>
     <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
@@ -31,6 +31,8 @@
     <thead>
       <tr>
         <th>Name</th>
+        <th>Zone</th>
+        <th>Version</th>
         <th>State</th>
         <th>Free Cores</th>
         <th>Failed Requests</th>
@@ -42,6 +44,8 @@
       {% for instance in instances %}
       <tr>
         <td>{{ instance.name }}</td>
+        <td>{{ instance.zone }}</td>
+        <td class="numeric-cell">{{ instance.version }}</td>
         <td>{{ instance.state }}</td>
         <td class="numeric-cell">{{ instance.free_cores_mcpu / 1000 }} / {{ instance.cores_mcpu / 1000 }}</td>
         <td class="numeric-cell">{{ instance.failed_request_count }}</td>

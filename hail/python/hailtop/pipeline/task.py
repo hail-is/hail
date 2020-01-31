@@ -80,6 +80,7 @@ class Task:
         self._mentioned = set()  # resources used in the command
         self._valid = set()  # resources declared in the appropriate place
         self._dependencies = set()
+        self._always_run = False
 
     def _get_resource(self, item):
         if item not in self._resources:
@@ -187,6 +188,7 @@ class Task:
 
         for t in tasks:
             self._dependencies.add(t)
+        return self
 
     def command(self, command):
         """
@@ -401,6 +403,31 @@ class Task:
         """
 
         self._image = image
+        return self
+
+    def always_run(self, always_run=True):
+        """
+        Set the task to always run, even if dependencies fail.
+
+        Examples
+        --------
+
+        >>> t1 = p.new_task()
+        >>> (t1.always_run()
+        ...    .command(f'echo "hello"'))
+
+        Parameters
+        ----------
+        always_run: :obj:`bool`
+            If True, set task to always run.
+
+        Returns
+        -------
+        :class:`.Task`
+            Same task object set to always run.
+        """
+
+        self._always_run = always_run
         return self
 
     def _pretty(self):

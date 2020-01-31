@@ -4,7 +4,6 @@ import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types.physical.{PString, PStruct}
-import is.hail.io.plink.BimAnnotationView
 import is.hail.variant.{ArrayGenotypeView, RegionValueVariant, VariantMethods, View}
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -111,7 +110,6 @@ class GenAnnotationView(rowType: PStruct) extends View {
   private val rsidIdx = rsidField.index
   private val varidIdx = varidField.index
 
-  private var region: Region = _
   private var rsidOffset: Long = _
   private var varidOffset: Long = _
 
@@ -119,12 +117,10 @@ class GenAnnotationView(rowType: PStruct) extends View {
   private var cachedRsid: String = _
 
   def setRegion(region: Region, offset: Long) {
-    this.region = region
-
-    assert(rowType.isFieldDefined(region, offset, varidIdx))
-    assert(rowType.isFieldDefined(region, offset, rsidIdx))
-    this.rsidOffset = rowType.loadField(region, offset, rsidIdx)
-    this.varidOffset = rowType.loadField(region, offset, varidIdx)
+    assert(rowType.isFieldDefined(offset, varidIdx))
+    assert(rowType.isFieldDefined(offset, rsidIdx))
+    this.rsidOffset = rowType.loadField(offset, rsidIdx)
+    this.varidOffset = rowType.loadField(offset, varidIdx)
 
     cachedVarid = null
     cachedRsid = null
@@ -132,13 +128,13 @@ class GenAnnotationView(rowType: PStruct) extends View {
 
   def varid(): String = {
     if (cachedVarid == null)
-      cachedVarid = PString.loadString(region, varidOffset)
+      cachedVarid = varidField.typ.asInstanceOf[PString].loadString(varidOffset)
     cachedVarid
   }
 
   def rsid(): String = {
     if (cachedRsid == null)
-      cachedRsid = PString.loadString(region, rsidOffset)
+      cachedRsid = rsidField.typ.asInstanceOf[PString].loadString(rsidOffset)
     cachedRsid
   }
 }

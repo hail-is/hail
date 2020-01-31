@@ -28,8 +28,7 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testRangeRead() {
-    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
-    val original = TableMapGlobals(TableRange(10, 3), MakeStruct(FastIndexedSeq("foo" -> I32(57))))
+    val original = TableKeyBy(TableMapGlobals(TableRange(10, 3), MakeStruct(FastIndexedSeq("foo" -> I32(57)))), FastIndexedSeq())
 
     val path = tmpDir.createTempFile()
     CompileAndEvaluate[Unit](ctx, TableWrite(original, TableNativeWriter(path, overwrite = true)), false)
@@ -40,8 +39,8 @@ class TableIRSuite extends HailSuite {
     val expectedRows = Array.tabulate(10)(i => Row(i)).toFastIndexedSeq
     val expectedGlobals = Row(57)
 
-    assertEvalsTo(collect(read), Row(expectedRows, expectedGlobals))
-    assertEvalsTo(collect(droppedRows), Row(FastIndexedSeq(), expectedGlobals))
+    assertEvalsTo(TableCollect(read), Row(expectedRows, expectedGlobals))
+    assertEvalsTo(TableCollect(droppedRows), Row(FastIndexedSeq(), expectedGlobals))
   }
 
   @Test def testRangeCollect() {
@@ -57,7 +56,7 @@ class TableIRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = TableRange(10, 2)
     val row = Ref("row", t.typ.rowType)
-    val sum = AggSignature2(Sum(), FastSeq(), FastSeq(TInt64()), None)
+    val sum = AggSignature(Sum(), FastSeq(), FastSeq(TInt64()), None)
     val node = collect(TableMapRows(t, InsertFields(row, FastIndexedSeq("sum" -> ApplyScanOp(FastSeq(), FastSeq(Cast(GetField(row, "idx"), TInt64())), sum)))))
     assertEvalsTo(node, Row(Array.tabulate(10)(i => Row(i, Array.range(0, i).sum.toLong)).toFastIndexedSeq, Row()))
   }

@@ -5,6 +5,8 @@ import asyncio
 import aiohttp
 from aiohttp import web
 
+from .time import time_msecs
+
 log = logging.getLogger('hailtop.utils')
 
 
@@ -117,6 +119,36 @@ class AsyncWorkerPool:
         await self._queue.put((f, args, kwargs))
 
 
+class WaitableSharedPool:
+    def __init__(self, worker_pool):
+        self._worker_pool = worker_pool
+        self._n_submitted = 0
+        self._n_complete = 0
+        self._waiting = False
+        self._done = asyncio.Event()
+
+    async def call(self, f, *args, **kwargs):
+        assert not self._waiting
+        self._n_submitted += 1
+
+        async def invoke():
+            try:
+                await f(*args, **kwargs)
+            finally:
+                self._n_complete += 1
+                if self._waiting and (self._n_complete == self._n_submitted):
+                    self._done.set()
+
+        await self._worker_pool.call(invoke)
+
+    async def wait(self):
+        assert not self._waiting
+        self._waiting = True
+        if self._n_complete == self._n_submitted:
+            self._done.set()
+        await self._done.wait()
+
+
 def is_transient_error(e):
     # observed exceptions:
     #
@@ -182,17 +214,25 @@ async def sleep_and_backoff(delay):
     return min(delay * 2, 60.0)
 
 
-async def request_retry_transient_errors(session, method, url, **kwargs):
+async def retry_transient_errors(f, *args, **kwargs):
     delay = 0.1
+    errors = 0
     while True:
         try:
-            return await session.request(method, url, **kwargs)
+            return await f(*args, **kwargs)
         except Exception as e:
+            errors += 1
+            if errors % 10 == 0:
+                log.warning(f'encountered {errors} errors, most recent one was {e}', exc_info=True)
             if is_transient_error(e):
                 pass
             else:
                 raise
         delay = await sleep_and_backoff(delay)
+
+
+async def request_retry_transient_errors(session, method, url, **kwargs):
+    return await retry_transient_errors(session.request, method, url, **kwargs)
 
 
 async def request_raise_transient_errors(session, method, url, **kwargs):
@@ -207,3 +247,77 @@ async def request_raise_transient_errors(session, method, url, **kwargs):
 
 async def collect_agen(agen):
     return [x async for x in agen]
+
+
+async def retry_forever(f, msg=None):
+    delay = 0.1
+    while True:
+        try:
+            await f()
+            break
+        except Exception as exc:
+            if msg:
+                log.info(msg(exc), exc_info=True)
+        await sleep_and_backoff(delay)
+
+
+async def retry_long_running(name, f, *args, **kwargs):
+    delay_secs = 0.1
+    while True:
+        try:
+            start_time = time_msecs()
+            return await f(*args, **kwargs)
+        except Exception:
+            end_time = time_msecs()
+
+            log.exception(f'in {name}')
+
+            t = delay_secs * random.uniform(0.7, 1.3)
+            await asyncio.sleep(t)
+
+            ran_for_secs = (end_time - start_time) * 1000
+            delay_secs = min(
+                max(0.1, 2 * delay_secs - min(0, (ran_for_secs - t) / 2)),
+                30.0)
+
+
+async def run_if_changed(changed, f, *args, **kwargs):
+    while True:
+        changed.clear()
+        should_wait = await f(*args, **kwargs)
+        if should_wait:
+            await changed.wait()
+
+
+class LoggingTimerStep:
+    def __init__(self, timer, name):
+        self.timer = timer
+        self.name = name
+        self.start_time = None
+
+    async def __aenter__(self):
+        self.start_time = time_msecs()
+
+    async def __aexit__(self, exc_type, exc, tb):
+        finish_time = time_msecs()
+        self.timer.timing[self.name] = finish_time - self.start_time
+
+
+class LoggingTimer:
+    def __init__(self, description):
+        self.description = description
+        self.timing = {}
+        self.start_time = None
+
+    def step(self, name):
+        return LoggingTimerStep(self, name)
+
+    async def __aenter__(self):
+        self.start_time = time_msecs()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        finish_time = time_msecs()
+        self.timing['total'] = finish_time - self.start_time
+
+        log.info(f'{self.description} timing {self.timing}')

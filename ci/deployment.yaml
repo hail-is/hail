@@ -19,6 +19,8 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      nodeSelector:
+        preemptible: "false"
       containers:
         - name: ci
           image: "{{ ci_image.image }}"
@@ -72,6 +74,9 @@ spec:
            - mountPath: /user-tokens
              name: ci-tokens
              readOnly: true
+           - mountPath: /zulip-config
+             name: zulip-config
+             readOnly: true
           livenessProbe:
             httpGet:
               path: /healthcheck
@@ -102,6 +107,9 @@ spec:
        - name: ci-tokens
          secret:
            secretName: ci-tokens
+       - name: zulip-config
+         secret:
+           secretName: zulip-config
 ---
 apiVersion: v1
 kind: Service

@@ -271,8 +271,8 @@ class RVDPartitioner(
 }
 
 object RVDPartitioner {
-  def empty(typ: RVDType): RVDPartitioner = {
-    new RVDPartitioner(typ.kType.virtualType, Array.empty[Interval])
+  def empty(typ: TStruct): RVDPartitioner = {
+    new RVDPartitioner(typ, Array.empty[Interval])
   }
 
   def unkeyed(numPartitions: Int): RVDPartitioner = {

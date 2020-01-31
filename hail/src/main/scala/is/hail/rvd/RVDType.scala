@@ -33,13 +33,6 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
   val kRowOrd: UnsafeOrdering =
     RVDType.selectUnsafeOrdering(kType, Array.range(0, kType.size), rowType, kFieldIdx)
 
-  def subsetTo(requestedType: TStruct): RVDType = {
-    RVDType(
-      rowType.subsetTo(requestedType).asInstanceOf[PStruct],
-      key.takeWhile(requestedType.hasField)
-    )
-  }
-
   def kComp(other: RVDType): UnsafeOrdering =
     RVDType.selectUnsafeOrdering(
       this.rowType,
@@ -76,20 +69,20 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
       // is above, always considering missing greatest.
       def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
 
-        val leftDefined = t1.isFieldDefined(r1, o1, f1)
-        val rightDefined = t2.isFieldDefined(r2, o2, f2)
+        val leftDefined = t1.isFieldDefined(o1, f1)
+        val rightDefined = t2.isFieldDefined(o2, f2)
 
         if (leftDefined && rightDefined) {
-          val k1 = t1.loadField(r1, o1, f1)
-          val k2 = t2.loadField(r2, o2, f2)
-          if (intervalType.startDefined(r2, k2)) {
-            val c = pord.compare(r1, k1, r2, intervalType.loadStart(r2, k2))
-            if (c < 0 || (c == 0 && !intervalType.includesStart(r2, k2))) {
+          val k1 = t1.loadField(o1, f1)
+          val k2 = t2.loadField(o2, f2)
+          if (intervalType.startDefined(k2)) {
+            val c = pord.compare(r1, k1, r2, intervalType.loadStart(k2))
+            if (c < 0 || (c == 0 && !intervalType.includesStart(k2))) {
               -1
             } else {
-              if (intervalType.endDefined(r2, k2)) {
-                val c = pord.compare(r1, k1, r2, intervalType.loadEnd(r2, k2))
-                if (c < 0 || (c == 0 && intervalType.includesEnd(r2, k2)))
+              if (intervalType.endDefined(k2)) {
+                val c = pord.compare(r1, k1, r2, intervalType.loadEnd(k2))
+                if (c < 0 || (c == 0 && intervalType.includesEnd(k2)))
                   0
                 else 1
               } else 0
@@ -125,7 +118,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
     JObject(List(
       "partitionKey" -> JArray(key.map(JString).toList),
       "key" -> JArray(key.map(JString).toList),
-      "rowType" -> JString(rowType.parsableString())))
+      "rowType" -> JString(rowType.toString)))
 
   override def toString: String = {
     val sb = new StringBuilder()
@@ -134,7 +127,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
       key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
     }
     sb.append("]],row:")
-    sb.append(rowType.parsableString())
+    sb.append(rowType.toString)
     sb += '}'
     sb.result()
   }
@@ -173,11 +166,11 @@ object RVDType {
         while (i < nFields) {
           val f1 = fields1(i)
           val f2 = fields2(i)
-          val leftDefined = t1.isFieldDefined(r1, o1, f1)
-          val rightDefined = t2.isFieldDefined(r2, o2, f2)
+          val leftDefined = t1.isFieldDefined(o1, f1)
+          val rightDefined = t2.isFieldDefined(o2, f2)
 
           if (leftDefined && rightDefined) {
-            val c = fieldOrderings(i).compare(r1, t1.loadField(r1, o1, f1), r2, t2.loadField(r2, o2, f2))
+            val c = fieldOrderings(i).compare(r1, t1.loadField(o1, f1), r2, t2.loadField(o2, f2))
             if (c != 0)
               return c
           } else if (leftDefined != rightDefined) {

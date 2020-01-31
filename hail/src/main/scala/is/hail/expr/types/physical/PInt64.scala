@@ -17,13 +17,8 @@ class PInt64(override val required: Boolean) extends PIntegral {
   lazy val virtualType: TInt64 = TInt64(required)
 
   def _asIdent = "int64"
-  def _toPretty = "Int64"
-
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PInt64")
   override type NType = PInt64
-
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("int64")
-  }
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
@@ -62,6 +57,21 @@ class PInt64(override val required: Boolean) extends PIntegral {
   override def multiply(a: Code[_], b: Code[_]): Code[PInt64] = {
     coerce[PInt64](coerce[Long](a) * coerce[Long](b))
   }
+
+  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]) =
+    Region.storeLong(dstAddress, Region.loadLong(srcAddress))
+
+  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) =
+    Region.storeLong(dstAddress, Region.loadLong(srcAddress))
+
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long =
+    srcAddress
+
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] =
+    srcAddress
+
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
+    stackValue
 }
 
 object PInt64 {

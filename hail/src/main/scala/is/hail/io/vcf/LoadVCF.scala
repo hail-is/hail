@@ -5,9 +5,9 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.BroadcastValue
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.{ExecuteContext, IRParser, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, PruneDeadFields, TableRead, TableValue}
+import is.hail.expr.ir.{ExecuteContext, IRParser, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.physical.{PBoolean, PCall, PCanonicalArray, PCanonicalCall, PCanonicalSet, PCanonicalString, PCanonicalStruct, PField, PFloat64, PInt32, PString, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
@@ -16,12 +16,10 @@ import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, SparkContext, TaskContext}
-import org.json4s.JsonAST.{JInt, JObject, JString}
+import org.json4s.JsonAST.{JInt, JObject}
 import org.json4s.jackson.JsonMethods
 
 import scala.annotation.meta.param
@@ -43,7 +41,7 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
   }
 }
 
-case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSignature: TStruct, genotypeSignature: TStruct,
+case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: PStruct, vaSignature: PStruct, genotypeSignature: PStruct,
   filtersAttrs: VCFAttributes, infoAttrs: VCFAttributes, formatAttrs: VCFAttributes, infoFlagFields: Set[String])
 
 class VCFParseError(val msg: String, val pos: Int) extends RuntimeException(msg)
@@ -1133,21 +1131,20 @@ object LoadVCF {
 
   def headerField(
     line: VCFCompoundHeaderLine,
-    i: Int,
     callFields: Set[String],
     floatType: TNumeric,
     arrayElementsRequired: Boolean = false
-  ): (Field, (String, Map[String, String]), Boolean) = {
+  ): ((String, PType), (String, Map[String, String]), Boolean) = {
     val id = line.getID
     val isCall = id == "GT" || callFields.contains(id)
 
     val baseType = (line.getType, isCall) match {
-      case (VCFHeaderLineType.Integer, false) => TInt32()
-      case (VCFHeaderLineType.Float, false) => floatType
-      case (VCFHeaderLineType.String, true) => TCall()
-      case (VCFHeaderLineType.String, false) => TString()
-      case (VCFHeaderLineType.Character, false) => TString()
-      case (VCFHeaderLineType.Flag, false) => TBoolean()
+      case (VCFHeaderLineType.Integer, false) => PInt32()
+      case (VCFHeaderLineType.Float, false) => PType.canonical(floatType)
+      case (VCFHeaderLineType.String, true) => PCanonicalCall()
+      case (VCFHeaderLineType.String, false) => PString()
+      case (VCFHeaderLineType.Character, false) => PString()
+      case (VCFHeaderLineType.Flag, false) => PBoolean()
       case (_, true) => fatal(s"Can only convert a header line with type 'String' to a call type. Found '${ line.getType }'.")
     }
 
@@ -1160,11 +1157,11 @@ object LoadVCF {
     if (line.isFixedCount &&
       (line.getCount == 1 ||
         (isFlag && line.getCount == 0)))
-      (Field(id, baseType, i), (id, attrs), isFlag)
-    else if (baseType.isInstanceOf[TCall])
+      ((id, baseType), (id, attrs), isFlag)
+    else if (baseType.isInstanceOf[PCall])
       fatal("fields in 'call_fields' must have 'Number' equal to 1.")
     else
-      (Field(id, TArray(baseType.setRequired(arrayElementsRequired)), i), (id, attrs), isFlag)
+      ((id, PCanonicalArray(baseType.setRequired(arrayElementsRequired))), (id, attrs), isFlag)
   }
 
   def headerSignature[T <: VCFCompoundHeaderLine](
@@ -1172,17 +1169,16 @@ object LoadVCF {
     callFields: Set[String],
     floatType: TNumeric,
     arrayElementsRequired: Boolean = false
-  ): (TStruct, VCFAttributes, Set[String]) = {
+  ): (PStruct, VCFAttributes, Set[String]) = {
     val (fields, attrs, flags) = lines
-      .zipWithIndex
-      .map { case (line, i) => headerField(line, i, callFields, floatType, arrayElementsRequired) }
+      .map { line => headerField(line, callFields, floatType, arrayElementsRequired) }
       .unzip3
 
     val flagFieldNames = fields.zip(flags)
-      .flatMap { case (f, isFlag) => if (isFlag) Some(f.name) else None }
+      .flatMap { case ((f, _), isFlag) => if (isFlag) Some(f) else None }
       .toSet
 
-    (TStruct(fields.toArray), attrs.toMap, flagFieldNames)
+    (PCanonicalStruct(false, fields.toArray: _*), attrs.toMap, flagFieldNames)
   }
 
   def parseHeader(
@@ -1211,11 +1207,11 @@ object LoadVCF {
     val formatHeader = header.getFormatHeaderLines
     val (gSignature, formatAttrs, _) = headerSignature(formatHeader, callFields, floatType, arrayElementsRequired = arrayElementsRequired)
 
-    val vaSignature = TStruct(Array(
-      Field("rsid", TString(), 0),
-      Field("qual", TFloat64(), 1),
-      Field("filters", TSet(TString()), 2),
-      Field("info", infoSignature, 3)))
+    val vaSignature = PCanonicalStruct(Array(
+      PField("rsid", PCanonicalString(), 0),
+      PField("qual", PFloat64(), 1),
+      PField("filters", PCanonicalSet(PCanonicalString()), 2),
+      PField("info", infoSignature, 3)), false)
 
     val headerLine = lines.last
     if (!(headerLine(0) == '#' && headerLine(1) != '#'))
@@ -1547,13 +1543,17 @@ case class MatrixVCFReader(
     TStruct.empty(),
     colType = TStruct("s" -> TString()),
     colKey = Array("s"),
-    rowType = kType ++ vaSignature,
+    rowType = kType ++ vaSignature.virtualType,
     rowKey = Array("locus", "alleles"),
-    entryType = genotypeSignature)
+    entryType = genotypeSignature.virtualType)
 
   override lazy val fullType: TableType = fullMatrixType.canonicalTableType
 
-  val fullRVDType: RVDType = fullType.canonicalRVDType
+  val fullRVDType = RVDType(PCanonicalStruct(false,
+    PStruct.canonical(kType).fields.map { f => (f.name, f.typ) }
+      ++ vaSignature.fields.map { f => (f.name, f.typ) }
+      ++ Array(LowerMatrixIR.entriesFieldName -> PCanonicalArray(genotypeSignature)): _*),
+    fullType.key)
 
   private lazy val lines = {
     HailContext.maybeGZipAsBGZip(gzAsBGZ) {
@@ -1584,7 +1584,7 @@ case class MatrixVCFReader(
     val dropSamples = !requestedType.rowType.hasField(LowerMatrixIR.entriesFieldName)
     val localSampleIDs: Array[String] = if (dropSamples) Array.empty[String] else sampleIDs
 
-    val rvdType = requestedType.canonicalRVDType
+    val rvdType = RVDType(coerce[PStruct](fullRVDType.rowType.subsetTo(requestedType.rowType)), requestedType.key)
     val rvd = if (tr.dropRows)
       RVD.empty(sc, rvdType)
     else
@@ -1689,9 +1689,15 @@ class VCFsReader(
     TStruct.empty(),
     colType = TStruct("s" -> TString()),
     colKey = Array("s"),
-    rowType = kType ++ header1.vaSignature,
+    rowType = kType ++ header1.vaSignature.virtualType,
     rowKey = Array("locus"),
-    entryType = header1.genotypeSignature)
+    entryType = header1.genotypeSignature.virtualType)
+
+  val fullRVDType = RVDType(PCanonicalStruct(false,
+    PStruct.canonical(kType).fields.map { f => (f.name, f.typ) }
+      ++ header1.vaSignature.fields.map { f => (f.name, f.typ) }
+      ++ Array(LowerMatrixIR.entriesFieldName -> PCanonicalArray(header1.genotypeSignature)): _*),
+    typ.rowKey)
 
   val partitioner: RVDPartitioner = {
     val partitionsType = IRParser.parseType(partitionsTypeStr)
@@ -1758,13 +1764,10 @@ class VCFsReader(
 
   def readFile(file: String, i: Int): MatrixIR = {
     val sampleIDs = fileInfo(i)
-    val localEntryFloatType = entryFloatType
-    val localCallFields = callFields
-    val localHeaderLines1Bc = headerLines1Bc
     val localInfoFlagFieldNames = header1.infoFlagFields
     val localTyp = typ
     val tt = localTyp.canonicalTableType
-    val rvdType = tt.canonicalRVDType
+    val rvdType = fullRVDType
 
     val lines = ContextRDD.weaken[RVDContext](
       new PartitionedVCFRDD(hc.sc, file, partitions)

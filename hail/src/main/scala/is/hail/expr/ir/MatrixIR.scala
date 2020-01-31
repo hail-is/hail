@@ -3,13 +3,9 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.annotations.aggregators.RegionValueAggregator
-import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir
-import is.hail.expr.ir.functions.{MatrixToMatrixFunction, RelationalFunctions}
 import is.hail.expr.ir.IRBuilder._
+import is.hail.expr.ir.functions.MatrixToMatrixFunction
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PInt32, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.TextMatrixReader
 import is.hail.io.bgen.MatrixBGENReader
@@ -17,16 +13,11 @@ import is.hail.io.gen.MatrixGENReader
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.rvd._
-import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
-import org.json4s.JsonDSL._
-import org.json4s.jackson.JsonMethods
-
-import scala.collection.mutable
 
 object MatrixIR {
   def read(hc: HailContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType] = None): MatrixIR = {
@@ -229,20 +220,26 @@ case class MatrixNativeReader(
         options,
         spec.rowsTableSpec(rowsPath),
         spec.entriesTableSpec(entriesPath))
-      var tr: TableIR = TableRead(tt, mr.dropRows, trdr)
-      val colsTable = TableRead(
-        TableType(
-          mr.typ.colType,
-          FastIndexedSeq(),
-          TStruct()
-        ),
-        dropRows = false,
-        TableNativeReader(colsPath, _spec = spec.colsTableSpec(colsPath))
-      )
+      val tr: TableIR = TableRead(tt, mr.dropRows, trdr)
+      val colsTableSpec = spec.colsTableSpec(colsPath)
+      val colsRVDSpec = colsTableSpec.rowsSpec(colsPath)
+      val partFiles = colsRVDSpec.absolutePartPaths(colsTableSpec.rowsComponent.absolutePath(colsPath))
+
+      val cols = if (partFiles.length == 1) {
+        ReadPartition(Str(partFiles.head), colsRVDSpec.typedCodecSpec, mr.typ.colType)
+      } else {
+        val partitionReads = partFiles.map(f => ToArray(ReadPartition(Str(f), colsRVDSpec.typedCodecSpec, mr.typ.colType)))
+        val partNames = MakeArray(partFiles.map(Str), TArray(TString()))
+        val elt = Ref(genUID(), TString())
+        ArrayFlatMap(
+          partNames,
+          elt.name,
+          ReadPartition(elt, colsRVDSpec.typedCodecSpec, mr.typ.colType))
+      }
 
       TableMapGlobals(tr, InsertFields(
         Ref("global", tr.typ.globalType),
-        FastSeq(LowerMatrixIR.colsFieldName -> GetField(TableCollect(colsTable), "rows"))
+        FastSeq(LowerMatrixIR.colsFieldName -> ToArray(cols))
       ))
     }
   }

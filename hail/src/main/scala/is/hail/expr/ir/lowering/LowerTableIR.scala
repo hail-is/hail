@@ -19,7 +19,6 @@ case class Binding(name: String, value: IR)
 case class TableStage(
   broadcastVals: IR,
   globalsField: String,
-  rvdType: RVDType,
   partitioner: RVDPartitioner,
   contextType: Type,
   contexts: IR,
@@ -71,7 +70,6 @@ object LowerTableIR {
     case TableRead(typ, dropRows, reader) =>
       val gType = typ.globalType
       val rowType = typ.rowType
-      val rvdType = typ.canonicalRVDType
       val globalRef = genUID()
 
       reader match {
@@ -79,17 +77,16 @@ object LowerTableIR {
           val globalsPath = r.spec.globalsComponent.absolutePath(path)
           val globalsSpec = AbstractRVDSpec.read(HailContext.get, globalsPath)
           val gPath = AbstractRVDSpec.partPath(globalsPath, globalsSpec.partFiles.head)
-          val gSpec = globalsSpec.typedCodecSpec
+          val globals = ArrayRef(ToArray(ReadPartition(Str(gPath), globalsSpec.typedCodecSpec, gType)), 0)
 
           if (dropRows) {
             TableStage(
-              MakeStruct(FastIndexedSeq(globalRef -> ArrayRef(ReadPartition(Str(gPath), gSpec, gType), 0))),
+              MakeStruct(FastIndexedSeq(globalRef -> globals)),
               globalRef,
-              rvdType,
-              RVDPartitioner.empty(rvdType),
+              RVDPartitioner.empty(typ.keyType),
               TStruct(),
               MakeArray(FastIndexedSeq(), TArray(TStruct())),
-              MakeArray(FastIndexedSeq(), TArray(rvdType.rowType.virtualType)))
+              MakeArray(FastIndexedSeq(), TArray(typ.rowType)))
           } else {
             val rowsPath = r.spec.rowsComponent.absolutePath(path)
             val rowsSpec = AbstractRVDSpec.read(HailContext.get, rowsPath)
@@ -99,9 +96,8 @@ object LowerTableIR {
 
             if (rowsSpec.key startsWith typ.key) {
               TableStage(
-                MakeStruct(FastIndexedSeq(globalRef -> ArrayRef(ToArray(ReadPartition(Str(gPath), gSpec, gType)), 0))),
+                MakeStruct(FastIndexedSeq(globalRef -> globals)),
                 globalRef,
-                rvdType,
                 partitioner,
                 ctxType,
                 MakeArray(rowsSpec.partFiles.map(f => MakeStruct(FastIndexedSeq("path" -> Str(AbstractRVDSpec.partPath(rowsPath, f))))), TArray(ctxType)),
@@ -132,7 +128,6 @@ object LowerTableIR {
       TableStage(
         MakeStruct(FastIndexedSeq(globalRef -> MakeStruct(Seq()))),
         globalRef,
-        rvdType,
         new RVDPartitioner(Array("idx"), tir.typ.rowType,
           ranges.map { case (start, end) =>
             Interval(Row(start), Row(end), includesStart = true, includesEnd = false)

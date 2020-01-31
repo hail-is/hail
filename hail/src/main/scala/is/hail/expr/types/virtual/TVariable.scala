@@ -40,8 +40,6 @@ final case class TVariable(name: String, cond: String = null) extends Type {
     else
       (t: Type) => true
 
-  def physicalType: PType = ???
-
   def t: Type = b.get
 
   override val required = true

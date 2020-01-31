@@ -240,7 +240,7 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
-    srvb.addArray(resultType.fundamentalType.asPArray, sab =>
+    srvb.addArray(resultType.arrayFundamentalType, sab =>
       Code(
         sab.start(state.size),
         state.foreach { (km, kv) =>

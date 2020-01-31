@@ -376,58 +376,6 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def shuffleCoalesce(numPartitions: Int): ContextRDD[C, T] =
     ContextRDD.weaken(run.coalesce(numPartitions, true), mkc)
 
-  def head(n: Long, partitionCounts: Option[IndexedSeq[Long]]): ContextRDD[C, T] = {
-    require(n >= 0)
-
-    val (idxLast, nTake) = partitionCounts match {
-      case Some(pcs) =>
-        getPCSubsetOffset(n, pcs.iterator) match {
-          case Some(PCSubsetOffset(idx, nTake, _)) => idx -> nTake
-          case None => return this
-        }
-      case None =>
-        val PCSubsetOffset(idx, nTake, _) =
-          incrementalPCSubsetOffset(n, 0 until getNumPartitions)(
-            runJob(getIteratorSize, _)
-          )
-        idx -> nTake
-    }
-
-    mapPartitionsWithIndex({ case (i, it) =>
-      if (i == idxLast)
-        it.take(nTake.toInt)
-      else
-        it
-    }, preservesPartitioning = true)
-      .subsetPartitions((0 to idxLast).toArray)
-  }
-
-  def tail(n: Long, partitionCounts: Option[IndexedSeq[Long]]): ContextRDD[C, T] = {
-    require(n >= 0)
-
-    val (idxFirst, nDrop) = partitionCounts match {
-      case Some(pcs) =>
-        getPCSubsetOffset(n, pcs.reverseIterator) match {
-          case Some(PCSubsetOffset(idx, _, nDrop)) => (pcs.length - idx - 1) -> nDrop
-          case None => return this
-        }
-      case None =>
-        val PCSubsetOffset(idx, _, nDrop) =
-          incrementalPCSubsetOffset(n, Range.inclusive(getNumPartitions - 1, 0, -1))(
-            runJob(getIteratorSize, _)
-          )
-        idx -> nDrop
-    }
-
-    mapPartitionsWithIndex({ case (i, it) =>
-      if (i == idxFirst)
-        it.drop(nDrop.toInt)
-      else
-        it
-    }, preservesPartitioning = true)
-      .subsetPartitions(Array.range(idxFirst, getNumPartitions))
-  }
-
   def runJob[U: ClassTag](f: Iterator[T] => U, partitions: Seq[Int]): Array[U] =
     sparkContext.runJob(
       rdd,

@@ -13,3 +13,8 @@ valid_state_transitions = {
 }
 
 tasks = ('input', 'main', 'output')
+
+HTTP_CLIENT_MAX_SIZE = 8 * 1024 * 1024
+
+BATCH_FORMAT_VERSION = 2
+INSTANCE_VERSION = 2

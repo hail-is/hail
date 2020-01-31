@@ -185,6 +185,9 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
     if dtype is None:
         dtype = impute_type(x)
 
+    if isinstance(x, np.generic):
+        x = x.item()
+
     try:
         dtype._traverse(x, typecheck_expr)
     except TypeError as e:
@@ -1080,7 +1083,7 @@ def pl_dosage(pl) -> Float64Expression:
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return hl.sum(pl_to_gp(pl) * [0, 1, 2], filter_missing=False)
+    return hl.sum(pl_to_gp(pl) * hl.range(3), filter_missing=False)
 
 
 @typecheck(pl=expr_array(expr_int32), _cache_size=int)
@@ -2842,6 +2845,10 @@ def entropy(s) -> Float64Expression:
     return _func("entropy", tfloat64, s)
 
 
+@typecheck(x=expr_any, trunc=expr_int32)
+def _showstr(x, trunc):
+    return _func("showStr", tstr, x, trunc)
+
 @typecheck(x=expr_any)
 def str(x) -> StringExpression:
     """Returns the string representation of `x`.
@@ -3253,24 +3260,15 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
     -------
     :class:`.ArrayExpression`
     """
-
     n_arrays = builtins.len(arrays)
-    if fill_missing:
-        def _(array_lens):
-            result_len = hl.max(array_lens)
-            indices = hl.range(0, result_len)
-            return hl.map(lambda i: builtins.tuple(
-                hl.cond(i < array_lens[j], arrays[j][i], hl.null(arrays[j].dtype.element_type))
-                for j in builtins.range(n_arrays)), indices)
-
-        return bind(_, [hl.len(a) for a in arrays])
-    else:
-        def _(array_lens):
-            result_len = hl.min(array_lens)
-            indices = hl.range(0, result_len)
-            return hl.map(lambda i: builtins.tuple(arrays[j][i] for j in builtins.range(n_arrays)), indices)
-
-        return bind(_, [hl.len(a) for a in arrays])
+    uids = [Env.get_uid() for _ in builtins.range(n_arrays)]
+    body_ir = MakeTuple([Ref(uid) for uid in uids])
+    indices, aggregations = unify_all(*arrays)
+    behavior = 'ExtendNA' if fill_missing else 'TakeMinLength'
+    return construct_expr(ArrayZip([a._ir for a in arrays], uids, body_ir, behavior),
+                          tarray(ttuple(*(a.dtype.element_type for a in arrays))),
+                          indices,
+                          aggregations)
 
 
 @typecheck(a=expr_array(), index_first=bool)
@@ -4028,16 +4026,42 @@ def _ndarray(collection, row_major=None):
 
         return result
 
+    def check_arrays_uniform(nested_arr, shape_list, ndim):
+        current_level_correct = (hl.len(nested_arr) == shape_list[-ndim])
+        if ndim == 1:
+            return current_level_correct
+        else:
+            return current_level_correct & (hl.all(lambda inner: check_arrays_uniform(inner, shape_list, ndim - 1), nested_arr))
+
     if isinstance(collection, Expression):
         if isinstance(collection, ArrayNumericExpression):
             data_expr = collection
             shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ir.ttuple(tint64))
             ndim = 1
-
         elif isinstance(collection, NumericExpression):
             data_expr = array([collection])
             shape_expr = hl.tuple([])
             ndim = 0
+        elif isinstance(collection, ArrayExpression):
+            recursive_type = collection.dtype
+            ndim = 0
+            while isinstance(recursive_type, tarray):
+                recursive_type = recursive_type._element_type
+                ndim += 1
+
+            data_expr = collection
+            for i in builtins.range(ndim - 1):
+                data_expr = hl.flatten(data_expr)
+
+            nested_collection = collection
+            shape_list = []
+            for i in builtins.range(ndim):
+                shape_list.append(hl.int64(hl.len(nested_collection)))
+                nested_collection = nested_collection[0]
+
+            shape_expr = (hl.case().when(check_arrays_uniform(collection, shape_list, ndim), hl.tuple(shape_list))
+                                   .or_error("inner dimensions do not match"))
+
         else:
             raise ValueError(f"{collection} cannot be converted into an ndarray")
 
@@ -5098,8 +5122,11 @@ def liftover(x, dest_reference_genome, min_match=0.95, include_strand=False):
 
 @typecheck(f=func_spec(1, expr_float64),
            min=expr_float64,
-           max=expr_float64)
-def uniroot(f: Callable, min, max):
+           max=expr_float64,
+           max_iter=builtins.int,
+           epsilon=builtins.float,
+           tolerance=builtins.float)
+def uniroot(f: Callable, min, max, *, max_iter=1000, epsilon=2.2204460492503131e-16, tolerance=1.220703e-4):
     """Finds a root of the function `f` within the interval `[min, max]`.
 
     Examples
@@ -5114,12 +5141,24 @@ def uniroot(f: Callable, min, max):
 
     If no root can be found, the result of this call will be `NA` (missing).
 
+    :func:`.uniroot` returns an estimate for a root with accuracy
+    `4 * epsilon * abs(x) + tolerance`.
+
+    4*EPSILON*abs(x) + tol
+
     Parameters
     ----------
     f : function ( (arg) -> :class:`.Float64Expression`)
         Must return a :class:`.Float64Expression`.
     min : :class:`.Float64Expression`
     max : :class:`.Float64Expression`
+    max_iter : `int`
+        The maximum number of iterations before giving up.
+    epsilon : `float`
+        The scaling factor in the accuracy of the root found.
+    tolerance : `float`
+        The constant factor in approximate accuracy of the root found.
+
 
     Returns
     -------
@@ -5127,12 +5166,65 @@ def uniroot(f: Callable, min, max):
         The root of the function `f`.
     """
 
-    new_id = Env.get_uid()
-    lambda_result = to_expr(f(construct_variable(new_id, hl.tfloat64)))
+    # Based on:
+    # https://github.com/wch/r-source/blob/e5b21d0397c607883ff25cca379687b86933d730/src/library/stats/src/zeroin.c
 
-    indices, aggregations = unify_all(lambda_result, min, max)
-    ir = Uniroot(new_id, lambda_result._ir, min._ir, max._ir)
-    return construct_expr(ir, lambda_result._type, indices, aggregations)
+    def error_if_missing(x):
+        res = f(x)
+        return (case()
+                .when(is_defined(res), res)
+                .or_error(format("'uniroot': value of f(x) is missing for x = %.1e", x)))
+    wrapped_f = hl.experimental.define_function(error_if_missing, 'float')
+
+    def uniroot(recur, a, b, c, fa, fb, fc, prev, iterations_remaining):
+        tol = 2 * epsilon * abs(b) + tolerance / 2
+        cb = c - b
+        t1 = fb / fc
+        t2 = fb / fa
+        q1 = fa / fc  # = t1 / t2
+        pq = cond(
+            a == c,
+            (cb * t1) / (t1 - 1.0),  # linear
+            -t2 * (cb * q1 * (q1 - t1) - (b-a)*(t1 - 1.0)) /
+            ((q1 - 1.0) * (t1 - 1.0) * (t2 - 1.0)))  # quadratic
+
+        interpolated = cond((sign(pq) == sign(cb))
+                            & (.75 * abs(cb) > abs(pq) + tol / 2)  # b + pq within [b, c]
+                            & (abs(pq) < abs(prev / 2)),  # pq not too large
+                            pq, cb / 2)
+
+        new_step = cond(
+            (abs(prev) >= tol) & (abs(fa) > abs(fb)),  # try interpolation
+            interpolated, cb / 2)
+
+        new_b = b + cond(new_step < 0, hl.min(new_step, -tol), hl.max(new_step, tol))
+        new_fb = wrapped_f(new_b)
+
+        return cond(
+            iterations_remaining == 0,
+            null('float'),
+            cond(abs(fc) < abs(fb),
+                 recur(b, c, b, fb, fc, fb, prev, iterations_remaining),
+                 cond((abs(cb / 2) <= tol) | (fb == 0),
+                      b,  # acceptable approximation found
+                      cond(sign(new_fb) == sign(fc),  # use c = b for next iteration if signs match
+                           recur(b, new_b, b, fb, new_fb, fb, new_step, iterations_remaining - 1),
+                           recur(b, new_b, c, fb, new_fb, fc, new_step, iterations_remaining - 1)
+                           ))))
+
+    fmin = wrapped_f(min)
+    fmax = wrapped_f(max)
+    run_loop = hl.experimental.define_function(
+        lambda min, max, fmin, fmax:
+        hl.experimental.loop(uniroot, 'float',
+                             min, max, min, fmin, fmax, fmin, max - min, max_iter),
+        'float', 'float', 'float', 'float')
+
+    return (case()
+            .when(min < max, case()
+                  .when(fmin * fmax <= 0, run_loop(min, max, fmin, fmax))
+                  .or_error(format("'uniroot': sign of endpoints must have opposite signs, got: f(min) = %.1e, f(max) = %.1e", fmin, fmax)))
+            .or_error(format("'uniroot': min must be less than max in call to uniroot, got: min %.1e, max %.1e", min, max)))
 
 
 @typecheck(f=expr_str, args=expr_any)

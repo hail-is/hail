@@ -299,6 +299,23 @@ class TableKeyByAndAggregate(TableIR):
         return self.child.typ.row_env(default_value) if i == 1 else {}
 
 
+class TableGroupWithinPartitions(TableIR):
+    def __init__(self, child, n):
+        super().__init__(child)
+        self.child = child
+        self.n = n
+
+    def head_str(self):
+        return f'{self.n}'
+
+    def _compute_type(self):
+        child_typ = self.child.typ
+
+        self._type = hl.ttable(child_typ.global_type,
+                               child_typ.key_type._concat(hl.tstruct(grouped_fields=hl.tarray(child_typ.row_type))),
+                               child_typ.row_key)
+
+
 class TableAggregateByKey(TableIR):
     def __init__(self, child, expr):
         super().__init__(child, expr)

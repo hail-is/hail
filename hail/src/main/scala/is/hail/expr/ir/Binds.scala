@@ -13,7 +13,11 @@ object Bindings {
 
   def apply(x: BaseIR, i: Int): Iterable[(String, Type)] = x match {
     case Let(name, value, _) => if (i == 1) Array(name -> value.typ) else empty
+    case TailLoop(name, args, body) => if (i == args.length)
+      args.map { case (name, ir) => name -> ir.typ } :+
+        name -> TTuple(TTuple(args.map(_._2.typ): _*), body.typ) else empty
     case ArrayMap(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
+    case ArrayZip(as, names, _, _) => if (i == as.length) names.zip(as.map(a => -coerce[TStreamable](a.typ).elementType)) else empty
     case ArrayFor(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayFlatMap(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayFilter(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
@@ -25,6 +29,7 @@ object Bindings {
         Array((valueName, -coerce[TStreamable](a.typ).elementType)) ++ accum.map { case (name, value) => (name, value.typ) }
       else
         accum.map { case (name, value) => (name, value.typ) }
+    case RunAggScan(a, name, _, _, _, _) => if (i == 2 || i == 3) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayScan(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayAggScan(a, name, _) => if (i == 1) FastIndexedSeq(name -> a.typ.asInstanceOf[TStreamable].elementType) else empty
     case ArrayLeftJoinDistinct(ll, rr, l, r, _, _) => if (i == 2 || i == 3) Array(l -> -coerce[TStreamable](ll.typ).elementType, r -> -coerce[TStreamable](rr.typ).elementType) else empty
@@ -33,7 +38,6 @@ object Bindings {
     case NDArrayMap(nd, name, _) => if (i == 1) Array(name -> -coerce[TNDArray](nd.typ).elementType) else empty
     case NDArrayMap2(l, r, lName, rName, _) => if (i == 2) Array(lName -> -coerce[TNDArray](l.typ).elementType, rName -> -coerce[TNDArray](r.typ).elementType) else empty
     case CollectDistributedArray(contexts, globals, cname, gname, _) => if (i == 2) Array(cname -> -coerce[TArray](contexts.typ).elementType, gname -> globals.typ) else empty
-    case Uniroot(argname, _, _, _) => if (i == 0) Array(argname -> TFloat64()) else empty
     case TableAggregate(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case MatrixAggregate(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case TableFilter(child, _) => if (i == 1) child.typ.rowEnv.m else empty

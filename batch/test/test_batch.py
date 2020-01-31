@@ -1,6 +1,7 @@
 import random
 import math
 import collections
+import hailtop
 from hailtop.batch_client.client import BatchClient, Job
 import json
 import os
@@ -16,6 +17,7 @@ from hailtop.auth import service_auth_headers
 
 from .serverthread import ServerThread
 from .utils import legacy_batch_status
+from .failure_injecting_client_session import FailureInjectingClientSession
 
 deploy_config = get_deploy_config()
 
@@ -47,15 +49,29 @@ class Test(unittest.TestCase):
         status = j.wait()
         self.assertTrue('attributes' not in status, (status, j.log()))
         self.assertEqual(status['state'], 'Success', (status, j.log()))
+        self.assertEqual(status['exit_code'], 0, status)
         self.assertEqual(j._get_exit_code(status, 'main'), 0, (status, j.log()))
 
         self.assertEqual(j.log()['main'], 'test\n', status)
 
+    def test_exit_code_duration(self):
+        builder = self.client.create_batch()
+        j = builder.create_job('ubuntu:18.04', ['bash', '-c', 'exit 7'])
+        b = builder.submit()
+        status = j.wait()
+        self.assertEqual(status['exit_code'], 7, status)
+        assert isinstance(status['duration'], int)
+        self.assertEqual(j._get_exit_code(status, 'main'), 7, status)
+
     def test_msec_mcpu(self):
         builder = self.client.create_batch()
+        resources = {
+            'cpu': '100m',
+            'memory': '375M'
+        }
         # two jobs so the batch msec_mcpu computation is non-trivial
-        builder.create_job('ubuntu:18.04', ['echo', 'foo'])
-        builder.create_job('ubuntu:18.04', ['echo', 'bar'])
+        builder.create_job('ubuntu:18.04', ['echo', 'foo'], resources=resources)
+        builder.create_job('ubuntu:18.04', ['echo', 'bar'], resources=resources)
         b = builder.submit()
 
         batch = b.wait()
@@ -63,10 +79,12 @@ class Test(unittest.TestCase):
 
         batch_msec_mcpu2 = 0
         for job in b.jobs():
-            job_status = job['status']
+            # I'm dying
+            job = self.client.get_job(job['batch_id'], job['job_id'])
+            job = job.status()
 
-            # tests run at 100mcpu
-            job_msec_mcpu2 = 100 * max(job_status['end_time'] - job_status['start_time'], 0)
+            # runs at 100mcpu
+            job_msec_mcpu2 = 100 * max(job['status']['end_time'] - job['status']['start_time'], 0)
             # greater than in case there are multiple attempts
             assert job['msec_mcpu'] >= job_msec_mcpu2, batch
 
@@ -82,8 +100,7 @@ class Test(unittest.TestCase):
         builder = self.client.create_batch()
         j = builder.create_job('ubuntu:18.04', ['true'], attributes=a)
         builder.submit()
-        status = j.status()
-        assert(status['attributes'] == a)
+        assert(j.attributes() == a)
 
     def test_garbage_image(self):
         builder = self.client.create_batch()
@@ -105,7 +122,7 @@ class Test(unittest.TestCase):
 
     def test_invalid_resource_requests(self):
         builder = self.client.create_batch()
-        resources = {'cpu': '1', 'memory': '28Gi'}
+        resources = {'cpu': '1', 'memory': '250Gi'}
         builder.create_job('ubuntu:18.04', ['true'], resources=resources)
         with self.assertRaisesRegex(aiohttp.client.ClientResponseError, 'resource requests.*unsatisfiable'):
             builder.submit()
@@ -305,7 +322,7 @@ class Test(unittest.TestCase):
         assert n_cancelled <= 1, bstatus
         assert n_cancelled + n_complete == 3, bstatus
 
-        n_failed = sum([Job._get_exit_code(j, 'main') > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error')])
+        n_failed = sum([j['exit_code'] > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error')])
         assert n_failed == 1, bstatus
 
     def test_batch_status(self):
@@ -405,3 +422,76 @@ class Test(unittest.TestCase):
         b.submit()
         status = j.wait()
         assert j._get_exit_code(status, 'main') == 0, status
+
+    def test_port(self):
+        builder = self.client.create_batch()
+        j = builder.create_job('ubuntu:18.04', ['bash', '-c', '''
+echo $HAIL_BATCH_WORKER_PORT
+echo $HAIL_BATCH_WORKER_IP
+'''], port=5000)
+        b = builder.submit()
+        batch = b.wait()
+        print(j.log())
+        assert batch['state'] == 'success', batch
+
+    def test_client_max_size(self):
+        builder = self.client.create_batch()
+        for i in range(4):
+            builder.create_job('ubuntu:18.04',
+                               ['echo', 'a' * (900 * 1024)])
+        builder.submit()
+
+    def test_restartable_insert(self):
+        i = 0
+
+        def every_third_time():
+            nonlocal i
+            i += 1
+            if i % 3 == 0:
+                return True
+            return False
+
+        with FailureInjectingClientSession(every_third_time) as session:
+            client = BatchClient('test', session=session)
+            builder = client.create_batch()
+
+            for _ in range(9):
+                builder.create_job('ubuntu:18.04', ['echo', 'a'])
+
+            b = builder.submit(max_bunch_size=1)
+            b = self.client.get_batch(b.id)  # get a batch untainted by the FailureInjectingClientSession
+            batch = b.wait()
+            assert batch['state'] == 'success', batch
+            assert len(list(b.jobs())) == 9
+
+    def test_create_idempotence(self):
+        builder = self.client.create_batch()
+        builder.create_job('ubuntu:18.04', ['/bin/true'])
+        batch_token = secrets.token_urlsafe(32)
+        b = builder._create(batch_token=batch_token)
+        b2 = builder._create(batch_token=batch_token)
+        assert b.id == b2.id
+
+    def test_batch_create_validation(self):
+        bad_configs = [
+            # unexpected field fleep
+            {'billing_project': 'foo', 'n_jobs': 5, 'token': 'baz', 'fleep': 'quam'},
+            # billing project None/missing
+            {'billing_project': None, 'n_jobs': 5, 'token': 'baz'},
+            {'n_jobs': 5, 'token': 'baz'},
+            # n_jobs None/missing
+            {'billing_project': 'foo', 'n_jobs': None, 'token': 'baz'},
+            {'billing_project': 'foo', 'token': 'baz'},
+            # n_jobs wrong type
+            {'billing_project': 'foo', 'n_jobs': '5', 'token': 'baz'},
+            # token None/missing
+            {'billing_project': 'foo', 'n_jobs': 5, 'token': None},
+            {'billing_project': 'foo', 'n_jobs': 5},
+            # attribute key/value None
+            {'attributes': {'k': None}, 'billing_project': 'foo', 'n_jobs': 5, 'token': 'baz'},
+        ]
+        url = deploy_config.url('batch', '/api/v1alpha/batches/create')
+        headers = service_auth_headers(deploy_config, 'batch')
+        for config in bad_configs:
+            r = requests.post(url, json=config, allow_redirects=True, headers=headers)
+            assert r.status_code == 400, (config, r)

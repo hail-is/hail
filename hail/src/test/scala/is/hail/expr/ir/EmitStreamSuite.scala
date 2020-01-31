@@ -1,14 +1,13 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue, RegionValue}
-import is.hail.asm4s._
+import is.hail.asm4s.{AsmFunction1, AsmFunction3, Code, GenericTypeInfo, MaybeGenericTypeInfo, TypeInfo}
 import is.hail.asm4s.joinpoint._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
 import is.hail.HailSuite
-
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -286,7 +285,7 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testEmitAggScan() {
     def assertAggScan(ir: IR, inType: Type, tests: (Any, Any)*) = {
-      val aggregate = compileStream(ir, inType.physicalType)
+      val aggregate = compileStream(ir, PType.canonical(inType))
       for ((inp, expected) <- tests)
         assert(aggregate(inp) == expected, Pretty(ir))
     }
@@ -295,7 +294,7 @@ class EmitStreamSuite extends HailSuite {
       ApplyScanOp(
         initArgs.toFastIndexedSeq,
         opArgs.toFastIndexedSeq,
-        AggSignature2(op,
+        AggSignature(op,
           initArgs.map(_.typ),
           opArgs.map(_.typ), None))
 
@@ -352,6 +351,26 @@ class EmitStreamSuite extends HailSuite {
       ), intsPType)
     assert(f2(Seq(1, 5, 2, 9).iterator) == IndexedSeq(1, 5, 2, 9).flatMap(0 until _))
     assert(f2(null) == null)
+  }
+
+  @Test def testEmitIf() {
+    val xs = MakeStream(Seq[IR](5, 3, 6), TStream(TInt32()))
+    val ys = StreamRange(0, 4, 1)
+    val na = NA(TStream(TInt32()))
+    val tests: Array[(IR, IndexedSeq[Any])] = Array(
+      If(True(), xs, ys) -> IndexedSeq(5, 3, 6),
+      If(False(), xs, ys) -> IndexedSeq(0, 1, 2, 3),
+      If(True(), xs, na) -> IndexedSeq(5, 3, 6),
+      If(False(), xs, na) -> null,
+      If(NA(TBoolean()), xs, ys) -> null,
+      ArrayFlatMap(MakeStream(Seq(False(), True(), False()), TStream(TBoolean())),
+        "x", If(Ref("x", TBoolean()), xs, ys)) -> IndexedSeq(0, 1, 2, 3, 5, 3, 6, 0, 1, 2, 3)
+    )
+    val lens: Array[Option[Int]] = Array(Some(3), Some(4), Some(3), Some(0), Some(0), None)
+    for (((ir, v), len) <- tests zip lens) {
+      assert(evalStream(ir) == v, Pretty(ir))
+      assert(evalStreamLen(ir) == len, Pretty(ir))
+    }
   }
 
   @Test def testMultiplicity() {

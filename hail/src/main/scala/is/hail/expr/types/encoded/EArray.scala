@@ -1,6 +1,6 @@
 package is.hail.expr.types.encoded
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.BaseType
@@ -44,7 +44,17 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
     val writeLen = out.writeInt(prefixLen)
     val writeMissingBytes =
       if (!pt.elementType.required) {
-        out.writeBytes(array + const(pt.lengthHeaderBytes), pt.nMissingBytes(prefixLen))
+        val nMissingLocal = mb.newLocal[Int]("nMissingBytes")
+        Code(
+          nMissingLocal := pt.nMissingBytes(prefixLen),
+          (nMissingLocal > 0).orEmpty(
+            Code(
+              out.writeBytes(array + const(pt.lengthHeaderBytes), nMissingLocal - 1),
+              out.writeByte((Region.loadByte(array + const(pt.lengthHeaderBytes) +
+                (nMissingLocal - 1).toL) & EType.lowBitMask(prefixLen)).toB)
+            )
+          )
+        )
       } else
         Code._empty[Unit]
 
@@ -86,7 +96,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
     val len = mb.newLocal[Int]("len")
     val i = mb.newLocal[Int]("i")
     val array = mb.newLocal[Long]("array")
-    val readElemF = elementType.buildInplaceDecoder(t.elementType, mb.fb)
+    val readElemF = elementType.buildInplaceDecoder(t.elementType, mb)
 
     Code(
       len := in.readInt(),
@@ -129,7 +139,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
       val nMissing = mb.newLocal[Int]("nMissing")
       Code(
         len := in.readInt(),
-        nMissing := PContainer.nMissingBytes(len),
+        nMissing := UnsafeUtils.packBitsToBytes(len),
         mbytes := r.allocate(const(1), nMissing.toL),
         in.readBytes(r, mbytes, nMissing),
         i := 0,

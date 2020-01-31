@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: dbuf
+spec:
+  serviceName: dbuf
+  selector:
+    matchLabels:
+      app: dbuf
+  replicas: 1
+  volumeClaimTemplates:
+    - metadata:
+        name: dbuf
+      spec:
+        storageClassName: ssd
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+  template:
+    metadata:
+      name: dbuf
+      labels:
+        app: dbuf
+    spec:
+      volumes:
+       - name: deploy-config
+         secret:
+           optional: false
+           secretName: deploy-config
+      nodeSelector:
+        preemptible: "false"
+      containers:
+        - name: dbuf
+          image: {{ dbuf_image.image }}
+          args:
+            - "--name"
+            - "$(POD_NAME).dbuf"
+            - "--leader"
+            - "dbuf-0.dbuf"
+            - "--bufsize"
+            - "512"
+          resources:
+            requests:
+              memory: "3750Mi"
+              cpu: "1"
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: HAIL_DEPLOY_CONFIG_FILE
+              value: /deploy-config/deploy-config.json
+          volumeMounts:
+            - name: dbuf
+              mountPath: "/tmp"
+            - name: deploy-config
+              mountPath: /deploy-config
+              readOnly: true
+          imagePullPolicy: Always
+          ports:
+           - name: port
+             containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dbuf
+spec:
+  clusterIP: "None"
+  ports:
+   - port: 80
+     targetPort: 80
+  selector:
+    app: dbuf

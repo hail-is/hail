@@ -34,11 +34,13 @@ object InferType {
       case _: StreamRange => TStream(TInt32())
       case _: LowerBoundOnOrderedCollection => TInt32()
       case _: ArrayFor => TVoid
-      case _: InitOp2 => TVoid
-      case _: SeqOp2 => TVoid
-      case _: CombOp2 => TVoid
-      case ResultOp2(_, aggSigs) =>
-        TTuple(aggSigs.map(agg.Extract.getType): _*)
+      case _: InitOp => TVoid
+      case _: SeqOp => TVoid
+      case _: CombOp => TVoid
+      case ResultOp(_, aggSigs) =>
+        TTuple(aggSigs.map(agg.Extract.getAgg(_).resultType.virtualType): _*)
+      case AggStateValue(i, sig) => TBinary()
+      case _: CombOpValue => TVoid
       case _: SerializeAggs => TVoid
       case _: DeserializeAggs => TVoid
       case _: Begin => TVoid
@@ -54,6 +56,10 @@ object InferType {
         body.typ
       case AggLet(name, value, body, _) =>
         body.typ
+      case TailLoop(_, _, body) =>
+        body.typ
+      case Recur(_, _, typ) =>
+        typ
       case ApplyBinaryPrimOp(op, l, r) =>
         BinaryOp.getReturnType(op, l.typ, r.typ).setRequired(l.typ.required && r.typ.required)
       case ApplyUnaryPrimOp(op, v) =>
@@ -69,8 +75,7 @@ object InferType {
         val argTypes = a.args.map(_.typ)
         a.implementation.unify(argTypes :+ a.returnType)
         a.returnType
-      case _: Uniroot => TFloat64()
-      case ArrayRef(a, i) =>
+      case ArrayRef(a, i, s) =>
         assert(i.typ.isOfType(TInt32()))
         coerce[TStreamable](a.typ).elementType.setRequired(a.typ.required && i.typ.required)
       case ArraySort(a, _, _, compare) =>
@@ -94,6 +99,7 @@ object InferType {
         TDict(elt.types(0), TArray(elt.types(1)), collection.typ.required)
       case ArrayMap(a, name, body) =>
         coerce[TStreamable](a.typ).copyStreamable(body.typ.setRequired(false))
+      case ArrayZip(as, _, body, _) => as.head.typ.asInstanceOf[TStreamable].copyStreamable(body.typ, false)
       case ArrayFilter(a, name, cond) =>
         a.typ
       case ArrayFlatMap(a, name, body) =>
@@ -109,6 +115,10 @@ object InferType {
         query.typ
       case ArrayAggScan(_, _, query) =>
         TArray(query.typ)
+      case RunAgg(body, result, _) =>
+        result.typ
+      case RunAggScan(_, _, _, _, result, _) =>
+        TArray(result.typ)
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         coerce[TStreamable](left.typ).copyStreamable(join.typ)
         TArray(join.typ)
@@ -139,6 +149,16 @@ object InferType {
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
         TNDArray(lTyp.elementType, Nat(TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims)), lTyp.required && rTyp.required)
+      case NDArrayQR(nd, mode) =>
+        if (Array("complete", "reduced").contains(mode)) {
+          TTuple(TNDArray(TFloat64(), Nat(2), false), TNDArray(TFloat64(), Nat(2), false))
+        } else if (mode == "raw") {
+          TTuple(TNDArray(TFloat64(), Nat(2), false), TNDArray(TFloat64(), Nat(1), false))
+        } else if (mode == "r") {
+          TNDArray(TFloat64(), Nat(2), false)
+        } else {
+          throw new NotImplementedError(s"Cannot infer type for mode $mode")
+        }
       case NDArrayWrite(_, _) => TVoid
       case AggFilter(_, aggIR, _) =>
         aggIR.typ

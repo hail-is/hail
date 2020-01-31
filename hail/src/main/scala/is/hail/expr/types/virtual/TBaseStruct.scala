@@ -20,8 +20,6 @@ object TBaseStruct {
 }
 
 abstract class TBaseStruct extends Type {
-  def physicalType: PBaseStruct
-
   def types: Array[Type]
 
   def fields: IndexedSeq[Field]
@@ -68,6 +66,15 @@ abstract class TBaseStruct extends Type {
     fields.zip(other.fields).forall{ case (l, r) => l.typ isOfType r.typ }
 
   def truncate(newSize: Int): TBaseStruct
+
+  override def _showStr(a: Annotation): String = {
+    if (types.isEmpty)
+      "()"
+    else {
+      Array.tabulate(size)(i => types(i).showStr(a.asInstanceOf[Row].get(i)))
+        .mkString("(", ",", ")")
+    }
+  }
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 

@@ -166,7 +166,7 @@ trait Py4jUtils {
     val ffConfig = FamFileConfig(isQuantPheno, delimiter, missingValue)
     val (data, ptyp) = LoadPlink.parseFam(path, ffConfig, HailContext.sFS)
     val jv = JSONAnnotationImpex.exportAnnotation(
-      Row(ptyp.toString, data),
+      Row(ptyp.virtualType.toString, data),
       TStruct("type" -> TString(), "data" -> TArray(ptyp.virtualType)))
     JsonMethods.compact(jv)
   }

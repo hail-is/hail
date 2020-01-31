@@ -6,7 +6,7 @@ import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.PruneDeadFields
 import is.hail.expr.types._
 import is.hail.expr.types.encoded.{EArray, EBaseStruct, EBinaryOptional, EBinaryRequired, EField, EInt32Optional, EInt32Required, EInt64Required}
-import is.hail.expr.types.physical.{PArray, PCall, PFloat64Required, PInt32, PInt64, PLocus, PString, PStruct}
+import is.hail.expr.types.physical.{PArray, PCall, PCanonicalLocus, PFloat64Required, PInt32, PInt64, PLocus, PString, PStruct}
 import is.hail.expr.types.virtual.{Field, TArray, TInt64Required, TLocus, TString, TStruct, Type}
 import is.hail.io.{AbstractTypedCodecSpec, BlockingBufferSpec, HadoopFSDataBinaryReader, LEB128BufferSpec, LZ4HCBlockBufferSpec, StreamBlockBufferSpec, TypedCodecSpec}
 import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}
@@ -22,7 +22,6 @@ import org.apache.spark.{OneToOneDependency, Partition, SparkContext, TaskContex
 import scala.language.reflectiveCalls
 
 object BgenSettings {
-
   def indexKeyType(rg: Option[ReferenceGenome]): TStruct = TStruct(
     "locus" -> rg.map(TLocus(_)).getOrElse(TLocus.representation(false)),
     "alleles" -> TArray(TString()))
@@ -101,7 +100,7 @@ case class BgenSettings(
 
   val rowPType: PStruct = PStruct(
     Array(
-      "locus" -> PLocus.schemaFromRG(rg),
+      "locus" -> PCanonicalLocus.schemaFromRG(rg),
       "alleles" -> PArray(PString()),
       "rsid" -> PString(),
       "varid" -> PString(),

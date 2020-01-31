@@ -1,10 +1,12 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.Annotation
+import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.functions._
+import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.io.{BufferSpec, AbstractTypedCodecSpec}
+import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
 import is.hail.utils.{FastIndexedSeq, _}
 
 import scala.language.existentials
@@ -53,7 +55,7 @@ sealed trait IR extends BaseIR {
     cp
   }
 
-  def size: Int = 1 + children.map {
+  lazy val size: Int = 1 + children.map {
       case x: IR => x.size
       case _ => 0
     }.sum
@@ -107,46 +109,8 @@ final case class CastRename(v: IR, _typ: Type) extends IR
 final case class NA(_typ: Type) extends IR
 final case class IsNA(value: IR) extends IR
 
-object Coalesce {
-  def unify(values: Seq[IR], unifyType: Option[Type] = None): Coalesce = {
-    require(values.nonEmpty)
-    val t1 = values.head.typ
-    if (values.forall(_.typ == t1))
-      Coalesce(values)
-    else {
-      val t = unifyType.getOrElse(t1.deepOptional())
-      Coalesce(values.map(PruneDeadFields.upcast(_, t)))
-    }
-  }
-}
-
 final case class Coalesce(values: Seq[IR]) extends IR {
   require(values.nonEmpty)
-}
-
-object If {
-  def unify(cond: IR, cnsq: IR, altr: IR, unifyType: Option[Type] = None): If = {
-    if (cnsq.typ == altr.typ)
-      If(cond, cnsq, altr)
-    else {
-      cnsq match {
-        case NA(_) => If(cond, NA(altr.typ), altr)
-        case Die(msg, _) => If(cond, Die(msg, altr.typ), altr)
-        case Literal(_, value) if altr.typ.typeCheck(value) => If(cond, Literal(altr.typ, value), altr)
-        case _ =>
-          altr match {
-            case NA(_) => If(cond, cnsq, NA(cnsq.typ))
-            case Die(msg, _) => If(cond, cnsq, Die(msg, cnsq.typ))
-            case Literal(_, value) if cnsq.typ.typeCheck(value)  => If(cond, cnsq, Literal(cnsq.typ, value))
-            case _ =>
-              val t = unifyType.getOrElse(cnsq.typ.deepOptional())
-              If(cond,
-                PruneDeadFields.upcast(cnsq, t),
-                PruneDeadFields.upcast(altr, t))
-          }
-      }
-    }
-  }
 }
 
 final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
@@ -154,6 +118,12 @@ final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) extends IR
 final case class Let(name: String, value: IR, body: IR) extends IR
 final case class Ref(name: String, var _typ: Type) extends IR
+
+
+// Recur can't exist outside of loop
+// Loops can be nested, but we can't call outer loops in terms of inner loops so there can only be one loop "active" in a given context
+final case class TailLoop(name: String, params: Seq[(String, IR)], body: IR) extends IR
+final case class Recur(name: String, args: Seq[IR], _typ: Type) extends IR
 
 final case class RelationalLet(name: String, value: IR, body: IR) extends IR
 final case class RelationalRef(name: String, _typ: Type) extends IR
@@ -163,33 +133,35 @@ final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR
 final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR
 
 object MakeArray {
-  def unify(args: Seq[IR], typ: TArray = null): MakeArray = {
-    assert(typ != null || args.nonEmpty)
-    var t: TArray = typ
-    if (t == null) {
-      t = if (args.tail.forall(_.typ == args.head.typ)) {
-        TArray(args.head.typ)
-      } else TArray(args.head.typ.deepOptional())
+  def unify(args: Seq[IR], requestedType: TArray = null): MakeArray = {
+    assert(requestedType != null || args.nonEmpty)
+
+    if(args.nonEmpty) {
+      if (args.forall(_.typ == args.head.typ)) {
+        return MakeArray(args, TArray(args.head.typ))
+      }
+
+      if (args.forall(_.typ isOfType args.head.typ)) {
+        return MakeArray(args, TArray(args.head.typ.deepOptional()))
+      }
     }
-    assert(t.elementType.deepOptional() == t.elementType ||
-      args.forall(a => a.typ == t.elementType),
-      s"${ t.parsableString() }: ${ args.map(a => "\n    " + a.typ.parsableString()).mkString } ")
 
     MakeArray(args.map { arg =>
-      if (arg.typ == t.elementType)
-        arg
-      else {
-        val upcast = PruneDeadFields.upcast(arg, t.elementType)
-        assert(upcast.typ == t.elementType)
-        upcast
-      }
-    }, t)
+      val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
+      assert(upcast.typ isOfType requestedType.elementType)
+      upcast
+    }, requestedType)
   }
 }
 
 final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
 final case class MakeStream(args: Seq[IR], _typ: TStream) extends IR
-final case class ArrayRef(a: IR, i: IR) extends IR
+
+object ArrayRef {
+  def apply(a: IR, i: IR): ArrayRef = ArrayRef(a, i, Str(""))
+}
+
+final case class ArrayRef(a: IR, i: IR, msg: IR) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR
 final case class StreamRange(start: IR, stop: IR, step: IR) extends IR
@@ -232,6 +204,18 @@ final case class ArrayMap(a: IR, name: String, body: IR) extends IR {
   override def typ: TStreamable = coerce[TStreamable](super.typ)
   def elementTyp: Type = typ.elementType
 }
+
+object ArrayZipBehavior extends Enumeration {
+  type ArrayZipBehavior = Value
+  val AssumeSameLength: Value = Value(0)
+  val AssertSameLength: Value = Value(1)
+  val TakeMinLength: Value = Value(2)
+  val ExtendNA: Value = Value(3)
+}
+
+final case class ArrayZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior) extends IR {
+  override def typ: TStreamable = coerce[TStreamable](super.typ)
+}
 final case class ArrayFilter(a: IR, name: String, cond: IR) extends IR {
   override def typ: TStreamable = coerce[TStreamable](super.typ)
 }
@@ -257,6 +241,9 @@ final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR
 final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
 final case class ArrayAggScan(a: IR, name: String, query: IR) extends IR
 
+final case class RunAgg(body: IR, result: IR, signature: IndexedSeq[PhysicalAggSignature]) extends IR
+final case class RunAggScan(array: IR, name: String, init: IR, seqs: IR, result: IR, signature: IndexedSeq[PhysicalAggSignature]) extends IR
+
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
 sealed trait NDArrayIR extends TypedIR[TNDArray, PNDArray] {
@@ -281,6 +268,8 @@ final case class NDArrayWrite(nd: IR, path: IR) extends IR
 
 final case class NDArrayMatMul(l: IR, r: IR) extends NDArrayIR
 
+final case class NDArrayQR(nd: IR, mode: String) extends IR
+
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 
 final case class AggExplode(array: IR, name: String, aggBody: IR, isScan: Boolean) extends IR
@@ -289,7 +278,7 @@ final case class AggGroupBy(key: IR, aggIR: IR, isScan: Boolean) extends IR
 
 final case class AggArrayPerElement(a: IR, elementName: String, indexName: String, aggBody: IR, knownLength: Option[IR], isScan: Boolean) extends IR
 
-final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature2) extends IR {
+final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
 
   def nSeqOpArgs = seqOpArgs.length
 
@@ -298,7 +287,7 @@ final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR
   def op: AggOp = aggSig.op
 }
 
-final case class ApplyScanOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature2) extends IR {
+final case class ApplyScanOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
 
   def nSeqOpArgs = seqOpArgs.length
 
@@ -307,13 +296,15 @@ final case class ApplyScanOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[I
   def op: AggOp = aggSig.op
 }
 
-final case class InitOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature2) extends IR
-final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature2) extends IR
-final case class CombOp2(i1: Int, i2: Int, aggSig: AggSignature2) extends IR
-final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[AggSignature2]) extends IR
+final case class InitOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSignature) extends IR
+final case class SeqOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSignature) extends IR
+final case class CombOp(i1: Int, i2: Int, aggSig: PhysicalAggSignature) extends IR
+final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[PhysicalAggSignature]) extends IR
+final case class CombOpValue(i: Int, value: IR, aggSig: PhysicalAggSignature) extends IR
+final case class AggStateValue(i: Int, aggSig: PhysicalAggSignature) extends IR
 
-final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
-final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
+final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[PhysicalAggSignature]) extends IR
+final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[PhysicalAggSignature]) extends IR
 
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: Seq[(String, IR)]) extends IR
@@ -389,8 +380,6 @@ final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, return
 
 final case class ApplySpecial(function: String, args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithMissingness]
 
-final case class Uniroot(argname: String, function: IR, min: IR, max: IR) extends IR
-
 final case class TableCount(child: TableIR) extends IR
 final case class TableAggregate(child: TableIR, query: IR) extends IR
 final case class MatrixAggregate(child: MatrixIR, query: IR) extends IR
@@ -421,6 +410,7 @@ final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWrite
 final case class BlockMatrixMultiWrite(blockMatrices: IndexedSeq[BlockMatrixIR], writer: BlockMatrixMultiWriter) extends IR
 
 final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR) extends IR
+
 final case class ReadPartition(path: IR, spec: AbstractTypedCodecSpec, rowType: TStruct) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {

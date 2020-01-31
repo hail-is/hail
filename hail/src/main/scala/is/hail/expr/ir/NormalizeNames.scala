@@ -80,6 +80,16 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
               name
         }
         Ref(newName, typ)
+      case Recur(name, args, typ) =>
+        val newName = env.eval.lookupOption(name) match {
+          case Some(n) => n
+          case None =>
+            if (!allowFreeVariables)
+              throw new RuntimeException(s"found free loop variable in normalize: $name")
+            else
+              name
+        }
+        Recur(newName, args.map(v => normalize(v)), typ)
       case AggLet(name, value, body, isScan) =>
         val newName = gen()
         val (valueEnv, bodyEnv) = if (isScan)
@@ -87,6 +97,11 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         else
           env.promoteAgg -> env.bindAgg(name, newName)
         AggLet(newName, normalize(value, valueEnv), normalize(body, bodyEnv), isScan)
+      case TailLoop(name, args, body) =>
+        val newFName = gen()
+        val newNames = Array.tabulate(args.length)(i => gen())
+        val (names, values) = args.unzip
+        TailLoop(newFName, newNames.zip(values.map(v => normalize(v))), normalize(body, env.copy(eval = env.eval.bind(names.zip(newNames) :+ name -> newFName: _*))))
       case ArraySort(a, left, right, compare) =>
         val newLeft = gen()
         val newRight = gen()
@@ -94,6 +109,9 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
       case ArrayMap(a, name, body) =>
         val newName = gen()
         ArrayMap(normalize(a), newName, normalize(body, env.bindEval(name, newName)))
+      case ArrayZip(as, names, body, behavior) =>
+        val newNames = names.map(_ => gen())
+        ArrayZip(as.map(normalize(_)), newNames, normalize(body, env.bindEval(names.zip(newNames): _*)), behavior)
       case ArrayFilter(a, name, body) =>
         val newName = gen()
         ArrayFilter(normalize(a), newName, normalize(body, env.bindEval(name, newName)))
@@ -125,6 +143,10 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         // assert(env.agg.isEmpty)
         val newName = gen()
         ArrayAgg(normalize(a), newName, normalize(body, env.copy(agg = Some(env.eval.bind(name, newName)))))
+      case RunAggScan(a, name, init, seq, result, sig) =>
+        val newName = gen()
+        val e2 = env.bindEval(name, newName)
+        RunAggScan(normalize(a), newName, normalize(init, env), normalize(seq, e2), normalize(result, e2), sig)
       case ArrayAggScan(a, name, body) =>
         // FIXME: Uncomment when bindings are threaded through test suites
         // assert(env.scan.isEmpty)
@@ -180,9 +202,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           initOpArgs.map(a => normalize(a)),
           seqOpArgs.map(a => normalize(a, env.promoteScan)),
           aggSig)
-      case Uniroot(argname, function, min, max) =>
-        val newArgname = gen()
-        Uniroot(newArgname, normalize(function, env.bindEval(argname, newArgname)), normalize(min), normalize(max))
       case TableAggregate(child, query) =>
         TableAggregate(normalizeTable(child),
           normalizeIR(query, BindingEnv(child.typ.globalEnv, agg = Some(child.typ.rowEnv))

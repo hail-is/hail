@@ -16,8 +16,8 @@ class StagedRegionValueSuite extends HailSuite {
   val showRVInfo = true
 
   @Test
-  def testString() {
-    val rt = PString()
+  def testCanonicalString() {
+    val rt = PCanonicalString()
     val input = "hello"
     val fb = FunctionBuilder.functionBuilder[Region, String, Long]
     val srvb = new StagedRegionValueBuilder(fb, rt)
@@ -42,9 +42,9 @@ class StagedRegionValueSuite extends HailSuite {
     val region2 = Region()
     val rv2 = RegionValue(region2)
     val bytes = input.getBytes()
-    val boff = PBinary.allocate(region2, bytes.length)
-    Region.storeInt(boff, bytes.length)
-    Region.storeBytes(PBinary.bytesOffset(boff), bytes)
+    val bt = PCanonicalBinary()
+    val boff = bt.allocate(region2, bytes.length)
+    bt.store(boff, bytes)
     rv2.setOffset(boff)
 
     if (showRVInfo) {
@@ -53,8 +53,8 @@ class StagedRegionValueSuite extends HailSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(PString.loadString(rv.region, rv.offset) ==
-      PString.loadString(rv2.region, rv2.offset))
+    assert(rt.loadString(rv.offset) ==
+      rt.loadString(rv2.offset))
   }
 
   @Test
@@ -129,10 +129,10 @@ class StagedRegionValueSuite extends HailSuite {
       println(rv2.pretty(rt))
     }
 
-    assert(rt.loadLength(rv.region, rv.offset) == 1)
+    assert(rt.loadLength(rv.offset) == 1)
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(Region.loadInt(rt.loadElement(rv.region, rv.offset, 0)) ==
-      Region.loadInt(rt.loadElement(rv2.region, rv2.offset, 0)))
+    assert(Region.loadInt(rt.loadElement(rv.offset, 0)) ==
+      Region.loadInt(rt.loadElement(rv2.offset, 0)))
   }
 
   @Test
@@ -171,10 +171,10 @@ class StagedRegionValueSuite extends HailSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(PString.loadString(rv.region, rt.loadField(rv.region, rv.offset, 0)) ==
-      PString.loadString(rv2.region, rt.loadField(rv2.region, rv2.offset, 0)))
-    assert(Region.loadInt(rt.loadField(rv.region, rv.offset, 1)) ==
-      Region.loadInt(rt.loadField(rv2.region, rv2.offset, 1)))
+    assert(rt.types(0).asInstanceOf[PString].loadString(rt.loadField(rv.offset, 0)) ==
+      rt.types(0).asInstanceOf[PString].loadString(rt.loadField(rv2.offset, 0)))
+    assert(Region.loadInt(rt.loadField(rv.offset, 1)) ==
+      Region.loadInt(rt.loadField(rv2.offset, 1)))
   }
 
   @Test
@@ -313,10 +313,10 @@ class StagedRegionValueSuite extends HailSuite {
     rv2.setOffset(rvb2.end())
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(Region.loadInt(rt.loadField(rv.region, rv.offset, 0)) ==
-      Region.loadInt(rt.loadField(rv2.region, rv2.offset, 0)))
-    assert(Region.loadDouble(rt.loadField(rv.region, rv.offset, 2)) ==
-      Region.loadDouble(rt.loadField(rv2.region, rv2.offset, 2)))
+    assert(Region.loadInt(rt.loadField(rv.offset, 0)) ==
+      Region.loadInt(rt.loadField(rv2.offset, 0)))
+    assert(Region.loadDouble(rt.loadField(rv.offset, 2)) ==
+      Region.loadDouble(rt.loadField(rv2.offset, 2)))
   }
 
   @Test
@@ -453,9 +453,9 @@ class StagedRegionValueSuite extends HailSuite {
     val f = fb.result()()
     def run(i: Int, b: Boolean, d: Double): (Int, Boolean, Double) = {
       val off = f(region, i, b, d)
-      (Region.loadInt(t.loadField(region, off, 0)),
-        Region.loadBoolean(t.loadField(region, off, 1)),
-        Region.loadDouble(t.loadField(region, off, 2)))
+      (Region.loadInt(t.loadField(off, 0)),
+        Region.loadBoolean(t.loadField(off, 1)),
+        Region.loadDouble(t.loadField(off, 2)))
     }
 
     assert(run(3, true, 42.0) == ((3, true, 42.0)))

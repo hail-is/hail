@@ -75,22 +75,22 @@ object TestUtils {
   def IRCall(c: Call): IR = Cast(I32(c), TCall())
 
     def IRAggCount: IR = {
-    val aggSig = AggSignature2(Count(), FastSeq.empty, FastSeq.empty, None)
+    val aggSig = AggSignature(Count(), FastSeq.empty, FastSeq.empty, None)
     ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, aggSig)
   }
 
   def IRScanCount: IR = {
-    val aggSig = AggSignature2(Count(), FastSeq.empty, FastSeq.empty, None)
+    val aggSig = AggSignature(Count(), FastSeq.empty, FastSeq.empty, None)
     ApplyScanOp(FastIndexedSeq.empty, FastIndexedSeq.empty, aggSig)
   }
 
   def IRAggCollect(ir: IR): IR = {
-    val aggSig = AggSignature2(Collect(), FastSeq.empty, FastSeq[Type](ir.typ), None)
+    val aggSig = AggSignature(Collect(), FastSeq.empty, FastSeq[Type](ir.typ), None)
     ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(ir), aggSig)
   }
 
   def IRScanCollect(ir: IR): IR = {
-    val aggSig = AggSignature2(Collect(), FastSeq.empty, FastSeq[Type](ir.typ), None)
+    val aggSig = AggSignature(Collect(), FastSeq.empty, FastSeq[Type](ir.typ), None)
     ApplyScanOp(FastIndexedSeq(), FastIndexedSeq(ir), aggSig)
   }
 

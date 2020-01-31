@@ -47,15 +47,15 @@ class LinearRegressionCombiner(k: Int, k0: Int, t: PType) extends Serializable {
   }
 
   def merge(region: Region, y: Double, xOffset: Long) {
-    val length = xType.loadLength(region, xOffset)
+    val length = xType.loadLength(xOffset)
     assert(k == length)
 
     var i = 0
     while (i < length) {
-      if (xType.isElementMissing(region, xOffset, i))
+      if (xType.isElementMissing(xOffset, i))
         return
 
-      x(i) = Region.loadDouble(xType.loadElement(region, xOffset, i))
+      x(i) = Region.loadDouble(xType.loadElement(xOffset, i))
       i += 1
     }
 

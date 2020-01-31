@@ -12,7 +12,6 @@ object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
     registerCode("gqFromPL", TArray(tv("N", "int32")), TInt32(), null) { case (r, rt, (tPL: PArray, pl: Code[Long])) =>
-      val region = r.region
       val m = r.mb.newLocal[Int]("m")
       val m2 = r.mb.newLocal[Int]("m2")
       val len = r.mb.newLocal[Int]("len")
@@ -21,13 +20,13 @@ object GenotypeFunctions extends RegistryFunctions {
       Code(
         m := 99,
         m2 := 99,
-        len := tPL.loadLength(region, pl),
+        len := tPL.loadLength(pl),
         i := 0,
         Code.whileLoop(i < len,
-          tPL.isElementDefined(region, pl, i).mux(
+          tPL.isElementDefined(pl, i).mux(
             Code._empty,
             Code._fatal("PL cannot have missing elements.")),
-          pli := Region.loadInt(tPL.loadElement(region, pl, len, i)),
+          pli := Region.loadInt(tPL.loadElement(pl, len, i)),
           (pli < m).mux(
             Code(m2 := m, m := pli),
             (pli < m2).mux(
@@ -42,7 +41,7 @@ object GenotypeFunctions extends RegistryFunctions {
     registerCode("dosage", TArray(tv("N", "float64")), TFloat64(), null) { case (r, rt, (pArray: PArray, gpOff: Code[Long])) =>
       val gp = r.mb.newLocal[Long]
       val region = r.region
-      val len = pArray.loadLength(region, gp)
+      val len = pArray.loadLength(gp)
 
       Code(
         gp := gpOff,
@@ -57,7 +56,7 @@ object GenotypeFunctions extends RegistryFunctions {
     registerCode("plDosage", TArray(tv("N", "int32")), TFloat64(), null) { case (r, rt, (pArray: PArray, plOff: Code[Long])) =>
       val pl = r.mb.newLocal[Long]
       val region = r.region
-      val len = pArray.loadLength(region, pl)
+      val len = pArray.loadLength(pl)
 
       Code(
         pl := plOff,

@@ -2435,7 +2435,7 @@ class MatrixTable(ExprContainer):
                       _read_if_exists=bool)
     def checkpoint(self, output: str, overwrite: bool = False, stage_locally: bool = False,
               _codec_spec: Optional[str] = None, _read_if_exists: bool = False) -> 'MatrixTable':
-        """Checkpoint the matrix table to disk by writing and reading.
+        """Checkpoint the matrix table to disk by writing and reading using a fast, but less space-efficient codec.
 
         Parameters
         ----------
@@ -2457,15 +2457,31 @@ class MatrixTable(ExprContainer):
 
         Notes
         -----
-        An alias for :meth:`write` followed by :func:`.read_matrix_table`. It
-        is possible to read the file at this path later with
-        :func:`.read_matrix_table`.
+        An alias for :meth:`write` followed by :func:`.read_matrix_table`. It is
+        possible to read the file at this path later with
+        :func:`.read_matrix_table`. A faster, but less efficient, codec is used
+        or writing the data so the file will be larger than if one used
+        :meth:`write`.
 
         Examples
         --------
         >>> dataset = dataset.checkpoint('output/dataset_checkpoint.mt')
-
         """
+        if _codec_spec is None:
+            _codec_spec = """{
+  "name": "LEB128BufferSpec",
+  "child": {
+    "name": "BlockingBufferSpec",
+    "blockSize": 32768,
+    "child": {
+      "name": "LZ4FastBlockBufferSpec",
+      "blockSize": 32768,
+      "child": {
+        "name": "StreamBlockBufferSpec"
+      }
+    }
+  }
+}"""
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
             self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
         return hl.read_matrix_table(output)

@@ -10,24 +10,30 @@ import kubernetes_asyncio as kube
 import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
 from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
-    check_csrf_token
-from hailtop.auth import async_get_userinfo
+    check_csrf_token, transaction
 from hailtop.config import get_deploy_config
+from hailtop.utils import time_msecs
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 
-# import uvloop
+import cProfile
+import pstats
+import io
+
+import uvloop
 
 from ..batch import mark_job_complete, mark_job_started
 from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
-    DEFAULT_NAMESPACE
+    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME
 from ..google_compute import GServices
+from ..globals import HTTP_CLIENT_MAX_SIZE
 
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
+from .k8s_cache import K8sCache
 
-# uvloop.install()
+uvloop.install()
 
 log = logging.getLogger('batch')
 
@@ -126,6 +132,8 @@ def active_instances_only(fun):
             log.info('instance, token not found in database')
             raise web.HTTPUnauthorized()
 
+        await instance.mark_healthy()
+
         return await fun(request, instance)
     return wrapped
 
@@ -156,47 +164,19 @@ SELECT state FROM batches WHERE user = %s AND id = %s;
     return web.Response()
 
 
-@routes.patch('/api/v1alpha/batches/{user}/{batch_id}/cancel')
+@routes.post('/api/v1alpha/batches/cancel')
 @batch_only
 async def cancel_batch(request):
-    db = request.app['db']
-
-    user = request.match_info['user']
-    batch_id = int(request.match_info['batch_id'])
-
-    record = db.select_and_fetchone(
-        '''
-SELECT state FROM batches WHERE user = %s AND id = %s;
-''',
-        (user, batch_id))
-    if not record:
-        raise web.HTTPNotFound()
-
-    request.app['cancel_state_changed'].set()
-    request.app['scheduler_state_changed'].set()
-
+    request.app['cancel_running_state_changed'].set()
+    request.app['cancel_ready_state_changed'].set()
     return web.Response()
 
 
-@routes.delete('/api/v1alpha/batches/{user}/{batch_id}')
+@routes.post('/api/v1alpha/batches/delete')
 @batch_only
 async def delete_batch(request):
-    db = request.app['db']
-
-    user = request.match_info['user']
-    batch_id = int(request.match_info['batch_id'])
-
-    record = db.select_and_fetchone(
-        '''
-SELECT state FROM batches WHERE user = %s AND id = %s;
-''',
-        (user, batch_id))
-    if not record:
-        raise web.HTTPNotFound()
-
-    request.app['cancel_state_changed'].set()
-    request.app['scheduler_state_changed'].set()
-
+    request.app['cancel_running_state_changed'].set()
+    request.app['cancel_ready_state_changed'].set()
     return web.Response()
 
 
@@ -205,10 +185,11 @@ async def activate_instance_1(request, instance):
     ip_address = body['ip_address']
 
     log.info(f'activating {instance}')
-    token = await instance.activate(ip_address)
+    timestamp = time_msecs()
+    token = await instance.activate(ip_address, timestamp)
     await instance.mark_healthy()
 
-    with open('/batch-gsa-key/privateKeyData', 'r') as f:
+    with open('/gsa-key/key.json', 'r') as f:
         key = json.loads(f.read())
     return web.json_response({
         'token': token,
@@ -237,26 +218,27 @@ async def deactivate_instance(request, instance):  # pylint: disable=unused-argu
 
 async def job_complete_1(request, instance):
     body = await request.json()
-    status = body['status']
+    job_status = body['status']
 
-    batch_id = status['batch_id']
-    job_id = status['job_id']
-    attempt_id = status['attempt_id']
+    batch_id = job_status['batch_id']
+    job_id = job_status['job_id']
+    attempt_id = job_status['attempt_id']
 
-    status_state = status['state']
-    if status_state == 'succeeded':
+    state = job_status['state']
+    if state == 'succeeded':
         new_state = 'Success'
-    elif status_state == 'error':
+    elif state == 'error':
         new_state = 'Error'
     else:
-        assert status_state == 'failed', status_state
+        assert state == 'failed', state
         new_state = 'Failed'
 
-    start_time = status['start_time']
-    end_time = status['end_time']
+    start_time = job_status['start_time']
+    end_time = job_status['end_time']
+    status = job_status['status']
 
-    await mark_job_complete(request.app, batch_id, job_id, attempt_id, new_state, status,
-                            start_time, end_time, 'completed')
+    await mark_job_complete(request.app, batch_id, job_id, attempt_id, instance.name,
+                            new_state, status, start_time, end_time, 'completed')
 
     await instance.mark_healthy()
 
@@ -271,14 +253,14 @@ async def job_complete(request, instance):
 
 async def job_started_1(request, instance):
     body = await request.json()
-    status = body['status']
+    job_status = body['status']
 
-    batch_id = status['batch_id']
-    job_id = status['job_id']
-    attempt_id = status['attempt_id']
-    start_time = status['start_time']
+    batch_id = job_status['batch_id']
+    job_id = job_status['job_id']
+    attempt_id = job_status['attempt_id']
+    start_time = job_status['start_time']
 
-    await mark_job_started(request.app, batch_id, job_id, attempt_id, start_time)
+    await mark_job_started(request.app, batch_id, job_id, attempt_id, instance, start_time)
 
     await instance.mark_healthy()
 
@@ -300,7 +282,10 @@ async def get_index(request, userdata):
     instance_pool = app['inst_pool']
 
     ready_cores = await db.select_and_fetchone(
-        'SELECT * FROM ready_cores;')
+        '''
+SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+FROM ready_cores;
+''')
     ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
     page_context = {
@@ -361,11 +346,11 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
     #     lambda v: v in valid_worker_cores,
     #     f'one of {", ".join(str(v) for v in valid_worker_cores)}')
 
-    worker_disk_size_gb = validate_int(
-        'Worker disk size',
-        post['worker_disk_size_gb'],
-        lambda v: v > 0,
-        'a positive integer')
+    # worker_disk_size_gb = validate_int(
+    #     'Worker disk size',
+    #     post['worker_disk_size_gb'],
+    #     lambda v: v > 0,
+    #     'a positive integer')
 
     max_instances = validate_int(
         'Max instances',
@@ -380,8 +365,8 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
         'a positive integer')
 
     await inst_pool.configure(
-        # worker_type, worker_cores,
-        worker_disk_size_gb, max_instances, pool_size)
+        # worker_type, worker_cores, worker_disk_size_gb,
+        max_instances, pool_size)
 
     set_message(session,
                 'Updated batch configuration.',
@@ -405,26 +390,126 @@ async def get_user_resources(request, userdata):
                                  'user_resources.html', page_context)
 
 
+async def check_incremental_loop(db):
+    @transaction(db, read_only=True)
+    async def check(tx):
+        ready_cores = await tx.execute_and_fetchone('''
+SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+FROM ready_cores
+LOCK IN SHARE MODE;
+''')
+        ready_cores_mcpu = ready_cores['ready_cores_mcpu']
+
+        computed_ready_cores = await tx.execute_and_fetchone('''
+SELECT CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+FROM jobs
+INNER JOIN batches ON batches.id = jobs.batch_id
+WHERE batches.`state` = 'running'
+        AND jobs.state = 'Ready'
+        # runnable
+        AND (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled))
+LOCK IN SHARE MODE;
+''')
+        computed_ready_cores_mcpu = computed_ready_cores['ready_cores_mcpu']
+
+        if ready_cores_mcpu != computed_ready_cores_mcpu:
+            log.error(f'ready_cores corrupt: ready_cores_mcpu {ready_cores_mcpu} != computed_ready_cores_mcpu {computed_ready_cores_mcpu}')
+
+        user_resources = tx.execute_and_fetchall('''
+SELECT user,
+  CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
+  CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
+  CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
+  CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu,
+  CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS n_cancelled_ready_jobs,
+  CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS n_cancelled_running_jobs
+FROM user_resources
+GROUP BY user
+LOCK IN SHARE MODE;
+''')
+        user_resources = {record['user']: record async for record in user_resources}
+
+        computed_user_resources = tx.execute_and_fetchall('''
+SELECT user,
+    COALESCE(SUM(state = 'Ready' AND runnable), 0) as n_ready_jobs,
+    COALESCE(SUM(IF(state = 'Ready' AND runnable, cores_mcpu, 0)), 0) as ready_cores_mcpu,
+    COALESCE(SUM(state = 'Running' AND NOT cancelled), 0) as n_running_jobs,
+    COALESCE(SUM(IF(state = 'Running' AND NOT cancelled, cores_mcpu, 0)), 0) as running_cores_mcpu,
+    COALESCE(SUM(state = 'Ready' AND cancelled), 0) as n_cancelled_ready_jobs,
+    COALESCE(SUM(state = 'Running' AND cancelled), 0) as n_cancelled_running_jobs
+FROM (SELECT
+    jobs.state,
+    jobs.cores_mcpu,
+    (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled)) AS runnable,
+    (NOT jobs.always_run AND (jobs.cancelled OR batches.cancelled)) AS cancelled,
+    batches.user
+  FROM jobs
+  INNER JOIN batches ON batches.id = jobs.batch_id
+  WHERE batches.`state` = 'running'
+  LOCK IN SHARE MODE) AS s
+GROUP BY user;
+''')
+        computed_user_resources = {record['user']: record async for record in computed_user_resources}
+
+        def user_get(d, u, f):
+            if u not in d:
+                return 0
+            return d[u][f]
+
+        fields = ['n_running_jobs', 'running_cores_mcpu', 'n_ready_jobs', 'ready_cores_mcpu',
+                  'n_cancelled_ready_jobs', 'n_cancelled_running_jobs']
+        users = set(user_resources.keys())
+        users.update(computed_user_resources.keys())
+        for u in users:
+            for f in fields:
+                v = user_get(user_resources, u, f)
+                computed_v = user_get(user_resources, u, f)
+
+                if v != computed_v:
+                    log.error(f'user_resources corrupt: user_resources[{u}][{f}] {v} != computed_user_resources[{u}][{f}] {computed_v}')
+
+    while True:
+        try:
+            await check()  # pylint: disable=no-value-for-parameter
+        except Exception:
+            log.exception('while checking incremental')
+        # 10/s
+        await asyncio.sleep(0.1)
+
+
+async def profile_loop():
+    while True:
+        pr = cProfile.Profile()
+        pr.enable()
+        await asyncio.sleep(60)
+        pr.disable()
+        s = io.StringIO()
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        log.info(s.getvalue())
+
+
 async def on_startup(app):
-    userinfo = await async_get_userinfo()
-    log.info(f'running as {userinfo["username"]}')
-
-    bucket_name = userinfo['bucket_name']
-    log.info(f'bucket_name {bucket_name}')
-
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
 
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()
-    app['k8s_client'] = k8s_client
+    k8s_cache = K8sCache(k8s_client, refresh_time=5)
+    app['k8s_cache'] = k8s_cache
 
     db = Database()
-    await db.async_init()
+    await db.async_init(maxsize=50)
     app['db'] = db
 
     row = await db.select_and_fetchone(
-        'SELECT instance_id, internal_token FROM globals;')
+        'SELECT worker_type, worker_cores, worker_disk_size_gb, instance_id, internal_token FROM globals;')
+
+    app['worker_type'] = row['worker_type']
+    app['worker_cores'] = row['worker_cores']
+    app['worker_disk_size_gb'] = row['worker_disk_size_gb']
+
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
@@ -434,17 +519,20 @@ async def on_startup(app):
     machine_name_prefix = f'batch-worker-{DEFAULT_NAMESPACE}-'
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-        '/batch-gsa-key/privateKeyData')
+        '/gsa-key/key.json')
     gservices = GServices(machine_name_prefix, credentials)
     app['gservices'] = gservices
 
     scheduler_state_changed = asyncio.Event()
     app['scheduler_state_changed'] = scheduler_state_changed
 
-    cancel_state_changed = asyncio.Event()
-    app['cancel_state_changed'] = cancel_state_changed
+    cancel_ready_state_changed = asyncio.Event()
+    app['cancel_ready_state_changed'] = cancel_ready_state_changed
 
-    log_store = LogStore(bucket_name, instance_id, pool, credentials=credentials)
+    cancel_running_state_changed = asyncio.Event()
+    app['cancel_running_state_changed'] = cancel_running_state_changed
+
+    log_store = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
     app['log_store'] = log_store
 
     inst_pool = InstancePool(app, machine_name_prefix)
@@ -455,6 +543,9 @@ async def on_startup(app):
     await scheduler.async_init()
     app['scheduler'] = scheduler
 
+    # asyncio.ensure_future(check_incremental_loop(db))
+    # asyncio.ensure_future(profile_loop())
+
 
 async def on_cleanup(app):
     blocking_pool = app['blocking_pool']
@@ -462,7 +553,7 @@ async def on_cleanup(app):
 
 
 def run():
-    app = web.Application()
+    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'batch.driver')
@@ -473,4 +564,8 @@ def run():
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    web.run_app(deploy_config.prefix_application(app, 'batch-driver'), host='0.0.0.0', port=5000)
+    web.run_app(deploy_config.prefix_application(app,
+                                                 'batch-driver',
+                                                 client_max_size=HTTP_CLIENT_MAX_SIZE),
+                host='0.0.0.0',
+                port=5000)

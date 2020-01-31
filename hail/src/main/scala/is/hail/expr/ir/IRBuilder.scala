@@ -70,7 +70,7 @@ object IRBuilder {
     val i = initOpArgs.map(x => x(env))
     val s = seqOpArgs.map(x => x(env))
 
-    ApplyAggOp(i, s, AggSignature2(op, i.map(_.typ), s.map(_.typ), None))
+    ApplyAggOp(i, s, AggSignature(op, i.map(_.typ), s.map(_.typ)))
   }
 
   def aggFilter(filterCond: IRProxy, query: IRProxy, isScan: Boolean = false): IRProxy = (env: E) =>

@@ -212,6 +212,13 @@ class Tests(unittest.TestCase):
                       n_discordant=0),
         ]
 
+    def test_concordance_no_values_doesnt_error(self):
+        dataset = get_dataset().filter_rows(False)
+        _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
+        cols_conc._force_count()
+        rows_conc._force_count()
+
+
     def test_filter_alleles(self):
         # poor man's Gen
         paths = [resource('sample.vcf'),
@@ -259,3 +266,14 @@ class Tests(unittest.TestCase):
 
         assert mt.aggregate_cols(hl.agg.all(hl.approx_equal(mt.sample_qc.call_rate, mt.sample_qc.n_called / n_rows)))
         assert mt.aggregate_rows(hl.agg.all(hl.approx_equal(mt.variant_qc.call_rate, mt.variant_qc.n_called / n_cols)))
+
+    def test_summarize_variants_ti_tv(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        # check that summarize can run with the print control flow
+        hl.summarize_variants(mt, handler=lambda s: ())
+        r = hl.summarize_variants(mt, show=False)
+        assert r['allele_types'] == {'Deletion': 27, 'Insertion': 18, 'SNP': 301}
+        assert r['contigs'] == {'20': 346}
+        assert r['n_variants'] == 346
+        assert r['r_ti_tv'] == 2.5
+        assert r['allele_counts'] == {2: 346}

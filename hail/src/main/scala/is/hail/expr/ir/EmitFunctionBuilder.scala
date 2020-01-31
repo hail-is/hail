@@ -8,7 +8,7 @@ import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.backend.BackendUtils
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.types.physical.{PTuple, PType}
+import is.hail.expr.types.physical.{PCanonicalTuple, PTuple, PType}
 import is.hail.expr.types.virtual.{TTuple, Type}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
@@ -144,8 +144,8 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
   private[this] val typMap: mutable.Map[Type, Code[Type]] =
     mutable.Map[Type, Code[Type]]()
 
-  private[this] val literalsMap: mutable.Map[(Type, Any), Code[_]] =
-    mutable.Map[(Type, Any), Code[_]]()
+  private[this] val literalsMap: mutable.Map[(PType, Any), Code[_]] =
+    mutable.Map[(PType, Any), Code[_]]()
 
   override def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
     rgMap.getOrElseUpdate(rg, {
@@ -161,7 +161,7 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
       field.load()
     })
 
-  override def addLiteral(v: Any, t: Type, region: Code[Region]): Code[_] = {
+  override def addLiteral(v: Any, t: PType, region: Code[Region]): Code[_] = {
     assert(v != null)
     literalsMap.getOrElseUpdate(t -> v, {
       val fromParent = parentfb.addLiteral(v, t, region)
@@ -206,20 +206,21 @@ class EmitFunctionBuilder[F >: Null](
     rgExists.mux(Code._empty, addRG)
   }
 
-  private[this] val literalsMap: mutable.Map[(Type, Any), ClassFieldRef[_]] =
-    mutable.Map[(Type, Any), ClassFieldRef[_]]()
+  private[this] val literalsMap: mutable.Map[(PType, Any), ClassFieldRef[_]] =
+    mutable.Map[(PType, Any), ClassFieldRef[_]]()
   private[this] lazy val encLitField: ClassFieldRef[Array[Byte]] = newField[Array[Byte]]("encodedLiterals")
   val partitionRegion: ClassFieldRef[Region] = newField[Region]("partitionRegion")
 
-  def addLiteral(v: Any, t: Type, region: Code[Region]): Code[_] = {
+  def addLiteral(v: Any, t: PType, region: Code[Region]): Code[_] = {
     assert(v != null)
+    assert(t.isCanonical)
     val f = literalsMap.getOrElseUpdate(t -> v, newField("literal")(typeToTypeInfo(t)))
     f.load()
   }
 
   private[this] def encodeLiterals(): Array[Byte] = {
     val literals = literalsMap.toArray
-    val litType = PType.canonical(TTuple(literals.map { case ((t, _), _) => t }: _*)).asInstanceOf[PTuple]
+    val litType = PCanonicalTuple(true, literals.map(_._1._1): _*)
     val spec = TypedCodecSpec(litType, BufferSpec.defaultUncompressed)
 
     val (litRType, dec) = spec.buildEmitDecoderF[Long](litType.virtualType, this)
@@ -245,7 +246,7 @@ class EmitFunctionBuilder[F >: Null](
       val rvb = new RegionValueBuilder(region)
       rvb.start(litType)
       rvb.startTuple()
-      literals.foreach { case ((typ, a), _) => rvb.addAnnotation(typ, a) }
+      literals.foreach { case ((typ, a), _) => rvb.addAnnotation(typ.virtualType, a) }
       rvb.endTuple()
       enc.writeRegionValue(region, rvb.end())
     }
@@ -260,14 +261,14 @@ class EmitFunctionBuilder[F >: Null](
   private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
   private[this] var _backendField: ClassFieldRef[BackendUtils] = _
 
-  private[this] var _aggSigs: Array[AggSignature2] = _
+  private[this] var _aggSigs: Array[PhysicalAggSignature] = _
   private[this] var _aggRegion: ClassFieldRef[Region] = _
   private[this] var _aggOff: ClassFieldRef[Long] = _
   private[this] var _aggState: agg.TupleAggregatorState = _
   private[this] var _nSerialized: Int = 0
   private[this] var _aggSerialized: ClassFieldRef[Array[Array[Byte]]] = _
 
-  def addAggStates(aggSigs: Array[AggSignature2]): agg.TupleAggregatorState = {
+  def addAggStates(aggSigs: Array[PhysicalAggSignature]): agg.TupleAggregatorState = {
     if (_aggSigs != null) {
       assert(aggSigs sameElements _aggSigs)
       return _aggState
@@ -373,7 +374,7 @@ class EmitFunctionBuilder[F >: Null](
     val references = ReferenceGenome.getReferences(t.virtualType).toArray
     val setup = Code(Code(references.map(addReferenceGenome): _*),
       Code.invokeScalaObject[String, PType](
-        IRParser.getClass, "parsePType", const(t.parsableString())))
+        IRParser.getClass, "parsePType", const(t.toString)))
     pTypeMap.getOrElseUpdate(t,
       newLazyField[PType](setup))
   }

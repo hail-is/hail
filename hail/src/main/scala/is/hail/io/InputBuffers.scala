@@ -61,27 +61,32 @@ final class StreamInputBuffer(in: InputStream) extends InputBuffer {
   def seek(offset: Long) = in.asInstanceOf[ByteTrackingInputStream].seek(offset)
 
   def readByte(): Byte = {
-    in.read(buff, 0, 1)
+    val bytesRead = in.read(buff, 0, 1)
+    assert(bytesRead == 1)
     Memory.loadByte(buff, 0)
   }
 
   def readInt(): Int = {
-    in.read(buff, 0, 4)
+    val bytesRead = in.read(buff, 0, 4)
+    assert(bytesRead == 4)
     Memory.loadInt(buff, 0)
   }
 
   def readLong(): Long = {
-    in.read(buff)
+    val bytesRead = in.read(buff)
+    assert(bytesRead == 8)
     Memory.loadLong(buff, 0)
   }
 
   def readFloat(): Float = {
-    in.read(buff, 0, 4)
+    val bytesRead = in.read(buff, 0, 4)
+    assert(bytesRead == 4)
     Memory.loadFloat(buff, 0)
   }
 
   def readDouble(): Double = {
-    in.read(buff)
+    val bytesRead = in.read(buff)
+    assert(bytesRead == 8)
     Memory.loadDouble(buff, 0)
   }
 
@@ -89,17 +94,35 @@ final class StreamInputBuffer(in: InputStream) extends InputBuffer {
     Region.storeBytes(toOff, Array.tabulate(n)(_ => readByte()))
   }
 
-  def skipByte(): Unit = in.skip(1)
+  def skipByte(): Unit = {
+    val bytesRead = in.skip(1)
+    assert(bytesRead == 1L)
+  }
 
-  def skipInt(): Unit = in.skip(4)
+  def skipInt(): Unit = {
+    val bytesRead = in.skip(4)
+    assert(bytesRead == 4L)
+  }
 
-  def skipLong(): Unit = in.skip(8)
+  def skipLong(): Unit = {
+    val bytesRead = in.skip(8)
+    assert(bytesRead == 8L)
+  }
 
-  def skipFloat(): Unit = in.skip(4)
+  def skipFloat(): Unit = {
+    val bytesRead = in.skip(4)
+    assert(bytesRead == 4L)
+  }
 
-  def skipDouble(): Unit = in.skip(8)
+  def skipDouble(): Unit = {
+    val bytesRead = in.skip(8)
+    assert(bytesRead == 8L)
+  }
 
-  def skipBytes(n: Int): Unit = in.skip(n)
+  def skipBytes(n: Int): Unit = {
+    val bytesRead = in.skip(n)
+    assert(bytesRead == n)
+  }
 
   def readDoubles(to: Array[Double], off: Int, n: Int): Unit = {
     var i = 0
@@ -125,7 +148,7 @@ final class MemoryInputBuffer(mb: MemoryBuffer) extends InputBuffer {
 
   def readDouble(): Double = mb.readDouble()
 
-  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = mb.readBytes(toRegion, toOff, n)
+  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = mb.readBytes(toOff, n)
 
   def skipByte(): Unit = mb.skipByte()
 

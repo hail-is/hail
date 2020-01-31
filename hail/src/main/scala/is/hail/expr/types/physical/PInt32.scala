@@ -16,13 +16,8 @@ case object PInt32Required extends PInt32(true)
 class PInt32(override val required: Boolean) extends PIntegral {
   lazy val virtualType: TInt32 = TInt32(required)
   def _asIdent = "int32"
-  def _toPretty = "Int32"
-
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PInt32")
   override type NType = PInt32
-
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("int32")
-  }
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
@@ -61,6 +56,21 @@ class PInt32(override val required: Boolean) extends PIntegral {
   override def multiply(a: Code[_], b: Code[_]): Code[PInt32] = {
     coerce[PInt32](coerce[Int](a) * coerce[Int](b))
   }
+
+  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]) =
+    Region.storeInt(dstAddress, Region.loadInt(srcAddress))
+
+  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) =
+    Region.storeInt(dstAddress, Region.loadInt(srcAddress))
+
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long =
+    srcAddress
+
+  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] =
+    srcAddress
+
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
+    stackValue
 }
 
 object PInt32 {

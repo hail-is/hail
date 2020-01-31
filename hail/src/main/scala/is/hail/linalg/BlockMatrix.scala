@@ -1660,20 +1660,37 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
         }
       })
 
-  def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
-    val (i, j) = gp.blockCoordinates(split.index)
-    val (blockNRows, blockNCols) = gp.blockDims(split.index)
-    val product = BDM.zeros[Double](blockNRows, blockNCols)
-    var k = 0
-    while (k < nProducts) {
-      block(l, lParts, lGP, context, i, k).foreach(left =>
-        block(r, rParts, rGP, context, k, j).foreach(right =>
-          product :+= left * right))
-      k += 1
-    }
+  def fma(c: BDM[Double], _a: BDM[Double], _b: BDM[Double]) {
+    assert(_a.cols == _b.rows)
 
-    Iterator.single(((i, j), product))
+    val a = if (_a.majorStride < math.max(if (_a.isTranspose) _a.cols else _a.rows, 1)) _a.copy else _a
+    val b = if (_b.majorStride < math.max(if (_b.isTranspose) _b.cols else _b.rows, 1)) _b.copy else _b
+
+    import com.github.fommil.netlib.BLAS.{getInstance => blas}
+    blas.dgemm(
+      if (a.isTranspose) "T" else "N",
+      if (b.isTranspose) "T" else "N",
+      c.rows, c.cols, a.cols,
+      1.0, a.data, a.offset, a.majorStride,
+      b.data, b.offset, b.majorStride,
+      1.0, c.data, 0, c.rows)
   }
+
+  def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
+     val (i, j) = gp.blockCoordinates(split.index)
+     val (blockNRows, blockNCols) = gp.blockDims(split.index)
+     val product = BDM.zeros[Double](blockNRows, blockNCols)
+     var k = 0
+     while (k < nProducts) {
+       val left = block(l, lParts, lGP, context, i, k)
+       val right = block(r, rParts, rGP, context, k, j)
+       if (left.isDefined && right.isDefined) {
+         fma(product, left.get, right.get)
+       }
+       k += 1
+     }
+     Iterator.single(((i, j), product))
+   }
 
   protected def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(pi =>
     new Partition { def index: Int = pi } )
@@ -1861,18 +1878,21 @@ class WriteBlocksRDD(path: String,
           val rv = it.next()
           val region = rv.region
 
-          val entryArrayOffset = rvRowType.loadField(rv, entryArrayIdx)
+          val entryArrayOffset = rvRowType.loadField(rv.offset, entryArrayIdx)
 
           var blockCol = 0
           var colIdx = 0
+          val colIt = entryArrayType.elementIterator(
+             entryArrayOffset, entryArrayType.loadLength(entryArrayOffset))
           while (blockCol < gp.nBlockCols) {
             val n = gp.blockColNCols(blockCol)
             var j = 0
             while (j < n) {
-              if (entryArrayType.isElementDefined(region, entryArrayOffset, colIdx)) {
-                val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, colIdx)
-                if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
-                  val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
+              assert(colIt.hasNext)
+              if (colIt.isDefined) {
+                val entryOffset = colIt.value
+                if (entryType.isFieldDefined(entryOffset, fieldIdx)) {
+                  val fieldOffset = entryType.loadField(entryOffset, fieldIdx)
                   data(j) = Region.loadDouble(fieldOffset)
                 } else {
                   val rowIdx = blockRow * blockSize + i
@@ -1883,6 +1903,7 @@ class WriteBlocksRDD(path: String,
                 fatal(s"Cannot create BlockMatrix: filtered entry at row $rowIdx and col $colIdx")
               }
               colIdx += 1
+              colIt.iterate()
               j += 1
             }
             outPerBlockCol(blockCol).writeDoubles(data, 0, n)

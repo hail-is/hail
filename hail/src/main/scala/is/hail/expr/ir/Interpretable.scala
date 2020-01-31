@@ -8,10 +8,15 @@ object Interpretable {
     !ir.typ.isInstanceOf[TStream] &&
       (ir match {
       case
-        _: InitOp2 |
-        _: SeqOp2 |
-        _: CombOp2 |
-        _: ResultOp2 |
+        _: RunAgg |
+        _: InitOp |
+        _: SeqOp |
+        _: CombOp |
+        _: ResultOp |
+        _: CombOpValue |
+        _: AggStateValue |
+        _: RunAgg |
+        _: RunAggScan |
         _: SerializeAggs |
         _: DeserializeAggs |
         _: MakeNDArray |
@@ -24,7 +29,14 @@ object Interpretable {
         _: NDArrayReindex |
         _: NDArrayAgg |
         _: NDArrayMatMul |
+        _: TailLoop |
+        _: Recur |
         _: NDArrayWrite => false
+      case x: ApplyIR =>
+        !Exists(x.body, {
+          case n: IR => !Interpretable(n)
+          case _ => false
+        })
       case _ => true
     })
   }

@@ -2,15 +2,29 @@ import re
 import logging
 import math
 
-from hailtop.utils import time_msecs
-from hailtop.batch_client.validate import CPU_REGEX, MEMORY_REGEX
-
+from .front_end.validate import CPU_REGEX, MEMORY_REGEX
 
 log = logging.getLogger('utils')
 
 
-def cost_from_msec_mcpu(msec_mcpu):
-    cost_per_core_sec = 0.013 / 3600
+def cost_from_msec_mcpu(app, msec_mcpu):
+    # https://cloud.google.com/compute/all-pricing
+    # persistent SSD: $0.17 GB/month
+    # average number of days per month = 365.25 / 12 = 30.4375
+
+    avg_n_days_per_month = 30.4375
+
+    if app['worker_type'] == 'standard':
+        cpu_cost_per_core_hour = 0.01
+    elif app['worker_type'] == 'highcpu':
+        cpu_cost_per_core_hour = 0.0075
+    else:
+        assert app['worker_type'] == 'highmem'
+        cpu_cost_per_core_hour = 0.0125
+
+    disk_cost_per_core_hour = 0.17 * app['worker_disk_size_gb'] / avg_n_days_per_month / 24 / app['worker_cores']
+    cost_per_core_sec = (cpu_cost_per_core_hour + disk_cost_per_core_hour) / 3600
+
     return msec_mcpu * cost_per_core_sec * 0.001 * 0.001
 
 
@@ -79,37 +93,3 @@ def parse_image_tag(image_string):
     if match:
         return match.group(3)
     return None
-
-
-class LoggingTimerStep:
-    def __init__(self, timer, name):
-        self.timer = timer
-        self.name = name
-        self.start_time = None
-
-    async def __aenter__(self):
-        self.start_time = time_msecs()
-
-    async def __aexit__(self, exc_type, exc, tb):
-        finish_time = time_msecs()
-        self.timer.timing[self.name] = finish_time - self.start_time
-
-
-class LoggingTimer:
-    def __init__(self, description):
-        self.description = description
-        self.timing = {}
-        self.start_time = None
-
-    def step(self, name):
-        return LoggingTimerStep(self, name)
-
-    async def __aenter__(self):
-        self.start_time = time_msecs()
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        finish_time = time_msecs()
-        self.timing['total'] = finish_time - self.start_time
-
-        log.info(f'{self.description} timing {self.timing}')

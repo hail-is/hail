@@ -3,15 +3,16 @@ import aiohttp
 from aiohttp import web
 import aiohttp_session
 import uvloop
-
 import google.auth.transport.requests
 import google.oauth2.id_token
+import google.cloud.storage
 import google_auth_oauthlib.flow
-
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, create_database_pool, \
-    rest_authenticated_users_only, \
+    rest_authenticated_users_only, web_authenticated_developers_only, \
     web_maybe_authenticated_user, create_session, check_csrf_token
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, \
+    set_message, render_template
 
 log = logging.getLogger('auth')
 
@@ -78,7 +79,7 @@ async def callback(request):
         flow.fetch_token(code=request.query['code'])
         token = google.oauth2.id_token.verify_oauth2_token(
             flow.credentials.id_token, google.auth.transport.requests.Request())
-        id = token['sub']
+        email = token['email']
     except Exception:
         log.exception('oauth2 callback: could not fetch and verify token')
         raise web.HTTPUnauthorized()
@@ -86,7 +87,7 @@ async def callback(request):
     dbpool = request.app['dbpool']
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute('SELECT * from user_data where user_id = %s;', f'google-oauth2|{id}')
+            await cursor.execute("SELECT * FROM users WHERE email = %s AND state = 'active';", email)
             users = await cursor.fetchall()
 
     if len(users) != 1:
@@ -136,6 +137,74 @@ async def rest_login(request):
     })
 
 
+@routes.get('/users')
+@web_authenticated_developers_only()
+async def get_users(request, userdata):
+    dbpool = request.app['dbpool']
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('SELECT * FROM users;')
+            users = await cursor.fetchall()
+    page_context = {
+        'users': users
+    }
+    return await render_template('auth', request, userdata, 'users.html', page_context)
+
+
+@routes.post('/users')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def post_create_user(request, userdata):  # pylint: disable=unused-argument
+    session = await aiohttp_session.get_session(request)
+    dbpool = request.app['dbpool']
+    post = await request.post()
+    username = post['username']
+    email = post['email']
+    is_developer = post.get('is_developer') == '1'
+
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute(
+                '''
+INSERT INTO users (state, username, email, is_developer)
+VALUES (%s, %s, %s, %s);
+''',
+                ('creating', username, email, is_developer))
+            user_id = cursor.lastrowid
+
+    set_message(session, f'Created user {user_id} {username}.', 'info')
+
+    return web.HTTPFound(deploy_config.external_url('auth', '/users'))
+
+
+@routes.post('/users/delete')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def delete_user(request, userdata):  # pylint: disable=unused-argument
+    session = await aiohttp_session.get_session(request)
+    dbpool = request.app['dbpool']
+    post = await request.post()
+    id = post['id']
+    username = post['username']
+
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            n_rows = await cursor.execute(
+                '''
+UPDATE users
+SET state = 'deleting'
+WHERE id = %s AND username = %s;
+''',
+                (id, username))
+            if n_rows != 1:
+                assert n_rows == 0
+                set_message(session, f'Delete failed, no such user {id} {username}.', 'error')
+
+    set_message(session, f'Deleted user {id} {username}.', 'info')
+
+    return web.HTTPFound(deploy_config.external_url('auth', '/users'))
+
+
 @routes.get('/api/v1alpha/oauth2callback')
 async def rest_callback(request):
     state = request.query['state']
@@ -147,7 +216,7 @@ async def rest_callback(request):
         flow.fetch_token(code=code)
         token = google.oauth2.id_token.verify_oauth2_token(
             flow.credentials.id_token, google.auth.transport.requests.Request())
-        id = token['sub']
+        email = token['email']
     except Exception:
         log.exception('fetching and decoding token')
         raise web.HTTPUnauthorized()
@@ -155,7 +224,7 @@ async def rest_callback(request):
     dbpool = request.app['dbpool']
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute('SELECT * from user_data where user_id = %s;', f'google-oauth2|{id}')
+            await cursor.execute("SELECT * FROM users WHERE email = %s AND state = 'active';", email)
             users = await cursor.fetchall()
 
     if len(users) != 1:
@@ -203,9 +272,9 @@ async def userinfo(request):
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute('''
-SELECT user_data.*, sessions.session_id FROM user_data
-INNER JOIN sessions ON user_data.id = sessions.user_id
-WHERE (sessions.session_id = %s) AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
+SELECT users.*, sessions.session_id FROM users
+INNER JOIN sessions ON users.id = sessions.user_id
+WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
 ''', session_id)
             users = await cursor.fetchall()
 
@@ -230,8 +299,10 @@ async def on_cleanup(app):
 def run():
     app = web.Application()
 
+    setup_aiohttp_jinja2(app, 'auth')
     setup_aiohttp_session(app)
 
+    setup_common_static_routes(routes)
     app.add_routes(routes)
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)

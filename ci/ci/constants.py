@@ -10,16 +10,14 @@ AUTHORIZED_USERS = {
     'cseed',
     'konradjk',
     'jigold',
-    'jbloom22',
     'patrick-schultz',
     'lfrancioli',
     'akotlar',
     'tpoterba',
     'chrisvittal',
     'catoverdrive',
-    'daniel-goldstein',
     'GreatBrando',
     'johnc1231',
-    'iitalics',
-    'gsarma'
+    'gsarma',
+    'mkveerapen'
 }

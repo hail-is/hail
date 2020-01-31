@@ -263,7 +263,7 @@ class MatrixIRSuite extends HailSuite {
     }
   }
 
-  @Test def testMatrixMultiWriteDifferentTypesFails() {
+  @Test def testMatrixMultiWriteDifferentTypesRaisesError() {
     val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
     val range = rangeMatrix(10, 2, None)
     val path = tmpDir.createLocalTempFile()

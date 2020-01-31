@@ -96,9 +96,6 @@ __all__ = [
 __all__.extend(genetics.__all__)
 __all__.extend(methods.__all__)
 
-# prevent users from referring to 'hl.nd'
-del nd
-
 # don't overwrite builtins in `from hail import *`
 import builtins
 

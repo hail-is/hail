@@ -27,13 +27,15 @@ from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes, \
     adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes
 from .semaphore import FIFOWeightedSemaphore, NullWeightedSemaphore
 from .log_store import LogStore
+from .globals import HTTP_CLIENT_MAX_SIZE
+from .batch_format_version import BatchFormatVersion
 
 # uvloop.install()
 
 configure_logging()
 log = logging.getLogger('batch-worker')
 
-MAX_IDLE_TIME_MSECS = 5 * 60 * 1000
+MAX_IDLE_TIME_MSECS = 30 * 1000
 
 CORES = int(os.environ['CORES'])
 NAME = os.environ['NAME']
@@ -57,7 +59,25 @@ log.info(f'PROJECT {PROJECT}')
 
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
-docker = aiodocker.Docker()
+docker = None
+
+port_allocator = None
+
+worker = None
+
+
+class PortAllocator:
+    def __init__(self):
+        self.ports = asyncio.Queue()
+        port_base = 46572
+        for port in range(port_base, port_base + 10):
+            self.ports.put_nowait(port)
+
+    async def allocate(self):
+        return await self.ports.get()
+
+    def free(self, port):
+        self.ports.put_nowait(port)
 
 
 async def docker_call_retry(f, *args, **kwargs):
@@ -68,16 +88,16 @@ async def docker_call_retry(f, *args, **kwargs):
         except DockerError as e:
             # 408 request timeout, 503 service unavailable
             if e.status == 408 or e.status == 503:
-                log.exception('in docker call, retrying')
+                log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
             # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
             # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
-            elif e.status == 500 and ("request canceled while waiting for connection" in e.message
-                                      or re.match("error creating overlay mount.*device or resource busy", e.message)):
-                log.exception('in docker call, retrying')
+            elif e.status == 500 and ("request canceled while waiting for connection" in e.message or
+                                      re.match("error creating overlay mount.*device or resource busy", e.message)):
+                log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
             else:
                 raise
         except asyncio.TimeoutError:
-            log.exception('in docker call, retrying')
+            log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
         # exponentially back off, up to (expected) max of 30s
         t = delay * random.random()
         await asyncio.sleep(t)
@@ -131,6 +151,9 @@ class Container:
         self.cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, WORKER_TYPE)
         self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu, WORKER_TYPE)
 
+        self.port = self.spec.get('port')
+        self.host_port = None
+
         self.container = None
         self.state = 'pending'
         self.error = None
@@ -139,6 +162,11 @@ class Container:
         self.log = None
 
     def container_config(self):
+        host_config = {
+            'CpuPeriod': 100000,
+            'CpuQuota': self.cpu_in_mcpu * 100,
+            'Memory': self.memory_in_bytes
+        }
         config = {
             "AttachStdin": False,
             "AttachStdout": False,
@@ -146,19 +174,34 @@ class Container:
             "Tty": False,
             'OpenStdin': False,
             'Cmd': self.spec['command'],
-            'Image': self.image,
-            'HostConfig': {'CpuPeriod': 100000,
-                           'CpuQuota': self.cpu_in_mcpu * 100,
-                           'Memory': self.memory_in_bytes}
+            'Image': self.image
         }
 
-        env = self.spec.get('env')
-        if env:
-            config['Env'] = env
+        env = self.spec.get('env', [])
+
+        if self.port is not None:
+            assert self.host_port is not None
+            config['ExposedPorts'] = {
+                f'{self.port}/tcp': {}
+            }
+            host_config['PortBindings'] = {
+                f'{self.port}/tcp': [{
+                    'HostIp': '',
+                    'HostPort': str(self.host_port)
+                }]
+            }
+            env = list(env)
+            env.append(f'HAIL_BATCH_WORKER_PORT={self.host_port}')
+            env.append(f'HAIL_BATCH_WORKER_IP={IP_ADDRESS}')
 
         volume_mounts = self.spec.get('volume_mounts')
         if volume_mounts:
-            config['HostConfig']['Binds'] = volume_mounts
+            host_config['Binds'] = volume_mounts
+
+        if env:
+            config['Env'] = env
+
+        config['HostConfig'] = host_config
 
         return config
 
@@ -198,7 +241,7 @@ class Container:
             async with self.step('pulling'):
                 if self.image.startswith('gcr.io/'):
                     key = base64.b64decode(
-                        self.job.gsa_key['privateKeyData']).decode()
+                        self.job.gsa_key['key.json']).decode()
                     auth = {
                         'username': '_json_key',
                         'password': key
@@ -217,14 +260,19 @@ class Container:
                         if e.status == 404:
                             await docker_call_retry(docker.images.pull, self.image)
 
+            if self.port is not None:
+                async with self.step('allocating_port'):
+                    self.host_port = await port_allocator.allocate()
+
             async with self.step('creating'):
                 config = self.container_config()
                 log.info(f'starting {self} config {config}')
                 self.container = await docker_call_retry(
                     docker.containers.create,
-                    config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
+                    config,
+                    name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
-            async with cpu_sem(self.cpu_in_mcpu):
+            async with cpu_sem(self.cpu_in_mcpu, f'{self}'):
                 async with self.step('runtime', state=None):
                     if self.name == 'main':
                         asyncio.ensure_future(worker.post_job_started(self.job))
@@ -240,7 +288,8 @@ class Container:
 
             async with self.step('uploading_log'):
                 await worker.log_store.write_log_file(
-                    self.job.batch_id, self.job.job_id, self.name,
+                    self.job.format_version, self.job.batch_id,
+                    self.job.job_id, self.job.attempt_id, self.name,
                     await self.get_container_log())
 
             async with self.step('deleting'):
@@ -282,7 +331,11 @@ class Container:
                 await docker_call_retry(self.container.delete, v=True)
                 self.container = None
             except Exception:
-                log.exception('while deleting up container, ignoring')
+                log.exception('while deleting container, ignoring')
+
+        if self.host_port is not None:
+            port_allocator.free(self.host_port)
+            self.host_port = None
 
     async def delete(self):
         log.info(f'deleting {self}')
@@ -351,7 +404,7 @@ function retry() {{
         (sleep 5 && "$@")
 }}
 
-retry gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
+retry gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
 
 {copies}
 '''
@@ -377,11 +430,12 @@ class Job:
     def io_host_path(self):
         return f'{self.scratch}/io'
 
-    def __init__(self, batch_id, user, gsa_key, job_spec):
+    def __init__(self, batch_id, user, gsa_key, job_spec, format_version):
         self.batch_id = batch_id
         self.user = user
         self.gsa_key = gsa_key
         self.job_spec = job_spec
+        self.format_version = format_version
 
         self.deleted = False
 
@@ -401,13 +455,11 @@ class Job:
         if job_spec.get('mount_docker_socket'):
             main_volume_mounts.append('/var/run/docker.sock:/var/run/docker.sock')
 
-        if pvc_size or input_files or output_files:
-            self.mount_io = True
+        self.mount_io = (pvc_size or input_files or output_files)
+        if self.mount_io:
             volume_mount = f'{self.io_host_path()}:/io'
             main_volume_mounts.append(volume_mount)
             copy_volume_mounts.append(volume_mount)
-        else:
-            self.mount_io = False
 
         secrets = job_spec.get('secrets')
         self.secrets = secrets
@@ -440,6 +492,9 @@ class Job:
             'memory': job_spec['resources']['memory'],
             'volume_mounts': main_volume_mounts
         }
+        port = job_spec.get('port')
+        if port:
+            main_spec['port'] = port
         containers['main'] = Container(self, 'main', main_spec)
 
         if output_files:
@@ -513,8 +568,9 @@ class Job:
             run_end_time = time_msecs()
             run_duration = run_end_time - run_start_time
 
-            log.info(f'{self}: marking complete')
-            asyncio.ensure_future(worker.post_job_complete(self, run_duration))
+            if not self.deleted:
+                log.info(f'{self}: marking complete')
+                asyncio.ensure_future(worker.post_job_complete(self, run_duration))
 
             log.info(f'{self}: cleaning up')
             try:
@@ -532,12 +588,13 @@ class Job:
             await c.delete()
 
     # {
-    #   name: str,
+    #   worker: str,
     #   batch_id: int,
     #   job_id: int,
     #   attempt_id: int,
     #   user: str,
     #   state: str, (pending, initializing, running, succeeded, error, failed)
+    #   format_version: int
     #   error: str, (optional)
     #   container_statuses: [Container.status],
     #   start_time: int,
@@ -550,7 +607,8 @@ class Job:
             'job_id': self.job_spec['job_id'],
             'attempt_id': self.job_spec['attempt_id'],
             'user': self.user,
-            'state': self.state
+            'state': self.state,
+            'format_version': self.format_version.format_version
         }
         if self.error:
             status['error'] = self.error
@@ -577,7 +635,6 @@ class Job:
 class Worker:
     def __init__(self):
         self.cores_mcpu = CORES * 1000
-        self.free_cores_mcpu = self.cores_mcpu
         self.last_updated = time_msecs()
         self.cpu_sem = FIFOWeightedSemaphore(self.cores_mcpu)
         self.cpu_null_sem = NullWeightedSemaphore()
@@ -598,15 +655,39 @@ class Worker:
         body = await request.json()
 
         batch_id = body['batch_id']
-        job_spec = body['job_spec']
-        job_id = job_spec['job_id']
+        job_id = body['job_id']
+
+        format_version = BatchFormatVersion(body['format_version'])
+
+        if format_version.has_full_spec_in_gcs():
+            token = body['token']
+            start_job_id = body['start_job_id']
+            addtl_spec = body['job_spec']
+
+            job_spec = await self.log_store.read_spec_file(batch_id, token, start_job_id, job_id)
+            job_spec = json.loads(job_spec)
+
+            job_spec['attempt_id'] = addtl_spec['attempt_id']
+            job_spec['secrets'] = addtl_spec['secrets']
+
+            addtl_env = addtl_spec.get('env')
+            if addtl_env:
+                env = job_spec.get('env')
+                if not env:
+                    env = []
+                    job_spec['env'] = env
+                env.extend(addtl_env)
+        else:
+            job_spec = body['job_spec']
+
+        assert job_spec['job_id'] == job_id
         id = (batch_id, job_id)
 
         # already running
         if id in self.jobs:
-            return web.Response()
+            return web.HTTPForbidden()
 
-        job = Job(batch_id, body['user'], body['gsa_key'], job_spec)
+        job = Job(batch_id, body['user'], body['gsa_key'], job_spec, format_version)
 
         log.info(f'created {job}, adding to jobs')
 
@@ -662,7 +743,7 @@ class Worker:
         app_runner = None
         site = None
         try:
-            app = web.Application()
+            app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
             app.add_routes([
                 web.post('/api/v1alpha/batches/jobs/create', self.create_job),
                 web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),
@@ -680,7 +761,7 @@ class Worker:
 
             idle_duration = time_msecs() - self.last_updated
             while self.jobs or idle_duration < MAX_IDLE_TIME_MSECS:
-                log.info(f'n_jobs {len(self.jobs)} free_cores {self.free_cores_mcpu / 1000} idle {idle_duration}')
+                log.info(f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration}')
                 await asyncio.sleep(15)
                 idle_duration = time_msecs() - self.last_updated
 
@@ -706,8 +787,28 @@ class Worker:
                 log.info('cleaned up app runner')
 
     async def post_job_complete_1(self, job, run_duration):
+        full_status = await job.status()
+
+        if job.format_version.has_full_status_in_gcs():
+            await self.log_store.write_status_file(job.batch_id,
+                                                   job.job_id,
+                                                   job.attempt_id,
+                                                   json.dumps(full_status))
+
+        db_status = job.format_version.db_status(full_status)
+
+        status = {
+            'batch_id': full_status['batch_id'],
+            'job_id': full_status['job_id'],
+            'attempt_id': full_status['attempt_id'],
+            'state': full_status['state'],
+            'start_time': full_status['start_time'],
+            'end_time': full_status['end_time'],
+            'status': db_status
+        }
+
         body = {
-            'status': await job.status()
+            'status': status
         }
 
         start_time = time_msecs()
@@ -715,7 +816,7 @@ class Worker:
         while True:
             try:
                 async with aiohttp.ClientSession(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                     await session.post(
                         deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
                         json=body, headers=self.headers)
@@ -751,17 +852,32 @@ class Worker:
                 del self.jobs[job.id]
                 self.last_updated = time_msecs()
 
-    async def post_job_started(self, job):
+    async def post_job_started_1(self, job):
+        full_status = await job.status()
+
+        status = {
+            'batch_id': full_status['batch_id'],
+            'job_id': full_status['job_id'],
+            'attempt_id': full_status['attempt_id'],
+            'start_time': full_status['start_time'],
+        }
+
         body = {
-            'status': await job.status()
+            'status': status
         }
 
         async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
             await request_retry_transient_errors(
                 session, 'POST',
                 deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started'),
                 json=body, headers=self.headers)
+
+    async def post_job_started(self, job):
+        try:
+            await self.post_job_started_1(job)
+        except Exception:
+            log.exception(f'error while posting {job} started')
 
     async def activate(self):
         async with aiohttp.ClientSession(
@@ -789,11 +905,19 @@ class Worker:
                                       project=PROJECT, credentials=credentials)
 
 
-worker = Worker()
+async def async_main():
+    global port_allocator, worker, docker
+
+    docker = aiodocker.Docker()
+
+    port_allocator = PortAllocator()
+    worker = Worker()
+    await worker.run()
+
+    await docker.close()
 
 loop = asyncio.get_event_loop()
-loop.run_until_complete(worker.run())
-loop.run_until_complete(docker.close())
+loop.run_until_complete(async_main())
 loop.run_until_complete(loop.shutdown_asyncgens())
 loop.close()
 log.info(f'closed')
