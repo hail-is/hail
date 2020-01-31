@@ -827,8 +827,22 @@ class Tests(unittest.TestCase):
         t3 = t3.key_by(idx = t3.idx + 10)
 
         self.assertTrue(t1.union(t2, t3)._same(hl.utils.range_table(15)))
+
+        self.assertTrue(t1.union(t2, hl.null(t3))._same(hl.utils.range_table(5)))
+
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
+
+    def test_union_with_nulls(self):
+        withNulls = hl.import_table(resource('withNulls.tsv'), types={'normalCol': hl.tint32, 'maybeNullCol': hl.tint32, 'normalCol2': hl.tstr}, missing='.')
+        noNulls = hl.import_table(resource('noNulls.tsv'), types={'normalCol': hl.tint32, 'maybeNullCol': hl.tint32, 'normalCol2': hl.tstr})
+
+        print("NULL TABLE")
+        withNulls.show()
+        print("NO NULL TABLE")
+        noNulls.describe()
+        print("RESULT:")
+        noNulls.union(withNulls).show()
 
     def test_nested_union(self):
         N = 10
