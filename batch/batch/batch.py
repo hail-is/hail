@@ -400,7 +400,7 @@ async def schedule_job(app, record, instance):
 
         try:
             async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=1)) as session:
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=2)) as session:
                 url = (f'http://{instance.ip_address}:5000'
                        f'/api/v1alpha/batches/jobs/create')
                 await session.post(url, json=body)
