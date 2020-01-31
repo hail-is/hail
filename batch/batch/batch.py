@@ -73,7 +73,7 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
 
     try:
         async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
             await session.post(callback, json=batch_record_to_dict(app, record))
             log.info(f'callback for batch {batch_id} successful')
     except Exception:
@@ -400,7 +400,7 @@ async def schedule_job(app, record, instance):
 
         try:
             async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=1)) as session:
                 url = (f'http://{instance.ip_address}:5000'
                        f'/api/v1alpha/batches/jobs/create')
                 await session.post(url, json=body)
