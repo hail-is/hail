@@ -421,7 +421,9 @@ FROM ready_cores;
                                            self.pool_size - n_live_instances,
                                            self.max_instances - self.n_instances,
                                            # 20 queries/s; our GCE long-run quota
-                                           300)
+                                           300,
+                                           # n * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 9
+                                           10)
                     if instances_needed > 0:
                         log.info(f'creating {instances_needed} new instances')
                         # parallelism will be bounded by thread pool
