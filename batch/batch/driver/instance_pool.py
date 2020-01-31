@@ -408,11 +408,17 @@ FROM ready_cores;
 ''')
                 ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
+                free_cores_mcpu = sum([
+                    worker.free_cores_mcpu
+                    for worker in self.healthy_instances_by_free_cores
+                ])
+                free_cores = free_cores_mcpu / 1000
+
                 log.info(f'n_instances {self.n_instances} {self.n_instances_by_state}'
-                         f' live_free_cores {self.live_free_cores_mcpu / 1000}'
+                         f' free_cores {free_cores} live_free_cores {self.live_free_cores_mcpu / 1000}'
                          f' ready_cores {ready_cores_mcpu / 1000}')
 
-                if ready_cores_mcpu > 0:
+                if ready_cores_mcpu > 0 and free_cores < 500:
                     n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
                     instances_needed = (
                         (ready_cores_mcpu - self.live_free_cores_mcpu + (self.worker_cores * 1000) - 1) //
