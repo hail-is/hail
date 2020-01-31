@@ -14,3 +14,8 @@ COPY web_common/setup.py web_common/MANIFEST.in /web_common/
 COPY web_common/web_common /web_common/web_common/
 RUN pip3 install --no-cache-dir /web_common && \
   rm -rf /web_common
+
+RUN apt-get update && \
+  apt-get -y install \
+    build-essential \
+  && rm -rf /var/lib/apt/lists/*
