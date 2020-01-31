@@ -130,7 +130,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         if self._state == 'active' and self.ip_address:
             try:
                 async with aiohttp.ClientSession(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                     await session.get(f'http://{self.ip_address}:5000/healthcheck')
                     await self.mark_healthy()
                     return True
