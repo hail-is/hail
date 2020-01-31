@@ -47,6 +47,8 @@ class InstancePool:
 
         # pending and active
         self.live_free_cores_mcpu = 0
+        # active only
+        self.active_free_cores_mcpu = 0
 
         self.name_instance = {}
 
@@ -113,8 +115,12 @@ SET max_instances = %s, pool_size = %s;
 
         self.n_instances_by_state[instance.state] -= 1
 
+        free_cores_mcpu = max(0, instance.free_cores_mcpu)
         if instance.state in ('pending', 'active'):
-            self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
+            self.live_free_cores_mcpu -= free_cores_mcpu
+        if instance.state == 'active':
+            self.active_free_cores_mcpu -= free_cores_mcpu
+
         if instance in self.healthy_instances_by_free_cores:
             self.healthy_instances_by_free_cores.remove(instance)
 
@@ -133,8 +139,14 @@ SET max_instances = %s, pool_size = %s;
         self.n_instances_by_state[instance.state] += 1
 
         self.instances_by_last_updated.add(instance)
+
+        free_cores_mcpu = max(0, instance.free_cores_mcpu)
         if instance.state in ('pending', 'active'):
-            self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
+            self.live_free_cores_mcpu += free_cores_mcpu
+        if instance.state == 'active':
+            self.active_free_cores_mcpu += free_cores_mcpu
+
+
         if (instance.state == 'active' and
                 instance.failed_request_count <= 1):
             self.healthy_instances_by_free_cores.add(instance)
@@ -410,6 +422,7 @@ FROM ready_cores;
 
                 log.info(f'n_instances {self.n_instances} {self.n_instances_by_state}'
                          f' live_free_cores {self.live_free_cores_mcpu / 1000}'
+                         f' active_free_cores {self.active_free_cores_mcpu / 1000}'
                          f' ready_cores {ready_cores_mcpu / 1000}')
 
                 if ready_cores_mcpu > 0:

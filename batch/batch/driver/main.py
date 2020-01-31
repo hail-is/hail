@@ -294,7 +294,8 @@ FROM ready_cores;
         'n_instances_by_state': instance_pool.n_instances_by_state,
         'instances': instance_pool.name_instance.values(),
         'ready_cores_mcpu': ready_cores_mcpu,
-        'live_free_cores_mcpu': instance_pool.live_free_cores_mcpu
+        'live_free_cores_mcpu': instance_pool.live_free_cores_mcpu,
+        'active_free_cores_mcpu': instance_pool.active_free_cores_mcpu
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
