@@ -834,15 +834,10 @@ class Tests(unittest.TestCase):
                         ._same(hl.utils.range_table(15).key_by()))
 
     def test_union_with_nulls(self):
-        withNulls = hl.import_table(resource('withNulls.tsv'), types={'normalCol': hl.tint32, 'maybeNullCol': hl.tint32, 'normalCol2': hl.tstr}, missing='.')
-        noNulls = hl.import_table(resource('noNulls.tsv'), types={'normalCol': hl.tint32, 'maybeNullCol': hl.tint32, 'normalCol2': hl.tstr})
-
-        print("NULL TABLE")
-        withNulls.show()
-        print("NO NULL TABLE")
-        noNulls.describe()
-        print("RESULT:")
-        noNulls.union(withNulls).show()
+        mt1 = hl.import_vcf(resource('sample.vcf'), array_elements_required=True)
+        mt2 = hl.import_vcf(resource('sample_missing_pl2.vcf'), array_elements_required=False)
+        mt1.entries().join(mt2.entries().explode('PL')).count()
+        mt2.entries().explode('PL').show()
 
     def test_nested_union(self):
         N = 10
