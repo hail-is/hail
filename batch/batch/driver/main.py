@@ -19,6 +19,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 import cProfile
 import pstats
 import io
+import googlecloudprofiler
 
 import uvloop
 
@@ -553,6 +554,11 @@ async def on_cleanup(app):
 
 
 def run():
+    googlecloudprofiler.start(
+        service='batch-driver',
+        # https://cloud.google.com/profiler/docs/profiling-python#agent_logging
+        verbose=3)
+
     app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
     setup_aiohttp_session(app)
 
