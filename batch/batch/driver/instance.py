@@ -1,10 +1,14 @@
+import aiohttp
 import datetime
+import logging
 import secrets
 import humanize
 from hailtop.utils import time_msecs, time_msecs_str
 
 from ..database import check_call_procedure
 from ..globals import INSTANCE_VERSION
+
+log = logging.getLogger('instance')
 
 
 class Instance:
@@ -121,6 +125,19 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
     @property
     def failed_request_count(self):
         return self._failed_request_count
+
+    async def check_is_active_and_healthy(self):
+        if self._state == 'active' and self.ip_address:
+            try:
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                    await session.get(f'http://{self.ip_address}:5000/healthcheck')
+                    await self.mark_healthy()
+                    return True
+            except Exception:
+                log.exception(f'while requesting {self} /healthcheck')
+                await self.incr_failed_request_count()
+        return False
 
     async def mark_healthy(self):
         if self._state != 'active':

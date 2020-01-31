@@ -3,7 +3,6 @@ import random
 import asyncio
 import logging
 import sortedcontainers
-import aiohttp
 import googleapiclient.errors
 from hailtop.utils import time_msecs
 
@@ -441,16 +440,9 @@ FROM ready_cores;
             await asyncio.sleep(15)
 
     async def check_on_instance(self, instance):
-        if instance.ip_address:
-            try:
-                async with aiohttp.ClientSession(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    await session.get(f'http://{instance.ip_address}:5000/healthcheck')
-                    await instance.mark_healthy()
-                    return
-            except Exception:
-                log.exception(f'while requesting {instance} /healthcheck')
-                await instance.incr_failed_request_count()
+        active_and_healthy = await instance.check_is_active_and_healthy()
+        if active_and_healthy:
+            return
 
         try:
             spec = await self.gservices.get_instance(instance.name, instance.zone)
