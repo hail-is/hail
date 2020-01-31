@@ -972,3 +972,11 @@ class Tests(unittest.TestCase):
 
         s = x.svd(compute_uv=False, complexity_bound=0)
         assert np.all(s >= 0)
+
+
+    @skip_unless_spark_backend()
+    def test_filtering(self):
+        np_square = np.arange(16).reshape((4, 4))
+        bm = BlockMatrix.from_numpy(np_square)
+        assert np.array_equal(bm.filter([3], [3]).to_numpy(), np.array([[15]]))
+        assert np.array_equal(bm.filter_rows([3]).filter_cols([3]).to_numpy(), np.array([[15]]))
