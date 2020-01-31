@@ -375,7 +375,7 @@ object InferPType {
       case CollectDistributedArray(contextsIR, globalsIR, contextsName, globalsName, bodyIR) =>
         infer(contextsIR)
         infer(globalsIR)
-        infer(bodyIR, env.bind(contextsName -> contextsIR._pType2, globalsName -> globalsIR._pType2))
+        infer(bodyIR, env.bind(contextsName -> coerce[PStreamable](contextsIR._pType2).elementType, globalsName -> globalsIR._pType2))
 
         PCanonicalArray(bodyIR._pType2, contextsIR._pType2.required)
       case ReadPartition(rowIR, codecSpec, rowType) =>
