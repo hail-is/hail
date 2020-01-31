@@ -3,6 +3,7 @@ FROM python:3.6-slim-stretch
 RUN apt-get update && \
   apt-get -y install \
     curl && \
+    build-essential && \
   rm -rf /var/lib/apt/lists/*
 
 COPY docker/requirements.txt .
