@@ -975,9 +975,8 @@ case class TableMapPartitions(child: TableIR,
 ) extends TableIR {
   assert(body.typ.isInstanceOf[TStream], s"${body.typ}")
   assert(EmitStream.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
-  val bodyType = body.typ.asInstanceOf[TStream]
-  val newRowType = bodyType.elementType.asInstanceOf[TStruct]
-  lazy val typ = child.typ.copy(rowType = newRowType)
+  lazy val typ = child.typ.copy(
+    rowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct])
 
   lazy val children: IndexedSeq[BaseIR] = Array(child, body)
 
@@ -990,17 +989,18 @@ case class TableMapPartitions(child: TableIR,
   }
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
-    val partitionPType = PStream(child.typ.rowType.physicalType, true)
-    val globalPType = typ.globalType.physicalType
-    val newRowPType = newRowType.physicalType
-    val makeIterator = CompileIterator[Long, Iterator[RegionValue]](
+    val tv = child.execute(ctx)
+    val rowPType = tv.rvd.rowPType
+    val globalPType = tv.globals.t
+
+    val partitionPType = PStream(rowPType, true)
+    val (newRowPType: PStruct, makeIterator) = CompileIterator[Long, Iterator[RegionValue]](
       ctx,
       globalPType, partitionPType,
       Subst(body, BindingEnv(Env(
         globalName -> In(0, globalPType),
         partitionStreamName -> In(1, partitionPType)))))
 
-    val tv = child.execute(ctx)
     val globalsOff = tv.globals.value.offset
 
     val itF = { (idx: Int, consumerCtx: RVDContext, partition: Iterator[RegionValue]) =>

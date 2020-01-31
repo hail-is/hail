@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, RegionValue}
+import is.hail.annotations.{Region, RegionValue, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
@@ -739,17 +739,17 @@ object EmitStream {
           val r = rightIR.pType.asInstanceOf[PStreamable].elementType
           implicit val lP = TypedTriplet.pack(l)
           implicit val rP = TypedTriplet.pack(r)
-          val (setLElt, lelt) = lP.newFields(fb, "join_lelt")
-          val (setRElt, relt) = rP.newFields(fb, "join_relt")
+          val leltVar = lP.newFields(fb, "join_lelt")
+          val reltVar = rP.newFields(fb, "join_relt")
           val env2 = env
-            .bind(leftName -> ((typeToTypeInfo(l), lelt.m, lelt.v)))
-            .bind(rightName -> ((typeToTypeInfo(r), relt.m, relt.v)))
+            .bind(leftName -> ((typeToTypeInfo(l), leltVar.load.m, leltVar.load.v)))
+            .bind(rightName -> ((typeToTypeInfo(r), reltVar.load.m, reltVar.load.v)))
 
           def compare(lelt: TypedTriplet[l.type], relt: TypedTriplet[r.type]): Code[Int] = {
             val compt = emitIR(compIR, env2)
             Code(
-              setLElt(lelt),
-              setRElt(relt),
+              leltVar := lelt,
+              reltVar := relt,
               compt.setup,
               compt.m.orEmpty(Code._fatal("ArrayLeftJoinDistinct: comp can't be missing")),
               coerce[Int](compt.v))
@@ -763,8 +763,8 @@ object EmitStream {
           ).map { case (lelt, relt) =>
               val joint = emitIR(joinIR, env2)
               EmitTriplet(Code(
-                setLElt(lelt),
-                setRElt(relt),
+                leltVar := lelt,
+                reltVar := relt,
                 joint.setup), joint.m, joint.v) }
 
         case ArrayScan(childIR, zeroIR, accName, eltName, bodyIR) =>
@@ -772,19 +772,19 @@ object EmitStream {
           val a = zeroIR.pType
           implicit val eP = TypedTriplet.pack(e)
           implicit val aP = TypedTriplet.pack(a)
-          val (setElt, elt) = eP.newFields(fb, "scan_elt")
-          val (setAcc, acc) = aP.newFields(fb, "scan_acc")
+          val eltVar = eP.newFields(fb, "scan_elt")
+          val accVar = aP.newFields(fb, "scan_acc")
           val zerot = emitIR(zeroIR, env)
           val bodyt = emitIR(bodyIR, env
-            .bind(accName -> ((typeToTypeInfo(a), acc.m, acc.v)))
-            .bind(eltName -> ((typeToTypeInfo(e), elt.m, elt.v))))
+            .bind(accName -> ((typeToTypeInfo(a), accVar.load.m, accVar.load.v)))
+            .bind(eltName -> ((typeToTypeInfo(e), eltVar.load.m, eltVar.load.v))))
           emitStream(childIR, env).scan(TypedTriplet.missing(a))(
             TypedTriplet(a, zerot),
             (eltt, acc, k) => {
               val elt = TypedTriplet(e, eltt)
               Code(
-                setElt(elt),
-                setAcc(acc),
+                eltVar := elt,
+                accVar := acc,
                 k(TypedTriplet(a, bodyt)))
             }).map(_.untyped)
 
@@ -795,9 +795,9 @@ object EmitStream {
           val resultPType = result.pType
           implicit val eP = TypedTriplet.pack(producerElementPType)
           implicit val aP = TypedTriplet.pack(resultPType)
-          val (eltm, eltv) = eP.newFields(fb, "aggscan_elt")
-          val (postm, postv) = aP.newFields(fb, "aggscan_new_elt")
-          val bodyEnv = env.bind(name -> ((typeToTypeInfo(producerElementPType), eltm, eltv)))
+          val elt = eP.newFields(fb, "aggscan_elt")
+          val post = aP.newFields(fb, "aggscan_new_elt")
+          val bodyEnv = env.bind(name -> ((typeToTypeInfo(producerElementPType), elt.load.m, elt.load.v)))
           val cInit = emitter.emit(init, env, er, Some(newContainer))
           val seqPerElt = emitter.emit(seqs, bodyEnv, er, Some(newContainer))
           val postt = emitter.emit(result, bodyEnv, er, Some(newContainer))
@@ -806,11 +806,11 @@ object EmitStream {
             .map[EmitTriplet] { eltt =>
               EmitTriplet(
                 Code(
-                  TypedTriplet(producerElementPType, eltt).storeTo(eltm, eltv),
-                  TypedTriplet(resultPType, postt).storeTo(postm, postv),
+                  elt := TypedTriplet(producerElementPType, eltt),
+                  post := TypedTriplet(resultPType, postt),
                   seqPerElt.setup),
-                postm,
-                postv)
+                post.load.m,
+                post.load.v)
             }.addSetup(
             _ => Code(aggSetup, cInit.setup),
             aggCleanup
@@ -839,19 +839,19 @@ object EmitStream {
           val a = postAggIR.pType
           implicit val eP = TypedTriplet.pack(e)
           implicit val aP = TypedTriplet.pack(a)
-          val (setElt, elt) = eP.newFields(fb, "aggscan_elt")
-          val (setNewElt, newElt) = aP.newFields(fb, "aggscan_new_elt")
-          val bodyEnv = env.bind(name -> ((typeToTypeInfo(e), elt.m, elt.v)))
+          val eltVar = eP.newFields(fb, "aggscan_elt")
+          val newEltVar = aP.newFields(fb, "aggscan_new_elt")
+          val bodyEnv = env.bind(name -> ((typeToTypeInfo(e), eltVar.load.m, eltVar.load.v)))
           val init = emitter.emit(initIR, env, er, Some(newContainer))
           val seqPerElt = emitter.emit(seqPerEltIR, bodyEnv, er, Some(newContainer))
           val postt = emitter.emit(postAggIR, bodyEnv, er, Some(newContainer))
 
           emitStream(childIR, env)
             .contMap[EmitTriplet]{ (eltt, k) => Code(
-              setElt(TypedTriplet(e, eltt)),
-              setNewElt(TypedTriplet(a, postt)),
+              eltVar := TypedTriplet(e, eltt),
+              newEltVar := TypedTriplet(a, postt),
               seqPerElt.setup,
-              k(EmitTriplet(Code._empty, newElt.m, newElt.v)))
+              k(EmitTriplet(Code._empty, newEltVar.load.m, newEltVar.load.v)))
             }
             .addSetup(
               _ => Code(aggSetup, init.setup),

@@ -4,25 +4,34 @@ import is.hail.asm4s._
 import is.hail.expr.ir
 import is.hail.expr.ir.EmitTriplet
 import is.hail.expr.types.physical.PType
+import org.objectweb.asm.tree.InsnNode
+import org.objectweb.asm.Opcodes
 
 object ParameterPack {
   implicit val unit: ParameterPack[Unit] = new ParameterPack[Unit] {
     def push(u: Unit): Code[Unit] = Code._empty
-    def newLocals(mb: MethodBuilder): ParameterStore[Unit] = ParameterStore.unit
-    def newFields(fb: FunctionBuilder[_], name: String): (Unit => Code[Unit], Unit) =
-      (_ => Code._empty, ())
+    def newLocals(mb: MethodBuilder, name: String = null): ParameterStore[Unit] = ParameterStore.unit
+    def newFields(fb: FunctionBuilder[_], name: String): ParameterStore[Unit] = ParameterStore.unit
   }
 
   implicit def code[T](implicit tti: TypeInfo[T]): ParameterPack[Code[T]] =
     new ParameterPack[Code[T]] {
       def push(v: Code[T]): Code[Unit] = coerce[Unit](v)
-      def newLocals(mb: MethodBuilder): ParameterStore[Code[T]] = {
-        val x = mb.newLocal(tti)
-        ParameterStore(x.storeInsn, x.load())
+      def newLocals(mb: MethodBuilder, name: String = null): ParameterStore[Code[T]] = {
+        val x = mb.newLocal(name)(tti)
+        new ParameterStore[Code[T]] {
+          def storeInsn: Code[Unit] = x.storeInsn
+          def store(a: Code[T]): Code[Unit] = x.store(a)
+          def load: Code[T] = x.load()
+        }
       }
-      def newFields(fb: FunctionBuilder[_], name: String): (Code[T] => Code[Unit], Code[T]) = {
+      def newFields(fb: FunctionBuilder[_], name: String): ParameterStore[Code[T]] = {
         val x = fb.newField(name)(tti)
-        (x := _, x.load)
+        new ParameterStore[Code[T]] {
+          def storeInsn: Code[Unit] = throw new UnsupportedOperationException("storeInsn not supported for fields")
+          def store(a: Code[T]): Code[Unit] = x.store(a)
+          def load: Code[T] = x.load()
+        }
       }
     }
 
@@ -31,16 +40,15 @@ object ParameterPack {
     bp: ParameterPack[B]
   ): ParameterPack[(A, B)] = new ParameterPack[(A, B)] {
     def push(v: (A, B)): Code[Unit] = Code(ap.push(v._1), bp.push(v._2))
-    def newLocals(mb: MethodBuilder): ParameterStore[(A, B)] = {
-      val as = ap.newLocals(mb)
-      val bs = bp.newLocals(mb)
-      ParameterStore(Code(bs.store, as.store), (as.load, bs.load))
-    }
-    def newFields(fb: FunctionBuilder[_], name: String): (((A, B)) => Code[Unit], (A, B)) = {
-      val (setA, a) = ap.newFields(fb, name + "_1")
-      val (setB, b) = bp.newFields(fb, name + "_2")
-      ({ case (a, b) => Code(setA(a), setB(b)) }, (a, b))
-    }
+    def newLocals(mb: MethodBuilder, name: String = null): ParameterStore[(A, B)] =
+      if (name == null)
+        ParameterStore.tuple(ap.newLocals(mb), bp.newLocals(mb))
+      else
+        ParameterStore.tuple(ap.newLocals(mb, name + "_1"),
+                             bp.newLocals(mb, name + "_2"))
+    def newFields(fb: FunctionBuilder[_], name: String): ParameterStore[(A, B)] =
+      ParameterStore.tuple(ap.newFields(fb, name + "_1"),
+                           bp.newFields(fb, name + "_2"))
   }
 
   implicit def tuple3[A, B, C](
@@ -48,61 +56,104 @@ object ParameterPack {
     bp: ParameterPack[B],
     cp: ParameterPack[C]
   ): ParameterPack[(A, B, C)] = new ParameterPack[(A, B, C)] {
-    def push(v: (A, B, C)): Code[Unit] = Code(ap.push(v._1), bp.push(v._2), cp.push(v._3))
-    def newLocals(mb: MethodBuilder): ParameterStore[(A, B, C)] = {
-      val as = ap.newLocals(mb)
-      val bs = bp.newLocals(mb)
-      val cs = cp.newLocals(mb)
-      ParameterStore(Code(cs.store, bs.store, as.store), (as.load, bs.load, cs.load))
-    }
-    def newFields(fb: FunctionBuilder[_], name: String): (((A, B, C)) => Code[Unit], (A, B, C)) = {
-      val (setA, a) = ap.newFields(fb, name + "_1")
-      val (setB, b) = bp.newFields(fb, name + "_2")
-      val (setC, c) = cp.newFields(fb, name + "_3")
-      ({ case (a, b, c) => Code(setA(a), setB(b), setC(c)) }, (a, b, c))
-    }
+    def push(v: (A, B, C)): Code[Unit] =
+      Code(ap.push(v._1), bp.push(v._2), cp.push(v._3))
+    def newLocals(mb: MethodBuilder, name: String = null): ParameterStore[(A, B, C)] =
+      if (name == null)
+        ParameterStore.tuple(ap.newLocals(mb), bp.newLocals(mb), cp.newLocals(mb))
+      else
+        ParameterStore.tuple(ap.newLocals(mb, name + "_1"),
+                             bp.newLocals(mb, name + "_2"),
+                             cp.newLocals(mb, name + "_3"))
+    def newFields(fb: FunctionBuilder[_], name: String): ParameterStore[(A, B, C)] =
+      ParameterStore.tuple(ap.newFields(fb, name + "_1"),
+                           bp.newFields(fb, name + "_2"),
+                           cp.newFields(fb, name + "_3"))
   }
 
   def array(pps: IndexedSeq[ParameterPack[_]]): ParameterPack[IndexedSeq[_]] = new ParameterPack[IndexedSeq[_]] {
-    override def push(a: IndexedSeq[_]): Code[Unit] = pps.zip(a).foldLeft(Code._empty[Unit]) { case (acc, (pp, v)) => Code(acc, pp.pushAny(v)) }
+    override def push(a: IndexedSeq[_]): Code[Unit] =
+      pps.zip(a).foldLeft(Code._empty[Unit]) { case (acc, (pp, v)) =>
+        Code(acc, pp.pushAny(v)) }
 
-    override def newLocals(mb: MethodBuilder): ParameterStore[IndexedSeq[_]] = {
-      val subStores = pps.map(_.newLocals(mb))
-      val store = subStores.map(_.store).fold(Code._empty[Unit]) { case (acc, c) => Code(c, acc) } // order of c and acc is important
-      ParameterStore(
-        store,
-        subStores.map(_.load)
-      )
+    override def newLocals(mb: MethodBuilder, name: String = null): ParameterStore[IndexedSeq[_]] =
+      if (name == null)
+        ParameterStore.array(pps.map(_.newLocals(mb)))
+      else {
+        val locals = pps.zipWithIndex.map { case (pp, i) =>
+          pp.newLocals(mb, name + s"_$i")
+        }
+        ParameterStore.array(locals)
+      }
+
+    def newFields(fb: FunctionBuilder[_], name: String): ParameterStore[IndexedSeq[_]] = {
+      val fields = pps.zipWithIndex.map { case (pp, i) =>
+        pp.newFields(fb, name + s"_$i")
+      }
+      ParameterStore.array(fields)
     }
   }
 
   def let[A: ParameterPack, X](mb: MethodBuilder, a0: A)(k: A => Code[X]): Code[X] = {
     val ap = implicitly[ParameterPack[A]]
     val as = ap.newLocals(mb)
-    Code(ap.push(a0), as.store, k(as.load))
+    Code(ap.push(a0), as.storeInsn, k(as.load))
   }
-}
-
-object ParameterStore {
-  def unit: ParameterStore[Unit] = ParameterStore(Code._empty, ())
 }
 
 trait ParameterPack[A] {
   def push(a: A): Code[Unit]
   def pushAny(a: Any): Code[Unit] = push(a.asInstanceOf[A])
-  def newLocals(mb: MethodBuilder): ParameterStore[A]
-  def newFields(fb: FunctionBuilder[_], name: String): (A => Code[Unit], A)
+  def newLocals(mb: MethodBuilder, name: String = null): ParameterStore[A]
+  def newFields(fb: FunctionBuilder[_], name: String): ParameterStore[A]
 }
 
-case class ParameterStore[A](
-  store: Code[Unit],
-  load: A
-) {
-  def :=(v: A)(implicit p: ParameterPack[A]): Code[Unit] =
-    Code(p.push(v), store)
+object ParameterStore {
+  def unit: ParameterStore[Unit] = new ParameterStore[Unit] {
+    def storeInsn: Code[Unit] = Code._empty
+    def store(v: Unit): Code[Unit] = Code._empty
+    def load: Unit = ()
+  }
 
-  def :=(cc: JoinPoint.CallCC[A]): Code[Unit] =
-    Code(cc.code, store)
+  def tuple[A, B](
+    pa: ParameterStore[A],
+    pb: ParameterStore[B]
+  ): ParameterStore[(A, B)] = new ParameterStore[(A, B)] {
+    def load: (A, B) = (pa.load, pb.load)
+    def store(v: (A, B)): Code[Unit] = v match {
+      case (a, b) => Code(pa.store(a), pb.store(b))
+    }
+    def storeInsn: Code[Unit] = Code(pb.storeInsn, pa.storeInsn)
+  }
+
+  def tuple[A, B, C](
+    pa: ParameterStore[A],
+    pb: ParameterStore[B],
+    pc: ParameterStore[C]
+  ): ParameterStore[(A, B, C)] = new ParameterStore[(A, B, C)] {
+    def load: (A, B, C) = (pa.load, pb.load, pc.load)
+    def store(v: (A, B, C)): Code[Unit] = v match {
+      case (a, b, c) => Code(pa.store(a), pb.store(b), pc.store(c))
+    }
+    def storeInsn: Code[Unit] = Code(pc.storeInsn, pb.storeInsn, pa.storeInsn)
+  }
+
+  def array(pss: IndexedSeq[ParameterStore[_]]): ParameterStore[IndexedSeq[_]] = new ParameterStore[IndexedSeq[_]] {
+    def load: IndexedSeq[_] = pss.map(_.load)
+    def store(vs: IndexedSeq[_]): Code[Unit] =
+      pss.zip(vs).foldLeft(Code._empty[Unit]) { case (acc, (ps, v)) => Code(acc, ps.storeAny(v)) }
+    def storeInsn: Code[Unit] = pss.map(_.storeInsn).fold(Code._empty[Unit]) { case (acc, c) => Code(c, acc) } // order of c and acc is important
+  }
+}
+
+abstract class ParameterStore[A] {
+  private[joinpoint] def storeInsn: Code[Unit]
+  def load: A
+  def store(v: A): Code[Unit]
+
+  def :=(v: A): Code[Unit] = store(v)
+  def :=(cc: JoinPoint.CallCC[A]): Code[Unit] = Code(cc.code, storeInsn)
+  def storeAny(v: Any): Code[Unit] = store(v.asInstanceOf[A])
 }
 
 object TypedTriplet {
@@ -112,28 +163,35 @@ object TypedTriplet {
   def missing(t: PType): TypedTriplet[t.type] =
     TypedTriplet(t, EmitTriplet(Code._empty, true, ir.defaultValue(t)))
 
+  def parameterStore[A](psm: ParameterStore[Code[Boolean]], psv: ParameterStore[Code[A]], defaultValue: Code[A]): ParameterStore[TypedTriplet[A]] = new ParameterStore[TypedTriplet[A]] {
+    def load: TypedTriplet[A] = TypedTriplet(Code._empty, psm.load, psv.load)
+    def store(trip: TypedTriplet[A]): Code[Unit] = Code(
+      trip.setup,
+      trip.m.mux(
+        Code(psm.store(true), psv.store(defaultValue)),
+        Code(psm.store(false), psv.storeAny(trip.v))))
+    def storeInsn: Code[Unit] = ParameterStore.tuple(psv, psm).storeInsn
+  }
+
   class Pack[P] private[joinpoint](t: PType) extends ParameterPack[TypedTriplet[P]] {
+    val ppm = implicitly[ParameterPack[Code[Boolean]]]
+    val ppv = ParameterPack.code(ir.typeToTypeInfo(t)).asInstanceOf[ParameterPack[Code[P]]]
     def push(trip: TypedTriplet[P]): Code[Unit] = Code(
       trip.setup,
       trip.m.mux(
         Code(coerce[Unit](ir.defaultValue(t)), coerce[Unit](const(true))),
         Code(coerce[Unit](trip.v), coerce[Unit](const(false)))))
 
-    def newLocals(mb: MethodBuilder): ParameterStore[TypedTriplet[P]] = {
-      val m = mb.newLocal[Boolean]("m")
-      val v = mb.newLocal("v")(ir.typeToTypeInfo(t))
-      ParameterStore(Code(m.storeInsn, v.storeInsn), TypedTriplet(Code._empty, m, v))
+    def newLocals(mb: MethodBuilder, name: String = null): ParameterStore[TypedTriplet[P]] = {
+      val psm = ppm.newLocals(mb, if (name == null) "m" else s"${name}_missing")
+      val psv = ppv.newLocals(mb, if (name == null) "v" else name)
+      parameterStore[P](psm, psv, coerce[P](ir.defaultValue(t)))
     }
 
-    def newFields(fb: FunctionBuilder[_], name: String): ((TypedTriplet[P] => Code[Unit]), TypedTriplet[P]) = {
-      val m = fb.newField[Boolean](name + "_missing")
-      val v = fb.newField(name)(ir.typeToTypeInfo(t))
-      def set(trip: TypedTriplet[P]): Code[Unit] =
-        Code(trip.setup,
-          trip.m.mux(
-            m := true,
-            Code(m := false, v.storeAny(trip.v))))
-      (set, TypedTriplet(Code._empty, m, v))
+    def newFields(fb: FunctionBuilder[_], name: String): ParameterStore[TypedTriplet[P]] = {
+      val psm = ppm.newFields(fb, if (name == null) "m" else s"${name}_missing")
+      val psv = ppv.newFields(fb, if (name == null) "v" else name)
+      parameterStore[P](psm, psv, coerce[P](ir.defaultValue(t)))
     }
   }
 
