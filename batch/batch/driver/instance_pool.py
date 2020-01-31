@@ -458,6 +458,7 @@ FROM ready_cores;
             if e.resp['status'] == '404':
                 await self.remove_instance(instance, 'does_not_exist')
                 return
+            raise
 
         # PROVISIONING, STAGING, RUNNING, STOPPING, TERMINATED
         gce_state = spec['status']
