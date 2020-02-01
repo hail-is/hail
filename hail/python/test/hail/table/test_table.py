@@ -843,8 +843,8 @@ class Tests(unittest.TestCase):
         shutil.rmtree("./blah", )
         shutil.rmtree("./blah2")
 
-        mt1.entries().union(mt2.entries()).write("./blah")
-        mt1.entries().explode("PL").union(mt2.entries().explode("PL")).write('./blah2')
+        mt1.entries().join(mt2.entries()).write("./blah")
+        mt1.entries().explode("PL").join(mt2.entries().explode("PL")).write('./blah2')
 
         shutil.rmtree("./blah", )
         shutil.rmtree("./blah2")
