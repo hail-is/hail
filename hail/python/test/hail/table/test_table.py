@@ -836,7 +836,10 @@ class Tests(unittest.TestCase):
     def test_union_with_nulls(self):
         mt1 = hl.import_vcf(resource('sample.vcf'), array_elements_required=True)
         mt2 = hl.import_vcf(resource('sample_missing_pl2.vcf'), array_elements_required=False)
-        mt1.entries().union(mt2.entries().explode('PL')).count()
+        ir = mt1.entries().union(mt2.entries())
+        ir.count()
+        mt1.entries().explode("PL").union(mt2.entries().explode("PL")).count()
+        print(f"THE IR! {ir._tir}")
         print("MT1:")
         mt1.entries().explode('PL').show()
         print("MT2:")
