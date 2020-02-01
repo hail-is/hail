@@ -838,9 +838,17 @@ class Tests(unittest.TestCase):
         mt2 = hl.import_vcf(resource('sample_missing_pl2.vcf'), array_elements_required=False)
         mt1.entries().union(mt2.entries()).write("./blah")
         mt1.entries().explode("PL").union(mt2.entries().explode("PL")).write('./blah2')
+
         import shutil
         shutil.rmtree("./blah", )
         shutil.rmtree("./blah2")
+
+        mt1.entries().union(mt2.entries()).write("./blah")
+        mt1.entries().explode("PL").union(mt2.entries().explode("PL")).write('./blah2')
+
+        shutil.rmtree("./blah", )
+        shutil.rmtree("./blah2")
+
         print("MT1:")
         mt1.entries().explode('PL').show()
         print("MT2:")
