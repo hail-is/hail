@@ -1438,17 +1438,25 @@ private class Emit(
           val LDA = M
           val LDB = K
           val LDC = M
-          
+          val timeSave = mb.newField[Long]
           val elementByteSize = lPType.elementType.byteSize
 
           val multiplyViaDGEMM = Code(
+            timeSave := Code.currentTimeMillis(),
             shapeSetup,
+            Code._println((timeSave -Code.currentTimeMillis()).toS),
+
             leftColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * K * elementByteSize),
             rightColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", K * N * elementByteSize),
             answerColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * N * elementByteSize),
 
+            Code._println((timeSave -Code.currentTimeMillis()).toS),
+
+
             LinalgCodeUtils.copyRowMajorToColumnMajor(lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, M, K, lPType.elementType, mb),
             LinalgCodeUtils.copyRowMajorToColumnMajor(rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, K, N, rPType.elementType, mb),
+
+            Code._println((timeSave -Code.currentTimeMillis()).toS),
 
             lPType.elementType match {
               case PFloat32(_) =>
@@ -1484,6 +1492,7 @@ private class Emit(
                   LDC.toI
                 )
             },
+            Code._println((timeSave -Code.currentTimeMillis()).toS),
             answerRowMajorPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
             outputPType.data.pType.stagedInitialize(answerRowMajorPArrayAddress, (M * N).toI),
             LinalgCodeUtils.copyColumnMajorToRowMajor(answerColumnMajorAddress, outputPType.data.pType.firstElementOffset(answerRowMajorPArrayAddress, (M * N).toI), M, N, lPType.elementType, mb),
@@ -2366,7 +2375,7 @@ abstract class NDArrayEmitter(
         srvb.addIRIntermediate(outputElementPType)(storeElement),
         srvb.advance()
       )
-    idxVars.zipWithIndex.foldRight(body) { case((dimVar, dimIdx), innerLoops) =>
+    val loops = idxVars.zipWithIndex.foldRight(body) { case((dimVar, dimIdx), innerLoops) =>
       Code(
         dimVar := 0L,
         Code.whileLoop(dimVar < outputShapeVariables(dimIdx),
@@ -2375,5 +2384,9 @@ abstract class NDArrayEmitter(
         )
       )
     }
+    val eVti = typeToTypeInfo(TVoid)
+    val innerMethod = mb.fb.newMethod(eVti)
+    innerMethod.emit(loops)
+    innerMethod.invoke()
   }
 }
