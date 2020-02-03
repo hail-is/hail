@@ -41,8 +41,8 @@ def parser():
     )
     job_parser = subparsers.add_parser(
         'job',
-        help='Get pod status for a job',
-        description='Get pod status for a job'
+        help='Get the status and specification for a job',
+        description='Get the status and specification for a job'
     )
     wait_parser = subparsers.add_parser(
         'wait',
