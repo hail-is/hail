@@ -953,6 +953,18 @@ class PruneSuite extends HailSuite {
     )
   }
 
+  @Test def testMatrixUnionRowsRebuild() {
+    val mat2 = MatrixLiteral(mType.copy(colKey = FastIndexedSeq()), mat.tl)
+    checkRebuild(
+      MatrixUnionRows(FastIndexedSeq(mat, MatrixMapCols(mat2, Ref("sa", mat2.typ.colType), Some(FastIndexedSeq("ck"))))),
+      mat.typ.copy(colKey = FastIndexedSeq()),
+      (_: BaseIR, r: BaseIR) => {
+        r.asInstanceOf[MatrixUnionRows].children.forall {
+          _.typ.colKey.isEmpty
+        }
+      })
+  }
+
   @Test def testMatrixAnnotateRowsTableRebuild() {
     val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx), ctx)
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", product=false)
