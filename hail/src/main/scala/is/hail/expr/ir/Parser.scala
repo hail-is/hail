@@ -1370,7 +1370,7 @@ object IRParser {
       case "MatrixMapCols" =>
         val newKey = opt(it, string_literals)
         val child = matrix_ir(env)(it)
-        val newCol = ir_value_expr(env.withRefMap(child.typ.refMap))(it)
+        val newCol = ir_value_expr(env.withRefMap(child.typ.refMap) + ("n_rows" -> TInt64()))(it)
         MatrixMapCols(child, newCol, newKey.map(_.toFastIndexedSeq))
       case "MatrixKeyRowsBy" =>
         val key = identifiers(it)
@@ -1379,7 +1379,7 @@ object IRParser {
         MatrixKeyRowsBy(child, key, isSorted)
       case "MatrixMapRows" =>
         val child = matrix_ir(env)(it)
-        val newRow = ir_value_expr(env.withRefMap(child.typ.refMap))(it)
+        val newRow = ir_value_expr(env.withRefMap(child.typ.refMap) + ("n_cols" -> TInt32()))(it)
         MatrixMapRows(child, newRow)
       case "MatrixMapEntries" =>
         val child = matrix_ir(env)(it)
