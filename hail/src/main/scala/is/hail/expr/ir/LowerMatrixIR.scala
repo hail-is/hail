@@ -769,16 +769,12 @@ object LowerMatrixIR {
           val sortedCols = if (colKey.isEmpty)
             '__cols_and_globals (colsField)
           else
-            irRange(0, irArrayLen('__cols_and_globals (colsField)), 1)
-              .map {
-                'i ~> let(__cols_element = '__cols_and_globals (colsField)('i)) {
-                  makeStruct(
-                    // key struct
-                    '_1 -> '__cols_element.selectFields(colKey: _*),
-                    '_2 -> '__cols_element)
-                }
-              }
-              .sort(true, onKey = true)
+            '__cols_and_globals (colsField).map { '__cols_element ~>
+              makeStruct(
+                // key struct
+                '_1 -> '__cols_element.selectFields(colKey: _*),
+                '_2 -> '__cols_element)
+            }.sort(true, onKey = true)
               .map {
                 'elt ~> 'elt ('_2)
               }
