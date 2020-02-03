@@ -1,3 +1,5 @@
+import json
+import yaml
 import aiohttp
 
 
@@ -25,3 +27,11 @@ def bool_string_to_bool(bool_string):
     if bool_string in ['False', 'false', 'f']:
         return False
     raise ValueError("Input could not be resolved to a bool")
+
+
+def make_formatter(name):
+    if name == "json":
+        return lambda s: json.dumps(s, indent=2)
+    if name == "yaml":
+        return yaml.dump
+    raise ValueError(f'unknown format {name}')

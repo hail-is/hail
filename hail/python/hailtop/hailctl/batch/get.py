@@ -1,7 +1,4 @@
-import json
-import yaml
-
-from .batch_cli_utils import get_batch_if_exists
+from .batch_cli_utils import get_batch_if_exists, make_formatter
 
 
 def init_parser(parser):
@@ -18,12 +15,4 @@ def main(args, pass_through_args, client):  # pylint: disable=unused-argument
 
     batch = maybe_batch
 
-    formatter = None
-    if args.o == "json":
-        def _formatter(s):
-            return json.dumps(s, indent=2)
-        formatter = _formatter
-    elif args.o == "yaml":
-        formatter = yaml.dump
-
-    print(formatter(batch.status()))
+    print(make_formatter(args.o)(batch.status()))
