@@ -295,9 +295,15 @@ abstract class PType extends Serializable with Requiredness {
       case PCanonicalInterval(p, r) =>
         val ti = t.asInstanceOf[TInterval]
         PCanonicalInterval(p.subsetTo(ti.pointType), r)
-      case _ =>
-        assert(virtualType == t)
-        this
+      case _ => {
+        if(t != virtualType && virtualType.isOfType(t)) {
+          PType.canonical(virtualType.deepOptional())
+        } else {
+          assert(t == virtualType)
+          this
+        }
+      }
+
     }
   }
 
