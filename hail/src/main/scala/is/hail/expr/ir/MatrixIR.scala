@@ -718,11 +718,13 @@ case class MatrixRowsHead(child: MatrixIR, n: Long) extends MatrixIR {
   val typ: MatrixType = child.typ
 
   override lazy val partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts.map { pc =>
-    val prefixSums = pc.iterator.scanLeft(0L)(_ + _).drop(1)
-    pc.iterator.zip(prefixSums)
-      .takeWhile { case (prefixSum, _) => prefixSum < n }
-      .map { case (prefixSum, value) => if (prefixSum + value > n) value - prefixSum else value }
-      .toArray
+    val prefixSums = pc.iterator.scanLeft(0L)(_ + _)
+    val newPCs = pc.iterator.zip(prefixSums)
+      .takeWhile { case (_, prefixSum) => prefixSum < n }
+      .map { case (value, prefixSum) => if (prefixSum + value > n) n - prefixSum else value }
+      .toFastIndexedSeq
+    assert(newPCs.sum == n || pc.sum < n)
+    newPCs
   }
 
   lazy val children: IndexedSeq[BaseIR] = Array(child)
@@ -763,15 +765,6 @@ case class MatrixRowsTail(child: MatrixIR, n: Long) extends MatrixIR {
   val typ: MatrixType = child.typ
 
   lazy val children: IndexedSeq[BaseIR] = Array(child)
-
-  override lazy val partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts.map { pc =>
-    val prefixSums = pc.reverseIterator.scanLeft(0L)(_ + _).drop(1)
-    pc.reverseIterator.zip(prefixSums)
-      .takeWhile { case (prefixSum, _) => prefixSum <= n }
-      .map { case (prefixSum, value) => if (prefixSum + value > n) value - prefixSum else value }
-      .toArray
-      .reverse
-  }
 
   override def copy(newChildren: IndexedSeq[BaseIR]): MatrixRowsTail = {
     val IndexedSeq(newChild: MatrixIR) = newChildren
