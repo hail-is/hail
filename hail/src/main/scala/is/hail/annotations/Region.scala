@@ -210,6 +210,14 @@ object Region {
     case _: PFloat64 => loadDouble
   }
 
+  def loadPrimitiveUnstaged(typ: PType): Long => AnyVal = typ.fundamentalType match {
+    case _: PBoolean => loadBoolean
+    case _: PInt32 => loadDouble
+    case _: PInt64 => loadLong
+    case _: PFloat32 => loadFloat
+    case _: PFloat64 => loadDouble
+  }
+
   def storePrimitive(typ: PType, dest: Code[Long]): Code[_] => Code[Unit] = typ.fundamentalType match {
     case _: PBoolean => v => storeBoolean(dest, coerce[Boolean](v))
     case _: PInt32 => v => storeInt(dest, coerce[Int](v))

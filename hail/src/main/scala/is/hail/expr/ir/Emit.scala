@@ -1452,9 +1452,13 @@ private class Emit(
 
             Code._println((timeSave -Code.currentTimeMillis()).toS),
 
+            Code.invokeScalaObject[Long, Long, Long, Long, String, Unit](LinalgCodeUtils.getClass,
+              method="copyRowMajorToColumnMajor", lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, M, K, lPType.elementType.toString),
+            Code.invokeScalaObject[Long, Long, Long, Long, String, Unit](LinalgCodeUtils.getClass,
+              method="copyRowMajorToColumnMajor", rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, M, K, rPType.elementType.toString),
 
-            LinalgCodeUtils.copyRowMajorToColumnMajor(lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, M, K, lPType.elementType, mb),
-            LinalgCodeUtils.copyRowMajorToColumnMajor(rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, K, N, rPType.elementType, mb),
+            //LinalgCodeUtils.copyRowMajorToColumnMajor(lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, M, K, lPType.elementType, mb),
+            //LinalgCodeUtils.copyRowMajorToColumnMajor(rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, K, N, rPType.elementType, mb),
 
             Code._println((timeSave -Code.currentTimeMillis()).toS),
 
