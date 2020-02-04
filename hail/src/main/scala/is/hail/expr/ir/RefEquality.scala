@@ -54,3 +54,21 @@ class Memo[T] private(val m: mutable.HashMap[RefEquality[BaseIR], T]) {
   def delete(ir: RefEquality[BaseIR]): Unit = m -= ir
 }
 
+
+object HasIRSharing {
+  def apply(ir: BaseIR): Boolean = {
+    val m = mutable.HashSet.empty[RefEquality[BaseIR]]
+
+    def recur(x: BaseIR): Boolean = {
+      val re = RefEquality(x)
+      if (m.contains(re))
+        true
+      else {
+        m.add(re)
+        x.children.exists(recur)
+      }
+    }
+
+    recur(ir)
+  }
+}

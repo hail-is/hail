@@ -3113,4 +3113,11 @@ class IRSuite extends HailSuite {
 
     assertEvalsTo(triangleSum, FastIndexedSeq(5 -> TInt32()), 15 + 10 + 5)
   }
+
+  @Test def testHasIRSharing(): Unit = {
+    val r = Ref("x", TInt32())
+    val ir1 = MakeTuple.ordered(FastSeq(I64(1), r, r, I32(1)))
+    assert(HasIRSharing(ir1))
+    assert(!HasIRSharing(ir1.deepCopy()))
+  }
 }
