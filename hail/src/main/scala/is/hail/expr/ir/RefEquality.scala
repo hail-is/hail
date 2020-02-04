@@ -60,12 +60,11 @@ object HasIRSharing {
     val m = mutable.HashSet.empty[RefEquality[BaseIR]]
 
     def recur(x: BaseIR): Boolean = {
-      println(s"$x: $m")
       val re = RefEquality(x)
       if (m.contains(re))
         true
       else {
-        m.add(RefEquality(x))
+        m.add(re)
         x.children.exists(recur)
       }
     }
