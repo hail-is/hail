@@ -717,6 +717,14 @@ case class MatrixRowsHead(child: MatrixIR, n: Long) extends MatrixIR {
   require(n >= 0)
   val typ: MatrixType = child.typ
 
+  override lazy val partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts.map { pc =>
+    val prefixSums = pc.iterator.scanLeft(0L)(_ + _).drop(1)
+    pc.iterator.zip(prefixSums)
+      .takeWhile { case (prefixSum, value) => prefixSum + value <= n }
+      .map { case (prefixSum, value) => if (prefixSum + value > n) value - prefixSum else value }
+      .toArray
+  }
+
   lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): MatrixRowsHead = {
@@ -755,6 +763,15 @@ case class MatrixRowsTail(child: MatrixIR, n: Long) extends MatrixIR {
   val typ: MatrixType = child.typ
 
   lazy val children: IndexedSeq[BaseIR] = Array(child)
+
+  override lazy val partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts.map { pc =>
+    val prefixSums = pc.reverseIterator.scanLeft(0L)(_ + _).drop(1)
+    pc.reverseIterator.zip(prefixSums)
+      .takeWhile { case (prefixSum, value) => prefixSum + value <= n }
+      .map { case (prefixSum, value) => if (prefixSum + value > n) value - prefixSum else value }
+      .toArray
+      .reverse
+  }
 
   override def copy(newChildren: IndexedSeq[BaseIR]): MatrixRowsTail = {
     val IndexedSeq(newChild: MatrixIR) = newChildren

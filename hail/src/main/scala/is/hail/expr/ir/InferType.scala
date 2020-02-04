@@ -198,6 +198,7 @@ object InferType {
         val fd = t.fields(t.fieldIndex(idx)).typ
         fd.setRequired(t.required && fd.required)
       case TableCount(_) => TInt64()
+      case MatrixCount(_) => TTuple(TInt64(), TInt32())
       case TableAggregate(child, query) =>
         query.typ
       case MatrixAggregate(child, query) =>

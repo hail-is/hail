@@ -171,6 +171,7 @@ object Children {
     case MatrixMultiWrite(children, _) => children
     // from TableIR
     case TableCount(child) => Array(child)
+    case MatrixCount(child) => Array(child)
     case TableGetGlobals(child) => Array(child)
     case TableCollect(child) => Array(child)
     case TableAggregate(child, query) => Array(child, query)

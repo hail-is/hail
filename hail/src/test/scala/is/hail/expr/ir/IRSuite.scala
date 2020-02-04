@@ -2561,6 +2561,7 @@ class IRSuite extends HailSuite {
       invoke("toFloat64", TFloat64(), i), // Apply
       Literal(TStruct("x" -> TInt32()), Row(1)),
       TableCount(table),
+      MatrixCount(mt),
       TableGetGlobals(table),
       TableCollect(table),
       TableAggregate(table, MakeStruct(Seq("foo" -> count))),
@@ -3079,7 +3080,7 @@ class IRSuite extends HailSuite {
     val lit = Literal(t, Row(1L))
 
     assert(IRParser.parseType(t.parsableString()) == t)
-    assert(IRParser.parse_value_ir(Pretty(lit)) == lit)
+    assert(IRParser.parse_value_ir(Pretty(lit, elideLiterals = false)) == lit)
   }
 
   @Test def regressionTestUnifyBug(): Unit = {

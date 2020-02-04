@@ -253,6 +253,9 @@ object Copy {
         MatrixWrite(newChildren(0).asInstanceOf[MatrixIR], writer)
       case MatrixMultiWrite(_, writer) =>
         MatrixMultiWrite(newChildren.map(_.asInstanceOf[MatrixIR]), writer)
+      case MatrixCount(_) =>
+        assert(newChildren.length == 1)
+        MatrixCount(newChildren(0).asInstanceOf[MatrixIR])
       // from TableIR
       case TableCount(_) =>
         assert(newChildren.length == 1)

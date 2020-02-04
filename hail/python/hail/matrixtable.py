@@ -2424,7 +2424,8 @@ class MatrixTable(ExprContainer):
         :obj:`int`, :obj:`int`
             Number of rows, number of cols.
         """
-        return (self.count_rows(), self.count_cols())
+        ir = MatrixCount(self._mir)
+        return Env.backend().execute(ir)
 
     @typecheck_method(output=str,
                       overwrite=bool,
