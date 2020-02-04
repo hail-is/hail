@@ -13,7 +13,6 @@ import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.utils._
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 import scala.language.{existentials, postfixOps}
 
 object Emit {
@@ -21,12 +20,8 @@ object Emit {
 
   type F = (Code[Boolean], Code[_]) => Code[Unit]
 
-  private[ir] def toCode(ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int): EmitTriplet = {
-    emit(ctx: ExecuteContext, ir, fb, Env.empty, nSpecialArguments, None)
-  }
-
-  def apply(ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int, aggs: Option[Array[PhysicalAggSignature]] = None) {
-    val triplet = emit(ctx, ir, fb, Env.empty, nSpecialArguments, aggs)
+  def apply(ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[_], aggs: Option[Array[PhysicalAggSignature]] = None) {
+    val triplet = emit(ctx, ir, fb, Env.empty, aggs)
     typeToTypeInfo(ir.typ) match {
       case ti: TypeInfo[t] =>
         fb.emit(Code(triplet.setup, triplet.m.mux(
@@ -40,7 +35,6 @@ object Emit {
     ir: IR,
     fb: EmitFunctionBuilder[_],
     env: E,
-    nSpecialArguments: Int,
     aggs: Option[Array[PhysicalAggSignature]]): EmitTriplet = {
     TypeCheck(ir)
     val container = aggs.map { a =>
@@ -48,7 +42,7 @@ object Emit {
       Some(AggContainer(a, c))
     }.getOrElse(None)
 
-    val baseTriplet = new Emit(ctx: ExecuteContext, fb.apply_method, nSpecialArguments).emit(ir, env, EmitRegion.default(fb.apply_method), container = container)
+    val baseTriplet = new Emit(ctx: ExecuteContext, fb.apply_method).emit(ir, env, EmitRegion.default(fb.apply_method), container = container)
 
     EmitTriplet(
       baseTriplet.setup,
@@ -236,8 +230,7 @@ object EmitUtils {
 
 private class Emit(
   val ctx: ExecuteContext,
-  val mb: EmitMethodBuilder,
-  val nSpecialArguments: Int) {
+  val mb: EmitMethodBuilder) {
 
   val resultRegion: EmitRegion = EmitRegion.default(mb)
   val region: Code[Region] = mb.getArg[Region](1)
@@ -252,7 +245,7 @@ private class Emit(
 
     def newMethod(paramInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilderLike = {
       val newMB = emit.mb.fb.newMethod(paramInfo, returnInfo)
-      val newEmitter = new Emit(ctx, newMB, emit.nSpecialArguments)
+      val newEmitter = new Emit(ctx, newMB)
       new EmitMethodBuilderLike(newEmitter)
     }
   }
@@ -558,7 +551,7 @@ private class Emit(
           case ArraySort(a, l, r, comp) => (a, Subst(comp, BindingEnv(Env[IR](l -> In(0, eltType), r -> In(1, eltType)))), Code._empty[Unit])
           case ToSet(a) =>
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
-            val EmitTriplet(s, m, v) = new Emit(ctx, discardNext, 1).emit(ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType)), Env.empty, er, container)
+            val EmitTriplet(s, m, v) = new Emit(ctx, discardNext).emit(ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType)), Env.empty, er, container)
             discardNext.emit(Code(s, m || coerce[Boolean](v)))
             (a, ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _)))
           case ToDict(a) =>
@@ -568,7 +561,7 @@ private class Emit(
               case t: PTuple => (GetTupleElement(In(0, elementType.virtualType), 0), GetTupleElement(In(1, elementType.virtualType), 0), t.types(0))
             }
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
-            val EmitTriplet(s, m, v) = new Emit(ctx, discardNext, 1).emit(ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1), Env.empty, er, container)
+            val EmitTriplet(s, m, v) = new Emit(ctx, discardNext).emit(ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1), Env.empty, er, container)
             discardNext.emit(Code(s, m || coerce[Boolean](v)))
             (a, ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0, Code(sorter.pruneMissing, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _))))
         }
@@ -1801,7 +1794,7 @@ private class Emit(
             (gname, (typeToTypeInfo(gType), bodyMB.getArg[Boolean](5).load(), bodyMB.getArg(4)(typeToTypeInfo(gType)).load())))
 
           // FIXME fix number of aggs here
-          val t = new Emit(ctx, bodyMB, 1).emit(MakeTuple.ordered(FastSeq(body)), env, EmitRegion.default(bodyMB), None)
+          val t = new Emit(ctx, bodyMB).emit(MakeTuple.ordered(FastSeq(body)), env, EmitRegion.default(bodyMB), None)
           bodyMB.emit(Code(t.setup, t.m.mux(Code._fatal("return cannot be missing"), t.v)))
 
           val ctxIS = Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getArg[Array[Byte]](2))
@@ -1973,7 +1966,7 @@ private class Emit(
     val newEnv = getEnv(env, f)
 
     val sort = f.newMethod[Region, T, Boolean, T, Boolean, Boolean]
-    val EmitTriplet(setup, m, v) = new Emit(ctx, sort, 1).emit(newIR, newEnv, EmitRegion.default(sort), None)
+    val EmitTriplet(setup, m, v) = new Emit(ctx, sort).emit(newIR, newEnv, EmitRegion.default(sort), None)
 
     sort.emit(Code(setup, m.mux(Code._fatal("Result of sorting function cannot be missing."), v)))
     f.apply_method.emit(Code(sort.invoke(fregion, f.getArg[T](1), false, f.getArg[T](2), false)))
@@ -1997,7 +1990,7 @@ private class Emit(
   }
 
   private[ir] def normalArgument(idx: Int, pType: PType): EmitTriplet = {
-    val i = 1 + nSpecialArguments + idx * 2
+    val i = 2 + idx * 2
     EmitTriplet(Code._empty,
       mb.getArg[Boolean](i + 1),
       mb.getArg(i)(typeToTypeInfo(pType)))
