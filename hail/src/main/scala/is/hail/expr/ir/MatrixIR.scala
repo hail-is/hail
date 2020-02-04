@@ -720,7 +720,7 @@ case class MatrixRowsHead(child: MatrixIR, n: Long) extends MatrixIR {
   override lazy val partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts.map { pc =>
     val prefixSums = pc.iterator.scanLeft(0L)(_ + _).drop(1)
     pc.iterator.zip(prefixSums)
-      .takeWhile { case (prefixSum, value) => prefixSum + value <= n }
+      .takeWhile { case (prefixSum, _) => prefixSum < n }
       .map { case (prefixSum, value) => if (prefixSum + value > n) value - prefixSum else value }
       .toArray
   }
@@ -767,7 +767,7 @@ case class MatrixRowsTail(child: MatrixIR, n: Long) extends MatrixIR {
   override lazy val partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts.map { pc =>
     val prefixSums = pc.reverseIterator.scanLeft(0L)(_ + _).drop(1)
     pc.reverseIterator.zip(prefixSums)
-      .takeWhile { case (prefixSum, value) => prefixSum + value <= n }
+      .takeWhile { case (prefixSum, _) => prefixSum <= n }
       .map { case (prefixSum, value) => if (prefixSum + value > n) value - prefixSum else value }
       .toArray
       .reverse

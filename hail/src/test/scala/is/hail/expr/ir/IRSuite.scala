@@ -2787,7 +2787,7 @@ class IRSuite extends HailSuite {
       "x" -> TInt32()
     ))
 
-    val s = Pretty(x)
+    val s = Pretty(x, elideLiterals = false)
     val x2 = IRParser.parse_value_ir(s, env)
 
     assert(x2 == x)
@@ -2795,21 +2795,21 @@ class IRSuite extends HailSuite {
 
   @Test(dataProvider = "tableIRs")
   def testTableIRParser(x: TableIR) {
-    val s = Pretty(x)
+    val s = Pretty(x, elideLiterals = false)
     val x2 = IRParser.parse_table_ir(s)
     assert(x2 == x)
   }
 
   @Test(dataProvider = "matrixIRs")
   def testMatrixIRParser(x: MatrixIR) {
-    val s = Pretty(x)
+    val s = Pretty(x, elideLiterals = false)
     val x2 = IRParser.parse_matrix_ir(s)
     assert(x2 == x)
   }
 
   @Test(dataProvider = "blockMatrixIRs")
   def testBlockMatrixIRParser(x: BlockMatrixIR) {
-    val s = Pretty(x)
+    val s = Pretty(x, elideLiterals = false)
     val x2 = IRParser.parse_blockmatrix_ir(s)
     assert(x2 == x)
   }
