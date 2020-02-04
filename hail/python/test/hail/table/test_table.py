@@ -842,14 +842,15 @@ class Tests(unittest.TestCase):
 
         assert mt4._same(mt3)
 
-        mt4.write('./blah')
+        out_folder = resource('./blah')
+        mt4.write(out_folder)
         print("Written MT4")
         file = hl.read_table('./blah')
         file.PL.show(100)
 
         mt3._same(file)
         import shutil
-        shutil.rmtree("./blah")
+        shutil.rmtree(out_folder)
 
     def test_nested_union(self):
         N = 10
