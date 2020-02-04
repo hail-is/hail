@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream}
 
 import is.hail.HailContext
 import is.hail.annotations._
@@ -8,7 +8,7 @@ import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
+import is.hail.io.{BufferSpec, Decoder, DecoderBuilder, Encoder, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.utils._
 
@@ -111,6 +111,16 @@ case class EmitRegion(mb: EmitMethodBuilder, region: Code[Region]) {
 
 case class EmitTriplet(setup: Code[Unit], m: Code[Boolean], v: Code[_]) {
   def value[T]: Code[T] = coerce[T](v)
+
+  def asTuple(t: PType, mb: EmitMethodBuilder): (PTuple, Code[Long]) = {
+    val pTuple = PTuple(t)
+    val srvb = new StagedRegionValueBuilder(mb, pTuple)
+    pTuple -> Code(
+      setup,
+      srvb.start(),
+      m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v)),
+      srvb.offset)
+  }
 }
 
 case class EmitArrayTriplet(setup: Code[Unit], m: Option[Code[Boolean]], addElements: Code[Unit])
@@ -1767,88 +1777,85 @@ private class Emit(
         }
         EmitTriplet(ndt.setup, ndt.m, result)
 
-
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
-        val ctxType = coerce[PArray](contexts.pType).elementType
-        val gType = globals.pType
-        val bType = body.pType
-
-        val ctxTypeTuple = PTuple(ctxType)
-        val gTypeTuple = PTuple(gType)
-        val bTypeTuple = PTuple(bType)
-
         val spec = BufferSpec.defaultUncompressed
         val parentFB = mb.fb
+        val spark = parentFB.backend()
+        val baos = mb.newField[ByteArrayOutputStream]
 
-        val cCodec = TypedCodecSpec(ctxTypeTuple, spec)
-        val gCodec = TypedCodecSpec(gTypeTuple, spec)
-        val bCodec = TypedCodecSpec(bTypeTuple, spec)
+        val gID = genUID()
+        val gType = globals.pType
+        val (gTuple, globalsOff) = emit(globals).asTuple(gType, mb)
+        val gCodec = TypedCodecSpec(gTuple, spec)
+        val (gTupleDec: PTuple, gDec) = parentFB.decode(gTuple.virtualType, gCodec)
+        val gEnc = parentFB.newField[Encoder]
+        val addGlobals = Code(
+          gEnc := parentFB.encode(gTuple, gCodec).invoke[OutputStream, Encoder]("apply", baos),
+          gEnc.invoke[Region, Long, Unit]("writeRegionValue", region, globalsOff),
+          gEnc.invoke[Unit]("flush"),
+          gEnc.invoke[Unit]("close"),
+          spark.invoke[String, DecoderBuilder, Array[Byte], Unit]("addBroadcast", gID, gDec, baos.invoke[Array[Byte]]("toByteArray")))
 
-        val functionID: String = {
-          val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]]("collect_distributed_array")
-          val bodyMB = bodyFB.newMethod(Array[TypeInfo[_]](typeInfo[Region], typeToTypeInfo(ctxType), typeInfo[Boolean], typeToTypeInfo(gType), typeInfo[Boolean]), typeInfo[Long])
+        val ctxType = coerce[PArray](contexts.pType).elementType
+        val ctxTuple = PTuple(ctxType)
+        val cCodec = TypedCodecSpec(ctxTuple, spec)
 
-          val (cRetPtype, cDec) = cCodec.buildEmitDecoderF[Long](ctxTypeTuple.virtualType, bodyFB)
-          val (gRetPtype, gDec) = gCodec.buildEmitDecoderF[Long](gTypeTuple.virtualType, bodyFB)
-          val bEnc = bCodec.buildEmitEncoderF[Long](bTypeTuple, bodyFB)
-          val bOB = bodyFB.newField[OutputBuffer]
+        val (functionID: String, bTuple, bCodec) = {
+          val bodyFB = EmitFunctionBuilder[Region, Long, InputStream, OutputStream, Unit]("collect_distributed_array")
+          val bodyMB = bodyFB.apply_method
 
-          assert(cRetPtype == ctxTypeTuple)
-          assert(gRetPtype == gTypeTuple)
+          val bRegion = bodyMB.getArg[Region](1)
+          val gOff = bodyMB.getArg[Long](2)
+          val ctxIS = bodyMB.getArg[InputStream](3)
+          val bOS = bodyMB.getArg[OutputStream](4)
+
+          val ctxOff = bodyMB.newLocal[Long]
+          val ctxM = bodyMB.newField[Boolean]
+          val ctxV = bodyMB.newField()(typeToTypeInfo(ctxType))
+          val gM = bodyMB.newField[Boolean]
+          val gV = bodyMB.newField()(typeToTypeInfo(gType))
 
           val env = Env[(TypeInfo[_], Code[Boolean], Code[_])](
-            (cname, (typeToTypeInfo(ctxType), bodyMB.getArg[Boolean](3).load(), bodyMB.getArg(2)(typeToTypeInfo(ctxType)).load())),
-            (gname, (typeToTypeInfo(gType), bodyMB.getArg[Boolean](5).load(), bodyMB.getArg(4)(typeToTypeInfo(gType)).load())))
+            (cname, (typeToTypeInfo(ctxType), ctxM.load(), ctxV.load())),
+            (gname, (typeToTypeInfo(gType), gM.load(), gV.load())))
 
-          // FIXME fix number of aggs here
-          val t = new Emit(ctx, bodyMB, 1).emit(MakeTuple.ordered(FastSeq(body)), env, EmitRegion.default(bodyMB), None)
-          bodyMB.emit(Code(t.setup, t.m.mux(Code._fatal("return cannot be missing"), t.v)))
+          val (bTuple, bOff) = new Emit(ctx, bodyMB, 1)
+            .emit(body, env, EmitRegion.default(bodyMB), None)
+            .asTuple(body.pType, bodyMB)
 
-          val ctxIS = Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getArg[Array[Byte]](2))
-          val gIS = Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getArg[Array[Byte]](3))
+          val (ctxPT: PTuple, ctxDec) = bodyFB.decode(ctxTuple.virtualType, cCodec)
 
-          val ctxOff = bodyFB.newLocal[Long]
-          val gOff = bodyFB.newLocal[Long]
-          val bOff = bodyFB.newLocal[Long]
-          val bOS = bodyFB.newLocal[ByteArrayOutputStream]
+          val bCodec = TypedCodecSpec(bTuple, spec)
+          val bMakeEnc = bodyFB.encode(bTuple, bCodec)
+          val bEnc = bodyFB.newField[Encoder]
 
           bodyFB.emit(Code(
-            ctxOff := cDec(bodyFB.getArg[Region](1), cCodec.buildCodeInputBuffer(ctxIS)),
-            gOff := gDec(bodyFB.getArg[Region](1), gCodec.buildCodeInputBuffer(gIS)),
-            bOff := bodyMB.invoke[Long](bodyFB.getArg[Region](1),
-              Region.loadIRIntermediate(ctxType)(ctxTypeTuple.fieldOffset(ctxOff, 0)),
-              ctxTypeTuple.isFieldMissing(ctxOff, 0),
-              Region.loadIRIntermediate(gType)(gTypeTuple.fieldOffset(gOff, 0)),
-              gTypeTuple.isFieldMissing(gOff, 0)),
-            bOS := Code.newInstance[ByteArrayOutputStream](),
-            bOB := bCodec.buildCodeOutputBuffer(bOS),
-            bEnc(bodyFB.getArg[Region](1), bOff, bOB),
-            bOB.invoke[Unit]("flush"),
-            bOB.invoke[Unit]("close"),
-            bOS.invoke[Array[Byte]]("toByteArray")))
+            ctxOff := ctxDec
+              .invoke[InputStream, Decoder]("apply", ctxIS)
+              .invoke[Region, Long]("readRegionValue", bRegion),
+            ctxM := ctxPT.isFieldMissing(ctxOff, 0),
+            (!ctxM).orEmpty(ctxV.storeAny(Region.loadIRIntermediate(ctxType)(ctxPT.fieldOffset(ctxOff, 0)))),
+            gM := gTupleDec.isFieldMissing(gOff, 0),
+            (!gM).orEmpty(gV.storeAny(Region.loadIRIntermediate(gType)(gTupleDec.fieldOffset(gOff, 0)))),
+            bEnc := bMakeEnc.invoke[OutputStream, Encoder]("apply", bOS),
+            bEnc.invoke[Region, Long, Unit]("writeRegionValue", bRegion, bOff),
+            bEnc.invoke[Unit]("flush"),
+            bEnc.invoke[Unit]("close")
+          ))
 
           val fID = genUID()
           parentFB.addModule(fID, bodyFB.resultWithIndex())
-          fID
+          (fID, bTuple, bCodec)
         }
 
-        val spark = parentFB.backend()
-        val contextAE = emitArrayIterator(contexts)
-        val globalsT = emit(globals)
-
-        val cEnc = cCodec.buildEmitEncoderF[Long](ctxTypeTuple, parentFB)
-        val gEnc = gCodec.buildEmitEncoderF[Long](gTypeTuple, parentFB)
-        val (bRetPType, bDec) = bCodec.buildEmitDecoderF[Long](bTypeTuple.virtualType, parentFB)
-
-        assert(bRetPType == bTypeTuple)
-
-        val baos = mb.newField[ByteArrayOutputStream]
-        val buf = mb.newField[OutputBuffer]
         val ctxab = mb.newField[ByteArrayArrayBuilder]
         val encRes = mb.newField[Array[Array[Byte]]]
+        val contextAE = emitArrayIterator(contexts)
 
+        val ctxMakeEnc = mb.fb.encode(ctxTuple, cCodec)
+        val ctxEnc = mb.newField[Encoder]
         val contextT = {
-          val sctxb = new StagedRegionValueBuilder(mb, ctxTypeTuple)
+          val sctxb = new StagedRegionValueBuilder(mb, ctxTuple)
           contextAE.arrayEmitter { (m: Code[Boolean], v: Code[_]) =>
             Code(
               baos.invoke[Unit]("reset"),
@@ -1856,55 +1863,40 @@ private class Emit(
               m.mux(
                 sctxb.setMissing(),
                 sctxb.addIRIntermediate(ctxType)(v)),
-              cEnc(region, sctxb.offset, buf),
-              buf.invoke[Unit]("flush"),
+              ctxEnc.invoke[Region, Long, Unit]("writeRegionValue", region, sctxb.offset),
+              ctxEnc.invoke[Unit]("flush"),
               ctxab.invoke[Array[Byte], Unit]("add", baos.invoke[Array[Byte]]("toByteArray")))
           }
         }
 
-        val addGlobals = {
-          val sgb = new StagedRegionValueBuilder(mb, gTypeTuple)
-          Code(
-            globalsT.setup,
-            sgb.start(),
-            globalsT.m.mux(
-              sgb.setMissing(),
-              sgb.addIRIntermediate(gType)(globalsT.v)),
-            gEnc(region, sgb.offset, buf),
-            buf.invoke[Unit]("flush"))
-        }
-
-        val decodeResult = {
-          val sab = new StagedRegionValueBuilder(mb, x.pType)
-          val bais = Code.newInstance[ByteArrayInputStream, Array[Byte]](encRes(sab.arrayIdx))
-          val eltTupled = mb.newField[Long]
-          Code(
-            sab.start(encRes.length()),
-            Code.whileLoop(sab.arrayIdx < encRes.length(),
-              eltTupled := bDec(region, bCodec.buildCodeInputBuffer(bais)),
-              bTypeTuple.isFieldMissing(eltTupled, 0).mux(
-                sab.setMissing(),
-                sab.addIRIntermediate(bType)(Region.loadIRIntermediate(bType)(bTypeTuple.fieldOffset(eltTupled, 0)))),
-              sab.advance()),
-            sab.end())
-        }
-
+        val sab = new StagedRegionValueBuilder(mb, x.pType)
+        val (pt: PTuple, bMakeDec) = parentFB.decode(bTuple.virtualType, bCodec)
+        val bais = parentFB.newField[ByteArrayInputStream]
+        val elt = mb.newField[Long]
         EmitTriplet(
           contextT.setup,
           contextT.m.getOrElse(false),
           Code(
             baos := Code.newInstance[ByteArrayOutputStream](),
-            buf := cCodec.buildCodeOutputBuffer(baos), // TODO: take a closer look at whether we need two codec buffers?
-            ctxab := Code.newInstance[ByteArrayArrayBuilder, Int](16),
-            contextAE.calcLength,
-            contextT.addElements,
-            baos.invoke[Unit]("reset"),
             addGlobals,
-            encRes := spark.invoke[String, Array[Array[Byte]], Array[Byte], Array[Array[Byte]]](
+            ctxab := Code.newInstance[ByteArrayArrayBuilder, Int](16),
+            ctxEnc := ctxMakeEnc.invoke[OutputStream, Encoder]("apply", baos),
+            contextAE.calcLength, contextT.addElements,
+            baos.invoke[Unit]("reset"),
+            encRes := spark.invoke[String, Array[Array[Byte]], String, Array[Array[Byte]]](
               "collectDArray", functionID,
-              ctxab.invoke[Array[Array[Byte]]]("result"),
-              baos.invoke[Array[Byte]]("toByteArray")),
-            decodeResult))
+              ctxab.invoke[Array[Array[Byte]]]("result"), gID),
+            spark.invoke[String, Unit]("removeBroadcast", gID),
+            sab.start(encRes.length()),
+            Code.whileLoop(sab.arrayIdx < encRes.length(),
+              bais := Code.newInstance[ByteArrayInputStream, Array[Byte]](encRes(sab.arrayIdx)),
+              elt := bMakeDec.invoke[InputStream, Decoder]("apply", Code.checkcast[InputStream](bais))
+                .invoke[Region, Long]("readRegionValue", region),
+              pt.isFieldMissing(elt, 0).mux(
+                sab.setMissing(), sab.addIRIntermediate(body.pType)(Region.loadIRIntermediate(body.pType)(pt.fieldOffset(elt, 0)))),
+              sab.advance()),
+            sab.offset))
+
       case x@TailLoop(name, args, body) =>
         val loopRefs = args.map { case (name, ir) =>
           val ti = typeToTypeInfo(ir.typ)

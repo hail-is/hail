@@ -3,7 +3,7 @@ package is.hail.backend
 import java.io.PrintWriter
 
 import is.hail.HailContext
-import is.hail.annotations.{Region, SafeRow}
+import is.hail.annotations.SafeRow
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, LoweringPipeline}

@@ -10,7 +10,7 @@ import is.hail.backend.BackendUtils
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.types.physical.{PCanonicalTuple, PTuple, PType}
 import is.hail.expr.types.virtual.{TTuple, Type}
-import is.hail.io.{BufferSpec, TypedCodecSpec}
+import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, Decoder, DecoderBuilder, Encoder, EncoderBuilder, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -79,6 +79,11 @@ trait FunctionWithSeededRandomness {
 
 trait FunctionWithBackend {
   def setBackend(spark: BackendUtils): Unit
+}
+
+trait FunctionWithEncodersAndDecoders {
+  def addEncoders(enc: Array[EncoderBuilder]): Unit
+  def addDecoders(dec: Array[DecoderBuilder]): Unit
 }
 
 class EmitMethodBuilder(
@@ -258,9 +263,6 @@ class EmitFunctionBuilder[F >: Null](
   private[this] var _hfs: FS = _
   private[this] var _hfield: ClassFieldRef[FS] = _
 
-  private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
-  private[this] var _backendField: ClassFieldRef[BackendUtils] = _
-
   private[this] var _aggSigs: Array[PhysicalAggSignature] = _
   private[this] var _aggRegion: ClassFieldRef[Region] = _
   private[this] var _aggOff: ClassFieldRef[Long] = _
@@ -333,6 +335,9 @@ class EmitFunctionBuilder[F >: Null](
     _aggSerialized.load().update(i, b)
   }
 
+  private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction4[Region, Long, InputStream, OutputStream, Unit])] = new ArrayBuilder()
+  private[this] var _backendField: ClassFieldRef[BackendUtils] = _
+
   def backend(): Code[BackendUtils] = {
     if (_backendField == null) {
       cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithBackend].iname)
@@ -345,8 +350,54 @@ class EmitFunctionBuilder[F >: Null](
     _backendField
   }
 
-  def addModule(name: String, mod: (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
+  def addModule(name: String, mod: (Int, Region) => AsmFunction4[Region, Long, InputStream, OutputStream, Unit]): Unit = {
     _mods += name -> mod
+  }
+
+  private[this] val _encoders: mutable.Map[(PType, AbstractTypedCodecSpec), (Int, EncoderBuilder)] = new mutable.HashMap()
+  private[this] var _encodersField: ClassFieldRef[Array[EncoderBuilder]] = _
+  private[this] val _decoders: mutable.Map[(Type, AbstractTypedCodecSpec), (Int, (PType, DecoderBuilder))] = new mutable.HashMap()
+  private[this] var _decodersField: ClassFieldRef[Array[DecoderBuilder]] = _
+
+  private def encoder(idx: Int): Code[EncoderBuilder] = {
+    if (_encodersField == null)
+      _encodersField = newField[Array[EncoderBuilder]]
+    _encodersField.load()(idx)
+  }
+
+  private def decoder(idx: Int): Code[DecoderBuilder] = {
+    if (_decodersField == null)
+      _decodersField = newField[Array[DecoderBuilder]]
+    _decodersField.load()(idx)
+  }
+
+  def encode(pt: PType, spec: AbstractTypedCodecSpec): Code[EncoderBuilder] = {
+    val (id, _) = _encoders.getOrElseUpdate(pt -> spec, {
+      _encoders.size -> new EncoderBuilder(spec.buildEncoder(pt))
+    })
+    encoder(id)
+  }
+
+  def decode(rt: Type, spec: AbstractTypedCodecSpec): (PType, Code[DecoderBuilder]) = {
+    val (id, (pt, _)) = _decoders.getOrElseUpdate(rt -> spec, {
+      val (pt, decF) = spec.buildDecoder(rt)
+      (_decoders.size, (pt, new DecoderBuilder(decF)))
+    })
+    pt -> decoder(id)
+  }
+  def makeEncodersAndDecoders(): Boolean = {
+    if (_decodersField == null && _encodersField == null) {
+      false
+    } else {
+      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithEncodersAndDecoders].iname)
+      val encF = new EmitMethodBuilder(this, "addEncoders", Array(typeInfo[Array[EncoderBuilder]]), typeInfo[Unit])
+      val decF = new EmitMethodBuilder(this, "addDecoders", Array(typeInfo[Array[DecoderBuilder]]), typeInfo[Unit])
+      methods += encF
+      methods += decF
+      encF.emit(_encodersField := encF.getArg[Array[EncoderBuilder]](1))
+      decF.emit(_decodersField := decF.getArg[Array[DecoderBuilder]](1))
+      true
+    }
   }
 
   def getFS: Code[FS] = {
@@ -622,6 +673,10 @@ class EmitFunctionBuilder[F >: Null](
   }
 
   def resultWithIndex(print: Option[PrintWriter] = None): (Int, Region) => F = {
+    val encAndDec = makeEncodersAndDecoders()
+    val (enc, dec) = if (encAndDec) {
+      _encoders.values.toArray.sortBy(_._1).map(_._2) -> _decoders.values.toArray.sortBy(_._1).map(_._2._2)
+    } else { (null, null) }
     makeRNGs()
     makeAddPartitionRegion()
     val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
@@ -664,6 +719,11 @@ class EmitFunctionBuilder[F >: Null](
           f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
           if (localFS != null)
             f.asInstanceOf[FunctionWithFS].addFS(localFS)
+          if (encAndDec) {
+            f.asInstanceOf[FunctionWithEncodersAndDecoders].addDecoders(dec)
+            f.asInstanceOf[FunctionWithEncodersAndDecoders].addEncoders(enc)
+          }
+
           if (useBackend)
             f.asInstanceOf[FunctionWithBackend].setBackend(backend)
           if (hasLiterals)

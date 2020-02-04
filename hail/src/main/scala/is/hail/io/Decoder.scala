@@ -7,6 +7,10 @@ import is.hail.asm4s._
 import is.hail.utils.RestartableByteArrayInputStream
 import is.hail.expr.types.encoded.DecoderAsmFunction
 
+class DecoderBuilder(val v: InputStream => Decoder) extends Serializable {
+  def apply(is: InputStream): Decoder = v(is)
+}
+
 trait Decoder extends Closeable {
   def close()
 

@@ -6,6 +6,10 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.types.encoded.EncoderAsmFunction
 
+class EncoderBuilder(val v: OutputStream => Encoder) extends Serializable {
+  def apply(os: OutputStream): Encoder = v(os)
+}
+
 trait Encoder extends Closeable {
   def flush(): Unit
 
