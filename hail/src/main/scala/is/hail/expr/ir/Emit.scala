@@ -1438,12 +1438,10 @@ private class Emit(
           val LDA = M
           val LDB = K
           val LDC = M
-          val timeSave = mb.newField[Long]
           val elementByteSize = lPType.elementType.byteSize
 
           val multiplyViaDGEMM = Code(
             shapeSetup,
-
             leftColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * K * elementByteSize),
             rightColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", K * N * elementByteSize),
             answerColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * N * elementByteSize),
