@@ -834,12 +834,12 @@ class Tests(unittest.TestCase):
                         ._same(hl.utils.range_table(15).key_by()))
 
     def test_union_with_nulls(self):
-        mt1 = hl.import_vcf(resource('sample.vcf'), array_elements_required=True)
-        mt2 = hl.import_vcf(resource('sample.vcf'), array_elements_required=False)
+        mt1 = hl.import_vcf(resource('sample.vcf'), array_elements_required=False)
+        mt2 = hl.import_vcf(resource('sample.vcf'), array_elements_required=True)
 
         mt3 = mt1.entries().union(mt1.entries())
         print("MT3")
-        mt3.PL.show(20)
+        mt3.PL.show(100)
         mt4 = mt1.entries().union(mt2.entries())
 
         assert mt4._same(mt3)
@@ -847,7 +847,9 @@ class Tests(unittest.TestCase):
         mt4.write('./blah')
         print("Written MT4")
         file = hl.read_table('./blah')
-        file.PL.show(20)
+        file.PL.show(100)
+
+        mt3._same(file)
         import shutil
         shutil.rmtree("./blah")
 
