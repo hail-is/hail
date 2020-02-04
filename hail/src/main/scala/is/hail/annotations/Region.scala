@@ -226,6 +226,14 @@ object Region {
     case _: PFloat64 => v => storeDouble(dest, coerce[Double](v))
   }
 
+  def storePrimitiveUnstaged(typ: PType, dest: Long): AnyVal => Unit = typ match {
+    case _: PBoolean => v => Region.storeBoolean(dest, v.asInstanceOf[Boolean])
+    case _: PInt32 => v => Region.storeInt(dest, v.asInstanceOf[Int])
+    case _: PInt64 => v => Region.storeLong(dest, v.asInstanceOf[Long])
+    case _: PFloat32 => v => Region.storeFloat(dest, v.asInstanceOf[Float])
+    case _: PFloat64 => v => Region.storeDouble(dest, v.asInstanceOf[Double])
+  }
+
   def loadIRIntermediate(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {
     case _: PBoolean => loadBoolean
     case _: PInt32 => loadInt

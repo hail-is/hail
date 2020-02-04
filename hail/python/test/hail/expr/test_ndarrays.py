@@ -14,8 +14,9 @@ def assert_ndarrays(asserter, exprs_and_expecteds):
     expr_tuple = hl.tuple(exprs)
     evaled_exprs = hl.eval(expr_tuple)
 
-    for (evaled, expected) in zip(evaled_exprs, expecteds):
-        assert asserter(evaled, expected)
+    evaled_and_expected = zip(evaled_exprs, expecteds)
+    for (idx, (evaled, expected)) in enumerate(evaled_and_expected):
+        assert asserter(evaled, expected), f"NDArray comparison {idx} failed"
 
 
 def assert_ndarrays_eq(*expr_and_expected):
