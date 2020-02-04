@@ -831,7 +831,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
-    def test_union_with_nulls(self):
+    def test_union_mixed_requiredeness(self):
         mt1 = hl.import_vcf(resource('sample.vcf'), array_elements_required=False)
         mt2 = hl.import_vcf(resource('sample.vcf'), array_elements_required=True)
 
@@ -842,10 +842,10 @@ class Tests(unittest.TestCase):
 
         assert mt4._same(mt3)
 
-        out_folder = resource('./blah')
+        out_folder = './blah'
         mt4.write(out_folder)
         print("Written MT4")
-        file = hl.read_table('./blah')
+        file = hl.read_table(out_folder)
         file.PL.show(100)
 
         mt3._same(file)
