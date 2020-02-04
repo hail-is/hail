@@ -26,7 +26,7 @@ import uvloop
 from ..batch import mark_job_complete, mark_job_started
 from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
-    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME
+    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE
 from ..google_compute import GServices
 from ..globals import HTTP_CLIENT_MAX_SIZE
 
@@ -554,10 +554,15 @@ async def on_cleanup(app):
 
 
 def run():
-    googlecloudprofiler.start(
-        service='batch-driver',
-        # https://cloud.google.com/profiler/docs/profiling-python#agent_logging
-        verbose=3)
+    if HAIL_SHOULD_PROFILE:
+        profiler_tag = f'{DEFAULT_NAMESPACE}'
+        if profiler_tag == 'default':
+            profiler_tag = DEFAULT_NAMESPACE + f'-{HAIL_SHA[0:12]}'
+        googlecloudprofiler.start(
+            service='batch-driver',
+            version=profiler_tag,
+            # https://cloud.google.com/profiler/docs/profiling-python#agent_logging
+            verbose=3)
 
     app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
     setup_aiohttp_session(app)

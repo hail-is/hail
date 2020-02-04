@@ -9,3 +9,5 @@ PROJECT = os.environ['PROJECT']
 assert PROJECT != ''
 KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
 BATCH_BUCKET_NAME = os.environ['HAIL_BATCH_BUCKET_NAME']
+HAIL_SHA = os.environ['HAIL_SHA']
+HAIL_SHOULD_PROFILE = os.environ.get('HAIL_SHOULD_PROFILE') is not None
