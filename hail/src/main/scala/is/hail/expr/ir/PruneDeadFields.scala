@@ -1685,6 +1685,9 @@ object PruneDeadFields {
         val et = -a2.typ.asInstanceOf[TStreamable].elementType
         val compare2 = rebuildIR(compare, env.bindEval(left -> et, right -> et), memo)
         ArraySort(a2, left, right, compare2)
+      case NDArrayMap(nd, valueName, body) =>
+        val nd2 = rebuildIR(nd, env, memo)
+        NDArrayMap(nd2, valueName, rebuildIR(body, env.bindEval(valueName, -nd2.typ.asInstanceOf[TNDArray].elementType), memo))
       case MakeStruct(fields) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
         // drop unnecessary field IRs
