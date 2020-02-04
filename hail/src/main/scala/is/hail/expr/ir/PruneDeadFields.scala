@@ -1073,6 +1073,37 @@ object PruneDeadFields {
           bodyEnv.deleteEval(valueName),
           memoizeValueIR(a, aType.copyStreamable(valueType), memo)
         )
+      case NDArrayMap(nd, valueName, body) =>
+        val ndType = nd.typ.asInstanceOf[TNDArray]
+        val bodyEnv = memoizeValueIR(body, requestedType.asInstanceOf[TNDArray].elementType, memo)
+        val valueType = unifySeq(
+          ndType.elementType,
+          bodyEnv.eval.lookupOption(valueName).map(_.result()).getOrElse(Array())
+        )
+        unifyEnvs(
+          bodyEnv.deleteEval(valueName),
+          memoizeValueIR(nd, ndType.copy(elementType = valueType), memo)
+        )
+      case NDArrayMap2(left, right, leftName, rightName, body) =>
+        val leftType = left.typ.asInstanceOf[TNDArray]
+        val rightType = right.typ.asInstanceOf[TNDArray]
+        val bodyEnv = memoizeValueIR(body, requestedType.asInstanceOf[TNDArray].elementType, memo)
+
+        val leftValueType = unify(
+          leftType.elementType,
+          bodyEnv.eval.lookupOption(leftName).map(_.result()).getOrElse(Array()):_*
+        )
+
+        val rightValueType = unify(
+          rightType.elementType,
+          bodyEnv.eval.lookupOption(rightName).map(_.result()).getOrElse(Array()):_*
+        )
+
+        unifyEnvs(
+          bodyEnv.deleteEval(leftName).deleteEval(rightName),
+          memoizeValueIR(left, leftType.copy(elementType = leftValueType), memo),
+          memoizeValueIR(right, rightType.copy(elementType = rightValueType), memo)
+        )
       case AggExplode(a, name, body, isScan) =>
         val aType = a.typ.asInstanceOf[TStreamable]
         val bodyEnv = memoizeValueIR(body,
