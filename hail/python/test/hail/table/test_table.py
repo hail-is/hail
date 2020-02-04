@@ -838,8 +838,18 @@ class Tests(unittest.TestCase):
         mt2 = hl.import_vcf(resource('sample.vcf'), array_elements_required=False)
 
         mt3 = mt1.entries().union(mt1.entries())
+        print("MT3")
+        mt3.PL.show(20)
         mt4 = mt1.entries().union(mt2.entries())
+
         assert mt4._same(mt3)
+
+        mt4.write('./blah')
+        print("Written MT4")
+        file = hl.read_table('./blah')
+        file.PL.show(20)
+        import shutil
+        shutil.rmtree("./blah")
 
     def test_nested_union(self):
         N = 10
