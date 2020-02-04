@@ -1442,25 +1442,16 @@ private class Emit(
           val elementByteSize = lPType.elementType.byteSize
 
           val multiplyViaDGEMM = Code(
-            timeSave := Code.currentTimeMillis(),
             shapeSetup,
-            Code._println((timeSave -Code.currentTimeMillis()).toS),
 
             leftColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * K * elementByteSize),
             rightColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", K * N * elementByteSize),
             answerColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * N * elementByteSize),
 
-            Code._println((timeSave -Code.currentTimeMillis()).toS),
-
             Code.invokeScalaObject[Long, Long, Long, Long, String, Unit](LinalgCodeUtils.getClass,
               method="copyRowMajorToColumnMajor", lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, M, K, lPType.elementType.toString),
             Code.invokeScalaObject[Long, Long, Long, Long, String, Unit](LinalgCodeUtils.getClass,
               method="copyRowMajorToColumnMajor", rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, K, N, rPType.elementType.toString),
-
-            //LinalgCodeUtils.copyRowMajorToColumnMajor(lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, M, K, lPType.elementType, mb),
-            //LinalgCodeUtils.copyRowMajorToColumnMajor(rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, K, N, rPType.elementType, mb),
-
-            Code._println((timeSave -Code.currentTimeMillis()).toS),
 
             lPType.elementType match {
               case PFloat32(_) =>
@@ -1496,12 +1487,10 @@ private class Emit(
                   LDC.toI
                 )
             },
-            Code._println((timeSave -Code.currentTimeMillis()).toS),
             answerRowMajorPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
             outputPType.data.pType.stagedInitialize(answerRowMajorPArrayAddress, (M * N).toI),
             Code.invokeScalaObject[Long, Long, Long, Long, String, Unit](LinalgCodeUtils.getClass,
               method="copyColumnMajorToRowMajor", answerColumnMajorAddress, outputPType.data.pType.firstElementOffset(answerRowMajorPArrayAddress, (M * N).toI), M, N, lPType.elementType.toString),
-            //LinalgCodeUtils.copyColumnMajorToRowMajor(answerColumnMajorAddress, outputPType.data.pType.firstElementOffset(answerRowMajorPArrayAddress, (M * N).toI), M, N, lPType.elementType, mb),
             Code.invokeStatic[Memory, Long, Unit]("free", leftColumnMajorAddress.load()),
             Code.invokeStatic[Memory, Long, Unit]("free", rightColumnMajorAddress.load()),
             Code.invokeStatic[Memory, Long, Unit]("free", answerColumnMajorAddress.load()),
