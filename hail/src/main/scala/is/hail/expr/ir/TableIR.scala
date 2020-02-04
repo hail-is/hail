@@ -880,8 +880,8 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
         childRVDs.map(_.truncateKey(typ.key.length))
       else {
         info("TableMultiWayZipJoin: repartitioning children")
-        val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
-        val newPartitioner = RVDPartitioner.generate(childRVDs.head.typ.kType.virtualType, childRanges)
+        val childRanges = childRVDs.flatMap(_.partitioner.coarsenedRangeBounds(typ.key.length))
+        val newPartitioner = RVDPartitioner.generate(typ.keyType, childRanges)
         childRVDs.map(_.repartition(newPartitioner, ctx))
       }
     val newPartitioner = repartitionedRVDs(0).partitioner
