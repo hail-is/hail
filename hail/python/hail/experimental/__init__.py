@@ -18,7 +18,7 @@ from .tidyr import gather, separate, spread
 from .codec import encode, decode
 from .db import DB
 from .compile import compile_comparison_binary, compiled_compare
-from .vcf_combiner import lgt_to_gt
+from .sparse_mt_utils import lgt_to_gt
 from .loop import loop
 from .time import strftime, strptime
 
