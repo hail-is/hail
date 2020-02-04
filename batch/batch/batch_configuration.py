@@ -7,7 +7,5 @@ BATCH_PODS_NAMESPACE = os.environ['HAIL_BATCH_PODS_NAMESPACE']
 BATCH_WORKER_IMAGE = os.environ.get('BATCH_WORKER_IMAGE', 'gcr.io/hail-vdc/batch-worker:latest')
 PROJECT = os.environ['PROJECT']
 assert PROJECT != ''
-ZONE = os.environ['ZONE']
-assert ZONE != ''
 KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
 BATCH_BUCKET_NAME = os.environ['HAIL_BATCH_BUCKET_NAME']

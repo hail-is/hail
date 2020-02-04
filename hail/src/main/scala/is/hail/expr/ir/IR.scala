@@ -380,6 +380,7 @@ final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, return
 
 final case class ApplySpecial(function: String, args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithMissingness]
 
+final case class LiftMeOut(child: IR) extends IR
 final case class TableCount(child: TableIR) extends IR
 final case class TableAggregate(child: TableIR, query: IR) extends IR
 final case class MatrixAggregate(child: MatrixIR, query: IR) extends IR

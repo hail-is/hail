@@ -175,10 +175,21 @@ class BlockMatrixFilter(BlockMatrixIR):
 
     def _compute_type(self):
         assert len(self.indices_to_keep) == 2
-        shape = [len(idxs) if len(idxs) != 0 else self.child.typ.shape[i] for i, idxs in
+
+        child_tensor_shape = self.child.typ.shape
+        child_ndim = len(child_tensor_shape)
+        if child_ndim == 1:
+            if self.child.typ.is_row_vector:
+                child_matrix_shape = [1, child_tensor_shape[0]]
+            else:
+                child_matrix_shape = [child_tensor_shape[0], 1]
+        else:
+            child_matrix_shape = child_tensor_shape
+
+        matrix_shape = [len(idxs) if len(idxs) != 0 else child_matrix_shape[i] for i, idxs in
                  enumerate(self.indices_to_keep)]
 
-        tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(shape[0], shape[1])
+        tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(matrix_shape[0], matrix_shape[1])
         self._type = tblockmatrix(self.child.typ.element_type,
                                   tensor_shape,
                                   is_row_vector,

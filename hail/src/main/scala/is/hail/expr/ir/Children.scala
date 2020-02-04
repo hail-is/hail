@@ -185,5 +185,6 @@ object Children {
     case BlockMatrixMultiWrite(blockMatrices, _) => blockMatrices
     case CollectDistributedArray(ctxs, globals, _, _, body) => Array(ctxs, globals, body)
     case ReadPartition(path, _, _) => Array(path)
+    case LiftMeOut(child) => Array(child)
   }
 }

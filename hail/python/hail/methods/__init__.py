@@ -10,7 +10,7 @@ from .statgen import skat, identity_by_descent, impute_sex, \
     linear_mixed_model, linear_regression_rows, logistic_regression_rows, poisson_regression_rows, \
     linear_mixed_regression_rows, lambda_gc
 from .qc import sample_qc, variant_qc, vep, concordance, nirvana, summarize_variants
-from .misc import rename_duplicates, maximal_independent_set, filter_intervals, window_by_locus
+from .misc import rename_duplicates, maximal_independent_set, filter_intervals
 
 __all__ = ['trio_matrix',
            'linear_mixed_model',
@@ -41,7 +41,6 @@ __all__ = ['trio_matrix',
            'vep',
            'concordance',
            'maximal_independent_set',
-           'window_by_locus',
            'import_locus_intervals',
            'import_bed',
            'import_fam',

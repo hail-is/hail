@@ -1,13 +1,13 @@
 import secrets
+import random
 import asyncio
 import logging
 import sortedcontainers
-import aiohttp
 import googleapiclient.errors
 from hailtop.utils import time_msecs
 
 from ..batch_configuration import DEFAULT_NAMESPACE, BATCH_WORKER_IMAGE, \
-    PROJECT, ZONE
+    PROJECT
 
 from .instance import Instance
 
@@ -153,15 +153,18 @@ SET max_instances = %s, pool_size = %s;
             if machine_name not in self.name_instance:
                 break
 
+        zone_letter = random.choice(['a', 'b', 'c', 'f'])
+        zone = f'us-central1-{zone_letter}'
+
         activation_token = secrets.token_urlsafe(32)
-        instance = await Instance.create(self.app, machine_name, activation_token, self.worker_cores * 1000)
+        instance = await Instance.create(self.app, machine_name, activation_token, self.worker_cores * 1000, zone)
         self.add_instance(instance)
 
         log.info(f'created {instance}')
 
         config = {
             'name': machine_name,
-            'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-{self.worker_type}-{self.worker_cores}',
+            'machineType': f'projects/{PROJECT}/zones/{zone}/machineTypes/n1-{self.worker_type}-{self.worker_cores}',
             'labels': {
                 'role': 'batch2-agent',
                 'namespace': DEFAULT_NAMESPACE
@@ -172,7 +175,7 @@ SET max_instances = %s, pool_size = %s;
                 'autoDelete': True,
                 'initializeParams': {
                     'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-7',
-                    'diskType': f'projects/{PROJECT}/zones/{ZONE}/diskTypes/pd-ssd',
+                    'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(self.worker_disk_size_gb)
                 }
             }],
@@ -304,7 +307,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch/logs/$IN
             },
         }
 
-        await self.gservices.create_instance(config)
+        await self.gservices.create_instance(config, zone)
 
         log.info(f'created machine {machine_name} for {instance} '
                  f' with logs at {self.log_store.worker_log_path(machine_name, "worker.log")}')
@@ -316,7 +319,7 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch/logs/$IN
             await instance.deactivate(reason, timestamp)
 
         try:
-            await self.gservices.delete_instance(instance.name)
+            await self.gservices.delete_instance(instance.name, instance.zone)
         except googleapiclient.errors.HttpError as e:
             if e.resp['status'] == '404':
                 log.info(f'{instance} already delete done')
@@ -404,11 +407,17 @@ FROM ready_cores;
 ''')
                 ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
+                free_cores_mcpu = sum([
+                    worker.free_cores_mcpu
+                    for worker in self.healthy_instances_by_free_cores
+                ])
+                free_cores = free_cores_mcpu / 1000
+
                 log.info(f'n_instances {self.n_instances} {self.n_instances_by_state}'
-                         f' live_free_cores {self.live_free_cores_mcpu / 1000}'
+                         f' free_cores {free_cores} live_free_cores {self.live_free_cores_mcpu / 1000}'
                          f' ready_cores {ready_cores_mcpu / 1000}')
 
-                if ready_cores_mcpu > 0:
+                if ready_cores_mcpu > 0 and free_cores < 500:
                     n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
                     instances_needed = (
                         (ready_cores_mcpu - self.live_free_cores_mcpu + (self.worker_cores * 1000) - 1) //
@@ -417,7 +426,9 @@ FROM ready_cores;
                                            self.pool_size - n_live_instances,
                                            self.max_instances - self.n_instances,
                                            # 20 queries/s; our GCE long-run quota
-                                           300)
+                                           300,
+                                           # n * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 10
+                                           10)
                     if instances_needed > 0:
                         log.info(f'creating {instances_needed} new instances')
                         # parallelism will be bounded by thread pool
@@ -429,23 +440,17 @@ FROM ready_cores;
             await asyncio.sleep(15)
 
     async def check_on_instance(self, instance):
-        if instance.ip_address:
-            try:
-                async with aiohttp.ClientSession(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    await session.get(f'http://{instance.ip_address}:5000/healthcheck')
-                    await instance.mark_healthy()
-                    return
-            except Exception:
-                log.exception(f'while requesting {instance} /healthcheck')
-                await instance.incr_failed_request_count()
+        active_and_healthy = await instance.check_is_active_and_healthy()
+        if active_and_healthy:
+            return
 
         try:
-            spec = await self.gservices.get_instance(instance.name)
+            spec = await self.gservices.get_instance(instance.name, instance.zone)
         except googleapiclient.errors.HttpError as e:
             if e.resp['status'] == '404':
                 await self.remove_instance(instance, 'does_not_exist')
                 return
+            raise
 
         # PROVISIONING, STAGING, RUNNING, STOPPING, TERMINATED
         gce_state = spec['status']

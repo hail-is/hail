@@ -1144,7 +1144,7 @@ class Table(ExprContainer):
         if _localize:
             return Env.backend().execute(agg_ir)
         else:
-            return construct_expr(agg_ir, expr.dtype)
+            return construct_expr(LiftMeOut(agg_ir), expr.dtype)
 
     @typecheck_method(output=str,
                       overwrite=bool,

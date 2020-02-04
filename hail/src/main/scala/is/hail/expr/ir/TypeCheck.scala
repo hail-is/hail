@@ -384,6 +384,7 @@ object TypeCheck {
       case x@ReadPartition(path, _, rowType) =>
         assert(path.typ == TString())
         assert(x.typ == TStream(rowType))
+      case LiftMeOut(_) =>
     }
   }
 }

@@ -463,9 +463,16 @@ case class BlockMatrixFilter(
 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
 
-  override def typ: BlockMatrixType = {
+  override lazy val typ: BlockMatrixType = {
+    val childTensorShape = child.typ.shape
+    val childMatrixShape = (childTensorShape, child.typ.isRowVector) match {
+      case (IndexedSeq(vectorLength), true) => IndexedSeq(1, vectorLength)
+      case (IndexedSeq(vectorLength), false) => IndexedSeq(vectorLength, 1)
+      case (IndexedSeq(numRows, numCols), false) => IndexedSeq(numRows, numCols)
+    }
+
     val matrixShape = indices.zipWithIndex.map({ case (dim, i) =>
-      if (dim.isEmpty) child.typ.shape(i) else dim.length
+      if (dim.isEmpty) childMatrixShape(i) else dim.length
     })
 
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(matrixShape(0), matrixShape(1))

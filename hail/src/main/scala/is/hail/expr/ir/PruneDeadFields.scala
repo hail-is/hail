@@ -87,7 +87,7 @@ object PruneDeadFields {
           rebuildIR(vir, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)), ms.rebuildState)
       }
     } catch {
-      case e: Throwable => fatal(s"error trying to rebuild IR:\n${ Pretty(ir) }", e)
+      case e: Throwable => fatal(s"error trying to rebuild IR:\n${ Pretty(ir, elideLiterals = true) }", e)
     }
   }
 
@@ -1465,7 +1465,6 @@ object PruneDeadFields {
         val requestedType = memo.requestedType.lookup(mir).asInstanceOf[MatrixType]
         MatrixUnionRows(children.map { child =>
           upcast(rebuild(child, memo), requestedType,
-            upcastCols = false,
             upcastGlobals = false)
         })
       case MatrixAnnotateRowsTable(child, table, root, product) =>
@@ -1839,8 +1838,10 @@ object PruneDeadFields {
       if (upcastRows && mt.typ.rowType != rType.rowType)
         mt = MatrixMapRows(mt, upcast(Ref("va", mt.typ.rowType), rType.rowType))
 
-      if (upcastCols && mt.typ.colType != rType.colType)
-        mt = MatrixMapCols(mt, upcast(Ref("sa", mt.typ.colType), rType.colType), None)
+      if (upcastCols && (mt.typ.colType != rType.colType || mt.typ.colKey != rType.colKey)) {
+        mt = MatrixMapCols(mt, upcast(Ref("sa", mt.typ.colType), rType.colType),
+          if (rType.colKey == mt.typ.colKey) None else Some(rType.colKey))
+      }
 
       if (upcastGlobals && mt.typ.globalType != rType.globalType)
         mt = MatrixMapGlobals(mt, upcast(Ref("global", ir.typ.globalType), rType.globalType))

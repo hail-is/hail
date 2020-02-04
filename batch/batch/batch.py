@@ -73,7 +73,7 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
 
     try:
         async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
             await session.post(callback, json=batch_record_to_dict(app, record))
             log.info(f'callback for batch {batch_id} successful')
     except Exception:
@@ -151,7 +151,7 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
 
-def job_record_to_dict(app, record):
+def job_record_to_dict(app, record, name):
     format_version = BatchFormatVersion(record['format_version'])
 
     db_status = record['status']
@@ -165,6 +165,7 @@ def job_record_to_dict(app, record):
     result = {
         'batch_id': record['batch_id'],
         'job_id': record['job_id'],
+        'name': name,
         'state': record['state'],
         'exit_code': exit_code,
         'duration': duration
@@ -399,7 +400,7 @@ async def schedule_job(app, record, instance):
 
         try:
             async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=2)) as session:
                 url = (f'http://{instance.ip_address}:5000'
                        f'/api/v1alpha/batches/jobs/create')
                 await session.post(url, json=body)

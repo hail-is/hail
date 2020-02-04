@@ -1156,6 +1156,8 @@ object IRParser {
         val rowType = coerce[TStruct](type_expr(env.typEnv)(it))
         val path = ir_value_expr(env)(it)
         ReadPartition(path, spec, rowType)
+      case "LiftMeOut" =>
+        LiftMeOut(ir_value_expr(env)(it))
     }
   }
 

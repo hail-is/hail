@@ -2565,6 +2565,7 @@ class IRSuite extends HailSuite {
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
       CollectDistributedArray(ArrayRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32())),
       ReadPartition(Str("foo"), TypedCodecSpec(PStruct("foo" -> PInt32(), "bar" -> PString()), BufferSpec.default), TStruct("foo" -> TInt32())),
+      LiftMeOut(I32(1)),
       RelationalLet("x", I32(0), I32(0)),
       TailLoop("y", IndexedSeq("x" -> I32(0)), Recur("y", FastSeq(I32(4)), TInt32()))
     )
@@ -3008,7 +3009,6 @@ class IRSuite extends HailSuite {
     Array(LocalLDPrune("x", 0.95, 123, 456)),
     Array(PCA("x", 1, false)),
     Array(PCRelate(0.00, 4096, Some(0.1), PCRelate.PhiK2K0K1)),
-    Array(WindowByLocus(1)),
     Array(MatrixFilterPartitions(Array(1, 2, 3), keep = true)),
     Array(ForceCountTable()),
     Array(ForceCountMatrixTable()),
@@ -3112,5 +3112,12 @@ class IRSuite extends HailSuite {
           TInt32())))
 
     assertEvalsTo(triangleSum, FastIndexedSeq(5 -> TInt32()), 15 + 10 + 5)
+  }
+
+  @Test def testHasIRSharing(): Unit = {
+    val r = Ref("x", TInt32())
+    val ir1 = MakeTuple.ordered(FastSeq(I64(1), r, r, I32(1)))
+    assert(HasIRSharing(ir1))
+    assert(!HasIRSharing(ir1.deepCopy()))
   }
 }
