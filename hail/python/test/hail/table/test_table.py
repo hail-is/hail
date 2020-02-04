@@ -828,8 +828,6 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(t1.union(t2, t3)._same(hl.utils.range_table(15)))
 
-        self.assertTrue(t1.union(t2, hl.null(t3))._same(hl.utils.range_table(5)))
-
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
