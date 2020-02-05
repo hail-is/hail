@@ -612,36 +612,36 @@ object IRParser {
   def agg_op(it: TokenIterator): AggOp =
     AggOp.fromString(identifier(it))
 
+  def agg_state_signature(env: TypeParserEnvironment)(it: TokenIterator): AggStateSignature = {
+    punctuation(it, "(")
+    val op = agg_op(it)
+    val sigs = agg_signatures(env)(it)
+    val nested = opt(it, agg_state_signatures(env)).map(_.toFastSeq)
+    punctuation(it, ")")
+    AggStateSignature(sigs.map(s => (s.op, s)).toMap, op, nested)
+  }
+
+  def agg_state_signatures(env: TypeParserEnvironment)(it: TokenIterator): Array[AggStateSignature] = {
+    punctuation(it, "(")
+    val sigs = repUntil(it, agg_state_signature(env), PunctuationToken(")"))
+    punctuation(it, ")")
+    sigs
+  }
+
+
+
   def agg_signature(env: TypeParserEnvironment)(it: TokenIterator): AggSignature = {
     punctuation(it, "(")
     val op = agg_op(it)
     val initArgs = type_exprs(env)(it).map(t => -t)
     val seqOpArgs = type_exprs(env)(it).map(t => -t)
-    val nested = opt(it, agg_signatures(env)).map(_.toFastSeq)
     punctuation(it, ")")
-    AggSignature(op, initArgs, seqOpArgs, nested)
-  }
-
-  def physical_agg_signature(env: TypeParserEnvironment)(it: TokenIterator): PhysicalAggSignature = {
-    punctuation(it, "(")
-    val op = agg_op(it)
-    val initArgs = ptype_exprs(env)(it).map(t => -t)
-    val seqOpArgs = ptype_exprs(env)(it).map(t => -t)
-    val nested = opt(it, physical_agg_signatures(env)).map(_.toFastSeq)
-    punctuation(it, ")")
-    PhysicalAggSignature(op, initArgs, seqOpArgs, nested)
+    AggSignature(op, initArgs, seqOpArgs)
   }
 
   def agg_signatures(env: TypeParserEnvironment)(it: TokenIterator): Array[AggSignature] = {
     punctuation(it, "(")
     val sigs = repUntil(it, agg_signature(env), PunctuationToken(")"))
-    punctuation(it, ")")
-    sigs
-  }
-
-  def physical_agg_signatures(env: TypeParserEnvironment)(it: TokenIterator): Array[PhysicalAggSignature] = {
-    punctuation(it, "(")
-    val sigs = repUntil(it, physical_agg_signature(env), PunctuationToken(")"))
     punctuation(it, ")")
     sigs
   }
@@ -940,13 +940,13 @@ object IRParser {
         val query = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
         ArrayAggScan(a, name, query)
       case "RunAgg" =>
-        val signatures = physical_agg_signatures(env.typEnv)(it)
+        val signatures = agg_state_signatures(env.typEnv)(it)
         val body = ir_value_expr(env)(it)
         val result = ir_value_expr(env)(it)
         RunAgg(body, result, signatures)
       case "RunAggScan" =>
         val name = identifier(it)
-        val signatures = physical_agg_signatures(env.typEnv)(it)
+        val signatures = agg_state_signatures(env.typEnv)(it)
         val array = ir_value_expr(env)(it)
         val init = ir_value_expr(env)(it)
         val seq = ir_value_expr(env)(it)
@@ -983,53 +983,55 @@ object IRParser {
         val aggOp = agg_op(it)
         val initOpArgs = ir_value_exprs(env)(it)
         val seqOpArgs = ir_value_exprs(env)(it)
-        val aggSig = AggSignature(aggOp, initOpArgs.map(arg => -arg.typ), seqOpArgs.map(arg => -arg.typ), None)
+        val aggSig = AggSignature(aggOp, initOpArgs.map(arg => -arg.typ), seqOpArgs.map(arg => -arg.typ))
         ApplyAggOp(initOpArgs, seqOpArgs, aggSig)
       case "ApplyScanOp" =>
         val aggOp = agg_op(it)
         val initOpArgs = ir_value_exprs(env)(it)
         val seqOpArgs = ir_value_exprs(env)(it)
-        val aggSig = AggSignature(aggOp, initOpArgs.map(arg => -arg.typ), seqOpArgs.map(arg => -arg.typ), None)
+        val aggSig = AggSignature(aggOp, initOpArgs.map(arg => -arg.typ), seqOpArgs.map(arg => -arg.typ))
         ApplyScanOp(initOpArgs, seqOpArgs, aggSig)
       case "InitOp" =>
         val i = int32_literal(it)
-        val aggSig = physical_agg_signature(env.typEnv)(it)
+        val op = agg_op(it)
+        val aggSig = agg_state_signature(env.typEnv)(it)
         val args = ir_value_exprs(env)(it)
-        InitOp(i, args, aggSig)
+        InitOp(i, args, aggSig, op)
       case "SeqOp" =>
         val i = int32_literal(it)
-        val aggSig = physical_agg_signature(env.typEnv)(it)
+        val op = agg_op(it)
+        val aggSig = agg_state_signature(env.typEnv)(it)
         val args = ir_value_exprs(env)(it)
-        SeqOp(i, args, aggSig)
+        SeqOp(i, args, aggSig, op)
       case "CombOp" =>
         val i1 = int32_literal(it)
         val i2 = int32_literal(it)
-        val aggSig = physical_agg_signature(env.typEnv)(it)
+        val aggSig = agg_state_signature(env.typEnv)(it)
         CombOp(i1, i2, aggSig)
       case "ResultOp" =>
         val i = int32_literal(it)
-        val aggSigs = physical_agg_signatures(env.typEnv)(it)
+        val aggSigs = agg_state_signatures(env.typEnv)(it)
         ResultOp(i, aggSigs)
       case "AggStateValue" =>
         val i = int32_literal(it)
-        val sig = physical_agg_signature(env.typEnv)(it)
+        val sig = agg_state_signature(env.typEnv)(it)
         AggStateValue(i, sig)
       case "CombOpValue" =>
         val i = int32_literal(it)
-        val sig = physical_agg_signature(env.typEnv)(it)
+        val sig = agg_state_signature(env.typEnv)(it)
         val value = ir_value_expr(env)(it)
         CombOpValue(i, value, sig)
       case "SerializeAggs" =>
         val i = int32_literal(it)
         val i2 = int32_literal(it)
         val spec = BufferSpec.parse(string_literal(it))
-        val aggSigs = physical_agg_signatures(env.typEnv)(it)
+        val aggSigs = agg_state_signatures(env.typEnv)(it)
         SerializeAggs(i, i2, spec, aggSigs)
       case "DeserializeAggs" =>
         val i = int32_literal(it)
         val i2 = int32_literal(it)
         val spec = BufferSpec.parse(string_literal(it))
-        val aggSigs = physical_agg_signatures(env.typEnv)(it)
+        val aggSigs = agg_state_signatures(env.typEnv)(it)
         DeserializeAggs(i, i2, spec, aggSigs)
       case "Begin" =>
         val xs = ir_value_children(env)(it)

@@ -184,7 +184,11 @@ case class StateTuple(states: Array[AggregatorState]) {
   val nStates: Int = states.length
   val storageType: PTuple = PTuple(true, states.map { s => s.storageType }: _*)
 
-  def apply(i: Int): AggregatorState = states(i)
+  def apply(i: Int): AggregatorState = {
+    if (i >= states.length)
+      throw new RuntimeException(s"tried to access state $i, but there are only ${ states.length } states")
+    states(i)
+  }
 
   def toCode(fb: EmitFunctionBuilder[_], prefix: String, f: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
     fb.wrapVoids(Array.tabulate(nStates)((i: Int) => f(i, states(i))), prefix)
