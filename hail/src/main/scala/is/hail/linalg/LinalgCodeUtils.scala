@@ -2,9 +2,7 @@ package is.hail.linalg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, MethodBuilder}
-import is.hail.utils._
 import is.hail.asm4s._
-import is.hail.expr.ir.IRParser
 import is.hail.expr.types.physical.PType
 
 object LinalgCodeUtils {
@@ -22,8 +20,7 @@ object LinalgCodeUtils {
     )
   }
 
-  def copyRowMajorToColumnMajor(rowMajorFirstElementAddress: Long, targetFirstElementAddress: Long, nRows: Long, nCols: Long, elementPTypeString: String): Unit = {
-    val elementPType = IRParser.parsePType(elementPTypeString)
+  def copyRowMajorToColumnMajor(rowMajorFirstElementAddress: Long, targetFirstElementAddress: Long, nRows: Long, nCols: Long, elementByteSize: Long): Unit = {
 
     var rowIndex = 0L
     while(rowIndex < nRows) {
@@ -31,9 +28,9 @@ object LinalgCodeUtils {
       while(colIndex < nCols) {
         val rowMajorCoord = nCols * rowIndex + colIndex
         val colMajorCoord = nRows * colIndex + rowIndex
-        val currentElement = Region.loadPrimitiveUnstaged(elementPType)(rowMajorFirstElementAddress + rowMajorCoord * elementPType.byteSize)
-        val targetAddress = targetFirstElementAddress + colMajorCoord * elementPType.byteSize
-        Region.storePrimitiveUnstaged(elementPType, targetAddress)(currentElement)
+        val sourceAddress = rowMajorFirstElementAddress + rowMajorCoord * elementByteSize
+        val targetAddress = targetFirstElementAddress + colMajorCoord * elementByteSize
+        Region.copyFrom(sourceAddress, targetAddress, elementByteSize)
         colIndex += 1
       }
       rowIndex += 1
@@ -54,18 +51,16 @@ object LinalgCodeUtils {
     )
   }
 
-  def copyColumnMajorToRowMajor(colMajorFirstElementAddress: Long, targetFirstElementAddress: Long, nRows: Long, nCols: Long, elementPTypeString: String): Unit = {
-    val elementPType = IRParser.parsePType(elementPTypeString)
-
+  def copyColumnMajorToRowMajor(colMajorFirstElementAddress: Long, targetFirstElementAddress: Long, nRows: Long, nCols: Long, elementByteSize: Long): Unit = {
     var rowIndex = 0L
     while (rowIndex < nRows) {
       var colIndex = 0L
       while (colIndex < nCols) {
         val rowMajorCoord = nCols * rowIndex + colIndex
         val colMajorCoord = nRows * colIndex + rowIndex
-        val currentElement = Region.loadPrimitiveUnstaged(elementPType)(colMajorFirstElementAddress + colMajorCoord * elementPType.byteSize)
-        val targetAddress = targetFirstElementAddress + rowMajorCoord * elementPType.byteSize
-        Region.storePrimitiveUnstaged(elementPType, targetAddress)(currentElement)
+        val sourceAddress = colMajorFirstElementAddress + colMajorCoord * elementByteSize
+        val targetAddress = targetFirstElementAddress + rowMajorCoord * elementByteSize
+        Region.copyFrom(sourceAddress, targetAddress, elementByteSize)
         colIndex += 1
       }
       rowIndex += 1
