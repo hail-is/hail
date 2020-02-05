@@ -170,7 +170,7 @@ abstract class PType extends Serializable with Requiredness {
   def isCanonical: Boolean = PType.canonical(this) == this // will recons, may need to rewrite this method
 
   def unsafeOrdering(rightType: PType): UnsafeOrdering = {
-    require(this.isOfType(rightType))
+    require(this == rightType)
     unsafeOrdering()
   }
 

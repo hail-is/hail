@@ -108,7 +108,7 @@ abstract class PBaseStruct extends PType {
     unsafeOrdering(this)
 
   override def unsafeOrdering(rightType: PType): UnsafeOrdering = {
-    require(this.isOfType(rightType))
+    require(this == rightType)
 
     val right = rightType.asInstanceOf[PBaseStruct]
     val fieldOrderings: Array[UnsafeOrdering] =
