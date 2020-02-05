@@ -4,7 +4,7 @@ PROJECT = $(shell gcloud config get-value project)
 GATEWAY_LATEST = gcr.io/$(PROJECT)/gateway:latest
 GATEWAY_IMAGE = gcr.io/$(PROJECT)/gateway:$(shell docker images -q --no-trunc gateway | sed -e 's,[^:]*:,,')
 DOMAIN ?= hail.is
-IP ?= 35.224.105.117
+IP ?= 35.188.91.25
 
 build:
 	docker pull ubuntu:18.04
