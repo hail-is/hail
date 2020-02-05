@@ -541,7 +541,7 @@ def run():
             profiler_tag = DEFAULT_NAMESPACE + f'-{HAIL_SHA[0:12]}'
         googlecloudprofiler.start(
             service='batch-driver',
-            version=profiler_tag,
+            service_version=profiler_tag,
             # https://cloud.google.com/profiler/docs/profiling-python#agent_logging
             verbose=3)
 
