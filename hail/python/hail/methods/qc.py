@@ -120,7 +120,10 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
 
     bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
     bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
-    bound_exprs['n_filtered'] = mt.count_rows(_localize=False) - hl.agg.count()
+
+    n_rows_ref = hl.expr.construct_expr(hl.ir.Ref('n_rows'), hl.tint64, mt._col_indices,
+                                        hl.utils.LinkedList(hl.expr.Aggregation))
+    bound_exprs['n_filtered'] = n_rows_ref - hl.agg.count()
     bound_exprs['n_hom_ref'] = hl.agg.count_where(mt['GT'].is_hom_ref())
     bound_exprs['n_het'] = hl.agg.count_where(mt['GT'].is_het())
     bound_exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, mt['GT'].ploidy).map(lambda i: mt[variant_ac][mt['GT'][i]] == 1)))
@@ -259,7 +262,9 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
 
     bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
     bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
-    bound_exprs['n_filtered'] = mt.count_cols(_localize=False) - hl.agg.count()
+    n_cols_ref = hl.expr.construct_expr(hl.ir.Ref('n_cols'), hl.tint32,
+                                        mt._row_indices, hl.utils.LinkedList(hl.expr.Aggregation))
+    bound_exprs['n_filtered'] = hl.int64(n_cols_ref) - hl.agg.count()
     bound_exprs['call_stats'] = hl.agg.call_stats(mt.GT, mt.alleles)
 
     result = hl.rbind(hl.struct(**bound_exprs),

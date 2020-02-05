@@ -796,7 +796,7 @@ object PruneDeadFields {
     val depEnv = memoizeValueIR(ir, requestedType, memo)
     val depEnvUnified = concatEnvs(FastIndexedSeq(depEnv.eval) ++ FastIndexedSeq(depEnv.agg, depEnv.scan).flatten)
 
-    val expectedBindingSet = Set("va", "sa", "g", "global")
+    val expectedBindingSet = Set("va", "sa", "g", "global", "n_rows", "n_cols")
     depEnvUnified.m.keys.foreach { k =>
       if (!expectedBindingSet.contains(k))
         throw new RuntimeException(s"found unexpected free variable in pruning: $k\n  ${ Pretty(ir) }")
