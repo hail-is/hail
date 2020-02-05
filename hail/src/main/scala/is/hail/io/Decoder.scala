@@ -9,6 +9,8 @@ import is.hail.expr.types.encoded.DecoderAsmFunction
 
 class DecoderBuilder(val v: InputStream => Decoder) extends Serializable {
   def apply(is: InputStream): Decoder = v(is)
+  def readRegionValue(is: InputStream, region: Region): Long =
+    v(is).readRegionValue(region)
 }
 
 trait Decoder extends Closeable {

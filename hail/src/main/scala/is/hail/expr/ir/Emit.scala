@@ -1788,13 +1788,12 @@ private class Emit(
         val (gTuple, globalsOff) = emit(globals).asTuple(gType, mb)
         val gCodec = TypedCodecSpec(gTuple, spec)
         val (gTupleDec: PTuple, gDec) = parentFB.decode(gTuple.virtualType, gCodec)
-        val gEnc = parentFB.newField[Encoder]
+        val gEnc = parentFB.newField[Array[Byte]]
         val addGlobals = Code(
-          gEnc := parentFB.encode(gTuple, gCodec).invoke[OutputStream, Encoder]("apply", baos),
-          gEnc.invoke[Region, Long, Unit]("writeRegionValue", region, globalsOff),
-          gEnc.invoke[Unit]("flush"),
-          gEnc.invoke[Unit]("close"),
-          spark.invoke[String, DecoderBuilder, Array[Byte], Unit]("addBroadcast", gID, gDec, baos.invoke[Array[Byte]]("toByteArray")))
+          parentFB.encode(gTuple, gCodec)
+            .invoke[OutputStream, Region, Long, Unit]("writeRegionValue", baos, region, globalsOff),
+          spark.invoke[String, DecoderBuilder, Array[Byte], Unit](
+            "addBroadcast", gID, gDec, baos.invoke[Array[Byte]]("toByteArray")))
 
         val ctxType = coerce[PArray](contexts.pType).elementType
         val ctxTuple = PTuple(ctxType)
@@ -1827,21 +1826,14 @@ private class Emit(
 
           val bCodec = TypedCodecSpec(bTuple, spec)
           val bMakeEnc = bodyFB.encode(bTuple, bCodec)
-          val bEnc = bodyFB.newField[Encoder]
 
           bodyFB.emit(Code(
-            ctxOff := ctxDec
-              .invoke[InputStream, Decoder]("apply", ctxIS)
-              .invoke[Region, Long]("readRegionValue", bRegion),
+            ctxOff := ctxDec.invoke[InputStream, Region, Long]("readRegionValue", ctxIS, bRegion),
             ctxM := ctxPT.isFieldMissing(ctxOff, 0),
             (!ctxM).orEmpty(ctxV.storeAny(Region.loadIRIntermediate(ctxType)(ctxPT.fieldOffset(ctxOff, 0)))),
             gM := gTupleDec.isFieldMissing(gOff, 0),
             (!gM).orEmpty(gV.storeAny(Region.loadIRIntermediate(gType)(gTupleDec.fieldOffset(gOff, 0)))),
-            bEnc := bMakeEnc.invoke[OutputStream, Encoder]("apply", bOS),
-            bEnc.invoke[Region, Long, Unit]("writeRegionValue", bRegion, bOff),
-            bEnc.invoke[Unit]("flush"),
-            bEnc.invoke[Unit]("close")
-          ))
+            bMakeEnc.invoke[OutputStream, Region, Long, Unit]("writeRegionValue", bOS, bRegion, bOff)))
 
           val fID = genUID()
           parentFB.addModule(fID, bodyFB.resultWithIndex())
@@ -1890,8 +1882,7 @@ private class Emit(
             sab.start(encRes.length()),
             Code.whileLoop(sab.arrayIdx < encRes.length(),
               bais := Code.newInstance[ByteArrayInputStream, Array[Byte]](encRes(sab.arrayIdx)),
-              elt := bMakeDec.invoke[InputStream, Decoder]("apply", Code.checkcast[InputStream](bais))
-                .invoke[Region, Long]("readRegionValue", region),
+              elt := bMakeDec.invoke[InputStream, Region, Long]("readRegionValue", bais, region),
               pt.isFieldMissing(elt, 0).mux(
                 sab.setMissing(), sab.addIRIntermediate(body.pType)(Region.loadIRIntermediate(body.pType)(pt.fieldOffset(elt, 0)))),
               sab.advance()),

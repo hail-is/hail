@@ -8,6 +8,12 @@ import is.hail.expr.types.encoded.EncoderAsmFunction
 
 class EncoderBuilder(val v: OutputStream => Encoder) extends Serializable {
   def apply(os: OutputStream): Encoder = v(os)
+  def writeRegionValue(os: OutputStream, region: Region, offset: Long): Unit = {
+    val enc = v(os)
+    enc.writeRegionValue(region, offset)
+    enc.flush()
+    enc.close()
+  }
 }
 
 trait Encoder extends Closeable {
