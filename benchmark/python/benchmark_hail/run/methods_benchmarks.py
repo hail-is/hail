@@ -145,3 +145,13 @@ def pc_relate_big():
                        statistics='kin',
                        min_kinship=0.05)
     rel._force_count()
+
+
+@benchmark()
+def linear_regression_rows():
+    mt = hl.balding_nichols_model(5, 4096, 8 * 4096).checkpoint(hl.utils.new_temp_file(suffix='mt'))
+    mt = mt.annotate_cols(pheno1 = hl.rand_unif(0, 1), pheno2 = hl.rand_unif(0, 1))
+    res = hl.linear_regression_rows(y=[mt.pheno1, mt.pheno2],
+                                    x=mt.GT.n_alt_alleles(),
+                                    covariates=[1.0, mt.pop])
+    res._force_count()
