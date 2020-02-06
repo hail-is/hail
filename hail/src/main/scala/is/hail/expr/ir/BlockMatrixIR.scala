@@ -315,12 +315,24 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
 case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends BlockMatrixIR {
 
   override def typ: BlockMatrixType = {
+    val blockSize = left.typ.blockSize
     val (lRows, lCols) = BlockMatrixIR.tensorShapeToMatrixShape(left)
     val (rRows, rCols) = BlockMatrixIR.tensorShapeToMatrixShape(right)
     assert(lCols == rRows)
 
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(lRows, rCols)
-    BlockMatrixType(left.typ.elementType, tensorShape, isRowVector, left.typ.blockSize)
+    if (left.typ.hasSparsity && right.typ.hasSparsity) {
+      val sparsity = Array.tabulate(BlockMatrixType.numBlocks(lRows, blockSize)) { i =>
+        Array.tabulate(BlockMatrixType.numBlocks(rCols, blockSize)) { j =>
+          Array.tabulate(BlockMatrixType.numBlocks(rCols, blockSize)) { k =>
+            left.typ.definedBlocks(i)(k) && right.typ.definedBlocks(k)(j)
+          }.reduce(_ || _)
+        }
+      }
+      BlockMatrixType(left.typ.elementType, tensorShape, isRowVector, blockSize, sparsity)
+    } else {
+      BlockMatrixType(left.typ.elementType, tensorShape, isRowVector, blockSize)
+    }
   }
 
   lazy val children: IndexedSeq[BaseIR] = Array(left, right)
@@ -555,8 +567,7 @@ case class ValueToBlockMatrix(
   val blockCostIsLinear: Boolean = true
 
   override def typ: BlockMatrixType = {
-    val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape(0), shape(1))
-    BlockMatrixType(elementType(child.typ), tensorShape, isRowVector, blockSize)
+    BlockMatrixType.dense(elementType(child.typ), shape(0), shape(1), blockSize)
   }
 
   private def elementType(childType: Type): Type = {
@@ -597,10 +608,8 @@ case class BlockMatrixRandom(
 
   val blockCostIsLinear: Boolean = true
 
-  override def typ: BlockMatrixType = {
-    val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape(0), shape(1))
-    BlockMatrixType(TFloat64(), tensorShape, isRowVector, blockSize)
-  }
+  override def typ: BlockMatrixType =
+    BlockMatrixType.dense(TFloat64(), shape(0), shape(1), blockSize)
 
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 

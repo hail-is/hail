@@ -53,5 +53,5 @@ case object LowerTableToDistributedArrayPass extends LoweringPass {
   val after: IRState = CompilableIR
   val context: String = "LowerTableToDistributedArray"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerTableIR.lower(ir.asInstanceOf[IR])
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerIR.lower(ir.asInstanceOf[IR], lowerTable = true, lowerBM = false)
 }

@@ -34,7 +34,6 @@ case class TableStage(
 
 object LowerTableIR {
   def lower(ir: IR): IR = ir match {
-
     case TableCount(tableIR) =>
       val stage = lower(tableIR)
       invoke("sum", TInt64(), stage.toIR(node => Cast(ArrayLen(node), TInt64())))
@@ -54,14 +53,8 @@ object LowerTableIR {
     case node if node.children.exists( _.isInstanceOf[TableIR] ) =>
       throw new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(node) }")
 
-    case node if node.children.exists( _.isInstanceOf[MatrixIR] ) =>
-      throw new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(node) }")
-
-    case node if node.children.exists( _.isInstanceOf[BlockMatrixIR] ) =>
-      throw new LowererUnsupportedOperation(s"BlockMatrixIR nodes are not supported: \n${ Pretty(node) }")
-
     case node =>
-      Copy(node, ir.children.map { case c: IR => lower(c) })
+      throw new LowererUnsupportedOperation(s"Value IRs with no TableIR children must be lowered through LowerIR: \n${ Pretty(node) }")
   }
 
   // table globals should be stored in the first element of `globals` in TableStage;
