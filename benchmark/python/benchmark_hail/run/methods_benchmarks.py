@@ -147,11 +147,16 @@ def pc_relate_big():
     rel._force_count()
 
 
-@benchmark()
-def linear_regression_rows():
-    mt = hl.balding_nichols_model(5, 4096, 8 * 4096).checkpoint(hl.utils.new_temp_file(suffix='mt'))
-    mt = mt.annotate_cols(pheno1 = hl.rand_unif(0, 1), pheno2 = hl.rand_unif(0, 1))
-    res = hl.linear_regression_rows(y=[mt.pheno1, mt.pheno2],
-                                    x=mt.GT.n_alt_alleles(),
-                                    covariates=[1.0, mt.pop])
+@benchmark(args=random_doubles.handle('mt'))
+def linear_regression_rows(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    num_phenos = 100
+    num_covs = 20
+    pheno_dict = {f"pheno_{i}": hl.rand_unif(0, 1) for i in range(num_phenos)}
+    cov_dict = {f"cov_{i}": hl.rand_unif(0, 1) for i in range(num_covs)}
+    mt = mt.annotate_cols(**pheno_dict)
+    mt = mt.annotate_cols(**cov_dict)
+    res = hl.linear_regression_rows(y=[mt[key] for key in pheno_dict.keys()],
+                                    x=mt.x,
+                                    covariates=[mt[key] for key in cov_dict.keys()])
     res._force_count()
