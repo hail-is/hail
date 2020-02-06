@@ -19,13 +19,13 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
   val nAggs: Int = aggs.length
 
   def isCommutative: Boolean = {
-    def aggCommutes(agg: AggStateSignature): Boolean = AggIsCommutative(agg.default) && agg.nested.forall(_.forall(aggCommutes))
+    def aggCommutes(agg: AggStateSignature): Boolean = agg.m.keysIterator.forall(AggIsCommutative(_)) && agg.nested.forall(_.forall(aggCommutes))
 
     aggs.forall(aggCommutes)
   }
 
   def shouldTreeAggregate: Boolean = {
-    def containsBigAggregator(agg: AggStateSignature): Boolean = (agg.default match {
+    def containsBigAggregator(agg: AggStateSignature): Boolean = (agg.m.keysIterator.exists {
       case AggElements() => true
       case AggElementsLengthCheck() => true
       case Downsample() => true
@@ -240,6 +240,7 @@ object Extract {
         val rt = TDict(key.typ, TTuple(initOps.map(_.aggSig.resultType): _*))
         newRef._typ = -rt.elementType
 
+        // the void-typed init and seq args are side-effecting agg IRs (InitOp and SeqOp nodes for sub-aggs)
         val groupSig = AggSignature(Group(), Seq(TVoid), FastSeq(key.typ, TVoid))
         val aggSig = AggStateSignature(Map(Group() -> groupSig), Group(), Some(initOps.map(_.aggSig)))
         ab += InitOp(i, FastIndexedSeq(Begin(initOps)), aggSig, Group())
@@ -264,6 +265,7 @@ object Extract {
         val rt = TArray(TTuple(initOps.map(_.aggSig.resultType): _*))
         newRef._typ = -rt.elementType
 
+        // the void-typed init and seq args are side-effecting agg IRs (InitOp and SeqOp nodes for sub-aggs)
         val aggSigCheck = AggSignature(
           AggElementsLengthCheck(),
           knownLength.map(l => FastSeq(l.typ)).getOrElse(FastSeq()) :+ TVoid,
