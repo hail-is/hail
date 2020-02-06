@@ -16,7 +16,8 @@ import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
-from hailtop.utils import time_msecs, request_retry_transient_errors
+from hailtop.utils import time_msecs, request_retry_transient_errors, \
+    retry_transient_errors
 
 # import uvloop
 
@@ -287,10 +288,16 @@ class Container:
             log.info(f'{self}: container status {self.container_status}')
 
             async with self.step('uploading_log'):
-                await worker.log_store.write_log_file(
-                    self.job.format_version, self.job.batch_id,
-                    self.job.job_id, self.job.attempt_id, self.name,
-                    await self.get_container_log())
+                container_log = await self.get_container_log()
+                self.log = container_log
+                await retry_transient_errors(
+                    worker.log_store.write_log_file,
+                    self.job.format_version,
+                    self.job.batch_id,
+                    self.job.job_id,
+                    self.job.attempt_id,
+                    self.name,
+                    container_log)
 
             async with self.step('deleting'):
                 await self.delete_container()
@@ -790,10 +797,12 @@ class Worker:
         full_status = await job.status()
 
         if job.format_version.has_full_status_in_gcs():
-            await self.log_store.write_status_file(job.batch_id,
-                                                   job.job_id,
-                                                   job.attempt_id,
-                                                   json.dumps(full_status))
+            await retry_transient_errors(
+                self.log_store.write_status_file,
+                job.batch_id,
+                job.job_id,
+                job.attempt_id,
+                json.dumps(full_status))
 
         db_status = job.format_version.db_status(full_status)
 
@@ -846,6 +855,8 @@ class Worker:
     async def post_job_complete(self, job, run_duration):
         try:
             await self.post_job_complete_1(job, run_duration)
+        except Exception:
+            log.exception(f'error while marking {job} complete')
         finally:
             log.info(f'{job} marked complete, removing from jobs')
             if job.id in self.jobs:

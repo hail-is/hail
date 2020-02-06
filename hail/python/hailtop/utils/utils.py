@@ -4,6 +4,8 @@ import logging
 import asyncio
 import aiohttp
 from aiohttp import web
+import urllib3
+import socket
 
 from .time import time_msecs
 
@@ -181,6 +183,10 @@ def is_transient_error(e):
     #
     # during aiohttp request
     # aiohttp.client_exceptions.ClientOSError: [Errno 104] Connection reset by peer
+    #
+    # urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='www.googleapis.com', port=443): Read timed out. (read timeout=60)
+    #
+    # socket.timeout: The read operation timed out
     if isinstance(e, aiohttp.ClientResponseError):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 500 internal server error, 502 bad gateway
@@ -205,6 +211,10 @@ def is_transient_error(e):
                 e.errno == errno.EHOSTUNREACH or
                 e.errno == errno.ECONNRESET):
             return True
+    elif isinstance(e, urllib3.exceptions.ReadTimeoutError):
+        return True
+    elif isinstance(e, socket.timeout):
+        return True
     return False
 
 
