@@ -563,6 +563,7 @@ class WatchedBranch(Code):
                     self.state_changed = True
                     return
 
+    @staticmethod
     def _hail_github_status_from_statuses(statuses_json):
         statuses = statuses_json["statuses"]
         hail_status = [s for s in statuses if s["context"] == GITHUB_STATUS_CONTEXT]
