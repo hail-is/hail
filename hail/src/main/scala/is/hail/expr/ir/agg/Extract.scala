@@ -140,7 +140,7 @@ object Extract {
     case AggSignature(ApproxCDF(), _, _) => QuantilesAggregator.resultType.virtualType
     case AggSignature(Downsample(), _, Seq(_, _, label)) => DownsampleAggregator.resultType
     case AggSignature(AggElementsLengthCheck(), _, _) => TArray(TTuple(aggSig.nested.get.map(getResultType): _*))
-    case AggSignature(Group(), _, Seq(k)) =>  TDict(k, TTuple(aggSig.nested.get.map(getResultType): _*))
+    case AggSignature(Group(), _, Seq(k, _)) =>  TDict(k, TTuple(aggSig.nested.get.map(getResultType): _*))
     case _ => throw new UnsupportedExtraction(aggSig.toString)  }
 
   def getAgg(aggSig: AggStatePhysicalSignature, op: AggOp): StagedAggregator = aggSig.lookup(op) match {
