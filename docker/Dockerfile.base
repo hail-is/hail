@@ -4,7 +4,6 @@ ENV LANG C.UTF-8
 
 RUN apt-get update && \
   apt-get -y install \
-    build-essential \
     emacs25-nox \
     git \
     htop \
