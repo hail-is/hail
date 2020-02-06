@@ -530,7 +530,7 @@ case class BandSparsifier(blocksOnly: Boolean) extends BlockMatrixSparsifier {
 
 case class RowIntervalSparsifier(blocksOnly: Boolean) extends BlockMatrixSparsifier {
   def sparsify(ctx: ExecuteContext, bm: BlockMatrix, value: IR): BlockMatrix = {
-    val Row(starts: IndexedSeq[Int], stops: IndexedSeq[Int]) = CompileAndEvaluate[Row](ctx, value, optimize = true)
+    val Row(starts: IndexedSeq[Int @unchecked], stops: IndexedSeq[Int @unchecked]) = CompileAndEvaluate[Row](ctx, value, optimize = true)
     bm.filterRowIntervals(starts.map(_.toLong).toArray, stops.map(_.toLong).toArray, blocksOnly)
   }
 }
