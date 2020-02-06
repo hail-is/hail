@@ -1576,9 +1576,9 @@ object IRParser {
         val child = blockmatrix_ir(env)(it)
         BlockMatrixDensify(child)
       case "BlockMatrixSparsify" =>
+        val sparsifier = blockmatrix_sparsifier(it)
         val child = blockmatrix_ir(env)(it)
         val value = ir_value_expr(env)(it)
-        val sparsifier = blockmatrix_sparsifier(it)
         BlockMatrixSparsify(child, value, sparsifier)
       case "BlockMatrixSlice" =>
         val slices = literals(literals(int64_literal))(it)
