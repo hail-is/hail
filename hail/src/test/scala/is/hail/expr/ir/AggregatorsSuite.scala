@@ -21,7 +21,7 @@ class AggregatorsSuite extends HailSuite {
   def runAggregator(op: AggOp, aggType: TStruct, agg: IndexedSeq[Row], expected: Any, initOpArgs: IndexedSeq[IR],
     seqOpArgs: IndexedSeq[IR]) {
 
-    val aggSig = AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ), None)
+    val aggSig = AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ))
 
     assertEvalsTo(
       ApplyAggOp(initOpArgs, seqOpArgs, aggSig),
@@ -184,7 +184,7 @@ class AggregatorsSuite extends HailSuite {
 
   @Test
   def sumMultivar() {
-    val aggSig = AggSignature(Sum(), FastSeq(), FastSeq(TFloat64()), None)
+    val aggSig = AggSignature(Sum(), FastSeq(), FastSeq(TFloat64()))
     assertEvalsTo(ApplyAggOp(
       FastSeq(),
       FastSeq(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64()))),
@@ -198,7 +198,7 @@ class AggregatorsSuite extends HailSuite {
     a: IndexedSeq[Seq[T]],
     expected: Seq[T]
   ): Unit = {
-    val aggSig = AggSignature(Sum(), FastSeq(), FastSeq(eltType), None)
+    val aggSig = AggSignature(Sum(), FastSeq(), FastSeq(eltType))
 
     val aggregable = a.map(Row(_))
     val structType = TStruct("foo" -> TArray(eltType))
@@ -540,7 +540,7 @@ class AggregatorsSuite extends HailSuite {
         ApplyAggOp(
           initOpArgs,
           seqOpArgs,
-          AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ), None)),
+          AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ))),
         false),
       (agg, aggType),
       expected)
@@ -610,7 +610,7 @@ class AggregatorsSuite extends HailSuite {
     val agg = FastIndexedSeq(Row("EUR", true, 1), Row("EUR", false, 2), Row("AFR", true, 3), Row("AFR", null, 4))
     val aggType = TStruct("k1" -> TString(), "k2" -> TBoolean(), "x" -> TInt32())
     val expected = Map("EUR" -> Map(true -> FastIndexedSeq(1), false -> FastIndexedSeq(2)), "AFR" -> Map(true -> FastIndexedSeq(3), (null, FastIndexedSeq(4))))
-    val aggSig = AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(TInt32()), None)
+    val aggSig = AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(TInt32()))
     assertEvalsTo(
       AggGroupBy(Ref("k1", TString()),
         AggGroupBy(Ref("k2", TBoolean()),
@@ -640,7 +640,7 @@ class AggregatorsSuite extends HailSuite {
       "AFR" -> Map(
         "CASE" -> Row(FastIndexedSeq(0, 2), FastIndexedSeq(0.0, 1.0), 2, FastIndexedSeq(0, 1)),
         "CONTROL" -> Row(FastIndexedSeq(0, 0), null, 0, FastIndexedSeq(0, 0))))
-    val aggSig = AggSignature(CallStats(), FastIndexedSeq(TInt32()), FastIndexedSeq(TCall()), None)
+    val aggSig = AggSignature(CallStats(), FastIndexedSeq(TInt32()), FastIndexedSeq(TCall()))
     assertEvalsTo(
       AggGroupBy(Ref("k1", TString()),
         AggGroupBy(Ref("k2", TString()),
@@ -664,7 +664,7 @@ class AggregatorsSuite extends HailSuite {
       "case" -> Map("a" -> FastIndexedSeq(0.2, 0.3)),
       "control" -> Map("b" -> FastIndexedSeq(0.4, 0.5)),
       (null, Map("c" -> FastIndexedSeq(1.0))))
-    val aggSig = AggSignature(TakeBy(), FastIndexedSeq(TInt32()), FastIndexedSeq(TFloat64(), TInt32()), None)
+    val aggSig = AggSignature(TakeBy(), FastIndexedSeq(TInt32()), FastIndexedSeq(TFloat64(), TInt32()))
     assertEvalsTo(
       AggGroupBy(Ref("k1", TString()),
         AggGroupBy(Ref("k2", TString()),
@@ -682,7 +682,7 @@ class AggregatorsSuite extends HailSuite {
     val agg = FastIndexedSeq(Row("EUR", "CASE", true, 1), Row("EUR", "CONTROL", true, 2), Row("AFR", "CASE", false, 3), Row("AFR", "CONTROL", false, 4))
     val aggType = TStruct("k1" -> TString(), "k2" -> TString(), "k3" -> TBoolean(), "x" -> TInt32())
     val expected = Map("EUR" -> Map("CASE" -> Map(true -> FastIndexedSeq(1)), "CONTROL" -> Map(true -> FastIndexedSeq(2))), "AFR" -> Map("CASE" -> Map(false -> FastIndexedSeq(3)), "CONTROL" -> Map(false -> FastIndexedSeq(4))))
-    val aggSig = AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(TInt32()), None)
+    val aggSig = AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(TInt32()))
     assertEvalsTo(
       AggGroupBy(Ref("k1", TString()),
         AggGroupBy(Ref("k2", TString()),
@@ -706,7 +706,7 @@ class AggregatorsSuite extends HailSuite {
   }
 
   @Test def testAggFilter(): Unit = {
-    val aggSig = AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64()), None)
+    val aggSig = AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64()))
     val aggType = TStruct("x" -> TBoolean(), "y" -> TInt64())
     val agg = FastIndexedSeq(Row(true, -1L), Row(true, 1L), Row(false, 3L), Row(true, 5L))
 
@@ -720,7 +720,7 @@ class AggregatorsSuite extends HailSuite {
   }
 
   @Test def testAggExplode(): Unit = {
-    val aggSig = AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64()), None)
+    val aggSig = AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64()))
     val aggType = TStruct("x" -> TArray(TInt64()))
     val agg = FastIndexedSeq(
       Row(FastIndexedSeq[Long](1, 4)),
@@ -752,7 +752,7 @@ class AggregatorsSuite extends HailSuite {
           ApplyAggOp(
             FastIndexedSeq(),
             FastIndexedSeq(Cast(Ref("elt", TInt32()), TInt64())),
-            AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64()), None)),
+            AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64()))),
           None,
           false
         )
@@ -778,7 +778,7 @@ class AggregatorsSuite extends HailSuite {
           ApplyAggOp(
             FastIndexedSeq(),
             FastIndexedSeq(Cast(Ref("elt", TInt32()), TInt64())),
-            AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64()), None)),
+            AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64()))),
           knownLength,
           false
         )

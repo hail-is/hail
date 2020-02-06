@@ -134,8 +134,8 @@ object Children {
       Array(old)
     case InsertFields(old, fields, _) =>
       (old +: fields.map(_._2)).toFastIndexedSeq
-    case InitOp(_, args, _) => args
-    case SeqOp(_, args, _) => args
+    case InitOp(_, args, _, _) => args
+    case SeqOp(_, args, _, _) => args
     case _: ResultOp => none
     case _: AggStateValue => none
     case _: CombOp => none

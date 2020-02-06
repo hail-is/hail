@@ -296,7 +296,7 @@ class EmitStreamSuite extends HailSuite {
         opArgs.toFastIndexedSeq,
         AggSignature(op,
           initArgs.map(_.typ),
-          opArgs.map(_.typ), None))
+          opArgs.map(_.typ)))
 
     val pairType = TStruct("x" -> TCall(), "y" -> TInt32())
     val intsType = TArray(TInt32())
