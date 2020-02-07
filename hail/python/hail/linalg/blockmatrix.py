@@ -1297,7 +1297,10 @@ class BlockMatrix(object):
     @typecheck_method(f=func_spec(1, expr_float64), needs_dense=bool)
     def _apply_map(self, f, needs_dense):
         uid = Env.get_uid()
-        return BlockMatrix(BlockMatrixMap(self._bmir, uid, f(construct_variable(uid, hl.tfloat64))._ir, needs_dense))
+        bmir = self._bmir
+        if needs_dense:
+            bmir = BlockMatrixDensify(bmir)
+        return BlockMatrix(BlockMatrixMap(bmir, uid, f(construct_variable(uid, hl.tfloat64))._ir, needs_dense))
 
     @typecheck_method(f=func_spec(2, expr_float64),
                       other=oneof(numeric, np.ndarray, block_matrix_type),

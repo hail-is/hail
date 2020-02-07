@@ -176,30 +176,30 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
     val prev = child.execute(ctx)
 
-    val (name, breezeF, reqDense): (String, DenseMatrix[Double] => DenseMatrix[Double], Boolean) = f match {
-      case ApplyUnaryPrimOp(Negate(), _) => ("negate", BlockMatrix.negationOp, false)
-      case Apply("abs", _, _) => ("abs", numerics.abs(_), false)
-      case Apply("log", _, _) => ("log", numerics.log(_), true)
-      case Apply("sqrt", _, _) => ("sqrt", numerics.sqrt(_), false)
-      case Apply("ceil", _, _) => ("ceil", numerics.ceil(_), false)
-      case Apply("floor", _, _) => ("floor", numerics.floor(_), false)
+    val (name, breezeF): (String, DenseMatrix[Double] => DenseMatrix[Double]) = f match {
+      case ApplyUnaryPrimOp(Negate(), _) => ("negate", BlockMatrix.negationOp)
+      case Apply("abs", _, _) => ("abs", numerics.abs(_))
+      case Apply("log", _, _) => ("log", numerics.log(_))
+      case Apply("sqrt", _, _) => ("sqrt", numerics.sqrt(_))
+      case Apply("ceil", _, _) => ("ceil", numerics.ceil(_))
+      case Apply("floor", _, _) => ("floor", numerics.floor(_))
 
       case Apply("**", Seq(Ref(`eltName`, _), r), _) if !Mentions(r, eltName) =>
-        ("**", binaryOp(evalIR(ctx, r), numerics.pow(_, _)), false)
+        ("**", binaryOp(evalIR(ctx, r), numerics.pow(_, _)))
       case ApplyBinaryPrimOp(Add(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
-        ("+", binaryOp(evalIR(ctx, r), _ + _), true)
+        ("+", binaryOp(evalIR(ctx, r), _ + _))
       case ApplyBinaryPrimOp(Add(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
-        ("+", binaryOp(evalIR(ctx, l), _ + _), true)
+        ("+", binaryOp(evalIR(ctx, l), _ + _))
       case ApplyBinaryPrimOp(Multiply(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
         val i = evalIR(ctx, r)
-        ("*", binaryOp(i, _ *:* _), i.isNaN | i.isInfinity)
+        ("*", binaryOp(i, _ *:* _))
       case ApplyBinaryPrimOp(Multiply(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
         val i = evalIR(ctx, l)
-        ("*", binaryOp(i, _ *:* _), i.isNaN | i.isInfinity)
+        ("*", binaryOp(i, _ *:* _))
       case ApplyBinaryPrimOp(Subtract(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
-        ("-", binaryOp(evalIR(ctx, r), (m, s) => m - s), true)
+        ("-", binaryOp(evalIR(ctx, r), (m, s) => m - s))
       case ApplyBinaryPrimOp(Subtract(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
-        ("-", binaryOp(evalIR(ctx, l), (m, s) => s - m), true)
+        ("-", binaryOp(evalIR(ctx, l), (m, s) => s - m))
       case ApplyBinaryPrimOp(FloatingPointDivide(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
         val i = evalIR(ctx, r)
         ("/", binaryOp(evalIR(ctx, r), (m, s) => m /:/ s), i == 0.0 | i.isNaN | i.isInfinity)
@@ -210,10 +210,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
       case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(f)}")
     }
 
-    if (reqDense)
-      prev.densify().blockMap(breezeF, name, reqDense = true)
-    else
-      prev.blockMap(breezeF, name, reqDense = false)
+    prev.blockMap(breezeF, name, reqDense = needsDense)
   }
 }
 
@@ -221,7 +218,7 @@ object SparsityStrategy {
   def fromString(s: String): SparsityStrategy = s match {
     case "union" | "Union" | "UnionBlocks" => Union
     case "intersection" | "Intersection" | "IntersectionBlocks" => Intersection
-    case "needs_dense", "NeedsDense" => NeedsDense
+    case "needs_dense" | "NeedsDense" => NeedsDense
   }
 
 }
