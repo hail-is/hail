@@ -63,6 +63,12 @@ class HailContext(object):
             conf.set('spark.jars', ','.join(jars))
             conf.set('spark.driver.extraClassPath', ','.join(jars))
             conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
+
+            lapack_thread_limit_env_variables = ['MKL_NUM_THREADS', 'NUMEXPR_NUM_THREADS', 'OPENBLAS_NUM_THREADS',
+                                                 'OMP_NUM_THREADS', 'VECLIB_MAXIMUM_THREADS']
+            for lapack_env_variable in lapack_thread_limit_env_variables:
+                conf.set(f'spark.executorEnv.{lapack_env_variable}', 1)
+
             if sc is None:
                 SparkContext._ensure_initialized(conf=conf)
             else:
