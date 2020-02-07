@@ -207,7 +207,7 @@ class BlockMatrixDensify(BlockMatrixIR):
         self._type = self.child.typ
 
 
-class BlockMatrixSparsifer(object):
+class BlockMatrixSparsifier(object):
     def head_str(self):
         return ''
 
@@ -224,7 +224,7 @@ class BlockMatrixSparsifer(object):
         return isinstance(other, self.__class__) and self._eq(other)
 
 
-class BandSparsifier(BlockMatrixSparsifer):
+class BandSparsifier(BlockMatrixSparsifier):
     @typecheck_method(blocks_only=bool)
     def __init__(self, blocks_only):
         self.blocks_only = blocks_only
@@ -236,7 +236,7 @@ class BandSparsifier(BlockMatrixSparsifer):
         return self.blocks_only == other.blocks_only
 
 
-class RowIntervalSparsifier(BlockMatrixSparsifer):
+class RowIntervalSparsifier(BlockMatrixSparsifier):
     @typecheck_method(blocks_only=bool)
     def __init__(self, blocks_only):
         self.blocks_only = blocks_only
@@ -248,7 +248,7 @@ class RowIntervalSparsifier(BlockMatrixSparsifer):
         return self.blocks_only == other.blocks_only
 
 
-class _RectangleSparsifier(BlockMatrixSparsifer):
+class _RectangleSparsifier(BlockMatrixSparsifier):
     def __init__(self):
         pass
 
