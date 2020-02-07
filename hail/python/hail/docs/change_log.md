@@ -36,7 +36,7 @@ Released 2020-02-07
 
 - (hail#7962) Improved performance of `hl.pc_relate`.
 - (hail#8032) Drastically improve performance of pipelines calling `hl.variant_qc` and `hl.sample_qc` iteratively.
-- (hail#8037) Improve performance of `hl.nd.array.dot` by using native linear algebra libraries.
+- (hail#8037) Improve performance of NDArray matrix multiply by using native linear algebra libraries.
 
 ### Bug fixes
 
