@@ -22,6 +22,32 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+--- 
+
+## Version 0.2.32
+
+Released 2020-02-07
+
+### Critical performance regression fix
+
+- (hail#7989) Fixed performance regression leading to a large slowdown when `hl.variant_qc` was run after filtering columns.
+
+### Performance
+
+- (hail#7962) Improved performance of `hl.pc_relate`.
+- (hail#8032) Drastically improve performance of pipelines calling `hl.variant_qc` and `hl.sample_qc` iteratively.
+- (hail#8037) Improve performance of `hl.nd.array.dot` by using native linear algebra libraries.
+
+### Bug fixes
+
+- (hail#7976) Fixed divide-by-zero error in `hl.concordance` with no overlapping rows or cols.
+- (hail#7965) Fixed optimizer error leading to crashes caused by `MatrixTable.union_rows`.
+
+### Cheat sheets
+
+ - (hail#7940) Added cheat sheet for MatrixTables.
+ - (hail#7963) Improved Table sheet sheet.
+
 ---
 
 ## Version 0.2.31
