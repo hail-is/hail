@@ -42,6 +42,13 @@ Released 2020-02-07
 
 - (hail#7976) Fixed divide-by-zero error in `hl.concordance` with no overlapping rows or cols.
 - (hail#7965) Fixed optimizer error leading to crashes caused by `MatrixTable.union_rows`.
+- (hail#8035) Fix compiler bug in `Table.multi_way_zip_join`.
+- (hail#8021) Fix bug in computing shape after `BlockMatrix.filter`.
+- (hail#7986) Fix error in NDArray matrix/vector multiply.
+
+### New features
+
+- (hail#8007) Add `hl.nd.diagonal` function.
 
 ### Cheat sheets
 
