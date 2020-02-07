@@ -149,7 +149,7 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
   val blockCostIsLinear: Boolean = true // not guaranteed
 }
 
-case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR) extends BlockMatrixIR {
+case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDense: Boolean) extends BlockMatrixIR {
   assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplyBinaryPrimOp])
 
   override lazy val typ: BlockMatrixType = child.typ
@@ -158,7 +158,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR) extends 
 
   def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixMap = {
     val IndexedSeq(newChild: BlockMatrixIR, newF: IR) = newChildren
-    BlockMatrixMap(newChild, eltName, newF)
+    BlockMatrixMap(newChild, eltName, newF, needsDense)
   }
 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
@@ -217,7 +217,29 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR) extends 
   }
 }
 
-case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: String, rightName: String, f: IR) extends BlockMatrixIR {
+object SparsityStrategy {
+  def fromString(s: String): SparsityStrategy = s match {
+    case "union" | "Union" | "UnionBlocks" => Union
+    case "intersection" | "Intersection" | "IntersectionBlocks" => Intersection
+    case "needs_dense", "NeedsDense" => NeedsDense
+  }
+
+}
+
+abstract class SparsityStrategy {
+  def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean
+}
+case object Union extends SparsityStrategy {
+  def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean = leftBlock || rightBlock
+}
+case object Intersection extends SparsityStrategy {
+  def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean = leftBlock && rightBlock
+}
+case object NeedsDense extends SparsityStrategy {
+  def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean = true
+}
+
+case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: String, rightName: String, f: IR, sparsityStrategy: SparsityStrategy) extends BlockMatrixIR {
   assert(f.isInstanceOf[ApplyBinaryPrimOp] || f.isInstanceOf[Apply])
 
   override def typ: BlockMatrixType = left.typ
@@ -232,7 +254,8 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
       newChildren(0).asInstanceOf[BlockMatrixIR],
       newChildren(1).asInstanceOf[BlockMatrixIR],
       leftName, rightName,
-      newChildren(2).asInstanceOf[IR])
+      newChildren(2).asInstanceOf[IR],
+      sparsityStrategy)
   }
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {

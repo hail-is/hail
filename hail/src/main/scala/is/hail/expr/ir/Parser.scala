@@ -1548,16 +1548,18 @@ object IRParser {
         BlockMatrixRead(reader)
       case "BlockMatrixMap" =>
         val name = identifier(it)
+        val needs_dense = boolean_literal(it)
         val child = blockmatrix_ir(env)(it)
         val f = ir_value_expr(env + (name -> child.typ.elementType))(it)
-        BlockMatrixMap(child, name, f)
+        BlockMatrixMap(child, name, f, needs_dense)
       case "BlockMatrixMap2" =>
         val lName = identifier(it)
         val rName = identifier(it)
+        val sparsityStrategy = SparsityStrategy.fromString(identifier(it))
         val left = blockmatrix_ir(env)(it)
         val right = blockmatrix_ir(env)(it)
         val f = ir_value_expr(env.update(Map(lName -> left.typ.elementType, rName -> right.typ.elementType)))(it)
-        BlockMatrixMap2(left, right, lName, rName, f)
+        BlockMatrixMap2(left, right, lName, rName, f, sparsityStrategy)
       case "BlockMatrixDot" =>
         val left = blockmatrix_ir(env)(it)
         val right = blockmatrix_ir(env)(it)
