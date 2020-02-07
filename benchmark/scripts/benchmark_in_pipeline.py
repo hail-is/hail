@@ -53,7 +53,11 @@ if __name__ == '__main__':
             resource_task = resource_tasks[resource_group]
             t.command(f'mv {resource_task.ofile} benchmark-resources/{resource_group.name()}.tar')
             t.command(f'time tar -xf benchmark-resources/{resource_group.name()}.tar')
-        t.command(f'PYSPARK_SUBMIT_ARGS="--driver-memory 6G pyspark-shell" '
+        t.command(f'MKL_NUM_THREADS=1'
+                  f'OPENBLAS_NUM_THREADS=1'
+                  f'OMP_NUM_THREADS=1'
+                  f'VECLIB_MAXIMUM_THREADS=1'
+                  f'PYSPARK_SUBMIT_ARGS="--driver-memory 6G pyspark-shell" '
                   f'hail-bench run -o {t.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}')
         all_output.append(t.ofile)
 
