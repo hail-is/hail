@@ -90,5 +90,6 @@ case object LowerArrayAggsToRunAggs extends LoweringPass {
         aggs.results,
         aggs.aggs
       ))
+    case _ => None
   })
 }
