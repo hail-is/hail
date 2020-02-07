@@ -47,8 +47,9 @@ object Bindings {
     case TableKeyByAndAggregate(child, _, _, _, _) => if (i == 1) child.typ.globalEnv.m else if (i == 2) child.typ.rowEnv.m else empty
     case TableMapPartitions(child, g, p, _) => if (i == 1) Array(g -> child.typ.globalType, p -> TStream(child.typ.rowType)) else empty
     case MatrixMapRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty
+    case MatrixMapRows(child, _) => if (i == 1) child.typ.rowEnv.bind("n_cols", TInt32()).m else empty
     case MatrixFilterRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty
-    case MatrixMapCols(child, _, _) => if (i == 1) child.typ.colEnv.m else empty
+    case MatrixMapCols(child, _, _) => if (i == 1) child.typ.colEnv.bind("n_rows", TInt64()).m else empty
     case MatrixFilterCols(child, _) => if (i == 1) child.typ.colEnv.m else empty
     case MatrixMapEntries(child, _) => if (i == 1) child.typ.entryEnv.m else empty
     case MatrixFilterEntries(child, _) => if (i == 1) child.typ.entryEnv.m else empty
@@ -177,6 +178,7 @@ object ChildEnvWithoutBindings {
       case MatrixAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty))
       case TableAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty))
       case RelationalLet(_, _, _) => if (i == 0) BindingEnv.empty else env
+      case LiftMeOut(_) => BindingEnv.empty
       case _ => if (UsesAggEnv(ir, i)) env.promoteAgg else if (UsesScanEnv(ir, i)) env.promoteScan else env
     }
   }

@@ -183,8 +183,9 @@ def is_transient_error(e):
     # aiohttp.client_exceptions.ClientOSError: [Errno 104] Connection reset by peer
     if isinstance(e, aiohttp.ClientResponseError):
         # nginx returns 502 if it cannot connect to the upstream server
-        # 408 request timeout, 502 bad gateway, 503 service unavailable, 504 gateway timeout
-        if e.status == 408 or e.status == 502 or e.status == 503 or e.status == 504:
+        # 408 request timeout, 500 internal server error, 502 bad gateway
+        # 503 service unavailable, 504 gateway timeout
+        if e.status in (408, 500, 502, 503, 504):
             return True
     elif isinstance(e, aiohttp.ClientOSError):
         if (e.errno == errno.ETIMEDOUT or

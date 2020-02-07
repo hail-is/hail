@@ -38,7 +38,7 @@ object InferType {
       case _: SeqOp => TVoid
       case _: CombOp => TVoid
       case ResultOp(_, aggSigs) =>
-        TTuple(aggSigs.map(agg.Extract.getAgg(_).resultType.virtualType): _*)
+        TTuple(aggSigs.map(_.resultType): _*)
       case AggStateValue(i, sig) => TBinary()
       case _: CombOpValue => TVoid
       case _: SerializeAggs => TVoid
@@ -215,6 +215,7 @@ object InferType {
       case BlockMatrixToValueApply(child, function) => function.typ(child.typ)
       case CollectDistributedArray(_, _, _, _, body) => TArray(body.typ)
       case ReadPartition(_, _, rowType) => TStream(rowType)
+      case LiftMeOut(child) => child.typ
     }
   }
 }

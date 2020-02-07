@@ -134,8 +134,8 @@ object Children {
       Array(old)
     case InsertFields(old, fields, _) =>
       (old +: fields.map(_._2)).toFastIndexedSeq
-    case InitOp(_, args, _) => args
-    case SeqOp(_, args, _) => args
+    case InitOp(_, args, _, _) => args
+    case SeqOp(_, args, _, _) => args
     case _: ResultOp => none
     case _: AggStateValue => none
     case _: CombOp => none
@@ -185,5 +185,6 @@ object Children {
     case BlockMatrixMultiWrite(blockMatrices, _) => blockMatrices
     case CollectDistributedArray(ctxs, globals, _, _, body) => Array(ctxs, globals, body)
     case ReadPartition(path, _, _) => Array(path)
+    case LiftMeOut(child) => Array(child)
   }
 }

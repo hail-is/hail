@@ -38,7 +38,7 @@ class ForwardLetsSuite extends HailSuite {
     ).map(ir => Array[IR](Let("x", In(0, TInt32()) + In(0, TInt32()), ir)))
   }
 
-  def aggMin(value: IR): ApplyAggOp = ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(value), AggSignature(Min(), FastSeq(), FastSeq(value.typ), None))
+  def aggMin(value: IR): ApplyAggOp = ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(value), AggSignature(Min(), FastSeq(), FastSeq(value.typ)))
 
   @DataProvider(name = "nonForwardingAggOps")
   def nonForwardingAggOps(): Array[Array[IR]] = {

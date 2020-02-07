@@ -25,7 +25,7 @@ class EmitStreamSuite extends HailSuite {
     val fb = new EmitFunctionBuilder[F](argTypeInfos.result(), GenericTypeInfo[Long])
     val mb = fb.apply_method
     val stream = ExecuteContext.scoped { ctx =>
-      EmitStream(new Emit(ctx, mb, 1), streamIR, Env.empty, EmitRegion.default(mb), None)
+      EmitStream(new Emit(ctx, mb), streamIR, Env.empty, EmitRegion.default(mb), None)
     }
     mb.emit {
       val arrayt = stream
@@ -76,7 +76,7 @@ class EmitStreamSuite extends HailSuite {
     val fb = EmitFunctionBuilder[Region, Int]("eval_stream_len")
     val mb = fb.apply_method
     val stream = ExecuteContext.scoped { ctx =>
-      EmitStream(new Emit(ctx, mb, 1), streamIR, Env.empty, EmitRegion.default(mb), None)
+      EmitStream(new Emit(ctx, mb), streamIR, Env.empty, EmitRegion.default(mb), None)
     }
     fb.emit {
       JoinPoint.CallCC[Code[Int]] { (jb, ret) =>
@@ -296,7 +296,7 @@ class EmitStreamSuite extends HailSuite {
         opArgs.toFastIndexedSeq,
         AggSignature(op,
           initArgs.map(_.typ),
-          opArgs.map(_.typ), None))
+          opArgs.map(_.typ)))
 
     val pairType = TStruct("x" -> TCall(), "y" -> TInt32())
     val intsType = TArray(TInt32())

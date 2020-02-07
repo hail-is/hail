@@ -7,7 +7,7 @@ import uuid
 import hail as hl
 from hail import MatrixTable, Table
 from hail.expr import StructExpression
-from hail.expr.expressions import expr_bool, expr_call, expr_array, expr_int32, expr_str
+from hail.expr.expressions import expr_bool, expr_str
 from hail.genetics.reference_genome import reference_genome_type
 from hail.ir import Apply, TableMapRows, TopLevelReference
 from hail.typecheck import oneof, sequenceof, typecheck
@@ -249,27 +249,6 @@ def combine_gvcfs(mts):
     ts = hl.Table.multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
     combined = combine(ts)
     return unlocalize(combined)
-
-@typecheck(lgt=expr_call, la=expr_array(expr_int32))
-def lgt_to_gt(lgt, la):
-    """Transforming Local GT and Local Alleles into the true GT
-
-    Parameters
-    ----------
-    lgt : :class:`.CallExpression`
-        The LGT value
-    la : :class:`.ArrayExpression`
-        The Local Alleles array
-
-    Returns
-    -------
-    :class:`.CallExpression`
-
-    Notes
-    -----
-    This function assumes diploid genotypes.
-    """
-    return hl.call(la[lgt[0]], la[lgt[1]])
 
 @typecheck(ht=hl.Table, n=int, reference_genome=reference_genome_type)
 def calculate_new_intervals(ht, n, reference_genome='default'):

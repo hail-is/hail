@@ -1988,7 +1988,7 @@ class MatrixTable(ExprContainer):
         if _localize:
             return Env.backend().execute(agg_ir)
         else:
-            return construct_expr(agg_ir, expr.dtype)
+            return construct_expr(LiftMeOut(agg_ir), expr.dtype)
 
     @typecheck_method(expr=expr_any, _localize=bool)
     def aggregate_cols(self, expr, _localize=True) -> Any:
@@ -2038,7 +2038,7 @@ class MatrixTable(ExprContainer):
         if _localize:
             return Env.backend().execute(agg_ir)
         else:
-            return construct_expr(agg_ir, expr.dtype)
+            return construct_expr(LiftMeOut(agg_ir), expr.dtype)
 
     @typecheck_method(expr=expr_any, _localize=bool)
     def aggregate_entries(self, expr, _localize=True):
@@ -2082,9 +2082,7 @@ class MatrixTable(ExprContainer):
         if _localize:
             return Env.backend().execute(agg_ir)
         else:
-            return construct_expr(agg_ir, expr.dtype)
-
-        return Env.backend().execute(MatrixAggregate(base._mir, expr._ir))
+            return construct_expr(LiftMeOut(agg_ir), expr.dtype)
 
     @typecheck_method(field_expr=oneof(str, Expression))
     def explode_rows(self, field_expr) -> 'MatrixTable':
@@ -2383,7 +2381,7 @@ class MatrixTable(ExprContainer):
         if _localize:
             return Env.backend().execute(ir)
         else:
-            return construct_expr(ir, hl.tint64)
+            return construct_expr(LiftMeOut(ir), hl.tint64)
 
     def _force_count_rows(self):
         return Env.backend().execute(MatrixToValueApply(self._mir, {'name': 'ForceCountMatrixTable'}))
@@ -2411,7 +2409,7 @@ class MatrixTable(ExprContainer):
         if _localize:
             return Env.backend().execute(ir)
         else:
-            return construct_expr(ir, hl.tint64)
+            return construct_expr(LiftMeOut(ir), hl.tint64)
 
     def count(self) -> Tuple[int, int]:
         """Count the number of rows and columns in the matrix.

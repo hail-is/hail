@@ -788,8 +788,9 @@ object EmitStream {
                 k(TypedTriplet(a, bodyt)))
             }).map(_.untyped)
 
-        case RunAggScan(array, name, init, seqs, result, signature) =>
-          val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(signature.toArray, fb, "array_agg_scan")
+        case x@RunAggScan(array, name, init, seqs, result, _) =>
+          val aggs = x.physicalSignatures
+          val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(aggs, fb, "array_agg_scan")
 
           val producerElementPType = coerce[PStreamable](array.pType).elementType
           val resultPType = result.pType
@@ -827,7 +828,7 @@ object EmitStream {
             }
 
           val (newContainer, aggSetup, aggCleanup) =
-            AggContainer.fromFunctionBuilder(extracted.aggs, fb, "array_agg_scan")
+            AggContainer.fromFunctionBuilder(extracted.aggs.map(_.toCanonicalPhysical), fb, "array_agg_scan")
           val initIR = Optimize(extracted.init, noisy = true,
             context = "ArrayAggScan/StagedExtractAggregators/postAggIR", emitter.ctx)
           val seqPerEltIR = Optimize(extracted.seqPerElt, noisy = true,
