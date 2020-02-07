@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.annotations.{BroadcastIndexedSeq, BroadcastRow}
+import is.hail.expr.Nat
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
@@ -518,9 +519,11 @@ class PruneSuite extends HailSuite {
 
   val ref = Ref("x", TStruct("a" -> TInt32(), "b" -> TInt32(), "c" -> TInt32()))
   val arr = MakeArray(FastIndexedSeq(ref, ref), TArray(ref.typ))
+  val ndArr = MakeNDArray(arr, MakeTuple(IndexedSeq((0, I64(2l)))), True())
   val empty = TStruct()
   val justA = TStruct("a" -> TInt32())
   val justB = TStruct("b" -> TInt32())
+  val justBRequired = TStruct(true, "b" -> TInt32())
 
   @Test def testIfMemo() {
     checkMemo(If(True(), ref, ref),
@@ -626,6 +629,15 @@ class PruneSuite extends HailSuite {
     checkMemo(ArrayFor(arr, "foo", Begin(FastIndexedSeq(GetField(Ref("foo", ref.typ), "a")))),
       TVoid,
       Array(TArray(justA), null))
+  }
+
+  @Test def testNDArrayMapMemo(): Unit = {
+    checkMemo(NDArrayMap(ndArr, "foo", Ref("foo", ref.typ)),
+      TNDArray(justBRequired, Nat(1)), Array(TNDArray(justBRequired, Nat(1)), null))
+  }
+
+  @Test def understandingSupertype(): Unit = {
+    assert(PruneDeadFields.isSupertype(arr.typ, TArray(justB)))
   }
 
   @Test def testMakeStructMemo() {
