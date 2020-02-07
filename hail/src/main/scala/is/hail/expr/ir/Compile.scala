@@ -41,7 +41,6 @@ object Compile {
     if (optimize)
       ir = Optimize(ir, noisy = true, context = "Compile", ctx)
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
-    InferPType(if (HasIRSharing(ir)) ir.deepCopy() else ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
 
     val env = args
       .zipWithIndex
