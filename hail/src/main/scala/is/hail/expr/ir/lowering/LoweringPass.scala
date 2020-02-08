@@ -1,7 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.expr.ir.agg.Extract
-import is.hail.expr.ir.{ArrayAgg, ArrayAggScan, ArrayFor, BaseIR, Begin, BlockMatrixIR, ExecuteContext, IR, InterpretNonCompilable, Let, LowerMatrixIR, MatrixIR, ResultOp, RewriteBottomUp, RunAgg, RunAggScan, TableIR, genUID}
+import is.hail.expr.ir.{ArrayAgg, ArrayAggScan, ArrayFor, BaseIR, Begin, BlockMatrixIR, ExecuteContext, IR, InterpretNonCompilable, Let, LowerMatrixIR, MatrixIR, Pretty, ResultOp, RewriteBottomUp, RunAgg, RunAggScan, TableIR, genUID}
 import is.hail.utils.FastSeq
 
 trait LoweringPass {
@@ -64,32 +64,38 @@ case object LowerArrayAggsToRunAggs extends LoweringPass {
   val context: String = "LowerArrayAggsToRunAggs"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = RewriteBottomUp(ir, {
-    case ArrayAgg(a, name, query) =>
+    case x@ArrayAgg(a, name, query) =>
       val res = genUID()
       val aggs = Extract(query, res)
-      Some(Let(
+      val newNode = Let(
         res,
         RunAgg(
-        Begin(FastSeq(
-          aggs.init,
-          ArrayFor(
-            a,
-            name,
-            aggs.seqPerElt))),
+          Begin(FastSeq(
+            aggs.init,
+            ArrayFor(
+              a,
+              name,
+              aggs.seqPerElt))),
           aggs.results,
           aggs.aggs),
-        aggs.postAggIR))
-    case ArrayAggScan(a, name, query) =>
+        aggs.postAggIR)
+      if (newNode.typ != x.typ)
+        throw new RuntimeException(s"types differ:\n  new: ${ newNode.typ }\n  old: ${ x.typ }")
+      Some(newNode)
+    case x@ArrayAggScan(a, name, query) =>
       val res = genUID()
-      val aggs = Extract(query, res)
-      Some(RunAggScan(
+      val aggs = Extract(Extract.liftScan(query), res)
+      val newNode = RunAggScan(
         a,
         name,
         aggs.init,
         aggs.seqPerElt,
-        aggs.results,
+        Let(res, aggs.results, aggs.postAggIR),
         aggs.aggs
-      ))
+      )
+      if (newNode.typ != x.typ)
+        throw new RuntimeException(s"types differ:\n  new: ${ newNode.typ }\n  old: ${ x.typ }")
+      Some(newNode)
     case _ => None
   })
 }

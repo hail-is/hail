@@ -238,7 +238,11 @@ object CompileWithAggregators2 {
       .zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
 
-    ir = Subst(ir, BindingEnv(env))
+    ir = Subst(ir, BindingEnv(args
+      .zipWithIndex
+      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }))
+    ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR]
+    TypeCheck(ir, BindingEnv.empty)
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
     Emit(ctx, ir, fb, Some(pAggSigs))

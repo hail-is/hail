@@ -110,5 +110,8 @@ object AggOp {
     case "linreg" | "LinearRegression" => LinearRegression()
     case "downsample" | "Downsample" => Downsample()
     case "prevnonnull" | "PrevNonnull" => PrevNonnull()
+    case "Group" => Group()
+    case "AggElements" => AggElements()
+    case "AggElementsLengthCheck" => AggElementsLengthCheck()
   }
 }
