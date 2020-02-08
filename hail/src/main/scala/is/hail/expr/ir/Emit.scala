@@ -714,7 +714,7 @@ private class Emit(
               srvb.offset
             ))))
 
-      case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: RunAggScan | _: ArrayAggScan | _: ReadPartition =>
+      case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: RunAggScan | _: ReadPartition =>
         emitArrayIterator(ir).toEmitTriplet(mb, PArray(coerce[PStreamable](ir.pType).elementType))
 
       case ArrayFold(a, zero, name1, name2, body) =>
@@ -863,57 +863,6 @@ private class Emit(
           codeRes.setup,
           resm := codeRes.m,
           resv.storeAny(resm.mux(defaultValue(result.pType), codeRes.v)),
-          aggCleanup)
-
-        EmitTriplet(aggregation, resm, resv)
-
-      case ArrayAgg(a, name, query) =>
-        assert(!ContainsAggIntermediate(query))
-        val tarray = coerce[TStreamable](a.typ)
-        val eti = typeToTypeInfo(tarray.elementType)
-        val xmv = mb.newField[Boolean]()
-        val xvv = coerce[Any](mb.newField(name)(eti))
-        val perEltEnv = env.bind(
-          (name, (eti, xmv.load(), xvv.load())))
-
-        val res = genUID()
-        val extracted = agg.Extract(query, res)
-
-        val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(extracted.aggs.map(_.toCanonicalPhysical), mb.fb, "array_agg")
-
-        val init = Optimize(extracted.init, noisy = true,
-          context = "ArrayAgg/agg.Extract/init", ctx)
-        val perElt = Optimize(extracted.seqPerElt, noisy = true,
-          context = "ArrayAgg/agg.Extract/perElt", ctx)
-        val postAggIR = Optimize[IR](Let(res, extracted.results, extracted.postAggIR), noisy = true,
-          context = "ArrayAgg/agg.Extract/postAggIR", ctx)
-
-        val codeInit = emit(init, env = env, container = Some(newContainer))
-        val codePerElt = emit(perElt, env = perEltEnv, container = Some(newContainer))
-        val postAgg = emit(postAggIR, env = env, container = Some(newContainer))
-
-        val resm = mb.newField[Boolean]()
-        val resv = mb.newField(name)(typeToTypeInfo(query.pType))
-
-        val aBase = emitArrayIterator(a)
-        val cont = { (m: Code[Boolean], v: Code[_]) =>
-          Code(xmv := m,
-            xvv := xmv.mux(defaultValue(tarray.elementType), v),
-            codePerElt.setup)
-        }
-        val processAElts = aBase.arrayEmitter(cont)
-        val ma = processAElts.m.getOrElse(const(false))
-
-        val aggregation = Code(
-          aggSetup,
-          codeInit.setup,
-          processAElts.setup,
-          ma.mux(
-            Code._empty,
-            Code(aBase.calcLength, processAElts.addElements)),
-          postAgg.setup,
-          resm := postAgg.m,
-          resv.storeAny(resm.mux(defaultValue(query.pType), postAgg.value)),
           aggCleanup)
 
         EmitTriplet(aggregation, resm, resv)

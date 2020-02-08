@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue, RegionValue}
+import is.hail.annotations.{Region, RegionValue, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s.{AsmFunction1, AsmFunction3, Code, GenericTypeInfo, MaybeGenericTypeInfo, TypeInfo}
 import is.hail.asm4s.joinpoint._
 import is.hail.expr.types.physical._
@@ -8,6 +8,7 @@ import is.hail.expr.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
 import is.hail.HailSuite
+import is.hail.expr.ir.lowering.LoweringPipeline
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -285,7 +286,8 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testEmitAggScan() {
     def assertAggScan(ir: IR, inType: Type, tests: (Any, Any)*) = {
-      val aggregate = compileStream(ir, PType.canonical(inType))
+      val aggregate = compileStream(LoweringPipeline.compileLowerer.apply(ctx, ir, false).asInstanceOf[IR],
+        PType.canonical(inType))
       for ((inp, expected) <- tests)
         assert(aggregate(inp) == expected, Pretty(ir))
     }

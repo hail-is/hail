@@ -47,3 +47,18 @@ object Compilable {
     }
   }
 }
+
+object Emittable {
+  def isNonEmittableAgg(ir: IR): Boolean = ir match {
+    case _: ArrayAgg => true
+    case _: ArrayAggScan => true
+    case _: ApplyAggOp => true
+    case _: AggArrayPerElement => true
+    case _: AggFilter => true
+    case _: AggGroupBy => true
+    case _: ApplyScanOp => true
+    case _: AggExplode => true
+    case _ => false
+  }
+  def apply(ir: IR): Boolean = Compilable(ir) && !isNonEmittableAgg(ir)
+}

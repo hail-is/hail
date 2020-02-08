@@ -68,9 +68,9 @@ object Pretty {
       sb.append(" " * depth)
       sb += '('
       sb.append(prettyClass(aggSig.default))
-      sb += ' '
-      prettyAggSeq(aggSig.m.valuesIterator.toFastIndexedSeq, depth + 2)
       sb += '\n'
+      prettyAggSeq(aggSig.m.valuesIterator.toFastIndexedSeq, depth + 2)
+      sb += ' '
       aggSig.nested match {
         case Some(states) => prettyAggStateSignatures(states, depth + 2)
         case None => sb.append("None")
@@ -139,7 +139,8 @@ object Pretty {
           sb.append(i)
           sb += ' '
           sb.append(prettyClass(op))
-          sb += ' '
+          if (!elideLiterals) {}
+          sb += '\n'
           prettyAggStateSignature(aggSig, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
@@ -148,7 +149,7 @@ object Pretty {
           sb.append(i)
           sb += ' '
           sb.append(prettyClass(op))
-          sb += ' '
+          sb += '\n'
           prettyAggStateSignature(aggSig, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
@@ -192,10 +193,25 @@ object Pretty {
           sb.append(prettyStringLiteral(spec.toString))
           sb += '\n'
           prettyAggStateSignatures(aggSigs, depth + 2)
-        case RunAgg(_, _, signature) =>
+        case RunAgg(body, result, signature) =>
           prettyAggStateSignatures(signature, depth + 2)
-        case RunAggScan(_, name, _, _, _, signature) =>
-          prettyIdentifier(name) + " " + prettyAggStateSignatures(signature, depth + 2)
+          sb += '\n'
+          pretty(body, depth + 2)
+          sb += '\n'
+          pretty(result, depth + 2)
+        case RunAggScan(a, name, init, seq, res, signature) =>
+          sb += ' '
+          sb.append(prettyIdentifier(name))
+          sb += ' '
+          prettyAggStateSignatures(signature, depth + 2)
+          sb += '\n'
+          pretty(a, depth + 2)
+          sb += '\n'
+          pretty(init, depth + 2)
+          sb += '\n'
+          pretty(seq, depth + 2)
+          sb += '\n'
+          pretty(res, depth + 2)
         case InsertFields(old, fields, fieldOrder) =>
           sb += '\n'
           pretty(old, depth + 2)
