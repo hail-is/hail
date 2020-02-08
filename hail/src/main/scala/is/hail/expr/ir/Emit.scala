@@ -59,6 +59,7 @@ object Emit {
 
 object AggContainer {
   def fromVars(aggs: Array[PhysicalAggSignature], fb: EmitFunctionBuilder[_], region: ClassFieldRef[Region], off: ClassFieldRef[Long]): (AggContainer, Code[Unit], Code[Unit]) = {
+    println("\n\nCALLING EXZTRACT IN fromVars \n\n")
     val states = agg.StateTuple(aggs.map(a => agg.Extract.getAgg(a).createState(fb)).toArray)
     val aggState = new agg.TupleAggregatorState(fb, states, region, off)
 
@@ -259,6 +260,7 @@ private class Emit(
 
   private def wrapToMethod(irs: Seq[IR], env: E, container: Option[AggContainer])(useValues: (EmitMethodBuilder, PType, EmitTriplet) => Code[Unit]): Code[Unit] = {
     val opSize: Int = 20
+    println(s"in wrap to method with irs, ${irs}")
     val items = irs.map { ir =>
       new EstimableEmitter[EmitMethodBuilderLike] {
         def estimatedSize: Int = ir.size * opSize
@@ -327,6 +329,7 @@ private class Emit(
 
     val region = er.region
 
+    println(s"Running Emit.emit on ir: ${ir}")
     (ir: @unchecked) match {
       case I32(x) =>
         present(const(x))
@@ -545,7 +548,7 @@ private class Emit(
           Region.loadIRIntermediate(x.pType)(pArray.elementOffset(xa, len, xi))))
       case ArrayLen(a) =>
         val codeA = emit(a)
-        strict(a.pType.asInstanceOf[PArray].loadLength(coerce[Long](codeA.v)), codeA)
+        strict(a.pType.asInstanceOf[PIterable].asPContainer.loadLength(coerce[Long](codeA.v)), codeA)
 
       case x@(_: ArraySort | _: ToSet | _: ToDict) =>
         val atyp = coerce[PIterable](x.pType)
@@ -596,8 +599,11 @@ private class Emit(
             distinct,
             sorter.toRegion()))
 
-      case ToArray(a) =>
+      case ToArray(a) => {
+        println(s"Matched on ToArray with child ${a}   , emitting")
         emit(a)
+      }
+
 
       case ToStream(a) =>
         emit(a)
@@ -721,8 +727,10 @@ private class Emit(
               srvb.offset
             ))))
 
-      case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: RunAggScan | _: ArrayAggScan | _: ReadPartition =>
+      case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: RunAggScan | _: ArrayAggScan | _: ReadPartition => {
+        println(s"in catchall with ir: ${ir}")
         emitArrayIterator(ir).toEmitTriplet(mb, PArray(coerce[PStreamable](ir.pType).elementType))
+      }
 
       case ArrayFold(a, zero, name1, name2, body) =>
         val typ = ir.typ
@@ -831,6 +839,7 @@ private class Emit(
           xresm, xresv)
 
       case ArrayFor(a, valueName, body) =>
+        println(s"In arrayFor with a ${a}")
         val tarray = coerce[TStreamable](a.typ)
         val eti = typeToTypeInfo(tarray.elementType)
         val xmv = mb.newField[Boolean]()
@@ -883,6 +892,7 @@ private class Emit(
           (name, (eti, xmv.load(), xvv.load())))
 
         val res = genUID()
+        println("\n\nCALLING EXZTRACT IN ARRAGG \n\n")
         val extracted = agg.Extract(query, res)
 
         val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(extracted.aggs, mb.fb, "array_agg")
@@ -926,6 +936,7 @@ private class Emit(
 
       case InitOp(i, args, aggSig) =>
         val AggContainer(aggs, sc) = container.get
+        println("\n\nCALLING EXZTRACT IN InitOp \n\n")
         assert(agg.Extract.compatible(aggs(i), aggSig))
         val rvAgg = agg.Extract.getAgg(aggSig)
 
@@ -935,6 +946,7 @@ private class Emit(
           rvAgg.initOp(sc.states(i), argVars))
 
       case SeqOp(i, args, aggSig) =>
+        println("\n\nCALLING EXZTRACT IN SeqOp \n\n")
         val AggContainer(aggs, sc) = container.get
         assert(agg.Extract.compatible(aggs(i), aggSig), s"${ aggs(i) } vs $aggSig")
         val rvAgg = agg.Extract.getAgg(aggSig)
@@ -943,6 +955,7 @@ private class Emit(
         void(rvAgg.seqOp(sc.states(i), argVars))
 
       case CombOp(i1, i2, aggSig) =>
+        println("\n\nCALLING EXZTRACT IN CombOp \n\n")
         val AggContainer(aggs, sc) = container.get
         assert(agg.Extract.compatible(aggs(i1), aggSig), s"${ aggs(i1) } vs $aggSig")
         assert(agg.Extract.compatible(aggs(i2), aggSig), s"${ aggs(i2) } vs $aggSig")
@@ -951,6 +964,7 @@ private class Emit(
         void(rvAgg.combOp(sc.states(i1), sc.states(i2)))
 
       case x@ResultOp(start, aggSigs) =>
+        println("\n\nCALLING EXZTRACT IN ResultOp \n\n")
         val newRegion = mb.newField[Region]
         val AggContainer(aggs, sc) = container.get
         val srvb = new StagedRegionValueBuilder(EmitRegion(mb, newRegion), x.pType)
@@ -971,6 +985,7 @@ private class Emit(
           srvb.offset))
 
       case CombOpValue(i, value, sig) =>
+        println("\n\nCALLING EXZTRACT IN CombOpValue \n\n")
         val AggContainer(_, sc) = container.get
         val rvAgg = agg.Extract.getAgg(sig)
         val newState = rvAgg.createState(mb.fb)
@@ -1104,6 +1119,7 @@ private class Emit(
               }
 
               val opSize: Int = 20
+              println(s"matched on InserFields ${x}")
               val items = x.pType.fields.map { f =>
                 updateMap.get(f.name) match {
                   case Some(vir) =>
@@ -1156,8 +1172,10 @@ private class Emit(
           Region.loadIRIntermediate(t.types(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
 
       case x@MakeTuple(fields) =>
+        println(s"Make tuple has fields: ${fields}")
         val srvb = new StagedRegionValueBuilder(mb, x.pType)
         val addFields = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
+          println(s"TYPE in addFIelds: ${t}")
           Code(
             v.setup,
             v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
@@ -1980,9 +1998,13 @@ private class Emit(
     f
   }
 
-  private def emitArrayIterator(ir: IR, env: E, er: EmitRegion, container: Option[AggContainer]): ArrayIteratorTriplet =
-    EmitStream(this, Streamify(ir), env, er, container)
+  private def emitArrayIterator(ir: IR, env: E, er: EmitRegion, container: Option[AggContainer]): ArrayIteratorTriplet = {
+    println(s"THE ARRAY WE GOT ${ir}")
+    val s = ir//Streamify(ir)
+    println(s"The array we would have converted to: ${Streamify(ir)}")
+    EmitStream(this, s, env, er, container)
       .toArrayIterator(mb)
+  }
 
   private def present(x: Code[_]): EmitTriplet =
     EmitTriplet(Code._empty, const(false), x)
@@ -2360,6 +2382,7 @@ abstract class NDArrayEmitter(
     val idxVars = Array.tabulate(nDims) {_ => mb.newField[Long]}
     val loadedIdxVars = idxVars.map(_.load())
     val storeElement = mb.newLocal(typeToTypeInfo(outputElementPType.virtualType)).asInstanceOf[LocalRef[Double]]
+    println(s"IN EMIT LOOPS for ir ${outputElementPType}")
     val body =
       Code(
         storeElement := outputElement(loadedIdxVars).asInstanceOf[Code[Double]],

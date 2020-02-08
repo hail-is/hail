@@ -199,6 +199,8 @@ object Extract {
     val rt = TTuple(aggs.map(_.returnType.virtualType): _*)
     ref._typ = rt
 
+    println(s"IN EXTRACT: postAgg: ${postAgg} \n InitOps: ${Begin(initOps)}, \n seqOps: ${addLets(Begin(seq.result()), let.result())}, \n, aggs: ${aggs}\n\n\n\n")
+
     Aggs(postAgg, Begin(initOps), addLets(Begin(seq.result()), let.result()), aggs)
   }
 

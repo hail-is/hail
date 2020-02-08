@@ -64,7 +64,10 @@ object InferPType {
       case IsNA(ir) =>
         infer(ir)
         PBoolean(true)
-      case Ref(name, _) => env.lookup(name)
+      case Ref(name, typ) => {
+        println(s"for name ${name}, type: ${typ} found ${env.lookup(name)}")
+        env.lookup(name)
+      }
       case MakeNDArray(data, shape, rowMajor) =>
         infer(data)
         infer(shape)
@@ -92,7 +95,7 @@ object InferPType {
         assert(start.pType2 isOfType step.pType2)
 
         val allRequired = start.pType2.required && stop.pType2.required && step.pType2.required
-        PArray(start.pType2.setRequired(true), allRequired)
+        PStream(start.pType2.setRequired(true), allRequired)
       case ArrayLen(a: IR) =>
         infer(a)
 
@@ -181,6 +184,7 @@ object InferPType {
         val elt = coerce[PIterable](a.pType2).elementType
         PArray(elt, a.pType2.required)
       case ToStream(a) =>
+        println(s"TO STREAM: ${a}")
         infer(a)
         val elt = coerce[PIterable](a.pType2).elementType
         PStream(elt, a.pType2.required)
@@ -190,19 +194,19 @@ object InferPType {
         PDict(elt.types(0), PArray(elt.types(1)), collection.pType2.required)
       case ArrayMap(a, name, body) =>
         infer(a)
-        infer(body, env.bind(name, a.pType2.asInstanceOf[PArray].elementType))
+        infer(body, env.bind(name, a.pType2.asInstanceOf[PStreamable].elementType))
         coerce[PStreamable](a.pType2).copyStreamable(body.pType2, a.pType2.required)
       case ArrayZip(as, names, body, _) =>
         as.foreach(infer(_))
-
-        infer(body, env.bindIterable(names.zip(as.map(_.pType2.asInstanceOf[PArray].elementType))))
+        println(s"ArrayZip has ${as} with head type ${as.head.typ}")
+        infer(body, env.bindIterable(names.zip(as.map(_.pType2.asInstanceOf[PStreamable].elementType))))
         coerce[PStreamable](as.head.pType2).copyStreamable(body.pType2, as.forall(_.pType2.required))
       case ArrayFilter(a, name, cond) =>
         infer(a)
         a.pType2
       case ArrayFlatMap(a, name, body) =>
         infer(a)
-        infer(body, env.bind(name, a.pType2.asInstanceOf[PArray].elementType))
+        infer(body, env.bind(name, a.pType2.asInstanceOf[PStreamable].elementType))
 
         // Whether an array must return depends on a, but element requiredeness depends on body (null a elements elided)
         coerce[PStreamable](a.pType2).copyStreamable(coerce[PIterable](body.pType2).elementType, a.pType2.required)
@@ -210,7 +214,7 @@ object InferPType {
         infer(zero)
 
         infer(a)
-        infer(body, env.bind(accumName -> zero.pType2, valueName -> a.pType2.asInstanceOf[PArray].elementType))
+        infer(body, env.bind(accumName -> zero.pType2, valueName -> a.pType2.asInstanceOf[PStreamable].elementType))
         assert(body.pType2 isOfType zero.pType2)
 
         zero.pType2.setRequired(body.pType2.required)
@@ -226,7 +230,7 @@ object InferPType {
         infer(zero)
 
         infer(a)
-        infer(body, env.bind(accumName -> zero.pType2, valueName -> a.pType2.asInstanceOf[PArray].elementType))
+        infer(body, env.bind(accumName -> zero.pType2, valueName -> a.pType2.asInstanceOf[PStreamable].elementType))
         assert(body.pType2 isOfType zero.pType2)
 
         val elementPType = zero.pType2.setRequired(body.pType2.required && zero.pType2.required)
@@ -234,7 +238,7 @@ object InferPType {
       case ArrayLeftJoinDistinct(lIR, rIR, lName, rName, compare, join) =>
         infer(lIR)
         infer(rIR)
-        val e = env.bind(lName -> lIR.pType2.asInstanceOf[PArray].elementType, rName -> rIR.pType2.asInstanceOf[PArray].elementType)
+        val e = env.bind(lName -> lIR.pType2.asInstanceOf[PStreamable].elementType, rName -> rIR.pType2.asInstanceOf[PStreamable].elementType)
 
         infer(compare, e)
         infer(join, e)
@@ -393,11 +397,17 @@ object InferPType {
           infer(theIR)
           theIR._pType2
         })), true)
+      case ResultOp(_, aggSigs) => {
+        val rPTypes = aggSigs.toIterator.zipWithIndex.map{ case (sig, i) => PTupleField(i, agg.Extract.getAgg(sig).resultType)}.toIndexedSeq
+        val allReq = rPTypes.forall(f => f.typ.required)
+        PCanonicalTuple(rPTypes, allReq)
+      }
       case _: AggLet | _: ArrayAgg | _: ArrayAggScan | _: RunAgg | _: RunAggScan | _: NDArrayAgg | _: AggFilter | _: AggExplode |
            _: AggGroupBy | _: AggArrayPerElement | _: ApplyAggOp | _: ApplyScanOp | _: AggStateValue => PType.canonical(ir.typ)
     }
 
     // Allow only requiredeness to diverge
+    println(s"assertion: ${ir} , ir.ptype2.virtualtype: ${ir.pType2.virtualType}, ir.typ: ${ir.typ}")
     assert(ir.pType2.virtualType isOfType ir.typ)
   }
 }

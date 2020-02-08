@@ -1,6 +1,6 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.{BaseIR, ExecuteContext, Optimize}
+import is.hail.expr.ir.{BaseIR, ExecuteContext, LowerArrayToStream, Optimize}
 import is.hail.utils.{FastSeq, HailException}
 
 case class LoweringPipeline(lowerings: IndexedSeq[LoweringPass]) {

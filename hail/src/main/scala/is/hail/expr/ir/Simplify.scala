@@ -205,7 +205,11 @@ object Simplify {
 
     case ArrayRef(MakeArray(args, _), I32(i), _) if i >= 0 && i < args.length => args(i)
 
-    case ArrayFilter(a, _, True()) => a
+    case ArrayFilter(a, _, True()) => {
+      println("IN ARRAY FILTER")
+      a
+    }
+
 
     case ArrayFor(_, _, Begin(Seq())) => Begin(FastIndexedSeq())
 
@@ -220,6 +224,8 @@ object Simplify {
       ArrayMap(a, n1, Let(n2, b1, b2))
 
     case ArrayFilter(ArraySort(a, left, right, compare), name, cond) => ArraySort(ArrayFilter(a, name, cond), left, right, compare)
+
+    case ArrayFilter(ToStream(ArraySort(a, left, right, compare)), name, cond) => ToStream(ArraySort(ArrayFilter(a, name, cond), left, right, compare))
 
     case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
 

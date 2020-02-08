@@ -45,7 +45,7 @@ object Interpret {
     val rwIR = env.m.foldLeft[IR](ir0) { case (acc, (k, (value, t))) => Let(k, Literal.coerce(t, value), acc) }
 
     val lowered = LoweringPipeline.relationalLowerer.apply(ctx, rwIR, optimize).asInstanceOf[IR]
-
+    println("RUNNING APPLY IN INTERPRET")
     val result = run(ctx, lowered, Env.empty[Any], args, Memo.empty).asInstanceOf[T]
 
     result
@@ -592,14 +592,15 @@ object Interpret {
         function.execute(ctx, child.execute(ctx))
       case TableAggregate(child, query) =>
         val value = child.execute(ctx)
-
+        println("\n\n\nIn table aggregate\n\n\n")
         val globalsBc = value.globals.broadcast
         val globalsOffset = value.globals.value.offset
 
         val res = genUID()
         val extracted = agg.Extract(query, res)
-
+        println(s"Table aggregate ir ${extracted}")
         val wrapped = if (extracted.aggs.isEmpty) {
+          println(s"\nCALLING COMPILE ON POST AGG IR E<PTY: ${extracted.postAggIR}")
           val (rt: PTuple, f) = Compile[Long, Long](ctx,
             "global", value.globals.t,
             MakeTuple.ordered(FastSeq(extracted.postAggIR)))

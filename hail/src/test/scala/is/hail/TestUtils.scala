@@ -333,8 +333,9 @@ object TestUtils {
           info("skipping interpret and non-lowering compile steps on non-spark backend")
           execStrats.intersect(ExecStrategy.backendOnly)
         }
-
+      println(s"Stuff ${filteredExecStrats}")
       filteredExecStrats.foreach { strat =>
+        println(s"RUnning strat ${strat}")
         try {
           val res = strat match {
             case ExecStrategy.Interpret =>

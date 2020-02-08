@@ -1,6 +1,6 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.{BaseIR, BlockMatrixIR, ExecuteContext, IR, InterpretNonCompilable, LowerMatrixIR, MatrixIR, TableIR}
+import is.hail.expr.ir.{BaseIR, BlockMatrixIR, ExecuteContext, IR, InterpretNonCompilable, LowerArrayToStream, LowerMatrixIR, MatrixIR, TableIR}
 
 trait LoweringPass {
   val before: IRState
@@ -54,4 +54,16 @@ case object LowerTableToDistributedArrayPass extends LoweringPass {
   val context: String = "LowerTableToDistributedArray"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerTableIR.lower(ir.asInstanceOf[IR])
+}
+
+case object LowerStreamPass extends LoweringPass {
+  println("lower streampass called")
+  val before: IRState = AnyIR
+  val after: IRState = AnyIR
+  val context: String = "LowerArrayToStream"
+
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
+    println("Called transform on LowerStreamPass")
+    LowerArrayToStream(ir.asInstanceOf[IR])  // currently will be called and not do anything
+  }
 }

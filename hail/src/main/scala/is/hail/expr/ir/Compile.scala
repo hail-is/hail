@@ -26,6 +26,7 @@ object Compile {
     nSpecialArgs: Int,
     optimize: Boolean
   ): (PType, (Int, Region) => F) = {
+    println("compile running")
     val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
       Env(args.map { case (n, _, _) => n -> n }: _*))
@@ -39,8 +40,10 @@ object Compile {
     val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
 
     var ir = body
+    println(s"the ir body ${ir}")
     if (optimize)
       ir = Optimize(ir, noisy = true, context = "Compile", ctx)
+    ir = LowerArrayToStream(ir)
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
     InferPType(if (HasIRSharing(ir)) ir.deepCopy() else ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
 
@@ -50,7 +53,7 @@ object Compile {
 
     ir = Subst(ir, BindingEnv(env))
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
-
+    println(s"The ir we're emitting ${ir} \n\n\n")
     Emit(ctx, ir, fb, nSpecialArgs)
 
     val f = fb.resultWithIndex(print)
@@ -236,7 +239,9 @@ object CompileWithAggregators2 {
     var ir = body
     if (optimize)
       ir = Optimize(ir, noisy = true, context = "Compile", ctx)
+    ir = LowerArrayToStream(ir)
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
+    InferPType(if (HasIRSharing(ir)) ir.deepCopy() else ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
 
     val env = args
       .zipWithIndex
@@ -244,7 +249,7 @@ object CompileWithAggregators2 {
 
     ir = Subst(ir, BindingEnv(env))
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
-
+    println(s"The ir we're emitting in COmpileWithAggregator ${ir} \n\n\n")
     Emit(ctx, ir, fb, nSpecialArgs, Some(aggSigs))
 
     val f = fb.resultWithIndex()

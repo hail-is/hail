@@ -558,13 +558,14 @@ object EmitStream {
     container: Option[AggContainer]
   ): EmitStream = {
     val fb = emitter.mb.fb
-
+    println(s"starting EmitStream with streamIR0: ${streamIR0}")
     def present(v: Code[_]): EmitTriplet = EmitTriplet(Code._empty, false, v)
 
     def emitIR(ir: IR, env: Emit.E): EmitTriplet =
       emitter.emit(ir, env, er, container)
 
-    def emitStream(streamIR: IR, env: Emit.E): Parameterized[Any, EmitTriplet] =
+    def emitStream(streamIR: IR, env: Emit.E): Parameterized[Any, EmitTriplet] = {
+      println(s"Emitstream called, with streamIR: ${streamIR}")
       streamIR match {
         case NA(_) =>
           missing
@@ -601,6 +602,7 @@ object EmitStream {
           val start = fb.newField[Int]("sr_start")
           val stop = fb.newField[Int]("sr_stop")
           val llen = fb.newField[Long]("sr_llen")
+          println(s"in stream range, where streamIR0 is ${streamIR0}")
           range(start, step)
             .map(present)
             .guardParam { (_, k) =>
@@ -701,6 +703,7 @@ object EmitStream {
         case ArrayFilter(childIR, name, condIR) =>
           val childEltType = childIR.pType.asInstanceOf[PStreamable].elementType
           val childEltTI = coerce[Any](typeToTypeInfo(childEltType))
+          println(s"in arrayFilter with childIR ${childIR}")
           emitStream(childIR, env).filterMap { (eltt, k) =>
             val eltm = fb.newField[Boolean](name + "_missing")
             val eltv = fb.newField(name)(childEltTI)
@@ -884,7 +887,9 @@ object EmitStream {
         case _ =>
           fatal(s"not a streamable IR: ${Pretty(streamIR)}")
       }
+    }
 
+    println(s"done with emit stream, calling little emitStream with streamIR0: ${streamIR0}")
     EmitStream(
       emitStream(streamIR0, env0),
       streamIR0.pType.asInstanceOf[PStreamable].elementType)
