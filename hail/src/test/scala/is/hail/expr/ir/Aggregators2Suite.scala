@@ -32,8 +32,9 @@ class Aggregators2Suite extends HailSuite {
     val argRef = Ref(genUID(), argT.virtualType)
     val spec = BufferSpec.defaultUncompressed
 
+    val psig = aggSig.toCanonicalPhysical
     val (_, combAndDuplicate) = CompileWithAggregators2[Unit](ctx,
-      Array.fill(nPartitions)(aggSig),
+      Array.fill(nPartitions)(psig),
       Begin(
         Array.tabulate(nPartitions)(i => DeserializeAggs(i, i, spec, Array(aggSig))) ++
           Array.range(1, nPartitions).map(i => CombOp(0, i, aggSig)) :+
@@ -41,7 +42,7 @@ class Aggregators2Suite extends HailSuite {
           DeserializeAggs(1, 0, spec, Array(aggSig))))
 
     val (rt: PTuple, resF) = CompileWithAggregators2[Long](ctx,
-      Array.fill(nPartitions)(aggSig),
+      Array.fill(nPartitions)(psig),
       ResultOp(0, Array(aggSig, aggSig)))
     assert(rt.types(0) == rt.types(1))
 
@@ -54,7 +55,7 @@ class Aggregators2Suite extends HailSuite {
 
       def withArgs(foo: IR) = {
         CompileWithAggregators2[Long, Unit](ctx,
-          Array(aggSig),
+          Array(psig),
           argRef.name, argRef.pType,
           args.map(_._1).foldLeft[IR](foo) { case (op, name) =>
             Let(name, GetField(argRef, name), op)
@@ -63,14 +64,14 @@ class Aggregators2Suite extends HailSuite {
 
       val serialize = SerializeAggs(0, 0, spec, Array(aggSig))
       val (_, writeF) = CompileWithAggregators2[Unit](ctx,
-        Array(aggSig),
+        Array(psig),
         serialize)
 
       val initF = withArgs(initOp)
 
       expectedInit.foreach { v =>
         val (rt: PBaseStruct, resOneF) = CompileWithAggregators2[Long](ctx,
-          Array(aggSig), ResultOp(0, Array(aggSig)))
+          Array(psig), ResultOp(0, Array(aggSig)))
 
         val init = initF(0, region)
         val res = resOneF(0, region)

@@ -212,7 +212,7 @@ object CompileWithAggregators2 {
 
   private def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
     ctx: ExecuteContext,
-    aggSigs: Array[AggStateSignature],
+    aggSigs: Array[AggStatePhysicalSignature],
     args: Seq[(String, PType, ClassTag[_])],
     argTypeInfo: Array[MaybeGenericTypeInfo[_]],
     body: IR,
@@ -221,8 +221,7 @@ object CompileWithAggregators2 {
     val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
       Env(args.map { case (n, _, _) => n -> n }: _*))
-    val pAggSigs = aggSigs.map(_.toCanonicalPhysical)
-    val k = CodeCacheKey(pAggSigs.toFastIndexedSeq, args.map { case (n, pt, _) => (n, pt) }, normalizedBody)
+    val k = CodeCacheKey(aggSigs, args.map { case (n, pt, _) => (n, pt) }, normalizedBody)
     codeCache.get(k) match {
       case Some(v) =>
         return (v.typ, v.f.asInstanceOf[(Int, Region) => (F with FunctionWithAggRegion)])
@@ -243,7 +242,7 @@ object CompileWithAggregators2 {
 
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
-    Emit(ctx, ir, fb, Some(pAggSigs))
+    Emit(ctx, ir, fb, Some(aggSigs))
 
     val f = fb.resultWithIndex()
     codeCache += k -> CodeCacheValue(ir.pType, f)
@@ -252,7 +251,7 @@ object CompileWithAggregators2 {
 
   def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
     ctx: ExecuteContext,
-    aggSigs: Array[AggStateSignature],
+    aggSigs: Array[AggStatePhysicalSignature],
     args: Seq[(String, PType, ClassTag[_])],
     body: IR,
     optimize: Boolean
@@ -273,7 +272,7 @@ object CompileWithAggregators2 {
 
   def apply[R: TypeInfo : ClassTag](
     ctx: ExecuteContext,
-    aggSigs: Array[AggStateSignature],
+    aggSigs: Array[AggStatePhysicalSignature],
     body: IR): (PType, (Int, Region) => AsmFunction1[Region, R] with FunctionWithAggRegion) = {
 
     apply[AsmFunction1[Region, R], R](ctx, aggSigs, FastSeq[(String, PType, ClassTag[_])](), body, optimize = true)
@@ -281,7 +280,7 @@ object CompileWithAggregators2 {
 
   def apply[T0: ClassTag, R: TypeInfo : ClassTag](
     ctx: ExecuteContext,
-    aggSigs: Array[AggStateSignature],
+    aggSigs: Array[AggStatePhysicalSignature],
     name0: String, typ0: PType,
     body: IR): (PType, (Int, Region) => AsmFunction3[Region, T0, Boolean, R] with FunctionWithAggRegion) = {
 
@@ -290,7 +289,7 @@ object CompileWithAggregators2 {
 
   def apply[T0: ClassTag, T1: ClassTag, R: TypeInfo : ClassTag](
     ctx: ExecuteContext,
-    aggSigs: Array[AggStateSignature],
+    aggSigs: Array[AggStatePhysicalSignature],
     name0: String, typ0: PType,
     name1: String, typ1: PType,
     body: IR): (PType, (Int, Region) => (AsmFunction5[Region, T0, Boolean, T1, Boolean, R] with FunctionWithAggRegion)) = {

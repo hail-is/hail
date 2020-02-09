@@ -49,14 +49,6 @@ case class AggStatePhysicalSignature(m: Map[AggOp, PhysicalAggSignature], defaul
   def lookup(op: AggOp): PhysicalAggSignature = m(op)
 }
 
-object PhysicalAggSignature {
-  def apply(op: AggOp,
-    physicalInitOpArgs: Seq[PType],
-    physicalSeqOpArgs: Seq[PType],
-    nested: Option[Seq[AggStatePhysicalSignature]]
-  ): PhysicalAggSignature = PhysicalAggSignature(op, physicalInitOpArgs, physicalSeqOpArgs, nested)
-}
-
 object AggStatePhysicalSignature {
   def apply(sig: PhysicalAggSignature): AggStatePhysicalSignature = AggStatePhysicalSignature(Map(sig.op -> sig), sig.op)
 }
@@ -70,6 +62,8 @@ case class PhysicalAggSignature(
   def seqOpArgs: Seq[Type] = physicalSeqOpArgs.map(_.virtualType)
 
   lazy val virtual: AggSignature = AggSignature(op, physicalInitOpArgs.map(_.virtualType), physicalSeqOpArgs.map(_.virtualType))
+  lazy val singletonContainer: AggStatePhysicalSignature = AggStatePhysicalSignature(Map(op -> this), op, None)
+
 }
 
 sealed trait AggOp {}
