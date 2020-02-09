@@ -885,6 +885,7 @@ private class Emit(
 
       case ArrayAgg(a, name, query) =>
         assert(!ContainsAggIntermediate(query))
+        println(s"IN ARRAY AGG a: ${a}")
         val tarray = coerce[TStreamable](a.typ)
         val eti = typeToTypeInfo(tarray.elementType)
         val xmv = mb.newField[Boolean]()
@@ -893,7 +894,7 @@ private class Emit(
           (name, (eti, xmv.load(), xvv.load())))
 
         val res = genUID()
-        println("\n\nCALLING EXZTRACT IN ARRAGG \n\n")
+        println("\n\nMatched on ArrayAgg in Emit.emit\n\n")
         val extracted = agg.Extract(query, res)
 
         val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(extracted.aggs, mb.fb, "array_agg")
@@ -937,7 +938,7 @@ private class Emit(
 
       case InitOp(i, args, aggSig) =>
         val AggContainer(aggs, sc) = container.get
-        println("\n\nCALLING EXZTRACT IN InitOp \n\n")
+        println("\n\nCALLING extract in InitOp \n\n")
         assert(agg.Extract.compatible(aggs(i), aggSig))
         val rvAgg = agg.Extract.getAgg(aggSig)
 
@@ -947,7 +948,7 @@ private class Emit(
           rvAgg.initOp(sc.states(i), argVars))
 
       case SeqOp(i, args, aggSig) =>
-        println("\n\nCALLING EXZTRACT IN SeqOp \n\n")
+        println("\n\nCALLING extract in SeqOp \n\n")
         val AggContainer(aggs, sc) = container.get
         assert(agg.Extract.compatible(aggs(i), aggSig), s"${ aggs(i) } vs $aggSig")
         val rvAgg = agg.Extract.getAgg(aggSig)
