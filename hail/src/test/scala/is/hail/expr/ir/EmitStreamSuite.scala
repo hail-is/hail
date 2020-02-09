@@ -31,7 +31,7 @@ class EmitStreamSuite extends HailSuite {
     mb.emit {
       val arrayt = stream
         .toArrayIterator(mb)
-        .toEmitTriplet(mb, PArray(stream.elementType))
+        .toEmitTriplet(mb, IndexedSeq(stream.elementType), PArray(stream.elementType))
       Code(arrayt.setup, arrayt.m.mux(0L, arrayt.v))
     }
     val f = fb.resultWithIndex()

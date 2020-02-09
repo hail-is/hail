@@ -114,9 +114,9 @@ case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]
     arrayEmitter( { (m: Code[Boolean], v: Code[_]) => m.mux(sab.addMissing(), sab.add(v)) } )
   }
 
-  def toEmitTriplet(mb: MethodBuilder, aTyp: PArray): EmitTriplet = {
+  def toEmitTriplet(mb: MethodBuilder, childPTypes: IndexedSeq[PType], aTyp: PArray): EmitTriplet = {
     val srvb = new StagedRegionValueBuilder(mb, aTyp)
-
+    println(s"\n\n\nCHILD PTYPES: ${childPTypes}")
     length match {
       case Some(len) =>
         val cont = { (m: Code[Boolean], v: Code[_]) =>
@@ -483,6 +483,7 @@ private class Emit(
         val addElement = srvb.addIRIntermediate(pType.elementType)
 
         val addElts = { (newMB: EmitMethodBuilder, pt: PType, v: EmitTriplet) =>
+          println(s"THE TPTYPE IS ${pt}, the src pType is: pType")
           Code(
             v.setup,
             v.m.mux(srvb.setMissing(), addElement(pType.elementType.copyFromTypeAndStackValue(newMB, er.region, pt, v.v))),
@@ -721,7 +722,7 @@ private class Emit(
             ))))
 
       case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: RunAggScan | _: ArrayAggScan | _: ReadPartition | _: MakeStream | _: StreamRange =>
-        emitArrayIterator(ir).toEmitTriplet(mb, PArray(coerce[PStreamable](ir.pType).elementType))
+        emitArrayIterator(ir).toEmitTriplet(mb, ir.children.map(_.asInstanceOf[IR].pType), PArray(coerce[PStreamable](ir.pType).elementType))
 
       case ArrayFold(a, zero, name1, name2, body) =>
         val typ = ir.typ
@@ -1109,13 +1110,14 @@ private class Emit(
           Region.loadIRIntermediate(t.types(fieldIdx))(t.fieldOffset(xo, fieldIdx)))
 
       case x@MakeTuple(fields) =>
-        println(s"Make tuple has fields: ${fields}")
+        println(s"Make tuple has fields: ${fields}, it's ptype is ${x.pType}")
         val srvb = new StagedRegionValueBuilder(mb, x.pType)
-        val addFields = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
-          println(s"TYPE in addFIelds: ${t}")
+
+        val addFields = { (newMB: EmitMethodBuilder, pt: PType, v: EmitTriplet) =>
+          println(s"TYPE in addFIelds: ${pt}")
           Code(
             v.setup,
-            v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
+            v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(pt)(v.v)),
             srvb.advance())
         }
         present(Code(srvb.start(init = true), wrapToMethod(fields.map(_._2))(addFields), srvb.offset))
