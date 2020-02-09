@@ -74,7 +74,7 @@ object LowerArrayToStream {
         }
       case _ =>
         streamify(streamableNode) match {
-          case ToStream(a) if !a.typ.isInstanceOf[TStreamable] => a
+          case ToStream(a) => a
           case s => ToArray(s)
         }
     }
