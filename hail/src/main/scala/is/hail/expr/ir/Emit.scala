@@ -453,6 +453,7 @@ private class Emit(
       case Ref(name, typ) =>
         val ti = typeToTypeInfo(typ)
         val (t, m, v) = env.lookup(name)
+        println(s"IN REF WE LOOKED UP: t: ${t}, m: ${m}, v: ${v}")
         assert(t == ti, s"$name type annotation, $typ, $t doesn't match typeinfo: $ti")
         EmitTriplet(Code._empty, m, v)
 
@@ -727,7 +728,7 @@ private class Emit(
               srvb.offset
             ))))
 
-      case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: RunAggScan | _: ArrayAggScan | _: ReadPartition => {
+      case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: RunAggScan | _: ArrayAggScan | _: ReadPartition | _: MakeStream | _: StreamRange => {
         println(s"in catchall with ir: ${ir}")
         emitArrayIterator(ir).toEmitTriplet(mb, PArray(coerce[PStreamable](ir.pType).elementType))
       }
@@ -910,7 +911,7 @@ private class Emit(
 
         val resm = mb.newField[Boolean]()
         val resv = mb.newField(name)(typeToTypeInfo(query.pType))
-
+        println(s"\n\n ARRAY AGG, IR: ${ir} , a: ${a}")
         val aBase = emitArrayIterator(a)
         val cont = { (m: Code[Boolean], v: Code[_]) =>
           Code(xmv := m,
