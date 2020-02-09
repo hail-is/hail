@@ -339,7 +339,7 @@ class IRSuite extends HailSuite {
 
     // should not be able to infer physical type twice on one IR (i32na)
     node = ApplyUnaryPrimOp(Negate(), i32na)
-    intercept[AssertionError](InferPType(node, Env.empty))
+    intercept[RuntimeException](InferPType(node, Env.empty))
 
     node = ApplyUnaryPrimOp(Negate(), I64(5))
     assertPType(node, PInt64(true))
