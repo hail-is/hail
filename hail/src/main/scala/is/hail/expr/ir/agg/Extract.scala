@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.expr.ir
 import is.hail.expr.ir._
+import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.BufferSpec
@@ -43,9 +44,9 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
 
   def eltOp(ctx: ExecuteContext): IR = seqPerElt
 
-  def deserialize(ctx: ExecuteContext, spec: BufferSpec): ((Region, Array[Byte]) => Long) = {
+  def deserialize(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): ((Region, Array[Byte]) => Long) = {
     val (_, f) = ir.CompileWithAggregators2[Unit](ctx,
-      aggs, ir.DeserializeAggs(0, 0, spec, aggs))
+      physicalAggs, ir.DeserializeAggs(0, 0, spec, aggs))
 
     { (aggRegion: Region, bytes: Array[Byte]) =>
       val f2 = f(0, aggRegion);
@@ -56,9 +57,9 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
     }
   }
 
-  def serialize(ctx: ExecuteContext, spec: BufferSpec): (Region, Long) => Array[Byte] = {
+  def serialize(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (Region, Long) => Array[Byte] = {
     val (_, f) = ir.CompileWithAggregators2[Unit](ctx,
-      aggs, ir.SerializeAggs(0, 0, spec, aggs))
+      physicalAggs, ir.SerializeAggs(0, 0, spec, aggs))
 
     { (aggRegion: Region, off: Long) =>
       val f2 = f(0, aggRegion);
@@ -68,9 +69,9 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
     }
   }
 
-  def combOpF(ctx: ExecuteContext, spec: BufferSpec): (Array[Byte], Array[Byte]) => Array[Byte] = {
+  def combOpF(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (Array[Byte], Array[Byte]) => Array[Byte] = {
     val (_, f) = ir.CompileWithAggregators2[Unit](ctx,
-      aggs ++ aggs,
+      physicalAggs ++ physicalAggs,
       Begin(
         deserializeSet(0, 0, spec) +:
           deserializeSet(1, 1, spec) +:
@@ -90,6 +91,25 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
   }
 
   def results: IR = ResultOp(0, aggs)
+
+  def getPhysicalAggs(ctx: ExecuteContext, initBindings: Env[PType], seqBindings: Env[PType]): Array[AggStatePhysicalSignature] = {
+    val initsAB = InferPType.newBuilder[InitOp](aggs.length)
+    val seqsAB = InferPType.newBuilder[SeqOp](aggs.length)
+    val init2 = LoweringPipeline.compileLowerer.apply(ctx, init, false).asInstanceOf[IR]
+    val seq2 = LoweringPipeline.compileLowerer.apply(ctx, seqPerElt, false).asInstanceOf[IR]
+    InferPType(init2.noSharing, initBindings, null, inits = initsAB, null)
+    InferPType(seq2.noSharing, seqBindings, null, null, seqsAB)
+
+    val pSigs = aggs.indices.map { i => InferPType.computePhysicalAgg(aggs(i), initsAB(i), seqsAB(i)) }.toArray
+
+    if (init2 eq init)
+      InferPType.clearPTypes(init2)
+    if (seq2 eq seqPerElt)
+      InferPType.clearPTypes(seq2)
+
+    // should return pSigs, but cannot until we use the inferred ptype to generate code
+    aggs.map(_.toCanonicalPhysical)
+  }
 }
 
 object Extract {

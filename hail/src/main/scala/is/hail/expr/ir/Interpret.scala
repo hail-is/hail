@@ -616,23 +616,29 @@ object Interpret {
         } else {
           val spec = BufferSpec.defaultUncompressed
 
+          val physicalAggs = extracted.getPhysicalAggs(
+            ctx,
+            Env("global" -> value.globals.t),
+            Env("global" -> value.globals.t, "row" -> value.rvd.rowPType)
+          )
+
           val (_, initOp) = CompileWithAggregators2[Long, Unit](ctx,
-            extracted.aggs,
+            physicalAggs,
             "global", value.globals.t,
             extracted.init)
 
           val (_, partitionOpSeq) = CompileWithAggregators2[Long, Long, Unit](ctx,
-            extracted.aggs,
+            physicalAggs,
             "global", value.globals.t,
             "row", value.rvd.rowPType,
             extracted.seqPerElt)
 
-          val read = extracted.deserialize(ctx, spec)
-          val write = extracted.serialize(ctx, spec)
-          val combOpF = extracted.combOpF(ctx, spec)
+          val read = extracted.deserialize(ctx, spec, physicalAggs)
+          val write = extracted.serialize(ctx, spec, physicalAggs)
+          val combOpF = extracted.combOpF(ctx, spec, physicalAggs)
 
           val (rTyp: PTuple, f) = CompileWithAggregators2[Long, Long](ctx,
-            extracted.aggs,
+            physicalAggs,
             "global", value.globals.t,
             Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
           assert(rTyp.types(0).virtualType == query.typ)
