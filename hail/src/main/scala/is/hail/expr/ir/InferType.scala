@@ -38,7 +38,7 @@ object InferType {
       case _: SeqOp => TVoid
       case _: CombOp => TVoid
       case ResultOp(_, aggSigs) =>
-        TTuple(aggSigs.map(agg.Extract.getAgg(_).resultType.virtualType): _*)
+        TTuple(aggSigs.map(_.resultType): _*)
       case AggStateValue(i, sig) => TBinary()
       case _: CombOpValue => TVoid
       case _: SerializeAggs => TVoid

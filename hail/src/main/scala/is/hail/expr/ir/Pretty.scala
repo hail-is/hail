@@ -55,36 +55,38 @@ object Pretty {
       sb += ')'
     }
 
-    def prettyAggSignature(aggSig: AggSignature, depth: Int): String = {
+    def prettyAggStateSignatures(sigs: Seq[AggStateSignature], depth: Int) = {
+      sb.append(" " * depth)
+      sb += '('
+      sigs.foreach { sig =>
+        sb += '\n'
+        prettyAggStateSignature(sig, depth + 2)
+      }
+      sb += ')'
+    }
+    def prettyAggStateSignature(aggSig: AggStateSignature, depth: Int): Unit = {
+      sb.append(" " * depth)
+      sb += '('
+      sb.append(prettyClass(aggSig.default))
+      sb += '\n'
+      prettyAggSeq(aggSig.m.valuesIterator.toFastIndexedSeq, depth + 2)
+      sb += ' '
+      aggSig.nested match {
+        case Some(states) => prettyAggStateSignatures(states, depth + 2)
+        case None => sb.append("None")
+      }
+      sb += ')'
+    }
+
+    def prettyAggSignature(aggSig: AggSignature, depth: Int): Unit = {
       sb.append(" " * depth)
       sb += '('
       sb.append(prettyClass(aggSig.op))
       sb += ' '
       sb.append(aggSig.initOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))
       sb.append(aggSig.seqOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))
-      if (aggSig.nested.isEmpty)
-        sb.append(" None")
-      else
-        aggSig.nested.foreach(prettyAggSeq(_, depth + 2))
       sb += ')'
-      sb.result()
     }
-
-    def prettyPhysAggSignature(aggSig: PhysicalAggSignature, depth: Int): String = {
-      sb.append(" " * depth)
-      sb += '('
-      sb.append(prettyClass(aggSig.op))
-      sb += ' '
-      sb.append(aggSig.physicalInitOpArgs.map(_.toString).mkString(" (", " ", ")"))
-      sb.append(aggSig.physicalSeqOpArgs.map(_.toString).mkString(" (", " ", ")"))
-      if (aggSig.nested.isEmpty)
-        sb.append(" None")
-      else
-        aggSig.nested.foreach(prettyPhysAggSeq(_, depth + 2))
-      sb += ')'
-      sb.result()
-    }
-
 
     def prettyAggSeq(sigs: Seq[AggSignature], depth: Int) {
       sb.append(" " * depth)
@@ -95,17 +97,6 @@ object Pretty {
       }
       sb += ')'
     }
-
-    def prettyPhysAggSeq(sigs: Seq[PhysicalAggSignature], depth: Int) {
-      sb.append(" " * depth)
-      sb += '('
-      sigs.foreach { x =>
-        sb += '\n'
-        prettyPhysAggSignature(x, depth + 2)
-      }
-      sb += ')'
-    }
-
 
     def pretty(ir: BaseIR, depth: Int) {
       if (maxLen > 0 && sb.size > maxLen)
@@ -143,18 +134,23 @@ object Pretty {
           prettySeq(initOpArgs, depth + 2)
           sb += '\n'
           prettySeq(seqOpArgs, depth + 2)
-        case InitOp(i, args, aggSig) =>
+        case InitOp(i, args, aggSig, op) =>
           sb += ' '
           sb.append(i)
           sb += ' '
-          prettyPhysAggSignature(aggSig, depth + 2)
+          sb.append(prettyClass(op))
+          if (!elideLiterals) {}
+          sb += '\n'
+          prettyAggStateSignature(aggSig, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
-        case SeqOp(i, args, aggSig) =>
+        case SeqOp(i, args, aggSig, op) =>
           sb += ' '
           sb.append(i)
           sb += ' '
-          prettyPhysAggSignature(aggSig, depth + 2)
+          sb.append(prettyClass(op))
+          sb += '\n'
+          prettyAggStateSignature(aggSig, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
         case CombOp(i1, i2, aggSig) =>
@@ -163,22 +159,22 @@ object Pretty {
           sb += ' '
           sb.append(i2)
           sb += ' '
-          prettyPhysAggSignature(aggSig, depth + 2)
+          prettyAggStateSignature(aggSig, depth + 2)
         case ResultOp(i, aggSigs) =>
           sb += ' '
           sb.append(i)
           sb += '\n'
-          prettyPhysAggSeq(aggSigs, depth + 2)
+          prettyAggStateSignatures(aggSigs, depth + 2)
         case AggStateValue(i, sig) =>
           sb += ' '
           sb.append(i)
           sb += ' '
-          prettyPhysAggSignature(sig, depth + 2)
+          prettyAggStateSignature(sig, depth + 2)
         case CombOpValue(i, _, sig) =>
           sb += ' '
           sb.append(i)
           sb += ' '
-          prettyPhysAggSignature(sig, depth + 2)
+          prettyAggStateSignature(sig, depth + 2)
         case SerializeAggs(i, i2, spec, aggSigs) =>
           sb += ' '
           sb.append(i)
@@ -187,7 +183,7 @@ object Pretty {
           sb += ' '
           sb.append(prettyStringLiteral(spec.toString))
           sb += '\n'
-          prettyPhysAggSeq(aggSigs, depth + 2)
+          prettyAggStateSignatures(aggSigs, depth + 2)
         case DeserializeAggs(i, i2, spec, aggSigs) =>
           sb += ' '
           sb.append(i)
@@ -196,11 +192,26 @@ object Pretty {
           sb += ' '
           sb.append(prettyStringLiteral(spec.toString))
           sb += '\n'
-          prettyPhysAggSeq(aggSigs, depth + 2)
-        case RunAgg(_, _, signature) =>
-          prettyPhysAggSeq(signature, depth + 2)
-        case RunAggScan(_, name, _, _, _, signature) =>
-          prettyIdentifier(name) + " " + prettyPhysAggSeq(signature, depth + 2)
+          prettyAggStateSignatures(aggSigs, depth + 2)
+        case RunAgg(body, result, signature) =>
+          prettyAggStateSignatures(signature, depth + 2)
+          sb += '\n'
+          pretty(body, depth + 2)
+          sb += '\n'
+          pretty(result, depth + 2)
+        case RunAggScan(a, name, init, seq, res, signature) =>
+          sb += ' '
+          sb.append(prettyIdentifier(name))
+          sb += ' '
+          prettyAggStateSignatures(signature, depth + 2)
+          sb += '\n'
+          pretty(a, depth + 2)
+          sb += '\n'
+          pretty(init, depth + 2)
+          sb += '\n'
+          pretty(seq, depth + 2)
+          sb += '\n'
+          pretty(res, depth + 2)
         case InsertFields(old, fields, fieldOrder) =>
           sb += '\n'
           pretty(old, depth + 2)

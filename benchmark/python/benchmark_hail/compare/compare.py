@@ -2,7 +2,7 @@ import json
 import os
 import sys
 
-from scipy.stats.mstats import gmean
+from scipy.stats.mstats import gmean, hmean
 import numpy as np
 
 
@@ -83,20 +83,21 @@ def compare(args):
         sys.stderr.write(f"Failed benchmarks in run 2:" + ''.join(f'\n    {t}' for t in failed_2) + '\n')
     comparison = sorted(comparison, key=lambda x: x[2] / x[1], reverse=True)
 
-    longest_name = max(len(name) for name, _, _ in comparison)
+    longest_name = max(max(len(name) for name, _, _ in comparison), len('Benchmark Name'))
 
     comps = []
 
     def format(name, ratio, t1, t2):
-        return f'{name:>{longest_name}}   {ratio:>8}   {t1:>7}   {t2:>7}'
+        return f'{name:>{longest_name}}   {ratio:>8}   {t1:>8}   {t2:>8}'
 
-    print(format('Name', 'Ratio', 'Time 1', 'Time 2'))
-    print(format('----', '-----', '------', '------'))
+    print(format('Benchmark Name', 'Ratio', 'Time 1', 'Time 2'))
+    print(format('--------------', '-----', '------', '------'))
     for name, r1, r2 in comparison:
         comps.append(r2 / r1)
-        print(format(name, fmt_diff(r2 / r1), fmt_time(r1, 7), fmt_time(r2, 7)))
+        print(format(name, fmt_diff(r2 / r1), fmt_time(r1, 8), fmt_time(r2, 8)))
 
     print('----------------------')
+    print(f'Harmonic mean: {fmt_diff(hmean(comps))}')
     print(f'Geometric mean: {fmt_diff(gmean(comps))}')
-    print(f'Simple mean: {fmt_diff(np.mean(comps))}')
+    print(f'Arithmetic mean: {fmt_diff(np.mean(comps))}')
     print(f'Median:  {fmt_diff(np.median(comps))}')

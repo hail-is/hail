@@ -2,7 +2,6 @@ package is.hail.linalg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, MethodBuilder}
-import is.hail.utils._
 import is.hail.asm4s._
 import is.hail.expr.types.physical.PType
 
@@ -21,6 +20,23 @@ object LinalgCodeUtils {
     )
   }
 
+  def copyRowMajorToColumnMajor(rowMajorFirstElementAddress: Long, targetFirstElementAddress: Long, nRows: Long, nCols: Long, elementByteSize: Long): Unit = {
+
+    var rowIndex = 0L
+    while(rowIndex < nRows) {
+      var colIndex = 0L
+      while(colIndex < nCols) {
+        val rowMajorCoord = nCols * rowIndex + colIndex
+        val colMajorCoord = nRows * colIndex + rowIndex
+        val sourceAddress = rowMajorFirstElementAddress + rowMajorCoord * elementByteSize
+        val targetAddress = targetFirstElementAddress + colMajorCoord * elementByteSize
+        Region.copyFrom(sourceAddress, targetAddress, elementByteSize)
+        colIndex += 1
+      }
+      rowIndex += 1
+    }
+  }
+
   def copyColumnMajorToRowMajor(colMajorFirstElementAddress: Code[Long], targetFirstElementAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], elementPType: PType, mb: MethodBuilder): Code[Unit] = {
     val rowIndex = mb.newField[Long]
     val colIndex = mb.newField[Long]
@@ -33,5 +49,21 @@ object LinalgCodeUtils {
         Region.storePrimitive(elementPType, targetFirstElementAddress + rowMajorCoord * elementPType.byteSize)(currentElement)
       )
     )
+  }
+
+  def copyColumnMajorToRowMajor(colMajorFirstElementAddress: Long, targetFirstElementAddress: Long, nRows: Long, nCols: Long, elementByteSize: Long): Unit = {
+    var rowIndex = 0L
+    while (rowIndex < nRows) {
+      var colIndex = 0L
+      while (colIndex < nCols) {
+        val rowMajorCoord = nCols * rowIndex + colIndex
+        val colMajorCoord = nRows * colIndex + rowIndex
+        val sourceAddress = colMajorFirstElementAddress + colMajorCoord * elementByteSize
+        val targetAddress = targetFirstElementAddress + rowMajorCoord * elementByteSize
+        Region.copyFrom(sourceAddress, targetAddress, elementByteSize)
+        colIndex += 1
+      }
+      rowIndex += 1
+    }
   }
 }

@@ -33,3 +33,7 @@ case object CompilableIR extends IRState {
   val rules: Array[Rule] = Array(ValueIROnly, CompilableValueIRs)
 }
 
+case object EmittableIR extends IRState {
+  val rules: Array[Rule] = Array(ValueIROnly, EmittableValueIRs)
+}
+

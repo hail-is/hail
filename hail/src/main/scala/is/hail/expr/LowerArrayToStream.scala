@@ -72,7 +72,7 @@ object LowerArrayToStream {
       streamify(streamableNode) match {
         case ToStream(a) if !a.typ.isInstanceOf[TStream] => a
         case s => {
-          println(s"\n\n\n\nIn the match arm of streamify(streamableNode), about to wrap ${s} . This is what breaks testArrayAggContexts (ToArray(MakeStream \n\n\n\n")
+          println(s"\n\n\n\nIn the match arm of streamify(streamableNode), about to wrap ${s} for ir: ${streamableNode} . This is what breaks testArrayAggContexts (ToArray(MakeStream \n\n\n\n")
           ToArray(s)
         }
       }
@@ -85,14 +85,14 @@ object LowerArrayToStream {
       case ToSet(a) => ToSet(streamify(a))
       case ToDict(a) => ToDict(streamify(a))
       case ArrayFold(a, zero, zn, an, body) => ArrayFold(streamify(a), zero, zn, an, body)
+      case ArrayFold2(a, accum, valueName, seq, result) => ArrayFold2(streamify(a), accum, valueName, seq, result)
       case ArrayFor(a, n, b) => ArrayFor(streamify(a), n, b)
-      case ArrayAgg(a, name, query) => ArrayAgg(streamify(a), name, query)
       case ArrayZip(childIRs, names, body, behavior) =>
         ToArray(ArrayZip(childIRs.map(streamify), names, body, behavior))
-      case ArrayAggScan(a, n, q) => ArrayAggScan(streamify(a), n, q)
       case x: ApplyIR => apply(x.explicitNode)
       case If(c, t, e) => If(c, apply(t), apply(e))
-
+      case Let(n, v, b) => Let(n, apply(v), apply(b))
+      case RunAggScan(a, name, init, seq, res, sig) => RunAggScan(streamify(a), name, init, seq, res, sig)
       case _ if node.typ.isInstanceOf[TStreamable] => unstreamify(node)
       case _ => Copy(node, Children(node).map { case c: IR => apply(c) })
     }

@@ -148,7 +148,7 @@ class SimplifySuite extends HailSuite {
     val doesNotRewrite: Array[ArrayAgg] = Array(
       ArrayAgg(In(0, TArray(TInt32())), "foo",
         ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(Ref("foo", TInt32())),
-          AggSignature(Sum(), FastSeq(), FastSeq(TInt32()), None))),
+          AggSignature(Sum(), FastSeq(), FastSeq(TInt32())))),
       ArrayAgg(In(0, TArray(TInt32())), "foo",
         AggLet("bar", In(1, TInt32()) * In(1, TInt32()), Ref("x", TInt32()), false))
     )
@@ -171,7 +171,7 @@ class SimplifySuite extends HailSuite {
     val doesNotRewrite: Array[ArrayAggScan] = Array(
       ArrayAggScan(In(0, TArray(TInt32())), "foo",
         ApplyScanOp(FastIndexedSeq(), FastIndexedSeq(Ref("foo", TInt32())),
-          AggSignature(Sum(), FastSeq(), FastSeq(TInt64()), None))),
+          AggSignature(Sum(), FastSeq(), FastSeq(TInt64())))),
       ArrayAggScan(In(0, TArray(TInt32())), "foo",
         AggLet("bar", In(1, TInt32()) * In(1, TInt32()), Ref("x", TInt32()), true))
     )

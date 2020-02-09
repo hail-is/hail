@@ -4,13 +4,14 @@ import java.io.PrintWriter
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, classTag}
 
-case class CodeCacheKey(aggSigs: IndexedSeq[PhysicalAggSignature], args: Seq[(String, PType)], nSpecialArgs: Int, body: IR)
+case class CodeCacheKey(aggSigs: IndexedSeq[AggStatePhysicalSignature], args: Seq[(String, PType)], body: IR)
 
 case class CodeCacheValue(typ: PType, f: (Int, Region) => Any)
 
@@ -23,14 +24,13 @@ object Compile {
     args: Seq[(String, PType, ClassTag[_])],
     argTypeInfo: Array[MaybeGenericTypeInfo[_]],
     body: IR,
-    nSpecialArgs: Int,
     optimize: Boolean
   ): (PType, (Int, Region) => F) = {
     println("compile running")
     val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
       Env(args.map { case (n, _, _) => n -> n }: _*))
-    val k = CodeCacheKey(FastIndexedSeq[PhysicalAggSignature](), args.map { case (n, pt, _) => (n, pt) }, nSpecialArgs, normalizedBody)
+    val k = CodeCacheKey(FastIndexedSeq[AggStatePhysicalSignature](), args.map { case (n, pt, _) => (n, pt) }, normalizedBody)
     codeCache.get(k) match {
       case Some(v) =>
         return (v.typ, v.f.asInstanceOf[(Int, Region) => F])
@@ -40,21 +40,17 @@ object Compile {
     val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
 
     var ir = body
-    println(s"the ir body ${ir}")
-    if (optimize)
-      ir = Optimize(ir, noisy = true, context = "Compile", ctx)
+    ir = Subst(ir, BindingEnv(args
+      .zipWithIndex
+      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }))
+    ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR]
     ir = LowerArrayToStream(ir)
-    TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
+    TypeCheck(ir, BindingEnv.empty)
     InferPType(if (HasIRSharing(ir)) ir.deepCopy() else ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
 
-    val env = args
-      .zipWithIndex
-      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
-
-    ir = Subst(ir, BindingEnv(env))
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
-    println(s"The ir we're emitting ${ir} \n\n\n")
-    Emit(ctx, ir, fb, nSpecialArgs)
+    println(s"THE IR We're emitting ${ir}")
+    Emit(ctx, ir, fb)
 
     val f = fb.resultWithIndex(print)
     codeCache += k -> CodeCacheValue(ir.pType, f)
@@ -66,7 +62,6 @@ object Compile {
     print: Option[PrintWriter],
     args: Seq[(String, PType, ClassTag[_])],
     body: IR,
-    nSpecialArgs: Int,
     optimize: Boolean
   ): (PType, (Int, Region) => F) = {
     assert(args.forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t.virtualType) == ct })
@@ -80,7 +75,7 @@ object Compile {
 
     val argTypeInfo: Array[MaybeGenericTypeInfo[_]] = ab.result()
 
-    Compile[F, R](ctx, print, args, argTypeInfo, body, nSpecialArgs, optimize)
+    Compile[F, R](ctx, print, args, argTypeInfo, body, optimize)
   }
 
   def apply[R: TypeInfo : ClassTag](
@@ -89,7 +84,7 @@ object Compile {
     print: Option[PrintWriter],
     optimize: Boolean = true
   ): (PType, (Int, Region) => AsmFunction1[Region, R]) = {
-    apply[AsmFunction1[Region, R], R](ctx, print, FastSeq[(String, PType, ClassTag[_])](), body, 1, optimize)
+    apply[AsmFunction1[Region, R], R](ctx, print, FastSeq[(String, PType, ClassTag[_])](), body, optimize)
   }
 
   def apply[T0: ClassTag, R: TypeInfo : ClassTag](
@@ -100,7 +95,7 @@ object Compile {
     optimize: Boolean,
     print: Option[PrintWriter]
   ): (PType, (Int, Region) => AsmFunction3[Region, T0, Boolean, R]) = {
-    apply[AsmFunction3[Region, T0, Boolean, R], R](ctx, print, FastSeq((name0, typ0, classTag[T0])), body, 1, optimize)
+    apply[AsmFunction3[Region, T0, Boolean, R], R](ctx, print, FastSeq((name0, typ0, classTag[T0])), body, optimize)
   }
 
   def apply[T0: ClassTag, R: TypeInfo : ClassTag](
@@ -126,7 +121,7 @@ object Compile {
     typ1: PType,
     body: IR,
     print: Option[PrintWriter]): (PType, (Int, Region) => AsmFunction5[Region, T0, Boolean, T1, Boolean, R]) = {
-    apply[AsmFunction5[Region, T0, Boolean, T1, Boolean, R], R](ctx, print, FastSeq((name0, typ0, classTag[T0]), (name1, typ1, classTag[T1])), body, 1, optimize = true)
+    apply[AsmFunction5[Region, T0, Boolean, T1, Boolean, R], R](ctx, print, FastSeq((name0, typ0, classTag[T0]), (name1, typ1, classTag[T1])), body, optimize = true)
   }
 
   def apply[T0: ClassTag, T1: ClassTag, R: TypeInfo : ClassTag](
@@ -156,7 +151,7 @@ object Compile {
       (name0, typ0, classTag[T0]),
       (name1, typ1, classTag[T1]),
       (name2, typ2, classTag[T2])
-    ), body, 1,
+    ), body,
       optimize = true)
   }
 
@@ -178,7 +173,7 @@ object Compile {
       (name1, typ1, classTag[T1]),
       (name2, typ2, classTag[T2]),
       (name3, typ3, classTag[T3])
-    ), body, 1,
+    ), body,
       optimize = true)
   }
 
@@ -207,7 +202,7 @@ object Compile {
       (name3, typ3, classTag[T3]),
       (name4, typ4, classTag[T4]),
       (name5, typ5, classTag[T5])
-    ), body, 1,
+    ), body,
       optimize = true)
   }
 }
@@ -217,17 +212,17 @@ object CompileWithAggregators2 {
 
   private def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
     ctx: ExecuteContext,
-    aggSigs: Array[PhysicalAggSignature],
+    aggSigs: Array[AggStateSignature],
     args: Seq[(String, PType, ClassTag[_])],
     argTypeInfo: Array[MaybeGenericTypeInfo[_]],
     body: IR,
-    nSpecialArgs: Int,
     optimize: Boolean
   ): (PType, (Int, Region) => (F with FunctionWithAggRegion)) = {
     val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
       Env(args.map { case (n, _, _) => n -> n }: _*))
-    val k = CodeCacheKey(aggSigs.toFastIndexedSeq, args.map { case (n, pt, _) => (n, pt) }, nSpecialArgs, normalizedBody)
+    val pAggSigs = aggSigs.map(_.toCanonicalPhysical)
+    val k = CodeCacheKey(pAggSigs.toFastIndexedSeq, args.map { case (n, pt, _) => (n, pt) }, normalizedBody)
     codeCache.get(k) match {
       case Some(v) =>
         return (v.typ, v.f.asInstanceOf[(Int, Region) => (F with FunctionWithAggRegion)])
@@ -247,10 +242,14 @@ object CompileWithAggregators2 {
       .zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
 
-    ir = Subst(ir, BindingEnv(env))
+    ir = Subst(ir, BindingEnv(args
+      .zipWithIndex
+      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }))
+    ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR]
+    TypeCheck(ir, BindingEnv.empty)
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
-    println(s"The ir we're emitting in COmpileWithAggregator ${ir} \n\n\n")
-    Emit(ctx, ir, fb, nSpecialArgs, Some(aggSigs))
+    println(s"IR being emitted in compilewithaggregate ${ir}")
+    Emit(ctx, ir, fb, Some(pAggSigs))
 
     val f = fb.resultWithIndex()
     codeCache += k -> CodeCacheValue(ir.pType, f)
@@ -259,10 +258,9 @@ object CompileWithAggregators2 {
 
   def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
     ctx: ExecuteContext,
-    aggSigs: Array[PhysicalAggSignature],
+    aggSigs: Array[AggStateSignature],
     args: Seq[(String, PType, ClassTag[_])],
     body: IR,
-    nSpecialArgs: Int,
     optimize: Boolean
   ): (PType, (Int, Region) => (F with FunctionWithAggRegion)) = {
     assert(args.forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t.virtualType) == ct })
@@ -276,34 +274,34 @@ object CompileWithAggregators2 {
 
     val argTypeInfo: Array[MaybeGenericTypeInfo[_]] = ab.result()
 
-    CompileWithAggregators2[F, R](ctx, aggSigs, args, argTypeInfo, body, nSpecialArgs, optimize)
+    CompileWithAggregators2[F, R](ctx, aggSigs, args, argTypeInfo, body, optimize)
   }
 
   def apply[R: TypeInfo : ClassTag](
     ctx: ExecuteContext,
-    aggSigs: Array[PhysicalAggSignature],
+    aggSigs: Array[AggStateSignature],
     body: IR): (PType, (Int, Region) => AsmFunction1[Region, R] with FunctionWithAggRegion) = {
 
-    apply[AsmFunction1[Region, R], R](ctx, aggSigs, FastSeq[(String, PType, ClassTag[_])](), body, 1, optimize = true)
+    apply[AsmFunction1[Region, R], R](ctx, aggSigs, FastSeq[(String, PType, ClassTag[_])](), body, optimize = true)
   }
 
   def apply[T0: ClassTag, R: TypeInfo : ClassTag](
     ctx: ExecuteContext,
-    aggSigs: Array[PhysicalAggSignature],
+    aggSigs: Array[AggStateSignature],
     name0: String, typ0: PType,
     body: IR): (PType, (Int, Region) => AsmFunction3[Region, T0, Boolean, R] with FunctionWithAggRegion) = {
 
-    apply[AsmFunction3[Region, T0, Boolean, R], R](ctx, aggSigs, FastSeq((name0, typ0, classTag[T0])), body, 1, optimize = true)
+    apply[AsmFunction3[Region, T0, Boolean, R], R](ctx, aggSigs, FastSeq((name0, typ0, classTag[T0])), body, optimize = true)
   }
 
   def apply[T0: ClassTag, T1: ClassTag, R: TypeInfo : ClassTag](
     ctx: ExecuteContext,
-    aggSigs: Array[PhysicalAggSignature],
+    aggSigs: Array[AggStateSignature],
     name0: String, typ0: PType,
     name1: String, typ1: PType,
     body: IR): (PType, (Int, Region) => (AsmFunction5[Region, T0, Boolean, T1, Boolean, R] with FunctionWithAggRegion)) = {
 
-    apply[AsmFunction5[Region, T0, Boolean, T1, Boolean, R], R](ctx, aggSigs, FastSeq((name0, typ0, classTag[T0]), (name1, typ1, classTag[T1])), body, 1, optimize = true)
+    apply[AsmFunction5[Region, T0, Boolean, T1, Boolean, R], R](ctx, aggSigs, FastSeq((name0, typ0, classTag[T0]), (name1, typ1, classTag[T1])), body, optimize = true)
   }
 }
 

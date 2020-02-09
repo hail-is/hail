@@ -45,9 +45,9 @@ object Bindings {
     case TableMapRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty
     case TableAggregateByKey(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case TableKeyByAndAggregate(child, _, _, _, _) => if (i == 1) child.typ.globalEnv.m else if (i == 2) child.typ.rowEnv.m else empty
-    case MatrixMapRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty
+    case MatrixMapRows(child, _) => if (i == 1) child.typ.rowEnv.bind("n_cols", TInt32()).m else empty
     case MatrixFilterRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty
-    case MatrixMapCols(child, _, _) => if (i == 1) child.typ.colEnv.m else empty
+    case MatrixMapCols(child, _, _) => if (i == 1) child.typ.colEnv.bind("n_rows", TInt64()).m else empty
     case MatrixFilterCols(child, _) => if (i == 1) child.typ.colEnv.m else empty
     case MatrixMapEntries(child, _) => if (i == 1) child.typ.entryEnv.m else empty
     case MatrixFilterEntries(child, _) => if (i == 1) child.typ.entryEnv.m else empty

@@ -222,7 +222,7 @@ object InferPType {
         infer(a)
         acc.foreach { case (_, accIR) => infer(accIR) }
         val resEnv = env.bind(acc.map { case (name, accIR) => (name, accIR.pType2) }: _*)
-        val seqEnv = resEnv.bind(valueName -> a.pType2.asInstanceOf[PArray].elementType)
+        val seqEnv = resEnv.bind(valueName -> a.pType2.asInstanceOf[PStreamable].elementType)
         seq.foreach(infer(_, seqEnv))
         infer(res, resEnv)
         res.pType2.setRequired(res.pType2.required && a.pType2.required)
@@ -398,11 +398,11 @@ object InferPType {
           theIR._pType2
         })), true)
       case ResultOp(_, aggSigs) => {
-        val rPTypes = aggSigs.toIterator.zipWithIndex.map{ case (sig, i) => PTupleField(i, agg.Extract.getAgg(sig).resultType)}.toIndexedSeq
+        val rPTypes = aggSigs.toIterator.zipWithIndex.map{ case (sig, i) => PTupleField(i, sig.toCanonicalPhysical.resultType)}.toIndexedSeq
         val allReq = rPTypes.forall(f => f.typ.required)
         PCanonicalTuple(rPTypes, allReq)
       }
-      case _: AggLet | _: ArrayAgg | _: ArrayAggScan | _: RunAgg | _: RunAggScan | _: NDArrayAgg | _: AggFilter | _: AggExplode |
+      case _: AggLet | _: RunAgg | _: RunAggScan | _: NDArrayAgg | _: AggFilter | _: AggExplode |
            _: AggGroupBy | _: AggArrayPerElement | _: ApplyAggOp | _: ApplyScanOp | _: AggStateValue => PType.canonical(ir.typ)
     }
 

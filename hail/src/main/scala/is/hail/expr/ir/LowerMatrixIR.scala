@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.ir.functions.{WrappedMatrixToMatrixFunction, WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
 import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TArray, TDict, TInt32, TInterval}
+import is.hail.expr.types.virtual.{TArray, TDict, TInt32, TInterval, TStruct}
 import is.hail.utils._
 
 object LowerMatrixIR {
@@ -276,9 +276,10 @@ object LowerMatrixIR {
 
 
         val lc = lower(child, ab)
-        lc.mapRows(
+        lc.mapRows(let(n_cols = 'global(colsField).len) {
           liftScans(Subst(lower(newRow, ab), matrixSubstEnvIR(child, lc)))
-            .insertFields(entriesField -> 'row(entriesField)))
+            .insertFields(entriesField -> 'row(entriesField))
+        })
 
       case MatrixMapCols(child, newCol, _) =>
         val loweredChild = lower(child, ab)
@@ -388,31 +389,36 @@ object LowerMatrixIR {
         else {
           val aggStruct = MakeStruct(aggs)
 
-          val aggResultArray = loweredChild.aggregate(
+          val aggResult = loweredChild.aggregate(
             aggLet(va = 'row.selectFields(child.typ.rowType.fieldNames: _*)) {
-              irRange(0, 'global(colsField).len)
-                .aggElements('__element_idx, '__result_idx, Some('global(colsField).len))(
-                  let(sa = 'global(colsField)('__result_idx)) {
-                    aggLet(sa = 'global(colsField)('__element_idx),
-                      g = 'row(entriesField)('__element_idx)) {
-                      aggFilter(!'g.isNA, aggStruct)
-                    }
-                  })
+              makeStruct(
+                ('count, applyAggOp(Count(), FastIndexedSeq(), FastIndexedSeq())),
+                ('array_aggs, irRange(0, 'global(colsField).len)
+                  .aggElements('__element_idx, '__result_idx, Some('global(colsField).len))(
+                    let(sa = 'global(colsField)('__result_idx)) {
+                      aggLet(sa = 'global(colsField)('__element_idx),
+                        g = 'row(entriesField)('__element_idx)) {
+                        aggFilter(!'g.isNA, aggStruct)
+                      }
+                    })))
             })
 
           val ident = genUID()
-          ab += ((ident, aggResultArray))
+          ab += ((ident, aggResult))
 
-          val aggResultRef = Ref(genUID(), aggResultArray.typ)
-          val aggResultElementRef = Ref(genUID(), aggResultArray.typ.asInstanceOf[TArray].elementType)
+          val aggResultRef = Ref(genUID(), aggResult.typ)
+          val aggResultElementRef = Ref(genUID(), aggResult.typ.asInstanceOf[TStruct]
+            .fieldType("array_aggs")
+            .asInstanceOf[TArray].elementType)
 
-          val bindResult: IRProxy => IRProxy = let.applyDynamicNamed("apply")((aggResultRef.name, irToProxy(RelationalRef(ident, aggResultArray.typ)))).apply(_)
+          val bindResult: IRProxy => IRProxy = let.applyDynamicNamed("apply")((aggResultRef.name, irToProxy(RelationalRef(ident, aggResult.typ)))).apply(_)
           val bodyResult: IRProxy => IRProxy = (x: IRProxy) =>
-            let.applyDynamicNamed("apply")((aggResultRef.name, irToProxy(RelationalRef(ident, aggResultArray.typ))))
-              .apply(
-                let.applyDynamicNamed("apply")((aggResultElementRef.name, ArrayRef(aggResultRef, idx))) {
+            let.applyDynamicNamed("apply")((aggResultRef.name, irToProxy(RelationalRef(ident, aggResult.typ))))
+              .apply(let(n_rows = Symbol(aggResultRef.name)('count), array_aggs = Symbol(aggResultRef.name)('array_aggs)) {
+                let.applyDynamicNamed("apply")((aggResultElementRef.name, 'array_aggs(idx))) {
                   aggs.foldLeft[IRProxy](x) { case (acc, (name, _)) => let.applyDynamicNamed("apply")((name, GetField(aggResultElementRef, name)))(acc) }
-                })
+                }
+              })
           (bindResult, bodyResult)
         }
 

@@ -105,7 +105,7 @@ class MatrixMapCols(MatrixIR):
 
     def _compute_type(self):
         child_typ = self.child.typ
-        self.new_col._compute_type(child_typ.col_env(), child_typ.entry_env())
+        self.new_col._compute_type({**child_typ.col_env(), 'n_rows': hl.tint64}, child_typ.entry_env())
         self._type = hl.tmatrix(
             child_typ.global_type,
             self.new_col.typ,
@@ -118,6 +118,7 @@ class MatrixMapCols(MatrixIR):
         if i == 1:
             env = self.child.typ.col_env(default_value)
             env[BaseIR.agg_capability] = default_value
+            env['n_rows'] = default_value
             return env
         else:
             return {}
@@ -216,7 +217,7 @@ class MatrixMapRows(MatrixIR):
 
     def _compute_type(self):
         child_typ = self.child.typ
-        self.new_row._compute_type(child_typ.row_env(), child_typ.entry_env())
+        self.new_row._compute_type({**child_typ.row_env(), 'n_cols': hl.tint32}, child_typ.entry_env())
         self._type = hl.tmatrix(
             child_typ.global_type,
             child_typ.col_type,
@@ -229,6 +230,7 @@ class MatrixMapRows(MatrixIR):
         if i == 1:
             env = self.child.typ.row_env(default_value)
             env[BaseIR.agg_capability] = default_value
+            env['n_cols'] = default_value
             return env
         else:
             return {}

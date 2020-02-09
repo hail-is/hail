@@ -4,30 +4,72 @@ import is.hail.expr.ir.agg.Extract
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual._
 
+object AggStateSignature {
+  def apply(sig: AggSignature): AggStateSignature = AggStateSignature(Map(sig.op -> sig), sig.op)
+}
+
+case class AggStateSignature(m: Map[AggOp, AggSignature], default: AggOp, nested: Option[Seq[AggStateSignature]] = None) {
+  lazy val defaultSignature: AggSignature = m(default)
+  lazy val resultType: Type = Extract.getResultType(this)
+  def lookup(op: AggOp): AggSignature = m(op)
+
+  def toCanonicalPhysical: AggStatePhysicalSignature = AggStatePhysicalSignature(
+    m.map { case (op, sig) =>
+      (op, sig.toPhysical(sig.initOpArgs.map(PType.canonical), sig.seqOpArgs.map(PType.canonical)))
+    },
+    default,
+    nested.map(_.map(_.toCanonicalPhysical))
+  )
+}
+
+
 case class AggSignature(
   op: AggOp,
   initOpArgs: Seq[Type],
-  seqOpArgs: Seq[Type],
-  nested: Option[Seq[AggSignature]] = None) {
-  lazy val returnType: Type = agg.Extract.getResultType(this)
+  seqOpArgs: Seq[Type]) {
+
   def toPhysical(initOpTypes: Seq[PType], seqOpTypes: Seq[PType]): PhysicalAggSignature = {
-    assert(nested.isEmpty)
-    (initOpTypes, initOpArgs).zipped.foreach { case (pt, t) => assert(pt.virtualType == t) }
-    (seqOpTypes, seqOpArgs).zipped.foreach { case (pt, t) => assert(pt.virtualType == t) }
-    PhysicalAggSignature(op, initOpTypes, seqOpTypes, None)
+    (initOpTypes, initOpArgs).zipped.foreach { case (pt, t) => assert(pt.virtualType isOfType t) }
+    (seqOpTypes, seqOpArgs).zipped.foreach { case (pt, t) => assert(pt.virtualType isOfType t) }
+    PhysicalAggSignature(op, initOpTypes, seqOpTypes)
   }
+
+  lazy val singletonContainer: AggStateSignature = AggStateSignature(Map(op -> this), op, None)
+
+  // only to be used with virtual non-nested signatures on ApplyAggOp and ApplyScanOp
+  lazy val returnType: Type = AggStateSignature(this).resultType
+}
+
+case class AggStatePhysicalSignature(m: Map[AggOp, PhysicalAggSignature], default: AggOp, nested: Option[Seq[AggStatePhysicalSignature]] = None) {
+  lazy val resultType: PType = Extract.getPType(this)
+  lazy val defaultSignature: PhysicalAggSignature = m(default)
+
+  lazy val virtual: AggStateSignature = AggStateSignature(m.map { case (op, p) => (op, p.virtual) }, default, nested.map(_.map(_.virtual)))
+
+  def lookup(op: AggOp): PhysicalAggSignature = m(op)
+}
+
+object PhysicalAggSignature {
+  def apply(op: AggOp,
+    physicalInitOpArgs: Seq[PType],
+    physicalSeqOpArgs: Seq[PType],
+    nested: Option[Seq[AggStatePhysicalSignature]]
+  ): PhysicalAggSignature = PhysicalAggSignature(op, physicalInitOpArgs, physicalSeqOpArgs, nested)
+}
+
+object AggStatePhysicalSignature {
+  def apply(sig: PhysicalAggSignature): AggStatePhysicalSignature = AggStatePhysicalSignature(Map(sig.op -> sig), sig.op)
 }
 
 case class PhysicalAggSignature(
   op: AggOp,
   physicalInitOpArgs: Seq[PType],
-  physicalSeqOpArgs: Seq[PType],
-  nested: Option[Seq[PhysicalAggSignature]]) {
+  physicalSeqOpArgs: Seq[PType]) {
   def initOpArgs: Seq[Type] = physicalInitOpArgs.map(_.virtualType)
 
   def seqOpArgs: Seq[Type] = physicalSeqOpArgs.map(_.virtualType)
 
-  lazy val returnType: PType = Extract.getAgg(this).resultType
+  lazy val virtual: AggSignature = AggSignature(op, physicalInitOpArgs.map(_.virtualType), physicalSeqOpArgs.map(_.virtualType))
 }
 
 sealed trait AggOp {}
@@ -68,5 +110,8 @@ object AggOp {
     case "linreg" | "LinearRegression" => LinearRegression()
     case "downsample" | "Downsample" => Downsample()
     case "prevnonnull" | "PrevNonnull" => PrevNonnull()
+    case "Group" => Group()
+    case "AggElements" => AggElements()
+    case "AggElementsLengthCheck" => AggElementsLengthCheck()
   }
 }
