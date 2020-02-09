@@ -636,8 +636,10 @@ class PruneSuite extends HailSuite {
       TNDArray(justBRequired, Nat(1)), Array(TNDArray(justBRequired, Nat(1)), null))
   }
 
-  @Test def understandingSupertype(): Unit = {
-    assert(PruneDeadFields.isSupertype(arr.typ, TArray(justB)))
+  @Test def testNDArrayMap2Memo(): Unit = {
+    checkMemo(NDArrayMap2(ndArr, ndArr, "left", "right", Ref("left", ref.typ)),
+      TNDArray(justBRequired, Nat(1)),  Array(TNDArray(justBRequired, Nat(1)), null, null))
+
   }
 
   @Test def testMakeStructMemo() {

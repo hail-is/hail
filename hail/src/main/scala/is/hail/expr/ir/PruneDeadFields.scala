@@ -41,6 +41,7 @@ object PruneDeadFields {
             mt2.rowKey.startsWith(mt1.rowKey) &&
             mt2.colKey.startsWith(mt1.colKey)
         case (TArray(et1, r1), TArray(et2, r2)) => (!r1 || r2) && isSupertype(et1, et2)
+        case (TNDArray(et1, ndims1, r1), TNDArray(et2, ndims2, r2)) =>  (!r1 || r2) && (ndims1 == ndims2) && isSupertype(et1, et2)
         case (TStream(et1, r1), TStream(et2, r2)) => (!r1 || r2) && isSupertype(et1, et2)
         case (TSet(et1, r1), TSet(et2, r2)) => (!r1 || r2) && isSupertype(et1, et2)
         case (TDict(kt1, vt1, r1), TDict(kt2, vt2, r2)) => (!r1 || r2) && isSupertype(kt1, kt2) && isSupertype(vt1, vt2)
