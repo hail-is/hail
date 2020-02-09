@@ -58,8 +58,8 @@ case object LowerTableToDistributedArrayPass extends LoweringPass {
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerTableIR.lower(ir.asInstanceOf[IR])
 }
 
-case object LowerStreamPass extends LoweringPass {
-  val before: IRState = CompilableIR
+case object LowerArrayToStreamPass extends LoweringPass {
+  val before: IRState = EmittableIR
   val after: IRState = EmittableIR
   val context: String = "LowerArrayToStream"
 

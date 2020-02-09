@@ -407,7 +407,6 @@ object InferPType {
     }
 
     // Allow only requiredeness to diverge
-    println(s"assertion: ${ir} , ir.ptype2.virtualtype: ${ir.pType2.virtualType}, ir.typ: ${ir.typ}")
     assert(ir.pType2.virtualType isOfType ir.typ)
   }
 }

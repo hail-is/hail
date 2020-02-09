@@ -44,7 +44,7 @@ object Compile {
       .zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }))
     ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR]
-    ir = LowerArrayToStream(ir)
+    ir = LowerArrayToStream(ir) //#LoweringPipeline.streamLowerer.apply(ctx, ir, optimize).asInstanceOf[IR]
     TypeCheck(ir, BindingEnv.empty)
     InferPType(if (HasIRSharing(ir)) ir.deepCopy() else ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
 
