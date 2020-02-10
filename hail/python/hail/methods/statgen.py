@@ -2648,7 +2648,7 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
     ld = hl.row_correlation(entry_expr, block_size)
     return BlockMatrix(
         BlockMatrixSparsify(ld._bmir,
-                            starts_and_stops._ir,
+                            hl.cast_expr(starts_and_stops, hl.ttuple(hl.tarray(hl.tint64), hl.tarray(hl.tint64)))._ir,
                             RowIntervalSparsifier(blocks_only=False)))
 
 
