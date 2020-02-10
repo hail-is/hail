@@ -447,7 +447,7 @@ case class BlockMatrixBroadcast(
       case IndexedSeq(1) =>
         BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
         broadcastRowVector(hc, childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
-        // FIXME: I'm pretty sure this case is broken. 
+        // FIXME: I'm pretty sure this case is broken.
 //      case IndexedSeq(0, 0) =>
 //        BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
 //        BlockMatrixIR.toBlockMatrix(hc, nRows.toInt, nCols.toInt, childBm.diagonal(), blockSize)
@@ -653,8 +653,26 @@ case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[
       1 + (stop - start - 1) / step
     }
 
+    val definedBlocks = if (typ.hasSparsity) {
+      val blockSize = child.typ.blockSize
+      val IndexedSeq(rowRanges, colRanges) = slices.map { case IndexedSeq(start, stop, step) =>
+        val size = 1 + (stop - start - 1) / step
+        val nBlocks = BlockMatrixType.numBlocks(size, blockSize)
+        Array.tabulate(nBlocks) { blockIdx =>
+          val blockStart = start + blockIdx * blockSize * step
+          val blockEnd = java.lang.Math.min(start + ((blockIdx + 1) * blockSize - 1) * step, stop)
+          Array.range(java.lang.Math.floorDiv(blockStart, blockSize).toInt, java.lang.Math.floorDiv(blockEnd, blockSize).toInt)
+        }
+      }
+      rowRanges.map { rows =>
+        colRanges.map { cols =>
+          rows.exists(i => cols.exists(j => typ.definedBlocks(i)(j)))
+        }
+      }
+    } else null
+
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(matrixShape(0), matrixShape(1))
-    BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, child.typ.blockSize)
+    BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, child.typ.blockSize, definedBlocks)
   }
 
   override def children: IndexedSeq[BaseIR] = Array(child)
