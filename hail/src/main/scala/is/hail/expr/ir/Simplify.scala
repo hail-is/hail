@@ -205,11 +205,7 @@ object Simplify {
 
     case ArrayRef(MakeArray(args, _), I32(i), _) if i >= 0 && i < args.length => args(i)
 
-    case ArrayFilter(a, _, True()) => {
-      println("IN ARRAY FILTER")
-      a
-    }
-
+    case ArrayFilter(a, _, True()) => a
 
     case ArrayFor(_, _, Begin(Seq())) => Begin(FastIndexedSeq())
 

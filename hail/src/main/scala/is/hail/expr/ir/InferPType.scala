@@ -64,10 +64,7 @@ object InferPType {
       case IsNA(ir) =>
         infer(ir)
         PBoolean(true)
-      case Ref(name, typ) => {
-        println(s"for name ${name}, type: ${typ} found ${env.lookup(name)}")
-        env.lookup(name)
-      }
+      case Ref(name, typ) =>  env.lookup(name)
       case MakeNDArray(data, shape, rowMajor) =>
         infer(data)
         infer(shape)
@@ -184,7 +181,6 @@ object InferPType {
         val elt = coerce[PIterable](a.pType2).elementType
         PArray(elt, a.pType2.required)
       case ToStream(a) =>
-        println(s"TO STREAM: ${a}")
         infer(a)
         val elt = coerce[PIterable](a.pType2).elementType
         PStream(elt, a.pType2.required)
@@ -198,7 +194,7 @@ object InferPType {
         coerce[PStreamable](a.pType2).copyStreamable(body.pType2, a.pType2.required)
       case ArrayZip(as, names, body, _) =>
         as.foreach(infer(_))
-        println(s"ArrayZip has ${as} with head type ${as.head.typ}")
+
         infer(body, env.bindIterable(names.zip(as.map(_.pType2.asInstanceOf[PStreamable].elementType))))
         coerce[PStreamable](as.head.pType2).copyStreamable(body.pType2, as.forall(_.pType2.required))
       case ArrayFilter(a, name, cond) =>

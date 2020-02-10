@@ -147,7 +147,7 @@ object TypeCheck {
         }
       case x@MakeStream(args, typ) =>
         assert(typ != null)
-        println(s"args ${typ}")
+
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x.isOfType(typ.elementType),
           s"at position $i type mismatch: ${ typ.elementType.parsableString() } ${ x.parsableString() }")
         }

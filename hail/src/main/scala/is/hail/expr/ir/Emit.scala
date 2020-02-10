@@ -2309,7 +2309,7 @@ abstract class NDArrayEmitter(
     val idxVars = Array.tabulate(nDims) {_ => mb.newField[Long]}
     val loadedIdxVars = idxVars.map(_.load())
     val storeElement = mb.newLocal(typeToTypeInfo(outputElementPType.virtualType)).asInstanceOf[LocalRef[Double]]
-    println(s"IN EMIT LOOPS for ir ${outputElementPType}")
+
     val body =
       Code(
         storeElement := outputElement(loadedIdxVars).asInstanceOf[Code[Double]],
