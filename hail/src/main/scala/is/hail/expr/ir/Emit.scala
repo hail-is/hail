@@ -589,8 +589,11 @@ private class Emit(
             distinct,
             sorter.toRegion()))
 
-      case ToArray(a) =>
+      case ToArray(a) => {
+        println(s"\n\n Matched on ToArray with \n node: $ir \n child:${a} \n")
         emit(a)
+      }
+
 
       case ToStream(a) =>
         emit(a)
@@ -1931,13 +1934,9 @@ private class Emit(
     f
   }
 
-  private def emitArrayIterator(ir: IR, env: E, er: EmitRegion, container: Option[AggContainer]): ArrayIteratorTriplet = {
-    println(s"THE ARRAY WE GOT ${ir}")
-    val s = ir//Streamify(ir)
-    println(s"The array we would have converted to: ${Streamify(ir)}")
-    EmitStream(this, s, env, er, container)
+  private def emitArrayIterator(ir: IR, env: E, er: EmitRegion, container: Option[AggContainer]): ArrayIteratorTriplet =
+    EmitStream(this, ir, env, er, container)
       .toArrayIterator(mb)
-  }
 
   private def present(x: Code[_]): EmitTriplet =
     EmitTriplet(Code._empty, const(false), x)

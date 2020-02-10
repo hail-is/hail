@@ -1,28 +1,16 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual.{TArray, TStream, TStreamable}
+import is.hail.expr.types.virtual.{TArray, TStream}
 
-// The minimum set of nodes that need streamify (what emitArrayIterator is called on)
-// things that call emitArrayIterator
-// For instance, we will encounter MakeStruct, with a bunch of fields
-// ArrayAgg
-// CollectDistributedArray
-// ArraySort
-// ToSet
-// ToDict
-// ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: RunAggScan | _: ArrayAggScan | _: ReadPartition
-// ArrayFold
-// ArrayFold2
-// ArrayFor
-// ArrayAgg
-// RunAgg
 object LowerArrayToStream {
   private def boundary(node: IR): IR = {
-    val streamified = streamify(node)
+    var streamified = streamify(node)
+
     if (streamified.typ.isInstanceOf[TStream])
-      ToArray(streamified)
-    else
-      streamified
+      streamified = ToArray(streamified)
+
+    assert(streamified.typ == node.typ)
+    streamified
   }
 
   private def streamify(node: IR): IR = {
@@ -35,7 +23,7 @@ object LowerArrayToStream {
         accum.map { case (name, value) => (name, boundary(value)) },
         valueName, seq.map(boundary), boundary(result))
       case RunAggScan(a, name, init, seq, res, sig) => RunAggScan(streamify(a), name, boundary(init), boundary(seq), boundary(res), sig)
-      case _: MakeStream | _: StreamRange | _: ReadPartition => node.copy(node.children.map(c => boundary(c.asInstanceOf[IR])))
+//      case _: MakeStream | _: StreamRange | _: ReadPartition => node.copy(node.children.map(c => boundary(c.asInstanceOf[IR])))
       case MakeArray(args, t) => MakeStream(args.map(boundary), TStream(t.elementType, t.required))
       case ArrayRange(start, stop, step) => StreamRange(boundary(start), boundary(stop), boundary(step))
       case ArrayZip(childIRs, names, body, behavior) => ArrayZip(childIRs.map(streamify), names, boundary(body), behavior)
@@ -45,18 +33,27 @@ object LowerArrayToStream {
       case ArrayScan(a, zero, zn, an, body) => ArrayScan(streamify(a), boundary(zero), zn, an, boundary(body))
       case ArrayLeftJoinDistinct(l, r, ln, rn, keyf, joinf) =>
         ArrayLeftJoinDistinct(streamify(l), streamify(r), ln, rn, boundary(keyf), boundary(joinf))
-      case x if x.typ.isInstanceOf[TArray] => ToStream(x)
+      case x: ApplyIR => streamify(x.explicitNode)
+      case Let(name, value, body) => Let(name, boundary(value), streamify(body))
       case _ =>
         val newChildren = node.children.map(child => boundary(child.asInstanceOf[IR]))
-        if ((node.children, newChildren).zipped.forall(_ eq _))
+        val x = if ((node.children, newChildren).zipped.forall(_ eq _))
           node
         else
           node.copy(newChildren)
+
+        if(x.typ.isInstanceOf[TArray]) {
+          ToStream(x)
+        } else {
+          x
+        }
     }
   }
 
   def apply(node: IR): IR = {
     println(s"\n\nStarting LowerArrayToStream with: ${ node }")
-    streamify(node)
+    val r = streamify(node)
+    println(s"result of LowerArrayToStream is: ${r}\n\n")
+    r
   }
 }
