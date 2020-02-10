@@ -26,7 +26,7 @@ object BlockMatrixType {
 
   def sparsityFromLinearBlocks(nCols: Long, nRows: Long, blockSize: Int, definedBlocks: Option[Array[Int]]): Array[Array[Boolean]] = {
     val nColBlocks = numBlocks(nCols, blockSize)
-    val nRowBlocks = numBlocks(nRowBlocks, blockSize)
+    val nRowBlocks = numBlocks(nRows, blockSize)
 
     definedBlocks.map { blocks =>
       val idxs = blocks.map { linearIdx => java.lang.Math.floorDiv(linearIdx, nColBlocks) -> linearIdx % nColBlocks }.toSet
