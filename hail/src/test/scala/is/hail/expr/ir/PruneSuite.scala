@@ -523,6 +523,7 @@ class PruneSuite extends HailSuite {
   val empty = TStruct()
   val justA = TStruct("a" -> TInt32())
   val justB = TStruct("b" -> TInt32())
+  val justARequired = TStruct(true, "a" -> TInt32())
   val justBRequired = TStruct(true, "b" -> TInt32())
 
   @Test def testIfMemo() {
@@ -638,8 +639,12 @@ class PruneSuite extends HailSuite {
 
   @Test def testNDArrayMap2Memo(): Unit = {
     checkMemo(NDArrayMap2(ndArr, ndArr, "left", "right", Ref("left", ref.typ)),
-      TNDArray(justBRequired, Nat(1)),  Array(TNDArray(justBRequired, Nat(1)), null, null))
-
+      TNDArray(justBRequired, Nat(1)),  Array(TNDArray(justBRequired, Nat(1)), TNDArray(TStruct(true), Nat(1)), null))
+    checkMemo(NDArrayMap2(ndArr, ndArr, "left", "right", Ref("right", ref.typ)),
+      TNDArray(justBRequired, Nat(1)),  Array(TNDArray(TStruct(true), Nat(1)), TNDArray(justBRequired, Nat(1)), null))
+    val addFieldsIR = ApplyBinaryPrimOp(Add(), GetField(Ref("left", ref.typ), "a"), GetField(Ref("right", ref.typ), "b"))
+    checkMemo(NDArrayMap2(ndArr, ndArr, "left", "right", addFieldsIR),
+      TNDArray(TInt32(), Nat(1)), Array(TNDArray(justARequired, Nat(1)), TNDArray(justBRequired, Nat(1)), null))
   }
 
   @Test def testMakeStructMemo() {
