@@ -1137,23 +1137,6 @@ private class Emit(
                 coerce[String](StringFunctions.wrapArg(er, m.pType)(cm.v)))))),
           false,
           defaultValue(typ))
-      case ir@ApplyIR(fn, args) =>
-        assert(!ir.inline)
-        val mfield = mb.newField[Boolean]
-        val vfield = mb.newField()(typeToTypeInfo(ir.typ))
-
-        val addFields = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
-          Code(
-            v.setup,
-            mfield := v.m,
-            mfield.mux(
-              vfield.storeAny(defaultValue(t)),
-              vfield.storeAny(v.v)))
-        }
-
-        EmitTriplet(
-          wrapToMethod(FastSeq(ir.explicitNode))(addFields),
-          mfield, vfield)
 
       case ir@Apply(fn, args, rt) =>
         val impl = ir.implementation
