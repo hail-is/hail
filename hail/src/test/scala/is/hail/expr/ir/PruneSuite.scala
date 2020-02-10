@@ -12,6 +12,7 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 class PruneSuite extends HailSuite {
   @Test def testUnionType() {
@@ -1134,6 +1135,25 @@ class PruneSuite extends HailSuite {
         val ir = r.asInstanceOf[CastRename]
         ir._typ == TArray(TStruct("z" -> TString()))
       })
+  }
+
+  val ndArrayTS = MakeNDArray(MakeArray(ArrayBuffer(NA(ts)), TArray(ts)), MakeTuple(IndexedSeq((0, I64(1l)))), True())
+
+  @Test def testNDArrayMapRebuild() {
+    checkRebuild(NDArrayMap(ndArrayTS, "x", Ref("x", ts)), TNDArray(subsetTS("b"), Nat(1)),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[NDArrayMap]
+        println("PRINTED")
+        println(ir.typ)
+        println(ir.nd.typ)
+        println(TNDArray(subsetTS("b"), Nat(1)))
+        ir.nd.typ == TNDArray(subsetTS("b"), Nat(1))
+      })
+//    checkRebuild(ArrayMap(MakeArray(Seq(NA(ts)), TArray(ts)), "x", Ref("x", ts)), TArray(subsetTS("b")),
+//      (_: BaseIR, r: BaseIR) => {
+//        val ir = r.asInstanceOf[ArrayMap]
+//        ir.a.typ == TArray(subsetTS("b"))
+//      })
   }
 
   @Test def testTableAggregateRebuild() {
