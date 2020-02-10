@@ -201,7 +201,6 @@ class BlockMatrixDensify(BlockMatrixIR):
     def __init__(self, child):
         super().__init__(child)
         self.child = child
-        self.indices_to_keep = indices_to_keep
 
     def _compute_type(self):
         self._type = self.child.typ
