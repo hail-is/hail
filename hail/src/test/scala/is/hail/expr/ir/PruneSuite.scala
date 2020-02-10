@@ -1144,9 +1144,8 @@ class PruneSuite extends HailSuite {
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[NDArrayMap]
         println("PRINTED")
-        println(ir.typ)
-        println(ir.nd.typ)
-        println(TNDArray(subsetTS("b"), Nat(1)))
+        println(ir.nd.typ._toPretty)
+        println(TNDArray(subsetTS("b"), Nat(1))._toPretty)
         ir.nd.typ == TNDArray(subsetTS("b"), Nat(1))
       })
 //    checkRebuild(ArrayMap(MakeArray(Seq(NA(ts)), TArray(ts)), "x", Ref("x", ts)), TArray(subsetTS("b")),

@@ -1074,6 +1074,11 @@ object PruneDeadFields {
           bodyEnv.deleteEval(valueName),
           memoizeValueIR(a, aType.copyStreamable(valueType), memo)
         )
+      case MakeNDArray(data, _, _) => {
+        val dataType = data.typ.asInstanceOf[TStreamable]
+        val elementType = requestedType.asInstanceOf[TNDArray].elementType
+        memoizeValueIR(data, dataType.copyStreamable(elementType, true), memo)
+      }
       case NDArrayMap(nd, valueName, body) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
         val bodyEnv = memoizeValueIR(body, requestedType.asInstanceOf[TNDArray].elementType, memo)
@@ -1686,6 +1691,11 @@ object PruneDeadFields {
         val et = -a2.typ.asInstanceOf[TStreamable].elementType
         val compare2 = rebuildIR(compare, env.bindEval(left -> et, right -> et), memo)
         ArraySort(a2, left, right, compare2)
+      case MakeNDArray(data, shape, rowMajor) =>
+        val data2 = rebuildIR(data, env, memo)
+//        val shape2 = rebuildIR(shape, env, memo)
+//        val rowMajor2 = rebuildIR(rowMajor, env, memo)
+        MakeNDArray(data2, shape, rowMajor)
       case NDArrayMap(nd, valueName, body) =>
         val nd2 = rebuildIR(nd, env, memo)
         NDArrayMap(nd2, valueName, rebuildIR(body, env.bindEval(valueName, -nd2.typ.asInstanceOf[TNDArray].elementType), memo))
