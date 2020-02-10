@@ -302,9 +302,9 @@ class BlockMatrixIRTests(unittest.TestCase):
         transpose = ir.BlockMatrixBroadcast(broadcast_scalar, [1, 0], [2, 2], 256)
         matmul = ir.BlockMatrixDot(broadcast_scalar, transpose)
 
-        rectangle = ir.Literal([0, 1, 5, 6], hl.tarray(hl.tint64))
-        band = ir.Literal((-1, 1), hl.ttuple(hl.tint64, hl.tint64))
-        intervals = ir.Literal(([0, 1, 5, 6], [5, 6, 8, 9]), hl.ttuple(hl.tarray(hl.tint64), hl.tarray(hl.tint64)))
+        rectangle = ir.Literal(hl.tarray(hl.tint64), [0, 1, 5, 6])
+        band = ir.Literal(hl.ttuple(hl.tint64, hl.tint64), (-1, 1))
+        intervals = ir.Literal(hl.ttuple(hl.tarray(hl.tint64), hl.tarray(hl.tint64)), ([0, 1, 5, 6], [5, 6, 8, 9]))
 
         sparsify1 = ir.BlockMatrixSparsify(read, rectangle, ir.RectangleSparsifier)
         sparsify2 = ir.BlockMatrixSparsify(read, band, ir.BandSparsifier(True))
