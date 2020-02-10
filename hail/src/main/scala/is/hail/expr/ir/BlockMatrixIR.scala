@@ -131,8 +131,11 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
 }
 
 class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
-  override lazy val typ: BlockMatrixType =
-    BlockMatrixType.dense(TFloat64(), value.nRows, value.nCols, value.blockSize)
+  override lazy val typ: BlockMatrixType = {
+    val sparsity = BlockMatrixType.sparsityFromLinearBlocks(value.nRows, value.nCols, value.blockSize, value.gp.maybeBlocks)
+    val (shape, isRowVector) = BlockMatrixType.matrixToTensorShape(value.nRows, value.nCols)
+    BlockMatrixType(TFloat64(), shape, isRowVector, value.blockSize, sparsity)
+  }
 
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
 
@@ -146,6 +149,7 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
   val blockCostIsLinear: Boolean = true // not guaranteed
 }
 
+//FIXME: fix sparsity after refactor lands
 case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDense: Boolean) extends BlockMatrixIR {
   assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplyBinaryPrimOp])
 
@@ -233,6 +237,7 @@ case object NeedsDense extends SparsityStrategy {
   def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean = true
 }
 
+//FIXME: fix sparsity after refactor lands
 case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: String, rightName: String, f: IR, sparsityStrategy: SparsityStrategy) extends BlockMatrixIR {
   assert(f.isInstanceOf[ApplyBinaryPrimOp] || f.isInstanceOf[Apply])
 
