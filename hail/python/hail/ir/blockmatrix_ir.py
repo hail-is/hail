@@ -196,6 +196,86 @@ class BlockMatrixFilter(BlockMatrixIR):
                                   self.child.typ.block_size)
 
 
+class BlockMatrixDensify(BlockMatrixIR):
+    @typecheck_method(child=BlockMatrixIR)
+    def __init__(self, child):
+        super().__init__(child)
+        self.child = child
+
+    def _compute_type(self):
+        self._type = self.child.typ
+
+
+class BlockMatrixSparsifier(object):
+    def head_str(self):
+        return ''
+
+    def __repr__(self):
+        head_str = self.head_str()
+        if head_str != '':
+            head_str = f' {head_str}'
+        return f'({self.__class__.__name__}{head_str})'
+
+    def _eq(self, other):
+        return True
+
+    def __eq__(self, other):
+        return isinstance(other, self.__class__) and self._eq(other)
+
+
+class BandSparsifier(BlockMatrixSparsifier):
+    @typecheck_method(blocks_only=bool)
+    def __init__(self, blocks_only):
+        self.blocks_only = blocks_only
+
+    def head_str(self):
+        return str(self.blocks_only)
+
+    def _eq(self, other):
+        return self.blocks_only == other.blocks_only
+
+
+class RowIntervalSparsifier(BlockMatrixSparsifier):
+    @typecheck_method(blocks_only=bool)
+    def __init__(self, blocks_only):
+        self.blocks_only = blocks_only
+
+    def head_str(self):
+        return str(self.blocks_only)
+
+    def _eq(self, other):
+        return self.blocks_only == other.blocks_only
+
+
+class _RectangleSparsifier(BlockMatrixSparsifier):
+    def __init__(self):
+        pass
+
+    def __repr__(self):
+        return f'(RectangleSparsifier)'
+
+
+RectangleSparsifier = _RectangleSparsifier()
+
+
+class BlockMatrixSparsify(BlockMatrixIR):
+    @typecheck_method(child=BlockMatrixIR, value=IR, sparsifier=BlockMatrixSparsifier)
+    def __init__(self, child, value, sparsifier):
+        super().__init__(child, value)
+        self.child = child
+        self.value = value
+        self.sparsifier = sparsifier
+
+    def head_str(self):
+        return str(self.sparsifier)
+
+    def _eq(self, other):
+        return self.sparsifier == other.sparsifier
+
+    def _compute_type(self):
+        self._type = self.child.typ
+
+
 class BlockMatrixSlice(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR, slices=sequenceof(slice))
     def __init__(self, child, slices):

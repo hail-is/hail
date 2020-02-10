@@ -13,7 +13,8 @@ from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, Ref, F
     BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
     ApplyUnaryPrimOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
     BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter, TableFromBlockMatrixNativeReader, TableRead, \
-    BlockMatrixSlice
+    BlockMatrixSlice, BlockMatrixSparsify, BlockMatrixDensify, RectangleSparsifier, \
+    RowIntervalSparsifier, BandSparsifier
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
 from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter
 from hail.table import Table
@@ -932,7 +933,8 @@ class BlockMatrix(object):
         if lower > upper:
             raise ValueError(f'sparsify_band: lower={lower} is greater than upper={upper}')
 
-        return BlockMatrix._from_java(self._jbm.filterBand(lower, upper, blocks_only))
+        bounds = hl.literal((lower, upper), hl.ttuple(hl.tint64, hl.tint64))
+        return BlockMatrix(BlockMatrixSparsify(self._bmir, bounds._ir, BandSparsifier(blocks_only)))
 
     @typecheck_method(lower=bool, blocks_only=bool)
     def sparsify_triangle(self, lower=False, blocks_only=False):
@@ -1088,10 +1090,13 @@ class BlockMatrix(object):
         if any([starts[i] > stops[i] for i in range(0, n_rows)]):
             raise ValueError('every start value must be less than or equal to the corresponding stop value')
 
-        return BlockMatrix._from_java(self._jbm.filterRowIntervals(
-            jarray(Env.jvm().long, starts),
-            jarray(Env.jvm().long, stops),
-            blocks_only))
+        starts_and_stops = hl.literal(
+            (starts, stops),
+            hl.ttuple(hl.tarray(hl.tint64), hl.tarray(hl.tint64)))
+        return BlockMatrix(
+            BlockMatrixSparsify(self._bmir,
+                                starts_and_stops._ir,
+                                RowIntervalSparsifier(blocks_only)))
 
     @typecheck_method(uri=str)
     def tofile(self, uri):
@@ -1210,7 +1215,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix._from_java(self._jbm.densify())
+        return BlockMatrix(BlockMatrixDensify(self._bmir))
 
     def cache(self):
         """Persist this block matrix in memory.
@@ -1880,7 +1885,9 @@ class BlockMatrix(object):
                                  f'0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols')
 
         flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
-        return BlockMatrix._from_java(self._jbm.filterRectangles(flattened_rectangles))
+        rectangles = hl.literal(flattened_rectangles, hl.tarray(hl.tint64))
+        return BlockMatrix(
+            BlockMatrixSparsify(self._bmir, rectangles._ir, RectangleSparsifier))
 
     @typecheck_method(path_out=str,
                       rectangles=sequenceof(sequenceof(int)),
