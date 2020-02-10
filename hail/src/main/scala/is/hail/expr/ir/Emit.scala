@@ -114,18 +114,22 @@ case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]
     arrayEmitter( { (m: Code[Boolean], v: Code[_]) => m.mux(sab.addMissing(), sab.add(v)) } )
   }
 
-  def toEmitTriplet(mb: MethodBuilder, childPTypes: IndexedSeq[PType], aTyp: PArray): EmitTriplet = {
-    val srvb = new StagedRegionValueBuilder(mb, aTyp)
-    println(s"\n\n\nCHILD PTYPES: ${childPTypes}")
-    length match {
+  def toEmitTriplet(mb: MethodBuilder, childPTypes: IndexedSeq[PType], destPType: PArray): EmitTriplet = {
+    val srvb = new StagedRegionValueBuilder(mb, destPType)
+    println(s"\n\n\nin toEmitTriplet: child ptypes: ${childPTypes}")
+    val addElement = srvb.addIRIntermediate(destPType.elementType)
+    val r = length match {
       case Some(len) =>
-        val cont = { (m: Code[Boolean], v: Code[_]) =>
+        def cont(m: Code[Boolean], v: Code[_]) = {
+          println("CONT CALLED")
           coerce[Unit](
             Code(
               m.mux(
                 srvb.setMissing(),
-                srvb.addIRIntermediate(aTyp.elementType)(v)),
-              srvb.advance()))
+                addElement(destPType.elementType.copyFromTypeAndStackValue(mb, srvb.region, childPTypes(srvb.getCurrentIDx), v))
+              ),
+              srvb.advance())
+          )
         }
         val processAElts = arrayEmitter(cont)
         EmitTriplet(processAElts.setup, processAElts.m.getOrElse(const(false)), Code(
@@ -134,11 +138,11 @@ case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]
           processAElts.addElements,
           srvb.offset
         ))
-
       case None =>
         val len = mb.newLocal[Int]
         val i = mb.newLocal[Int]
-        val vab = new StagedArrayBuilder(aTyp.elementType, mb, 16)
+        val vab = new StagedArrayBuilder(destPType.elementType, mb, 16)
+
         val processArrayElts = arrayEmitter { (m: Code[Boolean], v: Code[_]) => m.mux(vab.addMissing(), vab.add(v)) }
         EmitTriplet(Code(vab.clear, processArrayElts.setup), processArrayElts.m.getOrElse(const(false)), Code(
           calcLength,
@@ -149,11 +153,16 @@ case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]
           Code.whileLoop(i < len,
             vab.isMissing(i).mux(
               srvb.setMissing(),
-              srvb.addIRIntermediate(aTyp.elementType)(vab(i))),
+              addElement(destPType.elementType.copyFromTypeAndStackValue(mb, srvb.region, childPTypes(srvb.getCurrentIDx), vab(i)))
+            ),
             i := i + 1,
-            srvb.advance()),
+            srvb.advance()
+          ),
           srvb.offset))
     }
+
+    println(s"\n\n\ndone with toEmitTriplet")
+    r
   }
 }
 
@@ -1112,12 +1121,15 @@ private class Emit(
       case x@MakeTuple(fields) =>
         println(s"Make tuple has fields: ${fields}, it's ptype is ${x.pType}")
         val srvb = new StagedRegionValueBuilder(mb, x.pType)
+        val destType = x.pType2.asInstanceOf[PTuple]
 
         val addFields = { (newMB: EmitMethodBuilder, pt: PType, v: EmitTriplet) =>
-          println(s"TYPE in addFIelds: ${pt}")
+          val destFieldPType = destType.fields(srvb.getCurrentIDx).typ
+          val addElement = srvb.addIRIntermediate(destFieldPType)
+
           Code(
             v.setup,
-            v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(pt)(v.v)),
+            v.m.mux(srvb.setMissing(), addElement(destFieldPType.copyFromTypeAndStackValue(newMB, er.region, pt, v.v))),
             srvb.advance())
         }
         present(Code(srvb.start(init = true), wrapToMethod(fields.map(_._2))(addFields), srvb.offset))
