@@ -24,8 +24,15 @@ object BlockMatrixType {
   def numBlocks(n: Long, blockSize: Int): Int =
     java.lang.Math.floorDiv(n - 1, blockSize).toInt + 1
 
-  def blockIdxFromLinear(nColBlocks: Int, linearIdx: Int): (Int, Int) =
-    java.lang.Math.floorDiv(linearIdx, nColBlocks) -> linearIdx % nColBlocks
+  def sparsityFromLinearBlocks(nCols: Long, nRows: Long, blockSize: Int, definedBlocks: Option[Array[Int]]): Array[Array[Boolean]] = {
+    val nColBlocks = numBlocks(nCols, blockSize)
+    val nRowBlocks = numBlocks(nRowBlocks, blockSize)
+
+    definedBlocks.map { blocks =>
+      val idxs = blocks.map { linearIdx => java.lang.Math.floorDiv(linearIdx, nColBlocks) -> linearIdx % nColBlocks }.toSet
+      Array.tabulate(nRowBlocks)(i => Array.tabulate(nColBlocks)(j => idxs.contains(i -> j)))
+    }.getOrElse(Array.fill(nRowBlocks)(Array.fill(nColBlocks)(true)))
+  }
 
   // this is a shim method for the lowering.
   def apply(elementType: Type, shape: IndexedSeq[Long], isRowVector: Boolean, blockSize: Int): BlockMatrixType =

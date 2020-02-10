@@ -109,7 +109,8 @@ case class BlockMatrixNativeReader(path: String) extends BlockMatrixReader {
     val metadata = BlockMatrix.readMetadata(HailContext.get, path)
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(metadata.nRows, metadata.nCols)
 
-    BlockMatrixType(TFloat64(), tensorShape, isRowVector, metadata.blockSize)
+    val sparsity = BlockMatrixType.sparsityFromLinearBlocks(metadata.nRows, metadata.nCols, metadata.blockSize, metadata.maybeFiltered)
+    BlockMatrixType(TFloat64(), tensorShape, isRowVector, metadata.blockSize, sparsity)
   }
 
   override def apply(hc: HailContext): BlockMatrix = BlockMatrix.read(hc, path)
@@ -120,9 +121,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
   BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
 
   override lazy val fullType: BlockMatrixType = {
-    val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(nRows, nCols)
-
-    BlockMatrixType(TFloat64(), tensorShape, isRowVector, blockSize)
+    BlockMatrixType.dense(TFloat64(), nRows, nCols, blockSize)
   }
 
   override def apply(hc: HailContext): BlockMatrix = {
@@ -132,10 +131,8 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
 }
 
 class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
-  override lazy val typ: BlockMatrixType = {
-    val (shape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(value.nRows, value.nCols)
-    BlockMatrixType(TFloat64(), shape, isRowVector, value.blockSize)
-  }
+  override lazy val typ: BlockMatrixType =
+    BlockMatrixType.dense(TFloat64(), value.nRows, value.nCols, value.blockSize)
 
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
 
