@@ -36,5 +36,5 @@ object LoweringPipeline {
   val legacyRelationalLowerer: LoweringPipeline = LoweringPipeline(Array(LowerMatrixToTablePass, LegacyInterpretNonCompilablePass))
   val tableLowerer: LoweringPipeline = LoweringPipeline(Array(LowerMatrixToTablePass, LowerTableToDistributedArrayPass))
 
-  val compileLowerer: LoweringPipeline = LoweringPipeline(Array(LowerArrayAggsToRunAggs))
+  val compileLowerer: LoweringPipeline = LoweringPipeline(Array(InlineApplyIR, LowerArrayAggsToRunAggs))
 }
