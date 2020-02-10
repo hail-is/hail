@@ -34,10 +34,6 @@ object BlockMatrixType {
     }.getOrElse(Array.fill(nRowBlocks)(Array.fill(nColBlocks)(true)))
   }
 
-  // this is a shim method for the lowering.
-  def apply(elementType: Type, shape: IndexedSeq[Long], isRowVector: Boolean, blockSize: Int): BlockMatrixType =
-    BlockMatrixType(elementType, shape, isRowVector, blockSize, null)
-
   def dense(elementType: Type, nRows: Long, nCols: Long, blockSize: Int): BlockMatrixType = {
     val (shape, isRowVector) = matrixToTensorShape(nRows, nCols)
     val nRowBlocks = numBlocks(nRows, blockSize)
@@ -51,8 +47,9 @@ case class BlockMatrixType(
   shape: IndexedSeq[Long],
   isRowVector: Boolean,
   blockSize: Int,
-  _definedBlocks: Array[Array[Boolean]]
+  definedBlocks: Array[Array[Boolean]]
 ) extends BaseType {
+  assert(definedBlocks != null)
 
   lazy val (nRows: Long, nCols: Long) = BlockMatrixType.tensorToMatrixShape(shape, isRowVector)
 
@@ -62,16 +59,8 @@ case class BlockMatrixType(
   lazy val nColBlocks: Int = BlockMatrixType.numBlocks(nCols, blockSize)
   lazy val defaultBlockShape: (Int, Int) = (nRowBlocks, nColBlocks)
 
-  lazy val definedBlocks: Array[Array[Boolean]] = {
-    if (_definedBlocks == null)
-      throw new UnsupportedOperationException("sparsity is not defined.")
-    _definedBlocks
-  }
-
   def getBlockIdx(i: Long): Int = java.lang.Math.floorDiv(i, blockSize).toInt
-
-  val hasSparsity: Boolean = _definedBlocks != null
-  lazy val isSparse: Boolean = _definedBlocks != null && definedBlocks.forall(rows => rows.forall(i => i))
+  lazy val isSparse: Boolean = definedBlocks.forall(rows => rows.forall(i => i))
 
   override def pretty(sb: StringBuilder, indent0: Int, compact: Boolean): Unit = {
     var indent = indent0
@@ -111,7 +100,7 @@ case class BlockMatrixType(
     newline()
 
     sb.append(s"definedBlocks:$space")
-    if (hasSparsity && isSparse) {
+    if (isSparse) {
       sb.append(definedBlocks.map(row => row.mkString("[", ",", "]")).mkString("[", ",", "]"))
     } else {
       sb.append("None")
