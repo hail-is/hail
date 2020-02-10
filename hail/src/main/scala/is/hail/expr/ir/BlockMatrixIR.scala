@@ -483,7 +483,17 @@ case class BlockMatrixAgg(
     val shape = outIndexExpr.map({ i: Int => child.typ.shape(i) }).toFastIndexedSeq
     val isRowVector = outIndexExpr == FastIndexedSeq(1)
 
-    BlockMatrixType(child.typ.elementType, shape, isRowVector, child.typ.blockSize)
+    val definedBlocks = if (child.typ.hasSparsity) {
+      outIndexExpr match {
+        case IndexedSeq() => Array(Array(true))
+        case IndexedSeq(1) => // col vector result; agg over row
+          Array.tabulate(child.typ.nRowBlocks)(j => Array(Array.range(0, child.typ.nColBlocks).exists(i => child.typ.definedBlocks(i)(j))))
+        case IndexedSeq(0) => // row vector result; agg over col
+          Array(Array.tabulate(child.typ.nColBlocks)(j => Array.range(0, child.typ.nRowBlocks).exists(i => child.typ.definedBlocks(i)(j))))
+      }
+    } else null
+
+    BlockMatrixType(child.typ.elementType, shape, isRowVector, child.typ.blockSize, definedBlocks)
   }
 
   lazy val children: IndexedSeq[BaseIR] = Array(child)
