@@ -21,7 +21,7 @@ Submissions from the community are welcome! The criteria for inclusion in the
 experimental module are loose and subject to change:
 
 1. Function docstrings are required. Hail uses
-   `NumPy style docstrings <http://www.sphinx-doc.org/en/stable/ext/example_numpy.html#example-numpy>`__.
+   `NumPy style docstrings <https://www.sphinx-doc.org/en/stable/usage/extensions/example_numpy.html>`__.
 2. Tests are not required, but are encouraged. If you do include tests, they must
    run in no more than a few seconds. Place tests as a class method on ``Tests`` in
    ``python/tests/experimental/test_experimental.py``
