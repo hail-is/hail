@@ -494,6 +494,11 @@ case class BlockMatrixFilter(
   assert(indices.length == 2)
 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
+  private[this] val Array(keepRow, keepCol) = indices
+  private[this] val blockSize = child.typ.blockSize
+
+  private[this] def packOverlap(n: Long, keep: Array[Long]): Array[Array[Int]] =
+    keep.grouped(blockSize).map(keeps => Array.range(typ.getBlockIdx(keeps.head), typ.getBlockIdx(keeps.last))).toArray
 
   override lazy val typ: BlockMatrixType = {
     val childTensorShape = child.typ.shape
@@ -508,7 +513,17 @@ case class BlockMatrixFilter(
     })
 
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(matrixShape(0), matrixShape(1))
-    BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, child.typ.blockSize)
+    val sparsity = if (child.typ.hasSparsity) {
+      val rows = if (keepRow.isEmpty) Array.tabulate(typ.nRowBlocks)(i => Array(i)) else packOverlap(typ.nRows, keepRow)
+      val cols = if (keepCol.isEmpty) Array.tabulate(typ.nColBlocks)(i => Array(i)) else packOverlap(typ.nCols, keepCol)
+
+      rows.map { rOverlap =>
+        cols.map { cOverlap =>
+          rOverlap.exists { i => cOverlap.exists { j => child.typ.definedBlocks(i)(j)} }
+        }
+      }
+    } else null
+    BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, child.typ.blockSize, sparsity)
   }
 
   override def children: IndexedSeq[BaseIR] = Array(child)
@@ -519,15 +534,13 @@ case class BlockMatrixFilter(
   }
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
-    val Array(rowIndices, colIndices) = indices
     val bm = child.execute(ctx)
-
-    if (rowIndices.isEmpty) {
-      bm.filterCols(colIndices)
-    } else if (colIndices.isEmpty) {
-      bm.filterRows(rowIndices)
+    if (keepRow.isEmpty) {
+      bm.filterCols(keepCol)
+    } else if (keepCol.isEmpty) {
+      bm.filterRows(keepRow)
     } else {
-      bm.filter(rowIndices, colIndices)
+      bm.filter(keepRow, keepCol)
     }
   }
 }

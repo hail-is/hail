@@ -61,6 +61,8 @@ case class BlockMatrixType(
     _definedBlocks
   }
 
+  def getBlockIdx(i: Long): Int = java.lang.Math.floorDiv(i, blockSize).toInt
+
   val hasSparsity: Boolean = _definedBlocks != null
   lazy val isSparse: Boolean = _definedBlocks != null && definedBlocks.forall(rows => rows.forall(i => i))
 
