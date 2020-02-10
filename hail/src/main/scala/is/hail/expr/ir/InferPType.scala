@@ -243,6 +243,7 @@ object InferPType {
         infer(compare, e)
         infer(join, e)
 
+        // wrong
         PArray(join.pType2, lIR.pType2.required)
       case NDArrayShape(nd) =>
         infer(nd)

@@ -128,10 +128,8 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   private var idx: ClassFieldRef[Int] = _
   private var elementsOffset: ClassFieldRef[Long] = _
   private val startOffset: ClassFieldRef[Long] = mb.newField[Long]
-  def getCurrentIDx = {
-    println(s"GETTING CURRENT IDX: ${staticIdx}")
-    staticIdx
-  }
+
+  def getCurrentIDx = staticIdx
 
   ftype match {
     case t: PBaseStruct => elementsOffset = mb.newField[Long]
@@ -198,7 +196,6 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   }
 
   def setMissing(): Code[Unit] = {
-    println(s"SETTING ${ftype} missing at element ${staticIdx}")
     ftype match {
       case t: PArray => t.setElementMissing(startOffset, idx)
       case t: PBaseStruct =>
@@ -274,19 +271,16 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
 
   def addBaseStruct(t: PBaseStruct, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder(mb, t, this))
 
-  def addIRIntermediate(t: PType): (Code[_]) => Code[Unit] = {
-    println(s"THE FTYPES ARE ${ftype}, the type is ${t}")
-    t.fundamentalType match {
-      case _: PBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])
-      case _: PInt32 => v => addInt(v.asInstanceOf[Code[Int]])
-      case _: PInt64 => v => addLong(v.asInstanceOf[Code[Long]])
-      case _: PFloat32 => v => addFloat(v.asInstanceOf[Code[Float]])
-      case _: PFloat64 => v => addDouble(v.asInstanceOf[Code[Double]])
-      case _: PBaseStruct => v => Region.copyFrom(v.asInstanceOf[Code[Long]], currentOffset, t.byteSize)
-      case _: PArray => v => addAddress(v.asInstanceOf[Code[Long]])
-      case _: PBinary => v => addAddress(v.asInstanceOf[Code[Long]])
-      case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
-    }
+  def addIRIntermediate(t: PType): (Code[_]) => Code[Unit] = t.fundamentalType match {
+    case _: PBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])
+    case _: PInt32 => v => addInt(v.asInstanceOf[Code[Int]])
+    case _: PInt64 => v => addLong(v.asInstanceOf[Code[Long]])
+    case _: PFloat32 => v => addFloat(v.asInstanceOf[Code[Float]])
+    case _: PFloat64 => v => addDouble(v.asInstanceOf[Code[Double]])
+    case _: PBaseStruct => v => Region.copyFrom(v.asInstanceOf[Code[Long]], currentOffset, t.byteSize)
+    case _: PArray => v => addAddress(v.asInstanceOf[Code[Long]])
+    case _: PBinary => v => addAddress(v.asInstanceOf[Code[Long]])
+    case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
   }
 
   def addWithDeepCopy(t: PType, v: Code[_]): Code[Unit] =
@@ -302,7 +296,6 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
       )
       case t: PBaseStruct =>
         staticIdx += 1
-        println(s"staticIdx is now ${staticIdx}")
         if (staticIdx < t.size)
           elementsOffset := elementsOffset + (t.byteOffsets(staticIdx) - t.byteOffsets(staticIdx - 1))
         else _empty

@@ -594,8 +594,12 @@ object EmitStream {
         case x@MakeStream(elements, t) =>
           val e = coerce[PStreamable](x.pType).elementType
           implicit val eP = TypedTriplet.pack(e)
-          sequence(elements.map { ir => TypedTriplet(e, emitIR(ir, env)) })
-            .map(_.untyped)
+          sequence(elements.map {
+            ir => TypedTriplet(e, {
+              val et = emitIR(ir, env)
+              EmitTriplet(et.setup, et.m, e.copyFromTypeAndStackValue(er.mb, er.region, ir.pType, et.value))
+            })
+          }).map(_.untyped)
 
         case StreamRange(startIR, stopIR, stepIR) =>
           val step = fb.newField[Int]("sr_step")
