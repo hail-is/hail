@@ -538,7 +538,7 @@ private class Emit(
           Region.loadIRIntermediate(x.pType)(pArray.elementOffset(xa, len, xi))))
       case ArrayLen(a) =>
         val codeA = emit(a)
-        strict(a.pType.asInstanceOf[PIterable].asPContainer.loadLength(coerce[Long](codeA.v)), codeA)
+        strict(a.pType.asInstanceOf[PArray].loadLength(coerce[Long](codeA.v)), codeA)
 
       case x@(_: ArraySort | _: ToSet | _: ToDict) =>
         val atyp = coerce[PIterable](x.pType)
@@ -589,14 +589,9 @@ private class Emit(
             distinct,
             sorter.toRegion()))
 
-      case ToArray(a) => {
-        println(s"\n\n Matched on ToArray with \n node: $ir \n child:${a} \n")
-        emit(a)
-      }
+      case ToArray(a) => emit(a)
 
-
-      case ToStream(a) =>
-        emit(a)
+      case ToStream(a) => emit(a)
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val typ: PContainer = coerce[PIterable](orderedCollection.pType).asPContainer

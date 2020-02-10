@@ -26,7 +26,6 @@ object Compile {
     body: IR,
     optimize: Boolean
   ): (PType, (Int, Region) => F) = {
-    println("compile running")
     val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
       Env(args.map { case (n, _, _) => n -> n }: _*))
@@ -49,7 +48,7 @@ object Compile {
     InferPType(if (HasIRSharing(ir)) ir.deepCopy() else ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
 
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
-    println(s"THE IR We're emitting ${ir}")
+
     Emit(ctx, ir, fb)
 
     val f = fb.resultWithIndex(print)
@@ -248,7 +247,7 @@ object CompileWithAggregators2 {
     ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR]
     TypeCheck(ir, BindingEnv.empty)
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
-    println(s"IR being emitted in compilewithaggregate ${ir}")
+
     Emit(ctx, ir, fb, Some(pAggSigs))
 
     val f = fb.resultWithIndex()
