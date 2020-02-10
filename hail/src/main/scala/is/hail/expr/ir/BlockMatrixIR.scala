@@ -2,14 +2,13 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.expr.types.BlockMatrixType
-import is.hail.expr.types.virtual.{TArray, TFloat64}
+import is.hail.expr.types.virtual.{TArray, TBaseStruct, TFloat64, TInt64, Type}
 import is.hail.linalg.BlockMatrix
 import is.hail.utils._
 import breeze.linalg
 import breeze.linalg.DenseMatrix
 import breeze.numerics
 import is.hail.annotations.Region
-import is.hail.expr.types.virtual.Type
 
 import scala.collection.mutable.ArrayBuffer
 import is.hail.utils.richUtils.RichDenseMatrixDouble
@@ -518,10 +517,17 @@ case class BlockMatrixDensify(child: BlockMatrixIR) extends BlockMatrixIR {
 }
 
 sealed abstract class BlockMatrixSparsifier {
+  def typecheck(typ: Type): Unit
   def sparsify(ctx: ExecuteContext, bm: BlockMatrix, value: IR): BlockMatrix
 }
 
 case class BandSparsifier(blocksOnly: Boolean) extends BlockMatrixSparsifier {
+  def typecheck(typ: Type): Unit = {
+    val sTyp = coerce[TBaseStruct](typ)
+    val Array(start, stop) = sTyp.types
+    assert(start.isOfType(TInt64()))
+    assert(stop.isOfType(TInt64()))
+  }
   def sparsify(ctx: ExecuteContext, bm: BlockMatrix, value: IR): BlockMatrix = {
     val Row(l: Long, u: Long) = CompileAndEvaluate[Row](ctx, value, optimize = true)
     bm.filterBand(l, u, blocksOnly)
@@ -529,13 +535,23 @@ case class BandSparsifier(blocksOnly: Boolean) extends BlockMatrixSparsifier {
 }
 
 case class RowIntervalSparsifier(blocksOnly: Boolean) extends BlockMatrixSparsifier {
+  def typecheck(typ: Type): Unit = {
+    val sTyp = coerce[TBaseStruct](typ)
+    val Array(start, stop) = sTyp.types
+    assert(start.isOfType(TArray(TInt64())))
+    assert(stop.isOfType(TArray(TInt64())))
+  }
+
   def sparsify(ctx: ExecuteContext, bm: BlockMatrix, value: IR): BlockMatrix = {
-    val Row(starts: IndexedSeq[Int @unchecked], stops: IndexedSeq[Int @unchecked]) = CompileAndEvaluate[Row](ctx, value, optimize = true)
-    bm.filterRowIntervals(starts.map(_.toLong).toArray, stops.map(_.toLong).toArray, blocksOnly)
+    val Row(starts: IndexedSeq[Long @unchecked], stops: IndexedSeq[Long @unchecked]) = CompileAndEvaluate[Row](ctx, value, optimize = true)
+    bm.filterRowIntervals(starts.toArray, stops.toArray, blocksOnly)
   }
 }
 
 case object RectangleSparsifier extends BlockMatrixSparsifier {
+  def typecheck(typ: Type): Unit = {
+    assert(typ.isOfType(TArray(TInt64())))
+  }
   def sparsify(ctx: ExecuteContext, bm: BlockMatrix, value: IR): BlockMatrix = {
     val rectangles = CompileAndEvaluate[IndexedSeq[Long]](ctx, value, optimize = true)
     bm.filterRectangles(rectangles.toArray)
@@ -548,6 +564,7 @@ case class BlockMatrixSparsify(
   sparsifier: BlockMatrixSparsifier
 ) extends BlockMatrixIR {
   def typ: BlockMatrixType = child.typ
+  sparsifier.typecheck(value.typ)
 
   def blockCostIsLinear: Boolean = child.blockCostIsLinear
 
