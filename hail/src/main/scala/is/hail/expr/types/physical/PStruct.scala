@@ -42,8 +42,6 @@ abstract class PStruct extends PBaseStruct {
     CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb, so)
   }
 
-  def unsafeStructInsert(typeToInsert: PType, path: List[String]): (PStruct, UnsafeInserter)
-
   def updateKey(key: String, i: Int, sig: PType): PStruct
 
   def deleteField(key: String): PStruct
