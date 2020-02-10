@@ -149,11 +149,11 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
   val blockCostIsLinear: Boolean = true // not guaranteed
 }
 
-//FIXME: fix sparsity after refactor lands
 case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDense: Boolean) extends BlockMatrixIR {
   assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplyBinaryPrimOp])
 
   override lazy val typ: BlockMatrixType = child.typ
+  assert(!needsDense || !typ.isSparse)
 
   lazy val children: IndexedSeq[BaseIR] = Array(child, f)
 
@@ -226,22 +226,42 @@ object SparsityStrategy {
 
 abstract class SparsityStrategy {
   def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean
+  def mergeSparsity(left: BlockMatrixSparsity, right: BlockMatrixSparsity): BlockMatrixSparsity
 }
 case object UnionBlocks extends SparsityStrategy {
   def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean = leftBlock || rightBlock
+  def mergeSparsity(left: BlockMatrixSparsity, right: BlockMatrixSparsity): BlockMatrixSparsity = {
+    if (left.isSparse && right.isSparse) {
+      BlockMatrixSparsity(left.blockSet.union(right.blockSet).toFastIndexedSeq)
+    } else BlockMatrixSparsity.dense
+  }
 }
 case object IntersectionBlocks extends SparsityStrategy {
   def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean = leftBlock && rightBlock
+  def mergeSparsity(left: BlockMatrixSparsity, right: BlockMatrixSparsity): BlockMatrixSparsity = {
+    if (right.isSparse) {
+      if (left.isSparse)
+        BlockMatrixSparsity(left.blockSet.intersect(right.blockSet).toFastIndexedSeq)
+      else right
+    } else left
+  }
 }
 case object NeedsDense extends SparsityStrategy {
   def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean = true
+  def mergeSparsity(left: BlockMatrixSparsity, right: BlockMatrixSparsity): BlockMatrixSparsity = {
+    assert(!left.isSparse && !right.isSparse)
+    BlockMatrixSparsity.dense
+  }
 }
 
-//FIXME: fix sparsity after refactor lands
 case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: String, rightName: String, f: IR, sparsityStrategy: SparsityStrategy) extends BlockMatrixIR {
   assert(f.isInstanceOf[ApplyBinaryPrimOp] || f.isInstanceOf[Apply])
+  assert(
+    left.typ.nRows == right.typ.nRows &&
+    left.typ.nCols == right.typ.nCols &&
+    left.typ.blockSize == right.typ.blockSize)
 
-  override def typ: BlockMatrixType = left.typ
+  override def typ: BlockMatrixType = left.typ.copy(sparsity = sparsityStrategy.mergeSparsity(left.typ.sparsity, right.typ.sparsity))
 
   lazy val children: IndexedSeq[BaseIR] = Array(left, right, f)
 
@@ -582,7 +602,9 @@ case class BlockMatrixFilter(
 }
 
 case class BlockMatrixDensify(child: BlockMatrixIR) extends BlockMatrixIR {
-  def typ: BlockMatrixType = child.typ
+  def typ: BlockMatrixType = BlockMatrixType.dense(
+    child.typ.elementType,
+    child.typ.nRows, child.typ.nCols, child.typ.blockSize)
 
   def blockCostIsLinear: Boolean = child.blockCostIsLinear
 
@@ -676,7 +698,6 @@ case class BlockMatrixSparsify(
   child: BlockMatrixIR,
   sparsifier: BlockMatrixSparsifier
 ) extends BlockMatrixIR {
-
   def typ: BlockMatrixType = child.typ.copy(sparsity=sparsifier.definedBlocks(child.typ))
 
   def blockCostIsLinear: Boolean = child.blockCostIsLinear
