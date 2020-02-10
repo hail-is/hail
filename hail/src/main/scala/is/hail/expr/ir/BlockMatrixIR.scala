@@ -402,7 +402,26 @@ case class BlockMatrixBroadcast(
 
   override def typ: BlockMatrixType = {
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape(0), shape(1))
-    BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, blockSize)
+    val definedBlocks = if (typ.hasSparsity) {
+      val nRowBlocks = BlockMatrixType.numBlocks(shape(0), blockSize)
+      val nColBlocks = BlockMatrixType.numBlocks(shape(1), blockSize)
+      inIndexExpr match {
+        case IndexedSeq() => null
+        case IndexedSeq(0) => // broadcast col vector
+          Array.fill(nRowBlocks)(Array.tabulate(nColBlocks)(j => child.typ.definedBlocks(0)(j)))
+        case IndexedSeq(1) => // broadcast row vector
+          Array.tabulate(nRowBlocks)(i => Array.fill(nColBlocks)(child.typ.definedBlocks(i)(0)))
+        case IndexedSeq(1, 0) => // transpose
+          assert(child.typ.blockSize == blockSize)
+          Array.tabulate(nRowBlocks)(i =>
+            Array.tabulate(nColBlocks)(j => child.typ.definedBlocks(j)(i)))
+        case IndexedSeq(0, 1) =>
+          assert(child.typ.blockSize == blockSize)
+          child.typ.definedBlocks
+      }
+    } else null
+
+    BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, blockSize, definedBlocks)
   }
 
   lazy val children: IndexedSeq[BaseIR] = Array(child)
@@ -428,9 +447,10 @@ case class BlockMatrixBroadcast(
       case IndexedSeq(1) =>
         BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
         broadcastRowVector(hc, childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
-      case IndexedSeq(0, 0) =>
-        BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-        BlockMatrixIR.toBlockMatrix(hc, nRows.toInt, nCols.toInt, childBm.diagonal(), blockSize)
+        // FIXME: I'm pretty sure this case is broken. 
+//      case IndexedSeq(0, 0) =>
+//        BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
+//        BlockMatrixIR.toBlockMatrix(hc, nRows.toInt, nCols.toInt, childBm.diagonal(), blockSize)
       case IndexedSeq(1, 0) => childBm.transpose()
       case IndexedSeq(0, 1) => childBm
     }
