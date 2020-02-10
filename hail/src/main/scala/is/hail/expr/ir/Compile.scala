@@ -4,6 +4,7 @@ import java.io.PrintWriter
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.types.physical.{PType, PBaseStruct}
 import is.hail.expr.types.virtual.Type
 import is.hail.utils._
@@ -38,15 +39,13 @@ object Compile {
     val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
 
     var ir = body
-    if (optimize)
-      ir = Optimize(ir, noisy = true, context = "Compile", ctx)
-    TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
-
-    val env = args
+    ir = Subst(ir, BindingEnv(args
       .zipWithIndex
-      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
+      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }))
+    ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR]
+    TypeCheck(ir, BindingEnv.empty)
+    InferPType(if (HasIRSharing(ir)) ir.deepCopy() else ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
 
-    ir = Subst(ir, BindingEnv(env))
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
     Emit(ctx, ir, fb)
@@ -239,7 +238,11 @@ object CompileWithAggregators2 {
       .zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
 
-    ir = Subst(ir, BindingEnv(env))
+    ir = Subst(ir, BindingEnv(args
+      .zipWithIndex
+      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }))
+    ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR]
+    TypeCheck(ir, BindingEnv.empty)
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
     Emit(ctx, ir, fb, Some(pAggSigs))

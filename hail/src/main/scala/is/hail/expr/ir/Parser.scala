@@ -508,6 +508,7 @@ object IRParser {
         punctuation(it, "}")
         val cases = args.zipWithIndex.map { case ((id, t), i) => Case(id, t, i) }
         TUnion(cases, req)
+      case "Void" => TVoid
     }
     assert(typ.required == req)
     typ
@@ -948,9 +949,10 @@ object IRParser {
         val name = identifier(it)
         val signatures = agg_state_signatures(env.typEnv)(it)
         val array = ir_value_expr(env)(it)
+        val newE = env + (name -> coerce[TStreamable](array.typ).elementType)
         val init = ir_value_expr(env)(it)
-        val seq = ir_value_expr(env)(it)
-        val result = ir_value_expr(env)(it)
+        val seq = ir_value_expr(newE)(it)
+        val result = ir_value_expr(newE)(it)
         RunAggScan(array, name, init, seq, result, signatures)
       case "AggFilter" =>
         val isScan = boolean_literal(it)

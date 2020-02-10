@@ -2443,7 +2443,7 @@ class IRSuite extends HailSuite {
 
     val collectSig = AggSignature(Collect(), Seq(), Seq(TInt32()))
 
-    val sumSig = AggSignature(Sum(), Seq(), Seq(TInt32()))
+    val sumSig = AggSignature(Sum(), Seq(), Seq(TInt64()))
 
     val callStatsSig = AggSignature(CallStats(), Seq(TInt32()), Seq(TCall()))
 
@@ -2454,6 +2454,11 @@ class IRSuite extends HailSuite {
 
     val countSig = AggSignature(Count(), Seq(), Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, countSig)
+
+    val groupSignature = AggStateSignature(
+      Map(Group() -> AggSignature(Group(), FastIndexedSeq(TVoid), FastIndexedSeq(TInt32(), TVoid))),
+      Group(),
+      Some(FastIndexedSeq(sumSig.singletonContainer)))
 
     val table = TableRange(100, 10)
 
@@ -2517,8 +2522,19 @@ class IRSuite extends HailSuite {
       ArrayScan(a, I32(0), "x", "v", v),
       ArrayLeftJoinDistinct(ArrayRange(0, 2, 1), ArrayRange(0, 3, 1), "l", "r", I32(0), I32(1)),
       ArrayFor(a, "v", Void()),
-      ArrayAgg(a, "x", ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(Ref("x", TInt32())), sumSig)),
-      ArrayAggScan(a, "x", ApplyScanOp(FastIndexedSeq.empty, FastIndexedSeq(Ref("x", TInt32())), sumSig)),
+      ArrayAgg(a, "x", ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32()), TInt64())), sumSig)),
+      ArrayAggScan(a, "x", ApplyScanOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32()), TInt64())), sumSig)),
+      RunAgg(Begin(FastSeq(
+        InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), sumSig)))), groupSignature, Group()),
+        SeqOp(0, FastSeq(I32(1), SeqOp(0, FastSeq(), sumSig)), groupSignature, Group()))),
+        AggStateValue(0, groupSignature), FastIndexedSeq(groupSignature)),
+      RunAggScan(ArrayRange(I32(0), I32(1), I32(1)),
+        "foo",
+        InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), sumSig)))), groupSignature, Group()),
+        SeqOp(0, FastSeq(Ref("foo", TInt32()), SeqOp(0, FastSeq(), sumSig)), groupSignature, Group()),
+        AggStateValue(0, groupSignature),
+        FastIndexedSeq(groupSignature)
+        ),
       AggFilter(True(), I32(0), false),
       AggExplode(NA(TArray(TInt32())), "x", I32(0), false),
       AggGroupBy(True(), I32(0), false),

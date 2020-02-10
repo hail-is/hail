@@ -265,6 +265,7 @@ abstract class Type extends BaseType with Serializable with Requiredness {
       case t: TStruct => t.copy(required = required)
       case t: TTuple => t.copy(required = required)
       case t: TNDArray => t.copy(required = required)
+      case TVoid => TVoid
     }
   }
 

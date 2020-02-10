@@ -145,3 +145,18 @@ def pc_relate_big():
                        statistics='kin',
                        min_kinship=0.05)
     rel._force_count()
+
+
+@benchmark(args=random_doubles.handle('mt'))
+def linear_regression_rows(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    num_phenos = 100
+    num_covs = 20
+    pheno_dict = {f"pheno_{i}": hl.rand_unif(0, 1) for i in range(num_phenos)}
+    cov_dict = {f"cov_{i}": hl.rand_unif(0, 1) for i in range(num_covs)}
+    mt = mt.annotate_cols(**pheno_dict)
+    mt = mt.annotate_cols(**cov_dict)
+    res = hl.linear_regression_rows(y=[mt[key] for key in pheno_dict.keys()],
+                                    x=mt.x,
+                                    covariates=[mt[key] for key in cov_dict.keys()])
+    res._force_count()
