@@ -216,8 +216,8 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
 
 object SparsityStrategy {
   def fromString(s: String): SparsityStrategy = s match {
-    case "union" | "Union" | "UnionBlocks" => Union
-    case "intersection" | "Intersection" | "IntersectionBlocks" => Intersection
+    case "union" | "Union" | "UnionBlocks" => UnionBlocks
+    case "intersection" | "Intersection" | "IntersectionBlocks" => IntersectionBlocks
     case "needs_dense" | "NeedsDense" => NeedsDense
   }
 
@@ -226,10 +226,10 @@ object SparsityStrategy {
 abstract class SparsityStrategy {
   def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean
 }
-case object Union extends SparsityStrategy {
+case object UnionBlocks extends SparsityStrategy {
   def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean = leftBlock || rightBlock
 }
-case object Intersection extends SparsityStrategy {
+case object IntersectionBlocks extends SparsityStrategy {
   def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean = leftBlock && rightBlock
 }
 case object NeedsDense extends SparsityStrategy {

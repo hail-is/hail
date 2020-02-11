@@ -59,10 +59,10 @@ class BlockMatrixIRSuite extends HailSuite {
 
 
   @Test def testBlockMatrixMap() {
-    val sqrtFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), "element", Apply("sqrt", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()))
-    val negFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), "element", ApplyUnaryPrimOp(Negate(), Ref("element", TFloat64())))
-    val logOnesIR = BlockMatrixMap(new BlockMatrixLiteral(ones), "element", Apply("log", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()))
-    val absNegFoursIR = BlockMatrixMap(new BlockMatrixLiteral(negFours), "element", Apply("abs", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()))
+    val sqrtFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), "element", Apply("sqrt", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()), false)
+    val negFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), "element", ApplyUnaryPrimOp(Negate(), Ref("element", TFloat64())), false)
+    val logOnesIR = BlockMatrixMap(new BlockMatrixLiteral(ones), "element", Apply("log", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()), true)
+    val absNegFoursIR = BlockMatrixMap(new BlockMatrixLiteral(negFours), "element", Apply("abs", FastIndexedSeq(Ref("element", TFloat64())), TFloat64()), false)
 
     assertBmEq(sqrtFoursIR.execute(ctx), twos)
     assertBmEq(negFoursIR.execute(ctx), negFours)
@@ -75,10 +75,10 @@ class BlockMatrixIRSuite extends HailSuite {
       ValueToBlockMatrix(MakeArray(Seq[F64](F64(2)), TArray(TFloat64())), Array[Long](1, 1), 4096),
       FastIndexedSeq(), shape, 4096)
 
-    val onesAddTwo = makeMap2(new BlockMatrixLiteral(ones), broadcastTwo, Add())
-    val threesSubTwo = makeMap2(new BlockMatrixLiteral(threes), broadcastTwo, Subtract())
-    val twosMulTwo = makeMap2(new BlockMatrixLiteral(twos), broadcastTwo, Multiply())
-    val foursDivTwo = makeMap2(new BlockMatrixLiteral(fours), broadcastTwo, FloatingPointDivide())
+    val onesAddTwo = makeMap2(new BlockMatrixLiteral(ones), broadcastTwo, Add(), UnionBlocks)
+    val threesSubTwo = makeMap2(new BlockMatrixLiteral(threes), broadcastTwo, Subtract(), UnionBlocks)
+    val twosMulTwo = makeMap2(new BlockMatrixLiteral(twos), broadcastTwo, Multiply(), IntersectionBlocks)
+    val foursDivTwo = makeMap2(new BlockMatrixLiteral(fours), broadcastTwo, FloatingPointDivide(), NeedsDense)
 
     assertBmEq(onesAddTwo.execute(ctx), threes)
     assertBmEq(threesSubTwo.execute(ctx), ones)
@@ -95,10 +95,10 @@ class BlockMatrixIRSuite extends HailSuite {
       0), FastIndexedSeq(0), shape, 0)
 
     // Addition
-    val actualOnesAddRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, Add(), Union)
-    val actualOnesAddColOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastColVector, Add(), Union)
-    val actualOnesAddRowOnLeft  = makeMap2(broadcastRowVector, new BlockMatrixLiteral(ones), Add(), Union)
-    val actualOnesAddColOnLeft  = makeMap2(broadcastColVector, new BlockMatrixLiteral(ones), Add(), Union)
+    val actualOnesAddRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, Add(), UnionBlocks)
+    val actualOnesAddColOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastColVector, Add(), UnionBlocks)
+    val actualOnesAddRowOnLeft  = makeMap2(broadcastRowVector, new BlockMatrixLiteral(ones), Add(), UnionBlocks)
+    val actualOnesAddColOnLeft  = makeMap2(broadcastColVector, new BlockMatrixLiteral(ones), Add(), UnionBlocks)
 
     val expectedOnesAddRow = makeMatFromRow(Seq(2, 3, 4))
     val expectedOnesAddCol = makeMatFromCol(Seq(2, 3, 4))
@@ -110,10 +110,10 @@ class BlockMatrixIRSuite extends HailSuite {
 
 
     // Multiplication
-    val actualOnesMulRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, Multiply(), Intersection)
-    val actualOnesMulColOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastColVector, Multiply(), Intersection)
-    val actualOnesMulRowOnLeft  = makeMap2(broadcastRowVector, new BlockMatrixLiteral(ones), Multiply(), Intersection)
-    val actualOnesMulColOnLeft  = makeMap2(broadcastColVector, new BlockMatrixLiteral(ones), Multiply(), Intersection)
+    val actualOnesMulRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, Multiply(), IntersectionBlocks)
+    val actualOnesMulColOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastColVector, Multiply(), IntersectionBlocks)
+    val actualOnesMulRowOnLeft  = makeMap2(broadcastRowVector, new BlockMatrixLiteral(ones), Multiply(), IntersectionBlocks)
+    val actualOnesMulColOnLeft  = makeMap2(broadcastColVector, new BlockMatrixLiteral(ones), Multiply(), IntersectionBlocks)
 
     val expectedOnesMulRow = makeMatFromRow(Seq(1, 2, 3))
     val expectedOnesMulCol = makeMatFromCol(Seq(1, 2, 3))
@@ -125,10 +125,10 @@ class BlockMatrixIRSuite extends HailSuite {
 
 
     // Subtraction
-    val actualOnesSubRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, Subtract(), Union)
-    val actualOnesSubColOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastColVector, Subtract(), Union)
-    val actualOnesSubRowOnLeft  = makeMap2(broadcastRowVector, new BlockMatrixLiteral(ones), Subtract(), Union)
-    val actualOnesSubColOnLeft  = makeMap2(broadcastColVector, new BlockMatrixLiteral(ones), Subtract(), Union)
+    val actualOnesSubRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, Subtract(), UnionBlocks)
+    val actualOnesSubColOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastColVector, Subtract(), UnionBlocks)
+    val actualOnesSubRowOnLeft  = makeMap2(broadcastRowVector, new BlockMatrixLiteral(ones), Subtract(), UnionBlocks)
+    val actualOnesSubColOnLeft  = makeMap2(broadcastColVector, new BlockMatrixLiteral(ones), Subtract(), UnionBlocks)
 
     val expectedOnesSubRowRight = makeMatFromRow(Seq(0, -1, -2))
     val expectedOnesSubColRight = makeMatFromCol(Seq(0, -1, -2))
