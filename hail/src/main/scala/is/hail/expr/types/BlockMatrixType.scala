@@ -26,21 +26,16 @@ object BlockMatrixType {
 
   def getBlockIdx(i: Long, blockSize: Int): Int = java.lang.Math.floorDiv(i, blockSize).toInt
 
-  def sparsityFromLinearBlocks(nCols: Long, nRows: Long, blockSize: Int, definedBlocks: Option[Array[Int]]): IndexedSeq[IndexedSeq[Boolean]] = {
+  def sparsityFromLinearBlocks(nCols: Long, nRows: Long, blockSize: Int, definedBlocks: Option[Array[Int]]): Option[IndexedSeq[(Int, Int)]] = {
     val nColBlocks = numBlocks(nCols, blockSize)
-    val nRowBlocks = numBlocks(nRows, blockSize)
-
     definedBlocks.map { blocks =>
-      val idxs = blocks.map { linearIdx => java.lang.Math.floorDiv(linearIdx, nColBlocks) -> linearIdx % nColBlocks }.toSet
-      Array.tabulate(nRowBlocks)(i => Array.tabulate(nColBlocks)(j => idxs.contains(i -> j)).toFastIndexedSeq).toFastIndexedSeq
-    }.getOrElse(Array.fill(nRowBlocks)(Array.fill(nColBlocks)(true).toFastIndexedSeq).toFastIndexedSeq)
+      blocks.map { linearIdx => java.lang.Math.floorDiv(linearIdx, nColBlocks) -> linearIdx % nColBlocks }
+    }
   }
 
   def dense(elementType: Type, nRows: Long, nCols: Long, blockSize: Int): BlockMatrixType = {
     val (shape, isRowVector) = matrixToTensorShape(nRows, nCols)
-    val nRowBlocks = numBlocks(nRows, blockSize)
-    val nColBlocks = numBlocks(nCols, blockSize)
-    BlockMatrixType(elementType, shape, isRowVector, blockSize, Array.fill(nRowBlocks)(Array.fill(nColBlocks)(true).toFastIndexedSeq).toFastIndexedSeq)
+    BlockMatrixType(elementType, shape, isRowVector, blockSize, None)
   }
 }
 
@@ -49,7 +44,7 @@ case class BlockMatrixType(
   shape: IndexedSeq[Long],
   isRowVector: Boolean,
   blockSize: Int,
-  definedBlocks: IndexedSeq[IndexedSeq[Boolean]]
+  definedBlocks: Option[IndexedSeq[(Int, Int)]]
 ) extends BaseType {
   assert(definedBlocks != null)
 
@@ -62,7 +57,11 @@ case class BlockMatrixType(
   lazy val defaultBlockShape: (Int, Int) = (nRowBlocks, nColBlocks)
 
   def getBlockIdx(i: Long): Int = java.lang.Math.floorDiv(i, blockSize).toInt
-  lazy val isSparse: Boolean = definedBlocks.forall(rows => rows.forall(i => i))
+  def isSparse: Boolean = definedBlocks.isDefined
+  private lazy val blockSet: Set[(Int, Int)] = definedBlocks.get.toSet
+  def exists(idx: (Int, Int)): Boolean = {
+    if (isSparse) blockSet.contains(idx) else true
+  }
 
   override def pretty(sb: StringBuilder, indent0: Int, compact: Boolean): Unit = {
     var indent = indent0
@@ -102,11 +101,9 @@ case class BlockMatrixType(
     newline()
 
     sb.append(s"definedBlocks:$space")
-    if (isSparse) {
-      sb.append(definedBlocks.map(row => row.mkString("[", ",", "]")).mkString("[", ",", "]"))
-    } else {
-      sb.append("None")
-    }
+    sb.append(definedBlocks.map { blocks =>
+      blocks.map { case (i, j) => s"($i,$j)" }.mkString("[", ",", "]")
+    }.getOrElse("None"))
     sb += ','
     newline()
 
