@@ -8,7 +8,7 @@ object LowerArrayToStream {
 
     if (streamified.typ.isInstanceOf[TStream])
       streamified = ToArray(streamified)
-
+    println(s"Streamified:\npre: ${node}:\npost:${streamified} \ntyp: ${streamified.typ} \nnode typ: ${node.typ}")
     assert(streamified.typ == node.typ)
     streamified
   }
@@ -23,7 +23,6 @@ object LowerArrayToStream {
         accum.map { case (name, value) => (name, boundary(value)) },
         valueName, seq.map(boundary), boundary(result))
       case RunAggScan(a, name, init, seq, res, sig) => RunAggScan(streamify(a), name, boundary(init), boundary(seq), boundary(res), sig)
-//      case _: MakeStream | _: StreamRange | _: ReadPartition => node.copy(node.children.map(c => boundary(c.asInstanceOf[IR])))
       case MakeArray(args, t) => MakeStream(args.map(boundary), TStream(t.elementType, t.required))
       case ArrayRange(start, stop, step) => StreamRange(boundary(start), boundary(stop), boundary(step))
       case ArrayZip(childIRs, names, body, behavior) => ArrayZip(childIRs.map(streamify), names, boundary(body), behavior)
@@ -34,7 +33,14 @@ object LowerArrayToStream {
       case ArrayLeftJoinDistinct(l, r, ln, rn, keyf, joinf) =>
         ArrayLeftJoinDistinct(streamify(l), streamify(r), ln, rn, boundary(keyf), boundary(joinf))
       case x: ApplyIR => streamify(x.explicitNode)
+      case CollectDistributedArray(contextsIR, globalsIR, contextsName, globalsName, bodyIR) =>
+        ToStream(CollectDistributedArray(streamify(contextsIR), boundary(globalsIR), contextsName, globalsName,  boundary(bodyIR)))
       case Let(name, value, body) => Let(name, boundary(value), streamify(body))
+      case ToArray(a) =>
+        a.typ match {
+          case _: TStream => node
+          case _ => ToArray(streamify(a))
+        }
       case _ =>
         val newChildren = node.children.map(child => boundary(child.asInstanceOf[IR]))
         val x = if ((node.children, newChildren).zipped.forall(_ eq _))
@@ -43,6 +49,7 @@ object LowerArrayToStream {
           node.copy(newChildren)
 
         if(x.typ.isInstanceOf[TArray]) {
+          println(s"WRAPPING ${x}")
           ToStream(x)
         } else {
           x
@@ -51,7 +58,7 @@ object LowerArrayToStream {
   }
 
   def apply(node: IR): IR = {
-    println(s"\n\nStarting LowerArrayToStream with: ${ node }")
+    println(s"\n\nStarting LowerArrayToStream with: \n${ node }\n")
     val r = streamify(node)
     println(s"result of LowerArrayToStream is: ${r}\n\n")
     r

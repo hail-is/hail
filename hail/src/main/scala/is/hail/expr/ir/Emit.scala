@@ -309,7 +309,11 @@ private class Emit(
     def wrapToMethod(irs: Seq[IR], env: E = env, container: Option[AggContainer] = container)(useValues: (EmitMethodBuilder, PType, EmitTriplet) => Code[Unit]): Code[Unit] =
       this.wrapToMethod(irs, env, container)(useValues)
 
-    def emitArrayIterator(ir: IR, env: E = env, container: Option[AggContainer] = container) = this.emitArrayIterator(ir, env, er, container)
+    def emitArrayIterator(ir: IR, env: E = env, container: Option[AggContainer] = container) = {
+      val s = ir//Streamify(ir)
+      println(s"\n\n emitArrayIterator: \npre: ${ir}\npost: ${s}")
+      this.emitArrayIterator(s, env, er, container)
+    }
 
     def emitDeforestedNDArray(ir: IR) =
       deforestNDArray(resultRegion, ir, env).emit(coerce[PNDArray](ir.pType))
@@ -731,7 +735,7 @@ private class Emit(
 
         val codeZ = emit(zero)
         val codeB = emit(body, env = bodyenv)
-
+        println(s"IN ARRAY FOLD, a is ${a}")
         val aBase = emitArrayIterator(a)
 
         val cont = { (m: Code[Boolean], v: Code[_]) =>
