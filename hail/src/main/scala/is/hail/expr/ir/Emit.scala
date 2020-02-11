@@ -1321,6 +1321,7 @@ private class Emit(
       case x: NDArrayMap  =>  emitDeforestedNDArray(x)
       case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
       case x: NDArrayReshape => emitDeforestedNDArray(x)
+      case x: NDArrayConcat => emitDeforestedNDArray(x)
       case x: NDArraySlice => emitDeforestedNDArray(x)
 
       case NDArrayMatMul(lChild, rChild) =>
@@ -2125,6 +2126,92 @@ private class Emit(
             )
           }
         }
+
+      case x@NDArrayConcat(nds, axis) =>
+        val inputType = coerce[PArray](nds.pType2)
+        val inputNDType = coerce[PNDArray](inputType.elementType)
+
+        val ndType = coerce[PNDArray](x.pType2)
+        val codeNDs = emit(nds, env, er, None)
+
+        val inputArray = mb.newField[Long]
+        val n = mb.newField[Int]
+        val i = mb.newField[Int]
+
+        val loadAndValidateArray = Code(
+          inputArray := codeNDs.value[Long],
+          n := inputType.loadLength(inputArray),
+          (n < 1).orEmpty(Code._fatal("need at least 1 array to concatenate")))
+
+        val (missingSetup: Code[Unit @unchecked], missing: Code[Boolean @unchecked], setupShape: Code[Unit @unchecked]) = (inputType.required, inputNDType.required) match {
+          case (true, true) => (Code._empty, const(false), Code(
+            codeNDs.setup,
+            codeNDs.m.orEmpty(Code._fatal("required NDArray can't be missing")),
+            loadAndValidateArray))
+          case (false, true) => (codeNDs.setup, codeNDs.m, loadAndValidateArray)
+          case _ =>
+            val m = mb.newField[Boolean]
+            val setup = Code(
+              codeNDs.setup,
+              m := codeNDs.m,
+              loadAndValidateArray,
+              i := 0,
+              Code.whileLoop(i < n,
+                m := m | inputType.isElementMissing(inputArray, i),
+                i := i + 1))
+            (setup, m.load(), Code._empty)
+        }
+
+        val localDim = mb.newField[Long]
+        val outputShape = Array.tabulate(ndType.nDims) { idx =>
+          if (idx == axis) {
+            Code(
+              localDim := inputNDType.dimensionLength(inputType.loadElement(inputArray, 0), idx),
+              i := 1,
+              Code.whileLoop(i < n,
+                localDim := localDim + inputNDType.dimensionLength(inputType.loadElement(inputArray, i), idx),
+                i := i + 1),
+              localDim)
+          } else {
+            Code(
+              localDim := inputNDType.dimensionLength(inputType.loadElement(inputArray, 0), idx),
+              i := 1,
+              Code.whileLoop(i < n,
+                inputNDType.dimensionLength(inputType.loadElement(inputArray, i), idx).cne(localDim).orEmpty(Code._fatal("mismatched dims")),
+                i := i + 1),
+              localDim)
+          }
+        }
+
+        new NDArrayEmitter(mb, x.typ.nDims,
+          outputShape,
+          ndType.shape.pType,
+          ndType.elementType,
+          setupShape,
+          missingSetup,
+          missing) {
+          private val foo = mb.newLocal[Long]
+
+          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
+            val setupTransformedIdx = Code(
+              i := 0,
+              foo := idxVars(axis),
+              Code.whileLoop(foo >= inputNDType.dimensionLength(inputType.loadElement(inputArray, i), axis),
+                foo := foo - inputNDType.dimensionLength(inputType.loadElement(inputArray, i), axis),
+                i := i + 1
+              ),
+              (i > n).orEmpty(Code._fatal("can't get correct shape")))
+
+            val transformedIdxs = Array.tabulate(x.typ.nDims) { idx =>
+              if (idx == axis) foo.load() else idxVars(idx)
+            }
+            Code(
+              setupTransformedIdx,
+              Region.loadIRIntermediate(ndType.elementType)(
+                inputNDType.getElementAddress(transformedIdxs, inputType.loadElement(inputArray, i), mb)))
+          }
+        }
+
 
       case x@NDArraySlice(child, slicesIR) =>
         val childEmitter = deforest(child)

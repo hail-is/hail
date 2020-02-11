@@ -63,6 +63,8 @@ object Children {
       Array(nd)
     case NDArrayReshape(nd, shape) =>
       Array(nd, shape)
+    case NDArrayConcat(nds, _) =>
+      Array(nds)
     case ArraySort(a, _, _, compare) =>
       Array(a, compare)
     case ToSet(a) =>
