@@ -150,7 +150,6 @@ object InferPType {
         })
         a.implementation.returnPType(pTypes, a.returnType)
       case ArrayRef(a, i, s) =>
-        println(s"\na: ${a}\ni:${i}\ns:${s}")
         infer(a)
         infer(i)
         infer(s)
@@ -371,7 +370,6 @@ object InferPType {
         }))
       case In(_, pType: PType) => pType
       case ArrayFor(a, valueName, body) => {
-        println("\n\n\nMatched on ArrayFor\n\n\n")
         infer(a)
         infer(body, env.bind(valueName -> a._pType2.asInstanceOf[PStreamable].elementType))
         PVoid
@@ -412,7 +410,6 @@ object InferPType {
     }
 
     // Allow only requiredeness to diverge
-    println(s"assert \npre:${ir.typ}\npost:${ir.pType2.virtualType}")
     assert(ir.pType2.virtualType isOfType ir.typ)
   }
 }

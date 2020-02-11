@@ -49,7 +49,6 @@ object LowerArrayToStream {
           node.copy(newChildren)
 
         if(x.typ.isInstanceOf[TArray]) {
-          println(s"WRAPPING ${x}")
           ToStream(x)
         } else {
           x
