@@ -220,6 +220,7 @@ abstract class PType extends Serializable with Requiredness {
       this
     else
       this match {
+        case PVoid => PVoid
         case PBinary(_) => PBinary(required)
         case PBoolean(_) => PBoolean(required)
         case PInt32(_) => PInt32(required)
