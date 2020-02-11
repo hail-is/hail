@@ -225,6 +225,24 @@ class RandomDoublesMatrixTable(ResourceGroup):
         raise KeyError(resource)
 
 
+class EmptyGVCF(ResourceGroup):
+    def __init__(self):
+        super(EmptyGVCF, self).__init__('empty.g.vcf.bgz', 'empty.g.vcf.bgz.tbi')
+
+    def name(self):
+        return 'empty_gvcf'
+
+    def _create(self, resource_dir):
+        for f in self.files:
+            download(resource_dir, f)
+            logging.info(f'downloading {f}')
+
+    def path(self, resource):
+        if resource is not None:
+            raise KeyError(resource)
+        return 'empty.g.vcf.bgz'
+
+
 profile_25 = Profile25()
 many_partitions_tables = ManyPartitionsTables()
 gnomad_dp_sim = GnomadDPSim()
@@ -232,8 +250,10 @@ many_strings_table = ManyStringsTable()
 many_ints_table = ManyIntsTable()
 sim_ukbb = SimUKBB()
 random_doubles = RandomDoublesMatrixTable()
+empty_gvcf = EmptyGVCF()
 
-all_resources = profile_25, many_partitions_tables, gnomad_dp_sim, many_strings_table, many_ints_table, sim_ukbb
+all_resources = profile_25, many_partitions_tables, gnomad_dp_sim, many_strings_table, many_ints_table, sim_ukbb, \
+    random_doubles, empty_gvcf
 
 __all__ = ['profile_25',
            'many_partitions_tables',
@@ -242,4 +262,5 @@ __all__ = ['profile_25',
            'many_ints_table',
            'sim_ukbb',
            'random_doubles',
+           'empty_gvcf',
            'all_resources']
