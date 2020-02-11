@@ -25,6 +25,7 @@ object FoldConstants {
              _: NDArrayAgg |
              _: NDArrayWrite |
              _: NDArrayMatMul |
+             _: ToStream |
              _: Die => None
         case ir: IR if !IsConstant(ir) &&
           Interpretable(ir) &&
