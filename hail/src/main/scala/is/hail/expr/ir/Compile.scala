@@ -304,13 +304,17 @@ object CompileWithAggregators2 {
 object CompileIterator {
   import is.hail.asm4s.joinpoint._
 
-  private trait RegionValueIteratorWrapper extends Iterator[RegionValue] {
+  private trait StepFunctionBase {
+    def getRV(): RegionValue
+  }
+  private trait StepFunction1[A, R] extends AsmFunction1[A, R] with StepFunctionBase
+  private trait StepFunction3[A, B, C, R] extends AsmFunction3[A, B, C, R] with StepFunctionBase
+  private trait StepFunction5[A, B, C, D, E, R] extends AsmFunction5[A, B, C, D, E, R] with StepFunctionBase
+
+  private abstract class RegionValueIteratorWrapper extends Iterator[RegionValue] {
     def step(): Boolean
 
-    protected def setRV(r: Region, offset: Long) {
-      rv.set(r, offset)
-    }
-    private val rv = RegionValue()
+    protected val stepFunction: StepFunctionBase
     private var _stepped = false
     private var _hasNext = false
     def hasNext: Boolean = {
@@ -324,11 +328,11 @@ object CompileIterator {
       if (!hasNext)
         return Iterator.empty.next()
       _stepped = false
-      rv
+      stepFunction.getRV()
     }
   }
 
-  private def compileStepper[F >: Null: TypeInfo](
+  private def compileStepper[F >: Null <: StepFunctionBase: TypeInfo](
     ctx: ExecuteContext,
     ir: IR,
     argTypeInfo: Array[MaybeGenericTypeInfo[_]],
@@ -338,17 +342,19 @@ object CompileIterator {
     val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[Boolean], namePrefix = "stream")
     val stepF = fb.apply_method
 
-    val self = Code.checkcast[RegionValueIteratorWrapper](stepF.getArg[Object](0).load)
     val er = EmitRegion.default(stepF)
     val emitter = new Emit(ctx, stepF)
 
     val EmitStream(stream, eltPType) = EmitStream(emitter, ir, Env.empty, er, None)
     implicit val statePP = stream.stateP
     val state = statePP.newFields(fb, "state")
+    val rv = fb.newField[RegionValue]
     assert(eltPType.isInstanceOf[PBaseStruct])
 
     val didInit = fb.newField[Boolean]("did_init")
-    fb.addInitInstructions(didInit := false)
+    fb.addInitInstructions(Code(
+      didInit := false,
+      rv := Code.invokeScalaObject[RegionValue](RegionValue.getClass(), "apply")))
 
     stepF.emit(JoinPoint.CallCC[Code[Boolean]] { (jb, ret) =>
       val step = jb.joinPoint()
@@ -358,7 +364,7 @@ object CompileIterator {
           Code(
             elt.setup,
             elt.m.mux(Code._fatal("empty row!"),
-                      self.invoke[Region, Long, Unit]("setRV", er.region, elt.value)),
+                      rv.invoke[Region, Long, Unit]("set", er.region, elt.value)),
             state := s1,
             ret(true))
       })
@@ -368,6 +374,10 @@ object CompileIterator {
       })
     })
 
+    val getMB = new EmitMethodBuilder(fb, "getRV", Array[TypeInfo[_]](), implicitly[TypeInfo[RegionValue]])
+    getMB.emit(rv.load())
+    getMB.close()
+
     (eltPType, fb.resultWithIndex(printWriter))
   }
 
@@ -375,14 +385,15 @@ object CompileIterator {
     ctx: ExecuteContext,
     ir: IR
   ): (PType, (Int, Region) => Iterator[RegionValue]) = {
-    val (eltPType, makeStepper) = compileStepper[AsmFunction1[Region, Boolean]](
+    val (eltPType, makeStepper) = compileStepper[StepFunction1[Region, Boolean]](
       ctx, ir,
       Array[MaybeGenericTypeInfo[_]](
-        GenericTypeInfo[Region], GenericTypeInfo[RegionValue]),
+        GenericTypeInfo[Region]),
       None)
     (eltPType, (idx, r) => {
       val stepper = makeStepper(idx, r)
       new RegionValueIteratorWrapper {
+        val stepFunction: StepFunction1[Region, Boolean] = stepper
         def step(): Boolean = stepper(r)
       }
     })
@@ -393,15 +404,16 @@ object CompileIterator {
     typ0: PType,
     ir: IR
   ): (PType, (Int, Region, T0, Boolean) => Iterator[RegionValue]) = {
-    val (eltPType, makeStepper) = compileStepper[AsmFunction3[Region, T0, Boolean, Boolean]](
+    val (eltPType, makeStepper) = compileStepper[StepFunction3[Region, T0, Boolean, Boolean]](
       ctx, ir,
       Array[MaybeGenericTypeInfo[_]](
-        GenericTypeInfo[Region], GenericTypeInfo[RegionValue],
+        GenericTypeInfo[Region],
         GenericTypeInfo[T0], GenericTypeInfo[Boolean]),
       None)
     (eltPType, (idx, r, v0, m0) => {
       val stepper = makeStepper(idx, r)
       new RegionValueIteratorWrapper {
+        val stepFunction: StepFunction3[Region, T0, Boolean, Boolean] = stepper
         def step(): Boolean = stepper(r, v0, m0)
       }
     })
@@ -412,16 +424,17 @@ object CompileIterator {
     typ0: PType, typ1: PType,
     ir: IR
   ): (PType, (Int, Region, T0, Boolean, T1, Boolean) => Iterator[RegionValue]) = {
-    val (eltPType, makeStepper) = compileStepper[AsmFunction5[Region, T0, Boolean, T1, Boolean, Boolean]](
+    val (eltPType, makeStepper) = compileStepper[StepFunction5[Region, T0, Boolean, T1, Boolean, Boolean]](
       ctx, ir,
       Array[MaybeGenericTypeInfo[_]](
-        GenericTypeInfo[Region], GenericTypeInfo[RegionValue],
+        GenericTypeInfo[Region],
         GenericTypeInfo[T0], GenericTypeInfo[Boolean],
         GenericTypeInfo[T1], GenericTypeInfo[Boolean]),
       None)
     (eltPType, (idx, r, v0, m0, v1, m1) => {
       val stepper = makeStepper(idx, r)
       new RegionValueIteratorWrapper {
+        val stepFunction: StepFunction5[Region, T0, Boolean, T1, Boolean, Boolean] = stepper
         def step(): Boolean = stepper(r, v0, m0, v1, m1)
       }
     })
