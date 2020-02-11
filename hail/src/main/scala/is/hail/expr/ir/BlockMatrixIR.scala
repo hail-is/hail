@@ -202,10 +202,10 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
         ("-", binaryOp(evalIR(ctx, l), (m, s) => s - m))
       case ApplyBinaryPrimOp(FloatingPointDivide(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
         val i = evalIR(ctx, r)
-        ("/", binaryOp(evalIR(ctx, r), (m, s) => m /:/ s), i == 0.0 | i.isNaN | i.isInfinity)
+        ("/", binaryOp(evalIR(ctx, r), (m, s) => m /:/ s))
       case ApplyBinaryPrimOp(FloatingPointDivide(), l, Ref(`eltName`, _)) if !Mentions(l, eltName) =>
         val i = evalIR(ctx, l)
-        ("/", binaryOp(evalIR(ctx, l), BlockMatrix.reverseScalarDiv), i == 0.0 | i.isNaN | i.isInfinity)
+        ("/", binaryOp(evalIR(ctx, l), BlockMatrix.reverseScalarDiv))
 
       case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(f)}")
     }
