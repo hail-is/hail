@@ -1288,7 +1288,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map(lambda x: construct_expr(ApplyUnaryPrimOp('-', x._ir), hl.tfloat64), , needs_dense=False)
+        return self._apply_map(lambda x: construct_expr(ApplyUnaryPrimOp('-', x._ir), hl.tfloat64), needs_dense=False)
 
     @staticmethod
     def _binary_op(op):
