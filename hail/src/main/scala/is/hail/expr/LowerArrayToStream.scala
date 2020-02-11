@@ -48,8 +48,8 @@ object LowerArrayToStream {
       case ArrayZip(childIRs, names, body, behavior) => ArrayZip(childIRs.map(streamify), names, boundary(body), behavior)
       case ArrayMap(a, n, b) => ArrayMap(toStream(streamify(a)), n, boundary(b))
       case ArrayFilter(a, n, b) => ArrayFilter(streamify(a), n, boundary(b))
-      case ArrayFlatMap(a, n, b) => ArrayFlatMap(streamify(a), n, streamify(b))
-      case ArrayScan(a, zero, zn, an, body) => ArrayScan(streamify(a), boundary(zero), zn, an, boundary(body))
+      case ArrayFlatMap(a, n, b) => ArrayFlatMap(toStream(streamify(a)), n, toStream(streamify(b)))
+      case ArrayScan(a, zero, zn, an, body) => ArrayScan(toStream(streamify(a)), boundary(zero), zn, an, boundary(body))
       case ArrayLeftJoinDistinct(l, r, ln, rn, keyf, joinf) =>
         ArrayLeftJoinDistinct(streamify(l), streamify(r), ln, rn, boundary(keyf), boundary(joinf))
       case x: ApplyIR => streamify(x.explicitNode)
