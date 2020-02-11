@@ -1324,7 +1324,7 @@ class BlockMatrix(object):
         lv = Env.get_uid()
         rv = Env.get_uid()
         f_ir = f(construct_variable(lv, hl.tfloat64), construct_variable(rv, hl.tfloat64))._ir
-        return BlockMatrix(BlockMatrixMap2(left, right, lv, rv, f_ir), sparsity_strategy)
+        return BlockMatrix(BlockMatrixMap2(left, right, lv, rv, f_ir, sparsity_strategy))
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __add__(self, b):
@@ -1380,7 +1380,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map2(BlockMatrix._binary_op('/'), sparsity_strategy="NeedsDense")
+        return self._apply_map2(BlockMatrix._binary_op('/'), b, sparsity_strategy="NeedsDense")
 
     @typecheck_method(b=numeric)
     def __radd__(self, b):
