@@ -6,7 +6,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types.physical.{PArray, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.{MatrixType, TableType}
-import is.hail.io.BufferSpec
+import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{AbstractRVDSpec, RVD, _}
@@ -83,7 +83,10 @@ case class MatrixValue(
     TableValue(typ.colsTableType, globals, colsRVD(ctx))
 
   private def writeCols(fs: FS, path: String, bufferSpec: BufferSpec) {
-    val partitionCounts = AbstractRVDSpec.writeSingle(fs, path + "/rows", colValues.t.elementType.asInstanceOf[PStruct], bufferSpec, colValues.javaValue)
+    val ty = colValues.t.elementType.asInstanceOf[PStruct]
+    val codecSpec = TypedCodecSpec(ty, bufferSpec)
+    val encCols = codecSpec.buildEncoder(ty)
+    val partitionCounts = AbstractRVDSpec.writeSingle(encCols)(fs, path + "/rows", ty, codecSpec, colValues.javaValue)
 
     val colsSpec = TableSpec(
       FileFormat.version.rep,
@@ -99,9 +102,13 @@ case class MatrixValue(
   }
 
   private def writeGlobals(fs: FS, path: String, bufferSpec: BufferSpec) {
-    val partitionCounts = AbstractRVDSpec.writeSingle(fs, path + "/rows", globals.t, bufferSpec, Array(globals.javaValue))
+    val codecSpec = TypedCodecSpec(globals.t, bufferSpec)
+    val encGlobals = codecSpec.buildEncoder(globals.t)
+    val partitionCounts = AbstractRVDSpec.writeSingle(encGlobals)(fs, path + "/rows", globals.t, codecSpec, Array(globals.javaValue))
 
-    AbstractRVDSpec.writeSingle(fs, path + "/globals", PStruct.empty(), bufferSpec, Array[Annotation](Row()))
+    val nullCodecSpec = TypedCodecSpec(globals.t, bufferSpec)
+    val encNull = nullCodecSpec.buildEncoder(globals.t)
+    AbstractRVDSpec.writeSingle(encNull)(fs, path + "/globals", PStruct.empty(), nullCodecSpec, Array[Annotation](Row()))
 
     val globalsSpec = TableSpec(
       FileFormat.version.rep,
@@ -338,5 +345,4 @@ object MatrixValue {
         BroadcastRow(RegionValue(ctx.r, rvb.end()), globalsPType, HailContext.backend),
         rvd))
   }
-
 }

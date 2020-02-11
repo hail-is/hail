@@ -76,7 +76,9 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
     val globalsPath = path + "/globals"
     fs.mkDir(globalsPath)
-    AbstractRVDSpec.writeSingle(fs, globalsPath, globals.t, bufferSpec, Array(globals.javaValue))
+    val gblCodecSpec = TypedCodecSpec(globals.t, bufferSpec)
+    val encGlobals = gblCodecSpec.buildEncoder(globals.t)
+    AbstractRVDSpec.writeSingle(encGlobals)(fs, globalsPath, globals.t, gblCodecSpec, Array(globals.javaValue))
 
     val codecSpec = TypedCodecSpec(rvd.rowPType, bufferSpec)
     val partitionCounts = rvd.write(path + "/rows", "../index", stageLocally, codecSpec)

@@ -11,6 +11,7 @@ import is.hail.io.fs.FS
 import is.hail.io.index.{InternalNodeBuilder, LeafNodeBuilder}
 import is.hail.utils._
 import is.hail.{HailContext, compatibility}
+import java.io.OutputStream
 import org.apache.spark.TaskContext
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
@@ -68,10 +69,12 @@ object AbstractRVDSpec {
   def partPath(path: String, partFile: String): String = path + "/parts/" + partFile
 
   def writeSingle(
+    makeEnc: (OutputStream) => Encoder
+  )(
     fs: is.hail.io.fs.FS,
     path: String,
     rowType: PStruct,
-    bufferSpec: BufferSpec,
+    codecSpec: AbstractTypedCodecSpec,
     rows: IndexedSeq[Annotation]
   ): Array[Long] = {
     val partsPath = path + "/parts"
@@ -81,14 +84,13 @@ object AbstractRVDSpec {
       "part-0"
     else
       partFile(0, 0, TaskContext.get)
-    val codecSpec = TypedCodecSpec(rowType, bufferSpec)
 
     val part0Count =
       fs.writeFile(partsPath + "/" + filePath) { os =>
         using(RVDContext.default) { ctx =>
           val rvb = ctx.rvb
           val region = ctx.region
-          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(rowType))(ctx,
+          RichContextRDDRegionValue.writeRowsPartition(makeEnc)(ctx,
             rows.iterator.map { a =>
               rvb.start(rowType)
               rvb.addAnnotation(rowType.virtualType, a)
