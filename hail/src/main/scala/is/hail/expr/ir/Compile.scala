@@ -231,21 +231,15 @@ object CompileWithAggregators2 {
     val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
 
     var ir = body
-    if (optimize)
-      ir = Optimize(ir, noisy = true, context = "Compile", ctx)
-    ir = LowerArrayToStream(ir)
-    TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
-    InferPType(if (HasIRSharing(ir)) ir.deepCopy() else ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
-
-    val env = args
-      .zipWithIndex
-      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }
-
     ir = Subst(ir, BindingEnv(args
       .zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }))
     ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR]
-    TypeCheck(ir, BindingEnv.empty)
+    ir = LowerArrayToStream(ir)
+    println(s"ENV ${args}\nir resulut: ${ir}")
+    TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
+    InferPType(if (HasIRSharing(ir)) ir.deepCopy() else ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
+
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
     Emit(ctx, ir, fb, Some(pAggSigs))
