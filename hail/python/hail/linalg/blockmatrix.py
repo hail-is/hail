@@ -1304,9 +1304,9 @@ class BlockMatrix(object):
 
     @typecheck_method(f=func_spec(2, expr_float64),
                       other=oneof(numeric, np.ndarray, block_matrix_type),
-                      reverse=bool,
-                      sparsity_strategy=str)
-    def _apply_map2(self, f, other, reverse=False, sparsity_strategy):
+                      sparsity_strategy=str,
+                      reverse=bool)
+    def _apply_map2(self, f, other, sparsity_strategy, reverse=False):
         if not isinstance(other, BlockMatrix):
             other = BlockMatrix(_to_bmir(other, self.block_size))
 
@@ -1384,19 +1384,19 @@ class BlockMatrix(object):
 
     @typecheck_method(b=numeric)
     def __radd__(self, b):
-        return self._apply_map2(BlockMatrix._binary_op('+'), b, reverse=True, sparsity_strategy="Union")
+        return self._apply_map2(BlockMatrix._binary_op('+'), b, sparsity_strategy="Union", reverse=True)
 
     @typecheck_method(b=numeric)
     def __rsub__(self, b):
-        return self._apply_map2(BlockMatrix._binary_op('-'), b, reverse=True, sparsity_strategy="Union")
+        return self._apply_map2(BlockMatrix._binary_op('-'), b, sparsity_strategy="Union", reverse=True)
 
     @typecheck_method(b=numeric)
     def __rmul__(self, b):
-        return self._apply_map2(BlockMatrix._binary_op('*'), b, reverse=True, sparsity_strategy="Intersection")
+        return self._apply_map2(BlockMatrix._binary_op('*'), b, sparsity_strategy="Intersection", reverse=True)
 
     @typecheck_method(b=numeric)
     def __rtruediv__(self, b):
-        return self._apply_map2(BlockMatrix._binary_op('/'), b, reverse=True, sparsity_strategy="NeedsDense")
+        return self._apply_map2(BlockMatrix._binary_op('/'), b, sparsity_strategy="NeedsDense", reverse=True)
 
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type))
     def __matmul__(self, b):
