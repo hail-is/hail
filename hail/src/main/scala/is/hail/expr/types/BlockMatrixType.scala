@@ -47,6 +47,19 @@ case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
       }
     }.getOrElse(BlockMatrixSparsity.dense)
   }
+  def allBlocks(nRowBlocks: Int, nColBlocks: Int): IndexedSeq[(Int, Int)] = {
+    val foo = Array.fill[(Int, Int)](nRowBlocks * nColBlocks)(null)
+    var i = 0
+    var j = 0
+    while (i < nRowBlocks) {
+      while (j < nColBlocks) {
+        foo(i * nColBlocks + j) = i -> j
+        j += 1
+      }
+      i += 1
+    }
+    foo
+  }
   override def toString: String =
     definedBlocks.map { blocks =>
       blocks.map { case (i, j) => s"($i,$j)" }.mkString("[", ",", "]")
@@ -115,6 +128,7 @@ case class BlockMatrixType(
   def hasBlock(idx: (Int, Int)): Boolean = {
     if (isSparse) sparsity.hasBlock(idx) else true
   }
+  def allBlocks: IndexedSeq[(Int, Int)] = sparsity.allBlocks(nRowBlocks, nColBlocks)
 
   override def pretty(sb: StringBuilder, indent0: Int, compact: Boolean): Unit = {
     var indent = indent0
