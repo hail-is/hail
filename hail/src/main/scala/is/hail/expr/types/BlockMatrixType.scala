@@ -63,6 +63,24 @@ case class BlockMatrixType(
     if (isSparse) blockSet.contains(idx) else true
   }
 
+  def condenseDefinedBlocks(blockOverlaps: => (Array[Array[Int]], Array[Array[Int]])): Option[IndexedSeq[(Int, Int)]] = {
+    definedBlocks.map { _ =>
+      val defined = new ArrayBuilder[(Int, Int)]()
+      val (ro, co) = blockOverlaps
+      var i = 0
+      var j = 0
+      while (i < ro.length) {
+        while (j < co.length) {
+          if (ro(i).exists { ii => co(j).exists { jj => exists(ii -> jj) } })
+            defined += i -> j
+          j += 1
+        }
+        i += 1
+      }
+      defined.result().toFastIndexedSeq
+    }
+  }
+
   override def pretty(sb: StringBuilder, indent0: Int, compact: Boolean): Unit = {
     var indent = indent0
 

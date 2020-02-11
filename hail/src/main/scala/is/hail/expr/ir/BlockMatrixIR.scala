@@ -565,18 +565,12 @@ case class BlockMatrixFilter(
     val IndexedSeq(nRows: Long, nCols: Long) = matrixShape.toFastIndexedSeq
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(nRows, nCols)
 
-    val sparsity = child.typ.definedBlocks.map { _ =>
+    val sparsity = child.typ.condenseDefinedBlocks {
       val nRowBlocks = BlockMatrixType.numBlocks(nRows, blockSize)
       val nColBlocks = BlockMatrixType.numBlocks(nCols, blockSize)
       val rows = if (keepRow.isEmpty) Array.tabulate(nRowBlocks)(i => Array(i)) else packOverlap(nRows, keepRow)
       val cols = if (keepCol.isEmpty) Array.tabulate(nColBlocks)(i => Array(i)) else packOverlap(nCols, keepCol)
-
-      Array.range(0, nRowBlocks).flatMap { i =>
-        Array.range(0, nColBlocks).flatMap { j =>
-          val exists = rows(i).exists(ii => cols(j).exists(jj => child.typ.exists(ii, jj)))
-          if (exists) Some(i -> j) else None
-        }
-      }.toFastIndexedSeq
+      rows -> cols
     }
     BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, blockSize, sparsity)
   }
@@ -691,29 +685,17 @@ case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[
       1 + (stop - start - 1) / step
     }
 
-    val sparsity = child.typ.definedBlocks.map { _ =>
-      val blockSize = child.typ.blockSize
-      val IndexedSeq(rowRanges, colRanges) = slices.map { case IndexedSeq(start, stop, step) =>
+    val sparsity = child.typ.condenseDefinedBlocks {
+      val IndexedSeq(rows, cols) = slices.map { case IndexedSeq(start, stop, step) =>
         val size = 1 + (stop - start - 1) / step
-        val nBlocks = BlockMatrixType.numBlocks(size, blockSize)
+        val nBlocks = BlockMatrixType.numBlocks(size, child.typ.blockSize)
         Array.tabulate(nBlocks) { blockIdx =>
-          val blockStart = start + blockIdx * blockSize * step
-          val blockEnd = java.lang.Math.min(start + ((blockIdx + 1) * blockSize - 1) * step, stop)
-          child.typ.getBlockIdx(blockStart) -> child.typ.getBlockIdx(blockEnd)
+          val blockStart = start + blockIdx * child.typ.blockSize * step
+          val blockEnd = java.lang.Math.min(start + ((blockIdx + 1) * child.typ.blockSize - 1) * step, stop)
+          Array.range(child.typ.getBlockIdx(blockStart), child.typ.getBlockIdx(blockEnd))
         }
       }
-      Array.range(0, rowRanges.length).flatMap { i =>
-        Array.range(0, colRanges.length).flatMap { j =>
-          val (rs, re) = rowRanges(i)
-          val (cs, ce) = colRanges(j)
-          val exists = Array.range(rs, re).exists { ii =>
-            Array.range(cs, ce).exists { jj =>
-              child.typ.exists(ii -> jj)
-            }
-          }
-          if (exists) Some(i -> j) else None
-        }
-      }.toFastIndexedSeq
+      rows -> cols
     }
 
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(matrixShape(0), matrixShape(1))
