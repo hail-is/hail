@@ -578,6 +578,7 @@ private class Emit(
           case DoubleInfo => sorter.sort(makeDependentSortingFunction[Double](compare, env))
         }
 
+        // we need to instantiate the elem
         val aout = emitArrayIterator(array)
 
         val processArrayElts = aout.arrayEmitterFromBuilder(vab)

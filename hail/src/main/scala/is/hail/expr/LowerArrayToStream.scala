@@ -6,8 +6,13 @@ object LowerArrayToStream {
   private def boundary(node: IR): IR = {
     var streamified = streamify(node)
 
-    if (streamified.typ.isInstanceOf[TStream])
+    if (streamified.typ.isInstanceOf[TStream] && node.typ.isInstanceOf[TArray]) {
+      println("Wrapping")
       streamified = ToArray(streamified)
+    }
+
+    if (streamified.typ.isInstanceOf[TArray] && node.typ.isInstanceOf[TStream])
+      streamified = ToStream(streamified)
     println(s"Streamified:\npre: ${node}:\npost:${streamified} \ntyp: ${streamified.typ} \nnode typ: ${node.typ}")
     assert(streamified.typ == node.typ)
     streamified
@@ -36,10 +41,13 @@ object LowerArrayToStream {
       case CollectDistributedArray(contextsIR, globalsIR, contextsName, globalsName, bodyIR) =>
         ToStream(CollectDistributedArray(streamify(contextsIR), boundary(globalsIR), contextsName, globalsName,  boundary(bodyIR)))
       case Let(name, value, body) => Let(name, boundary(value), streamify(body))
+      case ToDict(a) => ToDict(streamify(a))
+      case ToSet(a) => ToSet(streamify(a))
+      case ArraySort(a, leftName, rightName, compareIR) => ArraySort(streamify(a), leftName, rightName, boundary(compareIR))
       case ToArray(a) =>
         a.typ match {
-          case _: TStream => node
-          case _ => ToArray(streamify(a))
+          case _: TArray => ToStream(streamify(a))
+          case _ => ToStream(boundary(a))
         }
       case _ =>
         val newChildren = node.children.map(child => boundary(child.asInstanceOf[IR]))
@@ -58,7 +66,7 @@ object LowerArrayToStream {
 
   def apply(node: IR): IR = {
     println(s"\n\nStarting LowerArrayToStream with: \n${ node }\n")
-    val r = streamify(node)
+    val r = boundary(node)
     println(s"result of LowerArrayToStream is: ${r}\n\n")
     r
   }
