@@ -24,21 +24,23 @@ object BlockMatrixType {
   def numBlocks(n: Long, blockSize: Int): Int =
     java.lang.Math.floorDiv(n - 1, blockSize).toInt + 1
 
-  def sparsityFromLinearBlocks(nCols: Long, nRows: Long, blockSize: Int, definedBlocks: Option[Array[Int]]): Array[Array[Boolean]] = {
+  def getBlockIdx(i: Long, blockSize: Int): Int = java.lang.Math.floorDiv(i, blockSize).toInt
+
+  def sparsityFromLinearBlocks(nCols: Long, nRows: Long, blockSize: Int, definedBlocks: Option[Array[Int]]): IndexedSeq[IndexedSeq[Boolean]] = {
     val nColBlocks = numBlocks(nCols, blockSize)
     val nRowBlocks = numBlocks(nRows, blockSize)
 
     definedBlocks.map { blocks =>
       val idxs = blocks.map { linearIdx => java.lang.Math.floorDiv(linearIdx, nColBlocks) -> linearIdx % nColBlocks }.toSet
-      Array.tabulate(nRowBlocks)(i => Array.tabulate(nColBlocks)(j => idxs.contains(i -> j)))
-    }.getOrElse(Array.fill(nRowBlocks)(Array.fill(nColBlocks)(true)))
+      Array.tabulate(nRowBlocks)(i => Array.tabulate(nColBlocks)(j => idxs.contains(i -> j)).toFastIndexedSeq).toFastIndexedSeq
+    }.getOrElse(Array.fill(nRowBlocks)(Array.fill(nColBlocks)(true).toFastIndexedSeq).toFastIndexedSeq)
   }
 
   def dense(elementType: Type, nRows: Long, nCols: Long, blockSize: Int): BlockMatrixType = {
     val (shape, isRowVector) = matrixToTensorShape(nRows, nCols)
     val nRowBlocks = numBlocks(nRows, blockSize)
     val nColBlocks = numBlocks(nCols, blockSize)
-    BlockMatrixType(elementType, shape, isRowVector, blockSize, Array.fill(nRowBlocks)(Array.fill(nColBlocks)(true)))
+    BlockMatrixType(elementType, shape, isRowVector, blockSize, Array.fill(nRowBlocks)(Array.fill(nColBlocks)(true).toFastIndexedSeq).toFastIndexedSeq)
   }
 }
 
@@ -47,7 +49,7 @@ case class BlockMatrixType(
   shape: IndexedSeq[Long],
   isRowVector: Boolean,
   blockSize: Int,
-  definedBlocks: Array[Array[Boolean]]
+  definedBlocks: IndexedSeq[IndexedSeq[Boolean]]
 ) extends BaseType {
   assert(definedBlocks != null)
 

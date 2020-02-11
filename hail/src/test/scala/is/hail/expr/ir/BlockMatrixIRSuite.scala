@@ -90,9 +90,9 @@ class BlockMatrixIRSuite extends HailSuite {
     val vectorLiteral = MakeArray(Seq[F64](F64(1), F64(2), F64(3)), TArray(TFloat64()))
 
     val broadcastRowVector = BlockMatrixBroadcast(ValueToBlockMatrix(vectorLiteral, Array[Long](1, 3),
-      0), FastIndexedSeq(1), shape, 0)
+      0), FastIndexedSeq(1), shape, ones.blockSize)
     val broadcastColVector = BlockMatrixBroadcast(ValueToBlockMatrix(vectorLiteral, Array[Long](3, 1),
-      0), FastIndexedSeq(0), shape, 0)
+      0), FastIndexedSeq(0), shape, ones.blockSize)
 
     // Addition
     val actualOnesAddRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, Add(), UnionBlocks)
