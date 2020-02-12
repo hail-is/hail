@@ -296,6 +296,21 @@ async def on_cleanup(app):
     await dbpool.wait_closed()
 
 
+from aiohttp.abc import AbstractAccessLogger
+
+class AccessLogger(AbstractAccessLogger):
+# {"levelname": "INFO", "asctime": "2020-02-07 21:08:14,223", "filename": "web_log.py", "funcNameAndLine": "log:233", "message": "10.32.12.47 [07/Feb/2020:21:08:14 +0000] \"GET /api/v1alpha/userinfo HTTP/1.1\" 200 509 \"-\" \"Python/3.6 aiohttp/3.6.0\"", "remote_address": "10.32.12.47", "request_start_time": "[07/Feb/2020:21:08:14 +0000]", "first_request_line": "GET /api/v1alpha/userinfo HTTP/1.1", "response_status": 200, "response_size": 509, "request_header": {"Referer": "-", "User-Agent": "Python/3.6 aiohttp/3.6.0"}, "hail_log": 1}
+
+    def log(self, request, response, time):
+        self.logger.info(f'{request.method} {request.path} '
+                         f'done in {time}s: {response.status}',
+                         remote_address=request.remote,
+                         request_start_time=request.start_time,
+                         response_status=response.status,
+                         x_real_ip=request.cookies["X-Real-IP"]
+                         )
+
+
 def run():
     app = web.Application()
 
@@ -307,4 +322,7 @@ def run():
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    web.run_app(deploy_config.prefix_application(app, 'auth'), host='0.0.0.0', port=5000)
+    web.run_app(deploy_config.prefix_application(app, 'auth'),
+                host='0.0.0.0',
+                port=5000,
+                access_log_class=AccessLogger)
