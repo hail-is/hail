@@ -8,7 +8,7 @@ import is.hail.expr.types.virtual.TBoolean
 case object PBooleanOptional extends PBoolean(false)
 case object PBooleanRequired extends PBoolean(true)
 
-class PBoolean(override val required: Boolean) extends PType {
+class PBoolean(override val required: Boolean) extends PType with PPrimitive {
   lazy val virtualType: TBoolean = TBoolean(required)
 
   def _asIdent = "bool"
@@ -32,21 +32,6 @@ class PBoolean(override val required: Boolean) extends PType {
   }
 
   override def byteSize: Long = 1
-
-  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] =
-    Region.storeBoolean(dstAddress, Region.loadBoolean(srcAddress))
-
-  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) =
-    Region.storeBoolean(dstAddress, Region.loadBoolean(srcAddress))
-
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long =
-    srcAddress
-
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] =
-    srcAddress
-
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
-    stackValue
 }
 
 object PBoolean {
