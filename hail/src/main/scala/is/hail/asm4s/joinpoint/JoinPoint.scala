@@ -166,5 +166,5 @@ class JoinPointBuilder private[joinpoint](
     joinPoint(p.newLocals(mb))
 
   def joinPoint(): DefinableJoinPoint[Unit] =
-    joinPoint(ParameterStore.unit)
+    joinPoint(ParameterStoreUnit)
 }
