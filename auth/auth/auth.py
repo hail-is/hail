@@ -59,7 +59,7 @@ async def login(request, userdata):
         access_type='offline',
         include_granted_scopes='true')
 
-    session = await aiohttp_session.get_session(request)
+    session = await aiohttp_session.new_session(request)
     session['state'] = state
     session['next'] = next
 
