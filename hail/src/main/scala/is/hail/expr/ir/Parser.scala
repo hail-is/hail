@@ -808,6 +808,10 @@ object IRParser {
         val nd = ir_value_expr(env)(it)
         val shape = ir_value_expr(env)(it)
         NDArrayReshape(nd, shape)
+      case "NDArrayConcat" =>
+        val axis = int32_literal(it)
+        val nds = ir_value_expr(env)(it)
+        NDArrayConcat(nds, axis)
       case "NDArrayMap" =>
         val name = identifier(it)
         val nd = ir_value_expr(env)(it)

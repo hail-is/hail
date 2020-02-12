@@ -21,6 +21,7 @@ object Interpretable {
         _: MakeNDArray |
         _: NDArrayShape |
         _: NDArrayReshape |
+        _: NDArrayConcat |
         _: NDArrayRef |
         _: NDArraySlice |
         _: NDArrayMap |

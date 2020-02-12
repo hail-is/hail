@@ -18,6 +18,7 @@ object FoldConstants {
              _: MakeNDArray |
              _: NDArrayShape |
              _: NDArrayReshape |
+             _: NDArrayConcat |
              _: NDArraySlice |
              _: NDArrayMap |
              _: NDArrayMap2 |

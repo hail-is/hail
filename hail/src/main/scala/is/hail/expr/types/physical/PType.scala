@@ -235,6 +235,7 @@ abstract class PType extends Serializable with Requiredness {
         case t: PInterval => t.copy(required = required)
         case t: PStruct => t.copy(required = required)
         case t: PTuple => t.copy(required = required)
+        case t: PNDArray => t.copy(required = required)
       }
   }
 

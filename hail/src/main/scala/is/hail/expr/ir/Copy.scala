@@ -80,6 +80,9 @@ object Copy {
       case NDArrayReshape(_, _) =>
         assert(newChildren.length ==  2)
         NDArrayReshape(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
+      case NDArrayConcat(_, axis) =>
+        assert(newChildren.length ==  1)
+        NDArrayConcat(newChildren(0).asInstanceOf[IR], axis)
       case NDArrayRef(_, _) =>
         NDArrayRef(newChildren(0).asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]))
       case NDArraySlice(_, _) =>
