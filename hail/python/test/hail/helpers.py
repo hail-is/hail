@@ -85,7 +85,9 @@ def create_all_values():
         c=hl.call(0, 1),
         mc=hl.null(hl.tcall),
         t=hl.tuple([hl.call(1, 2, phased=True), 'foo', hl.null(hl.tstr)]),
-        mt=hl.null(hl.ttuple(hl.tlocus('GRCh37'), hl.tbool))
+        mt=hl.null(hl.ttuple(hl.tlocus('GRCh37'), hl.tbool)),
+        nd=hl.nd.array([[1, 2, 3], [4, 5, 6]]),
+        mnd=hl.null(hl.tndarray(hl.tfloat64, 2))
     )
 
 def prefix_struct(s, prefix):
