@@ -40,7 +40,7 @@ if role == 'Master':
         'setuptools',
         'mkl<2020',
         'lxml<5',
-        'google-cloud-storage==1.25.*'
+        'google-cloud-storage==1.25.*',
         'https://github.com/hail-is/jgscm/archive/v0.1.10-hail.zip',
         'ipykernel==4.10.*',
         'ipywidgets==7.4.*',
