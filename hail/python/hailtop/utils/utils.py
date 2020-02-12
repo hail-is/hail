@@ -6,6 +6,7 @@ import aiohttp
 from aiohttp import web
 import urllib3
 import socket
+import requests
 
 from .time import time_msecs
 
@@ -212,6 +213,8 @@ def is_transient_error(e):
                 e.errno == errno.ECONNRESET):
             return True
     elif isinstance(e, urllib3.exceptions.ReadTimeoutError):
+        return True
+    elif isinstance(e, requests.exceptions.ReadTimeout):
         return True
     elif isinstance(e, socket.timeout):
         return True

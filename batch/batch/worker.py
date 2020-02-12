@@ -287,12 +287,10 @@ class Container:
             log.info(f'{self}: container status {self.container_status}')
 
             async with self.step('uploading_log'):
-                container_log = await self.get_container_log()
-                self.log = container_log
                 await worker.log_store.write_log_file(
                     self.job.format_version, self.job.batch_id,
                     self.job.job_id, self.job.attempt_id, self.name,
-                    container_log)
+                    await self.get_container_log())
 
             async with self.step('deleting'):
                 await self.delete_container()
@@ -313,10 +311,11 @@ class Container:
 
     async def get_container_log(self):
         logs = await docker_call_retry(self.container.log, stderr=True, stdout=True)
-        return "".join(logs)
+        self.log = "".join(logs)
+        return self.log
 
     async def get_log(self):
-        if self.log:
+        if self.log is not None:
             return self.log
 
         if self.container:
@@ -849,8 +848,6 @@ class Worker:
     async def post_job_complete(self, job, run_duration):
         try:
             await self.post_job_complete_1(job, run_duration)
-        except Exception:
-            log.exception(f'error while marking {job} complete')
         finally:
             log.info(f'{job} marked complete, removing from jobs')
             if job.id in self.jobs:

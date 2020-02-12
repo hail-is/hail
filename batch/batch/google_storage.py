@@ -2,6 +2,7 @@ import logging
 import google.api_core.exceptions
 import google.oauth2.service_account
 import google.cloud.storage
+import google.api_core.exceptions
 from hailtop.utils import blocking_to_async, retry_transient_errors
 
 
@@ -89,10 +90,16 @@ class GCS:
         bucket, prefix = GCS._parse_uri(uri_prefix)
         bucket = self.gcs_client.bucket(bucket)
         for blob in bucket.list_blobs(prefix=prefix):
-            blob.delete()
+            try:
+                blob.delete()
+            except google.api_core.exceptions.NotFound:
+                continue
 
     def _delete_gs_file(self, uri):
         bucket, path = GCS._parse_uri(uri)
         bucket = self.gcs_client.bucket(bucket)
         f = bucket.blob(path)
-        f.delete()
+        try:
+            f.delete()
+        except google.api_core.exceptions.NotFound:
+            return
