@@ -27,15 +27,6 @@ object Pretty {
   def prettyClass(x: AnyRef): String =
     x.getClass.getName.split("\\.").last
 
-  def prettyBlockMatrixSparsifier(sparsifier: BlockMatrixSparsifier): (String, IR) = sparsifier match {
-    case x@BandSparsifier(blocksOnly, l, r) =>
-      s"(BandSparsifier ${ prettyBooleanLiteral(blocksOnly) })" -> Literal(x.typ, Row(l, r))
-    case x@RowIntervalSparsifier(blocksOnly, starts, stops) =>
-      s"(RowIntervalSparsifier ${ prettyBooleanLiteral(blocksOnly) })" -> Literal(x.typ, Row(starts, stops))
-    case x@RectangleSparsifier(rectangles) =>
-      s"(RectangleSparsifier)" -> Literal(x.typ, rectangles.flatten)
-  }
-
   val MAX_VALUES_TO_LOG: Int = 25
 
   def apply(ir: BaseIR, elideLiterals: Boolean = false, maxLen: Int = -1): String = {
@@ -335,7 +326,7 @@ object Pretty {
             case BlockMatrixFilter(_, indicesToKeepPerDim) =>
               indicesToKeepPerDim.map(indices => prettyLongs(indices)).mkString("(", " ", ")")
             case BlockMatrixSparsify(_, sparsifier) =>
-              prettyBlockMatrixSparsifier(sparsifier)
+              sparsifier.pretty()
             case BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
               seed.toString + " " +
               prettyBooleanLiteral(gaussian) + " " +
