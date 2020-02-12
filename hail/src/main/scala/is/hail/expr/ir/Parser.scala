@@ -1110,6 +1110,9 @@ object IRParser {
         val config = string_literal(it)
         val child = blockmatrix_ir(env)(it)
         BlockMatrixToValueApply(child, RelationalFunctions.lookupBlockMatrixToValue(config))
+      case "BlockMatrixCollect" =>
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixCollect(child)
       case "TableWrite" =>
         implicit val formats = TableWriter.formats
         val writerStr = string_literal(it)

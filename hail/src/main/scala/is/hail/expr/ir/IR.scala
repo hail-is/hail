@@ -420,6 +420,8 @@ final case class TableToValueApply(child: TableIR, function: TableToValueFunctio
 final case class MatrixToValueApply(child: MatrixIR, function: MatrixToValueFunction) extends IR
 final case class BlockMatrixToValueApply(child: BlockMatrixIR, function: BlockMatrixToValueFunction) extends IR
 
+final case class BlockMatrixCollect(child: BlockMatrixIR) extends NDArrayIR
+
 final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWriter) extends IR
 
 final case class BlockMatrixMultiWrite(blockMatrices: IndexedSeq[BlockMatrixIR], writer: BlockMatrixMultiWriter) extends IR

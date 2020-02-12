@@ -208,6 +208,7 @@ object InferType {
       case _: TableMultiWrite => TVoid
       case _: MatrixWrite => TVoid
       case _: MatrixMultiWrite => TVoid
+      case _: BlockMatrixCollect => TNDArray(TFloat64(), Nat(2))
       case _: BlockMatrixWrite => TVoid
       case _: BlockMatrixMultiWrite => TVoid
       case TableGetGlobals(child) => child.typ.globalType
