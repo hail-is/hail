@@ -6,12 +6,11 @@ object LowerArrayToStream {
   private def boundary(node: IR): IR = {
     var streamified = streamify(node)
 
-    if (streamified.typ.isInstanceOf[TStream] && node.typ.isInstanceOf[TArray]) {
-      println("Wrapping")
+    if (streamified.typ.isInstanceOf[TStream] && node.typ.isInstanceOf[TContainer]) {
       streamified = ToArray(streamified)
     }
 
-    if (streamified.typ.isInstanceOf[TArray] && node.typ.isInstanceOf[TStream])
+    if (streamified.typ.isInstanceOf[TContainer] && node.typ.isInstanceOf[TStream])
       streamified = ToStream(streamified)
 
     assert(streamified.typ == node.typ)
@@ -19,16 +18,16 @@ object LowerArrayToStream {
   }
 
   private def toStream(node: IR): IR = {
-    assert(node.typ.isInstanceOf[TStreamable])
+    // We cannot make a stronger assertion here. There are cases when the node must be allowed through
+    // even if it isn't TStreamable. For instance, Let nodes need to streamify some, but not all body
+    // Because let is accepted in both Emit and EmitStream
     node match {
       case _: ToStream => node
       case _ => {
-        if(node.typ.isInstanceOf[TContainer]) {
+        if(node.typ.isInstanceOf[TContainer])
           ToStream(node)
-        } else {
-          assert(node.typ.isInstanceOf[TStream])
+        else
           node
-        }
       }
     }
   }
@@ -55,10 +54,11 @@ object LowerArrayToStream {
       case x: ApplyIR => streamify(x.explicitNode)
       case CollectDistributedArray(contextsIR, globalsIR, contextsName, globalsName, bodyIR) =>
         CollectDistributedArray(toStream(streamify(contextsIR)), boundary(globalsIR), contextsName, globalsName,  boundary(bodyIR))
-      case Let(name, value, body) => Let(name, boundary(value), streamify(body))
+      case Let(name, value, body) => Let(name, boundary(value), toStream(streamify(body)))
       case ToDict(a) => ToDict(streamify(a))
       case ToSet(a) => ToSet(streamify(a))
-      case ArraySort(a, leftName, rightName, compareIR) => ArraySort(streamify(a), leftName, rightName, boundary(compareIR))
+      case ArraySort(a, leftName, rightName, compareIR) => ArraySort(toStream(streamify(a)), leftName, rightName, boundary(compareIR))
+      case GroupByKey(collection) => GroupByKey(toStream(streamify(collection)))
       case ToArray(a) =>
         a.typ match {
           case _: TArray => ToStream(streamify(a))
@@ -80,8 +80,9 @@ object LowerArrayToStream {
   }
 
   def apply(node: IR): IR = {
+    println(s"LowerArrayToStream: \npre: ${node}\n")
     val r = boundary(node)
-    println(s"LowerArrayToStream: \npre: ${node}\npost: ${r}")
+    println(s"LowerArrayToStream: \npost: ${r}")
     r
   }
 }
