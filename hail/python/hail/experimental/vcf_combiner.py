@@ -271,7 +271,8 @@ def calculate_new_intervals(ht, n, reference_genome='default'):
     assert list(ht.key) == ['locus']
     assert ht.locus.dtype == hl.tlocus(reference_genome=reference_genome)
     end = hl.Locus(reference_genome.contigs[-1],
-                   reference_genome.lengths[reference_genome.contigs[-1]])
+                   reference_genome.lengths[reference_genome.contigs[-1]],
+                   reference_genome=reference_genome)
 
     ht = ht.select()
     ht = ht.annotate(x=hl.scan.count())
@@ -337,7 +338,7 @@ def stage_one(paths, sample_names, tmp_path, intervals, header, out_path):
     """stage one of the combiner, responsible for importing gvcfs, transforming them
        into what the combiner expects, and writing intermediates."""
     def h(paths, sample_names, tmp_path, intervals, header, out_path, i, first):
-        vcfs = [transform_one(vcf)
+        vcfs = [transform_gvcf(vcf)
                 for vcf in hl.import_gvcfs(paths, intervals, array_elements_required=False,
                                            _external_header=header,
                                            _external_sample_ids=sample_names if header is not None else None)]
@@ -402,28 +403,33 @@ def drive_combiner(sample_map_path, intervals, out_file, tmp_path, header, overw
 
 def main():
     parser = argparse.ArgumentParser(description="Driver for hail's gVCF combiner")
-    parser.add_argument('sample-map',
-                        help='path to the sample map (must be filesystem local). '
+    parser.add_argument('sample_map',
+                        help='path to the sample map (must be readable by this script). '
                              'The sample map should be tab separated with two columns. '
                              'The first column is the sample ID, and the second column '
-                             'is the gVCF path.\n')
-    parser.add_argument('out-file', help='path to final combiner output')
-    parser.add_argument('--tmp-path', help='path to folder for temp output (can be a cloud bucket)',
+                             'is the gVCF path.')
+    parser.add_argument('out_file', help='path to final combiner output')
+    parser.add_argument('--tmp-path', help='path to folder for intermediate output (can be a cloud bucket)',
                         default='/tmp')
+    parser.add_argument('--log', help='path to hail log file',
+                        default='/hail-joint-caller-' + time.strftime('%Y%m%d-%H%M') + '.log')
     parser.add_argument('--header',
-                        help='external header, must be cloud based\n'
+                        help='external header, must be readable by all executors. '
                              'WARNING: if this option is used, the sample names in the '
-                             'gvcfs will be overriden by the names in sample map.',
+                             'gvcfs will be overridden by the names in sample map.',
                         required=False)
     parser.add_argument('--overwrite', help='overwrite the output path', action='store_true')
     args = parser.parse_args()
     hl.init(default_reference=DEFAULT_REF,
-            log='/hail-joint-caller-' + time.strftime('%Y%m%d-%H%M') + '.log')
+            log=args.log)
 
     # NOTE: This will need to be changed to support genomes as well
     intervals = default_exome_intervals()
     with open(args.sample_map) as sample_map:
         samples = [l.strip().split('\t') for l in sample_map]
+    if not args.overwrite and hl.utils.hadoop_exists(args.out_file):
+        raise FileExistsError(f"path '{args.out_file}' already exists, use --overwrite to overwrite this path")
+
     drive_combiner(samples, intervals, args.out_file, args.tmp_path, args.header, args.overwrite)
 
 
