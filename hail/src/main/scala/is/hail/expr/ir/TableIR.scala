@@ -727,10 +727,12 @@ case class TableIntervalJoin(
             it.map { case Muple(rv, is) =>
               rvb.set(rv.region)
               rvb.start(newRowType)
+              rvb.startStruct()
               rvb.addAllFields(leftRowType, rv)
               rvb.startArray(is.size)
               is.foreach(i => rvb.selectRegionValue(rightPType, rightRVDType.valueFieldIdx, i))
               rvb.endArray()
+              rvb.endStruct()
               rv2.set(rv.region, rvb.end())
 
               rv2
@@ -750,11 +752,13 @@ case class TableIntervalJoin(
             it.map { case Muple(rv, i) =>
               rvb.set(rv.region)
               rvb.start(newRowType)
+              rvb.startStruct()
               rvb.addAllFields(leftRowType, rv)
               if (i == null)
                 rvb.setMissing()
               else
                 rvb.selectRegionValue(rightPType, rightRVDType.valueFieldIdx, i)
+              rvb.endStruct()
               rv2.set(rv.region, rvb.end())
 
               rv2
