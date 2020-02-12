@@ -6,13 +6,14 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types.physical.{PArray, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.{MatrixType, TableType}
-import is.hail.io.{BufferSpec, TypedCodecSpec}
+import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, Encoder, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{AbstractRVDSpec, RVD, _}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
+import java.io.OutputStream
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
@@ -82,11 +83,9 @@ case class MatrixValue(
   def colsTableValue(ctx: ExecuteContext): TableValue =
     TableValue(typ.colsTableType, globals, colsRVD(ctx))
 
-  private def writeCols(fs: FS, path: String, bufferSpec: BufferSpec) {
+  private def writeCols(fs: FS, path: String, spec: AbstractTypedCodecSpec, enc: (OutputStream) => Encoder) {
     val ty = colValues.t.elementType.asInstanceOf[PStruct]
-    val codecSpec = TypedCodecSpec(ty, bufferSpec)
-    val encCols = codecSpec.buildEncoder(ty)
-    val partitionCounts = AbstractRVDSpec.writeSingle(encCols)(fs, path + "/rows", ty, codecSpec, colValues.javaValue)
+    val partitionCounts = AbstractRVDSpec.writeSingle(enc)(fs, path + "/rows", ty, spec, colValues.javaValue)
 
     val colsSpec = TableSpec(
       FileFormat.version.rep,
@@ -101,14 +100,14 @@ case class MatrixValue(
     fs.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
-  private def writeGlobals(fs: FS, path: String, bufferSpec: BufferSpec) {
-    val codecSpec = TypedCodecSpec(globals.t, bufferSpec)
-    val encGlobals = codecSpec.buildEncoder(globals.t)
-    val partitionCounts = AbstractRVDSpec.writeSingle(encGlobals)(fs, path + "/rows", globals.t, codecSpec, Array(globals.javaValue))
+  private def writeGlobals(
+    fs: FS, path: String,
+    spec: AbstractTypedCodecSpec, enc: (OutputStream) => Encoder,
+    nullSpec: AbstractTypedCodecSpec, encNull: (OutputStream) => Encoder
+  ) = {
+    val partitionCounts = AbstractRVDSpec.writeSingle(enc)(fs, path + "/rows", globals.t, spec, Array(globals.javaValue))
 
-    val nullCodecSpec = TypedCodecSpec(globals.t, bufferSpec)
-    val encNull = nullCodecSpec.buildEncoder(globals.t)
-    AbstractRVDSpec.writeSingle(encNull)(fs, path + "/globals", PStruct.empty(), nullCodecSpec, Array[Annotation](Row()))
+    AbstractRVDSpec.writeSingle(encNull)(fs, path + "/globals", PStruct.empty(), nullSpec, Array[Annotation](Row()))
 
     val globalsSpec = TableSpec(
       FileFormat.version.rep,
@@ -125,13 +124,13 @@ case class MatrixValue(
 
   private def finalizeWrite(
     fs: FS,
+    mgenc: MatrixGlobalsEncoder,
     path: String,
-    bufferSpec: BufferSpec,
     partitionCounts: Array[Long]
   ) = {
     val globalsPath = path + "/globals"
     fs.mkDir(globalsPath)
-    writeGlobals(fs, globalsPath, bufferSpec)
+    writeGlobals(fs, globalsPath, mgenc.globalsSpec, mgenc.encGlobals, mgenc.nullSpec, mgenc.encNull)
 
     val rowsSpec = TableSpec(
       FileFormat.version.rep,
@@ -157,8 +156,9 @@ case class MatrixValue(
 
     fs.writeTextFile(path + "/entries/_SUCCESS")(out => ())
 
-    fs.mkDir(path + "/cols")
-    writeCols(fs, path + "/cols", bufferSpec)
+    val colsPath = path + "/cols"
+    fs.mkDir(colsPath)
+    writeCols(fs, colsPath, mgenc.columnSpec, mgenc.encCols)
 
     val refPath = path + "/references"
     fs.mkDir(refPath)
@@ -220,7 +220,15 @@ case class MatrixValue(
 
     val partitionCounts = rvd.writeRowsSplit(path, bufferSpec, stageLocally, targetPartitioner)
 
-    finalizeWrite(fs, path, bufferSpec, partitionCounts)
+    val colType = colValues.t.elementType.asInstanceOf[PStruct]
+    val globalsSpec = TypedCodecSpec(globals.t, bufferSpec)
+    val colsSpec = TypedCodecSpec(colType, bufferSpec)
+    val nullSpec = TypedCodecSpec(PStruct.empty(), bufferSpec)
+    val mgenc = MatrixGlobalsEncoder(
+      globalsSpec.buildEncoder(globals.t), globalsSpec,
+      colsSpec.buildEncoder(colType), colsSpec,
+      nullSpec.buildEncoder(PStruct.empty()), nullSpec)
+    finalizeWrite(fs, mgenc, path, partitionCounts)
   }
 
   def colsRVD(ctx: ExecuteContext): RVD = {
@@ -301,6 +309,9 @@ object MatrixValue {
   ): Unit = {
     val first = mvs.head
     require(mvs.forall(_.typ == first.typ))
+    require(mvs.forall(_.rvRowPType == first.rvRowPType))
+    require(mvs.forall(_.globals.t == first.globals.t))
+    require(mvs.forall(_.colValues.t == first.colValues.t))
     val hc = HailContext.get
     val fs = hc.sFS
     val bufferSpec = BufferSpec.default
@@ -315,9 +326,17 @@ object MatrixValue {
       fs.mkDir(path)
     }
 
+    val colType = first.colValues.t.elementType.asInstanceOf[PStruct]
+    val globalsSpec = TypedCodecSpec(first.globals.t, bufferSpec)
+    val colsSpec = TypedCodecSpec(colType, bufferSpec)
+    val nullSpec = TypedCodecSpec(PStruct.empty(), bufferSpec)
+    val mgenc = MatrixGlobalsEncoder(
+      globalsSpec.buildEncoder(first.globals.t), globalsSpec,
+      colsSpec.buildEncoder(colType), colsSpec,
+      nullSpec.buildEncoder(PStruct.empty()), nullSpec)
     val partitionCounts = RVD.writeRowsSplitFiles(mvs.map(_.rvd), prefix, bufferSpec, stageLocally)
     for ((mv, path, partCounts) <- (mvs, paths, partitionCounts).zipped) {
-      mv.finalizeWrite(fs, path, bufferSpec, partCounts)
+      mv.finalizeWrite(fs, mgenc, path, partCounts)
     }
   }
 
@@ -346,3 +365,12 @@ object MatrixValue {
         rvd))
   }
 }
+
+case class MatrixGlobalsEncoder(
+  encGlobals: (OutputStream) => Encoder,
+  globalsSpec: AbstractTypedCodecSpec,
+  encCols: (OutputStream) => Encoder,
+  columnSpec: AbstractTypedCodecSpec,
+  encNull: (OutputStream) => Encoder,
+  nullSpec: AbstractTypedCodecSpec
+)
