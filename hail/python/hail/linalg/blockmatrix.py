@@ -1366,7 +1366,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map2(BlockMatrix._binary_op('*'), sparsity_strategy="Intersection")
+        return self._apply_map2(BlockMatrix._binary_op('*'), b, sparsity_strategy="Intersection")
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __truediv__(self, b):
