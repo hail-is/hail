@@ -181,6 +181,7 @@ object Children {
     case MatrixToValueApply(child, _) => Array(child)
     // from BlockMatrixIR
     case BlockMatrixToValueApply(child, _) => Array(child)
+    case BlockMatrixCollect(child) => Array(child)
     case BlockMatrixWrite(child, _) => Array(child)
     case BlockMatrixMultiWrite(blockMatrices, _) => blockMatrices
     case CollectDistributedArray(ctxs, globals, _, _, body) => Array(ctxs, globals, body)

@@ -283,6 +283,9 @@ object Copy {
       case BlockMatrixToValueApply(_, function) =>
         assert(newChildren.length == 1)
         BlockMatrixToValueApply(newChildren(0).asInstanceOf[BlockMatrixIR], function)
+      case BlockMatrixCollect(_) =>
+        assert(newChildren.length == 1)
+        BlockMatrixCollect(newChildren(0).asInstanceOf[BlockMatrixIR])
       case BlockMatrixWrite(_, writer) =>
         assert(newChildren.length == 1)
         BlockMatrixWrite(newChildren(0).asInstanceOf[BlockMatrixIR], writer)

@@ -2574,6 +2574,7 @@ class IRSuite extends HailSuite {
       MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(tmpDir.createLocalTempFile())),
       TableMultiWrite(Array(table, table), WrappedMatrixNativeMultiWriter(MatrixNativeMultiWriter(tmpDir.createLocalTempFile()), FastIndexedSeq("foo"))),
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count))),
+      BlockMatrixCollect(blockMatrix),
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
       CollectDistributedArray(ArrayRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32())),
