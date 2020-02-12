@@ -12,6 +12,7 @@ import is.hail.rvd.{AbstractRVDSpec, RVDType}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+import org.apache.spark.sql.Row
 import org.json4s.Formats
 import org.json4s.jackson.{JsonMethods, Serialization}
 
@@ -1523,20 +1524,43 @@ object IRParser {
     }
   }
 
-  def blockmatrix_sparsifier(it: TokenIterator): BlockMatrixSparsifier = {
+  def blockmatrix_sparsifier(env: IRParserEnvironment)(it: TokenIterator): BlockMatrixSparsifier = {
     punctuation(it, "(")
-    val s = identifier(it) match {
+    identifier(it) match {
+      case "PyRowIntervalSparsifier" =>
+        val blocksOnly = boolean_literal(it)
+        punctuation(it, ")")
+        val Row(starts: IndexedSeq[Long], stops: IndexedSeq[Long]) =
+          ExecuteContext.scoped { ctx => CompileAndEvaluate(ctx, ir_value_expr(env)(it)) }
+        RowIntervalSparsifier(blocksOnly, starts, stops)
+      case "PyBandSparsifier" =>
+        val blocksOnly = boolean_literal(it)
+        punctuation(it, ")")
+        val Row(l: Long, u: Long) =
+          ExecuteContext.scoped { ctx => CompileAndEvaluate(ctx, ir_value_expr(env)(it)) }
+        BandSparsifier(blocksOnly, l, u)
+      case "PyRectangleSparsifier" =>
+        punctuation(it, ")")
+        val rectangles: IndexedSeq[Long] =
+          ExecuteContext.scoped { ctx => CompileAndEvaluate(ctx, ir_value_expr(env)(it)) }
+        RectangleSparsifier(rectangles.grouped(4).toIndexedSeq)
       case "RowIntervalSparsifier" =>
         val blocksOnly = boolean_literal(it)
-        RowIntervalSparsifier(blocksOnly)
+        val starts = int64_literals(it)
+        val stops = int64_literals(it)
+        punctuation(it, ")")
+        RowIntervalSparsifier(blocksOnly, starts, stops)
       case "BandSparsifier" =>
         val blocksOnly = boolean_literal(it)
-        BandSparsifier(blocksOnly)
+        val l = int64_literal(it)
+        val u = int64_literal(it)
+        punctuation(it, ")")
+        BandSparsifier(blocksOnly, l, u)
       case "RectangleSparsifier" =>
-        RectangleSparsifier
+        val rectangles = int64_literals(it)
+        punctuation(it, ")")
+        RectangleSparsifier(rectangles.grouped(4).toIndexedSeq)
     }
-    punctuation(it, ")")
-    s
   }
 
   def blockmatrix_ir(env: IRParserEnvironment)(it: TokenIterator): BlockMatrixIR = {
@@ -1589,10 +1613,9 @@ object IRParser {
         val child = blockmatrix_ir(env)(it)
         BlockMatrixDensify(child)
       case "BlockMatrixSparsify" =>
-        val sparsifier = blockmatrix_sparsifier(it)
+        val sparsifier = blockmatrix_sparsifier(env)(it)
         val child = blockmatrix_ir(env)(it)
-        val value = ir_value_expr(env)(it)
-        BlockMatrixSparsify(child, value, sparsifier)
+        BlockMatrixSparsify(child, sparsifier)
       case "BlockMatrixSlice" =>
         val slices = literals(literals(int64_literal))(it)
         val child = blockmatrix_ir(env)(it)

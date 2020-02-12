@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.expr.types.{BlockMatrixSparsity, BlockMatrixType}
-import is.hail.expr.types.virtual.{TArray, TBaseStruct, TFloat64, TInt64, Type}
+import is.hail.expr.types.virtual.{TArray, TBaseStruct, TFloat64, TInt64, TTuple, Type}
 import is.hail.linalg.BlockMatrix
 import is.hail.utils._
 import breeze.linalg
@@ -594,21 +594,16 @@ case class BlockMatrixDensify(child: BlockMatrixIR) extends BlockMatrixIR {
 }
 
 sealed abstract class BlockMatrixSparsifier {
-  def typecheck(typ: Type): Unit
-  def definedBlocks(childType: BlockMatrixType, value: Any): BlockMatrixSparsity
-  def sparsify(bm: BlockMatrix, value: Any): BlockMatrix
+  def typ: Type
+  def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity
+  def sparsify(bm: BlockMatrix): BlockMatrix
+  def pretty(): String
 }
 
 //lower <= j - i <= upper
-case class BandSparsifier(blocksOnly: Boolean) extends BlockMatrixSparsifier {
-  def typecheck(typ: Type): Unit = {
-    val sTyp = coerce[TBaseStruct](typ)
-    val Array(start, stop) = sTyp.types
-    assert(start.isOfType(TInt64()))
-    assert(stop.isOfType(TInt64()))
-  }
-  def definedBlocks(childType: BlockMatrixType, value: Any): BlockMatrixSparsity = {
-    val Row(l: Long, u: Long) = value
+case class BandSparsifier(blocksOnly: Boolean, l: Long, u: Long) extends BlockMatrixSparsifier {
+  val typ: Type = TTuple(TInt64(), TInt64())
+  def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
     val leftBuffer = java.lang.Math.floorDiv(-l, childType.blockSize)
     val rightBuffer = java.lang.Math.floorDiv(u, childType.blockSize)
 
@@ -617,23 +612,18 @@ case class BandSparsifier(blocksOnly: Boolean) extends BlockMatrixSparsifier {
     }
   }
 
-  def sparsify(bm: BlockMatrix, value: Any): BlockMatrix = {
-    val Row(l: Long, u: Long) = value
+  def sparsify(bm: BlockMatrix): BlockMatrix = {
     bm.filterBand(l, u, blocksOnly)
   }
+  def pretty(): String =
+    s"(BandSparsifier ${Pretty.prettyBooleanLiteral(blocksOnly)} $l $u)"
 }
 
 // interval per row, [start, end)
-case class RowIntervalSparsifier(blocksOnly: Boolean) extends BlockMatrixSparsifier {
-  def typecheck(typ: Type): Unit = {
-    val sTyp = coerce[TBaseStruct](typ)
-    val Array(start, stop) = sTyp.types
-    assert(start.isOfType(TArray(TInt64())))
-    assert(stop.isOfType(TArray(TInt64())))
-  }
+case class RowIntervalSparsifier(blocksOnly: Boolean, starts: IndexedSeq[Long], stops: IndexedSeq[Long]) extends BlockMatrixSparsifier {
+  val typ: Type = TTuple(TArray(TInt64()), TArray(TInt64()))
 
-  def definedBlocks(childType: BlockMatrixType, value: Any): BlockMatrixSparsity = {
-    val Row(starts: IndexedSeq[Long @unchecked], stops: IndexedSeq[Long @unchecked]) = value
+  def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
     val blockStarts = starts.grouped(childType.blockSize).map(idxs => childType.getBlockIdx(idxs.min)).toArray
     val blockStops = stops.grouped(childType.blockSize).map(idxs => childType.getBlockIdx(idxs.max - 1)).toArray
 
@@ -642,21 +632,19 @@ case class RowIntervalSparsifier(blocksOnly: Boolean) extends BlockMatrixSparsif
     }
   }
 
-  def sparsify(bm: BlockMatrix, value: Any): BlockMatrix = {
-    val Row(starts: IndexedSeq[Long @unchecked], stops: IndexedSeq[Long @unchecked]) = value
+  def sparsify(bm: BlockMatrix): BlockMatrix = {
     bm.filterRowIntervals(starts.toArray, stops.toArray, blocksOnly)
   }
+
+  def pretty(): String =
+    s"(RowIntervalSparsifier ${ Pretty.prettyBooleanLiteral(blocksOnly) } ${ starts.mkString("(", " ", ")") } ${ stops.mkString("(", " ", ")") })"
 }
 
 //rectangle, starts/ends inclusive
-case object RectangleSparsifier extends BlockMatrixSparsifier {
-  def typecheck(typ: Type): Unit = {
-    assert(typ.isOfType(TArray(TInt64())))
-  }
+case class RectangleSparsifier(rectangles: IndexedSeq[IndexedSeq[Long]]) extends BlockMatrixSparsifier {
+  val typ: Type = TArray(TInt64())
 
-  def definedBlocks(childType: BlockMatrixType, value: Any): BlockMatrixSparsity = {
-    val rectangles: IndexedSeq[IndexedSeq[Long]] = value.asInstanceOf[IndexedSeq[Long]].grouped(4).toArray
-
+  def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
     val definedBlocks = rectangles.flatMap { case IndexedSeq(rowStart, rowEnd, colStart, colEnd) =>
       val rs = childType.getBlockIdx(java.lang.Math.max(rowStart, 0))
       val re = childType.getBlockIdx(java.lang.Math.min(rowEnd, childType.nRows))
@@ -672,38 +660,32 @@ case object RectangleSparsifier extends BlockMatrixSparsifier {
     BlockMatrixSparsity(definedBlocks)
   }
 
-  def sparsify(bm: BlockMatrix, value: Any): BlockMatrix = {
-    val rectangles: IndexedSeq[Long] = value.asInstanceOf[IndexedSeq[Long]]
-    bm.filterRectangles(rectangles.toArray)
+  def sparsify(bm: BlockMatrix): BlockMatrix = {
+    bm.filterRectangles(rectangles.flatten.toArray)
   }
+
+  def pretty(): String =
+    s"(RectangleSparsifier ${ rectangles.flatten.mkString("(", " ", ")") })"
 }
 
 case class BlockMatrixSparsify(
   child: BlockMatrixIR,
-  value: IR,
   sparsifier: BlockMatrixSparsifier
 ) extends BlockMatrixIR {
 
-  //FIXME: We should probably stop generating IR for the value; as discussed,
-  // it's unhelpful for compile-time evaluation.
-  lazy val sparsityValue: Any = ExecuteContext.scoped { ctx =>
-    CompileAndEvaluate[Any](ctx, value, optimize = true)
-  }
-
-  def typ: BlockMatrixType = child.typ.copy(sparsity=sparsifier.definedBlocks(child.typ, sparsityValue))
-  sparsifier.typecheck(value.typ)
+  def typ: BlockMatrixType = child.typ.copy(sparsity=sparsifier.definedBlocks(child.typ))
 
   def blockCostIsLinear: Boolean = child.blockCostIsLinear
 
-  val children: IndexedSeq[BaseIR] = Array(child, value)
+  val children: IndexedSeq[BaseIR] = Array(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR = {
-    val IndexedSeq(newChild: BlockMatrixIR, newValue: IR) = newChildren
-    BlockMatrixSparsify(newChild, newValue, sparsifier)
+    val IndexedSeq(newChild: BlockMatrixIR) = newChildren
+    BlockMatrixSparsify(newChild, sparsifier)
   }
 
   override def execute(ctx: ExecuteContext): BlockMatrix =
-    sparsifier.sparsify(child.execute(ctx), sparsityValue)
+    sparsifier.sparsify(child.execute(ctx))
 }
 
 case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[Long]]) extends BlockMatrixIR {

@@ -2806,14 +2806,9 @@ class IRSuite extends HailSuite {
     val dot = BlockMatrixDot(read, transpose)
     val slice = BlockMatrixSlice(read, FastIndexedSeq(FastIndexedSeq(0, 2, 1), FastIndexedSeq(0, 1, 1)))
 
-    val rectangle = Literal(TArray(TInt64()), FastIndexedSeq(0L, 1L, 5L, 6L))
-    val band = Literal(TTuple(TInt64(), TInt64()), Row(-1L, 1L))
-    val intervals = Literal(TTuple(TArray(TInt64()), TArray(TInt64())),
-      Row(FastIndexedSeq(0L, 1L, 5L, 6L), FastIndexedSeq(5L, 6L, 8L, 9L)))
-
-    val sparsify1 = BlockMatrixSparsify(read, rectangle, RectangleSparsifier)
-    val sparsify2 = BlockMatrixSparsify(read, band, BandSparsifier(true))
-    val sparsify3 = BlockMatrixSparsify(read, intervals, RowIntervalSparsifier(true))
+    val sparsify1 = BlockMatrixSparsify(read, RectangleSparsifier(FastIndexedSeq(0L, 1L, 5L, 6L).grouped(4)))
+    val sparsify2 = BlockMatrixSparsify(read, BandSparsifier(true, -1L, 1L))
+    val sparsify3 = BlockMatrixSparsify(read, RowIntervalSparsifier(true, FastIndexedSeq(0L, 1L, 5L, 6L), FastIndexedSeq(5L, 6L, 8L, 9L)))
     val densify = BlockMatrixDensify(read)
 
     val blockMatrixIRs = Array[BlockMatrixIR](read,
