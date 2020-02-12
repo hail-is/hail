@@ -32,7 +32,7 @@ abstract class ComplexPType extends PType {
   }
 
   def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
-    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], forceDeep)
+    this.representation.copyFromTypeAndStackValue(mb, region, srcPType.asInstanceOf[ComplexPType].representation, stackValue, forceDeep)
 
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = {
     assert(this isOfType srcPType)
