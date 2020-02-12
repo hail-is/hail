@@ -1978,10 +1978,10 @@ class IRSuite extends HailSuite {
     assertNDEvals(NDArrayConcat(nds(nd1, colwise, emptyColwise), 1), colwiseExpected)
     assertNDEvals(NDArrayConcat(nds(nd1, emptyColwise, colwise), 1), colwiseExpected)
 
-    // FIXME: These are changing type during PruneDeadFields for some reason...
+    // FIXME: This is changing type during PruneDeadFields for some reason...
 //    assertNDEvals(NDArrayConcat(nds(nd1, na), 1), null)
-//    assertNDEvals(NDArrayConcat(nds(na, na), 1), null)
-//    assertNDEvals(NDArrayConcat(NA(TArray(TNDArray(TInt32(), Nat(2)))), 1), null)
+    assertNDEvals(NDArrayConcat(nds(na, na), 1), null)
+    assertNDEvals(NDArrayConcat(NA(TArray(TNDArray(TInt32(), Nat(2)))), 1), null)
   }
 
   @Test def testNDArrayMap() {

@@ -32,6 +32,8 @@ abstract class PNDArray extends PType {
 
   val representation: PStruct
 
+  def copy(elementType: PType = this.elementType, nDims: Int = this.nDims, required: Boolean = this.required): PNDArray
+
   def dimensionLength(off: Code[Long], idx: Int): Code[Long] = {
     Region.loadLong(shape.pType.fieldOffset(shape.load(off), idx))
   }

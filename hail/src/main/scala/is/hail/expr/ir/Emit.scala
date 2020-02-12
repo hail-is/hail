@@ -2141,12 +2141,12 @@ private class Emit(
         val loadAndValidateArray = Code(
           inputArray := codeNDs.value[Long],
           n := inputType.loadLength(inputArray),
-          (n < 1).orEmpty(Code._fatal("need at least 1 array to concatenate")))
+          (n < 1).orEmpty(Code._fatal("NDArrayConcat: can't concatenate 0 NDArrays")))
 
         val (missingSetup: Code[Unit @unchecked], missing: Code[Boolean @unchecked], setupShape: Code[Unit @unchecked]) = (inputType.required, inputNDType.required) match {
           case (true, true) => (Code._empty, const(false), Code(
             codeNDs.setup,
-            codeNDs.m.orEmpty(Code._fatal("required NDArray can't be missing")),
+            codeNDs.m.orEmpty(Code._fatal("NDArrayConcat: required NDArray can't be missing")),
             loadAndValidateArray))
           case (false, true) => (codeNDs.setup, codeNDs.m, loadAndValidateArray)
           case _ =>
@@ -2164,23 +2164,22 @@ private class Emit(
 
         val localDim = mb.newField[Long]
         val outputShape = Array.tabulate(ndType.nDims) { idx =>
-          if (idx == axis) {
-            Code(
-              localDim := inputNDType.dimensionLength(inputType.loadElement(inputArray, 0), idx),
-              i := 1,
-              Code.whileLoop(i < n,
-                localDim := localDim + inputNDType.dimensionLength(inputType.loadElement(inputArray, i), idx),
-                i := i + 1),
-              localDim)
-          } else {
-            Code(
-              localDim := inputNDType.dimensionLength(inputType.loadElement(inputArray, 0), idx),
-              i := 1,
-              Code.whileLoop(i < n,
-                inputNDType.dimensionLength(inputType.loadElement(inputArray, i), idx).cne(localDim).orEmpty(Code._fatal("mismatched dims")),
-                i := i + 1),
-              localDim)
-          }
+          Code(
+            localDim := inputNDType.dimensionLength(inputType.loadElement(inputArray, 0), idx),
+            i := 1,
+            Code.whileLoop(i < n,
+              {
+                if (idx == axis)
+                  localDim := localDim + inputNDType.dimensionLength(inputType.loadElement(inputArray, i), idx)
+                else
+                  inputNDType.dimensionLength(inputType.loadElement(inputArray, i), idx).cne(localDim)
+                    .orEmpty(Code._fatal(
+                      const(s"NDArrayConcat: mismatched dimensions of input NDArrays along axis $i: expected ")
+                        .concat(localDim.toS).concat(", got ")
+                        .concat(inputNDType.dimensionLength(inputType.loadElement(inputArray, i), idx).toS)))
+              },
+              i := i + 1),
+            localDim)
         }
 
         new NDArrayEmitter(mb, x.typ.nDims,
@@ -2190,20 +2189,20 @@ private class Emit(
           setupShape,
           missingSetup,
           missing) {
-          private val foo = mb.newLocal[Long]
+          private val concatAxisIdx = mb.newLocal[Long]
 
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
             val setupTransformedIdx = Code(
               i := 0,
-              foo := idxVars(axis),
-              Code.whileLoop(foo >= inputNDType.dimensionLength(inputType.loadElement(inputArray, i), axis),
-                foo := foo - inputNDType.dimensionLength(inputType.loadElement(inputArray, i), axis),
+              concatAxisIdx := idxVars(axis),
+              Code.whileLoop(concatAxisIdx >= inputNDType.dimensionLength(inputType.loadElement(inputArray, i), axis),
+                concatAxisIdx := concatAxisIdx - inputNDType.dimensionLength(inputType.loadElement(inputArray, i), axis),
                 i := i + 1
               ),
-              (i > n).orEmpty(Code._fatal("can't get correct shape")))
+              (i > n).orEmpty(Code._fatal("NDArrayConcat: trying to access element greater than length of concatenation axis")))
 
             val transformedIdxs = Array.tabulate(x.typ.nDims) { idx =>
-              if (idx == axis) foo.load() else idxVars(idx)
+              if (idx == axis) concatAxisIdx.load() else idxVars(idx)
             }
             Code(
               setupTransformedIdx,
