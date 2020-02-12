@@ -21,11 +21,10 @@ def setup(path):
 
 
 @benchmark(args=empty_gvcf.handle())
-def compile_10k_merge(path):
+def compile_2k_merge(path):
     vcf = setup(path)
-    vcfs = [vcf] * MAX_TO_COMBINE
-    mts = [comb.transform_gvcf(vcf) for vcf in vcfs]
-    combined = [comb.combine_gvcfs(mts) for mts in chunks(mts, COMBINE_GVCF_MAX)]
+    vcfs = [comb.transform_gvcf(vcf)] * COMBINE_GVCF_MAX
+    combined = [comb.combine_gvcfs(vcfs)] * 20
     with TemporaryDirectory() as tmpdir:
         hl.experimental.write_matrix_tables(combined, os.path.join(tmpdir, 'combiner-multi-write'), overwrite=True)
 
