@@ -411,12 +411,12 @@ case class BlockMatrixBroadcast(
         inIndexExpr match {
           case IndexedSeq() => BlockMatrixSparsity.dense
           case IndexedSeq(0) => // broadcast col vector
-            BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(0, j))
+            BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(0 -> j))
           case IndexedSeq(1) => // broadcast row vector
-            BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(i, 0))
+            BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(i -> 0))
           case IndexedSeq(1, 0) => // transpose
             assert(child.typ.blockSize == blockSize)
-            BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(j, i))
+            BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(j -> i))
           case IndexedSeq(0, 1) =>
             assert(child.typ.blockSize == blockSize)
             child.typ.sparsity

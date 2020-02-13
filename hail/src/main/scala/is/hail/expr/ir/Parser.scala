@@ -1530,7 +1530,7 @@ object IRParser {
       case "PyRowIntervalSparsifier" =>
         val blocksOnly = boolean_literal(it)
         punctuation(it, ")")
-        val Row(starts: IndexedSeq[Long], stops: IndexedSeq[Long]) =
+        val Row(starts: IndexedSeq[Long @unchecked], stops: IndexedSeq[Long @unchecked]) =
           ExecuteContext.scoped { ctx => CompileAndEvaluate(ctx, ir_value_expr(env)(it)) }
         RowIntervalSparsifier(blocksOnly, starts, stops)
       case "PyBandSparsifier" =>
@@ -1557,7 +1557,7 @@ object IRParser {
         punctuation(it, ")")
         BandSparsifier(blocksOnly, l, u)
       case "RectangleSparsifier" =>
-        val rectangles = int64_literals(it)
+        val rectangles = int64_literals(it).toFastIndexedSeq
         punctuation(it, ")")
         RectangleSparsifier(rectangles.grouped(4).toIndexedSeq)
     }
