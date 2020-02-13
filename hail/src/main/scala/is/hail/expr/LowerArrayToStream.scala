@@ -6,13 +6,28 @@ object LowerArrayToStream {
   private def boundary(node: IR): IR = {
     var streamified = streamify(node)
 
-    if (streamified.typ.isInstanceOf[TStream] && node.typ.isInstanceOf[TContainer]) {
-      streamified = ToArray(streamified)
+    if (node.typ.isInstanceOf[TContainer] && !streamified.typ.isInstanceOf[TContainer]) {
+      streamified =  streamified match {
+        case ToStream(a) => a
+        case _ => {
+          // when ndoe derives its type from one of its children
+          if(node.typ.isInstanceOf[TArray]) {
+            ToArray(streamified)
+          } else {
+            streamified
+          }
+        }
+      }
+    } else if (node.typ.isInstanceOf[TStream] && !streamified.typ.isInstanceOf[TStream]) {
+      streamified =  streamified match {
+        case ToArray(a) => toStream(a)
+        case _ => toStream(streamified)
+      }
     }
 
-    if (streamified.typ.isInstanceOf[TContainer] && node.typ.isInstanceOf[TStream])
-      streamified = ToStream(streamified)
-
+    if(streamified.typ != node.typ) {
+      println(s"Fuck: \n\nstreamified:${streamified.typ}\n\nnode:${node.typ} for nodes \n\nstreamified:${streamified}\n\nnode: ${node}")
+    }
     assert(streamified.typ == node.typ)
     streamified
   }
@@ -51,7 +66,10 @@ object LowerArrayToStream {
       case ArrayScan(a, zero, zn, an, body) => ArrayScan(toStream(streamify(a)), boundary(zero), zn, an, boundary(body))
       case ArrayLeftJoinDistinct(l, r, ln, rn, keyf, joinf) =>
         ArrayLeftJoinDistinct(streamify(l), streamify(r), ln, rn, boundary(keyf), boundary(joinf))
-      case x: ApplyIR => streamify(x.explicitNode)
+      case x: ApplyIR => {
+        println(s"IN APPLY IR FOR ${x}")
+        streamify(x.explicitNode)
+      }
       case CollectDistributedArray(contextsIR, globalsIR, contextsName, globalsName, bodyIR) =>
         CollectDistributedArray(toStream(streamify(contextsIR)), boundary(globalsIR), contextsName, globalsName,  boundary(bodyIR))
       case Let(name, value, body) => Let(name, boundary(value), toStream(streamify(body)))
@@ -64,6 +82,8 @@ object LowerArrayToStream {
           case _: TArray => ToStream(streamify(a))
           case _ => ToStream(boundary(a))
         }
+      case If(condIR, thenIR, elseIR) =>
+        If(boundary(condIR), toStream(streamify(thenIR)), toStream(streamify(elseIR)))
       case _ =>
         val newChildren = node.children.map(child => boundary(child.asInstanceOf[IR]))
         val x = if ((node.children, newChildren).zipped.forall(_ eq _))
