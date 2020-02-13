@@ -21,3 +21,6 @@ AUTHORIZED_USERS = {
     'gsarma',
     'mkveerapen'
 }
+
+RETRY_FUNCTION_SCRIPT = """
+"""

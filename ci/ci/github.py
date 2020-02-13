@@ -9,7 +9,7 @@ import gidgethub
 import zulip
 
 from hailtop.config import get_deploy_config
-from hailtop.utils import check_shell, check_shell_output
+from hailtop.utils import check_shell, check_shell_output, RETRY_FUNCTION_SCRIPT
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
 from .build import BuildConfiguration, Code
 from .globals import is_test_deployment
@@ -133,11 +133,8 @@ DO_NOT_MERGE = {STACKED_PR, WIP}
 
 
 def clone_or_fetch_script(repo):
-    return """function retry() {{
-    "$@" ||
-        (sleep 2 && "$@") ||
-        (sleep 5 && "$@")
-}}
+    return """
+{ RETRY_FUNCTION_SCRIPT }
 
 function clone() {{
     dir=$(mktemp -d)

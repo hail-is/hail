@@ -10,6 +10,13 @@ from .time import time_msecs
 log = logging.getLogger('hailtop.utils')
 
 
+RETRY_FUNCTION_SCRIPT = """function retry() {
+    "$@" ||
+        (sleep 2 && "$@") ||
+        (sleep 5 && "$@")
+}"""
+
+
 def grouped(n, ls):
     while len(ls) != 0:
         group = ls[:n]
