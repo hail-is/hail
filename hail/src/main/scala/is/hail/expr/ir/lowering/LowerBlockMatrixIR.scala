@@ -8,21 +8,25 @@ import is.hail.utils.FastIndexedSeq
 case class BlockMatrixStage(
   ctxRef: Ref,
   blockContexts: Map[(Int, Int), IR],
-  broadcastVals: Map[String, IR], //needed for relational lets
+  globalVals: Array[(String, IR)], //needed for relational lets
   body: IR) {
   def ctxName: String = ctxRef.name
   def ctxType: Type = ctxRef.typ
   def toIR(bodyTransform: IR => IR, ordering: Option[Array[(Int, Int)]]): IR = {
-    val bc = MakeStruct(broadcastVals.toArray)
-    val bcRef = Ref(genUID(), bc.typ)
-    val ctxs = ordering.map { idxs =>
-      idxs.map { case (i, j) => blockContexts(i -> j) }
-    }.getOrElse { blockContexts.values.toArray }
-    val bcFields = coerce[TStruct](bc.typ).fieldNames
-    val wrappedBody = bcFields.foldLeft(bodyTransform(body)) { (accum, f) =>
+    val ctxs = MakeArray(
+      ordering.map(idxs => idxs.map(blockContexts(_)))
+        .getOrElse(blockContexts.values.toArray),
+      TArray(ctxRef.typ))
+
+    val blockResult = bodyTransform(body)
+    val bcFields = globalVals.filter { case (f, _) => Mentions(blockResult, f) }
+    val bcVals = MakeStruct(bcFields.map { case (f, v) => f -> Ref(f, v.typ) })
+    val bcRef = Ref(genUID(), bcVals.typ)
+    val wrappedBody = bcFields.foldLeft(blockResult) { case (accum, (f, _)) =>
       Let(f, GetField(bcRef, f), accum)
     }
-    CollectDistributedArray(MakeArray(ctxs, TArray(ctxRef.typ)), bc, ctxRef.name, bcRef.name, wrappedBody)
+    val collect = CollectDistributedArray(ctxs, bcVals, ctxRef.name, bcRef.name, wrappedBody)
+    globalVals.foldRight[IR](collect) { case ((f, v), accum) => Let(f, v, accum) }
   }
 }
 
@@ -99,7 +103,7 @@ object LowerBlockMatrixIR {
       BlockMatrixStage(
         ctxRef,
         newContexts,
-        left.broadcastVals ++ right.broadcastVals,
+        left.globalVals ++ right.globalVals,
         newBody)
   }
 }

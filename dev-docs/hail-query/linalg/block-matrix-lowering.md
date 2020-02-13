@@ -11,27 +11,26 @@ necessary for the block-level computation.
 
 - ctxRef: a handle for referring to the context
 - blockContexts: sparse map of contexts for each block
-- broadcastVals: map of (named) values that are shared across each context
+- globalVals: sequence of (named) values that are shared across each context
 - body: IR: tranformation of the block context that yields the matrix value of each block
 
-## Broadcast values
+## Global values
 
 If a value is needed in the body of the computation, such as with a relational 
-Let, it should generally be included as a broadcast value.
+Let, it should generally be included as a global value.
 
-Broadcast values are named for ease of reference; all names should be unique.
+Global values are named for ease of reference; all names should be unique.
 
-Since the broadcast values are stored as an unordered map, there is no way to 
-reference other previously defined broadcast values in a new broadcast 
-definition. The current structure of the BlockMatrixIR means that it is 
-unlikely to be necessary.
+Since global values are stored as an ordered array, previously-defined global 
+values can be referenced in the definition of new global values. The current 
+structure of the BlockMatrixIR means that it is unlikely to be necessary, though.
 
 When creating a BlockMatrixStage from other BlockMatrixStages, broadcast values
 should be preserved from all child BlockMatrixStages.
 
-### Referencing broadcast values from contexts and body
+### Referencing global values from contexts and body
 
-Broadcast values can be referenced from both block contexts and the body of the 
+Global values can be referenced from both block contexts and the body of the 
 computation using `Ref(name, value.typ)`.
 
 ## Contexts
@@ -45,7 +44,8 @@ should be minimal.
 
 If a context requires non-trivial computation, such as in `ValueToBlockMatrix`
 which creates an arbitrary NDArray, the computation itself should be stored as 
-a broadcast value and a reference to that value used in the context IR itself.
+a global value and a reference to that value used in the context IR itself. (It 
+will not be broadcast unless needed in distributed computation.)
 
 # lowering value IRs with BlockMatrixStages
 
