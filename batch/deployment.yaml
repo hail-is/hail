@@ -58,7 +58,7 @@ spec:
            value: "{{ code.sha }}"
 {% if deploy or scope == "dev" %}
          - name: HAIL_SHOULD_PROFILE
-           value: 1
+           value: "1"
 {% endif %}
          - name: HAIL_BATCH_BUCKET_NAME
 {% if deploy %}
