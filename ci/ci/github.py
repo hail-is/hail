@@ -140,7 +140,7 @@ function clone() {{
     dir=$(mktemp -d)
     git clone {shq(repo)} $dir
     for x in $(ls -A $dir); do
-        if [ -e "$dir/$x" ]; then mv -- "$dir/$x" ./; fi
+        mv -- "$dir/$x" ./
     done
 }}
 
