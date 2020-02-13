@@ -10,10 +10,10 @@ import google_auth_oauthlib.flow
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, create_database_pool, \
     rest_authenticated_users_only, web_authenticated_developers_only, \
-    web_maybe_authenticated_user, create_session, check_csrf_token
+    web_maybe_authenticated_user, create_session, check_csrf_token, \
+    AccessLogger
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, \
     set_message, render_template
-from aiohttp.abc import AbstractAccessLogger
 
 log = logging.getLogger('auth')
 
@@ -295,17 +295,6 @@ async def on_cleanup(app):
     dbpool = app['dbpool']
     dbpool.close()
     await dbpool.wait_closed()
-
-
-class AccessLogger(AbstractAccessLogger):
-    def log(self, request, response, time):
-        self.logger.info(f'{request.method} {request.path} '
-                         f'done in {time}s: {response.status}',
-                         remote_address=request.remote,
-                         request_start_time=request.start_time,
-                         request_total_time=time,
-                         response_status=response.status,
-                         x_real_ip=request.cookies["X-Real-IP"])
 
 
 def run():
