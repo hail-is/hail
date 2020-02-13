@@ -847,6 +847,8 @@ class Worker:
     async def post_job_complete(self, job, run_duration):
         try:
             await self.post_job_complete_1(job, run_duration)
+        except Exception:
+            log.exception(f'error while posting {job} complete', stack_info=True)
         finally:
             log.info(f'{job} marked complete, removing from jobs')
             if job.id in self.jobs:
