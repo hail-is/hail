@@ -26,6 +26,15 @@ object Pretty {
   def prettyClass(x: AnyRef): String =
     x.getClass.getName.split("\\.").last
 
+  def prettyBlockMatrixSparsifier(sparsifier: BlockMatrixSparsifier): String = sparsifier match {
+    case BandSparsifier(blocksOnly) =>
+      s"(BandSparsifier ${ prettyBooleanLiteral(blocksOnly) })"
+    case RowIntervalSparsifier(blocksOnly) =>
+      s"(RowIntervalSparsifier ${ prettyBooleanLiteral(blocksOnly) })"
+    case RectangleSparsifier =>
+      s"(RectangleSparsifier)"
+  }
+
   val MAX_VALUES_TO_LOG: Int = 25
 
   def apply(ir: BaseIR, elideLiterals: Boolean = false, maxLen: Int = -1): String = {
@@ -285,6 +294,7 @@ object Pretty {
             case NDArrayMap(_, name, _) => prettyIdentifier(name)
             case NDArrayMap2(_, _, lName, rName, _) => prettyIdentifier(lName) + " " + prettyIdentifier(rName)
             case NDArrayReindex(_, indexExpr) => prettyInts(indexExpr)
+            case NDArrayConcat(_, axis) => axis.toString
             case NDArrayAgg(_, axes) => prettyInts(axes)
             case ArraySort(_, l, r, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ApplyIR(function, _) => prettyIdentifier(function) + " " + ir.typ.parsableString()
@@ -323,6 +333,8 @@ object Pretty {
               blockSize.toString + " "
             case BlockMatrixFilter(_, indicesToKeepPerDim) =>
               indicesToKeepPerDim.map(indices => prettyLongs(indices)).mkString("(", " ", ")")
+            case BlockMatrixSparsify(_, _, sparsifier) =>
+              prettyBlockMatrixSparsifier(sparsifier)
             case BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
               seed.toString + " " +
               prettyBooleanLiteral(gaussian) + " " +

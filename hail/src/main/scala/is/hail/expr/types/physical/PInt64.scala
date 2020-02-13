@@ -13,7 +13,7 @@ import scala.reflect.{ClassTag, _}
 case object PInt64Optional extends PInt64(false)
 case object PInt64Required extends PInt64(true)
 
-class PInt64(override val required: Boolean) extends PIntegral {
+class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
   lazy val virtualType: TInt64 = TInt64(required)
 
   def _asIdent = "int64"
@@ -57,21 +57,6 @@ class PInt64(override val required: Boolean) extends PIntegral {
   override def multiply(a: Code[_], b: Code[_]): Code[PInt64] = {
     coerce[PInt64](coerce[Long](a) * coerce[Long](b))
   }
-
-  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]) =
-    Region.storeLong(dstAddress, Region.loadLong(srcAddress))
-
-  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) =
-    Region.storeLong(dstAddress, Region.loadLong(srcAddress))
-
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long =
-    srcAddress
-
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] =
-    srcAddress
-
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
-    stackValue
 }
 
 object PInt64 {

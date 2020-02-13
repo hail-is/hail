@@ -363,3 +363,11 @@ def matrix_table_scan_count_cols():
     mt = hl.utils.range_matrix_table(n_cols=10_000_000, n_rows=10)
     mt.annotate_cols(x=hl.scan.count())
     mt._force_count_rows()
+
+
+@benchmark()
+def matrix_multi_write_nothing():
+    with TemporaryDirectory() as tmpdir:
+        mt = hl.utils.range_matrix_table(1, 1, n_partitions=1)
+        mts = [mt] * 1000
+        hl.experimental.write_matrix_tables(mts, path.join(tmpdir, 'multi-write'), overwrite=True)

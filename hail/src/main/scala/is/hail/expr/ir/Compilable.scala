@@ -35,6 +35,7 @@ object Compilable {
       case _: MatrixWrite => false
       case _: MatrixMultiWrite => false
       case _: TableMultiWrite => false
+      case _: BlockMatrixCollect => false
       case _: BlockMatrixWrite => false
       case _: BlockMatrixMultiWrite => false
       case _: TableToValueApply => false

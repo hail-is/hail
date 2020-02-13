@@ -238,4 +238,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   private def deepRenameNDArray(t: TNDArray) =
     PCanonicalNDArray(this.elementType.deepRename(t.elementType), this.nDims, this.required)
+
+  def copy(elementType: PType = this.elementType, nDims: Int = this.nDims, required: Boolean = this.required): PCanonicalNDArray =
+    PCanonicalNDArray(elementType, nDims, required)
 }

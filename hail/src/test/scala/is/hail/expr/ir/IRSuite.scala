@@ -1918,6 +1918,72 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(mat2, FastIndexedSeq(0, 0)), 1.0)
   }
 
+  @Test def testNDArrayConcat() {
+    implicit val execStrats = ExecStrategy.compileOnly
+    def nds(ndData: (IndexedSeq[Int], Long, Long)*): IR = {
+      MakeArray(ndData.map { case (values, nRows, nCols) =>
+        if (values == null) NA(TNDArray(TInt32(), Nat(2))) else
+          MakeNDArray(Literal(TArray(TInt32()), values),
+            Literal(TTuple(TInt64(), TInt64()), Row(nRows, nCols)), True())
+      }, TArray(TNDArray(TInt32(), Nat(2))))
+    }
+
+    def assertNDEvals(nd: IR, expected: Array[Array[Int]]): Unit = {
+      val arrayIR = if (expected == null) nd else {
+        val nRows = expected.length
+        val nCols = if (nRows == 0) 0 else expected.head.length
+        Let("nd", nd,
+          MakeArray(
+            Array.tabulate(nRows) { i =>
+              MakeArray(Array.tabulate(nCols) { j =>
+                makeNDArrayRef(Ref("nd", nd.typ), FastIndexedSeq(i, j))
+              }, TArray(TInt32()))
+            }, TArray(TArray(TInt32()))))
+      }
+      assertEvalsTo(arrayIR, if (expected == null) null else expected.map(_.toFastIndexedSeq).toFastIndexedSeq)
+    }
+
+    val nd1 = (FastIndexedSeq(
+      0, 1, 2,
+      3, 4, 5), 2L, 3L)
+
+    val rowwise = (FastIndexedSeq(
+      6, 7, 8,
+      9, 10, 11,
+      12, 13, 14), 3L, 3L)
+
+    val colwise = (FastIndexedSeq(
+      15, 16,
+      17, 18), 2L, 2L)
+
+    val emptyRowwise = (FastIndexedSeq(), 0L, 3L)
+    val emptyColwise = (FastIndexedSeq(), 2L, 0L)
+    val na = (null, 0L, 0L)
+
+    val rowwiseExpected = Array(
+      Array(0, 1, 2),
+      Array(3, 4, 5),
+      Array(6, 7, 8),
+      Array(9, 10, 11),
+      Array(12, 13, 14))
+    val colwiseExpected = Array(
+      Array(0, 1, 2, 15, 16),
+      Array(3, 4, 5, 17, 18))
+
+    assertNDEvals(NDArrayConcat(nds(nd1, rowwise), 0), rowwiseExpected)
+    assertNDEvals(NDArrayConcat(nds(nd1, rowwise, emptyRowwise), 0), rowwiseExpected)
+    assertNDEvals(NDArrayConcat(nds(nd1, emptyRowwise, rowwise), 0), rowwiseExpected)
+
+    assertNDEvals(NDArrayConcat(nds(nd1, colwise), 1), colwiseExpected)
+    assertNDEvals(NDArrayConcat(nds(nd1, colwise, emptyColwise), 1), colwiseExpected)
+    assertNDEvals(NDArrayConcat(nds(nd1, emptyColwise, colwise), 1), colwiseExpected)
+
+    // FIXME: This is changing type during PruneDeadFields for some reason...
+//    assertNDEvals(NDArrayConcat(nds(nd1, na), 1), null)
+    assertNDEvals(NDArrayConcat(nds(na, na), 1), null)
+    assertNDEvals(NDArrayConcat(NA(TArray(TNDArray(TInt32(), Nat(2)))), 1), null)
+  }
+
   @Test def testNDArrayMap() {
     implicit val execStrats: Set[ExecStrategy] = Set()
 
@@ -2493,6 +2559,7 @@ class IRSuite extends HailSuite {
       MakeStream(FastSeq(i, NA(TInt32()), I32(-3)), TStream(TInt32())),
       nd,
       NDArrayReshape(nd, MakeTuple.ordered(Seq(I64(4)))),
+      NDArrayConcat(MakeArray(FastSeq(nd, nd), TArray(nd.typ)), 0),
       NDArrayRef(nd, FastSeq(I64(1), I64(2))),
       NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
       NDArrayMap2(nd, nd, "l", "r", ApplyBinaryPrimOp(Add(), l, r)),
@@ -2574,6 +2641,7 @@ class IRSuite extends HailSuite {
       MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(tmpDir.createLocalTempFile())),
       TableMultiWrite(Array(table, table), WrappedMatrixNativeMultiWriter(MatrixNativeMultiWriter(tmpDir.createLocalTempFile()), FastIndexedSeq("foo"))),
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count))),
+      BlockMatrixCollect(blockMatrix),
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
       CollectDistributedArray(ArrayRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32())),
@@ -2738,9 +2806,23 @@ class IRSuite extends HailSuite {
     val dot = BlockMatrixDot(read, transpose)
     val slice = BlockMatrixSlice(read, FastIndexedSeq(FastIndexedSeq(0, 2, 1), FastIndexedSeq(0, 1, 1)))
 
+    val rectangle = Literal(TArray(TInt64()), FastIndexedSeq(0L, 1L, 5L, 6L))
+    val band = Literal(TTuple(TInt64(), TInt64()), Row(-1L, 1L))
+    val intervals = Literal(TTuple(TArray(TInt64()), TArray(TInt64())),
+      Row(FastIndexedSeq(0L, 1L, 5L, 6L), FastIndexedSeq(5L, 6L, 8L, 9L)))
+
+    val sparsify1 = BlockMatrixSparsify(read, rectangle, RectangleSparsifier)
+    val sparsify2 = BlockMatrixSparsify(read, band, BandSparsifier(true))
+    val sparsify3 = BlockMatrixSparsify(read, intervals, RowIntervalSparsifier(true))
+    val densify = BlockMatrixDensify(read)
+
     val blockMatrixIRs = Array[BlockMatrixIR](read,
       transpose,
       dot,
+      sparsify1,
+      sparsify2,
+      sparsify3,
+      densify,
       RelationalLetBlockMatrix("x", I32(0), read),
       slice)
 
