@@ -94,6 +94,10 @@ class Job:
         if not status:
             return None
 
+        error = status.get('error')
+        if error is not None:
+            return None
+
         container_statuses = status.get('container_statuses')
         if not container_statuses:
             return None
