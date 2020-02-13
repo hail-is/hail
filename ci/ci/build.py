@@ -282,13 +282,11 @@ class BuildImageStep(Step):
             pull_published_latest = ''
             cache_from_published_latest = ''
 
-        push_image = f'''
-time docker push {self.image}
-'''
+        push_image = f'retry time docker push {self.image}'
         if scope == 'deploy' and self.publish_as and not is_test_deployment:
             push_image = f'''
 docker tag {shq(self.image)} {self.base_image}:latest
-retry docker push {self.base_image}:latest
+retry time docker push {self.base_image}:latest
 ''' + push_image
 
         copy_inputs = ''
