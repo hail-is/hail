@@ -19,7 +19,8 @@ from hailtop.utils import time_msecs, time_msecs_str, humanize_timedelta_msecs, 
 from hailtop.config import get_deploy_config
 from gear import Database, setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
-    web_authenticated_developers_only, check_csrf_token, transaction
+    web_authenticated_developers_only, check_csrf_token, transaction, \
+    AccessLogger
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 
@@ -1282,4 +1283,5 @@ def run():
                                                  'batch',
                                                  client_max_size=HTTP_CLIENT_MAX_SIZE),
                 host='0.0.0.0',
-                port=5000)
+                port=5000,
+                access_log_class=AccessLogger)
