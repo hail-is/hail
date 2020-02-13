@@ -14,8 +14,8 @@ case class BlockMatrixStage(
   def ctxType: Type = ctxRef.typ
   def toIR(bodyTransform: IR => IR, ordering: Option[Array[(Int, Int)]]): IR = {
     val ctxs = MakeArray(
-      ordering.map(idxs => idxs.map(blockContexts(_)))
-        .getOrElse(blockContexts.values.toArray),
+      ordering.map[Array[IR]](idxs => idxs.map(blockContexts(_)))
+        .getOrElse[Array[IR]](blockContexts.values.toArray),
       TArray(ctxRef.typ))
 
     val blockResult = bodyTransform(body)
@@ -58,7 +58,7 @@ object LowerBlockMatrixIR {
     case BlockMatrixFilter(child, keep) => unimplemented(bmir)
     case BlockMatrixSlice(child, slices) => unimplemented(bmir)
     case BlockMatrixDensify(child) => unimplemented(bmir)
-    case BlockMatrixSparsify(child, value, sparsifier) => unimplemented(bmir)
+    case BlockMatrixSparsify(child, sparsifier) => unimplemented(bmir)
     case RelationalLetBlockMatrix(name, value, body) => unimplemented(bmir)
     case x@BlockMatrixDot(leftIR, rightIR) =>
       val left = lower(leftIR)
@@ -70,7 +70,6 @@ object LowerBlockMatrixIR {
         right.ctxName -> TArray(right.ctxType)))
 
       // group blocks for multiply
-      // the contexts that we're parallelizing, *in general*, are going to involve little-to-no computation so duplicating across nodes seems fine for now.
       val newContexts = x.typ.allBlocks.map { case (i, j) =>
         (i -> j, MakeArray(Array.tabulate[Option[IR]](n) { k =>
           left.blockContexts.get(i -> k).flatMap { leftCtx =>
@@ -80,7 +79,7 @@ object LowerBlockMatrixIR {
                 right.ctxName -> rightCtx))
             }
           }
-        }.flatten, newCtxType))
+        }.flatten[IR], newCtxType))
       }.toMap
 
       val wrapMultiply = { ctxElt: IR =>
