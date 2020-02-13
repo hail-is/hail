@@ -1148,6 +1148,21 @@ class PruneSuite extends HailSuite {
       })
   }
 
+  @Test def testNDArrayMap2Rebuild(): Unit = {
+    checkRebuild(NDArrayMap2(ndArrayTS, ndArrayTS, "left", "right", Ref("left", ts)), TNDArray(subsetTS("b"), Nat(1)),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[NDArrayMap2]
+        ir.l.typ == TNDArray(TStruct(true, ("b", TInt64())), Nat(1))
+        ir.r.typ == TNDArray(TStruct(true), Nat(1))
+      })
+    checkRebuild(NDArrayMap2(ndArrayTS, ndArrayTS, "left", "right", Ref("right", ts)), TNDArray(subsetTS("b"), Nat(1)),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[NDArrayMap2]
+        ir.l.typ == TNDArray(TStruct(true), Nat(1))
+        ir.r.typ == TNDArray(TStruct(true, ("b", TInt64())), Nat(1))
+      })
+  }
+
   @Test def testTableAggregateRebuild() {
     val ta = TableAggregate(tr, tableRefBoolean(tr.typ, "row.2"))
     checkRebuild(ta, TBoolean(),
