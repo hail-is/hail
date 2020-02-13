@@ -29,9 +29,10 @@ class AccessLogger(AbstractAccessLogger):
         start_time = now - datetime.timedelta(seconds=duration)
         start_time_str = start_time.strftime('[%d/%b/%Y:%H:%M:%S %z]')
         self.logger.info(f'{request.method} {request.path} '
-                         f'done in {time}s: {response.status}',
+                         f'done in {duration}s: {response.status}',
                          extra={'remote_address': request.remote,
                                 'request_start_time': start_time_str,
                                 'request_duration': duration,
                                 'response_status': response.status,
-                                'x_real_ip': request.cookies.get("X-Real-IP")})
+                                'x_real_ip': request.cookies.get("X-Real-IP"),
+                                'cookies': request.cookies})
