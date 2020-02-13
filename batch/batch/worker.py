@@ -311,10 +311,11 @@ class Container:
 
     async def get_container_log(self):
         logs = await docker_call_retry(self.container.log, stderr=True, stdout=True)
-        return "".join(logs)
+        self.log = "".join(logs)
+        return self.log
 
     async def get_log(self):
-        if self.log:
+        if self.log is not None:
             return self.log
 
         if self.container:
@@ -790,10 +791,11 @@ class Worker:
         full_status = await job.status()
 
         if job.format_version.has_full_status_in_gcs():
-            await self.log_store.write_status_file(job.batch_id,
-                                                   job.job_id,
-                                                   job.attempt_id,
-                                                   json.dumps(full_status))
+            await self.log_store.write_status_file(
+                job.batch_id,
+                job.job_id,
+                job.attempt_id,
+                json.dumps(full_status))
 
         db_status = job.format_version.db_status(full_status)
 
