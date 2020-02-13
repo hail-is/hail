@@ -1143,16 +1143,9 @@ class PruneSuite extends HailSuite {
     checkRebuild(NDArrayMap(ndArrayTS, "x", Ref("x", ts)), TNDArray(subsetTS("b"), Nat(1)),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[NDArrayMap]
-        println("PRINTED")
-        println(ir.nd.typ._toPretty)
-        println(TNDArray(subsetTS("b"), Nat(1))._toPretty)
-        ir.nd.typ == TNDArray(subsetTS("b"), Nat(1))
+        // Even though the type I requested wasn't required, NDArrays always have a required element type.
+        ir.nd.typ == TNDArray(TStruct(true, ("b", TInt64())), Nat(1))
       })
-//    checkRebuild(ArrayMap(MakeArray(Seq(NA(ts)), TArray(ts)), "x", Ref("x", ts)), TArray(subsetTS("b")),
-//      (_: BaseIR, r: BaseIR) => {
-//        val ir = r.asInstanceOf[ArrayMap]
-//        ir.a.typ == TArray(subsetTS("b"))
-//      })
   }
 
   @Test def testTableAggregateRebuild() {
