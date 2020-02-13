@@ -41,3 +41,43 @@ case object EmittableValueIRs extends Rule {
     case _ => true
   }
 }
+
+case object ArrayIRsAreStreams extends Rule {
+  override def allows(ir: BaseIR): Boolean = {
+    case NA => true
+    case In => true
+    case ReadPartition => true
+    case MakeStream => true
+    case StreamRange => true
+    case ToStream => true
+    case Let(_, _, childIR) => {
+      allows(childIR)
+    }
+    case ArrayMap(childIR, _, _) => {
+      allows(childIR)
+    }
+    case ArrayZip(as, _, _,_) => {
+      as.forall(allows)
+    }
+    case ArrayFilter(childIR, _, _,_) => {
+      allows(childIR)
+    }
+    case ArrayFlatMap(outerIR, _, innerIR) => {
+      allows(outerIR) && allows(innerIR)
+    }
+    case ArrayLeftJoinDistinct(leftIR, rightIR, _, _, _, _) => {
+      allows(leftIR) && allows(rightIR)
+    }
+    case ArrayScan(childIR, _, _, _, _) => {
+      allows(childIR)
+    }
+    case RunAggScan(array, _, _, _, _, _) => {
+      allows(array)
+    }
+    case If(_, thenIR, elseIR) => {
+      allows(thenIR) && allows(elseIR)
+    }
+    case ReadPartition => true
+    case _ => false
+  }
+}
