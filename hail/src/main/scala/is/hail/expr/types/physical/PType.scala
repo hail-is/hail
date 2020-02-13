@@ -174,9 +174,6 @@ abstract class PType extends Serializable with Requiredness {
     unsafeOrdering()
   }
 
-  def unsafeInsert(typeToInsert: PType, path: List[String]): (PType, UnsafeInserter) =
-    PStruct.empty().unsafeInsert(typeToInsert, path)
-
   def asIdent: String = (if (required) "r_" else "o_") + _asIdent
 
   def _asIdent: String
