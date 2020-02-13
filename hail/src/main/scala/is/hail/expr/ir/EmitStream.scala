@@ -817,48 +817,6 @@ object EmitStream {
             aggCleanup
           )
 
-        case ArrayAggScan(childIR, name, query) =>
-          val res = genUID()
-          val extracted =
-            try {
-              agg.Extract(agg.Extract.liftScan(query), res)
-            } catch {
-              case e: agg.UnsupportedExtraction =>
-                fatal(s"BUG: lowered aggscan to a stream, but this agg is not supported: $e")
-            }
-
-          val (newContainer, aggSetup, aggCleanup) =
-            AggContainer.fromFunctionBuilder(extracted.aggs.map(_.toCanonicalPhysical), fb, "array_agg_scan")
-          val initIR = Optimize(extracted.init, noisy = true,
-            context = "ArrayAggScan/StagedExtractAggregators/postAggIR", emitter.ctx)
-          val seqPerEltIR = Optimize(extracted.seqPerElt, noisy = true,
-            context = "ArrayAggScan/StagedExtractAggregators/init", emitter.ctx)
-          val postAggIR = Optimize[IR](Let(res, extracted.results, extracted.postAggIR), noisy = true,
-            context = "ArrayAggScan/StagedExtractAggregators/perElt", emitter.ctx)
-
-          val e = coerce[PStreamable](childIR.pType).elementType
-          val a = postAggIR.pType
-          implicit val eP = TypedTriplet.pack(e)
-          implicit val aP = TypedTriplet.pack(a)
-          val eltVar = eP.newFields(fb, "aggscan_elt")
-          val newEltVar = aP.newFields(fb, "aggscan_new_elt")
-          val bodyEnv = env.bind(name -> ((typeToTypeInfo(e), eltVar.load.m, eltVar.load.v)))
-          val init = emitter.emit(initIR, env, er, Some(newContainer))
-          val seqPerElt = emitter.emit(seqPerEltIR, bodyEnv, er, Some(newContainer))
-          val postt = emitter.emit(postAggIR, bodyEnv, er, Some(newContainer))
-
-          emitStream(childIR, env)
-            .contMap[EmitTriplet]{ (eltt, k) => Code(
-              eltVar := TypedTriplet(e, eltt),
-              newEltVar := TypedTriplet(a, postt),
-              seqPerElt.setup,
-              k(EmitTriplet(Code._empty, newEltVar.load.m, newEltVar.load.v)))
-            }
-            .addSetup(
-              _ => Code(aggSetup, init.setup),
-              aggCleanup
-            )
-
         case If(condIR, thn, els) =>
           val t = thn.pType.asInstanceOf[PStreamable].elementType
           implicit val tP = TypedTriplet.pack(t)
@@ -907,8 +865,8 @@ object EmitStream {
         traverse(l, mult); traverse(r, mult); traverse(c, 2); traverse(j, 2)
       case ArrayScan(a, z, _, _, b) =>
         traverse(a, mult); traverse(z, 2); traverse(b, 2)
-      case ArrayAggScan(a, _, q) =>
-        traverse(a, mult); traverse(q, 2)
+      case RunAggScan(a, _, i, s, r, _) =>
+        traverse(a, mult); traverse(i, 2); traverse(s, 2); traverse(r, 2)
       case ir: IR =>
         Children(ir).foreach(traverse(_, 2))
       case _ =>
