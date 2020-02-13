@@ -127,6 +127,8 @@ object InferType {
         ndType.representation.fieldType("shape").asInstanceOf[TTuple].setRequired(ndType.required)
       case NDArrayReshape(nd, shape) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size), nd.typ.required)
+      case NDArrayConcat(nds, _) =>
+        coerce[TStreamable](nds.typ).elementType
       case NDArrayMap(nd, _, body) =>
         TNDArray(body.typ.setRequired(true), coerce[TNDArray](nd.typ).nDimsBase, nd.typ.required)
       case NDArrayMap2(l, _, _, _, body) =>
@@ -206,6 +208,7 @@ object InferType {
       case _: TableMultiWrite => TVoid
       case _: MatrixWrite => TVoid
       case _: MatrixMultiWrite => TVoid
+      case _: BlockMatrixCollect => TNDArray(TFloat64(), Nat(2))
       case _: BlockMatrixWrite => TVoid
       case _: BlockMatrixMultiWrite => TVoid
       case TableGetGlobals(child) => child.typ.globalType

@@ -808,6 +808,10 @@ object IRParser {
         val nd = ir_value_expr(env)(it)
         val shape = ir_value_expr(env)(it)
         NDArrayReshape(nd, shape)
+      case "NDArrayConcat" =>
+        val axis = int32_literal(it)
+        val nds = ir_value_expr(env)(it)
+        NDArrayConcat(nds, axis)
       case "NDArrayMap" =>
         val name = identifier(it)
         val nd = ir_value_expr(env)(it)
@@ -1106,6 +1110,9 @@ object IRParser {
         val config = string_literal(it)
         val child = blockmatrix_ir(env)(it)
         BlockMatrixToValueApply(child, RelationalFunctions.lookupBlockMatrixToValue(config))
+      case "BlockMatrixCollect" =>
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixCollect(child)
       case "TableWrite" =>
         implicit val formats = TableWriter.formats
         val writerStr = string_literal(it)
@@ -1516,6 +1523,22 @@ object IRParser {
     }
   }
 
+  def blockmatrix_sparsifier(it: TokenIterator): BlockMatrixSparsifier = {
+    punctuation(it, "(")
+    val s = identifier(it) match {
+      case "RowIntervalSparsifier" =>
+        val blocksOnly = boolean_literal(it)
+        RowIntervalSparsifier(blocksOnly)
+      case "BandSparsifier" =>
+        val blocksOnly = boolean_literal(it)
+        BandSparsifier(blocksOnly)
+      case "RectangleSparsifier" =>
+        RectangleSparsifier
+    }
+    punctuation(it, ")")
+    s
+  }
+
   def blockmatrix_ir(env: IRParserEnvironment)(it: TokenIterator): BlockMatrixIR = {
     punctuation(it, "(")
     val ir = blockmatrix_ir1(env)(it)
@@ -1560,6 +1583,14 @@ object IRParser {
         val indices = literals(literals(int64_literal))(it)
         val child = blockmatrix_ir(env)(it)
         BlockMatrixFilter(child, indices)
+      case "BlockMatrixDensify" =>
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixDensify(child)
+      case "BlockMatrixSparsify" =>
+        val sparsifier = blockmatrix_sparsifier(it)
+        val child = blockmatrix_ir(env)(it)
+        val value = ir_value_expr(env)(it)
+        BlockMatrixSparsify(child, value, sparsifier)
       case "BlockMatrixSlice" =>
         val slices = literals(literals(int64_literal))(it)
         val child = blockmatrix_ir(env)(it)

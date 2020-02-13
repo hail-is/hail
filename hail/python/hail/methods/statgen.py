@@ -2645,10 +2645,12 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
         Row and column indices correspond to matrix table variant index.
     """
     starts_and_stops = hl.linalg.utils.locus_windows(locus_expr, radius, coord_expr, _localize=False)
+    starts_and_stops = hl.tuple([starts_and_stops[0].map(lambda i: hl.int64(i)), starts_and_stops[1].map(lambda i: hl.int64(i))])
     ld = hl.row_correlation(entry_expr, block_size)
-    return BlockMatrix._from_java(ld._jbm.filterRowIntervalsIR(
-        Env.backend()._to_java_ir(starts_and_stops._ir),
-        False))
+    return BlockMatrix(
+        BlockMatrixSparsify(ld._bmir,
+                            starts_and_stops._ir,
+                            RowIntervalSparsifier(blocks_only=False)))
 
 
 @typecheck(n_populations=int,

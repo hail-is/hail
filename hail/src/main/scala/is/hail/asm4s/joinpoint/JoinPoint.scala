@@ -137,7 +137,7 @@ class DefinableJoinPoint[A: ParameterPack] private[joinpoint](
 ) extends JoinPoint[A](stackIndicator) {
 
   def define(f: A => Code[Ctrl]): Unit =
-    body = Some(Code(args.store, f(args.load)))
+    body = Some(Code(args.storeInsn, f(args.load)))
 
   private[joinpoint] var body: Option[Code[Ctrl]] = None
 }
@@ -166,5 +166,5 @@ class JoinPointBuilder private[joinpoint](
     joinPoint(p.newLocals(mb))
 
   def joinPoint(): DefinableJoinPoint[Unit] =
-    joinPoint(ParameterStore.unit)
+    joinPoint(ParameterStoreUnit)
 }

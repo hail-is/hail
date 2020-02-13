@@ -302,6 +302,16 @@ class BlockMatrixIRTests(unittest.TestCase):
         transpose = ir.BlockMatrixBroadcast(broadcast_scalar, [1, 0], [2, 2], 256)
         matmul = ir.BlockMatrixDot(broadcast_scalar, transpose)
 
+        rectangle = ir.Literal(hl.tarray(hl.tint64), [0, 1, 5, 6])
+        band = ir.Literal(hl.ttuple(hl.tint64, hl.tint64), (-1, 1))
+        intervals = ir.Literal(hl.ttuple(hl.tarray(hl.tint64), hl.tarray(hl.tint64)), ([0, 1, 5, 6], [5, 6, 8, 9]))
+
+        sparsify1 = ir.BlockMatrixSparsify(read, rectangle, ir.RectangleSparsifier)
+        sparsify2 = ir.BlockMatrixSparsify(read, band, ir.BandSparsifier(True))
+        sparsify3 = ir.BlockMatrixSparsify(read, intervals, ir.RowIntervalSparsifier(True))
+
+        densify = ir.BlockMatrixDensify(read)
+
         pow_ir = (construct_expr(ir.Ref('l'), hl.tfloat64) ** construct_expr(ir.Ref('r'), hl.tfloat64))._ir
         squared_bm = ir.BlockMatrixMap2(scalar_to_bm, scalar_to_bm, 'l', 'r', pow_ir)
         slice_bm = ir.BlockMatrixSlice(matmul, [slice(0, 2, 1), slice(0, 1, 1)])
@@ -319,6 +329,10 @@ class BlockMatrixIRTests(unittest.TestCase):
             broadcast_row,
             squared_bm,
             transpose,
+            sparsify1,
+            sparsify2,
+            sparsify3,
+            densify,
             matmul,
             slice_bm
         ]

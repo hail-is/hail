@@ -80,6 +80,9 @@ object Copy {
       case NDArrayReshape(_, _) =>
         assert(newChildren.length ==  2)
         NDArrayReshape(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
+      case NDArrayConcat(_, axis) =>
+        assert(newChildren.length ==  1)
+        NDArrayConcat(newChildren(0).asInstanceOf[IR], axis)
       case NDArrayRef(_, _) =>
         NDArrayRef(newChildren(0).asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]))
       case NDArraySlice(_, _) =>
@@ -283,6 +286,9 @@ object Copy {
       case BlockMatrixToValueApply(_, function) =>
         assert(newChildren.length == 1)
         BlockMatrixToValueApply(newChildren(0).asInstanceOf[BlockMatrixIR], function)
+      case BlockMatrixCollect(_) =>
+        assert(newChildren.length == 1)
+        BlockMatrixCollect(newChildren(0).asInstanceOf[BlockMatrixIR])
       case BlockMatrixWrite(_, writer) =>
         assert(newChildren.length == 1)
         BlockMatrixWrite(newChildren(0).asInstanceOf[BlockMatrixIR], writer)

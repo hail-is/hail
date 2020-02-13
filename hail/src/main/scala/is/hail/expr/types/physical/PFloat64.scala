@@ -14,12 +14,13 @@ import scala.reflect.{ClassTag, _}
 case object PFloat64Optional extends PFloat64(false)
 case object PFloat64Required extends PFloat64(true)
 
-class PFloat64(override val required: Boolean) extends PNumeric {
+class PFloat64(override val required: Boolean) extends PNumeric with PPrimitive {
   lazy val virtualType: TFloat64 = TFloat64(required)
 
   override type NType = PFloat64
 
   def _asIdent = "float64"
+
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PFloat64")
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
@@ -59,21 +60,6 @@ class PFloat64(override val required: Boolean) extends PNumeric {
   override def multiply(a: Code[_], b: Code[_]): Code[PFloat64] = {
     coerce[PFloat64](coerce[Double](a) * coerce[Double](b))
   }
-
-  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]) =
-    Region.storeDouble(dstAddress, Region.loadDouble(srcAddress))
-
-  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) =
-    Region.storeDouble(dstAddress, Region.loadDouble(srcAddress))
-
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long =
-    srcAddress
-
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] =
-    srcAddress
-
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
-    stackValue
 }
 
 object PFloat64 {

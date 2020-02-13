@@ -871,24 +871,13 @@ class ClassFieldRef[T: TypeInfo](fb: FunctionBuilder[_], val name: String) exten
 
   fb.cn.fields.asInstanceOf[util.List[FieldNode]].add(node)
 
-  def load(): Code[T] =
-    new Code[T] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = {
-        fb.getArg[java.lang.Object](0).emit(il)
-        il += new FieldInsnNode(GETFIELD, fb.name, name, desc)
-      }
-    }
+  private def _loadClass: Code[java.lang.Object] = fb.getArg[java.lang.Object](0).load()
+  private def _loadInsn: Code[T] = Code(new FieldInsnNode(GETFIELD, fb.name, name, desc))
+  private def _storeInsn: Code[Unit] = Code(new FieldInsnNode(PUTFIELD, fb.name, name, desc))
 
-  def store(rhs: Code[T]): Code[Unit] =
-    new Code[Unit] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = {
-        fb.getArg[java.lang.Object](0).emit(il)
-        rhs.emit(il)
-        il += new FieldInsnNode(PUTFIELD, fb.name, name, desc)
-      }
-    }
+  def load(): Code[T] = Code(_loadClass, _loadInsn)
 
-  def storeInsn: Code[Unit] = Code(new FieldInsnNode(PUTFIELD, fb.name, name, desc))
+  def store(rhs: Code[T]): Code[Unit] = Code(_loadClass, rhs, _storeInsn)
 }
 
 class LocalRef[T](val i: Int)(implicit tti: TypeInfo[T]) extends Settable[T] {

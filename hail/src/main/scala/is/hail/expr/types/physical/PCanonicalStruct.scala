@@ -61,68 +61,6 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   override def truncate(newSize: Int): PStruct =
     PCanonicalStruct(fields.take(newSize), required)
 
-  def unsafeStructInsert(typeToInsert: PType, path: List[String]): (PStruct, UnsafeInserter) = {
-    assert(typeToInsert.isInstanceOf[PStruct] || path.nonEmpty)
-    val (t, i) = unsafeInsert(typeToInsert, path)
-    (t.asInstanceOf[PStruct], i)
-  }
-
-  override def unsafeInsert(typeToInsert: PType, path: List[String]): (PType, UnsafeInserter) = {
-    if (path.isEmpty) {
-      (typeToInsert, (region, offset, rvb, inserter) => inserter())
-    } else {
-      val localSize = size
-      val key = path.head
-      selfField(key) match {
-        case Some(f) =>
-          val j = f.index
-          val (insertedFieldType, fieldInserter) = f.typ.unsafeInsert(typeToInsert, path.tail)
-
-          (updateKey(key, j, insertedFieldType), { (region, offset, rvb, inserter) =>
-            rvb.startStruct()
-            var i = 0
-            while (i < j) {
-              if (region != null)
-                rvb.addField(this, region, offset, i)
-              else
-                rvb.setMissing()
-              i += 1
-            }
-            if (region != null && isFieldDefined(offset, j))
-              fieldInserter(region, loadField(offset, j), rvb, inserter)
-            else
-              fieldInserter(null, 0, rvb, inserter)
-            i += 1
-            while (i < localSize) {
-              if (region != null)
-                rvb.addField(this, region, offset, i)
-              else
-                rvb.setMissing()
-              i += 1
-            }
-            rvb.endStruct()
-          })
-
-        case None =>
-          val (insertedFieldType, fieldInserter) = PStruct.empty().unsafeInsert(typeToInsert, path.tail)
-
-          (appendKey(key, insertedFieldType), { (region, offset, rvb, inserter) =>
-            rvb.startStruct()
-            var i = 0
-            while (i < localSize) {
-              if (region != null)
-                rvb.addField(this, region, offset, i)
-              else
-                rvb.setMissing()
-              i += 1
-            }
-            fieldInserter(null, 0, rvb, inserter)
-            rvb.endStruct()
-          })
-      }
-    }
-  }
-
   def updateKey(key: String, i: Int, sig: PType): PStruct = {
     assert(fieldIdx.contains(key))
 

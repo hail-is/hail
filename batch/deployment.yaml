@@ -54,6 +54,12 @@ spec:
            value: "{{ global.project }}"
          - name: KUBERNETES_SERVER_URL
            value: "{{ global.k8s_server_url }}"
+         - name: HAIL_SHA
+           value: "{{ code.sha }}"
+{% if deploy or scope == "dev" %}
+         - name: HAIL_SHOULD_PROFILE
+           value: 1
+{% endif %}
          - name: HAIL_BATCH_BUCKET_NAME
 {% if deploy %}
            value: hail-batch
@@ -152,6 +158,8 @@ spec:
            value: "{{ global.project }}"
          - name: KUBERNETES_SERVER_URL
            value: "{{ global.k8s_server_url }}"
+         - name: HAIL_SHA
+           value: "{{ code.sha }}"
 {% if not deploy %}
          - name: HAIL_BATCH_JOB_DEFAULT_CPU
            value: "0.1"
