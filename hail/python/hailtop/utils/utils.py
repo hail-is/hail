@@ -205,33 +205,33 @@ def is_transient_error(e):
         # 408 request timeout, 500 internal server error, 502 bad gateway
         # 503 service unavailable, 504 gateway timeout
         return True
-    elif isinstance(e, aiohttp.ClientOSError) and (
+    if isinstance(e, aiohttp.ClientOSError) and (
             e.errno == errno.ETIMEDOUT or
             e.errno == errno.ECONNREFUSED or
             e.errno == errno.EHOSTUNREACH or
             e.errno == errno.ECONNRESET):
         return True
-    elif isinstance(e, aiohttp.ServerTimeoutError):
+    if isinstance(e, aiohttp.ServerTimeoutError):
         return True
-    elif isinstance(e, aiohttp.ServerDisconnectedError):
+    if isinstance(e, aiohttp.ServerDisconnectedError):
         return True
-    elif isinstance(e, asyncio.TimeoutError):
+    if isinstance(e, asyncio.TimeoutError):
         return True
-    elif isinstance(e, OSError) and (
+    if isinstance(e, OSError) and (
             e.errno == errno.ETIMEDOUT or
             e.errno == errno.ECONNREFUSED or
             e.errno == errno.EHOSTUNREACH or
             e.errno == errno.ECONNRESET):
         return True
-    elif isinstance(e, urllib3.exceptions.ReadTimeoutError):
+    if isinstance(e, urllib3.exceptions.ReadTimeoutError):
         return True
-    elif isinstance(e, requests.exceptions.ReadTimeout):
+    if isinstance(e, requests.exceptions.ReadTimeout):
         return True
-    elif isinstance(e, requests.exceptions.ConnectionError):
+    if isinstance(e, requests.exceptions.ConnectionError):
         return True
-    elif isinstance(e, socket.timeout):
+    if isinstance(e, socket.timeout):
         return True
-    elif isinstance(e, ConnectionResetError):
+    if isinstance(e, ConnectionResetError):
         return True
     return False
 
