@@ -214,6 +214,7 @@ async def rest_callback(request):
     try:
         flow = get_flow(f'http://127.0.0.1:{callback_port}/oauth2callback', state=state)
         flow.fetch_token(code=code)
+        log.info(flow.credentials.id_token)
         token = google.oauth2.id_token.verify_oauth2_token(
             flow.credentials.id_token, google.auth.transport.requests.Request())
         email = token['email']
