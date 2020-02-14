@@ -34,5 +34,4 @@ class AccessLogger(AbstractAccessLogger):
                                 'request_start_time': start_time_str,
                                 'request_duration': duration,
                                 'response_status': response.status,
-                                'x_real_ip': request.cookies.get("X-Real-IP"),
-                                'cookies': request.cookies})
+                                'x_real_ip': request.headers.get("X-Real-IP")})
