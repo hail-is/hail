@@ -223,6 +223,12 @@ object Simplify {
 
     case ArrayFilter(ToStream(ArraySort(a, left, right, compare)), name, cond) => ToStream(ArraySort(ArrayFilter(a, name, cond), left, right, compare))
 
+    case ToArray(ToStream(a)) if a.typ.isInstanceOf[TArray] => a
+
+    case ToStream(ToArray(s)) if s.typ.isInstanceOf[TStream] => s
+
+    case ToStream(Let(name, value, ToArray(x))) if x.typ.isInstanceOf[TStream] => Let(name, value, x)
+
     case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
 
     case GetField(MakeStruct(fields), name) =>
