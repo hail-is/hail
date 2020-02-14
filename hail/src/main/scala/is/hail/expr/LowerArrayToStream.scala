@@ -6,14 +6,16 @@ object LowerArrayToStream {
   private def boundary(node: IR): IR = {
     var streamified = streamify(node)
 
-    if(node.typ != streamified.typ) {
-      if (streamified.typ.isInstanceOf[TStream])
-        streamified = ToArray(streamified)
-      if (streamified.typ.isInstanceOf[TContainer])
-        streamified = ToStream(streamified)
+    if (node.typ.isInstanceOf[TStream] && streamified.typ.isInstanceOf[TContainer])
+      streamified = ToStream(streamified)
+    else if (node.typ.isInstanceOf[TContainer] && streamified.typ.isInstanceOf[TStream])
+      streamified = ToArray(streamified)
+
+    if(!(streamified.typ isOfType node.typ)) {
+      println(s"\n\nfuck: \npre: ${node.typ} && ${node} \npost: ${streamified.typ} && ${streamified}\n\n")
     }
 
-    assert(streamified.typ == node.typ)
+    assert(streamified.typ isOfType node.typ)
     streamified
   }
 
