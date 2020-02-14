@@ -1,21 +1,21 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual.{TArray, TContainer, TIterable, TStream, TStreamable}
+import is.hail.expr.types.virtual.{TArray, TContainer, TStream, TStreamable}
 
 object LowerArrayToStream {
   private def boundary(node: IR): IR = {
     var streamified = streamify(node)
 
-    if (node.typ.isInstanceOf[TStream] && streamified.typ.isInstanceOf[TContainer])
-      streamified = ToStream(streamified)
-    else if (node.typ.isInstanceOf[TContainer] && streamified.typ.isInstanceOf[TStream])
+    if (streamified.typ.isInstanceOf[TStream] && node.typ.isInstanceOf[TContainer]) {
       streamified = ToArray(streamified)
-
-    if(!(streamified.typ isOfType node.typ)) {
-      println(s"\n\nfuck: \npre: ${node.typ} && ${node} \npost: ${streamified.typ} && ${streamified}\n\n")
     }
 
-    assert(streamified.typ isOfType node.typ)
+    if (streamified.typ.isInstanceOf[TContainer] && node.typ.isInstanceOf[TStream])
+      streamified = ToStream(streamified)
+    if(streamified.typ != node.typ) {
+      println(s"\n\nmismatch: \npref: ${node} (typ: ${node.typ}; \npost: ${streamified} (typ: ${streamified.typ}")
+    }
+    assert(streamified.typ == node.typ)
     streamified
   }
 
@@ -56,7 +56,7 @@ object LowerArrayToStream {
       case x: ApplyIR => streamify(x.explicitNode)
       case CollectDistributedArray(contextsIR, globalsIR, contextsName, globalsName, bodyIR) =>
         CollectDistributedArray(toStream(streamify(contextsIR)), boundary(globalsIR), contextsName, globalsName,  boundary(bodyIR))
-      case Let(name, value, body) => toStream(Let(name, boundary(value), boundary(body)))
+      case Let(name, value, body) => Let(name, boundary(value), streamify(body))
       case ToDict(a) => ToDict(toStream(streamify(a)))
       case ToSet(a) => ToSet(toStream(streamify(a)))
       case ArraySort(a, leftName, rightName, compareIR) => ArraySort(toStream(streamify(a)), leftName, rightName, boundary(compareIR))
@@ -73,7 +73,11 @@ object LowerArrayToStream {
         else
           node.copy(newChildren)
 
-        toStream(x)
+        if(x.typ.isInstanceOf[TArray]) {
+          ToStream(x)
+        } else {
+          x
+        }
     }
   }
 
