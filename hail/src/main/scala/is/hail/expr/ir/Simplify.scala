@@ -899,14 +899,18 @@ object Simplify {
 
   private[this] def blockMatrixRules: PartialFunction[BlockMatrixIR, BlockMatrixIR] = {
     case BlockMatrixBroadcast(child, IndexedSeq(0, 1), _, _) => child
-    case BlockMatrixSlice(BlockMatrixMap(child, n, f), slices) => BlockMatrixMap(BlockMatrixSlice(child, slices), n, f)
-    case BlockMatrixSlice(BlockMatrixMap2(l, r, ln, rn, f), slices) =>
-      BlockMatrixMap2(BlockMatrixSlice(l, slices), BlockMatrixSlice(r, slices), ln, rn, f)
-    case BlockMatrixMap2(BlockMatrixBroadcast(scalarBM, IndexedSeq(), _, _), right, leftName, rightName, f) =>
+    case BlockMatrixSlice(BlockMatrixMap(child, n, f, reqDense), slices) => BlockMatrixMap(BlockMatrixSlice(child, slices), n, f, reqDense)
+    case BlockMatrixSlice(BlockMatrixMap2(l, r, ln, rn, f, sparsityStrategy), slices) =>
+      BlockMatrixMap2(BlockMatrixSlice(l, slices), BlockMatrixSlice(r, slices), ln, rn, f, sparsityStrategy)
+    case BlockMatrixMap2(BlockMatrixBroadcast(scalarBM, IndexedSeq(), _, _), right, leftName, rightName, f, sparsityStrategy) =>
       val getElement = BlockMatrixToValueApply(scalarBM, functions.GetElement(Seq(0, 0)))
-      BlockMatrixMap(right, rightName, Subst(f, BindingEnv.eval(leftName -> getElement)))
-    case BlockMatrixMap2(left, BlockMatrixBroadcast(scalarBM, IndexedSeq(), _, _), leftName, rightName, f) =>
+      val needsDense = sparsityStrategy == NeedsDense || sparsityStrategy.exists(leftBlock = true, rightBlock = false)
+      val maybeDense = if (needsDense) BlockMatrixDensify(right) else right
+      BlockMatrixMap(maybeDense, rightName, Subst(f, BindingEnv.eval(leftName -> getElement)), needsDense)
+    case BlockMatrixMap2(left, BlockMatrixBroadcast(scalarBM, IndexedSeq(), _, _), leftName, rightName, f, sparsityStrategy) =>
       val getElement = BlockMatrixToValueApply(scalarBM, functions.GetElement(Seq(0, 0)))
-      BlockMatrixMap(left, leftName, Subst(f, BindingEnv.eval(rightName -> getElement)))
+      val needsDense = sparsityStrategy == NeedsDense || sparsityStrategy.exists(leftBlock = false, rightBlock = true)
+      val maybeDense = if (needsDense) BlockMatrixDensify(left) else left
+      BlockMatrixMap(maybeDense, leftName, Subst(f, BindingEnv.eval(rightName -> getElement)), needsDense)
   }
 }
