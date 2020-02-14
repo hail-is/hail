@@ -199,30 +199,30 @@ def is_transient_error(e):
     # socket.timeout: The read operation timed out
     #
     # ConnectionResetError: [Errno 104] Connection reset by peer
-    if isinstance(e, aiohttp.ClientResponseError):
+    if isinstance(e, aiohttp.ClientResponseError) and (
+            e.status in (408, 500, 502, 503, 504)):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 500 internal server error, 502 bad gateway
         # 503 service unavailable, 504 gateway timeout
-        if e.status in (408, 500, 502, 503, 504):
-            return True
-    elif isinstance(e, aiohttp.ClientOSError):
-        if (e.errno == errno.ETIMEDOUT or
-                e.errno == errno.ECONNREFUSED or
-                e.errno == errno.EHOSTUNREACH or
-                e.errno == errno.ECONNRESET):
-            return True
+        return True
+    elif isinstance(e, aiohttp.ClientOSError) and (
+            e.errno == errno.ETIMEDOUT or
+            e.errno == errno.ECONNREFUSED or
+            e.errno == errno.EHOSTUNREACH or
+            e.errno == errno.ECONNRESET):
+        return True
     elif isinstance(e, aiohttp.ServerTimeoutError):
         return True
     elif isinstance(e, aiohttp.ServerDisconnectedError):
         return True
     elif isinstance(e, asyncio.TimeoutError):
         return True
-    elif isinstance(e, OSError):
-        if (e.errno == errno.ETIMEDOUT or
-                e.errno == errno.ECONNREFUSED or
-                e.errno == errno.EHOSTUNREACH or
-                e.errno == errno.ECONNRESET):
-            return True
+    elif isinstance(e, OSError) and (
+            e.errno == errno.ETIMEDOUT or
+            e.errno == errno.ECONNREFUSED or
+            e.errno == errno.EHOSTUNREACH or
+            e.errno == errno.ECONNRESET):
+        return True
     elif isinstance(e, urllib3.exceptions.ReadTimeoutError):
         return True
     elif isinstance(e, requests.exceptions.ReadTimeout):
