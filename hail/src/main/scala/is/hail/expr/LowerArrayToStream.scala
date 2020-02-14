@@ -7,7 +7,10 @@ object LowerArrayToStream {
     var streamified = streamify(node)
 
     if (streamified.typ.isInstanceOf[TStream] && node.typ.isInstanceOf[TContainer]) {
-      streamified = ToArray(streamified)
+      streamified = streamified match {
+        case ToStream(a) => if (a.typ == node.typ) a else ToArray(a)
+        case _ => ToArray(streamified)
+      }
     }
 
     if (streamified.typ.isInstanceOf[TContainer] && node.typ.isInstanceOf[TStream])
@@ -18,15 +21,13 @@ object LowerArrayToStream {
   }
 
   private def toStream(node: IR): IR = {
-    // We cannot make a stronger assertion here. There are cases when the node must be allowed through
-    // even if it isn't TStreamable. For instance, Let nodes need to streamify some, but not all body
-    // Because let is accepted in both Emit and EmitStream
     node match {
       case _: ToStream => node
       case _ => {
         if(node.typ.isInstanceOf[TContainer])
           ToStream(node)
         else
+          // There are nodes that get matched on in both Emit an EmitStream contexts
           node
       }
     }
@@ -71,7 +72,7 @@ object LowerArrayToStream {
         else
           node.copy(newChildren)
 
-        if(x.typ.isInstanceOf[TArray]) {
+        if(x.typ.isInstanceOf[TContainer]) {
           ToStream(x)
         } else {
           x
@@ -79,10 +80,5 @@ object LowerArrayToStream {
     }
   }
 
-  def apply(node: IR): IR = {
-    println(s"LowerArrayToStream: \npre: ${node}\n")
-    val r = boundary(node)
-    println(s"LowerArrayToStream: \npost: ${r}")
-    r
-  }
+  def apply(node: IR): IR = boundary(node)
 }
