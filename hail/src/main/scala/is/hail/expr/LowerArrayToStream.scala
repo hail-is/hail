@@ -12,9 +12,7 @@ object LowerArrayToStream {
 
     if (streamified.typ.isInstanceOf[TContainer] && node.typ.isInstanceOf[TStream])
       streamified = ToStream(streamified)
-    if(streamified.typ != node.typ) {
-      println(s"\n\nmismatch: \npref: ${node} (typ: ${node.typ}; \npost: ${streamified} (typ: ${streamified.typ}")
-    }
+
     assert(streamified.typ == node.typ)
     streamified
   }
