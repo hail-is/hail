@@ -129,6 +129,8 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   private var elementsOffset: ClassFieldRef[Long] = _
   private val startOffset: ClassFieldRef[Long] = mb.newField[Long]
 
+  def getCurrentIDx = staticIdx
+
   ftype match {
     case t: PBaseStruct => elementsOffset = mb.newField[Long]
     case t: PArray =>
