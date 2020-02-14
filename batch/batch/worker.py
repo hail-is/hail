@@ -17,7 +17,7 @@ import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
-from hailtop.utils import time_msecs, request_retry_transient_errors
+from hailtop.utils import time_msecs, request_retry_transient_errors, RETRY_FUNCTION_SCRIPT
 
 # import uvloop
 
@@ -402,11 +402,7 @@ def copy(files):
     return f'''
 set -ex
 
-function retry() {{
-    "$@" ||
-        (sleep 2 && "$@") ||
-        (sleep 5 && "$@")
-}}
+{ RETRY_FUNCTION_SCRIPT }
 
 retry gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
 
