@@ -11,6 +11,7 @@ import base64
 import uuid
 import shutil
 import aiohttp
+import aiohttp.client_exceptions
 from aiohttp import web
 import concurrent
 import aiodocker
@@ -96,6 +97,8 @@ async def docker_call_retry(f, *args, **kwargs):
                 log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
             else:
                 raise
+        except aiohttp.client_exceptions.ServerDisconnectedError:
+            log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
         except asyncio.TimeoutError:
             log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
         # exponentially back off, up to (expected) max of 30s

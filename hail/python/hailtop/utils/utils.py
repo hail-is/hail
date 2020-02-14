@@ -187,6 +187,8 @@ def is_transient_error(e):
     #
     # urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='www.googleapis.com', port=443): Read timed out. (read timeout=60)
     #
+    # requests.exceptions.ConnectionError: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))
+    #
     # socket.timeout: The read operation timed out
     #
     # ConnectionResetError: [Errno 104] Connection reset by peer
@@ -217,6 +219,8 @@ def is_transient_error(e):
     elif isinstance(e, urllib3.exceptions.ReadTimeoutError):
         return True
     elif isinstance(e, requests.exceptions.ReadTimeout):
+        return True
+    elif isinstance(e, requests.exceptions.ConnectionError):
         return True
     elif isinstance(e, socket.timeout):
         return True
