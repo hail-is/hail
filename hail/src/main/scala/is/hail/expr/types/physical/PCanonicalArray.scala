@@ -371,7 +371,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
             this.elementType.fundamentalType match {
               case t@(_: PBinary | _: PArray) =>
                 Region.storeAddress(currentElementAddress, t.copyFromType(mb, region, t, Region.loadAddress(currentElementAddress), forceDeep = true))
-              case t: PBaseStruct =>
+              case t: PCanonicalBaseStruct =>
                 t.deepPointerCopy(mb, region, currentElementAddress)
               case t: PType => fatal(s"Type isn't supported ${t}")
             }
@@ -395,7 +395,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         this.elementType.fundamentalType match {
           case t@(_: PBinary | _: PArray) =>
             Region.storeAddress(currentElementAddress, t.copyFromType(region, t, Region.loadAddress(currentElementAddress), forceDeep = true))
-          case t: PBaseStruct =>
+          case t: PCanonicalBaseStruct =>
             t.deepPointerCopy(region, currentElementAddress)
           case t: PType => fatal(s"Type isn't supported ${t}")
         }
@@ -461,7 +461,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         i := 0,
         Code.whileLoop(i < len,
           srcArray.isElementDefined(srcAddress, i).orEmpty(
-            elementType.constructAtAddress(mb, elementOffset(newAddr, len, i), region, srcArray.elementType, srcArray.loadElement(srcAddress, len, i), forceDeep)
+            Code(
+              setElementPresent(newAddr, i),
+              elementType.constructAtAddress(mb, elementOffset(newAddr, len, i), region, srcArray.elementType, srcArray.loadElement(srcAddress, len, i), forceDeep)
+            )
           ),
           i := i + 1
         ),
@@ -493,8 +496,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       var i = 0
       val srcElement = srcArray.elementType
       while (i < len) {
-        if (srcArray.isElementDefined(srcAddress, i))
+        if (srcArray.isElementDefined(srcAddress, i)) {
+          setElementPresent(newAddr, i)
           elementType.constructAtAddress(elementOffset(newAddr, len, i), region, srcElement, srcArray.loadElement(srcAddress, len, i), forceDeep)
+        }
         i += 1
       }
       newAddr

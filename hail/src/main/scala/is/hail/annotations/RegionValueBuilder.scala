@@ -38,7 +38,7 @@ class RegionValueBuilder(var region: Region) {
     else {
       val i = indexstk.top
       typestk.top match {
-        case t: PBaseStruct =>
+        case t: PCanonicalBaseStruct =>
           offsetstk.top + t.byteOffsets(i)
         case t: PArray =>
           elementsOffsetstk.top + i * t.elementByteSize
@@ -51,7 +51,7 @@ class RegionValueBuilder(var region: Region) {
       root
     else {
       typestk.top match {
-        case t: PBaseStruct =>
+        case t: PCanonicalBaseStruct =>
           val i = indexstk.top
           t.types(i)
         case t: PArray =>

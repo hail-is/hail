@@ -17,7 +17,7 @@ object PTuple {
   def apply(args: PType*): PTuple = PCanonicalTuple(false, args:_*)
 }
 
-abstract class PTuple extends PBaseStruct {
+trait PTuple extends PBaseStruct {
   val _types: IndexedSeq[PTupleField]
   val fieldIndex: Map[Int, Int]
 

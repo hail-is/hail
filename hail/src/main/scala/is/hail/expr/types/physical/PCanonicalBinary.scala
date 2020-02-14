@@ -17,7 +17,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     val srcVar = mb.newLocal[Long]
 
     Code(
-      srcVar := mb.newLocal[Long],
+      srcVar := srcAddress,
       len := this.loadLength(srcVar),
       constructOrCopyWithLen(mb, region, srcPType.asInstanceOf[PBinary], srcVar, len, forceDeep)
     )
