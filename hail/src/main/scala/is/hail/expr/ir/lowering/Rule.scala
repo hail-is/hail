@@ -42,42 +42,39 @@ case object EmittableValueIRs extends Rule {
   }
 }
 
-case object ArrayIRsAreStreams extends Rule {
-  override def allows(ir: BaseIR): Boolean = {
-    case NA => true
-    case In => true
-    case ReadPartition => true
-    case MakeStream => true
-    case StreamRange => true
-    case ToStream => true
-    case Let(_, _, childIR) => {
-      allows(childIR)
-    }
-    case ArrayMap(childIR, _, _) => {
-      allows(childIR)
-    }
-    case ArrayZip(as, _, _,_) => {
-      as.forall(allows)
-    }
-    case ArrayFilter(childIR, _, _,_) => {
-      allows(childIR)
-    }
-    case ArrayFlatMap(outerIR, _, innerIR) => {
-      allows(outerIR) && allows(innerIR)
-    }
-    case ArrayLeftJoinDistinct(leftIR, rightIR, _, _, _, _) => {
-      allows(leftIR) && allows(rightIR)
-    }
-    case ArrayScan(childIR, _, _, _, _) => {
-      allows(childIR)
-    }
-    case RunAggScan(array, _, _, _, _, _) => {
-      allows(array)
-    }
-    case If(_, thenIR, elseIR) => {
-      allows(thenIR) && allows(elseIR)
-    }
-    case ReadPartition => true
+case object StreamableIRs extends Rule {
+  override def allows(ir: BaseIR): Boolean = ir match {
+    case _: NA => true
+    case _: In => true
+    case _: ReadPartition => true
+    case _: MakeStream => true
+    case _: StreamRange => true
+    case _: ToStream => true
+    case _: Let => true
+    case _: ArrayMap => true
+    case _: ArrayZip => true
+    case _: ArrayFilter => true
+    case _: ArrayFlatMap => true
+    case _: ArrayLeftJoinDistinct => true
+    case _: ArrayScan => true
+    case _: RunAggScan => true
+    case _: ReadPartition => true
+    case x if maybeAllows(x) => true
     case _ => false
+  }
+
+  def streamOnlyNode(ir: BaseIR): Boolean = ir match {
+    case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan |
+         _: ArrayLeftJoinDistinct | _: RunAggScan | _: ArrayAggScan | _: ReadPartition | _: MakeStream | _: StreamRange => true
+  }
+  // matched on in both Emit and EmitStream (stream and non-stream contexts
+  def maybeAllows(ir: BaseIR): Boolean = ir match {
+    case _: If => true
+    case _: Let => true
+    case _ => false
+  }
+
+  def allowsIfChildStreamable(ir: BaseIR): Boolean = ir match {
+    case ToArray(a) => allows(a)
   }
 }
