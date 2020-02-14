@@ -64,7 +64,7 @@ object InferPType {
       case IsNA(ir) =>
         infer(ir)
         PBoolean(true)
-      case Ref(name, typ) =>  env.lookup(name)
+      case Ref(name, _) =>  env.lookup(name)
       case MakeNDArray(data, shape, rowMajor) =>
         infer(data)
         infer(shape)

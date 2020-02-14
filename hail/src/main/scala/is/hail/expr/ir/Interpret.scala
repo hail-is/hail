@@ -591,15 +591,13 @@ object Interpret {
         function.execute(ctx, child.execute(ctx))
       case TableAggregate(child, query) =>
         val value = child.execute(ctx)
-        println("\n\n\nIn table aggregate\n\n\n")
         val globalsBc = value.globals.broadcast
         val globalsOffset = value.globals.value.offset
 
         val res = genUID()
         val extracted = agg.Extract(query, res)
-        println(s"Table aggregate ir ${extracted}")
+
         val wrapped = if (extracted.aggs.isEmpty) {
-          println(s"\nCALLING COMPILE ON POST AGG IR E<PTY: ${extracted.postAggIR}")
           val (rt: PTuple, f) = Compile[Long, Long](ctx,
             "global", value.globals.t,
             MakeTuple.ordered(FastSeq(extracted.postAggIR)))
