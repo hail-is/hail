@@ -54,7 +54,7 @@ object LowerArrayToStream {
       case x: ApplyIR => streamify(x.explicitNode)
       case CollectDistributedArray(contextsIR, globalsIR, contextsName, globalsName, bodyIR) =>
         CollectDistributedArray(toStream(streamify(contextsIR)), boundary(globalsIR), contextsName, globalsName,  boundary(bodyIR))
-      case Let(name, value, body) => toStream(Let(name, boundary(value), streamify(body)))
+      case Let(name, value, body) => toStream(Let(name, boundary(value), boundary(body)))
       case ToDict(a) => ToDict(toStream(streamify(a)))
       case ToSet(a) => ToSet(toStream(streamify(a)))
       case ArraySort(a, leftName, rightName, compareIR) => ArraySort(toStream(streamify(a)), leftName, rightName, boundary(compareIR))
