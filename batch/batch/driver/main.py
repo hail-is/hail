@@ -10,7 +10,7 @@ import kubernetes_asyncio as kube
 import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
 from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
-    check_csrf_token, transaction
+    check_csrf_token, transaction, AccessLogger
 from hailtop.config import get_deploy_config
 from hailtop.utils import time_msecs
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
@@ -560,4 +560,5 @@ def run():
                                                  'batch-driver',
                                                  client_max_size=HTTP_CLIENT_MAX_SIZE),
                 host='0.0.0.0',
-                port=5000)
+                port=5000,
+                access_log_class=AccessLogger)
