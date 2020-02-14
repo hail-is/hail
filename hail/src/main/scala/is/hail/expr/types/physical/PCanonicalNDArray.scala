@@ -208,13 +208,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     ))
   }
 
-  def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
-    this.representation.storeShallowAtOffset(dstAddress, valueAddress)
-
-  def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
-    this.representation.storeShallowAtOffset(dstAddress, valueAddress)
-  }
-
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     val sourceNDPType = srcPType.asInstanceOf[PNDArray]
 
@@ -241,4 +234,10 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def copy(elementType: PType = this.elementType, nDims: Int = this.nDims, required: Boolean = this.required): PCanonicalNDArray =
     PCanonicalNDArray(elementType, nDims, required)
+
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] =
+    throw new NotImplementedError("constructAtAddress should only be called on fundamental types; PCanonicalNDarray is not fundamental")
+
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
+    throw new NotImplementedError("constructAtAddress should only be called on fundamental types; PCanonicalNDarray is not fundamental")
 }

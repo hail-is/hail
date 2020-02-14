@@ -3,14 +3,8 @@ package is.hail.expr.types.physical
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, MethodBuilder}
 
-trait PPrimitive {
+trait PPrimitive extends PType {
   def byteSize: Long
-
-  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] =
-    Region.copyFrom(srcAddress, dstAddress, byteSize)
-
-  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long): Unit =
-    Region.copyFrom(srcAddress, dstAddress, byteSize)
 
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long =
     srcAddress
@@ -20,4 +14,13 @@ trait PPrimitive {
 
   def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
     stackValue
+
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] = {
+    assert(srcPType.isOfType(this))
+    Region.copyFrom(srcAddress, addr, byteSize)
+  }
+
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit = {
+    Region.copyFrom(srcAddress, addr, byteSize)
+  }
 }

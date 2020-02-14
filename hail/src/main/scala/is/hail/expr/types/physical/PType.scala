@@ -319,20 +319,14 @@ abstract class PType extends Serializable with Requiredness {
 
   def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_]
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long]): Code[Long] =
-    this.copyFromType(mb, region, srcPType, srcAddress, false)
-
   def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_]): Code[_] =
     this.copyFromTypeAndStackValue(mb, region, srcPType, stackValue, false)
 
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long): Long =
-    this.copyFromType(region, srcPType, srcAddress, false)
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit]
+
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit
 
   def deepRename(t: Type) = this
-
-  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]): Code[Unit]
-
-  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long)
 }
