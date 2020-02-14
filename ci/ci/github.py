@@ -133,7 +133,7 @@ DO_NOT_MERGE = {STACKED_PR, WIP}
 
 
 def clone_or_fetch_script(repo):
-    return """
+    return f"""
 { RETRY_FUNCTION_SCRIPT }
 
 function clone() {{
