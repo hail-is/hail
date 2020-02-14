@@ -64,8 +64,7 @@ case object LowerArrayToStreamPass extends LoweringPass {
   val context: String = "LowerArrayToStream"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
-    println("Called transform on LowerStreamPass")
-    LowerArrayToStream(ir.asInstanceOf[IR])  // currently will be called and not do anything
+    LowerArrayToStream(ir.asInstanceOf[IR])
   }
 }
 

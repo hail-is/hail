@@ -2447,7 +2447,7 @@ class IRSuite extends HailSuite {
     val countSig = AggSignature(Count(), Seq(), Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, countSig)
     val ir = MatrixAggregate(matrix, MakeStruct(Seq("foo" -> count)))
-    println(s"The ir we're testing: ${ir}")
+
     assertEvalsTo(ir, Row(25L))
   }
 
