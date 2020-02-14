@@ -125,6 +125,8 @@ case class BlockMatrixType(
 
   def getBlockIdx(i: Long): Int = java.lang.Math.floorDiv(i, blockSize).toInt
   def isSparse: Boolean = sparsity.isSparse
+  def nDefinedBlocks: Int =
+    if (isSparse) sparsity.definedBlocks.get.length else nRowBlocks * nColBlocks
   def hasBlock(idx: (Int, Int)): Boolean = {
     if (isSparse) sparsity.hasBlock(idx) else true
   }
