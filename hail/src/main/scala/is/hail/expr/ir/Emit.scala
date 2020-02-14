@@ -309,11 +309,8 @@ private class Emit(
     def wrapToMethod(irs: Seq[IR], env: E = env, container: Option[AggContainer] = container)(useValues: (EmitMethodBuilder, PType, EmitTriplet) => Code[Unit]): Code[Unit] =
       this.wrapToMethod(irs, env, container)(useValues)
 
-    def emitArrayIterator(ir: IR, env: E = env, container: Option[AggContainer] = container) = {
-      val s = ir//Streamify(ir)
-      println(s"\n\n emitArrayIterator: \npre: ${ir}\npost: ${s}")
-      this.emitArrayIterator(s, env, er, container)
-    }
+    def emitArrayIterator(ir: IR, env: E = env, container: Option[AggContainer] = container) =
+      this.emitArrayIterator(ir, env, er, container)
 
     def emitDeforestedNDArray(ir: IR) =
       deforestNDArray(resultRegion, ir, env).emit(coerce[PNDArray](ir.pType))
@@ -1105,15 +1102,10 @@ private class Emit(
 
       case x@MakeTuple(fields) =>
         val srvb = new StagedRegionValueBuilder(mb, x.pType)
-        val destType = x.pType.asInstanceOf[PTuple]
-
-        val addFields = { (newMB: EmitMethodBuilder, pt: PType, v: EmitTriplet) =>
-          val destFieldPType = destType.fields(srvb.getCurrentIDx).typ
-          val addElement = srvb.addIRIntermediate(destFieldPType)
-
+        val addFields = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
           Code(
             v.setup,
-            v.m.mux(srvb.setMissing(), addElement(destFieldPType.copyFromTypeAndStackValue(er.mb, er.region, pt, v.v))),
+            v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
             srvb.advance())
         }
         present(Code(srvb.start(init = true), wrapToMethod(fields.map(_._2))(addFields), srvb.offset))
