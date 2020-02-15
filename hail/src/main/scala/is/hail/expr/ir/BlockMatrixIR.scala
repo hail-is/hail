@@ -414,6 +414,10 @@ case class BlockMatrixBroadcast(
             BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(0 -> j))
           case IndexedSeq(1) => // broadcast row vector
             BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(i -> 0))
+          case IndexedSeq(0, 0) => // diagonal as col vector
+            assert(shape(0) == 1L)
+            assert(shape(1) == java.lang.Math.min(child.typ.nRows, child.typ.nCols))
+            BlockMatrixSparsity(nRowBlocks, nColBlocks)((_, j: Int) => child.typ.hasBlock(j -> j))
           case IndexedSeq(1, 0) => // transpose
             assert(child.typ.blockSize == blockSize)
             BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(j -> i))
@@ -450,9 +454,9 @@ case class BlockMatrixBroadcast(
         BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
         broadcastRowVector(hc, childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
         // FIXME: I'm pretty sure this case is broken.
-//      case IndexedSeq(0, 0) =>
-//        BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-//        BlockMatrixIR.toBlockMatrix(hc, nRows.toInt, nCols.toInt, childBm.diagonal(), blockSize)
+      case IndexedSeq(0, 0) =>
+        BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
+        BlockMatrixIR.toBlockMatrix(hc, nRows.toInt, nCols.toInt, childBm.diagonal(), blockSize)
       case IndexedSeq(1, 0) => childBm.transpose()
       case IndexedSeq(0, 1) => childBm
     }
