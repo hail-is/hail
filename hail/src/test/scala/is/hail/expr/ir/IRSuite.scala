@@ -2446,9 +2446,7 @@ class IRSuite extends HailSuite {
     val matrix = MatrixIR.range(hc, 5, 5, None)
     val countSig = AggSignature(Count(), Seq(), Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, countSig)
-    val ir = MatrixAggregate(matrix, MakeStruct(Seq("foo" -> count)))
-
-    assertEvalsTo(ir, Row(25L))
+    assertEvalsTo(MatrixAggregate(matrix, MakeStruct(Seq("foo" -> count))), Row(25L))
   }
 
   @Test def testGroupByKey() {
