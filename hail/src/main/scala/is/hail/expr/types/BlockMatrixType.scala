@@ -8,7 +8,7 @@ object BlockMatrixSparsity {
 
   val dense: BlockMatrixSparsity = BlockMatrixSparsity(None)
 
-  def apply(definedBlocks: IndexedSeq[(Int, Int)]): BlockMatrixSparsity = BlockMatrixSparsity(definedBlocks)
+  def apply(definedBlocks: IndexedSeq[(Int, Int)]): BlockMatrixSparsity = BlockMatrixSparsity(Some(definedBlocks))
 
   def apply(nRows: Int, nCols: Int)(exists: (Int, Int) => Boolean): BlockMatrixSparsity = {
     var i = 0
