@@ -12,9 +12,9 @@ case class PTupleField(index: Int, typ: PType)
 object PTuple {
   def apply(args: IndexedSeq[PTupleField], required: Boolean = false): PTuple = PCanonicalTuple(args, required)
 
-  def apply(required: Boolean, args: PType*): PTuple = PCanonicalTuple(required, args:_*)
+  def apply(required: Boolean, args: PType*): PCanonicalTuple = PCanonicalTuple(required, args:_*)
 
-  def apply(args: PType*): PTuple = PCanonicalTuple(false, args:_*)
+  def apply(args: PType*): PCanonicalTuple = PCanonicalTuple(false, args:_*)
 }
 
 trait PTuple extends PBaseStruct {

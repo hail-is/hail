@@ -21,11 +21,11 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     off => Region.loadInt(representation.loadField(off, "offset"))
   )
   @transient lazy val shape = new StaticallyKnownField(
-    PTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*),
+    PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*): PTuple,
     off => representation.loadField(off, "shape")
   )
   @transient lazy val strides = new StaticallyKnownField(
-    PTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*),
+    PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*): PTuple,
     (off) => representation.loadField(off, "strides")
   )
 

@@ -5,7 +5,7 @@ import is.hail.expr.types.virtual.{TTuple, Type}
 import is.hail.utils._
 
 object PCanonicalTuple {
-  def apply(required: Boolean, args: PType*): PTuple = PCanonicalTuple(args.iterator.zipWithIndex.map { case (t, i) => PTupleField(i, t)}.toIndexedSeq, required)
+  def apply(required: Boolean, args: PType*): PCanonicalTuple = PCanonicalTuple(args.iterator.zipWithIndex.map { case (t, i) => PTupleField(i, t)}.toIndexedSeq, required)
 }
 
 final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val required: Boolean = false) extends PCanonicalBaseStruct(_types.map(_.typ).toArray) with PTuple {
