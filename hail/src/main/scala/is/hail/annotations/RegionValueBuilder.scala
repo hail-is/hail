@@ -376,13 +376,9 @@ class RegionValueBuilder(var region: Region) {
     val toT = currentType()
 
     if (typestk.isEmpty) {
-      if (region.eq(fromRegion)) {
-        start = fromOff
-        advance()
-        return
-      }
-
-      allocateRoot()
+      val r = toT.copyFromType(region, t.fundamentalType, fromOff, region.ne(fromRegion))
+      start = r
+      return
     }
 
     val toOff = currentOffset()

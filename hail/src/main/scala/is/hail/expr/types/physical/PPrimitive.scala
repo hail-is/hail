@@ -21,6 +21,7 @@ trait PPrimitive extends PType {
   }
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit = {
+    assert(srcPType.isOfType(this))
     Region.copyFrom(srcAddress, addr, byteSize)
   }
 }
