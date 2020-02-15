@@ -1,10 +1,12 @@
 package is.hail.expr.ir
 
 import breeze.linalg.{DenseMatrix => BDM}
-import is.hail.HailSuite
-import is.hail.expr.types.virtual.{TArray, TFloat64}
+import is.hail.ExecStrategy.ExecStrategy
+import is.hail.{ExecStrategy, HailSuite}
+import is.hail.expr.types.virtual.{TArray, TFloat64, TNDArray}
 import is.hail.linalg.BlockMatrix
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils._
+import is.hail.TestUtils._
 import org.testng.annotations.Test
 
 class BlockMatrixIRSuite extends HailSuite {
@@ -161,5 +163,47 @@ class BlockMatrixIRSuite extends HailSuite {
   @Test def testBlockMatrixDot() {
     val dotTwosAndThrees = BlockMatrixDot(new BlockMatrixLiteral(twos), new BlockMatrixLiteral(threes))
     assertBmEq(dotTwosAndThrees.execute(ctx), BlockMatrix.fill(hc, 3, 3, 2 * 3 * 3))
+  }
+
+  def arrayFromNDArray(nRows: Int, nCols: Int, nd: IR): IR = {
+    val ref = Ref(genUID(), nd.typ)
+    Let(ref.name, nd,
+      MakeArray(Array.tabulate(nRows) { i =>
+        MakeArray(Array.tabulate(nCols) { j =>
+          NDArrayRef(ref, IndexedSeq(I64(i), I64(j)))
+        }, TArray(coerce[TNDArray](nd.typ).elementType))
+      }, TArray(TArray(coerce[TNDArray](nd.typ).elementType))))
+  }
+
+  @Test def testLower() {
+    implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.LoweredJVMCompile)
+
+    val blockSize = 3
+
+    def value(nRows: Long, nCols: Long, data: Double*): (BlockMatrixIR, BDM[Double]) = {
+      val ir = ValueToBlockMatrix(Literal(TArray(TFloat64()), data),
+        FastIndexedSeq(nRows, nCols), blockSize)
+      val bdm = new BDM(nCols.toInt, nRows.toInt, data.toArray).t
+      ir -> bdm
+    }
+
+    val (m1IR, m1) = value(5, 4,
+      1, 2, 3, 4,
+      9, 10, 11, 12,
+      17, 18, 19, 20,
+      1, 3, 5, 7,
+      2, 4, 6, 1)
+
+    val (m2IR, m2) = value(4, 6,
+      1,2,3,4,5,6,
+      7,8,9,10,11,12,
+      13,14,15,16,17,18,
+      19,20,21,22,23,24)
+
+    val expected = m1 * m2
+
+    assertEvalsTo(
+      arrayFromNDArray(5, 6, BlockMatrixCollect(BlockMatrixDot(m1IR, m2IR))),
+      Array.tabulate(5)(i => Array.tabulate(6)(j => expected(i, j)).toFastIndexedSeq).toFastIndexedSeq)
   }
 }

@@ -42,14 +42,19 @@ abstract class Backend {
     case Right((pt, off)) => SafeRow(pt, ctx.r, off).get(0)
   }
 
-  def jvmLowerAndExecute(ir0: IR, optimize: Boolean, print: Option[PrintWriter] = None): (Any, ExecutionTimer) =
+  def jvmLowerAndExecute(ir0: IR, optimize: Boolean, lowerTable: Boolean, lowerBM: Boolean, print: Option[PrintWriter] = None): (Any, ExecutionTimer) =
     ExecuteContext.scoped { ctx =>
-      val (l, r) = _jvmLowerAndExecute(ctx, ir0, optimize, print)
+      val (l, r) = _jvmLowerAndExecute(ctx, ir0, optimize, lowerTable, lowerBM, print)
       (executionResultToAnnotation(ctx, l), r)
     }
 
-  private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir0: IR, optimize: Boolean, print: Option[PrintWriter] = None): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
-    val ir = LoweringPipeline.tableLowerer.apply(ctx, ir0, optimize).asInstanceOf[IR]
+  private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir0: IR, optimize: Boolean, lowerTable: Boolean, lowerBM: Boolean, print: Option[PrintWriter] = None): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
+    val ir = (lowerTable, lowerBM) match {
+      case (true, true) => LoweringPipeline.tableAndBMLowerer.apply(ctx, ir0, optimize).asInstanceOf[IR]
+      case (true, false) => LoweringPipeline.tableLowerer.apply(ctx, ir0, optimize).asInstanceOf[IR]
+      case (false, true) => LoweringPipeline.bmLowerer.apply(ctx, ir0, optimize).asInstanceOf[IR]
+      case (false, false) => throw new LowererUnsupportedOperation("no lowering enabled")
+    }
 
     if (!Compilable(ir))
       throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")
@@ -76,9 +81,9 @@ abstract class Backend {
   private[this] def _execute(ctx: ExecuteContext, ir: IR, optimize: Boolean): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
     TypeCheck(ir)
     try {
-      if (HailContext.get.flags.get("lower") == null)
-        throw new LowererUnsupportedOperation("lowering not enabled")
-      _jvmLowerAndExecute(ctx, ir, optimize)
+      val lowerTable = HailContext.get.flags.get("lower") != null
+      val lowerBM = HailContext.get.flags.get("lower_bm") != null
+      _jvmLowerAndExecute(ctx, ir, optimize, lowerTable, lowerBM)
     } catch {
       case _: LowererUnsupportedOperation =>
         (CompileAndEvaluate._apply(ctx, ir, optimize = optimize), ctx.timer)

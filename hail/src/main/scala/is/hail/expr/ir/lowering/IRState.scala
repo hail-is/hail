@@ -25,6 +25,10 @@ case object MatrixLoweredToTable extends IRState {
   val rules: Array[Rule] = Array(NoMatrixIR)
 }
 
+case object BlockMatrixOnly extends IRState {
+  val rules: Array[Rule] = Array(NoMatrixIR, NoTableIR)
+}
+
 case object ExecutableTableIR extends IRState {
   val rules: Array[Rule] = Array(NoMatrixIR, NoRelationalLets, CompilableValueIRs)
 }

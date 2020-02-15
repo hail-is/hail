@@ -4,6 +4,7 @@ import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir._
 import is.hail.expr.types.virtual._
 import is.hail.TestUtils._
+import is.hail.expr.types.BlockMatrixSparsity
 import is.hail.utils._
 import org.testng.annotations.Test
 
@@ -12,20 +13,32 @@ class BlockMatrixStageSuite extends HailSuite {
   private[this] implicit val execStrats: Set[ExecStrategy.ExecStrategy] = ExecStrategy.compileOnly
 
   def collected(
+    nr: Int, nc: Int,
     ctxs: Array[((Int, Int), IR)],
     globalVals: Array[(String, IR)],
     body: Ref => IR = ref => ref,
     order: Option[Array[(Int, Int)]] = None
   ): IR = {
-    val ctxRef = Ref(genUID(), if (ctxs.isEmpty) TInt32() else ctxs.head._2.typ)
-    BlockMatrixStage(ctxRef, ctxs.toMap, globalVals, body(ctxRef))
-      .toIR(b => b, order)
+    val stage = if (ctxs.isEmpty)
+      BlockMatrixStage.empty(TInt32(), nr, nc)
+    else {
+      new BlockMatrixStage(
+        nr, nc,
+        if (ctxs.length == nr * nc) BlockMatrixSparsity.dense else BlockMatrixSparsity(ctxs.map(_._1)),
+        globalVals,
+        ctxs.head._2.typ) {
+        private[this] val ctxMap = ctxs.toMap
+        def blockContext(idx: (Int, Int)): IR = ctxMap(idx)
+        def blockBody(ctxRef: Ref): IR = body(ctxRef)
+      }
+    }
+    stage.collectBlocks(b => b, order.getOrElse(stage.blocks.toArray))
   }
 
   @Test def testBlockMatrixCollectOrdering(): Unit = {
     val ctxs = Array.tabulate[((Int, Int), IR)](5) { i => ((i, 6-i), In(0, TInt32()) + I32(i)) }
     assertEvalsTo(
-      collected(ctxs, Array(), order = Some(Array.tabulate(5)(i => (4-i, i + 2)))),
+      collected(8, 8, ctxs, Array(), order = Some(Array.tabulate(5)(i => (4-i, i + 2)))),
       args = IndexedSeq(0 -> TInt32()),
       expected = IndexedSeq(4, 3, 2, 1, 0))
   }
@@ -33,7 +46,7 @@ class BlockMatrixStageSuite extends HailSuite {
   @Test def testContextDependsOnGlobalValue(): Unit = {
     val g1 = "x" -> In(0, TString())
     assertEvalsTo(
-      collected(Array.tabulate(5)(i => (i -> i, Ref("x", TString()))),
+      collected(5, 5, Array.tabulate(5)(i => (i -> i, Ref("x", TString()))),
         Array(g1)),
       args = IndexedSeq("foo" -> TString()),
       expected = Array.fill(5)("foo").toFastIndexedSeq)
@@ -43,7 +56,7 @@ class BlockMatrixStageSuite extends HailSuite {
     val g1 = "x" -> In(0, TInt32())
     assertEvalsTo(
       ToSet(
-        collected(Array.tabulate(5)(i => (i -> i, I32(i))),
+        collected(5, 5, Array.tabulate(5)(i => (i -> i, I32(i))),
           Array(g1),
           body=ref => ref + Ref("x", TInt32()))),
       args = IndexedSeq(5 -> TInt32()),
@@ -55,7 +68,7 @@ class BlockMatrixStageSuite extends HailSuite {
     val g2 = "y" -> MakeArray(FastIndexedSeq(Ref("x", TString())), TArray(TString()))
 
     assertEvalsTo(
-      collected(Array.tabulate(5)(i => (i -> i, Ref("y", TArray(TString())))),
+      collected(5, 5, Array.tabulate(5)(i => (i -> i, Ref("y", TArray(TString())))),
         Array(g1, g2)),
       args = IndexedSeq("foo" -> TString()),
       expected = Array.fill(5)(IndexedSeq("foo")).toFastIndexedSeq)
@@ -63,7 +76,7 @@ class BlockMatrixStageSuite extends HailSuite {
 
   @Test def testEmptyContexts(): Unit = {
     assertEvalsTo(
-      collected(Array(),
+      collected(1, 1, Array(),
         Array(),
         body = ref => ref + I32(5)),
       expected = IndexedSeq())

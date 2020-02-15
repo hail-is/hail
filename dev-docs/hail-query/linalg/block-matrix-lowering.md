@@ -9,10 +9,15 @@ BlockMatrixStage is the intermediate representation for a lowered BlockMatrix. I
 represents the block structure of a BlockMatrixIR node as well as all information 
 necessary for the block-level computation.
 
-- ctxRef: a handle for referring to the context
-- blockContexts: sparse map of contexts for each block
+To construct a BlockMatrixStage, we must define the following values and 
+functions:
+
+- nRowBlocks and nColBlocks: the shape of the blocks in the BlockMatrix
+- sparsity: which blocks are defined
 - globalVals: sequence of (named) values that are shared across each context
-- body: IR: tranformation of the block context that yields the matrix value of each block
+- ctxType: the type of the per-block context
+- blockContext(idx): a function taking the block index and returning the context IR for that block
+- blockBody(ctxRef): a function tranforming the block context into the matrix value of each block
 
 ## Global values
 

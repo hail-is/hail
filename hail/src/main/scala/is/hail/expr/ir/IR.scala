@@ -260,6 +260,13 @@ sealed trait NDArrayIR extends TypedIR[TNDArray, PNDArray] {
   def elementTyp: Type = typ.elementType
 }
 
+object MakeNDArray {
+  def fill(elt: IR, shape: IndexedSeq[Long], rowMajor: IR): MakeNDArray =
+    MakeNDArray(
+      ArrayMap(ArrayRange(0, shape.product, 1), genUID(), elt),
+      MakeTuple.ordered(shape.map(I64)), rowMajor)
+}
+
 final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR) extends NDArrayIR
 
 final case class NDArrayShape(nd: IR) extends IR

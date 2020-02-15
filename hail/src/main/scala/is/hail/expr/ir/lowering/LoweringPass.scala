@@ -58,6 +58,22 @@ case object LowerTableToDistributedArrayPass extends LoweringPass {
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerIR.lower(ir.asInstanceOf[IR], lowerTable = true, lowerBM = false)
 }
 
+case object LowerBlockMatrixToDistributedArrayPass extends LoweringPass {
+  val before: IRState = BlockMatrixOnly
+  val after: IRState = CompilableIR
+  val context: String = "LowerBlockMatrixToDistributedArray"
+
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerIR.lower(ir.asInstanceOf[IR], lowerTable = false, lowerBM = true)
+}
+
+case object LowerToDistributedArrayPass extends LoweringPass {
+  val before: IRState = MatrixLoweredToTable
+  val after: IRState = CompilableIR
+  val context: String = "LowerToDistributedArray"
+
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerIR.lower(ir.asInstanceOf[IR], lowerTable = true, lowerBM = true)
+}
+
 case object InlineApplyIR extends LoweringPass {
   val before: IRState = CompilableIR
   val after: IRState = CompilableIRNoApply

@@ -826,6 +826,7 @@ class HailFeatureFlags {
   private[this] val flags: mutable.Map[String, String] =
     mutable.Map[String, String](
       "lower" -> sys.env.getOrElse("HAIL_DEV_LOWER", null),
+      "lower_bm" -> sys.env.getOrElse("HAIL_DEV_LOWER_BM", null),
       "max_leader_scans" -> sys.env.getOrElse("HAIL_DEV_MAX_LEADER_SCANS", "1000"),
       "jvm_bytecode_dump" -> sys.env.getOrElse("HAIL_DEV_JVM_BYTECODE_DUMP", null)
     )
