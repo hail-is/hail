@@ -507,20 +507,20 @@ class StagedRegionValueSuite extends HailSuite {
     val t2 = t1.deepInnerRequired(false)
 
     val value = IndexedSeq(
-      Row(1, IndexedSeq(1,2,null), IndexedSeq(0, -1), Set(Row("asdasdasd"), Row(""))),
+      Row(1, IndexedSeq(1,2,3), IndexedSeq(0, -1), Set(Row("asdasdasd"), Row(""))),
       Row(1, IndexedSeq(), IndexedSeq(-1), Set(Row("aa")))
     )
 
     Region.scoped { r =>
       val rvb = new RegionValueBuilder(r)
-      rvb.start(t1)
-      rvb.addAnnotation(t1.virtualType, value)
+      rvb.start(t2)
+      rvb.addAnnotation(t2.virtualType, value)
       val v1 = rvb.end()
-      assert(SafeRow.read(t1, r, v1) == value)
+      assert(SafeRow.read(t2, r, v1) == value)
 
       rvb.clear()
-      rvb.start(t2)
-      rvb.addRegionValue(t1, r, v1)
+      rvb.start(t1)
+      rvb.addRegionValue(t2, r, v1)
       val v2 = rvb.end()
       assert(SafeRow.read(t1, r, v2) == value)
     }
