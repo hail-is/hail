@@ -8,6 +8,7 @@ import struct
 
 import hailtop.utils as utils
 from hailtop.config import get_deploy_config
+from gear import AccessLogger
 
 from . import aiofiles as af
 from .logging import log
@@ -176,7 +177,10 @@ class Server:
 
         prefixed_app.on_startup.append(join_cluster)
 
-        web.run_app(prefixed_app, host=server.binding_host, port=server.port)
+        web.run_app(prefixed_app,
+                    host=server.binding_host,
+                    port=server.port,
+                    access_log_class=AccessLogger)
 
     def session(self, request):
         session_id = int(request.match_info['session'])
