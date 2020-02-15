@@ -4,6 +4,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.expr.types.virtual.{TArray, TInterval}
 import is.hail.utils._
+import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object Pretty {
@@ -25,15 +26,6 @@ object Pretty {
 
   def prettyClass(x: AnyRef): String =
     x.getClass.getName.split("\\.").last
-
-  def prettyBlockMatrixSparsifier(sparsifier: BlockMatrixSparsifier): String = sparsifier match {
-    case BandSparsifier(blocksOnly) =>
-      s"(BandSparsifier ${ prettyBooleanLiteral(blocksOnly) })"
-    case RowIntervalSparsifier(blocksOnly) =>
-      s"(RowIntervalSparsifier ${ prettyBooleanLiteral(blocksOnly) })"
-    case RectangleSparsifier =>
-      s"(RectangleSparsifier)"
-  }
 
   val MAX_VALUES_TO_LOG: Int = 25
 
@@ -333,8 +325,8 @@ object Pretty {
               blockSize.toString + " "
             case BlockMatrixFilter(_, indicesToKeepPerDim) =>
               indicesToKeepPerDim.map(indices => prettyLongs(indices)).mkString("(", " ", ")")
-            case BlockMatrixSparsify(_, _, sparsifier) =>
-              prettyBlockMatrixSparsifier(sparsifier)
+            case BlockMatrixSparsify(_, sparsifier) =>
+              sparsifier.pretty()
             case BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
               seed.toString + " " +
               prettyBooleanLiteral(gaussian) + " " +
