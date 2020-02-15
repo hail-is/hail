@@ -52,11 +52,6 @@ object LowerArrayToStream {
       case ToSet(a) => ToSet(toStream(a))
       case ArraySort(a, leftName, rightName, compareIR) => ArraySort(toStream(a), leftName, rightName, boundary(compareIR))
       case GroupByKey(collection) => GroupByKey(toStream(collection))
-      case ToArray(a) =>
-        a.typ match {
-          case _: TArray => toStream(a)
-          case _ => toStream(boundary(a))
-        }
       case _ =>
         val newChildren = node.children.map(child => boundary(child.asInstanceOf[IR]))
         if ((node.children, newChildren).zipped.forall(_ eq _))
