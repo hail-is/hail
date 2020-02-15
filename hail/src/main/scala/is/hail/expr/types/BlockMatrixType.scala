@@ -35,7 +35,7 @@ object BlockMatrixSparsity {
 
 case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
   def isSparse: Boolean = definedBlocks.isDefined
-  private[this] lazy val blockSet: Set[(Int, Int)] = definedBlocks.get.toSet
+  lazy val blockSet: Set[(Int, Int)] = definedBlocks.get.toSet
   def hasBlock(idx: (Int, Int)): Boolean = definedBlocks.isEmpty || blockSet.contains(idx)
   def condense(blockOverlaps: => (Array[Array[Int]], Array[Array[Int]])): BlockMatrixSparsity = {
     definedBlocks.map { _ =>
