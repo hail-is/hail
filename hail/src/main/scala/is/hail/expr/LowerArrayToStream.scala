@@ -1,19 +1,19 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual.{TArray, TContainer, TStream, TStreamable}
+import is.hail.expr.types.virtual.{TArray, TContainer, TIterable, TStream}
 
 object LowerArrayToStream {
+  private def nonStreamIterable(node: IR) = node.typ.isInstanceOf[TIterable] && !node.typ.isInstanceOf[TStream]
+
   private def boundary(node: IR): IR = {
     var streamified = streamify(node)
 
-    if (streamified.typ.isInstanceOf[TStream] && node.typ.isInstanceOf[TContainer]) {
+    if (streamified.typ.isInstanceOf[TStream] && nonStreamIterable(node)) {
       streamified = streamified match {
         case ToStream(a) => if (a.typ == node.typ) a else ToArray(a)
         case _ => ToArray(streamified)
       }
-    }
-
-    if (streamified.typ.isInstanceOf[TContainer] && node.typ.isInstanceOf[TStream])
+    } else if (nonStreamIterable(streamified) && node.typ.isInstanceOf[TStream])
       streamified = ToStream(streamified)
 
     assert(streamified.typ == node.typ)
@@ -21,16 +21,11 @@ object LowerArrayToStream {
   }
 
   private def toStream(node: IR): IR = {
-    node match {
-      case _: ToStream => node
-      case _ => {
-        if(node.typ.isInstanceOf[TContainer])
-          ToStream(node)
-        else
-          // There are nodes that get matched on in both Emit an EmitStream contexts
-          node
-      }
+    if(nonStreamIterable(node)) {
+      return ToStream(node)
     }
+    // There are nodes that get matched on in both Emit an EmitStream contexts
+    node
   }
 
   private def streamify(node: IR): IR = {
@@ -72,11 +67,12 @@ object LowerArrayToStream {
         else
           node.copy(newChildren)
 
-        if(x.typ.isInstanceOf[TContainer]) {
+        if(nonStreamIterable(x)) {
+          println("HIT THE CONDTION")
           ToStream(x)
-        } else {
-          x
         }
+        else
+          x
     }
   }
 
