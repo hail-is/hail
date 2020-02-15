@@ -67,10 +67,8 @@ object LowerArrayToStream {
         else
           node.copy(newChildren)
 
-        if(nonStreamIterable(x)) {
-          println("HIT THE CONDTION")
+        if(nonStreamIterable(x))
           ToStream(x)
-        }
         else
           x
     }
