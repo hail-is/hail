@@ -25,7 +25,6 @@ object LowerArrayToStream {
 
   private def streamify(node: IR): IR = {
     node match {
-      case ArraySort(a, l, r, comp) => ArraySort(toStream(a), l, r, boundary(comp))
       case ArrayFold(a, zero, zn, an, body) => ArrayFold(toStream(a), boundary(zero), zn, an, boundary(body))
       case ArrayFor(a, n, b) => ArrayFor(toStream(a), n, boundary(b))
       case ArrayFold2(a, accum, valueName, seq, result) => ArrayFold2(

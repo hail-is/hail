@@ -46,7 +46,6 @@ case object EmittableValueIRs extends Rule {
 
 case object StreamableIRs extends Rule {
   override def allows(ir: BaseIR): Boolean = ir match {
-    case ArraySort(a, _, _, _) => a.typ.isInstanceOf[TStream]
     case ArrayFold(a, _, _, _, _) => a.typ.isInstanceOf[TStream]
     case ArrayFor(a, _, _) => a.typ.isInstanceOf[TStream]
     case ArrayFold2(a, _, _, _, _) => a.typ.isInstanceOf[TStream]
