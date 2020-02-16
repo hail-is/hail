@@ -1,6 +1,8 @@
 package is.hail.expr.ir.lowering
 
+import is.hail.expr.ir.LowerArrayToStream.{boundary, toStream}
 import is.hail.expr.ir._
+import is.hail.expr.types.virtual.TStream
 
 trait Rule {
   def allows(ir: BaseIR): Boolean
@@ -44,37 +46,24 @@ case object EmittableValueIRs extends Rule {
 
 case object StreamableIRs extends Rule {
   override def allows(ir: BaseIR): Boolean = ir match {
-    case _: NA => true
-    case _: In => true
-    case _: ReadPartition => true
-    case _: MakeStream => true
-    case _: StreamRange => true
-    case _: ToStream => true
-    case _: Let => true
-    case _: ArrayMap => true
-    case _: ArrayZip => true
-    case _: ArrayFilter => true
-    case _: ArrayFlatMap => true
-    case _: ArrayLeftJoinDistinct => true
-    case _: ArrayScan => true
-    case _: RunAggScan => true
-    case _: ReadPartition => true
-    case x if maybeAllows(x) => true
-    case _ => false
-  }
-
-  def streamOnlyNode(ir: BaseIR): Boolean = ir match {
-    case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan |
-         _: ArrayLeftJoinDistinct | _: RunAggScan | _: ArrayAggScan | _: ReadPartition | _: MakeStream | _: StreamRange => true
-  }
-  // matched on in both Emit and EmitStream (stream and non-stream contexts
-  def maybeAllows(ir: BaseIR): Boolean = ir match {
-    case _: If => true
-    case _: Let => true
-    case _ => false
-  }
-
-  def allowsIfChildStreamable(ir: BaseIR): Boolean = ir match {
-    case ToArray(a) => allows(a)
+    case ArraySort(a, _, _, _) => a.typ.isInstanceOf[TStream]
+    case ArrayFold(a, _, _, _, _) => a.typ.isInstanceOf[TStream]
+    case ArrayFor(a, _, _) => a.typ.isInstanceOf[TStream]
+    case ArrayFold2(a, _, _, _, _) => a.typ.isInstanceOf[TStream]
+    case RunAggScan(a, _, _, _, _, _) => a.typ.isInstanceOf[TStream]
+    case ArrayZip(childIRs, _, _, _) => childIRs.forall(_.typ.isInstanceOf[TStream])
+    case ArrayMap(a, _, _) => a.typ.isInstanceOf[TStream]
+    case ArrayFilter(a, _, _) => a.typ.isInstanceOf[TStream]
+    case ArrayFlatMap(a, _, b) => a.typ.isInstanceOf[TStream] && b.typ.isInstanceOf[TStream]
+    case ArrayScan(a, _, _, _, _) => a.typ.isInstanceOf[TStream]
+    case ArrayLeftJoinDistinct(l, r, _, _, _, _) => l.typ.isInstanceOf[TStream] && r.typ.isInstanceOf[TStream]
+    case CollectDistributedArray(contextsIR, _, _, _, _) => contextsIR.typ.isInstanceOf[TStream]
+    case ToDict(a) => a.typ.isInstanceOf[TStream]
+    case ToSet(a) => a.typ.isInstanceOf[TStream]
+    case ArraySort(a, _, _, _) => a.typ.isInstanceOf[TStream]
+    case GroupByKey(collection) => collection.typ.isInstanceOf[TStream]
+    case _: MakeArray => false
+    case _: ArrayRange => false
+    case _ => true
   }
 }

@@ -58,15 +58,6 @@ case object LowerTableToDistributedArrayPass extends LoweringPass {
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerTableIR.lower(ir.asInstanceOf[IR])
 }
 
-case object LowerArrayToStreamPass extends LoweringPass {
-  val before: IRState = EmittableIR
-  val after: IRState = EmittableIR
-  val context: String = "LowerArrayToStream"
-
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    LowerArrayToStream(ir.asInstanceOf[IR])
-}
-
 case object LowerArrayAggsToRunAggPass extends LoweringPass {
   val before: IRState = CompilableIR
   val after: IRState = EmittableIR
@@ -107,4 +98,13 @@ case object LowerArrayAggsToRunAggPass extends LoweringPass {
       Some(newNode)
     case _ => None
   })
+}
+
+case object LowerArrayToStreamPass extends LoweringPass {
+  val before: IRState = EmittableIR
+  val after: IRState = EmittableStreamIRs
+  val context: String = "LowerArrayToStream"
+
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    LowerArrayToStream(ir.asInstanceOf[IR])
 }

@@ -28,7 +28,7 @@ object FoldConstants {
              _: NDArrayWrite |
              _: NDArrayMatMul |
              _: Die => None
-        case x: IR if x.typ.isInstanceOf[TStream] => None
+        case ir: IR if ir.typ.isInstanceOf[TStream] => None
         case ir: IR if !IsConstant(ir) &&
           Interpretable(ir) &&
           ir.children.forall {
