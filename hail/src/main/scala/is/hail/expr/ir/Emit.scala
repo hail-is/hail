@@ -733,7 +733,6 @@ private class Emit(
 
         val codeZ = emit(zero)
         val codeB = emit(body, env = bodyenv)
-        println(s"IN ARRAY FOLD, a is ${a}")
         val aBase = emitArrayIterator(a)
 
         val cont = { (m: Code[Boolean], v: Code[_]) =>
