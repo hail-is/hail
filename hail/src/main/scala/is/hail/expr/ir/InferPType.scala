@@ -239,7 +239,6 @@ object InferPType {
         infer(compare, e)
         infer(join, e)
 
-        // wrong
         coerce[PStream](lIR.pType2).copy(join.pType2, lIR.pType2.required)
       case NDArrayShape(nd) =>
         infer(nd)
