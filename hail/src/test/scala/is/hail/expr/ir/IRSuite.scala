@@ -382,7 +382,8 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testComplexInferPType() {
-    var ir = ArrayMap(
+    // InferPType expects array->stream lowered ir
+    val ir = LowerArrayToStream(ArrayMap(
       Let(
         "q",
         I32(2),
@@ -397,9 +398,9 @@ class IRSuite extends HailSuite {
         )
       ),
       "y",
-      Ref("y", TInt32()) + I32(3))
+      Ref("y", TInt32()) + I32(3)))
 
-    assertPType(ir, PArray(PInt32(true), true))
+    assertPType(ir, PCanonicalArray(PInt32(true), true))
   }
 
   @Test def testApplyBinaryPrimOpAdd() {

@@ -121,7 +121,6 @@ object InferType {
         TArray(result.typ)
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         coerce[TStreamable](left.typ).copyStreamable(join.typ)
-        TArray(join.typ)
       case NDArrayShape(nd) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
         ndType.representation.fieldType("shape").asInstanceOf[TTuple].setRequired(ndType.required)
