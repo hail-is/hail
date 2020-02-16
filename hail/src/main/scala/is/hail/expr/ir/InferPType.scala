@@ -372,11 +372,10 @@ object InferPType {
           theIR._pType2
         }))
       case In(_, pType: PType) => pType
-      case ArrayFor(a, valueName, body) => {
+      case ArrayFor(a, valueName, body) =>
         infer(a)
         infer(body, env.bind(valueName -> a._pType2.asInstanceOf[PStream].elementType))
         PVoid
-      }
       case x if x.typ == TVoid =>
         x.children.foreach(c => infer(c.asInstanceOf[IR]))
         PVoid
@@ -401,13 +400,10 @@ object InferPType {
           infer(theIR)
           theIR._pType2
         })), true)
-      case ResultOp(_, aggSigs) => {
+      case ResultOp(_, aggSigs) =>
         val rPTypes = aggSigs.toIterator.zipWithIndex.map{ case (sig, i) => PTupleField(i, sig.toCanonicalPhysical.resultType)}.toIndexedSeq
         val allReq = rPTypes.forall(f => f.typ.required)
         PCanonicalTuple(rPTypes, allReq)
-      }
-
-
       case _: AggLet | _: RunAgg | _: RunAggScan | _: NDArrayAgg | _: AggFilter | _: AggExplode |
            _: AggGroupBy | _: AggArrayPerElement | _: ApplyAggOp | _: ApplyScanOp | _: AggStateValue => PType.canonical(ir.typ)
     }

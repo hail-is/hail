@@ -383,7 +383,7 @@ class IRSuite extends HailSuite {
 
   @Test def testComplexInferPType() {
     // InferPType expects array->stream lowered ir
-    val ir = LowerArrayToStream(ArrayMap(
+    val ir = ToArray(ArrayMap(
       Let(
         "q",
         I32(2),
@@ -391,7 +391,7 @@ class IRSuite extends HailSuite {
           Let(
             "v",
             Ref("q", TInt32()) + I32(3),
-            ArrayRange(0, Ref("v", TInt32()), 1)
+            StreamRange(0, Ref("v", TInt32()), 1)
           ),
           "x",
           Ref("x", TInt32()) + Ref("q", TInt32())

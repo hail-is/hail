@@ -61,7 +61,7 @@ case object LowerTableToDistributedArrayPass extends LoweringPass {
 case object LowerArrayAggsToRunAggPass extends LoweringPass {
   val before: IRState = CompilableIR
   val after: IRState = EmittableIR
-  val context: String = "LowerArrayAggsToRunAggPass"
+  val context: String = "LowerArrayAggsToRunAgg"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = RewriteBottomUp(ir, {
     case x@ArrayAgg(a, name, query) =>
