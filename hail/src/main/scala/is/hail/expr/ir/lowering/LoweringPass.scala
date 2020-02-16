@@ -63,15 +63,14 @@ case object LowerArrayToStreamPass extends LoweringPass {
   val after: IRState = EmittableIR
   val context: String = "LowerArrayToStream"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     LowerArrayToStream(ir.asInstanceOf[IR])
-  }
 }
 
-case object LowerArrayAggsToRunAggs extends LoweringPass {
+case object LowerArrayAggsToRunAggPass extends LoweringPass {
   val before: IRState = CompilableIR
   val after: IRState = EmittableIR
-  val context: String = "LowerArrayAggsToRunAggs"
+  val context: String = "LowerArrayAggsToRunAggPass"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = RewriteBottomUp(ir, {
     case x@ArrayAgg(a, name, query) =>

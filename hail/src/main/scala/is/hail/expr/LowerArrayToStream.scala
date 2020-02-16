@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual.{TArray, TContainer, TIterable, TStream, TStreamable}
+import is.hail.expr.types.virtual.{TArray, TIterable, TStream}
 
 object LowerArrayToStream {
   private def nonStreamIterable(node: IR) = node.typ.isInstanceOf[TIterable] && !node.typ.isInstanceOf[TStream]
