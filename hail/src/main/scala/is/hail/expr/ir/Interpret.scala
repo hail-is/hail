@@ -45,6 +45,7 @@ object Interpret {
     val rwIR = env.m.foldLeft[IR](ir0) { case (acc, (k, (value, t))) => Let(k, Literal.coerce(t, value), acc) }
 
     val lowered = LoweringPipeline.relationalLowerer.apply(ctx, rwIR, optimize).asInstanceOf[IR]
+
     val result = run(ctx, lowered, Env.empty[Any], args, Memo.empty).asInstanceOf[T]
 
     result
@@ -591,6 +592,7 @@ object Interpret {
         function.execute(ctx, child.execute(ctx))
       case TableAggregate(child, query) =>
         val value = child.execute(ctx)
+
         val globalsBc = value.globals.broadcast
         val globalsOffset = value.globals.value.offset
 
