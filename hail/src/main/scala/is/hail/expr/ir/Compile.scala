@@ -46,8 +46,7 @@ object Compile {
 
     TypeCheck(ir, BindingEnv.empty)
 
-    ir = if(HasIRSharing(ir)) ir.deepCopy() else ir
-    InferPType(ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
+    InferPType(if(HasIRSharing(ir)) ir.deepCopy() else ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
 
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
@@ -240,8 +239,7 @@ object CompileWithAggregators2 {
 
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
 
-    ir = if(HasIRSharing(ir)) ir.deepCopy() else ir
-    InferPType(ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
+    InferPType(if(HasIRSharing(ir)) ir.deepCopy() else ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
 
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
