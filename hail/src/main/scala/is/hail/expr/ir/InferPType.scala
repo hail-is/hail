@@ -334,10 +334,11 @@ object InferPType {
           throw new RuntimeException(s"$name not in $t")
         val fd = t.field(name).typ
         fd.setRequired(t.required && fd.required)
-      case MakeTuple(values) => PTuple(true, values.map(v => {
-        infer(v._2)
-        v._2.pType2
-      }): _*)
+      case MakeTuple(values) =>
+        PCanonicalTuple(values.map { case (idx, v) =>
+          infer(v)
+          PTupleField(idx, v.pType2)
+        }.toFastIndexedSeq, true)
       case MakeArray(irs, t) =>
         if (irs.isEmpty) {
           PType.canonical(t, true).deepInnerRequired(true)
@@ -353,8 +354,7 @@ object InferPType {
       case GetTupleElement(o, idx) =>
         infer(o)
         val t = coerce[PTuple](o.pType2)
-        assert(idx >= 0 && idx < t.size)
-        val fd = t.types(idx)
+        val fd = t.fields(t.fieldIndex(idx)).typ
         fd.setRequired(t.required && fd.required)
       case If(cond, cnsq, altr) =>
         infer(cond)
@@ -404,6 +404,7 @@ object InferPType {
         val rPTypes = aggSigs.toIterator.zipWithIndex.map{ case (sig, i) => PTupleField(i, sig.toCanonicalPhysical.resultType)}.toIndexedSeq
         val allReq = rPTypes.forall(f => f.typ.required)
         PCanonicalTuple(rPTypes, allReq)
+
       case _: AggLet | _: RunAgg | _: RunAggScan | _: NDArrayAgg | _: AggFilter | _: AggExplode |
            _: AggGroupBy | _: AggArrayPerElement | _: ApplyAggOp | _: ApplyScanOp | _: AggStateValue => PType.canonical(ir.typ)
     }
@@ -412,4 +413,3 @@ object InferPType {
     assert(ir.pType2.virtualType isOfType ir.typ)
   }
 }
-
