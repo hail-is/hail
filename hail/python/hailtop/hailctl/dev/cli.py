@@ -4,6 +4,7 @@ import argparse
 
 from . import config
 from . import deploy
+from . import url
 
 
 def parser():
@@ -26,6 +27,13 @@ def parser():
 
     deploy.cli.init_parser(deploy_parser)
 
+    url_parser = subparsers.add_parser(
+        'url',
+        help='Generate a URL for a service',
+        description='Generate a URL for a service')
+
+    url.cli.init_parser(url_parser)
+
     return main_parser
 
 
@@ -43,6 +51,10 @@ def main(args):
             cli.main(args)
         elif module == 'config':
             from .config import cli
+            args, _ = p.parse_known_args(args=args)
+            cli.main(args)
+        elif module == 'url':
+            from .url import cli
             args, _ = p.parse_known_args(args=args)
             cli.main(args)
         elif module in ('-h', '--help', 'help'):
