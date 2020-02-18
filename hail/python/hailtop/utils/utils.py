@@ -7,6 +7,7 @@ from aiohttp import web
 import urllib3
 import socket
 import requests
+import google.auth.exceptions
 
 from .time import time_msecs
 
@@ -199,6 +200,8 @@ def is_transient_error(e):
     # socket.timeout: The read operation timed out
     #
     # ConnectionResetError: [Errno 104] Connection reset by peer
+    #
+    # google.auth.exceptions.TransportError: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))
     if isinstance(e, aiohttp.ClientResponseError) and (
             e.status in (408, 500, 502, 503, 504)):
         # nginx returns 502 if it cannot connect to the upstream server
@@ -232,6 +235,8 @@ def is_transient_error(e):
     if isinstance(e, socket.timeout):
         return True
     if isinstance(e, ConnectionResetError):
+        return True
+    if isinstance(e, google.auth.exceptions.TransportError):
         return True
     return False
 
