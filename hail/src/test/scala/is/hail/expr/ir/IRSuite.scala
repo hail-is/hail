@@ -2645,6 +2645,8 @@ class IRSuite extends HailSuite {
       BlockMatrixCollect(blockMatrix),
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
+      BlockMatrixWrite(blockMatrix, BlockMatrixPersistWriter("x", "MEMORY_ONLY")),
+      UnpersistBlockMatrix(blockMatrix),
       CollectDistributedArray(ArrayRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32())),
       ReadPartition(Str("foo"), TypedCodecSpec(PStruct("foo" -> PInt32(), "bar" -> PString()), BufferSpec.default), TStruct("foo" -> TInt32())),
       ReadValue(Str("foo"), TypedCodecSpec(PStruct("foo" -> PInt32(), "bar" -> PString()), BufferSpec.default), TStruct("foo" -> TInt32())),
@@ -2822,7 +2824,9 @@ class IRSuite extends HailSuite {
       sparsify3,
       densify,
       RelationalLetBlockMatrix("x", I32(0), read),
-      slice)
+      slice,
+      BlockMatrixRead(BlockMatrixPersistReader("x"))
+    )
 
     blockMatrixIRs.map(ir => Array(ir))
   }
