@@ -12,6 +12,7 @@ import is.hail.rvd.{AbstractRVDSpec, RVDType}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+import org.apache.spark.sql.Row
 import org.json4s.Formats
 import org.json4s.jackson.{JsonMethods, Serialization}
 
@@ -808,6 +809,10 @@ object IRParser {
         val nd = ir_value_expr(env)(it)
         val shape = ir_value_expr(env)(it)
         NDArrayReshape(nd, shape)
+      case "NDArrayConcat" =>
+        val axis = int32_literal(it)
+        val nds = ir_value_expr(env)(it)
+        NDArrayConcat(nds, axis)
       case "NDArrayMap" =>
         val name = identifier(it)
         val nd = ir_value_expr(env)(it)
@@ -1081,6 +1086,9 @@ object IRParser {
         val rt = type_expr(env.typEnv)(it)
         val args = ir_value_children(env)(it)
         invoke(function, rt, args: _*)
+      case "MatrixCount" =>
+        val child = matrix_ir(env.withRefMap(Map.empty))(it)
+        MatrixCount(child)
       case "TableCount" =>
         val child = table_ir(env.withRefMap(Map.empty))(it)
         TableCount(child)
@@ -1106,6 +1114,9 @@ object IRParser {
         val config = string_literal(it)
         val child = blockmatrix_ir(env)(it)
         BlockMatrixToValueApply(child, RelationalFunctions.lookupBlockMatrixToValue(config))
+      case "BlockMatrixCollect" =>
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixCollect(child)
       case "TableWrite" =>
         implicit val formats = TableWriter.formats
         val writerStr = string_literal(it)
@@ -1516,6 +1527,45 @@ object IRParser {
     }
   }
 
+  def blockmatrix_sparsifier(env: IRParserEnvironment)(it: TokenIterator): BlockMatrixSparsifier = {
+    punctuation(it, "(")
+    identifier(it) match {
+      case "PyRowIntervalSparsifier" =>
+        val blocksOnly = boolean_literal(it)
+        punctuation(it, ")")
+        val Row(starts: IndexedSeq[Long @unchecked], stops: IndexedSeq[Long @unchecked]) =
+          ExecuteContext.scoped[Row] { ctx => CompileAndEvaluate[Row](ctx, ir_value_expr(env)(it)) }
+        RowIntervalSparsifier(blocksOnly, starts, stops)
+      case "PyBandSparsifier" =>
+        val blocksOnly = boolean_literal(it)
+        punctuation(it, ")")
+        val Row(l: Long, u: Long) =
+          ExecuteContext.scoped[Row] { ctx => CompileAndEvaluate[Row](ctx, ir_value_expr(env)(it)) }
+        BandSparsifier(blocksOnly, l, u)
+      case "PyRectangleSparsifier" =>
+        punctuation(it, ")")
+        val rectangles: IndexedSeq[Long] =
+          ExecuteContext.scoped { ctx => CompileAndEvaluate[IndexedSeq[Long]](ctx, ir_value_expr(env)(it)) }
+        RectangleSparsifier(rectangles.grouped(4).toIndexedSeq)
+      case "RowIntervalSparsifier" =>
+        val blocksOnly = boolean_literal(it)
+        val starts = int64_literals(it)
+        val stops = int64_literals(it)
+        punctuation(it, ")")
+        RowIntervalSparsifier(blocksOnly, starts, stops)
+      case "BandSparsifier" =>
+        val blocksOnly = boolean_literal(it)
+        val l = int64_literal(it)
+        val u = int64_literal(it)
+        punctuation(it, ")")
+        BandSparsifier(blocksOnly, l, u)
+      case "RectangleSparsifier" =>
+        val rectangles = int64_literals(it).toFastIndexedSeq
+        punctuation(it, ")")
+        RectangleSparsifier(rectangles.grouped(4).toIndexedSeq)
+    }
+  }
+
   def blockmatrix_ir(env: IRParserEnvironment)(it: TokenIterator): BlockMatrixIR = {
     punctuation(it, "(")
     val ir = blockmatrix_ir1(env)(it)
@@ -1532,16 +1582,18 @@ object IRParser {
         BlockMatrixRead(reader)
       case "BlockMatrixMap" =>
         val name = identifier(it)
+        val needs_dense = boolean_literal(it)
         val child = blockmatrix_ir(env)(it)
         val f = ir_value_expr(env + (name -> child.typ.elementType))(it)
-        BlockMatrixMap(child, name, f)
+        BlockMatrixMap(child, name, f, needs_dense)
       case "BlockMatrixMap2" =>
         val lName = identifier(it)
         val rName = identifier(it)
+        val sparsityStrategy = SparsityStrategy.fromString(identifier(it))
         val left = blockmatrix_ir(env)(it)
         val right = blockmatrix_ir(env)(it)
         val f = ir_value_expr(env.update(Map(lName -> left.typ.elementType, rName -> right.typ.elementType)))(it)
-        BlockMatrixMap2(left, right, lName, rName, f)
+        BlockMatrixMap2(left, right, lName, rName, f, sparsityStrategy)
       case "BlockMatrixDot" =>
         val left = blockmatrix_ir(env)(it)
         val right = blockmatrix_ir(env)(it)
@@ -1560,6 +1612,13 @@ object IRParser {
         val indices = literals(literals(int64_literal))(it)
         val child = blockmatrix_ir(env)(it)
         BlockMatrixFilter(child, indices)
+      case "BlockMatrixDensify" =>
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixDensify(child)
+      case "BlockMatrixSparsify" =>
+        val sparsifier = blockmatrix_sparsifier(env)(it)
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixSparsify(child, sparsifier)
       case "BlockMatrixSlice" =>
         val slices = literals(literals(int64_literal))(it)
         val child = blockmatrix_ir(env)(it)

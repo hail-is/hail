@@ -13,7 +13,7 @@ import scala.reflect.{ClassTag, _}
 case object PInt32Optional extends PInt32(false)
 case object PInt32Required extends PInt32(true)
 
-class PInt32(override val required: Boolean) extends PIntegral {
+class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
   lazy val virtualType: TInt32 = TInt32(required)
   def _asIdent = "int32"
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PInt32")
@@ -56,21 +56,6 @@ class PInt32(override val required: Boolean) extends PIntegral {
   override def multiply(a: Code[_], b: Code[_]): Code[PInt32] = {
     coerce[PInt32](coerce[Int](a) * coerce[Int](b))
   }
-
-  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]) =
-    Region.storeInt(dstAddress, Region.loadInt(srcAddress))
-
-  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) =
-    Region.storeInt(dstAddress, Region.loadInt(srcAddress))
-
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long =
-    srcAddress
-
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] =
-    srcAddress
-
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
-    stackValue
 }
 
 object PInt32 {

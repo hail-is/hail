@@ -63,6 +63,8 @@ object Children {
       Array(nd)
     case NDArrayReshape(nd, shape) =>
       Array(nd, shape)
+    case NDArrayConcat(nds, _) =>
+      Array(nds)
     case ArraySort(a, _, _, compare) =>
       Array(a, compare)
     case ToSet(a) =>
@@ -171,6 +173,7 @@ object Children {
     case MatrixMultiWrite(children, _) => children
     // from TableIR
     case TableCount(child) => Array(child)
+    case MatrixCount(child) => Array(child)
     case TableGetGlobals(child) => Array(child)
     case TableCollect(child) => Array(child)
     case TableAggregate(child, query) => Array(child, query)
@@ -181,6 +184,7 @@ object Children {
     case MatrixToValueApply(child, _) => Array(child)
     // from BlockMatrixIR
     case BlockMatrixToValueApply(child, _) => Array(child)
+    case BlockMatrixCollect(child) => Array(child)
     case BlockMatrixWrite(child, _) => Array(child)
     case BlockMatrixMultiWrite(blockMatrices, _) => blockMatrices
     case CollectDistributedArray(ctxs, globals, _, _, body) => Array(ctxs, globals, body)

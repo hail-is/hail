@@ -1272,6 +1272,9 @@ object PruneDeadFields {
         val childTupleType = o.typ.asInstanceOf[TTuple]
         val tupleDep = TTuple(FastIndexedSeq(TupleField(idx, requestedType)), childTupleType.required)
         memoizeValueIR(o, tupleDep, memo)
+      case MatrixCount(child) =>
+        memoizeMatrixIR(child, minimal(child.typ), memo)
+        BindingEnv.empty
       case TableCount(child) =>
         memoizeTableIR(child, minimal(child.typ), memo)
         BindingEnv.empty

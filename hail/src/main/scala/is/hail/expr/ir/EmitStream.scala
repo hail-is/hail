@@ -735,17 +735,17 @@ object EmitStream {
           val r = rightIR.pType.asInstanceOf[PStreamable].elementType
           implicit val lP = TypedTriplet.pack(l)
           implicit val rP = TypedTriplet.pack(r)
-          val (leltm, leltv) = lP.newFields(fb, "join_lelt")
-          val (reltm, reltv) = rP.newFields(fb, "join_relt")
+          val leltVar = lP.newFields(fb, "join_lelt")
+          val reltVar = rP.newFields(fb, "join_relt")
           val env2 = env
-            .bind(leftName -> ((typeToTypeInfo(l), leltm, leltv)))
-            .bind(rightName -> ((typeToTypeInfo(r), reltm, reltv)))
+            .bind(leftName -> ((typeToTypeInfo(l), leltVar.load.m, leltVar.load.v)))
+            .bind(rightName -> ((typeToTypeInfo(r), reltVar.load.m, reltVar.load.v)))
 
           def compare(lelt: TypedTriplet[l.type], relt: TypedTriplet[r.type]): Code[Int] = {
             val compt = emitIR(compIR, env2)
             Code(
-              lelt.storeTo(leltm, leltv),
-              relt.storeTo(reltm, reltv),
+              leltVar := lelt,
+              reltVar := relt,
               compt.setup,
               compt.m.orEmpty(Code._fatal("ArrayLeftJoinDistinct: comp can't be missing")),
               coerce[Int](compt.v))
@@ -759,8 +759,8 @@ object EmitStream {
           ).map { case (lelt, relt) =>
               val joint = emitIR(joinIR, env2)
               EmitTriplet(Code(
-                lelt.storeTo(leltm, leltv),
-                relt.storeTo(reltm, reltv),
+                leltVar := lelt,
+                reltVar := relt,
                 joint.setup), joint.m, joint.v) }
 
         case ArrayScan(childIR, zeroIR, accName, eltName, bodyIR) =>
@@ -768,19 +768,19 @@ object EmitStream {
           val a = zeroIR.pType
           implicit val eP = TypedTriplet.pack(e)
           implicit val aP = TypedTriplet.pack(a)
-          val (eltm, eltv) = eP.newFields(fb, "scan_elt")
-          val (accm, accv) = aP.newFields(fb, "scan_acc")
+          val eltVar = eP.newFields(fb, "scan_elt")
+          val accVar = aP.newFields(fb, "scan_acc")
           val zerot = emitIR(zeroIR, env)
           val bodyt = emitIR(bodyIR, env
-            .bind(accName -> ((typeToTypeInfo(a), accm, accv)))
-            .bind(eltName -> ((typeToTypeInfo(e), eltm, eltv))))
+            .bind(accName -> ((typeToTypeInfo(a), accVar.load.m, accVar.load.v)))
+            .bind(eltName -> ((typeToTypeInfo(e), eltVar.load.m, eltVar.load.v))))
           emitStream(childIR, env).scan(TypedTriplet.missing(a))(
             TypedTriplet(a, zerot),
             (eltt, acc, k) => {
               val elt = TypedTriplet(e, eltt)
               Code(
-                elt.storeTo(eltm, eltv),
-                acc.storeTo(accm, accv),
+                eltVar := elt,
+                accVar := acc,
                 k(TypedTriplet(a, bodyt)))
             }).map(_.untyped)
 
@@ -792,9 +792,9 @@ object EmitStream {
           val resultPType = result.pType
           implicit val eP = TypedTriplet.pack(producerElementPType)
           implicit val aP = TypedTriplet.pack(resultPType)
-          val (eltm, eltv) = eP.newFields(fb, "aggscan_elt")
-          val (postm, postv) = aP.newFields(fb, "aggscan_new_elt")
-          val bodyEnv = env.bind(name -> ((typeToTypeInfo(producerElementPType), eltm, eltv)))
+          val elt = eP.newFields(fb, "aggscan_elt")
+          val post = aP.newFields(fb, "aggscan_new_elt")
+          val bodyEnv = env.bind(name -> ((typeToTypeInfo(producerElementPType), elt.load.m, elt.load.v)))
           val cInit = emitter.emit(init, env, er, Some(newContainer))
           val seqPerElt = emitter.emit(seqs, bodyEnv, er, Some(newContainer))
           val postt = emitter.emit(result, bodyEnv, er, Some(newContainer))
@@ -803,11 +803,11 @@ object EmitStream {
             .map[EmitTriplet] { eltt =>
               EmitTriplet(
                 Code(
-                  TypedTriplet(producerElementPType, eltt).storeTo(eltm, eltv),
-                  TypedTriplet(resultPType, postt).storeTo(postm, postv),
+                  elt := TypedTriplet(producerElementPType, eltt),
+                  post := TypedTriplet(resultPType, postt),
                   seqPerElt.setup),
-                postm,
-                postv)
+                post.load.m,
+                post.load.v)
             }.addSetup(
             _ => Code(aggSetup, cInit.setup),
             aggCleanup

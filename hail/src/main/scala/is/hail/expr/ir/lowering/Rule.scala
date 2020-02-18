@@ -1,6 +1,6 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.{BaseIR, BlockMatrixMultiWrite, BlockMatrixToTableApply, BlockMatrixToValueApply, BlockMatrixWrite, Compilable, Emittable, IR, InterpretableButNotCompilable, MatrixAggregate, MatrixIR, MatrixToValueApply, MatrixWrite, RelationalLet, RelationalLetBlockMatrix, RelationalLetMatrixTable, RelationalLetTable, RelationalRef, TableAggregate, TableCollect, TableCount, TableGetGlobals, TableToValueApply, TableWrite}
+import is.hail.expr.ir.{ApplyIR, BaseIR, Compilable, Emittable, IR, MatrixIR, RelationalLet, RelationalLetBlockMatrix, RelationalLetMatrixTable, RelationalLetTable, RelationalRef}
 
 trait Rule {
   def allows(ir: BaseIR): Boolean
@@ -24,6 +24,13 @@ case object NoRelationalLets extends Rule {
 case object CompilableValueIRs extends Rule {
   def allows(ir: BaseIR): Boolean = ir match {
     case x: IR => Compilable(x)
+    case _ => true
+  }
+}
+
+case object NoApplyIR extends Rule {
+  override def allows(ir: BaseIR): Boolean = ir match {
+    case x: ApplyIR => false
     case _ => true
   }
 }

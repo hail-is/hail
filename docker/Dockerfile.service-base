@@ -1,5 +1,13 @@
 FROM {{ base_image.image }}
 
+RUN apt-get update && \
+  apt-get -y install \
+    build-essential \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY docker/service-base-requirements.txt .
+RUN python3 -m pip install --no-cache-dir -U -r service-base-requirements.txt
+
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/
 RUN python3 -m pip install --no-deps --no-cache-dir /hailtop \

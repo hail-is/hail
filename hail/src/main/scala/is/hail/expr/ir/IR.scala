@@ -261,6 +261,8 @@ final case class NDArrayShape(nd: IR) extends IR
 
 final case class NDArrayReshape(nd: IR, shape: IR) extends NDArrayIR
 
+final case class NDArrayConcat(nds: IR, axis: Int) extends NDArrayIR
+
 final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR
 final case class NDArraySlice(nd: IR, slices: IR) extends NDArrayIR
 
@@ -394,6 +396,7 @@ final case class ApplySpecial(function: String, args: Seq[IR], returnType: Type)
 
 final case class LiftMeOut(child: IR) extends IR
 final case class TableCount(child: TableIR) extends IR
+final case class MatrixCount(child: MatrixIR) extends IR
 final case class TableAggregate(child: TableIR, query: IR) extends IR
 final case class MatrixAggregate(child: MatrixIR, query: IR) extends IR
 
@@ -417,6 +420,8 @@ final case class MatrixMultiWrite(_children: IndexedSeq[MatrixIR], writer: Matri
 final case class TableToValueApply(child: TableIR, function: TableToValueFunction) extends IR
 final case class MatrixToValueApply(child: MatrixIR, function: MatrixToValueFunction) extends IR
 final case class BlockMatrixToValueApply(child: BlockMatrixIR, function: BlockMatrixToValueFunction) extends IR
+
+final case class BlockMatrixCollect(child: BlockMatrixIR) extends NDArrayIR
 
 final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWriter) extends IR
 

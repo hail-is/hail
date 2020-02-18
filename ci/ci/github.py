@@ -9,7 +9,7 @@ import gidgethub
 import zulip
 
 from hailtop.config import get_deploy_config
-from hailtop.utils import check_shell, check_shell_output
+from hailtop.utils import check_shell, check_shell_output, RETRY_FUNCTION_SCRIPT
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
 from .build import BuildConfiguration, Code
 from .globals import is_test_deployment
@@ -130,6 +130,30 @@ STACKED_PR = 'stacked PR'
 WIP = 'WIP'
 
 DO_NOT_MERGE = {STACKED_PR, WIP}
+
+
+def clone_or_fetch_script(repo):
+    return f"""
+{ RETRY_FUNCTION_SCRIPT }
+
+function clone() {{
+    dir=$(mktemp -d)
+    git clone {shq(repo)} $dir
+    for x in $(ls -A $dir); do
+        mv -- "$dir/$x" ./
+    done
+}}
+
+if [ ! -d .git ]; then
+  time retry clone
+
+  git config user.email ci@hail.is
+  git config user.name ci
+else
+  git reset --merge
+  time retry git fetch -q origin
+fi
+"""
 
 
 class PR(Code):
@@ -445,19 +469,11 @@ mkdir -p {shq(repo_dir)}
 
     def checkout_script(self):
         return f'''
-if [ ! -d .git ]; then
-  time git clone {shq(self.target_branch.branch.repo.url)} .
-
-  git config user.email ci@hail.is
-  git config user.name ci
-else
-  git reset --merge
-  time git fetch -q origin
-fi
+{clone_or_fetch_script(self.target_branch.branch.repo.url)}
 
 git remote add {shq(self.source_repo.short_str())} {shq(self.source_repo.url)} || true
 
-time git fetch -q {shq(self.source_repo.short_str())}
+time retry git fetch -q {shq(self.source_repo.short_str())}
 git checkout {shq(self.target_branch.sha)}
 git merge {shq(self.source_sha)} -m 'merge PR'
 '''
@@ -753,15 +769,7 @@ mkdir -p {shq(repo_dir)}
 
     def checkout_script(self):
         return f'''
-if [ ! -d .git ]; then
-  time git clone {shq(self.branch.repo.url)} .
-
-  git config user.email ci@hail.is
-  git config user.name ci
-else
-  git reset --merge
-  time git fetch -q origin
-fi
+{clone_or_fetch_script(self.branch.repo.url)}
 
 git checkout {shq(self.sha)}
 '''
@@ -826,15 +834,7 @@ mkdir -p {shq(repo_dir)}
 
     def checkout_script(self):
         return f'''
-if [ ! -d .git ]; then
-  time git clone {shq(self.branch.repo.url)} .
-
-  git config user.email ci@hail.is
-  git config user.name ci
-else
-  git reset --merge
-  time git fetch -q origin
-fi
+{clone_or_fetch_script(self.branch.repo.url)}
 
 git checkout {shq(self.sha)}
 '''

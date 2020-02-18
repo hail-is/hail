@@ -2,7 +2,7 @@ import logging
 import google.api_core.exceptions
 import google.oauth2.service_account
 import google.cloud.storage
-from hailtop.utils import blocking_to_async
+from hailtop.utils import blocking_to_async, retry_transient_errors
 
 
 logging.getLogger("google").setLevel(logging.WARNING)
@@ -34,19 +34,24 @@ class GCS:
         self._wrapped_delete_gs_files = self._wrap_network_call(GCS._delete_gs_files)
 
     async def write_gs_file(self, uri, string, *args, **kwargs):
-        return await self._wrapped_write_gs_file(self, uri, string, *args, **kwargs)
+        return await retry_transient_errors(self._wrapped_write_gs_file,
+                                            self, uri, string, *args, **kwargs)
 
     async def read_gs_file(self, uri, *args, **kwargs):
-        return await self._wrapped_read_gs_file(self, uri, *args, **kwargs)
+        return await retry_transient_errors(self._wrapped_read_gs_file,
+                                            self, uri, *args, **kwargs)
 
     async def read_binary_gs_file(self, uri, *args, **kwargs):
-        return await self._wrapped_read_binary_gs_file(self, uri, *args, **kwargs)
+        return await retry_transient_errors(self._wrapped_read_binary_gs_file,
+                                            self, uri, *args, **kwargs)
 
     async def delete_gs_file(self, uri):
-        return await self._wrapped_delete_gs_file(self, uri)
+        return await retry_transient_errors(self._wrapped_delete_gs_file,
+                                            self, uri)
 
     async def delete_gs_files(self, uri_prefix):
-        return await self._wrapped_delete_gs_files(self, uri_prefix)
+        return await retry_transient_errors(self._wrapped_delete_gs_files,
+                                            self, uri_prefix)
 
     def _wrap_network_call(self, fun):
         async def wrapped(*args, **kwargs):
@@ -84,10 +89,16 @@ class GCS:
         bucket, prefix = GCS._parse_uri(uri_prefix)
         bucket = self.gcs_client.bucket(bucket)
         for blob in bucket.list_blobs(prefix=prefix):
-            blob.delete()
+            try:
+                blob.delete()
+            except google.api_core.exceptions.NotFound:
+                continue
 
     def _delete_gs_file(self, uri):
         bucket, path = GCS._parse_uri(uri)
         bucket = self.gcs_client.bucket(bucket)
         f = bucket.blob(path)
-        f.delete()
+        try:
+            f.delete()
+        except google.api_core.exceptions.NotFound:
+            return

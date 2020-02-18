@@ -10,22 +10,18 @@ import kubernetes_asyncio as kube
 import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
 from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
-    check_csrf_token, transaction
+    check_csrf_token, transaction, AccessLogger
 from hailtop.config import get_deploy_config
 from hailtop.utils import time_msecs
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
-
-import cProfile
-import pstats
-import io
-
+import googlecloudprofiler
 import uvloop
 
 from ..batch import mark_job_complete, mark_job_started
 from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
-    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME
+    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE
 from ..google_compute import GServices
 from ..globals import HTTP_CLIENT_MAX_SIZE
 
@@ -477,19 +473,6 @@ GROUP BY user;
         await asyncio.sleep(0.1)
 
 
-async def profile_loop():
-    while True:
-        pr = cProfile.Profile()
-        pr.enable()
-        await asyncio.sleep(60)
-        pr.disable()
-        s = io.StringIO()
-        sortby = 'cumulative'
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        log.info(s.getvalue())
-
-
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
@@ -544,7 +527,6 @@ async def on_startup(app):
     app['scheduler'] = scheduler
 
     # asyncio.ensure_future(check_incremental_loop(db))
-    # asyncio.ensure_future(profile_loop())
 
 
 async def on_cleanup(app):
@@ -553,6 +535,16 @@ async def on_cleanup(app):
 
 
 def run():
+    if HAIL_SHOULD_PROFILE:
+        profiler_tag = f'{DEFAULT_NAMESPACE}'
+        if profiler_tag == 'default':
+            profiler_tag = DEFAULT_NAMESPACE + f'-{HAIL_SHA[0:12]}'
+        googlecloudprofiler.start(
+            service='batch-driver',
+            service_version=profiler_tag,
+            # https://cloud.google.com/profiler/docs/profiling-python#agent_logging
+            verbose=3)
+
     app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
     setup_aiohttp_session(app)
 
@@ -568,4 +560,5 @@ def run():
                                                  'batch-driver',
                                                  client_max_size=HTTP_CLIENT_MAX_SIZE),
                 host='0.0.0.0',
-                port=5000)
+                port=5000,
+                access_log_class=AccessLogger)

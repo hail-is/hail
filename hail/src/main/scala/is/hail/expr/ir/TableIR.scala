@@ -719,22 +719,20 @@ case class TableIntervalJoin(
     val newRVD =
       if (product) {
         val joiner = (rightPType: PStruct) => {
-          val (newRowPType, ins) = leftRVDType.rowType.unsafeStructInsert(PArray(rightPType.selectFields(rightValueFields)), List(localRoot))
-          (RVDType(newRowPType, localKey), (_: RVDContext, it: Iterator[Muple[RegionValue, Iterable[RegionValue]]]) => {
+          val leftRowType = leftRVDType.rowType
+          val newRowType = leftRowType.appendKey(localRoot, PArray(rightPType.selectFields(rightValueFields)))
+          (RVDType(newRowType, localKey), (_: RVDContext, it: Iterator[Muple[RegionValue, Iterable[RegionValue]]]) => {
             val rvb = new RegionValueBuilder()
             val rv2 = RegionValue()
             it.map { case Muple(rv, is) =>
               rvb.set(rv.region)
-              rvb.start(newRowPType)
-              ins(
-                rv.region,
-                rv.offset,
-                rvb,
-                () => {
-                  rvb.startArray(is.size)
-                  is.foreach(i => rvb.selectRegionValue(rightPType, rightRVDType.valueFieldIdx, i))
-                  rvb.endArray()
-                })
+              rvb.start(newRowType)
+              rvb.startStruct()
+              rvb.addAllFields(leftRowType, rv)
+              rvb.startArray(is.size)
+              is.foreach(i => rvb.selectRegionValue(rightPType, rightRVDType.valueFieldIdx, i))
+              rvb.endArray()
+              rvb.endStruct()
               rv2.set(rv.region, rvb.end())
 
               rv2
@@ -745,23 +743,22 @@ case class TableIntervalJoin(
         leftValue.rvd.orderedLeftIntervalJoin(rightValue.rvd, joiner)
       } else {
         val joiner = (rightPType: PStruct) => {
-          val (newRowPType, ins) = leftRVDType.rowType.unsafeStructInsert(rightPType.selectFields(rightValueFields), List(localRoot))
+          val leftRowType = leftRVDType.rowType
+          val newRowType = leftRowType.appendKey(localRoot, rightPType.selectFields(rightValueFields))
 
-          (RVDType(newRowPType, localKey), (_: RVDContext, it: Iterator[JoinedRegionValue]) => {
+          (RVDType(newRowType, localKey), (_: RVDContext, it: Iterator[JoinedRegionValue]) => {
             val rvb = new RegionValueBuilder()
             val rv2 = RegionValue()
             it.map { case Muple(rv, i) =>
               rvb.set(rv.region)
-              rvb.start(newRowPType)
-              ins(
-                rv.region,
-                rv.offset,
-                rvb,
-                () =>
-                  if (i == null)
-                    rvb.setMissing()
-                  else
-                    rvb.selectRegionValue(rightPType, rightRVDType.valueFieldIdx, i))
+              rvb.start(newRowType)
+              rvb.startStruct()
+              rvb.addAllFields(leftRowType, rv)
+              if (i == null)
+                rvb.setMissing()
+              else
+                rvb.selectRegionValue(rightPType, rightRVDType.valueFieldIdx, i)
+              rvb.endStruct()
               rv2.set(rv.region, rvb.end())
 
               rv2

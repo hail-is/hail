@@ -173,6 +173,9 @@ object TypeCheck {
       case x@NDArrayReshape(nd, shape) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t.isInstanceOf[TInt64]))
+      case x@NDArrayConcat(nds, axis) =>
+        assert(coerce[TStreamable](nds.typ).elementType.isInstanceOf[TNDArray])
+        assert(axis < x.typ.nDims)
       case x@NDArrayRef(nd, idxs) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(nd.typ.asInstanceOf[TNDArray].nDims == idxs.length)
@@ -372,12 +375,14 @@ object TypeCheck {
       case TableWrite(_, _) =>
       case TableMultiWrite(_, _) =>
       case TableCount(_) =>
+      case MatrixCount(_) =>
       case TableGetGlobals(_) =>
       case TableCollect(child) =>
         assert(child.typ.key.isEmpty)
       case TableToValueApply(_, _) =>
       case MatrixToValueApply(_, _) =>
       case BlockMatrixToValueApply(_, _) =>
+      case BlockMatrixCollect(_) =>
       case BlockMatrixWrite(_, _) =>
       case BlockMatrixMultiWrite(_, _) =>
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>

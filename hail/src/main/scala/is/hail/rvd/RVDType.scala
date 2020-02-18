@@ -105,15 +105,6 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
       kRowOrd.compare(wrv.value, rv)
   }
 
-  def insert(typeToInsert: PType, path: List[String]): (RVDType, UnsafeInserter) = {
-    assert(path.nonEmpty)
-    assert(!key.contains(path.head))
-
-    val (newRowType, inserter) = rowType.unsafeStructInsert(typeToInsert, path)
-
-    (RVDType(newRowType, key), inserter)
-  }
-
   def toJSON: JValue =
     JObject(List(
       "partitionKey" -> JArray(key.map(JString).toList),

@@ -248,6 +248,10 @@ object InferPType {
         infer(shape)
 
         PNDArray(coerce[PNDArray](nd.pType2).elementType, shape.pType2.asInstanceOf[PTuple].size, nd.pType2.required)
+      case NDArrayConcat(nds, _) =>
+        infer(nds)
+        val ndtyp = coerce[PNDArray](coerce[PStreamable](nds.pType2).elementType)
+        ndtyp
       case NDArrayMap(nd, name, body) =>
         infer(nd)
         val ndPType = nd.pType2.asInstanceOf[PNDArray]

@@ -4,6 +4,7 @@ from . import table_benchmarks
 from . import methods_benchmarks
 from . import linalg_benchmarks
 from . import shuffle_benchmarks
+from . import combiner_benchmarks
 
 __all__ = [
     'run_all',
@@ -14,5 +15,5 @@ __all__ = [
     'table_benchmarks',
     'linalg_benchmarks',
     'methods_benchmarks',
-    'shuffle_benchmarks'
-]
+    'shuffle_benchmarks',
+    'combiner_benchmarks']
