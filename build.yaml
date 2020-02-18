@@ -1280,7 +1280,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
-     curl -sSL $(python3 -c 'hailctl dev url blog')
+     curl -sSL $(hailctl dev url blog)
    secrets:
     - name: gce-deploy-config
       namespace:
