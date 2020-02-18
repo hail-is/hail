@@ -14,6 +14,9 @@ class BlockMatrixReader(object):
     def __eq__(self, other):
         pass
 
+    def unpersisted(self, ir):
+        return ir
+
 
 class BlockMatrixNativeReader(BlockMatrixReader):
     @typecheck_method(path=str)
@@ -49,3 +52,21 @@ class BlockMatrixBinaryReader(BlockMatrixReader):
                self.path == other.path and \
                self.shape == other.shape and \
                self.block_size == other.block_size
+
+
+class BlockMatrixPersistReader(BlockMatrixReader):
+    def __init__(self, id, original):
+        self.id = id
+        self.original = original
+
+    def render(self):
+        reader = {'name': 'BlockMatrixPersistReader',
+                  'id': self.id}
+        return escape_str(json.dumps(reader))
+
+    def __eq__(self, other):
+        return isinstance(other, BlockMatrixPersistReader) and \
+               self.id == other.id
+
+    def unpersisted(self, ir):
+        return self.original

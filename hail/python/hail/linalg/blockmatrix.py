@@ -15,9 +15,9 @@ from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, Ref, F
     ApplyUnaryPrimOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
     BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter, TableFromBlockMatrixNativeReader, TableRead, \
     BlockMatrixSlice, BlockMatrixSparsify, BlockMatrixDensify, RectangleSparsifier, \
-    RowIntervalSparsifier, BandSparsifier
-from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
-from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter
+    RowIntervalSparsifier, BandSparsifier, UnpersistBlockMatrix
+from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader, BlockMatrixPersistReader
+from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter, BlockMatrixPersistWriter
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
@@ -213,21 +213,9 @@ class BlockMatrix(object):
 
     - Natural logarithm, :meth:`log`.
     """
-    @staticmethod
-    def _from_java(jbm):
-        return BlockMatrix(JavaBlockMatrix(jbm))
 
     def __init__(self, bmir):
         self._bmir = bmir
-        self._cached_jbm = None
-
-    @property
-    def _jbm(self):
-        if self._cached_jbm is not None:
-            return self._cached_jbm
-        else:
-            self._cached_jbm = Env.spark_backend('BlockMatrix._jbm')._to_java_ir(self._bmir).pyExecute()
-            return self._cached_jbm
 
     @classmethod
     @typecheck_method(path=str)
@@ -1188,7 +1176,7 @@ class BlockMatrix(object):
         -------
         :obj:`bool`
         """
-        return self._jbm.gp().maybeBlocks().isDefined()
+        return Env.backend()._to_java_ir(t._tir).typ().isSparse()
 
     @property
     def T(self):
@@ -1263,7 +1251,9 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Persisted block matrix.
         """
-        return BlockMatrix._from_java(self._jbm.persist(storage_level))
+        id = Env.get_uid()
+        Env.backend().execute(BlockMatrixWrite(self._bmir, BlockMatrixPersistWriter(id, storage_level)))
+        return BlockMatrix(BlockMatrixRead(BlockMatrixPersistReader(id, self._bmir)))
 
     def unpersist(self):
         """Unpersists this block matrix from memory/disk.
@@ -1278,7 +1268,8 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Unpersisted block matrix.
         """
-        return BlockMatrix._from_java(self._jbm.unpersist())
+        Env.backend().execute(UnpersistBlockMatrix(self._bmir))
+        return BlockMatrix(self._bmir.unpersisted())
 
     def __pos__(self):
         return self
