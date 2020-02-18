@@ -1150,9 +1150,12 @@ class Table(ExprContainer):
                       overwrite=bool,
                       stage_locally=bool,
                       _codec_spec=nullable(str),
-                      _read_if_exists=bool)
+                      _read_if_exists=bool,
+                      _intervals=nullable(sequenceof(anytype)),
+                      _filter_intervals=bool)
     def checkpoint(self, output: str, overwrite: bool = False, stage_locally: bool = False,
-                   _codec_spec: Optional[str] = None, _read_if_exists: bool = False) -> 'Table':
+                   _codec_spec: Optional[str] = None, _read_if_exists: bool = False,
+                   _intervals=None, _filter_intervals=False) -> 'Table':
         """Checkpoint the table to disk by writing and reading.
 
         Parameters
@@ -1185,7 +1188,7 @@ class Table(ExprContainer):
         """
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
             self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
-        return hl.read_table(output)
+        return hl.read_table(output, _intervals=_intervals, _filter_intervals=_filter_intervals)
 
     @typecheck_method(output=str,
                       overwrite=bool,
