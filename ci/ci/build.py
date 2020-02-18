@@ -6,6 +6,7 @@ from collections import defaultdict
 from shlex import quote as shq
 import yaml
 import jinja2
+from hailtop.utils import RETRY_FUNCTION_SCRIPT
 from .utils import flatten, generate_token
 from .constants import BUCKET
 from .environment import GCP_PROJECT, GCP_ZONE, DOMAIN, IP, CI_UTILS_IMAGE, \
@@ -275,7 +276,7 @@ class BuildImageStep(Step):
 
         if self.publish_as:
             published_latest = shq(f'gcr.io/{GCP_PROJECT}/{self.publish_as}:latest')
-            pull_published_latest = f'docker pull {shq(published_latest)} || true'
+            pull_published_latest = f'retry docker pull {shq(published_latest)} || true'
             cache_from_published_latest = f'--cache-from {shq(published_latest)}'
         else:
             pull_published_latest = ''
@@ -287,7 +288,7 @@ time docker push {self.image}
         if scope == 'deploy' and self.publish_as and not is_test_deployment:
             push_image = f'''
 docker tag {shq(self.image)} {self.base_image}:latest
-docker push {self.base_image}:latest
+retry docker push {self.base_image}:latest
 ''' + push_image
 
         copy_inputs = ''
@@ -303,6 +304,8 @@ cp {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
 set -ex
 date
 
+{ RETRY_FUNCTION_SCRIPT }
+
 rm -rf repo
 mkdir repo
 (cd repo; {code.checkout_script()})
@@ -316,7 +319,7 @@ gcloud -q auth activate-service-account \
   --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
 gcloud -q auth configure-docker
 
-docker pull $FROM_IMAGE
+retry docker pull $FROM_IMAGE
 {pull_published_latest}
 docker build --memory="1.5g" --cpu-period=100000 --cpu-quota=100000 -t {shq(self.image)} \
   -f {rendered_dockerfile} \
