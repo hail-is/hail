@@ -1286,14 +1286,6 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /deploy-config
-    - name: test-dev-tokens
-      namespace:
-        valueFrom: batch_pods_ns.name
-      mountPath: /user-tokens
-    - name: hail-ci-0-1-service-account-key
-      namespace:
-        valueFrom: batch_pods_ns.name
-      mountPath: /secret/ci-secrets
    scopes:
     - test
     - dev
