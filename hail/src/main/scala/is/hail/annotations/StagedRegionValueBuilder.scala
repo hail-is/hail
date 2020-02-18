@@ -25,7 +25,7 @@ object StagedRegionValueBuilder {
   def deepCopyFromOffset(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PType, value: Code[Long]): Code[Long] = {
     val t = typ.fundamentalType
     val mb = fb.getOrDefineMethod("deepCopyFromOffset", ("deepCopyFromOffset", typ),
-      Array[TypeInfo[_]](classInfo[Region], LongInfo), UnitInfo) { mb =>
+      Array[TypeInfo[_]](classInfo[Region], LongInfo), LongInfo) { mb =>
       val r = mb.getArg[Region](1)
       val value = mb.getArg[Long](2)
       mb.emit(t.copyFromType(mb, r, t, value, true))
