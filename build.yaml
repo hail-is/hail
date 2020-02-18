@@ -1293,6 +1293,7 @@ steps:
    dependsOn:
     - deploy_blog
     - service_base_image
+    - default_ns
  - kind: runImage
    name: delete_batch_instances
    image:
