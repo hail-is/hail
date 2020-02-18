@@ -1280,6 +1280,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
+     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      curl -sSL $(hailctl dev url blog)
    secrets:
     - name: gce-deploy-config
