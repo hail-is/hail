@@ -1,7 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.expr.ir.agg.Extract
-import is.hail.expr.ir.{ArrayAgg, ArrayAggScan, ArrayFor, BaseIR, Begin, BlockMatrixIR, ExecuteContext, IR, InterpretNonCompilable, Let, LowerArrayToStream, LowerMatrixIR, MatrixIR, Pretty, ResultOp, RewriteBottomUp, RunAgg, RunAggScan, TableIR, genUID}
+import is.hail.expr.ir._
 import is.hail.utils.FastSeq
 
 trait LoweringPass {
@@ -58,8 +58,19 @@ case object LowerTableToDistributedArrayPass extends LoweringPass {
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerTableIR.lower(ir.asInstanceOf[IR])
 }
 
-case object LowerArrayAggsToRunAggsPass extends LoweringPass {
+case object InlineApplyIR extends LoweringPass {
   val before: IRState = CompilableIR
+  val after: IRState = CompilableIRNoApply
+  val context: String = "InlineApplyIR"
+
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = RewriteBottomUp(ir, {
+    case x: ApplyIR => Some(x.explicitNode)
+    case _ => None
+  })
+}
+
+case object LowerArrayAggsToRunAggsPass extends LoweringPass {
+  val before: IRState = CompilableIRNoApply
   val after: IRState = EmittableIR
   val context: String = "LowerArrayAggsToRunAggs"
 

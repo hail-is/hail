@@ -11,12 +11,13 @@ import base64
 import uuid
 import shutil
 import aiohttp
+import aiohttp.client_exceptions
 from aiohttp import web
 import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
-from hailtop.utils import time_msecs, request_retry_transient_errors
+from hailtop.utils import time_msecs, request_retry_transient_errors, RETRY_FUNCTION_SCRIPT
 
 # import uvloop
 
@@ -96,6 +97,8 @@ async def docker_call_retry(f, *args, **kwargs):
                 log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
             else:
                 raise
+        except aiohttp.client_exceptions.ServerDisconnectedError:
+            log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
         except asyncio.TimeoutError:
             log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
         # exponentially back off, up to (expected) max of 30s
@@ -311,10 +314,11 @@ class Container:
 
     async def get_container_log(self):
         logs = await docker_call_retry(self.container.log, stderr=True, stdout=True)
-        return "".join(logs)
+        self.log = "".join(logs)
+        return self.log
 
     async def get_log(self):
-        if self.log:
+        if self.log is not None:
             return self.log
 
         if self.container:
@@ -398,11 +402,7 @@ def copy(files):
     return f'''
 set -ex
 
-function retry() {{
-    "$@" ||
-        (sleep 2 && "$@") ||
-        (sleep 5 && "$@")
-}}
+{ RETRY_FUNCTION_SCRIPT }
 
 retry gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
 
@@ -790,10 +790,11 @@ class Worker:
         full_status = await job.status()
 
         if job.format_version.has_full_status_in_gcs():
-            await self.log_store.write_status_file(job.batch_id,
-                                                   job.job_id,
-                                                   job.attempt_id,
-                                                   json.dumps(full_status))
+            await self.log_store.write_status_file(
+                job.batch_id,
+                job.job_id,
+                job.attempt_id,
+                json.dumps(full_status))
 
         db_status = job.format_version.db_status(full_status)
 

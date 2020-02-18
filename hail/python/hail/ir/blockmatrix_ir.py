@@ -29,18 +29,19 @@ class BlockMatrixRead(BlockMatrixIR):
 
 
 class BlockMatrixMap(BlockMatrixIR):
-    @typecheck_method(child=BlockMatrixIR, name=str, f=IR)
-    def __init__(self, child, name, f):
+    @typecheck_method(child=BlockMatrixIR, name=str, f=IR, needs_dense=bool)
+    def __init__(self, child, name, f, needs_dense):
         super().__init__(child, f)
         self.child = child
         self.name = name
         self.f = f
+        self.needs_dense = needs_dense
 
     def _compute_type(self):
         self._type = self.child.typ
 
     def head_str(self):
-        return escape_id(self.name)
+        return escape_id(self.name) + " " + str(self.needs_dense)
 
     def bindings(self, i: int, default_value=None):
         if i == 1:
@@ -54,14 +55,15 @@ class BlockMatrixMap(BlockMatrixIR):
 
 
 class BlockMatrixMap2(BlockMatrixIR):
-    @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR, left_name=str, right_name=str, f=IR)
-    def __init__(self, left, right, left_name, right_name, f):
+    @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR, left_name=str, right_name=str, f=IR, sparsity_strategy=str)
+    def __init__(self, left, right, left_name, right_name, f, sparsity_strategy):
         super().__init__(left, right, f)
         self.left = left
         self.right = right
         self.left_name = left_name
         self.right_name = right_name
         self.f = f
+        self.sparsity_strategy = sparsity_strategy
 
     def _compute_type(self):
         self.right.typ  # Force
@@ -69,7 +71,7 @@ class BlockMatrixMap2(BlockMatrixIR):
 
 
     def head_str(self):
-        return escape_id(self.left_name) + " " + escape_id(self.right_name)
+        return escape_id(self.left_name) + " " + escape_id(self.right_name) + " " + self.sparsity_strategy
 
     def bindings(self, i: int, default_value=None):
         if i == 2:
@@ -214,7 +216,7 @@ class BlockMatrixSparsifier(object):
         head_str = self.head_str()
         if head_str != '':
             head_str = f' {head_str}'
-        return f'({self.__class__.__name__}{head_str})'
+        return f'(Py{self.__class__.__name__}{head_str})'
 
     def _eq(self, other):
         return True
@@ -252,7 +254,7 @@ class _RectangleSparsifier(BlockMatrixSparsifier):
         pass
 
     def __repr__(self):
-        return f'(RectangleSparsifier)'
+        return f'(PyRectangleSparsifier)'
 
 
 RectangleSparsifier = _RectangleSparsifier()
@@ -261,7 +263,7 @@ RectangleSparsifier = _RectangleSparsifier()
 class BlockMatrixSparsify(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR, value=IR, sparsifier=BlockMatrixSparsifier)
     def __init__(self, child, value, sparsifier):
-        super().__init__(child, value)
+        super().__init__(value, child)
         self.child = child
         self.value = value
         self.sparsifier = sparsifier

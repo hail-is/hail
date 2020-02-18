@@ -2629,6 +2629,7 @@ class IRSuite extends HailSuite {
       invoke("toFloat64", TFloat64(), i), // Apply
       Literal(TStruct("x" -> TInt32()), Row(1)),
       TableCount(table),
+      MatrixCount(mt),
       TableGetGlobals(table),
       TableCollect(table),
       TableAggregate(table, MakeStruct(Seq("foo" -> count))),
@@ -2807,14 +2808,9 @@ class IRSuite extends HailSuite {
     val dot = BlockMatrixDot(read, transpose)
     val slice = BlockMatrixSlice(read, FastIndexedSeq(FastIndexedSeq(0, 2, 1), FastIndexedSeq(0, 1, 1)))
 
-    val rectangle = Literal(TArray(TInt64()), FastIndexedSeq(0L, 1L, 5L, 6L))
-    val band = Literal(TTuple(TInt64(), TInt64()), Row(-1L, 1L))
-    val intervals = Literal(TTuple(TArray(TInt64()), TArray(TInt64())),
-      Row(FastIndexedSeq(0L, 1L, 5L, 6L), FastIndexedSeq(5L, 6L, 8L, 9L)))
-
-    val sparsify1 = BlockMatrixSparsify(read, rectangle, RectangleSparsifier)
-    val sparsify2 = BlockMatrixSparsify(read, band, BandSparsifier(true))
-    val sparsify3 = BlockMatrixSparsify(read, intervals, RowIntervalSparsifier(true))
+    val sparsify1 = BlockMatrixSparsify(read, RectangleSparsifier(FastIndexedSeq(FastIndexedSeq(0L, 1L, 5L, 6L))))
+    val sparsify2 = BlockMatrixSparsify(read, BandSparsifier(true, -1L, 1L))
+    val sparsify3 = BlockMatrixSparsify(read, RowIntervalSparsifier(true, FastIndexedSeq(0L, 1L, 5L, 6L), FastIndexedSeq(5L, 6L, 8L, 9L)))
     val densify = BlockMatrixDensify(read)
 
     val blockMatrixIRs = Array[BlockMatrixIR](read,
@@ -2855,7 +2851,7 @@ class IRSuite extends HailSuite {
       "x" -> TInt32()
     ))
 
-    val s = Pretty(x)
+    val s = Pretty(x, elideLiterals = false)
     val x2 = IRParser.parse_value_ir(s, env)
 
     assert(x2 == x)
@@ -2863,21 +2859,21 @@ class IRSuite extends HailSuite {
 
   @Test(dataProvider = "tableIRs")
   def testTableIRParser(x: TableIR) {
-    val s = Pretty(x)
+    val s = Pretty(x, elideLiterals = false)
     val x2 = IRParser.parse_table_ir(s)
     assert(x2 == x)
   }
 
   @Test(dataProvider = "matrixIRs")
   def testMatrixIRParser(x: MatrixIR) {
-    val s = Pretty(x)
+    val s = Pretty(x, elideLiterals = false)
     val x2 = IRParser.parse_matrix_ir(s)
     assert(x2 == x)
   }
 
   @Test(dataProvider = "blockMatrixIRs")
   def testBlockMatrixIRParser(x: BlockMatrixIR) {
-    val s = Pretty(x)
+    val s = Pretty(x, elideLiterals = false)
     val x2 = IRParser.parse_blockmatrix_ir(s)
     assert(x2 == x)
   }
@@ -3148,7 +3144,7 @@ class IRSuite extends HailSuite {
     val lit = Literal(t, Row(1L))
 
     assert(IRParser.parseType(t.parsableString()) == t)
-    assert(IRParser.parse_value_ir(Pretty(lit)) == lit)
+    assert(IRParser.parse_value_ir(Pretty(lit, elideLiterals = false)) == lit)
   }
 
   @Test def regressionTestUnifyBug(): Unit = {

@@ -810,6 +810,9 @@ object LowerMatrixIR {
         TableWrite(lower(child, ab), WrappedMatrixWriter(writer, colsFieldName, entriesFieldName, child.typ.colKey))
       case MatrixMultiWrite(children, writer) =>
         TableMultiWrite(children.map(lower(_, ab)), WrappedMatrixNativeMultiWriter(writer, children.head.typ.colKey))
+      case MatrixCount(child) =>
+        lower(child, ab)
+          .aggregate(makeTuple(applyAggOp(Count(), FastIndexedSeq(), FastIndexedSeq()), 'global(colsField).len))
       case MatrixAggregate(child, query) =>
         val lc = lower(child, ab)
         val idx = Symbol(genUID())

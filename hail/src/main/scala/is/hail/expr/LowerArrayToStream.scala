@@ -41,7 +41,6 @@ object LowerArrayToStream {
       case ArrayScan(a, zero, zn, an, body) => ArrayScan(toStream(a), boundary(zero), zn, an, boundary(body))
       case ArrayLeftJoinDistinct(l, r, ln, rn, keyf, joinf) =>
         ArrayLeftJoinDistinct(toStream(l), toStream(r), ln, rn, boundary(keyf), boundary(joinf))
-      case x: ApplyIR => boundary(x.explicitNode)
       case CollectDistributedArray(contextsIR, globalsIR, contextsName, globalsName, bodyIR) =>
         CollectDistributedArray(toStream(contextsIR), boundary(globalsIR), contextsName, globalsName,  boundary(bodyIR))
       case ToDict(a) => ToDict(toStream(a))

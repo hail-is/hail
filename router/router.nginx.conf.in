@@ -1,15 +1,3 @@
-server_names_hash_bucket_size 128;
-
-map $http_x_forwarded_proto $updated_scheme {
-     default $http_x_forwarded_proto;
-     '' $scheme;
-}
-
-map $http_x_forwarded_host $updated_host {
-     default $http_x_forwarded_host;
-     '' $http_host;
-}
-
 server {
     server_name @domain@ www.* site.*;
 
@@ -19,6 +7,7 @@ server {
 
     location / {
         proxy_pass http://site/;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 80 default_server;
@@ -30,6 +19,7 @@ server {
 
     location / {
         proxy_pass http://scorecard/;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 80;
@@ -46,6 +36,7 @@ server {
 
     location / {
         proxy_pass http://ci/;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 80;
@@ -57,6 +48,7 @@ server {
 
     location / {
         proxy_pass http://scheduler/;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 80;
@@ -68,6 +60,7 @@ server {
 
     location / {
         proxy_pass http://hello/;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 80;
@@ -80,6 +73,7 @@ server {
 
     location / {
         proxy_pass http://batch/;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 80;
@@ -91,6 +85,7 @@ server {
 
     location / {
         proxy_pass http://batch-driver/;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 80;
@@ -115,8 +110,7 @@ server {
 
         proxy_pass http://$auth_pod_ip$request_uri;
 
-        proxy_set_header Host $updated_host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        include /etc/nginx/proxy.conf;
         proxy_http_version 1.1;
         proxy_redirect off;
         proxy_buffering off;
@@ -131,14 +125,17 @@ server {
     }
 
     location @error {
-    	return 302 $updated_scheme://$updated_host@notebook_base_path@/error;
+      return 302 $updated_scheme://$updated_host@notebook_base_path@/error;
     }
 
     location / {
         proxy_pass http://notebook;
 
-	# don't set Host, notebook dispatches off domain
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # don't set Host, notebook dispatches off domain
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host  $http_host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP         $http_x_real_ip;
         proxy_http_version 1.1;
         proxy_redirect off;
         proxy_buffering off;
@@ -169,8 +166,7 @@ server {
 
         proxy_pass http://$auth_pod_ip$request_uri;
 
-	proxy_set_header Host $updated_host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        include /etc/nginx/proxy.conf;
         proxy_http_version 1.1;
         proxy_redirect off;
         proxy_buffering off;
@@ -185,14 +181,17 @@ server {
     }
 
     location @error {
-    	return 302 $updated_scheme://$updated_host@workshop_base_path@/error;
+      return 302 $updated_scheme://$updated_host@workshop_base_path@/error;
     }
 
     location / {
         proxy_pass http://workshop;
 
-	# don't set Host, notebook dispatches off domain
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # don't set Host, notebook dispatches off domain
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host  $http_host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP         $http_x_real_ip;
         proxy_http_version 1.1;
         proxy_redirect off;
         proxy_buffering off;
@@ -205,22 +204,18 @@ server {
     listen [::]:80;
 }
 
-map $http_upgrade $connection_upgrade {
-    default upgrade;
-    ''      close;
-}
-
 server {
     server_name ukbb-rg.*;
 
     location /rg_browser {
         proxy_pass http://ukbb-rg-browser.ukbb-rg;
+        include /etc/nginx/proxy.conf;
 
-	proxy_http_version 1.1;
-	proxy_set_header Upgrade $http_upgrade;
-	proxy_set_header Connection $connection_upgrade;
-	proxy_read_timeout 20d;
-	proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 20d;
+        proxy_buffering off;
     }
 
     location / {
@@ -236,9 +231,7 @@ server {
 
     location / {
         proxy_pass http://auth/;
-
-        proxy_set_header Host $updated_host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 80;
@@ -251,10 +244,7 @@ server {
 
     location / {
         proxy_pass http://blog/;
-
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $updated_host;
-        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 80;
@@ -267,9 +257,7 @@ server {
     location / {
         resolver kube-dns.kube-system.svc.cluster.local;
         proxy_pass http://$sub_domain.dbuf.@namespace@.svc.cluster.local:$server_port;
-
-        proxy_set_header Host $updated_host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 80;

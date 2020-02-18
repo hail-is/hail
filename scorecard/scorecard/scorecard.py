@@ -9,7 +9,7 @@ import random
 import humanize
 import logging
 from hailtop.config import get_deploy_config
-from gear import setup_aiohttp_session, web_maybe_authenticated_user
+from gear import setup_aiohttp_session, web_maybe_authenticated_user, AccessLogger
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
 log = logging.getLogger('scorecard')
@@ -294,4 +294,7 @@ def run():
 
     app.add_routes(routes)
 
-    web.run_app(deploy_config.prefix_application(app, 'scorecard'), host='0.0.0.0', port=5000)
+    web.run_app(deploy_config.prefix_application(app, 'scorecard'),
+                host='0.0.0.0',
+                port=5000,
+                access_log_class=AccessLogger)

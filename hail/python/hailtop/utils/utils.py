@@ -4,10 +4,20 @@ import logging
 import asyncio
 import aiohttp
 from aiohttp import web
+import urllib3
+import socket
+import requests
 
 from .time import time_msecs
 
 log = logging.getLogger('hailtop.utils')
+
+
+RETRY_FUNCTION_SCRIPT = """function retry() {
+    "$@" ||
+        (sleep 2 && "$@") ||
+        (sleep 5 && "$@")
+}"""
 
 
 def grouped(n, ls):
@@ -181,30 +191,48 @@ def is_transient_error(e):
     #
     # during aiohttp request
     # aiohttp.client_exceptions.ClientOSError: [Errno 104] Connection reset by peer
-    if isinstance(e, aiohttp.ClientResponseError):
+    #
+    # urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='www.googleapis.com', port=443): Read timed out. (read timeout=60)
+    #
+    # requests.exceptions.ConnectionError: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))
+    #
+    # socket.timeout: The read operation timed out
+    #
+    # ConnectionResetError: [Errno 104] Connection reset by peer
+    if isinstance(e, aiohttp.ClientResponseError) and (
+            e.status in (408, 500, 502, 503, 504)):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 500 internal server error, 502 bad gateway
         # 503 service unavailable, 504 gateway timeout
-        if e.status in (408, 500, 502, 503, 504):
-            return True
-    elif isinstance(e, aiohttp.ClientOSError):
-        if (e.errno == errno.ETIMEDOUT or
-                e.errno == errno.ECONNREFUSED or
-                e.errno == errno.EHOSTUNREACH or
-                e.errno == errno.ECONNRESET):
-            return True
-    elif isinstance(e, aiohttp.ServerTimeoutError):
         return True
-    elif isinstance(e, aiohttp.ServerDisconnectedError):
+    if isinstance(e, aiohttp.ClientOSError) and (
+            e.errno == errno.ETIMEDOUT or
+            e.errno == errno.ECONNREFUSED or
+            e.errno == errno.EHOSTUNREACH or
+            e.errno == errno.ECONNRESET):
         return True
-    elif isinstance(e, asyncio.TimeoutError):
+    if isinstance(e, aiohttp.ServerTimeoutError):
         return True
-    elif isinstance(e, OSError):
-        if (e.errno == errno.ETIMEDOUT or
-                e.errno == errno.ECONNREFUSED or
-                e.errno == errno.EHOSTUNREACH or
-                e.errno == errno.ECONNRESET):
-            return True
+    if isinstance(e, aiohttp.ServerDisconnectedError):
+        return True
+    if isinstance(e, asyncio.TimeoutError):
+        return True
+    if isinstance(e, OSError) and (
+            e.errno == errno.ETIMEDOUT or
+            e.errno == errno.ECONNREFUSED or
+            e.errno == errno.EHOSTUNREACH or
+            e.errno == errno.ECONNRESET):
+        return True
+    if isinstance(e, urllib3.exceptions.ReadTimeoutError):
+        return True
+    if isinstance(e, requests.exceptions.ReadTimeout):
+        return True
+    if isinstance(e, requests.exceptions.ConnectionError):
+        return True
+    if isinstance(e, socket.timeout):
+        return True
+    if isinstance(e, ConnectionResetError):
+        return True
     return False
 
 

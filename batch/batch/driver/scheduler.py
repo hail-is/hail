@@ -161,7 +161,7 @@ WHERE user = %s AND `state` = 'running';
                     async for record in self.db.select_and_fetchall(
                             '''
 SELECT jobs.job_id
-FROM jobs
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 0
 LIMIT %s;
 ''',
@@ -173,7 +173,7 @@ LIMIT %s;
                     async for record in self.db.select_and_fetchall(
                             '''
 SELECT jobs.job_id
-FROM jobs
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 1
 LIMIT %s;
 ''',
@@ -249,7 +249,7 @@ WHERE user = %s AND `state` = 'running' AND cancelled = 1;
                 async for record in self.db.select_and_fetchall(
                         '''
 SELECT jobs.job_id, attempts.attempt_id, attempts.instance_name
-FROM jobs
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 STRAIGHT_JOIN attempts
   ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
 WHERE jobs.batch_id = %s AND state = 'Running' AND always_run = 0 AND cancelled = 0
@@ -312,7 +312,7 @@ WHERE user = %s AND `state` = 'running';
                 async for record in self.db.select_and_fetchall(
                         '''
 SELECT job_id, spec, cores_mcpu
-FROM jobs
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 1
 LIMIT %s;
 ''',
@@ -327,7 +327,7 @@ LIMIT %s;
                     async for record in self.db.select_and_fetchall(
                             '''
 SELECT job_id, spec, cores_mcpu
-FROM jobs
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 0
 LIMIT %s;
 ''',

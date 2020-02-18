@@ -4,6 +4,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.expr.types.virtual.{TArray, TInterval}
 import is.hail.utils._
+import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object Pretty {
@@ -26,18 +27,9 @@ object Pretty {
   def prettyClass(x: AnyRef): String =
     x.getClass.getName.split("\\.").last
 
-  def prettyBlockMatrixSparsifier(sparsifier: BlockMatrixSparsifier): String = sparsifier match {
-    case BandSparsifier(blocksOnly) =>
-      s"(BandSparsifier ${ prettyBooleanLiteral(blocksOnly) })"
-    case RowIntervalSparsifier(blocksOnly) =>
-      s"(RowIntervalSparsifier ${ prettyBooleanLiteral(blocksOnly) })"
-    case RectangleSparsifier =>
-      s"(RectangleSparsifier)"
-  }
-
   val MAX_VALUES_TO_LOG: Int = 25
 
-  def apply(ir: BaseIR, elideLiterals: Boolean = false, maxLen: Int = -1): String = {
+  def apply(ir: BaseIR, elideLiterals: Boolean = true, maxLen: Int = -1): String = {
     val sb = new StringBuilder
 
     def prettyIntOpt(x: Option[Int]): String = x.map(_.toString).getOrElse("None")
@@ -244,7 +236,7 @@ object Pretty {
             case I64(x) => x.toString
             case F32(x) => x.toString
             case F64(x) => x.toString
-            case Str(x) => prettyStringLiteral(x)
+            case Str(x) => prettyStringLiteral(if (elideLiterals && x.length > 13) x.take(10) + "..." else x)
             case Cast(_, typ) => typ.parsableString()
             case CastRename(_, typ) => typ.parsableString()
             case NA(typ) => typ.parsableString()
@@ -333,17 +325,17 @@ object Pretty {
               blockSize.toString + " "
             case BlockMatrixFilter(_, indicesToKeepPerDim) =>
               indicesToKeepPerDim.map(indices => prettyLongs(indices)).mkString("(", " ", ")")
-            case BlockMatrixSparsify(_, _, sparsifier) =>
-              prettyBlockMatrixSparsifier(sparsifier)
+            case BlockMatrixSparsify(_, sparsifier) =>
+              sparsifier.pretty()
             case BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
               seed.toString + " " +
               prettyBooleanLiteral(gaussian) + " " +
               prettyLongs(shape) + " " +
               blockSize.toString + " "
-            case BlockMatrixMap(_, name, _) =>
-              prettyIdentifier(name)
-            case BlockMatrixMap2(_, _, lName, rName, _) =>
-              prettyIdentifier(lName) + " " + prettyIdentifier(rName)
+            case BlockMatrixMap(_, name, _, needsDense) =>
+              prettyIdentifier(name) + " " + prettyBooleanLiteral(needsDense)
+            case BlockMatrixMap2(_, _, lName, rName, _, sparsityStrategy) =>
+              prettyIdentifier(lName) + " " + prettyIdentifier(rName) + prettyClass(sparsityStrategy)
             case MatrixRowsHead(_, n) => n.toString
             case MatrixColsHead(_, n) => n.toString
             case MatrixRowsTail(_, n) => n.toString

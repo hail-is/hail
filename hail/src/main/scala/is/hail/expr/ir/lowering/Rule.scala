@@ -29,6 +29,13 @@ case object CompilableValueIRs extends Rule {
   }
 }
 
+case object NoApplyIR extends Rule {
+  override def allows(ir: BaseIR): Boolean = ir match {
+    case x: ApplyIR => false
+    case _ => true
+  }
+}
+
 case object ValueIROnly extends Rule {
   def allows(ir: BaseIR): Boolean = ir match {
     case _: IR => true
