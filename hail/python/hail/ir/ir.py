@@ -2011,6 +2011,20 @@ class TableAggregate(IR):
     def renderable_agg_bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
 
+class MatrixCount(IR):
+    @typecheck_method(child=MatrixIR)
+    def __init__(self, child):
+        super().__init__(child)
+        self.child = child
+
+    @typecheck_method(child=MatrixIR)
+    def copy(self, child):
+        return TableCount(child)
+
+    def _compute_type(self, env, agg_env):
+        self.child._compute_type()
+        self._type = ttuple(tint64, tint32)
+
 
 class MatrixAggregate(IR):
     @typecheck_method(child=MatrixIR, query=IR)

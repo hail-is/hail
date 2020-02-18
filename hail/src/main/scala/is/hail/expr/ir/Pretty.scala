@@ -29,7 +29,7 @@ object Pretty {
 
   val MAX_VALUES_TO_LOG: Int = 25
 
-  def apply(ir: BaseIR, elideLiterals: Boolean = false, maxLen: Int = -1): String = {
+  def apply(ir: BaseIR, elideLiterals: Boolean = true, maxLen: Int = -1): String = {
     val sb = new StringBuilder
 
     def prettyIntOpt(x: Option[Int]): String = x.map(_.toString).getOrElse("None")
@@ -236,7 +236,7 @@ object Pretty {
             case I64(x) => x.toString
             case F32(x) => x.toString
             case F64(x) => x.toString
-            case Str(x) => prettyStringLiteral(x)
+            case Str(x) => prettyStringLiteral(if (elideLiterals && x.length > 13) x.take(10) + "..." else x)
             case Cast(_, typ) => typ.parsableString()
             case CastRename(_, typ) => typ.parsableString()
             case NA(typ) => typ.parsableString()

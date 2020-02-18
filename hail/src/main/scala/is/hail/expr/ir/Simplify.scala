@@ -377,6 +377,24 @@ object Simplify {
           FastIndexedSeq(ArrayLen(ToArray(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)})).toL),
           AggSignature(Sum(), FastSeq(), FastSeq(TInt64()))))
 
+    case MatrixCount(child) if child.partitionCounts.isDefined || child.columnCount.isDefined =>
+      val rowCount = child.partitionCounts match {
+        case Some(pc) => I64(pc.sum)
+        case None => TableCount(MatrixRowsTable(child))
+      }
+      val colCount = child.columnCount match {
+        case Some(cc) => I32(cc)
+        case None => TableCount(MatrixColsTable(child)).toI
+      }
+      MakeTuple.ordered(FastSeq(rowCount, colCount))
+    case MatrixCount(MatrixMapRows(child, _)) => MatrixCount(child)
+    case MatrixCount(MatrixMapCols(child,_,  _)) => MatrixCount(child)
+    case MatrixCount(MatrixMapEntries(child,_)) => MatrixCount(child)
+    case MatrixCount(MatrixFilterEntries(child,_)) => MatrixCount(child)
+    case MatrixCount(MatrixAnnotateColsTable(child, _, _)) => MatrixCount(child)
+    case MatrixCount(MatrixAnnotateRowsTable(child, _, _, _)) => MatrixCount(child)
+    case MatrixCount(MatrixRepartition(child, _, _)) => MatrixCount(child)
+    case MatrixCount(MatrixRename(child, _, _, _, _)) => MatrixCount(child)
     case TableCount(TableRead(_, false, r: MatrixBGENReader)) if r.includedVariants.isEmpty =>
       I64(r.fileMetadata.map(_.nVariants).sum)
 
