@@ -1,6 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations._
+import is.hail.asm4s
 import is.hail.asm4s.{Code, TypeInfo, _}
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
@@ -59,6 +60,9 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
   override def multiply(a: Code[_], b: Code[_]): Code[PFloat32] = {
     coerce[PFloat32](coerce[Float](a) * coerce[Float](b))
   }
+
+  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_]): Code[Unit] =
+    Region.storeFloat(addr, asm4s.coerce[Float](value))
 }
 
 object PFloat32 {

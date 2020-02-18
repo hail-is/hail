@@ -40,4 +40,7 @@ abstract class ComplexPType extends PType {
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
     this.representation.constructAtAddress(addr, region, srcPType.fundamentalType, srcAddress, forceDeep)
+
+  override def constructAtAddressFromValue(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, src: Code[_], forceDeep: Boolean): Code[Unit] =
+    this.representation.constructAtAddressFromValue(mb, addr, region, srcPType.fundamentalType, src, forceDeep)
 }

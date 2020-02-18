@@ -1,6 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering, _}
+import is.hail.asm4s
 import is.hail.asm4s.{Code, TypeInfo, coerce, const, _}
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
@@ -56,6 +57,9 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
   override def multiply(a: Code[_], b: Code[_]): Code[PInt32] = {
     coerce[PInt32](coerce[Int](a) * coerce[Int](b))
   }
+
+  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_]): Code[Unit] =
+    Region.storeInt(addr, asm4s.coerce[Int](value))
 }
 
 object PInt32 {
