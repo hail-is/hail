@@ -1,5 +1,3 @@
-import os
-import json
 from hailtop.config import get_deploy_config
 
 
