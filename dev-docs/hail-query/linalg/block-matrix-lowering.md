@@ -11,9 +11,6 @@ necessary for the block-level computation.
 
 To construct a BlockMatrixStage, we must define the following values and 
 functions:
-
-- nRowBlocks and nColBlocks: the shape of the blocks in the BlockMatrix
-- sparsity: which blocks are defined
 - globalVals: sequence of (named) values that are shared across each context
 - ctxType: the type of the per-block context
 - blockContext(idx): a function taking the block index and returning the context IR for that block
@@ -72,3 +69,7 @@ The function returns an array of results for each block.
 The (optional) block ordering allows the result array to be computed in a 
 specific order; the function otherwise makes no guarantee about the order
 in which blocks will appear in the result array.
+
+The BlockMatrixStage doesn't store any information about the dimensions of the 
+BlockMatrix or which blocks are defined; at any point where the BlockMatrixStage 
+exists, this can be retrieved from the corresponding BlockMatrixIR.

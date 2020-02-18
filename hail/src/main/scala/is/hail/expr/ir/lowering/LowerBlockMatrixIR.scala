@@ -8,14 +8,11 @@ import is.hail.expr.types.virtual._
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 
 object BlockMatrixStage {
-  def empty(eltType: Type, nr: Int, nc: Int): BlockMatrixStage =
-    EmptyBlockMatrixStage(nr, nc, eltType)
+  def empty(eltType: Type): BlockMatrixStage =
+    EmptyBlockMatrixStage(eltType)
 }
 
-case class EmptyBlockMatrixStage(override val nRowBlocks: Int, override val nColBlocks: Int, eltType: Type) extends BlockMatrixStage(
-  nRowBlocks, nColBlocks,
-  BlockMatrixSparsity(Some(FastIndexedSeq())),
-  Array(), TInt32()) {
+case class EmptyBlockMatrixStage(eltType: Type) extends BlockMatrixStage(Array(), TInt32()) {
   def blockContext(idx: (Int, Int)): IR =
     throw new LowererUnsupportedOperation("empty stage has no block contexts!")
   def blockBody(ctxRef: Ref): IR = NA(TNDArray(eltType, Nat(2)))
@@ -25,19 +22,11 @@ case class EmptyBlockMatrixStage(override val nRowBlocks: Int, override val nCol
   }
 }
 
-abstract class BlockMatrixStage(
-  val nRowBlocks: Int, val nColBlocks: Int,
-  val sparsity: BlockMatrixSparsity,
-  val globalVals: Array[(String, IR)],
-  val ctxType: Type
-) {
+abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType: Type) {
   def blockContext(idx: (Int, Int)): IR
   def blockBody(ctxRef: Ref): IR
-  lazy val blocks: IndexedSeq[(Int, Int)] = sparsity.allBlocks(nRowBlocks, nColBlocks)
 
-  def defines(idx: (Int, Int)): Boolean = sparsity.hasBlock(idx)
   def collectBlocks(f: IR => IR, blocksToCollect: Array[(Int, Int)]): IR = {
-    assert(blocksToCollect.forall(b => defines(b)))
     val ctxRef = Ref(genUID(), ctxType)
     val body = f(blockBody(ctxRef))
     val ctxs = MakeArray(blocksToCollect.map(idx => blockContext(idx)), TArray(ctxRef.typ))
@@ -60,18 +49,18 @@ object LowerBlockMatrixIR {
   def lower(node: IR): IR = node match {
     case BlockMatrixCollect(child) =>
       val bm = lower(child)
-      val blocksRowMajor = Array.range(0, bm.nRowBlocks).flatMap { i =>
-        Array.range(0, bm.nColBlocks).flatMap { j => Some(i -> j).filter(bm.defines) }
+      val blocksRowMajor = Array.range(0, child.typ.nRowBlocks).flatMap { i =>
+        Array.range(0, child.typ.nColBlocks).flatMap { j => Some(i -> j).filter(child.typ.hasBlock) }
       }
       val cda = bm.collectBlocks(b => b, blocksRowMajor)
       val blockResults = Ref(genUID(), cda.typ)
 
-      val rows = if (bm.sparsity.isSparse) {
+      val rows = if (child.typ.isSparse) {
         val blockMap = blocksRowMajor.zipWithIndex.toMap
-        MakeArray(Array.tabulate[IR](bm.nRowBlocks) { i =>
-          NDArrayConcat(MakeArray(Array.tabulate[IR](bm.nColBlocks) { j =>
+        MakeArray(Array.tabulate[IR](child.typ.nRowBlocks) { i =>
+          NDArrayConcat(MakeArray(Array.tabulate[IR](child.typ.nColBlocks) { j =>
             if (blockMap.contains(i -> j))
-              ArrayRef(blockResults, i * bm.nColBlocks + j)
+              ArrayRef(blockResults, i * child.typ.nColBlocks + j)
             else {
               val (nRows, nCols) = child.typ.blockShape(i, j)
               MakeNDArray.fill(zero(child.typ.elementType), FastIndexedSeq(nRows, nCols), True())
@@ -81,8 +70,8 @@ object LowerBlockMatrixIR {
       } else {
         val i = Ref(genUID(), TInt32())
         val j = Ref(genUID(), TInt32())
-        val cols = ArrayMap(ArrayRange(0, bm.nColBlocks, 1), j.name, ArrayRef(blockResults, i * bm.nColBlocks + j))
-        ArrayMap(ArrayRange(0, bm.nRowBlocks, 1), i.name, NDArrayConcat(cols, 1))
+        val cols = ArrayMap(ArrayRange(0, child.typ.nColBlocks, 1), j.name, ArrayRef(blockResults, i * child.typ.nColBlocks + j))
+        ArrayMap(ArrayRange(0, child.typ.nRowBlocks, 1), i.name, NDArrayConcat(cols, 1))
       }
       Let(blockResults.name, cda, NDArrayConcat(rows, 0))
     case BlockMatrixToValueApply(child, GetElement(index)) => unimplemented(node)
@@ -97,7 +86,7 @@ object LowerBlockMatrixIR {
 
   def lower(bmir: BlockMatrixIR): BlockMatrixStage = {
     if (bmir.typ.nDefinedBlocks == 0)
-      BlockMatrixStage.empty(bmir.typ.elementType, bmir.typ.nRowBlocks, bmir.typ.nColBlocks)
+      BlockMatrixStage.empty(bmir.typ.elementType)
     else lowerNonEmpty(bmir)
   }
 
@@ -119,8 +108,6 @@ object LowerBlockMatrixIR {
       val nd = MakeNDArray(child, MakeTuple.ordered(FastSeq(I64(x.typ.nRows), I64(x.typ.nCols))), True())
       val v = Ref(genUID(), nd.typ)
       new BlockMatrixStage(
-        x.typ.nRowBlocks, x.typ.nColBlocks,
-        x.typ.sparsity,
         Array(v.name -> nd),
         nd.typ) {
         def blockContext(idx: (Int, Int)): IR = {
@@ -135,15 +122,11 @@ object LowerBlockMatrixIR {
       val left = lower(leftIR)
       val right = lower(rightIR)
       val newCtxType = TArray(TTuple(left.ctxType, right.ctxType))
-      new BlockMatrixStage(
-        x.typ.nRowBlocks, x.typ.nColBlocks,
-        x.typ.sparsity,
-        left.globalVals ++ right.globalVals,
-        newCtxType) {
+      new BlockMatrixStage(left.globalVals ++ right.globalVals, newCtxType) {
         def blockContext(idx: (Int, Int)): IR = {
           val (i, j) = idx
-          MakeArray(Array.tabulate[Option[IR]](left.nColBlocks) { k =>
-            if (left.defines(i -> k) && right.defines(k -> j))
+          MakeArray(Array.tabulate[Option[IR]](leftIR.typ.nColBlocks) { k =>
+            if (leftIR.typ.hasBlock(i -> k) && rightIR.typ.hasBlock(k -> j))
               Some(MakeTuple.ordered(FastSeq(
                 left.blockContext(i -> k), right.blockContext(k -> j))))
             else None
