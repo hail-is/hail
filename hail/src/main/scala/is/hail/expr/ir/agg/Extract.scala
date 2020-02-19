@@ -98,7 +98,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
     val init2 = LoweringPipeline.compileLowerer.apply(ctx, init, false).asInstanceOf[IR]
     val seq2 = LoweringPipeline.compileLowerer.apply(ctx, seqPerElt, false).asInstanceOf[IR]
     InferPType(init2.noSharing, initBindings, null, inits = initsAB, null)
-    InferPType(seq2.noSharing, seqBindings, null, null, seqsAB)
+    InferPType(seq2.noSharing, seqBindings, null, null, seqs = seqsAB)
 
     val pSigs = aggs.indices.map { i => InferPType.computePhysicalAgg(aggs(i), initsAB(i), seqsAB(i)) }.toArray
 

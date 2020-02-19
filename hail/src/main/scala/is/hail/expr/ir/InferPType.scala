@@ -447,13 +447,6 @@ object InferPType {
           theIR._pType2
         }))
       case In(_, pType: PType) => pType
-      case ArrayFor(a, valueName, body) =>
-        infer(a)
-        infer(body, env.bind(valueName -> a._pType2.asInstanceOf[PStream].elementType))
-        PVoid
-      case x if x.typ == TVoid =>
-        x.children.foreach(c => infer(c.asInstanceOf[IR]))
-        PVoid
       case CollectDistributedArray(contextsIR, globalsIR, contextsName, globalsName, bodyIR) =>
         infer(contextsIR)
         infer(globalsIR)
@@ -569,6 +562,9 @@ object InferPType {
       case NDArrayAgg(nd, _) =>
         infer(nd)
         PType.canonical(ir.typ)
+      case x if x.typ == TVoid =>
+        x.children.foreach(c => infer(c.asInstanceOf[IR]))
+        PVoid
     }
 
 
