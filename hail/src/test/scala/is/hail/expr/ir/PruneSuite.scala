@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.annotations.{BroadcastIndexedSeq, BroadcastRow}
+import is.hail.expr.Nat
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
@@ -11,6 +12,7 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 class PruneSuite extends HailSuite {
   @Test def testUnionType() {
@@ -518,9 +520,12 @@ class PruneSuite extends HailSuite {
 
   val ref = Ref("x", TStruct("a" -> TInt32(), "b" -> TInt32(), "c" -> TInt32()))
   val arr = MakeArray(FastIndexedSeq(ref, ref), TArray(ref.typ))
+  val ndArr = MakeNDArray(arr, MakeTuple(IndexedSeq((0, I64(2l)))), True())
   val empty = TStruct()
   val justA = TStruct("a" -> TInt32())
   val justB = TStruct("b" -> TInt32())
+  val justARequired = TStruct(true, "a" -> TInt32())
+  val justBRequired = TStruct(true, "b" -> TInt32())
 
   @Test def testIfMemo() {
     checkMemo(If(True(), ref, ref),
@@ -626,6 +631,21 @@ class PruneSuite extends HailSuite {
     checkMemo(ArrayFor(arr, "foo", Begin(FastIndexedSeq(GetField(Ref("foo", ref.typ), "a")))),
       TVoid,
       Array(TArray(justA), null))
+  }
+
+  @Test def testNDArrayMapMemo(): Unit = {
+    checkMemo(NDArrayMap(ndArr, "foo", Ref("foo", ref.typ)),
+      TNDArray(justBRequired, Nat(1)), Array(TNDArray(justBRequired, Nat(1)), null))
+  }
+
+  @Test def testNDArrayMap2Memo(): Unit = {
+    checkMemo(NDArrayMap2(ndArr, ndArr, "left", "right", Ref("left", ref.typ)),
+      TNDArray(justBRequired, Nat(1)),  Array(TNDArray(justBRequired, Nat(1)), TNDArray(TStruct(true), Nat(1)), null))
+    checkMemo(NDArrayMap2(ndArr, ndArr, "left", "right", Ref("right", ref.typ)),
+      TNDArray(justBRequired, Nat(1)),  Array(TNDArray(TStruct(true), Nat(1)), TNDArray(justBRequired, Nat(1)), null))
+    val addFieldsIR = ApplyBinaryPrimOp(Add(), GetField(Ref("left", ref.typ), "a"), GetField(Ref("right", ref.typ), "b"))
+    checkMemo(NDArrayMap2(ndArr, ndArr, "left", "right", addFieldsIR),
+      TNDArray(TInt32(), Nat(1)), Array(TNDArray(justARequired, Nat(1)), TNDArray(justBRequired, Nat(1)), null))
   }
 
   @Test def testMakeStructMemo() {
@@ -1114,6 +1134,32 @@ class PruneSuite extends HailSuite {
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[CastRename]
         ir._typ == TArray(TStruct("z" -> TString()))
+      })
+  }
+
+  val ndArrayTS = MakeNDArray(MakeArray(ArrayBuffer(NA(ts)), TArray(ts)), MakeTuple(IndexedSeq((0, I64(1l)))), True())
+
+  @Test def testNDArrayMapRebuild() {
+    checkRebuild(NDArrayMap(ndArrayTS, "x", Ref("x", ts)), TNDArray(subsetTS("b"), Nat(1)),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[NDArrayMap]
+        // Even though the type I requested wasn't required, NDArrays always have a required element type.
+        ir.nd.typ == TNDArray(TStruct(true, ("b", TInt64())), Nat(1))
+      })
+  }
+
+  @Test def testNDArrayMap2Rebuild(): Unit = {
+    checkRebuild(NDArrayMap2(ndArrayTS, ndArrayTS, "left", "right", Ref("left", ts)), TNDArray(subsetTS("b"), Nat(1)),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[NDArrayMap2]
+        ir.l.typ == TNDArray(TStruct(true, ("b", TInt64())), Nat(1))
+        ir.r.typ == TNDArray(TStruct(true), Nat(1))
+      })
+    checkRebuild(NDArrayMap2(ndArrayTS, ndArrayTS, "left", "right", Ref("right", ts)), TNDArray(subsetTS("b"), Nat(1)),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[NDArrayMap2]
+        ir.l.typ == TNDArray(TStruct(true), Nat(1))
+        ir.r.typ == TNDArray(TStruct(true, ("b", TInt64())), Nat(1))
       })
   }
 

@@ -41,6 +41,7 @@ object PruneDeadFields {
             mt2.rowKey.startsWith(mt1.rowKey) &&
             mt2.colKey.startsWith(mt1.colKey)
         case (TArray(et1, r1), TArray(et2, r2)) => (!r1 || r2) && isSupertype(et1, et2)
+        case (TNDArray(et1, ndims1, r1), TNDArray(et2, ndims2, r2)) =>  (!r1 || r2) && (ndims1 == ndims2) && isSupertype(et1, et2)
         case (TStream(et1, r1), TStream(et2, r2)) => (!r1 || r2) && isSupertype(et1, et2)
         case (TSet(et1, r1), TSet(et2, r2)) => (!r1 || r2) && isSupertype(et1, et2)
         case (TDict(kt1, vt1, r1), TDict(kt2, vt2, r2)) => (!r1 || r2) && isSupertype(kt1, kt2) && isSupertype(vt1, vt2)
@@ -1073,6 +1074,42 @@ object PruneDeadFields {
           bodyEnv.deleteEval(valueName),
           memoizeValueIR(a, aType.copyStreamable(valueType), memo)
         )
+      case MakeNDArray(data, _, _) => {
+        val dataType = data.typ.asInstanceOf[TStreamable]
+        val elementType = requestedType.asInstanceOf[TNDArray].elementType
+        memoizeValueIR(data, dataType.copyStreamable(elementType), memo)
+      }
+      case NDArrayMap(nd, valueName, body) =>
+        val ndType = nd.typ.asInstanceOf[TNDArray]
+        val bodyEnv = memoizeValueIR(body, requestedType.asInstanceOf[TNDArray].elementType, memo)
+        val valueType = unifySeq(
+          ndType.elementType,
+          bodyEnv.eval.lookupOption(valueName).map(_.result()).getOrElse(Array())
+        )
+        unifyEnvs(
+          bodyEnv.deleteEval(valueName),
+          memoizeValueIR(nd, ndType.copy(elementType = valueType), memo)
+        )
+      case NDArrayMap2(left, right, leftName, rightName, body) =>
+        val leftType = left.typ.asInstanceOf[TNDArray]
+        val rightType = right.typ.asInstanceOf[TNDArray]
+        val bodyEnv = memoizeValueIR(body, requestedType.asInstanceOf[TNDArray].elementType, memo)
+
+        val leftValueType = unify(
+          leftType.elementType,
+          bodyEnv.eval.lookupOption(leftName).map(_.result()).getOrElse(Array()):_*
+        )
+
+        val rightValueType = unify(
+          rightType.elementType,
+          bodyEnv.eval.lookupOption(rightName).map(_.result()).getOrElse(Array()):_*
+        )
+
+        unifyEnvs(
+          bodyEnv.deleteEval(leftName).deleteEval(rightName),
+          memoizeValueIR(left, leftType.copy(elementType = leftValueType), memo),
+          memoizeValueIR(right, rightType.copy(elementType = rightValueType), memo)
+        )
       case AggExplode(a, name, body, isScan) =>
         val aType = a.typ.asInstanceOf[TStreamable]
         val bodyEnv = memoizeValueIR(body,
@@ -1657,6 +1694,19 @@ object PruneDeadFields {
         val et = -a2.typ.asInstanceOf[TStreamable].elementType
         val compare2 = rebuildIR(compare, env.bindEval(left -> et, right -> et), memo)
         ArraySort(a2, left, right, compare2)
+      case MakeNDArray(data, shape, rowMajor) =>
+        val data2 = rebuildIR(data, env, memo)
+        MakeNDArray(data2, shape, rowMajor)
+      case NDArrayMap(nd, valueName, body) =>
+        val nd2 = rebuildIR(nd, env, memo)
+        NDArrayMap(nd2, valueName, rebuildIR(body, env.bindEval(valueName, -nd2.typ.asInstanceOf[TNDArray].elementType), memo))
+      case NDArrayMap2(left, right, leftName, rightName, body) =>
+        val left2 = rebuildIR(left, env, memo)
+        val right2 = rebuildIR(right, env, memo)
+        val body2 = rebuildIR(body,
+          env.bindEval(leftName, -left2.typ.asInstanceOf[TNDArray].elementType).bindEval(rightName, -right2.typ.asInstanceOf[TNDArray].elementType),
+          memo)
+        NDArrayMap2(left2, right2, leftName, rightName, body2)
       case MakeStruct(fields) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
         // drop unnecessary field IRs
