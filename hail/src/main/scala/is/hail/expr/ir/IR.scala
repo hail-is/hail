@@ -265,6 +265,7 @@ final case class NDArrayConcat(nds: IR, axis: Int) extends NDArrayIR
 
 final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR
 final case class NDArraySlice(nd: IR, slices: IR) extends NDArrayIR
+final case class NDArrayFilter(nd: IR, keep: IndexedSeq[IR]) extends NDArrayIR
 
 final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends NDArrayIR
 final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: IR) extends NDArrayIR

@@ -294,6 +294,10 @@ object InferPType {
         infer(slices)
         val remainingDims = coerce[PTuple](slices.pType2).types.filter(_.isInstanceOf[PTuple])
         PNDArray(coerce[PNDArray](nd.pType2).elementType, remainingDims.length, remainingDims.forall(_.required))
+      case NDArrayFilter(nd, filters) =>
+        infer(nd)
+        filters.foreach(infer(_))
+        coerce[PNDArray](nd.pType2)
       case NDArrayMatMul(l, r) =>
         infer(l)
         infer(r)

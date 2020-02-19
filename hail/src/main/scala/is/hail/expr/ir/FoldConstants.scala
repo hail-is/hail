@@ -21,6 +21,7 @@ object FoldConstants {
              _: NDArrayReshape |
              _: NDArrayConcat |
              _: NDArraySlice |
+             _: NDArrayFilter |
              _: NDArrayMap |
              _: NDArrayMap2 |
              _: NDArrayReindex |

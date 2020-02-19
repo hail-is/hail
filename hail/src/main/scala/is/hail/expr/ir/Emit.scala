@@ -1296,6 +1296,7 @@ private class Emit(
       case x: NDArrayReshape => emitDeforestedNDArray(x)
       case x: NDArrayConcat => emitDeforestedNDArray(x)
       case x: NDArraySlice => emitDeforestedNDArray(x)
+      case x: NDArrayFilter => emitDeforestedNDArray(x)
 
       case NDArrayMatMul(lChild, rChild) =>
         val lT = emitNDArrayStandardStrides(lChild)
@@ -2242,6 +2243,34 @@ private class Emit(
             }
 
             childEmitter.outputElement(sliceIdxVars2.toArray)
+          }
+        }
+
+      case x@NDArrayFilter(child, filters) =>
+        val childEmitter = deforest(child)
+        val (vars, outputShape) = filters.zipWithIndex.map { case (f, i) =>
+          val codeF = emit(f, env, er, None)
+          val m = mb.newField[Boolean](s"m_filter$i")
+          val v = mb.newField[Long](s"v_filter$i")
+          (m -> v, Code(
+            codeF.setup,
+            m := codeF.m,
+            (!m).orEmpty(v := codeF.value[Long]),
+            m.mux(
+              childEmitter.outputShape(i),
+              coerce[PArray](f.pType2).loadLength(v).toL)))
+        }.toArray.unzip
+        new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, childEmitter.setupShape, childEmitter.setupMissing, childEmitter.missing) {
+          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
+            val newIdxVars = Array.tabulate(x.pType.nDims) { i =>
+              val (m, v) = vars(i)
+              val typ = coerce[PArray](filters(i).pType2)
+              m.mux(idxVars(i),
+                typ.isElementMissing(v, idxVars(i).toI).mux(
+                  Code._fatal[Long](s"NDArrayFilter: can't filter on missing index (axis=$i)"),
+                  Region.loadLong(typ.loadElement(v.load(), idxVars(i).toI))))
+            }
+            childEmitter.outputElement(newIdxVars)
           }
         }
 

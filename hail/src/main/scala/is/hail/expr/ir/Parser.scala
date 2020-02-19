@@ -843,6 +843,10 @@ object IRParser {
         val nd = ir_value_expr(env)(it)
         val slices = ir_value_expr(env)(it)
         NDArraySlice(nd, slices)
+      case "NDArrayFilter" =>
+        val nd = ir_value_expr(env)(it)
+        val filters = Array.fill(coerce[TNDArray](nd.typ).nDims)(ir_value_expr(env)(it))
+        NDArrayFilter(nd, filters.toFastIndexedSeq)
       case "NDArrayMatMul" =>
         val l = ir_value_expr(env)(it)
         val r = ir_value_expr(env)(it)

@@ -189,6 +189,10 @@ object TypeCheck {
         assert(slicesTuple.types.forall { t =>
           t == TTuple(TInt64(), TInt64(), TInt64()) || t == TInt64()
         })
+      case NDArrayFilter(nd, filters) =>
+        val ndtyp = coerce[TNDArray](nd.typ)
+        assert(ndtyp.nDims == filters.length)
+        assert(filters.forall(f => coerce[TArray](f.typ).elementType.isOfType(TInt64())))
       case x@NDArrayMap(_, _, body) =>
         assert(x.elementTyp isOfType body.typ)
       case x@NDArrayMap2(l, r, _, _, body) =>
