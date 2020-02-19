@@ -495,4 +495,34 @@ class StagedRegionValueSuite extends HailSuite {
     }
     p.check()
   }
+
+  @Test def testUnstagedCopy() {
+    val t1 = PCanonicalArray(PCanonicalStruct(
+      true,
+      "x1" -> PInt32(),
+      "x2" -> PArray(PInt32(), required = true),
+      "x3" -> PArray(PInt32(true), required = true),
+      "x4" -> PSet(PCanonicalStruct(true, "y" -> PString(true)), required = false)
+    ), required = false)
+    val t2 = t1.deepInnerRequired(false)
+
+    val value = IndexedSeq(
+      Row(1, IndexedSeq(1,2,3), IndexedSeq(0, -1), Set(Row("asdasdasd"), Row(""))),
+      Row(1, IndexedSeq(), IndexedSeq(-1), Set(Row("aa")))
+    )
+
+    Region.scoped { r =>
+      val rvb = new RegionValueBuilder(r)
+      rvb.start(t2)
+      rvb.addAnnotation(t2.virtualType, value)
+      val v1 = rvb.end()
+      assert(SafeRow.read(t2, r, v1) == value)
+
+      rvb.clear()
+      rvb.start(t1)
+      rvb.addRegionValue(t2, r, v1)
+      val v2 = rvb.end()
+      assert(SafeRow.read(t1, r, v2) == value)
+    }
+  }
 }

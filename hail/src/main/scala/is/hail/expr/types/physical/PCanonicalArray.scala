@@ -353,28 +353,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
-  def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
-    Region.storeAddress(dstAddress, valueAddress)
-
-  def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
-    Region.storeAddress(dstAddress, valueAddress)
-  }
-
-  def deepCopyFromAddress(mb: MethodBuilder, region: Code[Region], srcArrayAddress: Code[Long]): Code[Long] = {
-    val dstAddress = mb.newField[Long]
-    Code(
-      dstAddress := this.copyFrom(mb, region, srcArrayAddress),
-      this.deepPointerCopy(mb, region, dstAddress),
-      dstAddress
-    )
-  }
-
-  def deepCopyFromAddress(region: Region, srcArrayAddress: Long): Long = {
-    val dstAddress = this.copyFrom(region, srcArrayAddress)
-    this.deepPointerCopy(region, dstAddress)
-    dstAddress
-  }
-
   def deepPointerCopy(mb: MethodBuilder, region: Code[Region], dstAddress: Code[Long]): Code[Unit] = {
     if(!this.elementType.fundamentalType.containsPointers) {
       return Code._empty
@@ -392,8 +370,8 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
             currentElementAddress := this.elementOffset(dstAddress, numberOfElements, currentIdx),
             this.elementType.fundamentalType match {
               case t@(_: PBinary | _: PArray) =>
-                t.storeShallowAtOffset(currentElementAddress, t.copyFromType(mb, region, t, Region.loadAddress(currentElementAddress)))
-              case t: PBaseStruct =>
+                Region.storeAddress(currentElementAddress, t.copyFromType(mb, region, t, Region.loadAddress(currentElementAddress), forceDeep = true))
+              case t: PCanonicalBaseStruct =>
                 t.deepPointerCopy(mb, region, currentElementAddress)
               case t: PType => fatal(s"Type isn't supported ${t}")
             }
@@ -416,8 +394,8 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         val currentElementAddress = this.elementOffset(dstAddress, numberOfElements, currentIdx)
         this.elementType.fundamentalType match {
           case t@(_: PBinary | _: PArray) =>
-            t.storeShallowAtOffset(currentElementAddress, t.copyFromType(region, t, Region.loadAddress(currentElementAddress)))
-          case t: PBaseStruct =>
+            Region.storeAddress(currentElementAddress, t.copyFromType(region, t, Region.loadAddress(currentElementAddress), forceDeep = true))
+          case t: PCanonicalBaseStruct =>
             t.deepPointerCopy(region, currentElementAddress)
           case t: PType => fatal(s"Type isn't supported ${t}")
         }
@@ -429,107 +407,104 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     val sourceType = srcPType.asInstanceOf[PArray]
-    val sourceElementType = sourceType.elementType.fundamentalType
-    val destElementType = this.elementType.fundamentalType
-
-    if (sourceElementType != destElementType) {
-      assert(destElementType.required <= sourceElementType.required && sourceElementType.isOfType(destElementType))
-    } else {
-      if(!forceDeep) {
-        return srcAddress
-      }
-
-      return this.deepCopyFromAddress(mb, region, srcAddress)
-    }
-
-    val dstAddress = mb.newField[Long]
-    val numberOfElements = mb.newLocal[Int]
-    val currentElementAddress = mb.newLocal[Long]
-    val currentIdx = mb.newLocal[Int]
-
-    val init = Code(
-      numberOfElements := sourceType.loadLength(srcAddress),
-      dstAddress := this.allocate(region, numberOfElements),
-      this.stagedInitialize(dstAddress, numberOfElements),
-      currentElementAddress := this.firstElementOffset(dstAddress, numberOfElements),
-      currentIdx := const(0)
-    )
-
-    var loop: Code[Unit] =
-      destElementType.storeShallowAtOffset(
-        currentElementAddress,
-        destElementType.copyFromType(
-          mb,
-          region,
-          sourceElementType,
-          sourceType.loadElement(srcAddress, numberOfElements, currentIdx),
-          forceDeep
-        )
-      )
-
-    if(!sourceElementType.required) {
-      loop = sourceType.isElementMissing(srcAddress, currentIdx).mux(
-        this.setElementMissing(dstAddress, currentIdx),
-        loop
-      )
-    }
+    val srcAddrRef = mb.newLocal[Long]
+    val len = mb.newLocal[Int]
 
     Code(
-      init,
-      Code.whileLoop(currentIdx < numberOfElements,
-        loop,
-        currentElementAddress := this.nextElementAddress(currentElementAddress),
-        currentIdx := currentIdx + const(1)
-      ),
-      dstAddress
-    )
+      srcAddrRef := srcAddress,
+      len := sourceType.loadLength(srcAddrRef),
+      constructOrCopyWithLen(mb, region, sourceType, srcAddrRef, len, forceDeep))
   }
 
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = {
     val sourceType = srcPType.asInstanceOf[PArray]
-    val sourceElementType = sourceType.elementType.fundamentalType
-    val destElementType = this.elementType.fundamentalType
-
-    if (sourceElementType == destElementType) {
-      if(!forceDeep) {
-        return srcAddress
-      }
-
-      return this.deepCopyFromAddress(region, srcAddress)
-    }
-
-    assert(destElementType.required <= sourceElementType.required && sourceElementType.isOfType(destElementType))
-
-    val numberOfElements = sourceType.loadLength(srcAddress)
-    val dstAddress = this.allocate(region, numberOfElements)
-    this.initialize(dstAddress, numberOfElements)
-
-    var currentElementAddress = this.firstElementOffset(dstAddress, numberOfElements)
-    var currentIdx = 0
-    while(currentIdx < numberOfElements) {
-      if(!sourceElementType.required && sourceType.isElementMissing(srcAddress, currentIdx)) {
-        this.setElementMissing(dstAddress, currentIdx)
-      } else {
-        destElementType.storeShallowAtOffset(
-          currentElementAddress,
-          destElementType.copyFromType(
-            region,
-            sourceElementType,
-            sourceType.loadElement(srcAddress, numberOfElements, currentIdx),
-            forceDeep
-          )
-        )
-      }
-
-      currentElementAddress = this.nextElementAddress(currentElementAddress)
-      currentIdx += 1
-    }
-
-    dstAddress
+    val len = sourceType.loadLength(srcAddress)
+    constructOrCopyWithLen(region, sourceType, srcAddress, len, forceDeep)
   }
 
   def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
     this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], forceDeep)
+
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] = {
+    val srcArray = srcPType.asInstanceOf[PArray]
+
+    val srcAddrVar = mb.newLocal[Long]
+    val len = mb.newLocal[Int]
+    Code(
+      srcAddrVar := srcAddress,
+      len := srcArray.loadLength(srcAddrVar),
+      Region.storeAddress(addr, constructOrCopyWithLen(mb, region, srcArray, srcAddrVar, len, forceDeep))
+    )
+  }
+
+  private def constructOrCopyWithLen(mb: MethodBuilder, region: Code[Region], srcArray: PArray, srcAddress: LocalRef[Long], len: LocalRef[Int], forceDeep: Boolean): Code[Long] = {
+    if (srcArray == this) {
+      if (forceDeep) {
+        val newAddr = mb.newLocal[Long]
+        Code(
+          newAddr := allocate(region, len),
+          Region.copyFrom(srcAddress, newAddr, contentsByteSize(len)),
+          deepPointerCopy(mb, region, newAddr),
+          newAddr)
+      } else
+        srcAddress
+    } else {
+
+      assert(elementType.required <= srcArray.elementType.required)
+
+      val newAddr = mb.newLocal[Long]
+      val i = mb.newLocal[Int]
+
+      Code(
+        newAddr := allocate(region, len),
+        stagedInitialize(newAddr, len, setMissing = true),
+        i := 0,
+        Code.whileLoop(i < len,
+          srcArray.isElementDefined(srcAddress, i).orEmpty(
+            Code(
+              setElementPresent(newAddr, i),
+              elementType.constructAtAddress(mb, elementOffset(newAddr, len, i), region, srcArray.elementType, srcArray.loadElement(srcAddress, len, i), forceDeep)
+            )
+          ),
+          i := i + 1
+        ),
+        newAddr
+      )
+    }
+  }
+
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit = {
+    val srcArray = srcPType.asInstanceOf[PArray]
+    Region.storeAddress(addr, constructOrCopyWithLen(region, srcArray, srcAddress, srcArray.loadLength(srcAddress), forceDeep))
+  }
+
+  private def constructOrCopyWithLen(region: Region, srcArray: PArray, srcAddress: Long, len: Int, forceDeep: Boolean): Long = {
+    if (srcArray == this) {
+      if (forceDeep) {
+        val newAddr = allocate(region, len)
+        Region.copyFrom(srcAddress, newAddr, contentsByteSize(len))
+        deepPointerCopy(region, newAddr)
+        newAddr
+      } else
+        srcAddress
+    } else {
+      val newAddr = allocate(region, len)
+
+      assert(elementType.required <= srcArray.elementType.required)
+
+      initialize(newAddr, len, setMissing = true)
+      var i = 0
+      val srcElement = srcArray.elementType
+      while (i < len) {
+        if (srcArray.isElementDefined(srcAddress, i)) {
+          setElementPresent(newAddr, i)
+          elementType.constructAtAddress(elementOffset(newAddr, len, i), region, srcElement, srcArray.loadElement(srcAddress, len, i), forceDeep)
+        }
+        i += 1
+      }
+      newAddr
+    }
+  }
 
   override def deepRename(t: Type): PType = deepRenameArray(t.asInstanceOf[TArray])
 

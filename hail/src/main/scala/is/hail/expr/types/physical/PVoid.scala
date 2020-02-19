@@ -24,9 +24,10 @@ case object PVoid extends PType {
   def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
     throw new UnsupportedOperationException("PVoid copyFromTypeAndStackValue is currently undefined")
 
-  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] =
-    throw new UnsupportedOperationException("PVoid storeShallowAtOffset is currently undefined")
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] =
+    throw new NotImplementedError(s"$this is not constructable")
 
-  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) =
-    throw new UnsupportedOperationException("PVoid storeShallowAtOffset is currently undefined")
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
+    throw new NotImplementedError(s"$this is not constructable")
+
 }

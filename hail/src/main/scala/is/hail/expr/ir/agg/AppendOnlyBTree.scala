@@ -29,7 +29,7 @@ trait BTreeKey {
 class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Region], root: ClassFieldRef[Long], maxElements: Int = 2) {
   private val splitIdx = maxElements / 2
   private val eltType: PTuple = PTuple(key.storageType, PInt64(true))
-  private val elementsType: PTuple = PTuple(required = true, Array.fill(maxElements)(eltType): _*)
+  private val elementsType: PTuple = PCanonicalTuple(required = true, Array.fill[PType](maxElements)(eltType): _*)
   private val storageType: PStruct = PStruct(required = true,
     "parent" -> PInt64(),
     "child0" -> PInt64(),

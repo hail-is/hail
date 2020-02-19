@@ -150,16 +150,15 @@ trait PArrayBackedContainer extends PContainer {
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long =
     this.arrayRep.copyFromType(region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, forceDeep)
 
-  def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
-    this.arrayRep.storeShallowAtOffset(dstAddress, valueAddress)
-
-  def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
-    this.arrayRep.storeShallowAtOffset(dstAddress, valueAddress)
-  }
-
   def nextElementAddress(currentOffset: Long) =
     arrayRep.nextElementAddress(currentOffset)
 
   def nextElementAddress(currentOffset: Code[Long]) =
     arrayRep.nextElementAddress(currentOffset)
+
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] =
+    arrayRep.constructAtAddress(mb, addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, forceDeep)
+
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
+    arrayRep.constructAtAddress(addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, forceDeep)
 }

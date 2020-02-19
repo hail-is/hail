@@ -31,13 +31,6 @@ abstract class PCanonicalString(val required: Boolean) extends PString {
 
   override def containsPointers: Boolean = true
 
-  def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
-    this.fundamentalType.storeShallowAtOffset(dstAddress, valueAddress)
-
-  def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
-    this.fundamentalType.storeShallowAtOffset(dstAddress, valueAddress)
-  }
-
   def bytesOffset(boff: Long): Long =
     this.fundamentalType.bytesOffset(boff)
 
@@ -73,6 +66,12 @@ abstract class PCanonicalString(val required: Boolean) extends PString {
       dstAddress
     )
   }
+
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] =
+    fundamentalType.constructAtAddress(mb, addr, region, srcPType.fundamentalType, srcAddress, forceDeep)
+
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
+    fundamentalType.constructAtAddress(addr, region, srcPType.fundamentalType, srcAddress, forceDeep)
 }
 
 object PCanonicalString {

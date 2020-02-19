@@ -180,7 +180,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   }
 
   def start(init: Boolean): Code[Unit] = {
-    val t = ftype.asInstanceOf[PBaseStruct]
+    val t = ftype.asInstanceOf[PCanonicalBaseStruct]
     var c = if (pOffset == null)
       startOffset.store(region.allocate(t.alignment, t.byteSize))
     else
@@ -196,7 +196,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   def setMissing(): Code[Unit] = {
     ftype match {
       case t: PArray => t.setElementMissing(startOffset, idx)
-      case t: PBaseStruct =>
+      case t: PCanonicalBaseStruct =>
         if (t.fieldRequired(staticIdx))
           Code._fatal("Required field cannot be missing.")
         else
@@ -207,7 +207,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   def currentPType(): PType = {
     ftype match {
       case t: PArray => t.elementType
-      case t: PBaseStruct =>
+      case t: PCanonicalBaseStruct =>
         t.types(staticIdx)
       case t => t
     }
@@ -292,7 +292,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
         elementsOffset := elementsOffset + t.elementByteSize,
         idx := idx + 1
       )
-      case t: PBaseStruct =>
+      case t: PCanonicalBaseStruct =>
         staticIdx += 1
         if (staticIdx < t.size)
           elementsOffset := elementsOffset + (t.byteOffsets(staticIdx) - t.byteOffsets(staticIdx - 1))
