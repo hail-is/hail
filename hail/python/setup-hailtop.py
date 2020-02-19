@@ -7,5 +7,8 @@ setup(
     author = 'Hail Team',
     author_email = 'hail@broadinstitute.org',
     description = 'Toplevel Hail module',
-    packages = find_packages()
+    packages = find_packages(),
+    entry_points={
+        'console_scripts': ['hailctl = hailtop.hailctl.__main__:main']
+    }
 )
