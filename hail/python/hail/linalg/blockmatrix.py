@@ -214,8 +214,21 @@ class BlockMatrix(object):
     - Natural logarithm, :meth:`log`.
     """
 
+    @staticmethod
+    def _from_java(jbm):
+        return BlockMatrix(JavaBlockMatrix(jbm))
+
     def __init__(self, bmir):
         self._bmir = bmir
+        self._cached_jbm = None
+
+    @property
+    def _jbm(self):
+        if self._cached_jbm is not None:
+            return self._cached_jbm
+        else:
+            self._cached_jbm = Env.spark_backend('BlockMatrix._jbm')._to_java_ir(self._bmir).pyExecute()
+            return self._cached_jbm
 
     @classmethod
     @typecheck_method(path=str)
