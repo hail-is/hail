@@ -309,7 +309,8 @@ private class Emit(
     def wrapToMethod(irs: Seq[IR], env: E = env, container: Option[AggContainer] = container)(useValues: (EmitMethodBuilder, PType, EmitTriplet) => Code[Unit]): Code[Unit] =
       this.wrapToMethod(irs, env, container)(useValues)
 
-    def emitArrayIterator(ir: IR, env: E = env, container: Option[AggContainer] = container) = this.emitArrayIterator(ir, env, er, container)
+    def emitArrayIterator(ir: IR, env: E = env, container: Option[AggContainer] = container) =
+      this.emitArrayIterator(ir, env, er, container)
 
     def emitDeforestedNDArray(ir: IR) =
       deforestNDArray(resultRegion, ir, env).emit(coerce[PNDArray](ir.pType))
@@ -589,11 +590,9 @@ private class Emit(
             distinct,
             sorter.toRegion()))
 
-      case ToArray(a) =>
-        emit(a)
+      case ToArray(a) => emit(a)
 
-      case ToStream(a) =>
-        emit(a)
+      case ToStream(a) => emit(a)
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val typ: PContainer = coerce[PIterable](orderedCollection.pType).asPContainer
@@ -714,7 +713,7 @@ private class Emit(
               srvb.offset
             ))))
 
-      case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: RunAggScan | _: ReadPartition =>
+      case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: RunAggScan | _: ReadPartition | _: MakeStream | _: StreamRange =>
         emitArrayIterator(ir).toEmitTriplet(mb, PArray(coerce[PStreamable](ir.pType).elementType))
 
       case ArrayFold(a, zero, name1, name2, body) =>
@@ -733,7 +732,6 @@ private class Emit(
 
         val codeZ = emit(zero)
         val codeB = emit(body, env = bodyenv)
-
         val aBase = emitArrayIterator(a)
 
         val cont = { (m: Code[Boolean], v: Code[_]) =>
@@ -1911,7 +1909,7 @@ private class Emit(
   }
 
   private def emitArrayIterator(ir: IR, env: E, er: EmitRegion, container: Option[AggContainer]): ArrayIteratorTriplet =
-    EmitStream(this, Streamify(ir), env, er, container)
+    EmitStream(this, ir, env, er, container)
       .toArrayIterator(mb)
 
   private def present(x: Code[_]): EmitTriplet =
@@ -2375,6 +2373,7 @@ abstract class NDArrayEmitter(
     val idxVars = Array.tabulate(nDims) {_ => mb.newField[Long]}
     val loadedIdxVars = idxVars.map(_.load())
     val storeElement = mb.newLocal(typeToTypeInfo(outputElementPType.virtualType)).asInstanceOf[LocalRef[Double]]
+
     val body =
       Code(
         storeElement := outputElement(loadedIdxVars).asInstanceOf[Code[Double]],

@@ -1,6 +1,6 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.{BaseIR, ExecuteContext, Optimize}
+import is.hail.expr.ir.{BaseIR, ExecuteContext, LowerArrayToStream, Optimize}
 import is.hail.utils.{FastSeq, HailException}
 
 case class LoweringPipeline(lowerings: IndexedSeq[LoweringPass]) {
@@ -35,6 +35,5 @@ object LoweringPipeline {
   val relationalLowerer: LoweringPipeline = LoweringPipeline(Array(LowerMatrixToTablePass, InterpretNonCompilablePass))
   val legacyRelationalLowerer: LoweringPipeline = LoweringPipeline(Array(LowerMatrixToTablePass, LegacyInterpretNonCompilablePass))
   val tableLowerer: LoweringPipeline = LoweringPipeline(Array(LowerMatrixToTablePass, LowerTableToDistributedArrayPass))
-
-  val compileLowerer: LoweringPipeline = LoweringPipeline(Array(InlineApplyIR, LowerArrayAggsToRunAggs))
+  val compileLowerer: LoweringPipeline = LoweringPipeline(Array(InlineApplyIR, LowerArrayAggsToRunAggsPass, LowerArrayToStreamPass))
 }

@@ -147,8 +147,9 @@ object TypeCheck {
         }
       case x@MakeStream(args, typ) =>
         assert(typ != null)
-        args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
-          s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
+
+        args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x.isOfType(typ.elementType),
+          s"at position $i type mismatch: ${ typ.elementType.parsableString() } ${ x.parsableString() }")
         }
       case x@ArrayRef(a, i, s) =>
         assert(i.typ.isOfType(TInt32()))
@@ -259,7 +260,7 @@ object TypeCheck {
         assert(cond.typ.isOfType(TBoolean()))
       case x@ArrayFlatMap(a, name, body) =>
         assert(a.typ.isInstanceOf[TStreamable])
-        assert(body.typ.isInstanceOf[TArray])
+        assert(body.typ.isInstanceOf[TStreamable])
       case x@ArrayFold(a, zero, accumName, valueName, body) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(body.typ == zero.typ)
@@ -386,7 +387,7 @@ object TypeCheck {
       case BlockMatrixWrite(_, _) =>
       case BlockMatrixMultiWrite(_, _) =>
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
-        assert(ctxs.typ.isInstanceOf[TArray])
+        assert(ctxs.typ.isInstanceOf[TStreamable])
       case x@ReadPartition(path, _, rowType) =>
         assert(path.typ == TString())
         assert(x.typ == TStream(rowType))

@@ -1,7 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.expr.ir.agg.Extract
-import is.hail.expr.ir.{ApplyIR, ArrayAgg, ArrayAggScan, ArrayFor, BaseIR, Begin, BlockMatrixIR, ExecuteContext, IR, InterpretNonCompilable, Let, LowerMatrixIR, MatrixIR, Pretty, ResultOp, RewriteBottomUp, RewriteTopDown, RunAgg, RunAggScan, TableIR, genUID}
+import is.hail.expr.ir._
 import is.hail.utils.FastSeq
 
 trait LoweringPass {
@@ -69,7 +69,7 @@ case object InlineApplyIR extends LoweringPass {
   })
 }
 
-case object LowerArrayAggsToRunAggs extends LoweringPass {
+case object LowerArrayAggsToRunAggsPass extends LoweringPass {
   val before: IRState = CompilableIRNoApply
   val after: IRState = EmittableIR
   val context: String = "LowerArrayAggsToRunAggs"
@@ -109,4 +109,13 @@ case object LowerArrayAggsToRunAggs extends LoweringPass {
       Some(newNode)
     case _ => None
   })
+}
+
+case object LowerArrayToStreamPass extends LoweringPass {
+  val before: IRState = EmittableIR
+  val after: IRState = EmittableStreamIRs
+  val context: String = "LowerArrayToStream"
+
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    LowerArrayToStream(ir.asInstanceOf[IR])
 }
