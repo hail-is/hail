@@ -1007,8 +1007,8 @@ class BlockMatrix(object):
             BlockMatrixSparsify(self._bmir, intervals._ir,
                                 RowIntervalSparsifier(blocks_only)))
 
-    @typecheck_method(starts=oneof(sequenceof(int), np.ndarray, expr_tuple([exor_int64, expr_int64])),
-                      stops=nullable(oneof(sequenceof(int), np.ndarray)),
+    @typecheck_method(starts=oneof(sequenceof(int), np.ndarray),
+                      stops=oneof(sequenceof(int), np.ndarray),
                       blocks_only=bool)
     def sparsify_row_intervals(self, starts, stops, blocks_only=False):
         """Creates a block-sparse matrix by filtering to an interval for each row.
