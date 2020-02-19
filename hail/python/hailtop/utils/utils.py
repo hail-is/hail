@@ -237,7 +237,7 @@ def is_transient_error(e):
     if isinstance(e, ConnectionResetError):
         return True
     if isinstance(e, google.auth.exceptions.TransportError):
-        return True
+        return is_transient_error(e.__cause__)
     return False
 
 
