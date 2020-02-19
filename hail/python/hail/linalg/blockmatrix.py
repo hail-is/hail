@@ -8,7 +8,8 @@ import scipy.linalg as spla
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr import construct_expr, construct_variable
-from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed
+from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed, \
+    expr_tuple, expr_array, expr_int64
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, Ref, F64, \
     BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
     ApplyUnaryPrimOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
@@ -222,7 +223,7 @@ class BlockMatrix(object):
 
     @property
     def _jbm(self):
-        if self._cached_jbm is not None:
+        if self._cached_jbm is not None:fi
             return self._cached_jbm
         else:
             self._cached_jbm = Env.spark_backend('BlockMatrix._jbm')._to_java_ir(self._bmir).pyExecute()
@@ -999,8 +1000,15 @@ class BlockMatrix(object):
 
         return self.sparsify_band(lower_band, upper_band, blocks_only)
 
-    @typecheck_method(starts=oneof(sequenceof(int), np.ndarray),
-                      stops=oneof(sequenceof(int), np.ndarray),
+    @typecheck_method(intervals=expr_tuple([expr_array(expr_int64), expr_array(expr_int64)]),
+                      blocks_only=bool)
+    def _sparsify_row_intervals_expr(self, intervals, blocks_only=False):
+        return BlockMatrix(
+            BlockMatrixSparsify(self._bmir, intervals._ir,
+                                RowIntervalSparsifier(blocks_only)))
+
+    @typecheck_method(starts=oneof(sequenceof(int), np.ndarray, expr_tuple([exor_int64, expr_int64])),
+                      stops=nullable(oneof(sequenceof(int), np.ndarray)),
                       blocks_only=bool)
     def sparsify_row_intervals(self, starts, stops, blocks_only=False):
         """Creates a block-sparse matrix by filtering to an interval for each row.
@@ -1090,13 +1098,7 @@ class BlockMatrix(object):
         if any([starts[i] > stops[i] for i in range(0, n_rows)]):
             raise ValueError('every start value must be less than or equal to the corresponding stop value')
 
-        starts_and_stops = hl.literal(
-            (starts, stops),
-            hl.ttuple(hl.tarray(hl.tint64), hl.tarray(hl.tint64)))
-        return BlockMatrix(
-            BlockMatrixSparsify(self._bmir,
-                                starts_and_stops._ir,
-                                RowIntervalSparsifier(blocks_only)))
+        return self._sparsify_row_intervals_expr((starts, stops), blocks_only)
 
     @typecheck_method(uri=str)
     def tofile(self, uri):
