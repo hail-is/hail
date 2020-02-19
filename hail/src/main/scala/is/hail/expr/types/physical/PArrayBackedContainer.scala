@@ -157,8 +157,8 @@ trait PArrayBackedContainer extends PContainer {
     arrayRep.nextElementAddress(currentOffset)
 
   def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] =
-    throw new NotImplementedError(s"constructAtAddress should only be called on fundamental types; $this is not fundamental")
+    arrayRep.constructAtAddress(mb, addr, region, srcPType, srcAddress, forceDeep)
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
-    throw new NotImplementedError(s"constructAtAddress should only be called on fundamental types; $this is not fundamental")
+    arrayRep.constructAtAddress(addr, region, srcPType, srcAddress, forceDeep)
 }

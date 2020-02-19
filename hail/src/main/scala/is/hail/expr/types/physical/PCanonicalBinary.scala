@@ -96,7 +96,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     )
   }
 
-  def constructOrCopyWithLen(mb: MethodBuilder, region: Code[Region], srcBinary: PBinary, srcAddress: LocalRef[Long], len: LocalRef[Int], forceDeep: Boolean): Code[Long] = {
+  private def constructOrCopyWithLen(mb: MethodBuilder, region: Code[Region], srcBinary: PBinary, srcAddress: LocalRef[Long], len: LocalRef[Int], forceDeep: Boolean): Code[Long] = {
     if (srcBinary == this) {
       if (forceDeep) {
         val newAddr = mb.newLocal[Long]
@@ -123,7 +123,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     Region.storeAddress(addr, constructOrCopyWithLen(region, srcArray, srcAddress, srcArray.loadLength(srcAddress), forceDeep))
   }
 
-  def constructOrCopyWithLen(region: Region, srcBinary: PBinary, srcAddress: Long, len: Int, forceDeep: Boolean): Long = {
+  private def constructOrCopyWithLen(region: Region, srcBinary: PBinary, srcAddress: Long, len: Int, forceDeep: Boolean): Long = {
     if (srcBinary == this) {
       if (forceDeep) {
         val newAddr = allocate(region, len)

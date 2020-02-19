@@ -1,13 +1,13 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.types.BaseStruct
 import is.hail.utils._
 
 abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct {
   val (missingIdx: Array[Int], nMissing: Int) = BaseStruct.getMissingIndexAndCount(types.map(_.required))
-  val nMissingBytes: Int = (nMissing + 7) >>> 3
+  val nMissingBytes: Int = UnsafeUtils.packBitsToBytes(nMissing)
   val byteOffsets: Array[Long] = new Array[Long](size)
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PBaseStruct.alignment(types)

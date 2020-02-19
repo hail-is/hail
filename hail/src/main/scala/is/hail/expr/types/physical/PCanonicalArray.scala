@@ -437,7 +437,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
-  def constructOrCopyWithLen(mb: MethodBuilder, region: Code[Region], srcArray: PArray, srcAddress: LocalRef[Long], len: LocalRef[Int], forceDeep: Boolean): Code[Long] = {
+  private def constructOrCopyWithLen(mb: MethodBuilder, region: Code[Region], srcArray: PArray, srcAddress: LocalRef[Long], len: LocalRef[Int], forceDeep: Boolean): Code[Long] = {
     if (srcArray == this) {
       if (forceDeep) {
         val newAddr = mb.newLocal[Long]
@@ -478,7 +478,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     Region.storeAddress(addr, constructOrCopyWithLen(region, srcArray, srcAddress, srcArray.loadLength(srcAddress), forceDeep))
   }
 
-  def constructOrCopyWithLen(region: Region, srcArray: PArray, srcAddress: Long, len: Int, forceDeep: Boolean): Long = {
+  private def constructOrCopyWithLen(region: Region, srcArray: PArray, srcAddress: Long, len: Int, forceDeep: Boolean): Long = {
     if (srcArray == this) {
       if (forceDeep) {
         val newAddr = allocate(region, len)
