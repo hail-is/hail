@@ -157,8 +157,8 @@ trait PArrayBackedContainer extends PContainer {
     arrayRep.nextElementAddress(currentOffset)
 
   def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] =
-    arrayRep.constructAtAddress(mb, addr, region, srcPType, srcAddress, forceDeep)
+    arrayRep.constructAtAddress(mb, addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, forceDeep)
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
-    arrayRep.constructAtAddress(addr, region, srcPType, srcAddress, forceDeep)
+    arrayRep.constructAtAddress(addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, forceDeep)
 }
