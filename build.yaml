@@ -1072,7 +1072,7 @@ steps:
  - kind: runImage
    name: test_pipeline_docs
    image:
-     valueFrom: test_pipeline_docs_image.image
+     valueFrom: base_image.image
    script: |
      set -ex
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
@@ -1093,7 +1093,7 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
-    - test_pipeline_docs_image
+    - base_image
     - copy_files
     - deploy_batch
    inputs:
