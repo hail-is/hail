@@ -150,7 +150,7 @@ class BlockMatrixPersistWriter(BlockMatrixWriter):
         self.storage_level = storage_level
 
     def render(self):
-        writer = {'name': 'BlockMatrixBinaryMultiWriter',
+        writer = {'name': 'BlockMatrixPersistWriter',
                   'id': self.id,
                   'storageLevel': self.storage_level}
         return escape_str(json.dumps(writer))

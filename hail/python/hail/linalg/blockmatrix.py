@@ -1176,7 +1176,7 @@ class BlockMatrix(object):
         -------
         :obj:`bool`
         """
-        return Env.backend()._to_java_ir(t._tir).typ().isSparse()
+        return Env.backend()._to_java_ir(self._bmir).typ().isSparse()
 
     @property
     def T(self):
