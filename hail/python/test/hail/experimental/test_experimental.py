@@ -268,9 +268,13 @@ class Tests(unittest.TestCase):
         assert mt._same(expected_split_mt)
 
     def test_define_function(self):
-        f = hl.experimental.define_function(
+        f1 = hl.experimental.define_function(
             lambda a, b: (a + 7) * b, hl.tint32, hl.tint32)
-        self.assertEqual(hl.eval(f(1, 3)), 24)
+        self.assertEqual(hl.eval(f1(1, 3)), 24)
+        f2 = hl.experimental.define_function(
+            lambda a, b: (a + 7) * b, hl.tint32, hl.tint32)
+        self.assertEqual(hl.eval(f1(1, 3)), 24) # idempotent
+        self.assertEqual(hl.eval(f2(1, 3)), 24) # idempotent
 
     def test_mt_full_outer_join(self):
         mt1 = hl.utils.range_matrix_table(10, 10)
