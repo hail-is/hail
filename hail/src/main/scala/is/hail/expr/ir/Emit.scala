@@ -548,7 +548,7 @@ private class Emit(
         val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
         val sorter = new ArraySorter(er, vab)
 
-        val (array, compare, distinct, fBindings: Array[String]) = (x: @unchecked) match {
+        val (array, compare, distinct, leftRightComparatorNames: Array[String]) = (x: @unchecked) match {
           case ArraySort(a, l, r, comp) => (a, comp, Code._empty[Unit], Array(l, r))
           case ToSet(a) =>
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
@@ -572,11 +572,11 @@ private class Emit(
         }
 
         val compF = vab.ti match {
-          case BooleanInfo => sorter.sort(makeDependentSortingFunction[Boolean](compare, env, fBindings))
-          case IntInfo => sorter.sort(makeDependentSortingFunction[Int](compare, env, fBindings))
-          case LongInfo => sorter.sort(makeDependentSortingFunction[Long](compare, env, fBindings))
-          case FloatInfo => sorter.sort(makeDependentSortingFunction[Float](compare, env, fBindings))
-          case DoubleInfo => sorter.sort(makeDependentSortingFunction[Double](compare, env, fBindings))
+          case BooleanInfo => sorter.sort(makeDependentSortingFunction[Boolean](compare, env, leftRightComparatorNames))
+          case IntInfo => sorter.sort(makeDependentSortingFunction[Int](compare, env, leftRightComparatorNames))
+          case LongInfo => sorter.sort(makeDependentSortingFunction[Long](compare, env, leftRightComparatorNames))
+          case FloatInfo => sorter.sort(makeDependentSortingFunction[Float](compare, env, leftRightComparatorNames))
+          case DoubleInfo => sorter.sort(makeDependentSortingFunction[Double](compare, env, leftRightComparatorNames))
         }
 
         val aout = emitArrayIterator(array)
@@ -638,13 +638,13 @@ private class Emit(
 
         val compare = ApplyComparisonOp(Compare(etyp.types(0).virtualType), k1, k2) < 0
         InferPType(compare, Env.empty)
-        val lrComparatorNames = Array.empty[String]
+        val leftRightComparatorNames = Array.empty[String]
         val compF = eab.ti match {
-          case BooleanInfo => sorter.sort(makeDependentSortingFunction[Boolean](compare, env, lrComparatorNames))
-          case IntInfo => sorter.sort(makeDependentSortingFunction[Int](compare, env, lrComparatorNames))
-          case LongInfo => sorter.sort(makeDependentSortingFunction[Long](compare, env, lrComparatorNames))
-          case FloatInfo => sorter.sort(makeDependentSortingFunction[Float](compare, env, lrComparatorNames))
-          case DoubleInfo => sorter.sort(makeDependentSortingFunction[Double](compare, env, lrComparatorNames))
+          case BooleanInfo => sorter.sort(makeDependentSortingFunction[Boolean](compare, env, leftRightComparatorNames))
+          case IntInfo => sorter.sort(makeDependentSortingFunction[Int](compare, env, leftRightComparatorNames))
+          case LongInfo => sorter.sort(makeDependentSortingFunction[Long](compare, env, leftRightComparatorNames))
+          case FloatInfo => sorter.sort(makeDependentSortingFunction[Float](compare, env, leftRightComparatorNames))
+          case DoubleInfo => sorter.sort(makeDependentSortingFunction[Double](compare, env, leftRightComparatorNames))
         }
 
         val nab = new StagedArrayBuilder(PInt32(), mb, 16)
