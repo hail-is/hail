@@ -22,7 +22,7 @@ object HailSuite {
 
 
   lazy val hc: HailContext = {
-    withSparkBackend()
+    val hc = withSparkBackend()
     hc.flags.set("lower", "1")
     hc.checkRVDKeys = true
     hc
