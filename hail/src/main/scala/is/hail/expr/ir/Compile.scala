@@ -130,6 +130,18 @@ object Compile {
     typ0: PType,
     name1: String,
     typ1: PType,
+    body: IR,
+    print: Option[PrintWriter],
+    optimize: Boolean): (PType, (Int, Region) => AsmFunction5[Region, T0, Boolean, T1, Boolean, R]) = {
+    apply[AsmFunction5[Region, T0, Boolean, T1, Boolean, R], R](ctx, print, FastSeq((name0, typ0, classTag[T0]), (name1, typ1, classTag[T1])), body, optimize = optimize)
+  }
+
+  def apply[T0: ClassTag, T1: ClassTag, R: TypeInfo : ClassTag](
+    ctx: ExecuteContext,
+    name0: String,
+    typ0: PType,
+    name1: String,
+    typ1: PType,
     body: IR): (PType, (Int, Region) => AsmFunction5[Region, T0, Boolean, T1, Boolean, R]) =
     apply(ctx, name0, typ0, name1, typ1, body, None)
 
