@@ -1,2 +1,0 @@
-recursive-include scheduler/templates *
-recursive-include scheduler/static *

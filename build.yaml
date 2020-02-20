@@ -489,8 +489,6 @@ steps:
        to: /testng-cpp-codegen.xml
      - from: /io/repo/hail/testng-distributed-backend.xml
        to: /testng-distributed-backend.xml
-     - from: /io/repo/scheduler/testng.xml
-       to: /testng-scheduler.xml
      - from: /io/repo/hail/python/hail.zip
        to: /hail.zip
      - from: /io/repo/hail/test.tar.gz
@@ -567,13 +565,6 @@ steps:
      python3 -m pylint --rcfile pylintrc hailtop
    dependsOn:
      - hail_base_image
- - kind: buildImage
-   name: scheduler_image
-   dockerFile: scheduler/Dockerfile
-   contextPath: .
-   publishAs: scheduler
-   dependsOn:
-    - service_base_image
  - kind: buildImage
    name: hail_jupyter_image
    dockerFile: apiserver/Dockerfile.hail-jupyter
@@ -1119,28 +1110,6 @@ steps:
     - base_image
     - setup_pipeline
     - test_pipeline
- - kind: deploy
-   name: deploy_scheduler
-   namespace:
-     valueFrom: default_ns.name
-   config: scheduler/deployment.yaml
-   wait:
-    - kind: Service
-      name: scheduler
-      for: alive
-   dependsOn:
-    - default_ns
-    - deploy_router
-    - scheduler_image
- - kind: deploy
-   name: deploy_executors
-   namespace:
-     valueFrom: default_ns.name
-   config: scheduler/executors.yaml
-   dependsOn:
-    - default_ns
-    - deploy_router
-    - hail_test_base_image
  - kind: createDatabase
    name: notebook_database
    databaseName: notebook
@@ -1181,49 +1150,6 @@ steps:
     - default_ns
     - image_fetcher_image
     - deploy_notebook
- - kind: runImage
-   name: test_scheduler
-   image:
-     valueFrom: base_image.image
-   script: |
-     set -ex
-     HAIL_TEST_SCHEDULER_HOST=scheduler.{{ default_ns.name }}.svc.cluster.local CLASSPATH="$SPARK_HOME/jars/*:/io/hail-test.jar" java org.testng.TestNG -listener is.hail.LogTestListener /io/testng-scheduler.xml
-   inputs:
-    - from: /hail-test.jar
-      to: /io/hail-test.jar
-    - from: /testng-scheduler.xml
-      to: /io/testng-scheduler.xml
-   scopes: []
-   dependsOn:
-    - default_ns
-    - base_image
-    - build_hail
-    - deploy_scheduler
-    - deploy_executors
- - kind: runImage
-   name: test_hail_java_distributed_backend
-   image:
-     valueFrom: hail_run_image.image
-   script: |
-     set -ex
-     cd /io
-     mkdir -p src/test
-     HAIL_TEST_SCHEDULER_HOST=scheduler.{{ default_ns.name }}.svc.cluster.local HAIL_TEST_SKIP_R=1 java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-distributed-backend.xml
-   inputs:
-    - from: /hail-test.jar
-      to: /io/hail-test.jar
-    - from: /testng-distributed-backend.xml
-      to: /io/testng-distributed-backend.xml
-   outputs:
-    - from: /io/test-output
-      to: /test-distributed-backend-output
-   scopes: []
-   dependsOn:
-    - default_ns
-    - hail_run_image
-    - build_hail
-    - deploy_scheduler
-    - deploy_executors
  - kind: runImage
    name: cleanup_ci_test_repo
    image:
