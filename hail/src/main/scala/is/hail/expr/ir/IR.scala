@@ -431,6 +431,9 @@ final case class CollectDistributedArray(contexts: IR, globals: IR, cname: Strin
 
 final case class ReadPartition(path: IR, spec: AbstractTypedCodecSpec, rowType: TStruct) extends IR
 
+final case class ReadValue(path: IR, spec: AbstractTypedCodecSpec, requestedType: Type) extends IR
+final case class WriteValue(value: IR, pathPrefix: IR, spec: AbstractTypedCodecSpec) extends IR
+
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)
   def -(other: IR): IR = ApplyBinaryPrimOp(Subtract(), self, other)

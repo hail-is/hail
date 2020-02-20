@@ -387,10 +387,15 @@ object InferPType {
         PCanonicalArray(bodyIR._pType2, contextsIR._pType2.required)
       case ReadPartition(rowIR, codecSpec, rowType) =>
         infer(rowIR)
-
         val child = codecSpec.buildDecoder(rowType)._1
-
         PStream(child, child.required)
+      case ReadValue(path, spec, requestedType) =>
+        infer(path)
+        spec.buildDecoder(requestedType)._1
+      case WriteValue(value, pathPrefix, spec) =>
+        infer(value)
+        infer(pathPrefix)
+        PCanonicalString(pathPrefix.pType2.required)
       case MakeStream(irs, t) =>
         if (irs.isEmpty) {
           PType.canonical(t, true).deepInnerRequired(true)
