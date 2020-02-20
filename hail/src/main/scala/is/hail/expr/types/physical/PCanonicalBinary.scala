@@ -139,7 +139,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     }
   }
 
-  def copy(required: Boolean = this.required) = new PCanonicalBinary(required)
+  def copy(required: Boolean = this.required) = PCanonicalBinary(required)
 }
 
 object PCanonicalBinary {
