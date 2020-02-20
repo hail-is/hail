@@ -19,7 +19,7 @@ if __name__ == '__main__':
     label = os.environ.get('BENCHMARK_LABEL')
     if label:
         labeled_sha = f'{labeled_sha}-{label}'
-    p = pl.Pipeline(name=labeled_sha,
+    p = pl.Pipeline(name=f'benchmark-{labeled_sha}',
                     backend=pl.BatchBackend(billing_project='hail'),
                     default_image=BENCHMARK_IMAGE,
                     default_storage='100G',
