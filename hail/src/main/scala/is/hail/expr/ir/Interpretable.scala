@@ -31,6 +31,9 @@ object Interpretable {
         _: NDArrayMatMul |
         _: TailLoop |
         _: Recur |
+        _: ReadPartition |
+        _: ReadValue |
+        _: WriteValue |
         _: NDArrayWrite => false
       case x: ApplyIR =>
         !Exists(x.body, {

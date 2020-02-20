@@ -388,9 +388,16 @@ object TypeCheck {
       case BlockMatrixMultiWrite(_, _) =>
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
         assert(ctxs.typ.isInstanceOf[TStreamable])
-      case x@ReadPartition(path, _, rowType) =>
+      case x@ReadPartition(path, spec, rowType) =>
         assert(path.typ == TString())
         assert(x.typ == TStream(rowType))
+        assert(spec.encodedType.decodedPType(rowType).virtualType == rowType)
+      case x@ReadValue(path, spec, requestedType) =>
+        assert(path.typ == TString())
+        assert(spec.encodedType.decodedPType(requestedType).virtualType == requestedType)
+      case x@WriteValue(value, pathPrefix, spec) =>
+        assert(pathPrefix.typ == TString())
+        spec.encodedType.encodeCompatible(value.pType2)
       case LiftMeOut(_) =>
     }
   }

@@ -303,6 +303,12 @@ object Copy {
       case ReadPartition(path, spec, rowType) =>
         assert(newChildren.length == 1)
         ReadPartition(newChildren(0).asInstanceOf[IR], spec, rowType)
+      case ReadValue(path, spec, requestedType) =>
+        assert(newChildren.length == 1)
+        ReadValue(newChildren(0).asInstanceOf[IR], spec, requestedType)
+      case WriteValue(value, pathPrefix, spec) =>
+        assert(newChildren.length == 2)
+        WriteValue(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], spec)
       case LiftMeOut(_) =>
         LiftMeOut(newChildren(0).asInstanceOf[IR])
     }
