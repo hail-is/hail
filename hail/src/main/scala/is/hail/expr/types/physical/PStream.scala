@@ -9,8 +9,8 @@ trait PStreamable extends PIterable {
   def asPArray: PArray = PArray(this.elementType, this.required)
   def copyStreamable(elt: PType, req: Boolean = required): PStreamable = {
     this match {
-      case _: PArray => PArray(elt, req)
-      case _: PStream => PStream(elt, req)
+      case x: PArray => x.copy(elt, req)
+      case x: PStream => x.copy(elt, req)
     }
   }
 }
