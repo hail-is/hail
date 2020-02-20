@@ -402,12 +402,12 @@ def drive_combiner(sample_map_path, intervals, out_file, tmp_path, header, overw
     run_combiner(sample_names, sample_paths, intervals, out_file, tmp_path, header, overwrite)
 
 def main():
-    parser = argparse.ArgumentParser(description="Driver for hail's gVCF combiner")
+    parser = argparse.ArgumentParser(description="Driver for hail's GVCF combiner")
     parser.add_argument('sample_map',
                         help='path to the sample map (must be readable by this script). '
                              'The sample map should be tab separated with two columns. '
                              'The first column is the sample ID, and the second column '
-                             'is the gVCF path.')
+                             'is the GVCF path.')
     parser.add_argument('out_file', help='path to final combiner output')
     parser.add_argument('--tmp-path', help='path to folder for intermediate output (can be a cloud bucket)',
                         default='/tmp')

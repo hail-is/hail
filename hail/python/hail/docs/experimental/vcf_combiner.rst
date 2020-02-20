@@ -1,11 +1,11 @@
 VCF Combiner
 ============
 
-Library functions for combining gVCFS and sparse matrix tables into
+Library functions for combining GVCFS and sparse matrix tables into
 larger sparse matrix tables.
 
 What this module provides:
-    - A Sensible way to transform input gVCFS.
+    - A Sensible way to transform input GVCFS.
     - The combining function.
 
 What this module does not provide:
@@ -27,7 +27,7 @@ Sparse Matrix Tables
 --------------------
 
 Sparse matrix tables are a new method of representing VCF style data in a space efficient way. They
-are produced them using :func:`transform_gvcf` on an imported gVCF, or by using
+are produced them using :func:`transform_gvcf` on an imported GVCF, or by using
 :func:`combine_gvcfs` on smaller sparse matrix tables. They have two components that differentiate
 them from matrix tables produced by importing VCFs.
 
@@ -46,7 +46,7 @@ example: ::
 This record indicates that S01 is homozygous reference until position 15,000 with approximate ``GQ``
 of 40 across the few hundred base pair block.
 
-A sparse matrix table has an entry field ``END`` that corresponds to the gVCF ``INFO`` field,
+A sparse matrix table has an entry field ``END`` that corresponds to the GVCF ``INFO`` field,
 ``END``. It has the same meaning, but only for the single column where the END resides. In a sparse
 matrix table, there should be no present entries for this sample between ``chr1:14524`` and
 ``chr1:15000``, inclusive.
@@ -64,7 +64,7 @@ over 3 terabytes. Even if we only had the minimum required ``PL`` arrays materia
 still be looking at gigabytes for a single row.
 
 A sparse matrix table solves this issue by creating new fields that are 'local'. It only stores
-information that was present in the imported gVCFs. The :func:`transform_gvcf` does this initial
+information that was present in the imported GVCFs. The :func:`transform_gvcf` does this initial
 conversion. The fields ``GT``, ``AD``, ``PGT``, ``PL``, are converted to their local versions,
 ``LGT``, ``LAD``, ``LPGT``, ``LPL``, and a ``LA`` (local alleles) array is added.  The ``LA`` field
 serves as the map between the ``alleles`` field and the local fields. For example (using VCF-like
