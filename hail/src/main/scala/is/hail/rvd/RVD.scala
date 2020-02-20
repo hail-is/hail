@@ -1421,9 +1421,8 @@ object RVD {
   ): IndexedSeq[RVD] = rvds match {
     case rvds.length == 1 => rvds.toIndexedSeq
     case _ =>
-      if(rvds.forall(_.rowPType == rvds.head.rowPType)) {
+      if(rvds.forall(_.rowPType == rvds.head.rowPType))
         return rvds.toIndexedSeq
-      }
 
       val unifiedRowPType = InferPType.getNestedElementPTypesOfSameType(rvds.map(_.rowPType)).asInstanceOf[PStruct]
 
