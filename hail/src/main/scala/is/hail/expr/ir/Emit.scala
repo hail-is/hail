@@ -554,9 +554,9 @@ private class Emit(
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
             val EmitTriplet(s, m, v) = new Emit(ctx, discardNext).emit(ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType)), Env.empty, er, container)
             discardNext.emit(Code(s, m || coerce[Boolean](v)))
-            val compare = ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType))
+            val compare = ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0
             InferPType(compare, Env.empty)
-            (a, compare < 0, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _)), Array.empty[String])
+            (a, compare, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _)), Array.empty[String])
           case ToDict(a) =>
             val elementType = a.pType.asInstanceOf[PStreamable].elementType
             val (k0, k1, keyType) = elementType match {
@@ -566,9 +566,9 @@ private class Emit(
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
             val EmitTriplet(s, m, v) = new Emit(ctx, discardNext).emit(ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1), Env.empty, er, container)
             discardNext.emit(Code(s, m || coerce[Boolean](v)))
-            val compare = ApplyComparisonOp(Compare(keyType.virtualType), k0, k1)
+            val compare = ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0
             InferPType(compare, Env.empty)
-            (a, compare < 0, Code(sorter.pruneMissing, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _))), Array.empty[String])
+            (a, compare, Code(sorter.pruneMissing, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _))), Array.empty[String])
         }
 
         val compF = vab.ti match {
@@ -667,10 +667,10 @@ private class Emit(
             GetTupleElement(Ref("i-1", tt), tt.fields(0).index) -> GetTupleElement(Ref("i", tt), tt.fields(0).index)
         }
 
+        val compare2 = ApplyComparisonOp(EQWithNA(ktyp.virtualType), lastKey, currKey)
+        InferPType(compare2, Env.empty)
         val isSame = emit(
-          ApplyComparisonOp(EQWithNA(ktyp.virtualType),
-            lastKey,
-            currKey),
+          compare2,
           Env(
             ("i-1", (typeInfo[Long], eab.isMissing(i-1), eab.apply(i-1))),
             ("i", (typeInfo[Long], eab.isMissing(i), eab.apply(i)))))
