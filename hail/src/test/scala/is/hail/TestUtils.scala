@@ -147,15 +147,7 @@ object TestUtils {
   }
 
 
-  def loweredExecute(x: IR, env: Env[(Any, Type)],
-    args: IndexedSeq[(Any, Type)],
-    agg: Option[(IndexedSeq[Row], TStruct)],
-    bytecodePrinter: Option[PrintWriter] = None
-  ): Any = {
-    if (agg.isDefined || !env.isEmpty || !args.isEmpty)
-      throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
-    HailContext.backend.jvmLowerAndExecute(x, optimize = false, print = bytecodePrinter)._1
-  }
+
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
 
