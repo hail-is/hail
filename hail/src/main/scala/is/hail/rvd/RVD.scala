@@ -1419,10 +1419,10 @@ object RVD {
   def unify(
     rvds: Seq[RVD]
   ): IndexedSeq[RVD] = rvds match {
-    case rvds.length == 1 => rvds
+    case rvds.length == 1 => rvds.toIndexedSeq
     case _ =>
       if(rvds.forall(_.rowPType == rvds.head.rowPType)) {
-        return rvds
+        return rvds.toIndexedSeq
       }
 
       val unifiedRowPType = InferPType.getNestedElementPTypesOfSameType(rvds.map(_.rowPType)).asInstanceOf[PStruct]
@@ -1439,10 +1439,7 @@ object RVD {
   ): RVD = rvds match {
     case Seq(x) => x
     case first +: _ =>
-      val newRVDs = if(rvds.forall(_.rowPType == first.rowPType))
-        rvds
-      else
-        unify(rvds)
+      val newRVDs = unify(rvds)
 
       if (joinKey == 0) {
         val sc = first.sparkContext
