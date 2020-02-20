@@ -215,8 +215,8 @@ object CodeStream { self =>
       var innerSource: Option[Source[A]] = None
       val outerSource = outer(
         eos = eos,
-        push = innerSrc => {
-          val is = innerSrc(
+        push = inner => {
+          val is = inner(
             eos = outerPullJP(()),
             push = push)
           innerSource = Some(is)
@@ -238,11 +238,23 @@ object CodeStream { self =>
             close0 = Code(is.close0, outerSource.close0),
             setup = outerSource.setup,
             close = Code(is.close, outerSource.close),
-            firstPull = outerSource.firstPull,
+            firstPull = Some(outerSource.firstPull.getOrElse(outerPullJP(()))),
             pull = is.pull)
       }
     }
   }
+
+//  private def flatten[A](src: Source[A])(implicit ctx: EmitStreamContext): Source[A] = src.firstPull match {
+//    case None => src
+//    case Some(firstPull) =>
+//      val pulled = newLocal[Code[Boolean]]
+//      Source[A](
+//        setup0 = Code(pulled := false, src.setup0),
+//        close0 = src.close0,
+//        setup = Code(pulled := false, src.setup),
+//        close = Code(pulled.mux(src.close)),
+//    )
+//  }
 
   def filter[A](stream: Stream[COption[A]]): Stream[A] = new Stream[A] {
     def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {

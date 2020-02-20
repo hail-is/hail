@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.CodeStream.{newLocal, joinPoint}
 import is.hail.annotations.{Region, RegionValue, RegionValueBuilder, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
@@ -44,114 +45,128 @@ class EmitStreamSuite extends HailSuite {
       close0 = Some(Code._println(const(s"$name close0"))),
       close = Some(Code._println(const(s"$name close"))))
 
+  class CheckedStream[T](_stream: CodeStream.Stream[T], name: String, mb: MethodBuilder) {
+    val outerBit = mb.newLocal[Boolean]
+    val innerBit = mb.newLocal[Boolean]
+    val innerCount = mb.newLocal[Int]
+
+    def init: Code[Unit] = Code(outerBit := false, innerBit := false, innerCount := 0)
+
+    val stream: CodeStream.Stream[T] = _stream.mapCPS(
+      (ctx, a, k) => (outerBit & innerBit).mux(
+        k(a),
+        Code._fatal(s"$name: pulled from when not setup")),
+      setup0 = Some((!outerBit & !innerBit).mux(
+        Code(outerBit := true,
+             Code._println(const(s"$name setup0"))),
+        Code._fatal(s"$name: setup0 run out of order"))),
+      setup = Some((outerBit & !innerBit).mux(
+        Code(innerBit := true,
+             innerCount := innerCount.load + 1,
+             Code._println(const(s"$name setup"))),
+        Code._fatal(s"$name: setup run out of order"))),
+      close0 = Some((outerBit & !innerBit).mux(
+        Code(outerBit := false,
+             Code._println(const(s"$name close0"))),
+        Code._fatal(s"$name: close0 run out of order"))),
+      close = Some((outerBit & innerBit).mux(
+        Code(innerBit := false,
+             Code._println(const(s"$name close"))),
+        Code._fatal(s"$name: close run out of order"))))
+
+    def assertClosed(expectedRuns: Code[Int]): Code[Unit] =
+      (outerBit | innerBit).mux(
+        Code._fatal(s"$name: not closed"),
+        innerCount.cne(expectedRuns).mux(
+          Code._fatal(const(s"$name: expected ").concat(expectedRuns.toS).concat(" runs, found ").concat(innerCount.toS)),
+          Code._empty))
+
+    def assertClosed: Code[Unit] =
+      (outerBit | innerBit).mux(
+        Code._fatal(s"$name: not closed"),
+        Code._empty)
+  }
+
+  def checkedRange(start: Code[Int], stop: Code[Int], name: String, mb: MethodBuilder): CheckedStream[Code[Int]] =
+    new CheckedStream(CodeStream.range(start, 1, stop - start), name, mb)
+
   @Test def testES2Range() {
     val f = compile1[Int, Unit] { (mb, n) =>
-      JoinPoint.CallCC[Unit] { (jpb, ret) =>
-        implicit val ctx = EmitStreamContext(mb, jpb)
-        val r = range(0, n, "range")
-        CodeStream.forEach[Code[Int]](r, i => Code._println(i.toS), ret(()))
-      }
+      val r = checkedRange(0, n, "range", mb)
+
+      Code(
+        r.init,
+        r.stream.forEach(mb)(i => Code._println(i.toS)),
+        r.assertClosed(1))
     }
-    f(5)
+    for (i <- 0 to 2) { f(i) }
   }
 
   @Test def testES2Zip() {
     val f = compile2[Int, Int, Unit] { (mb, m, n) =>
-      JoinPoint.CallCC[Unit] { (jpb, ret) =>
-        implicit val ctx = EmitStreamContext(mb, jpb)
-        val l = range(0, m, "left")
-        val r = range(0, n, "right")
-        val z = CodeStream.zip(l, r)
-        CodeStream.forEach[(Code[Int], Code[Int])](z, x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")")), ret(()))
-      }
-    }
-    f(15, 10)
-  }
+      val l = checkedRange(0, m, "left", mb)
+      val r = checkedRange(0, n, "right", mb)
+      val z = CodeStream.zip(l.stream, r.stream)
 
-  @Test def testES2ZipWithEmpty() {
-    val f = compile1[Int, Unit] { (mb, n) =>
-      JoinPoint.CallCC[Unit] { (jpb, ret) =>
-        implicit val ctx = EmitStreamContext(mb, jpb)
-        val l = CodeStream.map(CodeStream.empty[Code[Int]])(
-          a => a,
-          setup0 = Some(Code._println(const(s"left setup0"))),
-          setup = Some(Code._println(const(s"left setup"))),
-          close0 = Some(Code._println(const(s"left close0"))),
-          close = Some(Code._println(const(s"left close"))))
-        val r = range(0, n, "right")
-        val z = CodeStream.zip(r, l)
-        CodeStream.forEach[(Code[Int], Code[Int])](z, x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")")), ret(()))
-      }
+      Code(
+        l.init, r.init,
+        z.forEach(mb)(x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")"))),
+        l.assertClosed(1), r.assertClosed(1))
     }
-    f(10)
-  }
-
-  @Test def testES2FlatMapWithEmptyOuter() {
-    val f = compile1[Int, Unit] { (mb, n) =>
-      JoinPoint.CallCC[Unit] { (jpb, ret) =>
-        implicit val ctx = EmitStreamContext(mb, jpb)
-        val outer = CodeStream.map(CodeStream.empty[Code[Int]])(
-          a => a,
-          setup0 = Some(Code._println(const(s"outer setup0"))),
-          setup = Some(Code._println(const(s"outer setup"))),
-          close0 = Some(Code._println(const(s"outer close0"))),
-          close = Some(Code._println(const(s"outer close"))))
-        def inner(i: Code[Int]) = range(0, i, "inner")
-        val z = CodeStream.flatMap(CodeStream.map(outer)(inner))
-        CodeStream.forEach[Code[Int]](z, i => Code._println(i.toS), ret(()))
-      }
+    for {
+      i <- 0 to 2
+      j <- 0 to 2
+    } {
+      f(i, j)
     }
-    f(10)
-  }
-
-  @Test def testES2FlatMapWithEmptyInner() {
-    val f = compile1[Int, Unit] { (mb, n) =>
-      JoinPoint.CallCC[Unit] { (jpb, ret) =>
-        implicit val ctx = EmitStreamContext(mb, jpb)
-        val outer = range(0, n, "outer")
-        def inner(i: Code[Int]) =
-          CodeStream.map(CodeStream.empty[Code[Int]])(
-            a => a,
-            setup0 = Some(Code._println(const(s"inner setup0"))),
-            setup = Some(Code._println(const(s"inner setup"))),
-            close0 = Some(Code._println(const(s"inner close0"))),
-            close = Some(Code._println(const(s"inner close"))))
-        val z = CodeStream.flatMap(CodeStream.map(outer)(inner))
-        CodeStream.forEach[Code[Int]](z, i => Code._println(i.toS), ret(()))
-      }
-    }
-    f(10)
   }
 
   @Test def testES2FlatMap() {
     val f = compile1[Int, Unit] { (mb, n) =>
-      JoinPoint.CallCC[Unit] { (jpb, ret) =>
-        implicit val ctx = EmitStreamContext(mb, jpb)
-        val r = range(1, n, "outer")
-        def f(i: Code[Int]): CodeStream.Stream[Code[Int]] = range(0, i, "inner")
-        val m = CodeStream.map(r)(f)
-        val fm = CodeStream.flatMap(m)
-        CodeStream.forEach[Code[Int]](fm, i => Code._println(i.toS), ret(()))
+      val outer = checkedRange(1, n, "outer", mb)
+      var inner: CheckedStream[Code[Int]] = null
+      def f(i: Code[Int]) = {
+        inner = checkedRange(0, i, "inner", mb)
+        inner.stream
       }
+      val run = outer.stream.flatMap(f).forEach(mb)(i => Code._println(i.toS))
+
+      Code(
+        outer.init, inner.init,
+        run,
+        outer.assertClosed(1),
+        inner.assertClosed(n - 1))
     }
-    f(10)
+    for (n <- 1 to 5) { f(n) }
   }
 
   @Test def testES2ZipNested() {
     val f = compile2[Int, Int, Unit] { (mb, m, n) =>
-      JoinPoint.CallCC[Unit] { (jpb, ret) =>
-        implicit val ctx = EmitStreamContext(mb, jpb)
-        val l = range(0, m, "left")
+      val l = checkedRange(1, m, "left", mb)
 
-        val r = range(0, n, "right outer")
-        def f(i: Code[Int]) = range(0, i, "right inner")
-        val fm = CodeStream.flatMap(CodeStream.map(r)(f))
+      val rOuter = checkedRange(1, n, "right outer", mb)
+      var rInner: CheckedStream[Code[Int]] = null
 
-        val z = CodeStream.zip(l, fm)
-        CodeStream.forEach[(Code[Int], Code[Int])](z, x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")")), ret(()))
+      def f(i: Code[Int]) = {
+        rInner = checkedRange(0, i, "right inner", mb)
+        rInner.stream
       }
+      val run = CodeStream.zip(l.stream, rOuter.stream.flatMap(f))
+                          .forEach(mb)(x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")")))
+
+      Code(
+        l.init, rOuter.init, rInner.init,
+        run,
+        l.assertClosed(1),
+        rOuter.assertClosed(1),
+        rInner.assertClosed)
     }
-    f(11, 10)
+    f(1, 1)
+    f(1, 2)
+    f(2, 1)
+    f(2, 2)
+    f(2, 3)
+    f(10, 3)
   }
 
   @Test def testES2Filter() {
