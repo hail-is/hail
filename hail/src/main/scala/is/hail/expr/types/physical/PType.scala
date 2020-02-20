@@ -218,13 +218,13 @@ abstract class PType extends Serializable with Requiredness {
     else
       this match {
         case PVoid => PVoid
-        case PBinary(_) => PBinary(required)
+        case x: PBinary() => x.copy(required)
         case PBoolean(_) => PBoolean(required)
         case PInt32(_) => PInt32(required)
         case PInt64(_) => PInt64(required)
         case PFloat32(_) => PFloat32(required)
         case PFloat64(_) => PFloat64(required)
-        case PString(_) => PString(required)
+        case x: PString => x.copy(required)
         case t: PCall => t.copy(required)
         case t: PArray => t.copy(required = required)
         case t: PSet => t.copy(required = required)

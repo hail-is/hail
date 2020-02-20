@@ -35,6 +35,8 @@ abstract class PString extends PType {
   def allocateAndStoreString(region: Region, str: String): Long
 
   def allocateAndStoreString(mb: MethodBuilder, region: Code[Region], str: Code[String]): Code[Long]
+
+  def copy(required: Boolean)
 }
 
 object PString {

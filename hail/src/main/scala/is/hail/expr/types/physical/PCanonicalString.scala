@@ -5,7 +5,7 @@ import is.hail.asm4s.{Code, MethodBuilder}
 case object PCanonicalStringOptional extends PCanonicalString(false)
 case object PCanonicalStringRequired extends PCanonicalString(true)
 
-abstract class PCanonicalString(val required: Boolean) extends PString {
+class PCanonicalString(val required: Boolean) extends PString {
   def _asIdent = "string"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PCString")
@@ -72,6 +72,8 @@ abstract class PCanonicalString(val required: Boolean) extends PString {
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
     fundamentalType.constructAtAddress(addr, region, srcPType.fundamentalType, srcAddress, forceDeep)
+
+  def copy(required: Boolean = this.required) = new PCanonicalString(required)
 }
 
 object PCanonicalString {
