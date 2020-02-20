@@ -136,16 +136,15 @@ async def create_container(config, name):
 
 
 async def start_container(container):
-    while True:
-        try:
-            return await container.start()
-        except DockerError as e:
-            # 304 container has already started
-            if e.status == 304:
-                return
-            if e.status == 500 and e.message == 'OCI runtime start failed: container process is already dead: unknown':
-                return await container.restart()
-            raise
+    try:
+        return await container.start()
+    except DockerError as e:
+        # 304 container has already started
+        if e.status == 304:
+            return
+        if e.status == 500 and e.message == 'OCI runtime start failed: container process is already dead: unknown':
+            return await container.restart()
+        raise
 
 
 async def stop_container(container):
