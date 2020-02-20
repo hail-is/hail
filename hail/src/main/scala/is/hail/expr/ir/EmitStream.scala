@@ -143,17 +143,6 @@ object CodeStream { self =>
                     (xCur.load, (xCur.load + step, xRem.load)))))
       })
 
-  def empty[A]: Stream[A] = new Stream[A] {
-    def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] =
-      Source[A](
-        setup0 = Code._empty,
-        close0 = Code._empty,
-        setup = Code._empty,
-        close = Code._empty,
-        firstPull = None,
-        pull = eos)
-  }
-
   def fold[A, S: ParameterPack](stream: Stream[A], s0: S, f: (A, S) => S, ret: S => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
     val s = newLocal[S]
     val pullJP = joinPoint()
@@ -212,35 +201,31 @@ object CodeStream { self =>
   def flatMap[A](outer: Stream[Stream[A]]): Stream[A] = new Stream[A] {
     def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
       val outerPullJP = joinPoint()
-      var innerSource: Option[Source[A]] = None
+      var innerSource: Source[A] = null
       val outerSource = outer(
         eos = eos,
         push = inner => {
           val is = inner(
             eos = outerPullJP(()),
             push = push)
-          innerSource = Some(is)
+          innerSource = is
           is.firstPull match {
             case Some(fp) => Code(is.setup, fp)
             case None =>
               val innerPullJP = joinPoint()
               innerPullJP.define(_ => is.pull)
-              innerSource = Some(is.copy(pull = innerPullJP(())))
+              innerSource = is.copy(pull = innerPullJP(()))
               Code(is.setup, innerPullJP(()))
           }
         })
       outerPullJP.define(_ => outerSource.pull)
-      innerSource match {
-        case None => outerSource.asInstanceOf[Source[A]]
-        case Some(is) =>
-          Source[A](
-            setup0 = Code(outerSource.setup0, is.setup0),
-            close0 = Code(is.close0, outerSource.close0),
-            setup = outerSource.setup,
-            close = Code(is.close, outerSource.close),
-            firstPull = Some(outerSource.firstPull.getOrElse(outerPullJP(()))),
-            pull = is.pull)
-      }
+      Source[A](
+        setup0 = Code(outerSource.setup0, innerSource.setup0),
+        close0 = Code(innerSource.close0, outerSource.close0),
+        setup = outerSource.setup,
+        close = Code(innerSource.close, outerSource.close),
+        firstPull = Some(outerSource.firstPull.getOrElse(outerPullJP(()))),
+        pull = innerSource.pull)
     }
   }
 
@@ -280,37 +265,33 @@ object CodeStream { self =>
       val leftEOSJP = joinPoint()
       val rightEOSJP = joinPoint()
       var pulledRight: Option[ParameterStore[Code[Boolean]]] = None
-      var rightSource: Option[Source[B]] = None
+      var rightSource: Source[B] = null
       val leftSource = left(
         eos = leftEOSJP(()),
         push = a => {
-          rightSource = Some(right(
+          rightSource = right(
             eos = rightEOSJP(()),
-            push = b => push((a, b))))
-          rightSource.get.firstPull match {
+            push = b => push((a, b)))
+          rightSource.firstPull match {
             case Some(fp) =>
               val pr = newLocal[Code[Boolean]]
               pulledRight = Some(pr)
-              pr.load.mux(rightSource.get.pull, Code(pr := true, fp))
+              pr.load.mux(rightSource.pull, Code(pr := true, fp))
             case None =>
-              rightSource.get.pull
+              rightSource.pull
           }
         })
-      leftEOSJP.define(_ => rightSource.map(rs => Code(rs.close, eosJP(()))).getOrElse(eosJP(())))
+      leftEOSJP.define(_ => Code(rightSource.close, eosJP(())))
       rightEOSJP.define(_ => Code(leftSource.close, eosJP(())))
       eosJP.define(_ => eos)
 
-      rightSource match {
-        case None => leftSource.asInstanceOf[Source[(A, B)]]
-        case Some(rs) =>
-          Source[(A, B)](
-            setup0 = Code(pulledRight.map(_ := false).getOrElse(Code._empty), leftSource.setup0, rs.setup0),
-            close0 = Code(leftSource.close0, rs.close0),
-            setup = Code(pulledRight.map(_ := false).getOrElse(Code._empty), leftSource.setup, rs.setup),
-            close = Code(leftSource.close, rs.close),
-            firstPull = leftSource.firstPull,
-            pull = leftSource.pull)
-      }
+      Source[(A, B)](
+        setup0 = Code(pulledRight.map(_ := false).getOrElse(Code._empty), leftSource.setup0, rightSource.setup0),
+        close0 = Code(leftSource.close0, rightSource.close0),
+        setup = Code(pulledRight.map(_ := false).getOrElse(Code._empty), leftSource.setup, rightSource.setup),
+        close = Code(leftSource.close, rightSource.close),
+        firstPull = leftSource.firstPull,
+        pull = leftSource.pull)
     }
   }
 
