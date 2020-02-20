@@ -12,28 +12,30 @@ object InferPType {
 
   def getNestedElementPTypesOfSameType(ptypes: Seq[PType]): PType = {
     ptypes.head match {
-      case x: PStreamable =>
-        val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PStreamable].elementType))
-        x.copyStreamable(elementType, ptypes.forall(_.required))
-      case _: PSet =>
-        val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PSet].elementType))
-        PSet(elementType, ptypes.forall(_.required))
-      case x: PStruct =>
-        PStruct(ptypes.forall(_.required), x.fieldNames.map(fieldName =>
-          fieldName -> getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PStruct].field(fieldName).typ))
+      case _: PStream =>
+        val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PStream].elementType))
+        PStream(elementType, ptypes.forall(_.required))
+      case _: PCanonicalArray =>
+        val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PCanonicalArray].elementType))
+        PCanonicalArray(elementType, ptypes.forall(_.required))
+      case _: PCanonicalSet =>
+        val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PCanonicalSet].elementType))
+        PCanonicalSet(elementType, ptypes.forall(_.required))
+      case x: PCanonicalStruct =>
+        PCanonicalStruct(ptypes.forall(_.required), x.fieldNames.map(fieldName =>
+          fieldName -> getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PCanonicalStruct].field(fieldName).typ))
         ): _*)
-      case x: PTuple =>
-        PTuple(ptypes.forall(_.required), x._types.map(pTupleField =>
-          getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PTuple]._types(pTupleField.index).typ))
+      case x: PCanonicalTuple =>
+        PCanonicalTuple(ptypes.forall(_.required), x._types.map(pTupleField =>
+          getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PCanonicalTuple]._types(pTupleField.index).typ))
         ): _*)
-      case _: PDict =>
-        val keyType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PDict].keyType))
-        val valueType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PDict].valueType))
-
-        PDict(keyType, valueType, ptypes.forall(_.required))
-      case _: PInterval =>
-        val pointType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PInterval].pointType))
-        PInterval(pointType, ptypes.forall(_.required))
+      case _: PCanonicalDict =>
+        val keyType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PCanonicalDict].keyType))
+        val valueType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PCanonicalDict].valueType))
+        PCanonicalDict(keyType, valueType, ptypes.forall(_.required))
+      case _: PCanonicalInterval =>
+        val pointType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PCanonicalInterval].pointType))
+        PCanonicalInterval(pointType, ptypes.forall(_.required))
       case _ => ptypes.head.setRequired(ptypes.forall(_.required))
     }
   }

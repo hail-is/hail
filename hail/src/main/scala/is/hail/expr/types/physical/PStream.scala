@@ -7,12 +7,6 @@ import is.hail.expr.types.virtual.{TStream, Type}
 
 trait PStreamable extends PIterable {
   def asPArray: PArray = PArray(this.elementType, this.required)
-  def copyStreamable(elt: PType, req: Boolean = required): PStreamable = {
-    this match {
-      case x: PArray => x.copy(elt, req)
-      case x: PStream => x.copy(elt, req)
-    }
-  }
 }
 
 final case class PStream(elementType: PType, override val required: Boolean = false) extends PStreamable {
