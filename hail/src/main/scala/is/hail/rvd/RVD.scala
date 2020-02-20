@@ -1421,7 +1421,7 @@ object RVD {
   ): Seq[RVD] = rvds match {
     case rvds.length == 1 => rvds.toFastIndexedSeq
     case _ =>
-      if(rvds.forall(_.rowPType == rvds.head.rowPType))
+      if (rvds.forall(_.rowPType == rvds.head.rowPType))
         return rvds.toFastIndexedSeq
 
       val unifiedRowPType = InferPType.getNestedElementPTypesOfSameType(rvds.map(_.rowPType)).asInstanceOf[PStruct]
@@ -1430,6 +1430,7 @@ object RVD {
         val newRVDType = rvd.typ.copy(rowType = unifiedRowPType)
         rvd.map(newRVDType)(copyFromType(unifiedRowPType, rvd.rowPType, _))
       })
+  }
 
   def union(
     rvds: Seq[RVD],
