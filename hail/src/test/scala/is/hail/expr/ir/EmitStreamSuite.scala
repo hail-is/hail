@@ -8,7 +8,6 @@ import is.hail.expr.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
 import is.hail.HailSuite
-//import is.hail.asm4s.joinpoint.JoinPoint.CallCC
 import is.hail.expr.ir.lowering.LoweringPipeline
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
