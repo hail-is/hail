@@ -668,7 +668,7 @@ private class Emit(
         }
 
         val compare2 = ApplyComparisonOp(EQWithNA(ktyp.virtualType), lastKey, currKey)
-        InferPType(compare2, Env.empty)
+        InferPType(compare2, Env("i-1" -> etyp, "i" -> etyp))
         val isSame = emit(
           compare2,
           Env(
