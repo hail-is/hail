@@ -252,38 +252,6 @@ class EmitStreamSuite extends HailSuite {
         SafeRow.read(PArray(stream.elementType), r, off).asInstanceOf[IndexedSeq[Any]]
     }
   }
-//
-//  private def compileStream2[F >: Null : TypeInfo, T](
-//    streamIR: IR,
-//    inputTypes: Seq[PType]
-//  )(call: (F, Region, T) => Long): T => IndexedSeq[Any] = {
-//    val argTypeInfos = new ArrayBuilder[MaybeGenericTypeInfo[_]]
-//    argTypeInfos += GenericTypeInfo[Region]()
-//    inputTypes.foreach { t =>
-//      argTypeInfos ++= Seq(GenericTypeInfo()(typeToTypeInfo(t)), GenericTypeInfo[Boolean]())
-//    }
-//    val fb = new EmitFunctionBuilder[F](argTypeInfos.result(), GenericTypeInfo[Long])
-//    val mb = fb.apply_method
-//    mb.emit {
-//      CallCC[Unit] { (jb, ret) =>
-//        val stream = ExecuteContext.scoped { ctx =>
-//          EmitStream2(new Emit(ctx, mb), streamIR, Env.empty, EmitRegion.default(mb), None)(EmitStreamContext(mb, jb))
-//        }
-//      }
-//      val arrayt = stream
-//        .toArrayIterator(mb)
-//        .toEmitTriplet(mb, PArray(stream.elementType))
-//      Code(arrayt.setup, arrayt.m.mux(0L, arrayt.v))
-//    }
-//    val f = fb.resultWithIndex()
-//    (arg: T) => Region.scoped { r =>
-//      val off = call(f(0, r), r, arg)
-//      if (off == 0L)
-//        null
-//      else
-//        SafeRow.read(PArray(stream.elementType), r, off).asInstanceOf[IndexedSeq[Any]]
-//    }
-//  }
 
   private def compileStream(ir: IR, inputType: PType): Any => IndexedSeq[Any] = {
     type F = AsmFunction3[Region, Long, Boolean, Long]
