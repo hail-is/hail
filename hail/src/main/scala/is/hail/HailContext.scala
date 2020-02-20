@@ -5,7 +5,6 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.backend.Backend
-import is.hail.backend.distributed.DistributedBackend
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.IRFunctionRegistry
