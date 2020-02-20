@@ -1439,11 +1439,10 @@ object RVD {
   ): RVD = rvds match {
     case Seq(x) => x
     case first +: _ =>
-      val newRVDs = if(rvds.forall(_.rowPType == first.rowPType)) {
+      val newRVDs = if(rvds.forall(_.rowPType == first.rowPType))
         rvds
-      } else {
+      else
         unify(rvds)
-      }
 
       if (joinKey == 0) {
         val sc = first.sparkContext
