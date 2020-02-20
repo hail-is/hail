@@ -1,16 +1,9 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations._
-import is.hail.asm4s
-import is.hail.asm4s.Code
-import is.hail.asm4s._
-import is.hail.check.Arbitrary._
-import is.hail.check.Gen
+import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TFloat64
-import is.hail.utils._
-
-import scala.reflect.{ClassTag, _}
 
 case object PFloat64Optional extends PFloat64(false)
 case object PFloat64Required extends PFloat64(true)
@@ -63,7 +56,7 @@ class PFloat64(override val required: Boolean) extends PNumeric with PPrimitive 
   }
 
   def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_]): Code[Unit] =
-    Region.storeDouble(addr, asm4s.coerce[Double](value))
+    Region.storeDouble(addr, coerce[Double](value))
 }
 
 object PFloat64 {
