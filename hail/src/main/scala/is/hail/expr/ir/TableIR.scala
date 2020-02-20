@@ -1284,7 +1284,7 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val tvs = children.map(_.execute(ctx))
     tvs(0).copy(
-      rvd = RVD.union(tvs.map(_.rvd), tvs(0).typ.key.length, ctx))
+      rvd = RVD.union(RVD.unify(tvs.map(_.rvd)), tvs(0).typ.key.length, ctx))
   }
 }
 
