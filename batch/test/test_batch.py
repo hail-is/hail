@@ -414,10 +414,10 @@ class Test(unittest.TestCase):
         b = self.client.create_batch()
         j = b.create_job(
             os.environ['CI_UTILS_IMAGE'],
-            ['/bin/sh', '-c', 'kubectl get pods -l app=batch-driver'],
+            ['/bin/sh', '-c', 'kubectl version'],
             service_account={
                 'namespace': os.environ['HAIL_BATCH_PODS_NAMESPACE'],
-                'name': 'test'
+                'name': 'test-batch-sa'
             })
         b.submit()
         status = j.wait()

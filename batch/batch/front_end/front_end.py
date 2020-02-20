@@ -481,7 +481,6 @@ async def create_jobs(request, userdata):
     batch_id = int(request.match_info['batch_id'])
 
     user = userdata['username']
-    ksa_name = userdata.get('ksa_name')
 
     # restrict to what's necessary; in particular, drop the session
     # which is sensitive
@@ -584,7 +583,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 for secret in secrets:
                     if user != 'ci':
-                        raise web.HTTPBadRequest(reason=f'unauthorized secret {secret["name"]}')
+                        raise web.HTTPBadRequest(reason=f'unauthorized secret {(secret["namespace"], secret["name"])}')
 
                 spec['secrets'] = secrets
                 secrets.append({
@@ -593,16 +592,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     'mount_path': '/gsa-key',
                     'mount_in_copy': True
                 })
-                secrets.append({
-                    'namespace': BATCH_PODS_NAMESPACE,
-                    'name': userdata['jwt_secret_name'],
-                    'mount_path': '/user-tokens',
-                    'mount_in_copy': False
-                })
 
                 sa = spec.get('service_account')
-                if sa and (sa['name'] != ksa_name or sa['namespace'] != BATCH_PODS_NAMESPACE) and user != 'ci':
-                    raise web.HTTPBadRequest(reason=f'unauthorized service account name {sa["name"]}')
+                if sa and user != 'ci' and not (user == 'test' and sa['name'] == 'test' and sa['namespace'] == BATCH_PODS_NAMESPACE):
+                    raise web.HTTPBadRequest(reason=f'unauthorized service account {(sa["namespace"], sa["name"])}')
 
                 env = spec.get('env')
                 if not env:

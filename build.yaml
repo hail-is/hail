@@ -62,7 +62,7 @@ steps:
     - default_ns
     - batch_pods_ns
  - kind: deploy
-   name: deploy_test_sa
+   name: deploy_test_batch_sa
    namespace:
      valueFrom: batch_pods_ns.name
    config: batch/test-sa.yaml
@@ -334,7 +334,7 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
-    - deploy_test_sa
+    - deploy_test_batch_sa
     - deploy_default_admin_admin
     - auth_database
     - service_base_image
