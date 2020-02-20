@@ -1418,7 +1418,7 @@ object RVD {
 
   def unify(
     rvds: Seq[RVD]
-  ): Seq[RVD] = rvds match {
+  ): IndexedSeq[RVD] = rvds match {
     case rvds.length == 1 => rvds
     case _ =>
       if(rvds.forall(_.rowPType == rvds.head.rowPType)) {

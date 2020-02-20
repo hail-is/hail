@@ -870,7 +870,8 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     assert(childValues.map(_.rvd.typ).toSet.size == 1) // same physical types
 
 
-    val childRVDs = childValues.map(_.rvd)
+    val childRVDs = RVD.unify(childValues.map(_.rvd))
+
     val repartitionedRVDs =
       if (childRVDs(0).partitioner.satisfiesAllowedOverlap(typ.key.length - 1) &&
         childRVDs.forall(rvd => rvd.partitioner == childRVDs(0).partitioner))
