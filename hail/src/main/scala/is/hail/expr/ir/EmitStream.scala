@@ -140,7 +140,7 @@ object CodeStream { self =>
           xCur := cur,
           xRem := rem - 1,
           k(COption(xRem.load < 0,
-                    (xCur.load, (xCur.load + 1, xRem.load)))))
+                    (xCur.load, (xCur.load + step, xRem.load)))))
       })
 
   def empty[A]: Stream[A] = new Stream[A] {
