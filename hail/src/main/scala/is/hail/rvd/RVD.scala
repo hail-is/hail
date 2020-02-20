@@ -1438,7 +1438,7 @@ object RVD {
   ): RVD = rvds match {
     case Seq(x) => x
     case first +: _ =>
-      assert(rvds.forall(_.rowPType == rvds.head.rowPType))
+      assert(rvds.forall(_.rowPType == first.rowPType))
 
       if (joinKey == 0) {
         val sc = first.sparkContext
