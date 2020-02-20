@@ -101,7 +101,7 @@ abstract class PBinary extends PType {
 
   def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit]
 
-  def copy(required: Boolean)
+  def copy(required: Boolean): PBinary
 }
 
 object PBinary {
