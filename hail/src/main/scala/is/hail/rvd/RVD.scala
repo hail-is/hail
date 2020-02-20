@@ -1443,9 +1443,8 @@ object RVD {
       if (joinKey == 0) {
         val sc = first.sparkContext
         RVD.unkeyed(first.rowPType, ContextRDD.union(sc, rvds.map(_.crdd)))
-      } else {
+      } else
         rvds.toArray.treeReduce(_.orderedMerge(_, joinKey, ctx))
-      }
   }
 
   def union(
