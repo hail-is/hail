@@ -548,15 +548,15 @@ private class Emit(
         val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
         val sorter = new ArraySorter(er, vab)
 
-        val (array, compare, distinct, fBindings: Map[String, Int]) = (x: @unchecked) match {
-          case ArraySort(a, l, r, comp) => (a, comp, Code._empty[Unit], Map(l -> 1, r -> 2))
+        val (array, compare, distinct, fBindings: Array[String]) = (x: @unchecked) match {
+          case ArraySort(a, l, r, comp) => (a, comp, Code._empty[Unit], Array(l, r))
           case ToSet(a) =>
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
             val EmitTriplet(s, m, v) = new Emit(ctx, discardNext).emit(ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType)), Env.empty, er, container)
             discardNext.emit(Code(s, m || coerce[Boolean](v)))
             val compare = ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType))
             InferPType(compare, Env.empty)
-            (a, compare < 0, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _)), Map())
+            (a, compare < 0, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _)), Array.empty[String])
           case ToDict(a) =>
             val elementType = a.pType.asInstanceOf[PStreamable].elementType
             val (k0, k1, keyType) = elementType match {
@@ -568,7 +568,7 @@ private class Emit(
             discardNext.emit(Code(s, m || coerce[Boolean](v)))
             val compare = ApplyComparisonOp(Compare(keyType.virtualType), k0, k1)
             InferPType(compare, Env.empty)
-            (a, compare < 0, Code(sorter.pruneMissing, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _))), Map())
+            (a, compare < 0, Code(sorter.pruneMissing, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _))), Array.empty[String])
         }
 
         val compF = vab.ti match {
@@ -638,12 +638,13 @@ private class Emit(
 
         val compare = ApplyComparisonOp(Compare(etyp.types(0).virtualType), k1, k2) < 0
         InferPType(compare, Env.empty)
+        val lrComparatorNames = Array.empty[String]
         val compF = eab.ti match {
-          case BooleanInfo => sorter.sort(makeDependentSortingFunction[Boolean](compare, env, Map()))
-          case IntInfo => sorter.sort(makeDependentSortingFunction[Int](compare, env, Map()))
-          case LongInfo => sorter.sort(makeDependentSortingFunction[Long](compare, env, Map()))
-          case FloatInfo => sorter.sort(makeDependentSortingFunction[Float](compare, env, Map()))
-          case DoubleInfo => sorter.sort(makeDependentSortingFunction[Double](compare, env, Map()))
+          case BooleanInfo => sorter.sort(makeDependentSortingFunction[Boolean](compare, env, lrComparatorNames))
+          case IntInfo => sorter.sort(makeDependentSortingFunction[Int](compare, env, lrComparatorNames))
+          case LongInfo => sorter.sort(makeDependentSortingFunction[Long](compare, env, lrComparatorNames))
+          case FloatInfo => sorter.sort(makeDependentSortingFunction[Float](compare, env, lrComparatorNames))
+          case DoubleInfo => sorter.sort(makeDependentSortingFunction[Double](compare, env, lrComparatorNames))
         }
 
         val nab = new StagedArrayBuilder(PInt32(), mb, 16)
@@ -1899,22 +1900,25 @@ private class Emit(
   }
 
   private def makeDependentSortingFunction[T: TypeInfo](
-    ir: IR, env: Emit.E, argBindings: Map[String, Int]): DependentEmitFunction[AsmFunction2[T, T, Boolean]] = {
+    ir: IR, env: Emit.E, leftRightComparatorNames: Array[String]): DependentEmitFunction[AsmFunction2[T, T, Boolean]] = {
     val (newIR, getEnv) = capturedReferences(ir)
     val f = mb.fb.newDependentFunction[T, T, Boolean]
     val fregion = f.addField[Region](region)
-    val newEnv = getEnv(env, f)
+    var newEnv = getEnv(env, f)
 
     val sort = f.newMethod[Region, T, Boolean, T, Boolean, Boolean]
 
-    val newEnv2 = argBindings.foldLeft[Emit.E](newEnv) { case (env, (name, i)) =>
-      val value = sort.getArg[T](2 * i)
-      val missing = sort.getArg[Boolean](2 * i + 1)
-      val ti: TypeInfo[_] = implicitly[TypeInfo[T]]
-      env.bind(name -> ((ti, missing, value)))
+    if(leftRightComparatorNames.nonEmpty) {
+      assert(leftRightComparatorNames.length == 2)
+      newEnv = newEnv.bindIterable(
+        IndexedSeq(
+          (leftRightComparatorNames(0), (implicitly[TypeInfo[T]], sort.getArg[Boolean](3), sort.getArg[T](2))),
+          (leftRightComparatorNames(1), (implicitly[TypeInfo[T]], sort.getArg[Boolean](5), sort.getArg[T](4)))
+        )
+      )
     }
 
-    val EmitTriplet(setup, m, v) = new Emit(ctx, sort).emit(newIR, newEnv2, EmitRegion.default(sort), None)
+    val EmitTriplet(setup, m, v) = new Emit(ctx, sort).emit(newIR, newEnv, EmitRegion.default(sort), None)
 
     sort.emit(Code(setup, m.mux(Code._fatal("Result of sorting function cannot be missing."), v)))
     f.apply_method.emit(Code(sort.invoke(fregion, f.getArg[T](1), false, f.getArg[T](2), false)))
