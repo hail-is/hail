@@ -9,85 +9,28 @@ import is.hail.expr.types.virtual.{TBoolean, TFloat32, TFloat64, TInt32, TInt64,
 import is.hail.utils._
 
 object StagedRegionValueBuilder {
-  def fixupStruct(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PBaseStruct, value: Code[Long]): Code[Unit] = {
-    coerce[Unit](Code(typ.fields.map { f =>
-      if (f.typ.isPrimitive)
-        Code._empty
-      else {
-        val fix = f.typ.fundamentalType match {
-          case t@(_: PBinary | _: PArray) =>
-            val off = fb.newField[Long]
-            Code(
-              off := typ.fieldOffset(value, f.index),
-              Region.storeAddress(off, deepCopyFromOffset(fb, region, t, coerce[Long](Region.loadIRIntermediate(t)(off))))
-            )
-          case t: PBaseStruct =>
-            val off = fb.newField[Long]
-            Code(off := typ.fieldOffset(value, f.index),
-              fixupStruct(fb, region, t, off))
-        }
-        typ.isFieldDefined(value, f.index).mux(fix, Code._empty)
-      }
-    }: _*))
-  }
-
-  def fixupArray(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PArray, value: Code[Long]): Code[Unit] = {
-    if (typ.elementType.isPrimitive)
-      return Code._empty
-
-    val i = fb.newField[Int]
-    val len = fb.newField[Int]
-
-    val perElt = typ.elementType.fundamentalType match {
-      case t@(_: PBinary | _: PArray) =>
-        val off = fb.newField[Long]
-        Code(
-          off := typ.elementOffset(value, len, i),
-          Region.storeAddress(off, deepCopyFromOffset(fb, region, t, coerce[Long](Region.loadIRIntermediate(t)(off)))))
-      case t: PBaseStruct =>
-        val off = fb.newField[Long]
-        Code(off := typ.elementOffset(value, len, i),
-          fixupStruct(fb, region, t, off))
-    }
-    Code(
-      i := 0,
-      len := typ.loadLength(value),
-      Code.whileLoop(i < len,
-        typ.isElementDefined(value, i).mux(perElt, Code._empty),
-        i := i + 1))
-  }
-
   def deepCopy(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PType, value: Code[_], dest: Code[Long]): Code[Unit] = {
-    typ.fundamentalType match {
-      case t if t.isPrimitive => Region.storePrimitive(t, dest)(value)
-      case t@(_: PBinary | _: PArray) =>
-        Region.storeAddress(dest, deepCopyFromOffset(fb, region, t, coerce[Long](value)))
-      case t: PBaseStruct =>
-        Code(Region.copyFrom(coerce[Long](value), dest, t.byteSize),
-          fixupStruct(fb, region, t, dest))
-      case t => fatal(s"unknown type $t")
+    val t = typ.fundamentalType
+    val valueTI = ir.typeToTypeInfo(t)
+    val mb = fb.getOrDefineMethod("deepCopy", ("deepCopy", typ),
+      Array[TypeInfo[_]](classInfo[Region], valueTI, LongInfo), UnitInfo) { mb =>
+      val r = mb.getArg[Region](1)
+      val value = mb.getArg(2)(valueTI)
+      val dest = mb.getArg[Long](3)
+      mb.emit(t.constructAtAddressFromValue(mb, dest, r, t, value, true))
     }
+    mb.invoke(region, value, dest)
   }
 
   def deepCopyFromOffset(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PType, value: Code[Long]): Code[Long] = {
-    val offset = fb.newField[Long]
-
-    val copy = typ.fundamentalType match {
-      case t: PBinary =>
-        Code(
-          offset := t.allocate(region, t.loadLength(value)),
-          Region.copyFrom(value, offset, t.contentByteSize(t.loadLength(value))))
-      case t: PArray =>
-        Code(
-          offset := t.copyFrom(fb.apply_method, region, value),
-          fixupArray(fb, region, t, offset))
-      case t =>
-        Code(
-          offset := region.allocate(t.alignment, t.byteSize),
-          deepCopy(fb, region, t, Region.getIRIntermediate(t)(value), offset))
+    val t = typ.fundamentalType
+    val mb = fb.getOrDefineMethod("deepCopyFromOffset", ("deepCopyFromOffset", typ),
+      Array[TypeInfo[_]](classInfo[Region], LongInfo), LongInfo) { mb =>
+      val r = mb.getArg[Region](1)
+      val value = mb.getArg[Long](2)
+      mb.emit(t.copyFromType(mb, r, t, value, true))
     }
-
-    Code(copy, offset)
+    mb.invoke(region, value)
   }
 
   def deepCopyFromOffset(er: EmitRegion, typ: PType, value: Code[Long]): Code[Long] =
@@ -275,10 +218,17 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     case _: PInt64 => v => addLong(v.asInstanceOf[Code[Long]])
     case _: PFloat32 => v => addFloat(v.asInstanceOf[Code[Float]])
     case _: PFloat64 => v => addDouble(v.asInstanceOf[Code[Double]])
-    case _: PBaseStruct => v => Region.copyFrom(v.asInstanceOf[Code[Long]], currentOffset, t.byteSize)
-    case _: PArray => v => addAddress(v.asInstanceOf[Code[Long]])
-    case _: PBinary => v => addAddress(v.asInstanceOf[Code[Long]])
-    case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
+    case t =>
+      val current = currentPType()
+      val valueTI = ir.typeToTypeInfo(t)
+      val m = mb.fb.getOrDefineMethod("addIRIntermediate", ("addIRIntermediate", current, t),
+        Array[TypeInfo[_]](classInfo[Region], valueTI, LongInfo), UnitInfo) { mb =>
+        val r = mb.getArg[Region](1)
+        val value = mb.getArg(2)(valueTI)
+        val dest = mb.getArg[Long](3)
+        mb.emit(current.constructAtAddressFromValue(mb, dest, r, t, value, false))
+      }
+      v => coerce[Unit](m.invoke(region, v, currentOffset))
   }
 
   def addWithDeepCopy(t: PType, v: Code[_]): Code[Unit] =
