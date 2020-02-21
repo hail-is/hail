@@ -14,8 +14,6 @@ abstract class PDict extends PContainer {
   val keyType: PType
   val valueType: PType
 
-  def copy(keyType: PType = this.keyType, valueType: PType = this.valueType, required: Boolean = this.required): PDict
-
   def elementType: PStruct
 
   def arrayFundamentalType: PArray = fundamentalType.asInstanceOf[PArray]

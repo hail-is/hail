@@ -7,8 +7,7 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
 
   val arrayRep: PArray = PCanonicalArray(elementType, required)
 
-  def copy(keyType: PType = this.keyType, valueType: PType = this.valueType, required: Boolean = this.required): PDict =
-    PCanonicalDict(keyType, valueType, required)
+  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalDict(keyType, valueType, required)
 
   def _asIdent = s"dict_of_${keyType.asIdent}AND${valueType.asIdent}"
 

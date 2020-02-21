@@ -73,7 +73,7 @@ class PCanonicalString(val required: Boolean) extends PString {
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
     fundamentalType.constructAtAddress(addr, region, srcPType.fundamentalType, srcAddress, forceDeep)
 
-  def copy(required: Boolean = this.required) = PCanonicalString(required)
+  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalString(required)
 }
 
 object PCanonicalString {

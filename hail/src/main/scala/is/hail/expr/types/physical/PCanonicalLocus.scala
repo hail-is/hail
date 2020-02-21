@@ -30,7 +30,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   override def _pretty(sb: StringBuilder, indent: Call, compact: Boolean): Unit = sb.append(s"PCLocus($rg)")
 
-  def copy(required: Boolean = this.required) = PCanonicalLocus(this.rgBc, required)
+  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalLocus(this.rgBc, required)
 
   val representation: PStruct = PCanonicalLocus.representation(required)
 

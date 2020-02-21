@@ -49,7 +49,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   }
 
 
-  def copy(fields: IndexedSeq[PField] = this.fields, required: Boolean = this.required): PStruct = PCanonicalStruct(fields, required)
+  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalStruct(fields, required)
 
   override def truncate(newSize: Int): PStruct =
     PCanonicalStruct(fields.take(newSize), required)

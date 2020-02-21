@@ -11,7 +11,7 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
 
     val representation: PType = PInt32(required)
 
-    def copy(required: Boolean = this.required): PCall = PCanonicalCall(required)
+    def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalCall(required)
 
     def ploidy(c: Code[Int]): Code[Int] = (c >>> 1) & 0x3
 
