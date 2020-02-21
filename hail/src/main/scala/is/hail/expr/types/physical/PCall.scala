@@ -18,8 +18,6 @@ abstract class PCall extends ComplexPType {
     PInt32().codeOrdering(mb)
   }
 
-  def copy(required: Boolean): PCall
-
   def ploidy(c: Code[Int]): Code[Int]
 
   def isPhased(c: Code[Int]): Code[Boolean]

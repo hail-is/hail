@@ -9,7 +9,7 @@ trait PStreamable extends PIterable {
   def asPArray: PArray = PArray(this.elementType, this.required)
 }
 
-final case class PStream(elementType: PType, override val required: Boolean = false) extends PStreamable {
+final case class PStream(elementType: PType, required: Boolean = false) extends PStreamable {
   lazy val virtualType: TStream = TStream(elementType.virtualType, required)
 
   override val fundamentalType: PStream = {
@@ -49,5 +49,7 @@ final case class PStream(elementType: PType, override val required: Boolean = fa
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
     throw new NotImplementedError(s"$this is not constructable")
+
+  def setRequired(required: Boolean) = if(required == this.required) this else this.copy(required = required)
 }
 

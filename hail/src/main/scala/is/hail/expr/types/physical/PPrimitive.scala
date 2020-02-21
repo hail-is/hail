@@ -50,4 +50,17 @@ trait PPrimitive extends PType {
   }
 
   def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_]): Code[Unit]
+
+  def setRequired(required: Boolean): PPrimitive = {
+    if (required == this.required)
+      this
+    else
+      this match {
+        case _: PBoolean => PBoolean(required)
+        case _: PInt32 => PInt32(required)
+        case _: PInt64 => PInt64(required)
+        case _: PFloat32 => PFloat32(required)
+        case _: PFloat64 => PFloat64(required)
+      }
+  }
 }

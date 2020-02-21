@@ -29,8 +29,6 @@ trait PTuple extends PBaseStruct {
   protected val tupleFundamentalType: PTuple
   override lazy val fundamentalType: PTuple = tupleFundamentalType
 
-  def copy(required: Boolean): PTuple
-
   final def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
     codeOrdering(mb, other, null)
 

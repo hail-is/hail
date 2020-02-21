@@ -138,6 +138,8 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
       newAddr
     }
   }
+
+  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalBinary(required)
 }
 
 object PCanonicalBinary {
