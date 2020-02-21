@@ -432,7 +432,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val tv = child.execute(ctx)
 
-    if (pred == True())
+    if (pred == True()) // TODO: This will never happen, simplify rule catches it.
       return tv
     else if (pred == False())
       return tv.copy(rvd = RVD.empty(HailContext.get.sc, typ.canonicalRVDType))
