@@ -653,7 +653,8 @@ class WatchedBranch(Code):
                 else:
                     self.deploy_state = 'failure'
 
-                if not is_test_deployment and self.deploy_state == 'failure':
+                # if not is_test_deployment and self.deploy_state == 'failure':
+                if is_test_deployment and self.deploy_state == 'failure':
                     request = {
                         'type': 'stream',
                         'to': 'team',

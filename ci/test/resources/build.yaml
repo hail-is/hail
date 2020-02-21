@@ -27,6 +27,7 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
+     exit 1
    outputs:
     - from: /io/repo
       to: /
