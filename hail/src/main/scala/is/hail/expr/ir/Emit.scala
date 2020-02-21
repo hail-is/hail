@@ -105,6 +105,7 @@ case class EmitRegion(mb: EmitMethodBuilder, region: Code[Region]) {
 
 case class EmitTriplet(setup: Code[Unit], m: Code[Boolean], v: Code[_]) {
   def value[T]: Code[T] = coerce[T](v)
+  def map[U](f: Code[_] => Code[U]) = EmitTriplet(setup, m, f(v))
 }
 
 case class EmitArrayTriplet(setup: Code[Unit], m: Option[Code[Boolean]], addElements: Code[Unit])
@@ -333,10 +334,7 @@ private class Emit(
       case s@Str(x) =>
         present(mb.fb.addLiteral(x, coerce[PString](s.pType), er.baseRegion))
       case x@Literal(t, v) =>
-        if (v == null)
-          emit(NA(t))
-        else
-          present(mb.fb.addLiteral(v, x.pType, er.baseRegion))
+        present(mb.fb.addLiteral(v, x.pType, er.baseRegion))
       case True() =>
         present(const(true))
       case False() =>
@@ -552,7 +550,9 @@ private class Emit(
           case ArraySort(a, l, r, comp) => (a, comp, Code._empty[Unit], Array(l, r))
           case ToSet(a) =>
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
-            val EmitTriplet(s, m, v) = new Emit(ctx, discardNext).emit(ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType)), Env.empty, er, container)
+            val cmp2 = ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType))
+            InferPType(cmp2, Env.empty)
+            val EmitTriplet(s, m, v) = new Emit(ctx, discardNext).emit(cmp2, Env.empty, er, container)
             discardNext.emit(Code(s, m || coerce[Boolean](v)))
             val compare = ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0
             InferPType(compare, Env.empty)
@@ -560,13 +560,15 @@ private class Emit(
           case ToDict(a) =>
             val elementType = a.pType.asInstanceOf[PStreamable].elementType
             val (k0, k1, keyType) = elementType match {
-              case t: PStruct => (GetField(In(0, elementType.virtualType), "key"), GetField(In(1, elementType.virtualType), "key"), t.fieldType("key"))
-              case t: PTuple => (GetTupleElement(In(0, elementType.virtualType), 0), GetTupleElement(In(1, elementType.virtualType), 0), t.types(0))
+              case t: PStruct => (GetField(In(0, elementType), "key"), GetField(In(1, elementType), "key"), t.fieldType("key"))
+              case t: PTuple => (GetTupleElement(In(0, elementType), 0), GetTupleElement(In(1, elementType), 0), t.types(0))
             }
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
-            val EmitTriplet(s, m, v) = new Emit(ctx, discardNext).emit(ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1), Env.empty, er, container)
+            val cmp2 = ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1).deepCopy()
+            InferPType(cmp2, Env.empty)
+            val EmitTriplet(s, m, v) = new Emit(ctx, discardNext).emit(cmp2, Env.empty, er, container)
             discardNext.emit(Code(s, m || coerce[Boolean](v)))
-            val compare = ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0
+            val compare = (ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0).deepCopy()
             InferPType(compare, Env.empty)
             (a, compare, Code(sorter.pruneMissing, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _))), Array.empty[String])
         }
@@ -602,7 +604,7 @@ private class Emit(
         val typ: PContainer = coerce[PIterable](orderedCollection.pType).asPContainer
         val a = emit(orderedCollection)
         val e = emit(elem)
-        val bs = new BinarySearch(mb, typ, keyOnly = onKey)
+        val bs = new BinarySearch(mb, typ, elem.pType, keyOnly = onKey)
 
         val localA = mb.newLocal[Long]()
         val localElementMB = mb.newLocal[Boolean]()
@@ -873,11 +875,13 @@ private class Emit(
 
       case x@InitOp(i, args, _, op) =>
         val AggContainer(aggs, sc) = container.get
-        val physicalSignature = aggs(i).lookup(op)
-        args.map(_.pType).zip(physicalSignature.physicalInitOpArgs).foreach { case (l, r) => assert(l == r, s"$l, $r") }
+        val statePTypes = aggs(i).lookup(op).physicalInitOpArgs
         val rvAgg = agg.Extract.getAgg(aggs(i), op)
 
-        val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i, init = true)))).toArray
+        val argVars = args.zip(statePTypes).map { case (a, t) =>
+          emit(a, container = container.flatMap(_.nested(i, init = false)))
+            .map(t.copyFromTypeAndStackValue(mb, region, a.pType, _))
+        }.toArray
         void(
           sc.newState(i),
           rvAgg.initOp(sc.states(i), argVars))
@@ -885,10 +889,13 @@ private class Emit(
       case x@SeqOp(i, args, _, op) =>
         val AggContainer(aggs, sc) = container.get
         val aggSig = aggs(i)
-        args.map(_.pType).zip(aggSig.lookup(op).physicalSeqOpArgs).foreach { case (l, r) => assert(l == r, s"$l, $r") }
+        val statePTypes = aggSig.lookup(op).physicalSeqOpArgs
         val rvAgg = agg.Extract.getAgg(aggSig, op)
 
-        val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i, init = false)))).toArray
+        val argVars = args.zip(statePTypes).map { case (a, t) =>
+          emit(a, container = container.flatMap(_.nested(i, init = false)))
+            .map(t.copyFromTypeAndStackValue(mb, region, a.pType, _))
+        }.toArray
         void(rvAgg.seqOp(sc.states(i), argVars))
 
       case x@CombOp(i1, i2, _) =>
@@ -1882,14 +1889,13 @@ private class Emit(
   private def capturedReferences(ir: IR): (IR, (Emit.E, DependentEmitFunction[_]) => Emit.E) = {
     var ids = Set[String]()
 
-    def getReferenced: IR => IR = {
-      case node@Ref(id, typ) =>
+    VisitIR(ir) {
+      case Ref(id, _) =>
         ids += id
-        node
-      case node => MapIR(getReferenced)(node)
+      case _ =>
     }
 
-    (getReferenced(ir), { (env: Emit.E, f: DependentEmitFunction[_]) =>
+    (ir, { (env: Emit.E, f: DependentEmitFunction[_]) =>
       Env[(TypeInfo[_], Code[Boolean], Code[_])](ids.toFastSeq.flatMap { id: String =>
          env.lookupOption(id).map { e =>
            val (ti, m, v) = e

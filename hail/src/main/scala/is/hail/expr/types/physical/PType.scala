@@ -122,12 +122,12 @@ object PType {
       case t: TDict => PDict(canonical(t.keyType), canonical(t.valueType), required)
       case t: TTuple => PTuple(t._types.map(tf => PTupleField(tf.index, canonical(tf.typ))), required)
       case t: TStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), required)
-      case t: TNDArray => PNDArray(canonical(t.elementType.setRequired(true)), t.nDims, required)
+      case t: TNDArray => PNDArray(canonical(t.elementType).setRequired(true), t.nDims, required)
       case TVoid => PVoid
     }
   }
 
-  def canonical(t: Type): PType = canonical(t, t.required)
+  def canonical(t: Type): PType = canonical(t, false)
 
   // currently identity
   def canonical(t: PType): PType = {
@@ -170,7 +170,7 @@ abstract class PType extends Serializable with Requiredness {
   def isCanonical: Boolean = PType.canonical(this) == this // will recons, may need to rewrite this method
 
   def unsafeOrdering(rightType: PType): UnsafeOrdering = {
-    require(this == rightType)
+    require(virtualType isOfType rightType.virtualType, s"$this, $rightType")
     unsafeOrdering()
   }
 

@@ -20,7 +20,7 @@ object CompileAndEvaluate {
       return ().asInstanceOf[T]
 
     val (resultPType, f) = ctx.timer.time("Compile")(Compile[Long](ctx,
-      MakeTuple.ordered(FastSeq(ir)), None, optimize = false))
+      MakeTuple.ordered(FastSeq(ir)), None, optimize = true))
 
     val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(0, ctx.r))
     val resultAddress = ctx.timer.time("RunCompiledFunction")(fRunnable(ctx.r))

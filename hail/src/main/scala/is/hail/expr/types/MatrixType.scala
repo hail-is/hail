@@ -215,4 +215,12 @@ case class MatrixType(
       "global" -> JString(globalType.toString)
     )
   }
+
+  override def isOfType(other: BaseType): Boolean = other match {
+    case mt: MatrixType => rowKey == mt.rowKey && colKey == mt.colKey &&
+      globalType.isOfType(mt.globalType) && colType.isOfType(mt.colType) && rowType.isOfType(mt.rowType) &&
+      entryType.isOfType(mt.entryType)
+    case _ => false
+  }
+
 }

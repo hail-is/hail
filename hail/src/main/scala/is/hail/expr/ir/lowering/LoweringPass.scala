@@ -104,7 +104,7 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
         Let(res, aggs.results, aggs.postAggIR),
         aggs.aggs
       )
-      if (newNode.typ != x.typ)
+      if (!(newNode.typ.isOfType(x.typ)))
         throw new RuntimeException(s"types differ:\n  new: ${ newNode.typ }\n  old: ${ x.typ }")
       Some(newNode)
     case _ => None

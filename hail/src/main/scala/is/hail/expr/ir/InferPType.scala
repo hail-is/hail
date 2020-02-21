@@ -20,6 +20,8 @@ object InferPType {
     assert(seqs.nonEmpty)
     virt.default match {
       case AggElementsLengthCheck() =>
+        assert(inits.length == 1)
+        assert(seqs.length == 1)
 
         val iHead = inits.find(_.value.op == AggElementsLengthCheck()).get
         val iNested = iHead.nested.get
@@ -40,6 +42,8 @@ object InferPType {
         ), AggElementsLengthCheck(), Some(nested))
 
       case Group() =>
+        assert(inits.length == 1)
+        assert(seqs.length == 1)
         val iHead = inits.head
         val iNested = iHead.nested.get
         val iHeadArgTypes = iHead.value.args.map(_.pType2)
@@ -57,11 +61,11 @@ object InferPType {
       case _ =>
         assert(inits.forall(_.nested.isEmpty))
         assert(seqs.forall(_.nested.isEmpty))
-        val iHead = inits.head.value
-        val iHeadArgTypes = iHead.args.map(_.pType2)
-        val sHead = seqs.head.value
-        val sHeadArgTypes = sHead.args.map(_.pType2)
-        virt.defaultSignature.toPhysical(iHeadArgTypes, sHeadArgTypes).singletonContainer
+        val initArgTypes = inits.map(i => i.value.args.map(_.pType2).toArray).transpose
+          .map(ts => getNestedElementPTypes(ts))
+        val seqArgTypes = seqs.map(i => i.value.args.map(_.pType2).toArray).transpose
+          .map(ts => getNestedElementPTypes(ts))
+        virt.defaultSignature.toPhysical(initArgTypes, seqArgTypes).singletonContainer
     }
   }
 
@@ -107,11 +111,18 @@ object InferPType {
   def newBuilder[T](n: Int): AAB[T] = Array.fill(n)(new ArrayBuilder[RecursiveArrayBuilderElement[T]])
 
   def apply(ir: IR, env: Env[PType], aggs: Array[AggStatePhysicalSignature], inits: AAB[InitOp], seqs: AAB[SeqOp]): Unit = {
+    _apply(ir, env, aggs, inits, seqs)
+    VisitIR(ir) { case (node: IR) =>
+      if (node._pType2 == null)
+        throw new RuntimeException(s"ptype inference failure: node not inferred:\n${Pretty(node)}\n ** Full IR: **\n${Pretty(ir)}")
+    }
+  }
+  private def _apply(ir: IR, env: Env[PType], aggs: Array[AggStatePhysicalSignature], inits: AAB[InitOp], seqs: AAB[SeqOp]): Unit = {
     if (ir._pType2 != null)
       throw new RuntimeException(ir.toString)
 
     def infer(ir: IR, env: Env[PType] = env, aggs: Array[AggStatePhysicalSignature] = aggs,
-      inits: AAB[InitOp] = inits, seqs: AAB[SeqOp] = seqs): Unit = apply(ir, env, aggs, inits, seqs)
+      inits: AAB[InitOp] = inits, seqs: AAB[SeqOp] = seqs): Unit = _apply(ir, env, aggs, inits, seqs)
 
     ir._pType2 = ir match {
       case I32(_) => PInt32(true)
@@ -129,7 +140,8 @@ object InferPType {
         ir._pType2.deepRename(t)
       case NA(t) =>
         PType.canonical(t).deepInnerRequired(false)
-      case Die(_, t) =>
+      case Die(msg, t) =>
+        infer(msg)
         PType.canonical(t).deepInnerRequired(true)
       case IsNA(ir) =>
         infer(ir)
@@ -204,9 +216,6 @@ object InferPType {
           case _: Compare => PInt32(l.pType2.required && r.pType2.required)
           case _ => PBoolean(l.pType2.required && r.pType2.required)
         }
-      case a: ApplyIR =>
-        infer(a.explicitNode)
-        a.explicitNode.pType2
       case a: AbstractApplyNode[_] =>
         val pTypes = a.args.map(i => {
           infer(i)
@@ -269,6 +278,7 @@ object InferPType {
         coerce[PStream](as.head.pType2).copy(body.pType2, as.forall(_.pType2.required))
       case ArrayFilter(a, name, cond) =>
         infer(a)
+        infer(cond, env = env.bind(name, a.pType2.asInstanceOf[PStream].elementType))
         a.pType2
       case ArrayFlatMap(a, name, body) =>
         infer(a)
@@ -286,8 +296,7 @@ object InferPType {
         zero.pType2.setRequired(body.pType2.required)
       case ArrayFor(a, value, body) =>
         infer(a)
-
-        infer(body, env.bind(value -> a.pType2.asInstanceOf[PArray].elementType))
+        infer(body, env.bind(value -> a.pType2.asInstanceOf[PStream].elementType))
         PVoid
       case ArrayFold2(a, acc, valueName, seq, res) =>
         infer(a)
@@ -574,6 +583,7 @@ object InferPType {
 
 
     // Allow only requiredeness to diverge
-    assert(ir.pType2.virtualType isOfType ir.typ)
+    if (!(ir.pType2.virtualType isOfType ir.typ))
+      throw new RuntimeException(s"pType.virtualType: ${ir.pType2.virtualType}, vType = ${ir.typ}\n  ir=$ir")
   }
 }

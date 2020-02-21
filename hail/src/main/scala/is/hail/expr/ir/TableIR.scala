@@ -79,9 +79,9 @@ abstract sealed class TableIR extends BaseIR {
 
 object TableLiteral {
   def apply(value: TableValue, ctx: ExecuteContext): TableLiteral = {
-    val globalPType = PType.canonical(value.typ.globalType)
+    val globalPType = PType.canonical(value.globals.t)
     val enc = TypedCodecSpec(globalPType, BufferSpec.wireSpec) // use wireSpec to save memory
-    using(new ByteArrayEncoder(enc.buildEncoder(globalPType))) { encoder =>
+    using(new ByteArrayEncoder(enc.buildEncoder(value.globals.t))) { encoder =>
       TableLiteral(value.typ, value.rvd, enc,
         encoder.regionValueToBytes(value.globals.value.region, value.globals.value.offset))
     }
@@ -442,7 +442,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
       "row", tv.rvd.rowPType,
       "global", tv.globals.t,
       pred)
-    assert(rTyp.virtualType == TBoolean())
+    assert(rTyp.virtualType isOfType TBoolean())
 
     tv.filterWithPartitionOp(f)((rowF, rv, globalRV) => rowF(rv.region, rv.offset, false, globalRV.offset, false))
   }
@@ -811,7 +811,7 @@ case class TableZipUnchecked(left: TableIR, right: TableIR) extends TableIR {
       "right", tv2.rvd.typ.rowType,
       inserter)
 
-    assert(t2.virtualType == typ.rowType)
+    assert(t2.virtualType isOfType typ.rowType)
     assert(t2 == rvdType.rowType)
 
     val rvd = tv1.rvd.zipPartitionsWithIndex(rvdType, tv2.rvd) { (i, ctx, it1, it2) =>
@@ -870,7 +870,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     assert(childValues.map(_.rvd.typ).toSet.size == 1) // same physical types
 
 
-    val childRVDs = RVD.unify(childValues.map(_.rvd))
+    val childRVDs = RVD.unify(childValues.map(_.rvd)).toFastIndexedSeq
 
     val repartitionedRVDs =
       if (childRVDs(0).partitioner.satisfiesAllowedOverlap(typ.key.length - 1) &&
@@ -1067,7 +1067,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       "global", Option(globalsBc).map(_.value.t).getOrElse(PStruct()),
       "row", tv.rvd.rowPType,
       Let(scanRef, extracted.results, extracted.postAggIR))
-    assert(rTyp.virtualType == newRow.typ)
+    assert(rTyp.virtualType isOfType newRow.typ)
 
     // 1. init op on all aggs and write out to initPath
     val initAgg = Region.scoped { aggRegion =>
@@ -1231,16 +1231,16 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
 
-    val (_, l) = Compile[Long, Int](ctx, "row", prev.rvd.rowPType, length)
-    val (t, f) = Compile[Long, Int, Long](
+    val (len, l) = Compile[Long, Int](ctx, "row", prev.rvd.rowPType, length)
+    val (newRowType: PStruct, f) = Compile[Long, Int, Long](
       ctx,
       "row", prev.rvd.rowPType,
-      idx.name, PInt32(),
+      idx.name, PInt32(true),
       newRow)
-    assert(t.virtualType == typ.rowType)
+    assert(newRowType.virtualType isOfType typ.rowType)
 
     val rvdType: RVDType = RVDType(
-      newRow.pType,
+      newRowType,
       prev.rvd.typ.key.takeWhile(_ != path.head)
     )
     TableValue(typ,
@@ -1416,7 +1416,7 @@ case class TableKeyByAndAggregate(
       physicalAggs,
       "global", prev.globals.t,
       Let(res, extracted.results, extracted.postAggIR))
-    assert(rTyp.virtualType == typ.valueType, s"$rTyp, ${ typ.valueType }")
+    assert(rTyp.virtualType isOfType typ.valueType, s"$rTyp, ${ typ.valueType }")
 
     val serialize = extracted.serialize(ctx, spec, physicalAggs)
     val deserialize = extracted.deserialize(ctx, spec, physicalAggs)
@@ -1558,7 +1558,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
       key.name, keyType,
       Let(value.name, valueIR,
         InsertFields(key, typ.valueType.fieldNames.map(n => n -> GetField(value, n)))))
-    assert(rowType.virtualType == typ.rowType, s"$rowType, ${ typ.rowType }")
+    assert(rowType.virtualType isOfType typ.rowType, s"$rowType, ${ typ.rowType }")
 
     val localChildRowType = prevRVD.rowPType
     val keyIndices = prev.typ.keyFieldIdx

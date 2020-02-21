@@ -107,8 +107,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
     if (seq2 eq seqPerElt)
       InferPType.clearPTypes(seq2)
 
-    // should return pSigs, but cannot until we use the inferred ptype to generate code
-    aggs.map(_.toCanonicalPhysical)
+    pSigs
   }
 }
 

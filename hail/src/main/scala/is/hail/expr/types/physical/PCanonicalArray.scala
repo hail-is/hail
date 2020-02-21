@@ -449,6 +449,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       } else
         srcAddress
     } else {
+      log.info(s"coercing array of type $srcArray to $this")
 
       assert(elementType.required <= srcArray.elementType.required)
 

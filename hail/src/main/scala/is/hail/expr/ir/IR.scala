@@ -16,12 +16,7 @@ sealed trait IR extends BaseIR {
   private var _pType: PType = null
   private var _typ: Type = null
 
-  def pType = {
-    if (_pType == null)
-      _pType = PType.canonical(typ)
-
-    _pType
-  }
+  def pType = pType2
 
   def pType2 = {
     assert(_pType2 != null)

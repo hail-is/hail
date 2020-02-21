@@ -89,6 +89,12 @@ case class BlockMatrixType(
   sparsity: BlockMatrixSparsity
 ) extends BaseType {
 
+  override def isOfType(other: BaseType): Boolean = other match {
+    case bt: BlockMatrixType => elementType.isOfType(bt.elementType) && shape == bt.shape && isRowVector == bt.isRowVector &&
+      blockSize == bt.blockSize && sparsity == bt.sparsity
+    case _ => false
+  }
+
   lazy val (nRows: Long, nCols: Long) = BlockMatrixType.tensorToMatrixShape(shape, isRowVector)
 
   def matrixShape: (Long, Long) = nRows -> nCols

@@ -269,7 +269,7 @@ abstract class Type extends BaseType with Serializable with Requiredness {
     }
   }
 
-  final def isOfType(t: Type): Boolean = {
+  final def isOfType(t: BaseType): Boolean = {
     this match {
       case TBinary(_) => t == TBinaryOptional || t == TBinaryRequired
       case TBoolean(_) => t == TBooleanOptional || t == TBooleanRequired
