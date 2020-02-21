@@ -1,4 +1,4 @@
-"""A high level script for running the hail gVCF combiner/joint caller"""
+"""A high level script for running the hail GVCF combiner/joint caller"""
 import argparse
 import time
 import uuid
@@ -74,18 +74,18 @@ def run_combiner(samples, intervals, out_file, tmp_path, header, overwrite=True)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Driver for hail's gVCF combiner")
+    parser = argparse.ArgumentParser(description="Driver for hail's GVCF combiner")
     parser.add_argument('--sample-map',
                         help='path to the sample map (must be filesystem local). '
                              'The sample map should be tab separated with two columns. '
                              'The first column is the sample ID, and the second column '
-                             'is the gVCF path.\n'
-                             'WARNING: the sample names in the gVCFs will be overwritten',
+                             'is the GVCF path.\n'
+                             'WARNING: the sample names in the GVCFs will be overwritten',
                         required=True)
     parser.add_argument('--tmp-path', help='path to folder for temp output (can be a cloud bucket)',
                         default='/tmp')
     parser.add_argument('--out-file', '-o', help='path to final combiner output', required=True)
-    parser.add_argument('--json', help='json to use for the import of the gVCFs'
+    parser.add_argument('--json', help='json to use for the import of the GVCFs'
                                        '(must be filesystem local)', required=True)
     parser.add_argument('--header', help='external header, must be cloud based', required=False)
     args = parser.parse_args()

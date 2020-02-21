@@ -12,28 +12,30 @@ object InferPType {
 
   def getNestedElementPTypesOfSameType(ptypes: Seq[PType]): PType = {
     ptypes.head match {
-      case x: PStreamable =>
-        val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PStreamable].elementType))
-        x.copyStreamable(elementType, ptypes.forall(_.required))
-      case _: PSet =>
+      case _: PStream =>
+        val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PStream].elementType))
+        PStream(elementType, ptypes.forall(_.required))
+      case _: PCanonicalArray =>
+        val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PArray].elementType))
+        PCanonicalArray(elementType, ptypes.forall(_.required))
+      case _: PCanonicalSet =>
         val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PSet].elementType))
-        PSet(elementType, ptypes.forall(_.required))
-      case x: PStruct =>
-        PStruct(ptypes.forall(_.required), x.fieldNames.map(fieldName =>
+        PCanonicalSet(elementType, ptypes.forall(_.required))
+      case x: PCanonicalStruct =>
+        PCanonicalStruct(ptypes.forall(_.required), x.fieldNames.map(fieldName =>
           fieldName -> getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PStruct].field(fieldName).typ))
         ): _*)
-      case x: PTuple =>
-        PTuple(ptypes.forall(_.required), x._types.map(pTupleField =>
+      case x: PCanonicalTuple =>
+        PCanonicalTuple(ptypes.forall(_.required), x._types.map(pTupleField =>
           getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PTuple]._types(pTupleField.index).typ))
         ): _*)
-      case _: PDict =>
+      case _: PCanonicalDict =>
         val keyType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PDict].keyType))
         val valueType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PDict].valueType))
-
-        PDict(keyType, valueType, ptypes.forall(_.required))
-      case _: PInterval =>
+        PCanonicalDict(keyType, valueType, ptypes.forall(_.required))
+      case _: PCanonicalInterval =>
         val pointType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PInterval].pointType))
-        PInterval(pointType, ptypes.forall(_.required))
+        PCanonicalInterval(pointType, ptypes.forall(_.required))
       case _ => ptypes.head.setRequired(ptypes.forall(_.required))
     }
   }
@@ -387,10 +389,15 @@ object InferPType {
         PCanonicalArray(bodyIR._pType2, contextsIR._pType2.required)
       case ReadPartition(rowIR, codecSpec, rowType) =>
         infer(rowIR)
-
         val child = codecSpec.buildDecoder(rowType)._1
-
         PStream(child, child.required)
+      case ReadValue(path, spec, requestedType) =>
+        infer(path)
+        spec.buildDecoder(requestedType)._1
+      case WriteValue(value, pathPrefix, spec) =>
+        infer(value)
+        infer(pathPrefix)
+        PCanonicalString(pathPrefix.pType2.required)
       case MakeStream(irs, t) =>
         if (irs.isEmpty) {
           PType.canonical(t, true).deepInnerRequired(true)
