@@ -594,7 +594,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 })
 
                 sa = spec.get('service_account')
-                if sa and user != 'ci' and not (user == 'test' and sa['name'] == 'test' and sa['namespace'] == BATCH_PODS_NAMESPACE):
+                if sa and user != 'ci' and not (user == 'test' and sa['name'] == 'test-batch-sa' and sa['namespace'] == BATCH_PODS_NAMESPACE):
                     raise web.HTTPBadRequest(reason=f'unauthorized service account {(sa["namespace"], sa["name"])}')
 
                 env = spec.get('env')
