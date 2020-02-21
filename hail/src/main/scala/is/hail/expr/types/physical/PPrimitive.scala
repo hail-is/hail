@@ -39,16 +39,16 @@ trait PPrimitive extends PType {
     Region.copyFrom(srcAddress, addr, byteSize)
   }
 
-  def setRequired(required: Boolean) = {
+  def setRequired(required: Boolean): PPrimitive = {
     if (required == this.required)
       this
     else
       this match {
-        case PBoolean(_) => PBoolean(required)
-        case PInt32(_) => PInt32(required)
-        case PInt64(_) => PInt64(required)
-        case PFloat32(_) => PFloat32(required)
-        case PFloat64(_) => PFloat64(required)
+        case _: PBoolean => PBoolean(required)
+        case _: PInt32 => PInt32(required)
+        case _: PInt64 => PInt64(required)
+        case _: PFloat32 => PFloat32(required)
+        case _: PFloat64 => PFloat64(required)
       }
   }
 }
