@@ -657,7 +657,7 @@ class WatchedBranch(Code):
                 if is_test_deployment and self.deploy_state == 'failure':
                     request = {
                         'type': 'stream',
-                        'to': 'test',
+                        'to': 'team',
                         'topic': 'CI Deploy Failure',
                         'content': f'''
 state: {self.deploy_state}
