@@ -83,6 +83,8 @@ object CodeStream { self =>
 
     def fold[S: ParameterPack](s0: S, f: (A, S) => S, ret: S => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
       CodeStream.fold(this, s0, f, ret)
+    def foldCPS[S: ParameterPack](s0: S, f: (A, S, S => Code[Ctrl]) => Code[Ctrl], ret: S => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
+      CodeStream.foldCPS(this, s0, f, ret)
     def forEach(f: A => Code[Unit], ret: Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
       CodeStream.forEach(this, f, ret)
     def forEach(mb: MethodBuilder)(f: A => Code[Unit]): Code[Unit] =
@@ -142,13 +144,16 @@ object CodeStream { self =>
                     (xCur.load, (xCur.load + step, xRem.load)))))
       })
 
-  def fold[A, S: ParameterPack](stream: Stream[A], s0: S, f: (A, S) => S, ret: S => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+  def fold[A, S: ParameterPack](stream: Stream[A], s0: S, f: (A, S) => S, ret: S => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
+    foldCPS[A, S](stream, s0, (a, s, k) => k(f(a, s)), ret)
+
+  def foldCPS[A, S: ParameterPack](stream: Stream[A], s0: S, f: (A, S, S => Code[Ctrl]) => Code[Ctrl], ret: S => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
     val s = newLocal[S]
     val pullJP = joinPoint()
     val eosJP = joinPoint()
     val source = stream(
       eos = eosJP(()),
-      push = a => Code(s := f(a, s.load), pullJP(())))
+      push = a => f(a, s.load, s1 => Code(s := s1, pullJP(()))))
     eosJP.define(_ => Code(source.close0, ret(s.load)))
     pullJP.define(_ => source.pull)
     Code(s := s0, source.setup0, source.setup, pullJP(()))
