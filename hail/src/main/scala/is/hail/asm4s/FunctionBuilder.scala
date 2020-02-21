@@ -3,6 +3,7 @@ package is.hail.asm4s
 import java.io._
 import java.util
 
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.objectweb.asm.Opcodes._
@@ -217,6 +218,20 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     val l = new mutable.ArrayBuffer[AbstractInsnNode]()
     c.emit(l)
     l.foreach(init.instructions.add _)
+  }
+
+  private[this] val methodMemo: mutable.Map[Any, MethodBuilder] = mutable.HashMap.empty
+
+  def getOrDefineMethod(suffix: String, key: Any, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_])
+    (f: MethodBuilder => Unit): MethodBuilder = {
+    methodMemo.get(key) match {
+      case Some(mb) => mb
+      case None =>
+        val mb = newMethod(suffix, argsInfo, returnInfo)
+        f(mb)
+        methodMemo(key) = mb
+        mb
+    }
   }
 
   protected[this] val children: mutable.ArrayBuffer[DependentFunction[_]] = new mutable.ArrayBuffer[DependentFunction[_]](16)

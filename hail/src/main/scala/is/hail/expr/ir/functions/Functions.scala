@@ -21,8 +21,8 @@ object IRFunctionRegistry {
     userAddedFunctions.clear()
   }
 
-  val irRegistry: mutable.MultiMap[String, (Seq[Type], Type, Boolean, Seq[IR] => IR)] =
-    new mutable.HashMap[String, mutable.Set[(Seq[Type], Type, Boolean, Seq[IR] => IR)]] with mutable.MultiMap[String, (Seq[Type], Type, Boolean, Seq[IR] => IR)]
+  val irRegistry: mutable.Map[String, mutable.Map[(Seq[Type], Type, Boolean), Seq[IR] => IR]] =
+    new mutable.HashMap[String, mutable.Map[(Seq[Type], Type, Boolean), Seq[IR] => IR]]()
 
   val codeRegistry: mutable.MultiMap[String, IRFunction] =
     new mutable.HashMap[String, mutable.Set[IRFunction]] with mutable.MultiMap[String, IRFunction]
@@ -30,8 +30,10 @@ object IRFunctionRegistry {
   def addIRFunction(f: IRFunction): Unit =
     codeRegistry.addBinding(f.name, f)
 
-  def addIR(name: String, argTypes: Seq[Type], retType: Type, alwaysInline: Boolean, f: Seq[IR] => IR): Unit =
-    irRegistry.addBinding(name, (argTypes, retType, alwaysInline, f))
+  def addIR(name: String, argTypes: Seq[Type], retType: Type, alwaysInline: Boolean, f: Seq[IR] => IR): Unit = {
+    val m = irRegistry.getOrElseUpdate(name, new mutable.HashMap[(Seq[Type], Type, Boolean), Seq[IR] => IR]())
+    m.update((argTypes, retType, alwaysInline), f)
+  }
 
   def pyRegisterIR(mname: String,
     argNames: java.util.ArrayList[String],
@@ -56,28 +58,29 @@ object IRFunctionRegistry {
   def removeIRFunction(name: String): Unit =
     codeRegistry.remove(name)
 
-  private def lookupInRegistry[T](reg: mutable.MultiMap[String, T], name: String, rt: Type, args: Seq[Type], cond: (T, Seq[Type]) => Boolean): Option[T] = {
-    reg.lift(name).map { fs => fs.filter(t => cond(t, args :+ rt)).toSeq }.getOrElse(FastSeq()) match {
+  def lookupFunction(name: String, rt: Type, args: Seq[Type]): Option[IRFunction] =
+    codeRegistry.lift(name).map { fs => fs.filter(t => t.unify(args :+ rt)).toSeq }.getOrElse(FastSeq()) match {
       case Seq() => None
       case Seq(f) => Some(f)
       case _ => fatal(s"Multiple functions found that satisfy $name(${ args.mkString(",") }).")
     }
+
+  def lookupIR(name: String, rt: Type, args: Seq[Type]): Option[((Seq[Type], Type, Boolean), Seq[IR] => IR)] = {
+    irRegistry.getOrElse(name, Map.empty).filter { case ((argTypes, _, _), _) =>
+     argTypes.length == args.length && {
+       argTypes.foreach(_.clear())
+       (argTypes, args).zipped.forall(_.unify(_))
+     }
+    }.toSeq match {
+      case Seq() => None
+      case Seq(kv) => Some(kv)
+      case _ => fatal(s"Multiple functions found that satisfy $name(${args.mkString(",")}).")
+    }
   }
 
-  def lookupFunction(name: String, rt: Type, args: Seq[Type]): Option[IRFunction] =
-    lookupInRegistry(codeRegistry, name, rt, args, (f: IRFunction, ts: Seq[Type]) => f.unify(ts))
-
   def lookupConversion(name: String, rt: Type, args: Seq[Type]): Option[Seq[IR] => IR] = {
-    type Conversion = (Seq[Type], Type, Boolean, Seq[IR] => IR)
-    val findIR: (Conversion, Seq[Type]) => Boolean = {
-      case ((ts, _, _, _), t2s) =>
-        ts.length == args.length && {
-          ts.foreach(_.clear())
-          (ts, t2s).zipped.forall(_.unify(_))
-        }
-    }
-    val validIR: Option[Seq[IR] => IR] = lookupInRegistry[Conversion](irRegistry, name, rt, args, findIR).map {
-      case (_, _, inline, conversion) => args =>
+    val validIR: Option[Seq[IR] => IR] = lookupIR(name, rt, args).map {
+      case ((_, _, inline), conversion) => args =>
         val x = ApplyIR(name, args)
         x.conversion = conversion
         x.inline = inline
@@ -123,7 +126,7 @@ object IRFunctionRegistry {
     def dtype(t: Type): String = s"""dtype("${ StringEscapeUtils.escapeString(t.toString) }\")"""
 
     irRegistry.foreach { case (name, fns) =>
-        fns.foreach { case (argTypes, retType, _, f) =>
+        fns.foreach { case ((argTypes, retType, _), f) =>
           println(s"""register_function("${ StringEscapeUtils.escapeString(name) }", (${ argTypes.map(dtype).mkString(",") }), ${ dtype(retType) })""")
         }
     }

@@ -2,7 +2,6 @@ package is.hail.expr.types.encoded
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.{BaseStruct, BaseType}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -90,7 +89,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       PNDArray(elementType, t.nDims, required)
   }
 
-  def _buildEncoder(pt: PType, mb: EmitMethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
+  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
     val ft = pt.asInstanceOf[PBaseStruct]
     val writeMissingBytes = if (ft.size == size) {
       val missingBytes = UnsafeUtils.packBitsToBytes(ft.nMissing)
@@ -166,7 +165,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
 
   def _buildDecoder(
     pt: PType,
-    mb: EmitMethodBuilder,
+    mb: MethodBuilder,
     region: Code[Region],
     in: Code[InputBuffer]
   ): Code[Long] = {
@@ -181,7 +180,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
 
   override def _buildInplaceDecoder(
     pt: PType,
-    mb: EmitMethodBuilder,
+    mb: MethodBuilder,
     region: Code[Region],
     addr: Code[Long],
     in: Code[InputBuffer]
@@ -228,7 +227,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       readFields,
       Code._empty[Unit])
   }
-  def _buildSkip(mb: EmitMethodBuilder, r: Code[Region], in: Code[InputBuffer]): Code[Unit] = {
+  def _buildSkip(mb: MethodBuilder, r: Code[Region], in: Code[InputBuffer]): Code[Unit] = {
     val mbytes = mb.newLocal[Long]("mbytes")
     val skipFields = fields.map { f =>
       val skip = f.typ.buildSkip(mb)

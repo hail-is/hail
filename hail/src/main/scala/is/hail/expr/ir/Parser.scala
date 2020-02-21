@@ -1171,6 +1171,18 @@ object IRParser {
         val rowType = coerce[TStruct](type_expr(env.typEnv)(it))
         val path = ir_value_expr(env)(it)
         ReadPartition(path, spec, rowType)
+      case "ReadValue" =>
+        import AbstractRVDSpec.formats
+        val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]
+        val typ = type_expr(env.typEnv)(it)
+        val path = ir_value_expr(env)(it)
+        ReadValue(path, spec, typ)
+      case "WriteValue" =>
+        import AbstractRVDSpec.formats
+        val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]
+        val value = ir_value_expr(env)(it)
+        val path = ir_value_expr(env)(it)
+        WriteValue(value, path, spec)
       case "LiftMeOut" =>
         LiftMeOut(ir_value_expr(env)(it))
     }

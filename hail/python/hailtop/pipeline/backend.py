@@ -12,8 +12,19 @@ from .resource import InputResourceFile, TaskResourceFile
 
 
 class Backend:
+    """
+    Abstract class for backends.
+    """
+
     @abc.abstractmethod
-    def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):
+    def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs):
+        """
+        Execute a pipeline.
+
+        Warning
+        -------
+        This method should not be called directly. Instead, use :meth:`.Pipeline.run`.
+        """
         return
 
 
@@ -31,11 +42,11 @@ class LocalBackend(Backend):
     ----------
     tmp_dir: :obj:`str`, optional
         Temporary directory to use.
-    gsa_key_file :obj:`str`, optional
+    gsa_key_file: :obj:`str`, optional
         Mount a file with a gsa key to `/gsa-key/key.json`. Only used if a
         task specifies a docker image. This option will override the value set by
         the environment variable `HAIL_PIPELINE_GSA_KEY_FILE`.
-    extra_docker_run_flags :obj:`str`, optional
+    extra_docker_run_flags: :obj:`str`, optional
         Additional flags to pass to `docker run`. Only used if a task specifies
         a docker image. This option will override the value set by the environment
         variable `HAIL_PIPELINE_EXTRA_DOCKER_RUN_FLAGS`.
@@ -59,6 +70,24 @@ class LocalBackend(Backend):
         self._extra_docker_run_flags = flags
 
     def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable=R0915
+        """
+        Execute a pipeline.
+
+        Warning
+        -------
+        This method should not be called directly. Instead, use :meth:`.Pipeline.run`.
+
+        Parameters
+        ----------
+        pipeline: :class:`.Pipeline`
+            Pipeline to execute.
+        dry_run: :obj:`bool`
+            If `True`, don't execute code.
+        verbose: :obj:`bool`
+            If `True`, print debugging output.
+        delete_scratch_on_exit: :obj:`bool`
+            If `True`, delete temporary directories with intermediate files.
+        """
         tmpdir = self._get_scratch_dir()
 
         script = ['#!/bin/bash',
@@ -174,24 +203,34 @@ class LocalBackend(Backend):
 
 class BatchBackend(Backend):
     """
-    Backend that executes pipelines on a Kubernetes cluster using `batch`.
+    Backend that executes pipelines on Hail's Batch Service on Google Cloud.
 
     Examples
     --------
 
-    >>> batch_backend = BatchBackend(tmp_dir='http://localhost:5000')
+    >>> batch_backend = BatchBackend('test')
     >>> p = Pipeline(backend=batch_backend)
+    >>> p.run() # doctest: +SKIP
+    >>> batch_backend.close()
 
     Parameters
     ----------
-    url: :obj:`str`
-        URL to batch server.
+    billing_project: :obj:`str`
+        Name of billing project to use.
     """
 
     def __init__(self, billing_project):
         self._batch_client = BatchClient(billing_project)
 
     def close(self):
+        """
+        Close the connection with the Batch Service.
+
+        Notes
+        -----
+        This method should be called after executing your pipelines at the
+        end of your script.
+        """
         self._batch_client.close()
 
     def _run(self,
@@ -201,7 +240,32 @@ class BatchBackend(Backend):
              delete_scratch_on_exit,
              wait=True,
              open=False,
-             batch_submit_args=None):  # pylint: disable-msg=too-many-statements
+             disable_progress_bar=False):  # pylint: disable-msg=too-many-statements
+        """
+        Execute a pipeline.
+
+        Warning
+        -------
+        This method should not be called directly. Instead, use :meth:`.Pipeline.run`
+        and pass :class:`.BatchBackend` specific arguments as key-word arguments.
+
+        Parameters
+        ----------
+        pipeline: :class:`.Pipeline`
+            Pipeline to execute.
+        dry_run: :obj:`bool`
+            If `True`, don't execute code.
+        verbose: :obj:`bool`
+            If `True`, print debugging output.
+        delete_scratch_on_exit: :obj:`bool`
+            If `True`, delete temporary directories with intermediate files.
+        wait: :obj:`bool`, optional
+            If `True`, wait for the pipeline to finish executing before returning.
+        open: :obj:`bool`, optional
+            If `True`, open the UI page for the batch.
+        disable_progress_bar: :obj:`bool`, optional
+            If `True`, disable the progress bar.
+        """
         build_dag_start = time.time()
 
         bucket = self._batch_client.bucket
@@ -333,7 +397,7 @@ class BatchBackend(Backend):
             print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
 
         submit_batch_start = time.time()
-        batch = batch.submit(**(batch_submit_args or {}))
+        batch = batch.submit(disable_progress_bar=disable_progress_bar)
 
         jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 

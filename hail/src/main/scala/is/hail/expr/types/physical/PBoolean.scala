@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering, _}
-import is.hail.asm4s.{Code, MethodBuilder}
+import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TBoolean
 
@@ -32,6 +32,9 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
   }
 
   override def byteSize: Long = 1
+
+  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_]): Code[Unit] =
+    Region.storeBoolean(addr, coerce[Boolean](value))
 }
 
 object PBoolean {

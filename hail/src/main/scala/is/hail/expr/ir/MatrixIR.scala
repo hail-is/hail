@@ -228,7 +228,6 @@ case class MatrixNativeReader(
       val cols = if (partFiles.length == 1) {
         ReadPartition(Str(partFiles.head), colsRVDSpec.typedCodecSpec, mr.typ.colType)
       } else {
-        val partitionReads = partFiles.map(f => ToArray(ReadPartition(Str(f), colsRVDSpec.typedCodecSpec, mr.typ.colType)))
         val partNames = MakeArray(partFiles.map(Str), TArray(TString()))
         val elt = Ref(genUID(), TString())
         ArrayFlatMap(

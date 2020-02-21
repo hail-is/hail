@@ -672,8 +672,6 @@ object Interpret {
           }
         }
         wrapped.get(0)
-      case x: ReadPartition =>
-        fatal(s"cannot interpret ${ Pretty(x) }")
       case LiftMeOut(child) =>
         val (rt, makeFunction) = Compile[Long](ctx, MakeTuple.ordered(FastSeq(child)), None, false)
         Region.scoped { r =>
