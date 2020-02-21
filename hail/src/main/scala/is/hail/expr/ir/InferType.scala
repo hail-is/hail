@@ -116,8 +116,8 @@ object InferType {
         TArray(query.typ)
       case RunAgg(body, result, _) =>
         result.typ
-      case RunAggScan(_, _, _, _, result, _) =>
-        TArray(result.typ)
+      case RunAggScan(a, _, _, _, result, _) =>
+        a.typ.asInstanceOf[TStreamable].copyStreamable(result.typ)
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         coerce[TStreamable](left.typ).copyStreamable(join.typ)
       case NDArrayShape(nd) =>

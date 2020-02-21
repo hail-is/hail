@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, RegionValue}
+import is.hail.annotations.{Region, RegionValue, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
@@ -371,6 +371,33 @@ object CodeStream { self =>
 
 object EmitStream2 {
   import CodeStream._
+
+  def toArray(mb: MethodBuilder, aTyp: PArray, optStream: COption[Stream[EmitTriplet]]): EmitTriplet = {
+    // FIXME: add fast path when stream length is known
+    val srvb = new StagedRegionValueBuilder(mb, aTyp)
+    val len = mb.newLocal[Int]
+    val i = mb.newLocal[Int]
+    val vab = new StagedArrayBuilder(aTyp.elementType, mb, 16)
+    val result = optStream.map { stream =>
+      Code(
+        vab.clear,
+        stream.forEach(mb) { et =>
+          Code(et.setup, et.m.mux(vab.addMissing(), vab.add(et.v)))
+        },
+        len := vab.size,
+        srvb.start(len, init = true),
+        i := 0,
+        Code.whileLoop(i < len,
+                       vab.isMissing(i).mux(
+                         srvb.setMissing(),
+                         srvb.addIRIntermediate(aTyp.elementType)(vab(i))),
+                       i := i + 1,
+                       srvb.advance()),
+        srvb.offset)
+    }
+
+    COption.toEmitTriplet(result, typeToTypeInfo(aTyp), mb)
+  }
 
   private[ir] def apply(
     emitter: Emit,
