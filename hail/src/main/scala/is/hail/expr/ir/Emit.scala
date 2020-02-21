@@ -587,10 +587,7 @@ private class Emit(
         val optStream = emitStream2(array)
         val result = optStream.map { stream =>
           Code(
-            vab.clear,
-            stream.forEach(mb) { et =>
-              Code(et.setup, et.m.mux(vab.addMissing(), vab.add(et.v)))
-            },
+            EmitStream2.write(mb, stream, vab),
             sort,
             distinct,
             sorter.toRegion())
@@ -685,10 +682,7 @@ private class Emit(
         val optStream = emitStream2(collection)
         val result = optStream.map { stream =>
           Code(
-            eab.clear,
-            stream.forEach(mb) { et =>
-              Code(et.setup, et.m.mux(eab.addMissing(), eab.add(et.v)))
-            },
+            EmitStream2.write(mb, stream, eab),
             sorter.sort(sortF),
             sorter.pruneMissing,
             eab.size.ceq(0).mux(

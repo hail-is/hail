@@ -372,6 +372,13 @@ object CodeStream { self =>
 object EmitStream2 {
   import CodeStream._
 
+  def write(mb: MethodBuilder, stream: Stream[EmitTriplet], ab: StagedArrayBuilder): Code[Unit] =
+    Code(
+      ab.clear,
+      stream.forEach(mb) { et =>
+        Code(et.setup, et.m.mux(ab.addMissing(), ab.add(et.v)))
+      })
+
   def toArray(mb: MethodBuilder, aTyp: PArray, optStream: COption[Stream[EmitTriplet]]): EmitTriplet = {
     // FIXME: add fast path when stream length is known
     val srvb = new StagedRegionValueBuilder(mb, aTyp)
@@ -380,10 +387,7 @@ object EmitStream2 {
     val vab = new StagedArrayBuilder(aTyp.elementType, mb, 16)
     val result = optStream.map { stream =>
       Code(
-        vab.clear,
-        stream.forEach(mb) { et =>
-          Code(et.setup, et.m.mux(vab.addMissing(), vab.add(et.v)))
-        },
+        write(mb, stream, vab),
         len := vab.size,
         srvb.start(len, init = true),
         i := 0,
