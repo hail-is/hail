@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.expr.ir.CodeStream.{newLocal, joinPoint}
 import is.hail.annotations.{Region, RegionValue, RegionValueBuilder, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
@@ -26,6 +25,14 @@ class EmitStreamSuite extends HailSuite {
     val fb = FunctionBuilder.functionBuilder[T, U, R]
     val mb = fb.apply_method
     mb.emit(f(mb, mb.getArg[T](1), mb.getArg[U](2)))
+    val asmFn = fb.result()()
+    asmFn.apply
+  }
+
+  private def compile3[T: TypeInfo, U: TypeInfo, V: TypeInfo, R: TypeInfo](f: (MethodBuilder, Code[T], Code[U], Code[V]) => Code[R]): (T, U, V) => R = {
+    val fb = FunctionBuilder.functionBuilder[T, U, V, R]
+    val mb = fb.apply_method
+    mb.emit(f(mb, mb.getArg[T](1), mb.getArg[U](2), mb.getArg[V](3)))
     val asmFn = fb.result()()
     asmFn.apply
   }
@@ -171,58 +178,74 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testES2Filter() {
     val f = compile1[Int, Unit] { (mb, n) =>
-      JoinPoint.CallCC[Unit] { (jpb, ret) =>
-        implicit val ctx = EmitStreamContext(mb, jpb)
-        val r = range(0, n, "source")
-        def cond(i: Code[Int]): Code[Boolean] = (i % 2).ceq(0)
-        val f = CodeStream.filter(r, cond)
-        CodeStream.forEach[Code[Int]](f, i => Code._println(i.toS), ret(()))
-      }
+      val r = checkedRange(0, n, "source", mb)
+      def cond(i: Code[Int]): Code[Boolean] = (i % 2).ceq(0)
+
+      Code(
+        r.init,
+        r.stream.filter(cond).forEach(mb)(i => Code._println(i.toS)),
+        r.assertClosed(1))
     }
+    f(0)
     f(10)
   }
 
   @Test def testES2Mux() {
     val f = compile2[Boolean, Int, Unit] { (mb, cond, n) =>
-      JoinPoint.CallCC[Unit] { (jpb, ret) =>
-        implicit val ctx = EmitStreamContext(mb, jpb)
-        val l = range(0, n, "left")
-        val r = range(0, n, "right")
-        val mux = CodeStream.mux(cond, l, r)
-        CodeStream.forEach[Code[Int]](mux, i => Code._println(i.toS), ret(()))
-      }
+      val l = checkedRange(0, n, "left", mb)
+      val r = checkedRange(0, n, "right", mb)
+
+      Code(
+        r.init,
+        l.init,
+        CodeStream.mux(cond, l.stream, r.stream).forEach(mb)(i => Code._println(i.toS)),
+        l.assertClosed(cond.toI),
+        r.assertClosed(const(1) - cond.toI))
     }
-    f(false, 10)
+    f(false, 2)
+    f(true, 2)
   }
 
   @Test def testES2ZipMux() {
     val f = compile2[Boolean, Int, Unit] { (mb, cond, n) =>
-      JoinPoint.CallCC[Unit] { (jpb, ret) =>
-        implicit val ctx = EmitStreamContext(mb, jpb)
-        val l1 = range(0, n, "left1")
-        val l2 = range(0, n, "left2")
-        val mux = CodeStream.mux(cond, l1, l2)
-        val r = range(0, n, "right")
-        val z = CodeStream.zip(mux, r)
-        CodeStream.forEach[(Code[Int], Code[Int])](z, x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")")), ret(()))
-      }
+      val l1 = checkedRange(0, n, "left1", mb)
+      val l2 = checkedRange(0, n, "left2", mb)
+      val mux = CodeStream.mux(cond, l1.stream, l2.stream)
+      val r = checkedRange(0, n, "right", mb)
+
+      Code(
+        l1.init, l2.init, r.init,
+        CodeStream.zip(mux, r.stream).forEach(mb)(x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")"))),
+        l1.assertClosed(cond.toI),
+        l2.assertClosed(const(1) - cond.toI),
+        r.assertClosed(1))
     }
-    f(false, 10)
+    f(false, 2)
+    f(true, 2)
   }
 
   @Test def testES2MultiZip() {
     import scala.collection.IndexedSeq
-    val f = compile1[Int, Unit] { (mb, n) =>
-      JoinPoint.CallCC[Unit] { (jpb, ret) =>
-        implicit val ctx = EmitStreamContext(mb, jpb)
-        val s1 = range(0, n, "s1")
-        val s2 = range(1, n, "s2")
-        val s3 = range(2, n, "s3")
-        val z = CodeStream.multiZip(IndexedSeq(s1, s2, s3)).asInstanceOf[CodeStream.Stream[IndexedSeq[Code[Int]]]]
-        CodeStream.forEach[IndexedSeq[Code[Int]]](z, x => Code._println(const("(").concat(x(0).toS).concat(", ").concat(x(1).toS).concat(", ").concat(x(2).toS).concat(")")), ret(()))
-      }
+    val f = compile3[Int, Int, Int, Unit] { (mb, n1, n2, n3) =>
+      val s1 = checkedRange(0, n1, "s1", mb)
+      val s2 = checkedRange(0, n2, "s2", mb)
+      val s3 = checkedRange(0, n3, "s3", mb)
+      val z = CodeStream.multiZip(IndexedSeq(s1.stream, s2.stream, s3.stream)).asInstanceOf[CodeStream.Stream[IndexedSeq[Code[Int]]]]
+
+      Code(
+        s1.init, s2.init, s3.init,
+        z.forEach(mb)(x => Code._println(const("(").concat(x(0).toS).concat(", ").concat(x(1).toS).concat(", ").concat(x(2).toS).concat(")"))),
+        s1.assertClosed(1),
+        s2.assertClosed(1),
+        s3.assertClosed(1))
     }
-    f(10)
+    for {
+      n1 <- 0 to 2
+      n2 <- 0 to 2
+      n3 <- 0 to 2
+    } {
+      f(n1, n2, n3)
+    }
   }
 
   @Test def testES2Fac() {

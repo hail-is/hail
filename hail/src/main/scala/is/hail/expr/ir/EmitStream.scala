@@ -76,7 +76,7 @@ object CodeStream { self =>
   def joinPoint()(implicit ctx: EmitStreamContext): DefinableJoinPoint[Unit] = ctx.jb.joinPoint()
   def joinPoint[T: ParameterPack](implicit ctx: EmitStreamContext): DefinableJoinPoint[T] = ctx.jb.joinPoint[T](ctx.mb)
 
-  private case class Source[+A](setup0: Code[Unit], close0: Code[Unit], setup: Code[Unit], close: Code[Unit], firstPull: Option[Code[Ctrl]], pull: Code[Ctrl])
+  private case class Source[+A](setup0: Code[Unit], close0: Code[Unit], setup: Code[Unit], close: Code[Unit], pull: Code[Ctrl])
 
   abstract class Stream[+A] {
     private[CodeStream] def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A]
@@ -121,7 +121,6 @@ object CodeStream { self =>
         close0 = Code._empty,
         setup = s := s0,
         close = Code._empty,
-        firstPull = None,
         pull = f(s.load, ctx, _.apply(
           none = eos,
           // Warning: `a` should not depend on `s`
@@ -152,7 +151,7 @@ object CodeStream { self =>
       push = a => Code(s := f(a, s.load), pullJP(())))
     eosJP.define(_ => Code(source.close0, ret(s.load)))
     pullJP.define(_ => source.pull)
-    Code(s := s0, source.setup0, source.setup, source.firstPull.getOrElse(pullJP(())))
+    Code(s := s0, source.setup0, source.setup, pullJP(()))
   }
 
   def forEach[A](stream: Stream[A], f: A => Code[Unit], ret: Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
@@ -163,7 +162,7 @@ object CodeStream { self =>
       push = a => Code(f(a), pullJP(())))
     eosJP.define(_ => Code(source.close0, ret))
     pullJP.define(_ => source.pull)
-    Code(source.setup0, source.setup, source.firstPull.getOrElse(pullJP(())))
+    Code(source.setup0, source.setup, pullJP(()))
   }
 
   def mapCPS[A, B](stream: Stream[A])(
@@ -182,7 +181,6 @@ object CodeStream { self =>
         close0 = close0.map(Code(_, source.close0)).getOrElse(source.close0),
         setup = setup.map(Code(_, source.setup)).getOrElse(source.setup),
         close = close.map(Code(_, source.close)).getOrElse(source.close),
-        firstPull = source.firstPull,
         pull = source.pull)
     }
   }
@@ -202,44 +200,28 @@ object CodeStream { self =>
     def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
       val outerPullJP = joinPoint()
       var innerSource: Source[A] = null
+      val innerPullJP = joinPoint()
+      val hasBeenPulled = newLocal[Code[Boolean]]
       val outerSource = outer(
         eos = eos,
         push = inner => {
-          val is = inner(
+          innerSource = inner(
             eos = outerPullJP(()),
             push = push)
-          innerSource = is
-          is.firstPull match {
-            case Some(fp) => Code(is.setup, fp)
-            case None =>
-              val innerPullJP = joinPoint()
-              innerPullJP.define(_ => is.pull)
-              innerSource = is.copy(pull = innerPullJP(()))
-              Code(is.setup, innerPullJP(()))
-          }
+          innerPullJP.define(_ => innerSource.pull)
+          Code(innerSource.setup, innerPullJP(()))
         })
       outerPullJP.define(_ => outerSource.pull)
       Source[A](
-        setup0 = Code(outerSource.setup0, innerSource.setup0),
+        setup0 = Code(hasBeenPulled := false, outerSource.setup0, innerSource.setup0),
         close0 = Code(innerSource.close0, outerSource.close0),
-        setup = outerSource.setup,
-        close = Code(innerSource.close, outerSource.close),
-        firstPull = Some(outerSource.firstPull.getOrElse(outerPullJP(()))),
-        pull = innerSource.pull)
+        setup = Code(hasBeenPulled := false, outerSource.setup),
+        close = Code(hasBeenPulled.load.mux(innerSource.close, Code._empty),
+                     outerSource.close),
+        pull = hasBeenPulled.load.mux(innerPullJP(()),
+                                      Code(hasBeenPulled := true, outerPullJP(()))))
     }
   }
-
-//  private def flatten[A](src: Source[A])(implicit ctx: EmitStreamContext): Source[A] = src.firstPull match {
-//    case None => src
-//    case Some(firstPull) =>
-//      val pulled = newLocal[Code[Boolean]]
-//      Source[A](
-//        setup0 = Code(pulled := false, src.setup0),
-//        close0 = src.close0,
-//        setup = Code(pulled := false, src.setup),
-//        close = Code(pulled.mux(src.close)),
-//    )
-//  }
 
   def filter[A](stream: Stream[COption[A]]): Stream[A] = new Stream[A] {
     def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
@@ -264,7 +246,6 @@ object CodeStream { self =>
       val eosJP = joinPoint()
       val leftEOSJP = joinPoint()
       val rightEOSJP = joinPoint()
-      var pulledRight: Option[ParameterStore[Code[Boolean]]] = None
       var rightSource: Source[B] = null
       val leftSource = left(
         eos = leftEOSJP(()),
@@ -272,25 +253,17 @@ object CodeStream { self =>
           rightSource = right(
             eos = rightEOSJP(()),
             push = b => push((a, b)))
-          rightSource.firstPull match {
-            case Some(fp) =>
-              val pr = newLocal[Code[Boolean]]
-              pulledRight = Some(pr)
-              pr.load.mux(rightSource.pull, Code(pr := true, fp))
-            case None =>
-              rightSource.pull
-          }
+          rightSource.pull
         })
       leftEOSJP.define(_ => Code(rightSource.close, eosJP(())))
       rightEOSJP.define(_ => Code(leftSource.close, eosJP(())))
       eosJP.define(_ => eos)
 
       Source[(A, B)](
-        setup0 = Code(pulledRight.map(_ := false).getOrElse(Code._empty), leftSource.setup0, rightSource.setup0),
+        setup0 = Code(leftSource.setup0, rightSource.setup0),
         close0 = Code(leftSource.close0, rightSource.close0),
-        setup = Code(pulledRight.map(_ := false).getOrElse(Code._empty), leftSource.setup, rightSource.setup),
+        setup = Code(leftSource.setup, rightSource.setup),
         close = Code(leftSource.close, rightSource.close),
-        firstPull = leftSource.firstPull,
         pull = leftSource.pull)
     }
   }
@@ -300,20 +273,13 @@ object CodeStream { self =>
       val closeJPs = streams.map(_ => joinPoint())
       val eosJP = closeJPs(0)
       val terminatingStream = newLocal[Code[Int]]
-      val firstPull = newLocal[Code[Boolean]]
 
       def nthSource(n: Int, acc: IndexedSeq[Code[_]]): (Source[Code[_]], IndexedSeq[Code[Unit]]) = {
         if (n == streams.length - 1) {
           val src = streams(n)(
             Code(terminatingStream := n, eosJP(())),
             c => push(acc :+ c))
-          (src.copy(
-            pull = src.firstPull match {
-              case None => firstPull.load.mux(Code(firstPull := false, src.pull), src.pull)
-              case Some(fp) => firstPull.load.mux(Code(firstPull := false, fp), src.pull)
-            },
-            firstPull = None),
-            IndexedSeq(src.close))
+          (src, IndexedSeq(src.close))
         } else {
           var rest: Source[Code[_]] = null
           var closes: IndexedSeq[Code[Unit]] = null
@@ -326,15 +292,11 @@ object CodeStream { self =>
               rest.pull
             })
           (Source[Code[_]](
-            setup0 = Code(src.setup0, rest.setup0),
-            close0 = Code(rest.close0, src.close0),
-            setup = Code(src.setup, rest.setup),
-            close = Code(rest.close, src.close),
-            firstPull = None,
-            pull = src.firstPull match {
-              case None => src.pull
-              case Some(fp) => firstPull.load.mux(fp, src.pull)
-            }),
+              setup0 = Code(src.setup0, rest.setup0),
+              close0 = Code(rest.close0, src.close0),
+              setup = Code(src.setup, rest.setup),
+              close = Code(rest.close, src.close),
+              pull = src.pull),
             src.close +: closes)
         }
       }
@@ -348,7 +310,7 @@ object CodeStream { self =>
           Code(closes(i), next)))
       }
 
-      source.copy(setup0 = Code(firstPull := true, source.setup0), setup = Code(firstPull := true, source.setup))
+      source.asInstanceOf[Source[IndexedSeq[Code[_]]]]
     }
   }
 
@@ -374,10 +336,6 @@ object CodeStream { self =>
         close0 = Code(l.close0, r.close0),
         setup = b.load.mux(l.setup, r.setup),
         close = b.load.mux(l.close, r.close),
-        firstPull = (l.firstPull, r.firstPull) match {
-          case (None, None) => None
-          case _ => Some(b.load.mux(l.firstPull.getOrElse(lPullJP(())), r.firstPull.getOrElse(rPullJP(()))))
-        },
         pull = JoinPoint.mux(b.load, lPullJP, rPullJP)
       )
     }
@@ -399,7 +357,6 @@ object CodeStream { self =>
             close0 = Code._empty,
             setup = sNew := s0,
             close = Code._empty,
-            firstPull = None,
             pull = Code(s := sNew.load, stream.step(s.load) {
               case EOS => eos
               case Yield(elt, s1) => Code(sNew := s1, push(elt))
