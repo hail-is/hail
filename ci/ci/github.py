@@ -660,6 +660,7 @@ class WatchedBranch(Code):
                         'to': 'team',
                         'topic': 'CI Deploy Failure',
                         'content': f'''
+@dev
 state: {self.deploy_state}
 branch: {self.branch.short_str()}
 sha: {self.sha}
