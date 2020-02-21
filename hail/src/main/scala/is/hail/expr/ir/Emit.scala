@@ -819,7 +819,7 @@ private class Emit(
           xresm, xresv)
 
       case ArrayFor(a, valueName, body) =>
-        val eltType = a.pType.asInstanceOf[PStreamable].elementType
+        val eltType = a.pType.asInstanceOf[PStream].elementType
         implicit val eltPack = TypedTriplet.pack(eltType)
         val eltTI = typeToTypeInfo(eltType)
 
