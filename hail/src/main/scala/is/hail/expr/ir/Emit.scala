@@ -576,7 +576,7 @@ private class Emit(
             (a, compare, Code(sorter.pruneMissing, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _))), Array.empty[String])
         }
 
-        val compF = vab.ti match {
+        val sort = vab.ti match {
           case BooleanInfo => sorter.sort(makeDependentSortingFunction[Boolean](compare, env, leftRightComparatorNames))
           case IntInfo => sorter.sort(makeDependentSortingFunction[Int](compare, env, leftRightComparatorNames))
           case LongInfo => sorter.sort(makeDependentSortingFunction[Long](compare, env, leftRightComparatorNames))
@@ -584,20 +584,19 @@ private class Emit(
           case DoubleInfo => sorter.sort(makeDependentSortingFunction[Double](compare, env, leftRightComparatorNames))
         }
 
-        val aout = emitArrayIterator(array)
-
-        val processArrayElts = aout.arrayEmitterFromBuilder(vab)
-        EmitTriplet(
+        val optStream = emitStream2(array)
+        val result = optStream.map { stream =>
           Code(
             vab.clear,
-            processArrayElts.setup),
-          processArrayElts.m.getOrElse(const(false)),
-          Code(
-            aout.calcLength,
-            processArrayElts.addElements,
-            compF,
+            stream.forEach(mb) { et =>
+              Code(et.setup, et.m.mux(vab.addMissing(), vab.add(et.v)))
+            },
+            sort,
             distinct,
-            sorter.toRegion()))
+            sorter.toRegion())
+        }
+
+        COption.toEmitTriplet(result, typeToTypeInfo(atyp), mb)
 
       case ToArray(a) => emit(a)
 
@@ -829,6 +828,7 @@ private class Emit(
           val bodyenv = env.bind(
             (valueName, (eltTI, xElt.load.m, xElt.load.v)))
           val codeB = emit(body, env = bodyenv)
+
           Code(xElt := elt, codeB.setup)
         }
 

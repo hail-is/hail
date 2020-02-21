@@ -379,13 +379,34 @@ object EmitStream2 {
     er: EmitRegion,
     container: Option[AggContainer]
   ): COption[Stream[EmitTriplet]] = {
-    val fb = emitter.mb.fb
+    val mb = emitter.mb
+    val fb = mb.fb
 
     def emitIR(ir: IR, env: Emit.E): EmitTriplet =
       emitter.emit(ir, env, er, container)
 
     def emitStream(streamIR: IR, env: Emit.E): COption[Stream[EmitTriplet]] =
       streamIR match {
+
+        case ArrayMap(childIR, name, bodyIR) =>
+          val childEltType = childIR.pType.asInstanceOf[PStreamable].elementType
+          implicit val childEltPack = TypedTriplet.pack(childEltType)
+          val childEltTI = typeToTypeInfo(childEltType)
+
+          val optStream = emitStream(childIR, env)
+          optStream.map { stream =>
+            stream.map { eltt =>
+              val xElt = childEltPack.newFields(mb.fb, name)
+              val bodyenv = env.bind(name -> ((childEltTI, xElt.load.m, xElt.load.v)))
+              val bodyt = emitIR(bodyIR, bodyenv)
+
+              EmitTriplet(
+                Code(xElt := TypedTriplet(childEltType, eltt),
+                     bodyt.setup),
+                bodyt.m,
+                bodyt.v)
+            }
+          }
 
         case _ =>
           val EmitStream(parameterized, eltType) =
