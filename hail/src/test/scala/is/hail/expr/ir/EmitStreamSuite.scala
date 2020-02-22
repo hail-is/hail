@@ -25,6 +25,8 @@ class EmitStreamSuite extends HailSuite {
     }
     val fb = new EmitFunctionBuilder[F](argTypeInfos.result(), GenericTypeInfo[Long])
     val mb = fb.apply_method
+
+    InferPType(streamIR, Env.empty)
     val stream = ExecuteContext.scoped { ctx =>
       EmitStream(new Emit(ctx, mb), streamIR, Env.empty, EmitRegion.default(mb), None)
     }
