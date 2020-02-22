@@ -25,12 +25,13 @@ class EmitStreamSuite extends HailSuite {
     }
     val fb = new EmitFunctionBuilder[F](argTypeInfos.result(), GenericTypeInfo[Long])
     val mb = fb.apply_method
-
+                println(s"STREAM IR IS ${streamIR}")
     InferPType(streamIR, Env.empty)
     val stream = ExecuteContext.scoped { ctx =>
       EmitStream(new Emit(ctx, mb), streamIR, Env.empty, EmitRegion.default(mb), None)
     }
     mb.emit {
+      println(s"STREAM TYPE IS ${stream.elementType}")
       val arrayt = stream
         .toArrayIterator(mb)
         .toEmitTriplet(mb, PArray(stream.elementType))
@@ -169,12 +170,12 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testEmitMap() {
-    val ten = StreamRange(I32(0), I32(10), I32(1))
+    def ten = StreamRange(I32(0), I32(10), I32(1))
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       ArrayMap(ten, "x", Ref("x", TInt32()) * 2) -> (0 until 10).map(_ * 2),
-      ArrayMap(ten.deepCopy(), "x", Ref("x", TInt32()).toL) -> (0 until 10).map(_.toLong),
-      ArrayMap(ArrayMap(ten.deepCopy(), "x", Ref("x", TInt32()) + 1), "y", Ref("y", TInt32()) * Ref("y", TInt32())) -> (0 until 10).map(i => (i + 1) * (i + 1)),
-      ArrayMap(ten.deepCopy(), "x", NA(TInt32())) -> IndexedSeq.tabulate(10) { _ => null }
+      ArrayMap(ten, "x", Ref("x", TInt32()).toL) -> (0 until 10).map(_.toLong),
+      ArrayMap(ArrayMap(ten, "x", Ref("x", TInt32()) + 1), "y", Ref("y", TInt32()) * Ref("y", TInt32())) -> (0 until 10).map(i => (i + 1) * (i + 1)),
+      ArrayMap(ten, "x", NA(TInt32())) -> IndexedSeq.tabulate(10) { _ => null }
     )
     for ((ir, v) <- tests) {
       assert(evalStream(ir) == v, Pretty(ir))
@@ -183,12 +184,12 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testEmitFilter() {
-    val ten = StreamRange(I32(0), I32(10), I32(1))
+    def ten = StreamRange(I32(0), I32(10), I32(1))
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       ArrayFilter(ten, "x", Ref("x", TInt32()) cne 5) -> (0 until 10).filter(_ != 5),
-      ArrayFilter(ArrayMap(ten.deepCopy(), "x", (Ref("x", TInt32()) * 2).toL), "y", Ref("y", TInt64()) > 5L) -> (3 until 10).map(x => (x * 2).toLong),
-      ArrayFilter(ArrayMap(ten.deepCopy(), "x", (Ref("x", TInt32()) * 2).toL), "y", NA(TInt32())) -> IndexedSeq(),
-      ArrayFilter(ArrayMap(ten.deepCopy(), "x", NA(TInt32())), "z", True()) -> IndexedSeq.tabulate(10) { _ => null }
+      ArrayFilter(ArrayMap(ten, "x", (Ref("x", TInt32()) * 2).toL), "y", Ref("y", TInt64()) > 5L) -> (3 until 10).map(x => (x * 2).toLong),
+      ArrayFilter(ArrayMap(ten, "x", (Ref("x", TInt32()) * 2).toL), "y", NA(TInt32())) -> IndexedSeq(),
+      ArrayFilter(ArrayMap(ten, "x", NA(TInt32())), "z", True()) -> IndexedSeq.tabulate(10) { _ => null }
     )
     for ((ir, v) <- tests) {
       assert(evalStream(ir) == v, Pretty(ir))

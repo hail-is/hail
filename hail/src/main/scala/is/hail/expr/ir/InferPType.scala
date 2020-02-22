@@ -318,6 +318,7 @@ object InferPType {
         val elementPType = zero.pType2.setRequired(body.pType2.required && zero.pType2.required)
         coerce[PStream](a.pType2).copy(elementPType, a.pType2.required)
       case ArrayLeftJoinDistinct(lIR, rIR, lName, rName, compare, join) =>
+        println(s"\n\n\nLEFT: ${lIR}\nRIGHT:${rIR}\nJOIN:${join}\n\n")
         infer(lIR)
         infer(rIR)
         val e = env.bind(lName -> lIR.pType2.asInstanceOf[PStream].elementType, rName -> rIR.pType2.asInstanceOf[PStream].elementType)
