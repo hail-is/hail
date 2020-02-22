@@ -478,13 +478,12 @@ object InferPType {
       case MakeStream(irs, t) =>
         if (irs.isEmpty) {
           PType.canonical(t, true).deepInnerRequired(true)
+        } else {
+          PStream(getNestedElementPTypes(irs.map(theIR => {
+            infer(theIR)
+            theIR._pType2
+          })), true)
         }
-
-        PStream(getNestedElementPTypes(irs.map(theIR => {
-          infer(theIR)
-          theIR._pType2
-        })), true)
-
       case x@InitOp(i, args, sig, op) =>
         op match {
           case Group() =>
