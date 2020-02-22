@@ -241,21 +241,21 @@ class EmitStreamSuite extends HailSuite {
       MakeStream(xs.map { case (a, b) => MakeTuple.ordered(Seq(I32(a), Str(b))) }, TStream(tupTyp))
 
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
-      leftjoin(pairs(Seq()), pairs(Seq())) -> IndexedSeq(),
-      leftjoin(pairs(Seq(3 -> "A")), pairs(Seq())) ->
-        IndexedSeq(Row("A", null)),
-      leftjoin(pairs(Seq()), pairs(Seq(3 -> "B"))) ->
-        IndexedSeq(),
-      leftjoin(pairs(Seq(0 -> "A")), pairs(Seq(0 -> "B"))) ->
-        IndexedSeq(Row("A", "B")),
+//      leftjoin(pairs(Seq()), pairs(Seq())) -> IndexedSeq(),
+//      leftjoin(pairs(Seq(3 -> "A")), pairs(Seq())) ->
+//        IndexedSeq(Row("A", null))
+//      leftjoin(pairs(Seq()), pairs(Seq(3 -> "B"))) ->
+//        IndexedSeq(),
+//      leftjoin(pairs(Seq(0 -> "A")), pairs(Seq(0 -> "B"))) ->
+//        IndexedSeq(Row("A", "B")),
       leftjoin(
         pairs(Seq(0 -> "A", 2 -> "B", 3 -> "C")),
         pairs(Seq(0 -> "a", 1 -> ".", 2 -> "b", 4 -> ".."))
-      ) -> IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", null)),
-      leftjoin(
-        pairs(Seq(0 -> "A", 1 -> "B1", 1 -> "B2")),
-        pairs(Seq(0 -> "a", 1 -> "b", 2 -> "c"))
-      ) -> IndexedSeq(Row("A", "a"), Row("B1", "b"), Row("B2", "b"))
+      ) -> IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", null))
+//      leftjoin(
+//        pairs(Seq(0 -> "A", 1 -> "B1", 1 -> "B2")),
+//        pairs(Seq(0 -> "a", 1 -> "b", 2 -> "c"))
+//      ) -> IndexedSeq(Row("A", "a"), Row("B1", "b"), Row("B2", "b"))
     )
     for ((ir, v) <- tests) {
       assert(evalStream(ir) == v, Pretty(ir))

@@ -323,8 +323,11 @@ object InferPType {
         infer(rIR)
         val e = env.bind(lName -> lIR.pType2.asInstanceOf[PStream].elementType, rName -> rIR.pType2.asInstanceOf[PStream].elementType)
 
+        println(s"s\n\nAFTER\nLIR: ${lIR}\nRIR: ${rIR}\n\n")
         infer(compare, e)
         infer(join, e)
+
+        val joinPType = lIR.zipAll
 
         coerce[PStream](lIR.pType2).copy(join.pType2, lIR.pType2.required)
       case NDArrayShape(nd) =>
