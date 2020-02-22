@@ -21,7 +21,7 @@ object InferPType {
     virt.default match {
       case AggElementsLengthCheck() =>
         assert(inits.length == 1)
-        assert(seqs.length == 1)
+        assert(seqs.length == 2)
 
         val iHead = inits.find(_.value.op == AggElementsLengthCheck()).get
         val iNested = iHead.nested.get
