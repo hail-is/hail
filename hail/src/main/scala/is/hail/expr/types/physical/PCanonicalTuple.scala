@@ -11,7 +11,7 @@ object PCanonicalTuple {
 final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val required: Boolean = false) extends PCanonicalBaseStruct(_types.map(_.typ).toArray) with PTuple {
   lazy val fieldIndex: Map[Int, Int] = _types.zipWithIndex.map { case (tf, idx) => tf.index -> idx }.toMap
 
-  def copy(required: Boolean = this.required): PTuple = PCanonicalTuple(_types, required)
+  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalTuple(_types, required)
 
   override def truncate(newSize: Int): PTuple =
     PCanonicalTuple(_types.take(newSize), required)

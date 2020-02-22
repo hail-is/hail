@@ -35,7 +35,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def copy(elementType: PType = this.elementType, required: Boolean = this.required): PCanonicalArray = PCanonicalArray(elementType, required)
+  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalArray(elementType, required)
 
   def loadLength(aoff: Long): Int =
     Region.loadInt(aoff)

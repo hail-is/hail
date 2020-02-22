@@ -1416,21 +1416,17 @@ object RVD {
   private def copyFromType(destPType: PType, srcPType: PType, srcRegionValue: RegionValue): RegionValue =
     RegionValue(srcRegionValue.region, destPType.copyFromType(srcRegionValue.region, srcPType, srcRegionValue.offset, false))
 
-  def unify(
-    rvds: Seq[RVD]
-  ): Seq[RVD] = rvds match {
-    case Seq(rvd) => rvds.toFastIndexedSeq
-    case _ =>
-      if (rvds.forall(_.rowPType == rvds.head.rowPType))
-        return rvds.toFastIndexedSeq
+  def unify(rvds: Seq[RVD]): Seq[RVD] = {
+    if (rvds.length == 1 || rvds.forall(_.rowPType == rvds.head.rowPType))
+      return rvds
 
-      val unifiedRowPType = InferPType.getNestedElementPTypesOfSameType(rvds.map(_.rowPType)).asInstanceOf[PStruct]
+    val unifiedRowPType = InferPType.getNestedElementPTypesOfSameType(rvds.map(_.rowPType)).asInstanceOf[PStruct]
 
-      rvds.map(rvd => {
-        val rowPType = rvd.rowPType
-        val newRVDType = rvd.typ.copy(rowType = unifiedRowPType)
-        rvd.map(newRVDType)(copyFromType(unifiedRowPType, rowPType, _))
-      })
+    rvds.map(rvd => {
+      val srcRowPType = rvd.rowPType
+      val newRVDType = rvd.typ.copy(rowType = unifiedRowPType)
+      rvd.map(newRVDType)(copyFromType(unifiedRowPType, srcRowPType, _))
+    })
   }
 
   def union(

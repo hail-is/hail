@@ -9,6 +9,7 @@ import gidgethub
 import zulip
 
 from hailtop.config import get_deploy_config
+from hailtop.batch_client.aioclient import Batch
 from hailtop.utils import check_shell, check_shell_output, RETRY_FUNCTION_SCRIPT
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
 from .build import BuildConfiguration, Code
@@ -828,7 +829,7 @@ mkdir -p {shq(repo_dir)}
             self.deploy_batch = deploy_batch
             return deploy_batch.id
         finally:
-            if deploy_batch and not self.deploy_batch:
+            if deploy_batch and not self.deploy_batch and isinstance(deploy_batch, Batch):
                 log.info(f'cancelling partial deploy batch {deploy_batch.id}')
                 await deploy_batch.cancel()
 

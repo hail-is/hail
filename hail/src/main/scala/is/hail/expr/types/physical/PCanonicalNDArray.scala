@@ -232,8 +232,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   private def deepRenameNDArray(t: TNDArray) =
     PCanonicalNDArray(this.elementType.deepRename(t.elementType), this.nDims, this.required)
 
-  def copy(elementType: PType = this.elementType, nDims: Int = this.nDims, required: Boolean = this.required): PCanonicalNDArray =
-    PCanonicalNDArray(elementType, nDims, required)
+  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalNDArray(elementType, nDims, required)
 
   def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] =
     throw new NotImplementedError("constructAtAddress should only be called on fundamental types; PCanonicalNDarray is not fundamental")

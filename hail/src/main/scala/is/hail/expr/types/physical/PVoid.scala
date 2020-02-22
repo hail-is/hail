@@ -30,4 +30,5 @@ case object PVoid extends PType {
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
     throw new NotImplementedError(s"$this is not constructable")
 
+  def setRequired(required: Boolean) = PVoid
 }

@@ -146,7 +146,6 @@ object TestUtils {
       None
   }
 
-
   def loweredExecute(x: IR, env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     agg: Option[(IndexedSeq[Row], TStruct)],
