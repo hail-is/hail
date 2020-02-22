@@ -401,12 +401,12 @@ object InferPType {
       case MakeStream(irs, t) =>
         if (irs.isEmpty) {
           PType.canonical(t, true).deepInnerRequired(true)
+        } else {
+          PStream(getNestedElementPTypes(irs.map(theIR => {
+            infer(theIR)
+            theIR._pType2
+          })), true)
         }
-
-        PStream(getNestedElementPTypes(irs.map(theIR => {
-          infer(theIR)
-          theIR._pType2
-        })), true)
       case ResultOp(_, aggSigs) =>
         val rPTypes = aggSigs.toIterator.zipWithIndex.map{ case (sig, i) => PTupleField(i, sig.toCanonicalPhysical.resultType)}.toIndexedSeq
         val allReq = rPTypes.forall(f => f.typ.required)
