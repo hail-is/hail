@@ -640,7 +640,7 @@ steps:
      export HAIL_DOCTEST_DATA_DIR=./data
      export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./hail.jar --conf spark.executor.extraClassPath=./hail.jar pyspark-shell"
      export PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}./hail.zip
-     python3 -m pytest --instafail test --durations=50
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /hail.jar
        to: /io/hail.jar
@@ -1024,7 +1024,7 @@ steps:
      export ORGANIZATION=hail-ci-test
      export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
      export NAMESPACE="{{ default_ns.name }}"
-     python3 -m pytest --log-cli-level=INFO -s -v --instafail /test/
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail /test/
    secrets:
     - name: gce-deploy-config
       namespace:
@@ -1075,7 +1075,7 @@ steps:
    script: |
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      export SCRATCH=gs://hail-test-dmk9z/{{ setup_pipeline.token }}/pipeline
-     python3 -m pytest --log-cli-level=INFO -s -v --instafail /io/test/
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/
    inputs:
     - from: /repo/pipeline/test
       to: /io/

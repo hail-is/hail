@@ -48,9 +48,9 @@ object IRSuite {
 
         override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(argTypes)
 
-        def applySeeded(seed: Long, r: EmitRegion, args: (PType, EmitTriplet)*): EmitTriplet = {
+        def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: (PType, EmitTriplet)*): EmitTriplet = {
           unify(args.map(_._1.virtualType))
-          impl(r, returnPType(args.map(_._1), returnType.subst()), seed, args.toArray)
+          impl(r, rpt, seed, args.toArray)
         }
       })
     }
@@ -62,19 +62,19 @@ object IRSuite {
       registerSeededWithMissingness("incr_s", TBoolean(), TBoolean(), null) { case (mb, rt,  _, (lT, l)) =>
         EmitTriplet(Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.setup),
           l.m,
-          l.v)
+          PValue(rt, l.v))
       }
 
       registerSeededWithMissingness("incr_m", TBoolean(), TBoolean(), null) { case (mb, rt, _, (lT, l)) =>
         EmitTriplet(l.setup,
           Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.m),
-          l.v)
+          PValue(rt, l.v))
       }
 
       registerSeededWithMissingness("incr_v", TBoolean(), TBoolean(), null) { case (mb, rt, _, (lT, l)) =>
         EmitTriplet(l.setup,
           l.m,
-          Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.v))
+          PValue(rt, Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.v)))
       }
     }
   }

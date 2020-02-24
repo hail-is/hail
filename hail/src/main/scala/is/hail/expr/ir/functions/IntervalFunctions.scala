@@ -43,7 +43,7 @@ object IntervalFunctions extends RegistryFunctions {
         EmitTriplet(
           Code(start.setup, end.setup, includeStart.setup, includeEnd.setup, ctor),
           mv,
-          vv)
+          PValue(rt, vv))
     }
 
     registerCodeWithMissingness("start", TInterval(tv("T")), tv("T"), (x: PType) => x.asInstanceOf[PInterval].pointType) {
@@ -53,7 +53,7 @@ object IntervalFunctions extends RegistryFunctions {
         EmitTriplet(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
           interval.m || !Code(iv := interval.value[Long], intervalT.startDefined(iv)),
-          Region.loadIRIntermediate(intervalT.pointType)(intervalT.startOffset(iv))
+          PValue(rt, Region.loadIRIntermediate(intervalT.pointType)(intervalT.startOffset(iv)))
         )
     }
 
@@ -64,7 +64,7 @@ object IntervalFunctions extends RegistryFunctions {
         EmitTriplet(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
           interval.m || !Code(iv := interval.value[Long], intervalT.endDefined(iv)),
-          Region.loadIRIntermediate(intervalT.pointType)(intervalT.endOffset(iv))
+          PValue(rt, Region.loadIRIntermediate(intervalT.pointType)(intervalT.endOffset(iv)))
         )
     }
 
@@ -99,7 +99,7 @@ object IntervalFunctions extends RegistryFunctions {
         EmitTriplet(
           Code(intTriplet.setup, pointTriplet.setup),
           intTriplet.m,
-          contains)
+          PValue(rt, contains))
     }
 
     registerCode("isEmpty", TInterval(tv("T")), TBoolean(), null) {

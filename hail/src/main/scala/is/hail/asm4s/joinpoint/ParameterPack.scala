@@ -2,7 +2,7 @@ package is.hail.asm4s.joinpoint
 
 import is.hail.asm4s._
 import is.hail.expr.ir
-import is.hail.expr.ir.EmitTriplet
+import is.hail.expr.ir.{EmitTriplet, PValue}
 import is.hail.expr.types.physical.PType
 
 trait ParameterPack[A] {
@@ -216,9 +216,10 @@ case class ParameterStoreArray(pss: IndexedSeq[ParameterStore[_]]) extends Param
 
 }
 
-case class ParameterPackTriplet[P](ti: TypeInfo[P]) extends ParameterPack[TypedTriplet[P]] {
+case class ParameterPackTriplet[P](t: PType) extends ParameterPack[TypedTriplet[P]] {
+  val ti: TypeInfo[P] = ir.typeToTypeInfo(t).asInstanceOf[TypeInfo[P]]
   val ppm = implicitly[ParameterPack[Code[Boolean]]]
-  val ppv = ParameterPack.code(ti)
+  val ppv = ParameterPack.code[P](ti).asInstanceOf[ParameterPack[Code[_]]]
 
   def push(trip: TypedTriplet[P]): Code[Unit] = Code(
     trip.setup,
@@ -229,18 +230,19 @@ case class ParameterPackTriplet[P](ti: TypeInfo[P]) extends ParameterPack[TypedT
   def newLocals(mb: MethodBuilder, name: String = null): ParameterStoreTriplet[P] = {
     val psm = ppm.newLocals(mb, if (name == null) "m" else s"${ name }_missing")
     val psv = ppv.newLocals(mb, if (name == null) "v" else name)
-    ParameterStoreTriplet[P](ti, psm, psv)
+    ParameterStoreTriplet[P](t, psm, psv)
   }
 
   def newFields(fb: FunctionBuilder[_], name: String): ParameterStoreTriplet[P] = {
     val psm = ppm.newFields(fb, if (name == null) "m" else s"${ name }_missing")
     val psv = ppv.newFields(fb, if (name == null) "v" else name)
-    ParameterStoreTriplet[P](ti, psm, psv)
+    ParameterStoreTriplet[P](t, psm, psv)
   }
 }
 
-case class ParameterStoreTriplet[A](ti: TypeInfo[A], psm: ParameterStore[Code[Boolean]], psv: ParameterStore[Code[A]]) extends ParameterStore[TypedTriplet[A]] {
-  def load: TypedTriplet[A] = TypedTriplet(Code._empty, psm.load, psv.load)
+case class ParameterStoreTriplet[A](t: PType, psm: ParameterStore[Code[Boolean]], psv: ParameterStore[Code[_]]) extends ParameterStore[TypedTriplet[A]] {
+  val ti: TypeInfo[A] = ir.typeToTypeInfo(t).asInstanceOf[TypeInfo[A]]
+  def load: TypedTriplet[A] = TypedTriplet[A](t, Code._empty, psm.load, psv.load)
 
   def store(trip: TypedTriplet[A]): Code[Unit] = Code(
     trip.setup,
@@ -255,17 +257,19 @@ case class ParameterStoreTriplet[A](ti: TypeInfo[A], psm: ParameterStore[Code[Bo
 
 object TypedTriplet {
   def apply(t: PType, et: EmitTriplet): TypedTriplet[t.type] =
-    TypedTriplet(et.setup, et.m, et.v)
+    TypedTriplet(et.setup, et.m, et.pv)
+
+  def apply[A](t: PType, setup: Code[Unit], m: Code[Boolean], v: Code[_]): TypedTriplet[A] =
+    TypedTriplet(setup, m, PValue(t, v))
 
   def missing(t: PType): TypedTriplet[t.type] =
-    TypedTriplet(t, EmitTriplet(Code._empty, true, ir.defaultValue(t)))
+    TypedTriplet(t, EmitTriplet(Code._empty, true, t.defaultValue))
 
-  def pack(t: PType): ParameterPackTriplet[t.type] = ParameterPackTriplet(ir.typeToTypeInfo(t).asInstanceOf[TypeInfo[t.type]])
+  def pack(t: PType): ParameterPackTriplet[t.type] = ParameterPackTriplet(t)
 }
 
-case class TypedTriplet[P] private(setup: Code[Unit], m: Code[Boolean], v: Code[_]) {
-  def untyped: EmitTriplet = EmitTriplet(setup, m, v)
+case class TypedTriplet[P] private(setup: Code[Unit], m: Code[Boolean], pv: PValue) {
+  def v: Code[_] = pv.code
 
-  def storeTo(dm: Settable[Boolean], dv: Settable[_]): Code[Unit] =
-    Code(setup, dm := m, (!dm).orEmpty(dv.storeAny(v)))
+  def untyped: EmitTriplet = EmitTriplet(setup, m, pv)
 }

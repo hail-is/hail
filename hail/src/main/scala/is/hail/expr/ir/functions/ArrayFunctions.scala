@@ -316,8 +316,8 @@ object ArrayFunctions extends RegistryFunctions {
         val x = r.mb.newLocal[Double]
         val y = r.mb.newLocal[Double]
 
-        val a1 = v1.asInstanceOf[Code[Long]]
-        val a2 = v2.asInstanceOf[Code[Long]]
+        val a1 = v1.tcode[Long]
+        val a2 = v2.tcode[Long]
 
         EmitTriplet(
           Code(
@@ -332,7 +332,7 @@ object ArrayFunctions extends RegistryFunctions {
                 .concat(", ")
                 .concat(l2.toS)),
               l1.ceq(0))),
-          Code(
+          PValue(PFloat64(), Code(
             i := 0,
             n := 0,
             xSum := 0d,
@@ -363,7 +363,7 @@ object ArrayFunctions extends RegistryFunctions {
               "sqrt",
               (n.toD * xSqSum - xSum * xSum) * (n.toD * ySqSum - ySum * ySum))
           )
-        )
+        ))
     }
   }
 }
