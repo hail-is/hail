@@ -72,7 +72,7 @@ object COption {
     }
   }
 
-  def fromTypedTriplet(et: EmitTriplet, ti: TypeInfo[_]): COption[Code[_]] = fromEmitTriplet(et)
+  def fromTypedTriplet(et: EmitTriplet): COption[Code[_]] = fromEmitTriplet(et)
 
   def toEmitTriplet(opt: COption[Code[_]], t: PType, mb: MethodBuilder): EmitTriplet = {
     val ti: TypeInfo[_] = typeToTypeInfo(t)
@@ -85,7 +85,7 @@ object COption {
     EmitTriplet(setup, m, PValue(t, v.load()))
   }
 
-  def toTypedTriplet[A](t: PType, mb: MethodBuilder, opt: COption[Code[A]]): TypedTriplet[t.type] =
+  def toTypedTriplet(t: PType, mb: MethodBuilder, opt: COption[Code[_]]): TypedTriplet[t.type] =
     TypedTriplet(t, toEmitTriplet(opt, t, mb))
 }
 
@@ -327,6 +327,22 @@ object CodeStream { self =>
     }
   }
 
+  def extendNA[A: ParameterPack](stream: Stream[A]): Stream[COption[A]] = new Stream[COption[A]] {
+    def apply(eos: Code[Ctrl], push: COption[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[COption[A]] = {
+      val atEnd = newLocal[Code[Boolean]]
+      val x = newLocal[A]
+      val pushJP = joinPoint()
+      val source = stream(Code(atEnd := true, pushJP(())), a => Code(x := a, pushJP(())))
+      pushJP.define(_ => push(COption(atEnd.load, x.load)))
+      Source[COption[A]](
+        setup0 = Code(atEnd := false, x.init, source.setup0),
+        close0 = source.close0,
+        setup = Code(atEnd := false, x.init, source.setup),
+        close = source.close,
+        pull = atEnd.load.mux(pushJP(()), source.pull))
+    }
+  }
+
   def mux[A: ParameterPack](cond: Code[Boolean], left: Stream[A], right: Stream[A]): Stream[A] = new Stream[A] {
     def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
       val b = newLocal[Code[Boolean]]
@@ -495,6 +511,38 @@ object EmitStream2 {
                 val typedElts = eltTypes.zip(elts).map { case (t, v) => TypedTriplet(t, v) }
                 EmitTriplet(Code(eltVars := typedElts, body.setup), body.m, body.pv)
               }
+          }
+
+        case StreamZip(as, names, bodyIR, ArrayZipBehavior.ExtendNA) =>
+          val eltTypes = as.map(_.pType.asInstanceOf[PStreamable].elementType)
+          val eltsPack = ParameterPack.array(eltTypes.map(TypedTriplet.pack(_)))
+          val eltVars = eltsPack.newFields(mb.fb, names)
+
+          val optStreams = COption.lift(as.map(emitStream(_, env)))
+
+          optStreams.map { streams =>
+            val extended = streams.zipWithIndex.map { case (stream, i) =>
+              val t = eltTypes(i)
+              CodeStream.extendNA[TypedTriplet[_]](stream.map(TypedTriplet(t, _)))(eltsPack.pps(i).asInstanceOf[ParameterPack[TypedTriplet[_]]])
+            }
+            CodeStream.take(CodeStream.multiZip(extended)
+              .mapCPS { (_, elts, k) =>
+                val allMissing = mb.newLocal[Boolean]
+                val checkedElts = elts.zip(eltTypes).map { case (optET, t) =>
+                  val optElt = optET.flatMapCPS[Code[_]] { (elt, _, k) =>
+                    Code(allMissing := false,
+                         k(COption.fromEmitTriplet(elt.untyped)))
+                  }
+                  COption.toTypedTriplet(t, mb, optElt)
+                }
+                val bodyEnv = Emit.bindEnv(env, names.zip(eltVars.pss.asInstanceOf[IndexedSeq[ParameterStoreTriplet[_]]]): _*)
+                val body = emitIR(bodyIR, bodyEnv)
+                EmitTriplet(Code(eltVars := checkedElts, body.setup), body.m, body.pv)
+                Code(
+                  allMissing := true,
+                  eltVars := checkedElts,
+                  k(COption(allMissing, body)))
+              })
           }
 
         case _ =>
