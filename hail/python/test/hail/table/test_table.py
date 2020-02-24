@@ -1373,6 +1373,7 @@ def test_join_distinct_preserves_count():
     assert n_defined_2 == 0
     assert keys_2 == left_pos
 
+
 def test_write_table_containing_ndarray():
     t = hl.utils.range_table(5)
     t = t.annotate(n = hl._nd.arange(t.idx))
@@ -1380,6 +1381,7 @@ def test_write_table_containing_ndarray():
     t.write(f)
     t2 = hl.read_table(f)
     assert t._same(t2)
+
 
 def test_group_within_partitions():
     t = hl.utils.range_table(10).naive_coalesce(2)
@@ -1405,3 +1407,9 @@ def test_group_within_partitions():
     ht = hl.utils.range_table(100).naive_coalesce(10)
     filter_then_group = ht.filter(ht.idx % 2 == 0)._group_within_partitions(5).collect()
     assert filter_then_group[0] == hl.Struct(idx=0, grouped_fields=[hl.Struct(idx=0), hl.Struct(idx=2), hl.Struct(idx=4), hl.Struct(idx=6), hl.Struct(idx=8)])
+
+
+def test_map_region_memory():
+    high_mem_table = hl.utils.range_table(30).annotate(big_array=hl.range(100_000_000))
+    high_mem_table = high_mem_table.filter(high_mem_table.idx % 2 == 0)
+    high_mem_table._force_count()
