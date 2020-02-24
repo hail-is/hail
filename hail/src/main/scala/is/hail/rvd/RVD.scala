@@ -534,8 +534,11 @@ class RVD(
     RVD(typ, newPartitioner, newRDD)
   }
 
-  def filter(p: (RegionValue) => Boolean): RVD =
-    RVD(typ, partitioner, crddBoundary.filter(p))
+  def filter(p: (RegionValue) => Boolean): RVD = {
+    val newWay = filterWithContext((_, _) => (), (_: Any, rv) => p(rv))
+    //RVD(typ, partitioner, crddBoundary.filter(p))
+    newWay
+  }
 
   def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD = {
     mapPartitionsWithIndex(typ, { (i, context, it) =>
