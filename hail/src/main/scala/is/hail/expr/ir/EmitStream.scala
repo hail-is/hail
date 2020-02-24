@@ -50,12 +50,30 @@ object COption {
   def apply[A](missing: Code[Boolean], value: A): COption[A] = new COption[A] {
     def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = missing.mux(none, some(value))
   }
+
+  def lift[A](opts: IndexedSeq[COption[A]]): COption[IndexedSeq[A]] = new COption[IndexedSeq[A]] {
+    def apply(none: Code[Ctrl], some: IndexedSeq[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+      val noneJP = ctx.jb.joinPoint()
+      noneJP.define(_ => none)
+
+      def nthOpt(i: Int, acc: IndexedSeq[A]): Code[Ctrl] =
+        if (i == opts.length - 1)
+          opts(i)(noneJP(()), a => some(acc :+ a))
+        else
+          opts(i)(noneJP(()), a => nthOpt(i+1, acc :+ a))
+
+      nthOpt(0, FastIndexedSeq())
+    }
+  }
+
   def fromEmitTriplet[A](et: EmitTriplet): COption[Code[A]] = new COption[Code[A]] {
     def apply(none: Code[Ctrl], some: Code[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
       Code(et.setup, et.m.mux(none, some(coerce[A](et.v))))
     }
   }
+
   def fromTypedTriplet(et: EmitTriplet, ti: TypeInfo[_]): COption[Code[_]] = fromEmitTriplet(et)
+
   def toEmitTriplet(opt: COption[Code[_]], t: PType, mb: MethodBuilder): EmitTriplet = {
     val ti: TypeInfo[_] = typeToTypeInfo(t)
     val m = mb.newLocal[Boolean]
@@ -66,6 +84,7 @@ object COption {
     }
     EmitTriplet(setup, m, PValue(t, v.load()))
   }
+
   def toTypedTriplet[A](t: PType, mb: MethodBuilder, opt: COption[Code[A]]): TypedTriplet[t.type] =
     TypedTriplet(t, toEmitTriplet(opt, t, mb))
 }
@@ -271,20 +290,20 @@ object CodeStream { self =>
     }
   }
 
-  def multiZip(streams: IndexedSeq[Stream[Code[_]]]): Stream[IndexedSeq[Code[_]]] = new Stream[IndexedSeq[Code[_]]] {
-    def apply(eos: Code[Ctrl], push: IndexedSeq[Code[_]] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[IndexedSeq[Code[_]]] = {
+  def multiZip[A](streams: IndexedSeq[Stream[A]]): Stream[IndexedSeq[A]] = new Stream[IndexedSeq[A]] {
+    def apply(eos: Code[Ctrl], push: IndexedSeq[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[IndexedSeq[A]] = {
       val closeJPs = streams.map(_ => joinPoint())
       val eosJP = closeJPs(0)
       val terminatingStream = newLocal[Code[Int]]
 
-      def nthSource(n: Int, acc: IndexedSeq[Code[_]]): (Source[Code[_]], IndexedSeq[Code[Unit]]) = {
+      def nthSource(n: Int, acc: IndexedSeq[A]): (Source[A], IndexedSeq[Code[Unit]]) = {
         if (n == streams.length - 1) {
           val src = streams(n)(
             Code(terminatingStream := n, eosJP(())),
             c => push(acc :+ c))
           (src, IndexedSeq(src.close))
         } else {
-          var rest: Source[Code[_]] = null
+          var rest: Source[A] = null
           var closes: IndexedSeq[Code[Unit]] = null
           val src = streams(n)(
             Code(terminatingStream := n, eosJP(())),
@@ -294,7 +313,7 @@ object CodeStream { self =>
               closes = t._2
               rest.pull
             })
-          (Source[Code[_]](
+          (Source[A](
               setup0 = Code(src.setup0, rest.setup0),
               close0 = Code(rest.close0, src.close0),
               setup = Code(src.setup, rest.setup),
@@ -313,7 +332,7 @@ object CodeStream { self =>
           Code(closes(i), next)))
       }
 
-      source.asInstanceOf[Source[IndexedSeq[Code[_]]]]
+      source.asInstanceOf[Source[IndexedSeq[A]]]
     }
   }
 
@@ -446,14 +465,13 @@ object EmitStream2 {
         case StreamFilter(childIR, name, condIR) =>
           val childEltType = childIR.pType.asInstanceOf[PStream].elementType
           implicit val childEltPack = TypedTriplet.pack(childEltType)
-          val childEltTI = typeToTypeInfo(childEltType)
 
           val optStream = emitStream(childIR, env)
           optStream.map { stream =>
             CodeStream.filter(stream
               .map { elt =>
                 val xElt = childEltPack.newFields(mb.fb, name)
-                val condEnv = env.bind(name -> ((childEltTI, xElt.load.m, xElt.load.v)))
+                val condEnv = env.bind(name -> ((xElt.load.m, xElt.load.pv)))
                 val cond = emitIR(condIR, condEnv)
 
                 new COption[EmitTriplet] {
@@ -463,12 +481,29 @@ object EmitStream2 {
                       cond.setup,
                       (cond.m || !cond.value[Boolean]).mux(
                         none,
-                        some(EmitTriplet(Code._empty, xElt.load.m, xElt.load.v))
+                        some(EmitTriplet(Code._empty, xElt.load.m, xElt.load.pv))
                       )
                     )
                   }
                 }
               })
+          }
+
+        case StreamZip(as, names, bodyIR, ArrayZipBehavior.TakeMinLength) =>
+          val eltTypes = as.map(_.pType.asInstanceOf[PStreamable].elementType)
+          val eltsPack = ParameterPack.array(eltTypes.map(TypedTriplet.pack(_)))
+          val eltVars = eltsPack.newFields(mb.fb, names)
+
+          val optStreams = COption.lift(as.map(emitStream(_, env)))
+
+          optStreams.map { streams =>
+            CodeStream.multiZip(streams)
+              .map { elts =>
+                val bodyEnv = Emit.bindEnv(env, names.zip(eltVars.pss.asInstanceOf[IndexedSeq[ParameterStoreTriplet[_]]]): _*)
+                val body = emitIR(bodyIR, bodyEnv)
+                val typedElts = eltTypes.zip(elts).map { case (t, v) => TypedTriplet(t, v) }
+                EmitTriplet(Code(eltVars := typedElts, body.setup), body.m, body.pv)
+              }
           }
 
         case _ =>
