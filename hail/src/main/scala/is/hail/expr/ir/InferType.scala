@@ -112,8 +112,8 @@ object InferType {
         coerce[TStreamable](a.typ).copyStreamable(zero.typ)
       case ArrayAgg(_, _, query) =>
         query.typ
-      case ArrayAggScan(_, _, query) =>
-        TArray(query.typ)
+      case ArrayAggScan(a, _, query) =>
+        a.typ.asInstanceOf[TStreamable].copyStreamable(query.typ)
       case RunAgg(body, result, _) =>
         result.typ
       case RunAggScan(a, _, _, _, result, _) =>
