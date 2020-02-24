@@ -297,6 +297,9 @@ object Copy {
         BlockMatrixWrite(newChildren(0).asInstanceOf[BlockMatrixIR], writer)
       case BlockMatrixMultiWrite(_, writer) =>
         BlockMatrixMultiWrite(newChildren.map(_.asInstanceOf[BlockMatrixIR]), writer)
+      case UnpersistBlockMatrix(child) =>
+        assert(newChildren.length == 1)
+        UnpersistBlockMatrix(newChildren(0).asInstanceOf[BlockMatrixIR])
       case CollectDistributedArray(_, _, cname, gname, _) =>
         assert(newChildren.length == 3)
         CollectDistributedArray(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], cname, gname, newChildren(2).asInstanceOf[IR])
