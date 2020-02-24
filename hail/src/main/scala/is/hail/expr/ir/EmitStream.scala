@@ -443,6 +443,34 @@ object EmitStream2 {
             }
           }
 
+        case StreamFilter(childIR, name, condIR) =>
+          val childEltType = childIR.pType.asInstanceOf[PStream].elementType
+          implicit val childEltPack = TypedTriplet.pack(childEltType)
+          val childEltTI = typeToTypeInfo(childEltType)
+
+          val optStream = emitStream(childIR, env)
+          optStream.map { stream =>
+            CodeStream.filter(stream
+              .map { elt =>
+                val xElt = childEltPack.newFields(mb.fb, name)
+                val condEnv = env.bind(name -> ((childEltTI, xElt.load.m, xElt.load.v)))
+                val cond = emitIR(condIR, condEnv)
+
+                new COption[EmitTriplet] {
+                  def apply(none: Code[Ctrl], some: EmitTriplet => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+                    Code(
+                      xElt := TypedTriplet(childEltType, elt),
+                      cond.setup,
+                      (cond.m || !cond.value[Boolean]).mux(
+                        none,
+                        some(EmitTriplet(Code._empty, xElt.load.m, xElt.load.v))
+                      )
+                    )
+                  }
+                }
+              })
+          }
+
         case _ =>
           val EmitStream(parameterized, eltType) =
             EmitStream.apply(emitter, streamIR, env, er, container)
