@@ -251,7 +251,7 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].length
-      case ArrayRange(start, stop, step) =>
+      case StreamRange(start, stop, step) =>
         val startValue = interpret(start, env, args)
         val stopValue = interpret(stop, env, args)
         val stepValue = interpret(step, env, args)

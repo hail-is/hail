@@ -77,7 +77,6 @@ object Simplify {
       case _: Apply |
            _: ApplyUnaryPrimOp |
            _: ApplyBinaryPrimOp |
-           _: ArrayRange |
            _: ArrayRef |
            _: ArrayLen |
            _: GetField |
@@ -195,8 +194,6 @@ object Simplify {
 
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
-    case ArrayLen(ArrayRange(start, end, I32(1))) => ApplyBinaryPrimOp(Subtract(), end, start)
-
     case ArrayLen(ArrayMap(a, _, _)) => ArrayLen(a)
 
     case ArrayLen(ArrayFlatMap(a, _, MakeArray(args, _))) => ApplyBinaryPrimOp(Multiply(), I32(args.length), ArrayLen(a))
@@ -214,7 +211,7 @@ object Simplify {
     case ArrayFlatMap(ArrayMap(a, n1, b1), n2, b2) =>
       ArrayFlatMap(a, n1, Let(n2, b1, b2))
 
-    case ArrayMap(a, elt, r: Ref) if r.name == elt && r.typ == a.typ.asInstanceOf[TArray].elementType => a
+    case ArrayMap(a, elt, r: Ref) if r.name == elt && r.typ == a.typ.asInstanceOf[TIterable].elementType => a
 
     case ArrayMap(ArrayMap(a, n1, b1), n2, b2) =>
       ArrayMap(a, n1, Let(n2, b1, b2))

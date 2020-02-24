@@ -53,8 +53,6 @@ object Children {
       Array(a, i, s)
     case ArrayLen(a) =>
       Array(a)
-    case ArrayRange(start, stop, step) =>
-      Array(start, stop, step)
     case StreamRange(start, stop, step) =>
       Array(start, stop, step)
     case MakeNDArray(data, shape, rowMajor) =>

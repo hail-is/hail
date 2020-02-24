@@ -186,7 +186,7 @@ object ArrayFunctions extends RegistryFunctions {
                   updateAccum(Ref(value, t), Ref(idx, TInt32())),
                   Ref(accum, tAccum))))))
       GetField(ArrayFold(
-        ArrayRange(I32(0), ArrayLen(a), I32(1)),
+        StreamRange(I32(0), ArrayLen(a), I32(1)),
         NA(tAccum),
         accum,
         idx,
@@ -227,7 +227,7 @@ object ArrayFunctions extends RegistryFunctions {
                     Ref(accum, tAccum)))))))
 
       Let(result, ArrayFold(
-        ArrayRange(I32(0), ArrayLen(a), I32(1)),
+        StreamRange(I32(0), ArrayLen(a), I32(1)),
         NA(tAccum),
         accum,
         idx,
@@ -253,8 +253,8 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("[*:]", TArray(tv("T")), TInt32(), TArray(tv("T"))) { (a, i) =>
       val idx = genUID()
-      ArrayMap(
-        ArrayRange(
+      ToArray(ArrayMap(
+        StreamRange(
           If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
             UtilFunctions.intMax(
               ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
@@ -263,27 +263,27 @@ object ArrayFunctions extends RegistryFunctions {
           ArrayLen(a),
           I32(1)),
         idx,
-        ArrayRef(a, Ref(idx, TInt32())))
+        ArrayRef(a, Ref(idx, TInt32()))))
     }
 
     registerIR("[:*]", TArray(tv("T")), TInt32(), TArray(tv("T"))) { (a, i) =>
       val idx = genUID()
       If(IsNA(a), a,
-        ArrayMap(
-          ArrayRange(
+        ToArray(ArrayMap(
+          StreamRange(
             I32(0),
             If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
               ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
               UtilFunctions.intMin(i, ArrayLen(a))),
             I32(1)),
           idx,
-          ArrayRef(a, Ref(idx, TInt32()))))
+          ArrayRef(a, Ref(idx, TInt32())))))
     }
 
     registerIR("[*:*]", TArray(tv("T")), TInt32(), TInt32(), TArray(tv("T"))) { (a, i, j) =>
       val idx = genUID()
-      ArrayMap(
-        ArrayRange(
+      ToArray(ArrayMap(
+        StreamRange(
           If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
             UtilFunctions.intMax(
               ApplyBinaryPrimOp(Add(), ArrayLen(a), i),
@@ -294,7 +294,7 @@ object ArrayFunctions extends RegistryFunctions {
             UtilFunctions.intMin(j, ArrayLen(a))),
           I32(1)),
         idx,
-        ArrayRef(a, Ref(idx, TInt32())))
+        ArrayRef(a, Ref(idx, TInt32()))))
     }
 
     registerIR("flatten", TArray(TArray(tv("T"))), TArray(tv("T"))) { a =>

@@ -157,10 +157,6 @@ object TypeCheck {
         assert(x.typ == -coerce[TStreamable](a.typ).elementType)
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TStreamable])
-      case x@ArrayRange(a, b, c) =>
-        assert(a.typ.isOfType(TInt32()))
-        assert(b.typ.isOfType(TInt32()))
-        assert(c.typ.isOfType(TInt32()))
       case x@StreamRange(a, b, c) =>
         assert(a.typ.isOfType(TInt32()))
         assert(b.typ.isOfType(TInt32()))
