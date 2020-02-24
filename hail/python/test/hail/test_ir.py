@@ -74,7 +74,7 @@ class ValueIRTests(unittest.TestCase):
             ir.ArrayLeftJoinDistinct(a, a, 'l', 'r', ir.I32(0), ir.I32(1)),
             ir.ArrayFor(a, 'v', ir.Void()),
             ir.AggFilter(ir.TrueIR(), ir.I32(0), False),
-            ir.AggExplode(ir.ToStream(ir.StreamRange(ir.I32(0), ir.I32(2), ir.I32(1))), 'x', ir.I32(0), False),
+            ir.AggExplode(ir.ToArray(ir.StreamRange(ir.I32(0), ir.I32(2), ir.I32(1))), 'x', ir.I32(0), False),
             ir.AggGroupBy(ir.TrueIR(), ir.I32(0), False),
             ir.AggArrayPerElement(ir.ToArray(ir.StreamRange(ir.I32(0), ir.I32(2), ir.I32(1))), 'x', 'y', ir.I32(0), False),
             ir.ApplyAggOp('Collect', [], [ir.I32(0)]),
