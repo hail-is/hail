@@ -541,6 +541,10 @@ class RVD(
   }
 
   def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD = {
+    // Call idkYet on my contextRDD to get just an RDD[RegionValue]
+    // Go through the RDD of region values and for each partition
+    //    go through the iterator and either add a reference or clear.
+
     mapPartitionsWithIndex(typ, { (i, context, it) =>
       val c = makeContext(i, context)
       it.filter { rv =>

@@ -265,6 +265,15 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       preservesPartitioning),
     mkc)
 
+  def mapAwayContext[U: ClassTag](
+    f: (C, Iterator[T]) => Iterator[U],
+    preservesPartitioning: Boolean = false
+   ): RDD[U] = {
+    rdd.mapPartitions(
+      part => ???
+    )
+  }
+
   def cmapPartitionsAndContext[U: ClassTag](
     f: (C, (Iterator[C => Iterator[T]])) => Iterator[U],
     preservesPartitioning: Boolean = false
