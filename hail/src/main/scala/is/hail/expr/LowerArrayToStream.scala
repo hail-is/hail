@@ -33,7 +33,6 @@ object LowerArrayToStream {
         valueName, seq.map(boundary), boundary(result))
       case RunAggScan(a, name, init, seq, res, sig) => RunAggScan(toStream(a), name, boundary(init), boundary(seq), boundary(res), sig)
       case MakeArray(args, t) => MakeStream(args.map(boundary), TStream(t.elementType, t.required))
-      case ArrayRange(start, stop, step) => StreamRange(boundary(start), boundary(stop), boundary(step))
       case ArrayZip(childIRs, names, body, behavior) => ArrayZip(childIRs.map(toStream), names, boundary(body), behavior)
       case ArrayMap(a, n, b) => ArrayMap(toStream(a), n, boundary(b))
       case ArrayFilter(a, n, b) => ArrayFilter(toStream(a), n, boundary(b))

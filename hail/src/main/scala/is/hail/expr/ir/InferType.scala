@@ -30,7 +30,6 @@ object InferType {
       case MakeNDArray(data, shape, _) =>
         TNDArray(coerce[TArray](data.typ).elementType.setRequired(true), Nat(shape.typ.asInstanceOf[TTuple].size))
       case _: ArrayLen => TInt32()
-      case _: ArrayRange => TArray(TInt32())
       case _: StreamRange => TStream(TInt32())
       case _: LowerBoundOnOrderedCollection => TInt32()
       case _: ArrayFor => TVoid

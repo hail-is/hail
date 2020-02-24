@@ -36,7 +36,7 @@ object IRBuilder {
   implicit def arrayIRToProxy(seq: Seq[IR]): IRProxy = arrayToProxy(seq.map(irToProxy))
 
   def irRange(start: IRProxy, end: IRProxy, step: IRProxy = 1): IRProxy = (env: E) =>
-    ArrayRange(start(env), end(env), step(env))
+    ToArray(StreamRange(start(env), end(env), step(env)))
 
   def irArrayLen(a: IRProxy): IRProxy = (env: E) => ArrayLen(a(env))
 

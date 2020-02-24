@@ -11,13 +11,13 @@ import org.testng.annotations.{DataProvider, Test}
 class ForwardLetsSuite extends HailSuite {
   @DataProvider(name = "nonForwardingOps")
   def nonForwardingOps(): Array[Array[IR]] = {
-    val a = ArrayRange(I32(0), I32(10), I32(1))
+    val a = ToArray(StreamRange(I32(0), I32(10), I32(1)))
     val x = Ref("x", TInt32())
     val y = Ref("y", TInt32())
     Array(
       ArrayMap(a, "y", ApplyBinaryPrimOp(Add(), x, y)),
       ArrayFilter(a, "y", ApplyComparisonOp(LT(TInt32()), x, y)),
-      ArrayFlatMap(a, "y", ArrayRange(x, y, I32(1))),
+      ToArray(ArrayFlatMap(a, "y", StreamRange(x, y, I32(1)))),
       ArrayFold(a, I32(0), "acc", "y", ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, y), Ref("acc", TInt32()))),
       ArrayFold2(a, FastSeq(("acc", I32(0))), "y", FastSeq(x + y + Ref("acc", TInt32())), Ref("acc", TInt32())),
       ArrayScan(a, I32(0), "acc", "y", ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, y), Ref("acc", TInt32()))),
@@ -42,7 +42,7 @@ class ForwardLetsSuite extends HailSuite {
 
   @DataProvider(name = "nonForwardingAggOps")
   def nonForwardingAggOps(): Array[Array[IR]] = {
-    val a = ArrayRange(I32(0), I32(10), I32(1))
+    val a = StreamRange(I32(0), I32(10), I32(1))
     val x = Ref("x", TInt32())
     val y = Ref("y", TInt32())
     Array(
@@ -60,8 +60,8 @@ class ForwardLetsSuite extends HailSuite {
       If(True(), x, I32(0)),
       ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), I32(2), x), I32(1)),
       ApplyUnaryPrimOp(Negate(), x),
-      ArrayMap(ArrayRange(I32(0), x, I32(1)), "foo", Ref("foo", TInt32())),
-      ArrayFilter(ArrayRange(I32(0), x, I32(1)), "foo", Ref("foo", TInt32()) <= I32(0))
+      ToArray(ArrayMap(StreamRange(I32(0), x, I32(1)), "foo", Ref("foo", TInt32()))),
+      ToArray(ArrayFilter(StreamRange(I32(0), x, I32(1)), "foo", Ref("foo", TInt32()) <= I32(0)))
     ).map(ir => Array[IR](Let("x", In(0, TInt32()) + In(0, TInt32()), ir)))
   }
 
