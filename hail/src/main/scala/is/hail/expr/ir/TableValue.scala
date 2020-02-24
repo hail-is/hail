@@ -60,10 +60,6 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
       }, { case ((p, glob), rv) => pred(p, rv, glob) }))
   }
 
-  def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {
-    filterWithPartitionOp((_, _) => ())((_, rv1, rv2) => p(rv1, rv2))
-  }
-
   def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSON: String) {
     assert(typ.isCanonical)
     val hc = HailContext.get
