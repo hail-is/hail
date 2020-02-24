@@ -193,9 +193,6 @@ object CodeStream { self =>
     close:  Option[Code[Unit]] = None
   ): Stream[B] = mapCPS(stream)((_, a, k) => k(f(a)), setup0, setup, close0, close)
 
-  def addFinalizer[A](stream: Stream[A])(finalize: Code[Unit]): Stream[A] =
-    map[A, A](stream)(a => a, close = Some(finalize))
-
   def flatMap[A](outer: Stream[Stream[A]]): Stream[A] = new Stream[A] {
     def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
       val outerPullJP = joinPoint()
