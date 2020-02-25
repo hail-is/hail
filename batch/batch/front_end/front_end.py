@@ -27,7 +27,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 # import uvloop
 
 from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_memory_request, \
-    worker_memory_per_core_gb
+    worker_memory_per_core_gb, check_service_account_permissions
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
@@ -581,6 +581,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if not secrets:
                     secrets = []
 
+                if len(secrets) != 0 and user != 'ci':
+                    secrets = [(secret["namespace"], secret["name"]) for secret in secrets]
+                    raise web.HTTPBadRequest(reason=f'unauthorized secret {secrets} for user {user}')
+
                 for secret in secrets:
                     if user != 'ci':
                         raise web.HTTPBadRequest(reason=f'unauthorized secret {(secret["namespace"], secret["name"])}')
@@ -594,8 +598,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 })
 
                 sa = spec.get('service_account')
-                if sa and user != 'ci' and not (user == 'test' and sa['name'] == 'test-batch-sa' and sa['namespace'] == BATCH_PODS_NAMESPACE):
-                    raise web.HTTPBadRequest(reason=f'unauthorized service account {(sa["namespace"], sa["name"])}')
+                check_service_account_permissions(user, sa)
 
                 env = spec.get('env')
                 if not env:

@@ -1,8 +1,11 @@
 import re
 import logging
 import math
+from aiohttp import web
+
 
 from .front_end.validate import CPU_REGEX, MEMORY_REGEX
+from .batch_configuration import BATCH_PODS_NAMESPACE
 
 log = logging.getLogger('utils')
 
@@ -107,3 +110,17 @@ def parse_image_tag(image_string):
     if match:
         return match.group(3)
     return None
+
+
+def check_service_account_permissions(user, sa):
+    if sa is None:
+        return
+    if user == 'ci':
+        if sa['name'] == 'ci-agent' and sa['namespace'] == BATCH_PODS_NAMESPACE:
+            return
+        if sa['name'] == 'admin' and sa['namespace'] == BATCH_PODS_NAMESPACE:
+            return
+    if user == 'test':
+        if sa['name'] == 'test-batch-sa' and sa['namespace'] == BATCH_PODS_NAMESPACE:
+            return
+    raise web.HTTPBadRequest(reason=f'unauthorized service account {(sa["namespace"], sa["name"])} for user {user}')
