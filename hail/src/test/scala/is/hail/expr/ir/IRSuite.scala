@@ -852,9 +852,9 @@ class IRSuite extends HailSuite {
     assertEvalsTo(MakeArray(FastSeq(), TArray(TInt32())), FastIndexedSeq())
   }
 
-  @Test def testMakeArrayInferPTypeFromNestedRef() {
-    var ir = MakeArray(FastSeq(), TArray(TInt32()))
-    assertPType(ir, PArray(PInt32(true), true))
+  @Test def testMakeStreamInferPTypeFromNestedRef() {
+    var ir = MakeStream(FastSeq(), TStream(TInt32()))
+    assertPType(ir, PStream(PInt32(true), true))
 
     var ref = FastSeq(
       Ref("1", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32(), "c" -> TDict(TInt32(), TString())) )
@@ -865,17 +865,17 @@ class IRSuite extends HailSuite {
       "2" -> PStruct(true, "a" -> PArray(PArray(PInt32(true), true), true), "b" -> PInt32(true), "c" -> PDict(PInt32(true), PString(true), true))
     )
 
-    ir = MakeArray(ref, TArray(TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32(), "c" -> TDict(TInt32(), TString()))))
+    ir = MakeStream(ref, TStream(TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32(), "c" -> TDict(TInt32(), TString()))))
 
-    assertPType(ir, PArray(PStruct(true, "a" -> PArray(PArray(PInt32(false), true), false), "b" -> PInt32(true), "c" -> PDict(PInt32(false), PString(false), false)), true), env)
+    assertPType(ir, PStream(PStruct(true, "a" -> PArray(PArray(PInt32(false), true), false), "b" -> PInt32(true), "c" -> PDict(PInt32(false), PString(false), false)), true), env)
 
     ref = FastSeq(
       Ref("1", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32(), "c" -> TDict(TInt32(), TString())) ),
       Ref("2", TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32(), "c" -> TDict(TInt32(), TString())) )
     )
 
-    ir = MakeArray(ref, TArray(TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32(), "c" -> TDict(TInt32(), TString()))))
-    assertPType(ir, PArray(PStruct(true, "a" -> PArray(PArray(PInt32(false), true), false), "b" -> PInt32(true), "c" -> PDict(PInt32(false), PString(false), false)), true), env)
+    ir = MakeStream(ref, TStream(TStruct("a" -> TArray(TArray(TInt32())), "b" -> TInt32(), "c" -> TDict(TInt32(), TString()))))
+    assertPType(ir, PStream(PStruct(true, "a" -> PArray(PArray(PInt32(false), true), false), "b" -> PInt32(true), "c" -> PDict(PInt32(false), PString(false), false)), true), env)
   }
 
   @Test def testMakeArrayInferPType() {
@@ -1592,6 +1592,19 @@ class IRSuite extends HailSuite {
 
     assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range6, range8), "zip: length mismatch")
     assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range12, lit6), "zip: length mismatch")
+  }
+
+  @Test def testArrayZip2(): Unit = {
+    val make4 = MakeStream(Seq(I32(4)), TStream(TInt32()))
+    val make4b = MakeStream(Seq(NA(TInt32())), TStream(TInt32()))
+
+    def zipAdd(behavior: ArrayZipBehavior, x: IR, y: IR): IR = ToArray(ArrayZip(
+      FastIndexedSeq(x, y),
+      FastIndexedSeq("x", "y"),
+      ApplyBinaryPrimOp(Add(), Ref("x", TInt32()), Ref("y", TInt32())),
+      behavior))
+
+    assertEvalSame(zipAdd(ArrayZipBehavior.AssertSameLength, make4, make4b))
   }
 
   @Test def testToSet() {
@@ -2859,12 +2872,13 @@ class IRSuite extends HailSuite {
     val s = Pretty(x, elideLiterals = false)
     val x2 = IRParser.parse_value_ir(s, env)
 
-    assert(x2 == x)
+     assert(x2 == x)
   }
 
   @Test(dataProvider = "tableIRs")
   def testTableIRParser(x: TableIR) {
     val s = Pretty(x, elideLiterals = false)
+    println(s)
     val x2 = IRParser.parse_table_ir(s)
     assert(x2 == x)
   }

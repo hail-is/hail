@@ -135,6 +135,7 @@ class DefinableJoinPoint[A: ParameterPack] private[joinpoint](
   args: ParameterStore[A],
   stackIndicator: Int
 ) extends JoinPoint[A](stackIndicator) {
+  def init: Code[Unit] = args.init
 
   def define(f: A => Code[Ctrl]): Unit =
     body = Some(Code(args.storeInsn, f(args.load)))

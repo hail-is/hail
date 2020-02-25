@@ -530,7 +530,7 @@ class ApplyComparisonOp(IR):
         self._type = tbool
 
 
-class MakeArray(IR):
+class MakeStream(IR):
     @typecheck_method(args=sequenceof(IR), type=nullable(hail_type))
     def __init__(self, args, type):
         super().__init__(*args)
@@ -538,7 +538,7 @@ class MakeArray(IR):
         self._type = type
 
     def copy(self, *args):
-        return MakeArray(args, self._type)
+        return MakeStream(args, self._type)
 
     def head_str(self):
         return self._type._parsable_string() if self._type is not None else 'None'
@@ -550,7 +550,7 @@ class MakeArray(IR):
         for a in self.args:
             a._compute_type(env, agg_env)
         if self._type is None:
-            self._type = tarray(self.args[0].typ)
+            self._type = tstream(self.args[0].typ)
 
 
 class ArrayRef(IR):

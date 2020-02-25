@@ -519,7 +519,8 @@ class PruneSuite extends HailSuite {
   }
 
   val ref = Ref("x", TStruct("a" -> TInt32(), "b" -> TInt32(), "c" -> TInt32()))
-  val arr = MakeArray(FastIndexedSeq(ref, ref), TArray(ref.typ))
+  val st = MakeStream(FastIndexedSeq(ref, ref), TStream(ref.typ))
+  val arr = ToArray(st)
   val ndArr = MakeNDArray(arr, MakeTuple(IndexedSeq((0, I64(2l)))), True())
   val empty = TStruct()
   val justA = TStruct("a" -> TInt32())
@@ -553,8 +554,8 @@ class PruneSuite extends HailSuite {
     checkMemo(AggLet("foo", ref, True(), false), TBoolean(), Array(empty, null))
   }
 
-  @Test def testMakeArrayMemo() {
-    checkMemo(arr, TArray(justB), Array(justB, justB))
+  @Test def testMakeStreamMemo() {
+    checkMemo(st, TStream(justB), Array(justB, justB))
   }
 
   @Test def testArrayRefMemo() {
@@ -1044,10 +1045,10 @@ class PruneSuite extends HailSuite {
       })
   }
 
-  @Test def testMakeArrayRebuild() {
-    checkRebuild(MakeArray(Seq(NA(ts)), TArray(ts)), TArray(subsetTS("b")),
+  @Test def testMakeStreamRebuild() {
+    checkRebuild(MakeStream(Seq(NA(ts)), TStream(ts)), TStream(subsetTS("b")),
       (_: BaseIR, r: BaseIR) => {
-        val ir = r.asInstanceOf[MakeArray]
+        val ir = r.asInstanceOf[MakeStream]
         ir.args.head.typ == subsetTS("b")
       })
   }

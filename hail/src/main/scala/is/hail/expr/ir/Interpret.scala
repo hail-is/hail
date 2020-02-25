@@ -222,8 +222,7 @@ object Interpret {
             case GTEQ(t, _) => t.ordering.gteq(lValue, rValue)
             case Compare(t, _) => t.ordering.compare(lValue, rValue)
           }
-
-      case MakeArray(elements, _) => elements.map(interpret(_, env, args)).toFastIndexedSeq
+      case MakeStream(elements, _) => elements.map(interpret(_, env, args)).toFastIndexedSeq
       case x@ArrayRef(a, i, s) =>
         val aValue = interpret(a, env, args)
         val iValue = interpret(i, env, args)

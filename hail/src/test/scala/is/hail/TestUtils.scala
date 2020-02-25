@@ -346,6 +346,7 @@ object TestUtils {
               Interpret[Any](ctx, x, env, args, optimize = false)
             case ExecStrategy.JvmCompile =>
               assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
+              println(Pretty(x))
               eval(x, env, args, agg, bytecodePrinter =
                 Option(HailContext.getFlag("jvm_bytecode_dump"))
                   .map { path =>

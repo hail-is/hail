@@ -91,7 +91,7 @@ object Simplify {
     */
   private[this] def isDefinitelyDefined(x: IR): Boolean = {
     x match {
-      case _: MakeArray |
+      case _: MakeStream |
            _: MakeStruct |
            _: MakeTuple |
            _: IsNA |
@@ -192,15 +192,15 @@ object Simplify {
 
     case x: ApplyIR if x.inline || x.body.size < 10 => x.explicitNode
 
-    case ArrayLen(MakeArray(args, _)) => I32(args.length)
+    case ArrayLen(MakeStream(args, _)) => I32(args.length)
 
     case ArrayLen(ArrayMap(a, _, _)) => ArrayLen(a)
 
-    case ArrayLen(ArrayFlatMap(a, _, MakeArray(args, _))) => ApplyBinaryPrimOp(Multiply(), I32(args.length), ArrayLen(a))
+    case ArrayLen(ArrayFlatMap(a, _, MakeStream(args, _))) => ApplyBinaryPrimOp(Multiply(), I32(args.length), ArrayLen(a))
 
     case ArrayLen(ArraySort(a, _, _, _)) => ArrayLen(a)
 
-    case ArrayRef(MakeArray(args, _), I32(i), _) if i >= 0 && i < args.length => args(i)
+    case ArrayRef(MakeStream(args, _), I32(i), _) if i >= 0 && i < args.length => args(i)
 
     case ArrayFilter(a, _, True()) => a
 

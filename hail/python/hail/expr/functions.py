@@ -3983,7 +3983,7 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
     :class:`.ArrayExpression`
     """
     array_t = hl.tarray(t)
-    ir = MakeArray([], array_t)
+    ir = ToArray(MakeStream([], array_t))
     return construct_expr(ir, array_t)
 
 

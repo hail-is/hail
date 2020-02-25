@@ -45,8 +45,6 @@ object Children {
       Array(x)
     case ApplyComparisonOp(op, l, r) =>
       Array(l, r)
-    case MakeArray(args, typ) =>
-      args.toFastIndexedSeq
     case MakeStream(args, typ) =>
       args.toFastIndexedSeq
     case ArrayRef(a, i, s) =>

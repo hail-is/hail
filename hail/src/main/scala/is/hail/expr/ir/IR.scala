@@ -133,20 +133,30 @@ final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR
 final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR
 
 object MakeArray {
-  def unify(args: Seq[IR], requestedType: TArray = null): MakeArray = {
+  def apply(args: Seq[IR], _typ: TArray): IR =
+    ToArray(MakeStream(args, TStream(_typ.elementType, _typ.required)))
+
+  def unify(args: Seq[IR], requestedType: TArray = null): IR =
+    ToArray(MakeStream.unify(args,
+      if (requestedType != null)
+        TStream(requestedType.elementType, requestedType.required)
+      else
+        null))
+}
+
+object MakeStream {
+  def unify(args: Seq[IR], requestedType: TStream = null): IR = {
     assert(requestedType != null || args.nonEmpty)
 
-    if(args.nonEmpty) {
-      if (args.forall(_.typ == args.head.typ)) {
-        return MakeArray(args, TArray(args.head.typ))
-      }
+    if (args.nonEmpty) {
+      if (args.forall(_.typ == args.head.typ))
+        return MakeStream(args, TStream(args.head.typ))
 
-      if (args.forall(_.typ isOfType args.head.typ)) {
-        return MakeArray(args, TArray(args.head.typ.deepOptional()))
-      }
+      if (args.forall(_.typ isOfType args.head.typ))
+        return MakeStream(args, TStream(args.head.typ.deepOptional()))
     }
 
-    MakeArray(args.map { arg =>
+    MakeStream(args.map { arg =>
       val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
       assert(upcast.typ isOfType requestedType.elementType)
       upcast
@@ -154,7 +164,6 @@ object MakeArray {
   }
 }
 
-final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
 final case class MakeStream(args: Seq[IR], _typ: TStream) extends IR
 
 object ArrayRef {

@@ -53,9 +53,6 @@ object Copy {
       case ApplyComparisonOp(op, _, _) =>
         assert(newChildren.length == 2)
         ApplyComparisonOp(op, newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case MakeArray(args, typ) =>
-        assert(args.length == newChildren.length)
-        MakeArray(newChildren.map(_.asInstanceOf[IR]), typ)
       case MakeStream(args, typ) =>
         assert(args.length == newChildren.length)
         MakeStream(newChildren.map(_.asInstanceOf[IR]), typ)

@@ -331,18 +331,6 @@ object InferPType {
           infer(v)
           PTupleField(idx, v.pType2)
         }.toFastIndexedSeq, true)
-      case MakeArray(irs, t) =>
-        if (irs.isEmpty) {
-          PType.canonical(t, true).deepInnerRequired(true)
-        } else {
-          val elementTypes = irs.map { elt =>
-            infer(elt)
-            elt.pType2
-          }
-
-          val inferredElementType = getNestedElementPTypes(elementTypes)
-          PArray(inferredElementType, true)
-        }
       case GetTupleElement(o, idx) =>
         infer(o)
         val t = coerce[PTuple](o.pType2)

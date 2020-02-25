@@ -480,18 +480,6 @@ private class Emit(
               (rm, rm.mux(defaultValue(r.typ), codeR.v)))))
         }
 
-      case x@MakeArray(args, _) =>
-        val pType = x.pType.asInstanceOf[PArray]
-        val srvb = new StagedRegionValueBuilder(mb, pType)
-        val addElement = srvb.addIRIntermediate(pType.elementType)
-
-        val addElts = { (newMB: EmitMethodBuilder, pt: PType, v: EmitTriplet) =>
-          Code(
-            v.setup,
-            v.m.mux(srvb.setMissing(), addElement(pType.elementType.copyFromTypeAndStackValue(newMB, er.region, pt, v.v))),
-            srvb.advance())
-        }
-        present(Code(srvb.start(args.size, init = true), wrapToMethod(args)(addElts), srvb.offset))
       case x@ArrayRef(a, i, s) =>
         val typ = x.typ
         val pArray = coerce[PStreamable](a.pType).asPArray

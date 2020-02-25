@@ -922,9 +922,14 @@ object PruneDeadFields {
       case RelationalRef(name, _) =>
         memo.relationalRefs.getOrElseUpdate(name, new ArrayBuilder[Type]) += requestedType
         BindingEnv.empty
-      case MakeArray(args, _) =>
-        val eltType = requestedType.asInstanceOf[TStreamable].elementType
+      case MakeStream(args, _) =>
+        val eltType = requestedType.asInstanceOf[TStream].elementType
         unifyEnvsSeq(args.map(a => memoizeValueIR(a, eltType, memo)))
+      // FIXME this doesn't work or TDict
+      case ToArray(a) if a.typ.isInstanceOf[TStreamable] =>
+        unifyEnvs(memoizeValueIR(a,
+          a.typ.asInstanceOf[TStreamable].copyStreamable(requestedType.asInstanceOf[TStreamable].elementType, requestedType.required),
+          memo))
       case ArrayRef(a, i, s) =>
         unifyEnvs(
           memoizeValueIR(a, a.typ.asInstanceOf[TStreamable].copyStreamable(requestedType), memo),
@@ -1636,10 +1641,9 @@ object PruneDeadFields {
         memo.relationalRefs += name -> value2.typ
         RelationalLet(name, value2, rebuildIR(body, env, memo))
       case RelationalRef(name, _) => RelationalRef(name, memo.relationalRefs(name))
-      case MakeArray(args, _) =>
-        val dep = requestedType.asInstanceOf[TStreamable]
+      case MakeStream(args, _) =>
         val args2 = args.map(a => rebuildIR(a, env, memo))
-        MakeArray.unify(args2, TArray(dep.elementType, dep.elementType.required))
+        MakeStream.unify(args2, requestedType.asInstanceOf[TStream])
       case ArrayMap(a, name, body) =>
         val a2 = rebuildIR(a, env, memo)
         ArrayMap(a2, name, rebuildIR(body, env.bindEval(name, -a2.typ.asInstanceOf[TStreamable].elementType), memo))

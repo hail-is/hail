@@ -475,8 +475,8 @@ object EmitStream {
       eos.define(_ => k(EOS))
       behavior match {
         case ArrayZipBehavior.AssertSameLength =>
-          val anyEOS = ctx.mb.newLocal[Boolean]
-          val allEOS = ctx.mb.newLocal[Boolean]
+          val anyEOS = ctx.mb.newLocal[Boolean]("anyEOS")
+          val allEOS = ctx.mb.newLocal[Boolean]("allEOS")
           val labels = (0 to streams.size).map(_ => ctx.jb.joinPoint())
 
           val ab = new ArrayBuilder[(EmitTriplet, Any)]
@@ -731,7 +731,7 @@ object EmitStream {
     def step(idx: S)(k: Step[A, S] => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
       val eos = ctx.jb.joinPoint()
       val yld = ctx.jb.joinPoint[A](ctx.mb)
-      eos.define { _ => k(EOS) }
+      eos.define { _ => Code(yld.init, k(EOS)) }
       yld.define { a => k(Yield(a, idx + 1)) }
       JoinPoint.switch(idx, eos, elements.map { elt =>
         val j = ctx.jb.joinPoint()
