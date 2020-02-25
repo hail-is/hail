@@ -338,8 +338,9 @@ class LoggingTimerStep:
 
 
 class LoggingTimer:
-    def __init__(self, description):
+    def __init__(self, description, threshold_ms=None):
         self.description = description
+        self.threshold_ms = threshold_ms
         self.timing = {}
         self.start_time = None
 
@@ -352,6 +353,7 @@ class LoggingTimer:
 
     async def __aexit__(self, exc_type, exc, tb):
         finish_time = time_msecs()
-        self.timing['total'] = finish_time - self.start_time
-
-        log.info(f'{self.description} timing {self.timing}')
+        total = finish_time - self.start_time
+        if self.threshold_ms is None or total > self.threshold_ms:
+            self.timing['total'] = total
+            log.info(f'{self.description} timing {self.timing}')
