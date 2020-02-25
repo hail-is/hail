@@ -344,13 +344,14 @@ class CompiledLineParser(
   parseIntMb.emit(parseInt(parseIntMb))
   @transient private[this] val parseLongMb = fb.newMethod[Region, Long]
   parseLongMb.emit(parseLong(parseLongMb))
+  @transient private[this] val parseRowFieldsMb = fb.newMethod[Region, Unit]
+  parseRowFieldsMb.emit(parseRowFields(parseRowFieldsMb))
+
   @transient private[this] val parseEntriesMbOpt = entriesType.map { entriesType =>
     val parseEntriesMb = fb.newMethod[Region, Unit]
     parseEntriesMb.emit(parseEntries(parseEntriesMb, entriesType))
     parseEntriesMb
   }
-  @transient private[this] val parseRowFieldsMb = fb.newMethod[Region, Unit]
-  parseRowFieldsMb.emit(parseRowFields(parseRowFieldsMb))
 
   mb.emit(Code(
     pos := 0,
