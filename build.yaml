@@ -61,6 +61,13 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
+ - kind: deploy
+   name: deploy_test_batch_sa
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: batch/test-sa.yaml
+   dependsOn:
+    - batch_pods_ns
  - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
@@ -329,6 +336,7 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
+    - deploy_test_batch_sa
     - deploy_default_admin_admin
     - auth_database
     - service_base_image
