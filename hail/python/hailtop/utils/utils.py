@@ -283,16 +283,19 @@ async def collect_agen(agen):
     return [x async for x in agen]
 
 
-async def retry_forever(f, msg=None):
-    delay = 0.1
-    while True:
-        try:
-            await f()
-            break
-        except Exception as exc:
-            if msg:
-                log.info(msg(exc), exc_info=True)
-        await sleep_and_backoff(delay)
+def retry_forever(msg=None, error_logging_interval=10):
+    async def _wrapper(f, *args, **kwargs):
+        delay = 0.1
+        errors = 0
+        while True:
+            try:
+                return await f(*args, **kwargs)
+            except Exception:
+                errors += 1
+                if msg and errors % error_logging_interval == 0:
+                    log.exception(msg, stack_info=True)
+            delay = await sleep_and_backoff(delay)
+    return _wrapper
 
 
 async def retry_long_running(name, f, *args, **kwargs):
