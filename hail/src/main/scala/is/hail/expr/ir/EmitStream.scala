@@ -463,7 +463,7 @@ object EmitStream2 {
           optStream.map { stream =>
             stream.map { eltt =>
               val xElt = childEltPack.newFields(mb.fb, name)
-              val bodyenv = env.bind(name -> ((xElt.load.m, xElt.load.pv)))
+              val bodyenv = Emit.bindEnv(env, name -> xElt)
               val bodyt = emitIR(bodyIR, bodyenv)
 
               EmitTriplet(
@@ -483,7 +483,7 @@ object EmitStream2 {
             filter(stream
               .map { elt =>
                 val xElt = childEltPack.newFields(mb.fb, name)
-                val condEnv = env.bind(name -> ((xElt.load.m, xElt.load.pv)))
+                val condEnv = Emit.bindEnv(env, name -> xElt)
                 val cond = emitIR(condIR, condEnv)
 
                 new COption[EmitTriplet] {
@@ -562,6 +562,24 @@ object EmitStream2 {
                 // termininate the stream when all streams are EOS
                 take(flagged)
             }
+          }
+
+        case StreamFlatMap(outerIR, name, innerIR) =>
+          val outerEltType = outerIR.pType.asInstanceOf[PStream].elementType
+          val outerEltPack = TypedTriplet.pack(outerEltType)
+          val outerEltTI = typeToTypeInfo(outerEltType)
+
+          val optOuter = emitStream(outerIR, env)
+          optOuter.map { outer =>
+            val nested = outer.mapCPS[COption[Stream[EmitTriplet]]] { (_ctx, elt, k) =>
+              val xElt = outerEltPack.newFields(mb.fb, name)
+              val innerEnv = Emit.bindEnv(env, name -> xElt)
+              val optInner = emitStream(innerIR, innerEnv)
+              Code(
+                xElt := TypedTriplet(outerEltType, elt),
+                k(optInner))
+            }
+            flatMap(filter(nested))
           }
 
         case _ =>
