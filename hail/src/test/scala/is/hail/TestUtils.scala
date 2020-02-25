@@ -203,7 +203,7 @@ object TestUtils {
           val aggArrayVar = genUID()
           val aggPType = PType.canonical(aggType)
           val aggArrayPType = PArray(aggPType)
-
+          println(s"\n\n\naggTpye is ${aggArrayPType}")
           val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
             env.bind(f.name, GetField(Ref(aggElementVar, aggType), f.name))
           }

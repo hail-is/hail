@@ -521,8 +521,8 @@ class AggregatorsSuite extends HailSuite {
 
   @Test def takeByAnnotationAnnotation() {
     assertTakeByEvalsTo(TString(), TString(), 3,
-      FastIndexedSeq(Row("a", "d"), Row(null, null), Row("b", "c"), Row("b", "a"), Row("c", "b"), Row("d", "1")),
-      FastIndexedSeq("d", "b", "c"))
+      FastIndexedSeq(Row("a", "d"), Row(null, null), Row(null, "c"), Row("b", "a"), Row("c", "b"), Row("d", null)),
+      FastIndexedSeq("b", "c", null))
   }
 
   @Test def takeByCallLong() {

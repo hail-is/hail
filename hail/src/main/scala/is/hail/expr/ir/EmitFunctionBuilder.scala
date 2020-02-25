@@ -413,13 +413,14 @@ class EmitFunctionBuilder[F >: Null](
     op: CodeOrdering.Op,
     ignoreMissingness: Boolean
   ): CodeOrdering.F[op.ReturnType] = {
-    val f = compareMap.getOrElseUpdate((t1, t2, op, sortOrder, ignoreMissingness), {
-      val ti = typeToTypeInfo(t1)
+    val f = compareMap.getOrElseUpdate((t1.setRequired(false), t2.setRequired(false), op, sortOrder, ignoreMissingness), {
+      val ti = typeToTypeInfo(t1.setRequired(false))
       val rt = if (op == CodeOrdering.compare) typeInfo[Int] else typeInfo[Boolean]
 
       val newMB = if (ignoreMissingness) {
+        println("\n\n\n\n\nIGNORING!!!!!")
         val newMB = newMethod(Array[TypeInfo[_]](ti, ti), rt)
-        val ord = t1.codeOrdering(newMB, t2, sortOrder)
+        val ord = t1.setRequired(false).codeOrdering(newMB, t2.setRequired(false), sortOrder)
         val v1 = newMB.getArg(1)(ti)
         val v2 = newMB.getArg(3)(ti)
         val c: Code[_] = op match {
@@ -434,8 +435,9 @@ class EmitFunctionBuilder[F >: Null](
         newMB.emit(c)
         newMB
       } else {
+        println(s"\n\n\n\n\nNot ignoring..... t2 is ${t2} t1 is ${t1}")
         val newMB = newMethod(Array[TypeInfo[_]](typeInfo[Boolean], ti, typeInfo[Boolean], ti), rt)
-        val ord = t1.codeOrdering(newMB, t2, sortOrder)
+        val ord = t1.setRequired(false).codeOrdering(newMB, t2.setRequired(false), sortOrder)
         val m1 = newMB.getArg[Boolean](1)
         val v1 = newMB.getArg(2)(ti)
         val m2 = newMB.getArg[Boolean](3)
