@@ -535,24 +535,7 @@ class RVD(
   }
 
   def filter(p: (RegionValue) => Boolean): RVD = {
-    val newWay = filterWithContext((_, _) => (), (_: Any, rv) => p(rv))
-    //RVD(typ, partitioner, crddBoundary.filter(p))
-    newWay
-  }
-
-  def filterWithContextOld[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD = {
-
-    mapPartitionsWithIndex(typ, { (i, rvdContext, it) =>
-      val c = makeContext(i, rvdContext)
-      it.filter { rv =>
-        if (f(c, rv))
-          true
-        else {
-          rvdContext.r.clear()
-          false
-        }
-      }
-    })
+    filterWithContext((_, _) => (), (_: Any, rv) => p(rv))
   }
 
   def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD = {
