@@ -29,6 +29,11 @@ abstract class COption[+A] { self =>
       self.apply(none, a => f(a, some))
   }
 
+  def doIfNone(f: Code[Unit]): COption[A] = new COption[A] {
+    def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
+      self.apply(Code(f, none), some)
+  }
+
   def flatMap[B](f: A => COption[B]): COption[B] = new COption[B] {
     def apply(none: Code[Ctrl], some: B => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
       val noneJP = ctx.jb.joinPoint()
@@ -475,7 +480,7 @@ object EmitStream2 {
 
           val optStream = emitStream(childIR, env)
           optStream.map { stream =>
-            CodeStream.filter(stream
+            filter(stream
               .map { elt =>
                 val xElt = childEltPack.newFields(mb.fb, name)
                 val condEnv = env.bind(name -> ((xElt.load.m, xElt.load.pv)))
@@ -496,7 +501,7 @@ object EmitStream2 {
               })
           }
 
-        case StreamZip(as, names, bodyIR, ArrayZipBehavior.TakeMinLength) =>
+        case StreamZip(as, names, bodyIR, behavior) =>
           val eltTypes = as.map(_.pType.asInstanceOf[PStreamable].elementType)
           val eltsPack = ParameterPack.array(eltTypes.map(TypedTriplet.pack(_)))
           val eltVars = eltsPack.newFields(mb.fb, names)
@@ -504,45 +509,59 @@ object EmitStream2 {
           val optStreams = COption.lift(as.map(emitStream(_, env)))
 
           optStreams.map { streams =>
-            CodeStream.multiZip(streams)
-              .map { elts =>
-                val bodyEnv = Emit.bindEnv(env, names.zip(eltVars.pss.asInstanceOf[IndexedSeq[ParameterStoreTriplet[_]]]): _*)
-                val body = emitIR(bodyIR, bodyEnv)
-                val typedElts = eltTypes.zip(elts).map { case (t, v) => TypedTriplet(t, v) }
-                EmitTriplet(Code(eltVars := typedElts, body.setup), body.m, body.pv)
-              }
-          }
+            behavior match {
 
-        case StreamZip(as, names, bodyIR, ArrayZipBehavior.ExtendNA) =>
-          val eltTypes = as.map(_.pType.asInstanceOf[PStreamable].elementType)
-          val eltsPack = ParameterPack.array(eltTypes.map(TypedTriplet.pack(_)))
-          val eltVars = eltsPack.newFields(mb.fb, names)
-
-          val optStreams = COption.lift(as.map(emitStream(_, env)))
-
-          optStreams.map { streams =>
-            val extended = streams.zipWithIndex.map { case (stream, i) =>
-              val t = eltTypes(i)
-              CodeStream.extendNA[TypedTriplet[_]](stream.map(TypedTriplet(t, _)))(eltsPack.pps(i).asInstanceOf[ParameterPack[TypedTriplet[_]]])
-            }
-            CodeStream.take(CodeStream.multiZip(extended)
-              .mapCPS { (_, elts, k) =>
-                val allMissing = mb.newLocal[Boolean]
-                val checkedElts = elts.zip(eltTypes).map { case (optET, t) =>
-                  val optElt = optET.flatMapCPS[Code[_]] { (elt, _, k) =>
-                    Code(allMissing := false,
-                         k(COption.fromEmitTriplet(elt.untyped)))
+              case ArrayZipBehavior.TakeMinLength | ArrayZipBehavior.AssumeSameLength =>
+                multiZip(streams)
+                  .map { elts =>
+                    val bodyEnv = Emit.bindEnv(env, names.zip(eltVars.pss.asInstanceOf[IndexedSeq[ParameterStoreTriplet[_]]]): _*)
+                    val body = emitIR(bodyIR, bodyEnv)
+                    val typedElts = eltTypes.zip(elts).map { case (t, v) => TypedTriplet(t, v) }
+                    EmitTriplet(Code(eltVars := typedElts, body.setup), body.m, body.pv)
                   }
-                  COption.toTypedTriplet(t, mb, optElt)
-                }
-                val bodyEnv = Emit.bindEnv(env, names.zip(eltVars.pss.asInstanceOf[IndexedSeq[ParameterStoreTriplet[_]]]): _*)
-                val body = emitIR(bodyIR, bodyEnv)
-                EmitTriplet(Code(eltVars := checkedElts, body.setup), body.m, body.pv)
-                Code(
-                  allMissing := true,
-                  eltVars := checkedElts,
-                  k(COption(allMissing, body)))
-              })
+
+              case ArrayZipBehavior.ExtendNA | ArrayZipBehavior.AssertSameLength =>
+                // extend to infinite streams, where the COption becomes missing after EOS
+                val extended: IndexedSeq[Stream[COption[TypedTriplet[_]]]] =
+                  streams.zipWithIndex.map { case (stream, i) =>
+                    val t = eltTypes(i)
+                    extendNA[TypedTriplet[_]](stream.map(TypedTriplet(t, _)))(eltsPack.pps(i).asInstanceOf[ParameterPack[TypedTriplet[_]]])
+                  }
+                // zip to an infinite stream, where the COption is missing when all streams are EOS
+                val flagged: Stream[COption[EmitTriplet]] = multiZip(extended)
+                  .mapCPS { (_, elts, k) =>
+                    val assert = behavior == ArrayZipBehavior.AssertSameLength
+                    val allEOS = mb.newLocal[Boolean]
+                    val anyEOS = if (assert) mb.newLocal[Boolean] else null
+                    // convert COption[TypedTriplet[_]] to TypedTriplet[_]
+                    // where COption encodes if the stream has ended; update
+                    // allEOS and anyEOS
+                    val checkedElts: IndexedSeq[TypedTriplet[_]] =
+                      elts.zip(eltTypes).map { case (optET, t) =>
+                        val optElt =
+                          (if (assert) optET.doIfNone(anyEOS := true) else optET)
+                            .flatMapCPS[Code[_]] { (elt, _, k) =>
+                              Code(allEOS := false,
+                                   k(COption.fromEmitTriplet(elt.untyped)))
+                            }
+                        COption.toTypedTriplet(t, mb, optElt)
+                      }
+                    val bodyEnv = Emit.bindEnv(env, names.zip(eltVars.pss.asInstanceOf[IndexedSeq[ParameterStoreTriplet[_]]]): _*)
+                    val body = emitIR(bodyIR, bodyEnv)
+                    Code(
+                      allEOS := true,
+                      if (assert) anyEOS := false else Code._empty,
+                      eltVars := checkedElts,
+                      if (assert)
+                        (anyEOS & !allEOS).mux(
+                          Code._fatal("zip: length mismatch"),
+                          k(COption(allEOS, body)))
+                      else
+                        k(COption(allEOS, body)))
+                  }
+                // termininate the stream when all streams are EOS
+                take(flagged)
+            }
           }
 
         case _ =>
