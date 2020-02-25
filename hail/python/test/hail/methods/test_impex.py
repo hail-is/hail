@@ -1663,6 +1663,8 @@ class ImportMatrixTableTests(unittest.TestCase):
             31, None, None, 34]
         assert actual == expected
 
+        assert mt.count_rows() == len(mt.rows().collect())
+
         actual = mt.chr.collect()
         assert actual == ['chr1', 'chr1', 'chr1', None]
         actual = mt[''].collect()
