@@ -428,7 +428,7 @@ object Nirvana {
         }
           .grouped(localBlockSize)
           .flatMap { block =>
-            val (jt, proc) = block.iterator.pipe(pb,
+            val (jt, err, proc) = block.iterator.pipe(pb,
               printContext,
               printElement(localRowType),
               _ => ())
@@ -446,7 +446,7 @@ object Nirvana {
 
             val rc = proc.waitFor()
             if (rc != 0)
-              fatal(s"nirvana command failed with non-zero exit status $rc")
+              fatal(s"nirvana command failed with non-zero exit status $rc\n\tError:\n${err.toString}")
 
             r
           }
