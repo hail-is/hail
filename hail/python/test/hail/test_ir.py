@@ -48,14 +48,13 @@ class ValueIRTests(unittest.TestCase):
             ir.ApplyBinaryPrimOp('+', i, j),
             ir.ApplyUnaryPrimOp('-', i),
             ir.ApplyComparisonOp('EQ', i, j),
-            ir.MakeArray([i, ir.NA(hl.tint32), ir.I32(-3)], hl.tarray(hl.tint32)),
             ir.ArrayRef(a, i, ir.Str('foo')),
             ir.ArrayLen(a),
             ir.ArraySort(a, 'l', 'r', ir.ApplyComparisonOp("LT", ir.Ref('l'), ir.Ref('r'))),
             ir.ToSet(a),
             ir.ToDict(da),
             ir.ToArray(a),
-            ir.MakeNDArray(ir.MakeArray([ir.F64(-1.0), ir.F64(1.0)], hl.tarray(hl.tfloat64)),
+            ir.MakeNDArray(ir.ToArray(ir.MakeStream([ir.F64(-1.0), ir.F64(1.0)], hl.tarray(hl.tfloat64))),
                            ir.MakeTuple([ir.I64(1), ir.I64(2)]),
                            ir.TrueIR()),
             ir.NDArrayShape(nd),
@@ -287,7 +286,7 @@ class MatrixIRTests(unittest.TestCase):
 class BlockMatrixIRTests(unittest.TestCase):
     def blockmatrix_irs(self):
         scalar_ir = ir.F64(2)
-        vector_ir = ir.MakeArray([ir.F64(3), ir.F64(2)], hl.tarray(hl.tfloat64))
+        vector_ir = ir.ToArray(ir.MakeStream([ir.F64(3), ir.F64(2)], hl.tarray(hl.tfloat64)))
 
         read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader(resource('blockmatrix_example/0')))
         add_two_bms = ir.BlockMatrixMap2(read, read, 'l', 'r', ir.ApplyBinaryPrimOp('+', ir.Ref('l'), ir.Ref('r')), "Union")

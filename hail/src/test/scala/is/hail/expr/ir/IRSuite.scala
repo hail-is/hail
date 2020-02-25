@@ -2872,7 +2872,7 @@ class IRSuite extends HailSuite {
     val s = Pretty(x, elideLiterals = false)
     val x2 = IRParser.parse_value_ir(s, env)
 
-     assert(x2 == x)
+    assert(x2 == x)
   }
 
   @Test(dataProvider = "tableIRs")
