@@ -459,6 +459,7 @@ object EmitStream2 {
         case StreamMap(childIR, name, bodyIR) =>
           val childEltType = childIR.pType.asInstanceOf[PStream].elementType
           implicit val childEltPack = TypedTriplet.pack(childEltType)
+
           val optStream = emitStream(childIR, env)
           optStream.map { stream =>
             stream.map { eltt =>
@@ -567,12 +568,11 @@ object EmitStream2 {
         case StreamFlatMap(outerIR, name, innerIR) =>
           val outerEltType = outerIR.pType.asInstanceOf[PStream].elementType
           val outerEltPack = TypedTriplet.pack(outerEltType)
-          val outerEltTI = typeToTypeInfo(outerEltType)
 
           val optOuter = emitStream(outerIR, env)
           optOuter.map { outer =>
-            val nested = outer.mapCPS[COption[Stream[EmitTriplet]]] { (_ctx, elt, k) =>
-              val xElt = outerEltPack.newFields(mb.fb, name)
+            val nested = outer.mapCPS[COption[Stream[EmitTriplet]]] { (ctx, elt, k) =>
+              val xElt = outerEltPack.newFields(ctx.mb.fb, name)
               val innerEnv = Emit.bindEnv(env, name -> xElt)
               val optInner = emitStream(innerIR, innerEnv)
               Code(
@@ -580,6 +580,36 @@ object EmitStream2 {
                 k(optInner))
             }
             flatMap(filter(nested))
+          }
+
+        case If(condIR, thn, els) =>
+          val eltType = thn.pType.asInstanceOf[PStream].elementType
+          val eltPack = TypedTriplet.pack(eltType)
+
+          COption.fromEmitTriplet[Boolean](emitIR(condIR, env)).flatMap { cond =>
+            emitStream(thn, env).flatMap { thnStream =>
+              emitStream(els, env).map { elsStream =>
+                mux(cond,
+                    thnStream.map(TypedTriplet(eltType, _)),
+                    elsStream.map(TypedTriplet(eltType, _)))(eltPack)
+                  .map(_.untyped)
+              }
+            }
+          }
+
+        case Let(name, valueIR, bodyIR) =>
+          val valueType = valueIR.pType
+          val valuePack = TypedTriplet.pack(valueType)
+          val xValue = valuePack.newFields(mb.fb, name)
+
+          val valuet = TypedTriplet(valueType, emitIR(valueIR, env))
+          val bodyEnv = Emit.bindEnv(env, name -> xValue)
+
+          val optStream = emitStream(bodyIR, bodyEnv)
+          new COption[Stream[EmitTriplet]] {
+            def apply(none: Code[Ctrl], some: Stream[EmitTriplet] => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+              Code(xValue := valuet, optStream(none, some))
+            }
           }
 
         case _ =>
