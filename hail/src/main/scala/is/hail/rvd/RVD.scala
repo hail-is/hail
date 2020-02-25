@@ -540,22 +540,63 @@ class RVD(
     newWay
   }
 
-  def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD = {
-    // Call idkYet on my contextRDD to get just an RDD[RegionValue]
-    // Go through the RDD of region values and for each partition
-    //    go through the iterator and either add a reference or clear.
+  def filterWithContextOld[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD = {
 
-    mapPartitionsWithIndex(typ, { (i, context, it) =>
-      val c = makeContext(i, context)
+    mapPartitionsWithIndex(typ, { (i, rvdContext, it) =>
+      val c = makeContext(i, rvdContext)
       it.filter { rv =>
         if (f(c, rv))
           true
         else {
-          context.r.clear()
+          rvdContext.r.clear()
           false
         }
       }
     })
+  }
+
+  def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD = {
+
+    val rdd = this.crdd.rdd.mapPartitionsWithIndex{ (i, it) =>
+      Iterator.single(
+        (consumerCtx: RVDContext) => {
+          val producerCtx = consumerCtx.freshContext
+          val iteratorToFilter = it.flatMap(_(producerCtx))
+          val c = makeContext(i, producerCtx)
+          iteratorToFilter.filter { rv =>
+            if (f(c, rv)) {
+              producerCtx.region.move(consumerCtx.region)
+              true
+            }
+            else {
+              producerCtx.region.clear()
+              false
+            }
+          }
+        }
+      )
+    }
+    val crdd = ContextRDD(rdd)
+    RVD(this.typ, this.partitioner, crdd)
+  }
+
+  def filterWithContext3[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD = {
+
+    val crdd: ContextRDD[RVDContext, RegionValue] = this.crdd.usingFreshContext.cmapPartitionsWithIndex{ (i, consumerCtx: RVDContext, iteratorToFilter) => {
+          val c = makeContext(i, consumerCtx)
+          iteratorToFilter.filter { rv =>
+            if (f(c, rv)) {
+              rv.region.move(consumerCtx.region)
+              true
+            }
+            else {
+              rv.region.clear()
+              false
+            }
+          }
+        }
+    }
+    RVD(this.typ, this.partitioner, crdd)
   }
 
   def filterIntervals(intervals: RVDPartitioner, keep: Boolean): RVD = {
