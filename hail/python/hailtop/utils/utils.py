@@ -290,6 +290,8 @@ def retry_forever(msg=None, error_logging_interval=10):
         while True:
             try:
                 return await f(*args, **kwargs)
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
             except Exception:
                 errors += 1
                 if msg and errors % error_logging_interval == 0:
