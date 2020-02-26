@@ -416,7 +416,7 @@ class RunImageStep(Step):
                             json.get('serviceAccount'),
                             json.get('secrets'),
                             json.get('alwaysRun', False),
-                            json.get('timeout'))
+                            json.get('timeout', 3600))
 
     def config(self, scope):  # pylint: disable=unused-argument
         return {
