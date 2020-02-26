@@ -30,7 +30,7 @@ import re
 #     'namespace': str,
 #     'name': str
 #   },
-#   'timeout': int
+#   'timeout': float
 # }]
 
 JOB_KEYS = {
@@ -296,8 +296,10 @@ def validate_job(i, job):
 
     if 'timeout' in job:
         timeout = job['timeout']
-        if not isinstance(timeout, int):
-            raise ValidationError(f'jobs[{i}].timeout not int')
+        if not isinstance(timeout, float):
+            raise ValidationError(f'jobs[{i}].timeout not float')
+        if timeout < 0:
+            raise ValidationError(f'jobs[{i}].timeout is not a positive number')
 
 # rough schema
 # batch_schema = {
