@@ -2175,9 +2175,6 @@ class IRSuite extends HailSuite {
         MakeArray(FastIndexedSeq(I64(1)), TArray(TInt64())),
         MakeArray(FastIndexedSeq(I64(1)), TArray(TInt64())))),
       Array(Array(4.0)))
-
-
-
   }
 
   @Test def testLeftJoinRightDistinct() {
