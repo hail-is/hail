@@ -544,6 +544,30 @@ object CodeStream { self =>
     }
   }
 
+  def makeMissingStreamEmpty[A](optStream: COption[Stream[A]]): Stream[A] = new Stream[A] {
+    def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
+      val eosJP = joinPoint()
+      val missing = newLocal[Code[Boolean]]
+      var stream: Stream[A] = null
+      eosJP.define(_ => eos)
+      val setup = optStream.cases(ctx.mb)(
+        none = missing := true,
+        some = _stream => {
+          stream = _stream
+          missing := false
+        })
+
+      val source = stream(eosJP(()), push)
+      Source[A](
+        setup0 = Code(missing := false, source.setup0),
+        close0 = source.close0,
+        setup = Code(setup, source.setup),
+        close = source.close,
+        pull = missing.load.mux(eosJP(()), source.pull)
+      )
+    }
+  }
+
   def fromParameterized[P](
     stream: EmitStream.Parameterized[P, EmitTriplet]
   ): P => COption[EmitStream2.SizedStream] = p =>
@@ -656,6 +680,42 @@ object EmitStream2 {
         emitter.emit(ir, env, er, container)
 
       streamIR match {
+
+        case StreamRange(startIR, stopIR, stepIR) =>
+          val step = fb.newField[Int]("sr_step")
+          val start = fb.newField[Int]("sr_start")
+          val stop = fb.newField[Int]("sr_stop")
+          val llen = fb.newField[Long]("sr_llen")
+          val len = mb.newLocal[Int]
+
+          val startt = emitIR(startIR, env)
+          val stopt = emitIR(stopIR, env)
+          val stept = emitIR(stepIR, env)
+
+          new COption[SizedStream] {
+            def apply(none: Code[Ctrl], some: SizedStream => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+              Code(
+                startt.setup,
+                stopt.setup,
+                stept.setup,
+                (startt.m || stopt.m || stept.m).mux(
+                  none,
+                  Code(
+                    start := startt.value,
+                    stop := stopt.value,
+                    step := stept.value,
+                    (step ceq 0).orEmpty(Code._fatal("Array range cannot have step size 0.")),
+                    llen := (step < 0).mux(
+                      (start <= stop).mux(0L, (start.toL - stop.toL - 1L) / (-step).toL + 1L),
+                      (start >= stop).mux(0L, (stop.toL - start.toL - 1L) / step.toL + 1L)),
+                    (llen > const(Int.MaxValue.toLong)).mux(
+                      Code._fatal("Array range cannot have more than MAXINT elements."),
+                      some(SizedStream(
+                        range(start, step, llen.toI)
+                          .map(i => EmitTriplet(Code._empty, const(false), i)),
+                        Some((len := llen.toI, len))))))))
+            }
+          }
 
         case StreamMap(childIR, name, bodyIR) =>
           val childEltType = coerce[PStream](childIR.pType).elementType
