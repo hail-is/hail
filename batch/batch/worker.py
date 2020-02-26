@@ -36,7 +36,7 @@ from .batch_format_version import BatchFormatVersion
 configure_logging()
 log = logging.getLogger('batch-worker')
 
-MAX_IDLE_TIME_MSECS = 60 * 30 * 1000
+MAX_IDLE_TIME_MSECS = 30 * 1000
 
 CORES = int(os.environ['CORES'])
 NAME = os.environ['NAME']

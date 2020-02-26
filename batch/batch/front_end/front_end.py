@@ -27,7 +27,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 # import uvloop
 
 from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_memory_request, \
-    worker_memory_per_core_gb, check_service_account_permissions
+    worker_memory_per_core_gb
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
@@ -465,6 +465,20 @@ async def get_batches(request, userdata):
     if last_batch_id is not None:
         body['last_batch_id'] = last_batch_id
     return web.json_response(body)
+
+
+def check_service_account_permissions(user, sa):
+    if sa is None:
+        return
+    if user == 'ci':
+        if sa['name'] == 'ci-agent' and sa['namespace'] == BATCH_PODS_NAMESPACE:
+            return
+        if sa['name'] == 'admin' and sa['namespace'] == BATCH_PODS_NAMESPACE:
+            return
+    if user == 'test':
+        if sa['name'] == 'test-batch-sa' and sa['namespace'] == BATCH_PODS_NAMESPACE:
+            return
+    raise web.HTTPBadRequest(reason=f'unauthorized service account {(sa["namespace"], sa["name"])} for user {user}')
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
