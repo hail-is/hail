@@ -1862,7 +1862,7 @@ class IRSuite extends HailSuite {
     MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64())), MakeTuple.ordered(shape.map(I64)), rowMajor)
   }
 
-  def assertNDEvals(eltType: Type, nd: IR, expected: Array[Array[Any]]): Unit = {
+  def assertNDEvals(eltType: Type, nd: IR, expected: Array[Array[Any]])(implicit execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly): Unit = {
     val arrayIR = if (expected == null) nd else {
       val nRows = expected.length
       val nCols = if (nRows == 0) 0 else expected.head.length
@@ -1935,7 +1935,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayConcat() {
-    implicit val execStrats = ExecStrategy.compileOnly
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
     def nds(ndData: (IndexedSeq[Int], Long, Long)*): IR = {
       MakeArray(ndData.map { case (values, nRows, nCols) =>
         if (values == null) NA(TNDArray(TInt32(), Nat(2))) else
@@ -1961,13 +1961,13 @@ class IRSuite extends HailSuite {
     val emptyColwise = (FastIndexedSeq(), 2L, 0L)
     val na = (null, 0L, 0L)
 
-    val rowwiseExpected = Array(
+    val rowwiseExpected: Array[Array[Any]] = Array(
       Array(0, 1, 2),
       Array(3, 4, 5),
       Array(6, 7, 8),
       Array(9, 10, 11),
       Array(12, 13, 14))
-    val colwiseExpected = Array(
+    val colwiseExpected: Array[Array[Any]] = Array(
       Array(0, 1, 2, 15, 16),
       Array(3, 4, 5, 17, 18))
 

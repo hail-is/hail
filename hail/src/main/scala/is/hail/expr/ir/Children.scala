@@ -109,6 +109,8 @@ object Children {
       nd +: idxs
     case NDArraySlice(nd, slices) =>
       Array(nd, slices)
+    case NDArrayFilter(nd, keep) =>
+      nd +: keep
     case NDArrayMap(nd, _, body) =>
       Array(nd, body)
     case NDArrayMap2(l, r, _, _, body) =>
