@@ -88,10 +88,9 @@ class PortAllocator:
 
 async def docker_call_retry(timeout, name, f, *args, **kwargs):
     delay = 0.1
-    local_timeout = timeout
     while True:
         try:
-            return await asyncio.wait_for(f(*args, **kwargs), local_timeout)
+            return await asyncio.wait_for(f(*args, **kwargs), timeout)
         except DockerError as e:
             # 408 request timeout, 503 service unavailable
             if e.status == 408 or e.status == 503:
@@ -108,8 +107,7 @@ async def docker_call_retry(timeout, name, f, *args, **kwargs):
         except aiohttp.client_exceptions.ServerDisconnectedError:
             log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
         except asyncio.TimeoutError:
-            local_timeout *= 2
-            log.exception(f'in docker call to {f.__name__} for {name}, retrying with timeout {local_timeout} seconds', stack_info=True)
+            log.exception(f'timeout in docker call to {f.__name__} for {name}, retrying', stack_info=True)
         delay = await sleep_and_backoff(delay)
 
 
@@ -120,21 +118,20 @@ async def create_container(config, name):
         try:
             return await docker.containers.create(config, name=name)
         except DockerError as e:
-            delay = await sleep_and_backoff(delay)
-
-            error += 1
-            if error == 5:
-                log.exception(f'encountered 5 errors while creating container {name}, aborting', stack_info=True)
-                raise
-
             # 409 container with name already exists
             if e.status == 409:
                 try:
+                    delay = await sleep_and_backoff(delay)
                     return await docker.containers.get(name)
                 except DockerError as eget:
                     # 404 No such container
                     if eget.status == 404:
-                        continue
+                        error += 1
+                        if error < 5:
+                            delay = await sleep_and_backoff(delay)
+                            continue
+                        log.exception(f'encountered 5 errors while creating container {name}, aborting', stack_info=True)
+                        raise
             raise
 
 
