@@ -559,7 +559,7 @@ object InferPType {
         x.physicalSignatures2 = sigs
         coerce[PStream](array.pType2).copy(result.pType2)
 
-      case AggStateValue(i, sig) => PCanonicalBinary(true)
+      case AggStateValue(_, _) => PCanonicalBinary(true)
       case x if x.typ == TVoid =>
         x.children.foreach(c => infer(c.asInstanceOf[IR]))
         PVoid
@@ -570,7 +570,6 @@ object InferPType {
       case x if x.typ == TVoid =>
         x.children.foreach(c => infer(c.asInstanceOf[IR]))
         PVoid
-        }
       case ResultOp(_, aggSigs) =>
         val rPTypes = aggSigs.toIterator.zipWithIndex.map{ case (sig, i) => PTupleField(i, sig.toCanonicalPhysical.resultType)}.toIndexedSeq
         val allReq = rPTypes.forall(f => f.typ.required)
