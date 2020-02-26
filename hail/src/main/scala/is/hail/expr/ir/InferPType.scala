@@ -279,7 +279,7 @@ object InferPType {
       case ArrayFor(a, value, body) =>
         infer(a)
 
-        infer(body, env.bind(value -> a.pType2.asInstanceOf[PArray].elementType))
+        infer(body, env.bind(value -> a.pType2.asInstanceOf[PStream].elementType))
         PVoid
       case ArrayFold2(a, acc, valueName, seq, res) =>
         infer(a)
@@ -301,7 +301,7 @@ object InferPType {
       case ArrayLeftJoinDistinct(lIR, rIR, lName, rName, compare, join) =>
         infer(lIR)
         infer(rIR)
-        val e = val e = env.bind(lName -> lIR.pType2.asInstanceOf[PStream].elementType, rName -> rIR.pType2.asInstanceOf[PStream].elementType.setRequired(false))
+        val e = env.bind(lName -> lIR.pType2.asInstanceOf[PStream].elementType, rName -> rIR.pType2.asInstanceOf[PStream].elementType.setRequired(false))
 
         infer(compare, e)
         infer(join, e)
