@@ -471,12 +471,11 @@ def check_service_account_permissions(user, sa):
     if sa is None:
         return
     if user == 'ci':
-        if DEFAULT_NAMESPACE == 'default':
-            return
-        if sa['name'] == 'ci-agent' and sa['namespace'] == BATCH_PODS_NAMESPACE:
-            return
-        if sa['name'] == 'admin' and sa['namespace'] == BATCH_PODS_NAMESPACE:
-            return
+        if sa['name'] in ('ci-agent', 'admin'):
+            if DEFAULT_NAMESPACE == 'default':  # real-ci needs access to all namespaces
+                return
+            if sa['namespace'] == BATCH_PODS_NAMESPACE:
+                return
     if user == 'test':
         if sa['name'] == 'test-batch-sa' and sa['namespace'] == BATCH_PODS_NAMESPACE:
             return
