@@ -467,6 +467,20 @@ async def get_batches(request, userdata):
     return web.json_response(body)
 
 
+def check_service_account_permissions(user, sa):
+    if sa is None:
+        return
+    if user == 'ci':
+        if sa['name'] == 'ci-agent' and sa['namespace'] == BATCH_PODS_NAMESPACE:
+            return
+        if sa['name'] == 'admin' and sa['namespace'] == BATCH_PODS_NAMESPACE:
+            return
+    if user == 'test':
+        if sa['name'] == 'test-batch-sa' and sa['namespace'] == BATCH_PODS_NAMESPACE:
+            return
+    raise web.HTTPBadRequest(reason=f'unauthorized service account {(sa["namespace"], sa["name"])} for user {user}')
+
+
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
 @prom_async_time(REQUEST_TIME_POST_CREATE_JOBS)
 @rest_authenticated_users_only
@@ -581,6 +595,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if not secrets:
                     secrets = []
 
+                if len(secrets) != 0 and user != 'ci':
+                    secrets = [(secret["namespace"], secret["name"]) for secret in secrets]
+                    raise web.HTTPBadRequest(reason=f'unauthorized secret {secrets} for user {user}')
+
                 for secret in secrets:
                     if user != 'ci':
                         raise web.HTTPBadRequest(reason=f'unauthorized secret {(secret["namespace"], secret["name"])}')
@@ -594,8 +612,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 })
 
                 sa = spec.get('service_account')
-                if sa and user != 'ci' and not (user == 'test' and sa['name'] == 'test-batch-sa' and sa['namespace'] == BATCH_PODS_NAMESPACE):
-                    raise web.HTTPBadRequest(reason=f'unauthorized service account {(sa["namespace"], sa["name"])}')
+                check_service_account_permissions(user, sa)
 
                 env = spec.get('env')
                 if not env:
