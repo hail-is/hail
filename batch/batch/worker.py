@@ -111,6 +111,10 @@ class JobDeletedError(Exception):
     pass
 
 
+class JobTimeoutError(Exception):
+    pass
+
+
 class ContainerStepManager:
     def __init__(self, container, name, state):
         self.container = container
@@ -156,6 +160,8 @@ class Container:
 
         self.port = self.spec.get('port')
         self.host_port = None
+
+        self.timeout = self.spec.get('timeout')
 
         self.container = None
         self.state = 'pending'
@@ -284,7 +290,12 @@ class Container:
                         await docker_call_retry(self.container.start)
 
                     async with self.step('running'):
-                        await docker_call_retry(self.container.wait)
+                        try:
+                            await asyncio.wait_for(
+                                docker_call_retry(self.container.wait),
+                                self.timeout)
+                        except asyncio.TimeoutError:
+                            raise JobTimeoutError(f'timed out after {self.timeout}s')
 
             self.container_status = await self.get_container_status()
             log.info(f'{self}: container status {self.container_status}')
