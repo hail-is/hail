@@ -27,6 +27,7 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
+   timeout: 300
    outputs:
     - from: /io/repo
       to: /

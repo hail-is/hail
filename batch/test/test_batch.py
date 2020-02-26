@@ -434,6 +434,13 @@ echo $HAIL_BATCH_WORKER_IP
         print(j.log())
         assert batch['state'] == 'success', batch
 
+    def test_timeout(self):
+        builder = self.client.create_batch()
+        j = builder.create_job('ubuntu:18.04', ['sleep', '30'], timeout=5)
+        b = builder.submit()
+        status = j.wait()
+        self.assertEqual(status['state'], 'Error', (status, j.log()))
+
     def test_client_max_size(self):
         builder = self.client.create_batch()
         for i in range(4):
