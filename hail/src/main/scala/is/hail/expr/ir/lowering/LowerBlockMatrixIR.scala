@@ -30,7 +30,8 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
     val ctxRef = Ref(genUID(), ctxType)
     val body = f(blockBody(ctxRef))
     val ctxs = MakeArray(blocksToCollect.map(idx => blockContext(idx)), TArray(ctxRef.typ))
-    val bcFields = globalVals.filter { case (f, _) => Mentions(body, f) }
+    val bodyFreeVars = FreeVariables(body, supportsAgg=false, supportsScan=false)
+    val bcFields = globalVals.filter { case (f, _) => bodyFreeVars.eval.lookupOption(f).isDefined }
     val bcVals = MakeStruct(bcFields.map { case (f, v) => f -> Ref(f, v.typ) })
     val bcRef = Ref(genUID(), bcVals.typ)
     val wrappedBody = bcFields.foldLeft(body) { case (accum, (f, _)) =>
@@ -50,7 +51,7 @@ object LowerBlockMatrixIR {
     case BlockMatrixCollect(child) =>
       val bm = lower(child)
       val blocksRowMajor = Array.range(0, child.typ.nRowBlocks).flatMap { i =>
-        Array.range(0, child.typ.nColBlocks).flatMap { j => Some(i -> j).filter(child.typ.hasBlock) }
+        Array.tabulate(child.typ.nColBlocks)(j => i -> j).filter(child.typ.hasBlock)
       }
       val cda = bm.collectBlocks(b => b, blocksRowMajor)
       val blockResults = Ref(genUID(), cda.typ)
