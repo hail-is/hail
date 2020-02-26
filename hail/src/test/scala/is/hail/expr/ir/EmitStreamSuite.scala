@@ -272,7 +272,11 @@ class EmitStreamSuite extends HailSuite {
     val fb = new EmitFunctionBuilder[F](argTypeInfos.result(), GenericTypeInfo[Long])
     val mb = fb.apply_method
     val stream = ExecuteContext.scoped { ctx =>
-      EmitStream(new Emit(ctx, mb), streamIR, Env.empty, EmitRegion.default(mb), None)
+      val s = streamIR match {
+        case ToArray(s) => s
+        case s => s
+      }
+      EmitStream(new Emit(ctx, mb), s, Env.empty, EmitRegion.default(mb), None)
     }
     mb.emit {
       val arrayt = stream
@@ -551,7 +555,7 @@ class EmitStreamSuite extends HailSuite {
     val intsType = TArray(TInt32())
 
     assertAggScan(
-      ArrayAggScan(ToStream(In(0, TArray(pairType))),
+      ArrayAggScan(In(0, TArray(pairType)),
         "foo",
         GetField(Ref("foo", pairType), "y") +
           GetField(

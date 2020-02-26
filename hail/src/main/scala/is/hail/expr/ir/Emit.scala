@@ -4,7 +4,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.asm4s.joinpoint.{Ctrl, JoinPoint, ParameterPack, TypedTriplet}
+import is.hail.asm4s.joinpoint.{Ctrl, JoinPoint, ParameterPack, ParameterStore, ParameterStoreTriplet, ParameterStoreArray, TypedTriplet}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
@@ -18,6 +18,12 @@ import scala.language.{existentials, postfixOps}
 
 object Emit {
   type E = Env[(TypeInfo[_], Code[Boolean], Code[_])]
+
+  def bindEnv(env: E, name: String, ps: ParameterStoreTriplet[_]): E =
+    env.bind(name, (ps.ti, ps.load.m, ps.load.v))
+
+  def bindEnv(env: E, bindings: (String, ParameterStoreTriplet[_])*): E =
+    env.bindIterable(bindings.map { case (name, ps) => (name, (ps.ti, ps.load.m, ps.load.v)) })
 
   type F = (Code[Boolean], Code[_]) => Code[Unit]
 
@@ -576,7 +582,7 @@ private class Emit(
             (a, compare, Code(sorter.pruneMissing, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _))), Array.empty[String])
         }
 
-        val compF = vab.ti match {
+        val sort = vab.ti match {
           case BooleanInfo => sorter.sort(makeDependentSortingFunction[Boolean](compare, env, leftRightComparatorNames))
           case IntInfo => sorter.sort(makeDependentSortingFunction[Int](compare, env, leftRightComparatorNames))
           case LongInfo => sorter.sort(makeDependentSortingFunction[Long](compare, env, leftRightComparatorNames))
@@ -584,22 +590,23 @@ private class Emit(
           case DoubleInfo => sorter.sort(makeDependentSortingFunction[Double](compare, env, leftRightComparatorNames))
         }
 
-        val aout = emitArrayIterator(array)
-
-        val processArrayElts = aout.arrayEmitterFromBuilder(vab)
-        EmitTriplet(
+        val optStream = emitStream2(array)
+        val result = optStream.map { stream =>
           Code(
-            vab.clear,
-            processArrayElts.setup),
-          processArrayElts.m.getOrElse(const(false)),
-          Code(
-            aout.calcLength,
-            processArrayElts.addElements,
-            compF,
+            EmitStream2.write(mb, stream, vab),
+            sort,
             distinct,
-            sorter.toRegion()))
+            sorter.toRegion())
+        }
 
-      case ToArray(a) => emit(a)
+        COption.toEmitTriplet(result, typeToTypeInfo(atyp), mb)
+
+      case ToArray(a) =>
+        a.pType match {
+          case typ: PStream =>
+            EmitStream2.toArray(mb, typ.asPArray, emitStream2(a))
+          case _ => emit(a)
+        }
 
       case ToStream(a) => emit(a)
 
@@ -629,8 +636,6 @@ private class Emit(
         val vtyp = etyp.types(1)
         val eltOut = coerce[PDict](ir.pType).elementType
 
-        val aout = emitArrayIterator(collection)
-
         val eab = new StagedArrayBuilder(etyp, mb, 16)
         val sorter = new ArraySorter(er, eab)
 
@@ -644,12 +649,12 @@ private class Emit(
         val compare = ApplyComparisonOp(Compare(etyp.types(0).virtualType), k1, k2) < 0
         InferPType(compare, Env.empty)
         val leftRightComparatorNames = Array.empty[String]
-        val compF = eab.ti match {
-          case BooleanInfo => sorter.sort(makeDependentSortingFunction[Boolean](compare, env, leftRightComparatorNames))
-          case IntInfo => sorter.sort(makeDependentSortingFunction[Int](compare, env, leftRightComparatorNames))
-          case LongInfo => sorter.sort(makeDependentSortingFunction[Long](compare, env, leftRightComparatorNames))
-          case FloatInfo => sorter.sort(makeDependentSortingFunction[Float](compare, env, leftRightComparatorNames))
-          case DoubleInfo => sorter.sort(makeDependentSortingFunction[Double](compare, env, leftRightComparatorNames))
+        val sortF = eab.ti match {
+          case BooleanInfo => makeDependentSortingFunction[Boolean](compare, env, leftRightComparatorNames)
+          case IntInfo => makeDependentSortingFunction[Int](compare, env, leftRightComparatorNames)
+          case LongInfo => makeDependentSortingFunction[Long](compare, env, leftRightComparatorNames)
+          case FloatInfo => makeDependentSortingFunction[Float](compare, env, leftRightComparatorNames)
+          case DoubleInfo => makeDependentSortingFunction[Double](compare, env, leftRightComparatorNames)
         }
 
         val nab = new StagedArrayBuilder(PInt32(), mb, 16)
@@ -680,75 +685,73 @@ private class Emit(
             ("i-1", (typeInfo[Long], eab.isMissing(i-1), eab.apply(i-1))),
             ("i", (typeInfo[Long], eab.isMissing(i), eab.apply(i)))))
 
-        val processArrayElts = aout.arrayEmitterFromBuilder(eab)
-        EmitTriplet(Code(eab.clear, processArrayElts.setup), processArrayElts.m.getOrElse(const(false)), Code(
-          nab.clear,
-          aout.calcLength,
-          processArrayElts.addElements,
-          compF,
-          sorter.pruneMissing,
-          eab.size.ceq(0).mux(
-            Code(srvb.start(0), srvb.offset),
-            Code(
-              i := 1,
-              nab.add(1),
-              Code.whileLoop(i < eab.size,
-                isSame.setup,
-                (isSame.m || isSame.value[Boolean]).mux(
-                  nab.update(nab.size - 1, coerce[Int](nab(nab.size - 1)) + 1),
-                  nab.add(1)),
-                i += 1),
-              i := 0,
-              srvb.start(nab.size),
-              Code.whileLoop(srvb.arrayIdx < nab.size,
-                srvb.addBaseStruct(eltOut, { structbuilder =>
-                  Code(
-                    structbuilder.start(),
-                    structbuilder.addIRIntermediate(ktyp)(loadKey(i)),
-                    structbuilder.advance(),
-                    structbuilder.addArray(coerce[PStreamable](eltOut.types(1)).asPArray, { arraybuilder =>
-                      Code(
-                        arraybuilder.start(coerce[Int](nab(srvb.arrayIdx))),
-                        Code.whileLoop(arraybuilder.arrayIdx < coerce[Int](nab(srvb.arrayIdx)),
-                          etyp.isFieldMissing(coerce[Long](eab(i)), 1).mux(
-                            arraybuilder.setMissing(),
-                            arraybuilder.addIRIntermediate(etyp.types(1))(loadValue(i))
-                          ),
-                          i += 1,
-                          arraybuilder.advance()
-                        ))
-                    }))
-                }),
-                srvb.advance()
-              ),
-              srvb.offset
-            ))))
+        val optStream = emitStream2(collection)
+        val result = optStream.map { stream =>
+          Code(
+            EmitStream2.write(mb, stream, eab),
+            sorter.sort(sortF),
+            sorter.pruneMissing,
+            eab.size.ceq(0).mux(
+              Code(srvb.start(0), srvb.offset),
+              Code(
+                nab.clear,
+                i := 1,
+                nab.add(1),
+                Code.whileLoop(i < eab.size,
+                  isSame.setup,
+                  (isSame.m || isSame.value[Boolean]).mux(
+                    nab.update(nab.size - 1, coerce[Int](nab(nab.size - 1)) + 1),
+                    nab.add(1)),
+                  i += 1),
+                i := 0,
+                srvb.start(nab.size),
+                Code.whileLoop(srvb.arrayIdx < nab.size,
+                  srvb.addBaseStruct(eltOut, { structbuilder =>
+                    Code(
+                      structbuilder.start(),
+                      structbuilder.addIRIntermediate(ktyp)(loadKey(i)),
+                      structbuilder.advance(),
+                      structbuilder.addArray(coerce[PStreamable](eltOut.types(1)).asPArray, { arraybuilder =>
+                        Code(
+                          arraybuilder.start(coerce[Int](nab(srvb.arrayIdx))),
+                          Code.whileLoop(arraybuilder.arrayIdx < coerce[Int](nab(srvb.arrayIdx)),
+                            etyp.isFieldMissing(coerce[Long](eab(i)), 1).mux(
+                              arraybuilder.setMissing(),
+                              arraybuilder.addIRIntermediate(etyp.types(1))(loadValue(i))
+                              ),
+                            i += 1,
+                            arraybuilder.advance()
+                            ))
+                      }))
+                  }),
+                  srvb.advance()),
+                srvb.offset
+          )))
+        }
 
-      case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: RunAggScan | _: ReadPartition | _: MakeStream | _: StreamRange =>
-        emitArrayIterator(ir).toEmitTriplet(mb, PArray(coerce[PStreamable](ir.pType).elementType))
+        COption.toEmitTriplet(result, typeToTypeInfo(atyp), mb)
 
       case ArrayFold(a, zero, accumName, valueName, body) =>
-        val eltType = a.pType.asInstanceOf[PStreamable].elementType
+        val eltType = coerce[PStream](a.pType).elementType
         val accType = ir.pType
         implicit val eltPack = TypedTriplet.pack(eltType)
         implicit val accPack = TypedTriplet.pack(accType)
-        val accTI = typeToTypeInfo(accType)
-        val eltTI = typeToTypeInfo(eltType)
 
         val streamOpt = emitStream2(a)
         val resOpt: COption[Code[_]] = streamOpt.flatMapCPS { (stream, _ctx, ret) =>
           implicit val c = _ctx
+
           def foldBody(elt: TypedTriplet[eltType.type], acc: TypedTriplet[accType.type]): TypedTriplet[accType.type] = {
             val xElt = eltPack.newFields(mb.fb, valueName)
             val xAcc = accPack.newFields(mb.fb, accumName)
-            val bodyenv = env.bind(
-              (accumName, (accTI, xAcc.load.m, xAcc.load.v)),
-              (valueName, (eltTI, xElt.load.m, xElt.load.v)))
+            val bodyenv = Emit.bindEnv(env, (accumName -> xAcc), (valueName -> xElt))
 
             val codeB = emit(body, env = bodyenv)
             TypedTriplet(accType, EmitTriplet(Code(xElt := elt, xAcc := acc, codeB.setup), codeB.m, codeB.v))
           }
+
           val codeZ = emit(zero)
+
           def retTT(acc: TypedTriplet[accType.type]): Code[Ctrl] =
             ret(COption.fromEmitTriplet(acc.untyped))
 
@@ -756,67 +759,45 @@ private class Emit(
                 .fold(TypedTriplet(accType, codeZ), foldBody, retTT)
         }
 
-        COption.toEmitTriplet(resOpt, accTI, mb)
+        COption.toEmitTriplet(resOpt, typeToTypeInfo(accType), mb)
 
       case ArrayFold2(a, acc, valueName, seq, res) =>
-        val typ = ir.typ
-        val tarray = coerce[TStreamable](a.typ)
-        val tti = typeToTypeInfo(typ)
-        val eti = typeToTypeInfo(tarray.elementType)
-        val xmv = mb.newField[Boolean](valueName + "_missing")
-        val xvv = coerce[Any](mb.newField(valueName)(eti))
-        val accVars = acc.map { case (name, value) =>
-          val ti = typeToTypeInfo(value.typ)
-          (name, (ti, mb.newField[Boolean](s"${name}_missing"), mb.newField(name)(ti)))}
-        val xmtmp = mb.newField[Boolean]("arrayfold2_missing_tmp")
+        val eltType = coerce[PStream](a.pType).elementType
+        val eltPack = TypedTriplet.pack(eltType)
 
-        val resEnv = env.bindIterable(accVars.map { case (name, (ti, xm, xv)) => (name, (ti, xm.load(), xv.load())) })
-        val seqEnv = resEnv.bind(valueName, (eti, xmv.load(), xvv.load()))
+        val accPacks = acc.map(a => TypedTriplet.pack(a._2.pType))
+        val accsPack = ParameterPack.array(accPacks)
+        implicit val ap = accsPack.asInstanceOf[ParameterPack[IndexedSeq[TypedTriplet[_]]]]
 
-        val codeZ = acc.map { case (_, value) => emit(value) }
-        val codeSeq = seq.map(emit(_, env = seqEnv))
+        val xElt = eltPack.newFields(mb.fb, valueName)
+        val names = acc.map(_._1)
+        val accVars = accsPack.newFields(mb.fb, names)
 
-        val aBase = emitArrayIterator(a)
+        val resEnv = Emit.bindEnv(env, names.zip(accVars.pss.asInstanceOf[IndexedSeq[ParameterStoreTriplet[_]]]): _*)
+        val seqEnv = Emit.bindEnv(resEnv, valueName -> xElt)
 
-        val cont = { (m: Code[Boolean], v: Code[_]) =>
-          Code(
-            xmv := m,
-            xvv := xmv.mux(defaultValue(tarray.elementType), v),
-            Code(codeSeq.map(_.setup): _*),
-            coerce[Unit](Code(codeSeq.zipWithIndex.map { case (et, i) =>
-              val (_, (_, accm, accv)) = accVars(i)
-              Code(
-                xmtmp := et.m,
-                accv.storeAny(xmtmp.mux(defaultValue(acc(i)._2.typ): Code[_], et.v)),
-                accm := xmtmp
-              )
-            }: _*)))
+        val zero = acc.map { case (_, value) =>
+          TypedTriplet(value.pType, emit(value))
+        }
+        val codeR = emit(res, env = resEnv)
+        val typedCodeSeq = seq.map(ir => TypedTriplet(ir.pType, emit(ir, env = seqEnv)))
+
+        val streamOpt = emitStream2(a)
+
+        val resOpt = streamOpt.flatMapCPS[Code[_]] { (stream, _ctx, ret) =>
+          implicit val c = _ctx
+
+          def foldBody(elt: TypedTriplet[eltType.type], accs: IndexedSeq[TypedTriplet[_]], k: IndexedSeq[TypedTriplet[_]] => Code[Ctrl]): Code[Ctrl] =
+            Code(xElt := elt, accVars := accs, k(typedCodeSeq))
+
+          def computeRes(accs: IndexedSeq[TypedTriplet[_]]): Code[Ctrl] =
+            Code(accVars := accs, ret(COption.fromEmitTriplet(codeR)))
+
+          stream.map(TypedTriplet(eltType, _))
+            .foldCPS(zero, foldBody, computeRes)
         }
 
-        val processAElts = aBase.arrayEmitter(cont)
-        val marray = processAElts.m.getOrElse(const(false))
-
-        val xresm = mb.newField[Boolean]
-        val xresv = mb.newField(typeToTypeInfo(res.typ))
-        val codeR = emit(res, env = resEnv)
-
-        EmitTriplet(Code(
-          codeZ.map(_.setup),
-          accVars.zipWithIndex.map { case ((_, (ti, xm, xv)), i) =>
-            Code(xm := codeZ(i).m, xv.storeAny(xm.mux(defaultValue(acc(i)._2.typ), codeZ(i).v)))
-          },
-          processAElts.setup,
-          marray.mux(
-            Code(
-              xresm := true,
-              xresv.storeAny(defaultValue(res.typ))),
-            Code(
-              aBase.calcLength,
-              processAElts.addElements,
-              codeR.setup,
-              xresm := codeR.m,
-              xresv.storeAny(codeR.v)))),
-          xresm, xresv)
+        COption.toEmitTriplet(resOpt, typeToTypeInfo(res.typ), mb)
 
       case ArrayFor(a, valueName, body) =>
         val eltType = a.pType.asInstanceOf[PStream].elementType
@@ -829,6 +810,7 @@ private class Emit(
           val bodyenv = env.bind(
             (valueName, (eltTI, xElt.load.m, xElt.load.v)))
           val codeB = emit(body, env = bodyenv)
+
           Code(xElt := elt, codeB.setup)
         }
 
