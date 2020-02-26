@@ -51,6 +51,7 @@ Genetics Methods
     export_entries_by_col
     sparse_split_multi
     densify
+    pc_project
 
 `dplyr`-inspired Methods
 ------------------------
@@ -87,3 +88,4 @@ Functions
 .. autofunction:: full_outer_join_mt
 .. autofunction:: strftime
 .. autofunction:: strptime
+.. autofunction:: pc_project
