@@ -3,11 +3,20 @@ from hail.typecheck import *
 from hail.expr.expressions import *
 
 
-@typecheck(genotype_expr=expr_call(),
-           loadings_expr=expr_array(),
-           af_expr=expr_numeric())
+@typecheck(genotype_expr=expr_call,
+           loadings_expr=expr_array(expr_numeric),
+           af_expr=expr_numeric)
 def pc_project(gt_expr, loadings_expr, af_expr):
-    """Projects samples in `mt` on pre-computed PCs.
+    """Projects genotypes onto pre-computed PCs.
+    Requires loadings and allele-frequency from
+    a reference dataset, e.g.:
+
+    >>> # Compute loadings and allele frequency for reference dataset
+    >>> _, _, loadings_ht = hl.hwe_normalized_pca(mt.GT, k=10, compute_loadings=True)   # doctest: +SKIP
+    >>> mt = mt.annotate_rows(af=hl.agg.mean(mt.GT.n_alt_alleles()) / 2)                # doctest: +SKIP
+    >>> loadings_ht = loadings_ht.annotate(af=mt.rows()[loadings_ht.key].af)            # doctest: +SKIP
+    >>> # Project new genotypes onto loadings
+    >>> ht = pc_project(mt_to_project.GT, loadings_ht.loadings, loadings_ht.af)         # doctest: +SKIP
 
     Parameters
     ----------
