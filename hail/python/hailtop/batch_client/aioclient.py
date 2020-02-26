@@ -302,10 +302,12 @@ class Batch:
     async def cancel(self):
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
-    async def jobs(self):
+    async def jobs(self, q=None):
         last_job_id = None
         while True:
             params = {}
+            if q is not None:
+                params['q'] = q
             if last_job_id is not None:
                 params['last_job_id'] = last_job_id
             resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/jobs', params=params)

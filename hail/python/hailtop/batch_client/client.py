@@ -110,8 +110,8 @@ class Batch:
     def status(self):
         return async_to_blocking(self._async_batch.status())
 
-    def jobs(self):
-        return agen_to_blocking(self._async_batch.jobs())
+    def jobs(self, q=None):
+        return agen_to_blocking(self._async_batch.jobs(q=q))
 
     def wait(self):
         return async_to_blocking(self._async_batch.wait())
@@ -179,7 +179,7 @@ class BatchClient:
         return self._async_client.billing_project
 
     def list_batches(self, q=None):
-        for b in agen_to_blocking(self._async_client.list_batches(q)):
+        for b in agen_to_blocking(self._async_client.list_batches(q=q)):
             yield Batch.from_async_batch(b)
 
     def get_job(self, batch_id, job_id):
