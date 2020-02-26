@@ -660,11 +660,11 @@ class WatchedBranch(Code):
                         'to': 'team',
                         'topic': 'CI Deploy Failure',
                         'content': f'''
-@dev
+@*dev*
 state: {self.deploy_state}
 branch: {self.branch.short_str()}
 sha: {self.sha}
-url: {deploy_config.url('ci', f'/batches/{self.deploy_batch.id}')}
+url: https://ci.hail.is/batches/{self.deploy_batch.id}
 '''}
                     result = zulip_client.send_message(request)
                     log.info(result)
