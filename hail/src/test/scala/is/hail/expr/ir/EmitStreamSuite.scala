@@ -273,17 +273,16 @@ class EmitStreamSuite extends HailSuite {
     val mb = fb.apply_method
     val ir = streamIR.deepCopy()
     InferPType(ir, Env.empty)
+    val eltType = streamIR.pType.asInstanceOf[PStream].elementType
     val stream = ExecuteContext.scoped { ctx =>
       val s = ir match {
         case ToArray(s) => s
         case s => s
       }
-      EmitStream(new Emit(ctx, mb), s, Env.empty, EmitRegion.default(mb), None)
+      EmitStream2(new Emit(ctx, mb), s, Env.empty, EmitRegion.default(mb), None)
     }
     mb.emit {
-      val arrayt = stream
-        .toArrayIterator(mb)
-        .toEmitTriplet(mb, PArray(stream.elementType))
+      val arrayt = EmitStream2.toArray(mb, PArray(eltType), stream)
       Code(arrayt.setup, arrayt.m.mux(0L, arrayt.v))
     }
     val f = fb.resultWithIndex()
@@ -292,7 +291,7 @@ class EmitStreamSuite extends HailSuite {
       if (off == 0L)
         null
       else
-        SafeRow.read(PArray(stream.elementType), r, off).asInstanceOf[IndexedSeq[Any]]
+        SafeRow.read(PArray(eltType), r, off).asInstanceOf[IndexedSeq[Any]]
     }
   }
 

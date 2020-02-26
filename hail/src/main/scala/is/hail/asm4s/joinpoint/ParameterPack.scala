@@ -247,8 +247,8 @@ case class ParameterStoreTriplet[A](t: PType, psm: ParameterStore[Code[Boolean]]
   def store(trip: TypedTriplet[A]): Code[Unit] = Code(
     trip.setup,
     trip.m.mux(
-    Code(psm.store(true), psv.storeAny(ir.defaultValue(ti))),
-    Code(psm.store(false), psv.storeAny(trip.v))))
+      Code(psm.store(true), psv.storeAny(ir.defaultValue(ti))),
+      Code(psm.store(false), psv.storeAny(trip.v))))
 
   def storeInsn: Code[Unit] = ParameterStoreTuple2(psv, psm).storeInsn
 

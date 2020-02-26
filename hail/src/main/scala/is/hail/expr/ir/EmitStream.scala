@@ -29,6 +29,11 @@ abstract class COption[+A] { self =>
       self.apply(none, a => f(a, some))
   }
 
+  def addSetup(f: Code[Unit]): COption[A] = new COption[A] {
+    def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
+      Code(f, self.apply(none, some))
+  }
+
   def doIfNone(f: Code[Unit]): COption[A] = new COption[A] {
     def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
       self.apply(Code(f, none), some)
@@ -39,6 +44,14 @@ abstract class COption[+A] { self =>
       val noneJP = ctx.jb.joinPoint()
       noneJP.define(_ => none)
       self.apply(noneJP(()), f(_)(noneJP(()), some))
+    }
+  }
+
+  def filter(cond: Code[Boolean]): COption[A] = new COption[A] {
+    def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+      val noneJP = ctx.jb.joinPoint()
+      noneJP.define(_ => none)
+      cond.mux(noneJP(()), self.apply(noneJP(()), some))
     }
   }
 
@@ -56,6 +69,11 @@ object COption {
     def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = missing.mux(none, some(value))
   }
 
+  // Empty is the only COption allowed to not call `some` at compile time
+  object None extends COption[Nothing] {
+    def apply(none: Code[Ctrl], some: Nothing => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = none
+  }
+
   def lift[A](opts: IndexedSeq[COption[A]]): COption[IndexedSeq[A]] = new COption[IndexedSeq[A]] {
     def apply(none: Code[Ctrl], some: IndexedSeq[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
       val noneJP = ctx.jb.joinPoint()
@@ -70,6 +88,30 @@ object COption {
       nthOpt(0, FastIndexedSeq())
     }
   }
+
+  def choose[A](useLeft: Code[Boolean], left: COption[A], right: COption[A], fuse: (A, A) => A): COption[A] =
+    (left, right) match {
+      case (COption.None, COption.None) => COption.None
+      case (_, COption.None) =>
+        left.filter(!useLeft)
+      case (COption.None, _) =>
+        right.filter(useLeft)
+      case _ => new COption[A] {
+        var l: Option[A] = scala.None
+        var r: Option[A] = scala.None
+        def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+          val noneJP = ctx.jb.joinPoint()
+          noneJP.define(_ => none)
+          val k = ctx.jb.joinPoint()
+          val runLeft = left(noneJP(()), a => {l = Some(a); k(())})
+          val runRight = right(noneJP(()), a => {r = Some(a); k(())})
+
+          k.define(_ => some(fuse(l.get, r.get)))
+
+          useLeft.mux(runLeft, runRight)
+        }
+      }
+    }
 
   def fromEmitTriplet[A](et: EmitTriplet): COption[Code[A]] = new COption[Code[A]] {
     def apply(none: Code[Ctrl], some: Code[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
@@ -368,7 +410,7 @@ object CodeStream { self =>
       Source[A](
         setup0 = Code(b := cond, l.setup0, r.setup0),
         close0 = Code(l.close0, r.close0),
-        setup = b.load.mux(l.setup, r.setup),
+        setup = Code(b := cond, b.load.mux(l.setup, r.setup)),
         close = b.load.mux(l.close, r.close),
         pull = JoinPoint.mux(b.load, lPullJP, rPullJP)
       )
@@ -377,33 +419,38 @@ object CodeStream { self =>
 
   def fromParameterized[P, A](
     stream: EmitStream.Parameterized[P, A]
-  ): P => COption[Stream[A]] = p => new COption[Stream[A]] {
-    def apply(none: Code[Ctrl], some: Stream[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
-      import EmitStream.{Missing, Start, EOS, Yield}
-      implicit val sP = stream.stateP
-      val s = newLocal[stream.S]
-      val sNew = newLocal[stream.S]
+  ): P => COption[Stream[A]] = p =>
+    if (stream == EmitStream.missing)
+      COption.None
+    else {
+      new COption[Stream[A]] {
+        def apply(none: Code[Ctrl], some: Stream[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+          import EmitStream.{Missing, Start, EOS, Yield}
+          implicit val sP = stream.stateP
+          val s = newLocal[stream.S]
+          val sNew = newLocal[stream.S]
 
-      def src(s0: stream.S): Stream[A] = new Stream[A] {
-        def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
-          Source[A](
-            setup0 = Code(s.init, sNew.init),
-            close0 = Code._empty,
-            setup = sNew := s0,
-            close = Code._empty,
-            pull = Code(s := sNew.load, stream.step(s.load) {
-              case EOS => eos
-              case Yield(elt, s1) => Code(sNew := s1, push(elt))
-            }))
+          def src(s0: stream.S): Stream[A] = new Stream[A] {
+            def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
+              Source[A](
+                setup0 = Code(s.init, sNew.init),
+                close0 = Code._empty,
+                setup = sNew := s0,
+                close = Code._empty,
+                pull = Code(s := sNew.load, stream.step(s.load) {
+                  case EOS => eos
+                  case Yield(elt, s1) => Code(sNew := s1, push(elt))
+                }))
+            }
+          }
+
+          stream.init(p) {
+            case Missing => none
+            case Start(s0) => some(src(s0))
+          }
         }
       }
-
-      stream.init(p) {
-        case Missing => none
-        case Start(s0) => some(src(s0))
-      }
     }
-  }
 }
 
 object EmitStream2 {
@@ -480,6 +527,7 @@ object EmitStream2 {
           implicit val childEltPack = TypedTriplet.pack(childEltType)
 
           val optStream = emitStream(childIR, env)
+
           optStream.map { stream =>
             filter(stream
               .map { elt =>
@@ -503,7 +551,7 @@ object EmitStream2 {
           }
 
         case StreamZip(as, names, bodyIR, behavior) =>
-          val eltTypes = as.map(_.pType.asInstanceOf[PStreamable].elementType)
+          val eltTypes = as.map(_.pType.asInstanceOf[PStream].elementType)
           val eltsPack = ParameterPack.array(eltTypes.map(TypedTriplet.pack(_)))
           val eltVars = eltsPack.newFields(mb.fb, names)
 
@@ -526,8 +574,10 @@ object EmitStream2 {
                 val extended: IndexedSeq[Stream[COption[TypedTriplet[_]]]] =
                   streams.zipWithIndex.map { case (stream, i) =>
                     val t = eltTypes(i)
+
                     extendNA[TypedTriplet[_]](stream.map(TypedTriplet(t, _)))(eltsPack.pps(i).asInstanceOf[ParameterPack[TypedTriplet[_]]])
                   }
+
                 // zip to an infinite stream, where the COption is missing when all streams are EOS
                 val flagged: Stream[COption[EmitTriplet]] = multiZip(extended)
                   .mapCPS { (_, elts, k) =>
@@ -545,10 +595,12 @@ object EmitStream2 {
                               Code(allEOS := false,
                                    k(COption.fromEmitTriplet(elt.untyped)))
                             }
+
                         COption.toTypedTriplet(t, mb, optElt)
                       }
                     val bodyEnv = Emit.bindEnv(env, names.zip(eltVars.pss.asInstanceOf[IndexedSeq[ParameterStoreTriplet[_]]]): _*)
                     val body = emitIR(bodyIR, bodyEnv)
+
                     Code(
                       allEOS := true,
                       if (assert) anyEOS := false else Code._empty,
@@ -560,6 +612,7 @@ object EmitStream2 {
                       else
                         k(COption(allEOS, body)))
                   }
+
                 // termininate the stream when all streams are EOS
                 take(flagged)
             }
@@ -570,31 +623,40 @@ object EmitStream2 {
           val outerEltPack = TypedTriplet.pack(outerEltType)
 
           val optOuter = emitStream(outerIR, env)
+
           optOuter.map { outer =>
             val nested = outer.mapCPS[COption[Stream[EmitTriplet]]] { (ctx, elt, k) =>
               val xElt = outerEltPack.newFields(ctx.mb.fb, name)
               val innerEnv = Emit.bindEnv(env, name -> xElt)
               val optInner = emitStream(innerIR, innerEnv)
+
               Code(
                 xElt := TypedTriplet(outerEltType, elt),
                 k(optInner))
             }
+
             flatMap(filter(nested))
           }
 
         case If(condIR, thn, els) =>
           val eltType = thn.pType.asInstanceOf[PStream].elementType
-          val eltPack = TypedTriplet.pack(eltType)
+          implicit val eltPack: ParameterPack[TypedTriplet[eltType.type]] = TypedTriplet.pack(eltType)
+          val xCond = mb.newField[Boolean]
 
-          COption.fromEmitTriplet[Boolean](emitIR(condIR, env)).flatMap { cond =>
-            emitStream(thn, env).flatMap { thnStream =>
-              emitStream(els, env).map { elsStream =>
-                mux(cond,
-                    thnStream.map(TypedTriplet(eltType, _)),
-                    elsStream.map(TypedTriplet(eltType, _)))(eltPack)
-                  .map(_.untyped)
-              }
-            }
+          val condT = COption.fromEmitTriplet[Boolean](emitIR(condIR, env))
+          val optLeftStream = emitStream(thn, env)
+          val optRightStream = emitStream(els, env)
+
+          condT.flatMapCPS[Stream[EmitTriplet]] { (cond, _, k) =>
+            Code(
+              xCond := cond,
+              k(COption.choose[Stream[EmitTriplet]](
+                xCond,
+                optLeftStream,
+                optRightStream,
+                (leftStream, rightStream) =>
+                  mux(xCond, leftStream.map(TypedTriplet(eltType, _)), rightStream.map(TypedTriplet(eltType, _))).map(_.untyped)))
+              )
           }
 
         case Let(name, valueIR, bodyIR) =>
@@ -605,12 +667,7 @@ object EmitStream2 {
           val valuet = TypedTriplet(valueType, emitIR(valueIR, env))
           val bodyEnv = Emit.bindEnv(env, name -> xValue)
 
-          val optStream = emitStream(bodyIR, bodyEnv)
-          new COption[Stream[EmitTriplet]] {
-            def apply(none: Code[Ctrl], some: Stream[EmitTriplet] => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
-              Code(xValue := valuet, optStream(none, some))
-            }
-          }
+          emitStream(bodyIR, bodyEnv).addSetup(xValue := valuet)
 
         case _ =>
           val EmitStream(parameterized, eltType) =
