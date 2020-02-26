@@ -31,7 +31,7 @@ from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_m
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME
+from ..batch_configuration import BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME, DEFAULT_NAMESPACE
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
@@ -471,7 +471,11 @@ def check_service_account_permissions(user, sa):
     if sa is None:
         return
     if user == 'ci':
+        if sa['name'] == 'ci-agent' and sa['namespace'] == DEFAULT_NAMESPACE:
+            return
         if sa['name'] == 'ci-agent' and sa['namespace'] == BATCH_PODS_NAMESPACE:
+            return
+        if sa['name'] == 'admin' and sa['namespace'] == DEFAULT_NAMESPACE:
             return
         if sa['name'] == 'admin' and sa['namespace'] == BATCH_PODS_NAMESPACE:
             return
