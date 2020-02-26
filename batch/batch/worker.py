@@ -13,6 +13,7 @@ import shutil
 import aiohttp
 import aiohttp.client_exceptions
 from aiohttp import web
+import async_timeout
 import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
@@ -97,6 +98,8 @@ async def docker_call_retry(f, *args, **kwargs):
                 log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
             else:
                 raise
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            raise
         except aiohttp.client_exceptions.ServerDisconnectedError:
             log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
         except asyncio.TimeoutError:
@@ -290,11 +293,9 @@ class Container:
                         await docker_call_retry(self.container.start)
 
                     async with self.step('running'):
-                        try:
-                            await asyncio.wait_for(
-                                docker_call_retry(self.container.wait),
-                                self.timeout)
-                        except asyncio.TimeoutError:
+                        async with async_timeout.timeout(self.timeout) as tm:
+                            await docker_call_retry(self.container.wait)
+                        if tm.expired:
                             raise JobTimeoutError(f'timed out after {self.timeout}s')
 
             self.container_status = await self.get_container_status()
