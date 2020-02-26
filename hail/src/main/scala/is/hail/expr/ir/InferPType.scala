@@ -553,7 +553,7 @@ object InferPType {
         val sigs = signature.indices.map { i => computePhysicalAgg(signature(i), inits(i), seqs(i)) }.toArray
         infer(result, env = e2, aggs = sigs, inits = null, seqs = null)
         x.physicalSignatures2 = sigs
-        coerce[PStream](array.pType2).copy(result.pType2)
+        PCanonicalArray(result.pType2, array._pType2.required)
 
       case AggStateValue(i, sig) => PCanonicalBinary(true)
       case x if x.typ == TVoid =>
