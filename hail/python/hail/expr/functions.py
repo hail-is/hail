@@ -2062,6 +2062,23 @@ def range(start, stop=None, step=1) -> ArrayNumericExpression:
     return apply_expr(lambda sta, sto, ste: ToArray(StreamRange(sta, sto, ste)), tarray(tint32), start, stop, step)
 
 
+@typecheck(length=expr_int32)
+def zeros(length) -> ArrayNumericExpression:
+    """Returns an array of zeros of length `length`.
+
+    Parameters
+    ----------
+    length : int or :class:`.Expression` of type :py:data:`.tint32`
+        length of zeros array.
+
+    Returns
+    -------
+    :class:`.ArrayInt32Expression`
+    """
+
+    return apply_expr(lambda z: ArrayZeros(z), tarray(tint32), length)
+
+
 @typecheck(p=expr_float64, seed=nullable(int))
 def rand_bool(p, seed=None) -> BooleanExpression:
     """Returns ``True`` with probability `p`.
