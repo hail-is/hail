@@ -18,7 +18,7 @@ import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
 from hailtop.utils import time_msecs, request_retry_transient_errors, RETRY_FUNCTION_SCRIPT, \
-    retry_forever
+    retry_all_errors
 
 
 # import uvloop
@@ -789,10 +789,10 @@ class Worker:
                 log.info('cleaned up app runner')
 
     async def post_job_complete_1(self, job, run_duration):
-        full_status = await retry_forever(f'error while getting status for {job}')(job.status)
+        full_status = await retry_all_errors(f'error while getting status for {job}')(job.status)
 
         if job.format_version.has_full_status_in_gcs():
-            await retry_forever(f'error while writing status file to gcs for {job}')(
+            await retry_all_errors(f'error while writing status file to gcs for {job}')(
                 self.log_store.write_status_file,
                 job.batch_id,
                 job.job_id,

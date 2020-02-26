@@ -170,7 +170,7 @@ class Server:
                         async with cs.post(f'{server.leader_url}/w', data=server.name) as resp:
                             assert resp.status == 200
                             await resp.text()
-                await utils.retry_forever(f'could not join cluster with leader {server.leader} at {server.leader_url}')(make_request)
+                await utils.retry_all_errors(f'could not join cluster with leader {server.leader} at {server.leader_url}')(make_request)
                 log.info(f'joined cluster lead by {server.leader}')
 
         prefixed_app.on_startup.append(join_cluster)
