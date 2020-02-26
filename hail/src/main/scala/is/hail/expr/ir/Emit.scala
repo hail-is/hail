@@ -1742,7 +1742,8 @@ private class Emit(
         }
 
         val spark = parentFB.backend()
-        val contextAE = emitArrayIterator(contexts)
+
+        val optCtxStream = emitStream2(contexts)
         val globalsT = emit(globals)
 
         val cEnc = cCodec.buildEmitEncoderF[Long](ctxTypeTuple, parentFB)
@@ -1756,32 +1757,29 @@ private class Emit(
         val ctxab = mb.newField[ByteArrayArrayBuilder]
         val encRes = mb.newField[Array[Array[Byte]]]
 
-        val contextT = {
-          val sctxb = new StagedRegionValueBuilder(mb, ctxTypeTuple)
-          contextAE.arrayEmitter { (m: Code[Boolean], v: PValue) =>
+        def etToTuple(et: EmitTriplet, t: PType): Code[Long] = {
+          val srvb = new StagedRegionValueBuilder(mb, PTuple(t))
+          Code(
+            srvb.start(),
+            et.setup,
+            et.m.mux(
+              srvb.setMissing(),
+              srvb.addIRIntermediate(t)(et.v)),
+            srvb.offset)
+        }
+
+        def addContexts(ctxStream: Stream[EmitTriplet]): Code[Unit] =
+          ctxStream.map(etToTuple(_, ctxType)).forEach(mb) { offset =>
             Code(
               baos.invoke[Unit]("reset"),
-              sctxb.start(),
-              m.mux(
-                sctxb.setMissing(),
-                sctxb.addIRIntermediate(ctxType)(v.code)),
-              cEnc(region, sctxb.offset, buf),
+              cEnc(region, offset, buf),
               buf.invoke[Unit]("flush"),
               ctxab.invoke[Array[Byte], Unit]("add", baos.invoke[Array[Byte]]("toByteArray")))
           }
-        }
 
-        val addGlobals = {
-          val sgb = new StagedRegionValueBuilder(mb, gTypeTuple)
-          Code(
-            globalsT.setup,
-            sgb.start(),
-            globalsT.m.mux(
-              sgb.setMissing(),
-              sgb.addIRIntermediate(gType)(globalsT.v)),
-            gEnc(region, sgb.offset, buf),
-            buf.invoke[Unit]("flush"))
-        }
+        val addGlobals = Code(
+          gEnc(region, etToTuple(globalsT, gType), buf),
+          buf.invoke[Unit]("flush"))
 
         val decodeResult = {
           val sab = new StagedRegionValueBuilder(mb, x.pType)
@@ -1798,22 +1796,21 @@ private class Emit(
             sab.end())
         }
 
-        EmitTriplet(
-          contextT.setup,
-          contextT.m.getOrElse(false),
-          PValue(pt, Code(
-            baos := Code.newInstance[ByteArrayOutputStream](),
-            buf := cCodec.buildCodeOutputBuffer(baos), // TODO: take a closer look at whether we need two codec buffers?
-            ctxab := Code.newInstance[ByteArrayArrayBuilder, Int](16),
-            contextAE.calcLength,
-            contextT.addElements,
-            baos.invoke[Unit]("reset"),
-            addGlobals,
-            encRes := spark.invoke[String, Array[Array[Byte]], Array[Byte], Array[Array[Byte]]](
-              "collectDArray", functionID,
-              ctxab.invoke[Array[Array[Byte]]]("result"),
-              baos.invoke[Array[Byte]]("toByteArray")),
-            decodeResult)))
+        val optRes = optCtxStream.map { ctxStream => Code(
+          baos := Code.newInstance[ByteArrayOutputStream](),
+          buf := cCodec.buildCodeOutputBuffer(baos), // TODO: take a closer look at whether we need two codec buffers?
+          ctxab := Code.newInstance[ByteArrayArrayBuilder, Int](16),
+          addContexts(ctxStream),
+          baos.invoke[Unit]("reset"),
+          addGlobals,
+          encRes := spark.invoke[String, Array[Array[Byte]], Array[Byte], Array[Array[Byte]]](
+            "collectDArray", functionID,
+            ctxab.invoke[Array[Array[Byte]]]("result"),
+            baos.invoke[Array[Byte]]("toByteArray")),
+          decodeResult)
+        }
+
+        COption.toEmitTriplet(optRes, x.pType, mb)
 
       case x@TailLoop(name, args, body) =>
         val loopRefs = args.map { case (name, ir) =>
