@@ -11,6 +11,8 @@ def pc_project(gt_expr, loadings_expr, af_expr):
     Requires loadings and allele-frequency from
     a reference dataset, e.g.:
 
+    Example
+    -------
     >>> # Compute loadings and allele frequency for reference dataset
     >>> _, _, loadings_ht = hl.hwe_normalized_pca(mt.GT, k=10, compute_loadings=True)   # doctest: +SKIP
     >>> mt = mt.annotate_rows(af=hl.agg.mean(mt.GT.n_alt_alleles()) / 2)                # doctest: +SKIP
