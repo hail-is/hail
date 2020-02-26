@@ -224,6 +224,7 @@ class Test(unittest.TestCase):
         assert_job_ids({j_running.job_id}, '!done')
         assert_job_ids({j_running.job_id}, 'tag=foo')
         assert_job_ids({j_error.job_id, j_running.job_id}, 'has:tag')
+        assert_job_ids({j_success.job_id, j_failure.job_id, j_error.job_id, j_running.job_id}, None)
 
         b.cancel()
 
