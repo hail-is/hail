@@ -987,7 +987,6 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     val scanRef = genUID()
     val extracted = agg.Extract.apply(agg.Extract.liftScan(newRow), scanRef)
 
-
     if (extracted.aggs.isEmpty) {
       val (rTyp, f) = ir.Compile[Long, Long, Long](
         ctx,
