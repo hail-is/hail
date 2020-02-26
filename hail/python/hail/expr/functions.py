@@ -2066,6 +2066,12 @@ def range(start, stop=None, step=1) -> ArrayNumericExpression:
 def zeros(length) -> ArrayNumericExpression:
     """Returns an array of zeros of length `length`.
 
+    Examples
+    --------
+
+    >>> hl.eval(hl.range(0, 10, step=3))
+    [0, 0, 0, 0]
+
     Parameters
     ----------
     length : int or :class:`.Expression` of type :py:data:`.tint32`
