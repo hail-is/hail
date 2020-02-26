@@ -507,6 +507,9 @@ class Job:
         port = job_spec.get('port')
         if port:
             main_spec['port'] = port
+        timeout = job_spec.get('timeout')
+        if timeout:
+            main_spec['timeout'] = timeout
         containers['main'] = Container(self, 'main', main_spec)
 
         if output_files:
