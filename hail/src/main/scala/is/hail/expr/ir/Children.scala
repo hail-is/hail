@@ -53,8 +53,6 @@ object Children {
       Array(a, i, s)
     case ArrayLen(a) =>
       Array(a)
-    case ArrayRange(start, stop, step) =>
-      Array(start, stop, step)
     case StreamRange(start, stop, step) =>
       Array(start, stop, step)
     case MakeNDArray(data, shape, rowMajor) =>
@@ -186,9 +184,12 @@ object Children {
     case BlockMatrixToValueApply(child, _) => Array(child)
     case BlockMatrixCollect(child) => Array(child)
     case BlockMatrixWrite(child, _) => Array(child)
+    case UnpersistBlockMatrix(child) => Array(child)
     case BlockMatrixMultiWrite(blockMatrices, _) => blockMatrices
     case CollectDistributedArray(ctxs, globals, _, _, body) => Array(ctxs, globals, body)
     case ReadPartition(path, _, _) => Array(path)
+    case ReadValue(path, _, _) => Array(path)
+    case WriteValue(value, pathPrefix, spec) => Array(value, pathPrefix)
     case LiftMeOut(child) => Array(child)
   }
 }

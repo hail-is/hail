@@ -5,7 +5,7 @@ import is.hail.expr.types.virtual.{TSet, Type}
 final case class PCanonicalSet(elementType: PType,  required: Boolean = false) extends PSet with PArrayBackedContainer {
   val arrayRep = PCanonicalArray(elementType, required)
 
-  def copy(elementType: PType = this.elementType, required: Boolean = this.required): PSet = PCanonicalSet(elementType, required)
+  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalSet(elementType, required)
 
   def _asIdent = s"set_of_${elementType.asIdent}"
 

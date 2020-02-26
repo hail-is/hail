@@ -34,7 +34,7 @@ sealed trait IR extends BaseIR {
       try {
         _typ = InferType(this)
       } catch {
-        case e: Throwable => throw new RuntimeException(s"typ: inference failure: \n${ Pretty(this) }", e)
+        case e: Throwable => throw new RuntimeException(s"typ: inference failure", e)
       }
     _typ
   }
@@ -163,9 +163,7 @@ object ArrayRef {
 
 final case class ArrayRef(a: IR, i: IR, msg: IR) extends IR
 final case class ArrayLen(a: IR) extends IR
-final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR
 final case class StreamRange(start: IR, stop: IR, step: IR) extends IR
-
 
 object ArraySort {
   def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): ArraySort = {
@@ -190,6 +188,7 @@ object ArraySort {
     ArraySort(a, l, r, If(ascending, compare < 0, compare > 0))
   }
 }
+
 final case class ArraySort(a: IR, left: String, right: String, compare: IR) extends IR
 final case class ToSet(a: IR) extends IR
 final case class ToDict(a: IR) extends IR
@@ -431,6 +430,11 @@ final case class BlockMatrixMultiWrite(blockMatrices: IndexedSeq[BlockMatrixIR],
 final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR) extends IR
 
 final case class ReadPartition(path: IR, spec: AbstractTypedCodecSpec, rowType: TStruct) extends IR
+
+final case class ReadValue(path: IR, spec: AbstractTypedCodecSpec, requestedType: Type) extends IR
+final case class WriteValue(value: IR, pathPrefix: IR, spec: AbstractTypedCodecSpec) extends IR
+
+final case class UnpersistBlockMatrix(child: BlockMatrixIR) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)

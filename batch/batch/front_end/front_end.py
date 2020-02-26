@@ -481,6 +481,7 @@ async def create_jobs(request, userdata):
     batch_id = int(request.match_info['batch_id'])
 
     user = userdata['username']
+
     # restrict to what's necessary; in particular, drop the session
     # which is sensitive
     userdata = {
@@ -579,13 +580,22 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 secrets = spec.get('secrets')
                 if not secrets:
                     secrets = []
-                    spec['secrets'] = secrets
+
+                for secret in secrets:
+                    if user != 'ci':
+                        raise web.HTTPBadRequest(reason=f'unauthorized secret {(secret["namespace"], secret["name"])}')
+
+                spec['secrets'] = secrets
                 secrets.append({
                     'namespace': BATCH_PODS_NAMESPACE,
                     'name': userdata['gsa_key_secret_name'],
                     'mount_path': '/gsa-key',
                     'mount_in_copy': True
                 })
+
+                sa = spec.get('service_account')
+                if sa and user != 'ci' and not (user == 'test' and sa['name'] == 'test-batch-sa' and sa['namespace'] == BATCH_PODS_NAMESPACE):
+                    raise web.HTTPBadRequest(reason=f'unauthorized service account {(sa["namespace"], sa["name"])}')
 
                 env = spec.get('env')
                 if not env:

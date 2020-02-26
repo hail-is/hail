@@ -8,9 +8,17 @@ import org.json4s.jackson.JsonMethods
 import scala.reflect.{ClassTag, classTag}
 
 trait TStreamable extends TIterable {
+  def makeRealizable(t: Type): Type = t match {
+    case t: TStream =>
+      TArray(makeRealizable(t.elementType), t.required)
+    case _ =>
+      assert(t.isRealizable)
+      t
+  }
+
   def copyStreamable(elt: Type, req: Boolean = required): TStreamable = {
     this match {
-      case _: TArray => TArray(elt, req)
+      case _: TArray => TArray(makeRealizable(elt), req)
       case _: TStream => TStream(elt, req)
     }
   }

@@ -780,11 +780,6 @@ object IRParser {
         val s = ir_value_expr(env)(it)
         ArrayRef(a, i, s)
       case "ArrayLen" => ArrayLen(ir_value_expr(env)(it))
-      case "ArrayRange" =>
-        val start = ir_value_expr(env)(it)
-        val stop = ir_value_expr(env)(it)
-        val step = ir_value_expr(env)(it)
-        ArrayRange(start, stop, step)
       case "StreamRange" =>
         val start = ir_value_expr(env)(it)
         val stop = ir_value_expr(env)(it)
@@ -1155,6 +1150,8 @@ object IRParser {
         val writer = deserialize[BlockMatrixMultiWriter](writerStr)
         val blockMatrices = repUntil(it, blockmatrix_ir(env), PunctuationToken(")"))
         BlockMatrixMultiWrite(blockMatrices.toFastIndexedSeq, writer)
+      case "UnpersistBlockMatrix" =>
+        UnpersistBlockMatrix(blockmatrix_ir(env)(it))
       case "CollectDistributedArray" =>
         val cname = identifier(it)
         val gname = identifier(it)
@@ -1171,6 +1168,18 @@ object IRParser {
         val rowType = coerce[TStruct](type_expr(env.typEnv)(it))
         val path = ir_value_expr(env)(it)
         ReadPartition(path, spec, rowType)
+      case "ReadValue" =>
+        import AbstractRVDSpec.formats
+        val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]
+        val typ = type_expr(env.typEnv)(it)
+        val path = ir_value_expr(env)(it)
+        ReadValue(path, spec, typ)
+      case "WriteValue" =>
+        import AbstractRVDSpec.formats
+        val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]
+        val value = ir_value_expr(env)(it)
+        val path = ir_value_expr(env)(it)
+        WriteValue(value, path, spec)
       case "LiftMeOut" =>
         LiftMeOut(ir_value_expr(env)(it))
     }

@@ -5,7 +5,6 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.backend.Backend
-import is.hail.backend.distributed.DistributedBackend
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.IRFunctionRegistry
@@ -289,33 +288,6 @@ object HailContext {
 
     hc
   }
-
-  def createDistributed(hostname: String,
-    logFile: String = "hail.log",
-    quiet: Boolean = false,
-    append: Boolean = false,
-    minBlockSize: Long = 1L,
-    branchingFactor: Int = 50,
-    tmpDir: String = "/tmp",
-    optimizerIterations: Int = 3): HailContext = contextLock.synchronized {
-    require(theContext == null)
-    checkJavaVersion()
-    val hConf = new hadoop.conf.Configuration()
-
-    configureLogging(logFile, quiet, append)
-
-    hConf.set("io.compression.codecs", hailCompressionCodecs.mkString(","))
-    val fs = new HadoopFS(new SerializableHadoopConfiguration(hConf))
-    val hc = new HailContext(new DistributedBackend(hostname, hConf), fs, logFile, tmpDir, branchingFactor, optimizerIterations)
-
-    info(s"Running Hail version ${ hc.version }")
-    theContext = hc
-
-    // needs to be after `theContext` is set, since this creates broadcasts
-    ReferenceGenome.addDefaultReferences()
-    hc
-  }
-
 
   def clear() {
     ReferenceGenome.reset()

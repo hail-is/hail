@@ -88,14 +88,14 @@ class TableIRSuite extends HailSuite {
     val t = TableRange(10, 2)
     val row = Ref("row", t.typ.rowType)
 
-    val t2 = TableMapRows(t, InsertFields(row, FastIndexedSeq("x" -> ArrayRange(0, GetField(row, "idx"), 1))))
+    val t2 = TableMapRows(t, InsertFields(row, FastIndexedSeq("x" -> ToArray(StreamRange(0, GetField(row, "idx"), 1)))))
     val node = TableExplode(t2, FastIndexedSeq("x"))
     val expected = Array.range(0, 10).flatMap(i => Array.range(0, i).map(Row(i, _))).toFastIndexedSeq
     assertEvalsTo(collect(node), Row(expected, Row()))
 
     val t3 = TableMapRows(t, InsertFields(row,
       FastIndexedSeq("x" ->
-        MakeStruct(FastSeq("y" -> ArrayRange(0, GetField(row, "idx"), 1))))))
+        MakeStruct(FastSeq("y" -> ToArray(StreamRange(0, GetField(row, "idx"), 1)))))))
     val node2 = TableExplode(t3, FastIndexedSeq("x", "y"))
     val expected2 = Array.range(0, 10).flatMap(i => Array.range(0, i).map(j => Row(i, Row(j)))).toFastIndexedSeq
     assertEvalsTo(collect(node2), Row(expected2, Row()))

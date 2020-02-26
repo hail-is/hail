@@ -32,6 +32,4 @@ abstract class PLocus extends ComplexPType {
   def position(address: Code[Long]): Code[Int]
 
   def positionType: PInt32
-
-  def copy(required: Boolean): PLocus
 }

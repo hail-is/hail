@@ -416,8 +416,11 @@ object Pretty {
             case RelationalLetTable(name, _, _) => prettyIdentifier(name)
             case RelationalLetMatrixTable(name, _, _) => prettyIdentifier(name)
             case RelationalLetBlockMatrix(name, _, _) => prettyIdentifier(name)
-            case ReadPartition(path, spec, rowType) =>
+            case ReadPartition(_, spec, rowType) =>
               s"${ prettyStringLiteral(spec.toString) } ${ rowType.parsableString() }"
+            case ReadValue(_, spec, reqType) =>
+              s"${ prettyStringLiteral(spec.toString) } ${ reqType.parsableString() }"
+            case WriteValue(_, _, spec) => prettyStringLiteral(spec.toString)
 
             case _ => ""
           }

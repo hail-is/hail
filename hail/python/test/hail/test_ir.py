@@ -51,7 +51,6 @@ class ValueIRTests(unittest.TestCase):
             ir.MakeArray([i, ir.NA(hl.tint32), ir.I32(-3)], hl.tarray(hl.tint32)),
             ir.ArrayRef(a, i, ir.Str('foo')),
             ir.ArrayLen(a),
-            ir.ArrayRange(ir.I32(0), ir.I32(5), ir.I32(1)),
             ir.ArraySort(a, 'l', 'r', ir.ApplyComparisonOp("LT", ir.Ref('l'), ir.Ref('r'))),
             ir.ToSet(a),
             ir.ToDict(da),
@@ -75,9 +74,9 @@ class ValueIRTests(unittest.TestCase):
             ir.ArrayLeftJoinDistinct(a, a, 'l', 'r', ir.I32(0), ir.I32(1)),
             ir.ArrayFor(a, 'v', ir.Void()),
             ir.AggFilter(ir.TrueIR(), ir.I32(0), False),
-            ir.AggExplode(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0), False),
+            ir.AggExplode(ir.ToArray(ir.StreamRange(ir.I32(0), ir.I32(2), ir.I32(1))), 'x', ir.I32(0), False),
             ir.AggGroupBy(ir.TrueIR(), ir.I32(0), False),
-            ir.AggArrayPerElement(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', 'y', ir.I32(0), False),
+            ir.AggArrayPerElement(ir.ToArray(ir.StreamRange(ir.I32(0), ir.I32(2), ir.I32(1))), 'x', 'y', ir.I32(0), False),
             ir.ApplyAggOp('Collect', [], [ir.I32(0)]),
             ir.ApplyScanOp('Collect', [], [ir.I32(0)]),
             ir.ApplyAggOp('CallStats', [ir.I32(2)], [call]),
@@ -111,7 +110,9 @@ class ValueIRTests(unittest.TestCase):
             ir.MatrixWrite(matrix_read, ir.MatrixPLINKWriter(new_temp_file())),
             ir.MatrixMultiWrite([matrix_read, matrix_read], ir.MatrixNativeMultiWriter(new_temp_file(), False, False)),
             ir.BlockMatrixWrite(block_matrix_read, ir.BlockMatrixNativeWriter('fake_file_path', False, False, False)),
-            ir.LiftMeOut(ir.I32(1))
+            ir.LiftMeOut(ir.I32(1)),
+            ir.BlockMatrixWrite(block_matrix_read, ir.BlockMatrixPersistWriter('x', 'MEMORY_ONLY')),
+            ir.UnpersistBlockMatrix(block_matrix_read),
         ]
 
         return value_irs
@@ -292,6 +293,7 @@ class BlockMatrixIRTests(unittest.TestCase):
         add_two_bms = ir.BlockMatrixMap2(read, read, 'l', 'r', ir.ApplyBinaryPrimOp('+', ir.Ref('l'), ir.Ref('r')), "Union")
         negate_bm = ir.BlockMatrixMap(read, 'element', ir.ApplyUnaryPrimOp('-', ir.Ref('element')), False)
         sqrt_bm = ir.BlockMatrixMap(read, 'element', hl.sqrt(construct_expr(ir.Ref('element'), hl.tfloat64))._ir, False)
+        persisted = ir.BlockMatrixRead(ir.BlockMatrixPersistReader('x', read))
 
         scalar_to_bm = ir.ValueToBlockMatrix(scalar_ir, [1, 1], 1)
         col_vector_to_bm = ir.ValueToBlockMatrix(vector_ir, [2, 1], 1)
@@ -318,6 +320,7 @@ class BlockMatrixIRTests(unittest.TestCase):
 
         return [
             read,
+            persisted,
             add_two_bms,
             negate_bm,
             sqrt_bm,

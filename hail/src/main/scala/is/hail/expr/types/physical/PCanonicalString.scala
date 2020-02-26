@@ -5,7 +5,7 @@ import is.hail.asm4s.{Code, MethodBuilder}
 case object PCanonicalStringOptional extends PCanonicalString(false)
 case object PCanonicalStringRequired extends PCanonicalString(true)
 
-abstract class PCanonicalString(val required: Boolean) extends PString {
+class PCanonicalString(val required: Boolean) extends PString {
   def _asIdent = "string"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PCString")
@@ -30,13 +30,6 @@ abstract class PCanonicalString(val required: Boolean) extends PString {
   }
 
   override def containsPointers: Boolean = true
-
-  def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
-    this.fundamentalType.storeShallowAtOffset(dstAddress, valueAddress)
-
-  def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
-    this.fundamentalType.storeShallowAtOffset(dstAddress, valueAddress)
-  }
 
   def bytesOffset(boff: Long): Long =
     this.fundamentalType.bytesOffset(boff)
@@ -73,6 +66,14 @@ abstract class PCanonicalString(val required: Boolean) extends PString {
       dstAddress
     )
   }
+
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] =
+    fundamentalType.constructAtAddress(mb, addr, region, srcPType.fundamentalType, srcAddress, forceDeep)
+
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
+    fundamentalType.constructAtAddress(addr, region, srcPType.fundamentalType, srcAddress, forceDeep)
+
+  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalString(required)
 }
 
 object PCanonicalString {

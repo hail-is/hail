@@ -251,7 +251,7 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].length
-      case ArrayRange(start, stop, step) =>
+      case StreamRange(start, stop, step) =>
         val startValue = interpret(start, env, args)
         val stopValue = interpret(stop, env, args)
         val stepValue = interpret(step, env, args)
@@ -586,6 +586,9 @@ object Interpret {
         writer(hc, child.execute(ctx))
       case BlockMatrixMultiWrite(blockMatrices, writer) =>
         writer(blockMatrices.map(_.execute(ctx)))
+      case UnpersistBlockMatrix(BlockMatrixRead(BlockMatrixPersistReader(id))) =>
+        HailContext.backend.cache.unpersistBlockMatrix(id)
+      case _: UnpersistBlockMatrix =>
       case TableToValueApply(child, function) =>
         function.execute(ctx, child.execute(ctx))
       case BlockMatrixToValueApply(child, function) =>
@@ -678,8 +681,6 @@ object Interpret {
           }
         }
         wrapped.get(0)
-      case x: ReadPartition =>
-        fatal(s"cannot interpret ${ Pretty(x) }")
       case LiftMeOut(child) =>
         val (rt, makeFunction) = Compile[Long](ctx, MakeTuple.ordered(FastSeq(child)), None, false)
         Region.scoped { r =>

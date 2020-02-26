@@ -304,7 +304,7 @@ object Extract {
             Begin(FastIndexedSeq(
               SeqOp(i, FastIndexedSeq(ArrayLen(aRef)), state, AggElementsLengthCheck()),
               ArrayFor(
-                ArrayRange(I32(0), ArrayLen(aRef), I32(1)),
+                StreamRange(I32(0), ArrayLen(aRef), I32(1)),
                 iRef.name,
                 Let(
                   elementName,
@@ -317,13 +317,13 @@ object Extract {
         Let(
           rUID.name,
           GetTupleElement(result, i),
-          ArrayMap(
-            ArrayRange(0, ArrayLen(rUID), 1),
+          ToArray(ArrayMap(
+            StreamRange(0, ArrayLen(rUID), 1),
             indexName,
             Let(
               newRef.name,
               ArrayRef(rUID, Ref(indexName, TInt32())),
-              transformed)))
+              transformed))))
 
       case x: ArrayAgg =>
         assert(!ContainsScan(x))

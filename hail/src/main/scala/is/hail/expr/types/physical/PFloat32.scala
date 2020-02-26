@@ -1,14 +1,9 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations._
-import is.hail.asm4s.{Code, TypeInfo, _}
-import is.hail.check.Arbitrary._
-import is.hail.check.Gen
+import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TFloat32
-import is.hail.utils._
-
-import scala.reflect.{ClassTag, _}
 
 case object PFloat32Optional extends PFloat32(false)
 case object PFloat32Required extends PFloat32(true)
@@ -59,6 +54,9 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
   override def multiply(a: Code[_], b: Code[_]): Code[PFloat32] = {
     coerce[PFloat32](coerce[Float](a) * coerce[Float](b))
   }
+
+  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_]): Code[Unit] =
+    Region.storeFloat(addr, coerce[Float](value))
 }
 
 object PFloat32 {

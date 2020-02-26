@@ -157,10 +157,6 @@ object TypeCheck {
         assert(x.typ == -coerce[TStreamable](a.typ).elementType)
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TStreamable])
-      case x@ArrayRange(a, b, c) =>
-        assert(a.typ.isOfType(TInt32()))
-        assert(b.typ.isOfType(TInt32()))
-        assert(c.typ.isOfType(TInt32()))
       case x@StreamRange(a, b, c) =>
         assert(a.typ.isOfType(TInt32()))
         assert(b.typ.isOfType(TInt32()))
@@ -386,11 +382,19 @@ object TypeCheck {
       case BlockMatrixCollect(_) =>
       case BlockMatrixWrite(_, _) =>
       case BlockMatrixMultiWrite(_, _) =>
+      case UnpersistBlockMatrix(_) =>
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
         assert(ctxs.typ.isInstanceOf[TStreamable])
-      case x@ReadPartition(path, _, rowType) =>
+      case x@ReadPartition(path, spec, rowType) =>
         assert(path.typ == TString())
         assert(x.typ == TStream(rowType))
+        assert(spec.encodedType.decodedPType(rowType).virtualType == rowType)
+      case x@ReadValue(path, spec, requestedType) =>
+        assert(path.typ == TString())
+        assert(spec.encodedType.decodedPType(requestedType).virtualType == requestedType)
+      case x@WriteValue(value, pathPrefix, spec) =>
+        assert(pathPrefix.typ == TString())
+        spec.encodedType.encodeCompatible(value.pType2)
       case LiftMeOut(_) =>
     }
   }

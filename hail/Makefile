@@ -291,31 +291,44 @@ install-benchmark:
 clean-docs:
 	$(MAKE) -C www clean
 
-HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
-
-.PHONY: docs
-docs: install $(PYTHON_VERSION_INFO) install-dev-deps
+.PHONY: base-docs
+base-docs: install-dev-deps
 	mkdir -p build
 	rm -rf build/www
 	cp -R www build/www
-	rm -rf build/docs
+	$(MAKE) -C build/www
+	rm build/www/*.md
+
+.PHONY: pipeline-docs
+pipeline-docs: base-docs
+	mkdir -p build/pipeline/docs
+	rm -rf build/pipeline/docs
+	cp -R python/hailtop/pipeline/docs build/pipeline/
+	$(MAKE) -C build/pipeline/docs BUILDDIR=_build clean html
+	mkdir -p build/www/docs
+	rm -rf build/www/docs/pipeline
+	mv build/pipeline/docs/_build/html build/www/docs/pipeline
+	@echo Built Pipeline docs: build/www/docs/pipeline/index.html
+
+HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
+.PHONY: hail-docs
+hail-docs: install $(PYTHON_VERSION_INFO) base-docs
 	mkdir -p build/docs
+	rm -rf build/docs
 	cp -R python/hail/docs build/
 	cp python/hail/hail_version build/
 	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
     < build/docs/change_log.md \
     | pandoc -o build/docs/change_log.rst
-	$(MAKE) -C build/www
-	rm build/www/*.md
 	$(MAKE) SPHINXOPTS='-tchecktutorial' -C build/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	find ./build/www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
-	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
+	@echo Built Hail docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: upload-docs
-upload-docs: docs
+upload-docs: hail-docs pipeline-docs
 	cd build && tar czf www.tar.gz www
 	gsutil -m cp build/www.tar.gz $(docs_location)
 	gsutil -m retention temp set $(docs_location)

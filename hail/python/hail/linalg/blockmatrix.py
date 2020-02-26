@@ -8,15 +8,16 @@ import scipy.linalg as spla
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr import construct_expr, construct_variable
-from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed
+from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed, \
+    expr_tuple, expr_array, expr_int64
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, Ref, F64, \
     BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
     ApplyUnaryPrimOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
     BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter, TableFromBlockMatrixNativeReader, TableRead, \
     BlockMatrixSlice, BlockMatrixSparsify, BlockMatrixDensify, RectangleSparsifier, \
-    RowIntervalSparsifier, BandSparsifier
-from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
-from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter
+    RowIntervalSparsifier, BandSparsifier, UnpersistBlockMatrix
+from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader, BlockMatrixPersistReader
+from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter, BlockMatrixPersistWriter
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
@@ -212,6 +213,7 @@ class BlockMatrix(object):
 
     - Natural logarithm, :meth:`log`.
     """
+
     @staticmethod
     def _from_java(jbm):
         return BlockMatrix(JavaBlockMatrix(jbm))
@@ -999,6 +1001,13 @@ class BlockMatrix(object):
 
         return self.sparsify_band(lower_band, upper_band, blocks_only)
 
+    @typecheck_method(intervals=expr_tuple([expr_array(expr_int64), expr_array(expr_int64)]),
+                      blocks_only=bool)
+    def _sparsify_row_intervals_expr(self, intervals, blocks_only=False):
+        return BlockMatrix(
+            BlockMatrixSparsify(self._bmir, intervals._ir,
+                                RowIntervalSparsifier(blocks_only)))
+
     @typecheck_method(starts=oneof(sequenceof(int), np.ndarray),
                       stops=oneof(sequenceof(int), np.ndarray),
                       blocks_only=bool)
@@ -1090,13 +1099,7 @@ class BlockMatrix(object):
         if any([starts[i] > stops[i] for i in range(0, n_rows)]):
             raise ValueError('every start value must be less than or equal to the corresponding stop value')
 
-        starts_and_stops = hl.literal(
-            (starts, stops),
-            hl.ttuple(hl.tarray(hl.tint64), hl.tarray(hl.tint64)))
-        return BlockMatrix(
-            BlockMatrixSparsify(self._bmir,
-                                starts_and_stops._ir,
-                                RowIntervalSparsifier(blocks_only)))
+        return self._sparsify_row_intervals_expr((starts, stops), blocks_only)
 
     @typecheck_method(uri=str)
     def tofile(self, uri):
@@ -1186,7 +1189,7 @@ class BlockMatrix(object):
         -------
         :obj:`bool`
         """
-        return self._jbm.gp().maybeBlocks().isDefined()
+        return Env.backend()._to_java_ir(self._bmir).typ().isSparse()
 
     @property
     def T(self):
@@ -1261,7 +1264,9 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Persisted block matrix.
         """
-        return BlockMatrix._from_java(self._jbm.persist(storage_level))
+        id = Env.get_uid()
+        Env.backend().execute(BlockMatrixWrite(self._bmir, BlockMatrixPersistWriter(id, storage_level)))
+        return BlockMatrix(BlockMatrixRead(BlockMatrixPersistReader(id, self._bmir)))
 
     def unpersist(self):
         """Unpersists this block matrix from memory/disk.
@@ -1276,7 +1281,8 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Unpersisted block matrix.
         """
-        return BlockMatrix._from_java(self._jbm.unpersist())
+        Env.backend().execute(UnpersistBlockMatrix(self._bmir))
+        return BlockMatrix(self._bmir.unpersisted())
 
     def __pos__(self):
         return self

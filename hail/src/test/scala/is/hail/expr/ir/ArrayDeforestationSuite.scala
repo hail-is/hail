@@ -12,15 +12,15 @@ class ArrayDeforestationSuite extends HailSuite {
 
   def primitiveArrayNoRegion(len: IR): IR =
     ArrayMap(
-      ArrayRange(0, len, 1),
+      StreamRange(0, len, 1),
       "x1",
       Ref("x1", TInt32()) + 5)
 
   def arrayWithRegion(len: IR): IR =
-    ArrayMap(
-      ArrayRange(0, len, 1),
+    ToArray(ArrayMap(
+      StreamRange(0, len, 1),
       "x2",
-      MakeStruct(FastSeq[(String, IR)]("f1" -> (Ref("x2", TInt32()) + 1), "f2" -> 0)))
+      MakeStruct(FastSeq[(String, IR)]("f1" -> (Ref("x2", TInt32()) + 1), "f2" -> 0))))
 
   def primitiveArrayWithRegion(len: IR): IR = {
     val array = arrayWithRegion(len)

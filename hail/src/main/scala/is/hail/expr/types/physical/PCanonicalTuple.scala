@@ -5,20 +5,13 @@ import is.hail.expr.types.virtual.{TTuple, Type}
 import is.hail.utils._
 
 object PCanonicalTuple {
-  def apply(required: Boolean, args: PType*): PTuple = PCanonicalTuple(args.iterator.zipWithIndex.map { case (t, i) => PTupleField(i, t)}.toIndexedSeq, required)
+  def apply(required: Boolean, args: PType*): PCanonicalTuple = PCanonicalTuple(args.iterator.zipWithIndex.map { case (t, i) => PTupleField(i, t)}.toIndexedSeq, required)
 }
 
-final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val required: Boolean = false) extends PTuple {
-  val types = _types.map(_.typ).toArray
+final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val required: Boolean = false) extends PCanonicalBaseStruct(_types.map(_.typ).toArray) with PTuple {
   lazy val fieldIndex: Map[Int, Int] = _types.zipWithIndex.map { case (tf, idx) => tf.index -> idx }.toMap
 
-  val (missingIdx: Array[Int], nMissing: Int) = BaseStruct.getMissingIndexAndCount(types.map(_.required))
-  val nMissingBytes = UnsafeUtils.packBitsToBytes(nMissing)
-  val byteOffsets = new Array[Long](size)
-  override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
-  override val alignment: Long = PBaseStruct.alignment(types)
-
-  def copy(required: Boolean = this.required): PTuple = PCanonicalTuple(_types, required)
+  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalTuple(_types, required)
 
   override def truncate(newSize: Int): PTuple =
     PCanonicalTuple(_types.take(newSize), required)

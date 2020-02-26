@@ -7,9 +7,10 @@ import is.hail.annotations.{Region, SafeRow}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, LoweringPipeline}
-import is.hail.expr.ir.{Compilable, Compile, CompileAndEvaluate, ExecuteContext, IR, MakeTuple, Pretty, TypeCheck}
+import is.hail.expr.ir.{BlockMatrixIR, Compilable, Compile, CompileAndEvaluate, ExecuteContext, IR, MakeTuple, Pretty, TypeCheck}
 import is.hail.expr.types.physical.PTuple
 import is.hail.expr.types.virtual.TVoid
+import is.hail.linalg.BlockMatrix
 import is.hail.utils._
 import org.json4s.DefaultFormats
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -18,7 +19,15 @@ import scala.reflect.ClassTag
 
 abstract class BroadcastValue[T] { def value: T }
 
+abstract class ValueCache {
+  def persistBlockMatrix(id: String, value: BlockMatrix, storageLevel: String): Unit
+  def getPersistedBlockMatrix(id: String): BlockMatrix
+  def unpersistBlockMatrix(id: String): Unit
+}
+
 abstract class Backend {
+  def cache: ValueCache = asSpark().cache
+
   def broadcast[T: ClassTag](value: T): BroadcastValue[T]
 
   def parallelizeAndComputeWithIndex[T: ClassTag, U : ClassTag](collection: Array[T])(f: (T, Int) => U): Array[U]

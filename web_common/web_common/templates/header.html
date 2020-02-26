@@ -15,21 +15,20 @@
     </div>
   {% endif %}
 
-  {% if userdata['is_developer'] == 1 %}
-    <div class="header-dropdown">
-      <div class="header-dropdown-item-margin">
-	<a href="{{ batch_base_url }}" class="header-dropdown-link">Batch</a>
-	<div class="header-dropdown-menu">
-	  <div class="batch-caret header-dropdown-menu-caret"></div>
+  <div class="header-dropdown">
+    <div class="header-dropdown-item-margin">
+      <a href="{{ batch_base_url }}" class="header-dropdown-link">Batch</a>
+      <div class="header-dropdown-menu">
+	<div class="batch-caret header-dropdown-menu-caret"></div>
+	{% if userdata['is_developer'] == 1 %}
 	  <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}">Driver</a>
 	  <a class="header-dropdown-menu-link" href="{{ batch_base_url }}/billing_projects">Billing Projects</a>
 	  <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}/user_resources">User Resources</a>
-	</div>
+	{% endif %}
+	<a class="header-dropdown-menu-link" href="https://hail.is/docs/pipeline/">Docs<i class="material-icons text-icon">open_in_new</i></a>
       </div>
     </div>
-  {% else %}
-    <a class="header-link" href="{{ batch_base_url }}">Batch</a>
-  {% endif %}
+  </div>
 
   {% if userdata['is_developer'] == 1 %}
     <a class="header-link" href="{{ ci_base_url }}">

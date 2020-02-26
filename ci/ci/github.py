@@ -9,6 +9,7 @@ import gidgethub
 import zulip
 
 from hailtop.config import get_deploy_config
+from hailtop.batch_client.aioclient import Batch
 from hailtop.utils import check_shell, check_shell_output, RETRY_FUNCTION_SCRIPT
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
 from .build import BuildConfiguration, Code
@@ -19,7 +20,9 @@ repos_lock = asyncio.Lock()
 
 log = logging.getLogger('ci')
 
-CALLBACK_URL = get_deploy_config().url('ci', '/api/v1alpha/batch_callback')
+deploy_config = get_deploy_config()
+
+CALLBACK_URL = deploy_config.url('ci', '/api/v1alpha/batch_callback')
 
 zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
 
@@ -657,11 +660,14 @@ class WatchedBranch(Code):
                         'to': 'team',
                         'topic': 'CI Deploy Failure',
                         'content': f'''
+@dev
 state: {self.deploy_state}
 branch: {self.branch.short_str()}
 sha: {self.sha}
+url: {deploy_config.url('ci', f'/batches/{self.deploy_batch.id}')}
 '''}
-                    zulip_client.send_message(request)
+                    result = zulip_client.send_message(request)
+                    log.info(result)
 
                 self.state_changed = True
 
@@ -828,7 +834,7 @@ mkdir -p {shq(repo_dir)}
             self.deploy_batch = deploy_batch
             return deploy_batch.id
         finally:
-            if deploy_batch and not self.deploy_batch:
+            if deploy_batch and not self.deploy_batch and isinstance(deploy_batch, Batch):
                 log.info(f'cancelling partial deploy batch {deploy_batch.id}')
                 await deploy_batch.cancel()
 

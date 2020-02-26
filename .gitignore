@@ -16,3 +16,4 @@ __pycache__/
 *.pyc
 *-checkpoint.ipynb
 *hail/python/hail/docs/tutorials/data*
+*hail/python/hailtop/pipeline/docs/output*

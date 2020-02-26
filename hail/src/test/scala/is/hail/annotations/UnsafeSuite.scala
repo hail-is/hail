@@ -283,8 +283,8 @@ class UnsafeSuite extends HailSuite {
 
   @Test def testPacking() {
 
-    def makeStruct(types: PType*): PStruct = {
-      PStruct(types.zipWithIndex.map { case (t, i) => (s"f$i", t) }: _*)
+    def makeStruct(types: PType*): PCanonicalStruct = {
+      PCanonicalStruct(types.zipWithIndex.map { case (t, i) => (s"f$i", t) }: _*)
     }
 
     val t1 = makeStruct( // missing byte is 0

@@ -870,7 +870,8 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     assert(childValues.map(_.rvd.typ).toSet.size == 1) // same physical types
 
 
-    val childRVDs = childValues.map(_.rvd)
+    val childRVDs = RVD.unify(childValues.map(_.rvd)).toFastIndexedSeq
+
     val repartitionedRVDs =
       if (childRVDs(0).partitioner.satisfiesAllowedOverlap(typ.key.length - 1) &&
         childRVDs.forall(rvd => rvd.partitioner == childRVDs(0).partitioner))
@@ -985,7 +986,6 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     val scanRef = genUID()
     val extracted = agg.Extract.apply(agg.Extract.liftScan(newRow), scanRef)
-    val nAggs = extracted.nAggs
 
 
     if (extracted.aggs.isEmpty) {
@@ -1290,7 +1290,7 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val tvs = children.map(_.execute(ctx))
     tvs(0).copy(
-      rvd = RVD.union(tvs.map(_.rvd), tvs(0).typ.key.length, ctx))
+      rvd = RVD.union(RVD.unify(tvs.map(_.rvd)), tvs(0).typ.key.length, ctx))
   }
 }
 
