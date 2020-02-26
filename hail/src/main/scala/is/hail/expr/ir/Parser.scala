@@ -785,6 +785,7 @@ object IRParser {
         val stop = ir_value_expr(env)(it)
         val step = ir_value_expr(env)(it)
         StreamRange(start, stop, step)
+      case "ArrayZeros" => ArrayZeros(ir_value_expr(env)(it))
       case "ArraySort" =>
         val l = identifier(it)
         val r = identifier(it)

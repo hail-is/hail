@@ -55,6 +55,8 @@ object Children {
       Array(a)
     case StreamRange(start, stop, step) =>
       Array(start, stop, step)
+    case ArrayZeros(length) =>
+      Array(length)
     case MakeNDArray(data, shape, rowMajor) =>
       Array(data, shape, rowMajor)
     case NDArrayShape(nd) =>

@@ -735,8 +735,9 @@ private class Emit(
         val arrayAddress = mb.newField[Long]
         val result = Code(
           numElements := lengthTriplet.value[Int],
-          arrayAddress := outputPType.allocate(region, numElements),
-          Region.setMemory(outputPType.firstElementOffset(arrayAddress), numElements.toL * elementSize, 0.toByte)
+          Code._println(numElements.load().toS),
+          arrayAddress := outputPType.allocate(region, 10),
+          Region.setMemory(outputPType.firstElementOffset(arrayAddress), elementSize * 10L, 0.toByte)
         )
         EmitTriplet(lengthTriplet.setup, lengthTriplet.m, result)
 

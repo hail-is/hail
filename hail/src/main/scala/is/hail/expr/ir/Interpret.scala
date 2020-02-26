@@ -261,6 +261,10 @@ object Interpret {
           null
         else
           startValue.asInstanceOf[Int] until stopValue.asInstanceOf[Int] by stepValue.asInstanceOf[Int]
+      case ArrayZeros(length) =>
+        val lengthValue = interpret(length)
+        println("INTERPRETING")
+        IndexedSeq.fill(lengthValue.asInstanceOf[Int])(0).toFastIndexedSeq
       case ArraySort(a, l, r, compare) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)

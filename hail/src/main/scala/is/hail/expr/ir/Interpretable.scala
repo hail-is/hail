@@ -18,6 +18,7 @@ object Interpretable {
         _: RunAggScan |
         _: SerializeAggs |
         _: DeserializeAggs |
+        _: ArrayZeros |
         _: MakeNDArray |
         _: NDArrayShape |
         _: NDArrayReshape |
