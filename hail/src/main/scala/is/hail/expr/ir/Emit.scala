@@ -24,8 +24,6 @@ object Emit {
   def bindEnv(env: E, bindings: (String, ParameterStoreTriplet[_])*): E =
     env.bindIterable(bindings.map { case (name, ps) => (name, (ps.load.m, ps.load.pv)) })
 
-  type F = (Code[Boolean], PValue) => Code[Unit]
-
   def apply(ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[_], aggs: Option[Array[AggStatePhysicalSignature]] = None) {
     val triplet = emit(ctx, ir, fb, Env.empty, aggs)
     typeToTypeInfo(ir.typ) match {
@@ -118,55 +116,6 @@ case class EmitTriplet(setup: Code[Unit], m: Code[Boolean], pv: PValue) {
   def map(f: PValue => PValue): EmitTriplet = copy(pv = f(pv))
 }
 
-case class EmitArrayTriplet(setup: Code[Unit], m: Option[Code[Boolean]], addElements: Code[Unit])
-
-case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]], arrayEmitter: Emit.F => EmitArrayTriplet) {
-  def arrayEmitterFromBuilder(sab: StagedArrayBuilder): EmitArrayTriplet = {
-    arrayEmitter( { (m: Code[Boolean], v: PValue) => m.mux(sab.addMissing(), sab.add(v.code)) } )
-  }
-
-  def toEmitTriplet(mb: MethodBuilder, aTyp: PArray): EmitTriplet = {
-    val srvb = new StagedRegionValueBuilder(mb, aTyp)
-
-    length match {
-      case Some(len) =>
-        val cont = { (m: Code[Boolean], v: PValue) =>
-          coerce[Unit](
-            Code(
-              m.mux(
-                srvb.setMissing(),
-                srvb.addIRIntermediate(v.pt)(v.code)),
-              srvb.advance()))
-        }
-        val processAElts = arrayEmitter(cont)
-        EmitTriplet(processAElts.setup, processAElts.m.getOrElse(const(false)), PValue(aTyp, Code(
-          calcLength,
-          srvb.start(len, init = true),
-          processAElts.addElements,
-          srvb.offset)))
-
-      case None =>
-        val len = mb.newLocal[Int]
-        val i = mb.newLocal[Int]
-        val vab = new StagedArrayBuilder(aTyp.elementType, mb, 16)
-        val processArrayElts = arrayEmitter { (m: Code[Boolean], v: PValue) => m.mux(vab.addMissing(), vab.add(v.code)) }
-        EmitTriplet(Code(vab.clear, processArrayElts.setup), processArrayElts.m.getOrElse(const(false)), PValue(aTyp, Code(
-          calcLength,
-          processArrayElts.addElements,
-          len := vab.size,
-          srvb.start(len, init = true),
-          i := 0,
-          Code.whileLoop(i < len,
-            vab.isMissing(i).mux(
-              srvb.setMissing(),
-              srvb.addIRIntermediate(aTyp.elementType)(vab(i))),
-            i := i + 1,
-            srvb.advance()),
-          srvb.offset)))
-    }
-  }
-}
-
 case class LoopRef(m: ClassFieldRef[Boolean], v: PSettable[PValue], tempM: LocalRef[Boolean], tempV: PSettable[PValue])
 
 abstract class MethodBuilderLike[M <: MethodBuilderLike[M]] {
@@ -246,7 +195,7 @@ private class Emit(
   val region: Code[Region] = mb.getArg[Region](1)
   val methods: mutable.Map[String, Seq[(Seq[PType], PType, EmitMethodBuilder)]] = mutable.Map().withDefaultValue(FastSeq())
 
-  import Emit.{E, F}
+  import Emit.E
 
   class EmitMethodBuilderLike(val emit: Emit) extends MethodBuilderLike[EmitMethodBuilderLike] {
     type MB = EmitMethodBuilder
@@ -320,10 +269,7 @@ private class Emit(
     def wrapToMethod(irs: Seq[IR], env: E = env, container: Option[AggContainer] = container)(useValues: (EmitMethodBuilder, PType, EmitTriplet) => Code[Unit]): Code[Unit] =
       this.wrapToMethod(irs, env, container)(useValues)
 
-    def emitArrayIterator(ir: IR, env: E = env, container: Option[AggContainer] = container) =
-      this.emitArrayIterator(ir, env, er, container)
-
-    def emitStream2(ir: IR, env: E = env, container: Option[AggContainer] = container): COption[Stream[EmitTriplet]] =
+    def emitStream(ir: IR): COption[Stream[EmitTriplet]] =
       EmitStream2(this, ir, env, er, container)
 
     def emitDeforestedNDArray(ir: IR) =
@@ -594,7 +540,7 @@ private class Emit(
           case DoubleInfo => sorter.sort(makeDependentSortingFunction[Double](eltType, compare, env, leftRightComparatorNames))
         }
 
-        val optStream = emitStream2(array)
+        val optStream = emitStream(array)
         val result = optStream.map { stream =>
           Code(
             EmitStream2.write(mb, stream, vab),
@@ -610,7 +556,7 @@ private class Emit(
         EmitTriplet(et.setup, et.m, PValue(pt, et.v))
 
       case ToArray(a) =>
-        emitArrayIterator(a).toEmitTriplet(mb, pt.asInstanceOf[PArray])
+        EmitStream2.toArray(mb, pt.asInstanceOf[PArray], emitStream(a))
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val typ: PContainer = coerce[PIterable](orderedCollection.pType).asPContainer
@@ -687,7 +633,7 @@ private class Emit(
             ("i-1", (eab.isMissing(i-1), PValue(etyp, eab.apply(i-1)))),
             ("i", (eab.isMissing(i), PValue(etyp, eab.apply(i))))))
 
-        val optStream = emitStream2(collection)
+        val optStream = emitStream(collection)
         val result = optStream.map { stream =>
           Code(
             EmitStream2.write(mb, stream, eab),
@@ -754,7 +700,7 @@ private class Emit(
         implicit val eltPack = TypedTriplet.pack(eltType)
         implicit val accPack = TypedTriplet.pack(accType)
 
-        val streamOpt = emitStream2(a)
+        val streamOpt = emitStream(a)
         val resOpt: COption[Code[_]] = streamOpt.flatMapCPS { (stream, _ctx, ret) =>
           implicit val c = _ctx
 
@@ -799,7 +745,7 @@ private class Emit(
         val codeR = emit(res, env = resEnv)
         val typedCodeSeq = seq.map(ir => TypedTriplet(ir.pType, emit(ir, env = seqEnv)))
 
-        val streamOpt = emitStream2(a)
+        val streamOpt = emitStream(a)
 
         val resOpt = streamOpt.flatMapCPS[Code[_]] { (stream, _ctx, ret) =>
           implicit val c = _ctx
@@ -825,7 +771,7 @@ private class Emit(
         implicit val eltPack = TypedTriplet.pack(eltType)
         val eltTI = typeToTypeInfo(eltType)
 
-        val streamOpt = emitStream2(a)
+        val streamOpt = emitStream(a)
         def forBody(elt: TypedTriplet[eltType.type]): Code[Unit] = {
           val xElt = eltPack.newFields(mb.fb, valueName)
           val bodyenv = env.bind(
@@ -1743,7 +1689,7 @@ private class Emit(
 
         val spark = parentFB.backend()
 
-        val optCtxStream = emitStream2(contexts)
+        val optCtxStream = emitStream(contexts)
         val globalsT = emit(globals)
 
         val cEnc = cCodec.buildEmitEncoderF[Long](ctxTypeTuple, parentFB)
@@ -1901,10 +1847,6 @@ private class Emit(
     f.apply_method.emit(sort.invoke(fregion, f.getArg[T](1), false, f.getArg[T](2), false))
     f
   }
-
-  private def emitArrayIterator(ir: IR, env: E, er: EmitRegion, container: Option[AggContainer]): ArrayIteratorTriplet =
-    EmitStream(this, ir, env, er, container)
-      .toArrayIterator(mb)
 
   private def present(pt: PType, c: Code[_]): EmitTriplet =
     EmitTriplet(Code._empty, const(false), PValue(pt, c))
