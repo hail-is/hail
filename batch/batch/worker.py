@@ -127,10 +127,10 @@ async def create_container(config, name):
                     # 404 No such container
                     if eget.status == 404:
                         error += 1
-                        if error < 5:
+                        if error < 10:
                             delay = await sleep_and_backoff(delay)
                             continue
-                        log.exception(f'encountered 5 errors while creating container {name}, aborting', stack_info=True)
+                        log.exception(f'encountered 10 errors while creating container {name}, aborting', stack_info=True)
                         raise
             raise
 
