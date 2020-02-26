@@ -727,6 +727,19 @@ private class Emit(
       case _: ArrayMap | _: ArrayZip | _: ArrayFilter | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: RunAggScan | _: ReadPartition | _: MakeStream | _: StreamRange =>
         emitArrayIterator(ir).toEmitTriplet(mb, PArray(coerce[PStreamable](ir.pType).elementType))
 
+      case ArrayZeros(length) =>
+        val lengthTriplet = emit(length)
+        val outputPType = coerce[PArray](ir.pType)
+        val elementSize = outputPType.elementByteSize
+        val numElements = mb.newField[Int]
+        val arrayAddress = mb.newField[Long]
+        val result = Code(
+          numElements := lengthTriplet.value[Int],
+          arrayAddress := outputPType.allocate(region, numElements),
+          Region.setMemory(outputPType.firstElementOffset(arrayAddress), numElements.toL * elementSize, 0.toByte)
+        )
+        EmitTriplet(lengthTriplet.setup, lengthTriplet.m, result)
+
       case ArrayFold(a, zero, accumName, valueName, body) =>
         val eltType = a.pType.asInstanceOf[PStreamable].elementType
         val accType = ir.pType

@@ -606,6 +606,20 @@ class ArrayRange(IR):
         self._type = tarray(tint32)
 
 
+class ArrayZeros(IR):
+    @typecheck_method(length=IR)
+    def __init__(self, length):
+        super().__init__(length)
+        self.length = length
+
+    @typecheck_method(length=IR)
+    def copy(self, length):
+        return ArrayZeros(length)
+
+    def _compute_type(self, env, agg_env):
+        self.length._compute_type(env, agg_env)
+        self._type = tarray(tint32)
+
 class StreamRange(IR):
     @typecheck_method(start=IR, stop=IR, step=IR)
     def __init__(self, start, stop, step):
