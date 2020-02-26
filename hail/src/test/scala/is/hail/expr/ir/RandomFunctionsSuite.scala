@@ -101,21 +101,21 @@ class RandomFunctionsSuite extends HailSuite {
 
   @Test def testInterpretIncrementsCorrectly() {
     assertEvalsTo(
-      ArrayMap(ArrayRange(0, 3, 1), "i", counter * counter),
+      ToArray(ArrayMap(StreamRange(0, 3, 1), "i", counter * counter)),
       FastIndexedSeq(0, 1, 4))
 
     assertEvalsTo(
-      ArrayFold(ArrayRange(0, 3, 1), -1, "j", "i", counter + counter),
+      ArrayFold(StreamRange(0, 3, 1), -1, "j", "i", counter + counter),
       4)
 
     assertEvalsTo(
-      ArrayFilter(ArrayRange(0, 3, 1), "i", Ref("i", TInt32()).ceq(counter) && counter.ceq(counter)),
+      ToArray(ArrayFilter(StreamRange(0, 3, 1), "i", Ref("i", TInt32()).ceq(counter) && counter.ceq(counter))),
       FastIndexedSeq(0, 1, 2))
 
     assertEvalsTo(
-      ArrayFlatMap(ArrayRange(0, 3, 1),
+      ToArray(ArrayFlatMap(StreamRange(0, 3, 1),
         "i",
-        MakeArray(FastSeq(counter, counter, counter), TArray(TInt32()))),
+        MakeArray(FastSeq(counter, counter, counter), TArray(TInt32())))),
       FastIndexedSeq(0, 0, 0, 1, 1, 1, 2, 2, 2))
   }
 

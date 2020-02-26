@@ -68,7 +68,6 @@ case object StreamableIRs extends Rule {
     case ArraySort(a, _, _, _) => a.typ.isInstanceOf[TStream]
     case GroupByKey(collection) => collection.typ.isInstanceOf[TStream]
     case _: MakeArray => false
-    case _: ArrayRange => false
     case _ => true
   }
 }

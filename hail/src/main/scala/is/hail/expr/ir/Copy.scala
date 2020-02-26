@@ -65,9 +65,6 @@ object Copy {
       case ArrayLen(_) =>
         assert(newChildren.length == 1)
         ArrayLen(newChildren(0).asInstanceOf[IR])
-      case ArrayRange(_, _, _) =>
-        assert(newChildren.length == 3)
-        ArrayRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
       case StreamRange(_, _, _) =>
         assert(newChildren.length == 3)
         StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
@@ -297,6 +294,9 @@ object Copy {
         BlockMatrixWrite(newChildren(0).asInstanceOf[BlockMatrixIR], writer)
       case BlockMatrixMultiWrite(_, writer) =>
         BlockMatrixMultiWrite(newChildren.map(_.asInstanceOf[BlockMatrixIR]), writer)
+      case UnpersistBlockMatrix(child) =>
+        assert(newChildren.length == 1)
+        UnpersistBlockMatrix(newChildren(0).asInstanceOf[BlockMatrixIR])
       case CollectDistributedArray(_, _, cname, gname, _) =>
         assert(newChildren.length == 3)
         CollectDistributedArray(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], cname, gname, newChildren(2).asInstanceOf[IR])

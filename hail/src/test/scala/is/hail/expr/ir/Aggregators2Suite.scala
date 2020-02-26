@@ -412,7 +412,7 @@ class Aggregators2Suite extends HailSuite {
 
     Begin(FastIndexedSeq(
       SeqOp(aggIdx, FastIndexedSeq(ArrayLen(a)), state, AggElementsLengthCheck()),
-      ArrayFor(ArrayRange(0, ArrayLen(a), 1), idx.name,
+      ArrayFor(StreamRange(0, ArrayLen(a), 1), idx.name,
         Let(elt.name, ArrayRef(a, idx),
           SeqOp(aggIdx, FastIndexedSeq(idx, seqOps(elt)), state, AggElements())))))
   }
@@ -710,7 +710,7 @@ class Aggregators2Suite extends HailSuite {
     implicit val execStrats = ExecStrategy.compileOnly
     val sig = AggSignature(Sum(), FastSeq(), FastSeq(TFloat64()))
     val x = RunAggScan(
-      ArrayRange(I32(0), I32(5), I32(1)),
+      StreamRange(I32(0), I32(5), I32(1)),
       "foo",
       InitOp(0, FastSeq(), sig),
       SeqOp(0, FastIndexedSeq(Ref("foo", TInt32()).toD), sig),
@@ -740,7 +740,7 @@ class Aggregators2Suite extends HailSuite {
       Begin(FastSeq(
         InitOp(0, FastSeq(I32(5)), takeSig),
         ArrayFor(
-          ArrayRange(I32(0), I32(10), I32(1)),
+          StreamRange(I32(0), I32(10), I32(1)),
           "foo",
           SeqOp(0, FastSeq(
             RunAgg(

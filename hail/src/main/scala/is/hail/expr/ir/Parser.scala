@@ -780,11 +780,6 @@ object IRParser {
         val s = ir_value_expr(env)(it)
         ArrayRef(a, i, s)
       case "ArrayLen" => ArrayLen(ir_value_expr(env)(it))
-      case "ArrayRange" =>
-        val start = ir_value_expr(env)(it)
-        val stop = ir_value_expr(env)(it)
-        val step = ir_value_expr(env)(it)
-        ArrayRange(start, stop, step)
       case "StreamRange" =>
         val start = ir_value_expr(env)(it)
         val stop = ir_value_expr(env)(it)
@@ -1155,6 +1150,8 @@ object IRParser {
         val writer = deserialize[BlockMatrixMultiWriter](writerStr)
         val blockMatrices = repUntil(it, blockmatrix_ir(env), PunctuationToken(")"))
         BlockMatrixMultiWrite(blockMatrices.toFastIndexedSeq, writer)
+      case "UnpersistBlockMatrix" =>
+        UnpersistBlockMatrix(blockmatrix_ir(env)(it))
       case "CollectDistributedArray" =>
         val cname = identifier(it)
         val gname = identifier(it)

@@ -137,10 +137,10 @@ object LowerTableIR {
           MakeStruct(FastIndexedSeq("start" -> start, "end" -> end)) },
           TArray(contextType)
         ),
-        ArrayMap(ArrayRange(
+        ToArray(ArrayMap(StreamRange(
           GetField(Ref("context", contextType), "start"),
           GetField(Ref("context", contextType), "end"),
-          I32(1)), i.name, MakeStruct(FastSeq("idx" -> i))))
+          I32(1)), i.name, MakeStruct(FastSeq("idx" -> i)))))
 
     case TableMapGlobals(child, newGlobals) =>
       val loweredChild = lower(child)

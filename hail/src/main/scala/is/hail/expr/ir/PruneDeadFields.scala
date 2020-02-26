@@ -1637,9 +1637,9 @@ object PruneDeadFields {
         RelationalLet(name, value2, rebuildIR(body, env, memo))
       case RelationalRef(name, _) => RelationalRef(name, memo.relationalRefs(name))
       case MakeArray(args, _) =>
-        val depArray = requestedType.asInstanceOf[TArray]
+        val dep = requestedType.asInstanceOf[TStreamable]
         val args2 = args.map(a => rebuildIR(a, env, memo))
-        MakeArray.unify(args2, depArray)
+        MakeArray.unify(args2, TArray(dep.elementType, dep.elementType.required))
       case ArrayMap(a, name, body) =>
         val a2 = rebuildIR(a, env, memo)
         ArrayMap(a2, name, rebuildIR(body, env.bindEval(name, -a2.typ.asInstanceOf[TStreamable].elementType), memo))
@@ -1786,11 +1786,11 @@ object PruneDeadFields {
         AggArrayPerElement(a2, elementName, indexName, aggBody2, knownLength.map(rebuildIR(_, aEnv, memo)), isScan)
       case ArrayAgg(a, name, query) =>
         val a2 = rebuildIR(a, env, memo)
-        val query2 = rebuildIR(query, env.copy(agg = Some(env.eval.bind(name -> a2.typ.asInstanceOf[TArray].elementType))), memo)
+        val query2 = rebuildIR(query, env.copy(agg = Some(env.eval.bind(name -> a2.typ.asInstanceOf[TStreamable].elementType))), memo)
         ArrayAgg(a2, name, query2)
       case ArrayAggScan(a, name, query) =>
         val a2 = rebuildIR(a, env, memo)
-        val query2 = rebuildIR(query, env.copy(scan = Some(env.eval.bind(name -> a2.typ.asInstanceOf[TArray].elementType))), memo)
+        val query2 = rebuildIR(query, env.copy(scan = Some(env.eval.bind(name -> a2.typ.asInstanceOf[TStreamable].elementType))), memo)
         ArrayAggScan(a2, name, query2)
       case RunAgg(body, result, signatures) =>
         val body2 = rebuildIR(body, env, memo)

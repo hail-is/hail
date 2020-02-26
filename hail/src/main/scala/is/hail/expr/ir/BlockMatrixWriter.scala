@@ -9,7 +9,8 @@ object BlockMatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(
       List(classOf[BlockMatrixNativeWriter], classOf[BlockMatrixBinaryWriter], classOf[BlockMatrixRectanglesWriter],
-        classOf[BlockMatrixBinaryMultiWriter], classOf[BlockMatrixTextMultiWriter]))
+        classOf[BlockMatrixBinaryMultiWriter], classOf[BlockMatrixTextMultiWriter],
+        classOf[BlockMatrixPersistWriter]))
     override val typeHintFieldName: String = "name"
   }
 }
@@ -32,6 +33,11 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
   def apply(hc: HailContext, bm: BlockMatrix): Unit = {
     RichDenseMatrixDouble.exportToDoubles(hc.sFS, path, bm.toBreezeMatrix(), forceRowMajor = true)
   }
+}
+
+case class BlockMatrixPersistWriter(id: String, storageLevel: String) extends BlockMatrixWriter {
+  def apply(hc: HailContext, bm: BlockMatrix): Unit =
+    HailContext.backend.cache.persistBlockMatrix(id, bm, storageLevel)
 }
 
 case class BlockMatrixRectanglesWriter(

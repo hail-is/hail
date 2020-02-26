@@ -31,6 +31,7 @@ __all__ = [
     'tstr',
     'tbool',
     'tarray',
+    'tstream',
     'tndarray',
     'tset',
     'tdict',
@@ -100,6 +101,7 @@ def dtype(type_str):
         str = "tstr" / "str"
         locus = ("tlocus" / "locus") _ "[" identifier "]"
         array = ("tarray" / "array") _ "<" type ">"
+        array = ("tstream" / "stream") _ "<" type ">"
         ndarray = ("tndarray" / "ndarray") _ "<" type, identifier ">"
         set = ("tset" / "set") _ "<" type ">"
         dict = ("tdict" / "dict") _ "<" type "," type ">"
@@ -760,6 +762,60 @@ class tarray(HailType):
 
     def subst(self):
         return tarray(self.element_type.subst())
+
+    def clear(self):
+        self.element_type.clear()
+
+    def _get_context(self):
+        return self.element_type.get_context()
+
+
+class tstream(HailType):
+    @typecheck_method(element_type=hail_type)
+    def __init__(self, element_type):
+        self._element_type = element_type
+        super(tstream, self).__init__()
+
+    @property
+    def element_type(self):
+        return self._element_type
+
+    def _traverse(self, obj, f):
+        if f(self, obj):
+            for elt in obj:
+                self.element_type._traverse(elt, f)
+
+    def _typecheck_one_level(self, annotation):
+        raise TypeError("type 'stream' is not realizable in Python")
+
+    def __str__(self):
+        return "stream<{}>".format(self.element_type)
+
+    def _eq(self, other):
+        return isinstance(other, tstream) and self.element_type == other.element_type
+
+    def _pretty(self, l, indent, increment):
+        l.append('stream<')
+        self.element_type._pretty(l, indent, increment)
+        l.append('>')
+
+    def _parsable_string(self):
+        return "Stream[" + self.element_type._parsable_string() + "]"
+
+    def _convert_from_json(self, x):
+        return [self.element_type._convert_from_json_na(elt) for elt in x]
+
+    def _convert_to_json(self, x):
+        return [self.element_type._convert_to_json_na(elt) for elt in x]
+
+    def _propagate_jtypes(self, jtype):
+        self._element_type._add_jtype(jtype.elementType())
+
+    def unify(self, t):
+        return isinstance(t, tstream) and self.element_type.unify(t.element_type)
+
+    def subst(self):
+        return tstream(self.element_type.subst())
 
     def clear(self):
         self.element_type.clear()

@@ -157,16 +157,6 @@ object InferPType {
         val nElem = shape.pType2.asInstanceOf[PTuple].size
 
         PNDArray(coerce[PArray](data.pType2).elementType.setRequired(true), nElem, data.pType2.required && shape.pType2.required)
-      case ArrayRange(start: IR, stop: IR, step: IR) =>
-        infer(start)
-        infer(stop)
-        infer(step)
-
-        assert(start.pType2 isOfType stop.pType2)
-        assert(start.pType2 isOfType step.pType2)
-
-        val allRequired = start.pType2.required && stop.pType2.required && step.pType2.required
-        PArray(start.pType2.setRequired(true), allRequired)
       case StreamRange(start: IR, stop: IR, step: IR) =>
         infer(start)
         infer(stop)
@@ -580,6 +570,14 @@ object InferPType {
       case x if x.typ == TVoid =>
         x.children.foreach(c => infer(c.asInstanceOf[IR]))
         PVoid
+        }
+      case ResultOp(_, aggSigs) =>
+        val rPTypes = aggSigs.toIterator.zipWithIndex.map{ case (sig, i) => PTupleField(i, sig.toCanonicalPhysical.resultType)}.toIndexedSeq
+        val allReq = rPTypes.forall(f => f.typ.required)
+        PCanonicalTuple(rPTypes, allReq)
+
+      case _: AggLet |  _: AggFilter | _: AggExplode |
+           _: AggGroupBy | _: AggArrayPerElement | _: ApplyAggOp | _: ApplyScanOp => PType.canonical(ir.typ)
     }
 
 

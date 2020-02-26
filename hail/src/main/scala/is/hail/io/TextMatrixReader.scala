@@ -184,7 +184,7 @@ object TextMatrixReader {
           }
         }
         it
-      }.countPerPartition().scanLeft(0L)(_ + _)
+      }.countPerPartition()
   }
 }
 

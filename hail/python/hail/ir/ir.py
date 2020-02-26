@@ -606,6 +606,25 @@ class ArrayRange(IR):
         self._type = tarray(tint32)
 
 
+class StreamRange(IR):
+    @typecheck_method(start=IR, stop=IR, step=IR)
+    def __init__(self, start, stop, step):
+        super().__init__(start, stop, step)
+        self.start = start
+        self.stop = stop
+        self.step = step
+
+    @typecheck_method(start=IR, stop=IR, step=IR)
+    def copy(self, start, stop, step):
+        return StreamRange(start, stop, step)
+
+    def _compute_type(self, env, agg_env):
+        self.start._compute_type(env, agg_env)
+        self.stop._compute_type(env, agg_env)
+        self.step._compute_type(env, agg_env)
+        self._type = tstream(tint32)
+
+
 class MakeNDArray(IR):
     @typecheck_method(data=IR, shape=IR, row_major=IR)
     def __init__(self, data, shape, row_major):
@@ -2176,6 +2195,24 @@ class BlockMatrixMultiWrite(IR):
     def _compute_type(self, env, agg_env):
         for x in self.block_matrices:
             x._compute_type()
+        self._type = tvoid
+
+    @staticmethod
+    def is_effectful() -> bool:
+        return True
+
+
+class UnpersistBlockMatrix(IR):
+    @typecheck_method(child=BlockMatrixIR)
+    def __init__(self, child):
+        super().__init__(child)
+        self.child = child
+
+    def copy(self, child):
+        return UnpersistBlockMatrix(child)
+
+    def _compute_type(self, env, agg_env):
+        self.child._compute_type()
         self._type = tvoid
 
     @staticmethod
