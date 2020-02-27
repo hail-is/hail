@@ -41,7 +41,7 @@ class EmitStreamSuite extends HailSuite {
   )(implicit ctx: EmitStreamContext
   ): Code[Ctrl] = {
     val r = CodeStream.range(1, 1, n)
-    CodeStream.fold[Code[Int], Code[Int]](r, 1, (i, prod) => prod * i, ret)
+    CodeStream.fold[Code[Int], Code[Int]](ctx.mb, r, 1, (i, prod) => prod * i, ret)
   }
 
   def range(start: Code[Int], stop: Code[Int], name: String)(implicit ctx: EmitStreamContext): CodeStream.Stream[Code[Int]] =

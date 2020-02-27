@@ -154,10 +154,10 @@ object CodeStream { self =>
   abstract class Stream[+A] {
     private[CodeStream] def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A]
 
-    def fold[S: ParameterPack](s0: S, f: (A, S) => S, ret: S => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
-      CodeStream.fold(this, s0, f, ret)
-    def foldCPS[S: ParameterPack](s0: S, f: (A, S, S => Code[Ctrl]) => Code[Ctrl], ret: S => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
-      CodeStream.foldCPS(this, s0, f, ret)
+    def fold[S: ParameterPack](mb: MethodBuilder)(s0: S, f: (A, S) => S, ret: S => Code[Ctrl]): Code[Ctrl] =
+      CodeStream.fold(mb, this, s0, f, ret)
+    def foldCPS[S: ParameterPack](mb: MethodBuilder)(s0: S, f: (A, S, S => Code[Ctrl]) => Code[Ctrl], ret: S => Code[Ctrl]): Code[Ctrl] =
+      CodeStream.foldCPS(mb, this, s0, f, ret)
     def forEach(mb: MethodBuilder)(f: A => Code[Unit]): Code[Unit] =
       CodeStream.forEach(mb, this, f)
     def mapCPS[B](
@@ -176,6 +176,14 @@ object CodeStream { self =>
     ): Stream[B] = CodeStream.map(this)(f, setup0, setup, close0, close)
     def flatMap[B](f: A => Stream[B]): Stream[B] =
       CodeStream.flatMap(map(f))
+    def scanCPS[S: ParameterPack](mb: MethodBuilder, s0: S
+    )(f: (A, S, S => Code[Ctrl]) => Code[Ctrl]
+    ): Stream[S] = {
+      val (res, _) = CodeStream.scanCPS(mb, this, s0, f)
+      res
+    }
+    def scan[S: ParameterPack](mb: MethodBuilder, s0: S)(f: (A, S) => S): Stream[S] =
+      scanCPS(mb, s0)((a, s, k) => k(f(a, s)))
   }
 
   implicit class StreamPP[A](val stream: Stream[A]) extends AnyVal {
@@ -216,17 +224,18 @@ object CodeStream { self =>
       })
 
   def foldCPS[A, S: ParameterPack](
+    mb: MethodBuilder,
     stream: Stream[A],
     s0: S,
     f: (A, S, S => Code[Ctrl]) => Code[Ctrl],
     ret: S => Code[Ctrl]
-  )(implicit ctx: EmitStreamContext): Code[Ctrl] = {
-    val (scan, s) = scanCPS(stream, s0, f)
-    Code(run(ctx.mb, scan.map(_ => ())), ret(s.load))
+  ): Code[Ctrl] = {
+    val (scan, s) = scanCPS(mb, stream, s0, f)
+    Code(run(mb, scan.map(_ => ())), ret(s.load))
   }
 
-  def fold[A, S: ParameterPack](stream: Stream[A], s0: S, f: (A, S) => S, ret: S => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
-    foldCPS[A, S](stream, s0, (a, s, k) => k(f(a, s)), ret)
+  def fold[A, S: ParameterPack](mb: MethodBuilder, stream: Stream[A], s0: S, f: (A, S) => S, ret: S => Code[Ctrl]): Code[Ctrl] =
+    foldCPS[A, S](mb, stream, s0, (a, s, k) => k(f(a, s)), ret)
 
   def forEachCPS[A](mb: MethodBuilder, stream: Stream[A], f: (A, Code[Ctrl]) => Code[Ctrl]): Code[Unit] =
     run(mb, stream.mapCPS[Unit]((_, a, k) => f(a, k(()))))
@@ -245,11 +254,12 @@ object CodeStream { self =>
   }
 
   def scanCPS[A, S: ParameterPack](
+    mb: MethodBuilder,
     stream: Stream[A],
     s0: S,
     f: (A, S, S => Code[Ctrl]) => Code[Ctrl]
-  )(implicit ctx: EmitStreamContext): (Stream[S], ParameterStore[S]) = {
-    val s = newLocal[S]
+  ): (Stream[S], ParameterStore[S]) = {
+    val s = implicitly[ParameterPack[S]].newLocals(mb)
     val res = mapCPS[A, S](stream)(
       (_, a, k) => f(a, s.load, s1 => Code(s := s1, k(s.load))),
       setup0 = Some(s.init),
@@ -526,7 +536,7 @@ object EmitStream2 {
       streamIR match {
 
         case StreamMap(childIR, name, bodyIR) =>
-          val childEltType = childIR.pType.asInstanceOf[PStream].elementType
+          val childEltType = coerce[PStream](childIR.pType).elementType
           implicit val childEltPack = TypedTriplet.pack(childEltType)
 
           val optStream = emitStream(childIR, env)
@@ -545,7 +555,7 @@ object EmitStream2 {
           }
 
         case StreamFilter(childIR, name, condIR) =>
-          val childEltType = childIR.pType.asInstanceOf[PStream].elementType
+          val childEltType = coerce[PStream](childIR.pType).elementType
           implicit val childEltPack = TypedTriplet.pack(childEltType)
 
           val optStream = emitStream(childIR, env)
@@ -647,7 +657,7 @@ object EmitStream2 {
           }
 
         case StreamFlatMap(outerIR, name, innerIR) =>
-          val outerEltType = outerIR.pType.asInstanceOf[PStream].elementType
+          val outerEltType = coerce[PStream](outerIR.pType).elementType
           val outerEltPack = TypedTriplet.pack(outerEltType)
 
           val optOuter = emitStream(outerIR, env)
@@ -667,7 +677,7 @@ object EmitStream2 {
           }
 
         case If(condIR, thn, els) =>
-          val eltType = thn.pType.asInstanceOf[PStream].elementType
+          val eltType = coerce[PStream](thn.pType).elementType
           implicit val eltPack: ParameterPack[TypedTriplet[eltType.type]] = TypedTriplet.pack(eltType)
           val xCond = mb.newField[Boolean]
 
@@ -675,6 +685,7 @@ object EmitStream2 {
           val optLeftStream = emitStream(thn, env)
           val optRightStream = emitStream(els, env)
 
+          // TODO: set xCond in setup of choose, don't need CPS
           condT.flatMapCPS[Stream[EmitTriplet]] { (cond, _, k) =>
             Code(
               xCond := cond,
@@ -696,6 +707,29 @@ object EmitStream2 {
           val bodyEnv = Emit.bindEnv(env, name -> xValue)
 
           emitStream(bodyIR, bodyEnv).addSetup(xValue := valuet)
+
+        case StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
+          val eltType = coerce[PStream](childIR.pType).elementType
+          val accType = zeroIR.pType
+          implicit val eltPack = TypedTriplet.pack(eltType)
+          implicit val accPack = TypedTriplet.pack(accType)
+
+          def scanBody(elt: TypedTriplet[eltType.type], acc: TypedTriplet[accType.type]): TypedTriplet[accType.type] = {
+            val xElt = eltPack.newFields(fb, eltName)
+            val xAcc = accPack.newFields(fb, accName)
+            val bodyEnv = Emit.bindEnv(env, accName -> xAcc, eltName -> xElt)
+
+            val bodyT = TypedTriplet(accType, emitIR(bodyIR, bodyEnv))
+            TypedTriplet(accType, EmitTriplet(Code(xElt := elt, xAcc := acc, bodyT.setup), bodyT.m, bodyT.pv))
+          }
+
+          val zerot = TypedTriplet(accType, emitIR(zeroIR, env))
+          val streamOpt = emitStream(childIR, env)
+          streamOpt.map { stream =>
+            stream.map(TypedTriplet(eltType, _))
+                  .scan(mb, zerot)(scanBody)
+                  .map(_.untyped)
+          }
 
         case _ =>
           val EmitStream(parameterized, eltType) =

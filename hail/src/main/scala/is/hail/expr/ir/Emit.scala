@@ -708,7 +708,7 @@ private class Emit(
           def foldBody(elt: TypedTriplet[eltType.type], acc: TypedTriplet[accType.type]): TypedTriplet[accType.type] = {
             val xElt = eltPack.newFields(mb.fb, valueName)
             val xAcc = accPack.newFields(mb.fb, accumName)
-            val bodyenv = Emit.bindEnv(env, (accumName -> xAcc), (valueName -> xElt))
+            val bodyenv = Emit.bindEnv(env, accumName -> xAcc, valueName -> xElt)
 
             val codeB = emit(body, env = bodyenv)
             TypedTriplet(accType, EmitTriplet(Code(xElt := elt, xAcc := acc, codeB.setup), codeB.m,
@@ -720,7 +720,7 @@ private class Emit(
             ret(COption.fromEmitTriplet(acc.untyped))
 
           stream.map(TypedTriplet(eltType, _))
-                .fold(TypedTriplet(accType, codeZ), foldBody, retTT)
+                .fold(mb)(TypedTriplet(accType, codeZ), foldBody, retTT)
         }
 
         COption.toEmitTriplet(resOpt, accType, mb)
@@ -762,7 +762,7 @@ private class Emit(
             Code(accVars := accs, ret(COption.fromEmitTriplet(codeR)))
 
           stream.map(TypedTriplet(eltType, _))
-            .foldCPS(zero, foldBody, computeRes)
+            .foldCPS(mb)(zero, foldBody, computeRes)
         }
 
         COption.toEmitTriplet(resOpt, res.pType, mb)
