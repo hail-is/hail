@@ -2109,10 +2109,10 @@ private class Emit(
         }
 
       case x@NDArrayConcat(nds, axis) =>
-        val inputType = coerce[PArray](nds.pType2)
+        val inputType = coerce[PArray](nds.pType)
         val inputNDType = coerce[PNDArray](inputType.elementType)
 
-        val ndType = coerce[PNDArray](x.pType2)
+        val ndType = coerce[PNDArray](x.pType)
         val codeNDs = emit(nds, env, er, None)
 
         val inputArray = mb.newField[Long]
