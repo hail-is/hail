@@ -3270,29 +3270,33 @@ class IRSuite extends HailSuite {
   )
 
   @Test(dataProvider = "nonNullTypesAndValues")
-  def testReadWriteValues(t: Type, v: Any): Unit = {
+  def testReadWriteValues(t: Type, value: Any): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
-    val node = Literal.coerce(t, v)
-    InferPType(node, Env.empty)
-    val spec = TypedCodecSpec(node.pType2, BufferSpec.defaultUncompressed)
-    val prefix = tmpDir.createTempFile()
-    val filename = WriteValue(node, Str(prefix), spec)
-    assertEvalsTo(ReadValue(filename, spec, t), v)
+    for (v <- Array(value, null)) {
+      val node = Literal.coerce(t, v)
+      InferPType(node, Env.empty)
+      val spec = TypedCodecSpec(node.pType2, BufferSpec.defaultUncompressed)
+      val prefix = tmpDir.createTempFile()
+      val filename = WriteValue(node, Str(prefix), spec)
+      assertEvalsTo(ReadValue(filename, spec, t), v)
+    }
   }
 
   @Test(dataProvider="nonNullTypesAndValues")
-  def testReadWriteValueDistributed(t: Type, v: Any): Unit = {
+  def testReadWriteValueDistributed(t: Type, value: Any): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
-    val node = Literal.coerce(t, v)
-    InferPType(node, Env.empty)
-    val spec = TypedCodecSpec(node.pType2, BufferSpec.defaultUncompressed)
-    val prefix = tmpDir.createTempFile()
-    val readArray = Let("files",
-      CollectDistributedArray(StreamRange(0, 10, 1), MakeStruct(FastSeq()),
-        "ctx", "globals",
-        WriteValue(node, Str(prefix), spec)),
-      ArrayMap(ToStream(Ref("files", TArray(TString()))), "filename",
-        ReadValue(Ref("filename", TString()), spec, t)))
-    assertEvalsTo(ToArray(readArray), Array.fill(10)(v).toFastIndexedSeq)
+    for (v <- Array(value, null)) {
+      val node = Literal.coerce(t, v)
+      InferPType(node, Env.empty)
+      val spec = TypedCodecSpec(node.pType2, BufferSpec.defaultUncompressed)
+      val prefix = tmpDir.createTempFile()
+      val readArray = Let("files",
+        CollectDistributedArray(StreamRange(0, 10, 1), MakeStruct(FastSeq()),
+          "ctx", "globals",
+          WriteValue(node, Str(prefix), spec)),
+        ArrayMap(ToStream(Ref("files", TArray(TString()))), "filename",
+          ReadValue(Ref("filename", TString()), spec, t)))
+      assertEvalsTo(ToArray(readArray), Array.fill(10)(v).toFastIndexedSeq)
+    }
   }
 }
