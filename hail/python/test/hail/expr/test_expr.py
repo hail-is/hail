@@ -59,6 +59,11 @@ class Tests(unittest.TestCase):
         with self.assertRaisesRegex(hl.utils.FatalError, 'Array range cannot have step size 0'):
             hl.eval(hl.range(0, 1, 0))
 
+    def test_zeros(self):
+        for size in [0, 3, 10, 1000]:
+            evaled = hl.eval(hl.zeros(size))
+            assert evaled == [0 for i in range(size)]
+
     def test_seeded_sampling(self):
         sampled1 = hl.utils.range_table(50, 6).filter(hl.rand_bool(0.5))
         sampled2 = hl.utils.range_table(50, 5).filter(hl.rand_bool(0.5))
