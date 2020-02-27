@@ -44,11 +44,11 @@ Every PType has a "fundamentalType", which is the is the constructible represent
 
 - Concrete implementations (canonical/non)
 
-[PTuple](#ptuple)
+[PStruct](#pstruct)
 
 - Concrete implementations (canonical/non)
 
-PStruct
+[PTuple](#ptuple)
 
 - Concrete implementations (canonical/non)
 
@@ -265,9 +265,65 @@ def arrayFundamentalType: PArray
 
 A PCanonicalArray-backed NDArray
 
+# <a name="pstruct">PStruct</a>
+
+An immutable, collection of unordered values, whose elements may be of different types.
+
+## Core methods
+
+```scala
+def allocate(region: Region): Long
+def allocate(region: Code[Region]): Code[Long]
+```
+
+- Allocate enough memory off-heap to store the requested elements
+
+```scala
+  def initialize(address: Long, setMissing: Boolean = false): Unit
+  def stagedInitialize(address: Code[Long], setMissing: Boolean = false): Code[Unit]
+```
+
+- Set element missingness and store element length
+
+```scala
+def isFieldMissing(address: Long, fieldIdx: Int): Boolean
+def isFieldMissing(address: Code[Long], fieldIdx: Code[Int]): Boolean
+```
+
+- Verify whether field is missing
+
+```scala
+def setFieldMissing(address: Long, fieldIdx: Int): Unit
+def setFieldMissing(address: Code[Long], fieldIdx: Int): Code[Unit]
+
+def setFieldPresent(address: Long, fieldIdx: Int): Unit
+def setFieldPresent(address: Code[Long], fieldIdx: Int): Code[Unit]
+```
+
+- Set field present of missing at a given memory address
+
+```scala
+def loadField(address: Long, fieldIdx: Int): Long
+def loadField(address: Code[Long], fieldIdx: Int): Code[Long]
+```
+
+- Load field at a given memory address
+
+```scala
+def storeField(address: Long, fieldIdx: Int): Long
+def storeField(address: Code[Long], fieldIdx: Int): Code[Long]
+```
+
+- Store field at a given memory address
+- (This does not exist yet, but should I believe)
+
+## <a name="ptuple">PCanonicalStruct</a>
+
+An immutable, fixed-length collection of unordered values (of possibly different types). Number of elements known statically.
+
 # <a name="ptuple">PTuple</a>
 
-An immutible, collection of ordered values, whose elements may be of different types.
+An immutable, collection of ordered values, whose elements may be of different types.
 
 ## Core methods
 
@@ -323,64 +379,6 @@ def storeField(address: Code[Long], fieldIdx: Int): Code[Long]
 
 ## <a name="ptuple">PCanonicalTuple</a>
 
-An immutible, fixed-length collection of ordered values (of possibly different types).
+An immutable, fixed-length collection of ordered values (of possibly different types).
 
-Number of elements known statically, and just like PCanonicalStruct, elements are stored inline, rather than behind a pointer to a collection.
-
-# <a name="ptuple">PStruct</a>
-
-An immutible, collection of unordered values, whose elements may be of different types.
-
-## Core methods
-
-```scala
-def allocate(region: Region): Long
-def allocate(region: Code[Region]): Code[Long]
-```
-
-- Allocate enough memory off-heap to store the requested elements
-
-```scala
-  def initialize(address: Long, setMissing: Boolean = false): Unit
-  def stagedInitialize(address: Code[Long], setMissing: Boolean = false): Code[Unit]
-```
-
-- Set element missingness and store element length
-
-```scala
-def isFieldMissing(address: Long, fieldIdx: Int): Boolean
-def isFieldMissing(address: Code[Long], fieldIdx: Code[Int]): Boolean
-```
-
-- Verify whether field is missing
-
-```scala
-def setFieldMissing(address: Long, fieldIdx: Int): Unit
-def setFieldMissing(address: Code[Long], fieldIdx: Int): Code[Unit]
-
-def setFieldPresent(address: Long, fieldIdx: Int): Unit
-def setFieldPresent(address: Code[Long], fieldIdx: Int): Code[Unit]
-```
-
-- Set field present of missing at a given memory address
-
-```scala
-def loadField(address: Long, fieldIdx: Int): Long
-def loadField(address: Code[Long], fieldIdx: Int): Code[Long]
-```
-
-- Load field at a given memory address
-
-```scala
-def storeField(address: Long, fieldIdx: Int): Long
-def storeField(address: Code[Long], fieldIdx: Int): Code[Long]
-```
-
-- Store field at a given memory address
-- (This does not exist yet, but should I believe)
-
-## <a name="ptuple">PCanonicalTuple</a>
-
-An immutible, fixed-length collection of ordered values (of possibly different types).
-
-Number of elements known statically, and just like PCanonicalStruct, elements are stored inline, rather than behind a pointer to a collection.
+Number of elements known statically, and elements stored inline, just like PCanonicalStruct.
