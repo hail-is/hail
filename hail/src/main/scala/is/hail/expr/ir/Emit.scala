@@ -2109,10 +2109,10 @@ private class Emit(
         }
 
       case x@NDArrayConcat(nds, axis) =>
-        val inputType = coerce[PArray](nds.pType2)
+        val inputType = coerce[PArray](nds.pType)
         val inputNDType = coerce[PNDArray](inputType.elementType)
 
-        val ndType = coerce[PNDArray](x.pType2)
+        val ndType = coerce[PNDArray](x.pType)
         val codeNDs = emit(nds, env, er, None)
 
         val inputArray = mb.newField[Long]
@@ -2135,11 +2135,14 @@ private class Emit(
             val setup = Code(
               codeNDs.setup,
               m := codeNDs.m,
-              loadAndValidateArray,
-              i := 0,
-              Code.whileLoop(i < n,
-                m := m | inputType.isElementMissing(inputArray, i),
-                i := i + 1))
+              (!m).orEmpty(
+                Code(
+                  loadAndValidateArray,
+                  i := 0,
+                  Code.whileLoop(i < n,
+                    m := m | inputType.isElementMissing(inputArray, i),
+                    i := i + 1))
+              ))
             (setup, m.load(), Code._empty)
         }
 
