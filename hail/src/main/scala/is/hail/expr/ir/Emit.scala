@@ -1231,8 +1231,6 @@ private class Emit(
         )
         val cachedIdxVals = idxFields.map(_.load()).toArray
 
-        val targetElementPosition = childPType.getElementAddress(cachedIdxVals, ndAddress, mb)
-
         val setup = coerce[Unit](Code(
           ndt.setup,
           overallMissing := ndt.m,
@@ -1246,7 +1244,7 @@ private class Emit(
           ndAddress := ndt.value[Long],
           idxFieldsBinding,
           childPType.outOfBounds(cachedIdxVals, ndAddress, mb).orEmpty(Code._fatal("Index out of bounds")),
-          Region.loadIRIntermediate(childPType.data.pType.elementType)(targetElementPosition)
+          childPType.loadElementToIRIntermediate(cachedIdxVals, ndAddress, mb)
         )
 
         EmitTriplet(setup, overallMissing, value)
@@ -2190,8 +2188,8 @@ private class Emit(
             }
             Code(
               setupTransformedIdx,
-              Region.loadIRIntermediate(ndType.elementType)(
-                inputNDType.getElementAddress(transformedIdxs, inputType.loadElement(inputArray, i), mb)))
+              inputNDType.loadElementToIRIntermediate(transformedIdxs, inputType.loadElement(inputArray, i), mb)
+            )
           }
         }
 
@@ -2260,10 +2258,8 @@ private class Emit(
 
         new NDArrayEmitter(mb, nDims, shapeArray,
           xP.shape.pType, xP.elementType, setup, ndt.setup, ndt.m) {
-          override def outputElement(idxVars: Array[Code[Long]]): Code[_] = {
-            val elementLocation = xP.getElementAddress(idxVars, ndAddress, mb)
-            Region.loadIRIntermediate(outputElementPType)(elementLocation)
-          }
+          override def outputElement(idxVars: Array[Code[Long]]): Code[_] =
+            outputElementPType.asInstanceOf[PNDArray].loadElementToIRIntermediate(idxVars, ndAddress, mb)
         }
     }
   }
