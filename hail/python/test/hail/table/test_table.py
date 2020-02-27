@@ -1409,7 +1409,7 @@ def test_group_within_partitions():
     assert filter_then_group[0] == hl.Struct(idx=0, grouped_fields=[hl.Struct(idx=0), hl.Struct(idx=2), hl.Struct(idx=4), hl.Struct(idx=6), hl.Struct(idx=8)])
 
 
-def test_map__filter_region_memory():
-    high_mem_table = hl.utils.range_table(60).annotate(big_array=hl.zeros(100_000_000))
-    high_mem_table = high_mem_table.filter(high_mem_table.idx % 2 == 0)
-    high_mem_table._force_count()
+# def test_map__filter_region_memory():
+#     high_mem_table = hl.utils.range_table(60).annotate(big_array=hl.zeros(100_000_000))
+#     high_mem_table = high_mem_table.filter(high_mem_table.idx % 2 == 0)
+#     high_mem_table._force_count()
