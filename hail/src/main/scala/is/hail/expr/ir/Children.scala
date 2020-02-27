@@ -73,6 +73,8 @@ object Children {
       Array(a)
     case ToArray(a) =>
       Array(a)
+    case CastToArray(a) =>
+      Array(a)
     case ToStream(a) =>
       Array(a)
     case LowerBoundOnOrderedCollection(orderedCollection, elem, _) =>

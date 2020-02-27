@@ -600,6 +600,9 @@ private class Emit(
 
         COption.toEmitTriplet(result, typeToTypeInfo(atyp), mb)
 
+      case CastToArray(a) =>
+        emit(a)
+
       case ToArray(a) =>
         emitArrayIterator(a).toEmitTriplet(mb, PArray(coerce[PStreamable](ir.pType).elementType))
 

@@ -13,11 +13,11 @@ object DictFunctions extends RegistryFunctions {
       NA(TBoolean()),
       Let(i.name,
         LowerBoundOnOrderedCollection(dict, key, onKey = true),
-        If(i.ceq(ArrayLen(ToArray(ToStream(dict)))),
+        If(i.ceq(ArrayLen(CastToArray(dict))),
           False(),
           ApplyComparisonOp(
             EQWithNA(key.typ),
-            GetField(ArrayRef(ToArray(ToStream(dict)), i), "key"),
+            GetField(ArrayRef(CastToArray(dict), i), "key"),
             key))))
   }
 
@@ -28,10 +28,10 @@ object DictFunctions extends RegistryFunctions {
       NA(default.typ),
       Let(i.name,
         LowerBoundOnOrderedCollection(dict, key, onKey=true),
-        If(i.ceq(ArrayLen(ToArray(ToStream(dict)))),
+        If(i.ceq(ArrayLen(CastToArray(dict))),
           default,
-          If(ApplyComparisonOp(EQWithNA(key.typ), GetField(ArrayRef(ToArray(ToStream(dict)), i), "key"), key),
-            GetField(ArrayRef(ToArray(ToStream(dict)), i), "value"),
+          If(ApplyComparisonOp(EQWithNA(key.typ), GetField(ArrayRef(CastToArray(dict), i), "key"), key),
+            GetField(ArrayRef(CastToArray(dict), i), "value"),
             default))))
   }
 
@@ -39,7 +39,7 @@ object DictFunctions extends RegistryFunctions {
 
   def registerAll() {
     registerIR("isEmpty", tdict, TBoolean()) { d =>
-      ArrayFunctions.isEmpty(ToArray(ToStream(d)))
+      ArrayFunctions.isEmpty(CastToArray(d))
     }
 
     registerIR("contains", tdict, tv("key"), TBoolean())(contains)

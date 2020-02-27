@@ -360,7 +360,7 @@ class CollectionExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             The number of elements in the collection.
         """
-        return apply_expr(lambda x: ArrayLen(ToArray(ToStream(x))), tint32, hl.array(self))
+        return apply_expr(lambda x: ArrayLen(CastToArray(x)), tint32, hl.array(self))
 
     def size(self):
         """Returns the size of a collection.
@@ -379,7 +379,7 @@ class CollectionExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             The number of elements in the collection.
         """
-        return apply_expr(lambda x: ArrayLen(ToArray(ToStream(x))), tint32, hl.array(self))
+        return apply_expr(lambda x: ArrayLen(CastToArray(x)), tint32, hl.array(self))
 
     def _extra_summary_fields(self, agg_result):
         return {
@@ -1402,7 +1402,7 @@ class DictExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             Size of the dictionary.
         """
-        return apply_expr(lambda x: ArrayLen(ToArray(ToStream(x))), tint32, self)
+        return apply_expr(lambda x: ArrayLen(CastToArray(x)), tint32, self)
 
     def values(self):
         """Returns an array with all values in the dictionary.

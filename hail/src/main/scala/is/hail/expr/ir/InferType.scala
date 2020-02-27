@@ -91,6 +91,9 @@ object InferType {
       case ToArray(a) =>
         val elt = coerce[TStream](a.typ).elementType
         TArray(elt, a.typ.required)
+      case CastToArray(a) =>
+        val elt = coerce[TContainer](a.typ).elementType
+        TArray(elt, a.typ.required)
       case ToStream(a) =>
         val elt = coerce[TIterable](a.typ).elementType
         TStream(elt, a.typ.required)

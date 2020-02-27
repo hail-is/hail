@@ -3384,7 +3384,7 @@ def len(x) -> Int32Expression:
     elif x.dtype == tstr:
         return apply_expr(lambda x: Apply("length", tint32, x), tint32, x)
     else:
-        return apply_expr(lambda x: ArrayLen(ToArray(ToStream(x))), tint32, array(x))
+        return apply_expr(lambda x: ArrayLen(CastToArray(x)), tint32, array(x))
 
 
 @typecheck(x=expr_oneof(expr_array(), expr_str))
@@ -3980,7 +3980,7 @@ def array(collection) -> ArrayExpression:
     if isinstance(collection.dtype, tarray):
         return collection
     elif isinstance(collection.dtype, tset):
-        return apply_expr(lambda c: ToArray(ToStream(c)), tarray(collection.dtype.element_type), collection)
+        return apply_expr(lambda c: CastToArray(c), tarray(collection.dtype.element_type), collection)
     else:
         assert isinstance(collection.dtype, tdict)
         return _func('dictToArray', tarray(ttuple(collection.dtype.key_type, collection.dtype.value_type)), collection)

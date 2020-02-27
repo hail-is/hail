@@ -925,6 +925,21 @@ class ToArray(IR):
         self._type = tarray(self.a.typ.element_type)
 
 
+class CastToArray(IR):
+    @typecheck_method(a=IR)
+    def __init__(self, a):
+        super().__init__(a)
+        self.a = a
+
+    @typecheck_method(a=IR)
+    def copy(self, a):
+        return ToArray(a)
+
+    def _compute_type(self, env, agg_env):
+        self.a._compute_type(env, agg_env)
+        self._type = tarray(self.a.typ.element_type)
+
+
 class ToStream(IR):
     @typecheck_method(a=IR)
     def __init__(self, a):

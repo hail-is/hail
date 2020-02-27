@@ -291,8 +291,7 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Row]].filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
-
-      case _: ToArray | _: ToStream =>
+      case _: CastToArray | _: ToArray | _: ToStream =>
         val c = ir.children(0).asInstanceOf[IR]
         val cValue = interpret(c, env, args)
         if (cValue == null)

@@ -121,6 +121,9 @@ object Copy {
       case ToArray(_) =>
         assert(newChildren.length == 1)
         ToArray(newChildren(0).asInstanceOf[IR])
+      case CastToArray(_) =>
+        assert(newChildren.length == 1)
+        CastToArray(newChildren(0).asInstanceOf[IR])
       case ToStream(_) =>
         assert(newChildren.length == 1)
         ToStream(newChildren(0).asInstanceOf[IR])

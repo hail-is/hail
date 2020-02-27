@@ -1606,8 +1606,8 @@ class IRSuite extends HailSuite {
 
   @Test def testToArrayFromSet() {
     val t = TSet(TInt32())
-    assertEvalsTo(ToArray(ToStream(NA(t))), null)
-    assertEvalsTo(ToArray(ToStream(In(0, t))),
+    assertEvalsTo(CastToArray(NA(t)), null)
+    assertEvalsTo(CastToArray(In(0, t)),
       FastIndexedSeq((Set(-7, 2, null), t)),
       FastIndexedSeq(-7, 2, null))
   }
@@ -1630,10 +1630,10 @@ class IRSuite extends HailSuite {
 
   @Test def testToArrayFromDict() {
     val t = TDict(TInt32(), TString())
-    assertEvalsTo(ToArray(ToStream(NA(t))), null)
+    assertEvalsTo(CastToArray(NA(t)), null)
 
     val d = Map(1 -> "a", 2 -> null, (null, "c"))
-    assertEvalsTo(ToArray(ToStream(In(0, t))),
+    assertEvalsTo(CastToArray(In(0, t)),
       // wtf you can't do null -> ...
       FastIndexedSeq((d, t)),
       FastIndexedSeq(Row(1, "a"), Row(2, null), Row(null, "c")))
@@ -1641,8 +1641,8 @@ class IRSuite extends HailSuite {
 
   @Test def testToArrayFromArray() {
     val t = TArray(TInt32())
-    assertEvalsTo(ToArray(ToStream(NA(t))), null)
-    assertEvalsTo(ToArray(ToStream(In(0, t))),
+    assertEvalsTo(NA(t), null)
+    assertEvalsTo(In(0, t),
       FastIndexedSeq((FastIndexedSeq(-7, 2, null, 2), t)),
       FastIndexedSeq(-7, 2, null, 2))
   }
@@ -2515,9 +2515,6 @@ class IRSuite extends HailSuite {
 
     val callStatsSig = AggSignature(CallStats(), Seq(TInt32()), Seq(TCall()))
 
-    def canonical(ts: Type*): IndexedSeq[PType] = ts.map(PType.canonical).toFastIndexedSeq
-
-
     val takeBySig = AggSignature(TakeBy(), Seq(TInt32()), Seq(TFloat64(), TInt32()))
 
     val countSig = AggSignature(Count(), Seq(), Seq())
@@ -2579,6 +2576,7 @@ class IRSuite extends HailSuite {
       ToSet(st),
       ToDict(std),
       ToArray(st),
+      CastToArray(NA(TSet(TInt32()))),
       ToStream(a),
       LowerBoundOnOrderedCollection(a, i, onKey = true),
       GroupByKey(da),

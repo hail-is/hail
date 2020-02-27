@@ -175,6 +175,10 @@ object InferPType {
         infer(a)
         val elt = coerce[PIterable](a.pType2).elementType
         PArray(elt, a.pType2.required)
+      case CastToArray(a) =>
+        infer(a)
+        val elt = coerce[PIterable](a.pType2).elementType
+        PArray(elt, a.pType2.required)
       case ToStream(a) =>
         infer(a)
         val elt = coerce[PIterable](a.pType2).elementType

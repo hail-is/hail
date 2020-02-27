@@ -181,7 +181,7 @@ object Simplify {
     case ApplyIR("indexArray", Seq(a, i@I32(v))) if v >= 0 =>
       ArrayRef(a, i)
 
-    case ApplyIR("contains", Seq(ToArray(ToStream(x)), element)) if x.typ.isInstanceOf[TSet] => invoke("contains", TBoolean(), x, element)
+    case ApplyIR("contains", Seq(CastToArray(x), element)) if x.typ.isInstanceOf[TSet] => invoke("contains", TBoolean(), x, element)
 
     case ApplyIR("contains", Seq(Literal(t, v), element)) if t.isInstanceOf[TArray] =>
       invoke("contains", TBoolean(), Literal(TSet(t.asInstanceOf[TArray].elementType, t.required), v.asInstanceOf[IndexedSeq[_]].toSet), element)
@@ -223,6 +223,9 @@ object Simplify {
     case ToStream(ToArray(s)) if s.typ.isInstanceOf[TStream] => s
 
     case ToStream(Let(name, value, ToArray(x))) if x.typ.isInstanceOf[TStream] => Let(name, value, x)
+
+    case ToArray(ToStream(a)) if a.typ.isInstanceOf[TSet] || a.typ.isInstanceOf[TDict] =>
+      CastToArray(a)
 
     case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
 
@@ -377,7 +380,7 @@ object Simplify {
       TableAggregate(child,
         ApplyAggOp(
           FastIndexedSeq(),
-          FastIndexedSeq(ArrayLen(ToArray(ToStream(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)}))).toL),
+          FastIndexedSeq(ArrayLen(CastToArray(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)})).toL),
           AggSignature(Sum(), FastSeq(), FastSeq(TInt64()))))
 
     case MatrixCount(child) if child.partitionCounts.isDefined || child.columnCount.isDefined =>

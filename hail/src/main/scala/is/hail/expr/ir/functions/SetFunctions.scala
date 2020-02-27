@@ -12,9 +12,9 @@ object SetFunctions extends RegistryFunctions {
       NA(TBoolean()),
       Let(i.name,
         LowerBoundOnOrderedCollection(set, elem, onKey = false),
-        If(i.ceq(ArrayLen(ToArray(ToStream(set)))),
+        If(i.ceq(ArrayLen(CastToArray(set))),
           False(),
-          ApplyComparisonOp(EQWithNA(elem.typ), ArrayRef(ToArray(ToStream(set)), i), elem))))
+          ApplyComparisonOp(EQWithNA(elem.typ), ArrayRef(CastToArray(set), i), elem))))
   }
 
   def registerAll() {
@@ -23,7 +23,7 @@ object SetFunctions extends RegistryFunctions {
     }
 
     registerIR("isEmpty", TSet(tv("T")), TBoolean()) { s =>
-      ArrayFunctions.isEmpty(ToArray(ToStream(s)))
+      ArrayFunctions.isEmpty(CastToArray(s))
     }
 
     registerIR("contains", TSet(tv("T")), tv("T"), TBoolean())(contains)
@@ -43,7 +43,7 @@ object SetFunctions extends RegistryFunctions {
       val x = genUID()
       ToSet(
         StreamFlatMap(
-          MakeStream(FastSeq(ToArray(ToStream(s)), MakeArray(FastSeq(v), TArray(t))), TStream(TArray(t))),
+          MakeStream(FastSeq(CastToArray(s), MakeArray(FastSeq(v), TArray(t))), TStream(TArray(t))),
           x,
           ToStream(Ref(x, TArray(t)))))
     }
@@ -53,7 +53,7 @@ object SetFunctions extends RegistryFunctions {
       val x = genUID()
       ToSet(
         StreamFlatMap(
-          MakeStream(FastSeq(ToArray(ToStream(s1)), ToArray(ToStream(s2))), TStream(TArray(t))),
+          MakeStream(FastSeq(CastToArray(s1), CastToArray(s2)), TStream(TArray(t))),
           x,
           ToStream(Ref(x, TArray(t)))))
     }
@@ -94,7 +94,7 @@ object SetFunctions extends RegistryFunctions {
       val len: IR = ArrayLen(a)
       def div(a: IR, b: IR): IR = ApplyBinaryPrimOp(BinaryOp.defaultDivideOp(t), a, b)
 
-      Let(a.name, ToArray(ToStream(s)),
+      Let(a.name, CastToArray(s),
         If(IsNA(a),
           NA(t),
           Let(size.name,
