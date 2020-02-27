@@ -219,13 +219,12 @@ object Simplify {
     case StreamFilter(ToStream(ArraySort(a, left, right, compare)), name, cond) => ToStream(ArraySort(StreamFilter(a, name, cond), left, right, compare))
 
     case ToArray(ToStream(a)) if a.typ.isInstanceOf[TArray] => a
+    case ToArray(ToStream(a)) if a.typ.isInstanceOf[TSet] || a.typ.isInstanceOf[TDict] =>
+      CastToArray(a)
 
     case ToStream(ToArray(s)) if s.typ.isInstanceOf[TStream] => s
 
     case ToStream(Let(name, value, ToArray(x))) if x.typ.isInstanceOf[TStream] => Let(name, value, x)
-
-    case ToArray(ToStream(a)) if a.typ.isInstanceOf[TSet] || a.typ.isInstanceOf[TDict] =>
-      CastToArray(a)
 
     case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
 
