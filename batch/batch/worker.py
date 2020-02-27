@@ -857,10 +857,10 @@ class Worker:
                 del self.jobs[job.id]
                 self.last_updated = time_msecs()
 
-            # exponentially back off, up to (expected) max of 30s
             await asyncio.sleep(
                 delay_secs * random.uniform(0.7, 1.3))
-            delay_secs = min(delay_secs * 2, 30.0)
+            # exponentially back off, up to (expected) max of 2m
+            delay_secs = min(delay_secs * 2, 2 * 60.0)
 
     async def post_job_complete(self, job, run_duration):
         try:

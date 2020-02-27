@@ -95,17 +95,21 @@ class Transaction:
                 await cursor.execute('START TRANSACTION;')
 
     async def _aexit(self, exc_type, exc_val, exc_tb):
-        if not self.conn:
-            return
-
-        if exc_type:
-            await self.conn.rollback()
-        else:
-            await self.conn.commit()
-        self.conn = None
-
-        await aexit(self.conn_context_manager, exc_type, exc_val, exc_tb)
-        self.conn_context_manager = None
+        try:
+            if self.conn is not None:
+                try:
+                    if exc_type:
+                        await self.conn.rollback()
+                    else:
+                        await self.conn.commit()
+                finally:
+                    self.conn = None
+        finally:
+            if self.conn_context_manager is not None:
+                try:
+                    await aexit(self.conn_context_manager, exc_type, exc_val, exc_tb)
+                finally:
+                    self.conn_context_manager = None
 
     async def commit(self):
         assert self.conn
@@ -140,13 +144,13 @@ class Transaction:
             if timer_description is None:
                 await cursor.execute(sql, args)
             else:
-                async with LoggingTimer(f'{timer_description}: execute_and_fetchall: execute'):
+                async with LoggingTimer(f'{timer_description}: execute_and_fetchall: execute', threshold_ms=20):
                     await cursor.execute(sql, args)
             while True:
                 if timer_description is None:
                     rows = await cursor.fetchmany(100)
                 else:
-                    async with LoggingTimer(f'{timer_description}: execute_and_fetchall: fetchmany'):
+                    async with LoggingTimer(f'{timer_description}: execute_and_fetchall: fetchmany', threshold_ms=20):
                         rows = await cursor.fetchmany(100)
                 if not rows:
                     break

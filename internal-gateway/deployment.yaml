@@ -38,26 +38,9 @@ spec:
          resources:
            requests:
              memory: "250M"
-             cpu: "100m"
+             cpu: "200m"
          ports:
           - containerPort: 80
----
-apiVersion: autoscaling/v2beta1
-kind: HorizontalPodAutoscaler
-metadata:
-  name: internal-gateway
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: internal-gateway
-  minReplicas: 3
-  maxReplicas: 10
-  metrics:
-   - type: Resource
-     resource:
-       name: cpu
-       targetAverageUtilization: 80
 ---
 apiVersion: policy/v1beta1
 kind: PodDisruptionBudget

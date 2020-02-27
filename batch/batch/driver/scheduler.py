@@ -3,7 +3,7 @@ import asyncio
 import secrets
 import sortedcontainers
 
-from hailtop.utils import AsyncWorkerPool, WaitableSharedPool, retry_long_running, run_if_changed
+from hailtop.utils import AsyncWorkerPool, WaitableSharedPool, retry_long_running, run_if_changed, time_msecs
 
 from ..batch import schedule_job, unschedule_job, mark_job_complete
 
@@ -288,11 +288,16 @@ LIMIT %s;
         return should_wait
 
     async def schedule_loop_body(self):
+        log.info('schedule: starting')
+        start = time_msecs()
+        n_scheduled = 0
+
         user_resources = await self.compute_fair_share()
 
         total = sum(resources['allocated_cores_mcpu']
                     for resources in user_resources.values())
         if not total:
+            log.info('schedule: no allocated cores')
             should_wait = True
             return should_wait
         user_share = {
@@ -358,6 +363,9 @@ LIMIT %s;
                 attempt_id = ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(6)])
                 record['attempt_id'] = attempt_id
 
+                if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
+                    break
+
                 i = self.inst_pool.healthy_instances_by_free_cores.bisect_key_left(record['cores_mcpu'])
                 if i < len(self.inst_pool.healthy_instances_by_free_cores):
                     instance = self.inst_pool.healthy_instances_by_free_cores[i]
@@ -366,6 +374,8 @@ LIMIT %s;
 
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     scheduled_cores_mcpu += record['cores_mcpu']
+                    n_scheduled += 1
+                    should_wait = False
 
                     async def schedule_with_error_handling(app, record, id, instance):
                         try:
@@ -377,12 +387,11 @@ LIMIT %s;
 
                 remaining.value -= 1
                 if remaining.value <= 0:
-                    should_wait = False
-                    break
-                if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
-                    should_wait = False
                     break
 
         await waitable_pool.wait()
+
+        end = time_msecs()
+        log.info(f'schedule: scheduled {n_scheduled} jobs in {end - start}ms')
 
         return should_wait
