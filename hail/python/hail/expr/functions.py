@@ -2069,7 +2069,7 @@ def zeros(length) -> ArrayNumericExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.range(0, 10, step=3))
+    >>> hl.eval(hl.zeros(4))
     [0, 0, 0, 0]
 
     Parameters
