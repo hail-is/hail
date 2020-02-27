@@ -196,7 +196,7 @@ SET max_instances = %s, pool_size = %s;
             },
 
             'serviceAccounts': [{
-                'email': 'batch2-agent@{PROJECT}.iam.gserviceaccount.com',
+                'email': f'batch2-agent@{PROJECT}.iam.gserviceaccount.com',
                 'scopes': [
                     'https://www.googleapis.com/auth/cloud-platform'
                 ]

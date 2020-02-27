@@ -97,17 +97,19 @@ class Transaction:
     async def _aexit(self, exc_type, exc_val, exc_tb):
         try:
             if self.conn is not None:
-                conn = self.conn
-                # clear in case of exception
-                self.conn = None
-                if exc_type:
-                    await conn.rollback()
-                else:
-                    await conn.commit()
+                try:
+                    if exc_type:
+                        await conn.rollback()
+                    else:
+                        await conn.commit()
+                finally:
+                    self.conn = None
         finally:
             if self.conn_context_manager is not None:
-                await aexit(self.conn_context_manager, exc_type, exc_val, exc_tb)
-                self.conn_context_manager = None
+                try:
+                    await aexit(self.conn_context_manager, exc_type, exc_val, exc_tb)
+                finally:
+                    self.conn_context_manager = None
 
     async def commit(self):
         assert self.conn
