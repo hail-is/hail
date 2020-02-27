@@ -865,19 +865,14 @@ class LazyFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String, setup: Cod
     throw new UnsupportedOperationException("cannot store new value into LazyFieldRef!")
 }
 
-class ClassFieldRef[T: TypeInfo](fb: FunctionBuilder[_], val name: String) extends Settable[T] {
-  val desc: String = typeInfo[T].name
-  val node: FieldNode = new FieldNode(ACC_PUBLIC, name, desc, null, null)
-
-  fb.cn.fields.asInstanceOf[util.List[FieldNode]].add(node)
+class ClassFieldRef[T: TypeInfo](fb: FunctionBuilder[_], f: Field[T]) extends Settable[T] {
+  def name: String = f.name
 
   private def _loadClass: Code[java.lang.Object] = fb.getArg[java.lang.Object](0).load()
-  private def _loadInsn: Code[T] = Code(new FieldInsnNode(GETFIELD, fb.name, name, desc))
-  private def _storeInsn: Code[Unit] = Code(new FieldInsnNode(PUTFIELD, fb.name, name, desc))
 
-  def load(): Code[T] = Code(_loadClass, _loadInsn)
+  def load(): Code[T] = f.get(_loadClass)
 
-  def store(rhs: Code[T]): Code[Unit] = Code(_loadClass, rhs, _storeInsn)
+  def store(rhs: Code[T]): Code[Unit] = f.put(_loadClass, rhs)
 }
 
 class LocalRef[T](val i: Int)(implicit tti: TypeInfo[T]) extends Settable[T] {
