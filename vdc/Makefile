@@ -20,8 +20,8 @@ activate-deploy:
 	gcloud --project $(PROJECT) iam service-accounts keys create deploy-sa-key.json \
 	  --iam-account deploy@$(PROJECT).iam.gserviceaccount.com
 	gcloud projects add-iam-policy-binding $(PROJECT) \
-    --member=serviceAccount:deploy@$(PROJECT).iam.gserviceaccount.com \
-    --role=roles/owner
+	  --member=serviceAccount:deploy@$(PROJECT).iam.gserviceaccount.com \
+	  --role=roles/owner
 	gcloud auth activate-service-account --key-file=deploy-sa-key.json
 	rm deploy-sa-key.json
 
@@ -29,8 +29,8 @@ destroy-deploy:
 	gcloud auth login
 	yes | gcloud --project $(PROJECT) iam service-accounts delete deploy@$(PROJECT).iam.gserviceaccount.com
 	gcloud projects remove-iam-policy-binding $(PROJECT) \
-    --member=serviceAccount:deploy@$(PROJECT).iam.gserviceaccount.com \
-    --role=roles/owner
+	  --member=serviceAccount:deploy@$(PROJECT).iam.gserviceaccount.com \
+	  --role=roles/owner
 
 gcloud-config:
 	gcloud config set account deploy@$(PROJECT).iam.gserviceaccount.com
