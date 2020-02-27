@@ -100,7 +100,6 @@ class ClassBuilder[C](val name: String) {
 
   def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
     init.instructions.add(new InsnNode(RETURN))
-    methods.toArray.foreach { m => m.close() }
 
     val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
     val sw1 = new StringWriter()
@@ -288,23 +287,28 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
     new LocalRef[T](argIndex(i))
   }
 
-  val l = new mutable.ArrayBuffer[AbstractInsnNode]()
+
+  private var emitted = false
 
   def emit(c: Code[_]) {
+    assert(!emitted)
+
+    val l = new mutable.ArrayBuffer[AbstractInsnNode]()
     c.emit(l)
-  }
 
-  def emit(insn: AbstractInsnNode) {
-    l += insn
-  }
+    val s = mutable.Set[AbstractInsnNode]()
+    l.foreach { insn =>
+      assert(!s.contains(insn))
+      s += insn
+    }
 
-  def close() {
     mn.instructions.add(start)
-    val dupes = l.groupBy(x => x).map(_._2.toArray).filter(_.length > 1).toArray
-    assert(dupes.isEmpty, s"some instructions were repeated in the instruction list: ${ dupes: Seq[Any] }")
+
     l.foreach(mn.instructions.add _)
     mn.instructions.add(new InsnNode(returnTypeInfo.returnOp))
     mn.instructions.add(end)
+
+    emitted = true
   }
 
   def invoke[T](args: Code[_]*): Code[T] = {
@@ -423,7 +427,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     new ClassFieldRef[T](this, classBuilder.genField[T](name))
 
   def newLazyField[T: TypeInfo](setup: Code[T], name: String = null): LazyFieldRef[T] =
-    new LazyFieldRef[T](this, name, classBuilder.genName("f", name))
+    new LazyFieldRef[T](this, name, setup)
 
   val lazyFieldMemo: mutable.Map[Any, LazyFieldRef[_]] = mutable.Map.empty
 
@@ -440,8 +444,6 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = apply_method.getArg[T](i)
 
   def emit(c: Code[_]) = apply_method.emit(c)
-
-  def emit(insn: AbstractInsnNode) = apply_method.emit(insn)
 
   def newMethod(suffix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder = {
     val mb = new MethodBuilder(this, classBuilder.genName("m", suffix), argsInfo, returnInfo)
