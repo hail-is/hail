@@ -360,7 +360,7 @@ class CollectionExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             The number of elements in the collection.
         """
-        return apply_expr(lambda x: ArrayLen(CastToArray(x)), tint32, hl.array(self))
+        return self.size()
 
     def size(self):
         """Returns the size of a collection.
