@@ -405,7 +405,6 @@ object TypeCheck {
         assert(spec.encodedType.decodedPType(requestedType).virtualType isOfType requestedType)
       case x@WriteValue(value, pathPrefix, spec) =>
         assert(pathPrefix.typ isOfType TString())
-        spec.encodedType.encodeCompatible(value.pType2)
       case LiftMeOut(_) =>
     }
   }

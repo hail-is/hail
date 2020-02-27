@@ -3257,4 +3257,42 @@ class IRSuite extends HailSuite {
     assert(HasIRSharing(ir1))
     assert(!HasIRSharing(ir1.deepCopy()))
   }
+
+  @DataProvider(name = "nonNullTypesAndValues")
+  def nonNullTypesAndValues(): Array[Array[Any]] = Array(
+    Array(TInt32(), 1),
+    Array(TInt64(), 5L),
+    Array(TFloat32(), 5.5f),
+    Array(TFloat64(), 1.2),
+    Array(TString(), "foo"),
+    Array(TArray(TInt32()), FastIndexedSeq(5, 7, null, 3)),
+    Array(TTuple(TInt32(), TString(), TStruct()), Row(3, "bar", Row()))
+  )
+
+  @Test(dataProvider = "nonNullTypesAndValues")
+  def testReadWriteValues(t: Type, v: Any): Unit = {
+    implicit val execStrats = ExecStrategy.compileOnly
+    val node = Literal.coerce(t, v)
+    InferPType(node, Env.empty)
+    val spec = TypedCodecSpec(node.pType2, BufferSpec.defaultUncompressed)
+    val prefix = tmpDir.createTempFile()
+    val filename = WriteValue(node, Str(prefix), spec)
+    assertEvalsTo(ReadValue(filename, spec, t), v)
+  }
+
+  @Test(dataProvider="nonNullTypesAndValues")
+  def testReadWriteValueDistributed(t: Type, v: Any): Unit = {
+    implicit val execStrats = ExecStrategy.compileOnly
+    val node = Literal.coerce(t, v)
+    InferPType(node, Env.empty)
+    val spec = TypedCodecSpec(node.pType2, BufferSpec.defaultUncompressed)
+    val prefix = tmpDir.createTempFile()
+    val readArray = Let("files",
+      CollectDistributedArray(StreamRange(0, 10, 1), MakeStruct(FastSeq()),
+        "ctx", "globals",
+        WriteValue(node, Str(prefix), spec)),
+      ArrayMap(ToStream(Ref("files", TArray(TString()))), "filename",
+        ReadValue(Ref("filename", TString()), spec, t)))
+    assertEvalsTo(ToArray(readArray), Array.fill(10)(v).toFastIndexedSeq)
+  }
 }
