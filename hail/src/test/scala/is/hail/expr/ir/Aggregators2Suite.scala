@@ -411,7 +411,7 @@ class Aggregators2Suite extends HailSuite {
 
     Begin(FastIndexedSeq(
       SeqOp(aggIdx, FastIndexedSeq(ArrayLen(a)), state, AggElementsLengthCheck()),
-      ArrayFor(StreamRange(0, ArrayLen(a), 1), idx.name,
+      StreamFor(StreamRange(0, ArrayLen(a), 1), idx.name,
         Let(elt.name, ArrayRef(a, idx),
           SeqOp(aggIdx, FastIndexedSeq(idx, seqOps(elt)), state, AggElements())))))
   }
@@ -738,7 +738,7 @@ class Aggregators2Suite extends HailSuite {
     val x = RunAgg(
       Begin(FastSeq(
         InitOp(0, FastSeq(I32(5)), takeSig),
-        ArrayFor(
+        StreamFor(
           StreamRange(I32(0), I32(10), I32(1)),
           "foo",
           SeqOp(0, FastSeq(

@@ -1083,7 +1083,7 @@ object EmitStream {
               vm := valuet.m,
               vv := vm.mux(defaultValue(valueType), valuet.v)))
 
-        case ArrayMap(childIR, name, bodyIR) =>
+        case StreamMap(childIR, name, bodyIR) =>
           val childEltType = childIR.pType.asInstanceOf[PStreamable].elementType
           val childEltTI = coerce[Any](typeToTypeInfo(childEltType))
 
@@ -1100,7 +1100,7 @@ object EmitStream {
               bodyt.v)
           }
 
-        case ArrayZip(as, names, body, behavior) =>
+        case StreamZip(as, names, body, behavior) =>
           val streams = as.map(emitStream(_, env))
           val childEltTypes = as.map(_.pType.asInstanceOf[PStreamable].elementType)
 
@@ -1126,7 +1126,7 @@ object EmitStream {
             )
           })
 
-        case ArrayFilter(childIR, name, condIR) =>
+        case StreamFilter(childIR, name, condIR) =>
           val childEltType = childIR.pType.asInstanceOf[PStreamable].elementType
           val childEltTI = coerce[Any](typeToTypeInfo(childEltType))
 
@@ -1144,7 +1144,7 @@ object EmitStream {
                 k(Some(EmitTriplet(Code._empty, eltm, eltv)))))
           }
 
-        case ArrayFlatMap(outerIR, name, innerIR) =>
+        case StreamFlatMap(outerIR, name, innerIR) =>
           val outerEltType = outerIR.pType.asInstanceOf[PStreamable].elementType
           val outerEltTI = coerce[Any](typeToTypeInfo(outerEltType))
           val eltm = fb.newField[Boolean](name + "_missing")
@@ -1159,7 +1159,7 @@ object EmitStream {
             }
           compose(outer, inner)
 
-        case ArrayLeftJoinDistinct(leftIR, rightIR, leftName, rightName, compIR, joinIR) =>
+        case StreamLeftJoinDistinct(leftIR, rightIR, leftName, rightName, compIR, joinIR) =>
           val l = leftIR.pType.asInstanceOf[PStreamable].elementType
           val r = rightIR.pType.asInstanceOf[PStreamable].elementType
           implicit val lP = TypedTriplet.pack(l)
@@ -1192,7 +1192,7 @@ object EmitStream {
                 reltVar := relt,
                 joint.setup), joint.m, joint.v) }
 
-        case ArrayScan(childIR, zeroIR, accName, eltName, bodyIR) =>
+        case StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
           val e = childIR.pType.asInstanceOf[PStreamable].elementType
           val a = zeroIR.pType
           implicit val eP = TypedTriplet.pack(e)

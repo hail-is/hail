@@ -225,7 +225,7 @@ object Extract {
 
         val (dependent, independent) = partitionDependentLets(newLet.result(), name)
         letBuilder ++= independent
-        seqBuilder += ArrayFor(array, name, addLets(Begin(newSeq.result()), dependent))
+        seqBuilder += StreamFor(array, name, addLets(Begin(newSeq.result()), dependent))
         transformed
 
       case AggGroupBy(key, aggIR, _) =>
@@ -246,7 +246,7 @@ object Extract {
         ab += InitOp(i, FastIndexedSeq(Begin(initOps)), aggSig, Group())
         seqBuilder += SeqOp(i, FastIndexedSeq(key, Begin(newSeq.result().toFastIndexedSeq)), aggSig, Group())
 
-        ToDict(ArrayMap(ToArray(GetTupleElement(result, i)), newRef.name, MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed))))
+        ToDict(StreamMap(ToStream(GetTupleElement(result, i)), newRef.name, MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed))))
 
 
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
@@ -283,7 +283,7 @@ object Extract {
             aRef.name, a,
             Begin(FastIndexedSeq(
               SeqOp(i, FastIndexedSeq(ArrayLen(aRef)), state, AggElementsLengthCheck()),
-              ArrayFor(
+              StreamFor(
                 StreamRange(I32(0), ArrayLen(aRef), I32(1)),
                 iRef.name,
                 Let(
@@ -297,7 +297,7 @@ object Extract {
         Let(
           rUID.name,
           GetTupleElement(result, i),
-          ToArray(ArrayMap(
+          ToArray(StreamMap(
             StreamRange(0, ArrayLen(rUID), 1),
             indexName,
             Let(
@@ -305,10 +305,10 @@ object Extract {
               ArrayRef(rUID, Ref(indexName, TInt32())),
               transformed))))
 
-      case x: ArrayAgg =>
+      case x: StreamAgg =>
         assert(!ContainsScan(x))
         x
-      case x: ArrayAggScan =>
+      case x: StreamAggScan =>
         assert(!ContainsAgg(x))
         x
       case _ => MapIR(extract)(ir)

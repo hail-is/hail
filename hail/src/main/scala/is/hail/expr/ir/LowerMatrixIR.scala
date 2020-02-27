@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.ir.functions.{WrappedMatrixToMatrixFunction, WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
 import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TArray, TDict, TInt32, TInterval, TStruct}
+import is.hail.expr.types.virtual.{TArray, TBaseStruct, TDict, TInt32, TInterval, TStruct}
 import is.hail.utils._
 
 object LowerMatrixIR {
@@ -220,9 +220,9 @@ object LowerMatrixIR {
               builder += ((uid, aggIR))
               val eltUID = genUID()
               val valueUID = genUID()
-              val elementType = aggIR.typ.asInstanceOf[TDict].elementType
-              val valueType = elementType.types(1)
-              ToDict(ArrayMap(ToArray(Ref(uid, aggIR.typ)), eltUID, Let(valueUID, GetField(Ref(eltUID, elementType), "value"),
+              val elementType = -aggIR.typ.asInstanceOf[TDict].elementType
+              val valueType = -elementType.asInstanceOf[TBaseStruct].types(1)
+              ToDict(StreamMap(ToStream(Ref(uid, aggIR.typ)), eltUID, Let(valueUID, GetField(Ref(eltUID, elementType), "value"),
                 MakeTuple.ordered(FastSeq(GetField(Ref(eltUID, elementType), "key"),
                   aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(valueUID, valueType), name), acc) })))))
 
@@ -236,7 +236,7 @@ object LowerMatrixIR {
               builder += ((uid, aggIR))
               val eltUID = genUID()
               val t = aggIR.typ.asInstanceOf[TArray]
-              ArrayMap(Ref(uid, t), eltUID, aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(eltUID, structResult.typ), name), acc) })
+              ToArray(StreamMap(ToStream(Ref(uid, t)), eltUID, aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(eltUID, structResult.typ), name), acc) }))
 
             case AggLet(name, value, body, true) =>
               val ab = new ArrayBuilder[(String, IR)]
@@ -263,7 +263,7 @@ object LowerMatrixIR {
           val b1 = if (ContainsAgg(b0)) {
             irRange(0, 'row(entriesField).len)
               .filter('i ~> !'row(entriesField)('i).isNA)
-              .arrayAgg('i ~>
+              .streamAgg('i ~>
                 (aggLet(sa = 'global(colsField)('i),
                   g = 'row(entriesField)('i))
                   in b0))
@@ -334,9 +334,9 @@ object LowerMatrixIR {
             builder += ((uid, aggIR))
             val eltUID = genUID()
             val valueUID = genUID()
-            val elementType = aggIR.typ.asInstanceOf[TDict].elementType
-            val valueType = elementType.types(1)
-            ToDict(ArrayMap(ToArray(Ref(uid, aggIR.typ)), eltUID, Let(valueUID, GetField(Ref(eltUID, elementType), "value"),
+            val elementType = -aggIR.typ.asInstanceOf[TDict].elementType
+            val valueType = -elementType.asInstanceOf[TBaseStruct].types(1)
+            ToDict(StreamMap(ToStream(Ref(uid, aggIR.typ)), eltUID, Let(valueUID, GetField(Ref(eltUID, elementType), "value"),
               MakeTuple.ordered(FastSeq(GetField(Ref(eltUID, elementType), "key"),
                 aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(valueUID, valueType), name), acc) } )))))
 
@@ -353,7 +353,7 @@ object LowerMatrixIR {
             builder += ((uid, aggIR))
             val eltUID = genUID()
             val t = aggIR.typ.asInstanceOf[TArray]
-            ArrayMap(Ref(uid, t), eltUID, aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(eltUID, structResult.typ), name), acc) })
+            ToArray(StreamMap(ToStream(Ref(uid, t)), eltUID, aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(eltUID, structResult.typ), name), acc) }))
 
           case AggLet(name, value, body, isScan) =>
             val ab = new ArrayBuilder[(String, IR)]
@@ -427,10 +427,10 @@ object LowerMatrixIR {
         else {
           val scanStruct = MakeStruct(scans)
 
-          val scanResultArray = ArrayAggScan(
-            GetField(Ref("global", loweredChild.typ.globalType), colsFieldName),
+          val scanResultArray = ToArray(StreamAggScan(
+            ToStream(GetField(Ref("global", loweredChild.typ.globalType), colsFieldName)),
             "sa",
-            scanStruct)
+            scanStruct))
 
           val scanResultRef = Ref(genUID(), scanResultArray.typ)
           val scanResultElementRef = Ref(genUID(), scanResultArray.typ.asInstanceOf[TArray].elementType)
@@ -510,16 +510,16 @@ object LowerMatrixIR {
           loweredChild,
           InsertFields(
             Ref("row", rt),
-            FastSeq((entriesFieldName, ArrayZip(
+            FastSeq((entriesFieldName, ToArray(StreamZip(
               FastIndexedSeq(
-                GetField(Ref("row", rt), entriesFieldName),
-                GetField(Ref("global", gt), colsFieldName)),
+                ToStream(GetField(Ref("row", rt), entriesFieldName)),
+                ToStream(GetField(Ref("global", gt), colsFieldName))),
               FastIndexedSeq("g", "sa"),
               Subst(lower(newEntries, ab), BindingEnv(Env(
                 "global" -> SelectFields(Ref("global", gt), child.typ.globalType.fieldNames),
                 "va" -> SelectFields(Ref("row", rt), child.typ.rowType.fieldNames)))),
               ArrayZipBehavior.AssumeSameLength
-            ))))
+            )))))
         )
 
       case MatrixRepartition(child, n, shuffle) => TableRepartition(lower(child, ab), n, shuffle)
@@ -663,7 +663,7 @@ object LowerMatrixIR {
               irRange(0, '__key_map.len)
                 .map(newColIdx1 ~> '__key_map (newColIdx1)
                   .apply('value)
-                  .arrayAgg(aggElementIdx ~>
+                  .streamAgg(aggElementIdx ~>
                     aggLet(g = '__entries (aggElementIdx), sa = 'global (colsField)(aggElementIdx)) {
                       eeSub
                     }))
@@ -676,7 +676,7 @@ object LowerMatrixIR {
                     concatStructs(
                       '__key_map (newColIdx2)('key),
                       '__key_map (newColIdx2)('value)
-                        .arrayAgg(colsAggIdx ~> aggLet(sa = 'global (colsField)(colsAggIdx)) {
+                        .streamAgg(colsAggIdx ~> aggLet(sa = 'global (colsField)(colsAggIdx)) {
                           ceSub
                         })
                     ))

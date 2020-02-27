@@ -18,9 +18,10 @@ class ValueIRTests(unittest.TestCase):
         c = ir.Ref('c')
         i = ir.I32(5)
         j = ir.I32(7)
-        st = ir.Str('Hail')
         a = ir.Ref('a')
+        st = ir.Ref('st')
         aa = ir.Ref('aa')
+        sta = ir.Ref('sta')
         da = ir.Ref('da')
         nd = ir.Ref('nd')
         v = ir.Ref('v')
@@ -51,7 +52,7 @@ class ValueIRTests(unittest.TestCase):
             ir.MakeArray([i, ir.NA(hl.tint32), ir.I32(-3)], hl.tarray(hl.tint32)),
             ir.ArrayRef(a, i, ir.Str('foo')),
             ir.ArrayLen(a),
-            ir.ArraySort(a, 'l', 'r', ir.ApplyComparisonOp("LT", ir.Ref('l'), ir.Ref('r'))),
+            ir.ArraySort(ir.ToStream(a), 'l', 'r', ir.ApplyComparisonOp("LT", ir.Ref('l'), ir.Ref('r'))),
             ir.ToSet(a),
             ir.ToDict(da),
             ir.ToArray(a),
@@ -65,16 +66,16 @@ class ValueIRTests(unittest.TestCase):
             ir.NDArrayMatMul(nd, nd),
             ir.LowerBoundOnOrderedCollection(a, i, True),
             ir.GroupByKey(da),
-            ir.ArrayMap(a, 'v', v),
-            ir.ArrayZip([a, a], ['a', 'b'], ir.TrueIR(), 'ExtendNA'),
-            ir.ArrayFilter(a, 'v', v),
-            ir.ArrayFlatMap(aa, 'v', v),
-            ir.ArrayFold(a, ir.I32(0), 'x', 'v', v),
-            ir.ArrayScan(a, ir.I32(0), 'x', 'v', v),
-            ir.ArrayLeftJoinDistinct(a, a, 'l', 'r', ir.I32(0), ir.I32(1)),
-            ir.ArrayFor(a, 'v', ir.Void()),
+            ir.StreamMap(st, 'v', v),
+            ir.StreamZip([st, st], ['a', 'b'], ir.TrueIR(), 'ExtendNA'),
+            ir.StreamFilter(st, 'v', v),
+            ir.StreamFlatMap(sta, 'v', ir.ToStream(v)),
+            ir.StreamFold(st, ir.I32(0), 'x', 'v', v),
+            ir.StreamScan(st, ir.I32(0), 'x', 'v', v),
+            ir.StreamLeftJoinDistinct(st, st, 'l', 'r', ir.I32(0), ir.I32(1)),
+            ir.StreamFor(st, 'v', ir.Void()),
             ir.AggFilter(ir.TrueIR(), ir.I32(0), False),
-            ir.AggExplode(ir.ToArray(ir.StreamRange(ir.I32(0), ir.I32(2), ir.I32(1))), 'x', ir.I32(0), False),
+            ir.AggExplode(ir.StreamRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0), False),
             ir.AggGroupBy(ir.TrueIR(), ir.I32(0), False),
             ir.AggArrayPerElement(ir.ToArray(ir.StreamRange(ir.I32(0), ir.I32(2), ir.I32(1))), 'x', 'y', ir.I32(0), False),
             ir.ApplyAggOp('Collect', [], [ir.I32(0)]),
@@ -120,7 +121,9 @@ class ValueIRTests(unittest.TestCase):
     def test_parses(self):
         env = {'c': hl.tbool,
                'a': hl.tarray(hl.tint32),
+               'st': hl.tstream(hl.tint32),
                'aa': hl.tarray(hl.tarray(hl.tint32)),
+               'sta': hl.tstream(hl.tarray(hl.tint32)),
                'da': hl.tarray(hl.ttuple(hl.tint32, hl.tstr)),
                'nd': hl.tndarray(hl.tfloat64, 1),
                'v': hl.tint32,

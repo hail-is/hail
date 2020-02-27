@@ -587,39 +587,6 @@ class ArrayLen(IR):
         self._type = tint32
 
 
-class ArrayRange(IR):
-    @typecheck_method(start=IR, stop=IR, step=IR)
-    def __init__(self, start, stop, step):
-        super().__init__(start, stop, step)
-        self.start = start
-        self.stop = stop
-        self.step = step
-
-    @typecheck_method(start=IR, stop=IR, step=IR)
-    def copy(self, start, stop, step):
-        return ArrayRange(start, stop, step)
-
-    def _compute_type(self, env, agg_env):
-        self.start._compute_type(env, agg_env)
-        self.stop._compute_type(env, agg_env)
-        self.step._compute_type(env, agg_env)
-        self._type = tarray(tint32)
-
-
-class ArrayZeros(IR):
-    @typecheck_method(length=IR)
-    def __init__(self, length):
-        super().__init__(length)
-        self.length = length
-
-    @typecheck_method(length=IR)
-    def copy(self, length):
-        return ArrayZeros(length)
-
-    def _compute_type(self, env, agg_env):
-        self.length._compute_type(env, agg_env)
-        self._type = tarray(tint32)
-
 class StreamRange(IR):
     @typecheck_method(start=IR, stop=IR, step=IR)
     def __init__(self, start, stop, step):
@@ -900,7 +867,7 @@ class ArraySort(IR):
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
-        self._type = self.a.typ
+        self._type = tarray(self.a.typ.element_type)
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -958,6 +925,21 @@ class ToArray(IR):
         self._type = tarray(self.a.typ.element_type)
 
 
+class ToStream(IR):
+    @typecheck_method(a=IR)
+    def __init__(self, a):
+        super().__init__(a)
+        self.a = a
+
+    @typecheck_method(a=IR)
+    def copy(self, a):
+        return ToStream(a)
+
+    def _compute_type(self, env, agg_env):
+        self.a._compute_type(env, agg_env)
+        self._type = tstream(self.a.typ.element_type)
+
+
 class LowerBoundOnOrderedCollection(IR):
     @typecheck_method(ordered_collection=IR, elem=IR, on_key=bool)
     def __init__(self, ordered_collection, elem, on_key):
@@ -995,7 +977,7 @@ class GroupByKey(IR):
                            tarray(self.collection.typ.element_type.types[1]))
 
 
-class ArrayMap(IR):
+class StreamMap(IR):
     @typecheck_method(a=IR, name=str, body=IR)
     def __init__(self, a, name, body):
         super().__init__(a, body)
@@ -1005,7 +987,7 @@ class ArrayMap(IR):
 
     @typecheck_method(a=IR, body=IR)
     def copy(self, a, body):
-        return ArrayMap(a, self.name, body)
+        return StreamMap(a, self.name, body)
 
     def head_str(self):
         return escape_id(self.name)
@@ -1020,7 +1002,7 @@ class ArrayMap(IR):
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
         self.body._compute_type(_env_bind(env, self.bindings(1)), agg_env)
-        self._type = tarray(self.body.typ)
+        self._type = tstream(self.body.typ)
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -1033,18 +1015,18 @@ class ArrayMap(IR):
             return {}
 
 
-class ArrayZip(IR):
-    @typecheck_method(arrays=sequenceof(IR), names=sequenceof(str), body=IR, behavior=str)
-    def __init__(self, arrays, names, body, behavior):
-        super().__init__(*arrays, body)
-        self.arrays = arrays
+class StreamZip(IR):
+    @typecheck_method(streams=sequenceof(IR), names=sequenceof(str), body=IR, behavior=str)
+    def __init__(self, streams, names, body, behavior):
+        super().__init__(*streams, body)
+        self.streams = streams
         self.names = names
         self.body = body
         self.behavior = behavior
 
     @typecheck_method(children=IR)
     def copy(self, *children):
-        return ArrayZip(children[:-1], self.names, children[-1], self.behavior)
+        return StreamZip(children[:-1], self.names, children[-1], self.behavior)
 
     def head_str(self):
         return f'{escape_id(self.behavior)} ({" ".join(map(escape_id, self.names))})'
@@ -1057,19 +1039,19 @@ class ArrayZip(IR):
         return set(self.names) | super().bound_variables
 
     def _compute_type(self, env, agg_env):
-        for a in self.arrays:
+        for a in self.streams:
             a._compute_type(env, agg_env)
         self.body._compute_type(_env_bind(env, self.bindings(len(self.names))), agg_env)
-        self._type = tarray(self.body.typ)
+        self._type = tstream(self.body.typ)
 
     def renderable_bindings(self, i, default_value=None):
         if i == len(self.names):
-            return {name: default_value if default_value is not None else a.typ.element_type for name, a in zip(self.names, self.arrays)}
+            return {name: default_value if default_value is not None else a.typ.element_type for name, a in zip(self.names, self.streams)}
         else:
             return {}
 
 
-class ArrayFilter(IR):
+class StreamFilter(IR):
     @typecheck_method(a=IR, name=str, body=IR)
     def __init__(self, a, name, body):
         super().__init__(a, body)
@@ -1079,7 +1061,7 @@ class ArrayFilter(IR):
 
     @typecheck_method(a=IR, body=IR)
     def copy(self, a, body):
-        return ArrayFilter(a, self.name, body)
+        return StreamFilter(a, self.name, body)
 
     def head_str(self):
         return escape_id(self.name)
@@ -1107,7 +1089,7 @@ class ArrayFilter(IR):
             return {}
 
 
-class ArrayFlatMap(IR):
+class StreamFlatMap(IR):
     @typecheck_method(a=IR, name=str, body=IR)
     def __init__(self, a, name, body):
         super().__init__(a, body)
@@ -1117,7 +1099,7 @@ class ArrayFlatMap(IR):
 
     @typecheck_method(a=IR, body=IR)
     def copy(self, a, body):
-        return ArrayFlatMap(a, self.name, body)
+        return StreamFlatMap(a, self.name, body)
 
     def head_str(self):
         return escape_id(self.name)
@@ -1132,7 +1114,7 @@ class ArrayFlatMap(IR):
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
         self.body._compute_type(_env_bind(env, self.bindings(1)), agg_env)
-        self._type = tarray(self.body.typ.element_type)
+        self._type = tstream(self.body.typ.element_type)
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -1144,7 +1126,7 @@ class ArrayFlatMap(IR):
         return {}
 
 
-class ArrayFold(IR):
+class StreamFold(IR):
     @typecheck_method(a=IR, zero=IR, accum_name=str, value_name=str, body=IR)
     def __init__(self, a, zero, accum_name, value_name, body):
         super().__init__(a, zero, body)
@@ -1156,7 +1138,7 @@ class ArrayFold(IR):
 
     @typecheck_method(a=IR, zero=IR, body=IR)
     def copy(self, a, zero, body):
-        return ArrayFold(a, zero, self.accum_name, self.value_name, body)
+        return StreamFold(a, zero, self.accum_name, self.value_name, body)
 
     def head_str(self):
         return f'{escape_id(self.accum_name)} {escape_id(self.value_name)}'
@@ -1185,7 +1167,7 @@ class ArrayFold(IR):
             return {}
 
 
-class ArrayScan(IR):
+class StreamScan(IR):
     @typecheck_method(a=IR, zero=IR, accum_name=str, value_name=str, body=IR)
     def __init__(self, a, zero, accum_name, value_name, body):
         super().__init__(a, zero, body)
@@ -1197,7 +1179,7 @@ class ArrayScan(IR):
 
     @typecheck_method(a=IR, zero=IR, body=IR)
     def copy(self, a, zero, body):
-        return ArrayScan(a, zero, self.accum_name, self.value_name, body)
+        return StreamScan(a, zero, self.accum_name, self.value_name, body)
 
     def head_str(self):
         return f'{escape_id(self.accum_name)} {escape_id(self.value_name)}'
@@ -1214,7 +1196,7 @@ class ArrayScan(IR):
         self.a._compute_type(env, agg_env)
         self.zero._compute_type(env, agg_env)
         self.body._compute_type(_env_bind(env, self.bindings(2)), agg_env)
-        self._type = tarray(self.body.typ)
+        self._type = tstream(self.body.typ)
 
     def renderable_bindings(self, i, default_value=None):
         if i == 2:
@@ -1226,7 +1208,7 @@ class ArrayScan(IR):
             return {}
 
 
-class ArrayLeftJoinDistinct(IR):
+class StreamLeftJoinDistinct(IR):
     @typecheck_method(left=IR, right=IR, l_name=str, r_name=str, compare=IR, join=IR)
     def __init__(self, left, right, l_name, r_name, compare, join):
         super().__init__(left, right, compare, join)
@@ -1239,7 +1221,7 @@ class ArrayLeftJoinDistinct(IR):
 
     @typecheck_method(left=IR, right=IR, compare=IR, join=IR)
     def copy(self, left, right, compare, join):
-        return ArrayLeftJoinDistinct(left, right, self.l_name, self.r_name, compare, join)
+        return StreamLeftJoinDistinct(left, right, self.l_name, self.r_name, compare, join)
 
     def head_str(self):
         return f'{escape_id(self.l_name)} {escape_id(self.r_name)}'
@@ -1264,7 +1246,7 @@ class ArrayLeftJoinDistinct(IR):
             return {}
 
 
-class ArrayFor(IR):
+class StreamFor(IR):
     @typecheck_method(a=IR, value_name=str, body=IR)
     def __init__(self, a, value_name, body):
         super().__init__(a, body)
@@ -1274,7 +1256,7 @@ class ArrayFor(IR):
 
     @typecheck_method(a=IR, body=IR)
     def copy(self, a, body):
-        return ArrayFor(a, self.value_name, body)
+        return StreamFor(a, self.value_name, body)
 
     def head_str(self):
         return escape_id(self.value_name)
@@ -1343,17 +1325,17 @@ class AggFilter(IR):
 
 
 class AggExplode(IR):
-    @typecheck_method(array=IR, name=str, agg_body=IR, is_scan=bool)
-    def __init__(self, array, name, agg_body, is_scan):
-        super().__init__(array, agg_body)
+    @typecheck_method(s=IR, name=str, agg_body=IR, is_scan=bool)
+    def __init__(self, s, name, agg_body, is_scan):
+        super().__init__(s, agg_body)
         self.name = name
-        self.array = array
+        self.s = s
         self.agg_body = agg_body
         self.is_scan = is_scan
 
-    @typecheck_method(array=IR, agg_body=IR)
-    def copy(self, array, agg_body):
-        return AggExplode(array, self.name, agg_body, self.is_scan)
+    @typecheck_method(s=IR, agg_body=IR)
+    def copy(self, s, agg_body):
+        return AggExplode(s, self.name, agg_body, self.is_scan)
 
     def head_str(self):
         return f'{escape_id(self.name)} {self.is_scan}'
@@ -1366,7 +1348,7 @@ class AggExplode(IR):
         return {self.name} | super().bound_variables
 
     def _compute_type(self, env, agg_env):
-        self.array._compute_type(agg_env, None)
+        self.s._compute_type(agg_env, None)
         self.agg_body._compute_type(env, _env_bind(agg_env, self.agg_bindings(1)))
         self._type = self.agg_body.typ
 
@@ -1379,7 +1361,7 @@ class AggExplode(IR):
     def renderable_agg_bindings(self, i, default_value=None):
         if i == 1:
             if default_value is None:
-                value = self.array.typ.element_type
+                value = self.s.typ.element_type
             else:
                 value = default_value
             return {self.name: value}
@@ -2435,32 +2417,32 @@ def subst(ir, env, agg_env):
                       _subst(ir.value, agg_env, {}),
                       _subst(ir.body, delete(env, ir.name)),
                       ir.is_scan)
-    elif isinstance(ir, ArrayMap):
-        return ArrayMap(_subst(ir.a),
+    elif isinstance(ir, StreamMap):
+        return StreamMap(_subst(ir.a),
                         ir.name,
                         _subst(ir.body, delete(env, ir.name)))
-    elif isinstance(ir, ArrayFilter):
-        return ArrayFilter(_subst(ir.a),
+    elif isinstance(ir, StreamFilter):
+        return StreamFilter(_subst(ir.a),
                            ir.name,
                            _subst(ir.body, delete(env, ir.name)))
-    elif isinstance(ir, ArrayFlatMap):
-        return ArrayFlatMap(_subst(ir.a),
+    elif isinstance(ir, StreamFlatMap):
+        return StreamFlatMap(_subst(ir.a),
                             ir.name,
                             _subst(ir.body, delete(env, ir.name)))
-    elif isinstance(ir, ArrayFold):
-        return ArrayFold(_subst(ir.a),
+    elif isinstance(ir, StreamFold):
+        return StreamFold(_subst(ir.a),
                          _subst(ir.zero),
                          ir.accum_name,
                          ir.value_name,
                          _subst(ir.body, delete(delete(env, ir.accum_name), ir.value_name)))
-    elif isinstance(ir, ArrayScan):
-        return ArrayScan(_subst(ir.a),
+    elif isinstance(ir, StreamScan):
+        return StreamScan(_subst(ir.a),
                          _subst(ir.zero),
                          ir.accum_name,
                          ir.value_name,
                          _subst(ir.body, delete(delete(env, ir.accum_name), ir.value_name)))
-    elif isinstance(ir, ArrayFor):
-        return ArrayFor(_subst(ir.a),
+    elif isinstance(ir, StreamFor):
+        return StreamFor(_subst(ir.a),
                         ir.value_name,
                         _subst(ir.body, delete(env, ir.value_name)))
     elif isinstance(ir, AggFilter):

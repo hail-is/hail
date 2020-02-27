@@ -155,6 +155,27 @@ object MakeArray {
 }
 
 final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
+
+object MakeStream {
+  def unify(args: Seq[IR], requestedType: TStream = null): MakeStream = {
+    assert(requestedType != null || args.nonEmpty)
+
+    if (args.nonEmpty) {
+      if (args.forall(_.typ == args.head.typ))
+        return MakeStream(args, TStream(args.head.typ))
+
+      if (args.forall(_.typ isOfType args.head.typ))
+        return MakeStream(args, TStream(args.head.typ.deepOptional()))
+    }
+
+    MakeStream(args.map { arg =>
+      val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
+      assert(upcast.typ isOfType requestedType.elementType)
+      upcast
+    }, requestedType)
+  }
+}
+
 final case class MakeStream(args: Seq[IR], _typ: TStream) extends IR
 
 object ArrayRef {
@@ -170,15 +191,14 @@ object ArraySort {
   def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): ArraySort = {
     val l = genUID()
     val r = genUID()
-    val atyp = coerce[TIterable](a.typ)
+    val atyp = coerce[TStream](a.typ)
     val compare = if (onKey) {
-      a.typ match {
-        case atyp: TDict =>
-          ApplyComparisonOp(Compare(atyp.keyType), GetField(Ref(l, atyp.elementType), "key"), GetField(Ref(r, atyp.elementType), "key"))
-        case atyp: TStreamable if atyp.elementType.isInstanceOf[TStruct] =>
+      val elementType = atyp.elementType.asInstanceOf[TBaseStruct]
+      elementType match {
+        case t: TStruct =>
           val elt = coerce[TStruct](atyp.elementType)
           ApplyComparisonOp(Compare(elt.types(0)), GetField(Ref(l, elt), elt.fieldNames(0)), GetField(Ref(r, atyp.elementType), elt.fieldNames(0)))
-        case atyp: TStreamable if atyp.elementType.isInstanceOf[TTuple] =>
+        case t: TTuple =>
           val elt = coerce[TTuple](atyp.elementType)
           ApplyComparisonOp(Compare(elt.types(0)), GetTupleElement(Ref(l, elt), elt.fields(0).index), GetTupleElement(Ref(r, atyp.elementType), elt.fields(0).index))
       }
@@ -200,8 +220,8 @@ final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, 
 
 final case class GroupByKey(collection: IR) extends IR
 
-final case class ArrayMap(a: IR, name: String, body: IR) extends IR {
-  override def typ: TStreamable = coerce[TStreamable](super.typ)
+final case class StreamMap(a: IR, name: String, body: IR) extends IR {
+  override def typ: TStream = coerce[TStream](super.typ)
   def elementTyp: Type = typ.elementType
 }
 
@@ -213,33 +233,33 @@ object ArrayZipBehavior extends Enumeration {
   val ExtendNA: Value = Value(3)
 }
 
-final case class ArrayZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior) extends IR {
-  override def typ: TStreamable = coerce[TStreamable](super.typ)
+final case class StreamZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior) extends IR {
+  override def typ: TStream = coerce[TStream](super.typ)
 }
-final case class ArrayFilter(a: IR, name: String, cond: IR) extends IR {
-  override def typ: TStreamable = coerce[TStreamable](super.typ)
+final case class StreamFilter(a: IR, name: String, cond: IR) extends IR {
+  override def typ: TStream = coerce[TStream](super.typ)
 }
-final case class ArrayFlatMap(a: IR, name: String, body: IR) extends IR {
-  override def typ: TStreamable = coerce[TStreamable](super.typ)
+final case class StreamFlatMap(a: IR, name: String, body: IR) extends IR {
+  override def typ: TStream = coerce[TStream](super.typ)
 }
-final case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
+final case class StreamFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
 
-object ArrayFold2 {
-  def apply(a: ArrayFold): ArrayFold2 = {
-    ArrayFold2(a.a, FastIndexedSeq((a.accumName, a.zero)), a.valueName, FastSeq(a.body), Ref(a.accumName, a.zero.typ))
+object StreamFold2 {
+  def apply(a: StreamFold): StreamFold2 = {
+    StreamFold2(a.a, FastIndexedSeq((a.accumName, a.zero)), a.valueName, FastSeq(a.body), Ref(a.accumName, a.zero.typ))
   }
 }
 
-final case class ArrayFold2(a: IR, accum: IndexedSeq[(String, IR)], valueName: String, seq: IndexedSeq[IR], result: IR) extends IR {
+final case class StreamFold2(a: IR, accum: IndexedSeq[(String, IR)], valueName: String, seq: IndexedSeq[IR], result: IR) extends IR {
   assert(accum.length == seq.length)
 }
 
-final case class ArrayScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
+final case class StreamScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
 
-final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR
+final case class StreamFor(a: IR, valueName: String, body: IR) extends IR
 
-final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
-final case class ArrayAggScan(a: IR, name: String, query: IR) extends IR
+final case class StreamAgg(a: IR, name: String, query: IR) extends IR
+final case class StreamAggScan(a: IR, name: String, query: IR) extends IR
 
 trait InferredPhysicalAggSignature {
   // will be filled in by InferPType in subsequent PR
@@ -249,7 +269,7 @@ trait InferredPhysicalAggSignature {
 final case class RunAgg(body: IR, result: IR, signature: IndexedSeq[AggStateSignature]) extends IR with InferredPhysicalAggSignature
 final case class RunAggScan(array: IR, name: String, init: IR, seqs: IR, result: IR, signature: IndexedSeq[AggStateSignature]) extends IR with InferredPhysicalAggSignature
 
-final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
+final case class StreamLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
 sealed trait NDArrayIR extends TypedIR[TNDArray, PNDArray] {
   def elementTyp: Type = typ.elementType

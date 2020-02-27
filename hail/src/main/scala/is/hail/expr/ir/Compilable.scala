@@ -53,8 +53,8 @@ object Compilable {
 
 object Emittable {
   def isNonEmittableAgg(ir: IR): Boolean = ir match {
-    case _: ArrayAgg => true
-    case _: ArrayAggScan => true
+    case _: StreamAgg => true
+    case _: StreamAggScan => true
     case _: ApplyAggOp => true
     case _: AggArrayPerElement => true
     case _: AggFilter => true

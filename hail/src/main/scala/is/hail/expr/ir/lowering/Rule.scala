@@ -49,25 +49,3 @@ case object EmittableValueIRs extends Rule {
     case _ => true
   }
 }
-
-case object StreamableIRs extends Rule {
-  override def allows(ir: BaseIR): Boolean = ir match {
-    case ArrayFold(a, _, _, _, _) => a.typ.isInstanceOf[TStream]
-    case ArrayFor(a, _, _) => a.typ.isInstanceOf[TStream]
-    case ArrayFold2(a, _, _, _, _) => a.typ.isInstanceOf[TStream]
-    case RunAggScan(a, _, _, _, _, _) => a.typ.isInstanceOf[TStream]
-    case ArrayZip(childIRs, _, _, _) => childIRs.forall(_.typ.isInstanceOf[TStream])
-    case ArrayMap(a, _, _) => a.typ.isInstanceOf[TStream]
-    case ArrayFilter(a, _, _) => a.typ.isInstanceOf[TStream]
-    case ArrayFlatMap(a, _, b) => a.typ.isInstanceOf[TStream] && b.typ.isInstanceOf[TStream]
-    case ArrayScan(a, _, _, _, _) => a.typ.isInstanceOf[TStream]
-    case ArrayLeftJoinDistinct(l, r, _, _, _, _) => l.typ.isInstanceOf[TStream] && r.typ.isInstanceOf[TStream]
-    case CollectDistributedArray(contextsIR, _, _, _, _) => contextsIR.typ.isInstanceOf[TStream]
-    case ToDict(a) => a.typ.isInstanceOf[TStream]
-    case ToSet(a) => a.typ.isInstanceOf[TStream]
-    case ArraySort(a, _, _, _) => a.typ.isInstanceOf[TStream]
-    case GroupByKey(collection) => collection.typ.isInstanceOf[TStream]
-    case _: MakeArray => false
-    case _ => true
-  }
-}

@@ -520,6 +520,7 @@ class PruneSuite extends HailSuite {
 
   val ref = Ref("x", TStruct("a" -> TInt32(), "b" -> TInt32(), "c" -> TInt32()))
   val arr = MakeArray(FastIndexedSeq(ref, ref), TArray(ref.typ))
+  val st = MakeStream(FastIndexedSeq(ref, ref), TStream(ref.typ))
   val ndArr = MakeNDArray(arr, MakeTuple(IndexedSeq((0, I64(2l)))), True())
   val empty = TStruct()
   val justA = TStruct("a" -> TInt32())
@@ -565,72 +566,72 @@ class PruneSuite extends HailSuite {
     checkMemo(ArrayLen(arr), TInt32(), Array(TArray(empty)))
   }
 
-  @Test def testArrayMapMemo() {
-    checkMemo(ArrayMap(arr, "foo", Ref("foo", ref.typ)),
-      TArray(justB), Array(TArray(justB), null))
+  @Test def testStreamMapMemo() {
+    checkMemo(StreamMap(st, "foo", Ref("foo", ref.typ)),
+      TStream(justB), Array(TStream(justB), null))
   }
 
-  @Test def testArrayZipMemo() {
-    val a2 = arr.deepCopy()
-    val a3 = arr.deepCopy()
+  @Test def testStreamZipMemo() {
+    val a2 = st.deepCopy()
+    val a3 = st.deepCopy()
     for (b <- Array(ArrayZipBehavior.ExtendNA, ArrayZipBehavior.TakeMinLength, ArrayZipBehavior.AssertSameLength)) {
 
-    checkMemo(ArrayZip(
-      FastIndexedSeq(arr, a2, a3),
+    checkMemo(StreamZip(
+      FastIndexedSeq(st, a2, a3),
       FastIndexedSeq("foo", "bar", "baz"),
       Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())), b),
-      TArray(TBoolean()), Array(TArray(justB), TArray(justA), TArray(empty), null))
+      TStream(TBoolean()), Array(TStream(justB), TStream(justA), TStream(empty), null))
     }
-    checkMemo(ArrayZip(
-      FastIndexedSeq(arr, a2, a3),
+    checkMemo(StreamZip(
+      FastIndexedSeq(st, a2, a3),
       FastIndexedSeq("foo", "bar", "baz"),
       Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())),
       ArrayZipBehavior.AssumeSameLength),
-      TArray(TBoolean()), Array(TArray(justB), TArray(justA), null, null))
+      TStream(TBoolean()), Array(TStream(justB), TStream(justA), null, null))
 
   }
 
-  @Test def testArrayFilterMemo() {
-    checkMemo(ArrayFilter(arr, "foo", Let("foo2", GetField(Ref("foo", ref.typ), "b"), False())),
-      TArray(empty), Array(TArray(justB), null))
-    checkMemo(ArrayFilter(arr, "foo", False()),
-      TArray(empty), Array(TArray(empty), null))
-    checkMemo(ArrayFilter(arr, "foo", False()),
-      TArray(justB), Array(TArray(justB), null))
+  @Test def testStreamFilterMemo() {
+    checkMemo(StreamFilter(st, "foo", Let("foo2", GetField(Ref("foo", ref.typ), "b"), False())),
+      TStream(empty), Array(TStream(justB), null))
+    checkMemo(StreamFilter(st, "foo", False()),
+      TStream(empty), Array(TStream(empty), null))
+    checkMemo(StreamFilter(st, "foo", False()),
+      TStream(justB), Array(TStream(justB), null))
   }
 
-  @Test def testArrayFlatMapMemo() {
-    checkMemo(ArrayFlatMap(arr, "foo", MakeArray(FastIndexedSeq(Ref("foo", ref.typ)), TArray(ref.typ))),
-      TArray(justA),
-      Array(TArray(justA), null))
+  @Test def testStreamFlatMapMemo() {
+    checkMemo(StreamFlatMap(st, "foo", MakeStream(FastIndexedSeq(Ref("foo", ref.typ)), TStream(ref.typ))),
+      TStream(justA),
+      Array(TStream(justA), null))
   }
 
-  @Test def testArrayFoldMemo() {
-    checkMemo(ArrayFold(arr, I32(0), "comb", "foo", GetField(Ref("foo", ref.typ), "a")),
+  @Test def testStreamFoldMemo() {
+    checkMemo(StreamFold(st, I32(0), "comb", "foo", GetField(Ref("foo", ref.typ), "a")),
       TInt32(),
-      Array(TArray(justA), null, null))
+      Array(TStream(justA), null, null))
   }
 
-  @Test def testArrayScanMemo() {
-    checkMemo(ArrayScan(arr, I32(0), "comb", "foo", GetField(Ref("foo", ref.typ), "a")),
-      TArray(TInt32()),
-      Array(TArray(justA), null, null))
+  @Test def testStreamScanMemo() {
+    checkMemo(StreamScan(st, I32(0), "comb", "foo", GetField(Ref("foo", ref.typ), "a")),
+      TStream(TInt32()),
+      Array(TStream(justA), null, null))
   }
 
-  @Test def testArrayLeftJoinDistinct() {
+  @Test def testStreamLeftJoinDistinct() {
     val l = Ref("l", ref.typ)
     val r = Ref("r", ref.typ)
-    checkMemo(ArrayLeftJoinDistinct(arr, arr, "l", "r",
+    checkMemo(StreamLeftJoinDistinct(st, st, "l", "r",
       ApplyComparisonOp(LT(TInt32()), GetField(l, "a"), GetField(r, "a")),
       MakeStruct(FastIndexedSeq("a" -> GetField(l, "a"), "b" -> GetField(l, "b"), "c" -> GetField(l, "c"), "d" -> GetField(r, "b"), "e" -> GetField(r, "c")))),
-      TArray(justA),
-      Array(TArray(justA), TArray(justA), null, justA))
+      TStream(justA),
+      Array(TStream(justA), TStream(justA), null, justA))
   }
 
-  @Test def testArrayForMemo() {
-    checkMemo(ArrayFor(arr, "foo", Begin(FastIndexedSeq(GetField(Ref("foo", ref.typ), "a")))),
+  @Test def testStreamForMemo() {
+    checkMemo(StreamFor(st, "foo", Begin(FastIndexedSeq(GetField(Ref("foo", ref.typ), "a")))),
       TVoid,
-      Array(TArray(justA), null))
+      Array(TStream(justA), null))
   }
 
   @Test def testNDArrayMapMemo(): Unit = {
@@ -700,7 +701,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testAggExplodeMemo(): Unit = {
-    val t = TArray(TStruct("a" -> TInt32(), "b" -> TInt64()))
+    val t = TStream(TStruct("a" -> TInt32(), "b" -> TInt64()))
     val select = SelectFields(Ref("foo", t.elementType), Seq("a"))
     checkMemo(AggExplode(Ref("x", t),
       "foo",
@@ -708,7 +709,7 @@ class PruneSuite extends HailSuite {
         AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(select.typ))),
       false),
       TArray(TStruct("a" -> TInt32())),
-      Array(TArray(TStruct("a" -> TInt32())),
+      Array(TStream(TStruct("a" -> TInt32())),
         TArray(TStruct("a" -> TInt32()))))
   }
 
@@ -1052,41 +1053,41 @@ class PruneSuite extends HailSuite {
       })
   }
 
-  @Test def testArrayMapRebuild() {
-    checkRebuild(ArrayMap(MakeArray(Seq(NA(ts)), TArray(ts)), "x", Ref("x", ts)), TArray(subsetTS("b")),
+  @Test def testStreamMapRebuild() {
+    checkRebuild(StreamMap(MakeStream(Seq(NA(ts)), TStream(ts)), "x", Ref("x", ts)), TStream(subsetTS("b")),
       (_: BaseIR, r: BaseIR) => {
-        val ir = r.asInstanceOf[ArrayMap]
-        ir.a.typ == TArray(subsetTS("b"))
+        val ir = r.asInstanceOf[StreamMap]
+        ir.a.typ == TStream(subsetTS("b"))
       })
   }
 
-  @Test def testArrayZipRebuild() {
-    val a2 = arr.deepCopy()
-    val a3 = arr.deepCopy()
+  @Test def testStreamZipRebuild() {
+    val a2 = st.deepCopy()
+    val a3 = st.deepCopy()
     for (b <- Array(ArrayZipBehavior.ExtendNA, ArrayZipBehavior.TakeMinLength, ArrayZipBehavior.AssertSameLength)) {
 
-      checkRebuild(ArrayZip(
-        FastIndexedSeq(arr, a2, a3),
+      checkRebuild(StreamZip(
+        FastIndexedSeq(st, a2, a3),
         FastIndexedSeq("foo", "bar", "baz"),
         Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())), b),
-        TArray(TBoolean()),
-        (_: BaseIR, r: BaseIR) => r.asInstanceOf[ArrayZip].as.length == 3)
+        TStream(TBoolean()),
+        (_: BaseIR, r: BaseIR) => r.asInstanceOf[StreamZip].as.length == 3)
     }
-    checkRebuild(ArrayZip(
-      FastIndexedSeq(arr, a2, a3),
+    checkRebuild(StreamZip(
+      FastIndexedSeq(st, a2, a3),
       FastIndexedSeq("foo", "bar", "baz"),
       Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())),
       ArrayZipBehavior.AssumeSameLength),
-      TArray(TBoolean()),
-      (_: BaseIR, r: BaseIR) => r.asInstanceOf[ArrayZip].as.length == 2)
+      TStream(TBoolean()),
+      (_: BaseIR, r: BaseIR) => r.asInstanceOf[StreamZip].as.length == 2)
   }
 
-    @Test def testArrayFlatmapRebuild() {
-    checkRebuild(ArrayFlatMap(MakeArray(Seq(NA(ts)), TArray(ts)), "x", MakeArray(Seq(Ref("x", ts)), TArray(ts))),
-      TArray(subsetTS("b")),
+    @Test def testStreamFlatmapRebuild() {
+    checkRebuild(StreamFlatMap(MakeStream(Seq(NA(ts)), TStream(ts)), "x", MakeStream(Seq(Ref("x", ts)), TStream(ts))),
+      TStream(subsetTS("b")),
       (_: BaseIR, r: BaseIR) => {
-        val ir = r.asInstanceOf[ArrayFlatMap]
-        ir.a.typ == TArray(subsetTS("b"))
+        val ir = r.asInstanceOf[StreamFlatMap]
+        ir.a.typ == TStream(subsetTS("b"))
       })
   }
 
