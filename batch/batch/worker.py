@@ -19,8 +19,7 @@ import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
 from hailtop.utils import time_msecs, request_retry_transient_errors, RETRY_FUNCTION_SCRIPT, \
-    retry_all_errors
-
+    sleep_and_backoff, retry_all_errors
 
 # import uvloop
 
@@ -40,6 +39,9 @@ configure_logging()
 log = logging.getLogger('batch-worker')
 
 MAX_IDLE_TIME_MSECS = 30 * 1000
+MAX_DOCKER_IMAGE_PULL_SECS = 20 * 60
+MAX_DOCKER_WAIT_SECS = 5 * 60
+MAX_DOCKER_OTHER_OPERATION_SECS = 1 * 60
 
 CORES = int(os.environ['CORES'])
 NAME = os.environ['NAME']
@@ -84,32 +86,84 @@ class PortAllocator:
         self.ports.put_nowait(port)
 
 
-async def docker_call_retry(f, *args, **kwargs):
+def docker_call_retry(timeout, name):
+    async def wrapper(f, *args, **kwargs):
+        delay = 0.1
+        while True:
+            try:
+                return await asyncio.wait_for(f(*args, **kwargs), timeout)
+            except DockerError as e:
+                # 408 request timeout, 503 service unavailable
+                if e.status == 408 or e.status == 503:
+                    log.exception(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True)
+                # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
+                # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
+                elif e.status == 500 and ("request canceled while waiting for connection" in e.message or
+                                          re.match("error creating overlay mount.*device or resource busy", e.message)):
+                    log.exception(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True)
+                else:
+                    raise
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except (aiohttp.client_exceptions.ServerDisconnectedError, asyncio.TimeoutError):
+                log.exception(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True)
+            delay = await sleep_and_backoff(delay)
+    return wrapper
+
+
+async def create_container(config, name):
     delay = 0.1
+    error = 0
     while True:
         try:
-            return await f(*args, **kwargs)
+            return await docker.containers.create(config, name=name)
         except DockerError as e:
-            # 408 request timeout, 503 service unavailable
-            if e.status == 408 or e.status == 503:
-                log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
-            # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
-            # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
-            elif e.status == 500 and ("request canceled while waiting for connection" in e.message or
-                                      re.match("error creating overlay mount.*device or resource busy", e.message)):
-                log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
-            else:
-                raise
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            # 409 container with name already exists
+            if e.status == 409:
+                try:
+                    delay = await sleep_and_backoff(delay)
+                    return await docker.containers.get(name)
+                except DockerError as eget:
+                    # 404 No such container
+                    if eget.status == 404:
+                        error += 1
+                        if error < 10:
+                            delay = await sleep_and_backoff(delay)
+                            continue
+                        log.exception(f'encountered 10 errors while creating container {name}, aborting', stack_info=True)
+                        raise
             raise
-        except aiohttp.client_exceptions.ServerDisconnectedError:
-            log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
-        except asyncio.TimeoutError:
-            log.exception(f'in docker call to {f.__name__}, retrying', stack_info=True)
-        # exponentially back off, up to (expected) max of 30s
-        t = delay * random.random()
-        await asyncio.sleep(t)
-        delay = min(delay * 2, 60.0)
+
+
+async def start_container(container):
+    try:
+        return await container.start()
+    except DockerError as e:
+        # 304 container has already started
+        if e.status == 304:
+            return
+        raise
+
+
+async def stop_container(container):
+    try:
+        return await container.stop()
+    except DockerError as e:
+        # 304 container has already stopped
+        if e.status == 304:
+            return
+        raise
+
+
+async def delete_container(container, *args, **kwargs):
+    try:
+        return await container.delete(*args, **kwargs)
+    except DockerError as e:
+        # 404 container does not exist
+        # 409 removal of container is already in progress
+        if e.status in (404, 409):
+            return
+        raise
 
 
 class JobDeletedError(Exception):
@@ -228,7 +282,7 @@ class Container:
             return None
 
         try:
-            c = await docker_call_retry(self.container.show)
+            c = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(self.container.show)
         except DockerError as e:
             if e.status == 404:
                 return None
@@ -264,15 +318,17 @@ class Container:
                     # image.
                     # FIXME improve the performance of this with a
                     # per-user image cache.
-                    await docker_call_retry(
+                    await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
                         docker.images.pull, self.image, auth=auth)
                 else:
                     # this caches public images
                     try:
-                        await docker_call_retry(docker.images.get, self.image)
+                        await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
+                            docker.images.get, self.image)
                     except DockerError as e:
                         if e.status == 404:
-                            await docker_call_retry(docker.images.pull, self.image)
+                            await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
+                                docker.images.pull, self.image)
 
             if self.port is not None:
                 async with self.step('allocating_port'):
@@ -281,10 +337,8 @@ class Container:
             async with self.step('creating'):
                 config = self.container_config()
                 log.info(f'starting {self} config {config}')
-                self.container = await docker_call_retry(
-                    docker.containers.create,
-                    config,
-                    name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
+                self.container = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
+                    create_container, config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
             async with cpu_sem(self.cpu_in_mcpu, f'{self}'):
                 async with self.step('runtime', state=None):
@@ -292,11 +346,12 @@ class Container:
                         asyncio.ensure_future(worker.post_job_started(self.job))
 
                     async with self.step('starting'):
-                        await docker_call_retry(self.container.start)
+                        await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
+                            start_container, self.container)
 
                     async with self.step('running'):
                         async with async_timeout.timeout(self.timeout) as tm:
-                            await docker_call_retry(self.container.wait)
+                            await docker_call_retry(MAX_DOCKER_WAIT_SECS, f'{self}')(self.container.wait)
                         if tm.expired:
                             raise JobTimeoutError(f'timed out after {self.timeout}s')
 
@@ -327,7 +382,8 @@ class Container:
             await self.delete_container()
 
     async def get_container_log(self):
-        logs = await docker_call_retry(self.container.log, stderr=True, stdout=True)
+        logs = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
+            self.container.log, stderr=True, stdout=True)
         self.log = "".join(logs)
         return self.log
 
@@ -344,9 +400,11 @@ class Container:
         if self.container:
             try:
                 log.info(f'{self}: deleting container')
-                await docker_call_retry(self.container.stop)
+                await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
+                    stop_container, self.container)
                 # v=True deletes anonymous volumes created by the container
-                await docker_call_retry(self.container.delete, v=True)
+                await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
+                    delete_container, self.container, v=True)
                 self.container = None
             except Exception:
                 log.exception('while deleting container, ignoring')
