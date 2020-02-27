@@ -99,9 +99,9 @@ class Transaction:
             if self.conn is not None:
                 try:
                     if exc_type:
-                        await conn.rollback()
+                        await self.conn.rollback()
                     else:
-                        await conn.commit()
+                        await self.conn.commit()
                 finally:
                     self.conn = None
         finally:
