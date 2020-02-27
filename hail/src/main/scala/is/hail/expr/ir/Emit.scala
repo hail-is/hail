@@ -2259,7 +2259,7 @@ private class Emit(
         new NDArrayEmitter(mb, nDims, shapeArray,
           xP.shape.pType, xP.elementType, setup, ndt.setup, ndt.m) {
           override def outputElement(idxVars: Array[Code[Long]]): Code[_] =
-            xP.asInstanceOf[PNDArray].loadElementToIRIntermediate(idxVars, ndAddress, mb)
+            xP.loadElementToIRIntermediate(idxVars, ndAddress, mb)
         }
     }
   }
