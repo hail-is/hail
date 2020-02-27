@@ -105,10 +105,8 @@ def docker_call_retry(timeout, name):
                     raise
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
-            except aiohttp.client_exceptions.ServerDisconnectedError:
+            except (aiohttp.client_exceptions.ServerDisconnectedError, asyncio.TimeoutError):
                 log.exception(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True)
-            except asyncio.TimeoutError:
-                log.exception(f'timeout in docker call to {f.__name__} for {name}, retrying', stack_info=True)
             delay = await sleep_and_backoff(delay)
     return wrapper
 
