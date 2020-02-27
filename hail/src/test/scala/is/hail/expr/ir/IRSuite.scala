@@ -3016,15 +3016,9 @@ class IRSuite extends HailSuite {
   @Test def testArrayContinuationDealsWithIfCorrectly() {
     val ir = ToArray(StreamMap(
       If(IsNA(In(0, TBoolean())),
-<<<<<<< HEAD
-        NA(TArray(TInt32())),
-        In(1, TArray(TInt32()))),
-      "x", Cast(Ref("x", TInt32()), TInt64()))
-=======
         NA(TStream(TInt32())),
         ToStream(In(1, TArray(TInt32())))),
       "x", Cast(Ref("x", TInt32()), TInt64())))
->>>>>>> [query] Remove TStremable
 
     assertEvalsTo(ir, FastIndexedSeq(true -> TBoolean(), FastIndexedSeq(0) -> TArray(TInt32())), FastIndexedSeq(0L))
   }

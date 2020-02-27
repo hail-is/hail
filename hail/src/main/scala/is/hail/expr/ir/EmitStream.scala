@@ -424,8 +424,8 @@ object EmitStream2 {
     def emitStream(streamIR: IR, env: Emit.E): COption[Stream[EmitTriplet]] =
       streamIR match {
 
-        case ArrayMap(childIR, name, bodyIR) =>
-          val childEltType = childIR.pType.asInstanceOf[PStreamable].elementType
+        case StreamMap(childIR, name, bodyIR) =>
+          val childEltType = childIR.pType.asInstanceOf[PStream].elementType
           implicit val childEltPack = TypedTriplet.pack(childEltType)
           val childEltTI = typeToTypeInfo(childEltType)
 
