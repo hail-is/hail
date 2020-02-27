@@ -66,6 +66,12 @@ object InferPType {
         val seqArgTypes = seqs.map(i => i.value.args.map(_.pType2).toArray).transpose
           .map(ts => getNestedElementPTypes(ts))
         virt.defaultSignature.toPhysical(initArgTypes, seqArgTypes).singletonContainer
+        // old version
+        // val iHead = inits.head.value
+        // val iHeadArgTypes = iHead.args.map(_.pType2)
+        // val sHead = seqs.head.value
+        // val sHeadArgTypes = sHead.args.map(_.pType2)
+        // virt.defaultSignature.toPhysical(iHeadArgTypes, sHeadArgTypes).singletonContainer
     }
   }
 
@@ -502,7 +508,6 @@ object InferPType {
               inits(i) += RecursiveArrayBuilderElement(x, None)
         }
         PVoid
-
       case x@SeqOp(i, args, sig, op) =>
         op match {
           case Group() =>
@@ -534,10 +539,8 @@ object InferPType {
               seqs(i) += RecursiveArrayBuilderElement(x, None)
         }
         PVoid
-
       case x@ResultOp(resultIdx, sigs) =>
         PCanonicalTuple(true, (resultIdx until resultIdx + sigs.length).map(i => aggs(i).resultType): _*)
-
       case x@RunAgg(body, result, signature) =>
         val inits = newBuilder[InitOp](signature.length)
         val seqs = newBuilder[SeqOp](signature.length)
@@ -546,7 +549,6 @@ object InferPType {
         infer(result, env, aggs = sigs, inits = null, seqs = null)
         x.physicalSignatures2 = sigs
         result.pType2
-
       case x@RunAggScan(array, name, init, seq, result, signature) =>
         infer(array)
         val e2 = env.bind(name, coerce[PStreamable](array.pType2).elementType)
@@ -557,24 +559,18 @@ object InferPType {
         val sigs = signature.indices.map { i => computePhysicalAgg(signature(i), inits(i), seqs(i)) }.toArray
         infer(result, env = e2, aggs = sigs, inits = null, seqs = null)
         x.physicalSignatures2 = sigs
-        coerce[PStream](array.pType2).copy(result.pType2)
-
+        PCanonicalArray(result.pType2, array._pType2.required)
       case AggStateValue(_, _) => PCanonicalBinary(true)
-      case x if x.typ == TVoid =>
-        x.children.foreach(c => infer(c.asInstanceOf[IR]))
-        PVoid
-
       case NDArrayAgg(nd, _) =>
         infer(nd)
         PType.canonical(ir.typ)
-      case x if x.typ == TVoid =>
-        x.children.foreach(c => infer(c.asInstanceOf[IR]))
-        PVoid
       case ResultOp(_, aggSigs) =>
         val rPTypes = aggSigs.toIterator.zipWithIndex.map{ case (sig, i) => PTupleField(i, sig.toCanonicalPhysical.resultType)}.toIndexedSeq
         val allReq = rPTypes.forall(f => f.typ.required)
         PCanonicalTuple(rPTypes, allReq)
-
+      case x if x.typ == TVoid =>
+        x.children.foreach(c => infer(c.asInstanceOf[IR]))
+        PVoid
       case _: AggLet |  _: AggFilter | _: AggExplode |
            _: AggGroupBy | _: AggArrayPerElement | _: ApplyAggOp | _: ApplyScanOp => PType.canonical(ir.typ)
     }

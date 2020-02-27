@@ -93,7 +93,6 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
   def results: IR = ResultOp(0, aggs)
 
   def getPhysicalAggs(ctx: ExecuteContext, initBindings: Env[PType], seqBindings: Env[PType]): Array[AggStatePhysicalSignature] = {
-    println("CALLED getPhysicalAggs")
     val initsAB = InferPType.newBuilder[InitOp](aggs.length)
     val seqsAB = InferPType.newBuilder[SeqOp](aggs.length)
     val init2 = LoweringPipeline.compileLowerer.apply(ctx, init, false).asInstanceOf[IR]

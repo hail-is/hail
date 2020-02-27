@@ -14,6 +14,7 @@ object StagedArrayBuilder {
 class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Code[Region], var initialCapacity: Int = 8) {
   val eltArray = PArray(eltType.setRequired(false), required = true) // element type must be optional for serialization to work
   val stateType = PTuple(true, PInt32Required, PInt32Required, eltArray)
+
   val size: ClassFieldRef[Int] = fb.newField[Int]("size")
   private val capacity = fb.newField[Int]("capacity")
   val data = fb.newField[Long]("data")
