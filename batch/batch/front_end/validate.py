@@ -301,6 +301,7 @@ def validate_job(i, job):
         if timeout < 0:
             raise ValidationError(f'jobs[{i}].timeout is not a positive number')
 
+
 # rough schema
 # batch_schema = {
 #   'attributes': {str: str},
