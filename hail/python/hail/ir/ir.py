@@ -2450,7 +2450,7 @@ def subst(ir, env, agg_env):
                          _subst(ir.agg_ir, agg_env),
                          ir.is_scan)
     elif isinstance(ir, AggExplode):
-        return AggExplode(_subst(ir.array, agg_env),
+        return AggExplode(_subst(ir.s, agg_env),
                           ir.name,
                           _subst(ir.agg_body, delete(agg_env, ir.name), delete(agg_env, ir.name)),
                           ir.is_scan)
