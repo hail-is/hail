@@ -450,7 +450,7 @@ class ASM4SSuite extends TestNGSuite {
 
   @Test def fbFunctionsCanBeNested(): Unit = {
     val fb = FunctionBuilder.functionBuilder[Boolean]
-    val fb2 = fb.newDependentFunction[Int, Boolean]
+    val fb2 = fb.classBuilder.newDependentFunction[Int, Boolean]
     val localF = fb.newField[AsmFunction1[Int, Boolean]]
 
     val wrappedInt = Code.invokeStatic[java.lang.Integer, Int, java.lang.Integer]("valueOf", 0)
@@ -468,7 +468,7 @@ class ASM4SSuite extends TestNGSuite {
 
   @Test def dependentFunctionsCanUseParentsFields(): Unit = {
     val fb = FunctionBuilder.functionBuilder[Int, Int, Int]
-    val fb2 = fb.newDependentFunction[Int, Int]
+    val fb2 = fb.classBuilder.newDependentFunction[Int, Int]
 
     val localF = fb.newField[AsmFunction1[Int, Int]]
 

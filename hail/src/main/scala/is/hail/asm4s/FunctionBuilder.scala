@@ -39,7 +39,7 @@ class ClassBuilder[C](val name: String) {
 
   val lazyFieldMemo: mutable.Map[Any, LazyFieldRef[_]] = mutable.Map.empty
 
-  protected[this] val children: mutable.ArrayBuffer[DependentFunction[_]] = new mutable.ArrayBuffer[DependentFunction[_]](16)
+  val children: mutable.ArrayBuffer[DependentFunction[_]] = new mutable.ArrayBuffer[DependentFunction[_]](16)
 
   // init
   cn.version = V1_8
@@ -92,11 +92,11 @@ class ClassBuilder[C](val name: String) {
     df
   }
 
-  def genField[T: TypeInfo](name: String): Field[T] = new Field[T](this, name)
+  def newField[T: TypeInfo](name: String): Field[T] = new Field[T](this, name)
 
-  def genField[T: TypeInfo](): Field[T] = new Field[T](this, genName("f"))
+  def genField[T: TypeInfo](): Field[T] = newField[T](genName("f"))
 
-  def genField[T: TypeInfo](suffix: String): Field[T] = new Field[T](this, genName("f", suffix))
+  def genField[T: TypeInfo](suffix: String): Field[T] = newField(genName("f", suffix))
 
   def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
     init.instructions.add(new InsnNode(RETURN))
@@ -423,7 +423,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     new ClassFieldRef[T](this, classBuilder.genField[T](name))
 
   def newLazyField[T: TypeInfo](setup: Code[T], name: String = null): LazyFieldRef[T] =
-    new LazyFieldRef[T](this, classBuilder.genName("f", name), setup)
+    new LazyFieldRef[T](this, name, classBuilder.genName("f", name))
 
   val lazyFieldMemo: mutable.Map[Any, LazyFieldRef[_]] = mutable.Map.empty
 

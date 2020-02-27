@@ -330,7 +330,7 @@ class CompiledLineParser(
   @transient private[this] val pos = mb.newField[Int]("pos")
   @transient private[this] val srvb = new StagedRegionValueBuilder(mb, requestedRowType)
 
-  fb.addInitInstructions(Code(
+  fb.classBuilder.addInitInstructions(Code(
     pos := 0,
     filename := Code._null,
     lineNumber := 0L,

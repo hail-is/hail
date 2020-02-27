@@ -1,12 +1,8 @@
 package is.hail.asm4s
 
 import java.io.PrintStream
-import java.lang.reflect.{Constructor, Field, Method, Modifier}
-import java.util
+import java.lang.reflect
 
-import is.hail.annotations.Region
-import is.hail.expr.types.physical.PTuple
-import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree._
@@ -757,7 +753,7 @@ class CodeLabel() extends Code[Unit] {
 }
 
 object Invokeable {
-  def apply[T](cls: Class[T], c: Constructor[_]): Invokeable[T, Unit] = new Invokeable[T, Unit](
+  def apply[T](cls: Class[T], c: reflect.Constructor[_]): Invokeable[T, Unit] = new Invokeable[T, Unit](
     cls,
     "<init>",
     isStatic = false,
@@ -766,9 +762,9 @@ object Invokeable {
     Type.getConstructorDescriptor(c),
     implicitly[ClassTag[Unit]].runtimeClass)
 
-  def apply[T, S](cls: Class[T], m: Method)(implicit sct: ClassTag[S]): Invokeable[T, S] = {
+  def apply[T, S](cls: Class[T], m: reflect.Method)(implicit sct: ClassTag[S]): Invokeable[T, S] = {
     val isInterface = m.getDeclaringClass.isInterface
-    val isStatic = Modifier.isStatic(m.getModifiers)
+    val isStatic = reflect.Modifier.isStatic(m.getModifiers)
     assert(!(isInterface && isStatic))
     new Invokeable[T, S](cls,
       m.getName,
@@ -906,8 +902,8 @@ class LocalRefInt(val v: LocalRef[Int]) extends AnyRef {
   def ++(): Code[Unit] = +=(1)
 }
 
-class FieldRef[T, S](f: Field)(implicit tct: ClassTag[T], sti: TypeInfo[S]) {
-  def isStatic: Boolean = Modifier.isStatic(f.getModifiers)
+class FieldRef[T, S](f: reflect.Field)(implicit tct: ClassTag[T], sti: TypeInfo[S]) {
+  def isStatic: Boolean = reflect.Modifier.isStatic(f.getModifiers)
 
   def getOp = if (isStatic) GETSTATIC else GETFIELD
 
