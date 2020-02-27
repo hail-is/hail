@@ -176,7 +176,8 @@ object CodeStream { self =>
     ): Stream[B] = CodeStream.map(this)(f, setup0, setup, close0, close)
     def flatMap[B](f: A => Stream[B]): Stream[B] =
       CodeStream.flatMap(map(f))
-    def scanCPS[S: ParameterPack](mb: MethodBuilder, s0: S
+    def scanCPS[S: ParameterPack](
+      mb: MethodBuilder, s0: S
     )(f: (A, S, S => Code[Ctrl]) => Code[Ctrl]
     ): Stream[S] = {
       val (res, _) = CodeStream.scanCPS(mb, this, s0, f)
@@ -184,6 +185,16 @@ object CodeStream { self =>
     }
     def scan[S: ParameterPack](mb: MethodBuilder, s0: S)(f: (A, S) => S): Stream[S] =
       scanCPS(mb, s0)((a, s, k) => k(f(a, s)))
+    def longScanCPS[S: ParameterPack](
+      mb: MethodBuilder, s0: S
+    )(f: (A, S, S => Code[Ctrl]) => Code[Ctrl]
+    ): Stream[S] =
+      CodeStream.longScanCPS(mb, this, s0, f)
+    def longScan[S: ParameterPack](
+      mb: MethodBuilder, s0: S
+    )(f: (A, S) => S
+    ): Stream[S] =
+      longScanCPS(mb, s0)((a, s, k) => k(f(a, s)))
   }
 
   implicit class StreamPP[A](val stream: Stream[A]) extends AnyVal {
@@ -247,12 +258,15 @@ object CodeStream { self =>
     CallCC[Unit] { (jb, ret) =>
       implicit val ctx = EmitStreamContext(mb, jb)
       val pullJP = joinPoint()
-      val source = stream(eos = ret(()), push = _ => pullJP(()))
+      val eosJP = joinPoint()
+      val source = stream(eos = eosJP(()), push = _ => pullJP(()))
       pullJP.define(_ => source.pull)
+      eosJP.define(_ => Code(source.close, source.close0, ret(())))
       Code(source.setup0, source.setup, pullJP(()))
     }
   }
 
+  // Inclusive scan: s0 is not first element, last element is the total fold
   def scanCPS[A, S: ParameterPack](
     mb: MethodBuilder,
     stream: Stream[A],
@@ -266,6 +280,31 @@ object CodeStream { self =>
       setup = Some(s := s0))
 
     (res, s)
+  }
+
+  // the length+1 scan
+  def longScanCPS[A, S: ParameterPack](
+    mb: MethodBuilder,
+    stream: Stream[A],
+    s0: S,
+    f: (A, S, S => Code[Ctrl]) => Code[Ctrl]
+  ): Stream[S] = new Stream[S] {
+    def apply(eos: Code[Ctrl], push: S => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[S] = {
+      val hasPulled = newLocal[Code[Boolean]]
+      val s = newLocal[S]
+      val pushJP = joinPoint()
+      pushJP.define(_ => push(s.load))
+      val source = stream(
+        eos = eos,
+        push = a => f(a, s.load, s1 => Code(s := s1, pushJP(()))))
+      Source[S](
+        setup0 = Code(hasPulled := false, s.init, source.setup0),
+        close0 = source.close0,
+        setup = Code(hasPulled := false, s := s0, source.setup),
+        close = source.close,
+        pull = hasPulled.load.mux(source.pull, Code(hasPulled := true, pushJP(())))
+      )
+    }
   }
 
   def mapCPS[A, B](stream: Stream[A])(
@@ -727,7 +766,7 @@ object EmitStream2 {
           val streamOpt = emitStream(childIR, env)
           streamOpt.map { stream =>
             stream.map(TypedTriplet(eltType, _))
-                  .scan(mb, zerot)(scanBody)
+                  .longScan(mb, zerot)(scanBody)
                   .map(_.untyped)
           }
 

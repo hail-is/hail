@@ -248,6 +248,23 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
+  @Test def testES2Scan() {
+    val f = compile1[Int, Unit] { (mb, n1) =>
+      val s = checkedRange(1, n1, "s1", mb)
+      val scan = s.stream.scan(mb, const(0))((i, acc) => i + acc)
+      val longScan = s.stream.longScan(mb, const(0))((i, acc) => i + acc)
+
+      Code(
+        s.init,
+        scan.forEach(mb)(x => Code._println(x.toS)),
+        s.assertClosed(1),
+        s.init,
+        longScan.forEach(mb)(x => Code._println(x.toS)),
+        s.assertClosed(1))
+    }
+    for {n1 <- 1 to 4} { f(n1) }
+  }
+
   @Test def testES2Fac() {
     def fac(n: Int): Int = (1 to n).fold(1)(_ * _)
     val facS = compile1[Int, Int] { (mb, n) =>
