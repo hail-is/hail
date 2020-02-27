@@ -89,6 +89,12 @@ object COption {
     }
   }
 
+  // Returns a COption value equivalent to 'left' when 'useLeft' is true,
+  // otherwise returns a value equivalent to 'right'. In the case where neither
+  // 'left' nor 'right' are missing, uses 'fuse' to combine the values.
+  // Presumably 'fuse' dynamically chooses one or the other based on the same
+  // boolean passed in 'useLeft. 'fuse' is needed because we don't require
+  // a ParameterPack[A]
   def choose[A](useLeft: Code[Boolean], left: COption[A], right: COption[A], fuse: (A, A) => A): COption[A] =
     (left, right) match {
       case (COption.None, COption.None) => COption.None
