@@ -45,7 +45,7 @@ abstract sealed class MatrixIR extends BaseIR {
   def persist(storageLevel: StorageLevel): MatrixIR = {
     ExecuteContext.scoped { ctx =>
       val tv = Interpret(this, ctx, optimize = true)
-      MatrixLiteral(this.typ, TableLiteral(tv, ctx))
+      MatrixLiteral(this.typ, TableLiteral(tv.persist(storageLevel), ctx))
     }
   }
 
