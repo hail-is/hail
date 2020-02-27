@@ -1885,13 +1885,13 @@ private class Emit(
   private def makeDependentSortingFunction[T: TypeInfo](
     ir: IR, env: Emit.E, leftRightComparatorNames: Array[String]): DependentEmitFunction[AsmFunction2[T, T, Boolean]] = {
     val (newIR, getEnv) = capturedReferences(ir)
-    val f = mb.fb.newDependentFunction[T, T, Boolean]
+    val f = mb.fb.newDependentFunction[T, T, Boolean](namePrefix = "sort_compare")
     val fregion = f.addField[Region](region)
     var newEnv = getEnv(env, f)
 
     val sort = f.newMethod[Region, T, Boolean, T, Boolean, Boolean]
 
-    if(leftRightComparatorNames.nonEmpty) {
+    if (leftRightComparatorNames.nonEmpty) {
       assert(leftRightComparatorNames.length == 2)
       newEnv = newEnv.bindIterable(
         IndexedSeq(

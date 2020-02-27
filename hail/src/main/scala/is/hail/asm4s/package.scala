@@ -179,9 +179,11 @@ package object asm4s {
     }
   }
 
-  def loadClass(className: String, b: Array[Byte]): Class[_] = {
+  def loadClass(className: String, b: Array[Byte]): Class[_] =
     HailClassLoader.loadOrDefineClass(className, b)
-  }
+
+  def loadClass(className: String): Class[_] =
+    HailClassLoader.loadClass(className)
 
   def ??? = throw new UnsupportedOperationException
 

@@ -27,7 +27,59 @@ class Field[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
     Code(obj, v, Code(new FieldInsnNode(PUTFIELD, classBuilder.name, name, desc)))
 }
 
-class ClassBuilder[C](val name: String) {
+class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializable {
+  @transient @volatile var loaded: Boolean = false
+
+  def load(): Unit = {
+    if (!loaded) {
+      synchronized {
+        if (!loaded) {
+          classesBytes.foreach { case (n, bytes) =>
+            try {
+              HailClassLoader.loadOrDefineClass(n, bytes)
+            } catch {
+              case e: Exception =>
+                FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+                throw e
+            }
+          }
+        }
+        loaded = true
+      }
+    }
+  }
+}
+
+class ModuleBuilder {
+  val classes = new mutable.ArrayBuffer[ClassBuilder[_]]()
+
+  def newClass[C](name: String = null): ClassBuilder[C] = {
+    val c = new ClassBuilder[C](this, name)
+    classes += c
+    c
+  }
+
+  var classesBytes: ClassesBytes = _
+
+  def classesBytes(print: Option[PrintWriter] = None): ClassesBytes = {
+    if (classesBytes == null) {
+      classesBytes = new ClassesBytes(
+        classes
+          .iterator
+          .map(c => (c.name.replace("/", "."), c.classAsBytes(print)))
+          .toArray)
+
+    }
+    classesBytes
+  }
+}
+
+class ClassBuilder[C](
+  module: ModuleBuilder,
+  val name: String = null) {
+  // FIXME use newClass
+  module.classes += this
+
   var nameCounter: Int = 0
 
   val cn = new ClassNode()
@@ -38,8 +90,6 @@ class ClassBuilder[C](val name: String) {
   val init = new MethodNode(ACC_PUBLIC, "<init>", "()V", null, null)
 
   val lazyFieldMemo: mutable.Map[Any, LazyFieldRef[_]] = mutable.Map.empty
-
-  val children: mutable.ArrayBuffer[DependentFunction[_]] = new mutable.ArrayBuffer[DependentFunction[_]](16)
 
   // init
   cn.version = V1_8
@@ -87,9 +137,10 @@ class ClassBuilder[C](val name: String) {
   }
 
   def newDependentFunction[A1 : TypeInfo, R : TypeInfo]: DependentFunction[AsmFunction1[A1, R]] = {
-    val df = new DependentFunctionBuilder[AsmFunction1[A1, R]](Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
-    children += df
-    df
+    new DependentFunctionBuilder[AsmFunction1[A1, R]](
+      Array(GenericTypeInfo[A1]),
+      GenericTypeInfo[R],
+      initModule = module)
   }
 
   def newField[T: TypeInfo](name: String): Field[T] = new Field[T](this, name)
@@ -158,37 +209,26 @@ class ClassBuilder[C](val name: String) {
   }
 
   def result(print: Option[PrintWriter] = None): () => C = {
-    val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
-
-    val bytes = classAsBytes(print)
-    val n = name.replace("/",".")
+    val n = name.replace("/", ".")
+    val classesBytes = module.classesBytes()
 
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
 
     new (() => C) with java.io.Serializable {
-      @transient
-      @volatile private var theClass: Class[_] = null
+      @transient @volatile private var theClass: Class[_] = null
 
       def apply(): C = {
-        try {
-          if (theClass == null) {
-            this.synchronized {
-              if (theClass == null) {
-                childClasses.foreach { case (fn, b) => loadClass(fn, b) }
-                theClass = loadClass(n, bytes)
-              }
+        if (theClass == null) {
+          this.synchronized {
+            if (theClass == null) {
+              classesBytes.load()
+              theClass = loadClass(n)
             }
           }
-
-          theClass.newInstance().asInstanceOf[C]
-        } catch {
-          //  only triggers on classloader
-          case e@(_: Exception | _: LinkageError) => {
-            FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
-            throw e
-          }
         }
+
+        theClass.newInstance().asInstanceOf[C]
       }
     }
   }
@@ -374,14 +414,26 @@ trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
 class DependentFunctionBuilder[F >: Null <: AnyRef : TypeInfo : ClassTag](
   parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
   returnTypeInfo: MaybeGenericTypeInfo[_],
-  packageName: String = "is/hail/codegen/generated"
+  packageName: String = "is/hail/codegen/generated",
+  initModule: ModuleBuilder = null
 ) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName) with DependentFunction[F]
 
-class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], val returnTypeInfo: MaybeGenericTypeInfo[_],
-  val packageName: String = "is/hail/codegen/generated", namePrefix: String = null)(implicit val interfaceTi: TypeInfo[F]) {
+class FunctionBuilder[F >: Null](
+  val parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
+  val returnTypeInfo: MaybeGenericTypeInfo[_],
+  val packageName: String = "is/hail/codegen/generated",
+  namePrefix: String = null,
+  initModule: ModuleBuilder = null)(implicit val interfaceTi: TypeInfo[F]) {
   import FunctionBuilder._
 
+  val module: ModuleBuilder =
+    if (initModule == null)
+      new ModuleBuilder()
+  else
+      initModule
+
   val classBuilder: ClassBuilder[F] = new ClassBuilder[F](
+    module,
     packageName + "/C" + Option(namePrefix).map(n => s"_${n}_").getOrElse("") + newUniqueID())
 
   val name: String = classBuilder.name
