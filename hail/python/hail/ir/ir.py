@@ -933,7 +933,7 @@ class CastToArray(IR):
 
     @typecheck_method(a=IR)
     def copy(self, a):
-        return ToArray(a)
+        return CastToArray(a)
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
