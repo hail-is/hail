@@ -61,8 +61,9 @@ object AggContainer {
       region := Region.stagedCreate(Region.REGULAR),
       region.load().setNumParents(aggs.length),
       off := region.load().allocate(aggState.storageType.alignment, aggState.storageType.byteSize),
-      states.createStates(fb),
-      aggState.newState)
+      states.createStates(fb)) //,
+      // this should be taken care of by init?
+//      aggState.newState)
 
     val cleanup = Code(
       region.load().invalidate(),

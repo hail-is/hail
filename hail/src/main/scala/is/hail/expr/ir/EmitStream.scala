@@ -568,7 +568,7 @@ object EmitStream2 {
     val mb = emitter.mb
     val fb = mb.fb
 
-    def emitIR(ir: IR, env: Emit.E): EmitTriplet =
+    def emitIR(ir: IR, env: Emit.E = env0, container: Option[AggContainer] = container): EmitTriplet =
       emitter.emit(ir, env, er, container)
 
     def emitStream(streamIR: IR, env: Emit.E): COption[Stream[EmitTriplet]] =
@@ -720,7 +720,7 @@ object EmitStream2 {
           implicit val eltPack: ParameterPack[TypedTriplet[eltType.type]] = TypedTriplet.pack(eltType)
           val xCond = mb.newField[Boolean]
 
-          val condT = COption.fromEmitTriplet[Boolean](emitIR(condIR, env))
+          val condT = COption.fromEmitTriplet[Boolean](emitIR(condIR))
           val optLeftStream = emitStream(thn, env)
           val optRightStream = emitStream(els, env)
 
@@ -742,7 +742,7 @@ object EmitStream2 {
           val valuePack = TypedTriplet.pack(valueType)
           val xValue = valuePack.newFields(mb.fb, name)
 
-          val valuet = TypedTriplet(valueType, emitIR(valueIR, env))
+          val valuet = TypedTriplet(valueType, emitIR(valueIR))
           val bodyEnv = Emit.bindEnv(env, name -> xValue)
 
           emitStream(bodyIR, bodyEnv).addSetup(xValue := valuet)
@@ -750,7 +750,7 @@ object EmitStream2 {
         case StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
           val eltType = coerce[PStream](childIR.pType).elementType
           val accType = zeroIR.pType
-          implicit val eltPack = TypedTriplet.pack(eltType)
+          val eltPack = TypedTriplet.pack(eltType)
           implicit val accPack = TypedTriplet.pack(accType)
 
           def scanBody(elt: TypedTriplet[eltType.type], acc: TypedTriplet[accType.type]): TypedTriplet[accType.type] = {
@@ -762,12 +762,43 @@ object EmitStream2 {
             TypedTriplet(accType, EmitTriplet(Code(xElt := elt, xAcc := acc, bodyT.setup), bodyT.m, bodyT.pv))
           }
 
-          val zerot = TypedTriplet(accType, emitIR(zeroIR, env))
+          val zerot = TypedTriplet(accType, emitIR(zeroIR))
           val streamOpt = emitStream(childIR, env)
           streamOpt.map { stream =>
             stream.map(TypedTriplet(eltType, _))
                   .longScan(mb, zerot)(scanBody)
                   .map(_.untyped)
+          }
+
+        case x@RunAggScan(array, name, init, seqs, result, _) =>
+          val aggs = x.physicalSignatures
+          val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(aggs, fb, "array_agg_scan")
+
+          val eltType = coerce[PStream](array.pType).elementType
+          implicit val eltPack = TypedTriplet.pack(eltType)
+
+          val xElt = eltPack.newFields(fb, "aggscan_elt")
+
+          val bodyEnv = Emit.bindEnv(env, name -> xElt)
+          val cInit = emitIR(init, container = Some(newContainer))
+          val seqPerElt = emitIR(seqs, env = bodyEnv, container = Some(newContainer))
+          val postt = emitIR(result, env = bodyEnv, container = Some(newContainer))
+
+          val optStream = emitStream(array, env)
+          optStream.map { stream =>
+            stream.map[EmitTriplet](
+              { eltt =>
+                EmitTriplet(
+                  Code(
+                    xElt := TypedTriplet(eltType, eltt),
+                    postt.setup,
+                    seqPerElt.setup),
+                  postt.m,
+                  postt.v)
+              },
+              setup0 = Some(Code(xElt.init, aggSetup)),
+              close0 = Some(aggCleanup),
+              setup = Some(cInit.setup))
           }
 
         case _ =>
