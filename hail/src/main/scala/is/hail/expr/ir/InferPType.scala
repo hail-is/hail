@@ -87,7 +87,7 @@ object InferPType {
         PStream(start.pType2.setRequired(true), allRequired)
       case ArrayZeros(length) =>
         infer(length)
-        PCanonicalArray(PInt32Required, length.pType2.required)
+        PCanonicalArray(PInt32(true), length.pType2.required)
       case ArrayLen(a: IR) =>
         infer(a)
 
