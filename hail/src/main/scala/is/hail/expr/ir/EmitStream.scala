@@ -408,7 +408,7 @@ object CodeStream { self =>
       lPullJP.define(_ => l.pull)
       rPullJP.define(_ => r.pull)
       Source[A](
-        setup0 = Code(b := cond, l.setup0, r.setup0),
+        setup0 = Code(b := false, l.setup0, r.setup0),
         close0 = Code(l.close0, r.close0),
         setup = Code(b := cond, b.load.mux(l.setup, r.setup)),
         close = b.load.mux(l.close, r.close),
