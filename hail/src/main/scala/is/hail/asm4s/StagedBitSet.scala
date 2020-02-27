@@ -14,7 +14,7 @@ abstract class StagedBitSet {
     if (used >= 64 || bits == null) {
       bits = getNewVar
       count += 1
-      mb.emit(bits.store(0L))
+      mb.emitStartup(bits.store(0L))
       used = 0
     }
 

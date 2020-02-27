@@ -287,13 +287,21 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
     new LocalRef[T](argIndex(i))
   }
 
-
   private var emitted = false
+
+  private val startup = new mutable.ArrayBuffer[AbstractInsnNode]()
+
+  def emitStartup(c: Code[_]): Unit = {
+    assert(!emitted)
+    c.emit(startup)
+  }
 
   def emit(c: Code[_]) {
     assert(!emitted)
+    emitted = true
 
     val l = new mutable.ArrayBuffer[AbstractInsnNode]()
+    l ++= startup
     c.emit(l)
 
     val s = mutable.Set[AbstractInsnNode]()
@@ -307,8 +315,6 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
     l.foreach(mn.instructions.add _)
     mn.instructions.add(new InsnNode(returnTypeInfo.returnOp))
     mn.instructions.add(end)
-
-    emitted = true
   }
 
   def invoke[T](args: Code[_]*): Code[T] = {
