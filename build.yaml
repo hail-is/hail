@@ -490,8 +490,6 @@ steps:
    outputs:
      - from: /io/repo/hail/build/libs/hail-all-spark.jar
        to: /hail.jar
-     - from: /io/repo/hail/build/libs/hail.jar
-       to: /hail-no-spark.jar
      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
        to: /hail-test.jar
      - from: /io/repo/hail/testng.xml
