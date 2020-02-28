@@ -75,7 +75,7 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
   val context: String = "LowerArrayAggsToRunAggs"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = RewriteBottomUp(ir, {
-    case x@ArrayAgg(a, name, query) =>
+    case x@StreamAgg(a, name, query) =>
       val res = genUID()
       val aggs = Extract(query, res)
       val newNode = Let(
@@ -83,7 +83,7 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
         RunAgg(
           Begin(FastSeq(
             aggs.init,
-            ArrayFor(
+            StreamFor(
               a,
               name,
               aggs.seqPerElt))),
@@ -93,7 +93,7 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
       if (newNode.typ != x.typ)
         throw new RuntimeException(s"types differ:\n  new: ${ newNode.typ }\n  old: ${ x.typ }")
       Some(newNode)
-    case x@ArrayAggScan(a, name, query) =>
+    case x@StreamAggScan(a, name, query) =>
       val res = genUID()
       val aggs = Extract(Extract.liftScan(query), res)
       val newNode = RunAggScan(
@@ -109,13 +109,4 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
       Some(newNode)
     case _ => None
   })
-}
-
-case object LowerArrayToStreamPass extends LoweringPass {
-  val before: IRState = EmittableIR
-  val after: IRState = EmittableStreamIRs
-  val context: String = "LowerArrayToStream"
-
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    LowerArrayToStream(ir.asInstanceOf[IR])
 }

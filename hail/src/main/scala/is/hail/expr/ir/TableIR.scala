@@ -1192,7 +1192,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
   private val length: IR = {
     val lenUID = genUID()
     Let(lenUID,
-      ArrayLen(ToArray(
+      ArrayLen(CastToArray(
         path.foldLeft[IR](Ref("row", childRowType))((struct, field) =>
           GetField(struct, field)))),
       If(IsNA(Ref(lenUID, TInt32())), 0, Ref(lenUID, TInt32())))
@@ -1207,7 +1207,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
       case (((field, ref), i), arg) =>
         InsertFields(ref, FastIndexedSeq(field ->
           (if (i == refs.length - 1)
-            ArrayRef(ToArray(GetField(ref, field)), arg)
+            ArrayRef(CastToArray(GetField(ref, field)), arg)
           else
             Let(refs(i + 1).name, GetField(ref, field), arg))))
     }.asInstanceOf[InsertFields]

@@ -134,7 +134,7 @@ class TableIRSuite extends HailSuite {
     val newRow = InsertFields(oldRow, Seq("idx2" -> IRScanCount))
     val newTable = TableMapRows(t, newRow)
     val expected = Array.tabulate(20)(i => Row(i, i.toLong)).toFastIndexedSeq
-    assertEvalsTo(ArraySort(TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), True()), expected)
+    assertEvalsTo(ArraySort(ToStream(TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ)))), True()), expected)
   }
 
   @Test def testScanCollectBehavesLikeRange() {
@@ -146,7 +146,7 @@ class TableIRSuite extends HailSuite {
     val newTable = TableMapRows(t, newRow)
 
     val expected = Array.tabulate(20)(i => Row(i, Array.range(0, i).toFastIndexedSeq)).toFastIndexedSeq
-    assertEvalsTo(ArraySort(TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), True()), expected)
+    assertEvalsTo(ArraySort(ToStream(TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ)))), True()), expected)
   }
 
   val rowType = TStruct(("A", TInt32()), ("B", TInt32()), ("C", TInt32()))

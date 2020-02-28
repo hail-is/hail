@@ -42,35 +42,35 @@ object NestingDepth {
     def computeIR(ir: IR, depth: ScopedDepth): Unit = {
       memo.bind(ir, depth.eval)
       ir match {
-        case ArrayMap(a, name, body) =>
+        case StreamMap(a, name, body) =>
           computeIR(a, depth)
           computeIR(body, depth.incrementEval)
-        case ArrayZip(as, _, body, _) =>
+        case StreamZip(as, _, body, _) =>
           as.foreach(computeIR(_, depth))
           computeIR(body, depth.incrementEval)
-        case ArrayFor(a, valueName, body) =>
+        case StreamFor(a, valueName, body) =>
           computeIR(a, depth)
           computeIR(body, depth.incrementEval)
-        case ArrayFlatMap(a, name, body) =>
+        case StreamFlatMap(a, name, body) =>
           computeIR(a, depth)
           computeIR(body, depth.incrementEval)
-        case ArrayFilter(a, name, cond) =>
+        case StreamFilter(a, name, cond) =>
           computeIR(a, depth)
           computeIR(cond, depth.incrementEval)
-        case ArrayFold(a, zero, accumName, valueName, body) =>
+        case StreamFold(a, zero, accumName, valueName, body) =>
           computeIR(a, depth)
           computeIR(zero, depth)
           computeIR(body, depth.incrementEval)
-        case ArrayFold2(a, accum, _, seq, result) =>
+        case StreamFold2(a, accum, _, seq, result) =>
           computeIR(a, depth)
           accum.foreach { case (_, value) => computeIR(value, depth) }
           seq.foreach(computeIR(_, depth.incrementEval))
           computeIR(result, depth)
-        case ArrayScan(a, zero, accumName, valueName, body) =>
+        case StreamScan(a, zero, accumName, valueName, body) =>
           computeIR(a, depth)
           computeIR(zero, depth)
           computeIR(body, depth.incrementEval)
-        case ArrayLeftJoinDistinct(left, right, l, r, keyF, joinF) =>
+        case StreamLeftJoinDistinct(left, right, l, r, keyF, joinF) =>
           computeIR(left, depth)
           computeIR(right, depth)
           computeIR(keyF, depth.incrementEval)

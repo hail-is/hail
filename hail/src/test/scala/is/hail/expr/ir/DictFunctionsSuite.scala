@@ -32,7 +32,7 @@ class DictFunctionsSuite extends TestNGSuite {
 
   @Test(dataProvider = "basic")
   def dictFromSet(a: Seq[(Integer, Integer)]) {
-    assertEvalsTo(invoke("dict", TDict(TInt32(), TInt32()), ToSet(toIRPairArray(a))), tuplesToMap(a))
+    assertEvalsTo(invoke("dict", TDict(TInt32(), TInt32()), ToSet(ToStream(toIRPairArray(a)))), tuplesToMap(a))
   }
 
   @Test(dataProvider = "basic")

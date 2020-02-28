@@ -155,7 +155,7 @@ object ExtractIntervalFilters {
           case (None, None) =>
             None
         }
-      case ArrayFold(lit: Literal, False(), acc, value, body) =>
+      case StreamFold(lit: Literal, False(), acc, value, body) =>
         body match {
           case ApplySpecial("||", Seq(Ref(`acc`, _), ApplySpecial("contains", Seq(Ref(`value`, _), k), _)), _) if es.isFirstKey(k) =>
             assert(lit.typ.asInstanceOf[TContainer].elementType.isInstanceOf[TInterval])

@@ -409,7 +409,7 @@ class EmitStreamSuite extends HailSuite {
     val Seq(start, end, i) = Seq("start", "end", "i").map(Ref(_, TInt32()))
     val ir =
       Let("end", 10,
-        ArrayFlatMap(
+        StreamFlatMap(
           Let("start", 3,
             StreamRange(start, end, 1)),
           "i",
@@ -424,10 +424,10 @@ class EmitStreamSuite extends HailSuite {
     val x = Ref("x", TInt32())
     val y = Ref("y", TInt32())
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
-      ArrayMap(ten, "x", x * 2) -> (0 until 10).map(_ * 2),
-      ArrayMap(ten, "x", x.toL) -> (0 until 10).map(_.toLong),
-      ArrayMap(ArrayMap(ten, "x", x + 1), "y", y * y) -> (0 until 10).map(i => (i + 1) * (i + 1)),
-      ArrayMap(ten, "x", NA(TInt32())) -> IndexedSeq.tabulate(10) { _ => null }
+      StreamMap(ten, "x", x * 2) -> (0 until 10).map(_ * 2),
+      StreamMap(ten, "x", x.toL) -> (0 until 10).map(_.toLong),
+      StreamMap(StreamMap(ten, "x", x + 1), "y", y * y) -> (0 until 10).map(i => (i + 1) * (i + 1)),
+      StreamMap(ten, "x", NA(TInt32())) -> IndexedSeq.tabulate(10) { _ => null }
     )
     for ((ir, v) <- tests) {
       assert(evalStream(ir) == v, Pretty(ir))
@@ -440,10 +440,10 @@ class EmitStreamSuite extends HailSuite {
     val x = Ref("x", TInt32())
     val y = Ref("y", TInt64())
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
-      ArrayFilter(ten, "x", x cne 5) -> (0 until 10).filter(_ != 5),
-      ArrayFilter(ArrayMap(ten, "x", (x * 2).toL), "y", y > 5L) -> (3 until 10).map(x => (x * 2).toLong),
-      ArrayFilter(ArrayMap(ten, "x", (x * 2).toL), "y", NA(TInt32())) -> IndexedSeq(),
-      ArrayFilter(ArrayMap(ten, "x", NA(TInt32())), "z", True()) -> IndexedSeq.tabulate(10) { _ => null }
+      StreamFilter(ten, "x", x cne 5) -> (0 until 10).filter(_ != 5),
+      StreamFilter(StreamMap(ten, "x", (x * 2).toL), "y", y > 5L) -> (3 until 10).map(x => (x * 2).toLong),
+      StreamFilter(StreamMap(ten, "x", (x * 2).toL), "y", NA(TInt32())) -> IndexedSeq(),
+      StreamFilter(StreamMap(ten, "x", NA(TInt32())), "z", True()) -> IndexedSeq.tabulate(10) { _ => null }
     )
     for ((ir, v) <- tests) {
       assert(evalStream(ir) == v, Pretty(ir))
@@ -455,20 +455,20 @@ class EmitStreamSuite extends HailSuite {
     val x = Ref("x", TInt32())
     val y = Ref("y", TInt32())
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
-      ArrayFlatMap(StreamRange(0, 6, 1), "x", StreamRange(0, x, 1)) ->
+      StreamFlatMap(StreamRange(0, 6, 1), "x", StreamRange(0, x, 1)) ->
         (0 until 6).flatMap(0 until _),
-      ArrayFlatMap(StreamRange(0, 6, 1), "x", StreamRange(0, NA(TInt32()), 1)) ->
+      StreamFlatMap(StreamRange(0, 6, 1), "x", StreamRange(0, NA(TInt32()), 1)) ->
         IndexedSeq(),
-      ArrayFlatMap(StreamRange(0, NA(TInt32()), 1), "x", StreamRange(0, x, 1)) ->
+      StreamFlatMap(StreamRange(0, NA(TInt32()), 1), "x", StreamRange(0, x, 1)) ->
         null,
-      ArrayFlatMap(StreamRange(0, 20, 1), "x",
-        ArrayFlatMap(StreamRange(0, x, 1), "y",
+      StreamFlatMap(StreamRange(0, 20, 1), "x",
+        StreamFlatMap(StreamRange(0, x, 1), "y",
           StreamRange(0, (x + y), 1))) ->
         (0 until 20).flatMap { x => (0 until x).flatMap { y => 0 until (x + y) } },
-      ArrayFlatMap(ArrayFilter(StreamRange(0, 5, 1), "x", x cne 3),
+      StreamFlatMap(StreamFilter(StreamRange(0, 5, 1), "x", x cne 3),
         "y", MakeStream(Seq(y, y), TStream(TInt32()))) ->
         IndexedSeq(0, 0, 1, 1, 2, 2, 4, 4),
-      ArrayFlatMap(StreamRange(0, 4, 1),
+      StreamFlatMap(StreamRange(0, 4, 1),
         "x", ToStream(MakeArray(Seq[IR](x, x), TArray(TInt32())))) ->
         IndexedSeq(0, 0, 1, 1, 2, 2, 3, 3)
     )
@@ -489,7 +489,7 @@ class EmitStreamSuite extends HailSuite {
       GetTupleElement(r, 0))
 
     def leftjoin(lstream: IR, rstream: IR): IR =
-      ArrayLeftJoinDistinct(lstream, rstream,
+      StreamLeftJoinDistinct(lstream, rstream,
         "l", "r", cmp,
         MakeTuple.ordered(Seq(
           GetTupleElement(l, 1),
@@ -524,9 +524,9 @@ class EmitStreamSuite extends HailSuite {
   @Test def testEmitScan() {
     val Seq(a, v, x) = Seq("a", "v", "x").map(Ref(_, TInt32()))
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
-      ArrayScan(MakeStream(Seq(), TStream(TInt32())),
+      StreamScan(MakeStream(Seq(), TStream(TInt32())),
         9, "a", "v", a + v) -> IndexedSeq(9),
-      ArrayScan(ArrayMap(StreamRange(0, 4, 1), "x", x * x),
+      StreamScan(StreamMap(StreamRange(0, 4, 1), "x", x * x),
         1, "a", "v", a + v) -> IndexedSeq(1, 1/*1+0*0*/, 2/*1+1*1*/, 6/*2+2*2*/, 15/*6+3*3*/)
     )
     for ((ir, v) <- tests) {
@@ -555,7 +555,7 @@ class EmitStreamSuite extends HailSuite {
     val intsType = TArray(TInt32())
 
     assertAggScan(
-      ArrayAggScan(In(0, TArray(pairType)),
+      StreamAggScan(ToStream(In(0, TArray(pairType))),
         "foo",
         GetField(Ref("foo", pairType), "y") +
           GetField(
@@ -572,8 +572,8 @@ class EmitStreamSuite extends HailSuite {
     )
 
     assertAggScan(
-      ArrayAggScan(
-        ArrayAggScan(ToStream(In(0, intsType)),
+      StreamAggScan(
+        StreamAggScan(ToStream(In(0, intsType)),
           "i",
           scanOp(Sum(), Seq(), Seq(Ref("i", TInt32()).toL))),
         "x",
@@ -589,7 +589,7 @@ class EmitStreamSuite extends HailSuite {
     val intsPType = PStream(PInt32Required)
 
     val f1 = compileStreamWithIter(
-      ArrayScan(In(0, intsPType),
+      StreamScan(In(0, intsPType),
         zero = 0,
         "a", "x", Ref("a", TInt32()) + Ref("x", TInt32()) * Ref("x", TInt32())
       ), intsPType)
@@ -598,7 +598,7 @@ class EmitStreamSuite extends HailSuite {
     assert(f1(null) == null)
 
     val f2 = compileStreamWithIter(
-      ArrayFlatMap(
+      StreamFlatMap(
         In(0, intsPType),
         "n", StreamRange(0, Ref("n", TInt32()), 1)
       ), intsPType)
@@ -616,7 +616,7 @@ class EmitStreamSuite extends HailSuite {
       If(True(), xs, na) -> IndexedSeq(5, 3, 6),
       If(False(), xs, na) -> null,
       If(NA(TBoolean()), xs, ys) -> null,
-      ArrayFlatMap(MakeStream(Seq(False(), True(), False()), TStream(TBoolean())),
+      StreamFlatMap(MakeStream(Seq(False(), True(), False()), TStream(TBoolean())),
         "x", If(Ref("x", TBoolean()), xs, ys)) -> IndexedSeq(0, 1, 2, 3, 5, 3, 6, 0, 1, 2, 3)
     )
     val lens: Array[Option[Int]] = Array(Some(3), Some(4), Some(3), Some(0), Some(0), None)
@@ -632,11 +632,11 @@ class EmitStreamSuite extends HailSuite {
       "xs" -> PCanonicalArray(PFloat64()),
       "ys" -> PCanonicalArray(PFloat64()))
     val i1 = Ref("in", t.virtualType)
-    val ir = MakeTuple.ordered(Seq(ArrayFold(
-      ArrayZip(
+    val ir = MakeTuple.ordered(Seq(StreamFold(
+      StreamZip(
         FastIndexedSeq(
-          If(IsNA(GetField(i1, "missingParam")), NA(TArray(TFloat64())), GetField(i1, "xs")),
-          GetField(i1, "ys")
+          ToStream(If(IsNA(GetField(i1, "missingParam")), NA(TArray(TFloat64())), GetField(i1, "xs"))),
+          ToStream(GetField(i1, "ys"))
         ),
         FastIndexedSeq("zipL", "zipR"),
         Ref("zipL", TFloat64()) * Ref("zipR", TFloat64()),

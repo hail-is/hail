@@ -2,8 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.ExecStrategy
 import is.hail.TestUtils._
-import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TArray, TBoolean}
+import is.hail.expr.types.virtual.{TBoolean, TStream}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -12,8 +11,8 @@ class UtilFunctionsSuite extends TestNGSuite {
 
   val na = NA(TBoolean())
   val die = Die("it ded", TBoolean())
-  val folded = ArrayFold(
-    MakeArray(Seq(true), TArray(TBoolean())),
+  val folded = StreamFold(
+    MakeStream(Seq(true), TStream(TBoolean())),
     die, "a", "e",
     Ref("a", TBoolean()) || Ref("e", TBoolean()))
 

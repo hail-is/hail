@@ -166,7 +166,7 @@ class OrderingSuite extends HailSuite {
     } yield (elt, a, asc)
     val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any], asc: Boolean) =>
       val ord = if (asc) t.ordering.toOrdering else t.ordering.reverse.toOrdering
-      assertEvalsTo(ArraySort(In(0, TArray(t)), Literal.coerce(TBoolean(), asc)),
+      assertEvalsTo(ArraySort(ToStream(In(0, TArray(t))), Literal.coerce(TBoolean(), asc)),
         FastIndexedSeq(a -> TArray(t)),
         expected = a.sorted(ord))
       true
@@ -203,8 +203,8 @@ class OrderingSuite extends HailSuite {
       val array: IndexedSeq[Row] = a ++ a
       val expectedMap = array.filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
       assertEvalsTo(
-        ArrayMap(ToArray(ToDict(In(0, TArray(telt)))),
-        "x", GetField(Ref("x", -tdict.elementType), "key")),
+        ToArray(StreamMap(ToStream(In(0, TArray(telt))),
+        "x", GetField(Ref("x", -tdict.elementType), "key"))),
         FastIndexedSeq(array -> TArray(telt)),
         expected = expectedMap.keys.toFastIndexedSeq.sorted(telt.types(0).ordering.toOrdering))
       true
@@ -214,10 +214,10 @@ class OrderingSuite extends HailSuite {
 
   @Test def testSortOnMissingArray() {
     implicit val execStrats = ExecStrategy.javaOnly
-    val tarray = TArray(TStruct("key" -> TInt32(), "value" -> TInt32()))
+    val ts = TStream(TStruct("key" -> TInt32(), "value" -> TInt32()))
     val irs: Array[IR => IR] = Array(ArraySort(_, True()), ToSet(_), ToDict(_))
 
-    for (irF <- irs) { assertEvalsTo(IsNA(irF(NA(tarray))), true) }
+    for (irF <- irs) { assertEvalsTo(IsNA(irF(NA(ts))), true) }
   }
 
   @Test def testSetContainsOnRandomSet() {
@@ -366,9 +366,9 @@ class OrderingSuite extends HailSuite {
 
   @Test def testContainsWithArrayFold() {
     implicit val execStrats = ExecStrategy.javaOnly
-    val set1 = ToSet(MakeArray(Seq(I32(1), I32(4)), TArray(TInt32())))
-    val set2 = ToSet(MakeArray(Seq(I32(9), I32(1), I32(4)), TArray(TInt32())))
-    assertEvalsTo(ArrayFold(ToArray(set1), True(), "accumulator", "setelt",
+    val set1 = ToSet(MakeStream(Seq(I32(1), I32(4)), TStream(TInt32())))
+    val set2 = ToSet(MakeStream(Seq(I32(9), I32(1), I32(4)), TStream(TInt32())))
+    assertEvalsTo(StreamFold(ToStream(set1), True(), "accumulator", "setelt",
         ApplySpecial("&&",
           FastSeq(
             Ref("accumulator", TBoolean()),

@@ -2,11 +2,10 @@ package is.hail.expr.ir
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s.joinpoint.{Ctrl, JoinPoint, ParameterPack, ParameterStore, ParameterStoreTriplet, ParameterStoreArray, TypedTriplet}
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
+import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
@@ -601,14 +600,11 @@ private class Emit(
 
         COption.toEmitTriplet(result, typeToTypeInfo(atyp), mb)
 
-      case ToArray(a) =>
-        a.pType match {
-          case typ: PStream =>
-            EmitStream2.toArray(mb, typ.asPArray, emitStream2(a))
-          case _ => emit(a)
-        }
+      case CastToArray(a) =>
+        emit(a)
 
-      case ToStream(a) => emit(a)
+      case ToArray(a) =>
+        emitArrayIterator(a).toEmitTriplet(mb, PArray(coerce[PStreamable](ir.pType).elementType))
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val typ: PContainer = coerce[PIterable](orderedCollection.pType).asPContainer
@@ -746,7 +742,7 @@ private class Emit(
         )
         EmitTriplet(lengthTriplet.setup, lengthTriplet.m, result)
 
-      case ArrayFold(a, zero, accumName, valueName, body) =>
+      case StreamFold(a, zero, accumName, valueName, body) =>
         val eltType = coerce[PStream](a.pType).elementType
         val accType = ir.pType
         implicit val eltPack = TypedTriplet.pack(eltType)
@@ -776,7 +772,7 @@ private class Emit(
 
         COption.toEmitTriplet(resOpt, typeToTypeInfo(accType), mb)
 
-      case ArrayFold2(a, acc, valueName, seq, res) =>
+      case StreamFold2(a, acc, valueName, seq, res) =>
         val eltType = coerce[PStream](a.pType).elementType
         val eltPack = TypedTriplet.pack(eltType)
 
@@ -814,7 +810,7 @@ private class Emit(
 
         COption.toEmitTriplet(resOpt, typeToTypeInfo(res.typ), mb)
 
-      case ArrayFor(a, valueName, body) =>
+      case StreamFor(a, valueName, body) =>
         val eltType = a.pType.asInstanceOf[PStream].elementType
         implicit val eltPack = TypedTriplet.pack(eltType)
         val eltTI = typeToTypeInfo(eltType)
@@ -1682,7 +1678,6 @@ private class Emit(
         }
         EmitTriplet(ndt.setup, ndt.m, result)
 
-
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
         val gType = globals.pType
@@ -1820,6 +1815,7 @@ private class Emit(
               ctxab.invoke[Array[Array[Byte]]]("result"),
               baos.invoke[Array[Byte]]("toByteArray")),
             decodeResult))
+
       case x@TailLoop(name, args, body) =>
         val loopRefs = args.map { case (name, ir) =>
           val ti = typeToTypeInfo(ir.typ)
