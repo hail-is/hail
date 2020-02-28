@@ -859,6 +859,43 @@ object EmitStream2 {
               setup = Some(cInit.setup))
           }
 
+        case StreamLeftJoinDistinct(leftIR, rightIR, leftName, rightName, compIR, joinIR) =>
+          val lEltType = coerce[PStream](leftIR.pType).elementType
+          val rEltType = coerce[PStream](rightIR.pType).elementType
+          implicit val lEltPack = TypedTriplet.pack(lEltType)
+          implicit val rEltPack = TypedTriplet.pack(rEltType)
+          val xLElt = lEltPack.newFields(fb, "join_lelt")
+          val xRElt = rEltPack.newFields(fb, "join_relt")
+
+          val env2 = Emit.bindEnv(env, leftName -> xLElt, rightName -> xRElt)
+
+          def compare(lelt: TypedTriplet[lEltType.type], relt: TypedTriplet[rEltType.type]): Code[Int] = {
+            val compt = emitIR(compIR, env2)
+            Code(
+              xLElt := lelt,
+              xRElt := relt,
+              compt.setup,
+              compt.m.orEmpty(Code._fatal("StreamLeftJoinDistinct: comp can't be missing")),
+              coerce[Int](compt.v))
+          }
+
+          emitStream(leftIR, env).flatMap { leftStream =>
+            emitStream(rightIR, env).map { rightStream =>
+              leftJoinRightDistinct(
+                leftStream.map(TypedTriplet(lEltType, _)),
+                rightStream.map(TypedTriplet(rEltType, _)),
+                TypedTriplet.missing(rEltType),
+                compare)
+                .map { case (lelt, relt) =>
+                  val joint = emitIR(joinIR, env2)
+                  EmitTriplet(
+                    Code(xLElt := lelt, xRElt := relt, joint.setup),
+                    joint.m,
+                    joint.v)
+                }
+            }
+          }
+
         case _ =>
           val EmitStream(parameterized, eltType) =
             EmitStream.apply(emitter, streamIR, env, er, container)
