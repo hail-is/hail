@@ -8,6 +8,7 @@ import is.hail.rvd.RVDPartitioner
 import is.hail.asm4s._
 import is.hail.io._
 import is.hail.utils._
+import is.hail.utils.ByteUtils._
 import java.io.{ ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream }
 import java.nio.ByteBuffer
 import java.util.function.{ BiConsumer, Consumer, Supplier }
@@ -113,7 +114,6 @@ class Shuffle (
     Array.fill(inPartitions)(new ConcurrentHashMap())
   private[this] var partitionOffsets: Array[Int] = null
   private[this] var output: Array[LongArrayByte] = null
-  // private[this] var deletedPartitions: java.util.Set[Int] = null
 
   private[this] val decoder = ThreadLocal.withInitial(
     () => new ByteArrayDecoder(keyCodec.buildDecoder))
@@ -179,7 +179,6 @@ class Shuffle (
       i += 1
     }
     finished = null
-    // Arrays.sort(output, new Comparator[LongArrayByte]() {
     Arrays.parallelSort(output, new Comparator[LongArrayByte]() {
       override def compare(l: LongArrayByte, r: LongArrayByte): Int =
         comparer(localRegion, l._1, r._1) })
@@ -216,12 +215,6 @@ class Shuffle (
           partitionOffsets(nOutPartitions) = i
         }
     }
-    // deletedPartitions = ConcurrentHashMap.newKeySet[Int]()
-    // var i = 0
-    // while (i < nOutPartitions) {
-    //   deletedPartitions.add(i)
-    //   i += 1
-    // }
     assert(partitionOffsets.length == nOutPartitions + 1)
     val localEncoder = encoder.get
     i = 0
@@ -232,18 +225,6 @@ class Shuffle (
     }
     writeByteArray(os,
       localEncoder.regionValueToBytes(localRegion, output(output.length - 1)._1))
-  }
-
-  private[this] def writeInt(out: OutputStream, i: Int): Unit = {
-    out.write(i)
-    out.write(i >> 8)
-    out.write(i >> 16)
-    out.write(i >> 24)
-  }
-
-  private[this] def writeByteArray(out: OutputStream, bytes: Array[Byte]): Unit = {
-    writeInt(out, bytes.length)
-    out.write(bytes)
   }
 
   def get(partitionId: Int, os: OutputStream): Unit = {
@@ -268,12 +249,4 @@ class Shuffle (
   def close() {
     regions.values().forEach((x: Region) => x.close())
   }
-
-  // def deletePartition(partitionId: Int): Unit = {
-  //   require(deletedPartitions != null)
-  //   require(0 <= partitionId && partitionId < outPartitions, partitionId.toString)
-  //   deletedPartitions.remove(partitionId)
-  // }
-
-  // def allPartitionsDeleted(): Boolean = deletedPartitions.isEmpty
 }

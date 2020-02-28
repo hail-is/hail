@@ -153,17 +153,7 @@ object WebServer {
               shuffle.get(partitionId, out)
               complete(out.toByteArray())
             }
-          }// ,
-           // delete {
-           //   log.info(s"DELETE api/v1alpha/$id/$partitionId")
-           //   shuffleOr404(id) { shuffle =>
-           //     shuffle.deletePartition(partitionId)
-           //     if (shuffle.allPartitionsDeleted()) {
-           //       shuffles.remove(id)
-           //     }
-           //     complete("")
-           //   }
-           // }
+          }
         )
       },
       path("healthcheck") {
