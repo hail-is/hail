@@ -103,10 +103,10 @@ abstract class Backend {
         case Right((t, off)) =>
           assert(t.size == 1)
           val elementType = t.fields(0).typ
-          val codec = new is.hail.shuffler.Codec(TypedCodecSpec(
-            EType.defaultFromPType(elementType), elementType.virtualType, bs))
+          val codec = TypedCodecSpec(
+            EType.defaultFromPType(elementType), elementType.virtualType, bs)
           assert(t.isFieldDefined(off, 0))
-          (elementType.toString, codec.encode(ctx.r, t.loadField(off, 0)))
+          (elementType.toString, codec.encode(elementType, ctx.r, t.loadField(off, 0)))
       }
     }
   }
@@ -114,11 +114,12 @@ abstract class Backend {
   def decodeToJSON(ptypeString: String, b: Array[Byte], bufferSpecString: String): String = {
     val t = IRParser.parsePType(ptypeString)
     val bs = BufferSpec.parseOrDefault(bufferSpecString)
-    val codec = new is.hail.shuffler.Codec(TypedCodecSpec(EType.defaultFromPType(t), t.virtualType, bs))
+    val codec = TypedCodecSpec(EType.defaultFromPType(t), t.virtualType, bs)
     using(Region()) { r =>
-      val off = codec.decode(b, r)
+      val (pt, off) = codec.decode(t.virtualType, b, r)
+      assert(pt.virtualType.isOfType(t.virtualType))
       JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(
-        UnsafeRow.read(t, r, off), t.virtualType))
+        UnsafeRow.read(pt, r, off), pt.virtualType))
     }
   }
 
