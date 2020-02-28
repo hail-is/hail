@@ -416,7 +416,7 @@ class DependentFunctionBuilder[F >: Null <: AnyRef : TypeInfo : ClassTag](
   returnTypeInfo: MaybeGenericTypeInfo[_],
   packageName: String = "is/hail/codegen/generated",
   initModule: ModuleBuilder = null
-) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName) with DependentFunction[F]
+) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName, initModule = initModule) with DependentFunction[F]
 
 class FunctionBuilder[F >: Null](
   val parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
