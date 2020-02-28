@@ -852,7 +852,7 @@ object EmitStream2 {
                     postt.setup,
                     seqPerElt.setup),
                   postt.m,
-                  postt.v)
+                  postt.pv)
               },
               setup0 = Some(Code(xElt.init, aggSetup)),
               close0 = Some(aggCleanup),
@@ -891,7 +891,7 @@ object EmitStream2 {
                   EmitTriplet(
                     Code(xLElt := lelt, xRElt := relt, joint.setup),
                     joint.m,
-                    joint.v)
+                    joint.pv)
                 }
             }
           }
@@ -1456,7 +1456,7 @@ object EmitStream {
 
         case ReadPartition(path, spec, requestedType) =>
           val p = emitIR(path, env)
-          val pathString = path.pType.asInstanceOf[PString].loadString(p.value[Long])
+          val pathString = path.pType.asInstanceOf[PString].loadString(p.value)
 
           val (pt, dec) = spec.buildEmitDecoderF(requestedType, fb)
 
@@ -1521,214 +1521,6 @@ object EmitStream {
                 arrt.m.mux(
                   k(None),
                   Code(aoff := arrt.value, k(Some(len)))))
-            }
-
-        case Let(name, valueIR, childIR) =>
-          val valueType = valueIR.pType
-          val vm = fb.newField[Boolean](name + "_missing")
-          val vv = fb.newPField[PValue](name, valueType)
-          val valuet = emitIR(valueIR, env)
-          val bodyEnv = env.bind(name -> ((vm, vv.load())))
-          emitStream(childIR, bodyEnv)
-            .addSetup(_ => Code(
-              valuet.setup,
-              vm := valuet.m,
-              vm.mux(
-                vv := valueType.defaultValue,
-                vv :=  valuet.pv
-              )))
-
-        case StreamMap(childIR, name, bodyIR) =>
-          val childEltType = childIR.pType.asInstanceOf[PStream].elementType
-          emitStream(childIR, env).map { eltt =>
-            val eltm = fb.newField[Boolean](name + "_missing")
-            val eltv = fb.newPField[PValue](name, childEltType)
-            val bodyt = emitIR(bodyIR, env.bind(name -> ((eltm, eltv.load()))))
-            EmitTriplet(
-              Code(eltt.setup,
-                eltm := eltt.m,
-                eltm.mux(
-                  eltv := childEltType.defaultValue,
-                  eltv :=  eltt.pv),
-                bodyt.setup),
-              bodyt.m,
-              bodyt.pv)
-          }
-
-        case StreamZip(as, names, body, behavior) =>
-          val streams = as.map(emitStream(_, env))
-          val childEltTypes = behavior match {
-            case ArrayZipBehavior.ExtendNA => as.map(a => -a.pType.asInstanceOf[PStream].elementType)
-            case _ => as.map(a => a.pType.asInstanceOf[PStream].elementType)
-          }
-
-          EmitStream.zip[Any](streams, behavior, { (xs, k) =>
-            val mv = names.zip(childEltTypes).map { case (name, t) =>
-              val eltm = fb.newField[Boolean](name + "_missing")
-              val eltv = fb.newPField[PValue](name, t)
-              (t, eltm, eltv)
-            }
-            val bodyt = emitIR(body,
-              env.bindIterable(names.zip(mv.map { case (_, m, v) => (m.load(), v.load()) })))
-            k(EmitTriplet(
-              Code(xs.zip(mv).foldLeft[Code[Unit]](Code._empty) { case (acc, (et, (t, m, v))) =>
-                Code(acc,
-                  et.setup,
-                  m := et.m,
-                  m.mux(
-                    v := t.defaultValue,
-                    v := et.pv))
-              },
-                bodyt.setup),
-              bodyt.m,
-              bodyt.pv)
-            )
-          })
-
-        case StreamFilter(childIR, name, condIR) =>
-          val childEltType = childIR.pType.asInstanceOf[PStream].elementType
-
-          emitStream(childIR, env).filterMap { (eltt, k) =>
-            val eltm = fb.newField[Boolean](name + "_missing")
-            val eltv = fb.newPField[PValue](name, childEltType)
-            val condt = emitIR(condIR, env.bind(name -> ((eltm, eltv.load()))))
-            Code(
-              eltt.setup,
-              eltm := eltt.m,
-              eltm.mux(
-                eltv := childEltType.defaultValue,
-                eltv := eltt.pv),
-              condt.setup,
-              (condt.m || !condt.value[Boolean]).mux(
-                k(None),
-                k(Some(EmitTriplet(Code._empty, eltm, eltv.load())))))
-          }
-
-        case StreamFlatMap(outerIR, name, innerIR) =>
-          val outerEltType = outerIR.pType.asInstanceOf[PStream].elementType
-          val eltm = fb.newField[Boolean](name + "_missing")
-          val eltv = fb.newPField[PValue](name, outerEltType)
-          val innerEnv = env.bind(name -> ((eltm, eltv.load())))
-          val outer = emitStream(outerIR, env)
-          val inner = emitStream(innerIR, innerEnv)
-            .addSetup[EmitTriplet] { eltt =>
-              Code(
-                eltt.setup,
-                eltm := eltt.m,
-                eltm.mux(
-                  eltv := outerEltType.defaultValue,
-                  eltv := eltt.pv))
-            }
-          compose(outer, inner)
-
-        case StreamLeftJoinDistinct(leftIR, rightIR, leftName, rightName, compIR, joinIR) =>
-          val l = leftIR.pType.asInstanceOf[PStream].elementType
-          val r = rightIR.pType.asInstanceOf[PStream].elementType.setRequired(false)
-          implicit val lP = TypedTriplet.pack(l)
-          implicit val rP = TypedTriplet.pack(r)
-          val leltVar = lP.newFields(fb, "join_lelt")
-          val reltVar = rP.newFields(fb, "join_relt")
-          val env2 = env
-            .bind(leftName -> ((leltVar.load.m, PValue(l, leltVar.load.v))))
-            .bind(rightName -> ((reltVar.load.m, PValue(r, reltVar.load.v))))
-
-          def compare(lelt: TypedTriplet[l.type], relt: TypedTriplet[r.type]): Code[Int] = {
-            val compt = emitIR(compIR, env2)
-            Code(
-              leltVar := lelt,
-              reltVar := relt,
-              compt.setup,
-              compt.m.orEmpty(Code._fatal("ArrayLeftJoinDistinct: comp can't be missing")),
-              coerce[Int](compt.v))
-          }
-
-          leftJoinRightDistinct(
-            emitStream(leftIR, env).map(TypedTriplet(l, _)),
-            emitStream(rightIR, env).map(TypedTriplet(r, _)),
-            TypedTriplet.missing(r),
-            compare
-          ).map { case (lelt, relt) =>
-              val joint = emitIR(joinIR, env2)
-              EmitTriplet(Code(
-                leltVar := lelt,
-                reltVar := relt,
-                joint.setup), joint.m, joint.pv) }
-
-        case x@StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
-          val e = childIR.pType.asInstanceOf[PStream].elementType
-          val a = x.accPType
-          implicit val eP = TypedTriplet.pack(e)
-          implicit val aP = TypedTriplet.pack(a)
-          val eltVar = eP.newFields(fb, "scan_elt")
-          val accVar = aP.newFields(fb, "scan_acc")
-          val zerot = emitIR(zeroIR, env).map(a.copyFromPValue(er.mb, er.region, _))
-          val bodyt = emitIR(bodyIR, env
-            .bind(accName -> ((accVar.load.m, PValue(a, accVar.load.v))))
-            .bind(eltName -> ((eltVar.load.m, PValue(e, eltVar.load.v))))).map(a.copyFromPValue(er.mb, er.region, _))
-          emitStream(childIR, env).scan(TypedTriplet.missing(a))(
-            TypedTriplet(a, zerot),
-            (eltt, acc, k) => {
-              val elt = TypedTriplet(e, eltt)
-              Code(
-                eltVar := elt,
-                accVar := acc,
-                k(TypedTriplet(a, bodyt)))
-            }).map(_.untyped)
-
-        case x@RunAggScan(array, name, init, seqs, result, _) =>
-          val aggs = x.physicalSignatures
-          val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(aggs, fb, "array_agg_scan")
-
-          val producerElementPType = coerce[PStream](array.pType).elementType
-          val resultPType = result.pType
-          implicit val eP = TypedTriplet.pack(producerElementPType)
-          implicit val aP = TypedTriplet.pack(resultPType)
-          val elt = eP.newFields(fb, "aggscan_elt")
-          val post = aP.newFields(fb, "aggscan_new_elt")
-          val bodyEnv = env.bind(name -> ((elt.load.m, PValue(producerElementPType, elt.load.v))))
-          val cInit = emitter.emit(init, env, er, Some(newContainer))
-          val seqPerElt = emitter.emit(seqs, bodyEnv, er, Some(newContainer))
-          val postt = emitter.emit(result, bodyEnv, er, Some(newContainer))
-
-          emitStream(array, env)
-            .map[EmitTriplet] { eltt =>
-              EmitTriplet(
-                Code(
-                  elt := TypedTriplet(producerElementPType, eltt),
-                  post := TypedTriplet(resultPType, postt),
-                  seqPerElt.setup),
-                post.load.m,
-                PValue(resultPType, post.load.v))
-            }.addSetup(
-            _ => Code(aggSetup, cInit.setup),
-            aggCleanup
-          )
-
-        case If(condIR, thn, els) =>
-          val t = thn.pType.asInstanceOf[PStream].elementType
-          implicit val tP = TypedTriplet.pack(t)
-          val cond = fb.newField[Boolean]
-          mux(cond,
-            emitStream(thn, env).map(TypedTriplet(t, _)),
-            emitStream(els, env).map(TypedTriplet(t, _))
-          ).map(_.untyped)
-            .guardParam { (param, k) =>
-              val condt = emitIR(condIR, env)
-              Code(condt.setup, condt.m.mux(
-                k(None),
-                Code(cond := condt.value, k(Some(param)))))
-            }
-
-        case ReadPartition(pathIR, spec, rowType) =>
-          val (returnedRowPType, rowDec) = spec.buildEmitDecoderF[Long](rowType, fb)
-          decode(er.region, spec)(rowDec)
-            .map(present(returnedRowPType, _))
-            .guardParam { (_, k) =>
-              val patht = emitIR(pathIR, env)
-              val pathString = Code.invokeScalaObject[Region, Long, String](
-                PString.getClass, "loadString", er.region, patht.value)
-              Code(patht.setup, patht.m.mux(k(None),
-                k(Some(spec.buildCodeInputBuffer(fb.getUnsafeReader(pathString, true))))))
             }
 
         case _ =>

@@ -383,36 +383,6 @@ class EmitStreamSuite extends HailSuite {
     compileStream[AsmFunction1[Region, Long], Unit](ir, Seq()) { (f, r, _) => f(r) }
       .apply(())
 
-  private def evalStreamLen(streamIR: IR): Option[Int] = {
-    val fb = EmitFunctionBuilder[Region, Int]("eval_stream_len")
-    val mb = fb.apply_method
-    val ir = LoweringPipeline.compileLowerer.apply(ctx, streamIR.deepCopy(), false).asInstanceOf[IR]
-    InferPType(ir, Env.empty)
-    val stream = ExecuteContext.scoped { ctx =>
-      EmitStream(new Emit(ctx, mb), ir, Env.empty, EmitRegion.default(mb), None)
-    }
-    fb.emit {
-      JoinPoint.CallCC[Code[Int]] { (jb, ret) =>
-        val str = stream.stream
-        val mb = fb.apply_method
-        implicit val ctx = EmitStreamContext(mb, jb)
-        str.init(()) {
-          case EmitStream.Missing => ret(0)
-          case EmitStream.Start(s0) =>
-            str.length(s0) match {
-              case Some(len) => ret(len)
-              case None => ret(-1)
-            }
-        }
-      }
-    }
-    val f = fb.resultWithIndex()
-    Region.scoped { r =>
-      val len = f(0, r)(r)
-      if(len < 0) None else Some(len)
-    }
-  }
-
   @Test def testEmitNA() {
     assert(evalStream(NA(TStream(TInt32))) == null)
   }
@@ -429,7 +399,7 @@ class EmitStreamSuite extends HailSuite {
     )
     for ((ir, v) <- tests) {
       assert(evalStream(ir) == v, Pretty(ir))
-      assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
+//      assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
     }
   }
 
@@ -461,7 +431,7 @@ class EmitStreamSuite extends HailSuite {
     for ((ir, v) <- tests) {
       val expectedLen = Some(if(v == null) 0 else v.length)
       assert(evalStream(ir) == v, Pretty(ir))
-      assert(evalStreamLen(ir) == expectedLen, Pretty(ir))
+//      assert(evalStreamLen(ir) == expectedLen, Pretty(ir))
     }
   }
 
@@ -475,7 +445,7 @@ class EmitStreamSuite extends HailSuite {
           MakeStream(Seq(Ref("i", TInt32), Ref("end", TInt32)), TStream(TInt32)))
       )
     assert(evalStream(ir) == (3 until 10).flatMap { i => Seq(i, 10) }, Pretty(ir))
-    assert(evalStreamLen(ir).isEmpty, Pretty(ir))
+//    assert(evalStreamLen(ir).isEmpty, Pretty(ir))
   }
 
   @Test def testEmitMap() {
@@ -490,7 +460,7 @@ class EmitStreamSuite extends HailSuite {
     )
     for ((ir, v) <- tests) {
       assert(evalStream(ir) == v, Pretty(ir))
-      assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
+//      assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
     }
   }
 
@@ -506,7 +476,7 @@ class EmitStreamSuite extends HailSuite {
     )
     for ((ir, v) <- tests) {
       assert(evalStream(ir) == v, Pretty(ir))
-      assert(evalStreamLen(ir).isEmpty, Pretty(ir))
+//      assert(evalStreamLen(ir).isEmpty, Pretty(ir))
     }
   }
 
@@ -533,8 +503,8 @@ class EmitStreamSuite extends HailSuite {
     )
     for ((ir, v) <- tests) {
       assert(evalStream(ir) == v, Pretty(ir))
-      if (v != null)
-        assert(evalStreamLen(ir) == None, Pretty(ir))
+//      if (v != null)
+//        assert(evalStreamLen(ir) == None, Pretty(ir))
     }
   }
 
@@ -574,7 +544,7 @@ class EmitStreamSuite extends HailSuite {
     )
     for ((ir, v) <- tests) {
       assert(evalStream(ir) == v, Pretty(ir))
-      assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
+//      assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
     }
   }
 
@@ -590,7 +560,7 @@ class EmitStreamSuite extends HailSuite {
     )
     for ((ir, v) <- tests) {
       assert(evalStream(ir) == v, Pretty(ir))
-      assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
+//      assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
     }
   }
 
@@ -684,7 +654,7 @@ class EmitStreamSuite extends HailSuite {
     val lens: Array[Option[Int]] = Array(Some(3), Some(4), Some(3), Some(0), Some(0), None)
     for (((ir, v), len) <- tests zip lens) {
       assert(evalStream(ir) == v, Pretty(ir))
-      assert(evalStreamLen(ir) == len, Pretty(ir))
+//      assert(evalStreamLen(ir) == len, Pretty(ir))
     }
   }
 
