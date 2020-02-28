@@ -1296,16 +1296,16 @@ steps:
     - default_ns
     - dbuf_image
  - kind: buildImage
-   name: dbuf_test_image
+   name: test_dbuf_image
    dockerFile: dbuf/tests/Dockerfile
    contextPath: dbuf/tests
-   publishAs: dbuf_test
+   publishAs: test_dbuf
    dependsOn:
      - dbuf_image
  - kind: runImage
-   name: dbuf_test
+   name: test_dbuf
    image:
-     valueFrom: dbuf_test_image.image
+     valueFrom: test_dbuf_image.image
    script: |
      set -ex
      python3 scale_test.py dbuf-0.dbuf 10 1 40000 1000
@@ -1324,4 +1324,4 @@ steps:
    dependsOn:
      - default_ns
      - deploy_dbuf
-     - dbuf_test_image
+     - test_dbuf_image
