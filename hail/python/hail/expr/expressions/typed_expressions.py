@@ -3777,6 +3777,11 @@ class NDArrayNumericExpression(NDArrayExpression):
     def __rfloordiv__(self, other):
         return self._bin_op_numeric_reverse('//', other)
 
+    def __rmatmul__(self, other):
+        if not isinstance(other, NDArrayNumericExpression):
+            other = hl._nd.array(other)
+        return other.__matmul__(self)
+
     def __matmul__(self, other):
         """Matrix multiplication: `a @ b`, semantically equivalent to `NumPy` matmul. If `a` and `b` are vectors,
         the vector dot product is performed, returning a `NumericExpression`. If `a` and `b` are both 2-dimensional

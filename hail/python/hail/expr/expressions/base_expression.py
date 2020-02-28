@@ -321,6 +321,8 @@ def _to_expr(e, dtype):
             key_array = to_expr(keys, tarray(dtype.key_type))
             value_array = to_expr(values, tarray(dtype.value_type))
             return hl.dict(hl.zip(key_array, value_array))
+    elif isinstance(dtype, hl.tndarray):
+        return hl.nd.array(e)
     else:
         raise NotImplementedError(dtype)
 
@@ -402,6 +404,8 @@ def unify_exprs(*exprs: 'Expression') -> Tuple:
 
 class Expression(object):
     """Base class for Hail expressions."""
+
+    __array_ufunc__ = None  # disable NumPy coercions, so Hail coercions take priority
 
     @typecheck_method(ir=IR, type=nullable(HailType), indices=Indices, aggregations=linked_list(Aggregation))
     def __init__(self,
