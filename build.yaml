@@ -528,6 +528,8 @@ steps:
  - kind: deploy
    name: deploy_hail_repl
    runIfRequested: true
+   scopes:
+    - dev
    namespace:
      valueFrom: default_ns.name
    config: hail/hail_repl.yaml
