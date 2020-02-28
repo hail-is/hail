@@ -3,7 +3,6 @@ package is.hail.asm4s
 import java.io._
 import java.util
 
-import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.objectweb.asm.Opcodes._
@@ -15,6 +14,185 @@ import scala.collection.JavaConverters._
 import scala.collection.generic.Growable
 import scala.collection.mutable
 import scala.reflect.ClassTag
+
+class Field[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
+  val desc: String = typeInfo[T].name
+  val node: FieldNode = new FieldNode(ACC_PUBLIC, name, desc, null, null)
+  classBuilder.addField(node)
+
+  def get(obj: Code[_]): Code[T] =
+    Code(obj, Code[T](new FieldInsnNode(GETFIELD, classBuilder.name, name, desc)))
+
+  def put(obj: Code[_], v: Code[T]): Code[Unit] =
+    Code(obj, v, Code(new FieldInsnNode(PUTFIELD, classBuilder.name, name, desc)))
+}
+
+class ClassBuilder[C](val name: String) {
+  var nameCounter: Int = 0
+
+  val cn = new ClassNode()
+
+  val methods: mutable.ArrayBuffer[MethodBuilder] = new mutable.ArrayBuffer[MethodBuilder](16)
+  val fields: mutable.ArrayBuffer[FieldNode] = new mutable.ArrayBuffer[FieldNode](16)
+
+  val init = new MethodNode(ACC_PUBLIC, "<init>", "()V", null, null)
+
+  val lazyFieldMemo: mutable.Map[Any, LazyFieldRef[_]] = mutable.Map.empty
+
+  val children: mutable.ArrayBuffer[DependentFunction[_]] = new mutable.ArrayBuffer[DependentFunction[_]](16)
+
+  // init
+  cn.version = V1_8
+  cn.access = ACC_PUBLIC
+
+  cn.name = name
+  cn.superName = "java/lang/Object"
+  cn.interfaces.asInstanceOf[java.util.List[String]].add("java/io/Serializable")
+
+  cn.methods.asInstanceOf[util.List[MethodNode]].add(init)
+
+  init.instructions.add(new IntInsnNode(ALOAD, 0))
+  init.instructions.add(new MethodInsnNode(INVOKESPECIAL, Type.getInternalName(classOf[java.lang.Object]), "<init>", "()V", false))
+
+  // methods
+  def genName(tag: String): String = {
+    nameCounter += 1
+    s"__$tag$nameCounter"
+  }
+
+  def genName(tag: String, suffix: String): String = {
+    if (suffix == null)
+      return genName(tag)
+
+    nameCounter += 1
+    s"__$tag$nameCounter$suffix"
+  }
+
+  def addInitInstructions(c: Code[Unit]): Unit = {
+    val l = new mutable.ArrayBuffer[AbstractInsnNode]()
+    c.emit(l)
+    l.foreach(init.instructions.add _)
+  }
+
+  def addInterface(name: String): Unit = {
+    cn.interfaces.asInstanceOf[java.util.List[String]].add(name)
+  }
+
+  def addMethod(m: MethodBuilder): Unit = {
+    methods.append(m)
+  }
+
+  def addField(node: FieldNode): Unit = {
+    cn.fields.asInstanceOf[util.List[FieldNode]].add(node)
+  }
+
+  def newDependentFunction[A1 : TypeInfo, R : TypeInfo]: DependentFunction[AsmFunction1[A1, R]] = {
+    val df = new DependentFunctionBuilder[AsmFunction1[A1, R]](Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
+    children += df
+    df
+  }
+
+  def newField[T: TypeInfo](name: String): Field[T] = new Field[T](this, name)
+
+  def genField[T: TypeInfo](): Field[T] = newField[T](genName("f"))
+
+  def genField[T: TypeInfo](suffix: String): Field[T] = newField(genName("f", suffix))
+
+  def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
+    init.instructions.add(new InsnNode(RETURN))
+
+    val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
+    val sw1 = new StringWriter()
+    var bytes: Array[Byte] = new Array[Byte](0)
+    try {
+      for (method <- cn.methods.asInstanceOf[util.List[MethodNode]].asScala) {
+        val count = method.instructions.size
+        log.info(s"instruction count: $count: ${ cn.name }.${ method.name }")
+        if (count > 8000)
+          log.warn(s"big method: $count: ${ cn.name }.${ method.name }")
+      }
+
+      cn.accept(cw)
+      bytes = cw.toByteArray
+      //       This next line should always be commented out!
+      //      CheckClassAdapter.verify(new ClassReader(bytes), false, new PrintWriter(sw1))
+    } catch {
+      case e: Exception =>
+        // if we fail with frames, try without frames for better error message
+        val cwNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
+        val sw2 = new StringWriter()
+        cn.accept(cwNoFrames)
+        try {
+          CheckClassAdapter.verify(new ClassReader(cwNoFrames.toByteArray), false, new PrintWriter(sw2))
+        } catch {
+          case e: Exception =>
+            log.error("Verify Output 1 for " + name + ":")
+            throw e
+        }
+
+        if (sw2.toString.length() != 0) {
+          System.err.println("Verify Output 2 for " + name + ":")
+          System.err.println(sw2)
+          throw new IllegalStateException("Bytecode failed verification 1", e)
+        } else {
+          if (sw1.toString.length() != 0) {
+            System.err.println("Verify Output 1 for " + name + ":")
+            System.err.println(sw1)
+          }
+          throw e
+        }
+    }
+
+    if (sw1.toString.length != 0) {
+      System.err.println("Verify Output 1 for " + name + ":")
+      System.err.println(sw1)
+      throw new IllegalStateException("Bytecode failed verification 2")
+    }
+
+    print.foreach { pw =>
+      val cr = new ClassReader(bytes)
+      val tcv = new TraceClassVisitor(null, new Textifier, pw)
+      cr.accept(tcv, 0)
+    }
+    bytes
+  }
+
+  def result(print: Option[PrintWriter] = None): () => C = {
+    val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
+
+    val bytes = classAsBytes(print)
+    val n = name.replace("/",".")
+
+    assert(TaskContext.get() == null,
+      "FunctionBuilder emission should happen on master, but happened on worker")
+
+    new (() => C) with java.io.Serializable {
+      @transient
+      @volatile private var theClass: Class[_] = null
+
+      def apply(): C = {
+        try {
+          if (theClass == null) {
+            this.synchronized {
+              if (theClass == null) {
+                childClasses.foreach { case (fn, b) => loadClass(fn, b) }
+                theClass = loadClass(n, bytes)
+              }
+            }
+          }
+
+          theClass.newInstance().asInstanceOf[C]
+        } catch {
+          //  only triggers on classloader
+          case e@(_: Exception | _: LinkageError) => {
+            FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+            throw e
+          }
+        }
+      }
+    }
+  }
+}
 
 object FunctionBuilder {
   val stderrAndLoggerErrorOS = getStderrAndLogOutputStream[FunctionBuilder[_]]
@@ -58,7 +236,6 @@ object FunctionBuilder {
 }
 
 class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTypeInfo: Array[TypeInfo[_]], val returnTypeInfo: TypeInfo[_]) {
-
   def descriptor: String = s"(${ parameterTypeInfo.map(_.name).mkString })${ returnTypeInfo.name }"
 
   val mname = {
@@ -67,8 +244,9 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
     require(s.forall(java.lang.Character.isJavaIdentifierPart(_)), "invalid java identifer, " + s)
     s
   }
+
   val mn = new MethodNode(ACC_PUBLIC, mname, descriptor, null, null)
-  fb.cn.methods.asInstanceOf[util.List[MethodNode]].add(mn)
+  fb.classBuilder.cn.methods.asInstanceOf[util.List[MethodNode]].add(mn)
 
   val start = new LabelNode
   val end = new LabelNode
@@ -101,9 +279,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
 
   def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] = fb.newField[T](name)
 
-  def newLazyField[T: TypeInfo](setup: Code[T]): LazyFieldRef[T] = newLazyField("")(setup)
-
-  def newLazyField[T: TypeInfo](name: String)(setup: Code[T]): LazyFieldRef[T] = fb.newLazyField(name)(setup)
+  def newLazyField[T: TypeInfo](setup: Code[T], name: String = null): LazyFieldRef[T] = fb.newLazyField(setup, name)
 
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
     assert(i >= 0)
@@ -111,20 +287,31 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
     new LocalRef[T](argIndex(i))
   }
 
-  val l = new mutable.ArrayBuffer[AbstractInsnNode]()
+  private var emitted = false
+
+  private val startup = new mutable.ArrayBuffer[AbstractInsnNode]()
+
+  def emitStartup(c: Code[_]): Unit = {
+    assert(!emitted)
+    c.emit(startup)
+  }
 
   def emit(c: Code[_]) {
+    assert(!emitted)
+    emitted = true
+
+    val l = new mutable.ArrayBuffer[AbstractInsnNode]()
+    l ++= startup
     c.emit(l)
-  }
 
-  def emit(insn: AbstractInsnNode) {
-    l += insn
-  }
+    val s = mutable.Set[AbstractInsnNode]()
+    l.foreach { insn =>
+      assert(!s.contains(insn))
+      s += insn
+    }
 
-  def close() {
     mn.instructions.add(start)
-    val dupes = l.groupBy(x => x).map(_._2.toArray).filter(_.length > 1).toArray
-    assert(dupes.isEmpty, s"some instructions were repeated in the instruction list: ${ dupes: Seq[Any] }")
+
     l.foreach(mn.instructions.add _)
     mn.instructions.add(new InsnNode(returnTypeInfo.returnOp))
     mn.instructions.add(end)
@@ -192,33 +379,12 @@ class DependentFunctionBuilder[F >: Null <: AnyRef : TypeInfo : ClassTag](
 
 class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeInfo[_]], val returnTypeInfo: MaybeGenericTypeInfo[_],
   val packageName: String = "is/hail/codegen/generated", namePrefix: String = null)(implicit val interfaceTi: TypeInfo[F]) {
-
   import FunctionBuilder._
 
-  val cn = new ClassNode()
-  cn.version = V1_8
-  cn.access = ACC_PUBLIC
+  val classBuilder: ClassBuilder[F] = new ClassBuilder[F](
+    packageName + "/C" + Option(namePrefix).map(n => s"_${n}_").getOrElse("") + newUniqueID())
 
-  val name = packageName + "/C" + Option(namePrefix).map(n => s"_${n}_").getOrElse("") + newUniqueID()
-  cn.name = name
-  cn.superName = "java/lang/Object"
-  cn.interfaces.asInstanceOf[java.util.List[String]].add("java/io/Serializable")
-
-  val methods: mutable.ArrayBuffer[MethodBuilder] = new mutable.ArrayBuffer[MethodBuilder](16)
-  val fields: mutable.ArrayBuffer[FieldNode] = new mutable.ArrayBuffer[FieldNode](16)
-
-  val init = new MethodNode(ACC_PUBLIC, "<init>", "()V", null, null)
-  // FIXME why is cast necessary?
-  cn.methods.asInstanceOf[util.List[MethodNode]].add(init)
-
-  init.instructions.add(new IntInsnNode(ALOAD, 0))
-  init.instructions.add(new MethodInsnNode(INVOKESPECIAL, Type.getInternalName(classOf[java.lang.Object]), "<init>", "()V", false))
-
-  def addInitInstructions(c: Code[Unit]): Unit = {
-    val l = new mutable.ArrayBuffer[AbstractInsnNode]()
-    c.emit(l)
-    l.foreach(init.instructions.add _)
-  }
+  val name: String = classBuilder.name
 
   private[this] val methodMemo: mutable.Map[Any, MethodBuilder] = mutable.HashMap.empty
 
@@ -234,13 +400,11 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
     }
   }
 
-  protected[this] val children: mutable.ArrayBuffer[DependentFunction[_]] = new mutable.ArrayBuffer[DependentFunction[_]](16)
-
   private[this] lazy val _apply_method: MethodBuilder = {
     val m = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
     if (parameterTypeInfo.exists(_.isGeneric) || returnTypeInfo.isGeneric) {
       val generic = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.generic), returnTypeInfo.generic)
-      methods.append(generic)
+      classBuilder.addMethod(generic)
       generic.emit(
         new Code[Unit] {
           def emit(il: Growable[AbstractInsnNode]) {
@@ -261,23 +425,15 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
 
   def newLocalBit(): SettableBit = apply_method.newLocalBit()
 
-  def newDependentFunction[A1 : TypeInfo, R : TypeInfo]: DependentFunction[AsmFunction1[A1, R]] = {
-    val df = new DependentFunctionBuilder[AsmFunction1[A1, R]](Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
-    children += df
-    df
-  }
-
   def newClassBit(): SettableBit = classBitSet.newBit(apply_method)
 
   def newField[T: TypeInfo]: ClassFieldRef[T] = newField()
 
   def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] =
-    new ClassFieldRef[T](this, s"field${ cn.fields.size() }${ if (name == null) "" else s"_$name" }")
+    new ClassFieldRef[T](this, classBuilder.genField[T](name))
 
-  def newLazyField[T: TypeInfo](setup: Code[T]): LazyFieldRef[T] = newLazyField("")(setup)
-
-  def newLazyField[T: TypeInfo](name: String)(setup: Code[T]): LazyFieldRef[T] =
-    new LazyFieldRef[T](this, s"field${ cn.fields.size() }_$name", setup)
+  def newLazyField[T: TypeInfo](setup: Code[T], name: String = null): LazyFieldRef[T] =
+    new LazyFieldRef[T](this, name, setup)
 
   val lazyFieldMemo: mutable.Map[Any, LazyFieldRef[_]] = mutable.Map.empty
 
@@ -295,11 +451,9 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
 
   def emit(c: Code[_]) = apply_method.emit(c)
 
-  def emit(insn: AbstractInsnNode) = apply_method.emit(insn)
-
   def newMethod(suffix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder = {
-    val mb = new MethodBuilder(this, s"m${ methods.size }_${ suffix }", argsInfo, returnInfo)
-    methods.append(mb)
+    val mb = new MethodBuilder(this, classBuilder.genName("m", suffix), argsInfo, returnInfo)
+    classBuilder.addMethod(mb)
     mb
   }
 
@@ -324,104 +478,11 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: MethodBuilder =
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
 
-  def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
-    init.instructions.add(new InsnNode(RETURN))
-    apply_method.close()
-    methods.toArray.foreach { m => m.close() }
+  def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = classBuilder.classAsBytes(print)
 
-    val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
-    val sw1 = new StringWriter()
-    var bytes: Array[Byte] = new Array[Byte](0)
-    try {
-      for (method <- cn.methods.asInstanceOf[util.List[MethodNode]].asScala) {
-        val count = method.instructions.size
-        log.info(s"instruction count: $count: ${ cn.name }.${ method.name }")
-        if (count > 8000)
-          log.warn(s"big method: $count: ${ cn.name }.${ method.name }")
-      }
+  classBuilder.addInterface(interfaceTi.iname)
 
-      cn.accept(cw)
-      bytes = cw.toByteArray
-//       This next line should always be commented out!
-//      CheckClassAdapter.verify(new ClassReader(bytes), false, new PrintWriter(sw1))
-    } catch {
-      case e: Exception =>
-        // if we fail with frames, try without frames for better error message
-        val cwNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
-        val sw2 = new StringWriter()
-        cn.accept(cwNoFrames)
-        try {
-          CheckClassAdapter.verify(new ClassReader(cwNoFrames.toByteArray), false, new PrintWriter(sw2))
-        } catch {
-          case e: Exception =>
-            log.error("Verify Output 1 for " + name + ":")
-            throw e
-        }
-
-        if (sw2.toString().length() != 0) {
-          System.err.println("Verify Output 2 for " + name + ":")
-          System.err.println(sw2)
-          throw new IllegalStateException("Bytecode failed verification 1", e)
-        } else {
-          if (sw1.toString().length() != 0) {
-            System.err.println("Verify Output 1 for " + name + ":")
-            System.err.println(sw1)
-          }
-          throw e
-        }
-    }
-
-    if (sw1.toString.length != 0) {
-      System.err.println("Verify Output 1 for " + name + ":")
-      System.err.println(sw1)
-      throw new IllegalStateException("Bytecode failed verification 2")
-    }
-
-    print.foreach { pw =>
-      val cr = new ClassReader(bytes)
-      val tcv = new TraceClassVisitor(null, new Textifier, pw)
-      cr.accept(tcv, 0)
-    }
-    bytes
-  }
-
-  cn.interfaces.asInstanceOf[java.util.List[String]].add(interfaceTi.iname)
-
-  def result(print: Option[PrintWriter] = None): () => F = {
-    val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
-
-    val bytes = classAsBytes(print)
-    val n = name.replace("/",".")
-
-    assert(TaskContext.get() == null,
-      "FunctionBuilder emission should happen on master, but happened on worker")
-
-    new (() => F) with java.io.Serializable {
-      @transient
-      @volatile private var theClass: Class[_] = null
-
-      def apply(): F = {
-        try {
-          if (theClass == null) {
-            this.synchronized {
-              if (theClass == null) {
-                childClasses.foreach { case (fn, b) => loadClass(fn, b) }
-                theClass = loadClass(n, bytes)
-              }
-            }
-          }
-
-          theClass.newInstance().asInstanceOf[F]
-        } catch {
-          //  only triggers on classloader
-          case e@(_: Exception | _: LinkageError) => {
-            FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
-            throw e
-          }
-        }
-      }
-    }
-  }
+  def result(print: Option[PrintWriter] = None): () => F = classBuilder.result(print)
 }
 
 class Function2Builder[A1 : TypeInfo, A2 : TypeInfo, R : TypeInfo](name: String)

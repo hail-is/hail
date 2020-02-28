@@ -11,11 +11,11 @@ class StagedArrayBuilder(val elt: PType, mb: MethodBuilder, len: Code[Int]) {
   val ti: TypeInfo[_] = typeToTypeInfo(elt)
 
   val ref: Settable[Any] = coerce[Any](ti match {
-    case BooleanInfo => mb.newLazyField[BooleanArrayBuilder]("zab")(Code.newInstance[BooleanArrayBuilder, Int](len))
-    case IntInfo => mb.newLazyField[IntArrayBuilder]("iab")(Code.newInstance[IntArrayBuilder, Int](len))
-    case LongInfo => mb.newLazyField[LongArrayBuilder]("jab")(Code.newInstance[LongArrayBuilder, Int](len))
-    case FloatInfo => mb.newLazyField[FloatArrayBuilder]("fab")(Code.newInstance[FloatArrayBuilder, Int](len))
-    case DoubleInfo => mb.newLazyField[DoubleArrayBuilder]("dab")(Code.newInstance[DoubleArrayBuilder, Int](len))
+    case BooleanInfo => mb.newLazyField[BooleanArrayBuilder](Code.newInstance[BooleanArrayBuilder, Int](len), "zab")
+    case IntInfo => mb.newLazyField[IntArrayBuilder](Code.newInstance[IntArrayBuilder, Int](len), "iab")
+    case LongInfo => mb.newLazyField[LongArrayBuilder](Code.newInstance[LongArrayBuilder, Int](len), "jab")
+    case FloatInfo => mb.newLazyField[FloatArrayBuilder](Code.newInstance[FloatArrayBuilder, Int](len), "fab")
+    case DoubleInfo => mb.newLazyField[DoubleArrayBuilder](Code.newInstance[DoubleArrayBuilder, Int](len), "dab")
     case ti => throw new RuntimeException(s"unsupported typeinfo found: $ti")
   })
 

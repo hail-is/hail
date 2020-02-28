@@ -223,7 +223,7 @@ class EmitFunctionBuilder[F >: Null](
 
     val (litRType, dec) = spec.buildEmitDecoderF[Long](litType.virtualType, this)
     assert(litRType == litType)
-    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithLiterals].iname)
+    classBuilder.addInterface(typeInfo[FunctionWithLiterals].iname)
     val mb2 = new EmitMethodBuilder(this, "addLiterals", Array(typeInfo[Array[Byte]]), typeInfo[Unit])
     val off = mb2.newLocal[Long]
     val storeFields = literals.zipWithIndex.map { case (((_, _), f), i) =>
@@ -236,7 +236,7 @@ class EmitFunctionBuilder[F >: Null](
         spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField))),
       Code(storeFields: _*)
     ))
-    methods.append(mb2)
+    classBuilder.addMethod(mb2)
 
     val baos = new ByteArrayOutputStream()
     val enc = spec.buildEncoder(litType)(baos)
@@ -271,7 +271,7 @@ class EmitFunctionBuilder[F >: Null](
       assert(aggSigs sameElements _aggSigs)
       return _aggState
     }
-    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithAggRegion].iname)
+    classBuilder.addInterface(typeInfo[FunctionWithAggRegion].iname)
     _aggSigs = aggSigs
     _aggRegion = newField[Region]("agg_top_region")
     _aggOff = newField[Long]("agg_off")
@@ -286,12 +286,12 @@ class EmitFunctionBuilder[F >: Null](
     val setSer = new EmitMethodBuilder(this, "setSerializedAgg", Array(typeInfo[Int], typeInfo[Array[Byte]]), typeInfo[Unit])
     val getSer = new EmitMethodBuilder(this, "getSerializedAgg", Array(typeInfo[Int]), typeInfo[Array[Byte]])
 
-    methods += newF
-    methods += setF
-    methods += getF
-    methods += setNSer
-    methods += setSer
-    methods += getSer
+    classBuilder.addMethod(newF)
+    classBuilder.addMethod(setF)
+    classBuilder.addMethod(getF)
+    classBuilder.addMethod(setNSer)
+    classBuilder.addMethod(setSer)
+    classBuilder.addMethod(getSer)
 
     newF.emit(
       Code(_aggRegion := newF.getArg[Region](1),
@@ -333,10 +333,10 @@ class EmitFunctionBuilder[F >: Null](
 
   def backend(): Code[BackendUtils] = {
     if (_backendField == null) {
-      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithBackend].iname)
+      classBuilder.addInterface(typeInfo[FunctionWithBackend].iname)
       val backendField = newField[BackendUtils]
       val mb = new EmitMethodBuilder(this, "setBackend", Array(typeInfo[BackendUtils]), typeInfo[Unit])
-      methods.append(mb)
+      classBuilder.addMethod(mb)
       mb.emit(backendField := mb.getArg[BackendUtils](1))
       _backendField = backendField
     }
@@ -349,10 +349,10 @@ class EmitFunctionBuilder[F >: Null](
 
   def getFS: Code[FS] = {
     if (_hfs == null) {
-      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithFS].iname)
+      classBuilder.addInterface(typeInfo[FunctionWithFS].iname)
       val confField = newField[FS]
       val mb = new EmitMethodBuilder(this, "addFS", Array(typeInfo[FS]), typeInfo[Unit])
-      methods.append(mb)
+      classBuilder.addMethod(mb)
       mb.emit(confField := mb.getArg[FS](1))
       _hfs = HailContext.sFS
       _hfield = confField
@@ -475,7 +475,7 @@ class EmitFunctionBuilder[F >: Null](
     val m = new EmitMethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
     if (parameterTypeInfo.exists(_.isGeneric) || returnTypeInfo.isGeneric) {
       val generic = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.generic), returnTypeInfo.generic)
-      methods.append(generic)
+      classBuilder.addMethod(generic)
       generic.emit(
         new Code[Unit] {
           def emit(il: Growable[AbstractInsnNode]) {
@@ -507,8 +507,8 @@ class EmitFunctionBuilder[F >: Null](
   }
 
   override def newMethod(suffix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
-    val mb = new EmitMethodBuilder(this, s"m${ methods.size }_${suffix}", argsInfo, returnInfo)
-    methods.append(mb)
+    val mb = new EmitMethodBuilder(this, classBuilder.genName("m", suffix), argsInfo, returnInfo)
+    classBuilder.addMethod(mb)
     mb
   }
 
@@ -558,32 +558,32 @@ class EmitFunctionBuilder[F >: Null](
   def newDependentFunction[A1: TypeInfo, A2: TypeInfo, R: TypeInfo]: DependentEmitFunction[AsmFunction2[A1, A2, R]] = {
     val df = new DependentEmitFunction[AsmFunction2[A1, A2, R]](
       this, Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R])
-    children += df
+    classBuilder.children += df
     df
   }
 
   def newDependentFunction[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo]: DependentEmitFunction[AsmFunction3[A1, A2, A3, R]] = {
     val df = new DependentEmitFunction[AsmFunction3[A1, A2, A3, R]](
       this, Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]), GenericTypeInfo[R])
-    children += df
+    classBuilder.children += df
     df
   }
 
   val rngs: ArrayBuilder[(ClassFieldRef[IRRandomness], Code[IRRandomness])] = new ArrayBuilder()
 
   def makeAddPartitionRegion(): Unit = {
-    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithPartitionRegion].iname)
+    classBuilder.addInterface(typeInfo[FunctionWithPartitionRegion].iname)
     val mb = new EmitMethodBuilder(this, "addPartitionRegion", Array(typeInfo[Region]), typeInfo[Unit])
     mb.emit(partitionRegion := mb.getArg[Region](1))
-    methods.append(mb)
+    classBuilder.addMethod(mb)
   }
 
   def makeRNGs() {
-    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithSeededRandomness].iname)
+    classBuilder.addInterface(typeInfo[FunctionWithSeededRandomness].iname)
 
     val initialized = newField[Boolean]
     val mb = new EmitMethodBuilder(this, "setPartitionIndex", Array(typeInfo[Int]), typeInfo[Unit])
-    methods += mb
+    classBuilder.addMethod(mb)
 
     val rngFields = rngs.result()
     val initialize = Code(rngFields.map { case (field, initialization) =>
@@ -610,7 +610,7 @@ class EmitFunctionBuilder[F >: Null](
   def resultWithIndex(print: Option[PrintWriter] = None): (Int, Region) => F = {
     makeRNGs()
     makeAddPartitionRegion()
-    val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
+    val childClasses = classBuilder.children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
 
     val hasLiterals: Boolean = literalsMap.nonEmpty
 
