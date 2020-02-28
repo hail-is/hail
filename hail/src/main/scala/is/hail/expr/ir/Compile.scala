@@ -25,6 +25,16 @@ object Compile {
     argTypeInfo: Array[MaybeGenericTypeInfo[_]],
     body: IR,
     optimize: Boolean
+  ): (PType, (Int, Region) => F) = apply(ctx, print, args, argTypeInfo, GenericTypeInfo[R](), body, optimize)
+
+  def apply[F >: Null : TypeInfo, R: ClassTag](
+    ctx: ExecuteContext,
+    print: Option[PrintWriter],
+    args: Seq[(String, PType, ClassTag[_])],
+    argTypeInfo: Array[MaybeGenericTypeInfo[_]],
+    returnTypeInfo: MaybeGenericTypeInfo[R],
+    body: IR,
+    optimize: Boolean
   ): (PType, (Int, Region) => F) = {
     val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
@@ -36,7 +46,7 @@ object Compile {
       case None =>
     }
 
-    val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
+    val fb = new EmitFunctionBuilder[F](argTypeInfo, returnTypeInfo)
 
     var ir = body
     ir = Subst(ir, BindingEnv(args

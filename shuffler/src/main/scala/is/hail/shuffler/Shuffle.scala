@@ -109,7 +109,7 @@ class Shuffle (
   // mutable.ArrayBuffer is not thread-safe, but only one partitionId-attemptId
   // pair is talking to us at a time
   private[this] val pending
-      : Array[ConcurrentHashMap[Int, (ArrayBuilder[Long], mutable.ArrayBuffer[Array[Byte]])]] =
+      : Array[ConcurrentHashMap[Long, (ArrayBuilder[Long], mutable.ArrayBuffer[Array[Byte]])]] =
     Array.fill(inPartitions)(new ConcurrentHashMap())
   private[this] var partitionOffsets: Array[Int] = null
   private[this] var output: Array[LongArrayByte] = null
@@ -118,7 +118,7 @@ class Shuffle (
     () => new ByteArrayDecoder(keyCodec.buildDecoder))
   private[this] val encoder = ThreadLocal.withInitial(
     () => new ByteArrayEncoder(keyCodec.buildEncoder))
-  def addMany(partitionId: Int, attemptId: Int, pairs: Int, bb: ByteBuffer): Unit = {
+  def addMany(partitionId: Int, attemptId: Long, pairs: Int, bb: ByteBuffer): Unit = {
     val part = pending(partitionId)
     part.putIfAbsent(attemptId, (new ArrayBuilder[Long](), new mutable.ArrayBuffer()))
     val (attemptKeys, attemptValues) = part.get(attemptId)
@@ -134,7 +134,7 @@ class Shuffle (
     }
   }
 
-  def finishPartition(partitionId: Int, attemptId: Int): Unit = {
+  def finishPartition(partitionId: Int, attemptId: Long): Unit = {
     val part = pending(partitionId)
     if (part == null) {
       log.info(s"""received a second finish for a finished partition
