@@ -78,8 +78,8 @@ object ByteUtils {
     off + 8
   }
 
-  def readLong(in: InputStream): Int = {
-    var out = 0
+  def readLong(in: InputStream): Long = {
+    var out = 0L
     var i = in.read()
     assert(i != -1)
     out |= (i & 0xff)
@@ -106,8 +106,8 @@ object ByteUtils {
     out | (i & 0xff) << 56
   }
 
-  def readLong(in: ByteBuffer): Int = {
-    var out = 0
+  def readLong(in: ByteBuffer): Long = {
+    var out = 0L
     var i = in.get()
     out |= (i & 0xff)
     i = in.get()

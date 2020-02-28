@@ -4,7 +4,7 @@ DOMAIN ?= hail.is
 SHUFFLER_LATEST = gcr.io/$(PROJECT)/shuffler:latest
 SHUFFLER_IMAGE = gcr.io/$(PROJECT)/shuffler:$(shell docker images -q --no-trunc shuffler:latest | sed -e 's,[^:]*:,,')
 
-SHUFFLER_TEST_IMAGE = gcr.io/$(PROJECT)/shuffler_test:$(shell docker images -q --no-trunc shuffler_test:latest | sed -e 's,[^:]*:,,')
+TEST_SHUFFLER_IMAGE = gcr.io/$(PROJECT)/test_shuffler:$(shell docker images -q --no-trunc test_shuffler:latest | sed -e 's,[^:]*:,,')
 
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
 PYTHON := PYTHONPATH=$(PYTHONPATH)../hail/python:../gear:../web_common python3
