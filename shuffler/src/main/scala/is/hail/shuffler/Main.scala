@@ -27,7 +27,7 @@ import com.typesafe.config.ConfigFactory
 import sys.process._
 import scala.language.postfixOps
 
-object WebServer {
+object Main {
   private[this] val log = LogManager.getLogger("Shuffler")
 
   def main(args: Array[String]) {

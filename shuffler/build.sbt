@@ -46,7 +46,7 @@ libraryDependencies ++= {
   )
 }
 
-mainClass in assembly := Some("is.hail.shuffler.WebServer")
+mainClass in assembly := Some("is.hail.shuffler.Main")
 
 assemblyMergeStrategy in assembly := {
  case PathList("META-INF" | "git.properties", xs @ _*) => MergeStrategy.discard
