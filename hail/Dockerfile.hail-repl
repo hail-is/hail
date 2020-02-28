@@ -1,0 +1,9 @@
+FROM {{ base_image.image }}
+ENV PYTHONPATH ""
+RUN apt-get update && \
+  apt-get -y install \
+    liblz4-dev
+COPY wheel-container.tar ./
+RUN tar -xf wheel-container.tar && \
+    pip3 install -U hail-*-py3-none-any.whl && \
+    rm -rf hail-*-py3-none-any.whl
