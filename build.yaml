@@ -480,7 +480,6 @@ steps:
      {{ code.checkout_script }}
      cd hail
      make jars python-version-info wheel
-     ./gradlew jar
      (cd python && zip -r hail.zip hail hailtop)
      tar czf test.tar.gz -C python test
      tar czf resources.tar.gz -C src/test resources
