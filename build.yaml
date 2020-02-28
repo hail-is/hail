@@ -536,6 +536,7 @@ steps:
    config: hail/hail_repl.yaml
    dependsOn:
     - default_ns
+    - hail_repl_image
  - kind: runImage
    name: test_hail_java
    image:
