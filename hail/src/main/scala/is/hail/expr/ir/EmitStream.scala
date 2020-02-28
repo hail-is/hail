@@ -444,6 +444,63 @@ object CodeStream { self =>
     }
   }
 
+  def leftJoinRightDistinct[A: ParameterPack, B: ParameterPack](
+    left: Stream[A],
+    right: Stream[B],
+    rNil: B,
+    comp: (A, B) => Code[Int]
+  ): Stream[(A, B)] = new Stream[(A, B)] {
+    def apply(eos: Code[Ctrl], push: ((A, B)) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(A, B)] = {
+      val pulledRight = newLocal[Code[Boolean]]
+      val rightEOS = newLocal[Code[Boolean]]
+      val xA = newLocal[A] // last value received from left
+      val xB = newLocal[B] // last value received from right
+      val xOutB = newLocal[B] // B value to push (may be rNil while xB is not)
+      val xNilB = newLocal[B] // saved rNil
+
+      var rightSource: Source[B] = null
+      val leftSource = left(
+        eos = eos,
+        push = a => {
+          val pushJP = joinPoint()
+          val pullRightJP = joinPoint()
+          val compareJP = joinPoint()
+
+          pushJP.define(_ => push((xA.load, xOutB.load)))
+
+          compareJP.define(_ => {
+            val c = newLocal[Code[Int]]
+            Code(
+              c := comp(xA.load, xB.load),
+              (c.load > 0).mux(
+                pullRightJP(()),
+                (c.load < 0).mux(
+                  Code(xOutB := xNilB.load, pushJP(())),
+                  Code(xOutB := xB.load, pushJP(())))))
+          })
+
+          rightSource = right(
+            eos = Code(rightEOS := true, xOutB := xNilB.load, pushJP(())),
+            push = b => Code(xB := b, compareJP(())))
+
+          pullRightJP.define(_ => rightSource.pull)
+
+          Code(
+            xA := a,
+            pulledRight.load.mux(
+              rightEOS.load.mux(pushJP(()), compareJP(())),
+              Code(pulledRight := true, pullRightJP(()))))
+        })
+
+      Source[(A, B)](
+        setup0 = Code(pulledRight.init, rightEOS.init, xA.init, xB.init, xOutB.init, xNilB.init, leftSource.setup0, rightSource.setup0),
+        close0 = Code(leftSource.close0, rightSource.close0),
+        setup = Code(pulledRight := false, rightEOS := false, xNilB := rNil, leftSource.setup, rightSource.setup),
+        close = Code(leftSource.close, rightSource.close),
+        pull = leftSource.pull)
+    }
+  }
+
   def extendNA[A: ParameterPack](stream: Stream[A]): Stream[COption[A]] = new Stream[COption[A]] {
     def apply(eos: Code[Ctrl], push: COption[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[COption[A]] = {
       val atEnd = newLocal[Code[Boolean]]
@@ -568,10 +625,11 @@ object EmitStream2 {
     val mb = emitter.mb
     val fb = mb.fb
 
-    def emitIR(ir: IR, env: Emit.E = env0, container: Option[AggContainer] = container): EmitTriplet =
-      emitter.emit(ir, env, er, container)
+    def emitStream(streamIR: IR, env: Emit.E): COption[Stream[EmitTriplet]] = {
 
-    def emitStream(streamIR: IR, env: Emit.E): COption[Stream[EmitTriplet]] =
+      def emitIR(ir: IR, env: Emit.E = env, container: Option[AggContainer] = container): EmitTriplet =
+        emitter.emit(ir, env, er, container)
+
       streamIR match {
 
         case StreamMap(childIR, name, bodyIR) =>
@@ -806,6 +864,7 @@ object EmitStream2 {
             EmitStream.apply(emitter, streamIR, env, er, container)
           fromParameterized(parameterized)(())
       }
+    }
 
     emitStream(streamIR0, env0)
   }

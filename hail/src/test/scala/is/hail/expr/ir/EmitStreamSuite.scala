@@ -128,6 +128,48 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
+  @Test def testES2LeftJoinDistinct() {
+    val f1 = compile2[Int, Int, Unit] { (mb, m, n) =>
+      val l = checkedRange(0, m, "left", mb)
+      val r = checkedRange(0, n, "right", mb)
+      val z = CodeStream.leftJoinRightDistinct[Code[Int], Code[Int]](
+        l.stream.map(i => (i / 2) * 2),
+        r.stream,
+        -1,
+        (i, j) => i - j)
+
+      Code(
+        l.init, r.init,
+        z.forEach(mb)(x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")"))),
+        l.assertClosed(1), r.assertClosed(1))
+    }
+    f1(6, 6)
+    f1(6, 3)
+    f1(3, 6)
+    f1(0, 3)
+    f1(3, 0)
+
+    val f2 = compile2[Int, Int, Unit] { (mb, m, n) =>
+      val l = checkedRange(0, m, "left", mb)
+      val r = checkedRange(0, n / 2, "right", mb)
+      val z = CodeStream.leftJoinRightDistinct[Code[Int], Code[Int]](
+        l.stream,
+        r.stream.map(i => i * 2),
+        -1,
+        (i, j) => i - j)
+
+      Code(
+        l.init, r.init,
+        z.forEach(mb)(x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")"))),
+        l.assertClosed(1), r.assertClosed(1))
+    }
+    f2(6, 6)
+    f2(6, 4)
+    f2(3, 6)
+    f2(0, 3)
+    f2(3, 0)
+  }
+
   @Test def testES2FlatMap() {
     val f = compile1[Int, Unit] { (mb, n) =>
       val outer = checkedRange(1, n, "outer", mb)
@@ -633,8 +675,11 @@ class EmitStreamSuite extends HailSuite {
       If(True(), xs, na) -> IndexedSeq(5, 3, 6),
       If(False(), xs, na) -> null,
       If(NA(TBoolean()), xs, ys) -> null,
-      StreamFlatMap(MakeStream(Seq(False(), True(), False()), TStream(TBoolean())),
-        "x", If(Ref("x", TBoolean()), xs, ys)) -> IndexedSeq(0, 1, 2, 3, 5, 3, 6, 0, 1, 2, 3)
+      StreamFlatMap(
+        MakeStream(Seq(False(), True(), False()), TStream(TBoolean())),
+        "x",
+        If(Ref("x", TBoolean()), xs, ys))
+        -> IndexedSeq(0, 1, 2, 3, 5, 3, 6, 0, 1, 2, 3)
     )
     val lens: Array[Option[Int]] = Array(Some(3), Some(4), Some(3), Some(0), Some(0), None)
     for (((ir, v), len) <- tests zip lens) {
