@@ -170,7 +170,6 @@ object ShuffleClient {
     }.clearingRun
     sc.runJob(addRdd, (it: Iterator[Unit]) => it.foreach(_ => ()), (_, _: Unit) => ())
     val keyBytes = shuffler.end_input()
-    val readParallelism = hc.flags.get("shuffle_read_parallelism").toInt
     val shuffledCRDD = ContextRDD.weaken[RVDContext](sc.parallelize((0 until parts), parts)).cflatMap { (ctx, _) =>
       val bufferKeys = shuffler.get(TaskContext.get.partitionId).map { bytes =>
         val bais = new ByteArrayInputStream(bytes)

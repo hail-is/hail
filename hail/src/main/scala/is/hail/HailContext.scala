@@ -829,6 +829,7 @@ class HailFeatureFlags {
       "max_leader_scans" -> "1000",
       "jvm_bytecode_dump" -> null,
       "shuffle_service_url" -> null,
+      "shuffle_buffer_spec" -> null,
       "buffer_service_url" -> null
     )
 
