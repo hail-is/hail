@@ -117,9 +117,8 @@ abstract class Backend {
     val codec = new is.hail.shuffler.Codec(TypedCodecSpec(EType.defaultFromPType(t), t.virtualType, bs))
     using(Region()) { r =>
       val off = codec.decode(b, r)
-      val jsonValue = JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(
-        new UnsafeRow(t.asInstanceOf[PBaseStruct], r, off), t.virtualType))
-      Serialization.write(jsonValue)(new DefaultFormats {})
+      JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(
+        UnsafeRow.read(t, r, off), t.virtualType))
     }
   }
 
