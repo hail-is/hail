@@ -94,7 +94,6 @@ class Shuffle (
             Ref("interval", intervalType.virtualType),
             Ref("key", wireKeyType.virtualType)),
           TBoolean(true)),
-        nSpecialArgs = 1,
         // if optimize = true we need a hail context
         optimize = false))
       val intervalContains = makeIntervalContains(0, region.get)
