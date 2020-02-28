@@ -529,7 +529,7 @@ steps:
      - base_image
      - build_hail
  - kind: deploy
-   name: hail_repl
+   name: deploy_hail_repl
    runIfRequested: true
    namespace:
      valueFrom: default_ns.name
