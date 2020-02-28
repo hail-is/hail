@@ -1410,6 +1410,6 @@ def test_group_within_partitions():
 
 
 def test_map__filter_region_memory():
-    high_mem_table = hl.utils.range_table(20).annotate(big_array=hl.zeros(100_000_000))
+    high_mem_table = hl.utils.range_table(20).naive_coalesce(1).annotate(big_array=hl.zeros(100_000_000))
     high_mem_table = high_mem_table.filter(high_mem_table.idx % 2 == 0)
     high_mem_table._force_count()
