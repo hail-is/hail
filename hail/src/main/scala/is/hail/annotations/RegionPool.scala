@@ -1,9 +1,11 @@
 package is.hail.annotations
 
 import is.hail.utils._
+import java.lang.ref.{ PhantomReference, ReferenceQueue }
+import scala.collection.mutable
 
 object RegionPool {
-  private lazy val thePool: ThreadLocal[RegionPool] = new ThreadLocal[RegionPool]() {
+  private[this] lazy val thePool: ThreadLocal[RegionPool] = new ThreadLocal[RegionPool]() {
     override def initialValue(): RegionPool = RegionPool()
   }
 
@@ -11,18 +13,76 @@ object RegionPool {
 
   def apply(strictMemoryCheck: Boolean = false): RegionPool = {
     val thread = Thread.currentThread()
-    new RegionPool(strictMemoryCheck, thread.getName, thread.getId)
+    val pool = new RegionPool(
+      new RegionPoolNativeMemoryOwner(
+        strictMemoryCheck, thread.getName, thread.getId))
+    RegionPoolNativeMemoryFreer.track(pool)
+    pool
   }
 }
 
-final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, threadID: Long) extends AutoCloseable {
+object RegionPoolNativeMemoryFreer {
+  private[this] var cleaner: Thread = null
+  private[this] var queue: ReferenceQueue[RegionPool] = null
+  private[this] var refs: mutable.Set[RegionPoolNativeMemoryFreer] = null
+
+  def track(pool: RegionPool) = this.synchronized {
+    if (cleaner == null) {
+      queue = new ReferenceQueue()
+      refs = mutable.Set()
+      cleaner = new Thread(new Runnable() {
+        def run() {
+          while (true) {
+            val phantomRef = queue.remove().asInstanceOf[RegionPoolNativeMemoryFreer]
+            phantomRef.nativeMemoryOwner.free()
+            refs.remove(phantomRef)
+          }
+        }
+      })
+      cleaner.start()
+    }
+
+    refs.add(new RegionPoolNativeMemoryFreer(pool, queue))
+  }
+}
+
+final class RegionPoolNativeMemoryFreer (
+  pool: RegionPool,
+  queue: ReferenceQueue[RegionPool]
+) extends PhantomReference[RegionPool](pool, queue) {
+  private val nativeMemoryOwner = pool.referent
+}
+
+final class RegionPool private (
+  protected[annotations] val referent: RegionPoolNativeMemoryOwner
+) {
+  def getTotalAllocatedBytes: Long = referent.getTotalAllocatedBytes
+  protected[annotations] def reclaim(memory: RegionMemory): Unit = referent.reclaim(memory)
+  protected[annotations] def getBlock(size: Int): Long = referent.getBlock(size)
+  protected[annotations] def getChunk(size: Long): Long = referent.getChunk(size)
+  protected[annotations] def freeChunks(ab: ArrayBuilder[Long], totalSize: Long): Unit = referent.freeChunks(ab, totalSize)
+  protected[annotations] def getMemory(size: Int): RegionMemory = referent.getMemory(size, this)
+  val freeBlocks = referent.freeBlocks
+  def getRegion(): Region = referent.getRegion(this)
+  def getRegion(size: Int): Region = referent.getRegion(size, this)
+  def numRegions(): Int = referent.numRegions()
+  def numFreeRegions(): Int = referent.numFreeRegions()
+  def numFreeBlocks(): Int = referent.numFreeBlocks()
+  def logStats(context: String): Unit = referent.logStats(context)
+}
+
+final class RegionPoolNativeMemoryOwner protected[annotations] (
+  strictMemoryCheck: Boolean,
+  threadName: String,
+  threadID: Long
+) {
   log.info(s"RegionPool: initialized for thread $threadID: $threadName")
   protected[annotations] val freeBlocks: Array[ArrayBuilder[Long]] = Array.fill[ArrayBuilder[Long]](4)(new ArrayBuilder[Long])
   protected[annotations] val regions = new ArrayBuilder[RegionMemory]()
-  private val freeRegions = new ArrayBuilder[RegionMemory]()
-  private val blocks: Array[Long] = Array(0L, 0L, 0L, 0L)
-  private var totalAllocatedBytes: Long = 0L
-  private var allocationEchoThreshold: Long = 256 * 1024
+  private[this] val freeRegions = new ArrayBuilder[RegionMemory]()
+  private[this] val blocks: Array[Long] = Array(0L, 0L, 0L, 0L)
+  private[this] var totalAllocatedBytes: Long = 0L
+  private[this] var allocationEchoThreshold: Long = 256 * 1024
 
   def getTotalAllocatedBytes: Long = totalAllocatedBytes
 
@@ -63,24 +123,24 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     totalAllocatedBytes -= totalSize
   }
 
-  protected[annotations] def getMemory(size: Int): RegionMemory = {
+  protected[annotations] def getMemory(size: Int, pool: RegionPool): RegionMemory = {
     if (freeRegions.size > 0) {
       val rm = freeRegions.pop()
       rm.initialize(size)
       rm
     } else {
-      val rm = new RegionMemory(this)
+      val rm = new RegionMemory(pool)
       rm.initialize(size)
       regions += rm
       rm
     }
   }
 
-  def getRegion(): Region = getRegion(Region.REGULAR)
+  def getRegion(pool: RegionPool): Region = getRegion(Region.REGULAR, pool)
 
-  def getRegion(size: Int): Region = {
-    val r = new Region(size, this)
-    r.memory = getMemory(size)
+  def getRegion(size: Int, pool: RegionPool): Region = {
+    val r = new Region(size, pool)
+    r.memory = getMemory(size, pool)
     r
   }
 
@@ -106,7 +166,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
          |       used: ${ usedBlockCounts.mkString(", ") }""".stripMargin)
   }
 
-  def report(context: String): Unit = {
+  private[this] def report(context: String): Unit = {
     var inBlocks = 0L
     var i = 0
     while (i < 4) {
@@ -118,9 +178,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
       s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), thread $threadID: $threadName")
   }
 
-  override def finalize(): Unit = close()
-
-  def close(): Unit = {
+  def free(): Unit = {
     report("FREE")
 
     var i = 0
