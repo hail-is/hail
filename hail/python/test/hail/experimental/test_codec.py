@@ -28,13 +28,13 @@ def test_encode_basics():
 def test_decode_basics():
     result = hl.experimental.decode(hl.tint32,
                                     'PInt32',
-                                    bytes.from_hex('01000000'),
+                                    bytes.fromhex('01000000'),
                                     UNBLOCKED_UNBUFFERED_SPEC)
     assert result == 1
 
     result = hl.experimental.decode(hl.tint32,
                                     'PInt32',
-                                    bytes.from_hex('ffffffff'),
+                                    bytes.fromhex('ffffffff'),
                                     UNBLOCKED_UNBUFFERED_SPEC)
     assert result == -1
 
