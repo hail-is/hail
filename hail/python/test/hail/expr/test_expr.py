@@ -3035,8 +3035,9 @@ class Tests(unittest.TestCase):
     def test_format(self):
         self.assertEqual(hl.eval(hl.format("%.4f %s %.3e", 0.25, 'hello', 0.114)), '0.2500 hello 1.140e-01')
         self.assertEqual(hl.eval(hl.format("%.4f %d", hl.null(hl.tint32), hl.null(hl.tint32))), 'null null')
-        self.assertEqual(hl.eval(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5])))), '[5,true,[4,5]]')
-        self.assertEqual(hl.eval(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.null(hl.tstr)]))), '1:356 [9,true,null]')
+        self.assertEqual(hl.eval(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5])))),
+                         '{foo: 5, bar: true, baz: [4,5]}')
+        self.assertEqual(hl.eval(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.null(hl.tstr)]))), '1:356 (9, true, null)')
         self.assertEqual(hl.eval(hl.format("%b %B %b %b", hl.null(hl.tint), hl.null(hl.tstr), True, "hello")), "false FALSE true true")
 
     def test_dict_and_set_type_promotion(self):

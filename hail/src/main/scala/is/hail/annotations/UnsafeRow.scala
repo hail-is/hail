@@ -102,21 +102,39 @@ class UnsafeRow(var t: PBaseStruct,
   var region: Region, var offset: Long) extends Row with UnKryoSerializable {
 
   override def toString: String = {
-    val sb = new StringBuilder()
-    var i = 0
-    sb += '{'
-    while (i < t.size) {
-      if (i != 0) {
-        sb ++= ", "
+    if (t.isInstanceOf[PStruct]) {
+      val sb = new StringBuilder()
+      var i = 0
+      sb += '{'
+      while (i < t.size) {
+        if (i != 0) {
+          sb ++= ", "
+        }
+        sb ++= t.fieldNames(i)
+        sb ++= ": "
+        val x = get(i)
+        sb ++= (if (x == null) "null" else x.toString())
+        i += 1
       }
-      sb ++= t.fieldNames(i)
-      sb ++= ": "
-      val x = get(i)
-      sb ++= (if (x == null) "null" else x.toString())
-      i += 1
+      sb += '}'
+      sb.toString
+    } else if (t.isInstanceOf[PTuple]) {
+      val sb = new StringBuilder()
+      var i = 0
+      sb += '('
+      while (i < t.size) {
+        if (i != 0) {
+          sb ++= ", "
+        }
+        val x = get(i)
+        sb ++= (if (x == null) "null" else x.toString())
+        i += 1
+      }
+      sb += ')'
+      sb.toString
+    } else {
+      super.toString
     }
-    sb += '}'
-    sb.toString
   }
 
   def this(t: PBaseStruct, rv: RegionValue) = this(t, rv.region, rv.offset)

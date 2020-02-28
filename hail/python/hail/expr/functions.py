@@ -5264,7 +5264,7 @@ def format(f, *args):
     'null'
 
     >>> hl.eval(hl.format('%s %s %s', 'hello', hl.tuple([3, hl.locus('1', 2453)]), True))
-    'hello [3,1:2453] true'
+    'hello (3, 1:2453) true'
 
     Notes
     -----
