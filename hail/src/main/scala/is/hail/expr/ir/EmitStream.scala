@@ -717,6 +717,27 @@ object EmitStream2 {
             }
           }
 
+        case ToStream(containerIR) =>
+          val aType = coerce[PContainer](containerIR.pType)
+          val eltType = aType.elementType
+
+          COption.fromEmitTriplet[Long](emitIR(containerIR, env)).mapCPS { (containerAddr, k) =>
+            val xAddr = fb.newField[Long]("a_off")
+            val newStream = range(0, 1, aType.loadLength(xAddr)).map { i =>
+              EmitTriplet(
+                Code._empty,
+                aType.isElementMissing(xAddr, i),
+                Region.loadIRIntermediate(eltType)(aType.elementOffset(xAddr, i)))
+            }
+            val len = mb.newLocal[Int]
+
+            Code(
+              xAddr := containerAddr,
+              k(SizedStream(
+                newStream,
+                Some((len := aType.loadLength(xAddr), len)))))
+          }
+
         case StreamMap(childIR, name, bodyIR) =>
           val childEltType = coerce[PStream](childIR.pType).elementType
           implicit val childEltPack = TypedTriplet.pack(childEltType)
