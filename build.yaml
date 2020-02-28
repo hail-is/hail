@@ -479,16 +479,20 @@ steps:
      cd repo
      {{ code.checkout_script }}
      cd hail
-     make jars python-version-info
+     make jars python-version-info wheel
+     ./gradlew jar
      (cd python && zip -r hail.zip hail hailtop)
      tar czf test.tar.gz -C python test
      tar czf resources.tar.gz -C src/test resources
      tar czf data.tar.gz -C python/hail/docs data
      tar czf www-src.tar.gz www
      tar czf cluster-tests.tar.gz python/cluster-tests
+     (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
    outputs:
      - from: /io/repo/hail/build/libs/hail-all-spark.jar
        to: /hail.jar
+     - from: /io/repo/hail/build/libs/hail.jar
+       to: /hail-no-spark.jar
      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
        to: /hail-test.jar
      - from: /io/repo/hail/testng.xml
@@ -499,6 +503,8 @@ steps:
        to: /testng-distributed-backend.xml
      - from: /io/repo/hail/python/hail.zip
        to: /hail.zip
+     - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
+       to: /wheel-container.tar
      - from: /io/repo/hail/test.tar.gz
        to: /test.tar.gz
      - from: /io/repo/hail/resources.tar.gz
@@ -511,6 +517,25 @@ steps:
        to: /cluster-tests.tar.gz
    dependsOn:
     - hail_build_image
+ - kind: buildImage
+   name: hail_repl_image
+   dockerFile: hail/Dockerfile.hail-repl
+   contextPath: hail
+   publishAs: hail-run
+   inputs:
+    - from: /wheel-container.tar
+      to: /wheel-container.tar
+   dependsOn:
+     - base_image
+     - build_hail
+ - kind: deploy
+   name: hail_repl
+   runIfRequested: true
+   namespace:
+     valueFrom: default_ns.name
+   config: hail/hail_repl.yaml
+   dependsOn:
+    - default_ns
  - kind: runImage
    name: test_hail_java
    image:
