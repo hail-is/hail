@@ -47,7 +47,7 @@ abstract sealed class TableIR extends BaseIR {
     // FIXME: store table literal in cache, return ID
     ExecuteContext.scoped { ctx =>
       val tv = Interpret(this, ctx, optimize = true)
-      TableLiteral(tv, ctx)
+      TableLiteral(tv.persist(storageLevel), ctx)
     }
   }
 

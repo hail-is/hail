@@ -173,6 +173,9 @@ object InferPType {
 
         val allRequired = start.pType2.required && stop.pType2.required && step.pType2.required
         PStream(start.pType2.setRequired(true), allRequired)
+      case ArrayZeros(length) =>
+        infer(length)
+        PCanonicalArray(PInt32(true), length.pType2.required)
       case ArrayLen(a: IR) =>
         infer(a)
 

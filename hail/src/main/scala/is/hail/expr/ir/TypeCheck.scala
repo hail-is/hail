@@ -161,6 +161,8 @@ object TypeCheck {
         assert(a.typ.isOfType(TInt32()))
         assert(b.typ.isOfType(TInt32()))
         assert(c.typ.isOfType(TInt32()))
+      case x@ArrayZeros(length) =>
+        assert(length.typ.isOfType(TInt32()))
       case x@MakeNDArray(data, shape, rowMajor) =>
         assert(data.typ.isInstanceOf[TArray])
         assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t.isInstanceOf[TInt64]))

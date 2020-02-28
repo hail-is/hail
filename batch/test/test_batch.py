@@ -203,6 +203,31 @@ class Test(unittest.TestCase):
 
         assert_batch_ids({b2.id}, f'tag={tag} name=b2')
 
+    def test_list_jobs(self):
+        b = self.client.create_batch()
+        j_success = b.create_job('ubuntu:18.04', ['true'])
+        j_failure = b.create_job('ubuntu:18.04', ['false'])
+        j_error = b.create_job('ubuntu:18.04', ['sleep 5'], attributes={'tag': 'bar'})
+        j_running = b.create_job('ubuntu:18.04', ['sleep', '1800'], attributes={'tag': 'foo'})
+
+        b = b.submit()
+        j_success.wait()
+        j_failure.wait()
+        j_error.wait()
+
+        def assert_job_ids(expected, q=None):
+            actual = set([j['job_id'] for j in b.jobs(q=q)])
+            assert actual == expected
+
+        assert_job_ids({j_success.job_id}, 'success')
+        assert_job_ids({j_success.job_id, j_failure.job_id, j_error.job_id}, 'done')
+        assert_job_ids({j_running.job_id}, '!done')
+        assert_job_ids({j_running.job_id}, 'tag=foo')
+        assert_job_ids({j_error.job_id, j_running.job_id}, 'has:tag')
+        assert_job_ids({j_success.job_id, j_failure.job_id, j_error.job_id, j_running.job_id}, None)
+
+        b.cancel()
+
     def test_include_jobs(self):
         b1 = self.client.create_batch()
         for i in range(2):
@@ -433,6 +458,13 @@ echo $HAIL_BATCH_WORKER_IP
         batch = b.wait()
         print(j.log())
         assert batch['state'] == 'success', batch
+
+    def test_timeout(self):
+        builder = self.client.create_batch()
+        j = builder.create_job('ubuntu:18.04', ['sleep', '30'], timeout=5)
+        b = builder.submit()
+        status = j.wait()
+        self.assertEqual(status['state'], 'Error', (status, j.log()))
 
     def test_client_max_size(self):
         builder = self.client.create_batch()

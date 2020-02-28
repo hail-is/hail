@@ -158,6 +158,7 @@ object ArrayRef {
 
 final case class ArrayRef(a: IR, i: IR, msg: IR) extends IR
 final case class ArrayLen(a: IR) extends IR
+final case class ArrayZeros(length: IR) extends IR
 final case class StreamRange(start: IR, stop: IR, step: IR) extends IR
 
 object ArraySort {

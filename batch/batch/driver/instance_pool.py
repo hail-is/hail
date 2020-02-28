@@ -153,8 +153,15 @@ SET max_instances = %s, pool_size = %s;
             if machine_name not in self.name_instance:
                 break
 
-        zone_letter = random.choice(['a', 'b', 'c', 'f'])
-        zone = f'us-central1-{zone_letter}'
+        if self.live_free_cores_mcpu < 50_000_000:
+            zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
+            zone = random.choice(zones)
+        else:
+            zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f', 'us-east1-a', 'us-east1-b', 'us-east1-c', 'us-east4-a', 'us-east4-b', 'us-east4-c', 'us-west1-a', 'us-west1-b', 'us-west1-c', 'us-west2-a', 'us-west2-b', 'us-west2-c']
+            # based on quotas, us-central1: 300K over 4 zones, rest: 100K over 3 zones
+            weights = 4 * [250 / 4] + 12 * [100 / 3]
+
+            zone = random.choices(zones, weights)[0]
 
         activation_token = secrets.token_urlsafe(32)
         instance = await Instance.create(self.app, machine_name, activation_token, self.worker_cores * 1000, zone)
@@ -196,7 +203,7 @@ SET max_instances = %s, pool_size = %s;
             },
 
             'serviceAccounts': [{
-                'email': 'batch2-agent@hail-vdc.iam.gserviceaccount.com',
+                'email': f'batch2-agent@{PROJECT}.iam.gserviceaccount.com',
                 'scopes': [
                     'https://www.googleapis.com/auth/cloud-platform'
                 ]

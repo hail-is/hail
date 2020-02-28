@@ -709,13 +709,13 @@ class Aggregators2Suite extends HailSuite {
   @Test def testRunAggScan(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
     val sig = AggSignature(Sum(), FastSeq(), FastSeq(TFloat64()))
-    val x = RunAggScan(
+    val x = ToArray(RunAggScan(
       StreamRange(I32(0), I32(5), I32(1)),
       "foo",
       InitOp(0, FastSeq(), sig),
       SeqOp(0, FastIndexedSeq(Ref("foo", TInt32()).toD), sig),
       GetTupleElement(ResultOp(0, Array(sig.singletonContainer)), 0),
-      Array(sig.singletonContainer))
+      Array(sig.singletonContainer)))
     assertEvalsTo(x, FastIndexedSeq(0.0, 0.0, 1.0, 3.0, 6.0))
   }
 

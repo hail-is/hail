@@ -248,6 +248,23 @@ async def sleep_and_backoff(delay):
     return min(delay * 2, 60.0)
 
 
+def retry_all_errors(msg=None, error_logging_interval=10):
+    async def _wrapper(f, *args, **kwargs):
+        delay = 0.1
+        errors = 0
+        while True:
+            try:
+                return await f(*args, **kwargs)
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception:
+                errors += 1
+                if msg and errors % error_logging_interval == 0:
+                    log.exception(msg, stack_info=True)
+            delay = await sleep_and_backoff(delay)
+    return _wrapper
+
+
 async def retry_transient_errors(f, *args, **kwargs):
     delay = 0.1
     errors = 0
@@ -281,18 +298,6 @@ async def request_raise_transient_errors(session, method, url, **kwargs):
 
 async def collect_agen(agen):
     return [x async for x in agen]
-
-
-async def retry_forever(f, msg=None):
-    delay = 0.1
-    while True:
-        try:
-            await f()
-            break
-        except Exception as exc:
-            if msg:
-                log.info(msg(exc), exc_info=True)
-        await sleep_and_backoff(delay)
 
 
 async def retry_long_running(name, f, *args, **kwargs):
@@ -338,8 +343,9 @@ class LoggingTimerStep:
 
 
 class LoggingTimer:
-    def __init__(self, description):
+    def __init__(self, description, threshold_ms=None):
         self.description = description
+        self.threshold_ms = threshold_ms
         self.timing = {}
         self.start_time = None
 
@@ -352,6 +358,7 @@ class LoggingTimer:
 
     async def __aexit__(self, exc_type, exc, tb):
         finish_time = time_msecs()
-        self.timing['total'] = finish_time - self.start_time
-
-        log.info(f'{self.description} timing {self.timing}')
+        total = finish_time - self.start_time
+        if self.threshold_ms is None or total > self.threshold_ms:
+            self.timing['total'] = total
+            log.info(f'{self.description} timing {self.timing}')

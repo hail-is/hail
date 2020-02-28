@@ -21,19 +21,20 @@ import re
 #     'memory': str,
 #     'cpu': str
 #   },
-#   secrets: [{
+#   'secrets': [{
 #     'namespace': str,
 #     'name': str,
 #     'mount_path': str
 #   }],
-#   service_account: {
+#   'service_account': {
 #     'namespace': str,
 #     'name': str
-#   }
+#   },
+#   'timeout': float or int
 # }]
 
 JOB_KEYS = {
-    'always_run', 'attributes', 'command', 'env', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'resources', 'secrets', 'service_account'
+    'always_run', 'attributes', 'command', 'env', 'image', 'input_files', 'job_id', 'mount_docker_socket', 'output_files', 'parent_ids', 'pvc_size', 'port', 'resources', 'secrets', 'service_account', 'timeout'
 }
 
 ENV_VAR_KEYS = {'name', 'value'}
@@ -292,6 +293,13 @@ def validate_job(i, job):
             raise ValidationError(f'length of jobs[{i}].service_account.name must be <= 253')
         if not K8S_NAME_REGEX.fullmatch(name):
             raise ValidationError(f'jobs[{i}].service_account.name must match regex: {K8S_NAME_REGEXPAT}')
+
+    if 'timeout' in job:
+        timeout = job['timeout']
+        if not isinstance(timeout, float) and not isinstance(timeout, int):
+            raise ValidationError(f'jobs[{i}].timeout not numeric')
+        if timeout < 0:
+            raise ValidationError(f'jobs[{i}].timeout is not a positive number')
 
 
 # rough schema

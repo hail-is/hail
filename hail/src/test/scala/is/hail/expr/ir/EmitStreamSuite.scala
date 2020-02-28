@@ -274,7 +274,11 @@ class EmitStreamSuite extends HailSuite {
                 println(s"STREAM IR IS ${streamIR}")
     InferPType(streamIR, Env.empty)
     val stream = ExecuteContext.scoped { ctx =>
-      EmitStream(new Emit(ctx, mb), streamIR, Env.empty, EmitRegion.default(mb), None)
+      val s = streamIR match {
+        case ToArray(s) => s
+        case s => s
+      }
+      EmitStream(new Emit(ctx, mb), s, Env.empty, EmitRegion.default(mb), None)
     }
     mb.emit {
       println(s"STREAM TYPE IS ${stream.elementType}")
@@ -543,7 +547,7 @@ class EmitStreamSuite extends HailSuite {
     val intsType = TArray(TInt32())
 
     assertAggScan(
-      ArrayAggScan(ToStream(In(0, TArray(pairType))),
+      ArrayAggScan(In(0, TArray(pairType)),
         "foo",
         GetField(Ref("foo", pairType), "y") +
           GetField(

@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, RegionValue}
+import is.hail.annotations.{Region, RegionValue, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
@@ -83,6 +83,8 @@ object CodeStream { self =>
 
     def fold[S: ParameterPack](s0: S, f: (A, S) => S, ret: S => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
       CodeStream.fold(this, s0, f, ret)
+    def foldCPS[S: ParameterPack](s0: S, f: (A, S, S => Code[Ctrl]) => Code[Ctrl], ret: S => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
+      CodeStream.foldCPS(this, s0, f, ret)
     def forEach(f: A => Code[Unit], ret: Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
       CodeStream.forEach(this, f, ret)
     def forEach(mb: MethodBuilder)(f: A => Code[Unit]): Code[Unit] =
@@ -142,13 +144,16 @@ object CodeStream { self =>
                     (xCur.load, (xCur.load + step, xRem.load)))))
       })
 
-  def fold[A, S: ParameterPack](stream: Stream[A], s0: S, f: (A, S) => S, ret: S => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+  def fold[A, S: ParameterPack](stream: Stream[A], s0: S, f: (A, S) => S, ret: S => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
+    foldCPS[A, S](stream, s0, (a, s, k) => k(f(a, s)), ret)
+
+  def foldCPS[A, S: ParameterPack](stream: Stream[A], s0: S, f: (A, S, S => Code[Ctrl]) => Code[Ctrl], ret: S => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
     val s = newLocal[S]
     val pullJP = joinPoint()
     val eosJP = joinPoint()
     val source = stream(
       eos = eosJP(()),
-      push = a => Code(s := f(a, s.load), pullJP(())))
+      push = a => f(a, s.load, s1 => Code(s := s1, pullJP(()))))
     eosJP.define(_ => Code(source.close0, ret(s.load)))
     pullJP.define(_ => source.pull)
     Code(s := s0, source.setup0, source.setup, pullJP(()))
@@ -372,6 +377,37 @@ object CodeStream { self =>
 object EmitStream2 {
   import CodeStream._
 
+  def write(mb: MethodBuilder, stream: Stream[EmitTriplet], ab: StagedArrayBuilder): Code[Unit] =
+    Code(
+      ab.clear,
+      stream.forEach(mb) { et =>
+        Code(et.setup, et.m.mux(ab.addMissing(), ab.add(et.v)))
+      })
+
+  def toArray(mb: MethodBuilder, aTyp: PArray, optStream: COption[Stream[EmitTriplet]]): EmitTriplet = {
+    // FIXME: add fast path when stream length is known
+    val srvb = new StagedRegionValueBuilder(mb, aTyp)
+    val len = mb.newLocal[Int]
+    val i = mb.newLocal[Int]
+    val vab = new StagedArrayBuilder(aTyp.elementType, mb, 16)
+    val result = optStream.map { stream =>
+      Code(
+        write(mb, stream, vab),
+        len := vab.size,
+        srvb.start(len, init = true),
+        i := 0,
+        Code.whileLoop(i < len,
+                       vab.isMissing(i).mux(
+                         srvb.setMissing(),
+                         srvb.addIRIntermediate(aTyp.elementType)(vab(i))),
+                       i := i + 1,
+                       srvb.advance()),
+        srvb.offset)
+    }
+
+    COption.toEmitTriplet(result, typeToTypeInfo(aTyp), mb)
+  }
+
   private[ir] def apply(
     emitter: Emit,
     streamIR0: IR,
@@ -379,13 +415,34 @@ object EmitStream2 {
     er: EmitRegion,
     container: Option[AggContainer]
   ): COption[Stream[EmitTriplet]] = {
-    val fb = emitter.mb.fb
+    val mb = emitter.mb
+    val fb = mb.fb
 
     def emitIR(ir: IR, env: Emit.E): EmitTriplet =
       emitter.emit(ir, env, er, container)
 
     def emitStream(streamIR: IR, env: Emit.E): COption[Stream[EmitTriplet]] =
       streamIR match {
+
+        case ArrayMap(childIR, name, bodyIR) =>
+          val childEltType = childIR.pType.asInstanceOf[PStreamable].elementType
+          implicit val childEltPack = TypedTriplet.pack(childEltType)
+          val childEltTI = typeToTypeInfo(childEltType)
+
+          val optStream = emitStream(childIR, env)
+          optStream.map { stream =>
+            stream.map { eltt =>
+              val xElt = childEltPack.newFields(mb.fb, name)
+              val bodyenv = env.bind(name -> ((childEltTI, xElt.load.m, xElt.load.v)))
+              val bodyt = emitIR(bodyIR, bodyenv)
+
+              EmitTriplet(
+                Code(xElt := TypedTriplet(childEltType, eltt),
+                     bodyt.setup),
+                bodyt.m,
+                bodyt.v)
+            }
+          }
 
         case _ =>
           val EmitStream(parameterized, eltType) =

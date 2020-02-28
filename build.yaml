@@ -896,6 +896,7 @@ steps:
     - from: /repo/batch/test
       to: /io/
    port: 5000
+   timeout: 1200
    secrets:
     - name: gce-deploy-config
       namespace:
@@ -1012,6 +1013,7 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /secret/ci-secrets
+   timeout: 1200
    scopes:
     - test
     - dev
@@ -1052,6 +1054,7 @@ steps:
    inputs:
     - from: /repo/pipeline/test
       to: /io/
+   timeout: 1200
    secrets:
     - name: gce-deploy-config
       namespace:
@@ -1095,6 +1098,7 @@ steps:
     - base_image
     - copy_files
     - deploy_batch
+   timeout: 1200   
    inputs:
     - from: /repo/hailtop
       to: /io/
@@ -1313,6 +1317,7 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /home/hail/.hail
+   timeout: 1200
    scopes:
     - dev
     - test
