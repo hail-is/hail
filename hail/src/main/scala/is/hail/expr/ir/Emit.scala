@@ -271,7 +271,7 @@ private class Emit(
     def wrapToMethod(irs: Seq[IR], env: E = env, container: Option[AggContainer] = container)(useValues: (EmitMethodBuilder, PType, EmitTriplet) => Code[Unit]): Code[Unit] =
       this.wrapToMethod(irs, env, container)(useValues)
 
-    def emitStream(ir: IR): COption[Stream[EmitTriplet]] =
+    def emitStream(ir: IR): COption[EmitStream2.SizedStream] =
       EmitStream2(this, ir, env, er, container)
 
     def emitDeforestedNDArray(ir: IR) =
@@ -504,7 +504,8 @@ private class Emit(
         val atyp = coerce[PIterable](x.pType)
         val eltType = atyp.elementType
         val eltVType = eltType.virtualType
-        val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
+
+        val vab = new StagedArrayBuilder(atyp.elementType, mb, 0)
         val sorter = new ArraySorter(er, vab)
 
         val (array, compare, distinct, leftRightComparatorNames: Array[String]) = (x: @unchecked) match {
@@ -607,7 +608,7 @@ private class Emit(
           case DoubleInfo => makeDependentSortingFunction[Double](etyp, compare, env, leftRightComparatorNames)
         }
 
-        val nab = new StagedArrayBuilder(PInt32(), mb, 16)
+        val nab = new StagedArrayBuilder(PInt32(), mb, 0)
         val i = mb.newLocal[Int]
 
         def loadKey(n: Code[Int]): Code[_] =
@@ -720,7 +721,7 @@ private class Emit(
           def retTT(acc: TypedTriplet[accType.type]): Code[Ctrl] =
             ret(COption.fromEmitTriplet(acc.untyped))
 
-          stream.map(TypedTriplet(eltType, _))
+          stream.stream.map(TypedTriplet(eltType, _))
                 .fold(mb)(TypedTriplet(accType, codeZ), foldBody, retTT)
         }
 
@@ -762,7 +763,7 @@ private class Emit(
           def computeRes(accs: IndexedSeq[TypedTriplet[_]]): Code[Ctrl] =
             Code(accVars := accs, ret(COption.fromEmitTriplet(codeR)))
 
-          stream.map(TypedTriplet(eltType, _))
+          stream.stream.map(TypedTriplet(eltType, _))
             .foldCPS(mb)(zero, foldBody, computeRes)
         }
 
@@ -787,7 +788,7 @@ private class Emit(
           streamOpt.cases[Unit](mb)(
             Code._empty,
             stream =>
-              stream.map(TypedTriplet(eltType, _)).forEach(mb)(forBody)),
+              stream.stream.map(TypedTriplet(eltType, _)).forEach(mb)(forBody)),
           const(false),
           PValue._empty)
 
@@ -1720,14 +1721,19 @@ private class Emit(
             srvb.offset)
         }
 
-        def addContexts(ctxStream: Stream[EmitTriplet]): Code[Unit] =
-          ctxStream.map(etToTuple(_, ctxType)).forEach(mb) { offset =>
-            Code(
-              baos.invoke[Unit]("reset"),
-              cEnc(region, offset, buf),
-              buf.invoke[Unit]("flush"),
-              ctxab.invoke[Array[Byte], Unit]("add", baos.invoke[Array[Byte]]("toByteArray")))
-          }
+        def addContexts(ctxStream: EmitStream2.SizedStream): Code[Unit] =
+          Code(
+            ctxStream.length match {
+              case None => ctxab.invoke[Int, Unit]("ensureCapacity", 16)
+              case Some((setupLen, len)) => Code(setupLen, ctxab.invoke[Int, Unit]("ensureCapacity", len))
+            },
+            ctxStream.stream.map(etToTuple(_, ctxType)).forEach(mb) { offset =>
+              Code(
+                baos.invoke[Unit]("reset"),
+                cEnc(region, offset, buf),
+                buf.invoke[Unit]("flush"),
+                ctxab.invoke[Array[Byte], Unit]("add", baos.invoke[Array[Byte]]("toByteArray")))
+            })
 
         val addGlobals = Code(
           gEnc(region, etToTuple(globalsT, gType), buf),
