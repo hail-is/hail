@@ -132,6 +132,11 @@ async def create_container(config, name):
                             continue
                         log.exception(f'encountered 10 errors while creating container {name}, aborting', stack_info=True)
                         raise
+            # DockerError(404, 'No such image: ...')
+            if e.status == 404 and "No such image" in e.message:
+                # We must have successfully pulled the image before to get to this point
+                delay = await sleep_and_backoff(delay)
+                continue
             raise
 
 
