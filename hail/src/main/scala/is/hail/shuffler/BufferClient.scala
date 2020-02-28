@@ -21,10 +21,8 @@ object BufferClient {
     var rootUrl = maybeRootUrl
     if (rootUrl == null) {
       rootUrl = HailContext.get.flags.get("buffer_service_url")
-      if (rootUrl == null) {
-        rootUrl = "http://localhost:5000"
-      }
     }
+    assert(rootUrl != null)
     val client = new BufferClient(
       rootUrl,
       HTTPClient.post(s"${rootUrl}/s",
