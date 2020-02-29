@@ -461,8 +461,7 @@ private class Emit(
         EmitTriplet(setup, codeBody.m, codeBody.pv)
       case Ref(name, _) =>
         val (m, v) = env.lookup(name)
-        // FIXME Why is the strip necessary?
-        assert(-v.pt == -pt, s"${ v.pt } != $pt")
+        assert(v.pt == pt, s"${ v.pt } != $pt")
         EmitTriplet(Code._empty, m, v)
 
       case ApplyBinaryPrimOp(op, l, r) =>

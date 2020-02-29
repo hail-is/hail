@@ -426,7 +426,7 @@ object EmitStream2 {
       streamIR match {
 
         case StreamMap(childIR, name, bodyIR) =>
-          val childEltType = childIR.pType.asInstanceOf[PStream].elementType
+          val childEltType = -childIR.pType.asInstanceOf[PStream].elementType
           implicit val childEltPack = TypedTriplet.pack(childEltType)
           val optStream = emitStream(childIR, env)
           optStream.map { stream =>
@@ -1085,7 +1085,7 @@ object EmitStream {
               )))
 
         case StreamMap(childIR, name, bodyIR) =>
-          val childEltType = childIR.pType.asInstanceOf[PStreamable].elementType
+          val childEltType = -childIR.pType.asInstanceOf[PStreamable].elementType
           emitStream(childIR, env).map { eltt =>
             val eltm = fb.newField[Boolean](name + "_missing")
             val eltv = fb.newPField(name, childEltType)
