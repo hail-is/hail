@@ -610,7 +610,7 @@ private class Emit(
         EmitTriplet(et.setup, et.m, PValue(pt, et.v))
 
       case ToArray(a) =>
-        emitArrayIterator(a).toEmitTriplet(mb, PArray(coerce[PStream](ir.pType).elementType))
+        emitArrayIterator(a).toEmitTriplet(mb, pt.asInstanceOf[PArray])
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val typ: PContainer = coerce[PIterable](orderedCollection.pType).asPContainer
