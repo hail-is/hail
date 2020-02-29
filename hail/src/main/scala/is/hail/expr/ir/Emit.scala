@@ -770,7 +770,7 @@ private class Emit(
           val codeZ = emit(zero)
 
           def retTT(acc: TypedTriplet[accType.type]): Code[Ctrl] =
-            ret(COption.fromEmitTriplet(acc.untyped)
+            ret(COption.fromEmitTriplet(acc.untyped))
 
           stream.map(TypedTriplet(eltType, _))
                 .fold(TypedTriplet(accType, codeZ), foldBody, retTT)
@@ -1819,7 +1819,7 @@ private class Emit(
               "collectDArray", functionID,
               ctxab.invoke[Array[Array[Byte]]]("result"),
               baos.invoke[Array[Byte]]("toByteArray")),
-            decodeResult))
+            decodeResult)))
 
       case x@TailLoop(name, args, body) =>
         val loopRefs = args.map { case (name, ir) =>
