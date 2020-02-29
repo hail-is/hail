@@ -134,7 +134,7 @@ case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]
             Code(
               m.mux(
                 srvb.setMissing(),
-                srvb.addIRIntermediate(aTyp.elementType)(v.code)),
+                srvb.addIRIntermediate(v.pt)(v.code)),
               srvb.advance()))
         }
         val processAElts = arrayEmitter(cont)
@@ -142,8 +142,7 @@ case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]
           calcLength,
           srvb.start(len, init = true),
           processAElts.addElements,
-          srvb.offset
-        )))
+          srvb.offset)))
 
       case None =>
         val len = mb.newLocal[Int]
