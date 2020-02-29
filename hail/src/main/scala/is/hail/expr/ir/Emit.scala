@@ -461,7 +461,7 @@ private class Emit(
         EmitTriplet(setup, codeBody.m, codeBody.pv)
       case Ref(name, _) =>
         val (m, v) = env.lookup(name)
-        assert(v.pt == pt, s"${ v.pt } != $pt")
+        assert(v.pt == pt, s"$name, ${ v.pt } != $pt")
         EmitTriplet(Code._empty, m, v)
 
       case ApplyBinaryPrimOp(op, l, r) =>
@@ -747,7 +747,7 @@ private class Emit(
         EmitTriplet(lengthTriplet.setup, lengthTriplet.m, PValue(pt, result))
 
       case StreamFold(a, zero, accumName, valueName, body) =>
-        val eltType = coerce[PStream](a.pType).elementType
+        val eltType = -coerce[PStream](a.pType).elementType
         val accType = ir.pType
         implicit val eltPack = TypedTriplet.pack(eltType)
         implicit val accPack = TypedTriplet.pack(accType)
