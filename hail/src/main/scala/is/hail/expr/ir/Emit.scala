@@ -1943,7 +1943,7 @@ private class Emit(
     x match {
       case NDArrayMap(child, elemName, body) =>
         val childP = child.pType.asInstanceOf[PNDArray]
-        val elemPType = childP.elementType
+        val elemPType = -childP.elementType
         val elemRef = mb.newPField(elemName, elemPType)
         val bodyEnv = env.bind(elemName, (const(false), elemRef.load()))
         val bodyt = this.emit(body, bodyEnv, er, None)
@@ -1966,11 +1966,8 @@ private class Emit(
         val lP = coerce[PNDArray](lChild.pType)
         val rP = coerce[PNDArray](rChild.pType)
 
-        val lVti = typeToTypeInfo(lP.elementType.virtualType)
-        val rVti = typeToTypeInfo(rP.elementType.virtualType)
-
-        val lElemRef = mb.newPField(lName, lP.elementType)
-        val rElemRef = mb.newPField(rName, rP.elementType)
+        val lElemRef = mb.newPField(lName, -lP.elementType)
+        val rElemRef = mb.newPField(rName, -rP.elementType)
 
         val bodyEnv = env.bind(lName, (const(false), lElemRef.load()))
                          .bind(rName, (const(false), rElemRef.load()))
