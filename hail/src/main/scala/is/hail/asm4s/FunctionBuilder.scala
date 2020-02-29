@@ -528,4 +528,3 @@ class Function5Builder[A1 : TypeInfo, A2 : TypeInfo, A3 : TypeInfo, A4 : TypeInf
 
   def arg5 = getArg[A5](5)
 }
-

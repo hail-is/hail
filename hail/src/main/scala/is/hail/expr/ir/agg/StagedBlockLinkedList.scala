@@ -130,7 +130,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
       Code(
         i := 0,
         Code.whileLoop(i < count(n),
-          f(EmitTriplet(Code._empty, bufim, bufiv)),
+          f(EmitTriplet(Code._empty, bufim, PValue(elemType, bufiv))),
           i := i + 1))
     }
   }

@@ -129,6 +129,30 @@ class EmitMethodBuilder(
     fb.getCodeOrdering(t1, t2, sortOrder, op, ignoreMissingness)
 
   def newRNG(seed: Long): Code[IRRandomness] = fb.newRNG(seed)
+
+  def newPLocal(pt: PType): PSettable = new PSettable {
+    private val l = newLocal(typeToTypeInfo(pt))
+
+    def load(): PValue = PValue(pt, l.load())
+
+    def store(v: PValue): Code[Unit] = l.storeAny(v.code)
+  }
+
+  def newPField(pt: PType): PSettable = new PSettable {
+    private val f = newField(typeToTypeInfo(pt))
+
+    def load(): PValue = PValue(pt, f.load())
+
+    def store(v: PValue): Code[Unit] = f.storeAny(v.code)
+  }
+
+  def newPField(name: String, pt: PType): PSettable = new PSettable {
+    private val f = newField(name)(typeToTypeInfo(pt))
+
+    def load(): PValue = PValue(pt, f.load())
+
+    def store(v: PValue): Code[Unit] = f.storeAny(v.code)
+  }
 }
 
 class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
@@ -666,5 +690,29 @@ class EmitFunctionBuilder[F >: Null](
         }
       }
     }
+  }
+
+  def newPLocal(pt: PType): PSettable = new PSettable {
+    private val l = newLocal(typeToTypeInfo(pt))
+
+    def load(): PValue = PValue(pt, l.load())
+
+    def store(v: PValue): Code[Unit] = l.storeAny(v.code)
+  }
+
+  def newPField(pt: PType): PSettable = new PSettable {
+    private val f = newField(typeToTypeInfo(pt))
+
+    def load(): PValue = PValue(pt, f.load())
+
+    def store(v: PValue): Code[Unit] = f.storeAny(v.code)
+  }
+
+  def newPField(name: String, pt: PType): PSettable = new PSettable {
+    private val f = newField(name)(typeToTypeInfo(pt))
+
+    def load(): PValue = PValue(pt, f.load())
+
+    def store(v: PValue): Code[Unit] = f.storeAny(v.code)
   }
 }

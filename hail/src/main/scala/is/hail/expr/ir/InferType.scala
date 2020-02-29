@@ -101,7 +101,7 @@ object InferType {
         val elt = coerce[TBaseStruct](coerce[TStream](collection.typ).elementType)
         TDict(elt.types(0), TArray(elt.types(1)), collection.typ.required)
       case StreamMap(a, name, body) =>
-        TStream(body.typ.setRequired(false), required = a.typ.required)
+        TStream(-body.typ, required = a.typ.required)
       case StreamZip(as, _, body, _) =>
         TStream(body.typ, required = as.forall(_.typ.required))
       case StreamFilter(a, name, cond) =>

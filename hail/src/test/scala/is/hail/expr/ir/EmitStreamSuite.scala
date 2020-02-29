@@ -586,7 +586,7 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testEmitFromIterator() {
-    val intsPType = PStream(PInt32Required)
+    val intsPType = PStream(PInt32())
 
     val f1 = compileStreamWithIter(
       StreamScan(In(0, intsPType),
