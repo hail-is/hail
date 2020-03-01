@@ -726,6 +726,16 @@ async def create_batch(request, userdata):
         raise web.HTTPBadRequest(reason=e.reason)
 
     user = userdata['username']
+
+    # restrict to what's necessary; in particular, drop the session
+    # which is sensitive
+    userdata = {
+        'username': user,
+        'bucket_name': userdata['bucket_name'],
+        'gsa_key_secret_name': userdata['gsa_key_secret_name'],
+        'tokens_secret_name': userdata['tokens_secret_name']
+    }
+
     billing_project = batch_spec['billing_project']
     token = batch_spec['token']
 
