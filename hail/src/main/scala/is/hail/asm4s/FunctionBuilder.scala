@@ -415,7 +415,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   }
 
   def apply_method: MethodBuilder = _apply_method
-  
+
   def newField[T: TypeInfo]: ClassFieldRef[T] = newField()
 
   def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] =
