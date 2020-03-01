@@ -242,22 +242,24 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       false
     else {
       val n = mb.newLocal[Long]
-      JoinPoint.CallCC[Code[Boolean]] { (jb, ret) =>
-        val loop = jb.joinPoint[Code[Long]](mb)
-        loop.define { ptr =>
-          (ptr < n).mux(
-            Region.loadInt(ptr).cne(0).mux(
-              ret(true),
-              loop(ptr + 4L)),
-            (Region.loadByte(ptr) >>>
-              (const(32) - (loadLength(aoff) | 31))).cne(0).mux(
-              ret(true),
-              ret(false)))
-        }
-        Code(
-          n := aoff + ((loadLength(aoff) >>> 5) * 4 + 4).toL,
-          loop(aoff + 4L))
-      }
+      val ret = mb.newLocal[Boolean]
+      val ptr = mb.newLocal[Long]
+      val L = new CodeLabel()
+      Code(
+        n := aoff + ((loadLength(aoff) >>> 5) * 4 + 4).toL,
+        ptr := aoff + 4L,
+        L,
+        (ptr < n).mux(
+          Region.loadInt(ptr).cne(0).mux(
+            ret := true,
+            Code(
+              ptr := ptr + 4L,
+              L.goto)),
+          (Region.loadByte(ptr) >>>
+            (const(32) - (loadLength(aoff) | 31))).cne(0).mux(
+            ret := true,
+            ret := false)),
+        ret.load())
     }
 
   def forEach(mb: MethodBuilder, aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] = {
