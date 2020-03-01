@@ -1198,7 +1198,7 @@ private class Emit(
         )
         val result = Code(
           shapeAddress := shapet.value[Long],
-          Code.foreach(0 until nDims) {index =>
+          Code.foreach(0 until nDims) { index =>
             shapeTuple.isMissing(index).mux[Unit](
               Code._fatal(s"shape missing at index $index"),
               shapeVariables(index) := shapeTuple(index)

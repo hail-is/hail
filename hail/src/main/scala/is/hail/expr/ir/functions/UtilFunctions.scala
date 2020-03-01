@@ -235,36 +235,62 @@ object UtilFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("&&", TBoolean(), TBoolean(), TBoolean(), null) {
       case (er, rt, (lT, l), (rT, r)) =>
-        val lm = Code(l.setup, l.m)
-        val rm = Code(r.setup, r.m)
-
         val lv = l.value[Boolean]
         val rv = r.value[Boolean]
 
-        val m = er.mb.newLocal[Boolean]
-        val v = er.mb.newLocal[Boolean]
-        val setup = Code(m := lm, v := !m && lv)
-        val missing = m.mux(rm || rv, v && (rm || Code(v := rv, false)))
-        val value = v
+        // 00 ... 00 rv rm lv lm
+        val w = er.mb.newLocal[Int]
 
-        EmitTriplet(setup, missing, PValue(rt, value))
+        // m/m, t/m, m/t
+        val M = const((1 << 5) | (1 << 6) | (1 << 9))
+
+        val setup = Code(l.setup,
+          w := l.m.mux(const(1),
+            lv.mux(
+              const(2),
+              const(0))),
+          w.cne(0).mux(
+            Code(
+              r.setup,
+              w := w | r.m.mux(const(4),
+              rv.mux(
+                const(8),
+                const(0)))),
+            Code._empty[Unit]))
+
+        EmitTriplet(setup,
+          ((M >> w) & 1).cne(0),
+          PValue(rt, w.ceq(10)))
     }
 
     registerCodeWithMissingness("||", TBoolean(), TBoolean(), TBoolean(), null) {
       case (er, rt, (lT, l), (rT, r)) =>
-        val lm = Code(l.setup, l.m)
-        val rm = Code(r.setup, r.m)
-
         val lv = l.value[Boolean]
         val rv = r.value[Boolean]
 
-        val m = er.mb.newLocal[Boolean]
-        val v = er.mb.newLocal[Boolean]
-        val setup = Code(m := lm, v := m || lv)
-        val missing = m.mux(rm || !rv, !v && (rm || Code(v := rv, false)))
-        val value = v
+        // 00 ... 00 rv rm lv lm
+        val w = er.mb.newLocal[Int]
 
-        EmitTriplet(setup, missing, PValue(rt, value))
+        // m/m, f/m, m/f
+        val M = const((1 << 5) | (1 << 1) | (1 << 4))
+
+        val setup = Code(l.setup,
+          w := l.m.mux(const(1),
+            lv.mux(
+              const(2),
+              const(0))),
+          w.cne(2).mux(
+            Code(
+              r.setup,
+              w := w | r.m.mux(const(4),
+                rv.mux(
+                  const(8),
+                  const(0)))),
+            Code._empty[Unit]))
+
+        EmitTriplet(setup,
+          ((M >> w) & 1).cne(0),
+          PValue(rt, w.cne(0)))
     }
   }
 }
