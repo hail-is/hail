@@ -203,7 +203,7 @@ object TestUtils {
           val aggArrayVar = genUID()
           val aggPType = PType.canonical(aggType)
           val aggArrayPType = PArray(aggPType)
-          println(s"\n\n\naggTpye is ${aggArrayPType}")
+
           val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
             env.bind(f.name, GetField(Ref(aggElementVar, aggType), f.name))
           }
@@ -230,8 +230,6 @@ object TestUtils {
             }
             rvb.endTuple()
             val argsOff = rvb.end()
-
-            println(s"DONE WITH TUPLE ${argsPType} for inputs ${inputsB.result().toString}")
 
             rvb.start(aggArrayPType)
             rvb.startArray(aggElements.length)
