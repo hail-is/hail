@@ -253,7 +253,6 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
   val layout: Array[Int] = 0 +: (parameterTypeInfo.scanLeft(1) { case (prev, gti) => prev + gti.slots })
   val argIndex: Array[Int] = layout.init
   var locals: Int = layout.last
-  private val localBitSet = new LocalBitSet(this)
 
   def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = {
     val i = locals
@@ -264,10 +263,6 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
       .add(new LocalVariableNode(if (name == null) "local" + i else name, tti.name, null, start, end, i))
     i
   }
-
-  def newLocalBit(): SettableBit = localBitSet.newBit()
-
-  def newClassBit(): SettableBit = fb.classBitSet.newBit(this)
 
   def newLocal[T](implicit tti: TypeInfo[T]): LocalRef[T] =
     newLocal()
@@ -420,13 +415,7 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
   }
 
   def apply_method: MethodBuilder = _apply_method
-
-  val classBitSet = new ClassBitSet(this)
-
-  def newLocalBit(): SettableBit = apply_method.newLocalBit()
-
-  def newClassBit(): SettableBit = classBitSet.newBit(apply_method)
-
+  
   def newField[T: TypeInfo]: ClassFieldRef[T] = newField()
 
   def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] =
