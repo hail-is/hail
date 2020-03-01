@@ -231,6 +231,8 @@ object TestUtils {
             rvb.endTuple()
             val argsOff = rvb.end()
 
+            println(s"DONE WITH TUPLE ${argsPType} for inputs ${inputsB.result().toString}")
+
             rvb.start(aggArrayPType)
             rvb.startArray(aggElements.length)
             aggElements.foreach { r =>

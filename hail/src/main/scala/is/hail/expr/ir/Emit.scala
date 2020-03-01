@@ -846,6 +846,7 @@ private class Emit(
         val codeRes = emit(result, env = env, container = Some(newContainer))
         val resm = mb.newField[Boolean]()
         val resv = mb.newField("run_agg_result")(typeToTypeInfo(result.pType))
+
         val aggregation = Code(
           aggSetup,
           codeBody.setup,

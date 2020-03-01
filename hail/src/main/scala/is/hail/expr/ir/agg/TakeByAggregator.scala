@@ -446,6 +446,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   }
 
   def result(_r: Code[Region], resultType: PArray): Code[Long] = {
+    println("CALLING RESULT IN TAKEBYAGGREGATOR")
     val mb = fb.newMethod("take_by_result", Array[TypeInfo[_]](new ClassInfo[Region]), LongInfo)
 
     val quickSort: (Code[Long], Code[Int], Code[Int]) => Code[Unit] = {
