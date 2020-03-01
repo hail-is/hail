@@ -353,7 +353,7 @@ object ArrayFunctions extends RegistryFunctions {
                     xySum := xySum + x * y,
                     n := n + 1
                   ),
-                  Code._empty[Unit]
+                  Code._empty
                 ),
                 i := i + 1
               )

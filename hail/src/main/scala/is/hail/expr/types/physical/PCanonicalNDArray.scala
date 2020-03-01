@@ -96,7 +96,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     coerce[Long](Code(
       dataStore := data.load(nd),
       bytesAway := 0L,
-      indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (requestedIndex: Code[Long], strideIndex: Int)) =>
+      indices.zipWithIndex.foldLeft(Code._empty){case (codeSoFar: Code[_], (requestedIndex: Code[Long], strideIndex: Int)) =>
         Code(
           codeSoFar,
           bytesAway := bytesAway + requestedIndex * stridesTuple(strideIndex))

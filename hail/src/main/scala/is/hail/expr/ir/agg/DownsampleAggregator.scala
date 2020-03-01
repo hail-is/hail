@@ -341,7 +341,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
       val x = mb.newLocal[Double]("x")
       val y = mb.newLocal[Double]("y")
       mb.emit(Code(
-        buffer.size.ceq(0).orEmpty(Code._return(Code._empty[Unit])),
+        buffer.size.ceq(0).orEmpty(Code._return(Code._empty)),
         left := min(left, bufferLeft),
         right := max(right, bufferRight),
         bottom := min(bottom, bufferBottom),

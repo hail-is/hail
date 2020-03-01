@@ -38,7 +38,7 @@ object IntervalFunctions extends RegistryFunctions {
               srvb.addBoolean(includeEnd.value[Boolean]),
               srvb.advance(),
               vv := srvb.offset)),
-          Code._empty[Unit])
+          Code._empty)
 
         EmitTriplet(
           Code(start.setup, end.setup, includeStart.setup, includeEnd.setup, ctor),
