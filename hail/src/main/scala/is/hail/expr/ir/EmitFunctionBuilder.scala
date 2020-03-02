@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.backend.BroadcastValue
 import java.io._
 
 import is.hail.HailContext
@@ -8,8 +7,8 @@ import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.backend.BackendUtils
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.types.physical.{PCanonicalTuple, PTuple, PType}
-import is.hail.expr.types.virtual.{TTuple, Type}
+import is.hail.expr.types.physical.{PCanonicalTuple, PType}
+import is.hail.expr.types.virtual.Type
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.utils._
@@ -159,8 +158,12 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
   parentfb: EmitFunctionBuilder[_],
   parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
   returnTypeInfo: MaybeGenericTypeInfo[_],
-  packageName: String = "is/hail/codegen/generated"
-) extends EmitFunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName) with DependentFunction[F] {
+  packageName: String = "is/hail/codegen/generated",
+  namePrefix: String = null,
+  initModule: ModuleBuilder = null
+) extends EmitFunctionBuilder[F](
+  parameterTypeInfo, returnTypeInfo, packageName, namePrefix = namePrefix, initModule = initModule
+) with DependentFunction[F] {
 
   private[this] val rgMap: mutable.Map[ReferenceGenome, Code[ReferenceGenome]] =
     mutable.Map[ReferenceGenome, Code[ReferenceGenome]]()
@@ -200,8 +203,9 @@ class EmitFunctionBuilder[F >: Null](
   parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
   returnTypeInfo: MaybeGenericTypeInfo[_],
   packageName: String = "is/hail/codegen/generated",
-  namePrefix: String = null
-)(implicit interfaceTi: TypeInfo[F]) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName, namePrefix) {
+  namePrefix: String = null,
+  initModule: ModuleBuilder = null
+)(implicit interfaceTi: TypeInfo[F]) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName, namePrefix, initModule) {
 
   private[this] val rgMap: mutable.Map[ReferenceGenome, Code[ReferenceGenome]] =
     mutable.Map[ReferenceGenome, Code[ReferenceGenome]]()
@@ -579,18 +583,23 @@ class EmitFunctionBuilder[F >: Null](
   override def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
     newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
 
-  def newDependentFunction[A1: TypeInfo, A2: TypeInfo, R: TypeInfo]: DependentEmitFunction[AsmFunction2[A1, A2, R]] = {
-    val df = new DependentEmitFunction[AsmFunction2[A1, A2, R]](
-      this, Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R])
-    classBuilder.children += df
-    df
+  def newDependentFunction[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](
+    namePrefix: String = null
+  ): DependentEmitFunction[AsmFunction2[A1, A2, R]] = {
+    new DependentEmitFunction[AsmFunction2[A1, A2, R]](
+      this,
+      Array(GenericTypeInfo[A1], GenericTypeInfo[A2]),
+      GenericTypeInfo[R],
+      namePrefix = namePrefix,
+      initModule = module)
   }
 
   def newDependentFunction[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo]: DependentEmitFunction[AsmFunction3[A1, A2, A3, R]] = {
-    val df = new DependentEmitFunction[AsmFunction3[A1, A2, A3, R]](
-      this, Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]), GenericTypeInfo[R])
-    classBuilder.children += df
-    df
+    new DependentEmitFunction[AsmFunction3[A1, A2, A3, R]](
+      this,
+      Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]),
+      GenericTypeInfo[R],
+      initModule = module)
   }
 
   val rngs: ArrayBuilder[(ClassFieldRef[IRRandomness], Code[IRRandomness])] = new ArrayBuilder()
@@ -634,7 +643,6 @@ class EmitFunctionBuilder[F >: Null](
   def resultWithIndex(print: Option[PrintWriter] = None): (Int, Region) => F = {
     makeRNGs()
     makeAddPartitionRegion()
-    val childClasses = classBuilder.children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
 
     val hasLiterals: Boolean = literalsMap.nonEmpty
 
@@ -645,8 +653,6 @@ class EmitFunctionBuilder[F >: Null](
       null
     }
 
-    val bytes = classAsBytes(print)
-    val n = name.replace("/",".")
     val localFS = _hfs
 
     val nSerializedAggs = _nSerialized
@@ -657,16 +663,18 @@ class EmitFunctionBuilder[F >: Null](
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
 
+    val n = name.replace("/", ".")
+    val classesBytes = module.classesBytes()
+
     new ((Int, Region) => F) with java.io.Serializable {
       @transient @volatile private var theClass: Class[_] = null
 
       def apply(idx: Int, region: Region): F = {
-        try {
           if (theClass == null) {
             this.synchronized {
               if (theClass == null) {
-                childClasses.foreach { case (fn, b) => loadClass(fn, b) }
-                theClass = loadClass(n, bytes)
+                classesBytes.load()
+                theClass = loadClass(n)
               }
             }
           }
@@ -682,12 +690,6 @@ class EmitFunctionBuilder[F >: Null](
             f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
           f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
           f
-        } catch {
-          //  only triggers on classloader
-          case e@(_: Exception | _: LinkageError) =>
-            FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
-            throw e
-        }
       }
     }
   }
