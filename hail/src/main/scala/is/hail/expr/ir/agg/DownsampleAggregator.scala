@@ -513,7 +513,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
                   srvb.addDouble(Region.loadDouble(pointType.loadField(point, "y"))),
                   srvb.advance(),
                   pointType.isFieldDefined(point, "label").mux(
-                    srvb.addIRIntermediate(resultType)(pointType.loadField(point, "label")),
+                    srvb.addIRIntermediate(labelType)(pointType.loadField(point, "label")),
                     srvb.setMissing()
                   )
                 )

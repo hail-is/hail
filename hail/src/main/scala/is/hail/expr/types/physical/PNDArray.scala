@@ -32,8 +32,6 @@ abstract class PNDArray extends PType {
 
   val representation: PStruct
 
-  def copy(elementType: PType = this.elementType, nDims: Int = this.nDims, required: Boolean = this.required): PNDArray
-
   def dimensionLength(off: Code[Long], idx: Int): Code[Long] = {
     Region.loadLong(shape.pType.fieldOffset(shape.load(off), idx))
   }
@@ -43,8 +41,6 @@ abstract class PNDArray extends PType {
   def makeShapeBuilder(shapeArray: Array[Code[Long]]): StagedRegionValueBuilder => Code[Unit]
 
   def makeDefaultStridesBuilder(sourceShapeArray: Array[Code[Long]], mb: MethodBuilder): StagedRegionValueBuilder => Code[Unit]
-
-  def getElementAddress(indices: Array[Code[Long]], nd: Code[Long], mb: MethodBuilder): Code[Long]
 
   def loadElementToIRIntermediate(indices: Array[Code[Long]], ndAddress: Code[Long], mb: MethodBuilder): Code[_]
 

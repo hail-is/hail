@@ -31,7 +31,7 @@ from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_m
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME
+from ..batch_configuration import BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME, DEFAULT_NAMESPACE
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
@@ -467,6 +467,21 @@ async def get_batches(request, userdata):
     return web.json_response(body)
 
 
+def check_service_account_permissions(user, sa):
+    if sa is None:
+        return
+    if user == 'ci':
+        if sa['name'] in ('ci-agent', 'admin'):
+            if DEFAULT_NAMESPACE == 'default':  # real-ci needs access to all namespaces
+                return
+            if sa['namespace'] == BATCH_PODS_NAMESPACE:
+                return
+    if user == 'test':
+        if sa['name'] == 'test-batch-sa' and sa['namespace'] == BATCH_PODS_NAMESPACE:
+            return
+    raise web.HTTPBadRequest(reason=f'unauthorized service account {(sa["namespace"], sa["name"])} for user {user}')
+
+
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
 @prom_async_time(REQUEST_TIME_POST_CREATE_JOBS)
 @rest_authenticated_users_only
@@ -481,6 +496,7 @@ async def create_jobs(request, userdata):
     batch_id = int(request.match_info['batch_id'])
 
     user = userdata['username']
+
     # restrict to what's necessary; in particular, drop the session
     # which is sensitive
     userdata = {
@@ -579,13 +595,25 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 secrets = spec.get('secrets')
                 if not secrets:
                     secrets = []
-                    spec['secrets'] = secrets
+
+                if len(secrets) != 0 and user != 'ci':
+                    secrets = [(secret["namespace"], secret["name"]) for secret in secrets]
+                    raise web.HTTPBadRequest(reason=f'unauthorized secret {secrets} for user {user}')
+
+                for secret in secrets:
+                    if user != 'ci':
+                        raise web.HTTPBadRequest(reason=f'unauthorized secret {(secret["namespace"], secret["name"])}')
+
+                spec['secrets'] = secrets
                 secrets.append({
                     'namespace': BATCH_PODS_NAMESPACE,
                     'name': userdata['gsa_key_secret_name'],
                     'mount_path': '/gsa-key',
                     'mount_in_copy': True
                 })
+
+                sa = spec.get('service_account')
+                check_service_account_permissions(user, sa)
 
                 env = spec.get('env')
                 if not env:

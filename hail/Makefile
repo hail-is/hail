@@ -11,7 +11,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 32
+HAIL_PATCH_VERSION := 33
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 
 $(eval $(call ENV_VAR,REVISION))
@@ -291,31 +291,44 @@ install-benchmark:
 clean-docs:
 	$(MAKE) -C www clean
 
-HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
-
-.PHONY: docs
-docs: install $(PYTHON_VERSION_INFO) install-dev-deps
+.PHONY: base-docs
+base-docs: install-dev-deps
 	mkdir -p build
 	rm -rf build/www
 	cp -R www build/www
-	rm -rf build/docs
+	$(MAKE) -C build/www
+	rm build/www/*.md
+
+.PHONY: pipeline-docs
+pipeline-docs: base-docs
+	mkdir -p build/pipeline/docs
+	rm -rf build/pipeline/docs
+	cp -R python/hailtop/pipeline/docs build/pipeline/
+	$(MAKE) -C build/pipeline/docs BUILDDIR=_build clean html
+	mkdir -p build/www/docs
+	rm -rf build/www/docs/pipeline
+	mv build/pipeline/docs/_build/html build/www/docs/pipeline
+	@echo Built Pipeline docs: build/www/docs/pipeline/index.html
+
+HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
+.PHONY: hail-docs
+hail-docs: install $(PYTHON_VERSION_INFO) base-docs
 	mkdir -p build/docs
+	rm -rf build/docs
 	cp -R python/hail/docs build/
 	cp python/hail/hail_version build/
 	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
     < build/docs/change_log.md \
     | pandoc -o build/docs/change_log.rst
-	$(MAKE) -C build/www
-	rm build/www/*.md
 	$(MAKE) SPHINXOPTS='-tchecktutorial' -C build/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
 	rm -rf build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	mv build/docs/_build/html build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)
 	find ./build/www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
-	@echo Built docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
+	@echo Built Hail docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: upload-docs
-upload-docs: docs
+upload-docs: hail-docs pipeline-docs
 	cd build && tar czf www.tar.gz www
 	gsutil -m cp build/www.tar.gz $(docs_location)
 	gsutil -m retention temp set $(docs_location)
@@ -364,3 +377,9 @@ clean: clean-env clean-docs native-lib-clean
 	rm -rf python/README.md
 	rm -rf $(SCALA_BUILD_INFO)
 	rm -rf $(PYTHON_VERSION_INFO)
+
+.PHONY: update-hail-repl
+update-hail-repl: NAMESPACE ?= default
+update-hail-repl: wheel
+	kubectl -n $(NAMESPACE) cp $(WHEEL) $$(kubectl get pods -n $(NAMESPACE) -l app=hail-repl | tail -n +2 | awk '{print $$1}'):.
+	kubectl -n $(NAMESPACE) exec -it $$(kubectl get pods -n $(NAMESPACE) -l app=hail-repl | tail -n +2 | awk '{print $$1}') -- pip3 install -U hail-$(HAIL_PIP_VERSION)-py3-none-any.whl

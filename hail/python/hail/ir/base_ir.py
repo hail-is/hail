@@ -362,6 +362,9 @@ class BlockMatrixIR(BaseIR):
     def parse(self, code, ref_map={}, ir_map={}):
         return Env.hail().expr.ir.IRParser.parse_blockmatrix_ir(code, ref_map, ir_map)
 
+    def unpersisted(self):
+        return self
+
 
 class JIRVectorReference(object):
     def __init__(self, jid, length, item_type):

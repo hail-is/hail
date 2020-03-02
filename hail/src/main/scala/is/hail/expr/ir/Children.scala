@@ -53,10 +53,10 @@ object Children {
       Array(a, i, s)
     case ArrayLen(a) =>
       Array(a)
-    case ArrayRange(start, stop, step) =>
-      Array(start, stop, step)
     case StreamRange(start, stop, step) =>
       Array(start, stop, step)
+    case ArrayZeros(length) =>
+      Array(length)
     case MakeNDArray(data, shape, rowMajor) =>
       Array(data, shape, rowMajor)
     case NDArrayShape(nd) =>
@@ -73,33 +73,35 @@ object Children {
       Array(a)
     case ToArray(a) =>
       Array(a)
+    case CastToArray(a) =>
+      Array(a)
     case ToStream(a) =>
       Array(a)
     case LowerBoundOnOrderedCollection(orderedCollection, elem, _) =>
       Array(orderedCollection, elem)
     case GroupByKey(collection) =>
       Array(collection)
-    case ArrayMap(a, name, body) =>
+    case StreamMap(a, name, body) =>
       Array(a, body)
-    case ArrayZip(as, names, body, _) =>
+    case StreamZip(as, names, body, _) =>
       as ++ Array(body)
-    case ArrayFilter(a, name, cond) =>
+    case StreamFilter(a, name, cond) =>
       Array(a, cond)
-    case ArrayFlatMap(a, name, body) =>
+    case StreamFlatMap(a, name, body) =>
       Array(a, body)
-    case ArrayFold(a, zero, accumName, valueName, body) =>
+    case StreamFold(a, zero, accumName, valueName, body) =>
       Array(a, zero, body)
-    case ArrayFold2(a, accum, valueName, seq, result) =>
+    case StreamFold2(a, accum, valueName, seq, result) =>
       Array(a) ++ accum.map(_._2) ++ seq ++ Array(result)
-    case ArrayScan(a, zero, accumName, valueName, body) =>
+    case StreamScan(a, zero, accumName, valueName, body) =>
       Array(a, zero, body)
-    case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
+    case StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
       Array(left, right, compare, join)
-    case ArrayFor(a, valueName, body) =>
+    case StreamFor(a, valueName, body) =>
       Array(a, body)
-    case ArrayAgg(a, name, query) =>
+    case StreamAgg(a, name, query) =>
       Array(a, query)
-    case ArrayAggScan(a, name, query) =>
+    case StreamAggScan(a, name, query) =>
       Array(a, query)
     case RunAggScan(array, _, init, seq, result, _) =>
       Array(array, init, seq, result)
@@ -186,9 +188,12 @@ object Children {
     case BlockMatrixToValueApply(child, _) => Array(child)
     case BlockMatrixCollect(child) => Array(child)
     case BlockMatrixWrite(child, _) => Array(child)
+    case UnpersistBlockMatrix(child) => Array(child)
     case BlockMatrixMultiWrite(blockMatrices, _) => blockMatrices
     case CollectDistributedArray(ctxs, globals, _, _, body) => Array(ctxs, globals, body)
     case ReadPartition(path, _, _) => Array(path)
+    case ReadValue(path, _, _) => Array(path)
+    case WriteValue(value, pathPrefix, spec) => Array(value, pathPrefix)
     case LiftMeOut(child) => Array(child)
   }
 }

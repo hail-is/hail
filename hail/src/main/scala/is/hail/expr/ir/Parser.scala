@@ -780,21 +780,17 @@ object IRParser {
         val s = ir_value_expr(env)(it)
         ArrayRef(a, i, s)
       case "ArrayLen" => ArrayLen(ir_value_expr(env)(it))
-      case "ArrayRange" =>
-        val start = ir_value_expr(env)(it)
-        val stop = ir_value_expr(env)(it)
-        val step = ir_value_expr(env)(it)
-        ArrayRange(start, stop, step)
       case "StreamRange" =>
         val start = ir_value_expr(env)(it)
         val stop = ir_value_expr(env)(it)
         val step = ir_value_expr(env)(it)
         StreamRange(start, stop, step)
+      case "ArrayZeros" => ArrayZeros(ir_value_expr(env)(it))
       case "ArraySort" =>
         val l = identifier(it)
         val r = identifier(it)
         val a = ir_value_expr(env)(it)
-        val elt = coerce[TStreamable](a.typ).elementType
+        val elt = coerce[TStream](a.typ).elementType
         val body = ir_value_expr(env + (l -> elt) + (r -> elt))(it)
         ArraySort(a, l, r, body)
       case "MakeNDArray" =>
@@ -858,6 +854,7 @@ object IRParser {
       case "ToSet" => ToSet(ir_value_expr(env)(it))
       case "ToDict" => ToDict(ir_value_expr(env)(it))
       case "ToArray" => ToArray(ir_value_expr(env)(it))
+      case "CastToArray" => CastToArray(ir_value_expr(env)(it))
       case "ToStream" => ToStream(ir_value_expr(env)(it))
       case "LowerBoundOnOrderedCollection" =>
         val onKey = boolean_literal(it)
@@ -867,12 +864,12 @@ object IRParser {
       case "GroupByKey" =>
         val col = ir_value_expr(env)(it)
         GroupByKey(col)
-      case "ArrayMap" =>
+      case "StreamMap" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name -> -coerce[TStreamable](a.typ).elementType))(it)
-        ArrayMap(a, name, body)
-      case "ArrayZip" =>
+        val body = ir_value_expr(env + (name -> -coerce[TStream](a.typ).elementType))(it)
+        StreamMap(a, name, body)
+      case "StreamZip" =>
         val behavior = identifier(it) match {
           case "AssertSameLength" => ArrayZipBehavior.AssertSameLength
           case "TakeMinLength" => ArrayZipBehavior.TakeMinLength
@@ -881,70 +878,70 @@ object IRParser {
         }
         val names = identifiers(it)
         val as = names.map(_ => ir_value_expr(env)(it))
-        val body = ir_value_expr(env ++ names.zip(as.map(a => -coerce[TStreamable](a.typ).elementType)))(it)
-        ArrayZip(as, names, body, behavior)
-      case "ArrayFilter" =>
+        val body = ir_value_expr(env ++ names.zip(as.map(a => -coerce[TStream](a.typ).elementType)))(it)
+        StreamZip(as, names, body, behavior)
+      case "StreamFilter" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name -> -coerce[TStreamable](a.typ).elementType))(it)
-        ArrayFilter(a, name, body)
-      case "ArrayFlatMap" =>
+        val body = ir_value_expr(env + (name -> -coerce[TStream](a.typ).elementType))(it)
+        StreamFilter(a, name, body)
+      case "StreamFlatMap" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name -> -coerce[TStreamable](a.typ).elementType))(it)
-        ArrayFlatMap(a, name, body)
-      case "ArrayFold" =>
+        val body = ir_value_expr(env + (name -> -coerce[TStream](a.typ).elementType))(it)
+        StreamFlatMap(a, name, body)
+      case "StreamFold" =>
         val accumName = identifier(it)
         val valueName = identifier(it)
         val a = ir_value_expr(env)(it)
         val zero = ir_value_expr(env)(it)
-        val eltType = -coerce[TStreamable](a.typ).elementType
+        val eltType = -coerce[TStream](a.typ).elementType
         val body = ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
-        ArrayFold(a, zero, accumName, valueName, body)
-      case "ArrayFold2" =>
+        StreamFold(a, zero, accumName, valueName, body)
+      case "StreamFold2" =>
         val accumNames = identifiers(it)
         val valueName = identifier(it)
         val a = ir_value_expr(env)(it)
         val accs = accumNames.map(name => (name, ir_value_expr(env)(it)))
-        val eltType = -coerce[TStreamable](a.typ).elementType
+        val eltType = -coerce[TStream](a.typ).elementType
         val resultEnv = env.update(accs.map { case (name, value) => (name, value.typ) }.toMap)
         val seqEnv = resultEnv.update(Map(valueName -> eltType))
         val seqs = Array.tabulate(accs.length)(_ => ir_value_expr(seqEnv)(it))
         val res = ir_value_expr(resultEnv)(it)
-        ArrayFold2(a, accs, valueName, seqs, res)
-      case "ArrayScan" =>
+        StreamFold2(a, accs, valueName, seqs, res)
+      case "StreamScan" =>
         val accumName = identifier(it)
         val valueName = identifier(it)
         val a = ir_value_expr(env)(it)
         val zero = ir_value_expr(env)(it)
-        val eltType = -coerce[TStreamable](a.typ).elementType
+        val eltType = -coerce[TStream](a.typ).elementType
         val body = ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
-        ArrayScan(a, zero, accumName, valueName, body)
-      case "ArrayLeftJoinDistinct" =>
+        StreamScan(a, zero, accumName, valueName, body)
+      case "StreamLeftJoinDistinct" =>
         val l = identifier(it)
         val r = identifier(it)
         val left = ir_value_expr(env)(it)
         val right = ir_value_expr(env)(it)
-        val lelt = coerce[TStreamable](left.typ).elementType
-        val relt = coerce[TStreamable](right.typ).elementType
+        val lelt = coerce[TStream](left.typ).elementType
+        val relt = coerce[TStream](right.typ).elementType
         val comp = ir_value_expr(env.update(Map(l -> lelt, r -> relt)))(it)
         val join = ir_value_expr(env.update(Map(l -> lelt, r -> relt)))(it)
-        ArrayLeftJoinDistinct(left, right, l, r, comp, join)
-      case "ArrayFor" =>
+        StreamLeftJoinDistinct(left, right, l, r, comp, join)
+      case "StreamFor" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
-        ArrayFor(a, name, body)
-      case "ArrayAgg" =>
+        val body = ir_value_expr(env + (name -> coerce[TStream](a.typ).elementType))(it)
+        StreamFor(a, name, body)
+      case "StreamAgg" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val query = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
-        ArrayAgg(a, name, query)
-      case "ArrayAggScan" =>
+        val query = ir_value_expr(env + (name -> coerce[TStream](a.typ).elementType))(it)
+        StreamAgg(a, name, query)
+      case "StreamAggScan" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val query = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
-        ArrayAggScan(a, name, query)
+        val query = ir_value_expr(env + (name -> coerce[TStream](a.typ).elementType))(it)
+        StreamAggScan(a, name, query)
       case "RunAgg" =>
         val signatures = agg_state_signatures(env.typEnv)(it)
         val body = ir_value_expr(env)(it)
@@ -954,7 +951,7 @@ object IRParser {
         val name = identifier(it)
         val signatures = agg_state_signatures(env.typEnv)(it)
         val array = ir_value_expr(env)(it)
-        val newE = env + (name -> coerce[TStreamable](array.typ).elementType)
+        val newE = env + (name -> coerce[TStream](array.typ).elementType)
         val init = ir_value_expr(env)(it)
         val seq = ir_value_expr(newE)(it)
         val result = ir_value_expr(newE)(it)
@@ -968,7 +965,7 @@ object IRParser {
         val name = identifier(it)
         val isScan = boolean_literal(it)
         val a = ir_value_expr(env)(it)
-        val aggBody = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
+        val aggBody = ir_value_expr(env + (name -> coerce[TStream](a.typ).elementType))(it)
         AggExplode(a, name, aggBody, isScan)
       case "AggGroupBy" =>
         val isScan = boolean_literal(it)
@@ -982,7 +979,7 @@ object IRParser {
         val hasKnownLength = boolean_literal(it)
         val a = ir_value_expr(env)(it)
         val aggBody = ir_value_expr(env
-          + (elementName -> coerce[TStreamable](a.typ).elementType)
+          + (elementName -> coerce[TArray](a.typ).elementType)
           + (indexName -> TInt32()))(it)
         val knownLength = if (hasKnownLength) Some(ir_value_expr(env)(it)) else None
         AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan)
@@ -1155,12 +1152,14 @@ object IRParser {
         val writer = deserialize[BlockMatrixMultiWriter](writerStr)
         val blockMatrices = repUntil(it, blockmatrix_ir(env), PunctuationToken(")"))
         BlockMatrixMultiWrite(blockMatrices.toFastIndexedSeq, writer)
+      case "UnpersistBlockMatrix" =>
+        UnpersistBlockMatrix(blockmatrix_ir(env)(it))
       case "CollectDistributedArray" =>
         val cname = identifier(it)
         val gname = identifier(it)
         val ctxs = ir_value_expr(env)(it)
         val globals = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (cname -> coerce[TStreamable](ctxs.typ).elementType) + (gname -> globals.typ))(it)
+        val body = ir_value_expr(env + (cname -> coerce[TArray](ctxs.typ).elementType) + (gname -> globals.typ))(it)
         CollectDistributedArray(ctxs, globals, cname, gname, body)
       case "JavaIR" =>
         val name = identifier(it)
@@ -1171,6 +1170,18 @@ object IRParser {
         val rowType = coerce[TStruct](type_expr(env.typEnv)(it))
         val path = ir_value_expr(env)(it)
         ReadPartition(path, spec, rowType)
+      case "ReadValue" =>
+        import AbstractRVDSpec.formats
+        val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]
+        val typ = type_expr(env.typEnv)(it)
+        val path = ir_value_expr(env)(it)
+        ReadValue(path, spec, typ)
+      case "WriteValue" =>
+        import AbstractRVDSpec.formats
+        val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]
+        val value = ir_value_expr(env)(it)
+        val path = ir_value_expr(env)(it)
+        WriteValue(value, path, spec)
       case "LiftMeOut" =>
         LiftMeOut(ir_value_expr(env)(it))
     }

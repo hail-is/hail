@@ -1,6 +1,7 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.{ApplyIR, BaseIR, Compilable, Emittable, IR, MatrixIR, RelationalLet, RelationalLetBlockMatrix, RelationalLetMatrixTable, RelationalLetTable, RelationalRef}
+import is.hail.expr.ir._
+import is.hail.expr.types.virtual.TStream
 
 trait Rule {
   def allows(ir: BaseIR): Boolean

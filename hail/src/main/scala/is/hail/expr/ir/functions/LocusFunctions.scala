@@ -317,7 +317,7 @@ object LocusFunctions extends RegistryFunctions {
         EmitTriplet(
           Code(ioff.setup, invalidMissing.setup),
           ioff.m || invalidMissing.m || Code(intervalLocal := interval, intervalLocal.load().isNull),
-          emitInterval(r, interval, rt)
+          PValue(rt, emitInterval(r, interval, rt))
         )
     }
 
@@ -338,7 +338,7 @@ object LocusFunctions extends RegistryFunctions {
         EmitTriplet(
           Code(locoff.setup, pos1.setup, pos2.setup, include1.setup, include2.setup, invalidMissing.setup),
           locoff.m || pos1.m || pos2.m || include1.m || include2.m || invalidMissing.m || Code(intervalLocal := interval, intervalLocal.load().isNull),
-          emitInterval(r, interval, rt)
+          PValue(rt, emitInterval(r, interval, rt))
         )
     }
 
@@ -365,7 +365,7 @@ object LocusFunctions extends RegistryFunctions {
         EmitTriplet(
           Code(loc.setup, minMatch.setup, tlocal := Code._null),
           loc.m || minMatch.m || Code(tlocal := lifted, tlocal.isNull),
-          emitLiftoverLocus(r, tlocal, rt)
+          PValue(rt, emitLiftoverLocus(r, tlocal, rt))
         )
     }
 
@@ -380,7 +380,7 @@ object LocusFunctions extends RegistryFunctions {
         EmitTriplet(
           Code(i.setup, minMatch.setup, tlocal := Code._null),
           i.m || minMatch.m || Code(tlocal := lifted, tlocal.isNull),
-          emitLiftoverLocusInterval(r, tlocal, rt)
+          PValue(rt, emitLiftoverLocusInterval(r, tlocal, rt))
         )
     }
   }

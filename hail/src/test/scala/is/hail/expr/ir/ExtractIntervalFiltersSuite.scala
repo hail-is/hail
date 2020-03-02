@@ -270,7 +270,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
       Interval(wrappedIntervalEndpoint(-10, -1), wrappedIntervalEndpoint(5, -1))
     )
 
-    val ir = ArrayFold(
+    val ir = StreamFold(
       Literal(TArray(TInterval(TInt32())), inIntervals),
       False(),
       "acc",

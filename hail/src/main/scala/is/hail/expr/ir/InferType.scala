@@ -30,10 +30,10 @@ object InferType {
       case MakeNDArray(data, shape, _) =>
         TNDArray(coerce[TArray](data.typ).elementType.setRequired(true), Nat(shape.typ.asInstanceOf[TTuple].size))
       case _: ArrayLen => TInt32()
-      case _: ArrayRange => TArray(TInt32())
       case _: StreamRange => TStream(TInt32())
+      case _: ArrayZeros => TArray(TInt32())
       case _: LowerBoundOnOrderedCollection => TInt32()
-      case _: ArrayFor => TVoid
+      case _: StreamFor => TVoid
       case _: InitOp => TVoid
       case _: SeqOp => TVoid
       case _: CombOp => TVoid
@@ -77,58 +77,61 @@ object InferType {
         a.returnType
       case ArrayRef(a, i, s) =>
         assert(i.typ.isOfType(TInt32()))
-        coerce[TStreamable](a.typ).elementType.setRequired(a.typ.required && i.typ.required)
+        coerce[TArray](a.typ).elementType.setRequired(a.typ.required && i.typ.required)
       case ArraySort(a, _, _, compare) =>
         assert(compare.typ.isOfType(TBoolean()))
-        val et = coerce[TStreamable](a.typ).elementType
+        val et = coerce[TStream](a.typ).elementType
         TArray(et, a.typ.required)
       case ToSet(a) =>
-        val et = coerce[TIterable](a.typ).elementType
+        val et = coerce[TStream](a.typ).elementType
         TSet(et, a.typ.required)
       case ToDict(a) =>
-        val elt = coerce[TBaseStruct](coerce[TIterable](a.typ).elementType)
+        val elt = coerce[TBaseStruct](coerce[TStream](a.typ).elementType)
         TDict(elt.types(0), elt.types(1), a.typ.required)
       case ToArray(a) =>
-        val elt = coerce[TIterable](a.typ).elementType
+        val elt = coerce[TStream](a.typ).elementType
+        TArray(elt, a.typ.required)
+      case CastToArray(a) =>
+        val elt = coerce[TContainer](a.typ).elementType
         TArray(elt, a.typ.required)
       case ToStream(a) =>
         val elt = coerce[TIterable](a.typ).elementType
         TStream(elt, a.typ.required)
       case GroupByKey(collection) =>
-        val elt = coerce[TBaseStruct](coerce[TStreamable](collection.typ).elementType)
+        val elt = coerce[TBaseStruct](coerce[TStream](collection.typ).elementType)
         TDict(elt.types(0), TArray(elt.types(1)), collection.typ.required)
-      case ArrayMap(a, name, body) =>
-        coerce[TStreamable](a.typ).copyStreamable(body.typ.setRequired(false))
-      case ArrayZip(as, _, body, _) => as.head.typ.asInstanceOf[TStreamable].copyStreamable(body.typ, false)
-      case ArrayFilter(a, name, cond) =>
+      case StreamMap(a, name, body) =>
+        TStream(-body.typ, required = a.typ.required)
+      case StreamZip(as, _, body, _) =>
+        TStream(body.typ, required = as.forall(_.typ.required))
+      case StreamFilter(a, name, cond) =>
         a.typ
-      case ArrayFlatMap(a, name, body) =>
-        coerce[TStreamable](a.typ).copyStreamable(coerce[TIterable](body.typ).elementType)
-      case ArrayFold(a, zero, accumName, valueName, body) =>
+      case StreamFlatMap(a, name, body) =>
+        TStream(coerce[TStream](body.typ).elementType, a.typ.required)
+      case StreamFold(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         zero.typ
-      case ArrayFold2(_, _, _, _, result) => result.typ
-      case ArrayScan(a, zero, accumName, valueName, body) =>
+      case StreamFold2(_, _, _, _, result) => result.typ
+      case StreamScan(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
-        coerce[TStreamable](a.typ).copyStreamable(zero.typ)
-      case ArrayAgg(_, _, query) =>
+        TStream(zero.typ, required = a.typ.required)
+      case StreamAgg(_, _, query) =>
         query.typ
-      case ArrayAggScan(_, _, query) =>
-        TArray(query.typ)
+      case StreamAggScan(_, _, query) =>
+        TStream(query.typ)
       case RunAgg(body, result, _) =>
         result.typ
       case RunAggScan(_, _, _, _, result, _) =>
-        TArray(result.typ)
-      case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
-        coerce[TStreamable](left.typ).copyStreamable(join.typ)
-        TArray(join.typ)
+        TStream(result.typ)
+      case StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
+        TStream(join.typ, left.typ.required && right.typ.required)
       case NDArrayShape(nd) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
         ndType.representation.fieldType("shape").asInstanceOf[TTuple].setRequired(ndType.required)
       case NDArrayReshape(nd, shape) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size), nd.typ.required)
       case NDArrayConcat(nds, _) =>
-        coerce[TStreamable](nds.typ).elementType
+        coerce[TArray](nds.typ).elementType
       case NDArrayMap(nd, _, body) =>
         TNDArray(body.typ.setRequired(true), coerce[TNDArray](nd.typ).nDimsBase, nd.typ.required)
       case NDArrayMap2(l, _, _, _, body) =>
@@ -212,6 +215,7 @@ object InferType {
       case _: BlockMatrixCollect => TNDArray(TFloat64(), Nat(2))
       case _: BlockMatrixWrite => TVoid
       case _: BlockMatrixMultiWrite => TVoid
+      case _: UnpersistBlockMatrix => TVoid
       case TableGetGlobals(child) => child.typ.globalType
       case TableCollect(child) => TStruct("rows" -> TArray(child.typ.rowType), "global" -> child.typ.globalType)
       case TableToValueApply(child, function) => function.typ(child.typ)
@@ -219,6 +223,8 @@ object InferType {
       case BlockMatrixToValueApply(child, function) => function.typ(child.typ)
       case CollectDistributedArray(_, _, _, _, body) => TArray(body.typ)
       case ReadPartition(_, _, rowType) => TStream(rowType)
+      case ReadValue(_, _, typ) => typ
+      case WriteValue(value, pathPrefix, spec) => TString()
       case LiftMeOut(child) => child.typ
     }
   }

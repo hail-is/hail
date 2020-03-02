@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.TestUtils._
 import is.hail.asm4s.Code
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
-import is.hail.expr.types.virtual.{TArray, TInt32, TInt64}
+import is.hail.expr.types.virtual.{TArray, TInt32, TInt64, TStream}
 import is.hail.utils._
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
@@ -101,21 +101,21 @@ class RandomFunctionsSuite extends HailSuite {
 
   @Test def testInterpretIncrementsCorrectly() {
     assertEvalsTo(
-      ArrayMap(ArrayRange(0, 3, 1), "i", counter * counter),
+      ToArray(StreamMap(StreamRange(0, 3, 1), "i", counter * counter)),
       FastIndexedSeq(0, 1, 4))
 
     assertEvalsTo(
-      ArrayFold(ArrayRange(0, 3, 1), -1, "j", "i", counter + counter),
+      StreamFold(StreamRange(0, 3, 1), -1, "j", "i", counter + counter),
       4)
 
     assertEvalsTo(
-      ArrayFilter(ArrayRange(0, 3, 1), "i", Ref("i", TInt32()).ceq(counter) && counter.ceq(counter)),
+      ToArray(StreamFilter(StreamRange(0, 3, 1), "i", Ref("i", TInt32()).ceq(counter) && counter.ceq(counter))),
       FastIndexedSeq(0, 1, 2))
 
     assertEvalsTo(
-      ArrayFlatMap(ArrayRange(0, 3, 1),
+      ToArray(StreamFlatMap(StreamRange(0, 3, 1),
         "i",
-        MakeArray(FastSeq(counter, counter, counter), TArray(TInt32()))),
+        MakeStream(FastSeq(counter, counter, counter), TStream(TInt32())))),
       FastIndexedSeq(0, 0, 0, 1, 1, 1, 2, 2, 2))
   }
 

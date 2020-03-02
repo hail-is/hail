@@ -16,13 +16,6 @@ abstract class ComplexPType extends PType {
 
   override def containsPointers: Boolean = representation.containsPointers
 
-  def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
-    this.representation.storeShallowAtOffset(dstAddress, valueAddress)
-
-  def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
-    this.representation.storeShallowAtOffset(dstAddress, valueAddress)
-  }
-
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     assert(this isOfType srcPType)
 
@@ -41,4 +34,13 @@ abstract class ComplexPType extends PType {
 
     this.representation.copyFromType(region, srcRepPType, srcAddress, forceDeep)
   }
+
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] =
+    this.representation.constructAtAddress(mb, addr, region, srcPType.fundamentalType, srcAddress, forceDeep)
+
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
+    this.representation.constructAtAddress(addr, region, srcPType.fundamentalType, srcAddress, forceDeep)
+
+  override def constructAtAddressFromValue(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, src: Code[_], forceDeep: Boolean): Code[Unit] =
+    this.representation.constructAtAddressFromValue(mb, addr, region, srcPType.fundamentalType, src, forceDeep)
 }

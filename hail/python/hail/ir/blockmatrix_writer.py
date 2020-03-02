@@ -141,3 +141,22 @@ class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
                self.add_index == other.add_index and \
                self.compression == other.compression and \
                self.custom_filenames == other.custom_filenames
+
+
+class BlockMatrixPersistWriter(BlockMatrixWriter):
+    @typecheck_method(id=str, storage_level=str)
+    def __init__(self, id, storage_level):
+        self.id = id
+        self.storage_level = storage_level
+
+    def render(self):
+        writer = {'name': 'BlockMatrixPersistWriter',
+                  'id': self.id,
+                  'storageLevel': self.storage_level}
+        return escape_str(json.dumps(writer))
+
+    def __eq__(self, other):
+        return isinstance(other, BlockMatrixPersistWriter) and \
+               self.id == other.id and \
+               self.storage_level == other.storage_level
+

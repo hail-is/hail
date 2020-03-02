@@ -1,7 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.expr.ir.agg.Extract
-import is.hail.expr.ir.{ApplyIR, ArrayAgg, ArrayAggScan, ArrayFor, BaseIR, Begin, BlockMatrixIR, ExecuteContext, IR, InterpretNonCompilable, Let, LowerMatrixIR, MatrixIR, Pretty, ResultOp, RewriteBottomUp, RewriteTopDown, RunAgg, RunAggScan, TableIR, genUID}
+import is.hail.expr.ir._
 import is.hail.utils.FastSeq
 
 trait LoweringPass {
@@ -69,13 +69,13 @@ case object InlineApplyIR extends LoweringPass {
   })
 }
 
-case object LowerArrayAggsToRunAggs extends LoweringPass {
+case object LowerArrayAggsToRunAggsPass extends LoweringPass {
   val before: IRState = CompilableIRNoApply
   val after: IRState = EmittableIR
   val context: String = "LowerArrayAggsToRunAggs"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = RewriteBottomUp(ir, {
-    case x@ArrayAgg(a, name, query) =>
+    case x@StreamAgg(a, name, query) =>
       val res = genUID()
       val aggs = Extract(query, res)
       val newNode = Let(
@@ -83,7 +83,7 @@ case object LowerArrayAggsToRunAggs extends LoweringPass {
         RunAgg(
           Begin(FastSeq(
             aggs.init,
-            ArrayFor(
+            StreamFor(
               a,
               name,
               aggs.seqPerElt))),
@@ -93,7 +93,7 @@ case object LowerArrayAggsToRunAggs extends LoweringPass {
       if (newNode.typ != x.typ)
         throw new RuntimeException(s"types differ:\n  new: ${ newNode.typ }\n  old: ${ x.typ }")
       Some(newNode)
-    case x@ArrayAggScan(a, name, query) =>
+    case x@StreamAggScan(a, name, query) =>
       val res = genUID()
       val aggs = Extract(Extract.liftScan(query), res)
       val newNode = RunAggScan(

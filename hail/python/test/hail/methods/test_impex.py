@@ -1519,6 +1519,7 @@ class ImportMatrixTableTests(unittest.TestCase):
         t = hl.import_table(file, types=fields, key=['Chromosome', 'Position'])
 
         self.assertEqual(mt.count_cols(), 0)
+        self.assertEqual(mt.count_rows(), 231)
         self.assertTrue(t._same(mt.rows()))
 
     @skip_unless_spark_backend()
@@ -1661,6 +1662,8 @@ class ImportMatrixTableTests(unittest.TestCase):
             21, 22, 23, 24,
             31, None, None, 34]
         assert actual == expected
+
+        assert mt.count_rows() == len(mt.rows().collect())
 
         actual = mt.chr.collect()
         assert actual == ['chr1', 'chr1', 'chr1', None]

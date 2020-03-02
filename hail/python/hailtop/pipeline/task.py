@@ -111,18 +111,19 @@ class Task:
 
         Declare a resource group:
 
+        >>> p = Pipeline()
         >>> input = p.read_input_group(bed='data/example.bed',
         ...                            bim='data/example.bim',
         ...                            fam='data/example.fam')
-
         >>> t = p.new_task()
         >>> t.declare_resource_group(tmp1={'bed': '{root}.bed',
         ...                                'bim': '{root}.bim',
         ...                                'fam': '{root}.fam',
         ...                                'log': '{root}.log'})
-        >>> t.command(f"plink --bfile {input} --make-bed --out {t.tmp1}")
+        >>> t.command(f'plink --bfile {input} --make-bed --out {t.tmp1}')
+        >>> p.run()  # doctest: +SKIP
 
-        Caution
+        Warning
         -------
         Be careful when specifying the expressions for each file as this is Python
         code that is executed with `eval`!
@@ -157,6 +158,10 @@ class Task:
         Examples
         --------
 
+        Initialize the pipeline:
+
+        >>> p = Pipeline()
+
         Create the first task:
 
         >>> t1 = p.new_task()
@@ -167,6 +172,10 @@ class Task:
         >>> t2 = p.new_task()
         >>> t2.depends_on(t1)
         >>> t2.command(f'echo "world"')
+
+        Execute the pipeline:
+
+        >>> p.run()
 
         Notes
         -----
@@ -200,38 +209,38 @@ class Task:
         Simple task with no output files:
 
         >>> p = Pipeline()
-        >>> t1 = p.new_task()
-        >>> t1.command(f'echo "hello"')
+        >>> t = p.new_task()
+        >>> t.command(f'echo "hello"')
         >>> p.run()
 
         Simple task with one temporary file `t2.ofile` that is written to a
         permanent location:
 
         >>> p = Pipeline()
-        >>> t2 = p.new_task()
-        >>> t2.command(f'echo "hello world" > {t2.ofile}')
-        >>> p.write_output(t2.ofile, 'output/hello.txt')
+        >>> t = p.new_task()
+        >>> t.command(f'echo "hello world" > {t.ofile}')
+        >>> p.write_output(t.ofile, 'output/hello.txt')
         >>> p.run()
 
         Two tasks with a file interdependency:
 
         >>> p = Pipeline()
-        >>> t3 = p.new_task()
-        >>> t3.command(f'echo "hello" > {t3.ofile}')
-        >>> t4 = p.new_task()
-        >>> t4.command(f'cat {t3.ofile} > {t4.ofile}')
-        >>> p.write_output(t4.ofile, 'output/cat_output.txt')
+        >>> t1 = p.new_task()
+        >>> t1.command(f'echo "hello" > {t1.ofile}')
+        >>> t2 = p.new_task()
+        >>> t2.command(f'cat {t1.ofile} > {t2.ofile}')
+        >>> p.write_output(t2.ofile, 'output/cat_output.txt')
         >>> p.run()
 
         Specify multiple commands in the same task:
 
         >>> p = Pipeline()
-        >>> t5 = p.new_task()
-        >>> t5.command(f'echo "hello" > {t5.tmp1}')
-        >>> t5.command(f'echo "world" > {t5.tmp2}')
-        >>> t5.command(f'echo "!" > {t5.tmp3}')
-        >>> t5.command(f'cat {t5.tmp1} {t5.tmp2} {t5.tmp3} > {t5.ofile}')
-        >>> p.write_output(t5.ofile, 'output/concatenated.txt')
+        >>> t = p.new_task()
+        >>> t.command(f'echo "hello" > {t.tmp1}')
+        >>> t.command(f'echo "world" > {t.tmp2}')
+        >>> t.command(f'echo "!" > {t.tmp3}')
+        >>> t.command(f'cat {t.tmp1} {t.tmp2} {t.tmp3} > {t.ofile}')
+        >>> p.write_output(t.ofile, 'output/concatenated.txt')
         >>> p.run()
 
         Notes
@@ -310,9 +319,11 @@ class Task:
 
         Set the task's disk requirements to 1 Gi:
 
-        >>> t1 = p.new_task()
-        >>> (t1.storage('1Gi')
-        ...    .command(f'echo "hello"'))
+        >>> p = Pipeline()
+        >>> t = p.new_task()
+        >>> (t.storage('1Gi')
+        ...   .command(f'echo "hello"'))
+        >>> p.run()
 
         Parameters
         ----------
@@ -335,9 +346,11 @@ class Task:
 
         Set the task's memory requirement to 5GB:
 
-        >>> t1 = p.new_task()
-        >>> (t1.memory(5)
-        ...    .command(f'echo "hello"'))
+        >>> p = Pipeline()
+        >>> t = p.new_task()
+        >>> (t.memory(5)
+        ...   .command(f'echo "hello"'))
+        >>> p.run()
 
         Parameters
         ----------
@@ -359,11 +372,13 @@ class Task:
         Examples
         --------
 
-        Set the task's CPU requirement to 2 cores:
+        Set the task's CPU requirement to 0.1 cores:
 
-        >>> t1 = p.new_task()
-        >>> (t1.cpu(2)
-        ...    .command(f'echo "hello"'))
+        >>> p = Pipeline()
+        >>> t = p.new_task()
+        >>> (t.cpu(0.1)
+        ...   .command(f'echo "hello"'))
+        >>> p.run()
 
         Parameters
         ----------
@@ -387,9 +402,11 @@ class Task:
 
         Set the task's docker image to `alpine`:
 
-        >>> t1 = p.new_task()
-        >>> (t1.image('alpine:latest')
-        ...    .command(f'echo "hello"'))
+        >>> p = Pipeline()
+        >>> t = p.new_task()
+        >>> (t.image('ubuntu:18.04')
+        ...   .command(f'echo "hello"'))
+        >>> p.run()  # doctest: +SKIP
 
         Parameters
         ----------
@@ -412,9 +429,10 @@ class Task:
         Examples
         --------
 
-        >>> t1 = p.new_task()
-        >>> (t1.always_run()
-        ...    .command(f'echo "hello"'))
+        >>> p = Pipeline()
+        >>> t = p.new_task()
+        >>> (t.always_run()
+        ...   .command(f'echo "hello"'))
 
         Parameters
         ----------

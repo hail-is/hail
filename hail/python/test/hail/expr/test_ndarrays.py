@@ -665,3 +665,33 @@ def test_ndarray_qr():
     with pytest.raises(AssertionError) as exc:
         hl.nd.qr(hl.nd.arange(6))
     assert "requires 2 dimensional" in str(exc)
+
+
+def test_numpy_interop():
+    v = [2, 3]
+    w = [3, 5]
+    a = [[2, 3]]
+    b = [[3], [5]]
+
+    assert np.array_equal(hl.eval(np.array(v) * hl.literal(3)), np.array([6, 9]))
+    assert np.array_equal(hl.eval(hl.literal(3) * np.array(v)), np.array([6, 9]))
+
+    assert np.array_equal(hl.eval(np.array(v) * hl.nd.array(w)), np.array([6, 15]))
+    assert np.array_equal(hl.eval(hl.nd.array(w) * np.array(v)), np.array([6, 15]))
+
+    assert np.array_equal(hl.eval(np.array(v) + hl.literal(3)), np.array([5, 6]))
+    assert np.array_equal(hl.eval(hl.literal(3) + np.array(v)), np.array([5, 6]))
+
+    assert np.array_equal(hl.eval(np.array(v) + hl.nd.array(w)), np.array([5, 8]))
+    assert np.array_equal(hl.eval(hl.nd.array(w) + np.array(v)), np.array([5, 8]))
+
+    assert np.array_equal(hl.eval(np.array(v) @ hl.nd.array(w)), 21)
+    assert np.array_equal(hl.eval(hl.nd.array(v) @ np.array(w)), 21)
+
+    assert np.array_equal(hl.eval(np.array(a) @ hl.nd.array(b)), np.array([[21]]))
+    assert np.array_equal(hl.eval(hl.nd.array(a) @ np.array(b)), np.array([[21]]))
+
+    assert np.array_equal(hl.eval(hl.nd.array(b) @ np.array(a)),
+                          np.array([[6, 9], [10, 15]]))
+    assert np.array_equal(hl.eval(np.array(b) @ hl.nd.array(a)),
+                          np.array([[6, 9], [10, 15]]))

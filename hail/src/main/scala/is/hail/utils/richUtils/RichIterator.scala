@@ -40,18 +40,17 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
   def pipe(pb: ProcessBuilder,
     printHeader: (String => Unit) => Unit,
     printElement: (String => Unit, T) => Unit,
-    printFooter: (String => Unit) => Unit): (Iterator[String], Process) = {
+    printFooter: (String => Unit) => Unit): (Iterator[String], StringBuilder, Process) = {
 
     val command = pb.command().asScala.mkString(" ")
 
     val proc = pb.start()
 
-    // Start a thread to print the process's stderr to ours
+    val error = new StringBuilder()
+    // Start a thread capture the process stderr
     new Thread("stderr reader for " + command) {
       override def run() {
-        for (line <- Source.fromInputStream(proc.getErrorStream).getLines) {
-          System.err.println(line)
-        }
+        Source.fromInputStream(proc.getErrorStream).addString(error)
       }
     }.start()
 
@@ -67,8 +66,10 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
       }
     }.start()
 
-    // Return an iterator that read lines from the process's stdout
-    (Source.fromInputStream(proc.getInputStream).getLines(), proc)
+    // Return an iterator that reads lines from the process's stdout,
+    // a StringBuilder that captures standard error that should not be read
+    // from or written to until waiting for the process, and the process itself
+    (Source.fromInputStream(proc.getInputStream).getLines(), error, proc)
   }
 
   def trueGroupedIterator(groupSize: Int): Iterator[Iterator[T]] =

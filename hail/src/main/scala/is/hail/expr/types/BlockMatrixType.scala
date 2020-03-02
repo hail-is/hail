@@ -1,7 +1,8 @@
 package is.hail.expr.types
 
 import is.hail.utils._
-import is.hail.expr.types.virtual.Type
+import is.hail.expr.types.virtual.{TFloat64, Type}
+import is.hail.linalg.BlockMatrix
 
 object BlockMatrixSparsity {
   private val builder: ArrayBuilder[(Int, Int)] = new ArrayBuilder[(Int, Int)]
@@ -78,6 +79,12 @@ object BlockMatrixType {
   def dense(elementType: Type, nRows: Long, nCols: Long, blockSize: Int): BlockMatrixType = {
     val (shape, isRowVector) = matrixToTensorShape(nRows, nCols)
     BlockMatrixType(elementType, shape, isRowVector, blockSize, BlockMatrixSparsity.dense)
+  }
+
+  def fromBlockMatrix(value: BlockMatrix): BlockMatrixType = {
+    val sparsity = BlockMatrixSparsity.fromLinearBlocks(value.nRows, value.nCols, value.blockSize, value.gp.maybeBlocks)
+    val (shape, isRowVector) = matrixToTensorShape(value.nRows, value.nCols)
+    BlockMatrixType(TFloat64(), shape, isRowVector, value.blockSize, sparsity)
   }
 }
 

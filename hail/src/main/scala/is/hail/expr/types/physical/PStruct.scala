@@ -28,10 +28,8 @@ object PStruct {
   def canonical(t: PType): PStruct = PCanonicalStruct.canonical(t)
 }
 
-abstract class PStruct extends PBaseStruct {
+trait PStruct extends PBaseStruct {
   lazy val virtualType: TStruct = TStruct(fields.map(f => Field(f.name, f.typ.virtualType, f.index)), required)
-
-  def copy(fields: IndexedSeq[PField] = this.fields,  required: Boolean = this.required): PStruct
 
   final def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
     codeOrdering(mb, other, null)

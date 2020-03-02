@@ -12,18 +12,18 @@ object SetFunctions extends RegistryFunctions {
       NA(TBoolean()),
       Let(i.name,
         LowerBoundOnOrderedCollection(set, elem, onKey = false),
-        If(i.ceq(ArrayLen(ToArray(set))),
+        If(i.ceq(ArrayLen(CastToArray(set))),
           False(),
-          ApplyComparisonOp(EQWithNA(elem.typ), ArrayRef(ToArray(set), i), elem))))
+          ApplyComparisonOp(EQWithNA(elem.typ), ArrayRef(CastToArray(set), i), elem))))
   }
 
   def registerAll() {
     registerIR("toSet", TArray(tv("T")), TSet(tv("T"))) { a =>
-      ToSet(a)
+      ToSet(ToStream(a))
     }
 
     registerIR("isEmpty", TSet(tv("T")), TBoolean()) { s =>
-      ArrayFunctions.isEmpty(ToArray(s))
+      ArrayFunctions.isEmpty(CastToArray(s))
     }
 
     registerIR("contains", TSet(tv("T")), tv("T"), TBoolean())(contains)
@@ -32,8 +32,8 @@ object SetFunctions extends RegistryFunctions {
       val t = v.typ
       val x = genUID()
       ToSet(
-        ArrayFilter(
-          ToArray(s),
+        StreamFilter(
+          ToStream(s),
           x,
           ApplyComparisonOp(NEQWithNA(t), Ref(x, t), v)))
     }
@@ -42,27 +42,27 @@ object SetFunctions extends RegistryFunctions {
       val t = v.typ
       val x = genUID()
       ToSet(
-        ArrayFlatMap(
-          MakeArray(FastSeq(ToArray(s), MakeArray(FastSeq(v), TArray(t))), TArray(TArray(t))),
+        StreamFlatMap(
+          MakeStream(FastSeq(CastToArray(s), MakeArray(FastSeq(v), TArray(t))), TStream(TArray(t))),
           x,
-          Ref(x, TArray(t))))
+          ToStream(Ref(x, TArray(t)))))
     }
 
     registerIR("union", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
       val t = -s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
-        ArrayFlatMap(
-          MakeArray(FastSeq(ToArray(s1), ToArray(s2)), TArray(TArray(t))),
+        StreamFlatMap(
+          MakeStream(FastSeq(CastToArray(s1), CastToArray(s2)), TStream(TArray(t))),
           x,
-          Ref(x, TArray(t))))
+          ToStream(Ref(x, TArray(t)))))
     }
 
     registerIR("intersection", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
       val t = -s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
-        ArrayFilter(ToArray(s1), x,
+        StreamFilter(ToStream(s1), x,
           contains(s2, Ref(x, t))))
     }
 
@@ -70,7 +70,7 @@ object SetFunctions extends RegistryFunctions {
       val t = -s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
-        ArrayFilter(ToArray(s1), x,
+        StreamFilter(ToStream(s1), x,
           ApplyUnaryPrimOp(Bang(), contains(s2, Ref(x, t)))))
     }
 
@@ -78,7 +78,7 @@ object SetFunctions extends RegistryFunctions {
       val t = -s.typ.asInstanceOf[TSet].elementType
       val a = genUID()
       val x = genUID()
-      ArrayFold(ToArray(s), True(), a, x,
+      StreamFold(ToStream(s), True(), a, x,
         // FIXME short circuit
         ApplySpecial("&&",
           FastSeq(Ref(a, TBoolean()), contains(w, Ref(x, t))), TBoolean()))
@@ -94,7 +94,7 @@ object SetFunctions extends RegistryFunctions {
       val len: IR = ArrayLen(a)
       def div(a: IR, b: IR): IR = ApplyBinaryPrimOp(BinaryOp.defaultDivideOp(t), a, b)
 
-      Let(a.name, ToArray(s),
+      Let(a.name, CastToArray(s),
         If(IsNA(a),
           NA(t),
           Let(size.name,

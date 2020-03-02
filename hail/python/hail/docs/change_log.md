@@ -22,6 +22,28 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+---
+
+## Version 0.2.33
+
+Released 2020-02-27
+
+### New features
+
+- (hail#8173) Added new method `hl.zeros`.
+
+### Bug fixes
+
+- (hail#8153) Fixed complier bug causing `MatchError` in `import_bgen`.
+- (hail#8123) Fixed an issue with multiple Python HailContexts running on the same cluster.
+- (hail#8150) Fixed an issue where output from VEP about failures was not reported in error message.
+- (hail#8152) Fixed an issue where the row count of a MatrixTable coming from `import_matrix_table` was incorrect.
+- (hail#8175) Fixed a bug where `persist` did not actually do anything.
+
+### `hailctl dataproc`
+
+- (hail#8079) Using `connect` to open the jupyter notebook browser will no longer crash if your project contains requester-pays buckets.
+
 --- 
 
 ## Version 0.2.32

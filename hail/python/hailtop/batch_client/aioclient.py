@@ -302,10 +302,12 @@ class Batch:
     async def cancel(self):
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
-    async def jobs(self):
+    async def jobs(self, q=None):
         last_job_id = None
         while True:
             params = {}
+            if q is not None:
+                params['q'] = q
             if last_job_id is not None:
                 params['last_job_id'] = last_job_id
             resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/jobs', params=params)
@@ -353,7 +355,8 @@ class BatchBuilder:
     def create_job(self, image, command, env=None, mount_docker_socket=False,
                    port=None, resources=None, secrets=None,
                    service_account=None, attributes=None, parents=None,
-                   input_files=None, output_files=None, always_run=False, pvc_size=None):
+                   input_files=None, output_files=None, always_run=False, pvc_size=None,
+                   timeout=None):
         if self._submitted:
             raise ValueError("cannot create a job in an already submitted batch")
 
@@ -406,6 +409,8 @@ class BatchBuilder:
             job_spec['secrets'] = secrets
         if service_account:
             job_spec['service_account'] = service_account
+        if timeout:
+            job_spec['timeout'] = timeout
 
         if attributes:
             job_spec['attributes'] = attributes

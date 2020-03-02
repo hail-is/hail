@@ -3,7 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.{PString, PTuple}
+import is.hail.expr.types.physical.{PString, PTuple, PType}
 import is.hail.utils._
 import is.hail.expr.types.virtual._
 import org.apache.spark.sql.Row
@@ -160,7 +160,7 @@ object UtilFunctions extends RegistryFunctions {
           EmitTriplet(
             Code(x.setup, m := x.m, s := m.mux(Code._null[String], asm4s.coerce[String](wrapArg(r, xT)(x.v)))),
             (m || !Code.invokeScalaObject[String, Boolean](thisClass, s"isValid$name", s)),
-            Code.invokeScalaObject(thisClass, s"parse$name", s)(ctString, ct))
+            PValue(rt, Code.invokeScalaObject(thisClass, s"parse$name", s)(ctString, ct)))
       }
     }
 
@@ -194,35 +194,35 @@ object UtilFunctions extends RegistryFunctions {
           Code.invokeScalaObject[Double, Double, Double](thisClass, ignoreNanName, v1, v2)
       }
 
-      def ignoreMissingTriplet[T](v1: EmitTriplet, v2: EmitTriplet, name: String)(implicit ct: ClassTag[T]): EmitTriplet =
+      def ignoreMissingTriplet[T](rt: PType, v1: EmitTriplet, v2: EmitTriplet, name: String)(implicit ct: ClassTag[T]): EmitTriplet =
         EmitTriplet(
           Code(v1.setup, v2.setup),
           v1.m && v2.m,
-          Code.invokeScalaObject[T, Boolean, T, Boolean, T](thisClass, name, v1.v.asInstanceOf[Code[T]], v1.m, v2.v.asInstanceOf[Code[T]], v2.m)
+          PValue(rt, Code.invokeScalaObject[T, Boolean, T, Boolean, T](thisClass, name, v1.v.asInstanceOf[Code[T]], v1.m, v2.v.asInstanceOf[Code[T]], v2.m))
         )
 
       registerCodeWithMissingness(ignoreMissingName, TInt32(), TInt32(), TInt32(), null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Int](v1, v2, ignoreMissingName)
+        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Int](rt, v1, v2, ignoreMissingName)
       }
 
       registerCodeWithMissingness(ignoreMissingName, TInt64(), TInt64(), TInt64(), null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Long](v1, v2, ignoreMissingName)
+        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Long](rt, v1, v2, ignoreMissingName)
       }
 
       registerCodeWithMissingness(ignoreMissingName, TFloat32(), TFloat32(), TFloat32(), null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Float](v1, v2, ignoreMissingName)
+        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Float](rt, v1, v2, ignoreMissingName)
       }
 
       registerCodeWithMissingness(ignoreMissingName, TFloat64(), TFloat64(), TFloat64(), null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Double](v1, v2, ignoreMissingName)
+        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Double](rt, v1, v2, ignoreMissingName)
       }
 
       registerCodeWithMissingness(ignoreBothName, TFloat32(), TFloat32(), TFloat32(), null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Float](v1, v2, ignoreBothName)
+        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Float](rt, v1, v2, ignoreBothName)
       }
 
       registerCodeWithMissingness(ignoreBothName, TFloat64(), TFloat64(), TFloat64(), null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Double](v1, v2, ignoreBothName)
+        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Double](rt, v1, v2, ignoreBothName)
       }
     }
 
@@ -247,7 +247,7 @@ object UtilFunctions extends RegistryFunctions {
         val missing = m.mux(rm || rv, v && (rm || Code(v := rv, false)))
         val value = v
 
-        EmitTriplet(setup, missing, value)
+        EmitTriplet(setup, missing, PValue(rt, value))
     }
 
     registerCodeWithMissingness("||", TBoolean(), TBoolean(), TBoolean(), null) {
@@ -264,7 +264,7 @@ object UtilFunctions extends RegistryFunctions {
         val missing = m.mux(rm || !rv, !v && (rm || Code(v := rv, false)))
         val value = v
 
-        EmitTriplet(setup, missing, value)
+        EmitTriplet(setup, missing, PValue(rt, value))
     }
   }
 }

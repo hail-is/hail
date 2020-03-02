@@ -59,6 +59,11 @@ class Tests(unittest.TestCase):
         with self.assertRaisesRegex(hl.utils.FatalError, 'Array range cannot have step size 0'):
             hl.eval(hl.range(0, 1, 0))
 
+    def test_zeros(self):
+        for size in [0, 3, 10, 1000]:
+            evaled = hl.eval(hl.zeros(size))
+            assert evaled == [0 for i in range(size)]
+
     def test_seeded_sampling(self):
         sampled1 = hl.utils.range_table(50, 6).filter(hl.rand_bool(0.5))
         sampled2 = hl.utils.range_table(50, 5).filter(hl.rand_bool(0.5))
@@ -3030,8 +3035,9 @@ class Tests(unittest.TestCase):
     def test_format(self):
         self.assertEqual(hl.eval(hl.format("%.4f %s %.3e", 0.25, 'hello', 0.114)), '0.2500 hello 1.140e-01')
         self.assertEqual(hl.eval(hl.format("%.4f %d", hl.null(hl.tint32), hl.null(hl.tint32))), 'null null')
-        self.assertEqual(hl.eval(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5])))), '[5,true,[4,5]]')
-        self.assertEqual(hl.eval(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.null(hl.tstr)]))), '1:356 [9,true,null]')
+        self.assertEqual(hl.eval(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5])))),
+                         '{foo: 5, bar: true, baz: [4,5]}')
+        self.assertEqual(hl.eval(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.null(hl.tstr)]))), '1:356 (9, true, null)')
         self.assertEqual(hl.eval(hl.format("%b %B %b %b", hl.null(hl.tint), hl.null(hl.tstr), True, "hello")), "false FALSE true true")
 
     def test_dict_and_set_type_promotion(self):

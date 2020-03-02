@@ -106,23 +106,23 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         val newLeft = gen()
         val newRight = gen()
         ArraySort(normalize(a), newLeft, newRight, normalize(compare, env.bindEval(left -> newLeft, right -> newRight)))
-      case ArrayMap(a, name, body) =>
+      case StreamMap(a, name, body) =>
         val newName = gen()
-        ArrayMap(normalize(a), newName, normalize(body, env.bindEval(name, newName)))
-      case ArrayZip(as, names, body, behavior) =>
+        StreamMap(normalize(a), newName, normalize(body, env.bindEval(name, newName)))
+      case StreamZip(as, names, body, behavior) =>
         val newNames = names.map(_ => gen())
-        ArrayZip(as.map(normalize(_)), newNames, normalize(body, env.bindEval(names.zip(newNames): _*)), behavior)
-      case ArrayFilter(a, name, body) =>
+        StreamZip(as.map(normalize(_)), newNames, normalize(body, env.bindEval(names.zip(newNames): _*)), behavior)
+      case StreamFilter(a, name, body) =>
         val newName = gen()
-        ArrayFilter(normalize(a), newName, normalize(body, env.bindEval(name, newName)))
-      case ArrayFlatMap(a, name, body) =>
+        StreamFilter(normalize(a), newName, normalize(body, env.bindEval(name, newName)))
+      case StreamFlatMap(a, name, body) =>
         val newName = gen()
-        ArrayFlatMap(normalize(a), newName, normalize(body, env.bindEval(name, newName)))
-      case ArrayFold(a, zero, accumName, valueName, body) =>
+        StreamFlatMap(normalize(a), newName, normalize(body, env.bindEval(name, newName)))
+      case StreamFold(a, zero, accumName, valueName, body) =>
         val newAccumName = gen()
         val newValueName = gen()
-        ArrayFold(normalize(a), normalize(zero), newAccumName, newValueName, normalize(body, env.bindEval(accumName -> newAccumName, valueName -> newValueName)))
-      case ArrayFold2(a, accum, valueName, seq, res) =>
+        StreamFold(normalize(a), normalize(zero), newAccumName, newValueName, normalize(body, env.bindEval(accumName -> newAccumName, valueName -> newValueName)))
+      case StreamFold2(a, accum, valueName, seq, res) =>
         val newValueName = gen()
         val (accNames, newAcc) = accum.map { case (old, ir) =>
           val newName = gen()
@@ -130,34 +130,34 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         }.unzip
         val resEnv = env.bindEval(accNames: _*)
         val seqEnv = resEnv.bindEval(valueName, newValueName)
-        ArrayFold2(normalize(a), newAcc, newValueName, seq.map(normalize(_, seqEnv)), normalize(res, resEnv))
-      case ArrayScan(a, zero, accumName, valueName, body) =>
+        StreamFold2(normalize(a), newAcc, newValueName, seq.map(normalize(_, seqEnv)), normalize(res, resEnv))
+      case StreamScan(a, zero, accumName, valueName, body) =>
         val newAccumName = gen()
         val newValueName = gen()
-        ArrayScan(normalize(a), normalize(zero), newAccumName, newValueName, normalize(body, env.bindEval(accumName -> newAccumName, valueName -> newValueName)))
-      case ArrayFor(a, valueName, body) =>
+        StreamScan(normalize(a), normalize(zero), newAccumName, newValueName, normalize(body, env.bindEval(accumName -> newAccumName, valueName -> newValueName)))
+      case StreamFor(a, valueName, body) =>
         val newValueName = gen()
-        ArrayFor(normalize(a), newValueName, normalize(body, env.bindEval(valueName, newValueName)))
-      case ArrayAgg(a, name, body) =>
+        StreamFor(normalize(a), newValueName, normalize(body, env.bindEval(valueName, newValueName)))
+      case StreamAgg(a, name, body) =>
         // FIXME: Uncomment when bindings are threaded through test suites
         // assert(env.agg.isEmpty)
         val newName = gen()
-        ArrayAgg(normalize(a), newName, normalize(body, env.copy(agg = Some(env.eval.bind(name, newName)))))
+        StreamAgg(normalize(a), newName, normalize(body, env.copy(agg = Some(env.eval.bind(name, newName)))))
       case RunAggScan(a, name, init, seq, result, sig) =>
         val newName = gen()
         val e2 = env.bindEval(name, newName)
         RunAggScan(normalize(a), newName, normalize(init, env), normalize(seq, e2), normalize(result, e2), sig)
-      case ArrayAggScan(a, name, body) =>
+      case StreamAggScan(a, name, body) =>
         // FIXME: Uncomment when bindings are threaded through test suites
         // assert(env.scan.isEmpty)
         val newName = gen()
         val newEnv = env.eval.bind(name, newName)
-        ArrayAggScan(normalize(a), newName, normalize(body, env.copy(eval = newEnv, scan = Some(newEnv))))
-      case ArrayLeftJoinDistinct(left, right, l, r, keyF, joinF) =>
+        StreamAggScan(normalize(a), newName, normalize(body, env.copy(eval = newEnv, scan = Some(newEnv))))
+      case StreamLeftJoinDistinct(left, right, l, r, keyF, joinF) =>
         val newL = gen()
         val newR = gen()
         val newEnv = env.bindEval(l -> newL, r -> newR)
-        ArrayLeftJoinDistinct(normalize(left), normalize(right), newL, newR, normalize(keyF, newEnv), normalize(joinF, newEnv))
+        StreamLeftJoinDistinct(normalize(left), normalize(right), newL, newR, normalize(keyF, newEnv), normalize(joinF, newEnv))
       case NDArrayMap(nd, name, body) =>
         val newName = gen()
         NDArrayMap(normalize(nd), newName, normalize(body, env.bindEval(name -> newName)))

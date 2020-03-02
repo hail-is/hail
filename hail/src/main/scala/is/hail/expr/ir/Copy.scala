@@ -65,12 +65,12 @@ object Copy {
       case ArrayLen(_) =>
         assert(newChildren.length == 1)
         ArrayLen(newChildren(0).asInstanceOf[IR])
-      case ArrayRange(_, _, _) =>
-        assert(newChildren.length == 3)
-        ArrayRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
       case StreamRange(_, _, _) =>
         assert(newChildren.length == 3)
         StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
+      case ArrayZeros(_) =>
+        assert(newChildren.length == 1)
+        ArrayZeros(newChildren(0).asInstanceOf[IR])
       case MakeNDArray(_, _, _) =>
         assert(newChildren.length == 3)
         MakeNDArray(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
@@ -121,6 +121,9 @@ object Copy {
       case ToArray(_) =>
         assert(newChildren.length == 1)
         ToArray(newChildren(0).asInstanceOf[IR])
+      case CastToArray(_) =>
+        assert(newChildren.length == 1)
+        CastToArray(newChildren(0).asInstanceOf[IR])
       case ToStream(_) =>
         assert(newChildren.length == 1)
         ToStream(newChildren(0).asInstanceOf[IR])
@@ -130,43 +133,43 @@ object Copy {
       case GroupByKey(_) =>
         assert(newChildren.length == 1)
         GroupByKey(newChildren(0).asInstanceOf[IR])
-      case ArrayMap(_, name, _) =>
+      case StreamMap(_, name, _) =>
         assert(newChildren.length == 2)
-        ArrayMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
-      case ArrayZip(_, names, _, behavior) =>
+        StreamMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
+      case StreamZip(_, names, _, behavior) =>
         assert(newChildren.length == names.length + 1)
-        ArrayZip(newChildren.init.asInstanceOf[IndexedSeq[IR]], names, newChildren(names.length).asInstanceOf[IR], behavior)
-      case ArrayFilter(_, name, _) =>
+        StreamZip(newChildren.init.asInstanceOf[IndexedSeq[IR]], names, newChildren(names.length).asInstanceOf[IR], behavior)
+      case StreamFilter(_, name, _) =>
         assert(newChildren.length == 2)
-        ArrayFilter(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
-      case ArrayFlatMap(_, name, _) =>
+        StreamFilter(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
+      case StreamFlatMap(_, name, _) =>
         assert(newChildren.length == 2)
-        ArrayFlatMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
-      case ArrayFold(_, _, accumName, valueName, _) =>
+        StreamFlatMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
+      case StreamFold(_, _, accumName, valueName, _) =>
         assert(newChildren.length == 3)
-        ArrayFold(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], accumName, valueName, newChildren(2).asInstanceOf[IR])
-      case ArrayFold2(_, accum, valueName, seq, _) =>
+        StreamFold(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], accumName, valueName, newChildren(2).asInstanceOf[IR])
+      case StreamFold2(_, accum, valueName, seq, _) =>
         val ncIR = newChildren.map(_.asInstanceOf[IR])
         assert(newChildren.length == 2 + accum.length + seq.length)
-        ArrayFold2(ncIR(0),
+        StreamFold2(ncIR(0),
           accum.indices.map(i => (accum(i)._1, ncIR(i + 1))),
           valueName,
           seq.indices.map(i => ncIR(i + 1 + accum.length)), ncIR.last)
-      case ArrayScan(_, _, accumName, valueName, _) =>
+      case StreamScan(_, _, accumName, valueName, _) =>
         assert(newChildren.length == 3)
-        ArrayScan(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], accumName, valueName, newChildren(2).asInstanceOf[IR])
-      case ArrayLeftJoinDistinct(_, _, l, r, _, _) =>
+        StreamScan(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], accumName, valueName, newChildren(2).asInstanceOf[IR])
+      case StreamLeftJoinDistinct(_, _, l, r, _, _) =>
         assert(newChildren.length == 4)
-        ArrayLeftJoinDistinct(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], l, r, newChildren(2).asInstanceOf[IR], newChildren(3).asInstanceOf[IR])
-      case ArrayFor(_, valueName, _) =>
+        StreamLeftJoinDistinct(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], l, r, newChildren(2).asInstanceOf[IR], newChildren(3).asInstanceOf[IR])
+      case StreamFor(_, valueName, _) =>
         assert(newChildren.length == 2)
-        ArrayFor(newChildren(0).asInstanceOf[IR], valueName, newChildren(1).asInstanceOf[IR])
-      case ArrayAgg(_, name, _) =>
+        StreamFor(newChildren(0).asInstanceOf[IR], valueName, newChildren(1).asInstanceOf[IR])
+      case StreamAgg(_, name, _) =>
         assert(newChildren.length == 2)
-        ArrayAgg(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
-      case ArrayAggScan(_, name, _) =>
+        StreamAgg(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
+      case StreamAggScan(_, name, _) =>
         assert(newChildren.length == 2)
-        ArrayAggScan(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
+        StreamAggScan(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
       case RunAgg(_, _, signatures) =>
         RunAgg(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], signatures)
       case RunAggScan(_, name, _, _, _, signatures) =>
@@ -297,12 +300,21 @@ object Copy {
         BlockMatrixWrite(newChildren(0).asInstanceOf[BlockMatrixIR], writer)
       case BlockMatrixMultiWrite(_, writer) =>
         BlockMatrixMultiWrite(newChildren.map(_.asInstanceOf[BlockMatrixIR]), writer)
+      case UnpersistBlockMatrix(child) =>
+        assert(newChildren.length == 1)
+        UnpersistBlockMatrix(newChildren(0).asInstanceOf[BlockMatrixIR])
       case CollectDistributedArray(_, _, cname, gname, _) =>
         assert(newChildren.length == 3)
         CollectDistributedArray(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], cname, gname, newChildren(2).asInstanceOf[IR])
       case ReadPartition(path, spec, rowType) =>
         assert(newChildren.length == 1)
         ReadPartition(newChildren(0).asInstanceOf[IR], spec, rowType)
+      case ReadValue(path, spec, requestedType) =>
+        assert(newChildren.length == 1)
+        ReadValue(newChildren(0).asInstanceOf[IR], spec, requestedType)
+      case WriteValue(value, pathPrefix, spec) =>
+        assert(newChildren.length == 2)
+        WriteValue(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], spec)
       case LiftMeOut(_) =>
         LiftMeOut(newChildren(0).asInstanceOf[IR])
     }

@@ -27,9 +27,9 @@ push: build
 	docker push $(BASE_LATEST)
 	docker tag base $(BASE_IMAGE)
 	docker push $(BASE_IMAGE)
-	docker tag base $(SERVICE_BASE_LATEST)
+	docker tag service-base $(SERVICE_BASE_LATEST)
 	docker push $(SERVICE_BASE_LATEST)
-	docker tag base $(SERVICE_BASE_IMAGE)
+	docker tag service-base $(SERVICE_BASE_IMAGE)
 	docker push $(SERVICE_BASE_IMAGE)
 
 .PHONY: deploy

@@ -7,6 +7,7 @@ from aiohttp import web
 import urllib3
 import socket
 import requests
+import google.auth.exceptions
 
 from .time import time_msecs
 
@@ -199,6 +200,8 @@ def is_transient_error(e):
     # socket.timeout: The read operation timed out
     #
     # ConnectionResetError: [Errno 104] Connection reset by peer
+    #
+    # google.auth.exceptions.TransportError: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))
     if isinstance(e, aiohttp.ClientResponseError) and (
             e.status in (408, 500, 502, 503, 504)):
         # nginx returns 502 if it cannot connect to the upstream server
@@ -233,6 +236,8 @@ def is_transient_error(e):
         return True
     if isinstance(e, ConnectionResetError):
         return True
+    if isinstance(e, google.auth.exceptions.TransportError):
+        return is_transient_error(e.__cause__)
     return False
 
 
@@ -241,6 +246,23 @@ async def sleep_and_backoff(delay):
     t = delay * random.random()
     await asyncio.sleep(t)
     return min(delay * 2, 60.0)
+
+
+def retry_all_errors(msg=None, error_logging_interval=10):
+    async def _wrapper(f, *args, **kwargs):
+        delay = 0.1
+        errors = 0
+        while True:
+            try:
+                return await f(*args, **kwargs)
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception:
+                errors += 1
+                if msg and errors % error_logging_interval == 0:
+                    log.exception(msg, stack_info=True)
+            delay = await sleep_and_backoff(delay)
+    return _wrapper
 
 
 async def retry_transient_errors(f, *args, **kwargs):
@@ -276,18 +298,6 @@ async def request_raise_transient_errors(session, method, url, **kwargs):
 
 async def collect_agen(agen):
     return [x async for x in agen]
-
-
-async def retry_forever(f, msg=None):
-    delay = 0.1
-    while True:
-        try:
-            await f()
-            break
-        except Exception as exc:
-            if msg:
-                log.info(msg(exc), exc_info=True)
-        await sleep_and_backoff(delay)
 
 
 async def retry_long_running(name, f, *args, **kwargs):
@@ -333,8 +343,9 @@ class LoggingTimerStep:
 
 
 class LoggingTimer:
-    def __init__(self, description):
+    def __init__(self, description, threshold_ms=None):
         self.description = description
+        self.threshold_ms = threshold_ms
         self.timing = {}
         self.start_time = None
 
@@ -347,6 +358,7 @@ class LoggingTimer:
 
     async def __aexit__(self, exc_type, exc, tb):
         finish_time = time_msecs()
-        self.timing['total'] = finish_time - self.start_time
-
-        log.info(f'{self.description} timing {self.timing}')
+        total = finish_time - self.start_time
+        if self.threshold_ms is None or total > self.threshold_ms:
+            self.timing['total'] = total
+            log.info(f'{self.description} timing {self.timing}')

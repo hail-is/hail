@@ -262,22 +262,22 @@ object Pretty {
             case MakeTuple(fields) => prettyInts(fields.map(_._1).toFastIndexedSeq)
             case MakeArray(_, typ) => typ.parsableString()
             case MakeStream(_, typ) => typ.parsableString()
-            case ArrayMap(_, name, _) => prettyIdentifier(name)
-            case ArrayZip(_, names, _, behavior) => prettyIdentifier(behavior match {
+            case StreamMap(_, name, _) => prettyIdentifier(name)
+            case StreamZip(_, names, _, behavior) => prettyIdentifier(behavior match {
               case ArrayZipBehavior.AssertSameLength => "AssertSameLength"
               case ArrayZipBehavior.TakeMinLength => "TakeMinLength"
               case ArrayZipBehavior.ExtendNA => "ExtendNA"
               case ArrayZipBehavior.AssumeSameLength => "AssumeSameLength"
             }) + " " + prettyIdentifiers(names)
-            case ArrayFilter(_, name, _) => prettyIdentifier(name)
-            case ArrayFlatMap(_, name, _) => prettyIdentifier(name)
-            case ArrayFold(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
-            case ArrayFold2(_, acc, valueName, _, _) => prettyIdentifiers(acc.map(_._1)) + " " + prettyIdentifier(valueName)
-            case ArrayScan(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
-            case ArrayLeftJoinDistinct(_, _, l, r, _, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
-            case ArrayFor(_, valueName, _) => prettyIdentifier(valueName)
-            case ArrayAgg(a, name, query) => prettyIdentifier(name)
-            case ArrayAggScan(a, name, query) => prettyIdentifier(name)
+            case StreamFilter(_, name, _) => prettyIdentifier(name)
+            case StreamFlatMap(_, name, _) => prettyIdentifier(name)
+            case StreamFold(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
+            case StreamFold2(_, acc, valueName, _, _) => prettyIdentifiers(acc.map(_._1)) + " " + prettyIdentifier(valueName)
+            case StreamScan(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
+            case StreamLeftJoinDistinct(_, _, l, r, _, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
+            case StreamFor(_, valueName, _) => prettyIdentifier(valueName)
+            case StreamAgg(a, name, query) => prettyIdentifier(name)
+            case StreamAggScan(a, name, query) => prettyIdentifier(name)
             case AggExplode(_, name, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
             case AggFilter(_, _, isScan) => prettyBooleanLiteral(isScan)
             case AggGroupBy(_, _, isScan) => prettyBooleanLiteral(isScan)
@@ -416,8 +416,11 @@ object Pretty {
             case RelationalLetTable(name, _, _) => prettyIdentifier(name)
             case RelationalLetMatrixTable(name, _, _) => prettyIdentifier(name)
             case RelationalLetBlockMatrix(name, _, _) => prettyIdentifier(name)
-            case ReadPartition(path, spec, rowType) =>
+            case ReadPartition(_, spec, rowType) =>
               s"${ prettyStringLiteral(spec.toString) } ${ rowType.parsableString() }"
+            case ReadValue(_, spec, reqType) =>
+              s"${ prettyStringLiteral(spec.toString) } ${ reqType.parsableString() }"
+            case WriteValue(_, _, spec) => prettyStringLiteral(spec.toString)
 
             case _ => ""
           }

@@ -283,7 +283,7 @@ class BuildImageStep(Step):
             cache_from_published_latest = ''
 
         push_image = f'''
-time docker push {self.image}
+time retry docker push {self.image}
 '''
         if scope == 'deploy' and self.publish_as and not is_test_deployment:
             push_image = f'''
@@ -378,7 +378,7 @@ true
 
 
 class RunImageStep(Step):
-    def __init__(self, params, image, script, inputs, outputs, port, resources, service_account, secrets, always_run):  # pylint: disable=unused-argument
+    def __init__(self, params, image, script, inputs, outputs, port, resources, service_account, secrets, always_run, timeout):  # pylint: disable=unused-argument
         super().__init__(params)
         self.image = expand_value_from(image, self.input_config(params.code, params.scope))
         self.script = script
@@ -395,6 +395,7 @@ class RunImageStep(Step):
             self.service_account = None
         self.secrets = secrets
         self.always_run = always_run
+        self.timeout = timeout
         self.job = None
 
     def wrapped_job(self):
@@ -414,7 +415,8 @@ class RunImageStep(Step):
                             json.get('resources'),
                             json.get('serviceAccount'),
                             json.get('secrets'),
-                            json.get('alwaysRun', False))
+                            json.get('alwaysRun', False),
+                            json.get('timeout', 3600))
 
     def config(self, scope):  # pylint: disable=unused-argument
         return {
@@ -464,7 +466,8 @@ class RunImageStep(Step):
             secrets=secrets,
             service_account=self.service_account,
             parents=self.deps_parents(),
-            always_run=self.always_run)
+            always_run=self.always_run,
+            timeout=self.timeout)
 
     def cleanup(self, batch, scope, parents):
         pass

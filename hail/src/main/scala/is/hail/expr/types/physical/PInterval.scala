@@ -23,8 +23,6 @@ abstract class PInterval extends ComplexPType {
     CodeOrdering.intervalOrdering(this, other.asInstanceOf[PInterval], mb)
   }
 
-  def copy(required: Boolean): PInterval
-
   override def unsafeOrdering(): UnsafeOrdering =
     new UnsafeOrdering {
       private val pOrd = pointType.unsafeOrdering()

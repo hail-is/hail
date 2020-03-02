@@ -2,8 +2,9 @@ package is.hail.expr.types.physical
 import is.hail.utils.log
 import is.hail.annotations.{Region, SafeIndexedSeq, SafeRow, ScalaToRegionValue, UnsafeRow}
 import is.hail.expr.ir.EmitFunctionBuilder
+import org.scalatest.testng.TestNGSuite
 
-object PhysicalTestUtils {
+object PhysicalTestUtils extends TestNGSuite {
   def copyTestExecutor(sourceType: PType, destType: PType, sourceValue: Any,
     expectCompileErr: Boolean = false, forceDeep: Boolean = false, interpret: Boolean = false) {
 
@@ -14,7 +15,7 @@ object PhysicalTestUtils {
 
     if(interpret) {
       try {
-        val copyOff = destType.copyFromType(region, sourceType, srcAddress, forceDeep = forceDeep)
+        val copyOff = destType.fundamentalType.copyFromType(region, sourceType.fundamentalType, srcAddress, forceDeep = forceDeep)
         val copy = UnsafeRow.read(destType, region, copyOff)
 
         log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
@@ -44,7 +45,7 @@ object PhysicalTestUtils {
     val value = fb.getArg[Long](2)
 
     try {
-      fb.emit(destType.copyFromType(fb.apply_method, codeRegion, sourceType, value, forceDeep = forceDeep))
+      fb.emit(destType.fundamentalType.copyFromType(fb.apply_method, codeRegion, sourceType.fundamentalType, value, forceDeep = forceDeep))
       compileSuccess = true
     } catch {
       case e: AssertionError => {

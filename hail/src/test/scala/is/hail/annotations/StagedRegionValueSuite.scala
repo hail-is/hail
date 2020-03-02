@@ -495,4 +495,79 @@ class StagedRegionValueSuite extends HailSuite {
     }
     p.check()
   }
+
+  @Test def testUnstagedCopy() {
+    val t1 = PCanonicalArray(PCanonicalStruct(
+      true,
+      "x1" -> PInt32(),
+      "x2" -> PArray(PInt32(), required = true),
+      "x3" -> PArray(PInt32(true), required = true),
+      "x4" -> PSet(PCanonicalStruct(true, "y" -> PString(true)), required = false)
+    ), required = false)
+    val t2 = t1.deepInnerRequired(false)
+
+    val value = IndexedSeq(
+      Row(1, IndexedSeq(1,2,3), IndexedSeq(0, -1), Set(Row("asdasdasd"), Row(""))),
+      Row(1, IndexedSeq(), IndexedSeq(-1), Set(Row("aa")))
+    )
+
+    Region.scoped { r =>
+      val rvb = new RegionValueBuilder(r)
+      rvb.start(t2)
+      rvb.addAnnotation(t2.virtualType, value)
+      val v1 = rvb.end()
+      assert(SafeRow.read(t2, r, v1) == value)
+
+      rvb.clear()
+      rvb.start(t1)
+      rvb.addRegionValue(t2, r, v1)
+      val v2 = rvb.end()
+      assert(SafeRow.read(t1, r, v2) == value)
+    }
+  }
+
+  @Test def testStagedCopy() {
+    val t1 = PCanonicalStruct(false, "a" -> PCanonicalArray(PCanonicalStruct(
+      true,
+      "x1" -> PInt32(),
+      "x2" -> PArray(PInt32(), required = true),
+      "x3" -> PArray(PInt32(true), required = true),
+      "x4" -> PSet(PCanonicalStruct(true, "y" -> PString(true)), required = false)
+    ), required = false))
+    val t2 = t1.deepInnerRequired(false).asInstanceOf[PStruct]
+
+    val value = IndexedSeq(
+      Row(1, IndexedSeq(1,2,3), IndexedSeq(0, -1), Set(Row("asdasdasd"), Row(""))),
+      Row(1, IndexedSeq(), IndexedSeq(-1), Set(Row("aa")))
+    )
+
+    val valueT2 = t2.types(0)
+    Region.scoped { r =>
+      val rvb = new RegionValueBuilder(r)
+      rvb.start(valueT2)
+      rvb.addAnnotation(valueT2.virtualType, value)
+      val v1 = rvb.end()
+      assert(SafeRow.read(valueT2, r, v1) == value)
+
+      val f1 = EmitFunctionBuilder[Long]("stagedCopy1")
+      val srvb = new StagedRegionValueBuilder(f1.apply_method, t2, f1.partitionRegion)
+      f1.emit(Code(
+        srvb.start(),
+        srvb.addIRIntermediate(t2.types(0))(v1),
+        srvb.end()
+      ))
+      val cp1 = f1.resultWithIndex()(0, r)()
+      assert(SafeRow.read(t2, r, cp1) == Row(value))
+
+      val f2 = EmitFunctionBuilder[Long]("stagedCopy2")
+      val srvb2 = new StagedRegionValueBuilder(f2.apply_method, t1, f2.partitionRegion)
+      f2.emit(Code(
+        srvb2.start(),
+        srvb2.addIRIntermediate(t2.types(0))(v1),
+        srvb2.end()
+      ))
+      val cp2 = f2.resultWithIndex()(0, r)()
+      assert(SafeRow.read(t1, r, cp2) == Row(value))
+    }
+  }
 }
