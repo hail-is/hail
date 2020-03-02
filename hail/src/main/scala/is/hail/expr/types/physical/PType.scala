@@ -272,7 +272,7 @@ abstract class PType extends Serializable with Requiredness {
         val ti = t.asInstanceOf[TInterval]
         PCanonicalInterval(p.subsetTo(ti.pointType), r)
       case _ =>
-        assert(virtualType == t)
+        assert(virtualType isOfType t)
         this
     }
   }
@@ -284,8 +284,8 @@ abstract class PType extends Serializable with Requiredness {
       case t: PDict => PDict(t.keyType.deepInnerRequired(true), t.valueType.deepInnerRequired(true), required)
       case t: PStruct =>
         PStruct(t.fields.map(f => PField(f.name, f.typ.deepInnerRequired(true), f.index)), required)
-      case t: PTuple =>
-        PTuple(required, t.types.map(_.deepInnerRequired(true)): _*)
+      case t: PCanonicalTuple =>
+        PCanonicalTuple(t._types.map { f => f.copy(typ = f.typ.deepInnerRequired(true)) }, required)
       case t: PInterval =>
         PInterval(t.pointType.deepInnerRequired(true), required)
       case t =>

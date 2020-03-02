@@ -46,7 +46,7 @@ object Compile {
 
     TypeCheck(ir, BindingEnv.empty)
 
-    InferPType(ir.noSharing, Env(args.map { case (n, pt, _) => n -> pt}: _*))
+    InferPType(ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
 
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
     
@@ -251,7 +251,7 @@ object CompileWithAggregators2 {
 
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
 
-    InferPType(ir.noSharing, Env(args.map { case (n, pt, _) => n -> pt}: _*), aggSigs, null, null)
+    InferPType(ir, Env(args.map { case (n, pt, _) => n -> pt}: _*), aggSigs, null, null)
 
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 

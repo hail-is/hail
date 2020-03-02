@@ -141,7 +141,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
       case t: PArray => t.setElementMissing(startOffset, idx)
       case t: PCanonicalBaseStruct =>
         if (t.fieldRequired(staticIdx))
-          Code._fatal("Required field cannot be missing.")
+          Code._fatal(s"Required field cannot be missing: $t, $staticIdx")
         else
           t.setFieldMissing(startOffset, staticIdx)
     }
@@ -208,9 +208,15 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
 
   def addString(str: Code[String]): Code[Unit] = addBinary(str.invoke[Array[Byte]]("getBytes"))
 
-  def addArray(t: PArray, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder(mb, t, this))
+  def addArray(t: PArray, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = {
+    assert(t.fundamentalType isOfType currentPType(), s"current=${currentPType()}, t=${t.fundamentalType}, ftype=$ftype")
+    f(new StagedRegionValueBuilder(mb, currentPType(), this))
+  }
 
-  def addBaseStruct(t: PBaseStruct, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = f(new StagedRegionValueBuilder(mb, t, this))
+  def addBaseStruct(t: PBaseStruct, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = {
+    assert(t.fundamentalType isOfType currentPType(), s"current=${currentPType()}, t=${t.fundamentalType}, ftype=$ftype")
+    f(new StagedRegionValueBuilder(mb, currentPType(), this))
+  }
 
   def addIRIntermediate(t: PType): (Code[_]) => Code[Unit] = t.fundamentalType match {
     case _: PBoolean => v => addBoolean(v.asInstanceOf[Code[Boolean]])

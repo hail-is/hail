@@ -248,9 +248,12 @@ object StreamFold2 {
 
 final case class StreamFold2(a: IR, accum: IndexedSeq[(String, IR)], valueName: String, seq: IndexedSeq[IR], result: IR) extends IR {
   assert(accum.length == seq.length)
+  var accPTypes: IndexedSeq[PType] = null
 }
 
-final case class StreamScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
+final case class StreamScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR {
+  var accPType: PType = null
+}
 
 final case class StreamFor(a: IR, valueName: String, body: IR) extends IR
 

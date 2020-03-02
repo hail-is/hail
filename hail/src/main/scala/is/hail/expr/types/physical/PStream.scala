@@ -5,11 +5,7 @@ import is.hail.asm4s.{Code, MethodBuilder}
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.{TStream, Type}
 
-trait PStreamable extends PIterable {
-  def asPArray: PArray = PArray(this.elementType, this.required)
-}
-
-final case class PStream(elementType: PType, required: Boolean = false) extends PStreamable {
+final case class PStream(elementType: PType, required: Boolean = false) extends PIterable {
   lazy val virtualType: TStream = TStream(elementType.virtualType, required)
 
   override val fundamentalType: PStream = {

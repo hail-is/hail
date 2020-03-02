@@ -154,7 +154,7 @@ object TypeCheck {
       case x@ArrayRef(a, i, s) =>
         assert(i.typ.isOfType(TInt32()))
         assert(s.typ.isOfType(TString()))
-        assert(x.typ == -coerce[TArray](a.typ).elementType)
+        assert(x.typ isOfType -coerce[TArray](a.typ).elementType)
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TArray])
       case x@StreamRange(a, b, c) =>
@@ -291,15 +291,15 @@ object TypeCheck {
       case x@StreamAggScan(a, name, query) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(env.scan.isEmpty)
-        assert(x.typ.asInstanceOf[TStream].elementType == query.typ)
+        assert(x.typ.asInstanceOf[TStream].elementType isOfType query.typ)
       case x@RunAgg(body, result, _) =>
         assert(x.typ isOfType result.typ)
-        assert(body.typ == TVoid)
+        assert(body.typ isOfType TVoid)
       case x@RunAggScan(array, _, init, seqs, result, _) =>
         assert(array.typ.isInstanceOf[TStream])
-        assert(init.typ == TVoid)
-        assert(seqs.typ == TVoid)
-        assert(x.typ.asInstanceOf[TStream].elementType == result.typ)
+        assert(init.typ isOfType TVoid)
+        assert(seqs.typ isOfType TVoid)
+        assert(x.typ.asInstanceOf[TStream].elementType isOfType result.typ)
       case x@AggFilter(cond, aggIR, _) =>
         assert(cond.typ isOfType TBoolean())
         assert(x.typ isOfType aggIR.typ)

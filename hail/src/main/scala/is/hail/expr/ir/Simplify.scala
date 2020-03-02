@@ -210,7 +210,7 @@ object Simplify {
     case StreamFlatMap(StreamMap(a, n1, b1), n2, b2) =>
       StreamFlatMap(a, n1, Let(n2, b1, b2))
 
-    case StreamMap(a, elt, r: Ref) if r.name == elt && r.typ == a.typ.asInstanceOf[TIterable].elementType => a
+    case StreamMap(a, elt, r: Ref) if r.name == elt => a
 
     case StreamMap(StreamMap(a, n1, b1), n2, b2) =>
       StreamMap(a, n1, Let(n2, b1, b2))
@@ -305,13 +305,13 @@ object Simplify {
           case Some(r) => r.deepCopy()
           case None => GetField(Ref(name, old.typ), fd)
         }
-        case ins@InsertFields(`r`, fields, _) =>
+        case ins@InsertFields(Ref(`name`, _), fields, _) =>
           val newFieldSet = fields.map(_._1).toSet
           InsertFields(Ref(name, old.typ),
             copiedNewFieldRefs().filter { case (name, _) => !newFieldSet.contains(name) }
               ++ fields.map { case (name, ir) => (name, rewrite(ir)) },
             Some(ins.typ.fieldNames))
-        case SelectFields(`r`, fds) =>
+        case SelectFields(Ref(`name`, _), fds) =>
           SelectFields(InsertFields(Ref(name, old.typ), copiedNewFieldRefs(), Some(x.typ.fieldNames)), fds)
         case ta: TableAggregate => ta
         case ma: MatrixAggregate => ma

@@ -176,7 +176,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
   }
 
   def writeToSRVB(srvb: StagedRegionValueBuilder): Code[Unit] = {
-    assert(srvb.typ.isOfType(bufferType))
+    assert(srvb.typ.isOfType(bufferType.fundamentalType), s"srvb: ${srvb.typ}, buf: ${bufferType}")
     val writeF = fb.newMethod("blockLinkedListToSRVB", Array[TypeInfo[_]](), typeInfo[Unit])
     writeF.emit {
       Code(

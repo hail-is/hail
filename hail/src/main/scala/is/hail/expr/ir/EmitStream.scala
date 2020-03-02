@@ -426,7 +426,7 @@ object EmitStream2 {
       streamIR match {
 
         case StreamMap(childIR, name, bodyIR) =>
-          val childEltType = -childIR.pType.asInstanceOf[PStream].elementType
+          val childEltType = childIR.pType.asInstanceOf[PStream].elementType
           implicit val childEltPack = TypedTriplet.pack(childEltType)
           val optStream = emitStream(childIR, env)
           optStream.map { stream =>
@@ -1012,7 +1012,7 @@ object EmitStream {
           }
 
         case x@MakeStream(elements, t) =>
-          val e = -coerce[PStreamable](x.pType).elementType
+          val e = coerce[PStream](x.pType).elementType
           implicit val eP = TypedTriplet.pack(e)
           sequence(elements.map {
             ir => TypedTriplet(e, {
@@ -1021,14 +1021,14 @@ object EmitStream {
             })
           }).map(_.untyped)
 
-        case StreamRange(startIR, stopIR, stepIR) =>
+        case x@StreamRange(startIR, stopIR, stepIR) =>
           val step = fb.newField[Int]("sr_step")
           val start = fb.newField[Int]("sr_start")
           val stop = fb.newField[Int]("sr_stop")
           val llen = fb.newField[Long]("sr_llen")
 
           range(start, step)
-            .map(present(PInt32(), _))
+            .map(present(x.pType.asInstanceOf[PStream].elementType, _))
             .guardParam { (_, k) =>
               val startt = emitIR(startIR, env)
               val stopt = emitIR(stopIR, env)
@@ -1051,7 +1051,7 @@ object EmitStream {
 
         case ToStream(containerIR) =>
           val pType = containerIR.pType.asInstanceOf[PContainer]
-          val eltPType = -pType.elementType
+          val eltPType = pType.elementType
           val region = er.region
           val aoff = fb.newField[Long]("a_off")
           range(0, 1)
@@ -1085,7 +1085,7 @@ object EmitStream {
               )))
 
         case StreamMap(childIR, name, bodyIR) =>
-          val childEltType = -childIR.pType.asInstanceOf[PStreamable].elementType
+          val childEltType = childIR.pType.asInstanceOf[PStream].elementType
           emitStream(childIR, env).map { eltt =>
             val eltm = fb.newField[Boolean](name + "_missing")
             val eltv = fb.newPField(name, childEltType)
@@ -1103,7 +1103,7 @@ object EmitStream {
 
         case StreamZip(as, names, body, behavior) =>
           val streams = as.map(emitStream(_, env))
-          val childEltTypes = as.map(-_.pType.asInstanceOf[PStreamable].elementType)
+          val childEltTypes = as.map(_.pType.asInstanceOf[PStream].elementType)
 
           EmitStream.zip[Any](streams, behavior, { (xs, k) =>
             val mv = names.zip(childEltTypes).map { case (name, t) =>
@@ -1129,7 +1129,7 @@ object EmitStream {
           })
 
         case StreamFilter(childIR, name, condIR) =>
-          val childEltType = -childIR.pType.asInstanceOf[PStreamable].elementType
+          val childEltType = childIR.pType.asInstanceOf[PStream].elementType
 
           emitStream(childIR, env).filterMap { (eltt, k) =>
             val eltm = fb.newField[Boolean](name + "_missing")
@@ -1148,7 +1148,7 @@ object EmitStream {
           }
 
         case StreamFlatMap(outerIR, name, innerIR) =>
-          val outerEltType = -outerIR.pType.asInstanceOf[PStreamable].elementType
+          val outerEltType = outerIR.pType.asInstanceOf[PStream].elementType
           val eltm = fb.newField[Boolean](name + "_missing")
           val eltv = fb.newPField(name, outerEltType)
           val innerEnv = env.bind(name -> ((eltm, eltv.load())))
@@ -1165,8 +1165,8 @@ object EmitStream {
           compose(outer, inner)
 
         case StreamLeftJoinDistinct(leftIR, rightIR, leftName, rightName, compIR, joinIR) =>
-          val l = -leftIR.pType.asInstanceOf[PStreamable].elementType
-          val r = -rightIR.pType.asInstanceOf[PStreamable].elementType
+          val l = leftIR.pType.asInstanceOf[PStream].elementType
+          val r = rightIR.pType.asInstanceOf[PStream].elementType
           implicit val lP = TypedTriplet.pack(l)
           implicit val rP = TypedTriplet.pack(r)
           val leltVar = lP.newFields(fb, "join_lelt")
@@ -1197,17 +1197,17 @@ object EmitStream {
                 reltVar := relt,
                 joint.setup), joint.m, joint.pv) }
 
-        case StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
-          val e = -childIR.pType.asInstanceOf[PStreamable].elementType
-          val a = zeroIR.pType
+        case x@StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
+          val e = childIR.pType.asInstanceOf[PStream].elementType
+          val a = x.accPType
           implicit val eP = TypedTriplet.pack(e)
           implicit val aP = TypedTriplet.pack(a)
           val eltVar = eP.newFields(fb, "scan_elt")
           val accVar = aP.newFields(fb, "scan_acc")
-          val zerot = emitIR(zeroIR, env)
+          val zerot = emitIR(zeroIR, env).map(a.copyFromPValue(er.mb, er.region, _))
           val bodyt = emitIR(bodyIR, env
             .bind(accName -> ((accVar.load.m, PValue(a, accVar.load.v))))
-            .bind(eltName -> ((eltVar.load.m, PValue(e, eltVar.load.v)))))
+            .bind(eltName -> ((eltVar.load.m, PValue(e, eltVar.load.v))))).map(a.copyFromPValue(er.mb, er.region, _))
           emitStream(childIR, env).scan(TypedTriplet.missing(a))(
             TypedTriplet(a, zerot),
             (eltt, acc, k) => {
@@ -1222,7 +1222,7 @@ object EmitStream {
           val aggs = x.physicalSignatures
           val (newContainer, aggSetup, aggCleanup) = AggContainer.fromFunctionBuilder(aggs, fb, "array_agg_scan")
 
-          val producerElementPType = -coerce[PStreamable](array.pType).elementType
+          val producerElementPType = coerce[PStream](array.pType).elementType
           val resultPType = result.pType
           implicit val eP = TypedTriplet.pack(producerElementPType)
           implicit val aP = TypedTriplet.pack(resultPType)
@@ -1248,7 +1248,7 @@ object EmitStream {
           )
 
         case If(condIR, thn, els) =>
-          val t = -thn.pType.asInstanceOf[PStreamable].elementType
+          val t = thn.pType.asInstanceOf[PStream].elementType
           implicit val tP = TypedTriplet.pack(t)
           val cond = fb.newField[Boolean]
           mux(cond,
@@ -1281,7 +1281,7 @@ object EmitStream {
 
     EmitStream(
       emitStream(streamIR0, env0),
-      streamIR0.pType.asInstanceOf[PStreamable].elementType)
+      streamIR0.pType.asInstanceOf[PStream].elementType)
   }
 }
 
