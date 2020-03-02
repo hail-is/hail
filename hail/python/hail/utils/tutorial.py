@@ -1,6 +1,7 @@
 import hail as hl
 from .java import FatalError, Env, info
 from .misc import local_path_uri, new_local_temp_dir
+from hailtop.utils import retry_transient_errors
 import os
 import zipfile
 from urllib.request import urlretrieve
@@ -67,7 +68,7 @@ def get_1kg(output_dir, overwrite: bool = False):
         source = resources['1kg_matrix_table']
         info(f'downloading 1KG VCF ...\n'
              f'  Source: {source}')
-        urlretrieve(resources['1kg_matrix_table'], tmp_vcf)
+        retry_transient_errors(urlretrieve, resources['1kg_matrix_table'], tmp_vcf)
         cluster_readable_vcf = Env.jutils().copyToTmp(jhc, local_path_uri(tmp_vcf), 'vcf')
         info('importing VCF and writing to matrix table...')
         hl.import_vcf(cluster_readable_vcf, min_partitions=16).write(matrix_table_path, overwrite=True)
@@ -76,13 +77,13 @@ def get_1kg(output_dir, overwrite: bool = False):
         source = resources['1kg_annotations']
         info(f'downloading 1KG annotations ...\n'
              f'  Source: {source}')
-        urlretrieve(source, tmp_sample_annot)
+        retry_transient_errors(urlretrieve, source, tmp_sample_annot)
 
         tmp_gene_annot = os.path.join(tmp_dir, 'ensembl_gene_annotations.txt')
         source = resources['ensembl_gene_annotations']
         info(f'downloading Ensembl gene annotations ...\n'
              f'  Source: {source}')
-        urlretrieve(source, tmp_gene_annot)
+        retry_transient_errors(urlretrieve, source, tmp_gene_annot)
 
         hl.hadoop_copy(local_path_uri(tmp_sample_annot), sample_annotations_path)
         hl.hadoop_copy(local_path_uri(tmp_gene_annot), gene_annotations_path)
@@ -122,7 +123,7 @@ def get_movie_lens(output_dir, overwrite: bool = False):
         tmp_path = os.path.join(tmp_dir, 'ml-100k.zip')
         info(f'downloading MovieLens-100k data ...\n'
              f'  Source: {source}')
-        urlretrieve(source, tmp_path)
+        retry_transient_errors(urlretrieve, source, tmp_path)
         with zipfile.ZipFile(tmp_path, 'r') as z:
             z.extractall(tmp_dir)
 
