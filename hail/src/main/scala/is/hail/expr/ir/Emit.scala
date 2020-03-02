@@ -115,7 +115,7 @@ case class EmitTriplet(setup: Code[Unit], m: Code[Boolean], pv: PValue) {
   def v: Code[_] = pv.code
 
   def value[T]: Code[T] = coerce[T](v)
-  def map[U](f: Code[_] => Code[U]) = EmitTriplet(setup, m, f(v))
+  def map[U](f: Code[_] => PValue) = EmitTriplet(setup, m, f(v))
 }
 
 case class EmitArrayTriplet(setup: Code[Unit], m: Option[Code[Boolean]], addElements: Code[Unit])
@@ -566,7 +566,7 @@ private class Emit(
             val cmp2 = ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType))
             InferPType(cmp2, Env.empty)
             val EmitTriplet(s, m, pv) = new Emit(ctx, discardNext).emit(cmp2, Env.empty, er, container)
-            discardNext.emit(Code(s, m || coerce[Boolean](v)))
+            discardNext.emit(Code(s, m || pv.tcode[Boolean]))
             val compare = ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0
             InferPType(compare, Env.empty)
             (a, compare, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _)), Array.empty[String])
@@ -863,8 +863,8 @@ private class Emit(
         val rvAgg = agg.Extract.getAgg(aggs(i), op)
 
         val argVars = args.zip(statePTypes).map { case (a, t) =>
-          emit(a, container = container.flatMap(_.nested(i, init = false)))
-            .map(t.copyFromTypeAndStackValue(mb, region, a.pType, _))
+          emit(a, container = container.flatMap(_.nested(i, init = true)))
+            .map(v => PValue(t, t.copyFromTypeAndStackValue(mb, region, a.pType, v)))
         }.toArray
         void(
           sc.newState(i),
@@ -878,7 +878,7 @@ private class Emit(
 
         val argVars = args.zip(statePTypes).map { case (a, t) =>
           emit(a, container = container.flatMap(_.nested(i, init = false)))
-            .map(t.copyFromTypeAndStackValue(mb, region, a.pType, _))
+            .map(v => PValue(t, t.copyFromTypeAndStackValue(mb, region, a.pType, v)))
         }.toArray
         void(rvAgg.seqOp(sc.states(i), argVars))
 

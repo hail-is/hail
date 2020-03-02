@@ -422,6 +422,8 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testEmitMap() {
     def ten = StreamRange(I32(0), I32(10), I32(1))
+    def x = Ref("x", TInt32())
+    def y = Ref("y", TInt32())
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       StreamMap(ten, "x", x * 2) -> (0 until 10).map(_ * 2),
       StreamMap(ten, "x", x.toL) -> (0 until 10).map(_.toLong),
@@ -436,6 +438,8 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testEmitFilter() {
     def ten = StreamRange(I32(0), I32(10), I32(1))
+    def x = Ref("x", TInt32())
+    def y = Ref("y", TInt64())
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       StreamFilter(ten, "x", x cne 5) -> (0 until 10).filter(_ != 5),
       StreamFilter(StreamMap(ten, "x", (x * 2).toL), "y", y > 5L) -> (3 until 10).map(x => (x * 2).toLong),
@@ -449,6 +453,8 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testEmitFlatMap() {
+    def x = Ref("x", TInt32())
+    def y = Ref("y", TInt32())
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       StreamFlatMap(StreamRange(0, 6, 1), "x", StreamRange(0, x, 1)) ->
         (0 until 6).flatMap(0 until _),
@@ -515,6 +521,9 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testEmitScan() {
+    def a = Ref("a", TInt32())
+    def v = Ref("v", TInt32())
+    def x = Ref("x", TInt32())
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       StreamScan(MakeStream(Seq(), TStream(TInt32())),
         9, "a", "v", a + v) -> IndexedSeq(9),
