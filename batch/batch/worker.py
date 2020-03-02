@@ -816,7 +816,8 @@ class Worker:
         return await asyncio.shield(self.delete_job_1(request))
 
     async def healthcheck(self, request):  # pylint: disable=unused-argument
-        return web.Response()
+        body = {'name': NAME}
+        return web.json_response(body)
 
     async def run(self):
         app_runner = None
