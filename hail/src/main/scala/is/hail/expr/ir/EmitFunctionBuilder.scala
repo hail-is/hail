@@ -129,28 +129,28 @@ class EmitMethodBuilder(
 
   def newRNG(seed: Long): Code[IRRandomness] = fb.newRNG(seed)
 
-  def newPLocal(pt: PType): PSettable = new PSettable {
+  def newPLocal[PV <: PValue](pt: PType): PSettable[PV] = new PSettable[PV] {
     private val l = newLocal(typeToTypeInfo(pt))
 
-    def load(): PValue = PValue(pt, l.load())
+    def load(): PV = PValue(pt, l.load()).asInstanceOf[PV]
 
-    def store(v: PValue): Code[Unit] = l.storeAny(v.code)
+    def store(v: PV): Code[Unit] = l.storeAny(v.code)
   }
 
-  def newPField(pt: PType): PSettable = new PSettable {
+  def newPField[PV <: PValue](pt: PType): PSettable[PV] = new PSettable[PV] {
     private val f = newField(typeToTypeInfo(pt))
 
-    def load(): PValue = PValue(pt, f.load())
+    def load(): PV = PValue(pt, f.load()).asInstanceOf[PV]
 
-    def store(v: PValue): Code[Unit] = f.storeAny(v.code)
+    def store(v: PV): Code[Unit] = f.storeAny(v.code)
   }
 
-  def newPField(name: String, pt: PType): PSettable = new PSettable {
+  def newPField[PV <: PValue](name: String, pt: PType): PSettable[PV] = new PSettable[PV] {
     private val f = newField(name)(typeToTypeInfo(pt))
 
-    def load(): PValue = PValue(pt, f.load())
+    def load(): PV = PValue(pt, f.load()).asInstanceOf[PV]
 
-    def store(v: PValue): Code[Unit] = f.storeAny(v.code)
+    def store(v: PV): Code[Unit] = f.storeAny(v.code)
   }
 }
 
@@ -694,27 +694,27 @@ class EmitFunctionBuilder[F >: Null](
     }
   }
 
-  def newPLocal(pt: PType): PSettable = new PSettable {
+  def newPLocal[PV <: PValue](pt: PType): PSettable[PV] = new PSettable[PV] {
     private val l = newLocal(typeToTypeInfo(pt))
 
-    def load(): PValue = PValue(pt, l.load())
+    def load(): PV = PValue(pt, l.load()).asInstanceOf[PV]
 
-    def store(v: PValue): Code[Unit] = l.storeAny(v.code)
+    def store(v: PV): Code[Unit] = l.storeAny(v.code)
   }
 
-  def newPField(pt: PType): PSettable = new PSettable {
+  def newPField[PV <: PValue](pt: PType): PSettable[PV] = new PSettable[PV] {
     private val f = newField(typeToTypeInfo(pt))
 
-    def load(): PValue = PValue(pt, f.load())
+    def load(): PV = PValue(pt, f.load()).asInstanceOf[PV]
 
-    def store(v: PValue): Code[Unit] = f.storeAny(v.code)
+    def store(v: PV): Code[Unit] = f.storeAny(v.code)
   }
 
-  def newPField(name: String, pt: PType): PSettable = new PSettable {
+  def newPField[PV <: PValue](name: String, pt: PType): PSettable[PV] = new PSettable[PV] {
     private val f = newField(name)(typeToTypeInfo(pt))
 
-    def load(): PValue = PValue(pt, f.load())
+    def load(): PV = PValue(pt, f.load()).asInstanceOf[PV]
 
-    def store(v: PValue): Code[Unit] = f.storeAny(v.code)
+    def store(v: PV): Code[Unit] = f.storeAny(v.code)
   }
 }
