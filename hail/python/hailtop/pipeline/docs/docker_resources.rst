@@ -63,8 +63,9 @@ docker image using the `COPY` directive.
     COPY . /scripts/
 
 For more information about Dockerfiles and directives that can be used see the following sources:
-- https://docs.docker.com/engine/reference/builder/
+
 - https://docs.docker.com/develop/develop-images/dockerfile_best-practices/
+- https://docs.docker.com/engine/reference/builder/
 
 
 Building Images

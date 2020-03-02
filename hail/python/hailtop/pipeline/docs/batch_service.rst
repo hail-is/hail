@@ -46,20 +46,26 @@ memory is being requested. Currently, Batch runs all jobs on 16 core, preemptibl
 machines with 100 GB of disk total. The costs are as follows:
 
 - Compute cost
-  = $0.01 per core per hour
+   = $0.01 per core per hour
 
 - Disk cost
-  Average number of days per month = 365.25 / 12 = 30.4375
-  Cost per GB per hour = $0.17 * 100 / 30.4375 / 24
-  = $0.001454 per core per hour
+   .. code-block:: text
+
+       Average number of days per month = 365.25 / 12 = 30.4375
+
+       Cost per GB per month = $0.17
+
+       Cost per core per hour = $0.17 * 100 / 30.4375 / 24 / 16
+
+   = $0.001454 per core per hour
 
 - IP network cost
-  = $0.00025 per core per hour
+   = $0.00025 per core per hour
 
 - Service cost
-  = $0.01 per core per hour
+   = $0.01 per core per hour
 
-The sum of these costs is $0.02170 per core per hour.
+The sum of these costs is **$0.02170** per core per hour.
 
 .. note::
 
