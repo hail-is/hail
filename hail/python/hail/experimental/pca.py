@@ -55,7 +55,7 @@ def pc_project(call_expr, loadings_expr, af_expr):
     else:
         n_variants = loadings_source.count()
 
-    mt = gt_source.filter_rows(hl.is_defined(mt._loadings) & hl.is_defined(mt._af) & (mt._af > 0) & (mt._af < 1))
+    mt = mt.filter_rows(hl.is_defined(mt._loadings) & hl.is_defined(mt._af) & (mt._af > 0) & (mt._af < 1))
 
     gt_norm = (mt._call.n_alt_alleles() - 2 * mt._af) / hl.sqrt(n_variants * 2 * mt._af * (1 - mt._af))
 
