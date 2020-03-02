@@ -571,30 +571,6 @@ object CodeStream { self =>
         }))
     }
   }
-
-  def makeMissingStreamEmpty[A](optStream: COption[Stream[A]]): Stream[A] = new Stream[A] {
-    def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
-      val eosJP = joinPoint()
-      val missing = newLocal[Code[Boolean]]
-      var stream: Stream[A] = null
-      eosJP.define(_ => eos)
-      val setup = optStream.cases(ctx.mb)(
-        none = missing := true,
-        some = _stream => {
-          stream = _stream
-          missing := false
-        })
-
-      val source = stream(eosJP(()), push)
-      Source[A](
-        setup0 = Code(missing := false, source.setup0),
-        close0 = source.close0,
-        setup = Code(setup, source.setup),
-        close = source.close,
-        pull = missing.load.mux(eosJP(()), source.pull)
-      )
-    }
-  }
 }
 
 object EmitStream {
