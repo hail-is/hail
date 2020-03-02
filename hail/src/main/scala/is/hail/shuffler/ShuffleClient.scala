@@ -196,22 +196,9 @@ object ShuffleClient {
       r.addReferenceTo(ctx.region)
       keyGroups.result().iterator.flatMap { keys =>
         buffer.readMany(keys, { in =>
-            using(new ByteArrayOutputStream()) { baos =>
-              drainInputStreamToOutputStream(in, baos)
-              val ba = baos.toByteArray()
-              val off = vDec(new ByteArrayInputStream(ba)).readRegionValue(r)
-              println(off)
-              println(ba.map("%02X" format _).mkString)
-              println(new UnsafeRow(decodedRowPType.asInstanceOf[PBaseStruct], r, off))
-              off
-            }
+          vDec(in).readRegionValue(r)
         }).iterator.map { (off: Long) =>
           rv.setOffset(off)
-          assert(decodedRowPType.byteSize < (1 << 31) - 1)
-          val ba = Region.loadBytes(off, decodedRowPType.byteSize.asInstanceOf[Int])
-          println(off)
-          println(ba.map("%02X" format _).mkString)
-          println(new UnsafeRow(decodedRowPType.asInstanceOf[PBaseStruct], r, off))
           rv
         }
       }
