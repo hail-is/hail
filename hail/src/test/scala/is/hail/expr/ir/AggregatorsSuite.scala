@@ -339,11 +339,11 @@ class AggregatorsSuite extends HailSuite {
       FastIndexedSeq(false, true, null))
   }
 
-//  @Test def takeByBooleanAnnotation() {
-//    assertTakeByEvalsTo(TBoolean(), TString(), 3,
-//      FastIndexedSeq(Row(false, "a"), Row(null, null), Row(true, "b"), Row(false, "d"), Row(true, null), Row(null, "c")),
-//      FastIndexedSeq(false, true, null))
-//  }
+  @Test def takeByBooleanAnnotation() {
+    assertTakeByEvalsTo(TBoolean(), TString(), 3,
+      FastIndexedSeq(Row(false, "a"), Row(null, null), Row(true, "b"), Row(false, "d"), Row(true, null), Row(null, "c")),
+      FastIndexedSeq(false, true, null))
+  }
 
   @Test def takeByIntBoolean() {
     assertTakeByEvalsTo(TInt32(), TBoolean(), 2,
@@ -375,11 +375,11 @@ class AggregatorsSuite extends HailSuite {
       FastIndexedSeq(11, 45, null))
   }
 
-//  @Test def takeByIntAnnotation() {
-//    assertTakeByEvalsTo(TInt32(), TString(), 3,
-//      FastIndexedSeq(Row(3, "d"), Row(null, null), Row(null, "c"), Row(11, "a"), Row(45, "b"), Row(3, null)),
-//      FastIndexedSeq(11, 45, null))
-//  }
+  @Test def takeByIntAnnotation() {
+    assertTakeByEvalsTo(TInt32(), TString(), 3,
+      FastIndexedSeq(Row(3, "d"), Row(null, null), Row(null, "c"), Row(11, "a"), Row(45, "b"), Row(3, null)),
+      FastIndexedSeq(11, 45, null))
+  }
 
   @Test def takeByLongBoolean() {
     assertTakeByEvalsTo(TInt64(), TBoolean(), 2,
@@ -411,11 +411,11 @@ class AggregatorsSuite extends HailSuite {
       FastIndexedSeq(11L, 45L, null))
   }
 
-//  @Test def takeByLongAnnotation() {
-//    assertTakeByEvalsTo(TInt64(), TString(), 3,
-//      FastIndexedSeq(Row(3L, "d"), Row(null, null), Row(null, "c"), Row(11L, "a"), Row(45L, "b"), Row(3L, null)),
-//      FastIndexedSeq(11L, 45L, null))
-//  }
+  @Test def takeByLongAnnotation() {
+    assertTakeByEvalsTo(TInt64(), TString(), 3,
+      FastIndexedSeq(Row(3L, "d"), Row(null, null), Row(null, "c"), Row(11L, "a"), Row(45L, "b"), Row(3L, null)),
+      FastIndexedSeq(11L, 45L, null))
+  }
 
   @Test def takeByFloatBoolean() {
     assertTakeByEvalsTo(TFloat32(), TBoolean(), 2,
@@ -447,11 +447,11 @@ class AggregatorsSuite extends HailSuite {
       FastIndexedSeq(11F, 45F, null))
   }
 
-//  @Test def takeByFloatAnnotation() {
-//    assertTakeByEvalsTo(TFloat32(), TString(), 3,
-//      FastIndexedSeq(Row(3F, "d"), Row(null, null), Row(null, "c"), Row(11F, "a"), Row(45F, "b"), Row(3F, null)),
-//      FastIndexedSeq(11F, 45F, null))
-//  }
+  @Test def takeByFloatAnnotation() {
+    assertTakeByEvalsTo(TFloat32(), TString(), 3,
+      FastIndexedSeq(Row(3F, "d"), Row(null, null), Row(null, "c"), Row(11F, "a"), Row(45F, "b"), Row(3F, null)),
+      FastIndexedSeq(11F, 45F, null))
+  }
 
   @Test def takeByDoubleBoolean() {
     assertTakeByEvalsTo(TFloat64(), TBoolean(), 2,
@@ -483,41 +483,41 @@ class AggregatorsSuite extends HailSuite {
       FastIndexedSeq(11D, 45D, null))
   }
 
-//  @Test def takeByDoubleAnnotation() {
-//    assertTakeByEvalsTo(TFloat64(), TString(), 3,
-//      FastIndexedSeq(Row(3D, "d"), Row(null, null), Row(null, "c"), Row(11D, "a"), Row(45D, "b"), Row(3D, null)),
-//      FastIndexedSeq(11D, 45D, null))
-//  }
+  @Test def takeByDoubleAnnotation() {
+    assertTakeByEvalsTo(TFloat64(), TString(), 3,
+      FastIndexedSeq(Row(3D, "d"), Row(null, null), Row(null, "c"), Row(11D, "a"), Row(45D, "b"), Row(3D, null)),
+      FastIndexedSeq(11D, 45D, null))
+  }
 
-//  @Test def takeByAnnotationBoolean() {
-//    assertTakeByEvalsTo(TString(), TBoolean(), 2,
-//      FastIndexedSeq(Row("hello", true), Row(null, null), Row(null, false)),
-//      FastIndexedSeq(null, "hello"))
-//  }
+  @Test def takeByAnnotationBoolean() {
+    assertTakeByEvalsTo(TString(), TBoolean(), 2,
+      FastIndexedSeq(Row("hello", true), Row(null, null), Row(null, false)),
+      FastIndexedSeq(null, "hello"))
+  }
 
-//  @Test def takeByAnnotationInt() {
-//    assertTakeByEvalsTo(TString(), TInt32(), 3,
-//      FastIndexedSeq(Row("a", 4), Row(null, null), Row(null, 2), Row("b", 0), Row("c", 1), Row("d", null)),
-//      FastIndexedSeq("b", "c", null))
-//  }
+  @Test def takeByAnnotationInt() {
+    assertTakeByEvalsTo(TString(), TInt32(), 3,
+      FastIndexedSeq(Row("a", 4), Row(null, null), Row(null, 2), Row("b", 0), Row("c", 1), Row("d", null)),
+      FastIndexedSeq("b", "c", null))
+  }
 
-//  @Test def takeByAnnotationLong() {
-//    assertTakeByEvalsTo(TString(), TInt64(), 3,
-//      FastIndexedSeq(Row("a", 4L), Row(null, null), Row(null, 2L), Row("b", 0L), Row("c", 1L), Row("d", null)),
-//      FastIndexedSeq("b", "c", null))
-//  }
+  @Test def takeByAnnotationLong() {
+    assertTakeByEvalsTo(TString(), TInt64(), 3,
+      FastIndexedSeq(Row("a", 4L), Row(null, null), Row(null, 2L), Row("b", 0L), Row("c", 1L), Row("d", null)),
+      FastIndexedSeq("b", "c", null))
+  }
 
-//  @Test def takeByAnnotationFloat() {
-//    assertTakeByEvalsTo(TString(), TFloat32(), 3,
-//      FastIndexedSeq(Row("a", 4F), Row(null, null), Row(null, 2F), Row("b", 0F), Row("c", 1F), Row("d", null)),
-//      FastIndexedSeq("b", "c", null))
-//  }
+  @Test def takeByAnnotationFloat() {
+    assertTakeByEvalsTo(TString(), TFloat32(), 3,
+      FastIndexedSeq(Row("a", 4F), Row(null, null), Row(null, 2F), Row("b", 0F), Row("c", 1F), Row("d", null)),
+      FastIndexedSeq("b", "c", null))
+  }
 
-//  @Test def takeByAnnotationDouble() {
-//    assertTakeByEvalsTo(TString(), TFloat64(), 3,
-//      FastIndexedSeq(Row("a", 4D), Row(null, null), Row(null, 2D), Row("b", 0D), Row("c", 1D), Row("d", null)),
-//      FastIndexedSeq("b", "c", null))
-//  }
+  @Test def takeByAnnotationDouble() {
+    assertTakeByEvalsTo(TString(), TFloat64(), 3,
+      FastIndexedSeq(Row("a", 4D), Row(null, null), Row(null, 2D), Row("b", 0D), Row("c", 1D), Row("d", null)),
+      FastIndexedSeq("b", "c", null))
+  }
 
   @Test def takeByAnnotationAnnotation() {
     assertTakeByEvalsTo(TString(), TString(), 3,
