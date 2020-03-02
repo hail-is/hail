@@ -7,9 +7,10 @@ from hail.expr.expressions import *
            loadings_expr=expr_array(expr_numeric),
            af_expr=expr_numeric)
 def pc_project(gt_expr, loadings_expr, af_expr):
-    """Projects genotypes onto pre-computed PCs.
-    Requires loadings and allele-frequency from
-    a reference dataset, e.g.:
+    """Projects genotypes onto pre-computed PCs. Requires loadings and
+    allele-frequency from a reference dataset (see example). Note that
+    `loadings_expr` must have no missing data and reflect the rows
+    from the original PCA run for this method to be accurate.
 
     Example
     -------
