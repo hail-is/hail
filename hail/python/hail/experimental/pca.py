@@ -36,13 +36,13 @@ def pc_project(call_expr, loadings_expr, af_expr):
     :class:`.Table`
         Table with scores calculated from loadings in column `scores`
     """
+    check_entry_indexed('pc_project', call_expr)
+    check_row_indexed('pc_project', loadings_expr)
+    check_row_indexed('pc_project', af_expr)
+
     gt_source = call_expr._indices.source
     loadings_source = loadings_expr._indices.source
     af_source = af_expr._indices.source
-
-    check_entry_indexed('pc_project', gt_source)
-    check_row_indexed('pc_project', loadings_source)
-    check_row_indexed('pc_project', af_source)
 
     loadings_expr = _get_expr_or_join(loadings_expr, loadings_source, gt_source, '_loadings')
     af_expr = _get_expr_or_join(af_expr, af_source, gt_source, '_af')
