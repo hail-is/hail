@@ -564,7 +564,7 @@ object InferPType {
 
       case x@RunAggScan(array, name, init, seq, result, signature) =>
         infer(array)
-        val e2 = env.bind(name, coerce[PStreamable](array.pType2).elementType)
+        val e2 = env.bind(name, coerce[PStream](array.pType2).elementType)
         val inits = newBuilder[InitOp](signature.length)
         val seqs = newBuilder[SeqOp](signature.length)
         infer(init, env = e2, inits = inits, seqs = null, aggs = null)
