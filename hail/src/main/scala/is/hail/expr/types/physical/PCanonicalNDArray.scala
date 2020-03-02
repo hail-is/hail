@@ -21,11 +21,11 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     off => Region.loadInt(representation.loadField(off, "offset"))
   )
   @transient lazy val shape = new StaticallyKnownField(
-    PTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*),
+    PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*): PTuple,
     off => representation.loadField(off, "shape")
   )
   @transient lazy val strides = new StaticallyKnownField(
-    PTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*),
+    PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*): PTuple,
     (off) => representation.loadField(off, "strides")
   )
 
@@ -88,7 +88,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def getElementAddress(indices: Array[Code[Long]], nd: Code[Long], mb: MethodBuilder): Code[Long] = {
+  private def getElementAddress(indices: Array[Code[Long]], nd: Code[Long], mb: MethodBuilder): Code[Long] = {
     val stridesTuple  = new CodePTuple(strides.pType, strides.load(nd))
     val bytesAway = mb.newLocal[Long]
     val dataStore = mb.newLocal[Long]
@@ -106,7 +106,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   def loadElementToIRIntermediate(indices: Array[Code[Long]], ndAddress: Code[Long], mb: MethodBuilder): Code[_] = {
-    Region.loadIRIntermediate(this.elementType)(this.getElementAddress(indices, ndAddress, mb))
+    Region.loadIRIntermediate(data.pType.elementType)(this.getElementAddress(indices, ndAddress, mb))
   }
 
   def outOfBounds(indices: Array[Code[Long]], nd: Code[Long], mb: MethodBuilder): Code[Boolean] = {
@@ -208,13 +208,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     ))
   }
 
-  def storeShallowAtOffset(dstAddress: Code[Long], valueAddress: Code[Long]): Code[Unit] =
-    this.representation.storeShallowAtOffset(dstAddress, valueAddress)
-
-  def storeShallowAtOffset(dstAddress: Long, valueAddress: Long) {
-    this.representation.storeShallowAtOffset(dstAddress, valueAddress)
-  }
-
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     val sourceNDPType = srcPType.asInstanceOf[PNDArray]
 
@@ -238,4 +231,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   private def deepRenameNDArray(t: TNDArray) =
     PCanonicalNDArray(this.elementType.deepRename(t.elementType), this.nDims, this.required)
+
+  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalNDArray(elementType, nDims, required)
+
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] =
+    throw new NotImplementedError("constructAtAddress should only be called on fundamental types; PCanonicalNDarray is not fundamental")
+
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
+    throw new NotImplementedError("constructAtAddress should only be called on fundamental types; PCanonicalNDarray is not fundamental")
 }

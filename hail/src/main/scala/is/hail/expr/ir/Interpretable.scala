@@ -18,11 +18,14 @@ object Interpretable {
         _: RunAggScan |
         _: SerializeAggs |
         _: DeserializeAggs |
+        _: ArrayZeros |
         _: MakeNDArray |
         _: NDArrayShape |
         _: NDArrayReshape |
+        _: NDArrayConcat |
         _: NDArrayRef |
         _: NDArraySlice |
+        _: NDArrayFilter |
         _: NDArrayMap |
         _: NDArrayMap2 |
         _: NDArrayReindex |
@@ -30,6 +33,9 @@ object Interpretable {
         _: NDArrayMatMul |
         _: TailLoop |
         _: Recur |
+        _: ReadPartition |
+        _: ReadValue |
+        _: WriteValue |
         _: NDArrayWrite => false
       case x: ApplyIR =>
         !Exists(x.body, {

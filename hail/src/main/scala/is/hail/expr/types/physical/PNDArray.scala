@@ -1,9 +1,9 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.{CodeOrdering, StagedRegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, MethodBuilder, _}
 import is.hail.expr.Nat
-import is.hail.expr.ir.{EmitMethodBuilder}
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TNDArray
 
 final class StaticallyKnownField[T, U](
@@ -32,13 +32,15 @@ abstract class PNDArray extends PType {
 
   val representation: PStruct
 
+  def dimensionLength(off: Code[Long], idx: Int): Code[Long] = {
+    Region.loadLong(shape.pType.fieldOffset(shape.load(off), idx))
+  }
+
   def numElements(shape: Array[Code[Long]], mb: MethodBuilder): Code[Long]
 
   def makeShapeBuilder(shapeArray: Array[Code[Long]]): StagedRegionValueBuilder => Code[Unit]
 
   def makeDefaultStridesBuilder(sourceShapeArray: Array[Code[Long]], mb: MethodBuilder): StagedRegionValueBuilder => Code[Unit]
-
-  def getElementAddress(indices: Array[Code[Long]], nd: Code[Long], mb: MethodBuilder): Code[Long]
 
   def loadElementToIRIntermediate(indices: Array[Code[Long]], ndAddress: Code[Long], mb: MethodBuilder): Code[_]
 

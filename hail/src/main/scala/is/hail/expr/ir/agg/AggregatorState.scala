@@ -98,7 +98,9 @@ class TypedRegionBackedAggState(val typ: PType, val fb: EmitFunctionBuilder[_]) 
     storageType.setFieldPresent(off, 0),
     StagedRegionValueBuilder.deepCopy(fb, region, typ, v, storageType.fieldOffset(off, 0)))
 
-  def get(): EmitTriplet = EmitTriplet(Code._empty, storageType.isFieldMissing(off, 0), Region.loadIRIntermediate(typ)(storageType.fieldOffset(off, 0)))
+  def get(): EmitTriplet = EmitTriplet(Code._empty,
+    storageType.isFieldMissing(off, 0),
+    PValue(typ, Region.loadIRIntermediate(typ)(storageType.fieldOffset(off, 0))))
 
   def copyFrom(src: Code[Long]): Code[Unit] =
     Code(newState(off), StagedRegionValueBuilder.deepCopy(fb, region, storageType, src, off))
@@ -184,7 +186,11 @@ case class StateTuple(states: Array[AggregatorState]) {
   val nStates: Int = states.length
   val storageType: PTuple = PTuple(true, states.map { s => s.storageType }: _*)
 
-  def apply(i: Int): AggregatorState = states(i)
+  def apply(i: Int): AggregatorState = {
+    if (i >= states.length)
+      throw new RuntimeException(s"tried to access state $i, but there are only ${ states.length } states")
+    states(i)
+  }
 
   def toCode(fb: EmitFunctionBuilder[_], prefix: String, f: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
     fb.wrapVoids(Array.tabulate(nStates)((i: Int) => f(i, states(i))), prefix)

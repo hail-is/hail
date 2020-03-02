@@ -100,7 +100,7 @@ class CollectionExpression(Expression):
             return hl.tarray(self._type.element_type)
 
         def transform_ir(array, name, body):
-            return ArrayFilter(array, name, body)
+            return ToArray(StreamFilter(ToStream(array), name, body))
 
         array_filter = hl.array(self)._ir_lambda_method(transform_ir, f, self.dtype.element_type, unify_ret)
 
@@ -178,7 +178,7 @@ class CollectionExpression(Expression):
             return hl.array(f(x)) if isinstance(value_type, tset) else f(x)
 
         def transform_ir(array, name, body):
-            return ArrayFlatMap(array, name, body)
+            return ToArray(StreamFlatMap(ToStream(array), name, ToStream(body)))
 
         array_flatmap = hl.array(self)._ir_lambda_method(transform_ir, f2, self.dtype.element_type, identity)
 
@@ -243,7 +243,7 @@ class CollectionExpression(Expression):
                 zero.dtype,
                 body.dtype))
 
-        ir = ArrayFold(collection._ir, zero._ir, accum_name, elt_name, body._ir)
+        ir = StreamFold(ToStream(collection._ir), zero._ir, accum_name, elt_name, body._ir)
 
         indices, aggregations = unify_all(self, zero, body)
         return construct_expr(ir, body.dtype, indices, aggregations)
@@ -304,7 +304,7 @@ class CollectionExpression(Expression):
 
         keyed = hl.array(self).map(lambda x: hl.tuple([f(x), x]))
         types = keyed.dtype.element_type.types
-        return construct_expr(GroupByKey(keyed._ir), tdict(types[0], tarray(types[1])), keyed._indices, keyed._aggregations)
+        return construct_expr(GroupByKey(ToStream(keyed._ir)), tdict(types[0], tarray(types[1])), keyed._indices, keyed._aggregations)
 
     @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):
@@ -331,9 +331,9 @@ class CollectionExpression(Expression):
         """
 
         def transform_ir(array, name, body):
-            a = ArrayMap(array, name, body)
+            a = ToArray(StreamMap(ToStream(array), name, body))
             if isinstance(self.dtype, tset):
-                a = ToSet(a)
+                a = ToSet(ToStream(a))
             return a
 
         array_map = hl.array(self)._ir_lambda_method(transform_ir, f, self._type.element_type, lambda t: self._type.__class__(t))
@@ -360,7 +360,7 @@ class CollectionExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             The number of elements in the collection.
         """
-        return apply_expr(lambda x: ArrayLen(x), tint32, hl.array(self))
+        return self.size()
 
     def size(self):
         """Returns the size of a collection.
@@ -379,7 +379,7 @@ class CollectionExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             The number of elements in the collection.
         """
-        return apply_expr(lambda x: ArrayLen(x), tint32, hl.array(self))
+        return apply_expr(lambda x: ArrayLen(CastToArray(x)), tint32, hl.array(self))
 
     def _extra_summary_fields(self, agg_result):
         return {
@@ -666,7 +666,7 @@ class ArrayExpression(CollectionExpression):
                 zero.dtype,
                 body.dtype))
 
-        ir = ArrayScan(self._ir, zero._ir, accum_name, elt_name, body._ir)
+        ir = ToArray(StreamScan(ToStream(self._ir), zero._ir, accum_name, elt_name, body._ir))
 
         indices, aggregations = unify_all(self, zero, body)
         return construct_expr(ir, tarray(body.dtype), indices, aggregations)
@@ -1402,7 +1402,7 @@ class DictExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             Size of the dictionary.
         """
-        return apply_expr(lambda x: ArrayLen(ToArray(x)), tint32, self)
+        return apply_expr(lambda x: ArrayLen(CastToArray(x)), tint32, self)
 
     def values(self):
         """Returns an array with all values in the dictionary.
@@ -3776,6 +3776,11 @@ class NDArrayNumericExpression(NDArrayExpression):
 
     def __rfloordiv__(self, other):
         return self._bin_op_numeric_reverse('//', other)
+
+    def __rmatmul__(self, other):
+        if not isinstance(other, NDArrayNumericExpression):
+            other = hl._nd.array(other)
+        return other.__matmul__(self)
 
     def __matmul__(self, other):
         """Matrix multiplication: `a @ b`, semantically equivalent to `NumPy` matmul. If `a` and `b` are vectors,

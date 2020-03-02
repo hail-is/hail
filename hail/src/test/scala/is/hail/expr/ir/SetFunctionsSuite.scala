@@ -19,7 +19,7 @@ class SetFunctionsSuite extends TestNGSuite {
     assertEvalsTo(IRSet(3, 7), Set(3, 7))
     assertEvalsTo(IRSet(3, null, 7), Set(null, 3, 7))
     assertEvalsTo(nas, null)
-    assertEvalsTo(ToSet(naa), null)
+    assertEvalsTo(ToSet(ToStream(naa)), null)
     assertEvalsTo(invoke("toSet", TSet(TInt32()), IRArray(3, 7)), Set(3, 7))
     assertEvalsTo(invoke("toSet", TSet(TInt32()), IRArray(3, null, 7)), Set(null, 3, 7))
     assertEvalsTo(invoke("toSet", TSet(TInt32()), naa), null)

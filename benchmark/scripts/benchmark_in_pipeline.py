@@ -15,7 +15,11 @@ if __name__ == '__main__':
     N_REPLICATES = int(sys.argv[4])
     N_ITERS = int(sys.argv[5])
 
-    p = pl.Pipeline(name=f'benchmark-{SHA}',
+    labeled_sha = SHA
+    label = os.environ.get('BENCHMARK_LABEL')
+    if label:
+        labeled_sha = f'{labeled_sha}-{label}'
+    p = pl.Pipeline(name=f'benchmark-{labeled_sha}',
                     backend=pl.BatchBackend(billing_project='hail'),
                     default_image=BENCHMARK_IMAGE,
                     default_storage='100G',
@@ -53,14 +57,18 @@ if __name__ == '__main__':
             resource_task = resource_tasks[resource_group]
             t.command(f'mv {resource_task.ofile} benchmark-resources/{resource_group.name()}.tar')
             t.command(f'time tar -xf benchmark-resources/{resource_group.name()}.tar')
-        t.command(f'PYSPARK_SUBMIT_ARGS="--driver-memory 6G pyspark-shell" '
+        t.command(f'MKL_NUM_THREADS=1'
+                  f'OPENBLAS_NUM_THREADS=1'
+                  f'OMP_NUM_THREADS=1'
+                  f'VECLIB_MAXIMUM_THREADS=1'
+                  f'PYSPARK_SUBMIT_ARGS="--driver-memory 6G pyspark-shell" '
                   f'hail-bench run -o {t.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}')
         all_output.append(t.ofile)
 
     combine = p.new_task('combine_output')
     combine.command(f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output))
 
-    output_file = os.path.join(BUCKET_BASE, f'{SHA}.json')
+    output_file = os.path.join(BUCKET_BASE, f'{labeled_sha}.json')
     print(f'writing output to {output_file}')
 
     p.write_output(combine.ofile, output_file)

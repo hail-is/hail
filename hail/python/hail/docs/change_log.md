@@ -24,6 +24,61 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.33
+
+Released 2020-02-27
+
+### New features
+
+- (hail#8173) Added new method `hl.zeros`.
+
+### Bug fixes
+
+- (hail#8153) Fixed complier bug causing `MatchError` in `import_bgen`.
+- (hail#8123) Fixed an issue with multiple Python HailContexts running on the same cluster.
+- (hail#8150) Fixed an issue where output from VEP about failures was not reported in error message.
+- (hail#8152) Fixed an issue where the row count of a MatrixTable coming from `import_matrix_table` was incorrect.
+- (hail#8175) Fixed a bug where `persist` did not actually do anything.
+
+### `hailctl dataproc`
+
+- (hail#8079) Using `connect` to open the jupyter notebook browser will no longer crash if your project contains requester-pays buckets.
+
+--- 
+
+## Version 0.2.32
+
+Released 2020-02-07
+
+### Critical performance regression fix
+
+- (hail#7989) Fixed performance regression leading to a large slowdown when `hl.variant_qc` was run after filtering columns.
+
+### Performance
+
+- (hail#7962) Improved performance of `hl.pc_relate`.
+- (hail#8032) Drastically improve performance of pipelines calling `hl.variant_qc` and `hl.sample_qc` iteratively.
+- (hail#8037) Improve performance of NDArray matrix multiply by using native linear algebra libraries.
+
+### Bug fixes
+
+- (hail#7976) Fixed divide-by-zero error in `hl.concordance` with no overlapping rows or cols.
+- (hail#7965) Fixed optimizer error leading to crashes caused by `MatrixTable.union_rows`.
+- (hail#8035) Fix compiler bug in `Table.multi_way_zip_join`.
+- (hail#8021) Fix bug in computing shape after `BlockMatrix.filter`.
+- (hail#7986) Fix error in NDArray matrix/vector multiply.
+
+### New features
+
+- (hail#8007) Add `hl.nd.diagonal` function.
+
+### Cheat sheets
+
+ - (hail#7940) Added cheat sheet for MatrixTables.
+ - (hail#7963) Improved Table sheet sheet.
+
+---
+
 ## Version 0.2.31
 
 Released 2020-01-22

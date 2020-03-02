@@ -507,6 +507,15 @@ class Tests(unittest.TestCase):
         j = hl.Table.multi_way_zip_join([ht, ht], 'd', 'g')
         j._force_count()
 
+    def test_multi_way_zip_join_key_downcast2(self):
+        vcf2 = hl.import_vcf(resource('gvcfs/HG00268.g.vcf.gz'), force_bgz=True, reference_genome='GRCh38')
+        vcf1 = hl.import_vcf(resource('gvcfs/HG00096.g.vcf.gz'), force_bgz=True, reference_genome='GRCh38')
+        vcfs = [vcf1.rows().key_by('locus'), vcf2.rows().key_by('locus')]
+        exp_count = (vcfs[0].count() + vcfs[1].count()
+            - vcfs[0].aggregate(hl.agg.count_where(hl.is_defined(vcfs[1][vcfs[0].locus]))))
+        ht = hl.Table.multi_way_zip_join(vcfs, 'data', 'new_globals')
+        assert exp_count == ht._force_count()
+
     def test_index_maintains_count(self):
         t1 = hl.Table.parallelize([
             {'a': 'foo', 'b': 1},

@@ -36,7 +36,7 @@ object IRBuilder {
   implicit def arrayIRToProxy(seq: Seq[IR]): IRProxy = arrayToProxy(seq.map(irToProxy))
 
   def irRange(start: IRProxy, end: IRProxy, step: IRProxy = 1): IRProxy = (env: E) =>
-    ArrayRange(start(env), end(env), step(env))
+    ToArray(StreamRange(start(env), end(env), step(env)))
 
   def irArrayLen(a: IRProxy): IRProxy = (env: E) => ArrayLen(a(env))
 
@@ -255,36 +255,36 @@ object IRBuilder {
     def filter(pred: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
-      ArrayFilter(array, pred.s.name, pred.body(env.bind(pred.s.name -> eltType)))
+      ToArray(StreamFilter(ToStream(array), pred.s.name, pred.body(env.bind(pred.s.name -> eltType))))
     }
 
     def map(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
-      val eltType = array.typ.asInstanceOf[TArray].elementType
-      ArrayMap(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
+      val eltType = -array.typ.asInstanceOf[TArray].elementType
+      ToArray(StreamMap(ToStream(array), f.s.name, f.body(env.bind(f.s.name -> eltType))))
     }
 
     def aggExplode(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
-      AggExplode(array, f.s.name, f.body(env.bind(f.s.name, array.typ.asInstanceOf[TStreamable].elementType)), isScan = false)
+      AggExplode(ToStream(array), f.s.name, f.body(env.bind(f.s.name, array.typ.asInstanceOf[TArray].elementType)), isScan = false)
     }
 
     def flatMap(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
-      ArrayFlatMap(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
+      ToArray(StreamFlatMap(ToStream(array), f.s.name, ToStream(f.body(env.bind(f.s.name -> eltType)))))
     }
 
-    def arrayAgg(f: LambdaProxy): IRProxy = (env: E) => {
+    def streamAgg(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
-      ArrayAgg(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
+      StreamAgg(ToStream(array), f.s.name, f.body(env.bind(f.s.name -> eltType)))
     }
 
-    def arrayAggScan(f: LambdaProxy): IRProxy = (env: E) => {
+    def streamAggScan(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
-      ArrayAggScan(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
+      ToArray(StreamAggScan(ToStream(array), f.s.name, f.body(env.bind(f.s.name -> eltType))))
     }
 
     def aggElements(elementsSym: Symbol, indexSym: Symbol, knownLength: Option[IRProxy])(aggBody: IRProxy): IRProxy = (env: E) => {
@@ -299,13 +299,13 @@ object IRBuilder {
         isScan = false)
     }
 
-    def sort(ascending: IRProxy, onKey: Boolean = false): IRProxy = (env: E) => ArraySort(ir(env), ascending(env), onKey)
+    def sort(ascending: IRProxy, onKey: Boolean = false): IRProxy = (env: E) => ArraySort(ToStream(ir(env)), ascending(env), onKey)
 
-    def groupByKey: IRProxy = (env: E) => GroupByKey(ir(env))
+    def groupByKey: IRProxy = (env: E) => GroupByKey(ToStream(ir(env)))
 
-    def toArray: IRProxy = (env: E) => ToArray(ir(env))
+    def toArray: IRProxy = (env: E) => ToArray(ToStream(ir(env)))
 
-    def toDict: IRProxy = (env: E) => ToDict(ir(env))
+    def toDict: IRProxy = (env: E) => ToDict(ToStream(ir(env)))
 
     def parallelize(nPartitions: Option[Int] = None): TableIR = TableParallelize(ir(Env.empty), nPartitions)
 

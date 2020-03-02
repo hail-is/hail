@@ -9,7 +9,8 @@ import gidgethub
 import zulip
 
 from hailtop.config import get_deploy_config
-from hailtop.utils import check_shell, check_shell_output
+from hailtop.batch_client.aioclient import Batch
+from hailtop.utils import check_shell, check_shell_output, RETRY_FUNCTION_SCRIPT
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS, GITHUB_STATUS_CONTEXT
 from .build import BuildConfiguration, Code
 from .globals import is_test_deployment
@@ -19,7 +20,9 @@ repos_lock = asyncio.Lock()
 
 log = logging.getLogger('ci')
 
-CALLBACK_URL = get_deploy_config().url('ci', '/api/v1alpha/batch_callback')
+deploy_config = get_deploy_config()
+
+CALLBACK_URL = deploy_config.url('ci', '/api/v1alpha/batch_callback')
 
 zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
 
@@ -130,6 +133,30 @@ STACKED_PR = 'stacked PR'
 WIP = 'WIP'
 
 DO_NOT_MERGE = {STACKED_PR, WIP}
+
+
+def clone_or_fetch_script(repo):
+    return f"""
+{ RETRY_FUNCTION_SCRIPT }
+
+function clone() {{ ( set -e
+    dir=$(mktemp -d)
+    git clone {shq(repo)} $dir
+    for x in $(ls -A $dir); do
+        mv -- "$dir/$x" ./
+    done
+) }}
+
+if [ ! -d .git ]; then
+  time retry clone
+
+  git config user.email ci@hail.is
+  git config user.name ci
+else
+  git reset --merge
+  time retry git fetch -q origin
+fi
+"""
 
 
 class PR(Code):
@@ -445,19 +472,11 @@ mkdir -p {shq(repo_dir)}
 
     def checkout_script(self):
         return f'''
-if [ ! -d .git ]; then
-  time git clone {shq(self.target_branch.branch.repo.url)} .
-
-  git config user.email ci@hail.is
-  git config user.name ci
-else
-  git reset --merge
-  time git fetch -q origin
-fi
+{clone_or_fetch_script(self.target_branch.branch.repo.url)}
 
 git remote add {shq(self.source_repo.short_str())} {shq(self.source_repo.url)} || true
 
-time git fetch -q {shq(self.source_repo.short_str())}
+time retry git fetch -q {shq(self.source_repo.short_str())}
 git checkout {shq(self.target_branch.sha)}
 git merge {shq(self.source_sha)} -m 'merge PR'
 '''
@@ -653,11 +672,14 @@ class WatchedBranch(Code):
                         'to': 'team',
                         'topic': 'CI Deploy Failure',
                         'content': f'''
+@*dev*
 state: {self.deploy_state}
 branch: {self.branch.short_str()}
 sha: {self.sha}
+url: https://ci.hail.is/batches/{self.deploy_batch.id}
 '''}
-                    zulip_client.send_message(request)
+                    result = zulip_client.send_message(request)
+                    log.info(result)
 
                 self.state_changed = True
 
@@ -765,15 +787,7 @@ mkdir -p {shq(repo_dir)}
 
     def checkout_script(self):
         return f'''
-if [ ! -d .git ]; then
-  time git clone {shq(self.branch.repo.url)} .
-
-  git config user.email ci@hail.is
-  git config user.name ci
-else
-  git reset --merge
-  time git fetch -q origin
-fi
+{clone_or_fetch_script(self.branch.repo.url)}
 
 git checkout {shq(self.sha)}
 '''
@@ -832,21 +846,13 @@ mkdir -p {shq(repo_dir)}
             self.deploy_batch = deploy_batch
             return deploy_batch.id
         finally:
-            if deploy_batch and not self.deploy_batch:
+            if deploy_batch and not self.deploy_batch and isinstance(deploy_batch, Batch):
                 log.info(f'cancelling partial deploy batch {deploy_batch.id}')
                 await deploy_batch.cancel()
 
     def checkout_script(self):
         return f'''
-if [ ! -d .git ]; then
-  time git clone {shq(self.branch.repo.url)} .
-
-  git config user.email ci@hail.is
-  git config user.name ci
-else
-  git reset --merge
-  time git fetch -q origin
-fi
+{clone_or_fetch_script(self.branch.repo.url)}
 
 git checkout {shq(self.sha)}
 '''

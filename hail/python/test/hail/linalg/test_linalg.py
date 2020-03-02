@@ -1,4 +1,4 @@
-import unittest
+import pytest
 
 from hail.linalg import BlockMatrix
 from hail.utils import new_temp_file, new_local_temp_dir, local_path_uri, FatalError
@@ -972,3 +972,22 @@ class Tests(unittest.TestCase):
 
         s = x.svd(compute_uv=False, complexity_bound=0)
         assert np.all(s >= 0)
+
+
+    @skip_unless_spark_backend()
+    def test_filtering(self):
+        np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
+        bm = BlockMatrix.from_numpy(np_square)
+        assert np.array_equal(bm.filter([3], [3]).to_numpy(), np.array([[15]]))
+        assert np.array_equal(bm.filter_rows([3]).filter_cols([3]).to_numpy(), np.array([[15]]))
+        assert np.array_equal(bm.filter_cols([3]).filter_rows([3]).to_numpy(), np.array([[15]]))
+        assert np.array_equal(bm.filter_rows([2]).filter_rows([0]).to_numpy(), np_square[2:3, :])
+        assert np.array_equal(bm.filter_cols([2]).filter_cols([0]).to_numpy(), np_square[:, 2:3])
+
+        with pytest.raises(ValueError) as exc:
+            bm.filter_cols([0]).filter_cols([3]).to_numpy()
+        assert "index" in str(exc)
+
+        with pytest.raises(ValueError) as exc:
+            bm.filter_rows([0]).filter_rows([3]).to_numpy()
+        assert "index" in str(exc)

@@ -1,6 +1,7 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.{BaseIR, BlockMatrixMultiWrite, BlockMatrixToTableApply, BlockMatrixToValueApply, BlockMatrixWrite, Compilable, IR, InterpretableButNotCompilable, MatrixAggregate, MatrixIR, MatrixToValueApply, MatrixWrite, RelationalLet, RelationalLetBlockMatrix, RelationalLetMatrixTable, RelationalLetTable, RelationalRef, TableAggregate, TableCollect, TableCount, TableGetGlobals, TableToValueApply, TableWrite}
+import is.hail.expr.ir._
+import is.hail.expr.types.virtual.TStream
 
 trait Rule {
   def allows(ir: BaseIR): Boolean
@@ -28,9 +29,23 @@ case object CompilableValueIRs extends Rule {
   }
 }
 
+case object NoApplyIR extends Rule {
+  override def allows(ir: BaseIR): Boolean = ir match {
+    case x: ApplyIR => false
+    case _ => true
+  }
+}
+
 case object ValueIROnly extends Rule {
   def allows(ir: BaseIR): Boolean = ir match {
     case _: IR => true
     case _ => false
+  }
+}
+
+case object EmittableValueIRs extends Rule {
+  override def allows(ir: BaseIR): Boolean = ir match {
+    case x: IR => Emittable(x)
+    case _ => true
   }
 }

@@ -20,7 +20,7 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
       "includesStart" -> PBooleanRequired,
       "includesEnd" -> PBooleanRequired)
 
-    def copy(required: Boolean = this.required): PInterval = PCanonicalInterval(this.pointType, required)
+    def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalInterval(this.pointType, required)
 
     def startOffset(off: Code[Long]): Code[Long] = representation.fieldOffset(off, 0)
 

@@ -17,4 +17,6 @@ spec:
   selector:
     app: gateway
   loadBalancerIP: "{{ global.ip }}"
+  # https://kubernetes.io/docs/tutorials/services/source-ip/#source-ip-for-services-with-type-loadbalancer
+  externalTrafficPolicy: Local
   type: LoadBalancer

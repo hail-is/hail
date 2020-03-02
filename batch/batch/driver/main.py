@@ -10,18 +10,18 @@ import kubernetes_asyncio as kube
 import google.oauth2.service_account
 from prometheus_async.aio.web import server_stats
 from gear import Database, setup_aiohttp_session, web_authenticated_developers_only, \
-    check_csrf_token, transaction
+    check_csrf_token, transaction, AccessLogger
 from hailtop.config import get_deploy_config
 from hailtop.utils import time_msecs
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
-
-# import uvloop
+import googlecloudprofiler
+import uvloop
 
 from ..batch import mark_job_complete, mark_job_started
 from ..log_store import LogStore
 from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
-    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME
+    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE
 from ..google_compute import GServices
 from ..globals import HTTP_CLIENT_MAX_SIZE
 
@@ -29,7 +29,7 @@ from .instance_pool import InstancePool
 from .scheduler import Scheduler
 from .k8s_cache import K8sCache
 
-# uvloop.install()
+uvloop.install()
 
 log = logging.getLogger('batch')
 
@@ -214,23 +214,24 @@ async def deactivate_instance(request, instance):  # pylint: disable=unused-argu
 
 async def job_complete_1(request, instance):
     body = await request.json()
-    status = body['status']
+    job_status = body['status']
 
-    batch_id = status['batch_id']
-    job_id = status['job_id']
-    attempt_id = status['attempt_id']
+    batch_id = job_status['batch_id']
+    job_id = job_status['job_id']
+    attempt_id = job_status['attempt_id']
 
-    status_state = status['state']
-    if status_state == 'succeeded':
+    state = job_status['state']
+    if state == 'succeeded':
         new_state = 'Success'
-    elif status_state == 'error':
+    elif state == 'error':
         new_state = 'Error'
     else:
-        assert status_state == 'failed', status_state
+        assert state == 'failed', state
         new_state = 'Failed'
 
-    start_time = status['start_time']
-    end_time = status['end_time']
+    start_time = job_status['start_time']
+    end_time = job_status['end_time']
+    status = job_status['status']
 
     await mark_job_complete(request.app, batch_id, job_id, attempt_id, instance.name,
                             new_state, status, start_time, end_time, 'completed')
@@ -248,12 +249,12 @@ async def job_complete(request, instance):
 
 async def job_started_1(request, instance):
     body = await request.json()
-    status = body['status']
+    job_status = body['status']
 
-    batch_id = status['batch_id']
-    job_id = status['job_id']
-    attempt_id = status['attempt_id']
-    start_time = status['start_time']
+    batch_id = job_status['batch_id']
+    job_id = job_status['job_id']
+    attempt_id = job_status['attempt_id']
+    start_time = job_status['start_time']
 
     await mark_job_started(request.app, batch_id, job_id, attempt_id, instance, start_time)
 
@@ -534,6 +535,16 @@ async def on_cleanup(app):
 
 
 def run():
+    if HAIL_SHOULD_PROFILE:
+        profiler_tag = f'{DEFAULT_NAMESPACE}'
+        if profiler_tag == 'default':
+            profiler_tag = DEFAULT_NAMESPACE + f'-{HAIL_SHA[0:12]}'
+        googlecloudprofiler.start(
+            service='batch-driver',
+            service_version=profiler_tag,
+            # https://cloud.google.com/profiler/docs/profiling-python#agent_logging
+            verbose=3)
+
     app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
     setup_aiohttp_session(app)
 
@@ -549,4 +560,5 @@ def run():
                                                  'batch-driver',
                                                  client_max_size=HTTP_CLIENT_MAX_SIZE),
                 host='0.0.0.0',
-                port=5000)
+                port=5000,
+                access_log_class=AccessLogger)

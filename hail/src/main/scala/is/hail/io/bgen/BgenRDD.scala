@@ -116,7 +116,7 @@ case class BgenSettings(
       )))
       .filter { case (name, _) => requestedType.rowType.hasField(name) }: _*)
 
-  assert(rowPType.virtualType == requestedType.rowType)
+  assert(rowPType.virtualType == requestedType.rowType, s"${ rowPType.virtualType.parsableString() } vs ${ requestedType.rowType.parsableString() }")
 
   def hasField(name: String): Boolean = requestedType.rowType.hasField(name)
 

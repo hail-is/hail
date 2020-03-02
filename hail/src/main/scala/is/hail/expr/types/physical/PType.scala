@@ -3,10 +3,10 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.ir.{EmitMethodBuilder, IRParser, SortOrder}
+import is.hail.expr.ir
+import is.hail.expr.ir.{Ascending, Descending, EmitMethodBuilder, IRParser, PValue, SortOrder}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.{BaseType, Requiredness}
-import is.hail.expr.ir.{Ascending, Descending}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.json4s.CustomSerializer
@@ -170,12 +170,9 @@ abstract class PType extends Serializable with Requiredness {
   def isCanonical: Boolean = PType.canonical(this) == this // will recons, may need to rewrite this method
 
   def unsafeOrdering(rightType: PType): UnsafeOrdering = {
-    require(this.isOfType(rightType))
+    require(this == rightType)
     unsafeOrdering()
   }
-
-  def unsafeInsert(typeToInsert: PType, path: List[String]): (PType, UnsafeInserter) =
-    PStruct.empty().unsafeInsert(typeToInsert, path)
 
   def asIdent: String = (if (required) "r_" else "o_") + _asIdent
 
@@ -215,28 +212,7 @@ abstract class PType extends Serializable with Requiredness {
 
   final def unary_-(): PType = setRequired(false)
 
-  final def setRequired(required: Boolean): PType = {
-    if (required == this.required)
-      this
-    else
-      this match {
-        case PBinary(_) => PBinary(required)
-        case PBoolean(_) => PBoolean(required)
-        case PInt32(_) => PInt32(required)
-        case PInt64(_) => PInt64(required)
-        case PFloat32(_) => PFloat32(required)
-        case PFloat64(_) => PFloat64(required)
-        case PString(_) => PString(required)
-        case t: PCall => t.copy(required)
-        case t: PArray => t.copy(required = required)
-        case t: PSet => t.copy(required = required)
-        case t: PDict => t.copy(required = required)
-        case t: PLocus => t.copy(required = required)
-        case t: PInterval => t.copy(required = required)
-        case t: PStruct => t.copy(required = required)
-        case t: PTuple => t.copy(required = required)
-      }
-  }
+  def setRequired(required: Boolean): PType
 
   final def isOfType(t: PType): Boolean = {
     this match {
@@ -321,20 +297,21 @@ abstract class PType extends Serializable with Requiredness {
 
   def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_]
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long]): Code[Long] =
-    this.copyFromType(mb, region, srcPType, srcAddress, false)
-
   def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_]): Code[_] =
     this.copyFromTypeAndStackValue(mb, region, srcPType, stackValue, false)
 
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long): Long =
-    this.copyFromType(region, srcPType, srcAddress, false)
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit]
+  def constructAtAddressFromValue(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, src: Code[_], forceDeep: Boolean): Code[Unit]
+    = constructAtAddress(mb, addr, region, srcPType, coerce[Long](src), forceDeep)
+
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit
 
   def deepRename(t: Type) = this
 
-  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]): Code[Unit]
+  def defaultValue: PValue = PValue(this, ir.defaultValue(this))
 
-  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long)
+  def copyFromPValue(mb: MethodBuilder, region: Code[Region], pv: PValue): PValue =
+    PValue(this, copyFromTypeAndStackValue(mb, region, pv.pt, pv.code))
 }

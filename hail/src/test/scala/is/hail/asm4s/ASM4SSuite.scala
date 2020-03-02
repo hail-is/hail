@@ -8,6 +8,7 @@ import is.hail.check.{Gen, Prop}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
+import scala.collection.mutable
 import scala.language.postfixOps
 
 trait Z2Z { def apply(z:Boolean): Boolean }
@@ -210,33 +211,6 @@ class ASM4SSuite extends TestNGSuite {
     }
   }
 
-  @Test def switchLookup(): Unit = {
-    val fb = functionBuilder[Int, Int]
-    fb.emit(
-      Code.switch[Int](fb.getArg[Int](1),
-        999,
-        (0 until 50).map { i => const(i * i) }))
-    val f = fb.result()()
-    for (i <- -20 to 100) {
-      if (i >= 0 && i < 50)
-        assert((i * i) == f(i), i)
-      else
-        assert(999 == f(i), i)
-    }
-  }
-
-  @Test def emptySwitch(): Unit = {
-    val fb = functionBuilder[Int]
-    fb.emit({
-      val v = fb.newLocal[Int]
-      Code(v := 5,
-        Code.switch[Unit](1, v := 6, Seq()),
-        _return(v))
-    })
-    val f = fb.result()()
-    assert(f() == 6)
-  }
-
   @Test def nanAlwaysComparesFalse(): Unit = {
     Prop.forAll { (x: Double) =>
       {
@@ -327,15 +301,20 @@ class ASM4SSuite extends TestNGSuite {
     val fb = FunctionBuilder.functionBuilder[Int]
     val methods = Array.tabulate[MethodBuilder](3)(_ => fb.newMethod[Int, Int, Int])
     val locals = Array.tabulate[LocalRef[Int]](9)(i => methods(i / 3).newLocal[Int])
+    val codes = Array.tabulate[mutable.ArrayBuffer[Code[_]]](3)(_ => mutable.ArrayBuffer[Code[_]]())
     var i = 0
     while (i < 3) {
       var j = 0
       while (j < 3) {
-        methods(i).emit(locals(3*i + j) := const(i))
+        codes(i) += (locals(3*i + j) := const(i))
         j += 1
       }
-      methods(i).emit(locals(3*i))
-      methods(i).mn.instructions
+      codes(i) += locals(3*i)
+      i += 1
+    }
+    i = 0
+    while (i < 3) {
+      methods(i).emit(Code(codes(i): _*))
       i += 1
     }
     fb.emit(Code._return[Int](methods(1).invoke(0,0)))
@@ -440,17 +419,18 @@ class ASM4SSuite extends TestNGSuite {
     val v2 = fb.newField[Int]
     val v1 = fb.newLazyField(v2 + 1)
 
-    fb.emit(v2 := 0)
-    fb.emit(v2 := v1)
-    fb.emit(v2 := v1)
-    fb.emit(v1)
+    fb.emit(Code(
+      v2 := 0,
+      v2 := v1,
+      v2 := v1,
+      v1))
 
     assert(fb.result()()() == 1)
   }
 
   @Test def fbFunctionsCanBeNested(): Unit = {
     val fb = FunctionBuilder.functionBuilder[Boolean]
-    val fb2 = fb.newDependentFunction[Int, Boolean]
+    val fb2 = fb.classBuilder.newDependentFunction[Int, Boolean]
     val localF = fb.newField[AsmFunction1[Int, Boolean]]
 
     val wrappedInt = Code.invokeStatic[java.lang.Integer, Int, java.lang.Integer]("valueOf", 0)
@@ -468,7 +448,7 @@ class ASM4SSuite extends TestNGSuite {
 
   @Test def dependentFunctionsCanUseParentsFields(): Unit = {
     val fb = FunctionBuilder.functionBuilder[Int, Int, Int]
-    val fb2 = fb.newDependentFunction[Int, Int]
+    val fb2 = fb.classBuilder.newDependentFunction[Int, Int]
 
     val localF = fb.newField[AsmFunction1[Int, Int]]
 

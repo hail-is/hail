@@ -14,7 +14,7 @@ import kubernetes_asyncio as kube
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, create_database_pool, \
     web_authenticated_users_only, web_maybe_authenticated_user, web_authenticated_developers_only, \
-    check_csrf_token
+    check_csrf_token, AccessLogger
 from web_common import sass_compile, setup_aiohttp_jinja2, setup_common_static_routes, \
     set_message, render_template
 
@@ -819,5 +819,6 @@ def run():
     root_app.add_domain('workshop*',
                         deploy_config.prefix_application(workshop_app, 'workshop'))
     web.run_app(root_app,
-                access_log_format='%a %t "%r" %s %b "%{Host}i" "%{Referer}i" "%{User-Agent}i"',
-                host='0.0.0.0', port=5000)
+                host='0.0.0.0',
+                port=5000,
+                access_log_class=AccessLogger)

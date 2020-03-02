@@ -15,7 +15,7 @@ object PCanonicalStruct {
 
   def empty(required: Boolean = false): PStruct = if (required) requiredEmpty else optionalEmpty
 
-  def apply(required: Boolean, args: (String, PType)*): PStruct =
+  def apply(required: Boolean, args: (String, PType)*): PCanonicalStruct =
     PCanonicalStruct(args
       .iterator
       .zipWithIndex
@@ -23,7 +23,7 @@ object PCanonicalStruct {
       .toFastIndexedSeq,
       required)
 
-  def apply(names: java.util.List[String], types: java.util.List[PType], required: Boolean): PStruct = {
+  def apply(names: java.util.List[String], types: java.util.List[PType], required: Boolean): PCanonicalStruct = {
     val sNames = names.asScala.toArray
     val sTypes = types.asScala.toArray
     if (sNames.length != sTypes.length)
@@ -32,17 +32,15 @@ object PCanonicalStruct {
     PCanonicalStruct(required, sNames.zip(sTypes): _*)
   }
 
-  def apply(args: (String, PType)*): PStruct =
+  def apply(args: (String, PType)*): PCanonicalStruct =
     PCanonicalStruct(false, args:_*)
 
-  def canonical(t: Type): PStruct = PType.canonical(t).asInstanceOf[PStruct]
-  def canonical(t: PType): PStruct = PType.canonical(t).asInstanceOf[PStruct]
+  def canonical(t: Type): PCanonicalStruct = PType.canonical(t).asInstanceOf[PCanonicalStruct]
+  def canonical(t: PType): PCanonicalStruct = PType.canonical(t).asInstanceOf[PCanonicalStruct]
 }
 
-final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean = false) extends PStruct {
+final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean = false) extends PCanonicalBaseStruct(fields.map(_.typ).toArray) with PStruct {
   assert(fields.zipWithIndex.forall  { case (f, i) => f.index == i })
-
-  val types: Array[PType] = fields.map(_.typ).toArray
 
   if (!fieldNames.areDistinct()) {
     val duplicates = fieldNames.duplicates()
@@ -50,78 +48,11 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
       s"${fieldNames.map(prettyIdentifier).mkString(", ")}", fieldNames.duplicates())
   }
 
-  val (missingIdx: Array[Int], nMissing: Int) = BaseStruct.getMissingIndexAndCount(types.map(_.required))
-  val nMissingBytes = (nMissing + 7) >>> 3
-  val byteOffsets = new Array[Long](size)
-  override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
-  override val alignment: Long = PBaseStruct.alignment(types)
 
-  def copy(fields: IndexedSeq[PField] = this.fields, required: Boolean = this.required): PStruct = PCanonicalStruct(fields, required)
+  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalStruct(fields, required)
 
   override def truncate(newSize: Int): PStruct =
     PCanonicalStruct(fields.take(newSize), required)
-
-  def unsafeStructInsert(typeToInsert: PType, path: List[String]): (PStruct, UnsafeInserter) = {
-    assert(typeToInsert.isInstanceOf[PStruct] || path.nonEmpty)
-    val (t, i) = unsafeInsert(typeToInsert, path)
-    (t.asInstanceOf[PStruct], i)
-  }
-
-  override def unsafeInsert(typeToInsert: PType, path: List[String]): (PType, UnsafeInserter) = {
-    if (path.isEmpty) {
-      (typeToInsert, (region, offset, rvb, inserter) => inserter())
-    } else {
-      val localSize = size
-      val key = path.head
-      selfField(key) match {
-        case Some(f) =>
-          val j = f.index
-          val (insertedFieldType, fieldInserter) = f.typ.unsafeInsert(typeToInsert, path.tail)
-
-          (updateKey(key, j, insertedFieldType), { (region, offset, rvb, inserter) =>
-            rvb.startStruct()
-            var i = 0
-            while (i < j) {
-              if (region != null)
-                rvb.addField(this, region, offset, i)
-              else
-                rvb.setMissing()
-              i += 1
-            }
-            if (region != null && isFieldDefined(offset, j))
-              fieldInserter(region, loadField(offset, j), rvb, inserter)
-            else
-              fieldInserter(null, 0, rvb, inserter)
-            i += 1
-            while (i < localSize) {
-              if (region != null)
-                rvb.addField(this, region, offset, i)
-              else
-                rvb.setMissing()
-              i += 1
-            }
-            rvb.endStruct()
-          })
-
-        case None =>
-          val (insertedFieldType, fieldInserter) = PStruct.empty().unsafeInsert(typeToInsert, path.tail)
-
-          (appendKey(key, insertedFieldType), { (region, offset, rvb, inserter) =>
-            rvb.startStruct()
-            var i = 0
-            while (i < localSize) {
-              if (region != null)
-                rvb.addField(this, region, offset, i)
-              else
-                rvb.setMissing()
-              i += 1
-            }
-            fieldInserter(null, 0, rvb, inserter)
-            rvb.endStruct()
-          })
-      }
-    }
-  }
 
   def updateKey(key: String, i: Int, sig: PType): PStruct = {
     assert(fieldIdx.contains(key))

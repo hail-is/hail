@@ -14,11 +14,4 @@ spec:
     image: gcr.io/@project@/letsencrypt
     ports:
     - containerPort: 80
-    volumeMounts:
-      - mountPath: /etc/letsencrypt
-        name: letsencrypt-certs
   restartPolicy: Never
-  volumes:
-    - name: letsencrypt-certs
-      persistentVolumeClaim:
-        claimName: letsencrypt-certs

@@ -49,9 +49,19 @@ class Test(unittest.TestCase):
         status = j.wait()
         self.assertTrue('attributes' not in status, (status, j.log()))
         self.assertEqual(status['state'], 'Success', (status, j.log()))
+        self.assertEqual(status['exit_code'], 0, status)
         self.assertEqual(j._get_exit_code(status, 'main'), 0, (status, j.log()))
 
         self.assertEqual(j.log()['main'], 'test\n', status)
+
+    def test_exit_code_duration(self):
+        builder = self.client.create_batch()
+        j = builder.create_job('ubuntu:18.04', ['bash', '-c', 'exit 7'])
+        b = builder.submit()
+        status = j.wait()
+        self.assertEqual(status['exit_code'], 7, status)
+        assert isinstance(status['duration'], int)
+        self.assertEqual(j._get_exit_code(status, 'main'), 7, status)
 
     def test_msec_mcpu(self):
         builder = self.client.create_batch()
@@ -69,10 +79,12 @@ class Test(unittest.TestCase):
 
         batch_msec_mcpu2 = 0
         for job in b.jobs():
-            job_status = job['status']
+            # I'm dying
+            job = self.client.get_job(job['batch_id'], job['job_id'])
+            job = job.status()
 
             # runs at 100mcpu
-            job_msec_mcpu2 = 100 * max(job_status['end_time'] - job_status['start_time'], 0)
+            job_msec_mcpu2 = 100 * max(job['status']['end_time'] - job['status']['start_time'], 0)
             # greater than in case there are multiple attempts
             assert job['msec_mcpu'] >= job_msec_mcpu2, batch
 
@@ -88,8 +100,7 @@ class Test(unittest.TestCase):
         builder = self.client.create_batch()
         j = builder.create_job('ubuntu:18.04', ['true'], attributes=a)
         builder.submit()
-        status = j.status()
-        assert(status['attributes'] == a)
+        assert(j.attributes() == a)
 
     def test_garbage_image(self):
         builder = self.client.create_batch()
@@ -191,6 +202,31 @@ class Test(unittest.TestCase):
         assert_batch_ids({b1.id, b2.id}, f'complete tag={tag}')
 
         assert_batch_ids({b2.id}, f'tag={tag} name=b2')
+
+    def test_list_jobs(self):
+        b = self.client.create_batch()
+        j_success = b.create_job('ubuntu:18.04', ['true'])
+        j_failure = b.create_job('ubuntu:18.04', ['false'])
+        j_error = b.create_job('ubuntu:18.04', ['sleep 5'], attributes={'tag': 'bar'})
+        j_running = b.create_job('ubuntu:18.04', ['sleep', '1800'], attributes={'tag': 'foo'})
+
+        b = b.submit()
+        j_success.wait()
+        j_failure.wait()
+        j_error.wait()
+
+        def assert_job_ids(expected, q=None):
+            actual = set([j['job_id'] for j in b.jobs(q=q)])
+            assert actual == expected
+
+        assert_job_ids({j_success.job_id}, 'success')
+        assert_job_ids({j_success.job_id, j_failure.job_id, j_error.job_id}, 'done')
+        assert_job_ids({j_running.job_id}, '!done')
+        assert_job_ids({j_running.job_id}, 'tag=foo')
+        assert_job_ids({j_error.job_id, j_running.job_id}, 'has:tag')
+        assert_job_ids({j_success.job_id, j_failure.job_id, j_error.job_id, j_running.job_id}, None)
+
+        b.cancel()
 
     def test_include_jobs(self):
         b1 = self.client.create_batch()
@@ -311,7 +347,7 @@ class Test(unittest.TestCase):
         assert n_cancelled <= 1, bstatus
         assert n_cancelled + n_complete == 3, bstatus
 
-        n_failed = sum([Job._get_exit_code(j, 'main') > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error')])
+        n_failed = sum([j['exit_code'] > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error')])
         assert n_failed == 1, bstatus
 
     def test_batch_status(self):
@@ -403,10 +439,10 @@ class Test(unittest.TestCase):
         b = self.client.create_batch()
         j = b.create_job(
             os.environ['CI_UTILS_IMAGE'],
-            ['/bin/sh', '-c', 'kubectl get pods -l app=batch-driver'],
+            ['/bin/sh', '-c', 'kubectl version'],
             service_account={
                 'namespace': os.environ['HAIL_BATCH_PODS_NAMESPACE'],
-                'name': 'ci-agent'
+                'name': 'test-batch-sa'
             })
         b.submit()
         status = j.wait()
@@ -422,6 +458,13 @@ echo $HAIL_BATCH_WORKER_IP
         batch = b.wait()
         print(j.log())
         assert batch['state'] == 'success', batch
+
+    def test_timeout(self):
+        builder = self.client.create_batch()
+        j = builder.create_job('ubuntu:18.04', ['sleep', '30'], timeout=5)
+        b = builder.submit()
+        status = j.wait()
+        self.assertEqual(status['state'], 'Error', (status, j.log()))
 
     def test_client_max_size(self):
         builder = self.client.create_batch()

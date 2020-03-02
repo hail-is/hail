@@ -1144,15 +1144,18 @@ class Table(ExprContainer):
         if _localize:
             return Env.backend().execute(agg_ir)
         else:
-            return construct_expr(agg_ir, expr.dtype)
+            return construct_expr(LiftMeOut(agg_ir), expr.dtype)
 
     @typecheck_method(output=str,
                       overwrite=bool,
                       stage_locally=bool,
                       _codec_spec=nullable(str),
-                      _read_if_exists=bool)
+                      _read_if_exists=bool,
+                      _intervals=nullable(sequenceof(anytype)),
+                      _filter_intervals=bool)
     def checkpoint(self, output: str, overwrite: bool = False, stage_locally: bool = False,
-                   _codec_spec: Optional[str] = None, _read_if_exists: bool = False) -> 'Table':
+                   _codec_spec: Optional[str] = None, _read_if_exists: bool = False,
+                   _intervals=None, _filter_intervals=False) -> 'Table':
         """Checkpoint the table to disk by writing and reading.
 
         Parameters
@@ -1185,7 +1188,7 @@ class Table(ExprContainer):
         """
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
             self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
-        return hl.read_table(output)
+        return hl.read_table(output, _intervals=_intervals, _filter_intervals=_filter_intervals)
 
     @typecheck_method(output=str,
                       overwrite=bool,
@@ -3378,6 +3381,8 @@ class Table(ExprContainer):
     @typecheck(tables=sequenceof(table_type), data_field_name=str, global_field_name=str)
     def multi_way_zip_join(tables, data_field_name, global_field_name) -> 'Table':
         """Combine many tables in a zip join
+        
+        .. include:: _templates/experimental.rst
 
         Notes
         -----
@@ -3408,7 +3413,7 @@ class Table(ExprContainer):
         global_field_name : :obj:`str`
             The name of the resulting global field
 
-        .. include:: _templates/experimental.rst
+        
         """
         if not tables:
             raise ValueError('multi_way_zip_join must have at least one table as an argument')

@@ -8,6 +8,7 @@ import struct
 
 import hailtop.utils as utils
 from hailtop.config import get_deploy_config
+from gear import AccessLogger
 
 from . import aiofiles as af
 from .logging import log
@@ -169,14 +170,15 @@ class Server:
                         async with cs.post(f'{server.leader_url}/w', data=server.name) as resp:
                             assert resp.status == 200
                             await resp.text()
-                await utils.retry_forever(
-                    make_request,
-                    lambda exc: f'could not join cluster with leader {server.leader} at {server.leader_url} due to {exc}')
+                await utils.retry_all_errors(f'could not join cluster with leader {server.leader} at {server.leader_url}')(make_request)
                 log.info(f'joined cluster lead by {server.leader}')
 
         prefixed_app.on_startup.append(join_cluster)
 
-        web.run_app(prefixed_app, host=server.binding_host, port=server.port)
+        web.run_app(prefixed_app,
+                    host=server.binding_host,
+                    port=server.port,
+                    access_log_class=AccessLogger)
 
     def session(self, request):
         session_id = int(request.match_info['session'])

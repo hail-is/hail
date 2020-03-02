@@ -21,7 +21,7 @@ import org.apache.spark.sql.Row
 
 object ExecStrategy extends Enumeration {
   type ExecStrategy = Value
-  val Interpret, InterpretUnoptimized, JvmCompile, LoweredJVMCompile = Value
+  val Interpret, InterpretUnoptimized, JvmCompile, LoweredJVMCompile, JvmCompileUnoptimized = Value
 
   val compileOnly: Set[ExecStrategy] = Set(JvmCompile)
   val javaOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
@@ -146,7 +146,6 @@ object TestUtils {
       None
   }
 
-
   def loweredExecute(x: IR, env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     agg: Option[(IndexedSeq[Row], TStruct)],
@@ -163,7 +162,8 @@ object TestUtils {
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     agg: Option[(IndexedSeq[Row], TStruct)],
-    bytecodePrinter: Option[PrintWriter] = None
+    bytecodePrinter: Option[PrintWriter] = None,
+    optimize: Boolean = true
   ): Any = {
     ExecuteContext.scoped { ctx =>
       val inputTypesB = new ArrayBuilder[Type]()
@@ -207,7 +207,7 @@ object TestUtils {
           val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
             env.bind(f.name, GetField(Ref(aggElementVar, aggType), f.name))
           }
-          val aggIR = ArrayAgg(Ref(aggArrayVar, aggArrayPType.virtualType),
+          val aggIR = StreamAgg(ToStream(Ref(aggArrayVar, aggArrayPType.virtualType)),
             aggElementVar,
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))))
 
@@ -215,7 +215,8 @@ object TestUtils {
             argsVar, argsPType,
             aggArrayVar, aggArrayPType,
             aggIR,
-            print = bytecodePrinter)
+            print = bytecodePrinter,
+            optimize = optimize)
           assert(resultType2.virtualType.isOfType(resultType))
 
           Region.scoped { region =>
@@ -246,7 +247,7 @@ object TestUtils {
           val (resultType2, f) = Compile[Long, Long](ctx,
             argsVar, argsPType,
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))),
-            optimize = true,
+            optimize = optimize,
             print = bytecodePrinter)
           assert(resultType2.virtualType.isOfType(resultType))
 
@@ -352,6 +353,16 @@ object TestUtils {
                     pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(x)}\n */\n\n")
                     pw
                   })
+            case ExecStrategy.JvmCompileUnoptimized =>
+              assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
+              eval(x, env, args, agg, bytecodePrinter =
+                Option(HailContext.getFlag("jvm_bytecode_dump"))
+                  .map { path =>
+                    val pw = new PrintWriter(new File(path))
+                    pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(x)}\n */\n\n")
+                    pw
+                  },
+                optimize = false)
             case ExecStrategy.LoweredJVMCompile => loweredExecute(x, env, args, agg)
           }
           assert(t.typeCheck(res))

@@ -4,7 +4,25 @@ The following is an incomplete list of scientific work enabled by Hail. We welco
 
 In addition to software development, the Hail team engages in theoretical, algorithmic, and empirical research inspired by scientific collaboration. Examples include [Loss landscapes of regularized linear autoencoders](https://github.com/danielkunin/Regularized-Linear-Autoencoders), [Secure multi-party linear regression at plaintext speed](https://github.com/jbloom22/DASH), and [A synthetic-diploid benchmark for accurate variant-calling evaluation](https://www.nature.com/articles/s41592-018-0054-7).
 
+*Last updated on February 3rd, 2020 at 11:00 AM EST*
+
 ## 2019
+
+* Gay, Nicole R. et al. "Impact of admixture and ancestry on eQTL analysis and GWAS colocalization in GTEx" *bioRxiv* (2019) 836825; <https://www.biorxiv.org/content/10.1101/836825v1>
+
+* Sakaue, Saori et al. "Trans-biobank analysis with 676,000 individuals elucidates the association of polygenic risk scores of complex traits with human lifespan" *bioRxiv* (2019): 856351 <https://www.biorxiv.org/content/10.1101/856351v1>
+
+* Polimanti, Renato et al. "Leveraging genome-wide data to investigate differences between opioid use vs. opioid dependence in 41,176 individuals from the Psychiatric Genomics Consortium" *bioRxiv* (2019): 765065 <https://www.biorxiv.org/content/10.1101/765065v1>
+
+* Wang, Qingbo et al. "Landscape of multi-nucleotide variants in 125,748 human exomes and 15,708 genomes" *bioRxiv* (2019): 573378; https://www.biorxiv.org/content/10.1101/573378v2.full
+
+* Lescai, Francesco et al. "Meta-analysis of Scandinavian Schizophrenia Exomes" *bioRxiv* (2019): 836957; <https://www.biorxiv.org/content/10.1101/836957v2>
+
+* Bolze, Alexandre, et al. "Selective constraints and pathogenicity of mitochondrial DNA variants inferred from a novel database of 196,554 unrelated individuals" *bioRxiv* (2019): 798264;<https://www.biorxiv.org/content/10.1101/798264v1>
+
+* De Lillo, A., De Angelis, F., Di Girolamo, M. et al. "Phenome-wide association study of TTR and RBP4 genes in 361,194 individuals reveals novel insights in the genetics of hereditary and wildtype transthyretin amyloidoses." *Hum Genet* 138, 1331–1340 (2019). <https://www.ncbi.nlm.nih.gov/pubmed/31659433>
+
+* Pividori, Milton, et al. "Shared and distinct genetic risk factors for childhood-onset and adult-onset asthma: genome-wide and transcriptome-wide studies." *The Lancet Respiratory Medicine* 7.6 (2019): 509-522. <https://www.biorxiv.org/content/10.1101/427427v2>
 
 * Werling, Donna, et al. "Whole-genome and RNA sequencing reveal variation and transcriptomic coordination in the developing human prefrontal cortex." *bioRxiv* (2019): 538421. <https://www.biorxiv.org/content/10.1101/585430v1>
 

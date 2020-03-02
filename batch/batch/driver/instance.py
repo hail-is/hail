@@ -1,9 +1,14 @@
+import aiohttp
 import datetime
+import logging
 import secrets
 import humanize
 from hailtop.utils import time_msecs, time_msecs_str
 
 from ..database import check_call_procedure
+from ..globals import INSTANCE_VERSION
+
+log = logging.getLogger('instance')
 
 
 class Instance:
@@ -13,10 +18,11 @@ class Instance:
             app, record['name'], record['state'],
             record['cores_mcpu'], record['free_cores_mcpu'],
             record['time_created'], record['failed_request_count'],
-            record['last_updated'], record['ip_address'])
+            record['last_updated'], record['ip_address'], record['version'],
+            record['zone'])
 
     @staticmethod
-    async def create(app, name, activation_token, worker_cores_mcpu):
+    async def create(app, name, activation_token, worker_cores_mcpu, zone):
         db = app['db']
 
         state = 'pending'
@@ -24,16 +30,18 @@ class Instance:
         token = secrets.token_urlsafe(32)
         await db.just_execute(
             '''
-INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu, time_created, last_updated)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu, time_created, last_updated, version, zone)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (name, state, activation_token, token, worker_cores_mcpu,
-             worker_cores_mcpu, now, now))
+             worker_cores_mcpu, now, now, INSTANCE_VERSION, zone))
         return Instance(
-            app, name, state, worker_cores_mcpu, worker_cores_mcpu, now, 0, now, None)
+            app, name, state, worker_cores_mcpu, worker_cores_mcpu, now,
+            0, now, None, INSTANCE_VERSION, zone)
 
     def __init__(self, app, name, state, cores_mcpu, free_cores_mcpu,
-                 time_created, failed_request_count, last_updated, ip_address):
+                 time_created, failed_request_count, last_updated, ip_address,
+                 version, zone):
         self.db = app['db']
         self.instance_pool = app['inst_pool']
         self.scheduler_state_changed = app['scheduler_state_changed']
@@ -46,6 +54,8 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
         self._failed_request_count = failed_request_count
         self._last_updated = last_updated
         self.ip_address = ip_address
+        self.version = version
+        self.zone = zone
 
     @property
     def state(self):
@@ -116,8 +126,28 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
     def failed_request_count(self):
         return self._failed_request_count
 
+    async def check_is_active_and_healthy(self):
+        if self._state == 'active' and self.ip_address:
+            try:
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                    await session.get(f'http://{self.ip_address}:5000/healthcheck')
+                    await self.mark_healthy()
+                    return True
+            except Exception:
+                log.exception(f'while requesting {self} /healthcheck')
+                await self.incr_failed_request_count()
+        return False
+
     async def mark_healthy(self):
+        if self._state != 'active':
+            return
+
         now = time_msecs()
+        changed = (self._failed_request_count > 1) or (now - self._last_updated) > 5000
+        if not changed:
+            return
+
         await self.db.execute_update(
             '''
 UPDATE instances

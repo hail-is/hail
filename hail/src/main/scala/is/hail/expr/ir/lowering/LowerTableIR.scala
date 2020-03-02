@@ -37,7 +37,7 @@ object LowerTableIR {
 
     case TableCount(tableIR) =>
       val stage = lower(tableIR)
-      invoke("sum", TInt64(), stage.toIR(node => Cast(ArrayLen(node), TInt64())))
+      invoke("sum", TInt64(), stage.toIR(node => Cast(ArrayLen(ToArray(node)), TInt64())))
 
     case TableGetGlobals(child) =>
       val stage = lower(child)
@@ -45,10 +45,10 @@ object LowerTableIR {
 
     case TableCollect(child) =>
       val lowered = lower(child)
-      assert(lowered.body.typ.isInstanceOf[TContainer], s"${ lowered.body.typ }")
       val elt = genUID()
+      val cda = lowered.toIR(x => ToArray(x))
       MakeStruct(FastIndexedSeq(
-        "rows" -> ArrayFlatMap(lowered.toIR(x => x), elt, Ref(elt, lowered.body.typ)),
+        "rows" -> ToArray(StreamFlatMap(ToStream(cda), elt, ToStream(Ref(elt, cda.typ.asInstanceOf[TArray].elementType)))),
         "global" -> GetField(lowered.broadcastVals, lowered.globalsField)))
 
     case node if node.children.exists( _.isInstanceOf[TableIR] ) =>
@@ -85,8 +85,8 @@ object LowerTableIR {
               globalRef,
               RVDPartitioner.empty(typ.keyType),
               TStruct(),
-              MakeArray(FastIndexedSeq(), TArray(TStruct())),
-              MakeArray(FastIndexedSeq(), TArray(typ.rowType)))
+              MakeStream(FastIndexedSeq(), TStream(TStruct())),
+              MakeStream(FastIndexedSeq(), TStream(typ.rowType)))
           } else {
             val rowsPath = r.spec.rowsComponent.absolutePath(path)
             val rowsSpec = AbstractRVDSpec.read(HailContext.get, rowsPath)
@@ -100,8 +100,8 @@ object LowerTableIR {
                 globalRef,
                 partitioner,
                 ctxType,
-                MakeArray(rowsSpec.partFiles.map(f => MakeStruct(FastIndexedSeq("path" -> Str(AbstractRVDSpec.partPath(rowsPath, f))))), TArray(ctxType)),
-                ToArray(ReadPartition(GetField(Ref("context", ctxType), "path"), rSpec, rowType)))
+                MakeStream(rowsSpec.partFiles.map(f => MakeStruct(FastIndexedSeq("path" -> Str(AbstractRVDSpec.partPath(rowsPath, f))))), TStream(ctxType)),
+                ReadPartition(GetField(Ref("context", ctxType), "path"), rSpec, rowType))
             } else {
               throw new LowererUnsupportedOperation("can't lower a table if sort is needed after read.")
             }
@@ -133,11 +133,10 @@ object LowerTableIR {
             Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
           }),
         contextType,
-        MakeArray(ranges.map { case (start, end) =>
+        MakeStream(ranges.map { case (start, end) =>
           MakeStruct(FastIndexedSeq("start" -> start, "end" -> end)) },
-          TArray(contextType)
-        ),
-        ArrayMap(ArrayRange(
+          TStream(contextType)),
+        StreamMap(StreamRange(
           GetField(Ref("context", contextType), "start"),
           GetField(Ref("context", contextType), "end"),
           I32(1)), i.name, MakeStruct(FastSeq("idx" -> i))))
@@ -161,7 +160,7 @@ object LowerTableIR {
       val loweredChild = lower(child)
       val row = Ref(genUID(), child.typ.rowType)
       val env: Env[IR] = Env("row" -> row, "global" -> loweredChild.globals)
-      loweredChild.copy(body = ArrayFilter(loweredChild.body, row.name, Subst(cond, BindingEnv(env))))
+      loweredChild.copy(body = StreamFilter(loweredChild.body, row.name, Subst(cond, BindingEnv(env))))
 
     case TableMapRows(child, newRow) =>
       if (ContainsScan(newRow))
@@ -169,7 +168,7 @@ object LowerTableIR {
       val loweredChild = lower(child)
       val row = Ref(genUID(), child.typ.rowType)
       val env: Env[IR] = Env("row" -> row, "global" -> loweredChild.globals)
-      loweredChild.copy(body = ArrayMap(loweredChild.body, row.name, Subst(newRow, BindingEnv(env, scan = Some(env)))))
+      loweredChild.copy(body = StreamMap(loweredChild.body, row.name, Subst(newRow, BindingEnv(env, scan = Some(env)))))
 
     case TableExplode(child, path) =>
       val loweredChild = lower(child)
@@ -188,7 +187,7 @@ object LowerTableIR {
               Let(refs(i + 1).name, GetField(ref, field), arg)))
       }.asInstanceOf[InsertFields]
 
-      loweredChild.copy(body = ArrayFlatMap(loweredChild.body, row.name, ArrayMap(fieldRef, elt.name, newRow)))
+      loweredChild.copy(body = StreamFlatMap(loweredChild.body, row.name, StreamMap(fieldRef, elt.name, newRow)))
 
     case node =>
       throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(node) }")

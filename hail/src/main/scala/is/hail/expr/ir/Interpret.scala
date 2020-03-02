@@ -58,6 +58,7 @@ object Interpret {
     env: Env[Any],
     args: IndexedSeq[(Any, Type)],
     functionMemo: Memo[(PType, AsmFunction3[Region, Long, Boolean, Long])]): Any = {
+
     def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[(Any, Type)] = args): Any =
       run(ctx, ir, env, args, functionMemo)
 
@@ -224,6 +225,7 @@ object Interpret {
           }
 
       case MakeArray(elements, _) => elements.map(interpret(_, env, args)).toFastIndexedSeq
+      case MakeStream(elements, _) => elements.map(interpret(_, env, args)).toFastIndexedSeq
       case x@ArrayRef(a, i, s) =>
         val aValue = interpret(a, env, args)
         val iValue = interpret(i, env, args)
@@ -251,7 +253,7 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].length
-      case ArrayRange(start, stop, step) =>
+      case StreamRange(start, stop, step) =>
         val startValue = interpret(start, env, args)
         val stopValue = interpret(stop, env, args)
         val stepValue = interpret(step, env, args)
@@ -289,19 +291,20 @@ object Interpret {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Row]].filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
-
-      case ToArray(c) =>
-        val ordering = coerce[TIterable](c.typ).elementType.ordering.toOrdering
+      case _: CastToArray | _: ToArray | _: ToStream =>
+        val c = ir.children(0).asInstanceOf[IR]
         val cValue = interpret(c, env, args)
         if (cValue == null)
           null
-        else
+        else {
+          val ordering = coerce[TIterable](c.typ).elementType.ordering.toOrdering
           cValue match {
             case s: Set[_] =>
               s.asInstanceOf[Set[Any]].toFastIndexedSeq.sorted(ordering)
             case d: Map[_, _] => d.iterator.map { case (k, v) => Row(k, v) }.toFastIndexedSeq.sorted(ordering)
             case a => a
           }
+        }
 
       case LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val cValue = interpret(orderedCollection, env, args)
@@ -341,7 +344,7 @@ object Interpret {
           .groupBy { case Row(k, _) => k }
           .mapValues { elt: IndexedSeq[Row] => elt.map { case Row(_, v) => v } }
 
-      case ArrayMap(a, name, body) =>
+      case StreamMap(a, name, body) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
           null
@@ -350,7 +353,7 @@ object Interpret {
             interpret(body, env.bind(name, element), args)
           }
         }
-      case ArrayZip(as, names, body, behavior) =>
+      case StreamZip(as, names, body, behavior) =>
         val aValues = as.map(interpret(_, env, args).asInstanceOf[IndexedSeq[_]])
         if (aValues.contains(null))
           null
@@ -371,7 +374,7 @@ object Interpret {
             interpret(body, e, args)
           }
         }
-      case ArrayFilter(a, name, cond) =>
+      case StreamFilter(a, name, cond) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
           null
@@ -381,7 +384,7 @@ object Interpret {
             interpret(cond, env.bind(name, element), args).asInstanceOf[Boolean]
           }
         }
-      case ArrayFlatMap(a, name, body) =>
+      case StreamFlatMap(a, name, body) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
           null
@@ -394,7 +397,7 @@ object Interpret {
               None
           }
         }
-      case ArrayFold(a, zero, accumName, valueName, body) =>
+      case StreamFold(a, zero, accumName, valueName, body) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
           null
@@ -405,7 +408,7 @@ object Interpret {
           }
           zeroValue
         }
-      case ArrayFold2(a, accum, valueName, seq, res) =>
+      case StreamFold2(a, accum, valueName, seq, res) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
           null
@@ -420,7 +423,7 @@ object Interpret {
           }
           interpret(res, e.delete(valueName), args)
         }
-      case ArrayScan(a, zero, accumName, valueName, body) =>
+      case StreamScan(a, zero, accumName, valueName, body) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
           null
@@ -431,7 +434,7 @@ object Interpret {
           }
         }
 
-      case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
+      case StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
         val lValue = interpret(left, env, args).asInstanceOf[IndexedSeq[Any]]
         val rValue = interpret(right, env, args).asInstanceOf[IndexedSeq[Any]].toIterator
 
@@ -448,7 +451,7 @@ object Interpret {
           }
         }
 
-      case ArrayFor(a, valueName, body) =>
+      case StreamFor(a, valueName, body) =>
         val aValue = interpret(a, env, args)
         if (aValue != null) {
           aValue.asInstanceOf[IndexedSeq[Any]].foreach { element =>
@@ -586,6 +589,9 @@ object Interpret {
         writer(hc, child.execute(ctx))
       case BlockMatrixMultiWrite(blockMatrices, writer) =>
         writer(blockMatrices.map(_.execute(ctx)))
+      case UnpersistBlockMatrix(BlockMatrixRead(BlockMatrixPersistReader(id))) =>
+        HailContext.backend.cache.unpersistBlockMatrix(id)
+      case _: UnpersistBlockMatrix =>
       case TableToValueApply(child, function) =>
         function.execute(ctx, child.execute(ctx))
       case BlockMatrixToValueApply(child, function) =>
@@ -610,23 +616,29 @@ object Interpret {
         } else {
           val spec = BufferSpec.defaultUncompressed
 
+          val physicalAggs = extracted.getPhysicalAggs(
+            ctx,
+            Env("global" -> value.globals.t),
+            Env("global" -> value.globals.t, "row" -> value.rvd.rowPType)
+          )
+
           val (_, initOp) = CompileWithAggregators2[Long, Unit](ctx,
-            extracted.aggs,
+            physicalAggs,
             "global", value.globals.t,
             extracted.init)
 
           val (_, partitionOpSeq) = CompileWithAggregators2[Long, Long, Unit](ctx,
-            extracted.aggs,
+            physicalAggs,
             "global", value.globals.t,
             "row", value.rvd.rowPType,
             extracted.seqPerElt)
 
-          val read = extracted.deserialize(ctx, spec)
-          val write = extracted.serialize(ctx, spec)
-          val combOpF = extracted.combOpF(ctx, spec)
+          val read = extracted.deserialize(ctx, spec, physicalAggs)
+          val write = extracted.serialize(ctx, spec, physicalAggs)
+          val combOpF = extracted.combOpF(ctx, spec, physicalAggs)
 
           val (rTyp: PTuple, f) = CompileWithAggregators2[Long, Long](ctx,
-            extracted.aggs,
+            physicalAggs,
             "global", value.globals.t,
             Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
           assert(rTyp.types(0).virtualType == query.typ)
@@ -672,8 +684,12 @@ object Interpret {
           }
         }
         wrapped.get(0)
-      case x: ReadPartition =>
-        fatal(s"cannot interpret ${ Pretty(x) }")
+      case LiftMeOut(child) =>
+        val (rt, makeFunction) = Compile[Long](ctx, MakeTuple.ordered(FastSeq(child)), None, false)
+        Region.scoped { r =>
+          SafeRow.read(rt, r, makeFunction(0, r)(r)).asInstanceOf[Row](0)
+        }
+
     }
   }
 }

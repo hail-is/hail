@@ -50,8 +50,8 @@ class Job:
         j._async_job = job
         return j
 
-    def __init__(self, batch, job_id, attributes=None, parent_ids=None, _status=None):
-        j = aioclient.SubmittedJob(batch, job_id, attributes, parent_ids, _status)
+    def __init__(self, batch, job_id, _status=None):
+        j = aioclient.SubmittedJob(batch, job_id, _status)
         self._async_job = aioclient.Job(j)
 
     @property
@@ -70,13 +70,8 @@ class Job:
     def id(self):
         return self._async_job.id
 
-    @property
     def attributes(self):
-        return self._async_job.attributes
-
-    @property
-    def parent_ids(self):
-        return self._async_job.parent_ids
+        return async_to_blocking(self._async_job.attributes())
 
     def is_complete(self):
         return async_to_blocking(self._async_job.is_complete())
@@ -115,8 +110,8 @@ class Batch:
     def status(self):
         return async_to_blocking(self._async_batch.status())
 
-    def jobs(self):
-        return agen_to_blocking(self._async_batch.jobs())
+    def jobs(self, q=None):
+        return agen_to_blocking(self._async_batch.jobs(q=q))
 
     def wait(self):
         return async_to_blocking(self._async_batch.wait())
@@ -146,7 +141,8 @@ class BatchBuilder:
     def create_job(self, image, command, env=None, mount_docker_socket=False,
                    port=None, resources=None, secrets=None,
                    service_account=None, attributes=None, parents=None,
-                   input_files=None, output_files=None, always_run=False, pvc_size=None):
+                   input_files=None, output_files=None, always_run=False, pvc_size=None,
+                   timeout=None):
         if parents:
             parents = [parent._async_job for parent in parents]
 
@@ -156,7 +152,7 @@ class BatchBuilder:
             service_account=service_account,
             attributes=attributes, parents=parents,
             input_files=input_files, output_files=output_files, always_run=always_run,
-            pvc_size=pvc_size)
+            pvc_size=pvc_size, timeout=timeout)
 
         return Job.from_async_job(async_job)
 
@@ -184,7 +180,7 @@ class BatchClient:
         return self._async_client.billing_project
 
     def list_batches(self, q=None):
-        for b in agen_to_blocking(self._async_client.list_batches(q)):
+        for b in agen_to_blocking(self._async_client.list_batches(q=q)):
             yield Batch.from_async_batch(b)
 
     def get_job(self, batch_id, job_id):

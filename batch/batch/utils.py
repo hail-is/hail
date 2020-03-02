@@ -8,12 +8,22 @@ log = logging.getLogger('utils')
 
 
 def cost_from_msec_mcpu(app, msec_mcpu):
+    worker_cores = app['worker_cores']
+
     # https://cloud.google.com/compute/all-pricing
+
+    # per instance costs
     # persistent SSD: $0.17 GB/month
     # average number of days per month = 365.25 / 12 = 30.4375
-
     avg_n_days_per_month = 30.4375
 
+    disk_cost_per_instance_hour = 0.17 * app['worker_disk_size_gb'] / avg_n_days_per_month / 24
+
+    ip_cost_per_instance_hour = 0.004
+
+    instance_cost_per_instance_hour = disk_cost_per_instance_hour + ip_cost_per_instance_hour
+
+    # per core costs
     if app['worker_type'] == 'standard':
         cpu_cost_per_core_hour = 0.01
     elif app['worker_type'] == 'highcpu':
@@ -22,10 +32,14 @@ def cost_from_msec_mcpu(app, msec_mcpu):
         assert app['worker_type'] == 'highmem'
         cpu_cost_per_core_hour = 0.0125
 
-    disk_cost_per_core_hour = 0.17 * app['worker_disk_size_gb'] / avg_n_days_per_month / 24 / app['worker_cores']
-    cost_per_core_sec = (cpu_cost_per_core_hour + disk_cost_per_core_hour) / 3600
+    service_cost_per_core_hour = 0.01
 
-    return msec_mcpu * cost_per_core_sec * 0.001 * 0.001
+    total_cost_per_core_hour = (
+        cpu_cost_per_core_hour +
+        instance_cost_per_instance_hour / worker_cores +
+        service_cost_per_core_hour)
+
+    return (msec_mcpu * 0.001 * 0.001) * (total_cost_per_core_hour / 3600)
 
 
 def parse_cpu_in_mcpu(cpu_string):

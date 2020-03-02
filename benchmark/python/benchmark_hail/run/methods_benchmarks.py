@@ -41,6 +41,42 @@ def variant_and_sample_qc(mt_path):
 
 
 @benchmark(args=profile_25.handle('mt'))
+def variant_and_sample_qc_nested_with_filters_2(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    mt = hl.variant_qc(mt)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= .8)
+    mt = hl.sample_qc(mt)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= .8)
+    mt = hl.variant_qc(mt)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= .98)
+    mt = hl.sample_qc(mt)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= .98)
+    mt.count()
+
+
+@benchmark(args=profile_25.handle('mt'))
+def variant_and_sample_qc_nested_with_filters_4(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    mt = hl.variant_qc(mt)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= .8)
+    mt = hl.sample_qc(mt)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= .8)
+    mt = hl.variant_qc(mt)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= .98)
+    mt = hl.sample_qc(mt)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= .98)
+    mt = hl.variant_qc(mt)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= .99)
+    mt = hl.sample_qc(mt)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= .99)
+    mt = hl.variant_qc(mt)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= .999)
+    mt = hl.sample_qc(mt)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= .999)
+    mt.count()
+
+
+@benchmark(args=profile_25.handle('mt'))
 def hwe_normalized_pca(mt_path):
     mt = hl.read_matrix_table(mt_path)
     mt = mt.filter_rows(mt.info.AF[0] > 0.01)
@@ -109,3 +145,18 @@ def pc_relate_big():
                        statistics='kin',
                        min_kinship=0.05)
     rel._force_count()
+
+
+@benchmark(args=random_doubles.handle('mt'))
+def linear_regression_rows(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    num_phenos = 100
+    num_covs = 20
+    pheno_dict = {f"pheno_{i}": hl.rand_unif(0, 1) for i in range(num_phenos)}
+    cov_dict = {f"cov_{i}": hl.rand_unif(0, 1) for i in range(num_covs)}
+    mt = mt.annotate_cols(**pheno_dict)
+    mt = mt.annotate_cols(**cov_dict)
+    res = hl.linear_regression_rows(y=[mt[key] for key in pheno_dict.keys()],
+                                    x=mt.x,
+                                    covariates=[mt[key] for key in cov_dict.keys()])
+    res._force_count()

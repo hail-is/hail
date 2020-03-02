@@ -22,8 +22,11 @@ final class ArrayGenotypeView(rvType: PStruct) {
   }
 
   private val (gtExists, gtIndex, gtType) = lookupField("GT", _ == PCall())
-  private val (gpExists, gpIndex, gpType: PArray) = lookupField("GP",
+  private val (gpExists, gpIndex, _gpType) = lookupField("GP",
     pt => pt.isInstanceOf[PArray] && pt.asInstanceOf[PArray].elementType.isInstanceOf[PFloat64])
+  // Do not try to move this cast into the destructuring above
+  // https://stackoverflow.com/questions/27789412/scala-exception-in-for-comprehension-with-type-annotation
+  private[this] val gpType = _gpType.asInstanceOf[PArray]
 
   private var gsOffset: Long = _
   private var gsLength: Int = _

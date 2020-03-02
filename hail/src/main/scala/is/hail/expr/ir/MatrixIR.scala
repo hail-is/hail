@@ -45,7 +45,7 @@ abstract sealed class MatrixIR extends BaseIR {
   def persist(storageLevel: StorageLevel): MatrixIR = {
     ExecuteContext.scoped { ctx =>
       val tv = Interpret(this, ctx, optimize = true)
-      MatrixLiteral(this.typ, TableLiteral(tv, ctx))
+      MatrixLiteral(this.typ, TableLiteral(tv.persist(storageLevel), ctx))
     }
   }
 
@@ -228,10 +228,9 @@ case class MatrixNativeReader(
       val cols = if (partFiles.length == 1) {
         ReadPartition(Str(partFiles.head), colsRVDSpec.typedCodecSpec, mr.typ.colType)
       } else {
-        val partitionReads = partFiles.map(f => ToArray(ReadPartition(Str(f), colsRVDSpec.typedCodecSpec, mr.typ.colType)))
         val partNames = MakeArray(partFiles.map(Str), TArray(TString()))
         val elt = Ref(genUID(), TString())
-        ArrayFlatMap(
+        StreamFlatMap(
           partNames,
           elt.name,
           ReadPartition(elt, colsRVDSpec.typedCodecSpec, mr.typ.colType))
@@ -643,7 +642,7 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
       case (((field, ref), i), arg) =>
         InsertFields(ref, FastIndexedSeq(field ->
           (if (i == refs.length - 1)
-            ArrayRef(ToArray(GetField(ref, field)), arg)
+            ArrayRef(ToArray(ToStream(GetField(ref, field))), arg)
           else
             Let(refs(i + 1).name, GetField(ref, field), arg))))
     }.asInstanceOf[InsertFields]
@@ -716,6 +715,16 @@ case class MatrixDistinctByRow(child: MatrixIR) extends MatrixIR {
 case class MatrixRowsHead(child: MatrixIR, n: Long) extends MatrixIR {
   require(n >= 0)
   val typ: MatrixType = child.typ
+
+  override lazy val partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts.map { pc =>
+    val prefixSums = pc.iterator.scanLeft(0L)(_ + _)
+    val newPCs = pc.iterator.zip(prefixSums)
+      .takeWhile { case (_, prefixSum) => prefixSum < n }
+      .map { case (value, prefixSum) => if (prefixSum + value > n) n - prefixSum else value }
+      .toFastIndexedSeq
+    assert(newPCs.sum == n || pc.sum < n)
+    newPCs
+  }
 
   lazy val children: IndexedSeq[BaseIR] = Array(child)
 

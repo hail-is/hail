@@ -1,19 +1,14 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations._
-import is.hail.asm4s.{Code, TypeInfo, _}
-import is.hail.check.Arbitrary._
-import is.hail.check.Gen
+import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TFloat32
-import is.hail.utils._
-
-import scala.reflect.{ClassTag, _}
 
 case object PFloat32Optional extends PFloat32(false)
 case object PFloat32Required extends PFloat32(true)
 
-class PFloat32(override val required: Boolean) extends PNumeric {
+class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive {
   lazy val virtualType: TFloat32 = TFloat32(required)
 
   override type NType = PFloat32
@@ -60,20 +55,8 @@ class PFloat32(override val required: Boolean) extends PNumeric {
     coerce[PFloat32](coerce[Float](a) * coerce[Float](b))
   }
 
-  def storeShallowAtOffset(dstAddress: Code[Long], srcAddress: Code[Long]): Code[Unit] =
-    Region.storeFloat(dstAddress, Region.loadFloat(srcAddress))
-
-  def storeShallowAtOffset(dstAddress: Long, srcAddress: Long) =
-    Region.storeFloat(dstAddress, Region.loadFloat(srcAddress))
-
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long =
-    srcAddress
-
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] =
-    srcAddress
-
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
-    stackValue
+  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_]): Code[Unit] =
+    Region.storeFloat(addr, coerce[Float](value))
 }
 
 object PFloat32 {

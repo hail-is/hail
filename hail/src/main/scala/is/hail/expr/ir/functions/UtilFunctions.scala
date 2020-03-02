@@ -3,7 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.{PString, PTuple}
+import is.hail.expr.types.physical.{PString, PTuple, PType}
 import is.hail.utils._
 import is.hail.expr.types.virtual._
 import org.apache.spark.sql.Row
@@ -160,7 +160,7 @@ object UtilFunctions extends RegistryFunctions {
           EmitTriplet(
             Code(x.setup, m := x.m, s := m.mux(Code._null[String], asm4s.coerce[String](wrapArg(r, xT)(x.v)))),
             (m || !Code.invokeScalaObject[String, Boolean](thisClass, s"isValid$name", s)),
-            Code.invokeScalaObject(thisClass, s"parse$name", s)(ctString, ct))
+            PValue(rt, Code.invokeScalaObject(thisClass, s"parse$name", s)(ctString, ct)))
       }
     }
 
@@ -194,35 +194,35 @@ object UtilFunctions extends RegistryFunctions {
           Code.invokeScalaObject[Double, Double, Double](thisClass, ignoreNanName, v1, v2)
       }
 
-      def ignoreMissingTriplet[T](v1: EmitTriplet, v2: EmitTriplet, name: String)(implicit ct: ClassTag[T]): EmitTriplet =
+      def ignoreMissingTriplet[T](rt: PType, v1: EmitTriplet, v2: EmitTriplet, name: String)(implicit ct: ClassTag[T]): EmitTriplet =
         EmitTriplet(
           Code(v1.setup, v2.setup),
           v1.m && v2.m,
-          Code.invokeScalaObject[T, Boolean, T, Boolean, T](thisClass, name, v1.v.asInstanceOf[Code[T]], v1.m, v2.v.asInstanceOf[Code[T]], v2.m)
+          PValue(rt, Code.invokeScalaObject[T, Boolean, T, Boolean, T](thisClass, name, v1.v.asInstanceOf[Code[T]], v1.m, v2.v.asInstanceOf[Code[T]], v2.m))
         )
 
       registerCodeWithMissingness(ignoreMissingName, TInt32(), TInt32(), TInt32(), null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Int](v1, v2, ignoreMissingName)
+        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Int](rt, v1, v2, ignoreMissingName)
       }
 
       registerCodeWithMissingness(ignoreMissingName, TInt64(), TInt64(), TInt64(), null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Long](v1, v2, ignoreMissingName)
+        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Long](rt, v1, v2, ignoreMissingName)
       }
 
       registerCodeWithMissingness(ignoreMissingName, TFloat32(), TFloat32(), TFloat32(), null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Float](v1, v2, ignoreMissingName)
+        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Float](rt, v1, v2, ignoreMissingName)
       }
 
       registerCodeWithMissingness(ignoreMissingName, TFloat64(), TFloat64(), TFloat64(), null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Double](v1, v2, ignoreMissingName)
+        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Double](rt, v1, v2, ignoreMissingName)
       }
 
       registerCodeWithMissingness(ignoreBothName, TFloat32(), TFloat32(), TFloat32(), null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Float](v1, v2, ignoreBothName)
+        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Float](rt, v1, v2, ignoreBothName)
       }
 
       registerCodeWithMissingness(ignoreBothName, TFloat64(), TFloat64(), TFloat64(), null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Double](v1, v2, ignoreBothName)
+        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Double](rt, v1, v2, ignoreBothName)
       }
     }
 
@@ -235,36 +235,62 @@ object UtilFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("&&", TBoolean(), TBoolean(), TBoolean(), null) {
       case (er, rt, (lT, l), (rT, r)) =>
-        val lm = Code(l.setup, l.m)
-        val rm = Code(r.setup, r.m)
-
         val lv = l.value[Boolean]
         val rv = r.value[Boolean]
 
-        val m = er.mb.newLocal[Boolean]
-        val v = er.mb.newLocal[Boolean]
-        val setup = Code(m := lm, v := !m && lv)
-        val missing = m.mux(rm || rv, v && (rm || Code(v := rv, false)))
-        val value = v
+        // 00 ... 00 rv rm lv lm
+        val w = er.mb.newLocal[Int]
 
-        EmitTriplet(setup, missing, value)
+        // m/m, t/m, m/t
+        val M = const((1 << 5) | (1 << 6) | (1 << 9))
+
+        val setup = Code(l.setup,
+          w := l.m.mux(const(1),
+            lv.mux(
+              const(2),
+              const(0))),
+          w.cne(0).mux(
+            Code(
+              r.setup,
+              w := w | r.m.mux(const(4),
+              rv.mux(
+                const(8),
+                const(0)))),
+            Code._empty[Unit]))
+
+        EmitTriplet(setup,
+          ((M >> w) & 1).cne(0),
+          PValue(rt, w.ceq(10)))
     }
 
     registerCodeWithMissingness("||", TBoolean(), TBoolean(), TBoolean(), null) {
       case (er, rt, (lT, l), (rT, r)) =>
-        val lm = Code(l.setup, l.m)
-        val rm = Code(r.setup, r.m)
-
         val lv = l.value[Boolean]
         val rv = r.value[Boolean]
 
-        val m = er.mb.newLocal[Boolean]
-        val v = er.mb.newLocal[Boolean]
-        val setup = Code(m := lm, v := m || lv)
-        val missing = m.mux(rm || !rv, !v && (rm || Code(v := rv, false)))
-        val value = v
+        // 00 ... 00 rv rm lv lm
+        val w = er.mb.newLocal[Int]
 
-        EmitTriplet(setup, missing, value)
+        // m/m, f/m, m/f
+        val M = const((1 << 5) | (1 << 1) | (1 << 4))
+
+        val setup = Code(l.setup,
+          w := l.m.mux(const(1),
+            lv.mux(
+              const(2),
+              const(0))),
+          w.cne(2).mux(
+            Code(
+              r.setup,
+              w := w | r.m.mux(const(4),
+                rv.mux(
+                  const(8),
+                  const(0)))),
+            Code._empty[Unit]))
+
+        EmitTriplet(setup,
+          ((M >> w) & 1).cne(0),
+          PValue(rt, w.cne(0)))
     }
   }
 }

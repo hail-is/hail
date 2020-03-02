@@ -34,7 +34,6 @@ Genetics
     trio_matrix
     variant_qc
     vep
-    window_by_locus
 
 .. autofunction:: balding_nichols_model
 .. autofunction:: concordance
@@ -62,4 +61,3 @@ Genetics
 .. autofunction:: trio_matrix
 .. autofunction:: variant_qc
 .. autofunction:: vep
-.. autofunction:: window_by_locus

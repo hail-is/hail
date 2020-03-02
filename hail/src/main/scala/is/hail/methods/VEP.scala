@@ -67,14 +67,12 @@ object VEP {
     }
   }
 
-  def waitFor(proc: Process, cmd: Array[String]): Unit = {
+  def waitFor(proc: Process, err: StringBuilder, cmd: Array[String]): Unit = {
     val rc = proc.waitFor()
 
     if (rc != 0) {
-      val errorLines = Source.fromInputStream(new BufferedInputStream(proc.getErrorStream)).getLines().mkString("\n")
-
       fatal(s"VEP command '${ cmd.mkString(" ") }' failed with non-zero exit status $rc\n" +
-        "  VEP Error output:\n" + errorLines)
+        "  VEP Error output:\n" + err.toString)
     }
   }
 
@@ -84,13 +82,13 @@ object VEP {
     val env = pb.environment()
     confEnv.foreach { case (key, value) => env.put(key, value) }
 
-    val (jt, proc) = List((Locus("1", 13372), FastIndexedSeq("G", "C"))).iterator.pipe(pb,
+    val (jt, err, proc) = List((Locus("1", 13372), FastIndexedSeq("G", "C"))).iterator.pipe(pb,
       printContext,
       printElement,
       _ => ())
 
     val csqHeader = jt.flatMap(s => csqHeaderRegex.findFirstMatchIn(s).map(m => m.group(1)))
-    waitFor(proc, cmd)
+    waitFor(proc, err, cmd)
 
     if (csqHeader.hasNext)
       Some(csqHeader.next())
@@ -155,7 +153,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
           }
           .grouped(localBlockSize)
           .flatMap { block =>
-            val (jt, proc) = block.iterator.pipe(pb,
+            val (jt, err, proc) = block.iterator.pipe(pb,
               printContext,
               printElement,
               _ => ())
@@ -211,7 +209,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
             val r = kt.toArray
               .sortBy(_._1)(rowKeyOrd.toOrdering)
 
-            waitFor(proc, cmd)
+            waitFor(proc, err, cmd)
 
             r
           }

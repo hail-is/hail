@@ -10,7 +10,7 @@ import is.hail.io._
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.index.{IndexReader, IndexReaderBuilder}
 import is.hail.io.vcf.LoadVCF
-import is.hail.rvd.{RVD, RVDPartitioner}
+import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.sparkextras.RepartitionedOrderedRDD2
 import is.hail.utils._
 import is.hail.variant._
@@ -413,7 +413,6 @@ case class MatrixBGENReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
-
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     require(files.nonEmpty)
 
@@ -427,10 +426,14 @@ case class MatrixBGENReader(
       referenceGenome.map(_.broadcast),
       indexAnnotationType)
 
+    val rvdType = RVDType(coerce[PStruct](settings.rowPType.subsetTo(requestedType.rowType)),
+      fullType.key.take(requestedType.key.length))
+
     val rvd = if (tr.dropRows)
-      RVD.empty(sc, requestedType.canonicalRVDType)
+      RVD.empty(sc, rvdType)
     else
-      new RVD(requestedType.canonicalRVDType,
+      new RVD(
+        rvdType,
         partitioner,
         BgenRDD(sc, partitions, settings, variants))
 

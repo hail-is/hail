@@ -21,6 +21,7 @@ DROP TABLE IF EXISTS `attempts`;
 DROP TABLE IF EXISTS `batch_attributes`;
 DROP TABLE IF EXISTS `job_attributes`;
 DROP TABLE IF EXISTS `job_parents`;
+DROP TABLE IF EXISTS `batch_bunches`;
 DROP TABLE IF EXISTS `ready_cores`;
 DROP TABLE IF EXISTS `gevents_mark`;
 DROP TABLE IF EXISTS `jobs`;

@@ -9,9 +9,6 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.BeforeClass
 
 object HailSuite {
-  def withDistributedBackend(host: String): HailContext =
-    HailContext.createDistributed(host, logFile = "/tmp/hail.log")
-
   def withSparkBackend(): HailContext =
     HailContext(
       sc = new SparkContext(
@@ -25,11 +22,7 @@ object HailSuite {
 
 
   lazy val hc: HailContext = {
-    val schedulerHost = System.getenv("HAIL_TEST_SCHEDULER_HOST")
-    val hc = if (schedulerHost == null)
-      withSparkBackend()
-    else
-      withDistributedBackend(schedulerHost)
+    val hc = withSparkBackend()
     hc.flags.set("lower", "1")
     hc.checkRVDKeys = true
     hc

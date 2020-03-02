@@ -202,14 +202,58 @@ class SimUKBB(ResourceGroup):
             return 'sim_ukb.sample'
 
 
+class RandomDoublesMatrixTable(ResourceGroup):
+    def __init__(self):
+        super(RandomDoublesMatrixTable, self).__init__('random_doubles_mt.tsv.bgz', 'random_doubles_mt.mt')
+
+    def name(self):
+        return 'random_doubles_mt'
+
+    def _create(self, resource_dir):
+        tsv = 'random_doubles_mt.tsv.bgz'
+        download(resource_dir, tsv)
+        logging.info(f"downloading {tsv}")
+        local_tsv = os.path.join(resource_dir, tsv)
+        hl.import_matrix_table(local_tsv, row_key="row_idx", row_fields={"row_idx": hl.tint32}, entry_type=hl.tfloat64) \
+            .write(os.path.join(resource_dir, "random_doubles_mt.mt"))
+
+    def path(self, resource):
+        if resource == 'tsv':
+            return "random_doubles_mt.tsv.bgz"
+        elif resource == 'mt':
+            return "random_doubles_mt.mt"
+        raise KeyError(resource)
+
+
+class EmptyGVCF(ResourceGroup):
+    def __init__(self):
+        super(EmptyGVCF, self).__init__('empty.g.vcf.bgz', 'empty.g.vcf.bgz.tbi')
+
+    def name(self):
+        return 'empty_gvcf'
+
+    def _create(self, resource_dir):
+        for f in self.files:
+            download(resource_dir, f)
+            logging.info(f'downloading {f}')
+
+    def path(self, resource):
+        if resource is not None:
+            raise KeyError(resource)
+        return 'empty.g.vcf.bgz'
+
+
 profile_25 = Profile25()
 many_partitions_tables = ManyPartitionsTables()
 gnomad_dp_sim = GnomadDPSim()
 many_strings_table = ManyStringsTable()
 many_ints_table = ManyIntsTable()
 sim_ukbb = SimUKBB()
+random_doubles = RandomDoublesMatrixTable()
+empty_gvcf = EmptyGVCF()
 
-all_resources = profile_25, many_partitions_tables, gnomad_dp_sim, many_strings_table, many_ints_table, sim_ukbb
+all_resources = profile_25, many_partitions_tables, gnomad_dp_sim, many_strings_table, many_ints_table, sim_ukbb, \
+    random_doubles, empty_gvcf
 
 __all__ = ['profile_25',
            'many_partitions_tables',
@@ -217,4 +261,6 @@ __all__ = ['profile_25',
            'many_strings_table',
            'many_ints_table',
            'sim_ukbb',
+           'random_doubles',
+           'empty_gvcf',
            'all_resources']
