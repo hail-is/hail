@@ -66,12 +66,19 @@ abstract class COption[+A] { self =>
 
 object COption {
   def apply[A](missing: Code[Boolean], value: A): COption[A] = new COption[A] {
-    def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = missing.mux(none, some(value))
+    def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
+      missing.mux(none, some(value))
   }
 
   // None is the only COption allowed to not call `some` at compile time
   object None extends COption[Nothing] {
-    def apply(none: Code[Ctrl], some: Nothing => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = none
+    def apply(none: Code[Ctrl], some: Nothing => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
+      none
+  }
+
+  def present[A](value: A): COption[A] = new COption[A] {
+    def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
+      some(value)
   }
 
   def lift[A](opts: IndexedSeq[COption[A]]): COption[IndexedSeq[A]] = new COption[IndexedSeq[A]] {
@@ -539,8 +546,29 @@ object CodeStream { self =>
         close0 = Code(l.close0, r.close0),
         setup = Code(b := cond, b.load.mux(l.setup, r.setup)),
         close = b.load.mux(l.close, r.close),
-        pull = JoinPoint.mux(b.load, lPullJP, rPullJP)
-      )
+        pull = JoinPoint.mux(b.load, lPullJP, rPullJP))
+    }
+  }
+
+  def sequence[A: ParameterPack](elements: Seq[A]): Stream[A] = new Stream[A] {
+    def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
+      val i = newLocal[Code[Int]]
+      val eosJP = joinPoint()
+      val pushJP = joinPoint[A]
+
+      eosJP.define(_ => eos)
+      pushJP.define(a => Code(i := i.load + 1, push(a)))
+
+      Source[A](
+        setup0 = i := 0,
+        close0 = Code._empty,
+        setup = i := 0,
+        close = Code._empty,
+        pull = JoinPoint.switch(i.load, eosJP, elements.map { elt =>
+          val j = joinPoint()
+          j.define(_ => pushJP(elt))
+          j
+        }))
     }
   }
 
@@ -681,6 +709,9 @@ object EmitStream2 {
 
       streamIR match {
 
+        case NA(_) =>
+          COption.None
+
         case x@StreamRange(startIR, stopIR, stepIR) =>
           val eltType = coerce[PStream](x.pType).elementType
           val step = fb.newField[Int]("sr_step")
@@ -738,6 +769,21 @@ object EmitStream2 {
                 newStream,
                 Some((len := aType.loadLength(xAddr), len)))))
           }
+
+        case x@MakeStream(elements, t) =>
+          val eltType = coerce[PStream](x.pType).elementType
+          implicit val eltPack = TypedTriplet.pack(eltType)
+
+          val stream = sequence(elements.map {
+            ir => TypedTriplet(eltType, {
+              val et = emitIR(ir)
+              EmitTriplet(et.setup, et.m, PValue(eltType, eltType.copyFromTypeAndStackValue(er.mb, er.region, ir.pType, et.value)))
+            })
+          }).map(_.untyped)
+
+          val len = mb.newLocal[Int]
+
+          COption.present(SizedStream(stream, Some((len := elements.length, len))))
 
         case x@ReadPartition(pathIR, spec, requestedType) =>
           val eltType = coerce[PStream](x.pType).elementType
