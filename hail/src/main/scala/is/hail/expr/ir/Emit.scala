@@ -629,7 +629,7 @@ private class Emit(
             bs.getClosestIndex(localA, localElementMB, localElementValue))))
 
       case GroupByKey(collection) =>
-        //sort collection by group
+        // sort collection by group
         val atyp = coerce[PStream](collection.pType)
         val etyp = coerce[PBaseStruct](atyp.elementType)
         val ktyp = etyp.types(0)
@@ -729,7 +729,7 @@ private class Emit(
           )))
         }
 
-        COption.toEmitTriplet(result, atyp, mb)
+        COption.toEmitTriplet(result, pt, mb)
 
       case ArrayZeros(length) =>
         val lengthTriplet = emit(length)
