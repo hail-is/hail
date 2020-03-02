@@ -139,12 +139,12 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       wrappedC
     }
 
-    val writeFields = coerce[Unit](Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
+    val writeFields = Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
       val groupMB = mb.fb.newMethod(s"write_fields_group_$groupIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
 
       val addr = groupMB.getArg[Long](1)
       val out2 = groupMB.getArg[OutputBuffer](2)
-      groupMB.emit(coerce[Unit](Code(
+      groupMB.emit(Code(
         fieldGroup.map { ef =>
           val i = ft.fieldIdx(ef.name)
           val pf = ft.fields(i)
@@ -154,11 +154,11 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
             encodeField(v, out2),
             Code._empty
           )
-        }: _*
-      )))
+        }
+      ))
 
       groupMB.invoke[Unit](v, out)
-    }.toArray: _*))
+    }.toArray)
 
     Code(writeMissingBytes, writeFields, Code._empty)
   }
@@ -219,7 +219,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
         }
       }))
       groupMB.invoke[Unit](region, addr, mbytes, in)
-    }.toArray: _*))
+    }.toArray))
 
     Code(
       mbytes := region.allocate(const(1), const(nMissingBytes)),
@@ -242,8 +242,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     Code(
       mbytes := r.allocate(const(1), const(nMissingBytes)),
       in.readBytes(r, mbytes, nMissingBytes),
-      Code(skipFields: _*),
-      Code._empty)
+      Code(skipFields))
   }
 
   def _asIdent: String = {

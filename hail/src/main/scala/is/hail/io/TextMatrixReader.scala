@@ -493,7 +493,7 @@ class CompiledLineParser(
     var inputIndex = 0
     var outputIndex = 0
     assert(onDiskRowFieldsType.size >= rowFieldsType.size)
-    val ab = new ArrayBuilder[Code[_]]()
+    val ab = new ArrayBuilder[Code[Unit]]()
     while (inputIndex < onDiskRowFieldsType.size) {
       val onDiskField = onDiskRowFieldsType.fields(inputIndex)
       val onDiskPType = PType.canonical(onDiskField.typ) // will always be optional
@@ -526,7 +526,7 @@ class CompiledLineParser(
       inputIndex += 1
     }
     assert(outputIndex == rowFieldsType.size)
-    Code.apply(ab.result():_*)
+    Code(ab.result())
   }
 
   private[this] def parseEntries(mb: MethodBuilder, entriesType: PArray): Code[Unit] = {

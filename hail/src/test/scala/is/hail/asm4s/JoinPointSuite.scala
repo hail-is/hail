@@ -75,7 +75,7 @@ class JoinPointSuite extends TestNGSuite {
   @Test def testSimpleEarlyReturn() {
     val f = compile1[Int, Boolean] { (mb, n) =>
       JoinPoint.CallCC[Code[Boolean]] { (jb, ret) =>
-        Code(ret(true), ret(false))
+        Code.concat(ret(true), ret(false))
       }
     }
     assert(f(0) == true)

@@ -51,7 +51,7 @@ class TakeByAggregatorSuite extends HailSuite {
       val argR = fb.getArg[Region](1).load()
       val rt = tba.resultType
 
-      fb.emit(Code(
+      fb.emit(Code(Code(FastIndexedSeq(
         tba.createState,
         tba.newState(0L),
         tba.initialize(7),
@@ -62,7 +62,7 @@ class TakeByAggregatorSuite extends HailSuite {
         tba.seqOp(false, 2, false, 2),
         tba.seqOp(false, 3, false, 3),
         tba.seqOp(true, 0, true, 0),
-        tba.seqOp(true, 0, true, 0),
+        tba.seqOp(true, 0, true, 0))),
         tba.result(argR, rt)
       ))
 
@@ -89,7 +89,7 @@ class TakeByAggregatorSuite extends HailSuite {
         val er = new EmitRegion(fb.apply_method, argR)
         val rng = er.mb.newRNG(0)
 
-        fb.emit(Code(
+        fb.emit(Code(Code(FastIndexedSeq(
           tba.createState,
           tba.newState(0L),
           tba.initialize(nToTake),
@@ -104,7 +104,7 @@ class TakeByAggregatorSuite extends HailSuite {
           ab.size.cne(n).orEmpty(Code._fatal("bad size!")),
           resultOff := argR.allocate(8L, 16L),
           Region.storeAddress(resultOff, tba.result(argR, rt)),
-          Region.storeAddress(resultOff + 8L, ab.data),
+          Region.storeAddress(resultOff + 8L, ab.data))),
           resultOff
         ))
 
