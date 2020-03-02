@@ -25,7 +25,8 @@ object Compile {
     argTypeInfo: Array[MaybeGenericTypeInfo[_]],
     body: IR,
     optimize: Boolean
-  ): (PType, (Int, Region) => F) = apply(ctx, print, args, argTypeInfo, GenericTypeInfo[R](), body, optimize)
+  ): (PType, (Int, Region) => F) = apply[F, R](
+    ctx, print, args, argTypeInfo, GenericTypeInfo[R](), body, optimize)
 
   def apply[F >: Null : TypeInfo, R: ClassTag](
     ctx: ExecuteContext,
