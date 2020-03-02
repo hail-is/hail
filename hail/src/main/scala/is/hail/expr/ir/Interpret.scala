@@ -641,7 +641,7 @@ object Interpret {
             physicalAggs,
             "global", value.globals.t,
             Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
-          assert(rTyp.types(0).virtualType == query.typ)
+          assert(rTyp.types(0).virtualType isOfType query.typ)
 
           val useTreeAggregate = extracted.shouldTreeAggregate
           val isCommutative = extracted.isCommutative

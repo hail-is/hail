@@ -42,11 +42,11 @@ object Compile {
     ir = Subst(ir, BindingEnv(args
       .zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }))
-    ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR]
+    ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR].noSharing
 
     TypeCheck(ir, BindingEnv.empty)
 
-    InferPType(if(HasIRSharing(ir)) ir.deepCopy() else ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
+    InferPType(ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
 
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
     
@@ -246,11 +246,11 @@ object CompileWithAggregators2 {
     ir = Subst(ir, BindingEnv(args
       .zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t)) }))
-    ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR]
+    ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR].noSharing
 
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
 
-    InferPType(ir.noSharing, Env(args.map { case (n, pt, _) => n -> pt}: _*), aggSigs, null, null)
+    InferPType(ir, Env(args.map { case (n, pt, _) => n -> pt}: _*), aggSigs, null, null)
 
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 

@@ -154,6 +154,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   }
 
   def _decodedPType(requestedType: Type): PType
+
+  override def isOfType(other: BaseType): Boolean = this == other
 }
 
 trait DecoderAsmFunction { def apply(r: Region, in: InputBuffer): Long }

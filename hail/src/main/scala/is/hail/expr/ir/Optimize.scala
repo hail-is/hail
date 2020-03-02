@@ -31,7 +31,7 @@ object Optimize {
       }
     }
 
-    if (ir.typ != ir0.typ)
+    if (!ir.typ.isOfType(ir0.typ))
       throw new RuntimeException(s"optimization changed type!" +
         s"\n  before: ${ ir0.typ.parsableString() }" +
         s"\n  after:  ${ ir.typ.parsableString() }" +
