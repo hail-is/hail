@@ -338,10 +338,10 @@ class EmitStreamSuite extends HailSuite {
         case ToArray(s) => s
         case s => s
       }
-      EmitStream2(new Emit(ctx, mb), s, Env.empty, EmitRegion.default(mb), None)
+      EmitStream(new Emit(ctx, mb), s, Env.empty, EmitRegion.default(mb), None)
     }
     mb.emit {
-      val arrayt = EmitStream2.toArray(mb, PArray(eltType), stream)
+      val arrayt = EmitStream.toArray(mb, PArray(eltType), stream)
       Code(arrayt.setup, arrayt.m.mux(0L, arrayt.v))
     }
     val f = fb.resultWithIndex()
@@ -389,7 +389,7 @@ class EmitStreamSuite extends HailSuite {
     val ir = streamIR.deepCopy()
     InferPType(ir, Env.empty)
     val optStream = ExecuteContext.scoped { ctx =>
-      EmitStream2(new Emit(ctx, mb), ir, Env.empty, EmitRegion.default(mb), None)
+      EmitStream(new Emit(ctx, mb), ir, Env.empty, EmitRegion.default(mb), None)
     }
     fb.emit {
       optStream.cases[Int](mb)(0, stream => stream.length.map { case (s, l) => Code(s, l) }.getOrElse(-1))
