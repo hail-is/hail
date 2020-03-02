@@ -3,10 +3,10 @@ from hail.typecheck import *
 from hail.expr.expressions import *
 
 
-@typecheck(genotype_expr=expr_call,
+@typecheck(call_expr=expr_call,
            loadings_expr=expr_array(expr_numeric),
            af_expr=expr_numeric)
-def pc_project(gt_expr, loadings_expr, af_expr):
+def pc_project(call_expr, loadings_expr, af_expr):
     """Projects genotypes onto pre-computed PCs. Requires loadings and
     allele-frequency from a reference dataset (see example). Note that
     `loadings_expr` must have no missing data and reflect the rows
@@ -23,7 +23,7 @@ def pc_project(gt_expr, loadings_expr, af_expr):
 
     Parameters
     ----------
-    gt_expr : :class:`.CallExpression`
+    call_expr : :class:`.CallExpression`
         Entry-indexed call expression for genotypes
         to project onto loadings.
     loadings_expr : :class:`.ArrayNumericExpression`
@@ -36,7 +36,7 @@ def pc_project(gt_expr, loadings_expr, af_expr):
     :class:`.Table`
         Table with scores calculated from loadings in column `scores`
     """
-    gt_source = gt_expr._indices.source
+    gt_source = call_expr._indices.source
     loadings_source = loadings_expr._indices.source
     af_source = af_expr._indices.source
 
@@ -48,7 +48,7 @@ def pc_project(gt_expr, loadings_expr, af_expr):
     af_expr = _get_expr_or_join(af_expr, af_source, gt_source, '_af')
 
     mt = gt_source._annotate_all(row_exprs={'_loadings': loadings_expr, '_af': af_expr},
-                                 entry_exprs={'_call': gt_expr})
+                                 entry_exprs={'_call': call_expr})
 
     if isinstance(loadings_source, hl.MatrixTable):
         n_variants = loadings_source.count_rows()
