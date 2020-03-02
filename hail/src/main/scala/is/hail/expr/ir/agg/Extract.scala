@@ -95,10 +95,10 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
   def getPhysicalAggs(ctx: ExecuteContext, initBindings: Env[PType], seqBindings: Env[PType]): Array[AggStatePhysicalSignature] = {
     val initsAB = InferPType.newBuilder[InitOp](aggs.length)
     val seqsAB = InferPType.newBuilder[SeqOp](aggs.length)
-    val init2 = LoweringPipeline.compileLowerer.apply(ctx, init, false).asInstanceOf[IR]
-    val seq2 = LoweringPipeline.compileLowerer.apply(ctx, seqPerElt, false).asInstanceOf[IR]
-    InferPType(init2.noSharing, initBindings, null, inits = initsAB, null)
-    InferPType(seq2.noSharing, seqBindings, null, null, seqs = seqsAB)
+    val init2 = LoweringPipeline.compileLowerer.apply(ctx, init, false).asInstanceOf[IR].noSharing
+    val seq2 = LoweringPipeline.compileLowerer.apply(ctx, seqPerElt, false).asInstanceOf[IR].noSharing
+    InferPType(init2, initBindings, null, inits = initsAB, null)
+    InferPType(seq2, seqBindings, null, null, seqs = seqsAB)
 
     val pSigs = aggs.indices.map { i => InferPType.computePhysicalAgg(aggs(i), initsAB(i), seqsAB(i)) }.toArray
 
