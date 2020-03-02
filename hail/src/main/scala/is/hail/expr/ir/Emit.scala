@@ -1762,7 +1762,7 @@ private class Emit(
           Code(t.setup, loopref.m := t.m, (!loopref.m).orEmpty(loopref.v := t.pv))
         }
 
-        val label = new CodeLabel
+        val label = CodeLabel()
         val m = mb.newField[Boolean]
         val v = mb.newPField(x.pType)
 
@@ -1851,7 +1851,7 @@ private class Emit(
       Env[(Code[Boolean], PCode)](ids.toFastSeq.flatMap { id: String =>
          env.lookupOption(id).map { e =>
            val (m, v) = e
-           (id, (f.addField[Boolean](m).load(), PCode(v.pt, f.addField(v.code, dummy = true)(v.typeInfo).load())))
+           (id, (f.addField[Boolean](m).load(), PCode(v.pt, f.addFieldAny(v.code)(v.typeInfo).load())))
         }
       }: _*)
     })

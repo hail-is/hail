@@ -13,29 +13,13 @@ case class Ctrl(n: Nothing)
 
 object JoinPoint {
   // equivalent but produces better bytecode than 'cond.mux(j1(arg), j2(arg))'
-  def mux[A](arg: A, cond: CodeConditional, j1: JoinPoint[A], j2: JoinPoint[A])(
-    implicit ap: ParameterPack[A]
-  ): Code[Ctrl] = {
-    ensureStackIndicator(j1.stackIndicator)
-    ensureStackIndicator(j2.stackIndicator)
-    new Code[Ctrl] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = {
-        ap.push(arg).emit(il)
-        cond.emitConditional(il, j1.label, j2.label)
-      }
-    }
-  }
-
   def mux[A](arg: A, cond: Code[Boolean], j1: JoinPoint[A], j2: JoinPoint[A])(
     implicit ap: ParameterPack[A]
   ): Code[Ctrl] =
-    mux(arg, cond.toConditional, j1, j2)
+    ???
 
-  def mux(cond: CodeConditional, j1: JoinPoint[Unit], j2: JoinPoint[Unit]): Code[Ctrl] =
-    mux((), cond, j1, j2)
 
-  def mux(cond: Code[Boolean], j1: JoinPoint[Unit], j2: JoinPoint[Unit]): Code[Ctrl] =
-    mux((), cond, j1, j2)
+  def mux(cond: Code[Boolean], j1: JoinPoint[Unit], j2: JoinPoint[Unit]): Code[Ctrl] = ???
 
   def switch(
     target: Code[Int],
@@ -47,12 +31,7 @@ object JoinPoint {
     else {
       ensureStackIndicator(dflt.stackIndicator)
       cases.foreach { j => ensureStackIndicator(j.stackIndicator) }
-      new Code[Ctrl] {
-        def emit(il: Growable[AbstractInsnNode]): Unit = {
-          target.emit(il)
-          il += new TableSwitchInsnNode(0, cases.length - 1, dflt.label, cases.map(_.label): _*)
-        }
-      }
+      ???
     }
 
   case class CallCC[A: ParameterPack](
@@ -71,12 +50,7 @@ object JoinPoint {
     }
   }
 
-  private def assignLabels(js: Seq[JoinPoint[_]]): Code[Unit] =
-    new Code[Unit] {
-      def emit(il: Growable[AbstractInsnNode]): Unit =
-        for (j <- js)
-          j.label = new LabelNode
-    }
+  private def assignLabels(js: Seq[JoinPoint[_]]): Code[Unit] = ???
 
   /**
     * So-called "stack-indicators" (unique ints) are placed on the following `mutable.Stack` during
@@ -127,8 +101,8 @@ class JoinPoint[A] private[joinpoint](
     Code(p.push(args), gotoLabel)
   }
 
-  private[joinpoint] def placeLabel: Code[Nothing] = Code(label)
-  private[joinpoint] def gotoLabel: Code[Ctrl] = Code(new JumpInsnNode(Opcodes.GOTO, label))
+  private[joinpoint] def placeLabel: Code[Nothing] = ???
+  private[joinpoint] def gotoLabel: Code[Ctrl] = ???
 }
 
 class DefinableJoinPoint[A: ParameterPack] private[joinpoint](
@@ -136,8 +110,7 @@ class DefinableJoinPoint[A: ParameterPack] private[joinpoint](
   stackIndicator: Int
 ) extends JoinPoint[A](stackIndicator) {
 
-  def define(f: A => Code[Ctrl]): Unit =
-    body = Some(Code(args.storeInsn, f(args.load)))
+  def define(f: A => Code[Ctrl]): Unit = ???
 
   private[joinpoint] var body: Option[Code[Ctrl]] = None
 }
@@ -148,13 +121,7 @@ class JoinPointBuilder private[joinpoint](
   private[joinpoint] val joinPoints: mutable.ArrayBuffer[DefinableJoinPoint[_]] =
     new mutable.ArrayBuffer()
 
-  private[joinpoint] def define: Code[Unit] =
-    Code.foreach(joinPoints) { j =>
-      j.body match {
-        case Some(body) => Code.concat[Unit](j.placeLabel, body)
-        case None => fatal("join point never defined")
-      }
-    }
+  private[joinpoint] def define: Code[Unit] = ???
 
   private def joinPoint[A: ParameterPack](s: ParameterStore[A]): DefinableJoinPoint[A] = {
     val j = new DefinableJoinPoint[A](s, stackIndicator)

@@ -432,7 +432,7 @@ abstract class RegistryFunctions {
       }
 
       def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: (PType, EmitCode)*): EmitCode = {
-        val setup = args.map(_._2.setup)
+        val setup = Code(args.map(_._2.setup))
         val rpt = returnPType(args.map(_._1), returnType)
         val missing: Code[Boolean] = if (args.isEmpty) false else args.map(_._2.m).reduce(_ || _)
         val value = applySeeded(seed, r, rpt, args.map { case (t, a) => (t, a.v) }: _*)
@@ -502,7 +502,7 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
   def apply(r: EmitRegion, returnPType: PType, args: (PType, Code[_])*): Code[_]
 
   def apply(r: EmitRegion, returnPType: PType, args: (PType, EmitCode)*): EmitCode = {
-    val setup = args.map(_._2.setup)
+    val setup = Code(args.map(_._2.setup))
     val missing = args.map(_._2.m).reduce(_ || _)
     val value = apply(r, returnPType, args.map { case (t, a) => (t, a.v) }: _*)
 

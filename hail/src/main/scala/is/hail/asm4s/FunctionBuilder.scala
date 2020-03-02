@@ -1,30 +1,29 @@
 package is.hail.asm4s
 
 import java.io._
-import java.util
 
 import is.hail.utils._
-import org.apache.spark.TaskContext
-import org.objectweb.asm.Opcodes._
-import org.objectweb.asm.tree._
-import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
-import org.objectweb.asm.{ClassReader, ClassWriter, Type}
+import is.hail.lir
 
-import scala.collection.JavaConverters._
-import scala.collection.generic.Growable
+import org.apache.spark.TaskContext
+import org.objectweb.asm.tree._
+import org.objectweb.asm.Opcodes._
+import org.objectweb.asm.util.{Textifier, TraceClassVisitor}
+import org.objectweb.asm.ClassReader
+
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
 class Field[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
-  val desc: String = typeInfo[T].name
-  val node: FieldNode = new FieldNode(ACC_PUBLIC, name, desc, null, null)
-  classBuilder.addField(node)
+  val lf: lir.Field = classBuilder.lclass.newField(name, typeInfo[T])
 
-  def get(obj: Code[_]): Code[T] =
-    Code(obj, new FieldInsnNode(GETFIELD, classBuilder.name, name, desc))
+  def get(obj: Code[_]): Code[T] = Code(obj, lir.getField(lf))
 
-  def put(obj: Code[_], v: Code[T]): Code[Unit] =
-    Code(obj, v, new FieldInsnNode(PUTFIELD, classBuilder.name, name, desc))
+  def put(obj: Code[_], v: Code[T]): Code[Unit] = {
+    obj.end.append(lir.goto(v.start))
+    v.end.append(lir.putField(lf, obj.v, v.v))
+    new Code(obj.start, v.end, null)
+  }
 }
 
 class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializable {
@@ -77,32 +76,20 @@ class ModuleBuilder {
 class ClassBuilder[C](
   module: ModuleBuilder,
   val name: String = null) {
+  // FIXME C is wrong
+  val ti: TypeInfo[_] = new ClassInfo[C](name)
+
+  val lclass = new lir.Classx[C](name, "java/lang/Object")
+
   // FIXME use newClass
   module.classes += this
 
   var nameCounter: Int = 0
 
-  val cn = new ClassNode()
-
   val methods: mutable.ArrayBuffer[MethodBuilder] = new mutable.ArrayBuffer[MethodBuilder](16)
   val fields: mutable.ArrayBuffer[FieldNode] = new mutable.ArrayBuffer[FieldNode](16)
 
-  val init = new MethodNode(ACC_PUBLIC, "<init>", "()V", null, null)
-
   val lazyFieldMemo: mutable.Map[Any, LazyFieldRef[_]] = mutable.Map.empty
-
-  // init
-  cn.version = V1_8
-  cn.access = ACC_PUBLIC
-
-  cn.name = name
-  cn.superName = "java/lang/Object"
-  cn.interfaces.asInstanceOf[java.util.List[String]].add("java/io/Serializable")
-
-  cn.methods.asInstanceOf[util.List[MethodNode]].add(init)
-
-  init.instructions.add(new IntInsnNode(ALOAD, 0))
-  init.instructions.add(new MethodInsnNode(INVOKESPECIAL, Type.getInternalName(classOf[java.lang.Object]), "<init>", "()V", false))
 
   // methods
   def genName(tag: String): String = {
@@ -118,22 +105,30 @@ class ClassBuilder[C](
     s"__$tag$nameCounter$suffix"
   }
 
-  def addInitInstructions(c: Code[Unit]): Unit = {
-    val l = new mutable.ArrayBuffer[AbstractInsnNode]()
-    c.emit(l)
-    l.foreach(init.instructions.add _)
+  val lInit = lclass.newMethod("<init>", FastIndexedSeq(), UnitInfo)
+
+  var initBody: Code[Unit] = {
+    val L = new lir.Block()
+    L.append(
+      lir.methodStmt(INVOKESPECIAL,
+        "java/lang/Object",
+        "<init>",
+        "()V",
+        false,
+        UnitInfo,
+        FastIndexedSeq(lir.load(lInit.getParam(0)))))
+    L.append(lir.returnx())
+    new Code(L, L, null)
   }
 
-  def addInterface(name: String): Unit = {
-    cn.interfaces.asInstanceOf[java.util.List[String]].add(name)
+  def addInitInstructions(c: Code[Unit]): Unit = {
+    initBody = Code(initBody, c)
   }
+
+  def addInterface(name: String): Unit = lclass.addInterface(name)
 
   def addMethod(m: MethodBuilder): Unit = {
     methods.append(m)
-  }
-
-  def addField(node: FieldNode): Unit = {
-    cn.fields.asInstanceOf[util.List[FieldNode]].add(node)
   }
 
   def newDependentFunction[A1 : TypeInfo, R : TypeInfo]: DependentFunction[AsmFunction1[A1, R]] = {
@@ -150,62 +145,10 @@ class ClassBuilder[C](
   def genField[T: TypeInfo](suffix: String): Field[T] = newField(genName("f", suffix))
 
   def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
-    init.instructions.add(new InsnNode(RETURN))
+    // FIXME build incrementally?
+    lInit.setEntry(initBody.start)
 
-    val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
-    val sw1 = new StringWriter()
-    var bytes: Array[Byte] = new Array[Byte](0)
-    try {
-      for (method <- cn.methods.asInstanceOf[util.List[MethodNode]].asScala) {
-        val count = method.instructions.size
-        log.info(s"instruction count: $count: ${ cn.name }.${ method.name }")
-        if (count > 8000)
-          log.warn(s"big method: $count: ${ cn.name }.${ method.name }")
-      }
-
-      cn.accept(cw)
-      bytes = cw.toByteArray
-      //       This next line should always be commented out!
-      //      CheckClassAdapter.verify(new ClassReader(bytes), false, new PrintWriter(sw1))
-    } catch {
-      case e: Exception =>
-        // if we fail with frames, try without frames for better error message
-        val cwNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
-        val sw2 = new StringWriter()
-        cn.accept(cwNoFrames)
-        try {
-          CheckClassAdapter.verify(new ClassReader(cwNoFrames.toByteArray), false, new PrintWriter(sw2))
-        } catch {
-          case e: Exception =>
-            log.error("Verify Output 1 for " + name + ":")
-            throw e
-        }
-
-        if (sw2.toString.length() != 0) {
-          System.err.println("Verify Output 2 for " + name + ":")
-          System.err.println(sw2)
-          throw new IllegalStateException("Bytecode failed verification 1", e)
-        } else {
-          if (sw1.toString.length() != 0) {
-            System.err.println("Verify Output 1 for " + name + ":")
-            System.err.println(sw1)
-          }
-          throw e
-        }
-    }
-
-    if (sw1.toString.length != 0) {
-      System.err.println("Verify Output 1 for " + name + ":")
-      System.err.println(sw1)
-      throw new IllegalStateException("Bytecode failed verification 2")
-    }
-
-    print.foreach { pw =>
-      val cr = new ClassReader(bytes)
-      val tcv = new TraceClassVisitor(null, new Textifier, pw)
-      cr.accept(tcv, 0)
-    }
-    bytes
+    lclass.asBytes(print)
   }
 
   def result(print: Option[PrintWriter] = None): () => C = {
@@ -295,39 +238,20 @@ object MethodBuilder {
 }
 
 class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTypeInfo: IndexedSeq[TypeInfo[_]], val returnTypeInfo: TypeInfo[_]) {
-  def descriptor: String = s"(${ parameterTypeInfo.map(_.name).mkString })${ returnTypeInfo.name }"
-
   val mname = {
     val s = _mname.substring(0, scala.math.min(_mname.length, 65535))
     require(java.lang.Character.isJavaIdentifierStart(s.head), "invalid java identifier, " + s)
-    require(s.forall(java.lang.Character.isJavaIdentifierPart(_)), "invalid java identifer, " + s)
+    require(s.forall(java.lang.Character.isJavaIdentifierPart), "invalid java identifer, " + s)
     s
   }
 
-  val mn = new MethodNode(ACC_PUBLIC, mname, descriptor, null, null)
-  fb.classBuilder.cn.methods.asInstanceOf[util.List[MethodNode]].add(mn)
-
-  val start = new LabelNode
-  val end = new LabelNode
-  val layout: IndexedSeq[Int] = 0 +: (parameterTypeInfo.scanLeft(1) { case (prev, gti) => prev + gti.slots })
-  val argIndex: IndexedSeq[Int] = layout.init
-  var locals: Int = layout.last
-
-  def allocateLocal(name: String)(implicit tti: TypeInfo[_]): Int = {
-    val i = locals
-    assert(i < (1 << 16))
-    locals += tti.slots
-
-    mn.localVariables.asInstanceOf[util.List[LocalVariableNode]]
-      .add(new LocalVariableNode(if (name == null) "local" + i else name, tti.name, null, start, end, i))
-    i
-  }
+  val lmethod: lir.Method = fb.classBuilder.lclass.newMethod(mname, parameterTypeInfo, returnTypeInfo)
 
   def newLocal[T](implicit tti: TypeInfo[T]): LocalRef[T] =
     newLocal()
 
   def newLocal[T](name: String = null)(implicit tti: TypeInfo[T]): LocalRef[T] =
-    new LocalRef[T](this, name)
+    new LocalRef[T](lmethod.newLocal(name, tti))
 
   def newField[T: TypeInfo]: ClassFieldRef[T] = newField[T]()
 
@@ -335,110 +259,78 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
 
   def newLazyField[T: TypeInfo](setup: Code[T], name: String = null): LazyFieldRef[T] = fb.newLazyField(setup, name)
 
-  def getArg[T](i: Int)(implicit tti: TypeInfo[T]): Settable[T] = {
-    assert(i >= 0)
-    assert(i < layout.length)
-    new ArgRef[T](argIndex(i))
-  }
+  def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] =
+    new LocalRef(lmethod.getParam(i))
 
   private var emitted = false
 
-  private val startup = new mutable.ArrayBuffer[AbstractInsnNode]()
+  private var startup: Code[Unit] = Code._empty
 
-  def emitStartup(c: Code[_]): Unit = {
+  def emitStartup(c: Code[Unit]): Unit = {
     assert(!emitted)
-    c.emit(startup)
+    startup = Code(startup, c)
   }
 
-  def emit(c: Code[_]) {
+  def emit(body: Code[_]) {
     assert(!emitted)
     emitted = true
 
-    val l = new mutable.ArrayBuffer[AbstractInsnNode]()
-    l ++= startup
-    c.emit(l)
-
-    val s = mutable.Set[AbstractInsnNode]()
-    l.foreach { insn =>
-      assert(!s.contains(insn))
-      s += insn
-    }
-
-    l.foreach {
-      case x: VarInsnNode =>
-        MethodBuilder.popInsnRef(x) match {
-          case Some(lr) =>
-            lr.allocate(this, x)
-          case None =>
-            assert(x.`var` >= 0)
-        }
-      case x: IincInsnNode =>
-        MethodBuilder.popInsnRef(x) match {
-          case Some(lr) =>
-            lr.allocate(this, x)
-          case None =>
-            assert(x.`var` >= 0)
-        }
-      case _ =>
-    }
-
-    mn.instructions.add(start)
-
-    l.foreach(mn.instructions.add _)
-    mn.instructions.add(new InsnNode(returnTypeInfo.returnOp))
-    mn.instructions.add(end)
+    val start = startup.start
+    startup.end.append(lir.goto(body.start))
+    body.end.append(
+      if (body.v != null)
+        lir.returnx(body.v)
+      else
+        lir.returnx())
+    lmethod.setEntry(start)
   }
 
-  def invoke[T](args: Code[_]*): Code[T] =
-    new Code[T] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = {
-        getArg[java.lang.Object](0).emit(il)
-        args.foreach(_.emit(il))
-        il += new MethodInsnNode(INVOKESPECIAL, fb.name, mname, descriptor, false)
-      }
+  def invoke[T](args: Code[_]*): Code[T] = {
+    val (start, end, argvs) = Code.sequenceValues(args.toFastIndexedSeq)
+    if (returnTypeInfo.desc == "V") {
+      val L = new lir.Block()
+      L.append(
+        lir.methodStmt(INVOKEVIRTUAL, lmethod,
+          lir.load(new lir.Parameter(null, 0, fb.classBuilder.ti)) +: argvs))
+      new Code(L, L, null)
+    } else {
+      new Code(start, end,
+        lir.methodInsn(INVOKEVIRTUAL, lmethod,
+          lir.load(new lir.Parameter(null, 0, fb.classBuilder.ti)) +: argvs))
     }
+  }
 }
 
 trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
-  var definedFields: ArrayBuilder[Growable[AbstractInsnNode] => Unit] = new ArrayBuilder(16)
+  var setFields: mutable.ArrayBuffer[(lir.ValueX) => Code[Unit]] = new mutable.ArrayBuffer()
 
   def addField[T : TypeInfo](value: Code[T]): ClassFieldRef[T] = {
     val cfr = newField[T]
-    val add: (Growable[AbstractInsnNode]) => Unit = { (il: Growable[AbstractInsnNode]) =>
-      il += new TypeInsnNode(CHECKCAST, name)
-      value.emit(il)
-      il += new FieldInsnNode(PUTFIELD, name, cfr.name, typeInfo[T].name)
+    setFields += { (obj: lir.ValueX) =>
+      value.end.append(lir.putField(name, cfr.name, typeInfo[T], obj, value.v))
+      new Code(value.start, value.end, null)
     }
-    definedFields += add
     cfr
   }
 
-  def addField[T](value: Code[_], dummy: Boolean)(implicit ti: TypeInfo[T]): ClassFieldRef[T] = {
-    val cfr = newField[T]
-    val add: (Growable[AbstractInsnNode]) => Unit = { (il: Growable[AbstractInsnNode]) =>
-      il += new TypeInsnNode(CHECKCAST, name)
-      value.emit(il)
-      il += new FieldInsnNode(PUTFIELD, name, cfr.name, typeInfo[T].name)
-    }
-    definedFields += add
-    cfr
-  }
+  def addFieldAny[T](value: Code[_])(implicit ti: TypeInfo[T]): ClassFieldRef[T] =
+    addField(value.asInstanceOf[Code[T]])
 
-  def newInstance()(implicit fct: ClassTag[F]): Code[F] = {
-    val instance: Code[F] =
-      new Code[F] {
-        def emit(il: Growable[AbstractInsnNode]): Unit = {
-          il += new TypeInsnNode(NEW, name)
-          il += new InsnNode(DUP)
-          il += new MethodInsnNode(INVOKESPECIAL, name, "<init>", "()V", false)
-          il += new TypeInsnNode(CHECKCAST, classInfo[F].iname)
-          definedFields.result().foreach { add =>
-            il += new InsnNode(DUP)
-            add(il)
-          }
-        }
-      }
-    instance
+
+  def newInstance(mb: MethodBuilder)(implicit fct: ClassTag[F]): Code[F] = {
+    val L = new lir.Block()
+
+    val obj = mb.lmethod.genLocal("new_dep_fun", classBuilder.ti)
+    L.append(lir.store(obj, lir.newInstance(classBuilder.ti)))
+    L.append(lir.methodStmt(INVOKESPECIAL, classBuilder.lInit, Array(lir.load(obj))))
+
+    var end = L
+    setFields.foreach { f =>
+      val c = f(lir.load(obj))
+      end.append(lir.goto(c.start))
+      end = c.end
+    }
+    new Code(L, end, lir.load(obj))
   }
 
   override def result(pw: Option[PrintWriter]): () => F =
@@ -493,15 +385,10 @@ class FunctionBuilder[F >: Null](
       val generic = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.generic), returnTypeInfo.generic)
       classBuilder.addMethod(generic)
       generic.emit(
-        new Code[Unit] {
-          def emit(il: Growable[AbstractInsnNode]) {
-            returnTypeInfo.castToGeneric(
-              m.invoke(parameterTypeInfo.zipWithIndex.map { case (ti, i) =>
-                ti.castFromGeneric(generic.getArg(i + 1)(ti.generic))
-              }: _*)).emit(il)
-          }
-        }
-      )
+        returnTypeInfo.castToGeneric(
+          m.invoke(parameterTypeInfo.zipWithIndex.map { case (ti, i) =>
+            ti.castFromGeneric(generic.getArg(i + 1)(ti.generic))
+          }: _*)))
     }
     m
   }
@@ -513,7 +400,7 @@ class FunctionBuilder[F >: Null](
   def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] =
     new ClassFieldRef[T](this, classBuilder.genField[T](name))
 
-  def newLazyField[T: TypeInfo](setup: Code[T], name: String = null): LazyFieldRef[T] =
+  def newLazyField[T: TypeInfo](setup: => Code[T], name: String = null): LazyFieldRef[T] =
     new LazyFieldRef[T](this, name, setup)
 
   val lazyFieldMemo: mutable.Map[Any, LazyFieldRef[_]] = mutable.Map.empty

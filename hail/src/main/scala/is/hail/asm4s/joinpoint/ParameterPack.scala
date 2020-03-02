@@ -29,8 +29,6 @@ case class ParameterPackCode[T](tti: TypeInfo[T]) extends ParameterPack[Code[T]]
   def newLocals(mb: MethodBuilder, name: String = null): ParameterStore[Code[T]] = {
     val x = mb.newLocal(name)(tti)
     new ParameterStore[Code[T]] {
-      def storeInsn: Code[Unit] = x.storeInsn
-
       def store(a: Code[T]): Code[Unit] = x.store(a)
 
       def load: Code[T] = x.load()
@@ -42,8 +40,6 @@ case class ParameterPackCode[T](tti: TypeInfo[T]) extends ParameterPack[Code[T]]
   def newFields(fb: FunctionBuilder[_], name: String): ParameterStore[Code[T]] = {
     val x = fb.newField(name)(tti)
     new ParameterStore[Code[T]] {
-      def storeInsn: Code[Unit] = throw new UnsupportedOperationException("storeInsn not supported for fields")
-
       def store(a: Code[T]): Code[Unit] = x.store(a)
 
       def load: Code[T] = x.load()
@@ -140,14 +136,12 @@ object ParameterPack {
   def let[A: ParameterPack, X](mb: MethodBuilder, a0: A)(k: A => Code[X]): Code[X] = {
     val ap = implicitly[ParameterPack[A]]
     val as = ap.newLocals(mb)
-    Code(ap.push(a0), as.storeInsn, k(as.load))
+    Code(ap.push(a0), ???, k(as.load))
   }
 }
 
 
 abstract class ParameterStore[A] {
-  private[joinpoint] def storeInsn: Code[Unit]
-
   def load: A
 
   def store(v: A): Code[Unit]
@@ -156,7 +150,7 @@ abstract class ParameterStore[A] {
     store(v)
   }
 
-  def :=(cc: JoinPoint.CallCC[A]): Code[Unit] = Code(cc.code, storeInsn)
+  def :=(cc: JoinPoint.CallCC[A]): Code[Unit] = ???
 
   def storeAny(v: Any): Code[Unit] = store(v.asInstanceOf[A])
 
@@ -164,8 +158,6 @@ abstract class ParameterStore[A] {
 }
 
 case object ParameterStoreUnit extends ParameterStore[Unit] {
-  def storeInsn: Code[Unit] = Code._empty
-
   def store(v: Unit): Code[Unit] = Code._empty
 
   def load: Unit = ()
@@ -179,8 +171,6 @@ case class ParameterStoreTuple2[A, B](pa: ParameterStore[A], pb: ParameterStore[
   def store(v: (A, B)): Code[Unit] = v match {
     case (a, b) => Code(pa.store(a), pb.store(b))
   }
-
-  def storeInsn: Code[Unit] = Code(pb.storeInsn, pa.storeInsn)
 
   def init: Code[Unit] = Code(pa.init, pb.init)
 }
@@ -196,10 +186,7 @@ case class ParameterStoreTuple3[A, B, C](
     case (a, b, c) => Code(pa.store(a), pb.store(b), pc.store(c))
   }
 
-  def storeInsn: Code[Unit] = Code(pc.storeInsn, pb.storeInsn, pa.storeInsn)
-
   def init: Code[Unit] = Code(pa.init, pb.init, pc.init)
-
 }
 
 case class ParameterStoreArray(pss: IndexedSeq[ParameterStore[_]]) extends ParameterStore[IndexedSeq[_]] {
@@ -210,10 +197,7 @@ case class ParameterStoreArray(pss: IndexedSeq[ParameterStore[_]]) extends Param
     pss.zip(vs).foldLeft(Code._empty) { case (acc, (ps, v)) => Code(acc, ps.storeAny(v)) }
   }
 
-  def storeInsn: Code[Unit] = pss.map(_.storeInsn).fold(Code._empty) { case (acc, c) => Code(c, acc) } // order of c and acc is important
-
   def init: Code[Unit] = pss.foldLeft[Code[Unit]](Code._empty) { case (acc, ps) => Code(acc, ps.init) }
-
 }
 
 case class ParameterPackTriplet[P](t: PType) extends ParameterPack[TypedTriplet[P]] {
@@ -249,8 +233,6 @@ case class ParameterStoreTriplet[A](t: PType, psm: ParameterStore[Code[Boolean]]
     trip.m.mux(
       Code(psm.store(true), psv.storeAny(ir.defaultValue(ti))),
       Code(psm.store(false), psv.storeAny(trip.v))))
-
-  def storeInsn: Code[Unit] = ParameterStoreTuple2(psv, psm).storeInsn
 
   def init: Code[Unit] = Code(psm.init, psv.init)
 }

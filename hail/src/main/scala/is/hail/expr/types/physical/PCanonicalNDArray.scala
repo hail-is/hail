@@ -194,7 +194,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     stridesBuilder: (StagedRegionValueBuilder => Code[Unit]), data: Code[Long], mb: MethodBuilder): Code[Long] = {
     val srvb = new StagedRegionValueBuilder(mb, this.representation)
 
-    coerce[Long](Code(FastIndexedSeq(
+    Code(Code(FastIndexedSeq(
       srvb.start(),
       srvb.addInt(flags),
       srvb.advance(),
@@ -204,9 +204,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       srvb.advance(),
       srvb.addBaseStruct(this.strides.pType, stridesBuilder),
       srvb.advance(),
-      srvb.addIRIntermediate(this.representation.fieldType("data"))(data)),
+      srvb.addIRIntermediate(this.representation.fieldType("data"))(data))),
       srvb.end()
-    ))
+    )
   }
 
   def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {

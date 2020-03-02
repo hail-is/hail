@@ -193,7 +193,7 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
     literalsMap.getOrElseUpdate(t -> v, {
       val fromParent = parentfb.addLiteral(v, t)
       val ti: TypeInfo[_] = typeToTypeInfo(t)
-      val field = addField(fromParent, dummy = true)(ti)
+      val field = addFieldAny(fromParent)(ti)
       field.load()
     })
   }
@@ -505,6 +505,7 @@ class EmitFunctionBuilder[F >: Null](
     if (parameterTypeInfo.exists(_.isGeneric) || returnTypeInfo.isGeneric) {
       val generic = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.generic), returnTypeInfo.generic)
       classBuilder.addMethod(generic)
+      /*
       generic.emit(
         new Code[Unit] {
           def emit(il: Growable[AbstractInsnNode]) {
@@ -514,7 +515,7 @@ class EmitFunctionBuilder[F >: Null](
               }: _*)).emit(il)
           }
         }
-      )
+      ) */
     }
     m
   }

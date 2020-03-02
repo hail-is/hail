@@ -1,7 +1,5 @@
 package is.hail.asm4s
 
-import scala.reflect.ClassTag
-
 sealed abstract class MaybeGenericTypeInfo[T : TypeInfo] {
   def castFromGeneric(x: Code[_]): Code[T]
   def castToGeneric(x: Code[T]): Code[_]
@@ -34,11 +32,11 @@ final case class GenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T]
       case _: CharInfo.type =>
         Code.checkcast[java.lang.Character](x).invoke[Char]("charValue").asInstanceOf[Code[T]]
       case _: UnitInfo.type =>
-        Code.toUnit(Code.checkcast[java.lang.Void](x)).asInstanceOf[Code[T]]
+        Code.toUnit(x).asInstanceOf[Code[T]]
       case cti: ClassInfo[_] =>
-        Code.checkcast[T](x)(cti.cct.asInstanceOf[ClassTag[T]])
+        Code.checkcast[T](x)(cti)
       case ati: ArrayInfo[_] =>
-        Code.checkcast[T](x)(ati.tct.asInstanceOf[ClassTag[T]])
+        Code.checkcast[T](x)(ati)
     }
   }
 
@@ -60,7 +58,7 @@ final case class GenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T]
     case _: CharInfo.type =>
       Code.newInstance[java.lang.Character, Char](x.asInstanceOf[Code[Char]])
     case _: UnitInfo.type =>
-      Code.concat(x, Code._null[java.lang.Void])
+      Code(x.asInstanceOf[Code[Unit]], Code._null[java.lang.Void])
     case cti: ClassInfo[_] =>
       x
     case ati: ArrayInfo[_] =>

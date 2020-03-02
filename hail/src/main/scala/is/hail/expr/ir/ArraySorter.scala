@@ -17,7 +17,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       case FloatInfo => mb.newField[AsmFunction2[Int, Int, Boolean]]
       case DoubleInfo => mb.newField[AsmFunction2[Int, Int, Boolean]]
     }
-    Code(localF.storeAny(sorter.newInstance()), array.sort(localF))
+    Code(localF.storeAny(sorter.newInstance(mb)), array.sort(localF))
   }
 
   def toRegion(): Code[Long] = {

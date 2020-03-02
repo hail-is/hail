@@ -249,7 +249,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       val n = mb.newLocal[Long]
       val ret = mb.newLocal[Boolean]
       val ptr = mb.newLocal[Long]
-      val L = new CodeLabel()
+      val L = CodeLabel()
       Code(
         n := aoff + ((loadLength(aoff) >>> 5) * 4 + 4).toL,
         ptr := aoff + 4L,

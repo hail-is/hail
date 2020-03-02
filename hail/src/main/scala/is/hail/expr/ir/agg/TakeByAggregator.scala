@@ -453,7 +453,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   }
 
   def result(_r: Code[Region], resultType: PArray): Code[Long] = {
-    val mb = fb.newMethod("take_by_result", Array[TypeInfo[_]](new ClassInfo[Region]), LongInfo)
+    val mb = fb.newMethod("take_by_result", Array[TypeInfo[_]](classInfo[Region]), LongInfo)
 
     val quickSort: (Code[Long], Code[Int], Code[Int]) => Code[Unit] = {
       val mb = fb.newMethod("result_quicksort", Array[TypeInfo[_]](LongInfo, IntInfo, IntInfo), UnitInfo)
