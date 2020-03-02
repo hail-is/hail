@@ -65,7 +65,7 @@ class UtilFunctionsSuite extends TestNGSuite {
   }
 
   @Test def shortCircuitAndHandlesErroes() {
-    //FIXME: interpreter evaluates args for ApplySpecial before invoking the function :-|
+    // FIXME: interpreter evaluates args for ApplySpecial before invoking the function :-|
     assertCompiledFatal(na && die, "it ded")
     assertCompiledFatal(True() && die, "it ded")
     // assert(eval(False() && die) == false)

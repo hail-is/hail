@@ -158,15 +158,15 @@ object Code {
     }
   }
 
-  def whileLoop(cond: Code[Boolean], body: Code[_]*): Code[Unit] = {
-    import is.hail.asm4s.joinpoint._
-    JoinPoint.CallCC[Unit] { (jb, break) =>
-      val continue = jb.joinPoint()
-      val loopBody = jb.joinPoint()
-      continue.define { _ => JoinPoint.mux(cond, loopBody, break) }
-      loopBody.define { _ => Code(Code(body: _*), continue(())) }
-      continue(())
-    }
+  def whileLoop(cond: Code[Boolean], body: Code[Unit]*): Code[Unit] = {
+    val L = new CodeLabel()
+    Code(
+      L,
+      cond.mux(
+        Code(
+          Code(body: _*),
+          L.goto),
+        Code._empty))
   }
 
   def forLoop(init: Code[Unit], cond: Code[Boolean], increment: Code[Unit], body: Code[Unit]): Code[Unit] = {
@@ -177,20 +177,6 @@ object Code {
         increment
       )
     )
-  }
-
-  def switch[T: TypeInfo](target: Code[Int], dflt: Code[T], cases: Seq[Code[T]]): Code[T] = {
-    import is.hail.asm4s.joinpoint._
-    JoinPoint.CallCC[Code[T]] { (jb, ret) =>
-      def thenReturn(c: Code[T]): JoinPoint[Unit] = {
-        val j = jb.joinPoint()
-        j.define { _ => ret(c) }
-        j
-      }
-      JoinPoint.switch(target,
-        thenReturn(dflt),
-        cases.map(thenReturn))
-    }
   }
 
   def invokeScalaObject[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
