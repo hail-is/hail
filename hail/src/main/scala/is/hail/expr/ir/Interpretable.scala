@@ -25,6 +25,7 @@ object Interpretable {
         _: NDArrayConcat |
         _: NDArrayRef |
         _: NDArraySlice |
+        _: NDArrayFilter |
         _: NDArrayMap |
         _: NDArrayMap2 |
         _: NDArrayReindex |

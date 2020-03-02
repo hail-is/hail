@@ -98,8 +98,10 @@ def docker_call_retry(timeout, name):
                     log.exception(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True)
                 # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
                 # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
+                # DockerError(500, 'Get https://gcr.io/v2/: dial tcp: lookup gcr.io: Temporary failure in name resolution')
                 elif e.status == 500 and ("request canceled while waiting for connection" in e.message or
-                                          re.match("error creating overlay mount.*device or resource busy", e.message)):
+                                          re.match("error creating overlay mount.*device or resource busy", e.message) or
+                                          "Temporary failure in name resolution" in e.message):
                     log.exception(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True)
                 else:
                     raise
@@ -142,6 +144,8 @@ async def start_container(container):
         # 304 container has already started
         if e.status == 304:
             return
+        if e.status == 500 and e.message == 'OCI runtime start failed: container process is already dead: unknown':
+            return await container.restart()
         raise
 
 

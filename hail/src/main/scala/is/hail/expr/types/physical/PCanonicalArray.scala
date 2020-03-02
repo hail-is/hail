@@ -242,22 +242,24 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       false
     else {
       val n = mb.newLocal[Long]
-      JoinPoint.CallCC[Code[Boolean]] { (jb, ret) =>
-        val loop = jb.joinPoint[Code[Long]](mb)
-        loop.define { ptr =>
-          (ptr < n).mux(
-            Region.loadInt(ptr).cne(0).mux(
-              ret(true),
-              loop(ptr + 4L)),
-            (Region.loadByte(ptr) >>>
-              (const(32) - (loadLength(aoff) | 31))).cne(0).mux(
-              ret(true),
-              ret(false)))
-        }
-        Code(
-          n := aoff + ((loadLength(aoff) >>> 5) * 4 + 4).toL,
-          loop(aoff + 4L))
-      }
+      val ret = mb.newLocal[Boolean]
+      val ptr = mb.newLocal[Long]
+      val L = new CodeLabel()
+      Code(
+        n := aoff + ((loadLength(aoff) >>> 5) * 4 + 4).toL,
+        ptr := aoff + 4L,
+        L,
+        (ptr < n).mux(
+          Region.loadInt(ptr).cne(0).mux(
+            ret := true,
+            Code(
+              ptr := ptr + 4L,
+              L.goto)),
+          (Region.loadByte(ptr) >>>
+            (const(32) - (loadLength(aoff) | 31))).cne(0).mux(
+            ret := true,
+            ret := false)),
+        ret.load())
     }
 
   def forEach(mb: MethodBuilder, aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] = {
@@ -319,19 +321,21 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], srcAddress: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
     assert(sourceType.elementType.isPrimitive && this.isOfType(sourceType))
 
-    if (sourceType.elementType.required == this.elementType.required) {
+    if (sourceType.elementType.required == this.elementType.required)
       return srcAddress
-    }
+
+    val a = mb.newLocal[Long]
 
     Code(
-      sourceType.hasMissingValues(srcAddress).orEmpty(Code._fatal(msg)), {
+      a := srcAddress,
+      sourceType.hasMissingValues(a).orEmpty(Code._fatal(msg)), {
         val newOffset = mb.newField[Long]
-        val len = sourceType.loadLength(srcAddress)
+        val len = sourceType.loadLength(a)
 
         Code(
           newOffset := allocate(r, len),
           stagedInitialize(newOffset, len),
-          Region.copyFrom(sourceType.firstElementOffset(srcAddress, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
+          Region.copyFrom(sourceType.firstElementOffset(a, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
           newOffset
         )
       }

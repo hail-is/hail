@@ -88,7 +88,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def getElementAddress(indices: Array[Code[Long]], nd: Code[Long], mb: MethodBuilder): Code[Long] = {
+  private def getElementAddress(indices: Array[Code[Long]], nd: Code[Long], mb: MethodBuilder): Code[Long] = {
     val stridesTuple  = new CodePTuple(strides.pType, strides.load(nd))
     val bytesAway = mb.newLocal[Long]
     val dataStore = mb.newLocal[Long]
@@ -106,7 +106,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   def loadElementToIRIntermediate(indices: Array[Code[Long]], ndAddress: Code[Long], mb: MethodBuilder): Code[_] = {
-    Region.loadIRIntermediate(this.elementType)(this.getElementAddress(indices, ndAddress, mb))
+    Region.loadIRIntermediate(data.pType.elementType)(this.getElementAddress(indices, ndAddress, mb))
   }
 
   def outOfBounds(indices: Array[Code[Long]], nd: Code[Long], mb: MethodBuilder): Code[Boolean] = {

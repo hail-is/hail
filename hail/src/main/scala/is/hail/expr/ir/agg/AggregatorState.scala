@@ -98,7 +98,9 @@ class TypedRegionBackedAggState(val typ: PType, val fb: EmitFunctionBuilder[_]) 
     storageType.setFieldPresent(off, 0),
     StagedRegionValueBuilder.deepCopy(fb, region, typ, v, storageType.fieldOffset(off, 0)))
 
-  def get(): EmitTriplet = EmitTriplet(Code._empty, storageType.isFieldMissing(off, 0), Region.loadIRIntermediate(typ)(storageType.fieldOffset(off, 0)))
+  def get(): EmitTriplet = EmitTriplet(Code._empty,
+    storageType.isFieldMissing(off, 0),
+    PValue(typ, Region.loadIRIntermediate(typ)(storageType.fieldOffset(off, 0))))
 
   def copyFrom(src: Code[Long]): Code[Unit] =
     Code(newState(off), StagedRegionValueBuilder.deepCopy(fb, region, storageType, src, off))

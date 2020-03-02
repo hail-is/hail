@@ -180,6 +180,12 @@ def table_range_means():
     ht._force_count()
 
 
+@benchmark()
+def table_range_array_range_force_count():
+    ht = hl.utils.range_table(30).annotate(big_range=hl.range(100_000_000))
+    ht._force_count()
+
+
 @benchmark(args=many_strings_table.handle('ht'))
 def table_aggregate_counter(ht_path):
     ht = hl.read_table(ht_path)

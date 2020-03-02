@@ -58,6 +58,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       i := 0,
       n := 0,
       Code.whileLoop(i < array.size,
+        i += 1,
         Code.whileLoop(i < array.size && discardNext(r.region, array(n), array.isMissing(n), array(i), array.isMissing(i)),
           i += 1),
         n += 1,

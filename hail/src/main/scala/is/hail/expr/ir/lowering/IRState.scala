@@ -42,5 +42,5 @@ case object EmittableIR extends IRState {
 }
 
 case object EmittableStreamIRs extends IRState {
-  val rules: Array[Rule] = Array(ValueIROnly, EmittableValueIRs, StreamableIRs)
+  val rules: Array[Rule] = Array(ValueIROnly, EmittableValueIRs)
 }

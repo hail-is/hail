@@ -73,33 +73,35 @@ object Children {
       Array(a)
     case ToArray(a) =>
       Array(a)
+    case CastToArray(a) =>
+      Array(a)
     case ToStream(a) =>
       Array(a)
     case LowerBoundOnOrderedCollection(orderedCollection, elem, _) =>
       Array(orderedCollection, elem)
     case GroupByKey(collection) =>
       Array(collection)
-    case ArrayMap(a, name, body) =>
+    case StreamMap(a, name, body) =>
       Array(a, body)
-    case ArrayZip(as, names, body, _) =>
+    case StreamZip(as, names, body, _) =>
       as ++ Array(body)
-    case ArrayFilter(a, name, cond) =>
+    case StreamFilter(a, name, cond) =>
       Array(a, cond)
-    case ArrayFlatMap(a, name, body) =>
+    case StreamFlatMap(a, name, body) =>
       Array(a, body)
-    case ArrayFold(a, zero, accumName, valueName, body) =>
+    case StreamFold(a, zero, accumName, valueName, body) =>
       Array(a, zero, body)
-    case ArrayFold2(a, accum, valueName, seq, result) =>
+    case StreamFold2(a, accum, valueName, seq, result) =>
       Array(a) ++ accum.map(_._2) ++ seq ++ Array(result)
-    case ArrayScan(a, zero, accumName, valueName, body) =>
+    case StreamScan(a, zero, accumName, valueName, body) =>
       Array(a, zero, body)
-    case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
+    case StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
       Array(left, right, compare, join)
-    case ArrayFor(a, valueName, body) =>
+    case StreamFor(a, valueName, body) =>
       Array(a, body)
-    case ArrayAgg(a, name, query) =>
+    case StreamAgg(a, name, query) =>
       Array(a, query)
-    case ArrayAggScan(a, name, query) =>
+    case StreamAggScan(a, name, query) =>
       Array(a, query)
     case RunAggScan(array, _, init, seq, result, _) =>
       Array(array, init, seq, result)
@@ -109,6 +111,8 @@ object Children {
       nd +: idxs
     case NDArraySlice(nd, slices) =>
       Array(nd, slices)
+    case NDArrayFilter(nd, keep) =>
+      nd +: keep
     case NDArrayMap(nd, _, body) =>
       Array(nd, body)
     case NDArrayMap2(l, r, _, _, body) =>

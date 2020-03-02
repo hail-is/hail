@@ -105,7 +105,7 @@ class AggFunc(object):
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(array_agg_expr, aggregated))
-        return construct_expr(AggExplode(array_agg_expr._ir, var, aggregated._ir, self._as_scan),
+        return construct_expr(AggExplode(ToStream(array_agg_expr._ir), var, aggregated._ir, self._as_scan),
                               aggregated.dtype,
                               Indices(indices.source, aggregated._indices.axes),
                               aggregations)

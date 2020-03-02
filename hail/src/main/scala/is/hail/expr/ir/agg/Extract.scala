@@ -95,10 +95,10 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
   def getPhysicalAggs(ctx: ExecuteContext, initBindings: Env[PType], seqBindings: Env[PType]): Array[AggStatePhysicalSignature] = {
     val initsAB = InferPType.newBuilder[InitOp](aggs.length)
     val seqsAB = InferPType.newBuilder[SeqOp](aggs.length)
-    val init2 = LoweringPipeline.compileLowerer.apply(ctx, init, false).asInstanceOf[IR]
-    val seq2 = LoweringPipeline.compileLowerer.apply(ctx, seqPerElt, false).asInstanceOf[IR]
-    InferPType(init2.noSharing, initBindings, null, inits = initsAB, null)
-    InferPType(seq2.noSharing, seqBindings, null, null, seqs = seqsAB)
+    val init2 = LoweringPipeline.compileLowerer.apply(ctx, init, false).asInstanceOf[IR].noSharing
+    val seq2 = LoweringPipeline.compileLowerer.apply(ctx, seqPerElt, false).asInstanceOf[IR].noSharing
+    InferPType(init2, initBindings, null, inits = initsAB, null)
+    InferPType(seq2, seqBindings, null, null, seqs = seqsAB)
 
     val pSigs = aggs.indices.map { i => InferPType.computePhysicalAgg(aggs(i), initsAB(i), seqsAB(i)) }.toArray
 
@@ -107,7 +107,8 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
     if (seq2 eq seqPerElt)
       InferPType.clearPTypes(seq2)
 
-    pSigs
+    // should return pSigs, but cannot until we use the inferred ptype to generate code
+    aggs.map(_.toCanonicalPhysical)
   }
 }
 
@@ -244,7 +245,7 @@ object Extract {
 
         val (dependent, independent) = partitionDependentLets(newLet.result(), name)
         letBuilder ++= independent
-        seqBuilder += ArrayFor(array, name, addLets(Begin(newSeq.result()), dependent))
+        seqBuilder += StreamFor(array, name, addLets(Begin(newSeq.result()), dependent))
         transformed
 
       case AggGroupBy(key, aggIR, _) =>
@@ -265,7 +266,7 @@ object Extract {
         ab += InitOp(i, FastIndexedSeq(Begin(initOps)), aggSig, Group())
         seqBuilder += SeqOp(i, FastIndexedSeq(key, Begin(newSeq.result().toFastIndexedSeq)), aggSig, Group())
 
-        ToDict(ArrayMap(ToArray(GetTupleElement(result, i)), newRef.name, MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed))))
+        ToDict(StreamMap(ToStream(GetTupleElement(result, i)), newRef.name, MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed))))
 
 
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
@@ -302,7 +303,7 @@ object Extract {
             aRef.name, a,
             Begin(FastIndexedSeq(
               SeqOp(i, FastIndexedSeq(ArrayLen(aRef)), state, AggElementsLengthCheck()),
-              ArrayFor(
+              StreamFor(
                 StreamRange(I32(0), ArrayLen(aRef), I32(1)),
                 iRef.name,
                 Let(
@@ -316,7 +317,7 @@ object Extract {
         Let(
           rUID.name,
           GetTupleElement(result, i),
-          ToArray(ArrayMap(
+          ToArray(StreamMap(
             StreamRange(0, ArrayLen(rUID), 1),
             indexName,
             Let(
@@ -324,10 +325,10 @@ object Extract {
               ArrayRef(rUID, Ref(indexName, TInt32())),
               transformed))))
 
-      case x: ArrayAgg =>
+      case x: StreamAgg =>
         assert(!ContainsScan(x))
         x
-      case x: ArrayAggScan =>
+      case x: StreamAggScan =>
         assert(!ContainsAgg(x))
         x
       case _ => MapIR(extract)(ir)

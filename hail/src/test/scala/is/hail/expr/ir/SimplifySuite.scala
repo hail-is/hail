@@ -70,12 +70,12 @@ class SimplifySuite extends HailSuite {
       FastIndexedSeq("a" -> TString()),
       true)
 
-    assertEvalsTo(invoke("contains", TBoolean(), ToSet(In(0, TArray(TString()))), Str("a")),
+    assertEvalsTo(invoke("contains", TBoolean(), ToSet(ToStream(In(0, TArray(TString())))), Str("a")),
       FastIndexedSeq(FastIndexedSeq("a") -> TArray(TString())),
       true)
 
 
-    assertEvalsTo(invoke("contains", TBoolean(), ToArray(In(0, TSet(TString()))), Str("a")),
+    assertEvalsTo(invoke("contains", TBoolean(), ToArray(ToStream(In(0, TSet(TString())))), Str("a")),
       FastIndexedSeq(Set("a") -> TSet(TString())),
       true)
   }
@@ -136,20 +136,20 @@ class SimplifySuite extends HailSuite {
   }
 
   @Test def testArrayAggNoAggRewrites(): Unit = {
-    val doesRewrite: Array[ArrayAgg] = Array(
-      ArrayAgg(In(0, TArray(TInt32())), "foo", Ref("x", TInt32())),
-      ArrayAgg(In(0, TArray(TInt32())), "foo",
+    val doesRewrite: Array[StreamAgg] = Array(
+      StreamAgg(In(0, TArray(TInt32())), "foo", Ref("x", TInt32())),
+      StreamAgg(In(0, TArray(TInt32())), "foo",
         AggLet("bar", In(1, TInt32()) * In(1, TInt32()), Ref("x", TInt32()), true)))
 
     doesRewrite.foreach { a =>
       assert(Simplify(a) == a.query)
     }
 
-    val doesNotRewrite: Array[ArrayAgg] = Array(
-      ArrayAgg(In(0, TArray(TInt32())), "foo",
+    val doesNotRewrite: Array[StreamAgg] = Array(
+      StreamAgg(In(0, TArray(TInt32())), "foo",
         ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(Ref("foo", TInt32())),
           AggSignature(Sum(), FastSeq(), FastSeq(TInt32())))),
-      ArrayAgg(In(0, TArray(TInt32())), "foo",
+      StreamAgg(In(0, TArray(TInt32())), "foo",
         AggLet("bar", In(1, TInt32()) * In(1, TInt32()), Ref("x", TInt32()), false))
     )
 
@@ -159,20 +159,20 @@ class SimplifySuite extends HailSuite {
   }
 
   @Test def testArrayAggScanNoAggRewrites(): Unit = {
-    val doesRewrite: Array[ArrayAggScan] = Array(
-      ArrayAggScan(In(0, TArray(TInt32())), "foo", Ref("x", TInt32())),
-      ArrayAggScan(In(0, TArray(TInt32())), "foo",
+    val doesRewrite: Array[StreamAggScan] = Array(
+      StreamAggScan(In(0, TArray(TInt32())), "foo", Ref("x", TInt32())),
+      StreamAggScan(In(0, TArray(TInt32())), "foo",
         AggLet("bar", In(1, TInt32()) * In(1, TInt32()), Ref("x", TInt32()), false)))
 
     doesRewrite.foreach { a =>
       assert(Simplify(a) == a.query)
     }
 
-    val doesNotRewrite: Array[ArrayAggScan] = Array(
-      ArrayAggScan(In(0, TArray(TInt32())), "foo",
+    val doesNotRewrite: Array[StreamAggScan] = Array(
+      StreamAggScan(In(0, TArray(TInt32())), "foo",
         ApplyScanOp(FastIndexedSeq(), FastIndexedSeq(Ref("foo", TInt32())),
           AggSignature(Sum(), FastSeq(), FastSeq(TInt64())))),
-      ArrayAggScan(In(0, TArray(TInt32())), "foo",
+      StreamAggScan(In(0, TArray(TInt32())), "foo",
         AggLet("bar", In(1, TInt32()) * In(1, TInt32()), Ref("x", TInt32()), true))
     )
 

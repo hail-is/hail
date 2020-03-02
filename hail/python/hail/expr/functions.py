@@ -3288,7 +3288,7 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
     body_ir = MakeTuple([Ref(uid) for uid in uids])
     indices, aggregations = unify_all(*arrays)
     behavior = 'ExtendNA' if fill_missing else 'TakeMinLength'
-    return construct_expr(ArrayZip([a._ir for a in arrays], uids, body_ir, behavior),
+    return construct_expr(ToArray(StreamZip([ToStream(a._ir) for a in arrays], uids, body_ir, behavior)),
                           tarray(ttuple(*(a.dtype.element_type for a in arrays))),
                           indices,
                           aggregations)
@@ -3384,7 +3384,7 @@ def len(x) -> Int32Expression:
     elif x.dtype == tstr:
         return apply_expr(lambda x: Apply("length", tint32, x), tint32, x)
     else:
-        return apply_expr(lambda x: ArrayLen(x), tint32, array(x))
+        return apply_expr(lambda x: ArrayLen(CastToArray(x)), tint32, array(x))
 
 
 @typecheck(x=expr_oneof(expr_array(), expr_str))
@@ -3932,7 +3932,7 @@ def set(collection) -> SetExpression:
     """
     if isinstance(collection.dtype, tset):
         return collection
-    return apply_expr(lambda c: ToSet(c), tset(collection.dtype.element_type), collection)
+    return apply_expr(lambda c: ToSet(ToStream(c)), tset(collection.dtype.element_type), collection)
 
 
 @typecheck(t=hail_type)
@@ -3980,7 +3980,7 @@ def array(collection) -> ArrayExpression:
     if isinstance(collection.dtype, tarray):
         return collection
     elif isinstance(collection.dtype, tset):
-        return apply_expr(lambda c: ToArray(c), tarray(collection.dtype.element_type), collection)
+        return apply_expr(lambda c: CastToArray(c), tarray(collection.dtype.element_type), collection)
     else:
         assert isinstance(collection.dtype, tdict)
         return _func('dictToArray', tarray(ttuple(collection.dtype.key_type, collection.dtype.value_type)), collection)
@@ -4206,7 +4206,7 @@ def _sort_by(collection, less_than):
     left = construct_expr(Ref(l), collection.dtype.element_type, collection._indices, collection._aggregations)
     right = construct_expr(Ref(r), collection.dtype.element_type, collection._indices, collection._aggregations)
     return construct_expr(
-        ArraySort(collection._ir, l, r, less_than(left, right)._ir),
+        ArraySort(ToStream(collection._ir), l, r, less_than(left, right)._ir),
         collection.dtype,
         collection._indices,
         collection._aggregations)
@@ -5264,7 +5264,7 @@ def format(f, *args):
     'null'
 
     >>> hl.eval(hl.format('%s %s %s', 'hello', hl.tuple([3, hl.locus('1', 2453)]), True))
-    'hello [3,1:2453] true'
+    'hello (3, 1:2453) true'
 
     Notes
     -----

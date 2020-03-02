@@ -3,10 +3,10 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.ir.{EmitMethodBuilder, IRParser, SortOrder}
+import is.hail.expr.ir
+import is.hail.expr.ir.{Ascending, Descending, EmitMethodBuilder, IRParser, PValue, SortOrder}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.{BaseType, Requiredness}
-import is.hail.expr.ir.{Ascending, Descending}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.json4s.CustomSerializer
@@ -309,4 +309,9 @@ abstract class PType extends Serializable with Requiredness {
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit
 
   def deepRename(t: Type) = this
+
+  def defaultValue: PValue = PValue(this, ir.defaultValue(this))
+
+  def copyFromPValue(mb: MethodBuilder, region: Code[Region], pv: PValue): PValue =
+    PValue(this, copyFromTypeAndStackValue(mb, region, pv.pt, pv.code))
 }

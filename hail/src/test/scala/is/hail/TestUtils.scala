@@ -207,7 +207,7 @@ object TestUtils {
           val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
             env.bind(f.name, GetField(Ref(aggElementVar, aggType), f.name))
           }
-          val aggIR = ArrayAgg(Ref(aggArrayVar, aggArrayPType.virtualType),
+          val aggIR = StreamAgg(ToStream(Ref(aggArrayVar, aggArrayPType.virtualType)),
             aggElementVar,
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))))
 

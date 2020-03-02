@@ -422,21 +422,20 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
         indexOffset := indexedKeyType.fieldOffset(eltTuple.loadField(offset, 0), 1),
         Region.storeLong(indexOffset, Region.loadLong(indexOffset) + maxIndex),
         (maxSize > 0).orEmpty(
-          Code(
-            (ab.size < maxSize).mux(
-              Code(
-                copyElementToStaging(offset),
-                enqueueStaging()),
-              Code(
-                tempPtr := elementOffset(0),
-                (compareElt(offset, tempPtr) < 0)
-                  .orEmpty(Code(
-                    copyElementToStaging(offset),
-                    swapStaging(),
-                    gc
-                  )))
-            )
-          )),
+          (ab.size < maxSize).mux[Unit](
+            Code(
+              copyElementToStaging(offset),
+              enqueueStaging()),
+            Code(
+              tempPtr := elementOffset(0),
+              (compareElt(offset, tempPtr) < 0)
+                .orEmpty(Code(
+                  copyElementToStaging(offset),
+                  swapStaging(),
+                  gc
+                )))
+          )
+        ),
         i := i + 1
       ),
       maxIndex := maxIndex + other.maxIndex

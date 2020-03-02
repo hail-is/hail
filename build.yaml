@@ -479,13 +479,14 @@ steps:
      cd repo
      {{ code.checkout_script }}
      cd hail
-     make jars python-version-info
+     make jars python-version-info wheel
      (cd python && zip -r hail.zip hail hailtop)
      tar czf test.tar.gz -C python test
      tar czf resources.tar.gz -C src/test resources
      tar czf data.tar.gz -C python/hail/docs data
      tar czf www-src.tar.gz www
      tar czf cluster-tests.tar.gz python/cluster-tests
+     (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
    outputs:
      - from: /io/repo/hail/build/libs/hail-all-spark.jar
        to: /hail.jar
@@ -499,6 +500,8 @@ steps:
        to: /testng-distributed-backend.xml
      - from: /io/repo/hail/python/hail.zip
        to: /hail.zip
+     - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
+       to: /wheel-container.tar
      - from: /io/repo/hail/test.tar.gz
        to: /test.tar.gz
      - from: /io/repo/hail/resources.tar.gz
@@ -511,6 +514,28 @@ steps:
        to: /cluster-tests.tar.gz
    dependsOn:
     - hail_build_image
+ - kind: buildImage
+   name: hail_repl_image
+   dockerFile: hail/Dockerfile.hail-repl
+   contextPath: hail
+   publishAs: hail-run
+   inputs:
+    - from: /wheel-container.tar
+      to: /wheel-container.tar
+   dependsOn:
+     - base_image
+     - build_hail
+ - kind: deploy
+   name: deploy_hail_repl
+   runIfRequested: true
+   scopes:
+    - dev
+   namespace:
+     valueFrom: default_ns.name
+   config: hail/hail_repl.yaml
+   dependsOn:
+    - default_ns
+    - hail_repl_image
  - kind: runImage
    name: test_hail_java
    image:
@@ -615,7 +640,7 @@ steps:
      export HAIL_DOCTEST_DATA_DIR=./data
      export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./hail.jar --conf spark.executor.extraClassPath=./hail.jar pyspark-shell"
      export PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}./hail.zip
-     python3 -m pytest --instafail test --durations=50
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /hail.jar
        to: /io/hail.jar
@@ -999,7 +1024,7 @@ steps:
      export ORGANIZATION=hail-ci-test
      export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
      export NAMESPACE="{{ default_ns.name }}"
-     python3 -m pytest --log-cli-level=INFO -s -v --instafail /test/
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail /test/
    secrets:
     - name: gce-deploy-config
       namespace:
@@ -1050,7 +1075,7 @@ steps:
    script: |
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      export SCRATCH=gs://hail-test-dmk9z/{{ setup_pipeline.token }}/pipeline
-     python3 -m pytest --log-cli-level=INFO -s -v --instafail /io/test/
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/
    inputs:
     - from: /repo/pipeline/test
       to: /io/
@@ -1296,16 +1321,16 @@ steps:
     - default_ns
     - dbuf_image
  - kind: buildImage
-   name: dbuf_test_image
+   name: test_dbuf_image
    dockerFile: dbuf/tests/Dockerfile
    contextPath: dbuf/tests
-   publishAs: dbuf_test
+   publishAs: test_dbuf
    dependsOn:
      - dbuf_image
  - kind: runImage
-   name: dbuf_test
+   name: test_dbuf
    image:
-     valueFrom: dbuf_test_image.image
+     valueFrom: test_dbuf_image.image
    script: |
      set -ex
      python3 scale_test.py dbuf-0.dbuf 10 1 40000 1000
@@ -1324,4 +1349,4 @@ steps:
    dependsOn:
      - default_ns
      - deploy_dbuf
-     - dbuf_test_image
+     - test_dbuf_image

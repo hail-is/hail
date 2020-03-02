@@ -1,13 +1,11 @@
 package is.hail.expr.ir.agg
 
 import scala.collection.generic.Growable
-
-import is.hail.annotations.{Region, ScalaToRegionValue, StagedRegionValueBuilder, SafeRow}
+import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue, StagedRegionValueBuilder}
 import is.hail.asm4s.Code
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet, EmitRegion}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion, EmitTriplet, PValue}
 import is.hail.expr.types.physical._
 import is.hail.utils._
-
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 import org.testng.Assert._
@@ -44,10 +42,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
         sbll.load(ptr),
         sbll.push(r, EmitTriplet(Code._empty,
           eltOff.ceq(0),
-          if(elemPType.isPrimitive)
-            Region.loadPrimitive(elemPType)(eltOff)
-          else
-            eltOff)),
+          PValue(elemPType, Region.getIRIntermediate(elemPType)(eltOff)))),
         sbll.store(ptr)))
 
       val f = fb.result()()

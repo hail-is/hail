@@ -733,7 +733,7 @@ class AggregatorsSuite extends HailSuite {
       Row(FastIndexedSeq[Long](4, 5, 6, -7)))
 
     assertEvalsTo(
-      AggExplode(Ref("x", TArray(TInt64())),
+      AggExplode(ToStream(Ref("x", TArray(TInt64()))),
         "y",
         ApplyAggOp(FastSeq(),
           FastSeq(Ref("y", TInt64())),

@@ -28,8 +28,8 @@ object ArrayFunctions extends RegistryFunctions {
     val elt = genUID()
     val n = genUID()
     val sum = genUID()
-    ArrayFold2(
-      a,
+    StreamFold2(
+      ToStream(a),
       FastIndexedSeq((n, I32(0)), (sum, zero(t))),
       elt,
       FastIndexedSeq(Ref(n, TInt32()) + I32(1), Ref(sum, t) + Ref(elt, t)),
@@ -42,20 +42,20 @@ object ArrayFunctions extends RegistryFunctions {
   def extend(a1: IR, a2: IR): IR = {
     val uid = genUID()
     val typ = a1.typ
-    If(IsNA(a1), NA(typ),
-      If(IsNA(a2), NA(typ),
-        ArrayFlatMap(
-          MakeArray(Seq(a1, a2), TArray(typ)),
+    If(IsNA(a1),
+      NA(typ),
+      If(IsNA(a2),
+        NA(typ),
+        ToArray(StreamFlatMap(
+          MakeStream(Seq(a1, a2), TStream(typ)),
           uid,
-          Ref(uid, a1.typ)
-        )
-      ))
+          ToStream(Ref(uid, a1.typ))))))
   }
 
   def contains(a: IR, value: IR): IR = {
     val t = -coerce[TArray](a.typ).elementType
-    ArrayFold(
-      a,
+    StreamFold(
+      ToStream(a),
       False(),
       "acc",
       "elt",
@@ -72,7 +72,7 @@ object ArrayFunctions extends RegistryFunctions {
     val sum = genUID()
     val v = genUID()
     val zero = Cast(I64(0), t)
-    ArrayFold(a, zero, sum, v, ApplyBinaryPrimOp(Add(), Ref(sum, t), Ref(v, t)))
+    StreamFold(ToStream(a), zero, sum, v, ApplyBinaryPrimOp(Add(), Ref(sum, t), Ref(v, t)))
   }
 
   def product(a: IR): IR = {
@@ -80,7 +80,7 @@ object ArrayFunctions extends RegistryFunctions {
     val product = genUID()
     val v = genUID()
     val one = Cast(I64(1), t)
-    ArrayFold(a, one, product, v, ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t)))
+    StreamFold(ToStream(a), one, product, v, ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t)))
   }
 
   def registerAll() {
@@ -97,20 +97,20 @@ object ArrayFunctions extends RegistryFunctions {
     for ((stringOp, argType, retType, irOp) <- arrayOps) {
       registerIR(stringOp, TArray(argType), argType, TArray(retType)) { (a, c) =>
         val i = genUID()
-        ArrayMap(a, i, irOp(Ref(i, c.typ), c))
+        ToArray(StreamMap(ToStream(a), i, irOp(Ref(i, c.typ), c)))
       }
 
       registerIR(stringOp, argType, TArray(argType), TArray(retType)) { (c, a) =>
         val i = genUID()
-        ArrayMap(a, i, irOp(c, Ref(i, c.typ)))
+        ToArray(StreamMap(ToStream(a), i, irOp(c, Ref(i, c.typ))))
       }
 
       registerIR(stringOp, TArray(argType), TArray(argType), TArray(retType)) { (array1, array2) =>
         val a1id = genUID()
-        val e1 = Ref(a1id, -coerce[TStreamable](array1.typ).elementType)
+        val e1 = Ref(a1id, -coerce[TArray](array1.typ).elementType)
         val a2id = genUID()
-        val e2 = Ref(a2id, -coerce[TStreamable](array2.typ).elementType)
-        ArrayZip(FastIndexedSeq(array1, array2), FastIndexedSeq(a1id, a2id), irOp(e1, e2), ArrayZipBehavior.AssertSameLength)
+        val e2 = Ref(a2id, -coerce[TArray](array2.typ).elementType)
+        ToArray(StreamZip(FastIndexedSeq(ToStream(array1), ToStream(array2)), FastIndexedSeq(a1id, a2id), irOp(e1, e2), ArrayZipBehavior.AssertSameLength))
       }
     }
 
@@ -124,7 +124,7 @@ object ArrayFunctions extends RegistryFunctions {
         val value = genUID()
         val first = genUID()
         val acc = genUID()
-        ArrayFold2(a,
+        StreamFold2(ToStream(a),
           FastIndexedSeq((acc, NA(t)), (first, True())),
           value,
           FastIndexedSeq(
@@ -152,7 +152,7 @@ object ArrayFunctions extends RegistryFunctions {
       def ref(i: IR) = ArrayRef(a, i)
       def div(a: IR, b: IR): IR = ApplyBinaryPrimOp(BinaryOp.defaultDivideOp(t), a, b)
 
-      Let(a.name, ArraySort(ArrayFilter(array, v.name, !IsNA(v))),
+      Let(a.name, ArraySort(StreamFilter(ToStream(array), v.name, !IsNA(v))),
         If(IsNA(a),
           NA(t),
           Let(size.name,
@@ -185,7 +185,7 @@ object ArrayFunctions extends RegistryFunctions {
                 If(ApplyComparisonOp(op(t), Ref(value, t), Ref(m, t)),
                   updateAccum(Ref(value, t), Ref(idx, TInt32())),
                   Ref(accum, tAccum))))))
-      GetField(ArrayFold(
+      GetField(StreamFold(
         StreamRange(I32(0), ArrayLen(a), I32(1)),
         NA(tAccum),
         accum,
@@ -226,7 +226,7 @@ object ArrayFunctions extends RegistryFunctions {
                       ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "count"), I32(1))),
                     Ref(accum, tAccum)))))))
 
-      Let(result, ArrayFold(
+      Let(result, StreamFold(
         StreamRange(I32(0), ArrayLen(a), I32(1)),
         NA(tAccum),
         accum,
@@ -253,7 +253,7 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("[*:]", TArray(tv("T")), TInt32(), TArray(tv("T"))) { (a, i) =>
       val idx = genUID()
-      ToArray(ArrayMap(
+      ToArray(StreamMap(
         StreamRange(
           If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
             UtilFunctions.intMax(
@@ -269,7 +269,7 @@ object ArrayFunctions extends RegistryFunctions {
     registerIR("[:*]", TArray(tv("T")), TInt32(), TArray(tv("T"))) { (a, i) =>
       val idx = genUID()
       If(IsNA(a), a,
-        ToArray(ArrayMap(
+        ToArray(StreamMap(
           StreamRange(
             I32(0),
             If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
@@ -282,7 +282,7 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("[*:*]", TArray(tv("T")), TInt32(), TInt32(), TArray(tv("T"))) { (a, i, j) =>
       val idx = genUID()
-      ToArray(ArrayMap(
+      ToArray(StreamMap(
         StreamRange(
           If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
             UtilFunctions.intMax(
@@ -299,7 +299,7 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("flatten", TArray(TArray(tv("T"))), TArray(tv("T"))) { a =>
       val elt = Ref(genUID(), coerce[TArray](a.typ).elementType)
-      ArrayFlatMap(a, elt.name, elt)
+      ToArray(StreamFlatMap(ToStream(a), elt.name, ToStream(elt)))
     }
 
     registerCodeWithMissingness("corr", TArray(TFloat64()), TArray(TFloat64()), TFloat64(), null) {
@@ -316,8 +316,8 @@ object ArrayFunctions extends RegistryFunctions {
         val x = r.mb.newLocal[Double]
         val y = r.mb.newLocal[Double]
 
-        val a1 = v1.asInstanceOf[Code[Long]]
-        val a2 = v2.asInstanceOf[Code[Long]]
+        val a1 = v1.tcode[Long]
+        val a2 = v2.tcode[Long]
 
         EmitTriplet(
           Code(
@@ -332,7 +332,7 @@ object ArrayFunctions extends RegistryFunctions {
                 .concat(", ")
                 .concat(l2.toS)),
               l1.ceq(0))),
-          Code(
+          PValue(PFloat64(), Code(
             i := 0,
             n := 0,
             xSum := 0d,
@@ -363,7 +363,7 @@ object ArrayFunctions extends RegistryFunctions {
               "sqrt",
               (n.toD * xSqSum - xSum * xSum) * (n.toD * ySqSum - ySum * ySum))
           )
-        )
+        ))
     }
   }
 }

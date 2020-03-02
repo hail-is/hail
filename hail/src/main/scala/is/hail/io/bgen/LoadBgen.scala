@@ -413,7 +413,6 @@ case class MatrixBGENReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
-
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     require(files.nonEmpty)
 

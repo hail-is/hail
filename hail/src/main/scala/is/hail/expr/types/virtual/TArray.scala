@@ -7,7 +7,7 @@ import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, classTag}
 
-final case class TArray(elementType: Type, override val required: Boolean = false) extends TContainer with TStreamable {
+final case class TArray(elementType: Type, override val required: Boolean = false) extends TContainer {
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("array<")
     elementType.pyString(sb)
@@ -24,6 +24,11 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
 
   override def canCompare(other: Type): Boolean = other match {
     case TArray(otherType, _) => elementType.canCompare(otherType)
+    case _ => false
+  }
+
+  override def unify(concrete: Type): Boolean = concrete match {
+    case TArray(celementType, _) => elementType.unify(celementType)
     case _ => false
   }
 

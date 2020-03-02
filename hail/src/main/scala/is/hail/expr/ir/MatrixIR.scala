@@ -230,7 +230,7 @@ case class MatrixNativeReader(
       } else {
         val partNames = MakeArray(partFiles.map(Str), TArray(TString()))
         val elt = Ref(genUID(), TString())
-        ArrayFlatMap(
+        StreamFlatMap(
           partNames,
           elt.name,
           ReadPartition(elt, colsRVDSpec.typedCodecSpec, mr.typ.colType))
@@ -642,7 +642,7 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
       case (((field, ref), i), arg) =>
         InsertFields(ref, FastIndexedSeq(field ->
           (if (i == refs.length - 1)
-            ArrayRef(ToArray(GetField(ref, field)), arg)
+            ArrayRef(ToArray(ToStream(GetField(ref, field))), arg)
           else
             Let(refs(i + 1).name, GetField(ref, field), arg))))
     }.asInstanceOf[InsertFields]
