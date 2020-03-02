@@ -809,6 +809,26 @@ object EmitStream2 {
             SizedStream(stream, None)
           }
 
+        case In(n, streamType@PStream(eltType, _)) =>
+          val xIter = mb.newLocal[Iterator[RegionValue]]
+
+          COption.fromEmitTriplet[Iterator[RegionValue]](
+            emitter.normalArgument(n, streamType)
+          ).map { iter =>
+            val stream = unfold[Code[RegionValue], Unit](
+              (),
+              (_, _, k) => k(COption(
+                !xIter.load().hasNext,
+                (xIter.load().next(), ())))
+            ).map(
+              rv => EmitTriplet.present(Region.loadIRIntermediate(eltType)(rv.invoke[Long]("getOffset"))),
+              setup0 = Some(xIter := Code._null),
+              setup = Some(xIter := iter)
+            )
+
+            SizedStream(stream, None)
+          }
+
         case StreamMap(childIR, name, bodyIR) =>
           val childEltType = coerce[PStream](childIR.pType).elementType
           implicit val childEltPack = TypedTriplet.pack(childEltType)
