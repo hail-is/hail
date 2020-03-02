@@ -51,23 +51,26 @@ class ApproxCDFState(val fb: EmitFunctionBuilder[_]) extends AggregatorState {
   def createState: Code[Unit] = region.isNull.mux(r := Region.stagedCreate(regionSize), Code._empty)
 
   override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
-    Code(
-      regionLoader(r),
-      id := Region.loadInt(idOffset(src)),
-      initialized := Region.loadBoolean(initializedOffset(src)),
-      initialized.orEmpty(Code(
-        aggr := Code.checkcast[ApproxCDFStateManager](region.lookupJavaObject(id)),
-        k := Region.loadInt(kOffset(src)))
-      ))
+    Code.memoize(src, "acdfa_load_src") { src =>
+      Code(
+        regionLoader(r),
+        id := Region.loadInt(idOffset(src)),
+        initialized := Region.loadBoolean(initializedOffset(src)),
+        initialized.orEmpty(Code(
+          aggr := Code.checkcast[ApproxCDFStateManager](region.lookupJavaObject(id)),
+          k := Region.loadInt(kOffset(src)))))
+    }
 
   override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
-    region.isValid.orEmpty(
-      Code(
-        regionStorer(region),
-        region.invalidate(),
-        Region.storeInt(idOffset(dest), id),
-        Region.storeInt(kOffset(dest), k),
-        Region.storeBoolean(initializedOffset(dest), initialized)))
+    Code.memoize(dest, "acdfa_store_dest") { dest =>
+      region.isValid.orEmpty(
+        Code(
+          regionStorer(region),
+          region.invalidate(),
+          Region.storeInt(idOffset(dest), id),
+          Region.storeInt(kOffset(dest), k),
+          Region.storeBoolean(initializedOffset(dest), initialized)))
+    }
 
   override def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
     (ob: Value[OutputBuffer]) =>

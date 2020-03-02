@@ -8,6 +8,7 @@ import is.hail.asm4s.coerce
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
+import is.hail.variant.Locus
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -173,6 +174,18 @@ abstract class RegistryFunctions {
         UnsafeRow.getClass, "read",
         r.mb.getPType(t),
         r.region, coerce[Long](c))
+  }
+
+  def boxedTypeInfo(t: PType): TypeInfo[_ >: Null] = t match {
+    case _: PBoolean => classInfo[java.lang.Boolean]
+    case _: PInt32 => classInfo[java.lang.Integer]
+    case _: PInt64 => classInfo[java.lang.Long]
+    case _: PFloat32 => classInfo[java.lang.Float]
+    case _: PFloat64 => classInfo[java.lang.Double]
+    case _: PCall => classInfo[java.lang.Integer]
+    case t: PString => classInfo[java.lang.String]
+    case t: PLocus => classInfo[Locus]
+    case _ => classInfo[AnyRef]
   }
 
   def boxArg(r: EmitRegion, t: PType): Code[_] => Code[AnyRef] = t match {
@@ -432,7 +445,7 @@ abstract class RegistryFunctions {
       }
 
       def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: (PType, EmitCode)*): EmitCode = {
-        val setup = args.map(_._2.setup)
+        val setup = Code(args.map(_._2.setup))
         val rpt = returnPType(args.map(_._1), returnType)
         val missing: Code[Boolean] = if (args.isEmpty) false else args.map(_._2.m).reduce(_ || _)
         val value = applySeeded(seed, r, rpt, args.map { case (t, a) => (t, a.v) }: _*)
@@ -502,7 +515,7 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
   def apply(r: EmitRegion, returnPType: PType, args: (PType, Code[_])*): Code[_]
 
   def apply(r: EmitRegion, returnPType: PType, args: (PType, EmitCode)*): EmitCode = {
-    val setup = args.map(_._2.setup)
+    val setup = Code(args.map(_._2.setup))
     val missing = args.map(_._2.m).reduce(_ || _)
     val value = apply(r, returnPType, args.map { case (t, a) => (t, a.v) }: _*)
 

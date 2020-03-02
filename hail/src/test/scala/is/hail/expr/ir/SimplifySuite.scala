@@ -38,6 +38,7 @@ class SimplifySuite extends HailSuite {
   }
 
   lazy val base = Literal(TStruct("1" -> TInt32, "2" -> TInt32), Row(1,2))
+
   @Test def testInsertFieldsRewriteRules() {
     val ir1 = InsertFields(InsertFields(base, Seq("1" -> I32(2)), None), Seq("1" -> I32(3)), None)
     assert(Simplify(ir1) == InsertFields(base, Seq("1" -> I32(3)), None))

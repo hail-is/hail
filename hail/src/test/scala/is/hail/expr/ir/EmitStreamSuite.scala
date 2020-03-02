@@ -13,7 +13,7 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
-  private def compile1[T: TypeInfo, R: TypeInfo](f: (EmitMethodBuilder, Code[T]) => Code[R]): T => R = {
+  private def compile1[T: TypeInfo, R: TypeInfo](f: (MethodBuilder, Value[T]) => Code[R]): T => R = {
     val fb = EmitFunctionBuilder[T, R]("stream_test")
     val mb = fb.apply_method
     mb.emit(f(mb, mb.getArg[T](1)))
@@ -37,15 +37,8 @@ class EmitStreamSuite extends HailSuite {
     asmFn.apply
   }
 
-  def facStaged(n: Code[Int], ret: Code[Int] => Code[Ctrl]
-  )(implicit ctx: EmitStreamContext
-  ): Code[Ctrl] = {
-    val r = CodeStream.range(1, 1, n)
-    CodeStream.fold[Code[Int], Code[Int]](ctx.mb, r, 1, (i, prod) => prod * i, ret)
-  }
-
   def range(start: Code[Int], stop: Code[Int], name: String)(implicit ctx: EmitStreamContext): CodeStream.Stream[Code[Int]] =
-    CodeStream.map(CodeStream.range(start, 1, stop - start))(
+    CodeStream.map(CodeStream.range(ctx.mb, start, 1, stop - start))(
       a => a,
       setup0 = Some(Code._println(const(s"$name setup0"))),
       setup = Some(Code._println(const(s"$name setup"))),
@@ -62,7 +55,7 @@ class EmitStreamSuite extends HailSuite {
     val stream: CodeStream.Stream[T] = _stream.mapCPS(
       (ctx, a, k) => (outerBit & innerBit).mux(
         k(a),
-        Code._fatal[Ctrl](s"$name: pulled from when not setup")),
+        Code._fatal[Unit](s"$name: pulled from when not setup")),
       setup0 = Some((!outerBit & !innerBit).mux(
         Code(outerBit := true,
              Code._println(const(s"$name setup0"))),
@@ -82,11 +75,13 @@ class EmitStreamSuite extends HailSuite {
         Code._fatal[Unit](s"$name: close run out of order"))))
 
     def assertClosed(expectedRuns: Code[Int]): Code[Unit] =
-      (outerBit | innerBit).mux(
-        Code._fatal[Unit](s"$name: not closed"),
-        innerCount.cne(expectedRuns).mux(
-          Code._fatal[Unit](const(s"$name: expected ").concat(expectedRuns.toS).concat(" runs, found ").concat(innerCount.toS)),
-          Code._empty))
+      Code.memoize(innerCount, "inner_count", expectedRuns, "expected_runs") { (innerCount, expectedRuns) =>
+        (outerBit | innerBit).mux(
+          Code._fatal[Unit](s"$name: not closed"),
+          innerCount.cne(expectedRuns).mux(
+            Code._fatal[Unit](const(s"$name: expected ").concat(expectedRuns.toS).concat(" runs, found ").concat(innerCount.toS)),
+            Code._empty))
+      }
 
     def assertClosed: Code[Unit] =
       (outerBit | innerBit).mux(
@@ -94,8 +89,16 @@ class EmitStreamSuite extends HailSuite {
         Code._empty)
   }
 
-  def checkedRange(start: Code[Int], stop: Code[Int], name: String, mb: MethodBuilder): CheckedStream[Code[Int]] =
-    new CheckedStream(CodeStream.range(start, 1, stop - start), name, mb)
+  def checkedRange(start: Code[Int], stop: Code[Int], name: String, mb: MethodBuilder): CheckedStream[Code[Int]] = {
+    val tstart = mb.newLocal[Int]
+    val len = mb.newLocal[Int]
+    val s = CodeStream.range(mb, tstart, 1, len)
+      .map(
+        f = x => x,
+        setup0 = Some(Code(tstart := 0, len := 0)),
+        setup = Some(Code(tstart := start, len := stop - tstart)))
+    new CheckedStream(s, name, mb)
+  }
 
   @Test def testES2Range() {
     val f = compile1[Int, Unit] { (mb, n) =>
@@ -126,48 +129,6 @@ class EmitStreamSuite extends HailSuite {
     } {
       f(i, j)
     }
-  }
-
-  @Test def testES2LeftJoinDistinct() {
-    val f1 = compile2[Int, Int, Unit] { (mb, m, n) =>
-      val l = checkedRange(0, m, "left", mb)
-      val r = checkedRange(0, n, "right", mb)
-      val z = CodeStream.leftJoinRightDistinct[Code[Int], Code[Int]](
-        l.stream.map(i => (i / 2) * 2),
-        r.stream,
-        -1,
-        (i, j) => i - j)
-
-      Code(
-        l.init, r.init,
-        z.forEach(mb)(x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")"))),
-        l.assertClosed(1), r.assertClosed(1))
-    }
-    f1(6, 6)
-    f1(6, 3)
-    f1(3, 6)
-    f1(0, 3)
-    f1(3, 0)
-
-    val f2 = compile2[Int, Int, Unit] { (mb, m, n) =>
-      val l = checkedRange(0, m, "left", mb)
-      val r = checkedRange(0, n / 2, "right", mb)
-      val z = CodeStream.leftJoinRightDistinct[Code[Int], Code[Int]](
-        l.stream,
-        r.stream.map(i => i * 2),
-        -1,
-        (i, j) => i - j)
-
-      Code(
-        l.init, r.init,
-        z.forEach(mb)(x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")"))),
-        l.assertClosed(1), r.assertClosed(1))
-    }
-    f2(6, 6)
-    f2(6, 4)
-    f2(3, 6)
-    f2(0, 3)
-    f2(3, 0)
   }
 
   @Test def testES2FlatMap() {
@@ -218,54 +179,6 @@ class EmitStreamSuite extends HailSuite {
     f(10, 3)
   }
 
-  @Test def testES2Filter() {
-    val f = compile1[Int, Unit] { (mb, n) =>
-      val r = checkedRange(0, n, "source", mb)
-      def cond(i: Code[Int]): Code[Boolean] = (i % 2).ceq(0)
-
-      Code(
-        r.init,
-        r.stream.filter(cond).forEach(mb)(i => Code._println(i.toS)),
-        r.assertClosed(1))
-    }
-    f(0)
-    f(10)
-  }
-
-  @Test def testES2Mux() {
-    val f = compile2[Boolean, Int, Unit] { (mb, cond, n) =>
-      val l = checkedRange(0, n, "left", mb)
-      val r = checkedRange(0, n, "right", mb)
-
-      Code(
-        r.init,
-        l.init,
-        CodeStream.mux(cond, l.stream, r.stream).forEach(mb)(i => Code._println(i.toS)),
-        l.assertClosed(cond.toI),
-        r.assertClosed(const(1) - cond.toI))
-    }
-    f(false, 2)
-    f(true, 2)
-  }
-
-  @Test def testES2ZipMux() {
-    val f = compile2[Boolean, Int, Unit] { (mb, cond, n) =>
-      val l1 = checkedRange(0, n, "left1", mb)
-      val l2 = checkedRange(0, n, "left2", mb)
-      val mux = CodeStream.mux(cond, l1.stream, l2.stream)
-      val r = checkedRange(0, n, "right", mb)
-
-      Code(
-        l1.init, l2.init, r.init,
-        CodeStream.zip(mux, r.stream).forEach(mb)(x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")"))),
-        l1.assertClosed(cond.toI),
-        l2.assertClosed(const(1) - cond.toI),
-        r.assertClosed(1))
-    }
-    f(false, 2)
-    f(true, 2)
-  }
-
   @Test def testES2MultiZip() {
     import scala.collection.IndexedSeq
     val f = compile3[Int, Int, Int, Unit] { (mb, n1, n2, n3) =>
@@ -288,35 +201,6 @@ class EmitStreamSuite extends HailSuite {
     } {
       f(n1, n2, n3)
     }
-  }
-
-  @Test def testES2Scan() {
-    val f = compile1[Int, Unit] { (mb, n1) =>
-      val s = checkedRange(1, n1, "s1", mb)
-      val scan = s.stream.scan(mb, 0: Code[Int])((i, acc) => i + acc)
-      val longScan = s.stream.longScan(mb, 0: Code[Int])((i, acc) => i + acc)
-
-      Code(
-        s.init,
-        scan.forEach(mb)(x => Code._println(x.toS)),
-        s.assertClosed(1),
-        s.init,
-        longScan.forEach(mb)(x => Code._println(x.toS)),
-        s.assertClosed(1))
-    }
-    for {n1 <- 1 to 4} { f(n1) }
-  }
-
-  @Test def testES2Fac() {
-    def fac(n: Int): Int = (1 to n).fold(1)(_ * _)
-    val facS = compile1[Int, Int] { (mb, n) =>
-      JoinPoint.CallCC[Code[Int]] { (jpb, ret) =>
-        implicit val ctx = EmitStreamContext(mb, jpb)
-        facStaged(n, ret)
-      }
-    }
-    for (i <- 0 to 12)
-      assert(facS(i) == fac(i), s"compute: $i!")
   }
 
   private def compileStream[F >: Null : TypeInfo, T](
@@ -391,16 +275,24 @@ class EmitStreamSuite extends HailSuite {
     val optStream = ExecuteContext.scoped { ctx =>
       EmitStream(new Emit(ctx, fb), mb, ir, Env.empty, EmitRegion.default(mb), None)
     }
-    fb.emit {
-      optStream.cases[Int](mb)(0, stream => stream.length.map { case (s, l) => Code(s, l) }.getOrElse(-1))
-    }
+    val L = CodeLabel()
+    val len = mb.newLocal[Int]
+    implicit val ctx = EmitStreamContext(mb)
+    fb.emit(
+      Code(
+        optStream(
+          Code(len := 0, L.goto), { stream =>
+            stream.length.map[Code[Ctrl]] { case (s, l) => Code(s, len := l, L.goto) }.getOrElse[Code[Ctrl]](
+              Code(len := -1, L.goto))
+          }),
+        L,
+        len))
     val f = fb.resultWithIndex()
     Region.scoped { r =>
       val len = f(0, r)(r)
-      if(len < 0) None else Some(len)
+      if (len < 0) None else Some(len)
     }
   }
-
 
   @Test def testEmitNA() {
     assert(evalStream(NA(TStream(TInt32))) == null)
@@ -521,6 +413,7 @@ class EmitStreamSuite extends HailSuite {
         IndexedSeq(0, 0, 1, 1, 2, 2, 3, 3)
     )
     for ((ir, v) <- tests) {
+      println(Pretty(ir))
       assert(evalStream(ir) == v, Pretty(ir))
       if (v != null)
         assert(evalStreamLen(ir) == None, Pretty(ir))
@@ -672,6 +565,7 @@ class EmitStreamSuite extends HailSuite {
     )
     val lens: Array[Option[Int]] = Array(Some(3), Some(4), Some(3), Some(0), Some(0), None)
     for (((ir, v), len) <- tests zip lens) {
+      println(Pretty(ir), v, len)
       assert(evalStream(ir) == v, Pretty(ir))
       assert(evalStreamLen(ir) == len, Pretty(ir))
     }

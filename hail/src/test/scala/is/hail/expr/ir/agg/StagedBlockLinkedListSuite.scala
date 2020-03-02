@@ -98,8 +98,8 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
       val sbll2 = new StagedBlockLinkedList(elemPType, fb)
       val sbll1 = new StagedBlockLinkedList(elemPType, fb)
       val dstPtr = fb.newField[Long]
-      val r = fb.getArg[Region](1).load
-      val srcPtr = fb.getArg[Long](2).load
+      val r = fb.getArg[Region](1)
+      val srcPtr = fb.getArg[Long](2)
       fb.emit(Code(
         dstPtr := r.allocate(sbll1.storageType.alignment, sbll1.storageType.byteSize),
         sbll2.load(srcPtr),
@@ -109,7 +109,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
 
       val f = fb.result()()
       ({ (r, other) => f(r, other.ptr) })
-    }
+     }
 
     private var ptr = 0L
 
@@ -118,7 +118,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
     def ++=(other: BlockLinkedList[E]): this.type = { appendF(region, ptr, other) ; this }
     def toIndexedSeq: IndexedSeq[E] = materializeF(region, ptr)
 
-    if(initImmediately) clear()
+    if (initImmediately) clear()
 
     def copy(): BlockLinkedList[E] = {
       val b = new BlockLinkedList[E](region, elemPType, initImmediately = false)

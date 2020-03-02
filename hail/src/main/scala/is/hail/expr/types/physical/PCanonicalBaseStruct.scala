@@ -94,32 +94,34 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def deepPointerCopy(mb: MethodBuilder, region: Code[Region], dstStructAddress: Code[Long]): Code[Unit] = {
-    var c: Code[Unit] = Code._empty
-    var i = 0
-    while(i < this.size) {
-      val dstFieldType = this.fields(i).typ.fundamentalType
-      if(dstFieldType.containsPointers) {
-        val dstFieldAddress = mb.newField[Long]
-        c = Code(
-          c,
-          this.isFieldDefined(dstStructAddress, i).orEmpty(
-            Code(
-              dstFieldAddress := this.fieldOffset(dstStructAddress, i),
-              dstFieldType match {
-                case t@(_: PBinary | _: PArray) =>
-                  Region.storeAddress(dstFieldAddress, t.copyFromType(mb, region, dstFieldType, Region.loadAddress(dstFieldAddress), forceDeep = true))
-                case t: PCanonicalBaseStruct =>
-                  t.deepPointerCopy(mb, region, dstFieldAddress)
-              }
+  def deepPointerCopy(mb: MethodBuilder, region: Value[Region], dstStructAddress: Code[Long]): Code[Unit] = {
+    Code.memoize(dstStructAddress, "pcbs_dpcopy_dst") { dstStructAddress =>
+      var c: Code[Unit] = Code._empty
+      var i = 0
+      while (i < size) {
+        val dstFieldType = fields(i).typ.fundamentalType
+        if (dstFieldType.containsPointers) {
+          val dstFieldAddress = mb.newField[Long]
+          c = Code(
+            c,
+            isFieldDefined(dstStructAddress, i).orEmpty(
+              Code(
+                dstFieldAddress := fieldOffset(dstStructAddress, i),
+                dstFieldType match {
+                  case t@(_: PBinary | _: PArray) =>
+                    Region.storeAddress(dstFieldAddress, t.copyFromType(mb, region, dstFieldType, Region.loadAddress(dstFieldAddress), forceDeep = true))
+                  case t: PCanonicalBaseStruct =>
+                    t.deepPointerCopy(mb, region, dstFieldAddress)
+                }
+              )
             )
           )
-        )
+        }
+        i += 1
       }
-      i += 1
-    }
 
-    c
+      c
+    }
   }
 
   def deepPointerCopy(region: Region, dstStructAddress: Long) {
@@ -139,7 +141,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcStructAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcStructAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     val sourceType = srcPType.asInstanceOf[PBaseStruct]
     assert(sourceType.size == this.size)
 
@@ -155,7 +157,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
     this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], forceDeep)
 
   def copyFromType(region: Region, srcPType: PType, srcStructAddress: Long, forceDeep: Boolean): Long = {
@@ -170,7 +172,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] = {
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] = {
     val srcStruct = srcPType.asInstanceOf[PBaseStruct]
     val addrVar = mb.newLocal[Long]
 

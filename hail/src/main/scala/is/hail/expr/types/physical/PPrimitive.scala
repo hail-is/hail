@@ -17,7 +17,7 @@ trait PPrimitive extends PType {
     } else srcAddress
   }
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     assert(this.isOfType(srcPType))
     if (forceDeep) {
       val addr = mb.newLocal[Long]
@@ -29,12 +29,12 @@ trait PPrimitive extends PType {
     } else srcAddress
   }
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] = {
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] = {
     assert(this.isOfType(srcPType))
     stackValue
   }
 
-  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] = {
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] = {
     assert(srcPType.isOfType(this))
     Region.copyFrom(srcAddress, addr, byteSize)
   }
@@ -44,7 +44,7 @@ trait PPrimitive extends PType {
     Region.copyFrom(srcAddress, addr, byteSize)
   }
 
-  override def constructAtAddressFromValue(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, src: Code[_], forceDeep: Boolean): Code[Unit] = {
+  override def constructAtAddressFromValue(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], forceDeep: Boolean): Code[Unit] = {
     assert(this.isOfType(srcPType))
     storePrimitiveAtAddress(addr, srcPType, src)
   }

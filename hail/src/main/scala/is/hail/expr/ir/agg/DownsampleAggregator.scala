@@ -26,14 +26,15 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, fb: EmitF
   def copy(src: Code[Long], dest: Code[Long]): Code[Unit] = Region.copyFrom(src, dest, storageType.byteSize)
 
   def deepCopy(er: EmitRegion, src: Code[Long], dest: Code[Long]): Code[Unit] =
-    Code(
-      Region.loadBoolean(storageType.loadField(src, "empty")).orEmpty(Code._fatal[Unit]("key empty!!")),
-      StagedRegionValueBuilder.deepCopy(er, storageType, src, dest)
-    )
+    Code.memoize(src, "dsa_deep_copy_src") { src =>
+      Code(
+        Region.loadBoolean(storageType.loadField(src, "empty")).orEmpty(Code._fatal[Unit]("key empty!!")),
+        StagedRegionValueBuilder.deepCopy(er, storageType, src, dest))
+    }
 
   def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] = kcomp(k1, k2)
 
-  def loadCompKey(off: Code[Long]): (Code[Boolean], Code[_]) = (const(false), storageType.loadField(off, "bin"))
+  def loadCompKey(off: Value[Long]): (Code[Boolean], Code[_]) = (const(false), storageType.loadField(off, "bin"))
 }
 
 
@@ -183,7 +184,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
 
     { _ob: Value[OutputBuffer] =>
       val mb = fb.newMethod("downsample_serialize", Array[TypeInfo[_]](typeInfo[OutputBuffer]), UnitInfo)
-      val ob = mb.getArg[OutputBuffer](1).load()
+      val ob = mb.getArg[OutputBuffer](1)
 
       mb.emit(Code(FastIndexedSeq(
         dumpBuffer(),
@@ -195,10 +196,12 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
         ob.writeDouble(top),
         ob.writeInt(treeSize),
         tree.bulkStore(ob) { (ob, src) =>
-          Code(
-            Region.loadBoolean(key.storageType.loadField(src, "empty")).orEmpty(Code._fatal[Unit]("bad")),
-            binEnc.invoke(key.storageType.loadField(src, "bin"), ob),
-            pointEnc.invoke(key.storageType.loadField(src, "point"), ob))
+          Code.memoize(src, "downsample_state_ser_src") { src =>
+            Code(
+              Region.loadBoolean(key.storageType.loadField(src, "empty")).orEmpty(Code._fatal[Unit]("bad")),
+              binEnc.invoke(key.storageType.loadField(src, "bin"), ob),
+              pointEnc.invoke(key.storageType.loadField(src, "point"), ob))
+          }
         },
         ob.writeInt(DownsampleState.serializationEndMarker)
       )))
@@ -212,7 +215,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
 
     { _ib: Value[InputBuffer] =>
       val mb = fb.newMethod("downsample_deserialize", Array[TypeInfo[_]](typeInfo[InputBuffer]), UnitInfo)
-      val ib = mb.getArg[InputBuffer](1).load()
+      val ib = mb.getArg[InputBuffer](1)
       val serializationEndTag = mb.newLocal[Int]
       mb.emit(
         Code(FastIndexedSeq(
@@ -230,10 +233,12 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
           treeSize := ib.readInt(),
           tree.init,
           tree.bulkLoad(ib) { (ib, dest) =>
-            Code(
-              binDec.invoke(region, key.storageType.fieldOffset(dest, "bin"), ib),
-              pointDec.invoke(region, key.storageType.fieldOffset(dest, "point"), ib),
-              Region.storeBoolean(key.storageType.fieldOffset(dest, "empty"), false))
+            Code.memoize(dest, "dss_deser_dest") { dest =>
+                Code(
+                  binDec.invoke(region, key.storageType.fieldOffset(dest, "bin"), ib),
+                  pointDec.invoke(region, key.storageType.fieldOffset(dest, "point"), ib),
+                  Region.storeBoolean(key.storageType.fieldOffset(dest, "empty"), false))
+            }
           },
           buffer.initialize(),
           serializationEndTag := ib.readInt(),
@@ -356,7 +361,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
           insertIntoTree(xBinCoordinate(x), yBinCoordinate(y), point, deepCopy = true),
           i := i + 1),
         buffer.initialize(),
-        oldRegion.load().invalidate(),
+        oldRegion.invalidate(),
         allocateSpace()
       )))
     }

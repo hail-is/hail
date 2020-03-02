@@ -36,8 +36,7 @@ object FoldConstants {
             case _ => false
           } =>
           try {
-            Some(
-              Literal.coerce(ir.typ, Interpret.alreadyLowered(ctx, ir)))
+            Some(Literal.coerce(ir.typ, Interpret.alreadyLowered(ctx, ir)))
           } catch {
             case _: HailException => None
           }

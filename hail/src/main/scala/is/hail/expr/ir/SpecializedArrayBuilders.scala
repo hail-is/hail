@@ -79,6 +79,16 @@ class StagedArrayBuilder(val elt: PType, mb: MethodBuilder, len: Code[Int]) {
   def ensureCapacity(n: Code[Int]): Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Int, Unit]("ensureCapacity", n)
 
   def clear: Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Unit]("clear")
+
+  def applyEV(mb: MethodBuilder, i: Code[Int]): EmitValue =
+    new EmitValue {
+      def pt: PType = elt
+
+      def get: EmitCode = {
+        val t = mb.newLocal[Int]("sab_applyEV_i")
+        EmitCode(t := i, isMissing(t), PCode(elt, apply(t)))
+      }
+    }
 }
 
 sealed abstract class MissingArrayBuilder(initialCapacity: Int) {
@@ -146,7 +156,6 @@ class IntArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialC
     b(i) = x
     missing(i) = false
   }
-
 
   def sort(ordering: AsmFunction2[Int, Int, Boolean]): Unit = {
     var newend = 0

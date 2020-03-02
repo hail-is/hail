@@ -23,11 +23,13 @@ class TestBTreeKey(mb: EmitMethodBuilder) extends BTreeKey {
     storageType.setFieldMissing(off, 1)
 
   def storeKey(off: Code[Long], m: Code[Boolean], v: Code[Long]): Code[Unit] =
-    Code(
-      storageType.stagedInitialize(off),
-      m.mux(
-        storageType.setFieldMissing(off, 0),
-        Region.storeLong(storageType.fieldOffset(off, 0), v)))
+    Code.memoize(off, "off") { off =>
+      Code(
+        storageType.stagedInitialize(off),
+        m.mux(
+          storageType.setFieldMissing(off, 0),
+          Region.storeLong(storageType.fieldOffset(off, 0), v)))
+    }
 
   def copy(src: Code[Long], dest: Code[Long]): Code[Unit] =
     Region.copyFrom(src, dest, storageType.byteSize)
@@ -37,7 +39,7 @@ class TestBTreeKey(mb: EmitMethodBuilder) extends BTreeKey {
   def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
     comp(k1, k2)
 
-  def loadCompKey(off: Code[Long]): (Code[Boolean], Code[_]) =
+  def loadCompKey(off: Value[Long]): (Code[Boolean], Code[_]) =
     storageType.isFieldMissing(off, 0) -> storageType.isFieldMissing(off, 0).mux(
       0L, Region.loadLong(storageType.fieldOffset(off, 0)))
 }
@@ -129,15 +131,17 @@ class BTreeBackedSet(region: Region, n: Int) {
       root := fb.getArg[Long](2),
       sab.clear,
       btree.foreach { koff =>
-        val (m, v) = key.loadCompKey(koff)
-        m.mux(sab.addMissing(),
+        Code.memoize(koff, "koff") { koff =>
+          val (m, v) = key.loadCompKey(koff)
+          m.mux(sab.addMissing(),
             sab.add(v))
+        }
       },
       returnArray := Code.newArray[java.lang.Long](sab.size),
       idx := 0,
       Code.whileLoop(idx < sab.size,
         returnArray.update(idx, sab.isMissing(idx).mux(
-          Code._null,
+          Code._null[java.lang.Long],
           Code.boxLong(coerce[Long](sab(idx))))),
         idx := idx + 1
       ),
@@ -159,10 +163,14 @@ class BTreeBackedSet(region: Region, n: Int) {
       root := fb.getArg[Long](1),
       ob2 := ob,
       btree.bulkStore(ob2) { (ob, off) =>
-        val (km, kv) = key.loadCompKey(off)
-        Code(
-          ob.writeBoolean(km),
-          (!km).orEmpty(ob.writeLong(coerce[Long](kv))))
+        Code.memoize(ob, "ob", off, "off") { (ob, off) =>
+          val (km, kv) = key.loadCompKey(off)
+          Code.memoize(km, "km") { km =>
+            Code(
+              ob.writeBoolean(km),
+              (!km).orEmpty(ob.writeLong(coerce[Long](kv))))
+          }
+        }
       },
       ob2.load().flush()))
 

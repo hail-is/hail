@@ -91,17 +91,21 @@ object RandomSeededFunctions extends RegistryFunctions {
 
     registerSeeded("rand_beta", TFloat64, TFloat64, TFloat64, TFloat64, TFloat64, null) {
       case (r, rt, seed, (aT, a), (bT, b), (minT, min), (maxT, max)) =>
-      val rng = r.mb.newRNG(seed)
-      val value = r.mb.newLocal[Double]
-      val lmin = r.mb.newLocal[Double]
-      val lmax = r.mb.newLocal[Double]
-      Code(
-        lmin := min,
-        lmax := max,
-        value := rng.invoke[Double, Double, Double]("rbeta", a, b),
-        Code.whileLoop(value < lmin || value > lmax,
-          value := rng.invoke[Double, Double, Double]("rbeta", a, b)),
-        value)
+        val rng = r.mb.newRNG(seed)
+        val la = r.mb.newLocal[Double]
+        val lb = r.mb.newLocal[Double]
+        val value = r.mb.newLocal[Double]
+        val lmin = r.mb.newLocal[Double]
+        val lmax = r.mb.newLocal[Double]
+        Code(
+          la := a,
+          lb := b,
+          lmin := min,
+          lmax := max,
+          value := rng.invoke[Double, Double, Double]("rbeta", la, lb),
+          Code.whileLoop(value < lmin || value > lmax,
+            value := rng.invoke[Double, Double, Double]("rbeta", la, lb)),
+          value)
     }
 
     registerSeeded("rand_gamma", TFloat64, TFloat64, TFloat64, null) { case (r, rt, seed, (aT, a), (scaleT, scale)) =>

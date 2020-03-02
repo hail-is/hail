@@ -22,18 +22,22 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
   def createState: Code[Unit] = region.isNull.mux(r := Region.stagedCreate(regionSize), Code._empty)
 
   override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
-    Code(
-      regionLoader(r),
-      maxSize := Region.loadInt(maxSizeOffset(src)),
-      builder.loadFrom(builderStateOffset(src)))
+    Code.memoize(src, "take_rvas_src") { src =>
+      Code(
+        regionLoader(r),
+        maxSize := Region.loadInt(maxSizeOffset(src)),
+        builder.loadFrom(builderStateOffset(src)))
+    }
 
   override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
-    region.isValid.orEmpty(
-      Code(
-        regionStorer(region),
-        region.invalidate(),
-        Region.storeInt(maxSizeOffset(dest), maxSize),
-        builder.storeTo(builderStateOffset(dest))))
+    Code.memoize(dest, "ta_store_dest") { dest =>
+      region.isValid.orEmpty(
+        Code(
+          regionStorer(region),
+          region.invalidate(),
+          Region.storeInt(maxSizeOffset(dest), maxSize),
+          builder.storeTo(builderStateOffset(dest))))
+    }
 
   def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
     { ob: Value[OutputBuffer] =>
@@ -102,10 +106,11 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
   }
 
   def copyFrom(src: Code[Long]): Code[Unit] = {
-    Code(
-      maxSize := Region.loadInt(maxSizeOffset(src)),
-      builder.copyFrom(builderStateOffset(src))
-    )
+    Code.memoize(src, "takervas_copy_from_src") { src =>
+      Code(
+        maxSize := Region.loadInt(maxSizeOffset(src)),
+        builder.copyFrom(builderStateOffset(src)))
+    }
   }
 }
 

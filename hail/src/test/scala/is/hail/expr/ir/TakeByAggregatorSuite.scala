@@ -15,7 +15,7 @@ class TakeByAggregatorSuite extends HailSuite {
       val stringPT = PString(true)
       val tba = new TakeByRVAS(PString(true), PInt64Optional, PArray(stringPT, required = true), fb)
       Region.scoped { r =>
-        val argR = fb.getArg[Region](1).load()
+        val argR = fb.getArg[Region](1)
         val i = fb.newField[Long]
         val off = fb.newField[Long]
         val rt = tba.resultType
@@ -48,7 +48,7 @@ class TakeByAggregatorSuite extends HailSuite {
     val fb = EmitFunctionBuilder[Region, Long]("take_by_test_missing")
     val tba = new TakeByRVAS(PInt32Optional, PInt32Optional, PArray(PInt32Optional, required = true), fb)
     Region.scoped { r =>
-      val argR = fb.getArg[Region](1).load()
+      val argR = fb.getArg[Region](1)
       val rt = tba.resultType
 
       fb.emit(Code(Code(FastIndexedSeq(

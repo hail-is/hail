@@ -91,9 +91,11 @@ class TypedRegionBackedAggState(val typ: PType, val fb: EmitFunctionBuilder[_]) 
   override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     Code(super.load(r => r.invalidate(), src), off := src)
   override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
-    Code(region.isValid.orEmpty(dest.cne(off).orEmpty(
-      Region.copyFrom(off, dest, const(storageType.byteSize)))),
-      super.store(regionStorer, dest))
+    Code.memoize(dest, "trbas_dest") { dest =>
+      Code(region.isValid.orEmpty(dest.cne(off).orEmpty(
+        Region.copyFrom(off, dest, const(storageType.byteSize)))),
+        super.store(regionStorer, dest))
+    }
 
   def storeMissing(): Code[Unit] = storageType.setFieldMissing(off, 0)
   def storeNonmissing(v: Code[_]): Code[Unit] = Code(
