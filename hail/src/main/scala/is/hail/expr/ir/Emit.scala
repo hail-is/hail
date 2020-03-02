@@ -116,6 +116,10 @@ case class EmitTriplet(setup: Code[Unit], m: Code[Boolean], pv: PValue) {
   def map(f: PValue => PValue): EmitTriplet = copy(pv = f(pv))
 }
 
+object EmitTriplet {
+  def present(pt: PType, v: Code[_]): EmitTriplet = EmitTriplet(Code._empty, false, PValue(pt, v))
+}
+
 case class LoopRef(m: ClassFieldRef[Boolean], v: PSettable[PValue], tempM: LocalRef[Boolean], tempV: PSettable[PValue])
 
 abstract class MethodBuilderLike[M <: MethodBuilderLike[M]] {

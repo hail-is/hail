@@ -681,16 +681,17 @@ object EmitStream2 {
 
       streamIR match {
 
-        case StreamRange(startIR, stopIR, stepIR) =>
+        case x@StreamRange(startIR, stopIR, stepIR) =>
+          val eltType = coerce[PStream](x.pType).elementType
           val step = fb.newField[Int]("sr_step")
           val start = fb.newField[Int]("sr_start")
           val stop = fb.newField[Int]("sr_stop")
           val llen = fb.newField[Long]("sr_llen")
           val len = mb.newLocal[Int]
 
-          val startt = emitIR(startIR, env)
-          val stopt = emitIR(stopIR, env)
-          val stept = emitIR(stepIR, env)
+          val startt = emitIR(startIR)
+          val stopt = emitIR(stopIR)
+          val stept = emitIR(stepIR)
 
           new COption[SizedStream] {
             def apply(none: Code[Ctrl], some: SizedStream => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
@@ -712,7 +713,7 @@ object EmitStream2 {
                       Code._fatal("Array range cannot have more than MAXINT elements."),
                       some(SizedStream(
                         range(start, step, llen.toI)
-                          .map(i => EmitTriplet(Code._empty, const(false), i)),
+                          .map(i => EmitTriplet(Code._empty, const(false), PValue(eltType, i))),
                         Some((len := llen.toI, len))))))))
             }
           }
@@ -721,13 +722,13 @@ object EmitStream2 {
           val aType = coerce[PContainer](containerIR.pType)
           val eltType = aType.elementType
 
-          COption.fromEmitTriplet[Long](emitIR(containerIR, env)).mapCPS { (containerAddr, k) =>
+          COption.fromEmitTriplet[Long](emitIR(containerIR)).mapCPS { (containerAddr, k) =>
             val xAddr = fb.newField[Long]("a_off")
             val newStream = range(0, 1, aType.loadLength(xAddr)).map { i =>
               EmitTriplet(
                 Code._empty,
                 aType.isElementMissing(xAddr, i),
-                Region.loadIRIntermediate(eltType)(aType.elementOffset(xAddr, i)))
+                PValue(eltType, Region.loadIRIntermediate(eltType)(aType.elementOffset(xAddr, i))))
             }
             val len = mb.newLocal[Int]
 
@@ -736,6 +737,30 @@ object EmitStream2 {
               k(SizedStream(
                 newStream,
                 Some((len := aType.loadLength(xAddr), len)))))
+          }
+
+        case x@ReadPartition(pathIR, spec, requestedType) =>
+          val eltType = coerce[PStream](x.pType).elementType
+          val strType = coerce[PString](pathIR.pType)
+
+          val (_, dec) = spec.buildEmitDecoderF[Long](requestedType, fb)
+
+          COption.fromEmitTriplet[Long](emitIR(pathIR)).map { path =>
+            val pathString = strType.loadString(path)
+            val xRowBuf = mb.newLocal[InputBuffer]
+            val stream = unfold[Code[Long], Unit](
+              (),
+              (_, _, k) =>
+                k(COption(
+                  !xRowBuf.load().readByte().toZ,
+                  (dec(er.region, xRowBuf.load()), ())))
+            ).map(
+              EmitTriplet.present(eltType, _),
+              setup0 = Some(xRowBuf := Code._null),
+              setup = Some(xRowBuf := spec
+                .buildCodeInputBuffer(fb.getUnsafeReader(pathString, true))))
+
+            SizedStream(stream, None)
           }
 
         case StreamMap(childIR, name, bodyIR) =>
@@ -1595,7 +1620,6 @@ object EmitStream {
     container: Option[AggContainer]
   ): EmitStream = {
     val fb = emitter.mb.fb
-    def present(pt: PType, v: Code[_]): EmitTriplet = EmitTriplet(Code._empty, false, PValue(pt, v))
 
     def emitIR(ir: IR, env: Emit.E): EmitTriplet =
       emitter.emit(ir, env, er, container)
@@ -1609,7 +1633,7 @@ object EmitStream {
           val EmitTriplet(_, m, v) = emitter.normalArgument(i, t)
           fromIterator[RegionValue]
             .map { (rv: Code[RegionValue]) =>
-              present(eltPType, Region.loadIRIntermediate(eltPType)(rv.invoke[Long]("getOffset")))
+              EmitTriplet.present(eltPType, Region.loadIRIntermediate(eltPType)(rv.invoke[Long]("getOffset")))
             }
             .guardParam { (_, k) =>
               m.mux(k(None), k(Some(coerce[Iterator[RegionValue]](v.code))))
@@ -1621,7 +1645,7 @@ object EmitStream {
 
           val (pt, dec) = spec.buildEmitDecoderF(requestedType, fb)
 
-          read(dec(er.region, _)).map(present(pt, _)).guardParam { (_, k) =>
+          read(dec(er.region, _)).map(EmitTriplet.present(pt, _)).guardParam { (_, k) =>
             val rowBuf = spec.buildCodeInputBuffer(fb.getUnsafeReader(pathString, true))
             Code(p.setup, p.m.mux(k(None), k(Some(rowBuf))))
           }
@@ -1635,54 +1659,6 @@ object EmitStream {
               EmitTriplet(et.setup, et.m, e.copyFromPValue(er.mb, er.region, et.pv))
             })
           }).map(_.untyped)
-
-        case x@StreamRange(startIR, stopIR, stepIR) =>
-          val step = fb.newField[Int]("sr_step")
-          val start = fb.newField[Int]("sr_start")
-          val stop = fb.newField[Int]("sr_stop")
-          val llen = fb.newField[Long]("sr_llen")
-
-          range(start, step)
-            .map(present(x.pType.asInstanceOf[PStream].elementType, _))
-            .guardParam { (_, k) =>
-              val startt = emitIR(startIR, env)
-              val stopt = emitIR(stopIR, env)
-              val stept = emitIR(stepIR, env)
-              Code(startt.setup, stopt.setup, stept.setup,
-                (startt.m || stopt.m || stept.m).mux(
-                  k(None),
-                  Code(
-                    start := startt.value,
-                    stop := stopt.value,
-                    step := stept.value,
-                    (step ceq 0).orEmpty(Code._fatal("Array range cannot have step size 0.")),
-                    llen := (step < 0).mux(
-                      (start <= stop).mux(0L, (start.toL - stop.toL - 1L) / (-step).toL + 1L),
-                      (start >= stop).mux(0L, (stop.toL - start.toL - 1L) / step.toL + 1L)),
-                    (llen > const(Int.MaxValue.toLong)).mux(
-                      Code._fatal("Array range cannot have more than MAXINT elements."),
-                      k(Some(llen.toI))))))
-            }
-
-        case ToStream(containerIR) =>
-          val pType = containerIR.pType.asInstanceOf[PContainer]
-          val eltPType = pType.elementType
-          val region = er.region
-          val aoff = fb.newField[Long]("a_off")
-          range(0, 1)
-            .map { i =>
-              EmitTriplet(Code._empty,
-                pType.isElementMissing(aoff, i),
-                PValue(eltPType, Region.loadIRIntermediate(eltPType)(pType.elementOffset(aoff, i))))
-            }
-            .guardParam { (_, k) =>
-              val arrt = emitIR(containerIR, env)
-              val len = pType.loadLength(aoff)
-              Code(arrt.setup,
-                arrt.m.mux(
-                  k(None),
-                  Code(aoff := arrt.value, k(Some(len)))))
-            }
 
         case _ =>
           fatal(s"not a streamable IR: ${Pretty(streamIR)}")
