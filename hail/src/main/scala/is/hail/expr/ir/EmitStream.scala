@@ -69,7 +69,7 @@ object COption {
     def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = missing.mux(none, some(value))
   }
 
-  // Empty is the only COption allowed to not call `some` at compile time
+  // None is the only COption allowed to not call `some` at compile time
   object None extends COption[Nothing] {
     def apply(none: Code[Ctrl], some: Nothing => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = none
   }
