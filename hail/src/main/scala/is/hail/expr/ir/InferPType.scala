@@ -233,7 +233,7 @@ object InferPType {
         infer(s)
         assert(i.pType2 isOfType PInt32())
 
-        coerce[PStreamable](a.pType2).elementType.setRequired(a.pType2.required && i.pType2.required)
+        coerce[PArray](a.pType2).elementType.setRequired(a.pType2.required && i.pType2.required)
       case ArraySort(a, leftName, rightName, compare) =>
         infer(a)
         val et = coerce[PStream](a.pType2).elementType
@@ -336,7 +336,7 @@ object InferPType {
         PNDArray(coerce[PNDArray](nd.pType2).elementType, shape.pType2.asInstanceOf[PTuple].size, nd.pType2.required)
       case NDArrayConcat(nds, _) =>
         infer(nds)
-        val ndtyp = coerce[PNDArray](coerce[PStreamable](nds.pType2).elementType)
+        val ndtyp = coerce[PNDArray](coerce[PArray](nds.pType2).elementType)
         ndtyp
       case NDArrayMap(nd, name, body) =>
         infer(nd)

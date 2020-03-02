@@ -503,7 +503,7 @@ private class Emit(
         }
         present(pt, Code(srvb.start(args.size, init = true), wrapToMethod(args)(addElts), srvb.offset))
       case x@ArrayRef(a, i, s) =>
-        val pArray = coerce[PStreamable](a.pType).asPArray
+        val pArray = coerce[PArray](a.pType)
         val codeA = emit(a)
         val codeI = emit(i)
         val errorTransformer: Code[String] => Code[String] = s match {
@@ -571,7 +571,7 @@ private class Emit(
             InferPType(compare, Env.empty)
             (a, compare, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _)), Array.empty[String])
           case ToDict(a) =>
-            val elementType = a.pType.asInstanceOf[PStreamable].elementType
+            val elementType = a.pType.asInstanceOf[PStream].elementType
             val (k0, k1, keyType) = elementType match {
               case t: PStruct => (GetField(In(0, elementType.virtualType), "key"), GetField(In(1, elementType.virtualType), "key"), t.fieldType("key"))
               case t: PTuple => (GetTupleElement(In(0, elementType.virtualType), 0), GetTupleElement(In(1, elementType.virtualType), 0), t.types(0))
@@ -630,7 +630,7 @@ private class Emit(
 
       case GroupByKey(collection) =>
         //sort collection by group
-        val atyp = coerce[PStreamable](collection.pType).asPArray
+        val atyp = coerce[PStream](collection.pType)
         val etyp = coerce[PBaseStruct](atyp.elementType)
         val ktyp = etyp.types(0)
         val vtyp = etyp.types(1)
@@ -711,7 +711,7 @@ private class Emit(
                       structbuilder.start(),
                       structbuilder.addIRIntermediate(ktyp)(loadKey(i)),
                       structbuilder.advance(),
-                      structbuilder.addArray(coerce[PStreamable](eltOut.types(1)).asPArray, { arraybuilder =>
+                      structbuilder.addArray(coerce[PArray](eltOut.types(1)), { arraybuilder =>
                         Code(
                           arraybuilder.start(coerce[Int](nab(srvb.arrayIdx))),
                           Code.whileLoop(arraybuilder.arrayIdx < coerce[Int](nab(srvb.arrayIdx)),
