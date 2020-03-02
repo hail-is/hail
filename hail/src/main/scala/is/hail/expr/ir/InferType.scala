@@ -150,6 +150,8 @@ object InferType {
         val tuplesOnly = slicesTyp.types.collect { case x: TTuple => x}
         val remainingDims = Nat(tuplesOnly.length)
         TNDArray(childTyp.elementType, remainingDims)
+      case NDArrayFilter(nd, _) =>
+        nd.typ
       case NDArrayMatMul(l, r) =>
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)

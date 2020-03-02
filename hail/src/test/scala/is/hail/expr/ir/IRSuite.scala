@@ -1864,6 +1864,21 @@ class IRSuite extends HailSuite {
     MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64())), MakeTuple.ordered(shape.map(I64)), rowMajor)
   }
 
+  def assertNDEvals(eltType: Type, nd: IR, expected: Array[Array[Any]])(implicit execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly): Unit = {
+    val arrayIR = if (expected == null) nd else {
+      val nRows = expected.length
+      val nCols = if (nRows == 0) 0 else expected.head.length
+      Let("nd", nd,
+        MakeArray(
+          Array.tabulate(nRows) { i =>
+            MakeArray(Array.tabulate(nCols) { j =>
+              makeNDArrayRef(Ref("nd", nd.typ), FastIndexedSeq(i, j))
+            }, TArray(eltType))
+          }, TArray(TArray(eltType))))
+    }
+    assertEvalsTo(arrayIR, if (expected == null) null else expected.map(_.toFastIndexedSeq).toFastIndexedSeq)
+  }
+
   def makeNDArrayRef(nd: IR, indxs: IndexedSeq[Long]): NDArrayRef = NDArrayRef(nd, indxs.map(I64))
 
   val scalarRowMajor = makeNDArray(FastSeq(3.0), FastSeq(), True())
@@ -1922,28 +1937,13 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNDArrayConcat() {
-    implicit val execStrats = ExecStrategy.compileOnly
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
     def nds(ndData: (IndexedSeq[Int], Long, Long)*): IR = {
       MakeArray(ndData.map { case (values, nRows, nCols) =>
         if (values == null) NA(TNDArray(TInt32(), Nat(2))) else
           MakeNDArray(Literal(TArray(TInt32()), values),
             Literal(TTuple(TInt64(), TInt64()), Row(nRows, nCols)), True())
       }, TArray(TNDArray(TInt32(), Nat(2))))
-    }
-
-    def assertNDEvals(nd: IR, expected: Array[Array[Int]]): Unit = {
-      val arrayIR = if (expected == null) nd else {
-        val nRows = expected.length
-        val nCols = if (nRows == 0) 0 else expected.head.length
-        Let("nd", nd,
-          MakeArray(
-            Array.tabulate(nRows) { i =>
-              MakeArray(Array.tabulate(nCols) { j =>
-                makeNDArrayRef(Ref("nd", nd.typ), FastIndexedSeq(i, j))
-              }, TArray(TInt32()))
-            }, TArray(TArray(TInt32()))))
-      }
-      assertEvalsTo(arrayIR, if (expected == null) null else expected.map(_.toFastIndexedSeq).toFastIndexedSeq)
     }
 
     val nd1 = (FastIndexedSeq(
@@ -1963,28 +1963,28 @@ class IRSuite extends HailSuite {
     val emptyColwise = (FastIndexedSeq(), 2L, 0L)
     val na = (null, 0L, 0L)
 
-    val rowwiseExpected = Array(
+    val rowwiseExpected: Array[Array[Any]] = Array(
       Array(0, 1, 2),
       Array(3, 4, 5),
       Array(6, 7, 8),
       Array(9, 10, 11),
       Array(12, 13, 14))
-    val colwiseExpected = Array(
+    val colwiseExpected: Array[Array[Any]] = Array(
       Array(0, 1, 2, 15, 16),
       Array(3, 4, 5, 17, 18))
 
-    assertNDEvals(NDArrayConcat(nds(nd1, rowwise), 0), rowwiseExpected)
-    assertNDEvals(NDArrayConcat(nds(nd1, rowwise, emptyRowwise), 0), rowwiseExpected)
-    assertNDEvals(NDArrayConcat(nds(nd1, emptyRowwise, rowwise), 0), rowwiseExpected)
+    assertNDEvals(TInt32(), NDArrayConcat(nds(nd1, rowwise), 0), rowwiseExpected)
+    assertNDEvals(TInt32(), NDArrayConcat(nds(nd1, rowwise, emptyRowwise), 0), rowwiseExpected)
+    assertNDEvals(TInt32(), NDArrayConcat(nds(nd1, emptyRowwise, rowwise), 0), rowwiseExpected)
 
-    assertNDEvals(NDArrayConcat(nds(nd1, colwise), 1), colwiseExpected)
-    assertNDEvals(NDArrayConcat(nds(nd1, colwise, emptyColwise), 1), colwiseExpected)
-    assertNDEvals(NDArrayConcat(nds(nd1, emptyColwise, colwise), 1), colwiseExpected)
+    assertNDEvals(TInt32(), NDArrayConcat(nds(nd1, colwise), 1), colwiseExpected)
+    assertNDEvals(TInt32(), NDArrayConcat(nds(nd1, colwise, emptyColwise), 1), colwiseExpected)
+    assertNDEvals(TInt32(), NDArrayConcat(nds(nd1, emptyColwise, colwise), 1), colwiseExpected)
 
     // FIXME: This is changing type during PruneDeadFields for some reason...
-//    assertNDEvals(NDArrayConcat(nds(nd1, na), 1), null)
-    assertNDEvals(NDArrayConcat(nds(na, na), 1), null)
-    assertNDEvals(NDArrayConcat(NA(TArray(TNDArray(TInt32(), Nat(2)))), 1), null)
+//    assertNDEvals(TInt32(), NDArrayConcat(nds(nd1, na), 1), null)
+    assertNDEvals(TInt32(), NDArrayConcat(nds(na, na), 1), null)
+    assertNDEvals(TInt32(), NDArrayConcat(NA(TArray(TNDArray(TInt32(), Nat(2)))), 1), null)
   }
 
   @Test def testNDArrayMap() {
@@ -2137,6 +2137,46 @@ class IRSuite extends HailSuite {
 
     val scalarSlice = NDArraySlice(scalarRowMajor, MakeTuple.ordered(FastSeq()))
     assertEvalsTo(makeNDArrayRef(scalarSlice, FastIndexedSeq()), 3.0)
+  }
+
+  @Test def testNDArrayFilter() {
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
+
+    assertNDEvals(TFloat64(),
+      NDArrayFilter(matrixRowMajor, FastIndexedSeq(NA(TArray(TInt64())), NA(TArray(TInt64())))),
+      Array(Array(1.0, 2.0),
+        Array(3.0, 4.0)))
+
+    assertNDEvals(TFloat64(),
+      NDArrayFilter(matrixRowMajor, FastIndexedSeq(
+        MakeArray(FastIndexedSeq(I64(0), I64(1)), TArray(TInt64())),
+        MakeArray(FastIndexedSeq(I64(0), I64(1)), TArray(TInt64())))),
+      Array(Array(1.0, 2.0),
+        Array(3.0, 4.0)))
+
+    assertNDEvals(TFloat64(),
+      NDArrayFilter(matrixRowMajor, FastIndexedSeq(
+        MakeArray(FastIndexedSeq(I64(1), I64(0)), TArray(TInt64())),
+        MakeArray(FastIndexedSeq(I64(1), I64(0)), TArray(TInt64())))),
+      Array(Array(4.0, 3.0),
+        Array(2.0, 1.0)))
+
+    assertNDEvals(TFloat64(),
+      NDArrayFilter(matrixRowMajor, FastIndexedSeq(
+        MakeArray(FastIndexedSeq(I64(0)), TArray(TInt64())), NA(TArray(TInt64())))),
+      Array(Array(1.0, 2.0)))
+
+    assertNDEvals(TFloat64(),
+      NDArrayFilter(matrixRowMajor, FastIndexedSeq(
+        NA(TArray(TInt64())), MakeArray(FastIndexedSeq(I64(0)), TArray(TInt64())))),
+      Array(Array(1.0),
+        Array(3.0)))
+
+    assertNDEvals(TFloat64(),
+      NDArrayFilter(matrixRowMajor, FastIndexedSeq(
+        MakeArray(FastIndexedSeq(I64(1)), TArray(TInt64())),
+        MakeArray(FastIndexedSeq(I64(1)), TArray(TInt64())))),
+      Array(Array(4.0)))
   }
 
   @Test def testLeftJoinRightDistinct() {
@@ -2568,6 +2608,7 @@ class IRSuite extends HailSuite {
       NDArrayMatMul(nd, nd),
       NDArraySlice(nd, MakeTuple.ordered(FastSeq(MakeTuple.ordered(FastSeq(F64(0), F64(2), F64(1))),
                                          MakeTuple.ordered(FastSeq(F64(0), F64(2), F64(1)))))),
+      NDArrayFilter(nd, FastIndexedSeq(NA(TArray(TInt64())), NA(TArray(TInt64())))),
       ArrayRef(a, i),
       ArrayLen(a),
       StreamRange(I32(0), I32(5), I32(1)),
