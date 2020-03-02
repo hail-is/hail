@@ -271,7 +271,6 @@ class EmitStreamSuite extends HailSuite {
     }
     val fb = new EmitFunctionBuilder[F](argTypeInfos.result(), GenericTypeInfo[Long])
     val mb = fb.apply_method
-                println(s"STREAM IR IS ${streamIR}")
     InferPType(streamIR, Env.empty)
     val stream = ExecuteContext.scoped { ctx =>
       val s = streamIR match {
@@ -280,8 +279,8 @@ class EmitStreamSuite extends HailSuite {
       }
       EmitStream(new Emit(ctx, mb), s, Env.empty, EmitRegion.default(mb), None)
     }
+            println(s"stream elementType ${stream.elementType}")
     mb.emit {
-      println(s"STREAM TYPE IS ${stream.elementType}")
       val arrayt = stream
         .toArrayIterator(mb)
         .toEmitTriplet(mb, PArray(stream.elementType))
