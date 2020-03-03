@@ -326,7 +326,7 @@ object TestUtils {
 
     val t = x.typ
     assert(t.typeCheck(expected), t)
-    println("past type check")
+
     ExecuteContext.scoped { ctx =>
       val filteredExecStrats: Set[ExecStrategy] =
         if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
@@ -341,14 +341,11 @@ object TestUtils {
             case ExecStrategy.Interpret =>
               assert(agg.isEmpty)
               Interpret[Any](ctx, x, env, args)
-              println("past interpret")
             case ExecStrategy.InterpretUnoptimized =>
               assert(agg.isEmpty)
               Interpret[Any](ctx, x, env, args, optimize = false)
             case ExecStrategy.JvmCompile =>
-              println("in compile")
               assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
-              println("about to eval")
               val r = eval(x, env, args, agg, bytecodePrinter =
                 Option(HailContext.getFlag("jvm_bytecode_dump"))
                   .map { path =>
@@ -356,10 +353,8 @@ object TestUtils {
                     pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(x)}\n */\n\n")
                     pw
                   })
-              print("past eval in compile")
               r
             case ExecStrategy.JvmCompileUnoptimized =>
-              println("in jvmcompileunoptimized")
               assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
               eval(x, env, args, agg, bytecodePrinter =
                 Option(HailContext.getFlag("jvm_bytecode_dump"))
@@ -369,10 +364,8 @@ object TestUtils {
                     pw
                   },
                 optimize = false)
-            case ExecStrategy.LoweredJVMCompile => {
-              println("in lowered execute")
+            case ExecStrategy.LoweredJVMCompile =>
               loweredExecute(x, env, args, agg)
-            }
           }
           assert(t.typeCheck(res))
           assert(t.valuesSimilar(res, expected), s"\n  result=$res\n  expect=$expected\n  strategy=$strat)")

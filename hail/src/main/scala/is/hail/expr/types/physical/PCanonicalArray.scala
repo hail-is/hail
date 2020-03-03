@@ -442,7 +442,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   private def constructOrCopyWithLen(mb: MethodBuilder, region: Code[Region], srcArray: PArray, srcAddress: LocalRef[Long], len: LocalRef[Int], forceDeep: Boolean): Code[Long] = {
-    println(s"Called constructOrCopyWithLen ${srcArray}, ${this}")
     if (srcArray == this) {
       if (forceDeep) {
         val newAddr = mb.newLocal[Long]
@@ -454,8 +453,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       } else
         srcAddress
     } else {
-      log.info(s"coercing array of type $srcArray to $this")
-
       assert(elementType.required <= srcArray.elementType.required)
 
       val newAddr = mb.newLocal[Long]

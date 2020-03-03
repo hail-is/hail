@@ -88,7 +88,6 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
   }
 
   def result(srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
-    println("CALLED FUCKER\n\n\n")
     srvb.addArray(resultType, { rvb =>
       val (eltIMissing, eltOffset) = builder.elementOffset(rvb.arrayIdx)
       Code(
