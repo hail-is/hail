@@ -39,12 +39,12 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   def isFieldDefined(offset: Long, fieldIdx: Int): Boolean =
     fieldRequired(fieldIdx) || !Region.loadBit(offset, missingIdx(fieldIdx))
 
-  def isFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Boolean] = {
+  def isFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Boolean] =
     if (fieldRequired(fieldIdx))
       false
     else
       Region.loadBit(offset, missingIdx(fieldIdx).toLong)
-  }
+
   def setFieldMissing(offset: Long, fieldIdx: Int) {
     assert(!fieldRequired(fieldIdx))
     Region.setBit(offset, missingIdx(fieldIdx))

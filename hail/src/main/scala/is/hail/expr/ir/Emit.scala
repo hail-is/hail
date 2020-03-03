@@ -915,28 +915,10 @@ private class Emit(
           srvb.offset))
 
       case x@CombOpValue(i, value, sig) =>
-        val AggContainer(aggs, sc) = container.get
-        val aggSig = aggs(i)
-        val rvAgg = agg.Extract.getAgg(aggSig, aggSig.default)
-        val newState = rvAgg.createState(mb.fb)
-
-        val t = value.pType.asInstanceOf[PBinary]
-        val xValue = emit(value)
-        EmitTriplet(
-          Code(xValue.setup,
-          xValue.m.mux(
-            Code._fatal("cannot combOp a missing value"),
-            Code(
-              newState.createState,
-              newState.deserializeFromBytes(t, coerce[Long](xValue.v)),
-              rvAgg.combOp(sc.states(i), newState)
-            ))),
-          const(false),
-          PValue._empty)
+        throw new NotImplementedError("CombOpValue emitter cannot be implemented until physical type passed across serialization boundary")
 
       case x@AggStateValue(i, _) =>
-        val AggContainer(_, sc) = container.get
-        present(pt, sc.states(i).serializeToRegion(coerce[PBinary](x.pType), region))
+        throw new NotImplementedError("AggStateValue emitter cannot be implemented until physical type passed across serialization boundary")
 
       case x@SerializeAggs(start, sIdx, spec, sigs) =>
         val AggContainer(_, sc) = container.get

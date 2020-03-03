@@ -577,10 +577,8 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
 
   val resultType: PArray = PArray(valueType)
 
-  def createState(fb: EmitFunctionBuilder[_]): State = {
-    println(s"in createState, types are ${valueType}, ${keyType}")
+  def createState(fb: EmitFunctionBuilder[_]): State =
     new TakeByRVAS(valueType, keyType, resultType, fb)
-  }
 
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     assert(init.length == 1)

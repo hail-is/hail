@@ -280,7 +280,6 @@ class EmitStreamSuite extends HailSuite {
       }
       EmitStream(new Emit(ctx, mb), s, Env.empty, EmitRegion.default(mb), None)
     }
-            println(s"stream elementType ${stream.elementType}")
     mb.emit {
       val arrayt = stream
         .toArrayIterator(mb)

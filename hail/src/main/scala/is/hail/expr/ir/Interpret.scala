@@ -663,8 +663,6 @@ object Interpret {
               val init = initOp(i, partRegion)
               val seqOps = partitionOpSeq(i, partRegion)
 
-//              println(s"BEFORE SMALLSCOPED - i=$i, rTyp=$rTyp")
-
               Region.smallScoped { aggRegion =>
                 init.newAggState(aggRegion)
                 init(partRegion, globalsOffset, false)
@@ -681,12 +679,11 @@ object Interpret {
             val resF = f(0, r)
             Region.smallScoped { aggRegion =>
               resF.setAggState(aggRegion, read(aggRegion, aggResults))
-//              println(s"BEFORE SAFEROWREAD - rTyp=$rTyp")
               SafeRow(rTyp, r, resF(r, globalsOffset, false))
             }
           }
         }
-//        println(s"AFTER SAFEROWREAD")
+
         wrapped.get(0)
       case LiftMeOut(child) =>
         val (rt, makeFunction) = Compile[Long](ctx, MakeTuple.ordered(FastSeq(child)), None, false)

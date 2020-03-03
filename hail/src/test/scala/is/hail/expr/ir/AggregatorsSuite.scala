@@ -22,9 +22,6 @@ class AggregatorsSuite extends HailSuite {
     seqOpArgs: IndexedSeq[IR]) {
 
     val aggSig = AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ))
-    println(s"AGG in ${agg}")
-    println(s"aggSig ${aggSig}")
-    println(s"seqOpARgs ${seqOpArgs}")
     assertEvalsTo(
       ApplyAggOp(initOpArgs, seqOpArgs, aggSig),
       (agg, aggType),
@@ -294,8 +291,6 @@ class AggregatorsSuite extends HailSuite {
     )
 
   private[this] def assertTakeByEvalsTo(aggType: Type, keyType: Type, n: Int, a: IndexedSeq[Row], expected: IndexedSeq[Any]) {
-    println(s"A IS ${a}")
-    println(s"Key type is ${keyType}, aggType is ${aggType}")
     runAggregator(TakeBy(), TStruct("x" -> aggType, "y" -> keyType),
       a,
       expected,
