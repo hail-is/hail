@@ -52,7 +52,7 @@ object ArrayFunctions extends RegistryFunctions {
           ToStream(Ref(uid, a1.typ))))))
   }
 
-  def contains(a: IR, value: IR): IR = {
+  def exists(a: IR, cond: IR => IR): IR = {
     val t = -coerce[TArray](a.typ).elementType
     StreamFold(
       ToStream(a),
@@ -61,10 +61,14 @@ object ArrayFunctions extends RegistryFunctions {
       "elt",
       invoke("||",TBoolean(),
         Ref("acc", TBoolean()),
-        ApplyComparisonOp(
-          EQWithNA(t, value.typ),
-          Ref("elt", t),
-          value)))
+        cond(Ref("elt", t))))
+  }
+
+  def contains(a: IR, value: IR): IR = {
+    exists(a, elt => ApplyComparisonOp(
+      EQWithNA(elt.typ, value.typ),
+      elt,
+      value))
   }
 
   def sum(a: IR): IR = {
