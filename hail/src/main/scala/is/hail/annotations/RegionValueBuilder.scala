@@ -402,7 +402,7 @@ class RegionValueBuilder(var region: Region) {
   def addAnnotation(t: Type, a: Annotation) {
     if (a == null)
       setMissing()
-    else {
+    else
       t match {
         case _: TBoolean => addBoolean(a.asInstanceOf[Boolean])
         case _: TInt32 => addInt(a.asInstanceOf[Int])
@@ -478,7 +478,6 @@ class RegionValueBuilder(var region: Region) {
         case t: TNDArray =>
           addAnnotation(t.representation, a)
       }
-    }
   }
 
   def addInlineRow(t: PBaseStruct, a: Row) {
