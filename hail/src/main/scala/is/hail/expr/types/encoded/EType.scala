@@ -40,7 +40,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
       UnitInfo) { mb =>
 
       val arg = mb.getArg(1)(ptti)
-      val out: Code[OutputBuffer] = mb.getArg[OutputBuffer](2)
+      val out = mb.getArg[OutputBuffer](2)
       mb.emit(_buildEncoder(pt.fundamentalType, mb, arg, out))
     }
   }
@@ -97,7 +97,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     }).invoke(_, _)
   }
 
-  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit]
+  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Value[_], out: Value[OutputBuffer]): Code[Unit]
 
   def _buildDecoder(pt: PType, mb: MethodBuilder, region: Code[Region], in: Code[InputBuffer]): Code[_]
 

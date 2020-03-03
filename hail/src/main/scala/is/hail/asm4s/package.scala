@@ -54,6 +54,15 @@ package object asm4s {
   def coerce[T](c: Code[_]): Code[T] =
     c.asInstanceOf[Code[T]]
 
+  def coerce[T](c: Value[_]): Value[T] =
+    c.asInstanceOf[Value[T]]
+
+  def coerce[T](c: Gettable[_]): Gettable[T] =
+    c.asInstanceOf[Gettable[T]]
+
+  def coerce[T](c: Settable[_]): Settable[T] =
+    c.asInstanceOf[Settable[T]]
+
   implicit object BooleanInfo extends TypeInfo[Boolean] {
     val name = "Z"
     val loadOp = ILOAD
@@ -225,6 +234,8 @@ package object asm4s {
     def emit(il: Growable[AbstractInsnNode]): Unit =
       codes.foreach(_.emit(il))
   }
+
+  implicit def localRefToValue[T](f: LocalRef[T]): Value[T] = f.load()
 
   implicit def toCode[T](f: Settable[T]): Code[T] = f.load()
 

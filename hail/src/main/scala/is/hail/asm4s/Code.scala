@@ -395,6 +395,13 @@ trait Code[+T] {
         il += new JumpInsnNode(GOTO, lfalse)
       }
     }
+
+  private var emitted: Boolean = false
+
+  def markEmitted() {
+    assert(!emitted)
+    emitted = true
+  }
 }
 
 trait CodeConditional extends Code[Boolean] {
@@ -859,9 +866,34 @@ object FieldRef {
   }
 }
 
-trait Settable[T] {
-  def load(): Code[T]
+object Value {
+  def fromInsn[T](insn: => AbstractInsnNode): Value[T] = new Value[T] {
+    def emit(il: Growable[AbstractInsnNode]): Unit = {
+      il += insn
+    }
+  }
 
+  def apply[T](c: Code[_], insn: => AbstractInsnNode): Value[T] =
+    new Value[T] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c.emit(il)
+        il += insn
+      }
+    }
+
+  def apply[T](c: => Code[T]): Value[T] =
+    new Value[T] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = c.emit(il)
+    }
+}
+
+trait Value[T] extends Code[T]
+
+trait Gettable[T] {
+  def load(): Code[T]
+}
+
+trait Settable[T] extends Gettable[T] {
   def store(rhs: Code[T]): Code[Unit]
 
   def :=(rhs: Code[T]): Code[Unit] = store(rhs)
@@ -884,16 +916,16 @@ class LazyFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String, setup: Cod
 class ClassFieldRef[T: TypeInfo](fb: FunctionBuilder[_], f: Field[T]) extends Settable[T] {
   def name: String = f.name
 
-  private def _loadClass: Code[java.lang.Object] = fb.getArg[java.lang.Object](0).load()
+  private def _loadClass: Value[java.lang.Object] = fb.getArg[java.lang.Object](0).load()
 
-  def load(): Code[T] = f.get(_loadClass)
+  def load(): Value[T] = f.get(_loadClass)
 
   def store(rhs: Code[T]): Code[Unit] = f.put(_loadClass, rhs)
 }
 
 class LocalRef[T](val i: Int)(implicit tti: TypeInfo[T]) extends Settable[T] {
-  def load(): Code[T] =
-    new Code[T] {
+  def load(): Value[T] =
+    new Value[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         il += new VarInsnNode(tti.loadOp, i)
       }
@@ -929,10 +961,10 @@ class FieldRef[T, S](f: reflect.Field)(implicit tct: ClassTag[T], sti: TypeInfo[
 
   def putOp = if (isStatic) PUTSTATIC else PUTFIELD
 
-  def get(): Code[S] = get(null)
+  def get(): Code[S] = get(null: Value[T])
 
-  def get(lhs: Code[T]): Code[S] =
-    new Code[S] {
+  private def emitGet(lhs: Code[T], il: Growable[AbstractInsnNode]): Value[S] =
+    new Value[S] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         if (!isStatic)
           lhs.emit(il)
@@ -940,6 +972,16 @@ class FieldRef[T, S](f: reflect.Field)(implicit tct: ClassTag[T], sti: TypeInfo[
           Type.getInternalName(tct.runtimeClass), f.getName, sti.name)
       }
     }
+
+  def get(lhs: Value[T]): Value[S] =
+    new Value[S] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = emitGet(lhs, il)
+    }
+
+  def get(lhs: Code[T]): Code[S] =
+    new Code[S] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = emitGet(lhs, il)
+  }
 
   def put(lhs: Code[T], rhs: Code[S]): Code[Unit] =
     new Code[Unit] {

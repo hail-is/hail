@@ -34,8 +34,8 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
     }
   }
 
-  def buildPrefixEncoder(pt: PArray, mb: MethodBuilder, array: Code[Long],
-    out: Code[OutputBuffer], prefixLength: Code[Int]
+  def buildPrefixEncoder(pt: PArray, mb: MethodBuilder, array: Value[Long],
+    out: Value[OutputBuffer], prefixLength: Code[Int]
   ): Code[Unit] = {
     val len = mb.newLocal[Int]("len")
     val prefixLen = mb.newLocal[Int]("prefixLen")
@@ -79,7 +79,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
       writeElems)
   }
 
-  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
+  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     val pa = pt.asInstanceOf[PArray]
     val array = coerce[Long](v)
     buildPrefixEncoder(pa, mb, array, out, pa.loadLength(array))

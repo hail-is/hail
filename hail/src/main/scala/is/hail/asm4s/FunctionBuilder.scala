@@ -23,6 +23,9 @@ class Field[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
   def get(obj: Code[_]): Code[T] =
     Code(obj, new FieldInsnNode(GETFIELD, classBuilder.name, name, desc))
 
+  def get(obj: Value[_]): Value[T] =
+    Value(obj, new FieldInsnNode(GETFIELD, classBuilder.name, name, desc))
+
   def put(obj: Code[_], v: Code[T]): Code[Unit] =
     Code(obj, v, new FieldInsnNode(PUTFIELD, classBuilder.name, name, desc))
 }

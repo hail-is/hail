@@ -200,10 +200,12 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
     serF.emit {
       val n = serF.newLocal[Long]
       val i = serF.newLocal[Int]
+      val b = serF.newLocal[Long]
       Code(
         foreachNode(serF, n) { Code(
           ob.writeBoolean(true),
-          bufferEType.buildPrefixEncoder(bufferType.fundamentalType, serF, buffer(n), ob, count(n)))
+          b := buffer(n),
+          bufferEType.buildPrefixEncoder(bufferType.fundamentalType, serF, b, ob, count(n)))
         },
         ob.writeBoolean(false))
     }
