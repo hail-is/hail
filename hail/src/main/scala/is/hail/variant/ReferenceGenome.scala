@@ -545,7 +545,8 @@ object ReferenceGenome {
             s"@1", references.keys.truncatable("\n  "))
         }
       case None =>
-        rg.addIRFunctions()
+        if (TaskContext.get() == null) // don't add IR functions on workers
+          rg.addIRFunctions()
         references += (rg.name -> rg)
     }
   }
