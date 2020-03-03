@@ -288,7 +288,7 @@ object Code {
 
   // FIXME: code should really carry around the stack so this type can be correct
   // Currently, this is a huge potential place for errors.
-  def _empty[T]: Code[T] = new Code[T] {
+  def _empty: Code[Unit] = new Code[Unit] {
     def emit(il: Growable[AbstractInsnNode]): Unit = {
     }
   }
@@ -841,7 +841,7 @@ class LazyFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String, setup: Cod
   private[this] val present: ClassFieldRef[Boolean] = fb.newField[Boolean](s"${name}_present")
 
   def load(): Code[T] =
-    Code(present.mux(Code._empty[Unit], Code(value := setup, present := true)), value)
+    Code(present.mux(Code._empty, Code(value := setup, present := true)), value)
 
   def store(rhs: Code[T]): Code[Unit] =
     throw new UnsupportedOperationException("cannot store new value into LazyFieldRef!")
@@ -895,7 +895,7 @@ class FieldRef[T, S](f: reflect.Field)(implicit tct: ClassTag[T], sti: TypeInfo[
 
   def putOp = if (isStatic) PUTSTATIC else PUTFIELD
 
-  def get(): Code[S] = get(Code._empty)
+  def get(): Code[S] = get(null)
 
   def get(lhs: Code[T]): Code[S] =
     new Code[S] {

@@ -55,7 +55,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
           )
         )
       } else
-        Code._empty[Unit]
+        Code._empty
 
     val i = mb.newLocal[Int]("i")
 
@@ -68,7 +68,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
         Code(
           pt.isElementDefined(array, i).mux(
             writeElemF(Region.loadIRIntermediate(pt.elementType)(elem), out), // XXX, get or loadIRIntermediate
-            Code._empty[Unit]),
+            Code._empty),
           i := i + const(1))))
 
     Code(

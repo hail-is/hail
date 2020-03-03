@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.annotations._
-import is.hail.asm4s.joinpoint.{Ctrl, JoinPoint, ParameterPack, ParameterStore, ParameterStoreTriplet, ParameterStoreArray, TypedTriplet}
+import is.hail.asm4s.joinpoint.{Ctrl, ParameterPack, ParameterStore, ParameterStoreTriplet, ParameterStoreArray, TypedTriplet}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.types.physical._
@@ -384,7 +384,7 @@ private class Emit(
           .foldRight(Code(
             mout := va.last.m,
             out := pt.defaultValue,
-            mout.mux(Code._empty[Unit], out := ir.pType.copyFromPValue(mb, er.region, va.last.pv)))) { case (i, comb) =>
+            mout.mux(Code._empty, out := ir.pType.copyFromPValue(mb, er.region, va.last.pv)))) { case (i, comb) =>
             va(i).m.mux[Unit](
               comb,
               Code(
@@ -562,7 +562,7 @@ private class Emit(
         val sorter = new ArraySorter(er, vab)
 
         val (array, compare, distinct, leftRightComparatorNames: Array[String]) = (x: @unchecked) match {
-          case ArraySort(a, l, r, comp) => (a, comp, Code._empty[Unit], Array(l, r))
+          case ArraySort(a, l, r, comp) => (a, comp, Code._empty, Array(l, r))
           case ToSet(a) =>
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
             val EmitTriplet(s, m, pv) = new Emit(ctx, discardNext).emit(ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType)), Env.empty, er, container)
@@ -2355,7 +2355,7 @@ abstract class NDArrayEmitter(
    val outputShapePType: PTuple,
    val outputElementPType: PType,
    val setupShape: Code[_],
-   val setupMissing: Code[Unit] = Code._empty[Unit],
+   val setupMissing: Code[Unit] = Code._empty,
    val missing: Code[Boolean] = false) {
 
   private val outputShapeVariables = (0 until nDims).map(_ => mb.newField[Long]).toArray

@@ -256,7 +256,7 @@ object UtilFunctions extends RegistryFunctions {
               rv.mux(
                 const(8),
                 const(0)))),
-            Code._empty[Unit]))
+            Code._empty))
 
         EmitTriplet(setup,
           ((M >> w) & 1).cne(0),
@@ -286,7 +286,7 @@ object UtilFunctions extends RegistryFunctions {
                 rv.mux(
                   const(8),
                   const(0)))),
-            Code._empty[Unit]))
+            Code._empty))
 
         EmitTriplet(setup,
           ((M >> w) & 1).cne(0),
