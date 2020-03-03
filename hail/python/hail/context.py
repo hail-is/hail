@@ -6,7 +6,7 @@ import hail
 from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, dictof
 from hail.utils import get_env_or_default
-from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler
+from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler, warn
 from hail.backend import Backend, ServiceBackend, SparkBackend
 
 import sys
@@ -41,8 +41,8 @@ class HailContext(object):
             if idempotent:
                 return
             else:
-                raise FatalError('Hail has already been initialized, restart session '
-                                 'or stop Hail to change configuration.')
+                warn('Hail has already been initialized. If this call was intended to change configuration,'
+                     ' close the session with hl.stop() first.')
 
         if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
