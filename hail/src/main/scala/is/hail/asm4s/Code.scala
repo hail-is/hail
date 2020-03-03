@@ -216,7 +216,7 @@ object Code {
   def invokeScalaObject[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
     val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
     val staticObj = FieldRef("MODULE$")(ClassTag(cls), ClassTag(cls), classInfo(ClassTag(cls)))
-    m.invoke(staticObj.get(), args)
+    m.invoke(staticObj.getField(), args)
   }
 
   def invokeScalaObject[S](cls: Class[_], method: String)(implicit sct: ClassTag[S]): Code[S] =
@@ -368,7 +368,7 @@ object Code {
   def getStatic[T: ClassTag, S: ClassTag : TypeInfo](field: String): Code[S] = {
     val f = FieldRef[T, S](field)
     assert(f.isStatic)
-    f.get(null)
+    f.getField(null)
   }
 
   def putStatic[T: ClassTag, S: ClassTag : TypeInfo](field: String, rhs: Code[S]): Code[Unit] = {
@@ -947,14 +947,14 @@ class FieldRef[T, S](f: reflect.Field)(implicit tct: ClassTag[T], sti: TypeInfo[
 
   def putOp = if (isStatic) PUTSTATIC else PUTFIELD
 
-  def get(): Code[S] = get(null: Value[T])
+  def getField(): Code[S] = getField(null: Value[T])
 
-  def get(lhs: Value[T]): Value[S] =
+  def getField(lhs: Value[T]): Value[S] =
     new Value[S] {
-      def get: Code[S] = self.get(lhs)
+      def get: Code[S] = self.getField(if (lhs != null) lhs.get else null)
     }
 
-  def get(lhs: Code[T]): Code[S] =
+  def getField(lhs: Code[T]): Code[S] =
     new Code[S] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         if (!isStatic)
@@ -978,7 +978,7 @@ class FieldRef[T, S](f: reflect.Field)(implicit tct: ClassTag[T], sti: TypeInfo[
 
 class CodeObject[T <: AnyRef : ClassTag](val lhs: Code[T]) {
   def getField[S](field: String)(implicit sct: ClassTag[S], sti: TypeInfo[S]): Code[S] =
-    FieldRef[T, S](field).get(lhs)
+    FieldRef[T, S](field).getField(lhs)
 
   def put[S](field: String, rhs: Code[S])(implicit sct: ClassTag[S], sti: TypeInfo[S]): Code[Unit] =
     FieldRef[T, S](field).put(lhs, rhs)
