@@ -1873,7 +1873,7 @@ private class Emit(
         val rb = mb.newLocal[OutputBuffer]
 
         val taskCtx = Code.invokeScalaObject[HailTaskContext](HailTaskContext.getClass, "get")
-        val enc = spec.buildEmitEncoderF(value.pType2, mb.fb, typeToTypeInfo(value.pType2))
+        val enc = spec.buildEmitEncoderF(value.pType, mb.fb, typeToTypeInfo(value.pType2))
 
         EmitTriplet(
           Code(
@@ -1882,7 +1882,7 @@ private class Emit(
             m.mux(
               Code(pv := Code._null[String], rb := Code._null[OutputBuffer]),
               Code(
-                pv := coerce[PString](pathPrefix.pType2).loadString(p.value[Long]),
+                pv := coerce[PString](pathPrefix.pType).loadString(p.value[Long]),
                 (!taskCtx.isNull).orEmpty(
                   pv := pv.load().concat("-").concat(taskCtx.invoke[String]("partSuffix"))),
                 rb := spec.buildCodeOutputBuffer(mb.fb.getUnsafeWriter(pv.load())),
