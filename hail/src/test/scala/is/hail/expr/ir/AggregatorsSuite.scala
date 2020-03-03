@@ -22,7 +22,6 @@ class AggregatorsSuite extends HailSuite {
     seqOpArgs: IndexedSeq[IR]) {
 
     val aggSig = AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ))
-
     assertEvalsTo(
       ApplyAggOp(initOpArgs, seqOpArgs, aggSig),
       (agg, aggType),

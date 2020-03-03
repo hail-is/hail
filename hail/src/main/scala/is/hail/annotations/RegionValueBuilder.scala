@@ -478,7 +478,6 @@ class RegionValueBuilder(var region: Region) {
         case t: TNDArray =>
           addAnnotation(t.representation, a)
       }
-
   }
 
   def addInlineRow(t: PBaseStruct, a: Row) {

@@ -22,7 +22,7 @@ case object PVoid extends PType {
     throw new UnsupportedOperationException("PVoid copyFromType is currently undefined")
 
   def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
-    throw new UnsupportedOperationException("PVoid copyFromTypeAndStackValue is currently undefined")
+    stackValue
 
   def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] =
     throw new NotImplementedError(s"$this is not constructable")

@@ -93,7 +93,6 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   def deepPointerCopy(mb: MethodBuilder, region: Code[Region], dstStructAddress: Code[Long]): Code[Unit] = {
     var c: Code[Unit] = Code._empty
-
     var i = 0
     while(i < this.size) {
       val dstFieldType = this.fields(i).typ.fundamentalType
@@ -158,6 +157,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   def copyFromType(region: Region, srcPType: PType, srcStructAddress: Long, forceDeep: Boolean): Long = {
     val sourceType = srcPType.asInstanceOf[PBaseStruct]
+
     if (this == sourceType && !forceDeep)
       srcStructAddress
     else {
@@ -175,9 +175,8 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
       var c: Code[Unit] = Code(
         addrVar := addr,
         Region.copyFrom(srcAddress, addrVar, byteSize))
-      if (forceDeep) {
+      if (forceDeep)
         c = Code(c, deepPointerCopy(mb, region, addrVar))
-      }
       c
     } else {
       val srcAddrVar = mb.newLocal[Long]

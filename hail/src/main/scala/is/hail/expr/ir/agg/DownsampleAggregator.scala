@@ -51,7 +51,6 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
 
   def createState: Code[Unit] = region.isNull.mux(r := Region.stagedCreate(regionSize), Code._empty)
 
-
   val binType = PStruct(required = true, "x" -> PInt32Required, "y" -> PInt32Required)
   val pointType = PStruct(required = true, "x" -> PFloat64Required, "y" -> PFloat64Required, "label" -> labelType)
 

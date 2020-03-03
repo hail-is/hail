@@ -67,8 +67,8 @@ object InferType {
       case ApplyComparisonOp(op, l, r) =>
         assert(l.typ isOfType r.typ)
         op match {
-          case _: Compare => TInt32(l.pType.required && r.pType.required)
-          case _ => TBoolean(l.pType.required && r.pType.required)
+          case _: Compare => TInt32()
+          case _ => TBoolean()
         }
       case a: ApplyIR => a.explicitNode.typ
       case a: AbstractApplyNode[_] =>

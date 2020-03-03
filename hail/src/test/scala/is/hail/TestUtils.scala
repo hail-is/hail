@@ -10,7 +10,7 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.{BindingEnv, MakeTuple, Subst}
 import is.hail.expr.ir.lowering.LowererUnsupportedOperation
 import is.hail.expr.types.MatrixType
-import is.hail.expr.types.physical.{PArray, PBaseStruct, PTuple, PType}
+import is.hail.expr.types.physical.{PArray, PBaseStruct, PCanonicalString, PCanonicalTuple, PStruct, PTuple, PTupleField, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
@@ -363,7 +363,8 @@ object TestUtils {
                     pw
                   },
                 optimize = false)
-            case ExecStrategy.LoweredJVMCompile => loweredExecute(x, env, args, agg)
+            case ExecStrategy.LoweredJVMCompile =>
+              loweredExecute(x, env, args, agg)
           }
           assert(t.typeCheck(res))
           assert(t.valuesSimilar(res, expected), s"\n  result=$res\n  expect=$expected\n  strategy=$strat)")

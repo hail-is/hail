@@ -453,7 +453,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       } else
         srcAddress
     } else {
-
       assert(elementType.required <= srcArray.elementType.required)
 
       val newAddr = mb.newLocal[Long]
