@@ -565,19 +565,19 @@ class RVD(
 
   def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD = {
 
-    val crdd: ContextRDD[RVDContext, RegionValue] = this.crdd.usingFreshContext.cmapPartitionsWithIndex{ (i, consumerCtx: RVDContext, iteratorToFilter) => {
-          val c = makeContext(i, consumerCtx)
-          iteratorToFilter.filter { rv =>
-            if (f(c, rv)) {
-              rv.region.move(consumerCtx.region)
-              true
-            }
-            else {
-              rv.region.clear()
-              false
-            }
-          }
+    val crdd: ContextRDD[RVDContext, RegionValue] = this.crdd.cmapPartitionsWithContextAndIndex{ (i, consumerCtx: RVDContext, iteratorToFilter) =>
+      val c = makeContext(i, consumerCtx)
+      val producerCtx = consumerCtx.freshContext
+      iteratorToFilter(producerCtx).filter { rv =>
+        val b = f(c, rv)
+        if (b) {
+          rv.region.move(consumerCtx.region)
         }
+        else {
+          rv.region.clear()
+        }
+        b
+      }
     }
     RVD(this.typ, this.partitioner, crdd)
   }
