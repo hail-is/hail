@@ -2391,11 +2391,11 @@ abstract class NDArrayEmitter(
   private def emitLoops(srvb: StagedRegionValueBuilder): Code[Unit] = {
     val idxVars = Array.tabulate(nDims) {_ => mb.newField[Long]}
     val loadedIdxVars = idxVars.map(_.load())
-    val storeElement = mb.newLocal(typeToTypeInfo(outputElementPType.virtualType)).asInstanceOf[LocalRef[Double]]
+    val storeElement = mb.newLocal(typeToTypeInfo(outputElementPType.virtualType)).asInstanceOf[LocalRef[Any]]
 
     val body =
       Code(
-        storeElement := outputElement(loadedIdxVars).asInstanceOf[Code[Double]],
+        storeElement := outputElement(loadedIdxVars).asInstanceOf[Code[Any]],
         srvb.addIRIntermediate(outputElementPType)(storeElement),
         srvb.advance()
       )
