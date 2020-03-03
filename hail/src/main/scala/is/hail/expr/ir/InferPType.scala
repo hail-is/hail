@@ -205,7 +205,7 @@ object InferPType {
         PType.canonical(vType, vType.required)
       case ApplyUnaryPrimOp(op, v) =>
         infer(v)
-        PType.canonical(UnaryOp.getReturnType(op, v.pType2.virtualType).setRequired(v.pType2.required))
+        PType.canonical(UnaryOp.getReturnType(op, v.pType2.virtualType)).setRequired(v.pType2.required)
       case ApplyComparisonOp(op, l, r) =>
         infer(l)
         infer(r)
@@ -274,9 +274,15 @@ object InferPType {
         infer(a)
         infer(body, env.bind(name, a.pType2.asInstanceOf[PStream].elementType))
         coerce[PStream](a.pType2).copy(body.pType2, a.pType2.required)
-      case StreamZip(as, names, body, _) =>
+      case StreamZip(as, names, body, behavior) =>
         as.foreach(infer(_))
-        infer(body, env.bindIterable(names.zip(as.map(_.pType2.asInstanceOf[PStream].elementType))))
+        val e = behavior match {
+          case ArrayZipBehavior.ExtendNA =>
+            env.bindIterable(names.zip(as.map(a => -a.pType2.asInstanceOf[PStream].elementType)))
+          case _ =>
+            env.bindIterable(names.zip(as.map(a => a.pType2.asInstanceOf[PStream].elementType)))
+        }
+        infer(body, e)
         coerce[PStream](as.head.pType2).copy(body.pType2, as.forall(_.pType2.required))
       case StreamFilter(a, name, cond) =>
         infer(a)
@@ -290,37 +296,64 @@ object InferPType {
         coerce[PStream](a.pType2).copy(coerce[PIterable](body.pType2).elementType, a.pType2.required)
       case StreamFold(a, zero, accumName, valueName, body) =>
         infer(zero)
-
         infer(a)
         infer(body, env.bind(accumName -> zero.pType2, valueName -> a.pType2.asInstanceOf[PStream].elementType))
-        assert(body.pType2 isOfType zero.pType2)
-
-        zero.pType2.setRequired(body.pType2.required)
+        if (body.pType2 != zero.pType2) {
+          val resPType = InferPType.getNestedElementPTypes(FastSeq(body.pType2, zero.pType2))
+          // the below does a two-pass inference to unify the accumulator with the body ptype.
+          // this is not ideal, may cause problems in the future.
+          clearPTypes(body)
+          infer(body, env.bind(accumName -> resPType, valueName -> a.pType2.asInstanceOf[PStream].elementType))
+          resPType
+        } else zero.pType2
       case StreamFor(a, value, body) =>
         infer(a)
         infer(body, env.bind(value -> a.pType2.asInstanceOf[PStream].elementType))
         PVoid
-      case StreamFold2(a, acc, valueName, seq, res) =>
+      case x@StreamFold2(a, acc, valueName, seq, res) =>
         infer(a)
         acc.foreach { case (_, accIR) => infer(accIR) }
-        val resEnv = env.bind(acc.map { case (name, accIR) => (name, accIR.pType2) }: _*)
-        val seqEnv = resEnv.bind(valueName -> a.pType2.asInstanceOf[PStream].elementType)
-        seq.foreach(infer(_, seqEnv))
-        infer(res, resEnv)
+        var seqEnv = env.bind(acc.map { case (name, accIR) => (name, accIR.pType2) }: _*)
+          .bind(valueName -> a.pType2.asInstanceOf[PStream].elementType)
+        var anyMismatch = false
+        x.accPTypes = seq.zip(acc.map(_._1)).map { case (seqIR, name) =>
+          infer(seqIR, seqEnv)
+          if (seqIR.pType2 != seqEnv.lookup(name)) {
+            anyMismatch = true
+            val resPType = InferPType.getNestedElementPTypes(FastSeq(seqIR.pType2, seqEnv.lookup(name)))
+            seqEnv = seqEnv.bind(name, resPType)
+            // the below does a two-pass inference to unify the accumulator with the body ptype.
+            // this is not ideal, may cause problems in the future.
+            resPType
+          } else seqIR.pType2
+        }
+
+        acc.indices.foreach {i =>
+          clearPTypes(seq(i))
+          infer(seq(i), seqEnv)
+        }
+
+        infer(res, seqEnv.delete(valueName))
         res.pType2.setRequired(res.pType2.required && a.pType2.required)
-      case StreamScan(a, zero, accumName, valueName, body) =>
+      case x@StreamScan(a, zero, accumName, valueName, body) =>
         infer(zero)
 
         infer(a)
         infer(body, env.bind(accumName -> zero.pType2, valueName -> a.pType2.asInstanceOf[PStream].elementType))
-        assert(body.pType2 isOfType zero.pType2)
+        x.accPType = if (body.pType2 != zero.pType2) {
+          val resPType = InferPType.getNestedElementPTypes(FastSeq(body.pType2, zero.pType2))
+          // the below does a two-pass inference to unify the accumulator with the body ptype.
+          // this is not ideal, may cause problems in the future.
+          clearPTypes(body)
+          infer(body, env.bind(accumName -> resPType, valueName -> a.pType2.asInstanceOf[PStream].elementType))
+          resPType
+        } else zero.pType2
 
-        val elementPType = zero.pType2.setRequired(body.pType2.required && zero.pType2.required)
-        coerce[PStream](a.pType2).copy(elementPType, a.pType2.required)
+        coerce[PStream](a.pType2).copy(elementType = x.accPType)
       case StreamLeftJoinDistinct(lIR, rIR, lName, rName, compare, join) =>
         infer(lIR)
         infer(rIR)
-        val e = env.bind(lName -> lIR.pType2.asInstanceOf[PStream].elementType, rName -> rIR.pType2.asInstanceOf[PStream].elementType)
+        val e = env.bind(lName -> lIR.pType2.asInstanceOf[PStream].elementType, rName -> -rIR.pType2.asInstanceOf[PStream].elementType)
 
         infer(compare, e)
         infer(join, e)
@@ -328,22 +361,25 @@ object InferPType {
         coerce[PStream](lIR.pType2).copy(join.pType2, lIR.pType2.required)
       case NDArrayShape(nd) =>
         infer(nd)
-        PTuple(nd.pType2.required, IndexedSeq.tabulate(nd.pType2.asInstanceOf[PNDArray].nDims)(_ => PInt64(true)): _*)
+        val r = nd.pType2.asInstanceOf[PNDArray].shape.pType
+        r.setRequired(r.required && nd.pType2.required)
       case NDArrayReshape(nd, shape) =>
         infer(nd)
         infer(shape)
 
-        PNDArray(coerce[PNDArray](nd.pType2).elementType, shape.pType2.asInstanceOf[PTuple].size, nd.pType2.required)
+        val shapeT = shape.pType2.asInstanceOf[PTuple]
+        PNDArray(coerce[PNDArray](nd.pType2).elementType, shapeT.size,
+          nd.pType2.required && shapeT.required && shapeT.types.forall(_.required))
       case NDArrayConcat(nds, _) =>
         infer(nds)
         val ndtyp = coerce[PNDArray](coerce[PArray](nds.pType2).elementType)
-        ndtyp
+        ndtyp.setRequired(nds.pType.required && ndtyp.required)
       case NDArrayMap(nd, name, body) =>
         infer(nd)
         val ndPType = nd.pType2.asInstanceOf[PNDArray]
         infer(body, env.bind(name -> ndPType.elementType))
 
-        PNDArray(body.pType2, ndPType.nDims, nd.pType2.required)
+        PNDArray(body.pType2.setRequired(true), ndPType.nDims, nd.pType2.required)
       case NDArrayMap2(l, r, lName, rName, body) =>
         infer(l)
         infer(r)
@@ -353,7 +389,7 @@ object InferPType {
 
         InferPType(body, env.bind(lName -> lPType.elementType, rName -> rPType.elementType))
 
-        PNDArray(body.pType2, lPType.nDims, l.pType2.required || r.pType2.required)
+        PNDArray(body.pType2.setRequired(true), lPType.nDims, l.pType2.required && r.pType2.required)
       case NDArrayReindex(nd, indexExpr) =>
         infer(nd)
 
@@ -376,8 +412,11 @@ object InferPType {
       case NDArraySlice(nd, slices) =>
         infer(nd)
         infer(slices)
-        val remainingDims = coerce[PTuple](slices.pType2).types.filter(_.isInstanceOf[PTuple])
-        PNDArray(coerce[PNDArray](nd.pType2).elementType, remainingDims.length, remainingDims.forall(_.required))
+        val slicesPT = coerce[PTuple](slices.pType2)
+        val remainingDims = slicesPT.types.filter(_.isInstanceOf[PTuple])
+        PNDArray(coerce[PNDArray](nd.pType2).elementType, remainingDims.length,
+          slicesPT.required && slicesPT.types.forall(_.required)
+            && remainingDims.iterator.flatMap(t => coerce[PTuple](t).types).forall(_.required) && nd.pType2.required)
       case NDArrayFilter(nd, filters) =>
         infer(nd)
         filters.foreach(infer(_))

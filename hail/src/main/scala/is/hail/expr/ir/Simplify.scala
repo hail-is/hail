@@ -153,9 +153,9 @@ object Simplify {
 
     case IsNA(x) if isDefinitelyDefined(x) => False()
 
-    case x@If(True(), cnsq, _) if x.typ == cnsq.typ => cnsq
+    case x@If(True(), cnsq, _) => cnsq
 
-    case x@If(False(), _, altr) if x.typ == altr.typ => altr
+    case x@If(False(), _, altr) => altr
 
     case If(c, cnsq, altr) if cnsq == altr =>
       if (cnsq.typ.required)
@@ -170,8 +170,9 @@ object Simplify {
     case If(c1, cnsq1, If(c2, _, altr2)) if c1 == c2 => If(c1, cnsq1, altr2)
 
     case Cast(x, t) if x.typ == t => x
+    case Cast(Cast(x, _), t) if x.typ.isOfType(t) =>x
 
-    case CastRename(x, t) if x.typ == t => x
+    case CastRename(x, t) if x.typ isOfType t => x
 
     case ApplyBinaryPrimOp(Add(), I32(0), x) => x
     case ApplyBinaryPrimOp(Add(), x, I32(0)) => x
@@ -209,7 +210,7 @@ object Simplify {
     case StreamFlatMap(StreamMap(a, n1, b1), n2, b2) =>
       StreamFlatMap(a, n1, Let(n2, b1, b2))
 
-    case StreamMap(a, elt, r: Ref) if r.name == elt && r.typ == a.typ.asInstanceOf[TIterable].elementType => a
+    case StreamMap(a, elt, r: Ref) if r.name == elt => a
 
     case StreamMap(StreamMap(a, n1, b1), n2, b2) =>
       StreamMap(a, n1, Let(n2, b1, b2))
@@ -269,7 +270,7 @@ object Simplify {
 
     case top@Let(x, Let(y, yVal, yBody), xBody) if (x != y) => Let(y, yVal, Let(x, yBody, xBody))
 
-    case Let(name, x@InsertFields(old, newFields, fieldOrder), body) if x.typ.size < 500  && {
+    case l@Let(name, x@InsertFields(old, newFields, fieldOrder), body) if x.typ.size < 500  && {
       val r = Ref(name, x.typ)
       val nfSet = newFields.map(_._1).toSet
 
@@ -300,17 +301,17 @@ object Simplify {
       def copiedNewFieldRefs(): Array[(String, IR)] = fieldNames.map(name => (name, newFieldRefs(name).copy(FastSeq())))
 
       def rewrite(ir1: IR): IR = ir1 match {
-        case GetField(`r`, fd) => newFieldRefs.get(fd) match {
-          case Some(r) => r.copy(FastSeq())
+        case GetField(Ref(`name`, _), fd) => newFieldRefs.get(fd) match {
+          case Some(r) => r.deepCopy()
           case None => GetField(Ref(name, old.typ), fd)
         }
-        case ins@InsertFields(`r`, fields, _) =>
+        case ins@InsertFields(Ref(`name`, _), fields, _) =>
           val newFieldSet = fields.map(_._1).toSet
           InsertFields(Ref(name, old.typ),
             copiedNewFieldRefs().filter { case (name, _) => !newFieldSet.contains(name) }
               ++ fields.map { case (name, ir) => (name, rewrite(ir)) },
             Some(ins.typ.fieldNames))
-        case SelectFields(`r`, fds) =>
+        case SelectFields(Ref(`name`, _), fds) =>
           SelectFields(InsertFields(Ref(name, old.typ), copiedNewFieldRefs(), Some(x.typ.fieldNames)), fds)
         case ta: TableAggregate => ta
         case ma: MatrixAggregate => ma
@@ -344,7 +345,7 @@ object Simplify {
       val structSet = struct.typ.asInstanceOf[TStruct].fieldNames.toSet
       val selectFields2 = selectFields.filter(structSet.contains)
       val x2 = InsertFields(SelectFields(struct, selectFields2), insertFields2, Some(selectFields.toFastIndexedSeq))
-      assert(x2.typ == x.typ)
+      assert(x2.typ isOfType x.typ)
       x2
 
     case x@InsertFields(SelectFields(struct, selectFields), insertFields, _) if

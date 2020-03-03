@@ -46,6 +46,7 @@ trait BroadcastRegionValue {
     val encoding = TypedCodecSpec(t, BufferSpec.wireSpec)
     val makeEnc = encoding.buildEncoder(t)
     val (decodedPType, makeDec) = encoding.buildDecoder(t.virtualType)
+    assert(decodedPType == t)
 
     val baos = new ByteArrayOutputStream()
 
