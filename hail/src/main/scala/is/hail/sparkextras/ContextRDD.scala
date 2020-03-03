@@ -270,7 +270,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       part => part.flatMap {
           x =>  inCtx(consumerCtx => f(consumerCtx, x))
       }),
-      mkc
+      mkc)
   }
 
   def cmapPartitionsWithContextAndIndex[U: ClassTag](f: (Int, C, (C) => Iterator[T]) => Iterator[U]): ContextRDD[C, U] = {
