@@ -389,11 +389,8 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
         Code(
           (ab.size < maxSize).mux(
             Code(
-              Code._println(s"stage and index"),
               stageAndIndexKey(keyM, key),
-              Code._println(s"copyToStaging"),
               copyToStaging(value, valueM, keyStage),
-              Code._println(s"copyToStaging"),
               enqueueStaging()),
             Code(
               tempPtr := eltTuple.loadField(elementOffset(0), 0),

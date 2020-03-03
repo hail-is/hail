@@ -205,7 +205,7 @@ object InferPType {
         PType.canonical(vType, vType.required)
       case ApplyUnaryPrimOp(op, v) =>
         infer(v)
-        PType.canonical(UnaryOp.getReturnType(op, v.pType2.virtualType).setRequired(v.pType2.required))
+        PType.canonical(UnaryOp.getReturnType(op, v.pType2.virtualType)).setRequired(v.pType2.required)
       case ApplyComparisonOp(op, l, r) =>
         infer(l)
         infer(r)
@@ -274,9 +274,15 @@ object InferPType {
         infer(a)
         infer(body, env.bind(name, a.pType2.asInstanceOf[PStream].elementType))
         coerce[PStream](a.pType2).copy(body.pType2, a.pType2.required)
-      case StreamZip(as, names, body, _) =>
+      case StreamZip(as, names, body, behavior) =>
         as.foreach(infer(_))
-        infer(body, env.bindIterable(names.zip(as.map(_.pType2.asInstanceOf[PStream].elementType))))
+        val e = behavior match {
+          case ArrayZipBehavior.ExtendNA =>
+            env.bindIterable(names.zip(as.map(a => -a.pType2.asInstanceOf[PStream].elementType)))
+          case _ =>
+            env.bindIterable(names.zip(as.map(a => a.pType2.asInstanceOf[PStream].elementType)))
+        }
+        infer(body, e)
         coerce[PStream](as.head.pType2).copy(body.pType2, as.forall(_.pType2.required))
       case StreamFilter(a, name, cond) =>
         infer(a)
@@ -367,7 +373,7 @@ object InferPType {
       case NDArrayConcat(nds, _) =>
         infer(nds)
         val ndtyp = coerce[PNDArray](coerce[PArray](nds.pType2).elementType)
-        ndtyp
+        ndtyp.setRequired(nds.pType.required && ndtyp.required)
       case NDArrayMap(nd, name, body) =>
         infer(nd)
         val ndPType = nd.pType2.asInstanceOf[PNDArray]

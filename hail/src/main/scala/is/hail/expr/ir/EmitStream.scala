@@ -1103,7 +1103,10 @@ object EmitStream {
 
         case StreamZip(as, names, body, behavior) =>
           val streams = as.map(emitStream(_, env))
-          val childEltTypes = as.map(_.pType.asInstanceOf[PStream].elementType)
+          val childEltTypes = behavior match {
+            case ArrayZipBehavior.ExtendNA => as.map(a => -a.pType.asInstanceOf[PStream].elementType)
+            case _ => as.map(a => a.pType.asInstanceOf[PStream].elementType)
+          }
 
           EmitStream.zip[Any](streams, behavior, { (xs, k) =>
             val mv = names.zip(childEltTypes).map { case (name, t) =>
