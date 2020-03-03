@@ -71,8 +71,8 @@ object LowerBlockMatrixIR {
       } else {
         val i = Ref(genUID(), TInt32())
         val j = Ref(genUID(), TInt32())
-        val cols = ArrayMap(StreamRange(0, child.typ.nColBlocks, 1), j.name, ArrayRef(blockResults, i * child.typ.nColBlocks + j))
-        ArrayMap(StreamRange(0, child.typ.nRowBlocks, 1), i.name, NDArrayConcat(cols, 1))
+        val cols = ToArray(StreamMap(StreamRange(0, child.typ.nColBlocks, 1), j.name, ArrayRef(blockResults, i * child.typ.nColBlocks + j)))
+        ToArray(StreamMap(StreamRange(0, child.typ.nRowBlocks, 1), i.name, NDArrayConcat(cols, 1)))
       }
       Let(blockResults.name, cda, NDArrayConcat(rows, 0))
     case BlockMatrixToValueApply(child, GetElement(index)) => unimplemented(node)
@@ -144,7 +144,7 @@ object LowerBlockMatrixIR {
               NDArrayMatMul(left.blockBody(leftRef), right.blockBody(rightRef))))
 
           val sumRef = Ref(genUID(), blockMultiply.typ)
-          ArrayFold(invoke("[*:]", ctxType, ctxRef, I32(1)),
+          StreamFold(ToStream(invoke("[*:]", ctxType, ctxRef, I32(1))),
             Let(ctxEltRef.name, ArrayRef(ctxRef, 0), blockMultiply),
             sumRef.name,
             ctxEltRef.name,

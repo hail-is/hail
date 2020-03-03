@@ -263,7 +263,7 @@ sealed trait NDArrayIR extends TypedIR[TNDArray, PNDArray] {
 object MakeNDArray {
   def fill(elt: IR, shape: IndexedSeq[Long], rowMajor: IR): MakeNDArray =
     MakeNDArray(
-      ArrayMap(StreamRange(0, shape.product, 1), genUID(), elt),
+      ToArray(StreamMap(StreamRange(0, shape.product, 1), genUID(), elt)),
       MakeTuple.ordered(shape.map(I64)), rowMajor)
 }
 
