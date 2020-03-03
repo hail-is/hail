@@ -133,7 +133,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                     async with session.get(f'http://{self.ip_address}:5000/healthcheck') as resp:
                         actual_name = (await resp.json()).get('name')
-                        if actual_name != self.name:
+                        if actual_name and actual_name != self.name:
                             return False
                     await self.mark_healthy()
                     return True
