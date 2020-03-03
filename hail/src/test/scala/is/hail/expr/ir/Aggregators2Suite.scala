@@ -56,7 +56,7 @@ class Aggregators2Suite extends HailSuite {
       def withArgs(foo: IR) = {
         CompileWithAggregators2[Long, Unit](ctx,
           Array(psig),
-          argRef.name, argRef.pType,
+          argRef.name, argT,
           args.map(_._1).foldLeft[IR](foo) { case (op, name) =>
             Let(name, GetField(argRef, name), op)
           })._2
@@ -777,11 +777,12 @@ class Aggregators2Suite extends HailSuite {
           InitOp(0, FastSeq(I32(10)), takeSig),
           CombOpValue(0, Ref("x", TBinary()), takeSig.singletonContainer),
           SeqOp(0, FastSeq(I64(3l)), takeSig),
+          SeqOp(0, FastSeq(NA(TInt64())), takeSig),
           CombOpValue(0, Ref("x", TBinary()), takeSig.singletonContainer),
           SeqOp(0, FastSeq(I64(0l)), takeSig))),
         GetTupleElement(ResultOp(0, FastIndexedSeq(takeSig.singletonContainer)), 0),
         FastIndexedSeq(takeSig.singletonContainer)))
 
-    assertEvalsTo(x, FastIndexedSeq(null, -1l, 2l, 3l, null, -1l, 2l, 0l))
+    assertEvalsTo(x, FastIndexedSeq(null, -1l, 2l, 3l, null, null, -1l, 2l, 0l))
   }
 }
