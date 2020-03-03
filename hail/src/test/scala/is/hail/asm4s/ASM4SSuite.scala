@@ -63,7 +63,7 @@ class ASM4SSuite extends TestNGSuite {
 
   @Test def get(): Unit = {
     val ib = functionBuilder[A, Int]
-    ib.emit(_return(ib.getArg[A](1).get[Int]("i")))
+    ib.emit(_return(ib.getArg[A](1).getField[Int]("i")))
     val i = ib.result()()
 
     val a = new A
@@ -101,7 +101,7 @@ class ASM4SSuite extends TestNGSuite {
     fb.emit(_return(Code(
       inst.store(Code.newInstance[A]()),
       inst.put("i", -2),
-      inst.get[Int]("i"))))
+      inst.getField[Int]("i"))))
     val f = fb.result()()
     assert(f() == -2)
   }
@@ -169,7 +169,7 @@ class ASM4SSuite extends TestNGSuite {
       arr.store(newArray[A](2)),
       arr(0) = Code.newInstance[A](),
       arr(1) = Code.newInstance[A](),
-      arr(0).get[Int]("i") + arr(1).get[Int]("i")
+      arr(0).getField[Int]("i") + arr(1).getField[Int]("i")
     )))
     val f = fb.result()()
     assert(f() == 10)

@@ -69,7 +69,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def makeDefaultStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: MethodBuilder): StagedRegionValueBuilder => Code[Unit] = { srvb =>
     val runningProduct = mb.newLocal[Long]
     val tempShapeStorage = mb.newLocal[Long]
-    val computedStrides = (0 until nDims).map(_ => mb.newField[Long]).toArray
+    val computedStrides = (0 until nDims).map(_ => mb.newField[Long])
     Code(
       srvb.start(),
       runningProduct := elementType.byteSize,
@@ -140,7 +140,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Code[Long]], mb: MethodBuilder): (Code[Unit], IndexedSeq[Code[Long]]) = {
     val nDim = shapeArray.length
-    val newIndices = (0 until nDim).map(_ => mb.newField[Long]).toArray
+    val newIndices = (0 until nDim).map(_ => mb.newField[Long])
     val elementsInProcessedDimensions = mb.newField[Long]
     val workRemaining = mb.newField[Long]
 

@@ -867,47 +867,32 @@ object FieldRef {
 }
 
 object Value {
-  def fromInsn[T](insn: => AbstractInsnNode): Value[T] = new Value[T] {
-    def emit(il: Growable[AbstractInsnNode]): Unit = {
-      il += insn
-    }
-  }
-
-  def apply[T](c: Code[_], insn: => AbstractInsnNode): Value[T] =
+  def apply[T](c: Value[_], insn: => AbstractInsnNode): Value[T] =
     new Value[T] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = {
-        c.emit(il)
-        il += insn
-      }
-    }
-
-  def apply[T](c: => Code[T]): Value[T] =
-    new Value[T] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = c.emit(il)
+      def get: Code[T] = Code(c.get, insn)
     }
 }
 
-trait Value[T] extends Code[T]
-
-trait Gettable[T] {
-  def load(): Code[T]
+trait Value[+T] { self =>
+  def get: Code[T]
 }
 
-trait Settable[T] extends Gettable[T] {
+trait Settable[T] extends Value[T] {
   def store(rhs: Code[T]): Code[Unit]
 
   def :=(rhs: Code[T]): Code[Unit] = store(rhs)
 
   def storeAny(rhs: Code[_]): Code[Unit] = store(coerce[T](rhs))
+
+  def load(): Code[T] = get
 }
 
 class LazyFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String, setup: Code[T]) extends Settable[T] {
-
   private[this] val value: ClassFieldRef[T] = fb.newField[T](name)
   private[this] val present: ClassFieldRef[Boolean] = fb.newField[Boolean](s"${name}_present")
 
-  def load(): Code[T] =
-    Code(present.mux(Code._empty, Code(value := setup, present := true)), value)
+  def get: Code[T] =
+    Code(present.mux(Code._empty, Code(value := setup, present := true)), value.load())
 
   def store(rhs: Code[T]): Code[Unit] =
     throw new UnsupportedOperationException("cannot store new value into LazyFieldRef!")
@@ -916,16 +901,16 @@ class LazyFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String, setup: Cod
 class ClassFieldRef[T: TypeInfo](fb: FunctionBuilder[_], f: Field[T]) extends Settable[T] {
   def name: String = f.name
 
-  private def _loadClass: Value[java.lang.Object] = fb.getArg[java.lang.Object](0).load()
+  private def _loadClass: Value[java.lang.Object] = fb.getArg[java.lang.Object](0)
 
-  def load(): Value[T] = f.get(_loadClass)
+  def get: Code[T] = f.get(_loadClass)
 
   def store(rhs: Code[T]): Code[Unit] = f.put(_loadClass, rhs)
 }
 
 class LocalRef[T](val i: Int)(implicit tti: TypeInfo[T]) extends Settable[T] {
-  def load(): Value[T] =
-    new Value[T] {
+  def get: Code[T] =
+    new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         il += new VarInsnNode(tti.loadOp, i)
       }
@@ -955,6 +940,7 @@ class LocalRefInt(val v: LocalRef[Int]) extends AnyRef {
 }
 
 class FieldRef[T, S](f: reflect.Field)(implicit tct: ClassTag[T], sti: TypeInfo[S]) {
+  self =>
   def isStatic: Boolean = reflect.Modifier.isStatic(f.getModifiers)
 
   def getOp = if (isStatic) GETSTATIC else GETFIELD
@@ -963,8 +949,13 @@ class FieldRef[T, S](f: reflect.Field)(implicit tct: ClassTag[T], sti: TypeInfo[
 
   def get(): Code[S] = get(null: Value[T])
 
-  private def emitGet(lhs: Code[T], il: Growable[AbstractInsnNode]): Value[S] =
+  def get(lhs: Value[T]): Value[S] =
     new Value[S] {
+      def get: Code[S] = self.get(lhs)
+    }
+
+  def get(lhs: Code[T]): Code[S] =
+    new Code[S] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         if (!isStatic)
           lhs.emit(il)
@@ -972,16 +963,6 @@ class FieldRef[T, S](f: reflect.Field)(implicit tct: ClassTag[T], sti: TypeInfo[
           Type.getInternalName(tct.runtimeClass), f.getName, sti.name)
       }
     }
-
-  def get(lhs: Value[T]): Value[S] =
-    new Value[S] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = emitGet(lhs, il)
-    }
-
-  def get(lhs: Code[T]): Code[S] =
-    new Code[S] {
-      def emit(il: Growable[AbstractInsnNode]): Unit = emitGet(lhs, il)
-  }
 
   def put(lhs: Code[T], rhs: Code[S]): Code[Unit] =
     new Code[Unit] {
@@ -996,7 +977,7 @@ class FieldRef[T, S](f: reflect.Field)(implicit tct: ClassTag[T], sti: TypeInfo[
 }
 
 class CodeObject[T <: AnyRef : ClassTag](val lhs: Code[T]) {
-  def get[S](field: String)(implicit sct: ClassTag[S], sti: TypeInfo[S]): Code[S] =
+  def getField[S](field: String)(implicit sct: ClassTag[S], sti: TypeInfo[S]): Code[S] =
     FieldRef[T, S](field).get(lhs)
 
   def put[S](field: String, rhs: Code[S])(implicit sct: ClassTag[S], sti: TypeInfo[S]): Code[Unit] =

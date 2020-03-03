@@ -48,7 +48,7 @@ object LocusFunctions extends RegistryFunctions {
     val len = r.mb.newLocal[Int]
     val srvb = new StagedRegionValueBuilder(r, rt)
     val addLocus = { srvb: StagedRegionValueBuilder =>
-      emitLocus(srvb, Code.checkcast[Locus](vlocal.get[java.lang.Object]("_1")))
+      emitLocus(srvb, Code.checkcast[Locus](vlocal.getField[java.lang.Object]("_1")))
     }
     val addAlleles = { srvb: StagedRegionValueBuilder =>
       Code(
@@ -60,7 +60,7 @@ object LocusFunctions extends RegistryFunctions {
 
     Code(
       vlocal := variant,
-      alocal := Code.checkcast[IndexedSeq[String]](vlocal.get[java.lang.Object]("_2")),
+      alocal := Code.checkcast[IndexedSeq[String]](vlocal.getField[java.lang.Object]("_2")),
       len := alocal.invoke[Int]("size"),
       srvb.start(),
       srvb.addBaseStruct(types.coerce[PStruct](rt.field("locus").typ.fundamentalType), addLocus),
@@ -100,12 +100,12 @@ object LocusFunctions extends RegistryFunctions {
     val blocal = r.mb.newLocal[Boolean]
     val srvb = new StagedRegionValueBuilder(r, rt)
     val addLocus = { srvb: StagedRegionValueBuilder =>
-      emitLocus(srvb, Code.checkcast[Locus](rlocal.get[java.lang.Object]("_1")))
+      emitLocus(srvb, Code.checkcast[Locus](rlocal.getField[java.lang.Object]("_1")))
     }
 
     Code(
       rlocal := result,
-      blocal := Code.checkcast[java.lang.Boolean](rlocal.get[java.lang.Object]("_2")).invoke[Boolean]("booleanValue"),
+      blocal := Code.checkcast[java.lang.Boolean](rlocal.getField[java.lang.Object]("_2")).invoke[Boolean]("booleanValue"),
       srvb.start(),
       srvb.addBaseStruct(types.coerce[PStruct](rt.field("result").typ.fundamentalType), addLocus),
       srvb.advance(),
@@ -126,8 +126,8 @@ object LocusFunctions extends RegistryFunctions {
 
     Code(
       rlocal := result,
-      ilocal := Code.checkcast[Interval](rlocal.get[java.lang.Object]("_1")),
-      blocal := Code.checkcast[java.lang.Boolean](rlocal.get[java.lang.Object]("_2")).invoke[Boolean]("booleanValue"),
+      ilocal := Code.checkcast[Interval](rlocal.getField[java.lang.Object]("_1")),
+      blocal := Code.checkcast[java.lang.Boolean](rlocal.getField[java.lang.Object]("_2")).invoke[Boolean]("booleanValue"),
       srvb.start(),
       srvb.addBaseStruct(types.coerce[PStruct](pinterval.fundamentalType), addInterval),
       srvb.advance(),
@@ -176,8 +176,8 @@ object LocusFunctions extends RegistryFunctions {
         val alleles = Code.checkcast[IndexedSeq[String]](wrapArg(r, allelesT)(aOff).asInstanceOf[Code[AnyRef]])
         val tuple = Code.invokeScalaObject[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](VariantMethods.getClass, "minRep", locus, alleles)
 
-        val newLocus = Code.checkcast[Locus](returnTuple.load().get[java.lang.Object]("_1"))
-        val newAlleles = Code.checkcast[IndexedSeq[String]](returnTuple.load().get[java.lang.Object]("_2"))
+        val newLocus = Code.checkcast[Locus](returnTuple.load().getField[java.lang.Object]("_1"))
+        val newAlleles = Code.checkcast[IndexedSeq[String]](returnTuple.load().getField[java.lang.Object]("_2"))
 
         val newLocusT = rt.field("locus").typ
         val newAllelesT = rt.field("alleles").typ.asInstanceOf[PArray]

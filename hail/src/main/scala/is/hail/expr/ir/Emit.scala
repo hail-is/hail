@@ -1405,7 +1405,7 @@ private class Emit(
             Code.invokeStatic[Memory, Long, Unit]("free", leftColumnMajorAddress.load()),
             Code.invokeStatic[Memory, Long, Unit]("free", rightColumnMajorAddress.load()),
             Code.invokeStatic[Memory, Long, Unit]("free", answerColumnMajorAddress.load()))),
-            outputPType.construct(0, 0, outputPType.makeShapeBuilder(Array(M, N)), outputPType.makeDefaultStridesBuilder(Array(M, N), mb), answerRowMajorPArrayAddress, mb)
+            outputPType.construct(0, 0, outputPType.makeShapeBuilder(IndexedSeq(M, N)), outputPType.makeDefaultStridesBuilder(IndexedSeq(M, N), mb), answerRowMajorPArrayAddress, mb)
           )
 
           EmitTriplet(missingSetup, isMissing, PValue(pt, multiplyViaDGEMM))
@@ -2033,7 +2033,7 @@ private class Emit(
           val quotient = mb.newLocal[Long]
           val tempShapeElement = mb.newLocal[Long]
 
-          val newShapeVars = (0 until requestedShape.length).map(_ => mb.newField[Long]).toArray
+          val newShapeVars = (0 until requestedShape.length).map(_ => mb.newField[Long])
 
           val setupShape = coerce[Unit](Code(
             hasNegativeOne := false,
@@ -2187,7 +2187,7 @@ private class Emit(
 
             val transformedIdxs = Array.tabulate(x.typ.nDims) { idx =>
               if (idx == axis) concatAxisIdx.load() else idxVars(idx)
-            }
+            }.toFastIndexedSeq
             Code(
               setupTransformedIdx,
               inputNDType.loadElementToIRIntermediate(transformedIdxs, inputType.loadElement(inputArray, i), mb)
@@ -2353,7 +2353,7 @@ abstract class NDArrayEmitter(
    val setupMissing: Code[Unit] = Code._empty,
    val missing: Code[Boolean] = false) {
 
-  private val outputShapeVariables = (0 until nDims).map(_ => mb.newField[Long]).toArray
+  private val outputShapeVariables = (0 until nDims).map(_ => mb.newField[Long])
 
   def outputElement(idxVars: IndexedSeq[Code[Long]]): Code[_]
 

@@ -57,9 +57,6 @@ package object asm4s {
   def coerce[T](c: Value[_]): Value[T] =
     c.asInstanceOf[Value[T]]
 
-  def coerce[T](c: Gettable[_]): Gettable[T] =
-    c.asInstanceOf[Gettable[T]]
-
   def coerce[T](c: Settable[_]): Settable[T] =
     c.asInstanceOf[Settable[T]]
 
@@ -235,7 +232,29 @@ package object asm4s {
       codes.foreach(_.emit(il))
   }
 
-  implicit def localRefToValue[T](f: LocalRef[T]): Value[T] = f.load()
+  implicit def indexedSeqValueToCode[T](v: IndexedSeq[Value[T]]): IndexedSeq[Code[T]] = v.map(_.get)
+
+  implicit def valueToCode[T](v: Value[T]): Code[T] = v.get
+
+  implicit def valueToCodeInt(f: Value[Int]): CodeInt = new CodeInt(f.get)
+
+  implicit def valueToCodeLong(f: Value[Long]): CodeLong = new CodeLong(f.get)
+
+  implicit def valueToCodeFloat(f: Value[Float]): CodeFloat = new CodeFloat(f.get)
+
+  implicit def valueToCodeDouble(f: Value[Double]): CodeDouble = new CodeDouble(f.get)
+
+  implicit def valueToCodeChar(f: Value[Char]): CodeChar = new CodeChar(f.get)
+
+  implicit def valueToCodeString(f: Value[String]): CodeString = new CodeString(f.get)
+
+  implicit def valueToCodeObject[T <: AnyRef](f: Value[T])(implicit tct: ClassTag[T]): CodeObject[T] = new CodeObject(f.get)
+
+  implicit def valueToCodeArray[T](c: Value[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(c)
+
+  implicit def valueToCodeBoolean(f: Value[Boolean]): CodeBoolean = new CodeBoolean(f.get)
+
+  implicit def valueToCodeNullable[T >: Null : TypeInfo](c: Value[T]): CodeNullable[T] = new CodeNullable(c)
 
   implicit def toCode[T](f: Settable[T]): Code[T] = f.load()
 

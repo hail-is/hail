@@ -10,6 +10,6 @@ class RichCodeIndexedSeq[T](cs: IndexedSeq[Code[T]]) {
       cacheVariable := arrElement
     }
 
-    (cachingCode, cacheVariables.map(_.load()))
+    (cachingCode, cacheVariables)
   }
 }
