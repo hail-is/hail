@@ -204,12 +204,10 @@ class RegionValueBuilder(var region: Region) {
 
   def setMissing() {
     val i = indexstk.top
-    println(s"in setMissing, i is ${i}")
     typestk.top match {
       case t: PBaseStruct =>
         if (t.types(i).required)
           fatal(s"cannot set missing field for required type ${ t.types(i) }")
-        println(s"setting field missing ${i}")
         t.setFieldMissing(offsetstk.top, i)
       case t: PArray =>
         if (t.elementType.required)
@@ -296,13 +294,10 @@ class RegionValueBuilder(var region: Region) {
     startBaseStruct()
     var i = 0
     while (i < t.size) {
-      println(s"GETTING ITEM: ${r.get(i)} type: ${t.types(i)}")
       addAnnotation(t.types(i), r.get(i))
       i += 1
     }
     endBaseStruct()
-
-    println("DONE WITH ADD ROW")
   }
 
   def addField(t: PBaseStruct, fromRegion: Region, fromOff: Long, i: Int) {
@@ -381,7 +376,6 @@ class RegionValueBuilder(var region: Region) {
     val toT = currentType()
 
     if (typestk.isEmpty) {
-      println("copyFromType being called")
       val r = toT.copyFromType(region, t.fundamentalType, fromOff, region.ne(fromRegion))
       start = r
       return
@@ -406,10 +400,9 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def addAnnotation(t: Type, a: Annotation) {
-    if (a == null) {
-      println("A IS NULL")
+    if (a == null)
       setMissing()
-    } else {
+    else {
       t match {
         case _: TBoolean => addBoolean(a.asInstanceOf[Boolean])
         case _: TInt32 => addInt(a.asInstanceOf[Int])
@@ -435,13 +428,10 @@ class RegionValueBuilder(var region: Region) {
           }
 
         case t: TBaseStruct =>
-          println(s"IN TBASESTRUCT PART OF addanootaitonion idnoisdanfoiasdnfoi fck: ${a}")
           a match {
             case ur: UnsafeRow if currentType() == ur.t =>
-              println("ADDNG UNSAFE ROW")
               addUnsafeRow(ur.t, ur)
             case r: Row =>
-              println("ADDING SAFE ROW")
               addRow(t, r)
           }
 
@@ -489,7 +479,6 @@ class RegionValueBuilder(var region: Region) {
           addAnnotation(t.representation, a)
       }
     }
-    println("done with addAnnotation")
   }
 
   def addInlineRow(t: PBaseStruct, a: Row) {
