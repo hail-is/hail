@@ -915,10 +915,10 @@ private class Emit(
           srvb.offset))
 
       case x@CombOpValue(i, value, sig) =>
-        throw new NotImplementedError("CombOpValue emitter cannot be implemented until physical type passed across serialization boundary")
+        throw new NotImplementedError("CombOpValue emitter cannot be implemented until physical type passed across serialization boundary. See PR #8142")
 
       case x@AggStateValue(i, _) =>
-        throw new NotImplementedError("AggStateValue emitter cannot be implemented until physical type passed across serialization boundary")
+        throw new NotImplementedError("AggStateValue emitter cannot be implemented until physical type passed across serialization boundary. See PR #8142")
 
       case x@SerializeAggs(start, sIdx, spec, sigs) =>
         val AggContainer(_, sc) = container.get
