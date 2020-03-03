@@ -1166,7 +1166,7 @@ object EmitStream {
 
         case StreamLeftJoinDistinct(leftIR, rightIR, leftName, rightName, compIR, joinIR) =>
           val l = leftIR.pType.asInstanceOf[PStream].elementType
-          val r = rightIR.pType.asInstanceOf[PStream].elementType
+          val r = rightIR.pType.asInstanceOf[PStream].elementType.setRequired(false)
           implicit val lP = TypedTriplet.pack(l)
           implicit val rP = TypedTriplet.pack(r)
           val leltVar = lP.newFields(fb, "join_lelt")

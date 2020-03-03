@@ -271,8 +271,10 @@ class EmitStreamSuite extends HailSuite {
     }
     val fb = new EmitFunctionBuilder[F](argTypeInfos.result(), GenericTypeInfo[Long])
     val mb = fb.apply_method
+    val ir = streamIR.deepCopy()
+    InferPType(ir, Env.empty)
     val stream = ExecuteContext.scoped { ctx =>
-      val s = streamIR match {
+      val s = ir match {
         case ToArray(s) => s
         case s => s
       }
@@ -326,8 +328,10 @@ class EmitStreamSuite extends HailSuite {
   private def evalStreamLen(streamIR: IR): Option[Int] = {
     val fb = EmitFunctionBuilder[Region, Int]("eval_stream_len")
     val mb = fb.apply_method
+    val ir = LoweringPipeline.compileLowerer.apply(ctx, streamIR.deepCopy(), false).asInstanceOf[IR]
+    InferPType(ir, Env.empty)
     val stream = ExecuteContext.scoped { ctx =>
-      EmitStream(new Emit(ctx, mb), streamIR, Env.empty, EmitRegion.default(mb), None)
+      EmitStream(new Emit(ctx, mb), ir, Env.empty, EmitRegion.default(mb), None)
     }
     fb.emit {
       JoinPoint.CallCC[Code[Int]] { (jb, ret) =>

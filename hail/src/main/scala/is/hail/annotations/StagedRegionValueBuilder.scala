@@ -237,10 +237,12 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
       v => coerce[Unit](m.invoke(region, v, currentOffset))
   }
 
-  def addWithDeepCopy(t: PType, v: Code[_]): Code[Unit] =
+  def addWithDeepCopy(t: PType, v: Code[_]): Code[Unit] = {
+    assert(currentPType() == t.fundamentalType, s"current=${currentPType()}, toAdd=$t")
     StagedRegionValueBuilder.deepCopy(
       EmitRegion(mb.asInstanceOf[EmitMethodBuilder], region),
       t, v, currentOffset)
+  }
 
   def advance(): Code[Unit] = {
     ftype match {

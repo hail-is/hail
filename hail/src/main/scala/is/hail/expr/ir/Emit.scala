@@ -1728,7 +1728,9 @@ private class Emit(
             (gname, (bodyMB.getArg[Boolean](5).load(), PValue(gType, bodyMB.getArg(4)(typeToTypeInfo(gType)).load()))))
 
           // FIXME fix number of aggs here
-          val t = new Emit(ctx, bodyMB).emit(MakeTuple.ordered(FastSeq(body)), env, EmitRegion.default(bodyMB), None)
+          val m = MakeTuple.ordered(FastSeq(body))
+          m._pType2 = PCanonicalTuple(true, body.pType)
+          val t = new Emit(ctx, bodyMB).emit(m, env, EmitRegion.default(bodyMB), None)
           bodyMB.emit(Code(t.setup, t.m.mux(Code._fatal("return cannot be missing"), t.v)))
 
           val ctxIS = Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getArg[Array[Byte]](2))

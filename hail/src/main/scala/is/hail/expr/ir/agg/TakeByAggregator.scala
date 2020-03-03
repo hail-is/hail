@@ -17,8 +17,8 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   val region: Code[Region] = r.load()
 
-  private val indexedKeyType = PTuple(true, keyType, PInt64Required)
-  private val eltTuple = PTuple(true, indexedKeyType, valueType)
+  private val indexedKeyType = PCanonicalTuple(true, keyType, PInt64Required)
+  private val eltTuple = PCanonicalTuple(true, indexedKeyType, valueType)
   val ab = new StagedArrayBuilder(eltTuple, fb, region)
 
   private val maxIndex = fb.newField[Long]("max_index")
@@ -389,8 +389,11 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
         Code(
           (ab.size < maxSize).mux(
             Code(
+              Code._println(s"stage and index"),
               stageAndIndexKey(keyM, key),
+              Code._println(s"copyToStaging"),
               copyToStaging(value, valueM, keyStage),
+              Code._println(s"copyToStaging"),
               enqueueStaging()),
             Code(
               tempPtr := eltTuple.loadField(elementOffset(0), 0),
@@ -405,7 +408,16 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
         ))
     )
 
-    mb.invoke(_, _, _, _)
+    val kmVar = fb.newField[Boolean]("km")
+    val vmVar = fb.newField[Boolean]("vm")
+
+    { (vm: Code[Boolean], v: Code[_], km: Code[Boolean], k: Code[_]) =>
+      Code(
+        vmVar := vm,
+        kmVar := km,
+        mb.invoke(vmVar, vmVar.mux(defaultValue(valueType), v), kmVar, kmVar.mux(defaultValue(keyType), k))
+      )
+    }
   }
 
   def combine(other: TakeByRVAS, dummy: Boolean): Code[Unit] = {
@@ -583,6 +595,8 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
 
   def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     val Array(value: EmitTriplet, key: EmitTriplet) = seq
+    assert(value.pv.pt == valueType)
+    assert(key.pv.pt == keyType)
     Code(
       value.setup,
       key.setup,

@@ -347,7 +347,7 @@ object InferPType {
       case StreamLeftJoinDistinct(lIR, rIR, lName, rName, compare, join) =>
         infer(lIR)
         infer(rIR)
-        val e = env.bind(lName -> lIR.pType2.asInstanceOf[PStream].elementType, rName -> rIR.pType2.asInstanceOf[PStream].elementType)
+        val e = env.bind(lName -> lIR.pType2.asInstanceOf[PStream].elementType, rName -> -rIR.pType2.asInstanceOf[PStream].elementType)
 
         infer(compare, e)
         infer(join, e)
