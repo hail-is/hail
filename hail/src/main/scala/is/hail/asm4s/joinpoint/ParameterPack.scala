@@ -88,7 +88,7 @@ case class ParamPackTuple3[A, B, C](ap: ParameterPack[A], bp: ParameterPack[B], 
 
 case class ParamPackArray(pps: IndexedSeq[ParameterPack[_]]) extends ParameterPack[IndexedSeq[_]] {
   override def push(a: IndexedSeq[_]): Code[Unit] =
-    pps.zip(a).foldLeft(Code._empty[Unit]) { case (acc, (pp, v)) =>
+    pps.zip(a).foldLeft(Code._empty) { case (acc, (pp, v)) =>
       Code(acc, pp.pushAny(v))
     }
 
@@ -170,7 +170,7 @@ case object ParameterStoreUnit extends ParameterStore[Unit] {
 
   def load: Unit = ()
 
-  def init: Code[Unit] = Code._empty[Unit]
+  def init: Code[Unit] = Code._empty
 }
 
 case class ParameterStoreTuple2[A, B](pa: ParameterStore[A], pb: ParameterStore[B]) extends ParameterStore[(A, B)] {
@@ -207,10 +207,10 @@ case class ParameterStoreArray(pss: IndexedSeq[ParameterStore[_]]) extends Param
 
   def store(vs: IndexedSeq[_]): Code[Unit] = {
     assert(pss.length == vs.length)
-    pss.zip(vs).foldLeft(Code._empty[Unit]) { case (acc, (ps, v)) => Code(acc, ps.storeAny(v)) }
+    pss.zip(vs).foldLeft(Code._empty) { case (acc, (ps, v)) => Code(acc, ps.storeAny(v)) }
   }
 
-  def storeInsn: Code[Unit] = pss.map(_.storeInsn).fold(Code._empty[Unit]) { case (acc, c) => Code(c, acc) } // order of c and acc is important
+  def storeInsn: Code[Unit] = pss.map(_.storeInsn).fold(Code._empty) { case (acc, c) => Code(c, acc) } // order of c and acc is important
 
   def init: Code[Unit] = pss.foldLeft[Code[Unit]](Code._empty) { case (acc, ps) => Code(acc, ps.init) }
 

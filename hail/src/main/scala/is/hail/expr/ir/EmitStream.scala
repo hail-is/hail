@@ -1117,7 +1117,7 @@ object EmitStream {
             val bodyt = emitIR(body,
               env.bindIterable(names.zip(mv.map { case (_, m, v) => (m.load(), v.load()) })))
             k(EmitTriplet(
-              Code(xs.zip(mv).foldLeft[Code[Unit]](Code._empty[Unit]) { case (acc, (et, (t, m, v))) =>
+              Code(xs.zip(mv).foldLeft[Code[Unit]](Code._empty) { case (acc, (et, (t, m, v))) =>
                 Code(acc,
                   et.setup,
                   m := et.m,

@@ -3,6 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations.{Region, StagedRegionValueBuilder, UnsafeOrdering}
 import is.hail.asm4s.{Code, MethodBuilder, _}
 import is.hail.expr.types.virtual.{TNDArray, Type}
+import is.hail.utils.FastIndexedSeq
 
 final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boolean = false) extends PNDArray  {
   assert(elementType.required, "elementType must be required")
@@ -61,7 +62,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       Code(shapeArray.map(shapeElement => Code(
         srvb.addLong(shapeElement),
         srvb.advance()
-      )):_*)
+      )))
     ))
   }
 
@@ -96,7 +97,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     coerce[Long](Code(
       dataStore := data.load(nd),
       bytesAway := 0L,
-      indices.zipWithIndex.foldLeft(Code._empty[Unit]){case (codeSoFar: Code[_], (requestedIndex: Code[Long], strideIndex: Int)) =>
+      indices.zipWithIndex.foldLeft(Code._empty){case (codeSoFar: Code[_], (requestedIndex: Code[Long], strideIndex: Int)) =>
         Code(
           codeSoFar,
           bytesAway := bytesAway + requestedIndex * stridesTuple(strideIndex))
@@ -193,7 +194,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     stridesBuilder: (StagedRegionValueBuilder => Code[Unit]), data: Code[Long], mb: MethodBuilder): Code[Long] = {
     val srvb = new StagedRegionValueBuilder(mb, this.representation)
 
-    coerce[Long](Code(
+    coerce[Long](Code(FastIndexedSeq(
       srvb.start(),
       srvb.addInt(flags),
       srvb.advance(),
@@ -203,7 +204,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       srvb.advance(),
       srvb.addBaseStruct(this.strides.pType, stridesBuilder),
       srvb.advance(),
-      srvb.addIRIntermediate(this.representation.fieldType("data"))(data),
+      srvb.addIRIntermediate(this.representation.fieldType("data"))(data)),
       srvb.end()
     ))
   }

@@ -100,11 +100,11 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
             cont))
       }
 
-    def copyToNew(startIdx: Int) = coerce[Unit](Code(
+    def copyToNew(startIdx: Int) = Code(
       Array.tabulate(maxElements - startIdx) { newIdx =>
         Code(copyFrom(newNode, newIdx, node, newIdx + startIdx),
           setKeyMissing(node, newIdx + startIdx))
-      }: _*))
+      })
 
     def insertKey(m: Code[Boolean], v: Code[_], c: Code[Long]): Code[Long] = {
       val upperBound = Array.range(0, maxElements)
@@ -194,7 +194,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
     f.emit(Code(
       (!isLeaf(node)).orEmpty(f.invoke(loadChild(node, -1))),
       Array.range(0, maxElements)
-        .foldRight(Code._empty[Unit]) { (i, cont) =>
+        .foldRight(Code._empty) { (i, cont) =>
           hasKey(node, i).orEmpty(
             Code(
               visitor(loadKey(node, i)),
@@ -216,7 +216,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
       Code(createNode(newNode),
         f.invoke[Unit](newNode, loadChild(srcNode, i)))
 
-    val copyNodes = Array.range(0, maxElements).foldRight(Code._empty[Unit]) { (i, cont) =>
+    val copyNodes = Array.range(0, maxElements).foldRight(Code._empty) { (i, cont) =>
       hasKey(srcNode, i).orEmpty(
         Code(
           key.deepCopy(er, destNode, srcNode),
@@ -243,7 +243,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
     f.emit(Code(
       ob.writeBoolean(!isLeaf(node)),
       (!isLeaf(node)).orEmpty(f.invoke(loadChild(node, -1), ob)),
-      Array.range(0, maxElements).foldRight(Code._empty[Unit]) { (i, cont) =>
+      Array.range(0, maxElements).foldRight(Code._empty) { (i, cont) =>
         hasKey(node, i).mux(Code(
           ob.writeBoolean(true),
           keyStore(ob, loadKey(node, i)),
@@ -268,7 +268,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
           setChild(node, -1, newNode),
           f.invoke(newNode, ib)
       )),
-      Array.range(0, maxElements).foldRight(Code._empty[Unit]) { (i, cont) =>
+      Array.range(0, maxElements).foldRight(Code._empty) { (i, cont) =>
         ib.readBoolean().orEmpty(Code(
           setKeyPresent(node, i),
           keyLoad(ib, keyOffset(node, i)),

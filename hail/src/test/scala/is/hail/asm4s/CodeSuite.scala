@@ -13,9 +13,7 @@ class CodeSuite extends HailSuite {
     val sum = mb.newLocal[Int]
     val code = Code(
       sum := 0,
-      Code.forLoop(i := 0, i < 5, i := i + 1, coerce[Unit](Code(
-        sum :=  sum + i
-      ))),
+      Code.forLoop(i := 0, i < 5, i := i + 1, sum :=  sum + i),
       sum.load()
     )
     fb.emit(code)

@@ -93,7 +93,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     val ft = pt.asInstanceOf[PBaseStruct]
     val writeMissingBytes = if (ft.size == size) {
       val missingBytes = UnsafeUtils.packBitsToBytes(ft.nMissing)
-      var c = Code._empty[Unit]
+      var c = Code._empty
       if (nMissingBytes > 1)
         c = Code(c, out.writeBytes(coerce[Long](v), missingBytes - 1))
       if (nMissingBytes > 0)
@@ -103,15 +103,15 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       val groupSize = 64
       var methodIdx = 0
       var currentMB = mb.fb.newMethod(s"missingbits_group_$methodIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
-      var wrappedC: Code[Unit] = Code._empty[Unit]
-      var methodC: Code[Unit] = Code._empty[Unit]
+      var wrappedC: Code[Unit] = Code._empty
+      var methodC: Code[Unit] = Code._empty
 
       var j = 0
       var n = 0
       while (j < size) {
         if (n % groupSize == 0) {
           currentMB.emit(methodC)
-          methodC = Code._empty[Unit]
+          methodC = Code._empty
           wrappedC = Code(wrappedC, currentMB.invoke[Unit](v, out))
           methodIdx += 1
           currentMB = mb.fb.newMethod(s"missingbits_group_$methodIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
@@ -139,12 +139,12 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       wrappedC
     }
 
-    val writeFields = coerce[Unit](Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
+    val writeFields = Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
       val groupMB = mb.fb.newMethod(s"write_fields_group_$groupIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
 
       val addr = groupMB.getArg[Long](1)
       val out2 = groupMB.getArg[OutputBuffer](2)
-      groupMB.emit(coerce[Unit](Code(
+      groupMB.emit(Code(
         fieldGroup.map { ef =>
           val i = ft.fieldIdx(ef.name)
           val pf = ft.fields(i)
@@ -152,15 +152,15 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
           val v = Region.loadIRIntermediate(pf.typ)(ft.fieldOffset(addr, i))
           ft.isFieldDefined(addr, i).mux(
             encodeField(v, out2),
-            Code._empty[Unit]
+            Code._empty
           )
-        }: _*
-      )))
+        }
+      ))
 
       groupMB.invoke[Unit](v, out)
-    }.toArray: _*))
+    }.toArray)
 
-    Code(writeMissingBytes, writeFields, Code._empty[Unit])
+    Code(writeMissingBytes, writeFields, Code._empty)
   }
 
   def _buildDecoder(
@@ -214,18 +214,18 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
             skip(regionArg, inArg)
           else
             Region.loadBit(mbytesArg, const(missingIdx(f.index).toLong)).mux(
-              Code._empty[Unit],
+              Code._empty,
               skip(regionArg, inArg))
         }
       }))
       groupMB.invoke[Unit](region, addr, mbytes, in)
-    }.toArray: _*))
+    }.toArray))
 
     Code(
       mbytes := region.allocate(const(1), const(nMissingBytes)),
       in.readBytes(region, mbytes, nMissingBytes),
       readFields,
-      Code._empty[Unit])
+      Code._empty)
   }
   def _buildSkip(mb: MethodBuilder, r: Code[Region], in: Code[InputBuffer]): Code[Unit] = {
     val mbytes = mb.newLocal[Long]("mbytes")
@@ -242,8 +242,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     Code(
       mbytes := r.allocate(const(1), const(nMissingBytes)),
       in.readBytes(r, mbytes, nMissingBytes),
-      Code(skipFields: _*),
-      Code._empty)
+      Code(skipFields))
   }
 
   def _asIdent: String = {

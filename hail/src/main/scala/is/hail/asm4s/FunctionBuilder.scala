@@ -21,10 +21,10 @@ class Field[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
   classBuilder.addField(node)
 
   def get(obj: Code[_]): Code[T] =
-    Code(obj, Code[T](new FieldInsnNode(GETFIELD, classBuilder.name, name, desc)))
+    Code(obj, new FieldInsnNode(GETFIELD, classBuilder.name, name, desc))
 
   def put(obj: Code[_], v: Code[T]): Code[Unit] =
-    Code(obj, v, Code(new FieldInsnNode(PUTFIELD, classBuilder.name, name, desc)))
+    Code(obj, v, new FieldInsnNode(PUTFIELD, classBuilder.name, name, desc))
 }
 
 class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializable {
@@ -352,11 +352,14 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
     mn.instructions.add(end)
   }
 
-  def invoke[T](args: Code[_]*): Code[T] = {
-    var c: Code[_] = getArg[java.lang.Object](0)
-    args.foreach { a => c = Code(c, a) }
-    Code(c, new MethodInsnNode(INVOKESPECIAL, fb.name, mname, descriptor, false))
-  }
+  def invoke[T](args: Code[_]*): Code[T] =
+    new Code[T] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        getArg[java.lang.Object](0).emit(il)
+        args.foreach(_.emit(il))
+        il += new MethodInsnNode(INVOKESPECIAL, fb.name, mname, descriptor, false)
+      }
+    }
 }
 
 trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {

@@ -275,6 +275,15 @@ class Tests(unittest.TestCase):
             lambda a, b: (a + 7) * b, hl.tint32, hl.tint32)
         self.assertEqual(hl.eval(f1(1, 3)), 24) # idempotent
         self.assertEqual(hl.eval(f2(1, 3)), 24) # idempotent
+        
+    def test_pc_project(self):
+        mt = hl.balding_nichols_model(3, 100, 50)
+        _, _, loadings_ht = hl.hwe_normalized_pca(mt.GT, k=10, compute_loadings=True)
+        mt = mt.annotate_rows(af=hl.agg.mean(mt.GT.n_alt_alleles()) / 2)
+        loadings_ht = loadings_ht.annotate(af=mt.rows()[loadings_ht.key].af)
+        mt_to_project = hl.balding_nichols_model(3, 100, 50)
+        ht = hl.experimental.pc_project(mt_to_project.GT, loadings_ht.loadings, loadings_ht.af)
+        assert ht._force_count() == 100
 
     def test_mt_full_outer_join(self):
         mt1 = hl.utils.range_matrix_table(10, 10)

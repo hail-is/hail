@@ -314,7 +314,7 @@ class ASM4SSuite extends TestNGSuite {
     }
     i = 0
     while (i < 3) {
-      methods(i).emit(Code(codes(i): _*))
+      methods(i).emit(Code.concat(codes(i): _*))
       i += 1
     }
     fb.emit(Code._return[Int](methods(1).invoke(0,0)))
