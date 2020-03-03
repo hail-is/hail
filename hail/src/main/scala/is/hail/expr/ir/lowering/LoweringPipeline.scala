@@ -34,8 +34,9 @@ case class LoweringPipeline(lowerings: IndexedSeq[LoweringPass]) {
 object LoweringPipeline {
   val relationalLowerer: LoweringPipeline = LoweringPipeline(Array(LowerMatrixToTablePass, InterpretNonCompilablePass))
   val legacyRelationalLowerer: LoweringPipeline = LoweringPipeline(Array(LowerMatrixToTablePass, LegacyInterpretNonCompilablePass))
-  val tableLowerer: LoweringPipeline = LoweringPipeline(Array(LowerMatrixToTablePass, LowerTableToDistributedArrayPass))
-  val bmLowerer: LoweringPipeline = LoweringPipeline(Array(LowerBlockMatrixToDistributedArrayPass))
-  val tableAndBMLowerer: LoweringPipeline = LoweringPipeline(Array(LowerMatrixToTablePass, LowerToDistributedArrayPass))
   val compileLowerer: LoweringPipeline = LoweringPipeline(Array(InlineApplyIR, LowerArrayAggsToRunAggsPass))
+  val darrayLowerer: Map[DArrayLowering.Type, LoweringPipeline] = Map(
+    DArrayLowering.All -> LoweringPipeline(Array(LowerMatrixToTablePass, LowerToDistributedArrayPass(DArrayLowering.All))),
+    DArrayLowering.TableOnly -> LoweringPipeline(Array(LowerMatrixToTablePass, LowerToDistributedArrayPass(DArrayLowering.TableOnly))),
+    DArrayLowering.BMOnly -> LoweringPipeline(Array(LowerToDistributedArrayPass(DArrayLowering.BMOnly))))
 }

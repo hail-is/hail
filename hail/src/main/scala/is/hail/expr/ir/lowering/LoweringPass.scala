@@ -55,23 +55,23 @@ case object LowerTableToDistributedArrayPass extends LoweringPass {
   val after: IRState = CompilableIR
   val context: String = "LowerTableToDistributedArray"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerIR.lower(ir.asInstanceOf[IR], lowerTable = true, lowerBM = false)
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerIR.lower(ir.asInstanceOf[IR], DArrayLowering.TableOnly)
 }
 
 case object LowerBlockMatrixToDistributedArrayPass extends LoweringPass {
-  val before: IRState = BlockMatrixOnly
+  val before: IRState = LowerableToDArray(DArrayLowering.BMOnly)
   val after: IRState = CompilableIR
   val context: String = "LowerBlockMatrixToDistributedArray"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerIR.lower(ir.asInstanceOf[IR], lowerTable = false, lowerBM = true)
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerIR.lower(ir.asInstanceOf[IR], DArrayLowering.BMOnly)
 }
 
-case object LowerToDistributedArrayPass extends LoweringPass {
-  val before: IRState = MatrixLoweredToTable
+case class LowerToDistributedArrayPass(t: DArrayLowering.Type) extends LoweringPass {
+  val before: IRState = LowerableToDArray(t)
   val after: IRState = CompilableIR
   val context: String = "LowerToDistributedArray"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerIR.lower(ir.asInstanceOf[IR], lowerTable = true, lowerBM = true)
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerIR.lower(ir.asInstanceOf[IR], t)
 }
 
 case object InlineApplyIR extends LoweringPass {

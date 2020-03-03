@@ -3,15 +3,15 @@ package is.hail.backend
 import is.hail.annotations.UnsafeRow
 import is.hail.expr.ir.IRParser
 import is.hail.expr.types.encoded.EType
-import is.hail.expr.types.physical.{PType, PBaseStruct}
-import is.hail.io.{ BufferSpec, TypedCodecSpec }
-import java.io.{ ByteArrayInputStream, PrintWriter }
+import is.hail.expr.types.physical.{PBaseStruct, PType}
+import is.hail.io.{BufferSpec, TypedCodecSpec}
+import java.io.{ByteArrayInputStream, PrintWriter}
 
 import is.hail.HailContext
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, LoweringPipeline}
+import is.hail.expr.ir.lowering.{DArrayLowering, LowererUnsupportedOperation, LoweringPipeline}
 import is.hail.expr.ir.{BlockMatrixIR, Compilable, Compile, CompileAndEvaluate, ExecuteContext, IR, MakeTuple, Pretty, TypeCheck}
 import is.hail.expr.types.physical.PTuple
 import is.hail.expr.types.virtual.TVoid
@@ -49,12 +49,13 @@ abstract class Backend {
     }
 
   private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir0: IR, optimize: Boolean, lowerTable: Boolean, lowerBM: Boolean, print: Option[PrintWriter] = None): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
-    val ir = (lowerTable, lowerBM) match {
-      case (true, true) => LoweringPipeline.tableAndBMLowerer.apply(ctx, ir0, optimize).asInstanceOf[IR]
-      case (true, false) => LoweringPipeline.tableLowerer.apply(ctx, ir0, optimize).asInstanceOf[IR]
-      case (false, true) => LoweringPipeline.bmLowerer.apply(ctx, ir0, optimize).asInstanceOf[IR]
+    val typesToLower: DArrayLowering.Type = (lowerTable, lowerBM) match {
+      case (true, true) => DArrayLowering.All
+      case (true, false) => DArrayLowering.TableOnly
+      case (false, true) => DArrayLowering.BMOnly
       case (false, false) => throw new LowererUnsupportedOperation("no lowering enabled")
     }
+    val ir = LoweringPipeline.darrayLowerer(typesToLower).apply(ctx, ir0, optimize).asInstanceOf[IR]
 
     if (!Compilable(ir))
       throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")

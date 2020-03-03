@@ -15,6 +15,10 @@ case object NoTableIR extends Rule {
   def allows(ir: BaseIR): Boolean = !ir.isInstanceOf[TableIR]
 }
 
+case object NoBlockMatrixIR extends Rule {
+  def allows(ir: BaseIR): Boolean = !ir.isInstanceOf[BlockMatrixIR]
+}
+
 case object NoRelationalLets extends Rule {
   def allows(ir: BaseIR): Boolean = ir match {
     case _: RelationalLet => false
