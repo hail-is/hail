@@ -81,7 +81,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   private def maybeGCCode(alwaysRun: Code[Unit]*)(runIfGarbage: => Array[Code[Unit]], runBefore: Boolean = false): Code[Unit] = {
     val gcCodes = (if (canHaveGarbage) runIfGarbage else Array[Code[Unit]]())
     val allCode = if (runBefore) (gcCodes ++ alwaysRun) else (alwaysRun.toArray ++ gcCodes)
-    asm4s.coerce[Unit](Code(allCode: _*))
+    Code(allCode)
   }
 
   def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(regionSize)
@@ -261,7 +261,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
     val parent = mb.newLocal[Int]("parent")
 
-    mb.emit(Code(
+    mb.emit(
       (idx > 0).orEmpty(
         Code(
           parent := (idx + 1) / 2 - 1,
@@ -271,7 +271,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
             Code(
               swap(ii, jj),
               mb.invoke(parent))
-          )))))
+          ))))
 
     mb.invoke(_)
   }
@@ -386,23 +386,22 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
     mb.emit(
       (maxSize > 0).orEmpty(
-        Code(
-          (ab.size < maxSize).mux(
-            Code(
-              stageAndIndexKey(keyM, key),
-              copyToStaging(value, valueM, keyStage),
-              enqueueStaging()),
-            Code(
-              tempPtr := eltTuple.loadField(elementOffset(0), 0),
-              (compareKey((keyM, key), loadKey(tempPtr)) < 0)
-                .orEmpty(Code(
-                  stageAndIndexKey(keyM, key),
-                  copyToStaging(value, valueM, keyStage),
-                  swapStaging(),
-                  gc
-                )))
-          )
-        ))
+        (ab.size < maxSize).mux(
+          Code(
+            stageAndIndexKey(keyM, key),
+            copyToStaging(value, valueM, keyStage),
+            enqueueStaging()),
+          Code(
+            tempPtr := eltTuple.loadField(elementOffset(0), 0),
+            (compareKey((keyM, key), loadKey(tempPtr)) < 0)
+              .orEmpty(Code(
+                stageAndIndexKey(keyM, key),
+                copyToStaging(value, valueM, keyStage),
+                swapStaging(),
+                gc
+              )))
+        )
+      )
     )
 
     mb.invoke(_, _, _, _)
@@ -422,7 +421,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
         indexOffset := indexedKeyType.fieldOffset(eltTuple.loadField(offset, 0), 1),
         Region.storeLong(indexOffset, Region.loadLong(indexOffset) + maxIndex),
         (maxSize > 0).orEmpty(
-          (ab.size < maxSize).mux[Unit](
+          (ab.size < maxSize).mux(
             Code(
               copyElementToStaging(offset),
               enqueueStaging()),

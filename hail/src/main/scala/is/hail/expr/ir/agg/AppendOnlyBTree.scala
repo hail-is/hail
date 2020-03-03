@@ -100,11 +100,11 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
             cont))
       }
 
-    def copyToNew(startIdx: Int) = coerce[Unit](Code(
+    def copyToNew(startIdx: Int) = Code(
       Array.tabulate(maxElements - startIdx) { newIdx =>
         Code(copyFrom(newNode, newIdx, node, newIdx + startIdx),
           setKeyMissing(node, newIdx + startIdx))
-      }: _*))
+      })
 
     def insertKey(m: Code[Boolean], v: Code[_], c: Code[Long]): Code[Long] = {
       val upperBound = Array.range(0, maxElements)

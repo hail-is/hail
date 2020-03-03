@@ -82,7 +82,7 @@ object LocusFunctions extends RegistryFunctions {
     }
 
     val lt = pt.pointType.fundamentalType.asInstanceOf[PBaseStruct]
-    asm4s.coerce[Unit](Code(
+    Code(FastIndexedSeq(
       ilocal := interval,
       srvb.start(),
       srvb.addBaseStruct(types.coerce[PBaseStruct](lt), addLocus(_, "start")),

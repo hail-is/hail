@@ -62,7 +62,7 @@ object JoinPoint {
       val jb = new JoinPointBuilder(si)
       val ret = new JoinPoint[A](si)
       val body = f(jb, ret)
-      Code(
+      Code.concat[Nothing](
         assignLabels(jb.joinPoints),
         assignLabels(List(ret)),
         body,
@@ -151,7 +151,7 @@ class JoinPointBuilder private[joinpoint](
   private[joinpoint] def define: Code[Unit] =
     Code.foreach(joinPoints) { j =>
       j.body match {
-        case Some(body) => Code(j.placeLabel, body)
+        case Some(body) => Code.concat[Unit](j.placeLabel, body)
         case None => fatal("join point never defined")
       }
     }

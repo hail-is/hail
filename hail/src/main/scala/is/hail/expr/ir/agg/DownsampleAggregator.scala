@@ -102,7 +102,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
 
   def init(nDivisions: Code[Int]): Code[Unit] = {
     val mb = fb.newMethod("downsample_init", Array[TypeInfo[_]](IntInfo), UnitInfo)
-    mb.emit(Code(
+    mb.emit(Code(FastIndexedSeq(
       allocateSpace(),
       this.nDivisions := mb.getArg[Int](1),
       (this.nDivisions < 4).orEmpty(Code._fatal(const("downsample: require n_divisions >= 4, found ").concat(this.nDivisions.toS))),
@@ -112,14 +112,14 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
       top := 0d,
       treeSize := 0,
       tree.init,
-      buffer.initialize()))
+      buffer.initialize())))
     mb.invoke(nDivisions)
   }
 
   override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] = {
     val mb = fb.newMethod("downsample_load", Array[TypeInfo[_]](), UnitInfo)
     mb.emit(
-      Code(
+      Code(FastIndexedSeq(
         off := src,
         nDivisions := Region.loadInt(storageType.loadField(off, "nDivisions")),
         treeSize := Region.loadInt(storageType.loadField(off, "treeSize")),
@@ -133,15 +133,13 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
         bufferTop := Region.loadDouble(storageType.loadField(off, "bufferTop")),
         buffer.loadFrom(storageType.fieldOffset(off, "buffer")),
         root := Region.loadAddress(storageType.fieldOffset(off, "tree"))
-      )
-
-    )
+      )))
     Code(regionLoader(r), mb.invoke())
   }
 
   override def store(regionStorer: Code[Region] => Code[Unit], dest: Code[Long]): Code[Unit] = {
     val mb = fb.newMethod("downsample_store", Array[TypeInfo[_]](), UnitInfo)
-    mb.emit(Code(
+    mb.emit(Code(FastIndexedSeq(
       off := dest,
       Region.storeInt(storageType.fieldOffset(off, "nDivisions"), nDivisions),
       Region.storeInt(storageType.fieldOffset(off, "treeSize"), treeSize),
@@ -155,7 +153,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
       Region.storeDouble(storageType.fieldOffset(off, "bufferTop"), bufferTop),
       buffer.storeTo(storageType.fieldOffset(off, "buffer")),
       Region.storeAddress(storageType.fieldOffset(off, "tree"), root)
-    ))
+    )))
 
     Code(
       mb.invoke(),
@@ -166,7 +164,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
     val mb = fb.newMethod("downsample_copy", Array[TypeInfo[_]](LongInfo), UnitInfo)
 
     val src = mb.getArg[Long](1)
-    mb.emit(Code(
+    mb.emit(Code(FastIndexedSeq(
       allocateSpace(),
       nDivisions := Region.loadInt(storageType.loadField(src, "nDivisions")),
       treeSize := Region.loadInt(storageType.loadField(src, "treeSize")),
@@ -176,7 +174,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
       top := Region.loadDouble(storageType.loadField(src, "bottom")),
       treeSize := Region.loadInt(storageType.loadField(src, "treeSize")),
       tree.deepCopy(src),
-      buffer.copyFrom(storageType.loadField(src, "buffer"))))
+      buffer.copyFrom(storageType.loadField(src, "buffer")))))
     mb.invoke(_src)
   }
 
@@ -188,7 +186,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
       val mb = fb.newMethod("downsample_serialize", Array[TypeInfo[_]](typeInfo[OutputBuffer]), UnitInfo)
       val ob = mb.getArg[OutputBuffer](1).load()
 
-      mb.emit(Code(
+      mb.emit(Code(FastIndexedSeq(
         dumpBuffer(),
         ob.writeInt(nDivisions),
         ob.writeInt(treeSize),
@@ -204,7 +202,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
             pointEnc.invoke(key.storageType.loadField(src, "point"), ob))
         },
         ob.writeInt(DownsampleState.serializationEndMarker)
-      ))
+      )))
       mb.invoke(_ob)
     }
   }
@@ -218,7 +216,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
       val ib = mb.getArg[InputBuffer](1).load()
       val serializationEndTag = mb.newLocal[Int]
       mb.emit(
-        Code(
+        Code(FastIndexedSeq(
           allocateSpace(),
           nDivisions := ib.readInt(),
           treeSize := ib.readInt(),
@@ -241,8 +239,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
           buffer.initialize(),
           serializationEndTag := ib.readInt(),
           serializationEndTag.cne(DownsampleState.serializationEndMarker).orEmpty(Code._fatal("downsample aggregator failed to serialize!"))
-        )
-      )
+        )))
       mb.invoke(_ib)
     }
   }
@@ -300,7 +297,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
   def copyFromTree(other: AppendOnlyBTree): Code[Unit] = {
     val mb = fb.newMethod("downsample_copy_from_tree", Array[TypeInfo[_]](), UnitInfo)
 
-    mb.emit(Code(
+    mb.emit(
       other.foreach {
         val mb = fb.newMethod("downsample_copy_from_tree_foreach", Array[TypeInfo[_]](LongInfo), UnitInfo)
         val value = mb.getArg[Long](1)
@@ -317,7 +314,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
         ))
         mb.invoke(_)
       }
-    ))
+    )
 
     mb.invoke()
   }
@@ -340,7 +337,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
       val point = mb.newLocal[Long]("elt")
       val x = mb.newLocal[Double]("x")
       val y = mb.newLocal[Double]("y")
-      mb.emit(Code(
+      mb.emit(Code(FastIndexedSeq(
         buffer.size.ceq(0).orEmpty(Code._return(Code._empty)),
         left := min(left, bufferLeft),
         right := max(right, bufferRight),
@@ -362,7 +359,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
         buffer.initialize(),
         oldRegion.load().invalidate(),
         allocateSpace()
-      ))
+      )))
     }
 
     mb.invoke()
