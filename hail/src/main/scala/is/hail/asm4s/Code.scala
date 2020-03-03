@@ -395,13 +395,6 @@ trait Code[+T] {
         il += new JumpInsnNode(GOTO, lfalse)
       }
     }
-
-  private var emitted: Boolean = false
-
-  def markEmitted() {
-    assert(!emitted)
-    emitted = true
-  }
 }
 
 trait CodeConditional extends Code[Boolean] {
