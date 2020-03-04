@@ -32,7 +32,7 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
   def collectBlocks(f: IR => IR, blocksToCollect: Array[(Int, Int)]): IR = {
     val ctxRef = Ref(genUID(), ctxType)
     val body = f(blockBody(ctxRef))
-    val ctxs = MakeArray(blocksToCollect.map(idx => blockContext(idx)), TArray(ctxRef.typ))
+    val ctxs = MakeStream(blocksToCollect.map(idx => blockContext(idx)), TStream(ctxRef.typ))
     val bodyFreeVars = FreeVariables(body, supportsAgg = false, supportsScan = false)
     val bcFields = globalVals.filter { case (f, _) => bodyFreeVars.eval.lookupOption(f).isDefined }
     val bcVals = MakeStruct(bcFields.map { case (f, v) => f -> Ref(f, v.typ) })
