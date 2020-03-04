@@ -859,13 +859,6 @@ object FieldRef {
   }
 }
 
-object Value {
-  def apply[T](c: Value[_], insn: => AbstractInsnNode): Value[T] =
-    new Value[T] {
-      def get: Code[T] = Code(c.get, insn)
-    }
-}
-
 trait Value[+T] { self =>
   def get: Code[T]
 }
