@@ -195,6 +195,31 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
       }
     }
 
+  def cleanupRegions: ContextRDD[RVDContext, RegionValue] = {
+    crdd.cmapPartitionsAndContext { (ctx, part) =>
+      val it = part.flatMap(_ (ctx))
+      new Iterator[RegionValue]() {
+        private[this] var cleared: Boolean = false
+
+        def hasNext: Boolean = {
+          if (!cleared) {
+            cleared = true
+            ctx.region.clear()
+          }
+          it.hasNext
+        }
+
+        def next: RegionValue = {
+          if (!cleared) {
+            ctx.region.clear()
+          }
+          cleared = false
+          it.next
+        }
+      }
+    }
+  }
+
   def writeRows(
     path: String,
     idxRelPath: String,
