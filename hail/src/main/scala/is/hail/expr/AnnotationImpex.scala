@@ -27,8 +27,8 @@ object SparkAnnotationImpex {
   }
 
   def importType(t: DataType): PType = t match {
-    case BooleanType => PBoolean(x.nullable)
-    case x@IntegerType => PInt32(x.nu)
+    case BooleanType => PBoolean()
+    case IntegerType => PInt32()
     case LongType => PInt64()
     case FloatType => PFloat32()
     case DoubleType => PFloat64()
