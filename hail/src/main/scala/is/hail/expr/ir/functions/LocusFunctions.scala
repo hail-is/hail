@@ -155,13 +155,12 @@ object LocusFunctions extends RegistryFunctions {
     invoke("contains", TBoolean(), yContigs, invoke("contig", TString(), locus))
   }
 
-  // def inXPar(l: Locus): Boolean = inX(l.contig) && par.exists(_.contains(locusType.ordering, l))
   def inPar(locus: IR): IR = {
     val t = locus.typ.asInstanceOf[TLocus]
     val par = Literal(TArray(TInterval(t)), t.rg.par)
     ArrayFunctions.exists(par, interval => invoke("contains", TBoolean(), interval, locus))
   }
-  // def isMitochondrial(contig: String): Boolean = mtContigs.contains(contig)
+
   def isMitochondrial(locus: IR): IR = {
     val mtContigs = Literal(TSet(TString()), locus.typ.asInstanceOf[TLocus].rg.mtContigs)
     invoke("contains", TBoolean(), mtContigs, invoke("contig", TString(), locus))
@@ -181,10 +180,10 @@ object LocusFunctions extends RegistryFunctions {
       case (r, rt, (locusT: PLocus, locus: Code[Long])) =>
         locusT.position(locus)
     }
-    // isAutosomal(rg) || inXPar(rg) || inYPar(rg)
     registerLocusCode("isAutosomalOrPseudoAutosomal") { locus =>
       isAutosomal(locus) || ((inX(locus) || inY(locus)) && inPar(locus))
     }
+    registerLocusCode("isAutosomal")(isAutosomal)
     registerLocusCode("isMitochondrial")(isMitochondrial)
     registerLocusCode("inXPar") { locus => inX(locus) && inPar(locus) }
     registerLocusCode("inYPar") { locus => inY(locus) && inPar(locus) }
