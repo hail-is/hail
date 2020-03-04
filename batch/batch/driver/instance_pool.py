@@ -153,18 +153,22 @@ SET max_instances = %s, pool_size = %s;
             if machine_name not in self.name_instance:
                 break
 
-        n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
-        total_cores = self.worker_cores * n_live_instances
+        # FIXME: put this back in when striping is working
+        # n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
+        # total_cores = self.worker_cores * n_live_instances
+        #
+        # if total_cores < 5_000:
+        #     zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
+        #     zone = random.choice(zones)
+        # else:
+        #     zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f', 'us-east1-a', 'us-east1-b', 'us-east1-c', 'us-east4-a', 'us-east4-b', 'us-east4-c', 'us-west1-a', 'us-west1-b', 'us-west1-c', 'us-west2-a', 'us-west2-b', 'us-west2-c']
+        #     # based on quotas, us-central1: 300K over 4 zones, rest: 100K over 3 zones
+        #     weights = 4 * [295 / 4] + 12 * [100 / 3]
+        #
+        #     zone = random.choices(zones, weights)[0]
 
-        if total_cores < 5_000:
-            zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
-            zone = random.choice(zones)
-        else:
-            zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f', 'us-east1-a', 'us-east1-b', 'us-east1-c', 'us-east4-a', 'us-east4-b', 'us-east4-c', 'us-west1-a', 'us-west1-b', 'us-west1-c', 'us-west2-a', 'us-west2-b', 'us-west2-c']
-            # based on quotas, us-central1: 300K over 4 zones, rest: 100K over 3 zones
-            weights = 4 * [295 / 4] + 12 * [100 / 3]
-
-            zone = random.choices(zones, weights)[0]
+        zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
+        zone = random.choice(zones)
 
         activation_token = secrets.token_urlsafe(32)
         instance = await Instance.create(self.app, machine_name, activation_token, self.worker_cores * 1000, zone)
