@@ -1,11 +1,11 @@
 package is.hail.expr.ir.agg
 
 import breeze.linalg.{DenseMatrix, DenseVector, diag, inv}
-
 import is.hail.annotations.{Region, RegionValueBuilder, StagedRegionValueBuilder, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
-import is.hail.expr.types.physical.{PArray, PFloat64, PStruct, PTuple, PInt32}
+import is.hail.expr.types.physical.{PArray, PFloat64, PInt32, PStruct, PTuple}
+import is.hail.utils.FastIndexedSeq
 
 object LinearRegressionAggregator extends StagedAggregator {
   type State = TypedRegionBackedAggState
@@ -55,7 +55,7 @@ object LinearRegressionAggregator extends StagedAggregator {
     val xty = mb.newLocal[Long]
     val xtx = mb.newLocal[Long]
 
-    val body = coerce[Unit](Code(
+    val body = Code(FastIndexedSeq(
       xty := stateType.loadField(state.off, 0),
       xtx := stateType.loadField(state.off, 1),
       sptr := vector.firstElementOffset(xty, k),
@@ -106,7 +106,7 @@ object LinearRegressionAggregator extends StagedAggregator {
     val oxty = mb.newLocal[Long]
     val oxtx = mb.newLocal[Long]
 
-    Code(
+    Code(FastIndexedSeq(
       xty := stateType.loadField(state.off, 0),
       xtx := stateType.loadField(state.off, 1),
       oxty := stateType.loadField(other.off, 0),
@@ -129,8 +129,8 @@ object LinearRegressionAggregator extends StagedAggregator {
         Region.storeDouble(sptr, Region.loadDouble(sptr) + Region.loadDouble(optr)),
         i := i + 1,
         sptr := sptr + scalar.byteSize,
-        optr := optr + scalar.byteSize)))
-  }.asInstanceOf[Code[Unit]]
+        optr := optr + scalar.byteSize))))
+  }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] =
     state.fb.newMethod[Unit]("linregCombOp")(combOpF(state, other))

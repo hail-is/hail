@@ -219,7 +219,7 @@ object CompileDecoder {
     val d0 = mb.newLocal[Int]("d0")
     val d1 = mb.newLocal[Int]("d1")
     val d2 = mb.newLocal[Int]("d2")
-    val c = Code(
+    val c = Code(Code(FastIndexedSeq(
       offset := cbfis.invoke[Long]("getPosition"),
       fileIdx := cp.invoke[Int]("index"),
       if (settings.hasField("varid")) {
@@ -334,7 +334,7 @@ object CompileDecoder {
 
             val srvb = new StagedRegionValueBuilder(memoMB, memoTyp, fb.partitionRegion)
 
-            memoMB.emit(Code(
+            memoMB.emit(
               alreadyMemoized.mux(
                 Code._empty,
                 Code(
@@ -422,7 +422,7 @@ object CompileDecoder {
                 memoizedEntryData := srvb.end(),
                 alreadyMemoized := true
               )
-            )))
+            ))
             memoMB.invoke()
           }
 
@@ -445,7 +445,7 @@ object CompileDecoder {
             val off = addEntriesMB.newLocal[Int]("off")
             val d0 = addEntriesMB.newLocal[Int]("d0")
             val d1 = addEntriesMB.newLocal[Int]("d1")
-            addEntriesMB.emit(Code(
+            addEntriesMB.emit(
               srvb.addArray(entriesArrayType,
                 { srvb =>
                   Code(
@@ -463,11 +463,11 @@ object CompileDecoder {
                       srvb.advance(),
                       i := i + 1))
                 })
-            ))
+            )
             addEntriesMB.invoke(_)
           }
 
-          Code(
+          Code(FastIndexedSeq(
             cp.invoke[Boolean]("compressed").mux(
               Code(
                 uncompressedSize := cbfis.invoke[Int]("readInt"),
@@ -556,8 +556,8 @@ object CompileDecoder {
             c2 := Call2.fromUnphasedDiploidGtIndex(2),
             memoizeAllValues,
             addEntries(data)
-            )
-      },
+            ))
+      })),
       srvb.end())
 
     mb.emit(c)

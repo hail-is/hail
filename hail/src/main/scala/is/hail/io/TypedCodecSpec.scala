@@ -52,31 +52,3 @@ final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: Buffer
     (region: Code[Region], off: Code[T], buf: Code[OutputBuffer]) => mb.invoke[Unit](off, buf)
   }
 }
-
-object ShowBuf {
-  def apply(buf: Array[Byte], pos: Int, n: Int): Unit = {
-    val sb = new StringBuilder()
-    val len = if (n < 32) n else 32
-    var j = 0
-    while (j < len) {
-      val x = (buf(pos + j).toInt & 0xff)
-      if (x <= 0xf) sb.append(s" 0${ x.toHexString }") else sb.append(s" ${ x.toHexString }")
-      if ((j & 0x7) == 0x7) sb.append("\n")
-      j += 1
-    }
-    System.err.println(sb.toString())
-  }
-
-  def apply(addr: Long, n: Int): Unit = {
-    val sb = new StringBuilder()
-    val len = if (n < 32) n else 32
-    var j = 0
-    while (j < len) {
-      val x = (Memory.loadByte(addr + j).toInt & 0xff)
-      if (x <= 0xf) sb.append(s" 0${ x.toHexString }") else sb.append(s" ${ x.toHexString }")
-      if ((j & 0x7) == 0x7) sb.append("\n")
-      j += 1
-    }
-    System.err.println(sb.toString())
-  }
-}

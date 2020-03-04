@@ -170,7 +170,7 @@ object MathFunctions extends RegistryFunctions {
     ){ case (r, rt, (at, a), (bt, b), (ct, c), (dt, d)) =>
       val res = r.mb.newLocal[Array[Double]]
       val srvb = new StagedRegionValueBuilder(r, rt)
-      Code(
+      Code(Code(FastIndexedSeq(
         res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "fisherExactTest", a, b, c, d),
         srvb.start(),
         srvb.addDouble(res(0)),
@@ -180,9 +180,8 @@ object MathFunctions extends RegistryFunctions {
         srvb.addDouble(res(2)),
         srvb.advance(),
         srvb.addDouble(res(3)),
-        srvb.advance(),
-        srvb.offset
-      )
+        srvb.advance())),
+        srvb.offset)
     }
     
     registerCode("chi_squared_test", TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct.virtualType,

@@ -23,7 +23,7 @@ object IntervalFunctions extends RegistryFunctions {
           vv := 0L,
           mv.mux(
             Code._empty,
-            Code(
+            Code(FastIndexedSeq(
               srvb.start(),
               start.m.mux(
                 srvb.setMissing(),
@@ -37,7 +37,7 @@ object IntervalFunctions extends RegistryFunctions {
               srvb.advance(),
               srvb.addBoolean(includeEnd.value[Boolean]),
               srvb.advance(),
-              vv := srvb.offset)),
+              vv := srvb.offset))),
           Code._empty)
 
         EmitTriplet(

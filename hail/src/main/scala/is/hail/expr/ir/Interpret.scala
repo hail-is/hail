@@ -683,6 +683,7 @@ object Interpret {
             }
           }
         }
+
         wrapped.get(0)
       case LiftMeOut(child) =>
         val (rt, makeFunction) = Compile[Long](ctx, MakeTuple.ordered(FastSeq(child)), None, false)

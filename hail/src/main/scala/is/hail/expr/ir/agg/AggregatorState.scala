@@ -130,7 +130,7 @@ class PrimitiveRVAState(val types: Array[PType], val fb: EmitFunctionBuilder[_])
   val storageType: PTuple = PTuple(types: _*)
 
   def foreachField(f: (Int, ValueField) => Code[Unit]): Code[Unit] =
-    coerce[Unit](Code(Array.tabulate(nFields)(i => f(i, fields(i))) :_*))
+    Code(Array.tabulate(nFields)(i => f(i, fields(i))))
 
   def newState(off: Code[Long]): Code[Unit] = Code._empty
   def createState: Code[Unit] = Code._empty
@@ -213,7 +213,7 @@ class TupleAggregatorState(val fb: EmitFunctionBuilder[_], val states: StateTupl
   private def getStateOffset(i: Int): Code[Long] = storageType.loadField(off, i)
 
   def toCode(f: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
-    coerce[Unit](Code(Array.tabulate(states.nStates)(i => f(i, states(i))): _*))
+    Code(Array.tabulate(states.nStates)(i => f(i, states(i))))
 
   def newState(i: Int): Code[Unit] = states(i).newState(getStateOffset(i))
   def newState: Code[Unit] = states.toCode(fb, "new_state", (i, s) => s.newState(getStateOffset(i)))

@@ -54,6 +54,7 @@ object Compile {
 
     val f = fb.resultWithIndex(print)
     codeCache += k -> CodeCacheValue(ir.pType, f)
+
     (ir.pType, f)
   }
 

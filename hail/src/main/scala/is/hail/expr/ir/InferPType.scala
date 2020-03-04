@@ -527,7 +527,6 @@ object InferPType {
             theIR._pType2
           })), true)
         }
-
       case x@InitOp(i, args, sig, op) =>
         op match {
           case Group() =>
@@ -556,7 +555,6 @@ object InferPType {
               inits(i) += RecursiveArrayBuilderElement(x, None)
         }
         PVoid
-
       case x@SeqOp(i, args, sig, op) =>
         op match {
           case Group() =>
@@ -588,10 +586,8 @@ object InferPType {
               seqs(i) += RecursiveArrayBuilderElement(x, None)
         }
         PVoid
-
       case x@ResultOp(resultIdx, sigs) =>
         PCanonicalTuple(true, (resultIdx until resultIdx + sigs.length).map(i => aggs(i).resultType): _*)
-
       case x@RunAgg(body, result, signature) =>
         val inits = newBuilder[InitOp](signature.length)
         val seqs = newBuilder[SeqOp](signature.length)
@@ -600,7 +596,6 @@ object InferPType {
         infer(result, env, aggs = sigs, inits = null, seqs = null)
         x.physicalSignatures2 = sigs
         result.pType2
-
       case x@RunAggScan(array, name, init, seq, result, signature) =>
         infer(array)
         val e2 = env.bind(name, coerce[PStream](array.pType2).elementType)
@@ -612,12 +607,10 @@ object InferPType {
         infer(result, env = e2, aggs = sigs, inits = null, seqs = null)
         x.physicalSignatures2 = sigs
         coerce[PStream](array.pType2).copy(result.pType2)
-
       case AggStateValue(i, sig) => PCanonicalBinary(true)
       case x if x.typ == TVoid =>
         x.children.foreach(c => infer(c.asInstanceOf[IR]))
         PVoid
-
       case NDArrayAgg(nd, _) =>
         infer(nd)
         PType.canonical(ir.typ)
@@ -625,8 +618,6 @@ object InferPType {
         x.children.foreach(c => infer(c.asInstanceOf[IR]))
         PVoid
     }
-
-
     if (!(ir.pType2.virtualType isOfType ir.typ))
       throw new RuntimeException(s"pType.virtualType: ${ir.pType2.virtualType}, vType = ${ir.typ}\n  ir=$ir")
   }

@@ -40,13 +40,10 @@ class RichCodeInputBuffer(in: Code[InputBuffer]) {
     if (n == 0)
       Code._empty
     else if (n < 5)
-      Code(
-        Code((0 until n).map(i =>
-          Region.storeByte(toOff + const(i), in.readByte())): _*),
-        // for type
-        Code._empty)
+      Code((0 until n).map(i =>
+        Region.storeByte(toOff + const(i), in.readByte())))
     else
-      in.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
+    in.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
   }
 
   def skipBoolean(): Code[Unit] = in.invoke[Unit]("skipBoolean")

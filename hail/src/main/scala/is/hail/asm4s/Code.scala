@@ -17,16 +17,50 @@ object Code {
     }
   }
 
-  def apply[S1, S2](c1: Code[S1], c2: Code[S2]): Code[S2] =
-    new Code[S2] {
+  def concat[T](c: Code[_]*): Code[T] =
+    new Code[T] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c.foreach(_.emit(il))
+      }
+    }
+
+  def apply[T](c: Code[_], insn: => AbstractInsnNode): Code[T] =
+    new Code[T] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c.emit(il)
+        il += insn
+      }
+    }
+
+  def apply[T](c1: Code[_], c2: Code[_], insn: => AbstractInsnNode): Code[T] =
+    new Code[T] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c1.emit(il)
+        c2.emit(il)
+        il += insn
+      }
+    }
+
+  def apply[T](c1: Code[_], c2: Code[_], c3: Code[_], insn: => AbstractInsnNode): Code[T] =
+    new Code[T] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        c1.emit(il)
+        c2.emit(il)
+        c3.emit(il)
+        il += insn
+      }
+    }
+
+  def apply[T](c1: Code[Unit], c2: Code[T]): Code[T] =
+    new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         c1.emit(il)
         c2.emit(il)
       }
     }
 
-  def apply[S1, S2, S3](c1: Code[S1], c2: Code[S2], c3: Code[S3]): Code[S3] =
-    new Code[S3] {
+  def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[T]): Code[T] =
+    new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         c1.emit(il)
         c2.emit(il)
@@ -34,8 +68,8 @@ object Code {
       }
     }
 
-  def apply[S1, S2, S3, S4](c1: Code[S1], c2: Code[S2], c3: Code[S3], c4: Code[S4]): Code[S4] =
-    new Code[S4] {
+  def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[T]): Code[T] =
+    new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         c1.emit(il)
         c2.emit(il)
@@ -44,8 +78,8 @@ object Code {
       }
     }
 
-  def apply[S1, S2, S3, S4, S5](c1: Code[S1], c2: Code[S2], c3: Code[S3], c4: Code[S4], c5: Code[S5]): Code[S5] =
-    new Code[S5] {
+  def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[Unit], c5: Code[T]): Code[T] =
+    new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         c1.emit(il)
         c2.emit(il)
@@ -55,8 +89,8 @@ object Code {
       }
     }
 
-  def apply[S1, S2, S3, S4, S5, S6](c1: Code[S1], c2: Code[S2], c3: Code[S3], c4: Code[S4], c5: Code[S5], c6: Code[S6]): Code[S6] =
-    new Code[S6] {
+  def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[Unit], c5: Code[Unit], c6: Code[T]): Code[T] =
+    new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         c1.emit(il)
         c2.emit(il)
@@ -67,8 +101,8 @@ object Code {
       }
     }
 
-  def apply[S1, S2, S3, S4, S5, S6, S7](c1: Code[S1], c2: Code[S2], c3: Code[S3], c4: Code[S4], c5: Code[S5], c6: Code[S6], c7: Code[S7]): Code[S7] =
-    new Code[S7] {
+  def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[Unit], c5: Code[Unit], c6: Code[Unit], c7: Code[T]): Code[T] =
+    new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         c1.emit(il)
         c2.emit(il)
@@ -80,8 +114,8 @@ object Code {
       }
     }
 
-  def apply[S1, S2, S3, S4, S5, S6, S7, S8](c1: Code[S1], c2: Code[S2], c3: Code[S3], c4: Code[S4], c5: Code[S5], c6: Code[S6], c7: Code[S7], c8: Code[S8]): Code[S8] =
-    new Code[S8] {
+  def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[Unit], c5: Code[Unit], c6: Code[Unit], c7: Code[Unit], c8: Code[T]): Code[T] =
+    new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         c1.emit(il)
         c2.emit(il)
@@ -94,8 +128,8 @@ object Code {
       }
     }
 
-  def apply[S1, S2, S3, S4, S5, S6, S7, S8, S9](c1: Code[S1], c2: Code[S2], c3: Code[S3], c4: Code[S4], c5: Code[S5], c6: Code[S6], c7: Code[S7], c8: Code[S8], c9: Code[S9]): Code[S9] =
-    new Code[S9] {
+  def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[Unit], c5: Code[Unit], c6: Code[Unit], c7: Code[Unit], c8: Code[Unit], c9: Code[T]): Code[T] =
+    new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         c1.emit(il)
         c2.emit(il)
@@ -109,7 +143,7 @@ object Code {
       }
     }
 
-  def apply(cs: Code[_]*): Code[_] =
+  def apply(cs: Seq[Code[Unit]]): Code[Unit] =
     new Code[Unit] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         cs.foreach(_.emit(il))
@@ -164,7 +198,7 @@ object Code {
       L,
       cond.mux(
         Code(
-          Code(body: _*),
+          Code(body),
           L.goto),
         Code._empty))
   }
@@ -302,7 +336,7 @@ object Code {
       Code._null[Throwable]))
 
   def _return[T](c: Code[T])(implicit tti: TypeInfo[T]): Code[Unit] =
-    Code(c, Code(new InsnNode(tti.returnOp)))
+    Code(c, new InsnNode(tti.returnOp))
 
   def _println(c: Code[AnyRef]): Code[Unit] =
     Code.invokeScalaObject[AnyRef, Unit](scala.Console.getClass, "println", c)
@@ -343,7 +377,7 @@ object Code {
     f.put(null, rhs)
   }
 
-  def foreach[A](it: Seq[A])(f: A => Code[_]): Code[Unit] = Code(it.map(f): _*).asInstanceOf[Code[Unit]]
+  def foreach[A](it: Seq[A])(f: A => Code[Unit]): Code[Unit] = Code(it.map(f))
 
   def currentTimeMillis(): Code[Long] = Code.invokeStatic[java.lang.System, Long]("currentTimeMillis")
 }
@@ -625,17 +659,17 @@ class CodeFloat(val lhs: Code[Float]) extends AnyVal {
 
   def /(rhs: Code[Float]): Code[Float] = Code(lhs, rhs, new InsnNode(FDIV))
 
-  def >(rhs: Code[Float]): Code[Boolean] = Code[Float, Float, Int](lhs, rhs, new InsnNode(FCMPL)) > 0
+  def >(rhs: Code[Float]): Code[Boolean] = Code[Int](lhs, rhs, new InsnNode(FCMPL)) > 0
 
-  def >=(rhs: Code[Float]): Code[Boolean] = Code[Float, Float, Int](lhs, rhs, new InsnNode(FCMPL)) >= 0
+  def >=(rhs: Code[Float]): Code[Boolean] = Code[Int](lhs, rhs, new InsnNode(FCMPL)) >= 0
 
-  def <(rhs: Code[Float]): Code[Boolean] = Code[Float, Float, Int](lhs, rhs, new InsnNode(FCMPG)) < 0
+  def <(rhs: Code[Float]): Code[Boolean] = Code[Int](lhs, rhs, new InsnNode(FCMPG)) < 0
 
-  def <=(rhs: Code[Float]): Code[Boolean] = Code[Float, Float, Int](lhs, rhs, new InsnNode(FCMPG)) <= 0
+  def <=(rhs: Code[Float]): Code[Boolean] = Code[Int](lhs, rhs, new InsnNode(FCMPG)) <= 0
 
-  def ceq(rhs: Code[Float]): Code[Boolean] = Code[Float, Float, Int](lhs, rhs, new InsnNode(FCMPL)).ceq(0)
+  def ceq(rhs: Code[Float]): Code[Boolean] = Code[Int](lhs, rhs, new InsnNode(FCMPL)).ceq(0)
 
-  def cne(rhs: Code[Float]): Code[Boolean] = Code[Float, Float, Int](lhs, rhs, new InsnNode(FCMPL)).cne(0)
+  def cne(rhs: Code[Float]): Code[Boolean] = Code[Int](lhs, rhs, new InsnNode(FCMPL)).cne(0)
 
   def toI: Code[Int] = Code(lhs, new InsnNode(F2I))
 
@@ -659,17 +693,17 @@ class CodeDouble(val lhs: Code[Double]) extends AnyVal {
 
   def /(rhs: Code[Double]): Code[Double] = Code(lhs, rhs, new InsnNode(DDIV))
 
-  def >(rhs: Code[Double]): Code[Boolean] = Code[Double, Double, Int](lhs, rhs, new InsnNode(DCMPL)) > 0
+  def >(rhs: Code[Double]): Code[Boolean] = Code[Int](lhs, rhs, new InsnNode(DCMPL)) > 0
 
-  def >=(rhs: Code[Double]): Code[Boolean] = Code[Double, Double, Int](lhs, rhs, new InsnNode(DCMPL)) >= 0
+  def >=(rhs: Code[Double]): Code[Boolean] = Code[Int](lhs, rhs, new InsnNode(DCMPL)) >= 0
 
-  def <(rhs: Code[Double]): Code[Boolean] = Code[Double, Double, Int](lhs, rhs, new InsnNode(DCMPG)) < 0
+  def <(rhs: Code[Double]): Code[Boolean] = Code[Int](lhs, rhs, new InsnNode(DCMPG)) < 0
 
-  def <=(rhs: Code[Double]): Code[Boolean] = Code[Double, Double, Int](lhs, rhs, new InsnNode(DCMPG)) <= 0
+  def <=(rhs: Code[Double]): Code[Boolean] = Code[Int](lhs, rhs, new InsnNode(DCMPG)) <= 0
 
-  def ceq(rhs: Code[Double]): Code[Boolean] = Code[Double, Double, Int](lhs, rhs, new InsnNode(DCMPL)).ceq(0)
+  def ceq(rhs: Code[Double]): Code[Boolean] = Code[Int](lhs, rhs, new InsnNode(DCMPL)).ceq(0)
 
-  def cne(rhs: Code[Double]): Code[Boolean] = Code[Double, Double, Int](lhs, rhs, new InsnNode(DCMPL)).cne(0)
+  def cne(rhs: Code[Double]): Code[Boolean] = Code[Int](lhs, rhs, new InsnNode(DCMPL)).cne(0)
 
   def toI: Code[Int] = Code(lhs, new InsnNode(D2I))
 

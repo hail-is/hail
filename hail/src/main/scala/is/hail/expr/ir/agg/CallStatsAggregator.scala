@@ -110,7 +110,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
       nAlleles.setup,
       nAlleles.m.mux(
         Code._fatal("call_stats: n_alleles may not be missing"),
-        Code(
+        Code(FastIndexedSeq(
           n := coerce[Int](nAlleles.v),
           state.nAlleles := n,
           state.off := state.region.allocate(CallStatsState.stateType.alignment, CallStatsState.stateType.byteSize),
@@ -127,7 +127,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
             i := i + 1)
         )
       )
-    ).asInstanceOf[Code[Unit]]
+    ))
   }
 
   def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {

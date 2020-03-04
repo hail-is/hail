@@ -529,7 +529,8 @@ object ReferenceGenome {
   }
 
   def reset(): Unit = {
-    references.foreach { case (name, rg) => rg.removeIRFunctions() }
+    if (TaskContext.get() == null) // don't add IR functions on workers
+      references.foreach { case (name, rg) => rg.removeIRFunctions() }
     references = Map()
     GRCh37 = null
     GRCh38 = null
@@ -545,7 +546,8 @@ object ReferenceGenome {
             s"@1", references.keys.truncatable("\n  "))
         }
       case None =>
-        rg.addIRFunctions()
+        if (TaskContext.get() == null) // don't add IR functions on workers
+          rg.addIRFunctions()
         references += (rg.name -> rg)
     }
   }

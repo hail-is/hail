@@ -134,8 +134,8 @@ object TypeCheck {
       case x@ApplyUnaryPrimOp(op, v) =>
         assert(x.typ isOfType UnaryOp.getReturnType(op, v.typ))
       case x@ApplyComparisonOp(op, l, r) =>
-        assert(-op.t1.fundamentalType isOfType -l.typ.fundamentalType)
-        assert(-op.t2.fundamentalType isOfType -r.typ.fundamentalType)
+        assert(op.t1.fundamentalType isOfType l.typ.fundamentalType)
+        assert(op.t2.fundamentalType isOfType r.typ.fundamentalType)
         op match {
           case _: Compare => assert(x.typ.isInstanceOf[TInt32])
           case _ => assert(x.typ.isInstanceOf[TBoolean])
@@ -154,7 +154,7 @@ object TypeCheck {
       case x@ArrayRef(a, i, s) =>
         assert(i.typ.isOfType(TInt32()))
         assert(s.typ.isOfType(TString()))
-        assert(x.typ isOfType -coerce[TArray](a.typ).elementType)
+        assert(x.typ isOfType coerce[TArray](a.typ).elementType)
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TArray])
       case x@StreamRange(a, b, c) =>
@@ -365,7 +365,7 @@ object TypeCheck {
       case x@GetTupleElement(o, idx) =>
         val t = coerce[TTuple](o.typ)
         val fd = t.fields(t.fieldIndex(idx))
-        assert(x.typ isOfType -fd.typ)
+        assert(x.typ isOfType fd.typ)
       case In(i, typ) =>
         assert(typ != null)
       case Die(msg, typ) =>

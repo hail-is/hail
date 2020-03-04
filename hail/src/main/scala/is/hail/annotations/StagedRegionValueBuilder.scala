@@ -209,12 +209,14 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   def addString(str: Code[String]): Code[Unit] = addBinary(str.invoke[Array[Byte]]("getBytes"))
 
   def addArray(t: PArray, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = {
-    assert(t.fundamentalType isOfType currentPType(), s"current=${currentPType()}, t=${t.fundamentalType}, ftype=$ftype")
+    if (!(t.fundamentalType isOfType currentPType()))
+      throw new RuntimeException(s"Fundamental type doesn't match. current=${currentPType()}, t=${t.fundamentalType}, ftype=$ftype")
     f(new StagedRegionValueBuilder(mb, currentPType(), this))
   }
 
   def addBaseStruct(t: PBaseStruct, f: (StagedRegionValueBuilder => Code[Unit])): Code[Unit] = {
-    assert(t.fundamentalType isOfType currentPType(), s"current=${currentPType()}, t=${t.fundamentalType}, ftype=$ftype")
+    if (!(t.fundamentalType isOfType currentPType()))
+      throw new RuntimeException(s"Fundamental type doesn't match. current=${currentPType()}, t=${t.fundamentalType}, ftype=$ftype")
     f(new StagedRegionValueBuilder(mb, currentPType(), this))
   }
 
@@ -238,7 +240,8 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   }
 
   def addWithDeepCopy(t: PType, v: Code[_]): Code[Unit] = {
-    assert(currentPType().setRequired(false) == t.fundamentalType.setRequired(false), s"current=${currentPType()}, toAdd=$t")
+    if (!(t.fundamentalType isOfType currentPType()))
+      throw new RuntimeException(s"Fundamental type doesn't match. current=${currentPType()}, t=${t.fundamentalType}, ftype=$ftype")
     StagedRegionValueBuilder.deepCopy(
       EmitRegion(mb.asInstanceOf[EmitMethodBuilder], region),
       t, v, currentOffset)

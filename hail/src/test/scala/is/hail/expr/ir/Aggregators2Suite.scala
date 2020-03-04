@@ -758,7 +758,7 @@ class Aggregators2Suite extends HailSuite {
     assertEvalsTo(x, FastIndexedSeq(-1d, 0d, 1d, 2d, 3d))
   }
 
-  @Test def testAggStateAndCombOp(): Unit = {
+  @Test(enabled = false) def testAggStateAndCombOp(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
     val takeSig = AggSignature(Take(), FastSeq(TInt32()), FastSeq(TInt64()))
     val x = Let(

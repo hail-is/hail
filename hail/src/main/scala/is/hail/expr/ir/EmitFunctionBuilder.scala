@@ -262,7 +262,7 @@ class EmitFunctionBuilder[F >: Null](
       encLitField := mb2.getArg[Array[Byte]](1),
       off := dec(partitionRegion.load(),
         spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField))),
-      Code(storeFields: _*)
+      Code(storeFields)
     ))
     classBuilder.addMethod(mb2)
 
@@ -398,7 +398,7 @@ class EmitFunctionBuilder[F >: Null](
 
   def getPType(t: PType): Code[PType] = {
     val references = ReferenceGenome.getReferences(t.virtualType).toArray
-    val setup = Code(Code(references.map(addReferenceGenome): _*),
+    val setup = Code(Code(references.map(addReferenceGenome)),
       Code.invokeScalaObject[String, PType](
         IRParser.getClass, "parsePType", const(t.toString)))
     pTypeMap.getOrElseUpdate(t,
@@ -407,7 +407,7 @@ class EmitFunctionBuilder[F >: Null](
 
   def getType(t: Type): Code[Type] = {
     val references = ReferenceGenome.getReferences(t).toArray
-    val setup = Code(Code(references.map(addReferenceGenome): _*),
+    val setup = Code(Code(references.map(addReferenceGenome)),
       Code.invokeScalaObject[String, Type](
         IRParser.getClass, "parseType", const(t.parsableString())))
     typMap.getOrElseUpdate(t,
@@ -529,9 +529,9 @@ class EmitFunctionBuilder[F >: Null](
     coerce[Unit](Code(x.grouped(size).zipWithIndex.map { case (codes, i) =>
       val mb = newMethod(suffix + s"_group$i", argTypes, UnitInfo)
       val methodArgs = argTypes.zipWithIndex.map { case (a, i) => mb.getArg(i + 1)(a).load() }
-      mb.emit(Code(codes.map(_.apply(methodArgs)): _*))
+      mb.emit(Code(codes.map(_.apply(methodArgs))))
       mb.invoke(args: _*)
-    }.toArray: _*))
+    }.toArray))
   }
 
   override def newMethod(suffix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
@@ -621,11 +621,11 @@ class EmitFunctionBuilder[F >: Null](
     val rngFields = rngs.result()
     val initialize = Code(rngFields.map { case (field, initialization) =>
         field := initialization
-    }: _*)
+    })
 
     val reseed = Code(rngFields.map { case (field, _) =>
       field.invoke[Int, Unit]("reset", mb.getArg[Int](1))
-    }: _*)
+    })
 
     mb.emit(Code(
       initialized.mux(
