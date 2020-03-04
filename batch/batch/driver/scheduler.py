@@ -346,6 +346,16 @@ LIMIT %s;
 
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
+        def get_instance(user, cores_mcpu):
+            i = self.inst_pool.healthy_instances_by_free_cores.bisect_key_left(cores_mcpu)
+            while i < len(self.inst_pool.healthy_instances_by_free_cores):
+                instance = self.inst_pool.healthy_instances_by_free_cores[i]
+                assert cores_mcpu <= instance.free_cores_mcpu
+                if user != 'ci' or (user == 'ci' and instance.zone.startswith('us-central1')):
+                    return instance
+                i += 1
+            return None
+
         should_wait = True
         for user, resources in user_resources.items():
             allocated_cores_mcpu = resources['allocated_cores_mcpu']
@@ -366,12 +376,8 @@ LIMIT %s;
                 if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
                     break
 
-                i = self.inst_pool.healthy_instances_by_free_cores.bisect_key_left(record['cores_mcpu'])
-                if i < len(self.inst_pool.healthy_instances_by_free_cores):
-                    instance = self.inst_pool.healthy_instances_by_free_cores[i]
-
-                    assert record['cores_mcpu'] <= instance.free_cores_mcpu
-
+                instance = get_instance(user, record['cores_mcpu'])
+                if instance:
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     scheduled_cores_mcpu += record['cores_mcpu']
                     n_scheduled += 1
