@@ -34,6 +34,12 @@ object TableIR {
 abstract sealed class TableIR extends BaseIR {
   def typ: TableType
 
+
+  /**
+    *
+    * @return An IndexedSeq whose length corresponds to the number of partitions. The ith element contains count of
+    *         rows in partition i.
+    */
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
   val rowCountUpperBound: Option[Long]
