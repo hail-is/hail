@@ -188,7 +188,7 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
       field.load()
     })
 
-  override def addLiteral(v: Any, t: PType, region: Code[Region]): Code[_] = {
+  override def addLiteral(v: Any, t: PType): Code[_] = {
     assert(v != null)
     literalsMap.getOrElseUpdate(t -> v, {
       val fromParent = parentfb.addLiteral(v, t)
