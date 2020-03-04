@@ -73,12 +73,12 @@ object Literal {
     if (x == null)
       return NA(t)
     t match {
-      case _: TInt32 => I32(x.asInstanceOf[Int])
-      case _: TInt64 => I64(x.asInstanceOf[Long])
-      case _: TFloat32 => F32(x.asInstanceOf[Float])
-      case _: TFloat64 => F64(x.asInstanceOf[Double])
-      case _: TBoolean => if (x.asInstanceOf[Boolean]) True() else False()
-      case _: TString => Str(x.asInstanceOf[String])
+      case TInt32 => I32(x.asInstanceOf[Int])
+      case TInt64 => I64(x.asInstanceOf[Long])
+      case TFloat32 => F32(x.asInstanceOf[Float])
+      case TFloat64 => F64(x.asInstanceOf[Double])
+      case TBoolean => if (x.asInstanceOf[Boolean]) True() else False()
+      case TString => Str(x.asInstanceOf[String])
       case _ => Literal(t, x)
     }
   }
@@ -131,15 +131,9 @@ object MakeArray {
   def unify(args: Seq[IR], requestedType: TArray = null): MakeArray = {
     assert(requestedType != null || args.nonEmpty)
 
-    if(args.nonEmpty) {
-      if (args.forall(_.typ == args.head.typ)) {
+    if(args.nonEmpty)
+      if (args.forall(_.typ == args.head.typ))
         return MakeArray(args, TArray(args.head.typ))
-      }
-
-      if (args.forall(_.typ isOfType args.head.typ)) {
-        return MakeArray(args, TArray(args.head.typ.deepOptional()))
-      }
-    }
 
     MakeArray(args.map { arg =>
       val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
@@ -155,13 +149,9 @@ object MakeStream {
   def unify(args: Seq[IR], requestedType: TStream = null): MakeStream = {
     assert(requestedType != null || args.nonEmpty)
 
-    if (args.nonEmpty) {
+    if (args.nonEmpty)
       if (args.forall(_.typ == args.head.typ))
         return MakeStream(args, TStream(args.head.typ))
-
-      if (args.forall(_.typ isOfType args.head.typ))
-        return MakeStream(args, TStream(args.head.typ.deepOptional()))
-    }
 
     MakeStream(args.map { arg =>
       val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
@@ -198,7 +188,7 @@ object ArraySort {
           ApplyComparisonOp(Compare(elt.types(0)), GetTupleElement(Ref(l, elt), elt.fields(0).index), GetTupleElement(Ref(r, atyp.elementType), elt.fields(0).index))
       }
     } else {
-      ApplyComparisonOp(Compare(atyp.elementType), Ref(l, -atyp.elementType), Ref(r, -atyp.elementType))
+      ApplyComparisonOp(Compare(atyp.elementType), Ref(l, atyp.elementType), Ref(r, atyp.elementType))
     }
 
     ArraySort(a, l, r, If(ascending, compare < 0, compare > 0))

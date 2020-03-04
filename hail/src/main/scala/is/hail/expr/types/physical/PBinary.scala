@@ -12,7 +12,7 @@ import is.hail.utils._
 import scala.reflect.{ClassTag, _}
 
 abstract class PBinary extends PType {
-  lazy val virtualType: TBinary = TBinary(required)
+  lazy val virtualType: TBinary.type = TBinary
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {

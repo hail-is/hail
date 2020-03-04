@@ -7,7 +7,7 @@ import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check._
 import is.hail.expr.ir.{CompileAndEvaluate, GetField, TableCollect, TableLiteral}
-import is.hail.expr.types.virtual.{TFloat64Optional, TInt64Optional, TStruct}
+import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.linalg.BlockMatrix.ops._
 import is.hail.utils._
 import is.hail.{HailSuite, TestUtils}
@@ -737,7 +737,7 @@ class BlockMatrixSuite extends HailSuite {
     val data = (0 until 90).map(_.toDouble).toArray
     val lm = new BDM[Double](9, 10, data)
     val expectedEntries = data.map(x => ((x % 9).toLong, (x / 9).toLong, x)).toSet
-    val expectedSignature = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
+    val expectedSignature = TStruct("i" -> TInt64, "j" -> TInt64, "entry" -> TFloat64)
 
     for {blockSize <- Seq(1, 4, 10)} {
       val entriesLiteral = TableLiteral(toBM(lm, blockSize).entriesTable(ctx), ctx)

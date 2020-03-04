@@ -11,7 +11,7 @@ object PCall {
 }
 
 abstract class PCall extends ComplexPType {
-  lazy val virtualType: TCall = TCall(required)
+  lazy val virtualType: TCall.type = TCall
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)

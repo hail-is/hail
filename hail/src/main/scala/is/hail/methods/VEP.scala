@@ -245,7 +245,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
       if (csq)
         (Row(csqHeader.getOrElse("")), TStruct("vep_csq_header" -> TString()))
       else
-        (Row(), TStruct())
+        (Row(), TStruct.empty)
 
     TableValue(
       TableType(vepRowType.virtualType, FastIndexedSeq("locus", "alleles"), globalType),

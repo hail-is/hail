@@ -22,7 +22,7 @@ case class LogisticRegression(
     val logRegTest = LogisticRegressionTest.tests(test)
     val multiPhenoSchema = TStruct(("logistic_regression", TArray(logRegTest.schema)))
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
-    TableType(childType.rowKeyStruct ++ passThroughType ++ multiPhenoSchema, childType.rowKey, TStruct())
+    TableType(childType.rowKeyStruct ++ passThroughType ++ multiPhenoSchema, childType.rowKey, TStruct.empty)
   }
 
   def preservesPartitionCounts: Boolean = true

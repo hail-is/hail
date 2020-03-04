@@ -106,14 +106,14 @@ object PType {
 
   def canonical(t: Type, required: Boolean): PType = {
     t match {
-      case _: TInt32 => PInt32(required)
-      case _: TInt64 => PInt64(required)
-      case _: TFloat32 => PFloat32(required)
-      case _: TFloat64 => PFloat64(required)
-      case _: TBoolean => PBoolean(required)
-      case _: TBinary => PBinary(required)
-      case _: TString => PString(required)
-      case _: TCall => PCall(required)
+      case TInt32 => PInt32(required)
+      case TInt64 => PInt64(required)
+      case TFloat32 => PFloat32(required)
+      case TFloat64 => PFloat64(required)
+      case TBoolean => PBoolean(required)
+      case TBinary => PBinary(required)
+      case TString => PString(required)
+      case TCall => PCall(required)
       case t: TLocus => PLocus(t.rg, required)
       case t: TInterval => PInterval(canonical(t.pointType), required)
       case t: TStream => PStream(canonical(t.elementType), required)
@@ -156,6 +156,11 @@ object PType {
 
 abstract class PType extends Serializable with Requiredness {
   self =>
+
+  def genValue: Gen[Annotation] =
+    if (required) genNonmissingValue else Gen.nextCoin(0.05).flatMap(isEmpty => if (isEmpty) Gen.const(null) else genNonmissingValue)
+
+  def genNonmissingValue: Gen[Annotation] = virtualType.genNonmissingValue
 
   def virtualType: Type
 
@@ -314,4 +319,8 @@ abstract class PType extends Serializable with Requiredness {
 
   def copyFromPValue(mb: MethodBuilder, region: Code[Region], pv: PValue): PValue =
     PValue(this, copyFromTypeAndStackValue(mb, region, pv.pt, pv.code))
+
+  final def typeCheck(a: Any): Boolean = a == null || _typeCheck(a)
+
+  def _typeCheck(a: Any): Boolean = virtualType._typeCheck(a)
 }

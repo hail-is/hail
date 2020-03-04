@@ -65,7 +65,7 @@ case class MatrixValue(
 
   def stringSampleIds: IndexedSeq[String] = {
     val colKeyTypes = typ.colKeyStruct.types
-    assert(colKeyTypes.length == 1 && colKeyTypes(0).isInstanceOf[TString], colKeyTypes.toSeq)
+    assert(colKeyTypes.length == 1 && colKeyTypes(0) == TString, colKeyTypes.toSeq)
     val querier = typ.colType.query(typ.colKey(0))
     colValues.javaValue.map(querier(_).asInstanceOf[String])
   }
@@ -107,7 +107,7 @@ case class MatrixValue(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
       "../references",
-      TableType(typ.globalType, FastIndexedSeq(), TStruct.empty()),
+      TableType(typ.globalType, FastIndexedSeq(), TStruct.empty),
       Map("globals" -> RVDComponentSpec("globals"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))

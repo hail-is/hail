@@ -29,7 +29,7 @@ object PStruct {
 }
 
 trait PStruct extends PBaseStruct {
-  lazy val virtualType: TStruct = TStruct(fields.map(f => Field(f.name, f.typ.virtualType, f.index)), required)
+  lazy val virtualType: TStruct = TStruct(fields.map(f => Field(f.name, f.typ.virtualType, f.index)))
 
   final def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
     codeOrdering(mb, other, null)

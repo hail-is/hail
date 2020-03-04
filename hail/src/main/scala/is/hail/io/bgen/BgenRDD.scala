@@ -7,7 +7,7 @@ import is.hail.expr.ir.PruneDeadFields
 import is.hail.expr.types._
 import is.hail.expr.types.encoded.{EArray, EBaseStruct, EBinaryOptional, EBinaryRequired, EField, EInt32Optional, EInt32Required, EInt64Required}
 import is.hail.expr.types.physical.{PArray, PCall, PCanonicalLocus, PFloat64Required, PInt32, PInt64, PLocus, PString, PStruct}
-import is.hail.expr.types.virtual.{Field, TArray, TInt64Required, TLocus, TString, TStruct, Type}
+import is.hail.expr.types.virtual.{Field, TArray, TInt64, TLocus, TString, TStruct, Type}
 import is.hail.io.{AbstractTypedCodecSpec, BlockingBufferSpec, HadoopFSDataBinaryReader, LEB128BufferSpec, LZ4HCBlockBufferSpec, StreamBlockBufferSpec, TypedCodecSpec}
 import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}
 import is.hail.rvd._
@@ -23,9 +23,9 @@ import scala.language.reflectiveCalls
 
 object BgenSettings {
   def indexKeyType(rg: Option[ReferenceGenome]): TStruct = TStruct(
-    "locus" -> rg.map(TLocus(_)).getOrElse(TLocus.representation(false)),
+    "locus" -> rg.map(TLocus(_)).getOrElse(TLocus.representation),
     "alleles" -> TArray(TString()))
-  val indexAnnotationType: Type = +TStruct()
+  val indexAnnotationType: Type = TStruct.empty
 
   def indexCodecSpecs(rg: Option[ReferenceGenome]): (AbstractTypedCodecSpec, AbstractTypedCodecSpec) = {
     val bufferSpec = LEB128BufferSpec(
@@ -43,7 +43,7 @@ object BgenSettings {
       required = false
     )
 
-    val annotationVType = +TStruct()
+    val annotationVType = TStruct.empty
     val annotationEType = EBaseStruct(FastIndexedSeq(), required = true)
 
     val leafEType = EBaseStruct(FastIndexedSeq(
@@ -55,12 +55,12 @@ object BgenSettings {
       ), required = true), required = true), 1)
     ))
     val leafVType = TStruct(FastIndexedSeq(
-      Field("first_idx", TInt64Required, 0),
+      Field("first_idx", TInt64, 0),
       Field("keys", TArray(TStruct(FastIndexedSeq(
         Field("key", keyVType, 0),
-        Field("offset", TInt64Required, 1),
+        Field("offset", TInt64, 1),
         Field("annotation", annotationVType, 2)
-      ), required = true), required = true), 1)))
+      ))), 1)))
 
     val internalNodeEType = EBaseStruct(FastIndexedSeq(
       EField("children", EArray(EBaseStruct(FastIndexedSeq(
@@ -74,12 +74,12 @@ object BgenSettings {
 
     val internalNodeVType = TStruct(FastIndexedSeq(
       Field("children", TArray(TStruct(FastIndexedSeq(
-        Field("index_file_offset", TInt64Required, 0),
-        Field("first_idx", TInt64Required, 1),
+        Field("index_file_offset", TInt64, 0),
+        Field("first_idx", TInt64, 1),
         Field("first_key", keyVType, 2),
-        Field("first_record_offset", TInt64Required, 3),
+        Field("first_record_offset", TInt64, 3),
         Field("first_annotation", annotationVType, 4)
-      ), required = true), required = true), 0)
+      ))), 0)
     ))
 
     (TypedCodecSpec(leafEType, leafVType, bufferSpec), (TypedCodecSpec(internalNodeEType, internalNodeVType, bufferSpec)))

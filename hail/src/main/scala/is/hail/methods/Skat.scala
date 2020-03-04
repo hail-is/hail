@@ -178,7 +178,7 @@ case class Skat(
       ("q_stat", TFloat64()),
       ("p_value", TFloat64()),
       ("fault", TInt32()))
-    TableType(skatSchema, FastIndexedSeq("id"), TStruct())
+    TableType(skatSchema, FastIndexedSeq("id"), TStruct.empty)
   }
 
   def preservesPartitionCounts: Boolean = false

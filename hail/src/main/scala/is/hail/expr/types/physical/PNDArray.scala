@@ -19,7 +19,7 @@ abstract class PNDArray extends PType {
   val elementType: PType
   val nDims: Int
 
-  lazy val virtualType: TNDArray = TNDArray(elementType.virtualType, Nat(nDims), required)
+  lazy val virtualType: TNDArray = TNDArray(elementType.virtualType, Nat(nDims))
   assert(elementType.required, "elementType must be required")
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = throw new UnsupportedOperationException

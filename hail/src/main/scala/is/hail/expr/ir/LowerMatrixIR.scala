@@ -220,8 +220,8 @@ object LowerMatrixIR {
               builder += ((uid, aggIR))
               val eltUID = genUID()
               val valueUID = genUID()
-              val elementType = -aggIR.typ.asInstanceOf[TDict].elementType
-              val valueType = -elementType.asInstanceOf[TBaseStruct].types(1)
+              val elementType = aggIR.typ.asInstanceOf[TDict].elementType
+              val valueType = elementType.asInstanceOf[TBaseStruct].types(1)
               ToDict(StreamMap(ToStream(Ref(uid, aggIR.typ)), eltUID, Let(valueUID, GetField(Ref(eltUID, elementType), "value"),
                 MakeTuple.ordered(FastSeq(GetField(Ref(eltUID, elementType), "key"),
                   aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(valueUID, valueType), name), acc) })))))
@@ -334,8 +334,8 @@ object LowerMatrixIR {
             builder += ((uid, aggIR))
             val eltUID = genUID()
             val valueUID = genUID()
-            val elementType = -aggIR.typ.asInstanceOf[TDict].elementType
-            val valueType = -elementType.asInstanceOf[TBaseStruct].types(1)
+            val elementType = aggIR.typ.asInstanceOf[TDict].elementType
+            val valueType = elementType.asInstanceOf[TBaseStruct].types(1)
             ToDict(StreamMap(ToStream(Ref(uid, aggIR.typ)), eltUID, Let(valueUID, GetField(Ref(eltUID, elementType), "value"),
               MakeTuple.ordered(FastSeq(GetField(Ref(eltUID, elementType), "key"),
                 aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(valueUID, valueType), name), acc) } )))))

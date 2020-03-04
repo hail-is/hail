@@ -10,10 +10,10 @@ import scala.reflect.ClassTag
 object TVariable {
   val condMap: Map[String, (Type) => Boolean] = Map(
     "numeric" -> ((t: Type) => t.isInstanceOf[TNumeric]),
-    "int32" -> ((t: Type) => t.isInstanceOf[TInt32]),
-    "int64" -> ((t: Type) => t.isInstanceOf[TInt64]),
-    "float32" -> ((t: Type) => t.isInstanceOf[TFloat32]),
-    "float64" -> ((t: Type) => t.isInstanceOf[TFloat64]),
+    "int32" -> ((t: Type) => t == TInt32),
+    "int64" -> ((t: Type) => t == TInt64),
+    "float32" -> ((t: Type) => t == TFloat32),
+    "float64" -> ((t: Type) => t == TFloat64),
     "locus" -> ((t: Type) => t.isInstanceOf[TLocus]),
     "struct" -> ((t: Type) => t.isInstanceOf[TStruct]),
     "tuple" -> ((t: Type) => t.isInstanceOf[TTuple]))
@@ -41,8 +41,6 @@ final case class TVariable(name: String, cond: String = null) extends Type {
       (t: Type) => true
 
   def t: Type = b.get
-
-  override val required = true
 
   override def _toPretty: String =
     if (cond != null)

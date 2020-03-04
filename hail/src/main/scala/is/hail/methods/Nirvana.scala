@@ -478,7 +478,7 @@ object Nirvana {
       }).persist(StorageLevel.MEMORY_AND_DISK)
 
       TableValue(
-        TableType(nirvanaRowType.virtualType, FastIndexedSeq("locus", "alleles"), TStruct()),
+        TableType(nirvanaRowType.virtualType, FastIndexedSeq("locus", "alleles"), TStruct.empty),
         BroadcastRow.empty(ctx),
         nirvanaRVD
       )

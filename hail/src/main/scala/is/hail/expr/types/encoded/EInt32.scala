@@ -28,7 +28,7 @@ class EInt32(override val required: Boolean) extends EType {
   override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PInt32]
 
   def _decodedPType(requestedType: Type): PType = requestedType match {
-    case t: TCall => PCall(required)
+    case TCall => PCall(required)
     case _ => PInt32(required)
   }
 

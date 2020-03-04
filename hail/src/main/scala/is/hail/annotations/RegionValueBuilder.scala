@@ -404,13 +404,13 @@ class RegionValueBuilder(var region: Region) {
       setMissing()
     else
       t match {
-        case _: TBoolean => addBoolean(a.asInstanceOf[Boolean])
-        case _: TInt32 => addInt(a.asInstanceOf[Int])
-        case _: TInt64 => addLong(a.asInstanceOf[Long])
-        case _: TFloat32 => addFloat(a.asInstanceOf[Float])
-        case _: TFloat64 => addDouble(a.asInstanceOf[Double])
-        case _: TString => addString(a.asInstanceOf[String])
-        case _: TBinary => addBinary(a.asInstanceOf[Array[Byte]])
+        case TBoolean => addBoolean(a.asInstanceOf[Boolean])
+        case TInt32 => addInt(a.asInstanceOf[Int])
+        case TInt64 => addLong(a.asInstanceOf[Long])
+        case TFloat32 => addFloat(a.asInstanceOf[Float])
+        case TFloat64 => addDouble(a.asInstanceOf[Double])
+        case TString => addString(a.asInstanceOf[String])
+        case TBinary => addBinary(a.asInstanceOf[Array[Byte]])
 
         case t: TArray =>
           a match {
@@ -435,7 +435,7 @@ class RegionValueBuilder(var region: Region) {
               addRow(t, r)
           }
 
-        case TSet(elementType, _) =>
+        case TSet(elementType) =>
           val s = a.asInstanceOf[Set[Annotation]]
             .toArray
             .sorted(elementType.ordering.toOrdering)
@@ -457,7 +457,7 @@ class RegionValueBuilder(var region: Region) {
           }
           endArray()
 
-        case _: TCall =>
+        case TCall =>
           addInt(a.asInstanceOf[Int])
 
         case t: TLocus =>

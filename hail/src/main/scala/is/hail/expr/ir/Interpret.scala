@@ -78,23 +78,23 @@ object Interpret {
           null
         else
           (v.typ, t) match {
-            case (_: TInt32, _: TInt32) => vValue
-            case (_: TInt32, _: TInt64) => vValue.asInstanceOf[Int].toLong
-            case (_: TInt32, _: TFloat32) => vValue.asInstanceOf[Int].toFloat
-            case (_: TInt32, _: TFloat64) => vValue.asInstanceOf[Int].toDouble
-            case (_: TInt64, _: TInt64) => vValue
-            case (_: TInt64, _: TInt32) => vValue.asInstanceOf[Long].toInt
-            case (_: TInt64, _: TFloat32) => vValue.asInstanceOf[Long].toFloat
-            case (_: TInt64, _: TFloat64) => vValue.asInstanceOf[Long].toDouble
-            case (_: TFloat32, _: TFloat32) => vValue
-            case (_: TFloat32, _: TInt32) => vValue.asInstanceOf[Float].toInt
-            case (_: TFloat32, _: TInt64) => vValue.asInstanceOf[Float].toLong
-            case (_: TFloat32, _: TFloat64) => vValue.asInstanceOf[Float].toDouble
-            case (_: TFloat64, _: TFloat64) => vValue
-            case (_: TFloat64, _: TInt32) => vValue.asInstanceOf[Double].toInt
-            case (_: TFloat64, _: TInt64) => vValue.asInstanceOf[Double].toLong
-            case (_: TFloat64, _: TFloat32) => vValue.asInstanceOf[Double].toFloat
-            case (_: TInt32, _: TCall) => vValue
+            case (TInt32, TInt32) => vValue
+            case (TInt32, TInt64) => vValue.asInstanceOf[Int].toLong
+            case (TInt32, TFloat32) => vValue.asInstanceOf[Int].toFloat
+            case (TInt32, TFloat64) => vValue.asInstanceOf[Int].toDouble
+            case (TInt64, TInt64) => vValue
+            case (TInt64, TInt32) => vValue.asInstanceOf[Long].toInt
+            case (TInt64, TFloat32) => vValue.asInstanceOf[Long].toFloat
+            case (TInt64, TFloat64) => vValue.asInstanceOf[Long].toDouble
+            case (TFloat32, TFloat32) => vValue
+            case (TFloat32, TInt32) => vValue.asInstanceOf[Float].toInt
+            case (TFloat32, TInt64) => vValue.asInstanceOf[Float].toLong
+            case (TFloat32, TFloat64) => vValue.asInstanceOf[Float].toDouble
+            case (TFloat64, TFloat64) => vValue
+            case (TFloat64, TInt32) => vValue.asInstanceOf[Double].toInt
+            case (TFloat64, TInt64) => vValue.asInstanceOf[Double].toLong
+            case (TFloat64, TFloat32) => vValue.asInstanceOf[Double].toFloat
+            case (TInt32, TCall) => vValue
           }
       case CastRename(v, _) => interpret(v)
       case NA(_) => null
@@ -124,7 +124,7 @@ object Interpret {
           null
         else
           (l.typ, r.typ) match {
-            case (_: TInt32, _: TInt32) =>
+            case (TInt32, TInt32) =>
               val ll = lValue.asInstanceOf[Int]
               val rr = rValue.asInstanceOf[Int]
               (op: @unchecked) match {
@@ -140,7 +140,7 @@ object Interpret {
                 case RightShift() => ll >> rr
                 case LogicalRightShift() => ll >>> rr
               }
-            case (_: TInt64, _: TInt32) =>
+            case (TInt64, TInt32) =>
               val ll = lValue.asInstanceOf[Long]
               val rr = rValue.asInstanceOf[Int]
               (op: @unchecked) match {
@@ -148,7 +148,7 @@ object Interpret {
                 case RightShift() => ll >> rr
                 case LogicalRightShift() => ll >>> rr
               }
-            case (_: TInt64, _: TInt64) =>
+            case (TInt64, TInt64) =>
               val ll = lValue.asInstanceOf[Long]
               val rr = rValue.asInstanceOf[Long]
               (op: @unchecked) match {
@@ -163,7 +163,7 @@ object Interpret {
                 case LeftShift() => ll << rr
                 case RightShift() => ll >> rr
               }
-            case (_: TFloat32, _: TFloat32) =>
+            case (TFloat32, TFloat32) =>
               val ll = lValue.asInstanceOf[Float]
               val rr = rValue.asInstanceOf[Float]
               (op: @unchecked) match {
@@ -173,7 +173,7 @@ object Interpret {
                 case FloatingPointDivide() => ll / rr
                 case RoundToNegInfDivide() => math.floor(ll / rr).toFloat
               }
-            case (_: TFloat64, _: TFloat64) =>
+            case (TFloat64, TFloat64) =>
               val ll = lValue.asInstanceOf[Double]
               val rr = rValue.asInstanceOf[Double]
               (op: @unchecked) match {
@@ -195,15 +195,15 @@ object Interpret {
           case Negate() =>
             assert(x.typ.isInstanceOf[TNumeric])
             x.typ match {
-              case TInt32(_) => -xValue.asInstanceOf[Int]
-              case TInt64(_) => -xValue.asInstanceOf[Long]
-              case TFloat32(_) => -xValue.asInstanceOf[Float]
-              case TFloat64(_) => -xValue.asInstanceOf[Double]
+              case TInt32 => -xValue.asInstanceOf[Int]
+              case TInt64 => -xValue.asInstanceOf[Long]
+              case TFloat32 => -xValue.asInstanceOf[Float]
+              case TFloat64 => -xValue.asInstanceOf[Double]
             }
           case BitNot() =>
             x.typ match {
-              case _: TInt32 => ~xValue.asInstanceOf[Int]
-              case _: TInt64 => ~xValue.asInstanceOf[Long]
+              case TInt32 => ~xValue.asInstanceOf[Int]
+              case TInt64 => ~xValue.asInstanceOf[Long]
             }
         }
       case ApplyComparisonOp(op, l, r) =>

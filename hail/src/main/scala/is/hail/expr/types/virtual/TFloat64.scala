@@ -8,10 +8,7 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
 
-case object TFloat64Optional extends TFloat64(false)
-case object TFloat64Required extends TFloat64(true)
-
-class TFloat64(override val required: Boolean) extends TNumeric {
+case object TFloat64 extends TNumeric {
   override def _toPretty = "Float64"
 
   override def pyString(sb: StringBuilder): Unit = {
@@ -44,10 +41,6 @@ class TFloat64(override val required: Boolean) extends TNumeric {
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Double]])
-}
 
-object TFloat64 {
-  def apply(required: Boolean = false): TFloat64 = if (required) TFloat64Required else TFloat64Optional
-
-  def unapply(t: TFloat64): Option[Boolean] = Option(t.required)
+  def apply(): this.type = this
 }

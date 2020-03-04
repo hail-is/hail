@@ -192,15 +192,15 @@ abstract class RegistryFunctions {
   }
 
   def unwrapReturn(r: EmitRegion, pt: PType): Code[_] => Code[_] = pt.virtualType match {
-    case _: TBoolean => identity[Code[_]]
-    case _: TInt32 => identity[Code[_]]
-    case _: TInt64 => identity[Code[_]]
-    case _: TFloat32 => identity[Code[_]]
-    case _: TFloat64 => identity[Code[_]]
-    case _: TString => c =>
+    case TBoolean => identity[Code[_]]
+    case TInt32 => identity[Code[_]]
+    case TInt64 => identity[Code[_]]
+    case TFloat32 => identity[Code[_]]
+    case TFloat64 => identity[Code[_]]
+    case TString => c =>
       pt.asInstanceOf[PString].allocateAndStoreString(r.mb, r.region, coerce[String](c))
-    case _: TCall => coerce[Int]
-    case TArray(_: TInt32, _) => c =>
+    case TCall => coerce[Int]
+    case TArray(TInt32) => c =>
       val srvb = new StagedRegionValueBuilder(r, pt)
       val alocal = r.mb.newLocal[IndexedSeq[Int]]
       val len = r.mb.newLocal[Int]
@@ -216,7 +216,7 @@ abstract class RegistryFunctions {
             v.isNull.mux(srvb.setMissing(), srvb.addInt(v.invoke[Int]("intValue"))),
             srvb.advance())),
         srvb.offset)
-    case TArray(_: TFloat64, _) => c =>
+    case TArray(TFloat64) => c =>
       val srvb = new StagedRegionValueBuilder(r, pt)
       val alocal = r.mb.newLocal[IndexedSeq[Double]]
       val len = r.mb.newLocal[Int]
@@ -232,7 +232,7 @@ abstract class RegistryFunctions {
             v.isNull.mux(srvb.setMissing(), srvb.addDouble(v.invoke[Double]("doubleValue"))),
             srvb.advance())),
         srvb.offset)
-    case TArray(_: TString, _) => c =>
+    case TArray(TString) => c =>
       val srvb = new StagedRegionValueBuilder(r, pt)
       val alocal = r.mb.newLocal[IndexedSeq[String]]
       val len = r.mb.newLocal[Int]
@@ -295,12 +295,12 @@ abstract class RegistryFunctions {
 
   def registerWrappedScalaFunction(mname: String, argTypes: Array[Type], rType: Type, pt: Seq[PType] => PType)(cls: Class[_], method: String) {
     def ct(typ: Type): ClassTag[_] = typ match {
-      case _: TString => classTag[String]
-      case TArray(_: TInt32, _) => classTag[IndexedSeq[Int]]
-      case TArray(_: TFloat64, _) => classTag[IndexedSeq[Double]]
-      case TArray(_: TString, _) => classTag[IndexedSeq[String]]
-      case TSet(_: TString, _) => classTag[Set[String]]
-      case TDict(_: TString, _: TString, _) => classTag[Map[String, String]]
+      case TString => classTag[String]
+      case TArray(TInt32) => classTag[IndexedSeq[Int]]
+      case TArray(TFloat64) => classTag[IndexedSeq[Double]]
+      case TArray(TString) => classTag[IndexedSeq[String]]
+      case TSet(TString) => classTag[Set[String]]
+      case TDict(TString, TString) => classTag[Map[String, String]]
       case t => TypeToIRIntermediateClassTag(t)
     }
 

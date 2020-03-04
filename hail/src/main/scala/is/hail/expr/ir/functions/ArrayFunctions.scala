@@ -24,7 +24,7 @@ object ArrayFunctions extends RegistryFunctions {
 
   def mean(args: Seq[IR]): IR = {
     val Seq(a) = args
-    val t = -coerce[TArray](a.typ).elementType
+    val t = coerce[TArray](a.typ).elementType
     val elt = genUID()
     val n = genUID()
     val sum = genUID()
@@ -53,7 +53,7 @@ object ArrayFunctions extends RegistryFunctions {
   }
 
   def exists(a: IR, cond: IR => IR): IR = {
-    val t = -coerce[TArray](a.typ).elementType
+    val t = coerce[TArray](a.typ).elementType
     StreamFold(
       ToStream(a),
       False(),
@@ -72,7 +72,7 @@ object ArrayFunctions extends RegistryFunctions {
   }
 
   def sum(a: IR): IR = {
-    val t = -coerce[TArray](a.typ).elementType
+    val t = coerce[TArray](a.typ).elementType
     val sum = genUID()
     val v = genUID()
     val zero = Cast(I64(0), t)
@@ -80,7 +80,7 @@ object ArrayFunctions extends RegistryFunctions {
   }
 
   def product(a: IR): IR = {
-    val t = -coerce[TArray](a.typ).elementType
+    val t = coerce[TArray](a.typ).elementType
     val product = genUID()
     val v = genUID()
     val one = Cast(I64(1), t)
@@ -111,9 +111,9 @@ object ArrayFunctions extends RegistryFunctions {
 
       registerIR(stringOp, TArray(argType), TArray(argType), TArray(retType)) { (array1, array2) =>
         val a1id = genUID()
-        val e1 = Ref(a1id, -coerce[TArray](array1.typ).elementType)
+        val e1 = Ref(a1id, coerce[TArray](array1.typ).elementType)
         val a2id = genUID()
-        val e2 = Ref(a2id, -coerce[TArray](array2.typ).elementType)
+        val e2 = Ref(a2id, coerce[TArray](array2.typ).elementType)
         ToArray(StreamZip(FastIndexedSeq(ToStream(array1), ToStream(array2)), FastIndexedSeq(a1id, a2id), irOp(e1, e2), ArrayZipBehavior.AssertSameLength))
       }
     }
@@ -124,7 +124,7 @@ object ArrayFunctions extends RegistryFunctions {
 
     def makeMinMaxOp(op: String): Seq[IR] => IR = {
       { case Seq(a) =>
-        val t = -coerce[TArray](a.typ).elementType
+        val t = coerce[TArray](a.typ).elementType
         val value = genUID()
         val first = genUID()
         val acc = genUID()
@@ -147,7 +147,7 @@ object ArrayFunctions extends RegistryFunctions {
     registerIR("mean", Array(TArray(tnum("T"))), TFloat64(), inline = true)(mean)
 
     registerIR("median", TArray(tnum("T")), tv("T")) { array =>
-      val t = -array.typ.asInstanceOf[TArray].elementType
+      val t = array.typ.asInstanceOf[TArray].elementType
       val v = Ref(genUID(), t)
       val a = Ref(genUID(), TArray(t))
       val size = Ref(genUID(), TInt32())
@@ -169,7 +169,7 @@ object ArrayFunctions extends RegistryFunctions {
     }
     
     def argF(a: IR, op: (Type) => ComparisonOp[Boolean]): IR = {
-      val t = -coerce[TArray](a.typ).elementType
+      val t = coerce[TArray](a.typ).elementType
       val tAccum = TStruct("m" -> t, "midx" -> TInt32())
       val accum = genUID()
       val value = genUID()
@@ -203,7 +203,7 @@ object ArrayFunctions extends RegistryFunctions {
     registerIR("argmax", TArray(tv("T")), TInt32())(argF(_, GT(_)))
 
     def uniqueIndex(a: IR, op: (Type) => ComparisonOp[Boolean]): IR = {
-      val t = -coerce[TArray](a.typ).elementType
+      val t = coerce[TArray](a.typ).elementType
       val tAccum = TStruct("m" -> t, "midx" -> TInt32(), "count" -> TInt32())
       val accum = genUID()
       val value = genUID()

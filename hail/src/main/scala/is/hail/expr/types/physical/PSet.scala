@@ -1,6 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations._
+import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TSet
 
@@ -9,7 +10,7 @@ object PSet {
 }
 
 abstract class PSet extends PContainer {
-  lazy val virtualType: TSet = TSet(elementType.virtualType, required)
+  lazy val virtualType: TSet = TSet(elementType.virtualType)
 
   def arrayFundamentalType: PArray = fundamentalType.asInstanceOf[PArray]
 
@@ -17,4 +18,6 @@ abstract class PSet extends PContainer {
     assert(other isOfType this)
     CodeOrdering.setOrdering(this, other.asInstanceOf[PSet], mb)
   }
+
+  override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf[Set](elementType.genValue)
 }

@@ -18,7 +18,7 @@ object TNDArray {
   }
 }
 
-final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val required: Boolean = false) extends Type {
+final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
   lazy val nDims: Int = {
     assert(nDimsBase.isInstanceOf[Nat], s"Missing concrete number of dimensions.")
     nDimsBase.asInstanceOf[Nat].n
@@ -80,7 +80,7 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val re
 
   override def unify(concrete: Type): Boolean = {
     concrete match {
-      case TNDArray(cElementType, cNDims, _) => elementType.unify(cElementType) && nDimsBase.unify(cNDims)
+      case TNDArray(cElementType, cNDims) => elementType.unify(cElementType) && nDimsBase.unify(cNDims)
       case _ => false
     }
   }
@@ -90,7 +90,7 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val re
     nDimsBase.clear()
   }
 
-  override def subst(): TNDArray = TNDArray(elementType.subst(), nDimsBase.subst(), required)
+  override def subst(): TNDArray = TNDArray(elementType.subst(), nDimsBase.subst())
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 
@@ -98,11 +98,11 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val re
 
   val ordering: ExtendedOrdering = null
 
-  lazy val representation = TStruct(required = true,
-    ("flags", TInt32Required),
-    ("offset", TInt32Required),
-    ("shape", TTuple(true, Array.tabulate(nDims)(_ => TInt64Required):_*)),
-    ("strides", TTuple(true, Array.tabulate(nDims)(_ => TInt64Required):_*)),
-    ("data", TArray(elementType, required = true))
+  lazy val representation = TStruct(
+    ("flags", TInt32),
+    ("offset", TInt32),
+    ("shape", TTuple(Array.tabulate(nDims)(_ => TInt64):_*)),
+    ("strides", TTuple(Array.tabulate(nDims)(_ => TInt64):_*)),
+    ("data", TArray(elementType))
   )
 }

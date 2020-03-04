@@ -40,11 +40,11 @@ object ExtractIntervalFilters {
 
   def minimumValueByType(t: Type): Any = {
     t match {
-      case _: TInt32 => Int.MinValue
-      case _: TInt64 => Long.MinValue
-      case _: TFloat32 => Float.NegativeInfinity
-      case _: TFloat64 => Double.PositiveInfinity
-      case _: TBoolean => false
+      case TInt32 => Int.MinValue
+      case TInt64 => Long.MinValue
+      case TFloat32 => Float.NegativeInfinity
+      case TFloat64 => Double.PositiveInfinity
+      case TBoolean => false
       case t: TLocus =>
         val rg = t.rg.asInstanceOf[ReferenceGenome]
         Locus(rg.contigs.head, 1)
@@ -54,11 +54,11 @@ object ExtractIntervalFilters {
 
   def maximumValueByType(t: Type): Any = {
     t match {
-      case _: TInt32 => Int.MaxValue
-      case _: TInt64 => Long.MaxValue
-      case _: TFloat32 => Float.PositiveInfinity
-      case _: TFloat64 => Double.PositiveInfinity
-      case _: TBoolean => false
+      case TInt32 => Int.MaxValue
+      case TInt64 => Long.MaxValue
+      case TFloat32 => Float.PositiveInfinity
+      case TFloat64 => Double.PositiveInfinity
+      case TBoolean => false
       case t: TLocus =>
         val rg = t.rg.asInstanceOf[ReferenceGenome]
         val contig = rg.contigs.last
@@ -115,7 +115,7 @@ object ExtractIntervalFilters {
 
   def canGenerateOpenInterval(t: Type): Boolean = t match {
     case _: TNumeric => true
-    case _: TBoolean => true
+    case TBoolean => true
     case _: TLocus => true
     case ts: TBaseStruct => ts.fields.forall(f => canGenerateOpenInterval(f.typ))
     case _ => false

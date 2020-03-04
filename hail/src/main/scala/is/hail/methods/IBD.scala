@@ -341,7 +341,7 @@ case class IBD(
   def preservesPartitionCounts: Boolean = false
 
   def typ(childType: MatrixType): TableType =
-    TableType(IBD.ibdPType.virtualType, IBD.ibdKey, TStruct.empty())
+    TableType(IBD.ibdPType.virtualType, IBD.ibdKey, TStruct.empty)
 
   def execute(ctx: ExecuteContext, input: MatrixValue): TableValue = {
     input.requireUniqueSamples("ibd")

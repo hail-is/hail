@@ -331,7 +331,7 @@ object TextTableReader {
       log.info(sb.result())
     }
 
-    val t = TableType(TStruct(namesAndTypes: _*), FastIndexedSeq(), TStruct())
+    val t = TableType(TStruct(namesAndTypes: _*), FastIndexedSeq(), TStruct.empty)
     TextTableReaderMetadata(globbedFiles, header, t)
   }
 }

@@ -84,8 +84,8 @@ object LowerTableIR {
               MakeStruct(FastIndexedSeq(globalRef -> globals)),
               globalRef,
               RVDPartitioner.empty(typ.keyType),
-              TStruct(),
-              MakeStream(FastIndexedSeq(), TStream(TStruct())),
+              TStruct.empty,
+              MakeStream(FastIndexedSeq(), TStream(TStruct.empty)),
               MakeStream(FastIndexedSeq(), TStream(typ.rowType)))
           } else {
             val rowsPath = r.spec.rowsComponent.absolutePath(path)

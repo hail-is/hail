@@ -4,7 +4,7 @@ import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir._
 import is.hail.expr.types.physical.{PInterval, PType}
-import is.hail.expr.types.virtual.{TArray, TBoolean, TBooleanOptional, TInt32, TInterval}
+import is.hail.expr.types.virtual.{TArray, TBoolean, TInt32, TInterval}
 import is.hail.utils._
 
 object IntervalFunctions extends RegistryFunctions {
@@ -68,12 +68,12 @@ object IntervalFunctions extends RegistryFunctions {
         )
     }
 
-    registerCode("includesStart", TInterval(tv("T")), TBooleanOptional, null) {
+    registerCode("includesStart", TInterval(tv("T")), TBoolean, null) {
       case (r, rt, (intervalT: PInterval, interval: Code[Long])) =>
         intervalT.includeStart(interval)
     }
 
-    registerCode("includesEnd", TInterval(tv("T")), TBooleanOptional, null) {
+    registerCode("includesEnd", TInterval(tv("T")), TBoolean, null) {
       case (r, rt, (intervalT: PInterval, interval: Code[Long])) =>
         intervalT.includeEnd(interval)
     }

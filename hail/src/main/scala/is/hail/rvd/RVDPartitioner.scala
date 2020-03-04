@@ -277,7 +277,7 @@ object RVDPartitioner {
 
   def unkeyed(numPartitions: Int): RVDPartitioner = {
     new RVDPartitioner(
-      TStruct.empty(),
+      TStruct.empty,
       Array.fill(numPartitions)(Interval(Row(), Row(), true, true)),
       0)
   }

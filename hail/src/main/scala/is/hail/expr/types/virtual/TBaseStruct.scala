@@ -84,7 +84,7 @@ abstract class TBaseStruct extends Type {
     } else
       Gen.size.flatMap(fuel =>
         if (types.length > fuel)
-          Gen.uniformSequence(types.map(t => if (t.required) t.genValue else Gen.const(null))).map(a => Annotation(a: _*))
+          Gen.uniformSequence(types.map(t => Gen.const(null))).map(a => Annotation(a: _*))
         else
           Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*)))
   }

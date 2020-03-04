@@ -9,7 +9,7 @@ case object PFloat64Optional extends PFloat64(false)
 case object PFloat64Required extends PFloat64(true)
 
 class PFloat64(override val required: Boolean) extends PNumeric with PPrimitive {
-  lazy val virtualType: TFloat64 = TFloat64(required)
+  lazy val virtualType: TFloat64.type = TFloat64
 
   override type NType = PFloat64
 

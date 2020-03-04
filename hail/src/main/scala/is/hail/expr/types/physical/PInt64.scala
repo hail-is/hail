@@ -9,7 +9,7 @@ case object PInt64Optional extends PInt64(false)
 case object PInt64Required extends PInt64(true)
 
 class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
-  lazy val virtualType: TInt64 = TInt64(required)
+  lazy val virtualType: TInt64.type = TInt64
 
   def _asIdent = "int64"
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PInt64")

@@ -8,16 +8,13 @@ import is.hail.variant.Call
 
 import scala.reflect.{ClassTag, _}
 
-case object TCallOptional extends TCall(false)
-case object TCallRequired extends TCall(true)
-
-class TCall(override val required: Boolean) extends ComplexType {
+case object TCall extends ComplexType {
   def _toPretty = "Call"
 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("call")
   }
-  val representation: Type = TCall.representation(required)
+  val representation: Type = TInt32
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Int]
 
@@ -29,12 +26,6 @@ class TCall(override val required: Boolean) extends ComplexType {
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])
-}
 
-object TCall {
-  def apply(required: Boolean = false): TCall = if (required) TCallRequired else TCallOptional
-
-  def unapply(t: TCall): Option[Boolean] = Option(t.required)
-
-  def representation(required: Boolean = false): Type = TInt32(required)
+  def apply(): this.type = this
 }

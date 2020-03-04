@@ -1,6 +1,7 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.CodeOrdering
+import is.hail.annotations.{Annotation, CodeOrdering}
+import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TArray
 object PArray {
@@ -15,7 +16,7 @@ trait PArrayIterator {
 }
 
 abstract class PArray extends PContainer {
-  lazy val virtualType: TArray = TArray(elementType.virtualType, required)
+  lazy val virtualType: TArray = TArray(elementType.virtualType)
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(this isOfType other)
@@ -23,4 +24,7 @@ abstract class PArray extends PContainer {
   }
 
   def elementIterator(aoff: Long, length: Int): PArrayIterator
+
+  override def genNonmissingValue: Gen[IndexedSeq[Annotation]] =
+    Gen.buildableOf[Array](elementType.genValue).map(x => x: IndexedSeq[Annotation])
 }

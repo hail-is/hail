@@ -136,13 +136,13 @@ class RVDPartitionerSuite extends TestNGSuite {
     val intervals1 = Array(Interval(Row(), Row(), true, true))
     val intervals5 = Array.fill(5)(Interval(Row(), Row(), true, true))
 
-    val p5 = RVDPartitioner.generate(FastIndexedSeq(), TStruct.empty(), intervals5)
+    val p5 = RVDPartitioner.generate(FastIndexedSeq(), TStruct.empty, intervals5)
     assert(p5.rangeBounds sameElements intervals1)
 
-    val p1 = RVDPartitioner.generate(FastIndexedSeq(), TStruct.empty(), intervals1)
+    val p1 = RVDPartitioner.generate(FastIndexedSeq(), TStruct.empty, intervals1)
     assert(p1.rangeBounds sameElements intervals1)
 
-    val p0 = RVDPartitioner.generate(FastIndexedSeq(), TStruct.empty(), FastIndexedSeq())
+    val p0 = RVDPartitioner.generate(FastIndexedSeq(), TStruct.empty, FastIndexedSeq())
     assert(p0.rangeBounds.isEmpty)
   }
 

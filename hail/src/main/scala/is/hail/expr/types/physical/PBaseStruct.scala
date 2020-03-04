@@ -2,6 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
+import is.hail.check.Gen
 import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
 import is.hail.utils._
 
@@ -174,4 +175,11 @@ abstract class PBaseStruct extends PType {
   def loadField(offset: Code[Long], fieldIdx: Int): Code[Long]
 
   override def containsPointers: Boolean = types.exists(_.containsPointers)
+
+  override def genNonmissingValue: Gen[Annotation] = {
+    if (types.isEmpty) {
+      Gen.const(Annotation.empty)
+    } else
+      Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*))
+  }
 }

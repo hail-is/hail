@@ -6,7 +6,7 @@ import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.{TStream, Type}
 
 final case class PStream(elementType: PType, required: Boolean = false) extends PIterable {
-  lazy val virtualType: TStream = TStream(elementType.virtualType, required)
+  lazy val virtualType: TStream = TStream(elementType.virtualType)
 
   override val fundamentalType: PStream = {
     if (elementType == elementType.fundamentalType)

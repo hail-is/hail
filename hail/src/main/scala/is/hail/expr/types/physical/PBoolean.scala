@@ -9,7 +9,7 @@ case object PBooleanOptional extends PBoolean(false)
 case object PBooleanRequired extends PBoolean(true)
 
 class PBoolean(override val required: Boolean) extends PType with PPrimitive {
-  lazy val virtualType: TBoolean = TBoolean(required)
+  lazy val virtualType: TBoolean.type  = TBoolean
 
   def _asIdent = "bool"
 

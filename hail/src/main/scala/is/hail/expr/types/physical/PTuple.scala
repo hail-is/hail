@@ -21,7 +21,7 @@ trait PTuple extends PBaseStruct {
   val _types: IndexedSeq[PTupleField]
   val fieldIndex: Map[Int, Int]
 
-  lazy val virtualType: TTuple = TTuple(_types.map(tf => TupleField(tf.index, tf.typ.virtualType)), required)
+  lazy val virtualType: TTuple = TTuple(_types.map(tf => TupleField(tf.index, tf.typ.virtualType)))
 
   lazy val fields: IndexedSeq[PField] = types.zipWithIndex.map { case (t, i) => PField(s"$i", t, i) }
   lazy val nFields: Int = fields.size

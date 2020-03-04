@@ -33,12 +33,12 @@ case class IndexSpec private(
     ), required = true), required = true), 1)
   ))
   val leafVType = TStruct(FastIndexedSeq(
-    Field("first_idx", TInt64Required, 0),
+    Field("first_idx", TInt64, 0),
     Field("keys", TArray(TStruct(FastIndexedSeq(
       Field("key", keyVType, 0),
-      Field("offset", TInt64Required, 1),
+      Field("offset", TInt64, 1),
       Field("annotation", annotationVType, 2)
-    ), required = true), required = true), 1)))
+    ))), 1)))
 
   val internalNodeEType = EBaseStruct(FastIndexedSeq(
     EField("children", EArray(EBaseStruct(FastIndexedSeq(
@@ -52,12 +52,12 @@ case class IndexSpec private(
 
   val internalNodeVType = TStruct(FastIndexedSeq(
     Field("children", TArray(TStruct(FastIndexedSeq(
-      Field("index_file_offset", TInt64Required, 0),
-      Field("first_idx", TInt64Required, 1),
+      Field("index_file_offset", TInt64, 0),
+      Field("first_idx", TInt64, 1),
       Field("first_key", keyVType, 2),
-      Field("first_record_offset", TInt64Required, 3),
+      Field("first_record_offset", TInt64, 3),
       Field("first_annotation", annotationVType, 4)
-    ), required = true), required = true), 0)
+    ))), 0)
   ))
 
 

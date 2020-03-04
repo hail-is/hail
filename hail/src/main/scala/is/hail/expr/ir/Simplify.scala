@@ -158,7 +158,7 @@ object Simplify {
     case x@If(False(), _, altr) => altr
 
     case If(c, cnsq, altr) if cnsq == altr =>
-      if (cnsq.typ.required)
+      if (isDefinitelyDefined(c))
         cnsq
       else
         If(IsNA(c), NA(cnsq.typ), cnsq)
@@ -185,7 +185,7 @@ object Simplify {
     case ApplyIR("contains", Seq(CastToArray(x), element)) if x.typ.isInstanceOf[TSet] => invoke("contains", TBoolean(), x, element)
 
     case ApplyIR("contains", Seq(Literal(t, v), element)) if t.isInstanceOf[TArray] =>
-      invoke("contains", TBoolean(), Literal(TSet(t.asInstanceOf[TArray].elementType, t.required), v.asInstanceOf[IndexedSeq[_]].toSet), element)
+      invoke("contains", TBoolean(), Literal(TSet(t.asInstanceOf[TArray].elementType), v.asInstanceOf[IndexedSeq[_]].toSet), element)
 
     case ApplyIR("contains", Seq(ToSet(x), element)) if x.typ.isInstanceOf[TArray] => invoke("contains", TBoolean(), x, element)
 
@@ -405,7 +405,7 @@ object Simplify {
       I64(r.fileMetadata.map(_.nVariants).sum)
 
     // TableGetGlobals should simplify very aggressively
-    case TableGetGlobals(child) if child.typ.globalType == TStruct() => MakeStruct(FastSeq())
+    case TableGetGlobals(child) if child.typ.globalType == TStruct.empty => MakeStruct(FastSeq())
     case TableGetGlobals(TableKeyBy(child, _, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableFilter(child, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableHead(child, _)) => TableGetGlobals(child)

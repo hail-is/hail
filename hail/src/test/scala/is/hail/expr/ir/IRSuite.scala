@@ -261,14 +261,14 @@ class IRSuite extends HailSuite {
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()))), FastIndexedSeq((null, TInt32())), null)
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()))), FastIndexedSeq((1, TInt32())), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), In(0, TInt32()))), FastIndexedSeq((null, TInt32())), null)
-    assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), In(0, TInt32(true)))), FastIndexedSeq((1, TInt32(true))), 1)
+    assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), In(0, TInt32()))), FastIndexedSeq((1, TInt32())), 1)
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()), NA(TInt32()))), FastIndexedSeq((1, TInt32())), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), I32(1), NA(TInt32()), I32(1), NA(TInt32()), I32(1))), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), Die("foo", TInt32()))), 1)(ExecStrategy.javaOnly)
   }
 
   @Test def testCoalesceWithDifferentRequiredeness() {
-    val t1 = In(0, TArray(TInt32(true)))
+    val t1 = In(0, TArray(TInt32))
     val t2 = NA(TArray(TInt32()))
     val value = FastIndexedSeq(1, 2, 3, 4)
 
@@ -816,20 +816,6 @@ class IRSuite extends HailSuite {
 
     ir = If(True(), cnsqBranch, altrBranch)
     assertPType(ir, PArray(PArray(PInt32(false), false), true))
-  }
-
-  @Test def testIfWithDifferentRequiredness() {
-    val t = TStruct(true, "foo" -> TStruct("bar" -> TArray(TInt32(true), true)))
-    val value = Row(Row(FastIndexedSeq(1, 2, 3)))
-    assertEvalsTo(
-      If(
-        In(0, TBoolean()),
-        In(1, t),
-        MakeStruct(Seq("foo" -> MakeStruct(Seq("bar" -> ToArray(StreamRange(I32(0), I32(1), I32(1)))))))
-      ),
-      FastIndexedSeq((true, TBoolean()), (value, t)),
-      value
-    )
   }
 
   @Test def testLet() {
@@ -1477,7 +1463,7 @@ class IRSuite extends HailSuite {
 
     notAllRequired = ToDict(MakeStream(FastIndexedSeq(
       MakeTuple.ordered(FastIndexedSeq(NA(TInt32()), Str("a"))),
-      MakeTuple.ordered(FastIndexedSeq(I32(10), NA(TString(false)))
+      MakeTuple.ordered(FastIndexedSeq(I32(10), NA(TString))
     )), TStream(TTuple(TInt32(), TString()))))
 
     assertPType(notAllRequired, PDict(PInt32(false), PString(false), true))
@@ -2373,7 +2359,7 @@ class IRSuite extends HailSuite {
       Row(null, "abc", 3.2))
 
     assertEvalsTo(
-      InsertFields(NA(TStruct("a" -> +TInt32())), Seq("foo" -> I32(5))),
+      InsertFields(NA(TStruct("a" -> TInt32())), Seq("foo" -> I32(5))),
       null
     )
 
@@ -2502,13 +2488,13 @@ class IRSuite extends HailSuite {
 
   @DataProvider(name = "compareDifferentTypes")
   def compareDifferentTypesData(): Array[Array[Any]] = Array(
-    Array(FastIndexedSeq(0.0, 0.0), TArray(+TFloat64()), TArray(TFloat64())),
-    Array(Set(0, 1), TSet(+TInt32()), TSet(TInt32())),
-    Array(Map(0L -> 5, 3L -> 20), TDict(+TInt64(), TInt32()), TDict(TInt64(), +TInt32())),
-    Array(Interval(1, 2, includesStart = false, includesEnd = true), TInterval(+TInt32()), TInterval(TInt32())),
-    Array(Row("foo", 0.0), TStruct("a" -> +TString(), "b" -> +TFloat64()), TStruct("a" -> TString(), "b" -> TFloat64())),
-    Array(Row("foo", 0.0), TTuple(TString(), +TFloat64()), TTuple(+TString(), +TFloat64())),
-    Array(Row(FastIndexedSeq("foo"), 0.0), TTuple(+TArray(TString()), +TFloat64()), TTuple(TArray(+TString()), +TFloat64()))
+    Array(FastIndexedSeq(0.0, 0.0), TArray(TFloat64()), TArray(TFloat64())),
+    Array(Set(0, 1), TSet(TInt32()), TSet(TInt32())),
+    Array(Map(0L -> 5, 3L -> 20), TDict(TInt64(), TInt32()), TDict(TInt64(), TInt32())),
+    Array(Interval(1, 2, includesStart = false, includesEnd = true), TInterval(TInt32()), TInterval(TInt32())),
+    Array(Row("foo", 0.0), TStruct("a" -> TString(), "b" -> TFloat64()), TStruct("a" -> TString(), "b" -> TFloat64())),
+    Array(Row("foo", 0.0), TTuple(TString(), TFloat64()), TTuple(TString(), TFloat64())),
+    Array(Row(FastIndexedSeq("foo"), 0.0), TTuple(TArray(TString()), TFloat64()), TTuple(TArray(TString()), TFloat64()))
   )
 
   @Test(dataProvider = "compareDifferentTypes")
@@ -2716,7 +2702,7 @@ class IRSuite extends HailSuite {
           MakeStruct(FastIndexedSeq(
             "a" -> I32(5)))),
         TableKeyByAndAggregate(read,
-          NA(TStruct()), NA(TStruct()), Some(1), 2),
+          NA(TStruct.empty), NA(TStruct.empty), Some(1), 2),
         TableJoin(read,
           TableRange(100, 10), "inner", 1),
         TableLeftJoinRightDistinct(read, TableRange(100, 10), "root"),

@@ -8,7 +8,7 @@ import is.hail.expr.types.virtual.TString
 
 
 abstract class PString extends PType {
-  lazy val virtualType: TString = TString(required)
+  lazy val virtualType: TString.type = TString
 
   override def unsafeOrdering(): UnsafeOrdering = PBinary(required).unsafeOrdering()
 

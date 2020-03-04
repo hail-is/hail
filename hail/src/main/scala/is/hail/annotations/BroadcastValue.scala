@@ -22,7 +22,7 @@ case class SerializableRegionValue(encodedValue: Array[Byte], t: PType, makeDeco
 }
 
 object BroadcastRow {
-  def empty(ctx: ExecuteContext): BroadcastRow = apply(ctx, Row(), TStruct())
+  def empty(ctx: ExecuteContext): BroadcastRow = apply(ctx, Row(), TStruct.empty)
 
   def apply(ctx: ExecuteContext, value: Row, t: TBaseStruct): BroadcastRow = {
     val pType = PType.canonical(t).asInstanceOf[PStruct]
