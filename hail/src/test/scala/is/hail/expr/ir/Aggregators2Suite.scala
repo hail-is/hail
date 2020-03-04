@@ -777,7 +777,6 @@ class Aggregators2Suite extends HailSuite {
           InitOp(0, FastSeq(I32(10)), takeSig),
           CombOpValue(0, Ref("x", TBinary()), takeSig.singletonContainer),
           SeqOp(0, FastSeq(I64(3l)), takeSig),
-          SeqOp(0, FastSeq(NA(TInt64())), takeSig),
           CombOpValue(0, Ref("x", TBinary()), takeSig.singletonContainer),
           SeqOp(0, FastSeq(I64(0l)), takeSig))),
         GetTupleElement(ResultOp(0, FastIndexedSeq(takeSig.singletonContainer)), 0),
