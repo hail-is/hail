@@ -500,6 +500,7 @@ object EmitStream2 {
     er: EmitRegion,
     container: Option[AggContainer]
   ): COption[Stream[EmitTriplet]] = {
+    assert(emitter.mb eq er.mb)
     val mb = emitter.mb
     val fb = mb.fb
 
@@ -557,7 +558,13 @@ object EmitStream2 {
           }
 
         case StreamZip(as, names, bodyIR, behavior) =>
-          val eltTypes = as.map(_.pType.asInstanceOf[PStream].elementType)
+          val eltTypes = {
+            val types = as.map(ir => coerce[PStream](ir.pType).elementType)
+            behavior match {
+              case ArrayZipBehavior.ExtendNA => types.map(_.setRequired(false))
+              case _ => types
+            }
+          }
           val eltsPack = ParameterPack.array(eltTypes.map(TypedTriplet.pack(_)))
           val eltVars = eltsPack.newFields(mb.fb, names)
 
