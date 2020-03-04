@@ -273,7 +273,7 @@ class EmitStreamSuite extends HailSuite {
     val mb = fb.apply_method
     val ir = streamIR.deepCopy()
     InferPType(ir, Env.empty)
-    val eltType = streamIR.pType.asInstanceOf[PStream].elementType
+    val eltType = ir.pType.asInstanceOf[PStream].elementType
     val stream = ExecuteContext.scoped { ctx =>
       val s = ir match {
         case ToArray(s) => s
