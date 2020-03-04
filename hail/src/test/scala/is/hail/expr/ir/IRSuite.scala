@@ -12,6 +12,7 @@ import is.hail.expr.types.TableType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.expr.Nat
+import is.hail.expr.types.encoded.{EArray, EBaseStruct, EBinary, EField, EFloat32, EFloat64, EInt32, EInt64, EType}
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
@@ -3260,21 +3261,23 @@ class IRSuite extends HailSuite {
 
   @DataProvider(name = "nonNullTypesAndValues")
   def nonNullTypesAndValues(): Array[Array[Any]] = Array(
-    Array(TInt32(), 1),
-    Array(TInt64(), 5L),
-    Array(TFloat32(), 5.5f),
-    Array(TFloat64(), 1.2),
-    Array(TString(), "foo"),
-    Array(TArray(TInt32()), FastIndexedSeq(5, 7, null, 3)),
-    Array(TTuple(TInt32(), TString(), TStruct()), Row(3, "bar", Row()))
+    Array(TInt32(), EInt32(), 1),
+    Array(TInt64(), EInt64(), 5L),
+    Array(TFloat32(), EFloat32(), 5.5f),
+    Array(TFloat64(),  EFloat64(), 1.2),
+    Array(TString(), EBinary(), "foo"),
+    Array(TArray(TInt32()), EArray(EInt32()), FastIndexedSeq(5, 7, null, 3)),
+    Array(TTuple(TInt32(), TString(), TStruct()),
+      EBaseStruct(FastIndexedSeq(EField("0", EInt32(), 0), EField("1", EBinary(), 1), EField("1", EBaseStruct(FastIndexedSeq()), 1))),
+      Row(3, "bar", Row()))
   )
 
   @Test(dataProvider = "nonNullTypesAndValues")
-  def testReadWriteValues(t: Type, value: Any): Unit = {
+  def testReadWriteValues(t: Type, et: EType, value: Any): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
     for (v <- Array(value, null)) {
       val node = Literal.coerce(t, v)
-      val spec = TypedCodecSpec(node.pType, BufferSpec.defaultUncompressed)
+      val spec = TypedCodecSpec(et, t, BufferSpec.defaultUncompressed)
       val prefix = tmpDir.createTempFile()
       val filename = WriteValue(node, Str(prefix), spec)
       assertEvalsTo(ReadValue(filename, spec, t), v)
@@ -3282,11 +3285,11 @@ class IRSuite extends HailSuite {
   }
 
   @Test(dataProvider="nonNullTypesAndValues")
-  def testReadWriteValueDistributed(t: Type, value: Any): Unit = {
+  def testReadWriteValueDistributed(t: Type, et: EType, value: Any): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
     for (v <- Array(value, null)) {
       val node = Literal.coerce(t, v)
-      val spec = TypedCodecSpec(node.pType, BufferSpec.defaultUncompressed)
+      val spec = TypedCodecSpec(et, t, BufferSpec.defaultUncompressed)
       val prefix = tmpDir.createTempFile()
       val readArray = Let("files",
         CollectDistributedArray(StreamRange(0, 10, 1), MakeStruct(FastSeq()),
