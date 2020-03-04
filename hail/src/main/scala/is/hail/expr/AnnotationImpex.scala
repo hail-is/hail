@@ -1,7 +1,8 @@
 package is.hail.expr
 
-import is.hail.annotations.{Annotation, UnsafeRow}
+import is.hail.annotations.Annotation
 import is.hail.expr.ir.functions.UtilFunctions
+import is.hail.expr.types.physical.{PBoolean, PCanonicalArray, PCanonicalBinary, PCanonicalString, PCanonicalStruct, PFloat32, PFloat64, PInt32, PInt64, PType}
 import is.hail.expr.types.virtual._
 import is.hail.utils.{Interval, _}
 import is.hail.variant._
@@ -25,17 +26,17 @@ object SparkAnnotationImpex {
     }.mkString
   }
 
-  def importType(t: DataType): Type = t match {
-    case BooleanType => TBoolean()
-    case IntegerType => TInt32()
-    case LongType => TInt64()
-    case FloatType => TFloat32()
-    case DoubleType => TFloat64()
-    case StringType => TString()
-    case BinaryType => TBinary()
-    case ArrayType(elementType, containsNull) => TArray(importType(elementType).setRequired(!containsNull))
+  def importType(t: DataType): PType = t match {
+    case BooleanType => PBoolean()
+    case IntegerType => PInt32()
+    case LongType => PInt64()
+    case FloatType => PFloat32()
+    case DoubleType => PFloat64()
+    case StringType => PCanonicalString()
+    case BinaryType => PCanonicalBinary()
+    case ArrayType(elementType, containsNull) => PCanonicalArray(importType(elementType).setRequired(!containsNull))
     case StructType(fields) =>
-      TStruct(fields.map { f => (f.name, importType(f.dataType).setRequired(!f.nullable)) }: _*)
+      PCanonicalStruct(fields.map { f => (f.name, importType(f.dataType).setRequired(!f.nullable)) }: _*)
   }
 
   def exportType(t: Type): DataType = (t: @unchecked) match {

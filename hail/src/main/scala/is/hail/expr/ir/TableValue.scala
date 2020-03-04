@@ -25,8 +25,8 @@ object TableValue {
       RVD.coerce(RVDType(rowType, key), rdd, ctx))
   }
 
-  def apply(ctx: ExecuteContext, rowType:  TStruct, key: IndexedSeq[String], rdd: RDD[Row]): TableValue = {
-    val canonicalRowType = PStruct.canonical(rowType)
+  def apply(ctx: ExecuteContext, rowType:  TStruct, key: IndexedSeq[String], rdd: RDD[Row], rowPType: Option[PStruct] = None): TableValue = {
+    val canonicalRowType = rowPType.getOrElse(PStruct.canonical(rowType))
     val tt = TableType(rowType, key, TStruct.empty())
     TableValue(tt,
       BroadcastRow.empty(ctx),

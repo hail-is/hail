@@ -22,44 +22,44 @@ object LegacyEncodedTypeParser {
         punctuation(it, "[")
         val (pointType, ePointType) = legacy_type_expr(env)(it)
         punctuation(it, "]")
-        (TInterval(pointType, req), EBaseStruct(FastIndexedSeq(
+        (TInterval(pointType), EBaseStruct(FastIndexedSeq(
           EField("start", ePointType, 0),
           EField("end", ePointType, 1),
           EField("includesStart", EBooleanRequired, 2),
           EField("includesEnd", EBooleanRequired, 3)
         ), req))
-      case "Boolean" => (TBoolean(req), EBoolean(req))
-      case "Int32" => (TInt32(req), EInt32(req))
-      case "Int64" => (TInt64(req), EInt64(req))
-      case "Int" => (TInt32(req), EInt32(req))
-      case "Float32" => (TFloat32(req), EFloat32(req))
-      case "Float64" => (TFloat64(req), EFloat64(req))
-      case "String" => (TString(req), EBinary(req))
+      case "Boolean" => (TBoolean(), EBoolean(req))
+      case "Int32" => (TInt32(), EInt32(req))
+      case "Int64" => (TInt64(), EInt64(req))
+      case "Int" => (TInt32(), EInt32(req))
+      case "Float32" => (TFloat32(), EFloat32(req))
+      case "Float64" => (TFloat64(), EFloat64(req))
+      case "String" => (TString(), EBinary(req))
       case "Locus" =>
         punctuation(it, "(")
         val rg = identifier(it)
         punctuation(it, ")")
-        (env.getReferenceGenome(rg).locusType.setRequired(req), EBaseStruct(FastIndexedSeq(
+        (env.getReferenceGenome(rg).locusType, EBaseStruct(FastIndexedSeq(
           EField("contig", EBinaryRequired, 0),
           EField("position", EInt32Required, 1)), req))
-      case "Call" => (TCall(req), EInt32(req))
+      case "Call" => (TCall(), EInt32(req))
       case "Array" =>
         punctuation(it, "[")
         val (elementType, elementEType) = legacy_type_expr(env)(it)
         punctuation(it, "]")
-        (TArray(elementType, req), EArray(elementEType, req))
+        (TArray(elementType), EArray(elementEType, req))
       case "Set" =>
         punctuation(it, "[")
         val (elementType, elementEType) = legacy_type_expr(env)(it)
         punctuation(it, "]")
-        (TSet(elementType, req), EArray(elementEType, req))
+        (TSet(elementType), EArray(elementEType, req))
       case "Dict" =>
         punctuation(it, "[")
         val (keyType, keyEType) = legacy_type_expr(env)(it)
         punctuation(it, ",")
         val (valueType, valueEType) = legacy_type_expr(env)(it)
         punctuation(it, "]")
-        (TDict(keyType, valueType, req), EArray(EBaseStruct(FastIndexedSeq(
+        (TDict(keyType, valueType), EArray(EBaseStruct(FastIndexedSeq(
           EField("key", keyEType, 0),
           EField("value", valueEType, 1)), required = true),
           req))
@@ -67,15 +67,14 @@ object LegacyEncodedTypeParser {
         punctuation(it, "[")
         val types = repsepUntil(it, legacy_type_expr(env), PunctuationToken(","), PunctuationToken("]"))
         punctuation(it, "]")
-        (TTuple(req, types.map(_._1): _*), EBaseStruct(types.zipWithIndex.map { case ((_, t), idx) => EField(idx.toString, t, idx) }, req))
+        (TTuple(types.map(_._1): _*), EBaseStruct(types.zipWithIndex.map { case ((_, t), idx) => EField(idx.toString, t, idx) }, req))
       case "Struct" =>
         punctuation(it, "{")
         val args = repsepUntil(it, struct_field(legacy_type_expr(env)), PunctuationToken(","), PunctuationToken("}"))
         punctuation(it, "}")
         val (vFields, eFields) = args.zipWithIndex.map { case ((id, (vt, et)), i) => (Field(id, vt, i), EField(id, et, i)) }.unzip
-        (TStruct(vFields, req), EBaseStruct(eFields, req))
+        (TStruct(vFields), EBaseStruct(eFields, req))
     }
-    assert(vType.required == req)
     assert(eType.required == req)
     (vType, eType)
   }
