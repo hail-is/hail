@@ -195,19 +195,6 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
       }
     }
 
-
-  def usingFreshContext: ContextRDD[RVDContext, RegionValue] =
-    crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
-      val producerCtx = consumerCtx.freshContext
-      val it = part.flatMap(_ (producerCtx)).map { rv =>
-        rv.region.move(producerCtx.region)
-        rv.region = producerCtx.region
-        rv
-      }
-      it
-    }
-
-
   def writeRows(
     path: String,
     idxRelPath: String,
