@@ -157,7 +157,7 @@ object LocusFunctions extends RegistryFunctions {
 
   def inPar(locus: IR): IR = {
     val t = locus.typ.asInstanceOf[TLocus]
-    val par = Literal(TArray(TInterval(t)), t.rg.par)
+    val par = Literal(TArray(TInterval(t)), t.rg.par.toFastIndexedSeq)
     ArrayFunctions.exists(par, interval => invoke("contains", TBoolean(), interval, locus))
   }
 
