@@ -196,14 +196,16 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
     val serF = fb.newMethod("blockLinkedListSerialize",
       Array[TypeInfo[_]](typeInfo[Region], typeInfo[OutputBuffer]),
       typeInfo[Unit])
-    val ob = serF.getArg[OutputBuffer](2).load
+    val ob = serF.getArg[OutputBuffer](2)
     serF.emit {
       val n = serF.newLocal[Long]
       val i = serF.newLocal[Int]
+      val b = serF.newLocal[Long]
       Code(
         foreachNode(serF, n) { Code(
           ob.writeBoolean(true),
-          bufferEType.buildPrefixEncoder(bufferType.fundamentalType, serF, buffer(n), ob, count(n)))
+          b := buffer(n),
+          bufferEType.buildPrefixEncoder(bufferType.fundamentalType, serF, b, ob, count(n)))
         },
         ob.writeBoolean(false))
     }

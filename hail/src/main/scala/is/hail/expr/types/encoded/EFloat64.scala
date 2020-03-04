@@ -12,7 +12,7 @@ case object EFloat64Optional extends EFloat64(false)
 case object EFloat64Required extends EFloat64(true)
 
 class EFloat64(override val required: Boolean) extends EType {
-  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
+  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     out.writeDouble(coerce[Double](v))
   }
 

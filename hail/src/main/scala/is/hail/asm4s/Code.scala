@@ -216,7 +216,7 @@ object Code {
   def invokeScalaObject[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
     val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
     val staticObj = FieldRef("MODULE$")(ClassTag(cls), ClassTag(cls), classInfo(ClassTag(cls)))
-    m.invoke(staticObj.get(), args)
+    m.invoke(staticObj.getField(), args)
   }
 
   def invokeScalaObject[S](cls: Class[_], method: String)(implicit sct: ClassTag[S]): Code[S] =
@@ -368,7 +368,7 @@ object Code {
   def getStatic[T: ClassTag, S: ClassTag : TypeInfo](field: String): Code[S] = {
     val f = FieldRef[T, S](field)
     assert(f.isStatic)
-    f.get(null)
+    f.getField(null)
   }
 
   def putStatic[T: ClassTag, S: ClassTag : TypeInfo](field: String, rhs: Code[S]): Code[Unit] = {
@@ -859,23 +859,26 @@ object FieldRef {
   }
 }
 
-trait Settable[T] {
-  def load(): Code[T]
+trait Value[+T] { self =>
+  def get: Code[T]
+}
 
+trait Settable[T] extends Value[T] {
   def store(rhs: Code[T]): Code[Unit]
 
   def :=(rhs: Code[T]): Code[Unit] = store(rhs)
 
   def storeAny(rhs: Code[_]): Code[Unit] = store(coerce[T](rhs))
+
+  def load(): Code[T] = get
 }
 
 class LazyFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String, setup: Code[T]) extends Settable[T] {
-
   private[this] val value: ClassFieldRef[T] = fb.newField[T](name)
   private[this] val present: ClassFieldRef[Boolean] = fb.newField[Boolean](s"${name}_present")
 
-  def load(): Code[T] =
-    Code(present.mux(Code._empty, Code(value := setup, present := true)), value)
+  def get: Code[T] =
+    Code(present.mux(Code._empty, Code(value := setup, present := true)), value.load())
 
   def store(rhs: Code[T]): Code[Unit] =
     throw new UnsupportedOperationException("cannot store new value into LazyFieldRef!")
@@ -884,15 +887,15 @@ class LazyFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String, setup: Cod
 class ClassFieldRef[T: TypeInfo](fb: FunctionBuilder[_], f: Field[T]) extends Settable[T] {
   def name: String = f.name
 
-  private def _loadClass: Code[java.lang.Object] = fb.getArg[java.lang.Object](0).load()
+  private def _loadClass: Value[java.lang.Object] = fb.getArg[java.lang.Object](0)
 
-  def load(): Code[T] = f.get(_loadClass)
+  def get: Code[T] = f.get(_loadClass)
 
   def store(rhs: Code[T]): Code[Unit] = f.put(_loadClass, rhs)
 }
 
 class LocalRef[T](val i: Int)(implicit tti: TypeInfo[T]) extends Settable[T] {
-  def load(): Code[T] =
+  def get: Code[T] =
     new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         il += new VarInsnNode(tti.loadOp, i)
@@ -923,15 +926,21 @@ class LocalRefInt(val v: LocalRef[Int]) extends AnyRef {
 }
 
 class FieldRef[T, S](f: reflect.Field)(implicit tct: ClassTag[T], sti: TypeInfo[S]) {
+  self =>
   def isStatic: Boolean = reflect.Modifier.isStatic(f.getModifiers)
 
   def getOp = if (isStatic) GETSTATIC else GETFIELD
 
   def putOp = if (isStatic) PUTSTATIC else PUTFIELD
 
-  def get(): Code[S] = get(null)
+  def getField(): Code[S] = getField(null: Value[T])
 
-  def get(lhs: Code[T]): Code[S] =
+  def getField(lhs: Value[T]): Value[S] =
+    new Value[S] {
+      def get: Code[S] = self.getField(if (lhs != null) lhs.get else null)
+    }
+
+  def getField(lhs: Code[T]): Code[S] =
     new Code[S] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         if (!isStatic)
@@ -954,8 +963,8 @@ class FieldRef[T, S](f: reflect.Field)(implicit tct: ClassTag[T], sti: TypeInfo[
 }
 
 class CodeObject[T <: AnyRef : ClassTag](val lhs: Code[T]) {
-  def get[S](field: String)(implicit sct: ClassTag[S], sti: TypeInfo[S]): Code[S] =
-    FieldRef[T, S](field).get(lhs)
+  def getField[S](field: String)(implicit sct: ClassTag[S], sti: TypeInfo[S]): Code[S] =
+    FieldRef[T, S](field).getField(lhs)
 
   def put[S](field: String, rhs: Code[S])(implicit sct: ClassTag[S], sti: TypeInfo[S]): Code[Unit] =
     FieldRef[T, S](field).put(lhs, rhs)

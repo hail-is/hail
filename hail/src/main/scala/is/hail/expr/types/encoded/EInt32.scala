@@ -12,7 +12,7 @@ case object EInt32Optional extends EInt32(false)
 case object EInt32Required extends EInt32(true)
 
 class EInt32(override val required: Boolean) extends EType {
-  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
+  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     out.writeInt(coerce[Int](v))
   }
 

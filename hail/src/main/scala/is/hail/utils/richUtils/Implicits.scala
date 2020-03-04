@@ -4,7 +4,7 @@ import java.io.InputStream
 
 import breeze.linalg.DenseMatrix
 import is.hail.annotations.{JoinedRegionValue, Region, RegionValue, RegionValueBuilder}
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, Value}
 import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDRegionValue}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
@@ -96,6 +96,8 @@ trait Implicits {
   implicit def toRichJoinedRegionValue(jrv: JoinedRegionValue): RichJoinedRegionValue =
     new RichJoinedRegionValue(jrv)
 
+  implicit def valueToRichCodeRegion(r: Value[Region]): RichCodeRegion = new RichCodeRegion(r)
+
   implicit def toRichCodeRegion(r: Code[Region]): RichCodeRegion = new RichCodeRegion(r)
 
   implicit def toRichCodeRegionValueBuilder(rvb: Code[RegionValueBuilder]): RichCodeRegionValueBuilder = new RichCodeRegionValueBuilder(rvb)
@@ -110,9 +112,17 @@ trait Implicits {
 
   implicit def toRichCodeInputBuffer(in: Code[InputBuffer]): RichCodeInputBuffer = new RichCodeInputBuffer(in)
 
+  implicit def valueToRichCodeInputBuffer(in: Value[InputBuffer]): RichCodeInputBuffer = new RichCodeInputBuffer(in)
+
   implicit def toRichCodeOutputBuffer(out: Code[OutputBuffer]): RichCodeOutputBuffer = new RichCodeOutputBuffer(out)
 
-  implicit def toRichCodeArray[T](arr: Array[Code[T]]): RichCodeArray[T] = new RichCodeArray[T](arr)
+  implicit def valueToRichCodeOutputBuffer(out: Value[OutputBuffer]): RichCodeOutputBuffer = new RichCodeOutputBuffer(out)
+
+  implicit def toRichCodeArray[T](cs: IndexedSeq[Code[T]]): RichCodeIndexedSeq[T] = new RichCodeIndexedSeq[T](cs)
+
+  implicit def valueToRichCodeArray[T](cs: IndexedSeq[Value[T]]): RichCodeIndexedSeq[T] = new RichCodeIndexedSeq[T](cs.map(_.get))
 
   implicit def toRichCodeIterator[T](it: Code[Iterator[T]]): RichCodeIterator[T] = new RichCodeIterator[T](it)
+
+  implicit def valueToRichCodeIterator[T](it: Value[Iterator[T]]): RichCodeIterator[T] = new RichCodeIterator[T](it)
 }

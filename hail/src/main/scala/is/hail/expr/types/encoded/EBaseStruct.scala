@@ -89,7 +89,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       PNDArray(elementType, t.nDims, required)
   }
 
-  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Code[_], out: Code[OutputBuffer]): Code[Unit] = {
+  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     val ft = pt.asInstanceOf[PBaseStruct]
     val writeMissingBytes = if (ft.size == size) {
       val missingBytes = UnsafeUtils.packBitsToBytes(ft.nMissing)
