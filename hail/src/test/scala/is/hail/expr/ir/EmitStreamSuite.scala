@@ -386,8 +386,10 @@ class EmitStreamSuite extends HailSuite {
   private def evalStreamLen(streamIR: IR): Option[Int] = {
     val fb = EmitFunctionBuilder[Region, Int]("eval_stream_len")
     val mb = fb.apply_method
+    val ir = streamIR.deepCopy()
+    InferPType(ir, Env.empty)
     val optStream = ExecuteContext.scoped { ctx =>
-      EmitStream2(new Emit(ctx, mb), streamIR, Env.empty, EmitRegion.default(mb), None)
+      EmitStream2(new Emit(ctx, mb), ir, Env.empty, EmitRegion.default(mb), None)
     }
     fb.emit {
       optStream.cases[Int](mb)(0, stream => stream.length.map { case (s, l) => Code(s, l) }.getOrElse(-1))

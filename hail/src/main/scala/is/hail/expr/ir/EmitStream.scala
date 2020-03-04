@@ -876,9 +876,9 @@ object EmitStream2 {
 
           emitStream(bodyIR, bodyEnv).addSetup(xValue := valuet)
 
-        case StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
+        case x@StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
           val eltType = coerce[PStream](childIR.pType).elementType
-          val accType = zeroIR.pType
+          val accType = x.accPType
           val eltPack = TypedTriplet.pack(eltType)
           implicit val accPack = TypedTriplet.pack(accType)
 
@@ -887,11 +887,11 @@ object EmitStream2 {
             val xAcc = accPack.newFields(fb, accName)
             val bodyEnv = Emit.bindEnv(env, accName -> xAcc, eltName -> xElt)
 
-            val bodyT = TypedTriplet(accType, emitIR(bodyIR, bodyEnv))
+            val bodyT = TypedTriplet(accType, emitIR(bodyIR, bodyEnv).map(accType.copyFromPValue(mb, er.region, _)))
             TypedTriplet(accType, EmitTriplet(Code(xElt := elt, xAcc := acc, bodyT.setup), bodyT.m, bodyT.pv))
           }
 
-          val zerot = TypedTriplet(accType, emitIR(zeroIR))
+          val zerot = TypedTriplet(accType, emitIR(zeroIR, env).map(accType.copyFromPValue(mb, er.region, _)))
           val streamOpt = emitStream(childIR, env)
 
           streamOpt.map { case SizedStream(stream, len) =>
@@ -939,7 +939,7 @@ object EmitStream2 {
 
         case StreamLeftJoinDistinct(leftIR, rightIR, leftName, rightName, compIR, joinIR) =>
           val lEltType = coerce[PStream](leftIR.pType).elementType
-          val rEltType = coerce[PStream](rightIR.pType).elementType
+          val rEltType = coerce[PStream](rightIR.pType).elementType.setRequired(false)
           implicit val lEltPack = TypedTriplet.pack(lEltType)
           implicit val rEltPack = TypedTriplet.pack(rEltType)
           val xLElt = lEltPack.newFields(fb, "join_lelt")

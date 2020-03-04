@@ -263,8 +263,6 @@ private class Emit(
     emit(ir, env, er, container, None)
 
   private def emit(ir: IR, env: E, er: EmitRegion, container: Option[AggContainer], loopEnv: Option[Env[Array[LoopRef]]]): EmitTriplet = {
-    import CodeStream.Stream
-
     def emit(ir: IR, env: E = env, er: EmitRegion = er, container: Option[AggContainer] = container, loopEnv: Option[Env[Array[LoopRef]]] = loopEnv): EmitTriplet =
       this.emit(ir, env, er, container, loopEnv)
 
