@@ -12,7 +12,8 @@ log = logging.getLogger('gear.database')
 
 
 # 1213 - Deadlock found when trying to get lock; try restarting transaction
-retry_codes = (1213,)
+# 2003 - Can't connect to MySQL server on ...
+retry_codes = (1213, 2003)
 
 
 def retry_transient_mysql_errors(f):
@@ -50,6 +51,7 @@ async def aexit(acontext_manager, exc_type=None, exc_val=None, exc_tb=None):
     return await acontext_manager.__aexit__(exc_type, exc_val, exc_tb)
 
 
+@retry_transient_mysql_errors
 async def create_database_pool(config_file=None, autocommit=True, maxsize=10):
     if config_file is None:
         config_file = os.environ.get('HAIL_DATABASE_CONFIG_FILE', '/sql-config/sql-config.json')
