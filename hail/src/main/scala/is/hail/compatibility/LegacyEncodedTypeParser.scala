@@ -39,7 +39,7 @@ object LegacyEncodedTypeParser {
         punctuation(it, "(")
         val rg = identifier(it)
         punctuation(it, ")")
-        (env.getReferenceGenome(rg).locusType.setRequired(req), EBaseStruct(FastIndexedSeq(
+        (env.getReferenceGenome(rg).locusType, EBaseStruct(FastIndexedSeq(
           EField("contig", EBinaryRequired, 0),
           EField("position", EInt32Required, 1)), req))
       case "Call" => (TCall(req), EInt32(req))

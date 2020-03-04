@@ -5,6 +5,7 @@ import java.io.{InputStream, OutputStream}
 import is.hail.HailContext
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir.{ExecuteContext, TableIR, TableLiteral, TableValue}
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual.{TArray, TString, TStruct, Type}
 import is.hail.io.fs.FileStatus
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
@@ -154,9 +155,9 @@ trait Py4jUtils {
 
   def pyFromDF(df: DataFrame, jKey: java.util.List[String]): TableIR = {
     val key = jKey.asScala.toArray.toFastIndexedSeq
-    val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
+    val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[PStruct]
     ExecuteContext.scoped { ctx =>
-      TableLiteral(TableValue(ctx, signature, key, df.rdd), ctx)
+      TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)), ctx)
     }
   }
 
