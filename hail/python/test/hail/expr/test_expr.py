@@ -299,6 +299,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval('\d+'), '\d+')
         string = hl.literal('12345')
         self.assertTrue(hl.eval(string.matches('\d+')))
+        self.assertTrue(hl.eval(string.matches(hl.str('\d+'))))
         self.assertFalse(hl.eval(string.matches(r'\\d+')))
 
     def test_string_reverse(self):
