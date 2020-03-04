@@ -3274,8 +3274,7 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.compileOnly
     for (v <- Array(value, null)) {
       val node = Literal.coerce(t, v)
-      InferPType(node, Env.empty)
-      val spec = TypedCodecSpec(node.pType2, BufferSpec.defaultUncompressed)
+      val spec = TypedCodecSpec(node.pType, BufferSpec.defaultUncompressed)
       val prefix = tmpDir.createTempFile()
       val filename = WriteValue(node, Str(prefix), spec)
       assertEvalsTo(ReadValue(filename, spec, t), v)
@@ -3287,14 +3286,13 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.compileOnly
     for (v <- Array(value, null)) {
       val node = Literal.coerce(t, v)
-      InferPType(node, Env.empty)
-      val spec = TypedCodecSpec(node.pType2, BufferSpec.defaultUncompressed)
+      val spec = TypedCodecSpec(node.pType, BufferSpec.defaultUncompressed)
       val prefix = tmpDir.createTempFile()
       val readArray = Let("files",
         CollectDistributedArray(StreamRange(0, 10, 1), MakeStruct(FastSeq()),
           "ctx", "globals",
           WriteValue(node, Str(prefix), spec)),
-        ArrayMap(ToStream(Ref("files", TArray(TString()))), "filename",
+        StreamMap(ToStream(Ref("files", TArray(TString()))), "filename",
           ReadValue(Ref("filename", TString()), spec, t)))
       assertEvalsTo(ToArray(readArray), Array.fill(10)(v).toFastIndexedSeq)
     }
