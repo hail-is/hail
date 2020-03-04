@@ -1,20 +1,17 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.lowering.LowerTableIR.lower
 import is.hail.expr.ir.{BlockMatrixIR, Copy, IR, MatrixIR, Pretty, TableIR}
-import is.hail.expr.types.virtual.{TContainer, TInt64}
-import is.hail.utils.FastIndexedSeq
 
 object LowerIR {
   def lower(ir: IR, typesToLower: DArrayLowering.Type): IR = ir match {
-    case node if DArrayLowering.lowerTable(typesToLower) && node.children.exists( _.isInstanceOf[TableIR] ) =>
-      LowerTableIR.lower(ir)
+    case node if node.children.forall(n => n.isInstanceOf[TableIR] || n.isInstanceOf[IR] ) =>
+      LowerTableIR.lower(ir, typesToLower)
 
     case node if node.children.exists( _.isInstanceOf[MatrixIR] ) =>
       throw new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(node) }")
 
-    case node if DArrayLowering.lowerBM(typesToLower) && node.children.exists( _.isInstanceOf[BlockMatrixIR] ) =>
-      LowerBlockMatrixIR.lower(ir)
+    case node if node.children.forall(n => n.isInstanceOf[IR] || n.isInstanceOf[BlockMatrixIR] ) =>
+      LowerBlockMatrixIR.lower(ir, typesToLower)
 
     case node if node.children.forall(_.isInstanceOf[IR]) =>
       Copy(node, ir.children.map { case c: IR => lower(c, typesToLower) })

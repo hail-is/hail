@@ -181,7 +181,7 @@ class BlockMatrixIRSuite extends HailSuite {
     val blockSize = 3
 
     def value(nRows: Long, nCols: Long, data: Double*): (BlockMatrixIR, BDM[Double]) = {
-      val ir = ValueToBlockMatrix(Literal(TArray(TFloat64()), data),
+      val ir = ValueToBlockMatrix(Literal(TArray(TFloat64), data),
         FastIndexedSeq(nRows, nCols), blockSize)
       val bdm = new BDM(nCols.toInt, nRows.toInt, data.toArray).t
       ir -> bdm

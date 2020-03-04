@@ -19,7 +19,7 @@ class BlockMatrixStageSuite extends HailSuite {
     order: Option[Array[(Int, Int)]] = None
   ): IR = {
     val stage = if (ctxs.isEmpty)
-      BlockMatrixStage.empty(TInt32())
+      BlockMatrixStage.empty(TInt32)
     else {
       new BlockMatrixStage(
         globalVals,
@@ -41,33 +41,33 @@ class BlockMatrixStageSuite extends HailSuite {
   }
 
   @Test def testContextDependsOnGlobalValue(): Unit = {
-    val g1 = "x" -> In(0, TString())
+    val g1 = "x" -> In(0, TString)
     assertEvalsTo(
-      collected(Array.tabulate(5)(i => (i -> i, Ref("x", TString()))),
+      collected(Array.tabulate(5)(i => (i -> i, Ref("x", TString))),
         Array(g1)),
-      args = IndexedSeq("foo" -> TString()),
+      args = IndexedSeq("foo" -> TString),
       expected = Array.fill(5)("foo").toFastIndexedSeq)
   }
 
   @Test def testBodyDependsOnGlobalValue(): Unit = {
-    val g1 = "x" -> In(0, TInt32())
+    val g1 = "x" -> In(0, TInt32)
     assertEvalsTo(
       ToSet(
         collected(Array.tabulate(5)(i => (i -> i, I32(i))),
           Array(g1),
-          body=ref => ref + Ref("x", TInt32()))),
-      args = IndexedSeq(5 -> TInt32()),
+          body=ref => ref + Ref("x", TInt32))),
+      args = IndexedSeq(5 -> TInt32),
       expected = Array.tabulate(5)(i => i + 5).toSet)
   }
 
   @Test def testGlobalValueDependentBinding(): Unit = {
-    val g1 = "x" -> In(0, TString())
-    val g2 = "y" -> MakeArray(FastIndexedSeq(Ref("x", TString())), TArray(TString()))
+    val g1 = "x" -> In(0, TString)
+    val g2 = "y" -> MakeArray(FastIndexedSeq(Ref("x", TString)), TArray(TString))
 
     assertEvalsTo(
-      collected(Array.tabulate(5)(i => (i -> i, Ref("y", TArray(TString())))),
+      collected(Array.tabulate(5)(i => (i -> i, Ref("y", TArray(TString)))),
         Array(g1, g2)),
-      args = IndexedSeq("foo" -> TString()),
+      args = IndexedSeq("foo" -> TString),
       expected = Array.fill(5)(IndexedSeq("foo")).toFastIndexedSeq)
   }
 

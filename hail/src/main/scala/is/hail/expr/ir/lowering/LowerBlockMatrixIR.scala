@@ -15,7 +15,9 @@ object BlockMatrixStage {
 case class EmptyBlockMatrixStage(eltType: Type) extends BlockMatrixStage(Array(), TInt32()) {
   def blockContext(idx: (Int, Int)): IR =
     throw new LowererUnsupportedOperation("empty stage has no block contexts!")
+
   def blockBody(ctxRef: Ref): IR = NA(TNDArray(eltType, Nat(2)))
+
   override def collectBlocks(f: IR => IR, blocksToCollect: Array[(Int, Int)]): IR = {
     assert(blocksToCollect.isEmpty)
     MakeArray(FastSeq(), TArray(f(blockBody(Ref("x", ctxType))).typ))
@@ -24,13 +26,14 @@ case class EmptyBlockMatrixStage(eltType: Type) extends BlockMatrixStage(Array()
 
 abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType: Type) {
   def blockContext(idx: (Int, Int)): IR
+
   def blockBody(ctxRef: Ref): IR
 
   def collectBlocks(f: IR => IR, blocksToCollect: Array[(Int, Int)]): IR = {
     val ctxRef = Ref(genUID(), ctxType)
     val body = f(blockBody(ctxRef))
     val ctxs = MakeArray(blocksToCollect.map(idx => blockContext(idx)), TArray(ctxRef.typ))
-    val bodyFreeVars = FreeVariables(body, supportsAgg=false, supportsScan=false)
+    val bodyFreeVars = FreeVariables(body, supportsAgg = false, supportsScan = false)
     val bcFields = globalVals.filter { case (f, _) => bodyFreeVars.eval.lookupOption(f).isDefined }
     val bcVals = MakeStruct(bcFields.map { case (f, v) => f -> Ref(f, v.typ) })
     val bcRef = Ref(genUID(), bcVals.typ)
@@ -43,9 +46,15 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
 }
 
 object LowerBlockMatrixIR {
+  def lower(node: IR, typesToLower: DArrayLowering.Type): IR = new LowerBlockMatrixIR(typesToLower).lower(node)
+}
+
+class LowerBlockMatrixIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
 
   def unimplemented[T](node: BaseIR): T =
     throw new LowererUnsupportedOperation(s"unimplemented: \n${ Pretty(node) }")
+
+  def lowerIR(node: IR): IR = LowerIR.lower(node, typesToLower)
 
   def lower(node: IR): IR = node match {
     case BlockMatrixCollect(child) =>
@@ -69,8 +78,8 @@ object LowerBlockMatrixIR {
           }, coerce[TArray](cda.typ)), 1)
         }, coerce[TArray](cda.typ))
       } else {
-        val i = Ref(genUID(), TInt32())
-        val j = Ref(genUID(), TInt32())
+        val i = Ref(genUID(), TInt32)
+        val j = Ref(genUID(), TInt32)
         val cols = ToArray(StreamMap(StreamRange(0, child.typ.nColBlocks, 1), j.name, ArrayRef(blockResults, i * child.typ.nColBlocks + j)))
         ToArray(StreamMap(StreamRange(0, child.typ.nRowBlocks, 1), i.name, NDArrayConcat(cols, 1)))
       }
@@ -78,7 +87,7 @@ object LowerBlockMatrixIR {
     case BlockMatrixToValueApply(child, GetElement(index)) => unimplemented(node)
     case BlockMatrixWrite(child, writer) => unimplemented(node)
     case BlockMatrixMultiWrite(blockMatrices, writer) => unimplemented(node)
-    case node if node.children.exists( _.isInstanceOf[BlockMatrixIR] ) =>
+    case node if node.children.exists(_.isInstanceOf[BlockMatrixIR]) =>
       throw new LowererUnsupportedOperation(s"IR nodes with BlockMatrixIR children need explicit rules: \n${ Pretty(node) }")
 
     case node =>
@@ -86,6 +95,8 @@ object LowerBlockMatrixIR {
   }
 
   def lower(bmir: BlockMatrixIR): BlockMatrixStage = {
+    if (!DArrayLowering.lowerBM(typesToLower))
+      throw new LowererUnsupportedOperation("found BlockMatrixIR in lowering; lowering only TableIRs.")
     if (bmir.typ.nDefinedBlocks == 0)
       BlockMatrixStage.empty(bmir.typ.elementType)
     else lowerNonEmpty(bmir)
@@ -117,6 +128,7 @@ object LowerBlockMatrixIR {
             MakeTuple.ordered(FastSeq(I64(r.toLong * blockSize), I64(java.lang.Math.min((r.toLong + 1) * blockSize, x.typ.nRows)), I64(1))),
             MakeTuple.ordered(FastSeq(I64(c.toLong * blockSize), I64(java.lang.Math.min((c.toLong + 1) * blockSize, x.typ.nCols)), I64(1))))))
         }
+
         def blockBody(ctxRef: Ref): IR = ctxRef
       }
     case x@BlockMatrixDot(leftIR, rightIR) =>

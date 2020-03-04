@@ -25,15 +25,6 @@ case object MatrixLoweredToTable extends IRState {
   val rules: Array[Rule] = Array(NoMatrixIR)
 }
 
-
-case class LowerableToDArray(t: DArrayLowering.Type) extends IRState {
-  val rules: Array[Rule] = t match {
-    case DArrayLowering.All => Array(NoMatrixIR)
-    case DArrayLowering.TableOnly => Array(NoMatrixIR, NoBlockMatrixIR)
-    case DArrayLowering.BMOnly => Array(NoMatrixIR, NoTableIR)
-  }
-}
-
 case object ExecutableTableIR extends IRState {
   val rules: Array[Rule] = Array(NoMatrixIR, NoRelationalLets, CompilableValueIRs)
 }

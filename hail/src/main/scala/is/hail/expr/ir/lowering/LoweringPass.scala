@@ -50,24 +50,8 @@ case object InterpretNonCompilablePass extends LoweringPass {
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = InterpretNonCompilable(ctx, ir)
 }
 
-case object LowerTableToDistributedArrayPass extends LoweringPass {
-  val before: IRState = MatrixLoweredToTable
-  val after: IRState = CompilableIR
-  val context: String = "LowerTableToDistributedArray"
-
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerIR.lower(ir.asInstanceOf[IR], DArrayLowering.TableOnly)
-}
-
-case object LowerBlockMatrixToDistributedArrayPass extends LoweringPass {
-  val before: IRState = LowerableToDArray(DArrayLowering.BMOnly)
-  val after: IRState = CompilableIR
-  val context: String = "LowerBlockMatrixToDistributedArray"
-
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerIR.lower(ir.asInstanceOf[IR], DArrayLowering.BMOnly)
-}
-
 case class LowerToDistributedArrayPass(t: DArrayLowering.Type) extends LoweringPass {
-  val before: IRState = LowerableToDArray(t)
+  val before: IRState = MatrixLoweredToTable
   val after: IRState = CompilableIR
   val context: String = "LowerToDistributedArray"
 
