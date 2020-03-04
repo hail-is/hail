@@ -52,10 +52,10 @@ class BlockMatrixStageSuite extends HailSuite {
   @Test def testBodyDependsOnGlobalValue(): Unit = {
     val g1 = "x" -> In(0, TInt32)
     assertEvalsTo(
-      ToSet(
+      ToSet(ToStream(
         collected(Array.tabulate(5)(i => (i -> i, I32(i))),
           Array(g1),
-          body=ref => ref + Ref("x", TInt32))),
+          body=ref => ref + Ref("x", TInt32)))),
       args = IndexedSeq(5 -> TInt32),
       expected = Array.tabulate(5)(i => i + 5).toSet)
   }
