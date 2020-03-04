@@ -571,10 +571,10 @@ class RVD(
       iteratorToFilter(producerCtx).filter { rv =>
         val b = f(c, rv)
         if (b) {
-          rv.region.move(consumerCtx.region)
+          producerCtx.region.move(consumerCtx.region)
         }
         else {
-          rv.region.clear()
+          producerCtx.region.clear()
         }
         b
       }
