@@ -167,7 +167,7 @@ case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]
   }
 }
 
-case class LoopRef(m: ClassFieldRef[Boolean], v: PSettable, tempM: LocalRef[Boolean], tempV: PSettable)
+case class LoopRef(m: ClassFieldRef[Boolean], v: PSettable[PValue], tempM: LocalRef[Boolean], tempV: PSettable[PValue])
 
 abstract class MethodBuilderLike[M <: MethodBuilderLike[M]] {
   type MB <: MethodBuilder
@@ -375,7 +375,7 @@ private class Emit(
         val va = values.toArray.map(emit(_))
 
         val mout = mb.newLocal[Boolean]()
-        val out = mb.newPLocal(pt)
+        val out = mb.newPLocal[PValue](pt)
 
         val setup = va.indices
           .init
@@ -383,7 +383,7 @@ private class Emit(
             mout := va.last.m,
             out := pt.defaultValue,
             mout.mux(Code._empty, out := ir.pType.copyFromPValue(mb, er.region, va.last.pv)))) { case (i, comb) =>
-            va(i).m.mux[Unit](
+            va(i).m.mux(
               comb,
               Code(
                 mout := false,
@@ -416,7 +416,7 @@ private class Emit(
             PValue._empty)
         } else {
           val codeCond = emit(cond)
-          val out = mb.newPLocal(pt)
+          val out = mb.newPLocal[PValue](pt)
           val mout = mb.newLocal[Boolean]()
           val codeCnsq = emit(cnsq)
           val codeAltr = emit(altr)
@@ -442,7 +442,7 @@ private class Emit(
 
       case Let(name, value, body) =>
         val mx = mb.newField[Boolean]()
-        val x = mb.newPField(name, value.pType)
+        val x = mb.newPField[PValue](name, value.pType)
         val storeV = wrapToMethod(FastIndexedSeq(value)) { (_, _, codeV) =>
           Code(codeV.setup,
             mx := codeV.m,
@@ -520,7 +520,7 @@ private class Emit(
                   .concat(s.pType.asInstanceOf[PString].loadString(coerce[Long](codeS.v)))))
         }
         val xma = mb.newLocal[Boolean]()
-        val xa = mb.newPLocal(pArray)
+        val xa = mb.newPLocal[PIndexableValue](pArray)
         val xi = mb.newLocal[Int]
         val len = mb.newLocal[Int]
         val xmi = mb.newLocal[Boolean]()
@@ -528,7 +528,7 @@ private class Emit(
         val setup = Code(
           codeA.setup,
           xma := codeA.m,
-          xa := pArray.defaultValue,
+          xa.storeAny(pArray.defaultValue),
           codeI.setup,
           xmi := codeI.m,
           xi := coerce[Int](defaultValue(TInt32())),
@@ -536,19 +536,18 @@ private class Emit(
           (xmi || xma).mux(
             xmv := const(true),
             Code(
-              xa := codeA.pv,
+              xa.storeAny(codeA.pv),
               xi := coerce[Int](codeI.v),
-              len := pArray.loadLength(xa.load().tcode[Long]),
+              len := xa.load().loadLength(),
               (xi < len && xi >= 0).mux(
-                xmv := !pArray.isElementDefined(xa.load().tcode[Long], xi),
+                xmv := !xa.load().isElementDefined(xi),
                 Code._fatal(errorTransformer(
                   const("array index out of bounds: index=")
                     .concat(xi.load().toS)
                     .concat(", length=")
                     .concat(len.load().toS)))))))
 
-        EmitTriplet(setup, xmv, PValue(pt,
-          Region.loadIRIntermediate(x.pType)(pArray.elementOffset(xa.load().tcode[Long], len, xi))))
+        EmitTriplet(setup, xmv, xa.load().loadElement(len, xi))
       case ArrayLen(a) =>
         val codeA = emit(a)
         strict(pt, a.pType.asInstanceOf[PArray].loadLength(coerce[Long](codeA.v)), codeA)
@@ -1818,7 +1817,7 @@ private class Emit(
 
       case x@TailLoop(name, args, body) =>
         val loopRefs = args.map { case (name, ir) =>
-          LoopRef(mb.newField[Boolean], mb.newPField(ir.pType), mb.newLocal[Boolean], mb.newPField(ir.pType))
+          LoopRef(mb.newField[Boolean], mb.newPField[PValue](ir.pType), mb.newLocal[Boolean], mb.newPField[PValue](ir.pType))
         }
 
         val storeInitArgs = args.zip(loopRefs).map { case ((_, ir), loopref) =>
@@ -1828,7 +1827,7 @@ private class Emit(
 
         val label = new CodeLabel
         val m = mb.newField[Boolean]
-        val v = mb.newPField(x.pType)
+        val v = mb.newPField[PValue](x.pType)
 
         val argEnv = env
           .bind(args.zip(loopRefs).map { case ((name, _), ref) => (name, (ref.m.load(), ref.v.load())) } : _*)
@@ -1939,7 +1938,7 @@ private class Emit(
       case NDArrayMap(child, elemName, body) =>
         val childP = child.pType.asInstanceOf[PNDArray]
         val elemPType = childP.elementType
-        val elemRef = mb.newPField(elemName, elemPType)
+        val elemRef = mb.newPField[PValue](elemName, elemPType)
         val bodyEnv = env.bind(elemName, (const(false), elemRef.load()))
         val bodyt = this.emit(body, bodyEnv, er, None)
 
@@ -1961,8 +1960,8 @@ private class Emit(
         val lP = coerce[PNDArray](lChild.pType)
         val rP = coerce[PNDArray](rChild.pType)
 
-        val lElemRef = mb.newPField(lName, lP.elementType)
-        val rElemRef = mb.newPField(rName, rP.elementType)
+        val lElemRef = mb.newPField[PValue](lName, lP.elementType)
+        val rElemRef = mb.newPField[PValue](rName, rP.elementType)
 
         val bodyEnv = env.bind(lName, (const(false), lElemRef.load()))
                          .bind(rName, (const(false), rElemRef.load()))

@@ -1072,7 +1072,7 @@ object EmitStream {
         case Let(name, valueIR, childIR) =>
           val valueType = valueIR.pType
           val vm = fb.newField[Boolean](name + "_missing")
-          val vv = fb.newPField(name, valueType)
+          val vv = fb.newPField[PValue](name, valueType)
           val valuet = emitIR(valueIR, env)
           val bodyEnv = env.bind(name -> ((vm, vv.load())))
           emitStream(childIR, bodyEnv)
@@ -1088,7 +1088,7 @@ object EmitStream {
           val childEltType = childIR.pType.asInstanceOf[PStream].elementType
           emitStream(childIR, env).map { eltt =>
             val eltm = fb.newField[Boolean](name + "_missing")
-            val eltv = fb.newPField(name, childEltType)
+            val eltv = fb.newPField[PValue](name, childEltType)
             val bodyt = emitIR(bodyIR, env.bind(name -> ((eltm, eltv.load()))))
             EmitTriplet(
               Code(eltt.setup,
@@ -1111,7 +1111,7 @@ object EmitStream {
           EmitStream.zip[Any](streams, behavior, { (xs, k) =>
             val mv = names.zip(childEltTypes).map { case (name, t) =>
               val eltm = fb.newField[Boolean](name + "_missing")
-              val eltv = fb.newPField(name, t)
+              val eltv = fb.newPField[PValue](name, t)
               (t, eltm, eltv)
             }
             val bodyt = emitIR(body,
@@ -1136,7 +1136,7 @@ object EmitStream {
 
           emitStream(childIR, env).filterMap { (eltt, k) =>
             val eltm = fb.newField[Boolean](name + "_missing")
-            val eltv = fb.newPField(name, childEltType)
+            val eltv = fb.newPField[PValue](name, childEltType)
             val condt = emitIR(condIR, env.bind(name -> ((eltm, eltv.load()))))
             Code(
               eltt.setup,
@@ -1153,7 +1153,7 @@ object EmitStream {
         case StreamFlatMap(outerIR, name, innerIR) =>
           val outerEltType = outerIR.pType.asInstanceOf[PStream].elementType
           val eltm = fb.newField[Boolean](name + "_missing")
-          val eltv = fb.newPField(name, outerEltType)
+          val eltv = fb.newPField[PValue](name, outerEltType)
           val innerEnv = env.bind(name -> ((eltm, eltv.load())))
           val outer = emitStream(outerIR, env)
           val inner = emitStream(innerIR, innerEnv)
