@@ -12,6 +12,7 @@ import is.hail.expr.types.TableType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.expr.Nat
+import is.hail.expr.types.encoded.{EArray, EBaseStruct, EBinary, EField, EFloat32, EFloat64, EInt32, EInt64, EType}
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
@@ -3242,5 +3243,45 @@ class IRSuite extends HailSuite {
     val ir1 = MakeTuple.ordered(FastSeq(I64(1), r, r, I32(1)))
     assert(HasIRSharing(ir1))
     assert(!HasIRSharing(ir1.deepCopy()))
+  }
+
+  @DataProvider(name = "nonNullTypesAndValues")
+  def nonNullTypesAndValues(): Array[Array[Any]] = Array(
+    Array(PInt32(), 1),
+    Array(PInt64(), 5L),
+    Array(PFloat32(), 5.5f),
+    Array(PFloat64(), 1.2),
+    Array(PString(), "foo"),
+    Array(PArray(PInt32()), FastIndexedSeq(5, 7, null, 3)),
+    Array(PTuple(PInt32(), PString(), PStruct()), Row(3, "bar", Row()))
+  )
+
+  @Test(dataProvider = "nonNullTypesAndValues")
+  def testReadWriteValues(pt: PType, value: Any): Unit = {
+    implicit val execStrats = ExecStrategy.compileOnly
+    val node = In(0, pt)
+    val spec = TypedCodecSpec(pt, BufferSpec.defaultUncompressed)
+    val prefix = tmpDir.createTempFile()
+    val filename = WriteValue(node, Str(prefix), spec)
+    for (v <- Array(value, null)) {
+      assertEvalsTo(ReadValue(filename, spec, pt.virtualType), FastIndexedSeq(v -> pt.virtualType), v)
+    }
+  }
+
+  @Test(dataProvider="nonNullTypesAndValues")
+  def testReadWriteValueDistributed(pt: PType, value: Any): Unit = {
+    implicit val execStrats = ExecStrategy.compileOnly
+    val node = In(0, pt)
+    val spec = TypedCodecSpec(pt, BufferSpec.defaultUncompressed)
+    val prefix = tmpDir.createTempFile()
+    val readArray = Let("files",
+      CollectDistributedArray(StreamMap(StreamRange(0, 10, 1), "x", node), MakeStruct(FastSeq()),
+        "ctx", "globals",
+        WriteValue(Ref("ctx", node.typ), Str(prefix), spec)),
+      StreamMap(ToStream(Ref("files", TArray(TString()))), "filename",
+        ReadValue(Ref("filename", TString()), spec, pt.virtualType)))
+    for (v <- Array(value, null)) {
+      assertEvalsTo(ToArray(readArray), FastIndexedSeq(v -> pt.virtualType), Array.fill(10)(v).toFastIndexedSeq)
+    }
   }
 }
