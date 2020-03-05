@@ -14,6 +14,14 @@ trait InputBuffer extends Closeable {
 
   def readByte(): Byte
 
+  def read(buf: Array[Byte], toOff: Int, n: Int) = {
+    var i = 0
+    while (i < n) {
+      buf(toOff + i) = readByte()
+      i += 1
+    }
+  }
+
   def readInt(): Int
 
   def readLong(): Long
@@ -23,6 +31,8 @@ trait InputBuffer extends Closeable {
   def readDouble(): Double
 
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit
+
+  def readBytesArray(n: Int): Array[Byte]
 
   def skipBoolean(): Unit = skipByte()
 
@@ -66,6 +76,10 @@ final class StreamInputBuffer(in: InputStream) extends InputBuffer {
     Memory.loadByte(buff, 0)
   }
 
+  override def read(buf: Array[Byte], toOff: Int, n: Int): Unit = {
+    in.read(buf, toOff, n)
+  }
+
   def readInt(): Int = {
     val bytesRead = in.read(buff, 0, 4)
     assert(bytesRead == 4)
@@ -91,7 +105,11 @@ final class StreamInputBuffer(in: InputStream) extends InputBuffer {
   }
 
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = {
-    Region.storeBytes(toOff, Array.tabulate(n)(_ => readByte()))
+    Region.storeBytes(toOff, readBytesArray(n))
+  }
+
+  def readBytesArray(n: Int): Array[Byte] = {
+    Array.tabulate(n)(_ => readByte())
   }
 
   def skipByte(): Unit = {
@@ -150,6 +168,12 @@ final class MemoryInputBuffer(mb: MemoryBuffer) extends InputBuffer {
 
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = mb.readBytes(toOff, n)
 
+  def readBytesArray(n: Int): Array[Byte] = {
+    var arr = new Array[Byte](n)
+    mb.readBytesArray(arr, n)
+    arr
+  }
+
   def skipByte(): Unit = mb.skipByte()
 
   def skipInt(): Unit = mb.skipInt()
@@ -175,6 +199,8 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
   def readByte(): Byte = {
     in.readByte()
   }
+
+  override def read(buf: Array[Byte], toOff: Int, n: Int) = in.read(buf, toOff, n)
 
   def readInt(): Int = {
     var b: Byte = readByte()
@@ -205,6 +231,8 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
   def readDouble(): Double = in.readDouble()
 
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = in.readBytes(toRegion, toOff, n)
+
+  def readBytesArray(n: Int): Array[Byte] = in.readBytesArray(n)
 
   def skipByte(): Unit = in.skipByte()
 
@@ -308,6 +336,28 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
       n -= p
       off += p
     }
+  }
+
+  override def read(arr: Array[Byte], toOff0: Int, n0: Int) {
+    var toOff = toOff0;
+    var n = n0
+
+    while (n > 0) {
+      if (end == off)
+        readBlock()
+      val p = math.min(end - off, n)
+      assert(p > 0)
+      System.arraycopy(buf, off, arr, toOff, p)
+      toOff += p
+      n -= p
+      off += p
+    }
+  }
+
+  def readBytesArray(n: Int): Array[Byte] = {
+    var arr = new Array[Byte](n)
+    read(arr, 0, n)
+    arr
   }
 
   def skipByte() {

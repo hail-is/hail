@@ -39,7 +39,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
   type Node = Code[Long]
 
   val bufferType = PArray(elemType, required = true)
-  val bufferEType = EType.defaultFromPType(bufferType).asInstanceOf[EArray]
+  val bufferEType = EArray(EType.defaultFromPType(elemType), required = true)
 
   val nodeType = PStruct(
     "buf" -> bufferType,
