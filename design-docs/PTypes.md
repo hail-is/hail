@@ -115,8 +115,11 @@ def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAd
 def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = ...
 ```
 
-- Allocates a new address and calls constructAtAddress
-- For operations that can be shallow, returns srcAddress, skipping construction
+```scala
+def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcValue: Code[_], forceDeep: Boolean): Code[Long] = ...
+def copyFromTypeAndStackValue(region: Region, srcPType: PType, srcValue: Code[_], forceDeep: Boolean): Long = ...
+```
+  - Like copyFromType, but assumes that `srcValue` is the stack representation of the dest/src PTypes, e.g for collections a pointer to region memory, and for primitives the primitive value (int, long, float, double)
 
 # <a name="parray"></a> PArray
 
