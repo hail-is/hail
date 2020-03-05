@@ -111,13 +111,12 @@ pytest: python/README.md python/hail/hail-all-spark.jar
      -r A \
      --self-contained-html \
      --html=../build/reports/pytest.html \
-     --noconftest \
      $(PYTEST_ARGS)"
 
 .PHONY: doctest
 doctest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
 doctest: python/README.md python/hail/hail-all-spark.jar
-	cd python && $(HAIL_PYTHON3) setup.py pytest \
+	cd python && IN_DOCTEST=1 $(HAIL_PYTHON3) setup.py pytest \
 	  --addopts "-v \
     --color=no \
     --instafail \

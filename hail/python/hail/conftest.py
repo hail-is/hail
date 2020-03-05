@@ -1,45 +1,65 @@
 import doctest
+import hashlib
 import os
-import pytest
-import shutil
-import tempfile
+
 import numpy as np
+import pytest
 
 import hail as hl
 
-SKIP_OUTPUT_CHECK = doctest.register_optionflag('SKIP_OUTPUT_CHECK')
+
+def pytest_collection_modifyitems(config, items):
+    n_splits = int(os.environ.get('PYTEST_SPLITS', '1'))
+    split_index = int(os.environ.get('PYTEST_SPLIT_INDEX', '-1'))
+    if n_splits <= 1:
+        return
+    if not (0 <= split_index < n_splits):
+        raise RuntimeError(f"invalid split_index: index={split_index}, n_splits={n_splits}")
+    skip_this = pytest.mark.skip(reason="skipped in this round")
+
+    def digest(s):
+        return int.from_bytes(hashlib.md5(str(s).encode('utf-8')).digest(), 'little')
+
+    for item in items:
+        if not digest(item.name) % n_splits == split_index:
+            item.add_marker(skip_this)
 
 
-@pytest.fixture(autouse=True)
-def patch_doctest_check_output(monkeypatch):
-    # FIXME: remove once test output matches docs
-    base_check_output = doctest.OutputChecker.check_output
+if os.environ.get('IN_DOCTEST'):
 
-    def patched_check_output(self, want, got, optionflags):
-        return ((not want)
-                or (want.strip() == 'None')
-                or (SKIP_OUTPUT_CHECK & optionflags)
-                or base_check_output(self, want, got, optionflags | doctest.NORMALIZE_WHITESPACE))
-
-    monkeypatch.setattr('doctest.OutputChecker.check_output', patched_check_output)
-    yield
-    monkeypatch.undo()
+    SKIP_OUTPUT_CHECK = doctest.register_optionflag('SKIP_OUTPUT_CHECK')
 
 
-@pytest.fixture(scope="session", autouse=True)
-def init(doctest_namespace):
-    # This gets run once per process -- must avoid race conditions
-    print("setting up doctest...")
+    @pytest.fixture(autouse=True)
+    def patch_doctest_check_output(monkeypatch):
+        # FIXME: remove once test output matches docs
+        base_check_output = doctest.OutputChecker.check_output
 
-    olddir = os.getcwd()
-    os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                          "docs"))
-    try:
-        generate_datasets(doctest_namespace)
-        print("finished setting up doctest...")
+        def patched_check_output(self, want, got, optionflags):
+            return ((not want)
+                    or (want.strip() == 'None')
+                    or (SKIP_OUTPUT_CHECK & optionflags)
+                    or base_check_output(self, want, got, optionflags | doctest.NORMALIZE_WHITESPACE))
+
+        monkeypatch.setattr('doctest.OutputChecker.check_output', patched_check_output)
         yield
-    finally:
-        os.chdir(olddir)
+        monkeypatch.undo()
+
+
+    @pytest.fixture(scope="session", autouse=True)
+    def init(doctest_namespace):
+        # This gets run once per process -- must avoid race conditions
+        print("setting up doctest...")
+
+        olddir = os.getcwd()
+        os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                              "docs"))
+        try:
+            generate_datasets(doctest_namespace)
+            print("finished setting up doctest...")
+            yield
+        finally:
+            os.chdir(olddir)
 
 
 def generate_datasets(doctest_namespace):
