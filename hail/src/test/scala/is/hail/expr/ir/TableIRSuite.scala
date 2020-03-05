@@ -314,7 +314,7 @@ class TableIRSuite extends HailSuite {
     val left = Interpret(TableKeyBy(
       TableParallelize(
         Literal(
-          TStruct("rows" -> TArray(leftType), "global" -> TStruct()),
+          TStruct("rows" -> TArray(leftType), "global" -> TStruct.empty),
           Row(leftData.map(leftProjectF.asInstanceOf[Row => Row]), Row())),
         Some(1)),
       if (!leftProject.contains(1)) FastIndexedSeq("A", "B") else FastIndexedSeq("A")),
@@ -328,7 +328,7 @@ class TableIRSuite extends HailSuite {
     val right = Interpret(TableKeyBy(
       TableParallelize(
         Literal(
-          TStruct("rows" -> TArray(rightType), "global" -> TStruct()),
+          TStruct("rows" -> TArray(rightType), "global" -> TStruct.empty),
           Row(rightData.map(rightProjectF.asInstanceOf[Row => Row]), Row())),
         Some(1)),
       if (!rightProject.contains(1)) FastIndexedSeq("A", "B") else FastIndexedSeq("A")),
@@ -359,7 +359,7 @@ class TableIRSuite extends HailSuite {
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("field1", TString()), ("field2", TInt32()))
     val keyNames = FastIndexedSeq("field1", "field2")
-    val tt = TableType(rowType = signature, key = keyNames, globalType = TStruct())
+    val tt = TableType(rowType = signature, key = keyNames, globalType = TStruct.empty)
     val base = TableLiteral(
       TableValue(ctx, tt.rowType, tt.key, rdd),
       ctx)
@@ -426,7 +426,7 @@ class TableIRSuite extends HailSuite {
 
       override def partitionCounts: Option[IndexedSeq[Long]] = Some(FastIndexedSeq(1, 2, 3, 4))
 
-      override def fullType: TableType = TableType(TStruct(), FastIndexedSeq(), TStruct())
+      override def fullType: TableType = TableType(TStruct.empty, FastIndexedSeq(), TStruct.empty)
     }
     val tir = TableRead(tr.fullType, true, tr)
     assert(tir.partitionCounts.forall(_.sum == 0))

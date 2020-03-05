@@ -40,22 +40,22 @@ object SparkAnnotationImpex {
   }
 
   def exportType(t: Type): DataType = (t: @unchecked) match {
-    case _: TBoolean => BooleanType
-    case _: TInt32 => IntegerType
-    case _: TInt64 => LongType
-    case _: TFloat32 => FloatType
-    case _: TFloat64 => DoubleType
-    case _: TString => StringType
-    case _: TBinary => BinaryType
-    case TArray(elementType, _) =>
-      ArrayType(exportType(elementType), containsNull = !elementType.required)
+    case TBoolean => BooleanType
+    case TInt32 => IntegerType
+    case TInt64 => LongType
+    case TFloat32 => FloatType
+    case TFloat64 => DoubleType
+    case TString => StringType
+    case TBinary => BinaryType
+    case TArray(elementType) =>
+      ArrayType(exportType(elementType), containsNull = true)
     case tbs: TBaseStruct =>
       if (tbs.fields.isEmpty)
         BooleanType //placeholder
       else
         StructType(tbs.fields
           .map(f =>
-            StructField(escapeColumnName(f.name), f.typ.schema, nullable = !f.typ.required)))
+            StructField(escapeColumnName(f.name), f.typ.schema, nullable = true)))
   }
 }
 
@@ -100,35 +100,35 @@ object JSONAnnotationImpex {
       JNull
     else {
       (t: @unchecked) match {
-        case _: TBoolean => JBool(a.asInstanceOf[Boolean])
-        case _: TInt32 => JInt(a.asInstanceOf[Int])
-        case _: TInt64 => JInt(a.asInstanceOf[Long])
-        case _: TFloat32 => JDouble(a.asInstanceOf[Float])
-        case _: TFloat64 => JDouble(a.asInstanceOf[Double])
-        case _: TString => JString(a.asInstanceOf[String])
+        case TBoolean => JBool(a.asInstanceOf[Boolean])
+        case TInt32 => JInt(a.asInstanceOf[Int])
+        case TInt64 => JInt(a.asInstanceOf[Long])
+        case TFloat32 => JDouble(a.asInstanceOf[Float])
+        case TFloat64 => JDouble(a.asInstanceOf[Double])
+        case TString => JString(a.asInstanceOf[String])
         case TVoid =>
           JNull
-        case TArray(elementType, _) =>
+        case TArray(elementType) =>
           val arr = a.asInstanceOf[Seq[Any]]
           JArray(arr.map(elem => exportAnnotation(elem, elementType)).toList)
-        case TSet(elementType, _) =>
+        case TSet(elementType) =>
           val arr = a.asInstanceOf[Set[Any]]
           JArray(arr.map(elem => exportAnnotation(elem, elementType)).toList)
-        case TDict(keyType, valueType, _) =>
+        case TDict(keyType, valueType) =>
           val m = a.asInstanceOf[Map[_, _]]
           JArray(m.map { case (k, v) => JObject(
             "key" -> exportAnnotation(k, keyType),
             "value" -> exportAnnotation(v, valueType))
           }.toList)
-        case _: TCall => JString(Call.toString(a.asInstanceOf[Call]))
-        case TLocus(_, _) => a.asInstanceOf[Locus].toJSON
-        case TInterval(pointType, _) => a.asInstanceOf[Interval].toJSON(pointType.toJSON)
-        case TStruct(fields, _) =>
+        case TCall => JString(Call.toString(a.asInstanceOf[Call]))
+        case TLocus(_) => a.asInstanceOf[Locus].toJSON
+        case TInterval(pointType) => a.asInstanceOf[Interval].toJSON(pointType.toJSON)
+        case TStruct(fields) =>
           val row = a.asInstanceOf[Row]
           JObject(List.tabulate(row.size) { i =>
             (fields(i).name, exportAnnotation(row.get(i), fields(i).typ))
           })
-        case TTuple(types, _) =>
+        case TTuple(types) =>
           val row = a.asInstanceOf[Row]
           JArray(List.tabulate(row.size) { i => exportAnnotation(row.get(i), types(i).typ) })
         case t: TNDArray =>
@@ -149,36 +149,33 @@ object JSONAnnotationImpex {
     }
 
     (jv, t) match {
-      case (JNull | JNothing, _) =>
-        if (t.required)
-          fatal("required annotation cannot be null")
-        null
-      case (JInt(x), _: TInt32) => x.toInt
-      case (JInt(x), _: TInt64) => x.toLong
-      case (JInt(x), _: TFloat64) => x.toDouble
-      case (JInt(x), _: TString) => x.toString
-      case (JDouble(x), _: TFloat64) => x
-      case (JDouble(x), _: TFloat32) => x.toFloat
-      case (JString(x), _: TFloat64) if doubleConv.contains(x) => doubleConv(x)
-      case (JString(x), _: TFloat32) if floatConv.contains(x) => floatConv(x)
-      case (JString(x), _: TString) => x
-      case (JString(x), _: TInt32) =>
+      case (JNull | JNothing, _) => null
+      case (JInt(x), TInt32) => x.toInt
+      case (JInt(x), TInt64) => x.toLong
+      case (JInt(x), TFloat64) => x.toDouble
+      case (JInt(x), TString) => x.toString
+      case (JDouble(x), TFloat64) => x
+      case (JDouble(x), TFloat32) => x.toFloat
+      case (JString(x), TFloat64) if doubleConv.contains(x) => doubleConv(x)
+      case (JString(x), TFloat32) if floatConv.contains(x) => floatConv(x)
+      case (JString(x), TString) => x
+      case (JString(x), TInt32) =>
         x.toInt
-      case (JString(x), _: TFloat64) =>
+      case (JString(x), TFloat64) =>
         if (x.startsWith("-:"))
           x.drop(2).toDouble
         else
           x.toDouble
-      case (JBool(x), _: TBoolean) => x
+      case (JBool(x), TBoolean) => x
 
       // back compatibility
-      case (JObject(a), TDict(TString(_), valueType, _)) =>
+      case (JObject(a), TDict(TString, valueType)) =>
         a.map { case (key, value) =>
           (key, imp(value, valueType, parent))
         }
           .toMap
 
-      case (JArray(arr), TDict(keyType, valueType, _)) =>
+      case (JArray(arr), TDict(keyType, valueType)) =>
         val keyPath = parent + "[key]"
         val valuePath = parent + "[value]"
         arr.map { case JObject(a) =>
@@ -235,11 +232,11 @@ object JSONAnnotationImpex {
 
           Annotation.fromSeq(a)
         }
-      case (_, TLocus(_, _)) =>
+      case (_, TLocus(_)) =>
         jv.extract[Locus]
-      case (JObject(_), t@TNDArray(_, _, _)) =>
+      case (JObject(_), t@TNDArray(_, _)) =>
         imp(jv, t.representation, parent)
-      case (_, TInterval(pointType, _)) =>
+      case (_, TInterval(pointType)) =>
         jv match {
           case JObject(list) =>
             val m = list.toMap
@@ -247,8 +244,8 @@ object JSONAnnotationImpex {
               case (Some(sjv), Some(ejv), Some(isjv), Some(iejv)) =>
                 Interval(imp(sjv, pointType, parent + ".start"),
                   imp(ejv, pointType, parent + ".end"),
-                  imp(isjv, TBooleanRequired, parent + ".includeStart").asInstanceOf[Boolean],
-                  imp(iejv, TBooleanRequired, parent + ".includeEnd").asInstanceOf[Boolean]
+                  imp(isjv, TBoolean, parent + ".includeStart").asInstanceOf[Boolean],
+                  imp(iejv, TBoolean, parent + ".includeEnd").asInstanceOf[Boolean]
                 )
               case _ =>
                 warnOnce(s"Can't convert JSON value $jv to type $t at $parent.", parent)
@@ -258,12 +255,12 @@ object JSONAnnotationImpex {
             warnOnce(s"Can't convert JSON value $jv to type $t at $parent.", parent)
             null
         }
-      case (JString(x), _: TCall) => Call.parse(x)
+      case (JString(x), TCall) => Call.parse(x)
 
-      case (JArray(a), TArray(elementType, _)) =>
+      case (JArray(a), TArray(elementType)) =>
         a.iterator.map(jv2 => imp(jv2, elementType, parent + "[element]")).toArray[Any]: IndexedSeq[Any]
 
-      case (JArray(a), TSet(elementType, _)) =>
+      case (JArray(a), TSet(elementType)) =>
         a.iterator.map(jv2 => imp(jv2, elementType, parent + "[element]")).toSet[Any]
 
       case _ =>
@@ -283,11 +280,11 @@ object TableAnnotationImpex {
       "NA"
     else {
       t match {
-        case _: TFloat64 => a.asInstanceOf[Double].formatted("%.4e")
-        case _: TString => a.asInstanceOf[String]
+        case TFloat64 => a.asInstanceOf[Double].formatted("%.4e")
+        case TString => a.asInstanceOf[String]
         case t: TContainer => JsonMethods.compact(t.toJSON(a))
         case t: TBaseStruct => JsonMethods.compact(t.toJSON(a))
-        case TInterval(TLocus(_, _), _) =>
+        case TInterval(TLocus(_)) =>
           val i = a.asInstanceOf[Interval]
           val bounds = if (i.start.asInstanceOf[Locus].contig == i.end.asInstanceOf[Locus].contig)
             s"${ i.start }-${ i.end.asInstanceOf[Locus].position }"
@@ -296,7 +293,7 @@ object TableAnnotationImpex {
           s"${ if (i.includesStart) "[" else "(" }$bounds${ if (i.includesEnd) "]" else ")" }"
         case _: TInterval =>
           JsonMethods.compact(t.toJSON(a))
-        case _: TCall => Call.toString(a.asInstanceOf[Call])
+        case TCall => Call.toString(a.asInstanceOf[Call])
         case _ => a.toString
       }
     }
@@ -304,17 +301,17 @@ object TableAnnotationImpex {
 
   def importAnnotation(a: String, t: Type): Annotation = {
     (t: @unchecked) match {
-      case _: TString => a
-      case _: TInt32 => UtilFunctions.parseInt32(a)
-      case _: TInt64 => UtilFunctions.parseInt64(a)
-      case _: TFloat32 => UtilFunctions.parseFloat32(a)
-      case _: TFloat64 => UtilFunctions.parseFloat64(a)
-      case _: TBoolean => UtilFunctions.parseBoolean(a)
+      case TString => a
+      case TInt32 => UtilFunctions.parseInt32(a)
+      case TInt64 => UtilFunctions.parseInt64(a)
+      case TFloat32 => UtilFunctions.parseFloat32(a)
+      case TFloat64 => UtilFunctions.parseFloat64(a)
+      case TBoolean => UtilFunctions.parseBoolean(a)
       case tl: TLocus => Locus.parse(a, tl.rg)
       // FIXME legacy
-      case TInterval(l: TLocus, _) => Locus.parseInterval(a, l.rg, invalidMissing = false)
+      case TInterval(l: TLocus) => Locus.parseInterval(a, l.rg, invalidMissing = false)
       case t: TInterval => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
-      case _: TCall => Call.parse(a)
+      case TCall => Call.parse(a)
       case t: TArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TSet => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TDict => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)

@@ -199,10 +199,8 @@ object InferPType {
         infer(l)
         infer(r)
 
-        val required = l.pType2.required && r.pType2.required
-        val vType = BinaryOp.getReturnType(op, l.pType2.virtualType, r.pType2.virtualType).setRequired(required)
-
-        PType.canonical(vType, vType.required)
+        val vType = BinaryOp.getReturnType(op, l.pType2.virtualType, r.pType2.virtualType)
+        PType.canonical(vType, l.pType2.required && r.pType2.required)
       case ApplyUnaryPrimOp(op, v) =>
         infer(v)
         PType.canonical(UnaryOp.getReturnType(op, v.pType2.virtualType)).setRequired(v.pType2.required)

@@ -27,12 +27,12 @@ package object ir {
   def typeToTypeInfo(t: PType): TypeInfo[_] = typeToTypeInfo(t.virtualType)
 
   def typeToTypeInfo(t: Type): TypeInfo[_] = t.fundamentalType match {
-    case _: TInt32 => typeInfo[Int]
-    case _: TInt64 => typeInfo[Long]
-    case _: TFloat32 => typeInfo[Float]
-    case _: TFloat64 => typeInfo[Double]
-    case _: TBoolean => typeInfo[Boolean]
-    case _: TBinary => typeInfo[Long]
+    case TInt32 => typeInfo[Int]
+    case TInt64 => typeInfo[Long]
+    case TFloat32 => typeInfo[Float]
+    case TFloat64 => typeInfo[Double]
+    case TBoolean => typeInfo[Boolean]
+    case TBinary => typeInfo[Long]
     case _: TArray => typeInfo[Long]
     case _: TBaseStruct => typeInfo[Long]
     case _: TStream => classInfo[Iterator[RegionValue]]
@@ -91,9 +91,9 @@ package object ir {
   implicit def booleanToIR(b: Boolean): IR = if (b) True() else False()
 
   def zero(t: Type): IR = t match {
-    case _: TInt32 => I32(0)
-    case _: TInt64 => I64(0L)
-    case _: TFloat32 => F32(0f)
-    case _: TFloat64 => F64(0d)
+    case TInt32 => I32(0)
+    case TInt64 => I64(0L)
+    case TFloat32 => F32(0f)
+    case TFloat64 => F64(0d)
   }
 }

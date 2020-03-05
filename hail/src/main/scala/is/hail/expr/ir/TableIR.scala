@@ -255,7 +255,7 @@ case class TableFromBlockMatrixNativeReader(path: String, nPartitions: Option[In
 
   override lazy val fullType: TableType = {
     val rowType = TStruct("row_idx" -> TInt64(), "entries" -> TArray(TFloat64()))
-    TableType(rowType, Array("row_idx"), TStruct())
+    TableType(rowType, Array("row_idx"), TStruct.empty)
   }
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
@@ -382,7 +382,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
   val typ: TableType = TableType(
     TStruct("idx" -> TInt32()),
     Array("idx"),
-    TStruct.empty())
+    TStruct.empty)
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val localRowType = PType.canonical(typ.rowType).asInstanceOf[PStruct]
@@ -1887,8 +1887,8 @@ case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
   }
 
   override val typ: TableType = {
-    val rvType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
-    TableType(rvType, Array[String](), TStruct.empty())
+    val rvType = TStruct("i" -> TInt64, "j" -> TInt64, "entry" -> TFloat64)
+    TableType(rvType, Array[String](), TStruct.empty)
   }
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {

@@ -25,14 +25,14 @@ class PruneSuite extends HailSuite {
       "c" -> TArray(TStruct(
         "ca" -> TInt32())))
 
-    assert(PruneDeadFields.unify(base, TStruct()) == TStruct())
+    assert(PruneDeadFields.unify(base, TStruct.empty) == TStruct.empty)
     assert(PruneDeadFields.unify(base, TStruct("b" -> TInt32())) == TStruct("b" -> TInt32()))
-    assert(PruneDeadFields.unify(base, TStruct("a" -> TStruct())) == TStruct("a" -> TStruct()))
-    assert(PruneDeadFields.unify(base, TStruct("a" -> TStruct()),
-      TStruct("b" -> TInt32())) == TStruct("a" -> TStruct(), "b" -> TInt32()))
-    assert(PruneDeadFields.unify(base, TStruct("c" -> TArray(TStruct()))) == TStruct("c" -> TArray(TStruct())))
-    assert(PruneDeadFields.unify(base, TStruct("a" -> TStruct("ab" -> TStruct())),
-      TStruct("c" -> TArray(TStruct()))) == TStruct("a" -> TStruct("ab" -> TStruct()), "c" -> TArray(TStruct())))
+    assert(PruneDeadFields.unify(base, TStruct("a" -> TStruct.empty)) == TStruct("a" -> TStruct.empty))
+    assert(PruneDeadFields.unify(base, TStruct("a" -> TStruct.empty),
+      TStruct("b" -> TInt32())) == TStruct("a" -> TStruct.empty, "b" -> TInt32()))
+    assert(PruneDeadFields.unify(base, TStruct("c" -> TArray(TStruct.empty))) == TStruct("c" -> TArray(TStruct.empty)))
+    assert(PruneDeadFields.unify(base, TStruct("a" -> TStruct("ab" -> TStruct.empty)),
+      TStruct("c" -> TArray(TStruct.empty))) == TStruct("a" -> TStruct("ab" -> TStruct.empty), "c" -> TArray(TStruct.empty)))
   }
 
   def checkMemo(ir: BaseIR, requestedType: BaseType, expected: Array[BaseType]) {
@@ -118,7 +118,7 @@ class PruneSuite extends HailSuite {
     def lower(mr: MatrixRead): TableIR = ???
   })
 
-  val emptyTableDep = TableType(TStruct(), FastIndexedSeq(), TStruct())
+  val emptyTableDep = TableType(TStruct.empty, FastIndexedSeq(), TStruct.empty)
 
   def tableRefBoolean(tt: TableType, fields: String*): IR = {
     var let: IR = True()
@@ -256,8 +256,8 @@ class PruneSuite extends HailSuite {
     checkMemo(tj2,
       subsetTable(tj2.typ, "row.3_", "NO_KEY"),
       Array(
-        TableType(globalType = TStruct(), key = Array("1"), rowType = TStruct("1" -> TString())),
-        TableType(globalType = TStruct(), key = Array("1_"), rowType = TStruct("1_" -> TString(), "3_" -> TString()))
+        TableType(globalType = TStruct.empty, key = Array("1"), rowType = TStruct("1" -> TString())),
+        TableType(globalType = TStruct.empty, key = Array("1_"), rowType = TStruct("1_" -> TString(), "3_" -> TString()))
       ))
   }
 
@@ -522,11 +522,11 @@ class PruneSuite extends HailSuite {
   val arr = MakeArray(FastIndexedSeq(ref, ref), TArray(ref.typ))
   val st = MakeStream(FastIndexedSeq(ref, ref), TStream(ref.typ))
   val ndArr = MakeNDArray(arr, MakeTuple(IndexedSeq((0, I64(2l)))), True())
-  val empty = TStruct()
+  val empty = TStruct.empty
   val justA = TStruct("a" -> TInt32())
   val justB = TStruct("b" -> TInt32())
-  val justARequired = TStruct(true, "a" -> TInt32())
-  val justBRequired = TStruct(true, "b" -> TInt32())
+  val justARequired = TStruct("a" -> TInt32())
+  val justBRequired = TStruct("b" -> TInt32())
 
   @Test def testIfMemo() {
     checkMemo(If(True(), ref, ref),
@@ -641,9 +641,9 @@ class PruneSuite extends HailSuite {
 
   @Test def testNDArrayMap2Memo(): Unit = {
     checkMemo(NDArrayMap2(ndArr, ndArr, "left", "right", Ref("left", ref.typ)),
-      TNDArray(justBRequired, Nat(1)),  Array(TNDArray(justBRequired, Nat(1)), TNDArray(TStruct(true), Nat(1)), null))
+      TNDArray(justBRequired, Nat(1)),  Array(TNDArray(justBRequired, Nat(1)), TNDArray(TStruct.empty, Nat(1)), null))
     checkMemo(NDArrayMap2(ndArr, ndArr, "left", "right", Ref("right", ref.typ)),
-      TNDArray(justBRequired, Nat(1)),  Array(TNDArray(TStruct(true), Nat(1)), TNDArray(justBRequired, Nat(1)), null))
+      TNDArray(justBRequired, Nat(1)),  Array(TNDArray(TStruct.empty, Nat(1)), TNDArray(justBRequired, Nat(1)), null))
     val addFieldsIR = ApplyBinaryPrimOp(Add(), GetField(Ref("left", ref.typ), "a"), GetField(Ref("right", ref.typ), "b"))
     checkMemo(NDArrayMap2(ndArr, ndArr, "left", "right", addFieldsIR),
       TNDArray(TInt32(), Nat(1)), Array(TNDArray(justARequired, Nat(1)), TNDArray(justBRequired, Nat(1)), null))
@@ -653,7 +653,7 @@ class PruneSuite extends HailSuite {
     checkMemo(MakeStruct(Seq("a" -> ref, "b" -> I32(10))),
       TStruct("a" -> justA), Array(justA, null))
     checkMemo(MakeStruct(Seq("a" -> ref, "b" -> I32(10))),
-      TStruct(), Array(null, null))
+      TStruct.empty, Array(null, null))
   }
 
   @Test def testInsertFieldsMemo() {
@@ -787,7 +787,7 @@ class PruneSuite extends HailSuite {
 
   @Test def testPipelineLetMemo() {
     val t = TStruct("a" -> TInt32())
-    checkMemo(RelationalLet("foo", NA(t), RelationalRef("foo", t)), TStruct(), Array(TStruct(), TStruct()))
+    checkMemo(RelationalLet("foo", NA(t), RelationalRef("foo", t)), TStruct.empty, Array(TStruct.empty, TStruct.empty))
   }
 
   @Test def testTableFilterRebuild() {
@@ -1145,7 +1145,7 @@ class PruneSuite extends HailSuite {
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[NDArrayMap]
         // Even though the type I requested wasn't required, NDArrays always have a required element type.
-        ir.nd.typ == TNDArray(TStruct(true, ("b", TInt64())), Nat(1))
+        ir.nd.typ == TNDArray(TStruct(("b", TInt64())), Nat(1))
       })
   }
 
@@ -1153,14 +1153,14 @@ class PruneSuite extends HailSuite {
     checkRebuild(NDArrayMap2(ndArrayTS, ndArrayTS, "left", "right", Ref("left", ts)), TNDArray(subsetTS("b"), Nat(1)),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[NDArrayMap2]
-        ir.l.typ == TNDArray(TStruct(true, ("b", TInt64())), Nat(1))
-        ir.r.typ == TNDArray(TStruct(true), Nat(1))
+        ir.l.typ == TNDArray(TStruct(("b", TInt64())), Nat(1))
+        ir.r.typ == TNDArray(TStruct.empty, Nat(1))
       })
     checkRebuild(NDArrayMap2(ndArrayTS, ndArrayTS, "left", "right", Ref("right", ts)), TNDArray(subsetTS("b"), Nat(1)),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[NDArrayMap2]
-        ir.l.typ == TNDArray(TStruct(true), Nat(1))
-        ir.r.typ == TNDArray(TStruct(true, ("b", TInt64())), Nat(1))
+        ir.l.typ == TNDArray(TStruct.empty, Nat(1))
+        ir.r.typ == TNDArray(TStruct(("b", TInt64())), Nat(1))
       })
   }
 
@@ -1180,7 +1180,7 @@ class PruneSuite extends HailSuite {
         r.asInstanceOf[MakeStruct].fields.head._2.isInstanceOf[TableGetGlobals]
       })
 
-    checkRebuild(tc, TStruct(),
+    checkRebuild(tc, TStruct.empty,
       (_: BaseIR, r: BaseIR) => {
         r == MakeStruct(Seq())
       })
@@ -1197,27 +1197,27 @@ class PruneSuite extends HailSuite {
 
   @Test def testPipelineLetRebuild() {
     val t = TStruct("a" -> TInt32())
-    checkRebuild(RelationalLet("foo", NA(t), RelationalRef("foo", t)), TStruct(),
+    checkRebuild(RelationalLet("foo", NA(t), RelationalRef("foo", t)), TStruct.empty,
       (_: BaseIR, r: BaseIR) => {
-        r.asInstanceOf[RelationalLet].body == RelationalRef("foo", TStruct())
+        r.asInstanceOf[RelationalLet].body == RelationalRef("foo", TStruct.empty)
       })
   }
 
   @Test def testPipelineLetTableRebuild() {
     val t = TStruct("a" -> TInt32())
     checkRebuild(RelationalLetTable("foo", NA(t), TableMapGlobals(tab, RelationalRef("foo", t))),
-      tab.typ.copy(globalType = TStruct()),
+      tab.typ.copy(globalType = TStruct.empty),
       (_: BaseIR, r: BaseIR) => {
-        r.asInstanceOf[RelationalLetTable].body.asInstanceOf[TableMapGlobals].newGlobals == RelationalRef("foo", TStruct())
+        r.asInstanceOf[RelationalLetTable].body.asInstanceOf[TableMapGlobals].newGlobals == RelationalRef("foo", TStruct.empty)
       })
   }
 
   @Test def testPipelineLetMatrixTableRebuild() {
     val t = TStruct("a" -> TInt32())
     checkRebuild(RelationalLetMatrixTable("foo", NA(t), MatrixMapGlobals(mat, RelationalRef("foo", t))),
-      mat.typ.copy(globalType = TStruct()),
+      mat.typ.copy(globalType = TStruct.empty),
       (_: BaseIR, r: BaseIR) => {
-        r.asInstanceOf[RelationalLetMatrixTable].body.asInstanceOf[MatrixMapGlobals].newGlobals == RelationalRef("foo", TStruct())
+        r.asInstanceOf[RelationalLetMatrixTable].body.asInstanceOf[MatrixMapGlobals].newGlobals == RelationalRef("foo", TStruct.empty)
       })
   }
 
@@ -1241,15 +1241,15 @@ class PruneSuite extends HailSuite {
 
   @DataProvider(name = "supertypePairs")
   def supertypePairs: Array[Array[Type]] = Array(
-    Array(TInt32(), TInt32().setRequired(true)),
+    Array(TInt32(), TInt32()),
     Array(
       TStruct(
-        "a" -> TInt32().setRequired(true),
+        "a" -> TInt32(),
         "b" -> TArray(TInt64())),
       TStruct(
-        "a" -> TInt32().setRequired(true),
-        "b" -> TArray(TInt64().setRequired(true)).setRequired(true))),
-    Array(TSet(TString()), TSet(TString()).setRequired(true))
+        "a" -> TInt32(),
+        "b" -> TArray(TInt64()))),
+    Array(TSet(TString()), TSet(TString()))
   )
 
   @Test(dataProvider = "supertypePairs")

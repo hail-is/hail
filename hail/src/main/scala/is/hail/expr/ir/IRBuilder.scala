@@ -260,7 +260,7 @@ object IRBuilder {
 
     def map(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
-      val eltType = -array.typ.asInstanceOf[TArray].elementType
+      val eltType = array.typ.asInstanceOf[TArray].elementType
       ToArray(StreamMap(ToStream(array), f.s.name, f.body(env.bind(f.s.name -> eltType))))
     }
 

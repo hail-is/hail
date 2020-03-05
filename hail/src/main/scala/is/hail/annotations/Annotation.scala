@@ -62,7 +62,7 @@ object Annotation {
 
       case t: TNDArray => copy(t.representation, a)
 
-      case _: TInt32 | _: TInt64 | _: TFloat32 | _: TFloat64 | _: TBoolean | _: TString | _: TCall | _: TLocus | _: TBinary => a
+      case TInt32 | TInt64 | TFloat32 | TFloat64 | TBoolean | TString | TCall | _: TLocus | TBinary => a
     }
   }
 
@@ -88,7 +88,7 @@ object Annotation {
 
       case t: TNDArray => isSafe(t.representation, a)
 
-      case _: TInt32 | _: TInt64 | _: TFloat32 | _: TFloat64 | _: TBoolean | _: TString | _: TCall | _: TLocus | _: TBinary => true
+      case TInt32 | TInt64 | TFloat32 | TFloat64 | TBoolean | TString | TCall | _: TLocus | TBinary => true
     })
   }
 }

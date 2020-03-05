@@ -262,7 +262,7 @@ case class TextMatrixReader(
   def partitionCounts = Some(_partitionCounts)
 
   val fullMatrixType = MatrixType(
-    TStruct.empty(),
+    TStruct.empty,
     colType = TStruct("col_id" -> (if (hasHeader) TString() else TInt32())),
     colKey = Array("col_id"),
     rowType = rowFieldType,

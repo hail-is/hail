@@ -903,12 +903,12 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
         parseError(s"invalid INFO key/value expression found '${line(pos)}' instead of '='")
       pos += 1 // equals
       typ match {
-        case TInt32(_) => parseAddInfoInt(rvb)
-        case TString(_) => parseAddInfoString(rvb)
-        case TFloat64(_) => parseAddInfoDouble(rvb)
-        case TArray(TInt32(_), _) => parseAddInfoArrayInt(rvb)
-        case TArray(TFloat64(_), _) => parseAddInfoArrayDouble(rvb)
-        case TArray(TString(_), _) => parseAddInfoArrayString(rvb)
+        case TInt32 => parseAddInfoInt(rvb)
+        case TString => parseAddInfoString(rvb)
+        case TFloat64 => parseAddInfoDouble(rvb)
+        case TArray(TInt32) => parseAddInfoArrayInt(rvb)
+        case TArray(TFloat64) => parseAddInfoArrayDouble(rvb)
+        case TArray(TString) => parseAddInfoArrayString(rvb)
       }
     }
   }
@@ -989,23 +989,23 @@ class FormatParser(
     else {
       rvb.setFieldIndex(j)
       gType.types(j) match {
-        case TCall(_) =>
+        case TCall =>
           l.parseAddCall(rvb)
-        case TInt32(_) =>
+        case TInt32 =>
           l.parseAddFormatInt(rvb)
-        case TFloat32(_) =>
+        case TFloat32 =>
           l.parseAddFormatFloat(rvb)
-        case TFloat64(_) =>
+        case TFloat64 =>
           l.parseAddFormatDouble(rvb)
-        case TString(_) =>
+        case TString =>
           l.parseAddFormatString(rvb)
-        case TArray(TInt32(_), _) =>
+        case TArray(TInt32) =>
           l.parseAddFormatArrayInt(rvb)
-        case TArray(TFloat32(_), _) =>
+        case TArray(TFloat32) =>
           l.parseAddFormatArrayFloat(rvb)
-        case TArray(TFloat64(_), _) =>
+        case TArray(TFloat64) =>
           l.parseAddFormatArrayDouble(rvb)
-        case TArray(TString(_), _) =>
+        case TArray(TString) =>
           l.parseAddFormatArrayString(rvb)
       }
     }
@@ -1055,7 +1055,7 @@ class FormatParser(
 class ParseLineContext(typ: TableType, val infoFlagFieldNames: Set[String], val nSamples: Int) {
   val entryType: TStruct = typ.rowType.fieldOption(LowerMatrixIR.entriesFieldName) match {
     case Some(entriesArray) => entriesArray.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
-    case None => TStruct()
+    case None => TStruct.empty
   }
   val infoSignature = typ.rowType.fieldOption("info").map(_.typ.asInstanceOf[TStruct]).orNull
   val hasQual = typ.rowType.hasField("qual")
@@ -1104,8 +1104,8 @@ object LoadVCF {
 
   def getEntryFloatType(entryFloatTypeName: String): TNumeric = {
     IRParser.parseType(entryFloatTypeName) match {
-      case t32: TFloat32 => t32
-      case t64: TFloat64 => t64
+      case TFloat32 => TFloat32
+      case TFloat64 => TFloat64
       case _ => fatal(
         s"""invalid floating point type:
         |  expected ${TFloat32()._toPretty} or ${TFloat64()._toPretty}, got ${entryFloatTypeName}"""
@@ -1540,7 +1540,7 @@ case class MatrixVCFReader(
   private val kType = TStruct("locus" -> locusType, "alleles" -> TArray(TString()))
 
   val fullMatrixType: MatrixType = MatrixType(
-    TStruct.empty(),
+    TStruct.empty,
     colType = TStruct("s" -> TString()),
     colKey = Array("s"),
     rowType = kType ++ vaSignature.virtualType,
@@ -1686,7 +1686,7 @@ class VCFsReader(
   private val kType = TStruct("locus" -> locusType, "alleles" -> TArray(TString()))
 
   val typ = MatrixType(
-    TStruct.empty(),
+    TStruct.empty,
     colType = TStruct("s" -> TString()),
     colKey = Array("s"),
     rowType = kType ++ header1.vaSignature.virtualType,

@@ -9,7 +9,7 @@ case object PInt32Optional extends PInt32(false)
 case object PInt32Required extends PInt32(true)
 
 class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
-  lazy val virtualType: TInt32 = TInt32(required)
+  lazy val virtualType: TInt32.type = TInt32
   def _asIdent = "int32"
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PInt32")
   override type NType = PInt32

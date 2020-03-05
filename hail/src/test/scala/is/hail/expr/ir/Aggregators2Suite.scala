@@ -689,7 +689,7 @@ class Aggregators2Suite extends HailSuite {
   }
 
   @Test def testLoweringMatrixMapColsWithAggFilterAndLets(): Unit = {
-    val t = MatrixType(TStruct(), FastIndexedSeq("col_idx"), TStruct("col_idx" -> TInt32()), FastIndexedSeq("row_idx"), TStruct("row_idx" -> TInt32()), TStruct())
+    val t = MatrixType(TStruct.empty, FastIndexedSeq("col_idx"), TStruct("col_idx" -> TInt32()), FastIndexedSeq("row_idx"), TStruct("row_idx" -> TInt32()), TStruct.empty)
     val ir = TableCollect(MatrixColsTable(MatrixMapCols(
       MatrixRead(t, false, false, MatrixRangeReader(10, 10, None)),
       InsertFields(Ref("sa", t.colType), FastSeq(("foo",

@@ -34,7 +34,7 @@ case class LinearRegressionRowsSingle(
     TableType(
       childType.rowKeyStruct ++ passThroughType ++ schema,
       childType.rowKey,
-      TStruct())
+      TStruct.empty)
   }
 
   def preservesPartitionCounts: Boolean = true
@@ -191,7 +191,7 @@ case class LinearRegressionRowsChained(
     TableType(
       childType.rowKeyStruct ++ passThroughType ++ chainedSchema,
       childType.rowKey,
-      TStruct())
+      TStruct.empty)
   }
 
   def preservesPartitionCounts: Boolean = true

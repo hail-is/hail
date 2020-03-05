@@ -28,7 +28,7 @@ object InferType {
       case MakeArray(_, t) => t
       case MakeStream(_, t) => t
       case MakeNDArray(data, shape, _) =>
-        TNDArray(coerce[TArray](data.typ).elementType.setRequired(true), Nat(shape.typ.asInstanceOf[TTuple].size))
+        TNDArray(coerce[TArray](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
       case _: ArrayLen => TInt32()
       case _: StreamRange => TStream(TInt32())
       case _: ArrayZeros => TArray(TInt32())
@@ -48,10 +48,7 @@ object InferType {
       case If(cond, cnsq, altr) =>
         assert(cond.typ.isOfType(TBoolean()))
         assert(cnsq.typ.isOfType(altr.typ))
-        if (cnsq.typ != altr.typ)
-          cnsq.typ.deepOptional()
-        else
-          cnsq.typ
+        cnsq.typ
       case Let(name, value, body) =>
         body.typ
       case AggLet(name, value, body, _) =>
@@ -61,9 +58,9 @@ object InferType {
       case Recur(_, _, typ) =>
         typ
       case ApplyBinaryPrimOp(op, l, r) =>
-        BinaryOp.getReturnType(op, l.typ, r.typ).setRequired(l.typ.required && r.typ.required)
+        BinaryOp.getReturnType(op, l.typ, r.typ)
       case ApplyUnaryPrimOp(op, v) =>
-        UnaryOp.getReturnType(op, v.typ).setRequired(v.typ.required)
+        UnaryOp.getReturnType(op, v.typ)
       case ApplyComparisonOp(op, l, r) =>
         assert(l.typ isOfType r.typ)
         op match {
@@ -77,44 +74,44 @@ object InferType {
         a.returnType
       case ArrayRef(a, i, s) =>
         assert(i.typ.isOfType(TInt32()))
-        coerce[TArray](a.typ).elementType.setRequired(a.typ.required && i.typ.required)
+        coerce[TArray](a.typ).elementType
       case ArraySort(a, _, _, compare) =>
         assert(compare.typ.isOfType(TBoolean()))
         val et = coerce[TStream](a.typ).elementType
-        TArray(et, a.typ.required)
+        TArray(et)
       case ToSet(a) =>
         val et = coerce[TStream](a.typ).elementType
-        TSet(et, a.typ.required)
+        TSet(et)
       case ToDict(a) =>
         val elt = coerce[TBaseStruct](coerce[TStream](a.typ).elementType)
-        TDict(elt.types(0), elt.types(1), a.typ.required)
+        TDict(elt.types(0), elt.types(1))
       case ToArray(a) =>
         val elt = coerce[TStream](a.typ).elementType
-        TArray(elt, a.typ.required)
+        TArray(elt)
       case CastToArray(a) =>
         val elt = coerce[TContainer](a.typ).elementType
-        TArray(elt, a.typ.required)
+        TArray(elt)
       case ToStream(a) =>
         val elt = coerce[TIterable](a.typ).elementType
-        TStream(elt, a.typ.required)
+        TStream(elt)
       case GroupByKey(collection) =>
         val elt = coerce[TBaseStruct](coerce[TStream](collection.typ).elementType)
-        TDict(elt.types(0), TArray(elt.types(1)), collection.typ.required)
+        TDict(elt.types(0), TArray(elt.types(1)))
       case StreamMap(a, name, body) =>
-        TStream(-body.typ, required = a.typ.required)
+        TStream(body.typ)
       case StreamZip(as, _, body, _) =>
-        TStream(body.typ, required = as.forall(_.typ.required))
+        TStream(body.typ)
       case StreamFilter(a, name, cond) =>
         a.typ
       case StreamFlatMap(a, name, body) =>
-        TStream(coerce[TStream](body.typ).elementType, a.typ.required)
+        TStream(coerce[TStream](body.typ).elementType)
       case StreamFold(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         zero.typ
       case StreamFold2(_, _, _, _, result) => result.typ
       case StreamScan(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
-        TStream(zero.typ, required = a.typ.required)
+        TStream(zero.typ)
       case StreamAgg(_, _, query) =>
         query.typ
       case StreamAggScan(_, _, query) =>
@@ -124,26 +121,26 @@ object InferType {
       case RunAggScan(_, _, _, _, result, _) =>
         TStream(result.typ)
       case StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
-        TStream(join.typ, left.typ.required && right.typ.required)
+        TStream(join.typ)
       case NDArrayShape(nd) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
-        ndType.representation.fieldType("shape").asInstanceOf[TTuple].setRequired(ndType.required)
+        ndType.representation.fieldType("shape").asInstanceOf[TTuple]
       case NDArrayReshape(nd, shape) =>
-        TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size), nd.typ.required)
+        TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
       case NDArrayConcat(nds, _) =>
         coerce[TArray](nds.typ).elementType
       case NDArrayMap(nd, _, body) =>
-        TNDArray(body.typ.setRequired(true), coerce[TNDArray](nd.typ).nDimsBase, nd.typ.required)
+        TNDArray(body.typ, coerce[TNDArray](nd.typ).nDimsBase)
       case NDArrayMap2(l, _, _, _, body) =>
-        TNDArray(body.typ.setRequired(true), coerce[TNDArray](l.typ).nDimsBase, l.typ.required)
+        TNDArray(body.typ, coerce[TNDArray](l.typ).nDimsBase)
       case NDArrayReindex(nd, indexExpr) =>
-        TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(indexExpr.length), nd.typ.required)
+        TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(indexExpr.length))
       case NDArrayAgg(nd, axes) =>
         val childType = coerce[TNDArray](nd.typ)
-        TNDArray(childType.elementType, Nat(childType.nDims - axes.length), childType.required)
+        TNDArray(childType.elementType, Nat(childType.nDims - axes.length))
       case NDArrayRef(nd, idxs) =>
         assert(idxs.forall(_.typ.isOfType(TInt64())))
-        coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && idxs.forall(_.typ.required))
+        coerce[TNDArray](nd.typ).elementType
       case NDArraySlice(nd, slices) =>
         val childTyp = coerce[TNDArray](nd.typ)
         val slicesTyp = coerce[TTuple](slices.typ)
@@ -155,14 +152,14 @@ object InferType {
       case NDArrayMatMul(l, r) =>
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
-        TNDArray(lTyp.elementType, Nat(TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims)), lTyp.required && rTyp.required)
+        TNDArray(lTyp.elementType, Nat(TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims)))
       case NDArrayQR(nd, mode) =>
         if (Array("complete", "reduced").contains(mode)) {
-          TTuple(TNDArray(TFloat64(), Nat(2), false), TNDArray(TFloat64(), Nat(2), false))
+          TTuple(TNDArray(TFloat64(), Nat(2)), TNDArray(TFloat64(), Nat(2)))
         } else if (mode == "raw") {
-          TTuple(TNDArray(TFloat64(), Nat(2), false), TNDArray(TFloat64(), Nat(1), false))
+          TTuple(TNDArray(TFloat64(), Nat(2)), TNDArray(TFloat64(), Nat(1)))
         } else if (mode == "r") {
-          TNDArray(TFloat64(), Nat(2), false)
+          TNDArray(TFloat64(), Nat(2))
         } else {
           throw new NotImplementedError(s"Cannot infer type for mode $mode")
         }
@@ -196,14 +193,13 @@ object InferType {
         val t = coerce[TStruct](o.typ)
         if (t.index(name).isEmpty)
           throw new RuntimeException(s"$name not in $t")
-        val fd = t.field(name).typ
-        fd.setRequired(t.required && fd.required)
+        t.field(name).typ
       case MakeTuple(values) =>
-        TTuple(values.map { case (i, value) => TupleField(i, value.typ) }.toFastIndexedSeq, required = false)
+        TTuple(values.map { case (i, value) => TupleField(i, value.typ) }.toFastIndexedSeq)
       case GetTupleElement(o, idx) =>
         val t = coerce[TTuple](o.typ)
         val fd = t.fields(t.fieldIndex(idx)).typ
-        fd.setRequired(t.required && fd.required)
+        fd
       case TableCount(_) => TInt64()
       case MatrixCount(_) => TTuple(TInt64(), TInt32())
       case TableAggregate(child, query) =>

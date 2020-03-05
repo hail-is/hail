@@ -4,8 +4,6 @@ import is.hail.annotations.ExtendedOrdering
 import is.hail.expr.types.physical.PVoid
 
 case object TVoid extends Type {
-  override val required = true
-
   override def _toPretty = "Void"
 
   override def pyString(sb: StringBuilder): Unit = {

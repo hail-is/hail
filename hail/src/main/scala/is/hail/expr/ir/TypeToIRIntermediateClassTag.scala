@@ -8,11 +8,11 @@ import scala.reflect.{ClassTag, classTag}
 object TypeToIRIntermediateClassTag {
   def apply(t: Type): ClassTag[_] = t.fundamentalType match {
     case TVoid => classTag[Unit]
-    case _: TBoolean => classTag[Boolean]
-    case _: TInt32 => classTag[Int]
-    case _: TInt64 => classTag[Long]
-    case _: TFloat32 => classTag[Float]
-    case _: TFloat64 => classTag[Double]
-    case _: TBaseStruct | _: TArray | _: TBinary => classTag[Long]
+    case TBoolean => classTag[Boolean]
+    case TInt32 => classTag[Int]
+    case TInt64 => classTag[Long]
+    case TFloat32 => classTag[Float]
+    case TFloat64 => classTag[Double]
+    case _: TBaseStruct | _: TArray | TBinary => classTag[Long]
   }
 }

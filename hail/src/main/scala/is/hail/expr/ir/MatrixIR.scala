@@ -156,7 +156,7 @@ abstract class MatrixHybridReader extends TableReader with MatrixReader {
         val arr = values.map(r => Row.fromSeq(colValueIndices.map(r.get))).toFastIndexedSeq
         BroadcastRow(ctx, Row(arr), requestedType.globalType)
       case None =>
-        assert(requestedType.globalType == TStruct())
+        assert(requestedType.globalType == TStruct.empty)
         BroadcastRow(ctx, Row(), requestedType.globalType)
     }
   }
@@ -246,12 +246,12 @@ case class MatrixNativeReader(
 
 case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) extends MatrixReader {
   val fullMatrixType: MatrixType = MatrixType(
-    globalType = TStruct.empty(),
+    globalType = TStruct.empty,
     colKey = Array("col_idx"),
     colType = TStruct("col_idx" -> TInt32()),
     rowKey = Array("row_idx"),
     rowType = TStruct("row_idx" -> TInt32()),
-    entryType = TStruct.empty())
+    entryType = TStruct.empty)
 
   val columnCount: Option[Int] = Some(nCols)
 
@@ -434,8 +434,8 @@ case class MatrixUnionCols(left: MatrixIR, right: MatrixIR, joinType: String) ex
     left.typ
   else
     left.typ.copy(
-      colType = TStruct(left.typ.colType.fields.map(f => f.copy(typ = -f.typ))),
-      entryType = TStruct(left.typ.entryType.fields.map(f => f.copy(typ = -f.typ))))
+      colType = TStruct(left.typ.colType.fields.map(f => f.copy(typ = f.typ))),
+      entryType = TStruct(left.typ.entryType.fields.map(f => f.copy(typ = f.typ))))
 
   override def columnCount: Option[Int] =
     left.columnCount.flatMap(leftCount => right.columnCount.map(rightCount => leftCount + rightCount))
@@ -813,8 +813,8 @@ case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends 
 
   private val (keysType, querier) = child.typ.colType.queryTyped(path.toList)
   private val keyType = keysType match {
-    case TArray(e, _) => e
-    case TSet(e, _) => e
+    case TArray(e) => e
+    case TSet(e) => e
   }
   val (newColType, inserter) = child.typ.colType.structInsert(keyType, path.toList)
   val typ: MatrixType = child.typ.copy(colType = newColType)
@@ -832,7 +832,7 @@ case class CastTableToMatrix(
 ) extends MatrixIR {
 
   child.typ.rowType.fieldType(entriesFieldName) match {
-    case TArray(TStruct(_, _), _) =>
+    case TArray(TStruct(_)) =>
     case t => fatal(s"expected entry field to be an array of structs, found $t")
   }
 

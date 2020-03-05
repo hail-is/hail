@@ -21,7 +21,7 @@ case class PoissonRegression(
   override def typ(childType: MatrixType): TableType = {
     val poisRegTest = PoissonRegressionTest.tests(test)
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
-    TableType(childType.rowKeyStruct ++ passThroughType ++ poisRegTest.schema, childType.rowKey, TStruct())
+    TableType(childType.rowKeyStruct ++ passThroughType ++ poisRegTest.schema, childType.rowKey, TStruct.empty)
   }
 
   def preservesPartitionCounts: Boolean = true

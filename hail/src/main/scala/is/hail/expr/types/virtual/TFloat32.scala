@@ -8,10 +8,7 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
 
-case object TFloat32Optional extends TFloat32(false)
-case object TFloat32Required extends TFloat32(true)
-
-class TFloat32(override val required: Boolean) extends TNumeric {
+case object TFloat32 extends TNumeric {
   def _toPretty = "Float32"
 
   override def pyString(sb: StringBuilder): Unit = {
@@ -44,10 +41,7 @@ class TFloat32(override val required: Boolean) extends TNumeric {
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Float]])
+
+  def apply(): this.type = this
 }
 
-object TFloat32 {
-  def apply(required: Boolean = false): TFloat32 = if (required) TFloat32Required else TFloat32Optional
-
-  def unapply(t: TFloat32): Option[Boolean] = Option(t.required)
-}

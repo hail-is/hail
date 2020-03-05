@@ -49,7 +49,7 @@ object SetFunctions extends RegistryFunctions {
     }
 
     registerIR("union", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
-      val t = -s1.typ.asInstanceOf[TSet].elementType
+      val t = s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
         StreamFlatMap(
@@ -59,7 +59,7 @@ object SetFunctions extends RegistryFunctions {
     }
 
     registerIR("intersection", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
-      val t = -s1.typ.asInstanceOf[TSet].elementType
+      val t = s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
         StreamFilter(ToStream(s1), x,
@@ -67,7 +67,7 @@ object SetFunctions extends RegistryFunctions {
     }
 
     registerIR("difference", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
-      val t = -s1.typ.asInstanceOf[TSet].elementType
+      val t = s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
         StreamFilter(ToStream(s1), x,
@@ -75,7 +75,7 @@ object SetFunctions extends RegistryFunctions {
     }
 
     registerIR("isSubset", TSet(tv("T")), TSet(tv("T")), TBoolean()) { (s, w) =>
-      val t = -s.typ.asInstanceOf[TSet].elementType
+      val t = s.typ.asInstanceOf[TSet].elementType
       val a = genUID()
       val x = genUID()
       StreamFold(ToStream(s), True(), a, x,
@@ -85,7 +85,7 @@ object SetFunctions extends RegistryFunctions {
     }
 
     registerIR("median", TSet(tnum("T")), tv("T")) { s =>
-      val t = -s.typ.asInstanceOf[TSet].elementType
+      val t = s.typ.asInstanceOf[TSet].elementType
       val a = Ref(genUID(), TArray(t))
       val size = Ref(genUID(), TInt32())
       val lastIdx = size - 1

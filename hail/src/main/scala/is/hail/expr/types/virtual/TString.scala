@@ -8,10 +8,7 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
 
-case object TStringOptional extends TString(false)
-case object TStringRequired extends TString(true)
-
-class TString(override val required: Boolean) extends Type {
+case object TString extends Type {
   def _toPretty = "String"
 
   override def pyString(sb: StringBuilder): Unit = {
@@ -29,11 +26,7 @@ class TString(override val required: Boolean) extends Type {
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[String]])
 
-  override def fundamentalType: Type = TBinary(required)
-}
+  override def fundamentalType: Type = TBinary
 
-object TString {
-  def apply(required: Boolean = false): TString = if (required) TStringRequired else TStringOptional
-
-  def unapply(t: TString): Option[Boolean] = Option(t.required)
+  def apply(): this.type = this
 }

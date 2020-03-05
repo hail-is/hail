@@ -97,7 +97,6 @@ object TypeCheck {
             s"cast type:  ${ typ.parsableString() }")
       case NA(t) =>
         assert(t != null)
-        assert(!t.required)
       case IsNA(v) =>
       case Coalesce(values) =>
         assert(values.tail.forall(_.typ.isOfType(values.head.typ)))
@@ -126,7 +125,7 @@ object TypeCheck {
         }
         assert(recurInTail(body, tailPosition = true))
       case x@Recur(name, args, typ) =>
-        val TTuple(IndexedSeq(TupleField(_, argTypes), TupleField(_, rt)), _) = env.eval.lookup(name)
+        val TTuple(IndexedSeq(TupleField(_, argTypes), TupleField(_, rt))) = env.eval.lookup(name)
         assert(argTypes.asInstanceOf[TTuple].types.zip(args).forall { case (t, ir) => t isOfType ir.typ } )
         assert(typ isOfType rt)
       case x@ApplyBinaryPrimOp(op, l, r) =>
@@ -137,8 +136,8 @@ object TypeCheck {
         assert(op.t1.fundamentalType isOfType l.typ.fundamentalType)
         assert(op.t2.fundamentalType isOfType r.typ.fundamentalType)
         op match {
-          case _: Compare => assert(x.typ.isInstanceOf[TInt32])
-          case _ => assert(x.typ.isInstanceOf[TBoolean])
+          case _: Compare => assert(x.typ == TInt32)
+          case _ => assert(x.typ == TBoolean)
         }
       case x@MakeArray(args, typ) =>
         assert(typ != null)
@@ -165,13 +164,13 @@ object TypeCheck {
         assert(length.typ.isOfType(TInt32()))
       case x@MakeNDArray(data, shape, rowMajor) =>
         assert(data.typ.isInstanceOf[TArray])
-        assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t.isInstanceOf[TInt64]))
+        assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t == TInt64))
         assert(rowMajor.typ.isOfType(TBoolean()))
       case x@NDArrayShape(nd) =>
         assert(nd.typ.isInstanceOf[TNDArray])
       case x@NDArrayReshape(nd, shape) =>
         assert(nd.typ.isInstanceOf[TNDArray])
-        assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t.isInstanceOf[TInt64]))
+        assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t == TInt64))
       case x@NDArrayConcat(nds, axis) =>
         assert(coerce[TArray](nds.typ).elementType.isInstanceOf[TNDArray])
         assert(axis < x.typ.nDims)
@@ -213,7 +212,7 @@ object TypeCheck {
         assert(axes.distinct.length == axes.length)
       case x@NDArrayWrite(nd, path) =>
         assert(nd.typ.isInstanceOf[TNDArray])
-        assert(path.typ.isInstanceOf[TString])
+        assert(path.typ == TString)
       case x@NDArrayMatMul(l, r) =>
         assert(l.typ.isInstanceOf[TNDArray])
         assert(r.typ.isInstanceOf[TNDArray])
@@ -225,7 +224,7 @@ object TypeCheck {
         assert(lType.nDims == 1 || rType.nDims == 1 || lType.nDims == rType.nDims)
       case x@NDArrayQR(nd, mode) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
-        assert(ndType.elementType.isInstanceOf[TFloat64])
+        assert(ndType.elementType == TFloat64)
         assert(ndType.nDims == 2)
       case x@ArraySort(a, l, r, compare) =>
         assert(a.typ.isInstanceOf[TStream])
@@ -242,10 +241,10 @@ object TypeCheck {
       case x@ToStream(a) =>
         assert(a.typ.isInstanceOf[TContainer])
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
-        val elt = -coerce[TIterable](orderedCollection.typ).elementType
-        assert(-elem.typ isOfType (if (onKey) elt match {
-          case t: TBaseStruct => -t.types(0)
-          case t: TInterval => -t.pointType
+        val elt = coerce[TIterable](orderedCollection.typ).elementType
+        assert(elem.typ isOfType (if (onKey) elt match {
+          case t: TBaseStruct => t.types(0)
+          case t: TInterval => t.pointType
         } else elt))
       case x@GroupByKey(collection) =>
         val telt = coerce[TBaseStruct](coerce[TStream](collection.typ).elementType)
@@ -356,7 +355,7 @@ object TypeCheck {
       case x@GetField(o, name) =>
         val t = coerce[TStruct](o.typ)
         assert(t.index(name).nonEmpty, s"$name not in $t")
-        assert(x.typ isOfType -t.field(name).typ)
+        assert(x.typ isOfType t.field(name).typ)
       case x@MakeTuple(fields) =>
         val indices = fields.map(_._1)
         assert(indices.areDistinct())

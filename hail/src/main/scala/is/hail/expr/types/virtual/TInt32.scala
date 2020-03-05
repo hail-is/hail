@@ -9,10 +9,7 @@ import is.hail.expr.types.physical.PInt32
 
 import scala.reflect.{ClassTag, _}
 
-case object TInt32Optional extends TInt32(false)
-case object TInt32Required extends TInt32(true)
-
-class TInt32(override val required: Boolean) extends TIntegral {
+case object TInt32 extends TIntegral {
   def _toPretty = "Int32"
 
   override def pyString(sb: StringBuilder): Unit = {
@@ -27,10 +24,6 @@ class TInt32(override val required: Boolean) extends TIntegral {
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])
-}
 
-object TInt32 {
-  def apply(required: Boolean = false) = if (required) TInt32Required else TInt32Optional
-
-  def unapply(t: TInt32): Option[Boolean] = Option(t.required)
+  def apply(): this.type = this
 }

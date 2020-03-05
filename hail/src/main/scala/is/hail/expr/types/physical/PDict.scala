@@ -1,6 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations._
+import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TDict
 
@@ -9,7 +10,7 @@ object PDict {
 }
 
 abstract class PDict extends PContainer {
-  lazy val virtualType: TDict = TDict(keyType.virtualType, valueType.virtualType, required)
+  lazy val virtualType: TDict = TDict(keyType.virtualType, valueType.virtualType)
 
   val keyType: PType
   val valueType: PType
@@ -22,4 +23,7 @@ abstract class PDict extends PContainer {
     assert(other isOfType this)
     CodeOrdering.mapOrdering(this, other.asInstanceOf[PDict], mb)
   }
+
+  override def genNonmissingValue: Gen[Annotation] =
+    Gen.buildableOf2[Map](Gen.zip(keyType.genValue, valueType.genValue))
 }

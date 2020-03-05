@@ -8,13 +8,13 @@ import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, classTag}
 
-final case class TDict(keyType: Type, valueType: Type, override val required: Boolean = false) extends TContainer {
-  lazy val elementType: TBaseStruct = (+TStruct("key" -> keyType, "value" -> valueType)).asInstanceOf[TBaseStruct]
+final case class TDict(keyType: Type, valueType: Type) extends TContainer {
+  lazy val elementType: TBaseStruct = (TStruct("key" -> keyType, "value" -> valueType)).asInstanceOf[TBaseStruct]
 
-  override val fundamentalType: TArray = TArray(elementType.fundamentalType, required)
+  override val fundamentalType: TArray = TArray(elementType.fundamentalType)
 
   override def canCompare(other: Type): Boolean = other match {
-    case TDict(okt, ovt, _) => keyType.canCompare(okt) && valueType.canCompare(ovt)
+    case TDict(okt, ovt) => keyType.canCompare(okt) && valueType.canCompare(ovt)
     case _ => false
   }
 
@@ -22,7 +22,7 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
 
   override def unify(concrete: Type): Boolean = {
     concrete match {
-      case TDict(kt, vt, _) => keyType.unify(kt) && valueType.unify(vt)
+      case TDict(kt, vt) => keyType.unify(kt) && valueType.unify(vt)
       case _ => false
     }
   }

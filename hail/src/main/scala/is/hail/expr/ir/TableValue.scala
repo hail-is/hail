@@ -19,7 +19,7 @@ import org.json4s.jackson.JsonMethods
 
 object TableValue {
   def apply(ctx: ExecuteContext, rowType: PStruct, key: IndexedSeq[String], rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
-    val tt = TableType(rowType.virtualType, key, TStruct.empty())
+    val tt = TableType(rowType.virtualType, key, TStruct.empty)
     TableValue(tt,
       BroadcastRow.empty(ctx),
       RVD.coerce(RVDType(rowType, key), rdd, ctx))
@@ -27,7 +27,7 @@ object TableValue {
 
   def apply(ctx: ExecuteContext, rowType:  TStruct, key: IndexedSeq[String], rdd: RDD[Row], rowPType: Option[PStruct] = None): TableValue = {
     val canonicalRowType = rowPType.getOrElse(PStruct.canonical(rowType))
-    val tt = TableType(rowType, key, TStruct.empty())
+    val tt = TableType(rowType, key, TStruct.empty)
     TableValue(tt,
       BroadcastRow.empty(ctx),
       RVD.coerce(
@@ -158,7 +158,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     entriesFieldName: String = LowerMatrixIR.entriesFieldName): MatrixValue = {
 
     val (colType, colsFieldIdx) = typ.globalType.field(colsFieldName) match {
-      case Field(_, TArray(t@TStruct(_, _), _), idx) => (t, idx)
+      case Field(_, TArray(t@TStruct(_)), idx) => (t, idx)
       case Field(_, t, _) => fatal(s"expected cols field to be an array of structs, found $t")
     }
 

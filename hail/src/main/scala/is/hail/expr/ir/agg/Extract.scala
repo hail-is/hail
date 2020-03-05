@@ -257,7 +257,7 @@ object Extract {
         val initOps = newAggs.result()
 
         val rt = TDict(key.typ, TTuple(initOps.map(_.aggSig.resultType): _*))
-        newRef._typ = -rt.elementType
+        newRef._typ = rt.elementType
 
         // the void-typed init and seq args are side-effecting agg IRs (InitOp and SeqOp nodes for sub-aggs)
         val groupSig = AggSignature(Group(), Seq(TVoid), FastSeq(key.typ, TVoid))
@@ -282,7 +282,7 @@ object Extract {
         val initOps = newAggs.result()
 
         val rt = TArray(TTuple(initOps.map(_.aggSig.resultType): _*))
-        newRef._typ = -rt.elementType
+        newRef._typ = rt.elementType
 
         // the void-typed init and seq args are side-effecting agg IRs (InitOp and SeqOp nodes for sub-aggs)
         val aggSigCheck = AggSignature(
