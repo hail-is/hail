@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.utils._
-import is.hail.expr.types.physical.{PCanonicalArray, PCanonicalDict, PCanonicalSet, PContainer, PType, PVoid}
+import is.hail.expr.types.physical._
 
 abstract class PSettable[PV <: PValue] {
   def load(): PV
@@ -52,25 +52,8 @@ abstract class PValue {
 }
 
 class PPrimitiveValue(val pt: PType, val code: Code[_]) extends PValue {
-  def store(mb: EmitMethodBuilder ,r: Code[Region], a: Code[Long]): Code[Unit] = {
-    val ti: TypeInfo[_] = typeToTypeInfo(pt)
-    if (ti == ByteInfo)
-      Region.storeByte(a, code.asInstanceOf[Code[Byte]])
-    else if (ti == ShortInfo)
-      Region.storeShort(a, code.asInstanceOf[Code[Short]])
-    else if (ti == IntInfo)
-      Region.storeInt(a, code.asInstanceOf[Code[Int]])
-    else if (ti == LongInfo)
-      Region.storeLong(a, code.asInstanceOf[Code[Long]])
-    else if (ti == FloatInfo)
-      Region.storeFloat(a, code.asInstanceOf[Code[Float]])
-    else if (ti == DoubleInfo)
-      Region.storeDouble(a, code.asInstanceOf[Code[Double]])
-    else {
-      assert(ti == CharInfo)
-      Region.storeChar(a, code.asInstanceOf[Code[Char]])
-    }
-  }
+  def store(mb: EmitMethodBuilder, r: Code[Region], a: Code[Long]): Code[Unit] =
+    Region.storeIRIntermediate(pt)(a, code)
 }
 
 abstract class PIndexableValue extends PValue {

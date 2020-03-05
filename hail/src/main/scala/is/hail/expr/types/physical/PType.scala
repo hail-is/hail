@@ -324,25 +324,5 @@ abstract class PType extends Serializable with Requiredness {
 
   def _typeCheck(a: Any): Boolean = virtualType._typeCheck(a)
 
-  def load(src: Code[Long]): PValue = {
-    val ti: TypeInfo[_] = typeToTypeInfo(this)
-    val v = if (ti == ByteInfo)
-      Region.loadByte(src)
-    else if (ti == ShortInfo)
-      Region.loadShort(src)
-    else if (ti == IntInfo)
-      Region.loadInt(src)
-    else if (ti == LongInfo)
-      Region.loadLong(src)
-    else if (ti == FloatInfo)
-      Region.loadFloat(src)
-    else if (ti == DoubleInfo)
-      Region.loadDouble(src)
-    else {
-      assert(ti == CharInfo)
-      Region.loadChar(src)
-    }
-
-    new PPrimitiveValue(this, v)
-  }
+  def load(src: Code[Long]): PValue = PValue(this, Region.loadIRIntermediate(this)(src))
 }
