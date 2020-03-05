@@ -517,7 +517,7 @@ object InferPType {
       case WriteValue(value, pathPrefix, spec) =>
         infer(value)
         infer(pathPrefix)
-        PCanonicalString(pathPrefix.pType2.required)
+        PCanonicalString(pathPrefix.pType2.required && value.pType2.required)
       case MakeStream(irs, t) =>
         if (irs.isEmpty) {
           PType.canonical(t, true).deepInnerRequired(true)

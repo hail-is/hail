@@ -3261,43 +3261,41 @@ class IRSuite extends HailSuite {
 
   @DataProvider(name = "nonNullTypesAndValues")
   def nonNullTypesAndValues(): Array[Array[Any]] = Array(
-    Array(TInt32(), EInt32(), 1),
-    Array(TInt64(), EInt64(), 5L),
-    Array(TFloat32(), EFloat32(), 5.5f),
-    Array(TFloat64(),  EFloat64(), 1.2),
-    Array(TString(), EBinary(), "foo"),
-    Array(TArray(TInt32()), EArray(EInt32()), FastIndexedSeq(5, 7, null, 3)),
-    Array(TTuple(TInt32(), TString(), TStruct()),
-      EBaseStruct(FastIndexedSeq(EField("0", EInt32(), 0), EField("1", EBinary(), 1), EField("2", EBaseStruct(FastIndexedSeq()), 2))),
-      Row(3, "bar", Row()))
+    Array(PInt32(), 1),
+    Array(PInt64(), 5L),
+    Array(PFloat32(), 5.5f),
+    Array(PFloat64(), 1.2),
+    Array(PString(), "foo"),
+    Array(PArray(PInt32()), FastIndexedSeq(5, 7, null, 3)),
+    Array(PTuple(PInt32(), PString(), PStruct()), Row(3, "bar", Row()))
   )
 
   @Test(dataProvider = "nonNullTypesAndValues")
-  def testReadWriteValues(t: Type, et: EType, value: Any): Unit = {
+  def testReadWriteValues(pt: PType, value: Any): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
+    val node = In(0, pt)
+    val spec = TypedCodecSpec(pt, BufferSpec.defaultUncompressed)
+    val prefix = tmpDir.createTempFile()
+    val filename = WriteValue(node, Str(prefix), spec)
     for (v <- Array(value, null)) {
-      val node = Literal.coerce(t, v)
-      val spec = TypedCodecSpec(et, t, BufferSpec.defaultUncompressed)
-      val prefix = tmpDir.createTempFile()
-      val filename = WriteValue(node, Str(prefix), spec)
-      assertEvalsTo(ReadValue(filename, spec, t), v)
+      assertEvalsTo(ReadValue(filename, spec, pt.virtualType), FastIndexedSeq(v -> pt.virtualType), v)
     }
   }
 
   @Test(dataProvider="nonNullTypesAndValues")
-  def testReadWriteValueDistributed(t: Type, et: EType, value: Any): Unit = {
+  def testReadWriteValueDistributed(pt: PType, value: Any): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
+    val node = In(0, pt)
+    val spec = TypedCodecSpec(pt, BufferSpec.defaultUncompressed)
+    val prefix = tmpDir.createTempFile()
+    val readArray = Let("files",
+      CollectDistributedArray(StreamMap(StreamRange(0, 10, 1), "x", node), MakeStruct(FastSeq()),
+        "ctx", "globals",
+        WriteValue(Ref("ctx", node.typ), Str(prefix), spec)),
+      StreamMap(ToStream(Ref("files", TArray(TString()))), "filename",
+        ReadValue(Ref("filename", TString()), spec, pt.virtualType)))
     for (v <- Array(value, null)) {
-      val node = Literal.coerce(t, v)
-      val spec = TypedCodecSpec(et, t, BufferSpec.defaultUncompressed)
-      val prefix = tmpDir.createTempFile()
-      val readArray = Let("files",
-        CollectDistributedArray(StreamRange(0, 10, 1), MakeStruct(FastSeq()),
-          "ctx", "globals",
-          WriteValue(node, Str(prefix), spec)),
-        StreamMap(ToStream(Ref("files", TArray(TString()))), "filename",
-          ReadValue(Ref("filename", TString()), spec, t)))
-      assertEvalsTo(ToArray(readArray), Array.fill(10)(v).toFastIndexedSeq)
+      assertEvalsTo(ToArray(readArray), FastIndexedSeq(v -> pt.virtualType), Array.fill(10)(v).toFastIndexedSeq)
     }
   }
 }
