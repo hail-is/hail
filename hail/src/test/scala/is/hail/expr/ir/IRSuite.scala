@@ -3268,7 +3268,7 @@ class IRSuite extends HailSuite {
     Array(TString(), EBinary(), "foo"),
     Array(TArray(TInt32()), EArray(EInt32()), FastIndexedSeq(5, 7, null, 3)),
     Array(TTuple(TInt32(), TString(), TStruct()),
-      EBaseStruct(FastIndexedSeq(EField("0", EInt32(), 0), EField("1", EBinary(), 1), EField("1", EBaseStruct(FastIndexedSeq()), 1))),
+      EBaseStruct(FastIndexedSeq(EField("0", EInt32(), 0), EField("1", EBinary(), 1), EField("2", EBaseStruct(FastIndexedSeq()), 2))),
       Row(3, "bar", Row()))
   )
 
