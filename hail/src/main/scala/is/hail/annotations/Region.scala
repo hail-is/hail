@@ -33,6 +33,10 @@ object Region {
 
   def loadByte(addr: Long): Byte = Memory.loadByte(addr)
 
+  def loadShort(addr: Long): Short = Memory.loadShort(addr)
+
+  def loadChar(addr: Long): Char = Memory.loadShort(addr).toChar
+
   def storeInt(addr: Long, v: Int): Unit = Memory.storeInt(addr, v)
 
   def storeLong(addr: Long, v: Long): Unit = Memory.storeLong(addr, v)
@@ -44,6 +48,10 @@ object Region {
   def storeAddress(addr: Long, v: Long): Unit = Memory.storeAddress(addr, v)
 
   def storeByte(addr: Long, v: Byte): Unit = Memory.storeByte(addr, v)
+
+  def storeShort(addr: Long, s: Short): Unit = Memory.storeShort(addr, s)
+
+  def storeChar(addr: Long, c: Char): Unit = Memory.storeShort(addr, c.toShort)
 
   def loadBoolean(addr: Long): Boolean = if (Memory.loadByte(addr) == 0) false else true
 
@@ -112,6 +120,10 @@ object Region {
 
   def loadByte(addr: Code[Long]): Code[Byte] = Code.invokeScalaObject[Long, Byte](Region.getClass, "loadByte", addr)
 
+  def loadShort(addr: Code[Long]): Code[Short] = Code.invokeScalaObject[Long, Short](Region.getClass, "loadShort", addr)
+
+  def loadChar(addr: Code[Long]): Code[Char] = Code.invokeScalaObject[Long, Char](Region.getClass, "loadChar", addr)
+
   def storeInt(addr: Code[Long], v: Code[Int]): Code[Unit] = Code.invokeScalaObject[Long, Int, Unit](Region.getClass, "storeInt", addr, v)
 
   def storeLong(addr: Code[Long], v: Code[Long]): Code[Unit] = Code.invokeScalaObject[Long, Long, Unit](Region.getClass, "storeLong", addr, v)
@@ -120,9 +132,13 @@ object Region {
 
   def storeDouble(addr: Code[Long], v: Code[Double]): Code[Unit] = Code.invokeScalaObject[Long, Double, Unit](Region.getClass, "storeDouble", addr, v)
 
+  def storeChar(addr: Code[Long], v: Code[Char]): Code[Unit] = Code.invokeScalaObject[Long, Char, Unit](Region.getClass, "storeChar", addr, v)
+
   def storeAddress(addr: Code[Long], v: Code[Long]): Code[Unit] = Code.invokeScalaObject[Long, Long, Unit](Region.getClass, "storeAddress", addr, v)
 
   def storeByte(addr: Code[Long], v: Code[Byte]): Code[Unit] = Code.invokeScalaObject[Long, Byte, Unit](Region.getClass, "storeByte", addr, v)
+
+  def storeShort(addr: Code[Long], v: Code[Short]): Code[Unit] = Code.invokeScalaObject[Long, Short, Unit](Region.getClass, "storeShort", addr, v)
 
   def loadBoolean(addr: Code[Long]): Code[Boolean] = Code.invokeScalaObject[Long, Boolean](Region.getClass, "loadBoolean", addr)
 

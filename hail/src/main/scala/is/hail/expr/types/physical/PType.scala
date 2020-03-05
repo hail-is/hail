@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir
-import is.hail.expr.ir.{Ascending, Descending, EmitMethodBuilder, IRParser, PValue, SortOrder}
+import is.hail.expr.ir._
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.{BaseType, Requiredness}
 import is.hail.utils._
@@ -323,4 +323,26 @@ abstract class PType extends Serializable with Requiredness {
   final def typeCheck(a: Any): Boolean = a == null || _typeCheck(a)
 
   def _typeCheck(a: Any): Boolean = virtualType._typeCheck(a)
+
+  def load(src: Code[Long]): PValue = {
+    val ti: TypeInfo[_] = typeToTypeInfo(this)
+    val v = if (ti == ByteInfo)
+      Region.loadByte(src)
+    else if (ti == ShortInfo)
+      Region.loadShort(src)
+    else if (ti == IntInfo)
+      Region.loadInt(src)
+    else if (ti == LongInfo)
+      Region.loadLong(src)
+    else if (ti == FloatInfo)
+      Region.loadFloat(src)
+    else if (ti == DoubleInfo)
+      Region.loadDouble(src)
+    else {
+      assert(ti == CharInfo)
+      Region.loadChar(src)
+    }
+
+    new PPrimitiveValue(this, v)
+  }
 }

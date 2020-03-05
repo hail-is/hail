@@ -1,5 +1,8 @@
 package is.hail.expr.types.physical
 
+import is.hail.annotations.Region
+import is.hail.asm4s.Code
+import is.hail.expr.ir.{PCanonicalIndexableValue, PValue}
 import is.hail.expr.types.virtual.{TArray, TDict, Type}
 
 final case class PCanonicalDict(keyType: PType, valueType: PType, required: Boolean = false) extends PDict with PArrayBackedContainer {
@@ -26,4 +29,7 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
 
   private def deepRenameDict(t: TDict) =
     PCanonicalDict(this.keyType.deepRename(t.keyType), this.valueType.deepRename(t.valueType), this.required)
+
+  override def load(src: Code[Long]): PValue =
+    new PCanonicalIndexableValue(this, Region.loadAddress(src))
 }
