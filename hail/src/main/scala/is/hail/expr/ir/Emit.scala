@@ -460,7 +460,7 @@ private class Emit(
       case Ref(name, _) =>
         val (m, v) = env.lookup(name)
         if (v.pt != pt)
-          throw new RuntimeException(s"PValue type did not match inferred ptype:\n  pv: ${ v.pt }\n  ir: $pt")
+          throw new RuntimeException(s"PValue type did not match inferred ptype:\n name: $name\n  pv: ${ v.pt }\n  ir: $pt")
         EmitTriplet(Code._empty, m, v)
 
       case ApplyBinaryPrimOp(op, l, r) =>
