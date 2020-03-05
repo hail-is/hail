@@ -166,8 +166,8 @@ abstract class RegistryFunctions {
     case _: PFloat32 => coerce[Float]
     case _: PFloat64 => coerce[Double]
     case _: PCall => coerce[Int]
-    case t: PString => c =>
-      t.loadString(coerce[Long](c))
+    case t: PString => c => t.loadString(coerce[Long](c))
+    case t: PLocus => c => LocusFunctions.getLocus(r, coerce[Long](c), t)
     case _ => c =>
       Code.invokeScalaObject[PType, Region, Long, Any](
         UnsafeRow.getClass, "read",
@@ -182,8 +182,8 @@ abstract class RegistryFunctions {
     case _: PFloat32 => c => Code.boxFloat(coerce[Float](c))
     case _: PFloat64 => c => Code.boxDouble(coerce[Double](c))
     case _: PCall => c => Code.boxInt(coerce[Int](c))
-    case t: PString => c =>
-      t.loadString(coerce[Long](c))
+    case t: PString => c => t.loadString(coerce[Long](c))
+    case t: PLocus => c => LocusFunctions.getLocus(r, coerce[Long](c), t)
     case _ => c =>
       Code.invokeScalaObject[PType, Region, Long, AnyRef](
         UnsafeRow.getClass, "readAnyRef",

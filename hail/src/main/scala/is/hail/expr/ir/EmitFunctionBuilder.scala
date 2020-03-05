@@ -188,10 +188,10 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
       field.load()
     })
 
-  override def addLiteral(v: Any, t: PType, region: Code[Region]): Code[_] = {
+  override def addLiteral(v: Any, t: PType): Code[_] = {
     assert(v != null)
     literalsMap.getOrElseUpdate(t -> v, {
-      val fromParent = parentfb.addLiteral(v, t, region)
+      val fromParent = parentfb.addLiteral(v, t)
       val ti: TypeInfo[_] = typeToTypeInfo(t)
       val field = addField(fromParent, dummy = true)(ti)
       field.load()
@@ -237,7 +237,7 @@ class EmitFunctionBuilder[F >: Null](
   private[this] lazy val encLitField: ClassFieldRef[Array[Byte]] = newField[Array[Byte]]("encodedLiterals")
   val partitionRegion: ClassFieldRef[Region] = newField[Region]("partitionRegion")
 
-  def addLiteral(v: Any, t: PType, region: Code[Region]): Code[_] = {
+  def addLiteral(v: Any, t: PType): Code[_] = {
     assert(v != null)
     assert(t.isCanonical)
     val f = literalsMap.getOrElseUpdate(t -> v, newField("literal")(typeToTypeInfo(t)))

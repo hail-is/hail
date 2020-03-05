@@ -22,7 +22,13 @@ object LocusFunctions extends RegistryFunctions {
   def tinterval(name: String): TInterval = TInterval(tlocus(name))
 
   def getLocus(r: EmitRegion, locus: Code[Long], locusT: PLocus): Code[Locus] = {
-    Code.checkcast[Locus](wrapArg(r, locusT)(locus).asInstanceOf[Code[AnyRef]])
+    val l = r.mb.newLocal[Long]
+    val lObject = r.mb.newLocal[Locus]
+    Code(
+      l := locus,
+      lObject := Code.invokeStatic[Locus, String, Int, Locus]("apply",
+        locusT.contigType.loadString(locusT.contig(l)),
+        locusT.position(l)), lObject)
   }
 
   def emitLocus(r: EmitRegion, locus: Code[Locus], rt: PLocus): Code[Long] = {
@@ -136,16 +142,30 @@ object LocusFunctions extends RegistryFunctions {
       srvb.offset)
   }
 
-  def registerLocusCode(methodName: String): Unit = {
-    registerCode(methodName, tv("T", "locus"), TBoolean(), null) {
-      case (r: EmitRegion, rt, (locusT: PLocus, locus: Code[Long])) =>
-        val locusObject = getLocus(r, locus, locusT)
-        val rg = locusT.rg
+  def registerLocusCode(methodName: String)(f: IR => IR): Unit =
+    registerIR(methodName, tlocus("T"), TBoolean())(f)
 
-        val codeRG = r.mb.getReferenceGenome(rg)
-        unwrapReturn(r, rt)(locusObject.invoke[ReferenceGenome, Boolean](methodName, codeRG))
-    }
+  def inX(locus: IR): IR = {
+    val xContigs = Literal(TSet(TString()), locus.typ.asInstanceOf[TLocus].rg.xContigs)
+    invoke("contains", TBoolean(), xContigs, invoke("contig", TString(), locus))
   }
+
+  def inY(locus: IR): IR = {
+    val yContigs = Literal(TSet(TString()), locus.typ.asInstanceOf[TLocus].rg.yContigs)
+    invoke("contains", TBoolean(), yContigs, invoke("contig", TString(), locus))
+  }
+
+  def inPar(locus: IR): IR = {
+    val t = locus.typ.asInstanceOf[TLocus]
+    val par = Literal(TArray(TInterval(t)), t.rg.par.toFastIndexedSeq)
+    ArrayFunctions.exists(par, interval => invoke("contains", TBoolean(), interval, locus))
+  }
+
+  def isMitochondrial(locus: IR): IR = {
+    val mtContigs = Literal(TSet(TString()), locus.typ.asInstanceOf[TLocus].rg.mtContigs)
+    invoke("contains", TBoolean(), mtContigs, invoke("contig", TString(), locus))
+  }
+  def isAutosomal(locus: IR): IR = !(inX(locus) || inY(locus) || isMitochondrial(locus))
 
   def registerAll() {
     val locusClass = Locus.getClass
@@ -160,14 +180,15 @@ object LocusFunctions extends RegistryFunctions {
       case (r, rt, (locusT: PLocus, locus: Code[Long])) =>
         locusT.position(locus)
     }
-
-    registerLocusCode("isAutosomalOrPseudoAutosomal")
-    registerLocusCode("isAutosomal")
-    registerLocusCode("inYNonPar")
-    registerLocusCode("inXPar")
-    registerLocusCode("isMitochondrial")
-    registerLocusCode("inXNonPar")
-    registerLocusCode("inYPar")
+    registerLocusCode("isAutosomalOrPseudoAutosomal") { locus =>
+      isAutosomal(locus) || ((inX(locus) || inY(locus)) && inPar(locus))
+    }
+    registerLocusCode("isAutosomal")(isAutosomal)
+    registerLocusCode("isMitochondrial")(isMitochondrial)
+    registerLocusCode("inXPar") { locus => inX(locus) && inPar(locus) }
+    registerLocusCode("inYPar") { locus => inY(locus) && inPar(locus) }
+    registerLocusCode("inXNonPar") { locus => inX(locus) && !inPar(locus) }
+    registerLocusCode("inYNonPar") { locus => inY(locus) && !inPar(locus) }
 
     registerCode("min_rep", tlocus("T"), TArray(TString()), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString())), null) {
       case (r, rt: PStruct, (locusT: PLocus, lOff), (allelesT, aOff)) =>
