@@ -2,7 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.types.physical.{PCanonicalArray, PCanonicalDict, PCanonicalSet, PContainer, PType, PVoid}
+import is.hail.utils._
+import is.hail.expr.types.physical._
 
 abstract class PSettable[PV <: PValue] {
   def load(): PV
@@ -24,7 +25,7 @@ object PValue {
       new PCanonicalIndexableValue(pt, coerce[Long](code))
 
     case _ =>
-      new PrimitivePValue(pt, code)
+      new PPrimitiveValue(pt, code)
   }
 
   def _empty: PValue = PValue(PVoid, Code._empty)
@@ -41,9 +42,19 @@ abstract class PValue {
     assert(ti == typeInfo)
     code.asInstanceOf[Code[T]]
   }
+
+  def store(mb: EmitMethodBuilder, r: Code[Region], dst: Code[Long]): Code[Unit]
+
+  def allocateAndStore(mb: EmitMethodBuilder, r: Code[Region]): (Code[Unit], Code[Long]) = {
+    val dst = mb.newLocal[Long]
+    (Code(dst := r.allocate(pt.byteSize, pt.alignment), store(mb, r, dst)), dst)
+  }
 }
 
-class PrimitivePValue(val pt: PType, val code: Code[_]) extends PValue
+class PPrimitiveValue(val pt: PType, val code: Code[_]) extends PValue {
+  def store(mb: EmitMethodBuilder, r: Code[Region], a: Code[Long]): Code[Unit] =
+    Region.storeIRIntermediate(pt)(a, code)
+}
 
 abstract class PIndexableValue extends PValue {
   def loadLength(): Code[Int]
@@ -85,8 +96,9 @@ class PCanonicalIndexableValue(val pt: PContainer, val a: Code[Long]) extends PI
   def elementAddress(length: Code[Int], i: Code[Int]): Code[Long] =
     elementsAddress(length) + i.toL * arrayElementSize
 
-  def loadElement(length: Code[Int], i: Code[Int]): PValue = {
-    val elemA = elementAddress(length, i)
-    PValue(elementType, Region.loadIRIntermediate(elementType)(elemA))
-  }
+  def loadElement(length: Code[Int], i: Code[Int]): PValue =
+    elementType.load(elementAddress(length, i))
+
+  def store(mb: EmitMethodBuilder, r: Code[Region], dst: Code[Long]): Code[Unit] =
+    Region.storeAddress(dst, a)
 }
