@@ -122,7 +122,7 @@ abstract class PBaseStructValue extends PValue {
   def loadField(fieldName: String): PValue = loadField(pt.fieldIdx(fieldName))
 }
 
-class PCanonicalBaseStructValue(val pt: PCanonicalBaseStruct, val a: Code[Long]) extends PValue {
+class PCanonicalBaseStructValue(val pt: PCanonicalBaseStruct, val a: Code[Long]) extends PBaseStructValue {
   def code: Code[_] = a
 
   def isFieldMissing(fieldIdx: Int): Code[Boolean] =
