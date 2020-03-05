@@ -1072,14 +1072,16 @@ private class Emit(
         val fieldIdx = t.fieldIdx(name)
         val codeO = emit(o)
         val xmo = mb.newLocal[Boolean]()
-        val xo = mb.newLocal[Long]
+        val xo = mb.newPLocal[PBaseStructValue](t)
         val setup = Code(
           codeO.setup,
           xmo := codeO.m,
-          xo := coerce[Long](xmo.mux(defaultValue(t), codeO.v)))
+          xmo.mux(
+            xo.storeAny(t.defaultValue),
+            xo.storeAny(codeO.pv)))
         EmitTriplet(setup,
-          xmo || !t.isFieldDefined(xo, fieldIdx),
-          PValue(pt, Region.loadIRIntermediate(t.types(fieldIdx))(t.fieldOffset(xo, fieldIdx))))
+          xmo || xo.load().isFieldMissing(fieldIdx),
+          xo.load().loadField(fieldIdx))
 
       case x@MakeTuple(fields) =>
         val srvb = new StagedRegionValueBuilder(mb, x.pType)
@@ -1096,14 +1098,16 @@ private class Emit(
         val idx = t.fieldIndex(i)
         val codeO = emit(o)
         val xmo = mb.newLocal[Boolean]()
-        val xo = mb.newLocal[Long]
+        val xo = mb.newPLocal[PBaseStructValue](t)
         val setup = Code(
           codeO.setup,
           xmo := codeO.m,
-          xo := coerce[Long](xmo.mux(defaultValue(t), codeO.v)))
+          xmo.mux(
+            xo.storeAny(t.defaultValue),
+            xo.storeAny(codeO.pv)))
         EmitTriplet(setup,
-          xmo || !t.isFieldDefined(xo, idx),
-          PValue(pt, Region.loadIRIntermediate(t.types(idx))(t.fieldOffset(xo, idx))))
+          xmo || xo.load().isFieldMissing(idx),
+          xo.load().loadField(idx))
 
       case In(i, typ) =>
         normalArgument(i, typ)

@@ -24,6 +24,9 @@ object PValue {
     case pt: PCanonicalDict =>
       new PCanonicalIndexableValue(pt, coerce[Long](code))
 
+    case pt: PCanonicalBaseStruct =>
+      new PCanonicalBaseStructValue(pt, coerce[Long](code))
+
     case _ =>
       new PPrimitiveValue(pt, code)
   }
@@ -101,4 +104,37 @@ class PCanonicalIndexableValue(val pt: PContainer, val a: Code[Long]) extends PI
 
   def store(mb: EmitMethodBuilder, r: Code[Region], dst: Code[Long]): Code[Unit] =
     Region.storeAddress(dst, a)
+}
+
+abstract class PBaseStructValue extends PValue {
+  def pt: PBaseStruct
+
+  def isFieldMissing(fieldIdx: Int): Code[Boolean]
+
+  def loadField(fieldIdx: Int): PValue
+
+  def isFieldMissing(fieldName: String): Code[Boolean] = isFieldMissing(pt.fieldIdx(fieldName))
+
+  def isFieldDefined(fieldIdx: Int): Code[Boolean] = !isFieldMissing(fieldIdx)
+
+  def isFieldDefined(fieldName: String): Code[Boolean] = !isFieldMissing(fieldName)
+
+  def loadField(fieldName: String): PValue = loadField(pt.fieldIdx(fieldName))
+}
+
+class PCanonicalBaseStructValue(val pt: PCanonicalBaseStruct, val a: Code[Long]) extends PBaseStructValue {
+  def code: Code[_] = a
+
+  def isFieldMissing(fieldIdx: Int): Code[Boolean] =
+    if (pt.fieldRequired(fieldIdx))
+      const(false)
+    else
+      Region.loadBit(a, pt.missingIdx(fieldIdx).toLong)
+
+  def fieldAddress(fieldIdx: Int): Code[Long] = a + pt.byteOffsets(fieldIdx)
+
+  def loadField(fieldIdx: Int): PValue = pt.fields(fieldIdx).typ.load(fieldAddress(fieldIdx))
+
+  def store(mb: EmitMethodBuilder, r: Code[Region], dst: Code[Long]): Code[Unit] =
+    pt.constructAtAddress(mb, dst, r, pt, a, forceDeep = false)
 }
