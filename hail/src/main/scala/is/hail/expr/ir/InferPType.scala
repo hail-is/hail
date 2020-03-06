@@ -131,7 +131,7 @@ object InferPType {
     def infer(ir: IR, env: Env[PType] = env, aggs: Array[AggStatePhysicalSignature] = aggs,
       inits: AAB[InitOp] = inits, seqs: AAB[SeqOp] = seqs): Unit = _apply(ir, env, aggs, inits, seqs)
 
-    ir.pType = ir match {
+    ir._pType = ir match {
       case I32(_) => PInt32(true)
       case I64(_) => PInt64(true)
       case F32(_) => PFloat32(true)
@@ -515,7 +515,7 @@ object InferPType {
       case WriteValue(value, pathPrefix, spec) =>
         infer(value)
         infer(pathPrefix)
-        PCanonicalString(pathPrefix.pType.required)
+        PCanonicalString(pathPrefix.pType.required && value.pType.required)
       case MakeStream(irs, t) =>
         if (irs.isEmpty) {
           PType.canonical(t, true).deepInnerRequired(true)

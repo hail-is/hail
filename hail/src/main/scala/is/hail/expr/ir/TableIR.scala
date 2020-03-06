@@ -385,7 +385,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     TStruct.empty)
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
-    val localRowType = PType.canonical(typ.rowType).asInstanceOf[PStruct]
+    val localRowType = PCanonicalStruct("idx" -> PInt32Required)
     val localPartCounts = partCounts
     val partStarts = partCounts.scanLeft(0)(_ + _)
     val hc = HailContext.get
