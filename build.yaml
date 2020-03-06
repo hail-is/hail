@@ -800,7 +800,6 @@ steps:
    script: |
      set -ex
      cd /hail/python/hail
-     export IN_DOCTEST=1
      python3 -m pytest --instafail \
        --doctest-modules \
        --doctest-glob='*.rst' \

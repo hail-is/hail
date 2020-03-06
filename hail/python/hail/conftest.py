@@ -1,5 +1,4 @@
 import doctest
-import hashlib
 import os
 
 import numpy as np
@@ -7,59 +6,39 @@ import pytest
 
 import hail as hl
 
-
-def pytest_collection_modifyitems(config, items):
-    n_splits = int(os.environ.get('PYTEST_SPLITS', '1'))
-    split_index = int(os.environ.get('PYTEST_SPLIT_INDEX', '-1'))
-    if n_splits <= 1:
-        return
-    if not (0 <= split_index < n_splits):
-        raise RuntimeError(f"invalid split_index: index={split_index}, n_splits={n_splits}")
-    skip_this = pytest.mark.skip(reason="skipped in this round")
-
-    def digest(s):
-        return int.from_bytes(hashlib.md5(str(s).encode('utf-8')).digest(), 'little')
-
-    for item in items:
-        if not digest(item.name) % n_splits == split_index:
-            item.add_marker(skip_this)
+SKIP_OUTPUT_CHECK = doctest.register_optionflag('SKIP_OUTPUT_CHECK')
 
 
-if os.environ.get('IN_DOCTEST'):
+@pytest.fixture(autouse=True)
+def patch_doctest_check_output(monkeypatch):
+    # FIXME: remove once test output matches docs
+    base_check_output = doctest.OutputChecker.check_output
 
-    SKIP_OUTPUT_CHECK = doctest.register_optionflag('SKIP_OUTPUT_CHECK')
+    def patched_check_output(self, want, got, optionflags):
+        return ((not want)
+                or (want.strip() == 'None')
+                or (SKIP_OUTPUT_CHECK & optionflags)
+                or base_check_output(self, want, got, optionflags | doctest.NORMALIZE_WHITESPACE))
+
+    monkeypatch.setattr('doctest.OutputChecker.check_output', patched_check_output)
+    yield
+    monkeypatch.undo()
 
 
-    @pytest.fixture(autouse=True)
-    def patch_doctest_check_output(monkeypatch):
-        # FIXME: remove once test output matches docs
-        base_check_output = doctest.OutputChecker.check_output
+@pytest.fixture(scope="session", autouse=True)
+def init(doctest_namespace):
+    # This gets run once per process -- must avoid race conditions
+    print("setting up doctest...")
 
-        def patched_check_output(self, want, got, optionflags):
-            return ((not want)
-                    or (want.strip() == 'None')
-                    or (SKIP_OUTPUT_CHECK & optionflags)
-                    or base_check_output(self, want, got, optionflags | doctest.NORMALIZE_WHITESPACE))
-
-        monkeypatch.setattr('doctest.OutputChecker.check_output', patched_check_output)
+    olddir = os.getcwd()
+    os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                          "docs"))
+    try:
+        generate_datasets(doctest_namespace)
+        print("finished setting up doctest...")
         yield
-        monkeypatch.undo()
-
-
-    @pytest.fixture(scope="session", autouse=True)
-    def init(doctest_namespace):
-        # This gets run once per process -- must avoid race conditions
-        print("setting up doctest...")
-
-        olddir = os.getcwd()
-        os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                              "docs"))
-        try:
-            generate_datasets(doctest_namespace)
-            print("finished setting up doctest...")
-            yield
-        finally:
-            os.chdir(olddir)
+    finally:
+        os.chdir(olddir)
 
 
 def generate_datasets(doctest_namespace):
@@ -179,8 +158,8 @@ def generate_datasets(doctest_namespace):
 
     burden_ds = hl.import_vcf('data/example_burden.vcf')
     burden_kt = hl.import_table('data/example_burden.tsv', key='Sample', impute=True)
-    burden_ds = burden_ds.annotate_cols(burden = burden_kt[burden_ds.s])
-    burden_ds = burden_ds.annotate_rows(weight = hl.float64(burden_ds.locus.position))
+    burden_ds = burden_ds.annotate_cols(burden=burden_kt[burden_ds.s])
+    burden_ds = burden_ds.annotate_rows(weight=hl.float64(burden_ds.locus.position))
     burden_ds = hl.variant_qc(burden_ds)
     genekt = hl.import_locus_intervals('data/gene.interval_list')
     burden_ds = burden_ds.annotate_rows(gene=genekt[burden_ds.locus])
