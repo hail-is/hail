@@ -30,6 +30,21 @@ gsutil -m cp -r gs://hail-common/vep/vep/homo_sapiens/85_${ASSEMBLY} /vep_data/h
 docker pull ${VEP_DOCKER_IMAGE} &
 wait
 
+# New version
+gsutil -m cp gs://hail-us-vep/loftee-beta/${ASSEMBLY}.tar /vep_data2/${ASSEMBLY}.tar &
+gsutil -m cp gs://hail-us-vep/Plugins.tar /vep_data2/Plugins.tar &
+gsutil -m cp gs://hail-us-vep/homo-sapiens/85_${ASSEMBLY}.tar /vep_data2/homo_sapiens/85_${ASSEMBLY}.tar &
+docker pull ${VEP_DOCKER_IMAGE} &
+wait
+
+tar -xvf /vep_data2/${ASSEMBLY}.tar
+rm /vep_data2/${ASSEMBLY}.tar
+tar -xvf /vep_data2/Plugins.tar
+rm /vep_data2/Plugins.tar
+tar -xvf /vep_data2/homo_sapiens/85_${ASSEMBLY}.tar
+rm /vep_data2/homo_sapiens/85_${ASSEMBLY}.tar 
+
+
 cat >/vep.c <<EOF
 #include <unistd.h>
 #include <stdio.h>
