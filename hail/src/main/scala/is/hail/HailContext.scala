@@ -696,7 +696,7 @@ class HailContext private(
     val (keyType, annotationType) = indexSpec.types
     indexSpec.offsetField.foreach { f =>
       require(annotationType.asInstanceOf[TStruct].hasField(f))
-      require(annotationType.asInstanceOf[TStruct].fieldType(f) == TInt64())
+      require(annotationType.asInstanceOf[TStruct].fieldType(f) == TInt64)
     }
     val (leafPType: PStruct, leafDec) = indexSpec.leafCodec.buildDecoder(indexSpec.leafCodec.encodedVirtualType)
     val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(indexSpec.internalNodeCodec.encodedVirtualType)
@@ -780,11 +780,11 @@ class HailContext private(
       val (keyType, annotationType) = indexSpec.types
       indexSpec.offsetField.foreach { f =>
         require(annotationType.asInstanceOf[TStruct].hasField(f))
-        require(annotationType.asInstanceOf[TStruct].fieldType(f) == TInt64())
+        require(annotationType.asInstanceOf[TStruct].fieldType(f) == TInt64)
       }
       indexSpecEntries.get.offsetField.foreach { f =>
         require(annotationType.asInstanceOf[TStruct].hasField(f))
-        require(annotationType.asInstanceOf[TStruct].fieldType(f) == TInt64())
+        require(annotationType.asInstanceOf[TStruct].fieldType(f) == TInt64)
       }
       IndexReaderBuilder.fromSpec(indexSpec)
     }
@@ -812,11 +812,11 @@ class HailContext private(
   }
 
   def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {
-    LoadVCF.parseHeaderMetadata(this, Set.empty, TFloat64(), file)
+    LoadVCF.parseHeaderMetadata(this, Set.empty, TFloat64, file)
   }
 
   def pyParseVCFMetadataJSON(file: String): String = {
-    val metadata = LoadVCF.parseHeaderMetadata(this, Set.empty, TFloat64(), file)
+    val metadata = LoadVCF.parseHeaderMetadata(this, Set.empty, TFloat64, file)
     implicit val formats = defaultJSONFormats
     JsonMethods.compact(Extraction.decompose(metadata))
   }

@@ -154,13 +154,13 @@ object IRBuilder {
 
     def ||(other: IRProxy): IRProxy = invoke("||", TBoolean(), ir, other)
 
-    def toI: IRProxy = (env: E) => Cast(ir(env), TInt32())
+    def toI: IRProxy = (env: E) => Cast(ir(env), TInt32)
 
-    def toL: IRProxy = (env: E) => Cast(ir(env), TInt64())
+    def toL: IRProxy = (env: E) => Cast(ir(env), TInt64)
 
-    def toF: IRProxy = (env: E) => Cast(ir(env), TFloat32())
+    def toF: IRProxy = (env: E) => Cast(ir(env), TFloat32)
 
-    def toD: IRProxy = (env: E) => Cast(ir(env), TFloat64())
+    def toD: IRProxy = (env: E) => Cast(ir(env), TFloat64)
 
     def unary_-(): IRProxy = (env: E) => ApplyUnaryPrimOp(Negate(), ir(env))
 
@@ -294,7 +294,7 @@ object IRBuilder {
         array,
         elementsSym.name,
         indexSym.name,
-        aggBody.apply(env.bind(elementsSym.name -> eltType, indexSym.name -> TInt32())),
+        aggBody.apply(env.bind(elementsSym.name -> eltType, indexSym.name -> TInt32)),
         knownLength.map(_ (env)),
         isScan = false)
     }

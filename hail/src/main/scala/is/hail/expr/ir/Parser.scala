@@ -983,7 +983,7 @@ object IRParser {
         val a = ir_value_expr(env)(it)
         val aggBody = ir_value_expr(env
           + (elementName -> coerce[TArray](a.typ).elementType)
-          + (indexName -> TInt32()))(it)
+          + (indexName -> TInt32))(it)
         val knownLength = if (hasKnownLength) Some(ir_value_expr(env)(it)) else None
         AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan)
       case "ApplyAggOp" =>
@@ -1399,7 +1399,7 @@ object IRParser {
       case "MatrixMapCols" =>
         val newKey = opt(it, string_literals)
         val child = matrix_ir(env)(it)
-        val newCol = ir_value_expr(env.withRefMap(child.typ.refMap) + ("n_rows" -> TInt64()))(it)
+        val newCol = ir_value_expr(env.withRefMap(child.typ.refMap) + ("n_rows" -> TInt64))(it)
         MatrixMapCols(child, newCol, newKey.map(_.toFastIndexedSeq))
       case "MatrixKeyRowsBy" =>
         val key = identifiers(it)
@@ -1408,7 +1408,7 @@ object IRParser {
         MatrixKeyRowsBy(child, key, isSorted)
       case "MatrixMapRows" =>
         val child = matrix_ir(env)(it)
-        val newRow = ir_value_expr(env.withRefMap(child.typ.refMap) + ("n_cols" -> TInt32()))(it)
+        val newRow = ir_value_expr(env.withRefMap(child.typ.refMap) + ("n_cols" -> TInt32))(it)
         MatrixMapRows(child, newRow)
       case "MatrixMapEntries" =>
         val child = matrix_ir(env)(it)

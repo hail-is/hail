@@ -14,7 +14,7 @@ class MathFunctionsSuite extends HailSuite {
   hc
   implicit val execStrats = ExecStrategy.values
 
-  val tfloat = TFloat64()
+  val tfloat = TFloat64
 
   @Test def isnan() {
     implicit val execStrats = ExecStrategy.javaOnly
@@ -62,25 +62,25 @@ class MathFunctionsSuite extends HailSuite {
   @Test def sign() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    assertEvalsTo(invoke("sign", TInt32(), I32(2)), 1)
-    assertEvalsTo(invoke("sign", TInt32(), I32(0)), 0)
-    assertEvalsTo(invoke("sign", TInt32(), I32(-2)), -1)
+    assertEvalsTo(invoke("sign", TInt32, I32(2)), 1)
+    assertEvalsTo(invoke("sign", TInt32, I32(0)), 0)
+    assertEvalsTo(invoke("sign", TInt32, I32(-2)), -1)
 
-    assertEvalsTo(invoke("sign", TInt64(), I64(2)), 1l)
-    assertEvalsTo(invoke("sign", TInt64(), I64(0)), 0l)
-    assertEvalsTo(invoke("sign", TInt64(), I64(-2)), -1l)
+    assertEvalsTo(invoke("sign", TInt64, I64(2)), 1l)
+    assertEvalsTo(invoke("sign", TInt64, I64(0)), 0l)
+    assertEvalsTo(invoke("sign", TInt64, I64(-2)), -1l)
 
-    assertEvalsTo(invoke("sign", TFloat32(), F32(2)), 1.0f)
-    assertEvalsTo(invoke("sign", TFloat32(), F32(0)), 0.0f)
-    assertEvalsTo(invoke("sign", TFloat32(), F32(-2)), -1.0f)
+    assertEvalsTo(invoke("sign", TFloat32, F32(2)), 1.0f)
+    assertEvalsTo(invoke("sign", TFloat32, F32(0)), 0.0f)
+    assertEvalsTo(invoke("sign", TFloat32, F32(-2)), -1.0f)
 
-    assertEvalsTo(invoke("sign", TFloat64(), F64(2)), 1.0)
-    assertEvalsTo(invoke("sign", TFloat64(), F64(0)), 0.0)
-    assertEvalsTo(invoke("sign", TFloat64(), F64(-2)), -1.0)
+    assertEvalsTo(invoke("sign", TFloat64, F64(2)), 1.0)
+    assertEvalsTo(invoke("sign", TFloat64, F64(0)), 0.0)
+    assertEvalsTo(invoke("sign", TFloat64, F64(-2)), -1.0)
 
-    assert(eval(invoke("sign", TFloat64(), F64(Double.NaN))).asInstanceOf[Double].isNaN)
-    assertEvalsTo(invoke("sign", TFloat64(), F64(Double.PositiveInfinity)), 1.0)
-    assertEvalsTo(invoke("sign", TFloat64(), F64(Double.NegativeInfinity)), -1.0)
+    assert(eval(invoke("sign", TFloat64, F64(Double.NaN))).asInstanceOf[Double].isNaN)
+    assertEvalsTo(invoke("sign", TFloat64, F64(Double.PositiveInfinity)), 1.0)
+    assertEvalsTo(invoke("sign", TFloat64, F64(Double.NegativeInfinity)), -1.0)
   }
 
   @Test def approxEqual() {
@@ -99,11 +99,11 @@ class MathFunctionsSuite extends HailSuite {
   @Test def entropy() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    assertEvalsTo(invoke("entropy", TFloat64(), Str("")), 0.0)
-    assertEvalsTo(invoke("entropy", TFloat64(), Str("a")), 0.0)
-    assertEvalsTo(invoke("entropy", TFloat64(), Str("aa")), 0.0)
-    assertEvalsTo(invoke("entropy", TFloat64(), Str("ac")), 1.0)
-    assertEvalsTo(invoke("entropy", TFloat64(), Str("accctg")), 1.7924812503605778)
+    assertEvalsTo(invoke("entropy", TFloat64, Str("")), 0.0)
+    assertEvalsTo(invoke("entropy", TFloat64, Str("a")), 0.0)
+    assertEvalsTo(invoke("entropy", TFloat64, Str("aa")), 0.0)
+    assertEvalsTo(invoke("entropy", TFloat64, Str("ac")), 1.0)
+    assertEvalsTo(invoke("entropy", TFloat64, Str("accctg")), 1.7924812503605778)
   }
 
   @DataProvider(name = "chi_squared_test")
@@ -169,31 +169,31 @@ class MathFunctionsSuite extends HailSuite {
   }
 
   @Test def modulusTest() {
-    assertFatal(invoke("%", TInt32(), I32(1), I32(0)), "(modulo by zero)|(error while calling '%')")
-    assertFatal(invoke("%", TInt64(), I64(1), I64(0)), "(modulo by zero)|(error while calling '%')")
-    assertFatal(invoke("%", TFloat32(), F32(1), F32(0)), "(modulo by zero)|(error while calling '%')")
-    assertFatal(invoke("%", TFloat64(), F64(1), F64(0)), "(modulo by zero)|(error while calling '%')")
+    assertFatal(invoke("%", TInt32, I32(1), I32(0)), "(modulo by zero)|(error while calling '%')")
+    assertFatal(invoke("%", TInt64, I64(1), I64(0)), "(modulo by zero)|(error while calling '%')")
+    assertFatal(invoke("%", TFloat32, F32(1), F32(0)), "(modulo by zero)|(error while calling '%')")
+    assertFatal(invoke("%", TFloat64, F64(1), F64(0)), "(modulo by zero)|(error while calling '%')")
   }
 
   @Test def testMinMax() {
     implicit val execStrats = ExecStrategy.javaOnly
     assertAllEvalTo(
-      (invoke("min", TFloat32(), F32(1.0f), F32(2.0f)), 1.0f),
-      (invoke("max", TFloat32(), F32(1.0f), F32(2.0f)), 2.0f),
-      (invoke("min", TFloat64(), F64(1.0), F64(2.0)), 1.0),
-      (invoke("max", TFloat64(), F64(1.0), F64(2.0)), 2.0),
-      (invoke("min", TInt32(), I32(1), I32(2)), 1),
-      (invoke("max", TInt32(), I32(1), I32(2)), 2),
-      (invoke("min", TInt64(), I64(1L), I64(2L)), 1L),
-      (invoke("max", TInt64(), I64(1L), I64(2L)), 2L),
-      (invoke("min", TFloat32(), F32(Float.NaN), F32(1.0f)), Float.NaN),
-      (invoke("min", TFloat64(), F64(Double.NaN), F64(1.0)), Double.NaN),
-      (invoke("max", TFloat32(), F32(Float.NaN), F32(1.0f)), Float.NaN),
-      (invoke("max", TFloat64(), F64(Double.NaN), F64(1.0)), Double.NaN),
-      (invoke("min", TFloat32(), F32(1.0f), F32(Float.NaN)), Float.NaN),
-      (invoke("min", TFloat64(), F64(1.0), F64(Double.NaN)), Double.NaN),
-      (invoke("max", TFloat32(), F32(1.0f), F32(Float.NaN)), Float.NaN),
-      (invoke("max", TFloat64(), F64(1.0), F64(Double.NaN)), Double.NaN)
+      (invoke("min", TFloat32, F32(1.0f), F32(2.0f)), 1.0f),
+      (invoke("max", TFloat32, F32(1.0f), F32(2.0f)), 2.0f),
+      (invoke("min", TFloat64, F64(1.0), F64(2.0)), 1.0),
+      (invoke("max", TFloat64, F64(1.0), F64(2.0)), 2.0),
+      (invoke("min", TInt32, I32(1), I32(2)), 1),
+      (invoke("max", TInt32, I32(1), I32(2)), 2),
+      (invoke("min", TInt64, I64(1L), I64(2L)), 1L),
+      (invoke("max", TInt64, I64(1L), I64(2L)), 2L),
+      (invoke("min", TFloat32, F32(Float.NaN), F32(1.0f)), Float.NaN),
+      (invoke("min", TFloat64, F64(Double.NaN), F64(1.0)), Double.NaN),
+      (invoke("max", TFloat32, F32(Float.NaN), F32(1.0f)), Float.NaN),
+      (invoke("max", TFloat64, F64(Double.NaN), F64(1.0)), Double.NaN),
+      (invoke("min", TFloat32, F32(1.0f), F32(Float.NaN)), Float.NaN),
+      (invoke("min", TFloat64, F64(1.0), F64(Double.NaN)), Double.NaN),
+      (invoke("max", TFloat32, F32(1.0f), F32(Float.NaN)), Float.NaN),
+      (invoke("max", TFloat64, F64(1.0), F64(Double.NaN)), Double.NaN)
     )
   }
 }

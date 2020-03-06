@@ -96,86 +96,86 @@ object StringFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerCode("length", TString(), TInt32(), null) { case (r: EmitRegion, rt, (sT: PString, s: Code[Long])) =>
+    registerCode("length", TString, TInt32, null) { case (r: EmitRegion, rt, (sT: PString, s: Code[Long])) =>
       asm4s.coerce[String](wrapArg(r, sT)(s)).invoke[Int]("length")
     }
 
-    registerCode("slice", TString(), TInt32(), TInt32(), TString(), null) {
+    registerCode("slice", TString, TInt32, TInt32, TString, null) {
       case (r: EmitRegion, rt, (sT: PString, s: Code[Long]), (startT, start: Code[Int]), (endT, end: Code[Int])) =>
       unwrapReturn(r, rt)(asm4s.coerce[String](wrapArg(r, sT)(s)).invoke[Int, Int, String]("substring", start, end))
     }
 
-    registerIR("[*:*]", TString(), TInt32(), TInt32(), TString()) { (str, start, end) =>
-      val len = Ref(genUID(), TInt32())
-      val s = Ref(genUID(), TInt32())
-      val e = Ref(genUID(), TInt32())
-      Let(len.name, invoke("length", TInt32(), str),
+    registerIR("[*:*]", TString, TInt32, TInt32, TString) { (str, start, end) =>
+      val len = Ref(genUID(), TInt32)
+      val s = Ref(genUID(), TInt32)
+      val e = Ref(genUID(), TInt32)
+      Let(len.name, invoke("length", TInt32, str),
         Let(s.name, softBounds(start, len),
           Let(e.name, softBounds(end, len),
-            invoke("slice", TString(), str, s, If(e < s, s, e)))))
+            invoke("slice", TString, str, s, If(e < s, s, e)))))
     }
 
-    registerIR("[]", TString(), TInt32(), TString()) { (s, i) =>
-      val len = Ref(genUID(), TInt32())
-      val idx = Ref(genUID(), TInt32())
-      Let(len.name, invoke("length", TInt32(), s),
+    registerIR("[]", TString, TInt32, TString) { (s, i) =>
+      val len = Ref(genUID(), TInt32)
+      val idx = Ref(genUID(), TInt32)
+      Let(len.name, invoke("length", TInt32, s),
         Let(idx.name,
           If((i < -len) || (i >= len),
-            Die(invoke("+", TString(),
+            Die(invoke("+", TString,
               Str("string index out of bounds: "),
-              invoke("+", TString(),
-                invoke("str", TString(), i),
-                invoke("+", TString(), Str(" / "), invoke("str", TString(), len)))), TInt32()),
+              invoke("+", TString,
+                invoke("str", TString, i),
+                invoke("+", TString, Str(" / "), invoke("str", TString, len)))), TInt32),
             If(i < 0, i + len, i)),
-        invoke("slice", TString(), s, idx, idx + 1)))
+        invoke("slice", TString, s, idx, idx + 1)))
     }
-    registerIR("[:]", TString(), TString())(x => x)
-    registerIR("[*:]", TString(), TInt32(), TString()) { (s, start) => invoke("[*:*]", TString(), s, start, invoke("length", TInt32(), s)) }
-    registerIR("[:*]", TString(), TInt32(), TString()) { (s, end) => invoke("[*:*]", TString(), s, I32(0), end) }
+    registerIR("[:]", TString, TString)(x => x)
+    registerIR("[*:]", TString, TInt32, TString) { (s, start) => invoke("[*:*]", TString, s, start, invoke("length", TInt32, s)) }
+    registerIR("[:*]", TString, TInt32, TString) { (s, end) => invoke("[*:*]", TString, s, I32(0), end) }
 
-    registerCode("str", tv("T"), TString(), null) { case (r, rt, (aT, a)) =>
+    registerCode("str", tv("T"), TString, null) { case (r, rt, (aT, a)) =>
       val annotation = boxArg(r, aT)(a)
       val str = r.mb.getType(aT.virtualType).invoke[Any, String]("str", annotation)
       unwrapReturn(r, rt)(str)
     }
 
-    registerCodeWithMissingness("showStr", tv("T"), TInt32(), TString(), null) { case (r, rt, (aT, a), (_, trunc)) =>
+    registerCodeWithMissingness("showStr", tv("T"), TInt32, TString, null) { case (r, rt, (aT, a), (_, trunc)) =>
       val annotation = Code(a.setup, a.m).mux(Code._null, boxArg(r, aT)(a.v))
       val str = r.mb.getType(aT.virtualType).invoke[Any, Int, String]("showStr", annotation, trunc.value[Int])
       EmitTriplet(trunc.setup, trunc.m, PValue(rt, unwrapReturn(r, rt)(str)))
     }
 
-    registerCodeWithMissingness("json", tv("T"), TString(), null) { case (r, rt, (aT, a)) =>
+    registerCodeWithMissingness("json", tv("T"), TString, null) { case (r, rt, (aT, a)) =>
       val annotation = Code(a.setup, a.m).mux(Code._null, boxArg(r, aT)(a.v))
       val json = r.mb.getType(aT.virtualType).invoke[Any, JValue]("toJSON", annotation)
       val str = Code.invokeScalaObject[JValue, String](JsonMethods.getClass, "compact", json)
       EmitTriplet(Code._empty, false, PValue(rt, unwrapReturn(r, rt)(str)))
     }
 
-    registerWrappedScalaFunction("reverse", TString(), TString(), null)(thisClass,"reverse")
-    registerWrappedScalaFunction("upper", TString(), TString(), null)(thisClass,"upper")
-    registerWrappedScalaFunction("lower", TString(), TString(), null)(thisClass,"lower")
-    registerWrappedScalaFunction("strip", TString(), TString(), null)(thisClass,"strip")
-    registerWrappedScalaFunction("contains", TString(), TString(), TBoolean(), null)(thisClass, "contains")
-    registerWrappedScalaFunction("translate", TString(), TDict(TString(), TString()), TString(), null)(thisClass, "translate")
-    registerWrappedScalaFunction("startswith", TString(), TString(), TBoolean(), null)(thisClass, "startswith")
-    registerWrappedScalaFunction("endswith", TString(), TString(), TBoolean(), null)(thisClass, "endswith")
+    registerWrappedScalaFunction("reverse", TString, TString, null)(thisClass,"reverse")
+    registerWrappedScalaFunction("upper", TString, TString, null)(thisClass,"upper")
+    registerWrappedScalaFunction("lower", TString, TString, null)(thisClass,"lower")
+    registerWrappedScalaFunction("strip", TString, TString, null)(thisClass,"strip")
+    registerWrappedScalaFunction("contains", TString, TString, TBoolean(), null)(thisClass, "contains")
+    registerWrappedScalaFunction("translate", TString, TDict(TString, TString), TString, null)(thisClass, "translate")
+    registerWrappedScalaFunction("startswith", TString, TString, TBoolean(), null)(thisClass, "startswith")
+    registerWrappedScalaFunction("endswith", TString, TString, TBoolean(), null)(thisClass, "endswith")
 
-    registerWrappedScalaFunction("~", TString(), TString(), TBoolean(), null)(thisClass, "regexMatch")
+    registerWrappedScalaFunction("~", TString, TString, TBoolean(), null)(thisClass, "regexMatch")
 
-    registerWrappedScalaFunction("+", TString(), TString(), TString(), null)(thisClass, "concat")
+    registerWrappedScalaFunction("+", TString, TString, TString, null)(thisClass, "concat")
 
-    registerWrappedScalaFunction("split", TString(), TString(), TArray(TString()), null)(thisClass, "split")
+    registerWrappedScalaFunction("split", TString, TString, TArray(TString), null)(thisClass, "split")
 
-    registerWrappedScalaFunction("split", TString(), TString(), TInt32(), TArray(TString()), null)(thisClass, "splitLimited")
+    registerWrappedScalaFunction("split", TString, TString, TInt32, TArray(TString), null)(thisClass, "splitLimited")
 
-    registerWrappedScalaFunction("replace", TString(), TString(), TString(), TString(), null)(thisClass, "replace")
+    registerWrappedScalaFunction("replace", TString, TString, TString, TString, null)(thisClass, "replace")
 
-    registerWrappedScalaFunction("mkString", TSet(TString()), TString(), TString(), null)(thisClass, "setMkString")
+    registerWrappedScalaFunction("mkString", TSet(TString), TString, TString, null)(thisClass, "setMkString")
 
-    registerWrappedScalaFunction("mkString", TArray(TString()), TString(), TString(), null)(thisClass, "arrayMkString")
+    registerWrappedScalaFunction("mkString", TArray(TString), TString, TString, null)(thisClass, "arrayMkString")
 
-    registerCodeWithMissingness("firstMatchIn", TString(), TString(), TArray(TString()), null) {
+    registerCodeWithMissingness("firstMatchIn", TString, TString, TArray(TString), null) {
       case (er: EmitRegion, rt: PArray, (sT: PString, s: EmitTriplet), (rT: PString, r: EmitTriplet)) =>
       val out: LocalRef[IndexedSeq[String]] = er.mb.newLocal[IndexedSeq[String]]
       val nout = new CodeNullable[IndexedSeq[String]](out)
@@ -194,7 +194,7 @@ object StringFunctions extends RegistryFunctions {
         nout.isNull)
       val value =
         nout.ifNull(
-          defaultValue(TArray(TString())),
+          defaultValue(TArray(TString)),
           Code(
             len := out.invoke[Int]("size"),
             srvb.start(len),
@@ -209,7 +209,7 @@ object StringFunctions extends RegistryFunctions {
       EmitTriplet(setup, missing, PValue(rt, value))
     }
 
-    registerCodeWithMissingness("hamming", TString(), TString(), TInt32(), null) {
+    registerCodeWithMissingness("hamming", TString, TString, TInt32, null) {
       case (r: EmitRegion, rt, (e1T: PString, e1: EmitTriplet), (e2T: PString, e2: EmitTriplet)) =>
       val len = r.mb.newLocal[Int]
       val i = r.mb.newLocal[Int]
@@ -237,11 +237,11 @@ object StringFunctions extends RegistryFunctions {
         EmitTriplet(
           Code(e1.setup, e2.setup),
           e1.m || e2.m || m,
-          PValue(rt, m.mux(defaultValue(TInt32()), v)))
+          PValue(rt, m.mux(defaultValue(TInt32), v)))
     }
 
-    registerWrappedScalaFunction("escapeString", TString(), TString(), null)(thisClass, "escapeString")
-    registerWrappedScalaFunction("strftime", TString(), TInt64(), TString(), TString(), null)(thisClass, "strftime")
-    registerWrappedScalaFunction("strptime", TString(), TString(), TString(), TInt64(), null)(thisClass, "strptime")
+    registerWrappedScalaFunction("escapeString", TString, TString, null)(thisClass, "escapeString")
+    registerWrappedScalaFunction("strftime", TString, TInt64, TString, TString, null)(thisClass, "strftime")
+    registerWrappedScalaFunction("strptime", TString, TString, TString, TInt64, null)(thisClass, "strptime")
   }
 }

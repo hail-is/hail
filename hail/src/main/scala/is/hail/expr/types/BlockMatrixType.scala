@@ -84,7 +84,7 @@ object BlockMatrixType {
   def fromBlockMatrix(value: BlockMatrix): BlockMatrixType = {
     val sparsity = BlockMatrixSparsity.fromLinearBlocks(value.nRows, value.nCols, value.blockSize, value.gp.maybeBlocks)
     val (shape, isRowVector) = matrixToTensorShape(value.nRows, value.nCols)
-    BlockMatrixType(TFloat64(), shape, isRowVector, value.blockSize, sparsity)
+    BlockMatrixType(TFloat64, shape, isRowVector, value.blockSize, sparsity)
   }
 }
 

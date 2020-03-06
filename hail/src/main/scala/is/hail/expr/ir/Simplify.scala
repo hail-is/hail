@@ -373,7 +373,7 @@ object Simplify {
     case TableCount(TableLeftJoinRightDistinct(child, _, _)) => TableCount(child)
     case TableCount(TableIntervalJoin(child, _, _, _)) => TableCount(child)
     case TableCount(TableRange(n, _)) => I64(n)
-    case TableCount(TableParallelize(rowsAndGlobal, _)) => Cast(ArrayLen(GetField(rowsAndGlobal, "rows")), TInt64())
+    case TableCount(TableParallelize(rowsAndGlobal, _)) => Cast(ArrayLen(GetField(rowsAndGlobal, "rows")), TInt64)
     case TableCount(TableRename(child, _, _)) => TableCount(child)
     case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
     case TableCount(TableExplode(child, path)) =>
@@ -381,7 +381,7 @@ object Simplify {
         ApplyAggOp(
           FastIndexedSeq(),
           FastIndexedSeq(ArrayLen(CastToArray(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)})).toL),
-          AggSignature(Sum(), FastSeq(), FastSeq(TInt64()))))
+          AggSignature(Sum(), FastSeq(), FastSeq(TInt64))))
 
     case MatrixCount(child) if child.partitionCounts.isDefined || child.columnCount.isDefined =>
       val rowCount = child.partitionCounts match {
@@ -476,7 +476,7 @@ object Simplify {
             uid3,
             GetField(Ref(uid3, sorted.typ.asInstanceOf[TArray].elementType), "value")))),
           ("global", GetField(Ref(uid, x.typ), "global")))))
-    case ArrayLen(GetField(TableCollect(child), "rows")) => Cast(TableCount(child), TInt32())
+    case ArrayLen(GetField(TableCollect(child), "rows")) => Cast(TableCount(child), TInt32)
     case GetField(TableCollect(child), "global") => TableGetGlobals(child)
 
     case TableAggregate(child, query) if child.typ.key.nonEmpty && !ContainsNonCommutativeAgg(query) =>
@@ -710,7 +710,7 @@ object Simplify {
       // n < 256 is arbitrary for memory concerns
       val row = Ref("row", child.typ.rowType)
       val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
-      val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()),  FastSeq(row.typ, keyStruct.typ))
+      val aggSig = AggSignature(TakeBy(), FastSeq(TInt32),  FastSeq(row.typ, keyStruct.typ))
       val te =
         TableExplode(
           TableKeyByAndAggregate(child,

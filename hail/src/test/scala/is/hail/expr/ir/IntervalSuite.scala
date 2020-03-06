@@ -11,7 +11,7 @@ class IntervalSuite extends HailSuite {
 
   implicit val execStrats = ExecStrategy.javaOnly
 
-  val tpoint1 = TTuple(TInt32())
+  val tpoint1 = TTuple(TInt32)
   val tinterval1 = TInterval(tpoint1)
   val na = NA(tinterval1)
 
@@ -79,7 +79,7 @@ class IntervalSuite extends HailSuite {
       SetInterval(3, 1, true, false))
 
   def toIRInterval(i: SetInterval): IR =
-    invoke("Interval", TInterval(TInt32()), i.start, i.end, i.includesStart, i.includesEnd)
+    invoke("Interval", TInterval(TInt32), i.start, i.end, i.includesStart, i.includesEnd)
 
   @Test def contains() {
     for (setInterval <- testIntervals; p <- points) {
@@ -108,7 +108,7 @@ class IntervalSuite extends HailSuite {
     Interval(start, end, includesStart, includesEnd)
 
   @Test def testIntervalSortAndReduce() {
-    val ord = TInt32().ordering.intervalEndpointOrdering
+    val ord = TInt32.ordering.intervalEndpointOrdering
 
     assert(Interval.union(Array[Interval](), ord).sameElements(Array[Interval]()))
     assert(Interval.union(Array(intInterval(0, 10)), ord)
@@ -126,7 +126,7 @@ class IntervalSuite extends HailSuite {
   }
 
   @Test def testIntervalIntersection() {
-    val ord = TInt32().ordering.intervalEndpointOrdering
+    val ord = TInt32.ordering.intervalEndpointOrdering
 
     val x1 = Array[Interval](
       intInterval(5, 10),
@@ -156,7 +156,7 @@ class IntervalSuite extends HailSuite {
   }
 
   @Test def testsortedNonOverlappingIntervalsContain() {
-    val intervals = Literal(TArray(TInterval(TInt32())), FastIndexedSeq(
+    val intervals = Literal(TArray(TInterval(TInt32)), FastIndexedSeq(
       Interval(0, 1, includesStart = true, includesEnd = true),
       Interval(10, 20, includesStart = true, includesEnd = true),
       Interval(30, 32, includesStart = false, includesEnd = false),

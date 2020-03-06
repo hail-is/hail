@@ -36,7 +36,7 @@ class MissingLongArrayBuilder extends Serializable {
     }
   }
 
-  val typ = TArray(TInt64())
+  val typ = TArray(TInt64)
   
   def write(rvb: RegionValueBuilder) {
     rvb.startArray(len)

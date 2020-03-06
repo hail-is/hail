@@ -36,7 +36,7 @@ class MissingFloatArrayBuilder extends Serializable {
     }
   }
 
-  val typ = TArray(TFloat32())
+  val typ = TArray(TFloat32)
 
   def write(rvb: RegionValueBuilder) {
     rvb.startArray(len)

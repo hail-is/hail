@@ -158,14 +158,14 @@ case class MatrixGENReader(
   def fullMatrixType: MatrixType = MatrixType(
     globalType = TStruct.empty,
     colKey = Array("s"),
-    colType = TStruct("s" -> TString()),
+    colType = TStruct("s" -> TString),
     rowKey = Array("locus", "alleles"),
     rowType = TStruct(
       "locus" -> TLocus.schemaFromRG(referenceGenome),
-      "alleles" -> TArray(TString()),
-      "rsid" -> TString(), "varid" -> TString()),
-    entryType = TStruct("GT" -> TCall(),
-      "GP" -> TArray(TFloat64())))
+      "alleles" -> TArray(TString),
+      "rsid" -> TString, "varid" -> TString),
+    entryType = TStruct("GT" -> TCall,
+      "GP" -> TArray(TFloat64)))
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val rdd =

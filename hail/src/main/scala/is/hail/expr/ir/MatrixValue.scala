@@ -241,7 +241,7 @@ case class MatrixValue(
     val localEntryPType = entryPType
     val fieldType = entryPType.field(entryField).typ
 
-    assert(fieldType.virtualType.isOfType(TFloat64()))
+    assert(fieldType.virtualType.isOfType(TFloat64))
 
     val localEntryArrayIdx = entriesIdx
     val fieldIdx = entryType.fieldIdx(entryField)

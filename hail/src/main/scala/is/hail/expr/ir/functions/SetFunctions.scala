@@ -6,7 +6,7 @@ import is.hail.utils.FastSeq
 
 object SetFunctions extends RegistryFunctions {
   def contains(set: IR, elem: IR) = {
-    val i = Ref(genUID(), TInt32())
+    val i = Ref(genUID(), TInt32)
 
     If(IsNA(set),
       NA(TBoolean()),
@@ -87,7 +87,7 @@ object SetFunctions extends RegistryFunctions {
     registerIR("median", TSet(tnum("T")), tv("T")) { s =>
       val t = s.typ.asInstanceOf[TSet].elementType
       val a = Ref(genUID(), TArray(t))
-      val size = Ref(genUID(), TInt32())
+      val size = Ref(genUID(), TInt32)
       val lastIdx = size - 1
       val midIdx = lastIdx.floorDiv(2)
       def ref(i: IR) = ArrayRef(a, i)
@@ -101,7 +101,7 @@ object SetFunctions extends RegistryFunctions {
             If(len.ceq(0), len, If(IsNA(ref(len - 1)), len - 1, len)),
             If(size.ceq(0),
               NA(t),
-              If(invoke("%", TInt32(), size, 2).cne(0),
+              If(invoke("%", TInt32, size, 2).cne(0),
                 ref(midIdx), // odd number of non-missing elements
                 div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)))))))
     }

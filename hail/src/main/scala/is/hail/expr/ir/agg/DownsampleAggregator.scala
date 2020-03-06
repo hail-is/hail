@@ -524,7 +524,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
 }
 
 object DownsampleAggregator {
-  val resultType: TArray = TArray(TTuple(TFloat64(), TFloat64(), TArray(TString())))
+  val resultType: TArray = TArray(TTuple(TFloat64, TFloat64, TArray(TString)))
 }
 
 class DownsampleAggregator(arrayType: PArray) extends StagedAggregator {

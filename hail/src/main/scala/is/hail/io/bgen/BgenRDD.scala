@@ -24,7 +24,7 @@ import scala.language.reflectiveCalls
 object BgenSettings {
   def indexKeyType(rg: Option[ReferenceGenome]): TStruct = TStruct(
     "locus" -> rg.map(TLocus(_)).getOrElse(TLocus.representation),
-    "alleles" -> TArray(TString()))
+    "alleles" -> TArray(TString))
   val indexAnnotationType: Type = TStruct.empty
 
   def indexCodecSpecs(rg: Option[ReferenceGenome]): (AbstractTypedCodecSpec, AbstractTypedCodecSpec) = {

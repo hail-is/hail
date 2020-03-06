@@ -8,11 +8,11 @@ import is.hail.utils._
 object InferType {
   def apply(ir: IR): Type = {
     ir match {
-      case I32(_) => TInt32()
-      case I64(_) => TInt64()
-      case F32(_) => TFloat32()
-      case F64(_) => TFloat64()
-      case Str(_) => TString()
+      case I32(_) => TInt32
+      case I64(_) => TInt64
+      case F32(_) => TFloat32
+      case F64(_) => TFloat64
+      case Str(_) => TString
       case Literal(t, _) => t
       case True() | False() => TBoolean()
       case Void() => TVoid
@@ -29,17 +29,17 @@ object InferType {
       case MakeStream(_, t) => t
       case MakeNDArray(data, shape, _) =>
         TNDArray(coerce[TArray](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
-      case _: ArrayLen => TInt32()
-      case _: StreamRange => TStream(TInt32())
-      case _: ArrayZeros => TArray(TInt32())
-      case _: LowerBoundOnOrderedCollection => TInt32()
+      case _: ArrayLen => TInt32
+      case _: StreamRange => TStream(TInt32)
+      case _: ArrayZeros => TArray(TInt32)
+      case _: LowerBoundOnOrderedCollection => TInt32
       case _: StreamFor => TVoid
       case _: InitOp => TVoid
       case _: SeqOp => TVoid
       case _: CombOp => TVoid
       case ResultOp(_, aggSigs) =>
         TTuple(aggSigs.map(_.resultType): _*)
-      case AggStateValue(i, sig) => TBinary()
+      case AggStateValue(i, sig) => TBinary
       case _: CombOpValue => TVoid
       case _: SerializeAggs => TVoid
       case _: DeserializeAggs => TVoid
@@ -64,7 +64,7 @@ object InferType {
       case ApplyComparisonOp(op, l, r) =>
         assert(l.typ isOfType r.typ)
         op match {
-          case _: Compare => TInt32()
+          case _: Compare => TInt32
           case _ => TBoolean()
         }
       case a: ApplyIR => a.explicitNode.typ
@@ -73,7 +73,7 @@ object InferType {
         a.implementation.unify(argTypes :+ a.returnType)
         a.returnType
       case ArrayRef(a, i, s) =>
-        assert(i.typ.isOfType(TInt32()))
+        assert(i.typ.isOfType(TInt32))
         coerce[TArray](a.typ).elementType
       case ArraySort(a, _, _, compare) =>
         assert(compare.typ.isOfType(TBoolean()))
@@ -139,7 +139,7 @@ object InferType {
         val childType = coerce[TNDArray](nd.typ)
         TNDArray(childType.elementType, Nat(childType.nDims - axes.length))
       case NDArrayRef(nd, idxs) =>
-        assert(idxs.forall(_.typ.isOfType(TInt64())))
+        assert(idxs.forall(_.typ.isOfType(TInt64)))
         coerce[TNDArray](nd.typ).elementType
       case NDArraySlice(nd, slices) =>
         val childTyp = coerce[TNDArray](nd.typ)
@@ -155,11 +155,11 @@ object InferType {
         TNDArray(lTyp.elementType, Nat(TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims)))
       case NDArrayQR(nd, mode) =>
         if (Array("complete", "reduced").contains(mode)) {
-          TTuple(TNDArray(TFloat64(), Nat(2)), TNDArray(TFloat64(), Nat(2)))
+          TTuple(TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)))
         } else if (mode == "raw") {
-          TTuple(TNDArray(TFloat64(), Nat(2)), TNDArray(TFloat64(), Nat(1)))
+          TTuple(TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(1)))
         } else if (mode == "r") {
-          TNDArray(TFloat64(), Nat(2))
+          TNDArray(TFloat64, Nat(2))
         } else {
           throw new NotImplementedError(s"Cannot infer type for mode $mode")
         }
@@ -200,8 +200,8 @@ object InferType {
         val t = coerce[TTuple](o.typ)
         val fd = t.fields(t.fieldIndex(idx)).typ
         fd
-      case TableCount(_) => TInt64()
-      case MatrixCount(_) => TTuple(TInt64(), TInt32())
+      case TableCount(_) => TInt64
+      case MatrixCount(_) => TTuple(TInt64, TInt32)
       case TableAggregate(child, query) =>
         query.typ
       case MatrixAggregate(child, query) =>
@@ -210,7 +210,7 @@ object InferType {
       case _: TableMultiWrite => TVoid
       case _: MatrixWrite => TVoid
       case _: MatrixMultiWrite => TVoid
-      case _: BlockMatrixCollect => TNDArray(TFloat64(), Nat(2))
+      case _: BlockMatrixCollect => TNDArray(TFloat64, Nat(2))
       case _: BlockMatrixWrite => TVoid
       case _: BlockMatrixMultiWrite => TVoid
       case _: UnpersistBlockMatrix => TVoid
@@ -222,7 +222,7 @@ object InferType {
       case CollectDistributedArray(_, _, _, _, body) => TArray(body.typ)
       case ReadPartition(_, _, rowType) => TStream(rowType)
       case ReadValue(_, _, typ) => typ
-      case WriteValue(value, pathPrefix, spec) => TString()
+      case WriteValue(value, pathPrefix, spec) => TString
       case LiftMeOut(child) => child.typ
     }
   }

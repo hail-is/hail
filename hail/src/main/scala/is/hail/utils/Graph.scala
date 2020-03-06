@@ -62,7 +62,7 @@ object Graph {
       val tieBreakerF = tieBreaker.map { e =>
         val ir = IRParser.parse_value_ir(e, IRParserEnvironment(refMap))
         val (t, f) = Compile[Long, Long, Long](ctx, "l", wrappedNodeType, "r", wrappedNodeType, MakeTuple.ordered(FastSeq(ir)))
-        assert(t.virtualType.isOfType(TTuple(TFloat64())))
+        assert(t.virtualType.isOfType(TTuple(TFloat64)))
         val resultType = t.asInstanceOf[PTuple]
 
         val rvb = new RegionValueBuilder()

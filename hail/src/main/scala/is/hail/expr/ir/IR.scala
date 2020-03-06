@@ -452,10 +452,10 @@ class PrimitiveIR(val self: IR) extends AnyVal {
   def &&(other: IR): IR = invoke("&&", TBoolean(), self, other)
   def ||(other: IR): IR = invoke("||", TBoolean(), self, other)
 
-  def toI: IR = Cast(self, TInt32())
-  def toL: IR = Cast(self, TInt64())
-  def toF: IR = Cast(self, TFloat32())
-  def toD: IR = Cast(self, TFloat64())
+  def toI: IR = Cast(self, TInt32)
+  def toL: IR = Cast(self, TInt64)
+  def toF: IR = Cast(self, TFloat32)
+  def toD: IR = Cast(self, TFloat64)
 
   def unary_-(): IR = ApplyUnaryPrimOp(Negate(), self)
   def unary_!(): IR = ApplyUnaryPrimOp(Bang(), self)

@@ -56,12 +56,12 @@ class CallFunctionsSuite extends TestNGSuite {
   }
 
   @Test def constructors() {
-    assertEvalsTo(invoke("Call", TCall(), False()), Call0())
-    assertEvalsTo(invoke("Call", TCall(), I32(0), True()), Call1(0, true))
-    assertEvalsTo(invoke("Call", TCall(), I32(1), False()), Call1(1, false))
-    assertEvalsTo(invoke("Call", TCall(), I32(0), I32(0), False()), Call2(0, 0, false))
-    assertEvalsTo(invoke("Call", TCall(), TestUtils.IRArray(0, 1), False()), CallN(Array(0, 1), false))
-    assertEvalsTo(invoke("Call", TCall(), Str("0|1")), Call2(0, 1, true))
+    assertEvalsTo(invoke("Call", TCall, False()), Call0())
+    assertEvalsTo(invoke("Call", TCall, I32(0), True()), Call1(0, true))
+    assertEvalsTo(invoke("Call", TCall, I32(1), False()), Call1(1, false))
+    assertEvalsTo(invoke("Call", TCall, I32(0), I32(0), False()), Call2(0, 0, false))
+    assertEvalsTo(invoke("Call", TCall, TestUtils.IRArray(0, 1), False()), CallN(Array(0, 1), false))
+    assertEvalsTo(invoke("Call", TCall, Str("0|1")), Call2(0, 1, true))
   }
 
   @Test(dataProvider = "basic")
@@ -108,31 +108,31 @@ class CallFunctionsSuite extends TestNGSuite {
 
   @Test(dataProvider = "basic")
   def nNonRefAlleles(c: Call) {
-    assertEvalsTo(invoke("nNonRefAlleles", TInt32(), IRCall(c)),
+    assertEvalsTo(invoke("nNonRefAlleles", TInt32, IRCall(c)),
       Option(c).map(Call.nNonRefAlleles).orNull)
   }
 
   @Test(dataProvider = "basicWithIndex")
   def alleleByIndex(c: Call, idx: Int) {
-    assertEvalsTo(invoke("[]", TInt32(), IRCall(c), I32(idx)),
+    assertEvalsTo(invoke("[]", TInt32, IRCall(c), I32(idx)),
       Option(c).map(c => Call.alleleByIndex(c, idx)).orNull)
   }
 
   @Test(dataProvider = "basicWithIndex")
   def downcode(c: Call, idx: Int) {
-    assertEvalsTo(invoke("downcode", TCall(), IRCall(c), I32(idx)),
+    assertEvalsTo(invoke("downcode", TCall, IRCall(c), I32(idx)),
       Option(c).map(c => Call.downcode(c, idx)).orNull)
   }
 
   @Test(dataProvider = "diploid")
   def unphasedDiploidGtIndex(c: Call) {
-    assertEvalsTo(invoke("unphasedDiploidGtIndex", TInt32(), IRCall(c)),
+    assertEvalsTo(invoke("unphasedDiploidGtIndex", TInt32, IRCall(c)),
       Option(c).map(c => Call.unphasedDiploidGtIndex(c)).orNull)
   }
 
   @Test(dataProvider = "basic")
   def oneHotAlleles(c: Call) {
-    assertEvalsTo(invoke("oneHotAlleles", TArray(TInt32()), IRCall(c), I32(2)),
+    assertEvalsTo(invoke("oneHotAlleles", TArray(TInt32), IRCall(c), I32(2)),
       Option(c).map(c => Call.oneHotAlleles(c, 2)).orNull)
   }
 }

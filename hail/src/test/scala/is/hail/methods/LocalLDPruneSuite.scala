@@ -48,7 +48,7 @@ object LocalLDPruneSuite {
 
   val rvRowType = TStruct(
     "locus" -> ReferenceGenome.GRCh37.locusType,
-    "alleles" -> TArray(TString()),
+    "alleles" -> TArray(TString),
     MatrixType.entriesIdentifier -> TArray(Genotype.htsGenotypeType)
   )
 

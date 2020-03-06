@@ -301,7 +301,7 @@ object IBD {
     val rvRowType = input.rvRowType
     val rvRowPType = input.rvRowPType
     val field = rvRowType.field(fieldName)
-    assert(field.typ.isOfType(TFloat64()))
+    assert(field.typ.isOfType(TFloat64))
     val rowKeysF = input.typ.extractRowKey
     val entriesIdx = input.entriesIdx
 

@@ -55,38 +55,38 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     }
 
   def registerAll() {
-    registerRGCode("isValidContig", TString(), TBoolean(), null) {
+    registerRGCode("isValidContig", TString, TBoolean(), null) {
       case (r, rt, (contigT, contig: Code[Long])) =>
         val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
         rgCode(r.mb).invoke[String, Boolean]("isValidContig", scontig)
     }
 
-    registerRGCode("isValidLocus", TString(), TInt32(), TBoolean(), null) {
+    registerRGCode("isValidLocus", TString, TInt32, TBoolean(), null) {
       case (r, rt, (contigT, contig: Code[Long]), (posT, pos: Code[Int])) =>
         val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
         rgCode(r.mb).invoke[String, Int, Boolean]("isValidLocus", scontig, pos)
     }
 
-    registerRGCode("getReferenceSequenceFromValidLocus", TString(), TInt32(), TInt32(), TInt32(), TString(), null) {
+    registerRGCode("getReferenceSequenceFromValidLocus", TString, TInt32, TInt32, TInt32, TString, null) {
       case (r, rt, (contigT, contig: Code[Long]), (posT, pos: Code[Int]), (beforeT, before: Code[Int]), (afterT, after: Code[Int])) =>
         val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
         unwrapReturn(r, rt)(rgCode(r.mb).invoke[String, Int, Int, Int, String]("getSequence", scontig, pos, before, after))
     }
 
-    registerIR(rg.wrapFunctionName("getReferenceSequence"), TString(), TInt32(), TInt32(), TInt32(), TString()) {
+    registerIR(rg.wrapFunctionName("getReferenceSequence"), TString, TInt32, TInt32, TInt32, TString) {
       (contig, pos, before, after) =>
         val getRef = IRFunctionRegistry.lookupConversion(
           rg.wrapFunctionName("getReferenceSequenceFromValidLocus"),
-          TString(),
-          Seq(TString(), TInt32(), TInt32(), TInt32())).get
+          TString,
+          Seq(TString, TInt32, TInt32, TInt32)).get
         val isValid = IRFunctionRegistry.lookupConversion(
           rg.wrapFunctionName("isValidLocus"),
           TBoolean(),
-          Seq(TString(), TInt32())).get
-        If(isValid(Array(contig, pos)), getRef(Array(contig, pos, before, after)), NA(TString()))
+          Seq(TString, TInt32)).get
+        If(isValid(Array(contig, pos)), getRef(Array(contig, pos, before, after)), NA(TString))
     }
 
-    registerRGCode("contigLength", TString(), TInt32(), null) {
+    registerRGCode("contigLength", TString, TInt32, null) {
       case (r, rt, (contigT, contig: Code[Long])) =>
         val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
         rgCode(r.mb).invoke[String, Int]("contigLength", scontig)

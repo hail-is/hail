@@ -12,8 +12,8 @@ object PoissonRegressionTest {
 
 object PoissonScoreTest extends GLMTest {
   val schema: TStruct = TStruct(
-    ("chi_sq_stat", TFloat64()),
-    ("p_value", TFloat64()))
+    ("chi_sq_stat", TFloat64),
+    ("p_value", TFloat64))
 
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String):
     GLMTestResult[ScoreStats] = {

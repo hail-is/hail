@@ -311,18 +311,18 @@ object MatrixBGENReader {
   def fullMatrixType(rg: Option[ReferenceGenome]): MatrixType = {
     MatrixType(
       globalType = TStruct.empty,
-      colType = TStruct("s" -> TString()),
+      colType = TStruct("s" -> TString),
       colKey = Array("s"),
       rowType = TStruct(
         "locus" -> TLocus.schemaFromRG(rg),
-        "alleles" -> TArray(TString()),
-        "rsid" -> TString(),
-        "varid" -> TString(),
-        "offset" -> TInt64(),
-        "file_idx" -> TInt32()),
+        "alleles" -> TArray(TString),
+        "rsid" -> TString,
+        "varid" -> TString,
+        "offset" -> TInt64,
+        "file_idx" -> TInt32),
       rowKey = Array("locus", "alleles"),
       entryType = TStruct(
-        "GT" -> TCall(),
+        "GT" -> TCall,
         "GP" -> TArray(TFloat64),
         "dosage" -> TFloat64
       )

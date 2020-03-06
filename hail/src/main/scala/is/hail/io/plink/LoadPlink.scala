@@ -185,11 +185,11 @@ case class MatrixPLINKReader(
     colType = saSignature.virtualType,
     rowType = TStruct(
       "locus" -> TLocus.schemaFromRG(referenceGenome),
-      "alleles" -> TArray(TString()),
-      "rsid" -> TString(),
-      "cm_position" -> TFloat64()),
+      "alleles" -> TArray(TString),
+      "rsid" -> TString,
+      "cm_position" -> TFloat64),
     rowKey = Array("locus", "alleles"),
-    entryType = TStruct("GT" -> TCall()))
+    entryType = TStruct("GT" -> TCall))
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val requestedType = tr.typ

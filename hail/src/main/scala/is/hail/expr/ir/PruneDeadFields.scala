@@ -1788,7 +1788,7 @@ object PruneDeadFields {
         val aEnv = if (isScan) env.promoteScan else env.promoteAgg
         val a2 = rebuildIR(a, aEnv, memo)
         val a2t = a2.typ.asInstanceOf[TArray].elementType
-        val env_ = env.bindEval(indexName -> TInt32())
+        val env_ = env.bindEval(indexName -> TInt32)
         val aggBody2 = rebuildIR(aggBody, if (isScan) env_.bindScan(elementName, a2t) else env_.bindAgg(elementName, a2t), memo)
         AggArrayPerElement(a2, elementName, indexName, aggBody2, knownLength.map(rebuildIR(_, aEnv, memo)), isScan)
       case StreamAgg(a, name, query) =>

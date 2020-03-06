@@ -220,7 +220,7 @@ class IndexSuite extends HailSuite {
       intercept[IllegalArgumentException](index.queryByInterval("cat", "bear", includesStart = true, includesEnd = true).toFastIndexedSeq)
 
       val endPoints = (stringsWithDups.distinct ++ Array("aardvark", "boar", "elk", "oppossum", "snail", "zoo")).combinations(2)
-      val ordering = TString().ordering
+      val ordering = TString.ordering
 
       for (bounds <- endPoints) {
         for (includesStart <- Array(true, false)) {

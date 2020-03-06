@@ -149,7 +149,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   val nBases = lengths.map(_._2.toLong).sum
 
-  private val globalPosOrd = TInt64().ordering
+  private val globalPosOrd = TInt64.ordering
 
   @transient private var globalContigEnds: Array[Long] = _
 
