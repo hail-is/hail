@@ -2,6 +2,7 @@ package is.hail.expr.types.encoded
 import java.util
 import java.util.Map.Entry
 
+import is.hail.HailContext
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{IRParser, PunctuationToken, TokenIterator, typeToTypeInfo}
@@ -256,6 +257,10 @@ object EType {
       case t: PFloat64 => EFloat64(t.required)
       case t: PBoolean => EBoolean(t.required)
       case t: PBinary => EBinary(t.required)
+      // FIXME(chrisvittal): turn this on when performance is adequate
+      case t: PArray if t.elementType.fundamentalType.isOfType(PInt32(t.elementType.required)) &&
+          HailContext.get.flags.get("use_packed_int_encoding") != null =>
+         EPackedIntArray(required, t.elementType.required)
       case t: PArray => EArray(defaultFromPType(t.elementType), t.required)
       case t: PBaseStruct => EBaseStruct(t.fields.map(f => EField(f.name, defaultFromPType(f.typ), f.index)), t.required)
     }
@@ -276,6 +281,11 @@ object EType {
       case "EFloat32" => EFloat32(req)
       case "EFloat64" => EFloat64(req)
       case "EBinary" => EBinary(req)
+      case "EPackedIntArray" =>
+        IRParser.punctuation(it, "[")
+        val elementsRequired = IRParser.boolean_literal(it)
+        IRParser.punctuation(it, "]")
+        EPackedIntArray(req, elementsRequired)
       case "EArray" =>
         IRParser.punctuation(it, "[")
         val elementType = eTypeParser(it)

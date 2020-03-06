@@ -242,6 +242,7 @@ abstract class PType extends Serializable with Requiredness {
       case t2: PArray => t.isInstanceOf[PArray] && t.asInstanceOf[PArray].elementType.isOfType(t2.elementType)
       case t2: PSet => t.isInstanceOf[PSet] && t.asInstanceOf[PSet].elementType.isOfType(t2.elementType)
       case t2: PDict => t.isInstanceOf[PDict] && t.asInstanceOf[PDict].keyType.isOfType(t2.keyType) && t.asInstanceOf[PDict].valueType.isOfType(t2.valueType)
+      case t2: PNDArray => t.isInstanceOf[PNDArray] && t.asInstanceOf[PNDArray].elementType.isOfType(t2.elementType) && t.asInstanceOf[PNDArray].nDims == t2.nDims
     }
   }
 

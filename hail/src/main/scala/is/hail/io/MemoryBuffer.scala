@@ -113,6 +113,12 @@ final class MemoryBuffer extends Serializable {
     pos += n
   }
 
+  def readBytesArray(dst: Array[Byte], n: Int) {
+    assert(pos + n <= end)
+    System.arraycopy(mem, pos, dst, 0, n);
+    pos += n
+  }
+
   def skipByte() {
     assert(pos + 1 <= end)
     pos += 1

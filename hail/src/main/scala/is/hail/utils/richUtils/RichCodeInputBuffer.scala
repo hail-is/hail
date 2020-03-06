@@ -12,6 +12,10 @@ class RichCodeInputBuffer(in: Code[InputBuffer]) {
     in.invoke[Byte]("readByte")
   }
 
+  def read(buf: Code[Array[Byte]], toOff: Code[Int], n: Code[Int]): Code[Unit] = {
+    in.invoke[Array[Byte], Int, Int, Unit]("read", buf, toOff, n)
+  }
+
   def readBoolean(): Code[Boolean] = {
     in.invoke[Boolean]("readBoolean")
   }
@@ -45,6 +49,8 @@ class RichCodeInputBuffer(in: Code[InputBuffer]) {
     else
     in.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
   }
+
+  def readBytesArray(n: Code[Int]): Code[Array[Byte]] = in.invoke[Int, Array[Byte]]("readBytesArray", n)
 
   def skipBoolean(): Code[Unit] = in.invoke[Unit]("skipBoolean")
 

@@ -30,7 +30,7 @@ trait PPrimitive extends PType {
   }
 
   def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] = {
-    assert(!forceDeep)
+    assert(this.isOfType(srcPType))
     stackValue
   }
 

@@ -8,7 +8,7 @@ import is.hail.asm4s.{Code, Value}
 import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDRegionValue}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
-import is.hail.utils.{HailIterator, MultiArray2, Truncatable, WithContext}
+import is.hail.utils.{IntPacker, HailIterator, MultiArray2, Truncatable, WithContext}
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
 import org.apache.spark.rdd.RDD
@@ -125,4 +125,6 @@ trait Implicits {
   implicit def toRichCodeIterator[T](it: Code[Iterator[T]]): RichCodeIterator[T] = new RichCodeIterator[T](it)
 
   implicit def valueToRichCodeIterator[T](it: Value[Iterator[T]]): RichCodeIterator[T] = new RichCodeIterator[T](it)
+
+  implicit def toRichCodeIntPacker(p: Code[IntPacker]): RichCodeIntPacker = new RichCodeIntPacker(p)
 }

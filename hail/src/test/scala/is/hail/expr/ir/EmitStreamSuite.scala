@@ -41,7 +41,7 @@ class EmitStreamSuite extends HailSuite {
   )(implicit ctx: EmitStreamContext
   ): Code[Ctrl] = {
     val r = CodeStream.range(1, 1, n)
-    CodeStream.fold[Code[Int], Code[Int]](r, 1, (i, prod) => prod * i, ret)
+    CodeStream.fold[Code[Int], Code[Int]](ctx.mb, r, 1, (i, prod) => prod * i, ret)
   }
 
   def range(start: Code[Int], stop: Code[Int], name: String)(implicit ctx: EmitStreamContext): CodeStream.Stream[Code[Int]] =
@@ -126,6 +126,48 @@ class EmitStreamSuite extends HailSuite {
     } {
       f(i, j)
     }
+  }
+
+  @Test def testES2LeftJoinDistinct() {
+    val f1 = compile2[Int, Int, Unit] { (mb, m, n) =>
+      val l = checkedRange(0, m, "left", mb)
+      val r = checkedRange(0, n, "right", mb)
+      val z = CodeStream.leftJoinRightDistinct[Code[Int], Code[Int]](
+        l.stream.map(i => (i / 2) * 2),
+        r.stream,
+        -1,
+        (i, j) => i - j)
+
+      Code(
+        l.init, r.init,
+        z.forEach(mb)(x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")"))),
+        l.assertClosed(1), r.assertClosed(1))
+    }
+    f1(6, 6)
+    f1(6, 3)
+    f1(3, 6)
+    f1(0, 3)
+    f1(3, 0)
+
+    val f2 = compile2[Int, Int, Unit] { (mb, m, n) =>
+      val l = checkedRange(0, m, "left", mb)
+      val r = checkedRange(0, n / 2, "right", mb)
+      val z = CodeStream.leftJoinRightDistinct[Code[Int], Code[Int]](
+        l.stream,
+        r.stream.map(i => i * 2),
+        -1,
+        (i, j) => i - j)
+
+      Code(
+        l.init, r.init,
+        z.forEach(mb)(x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")"))),
+        l.assertClosed(1), r.assertClosed(1))
+    }
+    f2(6, 6)
+    f2(6, 4)
+    f2(3, 6)
+    f2(0, 3)
+    f2(3, 0)
   }
 
   @Test def testES2FlatMap() {
@@ -248,6 +290,23 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
+  @Test def testES2Scan() {
+    val f = compile1[Int, Unit] { (mb, n1) =>
+      val s = checkedRange(1, n1, "s1", mb)
+      val scan = s.stream.scan(mb, const(0))((i, acc) => i + acc)
+      val longScan = s.stream.longScan(mb, const(0))((i, acc) => i + acc)
+
+      Code(
+        s.init,
+        scan.forEach(mb)(x => Code._println(x.toS)),
+        s.assertClosed(1),
+        s.init,
+        longScan.forEach(mb)(x => Code._println(x.toS)),
+        s.assertClosed(1))
+    }
+    for {n1 <- 1 to 4} { f(n1) }
+  }
+
   @Test def testES2Fac() {
     def fac(n: Int): Int = (1 to n).fold(1)(_ * _)
     val facS = compile1[Int, Int] { (mb, n) =>
@@ -279,10 +338,10 @@ class EmitStreamSuite extends HailSuite {
         case ToArray(s) => s
         case s => s
       }
-      EmitStream2(new Emit(ctx, mb), s, Env.empty, EmitRegion.default(mb), None)
+      EmitStream(new Emit(ctx, mb), s, Env.empty, EmitRegion.default(mb), None)
     }
     mb.emit {
-      val arrayt = EmitStream2.toArray(mb, PArray(eltType), stream)
+      val arrayt = EmitStream.toArray(mb, PArray(eltType), stream)
       Code(arrayt.setup, arrayt.m.mux(0L, arrayt.v))
     }
     val f = fb.resultWithIndex()
@@ -327,25 +386,13 @@ class EmitStreamSuite extends HailSuite {
   private def evalStreamLen(streamIR: IR): Option[Int] = {
     val fb = EmitFunctionBuilder[Region, Int]("eval_stream_len")
     val mb = fb.apply_method
-    val ir = LoweringPipeline.compileLowerer.apply(ctx, streamIR.deepCopy(), false).asInstanceOf[IR]
+    val ir = streamIR.deepCopy()
     InferPType(ir, Env.empty)
-    val stream = ExecuteContext.scoped { ctx =>
+    val optStream = ExecuteContext.scoped { ctx =>
       EmitStream(new Emit(ctx, mb), ir, Env.empty, EmitRegion.default(mb), None)
     }
     fb.emit {
-      JoinPoint.CallCC[Code[Int]] { (jb, ret) =>
-        val str = stream.stream
-        val mb = fb.apply_method
-        implicit val ctx = EmitStreamContext(mb, jb)
-        str.init(()) {
-          case EmitStream.Missing => ret(0)
-          case EmitStream.Start(s0) =>
-            str.length(s0) match {
-              case Some(len) => ret(len)
-              case None => ret(-1)
-            }
-        }
-      }
+      optStream.cases[Int](mb)(0, stream => stream.length.map { case (s, l) => Code(s, l) }.getOrElse(-1))
     }
     val f = fb.resultWithIndex()
     Region.scoped { r =>
@@ -353,6 +400,7 @@ class EmitStreamSuite extends HailSuite {
       if(len < 0) None else Some(len)
     }
   }
+
 
   @Test def testEmitNA() {
     assert(evalStream(NA(TStream(TInt32))) == null)
@@ -616,8 +664,11 @@ class EmitStreamSuite extends HailSuite {
       If(True(), xs, na) -> IndexedSeq(5, 3, 6),
       If(False(), xs, na) -> null,
       If(NA(TBoolean()), xs, ys) -> null,
-      StreamFlatMap(MakeStream(Seq(False(), True(), False()), TStream(TBoolean())),
-        "x", If(Ref("x", TBoolean()), xs, ys)) -> IndexedSeq(0, 1, 2, 3, 5, 3, 6, 0, 1, 2, 3)
+      StreamFlatMap(
+        MakeStream(Seq(False(), True(), False()), TStream(TBoolean())),
+        "x",
+        If(Ref("x", TBoolean()), xs, ys))
+        -> IndexedSeq(0, 1, 2, 3, 5, 3, 6, 0, 1, 2, 3)
     )
     val lens: Array[Option[Int]] = Array(Some(3), Some(4), Some(3), Some(0), Some(0), None)
     for (((ir, v), len) <- tests zip lens) {
