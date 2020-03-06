@@ -1660,7 +1660,7 @@ private class Emit(
 
           // FIXME fix number of aggs here
           val m = MakeTuple.ordered(FastSeq(body))
-          m._pType2 = PCanonicalTuple(true, body.pType)
+          m._pType = PCanonicalTuple(true, body.pType)
           val t = new Emit(ctx, bodyMB).emit(m, env, EmitRegion.default(bodyMB), None)
           bodyMB.emit(Code(t.setup, t.m.mux(Code._fatal("return cannot be missing"), t.v)))
 
@@ -1819,7 +1819,7 @@ private class Emit(
         val rb = mb.newLocal[OutputBuffer]
 
         val taskCtx = Code.invokeScalaObject[HailTaskContext](HailTaskContext.getClass, "get")
-        val enc = spec.buildEmitEncoderF(value.pType, mb.fb, typeToTypeInfo(value.pType2))
+        val enc = spec.buildEmitEncoderF(value.pType, mb.fb, typeToTypeInfo(value.pType))
 
         EmitTriplet(
           Code(
@@ -2227,13 +2227,13 @@ private class Emit(
             (!m).orEmpty(v := codeF.value[Long]),
             m.mux(
               childEmitter.outputShape(i),
-              coerce[PArray](f.pType2).loadLength(v).toL)))
+              coerce[PArray](f.pType).loadLength(v).toL)))
         }.toArray.unzip
         new NDArrayEmitter(mb, x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, childEmitter.setupShape, childEmitter.setupMissing, childEmitter.missing) {
           override def outputElement(idxVars: IndexedSeq[Code[Long]]): Code[_] = {
             val newIdxVars = Array.tabulate(x.pType.nDims) { i =>
               val (m, v) = vars(i)
-              val typ = coerce[PArray](filters(i).pType2)
+              val typ = coerce[PArray](filters(i).pType)
               m.mux(idxVars(i),
                 typ.isElementMissing(v, idxVars(i).toI).mux(
                   Code._fatal[Long](s"NDArrayFilter: can't filter on missing index (axis=$i)"),

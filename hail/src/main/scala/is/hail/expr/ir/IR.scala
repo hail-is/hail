@@ -12,16 +12,13 @@ import is.hail.utils.{FastIndexedSeq, _}
 import scala.language.existentials
 
 sealed trait IR extends BaseIR {
-  protected[ir] var _pType2: PType = null
-  private var _pType: PType = null
+  protected[ir] var _pType: PType = null
   private var _typ: Type = null
 
-  def pType = pType2
+  def pType = {
+    assert(_pType != null)
 
-  def pType2 = {
-    assert(_pType2 != null)
-
-    _pType2
+    _pType
   }
 
   def typ: Type = {
@@ -45,8 +42,6 @@ sealed trait IR extends BaseIR {
     val cp = super.deepCopy()
     if (_typ != null)
       cp._typ = _typ
-    if (_pType != null)
-      cp._pType = _pType
     cp
   }
 

@@ -87,7 +87,7 @@ class IRSuite extends HailSuite {
 
   def assertPType(node: IR, expected: PType, env: Env[PType] = Env.empty) {
     InferPType(node, env)
-    assert(node.pType2 == expected)
+    assert(node.pType == expected)
   }
 
   @Test def testI32() {
