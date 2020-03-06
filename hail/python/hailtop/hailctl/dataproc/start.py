@@ -131,10 +131,10 @@ def main(args, pass_through_args):
 
     # requester pays support
     if args.requester_pays_allow_all or args.requester_pays_allow_buckets:
-        requester_pays_mode = None
         if args.requester_pays_allow_all and args.requester_pays_allow_buckets:
             raise RuntimeError("Cannot specify both 'requester_pays_allow_all' and 'requester_pays_allow_buckets")
-        elif args.requester_pays_allow_all:
+
+        if args.requester_pays_allow_all:
             requester_pays_mode = "AUTO"
         else:
             requester_pays_mode = "CUSTOM"
