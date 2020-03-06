@@ -43,7 +43,7 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
   def lower(ir: IR): IR = ir match {
       case TableCount(tableIR) =>
         val stage = lower(tableIR)
-        invoke("sum", TInt64, stage.toIR(node => Cast(ArrayLen(ToArray(node)), TInt64())))
+        invoke("sum", TInt64, stage.toIR(node => Cast(ArrayLen(ToArray(node)), TInt64)))
 
       case TableGetGlobals(child) =>
         val stage = lower(child)

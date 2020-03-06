@@ -12,7 +12,7 @@ object BlockMatrixStage {
     EmptyBlockMatrixStage(eltType)
 }
 
-case class EmptyBlockMatrixStage(eltType: Type) extends BlockMatrixStage(Array(), TInt32()) {
+case class EmptyBlockMatrixStage(eltType: Type) extends BlockMatrixStage(Array(), TInt32) {
   def blockContext(idx: (Int, Int)): IR =
     throw new LowererUnsupportedOperation("empty stage has no block contexts!")
 
