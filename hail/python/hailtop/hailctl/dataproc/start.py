@@ -136,6 +136,9 @@ def main(args, pass_through_args):
             raise RuntimeError("Cannot specify both 'requester_pays_allow_all' and 'requester_pays_allow_buckets")
         elif args.requester_pays_allow_all:
             requester_pays_mode = "AUTO"
+        else:
+            requester_pays_mode = "CUSTOM"
+            conf.extend_flag("properties", {"spark:spark.hadoop.fs.gs.requester.pays.buckets": args.requester_pays_allow_buckets})
 
         # Need to pick requester pays project.
         requester_pays_project = args.project if args.project else sp.check_output(['gcloud', 'config', 'get-value', 'project']).decode().strip() 
@@ -172,8 +175,6 @@ def main(args, pass_through_args):
             size = max(size, 200)
         return str(size) + 'GB'
 
-    # rewrite metadata to escape it
-    conf.flags['metadata'] = '^|||^' + '|||'.join(f'{k}={v}' for k, v in conf.flags['metadata'].items())
 
     conf.extend_flag('properties',
                      {"spark:spark.driver.memory": "{driver_memory}g".format(
@@ -203,6 +204,10 @@ def main(args, pass_through_args):
         conf.flags['labels'] = 'creator=' + re.sub(r'[^0-9a-z_\-]', '_', label.decode().strip().lower())[:63]
     except sp.CalledProcessError as e:
         sys.stderr.write("Warning: could not run 'gcloud config get-value account': " + e.output.decode() + "\n")
+
+    # rewrite metadata and properties to escape them
+    conf.flags['metadata'] = '^|||^' + '|||'.join(f'{k}={v}' for k, v in conf.flags['metadata'].items())
+    conf.flags['properties'] = '^|||^' + '|||'.join(f'{k}={v}' for k, v in conf.flags['properties'].items())
 
     # command to start cluster
     cmd = conf.get_command(args.name)
