@@ -21,14 +21,14 @@ apt-get update
 apt-get install -y --allow-unauthenticated docker-ce
 
 # Get VEP cache and LOFTEE data
-gsutil cp gs://hail-common/vep/vep/vep85-loftee-gcloud.json /vep_data/vep85-gcloud.json
+gsutil cp gs://hail-us-vep/vep85-loftee-gcloud.json /vep_data/vep85-gcloud.json
 ln -s /vep_data/vep85-gcloud.json /vep_data/vep-gcloud.json
 
-gsutil -m cp -r gs://hail-common/vep/vep/loftee-beta/${ASSEMBLY}/* /vep_data/loftee_data/ &
-gsutil -m cp -r gs://hail-common/vep/vep/Plugins /vep_data &
-gsutil -m cp -r gs://hail-common/vep/vep/homo_sapiens/85_${ASSEMBLY} /vep_data/homo_sapiens/ &
-docker pull ${VEP_DOCKER_IMAGE} &
-wait
+# gsutil -m cp -r gs://hail-common/vep/vep/loftee-beta/${ASSEMBLY}/* /vep_data/loftee_data/ &
+# gsutil -m cp -r gs://hail-common/vep/vep/Plugins /vep_data &
+# gsutil -m cp -r gs://hail-common/vep/vep/homo_sapiens/85_${ASSEMBLY} /vep_data/homo_sapiens/ &
+# docker pull ${VEP_DOCKER_IMAGE} &
+# wait
 
 # New version
 gsutil -m cp gs://hail-us-vep/loftee-beta/${ASSEMBLY}.tar /vep_data2/${ASSEMBLY}.tar &
@@ -37,11 +37,11 @@ gsutil -m cp gs://hail-us-vep/homo-sapiens/85_${ASSEMBLY}.tar /vep_data2/homo_sa
 docker pull ${VEP_DOCKER_IMAGE} &
 wait
 
-tar -xvf /vep_data2/${ASSEMBLY}.tar
+tar -xf /vep_data2/${ASSEMBLY}.tar
 rm /vep_data2/${ASSEMBLY}.tar
-tar -xvf /vep_data2/Plugins.tar
+tar -xf /vep_data2/Plugins.tar
 rm /vep_data2/Plugins.tar
-tar -xvf /vep_data2/homo_sapiens/85_${ASSEMBLY}.tar
+tar -xf /vep_data2/homo_sapiens/85_${ASSEMBLY}.tar -C /vep_data2/homo_sapiens
 rm /vep_data2/homo_sapiens/85_${ASSEMBLY}.tar 
 
 
