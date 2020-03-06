@@ -1819,7 +1819,7 @@ private class Emit(
         val rb = mb.newLocal[OutputBuffer]
 
         val taskCtx = Code.invokeScalaObject[HailTaskContext](HailTaskContext.getClass, "get")
-        val enc = spec.buildEmitEncoderF(value.pType, mb.fb, typeToTypeInfo(value.pType2))
+        val enc = spec.buildEmitEncoderF(value.pType, mb.fb, typeToTypeInfo(value.pType))
 
         EmitTriplet(
           Code(
