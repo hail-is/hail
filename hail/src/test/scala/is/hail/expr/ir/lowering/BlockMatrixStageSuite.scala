@@ -33,10 +33,10 @@ class BlockMatrixStageSuite extends HailSuite {
   }
 
   @Test def testBlockMatrixCollectOrdering(): Unit = {
-    val ctxs = Array.tabulate[((Int, Int), IR)](5) { i => ((i, 6-i), In(0, TInt32()) + I32(i)) }
+    val ctxs = Array.tabulate[((Int, Int), IR)](5) { i => ((i, 6-i), In(0, TInt32) + I32(i)) }
     assertEvalsTo(
       collected(ctxs, Array(), order = Some(Array.tabulate(5)(i => (4-i, i + 2)))),
-      args = IndexedSeq(0 -> TInt32()),
+      args = IndexedSeq(0 -> TInt32),
       expected = IndexedSeq(4, 3, 2, 1, 0))
   }
 
