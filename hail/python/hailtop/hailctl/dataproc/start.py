@@ -99,6 +99,14 @@ def init_parser(parser):
                         choices=['GRCh37', 'GRCh38'])
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
 
+    # requester pays
+    parser.add_argument('--requester-pays-allow-all',
+                        help="Allow reading from all requester pays buckets.",
+                        action='store_true',
+                        required=False)
+    parser.add_argument('--requester-pays-allow-buckets',
+                        help="Allow reading from only the specified requester pays buckets.")
+
 
 def main(args, pass_through_args):
     conf = ClusterConfig()
@@ -120,6 +128,21 @@ def main(args, pass_through_args):
     # default initialization script to start up cluster with
     conf.extend_flag('initialization-actions',
                      [deploy_metadata['init_notebook.py']])
+
+    # requester pays support
+    if args.requester_pays_allow_all or args.requester_pays_allow_buckets:
+        requester_pays_mode = None
+        if args.requester_pays_allow_all and args.requester_pays_allow_buckets:
+            raise RuntimeError("Cannot specify both 'requester_pays_allow_all' and 'requester_pays_allow_buckets")
+        elif args.requester_pays_allow_all:
+            requester_pays_mode = "AUTO"
+
+        # Need to pick requester pays project.
+        requester_pays_project = args.project if args.project else sp.check_output(['gcloud', 'config', 'get-value', 'project']).decode().strip() 
+
+        conf.extend_flag("properties", {"spark:spark.hadoop.fs.gs.requester.pays.mode": requester_pays_mode,
+                                        "spark:spark.hadoop.fs.gs.requester.pays.project.id": requester_pays_project})
+
 
     # add VEP init script
     if args.vep:
