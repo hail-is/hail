@@ -721,17 +721,17 @@ class Aggregators2Suite extends HailSuite {
 
   @Test def testNestedRunAggScan(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
-    val sig = AggSignature(Sum(), FastSeq(), FastSeq(TFloat64()))
+    val sig = AggSignature(Sum(), FastSeq(), FastSeq(TFloat64))
     val x =
       ToArray(
         StreamFlatMap(
           StreamRange(I32(3), I32(6), I32(1)),
           "i",
           RunAggScan(
-            StreamRange(I32(0), Ref("i", TInt32()), I32(1)),
+            StreamRange(I32(0), Ref("i", TInt32), I32(1)),
             "foo",
             InitOp(0, FastSeq(), sig),
-            SeqOp(0, FastIndexedSeq(Ref("foo", TInt32()).toD), sig),
+            SeqOp(0, FastIndexedSeq(Ref("foo", TInt32).toD), sig),
             GetTupleElement(ResultOp(0, Array(sig.singletonContainer)), 0),
             Array(sig.singletonContainer))))
     assertEvalsTo(x, FastIndexedSeq(
