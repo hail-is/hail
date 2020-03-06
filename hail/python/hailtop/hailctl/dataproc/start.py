@@ -101,11 +101,11 @@ def init_parser(parser):
 
     # requester pays
     parser.add_argument('--requester-pays-allow-all',
-                        help="Allow reading from all requester pays buckets.",
+                        help="Allow reading from all requester-pays buckets.",
                         action='store_true',
                         required=False)
     parser.add_argument('--requester-pays-allow-buckets',
-                        help="Allow reading from only the specified requester pays buckets.")
+                        help="Comma-separated list of requester-pays buckets to allow reading from.")
 
 
 def main(args, pass_through_args):
