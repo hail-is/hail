@@ -4,7 +4,8 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.annotations._
 import is.hail.asm4s.joinpoint.{Ctrl, ParameterPack, ParameterStore, ParameterStoreTriplet, ParameterStoreArray, TypedTriplet}
-import is.hail.asm4s.{Code, _}
+import is.hail.asm4s._
+import is.hail.backend.HailTaskContext
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -1071,14 +1072,16 @@ private class Emit(
         val fieldIdx = t.fieldIdx(name)
         val codeO = emit(o)
         val xmo = mb.newLocal[Boolean]()
-        val xo = mb.newLocal[Long]
+        val xo = mb.newPLocal[PBaseStructValue](t)
         val setup = Code(
           codeO.setup,
           xmo := codeO.m,
-          xo := coerce[Long](xmo.mux(defaultValue(t), codeO.v)))
+          xmo.mux(
+            xo.storeAny(t.defaultValue),
+            xo.storeAny(codeO.pv)))
         EmitTriplet(setup,
-          xmo || !t.isFieldDefined(xo, fieldIdx),
-          PValue(pt, Region.loadIRIntermediate(t.types(fieldIdx))(t.fieldOffset(xo, fieldIdx))))
+          xmo || xo.load().isFieldMissing(fieldIdx),
+          xo.load().loadField(fieldIdx))
 
       case x@MakeTuple(fields) =>
         val srvb = new StagedRegionValueBuilder(mb, x.pType)
@@ -1095,14 +1098,16 @@ private class Emit(
         val idx = t.fieldIndex(i)
         val codeO = emit(o)
         val xmo = mb.newLocal[Boolean]()
-        val xo = mb.newLocal[Long]
+        val xo = mb.newPLocal[PBaseStructValue](t)
         val setup = Code(
           codeO.setup,
           xmo := codeO.m,
-          xo := coerce[Long](xmo.mux(defaultValue(t), codeO.v)))
+          xmo.mux(
+            xo.storeAny(t.defaultValue),
+            xo.storeAny(codeO.pv)))
         EmitTriplet(setup,
-          xmo || !t.isFieldDefined(xo, idx),
-          PValue(pt, Region.loadIRIntermediate(t.types(idx))(t.fieldOffset(xo, idx))))
+          xmo || xo.load().isFieldMissing(idx),
+          xo.load().loadField(idx))
 
       case In(i, typ) =>
         normalArgument(i, typ)
@@ -1857,6 +1862,38 @@ private class Emit(
           Code(ref.m := ref.tempM, ref.v := ref.tempV.load())
         }
         EmitTriplet(Code(Code(storeTempArgs ++ moveArgs), jump.tcode[Unit]), const(false), PValue._empty)
+      case x@ReadValue(path, spec, requestedType) =>
+        val p = emit(path, env)
+        val pathString = coerce[PString](path.pType).loadString(p.value[Long])
+        val rowBuf = spec.buildCodeInputBuffer(mb.fb.getUnsafeReader(pathString, true))
+        val (pt, dec) = spec.buildEmitDecoderF(requestedType, mb.fb, typeToTypeInfo(x.pType))
+        EmitTriplet(p.setup, p.m, PValue(pt, dec(er.region, rowBuf)))
+      case x@WriteValue(value, pathPrefix, spec) =>
+        val v = emit(value, env)
+        val p = emit(pathPrefix, env)
+        val m = mb.newLocal[Boolean]
+        val pv = mb.newLocal[String]
+        val rb = mb.newLocal[OutputBuffer]
+
+        val taskCtx = Code.invokeScalaObject[HailTaskContext](HailTaskContext.getClass, "get")
+        val enc = spec.buildEmitEncoderF(value.pType, mb.fb, typeToTypeInfo(value.pType2))
+
+        EmitTriplet(
+          Code(
+            p.setup, v.setup,
+            m := p.m || v.m,
+            m.mux(
+              Code(pv := Code._null[String], rb := Code._null[OutputBuffer]),
+              Code(
+                pv := coerce[PString](pathPrefix.pType).loadString(p.value[Long]),
+                (!taskCtx.isNull).orEmpty(
+                  pv := pv.load().concat("-").concat(taskCtx.invoke[String]("partSuffix"))),
+                rb := spec.buildCodeOutputBuffer(mb.fb.getUnsafeWriter(pv.load())),
+                enc(er.region, v.value, rb.load()),
+                rb.invoke[Unit]("close")
+              ))
+          ), m,
+          PValue(x.pType, coerce[PString](x.pType).allocateAndStoreString(mb, er.region, pv.load())))
     }
   }
 
