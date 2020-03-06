@@ -1861,7 +1861,7 @@ private class Emit(
         val moveArgs = refs.map { ref =>
           Code(ref.m := ref.tempM, ref.v := ref.tempV.load())
         }
-        EmitTriplet(Code(Code(storeTempArgs ++ moveArgs), jump.tcode[Unit]), const(false), PValue(pt, null))
+        EmitTriplet(Code(Code(storeTempArgs ++ moveArgs), jump.tcode[Unit]), const(false), PValue(pt, Code._null))
       case x@ReadValue(path, spec, requestedType) =>
         val p = emit(path, env)
         val pathString = coerce[PString](path.pType).loadString(p.value[Long])
