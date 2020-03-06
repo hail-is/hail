@@ -1529,43 +1529,4 @@ object EmitStream {
 
 case class EmitStream(
   stream: EmitStream.Parameterized[Any, EmitTriplet],
-  elementType: PType
-) {
-  import EmitStream._
-  private implicit val sP = stream.stateP
-
-  def toArrayIterator(mb: MethodBuilder): ArrayIteratorTriplet = {
-    val state = sP.newLocals(mb)
-
-    ArrayIteratorTriplet(
-      Code._empty,
-      stream.length(state.load),
-      (cont: (Code[Boolean], PValue) => Code[Unit]) => {
-        val m = mb.newField[Boolean]("stream_missing")
-
-        val setup =
-          state := JoinPoint.CallCC[stream.S] { (jb, ret) =>
-            stream.init(()) {
-              case Missing => Code(m := true, ret(stream.emptyState))
-              case Start(s0) => Code(m := false, ret(s0))
-            }(EmitStreamContext(mb, jb))
-          }
-
-        val addElements =
-          JoinPoint.CallCC[Unit] { (jb, ret) =>
-            val loop = jb.joinPoint()
-            loop.define { _ => stream.step(state.load) {
-              case EOS => ret(())
-              case Yield(elt, s1) => Code(
-                elt.setup,
-                cont(elt.m, elt.pv),
-                state := s1,
-                loop(()))
-            }(EmitStreamContext(mb, jb)) }
-            loop(())
-          }
-
-        EmitArrayTriplet(setup, Some(m), addElements)
-      })
-  }
-}
+  elementType: PType)

@@ -109,9 +109,8 @@ abstract class Type extends BaseType with Serializable {
 
   def clear(): Unit = children.foreach(_.clear())
 
-  def unify(concrete: Type): Boolean = {
-    this.isOfType(concrete)
-  }
+  def unify(concrete: Type): Boolean =
+    this == concrete
 
   def _isCanonical: Boolean = true
 

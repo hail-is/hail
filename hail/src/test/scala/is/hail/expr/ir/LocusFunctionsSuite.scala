@@ -15,18 +15,18 @@ class LocusFunctionsSuite extends HailSuite {
 
   private def grch38: ReferenceGenome = ReferenceGenome.GRCh38
   private def tlocus = TLocus(grch38)
-  private def tvariant = TStruct("locus" -> tlocus, "alleles" -> TArray(TString()))
+  private def tvariant = TStruct("locus" -> tlocus, "alleles" -> TArray(TString))
 
   def locusIR: Apply = Apply("Locus", FastSeq(Str("chr22"), I32(1)), tlocus)
 
   def locus = Locus("chr22", 1, grch38)
 
   @Test def contig() {
-    assertEvalsTo(invoke("contig", TString(), locusIR), locus.contig)
+    assertEvalsTo(invoke("contig", TString, locusIR), locus.contig)
   }
 
   @Test def position() {
-    assertEvalsTo(invoke("position", TInt32(), locusIR), locus.position)
+    assertEvalsTo(invoke("position", TInt32, locusIR), locus.position)
   }
 
   @Test def isAutosomalOrPseudoAutosomal() {
@@ -58,13 +58,13 @@ class LocusFunctionsSuite extends HailSuite {
   }
 
   @Test def minRep() {
-    val alleles = MakeArray(Seq(Str("AA"), Str("AT")), TArray(TString()))
+    val alleles = MakeArray(Seq(Str("AA"), Str("AT")), TArray(TString))
     assertEvalsTo(invoke("min_rep", tvariant, locusIR, alleles), Row(Locus("chr22", 2), FastIndexedSeq("A", "T")))
-    assertEvalsTo(invoke("min_rep", tvariant, locusIR, NA(TArray(TString()))), null)
+    assertEvalsTo(invoke("min_rep", tvariant, locusIR, NA(TArray(TString))), null)
   }
   
   @Test def globalPosition() {
-    assertEvalsTo(invoke("locusToGlobalPos", TInt64(), locusIR), grch38.locusToGlobalPos(locus))
+    assertEvalsTo(invoke("locusToGlobalPos", TInt64, locusIR), grch38.locusToGlobalPos(locus))
   }
   
   @Test def reverseGlobalPosition() {

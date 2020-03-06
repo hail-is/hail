@@ -1108,7 +1108,7 @@ object LoadVCF {
       case TFloat64 => TFloat64
       case _ => fatal(
         s"""invalid floating point type:
-        |  expected ${TFloat32()._toPretty} or ${TFloat64()._toPretty}, got ${entryFloatTypeName}"""
+        |  expected ${TFloat32._toPretty} or ${TFloat64._toPretty}, got ${entryFloatTypeName}"""
       )
     }
   }
@@ -1202,7 +1202,7 @@ object LoadVCF {
       .toMap
 
     val infoHeader = header.getInfoHeaderLines
-    val (infoSignature, infoAttrs, infoFlagFields) = headerSignature(infoHeader, callFields, TFloat64())
+    val (infoSignature, infoAttrs, infoFlagFields) = headerSignature(infoHeader, callFields, TFloat64)
 
     val formatHeader = header.getFormatHeaderLines
     val (gSignature, formatAttrs, _) = headerSignature(formatHeader, callFields, floatType, arrayElementsRequired = arrayElementsRequired)
@@ -1537,11 +1537,11 @@ case class MatrixVCFReader(
   LoadVCF.warnDuplicates(sampleIDs)
 
   private val locusType = TLocus.schemaFromRG(referenceGenome)
-  private val kType = TStruct("locus" -> locusType, "alleles" -> TArray(TString()))
+  private val kType = TStruct("locus" -> locusType, "alleles" -> TArray(TString))
 
   val fullMatrixType: MatrixType = MatrixType(
     TStruct.empty,
-    colType = TStruct("s" -> TString()),
+    colType = TStruct("s" -> TString),
     colKey = Array("s"),
     rowType = kType ++ vaSignature.virtualType,
     rowKey = Array("locus", "alleles"),
@@ -1683,11 +1683,11 @@ class VCFsReader(
   private val entryFloatType = LoadVCF.getEntryFloatType(entryFloatTypeName)
   private val header1 = parseHeader(callFields, entryFloatType, headerLines1, arrayElementsRequired = arrayElementsRequired)
 
-  private val kType = TStruct("locus" -> locusType, "alleles" -> TArray(TString()))
+  private val kType = TStruct("locus" -> locusType, "alleles" -> TArray(TString))
 
   val typ = MatrixType(
     TStruct.empty,
-    colType = TStruct("s" -> TString()),
+    colType = TStruct("s" -> TString),
     colKey = Array("s"),
     rowType = kType ++ header1.vaSignature.virtualType,
     rowKey = Array("locus"),

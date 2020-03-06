@@ -24,7 +24,7 @@ object TVariable {
     namedBoxes.get(name) match {
       case Some(b) => b
       case None =>
-        val b = Box[Type](matchCond = _.isOfType(_))
+        val b = Box[Type](matchCond = _ == _)
         namedBoxes(name) = b
         b
     }

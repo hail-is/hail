@@ -84,7 +84,7 @@ object BlockMatrixType {
   def fromBlockMatrix(value: BlockMatrix): BlockMatrixType = {
     val sparsity = BlockMatrixSparsity.fromLinearBlocks(value.nRows, value.nCols, value.blockSize, value.gp.maybeBlocks)
     val (shape, isRowVector) = matrixToTensorShape(value.nRows, value.nCols)
-    BlockMatrixType(TFloat64(), shape, isRowVector, value.blockSize, sparsity)
+    BlockMatrixType(TFloat64, shape, isRowVector, value.blockSize, sparsity)
   }
 }
 
@@ -95,13 +95,6 @@ case class BlockMatrixType(
   blockSize: Int,
   sparsity: BlockMatrixSparsity
 ) extends BaseType {
-
-  override def isOfType(other: BaseType): Boolean = other match {
-    case bt: BlockMatrixType => elementType.isOfType(bt.elementType) && shape == bt.shape && isRowVector == bt.isRowVector &&
-      blockSize == bt.blockSize && sparsity == bt.sparsity
-    case _ => false
-  }
-
   lazy val (nRows: Long, nCols: Long) = BlockMatrixType.tensorToMatrixShape(shape, isRowVector)
 
   def matrixShape: (Long, Long) = nRows -> nCols

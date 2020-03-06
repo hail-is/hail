@@ -7,7 +7,7 @@ import is.hail.expr.types.virtual._
 
 object DictFunctions extends RegistryFunctions {
   def contains(dict: IR, key: IR) = {
-    val i = Ref(genUID(), TInt32())
+    val i = Ref(genUID(), TInt32)
 
     If(IsNA(dict),
       NA(TBoolean()),
@@ -22,7 +22,7 @@ object DictFunctions extends RegistryFunctions {
   }
 
   def get(dict: IR, key: IR, default: IR): IR = {
-    val i = Ref(genUID(), TInt32())
+    val i = Ref(genUID(), TInt32)
 
     If(IsNA(dict),
       NA(default.typ),
@@ -51,13 +51,13 @@ object DictFunctions extends RegistryFunctions {
 
     registerIR("[]", tdict, tv("key"), tv("value")) { (d, k) =>
       val vtype = types.coerce[TBaseStruct](types.coerce[TContainer](d.typ).elementType).types(1)
-      val errormsg = invoke("+", TString(),
+      val errormsg = invoke("+", TString,
         Str("Key '"),
-        invoke("+", TString(),
-          invoke("str", TString(), k),
-          invoke("+", TString(),
+        invoke("+", TString,
+          invoke("str", TString, k),
+          invoke("+", TString,
             Str("'    not found in dictionary. Keys: "),
-            invoke("str", TString(), invoke("keys", TArray(k.typ), d)))))
+            invoke("str", TString, invoke("keys", TArray(k.typ), d)))))
       get(d, k, Die(errormsg, vtype))
     }
 

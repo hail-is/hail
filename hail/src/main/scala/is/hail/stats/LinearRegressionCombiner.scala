@@ -9,10 +9,10 @@ import net.sourceforge.jdistlib.{F, T}
 
 object LinearRegressionCombiner {
   val typ: Type = TStruct(
-    "xty" -> TArray(TFloat64()),
-    "beta" -> TArray(TFloat64()),
-    "diag_inv" -> TArray(TFloat64()),
-    "beta0" -> TArray(TFloat64()))
+    "xty" -> TArray(TFloat64),
+    "beta" -> TArray(TFloat64),
+    "diag_inv" -> TArray(TFloat64),
+    "beta0" -> TArray(TFloat64))
 }
 
 class LinearRegressionCombiner(k: Int, k0: Int, t: PType) extends Serializable {

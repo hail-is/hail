@@ -175,7 +175,7 @@ abstract class PType extends Serializable with Requiredness {
   def isCanonical: Boolean = PType.canonical(this) == this // will recons, may need to rewrite this method
 
   def unsafeOrdering(rightType: PType): UnsafeOrdering = {
-    require(virtualType isOfType rightType.virtualType, s"$this, $rightType")
+    require(virtualType == rightType.virtualType, s"$this, $rightType")
     unsafeOrdering()
   }
 
@@ -277,7 +277,7 @@ abstract class PType extends Serializable with Requiredness {
         val ti = t.asInstanceOf[TInterval]
         PCanonicalInterval(p.subsetTo(ti.pointType), r)
       case _ =>
-        assert(virtualType isOfType t)
+        assert(virtualType == t)
         this
     }
   }

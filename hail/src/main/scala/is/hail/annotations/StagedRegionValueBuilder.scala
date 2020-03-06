@@ -168,22 +168,22 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   }
 
   def addInt(v: Code[Int]): Code[Unit] = {
-    checkType(TInt32())
+    checkType(TInt32)
     Region.storeInt(currentOffset, v)
   }
 
   def addLong(v: Code[Long]): Code[Unit] = {
-    checkType(TInt64())
+    checkType(TInt64)
     Region.storeLong(currentOffset, v)
   }
 
   def addFloat(v: Code[Float]): Code[Unit] = {
-    checkType(TFloat32())
+    checkType(TFloat32)
     Region.storeFloat(currentOffset, v)
   }
 
   def addDouble(v: Code[Double]): Code[Unit] = {
-    checkType(TFloat64())
+    checkType(TFloat64)
     Region.storeDouble(currentOffset, v)
   }
 

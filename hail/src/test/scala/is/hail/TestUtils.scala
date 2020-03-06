@@ -428,7 +428,7 @@ object TestUtils {
     rg.foreach { referenceGenome =>
       ReferenceGenome.addReference(referenceGenome)
     }
-    val entryFloatType = TFloat64()._toPretty
+    val entryFloatType = TFloat64._toPretty
 
     val reader = MatrixVCFReader(
       Array(file),

@@ -37,7 +37,7 @@ object LowerTableIR {
 
     case TableCount(tableIR) =>
       val stage = lower(tableIR)
-      invoke("sum", TInt64(), stage.toIR(node => Cast(ArrayLen(ToArray(node)), TInt64())))
+      invoke("sum", TInt64, stage.toIR(node => Cast(ArrayLen(ToArray(node)), TInt64)))
 
     case TableGetGlobals(child) =>
       val stage = lower(child)
@@ -92,7 +92,7 @@ object LowerTableIR {
             val rowsSpec = AbstractRVDSpec.read(HailContext.get, rowsPath)
             val partitioner = rowsSpec.partitioner
             val rSpec = rowsSpec.typedCodecSpec
-            val ctxType = TStruct("path" -> TString())
+            val ctxType = TStruct("path" -> TString)
 
             if (rowsSpec.key startsWith typ.key) {
               TableStage(
@@ -118,10 +118,10 @@ object LowerTableIR {
       val rvdType = RVDType(PType.canonical(tir.typ.rowType).asInstanceOf[PStruct], Array("idx"))
 
       val contextType = TStruct(
-        "start" -> TInt32(),
-        "end" -> TInt32())
+        "start" -> TInt32,
+        "end" -> TInt32)
 
-      val i = Ref(genUID(), TInt32())
+      val i = Ref(genUID(), TInt32)
       val ranges = Array.tabulate(nPartitionsAdj) { i => partStarts(i) -> partStarts(i + 1) }
       val globalRef = genUID()
 

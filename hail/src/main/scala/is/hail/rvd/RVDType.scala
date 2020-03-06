@@ -54,7 +54,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
     */
   def intervalJoinComp(other: RVDType): UnsafeOrdering = {
     require(other.key.length == 1)
-    require(other.rowType.field(other.key(0)).typ.asInstanceOf[PInterval].pointType.virtualType == rowType.field(key(0)).typ.virtualType)
+    require(other.rowType.field(other.key(0)).typ.asInstanceOf[PInterval].pointType.virtualType isOfType rowType.field(key(0)).typ.virtualType)
 
     new UnsafeOrdering {
       val t1 = rowType

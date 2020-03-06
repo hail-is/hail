@@ -78,9 +78,4 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
     newline()
     sb += '}'
   }
-
-  override def isOfType(other: BaseType): Boolean = other match {
-    case tt: TableType => key == tt.key && rowType.isOfType(tt.rowType) && globalType.isOfType(tt.globalType)
-    case _ => false
-  }
 }

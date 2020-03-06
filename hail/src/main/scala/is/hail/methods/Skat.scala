@@ -174,10 +174,10 @@ case class Skat(
     val keyType = childType.rowType.fieldType(keyField)
     val skatSchema = TStruct(
       ("id", keyType),
-      ("size", TInt32()),
-      ("q_stat", TFloat64()),
-      ("p_value", TFloat64()),
-      ("fault", TInt32()))
+      ("size", TInt32),
+      ("q_stat", TFloat64),
+      ("p_value", TFloat64),
+      ("fault", TInt32))
     TableType(skatSchema, FastIndexedSeq("id"), TStruct.empty)
   }
 
@@ -331,13 +331,13 @@ case class Skat(
 
     val weightStructField = fullRowType.field(weightField)
     val weightIndex = weightStructField.index
-    assert(weightStructField.typ.virtualType.isOfType(TFloat64()))
+    assert(weightStructField.typ.virtualType.isOfType(TFloat64))
 
     val entryArrayType = mv.entryArrayPType
     val entryType = mv.entryPType
     val fieldType = entryType.field(xField).typ
 
-    assert(fieldType.virtualType.isOfType(TFloat64()))
+    assert(fieldType.virtualType.isOfType(TFloat64))
 
     val entryArrayIdx = mv.entriesIdx
     val fieldIdx = entryType.fieldIdx(xField)    

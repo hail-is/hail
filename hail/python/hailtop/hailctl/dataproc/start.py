@@ -99,6 +99,14 @@ def init_parser(parser):
                         choices=['GRCh37', 'GRCh38'])
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
 
+    # requester pays
+    parser.add_argument('--requester-pays-allow-all',
+                        help="Allow reading from all requester-pays buckets.",
+                        action='store_true',
+                        required=False)
+    parser.add_argument('--requester-pays-allow-buckets',
+                        help="Comma-separated list of requester-pays buckets to allow reading from.")
+
 
 def main(args, pass_through_args):
     conf = ClusterConfig()
@@ -120,6 +128,23 @@ def main(args, pass_through_args):
     # default initialization script to start up cluster with
     conf.extend_flag('initialization-actions',
                      [deploy_metadata['init_notebook.py']])
+
+    # requester pays support
+    if args.requester_pays_allow_all or args.requester_pays_allow_buckets:
+        if args.requester_pays_allow_all and args.requester_pays_allow_buckets:
+            raise RuntimeError("Cannot specify both 'requester_pays_allow_all' and 'requester_pays_allow_buckets")
+
+        if args.requester_pays_allow_all:
+            requester_pays_mode = "AUTO"
+        else:
+            requester_pays_mode = "CUSTOM"
+            conf.extend_flag("properties", {"spark:spark.hadoop.fs.gs.requester.pays.buckets": args.requester_pays_allow_buckets})
+
+        # Need to pick requester pays project.
+        requester_pays_project = args.project if args.project else sp.check_output(['gcloud', 'config', 'get-value', 'project']).decode().strip()
+
+        conf.extend_flag("properties", {"spark:spark.hadoop.fs.gs.requester.pays.mode": requester_pays_mode,
+                                        "spark:spark.hadoop.fs.gs.requester.pays.project.id": requester_pays_project})
 
     # add VEP init script
     if args.vep:
@@ -149,9 +174,6 @@ def main(args, pass_through_args):
             size = max(size, 200)
         return str(size) + 'GB'
 
-    # rewrite metadata to escape it
-    conf.flags['metadata'] = '^|||^' + '|||'.join(f'{k}={v}' for k, v in conf.flags['metadata'].items())
-
     conf.extend_flag('properties',
                      {"spark:spark.driver.memory": "{driver_memory}g".format(
                          driver_memory=str(int(MACHINE_MEM[args.master_machine_type] * args.master_memory_fraction)))})
@@ -180,6 +202,10 @@ def main(args, pass_through_args):
         conf.flags['labels'] = 'creator=' + re.sub(r'[^0-9a-z_\-]', '_', label.decode().strip().lower())[:63]
     except sp.CalledProcessError as e:
         sys.stderr.write("Warning: could not run 'gcloud config get-value account': " + e.output.decode() + "\n")
+
+    # rewrite metadata and properties to escape them
+    conf.flags['metadata'] = '^|||^' + '|||'.join(f'{k}={v}' for k, v in conf.flags['metadata'].items())
+    conf.flags['properties'] = '^|||^' + '|||'.join(f'{k}={v}' for k, v in conf.flags['properties'].items())
 
     # command to start cluster
     cmd = conf.get_command(args.name)

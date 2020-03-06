@@ -33,15 +33,15 @@ object TestRandomFunctions extends RegistryFunctions {
   }
 
   def registerAll() {
-    registerSeeded("counter_seeded", TInt32(), null) { case (r, rt, seed) =>
+    registerSeeded("counter_seeded", TInt32, null) { case (r, rt, seed) =>
       getTestRNG(r.mb, seed).invoke[Int]("counter")
     }
 
-    registerSeeded("seed_seeded", TInt64(), null) { case (r, rt, seed) =>
+    registerSeeded("seed_seeded", TInt64, null) { case (r, rt, seed) =>
       getTestRNG(r.mb, seed).invoke[Long]("seed")
     }
 
-    registerSeeded("pi_seeded", TInt32(), null) { case (r, rt, seed) =>
+    registerSeeded("pi_seeded", TInt32, null) { case (r, rt, seed) =>
       getTestRNG(r.mb, seed).invoke[Int]("partitionIndex")
     }
   }
@@ -51,8 +51,8 @@ class RandomFunctionsSuite extends HailSuite {
 
   implicit val execStrats = ExecStrategy.javaOnly
 
-  def counter = ApplySeeded("counter_seeded", FastSeq(), 0L, TInt32())
-  val partitionIdx = ApplySeeded("pi_seeded", FastSeq(), 0L, TInt32())
+  def counter = ApplySeeded("counter_seeded", FastSeq(), 0L, TInt32)
+  val partitionIdx = ApplySeeded("pi_seeded", FastSeq(), 0L, TInt32)
 
   def mapped2(n: Int, npart: Int) = TableMapRows(
     TableRange(n, npart),
@@ -109,13 +109,13 @@ class RandomFunctionsSuite extends HailSuite {
       4)
 
     assertEvalsTo(
-      ToArray(StreamFilter(StreamRange(0, 3, 1), "i", Ref("i", TInt32()).ceq(counter) && counter.ceq(counter))),
+      ToArray(StreamFilter(StreamRange(0, 3, 1), "i", Ref("i", TInt32).ceq(counter) && counter.ceq(counter))),
       FastIndexedSeq(0, 1, 2))
 
     assertEvalsTo(
       ToArray(StreamFlatMap(StreamRange(0, 3, 1),
         "i",
-        MakeStream(FastSeq(counter, counter, counter), TStream(TInt32())))),
+        MakeStream(FastSeq(counter, counter, counter), TStream(TInt32)))),
       FastIndexedSeq(0, 0, 0, 1, 1, 1, 2, 2, 2))
   }
 

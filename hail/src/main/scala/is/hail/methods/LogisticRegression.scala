@@ -84,7 +84,7 @@ case class LogisticRegression(
     val entryType = mv.entryPType
     val fieldType = entryType.field(xField).typ
 
-    assert(fieldType.virtualType.isOfType(TFloat64()))
+    assert(fieldType.virtualType.isOfType(TFloat64))
 
     val entryArrayIdx = mv.entriesIdx
     val fieldIdx = entryType.fieldIdx(xField)

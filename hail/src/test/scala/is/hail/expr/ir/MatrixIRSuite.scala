@@ -137,7 +137,7 @@ class MatrixIRSuite extends HailSuite {
 
   @Test(dataProvider = "explodeRowsData")
   def testMatrixExplode(path: IndexedSeq[String], collection: IndexedSeq[Integer]) {
-    val tarray = TArray(TInt32())
+    val tarray = TArray(TInt32)
     val range = rangeMatrix(5, 2, None)
 
     val field = path.init.foldRight(path.last -> toIRArray(collection))(_ -> IRStruct(_))
@@ -154,13 +154,13 @@ class MatrixIRSuite extends HailSuite {
   def makeLocalizedTable(rdata: Array[Row], cdata: Array[Row]): TableIR = {
     val rowRdd = sc.parallelize(rdata)
     val rowSig = TStruct(
-      "row_idx" -> TInt32(),
-      "animal" -> TString(),
-      "__entries" -> TArray(TStruct("ent1" -> TString(), "ent2" -> TFloat64()))
+      "row_idx" -> TInt32,
+      "animal" -> TString,
+      "__entries" -> TArray(TStruct("ent1" -> TString, "ent2" -> TFloat64))
     )
     val keyNames = FastIndexedSeq("row_idx")
 
-    val colSig = TStruct("col_idx" -> TInt32(), "tag" -> TString())
+    val colSig = TStruct("col_idx" -> TInt32, "tag" -> TString)
     val globalType = TStruct(("__cols", TArray(colSig)))
     var tv = TableValue(ctx, rowSig, keyNames, rowRdd)
     tv = tv.copy(typ = tv.typ.copy(globalType = globalType), globals = BroadcastRow(ctx, Row(cdata.toFastIndexedSeq), globalType))

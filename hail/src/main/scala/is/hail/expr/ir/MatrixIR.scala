@@ -228,8 +228,8 @@ case class MatrixNativeReader(
       val cols = if (partFiles.length == 1) {
         ReadPartition(Str(partFiles.head), colsRVDSpec.typedCodecSpec, mr.typ.colType)
       } else {
-        val partNames = MakeArray(partFiles.map(Str), TArray(TString()))
-        val elt = Ref(genUID(), TString())
+        val partNames = MakeArray(partFiles.map(Str), TArray(TString))
+        val elt = Ref(genUID(), TString)
         StreamFlatMap(
           partNames,
           elt.name,
@@ -248,9 +248,9 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
   val fullMatrixType: MatrixType = MatrixType(
     globalType = TStruct.empty,
     colKey = Array("col_idx"),
-    colType = TStruct("col_idx" -> TInt32()),
+    colType = TStruct("col_idx" -> TInt32),
     rowKey = Array("row_idx"),
-    rowType = TStruct("row_idx" -> TInt32()),
+    rowType = TStruct("row_idx" -> TInt32),
     entryType = TStruct.empty)
 
   val columnCount: Option[Int] = Some(nCols)
@@ -632,7 +632,7 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
 
   override def columnCount: Option[Int] = child.columnCount
 
-  val idx = Ref(genUID(), TInt32())
+  val idx = Ref(genUID(), TInt32)
 
   val newRow: InsertFields = {
     val refs = path.init.scanLeft(Ref("va", child.typ.rowType))((struct, name) =>

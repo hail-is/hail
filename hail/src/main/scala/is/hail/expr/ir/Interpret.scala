@@ -105,7 +105,7 @@ object Interpret {
           .headOption
           .orNull
       case If(cond, cnsq, altr) =>
-        assert(cnsq.typ isOfType altr.typ)
+        assert(cnsq.typ == altr.typ)
         val condValue = interpret(cond, env, args)
         if (condValue == null)
           null
@@ -190,7 +190,7 @@ object Interpret {
           null
         else op match {
           case Bang() =>
-            assert(x.typ.isOfType(TBoolean()))
+            assert(x.typ == TBoolean())
             !xValue.asInstanceOf[Boolean]
           case Negate() =>
             assert(x.typ.isInstanceOf[TNumeric])
@@ -641,7 +641,7 @@ object Interpret {
             physicalAggs,
             "global", value.globals.t,
             Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
-          assert(rTyp.types(0).virtualType isOfType query.typ)
+          assert(rTyp.types(0).virtualType == query.typ)
 
           val useTreeAggregate = extracted.shouldTreeAggregate
           val isCommutative = extracted.isCommutative

@@ -11,7 +11,7 @@ class StringLengthSuite extends HailSuite {
   @Test def sameAsJavaStringLength() {
     val strings = Array("abc", "", "\uD83D\uDCA9")
     for (s <- strings) {
-      assertEvalsTo(invoke("length", TInt32(), Str(s)), s.length)
+      assertEvalsTo(invoke("length", TInt32, Str(s)), s.length)
     }
   }
 }

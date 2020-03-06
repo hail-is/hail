@@ -6,13 +6,13 @@ import is.hail.expr.types.virtual.{TInt32, Type}
 import is.hail.expr.types.{MatrixType, TableType}
 
 case class NPartitionsTable() extends TableToValueFunction {
-  override def typ(childType: TableType): Type = TInt32()
+  override def typ(childType: TableType): Type = TInt32
 
   override def execute(ctx: ExecuteContext, tv: TableValue): Any = tv.rvd.getNumPartitions
 }
 
 case class NPartitionsMatrixTable() extends MatrixToValueFunction {
-  override def typ(childType: MatrixType): Type = TInt32()
+  override def typ(childType: MatrixType): Type = TInt32
 
   override def execute(ctx: ExecuteContext, mv: MatrixValue): Any = mv.rvd.getNumPartitions
 

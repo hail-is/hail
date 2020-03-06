@@ -2660,7 +2660,7 @@ class StringExpression(Expression):
         """
         return self._method('translate', tstr, mapping)
 
-    @typecheck_method(regex=str)
+    @typecheck_method(regex=expr_str)
     def matches(self, regex):
         """Returns ``True`` if the string contains any match for the given regex.
 
@@ -2688,7 +2688,7 @@ class StringExpression(Expression):
 
         Parameters
         ----------
-        regex: :obj:`str`
+        regex: :class:`.StringExpression`
             Pattern to match.
 
         Returns
@@ -2696,7 +2696,7 @@ class StringExpression(Expression):
         :class:`.BooleanExpression`
             ``True`` if the string contains any match for the regex, otherwise ``False``.
         """
-        return to_expr(regex, tstr)._method("~", tbool, self)
+        return regex._method("~", tbool, self)
 
     def reverse(self):
         """Returns the reversed value.

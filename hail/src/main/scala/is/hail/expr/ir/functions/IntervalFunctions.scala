@@ -131,10 +131,10 @@ object IntervalFunctions extends RegistryFunctions {
       val uid = genUID()
       val uid2 = genUID()
       Let(uid, LowerBoundOnOrderedCollection(intervals, value, onKey = true),
-        (Let(uid2, Ref(uid, TInt32()) - I32(1), (Ref(uid2, TInt32()) >= 0)
-          && invoke("contains", TBoolean(), ArrayRef(intervals, Ref(uid2, TInt32())), value)))
-          || ((Ref(uid, TInt32()) < ArrayLen(intervals))
-          && invoke("contains", TBoolean(), ArrayRef(intervals, Ref(uid, TInt32())), value)))
+        (Let(uid2, Ref(uid, TInt32) - I32(1), (Ref(uid2, TInt32) >= 0)
+          && invoke("contains", TBoolean(), ArrayRef(intervals, Ref(uid2, TInt32)), value)))
+          || ((Ref(uid, TInt32) < ArrayLen(intervals))
+          && invoke("contains", TBoolean(), ArrayRef(intervals, Ref(uid, TInt32)), value)))
     }
   }
 }

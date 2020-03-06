@@ -143,13 +143,13 @@ class Aggregators2Suite extends HailSuite {
       expected, args, nPartitions, expectedInit,
       transformResult)
 
-  val t = TStruct("a" -> TString(), "b" -> TInt64())
+  val t = TStruct("a" -> TString, "b" -> TInt64)
   val rows = FastIndexedSeq(Row("abcd", 5L), null, Row(null, -2L), Row("abcd", 7L), null, Row("foo", null))
   val arrayType = TArray(t)
 
   val pnnAggSig = AggSignature(PrevNonnull(), FastSeq(), FastSeq(t))
   val countAggSig = AggSignature(Count(), FastSeq(), FastSeq())
-  val sumAggSig = AggSignature(Sum(), FastSeq(), FastSeq(TInt64()))
+  val sumAggSig = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
 
   def collectAggSig(t: Type): AggSignature = AggSignature(Collect(), FastSeq(), FastSeq(t))
 
@@ -161,14 +161,14 @@ class Aggregators2Suite extends HailSuite {
   }
 
   @Test def testSum() {
-    val aggSig = AggSignature(Sum(), FastSeq(), FastSeq(TInt64()))
+    val aggSig = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
     val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "b")))
 
     assertAggEquals(aggSig.singletonContainer, FastIndexedSeq(), seqOpArgs, expected = 10L, args = FastIndexedSeq(("rows", (arrayType, rows))))
   }
 
   @Test def testPrevNonnullStr() {
-    val aggSig = AggSignature(PrevNonnull(), FastSeq(), FastSeq(TString()))
+    val aggSig = AggSignature(PrevNonnull(), FastSeq(), FastSeq(TString))
     val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "a")))
 
     assertAggEquals(aggSig.singletonContainer, FastIndexedSeq(), seqOpArgs, expected = rows.last.get(0), args = FastIndexedSeq(("rows", (arrayType, rows))))
@@ -182,14 +182,14 @@ class Aggregators2Suite extends HailSuite {
   }
 
   @Test def testProduct() {
-    val aggSig = AggSignature(Product(), FastSeq(), FastSeq(TInt64()))
+    val aggSig = AggSignature(Product(), FastSeq(), FastSeq(TInt64))
     val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "b")))
 
     assertAggEquals(aggSig.singletonContainer, FastIndexedSeq(), seqOpArgs, expected = -70L, args = FastIndexedSeq(("rows", (arrayType, rows))))
   }
 
   @Test def testCallStats() {
-    val t = TStruct("x" -> TCall())
+    val t = TStruct("x" -> TCall)
 
     val calls = FastIndexedSeq(
       Row(Call0()),
@@ -210,7 +210,7 @@ class Aggregators2Suite extends HailSuite {
       null,
       Row(null))
 
-    val aggSig = AggSignature(CallStats(), FastSeq(TInt32()), FastSeq(TCall()))
+    val aggSig = AggSignature(CallStats(), FastSeq(TInt32), FastSeq(TCall))
 
     def seqOpArgs(calls: IndexedSeq[Any]) = Array.tabulate(calls.length)(i =>
       FastIndexedSeq[IR](GetField(ArrayRef(Ref("calls", TArray(t)), i), "x")))
@@ -235,14 +235,14 @@ class Aggregators2Suite extends HailSuite {
 
   @Test def testTakeBy() {
     val t = TStruct(
-      "a" -> TStruct("x" -> TInt32(), "y" -> TInt64()),
-      "b" -> TInt32(),
-      "c" -> TInt64(),
-      "d" -> TFloat32(),
-      "e" -> TFloat64(),
+      "a" -> TStruct("x" -> TInt32, "y" -> TInt64),
+      "b" -> TInt32,
+      "c" -> TInt64,
+      "d" -> TFloat32,
+      "e" -> TFloat64,
       "f" -> TBoolean(),
-      "g" -> TString(),
-      "h" -> TArray(TInt32()))
+      "g" -> TString,
+      "h" -> TArray(TInt32))
 
     val rows = FastIndexedSeq(
       Row(Row(11, 11L), 1, 1L, 1f, 1d, true, "1", FastIndexedSeq(1, 1)),
@@ -274,23 +274,23 @@ class Aggregators2Suite extends HailSuite {
 
     val valueTransformations: Array[(Type, IR => IR, Row => Any)] = Array(
       (t, identity[IR], identity[Row]),
-      (TInt32(), GetField(_, "b"), Option(_).map(_.get(1)).orNull),
-      (TFloat64(), GetField(_, "e"), Option(_).map(_.get(4)).orNull),
+      (TInt32, GetField(_, "b"), Option(_).map(_.get(1)).orNull),
+      (TFloat64, GetField(_, "e"), Option(_).map(_.get(4)).orNull),
       (TBoolean(), GetField(_, "f"), Option(_).map(_.get(5)).orNull),
-      (TString(), GetField(_, "g"), Option(_).map(_.get(6)).orNull),
-      (TArray(TInt32()), GetField(_, "h"), Option(_).map(_.get(7)).orNull)
+      (TString, GetField(_, "g"), Option(_).map(_.get(6)).orNull),
+      (TArray(TInt32), GetField(_, "h"), Option(_).map(_.get(7)).orNull)
     )
 
     val keyTransformations: Array[(Type, IR => IR)] = Array(
-      (TInt32(), GetField(_, "b")),
-      (TFloat64(), GetField(_, "e")),
-      (TString(), GetField(_, "g")),
-      (TStruct("x" -> TInt32(), "y" -> TInt64()), GetField(_, "a"))
+      (TInt32, GetField(_, "b")),
+      (TFloat64, GetField(_, "e")),
+      (TString, GetField(_, "g")),
+      (TStruct("x" -> TInt32, "y" -> TInt64), GetField(_, "a"))
     )
 
     def test(n: Int, data: IndexedSeq[Row], valueType: Type, valueF: IR => IR, resultF: Row => Any, keyType: Type, keyF: IR => IR): Unit = {
 
-      val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()), FastSeq(valueType, keyType))
+      val aggSig = AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(valueType, keyType))
       val seqOpArgs = Array.tabulate(rows.length) { i =>
         val ref = ArrayRef(Ref("rows", TArray(t)), i)
         FastIndexedSeq[IR](valueF(ref), keyF(ref))
@@ -308,7 +308,7 @@ class Aggregators2Suite extends HailSuite {
       n <- FastIndexedSeq(0, 1, 4, 100);
         perm <- permutations
     ) {
-      test(n, perm, t, identity[IR], identity[Row], TInt32(), GetField(_, "b"))
+      test(n, perm, t, identity[IR], identity[Row], TInt32, GetField(_, "b"))
     }
 
     // test key and value types
@@ -320,12 +320,12 @@ class Aggregators2Suite extends HailSuite {
     }
 
     // test stable sort
-    test(7, rows, t, identity[IR], identity[Row], TInt64(), _ => I64(5L))
+    test(7, rows, t, identity[IR], identity[Row], TInt64, _ => I64(5L))
 
     // test GC behavior by passing a large collection
     val rows2 = Array.tabulate(1200)(i => Row(i, i.toString)).toFastIndexedSeq
-    val t2 = TStruct("a" -> TInt32(), "b" -> TString())
-    val aggSig2 = AggSignature(TakeBy(), FastSeq(TInt32()), FastSeq(t2, TInt32()))
+    val t2 = TStruct("a" -> TInt32, "b" -> TString)
+    val aggSig2 = AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(t2, TInt32))
     val seqOpArgs2 = Array.tabulate(rows2.length)(i => FastIndexedSeq[IR](
       ArrayRef(Ref("rows", TArray(t2)), i), GetField(ArrayRef(Ref("rows", TArray(t2)), i), "a")))
 
@@ -338,22 +338,22 @@ class Aggregators2Suite extends HailSuite {
     // test inside of aggregation
     val tr = TableRange(10000, 5)
     val ta = TableAggregate(tr, ApplyAggOp(FastIndexedSeq(19),
-      FastIndexedSeq(invoke("str", TString(), GetField(Ref("row", tr.typ.rowType), "idx")), I32(9999) - GetField(Ref("row", tr.typ.rowType), "idx")),
-      AggSignature(TakeBy(), FastSeq(TInt32()), FastSeq(TString(), TInt32()))))
+      FastIndexedSeq(invoke("str", TString, GetField(Ref("row", tr.typ.rowType), "idx")), I32(9999) - GetField(Ref("row", tr.typ.rowType), "idx")),
+      AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(TString, TInt32))))
 
     assertEvalsTo(ta, (0 until 19).map(i => (9999 - i).toString).toFastIndexedSeq)(ExecStrategy.interpretOnly)
   }
 
   @Test def testTake() {
     val t = TStruct(
-      "a" -> TStruct("x" -> TInt32(), "y" -> TInt64()),
-      "b" -> TInt32(),
-      "c" -> TInt64(),
-      "d" -> TFloat32(),
-      "e" -> TFloat64(),
+      "a" -> TStruct("x" -> TInt32, "y" -> TInt64),
+      "b" -> TInt32,
+      "c" -> TInt64,
+      "d" -> TFloat32,
+      "e" -> TFloat64,
       "f" -> TBoolean(),
-      "g" -> TString(),
-      "h" -> TArray(TInt32()))
+      "g" -> TString,
+      "h" -> TArray(TInt32))
 
     val rows = FastIndexedSeq(
       Row(Row(11, 11L), 1, 1L, 1f, 1d, true, "one", FastIndexedSeq(1, 1)),
@@ -376,7 +376,7 @@ class Aggregators2Suite extends HailSuite {
       Row(Row(1111, 1111L), 11, 11L, 11f, 11d, true, "eleven", FastIndexedSeq())
     )
 
-    val aggSig = AggSignature(Take(), FastSeq(TInt32()), FastSeq(t))
+    val aggSig = AggSignature(Take(), FastSeq(TInt32), FastSeq(t))
     val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](ArrayRef(Ref("rows", TArray(t)), i)))
 
     FastIndexedSeq(0, 1, 3, 8, 10, 15, 30).foreach { i =>
@@ -391,10 +391,10 @@ class Aggregators2Suite extends HailSuite {
       ((x: IR) => GetField(x, f.name),
         (r: Row) => if (r == null) null else r.get(f.index),
         f.typ)
-    }.filter(_._3 == TString())
+    }.filter(_._3 == TString)
 
     transformations.foreach { case (irF, rowF, subT) =>
-      val aggSig = AggSignature(Take(), FastSeq(TInt32()), FastSeq(subT))
+      val aggSig = AggSignature(Take(), FastSeq(TInt32), FastSeq(subT))
       val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](irF(ArrayRef(Ref("rows", TArray(t)), i))))
 
       val expected = rows.take(10).map(rowF)
@@ -407,7 +407,7 @@ class Aggregators2Suite extends HailSuite {
   }
 
   def seqOpOverArray(aggIdx: Int, a: IR, seqOps: IR => IR, state: AggStateSignature): IR = {
-    val idx = Ref(genUID(), TInt32())
+    val idx = Ref(genUID(), TInt32)
     val elt = Ref(genUID(), coerce[TArray](a.typ).elementType)
 
     Begin(FastIndexedSeq(
@@ -418,18 +418,18 @@ class Aggregators2Suite extends HailSuite {
   }
 
   @Test def testMin() {
-    val aggSig = AggSignature(Min(), FastSeq(), FastSeq(TInt64()))
+    val aggSig = AggSignature(Min(), FastSeq(), FastSeq(TInt64))
     val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "b")))
-    val seqOpArgsNA = Array.tabulate(8)(i => FastIndexedSeq[IR](NA(TInt64())))
+    val seqOpArgsNA = Array.tabulate(8)(i => FastIndexedSeq[IR](NA(TInt64)))
 
     assertAggEquals(aggSig.singletonContainer, FastIndexedSeq(), seqOpArgs, expected = -2L, args = FastIndexedSeq(("rows", (arrayType, rows))))
     assertAggEquals(aggSig.singletonContainer, FastIndexedSeq(), seqOpArgsNA, expected = null, args = FastIndexedSeq(("rows", (arrayType, rows))))
   }
 
   @Test def testMax() {
-    val aggSig = AggSignature(Max(), FastSeq(), FastSeq(TInt64()))
+    val aggSig = AggSignature(Max(), FastSeq(), FastSeq(TInt64))
     val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "b")))
-    val seqOpArgsNA = Array.tabulate(8)(i => FastIndexedSeq[IR](NA(TInt64())))
+    val seqOpArgsNA = Array.tabulate(8)(i => FastIndexedSeq[IR](NA(TInt64)))
 
     assertAggEquals(aggSig.singletonContainer, FastIndexedSeq(), seqOpArgs, expected = 7L, args = FastIndexedSeq(("rows", (arrayType, rows))))
     assertAggEquals(aggSig.singletonContainer, FastIndexedSeq(), seqOpArgsNA, expected = null, args = FastIndexedSeq(("rows", (arrayType, rows))))
@@ -437,7 +437,7 @@ class Aggregators2Suite extends HailSuite {
 
   @Test def testCollectLongs() {
     val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "b")))
-    assertAggEquals(collectAggSig(TInt64()).singletonContainer, FastIndexedSeq(), seqOpArgs,
+    assertAggEquals(collectAggSig(TInt64).singletonContainer, FastIndexedSeq(), seqOpArgs,
       expected = FastIndexedSeq(5L, null, -2L, 7L, null, null),
       args = FastIndexedSeq(("rows", (arrayType, rows)))
     )
@@ -446,7 +446,7 @@ class Aggregators2Suite extends HailSuite {
   @Test def testCollectStrs() {
     val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "a")))
 
-    assertAggEquals(collectAggSig(TString()).singletonContainer, FastIndexedSeq(), seqOpArgs,
+    assertAggEquals(collectAggSig(TString).singletonContainer, FastIndexedSeq(), seqOpArgs,
       expected = FastIndexedSeq("abcd", null, null, "abcd", null, "foo"),
       args = FastIndexedSeq(("rows", (arrayType, rows)))
     )
@@ -454,7 +454,7 @@ class Aggregators2Suite extends HailSuite {
 
   @Test def testCollectBig() {
     val seqOpArgs = Array.tabulate(100)(i => FastIndexedSeq(I64(i)))
-    assertAggEquals(collectAggSig(TInt64()).singletonContainer, FastIndexedSeq(), seqOpArgs,
+    assertAggEquals(collectAggSig(TInt64).singletonContainer, FastIndexedSeq(), seqOpArgs,
       expected = Array.tabulate(100)(i => i.toLong).toIndexedSeq,
       args = FastIndexedSeq(("rows", (arrayType, rows)))
     )
@@ -462,8 +462,8 @@ class Aggregators2Suite extends HailSuite {
 
   @Test def testArrayElementsAgg() {
     val aggSigs = FastIndexedSeq(pnnAggSig, countAggSig, sumAggSig).map(AggStateSignature.apply)
-    val aeState = AggStateSignature(Map(AggElementsLengthCheck() -> AggSignature(AggElementsLengthCheck(), FastSeq(TVoid), FastSeq(TInt32())),
-      AggElements() -> AggSignature(AggElements(), FastSeq(), FastSeq(TInt32(), TVoid))), AggElementsLengthCheck(), Some(aggSigs))
+    val aeState = AggStateSignature(Map(AggElementsLengthCheck() -> AggSignature(AggElementsLengthCheck(), FastSeq(TVoid), FastSeq(TInt32)),
+      AggElements() -> AggSignature(AggElements(), FastSeq(), FastSeq(TInt32, TVoid))), AggElementsLengthCheck(), Some(aggSigs))
 
     val value = FastIndexedSeq(
       FastIndexedSeq(Row("a", 0L), Row("b", 0L), Row("c", 0L), Row("f", 0L)),
@@ -501,12 +501,12 @@ class Aggregators2Suite extends HailSuite {
 
   @Test def testNestedArrayElementsAgg() {
     val aggSigs = FastIndexedSeq(sumAggSig).map(AggStateSignature.apply)
-    val aeState1 = AggStateSignature(Map(AggElementsLengthCheck() -> AggSignature(AggElementsLengthCheck(), FastSeq(TVoid), FastSeq(TInt32())),
-      AggElements() -> AggSignature(AggElements(), FastSeq(), FastSeq(TInt32(), TVoid))), AggElementsLengthCheck(), Some(aggSigs))
+    val aeState1 = AggStateSignature(Map(AggElementsLengthCheck() -> AggSignature(AggElementsLengthCheck(), FastSeq(TVoid), FastSeq(TInt32)),
+      AggElements() -> AggSignature(AggElements(), FastSeq(), FastSeq(TInt32, TVoid))), AggElementsLengthCheck(), Some(aggSigs))
 
     val aggSigs2 = FastIndexedSeq(aeState1)
-    val aeState2 = AggStateSignature(Map(AggElementsLengthCheck() -> AggSignature(AggElementsLengthCheck(), FastSeq(TVoid), FastSeq(TInt32())),
-      AggElements() -> AggSignature(AggElements(), FastSeq(), FastSeq(TInt32(), TVoid))), AggElementsLengthCheck(), Some(aggSigs2))
+    val aeState2 = AggStateSignature(Map(AggElementsLengthCheck() -> AggSignature(AggElementsLengthCheck(), FastSeq(TVoid), FastSeq(TInt32)),
+      AggElements() -> AggSignature(AggElements(), FastSeq(), FastSeq(TInt32, TVoid))), AggElementsLengthCheck(), Some(aggSigs2))
 
     val init = InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
       InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
@@ -514,7 +514,7 @@ class Aggregators2Suite extends HailSuite {
       ))), aeState1, AggElementsLengthCheck())
     ))), aeState2, AggElementsLengthCheck())
 
-    val stream = Ref("stream", TArray(TArray(TArray(TInt64()))))
+    val stream = Ref("stream", TArray(TArray(TArray(TInt64))))
     val seq = Array.tabulate(10) { i =>
       seqOpOverArray(0, ArrayRef(stream, i), { array1 =>
         seqOpOverArray(0, array1, { elt =>
@@ -538,11 +538,11 @@ class Aggregators2Suite extends HailSuite {
       FastIndexedSeq(Row("a", 4L), Row("b", 4L), Row("c", 4L), null),
       FastIndexedSeq(null, null, null, Row("f", 5L)))
 
-    val take = AggSignature(Take(), FastSeq(TInt32()), FastSeq(t))
+    val take = AggSignature(Take(), FastSeq(TInt32), FastSeq(t))
 
     val aggSigs = FastIndexedSeq(take).map(AggStateSignature.apply)
-    val aeState = AggStateSignature(Map(AggElementsLengthCheck() -> AggSignature(AggElementsLengthCheck(), FastSeq(TVoid), FastSeq(TInt32())),
-      AggElements() -> AggSignature(AggElements(), FastSeq(), FastSeq(TInt32(), TVoid))), AggElementsLengthCheck(), Some(aggSigs))
+    val aeState = AggStateSignature(Map(AggElementsLengthCheck() -> AggSignature(AggElementsLengthCheck(), FastSeq(TVoid), FastSeq(TInt32)),
+      AggElements() -> AggSignature(AggElements(), FastSeq(), FastSeq(TInt32, TVoid))), AggElementsLengthCheck(), Some(aggSigs))
 
     val init = InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
       InitOp(0, FastIndexedSeq(I32(3)), take)
@@ -562,9 +562,9 @@ class Aggregators2Suite extends HailSuite {
   @Test def testGroup() {
     val pnn = AggSignature(PrevNonnull(), FastSeq(), FastSeq(t))
     val count = AggSignature(Count(), FastSeq(), FastSeq())
-    val sum = AggSignature(Sum(), FastSeq(), FastSeq(TInt64()))
+    val sum = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
 
-    val kt = TString()
+    val kt = TString
     val group = AggSignature(Group(), FastSeq(TVoid), FastSeq(kt, TVoid))
     val grouped = AggStateSignature(Map(Group() -> group), Group(), Some(FastSeq(pnn, count, sum).map(_.singletonContainer)))
 
@@ -594,9 +594,9 @@ class Aggregators2Suite extends HailSuite {
   @Test def testNestedGroup() {
     val pnn = AggSignature(PrevNonnull(), FastSeq(), FastSeq(t))
     val count = AggSignature(Count(), FastSeq(), FastSeq())
-    val sum = AggSignature(Sum(), FastSeq(), FastSeq(TInt64()))
+    val sum = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
 
-    val kt = TString()
+    val kt = TString
     val group = AggSignature(Group(), FastSeq(TVoid), FastSeq(kt, TVoid))
     val grouped1 = AggStateSignature(Map(Group() -> group), Group(), Some(FastSeq(pnn, count, sum).map(_.singletonContainer)))
     val grouped2 = AggStateSignature(Map(Group() -> group), Group(), Some(FastSeq(grouped1)))
@@ -638,14 +638,14 @@ class Aggregators2Suite extends HailSuite {
     val expected = Set("abcd", "foo", null)
     val expectedPrimitive = Set(5L, -2L, 7L, null)
 
-    val aggsig = AggSignature(CollectAsSet(), FastSeq(), FastSeq(TString()))
-    val aggsigPrimitive = AggSignature(CollectAsSet(), FastSeq(), FastSeq(TInt64()))
+    val aggsig = AggSignature(CollectAsSet(), FastSeq(), FastSeq(TString))
+    val aggsigPrimitive = AggSignature(CollectAsSet(), FastSeq(), FastSeq(TInt64))
     assertAggEquals(aggsig.singletonContainer, FastSeq(), elts, expected = expected, args = FastIndexedSeq(("rows", (arrayType, rows))), expectedInit = Some(Set()))
     assertAggEquals(aggsigPrimitive.singletonContainer, FastSeq(), eltsPrimitive, expected = expectedPrimitive, args = FastIndexedSeq(("rows", (arrayType, rows))), expectedInit = Some(Set()))
   }
 
   @Test def testDownsample() {
-    val aggSig = AggSignature(Downsample(), FastSeq(TInt32()), FastSeq(TFloat64(), TFloat64(), TArray(TString())))
+    val aggSig = AggSignature(Downsample(), FastSeq(TInt32), FastSeq(TFloat64, TFloat64, TArray(TString)))
     val rows = FastIndexedSeq(
       Row(-1.23, 1.23, null),
       Row(-10d, 10d, FastIndexedSeq("foo")),
@@ -666,7 +666,7 @@ class Aggregators2Suite extends HailSuite {
       Row(3d, 3.3d, null)
     )
 
-    val arrayType = TArray(TStruct("x" -> TFloat64(), "y" -> TFloat64(), "label" -> TArray(TString())))
+    val arrayType = TArray(TStruct("x" -> TFloat64, "y" -> TFloat64, "label" -> TArray(TString)))
     val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](
       GetField(ArrayRef(Ref("rows", arrayType), i), "x"),
       GetField(ArrayRef(Ref("rows", arrayType), i), "y"),
@@ -675,7 +675,7 @@ class Aggregators2Suite extends HailSuite {
 
     assertAggEquals(aggSig.singletonContainer,
       FastIndexedSeq(I32(500)),
-      Array.fill[IndexedSeq[IR]](20)(FastIndexedSeq(NA(TFloat64()), NA(TFloat64()), NA(TArray(TString())))),
+      Array.fill[IndexedSeq[IR]](20)(FastIndexedSeq(NA(TFloat64), NA(TFloat64), NA(TArray(TString)))),
       expected = FastIndexedSeq(),
       args = FastIndexedSeq(("rows", (arrayType, rows))))
 
@@ -689,7 +689,7 @@ class Aggregators2Suite extends HailSuite {
   }
 
   @Test def testLoweringMatrixMapColsWithAggFilterAndLets(): Unit = {
-    val t = MatrixType(TStruct.empty, FastIndexedSeq("col_idx"), TStruct("col_idx" -> TInt32()), FastIndexedSeq("row_idx"), TStruct("row_idx" -> TInt32()), TStruct.empty)
+    val t = MatrixType(TStruct.empty, FastIndexedSeq("col_idx"), TStruct("col_idx" -> TInt32), FastIndexedSeq("row_idx"), TStruct("row_idx" -> TInt32), TStruct.empty)
     val ir = TableCollect(MatrixColsTable(MatrixMapCols(
       MatrixRead(t, false, false, MatrixRangeReader(10, 10, None)),
       InsertFields(Ref("sa", t.colType), FastSeq(("foo",
@@ -697,10 +697,10 @@ class Aggregators2Suite extends HailSuite {
           GetField(Ref("sa", t.colType), "col_idx") + I32(1),
           AggFilter(
             GetField(Ref("va", t.rowType), "row_idx") < I32(5),
-            Ref("bar", TInt32()).toL + Ref("bar", TInt32()).toL + ApplyAggOp(
+            Ref("bar", TInt32).toL + Ref("bar", TInt32).toL + ApplyAggOp(
               FastIndexedSeq(),
               FastIndexedSeq(GetField(Ref("va", t.rowType), "row_idx").toL),
-              AggSignature(Sum(), FastSeq(), FastSeq(TInt64()))),
+              AggSignature(Sum(), FastSeq(), FastSeq(TInt64))),
             false))))),
       Some(FastIndexedSeq()))))
     assertEvalsTo(ir, Row((0 until 10).map(i => Row(i, 2L * i + 12L)), Row()))(ExecStrategy.interpretOnly)
@@ -708,12 +708,12 @@ class Aggregators2Suite extends HailSuite {
 
   @Test def testRunAggScan(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
-    val sig = AggSignature(Sum(), FastSeq(), FastSeq(TFloat64()))
+    val sig = AggSignature(Sum(), FastSeq(), FastSeq(TFloat64))
     val x = ToArray(RunAggScan(
       StreamRange(I32(0), I32(5), I32(1)),
       "foo",
       InitOp(0, FastSeq(), sig),
-      SeqOp(0, FastIndexedSeq(Ref("foo", TInt32()).toD), sig),
+      SeqOp(0, FastIndexedSeq(Ref("foo", TInt32).toD), sig),
       GetTupleElement(ResultOp(0, Array(sig.singletonContainer)), 0),
       Array(sig.singletonContainer)))
     assertEvalsTo(x, FastIndexedSeq(0.0, 0.0, 1.0, 3.0, 6.0))
@@ -721,7 +721,7 @@ class Aggregators2Suite extends HailSuite {
 
   @Test def testRunAggBasic(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
-    val sig = AggSignature(Sum(), FastSeq(), FastSeq(TFloat64()))
+    val sig = AggSignature(Sum(), FastSeq(), FastSeq(TFloat64))
     val x = RunAgg(
       Begin(FastSeq(
         InitOp(0, FastSeq(), sig),
@@ -734,8 +734,8 @@ class Aggregators2Suite extends HailSuite {
 
   @Test def testRunAggNested(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
-    val sumSig = AggSignature(Sum(), FastSeq(), FastSeq(TFloat64()))
-    val takeSig = AggSignature(Take(), FastSeq(TInt32()), FastSeq(TFloat64()))
+    val sumSig = AggSignature(Sum(), FastSeq(), FastSeq(TFloat64))
+    val takeSig = AggSignature(Take(), FastSeq(TInt32), FastSeq(TFloat64))
     val x = RunAgg(
       Begin(FastSeq(
         InitOp(0, FastSeq(I32(5)), takeSig),
@@ -747,7 +747,7 @@ class Aggregators2Suite extends HailSuite {
               Begin(FastSeq(
                 InitOp(0, FastSeq(), sumSig),
                 SeqOp(0, FastSeq(F64(-1.0)), sumSig),
-                SeqOp(0, FastSeq(Ref("foo", TInt32()).toD), sumSig))),
+                SeqOp(0, FastSeq(Ref("foo", TInt32).toD), sumSig))),
               GetTupleElement(ResultOp(0, FastIndexedSeq(sumSig.singletonContainer)), 0),
               FastIndexedSeq(sumSig.singletonContainer))
           ), takeSig)
@@ -760,13 +760,13 @@ class Aggregators2Suite extends HailSuite {
 
   @Test(enabled = false) def testAggStateAndCombOp(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
-    val takeSig = AggSignature(Take(), FastSeq(TInt32()), FastSeq(TInt64()))
+    val takeSig = AggSignature(Take(), FastSeq(TInt32), FastSeq(TInt64))
     val x = Let(
       "x",
       RunAgg(
         Begin(FastSeq(
           InitOp(0, FastSeq(I32(10)), takeSig),
-          SeqOp(0, FastSeq(NA(TInt64())), takeSig),
+          SeqOp(0, FastSeq(NA(TInt64)), takeSig),
           SeqOp(0, FastSeq(I64(-1l)), takeSig),
           SeqOp(0, FastSeq(I64(2l)), takeSig)
         )),
@@ -775,9 +775,9 @@ class Aggregators2Suite extends HailSuite {
       RunAgg(
         Begin(FastSeq(
           InitOp(0, FastSeq(I32(10)), takeSig),
-          CombOpValue(0, Ref("x", TBinary()), takeSig.singletonContainer),
+          CombOpValue(0, Ref("x", TBinary), takeSig.singletonContainer),
           SeqOp(0, FastSeq(I64(3l)), takeSig),
-          CombOpValue(0, Ref("x", TBinary()), takeSig.singletonContainer),
+          CombOpValue(0, Ref("x", TBinary), takeSig.singletonContainer),
           SeqOp(0, FastSeq(I64(0l)), takeSig))),
         GetTupleElement(ResultOp(0, FastIndexedSeq(takeSig.singletonContainer)), 0),
         FastIndexedSeq(takeSig.singletonContainer)))

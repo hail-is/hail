@@ -254,7 +254,7 @@ case class TableFromBlockMatrixNativeReader(path: String, nPartitions: Option[In
   }
 
   override lazy val fullType: TableType = {
-    val rowType = TStruct("row_idx" -> TInt64(), "entries" -> TArray(TFloat64()))
+    val rowType = TStruct("row_idx" -> TInt64, "entries" -> TArray(TFloat64))
     TableType(rowType, Array("row_idx"), TStruct.empty)
   }
 
@@ -380,12 +380,12 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
   lazy val rowCountUpperBound: Option[Long] = Some(n.toLong)
 
   val typ: TableType = TableType(
-    TStruct("idx" -> TInt32()),
+    TStruct("idx" -> TInt32),
     Array("idx"),
     TStruct.empty)
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
-    val localRowType = PType.canonical(typ.rowType).asInstanceOf[PStruct]
+    val localRowType = PCanonicalStruct("idx" -> PInt32Required)
     val localPartCounts = partCounts
     val partStarts = partCounts.scanLeft(0)(_ + _)
     val hc = HailContext.get
@@ -442,7 +442,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
       "row", tv.rvd.rowPType,
       "global", tv.globals.t,
       pred)
-    assert(rTyp.virtualType isOfType TBoolean())
+    assert(rTyp.virtualType == TBoolean())
 
     tv.filterWithPartitionOp(f)((rowF, rv, globalRV) => rowF(rv.region, rv.offset, false, globalRV.offset, false))
   }
@@ -811,7 +811,7 @@ case class TableZipUnchecked(left: TableIR, right: TableIR) extends TableIR {
       "right", tv2.rvd.typ.rowType,
       inserter)
 
-    assert(t2.virtualType isOfType typ.rowType)
+    assert(t2.virtualType == typ.rowType)
     assert(t2 == rvdType.rowType)
 
     val rvd = tv1.rvd.zipPartitionsWithIndex(rvdType, tv2.rvd) { (i, ctx, it1, it2) =>
@@ -1066,7 +1066,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       "global", Option(globalsBc).map(_.value.t).getOrElse(PStruct()),
       "row", tv.rvd.rowPType,
       Let(scanRef, extracted.results, extracted.postAggIR))
-    assert(rTyp.virtualType isOfType newRow.typ)
+    assert(rTyp.virtualType == newRow.typ)
 
     // 1. init op on all aggs and write out to initPath
     val initAgg = Region.scoped { aggRegion =>
@@ -1202,10 +1202,10 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
       ArrayLen(CastToArray(
         path.foldLeft[IR](Ref("row", childRowType))((struct, field) =>
           GetField(struct, field)))),
-      If(IsNA(Ref(lenUID, TInt32())), 0, Ref(lenUID, TInt32())))
+      If(IsNA(Ref(lenUID, TInt32)), 0, Ref(lenUID, TInt32)))
   }
 
-  val idx = Ref(genUID(), TInt32())
+  val idx = Ref(genUID(), TInt32)
   val newRow: InsertFields = {
     val refs = path.init.scanLeft(Ref("row", childRowType))((struct, name) =>
       Ref(genUID(), coerce[TStruct](struct.typ).field(name).typ))
@@ -1236,7 +1236,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
       "row", prev.rvd.rowPType,
       idx.name, PInt32(true),
       newRow)
-    assert(newRowType.virtualType isOfType typ.rowType)
+    assert(newRowType.virtualType == typ.rowType)
 
     val rvdType: RVDType = RVDType(
       newRowType,
@@ -1415,7 +1415,7 @@ case class TableKeyByAndAggregate(
       physicalAggs,
       "global", prev.globals.t,
       Let(res, extracted.results, extracted.postAggIR))
-    assert(rTyp.virtualType isOfType typ.valueType, s"$rTyp, ${ typ.valueType }")
+    assert(rTyp.virtualType == typ.valueType, s"$rTyp, ${ typ.valueType }")
 
     val serialize = extracted.serialize(ctx, spec, physicalAggs)
     val deserialize = extracted.deserialize(ctx, spec, physicalAggs)
@@ -1557,7 +1557,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
       key.name, keyType,
       Let(value.name, valueIR,
         InsertFields(key, typ.valueType.fieldNames.map(n => n -> GetField(value, n)))))
-    assert(rowType.virtualType isOfType typ.rowType, s"$rowType, ${ typ.rowType }")
+    assert(rowType.virtualType == typ.rowType, s"$rowType, ${ typ.rowType }")
 
     val localChildRowType = prevRVD.rowPType
     val keyIndices = prev.typ.keyFieldIdx
