@@ -85,10 +85,13 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         if not timestamp:
             timestamp = time_msecs()
 
-        await check_call_procedure(
-            self.db,
+        rv = await self.db.execute_and_fetchone(
             'CALL deactivate_instance(%s, %s, %s);',
             (self.name, reason, timestamp))
+
+        if rv['rc'] == 1:
+            log.info(f'{self} with in-memory state {self._state} was already deactivated; {rv}')
+            assert rv['cur_state'] in ('inactive', 'deleted')
 
         self.instance_pool.adjust_for_remove_instance(self)
         self._state = 'inactive'
@@ -104,10 +107,13 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         if self._state != 'inactive':
             await self.deactivate(reason, timestamp)
 
-        await check_call_procedure(
-            self.db,
+        rv = await self.db.execute_and_fetchone(
             'CALL mark_instance_deleted(%s);',
             (self.name,))
+
+        if rv['rc'] == 1:
+            log.info(f'{self} with in-memory state {self._state} could not be marked deleted; {rv}')
+            assert rv['cur_state'] == 'deleted'
 
         self.instance_pool.adjust_for_remove_instance(self)
         self._state = 'deleted'
