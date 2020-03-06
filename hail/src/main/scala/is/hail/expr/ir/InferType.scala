@@ -46,7 +46,7 @@ object InferType {
       case _: Begin => TVoid
       case Die(_, t) => t
       case If(cond, cnsq, altr) =>
-        assert(cond.typ.isOfType(TBoolean()))
+        assert(cond.typ == TBoolean())
         assert(cnsq.typ.isOfType(altr.typ))
         cnsq.typ
       case Let(name, value, body) =>

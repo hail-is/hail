@@ -398,7 +398,7 @@ private class Emit(
           pv = out.load())
 
       case If(cond, cnsq, altr) =>
-        assert(cnsq.typ isOfType altr.typ)
+        assert(cnsq.typ == altr.typ)
 
         if (cnsq.typ == TVoid) {
           val codeCond = emit(cond)

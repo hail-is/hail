@@ -7,7 +7,7 @@ import is.hail.expr.types.virtual.Type
 object ComparisonOp {
 
   private def checkCompatible[T](lt: Type, rt: Type): Unit =
-    if (!lt.isOfType(rt))
+    if (lt != rt)
       throw new RuntimeException(s"Cannot compare types $lt and $rt")
 
   val fromStringAndTypes: PartialFunction[(String, Type, Type), ComparisonOp[_]] = {

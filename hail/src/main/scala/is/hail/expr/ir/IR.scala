@@ -137,7 +137,7 @@ object MakeArray {
 
     MakeArray(args.map { arg =>
       val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
-      assert(upcast.typ isOfType requestedType.elementType)
+      assert(upcast.typ == requestedType.elementType)
       upcast
     }, requestedType)
   }
@@ -155,7 +155,7 @@ object MakeStream {
 
     MakeStream(args.map { arg =>
       val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
-      assert(upcast.typ isOfType requestedType.elementType)
+      assert(upcast.typ == requestedType.elementType)
       upcast
     }, requestedType)
   }

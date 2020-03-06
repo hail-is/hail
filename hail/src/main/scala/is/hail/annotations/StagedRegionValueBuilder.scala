@@ -158,7 +158,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
 
   def checkType(knownType: Type): Unit = {
     val current = currentPType().virtualType
-    if (!current.isOfType(knownType))
+    if (current != knownType)
       throw new RuntimeException(s"bad SRVB addition: expected $current, tried to add $knownType")
   }
 
