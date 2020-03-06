@@ -14,13 +14,13 @@ class ArrayDeforestationSuite extends HailSuite {
     ToArray(StreamMap(
       StreamRange(0, len, 1),
       "x1",
-      Ref("x1", TInt32()) + 5))
+      Ref("x1", TInt32) + 5))
 
   def arrayWithRegion(len: IR): IR =
     ToArray(StreamMap(
       StreamRange(0, len, 1),
       "x2",
-      MakeStruct(FastSeq[(String, IR)]("f1" -> (Ref("x2", TInt32()) + 1), "f2" -> 0))))
+      MakeStruct(FastSeq[(String, IR)]("f1" -> (Ref("x2", TInt32) + 1), "f2" -> 0))))
 
   def primitiveArrayWithRegion(len: IR): IR = {
     val array = arrayWithRegion(len)
@@ -33,7 +33,7 @@ class ArrayDeforestationSuite extends HailSuite {
   def arrayFoldWithStructWithPrimitiveValues(len: IR, max1: Int, max2: Int): IR = {
     val zero = MakeStruct(FastSeq[(String, IR)]("max1" -> max1, "max2" -> max2))
     val accum = Ref(genUID(), zero.typ)
-    val value = Ref(genUID(), TInt32())
+    val value = Ref(genUID(), TInt32)
     StreamFold(
       ToStream(primitiveArrayWithRegion(len)),
       zero,

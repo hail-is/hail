@@ -151,17 +151,17 @@ object TypeCheck {
           s"at position $i type mismatch: ${ typ.elementType.parsableString() } ${ x.parsableString() }")
         }
       case x@ArrayRef(a, i, s) =>
-        assert(i.typ.isOfType(TInt32()))
-        assert(s.typ.isOfType(TString()))
+        assert(i.typ.isOfType(TInt32))
+        assert(s.typ.isOfType(TString))
         assert(x.typ isOfType coerce[TArray](a.typ).elementType)
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TArray])
       case x@StreamRange(a, b, c) =>
-        assert(a.typ.isOfType(TInt32()))
-        assert(b.typ.isOfType(TInt32()))
-        assert(c.typ.isOfType(TInt32()))
+        assert(a.typ.isOfType(TInt32))
+        assert(b.typ.isOfType(TInt32))
+        assert(c.typ.isOfType(TInt32))
       case x@ArrayZeros(length) =>
-        assert(length.typ.isOfType(TInt32()))
+        assert(length.typ.isOfType(TInt32))
       case x@MakeNDArray(data, shape, rowMajor) =>
         assert(data.typ.isInstanceOf[TArray])
         assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t == TInt64))
@@ -177,19 +177,19 @@ object TypeCheck {
       case x@NDArrayRef(nd, idxs) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(nd.typ.asInstanceOf[TNDArray].nDims == idxs.length)
-        assert(idxs.forall(_.typ.isOfType(TInt64())))
+        assert(idxs.forall(_.typ.isOfType(TInt64)))
       case x@NDArraySlice(nd, slices) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         val childTyp =nd.typ.asInstanceOf[TNDArray]
         val slicesTuple = slices.typ.asInstanceOf[TTuple]
         assert(slicesTuple.size == childTyp.nDims)
         assert(slicesTuple.types.forall { t =>
-          (t isOfType TTuple(TInt64(), TInt64(), TInt64())) || (t isOfType TInt64())
+          (t isOfType TTuple(TInt64, TInt64, TInt64)) || (t isOfType TInt64)
         })
       case NDArrayFilter(nd, filters) =>
         val ndtyp = coerce[TNDArray](nd.typ)
         assert(ndtyp.nDims == filters.length)
-        assert(filters.forall(f => coerce[TArray](f.typ).elementType.isOfType(TInt64())))
+        assert(filters.forall(f => coerce[TArray](f.typ).elementType.isOfType(TInt64)))
       case x@NDArrayMap(_, _, body) =>
         assert(x.elementTyp isOfType body.typ)
       case x@NDArrayMap2(l, r, _, _, body) =>
@@ -279,7 +279,7 @@ object TypeCheck {
       case x@StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
         val ltyp = coerce[TStream](left.typ)
         val rtyp = coerce[TStream](right.typ)
-        assert(compare.typ.isOfType(TInt32()))
+        assert(compare.typ.isOfType(TInt32))
         assert(coerce[TStream](x.typ).elementType == join.typ)
       case x@StreamFor(a, valueName, body) =>
         assert(a.typ.isInstanceOf[TStream])
@@ -309,7 +309,7 @@ object TypeCheck {
         assert(x.typ isOfType TDict(key.typ, aggIR.typ))
       case x@AggArrayPerElement(a, _, _, aggBody, knownLength, _) =>
         assert(x.typ isOfType TArray(aggBody.typ))
-        assert(knownLength.forall(_.typ isOfType TInt32()))
+        assert(knownLength.forall(_.typ isOfType TInt32))
       case x@InitOp(_, args, aggSig, op) =>
         assert(args.map(_.typ).zip(aggSig.lookup(op).initOpArgs).forall { case (l, r) => l isOfType r })
       case x@SeqOp(_, args, aggSig, op) =>
@@ -319,7 +319,7 @@ object TypeCheck {
       case _: CombOp =>
       case _: ResultOp =>
       case AggStateValue(i, sig) =>
-      case CombOpValue(i, value, sig) => assert(value.typ.isOfType(TBinary()))
+      case CombOpValue(i, value, sig) => assert(value.typ.isOfType(TBinary))
       case _: SerializeAggs =>
       case _: DeserializeAggs =>
       case x@Begin(xs) =>
@@ -368,7 +368,7 @@ object TypeCheck {
       case In(i, typ) =>
         assert(typ != null)
       case Die(msg, typ) =>
-        assert(msg.typ isOfType TString())
+        assert(msg.typ isOfType TString)
       case x@ApplyIR(fn, args) =>
       case x: AbstractApplyNode[_] =>
         assert(x.implementation.unify(x.args.map(_.typ) :+ x.returnType))
@@ -396,14 +396,15 @@ object TypeCheck {
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
         assert(ctxs.typ.isInstanceOf[TStream])
       case x@ReadPartition(path, spec, rowType) =>
-        assert(path.typ isOfType TString())
+        assert(path.typ isOfType TString)
         assert(x.typ isOfType TStream(rowType))
         assert(spec.encodedType.decodedPType(rowType).virtualType isOfType rowType)
       case x@ReadValue(path, spec, requestedType) =>
-        assert(path.typ isOfType TString())
+        assert(path.typ isOfType TString)
         assert(spec.encodedType.decodedPType(requestedType).virtualType isOfType requestedType)
       case x@WriteValue(value, pathPrefix, spec) =>
-        assert(pathPrefix.typ isOfType TString())
+        assert(pathPrefix.typ isOfType TString)
+        spec.encodedType.encodeCompatible(value.pType2)
       case LiftMeOut(_) =>
     }
   }

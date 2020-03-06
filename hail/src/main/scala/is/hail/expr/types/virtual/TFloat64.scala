@@ -41,6 +41,4 @@ case object TFloat64 extends TNumeric {
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Double]])
-
-  def apply(): this.type = this
 }

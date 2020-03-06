@@ -200,7 +200,7 @@ object ExportVCF {
           case t =>
             if (fIsDefined)
               strVCF(sb, t, m, fOffset)
-            else if (t.virtualType.isOfType(TCall()))
+            else if (t.virtualType.isOfType(TCall))
               sb.append("./.")
             else
               sb += '.'
@@ -350,13 +350,13 @@ object ExportVCF {
         case None => (false, 0)
       }
     }
-    val filtersType = TSet(TString())
+    val filtersType = TSet(TString)
     val filtersPType = if (typ.rowType.hasField("filters"))
       mv.rvRowPType.field("filters").typ.asInstanceOf[PSet]
     else null
 
-    val (idExists, idIdx) = lookupVAField("rsid", "ID", Some(TString()))
-    val (qualExists, qualIdx) = lookupVAField("qual", "QUAL", Some(TFloat64()))
+    val (idExists, idIdx) = lookupVAField("rsid", "ID", Some(TString))
+    val (qualExists, qualIdx) = lookupVAField("qual", "QUAL", Some(TFloat64))
     val (filtersExists, filtersIdx) = lookupVAField("filters", "FILTERS", Some(filtersType))
     val (infoExists, infoIdx) = lookupVAField("info", "INFO", None)
 

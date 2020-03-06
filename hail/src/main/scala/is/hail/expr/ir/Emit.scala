@@ -532,8 +532,8 @@ private class Emit(
           xa.storeAny(pArray.defaultValue),
           codeI.setup,
           xmi := codeI.m,
-          xi := coerce[Int](defaultValue(TInt32())),
-          len := coerce[Int](defaultValue(TInt32())),
+          xi := coerce[Int](defaultValue(TInt32)),
+          len := coerce[Int](defaultValue(TInt32)),
           (xmi || xma).mux(
             xmv := const(true),
             Code(

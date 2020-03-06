@@ -18,7 +18,7 @@ object LocusFunctions extends RegistryFunctions {
     mb.getReferenceGenome(rg)
 
   def tlocus(name: String): Type = tv(name, "locus")
-  def tvariant(name: String): TStruct = TStruct("locus" -> tlocus(name), "alleles" -> TArray(TString()))
+  def tvariant(name: String): TStruct = TStruct("locus" -> tlocus(name), "alleles" -> TArray(TString))
   def tinterval(name: String): TInterval = TInterval(tlocus(name))
 
   def getLocus(r: EmitRegion, locus: Code[Long], locusT: PLocus): Code[Locus] = {
@@ -170,13 +170,13 @@ object LocusFunctions extends RegistryFunctions {
   def registerAll() {
     val locusClass = Locus.getClass
 
-    registerCode("contig", tlocus("T"), TString(),
+    registerCode("contig", tlocus("T"), TString,
       (x: PType) => -x.asInstanceOf[PLocus].contigType) {
       case (r, rt, (locusT: PLocus, locus: Code[Long])) =>
         locusT.contig(locus)
     }
 
-    registerCode("position", tlocus("T"), TInt32(), null) {
+    registerCode("position", tlocus("T"), TInt32, null) {
       case (r, rt, (locusT: PLocus, locus: Code[Long])) =>
         locusT.position(locus)
     }
@@ -190,7 +190,7 @@ object LocusFunctions extends RegistryFunctions {
     registerLocusCode("inXNonPar") { locus => inX(locus) && !inPar(locus) }
     registerLocusCode("inYNonPar") { locus => inY(locus) && !inPar(locus) }
 
-    registerCode("min_rep", tlocus("T"), TArray(TString()), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString())), null) {
+    registerCode("min_rep", tlocus("T"), TArray(TString), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString)), null) {
       case (r, rt: PStruct, (locusT: PLocus, lOff), (allelesT, aOff)) =>
         val returnTuple = r.mb.newLocal[(Locus, IndexedSeq[String])]
         val locus = getLocus(r, lOff, locusT)
@@ -224,7 +224,7 @@ object LocusFunctions extends RegistryFunctions {
           srvb.offset)
     }
 
-    registerCode("locus_windows_per_contig", TArray(TArray(TFloat64())), TFloat64(), TTuple(TArray(TInt32()), TArray(TInt32())), null) {
+    registerCode("locus_windows_per_contig", TArray(TArray(TFloat64)), TFloat64, TTuple(TArray(TInt32), TArray(TInt32)), null) {
       case (r: EmitRegion, rt: PTuple, (groupedT: PArray, coords: Code[Long]), (radiusT: PFloat64, radius: Code[Double])) =>
         val region: Code[Region] = r.region
 
@@ -295,7 +295,7 @@ object LocusFunctions extends RegistryFunctions {
           srvb.end())
     }
 
-    registerCode("Locus", TString(), tlocus("T"), null) {
+    registerCode("Locus", TString, tlocus("T"), null) {
       case (r, rt: PLocus, (strT, locusoff: Code[Long])) =>
         val slocus = asm4s.coerce[String](wrapArg(r, strT)(locusoff))
         val locus = Code
@@ -304,7 +304,7 @@ object LocusFunctions extends RegistryFunctions {
         emitLocus(r, locus, rt)
     }
 
-    registerCode("Locus", TString(), TInt32(), tlocus("T"), null) {
+    registerCode("Locus", TString, TInt32, tlocus("T"), null) {
       case (r, rt: PLocus, (contigT, contig: Code[Long]), (posT, pos: Code[Int])) =>
         val srvb = new StagedRegionValueBuilder(r, rt)
         val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
@@ -317,7 +317,7 @@ object LocusFunctions extends RegistryFunctions {
           srvb.offset)
     }
 
-    registerCode("LocusAlleles", TString(), tvariant("T"), null) {
+    registerCode("LocusAlleles", TString, tvariant("T"), null) {
       case (r, rt: PStruct, (strT, variantoff: Code[Long])) =>
         val plocus = rt.types(0).asInstanceOf[PLocus]
         val svar = asm4s.coerce[String](wrapArg(r, strT)(variantoff))
@@ -327,7 +327,7 @@ object LocusFunctions extends RegistryFunctions {
         emitVariant(r, variant, rt)
     }
 
-    registerCodeWithMissingness("LocusInterval", TString(), TBoolean(), tinterval("T"), null) {
+    registerCodeWithMissingness("LocusInterval", TString, TBoolean(), tinterval("T"), null) {
       case (r: EmitRegion, rt: PInterval, (strT, ioff: EmitTriplet), (missingT, invalidMissing: EmitTriplet)) =>
         val plocus = rt.pointType.asInstanceOf[PLocus]
         val sinterval = asm4s.coerce[String](wrapArg(r, strT)(ioff.value[Long]))
@@ -342,7 +342,7 @@ object LocusFunctions extends RegistryFunctions {
         )
     }
 
-    registerCodeWithMissingness("LocusInterval", TString(), TInt32(), TInt32(), TBoolean(), TBoolean(), TBoolean(), tinterval("T"), null) {
+    registerCodeWithMissingness("LocusInterval", TString, TInt32, TInt32, TBoolean(), TBoolean(), TBoolean(), tinterval("T"), null) {
       case (r: EmitRegion, rt: PInterval,
       (locoffT, locoff: EmitTriplet),
       (pos1T, pos1: EmitTriplet),
@@ -363,19 +363,19 @@ object LocusFunctions extends RegistryFunctions {
         )
     }
 
-    registerCode("globalPosToLocus", TInt64(), tlocus("T"), null) {
+    registerCode("globalPosToLocus", TInt64, tlocus("T"), null) {
       case (r, rt: PLocus, (globalPositionT, globalPosition: Code[Long])) =>
         val locus = rgCode(r.mb, rt.rg).invoke[Long, Locus]("globalPosToLocus", globalPosition)
         emitLocus(r, locus, rt)
     }
 
-    registerCode("locusToGlobalPos", tlocus("T"), TInt64(), null) {
+    registerCode("locusToGlobalPos", tlocus("T"), TInt64, null) {
       case (r, rt, (locusT: PLocus, locus: Code[Long])) =>
         val locusObject = Code.checkcast[Locus](wrapArg(r, locusT)(locus).asInstanceOf[Code[AnyRef]])
         unwrapReturn(r, rt)(rgCode(r.mb, locusT.rg).invoke[Locus, Long]("locusToGlobalPos", locusObject))
     }
 
-    registerCodeWithMissingness("liftoverLocus", tlocus("T"), TFloat64(), TStruct("result" -> tv("U", "locus"), "is_negative_strand" -> TBoolean()), null) {
+    registerCodeWithMissingness("liftoverLocus", tlocus("T"), TFloat64, TStruct("result" -> tv("U", "locus"), "is_negative_strand" -> TBoolean()), null) {
       case (r, rt: PStruct, (locT: PLocus, loc), (minMatchT, minMatch)) =>
         val srcRG = locT.rg
         val destRG = rt.types(0).asInstanceOf[PLocus].rg
@@ -390,7 +390,7 @@ object LocusFunctions extends RegistryFunctions {
         )
     }
 
-    registerCodeWithMissingness("liftoverLocusInterval", tinterval("T"), TFloat64(), TStruct("result" -> tinterval("U"), "is_negative_strand" -> TBoolean()), null) {
+    registerCodeWithMissingness("liftoverLocusInterval", tinterval("T"), TFloat64, TStruct("result" -> tinterval("U"), "is_negative_strand" -> TBoolean()), null) {
       case (r, rt: PStruct, (iT: PInterval, i), (minMatchT, minMatch)) =>
         val srcRG = iT.pointType.asInstanceOf[PLocus].rg
         val destRG = rt.types(0).asInstanceOf[PInterval].pointType.asInstanceOf[PLocus].rg

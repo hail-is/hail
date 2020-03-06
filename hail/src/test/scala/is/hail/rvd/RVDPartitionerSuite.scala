@@ -7,7 +7,7 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class RVDPartitionerSuite extends TestNGSuite {
-  val kType = TStruct(("A", TInt32()), ("B", TInt32()), ("C", TInt32()))
+  val kType = TStruct(("A", TInt32), ("B", TInt32), ("C", TInt32))
   val partitioner =
     new RVDPartitioner(kType,
       Array(
@@ -17,7 +17,7 @@ class RVDPartitionerSuite extends TestNGSuite {
     )
 
   @Test def testExtendKey() {
-    val p = new RVDPartitioner(TStruct(("A", TInt32()), ("B", TInt32())),
+    val p = new RVDPartitioner(TStruct(("A", TInt32), ("B", TInt32)),
       Array(
         Interval(Row(1, 0), Row(4, 3), true, true),
         Interval(Row(4, 3), Row(4, 3), true, true),
@@ -147,7 +147,7 @@ class RVDPartitionerSuite extends TestNGSuite {
   }
 
   @Test def testIntersect() {
-    val kType = TStruct(("key", TInt32()))
+    val kType = TStruct(("key", TInt32))
     val left =
       new RVDPartitioner(kType,
         Array(

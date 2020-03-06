@@ -379,7 +379,7 @@ object LowerMatrixIR {
         val aggs = aggBuilder.result()
         val scans = scanBuilder.result()
 
-        val idx = Ref(genUID(), TInt32())
+        val idx = Ref(genUID(), TInt32)
         val idxSym = Symbol(idx.name)
 
         val noOp: (IRProxy => IRProxy, IRProxy => IRProxy) = (identity[IRProxy], identity[IRProxy])

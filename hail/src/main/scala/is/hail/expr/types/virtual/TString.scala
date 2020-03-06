@@ -27,6 +27,4 @@ case object TString extends Type {
     ExtendedOrdering.extendToNull(implicitly[Ordering[String]])
 
   override def fundamentalType: Type = TBinary
-
-  def apply(): this.type = this
 }

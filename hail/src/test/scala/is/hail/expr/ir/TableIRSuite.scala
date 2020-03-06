@@ -56,8 +56,8 @@ class TableIRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = TableRange(10, 2)
     val row = Ref("row", t.typ.rowType)
-    val sum = AggSignature(Sum(), FastSeq(), FastSeq(TInt64()))
-    val node = collect(TableMapRows(t, InsertFields(row, FastIndexedSeq("sum" -> ApplyScanOp(FastSeq(), FastSeq(Cast(GetField(row, "idx"), TInt64())), sum)))))
+    val sum = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
+    val node = collect(TableMapRows(t, InsertFields(row, FastIndexedSeq("sum" -> ApplyScanOp(FastSeq(), FastSeq(Cast(GetField(row, "idx"), TInt64)), sum)))))
     assertEvalsTo(node, Row(Array.tabulate(10)(i => Row(i, Array.range(0, i).sum.toLong)).toFastIndexedSeq, Row()))
   }
 
@@ -106,7 +106,7 @@ class TableIRSuite extends HailSuite {
     val t = TableRange(10, 2)
     val node = TableFilter(
       TableMapGlobals(t, MakeStruct(FastSeq("x" -> GetField(ArrayRef(GetField(collect(t), "rows"), 4), "idx")))),
-       ApplyComparisonOp(EQ(TInt32()), GetField(Ref("row", t.typ.rowType), "idx"), GetField(Ref("global", TStruct("x" -> TInt32())), "x")))
+       ApplyComparisonOp(EQ(TInt32), GetField(Ref("row", t.typ.rowType), "idx"), GetField(Ref("global", TStruct("x" -> TInt32)), "x")))
 
     val expected = Array.tabulate(10)(Row(_)).filter(_.get(0) == 4).toFastIndexedSeq
 
@@ -120,7 +120,7 @@ class TableIRSuite extends HailSuite {
       InsertFields(Ref("row", t.typ.rowType),
         FastIndexedSeq(
           "a" -> Str("foo"),
-          "b" -> Literal(TTuple(TInt32(), TString()), Row(1, "hello")))))
+          "b" -> Literal(TTuple(TInt32, TString), Row(1, "hello")))))
 
     val expected = Array.tabulate(10)(Row(_, "foo", Row(1, "hello"))).toFastIndexedSeq
     assertEvalsTo(collect(node), Row(expected, Row()))
@@ -149,9 +149,9 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(ArraySort(ToStream(TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ)))), True()), expected)
   }
 
-  val rowType = TStruct(("A", TInt32()), ("B", TInt32()), ("C", TInt32()))
-  val joinedType = TStruct(("A", TInt32()), ("B", TInt32()), ("C", TInt32()), ("B_1", TInt32()), ("C_1", TInt32()))
-  val kType = TStruct(("A", TInt32()), ("B", TInt32()))
+  val rowType = TStruct(("A", TInt32), ("B", TInt32), ("C", TInt32))
+  val joinedType = TStruct(("A", TInt32), ("B", TInt32), ("C", TInt32), ("B_1", TInt32), ("C_1", TInt32))
+  val kType = TStruct(("A", TInt32), ("B", TInt32))
 
   val leftData = FastIndexedSeq(
     (3, 1, -1),
@@ -357,7 +357,7 @@ class TableIRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
     val data = Array(Array("A", 1), Array("A", 2), Array("B", 1))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("field1", TString()), ("field2", TInt32()))
+    val signature = TStruct(("field1", TString), ("field2", TInt32))
     val keyNames = FastIndexedSeq("field1", "field2")
     val tt = TableType(rowType = signature, key = keyNames, globalType = TStruct.empty)
     val base = TableLiteral(
@@ -371,7 +371,7 @@ class TableIRSuite extends HailSuite {
 
   @Test def testTableParallelize() {
     implicit val execStrats = ExecStrategy.interpretOnly
-    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32(), "b" -> TString())), "global" -> TStruct("x" -> TString()))
+    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
     val value = Row(FastIndexedSeq(Row(0, "row1"), Row(1, "row2")), Row("glob"))
 
     assertEvalsTo(
@@ -385,7 +385,7 @@ class TableIRSuite extends HailSuite {
 
   @Test def testShuffleAndJoinDoesntMemoryLeak() {
     implicit val execStrats = ExecStrategy.interpretOnly
-    val row = Ref("row", TStruct("idx" -> TInt32()))
+    val row = Ref("row", TStruct("idx" -> TInt32))
     val t1 = TableRename(TableRange(1, 1), Map("idx" -> "idx_"), Map.empty)
     val t2 =
       TableKeyBy(
@@ -402,7 +402,7 @@ class TableIRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
     val before = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("foo" -> I32(0))))
     val t = TableRename(before, Map("idx" -> "idx_"), Map("foo" -> "foo_"))
-    assert(t.typ == TableType(rowType = TStruct("idx_" -> TInt32()), key = FastIndexedSeq("idx_"), globalType = TStruct("foo_" -> TInt32())))
+    assert(t.typ == TableType(rowType = TStruct("idx_" -> TInt32), key = FastIndexedSeq("idx_"), globalType = TStruct("foo_" -> TInt32)))
     val beforeValue = Interpret(before, ctx)
     val after = Interpret(t, ctx)
     assert(beforeValue.globals.javaValue == after.globals.javaValue)

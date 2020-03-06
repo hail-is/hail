@@ -214,7 +214,7 @@ class OrderingSuite extends HailSuite {
 
   @Test def testSortOnMissingArray() {
     implicit val execStrats = ExecStrategy.javaOnly
-    val ts = TStream(TStruct("key" -> TInt32(), "value" -> TInt32()))
+    val ts = TStream(TStruct("key" -> TInt32, "value" -> TInt32))
     val irs: Array[IR => IR] = Array(ArraySort(_, True()), ToSet(_), ToDict(_))
 
     for (irF <- irs) { assertEvalsTo(IsNA(irF(NA(ts))), true) }
@@ -366,13 +366,13 @@ class OrderingSuite extends HailSuite {
 
   @Test def testContainsWithArrayFold() {
     implicit val execStrats = ExecStrategy.javaOnly
-    val set1 = ToSet(MakeStream(Seq(I32(1), I32(4)), TStream(TInt32())))
-    val set2 = ToSet(MakeStream(Seq(I32(9), I32(1), I32(4)), TStream(TInt32())))
+    val set1 = ToSet(MakeStream(Seq(I32(1), I32(4)), TStream(TInt32)))
+    val set2 = ToSet(MakeStream(Seq(I32(9), I32(1), I32(4)), TStream(TInt32)))
     assertEvalsTo(StreamFold(ToStream(set1), True(), "accumulator", "setelt",
         ApplySpecial("&&",
           FastSeq(
             Ref("accumulator", TBoolean()),
-            invoke("contains", TBoolean(), set2, Ref("setelt", TInt32()))), TBoolean())), true)
+            invoke("contains", TBoolean(), set2, Ref("setelt", TInt32))), TBoolean())), true)
   }
 
   @DataProvider(name = "arrayDoubleOrderingData")
@@ -389,7 +389,7 @@ class OrderingSuite extends HailSuite {
   @Test(dataProvider = "arrayDoubleOrderingData")
   def testOrderingArrayDouble(
     a: IndexedSeq[Any], a2: IndexedSeq[Any]) {
-    val t = TArray(TFloat64())
+    val t = TArray(TFloat64)
 
     val args = FastIndexedSeq(a -> t, a2 -> t)
 
@@ -407,7 +407,7 @@ class OrderingSuite extends HailSuite {
   @Test(dataProvider = "arrayDoubleOrderingData")
   def testOrderingSetDouble(
     a: IndexedSeq[Any], a2: IndexedSeq[Any]) {
-    val t = TSet(TFloat64())
+    val t = TSet(TFloat64)
 
     val s = if (a != null) a.toSet else null
     val s2 = if (a2 != null) a2.toSet else null
@@ -441,7 +441,7 @@ class OrderingSuite extends HailSuite {
   @Test(dataProvider = "rowDoubleOrderingData")
   def testOrderingRowDouble(
     r: Row, r2: Row) {
-    val t = TStruct("x" -> TFloat64(), "s" -> TString())
+    val t = TStruct("x" -> TFloat64, "s" -> TString)
 
     val args = FastIndexedSeq(r -> t, r2 -> t)
 

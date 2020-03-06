@@ -110,7 +110,7 @@ case class BlockMatrixNativeReader(path: String) extends BlockMatrixReader {
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(metadata.nRows, metadata.nCols)
 
     val sparsity = BlockMatrixSparsity.fromLinearBlocks(metadata.nRows, metadata.nCols, metadata.blockSize, metadata.maybeFiltered)
-    BlockMatrixType(TFloat64(), tensorShape, isRowVector, metadata.blockSize, sparsity)
+    BlockMatrixType(TFloat64, tensorShape, isRowVector, metadata.blockSize, sparsity)
   }
 
   override def apply(ctx: ExecuteContext, hc: HailContext): BlockMatrix = BlockMatrix.read(hc, path)
@@ -121,7 +121,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
   BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
 
   override lazy val fullType: BlockMatrixType = {
-    BlockMatrixType.dense(TFloat64(), nRows, nCols, blockSize)
+    BlockMatrixType.dense(TFloat64, nRows, nCols, blockSize)
   }
 
   override def apply(ctx: ExecuteContext, hc: HailContext): BlockMatrix = {
@@ -631,7 +631,7 @@ sealed abstract class BlockMatrixSparsifier {
 
 //lower <= j - i <= upper
 case class BandSparsifier(blocksOnly: Boolean, l: Long, u: Long) extends BlockMatrixSparsifier {
-  val typ: Type = TTuple(TInt64(), TInt64())
+  val typ: Type = TTuple(TInt64, TInt64)
   def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
     val leftBuffer = java.lang.Math.floorDiv(-l, childType.blockSize)
     val rightBuffer = java.lang.Math.floorDiv(u, childType.blockSize)
@@ -650,7 +650,7 @@ case class BandSparsifier(blocksOnly: Boolean, l: Long, u: Long) extends BlockMa
 
 // interval per row, [start, end)
 case class RowIntervalSparsifier(blocksOnly: Boolean, starts: IndexedSeq[Long], stops: IndexedSeq[Long]) extends BlockMatrixSparsifier {
-  val typ: Type = TTuple(TArray(TInt64()), TArray(TInt64()))
+  val typ: Type = TTuple(TArray(TInt64), TArray(TInt64))
 
   def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
     val blockStarts = starts.grouped(childType.blockSize).map(idxs => childType.getBlockIdx(idxs.min)).toArray
@@ -671,7 +671,7 @@ case class RowIntervalSparsifier(blocksOnly: Boolean, starts: IndexedSeq[Long], 
 
 //rectangle, starts/ends inclusive
 case class RectangleSparsifier(rectangles: IndexedSeq[IndexedSeq[Long]]) extends BlockMatrixSparsifier {
-  val typ: Type = TArray(TInt64())
+  val typ: Type = TArray(TInt64)
 
   def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
     val definedBlocks = rectangles.flatMap { case IndexedSeq(rowStart, rowEnd, colStart, colEnd) =>
@@ -826,7 +826,7 @@ case class BlockMatrixRandom(
   val blockCostIsLinear: Boolean = true
 
   override def typ: BlockMatrixType =
-    BlockMatrixType.dense(TFloat64(), shape(0), shape(1), blockSize)
+    BlockMatrixType.dense(TFloat64, shape(0), shape(1), blockSize)
 
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 

@@ -106,7 +106,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
   override def preservesPartitionCounts: Boolean = false
 
   override def typ(childType: TableType): TableType = {
-    val vepType = if (csq) TArray(TString()) else vepSignature
+    val vepType = if (csq) TArray(TString) else vepSignature
     TableType(childType.rowType ++ TStruct("vep" -> vepType), childType.key, childType.globalType)
   }
 
@@ -215,7 +215,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
           }
       }
 
-    val vepType: Type = if (csq) TArray(TString()) else vepSignature
+    val vepType: Type = if (csq) TArray(TString) else vepSignature
 
     val vepRVDType = prev.typ.copy(rowType = PType.canonical(prev.rowType ++ TStruct("vep" -> vepType)).asInstanceOf[PStruct])
 
@@ -243,7 +243,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
 
     val (globalValue, globalType) =
       if (csq)
-        (Row(csqHeader.getOrElse("")), TStruct("vep_csq_header" -> TString()))
+        (Row(csqHeader.getOrElse("")), TStruct("vep_csq_header" -> TString))
       else
         (Row(), TStruct.empty)
 

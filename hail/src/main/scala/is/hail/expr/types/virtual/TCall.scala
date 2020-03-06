@@ -26,6 +26,4 @@ case object TCall extends ComplexType {
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])
-
-  def apply(): this.type = this
 }

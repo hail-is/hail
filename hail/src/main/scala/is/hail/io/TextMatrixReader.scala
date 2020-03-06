@@ -216,11 +216,11 @@ case class TextMatrixReader(
   if (resolvedPaths.isEmpty)
     fatal("no paths specified for import_matrix_table.")
   assert((rowFields.values ++ entryType.types).forall { t =>
-    t.isOfType(TString()) ||
-    t.isOfType(TInt32()) ||
-    t.isOfType(TInt64()) ||
-    t.isOfType(TFloat32()) ||
-    t.isOfType(TFloat64())
+    t.isOfType(TString) ||
+    t.isOfType(TInt32) ||
+    t.isOfType(TInt64) ||
+    t.isOfType(TFloat32) ||
+    t.isOfType(TFloat64)
   })
 
   val opts = TextMatrixReaderOptions(comment, hasHeader)
@@ -235,7 +235,7 @@ case class TextMatrixReader(
   private[this] val rowFieldTypeWithoutRowId = verifyRowFields(
     resolvedPaths.head, headerInfo.rowFieldNames, rowFields)
   private[this] val rowFieldType =
-    if (addRowId) TStruct("row_id" -> TInt64()) ++ rowFieldTypeWithoutRowId
+    if (addRowId) TStruct("row_id" -> TInt64) ++ rowFieldTypeWithoutRowId
     else rowFieldTypeWithoutRowId
   private[this] val header1Bc = hc.backend.broadcast(headerInfo.headerValues)
   if (hasHeader)
@@ -263,7 +263,7 @@ case class TextMatrixReader(
 
   val fullMatrixType = MatrixType(
     TStruct.empty,
-    colType = TStruct("col_id" -> (if (hasHeader) TString() else TInt32())),
+    colType = TStruct("col_id" -> (if (hasHeader) TString else TInt32)),
     colKey = Array("col_id"),
     rowType = rowFieldType,
     rowKey = Array().toFastIndexedSeq,

@@ -22,6 +22,4 @@ case object TBinary extends Type {
         java.lang.Byte.toUnsignedInt(x.asInstanceOf[Byte]),
         java.lang.Byte.toUnsignedInt(y.asInstanceOf[Byte]))
   })
-
-  def apply(): this.type = this
 }

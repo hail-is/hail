@@ -7,14 +7,14 @@ import is.hail.utils._
 
 object BinaryOp {
   private val returnType: ((BinaryOp, Type, Type)) => Option[Type] = lift {
-    case (FloatingPointDivide(), TInt32, TInt32) => TFloat32()
-    case (FloatingPointDivide(), TInt64, TInt64) => TFloat32()
-    case (FloatingPointDivide(), TFloat32, TFloat32) => TFloat32()
-    case (FloatingPointDivide(), TFloat64, TFloat64) => TFloat64()
-    case (Add() | Subtract() | Multiply() | RoundToNegInfDivide() | BitAnd() | BitOr() | BitXOr(), TInt32, TInt32) => TInt32()
-    case (Add() | Subtract() | Multiply() | RoundToNegInfDivide() | BitAnd() | BitOr() | BitXOr(), TInt64, TInt64) => TInt64()
-    case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), TFloat32, TFloat32) => TFloat32()
-    case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), TFloat64, TFloat64) => TFloat64()
+    case (FloatingPointDivide(), TInt32, TInt32) => TFloat32
+    case (FloatingPointDivide(), TInt64, TInt64) => TFloat32
+    case (FloatingPointDivide(), TFloat32, TFloat32) => TFloat32
+    case (FloatingPointDivide(), TFloat64, TFloat64) => TFloat64
+    case (Add() | Subtract() | Multiply() | RoundToNegInfDivide() | BitAnd() | BitOr() | BitXOr(), TInt32, TInt32) => TInt32
+    case (Add() | Subtract() | Multiply() | RoundToNegInfDivide() | BitAnd() | BitOr() | BitXOr(), TInt64, TInt64) => TInt64
+    case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), TFloat32, TFloat32) => TFloat32
+    case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), TFloat64, TFloat64) => TFloat64
     case (LeftShift() | RightShift() | LogicalRightShift(), t@(TInt32 | TInt64), TInt32) => t
   }
 

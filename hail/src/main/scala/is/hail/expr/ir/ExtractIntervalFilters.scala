@@ -236,10 +236,10 @@ object ExtractIntervalFilters {
               // locus position comparison
               val pos = constValue(const).asInstanceOf[Int]
               val rg = es.firstKeyType.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]
-              val ord = TTuple(TInt32()).ordering
+              val ord = TTuple(TInt32).ordering
               val intervals = rg.contigs.indices
                 .flatMap { i =>
-                  openInterval(pos, TInt32(), op, flipped).intersect(ord,
+                  openInterval(pos, TInt32, op, flipped).intersect(ord,
                     Interval(endpoint(1, -1), endpoint(rg.contigLength(i), -1)))
                     .map { interval =>
                       Interval(

@@ -18,9 +18,9 @@ import org.apache.spark.sql.Row
 case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends MatrixToTableFunction {
   override def typ(childType: MatrixType): TableType = {
     TableType(
-      childType.rowKeyStruct ++ TStruct("loadings" -> TArray(TFloat64())),
+      childType.rowKeyStruct ++ TStruct("loadings" -> TArray(TFloat64)),
       childType.rowKey,
-      TStruct("eigenvalues" -> TArray(TFloat64()), "scores" -> TArray(childType.colKeyStruct ++ TStruct("scores" -> TArray(TFloat64())))))
+      TStruct("eigenvalues" -> TArray(TFloat64), "scores" -> TArray(childType.colKeyStruct ++ TStruct("scores" -> TArray(TFloat64)))))
   }
 
   def preservesPartitionCounts: Boolean = false
@@ -56,7 +56,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
         .collect()
     }
 
-    val rowType = PStruct.canonical(TStruct(mv.typ.rowKey.zip(mv.typ.rowKeyStruct.types): _*) ++ TStruct("loadings" -> TArray(TFloat64())))
+    val rowType = PStruct.canonical(TStruct(mv.typ.rowKey.zip(mv.typ.rowKeyStruct.types): _*) ++ TStruct("loadings" -> TArray(TFloat64)))
     val rowKeysBc = HailContext.backend.broadcast(collectRowKeys())
     val localRowKeySignature = mv.typ.rowKeyStruct.types
 
@@ -92,8 +92,8 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
       ContextRDD.empty(sc)
     val rvd = RVD.coerce(RVDType(rowType, mv.typ.rowKey), crdd, ctx)
 
-    val (t1, f1) = mv.typ.globalType.insert(TArray(TFloat64()), "eigenvalues")
-    val (globalScoreType, f3) = mv.typ.colKeyStruct.insert(TArray(TFloat64()), "scores")
+    val (t1, f1) = mv.typ.globalType.insert(TArray(TFloat64), "eigenvalues")
+    val (globalScoreType, f3) = mv.typ.colKeyStruct.insert(TArray(TFloat64), "scores")
     val (newGlobalType, f2) = t1.insert(TArray(globalScoreType), "scores")
 
     val data =

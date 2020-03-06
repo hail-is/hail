@@ -254,7 +254,7 @@ case class TableFromBlockMatrixNativeReader(path: String, nPartitions: Option[In
   }
 
   override lazy val fullType: TableType = {
-    val rowType = TStruct("row_idx" -> TInt64(), "entries" -> TArray(TFloat64()))
+    val rowType = TStruct("row_idx" -> TInt64, "entries" -> TArray(TFloat64))
     TableType(rowType, Array("row_idx"), TStruct.empty)
   }
 
@@ -380,7 +380,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
   lazy val rowCountUpperBound: Option[Long] = Some(n.toLong)
 
   val typ: TableType = TableType(
-    TStruct("idx" -> TInt32()),
+    TStruct("idx" -> TInt32),
     Array("idx"),
     TStruct.empty)
 
@@ -1202,10 +1202,10 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
       ArrayLen(CastToArray(
         path.foldLeft[IR](Ref("row", childRowType))((struct, field) =>
           GetField(struct, field)))),
-      If(IsNA(Ref(lenUID, TInt32())), 0, Ref(lenUID, TInt32())))
+      If(IsNA(Ref(lenUID, TInt32)), 0, Ref(lenUID, TInt32)))
   }
 
-  val idx = Ref(genUID(), TInt32())
+  val idx = Ref(genUID(), TInt32)
   val newRow: InsertFields = {
     val refs = path.init.scanLeft(Ref("row", childRowType))((struct, name) =>
       Ref(genUID(), coerce[TStruct](struct.typ).field(name).typ))

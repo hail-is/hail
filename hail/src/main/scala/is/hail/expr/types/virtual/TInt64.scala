@@ -22,7 +22,5 @@ case object TInt64 extends TIntegral {
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Long]])
-
-  def apply(): this.type = this
 }
 

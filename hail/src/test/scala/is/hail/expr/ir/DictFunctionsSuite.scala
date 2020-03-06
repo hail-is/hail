@@ -26,13 +26,13 @@ class DictFunctionsSuite extends TestNGSuite {
 
   @Test(dataProvider = "basic")
   def dictFromArray(a: Seq[(Integer, Integer)]) {
-    assertEvalsTo(invoke("dict", TDict(TInt32(), TInt32()), toIRPairArray(a)), tuplesToMap(a))
+    assertEvalsTo(invoke("dict", TDict(TInt32, TInt32), toIRPairArray(a)), tuplesToMap(a))
     assertEvalsTo(toIRDict(a), tuplesToMap(a))
   }
 
   @Test(dataProvider = "basic")
   def dictFromSet(a: Seq[(Integer, Integer)]) {
-    assertEvalsTo(invoke("dict", TDict(TInt32(), TInt32()), ToSet(ToStream(toIRPairArray(a)))), tuplesToMap(a))
+    assertEvalsTo(invoke("dict", TDict(TInt32, TInt32), ToSet(ToStream(toIRPairArray(a)))), tuplesToMap(a))
   }
 
   @Test(dataProvider = "basic")
@@ -52,7 +52,7 @@ class DictFunctionsSuite extends TestNGSuite {
 
   @Test(dataProvider = "dictToArray")
   def dictToArray(a: Seq[(Integer, Integer)], expected: (IndexedSeq[Row])) {
-    assertEvalsTo(invoke("dictToArray", TArray(TTuple(TInt32(), TInt32())), toIRDict(a)), expected)
+    assertEvalsTo(invoke("dictToArray", TArray(TTuple(TInt32, TInt32)), toIRDict(a)), expected)
   }
 
   @DataProvider(name = "keysAndValues")
@@ -68,7 +68,7 @@ class DictFunctionsSuite extends TestNGSuite {
   def keySet(a: Seq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("keySet", TSet(TInt32()), toIRDict(a)),
+    assertEvalsTo(invoke("keySet", TSet(TInt32), toIRDict(a)),
       Option(keys).map(_.toSet).orNull)
   }
 
@@ -76,44 +76,44 @@ class DictFunctionsSuite extends TestNGSuite {
   def keys(a: Seq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("keys", TArray(TInt32()), toIRDict(a)), keys)
+    assertEvalsTo(invoke("keys", TArray(TInt32), toIRDict(a)), keys)
   }
 
   @Test(dataProvider = "keysAndValues")
   def values(a: Seq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("values", TArray(TInt32()), toIRDict(a)), values)
+    assertEvalsTo(invoke("values", TArray(TInt32), toIRDict(a)), values)
   }
 
   val d = IRDict((1, 3), (3, 7), (5, null), (null, 5))
   val dwoutna = IRDict((1, 3), (3, 7), (5, null))
-  val na = NA(TInt32())
+  val na = NA(TInt32)
 
   @Test def dictGet() {
-    assertEvalsTo(invoke("get", TInt32(), NA(TDict(TInt32(), TInt32())), 1, na), null)
-    assertEvalsTo(invoke("get", TInt32(), d, 0, na), null)
-    assertEvalsTo(invoke("get", TInt32(), d, 1, na), 3)
-    assertEvalsTo(invoke("get", TInt32(), d, 2, na), null)
-    assertEvalsTo(invoke("get", TInt32(), d, 3, 50), 7)
-    assertEvalsTo(invoke("get", TInt32(), d, 4, -7), -7)
-    assertEvalsTo(invoke("get", TInt32(), d, 5, 50), null)
-    assertEvalsTo(invoke("get", TInt32(), d, na, 50), 5)
-    assertEvalsTo(invoke("get", TInt32(), dwoutna, na, 50), 50)
-    assertEvalsTo(invoke("get", TInt32(), d, 100, 50), 50)
-    assertEvalsTo(invoke("get", TInt32(), d, 100, na), null)
-    assertEvalsTo(invoke("get", TInt32(), dwoutna, 100, 50), 50)
+    assertEvalsTo(invoke("get", TInt32, NA(TDict(TInt32, TInt32)), 1, na), null)
+    assertEvalsTo(invoke("get", TInt32, d, 0, na), null)
+    assertEvalsTo(invoke("get", TInt32, d, 1, na), 3)
+    assertEvalsTo(invoke("get", TInt32, d, 2, na), null)
+    assertEvalsTo(invoke("get", TInt32, d, 3, 50), 7)
+    assertEvalsTo(invoke("get", TInt32, d, 4, -7), -7)
+    assertEvalsTo(invoke("get", TInt32, d, 5, 50), null)
+    assertEvalsTo(invoke("get", TInt32, d, na, 50), 5)
+    assertEvalsTo(invoke("get", TInt32, dwoutna, na, 50), 50)
+    assertEvalsTo(invoke("get", TInt32, d, 100, 50), 50)
+    assertEvalsTo(invoke("get", TInt32, d, 100, na), null)
+    assertEvalsTo(invoke("get", TInt32, dwoutna, 100, 50), 50)
 
-    assertEvalsTo(invoke("get", TInt32(), IRDict(), 100, na), null)
-    assertEvalsTo(invoke("get", TInt32(), IRDict(), 100, 50), 50)
+    assertEvalsTo(invoke("get", TInt32, IRDict(), 100, na), null)
+    assertEvalsTo(invoke("get", TInt32, IRDict(), 100, 50), 50)
 
-    assertEvalsTo(invoke("[]", TInt32(), d, 1), 3)
-    assertEvalsTo(invoke("[]", TInt32(), d, 5), null)
-    assertEvalsTo(invoke("[]", TInt32(), d, na), 5)
+    assertEvalsTo(invoke("[]", TInt32, d, 1), 3)
+    assertEvalsTo(invoke("[]", TInt32, d, 5), null)
+    assertEvalsTo(invoke("[]", TInt32, d, na), 5)
 
-    assertFatal(invoke("[]", TInt32(), d, -5), "dictionary")
-    assertFatal(invoke("[]", TInt32(), d, 100), "dictionary")
-    assertFatal(invoke("[]", TInt32(), IRDict(), 100), "dictionary")
+    assertFatal(invoke("[]", TInt32, d, -5), "dictionary")
+    assertFatal(invoke("[]", TInt32, d, 100), "dictionary")
+    assertFatal(invoke("[]", TInt32, IRDict(), 100), "dictionary")
   }
 
   @Test def dictContains() {
@@ -128,6 +128,6 @@ class DictFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("contains", TBoolean(), d, na), true)
 
     assert(eval(invoke("contains", TBoolean(), IRDict(), 100)) == false)
-    assertEvalsTo(invoke("contains", TBoolean(), NA(TDict(TInt32(), TInt32())), 1), null)
+    assertEvalsTo(invoke("contains", TBoolean(), NA(TDict(TInt32, TInt32)), 1), null)
   }
 }
