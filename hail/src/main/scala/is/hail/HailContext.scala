@@ -825,9 +825,9 @@ class HailContext private(
 class HailFeatureFlags {
   private[this] val flags: mutable.Map[String, String] =
     mutable.Map[String, String](
-      "lower" -> null,
-      "max_leader_scans" -> "1000",
-      "jvm_bytecode_dump" -> null
+      "lower" -> sys.env.getOrElse("HAIL_DEV_LOWER", null),
+      "max_leader_scans" -> sys.env.getOrElse("HAIL_DEV_MAX_LEADER_SCANS", "1000"),
+      "jvm_bytecode_dump" -> sys.env.getOrElse("HAIL_DEV_JVM_BYTECODE_DUMP", null)
     )
 
   val available: java.util.ArrayList[String] =
