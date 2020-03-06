@@ -141,11 +141,10 @@ def main(args, pass_through_args):
             conf.extend_flag("properties", {"spark:spark.hadoop.fs.gs.requester.pays.buckets": args.requester_pays_allow_buckets})
 
         # Need to pick requester pays project.
-        requester_pays_project = args.project if args.project else sp.check_output(['gcloud', 'config', 'get-value', 'project']).decode().strip() 
+        requester_pays_project = args.project if args.project else sp.check_output(['gcloud', 'config', 'get-value', 'project']).decode().strip()
 
         conf.extend_flag("properties", {"spark:spark.hadoop.fs.gs.requester.pays.mode": requester_pays_mode,
                                         "spark:spark.hadoop.fs.gs.requester.pays.project.id": requester_pays_project})
-
 
     # add VEP init script
     if args.vep:
@@ -174,7 +173,6 @@ def main(args, pass_through_args):
         if args.vep:
             size = max(size, 200)
         return str(size) + 'GB'
-
 
     conf.extend_flag('properties',
                      {"spark:spark.driver.memory": "{driver_memory}g".format(
