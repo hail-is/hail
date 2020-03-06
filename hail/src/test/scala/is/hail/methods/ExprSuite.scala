@@ -80,7 +80,7 @@ class ExprSuite extends HailSuite {
         JSONAnnotationImpex.importAnnotation(parse(string), t) == a
       }
 
-      property("table") = forAll(g.filter { case (t, a) => !t.isOfType(TFloat64) && a != null }.resize(10)) { case (t, a) =>
+      property("table") = forAll(g.filter { case (t, a) => t != TFloat64 && a != null }.resize(10)) { case (t, a) =>
         TableAnnotationImpex.importAnnotation(TableAnnotationImpex.exportAnnotation(a, t), t) == a
       }
     }

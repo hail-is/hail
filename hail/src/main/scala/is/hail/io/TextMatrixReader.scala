@@ -216,11 +216,11 @@ case class TextMatrixReader(
   if (resolvedPaths.isEmpty)
     fatal("no paths specified for import_matrix_table.")
   assert((rowFields.values ++ entryType.types).forall { t =>
-    t.isOfType(TString) ||
-    t.isOfType(TInt32) ||
-    t.isOfType(TInt64) ||
-    t.isOfType(TFloat32) ||
-    t.isOfType(TFloat64)
+    t == TString ||
+    t == TInt32 ||
+    t == TInt64 ||
+    t == TFloat32 ||
+    t == TFloat64
   })
 
   val opts = TextMatrixReaderOptions(comment, hasHeader)

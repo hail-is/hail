@@ -72,7 +72,7 @@ object ExportVCF {
 
   def emitInfo(sb: StringBuilder, f: PField, m: Region, offset: Long, wroteLast: Boolean): Boolean = {
     f.typ match {
-      case it: PContainer if !it.elementType.virtualType.isOfType(TBoolean()) =>
+      case it: PContainer if it.elementType.virtualType != TBoolean() =>
         val length = it.loadLength(offset)
         if (length == 0)
           wroteLast
@@ -200,7 +200,7 @@ object ExportVCF {
           case t =>
             if (fIsDefined)
               strVCF(sb, t, m, fOffset)
-            else if (t.virtualType.isOfType(TCall))
+            else if (t.virtualType == TCall)
               sb.append("./.")
             else
               sb += '.'

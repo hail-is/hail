@@ -46,8 +46,8 @@ object InferType {
       case _: Begin => TVoid
       case Die(_, t) => t
       case If(cond, cnsq, altr) =>
-        assert(cond.typ.isOfType(TBoolean()))
-        assert(cnsq.typ.isOfType(altr.typ))
+        assert(cond.typ == TBoolean())
+        assert(cnsq.typ == altr.typ)
         cnsq.typ
       case Let(name, value, body) =>
         body.typ
@@ -62,7 +62,7 @@ object InferType {
       case ApplyUnaryPrimOp(op, v) =>
         UnaryOp.getReturnType(op, v.typ)
       case ApplyComparisonOp(op, l, r) =>
-        assert(l.typ isOfType r.typ)
+        assert(l.typ == r.typ)
         op match {
           case _: Compare => TInt32
           case _ => TBoolean()
@@ -73,10 +73,10 @@ object InferType {
         a.implementation.unify(argTypes :+ a.returnType)
         a.returnType
       case ArrayRef(a, i, s) =>
-        assert(i.typ.isOfType(TInt32))
+        assert(i.typ == TInt32)
         coerce[TArray](a.typ).elementType
       case ArraySort(a, _, _, compare) =>
-        assert(compare.typ.isOfType(TBoolean()))
+        assert(compare.typ == TBoolean())
         val et = coerce[TStream](a.typ).elementType
         TArray(et)
       case ToSet(a) =>
@@ -139,7 +139,7 @@ object InferType {
         val childType = coerce[TNDArray](nd.typ)
         TNDArray(childType.elementType, Nat(childType.nDims - axes.length))
       case NDArrayRef(nd, idxs) =>
-        assert(idxs.forall(_.typ.isOfType(TInt64)))
+        assert(idxs.forall(_.typ == TInt64))
         coerce[TNDArray](nd.typ).elementType
       case NDArraySlice(nd, slices) =>
         val childTyp = coerce[TNDArray](nd.typ)

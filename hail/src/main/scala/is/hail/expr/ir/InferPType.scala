@@ -70,7 +70,7 @@ object InferPType {
   }
 
   def getNestedElementPTypes(ptypes: Seq[PType]): PType = {
-    assert(ptypes.forall(_.virtualType.isOfType(ptypes.head.virtualType)))
+    assert(ptypes.forall(_.virtualType == ptypes.head.virtualType))
     getNestedElementPTypesOfSameType(ptypes: Seq[PType])
   }
 
@@ -616,7 +616,7 @@ object InferPType {
         x.children.foreach(c => infer(c.asInstanceOf[IR]))
         PVoid
     }
-    if (!(ir.pType.virtualType isOfType ir.typ))
+    if (ir.pType.virtualType != ir.typ)
       throw new RuntimeException(s"pType.virtualType: ${ir.pType.virtualType}, vType = ${ir.typ}\n  ir=$ir")
   }
 }

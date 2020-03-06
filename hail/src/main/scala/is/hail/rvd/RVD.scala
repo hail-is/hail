@@ -1105,7 +1105,7 @@ class RVD(
     that: RVD
   )(zipper: PStruct => (RVDType, (RVDContext, Iterator[RegionValue], Iterator[RegionValue]) => Iterator[RegionValue])
   ): RVD = {
-    require(that.rowType.field(that.typ.key(0)).typ.asInstanceOf[TInterval].pointType isOfType rowType.field(typ.key(0)).typ)
+    require(that.rowType.field(that.typ.key(0)).typ.asInstanceOf[TInterval].pointType == rowType.field(typ.key(0)).typ)
 
     val partBc = partitioner.broadcast(sparkContext)
     val rightTyp = that.typ

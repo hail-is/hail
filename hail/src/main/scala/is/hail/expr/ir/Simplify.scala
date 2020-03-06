@@ -170,9 +170,9 @@ object Simplify {
     case If(c1, cnsq1, If(c2, _, altr2)) if c1 == c2 => If(c1, cnsq1, altr2)
 
     case Cast(x, t) if x.typ == t => x
-    case Cast(Cast(x, _), t) if x.typ.isOfType(t) =>x
+    case Cast(Cast(x, _), t) if x.typ == t =>x
 
-    case CastRename(x, t) if x.typ isOfType t => x
+    case CastRename(x, t) if x.typ == t => x
 
     case ApplyBinaryPrimOp(Add(), I32(0), x) => x
     case ApplyBinaryPrimOp(Add(), x, I32(0)) => x
@@ -345,7 +345,7 @@ object Simplify {
       val structSet = struct.typ.asInstanceOf[TStruct].fieldNames.toSet
       val selectFields2 = selectFields.filter(structSet.contains)
       val x2 = InsertFields(SelectFields(struct, selectFields2), insertFields2, Some(selectFields.toFastIndexedSeq))
-      assert(x2.typ isOfType x.typ)
+      assert(x2.typ == x.typ)
       x2
 
     case x@InsertFields(SelectFields(struct, selectFields), insertFields, _) if

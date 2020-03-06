@@ -123,7 +123,7 @@ abstract class Backend {
     val codec = TypedCodecSpec(EType.defaultFromPType(t), t.virtualType, bs)
     using(Region()) { r =>
       val (pt, off) = codec.decode(t.virtualType, b, r)
-      assert(pt.virtualType.isOfType(t.virtualType))
+      assert(pt.virtualType == t.virtualType)
       JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(
         UnsafeRow.read(pt, r, off), pt.virtualType))
     }

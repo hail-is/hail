@@ -180,8 +180,8 @@ object PruneDeadFields {
           case ts: TStream =>
             TStream(unifySeq(ts.elementType, children.map(_.asInstanceOf[TStream].elementType)))
           case _ =>
-            if (!children.forall(_.asInstanceOf[Type].isOfType(t))) {
-              val badChildren = children.filter(c => !c.asInstanceOf[Type].isOfType(t))
+            if (!children.forall(_.asInstanceOf[Type] == t)) {
+              val badChildren = children.filter(c => c.asInstanceOf[Type] != t)
                 .map(c => "\n  child: " + c.asInstanceOf[Type].parsableString())
               throw new RuntimeException(s"invalid unification:\n  base:  ${ t.parsableString() }${ badChildren.mkString("\n") }")
             }
@@ -1603,7 +1603,7 @@ object PruneDeadFields {
         val cnsq2 = rebuildIR(cnsq, env, memo)
         val alt2 = rebuildIR(alt, env, memo)
 
-        if (cnsq2.typ.isOfType(alt2.typ))
+        if (cnsq2.typ == alt2.typ)
           If(cond2, cnsq2, alt2)
         else
           If(cond2,
@@ -1613,7 +1613,7 @@ object PruneDeadFields {
       case Coalesce(values) =>
         val values2 = values.map(rebuildIR(_, env, memo))
         require(values2.nonEmpty)
-        if (values2.forall(_.typ.isOfType(values2.head.typ)))
+        if (values2.forall(_.typ == values2.head.typ))
           Coalesce(values2)
         else
           Coalesce(values2.map(upcast(_, requestedType)))

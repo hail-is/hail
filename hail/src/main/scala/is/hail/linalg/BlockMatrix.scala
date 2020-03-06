@@ -1852,7 +1852,7 @@ class WriteBlocksRDD(path: String,
     val entryType = MatrixType.getEntryType(rvRowType)
     val fieldType = entryType.field(entryField).typ
 
-    assert(fieldType.virtualType.isOfType(TFloat64))
+    assert(fieldType.virtualType == TFloat64)
 
     val entryArrayIdx = MatrixType.getEntriesIndex(rvRowType)
     val fieldIdx = entryType.fieldIdx(entryField)
