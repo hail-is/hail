@@ -146,13 +146,13 @@ object LocusFunctions extends RegistryFunctions {
     registerIR(methodName, tlocus("T"), TBoolean())(f)
 
   def inX(locus: IR): IR = {
-    val xContigs = Literal(TSet(TString()), locus.typ.asInstanceOf[TLocus].rg.xContigs)
-    invoke("contains", TBoolean(), xContigs, invoke("contig", TString(), locus))
+    val xContigs = Literal(TSet(TString), locus.typ.asInstanceOf[TLocus].rg.xContigs)
+    invoke("contains", TBoolean(), xContigs, invoke("contig", TString, locus))
   }
 
   def inY(locus: IR): IR = {
-    val yContigs = Literal(TSet(TString()), locus.typ.asInstanceOf[TLocus].rg.yContigs)
-    invoke("contains", TBoolean(), yContigs, invoke("contig", TString(), locus))
+    val yContigs = Literal(TSet(TString), locus.typ.asInstanceOf[TLocus].rg.yContigs)
+    invoke("contains", TBoolean(), yContigs, invoke("contig", TString, locus))
   }
 
   def inPar(locus: IR): IR = {
@@ -162,8 +162,8 @@ object LocusFunctions extends RegistryFunctions {
   }
 
   def isMitochondrial(locus: IR): IR = {
-    val mtContigs = Literal(TSet(TString()), locus.typ.asInstanceOf[TLocus].rg.mtContigs)
-    invoke("contains", TBoolean(), mtContigs, invoke("contig", TString(), locus))
+    val mtContigs = Literal(TSet(TString), locus.typ.asInstanceOf[TLocus].rg.mtContigs)
+    invoke("contains", TBoolean(), mtContigs, invoke("contig", TString, locus))
   }
   def isAutosomal(locus: IR): IR = !(inX(locus) || inY(locus) || isMitochondrial(locus))
 

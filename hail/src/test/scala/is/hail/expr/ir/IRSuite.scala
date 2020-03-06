@@ -3278,8 +3278,8 @@ class IRSuite extends HailSuite {
       CollectDistributedArray(StreamMap(StreamRange(0, 10, 1), "x", node), MakeStruct(FastSeq()),
         "ctx", "globals",
         WriteValue(Ref("ctx", node.typ), Str(prefix), spec)),
-      StreamMap(ToStream(Ref("files", TArray(TString()))), "filename",
-        ReadValue(Ref("filename", TString()), spec, pt.virtualType)))
+      StreamMap(ToStream(Ref("files", TArray(TString))), "filename",
+        ReadValue(Ref("filename", TString), spec, pt.virtualType)))
     for (v <- Array(value, null)) {
       assertEvalsTo(ToArray(readArray), FastIndexedSeq(v -> pt.virtualType), Array.fill(10)(v).toFastIndexedSeq)
     }
