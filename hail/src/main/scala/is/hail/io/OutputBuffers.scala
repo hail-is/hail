@@ -17,6 +17,16 @@ trait OutputBuffer extends Closeable {
 
   def writeByte(b: Byte): Unit
 
+  def write(buf: Array[Byte]): Unit = write(buf, 0, buf.length)
+
+  def write(buf: Array[Byte], startPos: Int, endPos: Int): Unit = {
+    var i = startPos
+    while (i < endPos) {
+      writeByte(buf(i))
+      i += 1
+    }
+  }
+
   def writeInt(i: Int): Unit
 
   def writeLong(l: Long): Unit

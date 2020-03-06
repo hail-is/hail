@@ -828,7 +828,8 @@ class HailFeatureFlags {
       "lower" -> sys.env.getOrElse("HAIL_DEV_LOWER", null),
       "lower_bm" -> sys.env.getOrElse("HAIL_DEV_LOWER_BM", null),
       "max_leader_scans" -> sys.env.getOrElse("HAIL_DEV_MAX_LEADER_SCANS", "1000"),
-      "jvm_bytecode_dump" -> sys.env.getOrElse("HAIL_DEV_JVM_BYTECODE_DUMP", null)
+      "jvm_bytecode_dump" -> sys.env.getOrElse("HAIL_DEV_JVM_BYTECODE_DUMP", null),
+      "use_packed_int_encoding" -> sys.env.getOrElse("HAIL_DEV_USE_PACKED_INT_ENCODING", null)
     )
 
   val available: java.util.ArrayList[String] =
