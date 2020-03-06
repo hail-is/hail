@@ -13,11 +13,11 @@ case object EInt64Optional extends EInt64(false)
 case object EInt64Required extends EInt64(true)
 
 class EInt64(override val required: Boolean) extends EType {
-  def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
+  override def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     out.writeLong(coerce[Long](v))
   }
 
-  def _buildDecoder(
+  override def _buildFundamentalDecoder(
     pt: PType,
     mb: EmitMethodBuilder[_],
     region: Value[Region],

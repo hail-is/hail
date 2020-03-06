@@ -90,7 +90,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       PCanonicalNDArray(elementType, t.nDims, required)
   }
 
-  def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
+  override def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     val ft = pt.asInstanceOf[PBaseStruct]
     val writeMissingBytes = if (ft.size == size) {
       val missingBytes = UnsafeUtils.packBitsToBytes(ft.nMissing)
@@ -164,7 +164,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     Code(writeMissingBytes, writeFields, Code._empty)
   }
 
-  def _buildDecoder(
+  override def _buildFundamentalDecoder(
     pt: PType,
     mb: EmitMethodBuilder[_],
     region: Value[Region],

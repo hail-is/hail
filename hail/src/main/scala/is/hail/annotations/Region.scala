@@ -278,6 +278,19 @@ object Region {
       .getRegion(blockSize)
   }
 
+  def pretty(off: Long, n: Int, header: String): String = {
+    val linewidth = 4
+    s"$header\n" +
+    Region.loadBytes(off, n)
+      .map(b => "%02x".format(b)).grouped(8).map(_.mkString(" "))
+      .grouped(linewidth).zipWithIndex
+      .map { case (s, i) => "    %016x  ".format(off + (8 * 8 * linewidth * i)) + s.mkString("  ") }
+      .mkString("\n")
+  }
+
+  def pretty(off: Code[Long], n: Int, header: Code[String]): Code[String] =
+    Code.invokeScalaObject[Long, Int, String, String](Region.getClass, "pretty", off, asm4s.const(n), header)
+
   def pretty(t: PType, off: Long): String = {
     val v = new PrettyVisitor()
     visit(t, off, v)

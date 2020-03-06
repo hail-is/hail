@@ -21,6 +21,10 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*): PTuple,
     off => representation.loadField(off, "shape")
   )
+
+  def loadShape(off: Code[Long], idx: Int): Code[Long] =
+    shape.pType.types(idx).load(shape.pType.fieldOffset(shape.load(off), idx)).tcode[Long]
+
   @transient lazy val strides = new StaticallyKnownField(
     PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*): PTuple,
     (off) => representation.loadField(off, "strides")

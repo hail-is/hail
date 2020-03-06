@@ -80,13 +80,13 @@ final case class EArray(val elementType: EType, override val required: Boolean =
       writeElems)
   }
 
-  def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
+  override def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     val pa = pt.asInstanceOf[PArray]
     val array = coerce[Long](v)
     buildPrefixEncoder(pa, mb, array, out, pa.loadLength(array))
   }
 
-  def _buildDecoder(
+  override def _buildFundamentalDecoder(
     pt: PType,
     mb: EmitMethodBuilder[_],
     region: Value[Region],

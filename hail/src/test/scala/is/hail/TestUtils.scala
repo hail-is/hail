@@ -419,12 +419,12 @@ object TestUtils {
     assertCompiledThrows[HailException](x, regex)
   }
 
-  def assertNDEvals(nd: NDArrayIR, expected: Any)
+  def assertNDEvals(nd: IR, expected: Any)
     (implicit execStrats: Set[ExecStrategy]) {
     assertNDEvals(nd, Env.empty, FastIndexedSeq(), None, expected)
   }
 
-  def assertNDEvals(nd: NDArrayIR, expected: (Any, IndexedSeq[Long]))
+  def assertNDEvals(nd: IR, expected: (Any, IndexedSeq[Long]))
     (implicit execStrats: Set[ExecStrategy]) {
     if (expected == null)
       assertNDEvals(nd, Env.empty, FastIndexedSeq(), None, null, null)
@@ -432,21 +432,21 @@ object TestUtils {
       assertNDEvals(nd, Env.empty, FastIndexedSeq(), None, expected._2, expected._1)
   }
 
-  def assertNDEvals(nd: NDArrayIR, args: IndexedSeq[(Any, Type)], expected: Any)
+  def assertNDEvals(nd: IR, args: IndexedSeq[(Any, Type)], expected: Any)
     (implicit execStrats: Set[ExecStrategy]) {
     assertNDEvals(nd, Env.empty, args, None, expected)
   }
 
-  def assertNDEvals(nd: NDArrayIR, agg: (IndexedSeq[Row], TStruct), expected: Any)
+  def assertNDEvals(nd: IR, agg: (IndexedSeq[Row], TStruct), expected: Any)
     (implicit execStrats: Set[ExecStrategy]) {
     assertNDEvals(nd, Env.empty, FastIndexedSeq(), Some(agg), expected)
   }
 
-  def assertNDEvals(nd: NDArrayIR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)],
+  def assertNDEvals(nd: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)],
     agg: Option[(IndexedSeq[Row], TStruct)], expected: Any)
     (implicit execStrats: Set[ExecStrategy]): Unit = {
     var e: IndexedSeq[Any] = expected.asInstanceOf[IndexedSeq[Any]]
-    val dims = Array.fill(nd.typ.nDims) {
+    val dims = Array.fill(nd.typ.asInstanceOf[TNDArray].nDims) {
       val n = e.length
       if (n != 0 && e.head.isInstanceOf[IndexedSeq[_]])
         e = e.head.asInstanceOf[IndexedSeq[Any]]
@@ -455,11 +455,11 @@ object TestUtils {
     assertNDEvals(nd, Env.empty, FastIndexedSeq(), agg, dims, expected)
   }
 
-  def assertNDEvals(nd: NDArrayIR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)],
+  def assertNDEvals(nd: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)],
     agg: Option[(IndexedSeq[Row], TStruct)], dims: IndexedSeq[Long], expected: Any)
     (implicit execStrats: Set[ExecStrategy]): Unit = {
     val arrayIR = if (expected == null) nd else {
-      val refs = Array.fill(nd.typ.nDims) { Ref(genUID(), TInt32) }
+      val refs = Array.fill(nd.typ.asInstanceOf[TNDArray].nDims) { Ref(genUID(), TInt32) }
       Let("nd", nd,
         dims.zip(refs).foldRight[IR](NDArrayRef(Ref("nd", nd.typ), refs.map(Cast(_, TInt64)))) {
           case ((n, ref), accum) =>

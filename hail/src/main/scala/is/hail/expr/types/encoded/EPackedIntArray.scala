@@ -23,7 +23,7 @@ final case class EPackedIntArray(
 
   def _decodedPType(requestedType: Type): PType = EArray(EInt32(elementsRequired), required)._decodedPType(requestedType)
 
-  def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] = {
+  override def _buildFundamentalDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] = {
     val pa = pt.asInstanceOf[PArray]
 
     val i = mb.newLocal[Int]("i")
@@ -87,7 +87,7 @@ final case class EPackedIntArray(
     )
   }
 
-  def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
+  override def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     val pa = pt.asInstanceOf[PArray]
 
     val packer = mb.newLocal[IntPacker]("packer")
