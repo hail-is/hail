@@ -120,12 +120,12 @@ object InferPType {
         throw new RuntimeException(s"error while inferring IR:\n${Pretty(ir)}", e)
     }
     VisitIR(ir) { case (node: IR) =>
-      if (node.pType == null)
+      if (node._pType == null)
         throw new RuntimeException(s"ptype inference failure: node not inferred:\n${Pretty(node)}\n ** Full IR: **\n${Pretty(ir)}")
     }
   }
   private def _apply(ir: IR, env: Env[PType], aggs: Array[AggStatePhysicalSignature], inits: AAB[InitOp], seqs: AAB[SeqOp]): Unit = {
-    if (ir.pType != null)
+    if (ir._pType != null)
       throw new RuntimeException(ir.toString)
 
     def infer(ir: IR, env: Env[PType] = env, aggs: Array[AggStatePhysicalSignature] = aggs,
