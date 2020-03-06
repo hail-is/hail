@@ -3,15 +3,15 @@ package is.hail.backend
 import is.hail.annotations.UnsafeRow
 import is.hail.expr.ir.IRParser
 import is.hail.expr.types.encoded.EType
-import is.hail.expr.types.physical.{PType, PBaseStruct}
-import is.hail.io.{ BufferSpec, TypedCodecSpec }
-import java.io.{ ByteArrayInputStream, PrintWriter }
+import is.hail.expr.types.physical.{PBaseStruct, PType}
+import is.hail.io.{BufferSpec, TypedCodecSpec}
+import java.io.{ByteArrayInputStream, PrintWriter}
 
 import is.hail.HailContext
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, LoweringPipeline}
+import is.hail.expr.ir.lowering.{DArrayLowering, LowererUnsupportedOperation, LoweringPipeline}
 import is.hail.expr.ir.{BlockMatrixIR, Compilable, Compile, CompileAndEvaluate, ExecuteContext, IR, MakeTuple, Pretty, TypeCheck}
 import is.hail.expr.types.physical.PTuple
 import is.hail.expr.types.virtual.TVoid
@@ -42,14 +42,20 @@ abstract class Backend {
     case Right((pt, off)) => SafeRow(pt, ctx.r, off).get(0)
   }
 
-  def jvmLowerAndExecute(ir0: IR, optimize: Boolean, print: Option[PrintWriter] = None): (Any, ExecutionTimer) =
+  def jvmLowerAndExecute(ir0: IR, optimize: Boolean, lowerTable: Boolean, lowerBM: Boolean, print: Option[PrintWriter] = None): (Any, ExecutionTimer) =
     ExecuteContext.scoped { ctx =>
-      val (l, r) = _jvmLowerAndExecute(ctx, ir0, optimize, print)
+      val (l, r) = _jvmLowerAndExecute(ctx, ir0, optimize, lowerTable, lowerBM, print)
       (executionResultToAnnotation(ctx, l), r)
     }
 
-  private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir0: IR, optimize: Boolean, print: Option[PrintWriter] = None): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
-    val ir = LoweringPipeline.tableLowerer.apply(ctx, ir0, optimize).asInstanceOf[IR]
+  private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir0: IR, optimize: Boolean, lowerTable: Boolean, lowerBM: Boolean, print: Option[PrintWriter] = None): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
+    val typesToLower: DArrayLowering.Type = (lowerTable, lowerBM) match {
+      case (true, true) => DArrayLowering.All
+      case (true, false) => DArrayLowering.TableOnly
+      case (false, true) => DArrayLowering.BMOnly
+      case (false, false) => throw new LowererUnsupportedOperation("no lowering enabled")
+    }
+    val ir = LoweringPipeline.darrayLowerer(typesToLower).apply(ctx, ir0, optimize).asInstanceOf[IR]
 
     if (!Compilable(ir))
       throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")
@@ -76,9 +82,9 @@ abstract class Backend {
   private[this] def _execute(ctx: ExecuteContext, ir: IR, optimize: Boolean): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
     TypeCheck(ir)
     try {
-      if (HailContext.get.flags.get("lower") == null)
-        throw new LowererUnsupportedOperation("lowering not enabled")
-      _jvmLowerAndExecute(ctx, ir, optimize)
+      val lowerTable = HailContext.get.flags.get("lower") != null
+      val lowerBM = HailContext.get.flags.get("lower_bm") != null
+      _jvmLowerAndExecute(ctx, ir, optimize, lowerTable, lowerBM)
     } catch {
       case _: LowererUnsupportedOperation =>
         (CompileAndEvaluate._apply(ctx, ir, optimize = optimize), ctx.timer)
