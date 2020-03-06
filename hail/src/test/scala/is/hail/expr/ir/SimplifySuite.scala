@@ -66,16 +66,16 @@ class SimplifySuite extends HailSuite {
   }
 
   @Test def testContainsRewrites() {
-    assertEvalsTo(invoke("contains", TBoolean(), Literal(TArray(TString), FastIndexedSeq("a")), In(0, TString)),
+    assertEvalsTo(invoke("contains", TBoolean, Literal(TArray(TString), FastIndexedSeq("a")), In(0, TString)),
       FastIndexedSeq("a" -> TString),
       true)
 
-    assertEvalsTo(invoke("contains", TBoolean(), ToSet(ToStream(In(0, TArray(TString)))), Str("a")),
+    assertEvalsTo(invoke("contains", TBoolean, ToSet(ToStream(In(0, TArray(TString)))), Str("a")),
       FastIndexedSeq(FastIndexedSeq("a") -> TArray(TString)),
       true)
 
 
-    assertEvalsTo(invoke("contains", TBoolean(), ToArray(ToStream(In(0, TSet(TString)))), Str("a")),
+    assertEvalsTo(invoke("contains", TBoolean, ToArray(ToStream(In(0, TSet(TString)))), Str("a")),
       FastIndexedSeq(Set("a") -> TSet(TString)),
       true)
   }

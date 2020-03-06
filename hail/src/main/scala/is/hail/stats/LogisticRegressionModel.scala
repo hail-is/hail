@@ -352,8 +352,8 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) ex
 object GLMFit {
   val schema: Type = TStruct(
     ("n_iterations", TInt32),
-    ("converged", TBoolean()),
-    ("exploded", TBoolean()))
+    ("converged", TBoolean),
+    ("exploded", TBoolean))
 }
 
 case class GLMFit(

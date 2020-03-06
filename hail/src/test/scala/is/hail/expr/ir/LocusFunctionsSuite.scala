@@ -30,31 +30,31 @@ class LocusFunctionsSuite extends HailSuite {
   }
 
   @Test def isAutosomalOrPseudoAutosomal() {
-    assertEvalsTo(invoke("isAutosomalOrPseudoAutosomal", TBoolean(), locusIR), locus.isAutosomalOrPseudoAutosomal(grch38))
+    assertEvalsTo(invoke("isAutosomalOrPseudoAutosomal", TBoolean, locusIR), locus.isAutosomalOrPseudoAutosomal(grch38))
   }
 
   @Test def isAutosomal() {
-    assertEvalsTo(invoke("isAutosomal", TBoolean(), locusIR), locus.isAutosomal(grch38))
+    assertEvalsTo(invoke("isAutosomal", TBoolean, locusIR), locus.isAutosomal(grch38))
   }
 
   @Test def inYNonPar() {
-    assertEvalsTo(invoke("inYNonPar", TBoolean(), locusIR), locus.inYNonPar(grch38))
+    assertEvalsTo(invoke("inYNonPar", TBoolean, locusIR), locus.inYNonPar(grch38))
   }
 
   @Test def inXPar() {
-    assertEvalsTo(invoke("inXPar", TBoolean(), locusIR), locus.inXPar(grch38))
+    assertEvalsTo(invoke("inXPar", TBoolean, locusIR), locus.inXPar(grch38))
   }
 
   @Test def isMitochondrial() {
-    assertEvalsTo(invoke("isMitochondrial", TBoolean(), locusIR), locus.isMitochondrial(grch38))
+    assertEvalsTo(invoke("isMitochondrial", TBoolean, locusIR), locus.isMitochondrial(grch38))
   }
 
   @Test def inXNonPar() {
-    assertEvalsTo(invoke("inXNonPar", TBoolean(), locusIR), locus.inXNonPar(grch38))
+    assertEvalsTo(invoke("inXNonPar", TBoolean, locusIR), locus.inXNonPar(grch38))
   }
 
   @Test def inYPar() {
-    assertEvalsTo(invoke("inYPar", TBoolean(), locusIR), locus.inYPar(grch38))
+    assertEvalsTo(invoke("inYPar", TBoolean, locusIR), locus.inYPar(grch38))
   }
 
   @Test def minRep() {

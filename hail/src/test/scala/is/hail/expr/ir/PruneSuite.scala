@@ -307,7 +307,7 @@ class PruneSuite extends HailSuite {
       Array(subsetTable(tab.typ, "row.2", "row.3"), null))
     checkMemo(TableFilter(tab, False()),
       subsetTable(tab.typ, "row.1"),
-      Array(subsetTable(tab.typ, "row.1"), TBoolean()))
+      Array(subsetTable(tab.typ, "row.1"), TBoolean))
   }
 
   @Test def testTableKeyByMemo() {
@@ -531,7 +531,7 @@ class PruneSuite extends HailSuite {
   @Test def testIfMemo() {
     checkMemo(If(True(), ref, ref),
       justA,
-      Array(TBoolean(), justA, justA))
+      Array(TBoolean, justA, justA))
   }
 
   @Test def testCoalesceMemo() {
@@ -542,7 +542,7 @@ class PruneSuite extends HailSuite {
 
   @Test def testLetMemo() {
     checkMemo(Let("foo", ref, Ref("foo", ref.typ)), justA, Array(justA, null))
-    checkMemo(Let("foo", ref, True()), TBoolean(), Array(empty, null))
+    checkMemo(Let("foo", ref, True()), TBoolean, Array(empty, null))
   }
 
   @Test def testAggLetMemo() {
@@ -551,7 +551,7 @@ class PruneSuite extends HailSuite {
         SelectFields(Ref("foo", ref.typ), Seq("a"))),
         AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(ref.typ))), false),
       TArray(justA), Array(justA, null))
-    checkMemo(AggLet("foo", ref, True(), false), TBoolean(), Array(empty, null))
+    checkMemo(AggLet("foo", ref, True(), false), TBoolean, Array(empty, null))
   }
 
   @Test def testMakeArrayMemo() {
@@ -580,14 +580,14 @@ class PruneSuite extends HailSuite {
       FastIndexedSeq(st, a2, a3),
       FastIndexedSeq("foo", "bar", "baz"),
       Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())), b),
-      TStream(TBoolean()), Array(TStream(justB), TStream(justA), TStream(empty), null))
+      TStream(TBoolean), Array(TStream(justB), TStream(justA), TStream(empty), null))
     }
     checkMemo(StreamZip(
       FastIndexedSeq(st, a2, a3),
       FastIndexedSeq("foo", "bar", "baz"),
       Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())),
       ArrayZipBehavior.AssumeSameLength),
-      TStream(TBoolean()), Array(TStream(justB), TStream(justA), null, null))
+      TStream(TBoolean), Array(TStream(justB), TStream(justA), null, null))
 
   }
 
@@ -775,13 +775,13 @@ class PruneSuite extends HailSuite {
 
   @Test def testTableAggregateMemo() {
     checkMemo(TableAggregate(tab, tableRefBoolean(tab.typ, "global.g1")),
-      TBoolean(),
+      TBoolean,
       Array(subsetTable(tab.typ, "global.g1"), null))
   }
 
   @Test def testMatrixAggregateMemo() {
     checkMemo(MatrixAggregate(mat, matrixRefBoolean(mat.typ, "global.g1")),
-      TBoolean(),
+      TBoolean,
       Array(subsetMatrixTable(mat.typ, "global.g1", "NO_COL_KEY"), null))
   }
 
@@ -1070,7 +1070,7 @@ class PruneSuite extends HailSuite {
         FastIndexedSeq(st, a2, a3),
         FastIndexedSeq("foo", "bar", "baz"),
         Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())), b),
-        TStream(TBoolean()),
+        TStream(TBoolean),
         (_: BaseIR, r: BaseIR) => r.asInstanceOf[StreamZip].as.length == 3)
     }
     checkRebuild(StreamZip(
@@ -1078,7 +1078,7 @@ class PruneSuite extends HailSuite {
       FastIndexedSeq("foo", "bar", "baz"),
       Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())),
       ArrayZipBehavior.AssumeSameLength),
-      TStream(TBoolean()),
+      TStream(TBoolean),
       (_: BaseIR, r: BaseIR) => r.asInstanceOf[StreamZip].as.length == 2)
   }
 
@@ -1166,7 +1166,7 @@ class PruneSuite extends HailSuite {
 
   @Test def testTableAggregateRebuild() {
     val ta = TableAggregate(tr, tableRefBoolean(tr.typ, "row.2"))
-    checkRebuild(ta, TBoolean(),
+    checkRebuild(ta, TBoolean,
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[TableAggregate]
         ir.child.typ == subsetTable(tr.typ, "row.2")
@@ -1188,7 +1188,7 @@ class PruneSuite extends HailSuite {
 
   @Test def testMatrixAggregateRebuild() {
     val ma = MatrixAggregate(mr, matrixRefBoolean(mr.typ, "va.r2"))
-    checkRebuild(ma, TBoolean(),
+    checkRebuild(ma, TBoolean,
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[MatrixAggregate]
         ir.child.typ == subsetMatrixTable(mr.typ, "va.r2")
@@ -1229,7 +1229,7 @@ class PruneSuite extends HailSuite {
     val altr = NA(t)
     val ifIR = If(pred, cnsq, altr)
     val memo = Memo.empty[BaseType]
-      .bind(pred, TBoolean())
+      .bind(pred, TBoolean)
       .bind(cnsq, pruneT)
       .bind(altr, pruneT)
       .bind(ifIR, pruneT)

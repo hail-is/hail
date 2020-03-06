@@ -240,7 +240,7 @@ class Aggregators2Suite extends HailSuite {
       "c" -> TInt64,
       "d" -> TFloat32,
       "e" -> TFloat64,
-      "f" -> TBoolean(),
+      "f" -> TBoolean,
       "g" -> TString,
       "h" -> TArray(TInt32))
 
@@ -276,7 +276,7 @@ class Aggregators2Suite extends HailSuite {
       (t, identity[IR], identity[Row]),
       (TInt32, GetField(_, "b"), Option(_).map(_.get(1)).orNull),
       (TFloat64, GetField(_, "e"), Option(_).map(_.get(4)).orNull),
-      (TBoolean(), GetField(_, "f"), Option(_).map(_.get(5)).orNull),
+      (TBoolean, GetField(_, "f"), Option(_).map(_.get(5)).orNull),
       (TString, GetField(_, "g"), Option(_).map(_.get(6)).orNull),
       (TArray(TInt32), GetField(_, "h"), Option(_).map(_.get(7)).orNull)
     )
@@ -351,7 +351,7 @@ class Aggregators2Suite extends HailSuite {
       "c" -> TInt64,
       "d" -> TFloat32,
       "e" -> TFloat64,
-      "f" -> TBoolean(),
+      "f" -> TBoolean,
       "g" -> TString,
       "h" -> TArray(TInt32))
 

@@ -26,25 +26,25 @@ class SetFunctionsSuite extends TestNGSuite {
   }
 
   @Test def isEmpty() {
-    assertEvalsTo(invoke("isEmpty", TBoolean(), IRSet(3, 7)), false)
-    assertEvalsTo(invoke("isEmpty", TBoolean(), IRSet(3, null, 7)), false)
-    assertEvalsTo(invoke("isEmpty", TBoolean(), IRSet()), true)
-    assertEvalsTo(invoke("isEmpty", TBoolean(), IRSet(null)), false)
-    assertEvalsTo(invoke("isEmpty", TBoolean(), nas), null)
+    assertEvalsTo(invoke("isEmpty", TBoolean, IRSet(3, 7)), false)
+    assertEvalsTo(invoke("isEmpty", TBoolean, IRSet(3, null, 7)), false)
+    assertEvalsTo(invoke("isEmpty", TBoolean, IRSet()), true)
+    assertEvalsTo(invoke("isEmpty", TBoolean, IRSet(null)), false)
+    assertEvalsTo(invoke("isEmpty", TBoolean, nas), null)
   }
 
   @Test def contains() {
     val s = IRSet(3, null, 7)
     val swoutna = IRSet(3, 7)
 
-    assertEvalsTo(invoke("contains", TBoolean(), s, I32(3)), true)
-    assertEvalsTo(invoke("contains", TBoolean(), s, I32(4)), false)
-    assertEvalsTo(invoke("contains", TBoolean(), s, I32(10)), false)
-    assertEvalsTo(invoke("contains", TBoolean(), swoutna, I32(10)), false)
-    assertEvalsTo(invoke("contains", TBoolean(), s, NA(TInt32)), true)
-    assertEvalsTo(invoke("contains", TBoolean(), swoutna, NA(TInt32)), false)
-    assertEvalsTo(invoke("contains", TBoolean(), IRSet(3, 7), NA(TInt32)), false)
-    assert(eval(invoke("contains", TBoolean(), IRSet(), 3)) == false)
+    assertEvalsTo(invoke("contains", TBoolean, s, I32(3)), true)
+    assertEvalsTo(invoke("contains", TBoolean, s, I32(4)), false)
+    assertEvalsTo(invoke("contains", TBoolean, s, I32(10)), false)
+    assertEvalsTo(invoke("contains", TBoolean, swoutna, I32(10)), false)
+    assertEvalsTo(invoke("contains", TBoolean, s, NA(TInt32)), true)
+    assertEvalsTo(invoke("contains", TBoolean, swoutna, NA(TInt32)), false)
+    assertEvalsTo(invoke("contains", TBoolean, IRSet(3, 7), NA(TInt32)), false)
+    assert(eval(invoke("contains", TBoolean, IRSet(), 3)) == false)
   }
 
   @Test def remove() {
@@ -66,10 +66,10 @@ class SetFunctionsSuite extends TestNGSuite {
 
   @Test def isSubset() {
     val s = IRSet(3, null, 7)
-    assertEvalsTo(invoke("isSubset", TBoolean(), s, invoke("add", TSet(TInt32), s, I32(4))), true)
-    assertEvalsTo(invoke("isSubset", TBoolean(), IRSet(3, 7), invoke("add", TSet(TInt32), IRSet(3, 7), NA(TInt32))), true)
-    assertEvalsTo(invoke("isSubset", TBoolean(), s, invoke("remove", TSet(TInt32), s, I32(3))), false)
-    assertEvalsTo(invoke("isSubset", TBoolean(), s, invoke("remove", TSet(TInt32), s, NA(TInt32))), false)
+    assertEvalsTo(invoke("isSubset", TBoolean, s, invoke("add", TSet(TInt32), s, I32(4))), true)
+    assertEvalsTo(invoke("isSubset", TBoolean, IRSet(3, 7), invoke("add", TSet(TInt32), IRSet(3, 7), NA(TInt32))), true)
+    assertEvalsTo(invoke("isSubset", TBoolean, s, invoke("remove", TSet(TInt32), s, I32(3))), false)
+    assertEvalsTo(invoke("isSubset", TBoolean, s, invoke("remove", TSet(TInt32), s, NA(TInt32))), false)
   }
 
   @Test def union() {

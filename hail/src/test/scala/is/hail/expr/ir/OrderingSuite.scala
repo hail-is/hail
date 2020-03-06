@@ -166,7 +166,7 @@ class OrderingSuite extends HailSuite {
     } yield (elt, a, asc)
     val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any], asc: Boolean) =>
       val ord = if (asc) t.ordering.toOrdering else t.ordering.reverse.toOrdering
-      assertEvalsTo(ArraySort(ToStream(In(0, TArray(t))), Literal.coerce(TBoolean(), asc)),
+      assertEvalsTo(ArraySort(ToStream(In(0, TArray(t))), Literal.coerce(TBoolean, asc)),
         FastIndexedSeq(a -> TArray(t)),
         expected = a.sorted(ord))
       true
@@ -229,13 +229,13 @@ class OrderingSuite extends HailSuite {
 
       if (set.nonEmpty) {
         assertEvalsTo(
-          invoke("contains", TBoolean(), In(0, tset), In(1, telt)),
+          invoke("contains", TBoolean, In(0, tset), In(1, telt)),
           FastIndexedSeq(set -> tset, set.head -> telt),
           expected = true)
       }
 
       assertEvalsTo(
-        invoke("contains", TBoolean(), In(0, tset), In(1, telt)),
+        invoke("contains", TBoolean, In(0, tset), In(1, telt)),
         FastIndexedSeq(set -> tset, test1 -> telt),
         expected = set.contains(test1))
       true
@@ -371,8 +371,8 @@ class OrderingSuite extends HailSuite {
     assertEvalsTo(StreamFold(ToStream(set1), True(), "accumulator", "setelt",
         ApplySpecial("&&",
           FastSeq(
-            Ref("accumulator", TBoolean()),
-            invoke("contains", TBoolean(), set2, Ref("setelt", TInt32))), TBoolean())), true)
+            Ref("accumulator", TBoolean),
+            invoke("contains", TBoolean, set2, Ref("setelt", TInt32))), TBoolean)), true)
   }
 
   @DataProvider(name = "arrayDoubleOrderingData")

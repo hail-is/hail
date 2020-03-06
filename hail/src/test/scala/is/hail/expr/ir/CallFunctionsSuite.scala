@@ -66,43 +66,43 @@ class CallFunctionsSuite extends TestNGSuite {
 
   @Test(dataProvider = "basic")
   def isPhased(c: Call) {
-    assertEvalsTo(invoke("isPhased", TBoolean(), IRCall(c)),
+    assertEvalsTo(invoke("isPhased", TBoolean, IRCall(c)),
       Option(c).map(Call.isPhased).orNull)
   }
 
   @Test(dataProvider = "basic")
   def isHomRef(c: Call) {
-    assertEvalsTo(invoke("isHomRef", TBoolean(), IRCall(c)),
+    assertEvalsTo(invoke("isHomRef", TBoolean, IRCall(c)),
       Option(c).map(Call.isHomRef).orNull)
   }
 
   @Test(dataProvider = "basic")
   def isHet(c: Call) {
-    assertEvalsTo(invoke("isHet", TBoolean(), IRCall(c)),
+    assertEvalsTo(invoke("isHet", TBoolean, IRCall(c)),
       Option(c).map(Call.isHet).orNull)
   }
 
   @Test(dataProvider = "basic")
   def isHomVar(c: Call) {
-    assertEvalsTo(invoke("isHomVar", TBoolean(),IRCall(c)),
+    assertEvalsTo(invoke("isHomVar", TBoolean,IRCall(c)),
       Option(c).map(Call.isHomVar).orNull)
   }
 
   @Test(dataProvider = "basic")
   def isNonRef(c: Call) {
-    assertEvalsTo(invoke("isNonRef", TBoolean(), IRCall(c)),
+    assertEvalsTo(invoke("isNonRef", TBoolean, IRCall(c)),
       Option(c).map(Call.isNonRef).orNull)
   }
 
   @Test(dataProvider = "basic")
   def isHetNonRef(c: Call) {
-    assertEvalsTo(invoke("isHetNonRef", TBoolean(), IRCall(c)),
+    assertEvalsTo(invoke("isHetNonRef", TBoolean, IRCall(c)),
       Option(c).map(Call.isHetNonRef).orNull)
   }
 
   @Test(dataProvider = "basic")
   def isHetRef(c: Call) {
-    assertEvalsTo(invoke("isHetRef", TBoolean(), IRCall(c)),
+    assertEvalsTo(invoke("isHetRef", TBoolean, IRCall(c)),
       Option(c).map(Call.isHetRef).orNull)
   }
 

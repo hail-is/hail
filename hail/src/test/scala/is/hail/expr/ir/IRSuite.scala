@@ -60,19 +60,19 @@ object IRSuite {
       registerSeededWithMissingness(mname, Array(mt1), rType, unwrappedApply(pt)) { case (r, rt, seed, Array(a1)) => impl(r, rt, seed, a1) }
 
     def registerAll() {
-      registerSeededWithMissingness("incr_s", TBoolean(), TBoolean(), null) { case (mb, rt,  _, (lT, l)) =>
+      registerSeededWithMissingness("incr_s", TBoolean, TBoolean, null) { case (mb, rt,  _, (lT, l)) =>
         EmitTriplet(Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.setup),
           l.m,
           PValue(rt, l.v))
       }
 
-      registerSeededWithMissingness("incr_m", TBoolean(), TBoolean(), null) { case (mb, rt, _, (lT, l)) =>
+      registerSeededWithMissingness("incr_m", TBoolean, TBoolean, null) { case (mb, rt, _, (lT, l)) =>
         EmitTriplet(l.setup,
           Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.m),
           PValue(rt, l.v))
       }
 
-      registerSeededWithMissingness("incr_v", TBoolean(), TBoolean(), null) { case (mb, rt, _, (lT, l)) =>
+      registerSeededWithMissingness("incr_v", TBoolean, TBoolean, null) { case (mb, rt, _, (lT, l)) =>
         EmitTriplet(l.setup,
           l.m,
           PValue(rt, Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.v)))
@@ -218,7 +218,7 @@ class IRSuite extends HailSuite {
 
     expectedPType = PCanonicalArray(PCanonicalStruct(true, "foo" -> PCanonicalStruct("baz" -> PBoolean(true))))
     childPType = PCanonicalArray(PCanonicalStruct(true, "b" -> PCanonicalStruct("a" -> PBoolean(true))))
-    targetType = TArray(TStruct("foo" -> TStruct("baz" -> TBoolean())))
+    targetType = TArray(TStruct("foo" -> TStruct("baz" -> TBoolean)))
     assertPType(CastRename(In(0, childPType), targetType), expectedPType)
 
     expectedPType = PCanonicalArray(PCanonicalStruct("foo" -> PCanonicalArray(PFloat64(true), true), "bar" -> PCanonicalBinary()))
@@ -294,7 +294,7 @@ class IRSuite extends HailSuite {
   val i64na = NA(TInt64)
   val f32na = NA(TFloat32)
   val f64na = NA(TFloat64)
-  val bna = NA(TBoolean())
+  val bna = NA(TBoolean)
 
   @Test def testApplyUnaryPrimOpNegate() {
     assertAllEvalTo(
@@ -331,7 +331,7 @@ class IRSuite extends HailSuite {
     def i64na = NA(TInt64)
     def f32na = NA(TFloat32)
     def f64na = NA(TFloat64)
-    def bna = NA(TBoolean())
+    def bna = NA(TBoolean)
 
     var node = ApplyUnaryPrimOp(Negate(), I32(5))
     assertPType(node, PInt32(true))
@@ -791,14 +791,14 @@ class IRSuite extends HailSuite {
   @Test def testIf() {
     assertEvalsTo(If(True(), I32(5), I32(7)), 5)
     assertEvalsTo(If(False(), I32(5), I32(7)), 7)
-    assertEvalsTo(If(NA(TBoolean()), I32(5), I32(7)), null)
+    assertEvalsTo(If(NA(TBoolean), I32(5), I32(7)), null)
     assertEvalsTo(If(True(), NA(TInt32), I32(7)), null)
   }
 
   @Test def testIfInferPType() {
     assertPType(If(True(), In(0, PInt32(true)), In(1, PInt32(true))), PInt32(true))
     assertPType(If(True(), In(0, PInt32(false)), In(1, PInt32(true))), PInt32(false))
-    assertPType(If(NA(TBoolean()), In(0, PInt32(true)), In(1, PInt32(true))), PInt32(false))
+    assertPType(If(NA(TBoolean), In(0, PInt32(true)), In(1, PInt32(true))), PInt32(false))
 
     var cnsqBranch = In(0, PArray(PArray(PInt32(true), true), true))
     var altrBranch = In(1, PArray(PArray(PInt32(true), true), true))
@@ -1638,18 +1638,18 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val t = TSet(TInt32)
-    assertEvalsTo(invoke("contains", TBoolean(), NA(t), I32(2)), null)
+    assertEvalsTo(invoke("contains", TBoolean, NA(t), I32(2)), null)
 
-    assertEvalsTo(invoke("contains", TBoolean(), In(0, t), NA(TInt32)),
+    assertEvalsTo(invoke("contains", TBoolean, In(0, t), NA(TInt32)),
       FastIndexedSeq((Set(-7, 2, null), t)),
       true)
-    assertEvalsTo(invoke("contains", TBoolean(), In(0, t), I32(2)),
+    assertEvalsTo(invoke("contains", TBoolean, In(0, t), I32(2)),
       FastIndexedSeq((Set(-7, 2, null), t)),
       true)
-    assertEvalsTo(invoke("contains", TBoolean(), In(0, t), I32(0)),
+    assertEvalsTo(invoke("contains", TBoolean, In(0, t), I32(0)),
       FastIndexedSeq((Set(-7, 2, null), t)),
       false)
-    assertEvalsTo(invoke("contains", TBoolean(), In(0, t), I32(7)),
+    assertEvalsTo(invoke("contains", TBoolean, In(0, t), I32(7)),
       FastIndexedSeq((Set(-7, 2), t)),
       false)
   }
@@ -1658,19 +1658,19 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val t = TDict(TInt32, TString)
-    assertEvalsTo(invoke("contains", TBoolean(), NA(t), I32(2)), null)
+    assertEvalsTo(invoke("contains", TBoolean, NA(t), I32(2)), null)
 
     val d = Map(1 -> "a", 2 -> null, (null, "c"))
-    assertEvalsTo(invoke("contains", TBoolean(), In(0, t), NA(TInt32)),
+    assertEvalsTo(invoke("contains", TBoolean, In(0, t), NA(TInt32)),
       FastIndexedSeq((d, t)),
       true)
-    assertEvalsTo(invoke("contains", TBoolean(), In(0, t), I32(2)),
+    assertEvalsTo(invoke("contains", TBoolean, In(0, t), I32(2)),
       FastIndexedSeq((d, t)),
       true)
-    assertEvalsTo(invoke("contains", TBoolean(), In(0, t), I32(0)),
+    assertEvalsTo(invoke("contains", TBoolean, In(0, t), I32(0)),
       FastIndexedSeq((d, t)),
       false)
-    assertEvalsTo(invoke("contains", TBoolean(), In(0, t), I32(3)),
+    assertEvalsTo(invoke("contains", TBoolean, In(0, t), I32(3)),
       FastIndexedSeq((Map(1 -> "a", 2 -> null), t)),
       false)
   }
@@ -1760,7 +1760,7 @@ class IRSuite extends HailSuite {
 
     assertEvalsTo(ToArray(StreamFilter(nsa, "x", True())), null)
 
-    assertEvalsTo(ToArray(StreamFilter(a, "x", NA(TBoolean()))), FastIndexedSeq())
+    assertEvalsTo(ToArray(StreamFilter(a, "x", NA(TBoolean))), FastIndexedSeq())
     assertEvalsTo(ToArray(StreamFilter(a, "x", False())), FastIndexedSeq())
     assertEvalsTo(ToArray(StreamFilter(a, "x", True())), FastIndexedSeq(3, null, 7))
 
@@ -1811,7 +1811,7 @@ class IRSuite extends HailSuite {
     def fold(s: IR, zero: IR, f: (IR, IR) => IR): IR =
       StreamFold(s, zero, "_accum", "_elt", f(Ref("_accum", zero.typ), Ref("_elt", zero.typ)))
 
-    assertEvalsTo(fold(StreamRange(1, 2, 1), NA(TBoolean()), (accum, elt) => IsNA(accum)), true)
+    assertEvalsTo(fold(StreamRange(1, 2, 1), NA(TBoolean), (accum, elt) => IsNA(accum)), true)
     assertEvalsTo(fold(TestUtils.IRStream(1, 2, 3), 0, (accum, elt) => accum + elt), 6)
     assertEvalsTo(fold(TestUtils.IRStream(1, 2, 3), NA(TInt32), (accum, elt) => accum + elt), null)
     assertEvalsTo(fold(TestUtils.IRStream(1, null, 3), NA(TInt32), (accum, elt) => accum + elt), null)
@@ -1838,7 +1838,7 @@ class IRSuite extends HailSuite {
     def scan(array: IR, zero: IR, f: (IR, IR) => IR): IR =
       ToArray(StreamScan(array, zero, "_accum", "_elt", f(Ref("_accum", zero.typ), Ref("_elt", zero.typ))))
 
-    assertEvalsTo(scan(StreamRange(1, 4, 1), NA(TBoolean()), (accum, elt) => IsNA(accum)), FastIndexedSeq(null, true, false, false))
+    assertEvalsTo(scan(StreamRange(1, 4, 1), NA(TBoolean), (accum, elt) => IsNA(accum)), FastIndexedSeq(null, true, false, false))
     assertEvalsTo(scan(TestUtils.IRStream(1, 2, 3), 0, (accum, elt) => accum + elt), FastIndexedSeq(0, 1, 3, 6))
     assertEvalsTo(scan(TestUtils.IRStream(1, 2, 3), NA(TInt32), (accum, elt) => accum + elt), FastIndexedSeq(null, null, null, null))
     assertEvalsTo(scan(TestUtils.IRStream(1, null, 3), NA(TInt32), (accum, elt) => accum + elt), FastIndexedSeq(null, null, null, null))
@@ -1986,14 +1986,14 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(positives, FastSeq(1L, 0L)), 5.0)
     assertEvalsTo(makeNDArrayRef(negatives, FastSeq(1L, 0L)), -5.0)
 
-    val trues = MakeNDArray(MakeArray(data.map(_ => True()), TArray(TBoolean())), MakeTuple.ordered(shape.map(I64)), True())
-    val falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang(), Ref("e", TBoolean())))
+    val trues = MakeNDArray(MakeArray(data.map(_ => True()), TArray(TBoolean)), MakeTuple.ordered(shape.map(I64)), True())
+    val falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang(), Ref("e", TBoolean)))
     assertEvalsTo(makeNDArrayRef(trues, FastSeq(1L, 0L)), true)
     assertEvalsTo(makeNDArrayRef(falses, FastSeq(1L, 0L)), false)
 
-    val bools = MakeNDArray(MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean())),
+    val bools = MakeNDArray(MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean)),
       MakeTuple.ordered(shape.map(I64)), False())
-    val boolsToBinary = NDArrayMap(bools, "e", If(Ref("e", TBoolean()), I64(1L), I64(0L)))
+    val boolsToBinary = NDArrayMap(bools, "e", If(Ref("e", TBoolean), I64(1L), I64(0L)))
     val one = makeNDArrayRef(boolsToBinary, FastSeq(0L, 0L))
     val zero = makeNDArrayRef(boolsToBinary, FastSeq(1L, 1L))
     assertEvalsTo(one, 1L)
@@ -2005,10 +2005,10 @@ class IRSuite extends HailSuite {
 
     val shape = MakeTuple.ordered(FastSeq(2L, 2L).map(I64))
     val numbers = MakeNDArray(MakeArray((0 until 4).map { i => F64(i.toDouble) }, TArray(TFloat64)), shape, True())
-    val bools = MakeNDArray(MakeArray(Seq(True(), False(), False(), True()), TArray(TBoolean())), shape, True())
+    val bools = MakeNDArray(MakeArray(Seq(True(), False(), False(), True()), TArray(TBoolean)), shape, True())
 
     val actual = NDArrayMap2(numbers, bools, "n", "b",
-      ApplyBinaryPrimOp(Add(), Ref("n", TFloat64), If(Ref("b", TBoolean()), F64(10), F64(20))))
+      ApplyBinaryPrimOp(Add(), Ref("n", TFloat64), If(Ref("b", TBoolean), F64(10), F64(20))))
     val ten = makeNDArrayRef(actual, FastSeq(0L, 0L))
     val twentyTwo = makeNDArrayRef(actual, FastSeq(1L, 0L))
     assertEvalsTo(ten, 10.0)
@@ -2518,7 +2518,7 @@ class IRSuite extends HailSuite {
     hc.indexBgen(FastIndexedSeq("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
 
     val b = True()
-    val c = Ref("c", TBoolean())
+    val c = Ref("c", TBoolean)
     val i = I32(5)
     val j = I32(7)
     val str = Str("Hail")
@@ -2652,7 +2652,7 @@ class IRSuite extends HailSuite {
       GetTupleElement(t, 1),
       In(2, TFloat64),
       Die("mumblefoo", TFloat64),
-      invoke("&&", TBoolean(), b, c), // ApplySpecial
+      invoke("&&", TBoolean, b, c), // ApplySpecial
       invoke("toFloat64", TFloat64, i), // Apply
       Literal(TStruct("x" -> TInt32), Row(1)),
       TableCount(table),
@@ -2869,7 +2869,7 @@ class IRSuite extends HailSuite {
   @Test(dataProvider = "valueIRs")
   def testValueIRParser(x: IR) {
     val env = IRParserEnvironment(refMap = Map(
-      "c" -> TBoolean(),
+      "c" -> TBoolean,
       "a" -> TArray(TInt32),
       "aa" -> TArray(TArray(TInt32)),
       "da" -> TArray(TTuple(TInt32, TString)),
@@ -2958,7 +2958,7 @@ class IRSuite extends HailSuite {
 
     def test(x: IR, i: java.lang.Boolean, expectedEvaluations: Int) {
       val env = Env.empty[(Any, Type)]
-      val args = FastIndexedSeq((i, TBoolean()))
+      val args = FastIndexedSeq((i, TBoolean))
 
       IRSuite.globalCounter = 0
       Interpret[Any](ctx, x, env, args, optimize = false)
@@ -2973,25 +2973,25 @@ class IRSuite extends HailSuite {
       assert(IRSuite.globalCounter == expectedEvaluations)
     }
 
-    def i = In(0, TBoolean())
+    def i = In(0, TBoolean)
 
-    def st = ApplySeeded("incr_s", FastSeq(True()), 0L, TBoolean())
+    def st = ApplySeeded("incr_s", FastSeq(True()), 0L, TBoolean)
 
-    def sf = ApplySeeded("incr_s", FastSeq(True()), 0L, TBoolean())
+    def sf = ApplySeeded("incr_s", FastSeq(True()), 0L, TBoolean)
 
-    def sm = ApplySeeded("incr_s", FastSeq(NA(TBoolean())), 0L, TBoolean())
+    def sm = ApplySeeded("incr_s", FastSeq(NA(TBoolean)), 0L, TBoolean)
 
-    def mt = ApplySeeded("incr_m", FastSeq(True()), 0L, TBoolean())
+    def mt = ApplySeeded("incr_m", FastSeq(True()), 0L, TBoolean)
 
-    def mf = ApplySeeded("incr_m", FastSeq(True()), 0L, TBoolean())
+    def mf = ApplySeeded("incr_m", FastSeq(True()), 0L, TBoolean)
 
-    def mm = ApplySeeded("incr_m", FastSeq(NA(TBoolean())), 0L, TBoolean())
+    def mm = ApplySeeded("incr_m", FastSeq(NA(TBoolean)), 0L, TBoolean)
 
-    def vt = ApplySeeded("incr_v", FastSeq(True()), 0L, TBoolean())
+    def vt = ApplySeeded("incr_v", FastSeq(True()), 0L, TBoolean)
 
-    def vf = ApplySeeded("incr_v", FastSeq(True()), 0L, TBoolean())
+    def vf = ApplySeeded("incr_v", FastSeq(True()), 0L, TBoolean)
 
-    def vm = ApplySeeded("incr_v", FastSeq(NA(TBoolean())), 0L, TBoolean())
+    def vm = ApplySeeded("incr_v", FastSeq(NA(TBoolean)), 0L, TBoolean)
 
     // baseline
     test(st, true, 1); test(sf, true, 1); test(sm, true, 1)
@@ -3041,12 +3041,12 @@ class IRSuite extends HailSuite {
 
   @Test def testArrayContinuationDealsWithIfCorrectly() {
     val ir = ToArray(StreamMap(
-      If(IsNA(In(0, TBoolean())),
+      If(IsNA(In(0, TBoolean)),
         NA(TStream(TInt32)),
         ToStream(In(1, TArray(TInt32)))),
       "x", Cast(Ref("x", TInt32), TInt64)))
 
-    assertEvalsTo(ir, FastIndexedSeq(true -> TBoolean(), FastIndexedSeq(0) -> TArray(TInt32)), FastIndexedSeq(0L))
+    assertEvalsTo(ir, FastIndexedSeq(true -> TBoolean, FastIndexedSeq(0) -> TArray(TInt32)), FastIndexedSeq(0L))
   }
 
   @Test def testTableGetGlobalsSimplifyRules() {

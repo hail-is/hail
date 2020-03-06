@@ -190,7 +190,7 @@ object Interpret {
           null
         else op match {
           case Bang() =>
-            assert(x.typ == TBoolean())
+            assert(x.typ == TBoolean)
             !xValue.asInstanceOf[Boolean]
           case Negate() =>
             assert(x.typ.isInstanceOf[TNumeric])

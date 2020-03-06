@@ -442,7 +442,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
       "row", tv.rvd.rowPType,
       "global", tv.globals.t,
       pred)
-    assert(rTyp.virtualType == TBoolean())
+    assert(rTyp.virtualType == TBoolean)
 
     tv.filterWithPartitionOp(f)((rowF, rv, globalRV) => rowF(rv.region, rv.offset, false, globalRV.offset, false))
   }

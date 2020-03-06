@@ -9,7 +9,7 @@ object SetFunctions extends RegistryFunctions {
     val i = Ref(genUID(), TInt32)
 
     If(IsNA(set),
-      NA(TBoolean()),
+      NA(TBoolean),
       Let(i.name,
         LowerBoundOnOrderedCollection(set, elem, onKey = false),
         If(i.ceq(ArrayLen(CastToArray(set))),
@@ -22,11 +22,11 @@ object SetFunctions extends RegistryFunctions {
       ToSet(ToStream(a))
     }
 
-    registerIR("isEmpty", TSet(tv("T")), TBoolean()) { s =>
+    registerIR("isEmpty", TSet(tv("T")), TBoolean) { s =>
       ArrayFunctions.isEmpty(CastToArray(s))
     }
 
-    registerIR("contains", TSet(tv("T")), tv("T"), TBoolean())(contains)
+    registerIR("contains", TSet(tv("T")), tv("T"), TBoolean)(contains)
 
     registerIR("remove", TSet(tv("T")), tv("T"), TSet(tv("T"))) { (s, v) =>
       val t = v.typ
@@ -74,14 +74,14 @@ object SetFunctions extends RegistryFunctions {
           ApplyUnaryPrimOp(Bang(), contains(s2, Ref(x, t)))))
     }
 
-    registerIR("isSubset", TSet(tv("T")), TSet(tv("T")), TBoolean()) { (s, w) =>
+    registerIR("isSubset", TSet(tv("T")), TSet(tv("T")), TBoolean) { (s, w) =>
       val t = s.typ.asInstanceOf[TSet].elementType
       val a = genUID()
       val x = genUID()
       StreamFold(ToStream(s), True(), a, x,
         // FIXME short circuit
         ApplySpecial("&&",
-          FastSeq(Ref(a, TBoolean()), contains(w, Ref(x, t))), TBoolean()))
+          FastSeq(Ref(a, TBoolean), contains(w, Ref(x, t))), TBoolean))
     }
 
     registerIR("median", TSet(tnum("T")), tv("T")) { s =>

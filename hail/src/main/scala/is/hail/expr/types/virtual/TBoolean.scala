@@ -24,6 +24,4 @@ case object TBoolean extends Type {
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Boolean]])
-
-  def apply(): TBoolean.type = TBoolean
 }

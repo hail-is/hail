@@ -100,8 +100,8 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
   def toJSON(f: (Any) => JValue): JValue =
     JObject("start" -> f(start),
       "end" -> f(end),
-      "includeStart" -> TBoolean().toJSON(includesStart),
-      "includeEnd" -> TBoolean().toJSON(includesEnd))
+      "includeStart" -> TBoolean.toJSON(includesStart),
+      "includeEnd" -> TBoolean.toJSON(includesEnd))
 
   def isBelow(pord: ExtendedOrdering, other: Interval): Boolean =
     ext(pord).compare(this.right, other.left) <= 0

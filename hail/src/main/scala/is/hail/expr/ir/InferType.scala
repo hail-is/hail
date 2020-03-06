@@ -14,12 +14,12 @@ object InferType {
       case F64(_) => TFloat64
       case Str(_) => TString
       case Literal(t, _) => t
-      case True() | False() => TBoolean()
+      case True() | False() => TBoolean
       case Void() => TVoid
       case Cast(_, t) => t
       case CastRename(_, t) => t
       case NA(t) => t
-      case IsNA(_) => TBoolean()
+      case IsNA(_) => TBoolean
       case Coalesce(values) => values.head.typ
       case Ref(_, t) => t
       case RelationalRef(_, t) => t
@@ -46,7 +46,7 @@ object InferType {
       case _: Begin => TVoid
       case Die(_, t) => t
       case If(cond, cnsq, altr) =>
-        assert(cond.typ == TBoolean())
+        assert(cond.typ == TBoolean)
         assert(cnsq.typ == altr.typ)
         cnsq.typ
       case Let(name, value, body) =>
@@ -65,7 +65,7 @@ object InferType {
         assert(l.typ == r.typ)
         op match {
           case _: Compare => TInt32
-          case _ => TBoolean()
+          case _ => TBoolean
         }
       case a: ApplyIR => a.explicitNode.typ
       case a: AbstractApplyNode[_] =>
@@ -76,7 +76,7 @@ object InferType {
         assert(i.typ == TInt32)
         coerce[TArray](a.typ).elementType
       case ArraySort(a, _, _, compare) =>
-        assert(compare.typ == TBoolean())
+        assert(compare.typ == TBoolean)
         val et = coerce[TStream](a.typ).elementType
         TArray(et)
       case ToSet(a) =>

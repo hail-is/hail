@@ -456,8 +456,8 @@ class PrimitiveIR(val self: IR) extends AnyVal {
   def /(other: IR): IR = ApplyBinaryPrimOp(FloatingPointDivide(), self, other)
   def floorDiv(other: IR): IR = ApplyBinaryPrimOp(RoundToNegInfDivide(), self, other)
 
-  def &&(other: IR): IR = invoke("&&", TBoolean(), self, other)
-  def ||(other: IR): IR = invoke("||", TBoolean(), self, other)
+  def &&(other: IR): IR = invoke("&&", TBoolean, self, other)
+  def ||(other: IR): IR = invoke("||", TBoolean, self, other)
 
   def toI: IR = Cast(self, TInt32)
   def toL: IR = Cast(self, TInt64)

@@ -55,13 +55,13 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     }
 
   def registerAll() {
-    registerRGCode("isValidContig", TString, TBoolean(), null) {
+    registerRGCode("isValidContig", TString, TBoolean, null) {
       case (r, rt, (contigT, contig: Code[Long])) =>
         val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
         rgCode(r.mb).invoke[String, Boolean]("isValidContig", scontig)
     }
 
-    registerRGCode("isValidLocus", TString, TInt32, TBoolean(), null) {
+    registerRGCode("isValidLocus", TString, TInt32, TBoolean, null) {
       case (r, rt, (contigT, contig: Code[Long]), (posT, pos: Code[Int])) =>
         val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
         rgCode(r.mb).invoke[String, Int, Boolean]("isValidLocus", scontig, pos)
@@ -81,7 +81,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
           Seq(TString, TInt32, TInt32, TInt32)).get
         val isValid = IRFunctionRegistry.lookupConversion(
           rg.wrapFunctionName("isValidLocus"),
-          TBoolean(),
+          TBoolean,
           Seq(TString, TInt32)).get
         If(isValid(Array(contig, pos)), getRef(Array(contig, pos, before, after)), NA(TString))
     }

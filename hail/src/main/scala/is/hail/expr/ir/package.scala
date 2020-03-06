@@ -61,9 +61,9 @@ package object ir {
     val pred = genUID()
     ir.Let(pred,
       if (keep) irPred else ir.ApplyUnaryPrimOp(ir.Bang(), irPred),
-      ir.If(ir.IsNA(ir.Ref(pred, TBoolean())),
+      ir.If(ir.IsNA(ir.Ref(pred, TBoolean)),
         ir.False(),
-        ir.Ref(pred, TBoolean())))
+        ir.Ref(pred, TBoolean)))
   }
 
   private[ir] def coerce[T](c: Code[_]): Code[T] = asm4s.coerce(c)

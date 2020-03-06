@@ -47,7 +47,7 @@ object Nirvana {
       "clinicalInterpretation" -> TString,
       "observedGains" -> TInt32,
       "observedLosses" -> TInt32,
-      "validated" -> TBoolean(),
+      "validated" -> TBoolean,
       "phenotypes" -> TArray(TString),
       "phenotypeIds" -> TArray(TString),
       "reciprocalOverlap" -> TFloat64
@@ -104,12 +104,12 @@ object Nirvana {
       "begin" -> TInt32,
       "end" -> TInt32,
       "phylopScore" -> TFloat64,
-      "isReferenceMinor" -> TBoolean(),
+      "isReferenceMinor" -> TBoolean,
       "variantType" -> TString,
       "vid" -> TString,
       "hgvsg" -> TString,
-      "isRecomposedVariant" -> TBoolean(),
-      "isDecomposedVariant" -> TBoolean(),
+      "isRecomposedVariant" -> TBoolean,
+      "isDecomposedVariant" -> TBoolean,
       "regulatoryRegions" -> TArray(TStruct(
         "id" -> TString,
         "type" -> TString,
@@ -118,7 +118,7 @@ object Nirvana {
       "clinvar" -> TArray(TStruct(
         "id" -> TString,
         "reviewStatus" -> TString,
-        "isAlleleSpecific" -> TBoolean(),
+        "isAlleleSpecific" -> TBoolean,
         "alleleOrigins" -> TArray(TString),
         "refAllele" -> TString,
         "altAllele" -> TString,
@@ -132,7 +132,7 @@ object Nirvana {
       )),
       "cosmic" -> TArray(TStruct(
         "id" -> TString,
-        "isAlleleSpecific" -> TBoolean(),
+        "isAlleleSpecific" -> TBoolean,
         "refAllele" -> TString,
         "altAllele" -> TString,
         "gene" -> TString,
@@ -178,7 +178,7 @@ object Nirvana {
         "asjAc" -> TInt32,
         "asjAn" -> TInt32,
         "asjHc" -> TInt32,
-        "failedFilter" -> TBoolean()
+        "failedFilter" -> TBoolean
       ),
       "gnomadExome" -> TStruct(
         "coverage" -> TString,
@@ -218,10 +218,10 @@ object Nirvana {
         "sasAc" -> TInt32,
         "sasAn" -> TInt32,
         "sasHc" -> TInt32,
-        "failedFilter" -> TBoolean()
+        "failedFilter" -> TBoolean
       ),
       "topmed" -> TStruct(
-        "failedFilter" -> TBoolean(),
+        "failedFilter" -> TBoolean,
         "allAc" -> TInt32,
         "allAn" -> TInt32,
         "allAf" -> TFloat64,
@@ -256,12 +256,12 @@ object Nirvana {
         "refAllele" -> TString,
         "altAllele" -> TString,
         "diseases"  -> TArray(TString),
-        "hasHomoplasmy" -> TBoolean(),
-        "hasHeteroplasmy" -> TBoolean(),
+        "hasHomoplasmy" -> TBoolean,
+        "hasHeteroplasmy" -> TBoolean,
         "status" -> TString,
         "clinicalSignificance" -> TString,
         "scorePercentile" -> TFloat64,
-        "isAlleleSpecific" -> TBoolean(),
+        "isAlleleSpecific" -> TBoolean,
         "chromosome" -> TString,
         "begin" -> TInt32,
         "end" -> TInt32,
@@ -282,7 +282,7 @@ object Nirvana {
           "consequence" -> TArray(TString),
           "hgvsc" -> TString,
           "hgvsp" -> TString,
-          "isCanonical" -> TBoolean(),
+          "isCanonical" -> TBoolean,
           "polyPhenScore" -> TFloat64,
           "polyPhenPrediction" -> TString,
           "proteinId" -> TString,
@@ -304,7 +304,7 @@ object Nirvana {
           "consequence" -> TArray(TString),
           "hgvsc" -> TString,
           "hgvsp" -> TString,
-          "isCanonical" -> TBoolean(),
+          "isCanonical" -> TBoolean,
           "polyPhenScore" -> TFloat64,
           "polyPhenPrediction" -> TString,
           "proteinId" -> TString,

@@ -163,7 +163,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   }
 
   def addBoolean(v: Code[Boolean]): Code[Unit] = {
-    checkType(TBoolean())
+    checkType(TBoolean)
     Region.storeByte(currentOffset, v.toI.toB)
   }
 

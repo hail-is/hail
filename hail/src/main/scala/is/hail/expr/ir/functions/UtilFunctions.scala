@@ -125,7 +125,7 @@ object UtilFunctions extends RegistryFunctions {
   def registerAll() {
     val thisClass = getClass
 
-    registerCode("valuesSimilar", tv("T"), tv("U"), TFloat64, TBoolean(), TBoolean(), null) {
+    registerCode("valuesSimilar", tv("T"), tv("U"), TFloat64, TBoolean, TBoolean, null) {
       case (er, rt, (lT, l), (rT, r), (tolT, tolerance), (absT, absolute)) =>
         assert(lT.virtualType == rT.virtualType)
         val lb = boxArg(er, lT)(l)
@@ -135,13 +135,13 @@ object UtilFunctions extends RegistryFunctions {
 
     registerCode[Int]("triangle", TInt32, TInt32, null) { case (_, rt, (nT, n: Code[Int])) => (n * (n + 1)) / 2 }
 
-    registerCode[Boolean]("toInt32", TBoolean(), TInt32, null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI }
-    registerCode[Boolean]("toInt64", TBoolean(), TInt64, null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI.toL }
-    registerCode[Boolean]("toFloat32", TBoolean(), TFloat32, null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI.toF }
-    registerCode[Boolean]("toFloat64", TBoolean(), TFloat64, null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI.toD }
+    registerCode[Boolean]("toInt32", TBoolean, TInt32, null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI }
+    registerCode[Boolean]("toInt64", TBoolean, TInt64, null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI.toL }
+    registerCode[Boolean]("toFloat32", TBoolean, TFloat32, null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI.toF }
+    registerCode[Boolean]("toFloat64", TBoolean, TFloat64, null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI.toD }
 
     for ((name, t, ct) <- Seq[(String, Type, ClassTag[_])](
-      ("Boolean", TBoolean(), implicitly[ClassTag[Boolean]]),
+      ("Boolean", TBoolean, implicitly[ClassTag[Boolean]]),
       ("Int32", TInt32, implicitly[ClassTag[Int]]),
       ("Int64", TInt64, implicitly[ClassTag[Long]]),
       ("Float64", TFloat64, implicitly[ClassTag[Double]]),
@@ -233,7 +233,7 @@ object UtilFunctions extends RegistryFunctions {
           Code.checkcast[Row](asm4s.coerce[java.lang.Object](wrapArg(r, argsT)(args)))))
     }
 
-    registerCodeWithMissingness("&&", TBoolean(), TBoolean(), TBoolean(), null) {
+    registerCodeWithMissingness("&&", TBoolean, TBoolean, TBoolean, null) {
       case (er, rt, (lT, l), (rT, r)) =>
         val lv = l.value[Boolean]
         val rv = r.value[Boolean]
@@ -263,7 +263,7 @@ object UtilFunctions extends RegistryFunctions {
           PValue(rt, w.ceq(10)))
     }
 
-    registerCodeWithMissingness("||", TBoolean(), TBoolean(), TBoolean(), null) {
+    registerCodeWithMissingness("||", TBoolean, TBoolean, TBoolean, null) {
       case (er, rt, (lT, l), (rT, r)) =>
         val lv = l.value[Boolean]
         val rv = r.value[Boolean]
