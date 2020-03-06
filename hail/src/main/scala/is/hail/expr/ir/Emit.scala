@@ -116,6 +116,10 @@ case class EmitTriplet(setup: Code[Unit], m: Code[Boolean], pv: PValue) {
   def map(f: PValue => PValue): EmitTriplet = copy(pv = f(pv))
 }
 
+object EmitTriplet {
+  def present(pt: PType, v: Code[_]): EmitTriplet = EmitTriplet(Code._empty, false, PValue(pt, v))
+}
+
 case class LoopRef(m: ClassFieldRef[Boolean], v: PSettable[PValue], tempM: LocalRef[Boolean], tempV: PSettable[PValue])
 
 abstract class MethodBuilderLike[M <: MethodBuilderLike[M]] {
@@ -267,8 +271,8 @@ private class Emit(
     def wrapToMethod(irs: Seq[IR], env: E = env, container: Option[AggContainer] = container)(useValues: (EmitMethodBuilder, PType, EmitTriplet) => Code[Unit]): Code[Unit] =
       this.wrapToMethod(irs, env, container)(useValues)
 
-    def emitStream(ir: IR): COption[EmitStream2.SizedStream] =
-      EmitStream2(this, ir, env, er, container)
+    def emitStream(ir: IR): COption[EmitStream.SizedStream] =
+      EmitStream(this, ir, env, er, container)
 
     def emitDeforestedNDArray(ir: IR) =
       deforestNDArray(resultRegion, ir, env).emit(coerce[PNDArray](ir.pType))
@@ -542,7 +546,7 @@ private class Emit(
         val optStream = emitStream(array)
         val result = optStream.map { stream =>
           Code(
-            EmitStream2.write(mb, stream, vab),
+            EmitStream.write(mb, stream, vab),
             sort,
             distinct,
             sorter.toRegion())
@@ -555,7 +559,7 @@ private class Emit(
         EmitTriplet(et.setup, et.m, PValue(pt, et.v))
 
       case ToArray(a) =>
-        EmitStream2.toArray(mb, pt.asInstanceOf[PArray], emitStream(a))
+        EmitStream.toArray(mb, coerce[PArray](pt), emitStream(a))
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val typ: PContainer = coerce[PIterable](orderedCollection.pType).asPContainer
@@ -635,7 +639,7 @@ private class Emit(
         val optStream = emitStream(collection)
         val result = optStream.map { stream =>
           Code(
-            EmitStream2.write(mb, stream, eab),
+            EmitStream.write(mb, stream, eab),
             sorter.sort(sortF),
             sorter.pruneMissing,
             eab.size.ceq(0).mux(
@@ -1717,7 +1721,7 @@ private class Emit(
             srvb.offset)
         }
 
-        def addContexts(ctxStream: EmitStream2.SizedStream): Code[Unit] =
+        def addContexts(ctxStream: EmitStream.SizedStream): Code[Unit] =
           Code(
             ctxStream.length match {
               case None => ctxab.invoke[Int, Unit]("ensureCapacity", 16)
