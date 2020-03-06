@@ -411,18 +411,21 @@ class Test(unittest.TestCase):
             (requests.get, '/batches/0/jobs/0', 302)]
         for f, url, expected in endpoints:
             full_url = deploy_config.url('batch', url)
-            delay = 0.1
+            delay = 1
+            error = 0
             while True:
                 r = f(full_url, allow_redirects=False)
-                if r.status_code in (408, 500, 502, 503, 504):
+                if r.status_code in (408, 500, 502, 503, 504) and error < 10:
                     # nginx returns 502 if it cannot connect to the upstream server
                     # 408 request timeout, 500 internal server error, 502 bad gateway
                     # 503 service unavailable, 504 gateway timeout
                     t = delay * random.random()
-                    time.sleep(delay)
+                    time.sleep(t)
                     delay = min(delay * 2, 60.0)
-                else:
-                    assert r.status_code == expected, (full_url, r, expected)
+                    error += 1
+                    continue
+
+                assert r.status_code == expected, (full_url, r, expected)
 
     def test_bad_token(self):
         token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
