@@ -26,8 +26,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
 
   private def checkLeftIntervalJoinCompatability(right: KeyedRVD) {
     if (!(kType.size == 1 && right.kType.size == 1
-      && right.kType.types(0).isInstanceOf[TInterval]
-      && kType.types(0).isOfType(right.kType.types(0).asInstanceOf[TInterval].pointType)))
+      && kType.types(0) == right.kType.types(0).asInstanceOf[TInterval].pointType))
       fatal(
         s"""Incompatible join keys in left interval join:
            | Left join key type: ${ kType.toString }

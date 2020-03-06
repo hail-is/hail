@@ -331,13 +331,13 @@ case class Skat(
 
     val weightStructField = fullRowType.field(weightField)
     val weightIndex = weightStructField.index
-    assert(weightStructField.typ.virtualType.isOfType(TFloat64))
+    assert(weightStructField.typ.virtualType == TFloat64)
 
     val entryArrayType = mv.entryArrayPType
     val entryType = mv.entryPType
     val fieldType = entryType.field(xField).typ
 
-    assert(fieldType.virtualType.isOfType(TFloat64))
+    assert(fieldType.virtualType == TFloat64)
 
     val entryArrayIdx = mv.entriesIdx
     val fieldIdx = entryType.fieldIdx(xField)    

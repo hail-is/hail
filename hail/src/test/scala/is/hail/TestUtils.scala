@@ -217,7 +217,7 @@ object TestUtils {
             aggIR,
             print = bytecodePrinter,
             optimize = optimize)
-          assert(resultType2.virtualType.isOfType(resultType))
+          assert(resultType2.virtualType == resultType)
 
           Region.scoped { region =>
             val rvb = new RegionValueBuilder(region)
@@ -249,7 +249,7 @@ object TestUtils {
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))),
             optimize = optimize,
             print = bytecodePrinter)
-          assert(resultType2.virtualType.isOfType(resultType))
+          assert(resultType2.virtualType == resultType)
 
           Region.scoped { region =>
             val rvb = new RegionValueBuilder(region)

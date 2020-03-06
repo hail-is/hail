@@ -210,8 +210,6 @@ abstract class Type extends BaseType with Serializable {
 
   final def typeCheck(a: Any): Boolean = a == null || _typeCheck(a)
 
-  final def isOfType(t: BaseType): Boolean = this == t
-
   def canCastTo(t: Type): Boolean = this match {
     case TInterval(tt1) => t match {
       case TInterval(tt2) => tt1.canCastTo(tt2)

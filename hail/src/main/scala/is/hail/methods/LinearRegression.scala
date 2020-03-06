@@ -71,7 +71,7 @@ case class LinearRegressionRowsSingle(
     val fullRowType = mv.rvd.rowPType
     val entryArrayType = MatrixType.getEntryArrayType(fullRowType)
     val entryType = entryArrayType.elementType.asInstanceOf[PStruct]
-    assert(entryType.field(xField).typ.virtualType.isOfType(TFloat64))
+    assert(entryType.field(xField).typ.virtualType == TFloat64)
 
     val entryArrayIdx = MatrixType.getEntriesIndex(fullRowType)
     val fieldIdx = entryType.fieldIdx(xField)
@@ -227,8 +227,8 @@ case class LinearRegressionRowsChained(
     val fullRowType = mv.rvd.rowPType
     val entryArrayType = MatrixType.getEntryArrayType(fullRowType)
     val entryType = entryArrayType.elementType.asInstanceOf[PStruct]
-    assert(entryType.field(xField).typ.virtualType.isOfType(TFloat64))
-    assert(entryType.field(xField).typ.virtualType.isOfType(TFloat64))
+    assert(entryType.field(xField).typ.virtualType == TFloat64)
+    assert(entryType.field(xField).typ.virtualType == TFloat64)
 
     val entryArrayIdx = MatrixType.getEntriesIndex(fullRowType)
     val fieldIdx = entryType.fieldIdx(xField)

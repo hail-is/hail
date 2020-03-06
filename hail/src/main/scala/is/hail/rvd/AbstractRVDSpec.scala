@@ -136,7 +136,7 @@ object AbstractRVDSpec {
       pathLeft, pathRight, isl, isr,
       specLeft.typedCodecSpec, specRight.typedCodecSpec, parts, tmpPartitioner.rangeBounds,
       requestedTypeLeft, requestedTypeRight)
-    assert(t.virtualType isOfType requestedType)
+    assert(t.virtualType == requestedType)
     val tmprvd = RVD(RVDType(t, requestedKey), tmpPartitioner.coarsen(requestedKey.length), crdd)
     newPartitioner match {
       case Some(part) if !filterIntervals => tmprvd.repartition(part.coarsen(requestedKey.length), ctx)
