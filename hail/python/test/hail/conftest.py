@@ -10,7 +10,7 @@ def pytest_collection_modifyitems(config, items):
     if n_splits <= 1:
         return
     if not (0 <= split_index < n_splits):
-        raise RuntimeError(f"invalid split_index: index={split_index}, n_splits={n_splits}")
+        raise RuntimeError(f"invalid split_index: index={split_index}, n_splits={n_splits}\n  env={os.environ}")
     skip_this = pytest.mark.skip(reason="skipped in this round")
 
     def digest(s):
