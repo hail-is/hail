@@ -142,14 +142,14 @@ object StringFunctions extends RegistryFunctions {
     registerCodeWithMissingness("showStr", tv("T"), TInt32, TString, null) { case (r, rt, (aT, a), (_, trunc)) =>
       val annotation = Code(a.setup, a.m).mux(Code._null, boxArg(r, aT)(a.v))
       val str = r.mb.getType(aT.virtualType).invoke[Any, Int, String]("showStr", annotation, trunc.value[Int])
-      EmitTriplet(trunc.setup, trunc.m, PValue(rt, unwrapReturn(r, rt)(str)))
+      EmitCode(trunc.setup, trunc.m, PCode(rt, unwrapReturn(r, rt)(str)))
     }
 
     registerCodeWithMissingness("json", tv("T"), TString, null) { case (r, rt, (aT, a)) =>
       val annotation = Code(a.setup, a.m).mux(Code._null, boxArg(r, aT)(a.v))
       val json = r.mb.getType(aT.virtualType).invoke[Any, JValue]("toJSON", annotation)
       val str = Code.invokeScalaObject[JValue, String](JsonMethods.getClass, "compact", json)
-      EmitTriplet(Code._empty, false, PValue(rt, unwrapReturn(r, rt)(str)))
+      EmitCode(Code._empty, false, PCode(rt, unwrapReturn(r, rt)(str)))
     }
 
     registerWrappedScalaFunction("reverse", TString, TString, null)(thisClass,"reverse")
@@ -176,7 +176,7 @@ object StringFunctions extends RegistryFunctions {
     registerWrappedScalaFunction("mkString", TArray(TString), TString, TString, null)(thisClass, "arrayMkString")
 
     registerCodeWithMissingness("firstMatchIn", TString, TString, TArray(TString), null) {
-      case (er: EmitRegion, rt: PArray, (sT: PString, s: EmitTriplet), (rT: PString, r: EmitTriplet)) =>
+      case (er: EmitRegion, rt: PArray, (sT: PString, s: EmitCode), (rT: PString, r: EmitCode)) =>
       val out: LocalRef[IndexedSeq[String]] = er.mb.newLocal[IndexedSeq[String]]
       val nout = new CodeNullable[IndexedSeq[String]](out)
 
@@ -206,11 +206,11 @@ object StringFunctions extends RegistryFunctions {
               srvb.advance()),
             srvb.end()))
 
-      EmitTriplet(setup, missing, PValue(rt, value))
+      EmitCode(setup, missing, PCode(rt, value))
     }
 
     registerCodeWithMissingness("hamming", TString, TString, TInt32, null) {
-      case (r: EmitRegion, rt, (e1T: PString, e1: EmitTriplet), (e2T: PString, e2: EmitTriplet)) =>
+      case (r: EmitRegion, rt, (e1T: PString, e1: EmitCode), (e2T: PString, e2: EmitCode)) =>
       val len = r.mb.newLocal[Int]
       val i = r.mb.newLocal[Int]
       val n = r.mb.newLocal[Int]
@@ -234,10 +234,10 @@ object StringFunctions extends RegistryFunctions {
             i += 1),
           n)
 
-        EmitTriplet(
+        EmitCode(
           Code(e1.setup, e2.setup),
           e1.m || e2.m || m,
-          PValue(rt, m.mux(defaultValue(TInt32), v)))
+          PCode(rt, m.mux(defaultValue(TInt32), v)))
     }
 
     registerWrappedScalaFunction("escapeString", TString, TString, null)(thisClass, "escapeString")

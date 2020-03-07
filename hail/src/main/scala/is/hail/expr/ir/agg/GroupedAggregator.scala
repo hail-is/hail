@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{CodeOrdering, Region, RegionUtils, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, EmitTriplet, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, EmitCode, defaultValue, typeToTypeInfo}
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical._
 import is.hail.io._
@@ -225,12 +225,12 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
 
   def createState(fb: EmitFunctionBuilder[_]): State = new DictState(fb, kt, StateTuple(nestedAggs.map(_.createState(fb))))
 
-  def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
+  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     val Array(inits) = init
     state.init(inits.setup)
   }
 
-  def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
+  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     val Array(key, seqs) = seq
     Code(key.setup, state.withContainer(key.m, key.v, seqs.setup))
   }

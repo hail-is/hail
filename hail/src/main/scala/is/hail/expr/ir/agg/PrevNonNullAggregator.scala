@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, RegionUtils, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet, typeToTypeInfo}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitCode, typeToTypeInfo}
 import is.hail.expr.types.physical._
 import is.hail.utils._
 
@@ -13,13 +13,13 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
   def createState(fb: EmitFunctionBuilder[_]): State =
     new TypedRegionBackedAggState(typ.setRequired(false), fb)
 
-  def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
+  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)
     state.storeMissing()
   }
 
-  def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
-    val Array(elt: EmitTriplet) = seq
+  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+    val Array(elt: EmitCode) = seq
     val v = state.fb.newField(typeToTypeInfo(typ))
     Code(
       elt.setup,

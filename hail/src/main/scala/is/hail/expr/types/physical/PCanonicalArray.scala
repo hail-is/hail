@@ -5,7 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
-import is.hail.expr.ir.{EmitMethodBuilder, PCanonicalIndexableValue, PValue}
+import is.hail.expr.ir.{EmitMethodBuilder, PCanonicalIndexableCode, PCode}
 import is.hail.expr.types.virtual.{TArray, Type}
 import is.hail.utils._
 
@@ -510,6 +510,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   private def deepRenameArray(t: TArray): PArray =
     PCanonicalArray(this.elementType.deepRename(t.elementType), this.required)
 
-  override def load(src: Code[Long]): PValue =
-    new PCanonicalIndexableValue(this, Region.loadAddress(src))
+  override def load(src: Code[Long]): PCode =
+    new PCanonicalIndexableCode(this, Region.loadAddress(src))
 }

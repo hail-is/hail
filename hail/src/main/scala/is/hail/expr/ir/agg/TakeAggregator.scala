@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitCode}
 import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
@@ -59,7 +59,7 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
     )
   }
 
-  def seqOp(elt: EmitTriplet): Code[Unit] = {
+  def seqOp(elt: EmitCode): Code[Unit] = {
     Code(
       elt.setup,
       (builder.size < maxSize)
@@ -118,7 +118,7 @@ class TakeAggregator(typ: PType) extends StagedAggregator {
   def createState(fb: EmitFunctionBuilder[_]): State =
     new TakeRVAS(typ, resultType, fb)
 
-  def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
+  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     assert(init.length == 1)
     val Array(sizeTriplet) = init
     Code(
@@ -128,8 +128,8 @@ class TakeAggregator(typ: PType) extends StagedAggregator {
     )
   }
 
-  def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
-    val Array(elt: EmitTriplet) = seq
+  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+    val Array(elt: EmitCode) = seq
     state.seqOp(elt)
   }
 

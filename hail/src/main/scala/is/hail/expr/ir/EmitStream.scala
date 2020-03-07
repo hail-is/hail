@@ -126,15 +126,15 @@ object COption {
       }
     }
 
-  def fromEmitTriplet[A](et: EmitTriplet): COption[Code[A]] = new COption[Code[A]] {
+  def fromEmitTriplet[A](et: EmitCode): COption[Code[A]] = new COption[Code[A]] {
     def apply(none: Code[Ctrl], some: Code[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
       Code(et.setup, et.m.mux(none, some(coerce[A](et.v))))
     }
   }
 
-  def fromTypedTriplet(et: EmitTriplet): COption[Code[_]] = fromEmitTriplet(et)
+  def fromTypedTriplet(et: EmitCode): COption[Code[_]] = fromEmitTriplet(et)
 
-  def toEmitTriplet(opt: COption[Code[_]], t: PType, mb: MethodBuilder): EmitTriplet = {
+  def toEmitTriplet(opt: COption[Code[_]], t: PType, mb: MethodBuilder): EmitCode = {
     val ti: TypeInfo[_] = typeToTypeInfo(t)
     val m = mb.newLocal[Boolean]
     val v = mb.newLocal(ti)
@@ -142,7 +142,7 @@ object COption {
       opt(Code(m := true, v.storeAny(defaultValue(ti)), ret(())),
           a => Code(m := false, v.storeAny(a), ret(())))(EmitStreamContext(mb, jb))
     }
-    EmitTriplet(setup, m, PValue(t, v.load()))
+    EmitCode(setup, m, PCode(t, v.load()))
   }
 
   def toTypedTriplet(t: PType, mb: MethodBuilder, opt: COption[Code[_]]): TypedTriplet[t.type] =
@@ -589,7 +589,7 @@ object EmitStream {
       })
   }
 
-  def toArray(mb: MethodBuilder, aTyp: PArray, optStream: COption[SizedStream]): EmitTriplet = {
+  def toArray(mb: MethodBuilder, aTyp: PArray, optStream: COption[SizedStream]): EmitCode = {
     val srvb = new StagedRegionValueBuilder(mb, aTyp)
     val result = optStream.map { ss =>
       ss.length match {
@@ -628,7 +628,7 @@ object EmitStream {
   }
 
   // length is required to be a variable reference
-  case class SizedStream(stream: Stream[EmitTriplet], length: Option[(Code[Unit], Settable[Int])])
+  case class SizedStream(stream: Stream[EmitCode], length: Option[(Code[Unit], Settable[Int])])
 
   private[ir] def apply(
     emitter: Emit,
@@ -643,7 +643,7 @@ object EmitStream {
 
     def emitStream(streamIR: IR, env: Emit.E): COption[SizedStream] = {
 
-      def emitIR(ir: IR, env: Emit.E = env, container: Option[AggContainer] = container): EmitTriplet =
+      def emitIR(ir: IR, env: Emit.E = env, container: Option[AggContainer] = container): EmitCode =
         emitter.emit(ir, env, er, container)
 
       streamIR match {
@@ -683,7 +683,7 @@ object EmitStream {
                       Code._fatal("Array range cannot have more than MAXINT elements."),
                       some(SizedStream(
                         range(start, step, llen.toI)
-                          .map(i => EmitTriplet(Code._empty, const(false), PValue(eltType, i))),
+                          .map(i => EmitCode(Code._empty, const(false), PCode(eltType, i))),
                         Some((len := llen.toI, len))))))))
             }
           }
@@ -695,10 +695,10 @@ object EmitStream {
           COption.fromEmitTriplet[Long](emitIR(containerIR)).mapCPS { (containerAddr, k) =>
             val xAddr = fb.newField[Long]("a_off")
             val newStream = range(0, 1, aType.loadLength(xAddr)).map { i =>
-              EmitTriplet(
+              EmitCode(
                 Code._empty,
                 aType.isElementMissing(xAddr, i),
-                PValue(eltType, Region.loadIRIntermediate(eltType)(aType.elementOffset(xAddr, i))))
+                PCode(eltType, Region.loadIRIntermediate(eltType)(aType.elementOffset(xAddr, i))))
             }
             val len = mb.newLocal[Int]
 
@@ -716,7 +716,7 @@ object EmitStream {
           val stream = sequence(elements.map {
             ir => TypedTriplet(eltType, {
               val et = emitIR(ir)
-              EmitTriplet(et.setup, et.m, PValue(eltType, eltType.copyFromTypeAndStackValue(er.mb, er.region, ir.pType, et.value)))
+              EmitCode(et.setup, et.m, PCode(eltType, eltType.copyFromTypeAndStackValue(er.mb, er.region, ir.pType, et.value)))
             })
           }).map(_.untyped)
 
@@ -740,7 +740,7 @@ object EmitStream {
                   !xRowBuf.load().readByte().toZ,
                   (dec(er.region, xRowBuf.load()), ())))
             ).map(
-              EmitTriplet.present(eltType, _),
+              EmitCode.present(eltType, _),
               setup0 = Some(xRowBuf := Code._null),
               setup = Some(xRowBuf := spec
                 .buildCodeInputBuffer(fb.getUnsafeReader(pathString, true))))
@@ -760,7 +760,7 @@ object EmitStream {
                 !xIter.load().hasNext,
                 (xIter.load().next(), ())))
             ).map(
-              rv => EmitTriplet.present(eltType, Region.loadIRIntermediate(eltType)(rv.invoke[Long]("getOffset"))),
+              rv => EmitCode.present(eltType, Region.loadIRIntermediate(eltType)(rv.invoke[Long]("getOffset"))),
               setup0 = Some(xIter := Code._null),
               setup = Some(xIter := iter)
             )
@@ -779,7 +779,7 @@ object EmitStream {
               val bodyenv = Emit.bindEnv(env, name -> xElt)
               val bodyt = emitIR(bodyIR, bodyenv)
 
-              EmitTriplet(
+              EmitCode(
                 Code(xElt := TypedTriplet(childEltType, eltt),
                      bodyt.setup),
                 bodyt.m,
@@ -802,14 +802,14 @@ object EmitStream {
                 val condEnv = Emit.bindEnv(env, name -> xElt)
                 val cond = emitIR(condIR, condEnv)
 
-                new COption[EmitTriplet] {
-                  def apply(none: Code[Ctrl], some: EmitTriplet => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+                new COption[EmitCode] {
+                  def apply(none: Code[Ctrl], some: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
                     Code(
                       xElt := TypedTriplet(childEltType, elt),
                       cond.setup,
                       (cond.m || !cond.value[Boolean]).mux(
                         none,
-                        some(EmitTriplet(Code._empty, xElt.load.m, xElt.load.pv))
+                        some(EmitCode(Code._empty, xElt.load.m, xElt.load.pv))
                       )
                     )
                   }
@@ -844,7 +844,7 @@ object EmitStream {
                     val bodyEnv = Emit.bindEnv(env, names.zip(eltVars.pss.asInstanceOf[IndexedSeq[ParameterStoreTriplet[_]]]): _*)
                     val body = emitIR(bodyIR, bodyEnv)
                     val typedElts = eltTypes.zip(elts).map { case (t, v) => TypedTriplet(t, v) }
-                    EmitTriplet(Code(eltVars := typedElts, body.setup), body.m, body.pv)
+                    EmitCode(Code(eltVars := typedElts, body.setup), body.m, body.pv)
                   }
                 val newLength = behavior match {
                   case ArrayZipBehavior.TakeMinLength =>
@@ -868,7 +868,7 @@ object EmitStream {
                   }
 
                 // zip to an infinite stream, where the COption is missing when all streams are EOS
-                val flagged: Stream[COption[EmitTriplet]] = multiZip(extended)
+                val flagged: Stream[COption[EmitCode]] = multiZip(extended)
                   .mapCPS { (_, elts, k) =>
                     val assert = behavior == ArrayZipBehavior.AssertSameLength
                     val allEOS = mb.newLocal[Boolean]
@@ -933,7 +933,7 @@ object EmitStream {
           val optOuter = emitStream(outerIR, env)
 
           optOuter.map { outer =>
-            val nested = outer.stream.mapCPS[COption[Stream[EmitTriplet]]] { (ctx, elt, k) =>
+            val nested = outer.stream.mapCPS[COption[Stream[EmitCode]]] { (ctx, elt, k) =>
               val xElt = outerEltPack.newFields(ctx.mb.fb, name)
               val innerEnv = Emit.bindEnv(env, name -> xElt)
               val optInner = emitStream(innerIR, innerEnv).map(_.stream)
@@ -999,7 +999,7 @@ object EmitStream {
             val bodyEnv = Emit.bindEnv(env, accName -> xAcc, eltName -> xElt)
 
             val bodyT = TypedTriplet(accType, emitIR(bodyIR, bodyEnv).map(accType.copyFromPValue(mb, er.region, _)))
-            TypedTriplet(accType, EmitTriplet(Code(xElt := elt, xAcc := acc, bodyT.setup), bodyT.m, bodyT.pv))
+            TypedTriplet(accType, EmitCode(Code(xElt := elt, xAcc := acc, bodyT.setup), bodyT.m, bodyT.pv))
           }
 
           val zerot = TypedTriplet(accType, emitIR(zeroIR, env).map(accType.copyFromPValue(mb, er.region, _)))
@@ -1031,9 +1031,9 @@ object EmitStream {
           val optStream = emitStream(array, env)
 
           optStream.map { case SizedStream(stream, len) =>
-            val newStream = stream.map[EmitTriplet](
+            val newStream = stream.map[EmitCode](
               { eltt =>
-                EmitTriplet(
+                EmitCode(
                   Code(
                     xElt := TypedTriplet(eltType, eltt),
                     postt.setup,
@@ -1077,7 +1077,7 @@ object EmitStream {
                 compare)
                 .map { case (lelt, relt) =>
                   val joint = emitIR(joinIR, env2)
-                  EmitTriplet(
+                  EmitCode(
                     Code(xLElt := lelt, xRElt := relt, joint.setup),
                     joint.m,
                     joint.pv)

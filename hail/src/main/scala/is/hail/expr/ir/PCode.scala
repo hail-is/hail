@@ -5,36 +5,30 @@ import is.hail.asm4s._
 import is.hail.utils._
 import is.hail.expr.types.physical._
 
-abstract class PSettable[PV <: PValue] {
-  def load(): PV
-
-  def store(v: PV): Code[Unit]
-
-  def :=(v: PV): Code[Unit] = store(v)
-
-  def storeAny(v: PValue): Code[Unit] = store(v.asInstanceOf[PV])
+abstract class PValue {
+  def get: PCode
 }
 
-object PValue {
-  def apply(pt: PType, code: Code[_]): PValue = pt match {
+object PCode {
+  def apply(pt: PType, code: Code[_]): PCode = pt match {
     case pt: PCanonicalArray =>
-      new PCanonicalIndexableValue(pt, coerce[Long](code))
+      new PCanonicalIndexableCode(pt, coerce[Long](code))
     case pt: PCanonicalSet =>
-      new PCanonicalIndexableValue(pt, coerce[Long](code))
+      new PCanonicalIndexableCode(pt, coerce[Long](code))
     case pt: PCanonicalDict =>
-      new PCanonicalIndexableValue(pt, coerce[Long](code))
+      new PCanonicalIndexableCode(pt, coerce[Long](code))
 
     case pt: PCanonicalBaseStruct =>
-      new PCanonicalBaseStructValue(pt, coerce[Long](code))
+      new PCanonicalBaseStructCode(pt, coerce[Long](code))
 
     case _ =>
-      new PPrimitiveValue(pt, code)
+      new PPrimitiveCode(pt, code)
   }
 
-  def _empty: PValue = PValue(PVoid, Code._empty)
+  def _empty: PCode = PCode(PVoid, Code._empty)
 }
 
-abstract class PValue {
+abstract class PCode {
   def pt: PType
 
   def code: Code[_]
@@ -52,26 +46,38 @@ abstract class PValue {
     val dst = mb.newLocal[Long]
     (Code(dst := r.allocate(pt.byteSize, pt.alignment), store(mb, r, dst)), dst)
   }
+
+  def asIndexable: PIndexableCode = asInstanceOf[PIndexableCode]
+
+  def asBaseStruct: PBaseStructCode = asInstanceOf[PBaseStructCode]
 }
 
-class PPrimitiveValue(val pt: PType, val code: Code[_]) extends PValue {
+abstract class PSettable extends PValue {
+  def store(v: PCode): Code[Unit]
+
+  def load(): PCode = get
+
+  def :=(v: PCode): Code[Unit] = store(v)
+}
+
+class PPrimitiveCode(val pt: PType, val code: Code[_]) extends PCode {
   def store(mb: EmitMethodBuilder, r: Code[Region], a: Code[Long]): Code[Unit] =
     Region.storeIRIntermediate(pt)(a, code)
 }
 
-abstract class PIndexableValue extends PValue {
+abstract class PIndexableCode extends PCode {
   def loadLength(): Code[Int]
 
   def isElementDefined(i: Code[Int]): Code[Boolean]
 
-  def loadElement(length: Code[Int], i: Code[Int]): PValue
+  def loadElement(length: Code[Int], i: Code[Int]): PCode
 
-  def loadElement(i: Code[Int]): PValue = loadElement(loadLength(), i)
+  def loadElement(i: Code[Int]): PCode = loadElement(loadLength(), i)
 
   def isElementMissing(i: Code[Int]): Code[Boolean] = !isElementDefined(i)
 }
 
-class PCanonicalIndexableValue(val pt: PContainer, val a: Code[Long]) extends PIndexableValue {
+class PCanonicalIndexableCode(val pt: PContainer, val a: Code[Long]) extends PIndexableCode {
   def code: Code[_] = a
 
   def elementType: PType = pt.elementType
@@ -99,19 +105,19 @@ class PCanonicalIndexableValue(val pt: PContainer, val a: Code[Long]) extends PI
   def elementAddress(length: Code[Int], i: Code[Int]): Code[Long] =
     elementsAddress(length) + i.toL * arrayElementSize
 
-  def loadElement(length: Code[Int], i: Code[Int]): PValue =
+  def loadElement(length: Code[Int], i: Code[Int]): PCode =
     elementType.load(elementAddress(length, i))
 
   def store(mb: EmitMethodBuilder, r: Code[Region], dst: Code[Long]): Code[Unit] =
     Region.storeAddress(dst, a)
 }
 
-abstract class PBaseStructValue extends PValue {
+abstract class PBaseStructCode extends PCode {
   def pt: PBaseStruct
 
   def isFieldMissing(fieldIdx: Int): Code[Boolean]
 
-  def loadField(fieldIdx: Int): PValue
+  def loadField(fieldIdx: Int): PCode
 
   def isFieldMissing(fieldName: String): Code[Boolean] = isFieldMissing(pt.fieldIdx(fieldName))
 
@@ -119,10 +125,10 @@ abstract class PBaseStructValue extends PValue {
 
   def isFieldDefined(fieldName: String): Code[Boolean] = !isFieldMissing(fieldName)
 
-  def loadField(fieldName: String): PValue = loadField(pt.fieldIdx(fieldName))
+  def loadField(fieldName: String): PCode = loadField(pt.fieldIdx(fieldName))
 }
 
-class PCanonicalBaseStructValue(val pt: PCanonicalBaseStruct, val a: Code[Long]) extends PBaseStructValue {
+class PCanonicalBaseStructCode(val pt: PCanonicalBaseStruct, val a: Code[Long]) extends PBaseStructCode {
   def code: Code[_] = a
 
   def isFieldMissing(fieldIdx: Int): Code[Boolean] =
@@ -133,7 +139,7 @@ class PCanonicalBaseStructValue(val pt: PCanonicalBaseStruct, val a: Code[Long])
 
   def fieldAddress(fieldIdx: Int): Code[Long] = a + pt.byteOffsets(fieldIdx)
 
-  def loadField(fieldIdx: Int): PValue = pt.fields(fieldIdx).typ.load(fieldAddress(fieldIdx))
+  def loadField(fieldIdx: Int): PCode = pt.fields(fieldIdx).typ.load(fieldAddress(fieldIdx))
 
   def store(mb: EmitMethodBuilder, r: Code[Region], dst: Code[Long]): Code[Unit] =
     pt.constructAtAddress(mb, dst, r, pt, a, forceDeep = false)

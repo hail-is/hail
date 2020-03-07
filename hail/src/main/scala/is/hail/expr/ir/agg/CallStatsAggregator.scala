@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitCode}
 import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.stats.CallStats
@@ -101,7 +101,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
 
   def createState(fb: EmitFunctionBuilder[_]): State = new CallStatsState(fb)
 
-  def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
+  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     val Array(nAlleles) = init
     val addr = state.fb.newField[Long]
     val n = state.fb.newField[Int]
@@ -130,7 +130,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
     ))
   }
 
-  def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
+  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     val Array(call) = seq
     val hom = state.fb.newField[Boolean]
     val lastAllele = state.fb.newField[Int]

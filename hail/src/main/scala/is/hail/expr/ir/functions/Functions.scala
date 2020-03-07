@@ -269,7 +269,7 @@ abstract class RegistryFunctions {
   }
 
   def registerCodeWithMissingness(mname: String, aTypes: Array[Type], rType: Type, pt: Seq[PType] => PType)
-    (impl: (EmitRegion, PType, Array[(PType, EmitTriplet)]) => EmitTriplet) {
+    (impl: (EmitRegion, PType, Array[(PType, EmitCode)]) => EmitCode) {
     IRFunctionRegistry.addIRFunction(new IRFunctionWithMissingness {
       override val name: String = mname
 
@@ -279,7 +279,7 @@ abstract class RegistryFunctions {
 
       override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(argTypes)
 
-      override def apply(r: EmitRegion, rpt: PType, args: (PType, EmitTriplet)*): EmitTriplet = {
+      override def apply(r: EmitRegion, rpt: PType, args: (PType, EmitCode)*): EmitCode = {
         unify(args.map(_._1.virtualType))
         impl(r, rpt, args.toArray)
       }
@@ -379,23 +379,23 @@ abstract class RegistryFunctions {
       a5: (PType, Code[A5]) @unchecked)) => impl(r, rt, a1, a2, a3, a4, a5)
     }
 
-  def registerCodeWithMissingness(mname: String, rt: Type, pt: PType)(impl: EmitRegion => EmitTriplet): Unit =
+  def registerCodeWithMissingness(mname: String, rt: Type, pt: PType)(impl: EmitRegion => EmitCode): Unit =
     registerCodeWithMissingness(mname, Array[Type](), rt, (_: Seq[PType]) => pt) { case (r, rt, Array()) => impl(r) }
 
   def registerCodeWithMissingness(mname: String, mt1: Type, rt: Type, pt: PType => PType)
-    (impl: (EmitRegion, PType, (PType, EmitTriplet)) => EmitTriplet): Unit =
+    (impl: (EmitRegion, PType, (PType, EmitCode)) => EmitCode): Unit =
     registerCodeWithMissingness(mname, Array(mt1), rt, unwrappedApply(pt)) { case (r, rt, Array(a1)) => impl(r, rt, a1) }
 
   def registerCodeWithMissingness(mname: String, mt1: Type, mt2: Type, rt: Type, pt: (PType, PType) => PType)
-    (impl: (EmitRegion, PType, (PType, EmitTriplet), (PType, EmitTriplet)) => EmitTriplet): Unit =
+    (impl: (EmitRegion, PType, (PType, EmitCode), (PType, EmitCode)) => EmitCode): Unit =
     registerCodeWithMissingness(mname, Array(mt1, mt2), rt, unwrappedApply(pt)) { case (r, rt, Array(a1, a2)) => impl(r, rt, a1, a2) }
 
   def registerCodeWithMissingness(mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, rt: Type, pt: (PType, PType, PType) => PType)
-    (impl: (EmitRegion, PType, (PType, EmitTriplet), (PType, EmitTriplet), (PType, EmitTriplet), (PType, EmitTriplet)) => EmitTriplet): Unit =
+    (impl: (EmitRegion, PType, (PType, EmitCode), (PType, EmitCode), (PType, EmitCode), (PType, EmitCode)) => EmitCode): Unit =
     registerCodeWithMissingness(mname, Array(mt1, mt2, mt3, mt4), rt, unwrappedApply(pt)) { case (r, rt, Array(a1, a2, a3, a4)) => impl(r, rt, a1, a2, a3, a4) }
 
   def registerCodeWithMissingness(mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, mt5: Type, mt6: Type, rt: Type, pt: (PType, PType, PType) => PType)
-    (impl: (EmitRegion, PType, (PType, EmitTriplet), (PType, EmitTriplet), (PType, EmitTriplet), (PType, EmitTriplet), (PType, EmitTriplet), (PType, EmitTriplet)) => EmitTriplet): Unit =
+    (impl: (EmitRegion, PType, (PType, EmitCode), (PType, EmitCode), (PType, EmitCode), (PType, EmitCode), (PType, EmitCode), (PType, EmitCode)) => EmitCode): Unit =
     registerCodeWithMissingness(mname, Array(mt1, mt2, mt3, mt4, mt5, mt6), rt, unwrappedApply(pt)) { case (r, rt, Array(a1, a2, a3, a4, a5, a6)) => impl(r, rt, a1, a2, a3, a4, a5, a6) }
 
   def registerIR(mname: String, retType: Type)(f: () => IR): Unit =
@@ -431,13 +431,13 @@ abstract class RegistryFunctions {
         impl(r, rpt, seed, args.toArray)
       }
 
-      def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: (PType, EmitTriplet)*): EmitTriplet = {
+      def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: (PType, EmitCode)*): EmitCode = {
         val setup = args.map(_._2.setup)
         val rpt = returnPType(args.map(_._1), returnType)
         val missing: Code[Boolean] = if (args.isEmpty) false else args.map(_._2.m).reduce(_ || _)
         val value = applySeeded(seed, r, rpt, args.map { case (t, a) => (t, a.v) }: _*)
 
-        EmitTriplet(setup, missing, PValue(rpt, value))
+        EmitCode(setup, missing, PCode(rpt, value))
       }
 
       override val isStrict: Boolean = true
@@ -475,7 +475,7 @@ sealed abstract class IRFunction {
 
   def argTypes: Seq[Type]
 
-  def apply(mb: EmitRegion, returnType: PType, args: (PType, EmitTriplet)*): EmitTriplet
+  def apply(mb: EmitRegion, returnType: PType, args: (PType, EmitCode)*): EmitCode
 
   def getAsMethod(fb: EmitFunctionBuilder[_], rpt: PType, args: PType*): EmitMethodBuilder = ???
 
@@ -501,12 +501,12 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
 
   def apply(r: EmitRegion, returnPType: PType, args: (PType, Code[_])*): Code[_]
 
-  def apply(r: EmitRegion, returnPType: PType, args: (PType, EmitTriplet)*): EmitTriplet = {
+  def apply(r: EmitRegion, returnPType: PType, args: (PType, EmitCode)*): EmitCode = {
     val setup = args.map(_._2.setup)
     val missing = args.map(_._2.m).reduce(_ || _)
     val value = apply(r, returnPType, args.map { case (t, a) => (t, a.v) }: _*)
 
-    EmitTriplet(setup, missing, PValue(returnPType, value))
+    EmitCode(setup, missing, PCode(returnPType, value))
   }
 
   override def getAsMethod(fb: EmitFunctionBuilder[_], rpt: PType, args: PType*): EmitMethodBuilder = {
@@ -526,7 +526,7 @@ abstract class IRFunctionWithMissingness extends IRFunction {
 
   def argTypes: Seq[Type]
 
-  def apply(r: EmitRegion, rpt: PType, args: (PType, EmitTriplet)*): EmitTriplet
+  def apply(r: EmitRegion, rpt: PType, args: (PType, EmitCode)*): EmitCode
 
   def returnType: Type
 }
@@ -540,9 +540,9 @@ abstract class SeededIRFunction extends IRFunction {
 
   def setSeed(s: Long): Unit = { seed = s }
 
-  def applySeeded(seed: Long, region: EmitRegion, rpt: PType, args: (PType, EmitTriplet)*): EmitTriplet
+  def applySeeded(seed: Long, region: EmitRegion, rpt: PType, args: (PType, EmitCode)*): EmitCode
 
-  def apply(region: EmitRegion, rpt: PType, args: (PType, EmitTriplet)*): EmitTriplet =
+  def apply(region: EmitRegion, rpt: PType, args: (PType, EmitCode)*): EmitCode =
     applySeeded(seed, region, rpt, args: _*)
 
   def returnType: Type
