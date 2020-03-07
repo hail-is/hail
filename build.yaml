@@ -479,13 +479,13 @@ steps:
      cd repo
      {{ code.checkout_script }}
      cd hail
-     make jars python-version-info wheel
-     (cd python && zip -r hail.zip hail hailtop)
-     tar czf test.tar.gz -C python test
-     tar czf resources.tar.gz -C src/test resources
-     tar czf data.tar.gz -C python/hail/docs data
-     tar czf www-src.tar.gz www
-     tar czf cluster-tests.tar.gz python/cluster-tests
+     time make jars python-version-info wheel
+     time (cd python && zip -r hail.zip hail hailtop)
+     time tar czf test.tar.gz -C python test
+     time tar czf resources.tar.gz -C src/test resources
+     time tar czf data.tar.gz -C python/hail/docs data
+     time tar czf www-src.tar.gz www
+     time tar czf cluster-tests.tar.gz python/cluster-tests
      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
    outputs:
      - from: /io/repo/hail/build/libs/hail-all-spark.jar
