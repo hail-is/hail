@@ -1,5 +1,6 @@
 import re
 
+from .backend import BatchBackend
 from .resource import ResourceFile, ResourceGroup
 from .utils import PipelineException
 
@@ -68,6 +69,8 @@ class Task:
         self._memory = None
         self._storage = None
         self._image = None
+        self._always_run = False
+        self._timeout = None
         self._command = []
 
         self._resources = {}  # dict of name to resource
@@ -80,7 +83,6 @@ class Task:
         self._mentioned = set()  # resources used in the command
         self._valid = set()  # resources declared in the appropriate place
         self._dependencies = set()
-        self._always_run = False
 
     def _get_resource(self, item):
         if item not in self._resources:
@@ -426,10 +428,14 @@ class Task:
         """
         Set the task to always run, even if dependencies fail.
 
+        Notes
+        -----
+        Can only be used with the :class:`.BatchBackend`.
+
         Examples
         --------
 
-        >>> p = Pipeline()
+        >>> p = Pipeline(backend=BatchBackend('test'))
         >>> t = p.new_task()
         >>> (t.always_run()
         ...   .command(f'echo "hello"'))
@@ -445,7 +451,43 @@ class Task:
             Same task object set to always run.
         """
 
+        if not isinstance(self._pipeline._backend, BatchBackend):
+            raise NotImplementedError("A BatchBackend is required to use the 'always_run' option")
+
         self._always_run = always_run
+        return self
+
+    def timeout(self, timeout):
+        """
+        Set the maximum amount of time this task can run for.
+
+        Notes
+        -----
+        Can only be used with the :class:`.BatchBackend`.
+
+        Examples
+        --------
+
+        >>> p = Pipeline(backend=BatchBackend('test'))
+        >>> t = p.new_task()
+        >>> (t.timeout(10)
+        ...   .command(f'echo "hello"'))
+
+        Parameters
+        ----------
+        timeout: :obj:`float` or :obj:`int`
+            Maximum amount of time for a task to run before being killed.
+
+        Returns
+        -------
+        :class:`.Task`
+            Same task object set with a timeout.
+        """
+
+        if not isinstance(self._pipeline._backend, BatchBackend):
+            raise NotImplementedError("A BatchBackend is required to use the 'timeout' option")
+
+        self._timeout = timeout
         return self
 
     def _pretty(self):

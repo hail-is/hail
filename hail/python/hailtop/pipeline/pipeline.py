@@ -59,6 +59,10 @@ class Pipeline:
     default_storage: :obj:`str`, optional
         Storage setting to use by default if not specified by a task. Only
         applicable for the :class:`.BatchBackend`.
+    default_timeout: :obj:`float` or :obj:`int`, optional
+        Maximum time in seconds for a task to run before being killed. Only
+        applicable for the :class:`.BatchBackend`. If `None`, there is no
+        timeout.
     """
 
     _counter = 0
@@ -73,7 +77,7 @@ class Pipeline:
 
     def __init__(self, name=None, backend=None, attributes=None,
                  default_image=None, default_memory=None, default_cpu=None,
-                 default_storage=None):
+                 default_storage=None, default_timeout=None):
         self._tasks = []
         self._resource_map = {}
         self._allocated_files = set()
@@ -92,6 +96,7 @@ class Pipeline:
         self._default_memory = default_memory
         self._default_cpu = default_cpu
         self._default_storage = default_storage
+        self._default_timeout = default_timeout
 
         if backend:
             self._backend = backend
@@ -138,6 +143,8 @@ class Pipeline:
             t.cpu(self._default_cpu)
         if self._default_storage is not None:
             t.storage(self._default_storage)
+        if self._default_timeout is not None:
+            t.timeout(self._default_timeout)
 
         self._tasks.append(t)
         return t
