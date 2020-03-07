@@ -31,18 +31,18 @@ ln -s /vep_data/vep85-gcloud.json /vep_data/vep-gcloud.json
 # wait
 
 # New version
-gsutil -m cp gs://hail-us-vep/loftee-beta/${ASSEMBLY}.tar /vep_data2/${ASSEMBLY}.tar &
-gsutil -m cp gs://hail-us-vep/Plugins.tar /vep_data2/Plugins.tar &
-gsutil -m cp gs://hail-us-vep/homo-sapiens/85_${ASSEMBLY}.tar /vep_data2/homo_sapiens/85_${ASSEMBLY}.tar &
+gsutil -m cp gs://hail-us-vep/loftee-beta/${ASSEMBLY}.tar /vep_data/${ASSEMBLY}.tar &
+gsutil -m cp gs://hail-us-vep/Plugins.tar /vep_data/Plugins.tar &
+gsutil -m cp gs://hail-us-vep/homo-sapiens/85_${ASSEMBLY}.tar /vep_data/homo_sapiens/85_${ASSEMBLY}.tar &
 docker pull ${VEP_DOCKER_IMAGE} &
 wait
 
-tar -xf /vep_data2/${ASSEMBLY}.tar
-rm /vep_data2/${ASSEMBLY}.tar
-tar -xf /vep_data2/Plugins.tar
-rm /vep_data2/Plugins.tar
-tar -xf /vep_data2/homo_sapiens/85_${ASSEMBLY}.tar -C /vep_data2/homo_sapiens
-rm /vep_data2/homo_sapiens/85_${ASSEMBLY}.tar 
+tar -xf /vep_data/${ASSEMBLY}.tar
+rm /vep_data/${ASSEMBLY}.tar
+tar -xf /vep_data/Plugins.tar
+rm /vep_data/Plugins.tar
+tar -xf /vep_data/homo_sapiens/85_${ASSEMBLY}.tar -C /vep_data/homo_sapiens
+rm /vep_data/homo_sapiens/85_${ASSEMBLY}.tar 
 
 
 cat >/vep.c <<EOF
