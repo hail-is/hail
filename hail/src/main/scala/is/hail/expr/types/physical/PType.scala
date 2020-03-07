@@ -219,32 +219,7 @@ abstract class PType extends Serializable with Requiredness {
 
   def setRequired(required: Boolean): PType
 
-  final def isOfType(t: PType): Boolean = {
-    this match {
-      case PBinary(_) => t == PCanonicalBinaryOptional || t == PCanonicalBinaryRequired
-      case PBoolean(_) => t == PBooleanOptional || t == PBooleanRequired
-      case PInt32(_) => t == PInt32Optional || t == PInt32Required
-      case PInt64(_) => t == PInt64Optional || t == PInt64Required
-      case PFloat32(_) => t == PFloat32Optional || t == PFloat32Required
-      case PFloat64(_) => t == PFloat64Optional || t == PFloat64Required
-      case _: PString => t.isInstanceOf[PString]
-      case _: PCall => t.isInstanceOf[PCall]
-      case t2: PLocus => t.isInstanceOf[PLocus] && t.asInstanceOf[PLocus].rg == t2.rg
-      case t2: PInterval => t.isInstanceOf[PInterval] && t.asInstanceOf[PInterval].pointType.isOfType(t2.pointType)
-      case t2: PStruct =>
-        t.isInstanceOf[PStruct] &&
-          t.asInstanceOf[PStruct].size == t2.size &&
-          t.asInstanceOf[PStruct].fields.zip(t2.fields).forall { case (f1: PField, f2: PField) => f1.typ.isOfType(f2.typ) && f1.name == f2.name }
-      case t2: PTuple =>
-        t.isInstanceOf[PTuple] &&
-          t.asInstanceOf[PTuple].size == t2.size &&
-          t.asInstanceOf[PTuple].types.zip(t2.types).forall { case (typ1, typ2) => typ1.isOfType(typ2) }
-      case t2: PArray => t.isInstanceOf[PArray] && t.asInstanceOf[PArray].elementType.isOfType(t2.elementType)
-      case t2: PSet => t.isInstanceOf[PSet] && t.asInstanceOf[PSet].elementType.isOfType(t2.elementType)
-      case t2: PDict => t.isInstanceOf[PDict] && t.asInstanceOf[PDict].keyType.isOfType(t2.keyType) && t.asInstanceOf[PDict].valueType.isOfType(t2.valueType)
-      case t2: PNDArray => t.isInstanceOf[PNDArray] && t.asInstanceOf[PNDArray].elementType.isOfType(t2.elementType) && t.asInstanceOf[PNDArray].nDims == t2.nDims
-    }
-  }
+  final def isOfType(t: PType): Boolean = this.virtualType == t.virtualType
 
   final def isPrimitive: Boolean =
     fundamentalType.isInstanceOf[PBoolean] || isNumeric
