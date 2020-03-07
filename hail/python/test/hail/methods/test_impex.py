@@ -909,6 +909,7 @@ class BGENTests(unittest.TestCase):
 
     def test_parallel_import(self):
         bgen_file = resource('parallelBgenExport.bgen')
+        hl.index_bgen(bgen_file)
         mt = hl.import_bgen(bgen_file,
                             ['GT', 'GP'],
                             resource('parallelBgenExport.sample'))
