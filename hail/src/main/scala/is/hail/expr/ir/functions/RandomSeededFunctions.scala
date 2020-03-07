@@ -64,7 +64,7 @@ object RandomSeededFunctions extends RegistryFunctions {
       r.mb.newRNG(seed).invoke[Double, Double, Double]("rnorm", mean, sd)
     }
 
-    registerSeeded("rand_bool", TFloat64, TBoolean(), null) { case (r, rt, seed, (pT, p)) =>
+    registerSeeded("rand_bool", TFloat64, TBoolean, null) { case (r, rt, seed, (pT, p)) =>
       r.mb.newRNG(seed).invoke[Double, Boolean]("rcoin", p)
     }
 

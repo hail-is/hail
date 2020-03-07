@@ -155,7 +155,7 @@ object TextTableReader {
     delimiter: String, missing: Set[String], quote: java.lang.Character): Array[Option[Type]] = {
     val nFields = header.length
 
-    val matchTypes: Array[Type] = Array(TBoolean(), TInt32, TInt64, TFloat64)
+    val matchTypes: Array[Type] = Array(TBoolean, TInt32, TInt64, TFloat64)
     val matchers: Array[String => Boolean] = Array(
       booleanMatcher,
       int32Matcher,

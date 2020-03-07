@@ -34,7 +34,7 @@ class MissingBooleanArrayBuilder extends Serializable {
     }
   }
 
-  val typ = TArray(TBoolean())
+  val typ = TArray(TBoolean)
 
   def write(rvb: RegionValueBuilder) {
     rvb.startArray(len)

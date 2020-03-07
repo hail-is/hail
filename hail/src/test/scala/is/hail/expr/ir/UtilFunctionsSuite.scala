@@ -9,12 +9,12 @@ import org.testng.annotations.Test
 class UtilFunctionsSuite extends TestNGSuite {
   implicit val execStrats = ExecStrategy.javaOnly
 
-  val na = NA(TBoolean())
-  val die = Die("it ded", TBoolean())
+  val na = NA(TBoolean)
+  val die = Die("it ded", TBoolean)
   val folded = StreamFold(
-    MakeStream(Seq(true), TStream(TBoolean())),
+    MakeStream(Seq(true), TStream(TBoolean)),
     die, "a", "e",
-    Ref("a", TBoolean()) || Ref("e", TBoolean()))
+    Ref("a", TBoolean) || Ref("e", TBoolean))
 
   @Test def shortCircuitOr() {
     assertEvalsTo(True() || True(), true)

@@ -17,7 +17,7 @@ class IntervalSuite extends HailSuite {
 
   def point(i: Int): IR = MakeTuple.ordered(Seq(I32(i)))
   def interval(start: IR, end: IR, includeStart: java.lang.Boolean, includeEnd: java.lang.Boolean): IR = {
-    invoke("Interval", TInterval(start.typ), start, end, Literal.coerce(TBoolean(), includeStart), Literal.coerce(TBoolean(), includeEnd))
+    invoke("Interval", TInterval(start.typ), start, end, Literal.coerce(TBoolean, includeStart), Literal.coerce(TBoolean, includeEnd))
   }
 
   val i1 = interval(point(1), point(2), true, false)
@@ -54,17 +54,17 @@ class IntervalSuite extends HailSuite {
   }
 
   @Test def includeStart() {
-    assertEvalsTo(invoke("includesStart", TBoolean(), i1), true)
-    assertEvalsTo(invoke("includesStart", TBoolean(), i2), true)
-    assertEvalsTo(invoke("includesStart", TBoolean(), i3), true)
-    assertEvalsTo(invoke("includesStart", TBoolean(), na), null)
+    assertEvalsTo(invoke("includesStart", TBoolean, i1), true)
+    assertEvalsTo(invoke("includesStart", TBoolean, i2), true)
+    assertEvalsTo(invoke("includesStart", TBoolean, i3), true)
+    assertEvalsTo(invoke("includesStart", TBoolean, na), null)
   }
 
   @Test def includeEnd() {
-    assertEvalsTo(invoke("includesEnd", TBoolean(), i1), false)
-    assertEvalsTo(invoke("includesEnd", TBoolean(), i2), false)
-    assertEvalsTo(invoke("includesEnd", TBoolean(), i3), false)
-    assertEvalsTo(invoke("includesEnd", TBoolean(), na), null)
+    assertEvalsTo(invoke("includesEnd", TBoolean, i1), false)
+    assertEvalsTo(invoke("includesEnd", TBoolean, i2), false)
+    assertEvalsTo(invoke("includesEnd", TBoolean, i3), false)
+    assertEvalsTo(invoke("includesEnd", TBoolean, na), null)
   }
 
   val points: IndexedSeq[Int] = 1 to 4
@@ -84,14 +84,14 @@ class IntervalSuite extends HailSuite {
   @Test def contains() {
     for (setInterval <- testIntervals; p <- points) {
       val interval = toIRInterval(setInterval)
-      assert(eval(invoke("contains", TBoolean(), interval, p)) == setInterval.contains(p))
+      assert(eval(invoke("contains", TBoolean, interval, p)) == setInterval.contains(p))
     }
   }
 
   @Test def isEmpty() {
     for (setInterval <- testIntervals) {
       val interval = toIRInterval(setInterval)
-      assert(eval(invoke("isEmpty", TBoolean(), interval)) == setInterval.definitelyEmpty())
+      assert(eval(invoke("isEmpty", TBoolean, interval)) == setInterval.definitelyEmpty())
     }
   }
 
@@ -99,7 +99,7 @@ class IntervalSuite extends HailSuite {
     for (setInterval1 <- testIntervals; setInterval2 <- testIntervals) {
       val interval1 = toIRInterval(setInterval1)
       val interval2 = toIRInterval(setInterval2)
-      assert(eval(invoke("overlaps", TBoolean(), interval1, interval2)) == setInterval1.probablyOverlaps(setInterval2))
+      assert(eval(invoke("overlaps", TBoolean, interval1, interval2)) == setInterval1.probablyOverlaps(setInterval2))
     }
   }
 
@@ -163,16 +163,16 @@ class IntervalSuite extends HailSuite {
       Interval(32, 32, includesStart = true, includesEnd = true)
     ))
 
-    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(-1)), false)
-    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(7)), false)
-    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(27)), false)
-    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(30)), false)
-    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(300)), false)
-    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(0)), true)
-    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(1)), true)
-    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(10)), true)
-    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(11)), true)
-    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(31)), true)
-    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean(), intervals, I32(32)), true)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(-1)), false)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(7)), false)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(27)), false)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(30)), false)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(300)), false)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(0)), true)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(1)), true)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(10)), true)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(11)), true)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(31)), true)
+    assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(32)), true)
   }
 }

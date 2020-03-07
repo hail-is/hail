@@ -11,7 +11,7 @@ object IntervalFunctions extends RegistryFunctions {
 
   def registerAll(): Unit = {
 
-    registerCodeWithMissingness("Interval", tv("T"), tv("T"), TBoolean(), TBoolean(), TInterval(tv("T")), null) {
+    registerCodeWithMissingness("Interval", tv("T"), tv("T"), TBoolean, TBoolean, TInterval(tv("T")), null) {
       case (r, rt, (startT, start), (endT, end), (includeStartT, includeStart), (includeEndT, includeEnd)) =>
         val srvb = new StagedRegionValueBuilder(r, rt)
 
@@ -78,7 +78,7 @@ object IntervalFunctions extends RegistryFunctions {
         intervalT.includeEnd(interval)
     }
 
-    registerCodeWithMissingness("contains", TInterval(tv("T")), tv("T"), TBoolean(), null) {
+    registerCodeWithMissingness("contains", TInterval(tv("T")), tv("T"), TBoolean, null) {
       case (r, rt, (intervalT: PInterval, intTriplet), (pointT, pointTriplet)) =>
         val mPoint = r.mb.newLocal[Boolean]
         val vPoint = r.mb.newLocal()(typeToTypeInfo(pointT))
@@ -102,7 +102,7 @@ object IntervalFunctions extends RegistryFunctions {
           PValue(rt, contains))
     }
 
-    registerCode("isEmpty", TInterval(tv("T")), TBoolean(), null) {
+    registerCode("isEmpty", TInterval(tv("T")), TBoolean, null) {
       case (r, rt, (intervalT: PInterval, intOff)) =>
         val interval = new IRInterval(r, intervalT, intOff)
 
@@ -112,7 +112,7 @@ object IntervalFunctions extends RegistryFunctions {
         )
     }
 
-    registerCode("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean(), null) {
+    registerCode("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, null) {
       case (r, rt, (i1t: PInterval, iOff1), (i2t: PInterval, iOff2)) =>
         val interval1 = new IRInterval(r, i1t, iOff1)
         val interval2 = new IRInterval(r, i2t, iOff2)
@@ -127,14 +127,14 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerIR("sortedNonOverlappingIntervalsContain",
-      TArray(TInterval(tv("T"))), tv("T"), TBoolean()) { case (intervals, value) =>
+      TArray(TInterval(tv("T"))), tv("T"), TBoolean) { case (intervals, value) =>
       val uid = genUID()
       val uid2 = genUID()
       Let(uid, LowerBoundOnOrderedCollection(intervals, value, onKey = true),
         (Let(uid2, Ref(uid, TInt32) - I32(1), (Ref(uid2, TInt32) >= 0)
-          && invoke("contains", TBoolean(), ArrayRef(intervals, Ref(uid2, TInt32)), value)))
+          && invoke("contains", TBoolean, ArrayRef(intervals, Ref(uid2, TInt32)), value)))
           || ((Ref(uid, TInt32) < ArrayLen(intervals))
-          && invoke("contains", TBoolean(), ArrayRef(intervals, Ref(uid, TInt32)), value)))
+          && invoke("contains", TBoolean, ArrayRef(intervals, Ref(uid, TInt32)), value)))
     }
   }
 }

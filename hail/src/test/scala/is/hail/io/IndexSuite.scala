@@ -89,12 +89,12 @@ class IndexSuite extends HailSuite {
       writeIndex(file,
         data,
         data.indices.map(i => a(i)).toArray,
-        TStruct("a" -> TBoolean()),
+        TStruct("a" -> TBoolean),
         branchingFactor,
         attributes)
       assert(hc.sFS.getFileSize(file) != 0)
 
-      val index = indexReader(hc.sFS, file, TStruct("a" -> TBoolean()))
+      val index = indexReader(hc.sFS, file, TStruct("a" -> TBoolean))
 
       assert(index.attributes == attributes)
 
@@ -111,9 +111,9 @@ class IndexSuite extends HailSuite {
 
   @Test def testEmptyKeys() {
     val file = tmpDir.createTempFile("empty", "idx")
-    writeIndex(file, Array.empty[String], Array.empty[Annotation], TStruct("a" -> TBoolean()), 2)
+    writeIndex(file, Array.empty[String], Array.empty[Annotation], TStruct("a" -> TBoolean), 2)
     assert(hc.sFS.getFileSize(file) != 0)
-    val index = indexReader(hc.sFS, file, TStruct("a" -> TBoolean()))
+    val index = indexReader(hc.sFS, file, TStruct("a" -> TBoolean))
     intercept[IllegalArgumentException](index.queryByIndex(0L))
     assert(index.queryByKey("moo").isEmpty)
     assert(index.queryByInterval("bear", "cat", includesStart = true, includesEnd = true).isEmpty)

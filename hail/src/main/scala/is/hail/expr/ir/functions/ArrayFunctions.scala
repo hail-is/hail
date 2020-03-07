@@ -59,8 +59,8 @@ object ArrayFunctions extends RegistryFunctions {
       False(),
       "acc",
       "elt",
-      invoke("||",TBoolean(),
-        Ref("acc", TBoolean()),
+      invoke("||",TBoolean,
+        Ref("acc", TBoolean),
         cond(Ref("elt", t))))
   }
 
@@ -88,7 +88,7 @@ object ArrayFunctions extends RegistryFunctions {
   }
 
   def registerAll() {
-    registerIR("isEmpty", TArray(tv("T")), TBoolean())(isEmpty)
+    registerIR("isEmpty", TArray(tv("T")), TBoolean)(isEmpty)
 
     registerIR("extend", TArray(tv("T")), TArray(tv("T")), TArray(tv("T")))(extend)
 
@@ -96,7 +96,7 @@ object ArrayFunctions extends RegistryFunctions {
       extend(a, MakeArray(Seq(c), TArray(c.typ)))
     }
 
-    registerIR("contains", TArray(tv("T")), tv("T"), TBoolean()) { (a, e) => contains(a, e) }
+    registerIR("contains", TArray(tv("T")), tv("T"), TBoolean) { (a, e) => contains(a, e) }
 
     for ((stringOp, argType, retType, irOp) <- arrayOps) {
       registerIR(stringOp, TArray(argType), argType, TArray(retType)) { (a, c) =>
@@ -132,7 +132,7 @@ object ArrayFunctions extends RegistryFunctions {
           FastIndexedSeq((acc, NA(t)), (first, True())),
           value,
           FastIndexedSeq(
-            If(Ref(first, TBoolean()), Ref(value, t), invoke(op, t, Ref(acc, t), Ref(value, t))),
+            If(Ref(first, TBoolean), Ref(value, t), invoke(op, t, Ref(acc, t), Ref(value, t))),
             False()
           ),
           Ref(acc, t))

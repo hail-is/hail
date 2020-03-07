@@ -101,7 +101,7 @@ object TypeCheck {
       case Coalesce(values) =>
         assert(values.tail.forall(_.typ == values.head.typ))
       case x@If(cond, cnsq, altr) =>
-        assert(cond.typ == TBoolean())
+        assert(cond.typ == TBoolean)
         assert(x.typ == cnsq.typ && x.typ == altr.typ)
       case x@Let(_, _, body) =>
         assert(x.typ == body.typ)

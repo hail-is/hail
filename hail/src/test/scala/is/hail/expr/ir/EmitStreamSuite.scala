@@ -663,11 +663,11 @@ class EmitStreamSuite extends HailSuite {
       If(False(), xs, ys) -> IndexedSeq(0, 1, 2, 3),
       If(True(), xs, na) -> IndexedSeq(5, 3, 6),
       If(False(), xs, na) -> null,
-      If(NA(TBoolean()), xs, ys) -> null,
+      If(NA(TBoolean), xs, ys) -> null,
       StreamFlatMap(
-        MakeStream(Seq(False(), True(), False()), TStream(TBoolean())),
+        MakeStream(Seq(False(), True(), False()), TStream(TBoolean)),
         "x",
-        If(Ref("x", TBoolean()), xs, ys))
+        If(Ref("x", TBoolean), xs, ys))
         -> IndexedSeq(0, 1, 2, 3, 5, 3, 6, 0, 1, 2, 3)
     )
     val lens: Array[Option[Int]] = Array(Some(3), Some(4), Some(3), Some(0), Some(0), None)

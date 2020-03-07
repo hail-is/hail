@@ -28,7 +28,7 @@ object LegacyEncodedTypeParser {
           EField("includesStart", EBooleanRequired, 2),
           EField("includesEnd", EBooleanRequired, 3)
         ), req))
-      case "Boolean" => (TBoolean(), EBoolean(req))
+      case "Boolean" => (TBoolean, EBoolean(req))
       case "Int32" => (TInt32, EInt32(req))
       case "Int64" => (TInt64, EInt64(req))
       case "Int" => (TInt32, EInt32(req))

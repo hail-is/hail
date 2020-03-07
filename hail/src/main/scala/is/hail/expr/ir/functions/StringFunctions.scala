@@ -156,12 +156,12 @@ object StringFunctions extends RegistryFunctions {
     registerWrappedScalaFunction("upper", TString, TString, null)(thisClass,"upper")
     registerWrappedScalaFunction("lower", TString, TString, null)(thisClass,"lower")
     registerWrappedScalaFunction("strip", TString, TString, null)(thisClass,"strip")
-    registerWrappedScalaFunction("contains", TString, TString, TBoolean(), null)(thisClass, "contains")
+    registerWrappedScalaFunction("contains", TString, TString, TBoolean, null)(thisClass, "contains")
     registerWrappedScalaFunction("translate", TString, TDict(TString, TString), TString, null)(thisClass, "translate")
-    registerWrappedScalaFunction("startswith", TString, TString, TBoolean(), null)(thisClass, "startswith")
-    registerWrappedScalaFunction("endswith", TString, TString, TBoolean(), null)(thisClass, "endswith")
+    registerWrappedScalaFunction("startswith", TString, TString, TBoolean, null)(thisClass, "startswith")
+    registerWrappedScalaFunction("endswith", TString, TString, TBoolean, null)(thisClass, "endswith")
 
-    registerWrappedScalaFunction("~", TString, TString, TBoolean(), null)(thisClass, "regexMatch")
+    registerWrappedScalaFunction("~", TString, TString, TBoolean, null)(thisClass, "regexMatch")
 
     registerWrappedScalaFunction("+", TString, TString, TString, null)(thisClass, "concat")
 

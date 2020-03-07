@@ -19,43 +19,43 @@ class MathFunctionsSuite extends HailSuite {
   @Test def isnan() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    assertEvalsTo(invoke("isnan", TBoolean(), F32(0)), false)
-    assertEvalsTo(invoke("isnan", TBoolean(), F32(Float.NaN)), true)
+    assertEvalsTo(invoke("isnan", TBoolean, F32(0)), false)
+    assertEvalsTo(invoke("isnan", TBoolean, F32(Float.NaN)), true)
 
-    assertEvalsTo(invoke("isnan", TBoolean(), F64(0)), false)
-    assertEvalsTo(invoke("isnan", TBoolean(), F64(Double.NaN)), true)
+    assertEvalsTo(invoke("isnan", TBoolean, F64(0)), false)
+    assertEvalsTo(invoke("isnan", TBoolean, F64(Double.NaN)), true)
   }
 
   @Test def is_finite() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    assertEvalsTo(invoke("is_finite", TBoolean(), F32(0)), expected = true)
-    assertEvalsTo(invoke("is_finite", TBoolean(), F32(Float.MaxValue)), expected = true)
-    assertEvalsTo(invoke("is_finite", TBoolean(), F32(Float.NaN)), expected = false)
-    assertEvalsTo(invoke("is_finite", TBoolean(), F32(Float.PositiveInfinity)), expected = false)
-    assertEvalsTo(invoke("is_finite", TBoolean(), F32(Float.NegativeInfinity)), expected = false)
+    assertEvalsTo(invoke("is_finite", TBoolean, F32(0)), expected = true)
+    assertEvalsTo(invoke("is_finite", TBoolean, F32(Float.MaxValue)), expected = true)
+    assertEvalsTo(invoke("is_finite", TBoolean, F32(Float.NaN)), expected = false)
+    assertEvalsTo(invoke("is_finite", TBoolean, F32(Float.PositiveInfinity)), expected = false)
+    assertEvalsTo(invoke("is_finite", TBoolean, F32(Float.NegativeInfinity)), expected = false)
 
-    assertEvalsTo(invoke("is_finite", TBoolean(), F64(0)), expected = true)
-    assertEvalsTo(invoke("is_finite", TBoolean(), F64(Double.MaxValue)), expected = true)
-    assertEvalsTo(invoke("is_finite", TBoolean(), F64(Double.NaN)), expected = false)
-    assertEvalsTo(invoke("is_finite", TBoolean(), F64(Double.PositiveInfinity)), expected = false)
-    assertEvalsTo(invoke("is_finite", TBoolean(), F64(Double.NegativeInfinity)), expected = false)
+    assertEvalsTo(invoke("is_finite", TBoolean, F64(0)), expected = true)
+    assertEvalsTo(invoke("is_finite", TBoolean, F64(Double.MaxValue)), expected = true)
+    assertEvalsTo(invoke("is_finite", TBoolean, F64(Double.NaN)), expected = false)
+    assertEvalsTo(invoke("is_finite", TBoolean, F64(Double.PositiveInfinity)), expected = false)
+    assertEvalsTo(invoke("is_finite", TBoolean, F64(Double.NegativeInfinity)), expected = false)
   }
 
   @Test def is_infinite() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F32(0)), expected = false)
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F32(Float.MaxValue)), expected = false)
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F32(Float.NaN)), expected = false)
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F32(Float.PositiveInfinity)), expected = true)
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F32(Float.NegativeInfinity)), expected = true)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F32(0)), expected = false)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F32(Float.MaxValue)), expected = false)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F32(Float.NaN)), expected = false)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F32(Float.PositiveInfinity)), expected = true)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F32(Float.NegativeInfinity)), expected = true)
 
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F64(0)), expected = false)
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F64(Double.MaxValue)), expected = false)
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F64(Double.NaN)), expected = false)
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F64(Double.PositiveInfinity)), expected = true)
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F64(Double.NegativeInfinity)), expected = true)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F64(0)), expected = false)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F64(Double.MaxValue)), expected = false)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F64(Double.NaN)), expected = false)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F64(Double.PositiveInfinity)), expected = true)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F64(Double.NegativeInfinity)), expected = true)
   }
 
 
@@ -86,14 +86,14 @@ class MathFunctionsSuite extends HailSuite {
   @Test def approxEqual() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    assertEvalsTo(invoke("approxEqual", TBoolean(), F64(0.025), F64(0.0250000001), F64(1e-4), False(), False()), true)
-    assertEvalsTo(invoke("approxEqual", TBoolean(), F64(0.0154), F64(0.0156), F64(1e-4), True(), False()), false)
-    assertEvalsTo(invoke("approxEqual", TBoolean(), F64(0.0154), F64(0.0156), F64(1e-3), True(), False()), true)
-    assertEvalsTo(invoke("approxEqual", TBoolean(), F64(Double.NaN), F64(Double.NaN), F64(1e-3), True(), False()), false)
-    assertEvalsTo(invoke("approxEqual", TBoolean(), F64(Double.NaN), F64(Double.NaN), F64(1e-3), True(), True()), true)
-    assertEvalsTo(invoke("approxEqual", TBoolean(), F64(Double.PositiveInfinity), F64(Double.PositiveInfinity), F64(1e-3), True(), False()), true)
-    assertEvalsTo(invoke("approxEqual", TBoolean(), F64(Double.NegativeInfinity), F64(Double.NegativeInfinity), F64(1e-3), True(), False()), true)
-    assertEvalsTo(invoke("approxEqual", TBoolean(), F64(Double.PositiveInfinity), F64(Double.NegativeInfinity), F64(1e-3), True(), False()), false)
+    assertEvalsTo(invoke("approxEqual", TBoolean, F64(0.025), F64(0.0250000001), F64(1e-4), False(), False()), true)
+    assertEvalsTo(invoke("approxEqual", TBoolean, F64(0.0154), F64(0.0156), F64(1e-4), True(), False()), false)
+    assertEvalsTo(invoke("approxEqual", TBoolean, F64(0.0154), F64(0.0156), F64(1e-3), True(), False()), true)
+    assertEvalsTo(invoke("approxEqual", TBoolean, F64(Double.NaN), F64(Double.NaN), F64(1e-3), True(), False()), false)
+    assertEvalsTo(invoke("approxEqual", TBoolean, F64(Double.NaN), F64(Double.NaN), F64(1e-3), True(), True()), true)
+    assertEvalsTo(invoke("approxEqual", TBoolean, F64(Double.PositiveInfinity), F64(Double.PositiveInfinity), F64(1e-3), True(), False()), true)
+    assertEvalsTo(invoke("approxEqual", TBoolean, F64(Double.NegativeInfinity), F64(Double.NegativeInfinity), F64(1e-3), True(), False()), true)
+    assertEvalsTo(invoke("approxEqual", TBoolean, F64(Double.PositiveInfinity), F64(Double.NegativeInfinity), F64(1e-3), True(), False()), false)
   }
 
   @Test def entropy() {

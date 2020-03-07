@@ -27,7 +27,7 @@ class ArrayFunctionsSuite extends HailSuite {
 
   @Test(dataProvider = "basic")
   def isEmpty(a: Seq[Integer]) {
-    assertEvalsTo(invoke("isEmpty", TBoolean(), toIRArray(a)),
+    assertEvalsTo(invoke("isEmpty", TBoolean, toIRArray(a)),
       Option(a).map(_.isEmpty).orNull)
   }
 
@@ -268,37 +268,37 @@ class ArrayFunctionsSuite extends HailSuite {
     val t = TArray(TString)
 
     assertEvalsTo(
-      invoke("contains", TBoolean(), In(0, t), Str("a")),
+      invoke("contains", TBoolean, In(0, t), Str("a")),
       args = FastIndexedSeq(FastIndexedSeq() -> t),
       expected=false)
 
     assertEvalsTo(
-      invoke("contains", TBoolean(), In(0, t), Str("a")),
+      invoke("contains", TBoolean, In(0, t), Str("a")),
       args = FastIndexedSeq(FastIndexedSeq(null) -> t),
       expected=false)
 
     assertEvalsTo(
-      invoke("contains", TBoolean(), In(0, t), Str("a")),
+      invoke("contains", TBoolean, In(0, t), Str("a")),
       args = FastIndexedSeq(FastIndexedSeq("c", "a", "b") -> t),
       expected=true)
 
     assertEvalsTo(
-      invoke("contains", TBoolean(), In(0, t), Str("a")),
+      invoke("contains", TBoolean, In(0, t), Str("a")),
       args = FastIndexedSeq(FastIndexedSeq("c", "a", "b", null) -> t),
       expected=true)
 
     assertEvalsTo(
-      invoke("contains", TBoolean(), In(0, t), Str("a")),
+      invoke("contains", TBoolean, In(0, t), Str("a")),
       args = FastIndexedSeq((null, t)),
       expected=null)
 
     assertEvalsTo(
-      invoke("contains", TBoolean(), In(0, t), NA(t.elementType)),
+      invoke("contains", TBoolean, In(0, t), NA(t.elementType)),
       args = FastIndexedSeq((null, t)),
       expected=null)
 
     assertEvalsTo(
-      invoke("contains", TBoolean(), In(0, t), NA(t.elementType)),
+      invoke("contains", TBoolean, In(0, t), NA(t.elementType)),
       args = FastIndexedSeq(FastIndexedSeq("a", null) -> t),
       expected=true)
   }

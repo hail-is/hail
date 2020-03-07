@@ -10,7 +10,7 @@ object DictFunctions extends RegistryFunctions {
     val i = Ref(genUID(), TInt32)
 
     If(IsNA(dict),
-      NA(TBoolean()),
+      NA(TBoolean),
       Let(i.name,
         LowerBoundOnOrderedCollection(dict, key, onKey = true),
         If(i.ceq(ArrayLen(CastToArray(dict))),
@@ -38,11 +38,11 @@ object DictFunctions extends RegistryFunctions {
   val tdict = TDict(tv("key"), tv("value"))
 
   def registerAll() {
-    registerIR("isEmpty", tdict, TBoolean()) { d =>
+    registerIR("isEmpty", tdict, TBoolean) { d =>
       ArrayFunctions.isEmpty(CastToArray(d))
     }
 
-    registerIR("contains", tdict, tv("key"), TBoolean())(contains)
+    registerIR("contains", tdict, tv("key"), TBoolean)(contains)
 
     registerIR("get", tdict, tv("key"), tv("value"), tv("value"))(get)
     registerIR("get", tdict, tv("key"), tv("tvalue")) { (d, k) =>

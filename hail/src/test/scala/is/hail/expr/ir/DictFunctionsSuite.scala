@@ -37,7 +37,7 @@ class DictFunctionsSuite extends TestNGSuite {
 
   @Test(dataProvider = "basic")
   def isEmpty(a: Seq[(Integer, Integer)]) {
-    assertEvalsTo(invoke("isEmpty", TBoolean(), toIRDict(a)),
+    assertEvalsTo(invoke("isEmpty", TBoolean, toIRDict(a)),
       Option(a).map(_.forall(_ == null)).orNull)
   }
 
@@ -117,17 +117,17 @@ class DictFunctionsSuite extends TestNGSuite {
   }
 
   @Test def dictContains() {
-    assertEvalsTo(invoke("contains", TBoolean(), d, 0), false)
-    assertEvalsTo(invoke("contains", TBoolean(), d, 1), true)
-    assertEvalsTo(invoke("contains", TBoolean(), d, 2), false)
-    assertEvalsTo(invoke("contains", TBoolean(), d, 3), true)
-    assertEvalsTo(invoke("contains", TBoolean(), d, 4), false)
-    assertEvalsTo(invoke("contains", TBoolean(), d, 5), true)
-    assertEvalsTo(invoke("contains", TBoolean(), d, 100), false)
-    assertEvalsTo(invoke("contains", TBoolean(), dwoutna, 100), false)
-    assertEvalsTo(invoke("contains", TBoolean(), d, na), true)
+    assertEvalsTo(invoke("contains", TBoolean, d, 0), false)
+    assertEvalsTo(invoke("contains", TBoolean, d, 1), true)
+    assertEvalsTo(invoke("contains", TBoolean, d, 2), false)
+    assertEvalsTo(invoke("contains", TBoolean, d, 3), true)
+    assertEvalsTo(invoke("contains", TBoolean, d, 4), false)
+    assertEvalsTo(invoke("contains", TBoolean, d, 5), true)
+    assertEvalsTo(invoke("contains", TBoolean, d, 100), false)
+    assertEvalsTo(invoke("contains", TBoolean, dwoutna, 100), false)
+    assertEvalsTo(invoke("contains", TBoolean, d, na), true)
 
-    assert(eval(invoke("contains", TBoolean(), IRDict(), 100)) == false)
-    assertEvalsTo(invoke("contains", TBoolean(), NA(TDict(TInt32, TInt32)), 1), null)
+    assert(eval(invoke("contains", TBoolean, IRDict(), 100)) == false)
+    assertEvalsTo(invoke("contains", TBoolean, NA(TDict(TInt32, TInt32)), 1), null)
   }
 }

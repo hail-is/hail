@@ -51,7 +51,7 @@ class AggregatorsSuite extends HailSuite {
   }
 
   @Test def collectBoolean() {
-    runAggregator(Collect(), TBoolean(), FastIndexedSeq(true, false, null, true, false), FastIndexedSeq(true, false, null, true, false))
+    runAggregator(Collect(), TBoolean, FastIndexedSeq(true, false, null, true, false), FastIndexedSeq(true, false, null, true, false))
   }
 
   @Test def collectInt() {
@@ -81,7 +81,7 @@ class AggregatorsSuite extends HailSuite {
 
   @Test def collectStruct() {
     runAggregator(Collect(),
-      TStruct("a" -> TInt32, "b" -> TBoolean()),
+      TStruct("a" -> TInt32, "b" -> TBoolean),
       FastIndexedSeq(Row(5, true), Row(3, false), null, Row(0, false), null),
       FastIndexedSeq(Row(5, true), Row(3, false), null, Row(0, false), null))
   }
@@ -96,8 +96,8 @@ class AggregatorsSuite extends HailSuite {
   }
 
   @Test def collectAsSetBoolean() {
-    runAggregator(CollectAsSet(), TBoolean(), FastIndexedSeq(true, false, null, true, false), Set(true, false, null))
-    runAggregator(CollectAsSet(), TBoolean(), FastIndexedSeq(true, null, true), Set(true, null))
+    runAggregator(CollectAsSet(), TBoolean, FastIndexedSeq(true, false, null, true, false), Set(true, false, null))
+    runAggregator(CollectAsSet(), TBoolean, FastIndexedSeq(true, null, true), Set(true, null))
   }
 
   @Test def collectAsSetNumeric() {
@@ -119,7 +119,7 @@ class AggregatorsSuite extends HailSuite {
 
   @Test def collectAsSetStruct(): Unit = {
     runAggregator(CollectAsSet(),
-      TStruct("a" -> TInt32, "b" -> TBoolean()),
+      TStruct("a" -> TInt32, "b" -> TBoolean),
       FastIndexedSeq(Row(5, true), Row(3, false), null, Row(0, false), null, Row(5, true)),
       Set(Row(5, true), Row(3, false), null, Row(0, false)))
   }
@@ -305,43 +305,43 @@ class AggregatorsSuite extends HailSuite {
   }
 
   @Test def takeByBooleanBoolean() {
-    assertTakeByEvalsTo(TBoolean(), TBoolean(), 3,
+    assertTakeByEvalsTo(TBoolean, TBoolean, 3,
       FastIndexedSeq(Row(false, true), Row(null, null), Row(true, false)),
       FastIndexedSeq(true, false, null))
   }
 
   @Test def takeByBooleanInt() {
-    assertTakeByEvalsTo(TBoolean(), TInt32, 3,
+    assertTakeByEvalsTo(TBoolean, TInt32, 3,
       FastIndexedSeq(Row(false, 0), Row(null, null), Row(true, 1), Row(false, 3), Row(true, null), Row(null, 2)),
       FastIndexedSeq(false, true, null))
   }
 
   @Test def takeByBooleanLong() {
-    assertTakeByEvalsTo(TBoolean(), TInt64, 3,
+    assertTakeByEvalsTo(TBoolean, TInt64, 3,
       FastIndexedSeq(Row(false, 0L), Row(null, null), Row(true, 1L), Row(false, 3L), Row(true, null), Row(null, 2L)),
       FastIndexedSeq(false, true, null))
   }
 
   @Test def takeByBooleanFloat() {
-    assertTakeByEvalsTo(TBoolean(), TFloat32, 3,
+    assertTakeByEvalsTo(TBoolean, TFloat32, 3,
       FastIndexedSeq(Row(false, 0F), Row(null, null), Row(true, 1F), Row(false, 3F), Row(true, null), Row(null, 2F)),
       FastIndexedSeq(false, true, null))
   }
 
   @Test def takeByBooleanDouble() {
-    assertTakeByEvalsTo(TBoolean(), TFloat64, 3,
+    assertTakeByEvalsTo(TBoolean, TFloat64, 3,
       FastIndexedSeq(Row(false, 0D), Row(null, null), Row(true, 1D), Row(false, 3D), Row(true, null), Row(null, 2D)),
       FastIndexedSeq(false, true, null))
   }
 
   @Test def takeByBooleanAnnotation() {
-    assertTakeByEvalsTo(TBoolean(), TString, 3,
+    assertTakeByEvalsTo(TBoolean, TString, 3,
       FastIndexedSeq(Row(false, "a"), Row(null, null), Row(true, "b"), Row(false, "d"), Row(true, null), Row(null, "c")),
       FastIndexedSeq(false, true, null))
   }
 
   @Test def takeByIntBoolean() {
-    assertTakeByEvalsTo(TInt32, TBoolean(), 2,
+    assertTakeByEvalsTo(TInt32, TBoolean, 2,
       FastIndexedSeq(Row(3, true), Row(null, null), Row(null, false)),
       FastIndexedSeq(null, 3))
   }
@@ -377,7 +377,7 @@ class AggregatorsSuite extends HailSuite {
   }
 
   @Test def takeByLongBoolean() {
-    assertTakeByEvalsTo(TInt64, TBoolean(), 2,
+    assertTakeByEvalsTo(TInt64, TBoolean, 2,
       FastIndexedSeq(Row(3L, true), Row(null, null), Row(null, false)),
       FastIndexedSeq(null, 3L))
   }
@@ -413,7 +413,7 @@ class AggregatorsSuite extends HailSuite {
   }
 
   @Test def takeByFloatBoolean() {
-    assertTakeByEvalsTo(TFloat32, TBoolean(), 2,
+    assertTakeByEvalsTo(TFloat32, TBoolean, 2,
       FastIndexedSeq(Row(3F, true), Row(null, null), Row(null, false)),
       FastIndexedSeq(null, 3F))
   }
@@ -449,7 +449,7 @@ class AggregatorsSuite extends HailSuite {
   }
 
   @Test def takeByDoubleBoolean() {
-    assertTakeByEvalsTo(TFloat64, TBoolean(), 2,
+    assertTakeByEvalsTo(TFloat64, TBoolean, 2,
       FastIndexedSeq(Row(3D, true), Row(null, null), Row(null, false)),
       FastIndexedSeq(null, 3D))
   }
@@ -485,7 +485,7 @@ class AggregatorsSuite extends HailSuite {
   }
 
   @Test def takeByAnnotationBoolean() {
-    assertTakeByEvalsTo(TString, TBoolean(), 2,
+    assertTakeByEvalsTo(TString, TBoolean, 2,
       FastIndexedSeq(Row("hello", true), Row(null, null), Row(null, false)),
       FastIndexedSeq(null, "hello"))
   }
@@ -548,8 +548,8 @@ class AggregatorsSuite extends HailSuite {
   @Test
   def keyedCount() {
     runKeyedAggregator(Count(),
-      Ref("k", TBoolean()),
-      TStruct("k" -> TBoolean()),
+      Ref("k", TBoolean),
+      TStruct("k" -> TBoolean),
       FastIndexedSeq(Row(true), Row(true), Row(true), Row(false), Row(false), Row(null), Row(null)),
       Map(true -> 3L, false -> 2L, (null, 2L)),
       initOpArgs = FastIndexedSeq(),
@@ -557,8 +557,8 @@ class AggregatorsSuite extends HailSuite {
 
     // test struct as key
     runKeyedAggregator(Count(),
-      Ref("k", TStruct("a" -> TBoolean())),
-      TStruct("k" -> TStruct("a" -> TBoolean())),
+      Ref("k", TStruct("a" -> TBoolean)),
+      TStruct("k" -> TStruct("a" -> TBoolean)),
       FastIndexedSeq(Row(Row(true)), Row(Row(true)), Row(Row(true)), Row(Row(false)), Row(Row(false)), Row(Row(null)), Row(Row(null))),
       Map(Row(true) -> 3L, Row(false) -> 2L, (Row(null), 2L)),
       initOpArgs = FastIndexedSeq(),
@@ -569,8 +569,8 @@ class AggregatorsSuite extends HailSuite {
   def keyedCollect() {
     runKeyedAggregator(
       Collect(),
-      Ref("k", TBoolean()),
-      TStruct("k" -> TBoolean(), "v" -> TInt32),
+      Ref("k", TBoolean),
+      TStruct("k" -> TBoolean, "v" -> TInt32),
       FastIndexedSeq(Row(true, 5), Row(true, 3), Row(true, null), Row(false, 0), Row(false, null), Row(null, null), Row(null, 2)),
       Map(true -> FastIndexedSeq(5, 3, null), false -> FastIndexedSeq(0, null), (null, FastIndexedSeq(null, 2))),
       FastIndexedSeq(),
@@ -581,8 +581,8 @@ class AggregatorsSuite extends HailSuite {
   def keyedCallStats() {
     runKeyedAggregator(
       CallStats(),
-      Ref("k", TBoolean()),
-      TStruct("k" -> TBoolean(), "v" ->TCall),
+      Ref("k", TBoolean),
+      TStruct("k" -> TBoolean, "v" ->TCall),
       FastIndexedSeq(Row(true, null), Row(true, Call2(0, 1)), Row(true, Call2(0, 1)),
         Row(false, null), Row(false, Call2(0, 0)), Row(false, Call2(1, 1))),
       Map(true -> Row(FastIndexedSeq(2, 2), FastIndexedSeq(0.5, 0.5), 4, FastIndexedSeq(0, 0)),
@@ -607,12 +607,12 @@ class AggregatorsSuite extends HailSuite {
   @Test
   def keyedKeyedCollect() {
     val agg = FastIndexedSeq(Row("EUR", true, 1), Row("EUR", false, 2), Row("AFR", true, 3), Row("AFR", null, 4))
-    val aggType = TStruct("k1" -> TString, "k2" -> TBoolean(), "x" -> TInt32)
+    val aggType = TStruct("k1" -> TString, "k2" -> TBoolean, "x" -> TInt32)
     val expected = Map("EUR" -> Map(true -> FastIndexedSeq(1), false -> FastIndexedSeq(2)), "AFR" -> Map(true -> FastIndexedSeq(3), (null, FastIndexedSeq(4))))
     val aggSig = AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(TInt32))
     assertEvalsTo(
       AggGroupBy(Ref("k1", TString),
-        AggGroupBy(Ref("k2", TBoolean()),
+        AggGroupBy(Ref("k2", TBoolean),
           ApplyAggOp(
             FastSeq(),
             FastSeq(Ref("x", TInt32)),
@@ -679,13 +679,13 @@ class AggregatorsSuite extends HailSuite {
   @Test
   def keyedKeyedKeyedCollect() {
     val agg = FastIndexedSeq(Row("EUR", "CASE", true, 1), Row("EUR", "CONTROL", true, 2), Row("AFR", "CASE", false, 3), Row("AFR", "CONTROL", false, 4))
-    val aggType = TStruct("k1" -> TString, "k2" -> TString, "k3" -> TBoolean(), "x" -> TInt32)
+    val aggType = TStruct("k1" -> TString, "k2" -> TString, "k3" -> TBoolean, "x" -> TInt32)
     val expected = Map("EUR" -> Map("CASE" -> Map(true -> FastIndexedSeq(1)), "CONTROL" -> Map(true -> FastIndexedSeq(2))), "AFR" -> Map("CASE" -> Map(false -> FastIndexedSeq(3)), "CONTROL" -> Map(false -> FastIndexedSeq(4))))
     val aggSig = AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(TInt32))
     assertEvalsTo(
       AggGroupBy(Ref("k1", TString),
         AggGroupBy(Ref("k2", TString),
-          AggGroupBy(Ref("k3", TBoolean()),
+          AggGroupBy(Ref("k3", TBoolean),
             ApplyAggOp(
               FastSeq(),
               FastSeq(Ref("x", TInt32)),
@@ -706,11 +706,11 @@ class AggregatorsSuite extends HailSuite {
 
   @Test def testAggFilter(): Unit = {
     val aggSig = AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64))
-    val aggType = TStruct("x" -> TBoolean(), "y" -> TInt64)
+    val aggType = TStruct("x" -> TBoolean, "y" -> TInt64)
     val agg = FastIndexedSeq(Row(true, -1L), Row(true, 1L), Row(false, 3L), Row(true, 5L))
 
     assertEvalsTo(
-          AggFilter(Ref("x", TBoolean()),
+          AggFilter(Ref("x", TBoolean),
             ApplyAggOp(FastSeq(),
               FastSeq(Ref("y", TInt64)),
               aggSig), false),

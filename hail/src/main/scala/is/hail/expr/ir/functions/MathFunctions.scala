@@ -121,17 +121,17 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("pnorm", Array(TFloat64), TFloat64, null)(statsPackageClass, "pnorm")
     registerScalaFunction("qnorm", Array(TFloat64), TFloat64, null)(statsPackageClass, "qnorm")
 
-    registerScalaFunction("pT", Array(TFloat64, TFloat64, TBoolean(), TBoolean()), TFloat64, null)(statsPackageClass, "pT")
-    registerScalaFunction("pF", Array(TFloat64, TFloat64, TFloat64, TBoolean(), TBoolean()), TFloat64, null)(statsPackageClass, "pF")
+    registerScalaFunction("pT", Array(TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "pT")
+    registerScalaFunction("pF", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "pF")
 
     registerScalaFunction("dpois", Array(TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "dpois")
-    registerScalaFunction("dpois", Array(TFloat64, TFloat64, TBoolean()), TFloat64, null)(statsPackageClass, "dpois")
+    registerScalaFunction("dpois", Array(TFloat64, TFloat64, TBoolean), TFloat64, null)(statsPackageClass, "dpois")
 
     registerScalaFunction("ppois", Array(TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "ppois")
-    registerScalaFunction("ppois", Array(TFloat64, TFloat64, TBoolean(), TBoolean()), TFloat64, null)(statsPackageClass, "ppois")
+    registerScalaFunction("ppois", Array(TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "ppois")
 
     registerScalaFunction("qpois", Array(TFloat64, TFloat64), TInt32, null)(statsPackageClass, "qpois")
-    registerScalaFunction("qpois", Array(TFloat64, TFloat64, TBoolean(), TBoolean()), TInt32, null)(statsPackageClass, "qpois")
+    registerScalaFunction("qpois", Array(TFloat64, TFloat64, TBoolean, TBoolean), TInt32, null)(statsPackageClass, "qpois")
 
     registerScalaFunction("pchisqtail", Array(TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "chiSquaredTail")
     registerScalaFunction("qchisqtail", Array(TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "inverseChiSquaredTail")
@@ -147,21 +147,21 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("%", Array(TFloat32, TFloat32), TFloat32, null)(thisClass, "mod")
     registerScalaFunction("%", Array(TFloat64, TFloat64), TFloat64, null)(thisClass, "mod")
 
-    registerJavaStaticFunction("isnan", Array(TFloat32), TBoolean(), null)(jFloatClass, "isNaN")
-    registerJavaStaticFunction("isnan", Array(TFloat64), TBoolean(), null)(jDoubleClass, "isNaN")
+    registerJavaStaticFunction("isnan", Array(TFloat32), TBoolean, null)(jFloatClass, "isNaN")
+    registerJavaStaticFunction("isnan", Array(TFloat64), TBoolean, null)(jDoubleClass, "isNaN")
 
-    registerJavaStaticFunction("is_finite", Array(TFloat32), TBoolean(), null)(jFloatClass, "isFinite")
-    registerJavaStaticFunction("is_finite", Array(TFloat64), TBoolean(), null)(jDoubleClass, "isFinite")
+    registerJavaStaticFunction("is_finite", Array(TFloat32), TBoolean, null)(jFloatClass, "isFinite")
+    registerJavaStaticFunction("is_finite", Array(TFloat64), TBoolean, null)(jDoubleClass, "isFinite")
 
-    registerJavaStaticFunction("is_infinite", Array(TFloat32), TBoolean(), null)(jFloatClass, "isInfinite")
-    registerJavaStaticFunction("is_infinite", Array(TFloat64), TBoolean(), null)(jDoubleClass, "isInfinite")
+    registerJavaStaticFunction("is_infinite", Array(TFloat32), TBoolean, null)(jFloatClass, "isInfinite")
+    registerJavaStaticFunction("is_infinite", Array(TFloat64), TBoolean, null)(jDoubleClass, "isInfinite")
 
     registerJavaStaticFunction("sign", Array(TInt32), TInt32, null)(jIntegerClass, "signum")
     registerScalaFunction("sign", Array(TInt64), TInt64, null)(mathPackageClass, "signum")
     registerJavaStaticFunction("sign", Array(TFloat32), TFloat32, null)(jMathClass, "signum")
     registerJavaStaticFunction("sign", Array(TFloat64), TFloat64, null)(jMathClass, "signum")
     
-    registerScalaFunction("approxEqual", Array(TFloat64, TFloat64, TFloat64, TBoolean(), TBoolean()), TBoolean(), null)(thisClass, "approxEqual")
+    registerScalaFunction("approxEqual", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TBoolean, null)(thisClass, "approxEqual")
 
     registerWrappedScalaFunction("entropy", TString, TFloat64, null)(thisClass, "irentropy")
 
