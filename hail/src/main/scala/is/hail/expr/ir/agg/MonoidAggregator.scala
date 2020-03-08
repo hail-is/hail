@@ -23,7 +23,7 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   def createState(fb: EmitFunctionBuilder[_]): State =
     new PrimitiveRVAState(Array(typ.setRequired(monoid.neutral.isDefined)), fb)
 
-  def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
+  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)
     val (mOpt, v, _) = state.fields(0)
     (mOpt, monoid.neutral) match {
@@ -32,7 +32,7 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     }
   }
 
-  def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
+  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     val Array(elt) = seq
     val (mOpt, v, _) = state.fields(0)
     val eltm = state.fb.newField[Boolean]

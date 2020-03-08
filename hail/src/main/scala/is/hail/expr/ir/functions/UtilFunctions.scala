@@ -154,13 +154,13 @@ object UtilFunctions extends RegistryFunctions {
           Code.invokeScalaObject(thisClass, s"parse$name", s)(ctString, ct)
       }
       registerCodeWithMissingness(s"to${name}OrMissing", TString, t, null) {
-        case (r, rt, (xT: PString, x: EmitTriplet)) =>
+        case (r, rt, (xT: PString, x: EmitCode)) =>
           val s = r.mb.newLocal[String]
           val m = r.mb.newLocal[Boolean]
-          EmitTriplet(
+          EmitCode(
             Code(x.setup, m := x.m, s := m.mux(Code._null[String], asm4s.coerce[String](wrapArg(r, xT)(x.v)))),
             (m || !Code.invokeScalaObject[String, Boolean](thisClass, s"isValid$name", s)),
-            PValue(rt, Code.invokeScalaObject(thisClass, s"parse$name", s)(ctString, ct)))
+            PCode(rt, Code.invokeScalaObject(thisClass, s"parse$name", s)(ctString, ct)))
       }
     }
 
@@ -194,11 +194,11 @@ object UtilFunctions extends RegistryFunctions {
           Code.invokeScalaObject[Double, Double, Double](thisClass, ignoreNanName, v1, v2)
       }
 
-      def ignoreMissingTriplet[T](rt: PType, v1: EmitTriplet, v2: EmitTriplet, name: String)(implicit ct: ClassTag[T]): EmitTriplet =
-        EmitTriplet(
+      def ignoreMissingTriplet[T](rt: PType, v1: EmitCode, v2: EmitCode, name: String)(implicit ct: ClassTag[T]): EmitCode =
+        EmitCode(
           Code(v1.setup, v2.setup),
           v1.m && v2.m,
-          PValue(rt, Code.invokeScalaObject[T, Boolean, T, Boolean, T](thisClass, name, v1.v.asInstanceOf[Code[T]], v1.m, v2.v.asInstanceOf[Code[T]], v2.m))
+          PCode(rt, Code.invokeScalaObject[T, Boolean, T, Boolean, T](thisClass, name, v1.v.asInstanceOf[Code[T]], v1.m, v2.v.asInstanceOf[Code[T]], v2.m))
         )
 
       registerCodeWithMissingness(ignoreMissingName, TInt32, TInt32, TInt32, null) {
@@ -258,9 +258,9 @@ object UtilFunctions extends RegistryFunctions {
                 const(0)))),
             Code._empty))
 
-        EmitTriplet(setup,
+        EmitCode(setup,
           ((M >> w) & 1).cne(0),
-          PValue(rt, w.ceq(10)))
+          PCode(rt, w.ceq(10)))
     }
 
     registerCodeWithMissingness("||", TBoolean, TBoolean, TBoolean, null) {
@@ -288,9 +288,9 @@ object UtilFunctions extends RegistryFunctions {
                   const(0)))),
             Code._empty))
 
-        EmitTriplet(setup,
+        EmitCode(setup,
           ((M >> w) & 1).cne(0),
-          PValue(rt, w.cne(0)))
+          PCode(rt, w.cne(0)))
     }
   }
 }

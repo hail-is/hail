@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitCode}
 import is.hail.expr.types.physical.{PBooleanRequired, PInt32Required, PStruct, PType}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
@@ -113,7 +113,7 @@ class ApproxCDFAggregator extends StagedAggregator {
 
   def createState(fb: EmitFunctionBuilder[_]): State = new ApproxCDFState(fb)
 
-  def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
+  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     val Array(k) = init
     Code(
       k.setup,
@@ -123,7 +123,7 @@ class ApproxCDFAggregator extends StagedAggregator {
       ))
   }
 
-  def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
+  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     val Array(x) = seq
     Code(
       x.setup,

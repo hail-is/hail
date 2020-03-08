@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.{PCanonicalBaseStructValue, PValue}
+import is.hail.expr.ir.{PCanonicalBaseStructCode, PCode}
 import is.hail.expr.types.BaseStruct
 import is.hail.utils._
 
@@ -220,6 +220,6 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  override def load(src: Code[Long]): PValue =
-    new PCanonicalBaseStructValue(this, src)
+  override def load(src: Code[Long]): PCode =
+    new PCanonicalBaseStructCode(this, src)
 }

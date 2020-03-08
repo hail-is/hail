@@ -40,20 +40,20 @@ object IntervalFunctions extends RegistryFunctions {
               vv := srvb.offset))),
           Code._empty)
 
-        EmitTriplet(
+        EmitCode(
           Code(start.setup, end.setup, includeStart.setup, includeEnd.setup, ctor),
           mv,
-          PValue(rt, vv))
+          PCode(rt, vv))
     }
 
     registerCodeWithMissingness("start", TInterval(tv("T")), tv("T"), (x: PType) => x.asInstanceOf[PInterval].pointType) {
       case (r, rt, (intervalT: PInterval, interval)) =>
         val region = r.region
         val iv = r.mb.newLocal[Long]
-        EmitTriplet(
+        EmitCode(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
           interval.m || !Code(iv := interval.value[Long], intervalT.startDefined(iv)),
-          PValue(rt, Region.loadIRIntermediate(intervalT.pointType)(intervalT.startOffset(iv)))
+          PCode(rt, Region.loadIRIntermediate(intervalT.pointType)(intervalT.startOffset(iv)))
         )
     }
 
@@ -61,10 +61,10 @@ object IntervalFunctions extends RegistryFunctions {
       case (r, rt, (intervalT: PInterval, interval)) =>
         val region = r.region
         val iv = r.mb.newLocal[Long]
-        EmitTriplet(
+        EmitCode(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
           interval.m || !Code(iv := interval.value[Long], intervalT.endDefined(iv)),
-          PValue(rt, Region.loadIRIntermediate(intervalT.pointType)(intervalT.endOffset(iv)))
+          PCode(rt, Region.loadIRIntermediate(intervalT.pointType)(intervalT.endOffset(iv)))
         )
     }
 
@@ -96,10 +96,10 @@ object IntervalFunctions extends RegistryFunctions {
             cmp := compare((mPoint, vPoint), interval.end),
             cmp < 0 || (cmp.ceq(0) && interval.includeEnd)))
 
-        EmitTriplet(
+        EmitCode(
           Code(intTriplet.setup, pointTriplet.setup),
           intTriplet.m,
-          PValue(rt, contains))
+          PCode(rt, contains))
     }
 
     registerCode("isEmpty", TInterval(tv("T")), TBoolean, null) {

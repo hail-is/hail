@@ -121,7 +121,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
         tmpNode := next(tmpNode)))
   }
 
-  private def foreach(mb: MethodBuilder)(f: EmitTriplet => Code[Unit]): Code[Unit] = {
+  private def foreach(mb: MethodBuilder)(f: EmitCode => Code[Unit]): Code[Unit] = {
     val n = mb.newLocal[Long]
     foreachNode(mb, n) {
       val i = mb.newLocal[Int]
@@ -130,7 +130,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
       Code(
         i := 0,
         Code.whileLoop(i < count(n),
-          f(EmitTriplet(Code._empty, bufim, PValue(elemType, bufiv))),
+          f(EmitCode(Code._empty, bufim, PCode(elemType, bufiv))),
           i := i + 1))
     }
   }
@@ -146,7 +146,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
       totalCount := totalCount + 1)
   }
 
-  def push(region: Code[Region], elt: EmitTriplet): Code[Unit] = {
+  def push(region: Code[Region], elt: EmitCode): Code[Unit] = {
     val eltTI = typeToTypeInfo(elemType)
     val pushF = fb.newMethod("blockLinkedListPush",
       Array[TypeInfo[_]](typeInfo[Region], typeInfo[Boolean], eltTI),

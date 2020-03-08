@@ -307,7 +307,7 @@ object ArrayFunctions extends RegistryFunctions {
     }
 
     registerCodeWithMissingness("corr", TArray(TFloat64), TArray(TFloat64), TFloat64, null) {
-      case (r, rt, (t1: PArray, EmitTriplet(setup1, m1, v1)), (t2: PArray, EmitTriplet(setup2, m2, v2))) =>
+      case (r, rt, (t1: PArray, EmitCode(setup1, m1, v1)), (t2: PArray, EmitCode(setup2, m2, v2))) =>
         val xSum = r.mb.newLocal[Double]
         val ySum = r.mb.newLocal[Double]
         val xSqSum = r.mb.newLocal[Double]
@@ -323,7 +323,7 @@ object ArrayFunctions extends RegistryFunctions {
         val a1 = v1.tcode[Long]
         val a2 = v2.tcode[Long]
 
-        EmitTriplet(
+        EmitCode(
           Code(
             setup1,
             setup2),
@@ -336,7 +336,7 @@ object ArrayFunctions extends RegistryFunctions {
                 .concat(", ")
                 .concat(l2.toS)),
               l1.ceq(0))),
-          PValue(PFloat64(), Code(
+          PCode(PFloat64(), Code(
             i := 0,
             n := 0,
             xSum := 0d,

@@ -328,38 +328,38 @@ object LocusFunctions extends RegistryFunctions {
     }
 
     registerCodeWithMissingness("LocusInterval", TString, TBoolean, tinterval("T"), null) {
-      case (r: EmitRegion, rt: PInterval, (strT, ioff: EmitTriplet), (missingT, invalidMissing: EmitTriplet)) =>
+      case (r: EmitRegion, rt: PInterval, (strT, ioff: EmitCode), (missingT, invalidMissing: EmitCode)) =>
         val plocus = rt.pointType.asInstanceOf[PLocus]
         val sinterval = asm4s.coerce[String](wrapArg(r, strT)(ioff.value[Long]))
         val intervalLocal = r.mb.newLocal[Interval](name="intervalObject")
         val interval = Code.invokeScalaObject[String, ReferenceGenome, Boolean, Interval](
           locusClass, "parseInterval", sinterval, rgCode(r.mb, plocus.rg), invalidMissing.value[Boolean])
 
-        EmitTriplet(
+        EmitCode(
           Code(ioff.setup, invalidMissing.setup),
           ioff.m || invalidMissing.m || Code(intervalLocal := interval, intervalLocal.load().isNull),
-          PValue(rt, emitInterval(r, interval, rt))
+          PCode(rt, emitInterval(r, interval, rt))
         )
     }
 
     registerCodeWithMissingness("LocusInterval", TString, TInt32, TInt32, TBoolean, TBoolean, TBoolean, tinterval("T"), null) {
       case (r: EmitRegion, rt: PInterval,
-      (locoffT, locoff: EmitTriplet),
-      (pos1T, pos1: EmitTriplet),
-      (pos2T, pos2: EmitTriplet),
-      (include1T, include1: EmitTriplet),
-      (include2T, include2: EmitTriplet),
-      (invalidMissingT, invalidMissing: EmitTriplet)) =>
+      (locoffT, locoff: EmitCode),
+      (pos1T, pos1: EmitCode),
+      (pos2T, pos2: EmitCode),
+      (include1T, include1: EmitCode),
+      (include2T, include2: EmitCode),
+      (invalidMissingT, invalidMissing: EmitCode)) =>
         val plocus = rt.pointType.asInstanceOf[PLocus]
         val sloc = asm4s.coerce[String](wrapArg(r, locoffT)(locoff.value[Long]))
         val intervalLocal = r.mb.newLocal[Interval]("intervalObject")
         val interval = Code.invokeScalaObject[String, Int, Int, Boolean, Boolean, ReferenceGenome, Boolean, Interval](
           locusClass, "makeInterval", sloc, pos1.value[Int], pos2.value[Int], include1.value[Boolean], include2.value[Boolean], rgCode(r.mb, plocus.rg), invalidMissing.value[Boolean])
 
-        EmitTriplet(
+        EmitCode(
           Code(locoff.setup, pos1.setup, pos2.setup, include1.setup, include2.setup, invalidMissing.setup),
           locoff.m || pos1.m || pos2.m || include1.m || include2.m || invalidMissing.m || Code(intervalLocal := interval, intervalLocal.load().isNull),
-          PValue(rt, emitInterval(r, interval, rt))
+          PCode(rt, emitInterval(r, interval, rt))
         )
     }
 
@@ -383,10 +383,10 @@ object LocusFunctions extends RegistryFunctions {
         val tlocal = r.mb.newLocal[(Locus, Boolean)]
         val lifted = rgCode(r.mb, srcRG).invoke[String, Locus, Double, (Locus, Boolean)]("liftoverLocus", destRG.name, locus, minMatch.value[Double])
 
-        EmitTriplet(
+        EmitCode(
           Code(loc.setup, minMatch.setup, tlocal := Code._null),
           loc.m || minMatch.m || Code(tlocal := lifted, tlocal.isNull),
-          PValue(rt, emitLiftoverLocus(r, tlocal, rt))
+          PCode(rt, emitLiftoverLocus(r, tlocal, rt))
         )
     }
 
@@ -398,10 +398,10 @@ object LocusFunctions extends RegistryFunctions {
         val tlocal = r.mb.newLocal[(Interval, Boolean)]
         val lifted = rgCode(r.mb, srcRG).invoke[String, Interval, Double, (Interval, Boolean)]("liftoverLocusInterval", destRG.name, interval, minMatch.value[Double])
 
-        EmitTriplet(
+        EmitCode(
           Code(i.setup, minMatch.setup, tlocal := Code._null),
           i.m || minMatch.m || Code(tlocal := lifted, tlocal.isNull),
-          PValue(rt, emitLiftoverLocusInterval(r, tlocal, rt))
+          PCode(rt, emitLiftoverLocusInterval(r, tlocal, rt))
         )
     }
   }

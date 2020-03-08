@@ -2,7 +2,7 @@ package is.hail.asm4s.joinpoint
 
 import is.hail.asm4s._
 import is.hail.expr.ir
-import is.hail.expr.ir.{EmitTriplet, PValue}
+import is.hail.expr.ir.{EmitCode, PCode}
 import is.hail.expr.types.physical.PType
 
 trait ParameterPack[A] {
@@ -256,20 +256,20 @@ case class ParameterStoreTriplet[A](t: PType, psm: ParameterStore[Code[Boolean]]
 }
 
 object TypedTriplet {
-  def apply(t: PType, et: EmitTriplet): TypedTriplet[t.type] =
+  def apply(t: PType, et: EmitCode): TypedTriplet[t.type] =
     TypedTriplet(et.setup, et.m, et.pv)
 
   def apply[A](t: PType, setup: Code[Unit], m: Code[Boolean], v: Code[_]): TypedTriplet[A] =
-    TypedTriplet(setup, m, PValue(t, v))
+    TypedTriplet(setup, m, PCode(t, v))
 
   def missing(t: PType): TypedTriplet[t.type] =
-    TypedTriplet(t, EmitTriplet(Code._empty, true, t.defaultValue))
+    TypedTriplet(t, EmitCode(Code._empty, true, t.defaultValue))
 
   def pack(t: PType): ParameterPackTriplet[t.type] = ParameterPackTriplet(t)
 }
 
-case class TypedTriplet[P] private(setup: Code[Unit], m: Code[Boolean], pv: PValue) {
+case class TypedTriplet[P] private(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
   def v: Code[_] = pv.code
 
-  def untyped: EmitTriplet = EmitTriplet(setup, m, pv)
+  def untyped: EmitCode = EmitCode(setup, m, pv)
 }

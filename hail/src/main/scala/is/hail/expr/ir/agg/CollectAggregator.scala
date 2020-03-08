@@ -56,12 +56,12 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
   def createState(fb: EmitFunctionBuilder[_]): State =
     new State(fb)
 
-  def initOp(state: State, args: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
+  def initOp(state: State, args: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     assert(args.isEmpty)
     state.bll.init(state.region)
   }
 
-  def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] =
+  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] =
     state.bll.push(state.region, seq(0))
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] =

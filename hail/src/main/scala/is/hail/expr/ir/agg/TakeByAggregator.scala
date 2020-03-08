@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitCode, defaultValue, typeToTypeInfo}
 import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
@@ -579,7 +579,7 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
   def createState(fb: EmitFunctionBuilder[_]): State =
     new TakeByRVAS(valueType, keyType, resultType, fb)
 
-  def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
+  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     assert(init.length == 1)
     val Array(sizeTriplet) = init
     Code(
@@ -589,8 +589,8 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
     )
   }
 
-  def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
-    val Array(value: EmitTriplet, key: EmitTriplet) = seq
+  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+    val Array(value: EmitCode, key: EmitCode) = seq
     assert(value.pv.pt == valueType)
     assert(key.pv.pt == keyType)
     Code(

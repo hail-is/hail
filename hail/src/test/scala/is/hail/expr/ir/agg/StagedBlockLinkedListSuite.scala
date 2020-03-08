@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import scala.collection.generic.Growable
 import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue, StagedRegionValueBuilder}
 import is.hail.asm4s.Code
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion, EmitTriplet, PValue}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion, EmitCode, PCode}
 import is.hail.expr.types.physical._
 import is.hail.utils._
 import org.scalatest.testng.TestNGSuite
@@ -40,9 +40,9 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
       val eltOff = fb.getArg[Long](3).load
       fb.emit(Code(
         sbll.load(ptr),
-        sbll.push(r, EmitTriplet(Code._empty,
+        sbll.push(r, EmitCode(Code._empty,
           eltOff.ceq(0),
-          PValue(elemPType, Region.getIRIntermediate(elemPType)(eltOff)))),
+          PCode(elemPType, Region.getIRIntermediate(elemPType)(eltOff)))),
         sbll.store(ptr)))
 
       val f = fb.result()()
