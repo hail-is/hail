@@ -47,14 +47,14 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     computed from `GT`:
 
     - `call_rate` (``float64``) -- Fraction of calls not missing or filtered.
-       Equivalent to `n_called` divided by :meth:`.count_rows`.
+      Equivalent to `n_called` divided by :meth:`.count_rows`.
     - `n_called` (``int64``) -- Number of non-missing calls.
     - `n_not_called` (``int64``) -- Number of missing calls.
     - `n_filtered` (``int64``) -- Number of filtered entries.
     - `n_hom_ref` (``int64``) -- Number of homozygous reference calls.
     - `n_het` (``int64``) -- Number of heterozygous calls.
     - `n_hom_var` (``int64``) -- Number of homozygous alternate calls.
-    - `n_non_ref` (``int64``) -- Sum of ``n_het`` and ``n_hom_var``.
+    - `n_non_ref` (``int64``) -- Sum of `n_het` and `n_hom_var`.
     - `n_snp` (``int64``) -- Number of SNP alternate alleles.
     - `n_insertion` (``int64``) -- Number of insertion alternate alleles.
     - `n_deletion` (``int64``) -- Number of deletion alternate alleles.
@@ -120,7 +120,10 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
 
     bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
     bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
-    bound_exprs['n_filtered'] = mt.count_rows(_localize=False) - hl.agg.count()
+
+    n_rows_ref = hl.expr.construct_expr(hl.ir.Ref('n_rows'), hl.tint64, mt._col_indices,
+                                        hl.utils.LinkedList(hl.expr.Aggregation))
+    bound_exprs['n_filtered'] = n_rows_ref - hl.agg.count()
     bound_exprs['n_hom_ref'] = hl.agg.count_where(mt['GT'].is_hom_ref())
     bound_exprs['n_het'] = hl.agg.count_where(mt['GT'].is_het())
     bound_exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, mt['GT'].ploidy).map(lambda i: mt[variant_ac][mt['GT'][i]] == 1)))
@@ -207,7 +210,7 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     - `homozygote_count` (``array<int32>``) -- Number of homozygotes per
       allele. One element per allele, including the reference.
     - `call_rate` (``float64``) -- Fraction of calls neither missing nor filtered.
-       Equivalent to `n_called` / :meth:`.count_cols`.
+      Equivalent to `n_called` / :meth:`.count_cols`.
     - `n_called` (``int64``) -- Number of samples with a defined `GT`.
     - `n_not_called` (``int64``) -- Number of samples with a missing `GT`.
     - `n_filtered` (``int64``) -- Number of filtered entries.
@@ -259,7 +262,9 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
 
     bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
     bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
-    bound_exprs['n_filtered'] = mt.count_cols(_localize=False) - hl.agg.count()
+    n_cols_ref = hl.expr.construct_expr(hl.ir.Ref('n_cols'), hl.tint32,
+                                        mt._row_indices, hl.utils.LinkedList(hl.expr.Aggregation))
+    bound_exprs['n_filtered'] = hl.int64(n_cols_ref) - hl.agg.count()
     bound_exprs['call_stats'] = hl.agg.call_stats(mt.GT, mt.alleles)
 
     result = hl.rbind(hl.struct(**bound_exprs),
@@ -442,10 +447,16 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
     def concordance_array(counter):
         return hl.range(0, 5).map(lambda i: hl.range(0, 5).map(lambda j: counter.get(i + 5 * j, 0)))
 
+    discordant_indices = set()
+    for i in range(5):
+        for j in range(5):
+            if i > 1 and j > 1 and i != j:
+                discordant_indices.add(i + 5 * j)
+
     def n_discordant(counter):
         return hl.sum(
             hl.array(counter)
-                .filter(lambda tup: ~hl.literal({i ** 2 for i in range(5)}).contains(tup[0]))
+                .filter(lambda tup: hl.literal(discordant_indices).contains(tup[0]))
                 .map(lambda tup: tup[1]))
 
     glob = joined.aggregate_entries(concordance_array(aggr), _localize=_localize_global_statistics)
@@ -453,14 +464,15 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
         total_conc = [x[1:] for x in glob[1:]]
         on_diag = sum(total_conc[i][i] for i in range(len(total_conc)))
         total_obs = sum(sum(x) for x in total_conc)
-        info(f"concordance: total concordance {on_diag/total_obs * 100:.2f}%")
+        pct = on_diag/total_obs * 100 if total_obs > 0 else float('nan')
+        info(f"concordance: total concordance {pct:.2f}%")
 
     per_variant = joined.annotate_rows(concordance=aggr)
-    per_variant = per_variant.annotate_rows(concordance=concordance_array(per_variant.concordance),
-                                            n_discordant=n_discordant(per_variant.concordance))
+    per_variant = per_variant.select_rows(concordance=concordance_array(per_variant.concordance),
+                                          n_discordant=n_discordant(per_variant.concordance))
     per_sample = joined.annotate_cols(concordance=aggr)
-    per_sample = per_sample.annotate_cols(concordance=concordance_array(per_sample.concordance),
-                                          n_discordant=n_discordant(per_sample.concordance))
+    per_sample = per_sample.select_cols(concordance=concordance_array(per_sample.concordance),
+                                        n_discordant=n_discordant(per_sample.concordance))
 
     return glob, per_sample.cols(), per_variant.rows()
 
@@ -926,8 +938,118 @@ def nirvana(dataset: Union[MatrixTable, Table], config, block_size=500000, name=
         return dataset.annotate(**{name: annotations[dataset.key].nirvana})
 
 
-@typecheck(mt=MatrixTable, show=bool)
-def summarize_variants(mt: MatrixTable, show=True):
+class _VariantSummary(object):
+    def __init__(self, rg, n_variants, alleles_per_variant, variants_per_contig, allele_types, nti, ntv):
+        self.rg = rg
+        self.n_variants = n_variants
+        self.alleles_per_variant = alleles_per_variant
+        self.variants_per_contig = variants_per_contig
+        self.allele_types = allele_types
+        self.nti = nti
+        self.ntv = ntv
+
+    def __repr__(self):
+        return self.__str__()
+
+    def _repr_html_(self):
+        return self._html_string()
+
+    def __str__(self):
+        contig_idx = {contig: i for i, contig in enumerate(self.rg.contigs)}
+        max_contig_len = max(len(contig) for contig in self.variants_per_contig)
+        contig_formatter = f'%{max_contig_len}s'
+
+        max_allele_count_len = max(len(str(x)) for x in self.alleles_per_variant)
+        allele_count_formatter = f'%{max_allele_count_len}s'
+
+        max_allele_type_len = max(len(x) for x in self.allele_types)
+        allele_type_formatter = f'%{max_allele_type_len}s'
+
+        line_break = '=============================='
+        
+        builder = []
+        builder.append(line_break)
+        builder.append(f'Number of variants: {self.n_variants}')
+        builder.append(line_break)
+        builder.append('Alleles per variant')
+        builder.append('-------------------')
+        for n_alleles, count in sorted(self.alleles_per_variant.items(), key=lambda x: x[0]):
+            builder.append(f'  {allele_count_formatter % n_alleles} alleles: {count} variants')
+        builder.append(line_break)
+        builder.append('Variants per contig')
+        builder.append('-------------------')
+        for contig, count in sorted(self.variants_per_contig.items(), key=lambda x: contig_idx[x[0]]):
+            builder.append(f'  {contig_formatter % contig}: {count} variants')
+        builder.append(line_break)
+        builder.append('Allele type distribution')
+        builder.append('------------------------')
+        for allele_type, count in Counter(self.allele_types).most_common():
+            summary = f'  {allele_type_formatter % allele_type}: {count} alternate alleles'
+            if allele_type == 'SNP':
+                nti = self.nti
+                ntv = self.ntv
+                summary += f' (Ti: {nti}, Tv: {ntv}, ratio: {nti / ntv:.2f})'
+            builder.append(summary)
+        builder.append(line_break)
+        return '\n'.join(builder)
+
+    def _html_string(self):
+        contig_idx = {contig: i for i, contig in enumerate(self.rg.contigs)}
+
+        import html
+        builder = []
+        builder.append(f'<p><b>Variant summary:</b></p>')
+        builder.append('<ul>')
+        builder.append(f'<li><p>Total variants: {self.n_variants}</p></li>')
+
+        builder.append(f'<li><p>Alleles per variant:</p>')
+        builder.append('<table><thead style="font-weight: bold;">')
+        builder.append('<tr><th>Number of alleles</th><th>Count</th></tr></thead><tbody>')
+        for n_alleles, count in sorted(self.alleles_per_variant.items(), key=lambda x: x[0]):
+            builder.append(f'<tr>')
+            builder.append(f'<td>{n_alleles}</td>')
+            builder.append(f'<td>{count}</td>')
+            builder.append(f'</tr>')
+        builder.append('</tbody></table>')
+        builder.append('</li>')
+
+        builder.append(f'<li><p>Counts by allele type:</p>')
+        builder.append('<table><thead style="font-weight: bold;">')
+        builder.append('<tr><th>Allele type</th><th>Count</th></tr></thead><tbody>')
+        for allele_type, count in Counter(self.allele_types).most_common():
+            builder.append(f'<tr>')
+            builder.append(f'<td>{html.escape(allele_type)}</td>')
+            builder.append(f'<td>{count}</td>')
+            builder.append(f'</tr>')
+        builder.append('</tbody></table>')
+        builder.append('</li>')
+
+        builder.append(f'<li><p>Transitions/Transversions:</p>')
+        builder.append('<table><thead style="font-weight: bold;">')
+        builder.append('<tr><th>Metric</th><th>Value</th></tr></thead><tbody>')
+        builder.append(f'<tr><td>Transitions</td><td>{self.nti}</td></tr>')
+        builder.append(f'<tr><td>Transversions</td><td>{self.ntv}</td></tr>')
+        builder.append(f'<tr><td>Ratio</td><td>{self.nti / self.ntv:.2f}</td></tr>')
+        builder.append('</tbody></table>')
+        builder.append('</li>')
+
+        builder.append(f'<li><p>Variants per contig:</p>')
+        builder.append('<table><thead style="font-weight: bold;">')
+        builder.append('<tr><th>Contig</th><th>Count</th></tr></thead><tbody>')
+        for contig, count in sorted(self.variants_per_contig.items(), key=lambda x: contig_idx[x[0]]):
+            builder.append(f'<tr>')
+            builder.append(f'<td>{html.escape(contig)}</td>')
+            builder.append(f'<td>{count}</td>')
+            builder.append(f'</tr>')
+        builder.append('</tbody></table>')
+        builder.append('</li>')
+
+        builder.append('</ul>')
+        return ''.join(builder)
+
+
+@typecheck(mt=oneof(Table, MatrixTable), show=bool, handler=anytype)
+def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handler=None):
     """Summarize the variants present in a dataset and print the results.
 
     Examples
@@ -953,15 +1075,16 @@ def summarize_variants(mt: MatrixTable, show=True):
 
     Parameters
     ----------
-    mt : :class:`.MatrixTable`
+    mt : :class:`.MatrixTable` or :class:`.Table`
         Matrix table with a variant (locus / alleles) row key.
     show : :obj:`bool`
         If ``True``, print results instead of returning them.
+    handler
 
     Notes
     -----
     The result returned if `show` is ``False`` is a  :class:`.Struct` with
-    four fields:
+    five fields:
 
     - `n_variants` (:obj:`int`): Number of variants present in the matrix table.
     - `allele_types` (:obj:`Dict[str, int]`): Number of alternate alleles in
@@ -969,6 +1092,8 @@ def summarize_variants(mt: MatrixTable, show=True):
     - `contigs` (:obj:`Dict[str, int]`): Number of variants on each contig.
     - `allele_counts` (:obj:`Dict[int, int]`): Number of variants broken down
       by number of alleles (biallelic is 2, for example).
+    - `r_ti_tv` (:obj:`float`): Ratio of transition alternate alleles to
+      transversion alternate alleles.
 
     Returns
     -------
@@ -976,46 +1101,32 @@ def summarize_variants(mt: MatrixTable, show=True):
         Returns ``None`` if `show` is ``True``, or returns results as a struct.
     """
     require_row_key_variant(mt, 'summarize_variants')
-    alleles_per_variant = hl.range(1, hl.len(mt.alleles)).map(lambda i: hl.allele_type(mt.alleles[0], mt.alleles[i]))
-    allele_types, contigs, allele_counts, n_variants = mt.aggregate_rows(
-        (hl.agg.explode(lambda elt: hl.agg.counter(elt), alleles_per_variant),
-         hl.agg.counter(mt.locus.contig),
-         hl.agg.counter(hl.len(mt.alleles)),
+    if isinstance(mt, MatrixTable):
+        ht = mt.rows()
+    else:
+        ht = mt
+    allele_pairs = hl.range(1, hl.len(ht.alleles)).map(lambda i: (ht.alleles[0], ht.alleles[i]))
+
+    def explode_result(alleles):
+        ref, alt = alleles
+        return hl.agg.counter(hl.allele_type(ref, alt)), \
+               hl.agg.count_where(hl.is_transition(ref, alt)), \
+               hl.agg.count_where(hl.is_transversion(ref, alt))
+
+    (allele_types, nti, ntv), contigs, allele_counts, n_variants = ht.aggregate(
+        (hl.agg.explode(explode_result, allele_pairs),
+         hl.agg.counter(ht.locus.contig),
+         hl.agg.counter(hl.len(ht.alleles)),
          hl.agg.count()))
-    rg = mt.locus.dtype.reference_genome
-    contig_idx = {contig: i for i, contig in enumerate(rg.contigs)}
+    rg = ht.locus.dtype.reference_genome
     if show:
-        max_contig_len = max(len(contig) for contig in contigs)
-        contig_formatter = f'%{max_contig_len}s'
-
-        max_allele_count_len = max(len(str(x)) for x in allele_counts)
-        allele_count_formatter = f'%{max_allele_count_len}s'
-
-        max_allele_type_len = max(len(x) for x in allele_types)
-        allele_type_formatter = f'%{max_allele_type_len}s'
-
-        line_break = '=============================='
-
-        print(line_break)
-        print(f'Number of variants: {n_variants}')
-        print(line_break)
-        print('Alleles per variant')
-        print('-------------------')
-        for n_alleles, count in sorted(allele_counts.items(), key=lambda x: x[0]):
-            print(f'  {allele_count_formatter % n_alleles} alleles: {count} variants')
-        print(line_break)
-        print('Variants per contig')
-        print('-------------------')
-        for contig, count in sorted(contigs.items(), key=lambda x: contig_idx[x[0]]):
-            print(f'  {contig_formatter % contig}: {count} variants')
-        print(line_break)
-        print('Allele type distribution')
-        print('------------------------')
-        for allele_type, count in Counter(allele_types).most_common():
-            print(f'  {allele_type_formatter % allele_type}: {count} alternate alleles')
-        print(line_break)
+        summary = _VariantSummary(rg, n_variants, allele_counts, contigs, allele_types, nti, ntv)
+        if handler is None:
+            handler = hl.utils.default_handler()
+        handler(summary)
     else:
         return hl.Struct(allele_types=allele_types,
                          contigs=contigs,
                          allele_counts=allele_counts,
-                         n_variants=n_variants)
+                         n_variants=n_variants,
+                         r_ti_tv=nti / ntv)

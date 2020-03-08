@@ -1,0 +1,7 @@
+locus	alleles	genes	consequence	s1	s2
+1:1	A,T	GENE1	missense	0/1	1/1
+1:2	A,T	GENE1	nonsense	0/1	1/1
+1:3	A,T	GENE1	synonymous	0/0	0/1
+1:4	A,T	GENE1,GENE2	missense	1/1	0/1
+1:5	A,T	GENE2	nonsense	1/1	0/1
+1:6	A,T	GENE2	nonsense	0/0	0/1

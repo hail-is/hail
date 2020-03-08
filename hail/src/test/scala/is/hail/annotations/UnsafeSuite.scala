@@ -7,9 +7,11 @@ import is.hail.check._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TArray, TStruct, Type}
 import is.hail.io._
+import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import org.json4s.jackson.Serialization
+import org.testng.annotations.{DataProvider, Test}
 
 import scala.util.Random
 
@@ -17,12 +19,12 @@ class UnsafeSuite extends HailSuite {
   def subsetType(t: Type): Type = {
     t match {
       case t: TStruct =>
-        TStruct(t.required,
+        TStruct(
           t.fields.filter(_ => Random.nextDouble() < 0.4)
             .map(f => f.name -> f.typ): _*)
 
       case t: TArray =>
-        TArray(subsetType(t.elementType), t.required)
+        TArray(subsetType(t.elementType))
 
       case _ => t
     }
@@ -46,6 +48,18 @@ class UnsafeSuite extends HailSuite {
     }
   }
 
+  @DataProvider(name = "codecs")
+  def codecs(): Array[Array[Any]] = {
+    (BufferSpec.specs ++ Array(TypedCodecSpec(PStruct("x" -> PInt64()), BufferSpec.default)))
+      .map(x => Array[Any](x))
+  }
+
+  @Test(dataProvider = "codecs") def testCodecSerialization(codec: Spec) {
+    implicit val formats = AbstractRVDSpec.formats
+    assert(Serialization.read[Spec](codec.toString) == codec)
+
+  }
+
   @Test def testCodec() {
     val region = Region()
     val region2 = Region()
@@ -60,49 +74,53 @@ class UnsafeSuite extends HailSuite {
       .filter { case (t, a) => a != null }
     val p = Prop.forAll(g) { case (t, a) =>
       assert(t.typeCheck(a))
+      val pt = PType.canonical(t).asInstanceOf[PStruct]
 
       val requestedType = subsetType(t).asInstanceOf[TStruct]
+      val prt = PType.canonical(requestedType).asInstanceOf[PStruct]
+
       val a2 = subset(t, requestedType, a)
       assert(requestedType.typeCheck(a2))
 
-      CodecSpec.codecSpecs.foreach { codecSpec =>
+      BufferSpec.specs.foreach { bufferSpec =>
+        val codec = TypedCodecSpec(pt, bufferSpec)
         region.clear()
-        rvb.start(t.physicalType)
+        rvb.start(pt)
         rvb.addRow(t, a.asInstanceOf[Row])
         val offset = rvb.end()
-        val ur = new UnsafeRow(t.physicalType, region, offset)
 
         val aos = new ByteArrayOutputStream()
-        val en = codecSpec.buildEncoder(t.physicalType)(aos)
+        val en = codec.buildEncoder(pt)(aos)
         en.writeRegionValue(region, offset)
         en.flush()
 
         region2.clear()
-        val ais = new ByteArrayInputStream(aos.toByteArray)
-        val dec = codecSpec.buildDecoder(t.physicalType, t.physicalType)(ais)
-        val offset2 = dec.readRegionValue(region2)
-        val ur2 = new UnsafeRow(t.physicalType, region2, offset2)
+        val ais2 = new ByteArrayInputStream(aos.toByteArray)
+        val (retPType2: PStruct, dec2) = codec.buildDecoder(t)
+        val offset2 = dec2(ais2).readRegionValue(region2)
+        val ur2 = new UnsafeRow(retPType2, region2, offset2)
         assert(t.typeCheck(ur2))
         assert(t.valuesSimilar(a, ur2))
 
         region3.clear()
         val ais3 = new ByteArrayInputStream(aos.toByteArray)
-        val dec3 = codecSpec.buildDecoder(t.physicalType, requestedType.physicalType)(ais3)
-        val offset3 = dec3.readRegionValue(region3)
-        val ur3 = new UnsafeRow(requestedType.physicalType, region3, offset3)
+        val (retPType3: PStruct, dec3) = codec.buildDecoder(requestedType)
+        val offset3 = dec3(ais3).readRegionValue(region3)
+        val ur3 = new UnsafeRow(retPType3, region3, offset3)
         assert(requestedType.typeCheck(ur3))
         assert(requestedType.valuesSimilar(a2, ur3))
 
+        val codec2 = TypedCodecSpec(PType.canonical(requestedType), bufferSpec)
         val aos2 = new ByteArrayOutputStream()
-        val en2 = codecSpec.buildEncoder(t.physicalType, requestedType.physicalType)(aos2)
+        val en2 = codec2.buildEncoder(pt)(aos2)
         en2.writeRegionValue(region, offset)
         en2.flush()
 
         region4.clear()
         val ais4 = new ByteArrayInputStream(aos2.toByteArray)
-        val dec4 = codecSpec.buildDecoder(requestedType.physicalType, requestedType.physicalType)(ais4)
-        val offset4 = dec4.readRegionValue(region4)
-        val ur4 = new UnsafeRow(requestedType.physicalType, region4, offset4)
+        val (retPType4: PStruct, dec4) = codec2.buildDecoder(requestedType)
+        val offset4 = dec4(ais4).readRegionValue(region4)
+        val ur4 = new UnsafeRow(retPType4, region4, offset4)
         assert(requestedType.typeCheck(ur4))
         if (!requestedType.valuesSimilar(a2, ur4)) {
           println(t)
@@ -131,15 +149,17 @@ class UnsafeSuite extends HailSuite {
     valuesAndTypes.foreach { case (v, t) =>
       Region.scoped { region =>
         val off = ScalaToRegionValue(region, t, v)
-        CodecSpec.codecSpecs.foreach { spec =>
+        BufferSpec.specs.foreach { spec =>
+          val cs2 = TypedCodecSpec(t, spec)
           val baos = new ByteArrayOutputStream()
-          val enc = spec.buildEncoder(t)(baos)
+          val enc = cs2.buildEncoder(t)(baos)
           enc.writeRegionValue(region, off)
           enc.flush()
 
           val serialized = baos.toByteArray
-          val dec = spec.buildDecoder(t, t)(new ByteArrayInputStream(serialized))
-          val res = dec.readRegionValue(region)
+          val (decT, dec) = cs2.buildDecoder(t.virtualType)
+          assert(decT == t)
+          val res = dec((new ByteArrayInputStream(serialized))).readRegionValue(region)
 
           assert(t.unsafeOrdering().equiv(RegionValue(region, res), RegionValue(region, off)))
         }
@@ -150,7 +170,7 @@ class UnsafeSuite extends HailSuite {
   @Test def testBufferWriteReadDoubles() {
     val a = Array(1.0, -349.273, 0.0, 9925.467, 0.001)
 
-    CodecSpec.bufferSpecs.foreach { bufferSpec =>
+    BufferSpec.specs.foreach { bufferSpec =>
       val out = new ByteArrayOutputStream()
       val outputBuffer = bufferSpec.buildOutputBuffer(out)
       outputBuffer.writeDoubles(a)
@@ -250,23 +270,6 @@ class UnsafeSuite extends HailSuite {
     p.check()
   }
 
-  @Test def testRegion() {
-    val buff = Region()
-
-    val addrA = buff.appendLong(124L)
-    val addrB = buff.appendByte(2)
-    val addrC = buff.appendByte(1)
-    val addrD = buff.appendByte(4)
-    val addrE = buff.appendInt(1234567)
-    val addrF = buff.appendDouble(1.1)
-
-    assert(buff.loadLong(addrA) == 124L)
-    assert(buff.loadByte(addrB) == 2)
-    assert(buff.loadByte(addrC) == 1)
-    assert(buff.loadByte(addrD) == 4)
-    assert(buff.loadInt(addrE) == 1234567)
-    assert(buff.loadDouble(addrF) == 1.1)
-  }
 
   val g = (for {
     s <- Gen.size
@@ -280,8 +283,8 @@ class UnsafeSuite extends HailSuite {
 
   @Test def testPacking() {
 
-    def makeStruct(types: PType*): PStruct = {
-      PStruct(types.zipWithIndex.map { case (t, i) => (s"f$i", t) }: _*)
+    def makeStruct(types: PType*): PCanonicalStruct = {
+      PCanonicalStruct(types.zipWithIndex.map { case (t, i) => (s"f$i", t) }: _*)
     }
 
     val t1 = makeStruct( // missing byte is 0
@@ -329,7 +332,7 @@ class UnsafeSuite extends HailSuite {
     val rvb2 = new RegionValueBuilder(region2)
 
     val g = PType.genStruct
-      .flatMap(t => Gen.zip(Gen.const(t), Gen.zip(t.virtualType.genValue, t.virtualType.genValue)))
+      .flatMap(t => Gen.zip(Gen.const(t), Gen.zip(t.genValue, t.genValue)))
       .filter { case (t, (a1, a2)) => a1 != null && a2 != null }
       .resize(10)
     val p = Prop.forAll(g) { case (t, (a1, a2)) =>
@@ -376,92 +379,4 @@ class UnsafeSuite extends HailSuite {
     }
     p.check()
   }
-
-  @Test def testRegionAllocation() {
-    val pool = RegionPool.get
-
-    case class Counts(regions: Int, freeRegions: Int) {
-      def allocate(n: Int): Counts =
-        copy(regions = regions + math.max(0, n - freeRegions),
-          freeRegions = math.max(0, freeRegions - n))
-
-      def free(nRegions: Int, nExtraBlocks: Int = 0): Counts =
-        copy(freeRegions = freeRegions + nRegions)
-    }
-
-    var before: Counts = null
-    var after: Counts = Counts(pool.numRegions(), pool.numFreeRegions())
-
-    def assertAfterEquals(c: => Counts): Unit = {
-      before = after
-      after = Counts(pool.numRegions(), pool.numFreeRegions())
-      assert(after == c)
-    }
-
-    Region.scoped { region =>
-      assertAfterEquals(before.allocate(1))
-
-      Region.scoped { region2 =>
-        assertAfterEquals(before.allocate(1))
-        region.reference(region2)
-      }
-      assertAfterEquals(before)
-    }
-    assertAfterEquals(before.free(2))
-
-    Region.scoped { region =>
-      Region.scoped { region2 => region.reference(region2) }
-      Region.scoped { region2 => region.reference(region2) }
-      assertAfterEquals(before.allocate(3))
-    }
-    assertAfterEquals(before.free(3))
-  }
-
-  @Test def testRegionReferences() {
-    def offset(region: Region) = region.allocate(0)
-    def numUsed(): Int = RegionPool.get.numRegions() - RegionPool.get.numFreeRegions()
-    def assertUsesRegions[T](n: Int)(f: => T): T = {
-      val usedRegionCount = numUsed()
-      val res = f
-      assert(usedRegionCount == numUsed() - n)
-      res
-    }
-
-    val region = Region()
-    region.setNumParents(5)
-
-    val off4 = using(assertUsesRegions(1) { region.getParentReference(4, Region.SMALL) }) { r =>
-      offset(r)
-    }
-
-    val off2 = Region.tinyScoped { r =>
-      region.setParentReference(r, 2)
-      offset(r)
-    }
-
-    using(region.getParentReference(2, Region.TINY)) { r =>
-      assert(offset(r) == off2)
-    }
-
-    using(region.getParentReference(4, Region.SMALL)) { r =>
-      assert(offset(r) == off4)
-    }
-
-    assertUsesRegions(-1) { region.clearParentReference(2) }
-    assertUsesRegions(-1) { region.clearParentReference(4) }
-  }
-
-  @Test def testRegionSizes() {
-    Region.smallScoped { region =>
-      Array.range(0, 30).foreach { _ => region.allocate(1, 500) }
-    }
-
-    Region.tinyScoped { region =>
-      Array.range(0, 30).foreach { _ => region.allocate(1, 60) }
-    }
-  }
-
-  // Tests for Region serialization have been removed since an off-heap Region
-  // contains absolute addresses and can't be serialized/deserialized without 
-  // knowing the RegionValue Type.
 }

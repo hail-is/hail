@@ -24,17 +24,17 @@ case class LinearRegressionRowsSingle(
   override def typ(childType: MatrixType): TableType = {
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
     val schema = TStruct(
-      ("n", TInt32()),
-      ("sum_x", TFloat64()),
-      ("y_transpose_x", TArray(TFloat64())),
-      ("beta", TArray(TFloat64())),
-      ("standard_error", TArray(TFloat64())),
-      ("t_stat", TArray(TFloat64())),
-      ("p_value", TArray(TFloat64())))
+      ("n", TInt32),
+      ("sum_x", TFloat64),
+      ("y_transpose_x", TArray(TFloat64)),
+      ("beta", TArray(TFloat64)),
+      ("standard_error", TArray(TFloat64)),
+      ("t_stat", TArray(TFloat64)),
+      ("p_value", TArray(TFloat64)))
     TableType(
       childType.rowKeyStruct ++ passThroughType ++ schema,
       childType.rowKey,
-      TStruct())
+      TStruct.empty)
   }
 
   def preservesPartitionCounts: Boolean = true
@@ -71,7 +71,7 @@ case class LinearRegressionRowsSingle(
     val fullRowType = mv.rvd.rowPType
     val entryArrayType = MatrixType.getEntryArrayType(fullRowType)
     val entryType = entryArrayType.elementType.asInstanceOf[PStruct]
-    assert(entryType.field(xField).typ.virtualType.isOfType(TFloat64()))
+    assert(entryType.field(xField).typ.virtualType == TFloat64)
 
     val entryArrayIdx = MatrixType.getEntriesIndex(fullRowType)
     val fieldIdx = entryType.fieldIdx(xField)
@@ -181,17 +181,17 @@ case class LinearRegressionRowsChained(
   override def typ(childType: MatrixType): TableType = {
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
     val chainedSchema = TStruct(
-      ("n", TArray(TInt32())),
-      ("sum_x", TArray(TFloat64())),
-      ("y_transpose_x", TArray(TArray(TFloat64()))),
-      ("beta", TArray(TArray(TFloat64()))),
-      ("standard_error", TArray(TArray(TFloat64()))),
-      ("t_stat", TArray(TArray(TFloat64()))),
-      ("p_value", TArray(TArray(TFloat64()))))
+      ("n", TArray(TInt32)),
+      ("sum_x", TArray(TFloat64)),
+      ("y_transpose_x", TArray(TArray(TFloat64))),
+      ("beta", TArray(TArray(TFloat64))),
+      ("standard_error", TArray(TArray(TFloat64))),
+      ("t_stat", TArray(TArray(TFloat64))),
+      ("p_value", TArray(TArray(TFloat64))))
     TableType(
       childType.rowKeyStruct ++ passThroughType ++ chainedSchema,
       childType.rowKey,
-      TStruct())
+      TStruct.empty)
   }
 
   def preservesPartitionCounts: Boolean = true
@@ -227,8 +227,8 @@ case class LinearRegressionRowsChained(
     val fullRowType = mv.rvd.rowPType
     val entryArrayType = MatrixType.getEntryArrayType(fullRowType)
     val entryType = entryArrayType.elementType.asInstanceOf[PStruct]
-    assert(entryType.field(xField).typ.virtualType.isOfType(TFloat64()))
-    assert(entryType.field(xField).typ.virtualType.isOfType(TFloat64()))
+    assert(entryType.field(xField).typ.virtualType == TFloat64)
+    assert(entryType.field(xField).typ.virtualType == TFloat64)
 
     val entryArrayIdx = MatrixType.getEntriesIndex(fullRowType)
     val fieldIdx = entryType.fieldIdx(xField)

@@ -1,4 +1,4 @@
-from collections import Iterable, Iterator
+from collections.abc import Iterable, Iterator
 
 class ListIterator(Iterator):
     def __init__(self, node):

@@ -19,6 +19,11 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -29,9 +34,6 @@ spec:
                     values:
                     - site
               topologyKey: "kubernetes.io/hostname"
-      tolerations:
-       - key: preemptible
-         value: "true"
       containers:
        - name: site
          image: "{{ site_image.image }}"
@@ -73,3 +75,13 @@ spec:
     resource:
       name: cpu
       targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: site
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: site

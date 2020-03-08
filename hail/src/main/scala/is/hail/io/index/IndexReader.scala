@@ -5,74 +5,60 @@ import java.util
 import java.util.Map.Entry
 
 import is.hail.annotations._
-import is.hail.expr.types.virtual.Type
+import is.hail.expr.types.virtual.{Type, TypeSerializer}
 import is.hail.expr.ir.IRParser
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.io._
 import is.hail.io.bgen.BgenSettings
 import is.hail.utils._
 import is.hail.io.fs.FS
+import is.hail.rvd.{AbstractIndexSpec, AbstractRVDSpec}
 import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.spark.sql.Row
-import org.json4s.Formats
-import org.json4s.jackson.JsonMethods
+import org.json4s.{Formats, NoTypeHints}
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 object IndexReaderBuilder {
-  def apply(fs: FS, path: String): (FS, String, Int) => IndexReader = {
-    val (keyType, annotationType) = IndexReader.readTypes(fs, path)
-    IndexReaderBuilder(keyType, annotationType)
-  }
+  def fromSpec(spec: AbstractIndexSpec): (FS, String, Int) => IndexReader = {
+    val (keyType, annotationType) = spec.types
+    val (leafPType: PStruct, leafDec) = spec.leafCodec.buildDecoder(spec.leafCodec.encodedVirtualType)
+    val (intPType: PStruct, intDec) = spec.internalNodeCodec.buildDecoder(spec.internalNodeCodec.encodedVirtualType)
+    withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
 
-  def apply(settings: BgenSettings): (FS, String, Int) => IndexReader =
-    IndexReaderBuilder(settings.requestedType.keyType, settings.indexAnnotationType)
-
-  def apply(keyType: Type, annotationType: Type): (FS, String, Int) => IndexReader = {
-    val (leafDecoder, internalDecoder) = IndexReader.buildDecoders(keyType, annotationType)
-
-    (hConf, path, cacheCapacity) => new IndexReader(hConf, path, cacheCapacity, leafDecoder,
-      internalDecoder, Some(keyType -> annotationType))
   }
 
   def withDecoders(
     leafDec: (InputStream) => Decoder, intDec: (InputStream) => Decoder,
-    keyType: Type, annotationType: Type
+    keyType: Type, annotationType: Type,
+    leafPType: PStruct, intPType: PStruct
   ): (FS, String, Int) => IndexReader = {
     (fs, path, cacheCapacity) => new IndexReader(fs, path, cacheCapacity, leafDec,
-      intDec, Some(keyType -> annotationType))
+      intDec, keyType, annotationType, leafPType, intPType)
   }
 }
 
 object IndexReader {
-  def readMetadata(fs: FS, path: String): IndexMetadata = {
-    val jv = fs.readFile(path + "/metadata.json.gz") { in => JsonMethods.parse(in) }
+  def readUntyped(fs: FS, path: String): IndexMetadataUntypedJSON = {
+    val jv = fs.readFile(path + "/metadata.json.gz") { in =>
+      JsonMethods.parse(in)
+        .removeField{ case (f, _) => f == "keyType" || f == "annotationType" }
+    }
     implicit val formats: Formats = defaultJSONFormats
-    jv.extract[IndexMetadata]
+    jv.extract[IndexMetadataUntypedJSON]
+  }
+
+  def readMetadata(fs: FS, path: String, keyType: Type, annotationType: Type): IndexMetadata = {
+    val untyped = IndexReader.readUntyped(fs, path)
+    untyped.toMetadata(keyType, annotationType)
   }
 
   def readTypes(fs: FS, path: String): (Type, Type) = {
-    val metadata = IndexReader.readMetadata(fs, path)
-    val keyType = IRParser.parseType(metadata.keyType)
-    val annotationType = IRParser.parseType(metadata.annotationType)
-    keyType -> annotationType
-  }
-
-  def buildDecoders(
-    keyType: Type, annotationType: Type
-  ): ((InputStream) => Decoder, (InputStream) => Decoder) = {
-    val leafType = LeafNodeBuilder.typ(keyType, annotationType).physicalType
-    val internalType = InternalNodeBuilder.typ(keyType, annotationType).physicalType
-
-    val codecSpec = CodecSpec.default
-    val leafDecoder = codecSpec.buildDecoder(leafType, leafType)
-    val internalDecoder = codecSpec.buildDecoder(internalType, internalType)
-    leafDecoder -> internalDecoder
-  }
-
-  def apply(fs: FS, path: String, cacheCapacity: Int = 8): IndexReader = {
-    val builder = IndexReaderBuilder(fs, path)
-    builder(fs, path, cacheCapacity)
+    val jv = fs.readFile(path + "/metadata.json.gz") { in => JsonMethods.parse(in) }
+    implicit val formats: Formats = defaultJSONFormats + new TypeSerializer
+    val metadata = jv.extract[IndexMetadata]
+    metadata.keyType -> metadata.annotationType
   }
 }
-
 
 
 class IndexReader(fs: FS,
@@ -80,24 +66,17 @@ class IndexReader(fs: FS,
   cacheCapacity: Int = 8,
   leafDecoderBuilder: (InputStream) => Decoder,
   internalDecoderBuilder: (InputStream) => Decoder,
-  types: Option[(Type, Type)] = None // must be defined if not called on the driver node for RG serialization reasons
+  val keyType: Type,
+  val annotationType: Type,
+  val leafPType: PStruct,
+  val internalPType: PStruct
 ) extends AutoCloseable {
-  private[io] val metadata = IndexReader.readMetadata(fs, path)
+  private[io] val metadata = IndexReader.readMetadata(fs, path, keyType, annotationType)
   val branchingFactor = metadata.branchingFactor
   val height = metadata.height
   val nKeys = metadata.nKeys
   val attributes = metadata.attributes
   val indexRelativePath = metadata.indexPath
-
-  val version = SemanticVersion(metadata.fileVersion)
-  val (keyType, annotationType) = types match {
-    case Some((k, a)) =>(k, a)
-    case None => IRParser.parseType(metadata.keyType) -> IRParser.parseType(metadata.annotationType)
-  }
-  val leafType = LeafNodeBuilder.typ(keyType, annotationType)
-  val leafPType = leafType.physicalType
-  val internalType = InternalNodeBuilder.typ(keyType, annotationType)
-  val internalPType = internalType.physicalType
   val ordering = keyType.ordering
 
   private val is = fs.unsafeReader(path + "/" + indexRelativePath).asInstanceOf[FSDataInputStream]

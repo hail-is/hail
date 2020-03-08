@@ -1,4 +1,7 @@
+import json
+import yaml
 import aiohttp
+
 
 def get_batch_if_exists(client, id):
     try:
@@ -8,6 +11,7 @@ def get_batch_if_exists(client, id):
             return None
         raise cle
 
+
 def get_job_if_exists(client, batch_id, job_id):
     try:
         return client.get_job(batch_id, job_id)
@@ -16,10 +20,18 @@ def get_job_if_exists(client, batch_id, job_id):
             return None
         raise cle
 
+
 def bool_string_to_bool(bool_string):
     if bool_string in ["True", "true", "t"]:
         return True
-    elif bool_string in ['False', 'false', 'f']:
+    if bool_string in ['False', 'false', 'f']:
         return False
-    else:
-        raise ValueError("Input could not be resolved to a bool")
+    raise ValueError("Input could not be resolved to a bool")
+
+
+def make_formatter(name):
+    if name == "json":
+        return lambda s: json.dumps(s, indent=2)
+    if name == "yaml":
+        return yaml.dump
+    raise ValueError(f'unknown format {name}')

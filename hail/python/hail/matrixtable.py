@@ -11,7 +11,7 @@ from hail.expr.matrix_type import *
 from hail.ir import *
 from hail.table import Table, ExprContainer, TableIndexKeyError
 from hail.typecheck import *
-from hail.utils import storage_level, LinkedList
+from hail.utils import storage_level, LinkedList, default_handler
 from hail.utils.java import warn, jiterable_to_list, Env, scala_object, joption, jnone
 from hail.utils.misc import *
 
@@ -727,7 +727,7 @@ class MatrixTable(ExprContainer):
         --------
         Get all column field names:
 
-        >>> list(dataset.col)  # doctest: +NOTEST
+        >>> list(dataset.col)  # doctest: +SKIP_OUTPUT_CHECK
         ['s', 'sample_qc', 'is_case', 'pheno', 'cov', 'cov1', 'cov2', 'cohorts', 'pop']
 
         Returns
@@ -745,7 +745,7 @@ class MatrixTable(ExprContainer):
         --------
         Get all non-key column field names:
 
-        >>> list(dataset.col_value)  # doctest: +NOTEST
+        >>> list(dataset.col_value)  # doctest: +SKIP_OUTPUT_CHECK
         ['sample_qc', 'is_case', 'pheno', 'cov', 'cov1', 'cov2', 'cohorts', 'pop']
 
         Returns
@@ -1395,7 +1395,7 @@ class MatrixTable(ExprContainer):
         filtering the matrix table to row keys not present in another table.
 
         To restrict to rows whose key is present in `other`, use
-        :meth:`.anti_join_rows`.
+        :meth:`.semi_join_rows`.
 
         Examples
         --------
@@ -1474,7 +1474,7 @@ class MatrixTable(ExprContainer):
         filtering the matrix table to column keys not present in another table.
 
         To restrict to columns whose key is present in `other`, use
-        :meth:`.anti_join_cols`.
+        :meth:`.semi_join_cols`.
 
         Examples
         --------
@@ -1988,7 +1988,7 @@ class MatrixTable(ExprContainer):
         if _localize:
             return Env.backend().execute(agg_ir)
         else:
-            return construct_expr(agg_ir, expr.dtype)
+            return construct_expr(LiftMeOut(agg_ir), expr.dtype)
 
     @typecheck_method(expr=expr_any, _localize=bool)
     def aggregate_cols(self, expr, _localize=True) -> Any:
@@ -2038,7 +2038,7 @@ class MatrixTable(ExprContainer):
         if _localize:
             return Env.backend().execute(agg_ir)
         else:
-            return construct_expr(agg_ir, expr.dtype)
+            return construct_expr(LiftMeOut(agg_ir), expr.dtype)
 
     @typecheck_method(expr=expr_any, _localize=bool)
     def aggregate_entries(self, expr, _localize=True):
@@ -2082,9 +2082,7 @@ class MatrixTable(ExprContainer):
         if _localize:
             return Env.backend().execute(agg_ir)
         else:
-            return construct_expr(agg_ir, expr.dtype)
-
-        return Env.backend().execute(MatrixAggregate(base._mir, expr._ir))
+            return construct_expr(LiftMeOut(agg_ir), expr.dtype)
 
     @typecheck_method(field_expr=oneof(str, Expression))
     def explode_rows(self, field_expr) -> 'MatrixTable':
@@ -2281,7 +2279,7 @@ class MatrixTable(ExprContainer):
         ...     .explode_cols('foo'))
         >>> mt = mt.annotate_entries(bar = mt.row_idx * mt.foo)
 
-        >>> mt.cols().show() # doctest: +NOTEST
+        >>> mt.cols().show() # doctest: +SKIP_OUTPUT_CHECK
         +---------+-------+
         | col_idx |   foo |
         +---------+-------+
@@ -2295,7 +2293,7 @@ class MatrixTable(ExprContainer):
         |       2 |     6 |
         +---------+-------+
 
-        >>> mt.entries().show() # doctest: +NOTEST
+        >>> mt.entries().show() # doctest: +SKIP_OUTPUT_CHECK
         +---------+---------+-------+-------+
         | row_idx | col_idx |   foo |   bar |
         +---------+---------+-------+-------+
@@ -2326,7 +2324,7 @@ class MatrixTable(ExprContainer):
         |       2 | [4,5,6]      |
         +---------+--------------+
 
-        >>> mt.entries().show() # doctest: +NOTEST
+        >>> mt.entries().show() # doctest: +SKIP_OUTPUT_CHECK
         +---------+---------+--------------+--------------+
         | row_idx | col_idx | foo          | bar          |
         +---------+---------+--------------+--------------+
@@ -2383,7 +2381,7 @@ class MatrixTable(ExprContainer):
         if _localize:
             return Env.backend().execute(ir)
         else:
-            return construct_expr(ir, hl.tint64)
+            return construct_expr(LiftMeOut(ir), hl.tint64)
 
     def _force_count_rows(self):
         return Env.backend().execute(MatrixToValueApply(self._mir, {'name': 'ForceCountMatrixTable'}))
@@ -2411,7 +2409,7 @@ class MatrixTable(ExprContainer):
         if _localize:
             return Env.backend().execute(ir)
         else:
-            return construct_expr(ir, hl.tint64)
+            return construct_expr(LiftMeOut(ir), hl.tint64)
 
     def count(self) -> Tuple[int, int]:
         """Count the number of rows and columns in the matrix.
@@ -2426,16 +2424,22 @@ class MatrixTable(ExprContainer):
         :obj:`int`, :obj:`int`
             Number of rows, number of cols.
         """
-        return (self.count_rows(), self.count_cols())
+        ir = MatrixCount(self._mir)
+        return Env.backend().execute(ir)
 
     @typecheck_method(output=str,
                       overwrite=bool,
                       stage_locally=bool,
                       _codec_spec=nullable(str),
-                      _read_if_exists=bool)
+                      _read_if_exists=bool,
+                      _intervals=nullable(sequenceof(anytype)),
+                      _filter_intervals=bool,
+                      _drop_cols=bool,
+                      _drop_rows=bool)
     def checkpoint(self, output: str, overwrite: bool = False, stage_locally: bool = False,
-              _codec_spec: Optional[str] = None, _read_if_exists: bool = False) -> 'MatrixTable':
-        """Checkpoint the matrix table to disk by writing and reading.
+                   _codec_spec: Optional[str] = None, _read_if_exists: bool = False,
+                   _intervals=None, _filter_intervals=False, _drop_cols=False, _drop_rows=False) -> 'MatrixTable':
+        """Checkpoint the matrix table to disk by writing and reading using a fast, but less space-efficient codec.
 
         Parameters
         ----------
@@ -2457,18 +2461,35 @@ class MatrixTable(ExprContainer):
 
         Notes
         -----
-        An alias for :meth:`write` followed by :func:`.read_matrix_table`. It
-        is possible to read the file at this path later with
-        :func:`.read_matrix_table`.
+        An alias for :meth:`write` followed by :func:`.read_matrix_table`. It is
+        possible to read the file at this path later with
+        :func:`.read_matrix_table`. A faster, but less efficient, codec is used
+        or writing the data so the file will be larger than if one used
+        :meth:`write`.
 
         Examples
         --------
         >>> dataset = dataset.checkpoint('output/dataset_checkpoint.mt')
-
         """
+        if _codec_spec is None:
+            _codec_spec = """{
+  "name": "LEB128BufferSpec",
+  "child": {
+    "name": "BlockingBufferSpec",
+    "blockSize": 32768,
+    "child": {
+      "name": "LZ4FastBlockBufferSpec",
+      "blockSize": 32768,
+      "child": {
+        "name": "StreamBlockBufferSpec"
+      }
+    }
+  }
+}"""
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
             self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
-        return hl.read_matrix_table(output)
+        return hl.read_matrix_table(output, _intervals=_intervals, _filter_intervals=_filter_intervals,
+                                    _drop_cols=_drop_cols, _drop_rows=_drop_rows)
 
     @typecheck_method(output=str,
                       overwrite=bool,
@@ -2584,7 +2605,8 @@ class MatrixTable(ExprContainer):
         displayed_n_cols = min(actual_n_cols, n_cols)
 
         t = self.localize_entries('entries', 'cols')
-        t = t.key_by()
+        if len(t.key) > 0:
+            t = t.order_by(*t.key)
         col_key_type = self.col_key.dtype
         if len(col_key_type) == 1 and col_key_type[0] == hl.tstr:
             col_key_field_name = list(col_key_type)[0]
@@ -2598,11 +2620,7 @@ class MatrixTable(ExprContainer):
             **{f: t[f] for f in self.row_value if include_row_fields},
             **entries)
         if handler is None:
-            try:
-                from IPython.display import display
-                handler = display
-            except ImportError:
-                handler = print
+            handler = default_handler()
         handler(MatrixTable._Show(t, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types))
 
     def globals_table(self) -> Table:
@@ -3102,8 +3120,24 @@ class MatrixTable(ExprContainer):
     def _process_joins(self, *exprs) -> 'MatrixTable':
         return process_joins(self, exprs)
 
-    def describe(self, handler=print):
-        """Print information about the fields in the matrix."""
+    def describe(self, handler=print, *, widget=False):
+        """Print information about the fields in the matrix table.
+
+        Note
+        ----
+        The `widget` argument is **experimental**.
+
+        Parameters
+        ----------
+        handler : Callable[[str], None]
+            Handler function for returned string.
+        widget : bool
+            Create an interactive IPython widget.
+        """
+        if widget:
+            from hail.experimental.interact import interact
+            return interact(self)
+
 
         def format_type(typ):
             return typ.pretty(indent=4).lstrip()
@@ -3436,6 +3470,9 @@ class MatrixTable(ExprContainer):
     def _same(self, other, tolerance=1e-6, absolute=False) -> bool:
         entries_name = Env.get_uid()
         cols_name = Env.get_uid()
+        if list(self.col_key) != list(other.col_key):
+            print(f'different col keys:\n  {list(self.col_key)}\n  {list(other.col_key)}')
+            return False
         return self._localize_entries(entries_name, cols_name)._same(
             other._localize_entries(entries_name, cols_name), tolerance, absolute)
 
@@ -3555,8 +3592,9 @@ class MatrixTable(ExprContainer):
                                      f"Datasets 0 and {wrong_keys+1} have different columns (or possibly different order).")
             return MatrixTable(MatrixUnionRows(*[d._mir for d in datasets]))
 
-    @typecheck_method(other=matrix_table_type)
-    def union_cols(self, other: 'MatrixTable') -> 'MatrixTable':
+    @typecheck_method(other=matrix_table_type,
+                      row_join_type=enumeration('inner', 'outer'))
+    def union_cols(self, other: 'MatrixTable', row_join_type='inner') -> 'MatrixTable':
         """Take the union of dataset columns.
 
         Examples
@@ -3578,10 +3616,22 @@ class MatrixTable(ExprContainer):
         The row fields in the resulting dataset are the row fields from the
         first dataset; the row schemas do not need to match.
 
-        This method performs an inner join on rows and concatenates entries
-        from the two datasets for each row. Only distinct keys from each
-        dataset are included (equivalent to calling :meth:`.distinct_by_row`
-        on each dataset first).
+        This method creates a :class:`.MatrixTable` which contains all columns
+        from both input datasets. The set of rows included in the result is
+        determined by the `row_join_type` parameter.
+
+        - With the default value of ``'inner'``, an inner join is performed
+          on rows, so that only rows whose row key exists in both input datasets
+          are included. In this case, the entries for each row are the
+          concatenation of all entries of the corresponding rows in the input
+          datasets.
+        - With `row_join_type` set to  ``'outer'``, an outer join is perfomed on
+          rows, so that row keys which exist in only one input dataset are also
+          included. For those rows, the entry fields for the columns coming
+          from the other dataset will be missing.
+
+        Only distinct row keys from each dataset are included (equivalent to
+        calling :meth:`.distinct_by_row` on each dataset first).
 
         This method does not deduplicate; if a column key exists identically in
         two datasets, then it will be duplicated in the result.
@@ -3590,6 +3640,9 @@ class MatrixTable(ExprContainer):
         ----------
         other : :class:`.MatrixTable`
             Dataset to concatenate.
+        outer : bool
+            If `True`, perform an outer join on rows, otherwise perform an
+            inner join. Default `False`.
 
         Returns
         -------
@@ -3613,7 +3666,7 @@ class MatrixTable(ExprContainer):
                              f'    left: {", ".join(self.row_key.dtype.values())}\n'
                              f'    right: {", ".join(other.row_key.dtype.values())}')
 
-        return MatrixTable(MatrixUnionCols(self._mir, other._mir))
+        return MatrixTable(MatrixUnionCols(self._mir, other._mir, row_join_type))
 
     @typecheck_method(n=nullable(int), n_cols=nullable(int))
     def head(self, n: Optional[int], n_cols: Optional[int] = None) -> 'MatrixTable':
@@ -3676,6 +3729,67 @@ class MatrixTable(ExprContainer):
             mt = MatrixTable(MatrixColsHead(mt._mir, n_cols))
         return mt
 
+    @typecheck_method(n=nullable(int), n_cols=nullable(int))
+    def tail(self, n: Optional[int], n_cols: Optional[int] = None) -> 'MatrixTable':
+        """Subset matrix to last `n` rows.
+
+        Examples
+        --------
+        >>> mt_range = hl.utils.range_matrix_table(100, 100)
+
+        Passing only one argument will take the last `n` rows:
+
+        >>> mt_range.tail(10).count()
+        (10, 100)
+
+        Passing two arguments refers to rows and columns, respectively:
+
+        >>> mt_range.tail(10, 20).count()
+        (10, 20)
+
+        Either argument may be ``None`` to indicate no filter.
+
+        Last 10 rows, all columns:
+
+        >>> mt_range.tail(10, None).count()
+        (10, 100)
+
+        All rows, last 10 columns:
+
+        >>> mt_range.tail(None, 10).count()
+        (100, 10)
+
+        Notes
+        -----
+        For backwards compatibility, the `n` parameter is not named `n_rows`,
+        but the parameter refers to the number of rows to keep.
+
+        The number of partitions in the new matrix is equal to the number of
+        partitions containing the last `n` rows.
+
+        Parameters
+        ----------
+        n : :obj:`int`
+            Number of rows to include (all rows included if ``None``).
+        n_cols : :obj:`int`, optional
+            Number of cols to include (all cols included if ``None``).
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            Matrix including the last `n` rows and last `n_cols` cols.
+        """
+        mt = self
+        if n is not None:
+            if n < 0:
+                raise ValueError(f"MatrixTable.tail: expect 'n' to be non-negative or None, found '{n}'")
+            mt = MatrixTable(MatrixRowsTail(mt._mir, n))
+        if n_cols is not None:
+            if n_cols < 0:
+                raise ValueError(f"MatrixTable.tail: expect 'n_cols' to be non-negative or None, found '{n_cols}'")
+            mt = MatrixTable(MatrixColsTail(mt._mir, n_cols))
+        return mt
+
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True) -> 'MatrixTable':
         return MatrixTable(MatrixToMatrixApply(self._mir, {'name': 'MatrixFilterPartitions', 'parts': parts, 'keep': keep}))
@@ -3693,7 +3807,7 @@ class MatrixTable(ExprContainer):
 
         >>> table = hl.import_table('data/variant-lof.tsv')
         >>> table = table.transmute(**hl.parse_variant(table['v'])).key_by('locus', 'alleles')
-        >>> sites_vds = hl.MatrixTable.from_rows_table(table)
+        >>> sites_mt = hl.MatrixTable.from_rows_table(table)
 
         Notes
         -----
@@ -3964,8 +4078,8 @@ class MatrixTable(ExprContainer):
 
         return t
 
-    @typecheck_method(rows=bool, cols=bool, entries=bool)
-    def summarize(self, *, rows=True, cols=True, entries=True):
+    @typecheck_method(rows=bool, cols=bool, entries=bool, handler=nullable(anyfunc))
+    def summarize(self, *, rows=True, cols=True, entries=True, handler=None):
         """Compute and print summary information about the fields in the matrix table.
 
         .. include:: _templates/experimental.rst
@@ -3980,43 +4094,14 @@ class MatrixTable(ExprContainer):
             Compute summary for the entry fields.
         """
 
+        if handler is None:
+            handler = default_handler()
         if cols:
-            computations, printers = hl.expr.generic_summary(self.col, prefix='[col]', skip_top=True)
-            results = self.aggregate_cols(computations)
-            print('Columns')
-            print('=======')
-            for name, fields in printers:
-                print(f'* {name}:')
-
-                max_k_len = max(len(f) for f in fields)
-                for k, v in fields.items():
-                    print(f'    {k.rjust(max_k_len)} : {v(results)}')
-                print()
+            handler(self.col._summarize(header='Columns', top=True))
         if rows:
-            computations, printers = hl.expr.generic_summary(self.row, prefix='[row]', skip_top=True)
-            results = self.aggregate_rows(computations)
-            print('Rows')
-            print('====')
-            for name, fields in printers:
-                print(f'* {name}:')
-
-                max_k_len = max(len(f) for f in fields)
-                for k, v in fields.items():
-                    print(f'    {k.rjust(max_k_len)} : {v(results)}')
-                print()
+            handler(self.row._summarize(header='Rows', top=True))
         if entries:
-            computations, printers = hl.expr.generic_summary(self.entry, prefix='[entry]', skip_top=True)
-            results = self.aggregate_entries(computations)
-            print('Entries')
-            print('=======')
-            for name, fields in printers:
-                print(f'* {name}:')
-
-                max_k_len = max(len(f) for f in fields)
-                for k, v in fields.items():
-                    print(f'    {k.rjust(max_k_len)} : {v(results)}')
-                print()
-
+            handler(self.entry._summarize(header='Entries', top=True))
 
     def _write_block_matrix(self, path, overwrite, entry_field, block_size):
         mt = self

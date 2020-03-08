@@ -36,7 +36,7 @@ class MissingIntArrayBuilder extends Serializable {
     }
   }
 
-  val typ = TArray(TInt32())
+  val typ = TArray(TInt32)
 
   def write(rvb: RegionValueBuilder) {
     rvb.startArray(len)

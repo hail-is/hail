@@ -1,21 +1,15 @@
 package is.hail.methods
 
 import breeze.linalg.{DenseMatrix => BDM}
-import is.hail.annotations.{Annotation, BroadcastRow}
 import is.hail.linalg.BlockMatrix
 import is.hail.linalg.BlockMatrix.ops._
-import is.hail.table.Table
 import is.hail.utils._
-import is.hail.variant.{Call, HardCallView, MatrixTable}
 import is.hail.HailContext
-import is.hail.expr.ir.{ExecuteContext, IR, Interpret, TableIR, TableKeyBy, TableLiteral, TableValue}
-import is.hail.expr.types.TableType
+import is.hail.expr.ir.functions.BlockMatrixToTableFunction
+import is.hail.expr.ir.{ExecuteContext, TableValue}
+import is.hail.expr.types.{BlockMatrixType, TableType}
 import is.hail.expr.types.virtual._
-import is.hail.rvd.RVDContext
-import is.hail.sparkextras.ContextRDD
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.mllib.linalg.Vectors
-import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
@@ -39,68 +33,17 @@ object PCRelate {
   val defaultStorageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK
 
   private val sig = TStruct(
-      ("i", TInt32()),
-      ("j", TInt32()),
-      ("kin", TFloat64()),
-      ("ibd0", TFloat64()),
-      ("ibd1", TFloat64()),
-      ("ibd2", TFloat64()))
+      ("i", TInt32),
+      ("j", TInt32),
+      ("kin", TFloat64),
+      ("ibd0", TFloat64),
+      ("ibd1", TFloat64),
+      ("ibd2", TFloat64))
 
   private val keys: IndexedSeq[String] = Array("i", "j")
 
-  def pyApply(
-    blockedG: M,
-    scores: IR,
-    maf: Double,
-    blockSize: Int,
-    minKinship: Double,
-    statistics: PCRelate.StatisticSubset): TableIR = {
-
-    ExecuteContext.scoped { ctx =>
-      val scoresLocal = Interpret[IndexedSeq[Row]](ctx, scores).toArray
-      assert(scoresLocal.length == blockedG.nCols)
-
-      val pcs = rowsToBDM(scoresLocal.map(_.getAs[IndexedSeq[java.lang.Double]](0))) // non-missing in Python
-
-      val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(HailContext.get, blockedG, pcs)
-
-      TableLiteral(TableValue(ctx, sig, keys, toRowRdd(result, blockSize, minKinship, statistics)), ctx)
-    }
-  }
-
-  private[methods] def apply(hc: HailContext,
-    vds: MatrixTable,
-    pcs: BDM[Double],
-    maf: Double,
-    blockSize: Int,
-    minKinship: Double,
-    statistics: PCRelate.StatisticSubset): Table = {
-
-    val g = vdsToMeanImputedMatrix(vds)
-    val blockedG = BlockMatrix.fromIRM(g, blockSize).cache()
-    val sampleIds = vds.stringSampleIds.toArray[Annotation]
-    val idType = TString()
-
-    val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(hc, blockedG, pcs)
-
-    val irFields = Array(
-      "i" -> "(Apply `indexArray` (GetField sample_ids (Ref global)) (GetField i (Ref row)))",
-      "j" -> "(Apply `indexArray` (GetField sample_ids (Ref global)) (GetField j (Ref row)))",
-      "kin" -> "(GetField kin (Ref row))",
-      "ibd0" -> "(GetField ibd0 (Ref row))",
-      "ibd1" -> "(GetField ibd1 (Ref row))",
-      "ibd2" -> "(GetField ibd2 (Ref row))"
-    ).map { case (name, expr) => s"($name $expr)" }
-    val irExpr = s"(MakeStruct ${irFields.mkString(" ")})"
-
-    Table(vds.hc, toRowRdd(result, blockSize, minKinship, statistics), sig, FastIndexedSeq())
-      .annotateGlobal(sampleIds.toFastIndexedSeq, TArray(TString()), "sample_ids")
-      .mapRows(irExpr)
-      .keyBy(keys.toArray)
-  }
-
-  // FIXME move matrix formation to Python
-  private def rowsToBDM(x: Array[IndexedSeq[java.lang.Double]]): BDM[Double] = {
+  private def rowsToBDM(xss: IndexedSeq[IndexedSeq[java.lang.Double]]): BDM[Double] = {
+    val x = xss.toArray
     val nRows = x.length
     assert(nRows > 0)
     val nCols = x(0).length
@@ -126,15 +69,16 @@ object PCRelate {
   private def toRowRdd(
     r: Result[M],
     blockSize: Int,
-    minKinship: Double,
+    minKinshipOptional: Option[Double],
     statistics: StatisticSubset): RDD[Row] = {
-    
+    val minKinship = minKinshipOptional.getOrElse(defaultMinKinship)
+
     def fuseBlocks(i: Int, j: Int,
       lmPhi: BDM[Double],
       lmK0: BDM[Double],
       lmK1: BDM[Double],
       lmK2: BDM[Double]) = {
-            
+
       if (i <= j) {
         val iOffset = i * blockSize
         val jOffset = j * blockSize
@@ -177,64 +121,33 @@ object PCRelate {
   }
 
   private val k0cutoff = math.pow(2.0, -5.0 / 2.0)
-
-  // now only used in tests
-  private[methods] def vdsToMeanImputedMatrix(vds: MatrixTable): IndexedRowMatrix = {
-    val nSamples = vds.numCols
-    val localRowPType = vds.rvRowPType
-    val partStarts = vds.partitionStarts()
-    val partStartsBc = vds.hc.backend.broadcast(partStarts)
-    val rdd = vds.rvd.mapPartitionsWithIndex { (partIdx, it) =>
-      val view = HardCallView(localRowPType)
-      val missingIndices = new ArrayBuilder[Int]()
-
-      var rowIdx = partStartsBc.value(partIdx)
-      it.map { rv =>
-        view.setRegion(rv)
-
-        missingIndices.clear()
-        var sum = 0
-        var nNonMissing = 0
-        val a = new Array[Double](nSamples)
-        var i = 0
-        while (i < nSamples) {
-          view.setGenotype(i)
-          if (view.hasGT) {
-            val gt = Call.unphasedDiploidGtIndex(view.getGT)
-            sum += gt
-            a(i) = gt
-            nNonMissing += 1
-          } else
-            missingIndices += i
-          i += 1
-        }
-
-        val mean = sum.toDouble / nNonMissing
-
-        i = 0
-        while (i < missingIndices.length) {
-          a(missingIndices(i)) = mean
-          i += 1
-        }
-
-        rowIdx += 1
-        IndexedRow(rowIdx - 1, Vectors.dense(a))
-      }
-    }
-
-    new IndexedRowMatrix(rdd.cache(), partStarts.last, nSamples)
-  }
-
-  def k1(k2: M, k0: M): M = {
-    1.0 - (k2 + k0)
-  }
 }
 
-class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset, storageLevel: StorageLevel) extends Serializable {
+case class PCRelate(
+  maf: Double,
+  blockSize: Int,
+  minKinship: Option[Double] = None,
+  statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset)
+  extends BlockMatrixToTableFunction with Serializable {
+  @transient private[this] val hc = HailContext.get
+
   import PCRelate._
 
   require(maf >= 0.0)
   require(maf <= 1.0)
+
+  def storageLevel: StorageLevel = PCRelate.defaultStorageLevel
+
+  def typ(bmType: BlockMatrixType, auxType: Type): TableType =
+    TableType(sig, keys, TStruct.empty)
+
+  def execute(ctx: ExecuteContext, g: M, value: Any): TableValue = {
+    val pcs = rowsToBDM(value.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Double]]])
+    assert(pcs.rows == g.nCols)
+    val r = computeResult(g, pcs)
+    val rdd = PCRelate.toRowRdd(r, blockSize, minKinship, statistics)
+    TableValue(ctx, sig, keys, rdd)
+  }
 
   def badmu(mu: Double): Boolean =
     mu <= maf || mu >= (1.0 - maf) || mu <= 0.0 || mu >= 1.0
@@ -242,36 +155,41 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
   def badgt(gt: Double): Boolean =
     gt != 0.0 && gt != 1.0 && gt != 2.0
 
+  private def writeRead(m: M): M = {
+    val file = hc.getTemporaryFile(suffix=Some("bm"))
+    m.write(hc.sFS, file)
+    BlockMatrix.read(hc, file)
+  }
+
   private def gram(m: M): M = {
-    val mc = m.persist(storageLevel)
-    mc.T.dot(mc)
+    val pm = m.cache()
+    writeRead(pm.T.dot(pm))
   }
 
   private[this] def cacheWhen(statisticsLevel: StatisticSubset)(m: M): M =
-    if (statistics >= statisticsLevel) m.persist(storageLevel) else m
+    if (statistics >= statisticsLevel) writeRead(m) else m
 
-  def apply(hc: HailContext, blockedG: M, pcs: BDM[Double]): Result[M] = {
+  def computeResult(_blockedG: M, pcs: BDM[Double]): Result[M] = {
+    val blockedG = _blockedG.cache()
     val preMu = this.mu(blockedG, pcs)
     val mu = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         Double.NaN
       else
         mu
-   } (blockedG, preMu).persist(storageLevel)
+    } (blockedG, preMu)
     val variance = cacheWhen(PhiK2)(
-      mu.map(mu => if (mu.isNaN) 0.0 else mu * (1.0 - mu)))
+      mu.map(mu => if (java.lang.Double.isNaN(mu)) 0.0 else mu * (1.0 - mu)))
 
     // write phi to cache and increase parallelism of multiplies before phi.diagonal()
-    val phiFile = hc.getTemporaryFile(suffix=Some("bm"))
-    this.phi(mu, variance, blockedG).write(hc.sFS, phiFile)
-    val phi = BlockMatrix.read(hc, phiFile)
+    val phi = writeRead(this.phi(mu, variance, blockedG))
 
     if (statistics >= PhiK2) {
       val k2 = cacheWhen(PhiK2K0)(
         this.k2(phi, mu, variance, blockedG))
       if (statistics >= PhiK2K0) {
         val k0 = cacheWhen(PhiK2K0K1)(
-          this.k0(phi, mu, k2, blockedG, ibs0(blockedG, mu, blockSize)))
+          this.k0(phi, mu, k2, blockedG, ibs0(blockedG, mu)))
         if (statistics >= PhiK2K0K1) {
           val k1 = 1.0 - (k2 + k0)
           Result(phi, k0, k1, k2)
@@ -295,14 +213,14 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
 
     val qr.QR(q, r) = qr.reduced(pcsWithIntercept)
 
-    val halfBeta = (inv(2.0 * r) * q.t).matrixMultiply(blockedG.T)
+    val halfBeta = writeRead((inv(2.0 * r) * q.t).matrixMultiply(blockedG.T))
 
-    pcsWithIntercept.matrixMultiply(halfBeta).T
+    writeRead(pcsWithIntercept.matrixMultiply(halfBeta).T)
   }
 
   private[methods] def phi(mu: M, variance: M, g: M): M = {
     val centeredAF = BlockMatrix.map2 { (g, mu) =>
-      if (mu.isNaN) 0.0 else g / 2 - mu
+      if (java.lang.Double.isNaN(mu)) 0.0 else g / 2 - mu
     } (g, mu)
 
     val stddev = variance.sqrt()
@@ -310,18 +228,18 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
     gram(centeredAF) / gram(stddev)
   }
 
-  private[methods] def ibs0(g: M, mu: M, blockSize: Int): M = {
+  private[methods] def ibs0(g: M, mu: M): M = {
     val homalt =
       BlockMatrix.map2 { (g, mu) =>
-        if (mu.isNaN || g != 2.0) 0.0 else 1.0
+        if (java.lang.Double.isNaN(mu) || g != 2.0) 0.0 else 1.0
       } (g, mu)
 
     val homref =
       BlockMatrix.map2 { (g, mu) =>
-        if (mu.isNaN || g != 0.0) 0.0 else 1.0
+        if (java.lang.Double.isNaN(mu) || g != 0.0) 0.0 else 1.0
       } (g, mu)
 
-    val temp = homalt.T.dot(homref).persist(storageLevel)
+    val temp = writeRead(homalt.T.dot(homref))
 
     temp + temp.T
   }
@@ -329,7 +247,7 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
   private[methods] def k2(phi: M, mu: M, variance: M, g: M): M = {
     val twoPhi_ii = phi.diagonal().map(2.0 * _)
     val normalizedGD = g.map2WithIndex(mu, { case (_, i, g, mu) =>
-      if (mu.isNaN)
+      if (java.lang.Double.isNaN(mu))
         0.0 // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
       else {
         val gd = if (g == 0.0) mu
@@ -345,12 +263,12 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
 
   private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
     val mu2 =
-      mu.map(mu => if (mu.isNaN) 0.0 else mu * mu)
+      mu.map(mu => if (java.lang.Double.isNaN(mu)) 0.0 else mu * mu)
 
     val oneMinusMu2 =
-      mu.map(mu => if (mu.isNaN) 0.0 else (1.0 - mu) * (1.0 - mu))
+      mu.map(mu => if (java.lang.Double.isNaN(mu)) 0.0 else (1.0 - mu) * (1.0 - mu))
 
-    val temp = mu2.T.dot(oneMinusMu2)
+    val temp = writeRead(mu2.T.dot(oneMinusMu2))
     val denom = temp + temp.T
 
     BlockMatrix.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>

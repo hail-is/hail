@@ -18,15 +18,17 @@ spec:
       containers:
         - name: apiserver
           image: "{{ apiserver_image.image }}"
-          imagePullPolicy: Always
+          env:
+           - name: HAIL_AUTH_URL
+             value: "http://auth.{{ default_ns.name }}"
           ports:
-          - containerPort: 5000
+           - containerPort: 5000
           volumeMounts:
-          - mountPath: /hail-vdc-sa-key
-            name: hail-vdc-sa-key
-          - name: jwt-secret-key
-            mountPath: /jwt-secret-key
-            readOnly: true
+           - mountPath: /hail-vdc-sa-key
+             name: hail-vdc-sa-key
+           - name: session-secret-keys
+             mountPath: /session-secret-keys
+             readOnly: true
           resources:
             requests:
               memory: "3.75G"
@@ -41,9 +43,9 @@ spec:
         - name: hail-vdc-sa-key
           secret:
             secretName: hail-vdc-sa-key
-        - name: jwt-secret-key
+        - name: session-secret-keys
           secret:
-            secretName: jwt-secret-key
+            secretName: session-secret-keys
 ---
 apiVersion: v1
 kind: Service

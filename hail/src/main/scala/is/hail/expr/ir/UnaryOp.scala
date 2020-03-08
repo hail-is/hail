@@ -9,9 +9,9 @@ import is.hail.utils._
 object UnaryOp {
 
   private val returnType: ((UnaryOp, Type)) => Option[Type] = lift {
-    case (Negate(), t@(_: TInt32 | _: TInt64 | _: TFloat32 | _: TFloat64)) => t
-    case (Bang(), t: TBoolean) => t
-    case (BitNot(), t@(_: TInt32 | _: TInt64)) => t
+    case (Negate(), t@(TInt32 | TInt64 | TFloat32 | TFloat64)) => t
+    case (Bang(), TBoolean) => TBoolean
+    case (BitNot(), t@(TInt32 | TInt64)) => t
   }
 
   def returnTypeOption(op: UnaryOp, t: Type): Option[Type] =
@@ -24,33 +24,33 @@ object UnaryOp {
     throw new RuntimeException(s"Cannot apply $op to values of type $t")
 
   def emit(op: UnaryOp, t: Type, x: Code[_]): Code[_] = t match {
-    case _: TBoolean =>
+    case TBoolean =>
       val xx = coerce[Boolean](x)
       op match {
         case Bang() => !xx
         case _ => incompatible(t, op)
       }
-    case _: TInt32 =>
+    case TInt32 =>
       val xx = coerce[Int](x)
       op match {
         case Negate() => -xx
         case BitNot() => ~xx
         case _ => incompatible(t, op)
       }
-    case _: TInt64 =>
+    case TInt64 =>
       val xx = coerce[Long](x)
       op match {
         case Negate() => -xx
         case BitNot() => ~xx
         case _ => incompatible(t, op)
       }
-    case _: TFloat32 =>
+    case TFloat32 =>
       val xx = coerce[Float](x)
       op match {
         case Negate() => -xx
         case _ => incompatible(t, op)
       }
-    case _: TFloat64 =>
+    case TFloat64 =>
       val xx = coerce[Double](x)
       op match {
         case Negate() => -xx

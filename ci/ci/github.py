@@ -1,4 +1,3 @@
-import datetime
 import secrets
 from shlex import quote as shq
 import json
@@ -7,25 +6,25 @@ import asyncio
 import concurrent.futures
 import aiohttp
 import gidgethub
-import humanize
+import zulip
+
+from hailtop.config import get_deploy_config
+from hailtop.batch_client.aioclient import Batch
+from hailtop.utils import check_shell, check_shell_output, RETRY_FUNCTION_SCRIPT
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
-from .environment import SELF_HOSTNAME
-from .utils import check_shell, check_shell_output
 from .build import BuildConfiguration, Code
+from .globals import is_test_deployment
+
 
 repos_lock = asyncio.Lock()
 
 log = logging.getLogger('ci')
 
-def timestamp_age(t):
-    if t is None:
-        return None
-    tz_delta = datetime.datetime.now() - t
-    return tz_delta
+deploy_config = get_deploy_config()
 
+CALLBACK_URL = deploy_config.url('ci', '/api/v1alpha/batch_callback')
 
-def pretty_timestamp_age(t):
-    return humanize.naturaltime(timestamp_age(t))
+zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
 
 
 class Repo:
@@ -136,6 +135,30 @@ WIP = 'WIP'
 DO_NOT_MERGE = {STACKED_PR, WIP}
 
 
+def clone_or_fetch_script(repo):
+    return f"""
+{ RETRY_FUNCTION_SCRIPT }
+
+function clone() {{ ( set -e
+    dir=$(mktemp -d)
+    git clone {shq(repo)} $dir
+    for x in $(ls -A $dir); do
+        mv -- "$dir/$x" ./
+    done
+) }}
+
+if [ ! -d .git ]; then
+  time retry clone
+
+  git config user.email ci@hail.is
+  git config user.name ci
+else
+  git reset --merge
+  time retry git fetch -q origin
+fi
+"""
+
+
 class PR(Code):
     def __init__(self, number, title, source_repo, source_sha, target_branch, author, labels):
         self.number = number
@@ -155,7 +178,6 @@ class PR(Code):
 
         # error, success, failure
         self._build_state = None
-        self._build_state_timestamp = None
 
         # don't need to set github_changed because we are refreshing github
         self.target_branch.batch_changed = True
@@ -167,11 +189,8 @@ class PR(Code):
 
     @build_state.setter
     def build_state(self, new_state):
-        self._build_state_timestamp = datetime.datetime.now()
-        self._build_state = new_state
-
-    def pretty_status_age(self):
-        return pretty_timestamp_age(self._build_state_timestamp)
+        if new_state != self._build_state:
+            self._build_state = new_state
 
     async def authorized(self, dbpool):
         if self.author in AUTHORIZED_USERS:
@@ -338,7 +357,7 @@ mkdir -p {shq(repo_dir)}
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha
                 },
-                callback=f'http://{SELF_HOSTNAME}/api/v1alpha/batch_callback')
+                callback=CALLBACK_URL)
             config.build(batch, self, scope='test')
             batch = await batch.submit()
             self.batch = batch
@@ -372,16 +391,14 @@ mkdir -p {shq(repo_dir)}
 
         if self.batch is None:
             # find the latest non-cancelled batch for source
-            attrs = {
-                'test': '1',
-                'target_branch': self.target_branch.branch.short_str(),
-                'source_sha': self.source_sha
-            }
-            batches = await batch_client.list_batches(attributes=attrs)
+            batches = batch_client.list_batches(
+                f'test=1 '
+                f'target_branch={self.target_branch.branch.short_str()} '
+                f'source_sha={self.source_sha}')
 
             min_batch = None
             failed = None
-            for b in batches:
+            async for b in batches:
                 try:
                     s = await b.status()
                 except Exception as err:
@@ -427,7 +444,7 @@ mkdir -p {shq(repo_dir)}
         if (not self.batch or
                 (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha)):
 
-            if on_deck or self.target_branch.n_running_batches < 4:
+            if on_deck or self.target_branch.n_running_batches < 8:
                 self.target_branch.n_running_batches += 1
                 async with repos_lock:
                     await self._start_build(dbpool, batch_client)
@@ -455,19 +472,11 @@ mkdir -p {shq(repo_dir)}
 
     def checkout_script(self):
         return f'''
-if [ ! -d .git ]; then
-  time git clone {shq(self.target_branch.branch.repo.url)} .
-
-  git config user.email ci@hail.is
-  git config user.name ci
-else
-  git reset --merge
-  time git fetch -q origin
-fi
+{clone_or_fetch_script(self.target_branch.branch.repo.url)}
 
 git remote add {shq(self.source_repo.short_str())} {shq(self.source_repo.url)} || true
 
-time git fetch -q {shq(self.source_repo.short_str())}
+time retry git fetch -q {shq(self.source_repo.short_str())}
 git checkout {shq(self.target_branch.sha)}
 git merge {shq(self.source_sha)} -m 'merge PR'
 '''
@@ -485,7 +494,6 @@ class WatchedBranch(Code):
         # success, failure, pending
         self.deploy_batch = None
         self._deploy_state = None
-        self._deploy_state_timestamp = None
 
         self.updating = False
         self.github_changed = True
@@ -502,9 +510,6 @@ class WatchedBranch(Code):
     @deploy_state.setter
     def deploy_state(self, new_state):
         self._deploy_state = new_state
-
-    def pretty_status_age(self):
-        return pretty_timestamp_age(self._deploy_state_timestamp)
 
     def short_str(self):
         return f'br-{self.branch.repo.owner}-{self.branch.repo.name}-{self.branch.name}'
@@ -622,21 +627,17 @@ class WatchedBranch(Code):
             return
 
         if self.deploy_batch is None:
-            running_deploy_batches = await batch_client.list_batches(
-                complete=False,
-                attributes={
-                    'deploy': '1',
-                    'target_branch': self.branch.short_str()
-                })
+            running_deploy_batches = batch_client.list_batches(
+                f'!complete deploy=1 target_branch={self.branch.short_str()}')
+            running_deploy_batches = [b async for b in running_deploy_batches]
             if running_deploy_batches:
                 self.deploy_batch = max(running_deploy_batches, key=lambda b: b.id)
             else:
-                deploy_batches = await batch_client.list_batches(
-                    attributes={
-                        'deploy': '1',
-                        'target_branch': self.branch.short_str(),
-                        'sha': self.sha
-                    })
+                deploy_batches = batch_client.list_batches(
+                    f'deploy=1 '
+                    f'target_branch={self.branch.short_str()} '
+                    f'sha={self.sha}')
+                deploy_batches = [b async for b in deploy_batches]
                 if deploy_batches:
                     self.deploy_batch = max(deploy_batches, key=lambda b: b.id)
 
@@ -652,6 +653,22 @@ class WatchedBranch(Code):
                     self.deploy_state = 'success'
                 else:
                     self.deploy_state = 'failure'
+
+                if not is_test_deployment and self.deploy_state == 'failure':
+                    request = {
+                        'type': 'stream',
+                        'to': 'team',
+                        'topic': 'CI Deploy Failure',
+                        'content': f'''
+@*dev*
+state: {self.deploy_state}
+branch: {self.branch.short_str()}
+sha: {self.sha}
+url: https://ci.hail.is/batches/{self.deploy_batch.id}
+'''}
+                    result = zulip_client.send_message(request)
+                    log.info(result)
+
                 self.state_changed = True
 
     async def _heal_deploy(self, batch_client):
@@ -701,14 +718,10 @@ class WatchedBranch(Code):
             await pr._heal(batch_client, dbpool, pr == merge_candidate)
 
         # cancel orphan builds
-        running_batches = await batch_client.list_batches(
-            complete=False,
-            attributes={
-                'test': '1',
-                'target_branch': self.branch.short_str()
-            })
+        running_batches = batch_client.list_batches(
+            f'!complete test=1 target_branch={self.branch.short_str()}')
         seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch and hasattr(pr.batch, 'id'))
-        for batch in running_batches:
+        async for batch in running_batches:
             if batch.id not in seen_batch_ids:
                 attrs = batch.attributes
                 log.info(f'cancel batch {batch.id} for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
@@ -739,7 +752,7 @@ mkdir -p {shq(repo_dir)}
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha
                 },
-                callback=f'http://{SELF_HOSTNAME}/api/v1alpha/batch_callback')
+                callback=CALLBACK_URL)
             config.build(deploy_batch, self, scope='deploy')
             deploy_batch = await deploy_batch.submit()
             self.deploy_batch = deploy_batch
@@ -762,26 +775,17 @@ mkdir -p {shq(repo_dir)}
 
     def checkout_script(self):
         return f'''
-if [ ! -d .git ]; then
-  time git clone {shq(self.branch.repo.url)} .
-
-  git config user.email ci@hail.is
-  git config user.name ci
-else
-  git reset --merge
-  time git fetch -q origin
-fi
+{clone_or_fetch_script(self.branch.repo.url)}
 
 git checkout {shq(self.sha)}
 '''
 
 
 class UnwatchedBranch(Code):
-    def __init__(self, branch, sha, userdata, namespace):
+    def __init__(self, branch, sha, userdata):
         self.branch = branch
-        self.userdata = userdata
         self.user = userdata['username']
-        self.namespace = namespace
+        self.namespace = userdata['namespace_name']
         self.sha = sha
 
         self.deploy_batch = None
@@ -802,7 +806,7 @@ class UnwatchedBranch(Code):
             'user': self.user
         }
 
-    async def deploy(self, batch_client, profile_steps=None):
+    async def deploy(self, batch_client, steps):
         assert not self.deploy_batch
 
         deploy_batch = None
@@ -812,9 +816,9 @@ class UnwatchedBranch(Code):
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 ''')
-            log.info(f'User {self.user} requested these steps for dev deploy: {profile_steps}')
+            log.info(f'User {self.user} requested these steps for dev deploy: {steps}')
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = BuildConfiguration(self, f.read(), scope='dev', profile=profile_steps)
+                config = BuildConfiguration(self, f.read(), scope='dev', requested_step_names=steps)
 
             log.info(f'creating dev deploy batch for {self.branch.short_str()} and user {self.user}')
 
@@ -830,21 +834,13 @@ mkdir -p {shq(repo_dir)}
             self.deploy_batch = deploy_batch
             return deploy_batch.id
         finally:
-            if deploy_batch and not self.deploy_batch:
+            if deploy_batch and not self.deploy_batch and isinstance(deploy_batch, Batch):
                 log.info(f'cancelling partial deploy batch {deploy_batch.id}')
                 await deploy_batch.cancel()
 
     def checkout_script(self):
         return f'''
-if [ ! -d .git ]; then
-  time git clone {shq(self.branch.repo.url)} .
-
-  git config user.email ci@hail.is
-  git config user.name ci
-else
-  git reset --merge
-  time git fetch -q origin
-fi
+{clone_or_fetch_script(self.branch.repo.url)}
 
 git checkout {shq(self.sha)}
 '''

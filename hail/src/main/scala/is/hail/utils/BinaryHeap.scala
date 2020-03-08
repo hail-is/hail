@@ -1,9 +1,10 @@
 package is.hail.utils
 
+import Math.signum
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T) => Long = null) {
+class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T) => Double = null) {
   private var ts: Array[T] = new Array[T](minimumCapacity)
   private var ranks: Array[Long] = new Array[Long](minimumCapacity)
   private val m: mutable.Map[T, Int] = new mutable.HashMap()
@@ -16,10 +17,11 @@ class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32, maybeTieBr
       val tb1 = maybeTieBreaker(a, b)
       val tb2 = maybeTieBreaker(b, a)
 
-      if (tb1 != -tb2)
-        fatal(s"'maximal_independent_set' requires 'tie_breaker(l, r)' equals '-1 * tie_breaker(r, l)'. Found ($tb1, $tb2).")
+      if (signum(tb1) != -signum(tb2))
+        fatal(s"'maximal_independent_set' requires 'tie_breaker(l, r)' to have " +
+          s"the opposite sign of 'tie_breaker(r, l)' (or both to be zero). Found ($tb1, $tb2).")
 
-      tb1 > 0
+      tb1 > 0.0
     }
   }
 

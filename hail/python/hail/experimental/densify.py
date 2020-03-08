@@ -22,8 +22,11 @@ def densify(sparse_mt):
         raise ValueError("'densify' requires 'END' entry field of type 'int32'")
     col_key_fields = list(sparse_mt.col_key)
 
-    mt = sparse_mt
-    mt = sparse_mt.annotate_entries(__contig = mt.locus.contig)
+    contigs = sparse_mt.locus.dtype.reference_genome.contigs
+    contig_idx_map = hl.literal({contigs[i]:i for i in range(len(contigs))}, 'dict<str, int32>')
+    mt = sparse_mt.annotate_rows(__contig_idx=contig_idx_map[sparse_mt.locus.contig])
+    mt = mt.annotate_entries(__contig=mt.__contig_idx)
+
     t = mt._localize_entries('__entries', '__cols')
     t = t.annotate(
         __entries = hl.rbind(
@@ -38,10 +41,10 @@ def densify(sparse_mt):
                     hl.cond(
                         (~hl.is_defined(entry) &
                          (prev_entry.END >= t.locus.position) &
-                         (prev_entry.__contig == t.locus.contig)),
+                         (prev_entry.__contig == t.__contig_idx)),
                         prev_entry,
                         entry)),
                 hl.range(0, hl.len(t.__entries)))))
     mt = t._unlocalize_entries('__entries', '__cols', col_key_fields)
-    mt = mt.drop('__contig', 'END')
+    mt = mt.drop('__contig_idx', '__contig', 'END')
     return mt

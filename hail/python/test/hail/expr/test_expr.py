@@ -2,7 +2,6 @@ import math
 import pytest
 import random
 from scipy.stats import pearsonr
-import unittest
 import numpy as np
 import tempfile
 
@@ -17,6 +16,9 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
+    def collect_unindexed_expression(self):
+        self.assertEqual(hl.array([4,1,2,3]).collect(), [4,1,2,3])
+
     def test_key_by_random(self):
         ht = hl.utils.range_table(10, 4)
         ht = ht.annotate(new_key=hl.rand_unif(0, 1))
@@ -40,6 +42,27 @@ class Tests(unittest.TestCase):
         test_random_function(lambda: hl.rand_gamma(1, 1))
         test_random_function(lambda: hl.rand_cat(hl.array([1, 1, 1, 1])))
         test_random_function(lambda: hl.rand_dirichlet(hl.array([1, 1, 1, 1])))
+
+    def test_range(self):
+        def same_as_python(*args):
+            self.assertEqual(hl.eval(hl.range(*args)), list(range(*args)))
+
+        same_as_python(10)
+        same_as_python(3, 10)
+        same_as_python(3, 10, 2)
+        same_as_python(3, 10, 3)
+        same_as_python(-5)
+        same_as_python(10, -5)
+        same_as_python(10, -5, -1)
+        same_as_python(10, -5, -4)
+
+        with self.assertRaisesRegex(hl.utils.FatalError, 'Array range cannot have step size 0'):
+            hl.eval(hl.range(0, 1, 0))
+
+    def test_zeros(self):
+        for size in [0, 3, 10, 1000]:
+            evaled = hl.eval(hl.zeros(size))
+            assert evaled == [0 for i in range(size)]
 
     def test_seeded_sampling(self):
         sampled1 = hl.utils.range_table(50, 6).filter(hl.rand_bool(0.5))
@@ -256,11 +279,32 @@ class Tests(unittest.TestCase):
     def test_rbind_placement(self):
         self.assertEqual(hl.eval(5 / hl.rbind(5, lambda x: x)), 1.0)
 
+    def test_translate(self):
+        strs = [None, '', 'TATAN']
+        assert hl.eval(hl.literal(strs, 'array<str>').map(lambda x: x.translate({'T': 'A', 'A': 'T'}))) == [None, '', 'ATATN']
+
+        with pytest.raises(hl.utils.FatalError, match='mapping keys must be one character'):
+            hl.eval(hl.str('foo').translate({'foo': 'bar'}))
+
+        with pytest.raises(hl.utils.FatalError, match='mapping keys must be one character'):
+            hl.eval(hl.str('foo').translate({'': 'bar'}))
+
+    def test_reverse_complement(self):
+        strs = ['NNGATTACA', 'NNGATTACA'.lower(), 'foo']
+        rna_strs = ['NNGATTACA', 'NNGAUUACA'.lower(), 'foo']
+        assert hl.eval(hl.literal(strs).map(lambda s: hl.reverse_complement(s))) == ['TGTAATCNN', 'TGTAATCNN'.lower(), 'oof']
+        assert hl.eval(hl.literal(rna_strs).map(lambda s: hl.reverse_complement(s, rna=True))) == ['UGUAAUCNN', 'UGUAAUCNN'.lower(), 'oof']
+
     def test_matches(self):
         self.assertEqual(hl.eval('\d+'), '\d+')
         string = hl.literal('12345')
         self.assertTrue(hl.eval(string.matches('\d+')))
+        self.assertTrue(hl.eval(string.matches(hl.str('\d+'))))
         self.assertFalse(hl.eval(string.matches(r'\\d+')))
+
+    def test_string_reverse(self):
+        inputs = ['', None, 'ATAT', 'foo']
+        assert hl.eval(hl.literal(inputs, 'array<str>').map(lambda s: s.reverse())) == ['', None, 'TATA', 'oof']
 
     def test_first_match_in(self):
         string = hl.literal('1:25-100')
@@ -273,6 +317,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.cond(True, hl.struct(), hl.null(hl.tstruct()))), hl.utils.Struct())
         self.assertEqual(hl.eval(hl.cond(hl.null(hl.tbool), 1, 2)), None)
         self.assertEqual(hl.eval(hl.cond(hl.null(hl.tbool), 1, 2, missing_false=True)), 2)
+
+    def test_if_else(self):
+        self.assertEqual(hl.eval('A' + hl.if_else(True, 'A', 'B')), 'AA')
+
+        self.assertEqual(hl.eval(hl.if_else(True, hl.struct(), hl.null(hl.tstruct()))), hl.utils.Struct())
+        self.assertEqual(hl.eval(hl.if_else(hl.null(hl.tbool), 1, 2)), None)
+        self.assertEqual(hl.eval(hl.if_else(hl.null(hl.tbool), 1, 2, missing_false=True)), 2)
 
     def test_aggregators(self):
         table = hl.utils.range_table(10)
@@ -308,6 +359,22 @@ class Tests(unittest.TestCase):
         self.assertTrue(r.assert1)
         self.assertTrue(r.assert2)
 
+    def test_agg_nesting(self):
+        t = hl.utils.range_table(10)
+        aggregated_count = t.aggregate(hl.agg.count(), _localize=False) #10
+
+        filter_count = t.aggregate(hl.agg.filter(aggregated_count == 10, hl.agg.count()))
+        self.assertEqual(filter_count, 10)
+
+        exploded_count = t.aggregate(hl.agg.explode(lambda x: hl.agg.count(), hl.range(hl.int32(aggregated_count))))
+        self.assertEqual(exploded_count, 100)
+
+        grouped_count = t.aggregate(hl.agg.group_by(aggregated_count, hl.agg.count()))
+        self.assertEqual(grouped_count, {10: 10})
+
+        array_agg_count = t.aggregate(hl.agg.array_agg(lambda x: hl.agg.count(), hl.range(hl.int32(aggregated_count))))
+        self.assertEqual(array_agg_count, [10 for i in range(10)])
+
     def test_approx_cdf(self):
         table = hl.utils.range_table(100)
         table = table.annotate(i=table.idx)
@@ -315,6 +382,10 @@ class Tests(unittest.TestCase):
         table.aggregate(hl.agg.approx_cdf(hl.int64(table.i)))
         table.aggregate(hl.agg.approx_cdf(hl.float32(table.i)))
         table.aggregate(hl.agg.approx_cdf(hl.float64(table.i)))
+
+    def test_approx_cdf_all_missing(self):
+        table = hl.utils.range_table(10).annotate(foo=hl.null(tint))
+        table.aggregate(hl.agg.approx_quantiles(table.foo, qs=[0.5]))
 
     def test_approx_cdf_col_aggregate(self):
         mt = hl.utils.range_matrix_table(10, 10)
@@ -326,6 +397,7 @@ class Tests(unittest.TestCase):
         table = hl.utils.range_table(100)
         table = table.annotate(i=table.idx)
         table.aggregate(hl.agg.approx_quantiles(table.i, hl.float32(0.5)))
+        table.aggregate(hl.agg.approx_median(table.i))
         table.aggregate(hl.agg.approx_quantiles(table.i, [0.0, 0.1, 0.5, 0.9, 1.0]))
 
     def test_error_from_cdf(self):
@@ -346,6 +418,16 @@ class Tests(unittest.TestCase):
         ac, bc = ht.aggregate(hl.tuple([hl.agg.counter(a[ht.idx]), hl.array(hl.agg.counter(b[ht.idx]))]))
         assert ac == {'rabbit': 2, 'cat': 1, 'dog': 1, None: 2}
         assert bc == [([], 2), ([1, 2], 1), ([1, 2, 3], 2), (None, 1)]
+
+        c = hl.literal([0, 0, 3, 2, 3, 0], dtype='array<int>')
+        actual = ht.aggregate(hl.agg.counter(a[ht.idx], weight=c[ht.idx]))
+        expected = {'rabbit': 0, 'cat': 2, 'dog': 3, None: 3}
+        assert actual == expected
+
+        c = hl.literal([0.0, 0.0, 3.0, 2.0, 3.0, 0.0], dtype='array<float>')
+        actual = ht.aggregate(hl.agg.counter(a[ht.idx], weight=c[ht.idx]))
+        expected = {'rabbit': 0.0, 'cat': 2.0, 'dog': 3.0, None: 3.0}
+        assert actual == expected
 
 
     def test_agg_filter(self):
@@ -571,6 +653,41 @@ class Tests(unittest.TestCase):
                  ]
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
+
+        t = hl.Table.parallelize([
+            {"cohort": None, "pop": "EUR", "GT": hl.Call([0, 0])},
+            {"cohort": None, "pop": "ASN", "GT": hl.Call([0, 1])},
+            {"cohort": None, "pop": None, "GT": hl.Call([0, 0])},
+            {"cohort": "SIGMA", "pop": "AFR", "GT": hl.Call([0, 1])},
+            {"cohort": "SIGMA", "pop": "EUR", "GT": hl.Call([1, 1])},
+            {"cohort": "IBD", "pop": "EUR", "GT": None},
+            {"cohort": "IBD", "pop": "EUR", "GT": hl.Call([0, 0])},
+            {"cohort": "IBD", "pop": None, "GT": hl.Call([0, 1])}
+        ], hl.tstruct(cohort=hl.tstr, pop=hl.tstr, GT=hl.tcall), n_partitions=3)
+
+        r = t.aggregate(hl.struct(count=hl.agg.group_by(t.cohort, hl.agg.group_by(t.pop, hl.agg.count_where(hl.is_defined(t.GT)))),
+                                  inbreeding=hl.agg.group_by(t.cohort, hl.agg.inbreeding(t.GT, 0.1))))
+
+        expected_count = {None: {'EUR': 1, 'ASN': 1, None: 1},
+                          'SIGMA': {'AFR': 1, 'EUR': 1},
+                          'IBD': {'EUR': 1, None: 1}}
+
+        self.assertEqual(r.count, expected_count)
+
+        self.assertAlmostEqual(r.inbreeding[None].f_stat, -0.8518518518518517)
+        self.assertEqual(r.inbreeding[None].n_called, 3)
+        self.assertAlmostEqual(r.inbreeding[None].expected_homs, 2.46)
+        self.assertEqual(r.inbreeding[None].observed_homs, 2)
+
+        self.assertAlmostEqual(r.inbreeding['SIGMA'].f_stat, -1.777777777777777)
+        self.assertEqual(r.inbreeding['SIGMA'].n_called, 2)
+        self.assertAlmostEqual(r.inbreeding['SIGMA'].expected_homs, 1.64)
+        self.assertEqual(r.inbreeding['SIGMA'].observed_homs, 1)
+
+        self.assertAlmostEqual(r.inbreeding['IBD'].f_stat, -1.777777777777777)
+        self.assertEqual(r.inbreeding['IBD'].n_called, 2)
+        self.assertAlmostEqual(r.inbreeding['IBD'].expected_homs, 1.64)
+        self.assertEqual(r.inbreeding['IBD'].observed_homs, 1)
 
     def test_agg_group_by_on_call(self):
         t = hl.utils.range_table(10)
@@ -811,6 +928,22 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.n_smaller, 0)
         self.assertEqual(r.n_larger, 1)
 
+    def test_aggregator_cse(self):
+        ht = hl.utils.range_table(10)
+        x = hl.agg.count()
+        self.assertEqual(ht.aggregate((x, hl.agg.filter(ht.idx % 2 == 0, x))), (10, 5))
+
+        mt = hl.utils.range_matrix_table(10, 10)
+        x = hl.int64(5)
+        rows = mt.annotate_rows(agg=hl.agg.sum(x+x), scan=hl.scan.sum(x+x), val=x+x).rows()
+        expected = hl.utils.range_table(10)
+        expected = expected.key_by(row_idx=expected.idx)
+        expected = expected.select(
+            agg=hl.int64(100),
+            scan=hl.int64(expected.row_idx*10),
+            val=hl.int64(10))
+        self.assertTrue(rows._same(expected))
+
     # Tested against R code
     # y = c(0.22848042, 0.09159706, -0.43881935, -0.99106171, 2.12823289)
     # x = c(0.2575928, -0.3445442, 1.6590146, -1.1688806, 0.5587043)
@@ -928,42 +1061,6 @@ class Tests(unittest.TestCase):
         result = result[0].info
         self.assertAlmostEqual(result.score, -0.235041090, places=3)
         self.assertEqual(result.n_included, 8)
-
-    def test_aggregator_group_by(self):
-        t = hl.Table.parallelize([
-            {"cohort": None, "pop": "EUR", "GT": hl.Call([0, 0])},
-            {"cohort": None, "pop": "ASN", "GT": hl.Call([0, 1])},
-            {"cohort": None, "pop": None, "GT": hl.Call([0, 0])},
-            {"cohort": "SIGMA", "pop": "AFR", "GT": hl.Call([0, 1])},
-            {"cohort": "SIGMA", "pop": "EUR", "GT": hl.Call([1, 1])},
-            {"cohort": "IBD", "pop": "EUR", "GT": None},
-            {"cohort": "IBD", "pop": "EUR", "GT": hl.Call([0, 0])},
-            {"cohort": "IBD", "pop": None, "GT": hl.Call([0, 1])}
-        ], hl.tstruct(cohort=hl.tstr, pop=hl.tstr, GT=hl.tcall), n_partitions=3)
-
-        r = t.aggregate(hl.struct(count=hl.agg.group_by(t.cohort, hl.agg.group_by(t.pop, hl.agg.count_where(hl.is_defined(t.GT)))),
-                                  inbreeding=hl.agg.group_by(t.cohort, hl.agg.inbreeding(t.GT, 0.1))))
-
-        expected_count = {None: {'EUR': 1, 'ASN': 1, None: 1},
-                    'SIGMA': {'AFR': 1, 'EUR': 1},
-                    'IBD': {'EUR': 1, None: 1}}
-
-        self.assertEqual(r.count, expected_count)
-
-        self.assertAlmostEqual(r.inbreeding[None].f_stat, -0.8518518518518517)
-        self.assertEqual(r.inbreeding[None].n_called, 3)
-        self.assertAlmostEqual(r.inbreeding[None].expected_homs, 2.46)
-        self.assertEqual(r.inbreeding[None].observed_homs, 2)
-
-        self.assertAlmostEqual(r.inbreeding['SIGMA'].f_stat, -1.777777777777777)
-        self.assertEqual(r.inbreeding['SIGMA'].n_called, 2)
-        self.assertAlmostEqual(r.inbreeding['SIGMA'].expected_homs, 1.64)
-        self.assertEqual(r.inbreeding['SIGMA'].observed_homs, 1)
-
-        self.assertAlmostEqual(r.inbreeding['IBD'].f_stat, -1.777777777777777)
-        self.assertEqual(r.inbreeding['IBD'].n_called, 2)
-        self.assertAlmostEqual(r.inbreeding['IBD'].expected_homs, 1.64)
-        self.assertEqual(r.inbreeding['IBD'].observed_homs, 1)
 
     def test_aggregator_group_by_sorts_result(self):
         t = hl.Table.parallelize([ # the `s` key is stored before the `m` in java.util.HashMap
@@ -1199,6 +1296,39 @@ class Tests(unittest.TestCase):
                                      .when(((t.idx - 1) % 3) == 0, t.idx - 2)
                                      .default(t.idx - 1))))
 
+    def test_agg_table_take(self):
+        ht = hl.utils.range_table(10).annotate(x = 'a')
+        self.assertEqual(ht.aggregate(agg.take(ht.x, 2)), ['a', 'a'])
+
+    def test_agg_take_by(self):
+        ht = hl.utils.range_table(10, 3)
+        data1 = hl.literal([str(i) for i in range(10)])
+        data2 = hl.literal([i**2 for i in range(10)])
+        ht = ht.annotate(d1 = data1[ht.idx], d2=data2[ht.idx])
+
+        tb1, tb2, tb3, tb4 = ht.aggregate((hl.agg.take(ht.d1, 5, ordering=-ht.idx),
+                                           hl.agg.take(ht.d2, 5, ordering=-ht.idx),
+                                           hl.agg.take(ht.idx, 7, ordering=ht.idx // 5), # stable sort
+                                           hl.agg.array_agg(
+                                               lambda elt: hl.agg.take(hl.str(elt) + "_" + hl.str(ht.idx), 4,
+                                                                       ordering=ht.idx), hl.range(0, 2))))
+
+        assert tb1 == ['9', '8', '7', '6', '5']
+        assert tb2 == [81, 64, 49, 36, 25]
+        assert tb3 == [0, 1, 2, 3, 4, 5, 6]
+        assert tb4 == [['0_0', '0_1', '0_2', '0_3'], ['1_0', '1_1', '1_2', '1_3']]
+
+    def test_agg_minmax(self):
+        nan = float('nan')
+        na = hl.null(hl.tfloat32)
+        size = 200
+        for aggfunc in (agg.min, agg.max):
+            array_with_nan = hl.array([0. if i == 1 else nan for i in range(size)])
+            array_with_na = hl.array([0. if i == 1 else na for i in range(size)])
+            t = hl.utils.range_table(size)
+            self.assertEqual(t.aggregate(aggfunc(array_with_nan[t.idx])), 0.)
+            self.assertEqual(t.aggregate(aggfunc(array_with_na[t.idx])), 0.)
+
     def test_str_ops(self):
         s = hl.literal("123")
         self.assertEqual(hl.eval(hl.int32(s)), 123)
@@ -1209,22 +1339,6 @@ class Tests(unittest.TestCase):
         s = hl.literal("1.5")
         self.assertEqual(hl.eval(hl.float32(s)), 1.5)
         self.assertEqual(hl.eval(hl.float64(s)), 1.5)
-
-        s1 = hl.literal('true')
-        s2 = hl.literal('True')
-        s3 = hl.literal('TRUE')
-
-        s4 = hl.literal('false')
-        s5 = hl.literal('False')
-        s6 = hl.literal('FALSE')
-
-        self.assertTrue(hl.eval(hl.bool(s1)))
-        self.assertTrue(hl.eval(hl.bool(s2)))
-        self.assertTrue(hl.eval(hl.bool(s3)))
-
-        self.assertFalse(hl.eval(hl.bool(s4)))
-        self.assertFalse(hl.eval(hl.bool(s5)))
-        self.assertFalse(hl.eval(hl.bool(s6)))
 
         s = hl.literal('abcABC123')
         self.assertEqual(hl.eval(s.lower()), 'abcabc123')
@@ -1245,6 +1359,42 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval(s_whitespace.endswith('\t\n')))
         self.assertFalse(hl.eval(s_whitespace.startswith('a')))
         self.assertFalse(hl.eval(s_whitespace.endswith('a')))
+
+    def test_str_parsing(self):
+        for x in ('true', 'True', 'TRUE'):
+            self.assertTrue(hl.eval(hl.bool(x)))
+
+        for x in ('false', 'False', 'FALSE'):
+            self.assertFalse(hl.eval(hl.bool(x)))
+
+        for x in ('nan', 'Nan', 'naN', 'NaN'):
+            for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
+                self.assertTrue(hl.eval(hl.is_nan(f(x))))
+                self.assertTrue(hl.eval(hl.is_nan(f('+' + x))))
+                self.assertTrue(hl.eval(hl.is_nan(f('-' + x))))
+
+        for x in ('inf', 'Inf', 'iNf', 'InF', 'infinity', 'InfiNitY', 'INFINITY'):
+            for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
+                self.assertTrue(hl.eval(hl.is_infinite(f(x))))
+                self.assertTrue(hl.eval(hl.is_infinite(f('+' + x))))
+                self.assertTrue(hl.eval(hl.is_infinite(f('-' + x))))
+                self.assertTrue(hl.eval(f('-' + x) < 0.0))
+
+        for x in ('0', '1', '-5', '12382421'):
+            for f in (hl.int32, hl.int64, hl.parse_int32, hl.parse_int64):
+                self.assertEqual(hl.eval(f(hl.literal(x))), int(x))
+            for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
+                self.assertEqual(hl.eval(f(hl.literal(x))), float(x))
+
+        for x in ('-1.5', '0.0', '2.5'):
+            for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
+                self.assertEqual(hl.eval(f(hl.literal(x))), float(x))
+            for f in (hl.parse_int32, hl.parse_int64):
+                self.assertEqual(hl.eval(f(hl.literal(x))), None)
+
+        for x in ('abc', '1abc', ''):
+            for f in (hl.parse_float32, hl.parse_float64, hl.parse_int32, hl.parse_int64):
+                self.assertEqual(hl.eval(f(hl.literal(x))), None)
 
     def test_str_missingness(self):
         self.assertEqual(hl.eval(hl.str(1)), '1')
@@ -2031,6 +2181,35 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.locus_from_global_position(2824183054, 'GRCh38')),
                          hl.eval(hl.locus('chr22', 1, 'GRCh38')))
 
+    def test_locus_window(self):
+        locus = hl.Locus('22', 123456, reference_genome='GRCh37')
+
+        lit = hl.literal(locus)
+        results = hl.eval(hl.struct(
+            zeros=lit.window(0, 0),
+            ones=lit.window(1, 1),
+            big_windows=lit.window(1_000_000_000, 1_000_000_000)
+        ))
+
+        pt = hl.tinterval(hl.tlocus('GRCh37'))
+
+        assert results.zeros == hl.Interval(hl.Locus('22', 123456),
+                                            hl.Locus('22', 123456),
+                                            includes_start=True,
+                                            includes_end=True,
+                                            point_type=pt)
+        assert results.ones == hl.Interval(hl.Locus('22', 123455),
+                                           hl.Locus('22', 123457),
+                                           includes_start=True,
+                                           includes_end=True,
+                                           point_type=pt)
+        assert results.big_windows == hl.Interval(hl.Locus('22', 1),
+                                                  hl.Locus('22', hl.get_reference('GRCh37').contig_length('22')),
+                                                  includes_start=True,
+                                                  includes_end=True,
+                                                  point_type=pt)
+
+
     def test_dict_conversions(self):
         self.assertEqual(sorted(hl.eval(hl.array({1: 1, 2: 2}))), [(1, 1), (2, 2)])
         self.assertEqual(hl.eval(hl.dict(hl.array({1: 1, 2: 2}))), {1: 1, 2: 2})
@@ -2263,6 +2442,68 @@ class Tests(unittest.TestCase):
         ds = hl.utils.range_matrix_table(3, 3)
         ds.col_idx.show(3)
 
+    def test_export(self):
+        for delimiter in ['\t', ',', '@']:
+            for missing in ['NA', 'null']:
+                for header in [True, False]:
+                    self._test_export_entry(delimiter, missing, header)
+
+    def _test_export_entry(self, delimiter, missing, header):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt = mt.key_cols_by(col_idx = mt.col_idx + 1)
+        mt = mt.annotate_entries(x = mt.row_idx * mt.col_idx)
+        mt = mt.annotate_entries(x = hl.or_missing(mt.x != 4, mt.x))
+        with tempfile.NamedTemporaryFile() as f:
+            mt.x.export(f.name,
+                        delimiter=delimiter,
+                        header=header,
+                        missing=missing)
+            if header:
+                actual = hl.import_matrix_table(f.name,
+                                                row_fields={'row_idx': hl.tint32},
+                                                row_key=['row_idx'],
+                                                sep=delimiter,
+                                                missing=missing)
+            else:
+                actual = hl.import_matrix_table(f.name,
+                                                row_fields={'f0': hl.tint32},
+                                                row_key=['f0'],
+                                                sep=delimiter,
+                                                no_header=True,
+                                                missing=missing)
+                actual = actual.rename({'f0': 'row_idx'})
+            actual = actual.key_cols_by(col_idx = hl.int(actual.col_id))
+            actual = actual.drop('col_id')
+            if not header:
+                actual = actual.key_cols_by(col_idx = actual.col_idx + 1)
+            mt.show()
+            actual.show()
+            assert mt._same(actual)
+
+            expected_collect = [0, 0, 0,
+                                1, 2, 3,
+                                2, None, 6]
+            assert expected_collect == actual.x.collect()
+
+    def test_export_genetic_data(self):
+        mt = hl.balding_nichols_model(1, 3, 3)
+        mt = mt.key_cols_by(s = 's' + hl.str(mt.sample_idx))
+        with tempfile.NamedTemporaryFile() as f:
+            mt.GT.export(f.name)
+            actual = hl.import_matrix_table(f.name,
+                                            row_fields={'locus': hl.tstr,
+                                                        'alleles': hl.tstr},
+                                            row_key=['locus', 'alleles'],
+                                            entry_type=hl.tstr)
+            actual = actual.rename({'col_id': 's'})
+            actual = actual.key_rows_by(locus = hl.parse_locus(actual.locus),
+                                        alleles = actual.alleles.replace('"', '').replace('\[', '').replace('\]', '').split(','))
+            actual = actual.transmute_entries(GT = hl.parse_call(actual.x))
+            expected = mt.select_cols().select_globals().select_rows()
+            expected.show()
+            actual.show()
+            assert expected._same(actual)
+
     def test_or_else_type_conversion(self):
         self.assertEqual(hl.eval(hl.or_else(0.5, 2)), 0.5)
 
@@ -2380,6 +2621,11 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval(hl.is_valid_locus('1', 249250622, 'GRCh37')))
         self.assertFalse(hl.eval(hl.is_valid_locus('chr1', 2645, 'GRCh37')))
 
+        assert hl.eval(hl.contig_length('5', 'GRCh37') == 180915260)
+        with self.assertRaises(hl.utils.FatalError):
+            hl.eval(hl.contig_length('chr5', 'GRCh37'))
+
+
     def test_initop(self):
         t = (hl.utils.range_table(5, 3)
              .annotate(GT=hl.call(0, 1))
@@ -2466,6 +2712,11 @@ class Tests(unittest.TestCase):
                     & (group_rows_agg.call_stats == hl.struct(AC=[3, 3], AF=[0.5, 0.5], AN=6, homozygote_count=[0, 0])),
                     hl.is_defined(group_rows_agg.call_stats)
                     & (group_rows_agg.call_stats == hl.struct(AC=[7, 7], AF=[0.5, 0.5], AN=14, homozygote_count=[0, 0])))))
+
+    def test_call_stats_init(self):
+        ht = hl.utils.range_table(3)
+        ht = ht.annotate(GT = hl.unphased_diploid_gt_index_call(ht.idx))
+        assert ht.aggregate(hl.agg.call_stats(ht.GT, 2).AC) == [3, 3]
 
     def test_mendel_error_code(self):
         locus_auto = hl.Locus('2', 20000000)
@@ -2578,11 +2829,7 @@ class Tests(unittest.TestCase):
         assert_min_reps_to(['GCTAA', 'GCAAA', 'GCCAA', '*'], ['T', 'A', 'C', '*'], pos_change=2)
 
     def assert_evals_to(self, e, v):
-        self.assertEqual(hl.eval(e), v)
-
-    def batch_assert_evals_to(self, *expr_and_expected):
-        exprs, expecteds = zip(*expr_and_expected)
-        self.assert_evals_to(hl.eval(hl.tuple(exprs)), expecteds)
+        assert_evals_to(e, v)
 
     def test_set_functions(self):
         s = hl.set([1, 3, 7])
@@ -2615,7 +2862,38 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(hl.median(s), 3)
 
     def test_uniroot(self):
-        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3)), 1)
+        tol = 1.220703e-4
+
+        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, hl.null('float'), tolerance=tol)), None)
+        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, hl.null('float'), 3, tolerance=tol)), None)
+        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3, tolerance=tol)), 1)
+        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: hl.log(x) - 1, 0, 3, tolerance=tol)), 2.718281828459045, delta=tol)
+
+        with self.assertRaisesRegex(hl.utils.FatalError, "value of f\(x\) is missing"):
+            hl.eval(hl.uniroot(lambda x: hl.null('float'), 0, 1))
+        with self.assertRaisesRegex(hl.utils.FatalError, 'opposite signs'):
+            hl.eval(hl.uniroot(lambda x: x ** 2 - 0.5, -1, 1))
+        with self.assertRaisesRegex(hl.utils.FatalError, 'min must be less than max'):
+            hl.eval(hl.uniroot(lambda x: x, 1, -1))
+
+        def multiple_roots(x):
+            return (x - 1.5) * (x - 2) * (x - 3.3) * (x - 4.5) * (x - 5)
+
+        roots = [1.5, 2, 3.3, 4.5, 5]
+        result = hl.eval(hl.uniroot(multiple_roots, 0, 5.5, tolerance=tol))
+        self.assertTrue(any(abs(result - root) < tol for root in roots))
+
+    def test_pT(self):
+        self.assert_evals_to(hl.pT(0, 10), 0.5)
+        self.assert_evals_to(hl.pT(1, 10), 0.82955343384897)
+        self.assert_evals_to(hl.pT(1, 10, lower_tail=False), 0.17044656615103004)
+        self.assert_evals_to(hl.pT(1, 10, log_p=True), -0.186867754489647)
+
+    def test_pF(self):
+        self.assert_evals_to(hl.pF(0, 3, 10), 0.0)
+        self.assert_evals_to(hl.pF(1, 3, 10), 0.5676627969783028)
+        self.assert_evals_to(hl.pF(1, 3, 10, lower_tail=False), 0.4323372030216972)
+        self.assert_evals_to(hl.pF(1, 3, 10, log_p=True), -0.566227703842908)
 
     def test_chi_squared_test(self):
         res = hl.eval(hl.chi_squared_test(0, 0, 0, 0))
@@ -2698,6 +2976,29 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(last['p_value'], 0.65714285)
         self.assertAlmostEqual(last['het_freq_hwe'], 0.57142857)
 
+    def test_inbreeding_aggregator(self):
+        data = [
+            (0.25, hl.Call([0, 0])),
+            (0.5, hl.Call([1, 1])),
+            (0.5, hl.Call([1, 1])),
+            (0.5, hl.Call([1, 1])),
+            (0.0, hl.Call([0, 0])),
+            (0.5, hl.Call([0, 1])),
+            (0.99, hl.Call([0, 1])),
+            (0.99, None),
+            (None, hl.Call([0, 1])),
+            (None, None),
+        ]
+        lit = hl.literal(data, dtype='array<tuple(float, call)>')
+        ht = hl.utils.range_table(len(data))
+        r = ht.aggregate(hl.agg.inbreeding(lit[ht.idx][1], lit[ht.idx][0]))
+
+        expected_homs = sum(1 - (2 * af * (1 - af)) for af, x in data if af is not None and x is not None)
+        self.assertAlmostEqual(r['expected_homs'], expected_homs)
+        assert r['observed_homs'] == 5
+        assert r['n_called'] == 7
+        self.assertAlmostEqual(r['f_stat'], (5 - expected_homs) / (7 - expected_homs))
+
     def test_pl_to_gp(self):
         res = hl.eval(hl.pl_to_gp([0, 10, 100]))
         self.assertAlmostEqual(res[0], 0.9090909090082644)
@@ -2735,8 +3036,9 @@ class Tests(unittest.TestCase):
     def test_format(self):
         self.assertEqual(hl.eval(hl.format("%.4f %s %.3e", 0.25, 'hello', 0.114)), '0.2500 hello 1.140e-01')
         self.assertEqual(hl.eval(hl.format("%.4f %d", hl.null(hl.tint32), hl.null(hl.tint32))), 'null null')
-        self.assertEqual(hl.eval(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5])))), '[5,true,[4,5]]')
-        self.assertEqual(hl.eval(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.null(hl.tstr)]))), '1:356 [9,true,null]')
+        self.assertEqual(hl.eval(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5])))),
+                         '{foo: 5, bar: true, baz: [4,5]}')
+        self.assertEqual(hl.eval(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.null(hl.tstr)]))), '1:356 (9, true, null)')
         self.assertEqual(hl.eval(hl.format("%b %B %b %b", hl.null(hl.tint), hl.null(hl.tstr), True, "hello")), "false FALSE true true")
 
     def test_dict_and_set_type_promotion(self):
@@ -2919,332 +3221,6 @@ class Tests(unittest.TestCase):
         with pytest.raises(ValueError):
             hl.variant_str()
 
-    @skip_unless_spark_backend()
-    @run_with_cxx_compile()
-    def test_ndarray_ref(self):
-        import numpy as np
-
-        scalar = 5.0
-        np_scalar = np.array(scalar)
-        h_scalar = hl._ndarray(scalar)
-        h_np_scalar = hl._ndarray(np_scalar)
-        self.assert_evals_to(h_scalar[()], 5.0)
-        self.assert_evals_to(h_np_scalar[()], 5.0)
-
-        cube = [[[0, 1],
-                 [2, 3]],
-                [[4, 5],
-                 [6, 7]]]
-        h_cube = hl._ndarray(cube)
-        h_np_cube = hl._ndarray(np.array(cube))
-        self.batch_assert_evals_to(
-            (h_cube[0, 0, 1], 1),
-            (h_cube[1, 1, 0], 6),
-            (h_np_cube[0, 0, 1], 1),
-            (h_np_cube[1, 1, 0], 6),
-            (hl._ndarray([[[[1]]]])[0, 0, 0, 0], 1),
-            (hl._ndarray([[[1, 2]], [[3, 4]]])[1, 0, 0], 3),
-            (h_np_cube[0, :, :][:, 0][1], 2))
-
-        self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])
-
-    def assert_ndarrays(self, asserter, exprs_and_expecteds):
-        exprs, expecteds = zip(*exprs_and_expecteds)
-
-        from hail.ir import NDArrayWrite, Begin
-        tmp_files = [tempfile.NamedTemporaryFile(suffix='.npy').name for _ in exprs]
-        write_irs = [NDArrayWrite(expr._ir, hl.str(tmp_file)._ir) for (expr, tmp_file) in zip(exprs, tmp_files)]
-        hl.utils.java.Env.backend().execute(Begin(write_irs))
-
-        for (tmp_file, expected) in zip(tmp_files, expecteds):
-            self.assertTrue(asserter(np.load(tmp_file), expected))
-
-    def ndarrays_eq(self, *expr_and_expected):
-        self.assert_ndarrays(np.array_equal, expr_and_expected)
-
-    def ndarrays_almost_eq(self, *expr_and_expected):
-        self.assert_ndarrays(np.allclose, expr_and_expected)
-
-    @skip_unless_spark_backend()
-    @run_with_cxx_compile()
-    def test_ndarray_slice(self):
-        np_arr = np.array([[[0, 1, 2, 3],
-                            [4, 5, 6, 7],
-                            [8, 9, 10, 11]],
-                           [[12, 13, 14, 15],
-                            [16, 17, 18, 19],
-                            [20, 21, 22, 23]]])
-        arr = hl._ndarray(np_arr)
-        np_mat = np.array([[1, 2, 3, 4],
-                           [5, 6, 7, 8]])
-        mat = hl._ndarray(np_mat)
-
-        self.ndarrays_eq(
-            (arr[:, :, :], np_arr[:, :, :]),
-            (arr[:, :, 1], np_arr[:, :, 1]),
-            (arr[:, :, 1:4:2], np_arr[:, :, 1:4:2]),
-            (arr[:, 2, 1:4:2], np_arr[:, 2, 1:4:2]),
-            (arr[0, 2, 1:4:2], np_arr[0, 2, 1:4:2]),
-            (arr[0, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0, :, 1:4:2] + np_arr[:, :1, 1:4:2]),
-            (arr[0:, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0:, :, 1:4:2] + np_arr[:, :1, 1:4:2]),
-            (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2]))
-
-    @skip_unless_spark_backend()
-    @run_with_cxx_compile()
-    def test_ndarray_shape(self):
-        np_e = np.array(3)
-        np_row = np.array([1, 2, 3])
-        np_col = np.array([[1], [2], [3]])
-        np_m = np.array([[1, 2], [3, 4]])
-        np_nd = np.arange(30).reshape((2, 5, 3))
-
-        e = hl._ndarray(np_e)
-        row = hl._ndarray(np_row)
-        col = hl._ndarray(np_col)
-        m = hl._ndarray(np_m)
-        nd = hl._ndarray(np_nd)
-
-        self.batch_assert_evals_to(
-            (e.shape, np_e.shape),
-            (row.shape, np_row.shape),
-            (m.shape, np_m.shape),
-            (nd.shape, np_nd.shape),
-            ((row + nd).shape, (np_row + np_nd).shape),
-            ((row + col).shape, (np_row + np_col).shape))
-
-    @skip_unless_spark_backend()
-    @run_with_cxx_compile()
-    def test_ndarray_reshape(self):
-        np_a = np.array([1, 2, 3, 4, 5, 6])
-        a = hl._ndarray(np_a)
-
-        np_cube = np.array([0, 1, 2, 3, 4, 5, 6, 7], order='F').reshape((2, 2, 2))
-        cube = hl._ndarray([0, 1, 2, 3, 4, 5, 6, 7], row_major=False).reshape((2, 2, 2))
-        cube_to_rect = cube.reshape((2, 4))
-        np_cube_to_rect = np_cube.reshape((2, 4))
-        cube_t_to_rect = cube.transpose((1, 0, 2)).reshape((2, 4))
-        np_cube_t_to_rect = np_cube.transpose((1, 0, 2)).reshape((2, 4))
-
-        self.ndarrays_eq(
-            (a.reshape((2, 3)), np_a.reshape((2, 3))),
-            (a.reshape((3, 2)), np_a.reshape((3, 2))),
-            (cube_to_rect, np_cube_to_rect),
-            (cube_t_to_rect, np_cube_t_to_rect))
-
-    @skip_unless_spark_backend()
-    @run_with_cxx_compile()
-    def test_ndarray_map(self):
-        a = hl._ndarray([[2, 3, 4], [5, 6, 7]])
-        b = hl.map(lambda x: -x, a)
-        c = hl.map(lambda x: True, a)
-
-        self.ndarrays_eq(
-            (b, [[-2, -3, -4], [-5, -6, -7]]),
-            (c, [[True, True, True],
-                 [True, True, True]]))
-
-    @skip_unless_spark_backend()
-    @run_with_cxx_compile()
-    def test_ndarray_ops(self):
-
-        a = 2.0
-        b = 3.0
-        x = np.array([a, b])
-        y = np.array([b, a])
-        row_vec = np.array([[1, 2]])
-        cube1 = np.array([[[1, 2],
-                           [3, 4]],
-                          [[5, 6],
-                           [7, 8]]])
-        cube2 = np.array([[[9, 10],
-                           [11, 12]],
-                          [[13, 14],
-                           [15, 16]]])
-
-        na = hl._ndarray(a)
-        nx = hl._ndarray(x)
-        ny = hl._ndarray(y)
-        nrow_vec = hl._ndarray(row_vec)
-        ncube1 = hl._ndarray(cube1)
-        ncube2 = hl._ndarray(cube2)
-
-        self.ndarrays_eq(
-            # with lists/numerics
-            (na + b, np.array(a + b)),
-            (b + na, np.array(a + b)),
-            (nx + y, x + y),
-            (ncube1 + cube2, cube1 + cube2),
-
-            # Addition
-            (na + na, np.array(a + a)),
-            (nx + ny, x + y),
-            (ncube1 + ncube2, cube1 + cube2),
-            # Broadcasting
-            (ncube1 + na, cube1 + a),
-            (na + ncube1, a + cube1),
-            (ncube1 + ny, cube1 + y),
-            (ny + ncube1, y + cube1),
-            (nrow_vec + ncube1, row_vec + cube1),
-            (ncube1 + nrow_vec, cube1 + row_vec),
-
-            # Subtraction
-            (na - na, np.array(a - a)),
-            (nx - nx, x - x),
-            (ncube1 - ncube2, cube1 - cube2),
-            # Broadcasting
-            (ncube1 - na, cube1 - a),
-            (na - ncube1, a - cube1),
-            (ncube1 - ny, cube1 - y),
-            (ny - ncube1, y - cube1),
-            (ncube1 - nrow_vec, cube1 - row_vec),
-            (nrow_vec - ncube1, row_vec - cube1),
-
-            # Multiplication
-            (na * na, np.array(a * a)),
-            (nx * nx, x * x),
-            (nx * na, x * a),
-            (na * nx, a * x),
-            (ncube1 * ncube2, cube1 * cube2),
-            # Broadcasting
-            (ncube1 * na, cube1 * a),
-            (na * ncube1, a * cube1),
-            (ncube1 * ny, cube1 * y),
-            (ny * ncube1, y * cube1),
-            (ncube1 * nrow_vec, cube1 * row_vec),
-            (nrow_vec * ncube1, row_vec * cube1),
-
-            # Floor div
-            (na // na, np.array(a // a)),
-            (nx // nx, x // x),
-            (nx // na, x // a),
-            (na // nx, a // x),
-            (ncube1 // ncube2, cube1 // cube2),
-            # Broadcasting
-            (ncube1 // na, cube1 // a),
-            (na // ncube1, a // cube1),
-            (ncube1 // ny, cube1 // y),
-            (ny // ncube1, y // cube1),
-            (ncube1 // nrow_vec, cube1 // row_vec),
-            (nrow_vec // ncube1, row_vec // cube1))
-
-        # Division
-        self.ndarrays_almost_eq(
-            (na / na, np.array(a / a)),
-            (nx / nx, x / x),
-            (nx / na, x / a),
-            (na / nx, a / x),
-            (ncube1 / ncube2, cube1 / cube2),
-            # Broadcastisng
-            (ncube1 / na, cube1 / a),
-            (na / ncube1, a / cube1),
-            (ncube1 / ny, cube1 / y),
-            (ny / ncube1, y / cube1),
-            (ncube1 / nrow_vec, cube1 / row_vec),
-            (nrow_vec / ncube1, row_vec / cube1))
-
-    @skip_unless_spark_backend()
-    @run_with_cxx_compile()
-    def test_ndarray_to_numpy(self):
-        nd = np.array([[1, 2, 3], [4, 5, 6]])
-        np.array_equal(hl._ndarray(nd).to_numpy(), nd)
-
-    @skip_unless_spark_backend()
-    @run_with_cxx_compile()
-    def test_ndarray_save(self):
-        arrs = [
-            np.array([[[1, 2, 3], [4, 5, 6]],
-                      [[7, 8, 9], [10, 11, 12]]], dtype=np.int32),
-            np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int64),
-            np.array(3.0, dtype=np.float32),
-            np.array([3.0], dtype=np.float64),
-            np.array([True, False, True, True])
-        ]
-
-        for expected in arrs:
-            with tempfile.NamedTemporaryFile(suffix='.npy') as f:
-                hl._ndarray(expected).save(f.name)
-                actual = np.load(f.name)
-
-                self.assertTrue(expected.dtype == actual.dtype, f'expected: {expected.dtype}, actual: {actual.dtype}')
-                self.assertTrue(np.array_equal(expected, actual))
-
-    @skip_unless_spark_backend()
-    @run_with_cxx_compile()
-    def test_ndarray_sum(self):
-        np_m = np.array([[1, 2], [3, 4]])
-        m = hl._ndarray(np_m)
-
-        self.ndarrays_eq(
-            (m.sum(axis=0), np_m.sum(axis=0)),
-            (m.sum(axis=1), np_m.sum(axis=1)),
-            (m.sum(), np_m.sum()))
-
-    @skip_unless_spark_backend()
-    @run_with_cxx_compile()
-    def test_ndarray_transpose(self):
-        np_v = np.array([1, 2, 3])
-        np_m = np.array([[1, 2, 3], [4, 5, 6]])
-        np_cube = np.array([[[1, 2],
-                            [3, 4]],
-                           [[5, 6],
-                            [7, 8]]])
-        v = hl._ndarray(np_v)
-        m = hl._ndarray(np_m)
-        cube = hl._ndarray(np_cube)
-
-        self.ndarrays_eq(
-            (v.T, np_v.T),
-            (v.T, np_v),
-            (m.T, np_m.T),
-            (cube.transpose((0, 2, 1)), np_cube.transpose((0, 2, 1))),
-            (cube.T, np_cube.T))
-
-        self.assertRaises(ValueError, lambda: v.transpose((1,)))
-        self.assertRaises(ValueError, lambda: cube.transpose((1, 1)))
-
-    @skip_unless_spark_backend()
-    @run_with_cxx_compile()
-    def test_ndarray_matmul(self):
-        np_v = np.array([1, 2])
-        np_m = np.array([[1, 2], [3, 4]])
-        np_cube = np.array([[[1, 2],
-                             [3, 4]],
-                            [[5, 6],
-                             [7, 8]]])
-        np_rect_prism = np.array([[[1, 2],
-                                   [3, 4]],
-                                  [[5, 6],
-                                   [7, 8]],
-                                  [[9, 10],
-                                   [11, 12]]])
-        v = hl._ndarray(np_v)
-        m = hl._ndarray(np_m)
-        cube = hl._ndarray(np_cube)
-        rect_prism = hl._ndarray(np_rect_prism)
-        np_broadcasted_mat = np.array([[[1, 2],
-                                        [3, 4]]])
-
-        self.assertEqual(hl.eval(v @ v), np_v @ np_v)
-
-        self.ndarrays_eq(
-            (m @ m, np_m @ np_m),
-            (m @ m.T, np_m @ np_m.T),
-            (v @ m, np_v @ np_m),
-            (m @ v, np_m @ np_v),
-            (cube @ cube, np_cube @ np_cube),
-            (cube @ v, np_cube @ np_v),
-            (v @ cube, np_v @ np_cube),
-            (cube @ m, np_cube @ np_m),
-            (m @ cube, np_m @ np_cube),
-            (rect_prism @ m, np_rect_prism @ np_m),
-            (m @ rect_prism, np_m @ np_rect_prism),
-            (m @ rect_prism.T, np_m @ np_rect_prism.T),
-            (hl._ndarray(np_broadcasted_mat) @ rect_prism, np_broadcasted_mat @ np_rect_prism))
-
-        self.assertRaises(ValueError, lambda: m @ 5)
-        self.assertRaises(ValueError, lambda: m @ hl._ndarray(5))
-        self.assertRaises(ValueError, lambda: cube @ hl._ndarray(5))
-
     def test_collection_getitem(self):
         collection_types = [(hl.array, list), (hl.set, frozenset)]
         for (htyp, pytyp) in collection_types:
@@ -3262,13 +3238,57 @@ class Tests(unittest.TestCase):
         assert hl.eval(a["b"]["inner"]) == [[1, 2], [3]]
         assert hl.eval(a.b["inner"]) == [[1, 2], [3]]
 
-        self.assertRaises(AttributeError, lambda: hl.array([1,2,3]).a)
-        self.assertRaises(AttributeError, lambda: hl.array([1,2,3])["a"])
-        self.assertRaises(AttributeError, lambda: hl.array([[1],[2],[3]])["a"])
-        self.assertRaises(AttributeError, lambda: hl.array([{1},{2},{3}])["a"])
+    def test_struct_collection_getattr(self):
+        collection_types = [hl.array, hl.set]
+        for htyp in collection_types:
+            a = htyp([hl.struct(x='foo'), hl.struct(x='bar')])
+
+            assert hasattr(a, 'x') == True
+            assert hasattr(a, 'y') == False
+
+            with pytest.raises(AttributeError, match="has no field"):
+                getattr(a, 'y')
 
     def test_binary_search(self):
         a = hl.array([0, 2, 4, 8])
         values = [-1, 0, 1, 2, 3, 4, 10, hl.null('int32')]
         expected = [0, 0, 1, 1, 2, 2, 4, None]
         assert hl.eval(hl.map(lambda x: hl.binary_search(a, x), values)) == expected
+
+    def verify_6930_still_holds(self):
+        rmt33 = hl.utils.range_matrix_table(3, 3, n_partitions=2)
+
+        mt = rmt33.choose_cols([1, 2, 0])
+        assert mt.col.collect() == [hl.Struct(col_idx=x) for x in [1, 2, 0]]
+
+        mt = rmt33.key_rows_by(rowkey=-mt.row_idx)
+        assert mt.row.collect() == [hl.Struct(row_idx=x) for x in [2, 1, 0]]
+
+        mt = rmt33.annotate_entries(
+            x=(rmt33.row_idx + 1) * (rmt33.col_idx + 1))
+        mt = mt.key_rows_by(rowkey=-mt.row_idx)
+        mt = mt.choose_cols([2, 1, 0])
+        assert mt.x.collect() == [9, 6, 3, 6, 4, 2, 3, 2, 1]
+
+        t = hl.utils.range_table(3)
+        t = t.key_by(-t.idx)
+        assert t.idx.collect() == [2, 1, 0]
+
+    def test_struct_slice(self):
+        assert hl.eval(hl.struct(x=3, y=4, z=5, a=10)[1:]) == hl.Struct(y=4, z=5, a=10)
+        assert hl.eval(hl.struct(x=3, y=4, z=5, a=10)[0:4:2]) == hl.Struct(x=3, z=5)
+        assert hl.eval(hl.struct(x=3, y=4, z=5, a=10)[-2:]) == hl.Struct(z=5, a=10)
+
+    def test_tuple_slice(self):
+        assert hl.eval(hl.tuple((3, 4, 5, 10))[1:]) == (4, 5, 10)
+        assert hl.eval(hl.tuple((3, 4, 5, 10))[0:4:2]) == (3, 5)
+        assert hl.eval(hl.tuple((3, 4, 5, 10))[-2:]) == (5, 10)
+
+    def test_numpy_conversions(self):
+        assert hl.eval(np.int32(3)) == 3
+        assert hl.eval(np.int64(1234)) == 1234
+        assert hl.eval(np.bool(True))
+        assert not hl.eval(np.bool(False))
+        assert np.allclose(hl.eval(np.float32(3.4)), 3.4)
+        assert np.allclose(hl.eval(np.float64(8.89)), 8.89)
+        assert hl.eval(np.str("cat")) == "cat"

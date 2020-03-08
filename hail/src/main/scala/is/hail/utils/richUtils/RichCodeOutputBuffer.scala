@@ -14,6 +14,14 @@ class RichCodeOutputBuffer(out: Code[OutputBuffer]) {
     out.invoke[Byte, Unit]("writeByte", b)
   }
 
+  def write(buf: Code[Array[Byte]]): Code[Unit] = {
+    out.invoke[Array[Byte], Unit]("write", buf)
+  }
+
+  def write(buf: Code[Array[Byte]], startPos: Code[Int], endPos: Code[Int]): Code[Unit] = {
+    out.invoke[Array[Byte], Int, Int, Unit]("write", buf, startPos, endPos)
+  }
+
   def writeInt(i: Code[Int]): Code[Unit] = {
     out.invoke[Int, Unit]("writeInt", i)
   }
@@ -34,6 +42,10 @@ class RichCodeOutputBuffer(out: Code[OutputBuffer]) {
     out.invoke[Region, Long, Int, Unit]("writeBytes", region, off, n)
   }
 
+  def writeBytes(off: Code[Long], n: Code[Int]): Code[Unit] = {
+    out.invoke[Long, Int, Unit]("writeBytes", off, n)
+  }
+
   def writePrimitive(typ: PType): Code[_] => Code[Unit] = typ.fundamentalType match {
     case _: PBoolean => v => writeBoolean(coerce[Boolean](v))
     case _: PInt32 => v => writeInt(coerce[Int](v))
@@ -41,4 +53,6 @@ class RichCodeOutputBuffer(out: Code[OutputBuffer]) {
     case _: PFloat32 => v => writeFloat(coerce[Float](v))
     case _: PFloat64 => v => writeDouble(coerce[Double](v))
   }
+
+  def flush(): Code[Unit] = out.invoke[Unit]("flush")
 }

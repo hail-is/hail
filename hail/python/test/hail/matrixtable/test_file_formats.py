@@ -13,8 +13,8 @@ def create_backward_compatibility_files():
 
     all_values_table, all_values_matrix_table = create_all_values_datasets()
 
-    file_version = Env.hail().variant.FileFormat.version().toString()
-    supported_codecs = scala_object(Env.hail().io, 'CodecSpec').supportedCodecSpecs()
+    file_version = Env.hail().expr.ir.FileFormat.version().toString()
+    supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
 
     table_dir = resource(os.path.join('backward_compatability', str(file_version), 'table'))
     if not os.path.exists(table_dir):
@@ -52,7 +52,7 @@ class Tests(unittest.TestCase):
             f = os.path.join(table_dir, '{}.ht'.format(i))
             while os.path.exists(f):
                 ds = hl.read_table(f)
-                self.assertTrue(ds._same(all_values_table))
+                assert ds._same(all_values_table)
                 i += 1
                 f = os.path.join(table_dir, '{}.ht'.format(i))
                 n += 1
@@ -62,9 +62,9 @@ class Tests(unittest.TestCase):
             f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
             while os.path.exists(f):
                 ds = hl.read_matrix_table(f)
-                self.assertTrue(ds._same(all_values_matrix_table))
+                assert ds._same(all_values_matrix_table)
                 i += 1
                 f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
                 n += 1
 
-        self.assertEqual(n, 20)
+        assert n == 60

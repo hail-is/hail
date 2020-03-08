@@ -1,0 +1,12 @@
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: default-admin-admin
+subjects:
+ - kind: ServiceAccount
+   name: admin
+   namespace: {{ default_ns.name }}
+roleRef:
+  kind: Role
+  name: batch-pods-admin
+  apiGroup: ""

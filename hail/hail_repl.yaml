@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hail-repl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hail-repl
+  template:
+    metadata:
+      labels:
+        app: hail-repl
+    spec:
+      containers:
+       - name: hail-repl
+         command:
+          - bash
+          - -c
+          - while true; do sleep 1000; done
+         image: {{ hail_repl_image.image }}
+         env:
+           - name: HAIL_DEPLOY_CONFIG_FILE
+             value: "/deploy-config/deploy-config.json"
+         volumeMounts:
+          - name: deploy-config
+            mountPath: /deploy-config
+            readOnly: true
+      volumes:
+       - name: deploy-config
+         secret:
+           secretName: deploy-config

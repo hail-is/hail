@@ -35,26 +35,17 @@ class TUnionSerializer extends CustomSerializer[TUnion](format => (
   { case t: TUnion => JString(t.parsableString()) }))
 
 object TUnion {
-  private val requiredEmpty = TUnion(Array.empty[Case], true)
-  private val optionalEmpty = TUnion(Array.empty[Case], false)
+  val empty: TUnion = TUnion(FastIndexedSeq())
 
-  def empty(required: Boolean = false): TUnion = if (required) requiredEmpty else optionalEmpty
-
-  def apply(required: Boolean, args: (String, Type)*): TUnion =
+  def apply(args: (String, Type)*): TUnion =
     TUnion(args
       .iterator
       .zipWithIndex
       .map { case ((n, t), i) => Case(n, t, i) }
-      .toArray,
-      required)
-
-  def apply(args: (String, Type)*): TUnion =
-    apply(false, args: _*)
+      .toArray)
 }
 
-final case class TUnion(cases: IndexedSeq[Case], override val required: Boolean = false) extends Type {
-  lazy val physicalType: PType = ???
-  
+final case class TUnion(cases: IndexedSeq[Case]) extends Type {
   lazy val types: Array[Type] = cases.map(_.typ).toArray
 
   lazy val caseIdx: collection.Map[String, Int] = toMapFast(cases)(_.name, _.index)
@@ -64,7 +55,7 @@ final case class TUnion(cases: IndexedSeq[Case], override val required: Boolean 
   def size: Int = cases.length
 
   override def unify(concrete: Type): Boolean = concrete match {
-    case TUnion(cfields, _) =>
+    case TUnion(cfields) =>
       cases.length == cfields.length &&
         (cases, cfields).zipped.forall { case (f, cf) =>
           f.unify(cf)
@@ -136,7 +127,7 @@ final case class TUnion(cases: IndexedSeq[Case], override val required: Boolean 
       .forall { case (f, ft) => f.typ == ft })
       this
     else
-      TUnion(required, (cases, fundamentalCaseTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
+      TUnion((cases, fundamentalCaseTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
   }
 
   override def scalaClassTag: ClassTag[AnyRef] = ???

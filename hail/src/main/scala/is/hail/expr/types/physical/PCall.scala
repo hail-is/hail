@@ -1,36 +1,26 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations._
-import is.hail.check.Gen
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.asm4s._
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder}
 import is.hail.expr.types.virtual.TCall
-import is.hail.variant.Call
+import is.hail.variant.Genotype
 
-import scala.reflect.{ClassTag, _}
+object PCall {
+  def apply(required: Boolean = false): PCall = PCanonicalCall(required)
+}
 
-case object PCallOptional extends PCall(false)
-case object PCallRequired extends PCall(true)
-
-class PCall(override val required: Boolean) extends ComplexPType {
-  lazy val virtualType: TCall = TCall(required)
-
-  def _toPretty = "Call"
-
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("call")
-  }
-  val representation: PType = PCall.representation(required)
+abstract class PCall extends ComplexPType {
+  lazy val virtualType: TCall.type = TCall
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
     PInt32().codeOrdering(mb)
   }
-}
 
-object PCall {
-  def apply(required: Boolean = false): PCall = if (required) PCallRequired else PCallOptional
+  def ploidy(c: Code[Int]): Code[Int]
 
-  def unapply(t: PCall): Option[Boolean] = Option(t.required)
+  def isPhased(c: Code[Int]): Code[Boolean]
 
-  def representation(required: Boolean = false): PType = PInt32(required)
+  def forEachAllele(fb: EmitFunctionBuilder[_], _c: Code[Int], code: Code[Int] => Code[Unit]): Code[Unit]
 }

@@ -1,12 +1,11 @@
 package is.hail.stats
 
 import breeze.linalg._
-import is.hail.annotations.RegionValue
+import is.hail.annotations.{Region, RegionValue}
 import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual.TFloat64
 import is.hail.utils._
-import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
 
 object RegressionUtils {  
@@ -25,16 +24,16 @@ object RegressionUtils {
     val n = completeColIdx.length
     var sum = 0.0
     val region = rv.region
-    val entryArrayOffset = rvRowType.loadField(rv, entryArrayIdx)
+    val entryArrayOffset = rvRowType.loadField(rv.offset, entryArrayIdx)
 
     var j = 0
     while (j < n) {
       val k = completeColIdx(j)
-      if (entryArrayType.isElementDefined(region, entryArrayOffset, k)) {
-        val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, k)
-        if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
-          val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
-          val e = region.loadDouble(fieldOffset)
+      if (entryArrayType.isElementDefined(entryArrayOffset, k)) {
+        val entryOffset = entryArrayType.loadElement(entryArrayOffset, k)
+        if (entryType.isFieldDefined(entryOffset, fieldIdx)) {
+          val fieldOffset = entryType.loadField(entryOffset, fieldIdx)
+          val e = Region.loadDouble(fieldOffset)
           sum += e
           data(offset + j) = e
         } else
@@ -56,10 +55,10 @@ object RegressionUtils {
   // IndexedSeq indexed by column, Array by field
   def getColumnVariables(mv: MatrixValue, names: Array[String]): IndexedSeq[Array[Option[Double]]] = {
     val colType = mv.typ.colType
-    assert(names.forall(name => mv.typ.colType.field(name).typ.isOfType(TFloat64())))
+    assert(names.forall(name => mv.typ.colType.field(name).typ == TFloat64))
     val fieldIndices = names.map { name =>
       val field = mv.typ.colType.field(name)
-      assert(field.typ.isOfType(TFloat64()))
+      assert(field.typ == TFloat64)
       field.index
     }
     mv.colValues
@@ -79,11 +78,6 @@ object RegressionUtils {
 
     (DenseVector(y.data), covs, completeSamples)
   }
-
-  def getPhenosCovCompleteSamples(
-    mv: MatrixTable,
-    yFields: Array[String],
-    covFields: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = getPhenosCovCompleteSamples(mv, yFields, covFields)
 
   def getPhenosCovCompleteSamples(
     mv: MatrixValue,

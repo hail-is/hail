@@ -60,7 +60,7 @@ final case class GenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T]
     case _: CharInfo.type =>
       Code.newInstance[java.lang.Character, Char](x.asInstanceOf[Code[Char]])
     case _: UnitInfo.type =>
-      Code(x, Code._null[java.lang.Void])
+      Code.concat(x, Code._null[java.lang.Void])
     case cti: ClassInfo[_] =>
       x
     case ati: ArrayInfo[_] =>

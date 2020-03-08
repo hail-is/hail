@@ -1,34 +1,23 @@
-import os
-import asyncio
-import aiohttp
-import unittest
+import pytest
 from hailtop.batch_client.aioclient import BatchClient
 
+pytestmark = pytest.mark.asyncio
 
-class Test(unittest.TestCase):
-    def setUp(self):
-        session = aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60))
-        self.client = BatchClient(session, url=os.environ.get('BATCH_URL'))
 
-    def tearDown(self):
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.client.close())
+@pytest.fixture
+async def client():
+    bc = await BatchClient('test')
+    yield bc
+    await bc.close()
 
-    def test_job(self):
-        async def f():
-            b = self.client.create_batch()
-            j = b.create_job('alpine', ['echo', 'test'])
-            await b.submit()
-            status = await j.wait()
-            self.assertTrue('attributes' not in status, (status, await j.log()))
-            self.assertEqual(status['state'], 'Success', (status, await j.log()))
-            self.assertEqual(status['exit_code']['main'], 0, (status, await j.log()))
 
-            self.assertEqual((await j.log())['main'], 'test\n')
-
-            self.assertTrue(await j.is_complete())
-
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(f())
+async def test_job(client):
+    b = client.create_batch()
+    j = b.create_job('ubuntu:18.04', ['echo', 'test'])
+    await b.submit()
+    status = await j.wait()
+    assert 'attributes' not in status, (status, await j.log())
+    assert status['state'] == 'Success', (status, await j.log())
+    assert j._get_exit_code(status, 'main') == 0, (status, await j.log())
+    assert (await j.log())['main'] == 'test\n'
+    assert await j.is_complete()

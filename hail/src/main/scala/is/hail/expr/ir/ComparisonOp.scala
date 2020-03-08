@@ -7,7 +7,7 @@ import is.hail.expr.types.virtual.Type
 object ComparisonOp {
 
   private def checkCompatible[T](lt: Type, rt: Type): Unit =
-    if (!lt.isOfType(rt))
+    if (lt != rt)
       throw new RuntimeException(s"Cannot compare types $lt and $rt")
 
   val fromStringAndTypes: PartialFunction[(String, Type, Type), ComparisonOp[_]] = {
@@ -52,11 +52,11 @@ object ComparisonOp {
 sealed trait ComparisonOp[ReturnType] {
   def t1: Type
   def t2: Type
-  def op: CodeOrdering.Op
+  val op: CodeOrdering.Op
   val strict: Boolean = true
-  def codeOrdering(mb: EmitMethodBuilder, t1p: PType, t2p: PType): CodeOrdering.F[ReturnType] = {
+  def codeOrdering(mb: EmitMethodBuilder, t1p: PType, t2p: PType): CodeOrdering.F[op.ReturnType] = {
     ComparisonOp.checkCompatible(t1p.virtualType, t2p.virtualType)
-    mb.getCodeOrdering[ReturnType](t1p, t2p, op)
+    mb.getCodeOrdering(t1p, t2p, op)
   }
 }
 

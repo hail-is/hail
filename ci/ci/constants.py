@@ -1,25 +1,23 @@
-import hailtop.gear.auth as hj
+from hailtop.auth import get_userinfo
 
 GITHUB_CLONE_URL = 'https://github.com/'
 
-userdata = hj.JWTClient.find_userdata()
-BUCKET = f'gs://{userdata["bucket_name"]}'
+userinfo = get_userinfo()
+BUCKET = f'gs://{userinfo["bucket_name"]}'
 
 AUTHORIZED_USERS = {
     'danking',
     'cseed',
     'konradjk',
     'jigold',
-    'jbloom22',
     'patrick-schultz',
     'lfrancioli',
     'akotlar',
     'tpoterba',
     'chrisvittal',
     'catoverdrive',
-    'daniel-goldstein',
-    'ahiduchick',
     'GreatBrando',
     'johnc1231',
-    'iitalics'
+    'gsarma',
+    'mkveerapen'
 }

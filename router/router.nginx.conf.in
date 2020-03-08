@@ -1,12 +1,5 @@
-server_names_hash_bucket_size 128;
-
-map $http_x_forwarded_proto $updated_scheme {
-     default $scheme;
-     https https;
-}
-
 server {
-    server_name @domain@ www.@domain@;
+    server_name @domain@ www.* site.*;
 
     location = /healthcheck {
       return 204;
@@ -14,6 +7,7 @@ server {
 
     location / {
         proxy_pass http://site/;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 80 default_server;
@@ -21,10 +15,11 @@ server {
 }
 
 server {
-    server_name scorecard.@domain@;
+    server_name scorecard.*;
 
     location / {
         proxy_pass http://scorecard/;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 80;
@@ -32,7 +27,7 @@ server {
 }
 
 server {
-    server_name ci.@domain@;
+    server_name ci.*;
 
     location ~ /(test-ci-[a-z0-9]+)/(.*) {
         resolver kube-dns.kube-system.svc.cluster.local;
@@ -41,6 +36,7 @@ server {
 
     location / {
         proxy_pass http://ci/;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 80;
@@ -48,11 +44,36 @@ server {
 }
 
 server {
-    server_name batch.@domain@;
-    client_max_body_size 10000m;
+    server_name scheduler.*;
+
+    location / {
+        proxy_pass http://scheduler/;
+        include /etc/nginx/proxy.conf;
+    }
+
+    listen 80;
+    listen [::]:80;
+}
+
+server {
+    server_name hello.*;
+
+    location / {
+        proxy_pass http://hello/;
+        include /etc/nginx/proxy.conf;
+    }
+
+    listen 80;
+    listen [::]:80;
+}
+
+server {
+    server_name batch.*;
+    client_max_body_size 8m;
 
     location / {
         proxy_pass http://batch/;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 80;
@@ -60,11 +81,11 @@ server {
 }
 
 server {
-    server_name batch2.@domain@;
-    client_max_body_size 10000m;
+    server_name batch-driver.*;
 
     location / {
-        proxy_pass http://batch2/;
+        proxy_pass http://batch-driver/;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 80;
@@ -72,94 +93,24 @@ server {
 }
 
 server {
-    server_name notebook.@domain@;
+    server_name notebook.*;
 
     # needed to correctly handle error_page with internal handles
     recursive_error_pages on;
 
     location = /auth {
         internal;
-        proxy_pass http://notebook/auth/$jupyter_auth_name;
+        proxy_pass http://notebook@notebook_base_path@/auth/$notebook_token;
     }
 
-    location ~ /instance/([^/]+)/(.*) {
-        set $jupyter_auth_name $1;
-        auth_request /auth;
-
-        resolver kube-dns.kube-system.svc.cluster.local;
-        proxy_pass http://$1.default.svc.cluster.local$request_uri;
-
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_set_header X-Forwarded-Proto $updated_scheme;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_http_version 1.1;
-        proxy_redirect off;
-        proxy_buffering off;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 86400;
-
-        proxy_connect_timeout 5s;
-
-        proxy_intercept_errors on;
-        # 502: no service, 504: pod not responding
-        error_page 502 504 = @pod_dead;
-    }
-
-    location @pod_dead {
-        return 307 $updated_scheme://$http_host/new;
-    }
-
-    location ~ /instance-ready/([^/]+)/ {
-        resolver kube-dns.kube-system.svc.cluster.local;
-        proxy_pass http://$1.default.svc.cluster.local/instance/$1/;
-    }
-
-    location / {
-        proxy_pass http://notebook/;
-
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_set_header X-Forwarded-Proto $updated_scheme;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_http_version 1.1;
-        proxy_redirect off;
-        proxy_buffering off;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 86400;
-    }
-
-    listen 80;
-    listen [::]:80;
-}
-
-server {
-    server_name notebook2.@domain@;
-
-    # needed to correctly handle error_page with internal handles
-    recursive_error_pages on;
-
-    location = /auth {
-        internal;
-        proxy_pass http://notebook2/auth/$pod_uuid;
-    }
-
-    location ~ /instance/([^/]+)/(.*) {
-        set $pod_uuid $1;
+    location ~ @notebook_base_path@/instance/([^/]+)/(.*) {
+        set $notebook_token $1;
         auth_request /auth;
         auth_request_set $auth_pod_ip $upstream_http_pod_ip;
 
         proxy_pass http://$auth_pod_ip$request_uri;
 
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_set_header X-Forwarded-Proto $updated_scheme;
-        proxy_set_header X-Real-IP $remote_addr;
+        include /etc/nginx/proxy.conf;
         proxy_http_version 1.1;
         proxy_redirect off;
         proxy_buffering off;
@@ -170,31 +121,21 @@ server {
         proxy_connect_timeout 5s;
 
         proxy_intercept_errors on;
-        # 502: no service, 504: pod not responding
-        error_page 502 504 = @pod_dead;
+        error_page 401 403 502 504 = @error;
     }
 
-    location @pod_dead {
-        set $args "?err=Notebook not found";
-        return 307 $updated_scheme://$http_host/error$args;
-    }
-
-    location ~ /instance-ready/([^/]+)/ {
-        set $pod_uuid $1;
-        auth_request /auth;
-        auth_request_set $auth_pod_ip $upstream_http_pod_ip;
-
-        proxy_pass http://$auth_pod_ip/instance/$1/;
+    location @error {
+      return 302 $updated_scheme://$updated_host@notebook_base_path@/error;
     }
 
     location / {
-        proxy_pass http://notebook2/;
+        proxy_pass http://notebook;
 
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_set_header X-Forwarded-Proto $updated_scheme;
-        proxy_set_header X-Real-IP $remote_addr;
+        # don't set Host, notebook dispatches off domain
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host  $http_host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP         $http_x_real_ip;
         proxy_http_version 1.1;
         proxy_redirect off;
         proxy_buffering off;
@@ -207,26 +148,116 @@ server {
     listen [::]:80;
 }
 
-map $http_upgrade $connection_upgrade {
-    default upgrade;
-    ''      close;
+server {
+    server_name workshop.*;
+
+    # needed to correctly handle error_page with internal handles
+    recursive_error_pages on;
+
+    location = /auth {
+        internal;
+        proxy_pass http://workshop@workshop_base_path@/auth/$notebook_token;
+    }
+
+    location ~ @workshop_base_path@/instance/([^/]+)/(.*) {
+        set $notebook_token $1;
+        auth_request /auth;
+        auth_request_set $auth_pod_ip $upstream_http_pod_ip;
+
+        proxy_pass http://$auth_pod_ip$request_uri;
+
+        include /etc/nginx/proxy.conf;
+        proxy_http_version 1.1;
+        proxy_redirect off;
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400;
+
+        proxy_connect_timeout 5s;
+
+        proxy_intercept_errors on;
+        error_page 401 403 502 504 = @error;
+    }
+
+    location @error {
+      return 302 $updated_scheme://$updated_host@workshop_base_path@/error;
+    }
+
+    location / {
+        proxy_pass http://workshop;
+
+        # don't set Host, notebook dispatches off domain
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host  $http_host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP         $http_x_real_ip;
+        proxy_http_version 1.1;
+        proxy_redirect off;
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400;
+    }
+
+    listen 80;
+    listen [::]:80;
 }
 
 server {
-    server_name ukbb-rg.@domain@;
+    server_name ukbb-rg.*;
 
     location /rg_browser {
         proxy_pass http://ukbb-rg-browser.ukbb-rg;
+        include /etc/nginx/proxy.conf;
 
-	proxy_http_version 1.1;
-	proxy_set_header Upgrade $http_upgrade;
-	proxy_set_header Connection $connection_upgrade;
-	proxy_read_timeout 20d;
-	proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 20d;
+        proxy_buffering off;
     }
 
     location / {
         proxy_pass http://ukbb-rg-static.ukbb-rg;
+    }
+
+    listen 80;
+    listen [::]:80;
+}
+
+server {
+    server_name auth.*;
+
+    location / {
+        proxy_pass http://auth/;
+        include /etc/nginx/proxy.conf;
+    }
+
+    listen 80;
+    listen [::]:80;
+}
+
+server {
+    server_name blog.*;
+    client_max_body_size 8m;
+
+    location / {
+        proxy_pass http://blog/;
+        include /etc/nginx/proxy.conf;
+    }
+
+    listen 80;
+    listen [::]:80;
+}
+
+server {
+    server_name ~^(?<sub_domain>.*)\.dbuf\..*$;
+
+    location / {
+        resolver kube-dns.kube-system.svc.cluster.local;
+        proxy_pass http://$sub_domain.dbuf.@namespace@.svc.cluster.local:$server_port;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 80;

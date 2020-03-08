@@ -9,6 +9,7 @@ Collection functions
 .. autosummary::
 
     dict
+    empty_dict
     array
     empty_array
     set

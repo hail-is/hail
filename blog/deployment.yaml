@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: blog
+  labels:
+    app: blog
+spec:
+  serviceName: blog
+  replicas: 1
+  selector:
+    matchLabels:
+      app: blog
+  template:
+    metadata:
+      labels:
+        app: blog
+    spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      nodeSelector:
+        preemptible: "false"
+      containers:
+      - name: blog
+        image: ghost:3.0-alpine
+        env:
+          - name: NODE_ENV
+            value: production
+          - name: url
+{% if deploy %}
+            value: https://blog.hail.is
+{% else %}
+            value: https://internal.hail.is/{{ default_ns.name }}/blog
+{% endif %}
+        ports:
+        - containerPort: 2368
+        livenessProbe:
+          httpGet:
+{% if deploy %}
+            path: /
+{% else %}
+            path: /{{ default_ns.name }}/blog/
+{% endif %}
+            port: 2368
+            httpHeaders:
+            - name: X-Forwarded-Proto
+              value: https
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+{% if deploy %}
+            path: /
+{% else %}
+            path: /{{ default_ns.name }}/blog/
+{% endif %}
+            port: 2368
+            httpHeaders:
+            - name: X-Forwarded-Proto
+              value: https
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+          - mountPath: /var/lib/ghost/content
+            name: blog-content
+        resources:
+          requests:
+            memory: 250Mi
+            cpu: 300m
+          limits:
+            memory: 250Mi
+            cpu: "1"
+  volumeClaimTemplates:
+    - metadata:
+        name: blog-content
+        namespace: {{ default_ns.name }}
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+            

@@ -8,9 +8,7 @@ import yaml
 from .cluster_config import ClusterConfig
 
 DEFAULT_PROPERTIES = {
-    "spark:spark.driver.maxResultSize": "0",
     "spark:spark.task.maxFailures": "20",
-    "spark:spark.kryoserializer.buffer.max": "1g",
     "spark:spark.driver.extraJavaOptions": "-Xss4M",
     "spark:spark.executor.extraJavaOptions": "-Xss4M",
     "hdfs:dfs.replication": "1",
@@ -86,6 +84,8 @@ def init_parser(parser):
     parser.add_argument('--max-age', type=str, help='If specified, maximum age before shutdown (e.g. 60m).')
     parser.add_argument('--bucket', type=str,
                         help='The Google Cloud Storage bucket to use for cluster staging (just the bucket name, no gs:// prefix).')
+    parser.add_argument('--network', type=str, help='the network for all nodes in this cluster')
+    parser.add_argument('--master-tags', type=str, help='comma-separated list of instance tags to apply to the mastern node')
 
     parser.add_argument('--wheel', help='Non-default Hail installation. Warning: experimental.')
 
@@ -98,6 +98,14 @@ def init_parser(parser):
                         required=False,
                         choices=['GRCh37', 'GRCh38'])
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
+
+    # requester pays
+    parser.add_argument('--requester-pays-allow-all',
+                        help="Allow reading from all requester-pays buckets.",
+                        action='store_true',
+                        required=False)
+    parser.add_argument('--requester-pays-allow-buckets',
+                        help="Comma-separated list of requester-pays buckets to allow reading from.")
 
 
 def main(args, pass_through_args):
@@ -120,6 +128,23 @@ def main(args, pass_through_args):
     # default initialization script to start up cluster with
     conf.extend_flag('initialization-actions',
                      [deploy_metadata['init_notebook.py']])
+
+    # requester pays support
+    if args.requester_pays_allow_all or args.requester_pays_allow_buckets:
+        if args.requester_pays_allow_all and args.requester_pays_allow_buckets:
+            raise RuntimeError("Cannot specify both 'requester_pays_allow_all' and 'requester_pays_allow_buckets")
+
+        if args.requester_pays_allow_all:
+            requester_pays_mode = "AUTO"
+        else:
+            requester_pays_mode = "CUSTOM"
+            conf.extend_flag("properties", {"spark:spark.hadoop.fs.gs.requester.pays.buckets": args.requester_pays_allow_buckets})
+
+        # Need to pick requester pays project.
+        requester_pays_project = args.project if args.project else sp.check_output(['gcloud', 'config', 'get-value', 'project']).decode().strip()
+
+        conf.extend_flag("properties", {"spark:spark.hadoop.fs.gs.requester.pays.mode": requester_pays_mode,
+                                        "spark:spark.hadoop.fs.gs.requester.pays.project.id": requester_pays_project})
 
     # add VEP init script
     if args.vep:
@@ -144,8 +169,10 @@ def main(args, pass_through_args):
         packages.extend(re.split(split_regex, args.packages))
     conf.extend_flag('metadata', {'PKGS': '|'.join(packages)})
 
-    # rewrite metadata to escape it
-    conf.flags['metadata'] = '^|||^' + '|||'.join(f'{k}={v}' for k, v in conf.flags['metadata'].items())
+    def disk_size(size):
+        if args.vep:
+            size = max(size, 200)
+        return str(size) + 'GB'
 
     conf.extend_flag('properties',
                      {"spark:spark.driver.memory": "{driver_memory}g".format(
@@ -156,11 +183,13 @@ def main(args, pass_through_args):
     conf.flags['num-preemptible-workers'] = args.num_preemptible_workers
     conf.flags['num-worker-local-ssds'] = args.num_worker_local_ssds
     conf.flags['num-workers'] = args.num_workers
-    conf.flags['preemptible-worker-boot-disk-size'] = '{}GB'.format(args.preemptible_worker_boot_disk_size)
-    conf.flags['worker-boot-disk-size'] = args.worker_boot_disk_size
+    conf.flags['preemptible-worker-boot-disk-size'] = disk_size(args.preemptible_worker_boot_disk_size)
+    conf.flags['worker-boot-disk-size'] = disk_size(args.worker_boot_disk_size)
     conf.flags['worker-machine-type'] = args.worker_machine_type
     conf.flags['zone'] = args.zone
     conf.flags['initialization-action-timeout'] = args.init_timeout
+    if args.network:
+        conf.flags['network'] = args.network
     if args.configuration:
         conf.flags['configuration'] = args.configuration
     if args.project:
@@ -174,10 +203,14 @@ def main(args, pass_through_args):
     except sp.CalledProcessError as e:
         sys.stderr.write("Warning: could not run 'gcloud config get-value account': " + e.output.decode() + "\n")
 
+    # rewrite metadata and properties to escape them
+    conf.flags['metadata'] = '^|||^' + '|||'.join(f'{k}={v}' for k, v in conf.flags['metadata'].items())
+    conf.flags['properties'] = '^|||^' + '|||'.join(f'{k}={v}' for k, v in conf.flags['properties'].items())
+
     # command to start cluster
     cmd = conf.get_command(args.name)
 
-    if args.max_idle or args.max_age:
+    if args.beta or args.max_idle or args.max_age:
         cmd.insert(1, 'beta')
     if args.max_idle:
         cmd.append('--max-idle={}'.format(args.max_idle))
@@ -193,3 +226,8 @@ def main(args, pass_through_args):
     if not args.dry_run:
         print("Starting cluster '{}'...".format(args.name))
         sp.check_call(cmd)
+
+        if args.master_tags:
+            sp.check_call([
+                'gcloud', 'compute', 'instances', 'add-tags', args.name + '-m', '--tags',
+                args.master_tags])

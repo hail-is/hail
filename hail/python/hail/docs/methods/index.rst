@@ -17,6 +17,7 @@ Methods
 
     export_elasticsearch
     export_gen
+    export_bgen
     export_plink
     export_vcf
     get_vcf_metadata
@@ -29,6 +30,7 @@ Methods
     import_plink
     import_table
     import_vcf
+    import_gvcfs
     index_bgen
     read_matrix_table
     read_table
@@ -76,7 +78,6 @@ Methods
     trio_matrix
     variant_qc
     vep
-    window_by_locus
 
 
 .. rubric:: Miscellaneous

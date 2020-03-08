@@ -122,22 +122,39 @@ class tmatrix(object):
                        [row_map.get(k, k) for k in self.row_key],
                        self.entry_type._rename(entry_map))
 
-    def global_env(self):
-        return {'global': self.global_type}
+    def global_env(self, default_value=None):
+        if default_value is None:
+            return {'global': self.global_type}
+        else:
+            return {'global': default_value}
 
-    def row_env(self):
-        return {'global': self.global_type,
-                'va': self.row_type}
+    def row_env(self, default_value=None):
+        if default_value is None:
+            return {'global': self.global_type,
+                    'va': self.row_type}
+        else:
+            return {'global': default_value,
+                    'va': default_value}
 
-    def col_env(self):
-        return {'global': self.global_type,
-                'sa': self.col_type}
+    def col_env(self, default_value=None):
+        if default_value is None:
+            return {'global': self.global_type,
+                    'sa': self.col_type}
+        else:
+            return {'global': default_value,
+                    'sa': default_value}
 
-    def entry_env(self):
-        return {'global': self.global_type,
-                'va': self.row_type,
-                'sa': self.col_type,
-                'g': self.entry_type}
+    def entry_env(self, default_value=None):
+        if default_value is None:
+            return {'global': self.global_type,
+                    'va': self.row_type,
+                    'sa': self.col_type,
+                    'g': self.entry_type}
+        else:
+            return {'global': default_value,
+                    'va': default_value,
+                    'sa': default_value,
+                    'g': default_value}
 
 
 import pprint

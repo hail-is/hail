@@ -9,11 +9,11 @@ object FreeVariables {
           baseEnv.bindEval(name, ())
         case TableAggregate(_, _) => baseEnv
         case MatrixAggregate(_, _) => baseEnv
-        case ArrayAggScan(a, name, query) =>
+        case StreamAggScan(a, name, query) =>
           val aE = compute(a, baseEnv)
           val qE = compute(query, baseEnv.copy(scan = Some(Env.empty)))
           aE.merge(qE.copy(eval = qE.eval.bindIterable(qE.scan.get.m - name), scan = None))
-        case ArrayAgg(a, name, query) =>
+        case StreamAgg(a, name, query) =>
           val aE = compute(a, baseEnv)
           val qE = compute(query, baseEnv.copy(agg = Some(Env.empty)))
           aE.merge(qE.copy(eval = qE.eval.bindIterable(qE.agg.get.m - name), agg = None))

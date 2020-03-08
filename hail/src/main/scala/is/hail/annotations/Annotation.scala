@@ -60,7 +60,9 @@ object Annotation {
         val i = a.asInstanceOf[Interval]
         i.copy(start = Annotation.copy(t.pointType, i.start), end = Annotation.copy(t.pointType, i.end))
 
-      case _ => a
+      case t: TNDArray => copy(t.representation, a)
+
+      case TInt32 | TInt64 | TFloat32 | TFloat64 | TBoolean | TString | TCall | _: TLocus | TBinary => a
     }
   }
 
@@ -84,7 +86,9 @@ object Annotation {
         val i = a.asInstanceOf[Interval]
         Annotation.isSafe(t.pointType, i.start) && Annotation.isSafe(t.pointType, i.end)
 
-      case _ => true
+      case t: TNDArray => isSafe(t.representation, a)
+
+      case TInt32 | TInt64 | TFloat32 | TFloat64 | TBoolean | TString | TCall | _: TLocus | TBinary => true
     })
   }
 }

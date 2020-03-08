@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: internal-gateway
+  labels:
+    app: internal-gateway
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: internal-gateway
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: internal-gateway
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+      priorityClassName: infrastructure
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    - internal-gateway
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+       - name: internal-gateway
+         image: "{{ internal_gateway_image.image }}"
+         resources:
+           requests:
+             memory: "250M"
+             cpu: "200m"
+         ports:
+          - containerPort: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: internal-gateway
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: internal-gateway

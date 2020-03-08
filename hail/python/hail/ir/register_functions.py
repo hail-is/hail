@@ -6,28 +6,13 @@ from .ir import register_function, register_session_function, register_seeded_fu
 def register_reference_genome_functions(rg):
     from hail.expr.types import dtype
 
-    tvariant = dtype(f"struct{{locus:locus<{rg}>,alleles:array<str>}}")
-    tinterval = dtype(f"interval<locus<{rg}>>")
-
-    register_session_function(f"Locus({rg})", (dtype("str"),), dtype(f"locus<{rg}>"))
-    register_session_function(f"Locus({rg})", (dtype("str"),dtype("int32"),), dtype(f"locus<{rg}>"))
-    register_session_function(f"LocusAlleles({rg})", (dtype("str"),), tvariant)
-    register_session_function(f"LocusInterval({rg})", (dtype("str"),dtype("bool"),), tinterval)
-    register_session_function(f"LocusInterval({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("bool"),dtype("bool"),dtype("bool"),), tinterval)
     register_session_function(f"isValidContig({rg})", (dtype("str"),), dtype("bool"))
     register_session_function(f"isValidLocus({rg})", (dtype("str"),dtype("int32"),), dtype("bool"))
 
+    register_session_function(f"contigLength({rg})", (dtype("str"),), dtype("int32"))
+
     register_session_function(f"getReferenceSequenceFromValidLocus({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
     register_session_function(f"getReferenceSequence({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
-
-    register_session_function(f"globalPosToLocus({rg})", (dtype("int64"),), dtype(f"locus<{rg}>"))
-    register_session_function(f"locusToGlobalPos({rg})", (dtype(f"locus<{rg}>"),), dtype("int64"))
-
-def register_liftover_functions(rg, dest_rg):
-    from hail.expr.types import dtype
-
-    register_session_function(f"liftoverLocus({rg})({dest_rg})", (dtype(f"locus<{rg}>"), dtype('float64'),), dtype(f"struct{{result:locus<{dest_rg}>,is_negative_strand:bool}}"))
-    register_session_function(f"liftoverLocusInterval({rg})({dest_rg})", (dtype(f"interval<locus<{rg}>>"), dtype('float64'),), dtype(f"struct{{result:interval<locus<{dest_rg}>>,is_negative_strand:bool}}"))
 
 
 def register_functions():
@@ -38,7 +23,6 @@ def register_functions():
     register_function("median", (dtype("set<?T:numeric>"),), dtype("?T"))
     register_function("median", (dtype("array<?T:numeric>"),), dtype("?T"))
     register_function("uniqueMinIndex", (dtype("array<?T>"),), dtype("int32"))
-    register_function("mean", (dtype("set<?T:numeric>"),), dtype("float64"))
     register_function("mean", (dtype("array<?T:numeric>"),), dtype("float64"))
     register_function("toFloat32", (dtype("?T:numeric"),), dtype("float32"))
     register_function("uniqueMaxIndex", (dtype("array<?T>"),), dtype("int32"))
@@ -74,7 +58,6 @@ def register_functions():
     register_function("nanmax", (dtype("?T"),dtype("?T"),), dtype("?T"))
     register_function("max_ignore_missing", (dtype("?T"),dtype("?T"),), dtype("?T"))
     register_function("nanmax_ignore_missing", (dtype("?T"),dtype("?T"),), dtype("?T"))
-    register_function("product", (dtype("set<?T:numeric>"),), dtype("?T"))
     register_function("product", (dtype("array<?T:numeric>"),), dtype("?T"))
     register_function("toInt32", (dtype("?T:numeric"),), dtype("int32"))
     register_function("extend", (dtype("array<?T>"),dtype("array<?T>"),), dtype("array<?T>"))
@@ -102,7 +85,7 @@ def register_functions():
     register_function("[:*]", (dtype("array<?T>"),dtype("int32"),), dtype("array<?T>"))
     register_function("remove", (dtype("set<?T>"),dtype("?T"),), dtype("set<?T>"))
     register_function("[]", (dtype("str"),dtype("int32"),), dtype("str"))
-    register_function("indexArray", (dtype("array<?T>"),dtype("int32"),), dtype("?T"))
+    register_function("indexArray", (dtype("array<?T>"), dtype("int32"), dtype("str")), dtype("?T"))
     register_function("[]", (dtype("dict<?key, ?value>"),dtype("?key"),), dtype("?value"))
     register_function("dictToArray", (dtype("dict<?key, ?value>"),), dtype("array<tuple(?key, ?value)>"))
     register_function("%", (dtype("array<?T:numeric>"),dtype("array<?T>"),), dtype("array<?T>"))
@@ -120,7 +103,6 @@ def register_functions():
     register_function("nanmin", (dtype("?T"),dtype("?T"),), dtype("?T"))
     register_function("min_ignore_missing", (dtype("?T"),dtype("?T"),), dtype("?T"))
     register_function("nanmin_ignore_missing", (dtype("?T"),dtype("?T"),), dtype("?T"))
-    register_function("sum", (dtype("set<?T:numeric>"),), dtype("?T"))
     register_function("sum", (dtype("array<?T:numeric>"),), dtype("?T"))
     register_function("toInt64", (dtype("?T:numeric"),), dtype("int64"))
     register_function("contains", (dtype("dict<?key, ?value>"),dtype("?key"),), dtype("bool"))
@@ -183,6 +165,7 @@ def register_functions():
     register_function("includesEnd", (dtype("interval<?T>"),), dtype("bool"))
     register_function("position", (dtype("?T:locus"),), dtype("int32"))
     register_seeded_function("rand_unif", (dtype("float64"),dtype("float64"),), dtype("float64"))
+    register_function("showStr", (dtype("?T"), dtype("int32")), dtype("str"))
     register_function("str", (dtype("?T"),), dtype("str"))
     register_function("valuesSimilar", (dtype("?T"),dtype("?T"),dtype('float64'),dtype('bool'),), dtype("bool"))
     register_function("replace", (dtype("str"),dtype("str"),dtype("str"),), dtype("str"))
@@ -211,6 +194,15 @@ def register_functions():
     register_function("toFloat64", (dtype("str"),), dtype("float64"))
     register_function("toFloat64", (dtype("bool"),), dtype("float64"))
     register_function("dbeta", (dtype("float64"),dtype("float64"),dtype("float64"),), dtype("float64"))
+    register_function("Locus", (dtype("str"),), dtype("?T:locus"))
+    register_function("Locus", (dtype("str"), dtype("int32"),), dtype("?T:locus"))
+    register_function("LocusAlleles", (dtype("str"),), dtype("struct{locus: ?T, alleles: array<str>}"))
+    register_function("LocusInterval", (dtype("str"),dtype("bool"),), dtype("interval<?T:locus>"))
+    register_function("LocusInterval", (dtype("str"),dtype("int32"),dtype("int32"),dtype("bool"),dtype("bool"),dtype("bool"),), dtype("interval<?T:locus>"))
+    register_function("globalPosToLocus", (dtype("int64"),), dtype("?T:locus"))
+    register_function("locusToGlobalPos", (dtype("?T:locus"),), dtype("int64"))
+    register_function("liftoverLocus", (dtype(f"?T:locus"), dtype('float64'),), dtype(f"struct{{result:?U:locus,is_negative_strand:bool}}"))
+    register_function("liftoverLocusInterval", (dtype(f"interval<?T:locus>"), dtype('float64'),), dtype(f"struct{{result:interval<?U:locus>,is_negative_strand:bool}}"))
     register_function("min_rep", (dtype("?T:locus"),dtype("array<str>"),), dtype("struct{locus: ?T, alleles: array<str>}"))
     register_function("locus_windows_per_contig", (dtype("array<array<float64>>"),dtype("float64"),), dtype("tuple(array<int32>, array<int32>)"))
     register_function("toBoolean", (dtype("str"),), dtype("bool"))
@@ -297,3 +289,5 @@ def register_functions():
     register_function("isHomRef", (dtype("call"),), dtype("bool"))
     register_seeded_function("rand_norm", (dtype("float64"),dtype("float64"),), dtype("float64"))
     register_function("chi_squared_test", (dtype("int32"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("struct{p_value: float64, odds_ratio: float64}"))
+    register_function("strftime", (dtype("str"), dtype("int64"), dtype("str")), dtype("str"))
+    register_function("strptime", (dtype("str"), dtype("str"), dtype("str")), dtype("int64"))

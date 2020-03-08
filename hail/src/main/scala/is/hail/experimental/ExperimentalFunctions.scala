@@ -8,8 +8,8 @@ object ExperimentalFunctions extends RegistryFunctions {
   def registerAll() {
     val experimentalPackageClass = Class.forName("is.hail.experimental.package$")
 
-    registerScalaFunction("filtering_allele_frequency", Array(TInt32(), TInt32(), TFloat64()), TFloat64(), null)(experimentalPackageClass, "calcFilterAlleleFreq")
-    registerWrappedScalaFunction("haplotype_freq_em", TArray(TInt32()), TArray(TFloat64()), null)(experimentalPackageClass, "haplotypeFreqEM")
+    registerScalaFunction("filtering_allele_frequency", Array(TInt32, TInt32, TFloat64), TFloat64, null)(experimentalPackageClass, "calcFilterAlleleFreq")
+    registerWrappedScalaFunction("haplotype_freq_em", TArray(TInt32), TArray(TFloat64), null)(experimentalPackageClass, "haplotypeFreqEM")
 
   }
 }

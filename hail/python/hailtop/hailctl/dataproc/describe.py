@@ -20,9 +20,9 @@ def parse_schema(s):
                     values.append(s[:i])
                 if element_type in ['Array', 'Set', 'Dict']:
                     return {'type': element_type, 'value': values}, s[i + 1:]
-                else:
-                    return {'type': element_type, 'value': OrderedDict(zip(keys, values))}, s[i + 1:]
-            elif s[i] == ':':
+                return {'type': element_type, 'value': OrderedDict(zip(keys, values))}, s[i + 1:]
+
+            if s[i] == ':':
                 keys.append(s[:i])
                 s = s[i + 1:]
                 i = 0
@@ -49,7 +49,7 @@ def parse_schema(s):
 
 
 def type_str(t, depth=1):
-    NAME_MAP = {
+    name_map = {
         'Boolean': 'bool',
         'String': 'str'
     }
@@ -61,13 +61,11 @@ def type_str(t, depth=1):
                     type_str(e['value'], depth + 1),
                     (IDENT * depth)
                 )
-            else:
-                return "{}<{}>".format(
-                    e['type'].lower(),
-                    ", ".join([element_str(x) for x in e['value']])
-                )
-        else:
-            return NAME_MAP.get(e, e).lower().replace('(', '<').replace(')', '>')
+            return "{}<{}>".format(
+                e['type'].lower(),
+                ", ".join([element_str(x) for x in e['value']])
+            )
+        return name_map.get(e, e).lower().replace('(', '<').replace(')', '>')
 
     return "\n".join(
         "{}'{}': {}".format(IDENT * depth, k, element_str(v))
@@ -78,8 +76,7 @@ def type_str(t, depth=1):
 def key_str(k):
     if isinstance(k, dict):
         return '[{}]'.format(', '.join([key_str(x) for x in k['value']]))
-    else:
-        return "'{}'".format(k)
+    return "'{}'".format(k)
 
 
 def get_partitions_info_str(j):
@@ -106,7 +103,7 @@ def init_parser(parser):
     parser.add_argument('file', type=str, help='Path to hail file (either MatrixTable or Table).')
 
 
-def main(args, pass_through_args):
+def main(args, pass_through_args):  # pylint: disable=unused-argument
     command = ['gsutil'] if args.file.startswith('gs://') else []
 
     j = json.loads(
@@ -158,6 +155,6 @@ def main(args, pass_through_args):
     # Check for _SUCCESS
     try:
         check_output(command + ['ls', path.join(args.file, '_SUCCESS')])
-    except:
+    except Exception:  # pylint: disable=broad-except
         print(
             "\033[;1m\033[1;31mCould not find _SUCCESS for file: {}\nThis file will not work.\033[0m".format(args.file))

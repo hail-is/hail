@@ -1,7 +1,5 @@
 package is.hail
 
-import is.hail.expr.types.virtual.Type
-
 import scala.language.implicitConversions
 
 package expr {
@@ -16,14 +14,6 @@ package expr {
   }
 }
 
-package object expr extends HailRepFunctions {
-  type SymbolTable = Map[String, (Int, Type)]
-
-  def emptySymTab = Map.empty[String, (Int, Type)]
-
-  def hailType[T: HailRep]: Type = implicitly[HailRep[T]].typ
-
-  type Aggregator = TypedAggregator[Any]
-
+package object expr {
   implicit def toRichParser[T](parser: Parser.Parser[T]): RichParser[T] = new RichParser(parser)
 }

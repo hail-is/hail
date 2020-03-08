@@ -92,8 +92,7 @@ def analyze(caller: str,
             for agg in aggregations:
                 assert isinstance(agg, Aggregation)
                 refs = get_refs(*agg.exprs)
-                agg_indices = agg.indices
-                agg_axes = agg_indices.axes
+                agg_axes = agg.agg_axes()
 
                 # check for stray indices
                 unexpected_agg_axes = agg_axes - expected_agg_axes

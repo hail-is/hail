@@ -1,22 +1,35 @@
 package is.hail.io.index
 
 import is.hail.annotations.RegionValueBuilder
+import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TArray, TInt64, TStruct, Type}
 import is.hail.utils.ArrayBuilder
 
 object InternalNodeBuilder {
-  def typ(keyType: Type, annotationType: Type) = TStruct(
-    "children" -> +TArray(+TStruct(
-      "index_file_offset" -> +TInt64(),
-      "first_idx" -> +TInt64(),
+  def virtualType(keyType: Type, annotationType: Type): TStruct = typ(PType.canonical(keyType), PType.canonical(annotationType)).virtualType
+
+  def legacyTyp(keyType: PType, annotationType: PType) = PStruct(
+    "children" -> +PArray(+PStruct(
+      "index_file_offset" -> +PInt64(),
+      "first_idx" -> +PInt64(),
       "first_key" -> keyType,
-      "first_record_offset" -> +TInt64(),
+      "first_record_offset" -> +PInt64(),
+      "first_annotation" -> annotationType
+    ), required = true)
+  )
+
+  def typ(keyType: PType, annotationType: PType) = PStruct(
+    "children" -> +PArray(+PStruct(
+      "index_file_offset" -> +PInt64(),
+      "first_idx" -> +PInt64(),
+      "first_key" -> keyType,
+      "first_record_offset" -> +PInt64(),
       "first_annotation" -> annotationType
     ), required = true)
   )
 }
 
-class InternalNodeBuilder(keyType: Type, annotationType: Type) {
+class InternalNodeBuilder(keyType: PType, annotationType: PType) {
   val indexFileOffsets = new ArrayBuilder[Long]()
   val firstIdxs = new ArrayBuilder[Long]()
   val firstKeys = new ArrayBuilder[Any]()
@@ -24,7 +37,7 @@ class InternalNodeBuilder(keyType: Type, annotationType: Type) {
   val firstAnnotations = new ArrayBuilder[Any]()
 
   var size = 0
-  val typ = InternalNodeBuilder.typ(keyType, annotationType)
+  val pType: PStruct = InternalNodeBuilder.typ(keyType, annotationType)
 
   def +=(info: IndexNodeInfo) {
     indexFileOffsets += info.indexFileOffset
@@ -36,7 +49,7 @@ class InternalNodeBuilder(keyType: Type, annotationType: Type) {
   }
 
   def write(rvb: RegionValueBuilder): Long = {
-    rvb.start(typ.physicalType)
+    rvb.start(pType)
     rvb.startStruct()
     rvb.startArray(size)
     var i = 0
@@ -44,9 +57,9 @@ class InternalNodeBuilder(keyType: Type, annotationType: Type) {
       rvb.startStruct()
       rvb.addLong(indexFileOffsets(i))
       rvb.addLong(firstIdxs(i))
-      rvb.addAnnotation(keyType, firstKeys(i))
+      rvb.addAnnotation(keyType.virtualType, firstKeys(i))
       rvb.addLong(firstRecordOffsets(i))
-      rvb.addAnnotation(annotationType, firstAnnotations(i))
+      rvb.addAnnotation(annotationType.virtualType, firstAnnotations(i))
       rvb.endStruct()
       i += 1
     }

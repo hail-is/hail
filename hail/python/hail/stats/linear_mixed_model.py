@@ -874,10 +874,10 @@ class LinearMixedModel(object):
         ...               [ 0.94512946, -0.97320323,  0.98294169,  1.        ]])
         >>> model, p = LinearMixedModel.from_kinship(y, x, k)
         >>> model.fit()
-        >>> model.h_sq  # doctest: +NOTEST
+        >>> model.h_sq  # doctest: +SKIP_OUTPUT_CHECK
         0.2525148830695317
 
-        >>> model.s  # doctest: +NOTEST
+        >>> model.s  # doctest: +SKIP_OUTPUT_CHECK
         array([3.83501295, 0.13540343, 0.02454114, 0.00504248])
 
         Truncate to a rank :math:`r=2` model:
@@ -887,7 +887,7 @@ class LinearMixedModel(object):
         >>> p_r = p[:r, :]
         >>> model_r = LinearMixedModel(p_r @ y, p_r @ x, s_r, y, x)
         >>> model.fit()
-        >>> model.h_sq  # doctest: +NOTEST
+        >>> model.h_sq  # doctest: +SKIP_OUTPUT_CHECK
         0.25193197591429695
 
         Notes
@@ -981,7 +981,7 @@ class LinearMixedModel(object):
         ...               [2.0, 4.0, 8.0]])
         >>> model, p = LinearMixedModel.from_random_effects(y, x, z)
         >>> model.fit()
-        >>> model.h_sq  # doctest: +NOTEST
+        >>> model.h_sq  # doctest: +SKIP_OUTPUT_CHECK
         0.38205307244271675
 
         Notes

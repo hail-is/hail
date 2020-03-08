@@ -54,6 +54,12 @@ package object asm4s {
   def coerce[T](c: Code[_]): Code[T] =
     c.asInstanceOf[Code[T]]
 
+  def coerce[T](c: Value[_]): Value[T] =
+    c.asInstanceOf[Value[T]]
+
+  def coerce[T](c: Settable[_]): Settable[T] =
+    c.asInstanceOf[Settable[T]]
+
   implicit object BooleanInfo extends TypeInfo[Boolean] {
     val name = "Z"
     val loadOp = ILOAD
@@ -179,9 +185,11 @@ package object asm4s {
     }
   }
 
-  def loadClass(className: String, b: Array[Byte]): Class[_] = {
+  def loadClass(className: String, b: Array[Byte]): Class[_] =
     HailClassLoader.loadOrDefineClass(className, b)
-  }
+
+  def loadClass(className: String): Class[_] =
+    HailClassLoader.loadClass(className)
 
   def ??? = throw new UnsupportedOperationException
 
@@ -200,6 +208,8 @@ package object asm4s {
   implicit def toCodeFloat(c: Code[Float]): CodeFloat = new CodeFloat(c)
 
   implicit def toCodeDouble(c: Code[Double]): CodeDouble = new CodeDouble(c)
+
+  implicit def toCodeChar(c: Code[Char]): CodeChar = new CodeChar(c)
 
   implicit def toCodeString(c: Code[String]): CodeString = new CodeString(c)
 
@@ -222,6 +232,30 @@ package object asm4s {
       codes.foreach(_.emit(il))
   }
 
+  implicit def indexedSeqValueToCode[T](v: IndexedSeq[Value[T]]): IndexedSeq[Code[T]] = v.map(_.get)
+
+  implicit def valueToCode[T](v: Value[T]): Code[T] = v.get
+
+  implicit def valueToCodeInt(f: Value[Int]): CodeInt = new CodeInt(f.get)
+
+  implicit def valueToCodeLong(f: Value[Long]): CodeLong = new CodeLong(f.get)
+
+  implicit def valueToCodeFloat(f: Value[Float]): CodeFloat = new CodeFloat(f.get)
+
+  implicit def valueToCodeDouble(f: Value[Double]): CodeDouble = new CodeDouble(f.get)
+
+  implicit def valueToCodeChar(f: Value[Char]): CodeChar = new CodeChar(f.get)
+
+  implicit def valueToCodeString(f: Value[String]): CodeString = new CodeString(f.get)
+
+  implicit def valueToCodeObject[T <: AnyRef](f: Value[T])(implicit tct: ClassTag[T]): CodeObject[T] = new CodeObject(f.get)
+
+  implicit def valueToCodeArray[T](c: Value[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(c)
+
+  implicit def valueToCodeBoolean(f: Value[Boolean]): CodeBoolean = new CodeBoolean(f.get)
+
+  implicit def valueToCodeNullable[T >: Null : TypeInfo](c: Value[T]): CodeNullable[T] = new CodeNullable(c)
+
   implicit def toCode[T](f: Settable[T]): Code[T] = f.load()
 
   implicit def toCodeInt(f: Settable[Int]): CodeInt = new CodeInt(f.load())
@@ -231,6 +265,10 @@ package object asm4s {
   implicit def toCodeFloat(f: Settable[Float]): CodeFloat = new CodeFloat(f.load())
 
   implicit def toCodeDouble(f: Settable[Double]): CodeDouble = new CodeDouble(f.load())
+
+  implicit def toCodeChar(f: Settable[Char]): CodeChar = new CodeChar(f.load())
+
+  implicit def toCodeString(f: Settable[String]): CodeString = new CodeString(f.load())
 
   implicit def toCodeArray[T](f: Settable[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(f.load())
 
@@ -253,6 +291,8 @@ package object asm4s {
   implicit def const(f: Float): Code[Float] = Code(new LdcInsnNode(f))
 
   implicit def const(d: Double): Code[Double] = Code(new LdcInsnNode(d))
+
+  implicit def const(c: Char): Code[Char] = Code(new LdcInsnNode(c))
 
   implicit def const(b: Byte): Code[Byte] = Code(new LdcInsnNode(b))
 }

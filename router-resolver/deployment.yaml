@@ -25,7 +25,7 @@ roleRef:
   name: view-services
   apiGroup: rbac.authorization.k8s.io
 ---
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: router-resolver
@@ -45,6 +45,11 @@ spec:
     spec:
       serviceAccountName: router-resolver
       priorityClassName: infrastructure
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -55,12 +60,14 @@ spec:
                     values:
                     - router-resolver
               topologyKey: "kubernetes.io/hostname"
-      tolerations:
-       - key: preemptible
-         value: "true"
       containers:
        - name: router-resolver
          image: "{{ router_resolver_image.image }}"
+         env:
+          - name: HAIL_DOMAIN
+            value: "{{ global.domain }}"
+          - name: HAIL_DEPLOY_CONFIG_FILE
+            value: /deploy-config/deploy-config.json
          resources:
            requests:
              memory: "250M"
@@ -68,17 +75,23 @@ spec:
            limits:
              memory: "1G"
              cpu: "1"
-         volumeMounts:
-          - name: jwt-secret-key
-            mountPath: /jwt-secret-key
-            readOnly: true
          ports:
           - containerPort: 5000
+         volumeMounts:
+          - mountPath: /deploy-config
+            name: deploy-config
+            readOnly: true
+          - name: session-secret-key
+            mountPath: /session-secret-key
+            readOnly: true
       volumes:
-       - name: jwt-secret-key
+       - name: deploy-config
+         secret:
+           secretName: deploy-config
+       - name: session-secret-key
          secret:
            optional: false
-           secretName: jwt-secret-key
+           secretName: session-secret-key
 ---
 apiVersion: v1
 kind: Service
@@ -110,3 +123,13 @@ spec:
      resource:
        name: cpu
        targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: router-resolver
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: router-resolver

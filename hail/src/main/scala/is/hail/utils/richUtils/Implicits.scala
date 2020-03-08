@@ -3,20 +3,16 @@ package is.hail.utils.richUtils
 import java.io.InputStream
 
 import breeze.linalg.DenseMatrix
-import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations.{JoinedRegionValue, Region, RegionValue, RegionValueBuilder}
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, Value}
 import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDRegionValue}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
-import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}
-import org.apache.hadoop
+import is.hail.utils.{IntPacker, HailIterator, MultiArray2, Truncatable, WithContext}
 import org.apache.spark.SparkContext
-import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
+import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{Row, SQLContext}
-import org.apache.spark.storage.StorageLevel
-import org.json4s.JValue
+import org.apache.spark.sql.Row
 
 import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
@@ -100,11 +96,11 @@ trait Implicits {
   implicit def toRichJoinedRegionValue(jrv: JoinedRegionValue): RichJoinedRegionValue =
     new RichJoinedRegionValue(jrv)
 
+  implicit def valueToRichCodeRegion(r: Value[Region]): RichCodeRegion = new RichCodeRegion(r)
+
   implicit def toRichCodeRegion(r: Code[Region]): RichCodeRegion = new RichCodeRegion(r)
 
   implicit def toRichCodeRegionValueBuilder(rvb: Code[RegionValueBuilder]): RichCodeRegionValueBuilder = new RichCodeRegionValueBuilder(rvb)
-
-  implicit def toRichCodeRegionValueAggregator(rva: Code[RegionValueAggregator]): RichCodeRegionValueAggregator = new RichCodeRegionValueAggregator(rva)
 
   implicit def toRichPartialKleisliOptionFunction[A, B](x: PartialFunction[A, Option[B]]): RichPartialKleisliOptionFunction[A, B] = new RichPartialKleisliOptionFunction(x)
 
@@ -116,5 +112,19 @@ trait Implicits {
 
   implicit def toRichCodeInputBuffer(in: Code[InputBuffer]): RichCodeInputBuffer = new RichCodeInputBuffer(in)
 
+  implicit def valueToRichCodeInputBuffer(in: Value[InputBuffer]): RichCodeInputBuffer = new RichCodeInputBuffer(in)
+
   implicit def toRichCodeOutputBuffer(out: Code[OutputBuffer]): RichCodeOutputBuffer = new RichCodeOutputBuffer(out)
+
+  implicit def valueToRichCodeOutputBuffer(out: Value[OutputBuffer]): RichCodeOutputBuffer = new RichCodeOutputBuffer(out)
+
+  implicit def toRichCodeArray[T](cs: IndexedSeq[Code[T]]): RichCodeIndexedSeq[T] = new RichCodeIndexedSeq[T](cs)
+
+  implicit def valueToRichCodeArray[T](cs: IndexedSeq[Value[T]]): RichCodeIndexedSeq[T] = new RichCodeIndexedSeq[T](cs.map(_.get))
+
+  implicit def toRichCodeIterator[T](it: Code[Iterator[T]]): RichCodeIterator[T] = new RichCodeIterator[T](it)
+
+  implicit def valueToRichCodeIterator[T](it: Value[Iterator[T]]): RichCodeIterator[T] = new RichCodeIterator[T](it)
+
+  implicit def toRichCodeIntPacker(p: Code[IntPacker]): RichCodeIntPacker = new RichCodeIntPacker(p)
 }

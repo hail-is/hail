@@ -1,33 +1,31 @@
 package is.hail.variant
 
 import is.hail.annotations._
-import is.hail.expr.types.physical.{PArray, PString, PStruct}
+import is.hail.expr.types.physical.{PArray, PLocus, PString, PStruct}
 import is.hail.utils._
 
 class RegionValueVariant(rowType: PStruct) extends View {
   private val locusField = rowType.fieldByName("locus")
+  private val locusPType = locusField.typ.asInstanceOf[PLocus]
   private val allelesField = rowType.fieldByName("alleles")
   private val locusIdx = locusField.index
   private val allelesIdx = allelesField.index
-  private val tl: PStruct = locusField.typ.fundamentalType.asInstanceOf[PStruct]
+  private val tl: PStruct = locusPType.fundamentalType.asInstanceOf[PStruct]
   private val taa: PArray = allelesField.typ.asInstanceOf[PArray]
-  private var region: Region = _
-  private var locusOffset: Long = _
+  private val allelePType = taa.elementType.asInstanceOf[PString]
+  private var locusAddress: Long = _
   private var allelesOffset: Long = _
-
   private var cachedContig: String = null
   private var cachedAlleles: Array[String] = null
   private var cachedLocus: Locus = null
 
-  def setRegion(region: Region, offset: Long) {
-    this.region = region
-
-    if (!rowType.isFieldDefined(region, offset, locusIdx))
+  def setRegion(region: Region, address: Long) {
+    if (!rowType.isFieldDefined(address, locusIdx))
       fatal(s"The row field 'locus' cannot have missing values.")
-    if (!rowType.isFieldDefined(region, offset, allelesIdx))
+    if (!rowType.isFieldDefined(address, allelesIdx))
       fatal(s"The row field 'alleles' cannot have missing values.")
-    this.locusOffset = rowType.loadField(region, offset, locusIdx)
-    this.allelesOffset = rowType.loadField(region, offset, allelesIdx)
+    this.locusAddress = rowType.loadField(address, locusIdx)
+    this.allelesOffset = rowType.loadField(address, allelesIdx)
     cachedContig = null
     cachedAlleles = null
     cachedLocus = null
@@ -35,22 +33,22 @@ class RegionValueVariant(rowType: PStruct) extends View {
 
   def contig(): String = {
     if (cachedContig == null)
-      cachedContig = PString.loadString(region, tl.loadField(region, locusOffset, 0))
+      cachedContig = locusPType.contigType.loadString(locusPType.contig(locusAddress))
     cachedContig
   }
 
   def position(): Int = {
-    region.loadInt(tl.loadField(region, locusOffset, 1))
+    Region.loadInt(tl.loadField(locusAddress, 1))
   }
 
   def alleles(): Array[String] = {
     if (cachedAlleles == null) {
-      val nAlleles = taa.loadLength(region, allelesOffset)
+      val nAlleles = taa.loadLength(allelesOffset)
       cachedAlleles = new Array[String](nAlleles)
       var i = 0
       while (i < nAlleles) {
-        if (taa.isElementDefined(region, allelesOffset, i))
-         cachedAlleles(i) = PString.loadString(region, taa.loadElement(region, allelesOffset, i))
+        if (taa.isElementDefined(allelesOffset, i))
+         cachedAlleles(i) = allelePType.loadString(taa.loadElement(allelesOffset, i))
         i += 1
       }
     }

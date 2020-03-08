@@ -63,7 +63,7 @@ def ld_score_regression(weight_expr,
     Run the method on a matrix table of summary statistics, where the rows
     are variants and the columns are different phenotypes:
 
-    >>> mt_gwas = hl.read_matrix_table('data/ld_score_regression.sumstats.mt')
+    >>> mt_gwas = ld_score_all_phenos_sumstats
     >>> ht_results = hl.experimental.ld_score_regression(
     ...     weight_expr=mt_gwas['ld_score'],
     ...     ld_score_expr=mt_gwas['ld_score'],
@@ -74,7 +74,7 @@ def ld_score_regression(weight_expr,
     Run the method on a table with summary statistics for a single
     phenotype:
 
-    >>> ht_gwas = hl.read_table('data/ld_score_regression.sumstats.ht')
+    >>> ht_gwas = ld_score_one_pheno_sumstats
     >>> ht_results = hl.experimental.ld_score_regression(
     ...     weight_expr=ht_gwas['ld_score'],
     ...     ld_score_expr=ht_gwas['ld_score'],
@@ -84,7 +84,7 @@ def ld_score_regression(weight_expr,
     Run the method on a table with summary statistics for multiple
     phenotypes:
 
-    >>> ht_gwas = hl.read_table('data/ld_score_regression.sumstats.ht')
+    >>> ht_gwas = ld_score_one_pheno_sumstats
     >>> ht_results = hl.experimental.ld_score_regression(
     ...     weight_expr=ht_gwas['ld_score'],
     ...     ld_score_expr=ht_gwas['ld_score'],
@@ -401,12 +401,12 @@ def ld_score_regression(weight_expr,
             mt.__step1_h2 * hl.agg.mean(mt.__n) / M])
 
     # step 1 block jackknife
-    mt = mt.annotate_cols(__step1_block_betas=[
-        hl.agg.filter((mt.__step1_block != i) & mt.__in_step1,
-                      hl.agg.linreg(y=mt.__y,
-                                    x=[1.0, mt.__x],
-                                    weight=mt.__w).beta)
-        for i in range(n_blocks)])
+    mt = mt.annotate_cols(__step1_block_betas=hl.agg.array_agg(
+        lambda i: hl.agg.filter((mt.__step1_block != i) & mt.__in_step1,
+                                hl.agg.linreg(y=mt.__y,
+                                              x=[1.0, mt.__x],
+                                              weight=mt.__w).beta),
+        hl.range(n_blocks)))
 
     mt = mt.annotate_cols(__step1_block_betas_bias_corrected=hl.map(
         lambda x: n_blocks * mt.__step1_betas - (n_blocks - 1) * x,
@@ -451,12 +451,12 @@ def ld_score_regression(weight_expr,
             mt.__step2_h2 * hl.agg.mean(mt.__n)/M])
 
     # step 2 block jackknife
-    mt = mt.annotate_cols(__step2_block_betas=[
-        hl.agg.filter((mt.__step2_block != i) & mt.__in_step2,
-                      hl.agg.linreg(y=mt.__y - mt.__step1_betas[0],
-                                    x=[mt.__x],
-                                    weight=mt.__w).beta[0])
-        for i in range(n_blocks)])
+    mt = mt.annotate_cols(__step2_block_betas=hl.agg.array_agg(
+        lambda i: hl.agg.filter((mt.__step2_block != i) & mt.__in_step2,
+                                hl.agg.linreg(y=mt.__y - mt.__step1_betas[0],
+                                              x=[mt.__x],
+                                              weight=mt.__w).beta[0]),
+        hl.range(n_blocks)))
 
     mt = mt.annotate_cols(__step2_block_betas_bias_corrected=hl.map(
         lambda x: n_blocks * mt.__step2_betas[1] - (n_blocks - 1) * x,

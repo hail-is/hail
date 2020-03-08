@@ -1,14 +1,2 @@
-/deployment.yaml
-/spark-hail-pod.yaml
-/hail-jupyter-pod.yaml
-/src
-/apiserver.log
+/deployment.yaml.out
 /jupyter_notebook_config.py
-flycheck_*.py
-*_flymake.py
-/flake8-stmp
-/pylint-stmp
-/jwt-test-user-token
-/bogus-jwt-test-user-token
-__pycache__
-/hailjwt

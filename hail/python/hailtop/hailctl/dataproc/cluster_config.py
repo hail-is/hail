@@ -23,8 +23,7 @@ class ClusterConfig:
             return self.format(['{}={}'.format(k, v) for k, v in obj.items()])
         if isinstance(obj, list):
             return self.format(','.join(obj))
-        else:
-            return str(obj).format(**self.vars)
+        return str(obj).format(**self.vars)
 
     def get_command(self, name):
         flags = ['--{}={}'.format(f, self.format(v)) for f, v in self.flags.items()]

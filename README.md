@@ -58,7 +58,7 @@ We are grateful for generous support from:
 - The National Institute of Diabetes and Digestive and Kidney Diseases
 - The National Institute of Mental Health
 - The National Human Genome Research Institute
-- The Chan Zuckerburg Initiative
+- The Chan Zuckerberg Initiative
 
 We would like to thank <a href="https://zulipchat.com/">Zulip</a> for supporting
 open-source by providing free hosting, and YourKit, LLC for generously providing

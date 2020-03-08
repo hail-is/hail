@@ -7,9 +7,7 @@ import is.hail.utils.{FastSeq, Interval}
 
 import scala.reflect.{ClassTag, classTag}
 
-case class TInterval(pointType: Type, override val required: Boolean = false) extends ComplexType {
-  lazy val physicalType: PInterval = PInterval(pointType.physicalType, required)
-
+case class TInterval(pointType: Type) extends ComplexType {
   override def children = FastSeq(pointType)
 
   def _toPretty = s"""Interval[$pointType]"""
@@ -38,15 +36,14 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
 
   lazy val representation: TStruct = {
     TStruct(
-      required,
       "start" -> pointType,
       "end" -> pointType,
-      "includesStart" -> TBooleanRequired,
-      "includesEnd" -> TBooleanRequired)
+      "includesStart" -> TBoolean,
+      "includesEnd" -> TBoolean)
   }
 
   override def unify(concrete: Type): Boolean = concrete match {
-    case TInterval(cpointType, _) => pointType.unify(cpointType)
+    case TInterval(cpointType) => pointType.unify(cpointType)
     case _ => false
   }
 

@@ -1,3 +1,0 @@
-recursive-include batch/templates *
-recursive-include batch/static *
-recursive-include batch/js *

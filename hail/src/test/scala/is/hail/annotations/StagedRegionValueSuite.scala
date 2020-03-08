@@ -16,8 +16,8 @@ class StagedRegionValueSuite extends HailSuite {
   val showRVInfo = true
 
   @Test
-  def testString() {
-    val rt = PString()
+  def testCanonicalString() {
+    val rt = PCanonicalString()
     val input = "hello"
     val fb = FunctionBuilder.functionBuilder[Region, String, Long]
     val srvb = new StagedRegionValueBuilder(fb, rt)
@@ -41,7 +41,11 @@ class StagedRegionValueSuite extends HailSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(region2.appendString(input))
+    val bytes = input.getBytes()
+    val bt = PCanonicalBinary()
+    val boff = bt.allocate(region2, bytes.length)
+    bt.store(boff, bytes)
+    rv2.setOffset(boff)
 
     if (showRVInfo) {
       printRegion(region2, "string")
@@ -49,8 +53,8 @@ class StagedRegionValueSuite extends HailSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(PString.loadString(rv.region, rv.offset) ==
-      PString.loadString(rv2.region, rv2.offset))
+    assert(rt.loadString(rv.offset) ==
+      rt.loadString(rv2.offset))
   }
 
   @Test
@@ -79,7 +83,8 @@ class StagedRegionValueSuite extends HailSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(region2.appendInt(input))
+    rv2.setOffset(region2.allocate(4, 4))
+    Region.storeInt(rv2.offset, input)
 
     if (showRVInfo) {
       printRegion(region2, "int")
@@ -87,7 +92,7 @@ class StagedRegionValueSuite extends HailSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(rv.region.loadInt(rv.offset) == rv2.region.loadInt(rv2.offset))
+    assert(Region.loadInt(rv.offset) == Region.loadInt(rv2.offset))
   }
 
   @Test
@@ -124,10 +129,10 @@ class StagedRegionValueSuite extends HailSuite {
       println(rv2.pretty(rt))
     }
 
-    assert(rt.loadLength(rv.region, rv.offset) == 1)
+    assert(rt.loadLength(rv.offset) == 1)
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(rv.region.loadInt(rt.loadElement(rv.region, rv.offset, 0)) ==
-      rv2.region.loadInt(rt.loadElement(rv2.region, rv2.offset, 0)))
+    assert(Region.loadInt(rt.loadElement(rv.offset, 0)) ==
+      Region.loadInt(rt.loadElement(rv2.offset, 0)))
   }
 
   @Test
@@ -166,10 +171,10 @@ class StagedRegionValueSuite extends HailSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(PString.loadString(rv.region, rt.loadField(rv.region, rv.offset, 0)) ==
-      PString.loadString(rv2.region, rt.loadField(rv2.region, rv2.offset, 0)))
-    assert(rv.region.loadInt(rt.loadField(rv.region, rv.offset, 1)) ==
-      rv2.region.loadInt(rt.loadField(rv2.region, rv2.offset, 1)))
+    assert(rt.types(0).asInstanceOf[PString].loadString(rt.loadField(rv.offset, 0)) ==
+      rt.types(0).asInstanceOf[PString].loadString(rt.loadField(rv2.offset, 0)))
+    assert(Region.loadInt(rt.loadField(rv.offset, 1)) ==
+      Region.loadInt(rt.loadField(rv2.offset, 1)))
   }
 
   @Test
@@ -308,10 +313,10 @@ class StagedRegionValueSuite extends HailSuite {
     rv2.setOffset(rvb2.end())
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(rv.region.loadInt(rt.loadField(rv.region, rv.offset, 0)) ==
-      rv2.region.loadInt(rt.loadField(rv2.region, rv2.offset, 0)))
-    assert(rv.region.loadDouble(rt.loadField(rv.region, rv.offset, 2)) ==
-      rv2.region.loadDouble(rt.loadField(rv2.region, rv2.offset, 2)))
+    assert(Region.loadInt(rt.loadField(rv.offset, 0)) ==
+      Region.loadInt(rt.loadField(rv2.offset, 0)))
+    assert(Region.loadDouble(rt.loadField(rv.offset, 2)) ==
+      Region.loadDouble(rt.loadField(rv2.offset, 2)))
   }
 
   @Test
@@ -448,9 +453,9 @@ class StagedRegionValueSuite extends HailSuite {
     val f = fb.result()()
     def run(i: Int, b: Boolean, d: Double): (Int, Boolean, Double) = {
       val off = f(region, i, b, d)
-      (region.loadInt(t.loadField(region, off, 0)),
-        region.loadBoolean(t.loadField(region, off, 1)),
-        region.loadDouble(t.loadField(region, off, 2)))
+      (Region.loadInt(t.loadField(off, 0)),
+        Region.loadBoolean(t.loadField(off, 1)),
+        Region.loadDouble(t.loadField(off, 2)))
     }
 
     assert(run(3, true, 42.0) == ((3, true, 42.0)))
@@ -469,9 +474,9 @@ class StagedRegionValueSuite extends HailSuite {
         val copyOff = Region.scoped { srcRegion =>
           val src = ScalaToRegionValue(srcRegion, t, a)
 
-          val fb = EmitFunctionBuilder[Region, Long, Long]
+          val fb = EmitFunctionBuilder[Region, Long, Long]("deep_copy")
           fb.emit(
-            StagedRegionValueBuilder.deepCopy(
+            StagedRegionValueBuilder.deepCopyFromOffset(
               EmitRegion.default(fb.apply_method),
               t,
               fb.getArg[Long](2).load()))
@@ -481,7 +486,7 @@ class StagedRegionValueSuite extends HailSuite {
 
           //clear old stuff
           val len = srcRegion.allocate(0) - src
-          srcRegion.storeBytes(src, Array.fill(len.toInt)(0.toByte))
+          Region.storeBytes(src, Array.fill(len.toInt)(0.toByte))
           newOff
         }
         SafeRow(t, region, copyOff)
@@ -489,5 +494,80 @@ class StagedRegionValueSuite extends HailSuite {
       copy == a
     }
     p.check()
+  }
+
+  @Test def testUnstagedCopy() {
+    val t1 = PCanonicalArray(PCanonicalStruct(
+      true,
+      "x1" -> PInt32(),
+      "x2" -> PArray(PInt32(), required = true),
+      "x3" -> PArray(PInt32(true), required = true),
+      "x4" -> PSet(PCanonicalStruct(true, "y" -> PString(true)), required = false)
+    ), required = false)
+    val t2 = t1.deepInnerRequired(false)
+
+    val value = IndexedSeq(
+      Row(1, IndexedSeq(1,2,3), IndexedSeq(0, -1), Set(Row("asdasdasd"), Row(""))),
+      Row(1, IndexedSeq(), IndexedSeq(-1), Set(Row("aa")))
+    )
+
+    Region.scoped { r =>
+      val rvb = new RegionValueBuilder(r)
+      rvb.start(t2)
+      rvb.addAnnotation(t2.virtualType, value)
+      val v1 = rvb.end()
+      assert(SafeRow.read(t2, r, v1) == value)
+
+      rvb.clear()
+      rvb.start(t1)
+      rvb.addRegionValue(t2, r, v1)
+      val v2 = rvb.end()
+      assert(SafeRow.read(t1, r, v2) == value)
+    }
+  }
+
+  @Test def testStagedCopy() {
+    val t1 = PCanonicalStruct(false, "a" -> PCanonicalArray(PCanonicalStruct(
+      true,
+      "x1" -> PInt32(),
+      "x2" -> PArray(PInt32(), required = true),
+      "x3" -> PArray(PInt32(true), required = true),
+      "x4" -> PSet(PCanonicalStruct(true, "y" -> PString(true)), required = false)
+    ), required = false))
+    val t2 = t1.deepInnerRequired(false).asInstanceOf[PStruct]
+
+    val value = IndexedSeq(
+      Row(1, IndexedSeq(1,2,3), IndexedSeq(0, -1), Set(Row("asdasdasd"), Row(""))),
+      Row(1, IndexedSeq(), IndexedSeq(-1), Set(Row("aa")))
+    )
+
+    val valueT2 = t2.types(0)
+    Region.scoped { r =>
+      val rvb = new RegionValueBuilder(r)
+      rvb.start(valueT2)
+      rvb.addAnnotation(valueT2.virtualType, value)
+      val v1 = rvb.end()
+      assert(SafeRow.read(valueT2, r, v1) == value)
+
+      val f1 = EmitFunctionBuilder[Long]("stagedCopy1")
+      val srvb = new StagedRegionValueBuilder(f1.apply_method, t2, f1.partitionRegion)
+      f1.emit(Code(
+        srvb.start(),
+        srvb.addIRIntermediate(t2.types(0))(v1),
+        srvb.end()
+      ))
+      val cp1 = f1.resultWithIndex()(0, r)()
+      assert(SafeRow.read(t2, r, cp1) == Row(value))
+
+      val f2 = EmitFunctionBuilder[Long]("stagedCopy2")
+      val srvb2 = new StagedRegionValueBuilder(f2.apply_method, t1, f2.partitionRegion)
+      f2.emit(Code(
+        srvb2.start(),
+        srvb2.addIRIntermediate(t2.types(0))(v1),
+        srvb2.end()
+      ))
+      val cp2 = f2.resultWithIndex()(0, r)()
+      assert(SafeRow.read(t1, r, cp2) == Row(value))
+    }
   }
 }

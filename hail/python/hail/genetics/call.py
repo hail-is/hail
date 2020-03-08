@@ -13,6 +13,17 @@ class Call(object):
     phased : :obj:`bool`
         If ``True``, the alleles are phased and the order is specified by
         `alleles`.
+
+    Note
+    ----
+    This object refers to the Python value returned by taking or collecting
+    Hail expressions, e.g. ``mt.GT.take(5`)``. This is rare; it is much
+    more common to manipulate the :class:`.CallExpression` object, which is
+    constructed using the following functions:
+
+     - :func:`.call`
+     - :func:`.unphased_diploid_gt_index_call`
+     - :func:`.parse_call`
     """
 
     _cached_jobject = None

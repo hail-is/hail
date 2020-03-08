@@ -34,6 +34,7 @@ Modules
     aggregators <aggregators>
     scans <scans>
     methods <methods/index>
+    nd <nd/index>
     utils <utils/index>
     linalg <linalg/index>
     stats <stats/index>
@@ -51,3 +52,4 @@ Top-Level Functions
 .. autofunction:: hail.get_reference
 .. autofunction:: hail.set_global_seed
 .. autofunction:: hail.citation
+.. autofunction:: hail.version

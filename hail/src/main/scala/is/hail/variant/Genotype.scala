@@ -47,11 +47,11 @@ class AllelePair(val p: Int) extends AnyVal {
 
 object Genotype {
   val htsGenotypeType: TStruct = TStruct(
-    "GT" -> TCall(),
-    "AD" -> TArray(+TInt32()),
-    "DP" -> TInt32(),
-    "GQ" -> TInt32(),
-    "PL" -> TArray(+TInt32()))
+    "GT" -> TCall,
+    "AD" -> TArray(TInt32),
+    "DP" -> TInt32,
+    "GQ" -> TInt32,
+    "PL" -> TArray(TInt32))
 
   def call(g: Annotation): Option[Call] = {
     if (g == null)
@@ -155,6 +155,14 @@ object Genotype {
     AllelePair(6, 6),
     AllelePair(0, 7), AllelePair(1, 7), AllelePair(2, 7), AllelePair(3, 7), AllelePair(4, 7),
     AllelePair(5, 7), AllelePair(6, 7), AllelePair(7, 7))
+
+  val smallAlleleJ: Array[Int] = smallAllelePair.map(_.j)
+  val smallAlleleK: Array[Int] = smallAllelePair.map(_.k)
+
+  val nCachedAllelePairs: Int = smallAllelePair.length
+
+  def cachedAlleleJ(p: Int): Int = smallAlleleJ(p)
+  def cachedAlleleK(p: Int): Int = smallAlleleK(p)
 
   def allelePairRecursive(i: Int): AllelePair = {
     def f(j: Int, k: Int): AllelePair = if (j <= k)

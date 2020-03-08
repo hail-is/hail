@@ -3,14 +3,11 @@ package is.hail.expr.types.virtual
 import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.check.Gen
 import is.hail.expr.types.physical.PArray
-import is.hail.utils._
 import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, classTag}
 
-final case class TArray(elementType: Type, override val required: Boolean = false) extends TContainer with TStreamable {
-  lazy val physicalType: PArray = PArray(elementType.physicalType, required)
-
+final case class TArray(elementType: Type) extends TContainer {
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("array<")
     elementType.pyString(sb)
@@ -26,11 +23,16 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
   def _toPretty = s"Array[$elementType]"
 
   override def canCompare(other: Type): Boolean = other match {
-    case TArray(otherType, _) => elementType.canCompare(otherType)
+    case TArray(otherType) => elementType.canCompare(otherType)
     case _ => false
   }
 
-  override def subst() = TArray(elementType.subst().setRequired(false))
+  override def unify(concrete: Type): Boolean = concrete match {
+    case TArray(celementType) => elementType.unify(celementType)
+    case _ => false
+  }
+
+  override def subst() = TArray(elementType.subst())
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("Array[")
@@ -40,6 +42,11 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[IndexedSeq[_]] &&
     a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck)
+
+  override def _showStr(a: Annotation): String =
+    a.asInstanceOf[IndexedSeq[Annotation]]
+      .map(elt => elementType.showStr(elt))
+      .mkString("[", ",", "]")
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 

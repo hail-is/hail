@@ -1,6 +1,0 @@
-FROM {{ batch_image.image }}
-
-COPY pylintrc pylintrc
-RUN python3 -m pip install --no-cache-dir \
-    pylint==2.3.1 \
-    flake8==3.7.8

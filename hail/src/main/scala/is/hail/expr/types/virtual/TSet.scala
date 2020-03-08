@@ -8,10 +8,8 @@ import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, classTag}
 
-final case class TSet(elementType: Type, override val required: Boolean = false) extends TContainer {
-  lazy val physicalType: PSet = PSet(elementType.physicalType, required)
-
-  override lazy val fundamentalType: TArray = TArray(elementType.fundamentalType, required)
+final case class TSet(elementType: Type) extends TContainer {
+  override lazy val fundamentalType: TArray = TArray(elementType.fundamentalType)
 
   def _toPretty = s"Set[$elementType]"
 
@@ -22,12 +20,12 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
   }
 
   override def canCompare(other: Type): Boolean = other match {
-    case TSet(otherType, _) => elementType.canCompare(otherType)
+    case TSet(otherType) => elementType.canCompare(otherType)
     case _ => false
   }
 
   override def unify(concrete: Type): Boolean = concrete match {
-    case TSet(celementType, _) => elementType.unify(celementType)
+    case TSet(celementType) => elementType.unify(celementType)
     case _ => false
   }
 
@@ -43,6 +41,12 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
   }
 
   lazy val ordering: ExtendedOrdering = ExtendedOrdering.setOrdering(elementType.ordering)
+
+  override def _showStr(a: Annotation): String =
+    a.asInstanceOf[Set[Annotation]]
+      .map { case elt => elementType.showStr(elt) }
+      .mkString("{", ",", "}")
+
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 

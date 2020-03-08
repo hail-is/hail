@@ -1,0 +1,38 @@
+About
+-----
+
+This is the UKBB genetic correlation browser.  It consists of two
+stateful sets deployed in the ukbb-rg namespace:
+
+ - ukbb-rg-static, which runs nginx and serves static content, and
+ - ukbb-rg-browser, which runs a R Shiny server
+
+Updating
+--------
+
+The ukbb-rg browser, beyond the contents of this directory, depends on
+four sets of files:
+
+ - docs
+ - site_libs
+ - Rdata_outputs
+ - app
+
+app consists of two files:
+
+ - app/app.R
+ - app/www/rainbowvis.js
+
+which must be copied into ./app in this directory before running "make
+deploy" to update the images.
+
+The contents of docs and site_libs must be copied (using kubectl cp,
+for example) into ukbb-rg/ukbb-rg-static:/ukbb-rg-static.  So,
+
+ - docs/rg_summary_102.html => /ukbb-rg-static/rg_summary_102.html, and
+ - site_libs => /ukbb-rg-static/site_libs.
+
+Rdata_outputs must be copied into
+ukbb-rg/ukbb-rg-browser:/ukbb-rg-browser.
+
+Currently, this is done manually with possible downtime.

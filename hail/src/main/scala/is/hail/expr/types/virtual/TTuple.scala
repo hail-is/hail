@@ -7,25 +7,17 @@ import is.hail.utils._
 import scala.collection.JavaConverters._
 
 object TTuple {
-  private val requiredEmpty = TTuple(Array.empty[TupleField], true)
-  private val optionalEmpty = TTuple(Array.empty[TupleField], false)
 
-  def empty(required: Boolean = false): TTuple = if (required) requiredEmpty else optionalEmpty
+  val empty: TTuple = TTuple()
 
-  def apply(required: Boolean, args: Type*): TTuple = TTuple(args.iterator.zipWithIndex.map { case (t, i) => TupleField(i, t)}.toArray, required)
+  def apply(required: Boolean, args: Type*): TTuple = TTuple(args.iterator.zipWithIndex.map { case (t, i) => TupleField(i, t)}.toArray)
 
   def apply(args: Type*): TTuple = apply(false, args: _*)
-
-  def apply(types: java.util.List[Type], required: Boolean): TTuple = {
-    TTuple(types.asScala.iterator.zipWithIndex.map { case (t, i) => TupleField(i, t)}.toArray, required)
-  }
 }
 
 case class TupleField(index: Int, typ: Type)
 
-final case class TTuple(_types: IndexedSeq[TupleField], override val required: Boolean = false) extends TBaseStruct {
-  lazy val physicalType: PTuple = PTuple(_types.map(tf => PTupleField(tf.index, tf.typ.physicalType)), required)
-
+final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
   lazy val types: Array[Type] = _types.map(_.typ).toArray
 
   lazy val fields: IndexedSeq[Field] = _types.map { tf => Field(s"${ tf.index }", tf.typ, tf.index) }
@@ -39,7 +31,7 @@ final case class TTuple(_types: IndexedSeq[TupleField], override val required: B
   def size: Int = types.length
 
   override def truncate(newSize: Int): TTuple =
-    TTuple(_types.take(newSize), required)
+    TTuple(_types.take(newSize))
 
   override def canCompare(other: Type): Boolean = other match {
     case t: TTuple => size == t.size && _types.zip(t._types).forall { case (t1, t2) => t1.index == t2.index && t1.typ.canCompare(t2.typ) }
@@ -47,7 +39,7 @@ final case class TTuple(_types: IndexedSeq[TupleField], override val required: B
   }
 
   override def unify(concrete: Type): Boolean = concrete match {
-    case TTuple(ctypes, _) =>
+    case TTuple(ctypes) =>
       size == ctypes.length &&
         (types, ctypes).zipped.forall { case (t, ct) =>
           t.unify(ct.typ)
@@ -95,6 +87,6 @@ final case class TTuple(_types: IndexedSeq[TupleField], override val required: B
       .forall { case (t, ft) => t == ft })
       this
     else
-      TTuple(fundamentalFieldTypes, required)
+      TTuple(fundamentalFieldTypes)
   }
 }

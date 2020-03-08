@@ -15,35 +15,26 @@ class TStructSerializer extends CustomSerializer[TStruct](format => (
   { case t: TStruct => JString(t.parsableString()) }))
 
 object TStruct {
-  private val requiredEmpty = TStruct(Array.empty[Field], true)
-  private val optionalEmpty = TStruct(Array.empty[Field], false)
+  val empty: TStruct = TStruct()
 
-  def empty(required: Boolean = false): TStruct = if (required) requiredEmpty else optionalEmpty
-
-  def apply(required: Boolean, args: (String, Type)*): TStruct =
+  def apply(args: (String, Type)*): TStruct =
     TStruct(args
       .iterator
       .zipWithIndex
       .map { case ((n, t), i) => Field(n, t, i) }
-      .toArray,
-      required)
+      .toArray)
 
-  def apply(args: (String, Type)*): TStruct =
-    apply(false, args: _*)
-
-  def apply(names: java.util.List[String], types: java.util.List[Type], required: Boolean): TStruct = {
+  def apply(names: java.util.List[String], types: java.util.List[Type]): TStruct = {
     val sNames = names.asScala.toArray
     val sTypes = types.asScala.toArray
     if (sNames.length != sTypes.length)
       fatal(s"number of names does not match number of types: found ${ sNames.length } names and ${ sTypes.length } types")
 
-    TStruct(required, sNames.zip(sTypes): _*)
+    TStruct(sNames.zip(sTypes): _*)
   }
 }
 
-final case class TStruct(fields: IndexedSeq[Field], override val required: Boolean = false) extends TBaseStruct {
-  lazy val physicalType: PStruct = PStruct(fields.map(f => PField(f.name, f.typ.physicalType, f.index)), required)
-
+final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
 
   lazy val types: Array[Type] = fields.map(_.typ).toArray
@@ -54,7 +45,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   def size: Int = fields.length
 
-  override def truncate(newSize: Int): TStruct = TStruct(fields.take(newSize), required)
+  override def truncate(newSize: Int): TStruct = TStruct(fields.take(newSize))
 
   lazy val ordering: ExtendedOrdering = TBaseStruct.getOrdering(types)
 
@@ -66,7 +57,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   }
 
   override def unify(concrete: Type): Boolean = concrete match {
-    case TStruct(cfields, _) =>
+    case TStruct(cfields) =>
       fields.length == cfields.length &&
         (fields, cfields).zipped.forall { case (f, cf) =>
           f.unify(cf)
@@ -124,7 +115,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       val keyIndex = f.map(_.index)
       val (newKeyType, keyF) = f
         .map(_.typ)
-        .getOrElse(TStruct.empty())
+        .getOrElse(TStruct.empty)
         .insert(signature, p.tail)
 
       val newSignature = keyIndex match {
@@ -163,7 +154,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     for (i <- fields.indices)
       newFields(i) = fields(i)
     newFields(i) = Field(key, sig, i)
-    TStruct(newFields, required)
+    TStruct(newFields)
   }
 
   def deleteKey(key: String): TStruct = deleteKey(key, fieldIdx(key))
@@ -171,14 +162,14 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   def deleteKey(key: String, index: Int): TStruct = {
     assert(fieldIdx.contains(key))
     if (fields.length == 1)
-      TStruct.empty()
+      TStruct.empty
     else {
       val newFields = Array.fill[Field](fields.length - 1)(null)
       for (i <- 0 until index)
         newFields(i) = fields(i)
       for (i <- index + 1 until fields.length)
         newFields(i - 1) = fields(i).copy(index = i - 1)
-      TStruct(newFields, required)
+      TStruct(newFields)
     }
   }
 
@@ -188,7 +179,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     for (i <- fields.indices)
       newFields(i) = fields(i)
     newFields(fields.length) = Field(key, sig, fields.length)
-    TStruct(newFields, required)
+    TStruct(newFields)
   }
 
   def annotate(other: TStruct): (TStruct, Merger) = {
@@ -260,7 +251,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       } else
         ab += Field(name, typ, ab.length)
     }
-    TStruct(ab.result(), required)
+    TStruct(ab.result())
   }
 
   def rename(m: Map[String, String]): TStruct = {
@@ -329,7 +320,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
         Annotation.fromSeq(newValues)
       }
 
-    (TStruct(newFields.zipWithIndex.map { case (f, i) => f.copy(index = i) }, required), filterer)
+    (TStruct(newFields.zipWithIndex.map { case (f, i) => f.copy(index = i) }), filterer)
   }
 
   override def pyString(sb: StringBuilder): Unit = {
@@ -382,7 +373,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       .forall { case (f, ft) => f.typ == ft })
       this
     else
-      TStruct(required, (fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
+      TStruct((fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
   }
 
   def toEnv: Env[Type] = Env(fields.map(f => (f.name, f.typ)): _*)

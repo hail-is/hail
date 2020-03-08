@@ -23,7 +23,7 @@ class LiftLiteralsSuite extends HailSuite {
               "x" -> ApplyBinaryPrimOp(
                 Add(),
                 TableCount(tab),
-                Ref("global", TInt64())))))))
+                Ref("global", TInt64)))))))
 
     assertEvalsTo(ir, Row(11L))
   }

@@ -352,7 +352,7 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
 
     >>> pedigree = hl.Pedigree.read('data/tdt_trios.fam')
     >>> tdt_table = hl.transmission_disequilibrium_test(tdt_dataset, pedigree)
-    >>> tdt_table.show(2)  # doctest: +NOTEST
+    >>> tdt_table.show(2)  # doctest: +SKIP_OUTPUT_CHECK
     +---------------+------------+-------+-------+----------+----------+
     | locus         | alleles    |     t |     u |   chi_sq |  p_value |
     +---------------+------------+-------+-------+----------+----------+
@@ -365,7 +365,7 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
     Export variants with p-values below 0.001:
 
     >>> tdt_table = tdt_table.filter(tdt_table.p_value < 0.001)
-    >>> tdt_table.export("output/tdt_results.tsv")
+    >>> tdt_table.export(f"output/tdt_results.tsv")
 
     Notes
     -----
@@ -592,20 +592,20 @@ def de_novo(mt: MatrixTable,
 
     .. math::
 
-        \mathrm{P_{\text{de novo}}} = \frac{\mathrm{P}(d\,|\,x)}{\mathrm{P}(d\,|\,x) + \mathrm{P}(m\,|\,x)}
+        \mathrm{P_{\text{de novo}}} = \frac{\mathrm{P}(d \mid x)}{\mathrm{P}(d \mid x) + \mathrm{P}(m \mid x)}
 
     Applying Bayes rule to the numerator and denominator yields
 
     .. math::
 
-        \frac{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d)}{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d) +
-        \mathrm{P}(x\,|\,m)\,\mathrm{P}(m)}
+        \frac{\mathrm{P}(x \mid d)\,\mathrm{P}(d)}{\mathrm{P}(x \mid d)\,\mathrm{P}(d) +
+        \mathrm{P}(x \mid m)\,\mathrm{P}(m)}
 
     The prior on de novo mutation is estimated from the rate in the literature:
 
     .. math::
 
-        \mathrm{P}(d) = \frac{1 \text{mutation}}{30,000,000\, \text{bases}}
+        \mathrm{P}(d) = \frac{1 \, \text{mutation}}{30{,}000{,}000 \, \text{bases}}
 
     The prior used for at least one alternate allele between the parents
     depends on the alternate allele frequency:
@@ -614,27 +614,31 @@ def de_novo(mt: MatrixTable,
 
         \mathrm{P}(m) = 1 - (1 - AF)^4
 
-    The likelihoods :math:`\mathrm{P}(x\,|\,d)` and :math:`\mathrm{P}(x\,|\,m)`
+    The likelihoods :math:`\mathrm{P}(x \mid d)` and :math:`\mathrm{P}(x \mid m)`
     are computed from the PL (genotype likelihood) fields using these
     factorizations:
 
     .. math::
-
-        \mathrm{P}(x = (AA, AA, AB) \,|\,d) = \Big(
-        &\mathrm{P}(x_{\mathrm{father}} = AA \,|\, \mathrm{father} = AA) \\
-        \cdot &\mathrm{P}(x_{\mathrm{mother}} = AA \,|\, \mathrm{mother} =
-        AA) \\ \cdot &\mathrm{P}(x_{\mathrm{proband}} = AB \,|\,
-        \mathrm{proband} = AB) \Big)
+        \mathrm{P}(x = (AA, AA, AB) \mid d) = \left(
+        \begin{aligned}
+                &\mathrm{P}(x_{\mathrm{father}} = AA \mid \mathrm{father} = AA) \\
+                {} \cdot {} &\mathrm{P}(x_{\mathrm{mother}} = AA \mid \mathrm{mother} = AA) \\
+                {} \cdot {} &\mathrm{P}(x_{\mathrm{proband}} = AB \mid \mathrm{proband} = AB)
+        \end{aligned}
+        \right)
 
     .. math::
-
-        \mathrm{P}(x = (AA, AA, AB) \,|\,m) = \Big( &
-        \mathrm{P}(x_{\mathrm{father}} = AA \,|\, \mathrm{father} = AB)
-        \cdot \mathrm{P}(x_{\mathrm{mother}} = AA \,|\, \mathrm{mother} =
-        AA) \\ + \, &\mathrm{P}(x_{\mathrm{father}} = AA \,|\,
-        \mathrm{father} = AA) \cdot \mathrm{P}(x_{\mathrm{mother}} = AA
-        \,|\, \mathrm{mother} = AB) \Big) \\ \cdot \,
-        &\mathrm{P}(x_{\mathrm{proband}} = AB \,|\, \mathrm{proband} = AB)
+        \begin{aligned}
+        \mathrm{P}(x = (AA, AA, AB) \mid m) = &\left(
+            \begin{aligned}
+                &\mathrm{P}(x_{\mathrm{father}} = AA \mid \mathrm{father} = AB)
+                    \cdot \mathrm{P}(x_{\mathrm{mother}} = AA \mid \mathrm{mother} = AA) \\
+                {} + {} &\mathrm{P}(x_{\mathrm{father}} = AA \mid \mathrm{father} = AA)
+                    \cdot \mathrm{P}(x_{\mathrm{mother}} = AA \mid \mathrm{mother} = AB)
+            \end{aligned}
+        \right) \\
+        &{} \cdot \mathrm{P}(x_{\mathrm{proband}} = AB \mid \mathrm{proband} = AB)
+        \end{aligned}
 
     (Technically, the second factorization assumes there is exactly (rather
     than at least) one alternate allele among the parents, which may be
@@ -651,62 +655,62 @@ def de_novo(mt: MatrixTable,
 
      - ``DR`` refers to the ratio of the read depth in the proband to the
        combined read depth in the parents.
+     - ``DP`` refers to the read depth (DP field) of the proband.
      - ``AB`` refers to the read allele balance of the proband (number of
        alternate reads divided by total reads).
      - ``AC`` refers to the count of alternate alleles across all individuals
        in the dataset at the site.
      - ``p`` refers to :math:`\mathrm{P_{\text{de novo}}}`.
-     - ``min_p`` refers to the ``min_p`` function parameter.
+     - ``min_p`` refers to the `min_p` function parameter.
 
     HIGH-quality SNV:
 
     .. code-block:: text
 
-        p > 0.99 && AB > 0.3 && DR > 0.2
-            or
-        p > 0.99 && AB > 0.3 && AC == 1
+        (p > 0.99) AND (AB > 0.3) AND (AC == 1)
+            OR
+        (p > 0.99) AND (AB > 0.3) AND (DR > 0.2)
+            OR
+        (p > 0.5) AND (AB > 0.3) AND (AC < 10) AND (DP > 10)
 
     MEDIUM-quality SNV:
 
     .. code-block:: text
 
-        p > 0.5 && AB > 0.3
-            or
-        p > 0.5 && AB > 0.2 && AC == 1
+        (p > 0.5) AND (AB > 0.3)
+            OR
+        (AC == 1)
 
     LOW-quality SNV:
 
     .. code-block:: text
 
-        p > min_p && AB > 0.2
+       (AB > 0.2)
 
     HIGH-quality indel:
 
     .. code-block:: text
 
-        p > 0.99 && AB > 0.3 && DR > 0.2
-            or
-        p > 0.99 && AB > 0.3 && AC == 1
+        (p > 0.99) AND (AB > 0.3) AND (AC == 1)
 
     MEDIUM-quality indel:
 
     .. code-block:: text
 
-        p > 0.5 && AB > 0.3
-            or
-        p > 0.5 && AB > 0.2 and AC == 1
+        (p > 0.5) AND (AB > 0.3) AND (AC < 10)
 
     LOW-quality indel:
 
     .. code-block:: text
 
-        p > min_p && AB > 0.2
+       (AB > 0.2)
 
     Additionally, de novo candidates are not considered if the proband GQ is
-    smaller than the ``min_gq`` parameter, if the proband allele balance is
-    lower than the ``min_child_ab`` parameter, if the depth ratio between the
-    proband and parents is smaller than the ``min_depth_ratio`` parameter, or if
-    the allele balance in a parent is above the ``max_parent_ab`` parameter.
+    smaller than the `min_gq` parameter, if the proband allele balance is
+    lower than the `min_child_ab` parameter, if the depth ratio between the
+    proband and parents is smaller than the `min_depth_ratio` parameter, if
+    the allele balance in a parent is above the `max_parent_ab` parameter, or
+    if the posterior probability `p` is smaller than the `min_p` parameter.
 
     Parameters
     ----------
@@ -800,7 +804,7 @@ def de_novo(mt: MatrixTable,
                                 hl.struct(p_de_novo=p_de_novo, confidence='HIGH'))
                           .when((p_de_novo > 0.5) & (kid_ad_ratio > 0.3) & (n_alt_alleles <= 5),
                                 hl.struct(p_de_novo=p_de_novo, confidence='MEDIUM'))
-                          .when((p_de_novo > 0.05) & (kid_ad_ratio > 0.2),
+                          .when(kid_ad_ratio > 0.2,
                                 hl.struct(p_de_novo=p_de_novo, confidence='LOW'))
                           .or_missing())
                     .default(hl.case()
@@ -810,7 +814,7 @@ def de_novo(mt: MatrixTable,
                                    hl.struct(p_de_novo=p_de_novo, confidence='HIGH'))
                              .when((p_de_novo > 0.5) & ((kid_ad_ratio > 0.3) | (n_alt_alleles == 1)),
                                    hl.struct(p_de_novo=p_de_novo, confidence='MEDIUM'))
-                             .when((p_de_novo > 0.05) & (kid_ad_ratio > 0.2),
+                             .when(kid_ad_ratio > 0.2,
                                    hl.struct(p_de_novo=p_de_novo, confidence='LOW'))
                              .or_missing()
                              )
@@ -838,7 +842,7 @@ def de_novo(mt: MatrixTable,
                                 hl.struct(p_de_novo=p_de_novo, confidence='HIGH'))
                           .when((p_de_novo > 0.5) & (kid_ad_ratio > 0.3) & (n_alt_alleles <= 5),
                                 hl.struct(p_de_novo=p_de_novo, confidence='MEDIUM'))
-                          .when((p_de_novo > 0.05) & (kid_ad_ratio > 0.3),
+                          .when(kid_ad_ratio > 0.3,
                                 hl.struct(p_de_novo=p_de_novo, confidence='LOW'))
                           .or_missing())
                     .default(hl.case()
@@ -848,7 +852,7 @@ def de_novo(mt: MatrixTable,
                                    hl.struct(p_de_novo=p_de_novo, confidence='HIGH'))
                              .when((p_de_novo > 0.5) & ((kid_ad_ratio > 0.3) | (n_alt_alleles == 1)),
                                    hl.struct(p_de_novo=p_de_novo, confidence='MEDIUM'))
-                             .when((p_de_novo > 0.05) & (kid_ad_ratio > 0.2),
+                             .when(kid_ad_ratio > 0.2,
                                    hl.struct(p_de_novo=p_de_novo, confidence='LOW'))
                              .or_missing()
                              )

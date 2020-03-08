@@ -10,7 +10,7 @@
   
   <property>
     <name>google.cloud.auth.service.account.json.keyfile</name>
-    <value>/gsa-key/privateKeyData</value>
+    <value>/gsa-key/key.json</value>
   </property>
   
 </configuration>

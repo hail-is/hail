@@ -26,6 +26,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     eval
     literal
     cond
+    if_else
     switch
     case
     bind
@@ -63,6 +64,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     set
     empty_set
     dict
+    empty_dict
 
 .. rubric:: Collection functions
 
@@ -141,6 +143,12 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     hamming
     delimit
     entropy
+    parse_int
+    parse_int32
+    parse_int64
+    parse_float
+    parse_float32
+    parse_float64
 
 .. rubric:: Statistical functions
 
@@ -199,6 +207,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     is_complex
     is_valid_contig
     is_valid_locus
+    contig_length
     allele_type
     pl_dosage
     gp_dosage
@@ -206,3 +215,4 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     mendel_error_code
     liftover
     min_rep
+    reverse_complement

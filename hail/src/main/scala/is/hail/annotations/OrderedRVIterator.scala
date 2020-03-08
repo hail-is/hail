@@ -49,16 +49,6 @@ case class OrderedRVIterator(
         .compare
     )
 
-  def innerJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] =
-    iterator.toFlipbookIterator.innerJoinDistinct(
-      other.iterator.toFlipbookIterator,
-      this.t.kRowOrdView(ctx.freshRegion),
-      other.t.kRowOrdView(ctx.freshRegion),
-      null,
-      null,
-      this.t.joinComp(other.t).compare
-    )
-
   def leftJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] =
     iterator.toFlipbookIterator.leftJoinDistinct(
       other.iterator.toFlipbookIterator,

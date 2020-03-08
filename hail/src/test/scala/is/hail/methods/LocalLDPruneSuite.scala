@@ -1,20 +1,18 @@
 package is.hail.methods
 
 import breeze.linalg.{Vector => BVector}
-import is.hail.{HailSuite, TestUtils}
 import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
+import is.hail.expr.ir.{Interpret, MatrixValue, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PLocus, PString, PStruct, PType}
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual.{TArray, TString, TStruct}
-import is.hail.variant._
 import is.hail.utils._
-import is.hail.testUtils._
-import org.apache.spark.sql.catalyst.expressions.GenericRow
-import org.testng.annotations.Test
-import is.hail.table.Table
+import is.hail.variant._
+import is.hail.{HailSuite, TestUtils}
 import org.apache.spark.rdd.RDD
+import org.testng.annotations.Test
 
 case class BitPackedVector(gs: Array[Long], nSamples: Int, mean: Double, stdDevRec: Double) {
   def unpack(): Array[Int] = {
@@ -50,7 +48,7 @@ object LocalLDPruneSuite {
 
   val rvRowType = TStruct(
     "locus" -> ReferenceGenome.GRCh37.locusType,
-    "alleles" -> TArray(TString()),
+    "alleles" -> TArray(TString),
     MatrixType.entriesIdentifier -> TArray(Genotype.htsGenotypeType)
   )
 
@@ -140,13 +138,22 @@ object LocalLDPruneSuite {
 class LocalLDPruneSuite extends HailSuite {
   val memoryPerCoreBytes = 256 * 1024 * 1024
   val nCores = 4
-  lazy val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf.bgz", nPartitions = Option(10))
-  lazy val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(vds.countRows(), vds.numCols, memoryPerCoreBytes)
+  lazy val mt = Interpret(TestUtils.importVCF(hc, "src/test/resources/sample.vcf.bgz", nPartitions = Option(10)),
+    ctx, false).toMatrixValue(Array("s"))
+
+  lazy val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(
+    mt.rvd.count(),
+    mt.nCols,
+    memoryPerCoreBytes)
 
   def toC2(i: Int): BoxedCall = if (i == -1) null else Call2.fromUnphasedDiploidGtIndex(i)
 
-  def getLocallyPrunedRDDWithGT(unprunedMatrixTable: MatrixTable, locallyPrunedTable: Table):
+  def getLocallyPrunedRDDWithGT(unprunedMatrixTable: MatrixValue, locallyPrunedTable: TableValue):
   RDD[(Locus, Any, Iterable[Annotation])] = {
+
+    val mtLocusIndex = unprunedMatrixTable.rvRowPType.index("locus").get
+    val mtAllelesIndex = unprunedMatrixTable.rvRowPType.index("alleles").get
+    val mtEntriesIndex = unprunedMatrixTable.entriesIdx
 
     val locusIndex = locallyPrunedTable.rvd.rowType.fieldIdx("locus")
     val allelesIndex = locallyPrunedTable.rvd.rowType.fieldIdx("alleles")
@@ -154,16 +161,16 @@ class LocalLDPruneSuite extends HailSuite {
     val locallyPrunedVariants = locallyPrunedTable.rdd.mapPartitions(
       it => it.map(row => (row.get(locusIndex), row.get(allelesIndex))), preservesPartitioning = true).collectAsSet()
 
-    unprunedMatrixTable.rdd.map { case (v, (va, gs)) =>
-      (v.asInstanceOf[GenericRow].get(0).asInstanceOf[Locus], v.asInstanceOf[GenericRow].get(1), gs)
+    unprunedMatrixTable.rvd.toRows.map { r =>
+      (r.getAs[Locus](mtLocusIndex), r.getAs[Any](mtAllelesIndex), r.getAs[Iterable[Annotation]](mtEntriesIndex))
     }.filter { case (locus, alleles, gs) => locallyPrunedVariants.contains((locus, alleles)) }
   }
 
-  def isGloballyUncorrelated(unprunedMatrixTable: MatrixTable, locallyPrunedTable: Table, r2Threshold: Double,
+  def isGloballyUncorrelated(unprunedMatrixTable: MatrixValue, locallyPrunedTable: TableValue, r2Threshold: Double,
     windowSize: Int): Boolean = {
 
     val locallyPrunedRDD = getLocallyPrunedRDDWithGT(unprunedMatrixTable, locallyPrunedTable)
-    val nSamples = unprunedMatrixTable.numCols
+    val nSamples = unprunedMatrixTable.nCols
 
     val r2Matrix = LocalLDPruneSuite.correlationMatrix(locallyPrunedRDD.map { case (locus, alleles, gs) => gs }.collect(), nSamples)
     val variantMap = locallyPrunedRDD.zipWithIndex.map { case ((locus, alleles, gs), i) => (i.toInt, locus) }.collectAsMap()
@@ -180,11 +187,11 @@ class LocalLDPruneSuite extends HailSuite {
     }
   }
 
-  def isLocallyUncorrelated(unprunedMatrixTable: MatrixTable, locallyPrunedTable: Table, r2Threshold: Double,
+  def isLocallyUncorrelated(unprunedMatrixTable: MatrixValue, locallyPrunedTable: TableValue, r2Threshold: Double,
     windowSize: Int): Boolean = {
 
     val locallyPrunedRDD = getLocallyPrunedRDDWithGT(unprunedMatrixTable, locallyPrunedTable)
-    val nSamples = unprunedMatrixTable.numCols
+    val nSamples = unprunedMatrixTable.nCols
 
     val locallyUncorrelated = {
       locallyPrunedRDD.mapPartitions(it => {
@@ -323,37 +330,9 @@ class LocalLDPruneSuite extends HailSuite {
     Spec.check()
   }
 
-  @Test def bitPackedVectorCorrectWhenOffsetNotZero() {
-    Region.scoped { r =>
-      val rvb = new RegionValueBuilder(r)
-      val t = BitPackedVectorView.rvRowPType(
-        +PLocus(ReferenceGenome.GRCh37),
-        +PArray(+PString()))
-      val bpv = new BitPackedVectorView(t)
-      r.appendInt(0xbeef)
-      rvb.start(t)
-      rvb.startStruct()
-      rvb.startStruct()
-      rvb.addString("X")
-      rvb.addInt(42)
-      rvb.endStruct()
-      rvb.startArray(0)
-      rvb.endArray()
-      rvb.startArray(0)
-      rvb.endArray()
-      rvb.addInt(0)
-      rvb.addDouble(0.0)
-      rvb.addDouble(0.0)
-      rvb.endStruct()
-      bpv.setRegion(r, rvb.end())
-      assert(bpv.getContig == "X")
-      assert(bpv.getStart == 42)
-    }
-  }
-
   @Test def testIsLocallyUncorrelated() {
-    val locallyPrunedVariantsTable = LocalLDPrune(vds, r2Threshold = 0.2, windowSize = 1000000, maxQueueSize = maxQueueSize)
-    assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
-    assert(!isGloballyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
+    val locallyPrunedVariantsTable = LocalLDPrune(ctx, mt, r2Threshold = 0.2, windowSize = 1000000, maxQueueSize = maxQueueSize)
+    assert(isLocallyUncorrelated(mt, locallyPrunedVariantsTable, 0.2, 1000000))
+    assert(!isGloballyUncorrelated(mt, locallyPrunedVariantsTable, 0.2, 1000000))
   }
 }

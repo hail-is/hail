@@ -1,15 +1,14 @@
 package is.hail.annotations
 
-import is.hail.annotations.aggregators._
+import is.hail.expr.ir.agg._
 import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
 
 class ApproxCDFAggregatorSuite extends TestNGSuite {
   @Test
   def testMerge() {
-    val helper: ApproxCDFHelper[Int] = ApproxCDFHelper.IntHelper
-    val array: Array[Int] = Array(1,3,5,0,0,0,2,4,6)
-    helper.merge(array, 0, 3, array, 6, 9, array, 3)
+    val array: Array[Double] = Array(1,3,5,0,0,0,2,4,6)
+    ApproxCDFHelper.merge(array, 0, 3, array, 6, 9, array, 3)
     assert(array.view(3, 9) sameElements Range(1, 7))
   }
 
@@ -17,7 +16,7 @@ class ApproxCDFAggregatorSuite extends TestNGSuite {
   def testCompactLevelZero() {
     val rand = new java.util.Random(1) // first Boolean is `true`
     val levels: Array[Int] = Array(0,4,7,10)
-    val items: Array[Int] = Array(7,2,6,4, 1,3,8, 0,5,9)
+    val items: Array[Double] = Array(7,2,6,4, 1,3,8, 0,5,9)
     val compactionCounts: Array[Int] = Array(0, 0, 0)
     val combiner = new ApproxCDFCombiner(levels, items, compactionCounts, 3, Double.NaN, rand)
     combiner.compactLevel(0)
@@ -28,7 +27,7 @@ class ApproxCDFAggregatorSuite extends TestNGSuite {
   def testCompactLevel() {
     val rand = new java.util.Random(1) // first Boolean is `true`
     val levels: Array[Int] = Array(0,3,6,9)
-    val items: Array[Int] = Array(7,2,4, 1,3,8, 0,5,9)
+    val items: Array[Double] = Array(7,2,4, 1,3,8, 0,5,9)
     val compactionCounts: Array[Int] = Array(0, 0, 0)
     val combiner = new ApproxCDFCombiner(levels, items, compactionCounts, 3, Double.NaN, rand)
     combiner.compactLevel(1)
@@ -39,7 +38,7 @@ class ApproxCDFAggregatorSuite extends TestNGSuite {
   def testCompactLevelKeep() {
     val rand = new java.util.Random(1) // first Boolean is `true`
     val levels: Array[Int] = Array(0,3,7,10)
-    val items: Array[Int] = Array(7,2,4, 1,3,6,8, 0,5,9)
+    val items: Array[Double] = Array(7,2,4, 1,3,6,8, 0,5,9)
     val compactionCounts: Array[Int] = Array(0, 0, 0)
     val combiner = new ApproxCDFCombiner(levels, items, compactionCounts, 3, .01, rand)
     combiner.compactLevel(1)

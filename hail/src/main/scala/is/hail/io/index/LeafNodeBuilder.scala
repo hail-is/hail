@@ -1,29 +1,40 @@
 package is.hail.io.index
 
 import is.hail.annotations.{Annotation, RegionValueBuilder}
+import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TArray, TInt64, TStruct, Type}
 import is.hail.utils.ArrayBuilder
 
 object LeafNodeBuilder {
-  def typ(keyType: Type, annotationType: Type) = TStruct(
-    "first_idx" -> +TInt64(),
-    "keys" -> +TArray(+TStruct(
+  def virtualType(keyType: Type, annotationType: Type): TStruct = typ(PType.canonical(keyType), PType.canonical(annotationType)).virtualType
+
+  def legacyTyp(keyType: PType, annotationType: PType) = PStruct(
+    "first_idx" -> +PInt64(),
+    "keys" -> +PArray(+PStruct(
       "key" -> keyType,
-      "offset" -> +TInt64(),
+      "offset" -> +PInt64(),
+      "annotation" -> annotationType
+    ), required = true))
+
+  def typ(keyType: PType, annotationType: PType) = PStruct(
+    "first_idx" -> +PInt64(),
+    "keys" -> +PArray(+PStruct(
+      "key" -> keyType,
+      "offset" -> +PInt64(),
       "annotation" -> annotationType
     ), required = true)
   )
 }
 
-class LeafNodeBuilder(keyType: Type, annotationType: Type, var firstIdx: Long) {
+class LeafNodeBuilder(keyType: PType, annotationType: PType, var firstIdx: Long) {
   val keys = new ArrayBuilder[Any]()
   val recordOffsets = new ArrayBuilder[Long]()
   val annotations = new ArrayBuilder[Any]()
   var size = 0
-  val typ = LeafNodeBuilder.typ(keyType, annotationType)
+  val pType: PStruct = LeafNodeBuilder.typ(keyType, annotationType)
 
   def write(rvb: RegionValueBuilder): Long = {
-    rvb.start(typ.physicalType)
+    rvb.start(pType)
     rvb.startStruct()
 
     rvb.addLong(firstIdx)
@@ -32,9 +43,9 @@ class LeafNodeBuilder(keyType: Type, annotationType: Type, var firstIdx: Long) {
     var i = 0
     while (i < size) {
       rvb.startStruct()
-      rvb.addAnnotation(keyType, keys(i))
+      rvb.addAnnotation(keyType.virtualType, keys(i))
       rvb.addLong(recordOffsets(i))
-      rvb.addAnnotation(annotationType, annotations(i))
+      rvb.addAnnotation(annotationType.virtualType, annotations(i))
       rvb.endStruct()
       i += 1
     }

@@ -8,17 +8,14 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
 
-case object TStringOptional extends TString(false)
-case object TStringRequired extends TString(true)
-
-class TString(override val required: Boolean) extends Type {
-  lazy val physicalType: PString = PString(required)
-
+case object TString extends Type {
   def _toPretty = "String"
 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("str")
   }
+
+  override def _showStr(a: Annotation): String = "\"" + a.asInstanceOf[String] + "\""
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[String]
 
@@ -29,11 +26,5 @@ class TString(override val required: Boolean) extends Type {
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[String]])
 
-  override def fundamentalType: Type = TBinary(required)
-}
-
-object TString {
-  def apply(required: Boolean = false): TString = if (required) TStringRequired else TStringOptional
-
-  def unapply(t: TString): Option[Boolean] = Option(t.required)
+  override def fundamentalType: Type = TBinary
 }

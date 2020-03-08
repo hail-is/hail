@@ -13,6 +13,7 @@ import org.apache.hadoop
 import org.apache.hadoop.fs.{ FSDataInputStream, FSDataOutputStream }
 import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
+import is.hail.utils._
 
 import scala.io.Source
 
@@ -166,7 +167,10 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
   def listStatus(filename: String): Array[FileStatus] = {
     val fs = _fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    fs.listStatus(hPath).map( status => new HadoopFileStatus(status) )
+    fs.globStatus(hPath)
+      .map(_.getPath)
+      .flatMap(fs.listStatus(_))
+      .map(new HadoopFileStatus(_))
   }
 
   def isDir(filename: String): Boolean = {
@@ -240,10 +244,8 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     val fs = _fileSystem(filename)
     val path = new hadoop.fs.Path(filename)
 
-    val files = fs.globStatus(path)
-    if (files == null)
-      return Array.empty[FileStatus]
-
+    val files = Option(fs.globStatus(path)).getOrElse(Array())
+    log.info(s"globbing path $filename returned ${ files.length } files: ${ files.map(_.getPath.getName).mkString(",") }")
     files.map(fileStatus => new HadoopFileStatus(fileStatus))
   }
 

@@ -37,15 +37,16 @@ object Graph {
 
   def pyMaximalIndependentSet(edgesIR: IR, nodeTypeStr: String, tieBreaker: Option[String]): IR = {
     val nodeType = IRParser.parseType(nodeTypeStr)
-    
-    val edges = ExecuteContext.scoped { ctx => Interpret[IndexedSeq[Row]](ctx, edgesIR).toArray }
+    ExecuteContext.scoped { ctx =>
+      val edges = Interpret[IndexedSeq[Row]](ctx, edgesIR).toArray
 
-    val resultType = TSet(nodeType)
-    val result = maximalIndependentSet(edges, nodeType, tieBreaker)
-    Literal(resultType, result)
+      val resultType = TSet(nodeType)
+      val result = maximalIndependentSet(ctx, edges, nodeType, tieBreaker)
+      Literal(resultType, result)
+    }
   }
 
-  def maximalIndependentSet(edges: Array[Row], nodeType: Type, tieBreaker: Option[String]): Set[Any] = {
+  def maximalIndependentSet(ctx: ExecuteContext, edges: Array[Row], nodeType: Type, tieBreaker: Option[String]): Set[Any] = {
     val edges2 = edges.map { r =>
       val Row(x, y) = r
       (x, y)
@@ -57,14 +58,17 @@ object Graph {
     val wrappedNodeType = PTuple(PType.canonical(nodeType))
     val refMap = Map("l" -> wrappedNodeType.virtualType, "r" -> wrappedNodeType.virtualType)
 
-    val tieBreakerF = tieBreaker.map { e =>
-      val ir = IRParser.parse_value_ir(e, IRParserEnvironment(refMap))
-      val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType, "r", wrappedNodeType, MakeTuple.ordered(FastSeq(ir)))
-      assert(t.virtualType.isOfType(TTuple(TInt64())))
+    Region.scoped { region =>
+      val tieBreakerF = tieBreaker.map { e =>
+        val ir = IRParser.parse_value_ir(e, IRParserEnvironment(refMap))
+        val (t, f) = Compile[Long, Long, Long](ctx, "l", wrappedNodeType, "r", wrappedNodeType, MakeTuple.ordered(FastSeq(ir)))
+        assert(t.virtualType == TTuple(TFloat64))
+        val resultType = t.asInstanceOf[PTuple]
 
-      (l: Any, r: Any) => {
-        Region.scoped { region =>
-          val rvb = new RegionValueBuilder()
+        val rvb = new RegionValueBuilder()
+
+        (l: Any, r: Any) => {
+          region.clear()
           rvb.set(region)
 
           rvb.start(wrappedNodeType)
@@ -80,23 +84,29 @@ object Graph {
           val rOffset = rvb.end()
 
           val resultOffset = f(0, region)(region, lOffset, false, rOffset, false)
-          SafeRow(t.asInstanceOf[PBaseStruct], region, resultOffset).get(0).asInstanceOf[Long]
+          if (resultType.isFieldMissing(resultOffset, 0)) {
+            throw new RuntimeException(
+              s"a comparison returned a missing value when " +
+                s"l=${Region.pretty(wrappedNodeType, lOffset)} and r=${Region.pretty(wrappedNodeType, rOffset)}")
+          } else {
+            Region.loadDouble(resultType.loadField(resultOffset, 0))
+          }
         }
       }
-    }
 
-    maximalIndependentSet(mkGraph(edges2), tieBreakerF).toSet
+      maximalIndependentSet(mkGraph(edges2), tieBreakerF).toSet
+    }
   }
 
   def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)]): Array[T] = {
     maximalIndependentSet(mkGraph(edges))
   }
 
-  def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)], tieBreaker: (T, T) => Long): Array[T] = {
+  def maximalIndependentSet[T: ClassTag](edges: Array[(T, T)], tieBreaker: (T, T) => Double): Array[T] = {
     maximalIndependentSet(mkGraph(edges), Some(tieBreaker))
   }
 
-  def maximalIndependentSet[T: ClassTag](g: mutable.MultiMap[T, T], maybeTieBreaker: Option[(T, T) => Long] = None): Array[T] = {
+  def maximalIndependentSet[T: ClassTag](g: mutable.MultiMap[T, T], maybeTieBreaker: Option[(T, T) => Double] = None): Array[T] = {
     val verticesByDegree = new BinaryHeap[T](maybeTieBreaker = maybeTieBreaker.orNull)
 
     g.foreach { case (v, neighbors) =>

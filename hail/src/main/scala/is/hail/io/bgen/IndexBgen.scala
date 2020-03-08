@@ -1,13 +1,15 @@
 package is.hail.io.bgen
 
 import is.hail.HailContext
+import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.TableType
-import is.hail.expr.types.virtual.{TArray, TInt32, TInt64, TLocus, TString, TStruct}
-import is.hail.io.CodecSpec
+import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.virtual._
+import is.hail.io.fs.FS
 import is.hail.io.index.{IndexWriter, InternalNodeBuilder, LeafNodeBuilder}
+import is.hail.io._
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.utils._
-import is.hail.io.fs.FS
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
@@ -28,13 +30,21 @@ private case class IndexBgenPartition(
 }
 
 object IndexBgen {
+
+  val bufferSpec: BufferSpec = LEB128BufferSpec(
+    BlockingBufferSpec(32 * 1024,
+      LZ4HCBlockBufferSpec(32 * 1024,
+        new StreamBlockBufferSpec)))
+
   def apply(
     hc: HailContext,
     files: Array[String],
     indexFileMap: Map[String, String] = null,
     rg: Option[String] = None,
     contigRecoding: Map[String, String] = null,
-    skipInvalidLoci: Boolean = false) {
+    skipInvalidLoci: Boolean = false,
+    ctx: ExecuteContext
+  ) {
     val fs = hc.sFS
     val bcFS = hc.bcFS
 
@@ -55,19 +65,19 @@ object IndexBgen {
     val headers = LoadBgen.getFileHeaders(fs, bgenFilePaths)
     LoadBgen.checkVersionTwo(headers)
 
-    val annotationType = +TStruct()
+    val annotationType = +PStruct()
 
     val settings: BgenSettings = BgenSettings(
       0, // nSamples not used if there are no entries
       TableType(rowType = TStruct(
         "locus" -> TLocus.schemaFromRG(referenceGenome),
-        "alleles" -> TArray(TString()),
-        "offset" -> TInt64(),
-        "file_idx" -> TInt32()),
+        "alleles" -> TArray(TString),
+        "offset" -> TInt64,
+        "file_idx" -> TInt32),
         key = Array("locus", "alleles"),
-        globalType = TStruct()),
+        globalType = TStruct.empty),
       referenceGenome.map(_.broadcast),
-      annotationType
+      annotationType.virtualType
     )
 
     val typ = RVDType(settings.rowPType, Array("file_idx", "locus", "alleles"))
@@ -90,7 +100,7 @@ object IndexBgen {
     val offsetIdx = rowType.fieldIdx("offset")
     val fileIdxIdx = rowType.fieldIdx("file_idx")
     val (keyType, _) = rowType.virtualType.select(Array("file_idx", "locus", "alleles"))
-    val (indexKeyType, _) = keyType.select(Array("locus", "alleles"))
+    val indexKeyType = rowType.selectFields(Array("locus", "alleles"))
 
     val attributes = Map("reference_genome" -> rg.orNull,
       "contig_recoding" -> recoding,
@@ -100,18 +110,21 @@ object IndexBgen {
     val partitioner = new RVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
     val crvd = BgenRDD(hc.sc, partitions, settings, null)
 
-    val codecSpec = CodecSpec.default
-    val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(indexKeyType, annotationType).physicalType)
-    val makeInternalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(indexKeyType, annotationType).physicalType)
+    val (leafCodec, intCodec) = BgenSettings.indexCodecSpecs(referenceGenome)
+    val leafPType = LeafNodeBuilder.typ(indexKeyType, annotationType)
+    val leafEnc = leafCodec.buildEncoder(leafPType)
+
+    val intPType = InternalNodeBuilder.typ(indexKeyType, annotationType)
+    val intEnc = intCodec.buildEncoder(intPType)
 
     RVD.unkeyed(rowType, crvd)
-      .repartition(partitioner, shuffle = true)
+      .repartition(partitioner, ctx, shuffle = true)
       .toRows
       .foreachPartition { it =>
         val partIdx = TaskContext.get.partitionId()
 
         using(new IndexWriter(bcFS.value, indexFilePaths(partIdx), indexKeyType, annotationType,
-          makeLeafEncoder, makeInternalEncoder, attributes = attributes)) { iw =>
+          leafEnc, intEnc, attributes = attributes)) { iw =>
           it.foreach { r =>
             assert(r.getInt(fileIdxIdx) == partIdx)
             iw += (Row(r(locusIdx), r(allelesIdx)), r.getLong(offsetIdx), Row())

@@ -73,7 +73,7 @@ class TextTableReader(TableReader):
             'comment': comment,
             'separator': delimiter,
             'missing': missing,
-            'noHeader': no_header,
+            'hasHeader': not no_header,
             'impute': impute,
             'nPartitionsOpt': min_partitions,
             'quoteStr': quote,

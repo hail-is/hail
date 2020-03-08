@@ -30,6 +30,48 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  name: batch
+  labels:
+    app: batch
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: batch
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: batch
+  labels:
+    app: batch
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: batch
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: batch-driver
+  labels:
+    app: batch-driver
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: batch-driver
+---
+apiVersion: v1
+kind: Service
+metadata:
   name: ci
   labels:
     app: ci
@@ -73,21 +115,91 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: notebook2
+  name: auth
   labels:
-    app: notebook2
+    app: auth
+spec:
+  ports:
+   - port: 80
+     protocol: TCP
+     targetPort: 5000
+  selector:
+    app: auth
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blog
+  labels:
+    app: blog
+spec:
+  ports:
+   - port: 80
+     protocol: TCP
+     targetPort: 2368
+  selector:
+    app: blog
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workshop
+  labels:
+    app: workshop
 spec:
   ports:
   - port: 80
     protocol: TCP
     targetPort: 5000
   selector:
-    app: notebook2
+    app: notebook
 ---
-apiVersion: apps/v1beta2
+apiVersion: v1
+kind: Service
+metadata:
+  name: scheduler
+  labels:
+    app: scheduler
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 5000
+  - name: executor
+    port: 5051
+    protocol: TCP
+    targetPort: 5051
+  - name: client-submit
+    port: 5052
+    protocol: TCP
+    targetPort: 5052
+  - name: client-result
+    port: 5053
+    protocol: TCP
+    targetPort: 5053
+  selector:
+    app: scheduler
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello
+  labels:
+    app: hello
+spec:
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 5000
+  selector:
+    app: hello
+---
+apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: router-deployment
+  name: router
   labels:
     app: router
     hail.is/sha: "{{ code.sha }}"
@@ -105,6 +217,11 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -115,22 +232,21 @@ spec:
                     values:
                     - router
               topologyKey: "kubernetes.io/hostname"
-      tolerations:
-       - key: preemptible
-         value: "true"
       containers:
        - name: router
          image: {{ router_image.image }}
          resources:
            requests:
-             memory: "250M"
+             memory: "100M"
              cpu: "100m"
            limits:
-             memory: "1G"
+             memory: "250M"
              cpu: "1"
          env:
-          - name: DOMAIN
-            value: {{ default_ns.domain }}
+          - name: HAIL_DOMAIN
+            value: {{ global.domain }}
+          - name: HAIL_DEFAULT_NAMESPACE
+            value: {{ default_ns.name }}
          ports:
           - containerPort: 80
          readinessProbe:
@@ -171,3 +287,13 @@ spec:
     resource:
       name: cpu
       targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: router
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: router

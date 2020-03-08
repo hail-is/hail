@@ -11,3 +11,10 @@ object MapIR {
 
   def mapBaseIR(ir: BaseIR, f: BaseIR => BaseIR): BaseIR = f(ir.copy(newChildren = ir.children.map(mapBaseIR(_, f))))
 }
+
+object VisitIR {
+  def apply(ir: BaseIR)(f: BaseIR => Unit): Unit = {
+    f(ir)
+    ir.children.foreach(apply(_)(f))
+  }
+}

@@ -163,13 +163,8 @@ $(BUILD)/unit-tests: $(BUILD_OBJECTS) $(TEST_OBJECTS)
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -o $(BUILD)/unit-tests $(BUILD_OBJECTS) $(TEST_OBJECTS) -ldl
 
-$(PREBUILT)/$(LIBBOOT): $(LIBBOOT)
-	cp -p -f $< $@
-
-$(PREBUILT)/$(LIBHAIL): $(LIBHAIL)
-	cp -p -f $< $@
-
-prebuilt: $(PREBUILT)/$(LIBBOOT) $(PREBUILT)/$(LIBHAIL)
+prebuilt: $(LIBBOOT) $(LIBHAIL)
+	cp -p -f $^ $(PREBUILT)/$(dir $<)
 
 reset-prebuilt:
 	git checkout HEAD -- $(PREBUILT)/$(LIBBOOT)
@@ -195,7 +190,7 @@ benchmark: $(BUILD)/unit-tests
 			esac
 
 clean:
-	-rm -rf $(BUILD) $(LIBSIMDPP) $(LIBBOOT) $(LIBHAIL)
+	-rm -rf $(BUILD) $(LIBSIMDPP) lib
 
 # We take all headers files visible to dynamic-generated code, together with
 # the output of "$(CXX) --version", to give a checksum $(ALL_HEADER_CKSUM)
@@ -222,9 +217,9 @@ $(LIBSIMDPP): $(LIBSIMDPP).tar.gz
 	tar -xzf $<
 
 $(LIBBOOT): $(BUILD)/NativeBoot.o
-	@mkdir -p $(basename $(LIBBOOT))
+	@mkdir -p $(dir $(LIBBOOT))
 	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD)/NativeBoot.o -o $@
 
 $(LIBHAIL): $(BUILD_OBJECTS)
-	@mkdir -p $(basename $(LIBHAIL))
+	@mkdir -p $(dir $(LIBHAIL))
 	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD_OBJECTS) -o $@

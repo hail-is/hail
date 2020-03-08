@@ -3,26 +3,62 @@ package is.hail.io.index
 import java.io.OutputStream
 
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
-import is.hail.expr.types._
+import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
-import is.hail.io.{CodecSpec, Encoder}
+import is.hail.io.fs.FS
+import is.hail.io._
+import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
-import is.hail.io.fs.FS
 import org.json4s.Formats
 import org.json4s.jackson.Serialization
+
+trait AbstractIndexMetadata {
+  def fileVersion: Int
+
+  def branchingFactor: Int
+
+  def height: Int
+
+  def keyType: Type
+
+  def annotationType: Type
+
+  def nKeys: Long
+
+  def indexPath: String
+
+  def rootOffset: Long
+
+  def attributes: Map[String, Any]
+}
+
+case class IndexMetadataUntypedJSON(
+  fileVersion: Int,
+  branchingFactor: Int,
+  height: Int,
+  nKeys: Long,
+  indexPath: String,
+  rootOffset: Long,
+  attributes: Map[String, Any]
+) {
+  def toMetadata(keyType: Type, annotationType: Type): IndexMetadata = IndexMetadata(
+    fileVersion, branchingFactor,
+    height, keyType, annotationType,
+    nKeys, indexPath, rootOffset, attributes)
+}
 
 case class IndexMetadata(
   fileVersion: Int,
   branchingFactor: Int,
   height: Int,
-  keyType: String,
-  annotationType: String,
+  keyType: Type,
+  annotationType: Type,
   nKeys: Long,
   indexPath: String,
   rootOffset: Long,
   attributes: Map[String, Any]
-)
+) extends AbstractIndexMetadata
 
 case class IndexNodeInfo(
   indexFileOffset: Long,
@@ -33,25 +69,29 @@ case class IndexNodeInfo(
 )
 
 object IndexWriter {
-  val version: SemanticVersion = SemanticVersion(1, 0, 0)
+  val version: SemanticVersion = SemanticVersion(1, 1, 0)
 
   def builder(
-    keyType: Type,
-    annotationType: Type,
+    keyType: PType,
+    annotationType: PType,
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any]
   ): (FS, String) => IndexWriter = {
-    val codecSpec = CodecSpec.default
-    val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(keyType, annotationType).physicalType)
-    val makeInternalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType).physicalType);
-    { (fs, path) =>
+    val leafPType = LeafNodeBuilder.typ(keyType, annotationType)
+    val makeLeafEnc = TypedCodecSpec(leafPType, BufferSpec.default).buildEncoder(leafPType)
+
+    val intPType = InternalNodeBuilder.typ(keyType, annotationType)
+    val makeIntEnc = TypedCodecSpec(intPType, BufferSpec.default).buildEncoder(intPType)
+
+
+    { (fs: FS, path: String) =>
       new IndexWriter(
         fs,
         path,
         keyType,
         annotationType,
-        makeLeafEncoder,
-        makeInternalEncoder,
+        makeLeafEnc,
+        makeIntEnc,
         branchingFactor,
         attributes)
     }
@@ -62,8 +102,8 @@ object IndexWriter {
 class IndexWriter(
   fs: FS,
   path: String,
-  keyType: Type,
-  annotationType: Type,
+  keyType: PType,
+  annotationType: PType,
   makeLeafEncoder: (OutputStream) => Encoder,
   makeInternalEncoder: (OutputStream) => Encoder,
   branchingFactor: Int = 4096,
@@ -174,13 +214,13 @@ class IndexWriter(
         IndexWriter.version.rep,
         branchingFactor,
         height,
-        keyType.parsableString(),
-        annotationType.parsableString(),
+        keyType.virtualType,
+        annotationType.virtualType,
         elementIdx,
         "index",
         rootOffset,
         attributes)
-      implicit val formats: Formats = defaultJSONFormats
+      import AbstractRVDSpec.formats
       Serialization.write(metadata, out)
     }
   }

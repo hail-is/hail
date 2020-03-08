@@ -33,7 +33,7 @@ object MatrixType {
   ): MatrixType = {
 
     val (colType, colsFieldIdx) = typ.globalType.field(colsFieldName) match {
-      case Field(_, TArray(t@TStruct(_, _), _), idx) => (t, idx)
+      case Field(_, TArray(t@TStruct(_)), idx) => (t, idx)
       case Field(_, t, _) => fatal(s"expected cols field to be an array of structs, found $t")
     }
     val newRowType = typ.rowType.deleteKey(entriesFieldName)
@@ -91,7 +91,7 @@ case class MatrixType(
     TableType(rowType, rowKey, globalType)
 
   lazy val entriesTableType: TableType = {
-    val resultStruct = TStruct((rowType.fields ++ colType.fields ++ entryType.fields).map(f => f.name -> f.typ.setRequired(false)): _*)
+    val resultStruct = TStruct((rowType.fields ++ colType.fields ++ entryType.fields).map(f => f.name -> f.typ): _*)
     TableType(resultStruct, rowKey ++ colKey, globalType)
   }
 
@@ -190,13 +190,13 @@ case class MatrixType(
   def requireRowKeyVariant() {
     val rowKeyTypes = rowKeyStruct.types
     rowKey.zip(rowKeyTypes) match {
-      case IndexedSeq(("locus", TLocus(_, _)), ("alleles", TArray(TString(_), _))) =>
+      case IndexedSeq(("locus", TLocus(_)), ("alleles", TArray(TString))) =>
     }
   }
 
   def requireColKeyString() {
     colKeyStruct.types match {
-      case Array(_: TString) =>
+      case Array(TString) =>
     }
   }
 

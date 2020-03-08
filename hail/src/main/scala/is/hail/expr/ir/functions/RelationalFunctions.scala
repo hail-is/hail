@@ -1,12 +1,11 @@
 package is.hail.expr.ir.functions
 
-import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixValue, TableValue}
+import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixValue, RelationalSpec, TableValue}
 import is.hail.expr.types.virtual.Type
 import is.hail.expr.types.{BlockMatrixType, MatrixType, TableType}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.RVDType
-import is.hail.variant.RelationalSpec
 import org.json4s.ShortTypeHints
 import org.json4s.jackson.Serialization
 
@@ -31,6 +30,12 @@ abstract class MatrixToTableFunction {
   def preservesPartitionCounts: Boolean
 
   def lower(): Option[TableToTableFunction] = None
+}
+
+abstract class BlockMatrixToTableFunction {
+  def typ(bmType: BlockMatrixType, auxType: Type): TableType
+
+  def execute(ctx: ExecuteContext, bm: BlockMatrix, aux: Any): TableValue
 }
 
 case class WrappedMatrixToTableFunction(
@@ -113,7 +118,6 @@ object RelationalFunctions {
   implicit val formats = RelationalSpec.formats + ShortTypeHints(List(
     classOf[LinearRegressionRowsSingle],
     classOf[LinearRegressionRowsChained],
-    classOf[WindowByLocus],
     classOf[TableFilterPartitions],
     classOf[MatrixFilterPartitions],
     classOf[TableCalculateNewPartitions],
@@ -134,7 +138,8 @@ object RelationalFunctions {
     classOf[GetElement],
     classOf[WrappedMatrixToTableFunction],
     classOf[WrappedMatrixToMatrixFunction],
-    classOf[WrappedMatrixToValueFunction]
+    classOf[WrappedMatrixToValueFunction],
+    classOf[PCRelate]
   ))
 
   def extractTo[T: Manifest](config: String): T = {
@@ -146,6 +151,8 @@ object RelationalFunctions {
   def lookupMatrixToTable(config: String): MatrixToTableFunction = extractTo[MatrixToTableFunction](config)
 
   def lookupTableToTable(config: String): TableToTableFunction = extractTo[TableToTableFunction](config)
+
+  def lookupBlockMatrixToTable(config: String): BlockMatrixToTableFunction = extractTo[BlockMatrixToTableFunction](config)
 
   def lookupTableToValue(config: String): TableToValueFunction = extractTo[TableToValueFunction](config)
 
