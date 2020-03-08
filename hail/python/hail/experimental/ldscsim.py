@@ -57,7 +57,7 @@ import scipy.stats as stats
                                        int)),
            exact_h2=bool)
 def simulate_phenotypes(mt, genotype, h2, pi=None, rg=None, annot=None, popstrat=None, 
-                        popstrat_var=None, exact_h2=True):
+                        popstrat_var=None, exact_h2=False):
     r"""Simulate phenotypes for testing LD score regression.
 
     Simulates betas (SNP effects) under the infinitesimal, spike & slab, or 
@@ -85,7 +85,7 @@ def simulate_phenotypes(mt, genotype, h2, pi=None, rg=None, annot=None, popstrat
     popstrat: :class:`.Expression`, optional
         Column field to use as our aggregated covariates for adding population
         stratification.
-    exact_h2: :obj:`bool`
+    exact_h2: :obj:`bool`, optional
         Whether to exactly simulate ratio of variance of genetic component of 
         phenotype to variance of phenotype to be h2. If `False`, ratio will be
         h2 in expectation. Observed h2 in the simulation will be close to 
@@ -540,7 +540,7 @@ def _nearpsd(A):
                                        int)),
            exact_h2=bool)
 def calculate_phenotypes(mt, genotype, beta, h2, popstrat=None, popstrat_var=None,
-                         exact_h2=True):
+                         exact_h2=False):
     r"""Calculates phenotypes by multiplying genotypes and betas.
 
     Parameters
@@ -584,7 +584,7 @@ def calculate_phenotypes(mt, genotype, beta, h2, popstrat=None, popstrat_var=Non
     mt = normalize_genotypes(mt['gt_'+tid])
     if mt['beta_'+tid].dtype == dtype('array<float64>'):  # if >1 traits
         if exact_h2:
-            raise ValueError('exact_h2=True not supported for simulations of >1 trait')
+            raise ValueError('exact_h2=True not supported for multitrait simulations')
             # still working on this
 #            mt = mt.annotate_cols({'y_no_noise_'+tid: hl.agg.array_agg( #use tid because this is the unnormalized-for-h2 version of y_no_noise
 #                lambda beta: hl.agg.sum(beta*mt['norm_gt']), mt['beta_'+tid])})
