@@ -49,7 +49,7 @@ object Compile {
     InferPType(ir, Env(args.map { case (n, pt, _) => n -> pt}: _*))
 
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
-    
+
     Emit(ctx, ir, fb)
 
     val f = fb.resultWithIndex(print)

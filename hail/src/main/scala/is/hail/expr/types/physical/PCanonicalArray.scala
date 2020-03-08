@@ -57,7 +57,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     elementsOffset(length) + length * elementByteSize
 
   private def contentsByteSize(length: Code[Int]): Code[Long] = {
-    elementsOffset(length) + length.toL * elementByteSize
+    Code.memoize(length, "contentsByteSize_arr_len") { length =>
+      elementsOffset(length) + length.toL * elementByteSize
+    }
   }
 
   private def _elementsOffset(length: Int): Long =

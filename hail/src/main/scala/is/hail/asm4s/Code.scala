@@ -380,6 +380,11 @@ object Code {
   def foreach[A](it: Seq[A])(f: A => Code[Unit]): Code[Unit] = Code(it.map(f))
 
   def currentTimeMillis(): Code[Long] = Code.invokeStatic[java.lang.System, Long]("currentTimeMillis")
+
+  def memoize[T, U](c: Code[T], name: String)(f: (Value[T]) => Code[U])(implicit tti: TypeInfo[T]): Code[U] = {
+    val lr = new LocalRef[T](null, name)
+    Code(lr := c, f(lr))
+  }
 }
 
 trait Code[+T] {
@@ -894,7 +899,9 @@ class ClassFieldRef[T: TypeInfo](fb: FunctionBuilder[_], f: Field[T]) extends Se
   def store(rhs: Code[T]): Code[Unit] = f.put(_loadClass, rhs)
 }
 
-class LocalRef[T](val i: Int)(implicit tti: TypeInfo[T]) extends Settable[T] {
+class ArgRef[T](i: Int)(implicit tti: TypeInfo[T]) extends Settable[T] {
+  assert(i >= 0)
+
   def get: Code[T] =
     new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
@@ -909,15 +916,76 @@ class LocalRef[T](val i: Int)(implicit tti: TypeInfo[T]) extends Settable[T] {
         il += new VarInsnNode(tti.storeOp, i)
       }
     }
+}
 
-  def storeInsn: Code[Unit] = Code(new VarInsnNode(tti.storeOp, i))
+class LocalRef[T](var mb: MethodBuilder, val name: String)(implicit tti: TypeInfo[T]) extends Settable[T] { self =>
+  // for debugging locals reference in the wrong method
+  // val stack = Thread.currentThread().getStackTrace
+
+  private var i: Int = -1
+
+  def allocate(newMB: MethodBuilder): Unit = {
+    if (mb == null)
+      mb = newMB
+    else {
+      /*
+      if (mb ne newMB)
+        println(stack.mkString("\n"))
+       */
+      assert(mb eq newMB)
+    }
+
+    if (i == -1)
+      i = mb.allocateLocal(name)(tti)
+  }
+
+  def allocate(newMB: MethodBuilder, x: VarInsnNode): Unit = {
+    allocate(newMB)
+    assert(x.`var` == -1)
+    assert(i >= 0)
+    x.`var` = i
+  }
+
+  def allocate(newMB: MethodBuilder, x: IincInsnNode): Unit = {
+    allocate(newMB)
+    assert(x.`var` == -1)
+    assert(i >= 0)
+    x.`var` = i
+  }
+
+  def get: Code[T] =
+    new Code[T] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        val x = new VarInsnNode(tti.loadOp, -1)
+        MethodBuilder.registerLocalInsn(x, self)
+        il += x
+      }
+    }
+
+  def store(rhs: Code[T]): Code[Unit] =
+    new Code[Unit] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        rhs.emit(il)
+        val x = new VarInsnNode(tti.storeOp, -1)
+        MethodBuilder.registerLocalInsn(x, self)
+        il += x
+      }
+    }
+
+  def storeInsn: Code[Unit] = {
+    val x = new VarInsnNode(tti.storeOp, -1)
+    MethodBuilder.registerLocalInsn(x, self)
+    Code(x)
+  }
 }
 
 class LocalRefInt(val v: LocalRef[Int]) extends AnyRef {
   def +=(i: Int): Code[Unit] = {
     new Code[Unit] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
-        il += new IincInsnNode(v.i, i)
+        val x = new IincInsnNode(-1, i)
+        MethodBuilder.registerLocalInsn(x, v)
+        il += x
       }
     }
   }

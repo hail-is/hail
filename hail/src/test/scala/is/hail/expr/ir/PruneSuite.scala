@@ -14,6 +14,7 @@ import org.testng.annotations.{DataProvider, Test}
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
+/*
 class PruneSuite extends HailSuite {
   @Test def testUnionType() {
     val base = TStruct(
@@ -1261,3 +1262,4 @@ class PruneSuite extends HailSuite {
   }
 }
 
+*/

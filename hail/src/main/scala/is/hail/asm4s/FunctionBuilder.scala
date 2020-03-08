@@ -275,6 +275,25 @@ object FunctionBuilder {
     new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
 }
 
+object MethodBuilder {
+  private val localInsnRefs = mutable.Map[AbstractInsnNode, LocalRef[_]]()
+
+  def registerLocalInsn(x: AbstractInsnNode, lr: LocalRef[_]): Unit = {
+    assert(!localInsnRefs.contains(x))
+    localInsnRefs += (x -> lr)
+  }
+
+  def popInsnRef(x: AbstractInsnNode): Option[LocalRef[_]] = {
+    val lr = localInsnRefs.get(x)
+    lr match {
+      case Some(_) =>
+        localInsnRefs -= x
+      case None =>
+    }
+    lr
+  }
+}
+
 class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTypeInfo: Array[TypeInfo[_]], val returnTypeInfo: TypeInfo[_]) {
   def descriptor: String = s"(${ parameterTypeInfo.map(_.name).mkString })${ returnTypeInfo.name }"
 
@@ -294,7 +313,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
   val argIndex: Array[Int] = layout.init
   var locals: Int = layout.last
 
-  def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = {
+  def allocateLocal(name: String)(implicit tti: TypeInfo[_]): Int = {
     val i = locals
     assert(i < (1 << 16))
     locals += tti.slots
@@ -308,7 +327,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
     newLocal()
 
   def newLocal[T](name: String = null)(implicit tti: TypeInfo[T]): LocalRef[T] =
-    new LocalRef[T](allocLocal[T](name))
+    new LocalRef[T](this, name)
 
   def newField[T: TypeInfo]: ClassFieldRef[T] = newField[T]()
 
@@ -316,10 +335,10 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
 
   def newLazyField[T: TypeInfo](setup: Code[T], name: String = null): LazyFieldRef[T] = fb.newLazyField(setup, name)
 
-  def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
+  def getArg[T](i: Int)(implicit tti: TypeInfo[T]): Settable[T] = {
     assert(i >= 0)
     assert(i < layout.length)
-    new LocalRef[T](argIndex(i))
+    new ArgRef[T](argIndex(i))
   }
 
   private var emitted = false
@@ -343,6 +362,24 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
     l.foreach { insn =>
       assert(!s.contains(insn))
       s += insn
+    }
+
+    l.foreach {
+      case x: VarInsnNode =>
+        MethodBuilder.popInsnRef(x) match {
+          case Some(lr) =>
+            lr.allocate(this, x)
+          case None =>
+            assert(x.`var` >= 0)
+        }
+      case x: IincInsnNode =>
+        MethodBuilder.popInsnRef(x) match {
+          case Some(lr) =>
+            lr.allocate(this, x)
+          case None =>
+            assert(x.`var` >= 0)
+        }
+      case _ =>
     }
 
     mn.instructions.add(start)
@@ -485,13 +522,11 @@ class FunctionBuilder[F >: Null](
     lazyFieldMemo.getOrElseUpdate(id, newLazyField[T](setup)).asInstanceOf[LazyFieldRef[T]]
   }
 
-  def allocLocal[T](name: String = null)(implicit tti: TypeInfo[T]): Int = apply_method.allocLocal[T](name)
-
   def newLocal[T](implicit tti: TypeInfo[T]): LocalRef[T] = newLocal()
 
   def newLocal[T](name: String = null)(implicit tti: TypeInfo[T]): LocalRef[T] = apply_method.newLocal[T](name)
 
-  def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = apply_method.getArg[T](i)
+  def getArg[T](i: Int)(implicit tti: TypeInfo[T]): Settable[T] = apply_method.getArg[T](i)
 
   def emit(c: Code[_]) = apply_method.emit(c)
 
