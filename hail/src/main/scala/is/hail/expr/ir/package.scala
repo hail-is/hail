@@ -3,6 +3,7 @@ package is.hail.expr
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.annotations.RegionValue
+import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
@@ -98,4 +99,6 @@ package object ir {
     case TFloat32 => F32(0f)
     case TFloat64 => F64(0d)
   }
+
+  implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
 }

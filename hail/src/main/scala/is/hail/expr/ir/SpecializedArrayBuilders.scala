@@ -79,6 +79,16 @@ class StagedArrayBuilder(val elt: PType, mb: MethodBuilder, len: Code[Int]) {
   def ensureCapacity(n: Code[Int]): Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Int, Unit]("ensureCapacity", n)
 
   def clear: Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Unit]("clear")
+
+  def applyEV(mb: MethodBuilder, i: Code[Int]): EmitValue =
+    new EmitValue {
+      def pt: PType = elt
+
+      def get: EmitCode = {
+        val t = mb.newLocal[Int]
+        EmitCode(t := i, isMissing(t), PCode(elt, apply(i)))
+      }
+    }
 }
 
 sealed abstract class MissingArrayBuilder(initialCapacity: Int) {

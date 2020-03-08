@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import java.io._
 
-import is.hail.HailContext
+import is.hail.{HailContext, lir}
 import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.backend.BackendUtils
@@ -80,12 +80,26 @@ trait FunctionWithBackend {
   def setBackend(spark: BackendUtils): Unit
 }
 
+trait EmitMethodBuilderLike {
+
+}
+
 class EmitMethodBuilder(
   override val fb: EmitFunctionBuilder[_],
   mname: String,
   parameterTypeInfo: IndexedSeq[TypeInfo[_]],
   returnTypeInfo: TypeInfo[_]
 ) extends MethodBuilder(fb, mname, parameterTypeInfo, returnTypeInfo) {
+
+  def getArgEV(i: Int, _pt: PType): EmitValue = new EmitValue {
+    def pt: PType = _pt
+
+    def get: EmitCode = {
+      EmitCode(Code._empty,
+        fb.apply_method.getArg[Boolean](i + 1),
+        PCode(pt, fb.apply_method.getArg(i)(typeToTypeInfo(_pt)).load()))
+    }
+  }
 
   def numReferenceGenomes: Int = fb.numReferenceGenomes
 
@@ -129,29 +143,52 @@ class EmitMethodBuilder(
 
   def newRNG(seed: Long): Code[IRRandomness] = fb.newRNG(seed)
 
-  def newPLocal(pt: PType): PSettable = new PSettable {
-    private val l = newLocal(typeToTypeInfo(pt))
+  def newPSettable(pt: PType, s: Settable[_]): PSettable = new PSettable {
+    def get: PCode = PCode(pt, s)
 
-    def get: PCode = PCode(pt, l.load())
-
-    def store(v: PCode): Code[Unit] = l.storeAny(v.code)
+    def store(v: PCode): Code[Unit] = s.storeAny(v.code)
   }
 
-  def newPField(pt: PType): PSettable = new PSettable {
-    private val f = newField(typeToTypeInfo(pt))
+  def newPLocal(pt: PType): PSettable = newPSettable(pt, newLocal(typeToTypeInfo(pt)))
 
-    def get: PCode = PCode(pt, f.load())
+  def newPField(pt: PType): PSettable = newPSettable(pt, newField(typeToTypeInfo(pt)))
 
-    def store(v: PCode): Code[Unit] = f.storeAny(v.code)
+  def newPField(name: String, pt: PType): PSettable = newPSettable(pt, newField(name)(typeToTypeInfo(pt)))
+
+  def newEmitSettable(_pt: PType, ms: Settable[Boolean], vs: PSettable): EmitSettable = new EmitSettable {
+    def pt: PType = _pt
+
+    def get: EmitCode = EmitCode(Code._empty, ms, vs.load())
+
+    def store(ec: EmitCode): Code[Unit] =
+      Code(ec.setup, ms := ec.m, ms.mux(vs := _pt.defaultValue, vs := ec.pv))
   }
 
-  def newPField(name: String, pt: PType): PSettable = new PSettable {
-    private val f = newField(name)(typeToTypeInfo(pt))
+  def newEmitLocal(pt: PType): EmitSettable =
+    newEmitSettable(pt, newLocal[Boolean], newPLocal(pt))
 
-    def get: PCode = PCode(pt, f.load())
+  def newEmitField(pt: PType): EmitSettable =
+    newEmitSettable(pt, newField[Boolean], newPField(pt))
 
-    def store(v: PCode): Code[Unit] = f.storeAny(v.code)
+  def newEmitField(name: String, pt: PType): EmitSettable =
+    newEmitSettable(pt, newField[Boolean](name + "_missing"), newPField(name, pt))
+
+  def newPresentEmitSettable(_pt: PType, ps: PSettable): PresentEmitSettable = new PresentEmitSettable {
+    def pt: PType = _pt
+
+    def get: EmitCode = EmitCode(Code._empty, const(false), ps.load())
+
+    def store(pv: PCode): Code[Unit] = ps := pv
   }
+
+  def newPresentEmitLocal(pt: PType): PresentEmitSettable =
+    newPresentEmitSettable(pt, newPLocal(pt))
+
+  def newPresentEmitField(pt: PType): PresentEmitSettable =
+    newPresentEmitSettable(pt, newPField(pt))
+
+  def newPresentEmitField(name: String, pt: PType): PresentEmitSettable =
+    newPresentEmitSettable(pt, newPField(name, pt))
 }
 
 class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
@@ -177,14 +214,14 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
   override def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
     rgMap.getOrElseUpdate(rg, {
       val fromParent = parentfb.getReferenceGenome(rg)
-      val field = addField[ReferenceGenome](fromParent)
+      val field = newDepField[ReferenceGenome](fromParent)
       field.load()
     })
 
   override def getType(t: Type): Code[Type] =
     typMap.getOrElseUpdate(t, {
       val fromParent = parentfb.getType(t)
-      val field = addField[Type](fromParent)
+      val field = newDepField[Type](fromParent)
       field.load()
     })
 
@@ -193,9 +230,27 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
     literalsMap.getOrElseUpdate(t -> v, {
       val fromParent = parentfb.addLiteral(v, t)
       val ti: TypeInfo[_] = typeToTypeInfo(t)
-      val field = addFieldAny(fromParent)(ti)
+      val field = newDepFieldAny(fromParent)(ti)
       field.load()
     })
+  }
+
+  def newDepEmitField(ec: EmitCode): EmitValue = {
+    val _pt = ec.pt
+    val ti = typeToTypeInfo(_pt)
+    val m = newField[Boolean]
+    val v = newField(ti)
+    setFields += { (obj: lir.ValueX) =>
+      val setup = ec.setup
+      setup.end.append(lir.putField(name, m.name, typeInfo[Boolean], obj, ec.m.v))
+      setup.end.append(lir.putField(name, v.name, ti, obj, ec.v.v))
+      new Code(setup.start, setup.end, null)
+    }
+    new EmitValue {
+      def pt: PType = _pt
+
+      def get: EmitCode = EmitCode(Code._empty, m.load(), PCode(_pt, v.load()))
+    }
   }
 }
 
@@ -718,5 +773,35 @@ class EmitFunctionBuilder[F >: Null](
     def get: PCode = PCode(pt, f.load()).asInstanceOf
 
     def store(v: PCode): Code[Unit] = f.storeAny(v.code)
+  }
+
+  def newEmitSettable(_pt: PType, ms: Settable[Boolean], vs: PSettable): EmitSettable =
+    new EmitSettable {
+      def pt: PType = _pt
+
+      def get: EmitCode = EmitCode(Code._empty, ms, vs.load())
+
+      def store(ec: EmitCode): Code[Unit] =
+        Code(ec.setup, ms := ec.m, ms.mux(vs := pt.defaultValue, vs := ec.pv))
+    }
+
+  def newEmitLocal(pt: PType): EmitSettable = {
+    // FIXME link name
+    val ms = newLocal[Boolean]
+    val vs = newPLocal(pt)
+    newEmitSettable(pt, ms, vs)
+  }
+
+  def newEmitField(pt: PType): EmitSettable = {
+    // FIXME link names
+    val ms = newField[Boolean]
+    val vs = newPField(pt)
+    newEmitSettable(pt, ms, vs)
+  }
+
+  def newEmitField(name: String, pt: PType): EmitSettable = {
+    val ms = newField[Boolean](name + "_missing")
+    val vs = newPField(name, pt)
+    newEmitSettable(pt, ms, vs)
   }
 }

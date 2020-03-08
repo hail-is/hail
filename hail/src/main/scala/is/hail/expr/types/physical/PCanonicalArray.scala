@@ -185,7 +185,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     region.allocate(contentsAlignment, contentsByteSize(length))
   }
 
-  def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
+  def allocate(mb: MethodBuilder, region: Code[Region], length: Code[Int]): Code[Long] =
     region.allocate(contentsAlignment, contentsByteSize(length))
 
   private def writeMissingness(aoff: Long, length: Int, value: Byte) {
@@ -236,7 +236,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     require(elementType.isNumeric)
     val aoff = mb.newLocal[Long]
     Code(
-      aoff := allocate(region, length),
+      aoff := allocate(mb, region, length),
       stagedInitialize(aoff, length),
       Region.setMemory(aoff + elementsOffset(length), length.toL * elementByteSize, 0.toByte),
       aoff)
@@ -338,7 +338,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         val len = sourceType.loadLength(a)
 
         Code(
-          newOffset := allocate(r, len),
+          newOffset := allocate(mb, r, len),
           stagedInitialize(newOffset, len),
           Region.copyFrom(sourceType.firstElementOffset(a, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
           newOffset
@@ -356,7 +356,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def copyFrom(mb: MethodBuilder, region: Code[Region], srcOff: Code[Long]): Code[Long] = {
     val destOff = mb.newField[Long]
     Code(
-      destOff := allocate(region, loadLength(srcOff)),
+      destOff := allocate(mb, region, loadLength(srcOff)),
       Region.copyFrom(srcOff, destOff, contentsByteSize(loadLength(srcOff))),
       destOff
     )
@@ -441,7 +441,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         Code(
           srcAddrVar := srcAddress,
           len := srcArray.loadLength(srcAddrVar),
-          newAddr := allocate(region, len),
+          newAddr := allocate(mb, region, len),
           Region.copyFrom(srcAddrVar, newAddr, contentsByteSize(len)),
           deepPointerCopy(mb, region, newAddr),
           newAddr)
@@ -458,7 +458,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       Code(
         srcAddrVar := srcAddress,
         len := srcArray.loadLength(srcAddrVar),
-        newAddr := allocate(region, len),
+        newAddr := allocate(mb, region, len),
         stagedInitialize(newAddr, len, setMissing = true),
         i := 0,
         Code.whileLoop(i < len,

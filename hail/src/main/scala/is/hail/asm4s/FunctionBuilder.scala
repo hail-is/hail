@@ -304,7 +304,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
 trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
   var setFields: mutable.ArrayBuffer[(lir.ValueX) => Code[Unit]] = new mutable.ArrayBuffer()
 
-  def addField[T : TypeInfo](value: Code[T]): ClassFieldRef[T] = {
+  def newDepField[T : TypeInfo](value: Code[T]): ClassFieldRef[T] = {
     val cfr = newField[T]
     setFields += { (obj: lir.ValueX) =>
       value.end.append(lir.putField(name, cfr.name, typeInfo[T], obj, value.v))
@@ -313,9 +313,8 @@ trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
     cfr
   }
 
-  def addFieldAny[T](value: Code[_])(implicit ti: TypeInfo[T]): ClassFieldRef[T] =
-    addField(value.asInstanceOf[Code[T]])
-
+  def newDepFieldAny[T](value: Code[_])(implicit ti: TypeInfo[T]): ClassFieldRef[T] =
+    newDepField(value.asInstanceOf[Code[T]])
 
   def newInstance(mb: MethodBuilder)(implicit fct: ClassTag[F]): Code[F] = {
     val L = new lir.Block()

@@ -451,7 +451,7 @@ class ASM4SSuite extends TestNGSuite {
     val localF = fb.newField[AsmFunction1[Int, Int]]
 
     val field1 = fb.newField[Int]
-    val field2 = fb2.addField[Int](field1.load())
+    val field2 = fb2.newDepField[Int](field1.load())
 
     def wrappedCall(c: Code[Int]) =
       localF.load().invoke[java.lang.Object, java.lang.Object]("apply",

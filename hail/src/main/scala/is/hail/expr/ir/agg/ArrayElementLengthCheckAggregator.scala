@@ -49,7 +49,8 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
   def initArray(): Code[Unit] =
     Code(
       region.setNumParents((lenRef + 1) * nStates),
-      aoff := arrayType.allocate(region, lenRef),
+      // FIXME this is almost certainly wrong
+      aoff := arrayType.allocate(fb.apply_method, region, lenRef),
       Region.storeAddress(typ.fieldOffset(off, 1), aoff),
       arrayType.stagedInitialize(aoff, lenRef),
       typ.setFieldPresent(off, 1))
