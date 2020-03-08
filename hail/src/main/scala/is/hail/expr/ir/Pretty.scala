@@ -3,16 +3,15 @@ package is.hail.expr.ir
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.expr.types.virtual.{TArray, TInterval}
-import is.hail.table.Ascending
 import is.hail.utils._
-import is.hail.variant.RelationalSpec
+import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object Pretty {
 
   def short(ir: BaseIR, elideLiterals: Boolean = false, maxLen: Int = 100): String = {
-    val s = Pretty(ir)
-    if (s.length < maxLen) s else s.substring(0, maxLen)
+    val s = Pretty(ir, elideLiterals = elideLiterals, maxLen = maxLen)
+    if (s.length < maxLen) s else s.substring(0, maxLen) + "..."
   }
 
   def prettyStringLiteral(s: String): String =
@@ -28,21 +27,9 @@ object Pretty {
   def prettyClass(x: AnyRef): String =
     x.getClass.getName.split("\\.").last
 
-  def prettyAggSignature(aggSig: AggSignature): String = {
-    val sb = new StringBuilder
-    sb += '('
-    sb.append(prettyClass(aggSig.op))
-    sb += ' '
-    sb.append(aggSig.constructorArgs.map(_.parsableString()).mkString(" (", " ", ")"))
-    sb.append(aggSig.initOpArgs.map(_.map(_.parsableString()).mkString(" (", " ", ")")).getOrElse(" None"))
-    sb.append(aggSig.seqOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))
-    sb += ')'
-    sb.result()
-  }
-
   val MAX_VALUES_TO_LOG: Int = 25
 
-  def apply(ir: BaseIR, elideLiterals: Boolean = false): String = {
+  def apply(ir: BaseIR, elideLiterals: Boolean = true, maxLen: Int = -1): String = {
     val sb = new StringBuilder
 
     def prettyIntOpt(x: Option[Int]): String = x.map(_.toString).getOrElse("None")
@@ -69,32 +56,53 @@ object Pretty {
       sb += ')'
     }
 
-    def prettyAggSignature2(aggSig: AggSignature2, depth: Int): String = {
+    def prettyAggStateSignatures(sigs: Seq[AggStateSignature], depth: Int) = {
+      sb.append(" " * depth)
+      sb += '('
+      sigs.foreach { sig =>
+        sb += '\n'
+        prettyAggStateSignature(sig, depth + 2)
+      }
+      sb += ')'
+    }
+    def prettyAggStateSignature(aggSig: AggStateSignature, depth: Int): Unit = {
+      sb.append(" " * depth)
+      sb += '('
+      sb.append(prettyClass(aggSig.default))
+      sb += '\n'
+      prettyAggSeq(aggSig.m.valuesIterator.toFastIndexedSeq, depth + 2)
+      sb += ' '
+      aggSig.nested match {
+        case Some(states) => prettyAggStateSignatures(states, depth + 2)
+        case None => sb.append("None")
+      }
+      sb += ')'
+    }
+
+    def prettyAggSignature(aggSig: AggSignature, depth: Int): Unit = {
       sb.append(" " * depth)
       sb += '('
       sb.append(prettyClass(aggSig.op))
       sb += ' '
       sb.append(aggSig.initOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))
       sb.append(aggSig.seqOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))
-      if (aggSig.nested.isEmpty)
-        sb.append(" None")
-      else
-        aggSig.nested.foreach(prettyAggSeq(_, depth + 2))
       sb += ')'
-      sb.result()
     }
 
-    def prettyAggSeq(sigs: Seq[AggSignature2], depth: Int) {
+    def prettyAggSeq(sigs: Seq[AggSignature], depth: Int) {
       sb.append(" " * depth)
       sb += '('
       sigs.foreach { x =>
         sb += '\n'
-        prettyAggSignature2(x, depth + 2)
+        prettyAggSignature(x, depth + 2)
       }
       sb += ')'
     }
 
     def pretty(ir: BaseIR, depth: Int) {
+      if (maxLen > 0 && sb.size > maxLen)
+        return
+
       sb.append(" " * depth)
       sb += '('
 
@@ -113,74 +121,61 @@ object Pretty {
               sb += ')'
             }(sb += '\n')
           }
-        case ApplyAggOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
+        case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
           sb += ' '
           sb.append(prettyClass(aggSig.op))
           sb += '\n'
-          prettySeq(ctorArgs, depth + 2)
-          sb += '\n'
-          initOpArgs match {
-            case Some(initOpArgs) => prettySeq(initOpArgs, depth + 2)
-            case None =>
-              sb.append(" " * (depth + 2))
-              sb.append("None")
-          }
+          prettySeq(initOpArgs, depth + 2)
           sb += '\n'
           prettySeq(seqOpArgs, depth + 2)
-        case ApplyScanOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
+        case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
           sb += ' '
           sb.append(prettyClass(aggSig.op))
           sb += '\n'
-          prettySeq(ctorArgs, depth + 2)
-          sb += '\n'
-          initOpArgs match {
-            case Some(initOpArgs) => prettySeq(initOpArgs, depth + 2)
-            case None =>
-              sb.append(" " * (depth + 2))
-              sb.append("None")
-          }
+          prettySeq(initOpArgs, depth + 2)
           sb += '\n'
           prettySeq(seqOpArgs, depth + 2)
-        case InitOp(i, args, aggSig) =>
-          sb += ' '
-          sb.append(prettyAggSignature(aggSig))
-          sb += '\n'
-          pretty(i, depth + 2)
-          sb += '\n'
-          prettySeq(args, depth + 2)
-        case SeqOp(i, args, aggSig) =>
-          sb += ' '
-          sb.append(prettyAggSignature(aggSig))
-          sb += '\n'
-          pretty(i, depth + 2)
-          sb += '\n'
-          prettySeq(args, depth + 2)
-        case InitOp2(i, args, aggSig) =>
+        case InitOp(i, args, aggSig, op) =>
           sb += ' '
           sb.append(i)
           sb += ' '
-          prettyAggSignature2(aggSig, depth + 2)
+          sb.append(prettyClass(op))
+          if (!elideLiterals) {}
+          sb += '\n'
+          prettyAggStateSignature(aggSig, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
-        case SeqOp2(i, args, aggSig) =>
+        case SeqOp(i, args, aggSig, op) =>
           sb += ' '
           sb.append(i)
           sb += ' '
-          prettyAggSignature2(aggSig, depth + 2)
+          sb.append(prettyClass(op))
+          sb += '\n'
+          prettyAggStateSignature(aggSig, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
-        case CombOp2(i1, i2, aggSig) =>
+        case CombOp(i1, i2, aggSig) =>
           sb += ' '
           sb.append(i1)
           sb += ' '
           sb.append(i2)
           sb += ' '
-          prettyAggSignature2(aggSig, depth + 2)
-        case ResultOp2(i, aggSigs) =>
+          prettyAggStateSignature(aggSig, depth + 2)
+        case ResultOp(i, aggSigs) =>
           sb += ' '
           sb.append(i)
           sb += '\n'
-          prettyAggSeq(aggSigs, depth + 2)
+          prettyAggStateSignatures(aggSigs, depth + 2)
+        case AggStateValue(i, sig) =>
+          sb += ' '
+          sb.append(i)
+          sb += ' '
+          prettyAggStateSignature(sig, depth + 2)
+        case CombOpValue(i, _, sig) =>
+          sb += ' '
+          sb.append(i)
+          sb += ' '
+          prettyAggStateSignature(sig, depth + 2)
         case SerializeAggs(i, i2, spec, aggSigs) =>
           sb += ' '
           sb.append(i)
@@ -189,7 +184,7 @@ object Pretty {
           sb += ' '
           sb.append(prettyStringLiteral(spec.toString))
           sb += '\n'
-          prettyAggSeq(aggSigs, depth + 2)
+          prettyAggStateSignatures(aggSigs, depth + 2)
         case DeserializeAggs(i, i2, spec, aggSigs) =>
           sb += ' '
           sb.append(i)
@@ -198,7 +193,26 @@ object Pretty {
           sb += ' '
           sb.append(prettyStringLiteral(spec.toString))
           sb += '\n'
-          prettyAggSeq(aggSigs, depth + 2)
+          prettyAggStateSignatures(aggSigs, depth + 2)
+        case RunAgg(body, result, signature) =>
+          prettyAggStateSignatures(signature, depth + 2)
+          sb += '\n'
+          pretty(body, depth + 2)
+          sb += '\n'
+          pretty(result, depth + 2)
+        case RunAggScan(a, name, init, seq, res, signature) =>
+          sb += ' '
+          sb.append(prettyIdentifier(name))
+          sb += ' '
+          prettyAggStateSignatures(signature, depth + 2)
+          sb += '\n'
+          pretty(a, depth + 2)
+          sb += '\n'
+          pretty(init, depth + 2)
+          sb += '\n'
+          pretty(seq, depth + 2)
+          sb += '\n'
+          pretty(res, depth + 2)
         case InsertFields(old, fields, fieldOrder) =>
           sb += '\n'
           pretty(old, depth + 2)
@@ -222,7 +236,7 @@ object Pretty {
             case I64(x) => x.toString
             case F32(x) => x.toString
             case F64(x) => x.toString
-            case Str(x) => prettyStringLiteral(x)
+            case Str(x) => prettyStringLiteral(if (elideLiterals && x.length > 13) x.take(10) + "..." else x)
             case Cast(_, typ) => typ.parsableString()
             case CastRename(_, typ) => typ.parsableString()
             case NA(typ) => typ.parsableString()
@@ -235,6 +249,8 @@ object Pretty {
                 )
             case Let(name, _, _) => prettyIdentifier(name)
             case AggLet(name, _, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
+            case TailLoop(name, args, _) => prettyIdentifier(name) + " " + prettyIdentifiers(args.map(_._1).toFastIndexedSeq)
+            case Recur(name, _, t) => prettyIdentifier(name) + " " + t.parsableString()
             case Ref(name, _) => prettyIdentifier(name)
             case RelationalRef(name, t) => prettyIdentifier(name) + " " + t.parsableString()
             case RelationalLet(name, _, _) => prettyIdentifier(name)
@@ -246,15 +262,22 @@ object Pretty {
             case MakeTuple(fields) => prettyInts(fields.map(_._1).toFastIndexedSeq)
             case MakeArray(_, typ) => typ.parsableString()
             case MakeStream(_, typ) => typ.parsableString()
-            case ArrayMap(_, name, _) => prettyIdentifier(name)
-            case ArrayFilter(_, name, _) => prettyIdentifier(name)
-            case ArrayFlatMap(_, name, _) => prettyIdentifier(name)
-            case ArrayFold(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
-            case ArrayScan(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
-            case ArrayLeftJoinDistinct(_, _, l, r, _, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
-            case ArrayFor(_, valueName, _) => prettyIdentifier(valueName)
-            case ArrayAgg(a, name, query) => prettyIdentifier(name)
-            case ArrayAggScan(a, name, query) => prettyIdentifier(name)
+            case StreamMap(_, name, _) => prettyIdentifier(name)
+            case StreamZip(_, names, _, behavior) => prettyIdentifier(behavior match {
+              case ArrayZipBehavior.AssertSameLength => "AssertSameLength"
+              case ArrayZipBehavior.TakeMinLength => "TakeMinLength"
+              case ArrayZipBehavior.ExtendNA => "ExtendNA"
+              case ArrayZipBehavior.AssumeSameLength => "AssumeSameLength"
+            }) + " " + prettyIdentifiers(names)
+            case StreamFilter(_, name, _) => prettyIdentifier(name)
+            case StreamFlatMap(_, name, _) => prettyIdentifier(name)
+            case StreamFold(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
+            case StreamFold2(_, acc, valueName, _, _) => prettyIdentifiers(acc.map(_._1)) + " " + prettyIdentifier(valueName)
+            case StreamScan(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
+            case StreamLeftJoinDistinct(_, _, l, r, _, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
+            case StreamFor(_, valueName, _) => prettyIdentifier(valueName)
+            case StreamAgg(a, name, query) => prettyIdentifier(name)
+            case StreamAggScan(a, name, query) => prettyIdentifier(name)
             case AggExplode(_, name, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
             case AggFilter(_, _, isScan) => prettyBooleanLiteral(isScan)
             case AggGroupBy(_, _, isScan) => prettyBooleanLiteral(isScan)
@@ -263,6 +286,7 @@ object Pretty {
             case NDArrayMap(_, name, _) => prettyIdentifier(name)
             case NDArrayMap2(_, _, lName, rName, _) => prettyIdentifier(lName) + " " + prettyIdentifier(rName)
             case NDArrayReindex(_, indexExpr) => prettyInts(indexExpr)
+            case NDArrayConcat(_, axis) => axis.toString
             case NDArrayAgg(_, axes) => prettyInts(axes)
             case ArraySort(_, l, r, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ApplyIR(function, _) => prettyIdentifier(function) + " " + ir.typ.parsableString()
@@ -271,9 +295,8 @@ object Pretty {
             case ApplySpecial(function, _, t) => prettyIdentifier(function) + " " + t.parsableString()
             case SelectFields(_, fields) => fields.map(prettyIdentifier).mkString("(", " ", ")")
             case LowerBoundOnOrderedCollection(_, _, onKey) => prettyBooleanLiteral(onKey)
-            case In(i, typ) => s"${ typ.parsableString() } $i"
+            case In(i, typ) => s"$typ $i"
             case Die(message, typ) => typ.parsableString()
-            case Uniroot(name, _, _, _) => prettyIdentifier(name)
             case CollectDistributedArray(_, _, cname, gname, _) =>
               s"${ prettyIdentifier(cname) } ${ prettyIdentifier(gname) }"
             case MatrixRead(typ, dropCols, dropRows, reader) =>
@@ -302,13 +325,21 @@ object Pretty {
               blockSize.toString + " "
             case BlockMatrixFilter(_, indicesToKeepPerDim) =>
               indicesToKeepPerDim.map(indices => prettyLongs(indices)).mkString("(", " ", ")")
+            case BlockMatrixSparsify(_, sparsifier) =>
+              sparsifier.pretty()
             case BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
               seed.toString + " " +
               prettyBooleanLiteral(gaussian) + " " +
               prettyLongs(shape) + " " +
               blockSize.toString + " "
+            case BlockMatrixMap(_, name, _, needsDense) =>
+              prettyIdentifier(name) + " " + prettyBooleanLiteral(needsDense)
+            case BlockMatrixMap2(_, _, lName, rName, _, sparsityStrategy) =>
+              prettyIdentifier(lName) + " " + prettyIdentifier(rName) + prettyClass(sparsityStrategy)
             case MatrixRowsHead(_, n) => n.toString
             case MatrixColsHead(_, n) => n.toString
+            case MatrixRowsTail(_, n) => n.toString
+            case MatrixColsTail(_, n) => n.toString
             case MatrixAnnotateRowsTable(_, _, uid, product) =>
               prettyStringLiteral(uid) + " " + prettyBooleanLiteral(product)
             case MatrixAnnotateColsTable(_, _, uid) =>
@@ -335,6 +366,7 @@ object Pretty {
             case TableRange(n, nPartitions) => s"$n $nPartitions"
             case TableRepartition(_, n, strategy) => s"$n $strategy"
             case TableHead(_, n) => n.toString
+            case TableTail(_, n) => n.toString
             case TableJoin(_, _, joinType, joinKey) => s"$joinType $joinKey"
             case TableLeftJoinRightDistinct(_, _, root) => prettyIdentifier(root)
             case TableIntervalJoin(_, _, root, product) =>
@@ -384,8 +416,11 @@ object Pretty {
             case RelationalLetTable(name, _, _) => prettyIdentifier(name)
             case RelationalLetMatrixTable(name, _, _) => prettyIdentifier(name)
             case RelationalLetBlockMatrix(name, _, _) => prettyIdentifier(name)
-            case ReadPartition(path, spec, rowType) =>
+            case ReadPartition(_, spec, rowType) =>
               s"${ prettyStringLiteral(spec.toString) } ${ rowType.parsableString() }"
+            case ReadValue(_, spec, reqType) =>
+              s"${ prettyStringLiteral(spec.toString) } ${ reqType.parsableString() }"
+            case WriteValue(_, _, spec) => prettyStringLiteral(spec.toString)
 
             case _ => ""
           }

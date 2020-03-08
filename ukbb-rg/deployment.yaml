@@ -3,6 +3,14 @@ kind: Namespace
 metadata:
   name: ukbb-rg
 ---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ssd
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-ssd
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -21,6 +29,8 @@ spec:
       labels:
         app: ukbb-rg-static
     spec:
+      nodeSelector:
+        preemptible: "false"
       containers:
        - name: ukbb-rg-static
          image: gcr.io/hail-vdc/ukbb-rg-static
@@ -42,9 +52,10 @@ spec:
       spec:
         accessModes:
           - ReadWriteOnce
+        storageClassName: ssd
         resources:
           requests:
-            storage: 10Gi
+            storage: 20Gi
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -64,6 +75,8 @@ spec:
       labels:
         app: ukbb-rg-browser
     spec:
+      nodeSelector:
+        preemptible: "false"
       containers:
        - name: ukbb-rg-browser
          image: gcr.io/hail-vdc/ukbb-rg-browser
@@ -85,9 +98,10 @@ spec:
       spec:
         accessModes:
           - ReadWriteOnce
+        storageClassName: ssd
         resources:
           requests:
-            storage: 10Gi
+            storage: 20Gi
 ---
 apiVersion: v1
 kind: Service

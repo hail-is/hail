@@ -5,12 +5,13 @@ import webbrowser
 import aiohttp
 from aiohttp import web
 
-from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import get_tokens, auth_headers
+from hailtop.config import get_deploy_config
+from hailtop.auth import get_tokens, namespace_auth_headers
 
 
-def init_parser(parser):  # pylint: disable=unused-argument
-    pass
+def init_parser(parser):
+    parser.add_argument("--namespace", "-n", type=str,
+                        help="Specify namespace for auth server.  (default: from deploy configuration)")
 
 
 routes = web.RouteTableDef()
@@ -42,9 +43,7 @@ async def start_server():
     return (runner, port)
 
 
-async def auth_flow(session):
-    deploy_config = get_deploy_config()
-
+async def auth_flow(deploy_config, auth_ns, session):
     runner, port = await start_server()
 
     async with session.get(deploy_config.url('auth', '/api/v1alpha/login'),
@@ -76,7 +75,6 @@ Opening in your browser.
     token = resp['token']
     username = resp['username']
 
-    auth_ns = deploy_config.service_ns('auth')
     tokens = get_tokens()
     tokens[auth_ns] = token
     dot_hail_dir = os.path.expanduser('~/.hail')
@@ -84,16 +82,25 @@ Opening in your browser.
         os.mkdir(dot_hail_dir, mode=0o700)
     tokens.write()
 
-    print(f'Logged in as {username}.')
+    if auth_ns == 'default':
+        print(f'Logged in as {username}.')
+    else:
+        print(f'Logged into namespace {auth_ns} as {username}.')
 
 
-async def async_main():
-    headers = auth_headers('auth', authorize_target=False)
+async def async_main(args):
+    deploy_config = get_deploy_config()
+    if args.namespace:
+        auth_ns = args.namespace
+        deploy_config = deploy_config.with_service('auth', auth_ns)
+    else:
+        auth_ns = deploy_config.service_ns('auth')
+    headers = namespace_auth_headers(deploy_config, auth_ns, authorize_target=False)
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers) as session:
-        await auth_flow(session)
+        await auth_flow(deploy_config, auth_ns, session)
 
 
 def main(args, pass_through_args):  # pylint: disable=unused-argument
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(async_main())
+    loop.run_until_complete(async_main(args))

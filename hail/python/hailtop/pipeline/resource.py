@@ -6,6 +6,10 @@ from .utils import PipelineException
 
 
 class Resource:
+    """
+    Abstract class for resources.
+    """
+
     _uid: str
 
     @abc.abstractmethod
@@ -17,7 +21,7 @@ class Resource:
         pass
 
     def _declare(self, directory):
-        return f"{self._uid}={shq(self._get_path(directory))}"
+        return f"{self._uid}={shq(self._get_path(directory))}"  # pylint: disable=no-member
 
 
 class ResourceFile(Resource, str):
@@ -84,6 +88,7 @@ class ResourceFile(Resource, str):
         >>> t = p.new_task()
         >>> t.command(f'echo "hello" > {t.ofile}')
         >>> t.ofile.add_extension('.txt')
+        >>> p.run()
 
         Notes
         -----
@@ -107,15 +112,26 @@ class ResourceFile(Resource, str):
         return self
 
     def __str__(self):
-        return self._uid
+        return self._uid  # pylint: disable=no-member
 
     def __repr__(self):
-        return self._uid
+        return self._uid  # pylint: disable=no-member
 
 
 class InputResourceFile(ResourceFile):
     """
     Class representing a resource from an input file.
+
+    Examples
+    --------
+    `input` is an :class:`.InputResourceFile` of the pipeline `p`
+    and is used in task `t`:
+
+    >>> p = Pipeline()
+    >>> input = p.read_input('data/hello.txt')
+    >>> t = p.new_task(name='hello')
+    >>> t.command(f'cat {input}')
+    >>> p.run()
     """
 
     def __init__(self, value):
@@ -135,10 +151,19 @@ class TaskResourceFile(ResourceFile):
     """
     Class representing an intermediate file from a task.
 
+    Examples
+    --------
+    `t.ofile` is a :class:`.TaskResourceFile` on the task `t`:
+
+    >>> p = Pipeline()
+    >>> t = p.new_task(name='hello-tmp')
+    >>> t.command(f'echo "hello world" > {t.ofile}')
+    >>> p.run()
+
     Notes
     -----
     All :class:`.TaskResourceFile` are temporary files and must be written
-    to a permanent location using :func:`.Pipeline.write_output` if the output needs
+    to a permanent location using :meth:`.Pipeline.write_output` if the output needs
     to be saved.
     """
 
@@ -166,20 +191,24 @@ class ResourceGroup(Resource):
     ...                            bim="data/example.bim",
     ...                            fam="data/example.fam")
 
-    Reference the entire file group:
-
-    >>> t.command(f"plink --bfile {bfile} --geno 0.2 --out {t.ofile}")
-
-    Reference a single file:
-
-    >>> t.command(f"wc -l {bfile.fam}")
-
     Create a resource group from a task intermediate:
 
     >>> t.declare_resource_group(ofile={'bed': '{root}.bed',
     ...                                 'bim': '{root}.bim',
     ...                                 'fam': '{root}.fam'})
     >>> t.command(f"plink --bfile {bfile} --make-bed --out {t.ofile}")
+
+    Reference the entire file group:
+
+    >>> t.command(f"plink --bfile {bfile} --geno 0.2 --make-bed --out {t.ofile}")
+
+    Reference a single file:
+
+    >>> t.command(f"wc -l {bfile.fam}")
+
+    Execute the pipeline:
+
+    >>> p.run() # doctest: +SKIP
 
     Notes
     -----

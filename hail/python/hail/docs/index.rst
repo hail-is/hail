@@ -24,6 +24,7 @@ Contents
     Datasets <datasets>
     Annotation Database <annotation_database_ui>
     How-To Guides <guides>
+    Cheatsheets <cheatsheets>
     For Software Developers <getting_started_developing>
     Other Resources <other_resources>
     Change Log <change_log>
@@ -33,7 +34,8 @@ Indices and tables
 ==================
 
 * :ref:`genindex`
-* :ref:`search`
+
+If you would like to refer to our Hail v0.1 (deprecated) docs, please view `Hail 0.1 docs <docs/0.1/index.html>`_
 
 
 

@@ -6,7 +6,8 @@ from hail.typecheck import *
 from hail.utils.java import info
 
 
-def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_partitions=None) -> hl.Table:
+def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_partitions=None,
+               force_bgz=False, force=False) -> hl.Table:
     """Import a GTF file.
 
        The GTF file format is identical to the GFF version 2 file format,
@@ -99,6 +100,16 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_part
            ``seqname`` is not consistent with the reference genome.
        min_partitions : :obj:`int` or :obj:`None`
            Minimum number of partitions (passed to import_table).
+       force_bgz : :obj:`bool`
+           If ``True``, load files as blocked gzip files, assuming
+           that they were actually compressed using the BGZ codec. This option is
+           useful when the file extension is not ``'.bgz'``, but the file is
+           blocked gzip, so that the file can be read in parallel and not on a
+           single node.
+       force : :obj:`bool`
+           If ``True``, load gzipped files serially on one core. This should
+           be used only when absolutely necessary, as processing time will be
+           increased due to lack of parallelism.
 
        Returns
        -------
@@ -114,7 +125,9 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_part
                                 'f5': hl.tfloat,
                                 'f7': hl.tint},
                          missing='.',
-                         delimiter='\t')
+                         delimiter='\t',
+                         force_bgz=force_bgz,
+                         force=force)
 
     ht = ht.rename({'f0': 'seqname',
                     'f1': 'source',

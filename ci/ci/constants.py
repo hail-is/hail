@@ -1,4 +1,4 @@
-from hailtop.gear.auth import get_userinfo
+from hailtop.auth import get_userinfo
 
 GITHUB_CLONE_URL = 'https://github.com/'
 
@@ -10,16 +10,14 @@ AUTHORIZED_USERS = {
     'cseed',
     'konradjk',
     'jigold',
-    'jbloom22',
     'patrick-schultz',
     'lfrancioli',
     'akotlar',
     'tpoterba',
     'chrisvittal',
     'catoverdrive',
-    'daniel-goldstein',
-    'ahiduchick',
     'GreatBrando',
     'johnc1231',
-    'iitalics'
+    'gsarma',
+    'mkveerapen'
 }

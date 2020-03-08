@@ -1,7 +1,7 @@
 package is.hail.expr.types.virtual
 
-import is.hail.annotations.ExtendedOrdering
-import is.hail.expr.{NatBase, Nat}
+import is.hail.annotations.{Annotation, ExtendedOrdering, UnsafeIndexedSeq}
+import is.hail.expr.{Nat, NatBase}
 import is.hail.expr.types.physical.PNDArray
 import org.apache.spark.sql.Row
 
@@ -18,12 +18,13 @@ object TNDArray {
   }
 }
 
-final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val required: Boolean = false) extends Type {
+final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
   lazy val nDims: Int = {
     assert(nDimsBase.isInstanceOf[Nat], s"Missing concrete number of dimensions.")
     nDimsBase.asInstanceOf[Nat].n
   }
-  lazy val physicalType: PNDArray = PNDArray(elementType.physicalType, nDims, required)
+
+  override def fundamentalType: Type = representation.fundamentalType
 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("ndarray<")
@@ -43,9 +44,43 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val re
     sb.append("]")
   }
 
+  override def str(a: Annotation): String = {
+    if (a == null) "NA" else {
+      val a_row = a.asInstanceOf[Row]
+      val shape = a_row(2).asInstanceOf[Row].toSeq.asInstanceOf[Seq[Long]].map(_.toInt)
+      val data = a_row(4).asInstanceOf[UnsafeIndexedSeq]
+
+      def dataToNestedString(data: Iterator[Annotation], shape: Seq[Int], sb: StringBuilder):Unit  = {
+        if (shape.isEmpty) {
+          sb.append(data.next().toString)
+        }
+        else {
+          sb.append("[")
+          val howMany = shape.head
+          var repeat = 0
+          while (repeat < howMany) {
+            dataToNestedString(data, shape.tail, sb)
+            if (repeat != howMany - 1) {
+              sb.append(", ")
+            }
+            repeat += 1
+          }
+          sb.append("]")
+        }
+      }
+
+      val stringBuilder = new StringBuilder("")
+      dataToNestedString(data.iterator, shape, stringBuilder)
+      val prettyData = stringBuilder.result()
+      val prettyShape = "(" + shape.mkString(", ") + ")"
+
+      s"ndarray{shape=${prettyShape}, data=${prettyData}}"
+    }
+  }
+
   override def unify(concrete: Type): Boolean = {
     concrete match {
-      case TNDArray(cElementType, cNDims, _) => elementType.unify(cElementType) && nDimsBase.unify(cNDims)
+      case TNDArray(cElementType, cNDims) => elementType.unify(cElementType) && nDimsBase.unify(cNDims)
       case _ => false
     }
   }
@@ -55,7 +90,7 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val re
     nDimsBase.clear()
   }
 
-  override def subst(): TNDArray = TNDArray(elementType.subst(), nDimsBase.subst(), required)
+  override def subst(): TNDArray = TNDArray(elementType.subst(), nDimsBase.subst())
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 
@@ -63,11 +98,11 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val re
 
   val ordering: ExtendedOrdering = null
 
-  lazy val representation = TStruct(required = true,
-    ("flags", TInt32Required),
-    ("offset", TInt32Required),
-    ("shape", TTuple(true, Array.tabulate(nDims)(_ => TInt64Required):_*)),
-    ("strides", TTuple(true, Array.tabulate(nDims)(_ => TInt64Required):_*)),
-    ("data", TArray(elementType, required = true))
+  lazy val representation = TStruct(
+    ("flags", TInt32),
+    ("offset", TInt32),
+    ("shape", TTuple(Array.tabulate(nDims)(_ => TInt64):_*)),
+    ("strides", TTuple(Array.tabulate(nDims)(_ => TInt64):_*)),
+    ("data", TArray(elementType))
   )
 }

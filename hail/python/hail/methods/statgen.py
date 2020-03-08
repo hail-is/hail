@@ -154,12 +154,12 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 
     3. Filter to variants with AAF above `aaf_threshold`.
 
-    4. Remove loci in the pseudoautosomal region, as defined by `gr`, if and
-       only if `include_par` is ``True`` (it defaults to ``False``)
+    4. Remove loci in the pseudoautosomal region, as defined by `gr`, unless
+       `include_par` is ``True`` (it defaults to ``False``)
 
     5. For each row and column with a non-missing genotype call, :math:`E`, the
        expected number of homozygotes (from population AAF), is computed as
-       :math:`1.0 - (2.0*maf*(1.0-maf))`.
+       :math:`1.0 - (2.0*\mathrm{maf}*(1.0-\mathrm{maf}))`.
 
     6. For each row and column with a non-missing genotype call, :math:`O`, the
        observed number of homozygotes, is computed interpreting ``0`` as
@@ -859,10 +859,11 @@ def linear_mixed_model(y,
     the number of random effects :math:`m`. At least one dimension must be less
     than or equal to 46300. If `standardize` is true, each random effect is first
     standardized to have mean 0 and variance :math:`\frac{1}{m}`, so that the
-    diagonal values of the kinship matrix `K = ZZ^T` are 1.0 in expectation.
-    This kinship matrix corresponds to the :meth:`realized_relationship_matrix`
-    in genetics. See :meth:`.LinearMixedModel.from_random_effects`
-    and :meth:`.BlockMatrix.svd` for more details.
+    diagonal values of the kinship matrix :math:`K = ZZ^T` are 1.0 in
+    expectation. This kinship matrix corresponds to the
+    :meth:`realized_relationship_matrix` in genetics. See
+    :meth:`.LinearMixedModel.from_random_effects` and :meth:`.BlockMatrix.svd`
+    for more details.
 
     If `k` is set, the model is full-rank. For correct results, the indices of
     `k` **must be aligned** with columns of the source of `y`.
@@ -1303,11 +1304,11 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
     key_field_name = '__key'
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
-    mt = mt._annotate_all(col_exprs=dict(**{y_field_name: y},
-                                         **dict(zip(cov_field_names, covariates))),
-                          row_exprs={weight_field_name: weight_expr,
-                                     key_field_name: key_expr},
-                          entry_exprs=entry_expr)
+    mt = mt._select_all(col_exprs=dict(**{y_field_name: y},
+                                       **dict(zip(cov_field_names, covariates))),
+                        row_exprs={weight_field_name: weight_expr,
+                                   key_field_name: key_expr},
+                        entry_exprs=entry_expr)
 
     config = {
         'name': 'Skat',
@@ -1607,11 +1608,11 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
     .. math::
 
-      \widehat{\phi_{ij}} :=
+      \widehat{\phi_{ij}} \coloneqq
         \frac{1}{|S_{ij}|}
         \sum_{s \in S_{ij}}
           \frac{(g_{is} - 2 p_s) (g_{js} - 2 p_s)}
-                {4 \sum_{s \in S_{ij} p_s (1 - p_s)}}
+                {4 \sum_{s \in S_{ij}} p_s (1 - p_s)}
 
     This estimator is true under the model that the sharing of common
     (relative to the population) alleles is not very informative to
@@ -1636,7 +1637,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     principal component coordinates. As such, the efficacy of this method
     rests on two assumptions:
 
-     - an individual's first ``k`` principal component coordinates fully
+     - an individual's first `k` principal component coordinates fully
        describe their allele-frequency-relevant ancestry, and
 
      - the relationship between ancestry (as described by principal
@@ -1654,17 +1655,17 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
      - :math:`\widehat{\mu_{is}} \in [0, 1]` be the individual-specific allele
        frequency for individual :math:`i` at genetic locus :math:`s`
 
-     - :math:`{\widehat{\sigma^2_{is}}} := \widehat{\mu_{is}} (1 - \widehat{\mu_{is}})`,
+     - :math:`{\widehat{\sigma^2_{is}}} \coloneqq \widehat{\mu_{is}} (1 - \widehat{\mu_{is}})`,
        the binomial variance of :math:`\widehat{\mu_{is}}`
 
-     - :math:`\widehat{\sigma_{is}} := \sqrt{\widehat{\sigma^2_{is}}}`,
+     - :math:`\widehat{\sigma_{is}} \coloneqq \sqrt{\widehat{\sigma^2_{is}}}`,
        the binomial standard deviation of :math:`\widehat{\mu_{is}}`
 
-     - :math:`\text{IBS}^{(0)}_{ij} := \sum_{s \in S_{ij}} \mathbb{1}_{||g_{is} - g_{js} = 2||}`,
+     - :math:`\text{IBS}^{(0)}_{ij} \coloneqq \sum_{s \in S_{ij}} \mathbb{1}_{||g_{is} - g_{js} = 2||}`,
        the number of genetic loci at which individuals :math:`i` and :math:`j`
        share no alleles
 
-     - :math:`\widehat{f_i} := 2 \widehat{\phi_{ii}} - 1`, the inbreeding
+     - :math:`\widehat{f_i} \coloneqq 2 \widehat{\phi_{ii}} - 1`, the inbreeding
        coefficient for individual :math:`i`
 
      - :math:`g^D_{is}` be a dominance encoding of the genotype matrix, and
@@ -1672,20 +1673,21 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
     .. math::
 
-        g^D_{is} :=
+        g^D_{is} \coloneqq
           \begin{cases}
             \widehat{\mu_{is}}     & g_{is} = 0 \\
             0                        & g_{is} = 1 \\
             1 - \widehat{\mu_{is}} & g_{is} = 2
           \end{cases}
 
-        X_{is} := g^D_{is} - \widehat{\sigma^2_{is}} (1 - \widehat{f_i})
+        \qquad
+        X_{is} \coloneqq g^D_{is} - \widehat{\sigma^2_{is}} (1 - \widehat{f_i})
 
     The estimator for kinship is given by:
 
     .. math::
 
-      \widehat{\phi_{ij}} :=
+      \widehat{\phi_{ij}} \coloneqq
         \frac{\sum_{s \in S_{ij}}(g - 2 \mu)_{is} (g - 2 \mu)_{js}}
               {4 * \sum_{s \in S_{ij}}
                             \widehat{\sigma_{is}} \widehat{\sigma_{js}}}
@@ -1694,7 +1696,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
     .. math::
 
-      \widehat{k^{(2)}_{ij}} :=
+      \widehat{k^{(2)}_{ij}} \coloneqq
         \frac{\sum_{s \in S_{ij}}X_{is} X_{js}}{\sum_{s \in S_{ij}}
           \widehat{\sigma^2_{is}} \widehat{\sigma^2_{js}}}
 
@@ -1702,7 +1704,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
     .. math::
 
-      \widehat{k^{(0)}_{ij}} :=
+      \widehat{k^{(0)}_{ij}} \coloneqq
         \begin{cases}
           \frac{\text{IBS}^{(0)}_{ij}}
                 {\sum_{s \in S_{ij}}
@@ -1717,7 +1719,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
     .. math::
 
-      \widehat{k^{(1)}_{ij}} :=
+      \widehat{k^{(1)}_{ij}} \coloneqq
         1 - \widehat{k^{(2)}_{ij}} - \widehat{k^{(0)}_{ij}}
 
     Note that, even if present, phase information is ignored by this method.
@@ -1808,7 +1810,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
         corresponding to the number of principal components, and all scores must
         be non-missing. Exactly one of `k` and `scores_expr` must be specified.
     min_kinship : :obj:`float`, optional
-        If set, pairs of samples with kinship lower than ``min_kinship`` are excluded
+        If set, pairs of samples with kinship lower than `min_kinship` are excluded
         from the results.
     statistics : :obj:`str`
         Set of statistics to compute.
@@ -1877,9 +1879,18 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
 @typecheck(ds=oneof(Table, MatrixTable),
            keep_star=bool,
-           left_aligned=bool)
-def split_multi(ds, keep_star=False, left_aligned=False):
+           left_aligned=bool,
+           permit_shuffle=bool)
+def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False):
     """Split multiallelic variants.
+
+    Warning
+    -------
+    In order to support a wide variety of data types, this function splits only
+    the variants on a :class:`.MatrixTable`, but **not the genotypes**. Use
+    :func:`.split_multi_hts` if possible, or split the genotypes yourself using
+    one of the entry modification methods: :meth:`.MatrixTable.annotate_entries`,
+    :meth:`.MatrixTable.select_entries`, :meth:`.MatrixTable.transmute_entries`.
 
     The resulting dataset will be keyed by the split locus and alleles.
 
@@ -1921,14 +1932,6 @@ def split_multi(ds, keep_star=False, left_aligned=False):
     ...     PL=pl,
     ...     GQ=hl.gq_from_pl(pl)).drop('old_locus', 'old_alleles')
 
-    Warning
-    -------
-    In order to support a wide variety of data types, this function splits only
-    the variants on a :class:`.MatrixTable`, but **not the genotypes**. Use
-    :func:`.split_multi_hts` if possible, or split the genotypes yourself using
-    one of the entry modification methods: :meth:`.MatrixTable.annotate_entries`,
-    :meth:`.MatrixTable.select_entries`, :meth:`.MatrixTable.transmute_entries`.
-
     See Also
     --------
     :func:`.split_multi_hts`
@@ -1943,6 +1946,10 @@ def split_multi(ds, keep_star=False, left_aligned=False):
         If ``True``, variants are assumed to be left aligned and have unique
         loci. This avoids a shuffle. If the assumption is violated, an error
         is generated.
+    permit_shuffle : :obj:`bool`
+        If ``True``, permit a data shuffle to sort out-of-order split results.
+        This will only be required if input data has duplicate loci, one of
+        which contains more than one alternate allele.
 
     Returns
     -------
@@ -2013,7 +2020,7 @@ def split_multi(ds, keep_star=False, left_aligned=False):
                         .or_error("Found non-left-aligned variant in split_multi"))
             return hl.bind(error_on_moved,
                            hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
-        return split_rows(hl.sorted(kept_alleles.map(make_struct)), False)
+        return split_rows(hl.sorted(kept_alleles.map(make_struct)), permit_shuffle)
     else:
         def make_struct(i, cond):
             def struct_or_empty(v):
@@ -2026,7 +2033,7 @@ def split_multi(ds, keep_star=False, left_aligned=False):
         def make_array(cond):
             return hl.sorted(kept_alleles.flatmap(lambda i: make_struct(i, cond)))
 
-        left = split_rows(make_array(lambda locus: locus == ds['locus']), False)
+        left = split_rows(make_array(lambda locus: locus == ds['locus']), permit_shuffle)
         moved = split_rows(make_array(lambda locus: locus != ds['locus']), True)
     return left.union(moved) if is_table else left.union_rows(moved, _check_cols=False)
 
@@ -2034,8 +2041,9 @@ def split_multi(ds, keep_star=False, left_aligned=False):
 @typecheck(ds=oneof(Table, MatrixTable),
            keep_star=bool,
            left_aligned=bool,
-           vep_root=str)
-def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
+           vep_root=str,
+           permit_shuffle=bool)
+def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, permit_shuffle=False):
     """Split multiallelic variants for datasets that contain one or more fields
     from a standard high-throughput sequencing entry schema.
 
@@ -2177,6 +2185,10 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
         (intergenic_consequences, motif_feature_consequences,
         regulatory_feature_consequences, and transcript_consequences)
         will be split properly (i.e. a_index corresponding to the VEP allele_num).
+    permit_shuffle : :obj:`bool`
+        If ``True``, permit a data shuffle to sort out-of-order split results.
+        This will only be required if input data has duplicate loci, one of
+        which contains more than one alternate allele.
 
     Returns
     -------
@@ -2185,7 +2197,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
 
     """
 
-    split = split_multi(ds, keep_star=keep_star, left_aligned=left_aligned)
+    split = split_multi(ds, keep_star=keep_star, left_aligned=left_aligned, permit_shuffle=permit_shuffle)
 
     row_fields = set(ds.row)
     update_rows_expression = {}
@@ -2237,9 +2249,8 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
                                                                       split.a_index).unphased_diploid_gt_index() == i
                                                 ).map(lambda j: split.PL[j]))))))
         if 'GQ' in entry_fields:
-            pl_gq_struct = hl.rbind(pl, lambda pl: hl.struct(PL=pl, GQ=hl.gq_from_pl(pl)))
-            update_entries_expression['PL'] = pl_gq_struct['PL']
-            update_entries_expression['GQ'] = pl_gq_struct['GQ']
+            update_entries_expression['PL'] = pl
+            update_entries_expression['GQ'] = hl.or_else(hl.gq_from_pl(pl), split.GQ)
         else:
             update_entries_expression['PL'] = pl
     else:
@@ -2296,7 +2307,7 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
 
         G_{ik} = \frac{1}{m} \sum_{j=1}^m \frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}
 
-    This method drops variants with :math:`p_j = 0` or math:`p_j = 1` before
+    This method drops variants with :math:`p_j = 0` or :math:`p_j = 1` before
     computing kinship.
 
     Parameters
@@ -2580,13 +2591,13 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
     or genotype dosage. Missing values are mean-imputed within variant.
 
     The method produces a symmetric block-sparse matrix supported in a
-    neighborhood of the diagonal. If variants ``i`` and ``j`` are on the same
-    contig and within `radius` base pairs (inclusive) then the ``(i, j)``
-    element is their
+    neighborhood of the diagonal. If variants :math:`i` and :math:`j` are on the
+    same contig and within `radius` base pairs (inclusive) then the
+    :math:`(i, j)` element is their
     `Pearson correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__.
-    Otherwise, the ``(i, j)`` element is ``0.0``.
+    Otherwise, the :math:`(i, j)` element is ``0.0``.
 
-    Rows with a constant value (i.e., zero variance) will result in `nan`
+    Rows with a constant value (i.e., zero variance) will result in ``nan``
     correlation values. To avoid this, first check that all variants vary or
     filter out constant variants (for example, with the help of
     :func:`.aggregators.stats`).
@@ -2634,10 +2645,9 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
         Row and column indices correspond to matrix table variant index.
     """
     starts_and_stops = hl.linalg.utils.locus_windows(locus_expr, radius, coord_expr, _localize=False)
+    starts_and_stops = hl.tuple([starts_and_stops[0].map(lambda i: hl.int64(i)), starts_and_stops[1].map(lambda i: hl.int64(i))])
     ld = hl.row_correlation(entry_expr, block_size)
-    return BlockMatrix._from_java(ld._jbm.filterRowIntervalsIR(
-        Env.backend()._to_java_ir(starts_and_stops._ir),
-        False))
+    return ld._sparsify_row_intervals_expr(starts_and_stops, blocks_only=False)
 
 
 @typecheck(n_populations=int,
@@ -2682,15 +2692,15 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     This method simulates a matrix table of variants, samples, and genotypes
     using the Balding-Nichols model, which we now define.
 
-    - :math:`K` populations are labeled by integers 0, 1, ..., K - 1.
-    - :math:`N` samples are labeled by strings 0, 1, ..., N - 1.
+    - :math:`K` populations are labeled by integers :math:`0, 1, \dots, K - 1`.
+    - :math:`N` samples are labeled by strings :math:`0, 1, \dots, N - 1`.
     - :math:`M` variants are defined as ``1:1:A:C``, ``1:2:A:C``, ...,
       ``1:M:A:C``.
     - The default distribution for population assignment :math:`\pi` is uniform.
     - The default ancestral frequency distribution :math:`P_0` is uniform on
-      ``[0.1, 0.9]``.
+      :math:`[0.1, 0.9]`.
       All three classes are located in ``hail.stats``.
-    - The default :math:`F_{ST}` values are all 0.1.
+    - The default :math:`F_{ST}` values are all :math:`0.1`.
 
     The Balding-Nichols model models genotypes of individuals from a structured
     population comprising :math:`K` homogeneous modern populations that have
@@ -2718,13 +2728,12 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     The generative model is then given by:
 
     .. math::
-        k_n \,&\sim\, \pi
-
-        p_m \,&\sim\, P_0
-
-        p_{k,m} \mid p_m\,&\sim\, \mathrm{Beta}(\mu = p_m,\, \sigma^2 = F_k p_m (1 - p_m))
-
-        g_{n,m} \mid k_n, p_{k, m} \,&\sim\, \mathrm{Binomial}(2, p_{k_n, m})
+        \begin{aligned}
+            k_n \,&\sim\, \pi \\
+            p_m \,&\sim\, P_0 \\
+            p_{k,m} \mid p_m\,&\sim\, \mathrm{Beta}(\mu = p_m,\, \sigma^2 = F_k p_m (1 - p_m)) \\
+            g_{n,m} \mid k_n, p_{k, m} \,&\sim\, \mathrm{Binomial}(2, p_{k_n, m})
+        \end{aligned}
 
     The beta distribution by its mean and variance above; the usual parameters
     are :math:`a = (1 - p) \frac{1 - F}{F}` and :math:`b = p \frac{1 - F}{F}` with
@@ -2781,10 +2790,10 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
         Default is 1 partition per million entries or 8, whichever is larger.
     pop_dist : :obj:`list` of :obj:`float`, optional
         Unnormalized population distribution, a list of length
-        ``n_populations`` with non-negative values.
+        `n_populations` with non-negative values.
         Default is ``[1, ..., 1]``.
     fst : :obj:`list` of :obj:`float`, optional
-        :math:`F_{ST}` values, a list of length ``n_populations`` with values
+        :math:`F_{ST}` values, a list of length `n_populations` with values
         in (0, 1). Default is ``[0.1, ..., 0.1]``.
     af_dist : :class:`.Float64Expression` representing a random function.
         Ancestral allele frequency distribution.
@@ -2807,7 +2816,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
         fst = [0.1 for _ in range(n_populations)]
 
     if n_partitions is None:
-        n_partitions = max(8, int(n_samples * n_variants / 1000000))
+        n_partitions = max(8, int(n_samples * n_variants / (128 * 1024 * 1024)))
 
     # verify args
     for name, var in {"populations": n_populations,
@@ -2905,17 +2914,17 @@ def filter_alleles(mt: MatrixTable,
        the minimal representation.
      - `old_alleles` (``array<str>``) -- The old alleles, before filtering and
        computing the minimal representation.
-     - old_to_new (``array<int32>``) -- An array that maps old allele index to
+     - `old_to_new` (``array<int32>``) -- An array that maps old allele index to
        new allele index. Its length is the same as `old_alleles`. Alleles that
        are filtered are missing.
-     - new_to_old (``array<int32>``) -- An array that maps new allele index to
+     - `new_to_old` (``array<int32>``) -- An array that maps new allele index to
        the old allele index. Its length is the same as the modified `alleles`
        field.
 
     If all alternate alleles of a variant are filtered out, the variant itself
     is filtered out.
 
-    **Using _f_**
+    **Using** `f`
 
     The `f` argument is a function or lambda evaluated per alternate allele to
     determine whether that allele is kept. If `f` evaluates to ``True``, the
@@ -3010,7 +3019,7 @@ def filter_alleles_hts(mt: MatrixTable,
 
     Notes
     -----
-    For usage of the _f_ argument, see the :func:`.filter_alleles`
+    For usage of the `f` argument, see the :func:`.filter_alleles`
     documentation.
 
     :func:`.filter_alleles_hts` requires the dataset have the GATK VCF schema,
@@ -3033,10 +3042,10 @@ def filter_alleles_hts(mt: MatrixTable,
        the minimal representation.
      - `old_alleles` (``array<str>``) -- The old alleles, before filtering and
        computing the minimal representation.
-     - old_to_new (``array<int32>``) -- An array that maps old allele index to
+     - `old_to_new` (``array<int32>``) -- An array that maps old allele index to
        new allele index. Its length is the same as `old_alleles`. Alleles that
        are filtered are missing.
-     - new_to_old (``array<int32>``) -- An array that maps new allele index to
+     - `new_to_old` (``array<int32>``) -- An array that maps new allele index to
        the old allele index. Its length is the same as the modified `alleles`
        field.
 
@@ -3374,7 +3383,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     locally_pruned_table = hl.read_table(locally_pruned_table_path).add_index()
 
     mt = mt.annotate_rows(info=locally_pruned_table[mt.row_key])
-    mt = mt.filter_rows(hl.is_defined(mt.info))
+    mt = mt.filter_rows(hl.is_defined(mt.info)).unfilter_entries()
 
     std_gt_bm = BlockMatrix.from_entry_expr(
         hl.or_else(

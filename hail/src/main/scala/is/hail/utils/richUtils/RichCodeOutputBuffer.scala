@@ -14,6 +14,14 @@ class RichCodeOutputBuffer(out: Code[OutputBuffer]) {
     out.invoke[Byte, Unit]("writeByte", b)
   }
 
+  def write(buf: Code[Array[Byte]]): Code[Unit] = {
+    out.invoke[Array[Byte], Unit]("write", buf)
+  }
+
+  def write(buf: Code[Array[Byte]], startPos: Code[Int], endPos: Code[Int]): Code[Unit] = {
+    out.invoke[Array[Byte], Int, Int, Unit]("write", buf, startPos, endPos)
+  }
+
   def writeInt(i: Code[Int]): Code[Unit] = {
     out.invoke[Int, Unit]("writeInt", i)
   }
@@ -32,6 +40,10 @@ class RichCodeOutputBuffer(out: Code[OutputBuffer]) {
 
   def writeBytes(region: Code[Region], off: Code[Long], n: Code[Int]): Code[Unit] = {
     out.invoke[Region, Long, Int, Unit]("writeBytes", region, off, n)
+  }
+
+  def writeBytes(off: Code[Long], n: Code[Int]): Code[Unit] = {
+    out.invoke[Long, Int, Unit]("writeBytes", off, n)
   }
 
   def writePrimitive(typ: PType): Code[_] => Code[Unit] = typ.fundamentalType match {

@@ -1,35 +1,28 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering, _}
-import is.hail.asm4s.Code
-import is.hail.check.Arbitrary._
-import is.hail.check.Gen
+import is.hail.asm4s.{Code, coerce, const, _}
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TInt32
-import is.hail.utils._
-
-import scala.reflect.{ClassTag, _}
 
 case object PInt32Optional extends PInt32(false)
 case object PInt32Required extends PInt32(true)
 
-class PInt32(override val required: Boolean) extends PIntegral {
-  lazy val virtualType: TInt32 = TInt32(required)
-  def _toPretty = "Int32"
-
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("int32")
-  }
+class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
+  lazy val virtualType: TInt32.type = TInt32
+  def _asIdent = "int32"
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PInt32")
+  override type NType = PInt32
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
-      Integer.compare(r1.loadInt(o1), r2.loadInt(o2))
+      Integer.compare(Region.loadInt(o1), Region.loadInt(o2))
     }
   }
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
-    new CodeOrdering {
+    new CodeOrderingCompareConsistentWithOthers {
       type T = Int
 
       def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
@@ -48,6 +41,19 @@ class PInt32(override val required: Boolean) extends PIntegral {
   }
 
   override def byteSize: Long = 4
+
+  override def zero = coerce[PInt32](const(0))
+
+  override def add(a: Code[_], b: Code[_]): Code[PInt32] = {
+    coerce[PInt32](coerce[Int](a) + coerce[Int](b))
+  }
+
+  override def multiply(a: Code[_], b: Code[_]): Code[PInt32] = {
+    coerce[PInt32](coerce[Int](a) * coerce[Int](b))
+  }
+
+  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_]): Code[Unit] =
+    Region.storeInt(addr, coerce[Int](value))
 }
 
 object PInt32 {

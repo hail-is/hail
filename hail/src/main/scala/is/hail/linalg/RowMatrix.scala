@@ -71,7 +71,7 @@ class RowMatrix(val hc: HailContext,
 
   def partitioner(
     partitionKey: Array[String] = Array("idx"),
-    kType: TStruct = TStruct("idx" -> TInt64())): RVDPartitioner = {
+    kType: TStruct = TStruct("idx" -> TInt64)): RVDPartitioner = {
     
     val partStarts = partitionStarts()
 

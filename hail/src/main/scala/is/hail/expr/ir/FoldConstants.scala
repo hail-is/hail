@@ -1,9 +1,10 @@
 package is.hail.expr.ir
 
+import is.hail.expr.types.virtual.TStream
 import is.hail.utils.HailException
 
 object FoldConstants {
-  def apply(ir: BaseIR, canGenerateLiterals: Boolean = true): BaseIR =
+  def apply(ir: BaseIR): BaseIR =
     ExecuteContext.scoped { ctx =>
       RewriteBottomUp(ir, {
         case _: Ref |
@@ -13,15 +14,13 @@ object FoldConstants {
              _: ApplySeeded |
              _: ApplyAggOp |
              _: ApplyScanOp |
-             _: SeqOp |
              _: Begin |
-             _: InitOp |
-             _: ArrayRange |
              _: MakeNDArray |
              _: NDArrayShape |
              _: NDArrayReshape |
+             _: NDArrayConcat |
              _: NDArraySlice |
-             _: NDArraySlice |
+             _: NDArrayFilter |
              _: NDArrayMap |
              _: NDArrayMap2 |
              _: NDArrayReindex |
@@ -29,16 +28,16 @@ object FoldConstants {
              _: NDArrayWrite |
              _: NDArrayMatMul |
              _: Die => None
+        case ir: IR if ir.typ.isInstanceOf[TStream] => None
         case ir: IR if !IsConstant(ir) &&
           Interpretable(ir) &&
           ir.children.forall {
             case c: IR => IsConstant(c)
             case _ => false
-          } &&
-          (canGenerateLiterals || CanEmit(ir.typ)) =>
+          } =>
           try {
             Some(
-              Literal.coerce(ir.typ, Interpret(ctx, ir, optimize = false)))
+              Literal.coerce(ir.typ, Interpret.alreadyLowered(ctx, ir)))
           } catch {
             case _: HailException => None
           }

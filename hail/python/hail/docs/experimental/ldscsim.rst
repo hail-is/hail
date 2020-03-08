@@ -5,9 +5,9 @@ Models for SNP effects:
     - Infinitesimal (can simulate n correlated traits)
     - Spike & slab (can simulate 2 correlated traits)
     - Annotation-informed
-    
+
 Features:
-   - Field aggregation tools for annotation-informed model and 
+   - Field aggregation tools for annotation-informed model and
      population stratification with many covariates.
    - Automatic adjustment of genetic correlation parameters
      to allow for the joint simulation of up to 100 randomly

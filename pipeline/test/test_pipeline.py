@@ -3,7 +3,7 @@ import os
 import subprocess as sp
 import tempfile
 
-from hailtop.pipeline import Pipeline, BatchBackend, LocalBackend, PipelineException
+from hailtop.pipeline import Pipeline, BatchBackend, LocalBackend
 
 gcs_input_dir = os.environ.get('SCRATCH') + '/input'
 gcs_output_dir = os.environ.get('SCRATCH') + '/output'
@@ -291,7 +291,7 @@ class LocalTests(unittest.TestCase):
 
 class BatchTests(unittest.TestCase):
     def setUp(self):
-        self.backend = BatchBackend()
+        self.backend = BatchBackend('test')
 
     def tearDown(self):
         self.backend.close()
@@ -418,9 +418,23 @@ class BatchTests(unittest.TestCase):
         p.write_output(input, f'{gcs_output_dir}/hello.txt')
         p.run(verbose=True)
 
-    def test_failed_job_error_msg(self):
-        with self.assertRaises(PipelineException):
-            p = self.pipeline()
-            t = p.new_task()
-            t.command('false')
-            p.run()
+    def test_benchmark_lookalike_workflow(self):
+        p = self.pipeline()
+
+        setup_tasks = []
+        for i in range(10):
+            t = p.new_task(f'setup_{i}').cpu(0.1)
+            t.command(f'echo "foo" > {t.ofile}')
+            setup_tasks.append(t)
+
+        tasks = []
+        for i in range(500):
+            t = p.new_task(f'create_file_{i}').cpu(0.1)
+            t.command(f'echo {setup_tasks[i % len(setup_tasks)].ofile} > {t.ofile}')
+            t.command(f'echo "bar" >> {t.ofile}')
+            tasks.append(t)
+
+        combine = p.new_task(f'combine_output').cpu(0.1)
+        for t in tasks:
+            combine.command(f'cat {t.ofile} >> {combine.ofile}')
+        p.write_output(combine.ofile, f'{gcs_output_dir}/pipeline_benchmark_test.txt')

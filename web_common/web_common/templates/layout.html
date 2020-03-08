@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Hail | {% block title %}{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"></meta>
+    <link rel="shortcut icon" href="{{ base_path }}/common_static/hail_logo_sq.ico" type="image/x-icon" />
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,700" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="{{ base_path }}/common_static/css/main.css" />
+    {% block head %}{% endblock %}
+  </head>
+  <body>
+    <div id="main">
+      {% if notebook_service is defined and notebook_service == 'workshop' %}
+        {% include 'workshop/header.html' %}
+      {% else %}
+        {% include 'header.html' %}
+      {% endif %}
+      <div id="content">
+	{% if message is defined %}
+	  <div id="message" class="message-{{ message['type'] }}">
+	    {{ message['text'] }}
+	  </div>
+	{% endif %}
+        {%block content %}{% endblock %}
+      </div>
+    </div>
+  </body>
+</html>

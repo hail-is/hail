@@ -1,4 +1,4 @@
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: scorecard-deployment
@@ -19,9 +19,16 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      nodeSelector:
+        preemptible: "false"
       containers:
       - name: scorecard
         image: "{{ scorecard_image.image }}"
+        env:
+         - name: HAIL_DEPLOY_CONFIG_FILE
+           value: /deploy-config/deploy-config.json
+         - name: HAIL_DOMAIN
+           value: "{{ global.domain }}"
         resources:
           requests:
             memory: "500M"
@@ -32,9 +39,15 @@ spec:
           - mountPath: /secrets
             readOnly: true
             name: scorecard-github-access-token
+          - name: session-secret-key
+            mountPath: /session-secret-key
+            readOnly: true
+          - name: deploy-config
+            mountPath: /deploy-config
+            readOnly: true
         readinessProbe:
             httpGet:
-              path: /
+              path: /healthcheck
               port: 5000
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -42,6 +55,14 @@ spec:
         - name: scorecard-github-access-token
           secret:
             secretName: scorecard-github-access-token
+        - name: session-secret-key
+          secret:
+            optional: false
+            secretName: session-secret-key
+        - name: deploy-config
+          secret:
+            optional: false
+            secretName: deploy-config
 ---
 apiVersion: v1
 kind: Service

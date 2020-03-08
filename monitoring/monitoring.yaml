@@ -20,6 +20,7 @@ spec:
         app: node-exporter
         grafanak8sapp: "true"
     spec:
+      priorityClassName: infrastructure
       volumes:
        - name: proc
          hostPath:
@@ -27,6 +28,8 @@ spec:
        - name: sys
          hostPath:
            path: /sys
+      nodeSelector:
+        preemptible: "true"
       tolerations:
        - key: preemptible
          value: "true"
@@ -36,6 +39,13 @@ spec:
          args:
           - --path.procfs=/proc_host
           - --path.sysfs=/host_sys
+         resources:
+           requests:
+             cpu: 100m
+             memory: 100Mi
+           limits:
+             cpu: "1"
+             memory: 100Mi
          ports:
           - name: node-exporter
             hostPort: 9100
@@ -143,10 +153,18 @@ spec:
         app: kube-state-metrics
         grafanak8sapp: "true" 
     spec:
+      priorityClassName: infrastructure
       serviceAccountName: kube-state-metrics
       containers:
       - name: kube-state-metrics
         image: quay.io/coreos/kube-state-metrics:v1.6.0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+          limits:
+            cpu: "1"
+            memory: 100Mi
         ports:
         - name: http-metrics
           containerPort: 8080
@@ -187,7 +205,7 @@ metadata:
   name: prometheus
   namespace: monitoring
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: prometheus
@@ -209,7 +227,7 @@ rules:
  - nonResourceURLs: ["/metrics"]
    verbs: ["get"]
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: prometheus
@@ -322,6 +340,7 @@ spec:
       labels:
         app: prometheus
     spec:
+      priorityClassName: infrastructure
       securityContext:
         fsGroup: 65534
         runAsNonRoot: true
@@ -337,7 +356,8 @@ spec:
           - "--storage.tsdb.path=/prometheus"
           - "--web.console.libraries=/usr/share/prometheus/console_libraries"
           - "--web.console.templates=/usr/share/prometheus/consoles"
-          - "--web.external-url=https://internal.hail.is/monitoring/prometheus"
+          - "--web.external-url=https://internal.hail.is/monitoring/prometheus/"
+          - "--web.route-prefix=/"
          ports:
           - containerPort: 9090
             protocol: TCP
@@ -348,6 +368,9 @@ spec:
             name: prometheus-storage
          resources:
            requests:
+             cpu: "1"
+             memory: 20Gi
+           limits:
              cpu: "1"
              memory: 20Gi
       volumes:
@@ -395,6 +418,7 @@ spec:
       labels:
         app: grafana
     spec:
+      priorityClassName: infrastructure
       securityContext:
         fsGroup: 472
         runAsNonRoot: true
@@ -412,8 +436,11 @@ spec:
             name: grafana-storage
          resources:
            requests:
-             memory: "1G"
              cpu: "1"
+             memory: "1G"
+           limits:
+             cpu: "1"
+             memory: "1G"
          ports:
           - containerPort: 3000
   volumeClaimTemplates:
@@ -473,14 +500,22 @@ spec:
       labels:
         app: elasticsearch
     spec:
+      priorityClassName: infrastructure
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       containers:
         - name: elasticsearch
           image: docker.elastic.co/elasticsearch/elasticsearch:7.2.0
           resources:
-            limits:
-              cpu: 1000m
             requests:
-              cpu: 100m
+              cpu: "1"
+              memory: "2G"
+            limits:
+              cpu: "1"
+              memory: "2G"
           ports:
             - containerPort: 9200
               name: rest
@@ -536,6 +571,16 @@ spec:
         requests:
           storage: 30Gi
 ---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: es-cluster
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: elasticsearch
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -567,6 +612,7 @@ spec:
       labels:
         app: kibana
     spec:
+      priorityClassName: infrastructure
       volumes:
         - name: kibana-config-volume
           configMap:
@@ -577,10 +623,12 @@ spec:
           securityContext:
             runAsUser: 1000
           resources:
-            limits:
-              cpu: 1000m
             requests:
               cpu: 100m
+              memory: 2G
+            limits:
+              cpu: 1
+              memory: 2G
           volumeMounts:
             - name: kibana-config-volume
               mountPath: /usr/share/kibana/config
@@ -637,7 +685,7 @@ data:
       username: ${ELASTICSEARCH_USERNAME}
       password: ${ELASTICSEARCH_PASSWORD}
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: filebeat
@@ -645,13 +693,22 @@ metadata:
   labels:
     app: filebeat
 spec:
+  selector:
+    matchLabels:
+      app: filebeat
   template:
     metadata:
       labels:
         app: filebeat
     spec:
+      priorityClassName: infrastructure
       serviceAccountName: filebeat
       terminationGracePeriodSeconds: 30
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+        - key: "preemptible"
+          value: "true"
       containers:
       - name: filebeat
         image: docker.elastic.co/beats/filebeat:7.2.0
@@ -679,11 +736,12 @@ spec:
         securityContext:
           runAsUser: 0
         resources:
-          limits:
-            memory: 200Mi
           requests:
             cpu: 100m
-            memory: 100Mi
+            memory: 250Mi
+          limits:
+            cpu: "1"
+            memory: 250Mi
         volumeMounts:
         - name: config
           mountPath: /etc/filebeat.yml
@@ -713,13 +771,8 @@ spec:
         hostPath:
           path: /var/lib/filebeat-data
           type: DirectoryOrCreate
-      tolerations:
-        - key: "preemptible"
-          operator: "Equal"
-          value: "true"
-          effect: "NoSchedule"
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: filebeat
@@ -732,7 +785,7 @@ roleRef:
   name: filebeat
   apiGroup: rbac.authorization.k8s.io
 ---
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: filebeat

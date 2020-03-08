@@ -1,0 +1,2 @@
+recursive-include notebook/templates *
+recursive-include notebook/styles *

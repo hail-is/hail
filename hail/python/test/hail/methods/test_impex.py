@@ -34,6 +34,19 @@ class VCFTests(unittest.TestCase):
     def test_info_char(self):
         self.assertEqual(hl.import_vcf(resource('infochar.vcf')).count_rows(), 1)
 
+    def test_import_export_same(self):
+        for i in range(10):
+            mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
+            f1 = new_temp_file(suffix='vcf.bgz')
+            hl.export_vcf(mt, f1)
+            mt2 = hl.import_vcf(f1)
+            f2 = new_temp_file(suffix='vcf.bgz')
+            hl.export_vcf(mt2, f2)
+            mt3 = hl.import_vcf(f2)
+
+            assert mt._same(mt2)
+            assert mt._same(mt3)
+
     def test_info_float64(self):
         """Test that floating-point info fields are 64-bit regardless of the entry float type"""
         mt = hl.import_vcf(resource('infochar.vcf'), entry_float_type=hl.tfloat32)
@@ -268,7 +281,7 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(mt._same(mt2))
 
     @skip_unless_spark_backend()
-    def test_import_vcfs(self):
+    def test_import_gvcfs(self):
         path = resource('sample.vcf.bgz')
         parts = [
             hl.Interval(start=hl.Struct(locus=hl.Locus('20', 1)),
@@ -282,7 +295,7 @@ class VCFTests(unittest.TestCase):
                         includes_end=True)
         ]
         vcf1 = hl.import_vcf(path).key_rows_by('locus')
-        vcf2 = hl.import_vcfs([path], parts)[0]
+        vcf2 = hl.import_gvcfs([path], parts)[0]
         self.assertEqual(len(parts), vcf2.n_partitions())
         self.assertTrue(vcf1._same(vcf2))
 
@@ -301,7 +314,7 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(hl.filter_intervals(vcf2, interval_c).n_partitions(), 3)
 
     @skip_unless_spark_backend()
-    def test_import_vcfs_subset(self):
+    def test_import_gvcfs_subset(self):
         path = resource('sample.vcf.bgz')
         parts = [
             hl.Interval(start=hl.Struct(locus=hl.Locus('20', 13509136)),
@@ -309,7 +322,7 @@ class VCFTests(unittest.TestCase):
                         includes_end=True)
         ]
         vcf1 = hl.import_vcf(path).key_rows_by('locus')
-        vcf2 = hl.import_vcfs([path], parts)[0]
+        vcf2 = hl.import_gvcfs([path], parts)[0]
         interval = [hl.parse_locus_interval('[20:13509136-16493533]')]
         filter1 = hl.filter_intervals(vcf1, interval)
         self.assertTrue(vcf2._same(filter1))
@@ -346,7 +359,7 @@ class VCFTests(unittest.TestCase):
         ]
         int0 = hl.parse_locus_interval('[chr20:17821257-18708366]', reference_genome='GRCh38')
         int1 = hl.parse_locus_interval('[chr20:18708367-19776611]', reference_genome='GRCh38')
-        hg00096, hg00268 = hl.import_vcfs(paths, parts, reference_genome='GRCh38')
+        hg00096, hg00268 = hl.import_gvcfs(paths, parts, reference_genome='GRCh38')
         filt096 = hl.filter_intervals(hg00096, [int0])
         filt268 = hl.filter_intervals(hg00268, [int1])
         self.assertEqual(1, filt096.n_partitions())
@@ -375,11 +388,173 @@ class VCFTests(unittest.TestCase):
             MQ_DP=hl.null(hl.tint32),
             VarDP=hl.null(hl.tint32),
             QUALapprox=hl.null(hl.tint32))))
-                for mt in hl.import_vcfs(paths, parts, reference_genome='GRCh38',
+                for mt in hl.import_gvcfs(paths, parts, reference_genome='GRCh38',
                                          array_elements_required=False)]
         comb = combine_gvcfs(vcfs)
         self.assertEqual(len(parts), comb.n_partitions())
         comb._force_count_rows()
+
+    def test_combiner_parse_as_annotations(self):
+        import hail.experimental.vcf_combiner as c
+        infos = hl.array([
+            hl.struct(
+                AS_QUALapprox="|1171|",
+                AS_SB_TABLE="0,0|30,27|0,0",
+                AS_VarDP="0|57|0",
+                AS_RAW_MQ="0.00|15100.00|0.00",
+                AS_RAW_MQRankSum="|0.0,1|NaN",
+                AS_RAW_ReadPosRankSum="|0.7,1|NaN"),
+            hl.struct(
+                AS_QUALapprox="|1171|",
+                AS_SB_TABLE="0,0|30,27|0,0",
+                AS_VarDP="0|57|0",
+                AS_RAW_MQ="0.00|15100.00|0.00",
+                AS_RAW_MQRankSum="|NaN|NaN",
+                AS_RAW_ReadPosRankSum="|NaN|NaN")])
+
+        output = hl.eval(infos.map(lambda info: c.parse_as_fields(info, False)))
+        expected = [
+            hl.Struct(
+                AS_QUALapprox=[None, 1171, None],
+                AS_SB_TABLE=[[0, 0], [30, 27], [0, 0]],
+                AS_VarDP=[0, 57, 0],
+                AS_RAW_MQ=[0.00, 15100.00, 0.00],
+                AS_RAW_MQRankSum=[None, (0.0, 1), None],
+                AS_RAW_ReadPosRankSum=[None, (0.7, 1), None]),
+            hl.Struct(
+                AS_QUALapprox=[None, 1171, None],
+                AS_SB_TABLE=[[0, 0], [30, 27], [0, 0]],
+                AS_VarDP=[0, 57, 0],
+                AS_RAW_MQ=[0.00, 15100.00, 0.00],
+                AS_RAW_MQRankSum=[None, None, None],
+                AS_RAW_ReadPosRankSum=[None, None, None])]
+        assert output == expected
+
+    def test_flag_at_eol(self):
+        vcf_path = resource('flag_at_end.vcf')
+        mt = hl.import_vcf(vcf_path)
+        assert mt._force_count_rows() == 1
+
+    def test_missing_float_entries(self):
+        vcf = hl.import_vcf(resource('noglgp.vcf'), array_elements_required=False,
+                            reference_genome='GRCh38')
+        gl_gp = vcf.aggregate_entries(hl.agg.collect(hl.struct(GL=vcf.GL, GP=vcf.GP)))
+        assert gl_gp == [hl.Struct(GL=[None, None, None], GP=[0.22, 0.5, 0.27]),
+                         hl.Struct(GL=[None, None, None], GP=[None, None, None])]
+
+    def test_same_bgzip(self):
+        mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4)
+        f = new_temp_file(suffix='vcf.bgz')
+        hl.export_vcf(mt, f)
+        assert hl.import_vcf(f)._same(mt)
+
+    def test_sorted(self):
+        mt = hl.utils.range_matrix_table(10, 10, n_partitions=4).filter_cols(False)
+        mt = mt.key_cols_by(s='dummy')
+        mt = mt.annotate_entries(GT=hl.unphased_diploid_gt_index_call(0))
+        mt = mt.key_rows_by(locus=hl.locus('1', 100 - mt.row_idx), alleles=['A', 'T'])
+        f = new_temp_file(suffix='vcf')
+        hl.export_vcf(mt, f)
+
+        last = 0
+        with open(uri_path(f), 'r') as i:
+            for line in i:
+                if line.startswith('#'):
+                    continue
+                else:
+                    pos = int(line.split('\t')[1])
+                    assert pos >= last
+                    last = pos
+
+    def test_empty_read_write(self):
+        mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4).filter_rows(False)
+
+        out1 = new_temp_file(suffix='vcf')
+        out2 = new_temp_file(suffix='vcf.bgz')
+
+        hl.export_vcf(mt, out1)
+        hl.export_vcf(mt, out2)
+
+        assert os.stat(uri_path(out1)).st_size > 0
+        assert os.stat(uri_path(out2)).st_size > 0
+
+        assert hl.import_vcf(out1)._same(mt)
+        assert hl.import_vcf(out2)._same(mt)
+
+    def test_format_header(self):
+        mt = hl.import_vcf(resource('sample2.vcf'))
+        metadata = hl.get_vcf_metadata(resource('sample2.vcf'))
+        f = new_temp_file(suffix='vcf')
+        hl.export_vcf(mt, f, metadata=metadata)
+
+        s = set()
+        with open(uri_path(f), 'r') as i:
+            for line in i:
+                if line.startswith('##FORMAT'):
+                    s.add(line.strip())
+
+        assert s == {
+            '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">',
+            '##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">',
+            '##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">',
+            '##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">',
+            '##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">',
+        }
+
+    def test_format_genotypes(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        f = new_temp_file(suffix='vcf')
+        hl.export_vcf(mt, f)
+        with open(uri_path(f), 'r') as i:
+            for line in i:
+                if line.startswith('20\t13029920'):
+                    expected = "GT:AD:DP:GQ:PL\t1/1:0,6:6:18:234,18,0\t1/1:0,4:4:12:159,12,0\t" \
+                               "1/1:0,4:4:12:163,12,0\t1/1:0,12:12:36:479,36,0\t" \
+                               "1/1:0,4:4:12:149,12,0\t1/1:0,6:6:18:232,18,0\t" \
+                               "1/1:0,6:6:18:242,18,0\t1/1:0,3:3:9:119,9,0\t1/1:0,9:9:27:374,27,0" \
+                               "\t./.:1,0:1\t1/1:0,3:3:9:133,9,0"
+                    assert expected in line
+                    break
+            else:
+                assert False, 'expected pattern not found'
+
+    def test_contigs_header(self):
+        mt = hl.import_vcf(resource('sample.vcf')).filter_cols(False)
+        f = new_temp_file(suffix='vcf')
+        hl.export_vcf(mt, f)
+        with open(uri_path(f), 'r') as i:
+            for line in i:
+                if line.startswith('##contig=<ID=10'):
+                    assert line.strip() == '##contig=<ID=10,length=135534747,assembly=GRCh37>'
+                    break
+            else:
+                assert False, 'expected pattern not found'
+
+    def test_metadata_argument(self):
+        mt = hl.import_vcf(resource('multipleChromosomes.vcf'))
+        f = new_temp_file(suffix='vcf')
+        metadata = {
+            'filter': {'LowQual': {'Description': 'Low quality'}},
+            'format': {'GT': {'Description': 'Genotype call.', 'Number': 'foo'}},
+            'fakeField': {}
+        }
+        hl.export_vcf(mt, f, metadata=metadata)
+
+        saw_gt = False
+        saw_lq = False
+        with open(uri_path(f), 'r') as f:
+            for line in f:
+                print(line[:25])
+                if line.startswith('##FORMAT=<ID=GT'):
+                    assert line.strip() == '##FORMAT=<ID=GT,Number=foo,Type=String,Description="Genotype call.">'
+                    assert not saw_gt
+                    saw_gt = True
+                elif line.startswith('##FILTER=<ID=LowQual'):
+                    assert line.strip() == '##FILTER=<ID=LowQual,Description="Low quality">'
+                    assert not saw_lq
+                    saw_lq = True
+        assert saw_gt
+        assert saw_lq
 
 
 class PLINKTests(unittest.TestCase):
@@ -1327,14 +1502,14 @@ class ImportMatrixTableTests(unittest.TestCase):
 
         row_fields = {'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32}
         hl.import_matrix_table(doctest_resource('matrix2.tsv'),
-                               row_fields=row_fields, row_key=[]).count()
+                               row_fields=row_fields, row_key=[])._force_count_rows()
         hl.import_matrix_table(doctest_resource('matrix3.tsv'),
                                row_fields=row_fields,
-                               no_header=True).count()
+                               no_header=True)._force_count_rows()
         hl.import_matrix_table(doctest_resource('matrix3.tsv'),
                                row_fields=row_fields,
                                no_header=True,
-                               row_key=[]).count()
+                               row_key=[])._force_count_rows()
 
     @skip_unless_spark_backend()
     def test_import_matrix_table_no_cols(self):
@@ -1344,7 +1519,22 @@ class ImportMatrixTableTests(unittest.TestCase):
         t = hl.import_table(file, types=fields, key=['Chromosome', 'Position'])
 
         self.assertEqual(mt.count_cols(), 0)
+        self.assertEqual(mt.count_rows(), 231)
         self.assertTrue(t._same(mt.rows()))
+
+    @skip_unless_spark_backend()
+    def test_import_matrix_comment(self):
+        no_comment = doctest_resource('matrix1.tsv')
+        comment = doctest_resource('matrix1_comment.tsv')
+        row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days': hl.tfloat32}
+        mt1 = hl.import_matrix_table(no_comment,
+                                     row_fields=row_fields,
+                                     row_key=[])
+        mt2 = hl.import_matrix_table(comment,
+                                     row_fields=row_fields,
+                                     row_key=[],
+                                     comment=['#', '%'])
+        assert mt1._same(mt2)
 
     def test_headers_not_identical(self):
         self.assertRaisesRegex(
@@ -1386,7 +1576,9 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt = mt.annotate_entries(x = entry_fun(mt.row_idx * mt.col_idx))
         mt = mt.annotate_rows(row_str = hl.str(mt.row_idx))
         mt = mt.annotate_rows(row_float = hl.float(mt.row_idx))
-        mt.key_rows_by(*mt.row).x.export('foo.tsv',
+
+        path = new_temp_file(suffix='tsv')
+        mt.key_rows_by(*mt.row).x.export(path,
                                          missing=missing,
                                          delimiter=delimiter,
                                          header=header)
@@ -1405,7 +1597,7 @@ class ImportMatrixTableTests(unittest.TestCase):
             mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
 
         actual = hl.import_matrix_table(
-            'foo.tsv',
+            path,
             row_fields=row_fields,
             row_key=row_key,
             entry_type=entry_type,
@@ -1471,6 +1663,8 @@ class ImportMatrixTableTests(unittest.TestCase):
             31, None, None, 34]
         assert actual == expected
 
+        assert mt.count_rows() == len(mt.rows().collect())
+
         actual = mt.chr.collect()
         assert actual == ['chr1', 'chr1', 'chr1', None]
         actual = mt[''].collect()
@@ -1479,6 +1673,16 @@ class ImportMatrixTableTests(unittest.TestCase):
         assert actual == ['A', 'AGT', None, 'CTA']
         actual = mt.alt.collect()
         assert actual == ['T', 'TGG', 'A', None]
+
+    def test_empty_import_matrix_table(self):
+        path = new_temp_file(suffix='tsv.bgz')
+        mt = hl.utils.range_matrix_table(0, 0)
+        mt = mt.annotate_entries(x=1)
+        mt.x.export(path)
+        assert hl.import_matrix_table(path)._force_count_rows() == 0
+
+        mt.x.export(path, header=False)
+        assert hl.import_matrix_table(path, no_header=True)._force_count_rows() == 0
 
 
 class ImportTableTests(unittest.TestCase):
@@ -1495,3 +1699,78 @@ class ImportTableTests(unittest.TestCase):
     def test_glob(self):
         tables = hl.import_table(resource('variantAnnotations.split.*.tsv'))
         assert tables.count() == 346
+
+    def test_type_imputation(self):
+        ht = hl.import_table(resource('type_imputation.tsv'), delimiter=r' ', missing='.', impute=True)
+        assert ht.row.dtype == hl.dtype('struct{1:int32,2:float64,3:str,4:str,5:str,6:bool,7:str}')
+
+        ht = hl.import_table(resource('variantAnnotations.tsv'), impute=True)
+        assert ht.row.dtype == hl.dtype(
+            'struct{Chromosome: int32, Position: int32, Ref: str, Alt: str, Rand1: float64, Rand2: float64, Gene: str}')
+
+        ht = hl.import_table(resource('variantAnnotations.tsv'), impute=True, types={'Chromosome': 'str'})
+        assert ht.row.dtype == hl.dtype(
+            'struct{Chromosome: str, Position: int32, Ref: str, Alt: str, Rand1: float64, Rand2: float64, Gene: str}')
+
+        ht = hl.import_table(resource('variantAnnotations.alternateformat.tsv'), impute=True)
+        assert ht.row.dtype == hl.dtype(
+            'struct{`Chromosome:Position:Ref:Alt`: str, Rand1: float64, Rand2: float64, Gene: str}')
+
+        ht = hl.import_table(resource('sampleAnnotations.tsv'), impute=True)
+        assert ht.row.dtype == hl.dtype(
+            'struct{Sample: str, Status: str, qPhen: int32}')
+
+        ht = hl.import_table(resource('integer_imputation.txt'), impute=True, delimiter=r'\s+')
+        assert ht.row.dtype == hl.dtype(
+            'struct{A:int64, B:int32}')
+
+    def test_import_export_identity(self):
+        ht = hl.import_table(resource('sampleAnnotations.tsv'))
+        f = new_temp_file()
+        ht.export(f)
+
+        with open(resource('sampleAnnotations.tsv'), 'r') as i1:
+            expected = list(line.strip() for line in i1)
+        with open(uri_path(f), 'r') as i2:
+            observed = list(line.strip() for line in i2)
+
+        assert expected == observed
+
+    def small_dataset_1(self):
+        data = [
+            hl.Struct(Sample='Sample1',field1=5,field2=5),
+            hl.Struct(Sample='Sample2',field1=3,field2=5),
+            hl.Struct(Sample='Sample3',field1=2,field2=5),
+            hl.Struct(Sample='Sample4',field1=1,field2=5),
+        ]
+        return hl.Table.parallelize(data, key='Sample')
+
+    def test_read_write_identity(self):
+        ht = self.small_dataset_1()
+        f = new_temp_file(suffix='ht')
+        ht.write(f)
+        assert ht._same(hl.read_table(f))
+    def test_read_write_identity_keyed(self):
+        ht = self.small_dataset_1().key_by()
+        f = new_temp_file(suffix='ht')
+        ht.write(f)
+        assert ht._same(hl.read_table(f))
+
+    def test_import_same(self):
+        ht = hl.import_table(resource('sampleAnnotations.tsv'))
+        ht2 = hl.import_table(resource('sampleAnnotations.tsv'))
+        assert ht._same(ht2)
+
+
+class GrepTests(unittest.TestCase):
+    def test_grep_show_false(self):
+        expected = {'sampleAnnotations.tsv': ['HG00120\tCASE\t19599', 'HG00121\tCASE\t4832'],
+                    'sample2_rename.tsv': ['HG00120\tB_HG00120', 'HG00121\tB_HG00121'],
+                    'sampleAnnotations2.tsv': ['HG00120\t3919.8\t19589',
+                                               'HG00121\t966.4\t4822',
+                                               'HG00120_B\t3919.8\t19589',
+                                               'HG00121_B\t966.4\t4822',
+                                               'HG00120_B_B\t3919.8\t19589',
+                                               'HG00121_B_B\t966.4\t4822']}
+
+        assert hl.grep('HG0012[0-1]', resource('*.tsv'), show=False) == expected

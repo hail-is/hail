@@ -60,6 +60,26 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.hadoop_exists(resource('ls_test')))
         self.assertFalse(hl.hadoop_exists(resource('doesnt.exist')))
 
+    def test_hadoop_mkdir_p(self):
+        test_text = "HELLO WORLD"
+
+        with hadoop_open(resource('./some/foo/bar.txt'), 'w') as out:
+            out.write(test_text)
+
+        self.assertTrue(hl.hadoop_exists(resource('./some/foo/bar.txt')))
+
+        with hadoop_open(resource('./some/foo/bar.txt')) as f:
+            assert(f.read() == test_text)
+
+        import shutil
+        shutil.rmtree(resource('./some'))
+
+    def test_hadoop_mkdir_p(self):
+        with self.assertRaises(Exception):
+            hadoop_open(resource('./some2/foo/bar.txt'), 'r')
+
+        self.assertFalse(hl.hadoop_exists(resource('./some2')))
+
     def test_hadoop_copy_log(self):
         r = new_local_temp_file('log')
         hl.copy_log(r)
@@ -109,6 +129,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(ls2_dict['subdir']['is_dir'], True)
         self.assertTrue('owner' in ls2_dict['f_50'])
         self.assertTrue('modification_time' in ls2_dict['f_50'])
+
+        path3 = resource('ls_test/f*')
+        ls3 = hl.hadoop_ls(path3)
+        assert len(ls3) == 2, ls3
 
     def test_linked_list(self):
         ll = LinkedList(int)

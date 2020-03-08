@@ -19,3 +19,22 @@ abstract class BaseType {
 
   def pyString(sb: StringBuilder) = pretty(sb, 0, compact = true)
 }
+
+trait Requiredness {
+  def required: Boolean
+}
+
+object BaseStruct {
+  def getMissingIndexAndCount(req: Array[Boolean]): (Array[Int], Int) = {
+    val missingIdx = new Array[Int](req.length)
+    var i = 0
+    var j = 0
+    while (i < req.length) {
+      missingIdx(i) = j
+      if (!req(i))
+        j += 1
+      i += 1
+    }
+    (missingIdx, j)
+  }
+}

@@ -54,6 +54,12 @@ package object asm4s {
   def coerce[T](c: Code[_]): Code[T] =
     c.asInstanceOf[Code[T]]
 
+  def coerce[T](c: Value[_]): Value[T] =
+    c.asInstanceOf[Value[T]]
+
+  def coerce[T](c: Settable[_]): Settable[T] =
+    c.asInstanceOf[Settable[T]]
+
   implicit object BooleanInfo extends TypeInfo[Boolean] {
     val name = "Z"
     val loadOp = ILOAD
@@ -179,9 +185,11 @@ package object asm4s {
     }
   }
 
-  def loadClass(className: String, b: Array[Byte]): Class[_] = {
+  def loadClass(className: String, b: Array[Byte]): Class[_] =
     HailClassLoader.loadOrDefineClass(className, b)
-  }
+
+  def loadClass(className: String): Class[_] =
+    HailClassLoader.loadClass(className)
 
   def ??? = throw new UnsupportedOperationException
 
@@ -223,6 +231,30 @@ package object asm4s {
     def emit(il: Growable[AbstractInsnNode]): Unit =
       codes.foreach(_.emit(il))
   }
+
+  implicit def indexedSeqValueToCode[T](v: IndexedSeq[Value[T]]): IndexedSeq[Code[T]] = v.map(_.get)
+
+  implicit def valueToCode[T](v: Value[T]): Code[T] = v.get
+
+  implicit def valueToCodeInt(f: Value[Int]): CodeInt = new CodeInt(f.get)
+
+  implicit def valueToCodeLong(f: Value[Long]): CodeLong = new CodeLong(f.get)
+
+  implicit def valueToCodeFloat(f: Value[Float]): CodeFloat = new CodeFloat(f.get)
+
+  implicit def valueToCodeDouble(f: Value[Double]): CodeDouble = new CodeDouble(f.get)
+
+  implicit def valueToCodeChar(f: Value[Char]): CodeChar = new CodeChar(f.get)
+
+  implicit def valueToCodeString(f: Value[String]): CodeString = new CodeString(f.get)
+
+  implicit def valueToCodeObject[T <: AnyRef](f: Value[T])(implicit tct: ClassTag[T]): CodeObject[T] = new CodeObject(f.get)
+
+  implicit def valueToCodeArray[T](c: Value[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(c)
+
+  implicit def valueToCodeBoolean(f: Value[Boolean]): CodeBoolean = new CodeBoolean(f.get)
+
+  implicit def valueToCodeNullable[T >: Null : TypeInfo](c: Value[T]): CodeNullable[T] = new CodeNullable(c)
 
   implicit def toCode[T](f: Settable[T]): Code[T] = f.load()
 

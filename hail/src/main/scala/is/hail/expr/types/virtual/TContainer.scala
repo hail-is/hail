@@ -4,8 +4,6 @@ import is.hail.annotations.Annotation
 import is.hail.expr.types.physical.PContainer
 
 abstract class TContainer extends TIterable {
-  def physicalType: PContainer
-
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean =
     a1 == a2 || (a1 != null && a2 != null
       && (a1.asInstanceOf[Iterable[_]].size == a2.asInstanceOf[Iterable[_]].size)

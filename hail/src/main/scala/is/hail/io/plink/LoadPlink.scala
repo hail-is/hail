@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PBoolean, PFloat64, PString, PStruct}
+import is.hail.expr.types.physical.{PBoolean, PCanonicalString, PCanonicalStruct, PFloat64, PString, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.io.vcf.LoadVCF
 import is.hail.rvd.{RVD, RVDContext, RVDType}
@@ -45,14 +45,14 @@ object LoadPlink {
     """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
 
   def parseFam(filename: String, ffConfig: FamFileConfig,
-    fs: FS): (IndexedSeq[Row], PStruct) = {
+    fs: FS): (IndexedSeq[Row], PCanonicalStruct) = {
 
     val delimiter = unescapeString(ffConfig.delimiter)
 
     val phenoSig = if (ffConfig.isQuantPheno) ("quant_pheno", PFloat64()) else ("is_case", PBoolean())
 
-    val signature = PStruct(("id", PString()), ("fam_id", PString()), ("pat_id", PString()),
-      ("mat_id", PString()), ("is_female", PBoolean()), phenoSig)
+    val signature = PCanonicalStruct(("id", PString()), ("fam_id", PCanonicalString()), ("pat_id", PCanonicalString()),
+      ("mat_id", PCanonicalString()), ("is_female", PBoolean()), phenoSig)
 
     val idBuilder = new ArrayBuilder[String]
     val structBuilder = new ArrayBuilder[Row]
@@ -180,16 +180,16 @@ case class MatrixPLINKReader(
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
   val fullMatrixType: MatrixType = MatrixType(
-    globalType = TStruct.empty(),
+    globalType = TStruct.empty,
     colKey = Array("s"),
     colType = saSignature.virtualType,
     rowType = TStruct(
       "locus" -> TLocus.schemaFromRG(referenceGenome),
-      "alleles" -> TArray(TString()),
-      "rsid" -> TString(),
-      "cm_position" -> TFloat64()),
+      "alleles" -> TArray(TString),
+      "rsid" -> TString,
+      "cm_position" -> TFloat64),
     rowKey = Array("locus", "alleles"),
-    entryType = TStruct("GT" -> TCall()))
+    entryType = TStruct("GT" -> TCall))
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val requestedType = tr.typ
@@ -282,7 +282,7 @@ case class MatrixPLINKReader(
         }
       }
 
-      RVD.coerce(requestedType.canonicalRVDType, rdd2, fastKeys)
+      RVD.coerce(requestedType.canonicalRVDType, rdd2, fastKeys, ctx)
     }
 
     if (skipInvalidLoci && referenceGenome.isDefined) {

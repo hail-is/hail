@@ -1,44 +1,123 @@
 import math
 import random
+import logging
+import json
+import functools
 import asyncio
 import aiohttp
+import secrets
 from asyncinit import asyncinit
 
-from hailtop.gear import get_deploy_config
-from hailtop.gear.auth import async_get_userinfo, auth_headers
+from hailtop.config import get_deploy_config
+from hailtop.auth import async_get_userinfo, service_auth_headers
+from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, TQDM_DEFAULT_DISABLE
 
-from .globals import complete_states
+from .globals import tasks, complete_states
 
-job_array_size = 50
-max_job_submit_attempts = 3
-
-
-def filter_params(complete, success, attributes):
-    params = None
-    if complete is not None:
-        if not params:
-            params = {}
-        params['complete'] = '1' if complete else '0'
-    if success is not None:
-        if not params:
-            params = {}
-        params['success'] = '1' if success else '0'
-    if attributes is not None:
-        if not params:
-            params = {}
-        for n, v in attributes.items():
-            params[f'a:{n}'] = v
-    return params
+log = logging.getLogger('batch_client.aioclient')
 
 
 class Job:
     @staticmethod
-    def exit_code(job_status):
-        if 'exit_code' not in job_status or job_status['exit_code'] is None:
+    def _get_error(job_status, task):
+        status = job_status.get('status')
+        if not status:
             return None
 
-        exit_codes = job_status['exit_code']
-        exit_codes = [exit_codes[task] for task in ['setup', 'main', 'cleanup'] if task in exit_codes]
+        # don't return status error
+
+        container_statuses = status.get('container_statuses')
+        if not container_statuses:
+            return None
+
+        container_status = container_statuses.get(task)
+        if not container_status:
+            return None
+
+        error = container_status.get('error')
+        if error:
+            return error
+
+        docker_container_status = container_status.get('container_status')
+        if not docker_container_status:
+            return None
+
+        return docker_container_status.get('error')
+
+    @staticmethod
+    def _get_out_of_memory(job_status, task):
+        status = job_status.get('status')
+        if not status:
+            return None
+
+        container_statuses = status.get('container_statuses')
+        if not container_statuses:
+            return None
+
+        container_status = container_statuses.get(task)
+        if not container_status:
+            return None
+
+        docker_container_status = container_status.get('container_status')
+        if not docker_container_status:
+            return None
+
+        return docker_container_status['out_of_memory']
+
+    @staticmethod
+    def _get_container_status_exit_code(container_status):
+        docker_container_status = container_status.get('container_status')
+        if not docker_container_status:
+            return None
+
+        return docker_container_status.get('exit_code')
+
+    @staticmethod
+    def _get_exit_code(job_status, task):
+        status = job_status.get('status')
+        if not status:
+            return None
+
+        container_statuses = status.get('container_statuses')
+        if not container_statuses:
+            return None
+
+        container_status = container_statuses.get(task)
+        if not container_status:
+            return None
+
+        return Job._get_container_status_exit_code(container_status)
+
+    @staticmethod
+    def _get_exit_codes(job_status):
+        status = job_status.get('status')
+        if not status:
+            return None
+
+        error = status.get('error')
+        if error is not None:
+            return None
+
+        container_statuses = status.get('container_statuses')
+        if not container_statuses:
+            return None
+
+        return {
+            task: Job._get_container_status_exit_code(container_status)
+            for task, container_status in container_statuses.items()
+        }
+
+    @staticmethod
+    def exit_code(job_status):
+        exit_codes = Job._get_exit_codes(job_status)
+        if exit_codes is None:
+            return None
+
+        exit_codes = [
+            exit_codes[task]
+            for task in tasks
+            if task in exit_codes
+        ]
 
         i = 0
         while i < len(exit_codes):
@@ -51,33 +130,48 @@ class Job:
         return 0
 
     @staticmethod
-    def total_duration(job_status):
-        if 'duration' not in job_status or job_status['duration'] is None:
+    def total_duration_msecs(job_status):
+        status = job_status.get('status')
+        if not status:
             return None
 
-        durations = job_status['duration']
-        durations = [durations[task] for task in ['setup', 'main', 'cleanup'] if task in durations]
+        container_statuses = status.get('container_statuses')
+        if not container_statuses:
+            return None
 
-        i = 0
-        duration = 0
-        while i < len(durations):
-            d = durations[i]
-            if d is None:
+        def _get_duration(container_status):
+            if not container_status:
                 return None
-            duration += d
-            i += 1
-        return duration
+
+            timing = container_status.get('timing')
+            if not timing:
+                return None
+
+            runtime = timing.get('runtime')
+            if not runtime:
+                return None
+
+            return runtime.get('duration')
+
+        durations = [
+            _get_duration(container_status)
+            for task, container_status in container_statuses.items()
+        ]
+
+        if any(d is None for d in durations):
+            return None
+        return sum(durations)
 
     @staticmethod
-    def unsubmitted_job(batch_builder, job_id, attributes=None, parent_ids=None):
+    def unsubmitted_job(batch_builder, job_id):
         assert isinstance(batch_builder, BatchBuilder)
-        _job = UnsubmittedJob(batch_builder, job_id, attributes, parent_ids)
+        _job = UnsubmittedJob(batch_builder, job_id)
         return Job(_job)
 
     @staticmethod
-    def submitted_job(batch, job_id, attributes=None, parent_ids=None, _status=None):
+    def submitted_job(batch, job_id, _status=None):
         assert isinstance(batch, Batch)
-        _job = SubmittedJob(batch, job_id, attributes, parent_ids, _status)
+        _job = SubmittedJob(batch, job_id, _status)
         return Job(_job)
 
     def __init__(self, job):
@@ -95,13 +189,8 @@ class Job:
     def id(self):
         return self._job.id
 
-    @property
-    def attributes(self):
-        return self._job.attributes
-
-    @property
-    def parent_ids(self):
-        return self._job.parent_ids
+    async def attributes(self):
+        return await self._job.attributes()
 
     async def is_complete(self):
         return await self._job.is_complete()
@@ -119,24 +208,14 @@ class Job:
     async def log(self):
         return await self._job.log()
 
-    async def pod_status(self):
-        return await self._job.pod_status()
-
 
 class UnsubmittedJob:
     def _submit(self, batch):
-        return SubmittedJob(batch, self._job_id, self.attributes, self.parent_ids)
+        return SubmittedJob(batch, self._job_id)
 
-    def __init__(self, batch_builder, job_id, attributes=None, parent_ids=None):
-        if parent_ids is None:
-            parent_ids = []
-        if attributes is None:
-            attributes = {}
-
+    def __init__(self, batch_builder, job_id):
         self._batch_builder = batch_builder
         self._job_id = job_id
-        self.attributes = attributes
-        self.parent_ids = parent_ids
 
     @property
     def batch_id(self):
@@ -149,6 +228,9 @@ class UnsubmittedJob:
     @property
     def id(self):
         raise ValueError("cannot get the id of an unsubmitted job")
+
+    async def attributes(self):
+        raise ValueError("cannot get the attributes of an unsubmitted job")
 
     async def is_complete(self):
         raise ValueError("cannot determine if an unsubmitted job is complete")
@@ -166,24 +248,19 @@ class UnsubmittedJob:
     async def log(self):
         raise ValueError("cannot get the log of an unsubmitted job")
 
-    async def pod_status(self):
-        raise ValueError("cannot get the pod status of an unsubmitted job")
-
 
 class SubmittedJob:
-    def __init__(self, batch, job_id, attributes=None, parent_ids=None, _status=None):
-        if parent_ids is None:
-            parent_ids = []
-        if attributes is None:
-            attributes = {}
-
+    def __init__(self, batch, job_id, _status=None):
         self._batch = batch
         self.batch_id = batch.id
         self.job_id = job_id
         self.id = (self.batch_id, self.job_id)
-        self.attributes = attributes
-        self.parent_ids = parent_ids
         self._status = _status
+
+    async def attributes(self):
+        if not self._status:
+            await self.status()
+        return self._status['attributes']
 
     async def is_complete(self):
         if self._status:
@@ -195,7 +272,8 @@ class SubmittedJob:
         return state in complete_states
 
     async def status(self):
-        self._status = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}')
+        resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}')
+        self._status = await resp.json()
         return self._status
 
     async def wait(self):
@@ -210,44 +288,55 @@ class SubmittedJob:
                 i = i + 1
 
     async def log(self):
-        return await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log')
-
-    async def pod_status(self):
-        return await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/pod_status')
+        resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log')
+        return await resp.json()
 
 
 class Batch:
-    def __init__(self, client, id, attributes):
+    def __init__(self, client, id, attributes, n_jobs):
         self._client = client
         self.id = id
         self.attributes = attributes
+        self.n_jobs = n_jobs
 
     async def cancel(self):
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
-    async def status(self, limit=None, offset=None):
-        params = None
-        if limit is not None:
-            if not params:
-                params = {}
-            params['limit'] = str(limit)
-        if offset is not None:
-            if limit is None:
-                raise ValueError("cannot define 'offset' without a 'limit'")
-            params['offset'] = str(offset)
-        return await self._client._get(f'/api/v1alpha/batches/{self.id}', params=params)
-
-    async def wait(self):
-        i = 0
+    async def jobs(self, q=None):
+        last_job_id = None
         while True:
-            status = await self.status(limit=0)
-            if status['complete']:
-                return await self.status()
-            j = random.randrange(math.floor(1.1 ** i))
-            await asyncio.sleep(0.100 * j)
-            # max 44.5s
-            if i < 64:
-                i = i + 1
+            params = {}
+            if q is not None:
+                params['q'] = q
+            if last_job_id is not None:
+                params['last_job_id'] = last_job_id
+            resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/jobs', params=params)
+            body = await resp.json()
+            for job in body['jobs']:
+                yield job
+            last_job_id = body.get('last_job_id')
+            if last_job_id is None:
+                break
+
+    async def status(self):
+        resp = await self._client._get(f'/api/v1alpha/batches/{self.id}')
+        return await resp.json()
+
+    async def wait(self, *, disable_progress_bar=TQDM_DEFAULT_DISABLE):
+        i = 0
+        with tqdm(total=self.n_jobs,
+                  disable=disable_progress_bar,
+                  desc='completed jobs') as pbar:
+            while True:
+                status = await self.status()
+                pbar.update(status['n_completed'] - pbar.n)
+                if status['complete']:
+                    return status
+                j = random.randrange(math.floor(1.1 ** i))
+                await asyncio.sleep(0.100 * j)
+                # max 44.5s
+                if i < 64:
+                    i = i + 1
 
     async def delete(self):
         await self._client._delete(f'/api/v1alpha/batches/{self.id}')
@@ -257,16 +346,17 @@ class BatchBuilder:
     def __init__(self, client, attributes, callback):
         self._client = client
         self._job_idx = 0
-        self._job_docs = []
+        self._job_specs = []
         self._jobs = []
         self._submitted = False
         self.attributes = attributes
         self.callback = callback
 
-    def create_job(self, image, command=None, args=None, env=None, ports=None,
-                   resources=None, tolerations=None, volumes=None, security_context=None,
-                   service_account_name=None, attributes=None, callback=None, parents=None,
-                   input_files=None, output_files=None, always_run=False, pvc_size=None):
+    def create_job(self, image, command, env=None, mount_docker_socket=False,
+                   port=None, resources=None, secrets=None,
+                   service_account=None, attributes=None, parents=None,
+                   input_files=None, output_files=None, always_run=False, pvc_size=None,
+                   timeout=None):
         if self._submitted:
             raise ValueError("cannot create a job in an already submitted batch")
 
@@ -300,138 +390,150 @@ class BatchBuilder:
         if error_msg:
             raise ValueError("\n".join(error_msg))
 
-        if env:
-            env = [{'name': k, 'value': v} for (k, v) in env.items()]
-        else:
-            env = []
-        env.extend([{
-            'name': 'POD_IP',
-            'valueFrom': {
-                'fieldRef': {'fieldPath': 'status.podIP'}
-            }
-        }, {
-            'name': 'POD_NAME',
-            'valueFrom': {
-                'fieldRef': {'fieldPath': 'metadata.name'}
-            }
-        }])
-
-        container = {
-            'image': image,
-            'name': 'main'
-        }
-        if command:
-            container['command'] = command
-        if args:
-            container['args'] = args
-        if env:
-            container['env'] = env
-        if ports:
-            container['ports'] = [{
-                'containerPort': p,
-                'protocol': 'TCP'
-            } for p in ports]
-        if resources:
-            container['resources'] = resources
-        if volumes:
-            container['volumeMounts'] = [v['volume_mount'] for v in volumes]
-        spec = {
-            'containers': [container],
-            'restartPolicy': 'Never'
-        }
-        if volumes:
-            spec['volumes'] = [v['volume'] for v in volumes]
-        if tolerations:
-            spec['tolerations'] = tolerations
-        if security_context:
-            spec['securityContext'] = security_context
-        if service_account_name:
-            spec['serviceAccountName'] = service_account_name
-
-        doc = {
-            'spec': spec,
-            'parent_ids': parent_ids,
+        job_spec = {
             'always_run': always_run,
-            'job_id': self._job_idx
+            'command': command,
+            'image': image,
+            'job_id': self._job_idx,
+            'mount_docker_socket': mount_docker_socket,
+            'parent_ids': parent_ids
         }
+
+        if env:
+            job_spec['env'] = [{'name': k, 'value': v} for (k, v) in env.items()]
+        if port is not None:
+            job_spec['port'] = port
+        if resources:
+            job_spec['resources'] = resources
+        if secrets:
+            job_spec['secrets'] = secrets
+        if service_account:
+            job_spec['service_account'] = service_account
+        if timeout:
+            job_spec['timeout'] = timeout
+
         if attributes:
-            doc['attributes'] = attributes
-        if callback:
-            doc['callback'] = callback
+            job_spec['attributes'] = attributes
         if input_files:
-            doc['input_files'] = input_files
+            job_spec['input_files'] = [{"from": src, "to": dst} for (src, dst) in input_files]
         if output_files:
-            doc['output_files'] = output_files
+            job_spec['output_files'] = [{"from": src, "to": dst} for (src, dst) in output_files]
         if pvc_size:
-            doc['pvc_size'] = pvc_size
+            job_spec['pvc_size'] = pvc_size
 
-        self._job_docs.append(doc)
+        self._job_specs.append(job_spec)
 
-        j = Job.unsubmitted_job(self, self._job_idx, attributes, parent_ids)
+        j = Job.unsubmitted_job(self, self._job_idx)
         self._jobs.append(j)
         return j
 
-    async def _submit_job_with_retry(self, batch_id, docs):
-        n_attempts = 0
-        saved_err = None
-        while n_attempts < max_job_submit_attempts:
-            try:
-                return await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
-            except Exception as err:  # pylint: disable=W0703
-                saved_err = err
-                n_attempts += 1
-                await asyncio.sleep(1)
-        raise saved_err
+    async def _submit_jobs(self, batch_id, byte_job_specs, n_jobs, pbar):
+        assert len(byte_job_specs) > 0, byte_job_specs
 
-    async def submit(self):
+        b = bytearray()
+        b.append(ord('['))
+
+        i = 0
+        while i < len(byte_job_specs):
+            spec = byte_job_specs[i]
+            if i > 0:
+                b.append(ord(','))
+            b.extend(spec)
+            i += 1
+
+        b.append(ord(']'))
+
+        await self._client._post(
+            f'/api/v1alpha/batches/{batch_id}/jobs/create',
+            data=aiohttp.BytesPayload(
+                b, content_type='application/json', encoding='utf-8'))
+        pbar.update(n_jobs)
+
+    async def _create(self, batch_token=None):
+        batch_token = batch_token or secrets.token_urlsafe(32)
+        n_jobs = len(self._job_specs)
+        batch_spec = {'billing_project': self._client.billing_project,
+                      'n_jobs': n_jobs,
+                      'token': batch_token}
+        if self.attributes:
+            batch_spec['attributes'] = self.attributes
+        if self.callback:
+            batch_spec['callback'] = self.callback
+        batch_json = await (await self._client._post('/api/v1alpha/batches/create',
+                                                     json=batch_spec)).json()
+        return Batch(self._client, batch_json['id'], self.attributes, n_jobs)
+
+    MAX_BUNCH_BYTESIZE = 1024 * 1024
+    MAX_BUNCH_SIZE = 1024
+
+    async def submit(self,
+                     max_bunch_bytesize=MAX_BUNCH_BYTESIZE,
+                     max_bunch_size=MAX_BUNCH_SIZE,
+                     disable_progress_bar=TQDM_DEFAULT_DISABLE):
+        assert max_bunch_bytesize > 0
+        assert max_bunch_size > 0
         if self._submitted:
             raise ValueError("cannot submit an already submitted batch")
-        self._submitted = True
+        batch = await self._create()
+        id = batch.id
+        log.info(f'created batch {id}')
+        byte_job_specs = [json.dumps(job_spec).encode('utf-8')
+                          for job_spec in self._job_specs]
+        byte_job_specs_bunches = []
+        bunch_sizes = []
+        bunch = []
+        bunch_n_bytes = 0
+        bunch_n_jobs = 0
+        for spec in byte_job_specs:
+            n_bytes = len(spec)
+            assert n_bytes < max_bunch_bytesize, (
+                f'every job spec must be less than max_bunch_bytesize,'
+                f' { max_bunch_bytesize }B, but {spec} is larger')
+            if bunch_n_bytes + n_bytes < max_bunch_bytesize and len(bunch) < max_bunch_size:
+                bunch.append(spec)
+                bunch_n_bytes += n_bytes
+                bunch_n_jobs += 1
+            else:
+                byte_job_specs_bunches.append(bunch)
+                bunch_sizes.append(bunch_n_jobs)
+                bunch = [spec]
+                bunch_n_bytes = n_bytes
+                bunch_n_jobs = 1
+        if bunch:
+            byte_job_specs_bunches.append(bunch)
+            bunch_sizes.append(bunch_n_jobs)
 
-        batch_doc = {}
-        if self.attributes:
-            batch_doc['attributes'] = self.attributes
-        if self.callback:
-            batch_doc['callback'] = self.callback
+        with tqdm(total=len(self._job_specs),
+                  disable=disable_progress_bar,
+                  desc='jobs submitted to queue') as pbar:
+            await bounded_gather(
+                *[functools.partial(self._submit_jobs, id, bunch, size, pbar)
+                  for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)],
+                parallelism=6)
 
-        batch = None
-        try:
-            b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
-            batch = Batch(self._client, b['id'], b.get('attributes'))
-
-            docs = []
-            n = 0
-            for jdoc in self._job_docs:
-                n += 1
-                docs.append(jdoc)
-                if n == job_array_size:
-                    await self._submit_job_with_retry(batch.id, docs)
-                    n = 0
-                    docs = []
-
-            if docs:
-                await self._submit_job_with_retry(batch.id, docs)
-
-            await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
-        except Exception as err:  # pylint: disable=W0703
-            if batch:
-                await batch.cancel()
-            raise err
+        await self._client._patch(f'/api/v1alpha/batches/{id}/close')
+        log.info(f'closed batch {id}')
 
         for j in self._jobs:
             j._job = j._job._submit(batch)
 
-        self._job_docs = []
+        self._job_specs = []
         self._jobs = []
         self._job_idx = 0
 
+        self._submitted = True
         return batch
 
 
 @asyncinit
 class BatchClient:
-    async def __init__(self, session=None, headers=None, _token=None):
-        deploy_config = get_deploy_config()
+    async def __init__(self, billing_project, deploy_config=None, session=None,
+                       headers=None, _token=None):
+        self.billing_project = billing_project
+
+        if not deploy_config:
+            deploy_config = get_deploy_config()
+
         self.url = deploy_config.base_url('batch')
 
         if session is None:
@@ -439,7 +541,7 @@ class BatchClient:
                                             timeout=aiohttp.ClientTimeout(total=60))
         self._session = session
 
-        userinfo = await async_get_userinfo()
+        userinfo = await async_get_userinfo(deploy_config)
         self.bucket = userinfo['bucket_name']
 
         h = {}
@@ -448,53 +550,63 @@ class BatchClient:
         if _token:
             h['Authorization'] = f'Bearer {_token}'
         else:
-            h.update(auth_headers('batch'))
+            h.update(service_auth_headers(deploy_config, 'batch'))
         self._headers = h
 
     async def _get(self, path, params=None):
-        response = await self._session.get(
+        return await request_retry_transient_errors(
+            self._session, 'GET',
             self.url + path, params=params, headers=self._headers)
-        return await response.json()
 
-    async def _post(self, path, json=None):
-        response = await self._session.post(
-            self.url + path, json=json, headers=self._headers)
-        return await response.json()
+    async def _post(self, path, data=None, json=None):
+        return await request_retry_transient_errors(
+            self._session, 'POST',
+            self.url + path, data=data, json=json, headers=self._headers)
 
     async def _patch(self, path):
-        await self._session.patch(
+        return await request_retry_transient_errors(
+            self._session, 'PATCH',
             self.url + path, headers=self._headers)
 
     async def _delete(self, path):
-        await self._session.delete(
+        return await request_retry_transient_errors(
+            self._session, 'DELETE',
             self.url + path, headers=self._headers)
 
-    async def _refresh_k8s_state(self):
-        await self._post('/refresh_k8s_state')
+    async def list_batches(self, q=None):
+        last_batch_id = None
+        while True:
+            params = {}
+            if q is not None:
+                params['q'] = q
+            if last_batch_id is not None:
+                params['last_batch_id'] = last_batch_id
 
-    async def list_batches(self, complete=None, success=None, attributes=None):
-        params = filter_params(complete, success, attributes)
-        batches = await self._get('/api/v1alpha/batches', params=params)
-        return [Batch(self,
-                      b['id'],
-                      attributes=b.get('attributes'))
-                for b in batches]
+            resp = await self._get('/api/v1alpha/batches', params=params)
+            body = await resp.json()
+
+            for batch in body['batches']:
+                yield Batch(self, batch['id'], attributes=batch.get('attributes'), n_jobs=int(batch['n_jobs']))
+            last_batch_id = body.get('last_batch_id')
+            if last_batch_id is None:
+                break
 
     async def get_job(self, batch_id, job_id):
         b = await self.get_batch(batch_id)
-        j = await self._get(f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
+        j_resp = await self._get(f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
+        j = await j_resp.json()
         return Job.submitted_job(
             b,
             j['job_id'],
-            attributes=j.get('attributes'),
-            parent_ids=j.get('parent_ids', []),
             _status=j)
 
     async def get_batch(self, id):
-        b = await self._get(f'/api/v1alpha/batches/{id}')
+        b_resp = await self._get(f'/api/v1alpha/batches/{id}')
+        b = await b_resp.json()
         return Batch(self,
                      b['id'],
-                     attributes=b.get('attributes'))
+                     attributes=b.get('attributes'),
+                     n_jobs=int(b['n_jobs']))
 
     def create_batch(self, attributes=None, callback=None):
         return BatchBuilder(self, attributes, callback)

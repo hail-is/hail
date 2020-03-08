@@ -111,14 +111,15 @@ class BlockMatrixBinaryMultiWriter(BlockMatrixMultiWriter):
 
 class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
     @typecheck_method(prefix=str, overwrite=bool, delimiter=str, header=nullable(str), add_index=bool,
-                      compression=nullable(enumeration('gz', 'bgz')))
-    def __init__(self, prefix, overwrite, delimiter, header, add_index, compression):
+                      compression=nullable(enumeration('gz', 'bgz')), custom_filenames=nullable(sequenceof(str)))
+    def __init__(self, prefix, overwrite, delimiter, header, add_index, compression, custom_filenames):
         self.prefix = prefix
         self.overwrite = overwrite
         self.delimiter = delimiter
         self.header = header
         self.add_index = add_index
         self.compression = compression
+        self.custom_filenames = custom_filenames
 
     def render(self):
         writer = {'name': 'BlockMatrixTextMultiWriter',
@@ -127,7 +128,8 @@ class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
                   'delimiter': self.delimiter,
                   'header': self.header,
                   'addIndex': self.add_index,
-                  'compression': self.compression}
+                  'compression': self.compression,
+                  'customFilenames': self.custom_filenames}
         return escape_str(json.dumps(writer))
 
     def __eq__(self, other):
@@ -137,4 +139,24 @@ class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
                self.delimiter == other.overwrite and \
                self.header == other.header and \
                self.add_index == other.add_index and \
-               self.compression == other.compression
+               self.compression == other.compression and \
+               self.custom_filenames == other.custom_filenames
+
+
+class BlockMatrixPersistWriter(BlockMatrixWriter):
+    @typecheck_method(id=str, storage_level=str)
+    def __init__(self, id, storage_level):
+        self.id = id
+        self.storage_level = storage_level
+
+    def render(self):
+        writer = {'name': 'BlockMatrixPersistWriter',
+                  'id': self.id,
+                  'storageLevel': self.storage_level}
+        return escape_str(json.dumps(writer))
+
+    def __eq__(self, other):
+        return isinstance(other, BlockMatrixPersistWriter) and \
+               self.id == other.id and \
+               self.storage_level == other.storage_level
+

@@ -4,12 +4,13 @@ import is.hail.HailContext
 import is.hail.expr.ir
 import is.hail.expr.ir.{ExecuteContext, IRParser, IRParserEnvironment, Interpret, MatrixHybridReader, Pretty, TableIR, TableRead, TableValue}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.io.fs.{FS, FileStatus}
-import is.hail.io.index.IndexReader
+import is.hail.io.index.{IndexReader, IndexReaderBuilder}
 import is.hail.io.vcf.LoadVCF
-import is.hail.rvd.{RVD, RVDPartitioner}
+import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.sparkextras.RepartitionedOrderedRDD2
 import is.hail.utils._
 import is.hail.variant._
@@ -184,7 +185,18 @@ object LoadBgen {
     require(files.length == indexFiles.length)
     val headers = getFileHeaders(fs, files)
     headers.zip(indexFiles).map { case (h, indexFile) =>
-      using(IndexReader(fs, indexFile)) { index =>
+      val (keyType, _) = IndexReader.readTypes(fs, indexFile)
+      val rg = keyType.asInstanceOf[TStruct].field("locus").typ match {
+        case TLocus(rg) => Some(rg.value)
+        case _ => None
+      }
+      val indexReaderBuilder = {
+        val (leafCodec, internalNodeCodec) = BgenSettings.indexCodecSpecs(rg)
+        val (leafPType: PStruct, leafDec) = leafCodec.buildDecoder(leafCodec.encodedVirtualType)
+        val (intPType: PStruct, intDec) = internalNodeCodec.buildDecoder(internalNodeCodec.encodedVirtualType)
+        IndexReaderBuilder.withDecoders(leafDec, intDec, BgenSettings.indexKeyType(rg), BgenSettings.indexAnnotationType, leafPType, intPType)
+      }
+      using(indexReaderBuilder(fs, indexFile, 8)) { index =>
         val attributes = index.attributes
         val rg = Option(attributes("reference_genome")).map(name => ReferenceGenome.getReference(name.asInstanceOf[String]))
         val skipInvalidLoci = attributes("skip_invalid_loci").asInstanceOf[Boolean]
@@ -298,21 +310,21 @@ class MatrixBGENReaderSerializer(env: IRParserEnvironment) extends CustomSeriali
 object MatrixBGENReader {
   def fullMatrixType(rg: Option[ReferenceGenome]): MatrixType = {
     MatrixType(
-      globalType = TStruct.empty(),
-      colType = TStruct("s" -> TString()),
+      globalType = TStruct.empty,
+      colType = TStruct("s" -> TString),
       colKey = Array("s"),
       rowType = TStruct(
         "locus" -> TLocus.schemaFromRG(rg),
-        "alleles" -> TArray(TString()),
-        "rsid" -> TString(),
-        "varid" -> TString(),
-        "offset" -> TInt64(),
-        "file_idx" -> TInt32()),
+        "alleles" -> TArray(TString),
+        "rsid" -> TString,
+        "varid" -> TString,
+        "offset" -> TInt64,
+        "file_idx" -> TInt32),
       rowKey = Array("locus", "alleles"),
       entryType = TStruct(
-        "GT" -> TCall(),
-        "GP" -> TArray(TFloat64Required, required = true),
-        "dosage" -> TFloat64Required
+        "GT" -> TCall,
+        "GP" -> TArray(TFloat64),
+        "dosage" -> TFloat64
       )
     )
   }
@@ -370,7 +382,7 @@ case class MatrixBGENReader(
 
   val (indexKeyType, indexAnnotationType) = LoadBgen.getIndexTypes(fileMetadata)
 
-  val (maybePartitions, partitionRangeBounds) = BgenRDDPartitions(sc, fileMetadata,
+  val (maybePartitions, partitionRangeBounds) = BgenRDDPartitions(referenceGenome, fileMetadata,
     if (nPartitions.isEmpty && blockSizeInMB.isEmpty)
     Some(128)
   else
@@ -383,24 +395,23 @@ case class MatrixBGENReader(
       assert(rowType.isPrefixOf(fullMatrixType.rowKeyStruct))
       assert(rowType.types.nonEmpty)
 
-      val rvd = ExecuteContext.scoped { ctx =>
-        Interpret(ir.TableDistinct(variantsTableIR), ctx).rvd
+      ExecuteContext.scoped { ctx =>
+        val rvd = Interpret(ir.TableDistinct(variantsTableIR), ctx).rvd
+
+        val repartitioned = RepartitionedOrderedRDD2(rvd, partitionRangeBounds.map(_.coarsen(rowType.types.length)))
+          .toRows(rvd.rowPType)
+        assert(repartitioned.getNumPartitions == maybePartitions.length)
+
+        (maybePartitions.zipWithIndex.map { case (p, i) =>
+          p.asInstanceOf[LoadBgenPartition].copy(filterPartition = repartitioned.partitions(i)).asInstanceOf[Partition]
+        }, repartitioned)
       }
-
-      val repartitioned = RepartitionedOrderedRDD2(rvd, partitionRangeBounds.map(_.coarsen(rowType.types.length)))
-        .toRows(rowType.physicalType)
-      assert(repartitioned.getNumPartitions == maybePartitions.length)
-
-      (maybePartitions.zipWithIndex.map { case (p, i) =>
-        p.asInstanceOf[LoadBgenPartition].copy(filterPartition = repartitioned.partitions(i)).asInstanceOf[Partition]
-      }, repartitioned)
     case _ => (maybePartitions, null)
   }
 
   def columnCount: Option[Int] = Some(nSamples)
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
-
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     require(files.nonEmpty)
@@ -415,10 +426,14 @@ case class MatrixBGENReader(
       referenceGenome.map(_.broadcast),
       indexAnnotationType)
 
+    val rvdType = RVDType(coerce[PStruct](settings.rowPType.subsetTo(requestedType.rowType)),
+      fullType.key.take(requestedType.key.length))
+
     val rvd = if (tr.dropRows)
-      RVD.empty(sc, requestedType.canonicalRVDType)
+      RVD.empty(sc, rvdType)
     else
-      new RVD(requestedType.canonicalRVDType,
+      new RVD(
+        rvdType,
         partitioner,
         BgenRDD(sc, partitions, settings, variants))
 

@@ -14,143 +14,96 @@ class MathFunctionsSuite extends HailSuite {
   hc
   implicit val execStrats = ExecStrategy.values
 
-  val tfloat = TFloat64()
-
-  @Test def basicUnirootFunction() {
-    implicit val execStrats = ExecStrategy.javaOnly
-
-    val ir = Uniroot("x",
-      ApplyBinaryPrimOp(Add(), Ref("x", tfloat), F64(3)),
-      F64(-6), F64(0))
-
-    assertEvalsTo(ir, -3.0)
-  }
-
-  @Test def unirootWithExternalBinding() {
-    implicit val execStrats = ExecStrategy.javaOnly
-
-    val fn = ApplyBinaryPrimOp(Add(),
-      Ref("x", tfloat),
-      Ref("b", tfloat))
-    val ir = Let("b", F64(3),
-      Uniroot("x", fn, F64(-6), F64(0)))
-
-    assertEvalsTo(ir, -3.0)
-  }
-
-  @Test def unirootWithRegionManipulation() {
-    implicit val execStrats = ExecStrategy.javaOnly
-
-    def sum(array: IR): IR =
-      ArrayFold(array, F64(0), "sum", "i", ApplyBinaryPrimOp(Add(), Ref("sum", tfloat), Ref("i", tfloat)))
-    val fn = ApplyBinaryPrimOp(Add(),
-      sum(MakeArray(Seq(Ref("x", tfloat), Ref("x", tfloat)), TArray(tfloat))),
-      Ref("b", tfloat))
-    val ir = Let("b", F64(6),
-      Uniroot("x", fn, F64(-6), F64(0)))
-
-    assertEvalsTo(ir, -3.0)
-  }
+  val tfloat = TFloat64
 
   @Test def isnan() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    assertEvalsTo(invoke("isnan", TBoolean(), F32(0)), false)
-    assertEvalsTo(invoke("isnan", TBoolean(), F32(Float.NaN)), true)
+    assertEvalsTo(invoke("isnan", TBoolean, F32(0)), false)
+    assertEvalsTo(invoke("isnan", TBoolean, F32(Float.NaN)), true)
 
-    assertEvalsTo(invoke("isnan", TBoolean(), F64(0)), false)
-    assertEvalsTo(invoke("isnan", TBoolean(), F64(Double.NaN)), true)
+    assertEvalsTo(invoke("isnan", TBoolean, F64(0)), false)
+    assertEvalsTo(invoke("isnan", TBoolean, F64(Double.NaN)), true)
   }
 
   @Test def is_finite() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    assertEvalsTo(invoke("is_finite", TBoolean(), F32(0)), expected = true)
-    assertEvalsTo(invoke("is_finite", TBoolean(), F32(Float.MaxValue)), expected = true)
-    assertEvalsTo(invoke("is_finite", TBoolean(), F32(Float.NaN)), expected = false)
-    assertEvalsTo(invoke("is_finite", TBoolean(), F32(Float.PositiveInfinity)), expected = false)
-    assertEvalsTo(invoke("is_finite", TBoolean(), F32(Float.NegativeInfinity)), expected = false)
+    assertEvalsTo(invoke("is_finite", TBoolean, F32(0)), expected = true)
+    assertEvalsTo(invoke("is_finite", TBoolean, F32(Float.MaxValue)), expected = true)
+    assertEvalsTo(invoke("is_finite", TBoolean, F32(Float.NaN)), expected = false)
+    assertEvalsTo(invoke("is_finite", TBoolean, F32(Float.PositiveInfinity)), expected = false)
+    assertEvalsTo(invoke("is_finite", TBoolean, F32(Float.NegativeInfinity)), expected = false)
 
-    assertEvalsTo(invoke("is_finite", TBoolean(), F64(0)), expected = true)
-    assertEvalsTo(invoke("is_finite", TBoolean(), F64(Double.MaxValue)), expected = true)
-    assertEvalsTo(invoke("is_finite", TBoolean(), F64(Double.NaN)), expected = false)
-    assertEvalsTo(invoke("is_finite", TBoolean(), F64(Double.PositiveInfinity)), expected = false)
-    assertEvalsTo(invoke("is_finite", TBoolean(), F64(Double.NegativeInfinity)), expected = false)
+    assertEvalsTo(invoke("is_finite", TBoolean, F64(0)), expected = true)
+    assertEvalsTo(invoke("is_finite", TBoolean, F64(Double.MaxValue)), expected = true)
+    assertEvalsTo(invoke("is_finite", TBoolean, F64(Double.NaN)), expected = false)
+    assertEvalsTo(invoke("is_finite", TBoolean, F64(Double.PositiveInfinity)), expected = false)
+    assertEvalsTo(invoke("is_finite", TBoolean, F64(Double.NegativeInfinity)), expected = false)
   }
 
   @Test def is_infinite() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F32(0)), expected = false)
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F32(Float.MaxValue)), expected = false)
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F32(Float.NaN)), expected = false)
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F32(Float.PositiveInfinity)), expected = true)
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F32(Float.NegativeInfinity)), expected = true)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F32(0)), expected = false)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F32(Float.MaxValue)), expected = false)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F32(Float.NaN)), expected = false)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F32(Float.PositiveInfinity)), expected = true)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F32(Float.NegativeInfinity)), expected = true)
 
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F64(0)), expected = false)
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F64(Double.MaxValue)), expected = false)
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F64(Double.NaN)), expected = false)
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F64(Double.PositiveInfinity)), expected = true)
-    assertEvalsTo(invoke("is_infinite", TBoolean(), F64(Double.NegativeInfinity)), expected = true)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F64(0)), expected = false)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F64(Double.MaxValue)), expected = false)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F64(Double.NaN)), expected = false)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F64(Double.PositiveInfinity)), expected = true)
+    assertEvalsTo(invoke("is_infinite", TBoolean, F64(Double.NegativeInfinity)), expected = true)
   }
 
 
   @Test def sign() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    assertEvalsTo(invoke("sign", TInt32(), I32(2)), 1)
-    assertEvalsTo(invoke("sign", TInt32(), I32(0)), 0)
-    assertEvalsTo(invoke("sign", TInt32(), I32(-2)), -1)
+    assertEvalsTo(invoke("sign", TInt32, I32(2)), 1)
+    assertEvalsTo(invoke("sign", TInt32, I32(0)), 0)
+    assertEvalsTo(invoke("sign", TInt32, I32(-2)), -1)
 
-    assertEvalsTo(invoke("sign", TInt64(), I64(2)), 1l)
-    assertEvalsTo(invoke("sign", TInt64(), I64(0)), 0l)
-    assertEvalsTo(invoke("sign", TInt64(), I64(-2)), -1l)
+    assertEvalsTo(invoke("sign", TInt64, I64(2)), 1l)
+    assertEvalsTo(invoke("sign", TInt64, I64(0)), 0l)
+    assertEvalsTo(invoke("sign", TInt64, I64(-2)), -1l)
 
-    assertEvalsTo(invoke("sign", TFloat32(), F32(2)), 1.0f)
-    assertEvalsTo(invoke("sign", TFloat32(), F32(0)), 0.0f)
-    assertEvalsTo(invoke("sign", TFloat32(), F32(-2)), -1.0f)
+    assertEvalsTo(invoke("sign", TFloat32, F32(2)), 1.0f)
+    assertEvalsTo(invoke("sign", TFloat32, F32(0)), 0.0f)
+    assertEvalsTo(invoke("sign", TFloat32, F32(-2)), -1.0f)
 
-    assertEvalsTo(invoke("sign", TFloat64(), F64(2)), 1.0)
-    assertEvalsTo(invoke("sign", TFloat64(), F64(0)), 0.0)
-    assertEvalsTo(invoke("sign", TFloat64(), F64(-2)), -1.0)
+    assertEvalsTo(invoke("sign", TFloat64, F64(2)), 1.0)
+    assertEvalsTo(invoke("sign", TFloat64, F64(0)), 0.0)
+    assertEvalsTo(invoke("sign", TFloat64, F64(-2)), -1.0)
 
-    assert(eval(invoke("sign", TFloat64(), F64(Double.NaN))).asInstanceOf[Double].isNaN)
-    assertEvalsTo(invoke("sign", TFloat64(), F64(Double.PositiveInfinity)), 1.0)
-    assertEvalsTo(invoke("sign", TFloat64(), F64(Double.NegativeInfinity)), -1.0)
+    assert(eval(invoke("sign", TFloat64, F64(Double.NaN))).asInstanceOf[Double].isNaN)
+    assertEvalsTo(invoke("sign", TFloat64, F64(Double.PositiveInfinity)), 1.0)
+    assertEvalsTo(invoke("sign", TFloat64, F64(Double.NegativeInfinity)), -1.0)
   }
 
   @Test def approxEqual() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    assertEvalsTo(invoke("approxEqual", TBoolean(), F64(0.025), F64(0.0250000001), F64(1e-4), False(), False()), true)
-    assertEvalsTo(invoke("approxEqual", TBoolean(), F64(0.0154), F64(0.0156), F64(1e-4), True(), False()), false)
-    assertEvalsTo(invoke("approxEqual", TBoolean(), F64(0.0154), F64(0.0156), F64(1e-3), True(), False()), true)
-    assertEvalsTo(invoke("approxEqual", TBoolean(), F64(Double.NaN), F64(Double.NaN), F64(1e-3), True(), False()), false)
-    assertEvalsTo(invoke("approxEqual", TBoolean(), F64(Double.NaN), F64(Double.NaN), F64(1e-3), True(), True()), true)
-    assertEvalsTo(invoke("approxEqual", TBoolean(), F64(Double.PositiveInfinity), F64(Double.PositiveInfinity), F64(1e-3), True(), False()), true)
-    assertEvalsTo(invoke("approxEqual", TBoolean(), F64(Double.NegativeInfinity), F64(Double.NegativeInfinity), F64(1e-3), True(), False()), true)
-    assertEvalsTo(invoke("approxEqual", TBoolean(), F64(Double.PositiveInfinity), F64(Double.NegativeInfinity), F64(1e-3), True(), False()), false)
+    assertEvalsTo(invoke("approxEqual", TBoolean, F64(0.025), F64(0.0250000001), F64(1e-4), False(), False()), true)
+    assertEvalsTo(invoke("approxEqual", TBoolean, F64(0.0154), F64(0.0156), F64(1e-4), True(), False()), false)
+    assertEvalsTo(invoke("approxEqual", TBoolean, F64(0.0154), F64(0.0156), F64(1e-3), True(), False()), true)
+    assertEvalsTo(invoke("approxEqual", TBoolean, F64(Double.NaN), F64(Double.NaN), F64(1e-3), True(), False()), false)
+    assertEvalsTo(invoke("approxEqual", TBoolean, F64(Double.NaN), F64(Double.NaN), F64(1e-3), True(), True()), true)
+    assertEvalsTo(invoke("approxEqual", TBoolean, F64(Double.PositiveInfinity), F64(Double.PositiveInfinity), F64(1e-3), True(), False()), true)
+    assertEvalsTo(invoke("approxEqual", TBoolean, F64(Double.NegativeInfinity), F64(Double.NegativeInfinity), F64(1e-3), True(), False()), true)
+    assertEvalsTo(invoke("approxEqual", TBoolean, F64(Double.PositiveInfinity), F64(Double.NegativeInfinity), F64(1e-3), True(), False()), false)
   }
 
   @Test def entropy() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    assertEvalsTo(invoke("entropy", TFloat64(), Str("")), 0.0)
-    assertEvalsTo(invoke("entropy", TFloat64(), Str("a")), 0.0)
-    assertEvalsTo(invoke("entropy", TFloat64(), Str("aa")), 0.0)
-    assertEvalsTo(invoke("entropy", TFloat64(), Str("ac")), 1.0)
-    assertEvalsTo(invoke("entropy", TFloat64(), Str("accctg")), 1.7924812503605778)
-  }
-
-  @Test def unirootIsStrictInMinAndMax() {
-    implicit val execStrats = ExecStrategy.javaOnly
-
-    assertEvalsTo(
-      Uniroot("x", Ref("x", tfloat), F64(-6), NA(tfloat)),
-      null)
-    assertEvalsTo(
-      Uniroot("x", Ref("x", tfloat), NA(tfloat), F64(0)),
-      null)
+    assertEvalsTo(invoke("entropy", TFloat64, Str("")), 0.0)
+    assertEvalsTo(invoke("entropy", TFloat64, Str("a")), 0.0)
+    assertEvalsTo(invoke("entropy", TFloat64, Str("aa")), 0.0)
+    assertEvalsTo(invoke("entropy", TFloat64, Str("ac")), 1.0)
+    assertEvalsTo(invoke("entropy", TFloat64, Str("accctg")), 1.7924812503605778)
   }
 
   @DataProvider(name = "chi_squared_test")
@@ -216,31 +169,31 @@ class MathFunctionsSuite extends HailSuite {
   }
 
   @Test def modulusTest() {
-    assertFatal(invoke("%", TInt32(), I32(1), I32(0)), "modulo by zero")
-    assertFatal(invoke("%", TInt64(), I64(1), I64(0)), "modulo by zero")
-    assertFatal(invoke("%", TFloat32(), F32(1), F32(0)), "modulo by zero")
-    assertFatal(invoke("%", TFloat64(), F64(1), F64(0)), "modulo by zero")
+    assertFatal(invoke("%", TInt32, I32(1), I32(0)), "(modulo by zero)|(error while calling '%')")
+    assertFatal(invoke("%", TInt64, I64(1), I64(0)), "(modulo by zero)|(error while calling '%')")
+    assertFatal(invoke("%", TFloat32, F32(1), F32(0)), "(modulo by zero)|(error while calling '%')")
+    assertFatal(invoke("%", TFloat64, F64(1), F64(0)), "(modulo by zero)|(error while calling '%')")
   }
 
   @Test def testMinMax() {
     implicit val execStrats = ExecStrategy.javaOnly
     assertAllEvalTo(
-      (invoke("min", TFloat32(), F32(1.0f), F32(2.0f)), 1.0f),
-      (invoke("max", TFloat32(), F32(1.0f), F32(2.0f)), 2.0f),
-      (invoke("min", TFloat64(), F64(1.0), F64(2.0)), 1.0),
-      (invoke("max", TFloat64(), F64(1.0), F64(2.0)), 2.0),
-      (invoke("min", TInt32(), I32(1), I32(2)), 1),
-      (invoke("max", TInt32(), I32(1), I32(2)), 2),
-      (invoke("min", TInt64(), I64(1L), I64(2L)), 1L),
-      (invoke("max", TInt64(), I64(1L), I64(2L)), 2L),
-      (invoke("min", TFloat32(), F32(Float.NaN), F32(1.0f)), Float.NaN),
-      (invoke("min", TFloat64(), F64(Double.NaN), F64(1.0)), Double.NaN),
-      (invoke("max", TFloat32(), F32(Float.NaN), F32(1.0f)), Float.NaN),
-      (invoke("max", TFloat64(), F64(Double.NaN), F64(1.0)), Double.NaN),
-      (invoke("min", TFloat32(), F32(1.0f), F32(Float.NaN)), Float.NaN),
-      (invoke("min", TFloat64(), F64(1.0), F64(Double.NaN)), Double.NaN),
-      (invoke("max", TFloat32(), F32(1.0f), F32(Float.NaN)), Float.NaN),
-      (invoke("max", TFloat64(), F64(1.0), F64(Double.NaN)), Double.NaN)
+      (invoke("min", TFloat32, F32(1.0f), F32(2.0f)), 1.0f),
+      (invoke("max", TFloat32, F32(1.0f), F32(2.0f)), 2.0f),
+      (invoke("min", TFloat64, F64(1.0), F64(2.0)), 1.0),
+      (invoke("max", TFloat64, F64(1.0), F64(2.0)), 2.0),
+      (invoke("min", TInt32, I32(1), I32(2)), 1),
+      (invoke("max", TInt32, I32(1), I32(2)), 2),
+      (invoke("min", TInt64, I64(1L), I64(2L)), 1L),
+      (invoke("max", TInt64, I64(1L), I64(2L)), 2L),
+      (invoke("min", TFloat32, F32(Float.NaN), F32(1.0f)), Float.NaN),
+      (invoke("min", TFloat64, F64(Double.NaN), F64(1.0)), Double.NaN),
+      (invoke("max", TFloat32, F32(Float.NaN), F32(1.0f)), Float.NaN),
+      (invoke("max", TFloat64, F64(Double.NaN), F64(1.0)), Double.NaN),
+      (invoke("min", TFloat32, F32(1.0f), F32(Float.NaN)), Float.NaN),
+      (invoke("min", TFloat64, F64(1.0), F64(Double.NaN)), Double.NaN),
+      (invoke("max", TFloat32, F32(1.0f), F32(Float.NaN)), Float.NaN),
+      (invoke("max", TFloat64, F64(1.0), F64(Double.NaN)), Double.NaN)
     )
   }
 }

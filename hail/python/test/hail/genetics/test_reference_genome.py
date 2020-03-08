@@ -140,3 +140,33 @@ class Tests(unittest.TestCase):
             hl.eval(hl.liftover(hl.parse_locus_interval('1:10000-10000', reference_genome='GRCh37'), 'GRCh38'))
 
         grch37.remove_liftover("GRCh38")
+
+    def test_read_custom_reference_genome(self):
+        # this test doesn't behave properly if these reference genomes are already defined in scope.
+        available_rgs = set(hl.ReferenceGenome._references.keys())
+        self.assertTrue('test_rg_0' not in available_rgs)
+        self.assertTrue('test_rg_1' not in available_rgs)
+        self.assertTrue('test_rg_2' not in available_rgs)
+
+        def assert_rg_loaded_correctly(name):
+            rg = hl.get_reference(name)
+            self.assertEqual(rg.contigs, ["1", "X", "Y", "MT"])
+            self.assertEqual(rg.lengths, {"1": 5, "X": 4, "Y": 3, "MT": 2})
+            self.assertEqual(rg.x_contigs, ["X"])
+            self.assertEqual(rg.y_contigs, ["Y"])
+            self.assertEqual(rg.mt_contigs, ["MT"])
+            self.assertEqual(rg.par, [hl.Interval(start=hl.Locus("X", 2, name), end=hl.Locus("X", 4, name))])
+
+
+        self.assertEqual(hl.read_table(resource('custom_references.t')).count(), 14)
+        assert_rg_loaded_correctly('test_rg_0')
+        assert_rg_loaded_correctly('test_rg_1')
+
+        # loading different reference genome with same name should fail
+        # (different `test_rg_o` definition)
+        with self.assertRaises(FatalError):
+            hl.read_matrix_table(resource('custom_references_2.t')).count()
+
+        self.assertEqual(hl.read_matrix_table(resource('custom_references.mt')).count_rows(), 14)
+        assert_rg_loaded_correctly('test_rg_1')
+        assert_rg_loaded_correctly('test_rg_2')

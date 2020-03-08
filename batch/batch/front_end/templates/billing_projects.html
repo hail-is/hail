@@ -1,0 +1,60 @@
+{% extends "layout.html" %}
+{% block title %}Billing Projects{% endblock %}
+{% block content %}
+  <h1>Billing Projects</h1>
+    <div class="searchbar-table">
+      <table class="data-table" id="batches">
+	<thead>
+	  <tr>
+	    <th>Billing Project</th>
+	    <th>User</th>
+	    <th></th>
+	  </tr>
+	</thead>
+	<tbody>
+	  {% for billing_project in billing_projects %}
+	  <tr>
+	    <td>{{ billing_project }}</td>
+	    <td></td>
+	    <td></td>
+	  </tr>
+	  {% for user in billing_projects[billing_project] %}
+	  <tr>
+	    <td></td>
+	    <td>{{ user }}</td>
+	    <td>
+              <form action="{{ base_path }}/billing_projects/{{ billing_project }}/users/{{ user }}/remove" method="POST">
+		<input type="hidden" name="_csrf" value="{{ csrf_token }}">
+		<button>
+		  Remove
+		</button>
+	      </form>
+	    </td>
+	  </tr>
+	  {% endfor %}
+          <form action="{{ base_path }}/billing_projects/{{ billing_project }}/users/add" method="POST">
+	    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+	    <tr>
+	      <td></td>
+	      <td><input type="text" name="user"></td>
+	      <td>
+		<button>Add</button>
+	      </td>
+	    </tr>
+	  </form>
+	  {% endfor %}
+          <form action="{{ base_path }}/billing_projects/create" method="POST">
+	    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+	    <tr>
+	      <td><input type="text" name="billing_project"></td>
+	      <td></td>
+	      <td>
+		<button>Add</button>
+	      </td>
+	    </tr>
+	  </form>
+	  
+	</tbody>
+      </table>
+  </div>
+{% endblock %}

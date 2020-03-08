@@ -5,13 +5,23 @@ This module serves two functions: as a staging area for extensions of Hail
 not ready for inclusion in the main package, and as a library of lightly reviewed
 community submissions.
 
+At present, the experimental module is organized into a few freestanding
+modules, linked immediately below, and many freestanding functions, documented
+on this page.
+
+.. toctree::
+    :maxdepth: 1
+
+    vcf_combiner
+    ldscsim
+
 Contribution Guidelines
 -----------------------
 Submissions from the community are welcome! The criteria for inclusion in the
 experimental module are loose and subject to change:
 
 1. Function docstrings are required. Hail uses
-   `NumPy style docstrings <http://www.sphinx-doc.org/en/stable/ext/example_numpy.html#example-numpy>`__.
+   `NumPy style docstrings <https://www.sphinx-doc.org/en/stable/usage/extensions/example_numpy.html>`__.
 2. Tests are not required, but are encouraged. If you do include tests, they must
    run in no more than a few seconds. Place tests as a class method on ``Tests`` in
    ``python/tests/experimental/test_experimental.py``
@@ -40,7 +50,8 @@ Genetics Methods
     get_gene_intervals
     export_entries_by_col
     sparse_split_multi
-
+    densify
+    pc_project
 
 `dplyr`-inspired Methods
 ------------------------
@@ -51,12 +62,8 @@ Genetics Methods
     separate
     spread
 
-`ldscsim`
+Functions
 ---------
-
-.. toctree::
-
-   ldscsim: a statistical genetics phenotype simulation framework <ldscsim>
 
 .. autofunction:: load_dataset
 .. autofunction:: ld_score
@@ -73,6 +80,12 @@ Genetics Methods
 .. autofunction:: get_gene_intervals
 .. autofunction:: export_entries_by_col
 .. autofunction:: sparse_split_multi
+.. autofunction:: densify
+.. autofunction:: lgt_to_gt
 .. autofunction:: gather
 .. autofunction:: separate
 .. autofunction:: spread
+.. autofunction:: full_outer_join_mt
+.. autofunction:: strftime
+.. autofunction:: strptime
+.. autofunction:: pc_project

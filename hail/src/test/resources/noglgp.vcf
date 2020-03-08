@@ -1,0 +1,9 @@
+##fileformat=VCFv4.2
+##FORMAT=<ID=AD,Number=.,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype quality">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=GP,Number=G,Type=Float,Description="Estimated Genotype Probability">
+##FORMAT=<ID=GL,Number=G,Type=Float,Description="Genotype likelihoods">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	s1	s2
+chr1	123	.	G	T	.	.	.	GT:AD:GL:GP:GQ	./.:.:.,.,.:0.22,0.5,0.27:60	./.:.:.,.,.:.,.,.:46

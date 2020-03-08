@@ -19,6 +19,8 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      nodeSelector:
+        preemptible: "false"
       containers:
         - name: ci
           image: "{{ ci_image.image }}"
@@ -36,18 +38,24 @@ spec:
              value: '[["hail-is/hail:master",true]]'
 {% else %}
            - name: HAIL_WATCHED_BRANCHES
-             value: '[]'
+             value: '[["hail-ci-test/ci-test-{{create_ci_test_repo.token}}:master", true]]'
 {% endif %}
            - name: HAIL_GCP_PROJECT
              value: "{{ global.project }}"
+           - name: HAIL_GCP_ZONE
+             value: "{{ global.zone }}"
            - name: HAIL_CI_UTILS_IMAGE
              value: "{{ ci_utils_image.image }}"
            - name: HAIL_IP
              value: "{{ global.ip }}"
            - name: HAIL_DOMAIN
              value: "{{ global.domain }}"
-           - name: HAIL_SELF_HOSTNAME
-             value: ci
+           - name: HAIL_DEFAULT_NAMESPACE
+             value: "{{ default_ns.name }}"
+           - name: HAIL_BATCH_PODS_NAMESPACE
+             value: "{{ batch_pods_ns.name }}"
+           - name: KUBERNETES_SERVER_URL
+             value: "{{ global.k8s_server_url }}"
           ports:
             - containerPort: 5000
           volumeMounts:
@@ -65,6 +73,9 @@ spec:
              readOnly: true
            - mountPath: /user-tokens
              name: ci-tokens
+             readOnly: true
+           - mountPath: /zulip-config
+             name: zulip-config
              readOnly: true
           livenessProbe:
             httpGet:
@@ -96,11 +107,9 @@ spec:
        - name: ci-tokens
          secret:
            secretName: ci-tokens
-      tolerations:
-      - key: "preemptible"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
+       - name: zulip-config
+         secret:
+           secretName: zulip-config
 ---
 apiVersion: v1
 kind: Service

@@ -71,10 +71,35 @@ final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: Cla
     b(size_ - 1)
   }
 
+  def pop(): T = {
+    size_ -= 1
+    b(size)
+  }
+
+  def appendFrom(ab2: ArrayBuilder[T]): Unit = {
+    ensureCapacity(size_ + ab2.size_)
+    System.arraycopy(ab2.b, 0, b, size_, ab2.size_)
+    size_ = size_ + ab2.size_
+  }
+
+  def setSizeUninitialized(size: Int): Unit = {
+    ensureCapacity(size)
+    size_ = size
+  }
+
   override def clone(): ArrayBuilder[T] = {
     val ab = new ArrayBuilder[T]()
     ab.b = b.clone()
     ab.size_ = size_
     ab
+  }
+
+  def clearAndSetMem(obj: T): Unit = {
+    clear()
+    var i = 0
+    while (i < b.length) {
+      b(i) = obj
+      i += 1
+    }
   }
 }

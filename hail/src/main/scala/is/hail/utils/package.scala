@@ -556,10 +556,16 @@ package object utils extends Logging
     "part-" + StringUtils.leftPad(is, d, "0")
   }
 
+  def partSuffix(ctx: TaskContext): String = {
+    val rng = new java.security.SecureRandom()
+    val fileUUID = new java.util.UUID(rng.nextLong(), rng.nextLong())
+    s"${ ctx.stageId() }-${ ctx.partitionId() }-${ ctx.attemptNumber() }-$fileUUID"
+  }
+
   def partFile(d: Int, i: Int, ctx: TaskContext): String = {
     val rng = new java.security.SecureRandom()
     val fileUUID = new java.util.UUID(rng.nextLong(), rng.nextLong())
-    s"${ partFile(d, i) }-${ ctx.stageId() }-${ ctx.partitionId() }-${ ctx.attemptNumber() }-$fileUUID"
+    s"${ partFile(d, i) }-${ partSuffix(ctx) }"
   }
 
   def mangle(strs: Array[String], formatter: Int => String = "_%d".format(_)): (Array[String], Array[(String, String)]) = {
@@ -703,26 +709,6 @@ package object utils extends Logging
     }
   }
 
-  def getHeadPartitionCounts(original: IndexedSeq[Long], n: Long): IndexedSeq[Long] = {
-    val scan = original.scanLeft(0L)(_ + _).tail
-    if (scan(scan.length - 1) < n)
-      original
-    else {
-      val (lastSum, lastIdx) = scan.iterator.zipWithIndex.filter { case (sum, _) => sum >= n }.next()
-      val ab = new ArrayBuilder[Long](0)
-      var i = 0
-      while (i < lastIdx) {
-        ab += original(i)
-        i += 1
-      }
-      if (lastIdx == 0)
-        ab += n
-      else
-        ab += n - scan(lastIdx - 1)
-      ab.result()
-    }
-  }
-
   def dumpClassLoader(cl: ClassLoader) {
     System.err.println(s"ClassLoader ${ cl.getClass.getCanonicalName }:")
     cl match {
@@ -792,6 +778,17 @@ package object utils extends Logging
     f(arg1, arg2, arg3, arg4, arg5, arg6)
   }
 
+  def drainInputStreamToOutputStream(
+    is: InputStream,
+    os: OutputStream
+  ): Unit = {
+    val buffer = new Array[Byte](1024)
+    var length = is.read(buffer)
+    while (length != -1) {
+      os.write(buffer, 0, length);
+      length = is.read(buffer)
+    }
+  }
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d

@@ -1,14 +1,18 @@
 package is.hail.expr
 
-import is.hail.annotations.{Annotation, UnsafeRow}
+import is.hail.annotations.Annotation
 import is.hail.expr.ir.functions.UtilFunctions
+import is.hail.expr.types.physical.{PBoolean, PCanonicalArray, PCanonicalBinary, PCanonicalString, PCanonicalStruct, PFloat32, PFloat64, PInt32, PInt64, PType}
 import is.hail.expr.types.virtual._
 import is.hail.utils.{Interval, _}
 import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
+import org.json4s
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
+
+import scala.collection.mutable
 
 object SparkAnnotationImpex {
   val invalidCharacters: Set[Char] = " ,;{}()\n\t=".toSet
@@ -22,36 +26,36 @@ object SparkAnnotationImpex {
     }.mkString
   }
 
-  def importType(t: DataType): Type = t match {
-    case BooleanType => TBoolean()
-    case IntegerType => TInt32()
-    case LongType => TInt64()
-    case FloatType => TFloat32()
-    case DoubleType => TFloat64()
-    case StringType => TString()
-    case BinaryType => TBinary()
-    case ArrayType(elementType, containsNull) => TArray(importType(elementType).setRequired(!containsNull))
+  def importType(t: DataType): PType = t match {
+    case BooleanType => PBoolean()
+    case IntegerType => PInt32()
+    case LongType => PInt64()
+    case FloatType => PFloat32()
+    case DoubleType => PFloat64()
+    case StringType => PCanonicalString()
+    case BinaryType => PCanonicalBinary()
+    case ArrayType(elementType, containsNull) => PCanonicalArray(importType(elementType).setRequired(!containsNull))
     case StructType(fields) =>
-      TStruct(fields.map { f => (f.name, importType(f.dataType).setRequired(!f.nullable)) }: _*)
+      PCanonicalStruct(fields.map { f => (f.name, importType(f.dataType).setRequired(!f.nullable)) }: _*)
   }
 
   def exportType(t: Type): DataType = (t: @unchecked) match {
-    case _: TBoolean => BooleanType
-    case _: TInt32 => IntegerType
-    case _: TInt64 => LongType
-    case _: TFloat32 => FloatType
-    case _: TFloat64 => DoubleType
-    case _: TString => StringType
-    case _: TBinary => BinaryType
-    case TArray(elementType, _) =>
-      ArrayType(exportType(elementType), containsNull = !elementType.required)
+    case TBoolean => BooleanType
+    case TInt32 => IntegerType
+    case TInt64 => LongType
+    case TFloat32 => FloatType
+    case TFloat64 => DoubleType
+    case TString => StringType
+    case TBinary => BinaryType
+    case TArray(elementType) =>
+      ArrayType(exportType(elementType), containsNull = true)
     case tbs: TBaseStruct =>
       if (tbs.fields.isEmpty)
         BooleanType //placeholder
       else
         StructType(tbs.fields
           .map(f =>
-            StructField(escapeColumnName(f.name), f.typ.schema, nullable = !f.typ.required)))
+            StructField(escapeColumnName(f.name), f.typ.schema, nullable = true)))
   }
 }
 
@@ -69,6 +73,8 @@ case class JSONExtractReferenceGenome(name: String, contigs: Array[JSONExtractCo
 }
 
 object JSONAnnotationImpex {
+  implicit val serializationFormats: json4s.Formats = Serialization.formats(NoTypeHints)
+
   def exportType(t: Type): Type = t
 
   val doubleConv = Map(
@@ -94,95 +100,98 @@ object JSONAnnotationImpex {
       JNull
     else {
       (t: @unchecked) match {
-        case _: TBoolean => JBool(a.asInstanceOf[Boolean])
-        case _: TInt32 => JInt(a.asInstanceOf[Int])
-        case _: TInt64 => JInt(a.asInstanceOf[Long])
-        case _: TFloat32 => JDouble(a.asInstanceOf[Float])
-        case _: TFloat64 => JDouble(a.asInstanceOf[Double])
-        case _: TString => JString(a.asInstanceOf[String])
+        case TBoolean => JBool(a.asInstanceOf[Boolean])
+        case TInt32 => JInt(a.asInstanceOf[Int])
+        case TInt64 => JInt(a.asInstanceOf[Long])
+        case TFloat32 => JDouble(a.asInstanceOf[Float])
+        case TFloat64 => JDouble(a.asInstanceOf[Double])
+        case TString => JString(a.asInstanceOf[String])
         case TVoid =>
           JNull
-        case TArray(elementType, _) =>
+        case TArray(elementType) =>
           val arr = a.asInstanceOf[Seq[Any]]
           JArray(arr.map(elem => exportAnnotation(elem, elementType)).toList)
-        case TSet(elementType, _) =>
+        case TSet(elementType) =>
           val arr = a.asInstanceOf[Set[Any]]
           JArray(arr.map(elem => exportAnnotation(elem, elementType)).toList)
-        case TDict(keyType, valueType, _) =>
+        case TDict(keyType, valueType) =>
           val m = a.asInstanceOf[Map[_, _]]
           JArray(m.map { case (k, v) => JObject(
             "key" -> exportAnnotation(k, keyType),
             "value" -> exportAnnotation(v, valueType))
           }.toList)
-        case _: TCall => JString(Call.toString(a.asInstanceOf[Call]))
-        case TLocus(_, _) => a.asInstanceOf[Locus].toJSON
-        case TInterval(pointType, _) => a.asInstanceOf[Interval].toJSON(pointType.toJSON)
-        case TStruct(fields, _) =>
+        case TCall => JString(Call.toString(a.asInstanceOf[Call]))
+        case TLocus(_) => a.asInstanceOf[Locus].toJSON
+        case TInterval(pointType) => a.asInstanceOf[Interval].toJSON(pointType.toJSON)
+        case TStruct(fields) =>
           val row = a.asInstanceOf[Row]
           JObject(List.tabulate(row.size) { i =>
             (fields(i).name, exportAnnotation(row.get(i), fields(i).typ))
           })
-        case TTuple(types, _) =>
+        case TTuple(types) =>
           val row = a.asInstanceOf[Row]
           JArray(List.tabulate(row.size) { i => exportAnnotation(row.get(i), types(i).typ) })
-        case t@TNDArray(elementType, nDims, required)  =>
-          val row = a.asInstanceOf[UnsafeRow]
-          log.info(s"UNSAFE ROW NDARRAY: ${row.toString()}")
+        case t: TNDArray =>
           exportAnnotation(a, t.representation)
       }
     }
 
-  def importAnnotation(jv: JValue, t: Type, padNulls: Boolean = true): Annotation =
-    importAnnotation(jv, t, "<root>", padNulls)
+  def importAnnotation(jv: JValue, t: Type, padNulls: Boolean = true, warnContext: mutable.HashSet[String] = null): Annotation =
+    importAnnotationInternal(jv, t, "<root>", padNulls, if (warnContext == null) new mutable.HashSet[String] else warnContext)
 
-  def importAnnotation(jv: JValue, t: Type, parent: String, padNulls: Boolean): Annotation = {
-    implicit val formats = Serialization.formats(NoTypeHints)
+  private def importAnnotationInternal(jv: JValue, t: Type, parent: String, padNulls: Boolean, warnContext: mutable.HashSet[String]): Annotation = {
+    def imp(jv: JValue, t: Type, parent: String): Annotation = importAnnotationInternal(jv, t, parent, padNulls, warnContext)
+    def warnOnce(msg: String, path: String): Unit = {
+      if (!warnContext.contains(path)) {
+        warn(msg)
+        warnContext += path
+      }
+    }
 
     (jv, t) match {
-      case (JNull | JNothing, _) =>
-        if (t.required)
-          fatal("required annotation cannot be null")
-        null
-      case (JInt(x), _: TInt32) => x.toInt
-      case (JInt(x), _: TInt64) => x.toLong
-      case (JInt(x), _: TFloat64) => x.toDouble
-      case (JInt(x), _: TString) => x.toString
-      case (JDouble(x), _: TFloat64) => x
-      case (JDouble(x), _: TFloat32) => x.toFloat
-      case (JString(x), _: TFloat64) if doubleConv.contains(x) => doubleConv(x)
-      case (JString(x), _: TFloat32) if floatConv.contains(x) => floatConv(x)
-      case (JString(x), _: TString) => x
-      case (JString(x), _: TInt32) =>
+      case (JNull | JNothing, _) => null
+      case (JInt(x), TInt32) => x.toInt
+      case (JInt(x), TInt64) => x.toLong
+      case (JInt(x), TFloat64) => x.toDouble
+      case (JInt(x), TString) => x.toString
+      case (JDouble(x), TFloat64) => x
+      case (JDouble(x), TFloat32) => x.toFloat
+      case (JString(x), TFloat64) if doubleConv.contains(x) => doubleConv(x)
+      case (JString(x), TFloat32) if floatConv.contains(x) => floatConv(x)
+      case (JString(x), TString) => x
+      case (JString(x), TInt32) =>
         x.toInt
-      case (JString(x), _: TFloat64) =>
+      case (JString(x), TFloat64) =>
         if (x.startsWith("-:"))
           x.drop(2).toDouble
         else
           x.toDouble
-      case (JBool(x), _: TBoolean) => x
+      case (JBool(x), TBoolean) => x
 
       // back compatibility
-      case (JObject(a), TDict(TString(_), valueType, _)) =>
+      case (JObject(a), TDict(TString, valueType)) =>
         a.map { case (key, value) =>
-          (key, importAnnotation(value, valueType, parent, padNulls))
+          (key, imp(value, valueType, parent))
         }
           .toMap
 
-      case (JArray(arr), TDict(keyType, valueType, _)) =>
+      case (JArray(arr), TDict(keyType, valueType)) =>
+        val keyPath = parent + "[key]"
+        val valuePath = parent + "[value]"
         arr.map { case JObject(a) =>
           a match {
             case List(k, v) =>
               (k, v) match {
                 case (("key", ka), ("value", va)) =>
-                  (importAnnotation(ka, keyType, parent, padNulls), importAnnotation(va, valueType, parent, padNulls))
+                  (imp(ka, keyType, keyPath), imp(va, valueType, valuePath))
               }
             case _ =>
-              warn(s"Can't convert JSON value $jv to type $t at $parent.")
+              warnOnce(s"Can't convert JSON value $jv to type $t at $parent.", parent)
               null
 
           }
         case _ =>
-          warn(s"Can't convert JSON value $jv to type $t at $parent.")
+          warnOnce(s"Can't convert JSON value $jv to type $t at $parent.", parent)
           null
         }.toMap
 
@@ -198,10 +207,10 @@ object JSONAnnotationImpex {
           for ((name, jv2) <- jfields) {
             t.selfField(name) match {
               case Some(f) =>
-                a(f.index) = importAnnotation(jv2, f.typ, parent + "." + name, padNulls)
+                a(f.index) = imp(jv2, f.typ, parent + "." + name)
 
               case None =>
-                warn(s"$t has no field $name at $parent for value $jv2")
+                warn(s"$t has no field $name at $parent for value $jv2", parent + "/" + name)
             }
           }
 
@@ -217,43 +226,45 @@ object JSONAnnotationImpex {
           val a = Array.fill[Any](annotationSize)(null)
           var i = 0
           for (jvelt <- elts) {
-            a(i) = importAnnotation(jvelt, t.types(i), parent, padNulls)
+            a(i) = imp(jvelt, t.types(i), parent)
             i += 1
           }
 
           Annotation.fromSeq(a)
         }
-      case (_, TLocus(_, _)) =>
+      case (_, TLocus(_)) =>
         jv.extract[Locus]
-      case (_, TInterval(pointType, _)) =>
+      case (JObject(_), t@TNDArray(_, _)) =>
+        imp(jv, t.representation, parent)
+      case (_, TInterval(pointType)) =>
         jv match {
           case JObject(list) =>
             val m = list.toMap
             (m.get("start"), m.get("end"), m.get("includeStart"), m.get("includeEnd")) match {
               case (Some(sjv), Some(ejv), Some(isjv), Some(iejv)) =>
-                Interval(importAnnotation(sjv, pointType, parent + ".start", padNulls),
-                  importAnnotation(ejv, pointType, parent + ".end", padNulls),
-                  importAnnotation(isjv, TBooleanRequired, parent + ".includeStart", padNulls).asInstanceOf[Boolean],
-                  importAnnotation(iejv, TBooleanRequired, parent + ".includeEnd", padNulls).asInstanceOf[Boolean]
+                Interval(imp(sjv, pointType, parent + ".start"),
+                  imp(ejv, pointType, parent + ".end"),
+                  imp(isjv, TBoolean, parent + ".includeStart").asInstanceOf[Boolean],
+                  imp(iejv, TBoolean, parent + ".includeEnd").asInstanceOf[Boolean]
                 )
               case _ =>
-                warn(s"Can't convert JSON value $jv to type $t at $parent.")
+                warnOnce(s"Can't convert JSON value $jv to type $t at $parent.", parent)
                 null
             }
           case _ =>
-            warn(s"Can't convert JSON value $jv to type $t at $parent.")
+            warnOnce(s"Can't convert JSON value $jv to type $t at $parent.", parent)
             null
         }
-      case (JString(x), _: TCall) => Call.parse(x)
+      case (JString(x), TCall) => Call.parse(x)
 
-      case (JArray(a), TArray(elementType, _)) =>
-        a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>", padNulls)).toArray[Any]: IndexedSeq[Any]
+      case (JArray(a), TArray(elementType)) =>
+        a.iterator.map(jv2 => imp(jv2, elementType, parent + "[element]")).toArray[Any]: IndexedSeq[Any]
 
-      case (JArray(a), TSet(elementType, _)) =>
-        a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>", padNulls)).toSet[Any]
+      case (JArray(a), TSet(elementType)) =>
+        a.iterator.map(jv2 => imp(jv2, elementType, parent + "[element]")).toSet[Any]
 
       case _ =>
-        warn(s"Can't convert JSON value $jv to type $t at $parent.")
+        warnOnce(s"Can't convert JSON value $jv to type $t at $parent.", parent)
         null
     }
   }
@@ -269,11 +280,11 @@ object TableAnnotationImpex {
       "NA"
     else {
       t match {
-        case _: TFloat64 => a.asInstanceOf[Double].formatted("%.4e")
-        case _: TString => a.asInstanceOf[String]
+        case TFloat64 => a.asInstanceOf[Double].formatted("%.4e")
+        case TString => a.asInstanceOf[String]
         case t: TContainer => JsonMethods.compact(t.toJSON(a))
         case t: TBaseStruct => JsonMethods.compact(t.toJSON(a))
-        case TInterval(TLocus(_, _), _) =>
+        case TInterval(TLocus(_)) =>
           val i = a.asInstanceOf[Interval]
           val bounds = if (i.start.asInstanceOf[Locus].contig == i.end.asInstanceOf[Locus].contig)
             s"${ i.start }-${ i.end.asInstanceOf[Locus].position }"
@@ -282,7 +293,7 @@ object TableAnnotationImpex {
           s"${ if (i.includesStart) "[" else "(" }$bounds${ if (i.includesEnd) "]" else ")" }"
         case _: TInterval =>
           JsonMethods.compact(t.toJSON(a))
-        case _: TCall => Call.toString(a.asInstanceOf[Call])
+        case TCall => Call.toString(a.asInstanceOf[Call])
         case _ => a.toString
       }
     }
@@ -290,17 +301,17 @@ object TableAnnotationImpex {
 
   def importAnnotation(a: String, t: Type): Annotation = {
     (t: @unchecked) match {
-      case _: TString => a
-      case _: TInt32 => UtilFunctions.parseInt32(a)
-      case _: TInt64 => UtilFunctions.parseInt64(a)
-      case _: TFloat32 => UtilFunctions.parseFloat32(a)
-      case _: TFloat64 => UtilFunctions.parseFloat64(a)
-      case _: TBoolean => UtilFunctions.parseBoolean(a)
+      case TString => a
+      case TInt32 => UtilFunctions.parseInt32(a)
+      case TInt64 => UtilFunctions.parseInt64(a)
+      case TFloat32 => UtilFunctions.parseFloat32(a)
+      case TFloat64 => UtilFunctions.parseFloat64(a)
+      case TBoolean => UtilFunctions.parseBoolean(a)
       case tl: TLocus => Locus.parse(a, tl.rg)
       // FIXME legacy
-      case TInterval(l: TLocus, _) => Locus.parseInterval(a, l.rg, invalidMissing = false)
+      case TInterval(l: TLocus) => Locus.parseInterval(a, l.rg, invalidMissing = false)
       case t: TInterval => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
-      case _: TCall => Call.parse(a)
+      case TCall => Call.parse(a)
       case t: TArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TSet => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case t: TDict => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)

@@ -1,6 +1,5 @@
 import sys
 import argparse
-import aiohttp
 
 from hailtop.batch_client.client import BatchClient
 from . import list_batches
@@ -9,7 +8,7 @@ from . import get
 from . import cancel
 from . import wait
 from . import log
-from . import pod_status
+from . import job
 
 
 def parser():
@@ -40,10 +39,10 @@ def parser():
         help='Get log for a job',
         description='Get log for a job'
     )
-    pod_status_parser = subparsers.add_parser(
-        'pod_status',
-        help='Get pod status for a job',
-        description='Get pod status for a job'
+    job_parser = subparsers.add_parser(
+        'job',
+        help='Get the status and specification for a job',
+        description='Get the status and specification for a job'
     )
     wait_parser = subparsers.add_parser(
         'wait',
@@ -66,8 +65,8 @@ def parser():
     log_parser.set_defaults(module='log')
     log.init_parser(log_parser)
 
-    pod_status_parser.set_defaults(module='pod_status')
-    pod_status.init_parser(pod_status_parser)
+    job_parser.set_defaults(module='job')
+    job.init_parser(job_parser)
 
     wait_parser.set_defaults(module='wait')
     wait.init_parser(wait_parser)
@@ -85,16 +84,14 @@ def main(args):
         'get': get,
         'cancel': cancel,
         'log': log,
-        'pod_status': pod_status,
+        'job': job,
         'wait': wait
     }
 
     args, pass_through_args = parser().parse_known_args(args=args)
 
-    session = aiohttp.ClientSession(
-        raise_for_status=True,
-        timeout=aiohttp.ClientTimeout(total=60))
-    client = BatchClient(session)
+    # hailctl batch doesn't create batches
+    client = BatchClient(None)
 
     try:
         jmp[args.module].main(args, pass_through_args, client)

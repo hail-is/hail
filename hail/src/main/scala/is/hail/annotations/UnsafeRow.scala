@@ -24,13 +24,13 @@ class UnsafeIndexedSeq(
   var t: PContainer,
   var region: Region, var aoff: Long) extends IndexedSeq[Annotation] with UnKryoSerializable {
 
-  var length: Int = t.loadLength(region, aoff)
+  var length: Int = t.loadLength(aoff)
 
   def apply(i: Int): Annotation = {
     if (i < 0 || i >= length)
       throw new IndexOutOfBoundsException(i.toString)
-    if (t.isElementDefined(region, aoff, i)) {
-      UnsafeRow.read(t.elementType, region, t.loadElement(region, aoff, length, i))
+    if (t.isElementDefined(aoff, i)) {
+      UnsafeRow.read(t.elementType, region, t.loadElement(aoff, length, i))
     } else
       null
   }
@@ -39,10 +39,8 @@ class UnsafeIndexedSeq(
 }
 
 object UnsafeRow {
-  def readBinary(region: Region, boff: Long, t: PBinary): Array[Byte] = {
-    val binLength = PBinary.loadLength(region, boff)
-    region.loadBytes(PBinary.bytesOffset(boff), binLength)
-  }
+  def readBinary(region: Region, boff: Long, t: PBinary): Array[Byte] =
+    t.loadBytes(boff)
 
   def readArray(t: PContainer, region: Region, aoff: Long): IndexedSeq[Any] =
     new UnsafeIndexedSeq(t, region, aoff)
@@ -56,8 +54,8 @@ object UnsafeRow {
   def readLocus(region: Region, offset: Long, t: PLocus): Locus = {
     val ft = t.representation.asInstanceOf[PStruct]
     Locus(
-      readString(region, ft.loadField(region, offset, 0), ft.types(0).asInstanceOf[PString]),
-      region.loadInt(ft.loadField(region, offset, 1)))
+      readString(region, ft.loadField(offset, 0), t.contigType),
+      Region.loadInt(ft.loadField(offset, 1)))
   }
 
   def readAnyRef(t: PType, region: Region, offset: Long): AnyRef = read(t, region, offset).asInstanceOf[AnyRef]
@@ -65,11 +63,11 @@ object UnsafeRow {
   def read(t: PType, region: Region, offset: Long): Any = {
     t match {
       case _: PBoolean =>
-        region.loadBoolean(offset)
-      case _: PInt32 | _: PCall => region.loadInt(offset)
-      case _: PInt64 => region.loadLong(offset)
-      case _: PFloat32 => region.loadFloat(offset)
-      case _: PFloat64 => region.loadDouble(offset)
+        Region.loadBoolean(offset)
+      case _: PInt32 | _: PCall => Region.loadInt(offset)
+      case _: PInt64 => Region.loadLong(offset)
+      case _: PFloat32 => Region.loadFloat(offset)
+      case _: PFloat64 => Region.loadDouble(offset)
       case t: PArray =>
         readArray(t, region, offset)
       case t: PSet =>
@@ -83,17 +81,17 @@ object UnsafeRow {
       case x: PLocus => readLocus(region, offset, x)
       case x: PInterval =>
         val start: Annotation =
-          if (x.startDefined(region, offset))
-            read(x.pointType, region, x.loadStart(region, offset))
+          if (x.startDefined(offset))
+            read(x.pointType, region, x.loadStart(offset))
           else
             null
         val end =
-          if (x.endDefined(region, offset))
-            read(x.pointType, region, x.loadEnd(region, offset))
+          if (x.endDefined(offset))
+            read(x.pointType, region, x.loadEnd(offset))
           else
             null
-        val includesStart = x.includesStart(region, offset)
-        val includesEnd = x.includesEnd(region, offset)
+        val includesStart = x.includesStart(offset)
+        val includesEnd = x.includesEnd(offset)
         Interval(start, end, includesStart, includesEnd)
       case nd: PNDArray => UnsafeRow.read(nd.representation, region, offset)
     }
@@ -102,6 +100,42 @@ object UnsafeRow {
 
 class UnsafeRow(var t: PBaseStruct,
   var region: Region, var offset: Long) extends Row with UnKryoSerializable {
+
+  override def toString: String = {
+    if (t.isInstanceOf[PStruct]) {
+      val sb = new StringBuilder()
+      var i = 0
+      sb += '{'
+      while (i < t.size) {
+        if (i != 0) {
+          sb ++= ", "
+        }
+        sb ++= t.fieldNames(i)
+        sb ++= ": "
+        val x = get(i)
+        sb ++= (if (x == null) "null" else x.toString())
+        i += 1
+      }
+      sb += '}'
+      sb.toString
+    } else if (t.isInstanceOf[PTuple]) {
+      val sb = new StringBuilder()
+      var i = 0
+      sb += '('
+      while (i < t.size) {
+        if (i != 0) {
+          sb ++= ", "
+        }
+        val x = get(i)
+        sb ++= (if (x == null) "null" else x.toString())
+        i += 1
+      }
+      sb += ')'
+      sb.toString
+    } else {
+      super.toString
+    }
+  }
 
   def this(t: PBaseStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
 
@@ -127,47 +161,47 @@ class UnsafeRow(var t: PBaseStruct,
     if (isNullAt(i))
       null
     else
-      UnsafeRow.read(t.types(i), region, t.loadField(region, offset, i))
+      UnsafeRow.read(t.types(i), region, t.loadField(offset, i))
   }
 
   def copy(): Row = new UnsafeRow(t, region, offset)
 
-  def pretty(): String = region.pretty(t, offset)
+  def pretty(): String = Region.pretty(t, offset)
 
   override def getInt(i: Int): Int = {
     assertDefined(i)
-    region.loadInt(t.loadField(region, offset, i))
+    Region.loadInt(t.loadField(offset, i))
   }
 
   override def getLong(i: Int): Long = {
     assertDefined(i)
-    region.loadLong(t.loadField(region, offset, i))
+    Region.loadLong(t.loadField(offset, i))
   }
 
   override def getFloat(i: Int): Float = {
     assertDefined(i)
-    region.loadFloat(t.loadField(region, offset, i))
+    Region.loadFloat(t.loadField(offset, i))
   }
 
   override def getDouble(i: Int): Double = {
     assertDefined(i)
-    region.loadDouble(t.loadField(region, offset, i))
+    Region.loadDouble(t.loadField(offset, i))
   }
 
   override def getBoolean(i: Int): Boolean = {
     assertDefined(i)
-    region.loadBoolean(t.loadField(region, offset, i))
+    Region.loadBoolean(t.loadField(offset, i))
   }
 
   override def getByte(i: Int): Byte = {
     assertDefined(i)
-    region.loadByte(t.loadField(region, offset, i))
+    Region.loadByte(t.loadField(offset, i))
   }
 
   override def isNullAt(i: Int): Boolean = {
     if (i < 0 || i >= t.size)
       throw new IndexOutOfBoundsException(i.toString)
-    !t.isFieldDefined(region, offset, i)
+    !t.isFieldDefined(offset, i)
   }
 
   private def writeObject(s: ObjectOutputStream): Unit = {

@@ -36,7 +36,7 @@ class MissingDoubleArrayBuilder extends Serializable {
     }
   }
 
-  val typ = TArray(TFloat64())
+  val typ = TArray(TFloat64)
 
   def write(rvb: RegionValueBuilder) {
     rvb.startArray(len)

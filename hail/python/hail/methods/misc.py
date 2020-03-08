@@ -137,7 +137,7 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
         wrapped_node_t = ttuple(node_t)
         l = construct_variable('l', wrapped_node_t)
         r = construct_variable('r', wrapped_node_t)
-        tie_breaker_expr = hl.int64(tie_breaker(l[0], r[0]))
+        tie_breaker_expr = hl.float64(tie_breaker(l[0], r[0]))
         t, _ = source._process_joins(i, j, tie_breaker_expr)
         tie_breaker_str = str(tie_breaker_expr._ir)
     else:
@@ -317,7 +317,7 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
 
     Notes
     -----
-    Based on the ``keep`` argument, this method will either restrict to points
+    Based on the `keep` argument, this method will either restrict to points
     in the supplied interval ranges, or remove all rows in those ranges.
 
     When ``keep=True``, partitions that don't overlap any supplied interval
@@ -388,54 +388,3 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
         return MatrixTable(MatrixFilterIntervals(ds._mir, intervals, point_type, keep))
     else:
         return Table(TableFilterIntervals(ds._tir, intervals, point_type, keep))
-
-
-@typecheck(mt=MatrixTable, bp_window_size=int)
-def window_by_locus(mt: MatrixTable, bp_window_size: int) -> MatrixTable:
-    """Collect arrays of row and entry values from preceding loci.
-
-    .. include:: ../_templates/req_tlocus.rst
-
-    .. include:: ../_templates/experimental.rst
-
-    Examples
-    --------
-    >>> ds_result = hl.window_by_locus(ds, 3)
-
-    Notes
-    -----
-    This method groups each row (variant) with the previous rows in a window of
-    `bp_window_size` base pairs, putting the row values from the previous
-    variants into `prev_rows` (row field of type ``array<struct>``) and entry
-    values from those variants into `prev_entries` (entry field of type
-    ``array<struct>``).
-
-    The `bp_window_size` argument is inclusive; if `base_pairs` is 2 and the
-    loci are
-
-    .. code-block:: text
-
-        1:100
-        1:100
-        1:102
-        1:102
-        1:103
-        2:100
-        2:101
-
-    then the size of `prev_rows` is 0, 1, 2, 3, 2, 0, and 1, respectively (and
-    same for the size of prev_entries).
-
-    Parameters
-    ----------
-    mt : :class:`.MatrixTable`
-        Input dataset.
-    bp_window_size : :obj:`int`
-        Base pairs to include in the backwards window (inclusive).
-
-    Returns
-    -------
-    :class:`.MatrixTable`
-    """
-    require_first_key_field_locus(mt, 'window_by_locus')
-    return MatrixTable(hl.ir.MatrixToMatrixApply(mt._mir, {'name': 'WindowByLocus', 'basePairs': bp_window_size}))

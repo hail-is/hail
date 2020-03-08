@@ -1,37 +1,34 @@
-<html lang="en">
-  <head>
-    <title>CI | Batch {{ batch['id'] }}</title>
-    <link rel="stylesheet" type="text/css" href="/static/style.css">
-  </head>
-  <body>
-    <p><a href="/">ci</a> : <a href="/batches">batches</a> : batch {{ batch['id'] }}</p>
-
+{% extends "layout.html" %}
+{% block title %}Batch {{ batch['id'] }}{% endblock %}
+{% block content %}
     <h1>Batch {{ batch['id'] }}</h1>
     {% if 'attributes' in batch %}
-    {% for name, value in batch['attributes'].items() %}
-    <p>{{ name }}: {{ value }}</p>
-    {% endfor %}
-    {% endif %}
+    <div class="attributes">
+      {% for name, value in batch['attributes'].items() %}
+      <div>{{ name }}: {{ value }}</div>
+      {% endfor %}
+      {% endif %}
+    </div>
     <h2>Jobs</h2>
-    <table>
+    <table class="data-table" style="line-height: 175%">
       <thead>
         <tr>
-          <th align="right">id</th>
-          <th align="left">name</th>
-          <th align="left">state</th>
-          <th align="right">exit_code</th>
-          <th align="right">duration</th>
-          <th align="left">log</th>
-          <th align="left">pod status</th>
+          <th>id</th>
+          <th>name</th>
+          <th>state</th>
+          <th>exit_code</th>
+          <th>duration</th>
         </tr>
       </thead>
       <tbody>
-        {% for job in batch['jobs'] %}
+        {% for job in jobs %}
         <tr>
-          <td align="right">{{ job['job_id'] }}</td>
-          <td align="left">{{ job['attributes']['name'] }}</td>
-          <td align="left">{{ job['state'] }}</td>
-          <td align="right">
+          <td class="numeric-cell">
+	    <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
+	  </td>
+          <td>{{ job['name'] }}</td>
+          <td>{{ job['state'] }}</td>
+          <td>
             {% if 'exit_code' in job and job['exit_code'] is not none %}
             {% if job['exit_code'] == 0 %}
             <span style="color: #55aa33;">
@@ -44,20 +41,13 @@
               </span>
               {% endif %}
           </td>
-          <td align="right">
-            {% if 'duration' in job and job['duration'] %}
+          <td>
+            {% if 'duration' in job and job['duration'] is not none %}
             {{ job['duration'] }}
             {% endif %}
-          </td>
-          <td align="left">
-            <a href="/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/log">log</a>
-          </td>
-          <td align="left">
-            <a href="/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/pod_status">pod_status</a>
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
-  </body>
-</html>
+{% endblock %}

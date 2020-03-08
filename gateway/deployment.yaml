@@ -17,6 +17,11 @@ spec:
         hail.is/sha: "{{ code.sha }}"
     spec:
       priorityClassName: infrastructure
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -27,9 +32,6 @@ spec:
                     values:
                     - gateway
               topologyKey: "kubernetes.io/hostname"
-      tolerations:
-       - key: preemptible
-         value: "true"
       containers:
        - name: gateway
          image: "{{ gateway_image.image }}"
@@ -64,3 +66,13 @@ spec:
      resource:
        name: cpu
        targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: gateway
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: gateway

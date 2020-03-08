@@ -1,0 +1,3 @@
+FROM {{ base_image.image }}
+
+COPY create-notebook-tables.sql .

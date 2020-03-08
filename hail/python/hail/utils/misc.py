@@ -18,7 +18,6 @@ from hail.typecheck import enumeration, typecheck, nullable
 from hail.utils.java import Env, joption, error
 
 
-
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
 def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
     """Construct a matrix table with row and column indices and no entry fields.
@@ -59,8 +58,8 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
     -------
     :class:`.MatrixTable`
     """
-    check_positive_and_in_range('range_matrix_table', 'n_rows', n_rows)
-    check_positive_and_in_range('range_matrix_table', 'n_cols', n_cols)
+    check_nonnegative_and_in_range('range_matrix_table', 'n_rows', n_rows)
+    check_nonnegative_and_in_range('range_matrix_table', 'n_cols', n_cols)
     if n_partitions is not None:
         check_positive_and_in_range('range_matrix_table', 'n_partitions', n_partitions)
     return hail.MatrixTable(hail.ir.MatrixRead(hail.ir.MatrixRangeReader(n_rows, n_cols, n_partitions)))
@@ -97,7 +96,7 @@ def range_table(n, n_partitions=None) -> 'hail.Table':
     -------
     :class:`.Table`
     """
-    check_positive_and_in_range('range_table', 'n', n)
+    check_nonnegative_and_in_range('range_table', 'n', n)
     if n_partitions is not None:
         check_positive_and_in_range('range_table', 'n_partitions', n_partitions)
 
@@ -106,6 +105,13 @@ def range_table(n, n_partitions=None) -> 'hail.Table':
 def check_positive_and_in_range(caller, name, value):
     if value <= 0:
         raise ValueError(f"'{caller}': parameter '{name}' must be positive, found {value}")
+    elif value > hail.tint32.max_value:
+        raise ValueError(f"'{caller}': parameter '{name}' must be less than or equal to {hail.tint32.max_value}, "
+                         f"found {value}")
+
+def check_nonnegative_and_in_range(caller, name, value):
+    if value < 0:
+        raise ValueError(f"'{caller}': parameter '{name}' must be non-negative, found {value}")
     elif value > hail.tint32.max_value:
         raise ValueError(f"'{caller}': parameter '{name}' must be less than or equal to {hail.tint32.max_value}, "
                          f"found {value}")
@@ -463,21 +469,6 @@ def timestamp_path(base, suffix=''):
                     datetime.datetime.now().strftime("%Y%m%d-%H%M"),
                     suffix])
 
-
-def np_type_to_hl_type(t):
-    if t == np.int64:
-        return hail.tint64
-    elif t == np.int32:
-        return hail.tint32
-    elif t == np.float64:
-        return hail.tfloat64
-    elif t == np.float32:
-        return hail.tfloat32
-    elif t == np.bool:
-        return hail.tbool
-    else:
-        raise TypeError(f'Unsupported numpy type: {t}')
-
 def upper_hex(n, num_digits=None):
     if num_digits is None:
         return "{0:X}".format(n)
@@ -537,9 +528,11 @@ def escape_id(s):
 def dump_json(obj):
     return f'"{escape_str(json.dumps(obj))}"'
 
+
 def parsable_strings(strs):
     strs = ' '.join(f'"{escape_str(s)}"' for s in strs)
     return f"({strs})"
+
 
 def _dumps_partitions(partitions, row_key_type):
     parts_type = partitions.dtype
@@ -566,3 +559,11 @@ def _dumps_partitions(partitions, row_key_type):
     
     s = json.dumps(partitions.dtype._convert_to_json(hl.eval(partitions)))
     return s, partitions.dtype
+
+
+def default_handler():
+    try:
+        from IPython.display import display
+        return display
+    except ImportError:
+        return print

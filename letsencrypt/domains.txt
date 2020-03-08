@@ -1,11 +1,12 @@
 @domain@
 ci.@domain@
 notebook.@domain@
-notebook2.@domain@
 scorecard.@domain@
 www.@domain@
 batch.@domain@
-batch2.@domain@
+batch-driver.@domain@
+blog.@domain@
 internal.@domain@
 auth.@domain@
 ukbb-rg.@domain@
+workshop.@domain@

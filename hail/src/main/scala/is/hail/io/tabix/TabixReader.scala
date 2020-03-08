@@ -5,6 +5,7 @@ import is.hail.utils._
 import is.hail.io.fs.FS
 
 import htsjdk.tribble.util.{ParsingUtils, TabixUtils}
+import htsjdk.samtools.util.FileExtensions
 import org.apache.spark.broadcast.Broadcast
 
 import java.io.InputStream
@@ -94,9 +95,9 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
   import TabixReader._
 
   val indexPath: String = idxFilePath match {
-    case None => ParsingUtils.appendToPath(filePath, TabixUtils.STANDARD_INDEX_EXTENSION)
+    case None => ParsingUtils.appendToPath(filePath, FileExtensions.TABIX_INDEX)
     case Some(s) =>
-      if (s.endsWith(TabixUtils.STANDARD_INDEX_EXTENSION))
+      if (s.endsWith(FileExtensions.TABIX_INDEX))
         s
       else
         fatal(s"unknown file extension for tabix index: $s")

@@ -17,26 +17,13 @@ object TBaseStruct {
     */
   def getOrdering(types: Array[Type]): ExtendedOrdering =
     ExtendedOrdering.rowOrdering(types.map(_.ordering))
-
-  def getMissingness(types: Array[Type], missingIdx: Array[Int]): Int = {
-    assert(missingIdx.length == types.length)
-    var i = 0
-    types.zipWithIndex.foreach { case (t, idx) =>
-      missingIdx(idx) = i
-      if (!t.required)
-        i += 1
-    }
-    i
-  }
 }
 
 abstract class TBaseStruct extends Type {
-  def physicalType: PBaseStruct
-
   def types: Array[Type]
 
   def fields: IndexedSeq[Field]
-  
+
   override def children: Seq[Type] = types
 
   def size: Int
@@ -76,9 +63,18 @@ abstract class TBaseStruct extends Type {
     size <= other.size && isCompatibleWith(other)
 
   def isCompatibleWith(other: TBaseStruct): Boolean =
-    fields.zip(other.fields).forall{ case (l, r) => l.typ isOfType r.typ }
+    fields.zip(other.fields).forall{ case (l, r) => l.typ == r.typ }
 
   def truncate(newSize: Int): TBaseStruct
+
+  override def _showStr(a: Annotation): String = {
+    if (types.isEmpty)
+      "()"
+    else {
+      Array.tabulate(size)(i => types(i).showStr(a.asInstanceOf[Row].get(i)))
+        .mkString("(", ",", ")")
+    }
+  }
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
@@ -88,7 +84,7 @@ abstract class TBaseStruct extends Type {
     } else
       Gen.size.flatMap(fuel =>
         if (types.length > fuel)
-          Gen.uniformSequence(types.map(t => if (t.required) t.genValue else Gen.const(null))).map(a => Annotation(a: _*))
+          Gen.uniformSequence(types.map(t => Gen.const(null))).map(a => Annotation(a: _*))
         else
           Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*)))
   }

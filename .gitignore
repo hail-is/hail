@@ -5,7 +5,7 @@
 .idea/
 .pytest_cache/
 build/
-hail.iml
+*.iml
 hail*.log
 out/
 target
@@ -13,3 +13,9 @@ target
 .DS_Store
 *-stmp
 __pycache__/
+*.pyc
+*.egg-info/
+hs_err_pid*.log
+*-checkpoint.ipynb
+*hail/python/hail/docs/tutorials/data*
+*hail/python/hailtop/pipeline/docs/output*

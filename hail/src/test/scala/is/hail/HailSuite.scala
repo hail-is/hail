@@ -2,16 +2,13 @@ package is.hail
 
 import is.hail.annotations.Region
 import is.hail.expr.ir.ExecuteContext
-import is.hail.utils.TempDir
+import is.hail.utils.{ExecutionTimer, TempDir}
 import is.hail.io.fs.FS
 import org.apache.spark.SparkContext
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.BeforeClass
 
 object HailSuite {
-  def withDistributedBackend(host: String): HailContext =
-    HailContext.createDistributed(host, logFile = "/tmp/hail.log")
-
   def withSparkBackend(): HailContext =
     HailContext(
       sc = new SparkContext(
@@ -25,11 +22,7 @@ object HailSuite {
 
 
   lazy val hc: HailContext = {
-    val schedulerHost = System.getenv("HAIL_TEST_SCHEDULER_HOST")
-    val hc = if (schedulerHost == null)
-      withSparkBackend()
-    else
-      withDistributedBackend(schedulerHost)
+    val hc = withSparkBackend()
     hc.flags.set("lower", "1")
     hc.checkRVDKeys = true
     hc
@@ -43,7 +36,7 @@ class HailSuite extends TestNGSuite {
 
   @BeforeClass def ensureHailContextInitialized() { hc }
 
-  val ctx = ExecuteContext(Region()) // will get cleaned up on suite GC
+  val ctx = ExecuteContext(Region(), new ExecutionTimer) // will get cleaned up on suite GC
 
   def sFS: FS = hc.sFS
 

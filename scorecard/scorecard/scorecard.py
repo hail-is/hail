@@ -1,46 +1,24 @@
-import time
 import collections
 import datetime
 import os
-import sys
-from flask import Flask, render_template, request, abort, url_for
-from github import Github
-from github.GithubException import RateLimitExceededException
+import asyncio
+import aiohttp
+from aiohttp import web
+import gidgethub.aiohttp
 import random
-import threading
 import humanize
 import logging
-
-fmt = logging.Formatter(
-    # NB: no space after levename because WARNING is so long
-    '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
-    '%(message)s')
-
-fh = logging.FileHandler('scorecard.log')
-fh.setLevel(logging.INFO)
-fh.setFormatter(fmt)
-
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-ch.setFormatter(fmt)
+from hailtop.config import get_deploy_config
+from gear import setup_aiohttp_session, web_maybe_authenticated_user, AccessLogger
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
 log = logging.getLogger('scorecard')
-log.setLevel(logging.INFO)
 
-logging.basicConfig(
-    handlers=[fh, ch],
-    level=logging.INFO)
-
-GITHUB_TOKEN_PATH = os.environ.get('GITHUB_TOKEN_PATH',
-                                   '/secrets/scorecard-github-access-token.txt')
-with open(GITHUB_TOKEN_PATH, 'r') as f:
-    token = f.read().strip()
-github = Github(token)
+deploy_config = get_deploy_config()
 
 component_users = {
-    'Hail front-end (Py)': ['tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'konradjk', 'johnc1231', 'iitalics'],
-    'Hail middle-end (Scala)': ['danking', 'tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'johnc1231', 'iitalics'],
-    'C++ backend': ['catoverdrive', 'patrick-schultz', 'chrisvittal', 'akotlar', 'iitalics'],
+    'Hail front-end (Py)': ['tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'konradjk', 'johnc1231'],
+    'Hail middle-end (Scala)': ['tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'johnc1231'],
     'hailctl dataproc': ['tpoterba', 'danking', 'konradjk'],
     'k8s, services': ['danking', 'jigold', 'akotlar', 'johnc1231'],
     'Web app (JS)': ['akotlar', 'danking'],
@@ -51,22 +29,45 @@ repos = {
     'hail': 'hail-is/hail',
 }
 
-app = Flask('scorecard')
+routes = web.RouteTableDef()
 
 data = None
-timsetamp = None
+timestamp = None
 
-@app.route('/')
-def index():
+
+@routes.get('/healthcheck')
+async def get_healthcheck(request):  # pylint: disable=unused-argument
+    return web.Response()
+
+
+@routes.get('')
+@routes.get('/')
+@web_maybe_authenticated_user
+async def index(request, userdata):
     user_data, unassigned, urgent_issues, updated = get_users()
     component_random_user = {c: random.choice(us) for c, us in component_users.items()}
-    return render_template('index.html', unassigned=unassigned,
-                           user_data=user_data, urgent_issues=urgent_issues, component_user=component_random_user, updated=updated)
+    page_context = {
+        'unassigned': unassigned,
+        'user_data': user_data,
+        'urgent_issues': urgent_issues,
+        'component_user': component_random_user,
+        'updated': updated
+    }
+    return await render_template('scorecard', request, userdata, 'index.html', page_context)
 
-@app.route('/users/<user>')
-def html_get_user(user):
+
+@routes.get('/users/{user}')
+@web_maybe_authenticated_user
+async def html_get_user(request, userdata):
+    user = request.match_info['user']
     user_data, updated = get_user(user)
-    return render_template('user.html', user=user, user_data=user_data, updated=updated)
+    page_context = {
+        'user': user,
+        'user_data': user_data,
+        'updated': updated,
+    }
+    return await render_template('scorecard', request, userdata, 'user.html', page_context)
+
 
 def get_users():
     cur_data = data
@@ -80,7 +81,7 @@ def get_users():
 
     urgent_issues = []
 
-    def add_pr(repo_name, pr):
+    def add_pr(pr):
         state = pr['state']
 
         if state == 'CHANGES_REQUESTED':
@@ -93,7 +94,7 @@ def get_users():
         else:
             assert state == 'APPROVED'
 
-    def add_issue(repo_name, issue):
+    def add_issue(issue):
         for user in issue['assignees']:
             d = user_data[user]
             if issue['urgent']:
@@ -106,23 +107,24 @@ def get_users():
             else:
                 d['ISSUES'].append(issue)
 
-    for repo_name, repo_data in cur_data.items():
+    for _, repo_data in cur_data.items():
         for pr in repo_data['prs']:
             if len(pr['assignees']) == 0:
                 unassigned.append(pr)
                 continue
 
-            add_pr(repo_name, pr)
+            add_pr(pr)
 
         for issue in repo_data['issues']:
-            add_issue(repo_name, issue)
+            add_issue(issue)
 
     list.sort(urgent_issues, key=lambda issue: issue['timedelta'], reverse=True)
 
     updated = humanize.naturaltime(
-        datetime.datetime.now() - datetime.timedelta(seconds = time.time() - cur_timestamp))
+        datetime.datetime.now() - cur_timestamp)
 
     return (user_data, unassigned, urgent_issues, updated)
+
 
 def get_user(user):
     global data, timestamp
@@ -137,7 +139,7 @@ def get_user(user):
         'ISSUES': []
     }
 
-    for repo_name, repo_data in cur_data.items():
+    for _, repo_data in cur_data.items():
         for pr in repo_data['prs']:
             state = pr['state']
             if state == 'CHANGES_REQUESTED':
@@ -157,63 +159,71 @@ def get_user(user):
                 user_data['ISSUES'].append(issue)
 
     updated = humanize.naturaltime(
-        datetime.datetime.now() - datetime.timedelta(seconds=time.time() - cur_timestamp))
+        datetime.datetime.now() - cur_timestamp)
     return (user_data, updated)
 
 
 def get_id(repo_name, number):
     if repo_name == default_repo:
         return f'{number}'
-    else:
-        return f'{repo_name}/{number}'
+    return f'{repo_name}/{number}'
 
-def get_pr_data(repo, repo_name, pr):
-    assignees = [a.login for a in pr.assignees]
+
+async def get_pr_data(gh_client, fq_repo, repo_name, pr):
+    assignees = [a['login'] for a in pr['assignees']]
+
+    reviews = []
+    async for review in gh_client.getiter(f'/repos/{fq_repo}/pulls/{pr["number"]}/reviews'):
+        reviews.append(review)
 
     state = 'NEEDS_REVIEW'
-    for review in pr.get_reviews().reversed:
-        if review.state == 'CHANGES_REQUESTED':
-            state = review.state
+    for review in reversed(reviews):
+        review_state = review['state']
+        if review_state == 'CHANGES_REQUESTED':
+            state = review_state
             break
-        elif review.state == 'DISMISSED':
+        elif review_state == 'DISMISSED':
             break
-        elif review.state == 'APPROVED':
+        elif review_state == 'APPROVED':
             state = 'APPROVED'
             break
         else:
-            if review.state != 'COMMENTED':
-                log.warning(f'unknown review state {review.state} on review {review} in pr {pr}')
+            if review_state != 'COMMENTED':
+                log.warning(f'unknown review state {review_state} on review {review} in pr {pr}')
 
-    sha = pr.head.sha
-    status = repo.get_commit(sha=sha).get_combined_status().state
+    sha = pr['head']['sha']
+    status = await gh_client.getitem(f'/repos/{fq_repo}/commits/{sha}')
 
     return {
         'repo': repo_name,
-        'id': get_id(repo_name, pr.number),
-        'title': pr.title,
-        'user': pr.user.login,
+        'id': get_id(repo_name, pr['number']),
+        'title': pr['title'],
+        'user': pr['user']['login'],
         'assignees': assignees,
-        'html_url': pr.html_url,
+        'html_url': pr['html_url'],
         'state': state,
         'status': status
     }
 
+
 def get_issue_data(repo_name, issue):
-    assignees = [a.login for a in issue.assignees]
+    assignees = [a['login'] for a in issue['assignees']]
     return {
         'repo': repo_name,
-        'id': get_id(repo_name, issue.number),
-        'title': issue.title,
+        'id': get_id(repo_name, issue['number']),
+        'title': issue['title'],
         'assignees': assignees,
-        'html_url': issue.html_url,
-        'urgent': any(label.name == 'prio:high' for label in issue.labels),
-        'created_at': issue.created_at
+        'html_url': issue['html_url'],
+        'urgent': any(label['name'] == 'prio:high' for label in issue['labels']),
+        'created_at': datetime.datetime.strptime(issue['created_at'], '%Y-%m-%dT%H:%M:%SZ')
     }
 
-def update_data():
+
+async def update_data(gh_client):
     global data, timestamp
 
-    log.info(f'rate_limit {github.get_rate_limit()}')
+    rate_limit = await gh_client.getitem("/rate_limit")
+    log.info(f'rate_limit {rate_limit}')
     log.info('start updating_data')
 
     new_data = {}
@@ -226,57 +236,65 @@ def update_data():
 
     try:
         for repo_name, fq_repo in repos.items():
-            repo = github.get_repo(fq_repo)
-
-            for pr in repo.get_pulls(state='open'):
-                pr_data = get_pr_data(repo, repo_name, pr)
+            async for pr in gh_client.getiter(f'/repos/{fq_repo}/pulls?state=open'):
+                pr_data = await get_pr_data(gh_client, fq_repo, repo_name, pr)
                 new_data[repo_name]['prs'].append(pr_data)
 
-            for issue in repo.get_issues(state='open'):
-                if issue.pull_request is None:
+            async for issue in gh_client.getiter(f'/repos/{fq_repo}/issues?state=open'):
+                print(issue)
+                if 'pull_request' not in issue:
                     issue_data = get_issue_data(repo_name, issue)
                     new_data[repo_name]['issues'].append(issue_data)
-    except RateLimitExceededException as e:
-        log.error('Exceeded rate limit: ' + str(e))
-
+    except Exception:  # pylint: disable=broad-except
+        log.exception('update failed due to except')
+        return
 
     log.info('updating_data done')
 
-    now = time.time()
+    now = datetime.datetime.now()
 
     data = new_data
     timestamp = now
 
-def poll():
+
+async def poll(gh_client):
     while True:
-        time.sleep(180)
-        update_data()
-
-update_data()
-
-def run_forever(target, *args, **kwargs):
-    # target should be a function
-    target_name = target.__name__
-
-    expected_retry_interval_ms = 15 * 1000 # 15s
-    while True:
-        start = time.time()
+        await asyncio.sleep(180)
         try:
-            log.info(f'run target {target_name}')
-            target(*args, **kwargs)
-            log.info(f'target {target_name} returned')
-        except:
-            log.error(f'target {target_name} threw exception', exc_info=sys.exc_info())
-        end = time.time()
+            log.info('run update_data')
+            await update_data(gh_client)
+            log.info('update_data returned')
+        except Exception:  # pylint: disable=broad-except
+            log.exception('update_data failed with exception')
 
-        run_time_ms = int((end - start) * 1000 + 0.5)
-        t = random.randrange(expected_retry_interval_ms * 2) - run_time_ms
-        if t > 0:
-            log.debug(f'{target_name}: sleep {t}ms')
-            time.sleep(t / 1000.0)
 
-poll_thread = threading.Thread(target=run_forever, args=(poll,), daemon=True)
-poll_thread.start()
+async def on_startup(app):
+    token_file = os.environ.get('GITHUB_TOKEN_PATH',
+                                '/secrets/scorecard-github-access-token.txt')
+    with open(token_file, 'r') as f:
+        token = f.read().strip()
+    session = aiohttp.ClientSession(
+        raise_for_status=True,
+        timeout=aiohttp.ClientTimeout(total=60))
+    gh_client = gidgethub.aiohttp.GitHubAPI(session, 'scorecard', oauth_token=token)
+    app['gh_client'] = gh_client
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0')
+    await update_data(gh_client)
+    asyncio.ensure_future(poll(gh_client))
+
+
+def run():
+    app = web.Application()
+    app.on_startup.append(on_startup)
+
+    setup_aiohttp_jinja2(app, 'scorecard')
+    setup_aiohttp_session(app)
+
+    setup_common_static_routes(routes)
+
+    app.add_routes(routes)
+
+    web.run_app(deploy_config.prefix_application(app, 'scorecard'),
+                host='0.0.0.0',
+                port=5000,
+                access_log_class=AccessLogger)

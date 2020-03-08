@@ -1,4 +1,115 @@
-apiVersion: apps/v1beta2
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: auth-driver
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: auth-driver
+rules:
+ - apiGroups: [""]
+   resources: ["secrets"]
+   verbs: ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: auth-driver
+subjects:
+ - kind: ServiceAccount
+   name: auth-driver
+roleRef:
+  kind: Role
+  name: auth-driver
+  apiGroup: ""
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-driver
+  labels:
+    app: auth-driver
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: auth-driver
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: auth-driver
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+      serviceAccountName: auth-driver
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
+      containers:
+       - name: auth-driver
+         image: "{{ auth_image.image }}"
+         command:
+          - "python3"
+          - -m
+          - auth.driver
+         env:
+          - name: HAIL_DEPLOY_CONFIG_FILE
+            value: /deploy-config/deploy-config.json
+          - name: HAIL_DOMAIN
+            value: "{{ global.domain }}"
+          - name: PROJECT
+            value: "{{ global.project }}"
+          - name: ZONE
+            value: "{{ global.zone }}"
+          - name: HAIL_DEFAULT_NAMESPACE
+            value: "{{ default_ns.name }}"
+          - name: HAIL_BATCH_PODS_NAMESPACE
+            value: "{{ batch_pods_ns.name }}"
+         resources:
+           requests:
+             memory: "250M"
+             cpu: "100m"
+           limits:
+             memory: "1G"
+             cpu: "1"
+         volumeMounts:
+          - name: deploy-config
+            mountPath: /deploy-config
+            readOnly: true
+          - name: database-server-config
+            mountPath: /database-server-config
+            readOnly: true
+          - name: sql-config
+            mountPath: /sql-config
+            readOnly: true
+          - name: gsa-key
+            mountPath: /gsa-key
+            readOnly: true
+         ports:
+          - containerPort: 5000
+      volumes:
+       - name: deploy-config
+         secret:
+           secretName: deploy-config
+       - name: database-server-config
+         secret:
+           secretName: database-server-config
+       - name: sql-config
+         secret:
+           secretName: "{{ auth_database.user_secret_name }}"
+       - name: gsa-key
+         secret:
+           secretName: auth-gsa-key
+---
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: auth
@@ -16,7 +127,14 @@ spec:
         app: auth
         hail.is/sha: "{{ code.sha }}"
     spec:
-      priorityClassName: infrastructure
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -27,17 +145,26 @@ spec:
                     values:
                     - auth
               topologyKey: "kubernetes.io/hostname"
-      tolerations:
-       - key: preemptible
-         value: "true"
       containers:
        - name: auth
          image: "{{ auth_image.image }}"
+         command:
+          - "python3"
+          - -m
+          - auth
          env:
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
           - name: HAIL_DOMAIN
             value: "{{ global.domain }}"
+          - name: PROJECT
+            value: "{{ global.project }}"
+          - name: ZONE
+            value: "{{ global.zone }}"
+          - name: HAIL_DEFAULT_NAMESPACE
+            value: "{{ default_ns.name }}"
+          - name: HAIL_BATCH_PODS_NAMESPACE
+            value: "{{ batch_pods_ns.name }}"
          resources:
            requests:
              memory: "250M"
@@ -58,25 +185,33 @@ spec:
           - name: sql-config
             mountPath: /sql-config
             readOnly: true
+          - name: gsa-key
+            mountPath: /gsa-key
+            readOnly: true
          ports:
           - containerPort: 5000
+         readinessProbe:
+           httpGet:
+             path: /healthcheck
+             port: 5000
+           initialDelaySeconds: 5
+           periodSeconds: 5
       volumes:
        - name: deploy-config
          secret:
-           optional: false
            secretName: deploy-config
        - name: auth-oauth2-client-secret
          secret:
-           optional: false
            secretName: auth-oauth2-client-secret
        - name: session-secret-key
          secret:
-           optional: false
            secretName: session-secret-key
        - name: sql-config
          secret:
-           optional: false
-           secretName: "{{ users_database.user_secret_name }}"
+           secretName: "{{ auth_database.user_secret_name }}"
+       - name: gsa-key
+         secret:
+           secretName: auth-gsa-key
 ---
 apiVersion: v1
 kind: Service
@@ -108,3 +243,13 @@ spec:
      resource:
        name: cpu
        targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: auth
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: auth

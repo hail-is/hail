@@ -1,27 +1,21 @@
-<html lang="en">
-  <head>
-    <title>CI | Batches</title>
-    <link rel="stylesheet" type="text/css" href="/static/style.css">
-  </head>
-  <body>
-    <p><a href="/">ci</a> : batches</p>
-    
+{% extends "layout.html" %}
+{% block title %}Batches{% endblock %}
+{% block content %}
     <h1>Batches</h1>
     {% if batches %}
-    <table>
+    <table class="data-table">
       <thead>
         <tr>
-          <th align="right">id</th>
-          <th align="left">type</th>
-          <th align="left">state</th>
+          <th>id</th>
+          <th>type</th>
+          <th>state</th>
         </tr>
       </thead>
       <tbody>
 	{% for batch in batches %}
         <tr>
-          <td align="right">
-            <a href="/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
-          <td align="left">
+          <td class="numeric-cell"><a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
+          <td>
             {% if 'attributes' in batch %}
             {% if 'deploy' in batch['attributes'] %}
             deploy
@@ -32,7 +26,7 @@
             {% endif %}
             {% endif %}
           </td>
-          <td align="left">
+          <td>
             {% if 'state' in batch and batch['state'] %}
             {{ batch['state'] }}
             {% endif %}
@@ -45,5 +39,4 @@
       </tbody>
     </table>
     {% endif %}
-  </body>
-</html>
+{% endblock %}

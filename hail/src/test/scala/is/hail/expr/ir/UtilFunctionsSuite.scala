@@ -2,20 +2,19 @@ package is.hail.expr.ir
 
 import is.hail.ExecStrategy
 import is.hail.TestUtils._
-import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TArray, TBoolean}
+import is.hail.expr.types.virtual.{TBoolean, TStream}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class UtilFunctionsSuite extends TestNGSuite {
   implicit val execStrats = ExecStrategy.javaOnly
 
-  val na = NA(TBoolean())
-  val die = Die("it ded", TBoolean())
-  val folded = ArrayFold(
-    MakeArray(Seq(true), TArray(TBoolean())),
+  val na = NA(TBoolean)
+  val die = Die("it ded", TBoolean)
+  val folded = StreamFold(
+    MakeStream(Seq(true), TStream(TBoolean)),
     die, "a", "e",
-    Ref("a", TBoolean()) || Ref("e", TBoolean()))
+    Ref("a", TBoolean) || Ref("e", TBoolean))
 
   @Test def shortCircuitOr() {
     assertEvalsTo(True() || True(), true)
@@ -66,7 +65,7 @@ class UtilFunctionsSuite extends TestNGSuite {
   }
 
   @Test def shortCircuitAndHandlesErroes() {
-    //FIXME: interpreter evaluates args for ApplySpecial before invoking the function :-|
+    // FIXME: interpreter evaluates args for ApplySpecial before invoking the function :-|
     assertCompiledFatal(na && die, "it ded")
     assertCompiledFatal(True() && die, "it ded")
     // assert(eval(False() && die) == false)

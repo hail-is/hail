@@ -20,22 +20,18 @@ class TypeSerializer extends CustomSerializer[Type](format => (
   { case t: Type => JString(t.parsableString()) }))
 
 object Type {
-  def genScalar(required: Boolean): Gen[Type] =
-    Gen.oneOf(TBoolean(required), TInt32(required), TInt64(required), TFloat32(required),
-      TFloat64(required), TString(required), TCall(required))
+  def genScalar(): Gen[Type] =
+    Gen.oneOf(TBoolean, TInt32, TInt64, TFloat32,
+      TFloat64, TString, TCall)
 
-  val genOptionalScalar: Gen[Type] = genScalar(false)
-
-  val genRequiredScalar: Gen[Type] = genScalar(true)
-
-  def genComplexType(required: Boolean): Gen[ComplexType] = {
+  def genComplexType(): Gen[ComplexType] = {
     val rgDependents = ReferenceGenome.references.values.toArray.map(rg =>
-      TLocus(rg, required))
-    val others = Array(TCall(required))
+      TLocus(rg))
+    val others = Array(TCall)
     Gen.oneOfSeq(rgDependents ++ others)
   }
 
-  def genFields(required: Boolean, genFieldType: Gen[Type]): Gen[Array[Field]] = {
+  def genFields(genFieldType: Gen[Type]): Gen[Array[Field]] = {
     Gen.buildableOf[Array](
       Gen.zip(Gen.identifier, genFieldType))
       .filter(fields => fields.map(_._1).areDistinct())
@@ -46,49 +42,30 @@ object Type {
         .toArray)
   }
 
-  def preGenStruct(required: Boolean, genFieldType: Gen[Type]): Gen[TStruct] = {
-    for (fields <- genFields(required, genFieldType)) yield {
-      val t = TStruct(fields)
-      if (required)
-        (+t).asInstanceOf[TStruct]
-      else
-        t
+  def preGenStruct(genFieldType: Gen[Type]): Gen[TStruct] = {
+    for (fields <- genFields(genFieldType)) yield {
+      TStruct(fields)
     }
   }
 
-  def preGenTuple(required: Boolean, genFieldType: Gen[Type]): Gen[TTuple] = {
-    for (fields <- genFields(required, genFieldType)) yield {
-      val t = TTuple(fields.map(_.typ): _*)
-      if (required)
-        (+t).asInstanceOf[TTuple]
-      else
-        t
+  def preGenTuple(genFieldType: Gen[Type]): Gen[TTuple] = {
+    for (fields <- genFields(genFieldType)) yield {
+      TTuple(fields.map(_.typ): _*)
     }
   }
 
   private val defaultRequiredGenRatio = 0.2
+  def genStruct: Gen[TStruct] = Gen.coin(defaultRequiredGenRatio).flatMap(c => preGenStruct(genArb))
 
-  def genStruct: Gen[TStruct] = Gen.coin(defaultRequiredGenRatio).flatMap(preGenStruct(_, genArb))
-
-  val genOptionalStruct: Gen[Type] = preGenStruct(required = false, genArb)
-
-  val genRequiredStruct: Gen[Type] = preGenStruct(required = true, genArb)
-
-  val genInsertableStruct: Gen[TStruct] = Gen.coin(defaultRequiredGenRatio).flatMap(required =>
-    if (required)
-      preGenStruct(required = true, genArb)
-    else
-      preGenStruct(required = false, genOptional))
-
-  def genSized(size: Int, required: Boolean, genTStruct: Gen[TStruct]): Gen[Type] =
+  def genSized(size: Int, genTStruct: Gen[TStruct]): Gen[Type] =
     if (size < 1)
-      Gen.const(TStruct.empty(required))
+      Gen.const(TStruct.empty)
     else if (size < 2)
-      genScalar(required)
+      genScalar()
     else {
       Gen.frequency(
-        (4, genScalar(required)),
-        (1, genComplexType(required)),
+        (4, genScalar()),
+        (1, genComplexType()),
         (1, genArb.map {
           TArray(_)
         }),
@@ -98,21 +75,19 @@ object Type {
         (1, genArb.map {
           TInterval(_)
         }),
-        (1, preGenTuple(required, genArb)),
+        (1, preGenTuple(genArb)),
         (1, Gen.zip(genRequired, genArb).map { case (k, v) => TDict(k, v) }),
         (1, genTStruct.resize(size)))
     }
 
-  def preGenArb(required: Boolean, genStruct: Gen[TStruct] = genStruct): Gen[Type] =
-    Gen.sized(genSized(_, required, genStruct))
+  def preGenArb(genStruct: Gen[TStruct] = genStruct): Gen[Type] =
+    Gen.sized(genSized(_, genStruct))
 
-  def genArb: Gen[Type] = Gen.coin(0.2).flatMap(preGenArb(_))
+  def genArb: Gen[Type] = preGenArb()
 
-  val genOptional: Gen[Type] = preGenArb(required = false)
+  val genOptional: Gen[Type] = preGenArb()
 
-  val genRequired: Gen[Type] = preGenArb(required = true)
-
-  val genInsertable: Gen[TStruct] = genInsertableStruct
+  val genRequired: Gen[Type] = preGenArb()
 
   def genWithValue: Gen[(Type, Annotation)] = for {
     s <- Gen.size
@@ -130,15 +105,12 @@ object Type {
 abstract class Type extends BaseType with Serializable {
   self =>
 
-  def physicalType: PType
-
   def children: Seq[Type] = FastSeq()
 
   def clear(): Unit = children.foreach(_.clear())
 
-  def unify(concrete: Type): Boolean = {
-    this.isOfType(concrete)
-  }
+  def unify(concrete: Type): Boolean =
+    this == concrete
 
   def _isCanonical: Boolean = true
 
@@ -146,13 +118,13 @@ abstract class Type extends BaseType with Serializable {
 
   def isBound: Boolean = children.forall(_.isBound)
 
-  def subst(): Type = this.setRequired(false)
+  def subst(): Type = this
 
   def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
 
   def insert(signature: Type, path: List[String]): (Type, Inserter) = {
     if (path.nonEmpty)
-      TStruct.empty().insert(signature, path)
+      TStruct.empty.insert(signature, path)
     else
       (signature, (a, toIns) => toIns)
   }
@@ -174,8 +146,6 @@ abstract class Type extends BaseType with Serializable {
   }
 
   final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
-    if (required)
-      sb.append("+")
     _pretty(sb, indent, compact)
   }
 
@@ -194,15 +164,24 @@ abstract class Type extends BaseType with Serializable {
 
   def str(a: Annotation): String = if (a == null) "NA" else a.toString
 
+  def _showStr(a: Annotation): String = str(a)
+
+  def showStr(a: Annotation): String = if (a == null) "NA" else _showStr(a)
+
+  def showStr(a: Annotation, trunc: Int): String = {
+    val s = showStr(a)
+    if (s.length > trunc)
+      s.substring(0, trunc - 3) + "..."
+    else
+      s
+  }
+
   def toJSON(a: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(a, this)
 
   def genNonmissingValue: Gen[Annotation] = ???
 
   def genValue: Gen[Annotation] =
-    if (required)
-      genNonmissingValue
-    else
-      Gen.nextCoin(0.05).flatMap(isEmpty => if (isEmpty) Gen.const(null) else genNonmissingValue)
+    Gen.nextCoin(0.05).flatMap(isEmpty => if (isEmpty) Gen.const(null) else genNonmissingValue)
 
   def isRealizable: Boolean = children.forall(_.isRealizable)
 
@@ -227,116 +206,35 @@ abstract class Type extends BaseType with Serializable {
       types, Array and Struct. */
   def fundamentalType: Type = this
 
-  def required: Boolean
-
   def _typeCheck(a: Any): Boolean
 
-  final def typeCheck(a: Any): Boolean = (!required && a == null) || _typeCheck(a)
-
-  final def unary_+(): Type = setRequired(true)
-
-  final def unary_-(): Type = setRequired(false)
-
-  final def setRequired(required: Boolean): Type = {
-    if (this.required == required)
-      this
-    else this match {
-      case TBinary(_) => TBinary(required)
-      case TBoolean(_) => TBoolean(required)
-      case TInt32(_) => TInt32(required)
-      case TInt64(_) => TInt64(required)
-      case TFloat32(_) => TFloat32(required)
-      case TFloat64(_) => TFloat64(required)
-      case TString(_) => TString(required)
-      case TCall(_) => TCall(required)
-      case t: TArray => t.copy(required = required)
-      case t: TSet => t.copy(required = required)
-      case t: TDict => t.copy(required = required)
-      case t: TLocus => t.copy(required = required)
-      case t: TInterval => t.copy(required = required)
-      case t: TStruct => t.copy(required = required)
-      case t: TTuple => t.copy(required = required)
-      case t: TNDArray => t.copy(required = required)
-    }
-  }
-
-  final def isOfType(t: Type): Boolean = {
-    this match {
-      case TBinary(_) => t == TBinaryOptional || t == TBinaryRequired
-      case TBoolean(_) => t == TBooleanOptional || t == TBooleanRequired
-      case TInt32(_) => t == TInt32Optional || t == TInt32Required
-      case TInt64(_) => t == TInt64Optional || t == TInt64Required
-      case TFloat32(_) => t == TFloat32Optional || t == TFloat32Required
-      case TFloat64(_) => t == TFloat64Optional || t == TFloat64Required
-      case TString(_) => t == TStringOptional || t == TStringRequired
-      case TCall(_) => t == TCallOptional || t == TCallRequired
-      case t2: TLocus => t.isInstanceOf[TLocus] && t.asInstanceOf[TLocus].rg == t2.rg
-      case t2: TInterval => t.isInstanceOf[TInterval] && t.asInstanceOf[TInterval].pointType.isOfType(t2.pointType)
-      case t2: TStruct =>
-        t.isInstanceOf[TStruct] &&
-          t.asInstanceOf[TStruct].size == t2.size &&
-          t.asInstanceOf[TStruct].fields.zip(t2.fields).forall { case (f1: Field, f2: Field) => f1.typ.isOfType(f2.typ) && f1.name == f2.name }
-      case t2: TTuple =>
-        t.isInstanceOf[TTuple] &&
-          t.asInstanceOf[TTuple].size == t2.size &&
-          t.asInstanceOf[TTuple].types.zip(t2.types).forall { case (typ1, typ2) => typ1.isOfType(typ2) }
-      case t2: TArray => t.isInstanceOf[TArray] && t.asInstanceOf[TArray].elementType.isOfType(t2.elementType)
-      case t2: TSet => t.isInstanceOf[TSet] && t.asInstanceOf[TSet].elementType.isOfType(t2.elementType)
-      case t2: TDict => t.isInstanceOf[TDict] && t.asInstanceOf[TDict].keyType.isOfType(t2.keyType) && t.asInstanceOf[TDict].valueType.isOfType(t2.valueType)
-      case t2: TNDArray =>
-        t.isInstanceOf[TNDArray] &&
-        t.asInstanceOf[TNDArray].elementType.isOfType(t2.elementType) &&
-        t.asInstanceOf[TNDArray].nDims == t2.nDims
-      case TVoid => t == TVoid
-    }
-  }
+  final def typeCheck(a: Any): Boolean = a == null || _typeCheck(a)
 
   def canCastTo(t: Type): Boolean = this match {
-    case TInterval(tt1, required) => t match {
-      case TInterval(tt2, `required`) => tt1.canCastTo(tt2)
+    case TInterval(tt1) => t match {
+      case TInterval(tt2) => tt1.canCastTo(tt2)
       case _ => false
     }
-    case TStruct(f1, required) => t match {
-      case TStruct(f2, `required`) => f1.size == f2.size && f1.indices.forall(i => f1(i).typ.canCastTo(f2(i).typ))
+    case TStruct(f1) => t match {
+      case TStruct(f2) => f1.size == f2.size && f1.indices.forall(i => f1(i).typ.canCastTo(f2(i).typ))
       case _ => false
     }
-    case TTuple(f1, required) => t match {
-      case TTuple(f2, `required`) => f1.size == f2.size && f1.indices.forall(i => f1(i).typ.canCastTo(f2(i).typ))
+    case TTuple(f1) => t match {
+      case TTuple(f2) => f1.size == f2.size && f1.indices.forall(i => f1(i).typ.canCastTo(f2(i).typ))
       case _ => false
     }
-    case TArray(t1, required) => t match {
-      case TArray(t2, `required`) => t1.canCastTo(t2)
+    case TArray(t1) => t match {
+      case TArray(t2) => t1.canCastTo(t2)
       case _ => false
     }
-    case TSet(t1, required) => t match {
-      case TSet(t2, `required`) => t1.canCastTo(t2)
+    case TSet(t1) => t match {
+      case TSet(t2) => t1.canCastTo(t2)
       case _ => false
     }
-    case TDict(k1, v1, required) => t match {
-      case TDict(k2, v2, `required`) => k1.canCastTo(k2) && v1.canCastTo(v2)
+    case TDict(k1, v1) => t match {
+      case TDict(k2, v2) => k1.canCastTo(k2) && v1.canCastTo(v2)
       case _ => false
     }
     case _ => this == t
   }
-
-  def deepOptional(): Type =
-    this match {
-      case t: TArray => TArray(t.elementType.deepOptional())
-      case t: TSet => TSet(t.elementType.deepOptional())
-      case t: TDict => TDict(t.keyType.deepOptional(), t.valueType.deepOptional())
-      case t: TStruct =>
-        TStruct(t.fields.map(f => Field(f.name, f.typ.deepOptional(), f.index)))
-      case t: TTuple =>
-        TTuple(t._types.map(fd => fd.copy(typ = fd.typ.deepOptional())))
-      case t =>
-        t.setRequired(false)
-    }
-
-  def structOptional(): Type =
-    this match {
-      case t: TStruct =>
-        TStruct(t.fields.map(f => Field(f.name, f.typ.deepOptional(), f.index)))
-      case t =>
-        t.setRequired(false)
-    }
 }

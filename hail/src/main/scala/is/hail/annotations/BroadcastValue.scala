@@ -7,7 +7,7 @@ import is.hail.backend.{Backend, BroadcastValue}
 import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.physical.{PArray, PBaseStruct, PStruct, PType}
 import is.hail.expr.types.virtual.{TArray, TBaseStruct, TStruct}
-import is.hail.io.Decoder
+import is.hail.io.{BufferSpec, Decoder, TypedCodecSpec}
 import is.hail.rvd.RVD
 import org.apache.spark.sql.Row
 
@@ -22,7 +22,7 @@ case class SerializableRegionValue(encodedValue: Array[Byte], t: PType, makeDeco
 }
 
 object BroadcastRow {
-  def empty(ctx: ExecuteContext): BroadcastRow = apply(ctx, Row(), TStruct())
+  def empty(ctx: ExecuteContext): BroadcastRow = apply(ctx, Row(), TStruct.empty)
 
   def apply(ctx: ExecuteContext, value: Row, t: TBaseStruct): BroadcastRow = {
     val pType = PType.canonical(t).asInstanceOf[PStruct]
@@ -43,9 +43,10 @@ trait BroadcastRegionValue {
   def backend: Backend
 
   lazy val broadcast: BroadcastValue[SerializableRegionValue] = {
-    val encoding = RVD.wireCodec.makeCodecSpec2(t)
+    val encoding = TypedCodecSpec(t, BufferSpec.wireSpec)
     val makeEnc = encoding.buildEncoder(t)
     val (decodedPType, makeDec) = encoding.buildDecoder(t.virtualType)
+    assert(decodedPType == t)
 
     val baos = new ByteArrayOutputStream()
 

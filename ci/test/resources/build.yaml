@@ -1,0 +1,124 @@
+steps:
+ - kind: createNamespace
+   name: default_ns
+   namespaceName: default
+   public: true
+ - kind: buildImage
+   name: inline_image
+   dockerFile:
+     inline: |
+       FROM ubuntu:18.04
+       RUN apt-get update && apt-get install -y git
+   contextPath: .
+ - kind: runImage
+   name: run_inline_image
+   image:
+     valueFrom: inline_image.image
+   script: |
+     git init
+   dependsOn:
+     - inline_image
+ - kind: runImage
+   name: copy_files
+   image:
+     valueFrom: inline_image.image
+   script: |
+     cd /io
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+   timeout: 300
+   outputs:
+    - from: /io/repo
+      to: /
+   dependsOn:
+    - inline_image
+ - kind: buildImage
+   name: base_image
+   dockerFile: docker/Dockerfile.base
+   contextPath: .
+   publishAs: base
+ - kind: buildImage
+   name: service_base_image
+   dockerFile: docker/Dockerfile.service-base
+   contextPath: .
+   publishAs: service-base
+   dependsOn:
+    - base_image
+ - kind: buildImage
+   name: hello_image
+   dockerFile: ci/test/resources/Dockerfile
+   contextPath: .
+   publishAs: ci-hello
+   dependsOn:
+    - service_base_image
+ - kind: runImage
+   name: check_hello
+   image:
+     valueFrom: hello_image.image
+   script: |
+     set -ex
+     python3 -m flake8 /hello/hello.py
+   dependsOn:
+     - hello_image
+ - kind: createDatabase
+   name: hello_database
+   databaseName: hello
+   migrations:
+    - name: create-tables
+      script: /io/sql/create-hello-tables.sql
+    - name: insert
+      script: /io/sql/insert.py
+   inputs:
+    - from: /repo/ci/test/resources/sql
+      to: /io/
+   namespace:
+     valueFrom: default_ns.name
+   shutdowns:
+    - kind: Deployment
+      namespace:
+        valueFrom: default_ns.name
+      name: hello
+   dependsOn:
+    - default_ns
+    - copy_files
+ - kind: runImage
+   name: test_hello_database
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     cat > test.py <<EOF
+     import asyncio
+     from gear import Database
+     async def async_main():
+       db = Database()
+       await db.async_init()
+       row = await db.execute_and_fetchone('SELECT version FROM hello_migration_version;')
+       assert row['version'] == 3
+     asyncio.get_event_loop().run_until_complete(async_main())
+     EOF
+     python3 test.py
+   secrets:
+    - name:
+        valueFrom: hello_database.user_secret_name
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /sql-config
+   dependsOn:
+    - default_ns
+    - hello_database
+    - service_base_image
+ - kind: deploy
+   name: deploy_hello
+   namespace:
+     valueFrom: default_ns.name
+   config: ci/test/resources/deployment.yaml
+   wait:
+    - kind: Service
+      name: hello
+      for: alive
+   dependsOn:
+    - default_ns
+    - hello_image
+    - check_hello
+    - hello_database

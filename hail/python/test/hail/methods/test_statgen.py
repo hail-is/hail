@@ -1225,6 +1225,38 @@ class Tests(unittest.TestCase):
         assert r_kin.select("ibd2")._same(hail_kin.select("ibd2"), tolerance=1.3e-2, absolute=True)
 
     @skip_unless_spark_backend()
+    def test_pc_relate_simple_example(self):
+        gs = hl.literal(
+            [[0, 0, 0, 0, 1, 1, 1, 1],
+             [0, 0, 1, 1, 0, 0, 1, 1],
+             [0, 1, 0, 1, 0, 1, 0, 1],
+             [0, 0, 1, 1, 0, 0, 1, 1]])
+        scores = hl.literal([[0, 1], [1, 1], [1, 0], [0, 0]])
+        mt = hl.utils.range_matrix_table(n_rows=8, n_cols=4)
+        mt = mt.annotate_entries(GT=hl.unphased_diploid_gt_index_call(gs[mt.col_idx][mt.row_idx]))
+        mt = mt.annotate_cols(scores=scores[mt.col_idx])
+        pcr = hl.pc_relate(mt.GT, min_individual_maf=0, scores_expr=mt.scores)
+
+        expected = [
+            hl.Struct(i=0, j=1, kin=-0.14570713364640647,
+                      ibd0=1.4823511628401964, ibd1=-0.38187379109476693, ibd2=-0.10047737174542953),
+            hl.Struct(i=0, j=2, kin=0.16530591922102378,
+                      ibd0=0.5234783206257841, ibd1=0.2918196818643366, ibd2=0.18470199750987923),
+            hl.Struct(i=0, j=3, kin=-0.14570713364640647,
+                      ibd0=1.4823511628401964, ibd1=-0.38187379109476693, ibd2=-0.10047737174542953),
+            hl.Struct(i=1, j=2, kin=-0.14570713364640647,
+                      ibd0=1.4823511628401964, ibd1=-0.38187379109476693, ibd2=-0.10047737174542953),
+            hl.Struct(i=1, j=3, kin=0.14285714285714285,
+                      ibd0=0.7027734170591313, ibd1=0.02302459445316596, ibd2=0.2742019884877027),
+            hl.Struct(i=2, j=3, kin=-0.14570713364640647,
+                      ibd0=1.4823511628401964, ibd1=-0.38187379109476693, ibd2=-0.10047737174542953),
+        ]
+        ht_expected = hl.Table.parallelize(expected)
+        ht_expected = ht_expected.key_by(i=hl.struct(col_idx=ht_expected.i),
+                                         j=hl.struct(col_idx=ht_expected.j))
+        assert ht_expected._same(pcr)
+
+    @skip_unless_spark_backend()
     def test_pcrelate_paths(self):
         mt = hl.balding_nichols_model(3, 50, 100)
         _, scores3, _ = hl.hwe_normalized_pca(mt.GT, k=3, compute_loadings=False)
@@ -1277,6 +1309,23 @@ class Tests(unittest.TestCase):
         self.assertTrue(ds1.all((ds1.locus.position == 1180) | ds1.was_split))
         ds1 = ds1.drop('was_split', 'a_index')
         self.assertTrue(ds1._same(ds2))
+
+    def test_split_multi_shuffle(self):
+        ht = hl.utils.range_table(1)
+        ht = ht.annotate(keys=[hl.struct(locus=hl.locus('1', 1180), alleles=['A', 'C', 'T']),
+                               hl.struct(locus=hl.locus('1', 1180), alleles=['A', 'G'])])
+        ht = ht.explode(ht.keys)
+        ht = ht.key_by(**ht.keys).drop('keys')
+        alleles = hl.split_multi(ht, permit_shuffle=True).alleles.collect()
+        assert alleles == [['A', 'C'], ['A', 'G'], ['A', 'T']]
+
+        ht = ht.annotate_globals(cols = [hl.struct(s='sample1'), hl.struct(s='sample2')])
+        ht = ht.annotate(entries=[hl.struct(GT=hl.call(0, 1)), hl.struct(GT=hl.call(1, 1))])
+        mt = ht._unlocalize_entries('entries', 'cols', ['s'])
+        mt = hl.split_multi_hts(mt, permit_shuffle=True)
+        mt._force_count_rows()
+        assert mt.alleles.collect() == [['A', 'C'], ['A', 'G'], ['A', 'T']]
+
 
     def test_issue_4527(self):
         mt = hl.utils.range_matrix_table(1, 1)
@@ -1362,6 +1411,13 @@ class Tests(unittest.TestCase):
         ds = ds.select_entries(foo=ds.GT)
         pruned_table = hl.ld_prune(ds.foo)
         self.assertEqual(pruned_table.count(), 1)
+
+    @skip_unless_spark_backend()
+    def test_ld_prune_missing_entries(self):
+        mt = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2).add_col_index()
+        mt = mt.filter_entries(mt.col_idx > 1)
+        result = hl.ld_prune(mt.GT)
+        assert result.count() > 0
 
     @skip_unless_spark_backend()
     def test_ld_prune_with_duplicate_row_keys(self):

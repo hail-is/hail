@@ -8,8 +8,6 @@
 /proxy.log
 /proxy.pid
 /batch
-*.pyc
-**/__pycache__
 flycheck_*.py
 *_flymake.py
 /flake8-stmp

@@ -1,121 +1,77 @@
-<html lang="en">
-  <head>
-    <title>CI</title>
-    <link rel="stylesheet" type="text/css" href="/static/style.css">
-    <style>
-      #statuses {
-        border-collapse: collapse;
-      }
-      #statuses td, #statuses th {
-        border: 1px solid #ddd;
-        padding: 8px;
-      }
-      #statuses tr:nth-child(even){background-color: #f2f2f2;}
-      #statuses tr:hover {background-color: #ddd;}
-      #statuses th {
-        padding-top: 12px;
-        padding-bottom: 12px;
-        text-align: left;
-        background-color: #2A388F;
-        color: white;
-      }
-    </style>
-  </head>
-  <script type="text/javascript">
-    function searchTable() {
-      var searchTerms = document.getElementById("searchBar");
-      var filter = searchTerms.value.toLowerCase();
-      var table = document.getElementById("statuses");
-      var tableRecords = table.getElementsByTagName("tr");
-
-      for (var i = 1; i < tableRecords.length; ++i) {
-        var record = tableRecords[i];
-        var tds = record.getElementsByTagName("td");
-        var anyMatch = false;
-        for (var j = 0; j < tds.length; ++j) {
-          var td = tds[j]
-          if ((td.textContent || td.innerText).toLowerCase().indexOf(filter) >= 0) {
-            anyMatch = true;
-            break;
-          }
-        }
-        if (anyMatch)
-          record.style.display = "";
-        else
-          record.style.display = "none";
-      }
-    }
-  </script>
-  <body>
+{% extends "layout.html" %}
+{% block title %}CI{% endblock %}
+{% block head %}
+    <script src="{{ base_path }}/common_static/search_bar.js"></script>
+{% endblock %}
+{% block content %}
     <h1>CI</h1>
-    <h3>Service unchanged for {{ age }}.</h3>
     {% for wb in watched_branches %}
-    <h2>{{ wb.branch }}</h2>
-    <p>SHA:
-      {% if wb.sha is not none %}
-      {{ wb.sha }}
-      {% else %}
-      unknown
-      {% endif %}
-    </p>
-    <p>Deploy State:
-      {% if wb.deploy_state is not none %}
-      {{ wb.deploy_state }}
-      {% endif %}
-    </p>
-    <p>Deploy Batch:
-      {% if wb.deploy_batch_id is not none %}
-      <a href="/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
-      {% endif %}
-    </p>
+    <h2 class="stacked-header">{{ wb.branch }}</h2>
+    <div class="attributes">
+      <div>SHA:
+	{% if wb.sha is not none %}
+	{{ wb.sha }}
+	{% else %}
+	unknown
+	{% endif %}
+      </div>
+      <div>Deploy State:
+	{% if wb.deploy_state is not none %}
+	{{ wb.deploy_state }}
+	{% endif %}
+      </div>
+      <div>Deploy Batch:
+	{% if wb.deploy_batch_id is not none %}
+	<a href="{{ base_path }}/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
+	{% endif %}
+      </div>
+    </div>
 
-    <h3>PRs</h3>
+    <h2>PRs</h2>
     {% if wb.prs is not none %}
     {% if wb.prs|length > 0 %}
-    <input type="text" id="searchBar" onkeyup="searchTable()" placeholder="Search terms...">
-    <table id="statuses">
-      <thead>
-        <tr>
-          <th align="left">Number</th>
-          <th align="left">Title</th>
-          <th align="left">Build State</th>
-          <th align="left">Review State</th>
-          <th align="left">Author</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for pr in wb.prs %}
-        <tr>
-          <td align="left">
-            <a href="https://github.com/{{ wb.repo }}/pull/{{ pr.number }}">
-              {{ pr.number }}
-            </a>
-          </td>
-          <td align="left">
-            {{ pr.title }}
-          </td>
-          <td align="left">
-            {% if pr.build_state is not none %}
-              <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">{{ pr.build_state }}</a>
-            {% else %}
-              pending
-            {% endif %}
-            {% if pr.build_state is not none and pr.out_of_date %}
-              *
-            {% endif %}
-          </td>
-          <td align="left">
-            {% if pr.review_state %}
-            {{ pr.review_state }}
-            {% endif %}
-          </td>
-          <td align="left">
-            {{ pr.author }}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="searchbar-table">
+      <input type="text" id="searchBar" onkeyup="searchTable('prs', 'searchBar')" placeholder="Search terms...">
+      <table id="prs" class="data-table">
+        <thead>
+          <tr>
+            <th>PR</th>
+            <th>Build State</th>
+            <th>Review State</th>
+            <th>Author</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pr in wb.prs %}
+          <tr>
+            <td>
+              <a href="https://github.com/{{ wb.repo }}/pull/{{ pr.number }}">
+                {{ pr.title }} <span class="gh-number">#{{ pr.number }}</a>
+              </a>
+            </td>
+            <td>
+              {% if pr.build_state is not none %}
+                <a href="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">{{ pr.build_state }}</a>
+              {% else %}
+                pending
+              {% endif %}
+              {% if pr.build_state is not none and pr.out_of_date %}
+                *
+              {% endif %}
+            </td>
+            <td>
+              {% if pr.review_state %}
+              {{ pr.review_state }}
+              {% endif %}
+            </td>
+            <td>
+              {{ pr.author }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% else %}
     No PRs.
     {% endif %}
@@ -125,14 +81,13 @@
     {% endfor %}
 
     <h2>Authorize SHA</h2>
-    <form action="/authorize_source_sha" method="post">
+    <form action="{{ base_path }}/authorize_source_sha" method="post">
       <label for="sha">SHA:</label>
-      <input type="hidden" name="_csrf" value="{{ token }}"/>
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
       <input type="text" name="sha" id="sha">
       <button type="submit">Authorize</button>
     </form>
-  </body>
-  <script type="text/javascript">
-    document.getElementById("searchBar").focus();
-  </script>
-</html>
+    <script type="text/javascript">
+      document.getElementById("searchBar").focus();
+    </script>
+{% endblock %}

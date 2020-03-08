@@ -12,24 +12,20 @@ import scala.reflect.{ClassTag, classTag}
 object TLocus {
   def apply(rg: ReferenceGenome): TLocus = TLocus(rg.broadcastRG)
 
-  def apply(rg: ReferenceGenome, required: Boolean): TLocus = TLocus(rg.broadcastRG, required)
-
-  def representation(required: Boolean = false): TStruct = {
-    TStruct(required,
-      "contig" -> +TString(),
-      "position" -> +TInt32())
+  val representation: TStruct = {
+    TStruct(
+      "contig" -> TString,
+      "position" -> TInt32)
   }
 
   def schemaFromRG(rg: Option[ReferenceGenome], required: Boolean = false): Type = rg match {
     case Some(ref) => TLocus(ref)
-    case None => TLocus.representation(required)
+    case None => TLocus.representation
   }
 }
 
-case class TLocus(rgBc: BroadcastRG, override val required: Boolean = false) extends ComplexType {
+case class TLocus(rgBc: BroadcastRG) extends ComplexType {
   def rg: ReferenceGenome = rgBc.value
-
-  lazy val physicalType: PLocus = PLocus(rgBc, required)
 
   def _toPretty = s"Locus($rg)"
 
@@ -47,12 +43,12 @@ case class TLocus(rgBc: BroadcastRG, override val required: Boolean = false) ext
   lazy val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(rg.locusOrdering)
 
-  lazy val representation: TStruct = TLocus.representation(required)
+  lazy val representation: TStruct = TLocus.representation
 
   def locusOrdering: Ordering[Locus] = rg.locusOrdering
 
   override def unify(concrete: Type): Boolean = concrete match {
-    case TLocus(crgBc, _) => rg == crgBc.value
+    case TLocus(crgBc) => rg == crgBc.value
     case _ => false
   }
 }

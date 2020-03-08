@@ -2,17 +2,15 @@ package is.hail.linalg
 
 
 import breeze.linalg.{*, diag, DenseMatrix => BDM, DenseVector => BDV}
-import is.hail.{HailSuite, TestUtils}
 import is.hail.check.Arbitrary._
-import is.hail.check.Prop._
 import is.hail.check.Gen._
+import is.hail.check.Prop._
 import is.hail.check._
-import is.hail.expr.ir.TableLiteral
+import is.hail.expr.ir.{CompileAndEvaluate, GetField, TableCollect, TableLiteral}
+import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.linalg.BlockMatrix.ops._
-import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TFloat64Optional, TInt64Optional, TStruct}
-import is.hail.table.Table
 import is.hail.utils._
+import is.hail.{HailSuite, TestUtils}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -739,14 +737,16 @@ class BlockMatrixSuite extends HailSuite {
     val data = (0 until 90).map(_.toDouble).toArray
     val lm = new BDM[Double](9, 10, data)
     val expectedEntries = data.map(x => ((x % 9).toLong, (x / 9).toLong, x)).toSet
-    val expectedSignature = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
+    val expectedSignature = TStruct("i" -> TInt64, "j" -> TInt64, "entry" -> TFloat64)
 
     for {blockSize <- Seq(1, 4, 10)} {
-      val entriesTable = new Table(hc, TableLiteral(toBM(lm, blockSize).entriesTable(ctx), ctx))
-      val entries = entriesTable.collect().map(row => (row.get(0), row.get(1), row.get(2))).toSet
+      val entriesLiteral = TableLiteral(toBM(lm, blockSize).entriesTable(ctx), ctx)
+      assert(entriesLiteral.typ.rowType == expectedSignature)
+      val rows = CompileAndEvaluate[IndexedSeq[Row]](ctx,
+        GetField(TableCollect(entriesLiteral), "rows"))
+      val entries = rows.map(row => (row.get(0), row.get(1), row.get(2))).toSet
       // block size affects order of rows in table, but sets will be the same
       assert(entries === expectedEntries)
-      assert(entriesTable.signature === expectedSignature)
     }
   }
 
@@ -756,11 +756,11 @@ class BlockMatrixSuite extends HailSuite {
     val lm = new BDM[Double](5, 10, data)
     val bm = toBM(lm, blockSize = 2)
 
-    val expected = new Table(hc,
-      TableLiteral(bm
-        .filterBlocks(Array(0, 1, 6))
-        .entriesTable(ctx), ctx))
-      .collect()
+    val rows = CompileAndEvaluate[IndexedSeq[Row]](ctx, GetField(TableCollect(TableLiteral(bm
+      .filterBlocks(Array(0, 1, 6))
+      .entriesTable(ctx), ctx)),
+      "rows"))
+    val expected = rows
       .sortBy(r => (r.get(0).asInstanceOf[Long], r.get(1).asInstanceOf[Long]))
       .map(r => r.get(2).asInstanceOf[Double])
 
@@ -780,6 +780,41 @@ class BlockMatrixSuite extends HailSuite {
   
   def filteredEquals(bm1: BlockMatrix, bm2: BlockMatrix): Boolean =
     bm1.blocks.collect() sameElements bm2.blocks.collect()
+
+  @Test
+  def testSparseFilterEdges(): Unit = {
+    val lm = new BDM[Double](12, 12, (0 to 143).map(_.toDouble).toArray)
+    val bm = toBM(lm, blockSize = 5)
+
+    val onlyEight = bm.filterBlocks(Array(8)) // Bottom right corner block
+    val onlyEightRowEleven = onlyEight.filterRows(Array(11)).toBreezeMatrix()
+    val onlyEightColEleven = onlyEight.filterCols(Array(11)).toBreezeMatrix()
+    val onlyEightCornerFour = onlyEight.filter(Array(10, 11), Array(10, 11)).toBreezeMatrix()
+
+    assert(onlyEightRowEleven.toArray sameElements Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 131, 143).map(_.toDouble))
+    assert(onlyEightColEleven.toArray sameElements Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 142, 143).map(_.toDouble))
+    assert(onlyEightCornerFour == new BDM[Double](2, 2, Array(130.0, 131.0, 142.0, 143.0)))
+  }
+
+  @Test
+  def testSparseTransposeMaybeBlocks(): Unit = {
+    val lm = new BDM[Double](9, 12, (0 to 107).map(_.toDouble).toArray)
+    val bm = toBM(lm, blockSize = 3)
+    val sparse = bm.filterBand(0, 0, true)
+    assert(sparse.transpose().gp.maybeBlocks.get.toIndexedSeq == IndexedSeq(0, 5, 10))
+  }
+
+  @Test
+  def filterRowsRectangleSum(): Unit = {
+    val nRows = 10
+    val nCols = 50
+    val bm = BlockMatrix.fill(hc, nRows, nCols, 2, 1)
+    val banded = bm.filterBand(0, 0, false)
+    val rowFilt = banded.filterRows((0L until nRows.toLong by 2L).toArray)
+    val summed = rowFilt.rowSum().toBreezeMatrix().toArray
+    val expected = Array.tabulate(nRows)(x => if (x % 2 == 0) 2.0 else 0) ++ Array.tabulate(nCols - nRows)(x => 0.0)
+    assert(summed sameElements expected)
+  }
 
   @Test
   def testFilterBlocks() {

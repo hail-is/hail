@@ -31,6 +31,7 @@ __all__ = [
     'tstr',
     'tbool',
     'tarray',
+    'tstream',
     'tndarray',
     'tset',
     'tdict',
@@ -45,6 +46,21 @@ __all__ = [
     'hts_entry_schema',
 ]
 
+def summary_type(t):
+    if isinstance(t, hl.tdict):
+        return f'dict<{summary_type(t.key_type)}, {summary_type(t.value_type)}>'
+    elif isinstance(t, hl.tset):
+        return f'set<{summary_type(t.element_type)}>'
+    elif isinstance(t, hl.tarray):
+        return f'array<{summary_type(t.element_type)}>'
+    elif isinstance(t, hl.tstruct):
+        return f'struct with {len(t)} fields'
+    elif isinstance(t, hl.ttuple):
+        return f'tuple with {len(t)} fields'
+    elif isinstance(t, hl.tinterval):
+        return f'interval<{summary_type(t.point_type)}>'
+    else:
+        return str(t)
 
 def dtype(type_str):
     r"""Parse a type from its string representation.
@@ -85,6 +101,7 @@ def dtype(type_str):
         str = "tstr" / "str"
         locus = ("tlocus" / "locus") _ "[" identifier "]"
         array = ("tarray" / "array") _ "<" type ">"
+        array = ("tstream" / "stream") _ "<" type ">"
         ndarray = ("tndarray" / "ndarray") _ "<" type, identifier ">"
         set = ("tset" / "set") _ "<" type ">"
         dict = ("tdict" / "dict") _ "<" type "," type ">"
@@ -609,11 +626,12 @@ class tndarray(HailType):
 
     def _traverse(self, obj, f):
         if f(self, obj):
-            for elt in obj:
-                self.element_type._traverse(elt, f)
+            for elt in np.nditer(obj):
+                self.element_type._traverse(elt.item(), f)
 
     def _typecheck_one_level(self, annotation):
-        raise NotImplementedError
+        if annotation is not None and not isinstance(annotation, np.ndarray):
+            raise TypeError("type 'ndarray' expected Python 'numpy.ndarray', but found type '%s'" % type(annotation))
 
     def __str__(self):
         return "ndarray<{}, {}>".format(self.element_type, self.ndim)
@@ -636,7 +654,22 @@ class tndarray(HailType):
         return np.ndarray(shape=x['shape'], buffer=np.array(x['data'], dtype=np_type), strides=x['strides'], dtype=np_type)
 
     def _convert_to_json(self, x):
-        raise NotImplementedError
+        data = x.reshape(x.size).tolist()
+
+        strides = []
+        axis_one_step_byte_size = x.itemsize
+        for dimension_size in reversed(x.shape):
+            strides.insert(0, axis_one_step_byte_size)
+            axis_one_step_byte_size *= (dimension_size if dimension_size > 0 else 1)
+
+        json_dict = {
+            "shape": x.shape,
+            "strides": strides,
+            "flags": 0,
+            "data": data,
+            "offset": 0
+        }
+        return json_dict
 
     def clear(self):
         self._element_type.clear()
@@ -672,7 +705,7 @@ class tarray(HailType):
     See Also
     --------
     :class:`.ArrayExpression`, :class:`.CollectionExpression`,
-    :func:`.array`, :ref:`sec-collection-functions`
+    :func:`~hail.expr.functions.array`, :ref:`sec-collection-functions`
     """
 
     @typecheck_method(element_type=hail_type)
@@ -729,6 +762,60 @@ class tarray(HailType):
 
     def subst(self):
         return tarray(self.element_type.subst())
+
+    def clear(self):
+        self.element_type.clear()
+
+    def _get_context(self):
+        return self.element_type.get_context()
+
+
+class tstream(HailType):
+    @typecheck_method(element_type=hail_type)
+    def __init__(self, element_type):
+        self._element_type = element_type
+        super(tstream, self).__init__()
+
+    @property
+    def element_type(self):
+        return self._element_type
+
+    def _traverse(self, obj, f):
+        if f(self, obj):
+            for elt in obj:
+                self.element_type._traverse(elt, f)
+
+    def _typecheck_one_level(self, annotation):
+        raise TypeError("type 'stream' is not realizable in Python")
+
+    def __str__(self):
+        return "stream<{}>".format(self.element_type)
+
+    def _eq(self, other):
+        return isinstance(other, tstream) and self.element_type == other.element_type
+
+    def _pretty(self, l, indent, increment):
+        l.append('stream<')
+        self.element_type._pretty(l, indent, increment)
+        l.append('>')
+
+    def _parsable_string(self):
+        return "Stream[" + self.element_type._parsable_string() + "]"
+
+    def _convert_from_json(self, x):
+        return [self.element_type._convert_from_json_na(elt) for elt in x]
+
+    def _convert_to_json(self, x):
+        return [self.element_type._convert_to_json_na(elt) for elt in x]
+
+    def _propagate_jtypes(self, jtype):
+        self._element_type._add_jtype(jtype.elementType())
+
+    def unify(self, t):
+        return isinstance(t, tstream) and self.element_type.unify(t.element_type)
+
+    def subst(self):
+        return tstream(self.element_type.subst())
 
     def clear(self):
         self.element_type.clear()
@@ -949,6 +1036,16 @@ class tstruct(HailType, Mapping):
         self._field_types = field_types
         self._fields = tuple(field_types)
         super(tstruct, self).__init__()
+
+    @property
+    def types(self):
+        """Struct field types.
+
+        Returns
+        -------
+        :obj:`tuple` of :class:`.HailType`
+        """
+        return tuple(self._field_types.values())
 
     @property
     def fields(self):
@@ -1198,7 +1295,7 @@ class tunion(HailType, Mapping):
         return HailTypeContext.union(*self.values())
 
 
-class ttuple(HailType):
+class ttuple(HailType, Sequence):
     """Hail type for tuples.
 
     In Python, these are represented as :obj:`tuple`.
@@ -1241,6 +1338,14 @@ class ttuple(HailType):
             if len(annotation) != len(self.types):
                 raise TypeError("%s expected tuple of size '%i', but found '%s'" %
                                 (self, len(self.types), annotation))
+
+    @typecheck_method(item=int)
+    def __getitem__(self, item):
+        return self._types[item]
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
 
     def __len__(self):
         return len(self._types)
@@ -1646,6 +1751,20 @@ def is_compound(t) -> bool:
 def types_match(left, right) -> bool:
     return (len(left) == len(right)
             and all(map(lambda lr: lr[0].dtype == lr[1].dtype, zip(left, right))))
+
+def from_numpy(np_dtype):
+    if np_dtype == np.int32:
+        return tint32
+    elif np_dtype == np.int64:
+        return tint64
+    elif np_dtype == np.float32:
+        return tfloat32
+    elif np_dtype == np.float64:
+        return tfloat64
+    elif np_dtype == np.bool:
+        return tbool
+    else:
+        raise ValueError(f"numpy type {np_dtype} could not be converted to a hail type.")
 
 
 class tvariable(HailType):

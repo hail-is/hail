@@ -21,6 +21,7 @@ import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.io.Source
 
 case class VEPConfiguration(
@@ -66,14 +67,12 @@ object VEP {
     }
   }
 
-  def waitFor(proc: Process, cmd: Array[String]): Unit = {
+  def waitFor(proc: Process, err: StringBuilder, cmd: Array[String]): Unit = {
     val rc = proc.waitFor()
 
     if (rc != 0) {
-      val errorLines = Source.fromInputStream(new BufferedInputStream(proc.getErrorStream)).getLines().mkString("\n")
-
       fatal(s"VEP command '${ cmd.mkString(" ") }' failed with non-zero exit status $rc\n" +
-        "  VEP Error output:\n" + errorLines)
+        "  VEP Error output:\n" + err.toString)
     }
   }
 
@@ -83,13 +82,13 @@ object VEP {
     val env = pb.environment()
     confEnv.foreach { case (key, value) => env.put(key, value) }
 
-    val (jt, proc) = List((Locus("1", 13372), FastIndexedSeq("G", "C"))).iterator.pipe(pb,
+    val (jt, err, proc) = List((Locus("1", 13372), FastIndexedSeq("G", "C"))).iterator.pipe(pb,
       printContext,
       printElement,
       _ => ())
 
     val csqHeader = jt.flatMap(s => csqHeaderRegex.findFirstMatchIn(s).map(m => m.group(1)))
-    waitFor(proc, cmd)
+    waitFor(proc, err, cmd)
 
     if (csqHeader.hasNext)
       Some(csqHeader.next())
@@ -107,7 +106,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
   override def preservesPartitionCounts: Boolean = false
 
   override def typ(childType: TableType): TableType = {
-    val vepType = if (csq) TArray(TString()) else vepSignature
+    val vepType = if (csq) TArray(TString) else vepSignature
     TableType(childType.rowType ++ TStruct("vep" -> vepType), childType.key, childType.globalType)
   }
 
@@ -144,6 +143,8 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
           env.put(key, value)
         }
 
+        val warnContext = new mutable.HashSet[String]
+
         val rvv = new RegionValueVariant(localRowType)
         it
           .map { rv =>
@@ -152,7 +153,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
           }
           .grouped(localBlockSize)
           .flatMap { block =>
-            val (jt, proc) = block.iterator.pipe(pb,
+            val (jt, err, proc) = block.iterator.pipe(pb,
               printContext,
               printElement,
               _ => ())
@@ -183,7 +184,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
                 } else {
                   try {
                     val jv = JsonMethods.parse(s)
-                    val a = JSONAnnotationImpex.importAnnotation(jv, vepSignature)
+                    val a = JSONAnnotationImpex.importAnnotation(jv, vepSignature, warnContext = warnContext)
                     val variantString = inputQuery(a).asInstanceOf[String]
                     if (variantString == null)
                       fatal(s"VEP generated null variant string" +
@@ -208,13 +209,13 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
             val r = kt.toArray
               .sortBy(_._1)(rowKeyOrd.toOrdering)
 
-            waitFor(proc, cmd)
+            waitFor(proc, err, cmd)
 
             r
           }
       }
 
-    val vepType: Type = if (csq) TArray(TString()) else vepSignature
+    val vepType: Type = if (csq) TArray(TString) else vepSignature
 
     val vepRVDType = prev.typ.copy(rowType = PType.canonical(prev.rowType ++ TStruct("vep" -> vepType)).asInstanceOf[PStruct])
 
@@ -242,9 +243,9 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
 
     val (globalValue, globalType) =
       if (csq)
-        (Row(csqHeader.getOrElse("")), TStruct("vep_csq_header" -> TString()))
+        (Row(csqHeader.getOrElse("")), TStruct("vep_csq_header" -> TString))
       else
-        (Row(), TStruct())
+        (Row(), TStruct.empty)
 
     TableValue(
       TableType(vepRowType.virtualType, FastIndexedSeq("locus", "alleles"), globalType),

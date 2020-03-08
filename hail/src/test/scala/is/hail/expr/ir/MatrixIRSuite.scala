@@ -2,18 +2,19 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.TestUtils._
+import is.hail.annotations.BroadcastRow
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual._
-import is.hail.io.CodecSpec
-import is.hail.table.Table
 import is.hail.utils._
-import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
 class MatrixIRSuite extends HailSuite {
 
-  def rangeMatrix: MatrixIR = MatrixTable.range(hc, 20, 20, Some(4)).ast
+  def rangeMatrix(nRows: Int = 20, nCols: Int = 20, nPartitions: Option[Int] = Some(4)): MatrixIR = {
+    val reader = MatrixRangeReader(nRows, nCols, nPartitions)
+    MatrixRead(reader.fullMatrixType, false, false, reader)
+  }
 
   def getRows(mir: MatrixIR): Array[Row] =
     Interpret(MatrixRowsTable(mir), ctx).rdd.collect()
@@ -22,7 +23,7 @@ class MatrixIRSuite extends HailSuite {
     Interpret(MatrixColsTable(mir), ctx).rdd.collect()
 
   @Test def testScanCountBehavesLikeIndexOnRows() {
-    val mt = rangeMatrix
+    val mt = rangeMatrix()
     val oldRow = Ref("va", mt.typ.rowType)
 
     val newRow = InsertFields(oldRow, Seq("idx" -> IRScanCount))
@@ -33,7 +34,7 @@ class MatrixIRSuite extends HailSuite {
   }
 
   @Test def testScanCollectBehavesLikeRangeOnRows() {
-    val mt = rangeMatrix
+    val mt = rangeMatrix()
     val oldRow = Ref("va", mt.typ.rowType)
 
     val newRow = InsertFields(oldRow, Seq("range" -> IRScanCollect(GetField(oldRow, "row_idx"))))
@@ -44,7 +45,7 @@ class MatrixIRSuite extends HailSuite {
   }
 
   @Test def testScanCollectBehavesLikeRangeWithAggregationOnRows() {
-    val mt = rangeMatrix
+    val mt = rangeMatrix()
     val oldRow = Ref("va", mt.typ.rowType)
 
     val newRow = InsertFields(oldRow, Seq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldRow, "row_idx").toL)))
@@ -55,7 +56,7 @@ class MatrixIRSuite extends HailSuite {
   }
 
   @Test def testScanCountBehavesLikeIndexOnCols() {
-    val mt = rangeMatrix
+    val mt = rangeMatrix()
     val oldCol = Ref("sa", mt.typ.colType)
 
     val newCol = InsertFields(oldCol, Seq("idx" -> IRScanCount))
@@ -66,7 +67,7 @@ class MatrixIRSuite extends HailSuite {
   }
 
   @Test def testScanCollectBehavesLikeRangeOnCols() {
-    val mt = rangeMatrix
+    val mt = rangeMatrix()
     val oldCol = Ref("sa", mt.typ.colType)
 
     val newCol = InsertFields(oldCol, Seq("range" -> IRScanCollect(GetField(oldCol, "col_idx"))))
@@ -77,7 +78,7 @@ class MatrixIRSuite extends HailSuite {
   }
 
   @Test def testScanCollectBehavesLikeRangeWithAggregationOnCols() {
-    val mt = rangeMatrix
+    val mt = rangeMatrix()
     val oldCol = Ref("sa", mt.typ.colType)
 
     val newCol = InsertFields(oldCol, Seq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldCol, "col_idx").toL)))
@@ -89,7 +90,7 @@ class MatrixIRSuite extends HailSuite {
 
   def rangeRowMatrix(start: Int, end: Int): MatrixIR = {
     val i = end - start
-    val baseRange = MatrixTable.range(hc, i, 5, Some(math.max(1, math.min(4, i)))).ast
+    val baseRange = rangeMatrix(i, 5, Some(math.max(1, math.min(4, i))))
     val row = Ref("va", baseRange.typ.rowType)
     MatrixKeyRowsBy(
       MatrixMapRows(
@@ -136,8 +137,8 @@ class MatrixIRSuite extends HailSuite {
 
   @Test(dataProvider = "explodeRowsData")
   def testMatrixExplode(path: IndexedSeq[String], collection: IndexedSeq[Integer]) {
-    val tarray = TArray(TInt32())
-    val range = MatrixTable.range(hc, 5, 2, None).ast
+    val tarray = TArray(TInt32)
+    val range = rangeMatrix(5, 2, None)
 
     val field = path.init.foldRight(path.last -> toIRArray(collection))(_ -> IRStruct(_))
     val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rowType), FastIndexedSeq(field)))
@@ -150,18 +151,20 @@ class MatrixIRSuite extends HailSuite {
   }
 
   // these two items are helper for UnlocalizedEntries testing,
-  def makeLocalizedTable(rdata: Array[Row], cdata: Array[Row]): Table = {
+  def makeLocalizedTable(rdata: Array[Row], cdata: Array[Row]): TableIR = {
     val rowRdd = sc.parallelize(rdata)
     val rowSig = TStruct(
-      "row_idx" -> TInt32(),
-      "animal" -> TString(),
-      "__entries" -> TArray(TStruct("ent1" -> TString(), "ent2" -> TFloat64()))
+      "row_idx" -> TInt32,
+      "animal" -> TString,
+      "__entries" -> TArray(TStruct("ent1" -> TString, "ent2" -> TFloat64))
     )
     val keyNames = FastIndexedSeq("row_idx")
 
-    val colSig = TStruct("col_idx" -> TInt32(), "tag" -> TString())
-
-    Table(hc, rowRdd, rowSig, keyNames, TStruct(("__cols", TArray(colSig))), Row(cdata.toFastIndexedSeq))
+    val colSig = TStruct("col_idx" -> TInt32, "tag" -> TString)
+    val globalType = TStruct(("__cols", TArray(colSig)))
+    var tv = TableValue(ctx, rowSig, keyNames, rowRdd)
+    tv = tv.copy(typ = tv.typ.copy(globalType = globalType), globals = BroadcastRow(ctx, Row(cdata.toFastIndexedSeq), globalType))
+    TableLiteral(tv, ctx)
   }
 
   @Test def testCastTableToMatrix() {
@@ -176,7 +179,7 @@ class MatrixIRSuite extends HailSuite {
     )
     val rowTab = makeLocalizedTable(rdata, cdata)
 
-    val mir = CastTableToMatrix(rowTab.tir, "__entries", "__cols", Array("col_idx"))
+    val mir = CastTableToMatrix(rowTab, "__entries", "__cols", Array("col_idx"))
     // cols are same
     val mtCols = Interpret(MatrixColsTable(mir), ctx).rdd.collect()
     assert(mtCols sameElements cdata)
@@ -205,7 +208,7 @@ class MatrixIRSuite extends HailSuite {
     )
     val rowTab = makeLocalizedTable(rdata, cdata)
 
-    val mir = CastTableToMatrix(rowTab.tir, "__entries", "__cols", Array("col_idx"))
+    val mir = CastTableToMatrix(rowTab, "__entries", "__cols", Array("col_idx"))
 
     // All rows must have the same number of elements in the entry field as colTab has rows
     interceptSpark("length mismatch between entry array and column array") {
@@ -214,7 +217,7 @@ class MatrixIRSuite extends HailSuite {
 
     // The entry field must be an array
     interceptFatal("") {
-      CastTableToMatrix(rowTab.tir, "animal", "__cols", Array("col_idx"))
+      CastTableToMatrix(rowTab, "animal", "__cols", Array("col_idx"))
     }
 
     val rdata2 = Array(
@@ -223,14 +226,14 @@ class MatrixIRSuite extends HailSuite {
       Row(3, "dog", FastIndexedSeq(Row("c", -1.0), Row("z", 30.0)))
     )
     val rowTab2 = makeLocalizedTable(rdata2, cdata)
-    val mir2 = CastTableToMatrix(rowTab2.tir, "__entries", "__cols", Array("col_idx"))
+    val mir2 = CastTableToMatrix(rowTab2, "__entries", "__cols", Array("col_idx"))
 
     interceptSpark("missing") { Interpret(mir2, ctx, optimize = true).rvd.count() }
   }
 
   @Test def testMatrixFiltersWorkWithRandomness() {
-    val range = MatrixTable.range(hc, 20, 20, Some(4)).ast
-    val rand = ApplySeeded("rand_bool", FastIndexedSeq(0.5), seed=0, TBoolean())
+    val range = rangeMatrix(20, 20, Some(4))
+    val rand = ApplySeeded("rand_bool", FastIndexedSeq(0.5), seed=0, TBoolean)
 
     val cols = Interpret(MatrixFilterCols(range, rand), ctx, optimize = true).toMatrixValue(range.typ.colKey).nCols
     val rows = Interpret(MatrixFilterRows(range, rand), ctx, optimize = true).rvd.count()
@@ -242,7 +245,7 @@ class MatrixIRSuite extends HailSuite {
   }
 
   @Test def testMatrixRepartition() {
-    val range = MatrixTable.range(hc, 11, 3, Some(10)).ast
+    val range = rangeMatrix(11, 3, Some(10))
 
     val params = Array(
       1 -> RepartitionStrategy.SHUFFLE,
@@ -260,42 +263,12 @@ class MatrixIRSuite extends HailSuite {
     }
   }
 
-  @Test def testMatrixNativeWrite() {
-    val range = MatrixTable.range(hc, 11, 3, Some(10))
-    val path = tmpDir.createLocalTempFile(extension = "mt")
-    Interpret[Unit](ctx, MatrixWrite(range.ast, MatrixNativeWriter(path)))
-    val read = MatrixTable.read(hc, path)
-    assert(read.same(range))
-  }
-
-  @Test def testMatrixVCFWrite() {
+  @Test def testMatrixMultiWriteDifferentTypesRaisesError() {
     val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
-    val path = tmpDir.createLocalTempFile(extension = "vcf")
-    Interpret[Unit](ctx, MatrixWrite(vcf.ast, MatrixVCFWriter(path)))
-  }
-
-  @Test def testMatrixMultiWrite() {
-    // partitioning must be the same
-    val ranges = FastIndexedSeq(MatrixTable.range(hc, 15, 3, Some(10)), MatrixTable.range(hc, 15, 27, Some(10)))
-    val path = tmpDir.createLocalTempFile()
-    Interpret[Unit](ctx, MatrixMultiWrite(ranges.map(_.ast), MatrixNativeMultiWriter(path)))
-    val read0 = MatrixTable.read(hc, path + "0.mt")
-    val read1 = MatrixTable.read(hc, path + "1.mt")
-    assert(ranges(0).same(read0))
-    assert(ranges(1).same(read1))
-
-    val pathRef = tmpDir.createLocalTempFile(extension = "mt")
-    Interpret[Unit](ctx, MatrixWrite(ranges(1).ast, MatrixNativeWriter(path)))
-    val readRef = MatrixTable.read(hc, path)
-    assert(readRef.same(read1))
-  }
-
-  @Test def testMatrixMultiWriteDifferentTypesFails() {
-    val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
-    val range = MatrixTable.range(hc, 10, 2, None)
+    val range = rangeMatrix(10, 2, None)
     val path = tmpDir.createLocalTempFile()
     intercept[java.lang.IllegalArgumentException] {
-      val ir = MatrixMultiWrite(FastIndexedSeq(vcf.ast, range.ast), MatrixNativeMultiWriter(path))
+      val ir = MatrixMultiWrite(FastIndexedSeq(vcf, range), MatrixNativeMultiWriter(path))
     }
   }
 }

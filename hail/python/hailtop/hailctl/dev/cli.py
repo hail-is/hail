@@ -12,11 +12,6 @@ def parser():
         description='Manage Hail development utilities.')
     subparsers = main_parser.add_subparsers()
 
-    subparsers.add_parser(
-        'benchmark',
-        help='Run Hail benchmarks.',
-        description='Run Hail benchmarks.')
-
     config_parser = subparsers.add_parser(
         'config',
         help='Configure deployment',
@@ -42,11 +37,7 @@ def main(args):
         sys.exit(0)
     else:
         module = args[0]
-        extra_args = args[1:]
-        if module == 'benchmark':
-            from .benchmark import cli
-            cli.main(extra_args)
-        elif module == 'deploy':
+        if module == 'deploy':
             from .deploy import cli
             args, _ = p.parse_known_args(args=args)
             cli.main(args)

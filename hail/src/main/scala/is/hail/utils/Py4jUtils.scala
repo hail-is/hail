@@ -3,9 +3,13 @@ package is.hail.utils
 import java.io.{InputStream, OutputStream}
 
 import is.hail.HailContext
-import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.types.virtual.Type
+import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
+import is.hail.expr.ir.{ExecuteContext, TableIR, TableLiteral, TableValue}
+import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.virtual.{TArray, TString, TStruct, Type}
 import is.hail.io.fs.FileStatus
+import is.hail.io.plink.{FamFileConfig, LoadPlink}
+import org.apache.spark.sql.{DataFrame, Row}
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
 
@@ -148,6 +152,26 @@ trait Py4jUtils {
     val jv = JSONAnnotationImpex.exportAnnotation(value, t)
     JsonMethods.compact(jv)
   }
+
+  def pyFromDF(df: DataFrame, jKey: java.util.List[String]): TableIR = {
+    val key = jKey.asScala.toArray.toFastIndexedSeq
+    val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[PStruct]
+    ExecuteContext.scoped { ctx =>
+      TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)), ctx)
+    }
+  }
+
+  def importFamJSON(path: String, isQuantPheno: Boolean = false,
+    delimiter: String = "\\t",
+    missingValue: String = "NA"): String = {
+    val ffConfig = FamFileConfig(isQuantPheno, delimiter, missingValue)
+    val (data, ptyp) = LoadPlink.parseFam(path, ffConfig, HailContext.sFS)
+    val jv = JSONAnnotationImpex.exportAnnotation(
+      Row(ptyp.virtualType.toString, data),
+      TStruct("type" -> TString, "data" -> TArray(ptyp.virtualType)))
+    JsonMethods.compact(jv)
+  }
+
 }
 
 class HadoopPyReader(in: InputStream, buffSize: Int) {

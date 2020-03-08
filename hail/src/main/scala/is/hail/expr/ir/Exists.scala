@@ -59,9 +59,10 @@ object IsAggResult {
 
 object ContainsAgg {
   def apply(root: IR): Boolean = IsAggResult(root) || (root match {
+    case l: AggLet => !l.isScan
     case _: TableAggregate => false
     case _: MatrixAggregate => false
-    case ArrayAgg(a, _, _) => ContainsAgg(a)
+    case _: StreamAgg => true // this should be permitted, but causes problems elsewhere in the IR
     case _ => root.children.exists {
       case child: IR => ContainsAgg(child)
       case _ => false
@@ -69,29 +70,51 @@ object ContainsAgg {
   })
 }
 
-object ContainsScan {
-  def apply(root: IR): Boolean = IsScanResult(root) || (root match {
+object ContainsAggIntermediate {
+  def apply(root: IR): Boolean = (root match {
+    case _: ResultOp => true
+    case _: SeqOp => true
+    case _: InitOp => true
+    case _: CombOp => true
+    case _: DeserializeAggs => true
+    case _: SerializeAggs => true
+    case _: AggStateValue => true
+    case _: CombOpValue => true
+    case _ => false
+  }) || root.children.exists {
+    case child: IR => ContainsAggIntermediate(child)
+    case _ => false
+  }
+}
+
+object AggIsCommutative {
+  def apply(op: AggOp): Boolean = op match {
+    case Take() | Collect() | PrevNonnull() | TakeBy() => false
+    case _ => true
+  }
+}
+
+object ContainsNonCommutativeAgg {
+  def apply(root: IR): Boolean = root match {
+    case ApplyAggOp(_, _, sig) => !AggIsCommutative(sig.op)
     case _: TableAggregate => false
     case _: MatrixAggregate => false
-    case ArrayAggScan(a, _, _) => ContainsScan(a)
+    case _ => root.children.exists {
+      case child: IR => ContainsNonCommutativeAgg(child)
+      case _ => false
+    }
+  }
+}
+
+object ContainsScan {
+  def apply(root: IR): Boolean = IsScanResult(root) || (root match {
+    case l: AggLet => l.isScan
+    case _: TableAggregate => false
+    case _: MatrixAggregate => false
+    case _: StreamAggScan => true // this should be permitted, but causes problems elsewhere in the IR
     case _ => root.children.exists {
       case child: IR => ContainsScan(child)
       case _ => false
     }
   })
-}
-
-object Extract {
-  private def extract(node: BaseIR, visitor: BaseIR => Boolean, ab: ArrayBuilder[BaseIR]) {
-    if (visitor(node))
-      ab += node
-    else
-      node.children.foreach(extract(_, visitor, ab))
-  }
-
-  def apply(node: BaseIR, visitor: BaseIR => Boolean): Array[BaseIR] = {
-    val ab = new ArrayBuilder[BaseIR]()
-    extract(node, visitor, ab)
-    ab.result()
-  }
 }

@@ -100,7 +100,7 @@ class CollectionExpression(Expression):
             return hl.tarray(self._type.element_type)
 
         def transform_ir(array, name, body):
-            return ArrayFilter(array, name, body)
+            return ToArray(StreamFilter(ToStream(array), name, body))
 
         array_filter = hl.array(self)._ir_lambda_method(transform_ir, f, self.dtype.element_type, unify_ret)
 
@@ -178,7 +178,7 @@ class CollectionExpression(Expression):
             return hl.array(f(x)) if isinstance(value_type, tset) else f(x)
 
         def transform_ir(array, name, body):
-            return ArrayFlatMap(array, name, body)
+            return ToArray(StreamFlatMap(ToStream(array), name, ToStream(body)))
 
         array_flatmap = hl.array(self)._ir_lambda_method(transform_ir, f2, self.dtype.element_type, identity)
 
@@ -243,7 +243,7 @@ class CollectionExpression(Expression):
                 zero.dtype,
                 body.dtype))
 
-        ir = ArrayFold(collection._ir, zero._ir, accum_name, elt_name, body._ir)
+        ir = StreamFold(ToStream(collection._ir), zero._ir, accum_name, elt_name, body._ir)
 
         indices, aggregations = unify_all(self, zero, body)
         return construct_expr(ir, body.dtype, indices, aggregations)
@@ -304,7 +304,7 @@ class CollectionExpression(Expression):
 
         keyed = hl.array(self).map(lambda x: hl.tuple([f(x), x]))
         types = keyed.dtype.element_type.types
-        return construct_expr(GroupByKey(keyed._ir), tdict(types[0], tarray(types[1])), keyed._indices, keyed._aggregations)
+        return construct_expr(GroupByKey(ToStream(keyed._ir)), tdict(types[0], tarray(types[1])), keyed._indices, keyed._aggregations)
 
     @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):
@@ -331,9 +331,9 @@ class CollectionExpression(Expression):
         """
 
         def transform_ir(array, name, body):
-            a = ArrayMap(array, name, body)
+            a = ToArray(StreamMap(ToStream(array), name, body))
             if isinstance(self.dtype, tset):
-                a = ToSet(a)
+                a = ToSet(ToStream(a))
             return a
 
         array_map = hl.array(self)._ir_lambda_method(transform_ir, f, self._type.element_type, lambda t: self._type.__class__(t))
@@ -360,7 +360,7 @@ class CollectionExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             The number of elements in the collection.
         """
-        return apply_expr(lambda x: ArrayLen(x), tint32, hl.array(self))
+        return self.size()
 
     def size(self):
         """Returns the size of a collection.
@@ -379,7 +379,26 @@ class CollectionExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             The number of elements in the collection.
         """
-        return apply_expr(lambda x: ArrayLen(x), tint32, hl.array(self))
+        return apply_expr(lambda x: ArrayLen(CastToArray(x)), tint32, hl.array(self))
+
+    def _extra_summary_fields(self, agg_result):
+        return {
+            'Min Size': agg_result[0],
+            'Max Size': agg_result[1],
+            'Mean Size': agg_result[2],
+        }
+
+    def _nested_summary(self, agg_result, top):
+        elt = construct_variable(Env.get_uid(), self.dtype.element_type, indices=self._indices)
+        return {'[<elements>]': elt._summarize(agg_result[3])}
+
+    def _summary_aggs(self):
+        length = hl.len(self)
+        return hl.tuple((
+            hl.agg.min(length),
+            hl.agg.max(length),
+            hl.agg.mean(length),
+            hl.agg.explode(lambda elt: elt._all_summary_aggs(), self)))
 
 
 class ArrayExpression(CollectionExpression):
@@ -423,14 +442,36 @@ class ArrayExpression(CollectionExpression):
         """
         if isinstance(item, slice):
             return self._slice(self.dtype, item.start, item.stop, item.step)
-        elif isinstance(item, str):
-            return CollectionExpression.__getitem__(self, item)
         item = to_expr(item)
         if not item.dtype == tint32:
             raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
                             "found expression of type '{}'".format(item._type))
         else:
-            return self._method("indexArray", self.dtype.element_type, item)
+            import traceback
+            stack = traceback.format_stack()
+            i = len(stack)
+            while i > 0:
+                candidate = stack[i - 1]
+                if 'IPython' in candidate:
+                    break
+                i -= 1
+            filt_stack = []
+
+            forbidden_phrases = [
+                '_ir_lambda_method',
+                'decorator.py',
+                'typecheck/check',
+                'interactiveshell.py',
+                'expressions.construct_variable',
+                'traceback.format_stack()'
+            ]
+            while i < len(stack):
+                candidate = stack[i]
+                i += 1
+                if any(phrase in candidate for phrase in forbidden_phrases):
+                    continue
+                filt_stack.append(candidate)
+            return self._method("indexArray", self.dtype.element_type, item, '\n'.join(filt_stack))
 
     @typecheck_method(item=expr_any)
     def contains(self, item):
@@ -625,7 +666,7 @@ class ArrayExpression(CollectionExpression):
                 zero.dtype,
                 body.dtype))
 
-        ir = ArrayScan(self._ir, zero._ir, accum_name, elt_name, body._ir)
+        ir = ToArray(StreamScan(ToStream(self._ir), zero._ir, accum_name, elt_name, body._ir))
 
         indices, aggregations = unify_all(self, zero, body)
         return construct_expr(ir, tarray(body.dtype), indices, aggregations)
@@ -650,7 +691,10 @@ class ArrayStructExpression(ArrayExpression):
     """
 
     def __getattr__(self, item):
-        return ArrayStructExpression.__getitem__(self, item)
+        try:
+            return ArrayStructExpression.__getitem__(self, item)
+        except KeyError as e:
+            raise AttributeError(str(e)) from e
 
     def __getitem__(self, item):
         """If a string, get a field from each struct in this array. If an integer, get
@@ -1135,7 +1179,10 @@ class SetStructExpression(SetExpression):
     """
 
     def __getattr__(self, item):
-        return SetStructExpression.__getitem__(self, item)
+        try:
+            return SetStructExpression.__getitem__(self, item)
+        except KeyError as e:
+            raise AttributeError(str(e)) from e
 
     @typecheck_method(item=oneof(str))
     def __getitem__(self, item):
@@ -1280,9 +1327,9 @@ class DictExpression(Expression):
 
         if default is not None:
             if not self._vc.can_coerce(default.dtype):
-                raise TypeError("'get' expects parameter 'default' to have the "
-                                "same type as the dictionary value type, found '{}' and '{}'"
-                                .format(self.dtype, default.dtype))
+                raise TypeError("'get' expects parameter 'default' to have the same type "
+                                "as the dictionary value type, expected '{}' and found '{}'"
+                                .format(self.dtype.value_type, default.dtype))
             return self._method("get", self.dtype.value_type, key, self._vc.coerce(default))
         else:
             return self._method("get", self.dtype.value_type, key)
@@ -1355,7 +1402,7 @@ class DictExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             Size of the dictionary.
         """
-        return apply_expr(lambda x: ArrayLen(ToArray(x)), tint32, self)
+        return apply_expr(lambda x: ArrayLen(CastToArray(x)), tint32, self)
 
     def values(self):
         """Returns an array with all values in the dictionary.
@@ -1372,6 +1419,30 @@ class DictExpression(Expression):
             All values in the dictionary.
         """
         return self._method("values", tarray(self.dtype.value_type))
+
+    def _extra_summary_fields(self, agg_result):
+        return {
+            'Min Size': agg_result[0],
+            'Max Size': agg_result[1],
+            'Mean Size': agg_result[2],
+        }
+
+    def _nested_summary(self, agg_result, top):
+        k = construct_variable(Env.get_uid(), self.dtype.key_type, indices=self._indices)
+        v = construct_variable(Env.get_uid(), self.dtype.value_type, indices=self._indices)
+        return {
+            '[<keys>]': k._summarize(agg_result[3][0]),
+            '[<values>]': v._summarize(agg_result[3][1]),
+
+        }
+
+    def _summary_aggs(self):
+        length = hl.len(self)
+        return hl.tuple((
+            hl.agg.min(length),
+            hl.agg.max(length),
+            hl.agg.mean(length),
+            hl.agg.explode(lambda elt: hl.tuple((elt[0]._all_summary_aggs(), elt[1]._all_summary_aggs())), hl.array(self))))
 
 
 class StructExpression(Mapping[str, Expression], Expression):
@@ -1447,7 +1518,7 @@ class StructExpression(Mapping[str, Expression], Expression):
     def __len__(self):
         return len(self._fields)
 
-    @typecheck_method(item=oneof(str, int))
+    @typecheck_method(item=oneof(str, int, slice))
     def __getitem__(self, item):
         """Access a field of the struct by name or index.
 
@@ -1472,8 +1543,14 @@ class StructExpression(Mapping[str, Expression], Expression):
         """
         if isinstance(item, str):
             return self._get_field(item)
-        else:
+        if isinstance(item, int):
             return self._get_field(self.dtype.fields[item])
+        else:
+            assert item.start is None or isinstance(item.start, int)
+            assert item.stop is None or isinstance(item.stop, int)
+            assert item.step is None or isinstance(item.step, int)
+            return self.select(
+                *self.dtype.fields[item.start:item.stop:item.step])
 
     def __iter__(self):
         return iter(self._fields)
@@ -1635,13 +1712,21 @@ class StructExpression(Mapping[str, Expression], Expression):
                 return [(prefix, s)]
         return self.select(**{k: v for (f, e) in self.items() for (k, v) in _flatten(f, e)})
 
+    def _nested_summary(self, agg_result, top):
+        sep = '' if top else '.'
+        return {f'{sep}{k}': f._summarize(agg_result[k]) for k, f in self.items()}
+
+    def _summary_aggs(self):
+        return hl.struct(**{k: f._all_summary_aggs() for k, f in self.items()})
+
+
 class TupleExpression(Expression, Sequence):
     """Expression of type :class:`.ttuple`.
 
     >>> tup = hl.literal(("a", 1, [1, 2, 3]))
     """
 
-    @typecheck_method(item=int)
+    @typecheck_method(item=oneof(int, slice))
     def __getitem__(self, item):
         """Index into the tuple.
 
@@ -1660,6 +1745,14 @@ class TupleExpression(Expression, Sequence):
         -------
         :class:`.Expression`
         """
+        if isinstance(item, slice):
+            assert item.start is None or isinstance(item.start, int)
+            assert item.stop is None or isinstance(item.stop, int)
+            assert item.step is None or isinstance(item.step, int)
+            return hl.or_missing(hl.is_defined(self),
+                                 hl.tuple([
+                                     self[i]
+                                     for i in range(len(self))[item.start:item.stop:item.step]]))
         if not 0 <= item < len(self):
             raise IndexError("Out of bounds index. Tuple length is {}.".format(len(self)))
         return construct_expr(ir.GetTupleElement(self._ir, item), self.dtype.types[item], self._indices)
@@ -1682,6 +1775,12 @@ class TupleExpression(Expression, Sequence):
     def __iter__(self):
         for i in range(len(self)):
             yield self[i]
+
+    def _nested_summary(self, agg_result, top):
+        return {f'[{i}]': self[i]._summarize(agg_result[i]) for i in range(len(self))}
+
+    def _summary_aggs(self):
+        return hl.tuple([self[i]._all_summary_aggs() for i in range(len(self))])
 
 
 class NumericExpression(Expression):
@@ -2133,25 +2232,69 @@ class BooleanExpression(NumericExpression):
         """
         return self._unary_op("!")
 
+    def _extra_summary_fields(self, agg_result):
+        return {'Counts': agg_result}
+
+    def _summary_aggs(self):
+        return hl.agg.filter(hl.is_defined(self), hl.agg.counter(self))
+
 
 class Float64Expression(NumericExpression):
     """Expression of type :py:data:`.tfloat64`."""
-    pass
+
+    def _extra_summary_fields(self, agg_result):
+        return {
+            'Minimum': agg_result['min'],
+            'Maximum': agg_result['max'],
+            'Mean': agg_result['mean'],
+            'Std Dev': agg_result['stdev']
+        }
+
+    def _summary_aggs(self):
+        return hl.agg.stats(self)
 
 
 class Float32Expression(NumericExpression):
     """Expression of type :py:data:`.tfloat32`."""
-    pass
+
+    def _extra_summary_fields(self, agg_result):
+        return {
+            'Minimum': agg_result['min'],
+            'Maximum': agg_result['max'],
+            'Mean': agg_result['mean'],
+            'Std Dev': agg_result['stdev']
+        }
+
+    def _summary_aggs(self):
+        return hl.agg.stats(self)
 
 
 class Int32Expression(NumericExpression):
     """Expression of type :py:data:`.tint32`."""
-    pass
+    def _extra_summary_fields(self, agg_result):
+        return {
+            'Minimum': int(agg_result['min']),
+            'Maximum': int(agg_result['max']),
+            'Mean': agg_result['mean'],
+            'Std Dev': agg_result['stdev']
+        }
+
+    def _summary_aggs(self):
+        return hl.agg.stats(self)
 
 
 class Int64Expression(NumericExpression):
     """Expression of type :py:data:`.tint64`."""
-    pass
+    def _extra_summary_fields(self, agg_result):
+        return {
+            'Minimum': int(agg_result['min']),
+            'Maximum': int(agg_result['max']),
+            'Mean': agg_result['mean'],
+            'Std Dev': agg_result['stdev']
+        }
+
+    def _summary_aggs(self):
+        return hl.agg.stats(self)
 
 
 class StringExpression(Expression):
@@ -2492,7 +2635,32 @@ class StringExpression(Expression):
         """
         return self._method('firstMatchIn', tarray(tstr), regex)
 
-    @typecheck_method(regex=str)
+    @typecheck_method(mapping=expr_dict(expr_str, expr_str))
+    def translate(self, mapping):
+        """Translates characters of the string using `mapping`.
+
+        Examples
+        --------
+        >>> string = hl.literal('ATTTGCA')
+        >>> hl.eval(string.translate({'T': 'U'}))
+        'AUUUGCA'
+
+        Parameters
+        ----------
+        mapping : :class:`.DictExpression`
+            Dictionary of character-character translations.
+
+        Returns
+        -------
+        :class:`.StringExpression`
+
+        See Also
+        --------
+        :meth:`.replace`
+        """
+        return self._method('translate', tstr, mapping)
+
+    @typecheck_method(regex=expr_str)
     def matches(self, regex):
         """Returns ``True`` if the string contains any match for the given regex.
 
@@ -2520,7 +2688,7 @@ class StringExpression(Expression):
 
         Parameters
         ----------
-        regex: :obj:`str`
+        regex: :class:`.StringExpression`
             Pattern to match.
 
         Returns
@@ -2528,7 +2696,38 @@ class StringExpression(Expression):
         :class:`.BooleanExpression`
             ``True`` if the string contains any match for the regex, otherwise ``False``.
         """
-        return to_expr(regex, tstr)._method("~", tbool, self)
+        return regex._method("~", tbool, self)
+
+    def reverse(self):
+        """Returns the reversed value.
+        Examples
+        --------
+
+        >>> string = hl.literal('ATGCC')
+        >>> hl.eval(string.reverse())
+        'CCGTA'
+
+        Returns
+        -------
+        :class:`.StringExpression`
+        """
+        return self._method('reverse', tstr)
+
+    def _extra_summary_fields(self, agg_result):
+        return {
+            'Min Size': agg_result[0],
+            'Max Size': agg_result[1],
+            'Mean Size': agg_result[2],
+            'Sample Values': agg_result[3],
+        }
+
+    def _summary_aggs(self):
+        length = hl.len(self)
+        return hl.tuple((
+            hl.agg.min(length),
+            hl.agg.max(length),
+            hl.agg.mean(length),
+            hl.agg.filter(hl.is_defined(self), hl.agg.take(self, 5))))
 
 
 class CallExpression(Expression):
@@ -2768,13 +2967,19 @@ class CallExpression(Expression):
         """
         return self._method("nNonRefAlleles", tint32)
 
-    @typecheck_method(alleles=expr_array(expr_str))
+    @typecheck_method(alleles=oneof(expr_array(expr_str), expr_int32))
     def one_hot_alleles(self, alleles):
         """Returns an array containing the summed one-hot encoding of the
         alleles.
 
         Examples
         --------
+        Compute one-hot encoding when number of total alleles is 2.
+
+        >>> hl.eval(call.one_hot_alleles(2))
+        [1, 1]
+
+        **DEPRECATED**: Compute one-hot encoding based on length of list of alleles.
 
         >>> hl.eval(call.one_hot_alleles(['A', 'T']))
         [1, 1]
@@ -2788,15 +2993,21 @@ class CallExpression(Expression):
 
         Parameters
         ----------
-        alleles: :class:`.ArrayStringExpression`
-            Variant alleles.
+        alleles: :class:`.Int32Expression` or :class:`.ArrayStringExpression`.
+            Number of total alleles, including the reference, or array of variant alleles.
 
         Returns
         -------
         :class:`.ArrayInt32Expression`
             An array of summed one-hot encodings of allele indices.
         """
-        return self._method("oneHotAlleles", tarray(tint32), hl.len(alleles))
+
+        if isinstance(alleles, Int32Expression):
+            n_alleles = alleles
+        else:
+            n_alleles = hl.len(alleles)
+
+        return self._method("oneHotAlleles", tarray(tint32), n_alleles)
 
     def unphased_diploid_gt_index(self):
         """Return the genotype index for unphased, diploid calls.
@@ -2812,6 +3023,23 @@ class CallExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
         """
         return self._method("unphasedDiploidGtIndex", tint32)
+
+    def _extra_summary_fields(self, agg_result):
+        return {
+            'Homozygous Reference': agg_result[0],
+            'Heterozygous': agg_result[1],
+            'Homozygous Variant': agg_result[2],
+            'Ploidy': agg_result[3],
+            'Phased': agg_result[4]
+        }
+
+    def _summary_aggs(self):
+        return hl.tuple((
+            hl.agg.count_where(self.is_hom_ref()),
+            hl.agg.count_where(self.is_het()),
+            hl.agg.count_where(self.is_hom_var()),
+            hl.agg.filter(hl.is_defined(self), hl.agg.counter(self.ploidy)),
+            hl.agg.filter(hl.is_defined(self), hl.agg.counter(self.phased))))
 
 
 class LocusExpression(Expression):
@@ -3058,6 +3286,49 @@ class LocusExpression(Expression):
             raise TypeError("Reference genome '{}' does not have a sequence loaded. Use 'add_sequence' to load the sequence from a FASTA file.".format(rg.name))
         return hl.get_sequence(self.contig, self.position, before, after, rg)
 
+    @typecheck_method(before=expr_int32, after=expr_int32)
+    def window(self, before, after):
+        """Returns an interval of a specified number of bases around the locus.
+
+        Examples
+        --------
+        Create a window of two megabases centered at a locus:
+
+        >>> locus = hl.locus('16', 29_500_000)
+        >>> window = locus.window(1_000_000, 1_000_000)
+        >>> hl.eval(window)
+        Interval(start=Locus(contig=16, position=28500000, reference_genome=GRCh37), end=Locus(contig=16, position=30500000, reference_genome=GRCh37), includes_start=True, includes_end=True)
+
+        Notes
+        -----
+        The returned interval is inclusive of both the `start` and `end`
+        endpoints.
+
+        Parameters
+        ----------
+        before : :class:`.Expression` of type :py:data:`.tint32`
+            Number of bases to include before the locus. Truncates at 1.
+        after : :class:`.Expression` of type :py:data:`.tint32`
+            Number of bases to include after the locus. Truncates at
+            contig length.
+
+        Returns
+        -------
+        :class:`.IntervalExpression`
+        """
+        start_pos = hl.max(1, self.position - before)
+        end_pos = hl.min(hl.contig_length(self.contig, self.dtype.reference_genome), self.position + after)
+        return hl.interval(start=hl.locus(self.contig, start_pos),
+                           end=hl.locus(self.contig, end_pos),
+                           includes_start=True,
+                           includes_end=True)
+
+    def _extra_summary_fields(self, agg_result):
+        return {'Contig Counts': agg_result}
+
+    def _summary_aggs(self):
+        return hl.agg.filter(hl.is_defined(self), hl.agg.counter(self.contig))
+
 
 class IntervalExpression(Expression):
     """Expression of type :class:`.tinterval`.
@@ -3187,7 +3458,7 @@ class IntervalExpression(Expression):
 class NDArrayExpression(Expression):
     """Expression of type :class:`.tndarray`.
 
-    >>> nd = hl._ndarray([[1, 2], [3, 4]])
+    >>> nd = hl._nd.array([[1, 2], [3, 4]])
     """
 
     @property
@@ -3222,8 +3493,9 @@ class NDArrayExpression(Expression):
 
     @typecheck_method(axes=nullable(tupleof(int)))
     def transpose(self, axes=None):
-        """Permute the dimensions of this ndarray according to the ordering of `axes`. Axis `j` in the `i`th index of
-        `axes` maps the `j`th dimension of the ndarray to the `i`th dimension of the output ndarray.
+        """
+        Permute the dimensions of this ndarray according to the ordering of axes. Axis j in the ith index of
+        axes maps the jth dimension of the ndarray to the ith dimension of the output ndarray.
 
         Parameters
         ----------
@@ -3242,7 +3514,7 @@ class NDArrayExpression(Expression):
             axes = list(reversed(range(self.ndim)))
         else:
             if len(axes) != self.ndim:
-                raise ValueError(f'Must specify a complete permutation of the dimensions.'
+                raise ValueError(f'Must specify a complete permutation of the dimensions. '
                                  f'Expected {self.ndim} axes, got {len(axes)}')
 
             if len(set(axes)) != len(axes):
@@ -3273,9 +3545,9 @@ class NDArrayExpression(Expression):
         shape_type = ttuple(*[tint64 for _ in range(self.ndim)])
         return construct_expr(NDArrayShape(self._ir), shape_type, self._indices, self._aggregations)
 
-    opt_long_slice_ = sliceof(nullable(expr_int64), nullable(expr_int64), nullable(expr_int64))
+    _opt_long_slice = sliceof(nullable(expr_int64), nullable(expr_int64), nullable(expr_int64))
 
-    @typecheck_method(item=oneof(expr_int64, opt_long_slice_, tupleof(oneof(expr_int64, opt_long_slice_))))
+    @typecheck_method(item=oneof(expr_int64, _opt_long_slice, tupleof(oneof(expr_int64, _opt_long_slice))))
     def __getitem__(self, item):
         if not isinstance(item, tuple):
             item = (item,)
@@ -3289,9 +3561,9 @@ class NDArrayExpression(Expression):
             slices = []
             for i, s in enumerate(item):
                 if isinstance(s, slice):
-                    start = s.start if s.start is not None else to_expr(0, tint64)
-                    stop = s.stop if s.stop is not None else self.shape[i]
-                    step = s.step if s.step is not None else to_expr(1, tint64)
+                    step = hl.case().when(s.step != 0, s.step).or_error("Slice step cannot be zero") if s.step is not None else to_expr(1, tint64)
+                    start = hl.cond(s.start >= 0, s.start, self.shape[i] + s.start) if s.start is not None else hl.cond(step >= 0, to_expr(0, tint64), self.shape[i] - 1)
+                    stop = hl.cond(s.stop >= 0, s.stop, self.shape[i] + s.stop) if s.stop is not None else hl.cond(step >= 0, self.shape[i], to_expr(-1, tint64))
                     slices.append(hl.tuple((start, stop, step)))
                 else:
                     slices.append(s)
@@ -3302,7 +3574,7 @@ class NDArrayExpression(Expression):
 
         return construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in item]), self._type.element_type)
 
-    @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64)))
+    @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()))
     def reshape(self, shape):
         """Reshape this ndarray to a new shape.
 
@@ -3314,22 +3586,23 @@ class NDArrayExpression(Expression):
         Examples
         --------
 
-        >>> v = hl._ndarray([1, 2, 3, 4]) # doctest: +SKIP
+        >>> v = hl._nd.array([1, 2, 3, 4]) # doctest: +SKIP
         >>> m = v.reshape((2, 2)) # doctest: +SKIP
 
         Returns
         -------
         :class:`.NDArrayExpression`.
         """
-        shape = wrap_to_list(shape)
-        if len(shape) == 0:
-            if self.ndim == 0:
-                return self
-            else:
-                raise FatalError(f'Cannot reshape an NDArray of {self.ndim} dimensions to 0 dimensions.')
+        if isinstance(shape, TupleExpression):
+            shape_ir = hl.or_missing(hl.is_defined(shape), hl.tuple([hl.int64(i) for i in shape]))._ir
+            ndim = len(shape)
+        else:
+            wrapped_shape = wrap_to_list(shape)
+            ndim = len(wrapped_shape)
+            shape_ir = hl.tuple(wrapped_shape)._ir
 
-        return construct_expr(NDArrayReshape(self._ir, hl.tuple(shape)._ir),
-                              tndarray(self._type.element_type, len(shape)),
+        return construct_expr(NDArrayReshape(self._ir, shape_ir),
+                              tndarray(self._type.element_type, ndim),
                               self._indices,
                               self._aggregations)
 
@@ -3394,14 +3667,14 @@ class NDArrayNumericExpression(NDArrayExpression):
 
     def _bin_op_numeric(self, name, other, ret_type_f=None):
         if isinstance(other, list) or isinstance(other, np.ndarray):
-            other = hl._ndarray(other)
+            other = hl._nd.array(other)
 
         self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
         return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric(name, other_broadcast, ret_type_f)
 
     def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
         if isinstance(other, list) or isinstance(other, np.ndarray):
-            other = hl._ndarray(other)
+            other = hl._nd.array(other)
 
         self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
         return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric_reverse(name, other_broadcast, ret_type_f)
@@ -3504,6 +3777,11 @@ class NDArrayNumericExpression(NDArrayExpression):
     def __rfloordiv__(self, other):
         return self._bin_op_numeric_reverse('//', other)
 
+    def __rmatmul__(self, other):
+        if not isinstance(other, NDArrayNumericExpression):
+            other = hl._nd.array(other)
+        return other.__matmul__(self)
+
     def __matmul__(self, other):
         """Matrix multiplication: `a @ b`, semantically equivalent to `NumPy` matmul. If `a` and `b` are vectors,
         the vector dot product is performed, returning a `NumericExpression`. If `a` and `b` are both 2-dimensional
@@ -3529,7 +3807,7 @@ class NDArrayNumericExpression(NDArrayExpression):
         :class:`.NDArrayNumericExpression` or :class:`.NumericExpression`
         """
         if not isinstance(other, NDArrayNumericExpression):
-            other = hl._ndarray(other)
+            other = hl._nd.array(other)
 
         if self.ndim == 0 or other.ndim == 0:
             raise ValueError('MatMul must be between objects of 1 dimension or more. Try * instead')
@@ -3549,76 +3827,6 @@ class NDArrayNumericExpression(NDArrayExpression):
         res = construct_expr(NDArrayMatMul(left._ir, right._ir), ret_type, self._indices, self._aggregations)
 
         return res if result_ndim > 0 else res[()]
-
-    @typecheck_method(axis=nullable(oneof(int, sequenceof(int))))
-    def sum(self, axis=None):
-        """Sum along one or more dimensions of the ndarray. If no axes are given, the entire NDArray will
-        be summed to a single `NumericExpression`.
-
-        Parameters
-        ----------
-        axis : :obj: `int` or :obj: `list` of :obj: `int:, optional
-
-        Returns
-        -------
-        :class:`.NDArrayNumericExpression`
-        """
-        if axis is None:
-            axes = list(range(self.ndim))
-        else:
-            axes = wrap_to_list(axis)
-
-        for axis in axes:
-            if not 0 <= axis <= self.ndim:
-                raise ValueError(f'Invalid axis {axis}. Axis must be between 0 and {self.ndim}.')
-
-        if len(set(axes)) != len(axes):
-            raise ValueError(f'Axes should not be repeated: {axes}')
-
-        return construct_expr(NDArrayAgg(self._ir, axes),
-                              tndarray(self._type.element_type, self.ndim - len(axes)),
-                              self._indices,
-                              self._aggregations)
-
-    @typecheck_method(uri=str)
-    def save(self, uri):
-        """Write out the NDArray to the given path as in .npy format. If the URI does not
-        end with ".npy" the file extension will be appended. This method reflects the numpy
-        `save` method. NDArrays saved with this method can be loaded into numpy using numpy
-        `load`.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> nd.save('file://local/file') # doctest: +SKIP
-        >>> np.load('/local/file.npy') # doctest: +SKIP
-        array([[1, 2],
-               [3, 4]], dtype=int32)
-
-        Parameters
-        ----------
-        uri : :obj: `str`
-        """
-        if not uri.endswith('.npy'):
-            uri += '.npy'
-
-        Env.backend().execute(NDArrayWrite(self._ir, hl.str(uri)._ir))
-
-    def to_numpy(self):
-        """Execute and convert this NDArray to a `NumPy` ndarray.
-
-        Examples
-        --------
-        >>> a = nd.to_numpy() # doctest: +SKIP
-
-        Returns
-        -------
-        :class:`numpy.ndarray`
-        """
-        # FIXME Use filesystem abstraction instead when that is ready
-        temp_file = tempfile.NamedTemporaryFile(suffix='.npy').name
-        self.save(temp_file)
-        return np.load(temp_file)
 
 
 scalars = {tbool: BooleanExpression,

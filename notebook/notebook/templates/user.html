@@ -1,0 +1,15 @@
+{% extends "layout.html" %}
+{% block title %}User{% endblock %}
+{% block content %}
+  <div id="profile" class="vcentered">
+    <h1>{{ userdata['username'] }}</h1>
+    <h2>Google Data</h2>
+    <p>
+      <b>Bucket: </b>
+      <a href="https://console.cloud.google.com/storage/browser/{{ userdata['bucket_name'] }}" target='_blank'>
+        {{ userdata['bucket_name'] }}<i class="material-icons text-icon">open_in_new</i>
+      </a>
+    </p>
+    <p><b>Service Account: </b>{{ userdata['gsa_email'] }}</p>
+  </div>
+{% endblock %}

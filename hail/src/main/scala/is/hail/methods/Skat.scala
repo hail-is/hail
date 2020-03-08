@@ -4,7 +4,7 @@ import is.hail.utils._
 import is.hail.expr.types._
 import is.hail.nativecode.NativeCode
 import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD}
-import is.hail.annotations.{Annotation, BroadcastRow, UnsafeRow}
+import is.hail.annotations.{Annotation, BroadcastRow, Region, UnsafeRow}
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, _}
 import breeze.numerics._
 import org.apache.spark.rdd.RDD
@@ -174,11 +174,11 @@ case class Skat(
     val keyType = childType.rowType.fieldType(keyField)
     val skatSchema = TStruct(
       ("id", keyType),
-      ("size", TInt32()),
-      ("q_stat", TFloat64()),
-      ("p_value", TFloat64()),
-      ("fault", TInt32()))
-    TableType(skatSchema, FastIndexedSeq("id"), TStruct())
+      ("size", TInt32),
+      ("q_stat", TFloat64),
+      ("p_value", TFloat64),
+      ("fault", TInt32))
+    TableType(skatSchema, FastIndexedSeq("id"), TStruct.empty)
   }
 
   def preservesPartitionCounts: Boolean = false
@@ -314,8 +314,7 @@ case class Skat(
     val skatRdd = if (logistic) logisticSkat() else linearSkat()
 
     val tableType = typ(mv.typ)
-
-    TableValue(tableType, BroadcastRow.empty(ctx), skatRdd)
+    TableValue(ctx, tableType.rowType, tableType.key, skatRdd)
   }
 
   def computeKeyGsWeightRdd(mv: MatrixValue,
@@ -332,13 +331,13 @@ case class Skat(
 
     val weightStructField = fullRowType.field(weightField)
     val weightIndex = weightStructField.index
-    assert(weightStructField.typ.virtualType.isOfType(TFloat64()))
+    assert(weightStructField.typ.virtualType == TFloat64)
 
     val entryArrayType = mv.entryArrayPType
     val entryType = mv.entryPType
     val fieldType = entryType.field(xField).typ
 
-    assert(fieldType.virtualType.isOfType(TFloat64()))
+    assert(fieldType.virtualType == TFloat64)
 
     val entryArrayIdx = mv.entriesIdx
     val fieldIdx = entryType.fieldIdx(xField)    
@@ -347,14 +346,14 @@ case class Skat(
     val completeColIdxBc = HailContext.backend.broadcast(completeColIdx)
 
     (mv.rvd.boundary.mapPartitions { it => it.flatMap { rv =>
-      val keyIsDefined = fullRowType.isFieldDefined(rv, keyIndex)
-      val weightIsDefined = fullRowType.isFieldDefined(rv, weightIndex)
+      val keyIsDefined = fullRowType.isFieldDefined(rv.offset, keyIndex)
+      val weightIsDefined = fullRowType.isFieldDefined(rv.offset, weightIndex)
 
       if (keyIsDefined && weightIsDefined) {
-        val weight = rv.region.loadDouble(fullRowType.loadField(rv, weightIndex))
+        val weight = Region.loadDouble(fullRowType.loadField(rv.offset, weightIndex))
         if (weight < 0)
           fatal(s"Row weights must be non-negative, got $weight")
-        val key = Annotation.copy(keyType.virtualType, UnsafeRow.read(keyType, rv.region, fullRowType.loadField(rv, keyIndex)))
+        val key = Annotation.copy(keyType.virtualType, UnsafeRow.read(keyType, rv.region, fullRowType.loadField(rv.offset, keyIndex)))
         val data = new Array[Double](n)
 
         RegressionUtils.setMeanImputedDoubles(data, 0, completeColIdxBc.value, new ArrayBuilder[Int](),

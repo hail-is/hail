@@ -2,9 +2,9 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitTriplet}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitCode}
 import is.hail.expr.types.physical._
-import is.hail.io.{BufferSpec, CodecSpec, InputBuffer, OutputBuffer, PackCodecSpec2}
+import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.stats.CallStats
 import is.hail.utils._
 
@@ -53,28 +53,28 @@ class CallStatsState(val fb: EmitFunctionBuilder[_]) extends PointerBasedRVAStat
   )
 
   def alleleCountAtIndex(idx: Code[Int], length: Code[Int]): Code[Int] =
-    Region.loadInt(CallStatsState.callStatsInternalArrayType.loadElement(region, alleleCounts, length, idx))
+    Region.loadInt(CallStatsState.callStatsInternalArrayType.loadElement(alleleCounts, length, idx))
 
   def updateAlleleCountAtIndex(idx: Code[Int], length: Code[Int], updater: Code[Int] => Code[Int]): Code[Unit] = Code(
-    addr := CallStatsState.callStatsInternalArrayType.loadElement(region, alleleCounts, length, idx),
+    addr := CallStatsState.callStatsInternalArrayType.loadElement(alleleCounts, length, idx),
     Region.storeInt(addr, updater(Region.loadInt(addr)))
   )
 
   def homCountAtIndex(idx: Code[Int], length: Code[Int]): Code[Int] =
-    Region.loadInt(CallStatsState.callStatsInternalArrayType.loadElement(region, homCounts, length, idx))
+    Region.loadInt(CallStatsState.callStatsInternalArrayType.loadElement(homCounts, length, idx))
 
 
   def updateHomCountAtIndex(idx: Code[Int], length: Code[Int], updater: Code[Int] => Code[Int]): Code[Unit] = Code(
-    addr := CallStatsState.callStatsInternalArrayType.loadElement(region, homCounts, length, idx),
+    addr := CallStatsState.callStatsInternalArrayType.loadElement(homCounts, length, idx),
     Region.storeInt(addr, updater(Region.loadInt(addr)))
   )
 
   def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
-    PackCodecSpec2(CallStatsState.stateType, codec).buildEmitEncoderF[Long](CallStatsState.stateType, fb)(region, off, _)
+    TypedCodecSpec(CallStatsState.stateType, codec).buildEmitEncoderF[Long](CallStatsState.stateType, fb)(region, off, _)
   }
 
   def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
-    val (decType, dec) = PackCodecSpec2(CallStatsState.stateType, codec)
+    val (decType, dec) = TypedCodecSpec(CallStatsState.stateType, codec)
       .buildEmitDecoderF[Long](CallStatsState.stateType.virtualType, fb)
     assert(decType == CallStatsState.stateType)
 
@@ -87,7 +87,7 @@ class CallStatsState(val fb: EmitFunctionBuilder[_]) extends PointerBasedRVAStat
 
   def copyFromAddress(src: Code[Long]): Code[Unit] = {
     Code(
-      off := StagedRegionValueBuilder.deepCopy(fb, region, CallStatsState.stateType, src),
+      off := StagedRegionValueBuilder.deepCopyFromOffset(fb, region, CallStatsState.stateType, src),
       loadNAlleles
     )
   }
@@ -101,7 +101,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
 
   def createState(fb: EmitFunctionBuilder[_]): State = new CallStatsState(fb)
 
-  def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
+  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     val Array(nAlleles) = init
     val addr = state.fb.newField[Long]
     val n = state.fb.newField[Int]
@@ -110,7 +110,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
       nAlleles.setup,
       nAlleles.m.mux(
         Code._fatal("call_stats: n_alleles may not be missing"),
-        Code(
+        Code(FastIndexedSeq(
           n := coerce[Int](nAlleles.v),
           state.nAlleles := n,
           state.off := state.region.allocate(CallStatsState.stateType.alignment, CallStatsState.stateType.byteSize),
@@ -127,10 +127,10 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
             i := i + 1)
         )
       )
-    ).asInstanceOf[Code[Unit]]
+    ))
   }
 
-  def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
+  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     val Array(call) = seq
     val hom = state.fb.newField[Boolean]
     val lastAllele = state.fb.newField[Int]

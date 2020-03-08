@@ -1,4 +1,4 @@
-apiVersion: scheduling.k8s.io/v1beta1
+apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
   name: infrastructure
@@ -6,7 +6,7 @@ value: 1000000
 globalDefault: false
 description: "For infrastructure like gateway."
 ---
-apiVersion: scheduling.k8s.io/v1beta1
+apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
   name: production
@@ -14,7 +14,7 @@ value: 900000
 globalDefault: false
 description: "For production services like apiserver, batch, etc."
 ---
-apiVersion: scheduling.k8s.io/v1beta1
+apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
   name: user
@@ -22,7 +22,7 @@ value: 500000
 globalDefault: true
 description: "For user activities like user batch jobs."
 ---
-apiVersion: scheduling.k8s.io/v1beta1
+apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
   name: test

@@ -18,6 +18,10 @@ from .tidyr import gather, separate, spread
 from .codec import encode, decode
 from .db import DB
 from .compile import compile_comparison_binary, compiled_compare
+from .sparse_mt_utils import lgt_to_gt
+from .loop import loop
+from .time import strftime, strptime
+from .pca import pc_project
 
 __all__ = ['ld_score',
            'ld_score_regression',
@@ -49,4 +53,9 @@ __all__ = ['ld_score',
            'DB',
            'decode',
            'compile_comparison_binary',
-           'compiled_compare']
+           'compiled_compare',
+           'lgt_to_gt',
+           'loop',
+           'strptime',
+           'strftime',
+           'pc_project']

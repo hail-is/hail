@@ -31,6 +31,10 @@ object Children {
       Array(value, body)
     case AggLet(name, value, body, _) =>
       Array(value, body)
+    case TailLoop(_, args, body) =>
+      args.map(_._2).toFastIndexedSeq :+ body
+    case Recur(_, args, _) =>
+      args.toFastIndexedSeq
     case Ref(name, typ) =>
       none
     case RelationalRef(_, _) =>
@@ -45,20 +49,22 @@ object Children {
       args.toFastIndexedSeq
     case MakeStream(args, typ) =>
       args.toFastIndexedSeq
-    case ArrayRef(a, i) =>
-      Array(a, i)
+    case ArrayRef(a, i, s) =>
+      Array(a, i, s)
     case ArrayLen(a) =>
       Array(a)
-    case ArrayRange(start, stop, step) =>
-      Array(start, stop, step)
     case StreamRange(start, stop, step) =>
       Array(start, stop, step)
+    case ArrayZeros(length) =>
+      Array(length)
     case MakeNDArray(data, shape, rowMajor) =>
       Array(data, shape, rowMajor)
     case NDArrayShape(nd) =>
       Array(nd)
     case NDArrayReshape(nd, shape) =>
       Array(nd, shape)
+    case NDArrayConcat(nds, _) =>
+      Array(nds)
     case ArraySort(a, _, _, compare) =>
       Array(a, compare)
     case ToSet(a) =>
@@ -67,34 +73,46 @@ object Children {
       Array(a)
     case ToArray(a) =>
       Array(a)
+    case CastToArray(a) =>
+      Array(a)
     case ToStream(a) =>
       Array(a)
     case LowerBoundOnOrderedCollection(orderedCollection, elem, _) =>
       Array(orderedCollection, elem)
     case GroupByKey(collection) =>
       Array(collection)
-    case ArrayMap(a, name, body) =>
+    case StreamMap(a, name, body) =>
       Array(a, body)
-    case ArrayFilter(a, name, cond) =>
+    case StreamZip(as, names, body, _) =>
+      as ++ Array(body)
+    case StreamFilter(a, name, cond) =>
       Array(a, cond)
-    case ArrayFlatMap(a, name, body) =>
+    case StreamFlatMap(a, name, body) =>
       Array(a, body)
-    case ArrayFold(a, zero, accumName, valueName, body) =>
+    case StreamFold(a, zero, accumName, valueName, body) =>
       Array(a, zero, body)
-    case ArrayScan(a, zero, accumName, valueName, body) =>
+    case StreamFold2(a, accum, valueName, seq, result) =>
+      Array(a) ++ accum.map(_._2) ++ seq ++ Array(result)
+    case StreamScan(a, zero, accumName, valueName, body) =>
       Array(a, zero, body)
-    case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
+    case StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
       Array(left, right, compare, join)
-    case ArrayFor(a, valueName, body) =>
+    case StreamFor(a, valueName, body) =>
       Array(a, body)
-    case ArrayAgg(a, name, query) =>
+    case StreamAgg(a, name, query) =>
       Array(a, query)
-    case ArrayAggScan(a, name, query) =>
+    case StreamAggScan(a, name, query) =>
       Array(a, query)
+    case RunAggScan(array, _, init, seq, result, _) =>
+      Array(array, init, seq, result)
+    case RunAgg(body, result, _) =>
+      Array(body, result)
     case NDArrayRef(nd, idxs) =>
       nd +: idxs
     case NDArraySlice(nd, slices) =>
       Array(nd, slices)
+    case NDArrayFilter(nd, keep) =>
+      nd +: keep
     case NDArrayMap(nd, _, body) =>
       Array(nd, body)
     case NDArrayMap2(l, r, _, _, body) =>
@@ -105,6 +123,8 @@ object Children {
       Array(nd)
     case NDArrayMatMul(l, r) =>
       Array(l, r)
+    case NDArrayQR(nd, _) =>
+      Array(nd)
     case NDArrayWrite(nd, path) =>
       Array(nd, path)
     case AggFilter(cond, aggIR, _) =>
@@ -120,22 +140,20 @@ object Children {
       Array(old)
     case InsertFields(old, fields, _) =>
       (old +: fields.map(_._2)).toFastIndexedSeq
-    case InitOp(i, args, aggSig) =>
-      i +: args
-    case SeqOp(i, args, _) =>
-      i +: args
-    case InitOp2(_, args, _) => args
-    case SeqOp2(_, args, _) => args
-    case _: ResultOp2 => none
-    case _: CombOp2 => none
+    case InitOp(_, args, _, _) => args
+    case SeqOp(_, args, _, _) => args
+    case _: ResultOp => none
+    case _: AggStateValue => none
+    case _: CombOp => none
+    case CombOpValue(_, value, _) => Array(value)
     case SerializeAggs(_, _, _, _) => none
     case DeserializeAggs(_, _, _, _) => none
     case Begin(xs) =>
       xs
-    case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
-      constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
-    case ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
-      constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
+    case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
+      initOpArgs ++ seqOpArgs
+    case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
+      initOpArgs ++ seqOpArgs
     case GetField(o, name) =>
       Array(o)
     case MakeTuple(fields) =>
@@ -154,13 +172,12 @@ object Children {
       args.toFastIndexedSeq
     case ApplySpecial(_, args, _) =>
       args.toFastIndexedSeq
-    case Uniroot(_, fn, min, max) =>
-      Array(fn, min, max)
     // from MatrixIR
     case MatrixWrite(child, _) => Array(child)
     case MatrixMultiWrite(children, _) => children
     // from TableIR
     case TableCount(child) => Array(child)
+    case MatrixCount(child) => Array(child)
     case TableGetGlobals(child) => Array(child)
     case TableCollect(child) => Array(child)
     case TableAggregate(child, query) => Array(child, query)
@@ -171,9 +188,14 @@ object Children {
     case MatrixToValueApply(child, _) => Array(child)
     // from BlockMatrixIR
     case BlockMatrixToValueApply(child, _) => Array(child)
+    case BlockMatrixCollect(child) => Array(child)
     case BlockMatrixWrite(child, _) => Array(child)
+    case UnpersistBlockMatrix(child) => Array(child)
     case BlockMatrixMultiWrite(blockMatrices, _) => blockMatrices
     case CollectDistributedArray(ctxs, globals, _, _, body) => Array(ctxs, globals, body)
     case ReadPartition(path, _, _) => Array(path)
+    case ReadValue(path, _, _) => Array(path)
+    case WriteValue(value, pathPrefix, spec) => Array(value, pathPrefix)
+    case LiftMeOut(child) => Array(child)
   }
 }

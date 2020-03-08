@@ -6,24 +6,24 @@ object BufferedAggregatorIterator {
   val loadFactor: Float = 0.75f
 }
 
-class BufferedAggregatorIterator[T, U, K](
+class BufferedAggregatorIterator[T, V, U, K](
   it: Iterator[T],
-  makeComb: () => U,
+  makeComb: () => V,
   makeKey: T => K,
-  sequence: (T, U) => Unit,
+  sequence: (T, V) => Unit,
+  serializeAndCleanup: V => U,
   bufferSize: Int
 ) extends Iterator[(K, U)] {
 
   private val fb = it.toFlipbookIterator
-  private var popped: util.Map.Entry[K, U] = _
-  private var remainder: Iterator[(K, U)] = Iterator.empty
+  private var popped: util.Map.Entry[K, V] = _
 
   // TODO: use a heavy hitters buffer here
-  private val buffer = new util.LinkedHashMap[K, U](
+  private val buffer = new util.LinkedHashMap[K, V](
     (bufferSize / BufferedAggregatorIterator.loadFactor).toInt + 1,
     BufferedAggregatorIterator.loadFactor,
     true) {
-    override def removeEldestEntry(eldest: util.Map.Entry[K, U]): Boolean = {
+    override def removeEldestEntry(eldest: util.Map.Entry[K, V]): Boolean = {
       if (size() > bufferSize) {
         popped = eldest
         true
@@ -52,12 +52,12 @@ class BufferedAggregatorIterator[T, U, K](
         if (popped != null) {
           val cp = popped
           popped = null
-          return cp.getKey -> cp.getValue
+          return cp.getKey -> serializeAndCleanup(cp.getValue)
         }
       }
     }
     val next = buffer.entrySet().iterator().next()
     buffer.remove(next.getKey)
-    next.getKey -> next.getValue
+    next.getKey -> serializeAndCleanup(next.getValue)
   }
 }

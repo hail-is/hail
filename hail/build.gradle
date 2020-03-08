@@ -100,6 +100,7 @@ task releaseJar(type: Exec) {
 
 compileScala {
     scalaCompileOptions.additionalParameters = [
+        "-target:jvm-1.8",
         "-feature",
         "-Xno-patmat-analysis",
         "-Xfatal-warnings",
@@ -147,7 +148,7 @@ dependencies {
         transitive = false
     }
     bundled 'com.github.fommil.netlib:all:1.1.2'
-    bundled('com.github.samtools:htsjdk:2.18.0') {
+    bundled('com.github.samtools:htsjdk:2.21.0') {
         transitive = false
     }
 

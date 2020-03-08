@@ -1,48 +1,29 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.{UnsafeUtils, _}
+import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TDict
-import is.hail.utils._
-import org.json4s.jackson.JsonMethods
 
-import scala.reflect.{ClassTag, _}
+object PDict {
+  def apply(keyType: PType, valueType: PType, required: Boolean = false) = PCanonicalDict(keyType, valueType, required)
+}
 
-final case class PDict(keyType: PType, valueType: PType, override val required: Boolean = false) extends PContainer {
-  lazy val virtualType: TDict = TDict(keyType.virtualType, valueType.virtualType, required)
+abstract class PDict extends PContainer {
+  lazy val virtualType: TDict = TDict(keyType.virtualType, valueType.virtualType)
 
-  val elementType: PStruct = PStruct(required = true, "key" -> keyType, "value" -> valueType)
+  val keyType: PType
+  val valueType: PType
 
-  val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
+  def elementType: PStruct
 
-  val contentsAlignment: Long = elementType.alignment.max(4)
-
-  override val fundamentalType: PArray = PArray(elementType.fundamentalType, required)
-
-  def _toPretty = s"Dict[$keyType, $valueType]"
-
-  override def pyString(sb: StringBuilder): Unit = {
-    sb.append("dict<")
-    keyType.pyString(sb)
-    sb.append(", ")
-    valueType.pyString(sb)
-    sb.append('>')
-  }
-
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-    sb.append("Dict[")
-    keyType.pretty(sb, indent, compact)
-    if (compact)
-      sb += ','
-    else
-      sb.append(", ")
-    valueType.pretty(sb, indent, compact)
-    sb.append("]")
-  }
+  def arrayFundamentalType: PArray = fundamentalType.asInstanceOf[PArray]
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
     CodeOrdering.mapOrdering(this, other.asInstanceOf[PDict], mb)
   }
+
+  override def genNonmissingValue: Gen[Annotation] =
+    Gen.buildableOf2[Map](Gen.zip(keyType.genValue, valueType.genValue))
 }

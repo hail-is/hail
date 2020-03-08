@@ -9,10 +9,10 @@ import scala.annotation.switch
 
 object CallStats {
   def schema = TStruct(
-    "AC" -> TArray(TInt32()),
-    "AF" -> TArray(TFloat64()),
-    "AN" -> TInt32(),
-    "homozygote_count" -> TArray(TInt32()))
+    "AC" -> TArray(TInt32),
+    "AF" -> TArray(TFloat64),
+    "AN" -> TInt32,
+    "homozygote_count" -> TArray(TInt32))
 }
 
 case class CallStats(alleleCount: IndexedSeq[Int], alleleFrequency: Option[IndexedSeq[Double]], alleleNumber: Int,

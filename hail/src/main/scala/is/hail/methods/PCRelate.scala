@@ -33,12 +33,12 @@ object PCRelate {
   val defaultStorageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK
 
   private val sig = TStruct(
-      ("i", TInt32()),
-      ("j", TInt32()),
-      ("kin", TFloat64()),
-      ("ibd0", TFloat64()),
-      ("ibd1", TFloat64()),
-      ("ibd2", TFloat64()))
+      ("i", TInt32),
+      ("j", TInt32),
+      ("kin", TFloat64),
+      ("ibd0", TFloat64),
+      ("ibd1", TFloat64),
+      ("ibd2", TFloat64))
 
   private val keys: IndexedSeq[String] = Array("i", "j")
 
@@ -129,6 +129,7 @@ case class PCRelate(
   minKinship: Option[Double] = None,
   statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset)
   extends BlockMatrixToTableFunction with Serializable {
+  @transient private[this] val hc = HailContext.get
 
   import PCRelate._
 
@@ -138,13 +139,12 @@ case class PCRelate(
   def storageLevel: StorageLevel = PCRelate.defaultStorageLevel
 
   def typ(bmType: BlockMatrixType, auxType: Type): TableType =
-    TableType(sig, keys, TStruct())
+    TableType(sig, keys, TStruct.empty)
 
   def execute(ctx: ExecuteContext, g: M, value: Any): TableValue = {
-    val hc = HailContext.get
     val pcs = rowsToBDM(value.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Double]]])
     assert(pcs.rows == g.nCols)
-    val r = computeResult(hc, g, pcs)
+    val r = computeResult(g, pcs)
     val rdd = PCRelate.toRowRdd(r, blockSize, minKinship, statistics)
     TableValue(ctx, sig, keys, rdd)
   }
@@ -155,29 +155,34 @@ case class PCRelate(
   def badgt(gt: Double): Boolean =
     gt != 0.0 && gt != 1.0 && gt != 2.0
 
+  private def writeRead(m: M): M = {
+    val file = hc.getTemporaryFile(suffix=Some("bm"))
+    m.write(hc.sFS, file)
+    BlockMatrix.read(hc, file)
+  }
+
   private def gram(m: M): M = {
-    val mc = m.persist(storageLevel)
-    mc.T.dot(mc)
+    val pm = m.cache()
+    writeRead(pm.T.dot(pm))
   }
 
   private[this] def cacheWhen(statisticsLevel: StatisticSubset)(m: M): M =
-    if (statistics >= statisticsLevel) m.persist(storageLevel) else m
+    if (statistics >= statisticsLevel) writeRead(m) else m
 
-  def computeResult(hc: HailContext, blockedG: M, pcs: BDM[Double]): Result[M] = {
+  def computeResult(_blockedG: M, pcs: BDM[Double]): Result[M] = {
+    val blockedG = _blockedG.cache()
     val preMu = this.mu(blockedG, pcs)
     val mu = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         Double.NaN
       else
         mu
-    } (blockedG, preMu).persist(storageLevel)
+    } (blockedG, preMu)
     val variance = cacheWhen(PhiK2)(
-      mu.map(mu => if (mu.isNaN) 0.0 else mu * (1.0 - mu)))
+      mu.map(mu => if (java.lang.Double.isNaN(mu)) 0.0 else mu * (1.0 - mu)))
 
     // write phi to cache and increase parallelism of multiplies before phi.diagonal()
-    val phiFile = hc.getTemporaryFile(suffix=Some("bm"))
-    this.phi(mu, variance, blockedG).write(hc.sFS, phiFile)
-    val phi = BlockMatrix.read(hc, phiFile)
+    val phi = writeRead(this.phi(mu, variance, blockedG))
 
     if (statistics >= PhiK2) {
       val k2 = cacheWhen(PhiK2K0)(
@@ -208,14 +213,14 @@ case class PCRelate(
 
     val qr.QR(q, r) = qr.reduced(pcsWithIntercept)
 
-    val halfBeta = (inv(2.0 * r) * q.t).matrixMultiply(blockedG.T)
+    val halfBeta = writeRead((inv(2.0 * r) * q.t).matrixMultiply(blockedG.T))
 
-    pcsWithIntercept.matrixMultiply(halfBeta).T
+    writeRead(pcsWithIntercept.matrixMultiply(halfBeta).T)
   }
 
   private[methods] def phi(mu: M, variance: M, g: M): M = {
     val centeredAF = BlockMatrix.map2 { (g, mu) =>
-      if (mu.isNaN) 0.0 else g / 2 - mu
+      if (java.lang.Double.isNaN(mu)) 0.0 else g / 2 - mu
     } (g, mu)
 
     val stddev = variance.sqrt()
@@ -226,15 +231,15 @@ case class PCRelate(
   private[methods] def ibs0(g: M, mu: M): M = {
     val homalt =
       BlockMatrix.map2 { (g, mu) =>
-        if (mu.isNaN || g != 2.0) 0.0 else 1.0
+        if (java.lang.Double.isNaN(mu) || g != 2.0) 0.0 else 1.0
       } (g, mu)
 
     val homref =
       BlockMatrix.map2 { (g, mu) =>
-        if (mu.isNaN || g != 0.0) 0.0 else 1.0
+        if (java.lang.Double.isNaN(mu) || g != 0.0) 0.0 else 1.0
       } (g, mu)
 
-    val temp = homalt.T.dot(homref).persist(storageLevel)
+    val temp = writeRead(homalt.T.dot(homref))
 
     temp + temp.T
   }
@@ -242,7 +247,7 @@ case class PCRelate(
   private[methods] def k2(phi: M, mu: M, variance: M, g: M): M = {
     val twoPhi_ii = phi.diagonal().map(2.0 * _)
     val normalizedGD = g.map2WithIndex(mu, { case (_, i, g, mu) =>
-      if (mu.isNaN)
+      if (java.lang.Double.isNaN(mu))
         0.0 // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
       else {
         val gd = if (g == 0.0) mu
@@ -258,12 +263,12 @@ case class PCRelate(
 
   private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
     val mu2 =
-      mu.map(mu => if (mu.isNaN) 0.0 else mu * mu)
+      mu.map(mu => if (java.lang.Double.isNaN(mu)) 0.0 else mu * mu)
 
     val oneMinusMu2 =
-      mu.map(mu => if (mu.isNaN) 0.0 else (1.0 - mu) * (1.0 - mu))
+      mu.map(mu => if (java.lang.Double.isNaN(mu)) 0.0 else (1.0 - mu) * (1.0 - mu))
 
-    val temp = mu2.T.dot(oneMinusMu2)
+    val temp = writeRead(mu2.T.dot(oneMinusMu2))
     val denom = temp + temp.T
 
     BlockMatrix.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>

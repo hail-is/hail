@@ -10,16 +10,37 @@ spec:
   selector:
     matchLabels:
       app: router
-  replicas: 1
+  replicas: 3
   template:
     metadata:
       labels:
         app: router
         hail.is/sha: "{{ code.sha }}"
     spec:
+      priorityClassName: infrastructure
+      tolerations:
+       - key: preemptible
+         value: "true"
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    - router
+              topologyKey: "kubernetes.io/hostname"
       containers:
        - name: router
          image: "{{ monitoring_router_image.image }}"
+         resources:
+           requests:
+             cpu: "100m"
+             memory: "100M"
+           limits:
+             cpu: "1"
+             memory: "250M"
          ports:
           - containerPort: 80
 ---
@@ -38,3 +59,13 @@ spec:
     targetPort: 80
   selector:
     app: router
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: router
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: router

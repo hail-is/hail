@@ -6,8 +6,12 @@ Hail is an open-source project. We welcome contributions to the repository.
 Requirements
 ~~~~~~~~~~~~
 
-See the requirements for non-pip installations in `Getting Started
-<getting_started.html>`_
+- `Java 8 JDK <https://adoptopenjdk.net/index.html>`_
+  Note: it *must* be Java **8**. Hail does not support versions 9+ due to our
+  dependency on Spark.
+
+- The Python and non-pip installation requiremenets in `Getting Started <getting_started.html>`_
+
 
 Building Hail
 ~~~~~~~~~~~~~
@@ -24,11 +28,11 @@ variable tells GNU Make to build the native libraries from source.
 
 Build and install a wheel file from source with local-mode ``pyspark``::
 
-    make install-wheel HAIL_COMPILE_NATIVES=1
+    make install HAIL_COMPILE_NATIVES=1
 
 As above, but explicitly specifying the Spark version::
 
-    make install-wheel HAIL_COMPILE_NATIVES=1 SPARK_VERSION=2.4.1
+    make install HAIL_COMPILE_NATIVES=1 SPARK_VERSION=2.4.1
 
 Building the Docs and Website
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -48,6 +52,10 @@ Serve the built website on http://localhost:8000/ ::
 
 Running the tests
 ~~~~~~~~~~~~~~~~~
+
+Install development dependencies::
+
+    make install-dev-deps
 
 A couple Hail tests compare to PLINK 1.9 (not PLINK 2.0 [ignore the confusing
 URL]):

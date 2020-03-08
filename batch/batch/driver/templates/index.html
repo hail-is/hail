@@ -1,0 +1,59 @@
+{% extends "layout.html" %}
+{% block title %}Batch Status{% endblock %}
+{% block content %}
+  <h1>Config</h1>
+  <form action="{{ base_path }}/config-update" method="POST">
+    <div>Worker cores: {{ config['worker_cores'] }}</div>
+    <div>Worker type: {{ config['worker_type'] }}</div>
+    <div>Worker disk size (in GB): {{ config['worker_disk_size_gb'] }}</div>
+    <div>Max instances: <input name="max_instances" value="{{ config['max_instances'] }}" /></div>
+    <div>Worker pool size: <input name="pool_size" value="{{ config['pool_size'] }}" /></div>
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+    <button>
+      Update
+    </button>
+  </form>
+
+  <h1>Status</h1>
+  <div class="attributes">
+    <div>instance ID: {{ instance_id }}</div>
+    <div>ready cores: {{ ready_cores_mcpu / 1000 }}</div>
+  </div>
+  <h1>Instances</h1>
+  <div class="attributes">
+    <div>pending: {{ n_instances_by_state['pending'] }}</div>
+    <div>active: {{ n_instances_by_state['active'] }}</div>
+    <div>inactive: {{ n_instances_by_state['inactive'] }}</div>
+    <div>deleted: {{ n_instances_by_state['deleted'] }}</div>
+    <div>live free cores: {{ live_free_cores_mcpu / 1000 }}</div>
+  </div>
+  <table class="data-table" id="instances">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Zone</th>
+        <th>Version</th>
+        <th>State</th>
+        <th>Free Cores</th>
+        <th>Failed Requests</th>
+        <th>Time Created</th>
+        <th>Last Updated</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for instance in instances %}
+      <tr>
+        <td>{{ instance.name }}</td>
+        <td>{{ instance.zone }}</td>
+        <td class="numeric-cell">{{ instance.version }}</td>
+        <td>{{ instance.state }}</td>
+        <td class="numeric-cell">{{ instance.free_cores_mcpu / 1000 }} / {{ instance.cores_mcpu / 1000 }}</td>
+        <td class="numeric-cell">{{ instance.failed_request_count }}</td>
+        <td>{{ instance.time_created_str() }}</td>
+        <td>{{ instance.last_updated_str() }} ago</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

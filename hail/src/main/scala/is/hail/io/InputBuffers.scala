@@ -4,7 +4,7 @@ import java.io._
 import java.util
 
 import is.hail.annotations.{Memory, Region}
-import is.hail.io.compress.LZ4Utils
+import is.hail.io.compress.LZ4
 import is.hail.utils._
 
 trait InputBuffer extends Closeable {
@@ -13,6 +13,14 @@ trait InputBuffer extends Closeable {
   def seek(offset: Long): Unit
 
   def readByte(): Byte
+
+  def read(buf: Array[Byte], toOff: Int, n: Int) = {
+    var i = 0
+    while (i < n) {
+      buf(toOff + i) = readByte()
+      i += 1
+    }
+  }
 
   def readInt(): Int
 
@@ -23,6 +31,8 @@ trait InputBuffer extends Closeable {
   def readDouble(): Double
 
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit
+
+  def readBytesArray(n: Int): Array[Byte]
 
   def skipBoolean(): Unit = skipByte()
 
@@ -61,45 +71,76 @@ final class StreamInputBuffer(in: InputStream) extends InputBuffer {
   def seek(offset: Long) = in.asInstanceOf[ByteTrackingInputStream].seek(offset)
 
   def readByte(): Byte = {
-    in.read(buff, 0, 1)
+    val bytesRead = in.read(buff, 0, 1)
+    assert(bytesRead == 1)
     Memory.loadByte(buff, 0)
   }
 
+  override def read(buf: Array[Byte], toOff: Int, n: Int): Unit = {
+    in.read(buf, toOff, n)
+  }
+
   def readInt(): Int = {
-    in.read(buff, 0, 4)
+    val bytesRead = in.read(buff, 0, 4)
+    assert(bytesRead == 4)
     Memory.loadInt(buff, 0)
   }
 
   def readLong(): Long = {
-    in.read(buff)
+    val bytesRead = in.read(buff)
+    assert(bytesRead == 8)
     Memory.loadLong(buff, 0)
   }
 
   def readFloat(): Float = {
-    in.read(buff, 0, 4)
+    val bytesRead = in.read(buff, 0, 4)
+    assert(bytesRead == 4)
     Memory.loadFloat(buff, 0)
   }
 
   def readDouble(): Double = {
-    in.read(buff)
+    val bytesRead = in.read(buff)
+    assert(bytesRead == 8)
     Memory.loadDouble(buff, 0)
   }
 
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = {
-    toRegion.storeBytes(toOff, Array.tabulate(n)(_ => readByte()))
+    Region.storeBytes(toOff, readBytesArray(n))
   }
 
-  def skipByte(): Unit = in.skip(1)
+  def readBytesArray(n: Int): Array[Byte] = {
+    Array.tabulate(n)(_ => readByte())
+  }
 
-  def skipInt(): Unit = in.skip(4)
+  def skipByte(): Unit = {
+    val bytesRead = in.skip(1)
+    assert(bytesRead == 1L)
+  }
 
-  def skipLong(): Unit = in.skip(8)
+  def skipInt(): Unit = {
+    val bytesRead = in.skip(4)
+    assert(bytesRead == 4L)
+  }
 
-  def skipFloat(): Unit = in.skip(4)
+  def skipLong(): Unit = {
+    val bytesRead = in.skip(8)
+    assert(bytesRead == 8L)
+  }
 
-  def skipDouble(): Unit = in.skip(8)
+  def skipFloat(): Unit = {
+    val bytesRead = in.skip(4)
+    assert(bytesRead == 4L)
+  }
 
-  def skipBytes(n: Int): Unit = in.skip(n)
+  def skipDouble(): Unit = {
+    val bytesRead = in.skip(8)
+    assert(bytesRead == 8L)
+  }
+
+  def skipBytes(n: Int): Unit = {
+    val bytesRead = in.skip(n)
+    assert(bytesRead == n)
+  }
 
   def readDoubles(to: Array[Double], off: Int, n: Int): Unit = {
     var i = 0
@@ -125,7 +166,13 @@ final class MemoryInputBuffer(mb: MemoryBuffer) extends InputBuffer {
 
   def readDouble(): Double = mb.readDouble()
 
-  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = mb.readBytes(toRegion, toOff, n)
+  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = mb.readBytes(toOff, n)
+
+  def readBytesArray(n: Int): Array[Byte] = {
+    var arr = new Array[Byte](n)
+    mb.readBytesArray(arr, n)
+    arr
+  }
 
   def skipByte(): Unit = mb.skipByte()
 
@@ -152,6 +199,8 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
   def readByte(): Byte = {
     in.readByte()
   }
+
+  override def read(buf: Array[Byte], toOff: Int, n: Int) = in.read(buf, toOff, n)
 
   def readInt(): Int = {
     var b: Byte = readByte()
@@ -182,6 +231,8 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
   def readDouble(): Double = in.readDouble()
 
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = in.readBytes(toRegion, toOff, n)
+
+  def readBytesArray(n: Int): Array[Byte] = in.readBytesArray(n)
 
   def skipByte(): Unit = in.skipByte()
 
@@ -280,11 +331,33 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
         readBlock()
       val p = math.min(end - off, n)
       assert(p > 0)
-      toRegion.storeBytes(toOff, buf, off, p)
+      Region.storeBytes(toOff, buf, off, p)
       toOff += p
       n -= p
       off += p
     }
+  }
+
+  override def read(arr: Array[Byte], toOff0: Int, n0: Int) {
+    var toOff = toOff0;
+    var n = n0
+
+    while (n > 0) {
+      if (end == off)
+        readBlock()
+      val p = math.min(end - off, n)
+      assert(p > 0)
+      System.arraycopy(buf, off, arr, toOff, p)
+      toOff += p
+      n -= p
+      off += p
+    }
+  }
+
+  def readBytesArray(n: Int): Array[Byte] = {
+    var arr = new Array[Byte](n)
+    read(arr, 0, n)
+    arr
   }
 
   def skipByte() {
@@ -363,8 +436,8 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
   }
 }
 
-final class LZ4InputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
-  private val comp = new Array[Byte](4 + LZ4Utils.maxCompressedLength(blockSize))
+final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
+  private val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
   private var decompBuf = new Array[Byte](blockSize)
   private var lim = 0
 
@@ -381,7 +454,7 @@ final class LZ4InputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     } else {
       val compLen = blockLen - 4
       val decompLen = Memory.loadInt(comp, 0)
-      LZ4Utils.decompress(buf, 0, decompLen, comp, 4, compLen)
+      lz4.decompress(buf, 0, decompLen, comp, 4, compLen)
       decompLen
     }
     lim = result

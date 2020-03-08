@@ -25,7 +25,7 @@ roleRef:
   name: view-services
   apiGroup: rbac.authorization.k8s.io
 ---
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: router-resolver
@@ -45,6 +45,11 @@ spec:
     spec:
       serviceAccountName: router-resolver
       priorityClassName: infrastructure
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -55,9 +60,6 @@ spec:
                     values:
                     - router-resolver
               topologyKey: "kubernetes.io/hostname"
-      tolerations:
-       - key: preemptible
-         value: "true"
       containers:
        - name: router-resolver
          image: "{{ router_resolver_image.image }}"
@@ -76,10 +78,16 @@ spec:
          ports:
           - containerPort: 5000
          volumeMounts:
+          - mountPath: /deploy-config
+            name: deploy-config
+            readOnly: true
           - name: session-secret-key
             mountPath: /session-secret-key
             readOnly: true
       volumes:
+       - name: deploy-config
+         secret:
+           secretName: deploy-config
        - name: session-secret-key
          secret:
            optional: false
@@ -115,3 +123,13 @@ spec:
      resource:
        name: cpu
        targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: router-resolver
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: router-resolver

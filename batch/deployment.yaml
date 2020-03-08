@@ -1,24 +1,21 @@
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: batch
----
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: batch
+  name: batch-driver
   labels:
-    app: batch
+    app: batch-driver
     hail.is/sha: "{{ code.sha }}"
 spec:
   selector:
     matchLabels:
-      app: batch
+      app: batch-driver
   replicas: 1
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
-        app: batch
+        app: batch-driver
         hail.is/sha: "{{ code.sha }}"
         grafanak8sapp: "true"
     spec:
@@ -26,9 +23,18 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       containers:
-      - name: batch
-        image: "{{ batch_image.image }}"
+      - name: batch-driver
+        image: {{ batch_image.image }}
+        command:
+         - python3
+         - -m
+         - batch.driver
         resources:
           requests:
             memory: "1G"
@@ -38,13 +44,27 @@ spec:
            value: "{{ global.domain }}"
          - name: HAIL_DEPLOY_CONFIG_FILE
            value: /deploy-config/deploy-config.json
-         - name: HAIL_POD_NAMESPACE
+         - name: BATCH_WORKER_IMAGE
+           value: "{{ batch_worker_image.image }}"
+         - name: HAIL_DEFAULT_NAMESPACE
+           value: "{{ default_ns.name }}"
+         - name: HAIL_BATCH_PODS_NAMESPACE
            value: "{{ batch_pods_ns.name }}"
-         - name: BATCH_IMAGE
-           value: "{{ batch_image.image }}"
+         - name: PROJECT
+           value: "{{ global.project }}"
+         - name: KUBERNETES_SERVER_URL
+           value: "{{ global.k8s_server_url }}"
+         - name: HAIL_SHA
+           value: "{{ code.sha }}"
+{% if deploy or scope == "dev" %}
+         - name: HAIL_SHOULD_PROFILE
+           value: "1"
+{% endif %}
+         - name: HAIL_BATCH_BUCKET_NAME
 {% if deploy %}
-         - name: HAIL_INSTANCE_ID
-           value: cd50b95a89914efb897965a5e982a29d
+           value: hail-batch
+{% else %}
+           value: hail-test-dmk9z
 {% endif %}
         ports:
          - containerPort: 5000
@@ -55,14 +75,11 @@ spec:
          - name: session-secret-key
            mountPath: /session-secret-key
            readOnly: true
-         - name: batch-user-secret
-           mountPath: /batch-user-secret
+         - name: sql-config
+           mountPath: /sql-config
            readOnly: true
          - name: gsa-key
-           mountPath: /batch-gsa-key
-           readOnly: true
-         - name: batch-tokens
-           mountPath: /user-tokens
+           mountPath: /gsa-key
            readOnly: true
         readinessProbe:
           httpGet:
@@ -73,29 +90,129 @@ spec:
       volumes:
        - name: deploy-config
          secret:
-           optional: false
            secretName: deploy-config
        - name: session-secret-key
          secret:
-           optional: false
            secretName: session-secret-key
-       - name: batch-user-secret
+       - name: sql-config
          secret:
-           optional: false
            secretName: "{{ batch_database.user_secret_name }}"
        - name: gsa-key
          secret:
-           optional: false
            secretName: batch-gsa-key
-       - name: batch-tokens
-         secret:
-           optional: false
-           secretName: batch-tokens
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: batch
+  labels:
+    app: batch
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: batch
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: batch
+        hail.is/sha: "{{ code.sha }}"
+        grafanak8sapp: "true"
+    spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      nodeSelector:
+        preemptible: "true"
       tolerations:
-      - key: "preemptible"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
+       - key: preemptible
+         value: "true"
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    - batch
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: batch
+        image: {{ batch_image.image }}
+        command:
+         - python3
+         - -m
+         - batch.front_end
+        env:
+         - name: HAIL_DOMAIN
+           value: "{{ global.domain }}"
+         - name: HAIL_DEPLOY_CONFIG_FILE
+           value: /deploy-config/deploy-config.json
+         - name: HAIL_DEFAULT_NAMESPACE
+           value: "{{ default_ns.name }}"
+         - name: HAIL_BATCH_PODS_NAMESPACE
+           value: "{{ batch_pods_ns.name }}"
+         - name: PROJECT
+           value: "{{ global.project }}"
+         - name: KUBERNETES_SERVER_URL
+           value: "{{ global.k8s_server_url }}"
+         - name: HAIL_SHA
+           value: "{{ code.sha }}"
+{% if not deploy %}
+         - name: HAIL_BATCH_JOB_DEFAULT_CPU
+           value: "0.1"
+         - name: HAIL_BATCH_JOB_DEFAULT_MEMORY
+           value: "375M"
+{% endif %}
+         - name: HAIL_BATCH_BUCKET_NAME
+{% if deploy %}
+           value: hail-batch
+{% else %}
+           value: hail-test-dmk9z
+{% endif %}
+        ports:
+         - containerPort: 5000
+        resources:
+          requests:
+            memory: "250M"
+            cpu: "100m"
+          limits:
+            memory: "1G"
+            cpu: "1"
+        volumeMounts:
+         - name: deploy-config
+           mountPath: /deploy-config
+           readOnly: true
+         - name: session-secret-key
+           mountPath: /session-secret-key
+           readOnly: true
+         - name: sql-config
+           mountPath: /sql-config
+           readOnly: true
+         - name: gsa-key
+           mountPath: /gsa-key
+           readOnly: true
+        readinessProbe:
+          httpGet:
+            path: /healthcheck
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+       - name: deploy-config
+         secret:
+           secretName: deploy-config
+       - name: session-secret-key
+         secret:
+           secretName: session-secret-key
+       - name: sql-config
+         secret:
+           secretName: "{{ batch_database.user_secret_name }}"
+       - name: gsa-key
+         secret:
+           secretName: batch-gsa-key
 ---
 apiVersion: v1
 kind: Service
@@ -110,3 +227,44 @@ spec:
     targetPort: 5000
   selector:
     app: batch
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: batch-driver
+  labels:
+    app: batch-driver
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: batch-driver
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: batch
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: batch
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+   - type: Resource
+     resource:
+       name: cpu
+       targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: batch
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: batch

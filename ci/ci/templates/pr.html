@@ -1,35 +1,38 @@
-<html lang="en">
-  <head>
-    <title>CI | PR {{ number }}</title>
-    <link rel="stylesheet" type="text/css" href="/static/style.css">
-  </head>
-  <body>
-    <p><a href="/">ci</a> : <a href="https://github.com/{{ repo }}/pull/{{ number }}">pr #{{ number }}</a></p>
-
-    <h1>PR {{ number }}</h1>
+{% extends "layout.html" %}
+{% block title %}PR {{ number }}{% endblock %}
+{% block content %}
+    <h1>{{ pr.title }} <span class="gh-number">#{{ pr.number }}</a></h1>
     {% if batch is defined %}
-    <h2>Batch {{ batch['id'] }} Jobs</h2>
-    <p>artifacts: {{ artifacts }}</p>
-    <table>
+    <div class="attributes">
+      <div>batch: <a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></div>
+      <div>artifacts:
+	<a  target="_blank" href="https://console.cloud.google.com/storage/browser{{ artifacts }}">gs:/{{ artifacts }}</a><i class="material-icons text-icon">open_in_new</i>
+      </div>
+      <div>cost: {{ batch['cost'] }}</div>
+      {% for name, value in batch['attributes'].items() %}
+      <div>{{ name }}: {{ value }}</div>
+      {% endfor %}
+    </div>
+    <h2>Jobs</h2>
+    <table class="data-table" style="line-height: 175%">
       <thead>
         <tr>
-          <th align="right">id</th>
-          <th align="left">name</th>
-          <th align="left">state</th>
-          <th align="right">exit_code</th>
-          <th align="right">duration</th>
-          <th align="left">log</th>
-          <th align="left">pod status</th>
-          <th align="left">links</th>
+          <th>id</th>
+          <th>name</th>
+          <th>state</th>
+          <th>exit_code</th>
+          <th>duration</th>
         </tr>
       </thead>
       <tbody>
-        {% for job in batch['jobs'] %}
+        {% for job in jobs %}
         <tr>
-          <td align="right">{{ job['job_id'] }}</td>
-          <td align="left">{{ job['attributes']['name'] }}</td>
-          <td align="left">{{ job['state'] }}</td>
-          <td align="right">
+          <td class="numeric-cell">
+	    <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
+	  </td>
+          <td>{{ job['name'] }}</td>
+          <td>{{ job['state'] }}</td>
+          <td>
             {% if 'exit_code' in job and job['exit_code'] is not none %}
             {% if job['exit_code'] == 0 %}
             <span style="color: #55aa33;">
@@ -42,22 +45,9 @@
               </span>
               {% endif %}
           </td>
-          <td align="right">
+          <td>
             {% if 'duration' in job and job['duration'] %}
             {{ job['duration'] }}
-            {% endif %}
-          </td>
-          <td align="left">
-            <a href="/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/log">log</a>
-          </td>
-          <td align="left">
-            <a href="/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/pod_status">pod_status</a>
-          </td>
-          <td>
-            {% if 'link' in job['attributes'] %}
-            {% for name in job['attributes']['link'] %}
-            <a href="https://{{ name }}.{{ job['attributes']['domain'] }}">{{ name }}</a>
-            {% endfor %}
             {% endif %}
           </td>
         </tr>
@@ -75,20 +65,20 @@
 
     <h2>Build History</h2>
     {% if history %}
-    <table>
+    <table class="data-table">
       <thead>
         <tr>
-          <th align="right">id</th>
-          <th align="left">state</th>
+          <th>id</th>
+          <th>state</th>
         </tr>
       </thead>
       <tbody>
         {% for batch in history %}
         <tr>
-          <td align="right">
-            <a href="/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
+          <td class="numeric-cell">
+            <a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
           </td>
-          <td align="left">
+          <td>
             {% if 'state' in batch and batch['state'] %}
             {{ batch['state'] }}
             {% endif %}
@@ -103,5 +93,4 @@
     {% else %}
     No builds.
     {% endif %}
-  </body>
-</html>
+{% endblock %}

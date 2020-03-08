@@ -9,12 +9,12 @@ Requirements
 
 Regardless of installation method, you will need:
 
-- `Java 8 JDK
-  <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_
+- `Java 8 JRE
+  <https://adoptopenjdk.net/index.html>`_
   Note: it *must* be Java **8**. Hail does not support versions 9+ due to our
   dependency on Spark.
-- Python 3.6 or later. We recommend `Miniconda Python 3.7
-  <https://docs.conda.io/en/latest/miniconda.html>`_
+- Python 3.6 or 3.7. We recommend `Miniconda Python 3.7
+  <https://docs.conda.io/en/latest/miniconda.html>`_ Hail `does not support <https://github.com/hail-is/hail/issues/7513>`_ Python 3.8.
 
 Regardless of installation method, GNU/Linux users must obtain a recent version
 of the C and C++ standard library:
@@ -55,9 +55,9 @@ Create a `conda enviroment
 
 .. code-block:: sh
 
-    conda create -n hail python==3.6
+    conda create -n hail python'>=3.6,<3.8'
     conda activate hail
-    pip3 install hail
+    pip install hail
 
 To try Hail out, open iPython or a Jupyter notebook and run:
 
@@ -70,15 +70,27 @@ To try Hail out, open iPython or a Jupyter notebook and run:
 You're now all set to run the
 `tutorials <https://hail.is/docs/0.2/tutorials-landing.html>`__ locally!
 
+Running on the cloud
+~~~~~~~~~~~~~~~~~~~~
+
+For more about computing on the cloud, see `Hail on the cloud <hail_on_the_cloud.html>`_.
+
+Running on a large server
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Running Hail on a large server is a great way to tackle medium-size compute tasks without
+the need to maintain an on-premise cluster. The above instructions for running on Linux apply,
+with one additional consideration -- in order to take advantage of all the machine's memory
+resources, it is necessary to set an environment variable:
+
+.. code-block:: sh
+
+    export PYSPARK_SUBMIT_ARGS="--driver-memory <YOUR_MEMORY_HERE>G pyspark-shell"
+
 Running on a Spark cluster
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Hail can run on any Spark 2.4 cluster. For example, Google and Amazon make it
-possible to rent Spark clusters with many thousands of cores on-demand,
-providing for the elastic compute requirements of scientific research without
-an up-front capital investment.
-
-For more about computing on the cloud, see `Hail on the cloud <hail_on_the_cloud.html>`_.
+Hail can run on any Spark 2.4 cluster.
 
 For Cloudera-specific instructions, see :ref:`running-on-a-cloudera-cluster`.
 
@@ -196,5 +208,17 @@ If natives are not found, ``hail.log`` will contain these warnings:
 
     Failed to load implementation from: com.github.fommil.netlib.NativeSystemLAPACK
     Failed to load implementation from: com.github.fommil.netlib.NativeSystemBLAS
+
+If you see an error like the following:
+
+.. code-block:: text
+
+    /usr/java/default/bin/java: symbol lookup error: /.../...netlib-native_system-linux-x86_64.so: undefined symbol: cblas_dgemv
+
+Then add extra Spark configuration Spark pointing to the directory where BLAS is installed:
+
+.. code-block:: text
+
+    --conf spark.executor.extraClassPath="/path/to/BLAS"
 
 See `netlib-java <http://github.com/fommil/netlib-java>`_ for more information.

@@ -7,6 +7,7 @@ Core language functions
     eval
     literal
     cond
+    if_else
     switch
     case
     bind
@@ -24,6 +25,7 @@ Core language functions
 .. autofunction:: eval
 .. autofunction:: literal
 .. autofunction:: cond
+.. autofunction:: if_else
 .. autofunction:: switch
 .. autofunction:: case
 .. autofunction:: bind
