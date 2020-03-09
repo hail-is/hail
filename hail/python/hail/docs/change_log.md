@@ -24,6 +24,16 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.34
+
+### hailctl dataproc
+
+- (hail#8253) `hailctl dataproc` now supports new flags `--requester-pays-allow-all` and `--requester-pays-allow-buckets`. This will configure your hail installation to be able to read from requester pays buckets. The charges for reading from these buckets will be billed to the project that the cluster is created in.
+- (hail#8268) The data sources for VEP have been moved to `gs://hail-us-vep`, which is a requester-pays multi-region US bucket in Google Cloud. This may drastically increase the cost of using VEP with Hail in a cluster outside of the US.
+
+---
+
+
 ## Version 0.2.33
 
 Released 2020-02-27
