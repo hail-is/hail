@@ -24,7 +24,6 @@ apt-get install -y --allow-unauthenticated docker-ce
 gsutil cp gs://hail-us-vep/vep85-loftee-gcloud.json /vep_data/vep85-gcloud.json
 ln -s /vep_data/vep85-gcloud.json /vep_data/vep-gcloud.json
 
-# New version
 gsutil cat gs://hail-us-vep/loftee-beta/${ASSEMBLY}.tar | tar -xf - -C /vep_data
 gsutil cat gs://hail-us-vep/Plugins.tar /vep_data/Plugins.tar | tar -xf - -C /vep_data
 gsutil cat gs://hail-us-vep/homo-sapiens/85_${ASSEMBLY}.tar | tar -xf - -C /vep_data/homo_sapiens
