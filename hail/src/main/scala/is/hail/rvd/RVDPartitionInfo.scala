@@ -1,6 +1,6 @@
 package is.hail.rvd
 
-import is.hail.annotations.{RegionValue, SafeRow, WritableRegionValue}
+import is.hail.annotations.{Region, RegionValue, SafeRow, WritableRegionValue}
 import is.hail.expr.types.virtual.Type
 import is.hail.utils._
 
@@ -31,7 +31,7 @@ object RVDPartitionInfo {
     partitionKey: Int,
     sampleSize: Int,
     partitionIndex: Int,
-    it: Iterator[RegionValue],
+    it: Iterator[Long],
     seed: Int,
     producerContext: RVDContext
   ): RVDPartitionInfo = {
@@ -45,9 +45,9 @@ object RVDPartitionInfo {
       assert(it.hasNext)
       val f0 = it.next()
 
-      minF.set(f0)
-      maxF.set(f0)
-      prevF.set(f0)
+      minF.set(f0, deepCopy = true)
+      maxF.set(f0, deepCopy = true)
+      prevF.set(f0, deepCopy = true)
 
       var sortedness = KSORTED
       var contextStr = ""
@@ -66,15 +66,15 @@ object RVDPartitionInfo {
       while (it.hasNext) {
         val f = it.next()
 
-        if (sortedness > UNSORTED && typ.kOrd.lt(f.offset, prevF.value.offset)) {
-          if (pkOrd.lt(f.offset, prevF.value.offset)) {
-            val curr = f.pretty(typ.kType)
+        if (sortedness > UNSORTED && typ.kOrd.lt(f, prevF.value.offset)) {
+          if (pkOrd.lt(f, prevF.value.offset)) {
+            val curr = Region.pretty(typ.kType, f)
             val prev = prevF.pretty
             log.info(s"unsorted: $curr, $prev")
             contextStr = s"CURRENT=$curr, PREV=$prev"
             sortedness = UNSORTED
           } else if (sortedness > TSORTED) {
-            val curr = f.pretty(typ.kType)
+            val curr = Region.pretty(typ.kType, f)
             val prev = prevF.pretty
             log.info(s"partition-key-sorted: $curr, $prev")
             contextStr = s"CURRENT=$curr, PREV=$prev"
@@ -82,19 +82,19 @@ object RVDPartitionInfo {
           }
         }
 
-        if (typ.kOrd.lt(f.offset, minF.value.offset))
-          minF.set(f)
-        if (typ.kOrd.gt(f.offset, maxF.value.offset))
-          maxF.set(f)
+        if (typ.kOrd.lt(f, minF.value.offset))
+          minF.set(f, deepCopy = true)
+        if (typ.kOrd.gt(f, maxF.value.offset))
+          maxF.set(f, deepCopy = true)
 
-        prevF.set(f)
+        prevF.set(f, deepCopy = true)
 
         if (i < sampleSize)
           samples(i) = WritableRegionValue(kPType, f, localctx.freshRegion)
         else {
           val j = if (i > 0) rng.nextInt(i) else 0
           if (j < sampleSize)
-            samples(j).set(f)
+            samples(j).set(f, deepCopy = true)
         }
 
         producerContext.region.clear()

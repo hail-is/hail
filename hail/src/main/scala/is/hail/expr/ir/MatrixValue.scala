@@ -230,7 +230,7 @@ case class MatrixValue(
     RVD.coerce(
       typ.colsTableType.canonicalRVDType,
       ContextRDD.parallelize(hc.sc, colValues.safeJavaValue)
-        .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, colPType) },
+        .cmapPartitions { (ctx, it) => it.copyToRegion(ctx.region, colPType) },
       ctx
     )
   }
