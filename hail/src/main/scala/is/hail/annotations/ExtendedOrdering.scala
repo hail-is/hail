@@ -256,14 +256,21 @@ object ExtendedOrdering {
           val l = fieldOrd.length
 
           val c = outer.compare(xpp, ypp)
-          if (c != 0 || xpp == null || ypp == null || (l < xpp.length && l < ypp.length))
+          if (c != 0)
             c
-          else {
-            val cl = xpp.length compare ypp.length
-            if (cl == 0) xs compare ys
-            else if (cl < 0) xs
-            else -ys
-          }
+          else if (xpp != null && ypp != null) {
+            val ll = xpp.length
+            val rr = ypp.length
+            if (l < ll && l < rr)
+              0
+            else {
+              val cl = Integer.compare(xpp.length, ypp.length)
+              if (cl == 0) Integer.compare(xs, ys)
+              else if (cl < 0) xs
+              else -ys
+            }
+          } else
+            Integer.compare(xs, ys)
         }
 
         // Returns true if for any rows r1 and r2 with r1 < x and r2 > y,
@@ -407,7 +414,7 @@ abstract class ExtendedOrdering extends Serializable {
         if (c != 0)
           c
         else
-          xs compare ys
+          Integer.compare(xs, ys)
       }
 
       override def lteqWithOverlap(allowedOverlap: Int)(x: IntervalEndpoint, y: IntervalEndpoint): Boolean = {
