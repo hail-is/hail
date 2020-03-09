@@ -14,7 +14,7 @@ object CompileAndEvaluate {
     ctx.timer.time("CompileAndEvaluate") {
       _apply(ctx, ir0, optimize) match {
         case Left(()) => ().asInstanceOf[T]
-        case Right((t, off)) => SafeRow(t, ctx.r, off).getAs[T](0)
+        case Right((t, off)) => SafeRow(t, off).getAs[T](0)
       }
     }
   }

@@ -489,7 +489,7 @@ class StagedRegionValueSuite extends HailSuite {
           Region.storeBytes(src, Array.fill(len.toInt)(0.toByte))
           newOff
         }
-        SafeRow(t, region, copyOff)
+        SafeRow(t, copyOff)
       }
       copy == a
     }
@@ -516,13 +516,13 @@ class StagedRegionValueSuite extends HailSuite {
       rvb.start(t2)
       rvb.addAnnotation(t2.virtualType, value)
       val v1 = rvb.end()
-      assert(SafeRow.read(t2, r, v1) == value)
+      assert(SafeRow.read(t2, v1) == value)
 
       rvb.clear()
       rvb.start(t1)
       rvb.addRegionValue(t2, r, v1)
       val v2 = rvb.end()
-      assert(SafeRow.read(t1, r, v2) == value)
+      assert(SafeRow.read(t1, v2) == value)
     }
   }
 
@@ -547,7 +547,7 @@ class StagedRegionValueSuite extends HailSuite {
       rvb.start(valueT2)
       rvb.addAnnotation(valueT2.virtualType, value)
       val v1 = rvb.end()
-      assert(SafeRow.read(valueT2, r, v1) == value)
+      assert(SafeRow.read(valueT2, v1) == value)
 
       val f1 = EmitFunctionBuilder[Long]("stagedCopy1")
       val srvb = new StagedRegionValueBuilder(f1.apply_method, t2, f1.partitionRegion)
@@ -557,7 +557,7 @@ class StagedRegionValueSuite extends HailSuite {
         srvb.end()
       ))
       val cp1 = f1.resultWithIndex()(0, r)()
-      assert(SafeRow.read(t2, r, cp1) == Row(value))
+      assert(SafeRow.read(t2, cp1) == Row(value))
 
       val f2 = EmitFunctionBuilder[Long]("stagedCopy2")
       val srvb2 = new StagedRegionValueBuilder(f2.apply_method, t1, f2.partitionRegion)
@@ -567,7 +567,7 @@ class StagedRegionValueSuite extends HailSuite {
         srvb2.end()
       ))
       val cp2 = f2.resultWithIndex()(0, r)()
-      assert(SafeRow.read(t1, r, cp2) == Row(value))
+      assert(SafeRow.read(t1, cp2) == Row(value))
     }
   }
 }

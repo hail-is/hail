@@ -39,7 +39,7 @@ abstract class Backend {
 
   private[this] def executionResultToAnnotation(ctx: ExecuteContext, result: Either[Unit, (PTuple, Long)]) = result match {
     case Left(x) => x
-    case Right((pt, off)) => SafeRow(pt, ctx.r, off).get(0)
+    case Right((pt, off)) => SafeRow(pt, off).get(0)
   }
 
   def jvmLowerAndExecute(ir0: IR, optimize: Boolean, lowerTable: Boolean, lowerBM: Boolean, print: Option[PrintWriter] = None): (Any, ExecutionTimer) =

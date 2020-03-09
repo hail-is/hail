@@ -214,11 +214,11 @@ class UnsafeRow(var t: PBaseStruct,
 }
 
 object SafeRow {
-  def apply(t: PBaseStruct, region: Region, off: Long): Row = {
-    Annotation.copy(t.virtualType, new UnsafeRow(t, region, off)).asInstanceOf[Row]
+  def apply(t: PBaseStruct, off: Long): Row = {
+    Annotation.copy(t.virtualType, new UnsafeRow(t, null, off)).asInstanceOf[Row]
   }
 
-  def apply(t: PBaseStruct, rv: RegionValue): Row = SafeRow(t, rv.region, rv.offset)
+  def apply(t: PBaseStruct, rv: RegionValue): Row = SafeRow(t, rv.offset)
 
   def selectFields(t: PBaseStruct, region: Region, off: Long)(selectIdx: Array[Int]): Row = {
     val fullRow = new UnsafeRow(t, region, off)
@@ -228,20 +228,20 @@ object SafeRow {
   def selectFields(t: PBaseStruct, rv: RegionValue)(selectIdx: Array[Int]): Row =
     SafeRow.selectFields(t, rv.region, rv.offset)(selectIdx)
 
-  def read(t: PType, region: Region, off: Long): Annotation =
-    Annotation.copy(t.virtualType, UnsafeRow.read(t, region, off))
+  def read(t: PType, off: Long): Annotation =
+    Annotation.copy(t.virtualType, UnsafeRow.read(t, null, off))
 
   def read(t: PType, rv: RegionValue): Annotation =
-    read(t, rv.region, rv.offset)
+    read(t, rv.offset)
 }
 
 object SafeIndexedSeq {
-  def apply(t: PArray, region: Region, off: Long): IndexedSeq[Annotation] =
-    Annotation.copy(t.virtualType, new UnsafeIndexedSeq(t, region, off))
+  def apply(t: PArray, off: Long): IndexedSeq[Annotation] =
+    Annotation.copy(t.virtualType, new UnsafeIndexedSeq(t, null, off))
       .asInstanceOf[IndexedSeq[Annotation]]
 
   def apply(t: PArray, rv: RegionValue): IndexedSeq[Annotation] =
-    apply(t, rv.region, rv.offset)
+    apply(t, rv.offset)
 }
 
 class KeyedRow(var row: Row, keyFields: Array[Int]) extends Row {

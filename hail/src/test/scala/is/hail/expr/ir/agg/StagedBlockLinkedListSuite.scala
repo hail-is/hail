@@ -88,7 +88,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
 
       val f = fb.result()()
       ({ (r, ptr) =>
-        SafeRow.read(arrayPType, r, f(r, ptr))
+        SafeRow.read(arrayPType, f(r, ptr))
           .asInstanceOf[IndexedSeq[E]]
       })
     }

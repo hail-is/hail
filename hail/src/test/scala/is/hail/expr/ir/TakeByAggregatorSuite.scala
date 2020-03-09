@@ -34,7 +34,7 @@ class TakeByAggregatorSuite extends HailSuite {
         ))
 
         val o = fb.resultWithIndex()(0, r)(r)
-        val result = SafeRow.read(rt, r, o)
+        val result = SafeRow.read(rt, o)
         assert(result == ((n - 1) to 0 by -1)
           .iterator
           .map(i => s"str$i")
@@ -67,7 +67,7 @@ class TakeByAggregatorSuite extends HailSuite {
       ))
 
       val o = fb.resultWithIndex()(0, r)(r)
-      val result = SafeRow.read(rt, r, o)
+      val result = SafeRow.read(rt, o)
       assert(result == FastIndexedSeq(0, 1, 2, 3, null, null, null))
     }
   }
@@ -110,9 +110,9 @@ class TakeByAggregatorSuite extends HailSuite {
 
         val o = fb.resultWithIndex()(0, r)(r)
         val pqOffset = Region.loadAddress(o)
-        val pq = SafeRow.read(rt, r, pqOffset)
+        val pq = SafeRow.read(rt, pqOffset)
         val collOffset = Region.loadAddress(o + 8)
-        val collected = SafeRow.read(ab.eltArray, r, collOffset).asInstanceOf[IndexedSeq[Int]].take(n)
+        val collected = SafeRow.read(ab.eltArray, collOffset).asInstanceOf[IndexedSeq[Int]].take(n)
         val minValues = collected.sorted.take(nToTake)
         assert(pq == minValues, s"n=$n")
       }

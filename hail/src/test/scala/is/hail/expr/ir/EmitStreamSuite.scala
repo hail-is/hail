@@ -350,7 +350,7 @@ class EmitStreamSuite extends HailSuite {
       if (off == 0L)
         null
       else
-        SafeRow.read(PArray(eltType), r, off).asInstanceOf[IndexedSeq[Any]]
+        SafeRow.read(PArray(eltType), off).asInstanceOf[IndexedSeq[Any]]
     }
   }
 
@@ -706,7 +706,7 @@ class EmitStreamSuite extends HailSuite {
       rvb.addAnnotation(t.virtualType, Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)))
       val input = rvb.end()
 
-      assert(SafeRow.read(pt, r, f(0, r)(r, input, false)) == Row(null))
+      assert(SafeRow.read(pt, f(0, r)(r, input, false)) == Row(null))
     }
   }
 }

@@ -564,7 +564,7 @@ object Interpret {
 
           try {
             val resultOffset = f(region, offset, false)
-            SafeRow(rt.asInstanceOf[PTuple], region, resultOffset).get(0)
+            SafeRow(rt.asInstanceOf[PTuple], resultOffset).get(0)
           } catch {
             case e: Exception =>
               fatal(s"error while calling '${ ir.implementation.name }'", e)
@@ -611,7 +611,7 @@ object Interpret {
             MakeTuple.ordered(FastSeq(extracted.postAggIR)))
 
           Region.scoped { region =>
-            SafeRow(rt, region, f(0, region)(region, globalsOffset, false))
+            SafeRow(rt, f(0, region)(region, globalsOffset, false))
           }
         } else {
           val spec = BufferSpec.defaultUncompressed
@@ -679,7 +679,7 @@ object Interpret {
             val resF = f(0, r)
             Region.smallScoped { aggRegion =>
               resF.setAggState(aggRegion, read(aggRegion, aggResults))
-              SafeRow(rTyp, r, resF(r, globalsOffset, false))
+              SafeRow(rTyp, resF(r, globalsOffset, false))
             }
           }
         }
@@ -688,7 +688,7 @@ object Interpret {
       case LiftMeOut(child) =>
         val (rt, makeFunction) = Compile[Long](ctx, MakeTuple.ordered(FastSeq(child)), None, false)
         Region.scoped { r =>
-          SafeRow.read(rt, r, makeFunction(0, r)(r)).asInstanceOf[Row](0)
+          SafeRow.read(rt, makeFunction(0, r)(r)).asInstanceOf[Row](0)
         }
 
     }
