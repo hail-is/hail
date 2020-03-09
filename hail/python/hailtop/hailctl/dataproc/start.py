@@ -148,7 +148,12 @@ def main(args, pass_through_args):
 
     # add VEP init script
     if args.vep:
+        allowed_buckets_list = args.requester_pays_allow_buckets.split(",") if args.requester_pays_allow_buckets else []
+        if not (args.requester_pays_allow_all or ('hail-us-vep' in allowed_buckets_list)):
+            raise RuntimeError("Need to enable requester pays on bucket 'hail-us-vep' to use vep. See --requester-pays-allow-all and --requester-pays-allow-buckets \
+                WARNING: This is likely prohibitively expensive to run on a cluster outside of the GCP 'us' region. If you need to run VEP outside the US, please contact the Hail team on https://discuss.hail.is for support.")
         conf.extend_flag('initialization-actions', [deploy_metadata[f'vep-{args.vep}.sh']])
+        sys.stderr.write("WARNING: Running VEP on clusters outside the GCP 'us' region is VERY expensive. If you need to run VEP outside the US, please contact the Hail team on https://discuss.hail.is for support.")
     # add custom init scripts
     if args.init:
         conf.extend_flag('initialization-actions', args.init.split(','))
