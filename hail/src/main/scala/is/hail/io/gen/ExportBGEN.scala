@@ -327,7 +327,7 @@ object ExportBGEN {
 
     val d = digitsNeeded(mv.rvd.getNumPartitions)
 
-    val (files, droppedPerPart) = mv.rvd.crdd.mapPartitionsWithIndex { case (i: Int, it: Iterator[RegionValue]) =>
+    val (files, droppedPerPart) = mv.rvd.crdd.boundary.mapPartitionsWithIndex { case (i: Int, it: Iterator[RegionValue]) =>
       val context = TaskContext.get
       val pf =
         parallelOutputPath + "/" +
