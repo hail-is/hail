@@ -22,7 +22,7 @@ import scala.reflect.ClassTag
 
 object EmitFunctionBuilder {
   def apply[R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction0[R]] =
-    new EmitFunctionBuilder[AsmFunction0[R]](Array[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R], namePrefix = prefix)
+    new EmitFunctionBuilder[AsmFunction0[R]](FastIndexedSeq[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R], namePrefix = prefix)
 
   def apply[A: TypeInfo, R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction1[A, R]] =
     new EmitFunctionBuilder[AsmFunction1[A, R]](Array(GenericTypeInfo[A]), GenericTypeInfo[R], namePrefix = prefix)
@@ -193,7 +193,7 @@ class EmitMethodBuilder(
 
 class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
   parentfb: EmitFunctionBuilder[_],
-  parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
+  parameterTypeInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
   returnTypeInfo: MaybeGenericTypeInfo[_],
   packageName: String = "is/hail/codegen/generated",
   namePrefix: String = null,
@@ -255,7 +255,7 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
 }
 
 class EmitFunctionBuilder[F >: Null](
-  parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
+  parameterTypeInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
   returnTypeInfo: MaybeGenericTypeInfo[_],
   packageName: String = "is/hail/codegen/generated",
   namePrefix: String = null,
@@ -502,7 +502,7 @@ class EmitFunctionBuilder[F >: Null](
       val rt = if (op == CodeOrdering.compare) typeInfo[Int] else typeInfo[Boolean]
 
       val newMB = if (ignoreMissingness) {
-        val newMB = newMethod(Array[TypeInfo[_]](ti, ti), rt)
+        val newMB = newMethod(FastIndexedSeq[TypeInfo[_]](ti, ti), rt)
         val ord = t1.codeOrdering(newMB, t2, sortOrder)
         val v1 = newMB.getArg(1)(ti)
         val v2 = newMB.getArg(3)(ti)
@@ -518,7 +518,7 @@ class EmitFunctionBuilder[F >: Null](
         newMB.emit(c)
         newMB
       } else {
-        val newMB = newMethod(Array[TypeInfo[_]](typeInfo[Boolean], ti, typeInfo[Boolean], ti), rt)
+        val newMB = newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[Boolean], ti, typeInfo[Boolean], ti), rt)
         val ord = t1.codeOrdering(newMB, t2, sortOrder)
         val m1 = newMB.getArg[Boolean](1)
         val v1 = newMB.getArg(2)(ti)
@@ -560,17 +560,11 @@ class EmitFunctionBuilder[F >: Null](
     if (parameterTypeInfo.exists(_.isGeneric) || returnTypeInfo.isGeneric) {
       val generic = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.generic), returnTypeInfo.generic)
       classBuilder.addMethod(generic)
-      /*
       generic.emit(
-        new Code[Unit] {
-          def emit(il: Growable[AbstractInsnNode]) {
-            returnTypeInfo.castToGeneric(
-              m.invoke(parameterTypeInfo.zipWithIndex.map { case (ti, i) =>
-                ti.castFromGeneric(generic.getArg(i + 1)(ti.generic))
-              }: _*)).emit(il)
-          }
-        }
-      ) */
+        returnTypeInfo.castToGeneric(
+          m.invoke(parameterTypeInfo.zipWithIndex.map { case (ti, i) =>
+            ti.castFromGeneric(generic.getArg(i + 1)(ti.generic))
+          }: _*)))
     }
     m
   }
@@ -601,44 +595,44 @@ class EmitFunctionBuilder[F >: Null](
     newMethod("method", argsInfo, returnInfo)
 
   override def newMethod[R: TypeInfo]: EmitMethodBuilder =
-    newMethod(Array[TypeInfo[_]](), typeInfo[R])
+    newMethod(FastIndexedSeq[TypeInfo[_]](), typeInfo[R])
 
   def newMethod[R: TypeInfo](prefix: String)(body: MethodBuilder => Code[R]): Code[R] = {
-    val mb = newMethod(prefix, Array[TypeInfo[_]](), typeInfo[R])
+    val mb = newMethod(prefix, FastIndexedSeq[TypeInfo[_]](), typeInfo[R])
     mb.emit(body(mb))
     mb.invoke[R]()
   }
 
   override def newMethod[A: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
-    newMethod(Array[TypeInfo[_]](typeInfo[A]), typeInfo[R])
+    newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[A]), typeInfo[R])
 
   def newMethod[A: TypeInfo, R: TypeInfo](prefix: String)(
     body: (MethodBuilder, Code[A]) => Code[R]
   ): Code[A] => Code[R] = {
-    val mb = newMethod(prefix, Array[TypeInfo[_]](typeInfo[A]), typeInfo[R])
+    val mb = newMethod(prefix, FastIndexedSeq[TypeInfo[_]](typeInfo[A]), typeInfo[R])
     mb.emit(body(mb, mb.getArg[A](1)))
     a => mb.invoke[R](a)
   }
 
   override def newMethod[A: TypeInfo, B: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
-    newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B]), typeInfo[R])
+    newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[A], typeInfo[B]), typeInfo[R])
 
   def newMethod[A: TypeInfo, B: TypeInfo, R: TypeInfo](prefix: String)(
     body: (MethodBuilder, Code[A], Code[B]) => Code[R]
   ): (Code[A], Code[B]) => Code[R] = {
-    val mb = newMethod(prefix, Array[TypeInfo[_]](typeInfo[A], typeInfo[B]), typeInfo[R])
+    val mb = newMethod(prefix, FastIndexedSeq[TypeInfo[_]](typeInfo[A], typeInfo[B]), typeInfo[R])
     mb.emit(body(mb, mb.getArg[A](1).load(), mb.getArg[B](2).load()))
     (a, b) => mb.invoke[R](a, b)
   }
 
   override def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
-    newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C]), typeInfo[R])
+    newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C]), typeInfo[R])
 
   override def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
-    newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D]), typeInfo[R])
+    newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D]), typeInfo[R])
 
   override def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
-    newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
+    newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
 
   def newDependentFunction[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](
     namePrefix: String = null

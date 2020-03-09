@@ -75,6 +75,7 @@ object Pretty {
 
     b.indent {
       b += "\n"
+      b += s"entry ${ m.entry }\n"
       for (ell <- m.blocks) {
         fmt(ell, b)
       }

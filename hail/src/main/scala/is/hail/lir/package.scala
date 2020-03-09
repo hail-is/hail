@@ -65,23 +65,27 @@ package object lir {
 
   def insn1(op: Int): (ValueX) => ValueX = (c) => insn(op, c)
 
+  def insn1(op: Int, _ti: TypeInfo[_]): (ValueX) => ValueX = (c) => insn(op, _ti, c)
+
   def insn2(op: Int): (ValueX, ValueX) => ValueX = (c1, c2) => insn(op, c1, c2)
 
   def insn3(op: Int): (ValueX, ValueX, ValueX) => ValueX = (c1, c2, c3) => insn(op, c1, c2, c3)
 
-  def insn(op: Int, args: IndexedSeq[ValueX]): ValueX = {
-    val x = new InsnX(op)
+  def insn(op: Int, _ti: TypeInfo[_], args: IndexedSeq[ValueX]): ValueX = {
+    val x = new InsnX(op, _ti)
     setChildren(x, args)
     x
   }
 
-  def insn(op: Int): ValueX = insn(op, FastIndexedSeq.empty)
+  def insn(op: Int): ValueX = insn(op, null, FastIndexedSeq.empty)
 
-  def insn(op: Int, c: ValueX): ValueX = insn(op, FastIndexedSeq(c))
+  def insn(op: Int, c: ValueX): ValueX = insn(op, null, FastIndexedSeq(c))
 
-  def insn(op: Int, c1: ValueX, c2: ValueX): ValueX = insn(op, FastIndexedSeq(c1, c2))
+  def insn(op: Int, _ti: TypeInfo[_], c: ValueX): ValueX = insn(op, _ti, FastIndexedSeq(c))
 
-  def insn(op: Int, c1: ValueX, c2: ValueX, c3: ValueX): ValueX = insn(op, FastIndexedSeq(c1, c2, c3))
+  def insn(op: Int, c1: ValueX, c2: ValueX): ValueX = insn(op, null, FastIndexedSeq(c1, c2))
+
+  def insn(op: Int, c1: ValueX, c2: ValueX, c3: ValueX): ValueX = insn(op, null, FastIndexedSeq(c1, c2, c3))
 
   def stmtOp3(op: Int): (ValueX, ValueX, ValueX) => StmtX = (c1, c2, c3) => stmtOp(op, c1, c2, c3)
 
@@ -90,6 +94,8 @@ package object lir {
     setChildren(x, args)
     x
   }
+
+  def stmtOp(op: Int, c: ValueX): StmtX = stmtOp(op, FastIndexedSeq(c))
 
   def stmtOp(op: Int, c1: ValueX, c2: ValueX, c3: ValueX): StmtX = stmtOp(op, FastIndexedSeq(c1, c2, c3))
 

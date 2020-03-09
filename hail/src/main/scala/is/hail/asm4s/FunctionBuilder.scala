@@ -194,28 +194,28 @@ object FunctionBuilder {
   }
 
   def functionBuilder[R: TypeInfo]: FunctionBuilder[AsmFunction0[R]] =
-    new FunctionBuilder(Array[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
+    new FunctionBuilder(FastIndexedSeq[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
 
   def functionBuilder[A: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction1[A, R]] =
-    new FunctionBuilder(Array(GenericTypeInfo[A]), GenericTypeInfo[R])
+    new FunctionBuilder(FastIndexedSeq(GenericTypeInfo[A]), GenericTypeInfo[R])
 
   def functionBuilder[A: TypeInfo, B: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction2[A, B, R]] =
-    new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B]), GenericTypeInfo[R])
+    new FunctionBuilder(FastIndexedSeq(GenericTypeInfo[A], GenericTypeInfo[B]), GenericTypeInfo[R])
 
   def functionBuilder[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction3[A, B, C, R]] =
-    new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C]), GenericTypeInfo[R])
+    new FunctionBuilder(FastIndexedSeq(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C]), GenericTypeInfo[R])
 
   def functionBuilder[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction4[A, B, C, D, R]] =
-    new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D]), GenericTypeInfo[R])
+    new FunctionBuilder(FastIndexedSeq(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D]), GenericTypeInfo[R])
 
   def functionBuilder[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction5[A, B, C, D, E, R]] =
-    new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E]), GenericTypeInfo[R])
+    new FunctionBuilder(FastIndexedSeq(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E]), GenericTypeInfo[R])
 
   def functionBuilder[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, F: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction6[A, B, C, D, E, F, R]] =
-    new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F]), GenericTypeInfo[R])
+    new FunctionBuilder(FastIndexedSeq(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F]), GenericTypeInfo[R])
 
   def functionBuilder[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, F: TypeInfo, G: TypeInfo, R: TypeInfo]: FunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]] =
-    new FunctionBuilder(Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
+    new FunctionBuilder(FastIndexedSeq(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
 }
 
 object MethodBuilder {
@@ -338,14 +338,14 @@ trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
 }
 
 class DependentFunctionBuilder[F >: Null <: AnyRef : TypeInfo : ClassTag](
-  parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
+  parameterTypeInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
   returnTypeInfo: MaybeGenericTypeInfo[_],
   packageName: String = "is/hail/codegen/generated",
   initModule: ModuleBuilder = null
 ) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName, initModule = initModule) with DependentFunction[F]
 
 class FunctionBuilder[F >: Null](
-  val parameterTypeInfo: Array[MaybeGenericTypeInfo[_]],
+  val parameterTypeInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
   val returnTypeInfo: MaybeGenericTypeInfo[_],
   val packageName: String = "is/hail/codegen/generated",
   namePrefix: String = null,
@@ -366,7 +366,7 @@ class FunctionBuilder[F >: Null](
 
   private[this] val methodMemo: mutable.Map[Any, MethodBuilder] = mutable.HashMap.empty
 
-  def getOrDefineMethod(suffix: String, key: Any, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_])
+  def getOrDefineMethod(suffix: String, key: Any, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_])
     (f: MethodBuilder => Unit): MethodBuilder = {
     methodMemo.get(key) match {
       case Some(mb) => mb
@@ -426,22 +426,22 @@ class FunctionBuilder[F >: Null](
     newMethod("method", argsInfo, returnInfo)
 
   def newMethod[R: TypeInfo]: MethodBuilder =
-    newMethod(Array[TypeInfo[_]](), typeInfo[R])
+    newMethod(FastIndexedSeq[TypeInfo[_]](), typeInfo[R])
 
   def newMethod[A: TypeInfo, R: TypeInfo]: MethodBuilder =
-    newMethod(Array[TypeInfo[_]](typeInfo[A]), typeInfo[R])
+    newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[A]), typeInfo[R])
 
   def newMethod[A: TypeInfo, B: TypeInfo, R: TypeInfo]: MethodBuilder =
-    newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B]), typeInfo[R])
+    newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[A], typeInfo[B]), typeInfo[R])
 
   def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo]: MethodBuilder =
-    newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C]), typeInfo[R])
+    newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C]), typeInfo[R])
 
   def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, R: TypeInfo]: MethodBuilder =
-    newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D]), typeInfo[R])
+    newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D]), typeInfo[R])
 
   def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: MethodBuilder =
-    newMethod(Array[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
+    newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
 
   def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = classBuilder.classAsBytes(print)
 

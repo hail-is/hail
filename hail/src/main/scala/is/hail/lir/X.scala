@@ -40,14 +40,21 @@ class Classx[C](val name: String, val superName: String) {
   }
 
   def asBytes(print: Option[PrintWriter]): Array[Byte] = {
+    // println(Pretty(this))
+
     for (m <- methods) {
       m.findBlocks()
+    }
+
+    for (m <- methods) {
       m.simplifyBlocks()
     }
 
-    println(Pretty(this))
+    // println(Pretty(this))
 
-    Emit(this, Some(new PrintWriter(System.out)))
+    Emit(this, print
+      // Some(new PrintWriter(System.out))
+    )
   }
 }
 
@@ -412,54 +419,59 @@ class BooleanX(val op: Int) extends ValueX {
   def ti: TypeInfo[_] = BooleanInfo
 }
 
-class InsnX(val op: Int) extends ValueX {
-  def ti: TypeInfo[_] = op match {
-    // Int
-    case INEG => IntInfo
-    case IADD => IntInfo
-    case ISUB => IntInfo
-    case IMUL => IntInfo
-    case IDIV => IntInfo
-    case IREM => IntInfo
-    case IAND => IntInfo
-    case IOR => IntInfo
-    case IXOR => IntInfo
-    case L2I => IntInfo
-    case F2I => IntInfo
-    case D2I => IntInfo
-    // Long
-    case LNEG => LongInfo
-    case LADD => LongInfo
-    case LSUB => LongInfo
-    case LMUL => LongInfo
-    case LDIV => LongInfo
-    case LREM => LongInfo
-    case LAND => LongInfo
-    case LOR => LongInfo
-    case LXOR => LongInfo
-    case I2L => LongInfo
-    case F2L => LongInfo
-    case D2L => LongInfo
-    // Float
-    case FNEG => FloatInfo
-    case FADD => FloatInfo
-    case FSUB => FloatInfo
-    case FMUL => FloatInfo
-    case FDIV => FloatInfo
-    case FREM => FloatInfo
-    case I2F => FloatInfo
-    case L2F => FloatInfo
-    case D2F => FloatInfo
-    // Double
-    case DNEG => DoubleInfo
-    case DADD => DoubleInfo
-    case DSUB => DoubleInfo
-    case DMUL => DoubleInfo
-    case DDIV => DoubleInfo
-    case DREM => DoubleInfo
-    case I2D => DoubleInfo
-    case L2D => DoubleInfo
-    case F2D => DoubleInfo
+class InsnX(val op: Int, _ti: TypeInfo[_]) extends ValueX {
+  def ti: TypeInfo[_] = {
+    if (_ti != null)
+      return _ti
+
+    op match {
+      // Int
+      case INEG => IntInfo
+      case IADD => IntInfo
+      case ISUB => IntInfo
+      case IMUL => IntInfo
+      case IDIV => IntInfo
+      case IREM => IntInfo
+      case IAND => IntInfo
+      case IOR => IntInfo
+      case IXOR => IntInfo
+      case L2I => IntInfo
+      case F2I => IntInfo
+      case D2I => IntInfo
+      // Long
+      case LNEG => LongInfo
+      case LADD => LongInfo
+      case LSUB => LongInfo
+      case LMUL => LongInfo
+      case LDIV => LongInfo
+      case LREM => LongInfo
+      case LAND => LongInfo
+      case LOR => LongInfo
+      case LXOR => LongInfo
+      case I2L => LongInfo
+      case F2L => LongInfo
+      case D2L => LongInfo
+      // Float
+      case FNEG => FloatInfo
+      case FADD => FloatInfo
+      case FSUB => FloatInfo
+      case FMUL => FloatInfo
+      case FDIV => FloatInfo
+      case FREM => FloatInfo
+      case I2F => FloatInfo
+      case L2F => FloatInfo
+      case D2F => FloatInfo
+      // Double
+      case DNEG => DoubleInfo
+      case DADD => DoubleInfo
+      case DSUB => DoubleInfo
+      case DMUL => DoubleInfo
+      case DDIV => DoubleInfo
+      case DREM => DoubleInfo
+      case I2D => DoubleInfo
+      case L2D => DoubleInfo
+      case F2D => DoubleInfo
+    }
   }
 }
 

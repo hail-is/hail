@@ -261,7 +261,13 @@ object Code {
 
   def _empty: Code[Unit] = Code[Unit](null: lir.ValueX)
 
-  def _throw[T <: java.lang.Throwable, U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] = Code(cerr, lir.insn1(ATHROW))
+  def _throw[T <: java.lang.Throwable, U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] = {
+    if (uti eq UnitInfo) {
+      cerr.end.append(lir.stmtOp(ATHROW, cerr.v))
+      new Code(cerr.start, cerr.end, null)
+    } else
+      Code(cerr, lir.insn1(ATHROW, uti))
+  }
 
   def _fatal[U](msg: Code[String])(implicit uti: TypeInfo[U]): Code[U] =
     Code._throw[is.hail.utils.HailException, U](Code.newInstance[is.hail.utils.HailException, String, Option[String], Throwable](
