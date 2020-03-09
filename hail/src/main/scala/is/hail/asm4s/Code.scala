@@ -337,6 +337,14 @@ object Code {
   }
 
   def toUnit(c: Code[_]): Code[Unit] = new Code(c.start, c.end, null)
+
+  def switch(c: Code[Int], dflt: Code[Unit], cases: IndexedSeq[Code[Unit]]): Code[Unit] = {
+    val L = new lir.Block()
+    c.end.append(lir.switch(c.v, dflt.start, cases.map(_.start)))
+    dflt.end.append(lir.goto(L))
+    cases.foreach(_.end.append(lir.goto(L)))
+    new Code(c.start, L, null)
+  }
 }
 
 class Code[+T](

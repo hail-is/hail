@@ -147,6 +147,9 @@ object Emit {
           mn.instructions.add(new JumpInsnNode(GOTO, labelNodes(x.Lfalse)))
         case x: GotoX =>
           mn.instructions.add(new JumpInsnNode(GOTO, labelNodes(x.L)))
+        case x: SwitchX =>
+          mn.instructions.add(new TableSwitchInsnNode(0, x.Lcases.length - 1,
+            labelNodes(x.Ldefault), x.Lcases.map(labelNodes): _*))
         case x: ReturnX =>
           mn.instructions.add(new InsnNode(
             if (x.children.length == 0)

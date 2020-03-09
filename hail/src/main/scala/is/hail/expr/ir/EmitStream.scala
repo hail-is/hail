@@ -152,7 +152,22 @@ object CodeStream { self =>
   abstract class Stream[+A] {
     def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A]
 
-    def fold(init: => Code[Unit], f: (A) => Code[Unit], ret: => Code[Ctrl]): Code[Ctrl] = ???
+    def fold(mb: MethodBuilder, init: => Code[Unit], f: (A) => Code[Unit], ret: => Code[Ctrl]): Code[Ctrl] = {
+      implicit val ctx = EmitStreamContext(mb)
+      val Ltop = CodeLabel()
+      val Lafter = CodeLabel()
+      val s = apply(Lafter.goto, (a) => Code(f(a), Ltop.goto: Code[Ctrl]))
+      Code(
+        init,
+        s.setup0,
+        s.setup,
+        Ltop,
+        s.pull,
+        Lafter,
+        s.close,
+        s.close0,
+        ret)
+    }
 
     def forEach(mb: MethodBuilder)(f: A => Code[Unit]): Code[Unit] =
       CodeStream.forEach(mb, this, f)
@@ -211,7 +226,6 @@ object CodeStream { self =>
         close = Code._empty,
         pull = f(ctx, _.apply(
           none = eos,
-          // Warning: `a` should not depend on `s`
           some = a => push(a))))
     }
   }
@@ -276,9 +290,11 @@ object CodeStream { self =>
         eos = eos,
         push = inner => {
           innerSource = inner(
-            eos = Code(LinnerEos, innerSource.close, LouterPull.goto),
+            eos = LinnerEos.goto,
             push = push)
-          Code(innerSource.setup, inInnerStream := true, Code(LinnerPull, innerSource.pull))
+          Code(innerSource.setup, inInnerStream := true, LinnerPull, innerSource.pull,
+              // for layout
+              LinnerEos, innerSource.close, LouterPull.goto)
         })
       Source[A](
         setup0 = Code(inInnerStream := const(false), outerSource.setup0, innerSource.setup0),
@@ -473,27 +489,25 @@ object EmitStream {
     COption.toEmitCode(result, aTyp, mb)
   }
 
-  def sequence(elements: Seq[EmitCode]): Stream[EmitCode] = new Stream[EmitCode] {
+  def sequence(mb: EmitMethodBuilder, elemPType: PType, elements: IndexedSeq[EmitCode]): Stream[EmitCode] = new Stream[EmitCode] {
     def apply(eos: Code[Ctrl], push: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] = {
-      ???
-      /*
-      val i = newLocal[Code[Int]]
-      val eosJP = joinPoint()
-      val pushJP = joinPoint[A]
+      val i = mb.newLocal[Int]
+      val t = mb.newEmitLocal(elemPType)
+      val Leos = CodeLabel()
+      val Lpush = CodeLabel()
 
-      eosJP.define(_ => eos)
-      pushJP.define(a => Code(i := i.load + 1, push(a)))
-
-      Source[A](
-        setup0 = i := 0,
+      Source[EmitCode](
+        setup0 = i := const(0),
         close0 = Code._empty,
-        setup = i := 0,
+        setup = i := const(0),
         close = Code._empty,
-        pull = JoinPoint.switch(i.load, eosJP, elements.map { elt =>
-          val j = joinPoint()
-          j.define(_ => pushJP(elt))
-          j
-        })) */
+        pull = (i.get < elements.length).mux(
+          Code(
+            Code.switch(i, Leos.goto, elements.map(elem => Code(t := elem, Lpush.goto))),
+            Lpush,
+            i += 1,
+            push(t)),
+          eos))
     }
   }
 
@@ -577,7 +591,7 @@ object EmitStream {
                 startt.setup,
                 stopt.setup,
                 stept.setup,
-                (startt.m || stopt.m || stept.m).mux(
+                (startt.m || stopt.m || stept.m).mux[Unit](
                   none,
                   Code(
                     start := startt.value,
@@ -587,8 +601,9 @@ object EmitStream {
                     llen := (step < const(0)).mux(
                       (start <= stop).mux(const(0L), (start.toL - stop.toL - const(1L)) / (-step).toL + const(1L)),
                       (start >= stop).mux(const(0L), (stop.toL - start.toL - const(1L)) / step.toL + const(1L))),
-                    (llen > const(Int.MaxValue.toLong)).mux(
-                      Code._fatal[Ctrl]("Array range cannot have more than MAXINT elements."),
+                    // FIXME for Ctrl
+                    (llen > const(Int.MaxValue.toLong)).mux[Unit](
+                      Code._fatal[Unit]("Array range cannot have more than MAXINT elements."),
                       some(SizedStream(
                         range(mb, start, step, llen.toI)
                           .map(i => EmitCode(Code._empty, const(false), PCode(eltType, i))),
@@ -602,12 +617,24 @@ object EmitStream {
           COption.fromEmitCode(emitIR(containerIR)).mapCPS { (containerAddr, k) =>
             val xAddr = fb.newPField(aType)
             val len = mb.newLocal[Int]
-            val newStream = range(mb, 0, 1, len).map { i =>
-              EmitCode(
-                Code._empty,
-                xAddr.get.asIndexable.isElementMissing(i),
-                xAddr.get.asIndexable.loadElement(i))
+            val i = mb.newLocal[Int]
+            val newStream = new Stream[EmitCode] {
+              def apply(eos: Code[Ctrl], push: (EmitCode) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] =
+                new Source[EmitCode](
+                  setup0 = i := 0,
+                  setup = i := 0,
+                  close = Code._empty,
+                  close0 = Code._empty,
+                  pull = (i < len).mux(
+                    Code(i += 1,
+                      push(
+                        EmitCode(Code._empty,
+                          // FIXME I know, I know.
+                          xAddr.get.asIndexable.isElementMissing(i - 1),
+                          xAddr.get.asIndexable.loadElement(i - 1)))),
+                    eos))
             }
+
             Code(
               xAddr := containerAddr,
               k(SizedStream(
@@ -617,7 +644,7 @@ object EmitStream {
 
         case x@MakeStream(elements, t) =>
           val eltType = coerce[PStream](x.pType).elementType
-          val stream = sequence(elements.map { ir =>
+          val stream = sequence(mb, eltType, elements.toFastIndexedSeq.map { ir =>
               val et = emitIR(ir)
               EmitCode(et.setup, et.m, PCode(eltType, eltType.copyFromTypeAndStackValue(er.mb, er.region, ir.pType, et.value)))
           })

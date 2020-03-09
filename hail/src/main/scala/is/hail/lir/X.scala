@@ -5,6 +5,7 @@ import java.io.PrintWriter
 import scala.collection.mutable
 
 import is.hail.asm4s._
+import is.hail.utils._
 
 import org.objectweb.asm.Opcodes._
 
@@ -153,6 +154,9 @@ class Method private[lir] (
               s.push(x.Lfalse)
             case x: GotoX =>
               s.push(x.L)
+            case x: SwitchX =>
+              s.push(x.Ldefault)
+              x.Lcases.foreach(s.push)
             case _ =>
           }
           x = x.next
@@ -289,6 +293,10 @@ class Block {
 
 // X stands for eXpression
 abstract class X {
+  // for debugging
+  val stack = Thread.currentThread().getStackTrace
+  var setParentStack: Array[StackTraceElement] = _
+
   var children: Array[ValueX] = new Array(0)
 
   def setArity(n: Int): Unit = {
@@ -307,8 +315,14 @@ abstract class X {
       c.parent = null
 
     if (x != null) {
+      if (x.parent != null) {
+        println(x.setParentStack.mkString("\n"))
+        println("-------")
+        println(x.stack.mkString("\n"))
+      }
       assert(x.parent == null)
       x.parent = this
+      x.setParentStack = Thread.currentThread().getStackTrace
     }
     children(i) = x
   }
@@ -392,6 +406,36 @@ class IfX(val op: Int) extends ControlX {
       _Ltrue.uses += this
     if (_Lfalse != null)
       _Lfalse.uses += this
+  }
+}
+
+class SwitchX() extends ControlX {
+  private[this] var _Ldefault: Block = _
+
+  private[this] var _Lcases: IndexedSeq[Block] = FastIndexedSeq()
+
+  def Ldefault: Block = _Ldefault
+
+  def Lcases: IndexedSeq[Block] = _Lcases
+
+  def setDefault(newDefault: Block): Unit = {
+    if (_Ldefault != null)
+      _Ldefault.uses -= this
+    _Ldefault = newDefault
+    if (_Ldefault != null)
+      _Ldefault.uses += this
+  }
+
+  def setCases(newCases: IndexedSeq[Block]): Unit = {
+    _Lcases.foreach { c =>
+      if (c != null)
+        c.uses -= this
+    }
+    _Lcases = newCases
+    _Lcases.foreach { c =>
+      if (c != null)
+        c.uses += this
+    }
   }
 }
 

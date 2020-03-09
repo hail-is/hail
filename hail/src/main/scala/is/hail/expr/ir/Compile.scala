@@ -50,6 +50,8 @@ object Compile {
 
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
+    println(Pretty(ir))
+
     Emit(ctx, ir, fb)
 
     val f = fb.resultWithIndex(print)

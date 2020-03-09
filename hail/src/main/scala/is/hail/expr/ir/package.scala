@@ -101,4 +101,6 @@ package object ir {
   }
 
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
+
+  implicit def emitValueToCode(ev: EmitValue): EmitCode = ev.get
 }

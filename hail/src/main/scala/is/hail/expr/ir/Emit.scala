@@ -112,7 +112,12 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
 
   def map(f: PCode => PCode): EmitCode = copy(pv = f(pv))
 
-  def copyToRegion(mb: EmitMethodBuilder, region: Code[Region]): EmitCode = ???
+  def copyToRegion(mb: EmitMethodBuilder, region: Code[Region]): EmitCode = {
+    EmitCode(
+      setup,
+      m,
+      PCode(pt, pt.copyFromTypeAndStackValue(mb, region, pt, v)))
+  }
 }
 
 object EmitCode {
@@ -502,7 +507,7 @@ private class Emit(
                     .concat(", length=")
                     .concat(len.load().toS)))))))
 
-        EmitCode(setup, xmv, xa.load().asIndexable.loadElement(len, xi))
+        EmitCode(setup, xmv, xa.get.asIndexable.loadElement(len, xi))
       case ArrayLen(a) =>
         val codeA = emit(a)
         strict(pt, a.pType.asInstanceOf[PArray].loadLength(coerce[Long](codeA.v)), codeA)
@@ -727,7 +732,7 @@ private class Emit(
             ret(COption.fromEmitCode(xAcc.get))
 
           stream.stream
-                .fold(xAcc := codeZ, foldBody, retTT())
+                .fold(mb, xAcc := codeZ, foldBody, retTT())
         }
 
         COption.toEmitCode(resOpt, accType, mb)
@@ -747,8 +752,7 @@ private class Emit(
         val typedCodeSeq = seq.map(ir => emit(ir, env = seqEnv))
 
         val streamOpt = emitStream(a)
-
-        val resOpt = streamOpt.flatMapCPS[PCode] { (stream, _ctx, ret) =>
+         val resOpt = streamOpt.flatMapCPS[PCode] { (stream, _ctx, ret) =>
           implicit val c = _ctx
 
           def foldBody(elt: EmitCode): Code[Unit] =
@@ -760,7 +764,7 @@ private class Emit(
               ret(COption.fromEmitCode(codeR))
 
           stream.stream
-            .fold(accVars := acc.map(x => emit(x._2))
+            .fold(mb, accVars := acc.map(x => emit(x._2))
               .map(_.copyToRegion(mb, region)),
               foldBody, computeRes())
         }
