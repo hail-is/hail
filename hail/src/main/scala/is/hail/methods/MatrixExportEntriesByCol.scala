@@ -52,7 +52,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
           .map(allColValuesJSON)
           .toArray)
 
-      val partFolders = mv.rvd.crdd.mapPartitionsWithIndex { (i, it) =>
+      val partFolders = mv.rvd.crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
 
         val partFolder = partFileBase + partFile(d, i, TaskContext.get())
 
@@ -77,11 +77,11 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
           }
         }
 
-        it.foreach { rv =>
+        it.foreach { ptr =>
 
-          val entriesArray = new UnsafeIndexedSeq(entryArrayType, rv.region, rvType.loadField(rv.offset, entriesIdx))
+          val entriesArray = new UnsafeIndexedSeq(entryArrayType, ctx.region, rvType.loadField(ptr, entriesIdx))
 
-          val fullRow = new UnsafeRow(rvType, rv)
+          val fullRow = new UnsafeRow(rvType, ctx.region, ptr)
 
           val rowFieldStrs = (0 until rvType.size)
             .filter(_ != entriesIdx)

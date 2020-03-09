@@ -195,9 +195,7 @@ case class MatrixGENReader(
     val rvd = RVD.coerce(
       localRVDType,
       ContextRDD.weaken(rdd).cmapPartitions { (ctx, it) =>
-        val region = ctx.region
-        val rvb = new RegionValueBuilder(region)
-        val rv = RegionValue(region)
+        val rvb = ctx.rvb
 
         it.map { case (va, gs) =>
 
@@ -223,8 +221,8 @@ case class MatrixGENReader(
             rvb.endArray()
           }
           rvb.endStruct()
-          rv.setOffset(rvb.end())
-          rv
+
+          rvb.end()
         }
       },
       ctx)

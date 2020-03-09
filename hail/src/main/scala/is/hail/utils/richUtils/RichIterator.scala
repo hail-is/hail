@@ -125,15 +125,4 @@ class RichRowIterator(val it: Iterator[Row]) extends AnyVal {
       rvb.end()
     }
   }
-
-  def toRegionValueIterator(region: Region, rowTyp: PStruct): Iterator[RegionValue] = {
-    val rvb = new RegionValueBuilder(region)
-    val rv = RegionValue(region)
-    it.map { row =>
-      rvb.start(rowTyp)
-      rvb.addAnnotation(rowTyp.virtualType, row)
-      rv.setOffset(rvb.end())
-      rv
-    }
-  }
 }

@@ -5,7 +5,7 @@ import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual.TInterval
 import is.hail.sparkextras._
-import is.hail.utils.{Muple, fatal}
+import is.hail.utils._
 
 import scala.collection.generic.Growable
 
@@ -164,7 +164,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
 
     val leftType = this.virtType
     val rightType = right.virtType
-    val jcrdd = repartitionedLeft.crddBoundary.czipPartitions(repartitionedRight.crddBoundary)
+    val jcrdd = repartitionedLeft.crdd.toCRDDRegionValue.boundary.czipPartitions(repartitionedRight.crdd.toCRDDRegionValue.boundary)
       { (ctx, leftIt, rightIt) =>
         OrderedRVIterator(leftType, leftIt, ctx)
           .zipJoin(OrderedRVIterator(rightType, rightIt, ctx))

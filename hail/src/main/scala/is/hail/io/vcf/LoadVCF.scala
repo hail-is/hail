@@ -1252,13 +1252,12 @@ object LoadVCF {
     contigRecoding: Map[String, String],
     arrayElementsRequired: Boolean,
     skipInvalidLoci: Boolean
-  ): ContextRDD[RegionValue] = {
+  ): ContextRDD[Long] = {
     val hasRSID = rowPType.hasField("rsid")
     lines.cmapPartitions { (ctx, it) =>
-      new Iterator[RegionValue] {
-        val region = ctx.region
+      new Iterator[Long] {
         val rvb = ctx.rvb
-        val rv = RegionValue(region)
+        var ptr: Long = 0
 
         val context: C = makeContext()
 
@@ -1277,7 +1276,7 @@ object LoadVCF {
                 f(context, vcfLine, rvb)
 
                 rvb.endStruct()
-                rv.setOffset(rvb.end())
+                ptr = rvb.end()
               } else
                 rvb.clear()
             } catch {
@@ -1304,12 +1303,12 @@ object LoadVCF {
           present
         }
 
-        def next(): RegionValue = {
+        def next(): Long = {
           // call hasNext to advance if necessary
           if (!hasNext)
             throw new java.util.NoSuchElementException()
           present = false
-          rv
+          ptr
         }
       }
     }

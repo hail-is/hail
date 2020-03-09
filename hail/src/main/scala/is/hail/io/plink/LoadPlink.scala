@@ -226,9 +226,7 @@ case class MatrixPLINKReader(
       val rgLocal = referenceGenome
 
       val fastKeys = crdd.cmapPartitions { (ctx, it) =>
-        val region = ctx.region
-        val rvb = new RegionValueBuilder(region)
-        val rv = RegionValue(region)
+        val rvb = ctx.rvb
 
         it.flatMap { case (_, record) =>
           val (contig, pos, _, ref, alt, _) = variantsBc.value(record.getKey)
@@ -244,16 +242,13 @@ case class MatrixPLINKReader(
             rvb.endArray()
             rvb.endStruct()
 
-            rv.setOffset(rvb.end())
-            Some(rv)
+            Some(rvb.end())
           }
         }
       }
 
       val rdd2 = crdd.cmapPartitions { (ctx, it) =>
-        val region = ctx.region
-        val rvb = new RegionValueBuilder(region)
-        val rv = RegionValue(region)
+        val rvb = ctx.rvb
 
         it.flatMap { case (_, record) =>
           val (contig, pos, cmPos, ref, alt, rsid) = variantsBc.value(record.getKey)
@@ -276,8 +271,7 @@ case class MatrixPLINKReader(
               record.getValue(rvb, hasGT)
             rvb.endStruct()
 
-            rv.setOffset(rvb.end())
-            Some(rv)
+            Some(rvb.end())
           }
         }
       }

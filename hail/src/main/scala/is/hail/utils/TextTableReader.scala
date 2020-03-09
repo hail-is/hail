@@ -366,7 +366,6 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
       }.cmapPartitions { (ctx, it) =>
       val region = ctx.region
       val rvb = ctx.rvb
-      val rv = RegionValue(region)
 
       val ab = new ArrayBuilder[String]
       val sb = new StringBuilder
@@ -376,7 +375,6 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
           if (sp.length != nFieldOrig)
             fatal(s"expected $nFieldOrig fields, but found ${ sp.length } fields")
 
-          rvb.set(region)
           rvb.start(rowPType)
           rvb.startStruct()
 
@@ -399,8 +397,8 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
           }
 
           rvb.endStruct()
-          rv.setOffset(rvb.end())
-          rv
+
+          rvb.end()
         }.value
       }
     }

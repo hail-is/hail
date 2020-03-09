@@ -108,7 +108,7 @@ object IndexBgen {
 
     val rangeBounds = bgenFilePaths.zipWithIndex.map { case (_, i) => Interval(Row(i), Row(i), includesStart = true, includesEnd = true) }
     val partitioner = new RVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
-    val crvd = BgenRDD(hc.sc, partitions, settings, null)
+    val crvd = BgenRDD(hc.sc, partitions, settings, null).toCRDDPtr
 
     val (leafCodec, intCodec) = BgenSettings.indexCodecSpecs(referenceGenome)
     val leafPType = LeafNodeBuilder.typ(indexKeyType, annotationType)
