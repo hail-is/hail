@@ -257,6 +257,14 @@ object EType {
       case t: PArray if t.elementType.fundamentalType.isOfType(PInt32(t.elementType.required)) &&
           HailContext.get.flags.get("use_packed_int_encoding") != null =>
          EPackedIntArray(required, t.elementType.required)
+      // FIXME(chrisvittal): Turn this on when it works
+      // case t: PArray if t.elementType.isInstanceOf[PBaseStruct] =>
+      //   val et = t.elementType.asInstanceOf[PBaseStruct]
+      //   ETransposedArrayOfStructs(
+      //     et.fields.map(f => EField(f.name, defaultFromPType(f.typ), f.index)),
+      //     t.required,
+      //     et.required
+      //   )
       case t: PArray => EArray(defaultFromPType(t.elementType), t.required)
       case t: PBaseStruct => EBaseStruct(t.fields.map(f => EField(f.name, defaultFromPType(f.typ), f.index)), t.required)
     }
@@ -292,6 +300,14 @@ object EType {
         val args = IRParser.repsepUntil(it, IRParser.struct_field(eTypeParser), PunctuationToken(","), PunctuationToken("}"))
         IRParser.punctuation(it, "}")
         EBaseStruct(args.zipWithIndex.map { case ((name, t), i) => EField(name, t, i) }, req)
+      case "ETransposedArrayOfStructs" =>
+        IRParser.punctuation(it, "[")
+        val structRequired = IRParser.boolean_literal(it)
+        IRParser.punctuation(it, "]")
+        IRParser.punctuation(it, "{")
+        val args = IRParser.repsepUntil(it, IRParser.struct_field(eTypeParser), PunctuationToken(","), PunctuationToken("}"))
+        IRParser.punctuation(it, "}")
+        ETransposedArrayOfStructs(args.zipWithIndex.map { case ((name, t), i) => EField(name, t, i) }, req, structRequired)
     }
   }
 }
