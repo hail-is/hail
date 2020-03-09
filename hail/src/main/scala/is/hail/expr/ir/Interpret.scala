@@ -657,7 +657,7 @@ object Interpret {
                 write(aggRegion, initF.getAggOffset())
               }
             },
-            { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
+            { (i: Int, ctx: RVDContext, it: Iterator[Long]) =>
               val partRegion = ctx.freshRegion
               val globalsOffset = globalsBc.value.readRegionValue(partRegion)
               val init = initOp(i, partRegion)
@@ -667,8 +667,8 @@ object Interpret {
                 init.newAggState(aggRegion)
                 init(partRegion, globalsOffset, false)
                 seqOps.setAggState(aggRegion, init.getAggOffset())
-                it.foreach { rv =>
-                  seqOps(rv.region, globalsOffset, false, rv.offset, false)
+                it.foreach { ptr =>
+                  seqOps(ctx.region, globalsOffset, false, ptr, false)
                   ctx.region.clear()
                 }
                 write(aggRegion, seqOps.getAggOffset())
