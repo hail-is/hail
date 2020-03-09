@@ -80,7 +80,7 @@ class Aggregators2Suite extends HailSuite {
           init.newAggState(aggRegion)
           init(region, argOff, false)
           res.setAggState(aggRegion, init.getAggOffset())
-          val result = SafeRow(rt, region, res(region)).get(0)
+          val result = SafeRow(rt, res(region)).get(0)
           assert(resultType.virtualType.valuesSimilar(result, v))
         }
       }
@@ -111,7 +111,7 @@ class Aggregators2Suite extends HailSuite {
         combOp(region)
         val res = resF(0, region)
         res.setAggState(aggRegion, combOp.getAggOffset())
-        val double = SafeRow(rt, region, res(region))
+        val double = SafeRow(rt, res(region))
         transformResult match {
           case Some(f) =>
             assert(f(double.get(0)) == f(double.get(1)),

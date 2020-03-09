@@ -298,7 +298,7 @@ class OrderingSuite extends HailSuite {
         val bs = new BinarySearch(fb.apply_method, pset, pset.elementType, keyOnly = false)
         fb.emit(bs.getClosestIndex(cset, false, Region.loadIRIntermediate(pt)(pTuple.fieldOffset(cetuple, 0))))
 
-        val asArray = SafeIndexedSeq(pArray, region, soff)
+        val asArray = SafeIndexedSeq(pArray, soff)
 
         val f = fb.resultWithIndex()(0, region)
         val closestI = f(region, soff, eoff)
@@ -340,7 +340,7 @@ class OrderingSuite extends HailSuite {
         val v = Region.loadIRIntermediate(pDict.keyType)(ptuple.fieldOffset(cktuple, 0))
         fb.emit(bs.getClosestIndex(cdict, m, v))
 
-        val asArray = SafeIndexedSeq(PArray(pDict.elementType), region, soff)
+        val asArray = SafeIndexedSeq(PArray(pDict.elementType), soff)
 
         val f = fb.resultWithIndex()(0, region)
         val closestI = f(region, soff, eoff)

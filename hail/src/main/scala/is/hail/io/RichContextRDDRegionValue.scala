@@ -214,6 +214,6 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
   }
 
   def toRows(rowType: PStruct): RDD[Row] = {
-    crdd.run.map(rv => SafeRow(rowType, rv.region, rv.offset))
+    crdd.run.map(rv => SafeRow(rowType, rv.offset))
   }
 }

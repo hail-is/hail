@@ -70,7 +70,7 @@ class RVD(
 
   def toRows: RDD[Row] = {
     val localRowType = rowPType
-    map(rv => SafeRow(localRowType, rv.region, rv.offset))
+    map(rv => SafeRow(localRowType, rv.offset))
   }
 
   def toUnsafeRows: RDD[UnsafeRow] = {
