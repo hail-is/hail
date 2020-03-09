@@ -427,34 +427,30 @@ class RVD(
   }
 
   def mapPartitionsWithIndex[T: ClassTag](
-    f: (Int, Iterator[RegionValue]) => Iterator[T]
-  ): RDD[T] = crdd.mapPartitionsWithIndex(f).clearingRun
-
-  def mapPartitionsWithIndex[T: ClassTag](
-    f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[T]
-  ): RDD[T] = crdd.cmapPartitionsWithIndex(f).clearingRun
+    f: (Int, RVDContext, Iterator[Long]) => Iterator[T]
+  ): RDD[T] = crdd.toCRDDPtr.cmapPartitionsWithIndex(f).clearingRun
 
   def mapPartitionsWithIndex(
-    newTyp: RVDType,
-    f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]
+    newTyp: RVDType
+  )(f: (Int, RVDContext, Iterator[Long]) => Iterator[Long]
   ): RVD = {
     require(newTyp.kType isPrefixOf typ.kType)
     RVD(
       newTyp,
       partitioner.coarsen(newTyp.key.length),
-      crdd.cmapPartitionsWithIndex(f))
+      crdd.toCRDDPtr.cmapPartitionsWithIndex(f).toCRDDRegionValue)
   }
 
   def mapPartitionsWithIndexAndValue[V](
     newTyp: RVDType,
-    values: Array[V],
-    f: (Int, RVDContext, V, Iterator[RegionValue]) => Iterator[RegionValue]
+    values: Array[V]
+  )(f: (Int, RVDContext, V, Iterator[Long]) => Iterator[Long]
   ): RVD = {
     require(newTyp.kType isPrefixOf typ.kType)
     RVD(
       newTyp,
       partitioner.coarsen(newTyp.key.length),
-      crdd.cmapPartitionsWithIndexAndValue(values, f))
+      crdd.toCRDDPtr.cmapPartitionsWithIndexAndValue(values, f).toCRDDRegionValue)
   }
 
   // Filtering
@@ -549,17 +545,17 @@ class RVD(
     RVD(typ, partitioner, crddBoundary.filter(p))
 
   def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD = {
-    mapPartitionsWithIndex(typ, { (i, context, it) =>
+    mapPartitionsWithIndex(typ) { (i, context, it) =>
       val c = makeContext(i, context)
-      it.filter { rv =>
+      it.toIteratorRV(context.r).filter { rv =>
         if (f(c, rv))
           true
         else {
           context.r.clear()
           false
         }
-      }
-    })
+      }.map(_.offset)
+    }
   }
 
   def filterIntervals(intervals: RVDPartitioner, keep: Boolean): RVD = {

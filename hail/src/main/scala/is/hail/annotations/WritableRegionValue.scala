@@ -33,6 +33,10 @@ class WritableRegionValue private (
   def offset: Long = value.offset
 
   def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromRV: RegionValue) {
+    setSelect(fromT, fromFieldIdx, fromRV.region, fromRV.offset)
+  }
+
+  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromRegion: Region, fromOffset: Long) {
     (t: @unchecked) match {
       case t: PStruct =>
         region.clear()
@@ -40,7 +44,7 @@ class WritableRegionValue private (
         rvb.startStruct()
         var i = 0
         while (i < t.size) {
-          rvb.addField(fromT, fromRV, fromFieldIdx(i))
+          rvb.addField(fromT, fromRegion, fromOffset, fromFieldIdx(i))
           i += 1
         }
         rvb.endStruct()
