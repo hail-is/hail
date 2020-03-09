@@ -179,7 +179,9 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
         initContainer.load,
         nested.toCodeWithArgs(fb, "grouped_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
           IndexedSeq(ob),
-          { case (i, _, Seq(ob: Value[OutputBuffer@unchecked])) => serializers(i)(ob) }),
+          { (i, _, args) =>
+            Code.memoize(coerce[OutputBuffer](args.head), "ga_ser_init_ob") { ob => serializers(i)(ob) }
+          }),
         tree.bulkStore(ob) { (ob: Code[OutputBuffer], kvOff: Code[Long]) =>
           Code(
             _elt := kvOff,
@@ -190,8 +192,9 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
             keyed.loadStates,
             nested.toCodeWithArgs(fb, "grouped_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
               Array(ob),
-              { case (i, _, Seq(ob: Value[OutputBuffer@unchecked])) => serializers(i)(ob) })
-          )
+              { (i, _, args) =>
+                Code.memoize(coerce[OutputBuffer](args.head), "ga_ser_init_ob") { ob => serializers(i)(ob) }
+              }))
         })
     }
   }
@@ -206,7 +209,9 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
       Code(
         init(nested.toCodeWithArgs(fb, "grouped_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
           FastIndexedSeq(ib),
-          { case (i, _, Seq(ib: Value[InputBuffer@unchecked])) => deserializers(i)(ib) })),
+          { (i, _, args) =>
+            Code.memoize(coerce[InputBuffer](args.head), "ga_deser_init_ib") { ib => deserializers(i)(ib) }
+          })),
         tree.bulkLoad(ib) { (ib, koff) =>
           Code(
             _elt := koff,
@@ -215,7 +220,9 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
             initElement(_elt, km, kv),
             nested.toCodeWithArgs(fb, "grouped_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
               FastIndexedSeq(ib),
-              { case (i, _, Seq(ib: Value[InputBuffer@unchecked])) => deserializers(i)(ib) }),
+              { (i, _, args) =>
+                Code.memoize(coerce[InputBuffer](args.head), "ga_deser_ib") { ib => deserializers(i)(ib) }
+              }),
             keyed.storeStates)
         })
     }

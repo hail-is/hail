@@ -1,7 +1,7 @@
 package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
-import is.hail.asm4s._
+import is.hail.asm4s.{coerce => _, _} // use ir coerce
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
@@ -101,14 +101,18 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
         loadInit,
         nested.toCodeWithArgs(fb, "array_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
           FastIndexedSeq(ob),
-          { case (i, _, Seq(ob: Value[OutputBuffer@unchecked])) => serializers(i)(ob) }),
+          { (i, _, args) =>
+            Code.memoize(coerce[OutputBuffer](args.head), "aelca_ser_init_ob") { ob => serializers(i)(ob) }
+          }),
         ob.writeInt(lenRef),
         idx := 0,
         Code.whileLoop(idx < lenRef,
           load,
           nested.toCodeWithArgs(fb, "array_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
             FastIndexedSeq(ob),
-            { case (i, _, Seq(ob: Value[OutputBuffer@unchecked])) => serializers(i)(ob) }),
+            { case (i, _, args) =>
+              Code.memoize(coerce[OutputBuffer](args.head), "aelca_ser_ob") { ob => serializers(i)(ob) }
+            }),
           idx := idx + 1))
     }
   }
@@ -119,15 +123,22 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
       Code(
         init(nested.toCodeWithArgs(fb, "array_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
           FastIndexedSeq(ib),
-          { case (i, _, Seq(ib: Value[InputBuffer@unchecked])) => deserializers(i)(ib) }),
+          { (i, _, args) =>
+            Code.memoize(coerce[InputBuffer](args.head), "aelca_deser_init_ib") { ib =>
+              deserializers(i)(ib)
+            }
+          }),
           initLen = false),
         lenRef := ib.readInt(),
         (lenRef < 0).mux(
           typ.setFieldMissing(off, 1),
           seq(nested.toCodeWithArgs(fb, "array_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
             FastIndexedSeq(ib),
-            { case (i, _, Seq(ib: Value[InputBuffer@unchecked])) => deserializers(i)(ib) })
-          )))
+            { (i, _, args) =>
+              Code.memoize(coerce[InputBuffer](args.head), "aelca_deser_ib") { ib =>
+                deserializers(i)(ib)
+              }
+            }))))
     }
   }
 
