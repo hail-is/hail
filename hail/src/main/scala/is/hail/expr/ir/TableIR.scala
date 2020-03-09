@@ -486,7 +486,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
       Coalesce(FastIndexedSeq(pred, False())))
     assert(rTyp.virtualType == TBoolean)
 
-    tv.filterWithPartitionOp(f)((rowF, rv, globalRV) => rowF(rv.region, rv.offset, globalRV.offset))
+    tv.filterWithPartitionOp(f)((rowF, ctx, ptr, globalPtr) => rowF(ctx.region, ptr, globalPtr))
   }
 }
 

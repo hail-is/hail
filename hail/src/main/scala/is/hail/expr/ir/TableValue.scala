@@ -55,17 +55,17 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   def persist(level: StorageLevel) =
     TableValue(typ, globals, rvd.persist(level))
 
-  def filterWithPartitionOp[P](partitionOp: (Int, Region) => P)(pred: (P, RegionValue, RegionValue) => Boolean): TableValue = {
+  def filterWithPartitionOp[P](partitionOp: (Int, Region) => P)(pred: (P, RVDContext, Long, Long) => Boolean): TableValue = {
     val localGlobals = globals.broadcast
-    copy(rvd = rvd.filterWithContext[(P, RegionValue)](
+    copy(rvd = rvd.filterWithContext[(P, Long)](
       { (partitionIdx, ctx) =>
         val globalRegion = ctx.partitionRegion
-        (partitionOp(partitionIdx, globalRegion), RegionValue(globalRegion, localGlobals.value.readRegionValue(globalRegion)))
-      }, { case ((p, glob), rv) => pred(p, rv, glob) }))
+        (partitionOp(partitionIdx, globalRegion), localGlobals.value.readRegionValue(globalRegion))
+      }, { case ((p, glob), ctx, ptr) => pred(p, ctx, ptr, glob) }))
   }
 
-  def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {
-    filterWithPartitionOp((_, _) => ())((_, rv1, rv2) => p(rv1, rv2))
+  def filter(p: (RVDContext, Long, Long) => Boolean): TableValue = {
+    filterWithPartitionOp((_, _) => ())((_, ctx, ptr, glob) => p(ctx, ptr, glob))
   }
 
   def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSON: String) {

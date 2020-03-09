@@ -248,8 +248,8 @@ class RVD(
         val ur = new UnsafeRow(localRowPType, null, 0)
         val key = new KeyedRow(ur, newType.kFieldIdx)
         (ur, key)
-      }, { case ((ur, key), rv) =>
-        ur.set(rv)
+      }, { case ((ur, key), ctx, ptr) =>
+        ur.set(ctx.r, ptr)
         partBc.value.contains(key)
       }) else this
 
@@ -541,20 +541,20 @@ class RVD(
     RVD(typ, newPartitioner, newRDD)
   }
 
-  def filter(p: (RegionValue) => Boolean): RVD =
-    RVD(typ, partitioner, crddBoundary.filter(p))
+  def filter(p: (RVDContext, Long) => Boolean): RVD =
+    RVD(typ, partitioner, crdd.toCRDDPtr.boundary.cfilter(p).toCRDDRegionValue)
 
-  def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RegionValue) => Boolean): RVD = {
+  def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RVDContext, Long) => Boolean): RVD = {
     mapPartitionsWithIndex(typ) { (i, context, it) =>
       val c = makeContext(i, context)
-      it.toIteratorRV(context.r).filter { rv =>
-        if (f(c, rv))
+      it.filter { ptr =>
+        if (f(c, context, ptr))
           true
         else {
           context.r.clear()
           false
         }
-      }.map(_.offset)
+      }
     }
   }
 
@@ -588,8 +588,8 @@ class RVD(
     val localRowPType = rowPType
     val kRowFieldIdx = typ.kFieldIdx
 
-    val pred: (RegionValue) => Boolean = (rv: RegionValue) => {
-      val ur = new UnsafeRow(localRowPType, rv)
+    val pred: (RVDContext, Long) => Boolean = (ctx: RVDContext, ptr: Long) => {
+      val ur = new UnsafeRow(localRowPType, ctx.r, ptr)
       val key = Row.fromSeq(
         kRowFieldIdx.map(i => ur.get(i)))
       intervalsBc.value.contains(key)
@@ -624,14 +624,14 @@ class RVD(
 
   def combine[U : ClassTag](
     zeroValue: U,
-    itF: (Int, RVDContext, Iterator[RegionValue]) => U,
+    itF: (Int, RVDContext, Iterator[Long]) => U,
     combOp: (U, U) => U,
     commutative: Boolean,
     tree: Boolean): U = {
 
     val makeComb: () => Combiner[U] = () => Combiner(zeroValue, combOp, commutative = commutative, associative = true)
 
-    var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
+    var reduced = crdd.toCRDDPtr.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
 
     if (tree) {
       val depth = treeAggDepth(HailContext.get, reduced.getNumPartitions)
@@ -666,36 +666,10 @@ class RVD(
     ac.result()
   }
 
-  // used in Interpret by TableAggregate, MatrixAggregate
-  def aggregateWithPartitionOp[PC, U: ClassTag](
-    zeroValue: U,
-    makePC: (Int, RVDContext) => PC
-  )(seqOp: (PC, U, RegionValue) => Unit,
-    combOp: (U, U) => U,
-    commutative: Boolean
-  ): U = {
-    val reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) =>
-      val pc = makePC(i, ctx)
-      val comb = zeroValue
-      it.foreach { rv =>
-        seqOp(pc, comb, rv)
-        ctx.region.clear()
-      }
-      Iterator.single(comb)
-    }
-
-    val ac = Combiner(zeroValue, combOp, commutative, associative = true)
-    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), ac.combine _)
-    ac.result()
-  }
-
-  def forall(p: RegionValue => Boolean): Boolean =
-    crdd.map(p).clearingRun.forall(x => x)
-
   def count(): Long =
     crdd.cmapPartitions { (ctx, it) =>
       var count = 0L
-      it.foreach { rv =>
+      it.foreach { _ =>
         count += 1
         ctx.region.clear()
       }
@@ -705,7 +679,7 @@ class RVD(
   def countPerPartition(): Array[Long] =
     crdd.cmapPartitions { (ctx, it) =>
       var count = 0L
-      it.foreach { rv =>
+      it.foreach { _ =>
         count += 1
         ctx.region.clear()
       }
@@ -727,11 +701,6 @@ class RVD(
         }.toArray
     }
   }
-
-  def collectPerPartition[T: ClassTag](f: (Int, RVDContext, Iterator[RegionValue]) => T): Array[T] =
-    crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
-      Iterator.single(f(i, ctx, it))
-    }.collect()
 
   def collectAsBytes(enc: AbstractTypedCodecSpec): Array[Array[Byte]] = stabilize(enc).collect()
 
