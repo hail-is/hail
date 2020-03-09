@@ -150,8 +150,10 @@ def main(args, pass_through_args):
     if args.vep:
         allowed_buckets_list = args.requester_pays_allow_buckets.split(",") if args.requester_pays_allow_buckets else []
         if not (args.requester_pays_allow_all or ('hail-us-vep' in allowed_buckets_list)):
-            raise RuntimeError("Need to enable requester pays on bucket 'hail-us-vep' to use vep. See --requester-pays-allow-all and --requester-pays-allow-buckets")
+            raise RuntimeError("Need to enable requester pays on bucket 'hail-us-vep' to use vep. See --requester-pays-allow-all and --requester-pays-allow-buckets \
+                WARNING: This is likely prohibitively expensive if you are outside the US. Contact us if you need VEP outside of the US.")
         conf.extend_flag('initialization-actions', [deploy_metadata[f'vep-{args.vep}.sh']])
+        sys.stderr.write("WARNING: Running VEP outside of the US is VERY expensive. Please contact us for support.")
     # add custom init scripts
     if args.init:
         conf.extend_flag('initialization-actions', args.init.split(','))
