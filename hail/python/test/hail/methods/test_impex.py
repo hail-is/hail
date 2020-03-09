@@ -830,31 +830,25 @@ def generate_random_gen():
 
 
 class BGENTests(unittest.TestCase):
-    def test_import_bgen_dosage_entry(self):
+
+    def setUp(self) -> None:
         hl.index_bgen(resource('example.8bits.bgen'),
                       contig_recoding={'01': '1'},
                       reference_genome='GRCh37')
 
+    def test_import_bgen_dosage_entry(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['dosage'])
         self.assertEqual(bgen.entry.dtype, hl.tstruct(dosage=hl.tfloat64))
         self.assertEqual(bgen.count_rows(), 199)
 
     def test_import_bgen_GT_GP_entries(self):
-        hl.index_bgen(resource('example.8bits.bgen'),
-                      contig_recoding={'01': '1'},
-                      reference_genome='GRCh37')
-
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['GT', 'GP'],
                               sample_file=resource('example.sample'))
         self.assertEqual(bgen.entry.dtype, hl.tstruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64)))
 
     def test_import_bgen_no_entries(self):
-        hl.index_bgen(resource('example.8bits.bgen'),
-                      contig_recoding={'01': '1'},
-                      reference_genome='GRCh37')
-
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=[],
                               sample_file=resource('example.sample'))
@@ -899,8 +893,6 @@ class BGENTests(unittest.TestCase):
                               reference_genome="GRCh37")
 
         bgen_file = resource('example.8bits.bgen')
-        hl.index_bgen(bgen_file, contig_recoding=recoding,
-                      reference_genome="GRCh37")
         bgenmt = hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file)
         self.assertTrue(
             bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
@@ -928,8 +920,6 @@ class BGENTests(unittest.TestCase):
 
         sample_file = resource('example.sample')
         bgen_file = resource('example.8bits.bgen')
-        hl.index_bgen(bgen_file,
-                      contig_recoding=recoding)
 
         bgenmt = hl.import_bgen(bgen_file, ['GP', 'dosage'], sample_file)
         et = bgenmt.entries()
@@ -939,10 +929,6 @@ class BGENTests(unittest.TestCase):
             (hl.abs(et.dosage - et.gp_dosage) < 1e-6)))
 
     def test_import_bgen_row_fields(self):
-        hl.index_bgen(resource('example.8bits.bgen'),
-                      contig_recoding={'01': '1'},
-                      reference_genome='GRCh37')
-
         default_row_fields = hl.import_bgen(resource('example.8bits.bgen'),
                                             entry_fields=['dosage'])
         self.assertEqual(default_row_fields.row.dtype,
@@ -978,8 +964,6 @@ class BGENTests(unittest.TestCase):
 
     def test_import_bgen_variant_filtering_from_literals(self):
         bgen_file = resource('example.8bits.bgen')
-        hl.index_bgen(bgen_file,
-                      contig_recoding={'01': '1'})
 
         alleles = ['A', 'G']
 
@@ -1021,8 +1005,6 @@ class BGENTests(unittest.TestCase):
 
     def test_import_bgen_locus_filtering_from_literals(self):
         bgen_file = resource('example.8bits.bgen')
-        hl.index_bgen(bgen_file,
-                      contig_recoding={'01': '1'})
 
         # Test with Struct(Locus)
         desired_loci = [hl.Struct(locus=hl.Locus('1', 10000))]
@@ -1049,7 +1031,6 @@ class BGENTests(unittest.TestCase):
 
     def test_import_bgen_variant_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
-        hl.index_bgen(bgen_file, contig_recoding={'01': '1'})
 
         everything = hl.import_bgen(bgen_file, ['GT'])
         self.assertEqual(everything.count(), (199, 500))
@@ -1065,7 +1046,6 @@ class BGENTests(unittest.TestCase):
 
     def test_import_bgen_locus_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
-        hl.index_bgen(bgen_file, contig_recoding={'01': '1'})
 
         everything = hl.import_bgen(bgen_file, ['GT'])
         self.assertEqual(everything.count(), (199, 500))
@@ -1084,7 +1064,6 @@ class BGENTests(unittest.TestCase):
 
     def test_import_bgen_variant_filtering_from_table(self):
         bgen_file = resource('example.8bits.bgen')
-        hl.index_bgen(bgen_file, contig_recoding={'01': '1'})
 
         everything = hl.import_bgen(bgen_file, ['GT'])
         self.assertEqual(everything.count(), (199, 500))
@@ -1100,7 +1079,6 @@ class BGENTests(unittest.TestCase):
 
     def test_import_bgen_locus_filtering_from_table(self):
         bgen_file = resource('example.8bits.bgen')
-        hl.index_bgen(bgen_file, contig_recoding={'01': '1'})
 
         desired_loci = hl.Table.parallelize([{'locus': hl.Locus('1', 10000)}],
                                             schema=hl.tstruct(locus=hl.tlocus()),
@@ -1121,9 +1099,6 @@ class BGENTests(unittest.TestCase):
     def test_import_bgen_empty_variant_filter(self):
         bgen_file = resource('example.8bits.bgen')
 
-        hl.index_bgen(bgen_file,
-                      contig_recoding={'01': '1'})
-
         actual = hl.import_bgen(bgen_file,
                                 ['GT'],
                                 n_partitions=10,
@@ -1143,20 +1118,12 @@ class BGENTests(unittest.TestCase):
 
     # FIXME testing block_size (in MB) requires large BGEN
     def test_n_partitions(self):
-        hl.index_bgen(resource('example.8bits.bgen'),
-                      contig_recoding={'01': '1'},
-                      reference_genome='GRCh37')
-
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['dosage'],
                               n_partitions=210)
         self.assertEqual(bgen.n_partitions(), 199) # only 199 variants in the file
 
     def test_drop(self):
-        hl.index_bgen(resource('example.8bits.bgen'),
-                      contig_recoding={'01': '1'},
-                      reference_genome='GRCh37')
-
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['dosage'])
 

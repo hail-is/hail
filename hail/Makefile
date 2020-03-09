@@ -111,7 +111,6 @@ pytest: python/README.md python/hail/hail-all-spark.jar
      -r A \
      --self-contained-html \
      --html=../build/reports/pytest.html \
-     --noconftest \
      $(PYTEST_ARGS)"
 
 .PHONY: doctest
