@@ -258,13 +258,14 @@ object EType {
           HailContext.get.flags.get("use_packed_int_encoding") != null =>
          EPackedIntArray(required, t.elementType.required)
       // FIXME(chrisvittal): Turn this on when it works
-      // case t: PArray if t.elementType.isInstanceOf[PBaseStruct] =>
-      //   val et = t.elementType.asInstanceOf[PBaseStruct]
-      //   ETransposedArrayOfStructs(
-      //     et.fields.map(f => EField(f.name, defaultFromPType(f.typ), f.index)),
-      //     t.required,
-      //     et.required
-      //   )
+      case t: PArray if t.elementType.isInstanceOf[PBaseStruct] &&
+          HailContext.get.flags.get("use_column_encoding") != null =>
+        val et = t.elementType.asInstanceOf[PBaseStruct]
+        ETransposedArrayOfStructs(
+          et.fields.map(f => EField(f.name, defaultFromPType(f.typ), f.index)),
+          t.required,
+          et.required
+        )
       case t: PArray => EArray(defaultFromPType(t.elementType), t.required)
       case t: PBaseStruct => EBaseStruct(t.fields.map(f => EField(f.name, defaultFromPType(f.typ), f.index)), t.required)
     }
