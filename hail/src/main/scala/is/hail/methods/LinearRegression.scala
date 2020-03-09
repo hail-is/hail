@@ -83,7 +83,7 @@ case class LinearRegressionRowsSingle(
     val nDependentVariables = yFields.length
 
     val newRVD = mv.rvd.boundary.mapPartitions(
-      rvdType, { (ctx, it) =>
+      rvdType) { (ctx, it) =>
         val rvb = new RegionValueBuilder()
         val rv2 = RegionValue()
 
@@ -101,10 +101,10 @@ case class LinearRegressionRowsSingle(
           .flatMap { git =>
             var i = 0
             while (git.hasNext) {
-              val rv = git.next()
+              val ptr = git.next()
               RegressionUtils.setMeanImputedDoubles(data, i * n, completeColIdxBc.value, missingCompleteCols,
-                rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
-              blockWRVs(i).set(rv)
+                ptr, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
+              blockWRVs(i).set(ctx.r, ptr)
               i += 1
             }
             val blockLength = i
@@ -162,11 +162,12 @@ case class LinearRegressionRowsSingle(
               addSlice(p)
 
               rvb.endStruct()
-              rv2.set(wrv.region, rvb.end())
-              rv2
+
+              ctx.region.addReferenceTo(wrv.region)
+              rvb.end()
             }
           }
-      })
+      }
     TableValue(tableType, BroadcastRow.empty(ctx), newRVD)
   }
 }
@@ -238,7 +239,7 @@ case class LinearRegressionRowsChained(
     val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_)).toArray
 
     val newRVD = mv.rvd.boundary.mapPartitions(
-      rvdType, { (ctx, it) =>
+      rvdType) { (ctx, it) =>
         val rvb = new RegionValueBuilder()
         val rv2 = RegionValue()
 
@@ -257,14 +258,14 @@ case class LinearRegressionRowsChained(
           .flatMap { git =>
             var i = 0
             while (git.hasNext) {
-              val rv = git.next()
+              val ptr = git.next()
               var j = 0
               while (j < nGroups) {
                 RegressionUtils.setMeanImputedDoubles(data(j), i * inputData(j).n, inputData(j).completeColIndex, builder,
-                  rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
+                  ptr, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
                 j += 1
               }
-              blockWRVs(i).set(rv)
+              blockWRVs(i).set(ctx.r, ptr)
               i += 1
             }
             val blockLength = i
@@ -349,11 +350,12 @@ case class LinearRegressionRowsChained(
               rvb.endArray()
 
               rvb.endStruct()
-              rv2.set(wrv.region, rvb.end())
-              rv2
+
+              ctx.region.addReferenceTo((wrv.region))
+              rvb.end()
             }
           }
-      })
+      }
     TableValue(tableType, BroadcastRow.empty(ctx), newRVD)
   }
 }

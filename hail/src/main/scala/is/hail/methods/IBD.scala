@@ -208,22 +208,23 @@ object IBD {
 
     val nSamples = input.nCols
 
-    val rowType = input.rvRowType
     val rowPType = input.rvRowPType
-    val unnormalizedIbse = input.rvd.mapPartitions { it =>
+    val unnormalizedIbse = input.rvd.mapPartitions { (ctx, it) =>
+      val rv = RegionValue(ctx.r)
       val view = HardCallView(rowPType)
-      it.map { rv =>
-        view.setRegion(rv)
+      it.map { ptr =>
+        rv.setOffset(ptr)
+        view.set(ptr)
         ibsForGenotypes(view, computeMaf.map(f => f(rv)))
       }
     }.fold(IBSExpectations.empty)(_ join _)
 
     val ibse = unnormalizedIbse.normalized
 
-    val chunkedGenotypeMatrix = input.rvd.mapPartitions { it =>
+    val chunkedGenotypeMatrix = input.rvd.mapPartitions { (_, it) =>
       val view = HardCallView(rowPType)
-      it.map { rv =>
-        view.setRegion(rv)
+      it.map { ptr =>
+        view.set(ptr)
         Array.tabulate[Byte](view.getLength) { i =>
           view.setGenotype(i)
           if (view.hasGT)

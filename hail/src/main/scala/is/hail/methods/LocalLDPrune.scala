@@ -37,7 +37,7 @@ class BitPackedVectorView(rvRowType: PStruct) {
   private var centeredLengthRecOffset: Long = _
   private val bpvPType = PCanonicalArray(PInt64Required)
 
-  def setRegion(mb: Region, offset: Long) {
+  def set(offset: Long) {
     bpvOffset = rvRowType.loadField(offset, rvRowType.fieldIdx("bpv"))
     bpvLength = bpvPType.loadLength(bpvOffset)
     bpvElementOffset = bpvPType.elementOffset(bpvOffset, bpvLength, 0)
@@ -45,10 +45,8 @@ class BitPackedVectorView(rvRowType: PStruct) {
     meanOffset = rvRowType.loadField(offset, rvRowType.fieldIdx("mean"))
     centeredLengthRecOffset = rvRowType.loadField(offset, rvRowType.fieldIdx("centered_length_rec"))
 
-    vView.setRegion(mb, offset)
+    vView.set(offset)
   }
-
-  def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)
 
   def getContig: String = vView.contig()
 
@@ -233,22 +231,22 @@ object LocalLDPrune {
   private def pruneLocal(inputRDD: RVD, r2Threshold: Double, windowSize: Int, queueSize: Option[Int]): RVD = {
     val localRowType = inputRDD.typ.rowType
 
-    inputRDD.mapPartitions(inputRDD.typ, { (ctx, it) =>
+    inputRDD.mapPartitions(inputRDD.typ) { (ctx, it) =>
       val queue = new util.ArrayDeque[RegionValue](queueSize.getOrElse(16))
 
       val bpvv = new BitPackedVectorView(localRowType)
       val bpvvPrev = new BitPackedVectorView(localRowType)
       val rvb = new RegionValueBuilder()
 
-      it.filter { rv =>
-        bpvv.setRegion(rv)
+      it.filter { ptr =>
+        bpvv.set(ptr)
 
         var keepVariant = true
         var done = false
         val qit = queue.descendingIterator()
 
         while (!done && qit.hasNext) {
-          bpvvPrev.setRegion(qit.next())
+          bpvvPrev.set(qit.next().offset)
           if (bpvv.getContig != bpvvPrev.getContig || bpvv.getStart - bpvvPrev.getStart > windowSize)
             done = true
           else {
@@ -264,7 +262,7 @@ object LocalLDPrune {
           val r = ctx.freshRegion
           rvb.set(r)
           rvb.start(localRowType)
-          rvb.addRegionValue(localRowType, rv)
+          rvb.addRegionValue(localRowType, ctx.r, ptr)
           queue.addLast(RegionValue(rvb.region, rvb.end()))
           queueSize.foreach { qs =>
             if (queue.size() > qs) {
@@ -275,7 +273,7 @@ object LocalLDPrune {
 
         keepVariant
       }
-    })
+    }
   }
 
   def apply(ctx: ExecuteContext,
@@ -315,26 +313,26 @@ case class LocalLDPrune(
     val tableType = typ(mv.typ)
 
     val standardizedRDD = mv.rvd
-      .mapPartitions(mv.rvd.typ.copy(rowType = bpvType)) { it =>
+      .mapPartitions(mv.rvd.typ.copy(rowType = bpvType))({ (ctx, it) =>
         val hcView = new HardCallView(fullRowPType, callField)
         val region = Region()
         val rvb = new RegionValueBuilder(region)
-        val newRV = RegionValue(region)
 
-        it.flatMap { rv =>
-          hcView.setRegion(rv)
+        it.flatMap { ptr =>
+          hcView.set(ptr)
           region.clear()
           rvb.set(region)
           rvb.start(bpvType)
           rvb.startStruct()
-          rvb.addFields(fullRowPType, rv, Array(locusIndex, allelesIndex))
+          rvb.addFields(fullRowPType, ctx.r, ptr, Array(locusIndex, allelesIndex))
 
           val keep = LocalLDPrune.addBitPackedVector(rvb, hcView, nSamples)
 
           if (keep) {
             rvb.endStruct()
-            newRV.setOffset(rvb.end())
-            Some(newRV)
+
+            ctx.region.addReferenceTo(region)
+            Some(rvb.end())
           }
           else
             None
@@ -347,20 +345,20 @@ case class LocalLDPrune(
       .map(field => bpvType.fieldIdx(field))
     val sitesOnly = rvdLP.mapPartitions(
       tableType.canonicalRVDType
-    )({ it =>
+    )({ (ctx, it) =>
       val region = Region()
       val rvb = new RegionValueBuilder(region)
-      val newRV = RegionValue(region)
 
-      it.map { rv =>
+      it.map { ptr =>
         region.clear()
         rvb.set(region)
         rvb.start(tableType.canonicalRowPType)
         rvb.startStruct()
-        rvb.addFields(bpvType, rv, fieldIndicesToAdd)
+        rvb.addFields(bpvType, ctx.r, ptr, fieldIndicesToAdd)
         rvb.endStruct()
-        newRV.setOffset(rvb.end())
-        newRV
+
+        ctx.region.addReferenceTo(region)
+        rvb.end()
       }
     })
 

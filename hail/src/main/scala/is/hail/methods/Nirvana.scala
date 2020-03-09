@@ -412,7 +412,7 @@ object Nirvana {
     val prev = tv.rvd
 
     val annotations = prev
-      .mapPartitions { it =>
+      .mapPartitions { (_, it) =>
         val pb = new ProcessBuilder(cmd.asJava)
         val env = pb.environment()
         if (path.orNull != null)
@@ -422,8 +422,8 @@ object Nirvana {
 
         val rvv = new RegionValueVariant(localRowType)
 
-        it.map { rv =>
-          rvv.setRegion(rv)
+        it.map { ptr =>
+          rvv.set(ptr)
           (rvv.locus(), rvv.alleles())
         }
           .grouped(localBlockSize)

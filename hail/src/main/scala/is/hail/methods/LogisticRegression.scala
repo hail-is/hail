@@ -91,25 +91,23 @@ case class LogisticRegression(
 
     val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(mv.rvRowType.fieldIdx(_)).toArray
 
-    val newRVD = mv.rvd.mapPartitions(newRVDType) { it =>
-      val rvb = new RegionValueBuilder()
-      val rv2 = RegionValue()
+    val newRVD = mv.rvd.mapPartitions(newRVDType) { (ctx, it) =>
+      val rvb = ctx.rvb
 
       val missingCompleteCols = new ArrayBuilder[Int]()
       val _nullFits = nullFitBc.value
       val _yVecs = yVecsBc.value
       val X = XBc.value.copy
-      it.map { rv =>
+      it.map { ptr =>
         RegressionUtils.setMeanImputedDoubles(X.data, n * k, completeColIdxBc.value, missingCompleteCols,
-          rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
+          ptr, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
         val logregAnnotations = (0 until _yVecs.cols).map(col => {
           logRegTestBc.value.test(X, _yVecs(::,col), _nullFits(col), "logistic")
         })
 
-        rvb.set(rv.region)
         rvb.start(newRVDType.rowType)
         rvb.startStruct()
-        rvb.addFields(fullRowType, rv, copiedFieldIndices)
+        rvb.addFields(fullRowType, ctx.r, ptr, copiedFieldIndices)
         rvb.startArray(_yVecs.cols)
         logregAnnotations.foreach(stats => {
           rvb.startStruct()
@@ -119,8 +117,7 @@ case class LogisticRegression(
         })
         rvb.endArray()
         rvb.endStruct()
-        rv2.set(rv.region, rvb.end())
-        rv2
+        rvb.end()
       }
     }
 

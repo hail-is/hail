@@ -71,12 +71,12 @@ class RVD(
 
   def toRows: RDD[Row] = {
     val localRowType = rowPType
-    map(rv => SafeRow(localRowType, rv.offset))
+    map((_, ptr) => SafeRow(localRowType, ptr))
   }
 
   def toUnsafeRows: RDD[UnsafeRow] = {
     val localRowPType = rowPType
-    map(rv => new UnsafeRow(localRowPType, rv.region, rv.offset))
+    map((ctx, ptr) => new UnsafeRow(localRowPType, ctx.region, ptr))
   }
 
   def stabilize(enc: AbstractTypedCodecSpec): RDD[Array[Byte]] = {
@@ -372,10 +372,10 @@ class RVD(
   def distinctByKey(executeContext: ExecuteContext): RVD = {
     val localType = typ
     repartition(partitioner.strictify, executeContext)
-      .mapPartitions(typ, (ctx, it) =>
-        OrderedRVIterator(localType, it, ctx)
+      .mapPartitions(typ)((ctx, it) =>
+        OrderedRVIterator(localType, it.toIteratorRV(ctx.r), ctx)
           .staircase
-          .map(_.value)
+          .map(_.value.offset)
       )
   }
 
@@ -401,40 +401,29 @@ class RVD(
   // None of the mapping methods may modify values of key fields, so that the
   // partitioner remains valid.
 
-  def map[T](f: (RegionValue) => T)(implicit tct: ClassTag[T]): RDD[T] =
-    crdd.map(f).clearingRun
+  def map[T](f: (RVDContext, Long) => T)(implicit tct: ClassTag[T]): RDD[T] =
+    crdd.toCRDDPtr.cmap(f).clearingRun
 
-  def map(newTyp: RVDType)(f: (RegionValue) => RegionValue): RVD = {
+  def map(newTyp: RVDType)(f: (RVDContext, Long) => Long): RVD = {
     require(newTyp.kType isPrefixOf typ.kType)
     RVD(newTyp,
       partitioner.coarsen(newTyp.key.length),
-      crdd.map(f))
+      crdd.toCRDDPtr.cmap(f).toCRDDRegionValue)
   }
 
   def mapPartitions[T: ClassTag](
-    f: (Iterator[RegionValue]) => Iterator[T]
-  ): RDD[T] = crdd.mapPartitions(f).clearingRun
+    f: (RVDContext, Iterator[Long]) => Iterator[T]
+  ): RDD[T] = crdd.toCRDDPtr.cmapPartitions(f).clearingRun
 
   def mapPartitions(
     newTyp: RVDType
-  )(f: (Iterator[RegionValue]) => Iterator[RegionValue]
+  )(f: (RVDContext, Iterator[Long]) => Iterator[Long]
   ): RVD = {
     require(newTyp.kType isPrefixOf typ.kType)
     RVD(
       newTyp,
       partitioner.coarsen(newTyp.key.length),
-      crdd.mapPartitions(f))
-  }
-
-  def mapPartitions(
-    newTyp: RVDType,
-    f: (RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]
-  ): RVD = {
-    require(newTyp.kType isPrefixOf typ.kType)
-    RVD(
-      newTyp,
-      partitioner.coarsen(newTyp.key.length),
-      crdd.cmapPartitions(f))
+      crdd.toCRDDPtr.cmapPartitions(f).toCRDDRegionValue)
   }
 
   def mapPartitionsWithIndex[T: ClassTag](
@@ -587,15 +576,15 @@ class RVD(
     val kRowFieldIdx = typ.kFieldIdx
     val rowPType = typ.rowType
 
-    mapPartitions(typ, { (ctx, it) =>
+    mapPartitions(typ) { (ctx, it) =>
       val kUR = new UnsafeRow(kPType)
-      it.filter { rv =>
+      it.filter { ptr =>
         ctx.rvb.start(kType)
-        ctx.rvb.selectRegionValue(rowPType, kRowFieldIdx, rv)
+        ctx.rvb.selectRegionValue(rowPType, kRowFieldIdx, ctx.r, ptr)
         kUR.set(ctx.region, ctx.rvb.end())
         !intervalsBc.value.contains(kUR)
       }
-    })
+    }
   }
 
   def filterToIntervals(intervals: RVDPartitioner): RVD = {
@@ -1437,10 +1426,7 @@ object RVD {
     else
       new RVD(typ, partitioner, crdd).checkKeyOrdering()
   }
-
-  private def copyFromType(destPType: PType, srcPType: PType, srcRegionValue: RegionValue): RegionValue =
-    RegionValue(srcRegionValue.region, destPType.copyFromAddress(srcRegionValue.region, srcPType, srcRegionValue.offset, false))
-
+  
   def unify(rvds: Seq[RVD]): Seq[RVD] = {
     if (rvds.length == 1 || rvds.forall(_.rowPType == rvds.head.rowPType))
       return rvds
@@ -1450,7 +1436,7 @@ object RVD {
     rvds.map { rvd =>
       val srcRowPType = rvd.rowPType
       val newRVDType = rvd.typ.copy(rowType = unifiedRowPType)
-      rvd.map(newRVDType)(copyFromType(unifiedRowPType, srcRowPType, _))
+      rvd.map(newRVDType)((ctx, ptr) => unifiedRowPType.copyFromType(ctx.r, srcRowPType, ptr, false))
     }
   }
 

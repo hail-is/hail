@@ -37,16 +37,16 @@ object ExportGen {
     val localNSamples = mv.nCols
     val fullRowType = mv.rvRowPType
 
-    mv.rvd.mapPartitions { it =>
+    mv.rvd.mapPartitions { (ctx, it) =>
       val sb = new StringBuilder
       val gpView = new ArrayGenotypeView(fullRowType)
       val v = new RegionValueVariant(fullRowType)
       val va = new GenAnnotationView(fullRowType)
 
-      it.map { rv =>
-        gpView.setRegion(rv)
-        v.setRegion(rv)
-        va.setRegion(rv)
+      it.map { ptr =>
+        gpView.set(ptr)
+        v.set(ptr)
+        va.set(ptr)
 
         val contig = v.contig()
         val alleles = v.alleles()
@@ -116,7 +116,7 @@ class GenAnnotationView(rowType: PStruct) extends View {
   private var cachedVarid: String = _
   private var cachedRsid: String = _
 
-  def setRegion(region: Region, offset: Long) {
+  def set(offset: Long) {
     assert(rowType.isFieldDefined(offset, varidIdx))
     assert(rowType.isFieldDefined(offset, rsidIdx))
     this.rsidOffset = rowType.loadField(offset, rsidIdx)

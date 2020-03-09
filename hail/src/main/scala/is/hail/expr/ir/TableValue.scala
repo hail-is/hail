@@ -128,11 +128,11 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     val localTypes = fields.map(_.typ)
 
     val localDelim = delimiter
-    rvd.mapPartitions { it =>
+    rvd.mapPartitions { (ctx, it) =>
       val sb = new StringBuilder()
 
-      it.map { rv =>
-        val ur = new UnsafeRow(localSignature, rv)
+      it.map { ptr =>
+        val ur = new UnsafeRow(localSignature, ctx.r, ptr)
         sb.clear()
         localTypes.indices.foreachBetween { i =>
           sb.append(TableAnnotationImpex.exportAnnotation(ur.get(i), localTypes(i)))
