@@ -30,8 +30,6 @@ gsutil cat gs://hail-us-vep/homo-sapiens/85_${ASSEMBLY}.tar | tar -xf - -C /vep_
 docker pull ${VEP_DOCKER_IMAGE} &
 wait
 
-tar -xf /vep_data/homo_sapiens/85_${ASSEMBLY}.tar -C /vep_data/homo_sapiens
-rm /vep_data/homo_sapiens/85_${ASSEMBLY}.tar 
 
 
 cat >/vep.c <<EOF
