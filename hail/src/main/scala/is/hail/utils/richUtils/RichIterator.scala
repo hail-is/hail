@@ -13,6 +13,13 @@ import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
 
+class RichIteratorLong(val it: Iterator[Long]) extends AnyVal {
+  def toIteratorRV(region: Region): Iterator[RegionValue] = {
+    val rv = RegionValue(region)
+    it.map(ptr => { rv.setOffset(ptr); rv })
+  }
+}
+
 class RichIterator[T](val it: Iterator[T]) extends AnyVal {
   def toStagingIterator: StagingIterator[T] = {
     val bit = it.buffered

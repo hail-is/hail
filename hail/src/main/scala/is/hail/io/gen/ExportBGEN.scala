@@ -101,9 +101,9 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
   def emitVariant(rv: RegionValue): (Array[Byte], Long) = {
     bb.clear()
 
-    gs.setRegion(rv)
-    v.setRegion(rv)
-    va.setRegion(rv)
+    gs.set(rv.offset)
+    v.set(rv.offset)
+    va.set(rv.offset)
 
     val alleles = v.alleles()
     val nAlleles = alleles.length

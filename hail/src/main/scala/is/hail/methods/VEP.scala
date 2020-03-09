@@ -136,7 +136,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
 
     val prev = tv.rvd
     val annotations = prev
-      .mapPartitions { it =>
+      .mapPartitions { (_, it) =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
         conf.env.foreach { case (key, value) =>
@@ -147,8 +147,8 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
 
         val rvv = new RegionValueVariant(localRowType)
         it
-          .map { rv =>
-            rvv.setRegion(rv)
+          .map { ptr =>
+            rvv.set(ptr)
             (rvv.locus(), rvv.alleles(): IndexedSeq[String])
           }
           .grouped(localBlockSize)

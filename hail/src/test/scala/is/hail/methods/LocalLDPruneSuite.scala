@@ -75,7 +75,7 @@ object LocalLDPruneSuite {
     val bpvv = new BitPackedVectorView(bitPackedVectorViewType)
     toBitPackedVectorRegionValue(gs, nSamples) match {
       case Some(rv) =>
-        bpvv.setRegion(rv)
+        bpvv.set(rv.offset)
         Some(bpvv)
       case None => None
     }
@@ -89,7 +89,7 @@ object LocalLDPruneSuite {
   def toBitPackedVectorRegionValue(rv: RegionValue, nSamples: Int): Option[RegionValue] = {
     val rvb = new RegionValueBuilder(Region())
     val hcView = HardCallView(PType.canonical(rvRowType).asInstanceOf[PStruct])
-    hcView.setRegion(rv)
+    hcView.set(rv.offset)
 
     rvb.start(bitPackedVectorViewType)
     rvb.startStruct()
@@ -303,11 +303,11 @@ class LocalLDPruneSuite extends HailSuite {
         val view = HardCallView(PType.canonical(LocalLDPruneSuite.rvRowType).asInstanceOf[PStruct])
 
         val rv1 = LocalLDPruneSuite.makeRV(v1Ann)
-        view.setRegion(rv1)
+        view.set(rv1.offset)
         val sgs1 = TestUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
 
         val rv2 = LocalLDPruneSuite.makeRV(v2Ann)
-        view.setRegion(rv2)
+        view.set(rv2.offset)
         val sgs2 = TestUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
 
         (bv1, bv2, sgs1, sgs2) match {

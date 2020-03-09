@@ -345,19 +345,19 @@ case class Skat(
     val n = completeColIdx.length
     val completeColIdxBc = HailContext.backend.broadcast(completeColIdx)
 
-    (mv.rvd.boundary.mapPartitions { it => it.flatMap { rv =>
-      val keyIsDefined = fullRowType.isFieldDefined(rv.offset, keyIndex)
-      val weightIsDefined = fullRowType.isFieldDefined(rv.offset, weightIndex)
+    (mv.rvd.boundary.mapPartitions { (ctx, it) => it.flatMap { ptr =>
+      val keyIsDefined = fullRowType.isFieldDefined(ptr, keyIndex)
+      val weightIsDefined = fullRowType.isFieldDefined(ptr, weightIndex)
 
       if (keyIsDefined && weightIsDefined) {
-        val weight = Region.loadDouble(fullRowType.loadField(rv.offset, weightIndex))
+        val weight = Region.loadDouble(fullRowType.loadField(ptr, weightIndex))
         if (weight < 0)
           fatal(s"Row weights must be non-negative, got $weight")
-        val key = Annotation.copy(keyType.virtualType, UnsafeRow.read(keyType, rv.region, fullRowType.loadField(rv.offset, keyIndex)))
+        val key = Annotation.copy(keyType.virtualType, UnsafeRow.read(keyType, ctx.r, fullRowType.loadField(ptr, keyIndex)))
         val data = new Array[Double](n)
 
         RegressionUtils.setMeanImputedDoubles(data, 0, completeColIdxBc.value, new ArrayBuilder[Int](),
-          rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
+          ptr, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
         Some(key -> (BDV(data) -> weight))
       } else None
     }

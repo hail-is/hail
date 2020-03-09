@@ -45,6 +45,8 @@ trait Implicits {
 
   implicit def toRichIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
+  implicit def toRichIteratorLong(it: Iterator[Long]): RichIteratorLong = new RichIteratorLong(it)
+
   implicit def toRichRowIterator(it: Iterator[Row]): RichRowIterator = new RichRowIterator(it)
 
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)

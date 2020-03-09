@@ -78,28 +78,24 @@ case class PoissonRegression(
 
     val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(mv.rvRowType.fieldIdx(_)).toArray
 
-    val newRVD = mv.rvd.mapPartitions(newRVDType) { it =>
-      val rvb = new RegionValueBuilder()
-      val rv2 = RegionValue()
+    val newRVD = mv.rvd.mapPartitions(newRVDType) { (ctx, it) =>
+      val rvb = ctx.rvb
 
       val missingCompleteCols = new ArrayBuilder[Int]()
 
       val X = XBc.value.copy
-      it.map { rv =>
+      it.map { ptr =>
         RegressionUtils.setMeanImputedDoubles(X.data, n * k, completeColIdxBc.value, missingCompleteCols,
-          rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
+          ptr, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
 
-        rvb.set(rv.region)
         rvb.start(newRVDType.rowType)
         rvb.startStruct()
-        rvb.addFields(fullRowType, rv, copiedFieldIndices)
+        rvb.addFields(fullRowType, ctx.r, ptr, copiedFieldIndices)
         poisRegTestBc.value
           .test(X, yBc.value, nullFitBc.value, "poisson")
           .addToRVB(rvb)
         rvb.endStruct()
-
-        rv2.set(rv.region, rvb.end())
-        rv2
+        rvb.end()
       }
     }
 
