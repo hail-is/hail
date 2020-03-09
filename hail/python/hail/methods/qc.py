@@ -540,8 +540,8 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
     configuration files referring to the installed VEP distributions
     are as follows:
 
-     - ``GRCh37``: ``gs://hail-common/vep/vep/vep85-loftee-gcloud.json``
-     - ``GRCh38``: ``gs://hail-common/vep/vep/vep95-GRCh38-loftee-gcloud.json``
+     - ``GRCh37``: ``gs://hail-us-vep/vep85-loftee-gcloud.json``
+     - ``GRCh38``: ``gs://hail-us-vep/vep95-GRCh38-loftee-gcloud.json``
 
     **Annotations**
 
