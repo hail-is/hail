@@ -632,19 +632,20 @@ object EmitStream {
 
   private[ir] def apply(
     emitter: Emit,
+    mb: EmitMethodBuilder,
     streamIR0: IR,
     env0: Emit.E,
     er: EmitRegion,
     container: Option[AggContainer]
   ): COption[SizedStream] = {
-    assert(emitter.mb eq er.mb)
-    val mb = emitter.mb
+    assert(emitter.fb eq mb.fb)
+    assert(mb eq er.mb)
     val fb = mb.fb
 
     def emitStream(streamIR: IR, env: Emit.E): COption[SizedStream] = {
 
-      def emitIR(ir: IR, env: Emit.E = env, container: Option[AggContainer] = container): EmitCode =
-        emitter.emit(ir, env, er, container)
+      def emitIR(ir: IR, mb:  EmitMethodBuilder = mb, env: Emit.E = env, container: Option[AggContainer] = container): EmitCode =
+        emitter.emit(ir, mb, env, er, container)
 
       streamIR match {
 
@@ -752,7 +753,7 @@ object EmitStream {
           val xIter = mb.newLocal[Iterator[RegionValue]]
 
           COption.fromEmitTriplet[Iterator[RegionValue]](
-            emitter.normalArgument(n, streamType)
+            emitter.normalArgument(mb, n, streamType)
           ).map { iter =>
             val stream = unfold[Code[RegionValue], Unit](
               (),
@@ -777,7 +778,7 @@ object EmitStream {
             val newStream = stream.map { eltt =>
               val xElt = childEltPack.newFields(mb.fb, name)
               val bodyenv = Emit.bindEnv(env, name -> xElt)
-              val bodyt = emitIR(bodyIR, bodyenv)
+              val bodyt = emitIR(bodyIR, env = bodyenv)
 
               EmitCode(
                 Code(xElt := TypedTriplet(childEltType, eltt),
@@ -800,7 +801,7 @@ object EmitStream {
               .map { elt =>
                 val xElt = childEltPack.newFields(mb.fb, name)
                 val condEnv = Emit.bindEnv(env, name -> xElt)
-                val cond = emitIR(condIR, condEnv)
+                val cond = emitIR(condIR, env = condEnv)
 
                 new COption[EmitCode] {
                   def apply(none: Code[Ctrl], some: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
@@ -842,7 +843,7 @@ object EmitStream {
                 val newStream = multiZip(streams)
                   .map { elts =>
                     val bodyEnv = Emit.bindEnv(env, names.zip(eltVars.pss.asInstanceOf[IndexedSeq[ParameterStoreTriplet[_]]]): _*)
-                    val body = emitIR(bodyIR, bodyEnv)
+                    val body = emitIR(bodyIR, env = bodyEnv)
                     val typedElts = eltTypes.zip(elts).map { case (t, v) => TypedTriplet(t, v) }
                     EmitCode(Code(eltVars := typedElts, body.setup), body.m, body.pv)
                   }
@@ -888,7 +889,7 @@ object EmitStream {
                         COption.toTypedTriplet(t, mb, optElt)
                       }
                     val bodyEnv = Emit.bindEnv(env, names.zip(eltVars.pss.asInstanceOf[IndexedSeq[ParameterStoreTriplet[_]]]): _*)
-                    val body = emitIR(bodyIR, bodyEnv)
+                    val body = emitIR(bodyIR, env = bodyEnv)
 
                     Code(
                       allEOS := true,
@@ -998,11 +999,11 @@ object EmitStream {
             val xAcc = accPack.newFields(fb, accName)
             val bodyEnv = Emit.bindEnv(env, accName -> xAcc, eltName -> xElt)
 
-            val bodyT = TypedTriplet(accType, emitIR(bodyIR, bodyEnv).map(accType.copyFromPValue(mb, er.region, _)))
+            val bodyT = TypedTriplet(accType, emitIR(bodyIR, env = bodyEnv).map(accType.copyFromPValue(mb, er.region, _)))
             TypedTriplet(accType, EmitCode(Code(xElt := elt, xAcc := acc, bodyT.setup), bodyT.m, bodyT.pv))
           }
 
-          val zerot = TypedTriplet(accType, emitIR(zeroIR, env).map(accType.copyFromPValue(mb, er.region, _)))
+          val zerot = TypedTriplet(accType, emitIR(zeroIR).map(accType.copyFromPValue(mb, er.region, _)))
           val streamOpt = emitStream(childIR, env)
 
           streamOpt.map { case SizedStream(stream, len) =>
@@ -1059,7 +1060,7 @@ object EmitStream {
           val env2 = Emit.bindEnv(env, leftName -> xLElt, rightName -> xRElt)
 
           def compare(lelt: TypedTriplet[lEltType.type], relt: TypedTriplet[rEltType.type]): Code[Int] = {
-            val compt = emitIR(compIR, env2)
+            val compt = emitIR(compIR, env = env2)
             Code(
               xLElt := lelt,
               xRElt := relt,
@@ -1076,7 +1077,7 @@ object EmitStream {
                 TypedTriplet.missing(rEltType),
                 compare)
                 .map { case (lelt, relt) =>
-                  val joint = emitIR(joinIR, env2)
+                  val joint = emitIR(joinIR, env = env2)
                   EmitCode(
                     Code(xLElt := lelt, xRElt := relt, joint.setup),
                     joint.m,

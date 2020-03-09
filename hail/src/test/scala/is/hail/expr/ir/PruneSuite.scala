@@ -1260,4 +1260,3 @@ class PruneSuite extends HailSuite {
          | subtype:   ${ t2.toPrettyString(0, true) }""".stripMargin)
   }
 }
-

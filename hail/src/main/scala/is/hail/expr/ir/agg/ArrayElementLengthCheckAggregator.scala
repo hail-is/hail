@@ -38,7 +38,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
           arrayType.loadLength(typ.loadField(off, 1)))))
   }
 
-  private val initArray: Code[Unit] =
+  def initArray(): Code[Unit] =
     Code(
       region.setNumParents((lenRef + 1) * nStates),
       aoff := arrayType.allocate(region, lenRef),
@@ -57,7 +57,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
         idx := idx + 1))
 
   def seq(seqOp: Code[Unit]): Code[Unit] =
-    seq(initArray, container.newState, seqOp)
+    seq(initArray(), container.newState, seqOp)
 
   def initLength(len: Code[Int]): Code[Unit] = {
     Code(lenRef := len, seq(container.copyFrom(initContainer.off)))

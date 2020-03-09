@@ -4,13 +4,10 @@ import java.io._
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitUtils, EstimableEmitter, MethodBuilderSelfLike, PruneDeadFields}
+import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.expr.types.encoded._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.nativecode._
-import is.hail.utils._
 
 object TypedCodecSpec {
   def apply(pt: PType, bufferSpec: BufferSpec): TypedCodecSpec = {
