@@ -18,13 +18,9 @@ object RegionValue {
     makeDec: InputStream => Decoder,
     r: Region,
     byteses: Iterator[Array[Byte]]
-  ): Iterator[RegionValue] = {
-    val rv = RegionValue(r)
+  ): Iterator[Long] = {
     val bad = new ByteArrayDecoder(makeDec)
-    byteses.map { bytes =>
-      rv.setOffset(bad.regionValueFromBytes(r, bytes))
-      rv
-    }
+    byteses.map(bad.regionValueFromBytes(r, _))
   }
 
   def pointerFromBytes(
@@ -38,9 +34,9 @@ object RegionValue {
     }
   }
 
-  def toBytes(makeEnc: OutputStream => Encoder, rvs: Iterator[RegionValue]): Iterator[Array[Byte]] = {
+  def toBytes(makeEnc: OutputStream => Encoder, rvs: Iterator[Long]): Iterator[Array[Byte]] = {
     val bae = new ByteArrayEncoder(makeEnc)
-    rvs.map(rv => bae.regionValueToBytes(rv.region, rv.offset))
+    rvs.map(bae.regionValueToBytes)
   }
 }
 

@@ -24,9 +24,9 @@ trait AbstractTypedCodecSpec extends Spec {
 
   def buildDecoder(requestedType: Type): (PType, (InputStream) => Decoder)
 
-  def encode(t: PType, region: Region, offset: Long): Array[Byte] = {
+  def encode(t: PType, offset: Long): Array[Byte] = {
     val baos = new ByteArrayOutputStream()
-    using(buildEncoder(t)(baos))(_.writeRegionValue(region, offset))
+    using(buildEncoder(t)(baos))(_.writeRegionValue(offset))
     baos.toByteArray
   }
 
@@ -56,7 +56,7 @@ trait AbstractTypedCodecSpec extends Spec {
   }
 
   // FIXME: is there a better place for this to live?
-  def decodeRDD(requestedType: Type, bytes: RDD[Array[Byte]]): (PType, ContextRDD[RegionValue]) = {
+  def decodeRDD(requestedType: Type, bytes: RDD[Array[Byte]]): (PType, ContextRDD[Long]) = {
     val (pt, dec) = buildDecoder(requestedType)
     (pt, ContextRDD.weaken(bytes).cmapPartitions { (ctx, it) =>
       RegionValue.fromBytes(dec, ctx.region, it)

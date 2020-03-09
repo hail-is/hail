@@ -290,7 +290,7 @@ class EmitClassBuilder[C](
       rvb.startTuple()
       literals.foreach { case ((typ, a), _) => rvb.addAnnotation(typ.virtualType, a) }
       rvb.endTuple()
-      enc.writeRegionValue(region, rvb.end())
+      enc.writeRegionValue(rvb.end())
     }
     enc.flush()
     enc.close()

@@ -37,7 +37,7 @@ object RichContextRDDRegionValue {
         iw += (key, off, Row())
       }
       en.writeByte(1)
-      en.writeRegionValue(rv.region, rv.offset)
+      en.writeRegionValue(rv.offset)
       ctx.region.clear()
       rowCount += 1
 
@@ -110,10 +110,10 @@ object RichContextRDDRegionValue {
                 iw += (key, rows_off, Row(ents_off))
 
                 rowsEN.writeByte(1)
-                rowsEN.writeRegionValue(rv.region, rv.offset)
+                rowsEN.writeRegionValue(rv.offset)
 
                 entriesEN.writeByte(1)
-                entriesEN.writeRegionValue(rv.region, rv.offset)
+                entriesEN.writeRegionValue(rv.offset)
 
                 ctx.region.clear()
 
