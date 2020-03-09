@@ -64,7 +64,7 @@ class OrderingSuite extends HailSuite {
         val fcompare = getStagedOrderingFunction(pType, CodeOrdering.compare, region)
         val result = java.lang.Integer.signum(fcompare(region, v1, v2))
 
-        assert(result == compare, s"compare expected: $compare vs $result")
+        assert(result == compare, s"compare expected: $compare vs $result\n  t=${t.parsableString()}\n  v1=${a1}\n  v2=$a2")
 
 
         val equiv = t.ordering.equiv(a1, a2)
@@ -157,7 +157,7 @@ class OrderingSuite extends HailSuite {
     p.check()
   }
 
-  @Test(enabled = false) def testSortOnRandomArray() {
+  @Test def testSortOnRandomArray() {
     implicit val execStrats = ExecStrategy.javaOnly
     val compareGen = for {
       elt <- Type.genArb
@@ -220,7 +220,7 @@ class OrderingSuite extends HailSuite {
     for (irF <- irs) { assertEvalsTo(IsNA(irF(NA(ts))), true) }
   }
 
-  @Test(enabled = false) def testSetContainsOnRandomSet() {
+  @Test def testSetContainsOnRandomSet() {
     implicit val execStrats = ExecStrategy.javaOnly
     val compareGen = Type.genArb
       .flatMap(t => Gen.zip(Gen.const(TSet(t)), TSet(t).genNonmissingValue, t.genValue))
@@ -311,7 +311,7 @@ class OrderingSuite extends HailSuite {
     p.check()
   }
 
-  @Test(enabled = false) def testBinarySearchOnDict() {
+  @Test def testBinarySearchOnDict() {
     val compareGen = Gen.zip(Type.genArb, Type.genArb)
       .flatMap { case (k, v) => Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue, k.genValue) }
     val p = Prop.forAll(compareGen.filter { case (tdict, a, key) => a.asInstanceOf[Map[Any, Any]].nonEmpty }) { case (tDict, a, key) =>
@@ -357,7 +357,9 @@ class OrderingSuite extends HailSuite {
             (pDict.keyType.virtualType.ordering.compare(key, maybeEqual) <= 0 || closestI == dict.size - 1) &&
               (closestI == 0 || pDict.keyType.virtualType.ordering.compare(key, getKey(closestI - 1)) > 0)
 
-          dict.contains(key) ==> (key == maybeEqual) && closestIIsClosest
+          // FIXME: -0.0 and 0.0 count as the same in scala Map, but not off-heap Hail data structures
+          val kord = tDict.keyType.ordering
+          (dict.contains(key) && dict.keysIterator.exists(kord.compare(_, key) == 0)) ==> (key == maybeEqual) && closestIIsClosest
         }
       }
     }
