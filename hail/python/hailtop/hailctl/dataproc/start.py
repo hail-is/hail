@@ -148,6 +148,8 @@ def main(args, pass_through_args):
 
     # add VEP init script
     if args.vep:
+        if not (args.requester_pays_allow_all or (args.requester_pays_allow_buckets and ("hail-us-vep" in args.requester_pays_allow_buckets))):
+            raise RuntimeError("Need to enable requester pays on bucket 'hail-us-vep' to use vep. See --requester-pays-allow-all and --requester-pays-allow-buckets")
         conf.extend_flag('initialization-actions', [deploy_metadata[f'vep-{args.vep}.sh']])
     # add custom init scripts
     if args.init:

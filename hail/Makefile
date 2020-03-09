@@ -209,13 +209,17 @@ install-on-cluster: $(WHEEL)
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
 
-cluster_name := cluster-$(shell whoami)-$(shell LC_ALL=C tr -dc '[:lower:]' </dev/urandom | head -c 6)
+cluster_name_37 := cluster-$(shell whoami)-$(shell LC_ALL=C tr -dc '[:lower:]' </dev/urandom | head -c 6)
+cluster_name_38 := cluster-$(shell whoami)-$(shell LC_ALL=C tr -dc '[:lower:]' </dev/urandom | head -c 6)
 cluster_test_files := $(wildcard python/cluster-tests/*.py)
 .PHONY: test-dataproc
 test-dataproc: install-hailctl
-	hailctl dataproc start $(cluster_name) --max-idle 10m --vep GRCh37
+	hailctl dataproc start $(cluster_name_37) --max-idle 10m --vep GRCh37 --requester-pays-allow-buckets hail-us-vep
 	for FILE in $(cluster_test_files); do \
-	  hailctl dataproc submit $(cluster_name) $$FILE || exit 1; done || exit
+	  hailctl dataproc submit $(cluster_name_37) $$FILE || exit 1; done || exit
+	hailctl dataproc start $(cluster_name_38) --max-idle 10m --vep GRCh38 --requester-pays-allow-buckets hail-us-vep
+	for FILE in $(cluster_test_files); do \
+	  hailctl dataproc submit $(cluster_name_38) $$FILE || exit 1; done || exit
 
 
 DEPLOYED_VERSION = $(shell \
