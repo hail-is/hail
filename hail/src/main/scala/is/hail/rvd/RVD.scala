@@ -80,7 +80,7 @@ class RVD(
 
   def stabilize(enc: AbstractTypedCodecSpec): RDD[Array[Byte]] = {
     val makeEnc = enc.buildEncoder(rowPType)
-    crdd.mapPartitions(RegionValue.toBytes(makeEnc, _)).clearingRun
+    crdd.toCRDDPtr.mapPartitions(RegionValue.toBytes(makeEnc, _)).clearingRun
   }
 
   def encodedRDD(enc: AbstractTypedCodecSpec): RDD[Array[Byte]] =
@@ -91,14 +91,14 @@ class RVD(
     val kFieldIdx = typ.copy(key = key).kFieldIdx
 
     val localRowPType = rowPType
-    crdd.mapPartitions { it =>
+    crdd.toCRDDPtr.cmapPartitions { (ctx, it) =>
       val encoder = new ByteArrayEncoder(makeEnc)
       TaskContext.get.addTaskCompletionListener { _ =>
         encoder.close()
       }
-      it.map { rv =>
-        val keys: Any = SafeRow.selectFields(localRowPType, rv)(kFieldIdx)
-        val bytes = encoder.regionValueToBytes(rv.region, rv.offset)
+      it.map { ptr =>
+        val keys: Any = SafeRow.selectFields(localRowPType, ctx.r, ptr)(kFieldIdx)
+        val bytes = encoder.regionValueToBytes(ptr)
         (keys, bytes)
       }
     }.clearingRun
@@ -259,7 +259,7 @@ class RVD(
 
       val (rType: PStruct, shuffledCRDD) = enc.decodeRDD(localRowPType.virtualType, shuffled.values)
 
-      RVD(RVDType(rType, newType.key), newPartitioner, shuffledCRDD)
+      RVD(RVDType(rType, newType.key), newPartitioner, shuffledCRDD.toCRDDRegionValue)
     } else {
       if (newPartitioner != partitioner)
         new RVD(
@@ -713,8 +713,8 @@ class RVD(
     val (pType: PStruct, dec) = enc.buildDecoder(rowType)
     Region.scoped { region =>
       RegionValue.fromBytes(dec, region, encodedData.iterator)
-        .map { rv =>
-          val row = SafeRow(pType, rv)
+        .map { ptr =>
+          val row = SafeRow(pType, ptr)
           region.clear()
           row
         }.toArray
@@ -1123,7 +1123,7 @@ class RVD(
           val wrappedInterval = interval.copy(
             start = Row(interval.start),
             end = Row(interval.end))
-          val bytes = encoder.regionValueToBytes(rv.region, rv.offset)
+          val bytes = encoder.regionValueToBytes(rv.offset)
           partBc.value.queryInterval(wrappedInterval).map(i => ((i, interval), bytes))
         } else
           Iterator()
@@ -1146,7 +1146,7 @@ class RVD(
     RVD(
       typ = newTyp,
       partitioner = partitioner,
-      crdd = crddBoundary.czipPartitions(rightCRDD.boundary)(f))
+      crdd = crddBoundary.czipPartitions(rightCRDD.toCRDDRegionValue.boundary)(f))
   }
 
   // Private
@@ -1165,7 +1165,7 @@ class RVD(
     val (rowPType: PStruct, dec) = enc.buildDecoder(rowType)
     (rowPType, ContextRDD.weaken(stable).cmapPartitions { (ctx, it) =>
       RegionValue.fromBytes(dec, ctx.region, it)
-    })
+    }.toCRDDRegionValue)
   }
 
   private[rvd] def crddBoundary: ContextRDD[RegionValue] =

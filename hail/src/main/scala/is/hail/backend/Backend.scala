@@ -112,7 +112,7 @@ abstract class Backend {
           val codec = TypedCodecSpec(
             EType.defaultFromPType(elementType), elementType.virtualType, bs)
           assert(t.isFieldDefined(off, 0))
-          (elementType.toString, codec.encode(elementType, ctx.r, t.loadField(off, 0)))
+          (elementType.toString, codec.encode(elementType, t.loadField(off, 0)))
       }
     }
   }

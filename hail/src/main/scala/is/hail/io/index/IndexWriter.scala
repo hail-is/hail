@@ -143,7 +143,7 @@ class IndexWriter(
     internalEncoder.writeByte(1)
 
     val regionOffset = node.write(rvb)
-    internalEncoder.writeRegionValue(region, regionOffset)
+    internalEncoder.writeRegionValue(regionOffset)
     internalEncoder.flush()
 
     region.clear()
@@ -175,7 +175,7 @@ class IndexWriter(
     leafEncoder.writeByte(0)
 
     val regionOffset = leafNodeBuilder.write(rvb)
-    leafEncoder.writeRegionValue(region, regionOffset)
+    leafEncoder.writeRegionValue(regionOffset)
     leafEncoder.flush()
 
     region.clear()

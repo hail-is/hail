@@ -83,7 +83,7 @@ object TableLiteral {
     val enc = TypedCodecSpec(globalPType, BufferSpec.wireSpec) // use wireSpec to save memory
     using(new ByteArrayEncoder(enc.buildEncoder(value.globals.t))) { encoder =>
       TableLiteral(value.typ, value.rvd, enc,
-        encoder.regionValueToBytes(value.globals.value.region, value.globals.value.offset))
+        encoder.regionValueToBytes(value.globals.value.offset))
     }
   }
 }
@@ -1673,7 +1673,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
     val codec = TypedCodecSpec(prev.rvd.rowPType, BufferSpec.wireSpec)
     val rdd = prev.rvd.keyedEncodedRDD(codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
     val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(rowType, rdd.map(_._2))
-    TableValue(typ, prev.globals, RVD.unkeyed(rowPType, orderedCRDD))
+    TableValue(typ, prev.globals, RVD.unkeyed(rowPType, orderedCRDD.toCRDDRegionValue))
   }
 }
 

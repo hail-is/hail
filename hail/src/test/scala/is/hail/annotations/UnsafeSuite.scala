@@ -91,7 +91,7 @@ class UnsafeSuite extends HailSuite {
 
         val aos = new ByteArrayOutputStream()
         val en = codec.buildEncoder(pt)(aos)
-        en.writeRegionValue(region, offset)
+        en.writeRegionValue(offset)
         en.flush()
 
         region2.clear()
@@ -113,7 +113,7 @@ class UnsafeSuite extends HailSuite {
         val codec2 = TypedCodecSpec(PType.canonical(requestedType), bufferSpec)
         val aos2 = new ByteArrayOutputStream()
         val en2 = codec2.buildEncoder(pt)(aos2)
-        en2.writeRegionValue(region, offset)
+        en2.writeRegionValue(offset)
         en2.flush()
 
         region4.clear()
@@ -153,7 +153,7 @@ class UnsafeSuite extends HailSuite {
           val cs2 = TypedCodecSpec(t, spec)
           val baos = new ByteArrayOutputStream()
           val enc = cs2.buildEncoder(t)(baos)
-          enc.writeRegionValue(region, off)
+          enc.writeRegionValue(off)
           enc.flush()
 
           val serialized = baos.toByteArray

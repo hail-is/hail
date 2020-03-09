@@ -51,7 +51,7 @@ trait BroadcastRegionValue {
     val baos = new ByteArrayOutputStream()
 
     val enc = makeEnc(baos)
-    enc.writeRegionValue(value.region, value.offset)
+    enc.writeRegionValue(value.offset)
     enc.flush()
     enc.close()
 
