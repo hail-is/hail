@@ -23,15 +23,19 @@ class BinarySearch(mb: EmitMethodBuilder, typ: PContainer, eltType: PType, keyOn
 
     val comp: CodeOrdering.F[Int] = {
       case ((mk1: Code[Boolean], k1: Code[_]), (m2: Code[Boolean], v2: Code[Long] @unchecked)) =>
-        val mk2 = Code(mk2l := m2 || ttype.isFieldMissing(v2, 0), mk2l)
-        val k2 = mk2l.mux(defaultValue(kt), Region.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
-        findMB.getCodeOrdering(eltType, kt, CodeOrdering.compare)((mk1, k1), (mk2, k2))
+        Code.memoize(v2, "bs_comp_v2") { v2 =>
+          val mk2 = Code(mk2l := m2 || ttype.isFieldMissing(v2, 0), mk2l)
+          val k2 = mk2l.mux(defaultValue(kt), Region.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
+          findMB.getCodeOrdering(eltType, kt, CodeOrdering.compare)((mk1, k1), (mk2, k2))
+        }
     }
     val ceq: CodeOrdering.F[Boolean] = {
       case ((mk1: Code[Boolean], k1: Code[_]), (m2: Code[Boolean], v2: Code[Long] @unchecked)) =>
-        val mk2 = Code(mk2l1 := m2 || ttype.isFieldMissing(v2, 0), mk2l1)
-        val k2 = mk2l1.mux(defaultValue(kt), Region.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
-        mb.getCodeOrdering(eltType, kt, CodeOrdering.equiv)((mk1, k1), (mk2, k2))
+        Code.memoize(v2, "bs_comp_v2") { v2 =>
+          val mk2 = Code(mk2l1 := m2 || ttype.isFieldMissing(v2, 0), mk2l1)
+          val k2 = mk2l1.mux(defaultValue(kt), Region.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
+          mb.getCodeOrdering(eltType, kt, CodeOrdering.equiv)((mk1, k1), (mk2, k2))
+        }
     }
     (comp, ceq, findMB, kt)
   } else

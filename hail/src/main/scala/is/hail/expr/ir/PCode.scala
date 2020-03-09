@@ -72,7 +72,7 @@ abstract class PIndexableCode extends PCode {
 
   def loadElement(length: Code[Int], i: Code[Int]): PCode
 
-  def loadElement(i: Code[Int]): PCode = loadElement(loadLength(), i)
+  def loadElement(i: Code[Int]): PCode
 
   def isElementMissing(i: Code[Int]): Code[Boolean] = !isElementDefined(i)
 }
@@ -105,8 +105,18 @@ class PCanonicalIndexableCode(val pt: PContainer, val a: Code[Long]) extends PIn
   def elementAddress(length: Code[Int], i: Code[Int]): Code[Long] =
     elementsAddress(length) + i.toL * arrayElementSize
 
-  def loadElement(length: Code[Int], i: Code[Int]): PCode =
-    elementType.load(elementAddress(length, i))
+  def loadElement(length: Code[Int], i: Code[Int]): PCode = {
+    elementType.load(Code.memoize(a, "pcindexableval_a") { a =>
+      a + elementsOffset(length) + i.toL * arrayElementSize
+    })
+  }
+
+  def loadElement(i: Code[Int]): PCode = {
+    elementType.load(Code.memoize(a, "pcindexableval_a") { a =>
+      val length = Region.loadInt(a)
+      a + elementsOffset(length) + i.toL * arrayElementSize
+    })
+  }
 
   def store(mb: EmitMethodBuilder, r: Code[Region], dst: Code[Long]): Code[Unit] =
     Region.storeAddress(dst, a)

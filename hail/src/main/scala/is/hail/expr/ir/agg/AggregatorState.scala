@@ -17,21 +17,23 @@ trait AggregatorState {
   def createState: Code[Unit]
   def newState(off: Code[Long]): Code[Unit]
 
-  def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit]
-  def store(regionStorer: Code[Region] => Code[Unit], dest: Code[Long]): Code[Unit]
+  def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit]
+  def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit]
 
   def copyFrom(src: Code[Long]): Code[Unit]
 
-  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit]
+  def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit]
 
-  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit]
+  def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit]
 
   def deserializeFromBytes(t: PBinary, address: Code[Long]): Code[Unit] = {
     val lazyBuffer = fb.getOrDefineLazyField[MemoryBufferWrapper](Code.newInstance[MemoryBufferWrapper](), (this, "buffer"))
     val addr = fb.newField[Long]("addr")
     Code(addr := address,
       lazyBuffer.invoke[Long, Int, Unit]("clearAndSetFrom", t.bytesOffset(addr), t.loadLength(addr)),
-      deserialize(BufferSpec.defaultUncompressed)(lazyBuffer.load().invoke[InputBuffer]("buffer")))
+      Code.memoize(lazyBuffer.invoke[InputBuffer]("buffer"), "aggstate_deser_from_bytes_ib") { ib =>
+        deserialize(BufferSpec.defaultUncompressed)(ib)
+      })
   }
 
   def serializeToRegion(t: PBinary, r: Code[Region]): Code[Long] = {
@@ -39,26 +41,27 @@ trait AggregatorState {
     val addr = fb.newField[Long]("addr")
     Code(
       lazyBuffer.invoke[Unit]("clear"),
-      serialize(BufferSpec.defaultUncompressed)(lazyBuffer.invoke[OutputBuffer]("buffer")),
+      Code.memoize(lazyBuffer.invoke[OutputBuffer]("buffer"), "aggstate_ser_to_region_ob") { ob =>
+        serialize(BufferSpec.defaultUncompressed)(ob)
+      },
       addr := t.allocate(r, lazyBuffer.invoke[Int]("length")),
       t.storeLength(addr, lazyBuffer.invoke[Int]("length")),
       lazyBuffer.invoke[Long, Unit]("copyToAddress", t.bytesOffset(addr)),
-      addr
-    )
+      addr)
   }
 }
 
 trait RegionBackedAggState extends AggregatorState {
   protected val r: ClassFieldRef[Region] = fb.newField[Region]
-  val region: Code[Region] = r.load()
+  val region: Value[Region] = r
 
-  def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(regionSize)
+  def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(const(regionSize))
 
   def createState: Code[Unit] = region.isNull.mux(r := Region.stagedCreate(regionSize), Code._empty)
 
-  def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] = regionLoader(r)
+  def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] = regionLoader(r)
 
-  def store(regionStorer: Code[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
+  def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
     region.isValid.orEmpty(Code(regionStorer(region), region.invalidate()))
 }
 
@@ -68,10 +71,10 @@ trait PointerBasedRVAState extends RegionBackedAggState {
 
   override val regionSize: Int = Region.TINIER
 
-  override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
+  override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     Code(super.load(regionLoader, src), off := Region.loadAddress(src))
 
-  override def store(regionStorer: Code[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
+  override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
     Code(region.isValid.orEmpty(Region.storeAddress(dest, off)), super.store(regionStorer, dest))
 
   def copyFrom(src: Code[Long]): Code[Unit] = copyFromAddress(Region.loadAddress(src))
@@ -85,16 +88,16 @@ class TypedRegionBackedAggState(val typ: PType, val fb: EmitFunctionBuilder[_]) 
   val off: ClassFieldRef[Long] = fb.newField[Long]
 
   override def newState(src: Code[Long]): Code[Unit] = Code(off := src, super.newState(off))
-  override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
+  override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     Code(super.load(r => r.invalidate(), src), off := src)
-  override def store(regionStorer: Code[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
+  override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
     Code(region.isValid.orEmpty(dest.cne(off).orEmpty(
-      Region.copyFrom(off, dest, storageType.byteSize))),
+      Region.copyFrom(off, dest, const(storageType.byteSize)))),
       super.store(regionStorer, dest))
 
   def storeMissing(): Code[Unit] = storageType.setFieldMissing(off, 0)
   def storeNonmissing(v: Code[_]): Code[Unit] = Code(
-    region.getNewRegion(regionSize),
+    region.getNewRegion(const(regionSize)),
     storageType.setFieldPresent(off, 0),
     StagedRegionValueBuilder.deepCopy(fb, region, typ, v, storageType.fieldOffset(off, 0)))
 
@@ -105,15 +108,15 @@ class TypedRegionBackedAggState(val typ: PType, val fb: EmitFunctionBuilder[_]) 
   def copyFrom(src: Code[Long]): Code[Unit] =
     Code(newState(off), StagedRegionValueBuilder.deepCopy(fb, region, storageType, src, off))
 
-  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
+  def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
     val enc = TypedCodecSpec(storageType, codec).buildEmitEncoderF[Long](storageType, fb)
-    ob: Code[OutputBuffer] => enc(region, off, ob)
+    ob: Value[OutputBuffer] => enc(region, off, ob)
   }
 
-  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
     val (t, dec) = TypedCodecSpec(storageType, codec).buildEmitDecoderF[Long](storageType.virtualType, fb)
     val off2: ClassFieldRef[Long] = fb.newField[Long]
-    ib: Code[InputBuffer] => Code(off2 := dec(region, ib), Region.copyFrom(off2, off, storageType.byteSize))
+    ib: Value[InputBuffer] => Code(off2 := dec(region, ib), Region.copyFrom(off2, off, const(storageType.byteSize)))
   }
 }
 
@@ -139,29 +142,34 @@ class PrimitiveRVAState(val types: Array[PType], val fb: EmitFunctionBuilder[_])
     foreachField {
       case (i, (None, v, t)) =>
         v.storeAny(Region.loadPrimitive(t)(storageType.fieldOffset(src, i)))
-      case (i, (Some(m), v, t)) => Code(
-        m := storageType.isFieldMissing(src, i),
-        m.mux(Code._empty,
-          v.storeAny(Region.loadPrimitive(t)(storageType.fieldOffset(src, i)))))
+      case (i, (Some(m), v, t)) =>
+        Code.memoize(src, "prim_rvastate_load_vars_src") { src =>
+          Code(
+            m := storageType.isFieldMissing(src, i),
+            m.mux(Code._empty,
+              v.storeAny(Region.loadPrimitive(t)(storageType.fieldOffset(src, i)))))
+        }
     }
 
-  def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
+  def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     loadVarsFromRegion(src)
 
-  def store(regionStorer: Code[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
+  def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
       foreachField {
         case (i, (None, v, t)) =>
           Region.storePrimitive(t, storageType.fieldOffset(dest, i))(v)
         case (i, (Some(m), v, t)) =>
-          m.mux(storageType.setFieldMissing(dest, i),
-            Code(storageType.setFieldPresent(dest, i),
-              Region.storePrimitive(t, storageType.fieldOffset(dest, i))(v)))
+          Code.memoize(dest, "prim_rvastate_store_dest") { dest =>
+            m.mux(storageType.setFieldMissing(dest, i),
+              Code(storageType.setFieldPresent(dest, i),
+                Region.storePrimitive(t, storageType.fieldOffset(dest, i))(v)))
+          }
       }
 
   def copyFrom(src: Code[Long]): Code[Unit] = loadVarsFromRegion(src)
 
-  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
-    ob: Code[OutputBuffer] =>
+  def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
+    ob: Value[OutputBuffer] =>
       foreachField {
         case (_, (None, v, t)) => ob.writePrimitive(t)(v)
         case (_, (Some(m), v, t)) => Code(
@@ -170,8 +178,8 @@ class PrimitiveRVAState(val types: Array[PType], val fb: EmitFunctionBuilder[_])
       }
   }
 
-  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
-    ib: Code[InputBuffer] =>
+  def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
+    ib: Value[InputBuffer] =>
       foreachField {
         case (_, (None, v, t)) =>
           v.storeAny(ib.readPrimitive(t))
@@ -195,7 +203,7 @@ case class StateTuple(states: Array[AggregatorState]) {
   def toCode(fb: EmitFunctionBuilder[_], prefix: String, f: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
     fb.wrapVoids(Array.tabulate(nStates)((i: Int) => f(i, states(i))), prefix)
 
-  def toCodeWithArgs(fb: EmitFunctionBuilder[_], prefix: String, argTypes: Array[TypeInfo[_]], args: Array[Code[_]],
+  def toCodeWithArgs(fb: EmitFunctionBuilder[_], prefix: String, argTypes: IndexedSeq[TypeInfo[_]], args: IndexedSeq[Code[_]],
     f: (Int, AggregatorState, Seq[Code[_]]) => Code[Unit]): Code[Unit] =
     fb.wrapVoidsWithArgs(Array.tabulate(nStates)((i: Int) => { args: Seq[Code[_]] => f(i, states(i), args) }), prefix, argTypes, args)
 
@@ -203,12 +211,12 @@ case class StateTuple(states: Array[AggregatorState]) {
     toCode(fb, "create_states", (i, s) => s.createState)
 }
 
-class TupleAggregatorState(val fb: EmitFunctionBuilder[_], val states: StateTuple, val topRegion: Code[Region], val off: Code[Long], val rOff: Code[Int] = 0) {
+class TupleAggregatorState(val fb: EmitFunctionBuilder[_], val states: StateTuple, val topRegion: Value[Region], val off: Value[Long], val rOff: Value[Int] = const(0)) {
   val storageType: PTuple = states.storageType
-  private def getRegion(i: Int): Code[Region] => Code[Unit] = { r: Code[Region] =>
-    r.setFromParentReference(topRegion, rOff + i, states(i).regionSize) }
-  private def setRegion(i: Int): Code[Region] => Code[Unit] = { r: Code[Region] =>
-    topRegion.setParentReference(r, rOff + i)
+  private def getRegion(i: Int): Value[Region] => Code[Unit] = { r: Value[Region] =>
+    r.setFromParentReference(topRegion, rOff + const(i), states(i).regionSize) }
+  private def setRegion(i: Int): Value[Region] => Code[Unit] = { r: Value[Region] =>
+    topRegion.setParentReference(r, rOff + const(i))
   }
   private def getStateOffset(i: Int): Code[Long] = storageType.loadField(off, i)
 

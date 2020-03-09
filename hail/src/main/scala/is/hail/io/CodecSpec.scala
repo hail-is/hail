@@ -3,7 +3,7 @@ package is.hail.io
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream}
 
 import is.hail.annotations.{Region, RegionValue}
-import is.hail.asm4s.{Code, TypeInfo}
+import is.hail.asm4s.{Code, Value, TypeInfo}
 import is.hail.expr.ir.{EmitFunctionBuilder, typeToTypeInfo}
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical.PType
@@ -17,8 +17,8 @@ trait AbstractTypedCodecSpec extends Spec {
   def encodedType: EType
   def encodedVirtualType: Type
 
-  type StagedEncoderF[T] = (Code[Region], Code[T], Code[OutputBuffer]) => Code[Unit]
-  type StagedDecoderF[T] = (Code[Region], Code[InputBuffer]) => Code[T]
+  type StagedEncoderF[T] = (Value[Region], Value[T], Value[OutputBuffer]) => Code[Unit]
+  type StagedDecoderF[T] = (Value[Region], Value[InputBuffer]) => Code[T]
 
   def buildEncoder(t: PType): (OutputStream) => Encoder
 

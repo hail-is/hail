@@ -331,7 +331,7 @@ object ArrayFunctions extends RegistryFunctions {
             l1 := t1.loadLength(a1),
             l2 := t2.loadLength(a2),
             l1.cne(l2).mux(
-              Code._fatal(new CodeString("'corr': cannot compute correlation between arrays of different lengths: ")
+              Code._fatal[Boolean](new CodeString("'corr': cannot compute correlation between arrays of different lengths: ")
                 .concat(l1.toS)
                 .concat(", ")
                 .concat(l2.toS)),

@@ -361,7 +361,7 @@ object CodeStream { self =>
         })
       outerPullJP.define(_ => Code(inInnerStream := false, outerSource.pull))
       Source[A](
-        setup0 = Code(inInnerStream := false, outerSource.setup0, innerSource.setup0),
+        setup0 = Code(inInnerStream := const(false), outerSource.setup0, innerSource.setup0),
         close0 = Code(innerSource.close0, outerSource.close0),
         setup = Code(inInnerStream := false, outerSource.setup),
         close = Code(inInnerStream.load.mux(innerSource.close, Code._empty), outerSource.close),
@@ -601,7 +601,7 @@ object EmitStream {
             write(mb, ss, vab),
             xLen := vab.size,
             srvb.start(xLen),
-            i := 0,
+            i := const(0),
             Code.whileLoop(i < xLen,
                            vab.isMissing(i).mux(
                              srvb.setMissing(),
@@ -676,12 +676,12 @@ object EmitStream {
                     start := startt.value,
                     stop := stopt.value,
                     step := stept.value,
-                    (step ceq 0).orEmpty(Code._fatal("Array range cannot have step size 0.")),
-                    llen := (step < 0).mux(
-                      (start <= stop).mux(0L, (start.toL - stop.toL - 1L) / (-step).toL + 1L),
-                      (start >= stop).mux(0L, (stop.toL - start.toL - 1L) / step.toL + 1L)),
+                    (step ceq const(0)).orEmpty(Code._fatal[Unit]("Array range cannot have step size 0.")),
+                    llen := (step < const(0)).mux(
+                      (start <= stop).mux(const(0L), (start.toL - stop.toL - const(1L)) / (-step).toL + const(1L)),
+                      (start >= stop).mux(const(0L), (stop.toL - start.toL - const(1L)) / step.toL + const(1L))),
                     (llen > const(Int.MaxValue.toLong)).mux(
-                      Code._fatal("Array range cannot have more than MAXINT elements."),
+                      Code._fatal[Ctrl]("Array range cannot have more than MAXINT elements."),
                       some(SizedStream(
                         range(start, step, llen.toI)
                           .map(i => EmitCode(Code._empty, const(false), PCode(eltType, i))),
@@ -739,7 +739,7 @@ object EmitStream {
               (_, _, k) =>
                 k(COption(
                   !xRowBuf.load().readByte().toZ,
-                  (dec(er.region, xRowBuf.load()), ())))
+                  (dec(er.region, xRowBuf), ())))
             ).map(
               EmitCode.present(eltType, _),
               setup0 = Some(xRowBuf := Code._null),
@@ -897,7 +897,7 @@ object EmitStream {
                       eltVars := checkedElts,
                       if (assert)
                         (anyEOS & !allEOS).mux(
-                          Code._fatal("zip: length mismatch"),
+                          Code._fatal[Ctrl]("zip: length mismatch"),
                           k(COption(allEOS, body)))
                       else
                         k(COption(allEOS, body)))
@@ -917,7 +917,7 @@ object EmitStream {
                       case ((s1, l1), (s2, l2)) =>
                         (Code(s1,
                               s2,
-                              l1.cne(l2).orEmpty(Code._fatal(
+                              l1.cne(l2).orEmpty(Code._fatal[Unit](
                                 const("zip: length mismatch: ").concat(l1.toS).concat(", ").concat(l2.toS)))),
                           l1)
                     }
@@ -1065,7 +1065,7 @@ object EmitStream {
               xLElt := lelt,
               xRElt := relt,
               compt.setup,
-              compt.m.orEmpty(Code._fatal("StreamLeftJoinDistinct: comp can't be missing")),
+              compt.m.orEmpty(Code._fatal[Unit]("StreamLeftJoinDistinct: comp can't be missing")),
               coerce[Int](compt.v))
           }
 

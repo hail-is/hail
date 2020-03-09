@@ -11,7 +11,7 @@ object StagedArrayBuilder {
   val END_SERIALIZATION: Int = 0x12345678
 }
 
-class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Code[Region], var initialCapacity: Int = 8) {
+class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Value[Region], var initialCapacity: Int = 8) {
   val eltArray = PArray(eltType.setRequired(false), required = true) // element type must be optional for serialization to work
   val stateType = PTuple(true, PInt32Required, PInt32Required, eltArray)
 
@@ -55,8 +55,8 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
     )
   }
 
-  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
-    { ob: Code[OutputBuffer] =>
+  def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
+    { ob: Value[OutputBuffer] =>
       val enc = TypedCodecSpec(eltArray, codec).buildEmitEncoderF[Long](eltArray, fb)
 
       Code(
@@ -68,18 +68,18 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
     }
   }
 
-  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
     val (decType, dec) = TypedCodecSpec(eltArray, codec).buildEmitDecoderF[Long](eltArray.virtualType, fb)
     assert(decType == eltArray)
 
-    { (ib: Code[InputBuffer]) =>
+    { (ib: Value[InputBuffer]) =>
       Code(
         size := ib.readInt(),
         capacity := ib.readInt(),
         data := dec(region, ib),
         ib.readInt()
           .cne(const(StagedArrayBuilder.END_SERIALIZATION))
-          .orEmpty[Unit](Code._fatal(s"StagedArrayBuilder serialization failed"))
+          .orEmpty(Code._fatal[Unit](s"StagedArrayBuilder serialization failed"))
       )
     }
   }

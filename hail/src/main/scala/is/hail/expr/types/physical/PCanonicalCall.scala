@@ -36,7 +36,7 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
                 k := Code.invokeScalaObject[Int, Int](Genotype.getClass, "cachedAlleleK", c2)
               ),
               Code(
-                k := (Code.invokeStatic[Math, Double, Double]("sqrt", const(8d) * c2.toD + const(1)) / 2d - 0.5).toI,
+                k := (Code.invokeStatic[Math, Double, Double]("sqrt", const(8d) * c2.toD + 1d) / 2d - 0.5).toI,
                 j := c2 - (k * (k + 1) / 2)
               )
             ),
@@ -47,7 +47,7 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
           ),
           p.ceq(1).mux(
             code(c2),
-            p.cne(0).orEmpty(Code._fatal(const("invalid ploidy: ").concat(p.toS)))
+            p.cne(0).orEmpty(Code._fatal[Unit](const("invalid ploidy: ").concat(p.toS)))
           )
         )
       )

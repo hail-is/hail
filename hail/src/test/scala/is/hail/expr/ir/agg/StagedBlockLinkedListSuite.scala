@@ -21,7 +21,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
       val sbll = new StagedBlockLinkedList(elemPType, fb)
 
       val ptr = fb.newField[Long]
-      val r = fb.getArg[Region](1).load
+      val r = fb.getArg[Region](1)
       fb.emit(Code(
         ptr := r.allocate(sbll.storageType.alignment, sbll.storageType.byteSize),
         sbll.init(r),
@@ -35,13 +35,13 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
       val fb = EmitFunctionBuilder[Region, Long, Long, Unit]("push")
       val sbll = new StagedBlockLinkedList(elemPType, fb)
 
-      val r = fb.getArg[Region](1).load
-      val ptr = fb.getArg[Long](2).load
-      val eltOff = fb.getArg[Long](3).load
+      val r = fb.getArg[Region](1)
+      val ptr = fb.getArg[Long](2)
+      val eltOff = fb.getArg[Long](3)
       fb.emit(Code(
         sbll.load(ptr),
         sbll.push(r, EmitCode(Code._empty,
-          eltOff.ceq(0),
+          eltOff.get.ceq(0),
           PCode(elemPType, Region.getIRIntermediate(elemPType)(eltOff)))),
         sbll.store(ptr)))
 
@@ -56,9 +56,9 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
       val sbll1 = new StagedBlockLinkedList(elemPType, fb)
       val sbll2 = new StagedBlockLinkedList(elemPType, fb)
 
-      val r = fb.getArg[Region](1).load
-      val ptr1 = fb.getArg[Long](2).load
-      val ptr2 = fb.getArg[Long](3).load
+      val r = fb.getArg[Region](1)
+      val ptr1 = fb.getArg[Long](2)
+      val ptr2 = fb.getArg[Long](3)
       fb.emit(Code(
         sbll1.load(ptr1),
         sbll2.load(ptr2),

@@ -20,7 +20,7 @@ final case class EPackedIntArray(
 
   def _decodedPType(requestedType: Type): PType = EArray(EInt32(elementsRequired), required)._decodedPType(requestedType)
 
-  def _buildDecoder(pt: PType, mb: MethodBuilder, region: Code[Region], in: Code[InputBuffer]): Code[_] = {
+  def _buildDecoder(pt: PType, mb: MethodBuilder, region: Value[Region], in: Value[InputBuffer]): Code[_] = {
     val pa = pt.asInstanceOf[PArray]
 
     val i = mb.newLocal[Int]("i")
@@ -34,7 +34,7 @@ final case class EPackedIntArray(
     val unpacker = mb.newLocal[IntPacker]("unpacker")
 
     Code.concat[Long](
-      unpacker := getPacker(mb).load(),
+      unpacker := getPacker(mb),
       len := in.readInt(),
       array := pa.allocate(region, len),
       pa.storeLength(array, len),
@@ -70,7 +70,7 @@ final case class EPackedIntArray(
       array)
   }
 
-  def _buildSkip(mb: MethodBuilder, r: Code[Region], in: Code[InputBuffer]): Code[Unit] = {
+  def _buildSkip(mb: MethodBuilder, r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
     val len = mb.newLocal[Int]("len")
 
     Code(
@@ -95,7 +95,7 @@ final case class EPackedIntArray(
     val dataLen = mb.newLocal[Int]("dataLen")
 
     Code.concat[Unit](
-      packer := getPacker(mb).load(),
+      packer := getPacker(mb),
       len := pa.loadLength(array),
       out.writeInt(len),
       if (elementsRequired)

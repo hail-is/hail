@@ -68,6 +68,8 @@ package object ir {
 
   private[ir] def coerce[T](c: Code[_]): Code[T] = asm4s.coerce(c)
 
+  private[ir] def coerce[T](c: Value[_]): Value[T] = asm4s.coerce(c)
+
   private[ir] def coerce[T](lr: Settable[_]): Settable[T] = lr.asInstanceOf[Settable[T]]
 
   private[ir] def coerce[T](ti: TypeInfo[_]): TypeInfo[T] = ti.asInstanceOf[TypeInfo[T]]

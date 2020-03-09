@@ -88,8 +88,8 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
   def _buildDecoder(
     pt: PType,
     mb: MethodBuilder,
-    region: Code[Region],
-    in: Code[InputBuffer]
+    region: Value[Region],
+    in: Value[InputBuffer]
   ): Code[Long] = {
     val t = pt.asInstanceOf[PArray]
     val len = mb.newLocal[Int]("len")
@@ -120,7 +120,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
       array.load())
   }
 
-  def _buildSkip(mb: MethodBuilder, r: Code[Region], in: Code[InputBuffer]): Code[Unit] = {
+  def _buildSkip(mb: MethodBuilder, r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
     val len = mb.newLocal[Int]("len")
     val i = mb.newLocal[Int]("i")
     val skip = elementType.buildSkip(mb)

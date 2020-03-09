@@ -19,11 +19,11 @@ class EFloat32(override val required: Boolean) extends EType {
   def _buildDecoder(
     pt: PType,
     mb: MethodBuilder,
-    region: Code[Region],
-    in: Code[InputBuffer]
+    region: Value[Region],
+    in: Value[InputBuffer]
   ): Code[Float] = in.readFloat()
 
-  def _buildSkip(mb: MethodBuilder, r: Code[Region], in: Code[InputBuffer]): Code[Unit] = in.skipFloat()
+  def _buildSkip(mb: MethodBuilder, r: Value[Region], in: Value[InputBuffer]): Code[Unit] = in.skipFloat()
 
   override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PFloat32]
 

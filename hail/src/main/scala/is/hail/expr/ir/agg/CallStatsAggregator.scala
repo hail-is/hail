@@ -25,15 +25,14 @@ object CallStatsState {
 }
 
 class CallStatsState(val fb: EmitFunctionBuilder[_]) extends PointerBasedRVAState {
-  val alleleCountsOffset: Code[Long] = CallStatsState.stateType.fieldOffset(off, 0)
-  val homCountsOffset: Code[Long] = CallStatsState.stateType.fieldOffset(off, 1)
-  val alleleCounts: Code[Long] = CallStatsState.stateType.loadField(off, 0)
-  val homCounts: Code[Long] = CallStatsState.stateType.loadField(off, 1)
+  def alleleCountsOffset: Code[Long] = CallStatsState.stateType.fieldOffset(off, 0)
+  def homCountsOffset: Code[Long] = CallStatsState.stateType.fieldOffset(off, 1)
+  def alleleCounts: Code[Long] = CallStatsState.stateType.loadField(off, 0)
+  def homCounts: Code[Long] = CallStatsState.stateType.loadField(off, 1)
   val nAlleles: ClassFieldRef[Int] = fb.newField[Int]
   private val addr = fb.newField[Long]
 
-  val loadNAlleles: Code[Unit] = nAlleles := CallStatsState.callStatsInternalArrayType.loadLength(alleleCounts)
-
+  def loadNAlleles: Code[Unit] = nAlleles := CallStatsState.callStatsInternalArrayType.loadLength(alleleCounts)
 
   // unused but extremely useful for debugging if something goes wrong
   def dump(tag: String): Code[Unit] = {
@@ -47,7 +46,7 @@ class CallStatsState(val fb: EmitFunctionBuilder[_]) extends PointerBasedRVAStat
     )
   }
 
-  override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] = Code(
+  override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] = Code(
     super.load(regionLoader, src),
     loadNAlleles
   )
@@ -69,16 +68,16 @@ class CallStatsState(val fb: EmitFunctionBuilder[_]) extends PointerBasedRVAStat
     Region.storeInt(addr, updater(Region.loadInt(addr)))
   )
 
-  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
+  def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
     TypedCodecSpec(CallStatsState.stateType, codec).buildEmitEncoderF[Long](CallStatsState.stateType, fb)(region, off, _)
   }
 
-  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
     val (decType, dec) = TypedCodecSpec(CallStatsState.stateType, codec)
       .buildEmitDecoderF[Long](CallStatsState.stateType.virtualType, fb)
     assert(decType == CallStatsState.stateType)
 
-    { ib: Code[InputBuffer] =>
+    { ib: Value[InputBuffer] =>
       Code(
         off := dec(region, ib),
         loadNAlleles)
@@ -109,7 +108,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
     Code(
       nAlleles.setup,
       nAlleles.m.mux(
-        Code._fatal("call_stats: n_alleles may not be missing"),
+        Code._fatal[Unit]("call_stats: n_alleles may not be missing"),
         Code(FastIndexedSeq(
           n := coerce[Int](nAlleles.v),
           state.nAlleles := n,
@@ -136,9 +135,12 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
     val lastAllele = state.fb.newField[Int]
     val i = state.fb.newField[Int]
 
-    def checkSize(a: Code[Int]): Code[Unit] = (a > state.nAlleles).orEmpty(
-      Code._fatal(const("found allele outside of expected range [0, ")
-        .concat(state.nAlleles.toS).concat("]: ").concat(a.toS)))
+    def checkSize(a: Code[Int]): Code[Unit] =
+      Code.memoize(a, "callstatsagg_check_size_a") { a =>
+        (a > state.nAlleles).orEmpty(
+          Code._fatal[Unit](const("found allele outside of expected range [0, ")
+            .concat(state.nAlleles.toS).concat("]: ").concat(a.toS)))
+      }
 
     Code(
       call.setup,
@@ -149,24 +151,23 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
           hom := true,
           lastAllele := -1,
           t.forEachAllele(state.fb, coerce[Int](call.v), { allele: Code[Int] =>
-            Code(
-              checkSize(allele),
-              state.updateAlleleCountAtIndex(allele, state.nAlleles, _ + 1),
-              (i > 0).orEmpty(hom := hom && allele.ceq(lastAllele)),
-              lastAllele := allele,
-              i := i + 1
-            )
+            Code.memoize(allele, "callstatsagg_seqop_allele") { allele =>
+              Code(
+                checkSize(allele),
+                state.updateAlleleCountAtIndex(allele, state.nAlleles, _ + 1),
+                (i > 0).orEmpty(hom := hom && allele.ceq(lastAllele)),
+                lastAllele := allele,
+                i := i + 1)
+            }
           }),
           (i > 1) && hom).orEmpty(
-          state.updateHomCountAtIndex(lastAllele, state.nAlleles, _ + 1))
-      )
-    )
+          state.updateHomCountAtIndex(lastAllele, state.nAlleles, _ + 1))))
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
     val i = state.fb.newField[Int]
     Code(
-      other.nAlleles.cne(state.nAlleles).orEmpty(Code._fatal("length mismatch")),
+      other.nAlleles.cne(state.nAlleles).orEmpty(Code._fatal[Unit]("length mismatch")),
       i := 0,
       Code.whileLoop(i < state.nAlleles,
         state.updateAlleleCountAtIndex(i, state.nAlleles, _ + other.alleleCountAtIndex(i, state.nAlleles)),

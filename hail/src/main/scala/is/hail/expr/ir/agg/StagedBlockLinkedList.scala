@@ -26,17 +26,23 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
     "lastNode" -> PInt64Required,
     "totalCount" -> PInt32Required)
 
-  def load(src: Code[Long]): Code[Unit] = Code(
-    firstNode := Region.loadAddress(storageType.fieldOffset(src, "firstNode")),
-    lastNode := Region.loadAddress(storageType.fieldOffset(src, "lastNode")),
-    totalCount := Region.loadInt(storageType.fieldOffset(src, "totalCount")))
+  def load(src: Code[Long]): Code[Unit] =
+    Code.memoize(src, "sbll_load_src") { src =>
+      Code(
+        firstNode := Region.loadAddress(storageType.fieldOffset(src, "firstNode")),
+        lastNode := Region.loadAddress(storageType.fieldOffset(src, "lastNode")),
+        totalCount := Region.loadInt(storageType.fieldOffset(src, "totalCount")))
+    }
 
-  def store(dst: Code[Long]): Code[Unit] = Code(
-    Region.storeAddress(storageType.fieldOffset(dst, "firstNode"), firstNode),
-    Region.storeAddress(storageType.fieldOffset(dst, "lastNode"), lastNode),
-    Region.storeInt(storageType.fieldOffset(dst, "totalCount"), totalCount))
+  def store(dst: Code[Long]): Code[Unit] =
+    Code.memoize(dst, "sbll_store_dst") { dst =>
+      Code(
+        Region.storeAddress(storageType.fieldOffset(dst, "firstNode"), firstNode),
+        Region.storeAddress(storageType.fieldOffset(dst, "lastNode"), lastNode),
+        Region.storeInt(storageType.fieldOffset(dst, "totalCount"), totalCount))
+    }
 
-  type Node = Code[Long]
+  type Node = Value[Long]
 
   val bufferType = PArray(elemType, required = true)
   val bufferEType = EArray(EType.defaultFromPType(elemType), required = true)
@@ -58,7 +64,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
   private def incrCount(n: Node): Code[Unit] =
     Region.storeInt(nodeType.fieldOffset(n, "count"), count(n) + 1)
 
-  private def next(n: Node): Node =
+  private def next(n: Node): Code[Long] =
     Region.loadAddress(nodeType.fieldOffset(n, "next"))
 
   private def hasNext(n: Node): Code[Boolean] =
@@ -68,14 +74,16 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
     Region.storeAddress(nodeType.fieldOffset(n, "next"), nNext)
 
   private def initNode(n: Node, buf: Code[Long], count: Code[Int]): Code[Unit] =
-    Code(
-      Region.storeAddress(nodeType.fieldOffset(n, "buf"), buf),
-      Region.storeInt(nodeType.fieldOffset(n, "count"), count),
-      Region.storeAddress(nodeType.fieldOffset(n, "next"), nil))
+    Code.memoize(n, "sbll_init_node_n") { n =>
+      Code(
+        Region.storeAddress(nodeType.fieldOffset(n, "buf"), buf),
+        Region.storeInt(nodeType.fieldOffset(n, "count"), count),
+        Region.storeAddress(nodeType.fieldOffset(n, "next"), nil))
+    }
 
   private def pushPresent(n: Node, store: Code[Long] => Code[Unit]): Code[Unit] =
     Code(
-      if(elemType.required) Code._empty else bufferType.setElementPresent(buffer(n), count(n)),
+      if (elemType.required) Code._empty else bufferType.setElementPresent(buffer(n), count(n)),
       store(bufferType.elementOffset(buffer(n), capacity(n), count(n))),
       incrCount(n))
 
@@ -84,25 +92,27 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
       bufferType.setElementMissing(buffer(n), count(n)),
       incrCount(n))
 
-  private def allocateNode(dstNode: Settable[Long])(r: Code[Region], cap: Code[Int]): Code[Unit] =
-    Code(
-      dstNode := r.allocate(nodeType.alignment, nodeType.byteSize),
-      initNode(dstNode,
-        buf = bufferType.allocate(r, cap),
-        count = 0),
-      bufferType.stagedInitialize(buffer(dstNode), cap))
+  private def allocateNode(dstNode: Settable[Long])(r: Value[Region], cap: Code[Int]): Code[Unit] =
+    Code.memoize(cap, "sbll_alloc_node_cap") { cap =>
+      Code(
+        dstNode := r.allocate(nodeType.alignment, nodeType.byteSize),
+        initNode(dstNode,
+          buf = bufferType.allocate(r, cap),
+          count = 0),
+        bufferType.stagedInitialize(buffer(dstNode), cap))
+    }
 
-  private def initWithCapacity(r: Code[Region], initialCap: Code[Int]): Code[Unit] = {
+  private def initWithCapacity(r: Value[Region], initialCap: Code[Int]): Code[Unit] = {
     Code(
       allocateNode(firstNode)(r, initialCap),
       lastNode := firstNode,
       totalCount := 0)
   }
 
-  def init(r: Code[Region]): Code[Unit] =
+  def init(r: Value[Region]): Code[Unit] =
     initWithCapacity(r, defaultBlockCap)
 
-  private def pushNewBlockNode(mb: MethodBuilder, r: Code[Region], cap: Code[Int]): Code[Unit] = {
+  private def pushNewBlockNode(mb: MethodBuilder, r: Value[Region], cap: Code[Int]): Code[Unit] = {
     val newNode = mb.newLocal[Long]
     Code(
       allocateNode(newNode)(r, cap),
@@ -135,7 +145,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
     }
   }
 
-  private def push(mb: MethodBuilder, r: Code[Region], m: Code[Boolean], v: Code[_]): Code[Unit] = {
+  private def push(mb: MethodBuilder, r: Value[Region], m: Code[Boolean], v: Code[_]): Code[Unit] = {
     var push = pushPresent(lastNode, StagedRegionValueBuilder.deepCopy(fb, r, elemType, v, _))
     if(!elemType.required)
       push = m.mux(pushMissing(lastNode), push)
@@ -146,7 +156,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
       totalCount := totalCount + 1)
   }
 
-  def push(region: Code[Region], elt: EmitCode): Code[Unit] = {
+  def push(region: Value[Region], elt: EmitCode): Code[Unit] = {
     val eltTI = typeToTypeInfo(elemType)
     val pushF = fb.newMethod("blockLinkedListPush",
       Array[TypeInfo[_]](typeInfo[Region], typeInfo[Boolean], eltTI),
@@ -162,7 +172,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
         pushF.invoke(region, false, elt.v)))
   }
 
-  def append(region: Code[Region], bll: StagedBlockLinkedList): Code[Unit] = {
+  def append(region: Value[Region], bll: StagedBlockLinkedList): Code[Unit] = {
     // it would take additional logic to get self-append to work, but we don't need it to anyways
     assert(bll ne this)
     assert(bll.elemType.isOfType(elemType))
@@ -216,8 +226,8 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
     val desF = fb.newMethod("blockLinkedListDeserialize",
       Array[TypeInfo[_]](typeInfo[Region], typeInfo[InputBuffer]),
       typeInfo[Unit])
-    val r = desF.getArg[Region](1).load
-    val ib = desF.getArg[InputBuffer](2).load
+    val r = desF.getArg[Region](1)
+    val ib = desF.getArg[InputBuffer](2)
     val array = desF.newLocal[Long]("array")
     val bufFType = bufferType.fundamentalType
     val dec = bufferEType.buildDecoder(bufferType, desF)

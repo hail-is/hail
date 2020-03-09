@@ -116,7 +116,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
           methodIdx += 1
           currentMB = mb.fb.newMethod(s"missingbits_group_$methodIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
         }
-        var b = const(0)
+        var b: Code[Int] = 0
         var k = 0
         while (k < 8 && j < size) {
           val f = fields(j)
@@ -166,8 +166,8 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
   def _buildDecoder(
     pt: PType,
     mb: MethodBuilder,
-    region: Code[Region],
-    in: Code[InputBuffer]
+    region: Value[Region],
+    in: Value[InputBuffer]
   ): Code[Long] = {
     val addr = mb.newLocal[Long]("addr")
 
@@ -181,9 +181,9 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
   override def _buildInplaceDecoder(
     pt: PType,
     mb: MethodBuilder,
-    region: Code[Region],
-    addr: Code[Long],
-    in: Code[InputBuffer]
+    region: Value[Region],
+    addr: Value[Long],
+    in: Value[InputBuffer]
   ): Code[Unit] = {
 
     val t = pt.asInstanceOf[PBaseStruct]
@@ -227,7 +227,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       readFields,
       Code._empty)
   }
-  def _buildSkip(mb: MethodBuilder, r: Code[Region], in: Code[InputBuffer]): Code[Unit] = {
+  def _buildSkip(mb: MethodBuilder, r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
     val mbytes = mb.newLocal[Long]("mbytes")
     val skipFields = fields.map { f =>
       val skip = f.typ.buildSkip(mb)

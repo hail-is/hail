@@ -8,7 +8,7 @@ import is.hail.expr.types.physical._
 import is.hail.io._
 import is.hail.utils._
 
-class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region], val offset: Code[Long], states: StateTuple) extends BTreeKey {
+class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Value[Region], val offset: Value[Long], states: StateTuple) extends BTreeKey {
   val storageType: PStruct = PStruct(required = true,
     "kt" -> kt,
     "regionIdx" -> PInt32(true),
@@ -28,7 +28,9 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
   override def compWithKey(off: Code[Long], k: (Code[Boolean], Code[_])): Code[Int] =
     compLoader.invoke[Int](off, k._1, k._2)
 
-  val regionIdx: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))
+  val regionIdx: Value[Int] = new Value[Int] {
+    def get: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))
+  }
   val container = new TupleAggregatorState(fb, states, region, containerOffset(offset), regionIdx)
 
   def isKeyMissing(off: Code[Long]): Code[Boolean] =
@@ -58,8 +60,9 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Code[Region
   def storeRegionIdx(off: Code[Long], idx: Code[Int]): Code[Unit] =
     Region.storeInt(storageType.fieldOffset(off, 1), idx)
 
-  def containerOffset(off: Code[Long]): Code[Long] =
-    storageType.fieldOffset(off, 2)
+  def containerOffset(off: Code[Long]): Value[Long] = new Value[Long] {
+    def get: Code[Long] = storageType.fieldOffset(off, 2)
+  }
 
   def isEmpty(off: Code[Long]): Code[Boolean] =
     Region.loadInt(storageType.fieldOffset(off, 1)) < 0
@@ -96,7 +99,9 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
     "tree" -> PInt64(true))
 
   private val _elt = fb.newField[Long]
-  private val initStatesOffset: Code[Long] = typ.loadField(off, 0)
+  private val initStatesOffset: Value[Long] = new Value[Long] {
+    def get: Code[Long] = typ.loadField(off, 0)
+  }
   val initContainer: TupleAggregatorState = new TupleAggregatorState(fb, nested, region, initStatesOffset)
 
   val keyed = new GroupedBTreeKey(keyType, fb, region, _elt, nested)
@@ -122,7 +127,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 
   override def createState: Code[Unit] = Code(super.createState, nested.createStates(fb))
 
-  override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] = {
+  override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] = {
     Code(super.load(regionLoader, src),
       off.ceq(0L).mux(Code._empty,
         Code(
@@ -130,7 +135,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
           root := Region.loadAddress(typ.loadField(off, 2)))))
   }
 
-  override def store(regionStorer: Code[Region] => Code[Unit], dest: Code[Long]): Code[Unit] = {
+  override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] = {
     Code(
       Region.storeInt(typ.fieldOffset(off, 1), size),
       Region.storeAddress(typ.fieldOffset(off, 2), root),
@@ -163,18 +168,18 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
       size := Region.loadInt(typ.loadField(src, 1)),
       tree.deepCopy(Region.loadAddress(typ.loadField(src, 2))))
 
-  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
+  def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
     val serializers = nested.states.map(_.serialize(codec))
     val kEnc = keyEType.buildEncoderMethod(keyType, fb)
     val km = fb.newField[Boolean]
     val kv = fb.newField()(typeToTypeInfo(keyType))
 
-    { ob: Code[OutputBuffer] =>
+    { ob: Value[OutputBuffer] =>
       Code(
         initContainer.load,
         nested.toCodeWithArgs(fb, "grouped_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
-          Array(ob),
-          { case (i, _, Seq(ob: Code[OutputBuffer@unchecked])) => serializers(i)(ob) }),
+          IndexedSeq(ob),
+          { case (i, _, Seq(ob: Value[OutputBuffer@unchecked])) => serializers(i)(ob) }),
         tree.bulkStore(ob) { (ob: Code[OutputBuffer], kvOff: Code[Long]) =>
           Code(
             _elt := kvOff,
@@ -185,23 +190,23 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
             keyed.loadStates,
             nested.toCodeWithArgs(fb, "grouped_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
               Array(ob),
-              { case (i, _, Seq(ob: Code[OutputBuffer@unchecked])) => serializers(i)(ob) })
+              { case (i, _, Seq(ob: Value[OutputBuffer@unchecked])) => serializers(i)(ob) })
           )
         })
     }
   }
 
-  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
     val deserializers = nested.states.map(_.deserialize(codec))
     val kDec = keyEType.buildDecoderMethod(keyType, fb)
     val km = fb.newField[Boolean]
     val kv = fb.newField()(typeToTypeInfo(keyType))
 
-    { ib: Code[InputBuffer] =>
+    { ib: Value[InputBuffer] =>
       Code(
         init(nested.toCodeWithArgs(fb, "grouped_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
-          Array(ib),
-          { case (i, _, Seq(ib: Code[InputBuffer@unchecked])) => deserializers(i)(ib) })),
+          FastIndexedSeq(ib),
+          { case (i, _, Seq(ib: Value[InputBuffer@unchecked])) => deserializers(i)(ib) })),
         tree.bulkLoad(ib) { (ib, koff) =>
           Code(
             _elt := koff,
@@ -209,8 +214,8 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
             (!km).orEmpty(kv := kDec.invoke(region, ib)),
             initElement(_elt, km, kv),
             nested.toCodeWithArgs(fb, "grouped_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
-              Array(ib),
-              { case (i, _, Seq(ib: Code[InputBuffer@unchecked])) => deserializers(i)(ib) }),
+              FastIndexedSeq(ib),
+              { case (i, _, Seq(ib: Value[InputBuffer@unchecked])) => deserializers(i)(ib) }),
             keyed.storeStates)
         })
     }

@@ -15,7 +15,7 @@ object TakeByRVAS {
 class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArray, val fb: EmitFunctionBuilder[_]) extends AggregatorState {
   private val r: ClassFieldRef[Region] = fb.newField[Region]("takeby_region")
 
-  val region: Code[Region] = r.load()
+  val region: Value[Region] = r
 
   private val indexedKeyType = PCanonicalTuple(true, keyType, PInt64Required)
   private val eltTuple = PCanonicalTuple(true, indexedKeyType, valueType)
@@ -88,12 +88,12 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   def createState: Code[Unit] = region.isNull.mux(Code(r := Region.stagedCreate(regionSize), region.invalidate()), Code._empty)
 
-  override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
+  override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     Code(
       regionLoader(r),
       loadFields(src))
 
-  override def store(regionStorer: Code[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
+  override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
     region.isValid.orEmpty(
       Code(
         regionStorer(region),
@@ -109,7 +109,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     maybeGCCode(
       maxIndex := 0L,
       maxSize := _maxSize,
-      (maxSize < 0).orEmpty(Code._fatal(const("'take': 'n' cannot be negative, found '").concat(maxSize.toS))),
+      (maxSize < 0).orEmpty(Code._fatal[Unit](const("'take': 'n' cannot be negative, found '").concat(maxSize.toS))),
       initStaging(),
       ab.initialize()
     )(Array(
@@ -155,8 +155,8 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       ))
   }
 
-  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
-    { ob: Code[OutputBuffer] =>
+  def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
+    { ob: Value[OutputBuffer] =>
       maybeGCCode(
         ob.writeLong(maxIndex),
         ob.writeInt(maxSize),
@@ -168,8 +168,8 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     }
   }
 
-  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
-    { (ib: Code[InputBuffer]) =>
+  def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
+    { (ib: Value[InputBuffer]) =>
       maybeGCCode(
         maxIndex := ib.readLong(),
         maxSize := ib.readInt(),
@@ -177,7 +177,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
         initStaging(),
         ib.readInt()
           .cne(const(TakeByRVAS.END_SERIALIZATION))
-          .orEmpty[Unit](Code._fatal(s"StagedSizedKeyValuePriorityQueue serialization failed"))
+          .orEmpty(Code._fatal[Unit](s"StagedSizedKeyValuePriorityQueue serialization failed"))
       )(Array(
         maxGarbage := ib.readInt(),
         garbage := 0
@@ -344,7 +344,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   private def copyToStaging(value: Code[_], valueM: Code[Boolean], indexedKey: Code[Long]): Code[Unit] = {
     Code(
-      staging.ceq(0L).orEmpty(Code._fatal("staging is 0")),
+      staging.ceq(0L).orEmpty(Code._fatal[Unit]("staging is 0")),
       Region.copyFrom(indexedKey, eltTuple.fieldOffset(staging, 0), indexedKeyType.byteSize),
       if (valueType.required)
         Region.storeIRIntermediate(valueType)(eltTuple.fieldOffset(staging, 1), value)
@@ -544,7 +544,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
     def indexAt(idx: Code[Int]): Code[Int] = Region.loadInt(indexOffset(idx))
 
-    val srvb = (new StagedRegionValueBuilder(mb, resultType, r.load()))
+    val srvb = (new StagedRegionValueBuilder(mb, resultType, r))
     mb.emit(Code(
       indicesToSort := r.load().allocate(4L, ab.size.toL * 4L),
       i := 0,
@@ -584,7 +584,7 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
     val Array(sizeTriplet) = init
     Code(
       sizeTriplet.setup,
-      sizeTriplet.m.orEmpty(Code._fatal(s"argument 'n' for 'hl.agg.take' may not be missing")),
+      sizeTriplet.m.orEmpty(Code._fatal[Unit](s"argument 'n' for 'hl.agg.take' may not be missing")),
       state.initialize(coerce[Int](sizeTriplet.v))
     )
   }

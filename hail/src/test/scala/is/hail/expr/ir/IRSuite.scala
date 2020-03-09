@@ -3179,7 +3179,7 @@ class IRSuite extends HailSuite {
     assert(IRParser.parse_value_ir(Pretty(lit, elideLiterals = false)) == lit)
   }
 
-  @Test def regressionTestUnifyBug(): Unit = {
+  def regressionTestUnifyBug(): Unit = {
     // failed due to misuse of Type.unify
     val ir = IRParser.parse_value_ir(
       """

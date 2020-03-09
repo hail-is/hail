@@ -26,7 +26,7 @@ trait BTreeKey {
     compKeys(loadCompKey(off), k)
 }
 
-class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Region], root: ClassFieldRef[Long], maxElements: Int = 2) {
+class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Value[Region], root: ClassFieldRef[Long], maxElements: Int = 2) {
   private val splitIdx = maxElements / 2
   private val eltType: PTuple = PTuple(key.storageType, PInt64(true))
   private val elementsType: PTuple = PCanonicalTuple(required = true, Array.fill[PType](maxElements)(eltType): _*)
@@ -108,7 +108,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
 
     def insertKey(m: Code[Boolean], v: Code[_], c: Code[Long]): Code[Long] = {
       val upperBound = Array.range(0, maxElements)
-        .foldRight(const(maxElements)) { (i, cont) =>
+        .foldRight(maxElements: Code[Int]) { (i, cont) =>
           (!hasKey(parent, i) ||
             key.compWithKey(loadKey(parent, i), m -> v) >= 0)
             .mux(i, cont)
@@ -118,9 +118,9 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
         insertAt.invoke[Long](parent, upperBound, m, v, newNode))
     }
 
-    def promote(idx: Int) = {
+    def promote(idx: Int): Code[Unit] = {
       val upperBound = Array.range(0, maxElements)
-        .foldRight(const(maxElements)) { (i, cont) =>
+        .foldRight(maxElements: Code[Int]) { (i, cont) =>
           (!hasKey(parent, i) ||
             key.compSame(loadKey(parent, i), loadKey(node, idx)) >= 0)
             .mux(i, cont)

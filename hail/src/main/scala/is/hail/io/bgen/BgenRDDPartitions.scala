@@ -180,10 +180,10 @@ object CompileDecoder {
   ): (Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
     val fb = EmitFunctionBuilder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long]("bgen_rdd_decoder")
     val mb = fb.apply_method
-    val region = mb.getArg[Region](1).load()
-    val cp = mb.getArg[BgenPartition](2).load()
-    val cbfis = mb.getArg[HadoopFSDataBinaryReader](3).load()
-    val csettings = mb.getArg[BgenSettings](4).load()
+    val region = mb.getArg[Region](1)
+    val cp = mb.getArg[BgenPartition](2)
+    val cbfis = mb.getArg[HadoopFSDataBinaryReader](3)
+    val csettings = mb.getArg[BgenSettings](4)
 
     val regionField = mb.newField[Region]("region")
     val srvb = new StagedRegionValueBuilder(mb, settings.rowPType, regionField)
@@ -281,7 +281,7 @@ object CompileDecoder {
       else Code._empty,
       nAlleles := cbfis.invoke[Int]("readShort"),
       nAlleles.cne(2).mux(
-        Code._fatal(
+        Code._fatal[Unit](
           const("Only biallelic variants supported, found variant with ")
             .concat(nAlleles.toS)),
         Code._empty),
@@ -478,7 +478,7 @@ object CompileDecoder {
             reader := Code.newInstance[ByteArrayReader, Array[Byte]](data),
             nRow := reader.invoke[Int]("readInt"),
             (nRow.cne(settings.nSamples)).mux(
-              Code._fatal(
+              Code._fatal[Unit](
                 const("Row nSamples is not equal to header nSamples: ")
                   .concat(nRow.toS)
                   .concat(", ")
@@ -486,7 +486,7 @@ object CompileDecoder {
               Code._empty),
             nAlleles2 := reader.invoke[Int]("readShort"),
             (nAlleles.cne(nAlleles2)).mux(
-              Code._fatal(
+              Code._fatal[Unit](
                 const("""Value for 'nAlleles' in genotype probability data storage is
                         |not equal to value in variant identifying data. Expected""".stripMargin)
                   .concat(nAlleles.toS)
@@ -501,7 +501,7 @@ object CompileDecoder {
             minPloidy := reader.invoke[Int]("read"),
             maxPloidy := reader.invoke[Int]("read"),
             (minPloidy.cne(2) || maxPloidy.cne(2)).mux(
-              Code._fatal(
+              Code._fatal[Unit](
                 const("Hail only supports diploid genotypes. Found min ploidy '")
                   .concat(minPloidy.toS)
                   .concat("' and max ploidy '")
@@ -512,7 +512,7 @@ object CompileDecoder {
             Code.whileLoop(i < settings.nSamples,
               ploidy := reader.invoke[Int]("read"),
               ((ploidy & 0x3f).cne(2)).mux(
-                Code._fatal(
+                Code._fatal[Unit](
                   const("Ploidy value must equal to 2. Found ")
                     .concat(ploidy.toS)
                     .concat(".")),
@@ -521,30 +521,30 @@ object CompileDecoder {
             ),
             phase := reader.invoke[Int]("read"),
             (phase.cne(0) && phase.cne(1)).mux(
-              Code._fatal(
+              Code._fatal[Unit](
                 const("Phase value must be 0 or 1. Found ")
                   .concat(phase.toS)
                   .concat(".")),
               Code._empty),
             phase.ceq(1).mux(
-              Code._fatal("Hail does not support phased genotypes."),
+              Code._fatal[Unit]("Hail does not support phased genotypes."),
               Code._empty),
             nBitsPerProb := reader.invoke[Int]("read"),
             (nBitsPerProb < 1 || nBitsPerProb > 32).mux(
-              Code._fatal(
+              Code._fatal[Unit](
                 const("nBits value must be between 1 and 32 inclusive. Found ")
                   .concat(nBitsPerProb.toS)
                   .concat(".")),
               Code._empty),
             (nBitsPerProb.cne(8)).mux(
-              Code._fatal(
+              Code._fatal[Unit](
                 const("Hail only supports 8-bit probabilities, found ")
                   .concat(nBitsPerProb.toS)
                   .concat(".")),
               Code._empty),
             nExpectedBytesProbs := settings.nSamples * 2,
             (reader.invoke[Int]("length").cne(nExpectedBytesProbs + settings.nSamples + 10)).mux(
-              Code._fatal(
+              Code._fatal[Unit](
                 const("Number of uncompressed bytes '")
                   .concat(reader.invoke[Int]("length").toS)
                   .concat("' does not match the expected size '")

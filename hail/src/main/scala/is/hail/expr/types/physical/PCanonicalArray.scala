@@ -216,9 +216,12 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     if (elementType.required)
       Region.storeInt(aoff, length)
     else
-      Code(
-        Region.storeInt(aoff, length),
-        Region.setMemory(aoff + const(lengthHeaderBytes), nMissingBytes(length).toL, const(if (setMissing) (-1).toByte else 0.toByte)))
+      Code.memoize(aoff, "staged_init_aoff",
+        length, "staged_init_length") { (aoff, length) =>
+        Code(
+          Region.storeInt(aoff, length),
+          Region.setMemory(aoff + const(lengthHeaderBytes), nMissingBytes(length).toL, const(if (setMissing) (-1).toByte else 0.toByte)))
+      }
   }
 
   def zeroes(region: Region, length: Int): Long = {
@@ -330,7 +333,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
     Code(
       a := srcAddress,
-      sourceType.hasMissingValues(a).orEmpty(Code._fatal(msg)), {
+      sourceType.hasMissingValues(a).orEmpty(Code._fatal[Unit](msg)), {
         val newOffset = mb.newField[Long]
         val len = sourceType.loadLength(a)
 

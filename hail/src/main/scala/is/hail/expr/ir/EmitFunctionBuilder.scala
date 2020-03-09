@@ -83,7 +83,7 @@ trait FunctionWithBackend {
 class EmitMethodBuilder(
   override val fb: EmitFunctionBuilder[_],
   mname: String,
-  parameterTypeInfo: Array[TypeInfo[_]],
+  parameterTypeInfo: IndexedSeq[TypeInfo[_]],
   returnTypeInfo: TypeInfo[_]
 ) extends MethodBuilder(fb, mname, parameterTypeInfo, returnTypeInfo) {
 
@@ -227,7 +227,7 @@ class EmitFunctionBuilder[F >: Null](
   def numTypes: Int = typMap.size
 
   private[this] def addReferenceGenome(rg: ReferenceGenome): Code[Unit] = {
-    val rgExists = Code.invokeScalaObject[String, Boolean](ReferenceGenome.getClass, "hasReference", const(rg.name))
+    val rgExists = Code.invokeScalaObject[String, Boolean](ReferenceGenome.getClass, "hasReference", rg.name)
     val addRG = Code.invokeScalaObject[ReferenceGenome, Unit](ReferenceGenome.getClass, "addReference", getReferenceGenome(rg))
     rgExists.mux(Code._empty, addRG)
   }
@@ -260,8 +260,9 @@ class EmitFunctionBuilder[F >: Null](
 
     mb2.emit(Code(
       encLitField := mb2.getArg[Array[Byte]](1),
-      off := dec(partitionRegion.load(),
-        spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField))),
+      off := Code.memoize(spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField)), "enc_lit_ib") { ib =>
+        dec(partitionRegion, ib)
+      },
       Code(storeFields)
     ))
     classBuilder.addMethod(mb2)
@@ -307,12 +308,12 @@ class EmitFunctionBuilder[F >: Null](
     _aggState = new agg.TupleAggregatorState(this, states, _aggRegion, _aggOff)
     _aggSerialized = newField[Array[Array[Byte]]]("agg_serialized")
 
-    val newF = new EmitMethodBuilder(this, "newAggState", Array(typeInfo[Region]), typeInfo[Unit])
-    val setF = new EmitMethodBuilder(this, "setAggState", Array(typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
-    val getF = new EmitMethodBuilder(this, "getAggOffset", Array(), typeInfo[Long])
-    val setNSer = new EmitMethodBuilder(this, "setNumSerialized", Array(typeInfo[Int]), typeInfo[Unit])
-    val setSer = new EmitMethodBuilder(this, "setSerializedAgg", Array(typeInfo[Int], typeInfo[Array[Byte]]), typeInfo[Unit])
-    val getSer = new EmitMethodBuilder(this, "getSerializedAgg", Array(typeInfo[Int]), typeInfo[Array[Byte]])
+    val newF = new EmitMethodBuilder(this, "newAggState", FastIndexedSeq(typeInfo[Region]), typeInfo[Unit])
+    val setF = new EmitMethodBuilder(this, "setAggState", FastIndexedSeq(typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
+    val getF = new EmitMethodBuilder(this, "getAggOffset", FastIndexedSeq(), typeInfo[Long])
+    val setNSer = new EmitMethodBuilder(this, "setNumSerialized", FastIndexedSeq(typeInfo[Int]), typeInfo[Unit])
+    val setSer = new EmitMethodBuilder(this, "setSerializedAgg", FastIndexedSeq(typeInfo[Int], typeInfo[Array[Byte]]), typeInfo[Unit])
+    val getSer = new EmitMethodBuilder(this, "getSerializedAgg", FastIndexedSeq(typeInfo[Int]), typeInfo[Array[Byte]])
 
     classBuilder.addMethod(newF)
     classBuilder.addMethod(setF)
@@ -400,7 +401,7 @@ class EmitFunctionBuilder[F >: Null](
     val references = ReferenceGenome.getReferences(t.virtualType).toArray
     val setup = Code(Code(references.map(addReferenceGenome)),
       Code.invokeScalaObject[String, PType](
-        IRParser.getClass, "parsePType", const(t.toString)))
+        IRParser.getClass, "parsePType", t.toString))
     pTypeMap.getOrElseUpdate(t,
       newLazyField[PType](setup))
   }
@@ -409,7 +410,7 @@ class EmitFunctionBuilder[F >: Null](
     val references = ReferenceGenome.getReferences(t).toArray
     val setup = Code(Code(references.map(addReferenceGenome)),
       Code.invokeScalaObject[String, Type](
-        IRParser.getClass, "parseType", const(t.parsableString())))
+        IRParser.getClass, "parseType", t.parsableString()))
     typMap.getOrElseUpdate(t,
       newLazyField[Type](setup))
   }
@@ -519,12 +520,12 @@ class EmitFunctionBuilder[F >: Null](
   }
 
   def wrapVoids(x: Seq[Code[Unit]], prefix: String, size: Int = 32): Code[Unit] =
-    wrapVoidsWithArgs(x.map { c => (s: Seq[Code[_]]) => c }, prefix, Array(), Array(), size)
+    wrapVoidsWithArgs(x.map { c => (s: Seq[Code[_]]) => c }, prefix, FastIndexedSeq(), FastIndexedSeq(), size)
 
   def wrapVoidsWithArgs(x: Seq[Seq[Code[_]] => Code[Unit]],
     suffix: String,
-    argTypes: Array[TypeInfo[_]],
-    args: Array[Code[_]],
+    argTypes: IndexedSeq[TypeInfo[_]],
+    args: IndexedSeq[Code[_]],
     size: Int = 32): Code[Unit] = {
     coerce[Unit](Code(x.grouped(size).zipWithIndex.map { case (codes, i) =>
       val mb = newMethod(suffix + s"_group$i", argTypes, UnitInfo)
@@ -534,13 +535,13 @@ class EmitFunctionBuilder[F >: Null](
     }.toArray))
   }
 
-  override def newMethod(suffix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
+  override def newMethod(suffix: String, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
     val mb = new EmitMethodBuilder(this, classBuilder.genName("m", suffix), argsInfo, returnInfo)
     classBuilder.addMethod(mb)
     mb
   }
 
-  override def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder =
+  override def newMethod(argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder =
     newMethod("method", argsInfo, returnInfo)
 
   override def newMethod[R: TypeInfo]: EmitMethodBuilder =
