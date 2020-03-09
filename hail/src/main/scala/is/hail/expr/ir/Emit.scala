@@ -1336,6 +1336,8 @@ private class Emit(
               val element = coerce[Any](elemMB.newField("matmul_element")(eVti))
               val k = elemMB.newField[Long]
 
+              val innerMethod = elemMB.fb.newMethod(eVti)
+
               val (lIndices: IndexedSeq[Code[Long]], rIndices: IndexedSeq[Code[Long]]) = (lPType.nDims, rPType.nDims, idxVars) match {
                 case (1, 1, Seq()) => (IndexedSeq(k.load()), IndexedSeq(k.load()))
                 case (1, _, stack :+ m) =>
@@ -1350,11 +1352,9 @@ private class Emit(
                   (lStackVars :+ n :+ k.load(), rStackVars :+ k.load() :+  m)
               }
 
-              val lElem = lPType.loadElementToIRIntermediate(lIndices, leftND, elemMB)
-              val rElem = rPType.loadElementToIRIntermediate(rIndices, rightND, elemMB)
+              val lElem = lPType.loadElementToIRIntermediate(lIndices, leftND, innerMethod)
+              val rElem = rPType.loadElementToIRIntermediate(rIndices, rightND, innerMethod)
               val kLen = elemMB.newField[Long]
-
-              val innerMethod = mb.fb.newMethod(eVti)
 
               val loopCode = Code(
                 k := 0L,
