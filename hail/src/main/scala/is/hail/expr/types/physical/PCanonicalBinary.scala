@@ -50,7 +50,9 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     Region.loadBytes(this.bytesOffset(bAddress), length)
 
   def loadBytes(bAddress: Code[Long]): Code[Array[Byte]] =
-    this.loadBytes(bAddress, this.loadLength(bAddress))
+    Code.memoize(bAddress, "pcbin_load_bytes_addr") { bAddress =>
+      loadBytes(bAddress, this.loadLength(bAddress))
+    }
 
   def loadBytes(bAddress: Long, length: Int): Array[Byte] =
     Region.loadBytes(this.bytesOffset(bAddress), length)
@@ -72,10 +74,13 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   }
 
   def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] =
-    Code(
-      Region.storeInt(addr, bytes.length),
-      Region.storeBytes(bytesOffset(addr), bytes)
-    )
+    Code.memoize(addr, "pcbin_store_addr") { addr =>
+      Code.memoize(bytes, "pcbin_store_bytes") { bytes =>
+        Code(
+          Region.storeInt(addr, bytes.length),
+          Region.storeBytes(bytesOffset(addr), bytes))
+      }
+    }
 
   def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] = {
     val srcBinary = srcPType.asInstanceOf[PBinary]

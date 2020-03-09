@@ -270,11 +270,11 @@ object LocusFunctions extends RegistryFunctions {
                 len.ceq(0).mux(lastCoord := 0.0, lastCoord := getCoord(0)),
                 Code.whileLoop(i < len,
                   coordT.isElementMissing( coordsPerContig, i).mux(
-                    Code._fatal(
+                    Code._fatal[Unit](
                       const("locus_windows: missing value for 'coord_expr' at row ")
                         .concat((offset + i).toS)),
                     (lastCoord > getCoord(i)).mux(
-                      Code._fatal("locus_windows: 'coord_expr' must be in ascending order within each contig."),
+                      Code._fatal[Unit]("locus_windows: 'coord_expr' must be in ascending order within each contig."),
                       lastCoord := getCoord(i))),
                   Code.whileLoop((idx < len) && cond, idx += 1),
                   sab.addInt(offset + idx),

@@ -13,7 +13,7 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
 
   class State(val fb: EmitFunctionBuilder[_]) extends AggregatorState {
     val r = fb.newField[Region]
-    val region = r.load
+    val region: Value[Region] = r
     val bll = new StagedBlockLinkedList(elemType, fb)
 
     def storageType = bll.storageType
@@ -27,12 +27,12 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
     def newState(off: Code[Long]): Code[Unit] =
       region.getNewRegion(regionSize)
 
-    def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
+    def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
       Code(
         regionLoader(region),
         bll.load(src))
 
-    def store(regionStorer: Code[Region] => Code[Unit], dst: Code[Long]): Code[Unit] =
+    def store(regionStorer: Value[Region] => Code[Unit], dst: Code[Long]): Code[Unit] =
       region.isValid.orEmpty(Code(
         regionStorer(region),
         bll.store(dst),
@@ -45,10 +45,10 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
         bll.initWithDeepCopy(region, copyBll))
     }
 
-    def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] =
+    def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] =
       bll.serialize(region, _)
 
-    def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
+    def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
       { ib => Code(bll.init(region), bll.deserialize(region, ib)) }
     }
   }

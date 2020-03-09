@@ -365,13 +365,13 @@ class CompiledLineParser(
 
   private[this] val loadParserOnWorker = fb.result()
 
-  private[this] def parseError[T](msg: Code[String]): Code[T] =
-    Code._throw(Code.newInstance[MatrixParseError, String, String, Long, Int, Int](
+  private[this] def parseError[T](msg: Code[String])(implicit tti: TypeInfo[T]): Code[T] =
+    Code._throw[MatrixParseError, T](Code.newInstance[MatrixParseError, String, String, Long, Int, Int](
       msg, filename, lineNumber, pos, pos + 1))
 
   private[this] def numericValue(c: Code[Char]): Code[Int] =
     ((c < const('0')) || (c > const('9'))).mux(
-      parseError(const("invalid character '")
+      parseError[Int](const("invalid character '")
         .concat(c.toS)
         .concat("' in integer literal")),
       (c - const('0')).toI)
@@ -419,7 +419,7 @@ class CompiledLineParser(
     val v = mb.newLocal[Int]("v")
     val c = mb.newLocal[Char]("c")
     endField().mux(
-      parseError("empty integer literal"),
+      parseError[Int]("empty integer literal"),
       Code(
         mul := 1,
         (line(pos).ceq(const('-'))).mux(
@@ -442,7 +442,7 @@ class CompiledLineParser(
     val v = mb.newLocal[Long]("vL")
     val c = mb.newLocal[Char]("c")
     endField().mux(
-      parseError(const("empty long literal at ")),
+      parseError[Long](const("empty long literal at ")),
       Code(
         mul := 1L,
         (line(pos).ceq(const('-'))).mux(
@@ -518,7 +518,7 @@ class CompiledLineParser(
             pos := pos + 1)
         ab += (pos < line.length).mux(
           parseAndAddField,
-          parseError(
+          parseError[Unit](
             const("unexpected end of line while reading row field ")
               .concat(onDiskField.name)))
         ab += srvb.advance()
@@ -543,7 +543,7 @@ class CompiledLineParser(
             Code(
               srvb.start(),
               (pos >= line.length).mux(
-                parseError(
+                parseError[Unit](
                   const("unexpected end of line while reading entry ")
                     .concat(i.toS)),
                 Code._empty),

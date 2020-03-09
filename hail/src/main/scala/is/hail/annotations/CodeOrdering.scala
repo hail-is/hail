@@ -47,7 +47,7 @@ object CodeOrdering {
     val v1s: Array[LocalRef[_]] = t1.types.map(tf => mb.newLocal(ir.typeToTypeInfo(tf)))
     val v2s: Array[LocalRef[_]] = t2.types.map(tf => mb.newLocal(ir.typeToTypeInfo(tf)))
 
-    def setup(i: Int)(x: Code[Long], y: Code[Long]): Code[Unit] = {
+    def setup(i: Int)(x: Value[Long], y: Value[Long]): Code[Unit] = {
       val tf1 = t1.types(i)
       val tf2 = t2.types(i)
       Code(
@@ -67,13 +67,15 @@ object CodeOrdering {
     override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
       val cmp = mb.newLocal[Int]
 
-      val c = Array.tabulate(t1.size) { i =>
-        val mbcmp = fieldOrdering(i, CodeOrdering.compare)
-        Code(setup(i)(x, y),
-          mbcmp((m1, v1s(i)), (m2, v2s(i))))
-      }.foldRight[Code[Int]](cmp.load()) { (ci, cont) => cmp.ceq(0).mux(Code(cmp := ci, cont), cmp) }
+      Code.memoize(x, "cord_row_comp_x", y, "cord_row_comp_y") { (x, y) =>
+        val c = Array.tabulate(t1.size) { i =>
+          val mbcmp = fieldOrdering(i, CodeOrdering.compare)
+          Code(setup(i)(x, y),
+            mbcmp((m1, v1s(i)), (m2, v2s(i))))
+        }.foldRight[Code[Int]](cmp.load()) { (ci, cont) => cmp.ceq(0).mux(Code(cmp := ci, cont), cmp) }
 
-      Code(cmp := 0, c)
+        Code(cmp := 0, c)
+      }
     }
 
     private[this] def dictionaryOrderingFromFields(
@@ -83,12 +85,14 @@ object CodeOrdering {
     )(x: Code[Long],
       y: Code[Long]
     ): Code[Boolean] =
-      Array.tabulate(t1.size) { i =>
-        val mbop = fieldOrdering(i, op)
-        val mbequiv = fieldOrdering(i, CodeOrdering.equiv)
-        (Code(setup(i)(x, y), mbop((m1, v1s(i)), (m2, v2s(i)))),
-          mbequiv((m1, v1s(i)), (m2, v2s(i))))
-      }.foldRight(zero) { case ((cop, ceq), cont) => combine(cop, ceq, cont) }
+      Code.memoize(x, "cord_row_comp_x", y, "cord_row_comp_y") { (x, y) =>
+        Array.tabulate(t1.size) { i =>
+          val mbop = fieldOrdering(i, op)
+          val mbequiv = fieldOrdering(i, CodeOrdering.equiv)
+          (Code(setup(i)(x, y), mbop((m1, v1s(i)), (m2, v2s(i)))),
+            mbequiv((m1, v1s(i)), (m2, v2s(i))))
+        }.foldRight(zero) { case ((cop, ceq), cont) => combine(cop, ceq, cont) }
+      }
 
     val _ltNonnull = dictionaryOrderingFromFields(
       CodeOrdering.lt,
@@ -118,13 +122,14 @@ object CodeOrdering {
         isGreaterThanEq && (!isEqual || subsequentGteq) }) _
     override def gteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _gteqNonnull(x, y)
 
-    override def equivNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
-      Array.tabulate(t1.size) { i =>
-        val mbequiv = fieldOrdering(i, CodeOrdering.equiv)
-        Code(setup(i)(x, y),
-          mbequiv((m1, v1s(i)), (m2, v2s(i))))
-      }.foldRight[Code[Boolean]](const(true))(_ && _)
-    }
+    override def equivNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] =
+      Code.memoize(x, "cord_row_equiv_x", y, "cord_row_equiv_y") { (x, y) =>
+        Array.tabulate(t1.size) { i =>
+          val mbequiv = fieldOrdering(i, CodeOrdering.equiv)
+          Code(setup(i)(x, y),
+            mbequiv((m1, v1s(i)), (m2, v2s(i))))
+        }.foldRight[Code[Boolean]](const(true))(_ && _)
+      }
   }
 
   def iterableOrdering(t1: PArray, t2: PArray, mb: EmitMethodBuilder): CodeOrdering = new CodeOrdering {
@@ -143,17 +148,19 @@ object CodeOrdering {
 
     def loop(cmp: Code[Unit], loopCond: Code[Boolean])
       (x: Code[Long], y: Code[Long]): Code[Unit] = {
-      Code(
-        i := 0,
-        len1 := t1.loadLength(x),
-        len2 := t2.loadLength(y),
-        lim := (len1 < len2).mux(len1, len2),
-        Code.whileLoop(loopCond && i < lim,
-          m1 := t1.isElementMissing(x, i),
-          v1.storeAny(Region.loadIRIntermediate(t1.elementType)(t1.elementOffset(x, len1, i))),
-          m2 := t2.isElementMissing(y, i),
-          v2.storeAny(Region.loadIRIntermediate(t2.elementType)(t2.elementOffset(y, len2, i))),
-          cmp, i += 1))
+      Code.memoize(x, "cord_iter_ord_x", y, "cord_iter_ord_y") { (x, y) =>
+        Code(
+          i := 0,
+          len1 := t1.loadLength(x),
+          len2 := t2.loadLength(y),
+          lim := (len1 < len2).mux(len1, len2),
+          Code.whileLoop(loopCond && i < lim,
+            m1 := t1.isElementMissing(x, i),
+            v1.storeAny(Region.loadIRIntermediate(t1.elementType)(t1.elementOffset(x, len1, i))),
+            m2 := t2.isElementMissing(y, i),
+            v2.storeAny(Region.loadIRIntermediate(t2.elementType)(t2.elementOffset(y, len2, i))),
+            cmp, i += 1))
+      }
     }
 
     override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
@@ -240,7 +247,7 @@ object CodeOrdering {
     val p1: LocalRef[_] = mb.newLocal(ir.typeToTypeInfo(t1.pointType))
     val p2: LocalRef[_] = mb.newLocal(ir.typeToTypeInfo(t2.pointType))
 
-    def loadStart(x: Code[T], y: Code[T]): Code[Unit] = {
+    def loadStart(x: Value[T], y: Value[T]): Code[Unit] = {
       Code(
         mp1 := !t1.startDefined(x),
         mp2 := !t2.startDefined(y),
@@ -248,7 +255,7 @@ object CodeOrdering {
         p2.storeAny(mp2.mux(ir.defaultValue(t2.pointType), Region.loadIRIntermediate(t2.pointType)(t2.startOffset(y)))))
     }
 
-    def loadEnd(x: Code[T], y: Code[T]): Code[Unit] = {
+    def loadEnd(x: Value[T], y: Value[T]): Code[Unit] = {
       Code(
         mp1 := !t1.endDefined(x),
         mp2 := !t2.endDefined(y),
@@ -260,77 +267,89 @@ object CodeOrdering {
       val mbcmp = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.compare)
 
       val cmp = mb.newLocal[Int]
-      Code(loadStart(x, y),
-        cmp := mbcmp((mp1, p1), (mp2, p2)),
-        cmp.ceq(0).mux(
-          Code(mp1 := t1.includeStart(x),
-            mp1.cne(t2.includeStart(y)).mux(
-              mp1.mux(-1, 1),
-              Code(
-                loadEnd(x, y),
-                cmp := mbcmp((mp1, p1), (mp2, p2)),
-                cmp.ceq(0).mux(
-                  Code(mp1 := t1.includeEnd(x),
-                    mp1.cne(t2.includeEnd(y)).mux(mp1.mux(1, -1), 0)),
-                  cmp)))),
-          cmp))
+      Code.memoize(x, "cord_int_comp_x", y, "cord_int_comp_y") { (x, y) =>
+        Code(loadStart(x, y),
+          cmp := mbcmp((mp1, p1), (mp2, p2)),
+          cmp.ceq(0).mux(
+            Code(mp1 := t1.includeStart(x),
+              mp1.cne(t2.includeStart(y)).mux(
+                mp1.mux(-1, 1),
+                Code(
+                  loadEnd(x, y),
+                  cmp := mbcmp((mp1, p1), (mp2, p2)),
+                  cmp.ceq(0).mux(
+                    Code(mp1 := t1.includeEnd(x),
+                      mp1.cne(t2.includeEnd(y)).mux(mp1.mux(1, -1), 0)),
+                    cmp)))),
+            cmp))
+      }
     }
 
     override def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
       val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.equiv)
 
-      Code(loadStart(x, y), mbeq((mp1, p1), (mp2, p2))) &&
-        t1.includeStart(x).ceq(t2.includeStart(y)) &&
-        Code(loadEnd(x, y), mbeq((mp1, p1), (mp2, p2))) &&
-        t1.includeEnd(x).ceq(t2.includeEnd(y))
+      Code.memoize(x, "cord_int_equiv_x", y, "cord_int_equiv_y") { (x, y) =>
+        Code(loadStart(x, y), mbeq((mp1, p1), (mp2, p2))) &&
+          t1.includeStart(x).ceq(t2.includeStart(y)) &&
+          Code(loadEnd(x, y), mbeq((mp1, p1), (mp2, p2))) &&
+          t1.includeEnd(x).ceq(t2.includeEnd(y))
+      }
     }
 
     override def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
       val mblt = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.lt)
       val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.equiv)
 
-      Code(loadStart(x, y), mblt((mp1, p1), (mp2, p2))) || (
-        mbeq((mp1, p1), (mp2, p2)) && (
-          Code(mp1 := t1.includeStart(x), mp2 := t2.includeStart(y), mp1 && !mp2) || (mp1.ceq(mp2) && (
-            Code(loadEnd(x, y), mblt((mp1, p1), (mp2, p2))) || (
-              mbeq((mp1, p1), (mp2, p2)) &&
-                !t1.includeEnd(x) && t2.includeEnd(y))))))
+      Code.memoize(x, "cord_int_lt_x", y, "cord_int_lt_y") { (x, y) =>
+        Code(loadStart(x, y), mblt((mp1, p1), (mp2, p2))) || (
+          mbeq((mp1, p1), (mp2, p2)) && (
+            Code(mp1 := t1.includeStart(x), mp2 := t2.includeStart(y), mp1 && !mp2) || (mp1.ceq(mp2) && (
+              Code(loadEnd(x, y), mblt((mp1, p1), (mp2, p2))) || (
+                mbeq((mp1, p1), (mp2, p2)) &&
+                  !t1.includeEnd(x) && t2.includeEnd(y))))))
+      }
     }
 
     override def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
       val mblteq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.lteq)
       val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.equiv)
 
-      Code(loadStart(x, y), mblteq((mp1, p1), (mp2, p2))) && (
-        !mbeq((mp1, p1), (mp2, p2)) || ( // if not equal, then lt
-          Code(mp1 := t1.includeStart(x), mp2 := t2.includeStart(y), mp1 && !mp2) || (mp1.ceq(mp2) && (
-            Code(loadEnd(x, y), mblteq((mp1, p1), (mp2, p2))) && (
-              !mbeq((mp1, p1), (mp2, p2)) ||
-                !t1.includeEnd(x) || t2.includeEnd(y))))))
+      Code.memoize(x, "cord_int_lteq_x", y, "cord_int_lteq_y") { (x, y) =>
+        Code(loadStart(x, y), mblteq((mp1, p1), (mp2, p2))) && (
+          !mbeq((mp1, p1), (mp2, p2)) || (// if not equal, then lt
+            Code(mp1 := t1.includeStart(x), mp2 := t2.includeStart(y), mp1 && !mp2) || (mp1.ceq(mp2) && (
+              Code(loadEnd(x, y), mblteq((mp1, p1), (mp2, p2))) && (
+                !mbeq((mp1, p1), (mp2, p2)) ||
+                  !t1.includeEnd(x) || t2.includeEnd(y))))))
+      }
     }
 
     override def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
       val mbgt = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.gt)
       val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.equiv)
 
-      Code(loadStart(x, y), mbgt((mp1, p1), (mp2, p2))) || (
-        mbeq((mp1, p1), (mp2, p2)) && (
-          Code(mp1 := t1.includeStart(x), mp2 := t2.includeStart(y), !mp1 && mp2) || (mp1.ceq(mp2) && (
-            Code(loadEnd(x, y), mbgt((mp1, p1), (mp2, p2))) || (
-              mbeq((mp1, p1), (mp2, p2)) &&
-                t1.includeEnd(x) && !t2.includeEnd(y))))))
+      Code.memoize(x, "cord_int_gt_x", y, "cord_int_gt_y") { (x, y) =>
+        Code(loadStart(x, y), mbgt((mp1, p1), (mp2, p2))) || (
+          mbeq((mp1, p1), (mp2, p2)) && (
+            Code(mp1 := t1.includeStart(x), mp2 := t2.includeStart(y), !mp1 && mp2) || (mp1.ceq(mp2) && (
+              Code(loadEnd(x, y), mbgt((mp1, p1), (mp2, p2))) || (
+                mbeq((mp1, p1), (mp2, p2)) &&
+                  t1.includeEnd(x) && !t2.includeEnd(y))))))
+      }
     }
 
     override def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
       val mbgteq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.gteq)
       val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.equiv)
 
-      Code(loadStart(x, y), mbgteq((mp1, p1), (mp2, p2))) && (
-        !mbeq((mp1, p1), (mp2, p2)) || ( // if not equal, then lt
-          Code(mp1 := t1.includeStart(x), mp2 := t2.includeStart(y), !mp1 && mp2) || (mp1.ceq(mp2) && (
-            Code(loadEnd(x, y), mbgteq((mp1, p1), (mp2, p2))) && (
-              !mbeq((mp1, p1), (mp2, p2)) ||
-                t1.includeEnd(x) || !t2.includeEnd(y))))))
+      Code.memoize(x, "cord_int_gteq_x", y, "cord_int_gteq_y") { (x, y) =>
+        Code(loadStart(x, y), mbgteq((mp1, p1), (mp2, p2))) && (
+          !mbeq((mp1, p1), (mp2, p2)) || (// if not equal, then lt
+            Code(mp1 := t1.includeStart(x), mp2 := t2.includeStart(y), !mp1 && mp2) || (mp1.ceq(mp2) && (
+              Code(loadEnd(x, y), mbgteq((mp1, p1), (mp2, p2))) && (
+                !mbeq((mp1, p1), (mp2, p2)) ||
+                  t1.includeEnd(x) || !t2.includeEnd(y))))))
+      }
     }
   }
 
@@ -364,11 +383,17 @@ abstract class CodeOrdering {
     op: (Code[T], Code[T]) => Code[U],
     whenMissing: (Code[Boolean], Code[Boolean]) => Code[U]
   ): (P, P) => Code[U] = { case ((xm, xv), (ym, yv)) =>
-    (xm || ym).mux(whenMissing(xm, ym), op(xv, yv))
+      Code.memoize(xm, "cord_lift_missing_xm",
+        ym, "cord_lift_missing_ym") { (xm, ym) =>
+        (xm || ym).mux(whenMissing(xm, ym), op(xv, yv))
+      }
   }
 
   val compare: (P, P) => Code[Int] =
-    liftMissing(compareNonnull, (xm, ym) => (xm && ym).mux(0, xm.mux(1, -1)))
+    liftMissing(compareNonnull, (xm, ym) =>
+      Code.memoize(xm, "code_ord_compare_xm", ym, "code_ord_compare_ym") { (xm, ym) =>
+        (xm && ym).mux(0, xm.mux(1, -1))
+      })
   val lt: (P, P) => Code[Boolean] =
     liftMissing(ltNonnull, (xm, _) => !xm)
   val lteq: (P, P) => Code[Boolean] =

@@ -25,7 +25,7 @@ object GenotypeFunctions extends RegistryFunctions {
         Code.whileLoop(i < len,
           tPL.isElementDefined(pl, i).mux(
             Code._empty,
-            Code._fatal("PL cannot have missing elements.")),
+            Code._fatal[Unit]("PL cannot have missing elements.")),
           pli := Region.loadInt(tPL.loadElement(pl, len, i)),
           (pli < m).mux(
             Code(m2 := m, m := pli),
@@ -46,7 +46,7 @@ object GenotypeFunctions extends RegistryFunctions {
       Code(
         gp := gpOff,
         len.cne(3).mux(
-          Code._fatal(const("length of gp array must be 3, got ").concat(len.toS)),
+          Code._fatal[Double](const("length of gp array must be 3, got ").concat(len.toS)),
           Region.loadDouble(pArray.elementOffset(gp, 3, 1)) +
             Region.loadDouble(pArray.elementOffset(gp, 3, 2)) * 2.0))
     }
@@ -61,7 +61,7 @@ object GenotypeFunctions extends RegistryFunctions {
       Code(
         pl := plOff,
         len.cne(3).mux(
-          Code._fatal(const("length of pl array must be 3, got ").concat(len.toS)),
+          Code._fatal[Double](const("length of pl array must be 3, got ").concat(len.toS)),
           Code.invokeScalaObject[Int, Int, Int, Double](Genotype.getClass, "plToDosage",
             Region.loadInt(pArray.elementOffset(pl, 3, 0)),
             Region.loadInt(pArray.elementOffset(pl, 3, 1)),

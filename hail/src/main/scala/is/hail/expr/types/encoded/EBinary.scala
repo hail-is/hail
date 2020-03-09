@@ -25,8 +25,8 @@ class EBinary(override val required: Boolean) extends EType {
   def _buildDecoder(
     pt: PType,
     mb: MethodBuilder,
-    region: Code[Region],
-    in: Code[InputBuffer]
+    region: Value[Region],
+    in: Value[InputBuffer]
   ): Code[_] = {
     val len = mb.newLocal[Int]("len")
     val barray = mb.newLocal[Long]("barray")
@@ -39,7 +39,7 @@ class EBinary(override val required: Boolean) extends EType {
       barray.load())
   }
 
-  def _buildSkip(mb: MethodBuilder, r: Code[Region], in: Code[InputBuffer]): Code[Unit] = {
+  def _buildSkip(mb: MethodBuilder, r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
     val len = mb.newLocal[Int]("len")
     Code(
       len := in.readInt(),

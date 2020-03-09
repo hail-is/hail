@@ -88,7 +88,7 @@ class JoinPointSuite extends TestNGSuite {
         val j2 = jb.joinPoint[Code[Int]](mb)
         j1.define { n => ret(n + 5) }
         j2.define { n => ret(n * 5) }
-        JoinPoint.mux(const(100), arg, j1, j2)
+        JoinPoint.mux(100: Code[Int], arg, j1, j2)
       }
     }
     assert(f(true) == 105)

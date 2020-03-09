@@ -280,19 +280,39 @@ package object asm4s {
 
   implicit def toLocalRefInt(f: LocalRef[Int]): LocalRefInt = new LocalRefInt(f)
 
-  implicit def const(s: String): Code[String] = Code(new LdcInsnNode(s))
+  def _const[T](a: T): Value[T] = new Value[T] {
+    def get: Code[T] = Code(new LdcInsnNode(a))
+  }
 
-  implicit def const(b: Boolean): Code[Boolean] = Code(new LdcInsnNode(if (b) 1 else 0))
+  implicit def const(s: String): Value[String] = _const(s)
 
-  implicit def const(i: Int): Code[Int] = Code(new LdcInsnNode(i))
+  implicit def const(b: Boolean): Value[Boolean] = _const(b)
 
-  implicit def const(l: Long): Code[Long] = Code(new LdcInsnNode(l))
+  implicit def const(i: Int): Value[Int] = _const(i)
 
-  implicit def const(f: Float): Code[Float] = Code(new LdcInsnNode(f))
+  implicit def const(l: Long): Value[Long] = _const(l)
 
-  implicit def const(d: Double): Code[Double] = Code(new LdcInsnNode(d))
+  implicit def const(f: Float): Value[Float] = _const(f)
 
-  implicit def const(c: Char): Code[Char] = Code(new LdcInsnNode(c))
+  implicit def const(d: Double): Value[Double] = _const(d)
 
-  implicit def const(b: Byte): Code[Byte] = Code(new LdcInsnNode(b))
+  implicit def const(c: Char): Value[Char] = _const(c)
+
+  implicit def const(b: Byte): Value[Byte] = _const(b)
+
+  implicit def strToCode(s: String): Code[String] = _const(s)
+
+  implicit def boolToCode(b: Boolean): Code[Boolean] = _const(b)
+
+  implicit def intToCode(i: Int): Code[Int] = _const(i)
+
+  implicit def longToCode(l: Long): Code[Long] = _const(l)
+
+  implicit def floatToCode(f: Float): Code[Float] = _const(f)
+
+  implicit def doubleToCode(d: Double): Code[Double] = _const(d)
+
+  implicit def charToCode(c: Char): Code[Char] = _const(c)
+
+  implicit def byteToCode(b: Byte): Code[Byte] = _const(b)
 }

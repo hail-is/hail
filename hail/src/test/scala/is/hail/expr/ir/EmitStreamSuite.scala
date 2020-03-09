@@ -62,35 +62,35 @@ class EmitStreamSuite extends HailSuite {
     val stream: CodeStream.Stream[T] = _stream.mapCPS(
       (ctx, a, k) => (outerBit & innerBit).mux(
         k(a),
-        Code._fatal(s"$name: pulled from when not setup")),
+        Code._fatal[Ctrl](s"$name: pulled from when not setup")),
       setup0 = Some((!outerBit & !innerBit).mux(
         Code(outerBit := true,
              Code._println(const(s"$name setup0"))),
-        Code._fatal(s"$name: setup0 run out of order"))),
+        Code._fatal[Unit](s"$name: setup0 run out of order"))),
       setup = Some((outerBit & !innerBit).mux(
         Code(innerBit := true,
              innerCount := innerCount.load + 1,
              Code._println(const(s"$name setup"))),
-        Code._fatal(s"$name: setup run out of order"))),
+        Code._fatal[Unit](s"$name: setup run out of order"))),
       close0 = Some((outerBit & !innerBit).mux(
         Code(outerBit := false,
              Code._println(const(s"$name close0"))),
-        Code._fatal(s"$name: close0 run out of order"))),
+        Code._fatal[Unit](s"$name: close0 run out of order"))),
       close = Some((outerBit & innerBit).mux(
         Code(innerBit := false,
              Code._println(const(s"$name close"))),
-        Code._fatal(s"$name: close run out of order"))))
+        Code._fatal[Unit](s"$name: close run out of order"))))
 
     def assertClosed(expectedRuns: Code[Int]): Code[Unit] =
       (outerBit | innerBit).mux(
-        Code._fatal(s"$name: not closed"),
+        Code._fatal[Unit](s"$name: not closed"),
         innerCount.cne(expectedRuns).mux(
-          Code._fatal(const(s"$name: expected ").concat(expectedRuns.toS).concat(" runs, found ").concat(innerCount.toS)),
+          Code._fatal[Unit](const(s"$name: expected ").concat(expectedRuns.toS).concat(" runs, found ").concat(innerCount.toS)),
           Code._empty))
 
     def assertClosed: Code[Unit] =
       (outerBit | innerBit).mux(
-        Code._fatal(s"$name: not closed"),
+        Code._fatal[Unit](s"$name: not closed"),
         Code._empty)
   }
 
@@ -293,8 +293,8 @@ class EmitStreamSuite extends HailSuite {
   @Test def testES2Scan() {
     val f = compile1[Int, Unit] { (mb, n1) =>
       val s = checkedRange(1, n1, "s1", mb)
-      val scan = s.stream.scan(mb, const(0))((i, acc) => i + acc)
-      val longScan = s.stream.longScan(mb, const(0))((i, acc) => i + acc)
+      val scan = s.stream.scan(mb, 0: Code[Int])((i, acc) => i + acc)
+      val longScan = s.stream.longScan(mb, 0: Code[Int])((i, acc) => i + acc)
 
       Code(
         s.init,

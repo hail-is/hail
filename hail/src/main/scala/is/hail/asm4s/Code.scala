@@ -327,9 +327,9 @@ object Code {
     }
   }
 
-  def _throw[T <: java.lang.Throwable, U](cerr: Code[T]): Code[U] = Code(cerr, new InsnNode(ATHROW))
+  def _throw[T <: java.lang.Throwable, U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] = Code(cerr, new InsnNode(ATHROW))
 
-  def _fatal[U](msg: Code[String]): Code[U] =
+  def _fatal[U](msg: Code[String])(implicit uti: TypeInfo[U]): Code[U] =
     Code._throw[is.hail.utils.HailException, U](Code.newInstance[is.hail.utils.HailException, String, Option[String], Throwable](
       msg,
       Code.invokeStatic[scala.Option[String], scala.Option[String]]("empty"),
@@ -384,6 +384,14 @@ object Code {
   def memoize[T, U](c: Code[T], name: String)(f: (Value[T]) => Code[U])(implicit tti: TypeInfo[T]): Code[U] = {
     val lr = new LocalRef[T](null, name)
     Code(lr := c, f(lr))
+  }
+
+  def memoize[T1, T2, U](c1: Code[T1], name1: String,
+    c2: Code[T2], name2: String
+  )(f: (Value[T1], Value[T2]) => Code[U])(implicit t1ti: TypeInfo[T1], t2ti: TypeInfo[T2]): Code[U] = {
+    val lr1 = new LocalRef[T1](null, name1)
+    val lr2 = new LocalRef[T2](null, name2)
+    Code(lr1 := c1, lr2 := c2, f(lr1, lr2))
   }
 }
 
@@ -878,15 +886,15 @@ trait Settable[T] extends Value[T] {
   def load(): Code[T] = get
 }
 
-class LazyFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String, setup: Code[T]) extends Settable[T] {
+class LazyFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String, setup: Code[T]) extends Value[T] {
   private[this] val value: ClassFieldRef[T] = fb.newField[T](name)
   private[this] val present: ClassFieldRef[Boolean] = fb.newField[Boolean](s"${name}_present")
 
-  def get: Code[T] =
-    Code(present.mux(Code._empty, Code(value := setup, present := true)), value.load())
+  private[this] val setm = fb.newMethod[Unit]
+  setm.emit(Code(value := setup, present := true))
 
-  def store(rhs: Code[T]): Code[Unit] =
-    throw new UnsupportedOperationException("cannot store new value into LazyFieldRef!")
+  def get: Code[T] =
+    Code(present.mux(Code._empty, setm.invoke()), value.load())
 }
 
 class ClassFieldRef[T: TypeInfo](fb: FunctionBuilder[_], f: Field[T]) extends Settable[T] {

@@ -21,7 +21,7 @@ object LinearRegressionAggregator extends StagedAggregator {
 
   def initOpF(state: State)(mb: MethodBuilder, k: Code[Int], k0: Code[Int]): Code[Unit] = Code(
     (k0 < 0 | k0 > k).mux(
-      Code._fatal(const("linreg: `nested_dim` must be between 0 and the number (")
+      Code._fatal[Unit](const("linreg: `nested_dim` must be between 0 and the number (")
         .concat(k.toS)
         .concat(") of covariates, inclusive")),
       Code._empty),
@@ -41,7 +41,7 @@ object LinearRegressionAggregator extends StagedAggregator {
     val _initOpF = state.fb.newMethod[Int, Int, Unit]("linregInitOp")(initOpF(state))
     val Array(kt, k0t) = init
     (Code(kt.setup, kt.m) || Code(k0t.setup, k0t.m)).mux(
-      Code._fatal("linreg: init args may not be missing"),
+      Code._fatal[Unit]("linreg: init args may not be missing"),
       _initOpF(coerce[Int](kt.v), coerce[Int](k0t.v)))
   }
 

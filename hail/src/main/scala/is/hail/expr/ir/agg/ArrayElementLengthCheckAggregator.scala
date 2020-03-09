@@ -1,7 +1,7 @@
 package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
-import is.hail.asm4s._
+import is.hail.asm4s.{coerce => _, _} // use ir coerce
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
@@ -21,17 +21,25 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
   val idx: ClassFieldRef[Int] = fb.newField[Int]("arrayrva_idx")
   private val aoff: ClassFieldRef[Long] = fb.newField[Long]("arrayrva_aoff")
 
-  private def regionOffset(eltIdx: Code[Int]): Code[Int] = (eltIdx + 1) * nStates
+  private def regionOffset(eltIdx: Code[Int]): Value[Int] = new Value[Int] {
+    def get: Code[Int] = (eltIdx + 1) * nStates
+  }
 
-  private def statesOffset(eltIdx: Code[Int]): Code[Long] = arrayType.loadElement(typ.loadField(off, 1), eltIdx)
+  private def statesOffset(eltIdx: Code[Int]): Value[Long] = new Value[Long] {
+    def get: Code[Long] = arrayType.loadElement(typ.loadField(off, 1), eltIdx)
+  }
 
-  val initContainer: TupleAggregatorState = new TupleAggregatorState(fb, nested, region, typ.loadField(off, 0))
+
+
+  val initContainer: TupleAggregatorState = new TupleAggregatorState(fb, nested, region, new Value[Long]{
+    def get: Code[Long] = typ.loadField(off, 0)
+  })
   val container: TupleAggregatorState = new TupleAggregatorState(fb, nested, region, statesOffset(idx), regionOffset(idx))
 
   override def createState: Code[Unit] = Code(
     super.createState, nested.createStates(fb))
 
-  override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] = {
+  override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] = {
     Code(super.load(regionLoader, src),
       off.ceq(0L).mux(Code._empty,
         lenRef := typ.isFieldMissing(off, 1).mux(-1,
@@ -65,7 +73,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
 
   def checkLength(len: Code[Int]): Code[Unit] = {
     lenRef.ceq(len).mux(Code._empty,
-      Code._fatal("mismatched lengths in ArrayElementsAggregator "))
+      Code._fatal[Unit]("mismatched lengths in ArrayElementsAggregator "))
   }
 
   def init(initOp: Code[Unit], initLen: Boolean): Code[Unit] = {
@@ -86,40 +94,51 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
   def store: Code[Unit] =
     container.store
 
-  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
+  def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
     val serializers = nested.states.map(_.serialize(codec));
-    { ob: Code[OutputBuffer] =>
+    { ob: Value[OutputBuffer] =>
       Code(
         loadInit,
         nested.toCodeWithArgs(fb, "array_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
-          Array(ob),
-          { case (i, _, Seq(ob: Code[OutputBuffer@unchecked])) => serializers(i)(ob) }),
+          FastIndexedSeq(ob),
+          { (i, _, args) =>
+            Code.memoize(coerce[OutputBuffer](args.head), "aelca_ser_init_ob") { ob => serializers(i)(ob) }
+          }),
         ob.writeInt(lenRef),
         idx := 0,
         Code.whileLoop(idx < lenRef,
           load,
           nested.toCodeWithArgs(fb, "array_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
-            Array(ob),
-            { case (i, _, Seq(ob: Code[OutputBuffer@unchecked])) => serializers(i)(ob) }),
+            FastIndexedSeq(ob),
+            { case (i, _, args) =>
+              Code.memoize(coerce[OutputBuffer](args.head), "aelca_ser_ob") { ob => serializers(i)(ob) }
+            }),
           idx := idx + 1))
     }
   }
 
-  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
     val deserializers = nested.states.map(_.deserialize(codec));
-    { ib: Code[InputBuffer] =>
+    { ib: Value[InputBuffer] =>
       Code(
         init(nested.toCodeWithArgs(fb, "array_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
-          Array(ib),
-          { case (i, _, Seq(ib: Code[InputBuffer@unchecked])) => deserializers(i)(ib) }),
+          FastIndexedSeq(ib),
+          { (i, _, args) =>
+            Code.memoize(coerce[InputBuffer](args.head), "aelca_deser_init_ib") { ib =>
+              deserializers(i)(ib)
+            }
+          }),
           initLen = false),
         lenRef := ib.readInt(),
         (lenRef < 0).mux(
           typ.setFieldMissing(off, 1),
           seq(nested.toCodeWithArgs(fb, "array_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
-            Array(ib),
-            { case (i, _, Seq(ib: Code[InputBuffer@unchecked])) => deserializers(i)(ib) })
-          )))
+            FastIndexedSeq(ib),
+            { (i, _, args) =>
+              Code.memoize(coerce[InputBuffer](args.head), "aelca_deser_ib") { ib =>
+                deserializers(i)(ib)
+              }
+            }))))
     }
   }
 
@@ -153,7 +172,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
     if (knownLength) {
       val Array(len, inits) = init
       Code(state.init(inits.setup, initLen = false), len.setup,
-        state.initLength(len.m.mux(Code._fatal("Array length can't be missing"), len.value[Int])))
+        state.initLength(len.m.mux(Code._fatal[Int]("Array length can't be missing"), len.value[Int])))
     } else {
       val Array(inits) = init
       Code(state.init(inits.setup, initLen = true), state.lenRef := -1)
@@ -228,7 +247,7 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
         Code(
           state.idx := eltIdx.value[Int],
           (state.idx > state.lenRef || state.idx < 0).mux(
-            Code._fatal("element idx out of bounds"),
+            Code._fatal[Unit]("element idx out of bounds"),
             Code(
               state.load,
               seqOps.setup,

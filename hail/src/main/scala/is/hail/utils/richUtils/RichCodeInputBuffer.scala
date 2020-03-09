@@ -40,14 +40,18 @@ class RichCodeInputBuffer(in: Code[InputBuffer]) {
     in.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
   }
 
-  def readBytes(toRegion: Code[Region], toOff: Code[Long], n: Int): Code[Unit] = {
+  def readBytes(toRegion: Value[Region], toOff: Code[Long], n: Int): Code[Unit] = {
     if (n == 0)
       Code._empty
     else if (n < 5)
-      Code((0 until n).map(i =>
-        Region.storeByte(toOff + const(i), in.readByte())))
+      Code.memoize(toOff, "ib_ready_bytes_to") { toOff =>
+        Code.memoize(in, "ib_ready_bytes_in") { in =>
+          Code((0 until n).map(i =>
+            Region.storeByte(toOff.get + i.toLong, in.readByte())))
+        }
+      }
     else
-    in.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
+      in.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
   }
 
   def readBytesArray(n: Code[Int]): Code[Array[Byte]] = in.invoke[Int, Array[Byte]]("readBytesArray", n)

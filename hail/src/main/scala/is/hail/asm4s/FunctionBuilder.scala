@@ -294,7 +294,7 @@ object MethodBuilder {
   }
 }
 
-class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTypeInfo: Array[TypeInfo[_]], val returnTypeInfo: TypeInfo[_]) {
+class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTypeInfo: IndexedSeq[TypeInfo[_]], val returnTypeInfo: TypeInfo[_]) {
   def descriptor: String = s"(${ parameterTypeInfo.map(_.name).mkString })${ returnTypeInfo.name }"
 
   val mname = {
@@ -309,8 +309,8 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
 
   val start = new LabelNode
   val end = new LabelNode
-  val layout: Array[Int] = 0 +: (parameterTypeInfo.scanLeft(1) { case (prev, gti) => prev + gti.slots })
-  val argIndex: Array[Int] = layout.init
+  val layout: IndexedSeq[Int] = 0 +: (parameterTypeInfo.scanLeft(1) { case (prev, gti) => prev + gti.slots })
+  val argIndex: IndexedSeq[Int] = layout.init
   var locals: Int = layout.last
 
   def allocateLocal(name: String)(implicit tti: TypeInfo[_]): Int = {
@@ -530,13 +530,13 @@ class FunctionBuilder[F >: Null](
 
   def emit(c: Code[_]) = apply_method.emit(c)
 
-  def newMethod(suffix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder = {
+  def newMethod(suffix: String, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder = {
     val mb = new MethodBuilder(this, classBuilder.genName("m", suffix), argsInfo, returnInfo)
     classBuilder.addMethod(mb)
     mb
   }
 
-  def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder =
+  def newMethod(argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder =
     newMethod("method", argsInfo, returnInfo)
 
   def newMethod[R: TypeInfo]: MethodBuilder =

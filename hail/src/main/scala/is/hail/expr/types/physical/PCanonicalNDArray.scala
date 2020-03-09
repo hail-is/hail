@@ -53,7 +53,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   override lazy val fundamentalType: PType = representation.fundamentalType
 
   def numElements(shape: IndexedSeq[Code[Long]], mb: MethodBuilder): Code[Long] = {
-    shape.foldLeft(const(1L))(_ * _)
+    shape.foldLeft(1L: Code[Long])(_ * _)
   }
 
   def makeShapeBuilder(shapeArray: IndexedSeq[Code[Long]]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
@@ -146,7 +146,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
     val createShape = Code(
       workRemaining := index,
-      elementsInProcessedDimensions := shapeArray.fold(const(1L))(_ * _),
+      elementsInProcessedDimensions := shapeArray.fold(1L: Code[Long])(_ * _),
       Code.foreach(shapeArray.zip(newIndices)) { case (shapeElement, newIndex) =>
         Code(
           elementsInProcessedDimensions := elementsInProcessedDimensions / shapeElement,

@@ -49,18 +49,20 @@ abstract class PBinary extends PType {
         val i = mb.newLocal[Int]
         val cmp = mb.newLocal[Int]
 
-        Code(
-          l1 := loadLength(x),
-          l2 := loadLength(y),
-          lim := (l1 < l2).mux(l1, l2),
-          i := 0,
-          cmp := 0,
-          Code.whileLoop(cmp.ceq(0) && i < lim,
-            cmp := Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare",
-              Code.invokeStatic[java.lang.Byte, Byte, Int]("toUnsignedInt", Region.loadByte(bytesOffset(x) + i.toL)),
-              Code.invokeStatic[java.lang.Byte, Byte, Int]("toUnsignedInt", Region.loadByte(bytesOffset(y) + i.toL))),
-            i += 1),
-          cmp.ceq(0).mux(Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare", l1, l2), cmp))
+        Code.memoize(x, "pbin_cord_x", y, "pbin_cord_y") { (x, y) =>
+            Code(
+              l1 := loadLength(x),
+              l2 := loadLength(y),
+              lim := (l1 < l2).mux(l1, l2),
+              i := 0,
+              cmp := 0,
+              Code.whileLoop(cmp.ceq(0) && i < lim,
+                cmp := Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare",
+                  Code.invokeStatic[java.lang.Byte, Byte, Int]("toUnsignedInt", Region.loadByte(bytesOffset(x) + i.toL)),
+                  Code.invokeStatic[java.lang.Byte, Byte, Int]("toUnsignedInt", Region.loadByte(bytesOffset(y) + i.toL))),
+                i += 1),
+              cmp.ceq(0).mux(Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare", l1, l2), cmp))
+        }
       }
     }
   }
