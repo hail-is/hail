@@ -36,7 +36,7 @@ final case class EPackedIntArray(
     Code.concat[Long](
       unpacker := getPacker(mb),
       len := in.readInt(),
-      array := pa.allocate(mb, region, len),
+      array := pa.allocate(region, len),
       pa.storeLength(array, len),
       if (elementsRequired)
         Code._empty

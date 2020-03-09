@@ -69,7 +69,7 @@ abstract class PContainer extends PIterable {
 
   def allocate(region: Region, length: Int): Long
 
-  def allocate(mb: MethodBuilder, region: Code[Region], length: Code[Int]): Code[Long]
+  def allocate(region: Code[Region], length: Code[Int]): Code[Long]
 
   def setAllMissingBits(aoff: Long, length: Int)
 

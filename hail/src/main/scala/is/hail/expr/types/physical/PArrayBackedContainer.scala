@@ -96,8 +96,8 @@ trait PArrayBackedContainer extends PContainer {
   def allocate(region: Region, length: Int): Long =
     arrayRep.allocate(region, length)
 
-  def allocate(mb: MethodBuilder, region: Code[Region], length: Code[Int]): Code[Long] =
-    arrayRep.allocate(mb, region, length)
+  def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
+    arrayRep.allocate(region, length)
 
   def setAllMissingBits(aoff: Long, length: Int) =
     arrayRep.setAllMissingBits(aoff, length)

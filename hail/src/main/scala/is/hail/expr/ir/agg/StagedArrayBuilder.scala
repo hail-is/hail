@@ -111,7 +111,7 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Val
     Code(
       size := _size,
       capacity := _capacity,
-      data := eltArray.allocate(fb.apply_method, region, capacity),
+      data := eltArray.allocate(region, capacity),
       eltArray.stagedInitialize(data, capacity, setMissing = true)
     )
   }
@@ -131,7 +131,7 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Val
       .orEmpty(
         Code(
           capacity := capacity * 2,
-          newDataOffset := eltArray.allocate(fb.apply_method, region, capacity),
+          newDataOffset := eltArray.allocate(region, capacity),
           eltArray.stagedInitialize(newDataOffset, capacity, setMissing = true),
           Region.copyFrom(data + eltArray.lengthHeaderBytes, newDataOffset + eltArray.lengthHeaderBytes, eltArray.nMissingBytes(size).toL),
           Region.copyFrom(data + eltArray.elementsOffset(size),

@@ -696,7 +696,7 @@ private class Emit(
         val arrayAddress = mb.newField[Long]
         val result = Code(
           numElements := lengthTriplet.value[Int],
-          arrayAddress := outputPType.allocate(mb, region, numElements),
+          arrayAddress := outputPType.allocate(region, numElements),
           outputPType.stagedInitialize(arrayAddress, numElements),
           Region.setMemory(outputPType.firstElementOffset(arrayAddress), numElements.toL * elementSize, 0.toByte),
           arrayAddress
@@ -1335,7 +1335,7 @@ private class Emit(
                   LDC.toI
                 )
             },
-            answerRowMajorPArrayAddress := outputPType.data.pType.allocate(mb, region, (M * N).toI),
+            answerRowMajorPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
             outputPType.data.pType.stagedInitialize(answerRowMajorPArrayAddress, (M * N).toI),
             Code.invokeScalaObject[Long, Long, Long, Long, Long, Unit](LinalgCodeUtils.getClass,
               method="copyColumnMajorToRowMajor", answerColumnMajorAddress, outputPType.data.pType.firstElementOffset(answerRowMajorPArrayAddress, (M * N).toI), M, N, const(lPType.elementType.byteSize)),
@@ -1423,11 +1423,11 @@ private class Emit(
           aNumElements := ndPType.numElements(shapeArray, mb),
 
           // Make some space for the column major form (which means copying the input)
-          aAddressDGEQRF := ndPType.data.pType.allocate(mb, region, aNumElements.toI),
+          aAddressDGEQRF := ndPType.data.pType.allocate(region, aNumElements.toI),
           ndPType.data.pType.stagedInitialize(aAddressDGEQRF, aNumElements.toI),
           ndPType.copyRowMajorToColumnMajor(dataAddress, aAddressDGEQRF, M, N, mb),
 
-          tauAddress := tauPType.allocate(mb, region, K.toI),
+          tauAddress := tauPType.allocate(region, K.toI),
           tauPType.stagedInitialize(tauAddress, K.toI),
 
           LWORKAddress := region.allocate(8L, 8L),
@@ -1520,7 +1520,7 @@ private class Emit(
           val computeR = Code(
             // Note: this always makes room for the (M, N) R, and in cases where we need only the (K, N) R the smaller shape
             // results in these elements being ignored. When everything is column major all the time should be easy to fix.
-            rDataAddress := rPType.data.pType.allocate(mb, region, aNumElements.toI),
+            rDataAddress := rPType.data.pType.allocate(region, aNumElements.toI),
             rPType.data.pType.stagedInitialize(rDataAddress, aNumElements.toI),
             rPType.copyColumnMajorToRowMajor(aAddressDGEQRF,
               rDataAddress, M, N, mb),
@@ -1559,7 +1559,7 @@ private class Emit(
             val computeCompleteOrReduced = Code(Code(FastIndexedSeq(
               qCondition.mux(
                 Code(
-                  aAddressDORGQR := ndPType.data.pType.allocate(mb, region, qNumElements.toI),
+                  aAddressDORGQR := ndPType.data.pType.allocate(region, qNumElements.toI),
                   qPType.data.pType.stagedInitialize(aAddressDORGQR, qNumElements.toI),
                   Region.copyFrom(ndPType.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
                     qPType.data.pType.firstElementOffset(aAddressDORGQR, qNumElements.toI), aNumElements * 8L)
@@ -1595,7 +1595,7 @@ private class Emit(
               Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load()),
               infoDORQRErrorTest("Failed to compute Q."),
 
-              qDataAddress := qPType.data.pType.allocate(mb, region, qNumElements.toI),
+              qDataAddress := qPType.data.pType.allocate(region, qNumElements.toI),
               qPType.data.pType.stagedInitialize(qDataAddress, qNumElements.toI),
               qPType.copyColumnMajorToRowMajor(aAddressDORGQR, qDataAddress, M, numColsToUse, mb),
 

@@ -99,7 +99,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
 
     Code(
       len := in.readInt(),
-      array := t.allocate(mb, region, len),
+      array := t.allocate(region, len),
       t.storeLength(array, len),
       if (elementType.required) {
         assert(t.elementType.required) // XXX For now
