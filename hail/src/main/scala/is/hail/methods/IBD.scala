@@ -204,7 +204,7 @@ object IBD {
     min: Option[Double],
     max: Option[Double],
     sampleIds: IndexedSeq[String],
-    bounded: Boolean): ContextRDD[RegionValue] = {
+    bounded: Boolean): ContextRDD[Long] = {
 
     val nSamples = input.nCols
 
@@ -269,9 +269,7 @@ object IBD {
 
     joined
       .cmapPartitions { (ctx, it) =>
-        val region = ctx.region
-        val rv = RegionValue(region)
-        val rvb = new RegionValueBuilder(region)
+        val rvb = new RegionValueBuilder(ctx.region)
         for {
           ((iChunk, jChunk), ibses) <- it
           si <- (0 until chunkSize).iterator
@@ -289,8 +287,7 @@ object IBD {
           rvb.addString(sampleIds(j))
           eibd.toRegionValue(rvb)
           rvb.endStruct()
-          rv.setOffset(rvb.end())
-          rv
+          rvb.end()
         }
       }
   }

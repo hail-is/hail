@@ -98,12 +98,12 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
   val v = new RegionValueVariant(rowPType)
   val va = new GenAnnotationView(rowPType)
 
-  def emitVariant(rv: RegionValue): (Array[Byte], Long) = {
+  def emitVariant(rv: Long): (Array[Byte], Long) = {
     bb.clear()
 
-    gs.set(rv.offset)
-    v.set(rv.offset)
-    va.set(rv.offset)
+    gs.set(rv)
+    v.set(rv)
+    va.set(rv)
 
     val alleles = v.alleles()
     val nAlleles = alleles.length
@@ -327,7 +327,7 @@ object ExportBGEN {
 
     val d = digitsNeeded(mv.rvd.getNumPartitions)
 
-    val (files, droppedPerPart) = mv.rvd.crdd.boundary.mapPartitionsWithIndex { case (i: Int, it: Iterator[RegionValue]) =>
+    val (files, droppedPerPart) = mv.rvd.crdd.boundary.mapPartitionsWithIndex { case (i: Int, it: Iterator[Long]) =>
       val context = TaskContext.get
       val pf =
         parallelOutputPath + "/" +
@@ -347,8 +347,8 @@ object ExportBGEN {
             BgenWriter.headerBlock(sampleIds, partitionSizes(i)))
         }
 
-        it.foreach { rv =>
-          val (b, d) = bpw.emitVariant(rv)
+        it.foreach { ptr =>
+          val (b, d) = bpw.emitVariant(ptr)
           out.write(b)
           dropped += d
         }

@@ -310,7 +310,7 @@ class CompiledLineParser(
   fileByPartition: Array[String],
   firstPartitions: Array[Int],
   hasHeader: Boolean
-) extends ((Int, RVDContext, Iterator[WithContext[String]]) => Iterator[RegionValue]) with Serializable {
+) extends ((Int, RVDContext, Iterator[WithContext[String]]) => Iterator[Long]) with Serializable {
   assert(!missingValue.contains(separator))
   @transient private[this] val requestedRowType = requestedTableType.canonicalRowPType
   @transient private[this] val entriesType = requestedRowType
@@ -564,21 +564,22 @@ class CompiledLineParser(
     partition: Int,
     ctx: RVDContext,
     it: Iterator[WithContext[String]]
-  ): Iterator[RegionValue] = {
+  ): Iterator[Long] = {
     val filename = fileByPartition(partition)
     if (firstPartitions(partition) == partition && hasHeader) { it.next() }
 
-    val rv = RegionValue(ctx.region)
     val parse = loadParserOnWorker()
     var index = partitionCounts(partition) - partitionCounts(firstPartitions(partition))
     it.map { x =>
       try {
-        rv.setOffset(
+        val res =
           parse(
             ctx.region,
             filename,
             index,
-            x.value))
+            x.value)
+        index += 1
+        res
       } catch {
         case e: MatrixParseError =>
           fatal(
@@ -594,8 +595,6 @@ class CompiledLineParser(
                |        ${ x.value.truncate }""".stripMargin,
           e)
       }
-      index += 1
-      rv
     }
   }
 }

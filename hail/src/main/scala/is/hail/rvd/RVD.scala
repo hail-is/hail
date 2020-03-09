@@ -258,7 +258,7 @@ class RVD(
 
       val (rType: PStruct, shuffledCRDD) = enc.decodeRDD(localRowPType.virtualType, shuffled.values)
 
-      RVD(RVDType(rType, newType.key), newPartitioner, shuffledCRDD.toCRDDRegionValue)
+      RVD(RVDType(rType, newType.key), newPartitioner, shuffledCRDD)
     } else {
       if (newPartitioner != partitioner)
         new RVD(
@@ -406,7 +406,7 @@ class RVD(
     require(newTyp.kType isPrefixOf typ.kType)
     RVD(newTyp,
       partitioner.coarsen(newTyp.key.length),
-      crdd.cmap(f).toCRDDRegionValue)
+      crdd.cmap(f))
   }
 
   def mapPartitions[T: ClassTag](
@@ -421,7 +421,7 @@ class RVD(
     RVD(
       newTyp,
       partitioner.coarsen(newTyp.key.length),
-      crdd.cmapPartitions(f).toCRDDRegionValue)
+      crdd.cmapPartitions(f))
   }
 
   def mapPartitionsWithIndex[T: ClassTag](
@@ -436,7 +436,7 @@ class RVD(
     RVD(
       newTyp,
       partitioner.coarsen(newTyp.key.length),
-      crdd.cmapPartitionsWithIndex(f).toCRDDRegionValue)
+      crdd.cmapPartitionsWithIndex(f))
   }
 
   def mapPartitionsWithIndexAndValue[V](
@@ -448,7 +448,7 @@ class RVD(
     RVD(
       newTyp,
       partitioner.coarsen(newTyp.key.length),
-      crdd.cmapPartitionsWithIndexAndValue(values, f).toCRDDRegionValue)
+      crdd.cmapPartitionsWithIndexAndValue(values, f))
   }
 
   // Filtering
@@ -540,7 +540,7 @@ class RVD(
   }
 
   def filter(p: (RVDContext, Long) => Boolean): RVD =
-    RVD(typ, partitioner, crdd.boundary.cfilter(p).toCRDDRegionValue)
+    RVD(typ, partitioner, crdd.boundary.cfilter(p))
 
   def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RVDContext, Long) => Boolean): RVD = {
     mapPartitionsWithIndex(typ) { (i, context, it) =>
@@ -829,8 +829,8 @@ class RVD(
               val bit = it.buffered
 
               val kOrd = localTyp.kType.virtualType.ordering
-              val extractKey: (RegionValue) => Any = (rv: RegionValue) => {
-                val ur = new UnsafeRow(localRowPType, rv)
+              val extractKey: (Long) => Any = (ptr: Long) => {
+                val ur = new UnsafeRow(localRowPType, ctx.r, ptr)
                 Row.fromSeq(localTyp.kFieldIdx.map(i => ur.get(i)))
               }
 
@@ -846,12 +846,12 @@ class RVD(
                     b.contains(kOrd, k) || b.isBelowPosition(kOrd, k)
                   })
 
-                val it2 = new Iterator[RegionValue] {
+                val it2 = new Iterator[Long] {
                   def hasNext: Boolean = {
                     bit.hasNext && b.contains(kOrd, extractKey(bit.head))
                   }
 
-                  def next(): RegionValue = bit.next()
+                  def next(): Long = bit.next()
                 }
 
                 val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
@@ -1006,7 +1006,7 @@ class RVD(
     ctx: ExecuteContext
   ): RVD = {
     val (joinedPartitioner, jcrdd) = orderedZipJoin(right, joinKey, ctx)
-    RVD(joinedType, joinedPartitioner, jcrdd.cmapPartitions(joiner))
+    RVD(joinedType, joinedPartitioner, jcrdd.cmapPartitions(joiner).toCRDDPtr)
   }
 
   def orderedMerge(
@@ -1025,7 +1025,7 @@ class RVD(
   ): RVD = RVD(
     newTyp,
     partitioner,
-    boundary.crdd.czip(that.boundary.crdd)(zipper))
+    crdd.toCRDDRegionValue.boundary.czip(that.crdd.toCRDDRegionValue.boundary)(zipper).toCRDDPtr)
 
   def zipPartitions(
     newTyp: RVDType,
@@ -1034,7 +1034,7 @@ class RVD(
   ): RVD = RVD(
     newTyp,
     partitioner,
-    boundary.crdd.czipPartitions(that.boundary.crdd)(zipper))
+    crdd.toCRDDRegionValue.boundary.czipPartitions(that.crdd.toCRDDRegionValue.boundary)(zipper).toCRDDPtr)
 
   def zipPartitionsWithIndex(
     newTyp: RVDType,
@@ -1043,7 +1043,7 @@ class RVD(
   ): RVD = RVD(
     newTyp,
     partitioner,
-    boundary.crdd.czipPartitionsWithIndex(that.boundary.crdd)(zipper))
+    crdd.toCRDDRegionValue.boundary.czipPartitionsWithIndex(that.crdd.toCRDDRegionValue.boundary)(zipper).toCRDDPtr)
 
   // New key type must be prefix of left key type. 'joinKey' must be prefix of
   // both left key and right key. 'zipper' must take all output key values from
@@ -1068,9 +1068,9 @@ class RVD(
     RVD(
       typ = newTyp,
       partitioner = left.partitioner,
-      crdd = left.crddBoundary.czipPartitions(
-        RepartitionedOrderedRDD2(that, this.partitioner.coarsenedRangeBounds(joinKey)).boundary
-      )(zipper))
+      crdd = left.crdd.toCRDDRegionValue.boundary.czipPartitions(
+        RepartitionedOrderedRDD2(that, this.partitioner.coarsenedRangeBounds(joinKey)).toCRDDRegionValue.boundary
+      )(zipper).toCRDDPtr)
   }
 
   // Like alignAndZipPartitions, when 'that' is keyed by intervals.
@@ -1088,19 +1088,19 @@ class RVD(
     val rightTyp = that.typ
     val codecSpec = TypedCodecSpec(that.rowPType, BufferSpec.wireSpec)
     val makeEnc = codecSpec.buildEncoder(that.rowPType)
-    val partitionKeyedIntervals = that.boundary.crdd.mapPartitions { it =>
+    val partitionKeyedIntervals = that.boundary.crdd.cmapPartitions { (ctx, it) =>
       val encoder = new ByteArrayEncoder(makeEnc)
       TaskContext.get.addTaskCompletionListener { _ =>
         encoder.close()
       }
-      it.flatMap { rv =>
-        val r = SafeRow(rightTyp.rowType, rv)
+      it.flatMap { ptr =>
+        val r = SafeRow(rightTyp.rowType, ptr)
         val interval = r.getAs[Interval](rightTyp.kFieldIdx(0))
         if (interval != null) {
           val wrappedInterval = interval.copy(
             start = Row(interval.start),
             end = Row(interval.end))
-          val bytes = encoder.regionValueToBytes(rv.offset)
+          val bytes = encoder.regionValueToBytes(ptr)
           partBc.value.queryInterval(wrappedInterval).map(i => ((i, interval), bytes))
         } else
           Iterator()
@@ -1123,7 +1123,7 @@ class RVD(
     RVD(
       typ = newTyp,
       partitioner = partitioner,
-      crdd = crddBoundary.czipPartitions(rightCRDD.toCRDDRegionValue.boundary)(f))
+      crdd = crdd.toCRDDRegionValue.boundary.czipPartitions(rightCRDD.toCRDDRegionValue.boundary)(f).toCRDDPtr)
   }
 
   // Private
@@ -1131,7 +1131,7 @@ class RVD(
   private[rvd] def copy(
     typ: RVDType = typ,
     partitioner: RVDPartitioner = partitioner,
-    crdd: ContextRDD[RegionValue] = crdd
+    crdd: ContextRDD[Long] = crdd
   ): RVD =
     RVD(typ, partitioner, crdd)
 
@@ -1142,7 +1142,7 @@ class RVD(
     val (rowPType: PStruct, dec) = enc.buildDecoder(rowType)
     (rowPType, ContextRDD.weaken(stable).cmapPartitions { (ctx, it) =>
       RegionValue.fromBytes(dec, ctx.region, it)
-    }.toCRDDRegionValue)
+    })
   }
 
   private[rvd] def crddBoundary: ContextRDD[Long] =
@@ -1202,12 +1202,11 @@ object RVD {
     val localType = typ
 
     val keyInfo = keys.crunJobWithIndex { (i, ctx, it) =>
-      val out = if (it.hasNext)
-        Iterator(RVDPartitionInfo(localType, partitionKey, samplesPerPartition, i, it, partitionSeed(i), ctx))
+      if (it.hasNext)
+        Some(RVDPartitionInfo(localType, partitionKey, samplesPerPartition, i, it, partitionSeed(i), ctx))
       else
-        Iterator()
-      out
-    }
+        None
+    }.flatten
 
     keyInfo.sortBy(_.min)(typ.kType.virtualType.ordering.toOrdering)
   }
@@ -1472,7 +1471,7 @@ object RVD {
       fs.mkDir(path + s + ".mt" + "/index")
     }
 
-    val partF = { (originIdx: Int, originPartIdx: Int, it: Iterator[RVDContext => Iterator[RegionValue]]) =>
+    val partF = { (originIdx: Int, originPartIdx: Int, it: Iterator[RVDContext => Iterator[Long]]) =>
       Iterator.single { ctx: RVDContext =>
         val fs = bcFS.value
         val s = StringUtils.leftPad(originIdx.toString, fileDigits, '0')

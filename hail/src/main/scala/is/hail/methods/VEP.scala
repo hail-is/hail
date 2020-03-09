@@ -224,9 +224,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
       vepRVDType,
       prev.partitioner,
       ContextRDD.weaken(annotations).cmapPartitions { (ctx, it) =>
-        val region = ctx.region
         val rvb = ctx.rvb
-        val rv = RegionValue(region)
 
         it.map { case (v, vep) =>
           rvb.start(vepRowType)
@@ -235,8 +233,8 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
           rvb.addAnnotation(vepRowType.types(1).virtualType, v.asInstanceOf[Row].get(1))
           rvb.addAnnotation(vepRowType.types(2).virtualType, vep)
           rvb.endStruct()
-          rv.setOffset(rvb.end())
-          rv
+
+          rvb.end()
         }
       })
 

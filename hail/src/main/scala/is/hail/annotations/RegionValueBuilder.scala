@@ -503,6 +503,5 @@ class RegionValueBuilder(var region: Region) {
     }
   }
 
-  def resultPtr(): Long = start
   def result(): RegionValue = RegionValue(region, start)
 }
