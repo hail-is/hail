@@ -12,6 +12,12 @@ object WritableRegionValue {
   def apply(t: PType, initial: RegionValue, region: Region): WritableRegionValue =
     WritableRegionValue(t, initial.region, initial.offset, region)
 
+  def apply(t: PType, initialOffset: Long, targetRegion: Region): WritableRegionValue = {
+    val wrv = WritableRegionValue(t, targetRegion)
+    wrv.set(initialOffset, deepCopy = true)
+    wrv
+  }
+
   def apply(t: PType, initialRegion: Region, initialOffset: Long, targetRegion: Region): WritableRegionValue = {
     val wrv = WritableRegionValue(t, targetRegion)
     wrv.set(initialRegion, initialOffset)
@@ -37,6 +43,10 @@ class WritableRegionValue private (
   }
 
   def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromRegion: Region, fromOffset: Long) {
+    setSelect(fromT, fromFieldIdx, fromOffset, region.ne(fromRegion))
+  }
+
+  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromOffset: Long, deepCopy: Boolean) {
     (t: @unchecked) match {
       case t: PStruct =>
         region.clear()
@@ -44,7 +54,7 @@ class WritableRegionValue private (
         rvb.startStruct()
         var i = 0
         while (i < t.size) {
-          rvb.addField(fromT, fromRegion, fromOffset, fromFieldIdx(i))
+          rvb.addField(fromT, fromOffset, fromFieldIdx(i), deepCopy)
           i += 1
         }
         rvb.endStruct()
@@ -55,9 +65,13 @@ class WritableRegionValue private (
   def set(rv: RegionValue): Unit = set(rv.region, rv.offset)
 
   def set(fromRegion: Region, fromOffset: Long) {
+    set(fromOffset, region.ne(fromRegion))
+  }
+
+  def set(fromOffset: Long, deepCopy: Boolean) {
     region.clear()
     rvb.start(t)
-    rvb.addRegionValue(t, fromRegion, fromOffset)
+    rvb.addRegionValue(t, fromOffset, deepCopy)
     value.setOffset(rvb.end())
   }
 
