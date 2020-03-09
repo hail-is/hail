@@ -247,12 +247,11 @@ case class MatrixValue(
     val fieldIdx = entryType.fieldIdx(entryField)
     val numColsLocal = nCols
 
-    val rows = rvd.mapPartitionsWithIndex { (pi, it) =>
+    val rows = rvd.mapPartitionsWithIndex { (pi, _, it) =>
       var i = partStartsBc.value(pi)
-      it.map { rv =>
-        val region = rv.region
+      it.map { ptr =>
         val data = new Array[Double](numColsLocal)
-        val entryArrayOffset = localRvRowPType.loadField(rv.offset, localEntryArrayIdx)
+        val entryArrayOffset = localRvRowPType.loadField(ptr, localEntryArrayIdx)
         var j = 0
         while (j < numColsLocal) {
           if (localEntryArrayPType.isElementDefined(entryArrayOffset, j)) {

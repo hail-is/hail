@@ -92,12 +92,12 @@ object ExportPlink {
           val hcv = HardCallView(fullRowType)
           val bp = new BitPacker(2, bedOS)
 
-          it.foreach { rv =>
-            v.set(rv.offset)
-            a.set(rv.offset)
+          it.foreach { ptr =>
+            v.set(ptr)
+            a.set(ptr)
             ExportPlink.writeBimRow(v, a, bimOS)
 
-            hcv.set(rv.offset)
+            hcv.set(ptr)
             ExportPlink.writeBedRow(hcv, bp, nSamples)
             ctx.region.clear()
             rowCount += 1
