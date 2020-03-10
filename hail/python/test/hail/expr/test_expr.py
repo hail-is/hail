@@ -1026,6 +1026,19 @@ class Tests(unittest.TestCase):
         r = ht.aggregate(hl.agg.downsample(ht.idx, ht.y, n_divisions=10))
         self.assertTrue(len(r) == 0)
 
+    def test_downsample_in_array_agg(self):
+        mt = hl.utils.range_matrix_table(50, 50)
+        mt = mt.annotate_rows(y = hl.rand_unif(0, 1))
+        mt = mt.annotate_cols(
+            binned=hl.agg.downsample(
+                mt.row_idx,
+                mt.y,
+                label=hl.str(mt.y),
+                n_divisions=4
+            )
+        )
+        mt.cols()._force_count()
+
     def test_aggregator_info_score(self):
         gen_file = resource('infoScoreTest.gen')
         sample_file = resource('infoScoreTest.sample')

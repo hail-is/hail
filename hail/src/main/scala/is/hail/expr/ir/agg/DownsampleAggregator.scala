@@ -172,7 +172,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
       bottom := Region.loadDouble(storageType.loadField(src, "top")),
       top := Region.loadDouble(storageType.loadField(src, "bottom")),
       treeSize := Region.loadInt(storageType.loadField(src, "treeSize")),
-      tree.deepCopy(src),
+      tree.deepCopy(Region.loadAddress(storageType.loadField(src, "tree"))),
       buffer.copyFrom(storageType.loadField(src, "buffer")))))
     mb.invoke(_src)
   }
@@ -509,7 +509,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
                   srvb.addDouble(Region.loadDouble(pointType.loadField(point, "y"))),
                   srvb.advance(),
                   pointType.isFieldDefined(point, "label").mux(
-                    srvb.addIRIntermediate(labelType)(pointType.loadField(point, "label")),
+                    srvb.addWithDeepCopy(labelType, pointType.loadField(point, "label")),
                     srvb.setMissing()
                   )
                 )
