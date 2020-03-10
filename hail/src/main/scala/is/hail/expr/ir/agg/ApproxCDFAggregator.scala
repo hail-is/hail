@@ -26,14 +26,11 @@ class ApproxCDFState(val fb: EmitFunctionBuilder[_]) extends AggregatorState {
   private val kOffset: Code[Long] => Code[Long] = storageType.loadField(_, "k")
 
   def init(k: Code[Int]): Code[Unit] = {
-    this.initialized.mux(
-      Code._fatal[Unit]("approx_cdf already initialized"),
-      Code(
-        this.k := k,
-        aggr := Code.newInstance[ApproxCDFStateManager, Int](this.k),
-        id := region.storeJavaObject(aggr),
-        this.initialized := true
-      )
+    Code(
+      this.k := k,
+      aggr := Code.newInstance[ApproxCDFStateManager, Int](this.k),
+      id := region.storeJavaObject(aggr),
+      this.initialized := true
     )
   }
 
