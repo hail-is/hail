@@ -163,7 +163,7 @@ def main(args, pass_through_args):
     else:
         try:
             project_region = sp.check_output(['gcloud', 'config', 'get-value', 'dataproc/region']).decode().strip()
-        except sp.CalledProcessError as e:
+        except sp.CalledProcessError:
             raise RuntimeError("Could not determine dataproc region. Use --region argument to hailctl, or use `gcloud config set dataproc/region <my-region>` to set a default.")
 
     # add VEP init script
