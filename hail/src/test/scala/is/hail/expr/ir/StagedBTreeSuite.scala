@@ -23,11 +23,13 @@ class TestBTreeKey(mb: EmitMethodBuilder) extends BTreeKey {
     storageType.setFieldMissing(off, 1)
 
   def storeKey(off: Code[Long], m: Code[Boolean], v: Code[Long]): Code[Unit] =
-    Code(
-      storageType.stagedInitialize(off),
-      m.mux(
-        storageType.setFieldMissing(off, 0),
-        Region.storeLong(storageType.fieldOffset(off, 0), v)))
+    Code.memoize(off, "off") { off =>
+      Code(
+        storageType.stagedInitialize(off),
+        m.mux(
+          storageType.setFieldMissing(off, 0),
+          Region.storeLong(storageType.fieldOffset(off, 0), v)))
+    }
 
   def copy(src: Code[Long], dest: Code[Long]): Code[Unit] =
     Region.copyFrom(src, dest, storageType.byteSize)
@@ -139,7 +141,7 @@ class BTreeBackedSet(region: Region, n: Int) {
       idx := 0,
       Code.whileLoop(idx < sab.size,
         returnArray.update(idx, sab.isMissing(idx).mux(
-          Code._null,
+          Code._null[java.lang.Long],
           Code.boxLong(coerce[Long](sab(idx))))),
         idx := idx + 1
       ),
@@ -161,11 +163,13 @@ class BTreeBackedSet(region: Region, n: Int) {
       root := fb.getArg[Long](1),
       ob2 := ob,
       btree.bulkStore(ob2) { (ob, off) =>
-        Code.memoize(off, "off") { off =>
+        Code.memoize(ob, "ob", off, "off") { (ob, off) =>
           val (km, kv) = key.loadCompKey(off)
-          Code(
-            ob.writeBoolean(km),
-            (!km).orEmpty(ob.writeLong(coerce[Long](kv))))
+          Code.memoize(km, "km") { km =>
+            Code(
+              ob.writeBoolean(km),
+              (!km).orEmpty(ob.writeLong(coerce[Long](kv))))
+          }
         }
       },
       ob2.load().flush()))

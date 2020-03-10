@@ -327,10 +327,12 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       return const(false)
     }
 
-    Region.containsNonZeroBits(srcAddress + lengthHeaderBytes, loadLength(srcAddress).toL)
+    Code.memoize(srcAddress, "pcarr_has_missing_vals_src") { srcAddress =>
+      Region.containsNonZeroBits(srcAddress + lengthHeaderBytes, loadLength(srcAddress).toL)
+    }
   }
 
-  def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], srcAddress: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
+  def checkedConvertFrom(mb: EmitMethodBuilder, r: Value[Region], srcAddress: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
     assert(sourceType.elementType.isPrimitive && this.isOfType(sourceType))
 
     if (sourceType.elementType.required == this.elementType.required)
@@ -342,14 +344,14 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       a := srcAddress,
       sourceType.hasMissingValues(a).orEmpty(Code._fatal[Unit](msg)), {
         val newOffset = mb.newField[Long]
-        val len = sourceType.loadLength(a)
 
-        Code(
-          newOffset := allocate(r, len),
-          stagedInitialize(newOffset, len),
-          Region.copyFrom(sourceType.firstElementOffset(a, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
-          newOffset
-        )
+        Code.memoize(sourceType.loadLength(a), "pcarr_check_conv_from_len") { len =>
+          Code(
+            newOffset := allocate(r, len),
+            stagedInitialize(newOffset, len),
+            Region.copyFrom(sourceType.firstElementOffset(a, len), firstElementOffset(newOffset, len), len.toL * elementByteSize),
+            newOffset)
+        }
       }
     )
   }
@@ -370,32 +372,30 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def deepPointerCopy(mb: MethodBuilder, region: Value[Region], dstAddress: Code[Long]): Code[Unit] = {
-    if(!this.elementType.fundamentalType.containsPointers) {
+    if (!this.elementType.fundamentalType.containsPointers) {
       return Code._empty
     }
 
-    val numberOfElements = mb.newLocal[Int]
-    val currentIdx = mb.newLocal[Int]
-    val currentElementAddress = mb.newField[Long]
-    Code(
-      currentIdx := const(0),
-      numberOfElements := this.loadLength(dstAddress),
-      Code.whileLoop(currentIdx < numberOfElements,
-        this.isElementDefined(dstAddress, currentIdx).orEmpty(
-          Code(
-            currentElementAddress := this.elementOffset(dstAddress, numberOfElements, currentIdx),
-            this.elementType.fundamentalType match {
-              case t@(_: PBinary | _: PArray) =>
-                Region.storeAddress(currentElementAddress, t.copyFromType(mb, region, t, Region.loadAddress(currentElementAddress), forceDeep = true))
-              case t: PCanonicalBaseStruct =>
-                t.deepPointerCopy(mb, region, currentElementAddress)
-              case t: PType => fatal(s"Type isn't supported ${t}")
-            }
-          )
-        ),
-        currentIdx := currentIdx + const(1)
-      )
-    )
+    Code.memoize(dstAddress, "pcarr_deep_ptr_copy_dst") { dstAddress =>
+      val numberOfElements = mb.newLocal[Int]
+      val currentIdx = mb.newLocal[Int]
+      val currentElementAddress = mb.newField[Long]
+      Code(
+        currentIdx := const(0),
+        numberOfElements := this.loadLength(dstAddress),
+        Code.whileLoop(currentIdx < numberOfElements,
+          this.isElementDefined(dstAddress, currentIdx).orEmpty(
+            Code(
+              currentElementAddress := this.elementOffset(dstAddress, numberOfElements, currentIdx),
+              this.elementType.fundamentalType match {
+                case t@(_: PBinary | _: PArray) =>
+                  Region.storeAddress(currentElementAddress, t.copyFromType(mb, region, t, Region.loadAddress(currentElementAddress), forceDeep = true))
+                case t: PCanonicalBaseStruct =>
+                  t.deepPointerCopy(mb, region, currentElementAddress)
+                case t: PType => fatal(s"Type isn't supported ${t}")
+              })),
+          currentIdx := currentIdx + const(1)))
+    }
   }
 
   def deepPointerCopy(region: Region, dstAddress: Long) {

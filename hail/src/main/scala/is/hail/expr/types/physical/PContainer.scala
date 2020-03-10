@@ -89,7 +89,7 @@ abstract class PContainer extends PIterable {
 
   def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean]
 
-  def checkedConvertFrom(mb: EmitMethodBuilder, r: Code[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long]
+  def checkedConvertFrom(mb: EmitMethodBuilder, r: Value[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long]
 
   def nextElementAddress(currentOffset: Long): Long
 

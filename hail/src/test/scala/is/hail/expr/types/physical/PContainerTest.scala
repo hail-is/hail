@@ -24,7 +24,7 @@ class PContainerTest extends HailSuite {
     log.info(s"Testing $data")
 
     val fb = EmitFunctionBuilder[Region, Long, Long]("not_empty")
-    val codeRegion = fb.getArg[Region](1).load()
+    val codeRegion = fb.getArg[Region](1)
     val value = fb.getArg[Long](2)
 
     fb.emit(destType.checkedConvertFrom(fb.apply_method, codeRegion, value, sourceType, "ShouldHaveNoNull"))

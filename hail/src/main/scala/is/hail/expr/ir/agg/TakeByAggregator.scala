@@ -62,7 +62,10 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     }
 
     (k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])) => {
-      cmp.invoke[Int](k1._1, wrappedValue(k1._1, k1._2), k2._1, wrappedValue(k2._1, k2._2))
+      Code.memoize(k1._1, "tba_comp_key_k1m",
+        k2._1, "tba_comp_key_k2m") { (k1m, k2m) =>
+        cmp.invoke[Int](k1m, wrappedValue(k1m, k1._2), k2m, wrappedValue(k2m, k2._2))
+      }
     }
   }
 

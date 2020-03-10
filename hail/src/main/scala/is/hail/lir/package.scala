@@ -90,6 +90,8 @@ package object lir {
 
   def insn(op: Int): ValueX = insn(op, null, FastIndexedSeq.empty)
 
+  def insn(op: Int, _ti: TypeInfo[_]): ValueX = insn(op, _ti, FastIndexedSeq.empty)
+
   def insn(op: Int, c: ValueX): ValueX = insn(op, null, FastIndexedSeq(c))
 
   def insn(op: Int, _ti: TypeInfo[_], c: ValueX): ValueX = insn(op, _ti, FastIndexedSeq(c))
