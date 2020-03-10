@@ -47,6 +47,9 @@ package object lir {
   }
 
   def switch(c: ValueX, Ldefault: Block, cases: IndexedSeq[Block]): ControlX = {
+    if (cases.isEmpty)
+      return goto(Ldefault)
+
     val x = new SwitchX()
     setChildren(x, c)
     x.setDefault(Ldefault)

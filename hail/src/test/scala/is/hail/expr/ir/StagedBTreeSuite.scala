@@ -37,7 +37,7 @@ class TestBTreeKey(mb: EmitMethodBuilder) extends BTreeKey {
   def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
     comp(k1, k2)
 
-  def loadCompKey(off: Code[Long]): (Code[Boolean], Code[_]) =
+  def loadCompKey(off: Value[Long]): (Code[Boolean], Code[_]) =
     storageType.isFieldMissing(off, 0) -> storageType.isFieldMissing(off, 0).mux(
       0L, Region.loadLong(storageType.fieldOffset(off, 0)))
 }
@@ -129,9 +129,11 @@ class BTreeBackedSet(region: Region, n: Int) {
       root := fb.getArg[Long](2),
       sab.clear,
       btree.foreach { koff =>
-        val (m, v) = key.loadCompKey(koff)
-        m.mux(sab.addMissing(),
+        Code.memoize(koff, "koff") { koff =>
+          val (m, v) = key.loadCompKey(koff)
+          m.mux(sab.addMissing(),
             sab.add(v))
+        }
       },
       returnArray := Code.newArray[java.lang.Long](sab.size),
       idx := 0,
@@ -159,10 +161,12 @@ class BTreeBackedSet(region: Region, n: Int) {
       root := fb.getArg[Long](1),
       ob2 := ob,
       btree.bulkStore(ob2) { (ob, off) =>
-        val (km, kv) = key.loadCompKey(off)
-        Code(
-          ob.writeBoolean(km),
-          (!km).orEmpty(ob.writeLong(coerce[Long](kv))))
+        Code.memoize(off, "off") { off =>
+          val (km, kv) = key.loadCompKey(off)
+          Code(
+            ob.writeBoolean(km),
+            (!km).orEmpty(ob.writeLong(coerce[Long](kv))))
+        }
       },
       ob2.load().flush()))
 

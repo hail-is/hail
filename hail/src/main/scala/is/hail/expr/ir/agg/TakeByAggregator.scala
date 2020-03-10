@@ -145,14 +145,15 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   }
 
   def copyFrom(src: Code[Long]): Code[Unit] = {
-    maybeGCCode(
-      initStaging(),
-      ab.copyFrom(storageType.fieldOffset(src, 0)),
-      maxIndex := Region.loadLong(storageType.fieldOffset(src, 3)),
-      maxSize := Region.loadInt(storageType.fieldOffset(src, 4)))(
-      Array(
-        maxGarbage := Region.loadInt(storageType.fieldOffset(src, 4))
-      ))
+    Code.memoize(src, "tba_copy_from_src") { src =>
+      maybeGCCode(
+        initStaging(),
+        ab.copyFrom(storageType.fieldOffset(src, 0)),
+        maxIndex := Region.loadLong(storageType.fieldOffset(src, 3)),
+        maxSize := Region.loadInt(storageType.fieldOffset(src, 4)))(
+        Array(
+          maxGarbage := Region.loadInt(storageType.fieldOffset(src, 4))))
+    }
   }
 
   def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
@@ -219,13 +220,13 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   //    )
   //  }
 
-  private def elementOffset(i: Code[Int]): Code[Long] = asm4s.coerce[Long](ab.elementOffset(i)._2)
+  private def elementOffset(i: Value[Int]): Code[Long] = asm4s.coerce[Long](ab.elementOffset(i)._2)
 
   private def keyIsMissing(offset: Code[Long]): Code[Boolean] = indexedKeyType.isFieldMissing(offset, 0)
 
   private def loadKeyValue(offset: Code[Long]): Code[_] = Region.loadIRIntermediate(keyType)(indexedKeyType.fieldOffset(offset, 0))
 
-  private def loadKey(offset: Code[Long]): (Code[Boolean], Code[_]) = (keyIsMissing(offset), loadKeyValue(offset))
+  private def loadKey(offset: Value[Long]): (Code[Boolean], Code[_]) = (keyIsMissing(offset), loadKeyValue(offset))
 
   private val compareElt: (Code[Long], Code[Long]) => Code[Int] = {
     val mb = fb.newMethod("i_gt_j", Array[TypeInfo[_]](LongInfo, LongInfo), IntInfo)
@@ -499,18 +500,18 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
         mb.emit(Code(
           low.ceq(high).orEmpty(Code._return(low)),
           pivotIndex := (low + high) / 2,
-          pivotOffset := elementOffset(indexAt(pivotIndex)),
+          pivotOffset := Code.memoize(indexAt(pivotIndex), "tba_qsort_pivot") { i => elementOffset(i) },
           continue := true,
           Code.whileLoop(continue,
             Code.whileLoop(
               Code(
-                tmpOffset := elementOffset(indexAt(low)),
+                tmpOffset := Code.memoize(indexAt(low), "tba_qsort_pivot") { i => elementOffset(i) },
                 compareElt(tmpOffset, pivotOffset) < 0),
               low := low + 1
             ),
             Code.whileLoop(
               Code(
-                tmpOffset := elementOffset(indexAt(high)),
+                tmpOffset := Code.memoize(indexAt(high), "tba_qsort_pivot") { i => elementOffset(i) },
                 compareElt(tmpOffset, pivotOffset) > 0),
               high := high - 1
             ),
@@ -555,7 +556,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       srvb.start(ab.size),
       i := 0,
       Code.whileLoop(i < ab.size,
-        o := elementOffset(indexAt(i)),
+        o := Code.memoize(indexAt(i), "tba_qsort_i") { i => elementOffset(i) },
         eltTuple.isFieldDefined(o, 1).mux(
           srvb.addWithDeepCopy(valueType, Region.loadIRIntermediate(valueType)(eltTuple.fieldOffset(o, 1))),
           srvb.setMissing()

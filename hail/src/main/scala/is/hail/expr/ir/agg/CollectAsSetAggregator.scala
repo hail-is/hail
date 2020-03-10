@@ -22,18 +22,20 @@ class TypedKey(typ: PType, fb: EmitFunctionBuilder[_], region: Code[Region]) ext
     storageType.setFieldMissing(off, 1)
 
   def store(dest: Code[Long], m: Code[Boolean], v: Code[_]): Code[Unit] = {
-    val c = {
-      if (typ.isPrimitive)
-        Region.storeIRIntermediate(typ)(storageType.fieldOffset(dest, 0), v)
+    Code.memoize(dest, "casa_store_dest") { dest =>
+      val c = {
+        if (typ.isPrimitive)
+          Region.storeIRIntermediate(typ)(storageType.fieldOffset(dest, 0), v)
+        else
+          Region.storeAddress(storageType.fieldOffset(dest, 0), StagedRegionValueBuilder.deepCopyFromOffset(fb, region, typ, coerce[Long](v)))
+      }
+      if (!typ.required)
+        m.mux(
+          Code(storageType.setFieldPresent(dest, 1), storageType.setFieldMissing(dest, 0)),
+          Code(storageType.stagedInitialize(dest), c))
       else
-        Region.storeAddress(storageType.fieldOffset(dest, 0), StagedRegionValueBuilder.deepCopyFromOffset(fb, region, typ, coerce[Long](v)))
+        Code(storageType.setFieldPresent(dest, 1), c)
     }
-    if (!typ.required)
-      m.mux(
-        Code(storageType.setFieldPresent(dest, 1), storageType.setFieldMissing(dest, 0)),
-        Code(storageType.stagedInitialize(dest), c))
-    else
-      Code(storageType.setFieldPresent(dest, 1), c)
   }
 
   def copy(src: Code[Long], dest: Code[Long]): Code[Unit] =
@@ -49,7 +51,7 @@ class TypedKey(typ: PType, fb: EmitFunctionBuilder[_], region: Code[Region]) ext
   def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
     kcomp(k1, k2)
 
-  def loadCompKey(off: Code[Long]): (Code[Boolean], Code[_]) = {
+  def loadCompKey(off: Value[Long]): (Code[Boolean], Code[_]) = {
     isKeyMissing(off) -> isKeyMissing(off).mux(defaultValue(typ), loadKey(off))
   }
 }
@@ -91,7 +93,7 @@ class AppendOnlySetState(val fb: EmitFunctionBuilder[_], t: PType) extends Point
   def insert(vm: Code[Boolean], vv: Code[_]): Code[Unit] = {
     Code(
       _vm := vm, (!_vm).orEmpty(_vv.storeAny(vv)),
-      _elt := tree.getOrElseInitialize(vm, vm.mux(defaultValue(t), vv)),
+      _elt := tree.getOrElseInitialize(_vm, _vm.mux(defaultValue(t), _vv)),
       key.isEmpty(_elt).orEmpty(Code(
         size := size + 1,
         key.store(_elt, _vm, _vv)
@@ -100,7 +102,11 @@ class AppendOnlySetState(val fb: EmitFunctionBuilder[_], t: PType) extends Point
 
   // loads container; does not update.
   def foreach(f: (Code[Boolean], Code[_]) => Code[Unit]): Code[Unit] =
-    tree.foreach { eoff => f(key.isKeyMissing(eoff), key.loadKey(eoff)) }
+    tree.foreach { eoff =>
+      Code.memoize(eoff, "casa_foreach_eoff") { eoff =>
+        f(key.isKeyMissing(eoff), key.loadKey(eoff))
+      }
+    }
 
   def copyFromAddress(src: Code[Long]): Code[Unit] =
   Code(

@@ -12,11 +12,11 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   override def byteSize: Long = 8
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
       constructOrCopy(mb, region, srcPType.asInstanceOf[PBinary], srcAddress, forceDeep)
   }
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
     this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], forceDeep)
 
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = {
@@ -82,12 +82,12 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
       }
     }
 
-  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] = {
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] = {
     val srcBinary = srcPType.asInstanceOf[PBinary]
     Region.storeAddress(addr, constructOrCopy(mb, region, srcBinary, srcAddress, forceDeep))
   }
 
-  private def constructOrCopy(mb: MethodBuilder, region: Code[Region], srcBinary: PBinary, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+  private def constructOrCopy(mb: MethodBuilder, region: Value[Region], srcBinary: PBinary, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     if (srcBinary == this) {
       if (forceDeep) {
         val srcAddrVar = mb.newLocal[Long]

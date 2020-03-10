@@ -41,7 +41,7 @@ object PhysicalTestUtils extends TestNGSuite {
     
     var compileSuccess = false
     val fb = EmitFunctionBuilder[Region, Long, Long]("not_empty")
-    val codeRegion = fb.getArg[Region](1).load()
+    val codeRegion = fb.getArg[Region](1)
     val value = fb.getArg[Long](2)
 
     try {

@@ -102,10 +102,11 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
   }
 
   def copyFrom(src: Code[Long]): Code[Unit] = {
-    Code(
-      maxSize := Region.loadInt(maxSizeOffset(src)),
-      builder.copyFrom(builderStateOffset(src))
-    )
+    Code.memoize(src, "takervas_copy_from_src") { src =>
+      Code(
+        maxSize := Region.loadInt(maxSizeOffset(src)),
+        builder.copyFrom(builderStateOffset(src)))
+    }
   }
 }
 

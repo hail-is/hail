@@ -70,6 +70,8 @@ object Emit {
   }
 
   def emit(cn: ClassNode, m: Method): Unit = {
+    println(s"compiling ${ m.name }")
+
     val mn = new MethodNode(ACC_PUBLIC, m.name, m.desc, null, null)
     cn.methods.asInstanceOf[java.util.List[MethodNode]].add(mn)
 
@@ -118,6 +120,9 @@ object Emit {
     for (l <- locals) {
       if (!l.isInstanceOf[Parameter]) {
         localIndex += (l -> n)
+
+        println(s"  assign $l $n ${ l.ti.desc }")
+
         val ln = new LocalVariableNode(
           // FIXME require
           if (l.name == null)
@@ -148,8 +153,8 @@ object Emit {
         case x: GotoX =>
           mn.instructions.add(new JumpInsnNode(GOTO, labelNodes(x.L)))
         case x: SwitchX =>
-          mn.instructions.add(new TableSwitchInsnNode(0, x.Lcases.length - 1,
-            labelNodes(x.Ldefault), x.Lcases.map(labelNodes): _*))
+          assert(x.Lcases.nonEmpty)
+          mn.instructions.add(new TableSwitchInsnNode(0, x.Lcases.length - 1, labelNodes(x.Ldefault), x.Lcases.map(labelNodes): _*))
         case x: ReturnX =>
           mn.instructions.add(new InsnNode(
             if (x.children.length == 0)

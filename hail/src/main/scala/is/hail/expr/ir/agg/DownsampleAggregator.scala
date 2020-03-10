@@ -33,7 +33,7 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, fb: EmitF
 
   def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] = kcomp(k1, k2)
 
-  def loadCompKey(off: Code[Long]): (Code[Boolean], Code[_]) = (const(false), storageType.loadField(off, "bin"))
+  def loadCompKey(off: Value[Long]): (Code[Boolean], Code[_]) = (const(false), storageType.loadField(off, "bin"))
 }
 
 

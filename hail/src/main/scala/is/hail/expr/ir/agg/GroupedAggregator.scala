@@ -18,10 +18,10 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Value[Regio
 
   private val compLoader: EmitMethodBuilder = {
     val mb = fb.newMethod("compWithKey", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(compType)), typeInfo[Int])
-    val off = mb.getArg[Long](1).load()
-    val m = mb.getArg[Boolean](2).load()
-    val v = mb.getArg(3)(typeToTypeInfo(compType)).load()
-    mb.emit(compKeys(isKeyMissing(off) -> loadKey(off), m -> v))
+    val off = mb.getArg[Long](1)
+    val m = mb.getArg[Boolean](2)
+    val v = mb.getArg(3)(typeToTypeInfo(compType))
+    mb.emit(compKeys(isKeyMissing(off) -> loadKey(off), m.get -> v.get))
     mb
   }
 
@@ -60,7 +60,7 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Value[Regio
   def storeRegionIdx(off: Code[Long], idx: Code[Int]): Code[Unit] =
     Region.storeInt(storageType.fieldOffset(off, 1), idx)
 
-  def containerOffset(off: Code[Long]): Value[Long] = new Value[Long] {
+  def containerOffset(off: Value[Long]): Value[Long] = new Value[Long] {
     def get: Code[Long] = storageType.fieldOffset(off, 2)
   }
 
@@ -73,14 +73,16 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Value[Regio
     Region.copyFrom(src, dest, storageType.byteSize)
 
   def deepCopy(er: EmitRegion, dest: Code[Long], src: Code[Long]): Code[Unit] =
-    Code(StagedRegionValueBuilder.deepCopy(er, storageType, src, dest),
-      container.copyFrom(containerOffset(src)),
-      container.store)
+    Code.memoize(src, "ga_deep_copy_src") { src =>
+      Code(StagedRegionValueBuilder.deepCopy(er, storageType, src, dest),
+        container.copyFrom(containerOffset(src)),
+        container.store)
+    }
 
   def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
     kcomp(k1, k2)
 
-  def loadCompKey(off: Code[Long]): (Code[Boolean], Code[_]) =
+  def loadCompKey(off: Value[Long]): (Code[Boolean], Code[_]) =
     isKeyMissing(off) -> isKeyMissing(off).mux(defaultValue(kt), loadKey(off))
 
 }

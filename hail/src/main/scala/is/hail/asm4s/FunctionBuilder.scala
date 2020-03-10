@@ -288,11 +288,10 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
   def invoke[T](args: Code[_]*): Code[T] = {
     val (start, end, argvs) = Code.sequenceValues(args.toFastIndexedSeq)
     if (returnTypeInfo.desc == "V") {
-      val L = new lir.Block()
-      L.append(
+      end.append(
         lir.methodStmt(INVOKEVIRTUAL, lmethod,
           lir.load(new lir.Parameter(null, 0, fb.classBuilder.ti)) +: argvs))
-      new Code(L, L, null)
+      new Code(start, end, null)
     } else {
       new Code(start, end,
         lir.methodInsn(INVOKEVIRTUAL, lmethod,

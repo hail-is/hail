@@ -97,6 +97,7 @@ object Code {
     if (cs.isEmpty)
       Code(null: lir.ValueX)
     else {
+      assert(cs.forall(_.v == null))
       val fcs = cs.toFastIndexedSeq
       sequence1(fcs.init, fcs.last)
     }
@@ -394,6 +395,8 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
     (!lhs.toConditional).toCode
 
   def mux[T](cthen: Code[T], celse: Code[T]): Code[T] = {
+    assert((cthen.v == null) == (celse.v == null))
+
     val cond = lhs.toConditional
     val L = new lir.Block()
     if (cthen.v == null) {
@@ -403,6 +406,8 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
       celse.end.append(lir.goto(L))
       new Code(cond.start, L, null)
     } else {
+      if (cthen.v.ti.desc != celse.v.ti.desc)
+        println(s"${ cthen.v.ti.desc } ${ celse.v.ti.desc }")
       assert(cthen.v.ti.desc == celse.v.ti.desc)
       val t = new lir.Local(null, "mux",
         cthen.v.ti)

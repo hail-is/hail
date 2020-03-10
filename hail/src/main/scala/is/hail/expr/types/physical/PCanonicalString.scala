@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, MethodBuilder}
+import is.hail.asm4s.{Code, MethodBuilder, Value}
 case object PCanonicalStringOptional extends PCanonicalString(false)
 case object PCanonicalStringRequired extends PCanonicalString(true)
 
@@ -14,13 +14,13 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   lazy val binaryFundamentalType: PBinary = PBinary(required)
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     this.fundamentalType.copyFromType(
       mb, region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, forceDeep
     )
   }
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
     this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], forceDeep)
 
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long  = {
@@ -61,13 +61,12 @@ class PCanonicalString(val required: Boolean) extends PString {
     val byteRep = mb.newField[Array[Byte]]
     Code(
       byteRep := str.invoke[Array[Byte]]("getBytes"),
-      dstAddress := this.fundamentalType.allocate(region, byteRep.length),
-      this.fundamentalType.store(dstAddress, byteRep),
-      dstAddress
-    )
+      dstAddress := fundamentalType.allocate(region, byteRep.length),
+      fundamentalType.store(dstAddress, byteRep),
+      dstAddress)
   }
 
-  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] =
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] =
     fundamentalType.constructAtAddress(mb, addr, region, srcPType.fundamentalType, srcAddress, forceDeep)
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =

@@ -112,7 +112,7 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
 
   def map(f: PCode => PCode): EmitCode = copy(pv = f(pv))
 
-  def copyToRegion(mb: EmitMethodBuilder, region: Code[Region]): EmitCode = {
+  def copyToRegion(mb: EmitMethodBuilder, region: Value[Region]): EmitCode = {
     EmitCode(
       setup,
       m,
@@ -1091,7 +1091,7 @@ private class Emit(
         val codeArgs = args.map(emit(_))
         val vars = args.map { a => coerce[Any](mb.newLocal()(typeToTypeInfo(a.typ))) }
         val ins = vars.zip(codeArgs.map(_.v)).map { case (l, i) => l := i }
-        val value = Code(ins :+ meth.invoke(mb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*))
+        val value = Code(Code(ins), meth.invoke[Any]((coerce[Any](mb.getArg[Region](1).get) +: vars.map(_.get)): _*))
         strict(pt, value, codeArgs: _*)
       case x@ApplySeeded(fn, args, seed, rt) =>
         val codeArgs = args.map(a => (a.pType, emit(a)))
@@ -1801,7 +1801,8 @@ private class Emit(
             },
             loopRef.loopArgs := loopRef.tmpLoopArgs.load(),
             loopRef.L.goto),
-          null, null)
+          // dead code
+          const(true), pt.defaultValue)
       case x@ReadValue(path, spec, requestedType) =>
         val p = emit(path)
         val pathString = coerce[PString](path.pType).loadString(p.value[Long])
@@ -1829,9 +1830,11 @@ private class Emit(
               Code(pv := Code._null[String], rb := Code._null[OutputBuffer]),
               Code(
                 pv := coerce[PString](pathPrefix.pType).loadString(p.value[Long]),
-                (!taskCtx.isNull).orEmpty(
-                  pv := pv.load().concat("-").concat(taskCtx.invoke[String]("partSuffix"))),
-                rb := spec.buildCodeOutputBuffer(mb.fb.getUnsafeWriter(pv.load())),
+                Code.memoize(taskCtx, "write_val_task_ctx") { taskCtx =>
+                  (!taskCtx.isNull).orEmpty(
+                    pv := pv.concat("-").concat(taskCtx.invoke[String]("partSuffix")))
+                },
+                rb := spec.buildCodeOutputBuffer(mb.fb.getUnsafeWriter(pv)),
                 vti match {
                   case vti: TypeInfo[t] =>
                     val enc = spec.buildEmitEncoderF(value.pType, mb.fb, vti)
@@ -1842,7 +1845,7 @@ private class Emit(
                 rb.invoke[Unit]("close")
               ))
           ), m,
-          PCode(x.pType, coerce[PString](x.pType).allocateAndStoreString(mb, er.region, pv.load())))
+          PCode(x.pType, coerce[PString](x.pType).allocateAndStoreString(mb, er.region, pv)))
     }
   }
 

@@ -125,7 +125,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     aoff + elementsOffset(length)
 
   def firstElementOffset(aoff: Code[Long]): Code[Long] =
-    firstElementOffset(aoff, loadLength(aoff))
+    Code.memoize(aoff, "pcarr_first_elem_off_aoff") { aoff =>
+      firstElementOffset(aoff, loadLength(aoff))
+    }
 
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
     firstElementOffset(aoff, length) + i * elementByteSize
@@ -137,7 +139,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     firstElementOffset(aoff, length) + i.toL * const(elementByteSize)
 
   def elementOffset(aoff: Code[Long], i: Code[Int]): Code[Long] =
-    firstElementOffset(aoff, loadLength(aoff)) + i.toL * const(elementByteSize)
+    Code.memoize(aoff, "pcarr_elem_off_aoff") { aoff =>
+      firstElementOffset(aoff, loadLength(aoff)) + i.toL * const(elementByteSize)
+    }
 
   def nextElementAddress(currentOffset: Long) =
     currentOffset + elementByteSize
@@ -163,7 +167,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] = loadElement(aoff, loadLength(aoff), i)
+  def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] =
+    Code.memoize(aoff, "pcarr_load_elem_aoff") { aoff =>
+      loadElement(aoff, loadLength(aoff), i)
+    }
 
   class Iterator (
     private[this] val aoff: Long,
@@ -362,7 +369,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
-  def deepPointerCopy(mb: MethodBuilder, region: Code[Region], dstAddress: Code[Long]): Code[Unit] = {
+  def deepPointerCopy(mb: MethodBuilder, region: Value[Region], dstAddress: Code[Long]): Code[Unit] = {
     if(!this.elementType.fundamentalType.containsPointers) {
       return Code._empty
     }
@@ -414,7 +421,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     val sourceType = srcPType.asInstanceOf[PArray]
     constructOrCopy(mb, region, sourceType, srcAddress, forceDeep)
   }
@@ -424,15 +431,15 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     constructOrCopy(region, sourceType, srcAddress, forceDeep)
   }
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
     this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], forceDeep)
 
-  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] = {
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] = {
     val srcArray = srcPType.asInstanceOf[PArray]
     Region.storeAddress(addr, constructOrCopy(mb, region, srcArray, srcAddress, forceDeep))
   }
 
-  private def constructOrCopy(mb: MethodBuilder, region: Code[Region], srcArray: PArray, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+  private def constructOrCopy(mb: MethodBuilder, region: Value[Region], srcArray: PArray, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
     if (srcArray == this) {
       if (forceDeep) {
         val newAddr = mb.newLocal[Long]

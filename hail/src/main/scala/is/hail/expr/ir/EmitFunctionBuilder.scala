@@ -96,8 +96,8 @@ class EmitMethodBuilder(
 
     def get: EmitCode = {
       EmitCode(Code._empty,
-        fb.apply_method.getArg[Boolean](i + 1),
-        PCode(pt, fb.apply_method.getArg(i)(typeToTypeInfo(_pt)).load()))
+        getArg[Boolean](2 + 2 * i + 1),
+        PCode(pt, getArg(2 + 2 * i)(typeToTypeInfo(_pt)).load()))
     }
   }
 
@@ -151,6 +151,8 @@ class EmitMethodBuilder(
 
   def newPLocal(pt: PType): PSettable = newPSettable(pt, newLocal(typeToTypeInfo(pt)))
 
+  def newPLocal(name: String, pt: PType): PSettable = newPSettable(pt, newLocal(name)(typeToTypeInfo(pt)))
+
   def newPField(pt: PType): PSettable = newPSettable(pt, newField(typeToTypeInfo(pt)))
 
   def newPField(name: String, pt: PType): PSettable = newPSettable(pt, newField(name)(typeToTypeInfo(pt)))
@@ -166,6 +168,9 @@ class EmitMethodBuilder(
 
   def newEmitLocal(pt: PType): EmitSettable =
     newEmitSettable(pt, newLocal[Boolean], newPLocal(pt))
+
+  def newEmitLocal(name: String, pt: PType): EmitSettable =
+    newEmitSettable(pt, newLocal[Boolean](name + "_missing"), newPLocal(name, pt))
 
   def newEmitField(pt: PType): EmitSettable =
     newEmitSettable(pt, newField[Boolean], newPField(pt))

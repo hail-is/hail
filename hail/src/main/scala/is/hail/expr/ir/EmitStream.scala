@@ -193,10 +193,10 @@ object CodeStream { self =>
   }
 
   def range(mb: MethodBuilder, start: Code[Int], step: Code[Int], len: Code[Int]): Stream[Code[Int]] = {
-    val lstep = mb.newLocal[Int]
-    val cur = mb.newLocal[Int]
-    val t = mb.newLocal[Int]
-    val rem = mb.newLocal[Int]
+    val lstep = mb.newLocal[Int]("sr_lstep")
+    val cur = mb.newLocal[Int]("sr_cur")
+    val t = mb.newLocal[Int]("sr_t")
+    val rem = mb.newLocal[Int]("sr_rem")
 
     unfold[Code[Int]](
       init0 = Code(lstep := 0, cur := 0, rem := 0),
@@ -220,7 +220,7 @@ object CodeStream { self =>
   ): Stream[A] = new Stream[A] {
     def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
       Source[A](
-        setup0 = Code._empty,
+        setup0 = init0,
         close0 = Code._empty,
         setup = init,
         close = Code._empty,
@@ -375,61 +375,54 @@ object CodeStream { self =>
   }
 
   def leftJoinRightDistinct(
-    left: Stream[EmitCode],
-    right: Stream[EmitCode],
-    rNil: EmitCode,
+    mb: EmitMethodBuilder,
+    lElemType: PType, left: Stream[EmitCode],
+    rElemType: PType, right: Stream[EmitCode],
     comp: (EmitCode, EmitCode) => Code[Int]
   ): Stream[(EmitCode, EmitCode)] = new Stream[(EmitCode, EmitCode)] {
     def apply(eos: Code[Ctrl], push: ((EmitCode, EmitCode)) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(EmitCode, EmitCode)] = {
-      ???
-      /*
-      val pulledRight = newLocal[Code[Boolean]]
-      val rightEOS = newLocal[Code[Boolean]]
-      val xA = newLocal[A] // last value received from left
-      val xB = newLocal[B] // last value received from right
-      val xOutB = newLocal[B] // B value to push (may be rNil while xB is not)
-      val xNilB = newLocal[B] // saved rNil
+      val pulledRight = mb.newLocal[Boolean]
+      val rightEOS = mb.newLocal[Boolean]
+      val lx = mb.newEmitLocal(lElemType) // last value received from left
+      val rx = mb.newEmitLocal(rElemType) // last value received from right
+      val rxOut = mb.newEmitLocal(rElemType) // B value to push (may be rNil while xB is not)
 
-      var rightSource: Source[B] = null
+      var rightSource: Source[EmitCode] = null
       val leftSource = left(
         eos = eos,
         push = a => {
-          val pushJP = joinPoint()
-          val pullRightJP = joinPoint()
-          val compareJP = joinPoint()
+          val Lpush = CodeLabel()
+          val LpullRight = CodeLabel()
+          val Lcompare = CodeLabel()
 
-          pushJP.define(_ => push((xA.load, xOutB.load)))
-
-          compareJP.define(_ => {
-            val c = newLocal[Code[Int]]
+          val compareCode = Code(Lcompare, {
+            val c = mb.newLocal[Int]
             Code(
-              c := comp(xA.load, xB.load),
-              (c.load > 0).mux(
-                pullRightJP(()),
-                (c.load < 0).mux(
-                  Code(xOutB := xNilB.load, pushJP(())),
-                  Code(xOutB := xB.load, pushJP(())))))
+              c := comp(lx, rx),
+              (c > 0).mux(
+                LpullRight.goto,
+                (c < 0).mux(
+                  Code(rxOut := EmitCode.missing(rElemType), Lpush.goto),
+                  Code(rxOut := rx, Lpush.goto))))
           })
 
           rightSource = right(
-            eos = Code(rightEOS := true, xOutB := xNilB.load, pushJP(())),
-            push = b => Code(xB := b, compareJP(())))
-
-          pullRightJP.define(_ => rightSource.pull)
+            eos = Code(rightEOS := true, rxOut := EmitCode.missing(rElemType), Lpush.goto),
+            push = b => Code(rx := b, Lcompare.goto))
 
           Code(
-            xA := a,
-            pulledRight.load.mux(
-              rightEOS.load.mux(pushJP(()), compareJP(())),
-              Code(pulledRight := true, pullRightJP(()))))
+            lx := a,
+            pulledRight.mux[Unit](
+              rightEOS.mux[Ctrl](Code(Lpush, push((lx, rxOut))), compareCode),
+              Code(pulledRight := true, Code(LpullRight, rightSource.pull))))
         })
 
-      Source[(A, B)](
-        setup0 = Code(pulledRight.init, rightEOS.init, xA.init, xB.init, xOutB.init, xNilB.init, leftSource.setup0, rightSource.setup0),
+      Source[(EmitCode, EmitCode)](
+        setup0 = Code(pulledRight := false, rightEOS := false, lx.setDefault(), rx.setDefault(), rxOut.setDefault(), leftSource.setup0, rightSource.setup0),
         close0 = Code(leftSource.close0, rightSource.close0),
-        setup = Code(pulledRight := false, rightEOS := false, xNilB := rNil, leftSource.setup, rightSource.setup),
+        setup = Code(pulledRight := false, rightEOS := false, leftSource.setup, rightSource.setup),
         close = Code(leftSource.close, rightSource.close),
-        pull = leftSource.pull) */
+        pull = leftSource.pull)
     }
   }
 }
@@ -507,13 +500,9 @@ object EmitStream {
             Lpush,
             i += 1,
             push(t)),
-          eos))
+          Code(Leos, eos)))
     }
   }
-
-  def longScan(
-    mb: EmitMethodBuilder, stream: Stream[EmitCode], s0: EmitCode, f: (EmitCode, EmitCode) => EmitCode
-  ): Stream[EmitCode] = ???
 
   // length is required to be a variable reference
   case class SizedStream(stream: Stream[EmitCode], length: Option[(Code[Unit], Settable[Int])])
@@ -522,14 +511,14 @@ object EmitStream {
     def apply(eos: Code[Ctrl], push: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] = {
       val b = mb.newLocal[Boolean]
       val Leos = CodeLabel()
-      val elt = mb.newEmitLocal(eltType)
+      val elt = mb.newEmitLocal("stream_mux_elt", eltType)
       val Lpush = CodeLabel()
 
-      val l = left(Code(Leos, eos), (a) => Code(elt := a, Lpush, push(a)))
+      val l = left(Code(Leos, eos), (a) => Code(elt := a, Lpush, push(elt)))
       val r = right(Leos.goto, (a) => Code(elt := a, Lpush.goto))
 
       Source[EmitCode](
-        setup0 = Code(b := false, l.setup0, r.setup0),
+        setup0 = Code(b := false, elt := EmitCode.missing(eltType), l.setup0, r.setup0),
         close0 = Code(l.close0, r.close0),
         setup = Code(b := cond, b.get.mux(l.setup, r.setup)),
         close = b.get.mux(l.close, r.close),
@@ -579,7 +568,7 @@ object EmitStream {
           val start = fb.newField[Int]("sr_start")
           val stop = fb.newField[Int]("sr_stop")
           val llen = fb.newField[Long]("sr_llen")
-          val len = mb.newLocal[Int]
+          val len = mb.newLocal[Int]("sr_len")
 
           val startt = emitIR(startIR)
           val stopt = emitIR(stopIR)
@@ -629,7 +618,7 @@ object EmitStream {
                     Code(i += 1,
                       push(
                         EmitCode(Code._empty,
-                          // FIXME I know, I know.
+                          // FIXME loadElementEC or something
                           xAddr.get.asIndexable.isElementMissing(i - 1),
                           xAddr.get.asIndexable.loadElement(i - 1)))),
                     eos))
@@ -637,9 +626,10 @@ object EmitStream {
 
             Code(
               xAddr := containerAddr,
+              len := xAddr.get.asIndexable.loadLength(),
               k(SizedStream(
                 newStream,
-                Some((len := xAddr.get.asIndexable.loadLength(), len)))))
+                Some((Code._empty, len)))))
           }
 
         case x@MakeStream(elements, t) =>
@@ -683,9 +673,9 @@ object EmitStream {
 
           new COption[Code[Iterator[RegionValue]]] {
             def apply(none: Code[Ctrl], some: (Code[Iterator[RegionValue]]) => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
-              mb.getArg[Boolean](n + 1).mux(
+              mb.getArg[Boolean](2 + 2 * n + 1).mux(
                 none,
-                some(mb.getArg[Iterator[RegionValue]](n)))
+                some(mb.getArg[Iterator[RegionValue]](2 + 2 * n)))
             }
           }.map { iter =>
             val stream = unfold[Code[RegionValue]](
@@ -824,9 +814,9 @@ object EmitStream {
                       if (assert) anyEOS := false else Code._empty,
                       Code((eltVars, checkedElts).zipped.map { (v, x) => v := x }),
                       if (assert)
-                        (anyEOS & !allEOS).mux(
-                          Code._fatal[Ctrl]("zip: length mismatch"),
-                          k(COption(allEOS, body)))
+                        (anyEOS & !allEOS).mux[Unit](
+                          Code._fatal[Unit]("zip: length mismatch"),
+                          k(COption(allEOS, body))): Code[Ctrl]
                       else
                         k(COption(allEOS, body)))
                   }
@@ -876,7 +866,7 @@ object EmitStream {
 
         case If(condIR, thn, els) =>
           val eltType = coerce[PStream](thn.pType).elementType
-          val xCond = mb.newField[Boolean]
+          val xCond = mb.newField[Boolean]("stream_if_cond")
 
           val condT = COption.fromEmitCode(emitIR(condIR))
           val optLeftStream = emitStream(thn, env)
@@ -917,22 +907,39 @@ object EmitStream {
           val eltType = coerce[PStream](childIR.pType).elementType
           val accType = x.accPType
 
-          def scanBody(elt: EmitCode, acc: EmitCode): EmitCode = {
+          val streamOpt = emitStream(childIR, env)
+          streamOpt.map { case SizedStream(stream, len) =>
+            val Lpush = CodeLabel()
+            val hasPulled = mb.newLocal[Boolean]
+
             val xElt = mb.newEmitField(eltName, eltType)
             val xAcc = mb.newEmitField(accName, accType)
-            val bodyEnv = env.bind(accName -> xAcc, eltName -> xElt)
+            val tmpAcc = mb.newEmitField(accName, accType)
 
-            val bodyT = emitIR(bodyIR, env = bodyEnv).map(accType.copyFromPValue(mb, er.region, _))
-            EmitCode(Code(xElt := elt, xAcc := acc, bodyT.setup), bodyT.m, bodyT.pv)
-          }
+            val zero = emitIR(zeroIR).map(accType.copyFromPValue(mb, er.region, _))
+            val bodyEnv = env.bind(accName -> tmpAcc, eltName -> xElt)
 
-          val zerot = emitIR(zeroIR).map(accType.copyFromPValue(mb, er.region, _))
-          val streamOpt = emitStream(childIR, env)
+            val body = emitIR(bodyIR, env = bodyEnv).map(accType.copyFromPValue(mb, er.region, _))
 
-          streamOpt.map { case SizedStream(stream, len) =>
-            val newStream =
-              longScan(mb, stream, zerot, scanBody)
-            val newLen = len.map { case (s, l) => (Code(s, l := l + 1), l)}
+            val newStream = new Stream[EmitCode] {
+              def apply(eos: Code[Ctrl], push: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] = {
+                val source = stream(
+                  eos = eos,
+                  push = a => Code(xElt := a, tmpAcc := xAcc, xAcc := body, Lpush, push(xAcc)))
+
+                Source[EmitCode](
+                  setup0 = Code(hasPulled := false, xAcc := EmitCode.missing(accType), tmpAcc := EmitCode.missing(accType),
+                    xElt := EmitCode.missing(eltType), source.setup0),
+                  setup = Code(hasPulled := false, xAcc := zero, source.setup),
+                  close = source.close,
+                  close0 = source.close0,
+                  pull = hasPulled.mux(
+                    source.pull,
+                    Code(hasPulled := true, Lpush.goto)))
+              }
+            }
+
+            val newLen = len.map { case (s, l) => (Code(s, l := l + 1), l) }
             SizedStream(newStream, newLen)
           }
 
@@ -990,9 +997,9 @@ object EmitStream {
           emitStream(leftIR, env).flatMap { case SizedStream(leftStream, leftLen) =>
             emitStream(rightIR, env).map { case SizedStream(rightStream, _) =>
               val newStream = leftJoinRightDistinct(
-                leftStream,
-                rightStream,
-                EmitCode.missing(rEltType),
+                mb,
+                lEltType, leftStream,
+                rEltType, rightStream,
                 compare)
                 .map { case (lelt, relt) =>
                   val joint = emitIR(joinIR, env = env2)

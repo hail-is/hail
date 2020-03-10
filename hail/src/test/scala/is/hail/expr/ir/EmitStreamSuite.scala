@@ -275,7 +275,8 @@ class EmitStreamSuite extends HailSuite {
             stream.length.map[Code[Ctrl]] { case (s, l) => Code(s, len := l, L.goto) }.getOrElse[Code[Ctrl]](
               Code(len := -1, L.goto))
           }),
-        L))
+        L,
+        len))
     val f = fb.resultWithIndex()
     Region.scoped { r =>
       val len = f(0, r)(r)
