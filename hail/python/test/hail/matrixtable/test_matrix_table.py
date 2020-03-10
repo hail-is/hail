@@ -1072,6 +1072,12 @@ class Tests(unittest.TestCase):
 
         assert mt.make_table().select(*mt.row_value)._same(mt.rows())
 
+    def test_make_table_na_error(self):
+        mt = hl.utils.range_matrix_table(3, 3).key_cols_by(s = hl.null('str'))
+        mt = mt.annotate_entries(e1 = 1)
+        with pytest.raises(ValueError):
+            mt.make_table()
+
     def test_transmute(self):
         mt = (
             hl.utils.range_matrix_table(1, 1)

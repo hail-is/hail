@@ -4050,10 +4050,15 @@ class MatrixTable(ExprContainer):
         if not (len(self.col_key) == 1 and self.col_key[0].dtype == hl.tstr):
             raise ValueError("column key must be a single field of type str")
 
-        col_key_field = list(self.col_key)[0]
-        col_keys = [k[col_key_field] for k in self.col_key.collect()]
+        col_keys =  self.col_key[0].collect()
 
-        duplicates = [k for k, count in Counter(col_keys).items() if count > 1]
+        counts = Counter(col_keys)
+        if counts[None] > 0:
+            raise ValueError(f"'make_table' encountered a missing column key; ensure all identifiers are defined.\n"
+                             f"  To fill in key index, run:\n"
+                             f"    mt = mt.key_cols_by(ck = hl.coalesce(mt.COL_KEY_NAME, 'missing_' + hl.str(hl.scan.count())))")
+
+        duplicates = [k for k, count in counts.items() if count > 1]
         if duplicates:
             raise ValueError(f"column keys must be unique, found duplicates: {', '.join(duplicates)}")
 
