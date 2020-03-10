@@ -78,8 +78,10 @@ def init_parser(parser):
                         help='Disk size of worker machines, in GB (default: %(default)s).')
     parser.add_argument('--worker-machine-type', '--worker',
                         help='Worker machine type (default: n1-standard-8, or n1-highmem-8 with --vep).')
-    parser.add_argument('--zone', default='us-central1-b',
-                        help='Compute zone for the cluster (default: %(default)s).')
+    parser.add_argument('--region',
+                        help='Compute region for the cluster.')
+    parser.add_argument('--zone',
+                        help='Compute zone for the cluster.')
     parser.add_argument('--properties',
                         help='Additional configuration properties for the cluster')
     parser.add_argument('--metadata',
@@ -155,10 +157,18 @@ def main(args, pass_through_args):
         conf.extend_flag("properties", {"spark:spark.hadoop.fs.gs.requester.pays.mode": requester_pays_mode,
                                         "spark:spark.hadoop.fs.gs.requester.pays.project.id": requester_pays_project})
 
+    # gcloud version 277 and onwards requires you to specify a region. Let's just require it for all hailctl users for consistency.
+    if args.region:
+        project_region = args.region
+    else:
+        try:
+            project_region = sp.check_output(['gcloud', 'config', 'get-value', 'dataproc/region']).decode().strip()
+        except sp.CalledProcessError as e:
+            raise RuntimeError("Could not determine dataproc region. Use --region argument to hailctl, or use `gcloud config set dataproc/region <my-region>` to set a default.")
+
     # add VEP init script
     if args.vep:
         # VEP is too expensive if you have to pay egress charges. We must choose the right replicate.
-        project_region = sp.check_output(['gcloud', 'config', 'get-value', 'dataproc/region']).decode().strip()
         replicate = REGION_TO_REPLICATE_MAPPING.get(project_region)
         if replicate is None:
             raise RuntimeError("The --vep argument is not currently provided in your region. Please contact the Hail team on https://discuss.hail.is for support.")
@@ -201,7 +211,10 @@ def main(args, pass_through_args):
     conf.flags['preemptible-worker-boot-disk-size'] = disk_size(args.preemptible_worker_boot_disk_size)
     conf.flags['worker-boot-disk-size'] = disk_size(args.worker_boot_disk_size)
     conf.flags['worker-machine-type'] = args.worker_machine_type
-    conf.flags['zone'] = args.zone
+    if args.region:
+        conf.flags['region'] = args.region
+    if args.zone:
+        conf.flags['zone'] = args.zone
     conf.flags['initialization-action-timeout'] = args.init_timeout
     if args.network:
         conf.flags['network'] = args.network
