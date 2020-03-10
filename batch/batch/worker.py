@@ -310,8 +310,6 @@ class Container:
 
     async def run(self, worker, cpu_sem):
         try:
-            timed_out = False
-
             async with self.step('pulling'):
                 if self.image.startswith('gcr.io/'):
                     key = base64.b64decode(
@@ -355,6 +353,7 @@ class Container:
                         await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
                             start_container, self.container)
 
+                    timed_out = False
                     async with self.step('running'):
                         try:
                             async with async_timeout.timeout(self.timeout):
