@@ -166,7 +166,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     write: (Iterator[T], OutputStream) => Long
   )(implicit tct: ClassTag[T]
   ): (Array[String], Array[Long]) =
-    ContextRDD.weaken[RVDContext](r).writePartitions(
+    ContextRDD.weaken(r).writePartitions(
       path,
       null,
       stageLocally,

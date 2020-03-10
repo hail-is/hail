@@ -56,9 +56,9 @@ trait AbstractTypedCodecSpec extends Spec {
   }
 
   // FIXME: is there a better place for this to live?
-  def decodeRDD(requestedType: Type, bytes: RDD[Array[Byte]]): (PType, ContextRDD[RVDContext, RegionValue]) = {
+  def decodeRDD(requestedType: Type, bytes: RDD[Array[Byte]]): (PType, ContextRDD[RegionValue]) = {
     val (pt, dec) = buildDecoder(requestedType)
-    (pt, ContextRDD.weaken[RVDContext](bytes).cmapPartitions { (ctx, it) =>
+    (pt, ContextRDD.weaken(bytes).cmapPartitions { (ctx, it) =>
       RegionValue.fromBytes(dec, ctx.region, it)
     })
   }

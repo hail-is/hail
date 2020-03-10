@@ -18,7 +18,7 @@ import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 object TableValue {
-  def apply(ctx: ExecuteContext, rowType: PStruct, key: IndexedSeq[String], rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
+  def apply(ctx: ExecuteContext, rowType: PStruct, key: IndexedSeq[String], rdd: ContextRDD[RegionValue]): TableValue = {
     val tt = TableType(rowType.virtualType, key, TStruct.empty)
     TableValue(tt,
       BroadcastRow.empty(ctx),
@@ -32,7 +32,7 @@ object TableValue {
       BroadcastRow.empty(ctx),
       RVD.coerce(
         RVDType(canonicalRowType, key),
-        ContextRDD.weaken[RVDContext](rdd).toRegionValues(canonicalRowType),
+        ContextRDD.weaken(rdd).toRegionValues(canonicalRowType),
         ctx))
   }
 }

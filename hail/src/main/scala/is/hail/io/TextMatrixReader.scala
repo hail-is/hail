@@ -281,7 +281,7 @@ case class TextMatrixReader(
       fileByPartition,
       firstPartitions,
       hasHeader)
-    val rdd = ContextRDD.weaken[RVDContext](lines.filter(l => l.value.nonEmpty))
+    val rdd = ContextRDD.weaken(lines.filter(l => l.value.nonEmpty))
       .cmapPartitionsWithIndex(compiledLineParser)
     val rvd = if (tr.dropRows)
       RVD.empty(sc, requestedType.canonicalRVDType)

@@ -320,7 +320,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     log.info(s"parallelized ${ rows.length } rows")
 
     val rowTyp = PType.canonical(typ.rowType).asInstanceOf[PStruct]
-    val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rows, nPartitions)
+    val rvd = ContextRDD.parallelize(hc.sc, rows, nPartitions)
       .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowTyp))
     TableValue(typ, BroadcastRow(ctx, globals, typ.globalType), RVD.unkeyed(rowTyp, rvd))
   }

@@ -26,19 +26,19 @@ import scala.language.existentials
 import scala.reflect.ClassTag
 
 abstract class RVDCoercer(val fullType: RVDType) {
-  final def coerce(typ: RVDType, crdd: ContextRDD[RVDContext, RegionValue]): RVD = {
+  final def coerce(typ: RVDType, crdd: ContextRDD[RegionValue]): RVD = {
     require(isSupertype(typ.rowType.virtualType, fullType.rowType.virtualType))
     require(typ.key.sameElements(fullType.key))
     _coerce(typ, crdd)
   }
 
-  protected def _coerce(typ: RVDType, crdd: ContextRDD[RVDContext, RegionValue]): RVD
+  protected def _coerce(typ: RVDType, crdd: ContextRDD[RegionValue]): RVD
 }
 
 class RVD(
   val typ: RVDType,
   val partitioner: RVDPartitioner,
-  val crdd: ContextRDD[RVDContext, RegionValue]
+  val crdd: ContextRDD[RegionValue]
 ) {
   self =>
   require(crdd.getNumPartitions == partitioner.numPartitions)
@@ -1011,14 +1011,14 @@ class RVD(
   def orderedZipJoin(
     right: RVD,
     ctx: ExecuteContext
-  ): (RVDPartitioner, ContextRDD[RVDContext, JoinedRegionValue]) =
+  ): (RVDPartitioner, ContextRDD[JoinedRegionValue]) =
     orderedZipJoin(right, typ.key.length, ctx)
 
   def orderedZipJoin(
     right: RVD,
     joinKey: Int,
     ctx: ExecuteContext
-  ): (RVDPartitioner, ContextRDD[RVDContext, JoinedRegionValue]) =
+  ): (RVDPartitioner, ContextRDD[JoinedRegionValue]) =
     keyBy(joinKey).orderedZipJoin(right.keyBy(joinKey), ctx)
 
   def orderedZipJoin(
@@ -1154,21 +1154,21 @@ class RVD(
   private[rvd] def copy(
     typ: RVDType = typ,
     partitioner: RVDPartitioner = partitioner,
-    crdd: ContextRDD[RVDContext, RegionValue] = crdd
+    crdd: ContextRDD[RegionValue] = crdd
   ): RVD =
     RVD(typ, partitioner, crdd)
 
   private[rvd] def destabilize(
     stable: RDD[Array[Byte]],
     enc: AbstractTypedCodecSpec
-  ): (PStruct, ContextRDD[RVDContext, RegionValue]) = {
+  ): (PStruct, ContextRDD[RegionValue]) = {
     val (rowPType: PStruct, dec) = enc.buildDecoder(rowType)
-    (rowPType, ContextRDD.weaken[RVDContext](stable).cmapPartitions { (ctx, it) =>
+    (rowPType, ContextRDD.weaken(stable).cmapPartitions { (ctx, it) =>
       RegionValue.fromBytes(dec, ctx.region, it)
     })
   }
 
-  private[rvd] def crddBoundary: ContextRDD[RVDContext, RegionValue] =
+  private[rvd] def crddBoundary: ContextRDD[RegionValue] =
     crdd.boundary
 
   private[rvd] def keyBy(key: Int = typ.key.length): KeyedRVD =
@@ -1179,10 +1179,10 @@ object RVD {
   def empty(sc: SparkContext, typ: RVDType): RVD = {
     RVD(typ,
       RVDPartitioner.empty(typ.kType.virtualType),
-      ContextRDD.empty[RVDContext, RegionValue](sc))
+      ContextRDD.empty[RegionValue](sc))
   }
 
-  def unkeyed(rowType: PStruct, crdd: ContextRDD[RVDContext, RegionValue]): RVD =
+  def unkeyed(rowType: PStruct, crdd: ContextRDD[RegionValue]): RVD =
     new RVD(
       RVDType(rowType, FastIndexedSeq()),
       RVDPartitioner.unkeyed(crdd.getNumPartitions),
@@ -1190,8 +1190,8 @@ object RVD {
 
   def getKeys(
     typ: RVDType,
-    crdd: ContextRDD[RVDContext, RegionValue]
-  ): ContextRDD[RVDContext, RegionValue] = {
+    crdd: ContextRDD[RegionValue]
+  ): ContextRDD[RegionValue] = {
     // The region values in 'crdd' are of type `typ.rowType`
     val localType = typ
     crdd.cmapPartitions { (ctx, it) =>
@@ -1208,7 +1208,7 @@ object RVD {
     // 'partitionKey' is used to check whether the rows are ordered by the first
     // 'partitionKey' key fields, even if they aren't ordered by the full key.
     partitionKey: Int,
-    keys: ContextRDD[RVDContext, RegionValue]
+    keys: ContextRDD[RegionValue]
   ): Array[RVDPartitionInfo] = {
     // the region values in 'keys' are of typ `typ.keyType`
     val nPartitions = keys.getNumPartitions
@@ -1236,21 +1236,21 @@ object RVD {
 
   def coerce(
     typ: RVDType,
-    crdd: ContextRDD[RVDContext, RegionValue],
+    crdd: ContextRDD[RegionValue],
     executeContext: ExecuteContext
   ): RVD = coerce(typ, typ.key.length, crdd, executeContext)
 
   def coerce(
     typ: RVDType,
-    crdd: ContextRDD[RVDContext, RegionValue],
-    fastKeys: ContextRDD[RVDContext, RegionValue],
+    crdd: ContextRDD[RegionValue],
+    fastKeys: ContextRDD[RegionValue],
     executeContext: ExecuteContext
   ): RVD = coerce(typ, typ.key.length, crdd, fastKeys, executeContext)
 
   def coerce(
     typ: RVDType,
     partitionKey: Int,
-    crdd: ContextRDD[RVDContext, RegionValue],
+    crdd: ContextRDD[RegionValue],
     executeContext: ExecuteContext
   ): RVD = {
     val keys = getKeys(typ, crdd)
@@ -1260,8 +1260,8 @@ object RVD {
   def coerce(
     typ: RVDType,
     partitionKey: Int,
-    crdd: ContextRDD[RVDContext, RegionValue],
-    keys: ContextRDD[RVDContext, RegionValue],
+    crdd: ContextRDD[RegionValue],
+    keys: ContextRDD[RegionValue],
     executeContext: ExecuteContext
   ): RVD = {
     makeCoercer(typ, partitionKey, keys, executeContext).coerce(typ, crdd)
@@ -1270,7 +1270,7 @@ object RVD {
   def makeCoercer(
     fullType: RVDType,
     // keys: RDD[RegionValue[fullType.kType]]
-    keys: ContextRDD[RVDContext, RegionValue],
+    keys: ContextRDD[RegionValue],
     executeContext: ExecuteContext
   ): RVDCoercer = makeCoercer(fullType, fullType.key.length, keys, executeContext)
 
@@ -1278,10 +1278,10 @@ object RVD {
     fullType: RVDType,
     partitionKey: Int,
     // keys: RDD[RegionValue[fullType.kType]]
-    keys: ContextRDD[RVDContext, RegionValue],
+    keys: ContextRDD[RegionValue],
     executeContext: ExecuteContext
   ): RVDCoercer = {
-    type CRDD = ContextRDD[RVDContext, RegionValue]
+    type CRDD = ContextRDD[RegionValue]
     val sc = keys.sparkContext
 
     val unkeyedCoercer: RVDCoercer = new RVDCoercer(fullType) {
@@ -1405,7 +1405,7 @@ object RVD {
   def apply(
     typ: RVDType,
     partitioner: RVDPartitioner,
-    crdd: ContextRDD[RVDContext, RegionValue]
+    crdd: ContextRDD[RegionValue]
   ): RVD = {
     if (!HailContext.get.checkRVDKeys)
       new RVD(typ, partitioner, crdd)
@@ -1511,8 +1511,7 @@ object RVD {
     }
 
     val partFilePartitionCounts = new ContextRDD(
-      new OriginUnionRDD(first.crdd.rdd.sparkContext, rvds.map(_.crdd.rdd), partF),
-      first.crdd.mkc)
+      new OriginUnionRDD(first.crdd.rdd.sparkContext, rvds.map(_.crdd.rdd), partF))
       .collect()
 
     val partFilesByOrigin = Array.fill[ArrayBuilder[String]](nRVDs)(new ArrayBuilder())

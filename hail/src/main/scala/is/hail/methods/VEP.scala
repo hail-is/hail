@@ -224,7 +224,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
     val vepRVD: RVD = RVD(
       vepRVDType,
       prev.partitioner,
-      ContextRDD.weaken[RVDContext](annotations).cmapPartitions { (ctx, it) =>
+      ContextRDD.weaken(annotations).cmapPartitions { (ctx, it) =>
         val region = ctx.region
         val rvb = ctx.rvb
         val rv = RegionValue(region)

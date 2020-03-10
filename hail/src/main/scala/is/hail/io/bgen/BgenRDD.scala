@@ -131,7 +131,7 @@ object BgenRDD {
     partitions: Array[Partition],
     settings: BgenSettings,
     keys: RDD[Row]
-  ): ContextRDD[RVDContext, RegionValue] = {
+  ): ContextRDD[RegionValue] = {
     ContextRDD(new BgenRDD(sc, partitions, settings, keys))
   }
 
