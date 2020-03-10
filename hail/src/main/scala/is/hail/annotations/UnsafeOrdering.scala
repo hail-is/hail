@@ -12,5 +12,5 @@ abstract class UnsafeOrdering extends Ordering[Long] with Serializable {
   def compare(r1: Region, o1: Long, rv2: RegionValue): Int =
     compare(o1, rv2.offset)
 
-  def toRVOrdering: Ordering[RegionValue] = Ordering.by[RegionValue, Long](rv => rv.offset)(this)
+  def toRVOrdering: Ordering[RegionValue] = on[RegionValue](rv => rv.offset)
 }
