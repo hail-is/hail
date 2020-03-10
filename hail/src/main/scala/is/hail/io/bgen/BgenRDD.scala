@@ -98,10 +98,10 @@ case class BgenSettings(
 
   val rowPType: PStruct = PCanonicalStruct(required = true,
     Array(
-      "locus" -> PCanonicalLocus.schemaFromRG(rg),
-      "alleles" -> PCanonicalArray(PCanonicalString()),
-      "rsid" -> PCanonicalString(),
-      "varid" -> PCanonicalString(),
+      "locus" -> PCanonicalLocus.schemaFromRG(rg, required = true),
+      "alleles" -> PCanonicalArray(PCanonicalString(true), true),
+      "rsid" -> PString(),
+      "varid" -> PString(),
       "offset" -> PInt64(),
       "file_idx" -> PInt32(),
       MatrixType.entriesIdentifier -> PCanonicalArray(PCanonicalStruct(
