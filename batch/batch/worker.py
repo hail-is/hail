@@ -357,7 +357,7 @@ class Container:
 
                     async with self.step('running'):
                         try:
-                            async with async_timeout.timeout(self.timeout) as tm:
+                            async with async_timeout.timeout(self.timeout):
                                 await docker_call_retry(MAX_DOCKER_WAIT_SECS, f'{self}')(self.container.wait)
                         except asyncio.TimeoutError:
                             timed_out = True
