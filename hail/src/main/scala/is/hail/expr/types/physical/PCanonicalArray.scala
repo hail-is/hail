@@ -286,7 +286,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       right.elementType)
 
     new UnsafeOrdering {
-      override def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
+      override def compare(o1: Long, o2: Long): Int = {
         val length1 = loadLength(o1)
         val length2 = right.loadLength(o2)
 
@@ -298,7 +298,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
           if (leftDefined && rightDefined) {
             val eOff1 = loadElement(o1, length1, i)
             val eOff2 = right.loadElement(o2, length2, i)
-            val c = eltOrd.compare(r1, eOff1, r2, eOff2)
+            val c = eltOrd.compare(eOff1, eOff2)
             if (c != 0)
               return c
           } else if (leftDefined != rightDefined) {

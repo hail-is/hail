@@ -67,7 +67,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
       // Left is a point, right is an interval.
       // Returns -1 if point is below interval, 0 if it is inside, and 1 if it
       // is above, always considering missing greatest.
-      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
+      def compare(o1: Long, o2: Long): Int = {
 
         val leftDefined = t1.isFieldDefined(o1, f1)
         val rightDefined = t2.isFieldDefined(o2, f2)
@@ -76,12 +76,12 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
           val k1 = t1.loadField(o1, f1)
           val k2 = t2.loadField(o2, f2)
           if (intervalType.startDefined(k2)) {
-            val c = pord.compare(r1, k1, r2, intervalType.loadStart(k2))
+            val c = pord.compare(k1, intervalType.loadStart(k2))
             if (c < 0 || (c == 0 && !intervalType.includesStart(k2))) {
               -1
             } else {
               if (intervalType.endDefined(k2)) {
-                val c = pord.compare(r1, k1, r2, intervalType.loadEnd(k2))
+                val c = pord.compare(k1, intervalType.loadEnd(k2))
                 if (c < 0 || (c == 0 && intervalType.includesEnd(k2)))
                   0
                 else 1
@@ -151,7 +151,7 @@ object RVDType {
     val nFields = fields1.length
 
     new UnsafeOrdering {
-      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
+      def compare(o1: Long, o2: Long): Int = {
         var i = 0
         var hasMissing=false
         while (i < nFields) {
@@ -161,7 +161,7 @@ object RVDType {
           val rightDefined = t2.isFieldDefined(o2, f2)
 
           if (leftDefined && rightDefined) {
-            val c = fieldOrderings(i).compare(r1, t1.loadField(o1, f1), r2, t2.loadField(o2, f2))
+            val c = fieldOrderings(i).compare(t1.loadField(o1, f1), t2.loadField(o2, f2))
             if (c != 0)
               return c
           } else if (leftDefined != rightDefined) {

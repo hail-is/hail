@@ -16,7 +16,7 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PBoolean")
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
+    def compare(o1: Long, o2: Long): Int = {
       java.lang.Boolean.compare(Region.loadBoolean(o1), Region.loadBoolean(o2))
     }
   }
