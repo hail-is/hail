@@ -1246,13 +1246,13 @@ object LoadVCF {
   def parseLines[C](
     makeContext: () => C
   )(f: (C, VCFLine, RegionValueBuilder) => Unit
-  )(lines: ContextRDD[RVDContext, WithContext[String]],
+  )(lines: ContextRDD[WithContext[String]],
     rowPType: PStruct,
     rgBc: Option[BroadcastValue[ReferenceGenome]],
     contigRecoding: Map[String, String],
     arrayElementsRequired: Boolean,
     skipInvalidLoci: Boolean
-  ): ContextRDD[RVDContext, RegionValue] = {
+  ): ContextRDD[RegionValue] = {
     val hasRSID = rowPType.hasField("rsid")
     lines.cmapPartitions { (ctx, it) =>
       new Iterator[RegionValue] {
@@ -1557,7 +1557,7 @@ case class MatrixVCFReader(
 
   private lazy val lines = {
     HailContext.maybeGZipAsBGZip(gzAsBGZ) {
-      ContextRDD.textFilesLines[RVDContext](sc, inputs, minPartitions, filterAndReplace)
+      ContextRDD.textFilesLines(sc, inputs, minPartitions, filterAndReplace)
     }
   }
 
@@ -1769,7 +1769,7 @@ class VCFsReader(
     val tt = localTyp.canonicalTableType
     val rvdType = fullRVDType
 
-    val lines = ContextRDD.weaken[RVDContext](
+    val lines = ContextRDD.weaken(
       new PartitionedVCFRDD(hc.sc, file, partitions)
         .map(l =>
           WithContext(l, Context(l, file, None))))

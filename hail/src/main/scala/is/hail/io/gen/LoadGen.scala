@@ -194,7 +194,7 @@ case class MatrixGENReader(
     val localRVDType = tr.typ.canonicalRVDType
     val rvd = RVD.coerce(
       localRVDType,
-      ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
+      ContextRDD.weaken(rdd).cmapPartitions { (ctx, it) =>
         val region = ctx.region
         val rvb = new RegionValueBuilder(region)
         val rv = RegionValue(region)

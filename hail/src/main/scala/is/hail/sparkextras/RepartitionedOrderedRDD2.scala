@@ -18,7 +18,7 @@ class OrderedDependency[T](
 }
 
 object RepartitionedOrderedRDD2 {
-  def apply(prev: RVD, newRangeBounds: IndexedSeq[Interval]): ContextRDD[RVDContext, RegionValue] =
+  def apply(prev: RVD, newRangeBounds: IndexedSeq[Interval]): ContextRDD[RegionValue] =
     ContextRDD(new RepartitionedOrderedRDD2(prev, newRangeBounds))
 }
 
@@ -28,9 +28,9 @@ object RepartitionedOrderedRDD2 {
   * needed.
   */
 class RepartitionedOrderedRDD2 private (prev: RVD, newRangeBounds: IndexedSeq[Interval])
-  extends RDD[ContextRDD.ElementType[RVDContext, RegionValue]](prev.crdd.sparkContext, Nil) { // Nil since we implement getDependencies
+  extends RDD[ContextRDD.ElementType[RegionValue]](prev.crdd.sparkContext, Nil) { // Nil since we implement getDependencies
 
-  val prevCRDD: ContextRDD[RVDContext, RegionValue] = prev.boundary.crdd
+  val prevCRDD: ContextRDD[RegionValue] = prev.boundary.crdd
   val typ: RVDType = prev.typ
   val oldPartitionerBc: Broadcast[RVDPartitioner] = prev.partitioner.broadcast(prevCRDD.sparkContext)
   val newRangeBoundsBc: Broadcast[IndexedSeq[Interval]] = prevCRDD.sparkContext.broadcast(newRangeBounds)

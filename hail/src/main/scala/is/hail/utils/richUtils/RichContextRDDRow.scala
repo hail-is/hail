@@ -7,8 +7,8 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
-class RichContextRDDRow(crdd: ContextRDD[RVDContext, Row]) {
-  def toRegionValues(rowType: PStruct): ContextRDD[RVDContext, RegionValue] = {
+class RichContextRDDRow(crdd: ContextRDD[Row]) {
+  def toRegionValues(rowType: PStruct): ContextRDD[RegionValue] = {
     crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowType))
   }
 }

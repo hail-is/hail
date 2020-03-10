@@ -204,7 +204,7 @@ object IBD {
     min: Option[Double],
     max: Option[Double],
     sampleIds: IndexedSeq[String],
-    bounded: Boolean): ContextRDD[RVDContext, RegionValue] = {
+    bounded: Boolean): ContextRDD[RegionValue] = {
 
     val nSamples = input.nCols
 
@@ -251,7 +251,7 @@ object IBD {
       })
       .map { case ((s, v), gs) => (v, (s, IBSFFI.pack(chunkSize, chunkSize, gs))) }
 
-    val joined = ContextRDD.weaken[RVDContext](chunkedGenotypeMatrix.join(chunkedGenotypeMatrix)
+    val joined = ContextRDD.weaken(chunkedGenotypeMatrix.join(chunkedGenotypeMatrix)
       // optimization: Ignore chunks below the diagonal
       .filter { case (_, ((i, _), (j, _))) => j >= i }
       .map { case (_, ((s1, gs1), (s2, gs2))) =>

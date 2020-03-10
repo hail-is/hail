@@ -605,8 +605,6 @@ package object utils extends Logging
     }
   }
 
-  def point[T]()(implicit t: Pointed[T]): T = t.point
-
   def singletonElement[T](it: Iterator[T]): T = {
     val x = it.next()
     assert(!it.hasNext)

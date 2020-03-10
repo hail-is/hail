@@ -153,7 +153,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
   def orderedZipJoin(
     right: KeyedRVD,
     ctx: ExecuteContext
-  ): (RVDPartitioner, ContextRDD[RVDContext, JoinedRegionValue]) = {
+  ): (RVDPartitioner, ContextRDD[JoinedRegionValue]) = {
     checkJoinCompatability(right)
     val ranges = this.rvd.partitioner.coarsenedRangeBounds(key) ++
       right.rvd.partitioner.coarsenedRangeBounds(key)

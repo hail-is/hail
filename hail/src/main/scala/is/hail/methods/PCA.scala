@@ -60,8 +60,8 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
     val rowKeysBc = HailContext.backend.broadcast(collectRowKeys())
     val localRowKeySignature = mv.typ.rowKeyStruct.types
 
-    val crdd: ContextRDD[RVDContext, RegionValue] = if (computeLoadings) {
-      ContextRDD.weaken[RVDContext](svd.U.rows).cmapPartitions { (ctx, it) =>
+    val crdd: ContextRDD[RegionValue] = if (computeLoadings) {
+      ContextRDD.weaken(svd.U.rows).cmapPartitions { (ctx, it) =>
         val region = ctx.region
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)

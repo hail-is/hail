@@ -14,7 +14,7 @@ import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
 
-class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
+class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
   // Only use on CRDD's whose T is not dependent on the context
   def clearingRun: RDD[T] =
     crdd.cmap { (ctx, v) =>
