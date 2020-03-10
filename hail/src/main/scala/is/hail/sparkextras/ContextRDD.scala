@@ -207,6 +207,30 @@ class ContextRDD[T: ClassTag](
       part => inCtx(ctx => f(ctx, part.flatMap(_(ctx)))),
       preservesPartitioning))
 
+  def cmapPartitionsWithContext[U: ClassTag](f: (RVDContext, (RVDContext) => Iterator[T]) => Iterator[U]): ContextRDD[U] = {
+    new ContextRDD(rdd.mapPartitions(
+      part => part.flatMap {
+          x => inCtx(consumerCtx => f(consumerCtx, x))
+      }))
+  }
+
+  def cmapPartitionsWithContextAndIndex[U: ClassTag](f: (Int, RVDContext, (RVDContext) => Iterator[T]) => Iterator[U]): ContextRDD[U] = {
+    new ContextRDD(rdd.mapPartitionsWithIndex(
+      (i, part) => part.flatMap {
+        x => inCtx(consumerCtx => f(i, consumerCtx, x))
+      }))
+  }
+
+  // Gives consumer ownership of the context. Consumer is responsible for freeing
+  // resources per element.
+  def crunJobWithIndex[U: ClassTag](f: (Int, RVDContext, Iterator[T]) => U): Array[U] =
+    sparkContext.runJob(
+      rdd,
+      { (taskContext, it: Iterator[RVDContext => Iterator[T]]) =>
+        val c = sparkManagedContext()
+        f(taskContext.partitionId(), c, it.flatMap(_(c)))
+      })
+
   def cmapPartitionsAndContext[U: ClassTag](
     f: (RVDContext, (Iterator[RVDContext => Iterator[T]])) => Iterator[U],
     preservesPartitioning: Boolean = false
