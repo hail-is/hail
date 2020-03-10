@@ -12,14 +12,6 @@ case class AggStateSignature(m: Map[AggOp, AggSignature], default: AggOp, nested
   lazy val defaultSignature: AggSignature = m(default)
   lazy val resultType: Type = Extract.getResultType(this)
   def lookup(op: AggOp): AggSignature = m(op)
-
-  def toCanonicalPhysical: AggStatePhysicalSignature = AggStatePhysicalSignature(
-    m.map { case (op, sig) =>
-      (op, sig.toPhysical(sig.initOpArgs.map(PType.canonical), sig.seqOpArgs.map(PType.canonical)))
-    },
-    default,
-    nested.map(_.map(_.toCanonicalPhysical))
-  )
 }
 
 

@@ -32,7 +32,17 @@ class Aggregators2Suite extends HailSuite {
     val argRef = Ref(genUID(), argT.virtualType)
     val spec = BufferSpec.defaultUncompressed
 
-    val psig = aggSig.toCanonicalPhysical
+    def toCanonicalPhysical(aggSig: AggStateSignature): AggStatePhysicalSignature = {
+        AggStatePhysicalSignature(
+          aggSig.m.map { case (op, sig) =>
+            (op, sig.toPhysical(sig.initOpArgs.map(PType.canonical), sig.seqOpArgs.map(PType.canonical)))
+          },
+          aggSig.default,
+          aggSig.nested.map(_.map(toCanonicalPhysical))
+        )
+    }
+
+    val psig = toCanonicalPhysical(aggSig)
     val (_, combAndDuplicate) = CompileWithAggregators2[Unit](ctx,
       Array.fill(nPartitions)(psig),
       Begin(
