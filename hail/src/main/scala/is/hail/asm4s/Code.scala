@@ -66,6 +66,7 @@ object Code {
       end.append(lir.goto(c.start))
       c.end
     }
+    assert(end eq v.end)
     new Code(start, end, v.v)
   }
 

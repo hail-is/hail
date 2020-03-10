@@ -92,8 +92,10 @@ class AppendOnlySetState(val fb: EmitFunctionBuilder[_], t: PType) extends Point
   private val _vv = fb.newField()(typeToTypeInfo(t))
   def insert(vm: Code[Boolean], vv: Code[_]): Code[Unit] = {
     Code(
-      _vm := vm, (!_vm).orEmpty(_vv.storeAny(vv)),
-      _elt := tree.getOrElseInitialize(_vm, _vm.mux(defaultValue(t), _vv)),
+      vm.mux(
+        Code(_vm := true, _vv.storeAny(defaultValue(t))),
+        Code(_vm := false, _vv.storeAny(vv))),
+      _elt := tree.getOrElseInitialize(_vm, _vv),
       key.isEmpty(_elt).orEmpty(Code(
         size := size + 1,
         key.store(_elt, _vm, _vv)

@@ -14,9 +14,7 @@ import is.hail.io.fs.FS
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
-import org.objectweb.asm.tree.AbstractInsnNode
 
-import scala.collection.generic.Growable
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
@@ -582,12 +580,18 @@ class EmitFunctionBuilder[F >: Null](
     argTypes: IndexedSeq[TypeInfo[_]],
     args: IndexedSeq[Code[_]],
     size: Int = 32): Code[Unit] = {
-    coerce[Unit](Code(x.grouped(size).zipWithIndex.map { case (codes, i) =>
-      val mb = newMethod(suffix + s"_group$i", argTypes, UnitInfo)
-      val methodArgs = argTypes.zipWithIndex.map { case (a, i) => mb.getArg(i + 1)(a).load() }
-      mb.emit(Code(codes.map(_.apply(methodArgs))))
-      mb.invoke(args: _*)
-    }.toArray))
+    val argTmps: IndexedSeq[Settable[Any]] = argTypes.zipWithIndex.map { case (ti, i) =>
+      new LocalRef(new lir.Local(null, s"wvwa_arg$i", ti))(ti).asInstanceOf[Settable[Any]]
+    }
+
+    Code(
+      Code((argTmps, args).zipped.map { case (t, arg) => t.storeAny(arg) }),
+      Code(x.grouped(size).zipWithIndex.map { case (codes, i) =>
+        val mb = newMethod(suffix + s"_group$i", argTypes, UnitInfo)
+        val methodArgs = argTypes.zipWithIndex.map { case (a, i) => mb.getArg(i + 1)(a) }
+        mb.emit(Code(codes.map(_.apply(methodArgs.map(_.get)))))
+        mb.invoke[Unit](argTmps.map(_.get): _*)
+      }.toArray))
   }
 
   override def newMethod(suffix: String, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {

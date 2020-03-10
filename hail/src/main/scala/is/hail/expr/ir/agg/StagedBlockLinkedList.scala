@@ -17,9 +17,9 @@ object StagedBlockLinkedList {
 class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_]) {
   import StagedBlockLinkedList._
 
-  val firstNode = fb.newField[Long]
-  val lastNode = fb.newField[Long]
-  val totalCount = fb.newField[Int]
+  private val firstNode = fb.newField[Long]
+  private val lastNode = fb.newField[Long]
+  private val totalCount = fb.newField[Int]
 
   val storageType = PStruct(
     "firstNode" -> PInt64Required,
@@ -263,22 +263,24 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
     val r = initF.getArg[Region](1)
     initF.emit {
       val i = initF.newLocal[Int]
-      Code.memoize(buffer(firstNode), "sbll_init_deepcopy_buf") { buf =>
-        val bufi = bufferType.elementOffset(buf, i)
-        Code(
-          initWithCapacity(r, other.totalCount),
-          i := 0,
-          other.foreach(initF) { et =>
-            Code(
-              et.m.mux(bufferType.setElementMissing(buf, i),
-                Code(
-                  bufferType.setElementPresent(buf, i),
-                  StagedRegionValueBuilder.deepCopy(fb, r, elemType, et.value, bufi))),
-              incrCount(firstNode),
-              i += 1)
-          },
-          totalCount := other.totalCount)
-      }
+      Code(
+        // sets firstNode
+        initWithCapacity(r, other.totalCount),
+        Code.memoize(buffer(firstNode), "sbll_init_deepcopy_buf") { buf =>
+          Code(
+            i := 0,
+            other.foreach(initF) { et =>
+              Code(
+                et.setup,
+                et.m.mux(bufferType.setElementMissing(buf, i),
+                  Code(
+                    bufferType.setElementPresent(buf, i),
+                    StagedRegionValueBuilder.deepCopy(fb, r, elemType, et.value, bufferType.elementOffset(buf, i)))),
+                incrCount(firstNode),
+                i += 1)
+            },
+            totalCount := other.totalCount)
+        })
     }
     initF.invoke(region)
   }

@@ -133,7 +133,11 @@ object UtilFunctions extends RegistryFunctions {
         er.mb.getType(lT.virtualType).invoke[Any, Any, Double, Boolean, Boolean]("valuesSimilar", lb, rb, tolerance, absolute)
     }
 
-    registerCode[Int]("triangle", TInt32, TInt32, null) { case (_, rt, (nT, n: Code[Int])) => (n * (n + 1)) / 2 }
+    registerCode[Int]("triangle", TInt32, TInt32, null) { case (_, rt, (nT, n: Code[Int])) =>
+      Code.memoize(n, "triangle_n") { n =>
+        (n * (n + 1)) / 2
+      }
+    }
 
     registerCode[Boolean]("toInt32", TBoolean, TInt32, null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI }
     registerCode[Boolean]("toInt64", TBoolean, TInt64, null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI.toL }

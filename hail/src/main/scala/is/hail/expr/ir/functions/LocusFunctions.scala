@@ -38,14 +38,15 @@ object LocusFunctions extends RegistryFunctions {
 
   def emitLocus(srvb: StagedRegionValueBuilder, locus: Code[Locus]): Code[Unit] = {
     val llocal = srvb.mb.newLocal[Locus]
-    Code(
-      llocal := locus,
-      srvb.start(),
-      srvb.addString(locus.invoke[String]("contig")),
-      srvb.advance(),
-      srvb.addInt(locus.invoke[Int]("position")),
-      srvb.advance()
-    )
+    Code.memoize(locus, "locus_funs_emit_locus_locus") { locus =>
+      Code(
+        llocal := locus,
+        srvb.start(),
+        srvb.addString(locus.invoke[String]("contig")),
+        srvb.advance(),
+        srvb.addInt(locus.invoke[Int]("position")),
+        srvb.advance())
+    }
   }
 
   def emitVariant(r: EmitRegion, variant: Code[(Locus, IndexedSeq[String])], rt: PStruct): Code[Long] = {
@@ -197,31 +198,33 @@ object LocusFunctions extends RegistryFunctions {
         val alleles = Code.checkcast[IndexedSeq[String]](wrapArg(r, allelesT)(aOff).asInstanceOf[Code[AnyRef]])
         val tuple = Code.invokeScalaObject[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](VariantMethods.getClass, "minRep", locus, alleles)
 
-        val newLocus = Code.checkcast[Locus](returnTuple.load().getField[java.lang.Object]("_1"))
-        val newAlleles = Code.checkcast[IndexedSeq[String]](returnTuple.load().getField[java.lang.Object]("_2"))
+        Code.memoize(
+          Code.checkcast[Locus](returnTuple.getField[java.lang.Object]("_1")), "min_rep_new_locus",
+          Code.checkcast[IndexedSeq[String]](returnTuple.getField[java.lang.Object]("_2")), "min_rep_new_alleles") { (newLocus, newAlleles) =>
 
-        val newLocusT = rt.field("locus").typ
-        val newAllelesT = rt.field("alleles").typ.asInstanceOf[PArray]
-        val srvb = new StagedRegionValueBuilder(r, rt)
-        Code(
-          returnTuple := tuple,
-          srvb.start(),
-          srvb.addBaseStruct(newLocusT.fundamentalType.asInstanceOf[PStruct], { locusBuilder =>
-            Code(
-              locusBuilder.start(),
-              locusBuilder.addString(newLocus.invoke[String]("contig")),
-              locusBuilder.advance(),
-              locusBuilder.addInt(newLocus.invoke[Int]("position")))
-          }),
-          srvb.advance(),
-          srvb.addArray(newAllelesT, { allelesBuilder =>
-            Code(
-              allelesBuilder.start(newAlleles.invoke[Int]("size")),
-              Code.whileLoop(allelesBuilder.arrayIdx < newAlleles.invoke[Int]("size"),
-                allelesBuilder.addString(Code.checkcast[String](newAlleles.invoke[Int, java.lang.Object]("apply", allelesBuilder.arrayIdx))),
-                allelesBuilder.advance()))
-          }),
-          srvb.offset)
+          val newLocusT = rt.field("locus").typ
+          val newAllelesT = rt.field("alleles").typ.asInstanceOf[PArray]
+          val srvb = new StagedRegionValueBuilder(r, rt)
+          Code(
+            returnTuple := tuple,
+            srvb.start(),
+            srvb.addBaseStruct(newLocusT.fundamentalType.asInstanceOf[PStruct], { locusBuilder =>
+              Code(
+                locusBuilder.start(),
+                locusBuilder.addString(newLocus.invoke[String]("contig")),
+                locusBuilder.advance(),
+                locusBuilder.addInt(newLocus.invoke[Int]("position")))
+            }),
+            srvb.advance(),
+            srvb.addArray(newAllelesT, { allelesBuilder =>
+              Code(
+                allelesBuilder.start(newAlleles.invoke[Int]("size")),
+                Code.whileLoop(allelesBuilder.arrayIdx < newAlleles.invoke[Int]("size"),
+                  allelesBuilder.addString(Code.checkcast[String](newAlleles.invoke[Int, java.lang.Object]("apply", allelesBuilder.arrayIdx))),
+                  allelesBuilder.advance()))
+            }),
+            srvb.offset)
+        }
     }
 
     registerCode("locus_windows_per_contig", TArray(TArray(TFloat64)), TFloat64, TTuple(TArray(TInt32), TArray(TInt32)), null) {
@@ -306,15 +309,17 @@ object LocusFunctions extends RegistryFunctions {
 
     registerCode("Locus", TString, TInt32, tlocus("T"), null) {
       case (r, rt: PLocus, (contigT, contig: Code[Long]), (posT, pos: Code[Int])) =>
-        val srvb = new StagedRegionValueBuilder(r, rt)
-        val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
-        Code(
-          rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", scontig, pos),
-          srvb.start(),
-          srvb.addIRIntermediate(contigT)(contig),
-          srvb.advance(),
-          srvb.addInt(pos),
-          srvb.offset)
+        Code.memoize(asm4s.coerce[Long](contig), "locus_contig", asm4s.coerce[Int](pos), "locus_pos") { (contig, pos) =>
+          val srvb = new StagedRegionValueBuilder(r, rt)
+          val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
+          Code(
+            rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", scontig, pos),
+            srvb.start(),
+            srvb.addIRIntermediate(contigT)(contig),
+            srvb.advance(),
+            srvb.addInt(pos),
+            srvb.offset)
+        }
     }
 
     registerCode("LocusAlleles", TString, tvariant("T"), null) {
@@ -337,7 +342,7 @@ object LocusFunctions extends RegistryFunctions {
 
         EmitCode(
           Code(ioff.setup, invalidMissing.setup),
-          ioff.m || invalidMissing.m || Code(intervalLocal := interval, intervalLocal.load().isNull),
+          ioff.m || invalidMissing.m || Code(intervalLocal := interval, intervalLocal.isNull),
           PCode(rt, emitInterval(r, interval, rt))
         )
     }
@@ -358,7 +363,7 @@ object LocusFunctions extends RegistryFunctions {
 
         EmitCode(
           Code(locoff.setup, pos1.setup, pos2.setup, include1.setup, include2.setup, invalidMissing.setup),
-          locoff.m || pos1.m || pos2.m || include1.m || include2.m || invalidMissing.m || Code(intervalLocal := interval, intervalLocal.load().isNull),
+          locoff.m || pos1.m || pos2.m || include1.m || include2.m || invalidMissing.m || Code(intervalLocal := interval, intervalLocal.isNull),
           PCode(rt, emitInterval(r, interval, rt))
         )
     }
