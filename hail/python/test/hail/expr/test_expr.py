@@ -406,6 +406,12 @@ class Tests(unittest.TestCase):
         table.aggregate(_error_from_cdf(hl.agg.approx_cdf(table.i), .001))
         table.aggregate(_error_from_cdf(hl.agg.approx_cdf(table.i), .001, all_quantiles=True))
 
+    def test_approx_cdf_array_agg(self):
+        mt = hl.utils.range_matrix_table(5, 5)
+        mt = mt.annotate_entries(x = mt.col_idx)
+        mt = mt.group_cols_by(mt.col_idx).aggregate(cdf = hl.agg.approx_cdf(mt.x))
+        mt._force_count_rows()
+
     def test_counter_ordering(self):
         ht = hl.utils.range_table(10)
         assert ht.aggregate(hl.agg.counter(10 - ht.idx).get(10, -1)) == 1
