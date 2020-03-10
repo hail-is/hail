@@ -39,6 +39,15 @@ MACHINE_MEM = {
     'n1-highcpu-64': 57.6
 }
 
+REGION_TO_REPLICATE_MAPPING = {
+    'us-central1': 'us',
+    'us-east1': 'us',
+    'us-east4': 'us',
+    'us-west1': 'us',
+    'us-west2': 'us',
+    'us-west3': 'us'
+}
+
 SPARK_VERSION = '2.4.0'
 IMAGE_VERSION = '1.4-debian9'
 
@@ -148,12 +157,13 @@ def main(args, pass_through_args):
 
     # add VEP init script
     if args.vep:
-        allowed_buckets_list = args.requester_pays_allow_buckets.split(",") if args.requester_pays_allow_buckets else []
-        if not (args.requester_pays_allow_all or ('hail-us-vep' in allowed_buckets_list)):
-            raise RuntimeError("Need to enable requester pays on bucket 'hail-us-vep' to use vep. See --requester-pays-allow-all and --requester-pays-allow-buckets \
-                WARNING: This is likely prohibitively expensive to run on a cluster outside of the GCP 'us' region. If you need to run VEP outside the US, please contact the Hail team on https://discuss.hail.is for support.")
+        # VEP is too expensive if you have to pay egress charges. We must choose the right replicate.
+        project_region = sp.check_output(['gcloud', 'config', 'get-value', 'dataproc/region']).decode().strip()
+        replicate = REGION_TO_REPLICATE_MAPPING.get(project_region)
+        if replicate is None:
+            raise RuntimeError("The --vep argument is not currently provided in your region. Please contact the Hail team on https://discuss.hail.is for support.")
+        conf.extend_flag('metadata', {"VEP_REPLICATE": replicate})
         conf.extend_flag('initialization-actions', [deploy_metadata[f'vep-{args.vep}.sh']])
-        sys.stderr.write("WARNING: Running VEP on clusters outside the GCP 'us' region is VERY expensive. If you need to run VEP outside the US, please contact the Hail team on https://discuss.hail.is for support.")
     # add custom init scripts
     if args.init:
         conf.extend_flag('initialization-actions', args.init.split(','))
