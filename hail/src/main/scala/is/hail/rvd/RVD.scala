@@ -177,7 +177,7 @@ class RVD(
             if (first)
               first = false
             else {
-              if (localType.kRowOrd.gt(prevK.value, rv)) {
+              if (localType.kRowOrd.gt(prevK.value.offset, rv.offset)) {
                 kUR.set(prevK.value)
                 val prevKeyString = kUR.toString()
 

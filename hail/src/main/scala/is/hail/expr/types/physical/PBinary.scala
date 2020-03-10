@@ -15,7 +15,7 @@ abstract class PBinary extends PType {
   lazy val virtualType: TBinary.type = TBinary
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
-    def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
+    def compare(o1: Long, o2: Long): Int = {
       val l1 = loadLength(o1)
       val l2 = loadLength(o2)
 

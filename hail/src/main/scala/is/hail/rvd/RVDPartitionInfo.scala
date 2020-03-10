@@ -66,8 +66,8 @@ object RVDPartitionInfo {
       while (it.hasNext) {
         val f = it.next()
 
-        if (sortedness > UNSORTED && typ.kOrd.lt(f, prevF.value)) {
-          if (pkOrd.lt(f, prevF.value)) {
+        if (sortedness > UNSORTED && typ.kOrd.lt(f.offset, prevF.value.offset)) {
+          if (pkOrd.lt(f.offset, prevF.value.offset)) {
             val curr = f.pretty(typ.kType)
             val prev = prevF.pretty
             log.info(s"unsorted: $curr, $prev")
@@ -82,9 +82,9 @@ object RVDPartitionInfo {
           }
         }
 
-        if (typ.kOrd.lt(f, minF.value))
+        if (typ.kOrd.lt(f.offset, minF.value.offset))
           minF.set(f)
-        if (typ.kOrd.gt(f, maxF.value))
+        if (typ.kOrd.gt(f.offset, maxF.value.offset))
           maxF.set(f)
 
         prevF.set(f)

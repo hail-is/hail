@@ -1561,7 +1561,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
     val localChildRowType = prevRVD.rowPType
     val keyIndices = prev.typ.keyFieldIdx
-    val keyOrd = prevRVD.typ.kRowOrd
+    val keyOrd = prevRVD.typ.kRowOrd.toRVOrdering
     val globalsBc = prev.globals.broadcast
 
     val newRVDType = prevRVD.typ.copy(rowType = rowType)

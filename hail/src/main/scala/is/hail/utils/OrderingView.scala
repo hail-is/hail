@@ -17,12 +17,3 @@ trait OrderingView[A] {
   def setTop() { isInfinite = 1 }
   private var isInfinite: Int = -1
 }
-
-object OrderingView {
-  def fromOrdering[A](implicit ord: Ordering[A]): OrderingView[A] =
-    new OrderingView[A] {
-      private var a: A = _
-      def setFiniteValue(a: A) { this.a = a }
-      def compareFinite(a: A) = ord.compare(this.a, a)
-    }
-}

@@ -52,11 +52,11 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     val binaryOrd = repr.fieldType("contig").asInstanceOf[PBinary].unsafeOrdering()
 
     new UnsafeOrdering {
-      def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
+      def compare(o1: Long, o2: Long): Int = {
         val cOff1 = repr.loadField(o1, 0)
         val cOff2 = repr.loadField(o2, 0)
 
-        if (binaryOrd.compare(r1, cOff1, r2, cOff2) == 0) {
+        if (binaryOrd.compare(cOff1, cOff2) == 0) {
           val posOff1 = repr.loadField(o1, 1)
           val posOff2 = repr.loadField(o2, 1)
           java.lang.Integer.compare(Region.loadInt(posOff1), Region.loadInt(posOff2))
