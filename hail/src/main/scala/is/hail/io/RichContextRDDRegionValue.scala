@@ -169,6 +169,39 @@ object RichContextRDDRegionValue {
   }
 }
 
+class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
+  def boundary: ContextRDD[Long] =
+    crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
+      val producerCtx = consumerCtx.freshContext
+      val it = part.flatMap(_ (producerCtx))
+      new Iterator[Long]() {
+        private[this] var cleared: Boolean = false
+
+        def hasNext: Boolean = {
+          if (!cleared) {
+            cleared = true
+            producerCtx.region.clear()
+          }
+          it.hasNext
+        }
+
+        def next: Long = {
+          if (!cleared) {
+            producerCtx.region.clear()
+          }
+          cleared = false
+          it.next
+        }
+      }
+    }
+
+  def toCRDDRegionValue: ContextRDD[RegionValue] =
+    crdd.cmapPartitionsWithContext { (consumerCtx, part) =>
+      val producerCtx = consumerCtx.freshContext
+      part(producerCtx).map(RegionValue(producerCtx.r, _))
+    }
+}
+
 class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVal {
   def boundary: ContextRDD[RegionValue] =
     crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
@@ -194,6 +227,37 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVa
         }
       }
     }
+
+  def toCRDDPtr: ContextRDD[Long] =
+    crdd.cmap { (consumerCtx, rv) =>
+      consumerCtx.region.addReferenceTo(rv.region)
+      rv.offset
+    }
+
+  def cleanupRegions: ContextRDD[RegionValue] = {
+    crdd.cmapPartitionsAndContext { (ctx, part) =>
+      val it = part.flatMap(_ (ctx))
+      new Iterator[RegionValue]() {
+        private[this] var cleared: Boolean = false
+
+        def hasNext: Boolean = {
+          if (!cleared) {
+            cleared = true
+            ctx.region.clear()
+          }
+          it.hasNext
+        }
+
+        def next: RegionValue = {
+          if (!cleared) {
+            ctx.region.clear()
+          }
+          cleared = false
+          it.next
+        }
+      }
+    }
+  }
 
   def writeRows(
     path: String,
