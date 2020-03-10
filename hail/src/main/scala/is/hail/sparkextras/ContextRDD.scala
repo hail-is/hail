@@ -313,6 +313,15 @@ class ContextRDD[T: ClassTag](
   def shuffleCoalesce(numPartitions: Int): ContextRDD[T] =
     ContextRDD.weaken(run.coalesce(numPartitions, true))
 
+  // partEnds are the inclusive index of the last element of parts to be coalesced, that is, for
+  // a ContextRDD with 8 partitions, being naively coalesced to 3, one example set of part ends is
+  // [2, 5, 7]. With this, original partion indicies 0, 1, and 2 make up the first new partition 3,
+  // 4, and 5 make up the second, and 6 and 7 make up the third.
+  def coalesceWithEnds(partEnds: Array[Int]): ContextRDD[T] =
+    onRDD(rdd => {
+      rdd.coalesce(partEnds.length, shuffle = false, partitionCoalescer = Some(new CRDDCoalescer(partEnds)))
+    })
+
   def runJob[U: ClassTag](f: Iterator[T] => U, partitions: Seq[Int]): Array[U] =
     sparkContext.runJob(
       rdd,
@@ -349,4 +358,20 @@ class ContextRDD[T: ClassTag](
   private[this] def onRDD[U: ClassTag](
     f: RDD[RVDContext => Iterator[T]] => RDD[RVDContext => Iterator[U]]
   ): ContextRDD[U] = new ContextRDD(f(rdd))
+}
+
+private class CRDDCoalescer(partEnds: Array[Int]) extends PartitionCoalescer with Serializable {
+  def coalesce(maxPartitions: Int, prev: RDD[_]): Array[PartitionGroup] = {
+    assert(maxPartitions == partEnds.length)
+    val groups = Array.fill(maxPartitions)(new PartitionGroup())
+    val parts = prev.partitions
+    var i = 0
+    for ((end, j) <- partEnds.zipWithIndex) {
+      while (i <= end) {
+        groups(j).partitions += parts(i)
+        i += 1
+      }
+    }
+    groups
+  }
 }

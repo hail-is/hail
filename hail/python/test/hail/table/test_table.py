@@ -1210,6 +1210,12 @@ class Tests(unittest.TestCase):
         hl.import_vcf(resource('sample.vcf')).rows().key_by('locus').write(path)
         hl.read_table(path).select()._force_count()
 
+    def test_repartition_empty_key(self):
+        data = [{'x': i} for i in range(1000)]
+        ht = hl.Table.parallelize(data, hl.tstruct(x=hl.tint32), key=None, n_partitions=11)
+        assert ht.naive_coalesce(4)._same(ht)
+        assert ht.repartition(3, shuffle=False)._same(ht)
+
 def test_large_number_of_fields(tmpdir):
     ht = hl.utils.range_table(100)
     ht = ht.annotate(**{
