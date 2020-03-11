@@ -162,17 +162,17 @@ private class BgenRDD(
       split match {
         case p: IndexBgenPartition =>
           assert(keys == null)
-          new IndexBgenRecordIterator(ctx, p, settings, f(p.partitionIndex, ctx.freshRegion)).flatten
+          new IndexBgenRecordIterator(ctx, p, settings, f(p.partitionIndex, ctx.partitionRegion)).flatten
         case p: LoadBgenPartition =>
           val index: IndexReader = indexBuilder(p.bcFS.value, p.indexPath, 8)
           context.addTaskCompletionListener { (context: TaskContext) =>
             index.close()
           }
           if (keys == null)
-            new BgenRecordIteratorWithoutFilter(ctx, p, settings, f(p.partitionIndex, ctx.freshRegion), index).flatten
+            new BgenRecordIteratorWithoutFilter(ctx, p, settings, f(p.partitionIndex, ctx.partitionRegion), index).flatten
           else {
             val keyIterator = keys.iterator(p.filterPartition, context)
-            new BgenRecordIteratorWithFilter(ctx, p, settings, f(p.partitionIndex, ctx.freshRegion), index, keyIterator).flatten
+            new BgenRecordIteratorWithFilter(ctx, p, settings, f(p.partitionIndex, ctx.partitionRegion), index, keyIterator).flatten
           }
       }
     }

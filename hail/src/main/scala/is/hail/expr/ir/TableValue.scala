@@ -55,7 +55,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     val localGlobals = globals.broadcast
     copy(rvd = rvd.filterWithContext[(P, RegionValue)](
       { (partitionIdx, ctx) =>
-        val globalRegion = ctx.freshRegion
+        val globalRegion = ctx.partitionRegion
         (partitionOp(partitionIdx, globalRegion), RegionValue(globalRegion, localGlobals.value.readRegionValue(globalRegion)))
       }, { case ((p, glob), rv) => pred(p, rv, glob) }))
   }
