@@ -1,10 +1,17 @@
 package is.hail.annotations
 
 import is.hail.utils._
+import org.apache.spark.TaskContext
 
 object RegionPool {
   private lazy val thePool: ThreadLocal[RegionPool] = new ThreadLocal[RegionPool]() {
-    override def initialValue(): RegionPool = RegionPool()
+    override def initialValue(): RegionPool = {
+      val pool = RegionPool()
+      TaskContext.get().addTaskCompletionListener { (_: TaskContext) =>
+        pool.close()
+      }
+      pool
+    }
   }
 
   def get: RegionPool = thePool.get()
