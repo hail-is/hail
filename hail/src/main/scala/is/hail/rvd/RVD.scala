@@ -543,17 +543,21 @@ class RVD(
     RVD(typ, partitioner, crdd.boundary.cfilter(p))
 
   def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RVDContext, Long) => Boolean): RVD = {
-    mapPartitionsWithIndex(typ) { (i, context, it) =>
-      val c = makeContext(i, context)
-      it.filter { ptr =>
-        if (f(c, context, ptr))
-          true
-        else {
-          context.r.clear()
-          false
+    val crdd: ContextRDD[Long] = this.crdd.cmapPartitionsWithContextAndIndex { (i, consumerCtx, iteratorToFilter) =>
+      val c = makeContext(i, consumerCtx)
+      val producerCtx = consumerCtx.freshContext
+      iteratorToFilter(producerCtx).filter { ptr =>
+        val b = f(c, consumerCtx, ptr)
+        if (b) {
+          producerCtx.region.move(consumerCtx.region)
         }
+        else {
+          producerCtx.region.clear()
+        }
+        b
       }
     }
+    RVD(this.typ, this.partitioner, crdd)
   }
 
   def filterIntervals(intervals: RVDPartitioner, keep: Boolean): RVD = {

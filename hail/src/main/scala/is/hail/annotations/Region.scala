@@ -374,6 +374,11 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory.addReferenceTo(r.memory)
   }
 
+  def move(r: Region): Unit = {
+    this.memory.unsafeMoveReferenceTo(r.memory)
+    this.memory = pool.getMemory(blockSize)
+  }
+
   def nReferencedRegions(): Long = memory.nReferencedRegions()
 
   def getNewRegion(blockSize: Region.Size): Unit = {
