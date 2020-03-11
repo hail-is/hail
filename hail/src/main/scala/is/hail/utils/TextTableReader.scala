@@ -166,7 +166,7 @@ object TextTableReader {
     val nMatchers = matchers.length
 
     val (imputation, allDefined) = values.mapPartitions { it =>
-      val allDefined = Array.fill(nFields)(false)
+      val allDefined = Array.fill(nFields)(true)
       val ma = MultiArray2.fill[Boolean](nFields, nMatchers + 1)(true)
       val ab = new ArrayBuilder[String]
       val sb = new StringBuilder
