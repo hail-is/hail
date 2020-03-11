@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+{% block title %}Billing{% endblock %}
+{% block content %}
+<h1>Billing</h1>
+<div class="flex-col" style="width: 100%; min-width: 653px; max-width: 1024px;">
+    <div class="flex-col-align-left">
+        <form method="GET" action="{{ base_path }}/billing">
+            <label for="start">Start:</label>
+            <input style="vertical-align:text-bottom;" name="start" size=30 type="text" required
+                   {% if start %}
+                   value = "{{ start }}"
+                   {% else %}
+                   placeholder="MM/DD/YYYY"
+                   {% endif %}
+            ><br>
+            <label for="end">End:</label>
+            <input style="vertical-align:text-bottom;" name="end" size=30 type="text" required
+                   {% if end %}
+                   value = "{{ end }}"
+                   {% else %}
+                   placeholder="MM/DD/YYYY"
+                   {% endif %}
+            ><br>
+            <button type="submit">Submit</button>
+        </form>
+    </div>
+    <h2>Cost by Billing Project</h2>
+    <div class='flex-col' style="overflow: auto;">
+        <table class="data-table" id="billing_by_project">
+            <thead>
+            <tr>
+                <th>Billing Project</th>
+                <th>Cost</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in billing_by_project %}
+            <tr>
+                <td>{{ row['billing_project'] }}</td>
+                <td>{{ row['cost'] }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <h2>Cost by User</h2>
+    <div class='flex-col' style="overflow: auto;">
+        <table class="data-table" id="billing_by_user">
+            <thead>
+            <tr>
+                <th>User</th>
+                <th>Cost</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in billing_by_user %}
+            <tr>
+                <td>{{ row['user'] }}</td>
+                <td>{{ row['cost'] }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <h2>Cost by Billing Project and User</h2>
+    <div class='flex-col' style="overflow: auto;">
+        <table class="data-table" id="billing_by_project_user">
+            <thead>
+            <tr>
+                <th>Billing Project</th>
+                <th>User</th>
+                <th>Cost</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in billing_by_project_user %}
+            <tr>
+                <td>{{ row['billing_project'] }}</td>
+                <td>{{ row['user'] }}</td>
+                <td>{{ row['cost'] }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
