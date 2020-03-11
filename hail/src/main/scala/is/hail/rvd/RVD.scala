@@ -282,8 +282,17 @@ class RVD(
     val newN = maxPartitions
     val newNParts = partition(n, newN)
     assert(newNParts.forall(_ > 0))
-    val newPartitioner = partitioner.coalesceRangeBounds(newNParts.scanLeft(-1)(_ + _).tail)
-    repartition(newPartitioner, executeContext)
+    val newPartEnd = newNParts.scanLeft(-1)(_ + _).tail
+    val newPartitioner = partitioner.coalesceRangeBounds(newPartEnd)
+
+    if (newPartitioner == partitioner) {
+      this
+    } else {
+      new RVD(
+        typ,
+        newPartitioner,
+        crdd.coalesceWithEnds(newPartEnd))
+    }
   }
 
   def coalesce(
@@ -296,20 +305,25 @@ class RVD(
     if (!shuffle && maxPartitions >= n)
       return this
 
-    val newPartitioner = if (shuffle) {
+    if (shuffle) {
       val enc = TypedCodecSpec(rowPType, BufferSpec.wireSpec)
       val shuffledBytes = stabilize(enc).coalesce(maxPartitions, shuffle = true)
       val (newRowPType, shuffled) = destabilize(shuffledBytes, enc)
       if (typ.key.isEmpty)
         return RVD.unkeyed(newRowPType, shuffled)
-      else {
-        val newType = RVDType(newRowPType, typ.key)
-        val keyInfo = RVD.getKeyInfo(newType, newType.key.length, RVD.getKeys(newType, shuffled))
-        if (keyInfo.isEmpty)
-          return RVD.empty(sparkContext, typ)
-        RVD.calculateKeyRanges(
-          newType, keyInfo, shuffled.getNumPartitions, newType.key.length)
-      }
+
+      val newType = RVDType(newRowPType, typ.key)
+      val keyInfo = RVD.getKeyInfo(newType, newType.key.length, RVD.getKeys(newType, shuffled))
+      if (keyInfo.isEmpty)
+        return RVD.empty(sparkContext, typ)
+      val newPartitioner = RVD.calculateKeyRanges(
+        newType, keyInfo, shuffled.getNumPartitions, newType.key.length)
+
+      if (newPartitioner.numPartitions< maxPartitions)
+        warn(s"coalesced to ${ newPartitioner.numPartitions} " +
+          s"${ plural(newPartitioner.numPartitions, "partition") }, less than requested $maxPartitions")
+
+      repartition(newPartitioner, executeContext, shuffle)
     } else {
       val partSize = countPerPartition()
       log.info(s"partSize = ${ partSize.toSeq }")
@@ -336,13 +350,20 @@ class RVD(
       newPartEnd = newPartEnd.zipWithIndex.filter { case (end, i) => i == 0 || newPartEnd(i) != newPartEnd(i - 1) }
         .map(_._1)
 
-      partitioner.coalesceRangeBounds(newPartEnd)
-    }
-    if (newPartitioner.numPartitions< maxPartitions)
-      warn(s"coalesced to ${ newPartitioner.numPartitions} " +
-        s"${ plural(newPartitioner.numPartitions, "partition") }, less than requested $maxPartitions")
+      val newPartitioner = partitioner.coalesceRangeBounds(newPartEnd)
+      if (newPartitioner.numPartitions< maxPartitions)
+        warn(s"coalesced to ${ newPartitioner.numPartitions} " +
+          s"${ plural(newPartitioner.numPartitions, "partition") }, less than requested $maxPartitions")
 
-    repartition(newPartitioner, executeContext, shuffle)
+      if (newPartitioner == partitioner) {
+        this
+      } else {
+        new RVD(
+          typ,
+          newPartitioner,
+          crdd.coalesceWithEnds(newPartEnd))
+      }
+    }
   }
 
   // Key-wise operations
