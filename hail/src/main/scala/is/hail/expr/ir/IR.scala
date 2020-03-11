@@ -247,9 +247,9 @@ final case class StreamAggScan(a: IR, name: String, query: IR) extends IR
 
 trait InferredPhysicalAggSignature {
   // will be filled in by InferPType in subsequent PR
+  var physicalSignatures: Array[AggStatePhysicalSignature] = _
+
   def signature: IndexedSeq[AggStateSignature]
-  var physicalSignatures2: Array[AggStatePhysicalSignature] = _
-  val physicalSignatures: Array[AggStatePhysicalSignature] = signature.map(_.toCanonicalPhysical).toArray
 }
 final case class RunAgg(body: IR, result: IR, signature: IndexedSeq[AggStateSignature]) extends IR with InferredPhysicalAggSignature
 final case class RunAggScan(array: IR, name: String, init: IR, seqs: IR, result: IR, signature: IndexedSeq[AggStateSignature]) extends IR with InferredPhysicalAggSignature

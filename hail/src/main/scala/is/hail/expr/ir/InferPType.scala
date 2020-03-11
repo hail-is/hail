@@ -592,7 +592,7 @@ object InferPType {
         infer(body, env, inits = inits, seqs = seqs, aggs = null)
         val sigs = signature.indices.map { i => computePhysicalAgg(signature(i), inits(i), seqs(i)) }.toArray
         infer(result, env, aggs = sigs, inits = null, seqs = null)
-        x.physicalSignatures2 = sigs
+        x.physicalSignatures = sigs
         result.pType
       case x@RunAggScan(array, name, init, seq, result, signature) =>
         infer(array)
@@ -603,7 +603,7 @@ object InferPType {
         infer(seq, env = e2, inits = null, seqs = seqs, aggs = null)
         val sigs = signature.indices.map { i => computePhysicalAgg(signature(i), inits(i), seqs(i)) }.toArray
         infer(result, env = e2, aggs = sigs, inits = null, seqs = null)
-        x.physicalSignatures2 = sigs
+        x.physicalSignatures = sigs
         coerce[PStream](array.pType).copy(result.pType)
       case AggStateValue(i, sig) => PCanonicalBinary(true)
       case x if x.typ == TVoid =>
