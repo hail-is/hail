@@ -1210,7 +1210,7 @@ object LoadVCF {
     val vaSignature = PCanonicalStruct(Array(
       PField("rsid", PCanonicalString(), 0),
       PField("qual", PFloat64(), 1),
-      PField("filters", PCanonicalSet(PCanonicalString(true), true), 2),
+      PField("filters", PCanonicalSet(PCanonicalString(true)), 2),
       PField("info", infoSignature, 3)), true)
 
     val headerLine = lines.last
