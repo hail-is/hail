@@ -178,6 +178,7 @@ def main(args, pass_through_args):
         replicate = REGION_TO_REPLICATE_MAPPING.get(project_region)
         if replicate is None:
             raise RuntimeError("The --vep argument is not currently provided in your region. Please contact the Hail team on https://discuss.hail.is for support.")
+        print(f"Pulling VEP data from bucket in {replicate}.")
         conf.extend_flag('metadata', {"VEP_REPLICATE": replicate})
         conf.extend_flag('initialization-actions', [deploy_metadata[f'vep-{args.vep}.sh']])
     # add custom init scripts
