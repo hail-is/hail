@@ -1,5 +1,3 @@
-BENCHMARK_WHEEL := python/dist/benchmark_hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
-
 ifndef HAIL_WHEEL
 $(error HAIL_WHEEL is not set!)
 endif
@@ -50,8 +48,8 @@ push-benchmark-image: build-benchmark-image
 	docker tag $(BENCHMARK_DOCKER_TAG) $(BENCHMARK_LATEST)
 	docker push $(BENCHMARK_LATEST)
 
-BENCHMARK_ITERS ?= 5
-BENCHMARK_REPLICATES ?= 3
+BENCHMARK_ITERS ?= 3
+BENCHMARK_REPLICATES ?= 5
 HAIL_WHEEL_DESCRIPTOR ?= $(HAIL_VERSION)-$(SHORT_REVISION)
 .PHONY: benchmark
 benchmark: push-benchmark-image install
