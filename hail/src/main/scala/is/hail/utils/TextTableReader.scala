@@ -358,7 +358,7 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
 
     val useColIndices = rowTyp.fields.map(f => fullType.rowType.fieldIdx(f.name))
 
-    val crdd = ContextRDD.textFilesLines[RVDContext](hc.sc, metadata.globbedFiles, options.nPartitions, options.filterAndReplace)
+    val crdd = ContextRDD.textFilesLines(hc.sc, metadata.globbedFiles, options.nPartitions, options.filterAndReplace)
       .filter { line =>
         !options.isComment(line.value) &&
           (!options.hasHeader || metadata.header != line.value) &&

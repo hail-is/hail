@@ -68,7 +68,7 @@ trait Implicits {
 
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
-  implicit def toRichContextRDDRegionValue(r: ContextRDD[RVDContext, RegionValue]): RichContextRDDRegionValue = new RichContextRDDRegionValue(r)
+  implicit def toRichContextRDDRegionValue(r: ContextRDD[RegionValue]): RichContextRDDRegionValue = new RichContextRDDRegionValue(r)
 
   implicit def toRichRegex(r: Regex): RichRegex = new RichRegex(r)
 
@@ -104,11 +104,11 @@ trait Implicits {
 
   implicit def toRichPartialKleisliOptionFunction[A, B](x: PartialFunction[A, Option[B]]): RichPartialKleisliOptionFunction[A, B] = new RichPartialKleisliOptionFunction(x)
 
-  implicit def toContextPairRDDFunctions[C <: AutoCloseable, K: ClassTag, V: ClassTag](x: ContextRDD[C, (K, V)]): ContextPairRDDFunctions[C, K, V] = new ContextPairRDDFunctions(x)
+  implicit def toContextPairRDDFunctions[K: ClassTag, V: ClassTag](x: ContextRDD[(K, V)]): ContextPairRDDFunctions[K, V] = new ContextPairRDDFunctions(x)
 
-  implicit def toRichContextRDD[T: ClassTag](x: ContextRDD[RVDContext, T]): RichContextRDD[T] = new RichContextRDD(x)
+  implicit def toRichContextRDD[T: ClassTag](x: ContextRDD[T]): RichContextRDD[T] = new RichContextRDD(x)
 
-  implicit def toRichContextRDDRow(x: ContextRDD[RVDContext, Row]): RichContextRDDRow = new RichContextRDDRow(x)
+  implicit def toRichContextRDDRow(x: ContextRDD[Row]): RichContextRDDRow = new RichContextRDDRow(x)
 
   implicit def toRichCodeInputBuffer(in: Code[InputBuffer]): RichCodeInputBuffer = new RichCodeInputBuffer(in)
 

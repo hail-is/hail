@@ -717,9 +717,9 @@ class HailContext private(
     enc: AbstractTypedCodecSpec,
     partFiles: Array[String],
     requestedType: TStruct
-  ): (PStruct, ContextRDD[RVDContext, RegionValue]) = {
+  ): (PStruct, ContextRDD[RegionValue]) = {
     val (pType: PStruct, makeDec) = enc.buildDecoder(requestedType)
-    (pType, ContextRDD.weaken[RVDContext](readPartitions(path, partFiles, (_, is, m) => Iterator.single(is -> m)))
+    (pType, ContextRDD.weaken(readPartitions(path, partFiles, (_, is, m) => Iterator.single(is -> m)))
       .cmapPartitions { (ctx, it) =>
         assert(it.hasNext)
         val (is, m) = it.next
@@ -735,9 +735,9 @@ class HailContext private(
     partFiles: Array[String],
     bounds: Array[Interval],
     requestedType: TStruct
-  ): (PStruct, ContextRDD[RVDContext, RegionValue]) = {
+  ): (PStruct, ContextRDD[RegionValue]) = {
     val (pType: PStruct, makeDec) = enc.buildDecoder(requestedType)
-    (pType, ContextRDD.weaken[RVDContext](readIndexedPartitions(path, indexSpec, partFiles, Some(bounds)))
+    (pType, ContextRDD.weaken(readIndexedPartitions(path, indexSpec, partFiles, Some(bounds)))
       .cmapPartitions { (ctx, it) =>
         assert(it.hasNext)
         val (is, idxr, bounds, m) = it.next
@@ -758,7 +758,7 @@ class HailContext private(
     bounds: Array[Interval],
     requestedTypeRows: TStruct,
     requestedTypeEntries: TStruct
-  ): (PStruct, ContextRDD[RVDContext, RegionValue]) = {
+  ): (PStruct, ContextRDD[RegionValue]) = {
     require(!(indexSpecRows.isEmpty ^ indexSpecEntries.isEmpty))
     val localFS = bcFS
     val (rowsType: PStruct, makeRowsDec) = rowsEnc.buildDecoder(requestedTypeRows)
@@ -802,7 +802,7 @@ class HailContext private(
 
     val rowsOffsetField = indexSpecRows.flatMap(_.offsetField)
     val entriesOffsetField = indexSpecEntries.flatMap(_.offsetField)
-    (t, ContextRDD.weaken[RVDContext](rdd).cmapPartitionsWithIndex { (i, ctx, it) =>
+    (t, ContextRDD.weaken(rdd).cmapPartitionsWithIndex { (i, ctx, it) =>
       assert(it.hasNext)
       val (isRows, isEntries, idxr, bounds, m) = it.next
       assert(!it.hasNext)

@@ -202,7 +202,7 @@ case class MatrixPLINKReader(
       sc.hadoopConfiguration.setInt("nSamples", nSamples)
       sc.hadoopConfiguration.setBoolean("a2Reference", a2Reference)
 
-      val crdd = ContextRDD.weaken[RVDContext](
+      val crdd = ContextRDD.weaken(
         sc.hadoopFile(
           bed,
           classOf[PlinkInputFormat],

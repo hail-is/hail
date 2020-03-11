@@ -459,7 +459,7 @@ object Nirvana {
     val nirvanaRVD: RVD = RVD(
       nirvanaRVDType,
       prev.partitioner,
-      ContextRDD.weaken[RVDContext](annotations).cmapPartitions { (ctx, it) =>
+      ContextRDD.weaken(annotations).cmapPartitions { (ctx, it) =>
         val region = ctx.region
         val rvb = new RegionValueBuilder(region)
         val rv = RegionValue(region)
