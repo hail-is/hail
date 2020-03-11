@@ -98,4 +98,12 @@ package object ir {
     case TFloat32 => F32(0f)
     case TFloat64 => F64(0d)
   }
+
+  def mapIR(stream: IR)(f: IR => IR): IR = {
+    val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
+    StreamMap(stream, ref.name, f(ref))
+  }
+
+  def rangeIR(n: IR): IR = StreamRange(0, n, 1)
+  def rangeIR(start: IR, stop: IR): IR = StreamRange(start, stop, 1)
 }
