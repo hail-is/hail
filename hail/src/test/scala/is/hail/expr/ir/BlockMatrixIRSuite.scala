@@ -15,15 +15,18 @@ class BlockMatrixIRSuite extends HailSuite {
   val BLOCK_SIZE = 10
   val shape: Array[Long] = Array[Long](N_ROWS, N_COLS)
 
+  def toIR(bdm: BDM[Double], blockSize: Int = BLOCK_SIZE): BlockMatrixIR =
+    ValueToBlockMatrix(Literal(TArray(TFloat64), bdm.t.toArray.toFastIndexedSeq),
+      FastIndexedSeq(bdm.rows, bdm.cols), blockSize)
+
   def fill(v: Double, nRows: Int = N_ROWS, nCols: Int = N_COLS, blockSize: Int = BLOCK_SIZE) =
-    ValueToBlockMatrix(MakeArray(Array.fill(nRows * nCols)(F64(v)).toFastIndexedSeq, TArray(TFloat64)),
-      FastIndexedSeq(nRows, nCols), blockSize)
+    toIR(BDM.fill[Double](nRows, nCols)(v), blockSize)
 
   val ones: BlockMatrixIR = fill(1)
 
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.allRelational
 
-  def makeMap2(left: BlockMatrixIR, right: BlockMatrixIR, op: BinaryOp, strategy: SparsityStrategy):
+  def makeMap2(left: BlockMatrixIR, right: BlockMatrixIR,  op: BinaryOp, strategy: SparsityStrategy):
   BlockMatrixMap2 = {
     BlockMatrixMap2(left, right, "l", "r", ApplyBinaryPrimOp(op, Ref("l", TFloat64), Ref("r", TFloat64)), strategy)
   }
@@ -87,12 +90,12 @@ class BlockMatrixIRSuite extends HailSuite {
       val leftRowOp = makeMap2(broadcastRowVector, ones, op, merge)
       val leftColOp = makeMap2(broadcastColVector, ones, op, merge)
 
-      BDM.tabulate(3, 3) { (_, j) => f(1.0, j + 1) }
+      BDM.tabulate(3, 3){ (_, j) => f(1.0, j + 1) }
 
-      val expectedRightRowOp = BDM.tabulate(3, 3) { (_, j) => f(1.0, j + 1) }
-      val expectedRightColOp = BDM.tabulate(3, 3) { (i, _) => f(1.0, i + 1) }
-      val expectedLeftRowOp = BDM.tabulate(3, 3) { (_, j) => f(j + 1, 1.0) }
-      val expectedLeftColOp = BDM.tabulate(3, 3) { (i, _) => f(i + 1, 1.0) }
+      val expectedRightRowOp = BDM.tabulate(3, 3){ (_, j) => f(1.0, j + 1) }
+      val expectedRightColOp = BDM.tabulate(3, 3){ (i, _) => f(1.0, i + 1) }
+      val expectedLeftRowOp = BDM.tabulate(3, 3){ (_, j) => f(j + 1, 1.0) }
+      val expectedLeftColOp = BDM.tabulate(3, 3){ (i, _) => f(i + 1, 1.0) }
 
       assertBMEvalsTo(rightRowOp, expectedRightRowOp)
       assertBMEvalsTo(rightColOp, expectedRightColOp)
@@ -102,7 +105,8 @@ class BlockMatrixIRSuite extends HailSuite {
   }
 
   @Test def testBlockMatrixDot() {
-    assertBMEvalsTo(BlockMatrixDot(fill(2, nRows = N_ROWS, nCols = 5), fill(3, nRows = 5, nCols = N_COLS)),
-      BDM.fill[Double](N_ROWS, N_COLS)(2 * 3 * 5))
+    val m1 = BDM.tabulate[Double](5, 4)((i, j) => (i + 1) * j)
+    val m2 = BDM.tabulate[Double](4, 6)((i, j) => (i + 5) * (j - 2))
+    assertBMEvalsTo(BlockMatrixDot(toIR(m1), toIR(m2)), m1 * m2)
   }
 }
