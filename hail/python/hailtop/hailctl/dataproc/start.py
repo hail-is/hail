@@ -45,7 +45,13 @@ REGION_TO_REPLICATE_MAPPING = {
     'us-east4': 'us',
     'us-west1': 'us',
     'us-west2': 'us',
-    'us-west3': 'us'
+    'us-west3': 'us',
+    # Europe != EU
+    'europe-north1': 'eu',
+    'europe-west1': 'eu',
+    'europe-west2': 'uk',
+    'europe-west3': 'eu',
+    'europe-west4': 'eu',
 }
 
 SPARK_VERSION = '2.4.0'
@@ -172,6 +178,7 @@ def main(args, pass_through_args):
         replicate = REGION_TO_REPLICATE_MAPPING.get(project_region)
         if replicate is None:
             raise RuntimeError("The --vep argument is not currently provided in your region. Please contact the Hail team on https://discuss.hail.is for support.")
+        print(f"Pulling VEP data from bucket in {replicate}.")
         conf.extend_flag('metadata', {"VEP_REPLICATE": replicate})
         conf.extend_flag('initialization-actions', [deploy_metadata[f'vep-{args.vep}.sh']])
     # add custom init scripts
