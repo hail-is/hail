@@ -3,8 +3,7 @@ package is.hail.expr.ir
 import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.expr.types.virtual.{TArray, TFloat64, TNDArray}
-import is.hail.linalg.BlockMatrix
+import is.hail.expr.types.virtual.{TArray, TFloat64}
 import is.hail.utils._
 import is.hail.TestUtils._
 import org.testng.annotations.Test
@@ -13,197 +12,101 @@ class BlockMatrixIRSuite extends HailSuite {
 
   val N_ROWS = 3
   val N_COLS = 3
+  val BLOCK_SIZE = 10
   val shape: Array[Long] = Array[Long](N_ROWS, N_COLS)
 
-  val negFours: BlockMatrix = BlockMatrix.fill(hc, N_ROWS, N_COLS,-4)
-  val zeros: BlockMatrix    = BlockMatrix.fill(hc, N_ROWS, N_COLS, 0)
-  val ones: BlockMatrix     = BlockMatrix.fill(hc, N_ROWS, N_COLS, 1)
-  val twos: BlockMatrix     = BlockMatrix.fill(hc, N_ROWS, N_COLS, 2)
-  val threes: BlockMatrix   = BlockMatrix.fill(hc, N_ROWS, N_COLS, 3)
-  val fours: BlockMatrix    = BlockMatrix.fill(hc, N_ROWS, N_COLS, 4)
+  def toIR(bdm: BDM[Double], blockSize: Int = BLOCK_SIZE): BlockMatrixIR =
+    ValueToBlockMatrix(Literal(TArray(TFloat64), bdm.t.toArray.toFastIndexedSeq),
+      FastIndexedSeq(bdm.rows, bdm.cols), blockSize)
 
-  def toBM(rows: Seq[Array[Double]]): BlockMatrix =
-    toBM(rows, BlockMatrix.defaultBlockSize)
+  def fill(v: Double, nRows: Int = N_ROWS, nCols: Int = N_COLS, blockSize: Int = BLOCK_SIZE) =
+    toIR(BDM.fill[Double](nRows, nCols)(v), blockSize)
 
-  def toBM(rows: Seq[Array[Double]], blockSize: Int): BlockMatrix = {
-    val n = rows.length
-    val m = if (n == 0) 0 else rows.head.length
+  val ones: BlockMatrixIR = fill(1)
 
-    BlockMatrix.fromBreezeMatrix(sc, new BDM[Double](m, n, rows.flatten.toArray).t, blockSize)
-  }
-
-  def makeMatFromCol(vec: Seq[Double]): BlockMatrix = {
-    toBM(vec.map(entry => Array(entry, entry, entry)))
-  }
-
-  def makeMatFromRow(vec: Seq[Double]): BlockMatrix = {
-    toBM(Seq(vec.toArray, vec.toArray, vec.toArray))
-  }
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.allRelational
 
   def makeMap2(left: BlockMatrixIR, right: BlockMatrixIR,  op: BinaryOp, strategy: SparsityStrategy):
   BlockMatrixMap2 = {
     BlockMatrixMap2(left, right, "l", "r", ApplyBinaryPrimOp(op, Ref("l", TFloat64), Ref("r", TFloat64)), strategy)
   }
 
-  def assertBmEq(actual: BlockMatrix, expected: BlockMatrix) {
-    assert(actual.toBreezeMatrix() == expected.toBreezeMatrix())
-  }
-
-
   @Test def testBlockMatrixWriteRead() {
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
     val tempPath = tmpDir.createLocalTempFile()
-    Interpret[Unit](ctx, BlockMatrixWrite(new BlockMatrixLiteral(ones),
+    Interpret[Unit](ctx, BlockMatrixWrite(ones,
       BlockMatrixNativeWriter(tempPath, false, false, false)))
 
-    val actualMatrix = BlockMatrixRead(BlockMatrixNativeReader(tempPath)).execute(ctx)
-    assertBmEq(actualMatrix, ones)
+    assertBMEvalsTo(BlockMatrixRead(BlockMatrixNativeReader(tempPath)), BDM.fill[Double](N_ROWS, N_COLS)(1))
   }
 
-
   @Test def testBlockMatrixMap() {
-    val sqrtFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), "element", Apply("sqrt", FastIndexedSeq(Ref("element", TFloat64)), TFloat64), false)
-    val negFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), "element", ApplyUnaryPrimOp(Negate(), Ref("element", TFloat64)), false)
-    val logOnesIR = BlockMatrixMap(new BlockMatrixLiteral(ones), "element", Apply("log", FastIndexedSeq(Ref("element", TFloat64)), TFloat64), true)
-    val absNegFoursIR = BlockMatrixMap(new BlockMatrixLiteral(negFours), "element", Apply("abs", FastIndexedSeq(Ref("element", TFloat64)), TFloat64), false)
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
+    val sqrtIR = BlockMatrixMap(ones, "element", Apply("sqrt", FastIndexedSeq(Ref("element", TFloat64)), TFloat64), false)
+    val negIR = BlockMatrixMap(ones, "element", ApplyUnaryPrimOp(Negate(), Ref("element", TFloat64)), false)
+    val logIR = BlockMatrixMap(ones, "element", Apply("log", FastIndexedSeq(Ref("element", TFloat64)), TFloat64), true)
+    val absIR = BlockMatrixMap(ones, "element", Apply("abs", FastIndexedSeq(Ref("element", TFloat64)), TFloat64), false)
 
-    assertBmEq(sqrtFoursIR.execute(ctx), twos)
-    assertBmEq(negFoursIR.execute(ctx), negFours)
-    assertBmEq(logOnesIR.execute(ctx), zeros)
-    assertBmEq(absNegFoursIR.execute(ctx), fours)
+    assertBMEvalsTo(sqrtIR, BDM.fill[Double](3, 3)(1))
+    assertBMEvalsTo(negIR, BDM.fill[Double](3, 3)(-1))
+    assertBMEvalsTo(logIR, BDM.fill[Double](3, 3)(0))
+    assertBMEvalsTo(absIR, BDM.fill[Double](3, 3)(1))
   }
 
   @Test def testBlockMatrixBroadcastValue_Scalars() {
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
     val broadcastTwo = BlockMatrixBroadcast(
-      ValueToBlockMatrix(MakeArray(Seq[F64](F64(2)), TArray(TFloat64)), Array[Long](1, 1), 4096),
-      FastIndexedSeq(), shape, 4096)
+      ValueToBlockMatrix(MakeArray(Seq[F64](F64(2)), TArray(TFloat64)), Array[Long](1, 1), ones.typ.blockSize),
+      FastIndexedSeq(), shape, ones.typ.blockSize)
 
-    val onesAddTwo = makeMap2(new BlockMatrixLiteral(ones), broadcastTwo, Add(), UnionBlocks)
-    val threesSubTwo = makeMap2(new BlockMatrixLiteral(threes), broadcastTwo, Subtract(), UnionBlocks)
-    val twosMulTwo = makeMap2(new BlockMatrixLiteral(twos), broadcastTwo, Multiply(), IntersectionBlocks)
-    val foursDivTwo = makeMap2(new BlockMatrixLiteral(fours), broadcastTwo, FloatingPointDivide(), NeedsDense)
+    val onesAddTwo = makeMap2(ones, broadcastTwo, Add(), UnionBlocks)
+    val onesSubTwo = makeMap2(ones, broadcastTwo, Subtract(), UnionBlocks)
+    val onesMulTwo = makeMap2(ones, broadcastTwo, Multiply(), IntersectionBlocks)
+    val onesDivTwo = makeMap2(ones, broadcastTwo, FloatingPointDivide(), NeedsDense)
 
-    assertBmEq(onesAddTwo.execute(ctx), threes)
-    assertBmEq(threesSubTwo.execute(ctx), ones)
-    assertBmEq(twosMulTwo.execute(ctx), fours)
-    assertBmEq(foursDivTwo.execute(ctx), twos)
+    assertBMEvalsTo(onesAddTwo, BDM.fill[Double](3, 3)(1.0 + 2.0))
+    assertBMEvalsTo(onesSubTwo, BDM.fill[Double](3, 3)(1.0 - 2.0))
+    assertBMEvalsTo(onesMulTwo, BDM.fill[Double](3, 3)(1.0 * 2.0))
+    assertBMEvalsTo(onesDivTwo, BDM.fill[Double](3, 3)(1.0 / 2.0))
   }
 
   @Test def testBlockMatrixBroadcastValue_Vectors() {
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
     val vectorLiteral = MakeArray(Seq[F64](F64(1), F64(2), F64(3)), TArray(TFloat64))
 
     val broadcastRowVector = BlockMatrixBroadcast(ValueToBlockMatrix(vectorLiteral, Array[Long](1, 3),
-      0), FastIndexedSeq(1), shape, ones.blockSize)
+      ones.typ.blockSize), FastIndexedSeq(1), shape, ones.typ.blockSize)
     val broadcastColVector = BlockMatrixBroadcast(ValueToBlockMatrix(vectorLiteral, Array[Long](3, 1),
-      0), FastIndexedSeq(0), shape, ones.blockSize)
+      ones.typ.blockSize), FastIndexedSeq(0), shape, ones.typ.blockSize)
 
-    // Addition
-    val actualOnesAddRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, Add(), UnionBlocks)
-    val actualOnesAddColOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastColVector, Add(), UnionBlocks)
-    val actualOnesAddRowOnLeft  = makeMap2(broadcastRowVector, new BlockMatrixLiteral(ones), Add(), UnionBlocks)
-    val actualOnesAddColOnLeft  = makeMap2(broadcastColVector, new BlockMatrixLiteral(ones), Add(), UnionBlocks)
+    val ops = Array(
+      (Add(), UnionBlocks, (i: Double, j: Double) => i + j),
+      (Subtract(), UnionBlocks, (i: Double, j: Double) => i - j),
+      (Multiply(), IntersectionBlocks, (i: Double, j: Double) => i * j),
+      (FloatingPointDivide(), NeedsDense, (i: Double, j: Double) => i / j))
+    for ((op, merge, f) <- ops) {
+      val rightRowOp = makeMap2(ones, broadcastRowVector, op, merge)
+      val rightColOp = makeMap2(ones, broadcastColVector, op, merge)
+      val leftRowOp = makeMap2(broadcastRowVector, ones, op, merge)
+      val leftColOp = makeMap2(broadcastColVector, ones, op, merge)
 
-    val expectedOnesAddRow = makeMatFromRow(Seq(2, 3, 4))
-    val expectedOnesAddCol = makeMatFromCol(Seq(2, 3, 4))
+      BDM.tabulate(3, 3){ (_, j) => f(1.0, j + 1) }
 
-    assertBmEq(actualOnesAddRowOnRight.execute(ctx), expectedOnesAddRow)
-    assertBmEq(actualOnesAddColOnRight.execute(ctx), expectedOnesAddCol)
-    assertBmEq(actualOnesAddRowOnLeft.execute(ctx),  expectedOnesAddRow)
-    assertBmEq(actualOnesAddColOnLeft.execute(ctx),  expectedOnesAddCol)
+      val expectedRightRowOp = BDM.tabulate(3, 3){ (_, j) => f(1.0, j + 1) }
+      val expectedRightColOp = BDM.tabulate(3, 3){ (i, _) => f(1.0, i + 1) }
+      val expectedLeftRowOp = BDM.tabulate(3, 3){ (_, j) => f(j + 1, 1.0) }
+      val expectedLeftColOp = BDM.tabulate(3, 3){ (i, _) => f(i + 1, 1.0) }
 
-
-    // Multiplication
-    val actualOnesMulRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, Multiply(), IntersectionBlocks)
-    val actualOnesMulColOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastColVector, Multiply(), IntersectionBlocks)
-    val actualOnesMulRowOnLeft  = makeMap2(broadcastRowVector, new BlockMatrixLiteral(ones), Multiply(), IntersectionBlocks)
-    val actualOnesMulColOnLeft  = makeMap2(broadcastColVector, new BlockMatrixLiteral(ones), Multiply(), IntersectionBlocks)
-
-    val expectedOnesMulRow = makeMatFromRow(Seq(1, 2, 3))
-    val expectedOnesMulCol = makeMatFromCol(Seq(1, 2, 3))
-
-    assertBmEq(actualOnesMulRowOnRight.execute(ctx), expectedOnesMulRow)
-    assertBmEq(actualOnesMulColOnRight.execute(ctx), expectedOnesMulCol)
-    assertBmEq(actualOnesMulRowOnLeft.execute(ctx),  expectedOnesMulRow)
-    assertBmEq(actualOnesMulColOnLeft.execute(ctx),  expectedOnesMulCol)
-
-
-    // Subtraction
-    val actualOnesSubRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, Subtract(), UnionBlocks)
-    val actualOnesSubColOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastColVector, Subtract(), UnionBlocks)
-    val actualOnesSubRowOnLeft  = makeMap2(broadcastRowVector, new BlockMatrixLiteral(ones), Subtract(), UnionBlocks)
-    val actualOnesSubColOnLeft  = makeMap2(broadcastColVector, new BlockMatrixLiteral(ones), Subtract(), UnionBlocks)
-
-    val expectedOnesSubRowRight = makeMatFromRow(Seq(0, -1, -2))
-    val expectedOnesSubColRight = makeMatFromCol(Seq(0, -1, -2))
-    val expectedOnesSubRowLeft = makeMatFromRow(Seq(0, 1, 2))
-    val expectedOnesSubColLeft = makeMatFromCol(Seq(0, 1, 2))
-
-    assertBmEq(actualOnesSubRowOnRight.execute(ctx), expectedOnesSubRowRight)
-    assertBmEq(actualOnesSubColOnRight.execute(ctx), expectedOnesSubColRight)
-    assertBmEq(actualOnesSubRowOnLeft.execute(ctx),  expectedOnesSubRowLeft)
-    assertBmEq(actualOnesSubColOnLeft.execute(ctx),  expectedOnesSubColLeft)
-
-
-    // Division
-    val actualOnesDivRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, FloatingPointDivide(), NeedsDense)
-    val actualOnesDivColOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastColVector, FloatingPointDivide(), NeedsDense)
-    val actualOnesDivRowOnLeft  = makeMap2(broadcastRowVector, new BlockMatrixLiteral(ones), FloatingPointDivide(), NeedsDense)
-    val actualOnesDivColOnLeft  = makeMap2(broadcastColVector, new BlockMatrixLiteral(ones), FloatingPointDivide(), NeedsDense)
-
-    val expectedOnesDivRowRight = makeMatFromRow(Seq(1, 1.0 / 2.0, 1.0 / 3.0))
-    val expectedOnesDivColRight = makeMatFromCol(Seq(1, 1.0 / 2.0, 1.0 / 3.0))
-    val expectedOnesDivRowLeft = makeMatFromRow(Seq(1, 2, 3))
-    val expectedOnesDivColLeft = makeMatFromCol(Seq(1, 2, 3))
-
-    assertBmEq(actualOnesDivRowOnRight.execute(ctx), expectedOnesDivRowRight)
-    assertBmEq(actualOnesDivColOnRight.execute(ctx), expectedOnesDivColRight)
-    assertBmEq(actualOnesDivRowOnLeft.execute(ctx),  expectedOnesDivRowLeft)
-    assertBmEq(actualOnesDivColOnLeft.execute(ctx),  expectedOnesDivColLeft)
+      assertBMEvalsTo(rightRowOp, expectedRightRowOp)
+      assertBMEvalsTo(rightColOp, expectedRightColOp)
+      assertBMEvalsTo(leftRowOp, expectedLeftRowOp)
+      assertBMEvalsTo(leftColOp, expectedLeftColOp)
+    }
   }
 
   @Test def testBlockMatrixDot() {
-    val dotTwosAndThrees = BlockMatrixDot(new BlockMatrixLiteral(twos), new BlockMatrixLiteral(threes))
-    assertBmEq(dotTwosAndThrees.execute(ctx), BlockMatrix.fill(hc, 3, 3, 2 * 3 * 3))
-  }
-
-  def arrayFromNDArray(nRows: Int, nCols: Int, nd: IR): IR = {
-    val ref = Ref(genUID(), nd.typ)
-    Let(ref.name, nd,
-      MakeArray(Array.tabulate(nRows) { i =>
-        MakeArray(Array.tabulate(nCols) { j =>
-          NDArrayRef(ref, IndexedSeq(I64(i), I64(j)))
-        }, TArray(coerce[TNDArray](nd.typ).elementType))
-      }, TArray(TArray(coerce[TNDArray](nd.typ).elementType))))
-  }
-
-  @Test def testLower() {
-    implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.LoweredJVMCompile)
-
-    val blockSize = 3
-
-    def value(nRows: Long, nCols: Long, data: Double*): (BlockMatrixIR, BDM[Double]) = {
-      val ir = ValueToBlockMatrix(Literal(TArray(TFloat64), data),
-        FastIndexedSeq(nRows, nCols), blockSize)
-      val bdm = new BDM(nCols.toInt, nRows.toInt, data.toArray).t
-      ir -> bdm
-    }
-
-    val (m1IR, m1) = value(5, 4,
-      1, 2, 3, 4,
-      9, 10, 11, 12,
-      17, 18, 19, 20,
-      1, 3, 5, 7,
-      2, 4, 6, 1)
-
-    val (m2IR, m2) = value(4, 6,
-      1,2,3,4,5,6,
-      7,8,9,10,11,12,
-      13,14,15,16,17,18,
-      19,20,21,22,23,24)
-
-    val expected = m1 * m2
-
-    assertEvalsTo(
-      arrayFromNDArray(5, 6, BlockMatrixCollect(BlockMatrixDot(m1IR, m2IR))),
-      Array.tabulate(5)(i => Array.tabulate(6)(j => expected(i, j)).toFastIndexedSeq).toFastIndexedSeq)
+    val m1 = BDM.tabulate[Double](5, 4)((i, j) => (i + 1) * j)
+    val m2 = BDM.tabulate[Double](4, 6)((i, j) => (i + 5) * (j - 2))
+    assertBMEvalsTo(BlockMatrixDot(toIR(m1), toIR(m2)), m1 * m2)
   }
 }
