@@ -353,11 +353,13 @@ class Container:
                         await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
                             start_container, self.container)
 
+                    timed_out = False
                     async with self.step('running'):
-                        async with async_timeout.timeout(self.timeout) as tm:
-                            await docker_call_retry(MAX_DOCKER_WAIT_SECS, f'{self}')(self.container.wait)
-                        if tm.expired:
-                            raise JobTimeoutError(f'timed out after {self.timeout}s')
+                        try:
+                            async with async_timeout.timeout(self.timeout):
+                                await docker_call_retry(MAX_DOCKER_WAIT_SECS, f'{self}')(self.container.wait)
+                        except asyncio.TimeoutError:
+                            timed_out = True
 
             self.container_status = await self.get_container_status()
             log.info(f'{self}: container status {self.container_status}')
@@ -370,6 +372,9 @@ class Container:
 
             async with self.step('deleting'):
                 await self.delete_container()
+
+            if timed_out:
+                raise JobTimeoutError(f'timed out after {self.timeout}s')
 
             if 'error' in self.container_status:
                 self.state = 'error'
@@ -392,13 +397,9 @@ class Container:
         return self.log
 
     async def get_log(self):
-        if self.log is not None:
-            return self.log
-
         if self.container:
             return await self.get_container_log()
-
-        return None
+        return self.log
 
     async def delete_container(self):
         if self.container:
