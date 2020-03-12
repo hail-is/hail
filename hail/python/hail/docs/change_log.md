@@ -24,6 +24,30 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.34
+
+Released 2020-03-12
+
+### New features
+
+- (hail#8233) `StringExpression.matches` can now take a hail `StringExpression`, as opposed to only regular python strings.
+- (hail#8198) Improved matrix multiplication interoperation between hail `NDArrayExpression` and numpy.
+
+### Bug fixes
+
+- (hail#8279) Fix a bug where `hl.agg.approx_cdf` failed inside of a `group_cols_by`.
+- (hail#8275) Fix bad error message coming from `mt.make_table()` when keys are missing.
+- (hail#8274) Fix memory leak in `hl.export_bgen`.
+- (hail#8273) Fix segfault caused by `hl.agg.downsample` inside of an `array_agg` or `group_by`.
+
+### hailctl dataproc
+
+- (hail#8253) `hailctl dataproc` now supports new flags `--requester-pays-allow-all` and `--requester-pays-allow-buckets`. This will configure your hail installation to be able to read from requester pays buckets. The charges for reading from these buckets will be billed to the project that the cluster is created in.
+- (hail#8268) The data sources for VEP have been moved to `gs://hail-us-vep`, `gs://hail-eu-vep`, and `gs://hail-uk-vep`, which are requester-pays buckets in Google Cloud. `hailctl dataproc` will automatically infer which of these buckets you should pull data from based on the region your cluster is spun up in. If you are in none of those regions, please contact us on discuss.hail.is.
+
+---
+
+
 ## Version 0.2.33
 
 Released 2020-02-27
