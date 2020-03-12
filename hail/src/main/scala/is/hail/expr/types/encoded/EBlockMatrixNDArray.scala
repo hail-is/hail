@@ -65,24 +65,22 @@ final case class EBlockMatrixNDArray(elementType: EType, override val required: 
     val nCols = mb.newLocal[Int]("cols")
     val transpose = mb.newLocal[Boolean]("transpose")
     val n = mb.newLocal[Int]("length")
-    val off = mb.newLocal[Long]("ndarray")
     val data = mb.newLocal[Long]("data")
 
     val readElemF = elementType.buildInplaceDecoder(t.elementType, mb.ecb)
     val i = mb.newLocal[Int]("i")
-    val j = mb.newLocal[Int]("j")
 
     val shapeBuilder = t.makeShapeBuilder(FastIndexedSeq(nRows.toL, nCols.toL))
     val stridesBuilder = { srvb: StagedRegionValueBuilder =>
       Code(
         srvb.start(),
-        srvb.addLong(transpose.mux(nCols.toL, 1L)),
+        srvb.addLong(transpose.mux(nCols.toL * t.elementType.byteSize, t.elementType.byteSize)),
         srvb.advance(),
-        srvb.addLong(transpose.mux(1L, nRows.toL)),
+        srvb.addLong(transpose.mux(t.elementType.byteSize, nRows.toL * t.elementType.byteSize)),
         srvb.advance())
     }
 
-    Code(Code(
+    Code(
       nRows := in.readInt(),
       nCols := in.readInt(),
       n := nRows * nCols,
@@ -91,9 +89,7 @@ final case class EBlockMatrixNDArray(elementType: EType, override val required: 
       t.data.pType.stagedInitialize(data, n, setMissing=true),
       Code.forLoop(i := 0, i < n, i := i + 1,
         readElemF(region, t.data.pType.elementOffset(data, n, i), in)),
-      off := t.construct(shapeBuilder, stridesBuilder, data, mb)),
-      off
-    )
+      t.construct(shapeBuilder, stridesBuilder, data, mb))
   }
 
   def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {

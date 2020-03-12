@@ -12,12 +12,12 @@ import is.hail.utils._
 case object EInt64Optional extends EInt64(false)
 case object EInt64Required extends EInt64(true)
 
-class EInt64(override val required: Boolean) extends EType {
-  override def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
+class EInt64(override val required: Boolean) extends EFundamentalType {
+  def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     out.writeLong(coerce[Long](v))
   }
 
-  override def _buildFundamentalDecoder(
+  def _buildFundamentalDecoder(
     pt: PType,
     mb: EmitMethodBuilder[_],
     region: Value[Region],

@@ -12,12 +12,12 @@ import is.hail.utils._
 case object EFloat64Optional extends EFloat64(false)
 case object EFloat64Required extends EFloat64(true)
 
-class EFloat64(override val required: Boolean) extends EType {
+class EFloat64(override val required: Boolean) extends EFundamentalType {
   override def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     out.writeDouble(coerce[Double](v))
   }
 
-  override def _buildFundamentalDecoder(
+  def _buildFundamentalDecoder(
     pt: PType,
     mb: EmitMethodBuilder[_],
     region: Value[Region],

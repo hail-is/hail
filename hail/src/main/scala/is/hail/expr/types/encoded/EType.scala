@@ -98,17 +98,9 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     }).invokeCode(_, _)
   }
 
-  def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] =
-    _buildFundamentalEncoder(pt.fundamentalType, mb, v, out)
+  def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit]
 
-  def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] =
-    _buildFundamentalDecoder(pt.fundamentalType, mb, region, in)
-
-  def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] =
-    fatal("EType subclasses must override either `_buildEncoder` or `_buildEncoderMethod`.")
-
-  def _buildFundamentalDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] =
-    fatal("EType subclasses must override either `_buildDecoder` or `_buildDecoderMethod`.")
+  def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_]
 
   def _buildInplaceDecoder(
     pt: PType,
@@ -118,7 +110,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     in: Value[InputBuffer]
   ): Code[_] = {
     assert(!pt.isInstanceOf[PBaseStruct]) // should be overridden for structs
-    val decoded = _buildFundamentalDecoder(pt, mb, region, in)
+    val decoded = _buildDecoder(pt, mb, region, in)
     Region.storeIRIntermediate(pt)(addr, decoded)
   }
 
@@ -127,14 +119,10 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   def _compatible(pt: PType): Boolean = fatal("EType subclasses must override either `_compatible` or both `_encodeCompatible` and `_decodeCompatible`")
 
   // Can this etype encode from this ptype
-  def encodeCompatible(pt: PType): Boolean = _encodeCompatible(pt.fundamentalType)
-
-  def _encodeCompatible(pt: PType): Boolean = _compatible(pt)
+  def encodeCompatible(pt: PType): Boolean = _compatible(pt)
 
   // Can this etype decode to this ptype
-  def decodeCompatible(pt: PType): Boolean = _decodeCompatible(pt.fundamentalType)
-
-  def _decodeCompatible(pt: PType): Boolean = _compatible(pt)
+  def decodeCompatible(pt: PType): Boolean = _compatible(pt)
 
   final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (required)
@@ -166,6 +154,23 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   def _decodedPType(requestedType: Type): PType
 
   def setRequired(required: Boolean): EType
+}
+
+trait EFundamentalType extends EType {
+  def _decodeCompatible(pt: PType): Boolean = _compatible(pt)
+  def _encodeCompatible(pt: PType): Boolean = _compatible(pt)
+  def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit]
+  def _buildFundamentalDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_]
+
+  final def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] =
+    _buildFundamentalEncoder(pt.fundamentalType, mb, v, out)
+
+  final def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] =
+    _buildFundamentalDecoder(pt.fundamentalType, mb, region, in)
+
+  final override def decodeCompatible(pt: PType): Boolean = _decodeCompatible(pt.fundamentalType)
+
+  final override def encodeCompatible(pt: PType): Boolean = _encodeCompatible(pt.fundamentalType)
 }
 
 trait DecoderAsmFunction { def apply(r: Region, in: InputBuffer): Long }

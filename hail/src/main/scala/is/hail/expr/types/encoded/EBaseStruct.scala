@@ -23,7 +23,7 @@ final case class EField(name: String, typ: EType, index: Int) {
   }
 }
 
-final case class EBaseStruct(fields: IndexedSeq[EField], override val required: Boolean = false) extends EType {
+final case class EBaseStruct(fields: IndexedSeq[EField], override val required: Boolean = false) extends EFundamentalType {
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
 
   val types: Array[EType] = fields.map(_.typ).toArray

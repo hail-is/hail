@@ -12,12 +12,12 @@ import is.hail.utils._
 case object EBooleanOptional extends EBoolean(false)
 case object EBooleanRequired extends EBoolean(true)
 
-class EBoolean(override val required: Boolean) extends EType {
-  override def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
+class EBoolean(override val required: Boolean) extends EFundamentalType {
+  def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     out.writeBoolean(coerce[Boolean](v))
   }
 
-  override def _buildFundamentalDecoder(
+  def _buildFundamentalDecoder(
     pt: PType,
     mb: EmitMethodBuilder[_],
     region: Value[Region],
