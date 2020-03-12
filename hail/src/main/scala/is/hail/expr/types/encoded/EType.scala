@@ -150,7 +150,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     assert(decodeCompatible(ret),
       s"""Invalid requested type, cannot decode
          |encoded type  : ${ this }
-         |requested type: $requestedType""".stripMargin)
+         |requested type: $requestedType
+         |chosen ptype  : $ret""".stripMargin)
     ret
   }
 
@@ -263,8 +264,8 @@ object EType {
         val et = t.elementType.asInstanceOf[PBaseStruct]
         ETransposedArrayOfStructs(
           et.fields.map(f => EField(f.name, defaultFromPType(f.typ), f.index)),
-          t.required,
-          et.required
+          required = t.required,
+          structRequired = et.required
         )
       case t: PArray => EArray(defaultFromPType(t.elementType), t.required)
       case t: PBaseStruct => EBaseStruct(t.fields.map(f => EField(f.name, defaultFromPType(f.typ), f.index)), t.required)

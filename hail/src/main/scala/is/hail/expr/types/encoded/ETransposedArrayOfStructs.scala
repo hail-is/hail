@@ -25,7 +25,7 @@ final case class ETransposedArrayOfStructs(
         false
       else {
         val ps = t.elementType.asInstanceOf[PBaseStruct]
-        ps.required == required &&
+        ps.required == structRequired &&
           size <= ps.size &&
           fields.forall { f =>
             ps.hasField(f.name) && f.typ.encodeCompatible(ps.fieldType(f.name))
@@ -40,7 +40,7 @@ final case class ETransposedArrayOfStructs(
         false
       else {
         val ps = t.elementType.asInstanceOf[PBaseStruct]
-        ps.required == required &&
+        ps.required == structRequired &&
         size <= ps.size &&
         fields.forall { f =>
           ps.hasField(f.name) && f.typ.encodeCompatible(ps.fieldType(f.name))
@@ -208,7 +208,7 @@ final case class ETransposedArrayOfStructs(
     val ps = pa.elementType.asInstanceOf[PBaseStruct]
 
     val array = coerce[Long](v)
-    val len = mb.newLocal[Int]("len")
+    val len = mb.newField[Int]("arrayLength")
     val i = mb.newLocal[Int]("i")
     val nPresent = mb.newLocal[Int]("nPresent")
     val writeLen = out.writeInt(len)
