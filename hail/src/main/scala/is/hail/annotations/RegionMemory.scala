@@ -129,6 +129,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       currentBlock = 0
       totalChunkMemory = 0
       blockSize = -1
+      referenceCount = 0
     }
   }
 
