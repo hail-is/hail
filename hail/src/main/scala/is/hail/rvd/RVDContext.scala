@@ -5,22 +5,25 @@ import is.hail.annotations.{Region, RegionValueBuilder}
 import scala.collection.mutable
 
 object RVDContext {
-  def default: RVDContext = new RVDContext(Region())
-
-  def fromRegion(region: Region): RVDContext = new RVDContext(region)
+  def default: RVDContext = {
+    val partRegion = Region()
+    val ctx = new RVDContext(Region(), Region())
+    ctx.own(partRegion)
+    ctx
+  }
 }
 
-class RVDContext(val r: Region) extends AutoCloseable {
+class RVDContext(val partitionRegion: Region, val r: Region) extends AutoCloseable {
   private[this] val children = new mutable.HashSet[AutoCloseable]()
 
-  private[this] def own(child: AutoCloseable): Unit = children += child
+  private def own(child: AutoCloseable): Unit = children += child
   private[this] def disown(child: AutoCloseable): Unit =
     assert(children.remove(child))
 
   own(r)
 
   def freshContext: RVDContext = {
-    val ctx = RVDContext.default
+    val ctx = new RVDContext(partitionRegion, Region())
     own(ctx)
     ctx
   }

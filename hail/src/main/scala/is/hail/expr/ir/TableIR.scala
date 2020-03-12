@@ -815,7 +815,7 @@ case class TableZipUnchecked(left: TableIR, right: TableIR) extends TableIR {
     assert(t2 == rvdType.rowType)
 
     val rvd = tv1.rvd.zipPartitionsWithIndex(rvdType, tv2.rvd) { (i, ctx, it1, it2) =>
-      val partRegion = ctx.freshRegion
+      val partRegion = ctx.partitionRegion
       val f = makeF(i, partRegion)
       val region = ctx.region
       val rv3 = RegionValue(region)
@@ -1003,7 +1003,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
           null
 
       val itF = { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
-        val globalRegion = ctx.freshRegion
+        val globalRegion = ctx.partitionRegion
         val globals = if (rowIterationNeedsGlobals)
           globalsBc.value.readRegionValue(globalRegion)
         else
@@ -1080,7 +1080,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     // 2. load in init op on each partition, seq op over partition, write out.
     val scanPartitionAggs = SpillingCollectIterator(tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
-      val globalRegion = ctx.freshRegion
+      val globalRegion = ctx.partitionRegion
       val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion) else 0
 
       Region.smallScoped { aggRegion =>
@@ -1116,7 +1116,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     // 4. load in partStarts, calculate newRow based on those results.
     val itF = { (i: Int, ctx: RVDContext, filePosition: Long, it: Iterator[RegionValue]) =>
-      val globalRegion = ctx.freshRegion
+      val globalRegion = ctx.partitionRegion
       val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
         globalsBc.value.readRegionValue(globalRegion)
       else
@@ -1246,7 +1246,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
       prev.globals,
       prev.rvd.boundary.mapPartitionsWithIndex(rvdType, { (i, ctx, it) =>
         val region2 = ctx.region
-        val globalRegion = ctx.freshRegion
+        val globalRegion = ctx.partitionRegion
         val rv2 = RegionValue(region2)
         val lenF = l(i, globalRegion)
         val rowF = f(i, globalRegion)
@@ -1435,7 +1435,7 @@ case class TableKeyByAndAggregate(
     val rdd = prev.rvd
       .boundary
       .mapPartitionsWithIndex { (i, ctx, it) =>
-        val partRegion = ctx.freshRegion
+        val partRegion = ctx.partitionRegion
         val globals = globalsBc.value.readRegionValue(partRegion)
         val makeKey = {
           val f = makeKeyF(i, partRegion)
@@ -1477,7 +1477,7 @@ case class TableKeyByAndAggregate(
         val region = ctx.region
 
         val rvb = new RegionValueBuilder()
-        val partRegion = ctx.freshRegion
+        val partRegion = ctx.partitionRegion
         val globals = globalsBc.value.readRegionValue(partRegion)
         val annotate = makeAnnotate(i, partRegion)
 
@@ -1570,7 +1570,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
       .repartition(prevRVD.partitioner.strictify, ctx)
       .boundary
       .mapPartitionsWithIndex(newRVDType, { (i, ctx, it) =>
-        val partRegion = ctx.freshRegion
+        val partRegion = ctx.partitionRegion
 
         val globalsOff = globalsBc.value.readRegionValue(partRegion)
 

@@ -658,7 +658,7 @@ object Interpret {
               }
             },
             { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
-              val partRegion = ctx.freshRegion
+              val partRegion = ctx.partitionRegion
               val globalsOffset = globalsBc.value.readRegionValue(partRegion)
               val init = initOp(i, partRegion)
               val seqOps = partitionOpSeq(i, partRegion)
