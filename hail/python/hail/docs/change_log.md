@@ -26,6 +26,8 @@ an earlier version of Hail to read files written in a later version.
 
 ## Version 0.2.34
 
+Released 2020-03-12
+
 ### New features
 
 - (hail#8233) `StringExpression.matches` can now take a hail `StringExpression`, as opposed to only regular python strings.
