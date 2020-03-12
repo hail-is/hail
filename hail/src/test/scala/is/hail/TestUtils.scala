@@ -422,8 +422,11 @@ object TestUtils {
 
   def assertNDEvals(nd: NDArrayIR, expected: (Any, IndexedSeq[Long]))
     (implicit execStrats: Set[ExecStrategy]) {
-    assertNDEvals(nd, Env.empty, FastIndexedSeq(), None, expected._2, expected._1)
-  }
+    if (expected == null)
+      assertNDEvals(nd, Env.empty, FastIndexedSeq(), None, null, null)
+    else
+      assertNDEvals(nd, Env.empty, FastIndexedSeq(), None, expected._2, expected._1)
+  }l
 
   def assertNDEvals(nd: NDArrayIR, args: IndexedSeq[(Any, Type)], expected: Any)
     (implicit execStrats: Set[ExecStrategy]) {

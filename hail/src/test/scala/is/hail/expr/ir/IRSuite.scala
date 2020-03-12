@@ -1953,8 +1953,7 @@ class IRSuite extends HailSuite {
     assertNDEvals(NDArrayConcat(nds(nd1, colwise, emptyColwise), 1), colwiseExpected)
     assertNDEvals(NDArrayConcat(nds(nd1, emptyColwise, colwise), 1), colwiseExpected)
 
-    // FIXME: This is changing type during PruneDeadFields for some reason...
-//    assertNDEvals(NDArrayConcat(nds(nd1, na), 1), null)
+    assertNDEvals(NDArrayConcat(nds(nd1, na), 1), null)
     assertNDEvals(NDArrayConcat(nds(na, na), 1), null)
     assertNDEvals(NDArrayConcat(NA(TArray(TNDArray(TInt32, Nat(2)))), 1), null)
   }
@@ -2141,7 +2140,7 @@ class IRSuite extends HailSuite {
     assertNDEvals(
       NDArrayFilter(matrixRowMajor, FastIndexedSeq(
         NA(TArray(TInt64)), MakeArray(FastIndexedSeq(I64(0)), TArray(TInt64)))),
-      FastIndexedSeq(Array(1.0),
+      FastIndexedSeq(FastIndexedSeq(1.0),
         FastIndexedSeq(3.0)))
 
     assertNDEvals(
