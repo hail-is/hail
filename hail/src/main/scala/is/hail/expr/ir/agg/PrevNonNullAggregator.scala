@@ -8,6 +8,7 @@ import is.hail.utils._
 
 class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
   type State = TypedRegionBackedAggState
+  assert(PType.canonical(typ) == typ)
   val resultType: PType = typ
 
   def createState(fb: EmitFunctionBuilder[_]): State =

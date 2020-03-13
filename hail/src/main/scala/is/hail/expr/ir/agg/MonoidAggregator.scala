@@ -18,7 +18,7 @@ trait StagedMonoidSpec {
 class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   type State = PrimitiveRVAState
   val typ: PType = monoid.typ
-  val resultType: PType = typ
+  val resultType: PType = typ.setRequired(monoid.neutral.isDefined)
 
   def createState(fb: EmitFunctionBuilder[_]): State =
     new PrimitiveRVAState(Array(typ.setRequired(monoid.neutral.isDefined)), fb)

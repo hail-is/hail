@@ -8,7 +8,7 @@ import is.hail.expr.types.physical._
 object CountAggregator extends StagedAggregator {
   type State = PrimitiveRVAState
 
-  val resultType: PType = PInt64()
+  val resultType: PType = PInt64(true)
 
   def createState(fb: EmitFunctionBuilder[_]): State = new PrimitiveRVAState(Array(PInt64(true)), fb)
 
