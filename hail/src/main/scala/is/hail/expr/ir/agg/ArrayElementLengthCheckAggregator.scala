@@ -11,11 +11,11 @@ import is.hail.utils._
 // seqOp args: array, other non-elt args for nestedAgg
 
 class ArrayElementState(val cb: EmitClassBuilder[_], val nested: StateTuple) extends PointerBasedRVAState {
-  val arrayType: PArray = PArray(nested.storageType)
+  val arrayType: PArray = PCanonicalArray(nested.storageType, required = true)
   private val nStates: Int = nested.nStates
   override val regionSize: Int = Region.SMALL
 
-  val typ: PTuple = PTuple(nested.storageType, arrayType)
+  val typ: PTuple = PCanonicalTuple(true, nested.storageType, arrayType)
 
   val lenRef: Settable[Int] = cb.genFieldThisRef[Int]("arrayrva_lenref")
   val idx: Settable[Int] = cb.genFieldThisRef[Int]("arrayrva_idx")
@@ -162,8 +162,8 @@ class ArrayElementState(val cb: EmitClassBuilder[_], val nested: StateTuple) ext
 class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], knownLength: Boolean) extends StagedAggregator {
   type State = ArrayElementState
 
-  val resultEltType: PTuple = PTuple(nestedAggs.map(_.resultType): _*)
-  val resultType: PArray = PArray(resultEltType)
+  val resultEltType: PTuple = PCanonicalTuple(true, nestedAggs.map(_.resultType): _*)
+  val resultType: PArray = PCanonicalArray(resultEltType, required = true)
 
   def createState(cb: EmitClassBuilder[_]): State = new ArrayElementState(cb, StateTuple(nestedAggs.map(_.createState(cb))))
 
