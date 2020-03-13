@@ -164,7 +164,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
 
     val leftType = this.virtType
     val rightType = right.virtType
-    val jcrdd = repartitionedLeft.crdd.toCRDDRegionValue.boundary.czipPartitions(repartitionedRight.crdd.toCRDDRegionValue.boundary)
+    val jcrdd = repartitionedLeft.crdd.toCRDDRegionValue.czipPartitions(repartitionedRight.crdd.toCRDDRegionValue)
       { (ctx, leftIt, rightIt) =>
         OrderedRVIterator(leftType, leftIt, ctx)
           .zipJoin(OrderedRVIterator(rightType, rightIt, ctx))
