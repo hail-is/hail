@@ -199,7 +199,7 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
     }
 
   def toCRDDRegionValue: ContextRDD[RegionValue] =
-    crdd.cmapPartitionsWithContext { (consumerCtx, part) =>
+    boundary.cmapPartitionsWithContext { (consumerCtx, part) =>
       val producerCtx = consumerCtx.freshContext
       val rv = RegionValue(producerCtx.r)
       part(producerCtx).map(ptr => { rv.setOffset(ptr); rv })
