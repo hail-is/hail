@@ -38,19 +38,21 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Value[Regio
   def loadKey(off: Code[Long]): Code[_] = Region.loadIRIntermediate(kt)(storageType.fieldOffset(off, 0))
 
   def initValue(dest: Code[Long], km: Code[Boolean], kv: Code[_], rIdx: Code[Int]): Code[Unit] = {
-    val koff = storageType.fieldOffset(dest, 0)
-    var storeK =
-      if (kt.isPrimitive)
-        Region.storeIRIntermediate(kt)(koff, kv)
-      else
-        StagedRegionValueBuilder.deepCopy(fb, region, kt, coerce[Long](kv), koff)
-    if (!kt.required)
-      storeK = km.mux(storageType.setFieldMissing(dest, 0), Code(storageType.setFieldPresent(dest, 0), storeK))
+    Code.memoize(dest, "ga_init_value_dest") { dest =>
+      val koff = storageType.fieldOffset(dest, 0)
+      var storeK =
+        if (kt.isPrimitive)
+          Region.storeIRIntermediate(kt)(koff, kv)
+        else
+          StagedRegionValueBuilder.deepCopy(fb, region, kt, coerce[Long](kv), koff)
+      if (!kt.required)
+        storeK = km.mux(storageType.setFieldMissing(dest, 0), Code(storageType.setFieldPresent(dest, 0), storeK))
 
-    Code(
-      storeK,
-      storeRegionIdx(dest, rIdx),
-      container.newState)
+      Code(
+        storeK,
+        storeRegionIdx(dest, rIdx),
+        container.newState)
+    }
   }
 
   def loadStates: Code[Unit] = container.load
@@ -117,12 +119,16 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
   }
 
   def loadContainer(km: Code[Boolean], kv: Code[_]): Code[Unit] =
-    Code(
-      _elt := tree.getOrElseInitialize(km, km.mux(defaultValue(keyType), kv)),
-      keyed.isEmpty(_elt).mux(Code(
-        initElement(_elt, km, kv),
-        keyed.copyStatesFrom(initStatesOffset)),
-        keyed.loadStates))
+    Code.memoize(km, "ga_load_cont_km") { km =>
+      Code.memoizeAny(km.mux(defaultValue(keyType), kv), "ga_load_cont_kv") { kv =>
+        Code(
+          _elt := tree.getOrElseInitialize(km, kv),
+          keyed.isEmpty(_elt).mux(Code(
+            initElement(_elt, km, kv),
+            keyed.copyStatesFrom(initStatesOffset)),
+            keyed.loadStates))
+      }(typeToTypeInfo(keyType))
+    }
 
   def withContainer(km: Code[Boolean], kv: Code[_], seqOps: Code[Unit]): Code[Unit] =
     Code(loadContainer(km, kv), seqOps, keyed.storeStates)
@@ -165,10 +171,12 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
     }
 
   def copyFromAddress(src: Code[Long]): Code[Unit] =
-    Code(
-      init(initContainer.copyFrom(typ.loadField(src, 0))),
-      size := Region.loadInt(typ.loadField(src, 1)),
-      tree.deepCopy(Region.loadAddress(typ.loadField(src, 2))))
+    Code.memoize(src, "ga_copy_from_addr_src") { src =>
+      Code(
+        init(initContainer.copyFrom(typ.loadField(src, 0))),
+        size := Region.loadInt(typ.loadField(src, 1)),
+        tree.deepCopy(Region.loadAddress(typ.loadField(src, 2))))
+    }
 
   def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
     val serializers = nested.states.map(_.serialize(codec))

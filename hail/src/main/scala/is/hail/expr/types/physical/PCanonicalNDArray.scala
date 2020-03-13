@@ -89,15 +89,17 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  private def getElementAddress(indices: IndexedSeq[Code[Long]], nd: Code[Long], mb: MethodBuilder): Code[Long] = {
-    val stridesTuple  = new CodePTuple(strides.pType, strides.load(nd))
+  private def getElementAddress(indices: IndexedSeq[Code[Long]], nd: Value[Long], mb: MethodBuilder): Code[Long] = {
+    val stridesTuple  = new CodePTuple(strides.pType, new Value[Long] {
+      def get: Code[Long] = strides.load(nd)
+    })
     val bytesAway = mb.newLocal[Long]
     val dataStore = mb.newLocal[Long]
 
     coerce[Long](Code(
       dataStore := data.load(nd),
       bytesAway := 0L,
-      indices.zipWithIndex.foldLeft(Code._empty){case (codeSoFar: Code[_], (requestedIndex: Code[Long], strideIndex: Int)) =>
+      indices.zipWithIndex.foldLeft(Code._empty) { case (codeSoFar: Code[_], (requestedIndex: Code[Long], strideIndex: Int)) =>
         Code(
           codeSoFar,
           bytesAway := bytesAway + requestedIndex * stridesTuple(strideIndex))
@@ -106,12 +108,14 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     ))
   }
 
-  def loadElementToIRIntermediate(indices: IndexedSeq[Code[Long]], ndAddress: Code[Long], mb: MethodBuilder): Code[_] = {
-    Region.loadIRIntermediate(data.pType.elementType)(this.getElementAddress(indices, ndAddress, mb))
+  def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: MethodBuilder): Code[_] = {
+    Region.loadIRIntermediate(data.pType.elementType)(getElementAddress(indices, ndAddress, mb))
   }
 
-  def outOfBounds(indices: IndexedSeq[Code[Long]], nd: Code[Long], mb: MethodBuilder): Code[Boolean] = {
-    val shapeTuple = new CodePTuple(shape.pType, shape.load(nd))
+  def outOfBounds(indices: IndexedSeq[Code[Long]], nd: Value[Long], mb: MethodBuilder): Code[Boolean] = {
+    val shapeTuple = new CodePTuple(shape.pType, new Value[Long] {
+      def get: Code[Long] = shape.load(nd)
+    })
     val outOfBounds = mb.newField[Boolean]
     Code(
       outOfBounds := false,
@@ -138,7 +142,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Code[Long]], mb: MethodBuilder): (Code[Unit], IndexedSeq[Code[Long]]) = {
+  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Code[Long]], mb: MethodBuilder): (Code[Unit], IndexedSeq[Value[Long]]) = {
     val nDim = shapeArray.length
     val newIndices = (0 until nDim).map(_ => mb.newField[Long])
     val elementsInProcessedDimensions = mb.newField[Long]
@@ -155,7 +159,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
         )
       }
     )
-    (createShape, newIndices.map(_.load()))
+    (createShape, newIndices)
   }
 
   def copyRowMajorToColumnMajor(rowMajorAddress: Code[Long], targetAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: MethodBuilder): Code[Unit] = {

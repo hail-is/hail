@@ -8,6 +8,7 @@ import is.hail.asm4s.coerce
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
+import is.hail.variant.Locus
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -173,6 +174,18 @@ abstract class RegistryFunctions {
         UnsafeRow.getClass, "read",
         r.mb.getPType(t),
         r.region, coerce[Long](c))
+  }
+
+  def boxedTypeInfo(t: PType): TypeInfo[_ >: Null] = t match {
+    case _: PBoolean => classInfo[java.lang.Boolean]
+    case _: PInt32 => classInfo[java.lang.Integer]
+    case _: PInt64 => classInfo[java.lang.Long]
+    case _: PFloat32 => classInfo[java.lang.Float]
+    case _: PFloat64 => classInfo[java.lang.Double]
+    case _: PCall => classInfo[java.lang.Integer]
+    case t: PString => classInfo[java.lang.String]
+    case t: PLocus => classInfo[Locus]
+    case _ => classInfo[AnyRef]
   }
 
   def boxArg(r: EmitRegion, t: PType): Code[_] => Code[AnyRef] = t match {

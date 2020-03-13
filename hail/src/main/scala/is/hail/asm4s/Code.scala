@@ -330,6 +330,11 @@ object Code {
     Code(lr := c, f(lr))
   }
 
+  def memoizeAny[T, U](c: Code[_], name: String)(f: (Value[_]) => Code[U])(implicit tti: TypeInfo[T]): Code[U] = {
+    val lr = new LocalRef[T](new lir.Local(null, name, tti))
+    Code(lr := c.asInstanceOf[Code[T]], f(lr))
+  }
+
   def memoize[T1, T2, U](c1: Code[T1], name1: String,
     c2: Code[T2], name2: String
   )(f: (Value[T1], Value[T2]) => Code[U])(implicit t1ti: TypeInfo[T1], t2ti: TypeInfo[T2]): Code[U] = {
@@ -394,6 +399,10 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
 
   def unary_!(): Code[Boolean] =
     (!lhs.toConditional).toCode
+
+  def muxAny(cthen: Code[_], celse: Code[_]): Code[_] = {
+    mux[Any](coerce[Any](cthen), coerce[Any](celse))
+  }
 
   def mux[T](cthen: Code[T], celse: Code[T]): Code[T] = {
     assert((cthen.v == null) == (celse.v == null))

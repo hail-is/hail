@@ -122,16 +122,17 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   }
 
   private def storeFields(dest: Code[Long]): Code[Unit] = {
-    maybeGCCode(
-      ab.storeTo(storageType.fieldOffset(dest, 0)),
-      Region.storeAddress(storageType.fieldOffset(dest, 1), staging),
-      Region.storeAddress(storageType.fieldOffset(dest, 2), keyStage),
-      Region.storeLong(storageType.fieldOffset(dest, 3), maxIndex),
-      Region.storeInt(storageType.fieldOffset(dest, 4), maxSize)
-    )(Array(
-      Region.storeInt(storageType.fieldOffset(dest, 5), garbage),
-      Region.storeInt(storageType.fieldOffset(dest, 6), maxGarbage)
-    ))
+    Code.memoize(dest, "tba_store_fields_dest") { dest =>
+      maybeGCCode(
+        ab.storeTo(storageType.fieldOffset(dest, 0)),
+        Region.storeAddress(storageType.fieldOffset(dest, 1), staging),
+        Region.storeAddress(storageType.fieldOffset(dest, 2), keyStage),
+        Region.storeLong(storageType.fieldOffset(dest, 3), maxIndex),
+        Region.storeInt(storageType.fieldOffset(dest, 4), maxSize)
+      )(Array(
+        Region.storeInt(storageType.fieldOffset(dest, 5), garbage),
+        Region.storeInt(storageType.fieldOffset(dest, 6), maxGarbage)))
+    }
   }
 
   private def loadFields(src: Code[Long]): Code[Unit] = {

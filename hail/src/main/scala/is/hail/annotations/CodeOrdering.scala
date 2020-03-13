@@ -40,7 +40,7 @@ object CodeOrdering {
   ): CodeOrdering = new CodeOrdering {
     require(sortOrders == null || sortOrders.size == t1.size)
     type T = Long
-
+    
     val m1: LocalRef[Boolean] = mb.newLocal[Boolean]
     val m2: LocalRef[Boolean] = mb.newLocal[Boolean]
 

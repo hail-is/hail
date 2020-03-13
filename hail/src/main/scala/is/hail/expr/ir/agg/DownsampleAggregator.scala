@@ -26,10 +26,11 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, fb: EmitF
   def copy(src: Code[Long], dest: Code[Long]): Code[Unit] = Region.copyFrom(src, dest, storageType.byteSize)
 
   def deepCopy(er: EmitRegion, src: Code[Long], dest: Code[Long]): Code[Unit] =
-    Code(
-      Region.loadBoolean(storageType.loadField(src, "empty")).orEmpty(Code._fatal[Unit]("key empty!!")),
-      StagedRegionValueBuilder.deepCopy(er, storageType, src, dest)
-    )
+    Code.memoize(src, "dsa_deep_copy_src") { src =>
+      Code(
+        Region.loadBoolean(storageType.loadField(src, "empty")).orEmpty(Code._fatal[Unit]("key empty!!")),
+        StagedRegionValueBuilder.deepCopy(er, storageType, src, dest))
+    }
 
   def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] = kcomp(k1, k2)
 

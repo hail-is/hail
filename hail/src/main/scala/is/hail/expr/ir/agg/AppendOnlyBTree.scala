@@ -80,7 +80,8 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Value[R
     val km: Value[Boolean] = insertAt.getArg[Boolean](3)
     val kv: Value[_] = insertAt.getArg(4)(typeToTypeInfo(key.compType))
     val child: Value[Long] = insertAt.getArg[Long](5)
-    val parent: Settable[Long] = insertAt.newLocal[Long]("aobt_insert_node_parent")
+
+    def parent: Code[Long] = getParent(node)
 
     val newNode = insertAt.newLocal[Long]
 
@@ -161,9 +162,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Value[R
             Code(promote(splitIdx - 1),
               insertAt.invoke(node, insertIdx, km, kv, child))))))
 
-    insertAt.emit(Code(
-      parent := getParent(node),
-      isFull(node).mux(splitAndInsert, shiftAndInsert)))
+    insertAt.emit(isFull(node).mux(splitAndInsert, shiftAndInsert))
     insertAt
   }
 

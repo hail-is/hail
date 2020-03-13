@@ -221,7 +221,7 @@ object Emit {
   }
 
   def apply(c: Classx[_], print: Option[PrintWriter]): Array[Byte] = {
-    println(Pretty(c))
+    // println(Pretty(c))
 
     val cn = new ClassNode()
 

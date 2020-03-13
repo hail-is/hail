@@ -193,6 +193,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
         srvb.start(totalCount, init = true),
         foreach(writeF) { elt =>
           Code(
+            elt.setup,
             elt.m.mux(
               srvb.setMissing(),
               srvb.addWithDeepCopy(elemType, elt.value)),
