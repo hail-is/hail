@@ -84,10 +84,6 @@ The sum of these costs is **$0.02170** per core per hour.
     after running for 2 minutes and then runs successfully the next time it is scheduled, the
     total cost for that job will be 7 minutes.
 
-.. note::
-
-    You are billed only for the time in which your job is running. We do not bill for the time it
-    takes to download input files, pull Docker images, upload log files, or upload output files.
 
 Setup
 -----
