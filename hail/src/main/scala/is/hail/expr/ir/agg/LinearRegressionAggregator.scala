@@ -3,8 +3,8 @@ package is.hail.expr.ir.agg
 import breeze.linalg.{DenseMatrix, DenseVector, diag, inv}
 import is.hail.annotations.{Region, RegionValueBuilder, StagedRegionValueBuilder, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder, EmitMethodBuilder}
-import is.hail.expr.types.physical.{PArray, PFloat64, PInt32, PStruct, PTuple}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitMethodBuilder}
+import is.hail.expr.types.physical._
 import is.hail.utils.FastIndexedSeq
 
 object LinearRegressionAggregator extends StagedAggregator {
@@ -13,8 +13,8 @@ object LinearRegressionAggregator extends StagedAggregator {
   val vector = PArray(PFloat64(true), true)
   val scalar = PFloat64(true)
   val stateType: PTuple = PTuple(true, vector, vector, PInt32(true))
-  val nrVec = PArray(PFloat64())
-  def resultType = PStruct("xty" -> nrVec, "beta" -> nrVec, "diag_inv" -> nrVec, "beta0" -> nrVec)
+  val nrVec = PCanonicalArray(PFloat64(true), true)
+  def resultType = PCanonicalStruct(required = true, "xty" -> nrVec, "beta" -> nrVec, "diag_inv" -> nrVec, "beta0" -> nrVec)
 
   def createState(cb: EmitClassBuilder[_]): State =
     new TypedRegionBackedAggState(stateType, cb)
