@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.{BroadcastRow, RegionValue}
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PStruct, PType}
+import is.hail.expr.types.physical.{PCanonicalStruct, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
@@ -49,7 +49,9 @@ case class TextTableReaderOptions(
   def nPartitions: Int = nPartitionsOpt.getOrElse(HailContext.get.sc.defaultParallelism)
 }
 
-case class TextTableReaderMetadata(globbedFiles: Array[String], header: String, fullType: TableType)
+case class TextTableReaderMetadata(globbedFiles: Array[String], header: String, rowPType: PStruct) {
+  def fullType: TableType = TableType(rowType = rowPType.virtualType, globalType = TStruct(), key = FastIndexedSeq())
+}
 
 object TextTableReader {
 
@@ -152,7 +154,7 @@ object TextTableReader {
   }
 
   def imputeTypes(values: RDD[WithContext[String]], header: Array[String],
-    delimiter: String, missing: Set[String], quote: java.lang.Character): Array[Option[Type]] = {
+    delimiter: String, missing: Set[String], quote: java.lang.Character): Array[(Option[Type], Boolean)] = {
     val nFields = header.length
 
     val matchTypes: Array[Type] = Array(TBoolean, TInt32, TInt64, TFloat64)
@@ -163,7 +165,8 @@ object TextTableReader {
       float64Matcher)
     val nMatchers = matchers.length
 
-    val imputation = values.mapPartitions { it =>
+    val (imputation, allDefined) = values.mapPartitions { it =>
+      val allDefined = Array.fill(nFields)(true)
       val ma = MultiArray2.fill[Boolean](nFields, nMatchers + 1)(true)
       val ab = new ArrayBuilder[String]
       val sb = new StringBuilder
@@ -183,14 +186,15 @@ object TextTableReader {
                 j += 1
               }
               ma.update(i, nMatchers, false)
-            }
+            } else
+              allDefined(i) = false
             i += 1
           }
         }
       }
-      Iterator.single(ma)
+      Iterator.single((ma, allDefined))
     }
-      .reduce({ case (ma1, ma2) =>
+      .reduce({ case ((ma1, allDefined1), (ma2, allDefined2)) =>
         var i = 0
         while (i < nFields) {
           var j = 0
@@ -201,7 +205,7 @@ object TextTableReader {
           ma1.update(i, nMatchers, ma1(i, nMatchers) && ma2(i, nMatchers))
           i += 1
         }
-        ma1
+        (ma1, Array.tabulate(allDefined1.length)(i => (allDefined1(i) && allDefined2(i))))
       })
 
     imputation.rowIndices.map { i =>
@@ -209,7 +213,7 @@ object TextTableReader {
         (0 until nMatchers).find(imputation(i, _))
           .map(matchTypes)
           .getOrElse(TString))
-    }.toArray
+    }.zip(allDefined).toArray
   }
 
   def readMetadata(options: TextTableReaderOptions): TextTableReaderMetadata = {
@@ -283,22 +287,22 @@ object TextTableReader {
 
         sb.append("Finished type imputation")
         val imputedTypes = imputeTypes(rdd, columns, separator, missing, quote)
-        columns.zip(imputedTypes).map { case (name, imputedType) =>
+        columns.zip(imputedTypes).map { case (name, (imputedType, req)) =>
           types.get(name) match {
             case Some(t) =>
               sb.append(s"\n  Loading column '$name' as type '$t' (user-specified)")
               categoryCounts.updateValue(s"user-specified $t", 0, _ + 1)
-              (name, t)
+              (name, PType.canonical(t, req))
             case None =>
               imputedType match {
                 case Some(t) =>
                   sb.append(s"\n  Loading column '$name' as type '$t' (imputed)")
                   categoryCounts.updateValue(s"imputed $t", 0, _ + 1)
-                  (name, t)
+                  (name, PType.canonical(t, req))
                 case None =>
                   sb.append(s"\n  Loading column '$name' as type 'str' (no non-missing values for imputation)")
                   categoryCounts.updateValue(s"str (no non-missing values for imputation)", 0, _ + 1)
-                  (name, TString)
+                  (name, PType.canonical(TString, req))
               }
           }
         }
@@ -309,11 +313,11 @@ object TextTableReader {
             case Some(t) =>
               sb.append(s"  Loading column '$c' as type '$t' (user-specified)\n")
               categoryCounts.updateValue(s"user-specified $t", 0, _ + 1)
-              (c, t)
+              (c, PType.canonical(t))
             case None =>
               sb.append(s"  Loading column '$c' as type 'str' (type not specified)\n")
               categoryCounts.updateValue(s"str (type not specified)", 0, _ + 1)
-              (c, TString)
+              (c, PType.canonical(TString))
           }
         }
       }
@@ -331,8 +335,7 @@ object TextTableReader {
       log.info(sb.result())
     }
 
-    val t = TableType(TStruct(namesAndTypes: _*), FastIndexedSeq(), TStruct.empty)
-    TextTableReaderMetadata(globbedFiles, header, t)
+    TextTableReaderMetadata(globbedFiles, header, PCanonicalStruct(namesAndTypes: _*))
   }
 }
 
