@@ -144,7 +144,8 @@ class AppendOnlySetState(val fb: EmitFunctionBuilder[_], t: PType) extends Point
 class CollectAsSetAggregator(t: PType) extends StagedAggregator {
   type State = AppendOnlySetState
 
-  val resultType: PSet = PSet(t)
+  assert(PType.canonical(t) == t)
+  val resultType: PSet = PCanonicalSet(t)
 
   def createState(fb: EmitFunctionBuilder[_]): State = new AppendOnlySetState(fb, t)
 

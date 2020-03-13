@@ -9,7 +9,7 @@ import is.hail.io._
 import is.hail.utils._
 
 class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Value[Region], val offset: Value[Long], states: StateTuple) extends BTreeKey {
-  val storageType: PStruct = PStruct(required = true,
+  val storageType: PStruct = PCanonicalStruct(required = true,
     "kt" -> kt,
     "regionIdx" -> PInt32(true),
     "container" -> states.storageType)
@@ -232,8 +232,9 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends StagedAggregator {
   type State = DictState
 
-  val resultEltType: PTuple = PTuple(nestedAggs.map(_.resultType): _*)
-  val resultType: PDict = PDict(kt, resultEltType)
+  assert(PType.canonical(kt) == kt)
+  val resultEltType: PTuple = PCanonicalTuple(true, nestedAggs.map(_.resultType): _*)
+  val resultType: PDict = PCanonicalDict(kt, resultEltType)
 
   def createState(fb: EmitFunctionBuilder[_]): State = new DictState(fb, kt, StateTuple(nestedAggs.map(_.createState(fb))))
 
