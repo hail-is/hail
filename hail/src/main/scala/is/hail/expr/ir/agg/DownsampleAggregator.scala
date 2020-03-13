@@ -11,7 +11,7 @@ import is.hail.utils._
 
 
 class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, fb: EmitFunctionBuilder[_], region: Code[Region]) extends BTreeKey {
-  val storageType: PStruct = PStruct(required = true,
+  val storageType: PCanonicalStruct = PCanonicalStruct(required = true,
     "bin" -> binType,
     "point" -> pointType,
     "empty" -> PBooleanRequired)
@@ -51,8 +51,8 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
 
   def createState: Code[Unit] = region.isNull.mux(r := Region.stagedCreate(regionSize), Code._empty)
 
-  val binType = PStruct(required = true, "x" -> PInt32Required, "y" -> PInt32Required)
-  val pointType = PStruct(required = true, "x" -> PFloat64Required, "y" -> PFloat64Required, "label" -> labelType)
+  val binType = PCanonicalStruct(required = true, "x" -> PInt32Required, "y" -> PInt32Required)
+  val pointType = PCanonicalStruct(required = true, "x" -> PFloat64Required, "y" -> PFloat64Required, "label" -> labelType)
 
   private val binET = EType.defaultFromPType(binType)
   private val pointET = EType.defaultFromPType(pointType)
@@ -77,7 +77,7 @@ class DownsampleState(val fb: EmitFunctionBuilder[_], labelType: PArray, maxBuff
   private val bufferTop: ClassFieldRef[Double] = fb.newField[Double]("buffer_top")
   private val treeSize: ClassFieldRef[Int] = fb.newField[Int]("treeSize")
 
-  val storageType = PStruct(required = true,
+  val storageType = PCanonicalStruct(required = true,
     "nDivisions" -> PInt32Required,
     "treeSize" -> PInt32Required,
     "left" -> PFloat64Required,
@@ -530,7 +530,7 @@ object DownsampleAggregator {
 class DownsampleAggregator(arrayType: PArray) extends StagedAggregator {
   type State = DownsampleState
 
-  val resultType: PArray = PArray(PTuple(PFloat64(), PFloat64(), PType.canonical(arrayType)))
+  val resultType: PArray = PCanonicalArray(PCanonicalTuple(required = true, PFloat64(true), PFloat64(true), PType.canonical(arrayType)))
 
   def createState(fb: EmitFunctionBuilder[_]): State = new DownsampleState(fb, arrayType)
 
