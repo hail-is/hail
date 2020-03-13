@@ -10,11 +10,10 @@ import is.hail.utils.FastIndexedSeq
 object LinearRegressionAggregator extends StagedAggregator {
   type State = TypedRegionBackedAggState
 
-  val vector = PArray(PFloat64(true), true)
   val scalar = PFloat64(true)
+  val vector = PArray(scalar, true)
   val stateType: PTuple = PTuple(true, vector, vector, PInt32(true))
-  val nrVec = PCanonicalArray(PFloat64(true), true)
-  def resultType = PCanonicalStruct(required = true, "xty" -> nrVec, "beta" -> nrVec, "diag_inv" -> nrVec, "beta0" -> nrVec)
+  def resultType = PCanonicalStruct(required = true, "xty" -> vector, "beta" -> vector, "diag_inv" -> vector, "beta0" -> vector)
 
   def createState(cb: EmitClassBuilder[_]): State =
     new TypedRegionBackedAggState(stateType, cb)
