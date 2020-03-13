@@ -28,7 +28,7 @@ from gear import configure_logging
 
 from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes, \
     adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes
-from .semaphore import FIFOWeightedSemaphore, NullWeightedSemaphore
+from .semaphore import FIFOWeightedSemaphore
 from .log_store import LogStore
 from .globals import HTTP_CLIENT_MAX_SIZE
 from .batch_format_version import BatchFormatVersion
