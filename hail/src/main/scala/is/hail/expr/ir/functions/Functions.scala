@@ -259,7 +259,12 @@ abstract class RegistryFunctions {
 
       override val returnType: Type = rType
 
-      override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(argTypes)
+      override def returnPType(argTypes: Seq[PType], returnType: Type): PType = {
+        val p = if (pt == null) PType.canonical(returnType) else pt(argTypes)
+
+        // IRFunctionWithoutMissingness returns missing if any arguments are missing
+        p.setRequired(argTypes.forall(_.required))
+      }
 
       override def apply(r: EmitRegion, returnPType: PType, args: (PType, Code[_])*): Code[_] = {
         unify(args.map(_._1.virtualType))
