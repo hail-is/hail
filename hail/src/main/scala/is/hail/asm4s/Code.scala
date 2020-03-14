@@ -75,6 +75,8 @@ object Code {
   }
 
   def sequence1[T](cs: IndexedSeq[Code[Unit]], v: Code[T]): Code[T] = {
+    cs.foreach(_.check())
+    v.check()
     val start = new lir.Block()
     val end = (cs :+ v).foldLeft(start) { (end, c) =>
       end.append(lir.goto(c.start))
@@ -389,7 +391,26 @@ class Code[+T](
   var start: lir.Block,
   var end: lir.Block,
   var v: lir.ValueX) {
+  // for debugging
+  val stack = Thread.currentThread().getStackTrace
+  var clearStack: Array[StackTraceElement] = _
+
+  def check(): Unit = {
+    if (start == null) {
+      println(clearStack.mkString("\n"))
+      println("-----")
+      println(stack.mkString("\n"))
+    }
+    assert (start != null)
+  }
+
   def clear(): Unit = {
+    if (clearStack != null) {
+      println(clearStack.mkString("\n"))
+    }
+    assert(clearStack == null)
+    clearStack = Thread.currentThread().getStackTrace
+
     start = null
     end = null
     v = null
@@ -821,7 +842,7 @@ class Invokeable[T, S](tcls: Class[T],
     val sti = typeInfoFromClassTag(sct)
 
     // FIXME ??? doesn't correctly handle units, generics
-    val newC = if (sct.runtimeClass == java.lang.Void.TYPE) {
+    if (sct.runtimeClass == java.lang.Void.TYPE) {
       end.append(
         lir.methodStmt(invokeOp, Type.getInternalName(tcls), name, descriptor, isInterface, sti, argvs))
       new Code(start, end, null)
@@ -831,10 +852,6 @@ class Invokeable[T, S](tcls: Class[T],
         v = lir.checkcast(Type.getInternalName(sct.runtimeClass), v)
       new Code(start, end, v)
     }
-    if (lhs != null)
-      lhs.clear()
-    args.foreach(_.clear())
-    newC
   }
 }
 
