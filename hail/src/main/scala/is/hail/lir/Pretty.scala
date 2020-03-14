@@ -71,12 +71,14 @@ object Pretty {
   }
 
   def fmt(m: Method, b: Builder): Unit = {
+    val blocks = m.findBlocks()
+
     b += s"def ${ m.name } (${ m.parameterTypeInfo.map(_.desc).mkString(",") })${ m.returnTypeInfo.desc }"
 
     b.indent {
       b += "\n"
       b += s"entry ${ m.entry }\n"
-      for (ell <- m.blocks) {
+      for (ell <- blocks) {
         fmt(ell, b)
       }
     }

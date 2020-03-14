@@ -247,7 +247,11 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
       val setup = ec.setup
       setup.end.append(lir.putField(name, m.name, typeInfo[Boolean], obj, ec.m.v))
       setup.end.append(lir.putField(name, v.name, ti, obj, ec.v.v))
-      new Code(setup.start, setup.end, null)
+      val newC = new Code(setup.start, setup.end, null)
+      setup.clear()
+      ec.m.clear()
+      ec.v.clear()
+      newC
     }
     new EmitValue {
       def pt: PType = _pt
@@ -265,13 +269,13 @@ class EmitFunctionBuilder[F >: Null](
   initModule: ModuleBuilder = null
 )(implicit interfaceTi: TypeInfo[F]) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName, namePrefix, initModule) {
 
-  private[this] val rgMap: mutable.Map[ReferenceGenome, Code[ReferenceGenome]] =
-    mutable.Map[ReferenceGenome, Code[ReferenceGenome]]()
+  private[this] val rgMap: mutable.Map[ReferenceGenome, Value[ReferenceGenome]] =
+    mutable.Map[ReferenceGenome, Value[ReferenceGenome]]()
 
-  private[this] val typMap: mutable.Map[Type, Code[Type]] =
-    mutable.Map[Type, Code[Type]]()
+  private[this] val typMap: mutable.Map[Type, Value[Type]] =
+    mutable.Map[Type, Value[Type]]()
 
-  private[this] val pTypeMap: mutable.Map[PType, Code[PType]] = mutable.Map[PType, Code[PType]]()
+  private[this] val pTypeMap: mutable.Map[PType, Value[PType]] = mutable.Map[PType, Value[PType]]()
 
   private[this] type CompareMapKey = (PType, PType, CodeOrdering.Op, SortOrder, Boolean)
   private[this] val compareMap: mutable.Map[CompareMapKey, CodeOrdering.F[_]] =
@@ -694,7 +698,7 @@ class EmitFunctionBuilder[F >: Null](
       reseed))
   }
 
-  def newRNG(seed: Long): Code[IRRandomness] = {
+  def newRNG(seed: Long): Value[IRRandomness] = {
     val rng = newField[IRRandomness]
     rngs += rng -> Code.newInstance[IRRandomness, Long](seed)
     rng
@@ -773,7 +777,7 @@ class EmitFunctionBuilder[F >: Null](
   def newPField(name: String, pt: PType): PSettable = new PSettable {
     private val f = newField(name)(typeToTypeInfo(pt))
 
-    def get: PCode = PCode(pt, f.load()).asInstanceOf
+    def get: PCode = PCode(pt, f.load())
 
     def store(v: PCode): Code[Unit] = f.storeAny(v.code)
   }

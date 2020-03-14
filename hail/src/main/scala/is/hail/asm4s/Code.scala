@@ -20,14 +20,18 @@ object Code {
 
   def void[T](c: Code[_], f: (lir.ValueX) => lir.StmtX): Code[T] = {
     c.end.append(f(c.v))
-    new Code(c.start, c.end, null)
+    val newC = new Code(c.start, c.end, null)
+    c.clear()
+    newC
   }
 
   def void[T](c1: Code[_], c2: Code[_], f: (lir.ValueX, lir.ValueX) => lir.StmtX): Code[T] = {
     c2.end.append(f(c1.v, c2.v))
     c1.end.append(lir.goto(c2.start))
-    new Code(c1.start, c2.end, null)
-
+    val newC = new Code(c1.start, c2.end, null)
+    c1.clear()
+    c2.clear()
+    newC
   }
 
   def apply[T](v: lir.ValueX): Code[T] = {
@@ -35,20 +39,28 @@ object Code {
     new Code(L, L, v)
   }
 
-  def concat[T](c: Code[_]*): Code[T] = ???
-
-  def apply[T](c: Code[_], f: (lir.ValueX) => lir.ValueX): Code[T] =
-    new Code(c.start, c.end, f(c.v))
+  def apply[T](c: Code[_], f: (lir.ValueX) => lir.ValueX): Code[T] = {
+    val newC = new Code(c.start, c.end, f(c.v))
+    c.clear()
+    newC
+  }
 
   def apply[T](c1: Code[_], c2: Code[_], f: (lir.ValueX, lir.ValueX) => lir.ValueX): Code[T] = {
     c1.end.append(lir.goto(c2.start))
-    new Code(c1.start, c2.end, f(c1.v, c2.v))
+    val newC = new Code(c1.start, c2.end, f(c1.v, c2.v))
+    c1.clear()
+    c2.clear()
+    newC
   }
 
   def apply[T](c1: Code[_], c2: Code[_], c3: Code[_], f: (lir.ValueX, lir.ValueX, lir.ValueX) => lir.ValueX): Code[T] = {
     c1.end.append(lir.goto(c2.start))
     c2.end.append(lir.goto(c3.start))
-    new Code(c1.start, c3.end, f(c1.v, c2.v, c3.v))
+    val newC = new Code(c1.start, c3.end, f(c1.v, c2.v, c3.v))
+    c1.clear()
+    c2.clear()
+    c3.clear()
+    newC
   }
 
   def sequenceValues(cs: IndexedSeq[Code[_]]): (lir.Block, lir.Block, IndexedSeq[lir.ValueX]) = {
@@ -57,7 +69,9 @@ object Code {
       end.append(lir.goto(c.start))
       c.end
     }
-    (start, end, cs.map(_.v))
+    val r = (start, end, cs.map(_.v))
+    cs.foreach(_.clear())
+    r
   }
 
   def sequence1[T](cs: IndexedSeq[Code[Unit]], v: Code[T]): Code[T] = {
@@ -67,7 +81,10 @@ object Code {
       c.end
     }
     assert(end eq v.end)
-    new Code(start, end, v.v)
+    val newC = new Code(start, end, v.v)
+    cs.foreach(_.clear())
+    v.clear()
+    newC
   }
 
   def apply[T](c1: Code[Unit], c2: Code[T]): Code[T] =
@@ -117,7 +134,9 @@ object Code {
     val inst = new Code(L, L, lir.load(linst))
     val ctor = inst.invokeConstructor(parameterTypes, args)
 
-    new Code(ctor.start, ctor.end, lir.load(linst))
+    val newC = new Code(ctor.start, ctor.end, lir.load(linst))
+    ctor.clear()
+    newC
   }
 
   def newInstance[T <: AnyRef]()(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
@@ -266,7 +285,9 @@ object Code {
   def _throw[T <: java.lang.Throwable, U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] = {
     if (uti eq UnitInfo) {
       cerr.end.append(lir.stmtOp(ATHROW, cerr.v))
-      new Code(cerr.start, cerr.end, null)
+      val newC = new Code(cerr.start, cerr.end, null)
+      cerr.clear()
+      newC
     } else
       Code(cerr, lir.insn1(ATHROW, uti))
   }
@@ -282,7 +303,9 @@ object Code {
       lir.returnx(c.v)
     else
       lir.returnx())
-    new Code(c.start, c.end, null)
+    val newC = new Code(c.start, c.end, null)
+    c.clear()
+    newC
   }
 
   def _println(c: Code[AnyRef]): Code[Unit] =
@@ -343,21 +366,34 @@ object Code {
     Code(lr1 := c1, lr2 := c2, f(lr1, lr2))
   }
 
-  def toUnit(c: Code[_]): Code[Unit] = new Code(c.start, c.end, null)
+  def toUnit(c: Code[_]): Code[Unit] = {
+    val newC = new Code(c.start, c.end, null)
+    c.clear()
+    newC
+  }
 
   def switch(c: Code[Int], dflt: Code[Unit], cases: IndexedSeq[Code[Unit]]): Code[Unit] = {
     val L = new lir.Block()
     c.end.append(lir.switch(c.v, dflt.start, cases.map(_.start)))
     dflt.end.append(lir.goto(L))
     cases.foreach(_.end.append(lir.goto(L)))
-    new Code(c.start, L, null)
+    val newC = new Code(c.start, L, null)
+    c.clear()
+    dflt.clear()
+    cases.foreach(_.clear())
+    newC
   }
 }
 
 class Code[+T](
-  val start: lir.Block,
-  val end: lir.Block,
-  val v: lir.ValueX) {
+  var start: lir.Block,
+  var end: lir.Block,
+  var v: lir.ValueX) {
+  def clear(): Unit = {
+    start = null
+    end = null
+    v = null
+  }
 }
 
 class Conditional(
@@ -405,17 +441,19 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
   }
 
   def mux[T](cthen: Code[T], celse: Code[T]): Code[T] = {
-    assert((cthen.v == null) == (celse.v == null))
-
     val cond = lhs.toConditional
     val L = new lir.Block()
-    if (cthen.v == null) {
+    val newC = if (cthen.v == null) {
+      assert(celse.v == null)
+
       cond.Ltrue.append(lir.goto(cthen.start))
       cthen.end.append(lir.goto(L))
       cond.Lfalse.append(lir.goto(celse.start))
       celse.end.append(lir.goto(L))
       new Code(cond.start, L, null)
     } else {
+      assert(celse.v != null)
+
       if (cthen.v.ti.desc != celse.v.ti.desc)
         println(s"${ cthen.v.ti.desc } ${ celse.v.ti.desc }")
       assert(cthen.v.ti.desc == celse.v.ti.desc)
@@ -432,6 +470,9 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
 
       new Code(cond.start, L, lir.load(t))
     }
+    cthen.clear()
+    celse.clear()
+    newC
   }
 
   def orEmpty(cthen: Code[Unit]): Code[Unit] = {
@@ -440,7 +481,9 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
     cond.Ltrue.append(lir.goto(cthen.start))
     cthen.end.append(lir.goto(L))
     cond.Lfalse.append(lir.goto(L))
-    new Code(cond.start, L, null)
+    val newC = new Code(cond.start, L, null)
+    cthen.clear()
+    newC
   }
 
   def &(rhs: Code[Boolean]): Code[Boolean] = Code(lhs, rhs, lir.insn2(IAND))
@@ -682,7 +725,11 @@ class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
     lhs.start.append(lir.goto(i.end))
     i.start.append(lir.goto(x.start))
     x.end.append(lir.stmtOp(tti.astoreOp, lhs.v, i.v, x.v))
-    new Code(lhs.start, x.end, null)
+    val newC = new Code(lhs.start, x.end, null)
+    lhs.clear()
+    i.clear()
+    x.clear()
+    newC
   }
 
   def length(): Code[Int] =
@@ -773,8 +820,8 @@ class Invokeable[T, S](tcls: Class[T],
 
     val sti = typeInfoFromClassTag(sct)
 
-    // FIXME doesn't correctly handle units, generics
-    if (sct.runtimeClass == java.lang.Void.TYPE) {
+    // FIXME ??? doesn't correctly handle units, generics
+    val newC = if (sct.runtimeClass == java.lang.Void.TYPE) {
       end.append(
         lir.methodStmt(invokeOp, Type.getInternalName(tcls), name, descriptor, isInterface, sti, argvs))
       new Code(start, end, null)
@@ -784,6 +831,10 @@ class Invokeable[T, S](tcls: Class[T],
         v = lir.checkcast(Type.getInternalName(sct.runtimeClass), v)
       new Code(start, end, v)
     }
+    if (lhs != null)
+      lhs.clear()
+    args.foreach(_.clear())
+    newC
   }
 }
 
@@ -837,7 +888,9 @@ class LocalRef[T](val l: lir.Local)(implicit tti: TypeInfo[T]) extends Settable[
 
   def store(rhs: Code[T]): Code[Unit] = {
     rhs.end.append(lir.store(l, rhs.v))
-    new Code(rhs.start, rhs.end, null)
+    val newC = new Code(rhs.start, rhs.end, null)
+    rhs.clear()
+    newC
   }
 }
 

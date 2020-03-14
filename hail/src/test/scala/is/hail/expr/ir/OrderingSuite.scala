@@ -49,6 +49,8 @@ class OrderingSuite extends HailSuite {
     } yield (t, a1, a2)
     val p = Prop.forAll(compareGen) { case (t, a1, a2) =>
       Region.scoped { region =>
+        println(t)
+
         val pType = PType.canonical(t)
         val rvb = new RegionValueBuilder(region)
 

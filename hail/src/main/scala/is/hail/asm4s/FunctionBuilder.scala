@@ -22,7 +22,10 @@ class Field[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
   def put(obj: Code[_], v: Code[T]): Code[Unit] = {
     obj.end.append(lir.goto(v.start))
     v.end.append(lir.putField(lf, obj.v, v.v))
-    new Code(obj.start, v.end, null)
+    val newC = new Code(obj.start, v.end, null)
+    obj.clear()
+    v.clear()
+    newC
   }
 }
 
@@ -146,6 +149,7 @@ class ClassBuilder[C](
 
   def classAsBytes(print: Option[PrintWriter] = None): Array[Byte] = {
     // FIXME build incrementally?
+    assert(initBody.start != null)
     lInit.setEntry(initBody.start)
 
     lclass.asBytes(print)
@@ -282,7 +286,10 @@ class MethodBuilder(val fb: FunctionBuilder[_], _mname: String, val parameterTyp
         lir.returnx(body.v)
       else
         lir.returnx())
+    assert(start != null)
     lmethod.setEntry(start)
+
+    body.clear()
   }
 
   def invoke[T](args: Code[_]*): Code[T] = {
@@ -307,7 +314,9 @@ trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
     val cfr = newField[T]
     setFields += { (obj: lir.ValueX) =>
       value.end.append(lir.putField(name, cfr.name, typeInfo[T], obj, value.v))
-      new Code(value.start, value.end, null)
+      val newC = new Code(value.start, value.end, null)
+      value.clear()
+      newC
     }
     cfr
   }

@@ -1,6 +1,6 @@
 package is.hail
 
-import is.hail.asm4s.{TypeInfo, UnitInfo}
+import is.hail.asm4s.{ArrayInfo, BooleanInfo, ClassInfo, DoubleInfo, FloatInfo, IntInfo, LongInfo, TypeInfo, UnitInfo}
 import is.hail.utils.FastIndexedSeq
 import org.objectweb.asm.Opcodes._
 
@@ -246,5 +246,15 @@ package object lir {
     val x = new NewArrayX(eti)
     setChildren(x, len)
     x
+  }
+
+  def defaultValue(ti: TypeInfo[_]): ValueX = ti match {
+    case BooleanInfo => ldcInsn(false)
+    case IntInfo => ldcInsn(0)
+    case LongInfo => ldcInsn(0L)
+    case FloatInfo => ldcInsn(0.0f)
+    case DoubleInfo => ldcInsn(0.0)
+    case _: ClassInfo[_] => insn(ACONST_NULL, ti)
+    case _: ArrayInfo[_] => insn(ACONST_NULL, ti)
   }
 }

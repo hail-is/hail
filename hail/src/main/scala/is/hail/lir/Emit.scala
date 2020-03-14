@@ -70,12 +70,14 @@ object Emit {
   }
 
   def emit(cn: ClassNode, m: Method): Unit = {
-    println(s"compiling ${ m.name }")
+    // println(s"compiling ${ m.name }")
+
+    val blocks = m.findBlocks()
 
     val mn = new MethodNode(ACC_PUBLIC, m.name, m.desc, null, null)
     cn.methods.asInstanceOf[java.util.List[MethodNode]].add(mn)
 
-    val labelNodes = m.blocks.map(L => L -> new LabelNode).toMap
+    val labelNodes = blocks.map(L => L -> new LabelNode).toMap
 
     val localIndex: mutable.Map[Local, Int] = mutable.Map[Local, Int]()
 
@@ -94,34 +96,13 @@ object Emit {
       i += 1
     }
 
-    val locals: mutable.Set[Local] = mutable.Set()
-    for (ell <- m.blocks) {
-      def findLocals(x: X): Unit = {
-        x match {
-          case x: StoreX =>
-            locals += x.l
-          case x: LoadX =>
-            locals += x.l
-          case x: IincX =>
-            locals += x.l
-          case _ =>
-        }
-
-        x.children.foreach(findLocals)
-      }
-
-      var x = ell.first
-      while (x != null) {
-        findLocals(x)
-        x = x.next
-      }
-    }
+    val locals = m.findLocals(blocks)
 
     for (l <- locals) {
       if (!l.isInstanceOf[Parameter]) {
         localIndex += (l -> n)
 
-        println(s"  assign $l $n ${ l.ti.desc }")
+        // println(s"  assign $l $n ${ l.ti.desc }")
 
         val ln = new LocalVariableNode(
           // FIXME require
@@ -213,7 +194,7 @@ object Emit {
 
     mn.instructions.add(start)
     emitBlock(m.entry)
-    for (b <- m.blocks) {
+    for (b <- blocks) {
       if (b ne m.entry)
         emitBlock(b)
     }

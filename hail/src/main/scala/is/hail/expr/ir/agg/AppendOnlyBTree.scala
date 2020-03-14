@@ -248,7 +248,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Value[R
     { srcRoot: Code[Long] => f.invoke(root, srcRoot) }
   }
 
-  def bulkStore(obCode: Code[OutputBuffer])(keyStore: (Code[OutputBuffer], Code[Long]) => Code[Unit]): Code[Unit] = {
+  def bulkStore(obCode: Code[OutputBuffer])(keyStore: (Value[OutputBuffer], Code[Long]) => Code[Unit]): Code[Unit] = {
     val f = fb.newMethod("btree_bulkStore", Array[TypeInfo[_]](typeInfo[Long], typeInfo[OutputBuffer]), typeInfo[Unit])
     val node = f.getArg[Long](1)
     val ob = f.getArg[OutputBuffer](2)
@@ -266,7 +266,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Value[R
     f.invoke(root, obCode)
   }
 
-  def bulkLoad(ibCode: Code[InputBuffer])(keyLoad: (Code[InputBuffer], Code[Long]) => Code[Unit]): Code[Unit] = {
+  def bulkLoad(ibCode: Code[InputBuffer])(keyLoad: (Value[InputBuffer], Code[Long]) => Code[Unit]): Code[Unit] = {
     val f = fb.newMethod("btree_bulkLoad", Array[TypeInfo[_]](typeInfo[Long], typeInfo[InputBuffer]), typeInfo[Unit])
     val node = f.getArg[Long](1)
     val ib = f.getArg[InputBuffer](2)

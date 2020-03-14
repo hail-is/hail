@@ -295,31 +295,6 @@ class ASM4SSuite extends TestNGSuite {
     }.check()
   }
 
-  @Test def makeMethods(): Unit = {
-    val fb = FunctionBuilder.functionBuilder[Int]
-    val methods = Array.tabulate[MethodBuilder](3)(_ => fb.newMethod[Int, Int, Int])
-    val locals = Array.tabulate[LocalRef[Int]](9)(i => methods(i / 3).newLocal[Int])
-    val codes = Array.tabulate[mutable.ArrayBuffer[Code[_]]](3)(_ => mutable.ArrayBuffer[Code[_]]())
-    var i = 0
-    while (i < 3) {
-      var j = 0
-      while (j < 3) {
-        codes(i) += (locals(3*i + j) := const(i))
-        j += 1
-      }
-      codes(i) += locals(3*i)
-      i += 1
-    }
-    i = 0
-    while (i < 3) {
-      methods(i).emit(Code.concat(codes(i): _*))
-      i += 1
-    }
-    fb.emit(methods(1).invoke(0,0))
-    val f = fb.result()()
-    assert(f() == 1)
-  }
-
   @Test def defineOpsAsMethods(): Unit = {
     val fb = FunctionBuilder.functionBuilder[Int, Int, Int, Int]
     val add = fb.newMethod[Int, Int, Int]
@@ -466,5 +441,16 @@ class ASM4SSuite extends TestNGSuite {
 
     val f = fb.result()()
     assert(f(1, 2) == 3)
+  }
+
+  @Test def testInitialize(): Unit = {
+    val fb = functionBuilder[Boolean, Int]
+    val l = fb.newLocal[Int]
+    fb.emit(Code(
+      fb.getArg[Boolean](1).mux(Code._empty, l := 5),
+      l))
+    val f = fb.result()()
+    assert(f(true) == 0)
+    assert(f(false) == 5)
   }
 }

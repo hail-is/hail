@@ -22,10 +22,12 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
   def createState: Code[Unit] = region.isNull.mux(r := Region.stagedCreate(regionSize), Code._empty)
 
   override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
-    Code(
-      regionLoader(r),
-      maxSize := Region.loadInt(maxSizeOffset(src)),
-      builder.loadFrom(builderStateOffset(src)))
+    Code.memoize(src, "take_rvas_src") { src =>
+      Code(
+        regionLoader(r),
+        maxSize := Region.loadInt(maxSizeOffset(src)),
+        builder.loadFrom(builderStateOffset(src)))
+    }
 
   override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
     Code.memoize(dest, "ta_store_dest") { dest =>

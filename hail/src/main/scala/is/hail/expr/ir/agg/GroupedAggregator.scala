@@ -192,7 +192,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
           { (i, _, args) =>
             Code.memoize(coerce[OutputBuffer](args.head), "ga_ser_init_ob") { ob => serializers(i)(ob) }
           }),
-        tree.bulkStore(ob) { (ob: Code[OutputBuffer], kvOff: Code[Long]) =>
+        tree.bulkStore(ob) { (ob: Value[OutputBuffer], kvOff: Code[Long]) =>
           Code(
             _elt := kvOff,
             km := keyed.isKeyMissing(_elt),
@@ -201,7 +201,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
             (!km).orEmpty(kEnc.invoke(kv, ob)),
             keyed.loadStates,
             nested.toCodeWithArgs(fb, "grouped_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
-              Array(ob),
+              Array(ob.get),
               { (i, _, args) =>
                 Code.memoize(coerce[OutputBuffer](args.head), "ga_ser_init_ob") { ob => serializers(i)(ob) }
               }))

@@ -8,7 +8,7 @@ import is.hail.expr.types.physical._
 import is.hail.io._
 import is.hail.utils._
 
-class TypedKey(typ: PType, fb: EmitFunctionBuilder[_], region: Code[Region]) extends BTreeKey {
+class TypedKey(typ: PType, fb: EmitFunctionBuilder[_], region: Value[Region]) extends BTreeKey {
   val inline: Boolean = typ.isPrimitive
   val storageType: PTuple = PTuple(if (inline) typ else PInt64(typ.required), PTuple())
   val compType: PType = typ
@@ -122,10 +122,12 @@ class AppendOnlySetState(val fb: EmitFunctionBuilder[_], t: PType) extends Point
 
     { ob: Value[OutputBuffer] =>
       tree.bulkStore(ob) { (ob, src) =>
-        Code(
-          ob.writeBoolean(key.isKeyMissing(src)),
-          (!key.isKeyMissing(src)).orEmpty(
-            kEnc.invoke(key.loadKey(src), ob)))
+        Code.memoize(src, "aoss_ser_src") { src =>
+          Code(
+            ob.writeBoolean(key.isKeyMissing(src)),
+            (!key.isKeyMissing(src)).orEmpty(
+              kEnc.invoke(key.loadKey(src), ob)))
+        }
       }
     }
   }

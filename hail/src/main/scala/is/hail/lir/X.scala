@@ -44,18 +44,24 @@ class Classx[C](val name: String, val superName: String) {
     // println(Pretty(this))
 
     for (m <- methods) {
-      m.findBlocks()
+      m.removeDeadCode()
     }
 
     for (m <- methods) {
       m.simplifyBlocks()
     }
 
+    for (m <- methods) {
+      InitializeLocals(m)
+    }
+
     // println(Pretty(this))
 
-    Emit(this, print
+    Emit(this,
+      print
       // Some(new PrintWriter(System.out))
     )
+
   }
 }
 
@@ -104,8 +110,6 @@ class Method private[lir] (
 
   def isInterface: Boolean = false
 
-  var blocks: mutable.ArrayBuffer[Block] = new mutable.ArrayBuffer()
-
   var _entry: Block = _
 
   def setEntry(newEntry: Block): Unit = {
@@ -129,8 +133,8 @@ class Method private[lir] (
 
   def genLocal(ti: TypeInfo[_]): Local = newLocal(genName(), ti)
 
-  def findBlocks(): Unit = {
-    val newBlocks = mutable.ArrayBuffer[Block]()
+  def findBlocks(): IndexedSeq[Block] = {
+    val blocks = mutable.ArrayBuffer[Block]()
 
     val s = new mutable.Stack[Block]()
     val visited = mutable.Set[Block]()
@@ -142,9 +146,17 @@ class Method private[lir] (
       if (!visited.contains(L)) {
         if (L.method == null)
           L.method = this
-        else
+        else {
+          /*
+          if (L.method ne this) {
+            println(L.method)
+            println(this)
+            println(L.stack.mkString("\n"))
+          }
+           */
           assert(L.method eq this)
-        newBlocks += L
+        }
+        blocks += L
 
         var x = L.first
         while (x != null) {
@@ -165,7 +177,65 @@ class Method private[lir] (
       }
     }
 
-    blocks = newBlocks
+    blocks
+  }
+
+  def findAndIndexBlocks(): (IndexedSeq[Block], Map[Block, Int]) = {
+    val blocks = findBlocks()
+    val blockIdx = blocks.zipWithIndex.toMap
+    (blocks, blockIdx)
+  }
+
+  def findLocals(blocks: IndexedSeq[Block]): IndexedSeq[Local] = {
+    val locals = mutable.ArrayBuffer[Local]()
+    val visited: mutable.Set[Local] = mutable.Set()
+
+    def visitLocal(l: Local): Unit = {
+      if (!visited.contains(l)) {
+        locals += l
+        visited += l
+      }
+    }
+
+    def visitX(x: X): Unit = {
+      x match {
+        case x: StoreX => visitLocal(x.l)
+        case x: LoadX => visitLocal(x.l)
+        case x: IincX => visitLocal(x.l)
+        case _ =>
+      }
+      x.children.foreach(visitX)
+    }
+
+    for (b <- blocks) {
+      var x = b.first
+      while (x != null) {
+        visitX(x)
+        x = x.next
+      }
+    }
+
+    locals
+  }
+
+  def findAndIndexLocals(blocks: IndexedSeq[Block]): (IndexedSeq[Local], Map[Local, Int]) = {
+    val locals = findLocals(blocks)
+    val localIdx = locals.zipWithIndex.toMap
+    (locals, localIdx)
+  }
+
+  def removeDeadCode(): Unit = {
+    val blocks = findBlocks()
+    for (b <- blocks) {
+      var x = b.first
+      while (x != null && !x.isInstanceOf[ControlX])
+        x = x.next
+      if (x != null) {
+        assert(x.isInstanceOf[ControlX])
+        while (x.next != null)
+          x.next.remove()
+      }
+    }
   }
 
   def simplifyBlocks(): Unit = {
@@ -209,11 +279,10 @@ class Method private[lir] (
       }
     }
 
+    val blocks = findBlocks()
+
     for (ell <- blocks)
       simplifyBlock(ell)
-
-    // update blocks
-    findBlocks()
   }
 }
 
@@ -231,6 +300,9 @@ class Parameter(method: Method, val i: Int, ti: TypeInfo[_]) extends Local(metho
 }
 
 class Block {
+  // for debugging
+  // val stack = Thread.currentThread().getStackTrace
+
   var method: Method = _
 
   val uses: mutable.Set[ControlX] = mutable.Set()
@@ -258,6 +330,21 @@ class Block {
     }
 
     assert(uses.isEmpty)
+  }
+
+  def prepend(x: StmtX): Unit = {
+    assert(x.parent == null)
+    if (last == null) {
+      first = x
+      last = x
+    } else {
+      assert(x.next == null)
+      x.next = first
+      assert(first.prev == null)
+      first.prev = x
+      first = x
+    }
+    x.parent = this
   }
 
   def append(x: StmtX): Unit = {
@@ -294,8 +381,8 @@ class Block {
 // X stands for eXpression
 abstract class X {
   // for debugging
-  val stack = Thread.currentThread().getStackTrace
-  var setParentStack: Array[StackTraceElement] = _
+  // val stack = Thread.currentThread().getStackTrace
+  // var setParentStack: Array[StackTraceElement] = _
 
   var children: Array[ValueX] = new Array(0)
 
@@ -315,14 +402,16 @@ abstract class X {
       c.parent = null
 
     if (x != null) {
+      /*
       if (x.parent != null) {
         println(x.setParentStack.mkString("\n"))
         println("-------")
         println(x.stack.mkString("\n"))
       }
+       */
       assert(x.parent == null)
       x.parent = this
-      x.setParentStack = Thread.currentThread().getStackTrace
+      // x.setParentStack = Thread.currentThread().getStackTrace
     }
     children(i) = x
   }
@@ -439,9 +528,9 @@ class SwitchX() extends ControlX {
   }
 }
 
-class StoreX(val l: Local) extends ControlX
+class StoreX(val l: Local) extends StmtX
 
-class PutFieldX(val op: Int, val f: FieldRef) extends ControlX
+class PutFieldX(val op: Int, val f: FieldRef) extends StmtX
 
 class IincX(val l: Local, val i: Int) extends StmtX
 

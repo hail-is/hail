@@ -758,6 +758,7 @@ private class Emit(
           implicit val c = _ctx
 
           val xAcc = mb.newEmitField(accumName, accType)
+          val tmpAcc = mb.newEmitField(accumName, accType)
 
           def foldBody(elt: EmitCode): Code[Unit] = {
             val xElt = mb.newEmitField(valueName, eltType)
@@ -765,7 +766,8 @@ private class Emit(
 
             val codeB = emit(body, env = bodyenv)
             Code(xElt := elt,
-              xAcc := codeB.map(v => accType.copyFromPValue(mb, region, PCode(body.pType, codeB.v))))
+              tmpAcc := codeB.map(v => accType.copyFromPValue(mb, region, PCode(body.pType, codeB.v))),
+              xAcc := tmpAcc)
           }
 
           val codeZ = emit(zero).map(accType.copyFromPValue(mb, region, _))
@@ -1815,7 +1817,7 @@ private class Emit(
 
       case x@TailLoop(name, args, body) =>
         val label = CodeLabel()
-        val loopRef = LoopRef(mb, label, args.map { case (name, x) => (name, x.pType)})
+        val loopRef = LoopRef(mb, label, args.map { case (name, x) => (name, x.pType) })
 
         val m = mb.newField[Boolean]
         val v = mb.newPField(x.pType)
@@ -2179,7 +2181,7 @@ private class Emit(
                         .concat(localDim.toS).concat(", got ")
                         .concat(inputNDType.dimensionLength(inputType.loadElement(inputArray, i), idx).toS)))
               },
-            i := i + 1))
+              i := i + 1))
 
           localDim
         }
@@ -2271,7 +2273,7 @@ private class Emit(
       case x@NDArrayFilter(child, filters) =>
         val childEmitter = deforest(child)
 
-        val sb = SetupBuilder(mb, childEmitter.setupMissing)
+        val sb = SetupBuilder(mb, childEmitter.setupShape)
 
         val (vars, outputShape) = filters.zipWithIndex.map { case (f, i) =>
           val codeF = emit(f, mb, env, er, None)

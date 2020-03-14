@@ -193,37 +193,37 @@ object LocusFunctions extends RegistryFunctions {
 
     registerCode("min_rep", tlocus("T"), TArray(TString), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString)), null) {
       case (r, rt: PStruct, (locusT: PLocus, lOff), (allelesT, aOff)) =>
-        val returnTuple = r.mb.newLocal[(Locus, IndexedSeq[String])]
         val locus = getLocus(r, lOff, locusT)
         val alleles = Code.checkcast[IndexedSeq[String]](wrapArg(r, allelesT)(aOff).asInstanceOf[Code[AnyRef]])
         val tuple = Code.invokeScalaObject[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](VariantMethods.getClass, "minRep", locus, alleles)
 
-        Code.memoize(
-          Code.checkcast[Locus](returnTuple.getField[java.lang.Object]("_1")), "min_rep_new_locus",
-          Code.checkcast[IndexedSeq[String]](returnTuple.getField[java.lang.Object]("_2")), "min_rep_new_alleles") { (newLocus, newAlleles) =>
-
-          val newLocusT = rt.field("locus").typ
-          val newAllelesT = rt.field("alleles").typ.asInstanceOf[PArray]
-          val srvb = new StagedRegionValueBuilder(r, rt)
-          Code(
-            returnTuple := tuple,
-            srvb.start(),
-            srvb.addBaseStruct(newLocusT.fundamentalType.asInstanceOf[PStruct], { locusBuilder =>
-              Code(
-                locusBuilder.start(),
-                locusBuilder.addString(newLocus.invoke[String]("contig")),
-                locusBuilder.advance(),
-                locusBuilder.addInt(newLocus.invoke[Int]("position")))
-            }),
-            srvb.advance(),
-            srvb.addArray(newAllelesT, { allelesBuilder =>
-              Code(
-                allelesBuilder.start(newAlleles.invoke[Int]("size")),
-                Code.whileLoop(allelesBuilder.arrayIdx < newAlleles.invoke[Int]("size"),
-                  allelesBuilder.addString(Code.checkcast[String](newAlleles.invoke[Int, java.lang.Object]("apply", allelesBuilder.arrayIdx))),
-                  allelesBuilder.advance()))
-            }),
-            srvb.offset)
+        Code.memoize(tuple, "min_rep_tuple") { tuple =>
+          Code.memoize(
+            Code.checkcast[Locus](tuple.getField[java.lang.Object]("_1")), "min_rep_new_locus",
+            Code.checkcast[IndexedSeq[String]](tuple.getField[java.lang.Object]("_2")), "min_rep_new_alleles"
+          ) { (newLocus, newAlleles) =>
+            val newLocusT = rt.field("locus").typ
+            val newAllelesT = rt.field("alleles").typ.asInstanceOf[PArray]
+            val srvb = new StagedRegionValueBuilder(r, rt)
+            Code(
+              srvb.start(),
+              srvb.addBaseStruct(newLocusT.fundamentalType.asInstanceOf[PStruct], { locusBuilder =>
+                Code(
+                  locusBuilder.start(),
+                  locusBuilder.addString(newLocus.invoke[String]("contig")),
+                  locusBuilder.advance(),
+                  locusBuilder.addInt(newLocus.invoke[Int]("position")))
+              }),
+              srvb.advance(),
+              srvb.addArray(newAllelesT, { allelesBuilder =>
+                Code(
+                  allelesBuilder.start(newAlleles.invoke[Int]("size")),
+                  Code.whileLoop(allelesBuilder.arrayIdx < newAlleles.invoke[Int]("size"),
+                    allelesBuilder.addString(Code.checkcast[String](newAlleles.invoke[Int, java.lang.Object]("apply", allelesBuilder.arrayIdx))),
+                    allelesBuilder.advance()))
+              }),
+              srvb.offset)
+          }
         }
     }
 

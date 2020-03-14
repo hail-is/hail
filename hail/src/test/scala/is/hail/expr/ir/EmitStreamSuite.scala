@@ -13,7 +13,7 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
-  private def compile1[T: TypeInfo, R: TypeInfo](f: (MethodBuilder, Code[T]) => Code[R]): T => R = {
+  private def compile1[T: TypeInfo, R: TypeInfo](f: (MethodBuilder, Value[T]) => Code[R]): T => R = {
     val fb = EmitFunctionBuilder[T, R]("stream_test")
     val mb = fb.apply_method
     mb.emit(f(mb, mb.getArg[T](1)))
@@ -55,7 +55,7 @@ class EmitStreamSuite extends HailSuite {
     val stream: CodeStream.Stream[T] = _stream.mapCPS(
       (ctx, a, k) => (outerBit & innerBit).mux(
         k(a),
-        Code._fatal[Ctrl](s"$name: pulled from when not setup")),
+        Code._fatal[Unit](s"$name: pulled from when not setup")),
       setup0 = Some((!outerBit & !innerBit).mux(
         Code(outerBit := true,
              Code._println(const(s"$name setup0"))),
@@ -75,11 +75,13 @@ class EmitStreamSuite extends HailSuite {
         Code._fatal[Unit](s"$name: close run out of order"))))
 
     def assertClosed(expectedRuns: Code[Int]): Code[Unit] =
-      (outerBit | innerBit).mux(
-        Code._fatal[Unit](s"$name: not closed"),
-        innerCount.cne(expectedRuns).mux(
-          Code._fatal[Unit](const(s"$name: expected ").concat(expectedRuns.toS).concat(" runs, found ").concat(innerCount.toS)),
-          Code._empty))
+      Code.memoize(innerCount, "inner_count", expectedRuns, "expected_runs") { (innerCount, expectedRuns) =>
+        (outerBit | innerBit).mux(
+          Code._fatal[Unit](s"$name: not closed"),
+          innerCount.cne(expectedRuns).mux(
+            Code._fatal[Unit](const(s"$name: expected ").concat(expectedRuns.toS).concat(" runs, found ").concat(innerCount.toS)),
+            Code._empty))
+      }
 
     def assertClosed: Code[Unit] =
       (outerBit | innerBit).mux(
@@ -87,8 +89,16 @@ class EmitStreamSuite extends HailSuite {
         Code._empty)
   }
 
-  def checkedRange(start: Code[Int], stop: Code[Int], name: String, mb: MethodBuilder): CheckedStream[Code[Int]] =
-    new CheckedStream(CodeStream.range(mb, start, 1, stop - start), name, mb)
+  def checkedRange(start: Code[Int], stop: Code[Int], name: String, mb: MethodBuilder): CheckedStream[Code[Int]] = {
+    val tstart = mb.newLocal[Int]
+    val len = mb.newLocal[Int]
+    val s = CodeStream.range(mb, tstart, 1, len)
+      .map(
+        f = x => x,
+        setup0 = Some(Code(tstart := 0, len := 0)),
+        setup = Some(Code(tstart := start, len := stop - tstart)))
+    new CheckedStream(s, name, mb)
+  }
 
   @Test def testES2Range() {
     val f = compile1[Int, Unit] { (mb, n) =>
@@ -403,6 +413,7 @@ class EmitStreamSuite extends HailSuite {
         IndexedSeq(0, 0, 1, 1, 2, 2, 3, 3)
     )
     for ((ir, v) <- tests) {
+      println(Pretty(ir))
       assert(evalStream(ir) == v, Pretty(ir))
       if (v != null)
         assert(evalStreamLen(ir) == None, Pretty(ir))
@@ -554,6 +565,7 @@ class EmitStreamSuite extends HailSuite {
     )
     val lens: Array[Option[Int]] = Array(Some(3), Some(4), Some(3), Some(0), Some(0), None)
     for (((ir, v), len) <- tests zip lens) {
+      println(Pretty(ir), v, len)
       assert(evalStream(ir) == v, Pretty(ir))
       assert(evalStreamLen(ir) == len, Pretty(ir))
     }

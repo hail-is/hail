@@ -196,12 +196,22 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   def checkLocus(l: Locus): Unit = checkLocus(l.contig, l.position)
 
   def checkLocus(contig: String, pos: Int): Unit = {
+    println(s"in checkLocus $contig $pos")
     if (!isValidLocus(contig, pos)) {
-      if (!isValidContig(contig))
-        fatal(s"Invalid locus '$contig:$pos' found. Contig '$contig' is not in the reference genome '$name'.")
-      else
-        fatal(s"Invalid locus '$contig:$pos' found. Position '$pos' is not within the range [1-${ contigLength(contig) }] for reference genome '$name'.")
+      println("invalid")
+      if (!isValidContig(contig)) {
+        val msg = s"Invalid locus '$contig:$pos' found. Contig '$contig' is not in the reference genome '$name'."
+        println(msg)
+        println("after")
+        fatal(msg)
+      } else {
+        val msg = s"Invalid locus '$contig:$pos' found. Position '$pos' is not within the range [1-${contigLength(contig)}] for reference genome '$name'."
+        println(msg)
+        println("after")
+        fatal(msg)
+      }
     }
+    println("all OK")
   }
 
   def toLocusInterval(i: Interval, invalidMissing: Boolean): Interval = {

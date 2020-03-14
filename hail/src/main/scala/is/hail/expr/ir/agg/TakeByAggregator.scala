@@ -135,18 +135,19 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     }
   }
 
-  private def loadFields(src: Code[Long]): Code[Unit] = {
-    maybeGCCode(
-      ab.loadFrom(storageType.fieldOffset(src, 0)),
-      staging := Region.loadAddress(storageType.fieldOffset(src, 1)),
-      keyStage := Region.loadAddress(storageType.fieldOffset(src, 2)),
-      maxIndex := Region.loadLong(storageType.fieldOffset(src, 3)),
-      maxSize := Region.loadInt(storageType.fieldOffset(src, 4))
-    )(Array(
-      garbage := Region.loadInt(storageType.fieldOffset(src, 5)),
-      maxGarbage := Region.loadInt(storageType.fieldOffset(src, 6))
-    ))
-  }
+  private def loadFields(src: Code[Long]): Code[Unit] =
+    Code.memoize(src, "takeby_rvas_load_fields_src") { src =>
+      maybeGCCode(
+        ab.loadFrom(storageType.fieldOffset(src, 0)),
+        staging := Region.loadAddress(storageType.fieldOffset(src, 1)),
+        keyStage := Region.loadAddress(storageType.fieldOffset(src, 2)),
+        maxIndex := Region.loadLong(storageType.fieldOffset(src, 3)),
+        maxSize := Region.loadInt(storageType.fieldOffset(src, 4))
+      )(Array(
+        garbage := Region.loadInt(storageType.fieldOffset(src, 5)),
+        maxGarbage := Region.loadInt(storageType.fieldOffset(src, 6))
+      ))
+    }
 
   def copyFrom(src: Code[Long]): Code[Unit] = {
     Code.memoize(src, "tba_copy_from_src") { src =>
@@ -309,7 +310,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     mb.invoke(_)
   }
 
-  private val gc: Code[Unit] = {
+  private def gc(): Code[Unit] = {
     if (canHaveGarbage) {
       val mb = fb.newMethod("take_by_garbage_collect", Array[TypeInfo[_]](), UnitInfo)
       val oldRegion = mb.newLocal[Region]("old_region")
@@ -373,8 +374,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   private def enqueueStaging(): Code[Unit] = {
     Code(
       ab.append(Region.loadIRIntermediate(eltTuple)(staging)),
-      rebalanceUp(ab.size - 1)
-    )
+      rebalanceUp(ab.size - 1))
   }
 
   val seqOp: (Code[Boolean], Code[_], Code[Boolean], Code[_]) => Code[Unit] = {
@@ -403,11 +403,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
                 stageAndIndexKey(keyM, key),
                 copyToStaging(value, valueM, keyStage),
                 swapStaging(),
-                gc
-              )))
-        )
-      )
-    )
+                gc()))))))
 
     val kmVar = fb.newField[Boolean]("km")
     val vmVar = fb.newField[Boolean]("vm")
@@ -445,14 +441,9 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
                 .orEmpty(Code(
                   copyElementToStaging(offset),
                   swapStaging(),
-                  gc
-                )))
-          )
-        ),
-        i := i + 1
-      ),
-      maxIndex := maxIndex + other.maxIndex
-    ))
+                  gc()))))),
+        i := i + 1),
+      maxIndex := maxIndex + other.maxIndex))
 
     mb.invoke()
   }

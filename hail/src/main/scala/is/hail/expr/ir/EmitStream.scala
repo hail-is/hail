@@ -54,7 +54,7 @@ abstract class COption[+A] { self =>
   def filter(cond: Code[Boolean]): COption[A] = new COption[A] {
     def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
       val L = CodeLabel()
-      self(Code(L, none), (a) => cond.mux(some(a), L.goto))
+      self(Code(L, none), (a) => cond.mux(L.goto, some(a)))
     }
   }
 
@@ -72,7 +72,6 @@ object COption {
       missing.mux(none, some(value))
   }
 
-  // None is the only COption allowed to not call `some` at compile time
   object None extends COption[Nothing] {
     def apply(none: Code[Ctrl], some: Nothing => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
       none
@@ -117,8 +116,8 @@ object COption {
         def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
           val L = CodeLabel()
           val M = CodeLabel()
-          val runLeft = left(Code(L, none), a => {l = Some(a); M.goto})
-          val runRight = right(L.goto, a => {r = Some(a); M.goto})
+          val runLeft = left(Code(L, none), a => { l = Some(a); M.goto })
+          val runRight = right(L.goto, a => { r = Some(a); M.goto })
           Code(
             useLeft.mux(runLeft, runRight),
             M, some(fuse(l.get, r.get)))
@@ -281,11 +280,13 @@ object CodeStream { self =>
 
   def flatMap[A](outer: Stream[Stream[A]]): Stream[A] = new Stream[A] {
     def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
+      val closing = ctx.mb.newLocal[Boolean]("sfm_closing")
       val LouterPull = CodeLabel()
       var innerSource: Source[A] = null
       val LinnerPull = CodeLabel()
       val LinnerEos = CodeLabel()
-      val inInnerStream = ctx.mb.newLocal[Boolean]
+      val LcloseOuter = CodeLabel()
+      val inInnerStream = ctx.mb.newLocal[Boolean]("sfm_in_innner")
       val outerSource = outer(
         eos = eos,
         push = inner => {
@@ -294,14 +295,14 @@ object CodeStream { self =>
             push = push)
           Code(innerSource.setup, inInnerStream := true, LinnerPull, innerSource.pull,
               // for layout
-              LinnerEos, innerSource.close, LouterPull.goto)
+              LinnerEos, innerSource.close, inInnerStream := false, closing.mux(LcloseOuter.goto, LouterPull.goto))
         })
       Source[A](
-        setup0 = Code(inInnerStream := const(false), outerSource.setup0, innerSource.setup0),
+        setup0 = Code(closing := false, inInnerStream := false, outerSource.setup0, innerSource.setup0),
         close0 = Code(innerSource.close0, outerSource.close0),
-        setup = Code(inInnerStream := false, outerSource.setup),
-        close = Code(inInnerStream.get.mux(innerSource.close, Code._empty), outerSource.close),
-        pull = inInnerStream.get.mux(LinnerPull.goto, Code(LouterPull, inInnerStream := false, outerSource.pull)))
+        setup = Code(closing := false, inInnerStream := false, outerSource.setup),
+        close = Code(inInnerStream.mux(Code(closing := true, LinnerEos.goto), Code._empty), LcloseOuter, outerSource.close),
+        pull = inInnerStream.mux(LinnerPull.goto, Code(LouterPull, outerSource.pull)))
     }
   }
 
@@ -449,8 +450,8 @@ object EmitStream {
     val result = optStream.map { ss =>
       ss.length match {
         case None =>
-          val xLen = mb.newLocal[Int]
-          val i = mb.newLocal[Int]
+          val xLen = mb.newLocal[Int]("sta_len")
+          val i = mb.newLocal[Int]("sta_i")
           val vab = new StagedArrayBuilder(aTyp.elementType, mb, 0)
           PCode(aTyp, Code(
             write(mb, ss, vab),
@@ -603,10 +604,17 @@ object EmitStream {
         case ToStream(containerIR) =>
           val aType = coerce[PContainer](containerIR.pType)
 
+          val b = {
+            val s: Set[Int] = Set(1, 2, 3)
+            val t: Set[Int] = Set(1, 2, 3)
+            s.equals(t)
+          }
+          println(b)
+
           COption.fromEmitCode(emitIR(containerIR)).mapCPS { (containerAddr, k) =>
-            val xAddr = fb.newPField(aType)
-            val len = mb.newLocal[Int]
-            val i = mb.newLocal[Int]
+            val xAddr = fb.newPField("ts_addr", aType)
+            val len = mb.newLocal[Int]("ts_len")
+            val i = mb.newLocal[Int]("ts_i")
             val newStream = new Stream[EmitCode] {
               def apply(eos: Code[Ctrl], push: (EmitCode) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] =
                 new Source[EmitCode](
@@ -884,7 +892,6 @@ object EmitStream {
                     leftStream,
                     rightStream)
                   val newLen = lLen.liftedZip(rLen).map { case ((s1, l1), (s2, l2)) =>
-                    // FIXME broken
                     (Code(s1, s2, xCond.orEmpty(l2 := l1)), l2)
                   }
 

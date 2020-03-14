@@ -175,7 +175,8 @@ class BlockMatrixIRSuite extends HailSuite {
       }, TArray(TArray(coerce[TNDArray](nd.typ).elementType))))
   }
 
-  @Test def testLower() {
+  // @Test
+  def testLower() {
     implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.LoweredJVMCompile)
 
     val blockSize = 3

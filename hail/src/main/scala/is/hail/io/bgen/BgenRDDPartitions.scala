@@ -33,8 +33,11 @@ trait BgenPartition extends Partition {
     bfis
   }
 
-  def recodeContig(contig: String): String =
-    contigRecoding.getOrElse(contig, contig)
+  def recodeContig(contig: String): String = {
+    val r = contigRecoding.getOrElse(contig, contig)
+    println(s"$contig => $r")
+    r
+  }
 }
 
 private case class LoadBgenPartition(
@@ -293,7 +296,8 @@ object CompileDecoder {
             Code.whileLoop(i < nAlleles,
               srvb.addString(cbfis.invoke[Int, String]("readLengthAndString", 4)),
               srvb.advance(),
-              i := i + 1))}),
+              i := i + 1))
+        }),
           srvb.advance())
        else Code._empty,
       if (settings.hasField("rsid"))

@@ -17,7 +17,7 @@ class DownsampleSuite extends HailSuite {
     val ds2 = new DownsampleState(fb, lt, maxBufferSize = 4)
     val ds3 = new DownsampleState(fb, lt, maxBufferSize = 4)
 
-    val rand = fb.newRNG(0).invoke[Double, Double, Double]("runif", 0d, 1d)
+    val rng = fb.newRNG(0)
     val i = fb.newLocal[Int]
 
     val x = fb.newLocal[Double]
@@ -30,8 +30,8 @@ class DownsampleSuite extends HailSuite {
       ds1.init(100),
       ds2.init(100),
       Code.whileLoop(i < 10000000,
-        x := rand,
-        y := rand,
+        x := rng.invoke[Double, Double, Double]("runif", 0d, 1d),
+        y := rng.invoke[Double, Double, Double]("runif", 0d, 1d),
         ds1.insert(x, y, true, 0L),
         i := i + const(1)),
       ds1.merge(ds2),
