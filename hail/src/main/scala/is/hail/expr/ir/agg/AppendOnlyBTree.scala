@@ -203,9 +203,11 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Value[R
   def foreach(visitor: Code[Long] => Code[Unit]): Code[Unit] = {
     val f = fb.newMethod("btree_foreach", Array[TypeInfo[_]](typeInfo[Long]), typeInfo[Unit])
     val node = f.getArg[Long](1)
+    val i = f.newLocal[Int]("aobt_foreach_i")
 
     f.emit(Code(
       (!isLeaf(node)).orEmpty(f.invoke(loadChild(node, -1))),
+      i := 0,
       Array.range(0, maxElements)
         .foldRight(Code._empty) { (i, cont) =>
           hasKey(node, i).orEmpty(

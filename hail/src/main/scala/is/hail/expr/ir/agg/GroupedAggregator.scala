@@ -159,7 +159,8 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
     size := 0,
     tree.init)
 
-  def combine(other: DictState, comb: Code[Unit]): Code[Unit] =
+  // FIXME change AppendOnlyBTree not to duplicate code across elements
+  def combine(other: DictState, comb: => Code[Unit]): Code[Unit] =
     other.foreach { (km, kv) => withContainer(km, kv, comb) }
 
   // loads container; does not update.
