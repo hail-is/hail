@@ -24,5 +24,5 @@ final case class PCanonicalSet(elementType: PType,  required: Boolean = false) e
     PCanonicalSet(this.elementType.deepRename(t.elementType),  this.required)
 
   override def load(src: Code[Long]): PCode =
-    new PCanonicalIndexableCode(this, Region.loadAddress(src))
+    new PCanonicalIndexableCode(this.arrayRep, Region.loadAddress(src))
 }

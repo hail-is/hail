@@ -8,7 +8,7 @@ import is.hail.expr.types.virtual.{TArray, TDict, Type}
 final case class PCanonicalDict(keyType: PType, valueType: PType, required: Boolean = false) extends PDict with PArrayBackedContainer {
   val elementType = PStruct(required = true, "key" -> keyType, "value" -> valueType)
 
-  val arrayRep: PArray = PCanonicalArray(elementType, required)
+  val arrayRep: PCanonicalArray = PCanonicalArray(elementType, required)
 
   def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalDict(keyType, valueType, required)
 
@@ -31,5 +31,5 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
     PCanonicalDict(this.keyType.deepRename(t.keyType), this.valueType.deepRename(t.valueType), this.required)
 
   override def load(src: Code[Long]): PCode =
-    new PCanonicalIndexableCode(this, Region.loadAddress(src))
+    new PCanonicalIndexableCode(this.arrayRep, Region.loadAddress(src))
 }

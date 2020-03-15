@@ -14,9 +14,9 @@ object PCode {
     case pt: PCanonicalArray =>
       new PCanonicalIndexableCode(pt, coerce[Long](code))
     case pt: PCanonicalSet =>
-      new PCanonicalIndexableCode(pt, coerce[Long](code))
+      new PCanonicalIndexableCode(pt.arrayRep, coerce[Long](code))
     case pt: PCanonicalDict =>
-      new PCanonicalIndexableCode(pt, coerce[Long](code))
+      new PCanonicalIndexableCode(pt.arrayRep, coerce[Long](code))
 
     case pt: PCanonicalBaseStruct =>
       new PCanonicalBaseStructCode(pt, coerce[Long](code))
@@ -77,7 +77,7 @@ abstract class PIndexableCode extends PCode {
   def isElementMissing(i: Code[Int]): Code[Boolean] = !isElementDefined(i)
 }
 
-class PCanonicalIndexableCode(val pt: PContainer, val a: Code[Long]) extends PIndexableCode {
+class PCanonicalIndexableCode(val pt: PCanonicalArray, val a: Code[Long]) extends PIndexableCode {
   def code: Code[_] = a
 
   def elementType: PType = pt.elementType
@@ -88,33 +88,22 @@ class PCanonicalIndexableCode(val pt: PContainer, val a: Code[Long]) extends PIn
 
   def nMissingBytes(len: Code[Int]): Code[Int] = (len + 7) >>> 3
 
-  def isElementDefined(i: Code[Int]): Code[Boolean] =
-    if (pt.elementType.required)
-      const(true)
-    else
-      !Region.loadBit(a + const(4L), i.toL)
+  def isElementDefined(i: Code[Int]): Code[Boolean] = pt.isElementDefined(a, i)
 
-  def elementsOffset(length: Code[Int]): Code[Long] =
-    if (elementType.required)
-      UnsafeUtils.roundUpAlignment(4, elementType.alignment)
-    else
-      UnsafeUtils.roundUpAlignment(const(4L) + nMissingBytes(length).toL, elementType.alignment)
+  def elementsOffset(length: Code[Int]): Code[Long] = pt.elementsOffset(length)
 
-  def elementsAddress(length: Code[Int]): Code[Long] = a + elementsOffset(length)
-
-  def elementAddress(length: Code[Int], i: Code[Int]): Code[Long] =
-    elementsAddress(length) + i.toL * arrayElementSize
+  def elementAddress(length: Code[Int], i: Code[Int]): Code[Long] = pt.elementOffset(a, length, i)
 
   def loadElement(length: Code[Int], i: Code[Int]): PCode = {
     elementType.load(Code.memoize(a, "pcindexableval_a") { a =>
-      a + elementsOffset(length) + i.toL * arrayElementSize
+      pt.elementOffset(a, length, i)
     })
   }
 
   def loadElement(i: Code[Int]): PCode = {
     elementType.load(Code.memoize(a, "pcindexableval_a") { a =>
-      val length = Region.loadInt(a)
-      a + elementsOffset(length) + i.toL * arrayElementSize
+      val length = pt.loadLength(a)
+      pt.elementOffset(a, length, i)
     })
   }
 
@@ -141,13 +130,9 @@ abstract class PBaseStructCode extends PCode {
 class PCanonicalBaseStructCode(val pt: PCanonicalBaseStruct, val a: Code[Long]) extends PBaseStructCode {
   def code: Code[_] = a
 
-  def isFieldMissing(fieldIdx: Int): Code[Boolean] =
-    if (pt.fieldRequired(fieldIdx))
-      const(false)
-    else
-      Region.loadBit(a, pt.missingIdx(fieldIdx).toLong)
+  def isFieldMissing(fieldIdx: Int): Code[Boolean] = pt.isFieldMissing(a, fieldIdx)
 
-  def fieldAddress(fieldIdx: Int): Code[Long] = a + pt.byteOffsets(fieldIdx)
+  def fieldAddress(fieldIdx: Int): Code[Long] = pt.fieldOffset(a, fieldIdx)
 
   def loadField(fieldIdx: Int): PCode = pt.fields(fieldIdx).typ.load(fieldAddress(fieldIdx))
 
