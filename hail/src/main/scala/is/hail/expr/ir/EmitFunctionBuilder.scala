@@ -509,7 +509,7 @@ class EmitFunctionBuilder[F >: Null](
       val rt = if (op == CodeOrdering.compare) typeInfo[Int] else typeInfo[Boolean]
 
       val newMB = if (ignoreMissingness) {
-        val newMB = newMethod(FastIndexedSeq[TypeInfo[_]](ti, ti), rt)
+        val newMB = newMethod("cord", FastIndexedSeq[TypeInfo[_]](ti, ti), rt)
         val ord = t1.codeOrdering(newMB, t2, sortOrder)
         val v1 = newMB.getArg(1)(ti)
         val v2 = newMB.getArg(3)(ti)
@@ -525,7 +525,7 @@ class EmitFunctionBuilder[F >: Null](
         newMB.emit(c)
         newMB
       } else {
-        val newMB = newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[Boolean], ti, typeInfo[Boolean], ti), rt)
+        val newMB = newMethod("cord", FastIndexedSeq[TypeInfo[_]](typeInfo[Boolean], ti, typeInfo[Boolean], ti), rt)
         val ord = t1.codeOrdering(newMB, t2, sortOrder)
         val m1 = newMB.getArg[Boolean](1)
         val v1 = newMB.getArg(2)(ti)

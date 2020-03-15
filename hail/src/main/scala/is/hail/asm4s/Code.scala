@@ -847,7 +847,10 @@ class Invokeable[T, S](tcls: Class[T],
         lir.methodStmt(invokeOp, Type.getInternalName(tcls), name, descriptor, isInterface, sti, argvs))
       new Code(start, end, null)
     } else {
-      var v = lir.methodInsn(invokeOp, Type.getInternalName(tcls), name, descriptor, isInterface, sti, argvs)
+      val t = new lir.Local(null, "invoke", sti)
+      end.append(
+        lir.store(t, lir.methodInsn(invokeOp, Type.getInternalName(tcls), name, descriptor, isInterface, sti, argvs)))
+      var v = lir.load(t)
       if (concreteReturnType != sct.runtimeClass)
         v = lir.checkcast(Type.getInternalName(sct.runtimeClass), v)
       new Code(start, end, v)

@@ -13,6 +13,7 @@ class BackendUtils(mods: Array[(String, (Int, Region) => AsmFunction3[Region, Ar
   def getModule(id: String): (Int, Region) => F = loadedModules(id)
 
   def collectDArray(modID: String, contexts: Array[Array[Byte]], globals: Array[Byte]): Array[Array[Byte]] = {
+    println("in collectDArray")
     if (contexts.isEmpty)
       return Array()
     val backend = HailContext.backend

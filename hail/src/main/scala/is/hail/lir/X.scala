@@ -44,6 +44,38 @@ class Classx[C](val name: String, val superName: String) {
     // println(Pretty(this))
 
     for (m <- methods) {
+      val blocks = m.findBlocks()
+      for (b <- blocks) {
+        if (b.method == null)
+          b.method = m
+        else {
+          /*
+        if (m.method ne this) {
+          println(s"${ b.method } $m")
+          println(b.stack.mkString("\n"))
+        }
+         */
+          assert(b.method eq m)
+        }
+      }
+
+      val locals = m.findLocals(blocks)
+      for (l <- locals) {
+        // FIXME parameters, too
+        if (!l.isInstanceOf[Parameter]) {
+          if (l.method == null)
+            l.method = m
+          else {
+            if (l.method ne m) {
+              println(s"$l ${l.method} $m")
+            }
+            assert(l.method eq m)
+          }
+        }
+      }
+    }
+
+    for (m <- methods) {
       m.removeDeadCode()
     }
 
@@ -144,18 +176,6 @@ class Method private[lir] (
     while (s.nonEmpty) {
       val L = s.pop()
       if (!visited.contains(L)) {
-        if (L.method == null)
-          L.method = this
-        else {
-          /*
-          if (L.method ne this) {
-            println(L.method)
-            println(this)
-            println(L.stack.mkString("\n"))
-          }
-           */
-          assert(L.method eq this)
-        }
         blocks += L
 
         var x = L.first
@@ -291,7 +311,7 @@ class MethodLit(
   val returnTypeInfo: TypeInfo[_]
 ) extends MethodRef
 
-class Local(val method: Method, val name: String, val ti: TypeInfo[_]) {
+class Local(var method: Method, val name: String, val ti: TypeInfo[_]) {
   override def toString: String = f"t${ System.identityHashCode(this) }%08x/$name"
 }
 

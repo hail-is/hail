@@ -195,8 +195,8 @@ class RichIndexedSeqEmitSettable(is: IndexedSeq[EmitSettable]) {
 
 object LoopRef {
   def apply(mb: EmitMethodBuilder, L: CodeLabel, args: IndexedSeq[(String, PType)]): LoopRef = {
-    val (loopArgs, tmpLoopArgs) = args.map { case (name, pt) =>
-      (mb.newEmitLocal(pt), mb.newEmitLocal(pt))
+    val (loopArgs, tmpLoopArgs) = args.zipWithIndex.map { case ((name, pt), i) =>
+      (mb.newEmitField(s"$name$i", pt), mb.newEmitField(s"tmp$name$i", pt))
     }.unzip
     LoopRef(L, loopArgs, tmpLoopArgs)
   }
@@ -1225,43 +1225,44 @@ private class Emit(
 
         EmitCode(setup, overallMissing, PCode(pt, value))
       case x@NDArrayReindex(child, indexMap) =>
+        println("here")
         val childt = emit(child)
-        val childAddress = mb.newField[Long]
         val childPType = coerce[PNDArray](child.pType)
 
         val setup = childt.setup
-        val value = Code.memoize(
-          childPType.shape.load(childAddress), "ndarr_reindex_child_shape_addr",
-          childPType.strides.load(childAddress), "ndarr_reindex_child_strides_addr") { (childShapeAddr, childStridesAddr) =>
-          val childShape = new CodePTuple(childPType.shape.pType, childShapeAddr)
-          val childStrides = new CodePTuple(childPType.strides.pType, childStridesAddr)
+        val value =
+          Code.memoize(childt.value[Long], "ndarr_reindex_child_addr") { childAddress =>
+            Code.memoize(
+              childPType.shape.load(childAddress), "ndarr_reindex_child_shape_addr",
+              childPType.strides.load(childAddress), "ndarr_reindex_child_strides_addr") { (childShapeAddr, childStridesAddr) =>
+              val childShape = new CodePTuple(childPType.shape.pType, childShapeAddr)
+              val childStrides = new CodePTuple(childPType.strides.pType, childStridesAddr)
 
-          Code(
-            childAddress := childt.value[Long],
-            x.pType.construct(
-              childPType.flags.load(childAddress),
-              childPType.offset.load(childAddress),
-              { srvb =>
-                Code(
-                  srvb.start(),
-                  Code.foreach(indexMap) { childIndex =>
-                    Code(
-                      srvb.addLong(if (childIndex < childPType.nDims) childShape(childIndex) else 1L),
-                      srvb.advance())
-                  })
-              },
-              { srvb =>
-                Code(
-                  srvb.start(),
-                  Code.foreach(indexMap) { index =>
-                    Code(
-                      srvb.addLong(if (index < childPType.nDims) childStrides(index) else 0L),
-                      srvb.advance())
-                  })
-              },
-              childPType.data.load(childAddress),
-              mb))
-        }
+              x.pType.construct(
+                childPType.flags.load(childAddress),
+                childPType.offset.load(childAddress),
+                { srvb =>
+                  Code(
+                    srvb.start(),
+                    Code.foreach(indexMap) { childIndex =>
+                      Code(
+                        srvb.addLong(if (childIndex < childPType.nDims) childShape(childIndex) else 1L),
+                        srvb.advance())
+                    })
+                },
+                { srvb =>
+                  Code(
+                    srvb.start(),
+                    Code.foreach(indexMap) { index =>
+                      Code(
+                        srvb.addLong(if (index < childPType.nDims) childStrides(index) else 0L),
+                        srvb.advance())
+                    })
+                },
+                childPType.data.load(childAddress),
+                mb)
+            }
+          }
         EmitCode(setup, childt.m, PCode(pt, value))
       case x: NDArrayMap  =>  emitDeforestedNDArray(x)
       case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
@@ -1317,7 +1318,8 @@ private class Emit(
 
         val isMissing = lT.m || rT.m
 
-        if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2) {
+        if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2 && false) {
+          println("here")
           val leftDataAddress = lPType.data.load(leftND)
           val rightDataAddress = rPType.data.load(rightND)
 
@@ -2018,6 +2020,7 @@ private class Emit(
         }
 
       case x@NDArrayReindex(child, indexExpr) =>
+        println("here deforest")
         val childEmitter = deforest(child)
         val childPType = child.pType.asInstanceOf[PNDArray]
 
@@ -2222,7 +2225,8 @@ private class Emit(
         val childEmitter = deforest(child)
 
         val slicest = emit(slicesIR, mb, env, er, None)
-        val slicesValueAddress = mb.newField[Long]
+        val slicesValueAddress = mb.newField[Long]("ndarr_slicev")
+        val slicesm = mb.newField[Boolean]("ndarr_slicem")
         val slices = new CodePTuple(coerce[PTuple](slicesIR.pType), slicesValueAddress)
 
         val slicers = slices.withTypes.collect {
@@ -2234,9 +2238,7 @@ private class Emit(
 
         val codeSlices = slicers.map(_.values[Long, Long, Long])
 
-        val sb = SetupBuilder(mb, Code(
-          childEmitter.setupShape,
-          slicesValueAddress := slicest.value[Long]))
+        val sb = SetupBuilder(mb, childEmitter.setupShape)
         val outputShape = sb.map(codeSlices) { case (sb, (start, stop, step)) =>
           sb.memoize(
             (step >= 0L && start <= stop).mux(
@@ -2248,7 +2250,10 @@ private class Emit(
 
         val setupShape = sb.result()
 
-        val setupMissing = Code(childEmitter.setupMissing, slicest.setup)
+        val setupMissing = Code(childEmitter.setupMissing,
+          slicesm := slicest.m,
+          slicesValueAddress := slicesm.mux(0L, slicest.value[Long]),
+          slicest.setup)
 
         val missing = childEmitter.missing || anyMissingness
 
@@ -2392,17 +2397,17 @@ object NDArrayEmitter {
         shape = rightShape.slice(0, rightShape.length - 2) :+ rightShape.last
       }
     } else {
-      lK = leftShape(leftShape.length - 2)
+      lK = leftShape.last
       if (rightShape.length == 1) {
         rK = rightShape.head
-        shape = leftShape.slice(0, leftShape.length - 2) :+ leftShape.last
+        shape = leftShape.slice(0, leftShape.length - 1)
       } else {
-        rK = rightShape.last
+        rK = rightShape(rightShape.length - 2)
         val (unifiedSetup, unifiedShape) = unifyShapes2(mb,
           leftShape.slice(0, leftShape.length - 2),
           rightShape.slice(0, rightShape.length - 2))
         setup = Code(setup, unifiedSetup)
-        shape = unifiedShape :+ leftShape.last :+ rightShape.last
+        shape = unifiedShape :+ leftShape(leftShape.length - 2) :+ rightShape.last
       }
     }
 

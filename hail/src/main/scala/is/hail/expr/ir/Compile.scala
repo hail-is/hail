@@ -50,7 +50,7 @@ object Compile {
 
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
-    // println(Pretty(ir))
+    println(Pretty(ir, elideLiterals = false))
 
     Emit(ctx, ir, fb)
 
