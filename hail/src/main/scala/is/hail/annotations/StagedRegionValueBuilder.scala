@@ -70,13 +70,13 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   private var staticIdx: Int = 0
   private var idx: ClassFieldRef[Int] = _
   private var elementsOffset: ClassFieldRef[Long] = _
-  private val startOffset: ClassFieldRef[Long] = mb.newField[Long]
+  private val startOffset: ClassFieldRef[Long] = mb.newField[Long]("srvb_start")
 
   ftype match {
-    case t: PBaseStruct => elementsOffset = mb.newField[Long]
+    case t: PBaseStruct => elementsOffset = mb.newField[Long]("srvb_struct_addr")
     case t: PArray =>
-      elementsOffset = mb.newField[Long]
-      idx = mb.newField[Int]
+      elementsOffset = mb.newField[Long]("srvb_array_addr")
+      idx = mb.newField[Int]("srvb_array_idx")
     case _ =>
   }
 
@@ -140,11 +140,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   def setMissing(): Code[Unit] = {
     ftype match {
       case t: PArray => t.setElementMissing(startOffset, idx)
-      case t: PCanonicalBaseStruct =>
-        if (t.fieldRequired(staticIdx))
-          Code._fatal[Unit](s"Required field cannot be missing: $t, $staticIdx")
-        else
-          t.setFieldMissing(startOffset, staticIdx)
+      case t: PCanonicalBaseStruct => t.setFieldMissing(startOffset, staticIdx)
     }
   }
 
@@ -189,8 +185,8 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   }
 
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
-    val b = mb.newField[Array[Byte]]
-    val boff = mb.newField[Long]
+    val b = mb.newField[Array[Byte]]("srvb_add_binary_bytes")
+    val boff = mb.newField[Long]("srvb_add_binary_addr")
     val pbT = currentPType().asInstanceOf[PBinary]
 
     Code(

@@ -219,6 +219,13 @@ abstract class PType extends Serializable with Requiredness {
 
   def setRequired(required: Boolean): PType
 
+  final def orMissing(required2: Boolean): PType = {
+    if (!required2)
+      setRequired(false)
+    else
+      this
+  }
+
   final def isOfType(t: PType): Boolean = this.virtualType == t.virtualType
 
   final def isPrimitive: Boolean =

@@ -299,30 +299,24 @@ private class Emit(
         EmitCode(codeV.setup, const(false), PCode(pt, codeV.m))
 
       case Coalesce(values) =>
-        val va = values.toArray.map(emit(_))
-
         val mout = mb.newLocal[Boolean]()
         val out = mb.newPLocal(pt)
 
-        val setup = va.indices
-          .init
-          .foldRight(Code(
-            mout := va.last.m,
-            out := pt.defaultValue,
-            mout.mux(Code._empty, out := ir.pType.copyFromPValue(mb, er.region, va.last.pv)))) { case (i, comb) =>
-            va(i).m.mux(
-              comb,
-              Code(
-                mout := false,
-                out := ir.pType.copyFromPValue(mb, er.region, va(i).pv)))
-          }
+        def f(i: Int): Code[Unit] = {
+          if (i < values.length) {
+            val ec = emit(values(i))
+            Code(ec.setup,
+              ec.m.mux(
+                f(i + 1),
+                Code(mout := false, out := pt.copyFromPValue(mb, region, ec.pv))))
+          } else
+            Code(mout := true, out := pt.defaultValue)
+        }
 
         EmitCode(
-          setup = Code(
-            Code(va.map(_.setup)),
-            setup),
+          setup = f(0),
           m = mout,
-          pv = out.load())
+          pv = out.get)
 
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == altr.typ)

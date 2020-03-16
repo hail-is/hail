@@ -265,7 +265,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32), In(0, TInt32))), FastIndexedSeq((1, TInt32)), 1)
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32), NA(TInt32))), FastIndexedSeq((1, TInt32)), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32), I32(1), I32(1), NA(TInt32), I32(1), NA(TInt32), I32(1))), 1)
-    assertEvalsTo(Coalesce(FastSeq(NA(TInt32), I32(1), Die("foo", TInt32))), 1)(ExecStrategy.javaOnly)
+    assertEvalsTo(Coalesce(FastSeq(NA(TInt32), I32(1), Die("foo", TInt32))), 1)
   }
 
   @Test def testCoalesceWithDifferentRequiredeness() {
