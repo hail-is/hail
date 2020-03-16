@@ -157,7 +157,6 @@ class IntArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialC
     missing(i) = false
   }
 
-
   def sort(ordering: AsmFunction2[Int, Int, Boolean]): Unit = {
     var newend = 0
     var i = 0

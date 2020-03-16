@@ -109,7 +109,7 @@ class InitializeLocals(m: Method) {
     while (i >= 0) {
       val l = locals(i)
       if (!l.isInstanceOf[Parameter]) {
-        println(s"  init $l ${l.ti}")
+        // println(s"  init $l ${l.ti}")
         m.entry.prepend(
           store(locals(i), defaultValue(l.ti)))
       }

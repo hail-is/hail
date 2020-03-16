@@ -11,6 +11,7 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
+import is.hail.lir
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -41,8 +42,14 @@ class SetupBuilder(mb: EmitMethodBuilder, var setup: Code[Unit]) {
 
   def +=(c: Code[Unit]): Unit = append(c)
 
-  def memoize[T](e: Code[T])(implicit tti: TypeInfo[T]): Value[T] = {
-    val l = mb.newLocal[T]
+  def memoize[T](e: Code[T], name: String)(implicit tti: TypeInfo[T]): Value[T] = {
+    val l = mb.newLocal[T](name)
+    append(l := e)
+    l
+  }
+
+  def memoizeField[T](e: Code[T], name: String)(implicit tti: TypeInfo[T]): Value[T] = {
+    val l = mb.newField[T](name)
     append(l := e)
     l
   }
@@ -162,6 +169,20 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
 }
 
 object EmitCode {
+  def memoize[T](c: Code[T], name: String)(f: Value[T] => EmitCode)(implicit tti: TypeInfo[T]): EmitCode = {
+    val lr = new LocalRef[T](new lir.Local(null, name, tti))
+    val ec = f(lr)
+    EmitCode(Code(lr := c, ec.setup), ec.m, ec.pv)
+  }
+
+  def memoize[T1, T2](c1: Code[T1], name1: String, c2: Code[T2], name2: String)(f: (Value[T1], Value[T2]) => EmitCode)(
+    implicit t1ti: TypeInfo[T1], t2ti: TypeInfo[T2]): EmitCode = {
+    val lr1 = new LocalRef[T1](new lir.Local(null, name1, t1ti))
+    val lr2 = new LocalRef[T2](new lir.Local(null, name2, t2ti))
+    val ec = f(lr1, lr2)
+    EmitCode(Code(lr1 := c1, lr2 := c2, ec.setup), ec.m, ec.pv)
+  }
+
   def present(pt: PType, v: Code[_]): EmitCode = EmitCode(Code._empty, false, PCode(pt, v))
 
   def missing(pt: PType): EmitCode = EmitCode(Code._empty, true, pt.defaultValue)
@@ -378,30 +399,24 @@ private class Emit(
         EmitCode(codeV.setup, const(false), PCode(pt, codeV.m))
 
       case Coalesce(values) =>
-        val va = values.toArray.map(emit(_))
-
         val mout = mb.newLocal[Boolean]()
         val out = mb.newPLocal(pt)
 
-        val setup = va.indices
-          .init
-          .foldRight(Code(
-            mout := va.last.m,
-            out := pt.defaultValue,
-            mout.mux(Code._empty, out := ir.pType.copyFromPValue(mb, er.region, va.last.pv)))) { case (i, comb) =>
-            va(i).m.mux(
-              comb,
-              Code(
-                mout := false,
-                out := ir.pType.copyFromPValue(mb, er.region, va(i).pv)))
-          }
+        def f(i: Int): Code[Unit] = {
+          if (i < values.length) {
+            val ec = emit(values(i))
+            Code(ec.setup,
+              ec.m.mux(
+                f(i + 1),
+                Code(mout := false, out := pt.copyFromPValue(mb, region, ec.pv))))
+          } else
+            mout := true
+        }
 
         EmitCode(
-          setup = Code(
-            Code(va.map(_.setup)),
-            setup),
+          setup = f(0),
           m = mout,
-          pv = out.load())
+          pv = out.get)
 
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == altr.typ)
@@ -515,10 +530,12 @@ private class Emit(
           case s =>
             val codeS = emit(s)
             (c: Code[String]) =>
-              Code(codeS.setup,
-                codeS.m.mux(c, c
-                  .concat("\n----------\nPython traceback:\n")
-                  .concat(s.pType.asInstanceOf[PString].loadString(coerce[Long](codeS.v)))))
+              Code.memoize(c, "array_ref_c") { c =>
+                Code(codeS.setup,
+                  codeS.m.mux(c,
+                    c.concat("\n----------\nPython traceback:\n")
+                      .concat(s.pType.asInstanceOf[PString].loadString(coerce[Long](codeS.v)))))
+              }
         }
         val xma = mb.newLocal[Boolean]()
         val xa = mb.newPLocal(pArray)
@@ -1452,7 +1469,8 @@ private class Emit(
           def get: Code[Long] = (M < N).mux(M, N)
         }
         val LDA = M // Possible stride tricks could change this in the future.
-        val LWORK = Region.loadDouble(LWORKAddress).toI
+
+        def LWORK = Region.loadDouble(LWORKAddress).toI
 
         val dataAddress = ndPType.data.load(ndAddress)
 
@@ -1944,7 +1962,7 @@ private class Emit(
 
   private def strict(pt: PType, value: Code[_], args: EmitCode*): EmitCode = {
     EmitCode(
-      coerce[Unit](Code(args.map(_.setup))),
+      Code(args.map(_.setup)),
       if (args.isEmpty) false else args.map(_.m).reduce(_ || _),
       PCode(pt, value))
   }
@@ -2047,7 +2065,7 @@ private class Emit(
       case x@NDArrayReshape(childND, shape) =>
 
         // Need to take this shape, which may have a -1 in it, and turn it into a compatible shape if possible.
-        def compatibleShape(numElements: Code[Long], requestedShape: IndexedSeq[Value[Long]]): (Code[Unit], IndexedSeq[Value[Long]]) = {
+        def compatibleShape(numElements: Value[Long], requestedShape: IndexedSeq[Value[Long]]): (Code[Unit], IndexedSeq[Value[Long]]) = {
           val hasNegativeOne = mb.newLocal[Boolean]
           val runningProduct = mb.newLocal[Long]
           val quotient = mb.newLocal[Long]
@@ -2239,13 +2257,14 @@ private class Emit(
         val codeSlices = slicers.map(_.values[Long, Long, Long])
 
         val sb = SetupBuilder(mb, childEmitter.setupShape)
-        val outputShape = sb.map(codeSlices) { case (sb, (start, stop, step)) =>
-          sb.memoize(
+        val outputShape = codeSlices.zipWithIndex.map { case ((start, stop, step), i) =>
+          sb.memoizeField(
             (step >= 0L && start <= stop).mux(
               const(1L) + ((stop - start) - 1L) / step,
               (step < 0L && start >= stop).mux(
                 (((stop - start) + 1L) / step) + 1L,
-                0L)))
+                0L)),
+            s"nda_slice_shape$i")
         }
 
         val setupShape = sb.result()
@@ -2285,12 +2304,13 @@ private class Emit(
           val m = mb.newField[Boolean](s"m_filter$i")
           val v = mb.newField[Long](s"v_filter$i")
 
-          val shapeVar = sb.memoize(Code(
+          val shapeVar = sb.memoizeField(Code(
               codeF.setup,
               m := codeF.m,
               m.mux(
                 Code(v := 0L, childEmitter.outputShape(i)),
-                Code(v := codeF.value[Long], coerce[PArray](f.pType).loadLength(v).toL))))
+                Code(v := codeF.value[Long], coerce[PArray](f.pType).loadLength(v).toL))),
+            s"nda_filter_shape$i")
 
           ((m, v), shapeVar)
         }.unzip
@@ -2365,12 +2385,13 @@ object NDArrayEmitter {
   def unifyShapes2(mb: EmitMethodBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): (Code[Unit], IndexedSeq[Value[Long]]) = {
     val sb = SetupBuilder(mb)
 
-    val shape = sb.map(leftShape.zip(rightShape)) { case (sb, (left, right)) =>
+    val shape = leftShape.zip(rightShape).zipWithIndex.map { case ((left, right), i) =>
       val notSameAndNotBroadcastable = !((left ceq right) || (left ceq 1L) || (right ceq 1L))
-      sb.memoize(
+      sb.memoizeField(
         notSameAndNotBroadcastable.mux(
           Code._fatal[Long]("Incompatible NDArray shapes"),
-          (left > right).mux(left, right)))
+          (left > right).mux(left, right)),
+        s"unify_shapes2_shape$i")
     }
 
     (sb.result(), shape)

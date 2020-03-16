@@ -50,7 +50,19 @@ object Compile {
 
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
-    println(Pretty(ir, elideLiterals = false))
+    // println(Pretty(ir, elideLiterals = false))
+
+    /*
+    {
+      def visit(x: IR): Unit = {
+        println(f"${ System.identityHashCode(x) }%08x    ${ x.getClass.getSimpleName } ${ x.pType }")
+        Children(x).foreach {
+          case c: IR => visit(c)
+        }
+      }
+
+      visit(ir)
+    } */
 
     Emit(ctx, ir, fb)
 

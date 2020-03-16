@@ -265,7 +265,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32), In(0, TInt32))), FastIndexedSeq((1, TInt32)), 1)
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32), NA(TInt32))), FastIndexedSeq((1, TInt32)), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32), I32(1), I32(1), NA(TInt32), I32(1), NA(TInt32), I32(1))), 1)
-    assertEvalsTo(Coalesce(FastSeq(NA(TInt32), I32(1), Die("foo", TInt32))), 1)(ExecStrategy.javaOnly)
+    assertEvalsTo(Coalesce(FastSeq(NA(TInt32), I32(1), Die("foo", TInt32))), 1)
   }
 
   @Test def testCoalesceWithDifferentRequiredeness() {
@@ -2675,7 +2675,7 @@ class IRSuite extends HailSuite {
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
       BlockMatrixWrite(blockMatrix, BlockMatrixPersistWriter("x", "MEMORY_ONLY")),
       UnpersistBlockMatrix(blockMatrix),
-      CollectDistributedArray(ToArray(StreamRange(0, 3, 1)), 1, "x", "y", Ref("x", TInt32)),
+      CollectDistributedArray(StreamRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32)),
       ReadPartition(Str("foo"), TypedCodecSpec(PStruct("foo" -> PInt32(), "bar" -> PString()), BufferSpec.default), TStruct("foo" -> TInt32)),
       ReadValue(Str("foo"), TypedCodecSpec(PStruct("foo" -> PInt32(), "bar" -> PString()), BufferSpec.default), TStruct("foo" -> TInt32)),
       WriteValue(I32(1), Str("foo"), TypedCodecSpec(PInt32(), BufferSpec.default)),

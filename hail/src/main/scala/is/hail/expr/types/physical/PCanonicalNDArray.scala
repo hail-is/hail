@@ -126,7 +126,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Code[Long]], mb: MethodBuilder): Code[Long] = {
+  def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: MethodBuilder): Code[Long] = {
     val index = mb.newField[Long]
     val elementsInProcessedDimensions = mb.newField[Long]
     Code(
@@ -142,7 +142,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Code[Long]], mb: MethodBuilder): (Code[Unit], IndexedSeq[Value[Long]]) = {
+  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Value[Long]], mb: MethodBuilder): (Code[Unit], IndexedSeq[Value[Long]]) = {
     val nDim = shapeArray.length
     val newIndices = (0 until nDim).map(_ => mb.newField[Long])
     val elementsInProcessedDimensions = mb.newField[Long]
@@ -150,7 +150,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
     val createShape = Code(
       workRemaining := index,
-      elementsInProcessedDimensions := shapeArray.fold(1L: Code[Long])(_ * _),
+      elementsInProcessedDimensions := shapeArray.foldLeft(1L: Code[Long])(_ * _),
       Code.foreach(shapeArray.zip(newIndices)) { case (shapeElement, newIndex) =>
         Code(
           elementsInProcessedDimensions := elementsInProcessedDimensions / shapeElement,
@@ -163,35 +163,35 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   def copyRowMajorToColumnMajor(rowMajorAddress: Code[Long], targetAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: MethodBuilder): Code[Unit] = {
-    val rowIndex = mb.newField[Long]
-    val colIndex = mb.newField[Long]
-    val rowMajorCoord = nCols * rowIndex + colIndex
-    val colMajorCoord = nRows * colIndex + rowIndex
-    val rowMajorFirstElementAddress = this.data.pType.firstElementOffset(rowMajorAddress, (nRows * nCols).toI)
-    val targetFirstElementAddress = this.data.pType.firstElementOffset(targetAddress, (nRows * nCols).toI)
-    val currentElement = Region.loadDouble(rowMajorFirstElementAddress + rowMajorCoord * 8L)
+    Code.memoize(nRows, "pcndarr_tocol_n_rows", nCols, "pcndarr_tocol_n_cols") { (nRows, nCols) =>
+      val rowIndex = mb.newField[Long]
+      val colIndex = mb.newField[Long]
+      val rowMajorCoord = nCols * rowIndex + colIndex
+      val colMajorCoord = nRows * colIndex + rowIndex
+      val rowMajorFirstElementAddress = this.data.pType.firstElementOffset(rowMajorAddress, (nRows * nCols).toI)
+      val targetFirstElementAddress = this.data.pType.firstElementOffset(targetAddress, (nRows * nCols).toI)
+      val currentElement = Region.loadDouble(rowMajorFirstElementAddress + rowMajorCoord * 8L)
 
-    Code.forLoop(rowIndex := 0L, rowIndex < nRows, rowIndex := rowIndex + 1L,
-      Code.forLoop(colIndex := 0L, colIndex < nCols, colIndex := colIndex + 1L,
-        Region.storeDouble(targetFirstElementAddress + colMajorCoord * 8L, currentElement)
-      )
-    )
+      Code.forLoop(rowIndex := 0L, rowIndex < nRows, rowIndex := rowIndex + 1L,
+        Code.forLoop(colIndex := 0L, colIndex < nCols, colIndex := colIndex + 1L,
+          Region.storeDouble(targetFirstElementAddress + colMajorCoord * 8L, currentElement)))
+    }
   }
 
   def copyColumnMajorToRowMajor(colMajorAddress: Code[Long], targetAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: MethodBuilder): Code[Unit] = {
-    val rowIndex = mb.newField[Long]
-    val colIndex = mb.newField[Long]
-    val rowMajorCoord = nCols * rowIndex + colIndex
-    val colMajorCoord = nRows * colIndex + rowIndex
-    val colMajorFirstElementAddress = this.data.pType.firstElementOffset(colMajorAddress, (nRows * nCols).toI)
-    val targetFirstElementAddress = this.data.pType.firstElementOffset(targetAddress, (nRows * nCols).toI)
-    val currentElement = Region.loadDouble(colMajorFirstElementAddress + colMajorCoord * 8L)
+    Code.memoize(nRows, "pcndarr_torow_n_rows", nCols, "pcndarr_torow_n_cols") { (nRows, nCols) =>
+      val rowIndex = mb.newField[Long]
+      val colIndex = mb.newField[Long]
+      val rowMajorCoord = nCols * rowIndex + colIndex
+      val colMajorCoord = nRows * colIndex + rowIndex
+      val colMajorFirstElementAddress = this.data.pType.firstElementOffset(colMajorAddress, (nRows * nCols).toI)
+      val targetFirstElementAddress = this.data.pType.firstElementOffset(targetAddress, (nRows * nCols).toI)
+      val currentElement = Region.loadDouble(colMajorFirstElementAddress + colMajorCoord * 8L)
 
-    Code.forLoop(rowIndex := 0L, rowIndex < nRows, rowIndex := rowIndex + 1L,
-      Code.forLoop(colIndex := 0L, colIndex < nCols, colIndex := colIndex + 1L,
-        Region.storeDouble(targetFirstElementAddress + rowMajorCoord * 8L, currentElement)
-      )
-    )
+      Code.forLoop(rowIndex := 0L, rowIndex < nRows, rowIndex := rowIndex + 1L,
+        Code.forLoop(colIndex := 0L, colIndex < nCols, colIndex := colIndex + 1L,
+          Region.storeDouble(targetFirstElementAddress + rowMajorCoord * 8L, currentElement)))
+    }
   }
 
   def construct(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]),

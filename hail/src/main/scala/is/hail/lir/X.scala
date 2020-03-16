@@ -66,9 +66,11 @@ class Classx[C](val name: String, val superName: String) {
           if (l.method == null)
             l.method = m
           else {
+            /*
             if (l.method ne m) {
               println(s"$l ${l.method} $m")
             }
+             */
             assert(l.method eq m)
           }
         }

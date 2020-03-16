@@ -114,7 +114,7 @@ trait PArrayBackedContainer extends PContainer {
   def zeroes(region: Region, length: Int): Long =
     arrayRep.zeroes(region, length)
 
-  def zeroes(mb: MethodBuilder, region: Code[Region], length: Code[Int]): Code[Long] =
+  def zeroes(mb: MethodBuilder, region: Value[Region], length: Code[Int]): Code[Long] =
     arrayRep.zeroes(mb, region, length)
 
   def anyMissing(mb: MethodBuilder, aoff: Code[Long]): Code[Boolean] =

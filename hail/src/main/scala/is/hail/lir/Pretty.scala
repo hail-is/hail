@@ -121,7 +121,8 @@ object Pretty {
   }
 
   def header(x: X): String = x match {
-    case x: IfX =>s"${ asm.util.Printer.OPCODES(x.op) } ${ x.Ltrue } ${ x.Lfalse }"
+    case x: IfX => s"${ asm.util.Printer.OPCODES(x.op) } ${ x.Ltrue } ${ x.Lfalse }"
+    case x: BooleanX => s"${ asm.util.Printer.OPCODES(x.op) }"
     case x: GotoX => x.L.toString
     case x: SwitchX => s"${ x.Ldefault } (${ x.Lcases.mkString(" ") })"
     case x: LdcX => x.a.toString

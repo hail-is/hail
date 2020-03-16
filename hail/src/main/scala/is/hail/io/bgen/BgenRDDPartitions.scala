@@ -33,11 +33,7 @@ trait BgenPartition extends Partition {
     bfis
   }
 
-  def recodeContig(contig: String): String = {
-    val r = contigRecoding.getOrElse(contig, contig)
-    println(s"$contig => $r")
-    r
-  }
+  def recodeContig(contig: String): String = contigRecoding.getOrElse(contig, contig)
 }
 
 private case class LoadBgenPartition(

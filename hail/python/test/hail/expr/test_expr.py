@@ -345,6 +345,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.bind_agg, 5)
         self.assertEqual(r.foo, 3)
 
+        print('here')
+
         a = hl.literal([1, 2], tarray(tint32))
         self.assertEqual(table.aggregate(hl.agg.filter(True, hl.agg.array_sum(a))), [10, 20])
 

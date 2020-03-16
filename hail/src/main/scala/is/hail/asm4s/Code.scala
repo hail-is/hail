@@ -385,6 +385,9 @@ object Code {
     cases.foreach(_.clear())
     newC
   }
+
+  def newLocal[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] =
+    new LocalRef[T](new lir.Local(null, name, tti))
 }
 
 class Code[+T](
@@ -392,24 +395,28 @@ class Code[+T](
   var end: lir.Block,
   var v: lir.ValueX) {
   // for debugging
-  val stack = Thread.currentThread().getStackTrace
-  var clearStack: Array[StackTraceElement] = _
+  // val stack = Thread.currentThread().getStackTrace
+  // var clearStack: Array[StackTraceElement] = _
 
   def check(): Unit = {
+    /*
     if (start == null) {
       println(clearStack.mkString("\n"))
       println("-----")
       println(stack.mkString("\n"))
     }
+     */
     assert (start != null)
   }
 
   def clear(): Unit = {
+    /*
     if (clearStack != null) {
       println(clearStack.mkString("\n"))
     }
     assert(clearStack == null)
     clearStack = Thread.currentThread().getStackTrace
+     */
 
     start = null
     end = null
@@ -462,6 +469,10 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
   }
 
   def mux[T](cthen: Code[T], celse: Code[T]): Code[T] = {
+    lhs.check()
+    cthen.check()
+    celse.check()
+
     val cond = lhs.toConditional
     val L = new lir.Block()
     val newC = if (cthen.v == null) {

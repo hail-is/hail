@@ -101,7 +101,7 @@ class EmitMethodBuilder(
 
   def numReferenceGenomes: Int = fb.numReferenceGenomes
 
-  def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
+  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] =
     fb.getReferenceGenome(rg)
 
   def numTypes: Int = fb.numTypes
@@ -139,7 +139,7 @@ class EmitMethodBuilder(
   ): CodeOrdering.F[op.ReturnType] =
     fb.getCodeOrdering(t1, t2, sortOrder, op, ignoreMissingness)
 
-  def newRNG(seed: Long): Code[IRRandomness] = fb.newRNG(seed)
+  def newRNG(seed: Long): Value[IRRandomness] = fb.newRNG(seed)
 
   def newPSettable(pt: PType, s: Settable[_]): PSettable = new PSettable {
     def get: PCode = PCode(pt, s)
@@ -205,27 +205,27 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
   parameterTypeInfo, returnTypeInfo, packageName, namePrefix = namePrefix, initModule = initModule
 ) with DependentFunction[F] {
 
-  private[this] val rgMap: mutable.Map[ReferenceGenome, Code[ReferenceGenome]] =
-    mutable.Map[ReferenceGenome, Code[ReferenceGenome]]()
+  private[this] val rgMap: mutable.Map[ReferenceGenome, Value[ReferenceGenome]] =
+    mutable.Map[ReferenceGenome, Value[ReferenceGenome]]()
 
-  private[this] val typMap: mutable.Map[Type, Code[Type]] =
-    mutable.Map[Type, Code[Type]]()
+  private[this] val typMap: mutable.Map[Type, Value[Type]] =
+    mutable.Map[Type, Value[Type]]()
 
-  private[this] val literalsMap: mutable.Map[(PType, Any), Code[_]] =
-    mutable.Map[(PType, Any), Code[_]]()
+  private[this] val literalsMap: mutable.Map[(PType, Any), Value[_]] =
+    mutable.Map[(PType, Any), Value[_]]()
 
-  override def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
+  override def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] =
     rgMap.getOrElseUpdate(rg, {
       val fromParent = parentfb.getReferenceGenome(rg)
       val field = newDepField[ReferenceGenome](fromParent)
-      field.load()
+      field
     })
 
   override def getType(t: Type): Code[Type] =
     typMap.getOrElseUpdate(t, {
       val fromParent = parentfb.getType(t)
       val field = newDepField[Type](fromParent)
-      field.load()
+      field
     })
 
   override def addLiteral(v: Any, t: PType): Code[_] = {
@@ -234,7 +234,7 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
       val fromParent = parentfb.addLiteral(v, t)
       val ti: TypeInfo[_] = typeToTypeInfo(t)
       val field = newDepFieldAny(fromParent)(ti)
-      field.load()
+      field
     })
   }
 
@@ -283,7 +283,7 @@ class EmitFunctionBuilder[F >: Null](
 
   def numReferenceGenomes: Int = rgMap.size
 
-  def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
+  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] =
     rgMap.getOrElseUpdate(rg, newLazyField[ReferenceGenome](rg.codeSetup(this)))
 
   def numTypes: Int = typMap.size

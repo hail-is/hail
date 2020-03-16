@@ -198,7 +198,7 @@ test {
     }
 
     // avoid stack overflow in lmmLargeExampleTest on some systems
-    jvmArgs '-Xss4m'
+    jvmArgs '-Xss4m', '-Xmx4096M'
 
     systemProperties System.getProperties()
 

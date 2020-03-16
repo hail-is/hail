@@ -11,13 +11,15 @@ import is.hail.variant.Genotype
 object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
-    registerCode("gqFromPL", TArray(tv("N", "int32")), TInt32, null) { case (r, rt, (tPL: PArray, pl: Code[Long])) =>
+    registerCode("gqFromPL", TArray(tv("N", "int32")), TInt32, null) { case (r, rt, (tPL: PArray, _pl: Code[Long])) =>
+      val pl = r.mb.newLocal[Long]("pl")
       val m = r.mb.newLocal[Int]("m")
       val m2 = r.mb.newLocal[Int]("m2")
       val len = r.mb.newLocal[Int]("len")
       val pli = r.mb.newLocal[Int]("pli")
       val i = r.mb.newLocal[Int]("i")
       Code(
+        pl := _pl,
         m := 99,
         m2 := 99,
         len := tPL.loadLength(pl),
@@ -34,8 +36,7 @@ object GenotypeFunctions extends RegistryFunctions {
               Code._empty)),
           i := i + 1
         ),
-        m2 - m
-      )
+        m2 - m)
     }
 
     registerCode[Long]("dosage", TArray(tv("N", "float64")), TFloat64, null) { case (r, rt, (gpPType, gpOff)) =>

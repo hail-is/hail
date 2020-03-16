@@ -81,7 +81,7 @@ abstract class PContainer extends PIterable {
 
   def zeroes(region: Region, length: Int): Long
 
-  def zeroes(mb: MethodBuilder, region: Code[Region], length: Code[Int]): Code[Long]
+  def zeroes(mb: MethodBuilder, region: Value[Region], length: Code[Int]): Code[Long]
 
   def anyMissing(mb: MethodBuilder, aoff: Code[Long]): Code[Boolean]
 

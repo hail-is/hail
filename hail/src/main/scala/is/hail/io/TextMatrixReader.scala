@@ -370,14 +370,18 @@ class CompiledLineParser(
       msg, filename, lineNumber, pos, pos + 1))
 
   private[this] def numericValue(c: Code[Char]): Code[Int] =
-    ((c < const('0')) || (c > const('9'))).mux(
-      parseError[Int](const("invalid character '")
-        .concat(c.toS)
-        .concat("' in integer literal")),
-      (c - const('0')).toI)
+    Code.memoize(c, "clp_numeric_val_c") { c =>
+      ((c < const('0')) || (c > const('9'))).mux(
+        parseError[Int](const("invalid character '")
+          .concat(c.toS)
+          .concat("' in integer literal")),
+        (c - const('0')).toI)
+    }
 
   private[this] def endField(p: Code[Int]): Code[Boolean] =
-    p.ceq(line.length()) || line(p).ceq(const(separator))
+    Code.memoize(p, "clp_end_field_p") { p =>
+      p.ceq(line.length()) || line(p).ceq(const(separator))
+    }
 
   private[this] def endField(): Code[Boolean] =
     endField(pos)

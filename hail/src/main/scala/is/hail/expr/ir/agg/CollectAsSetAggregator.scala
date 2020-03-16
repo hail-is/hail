@@ -111,11 +111,13 @@ class AppendOnlySetState(val fb: EmitFunctionBuilder[_], t: PType) extends Point
     }
 
   def copyFromAddress(src: Code[Long]): Code[Unit] =
-  Code(
-    off := region.allocate(typ.alignment, typ.byteSize),
-    size := Region.loadInt(typ.loadField(src, 0)),
-    tree.init,
-    tree.deepCopy(Region.loadAddress(typ.loadField(src, 1))))
+    Code.memoize(src, "aoss_copy_from_addr_src") { src =>
+      Code(
+        off := region.allocate(typ.alignment, typ.byteSize),
+        size := Region.loadInt(typ.loadField(src, 0)),
+        tree.init,
+        tree.deepCopy(Region.loadAddress(typ.loadField(src, 1))))
+    }
 
   def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
     val kEnc = et.buildEncoderMethod(t, fb)

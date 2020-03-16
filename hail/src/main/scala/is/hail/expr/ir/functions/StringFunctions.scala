@@ -140,7 +140,7 @@ object StringFunctions extends RegistryFunctions {
     }
 
     registerCodeWithMissingness("showStr", tv("T"), TInt32, TString, null) { case (r, rt, (aT, a), (_, trunc)) =>
-      val annotation = Code(a.setup, a.m).mux(Code._null, boxArg(r, aT)(a.v))
+      val annotation = Code(a.setup, a.m).muxAny(Code._null(boxedTypeInfo(aT)), boxArg(r, aT)(a.v))
       val str = r.mb.getType(aT.virtualType).invoke[Any, Int, String]("showStr", annotation, trunc.value[Int])
       EmitCode(trunc.setup, trunc.m, PCode(rt, unwrapReturn(r, rt)(str)))
     }
@@ -179,12 +179,10 @@ object StringFunctions extends RegistryFunctions {
     registerCodeWithMissingness("firstMatchIn", TString, TString, TArray(TString), null) {
       case (er: EmitRegion, rt: PArray, (sT: PString, s: EmitCode), (rT: PString, r: EmitCode)) =>
       val out: LocalRef[IndexedSeq[String]] = er.mb.newLocal[IndexedSeq[String]]
-      val nout = new CodeNullable[IndexedSeq[String]](out)
 
       val srvb: StagedRegionValueBuilder = new StagedRegionValueBuilder(er, rt)
       val len: LocalRef[Int] = er.mb.newLocal[Int]
       val elt: LocalRef[String] = er.mb.newLocal[String]
-      val nelt = new CodeNullable[String](elt)
 
       val setup = Code(s.setup, r.setup)
       val missing = s.m || r.m || Code(
@@ -192,16 +190,16 @@ object StringFunctions extends RegistryFunctions {
           thisClass, "firstMatchIn",
           asm4s.coerce[String](wrapArg(er, sT)(s.value[Long])),
           asm4s.coerce[String](wrapArg(er, rT)(r.value[Long]))),
-        nout.isNull)
+        out.isNull)
       val value =
-        nout.ifNull(
+        out.ifNull(
           defaultValue(TArray(TString)),
           Code(
             len := out.invoke[Int]("size"),
             srvb.start(len),
             Code.whileLoop(srvb.arrayIdx < len,
               elt := out.invoke[Int, String]("apply", srvb.arrayIdx),
-              nelt.ifNull(
+              elt.ifNull(
                 srvb.setMissing(),
                 srvb.addString(elt)),
               srvb.advance()),
@@ -238,7 +236,7 @@ object StringFunctions extends RegistryFunctions {
         EmitCode(
           Code(e1.setup, e2.setup),
           e1.m || e2.m || m,
-          PCode(rt, m.mux(defaultValue(TInt32), v)))
+          PCode(rt, v))
     }
 
     registerWrappedScalaFunction("escapeString", TString, TString, null)(thisClass, "escapeString")

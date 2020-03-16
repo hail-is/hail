@@ -228,11 +228,11 @@ object LocusFunctions extends RegistryFunctions {
     }
 
     registerCode("locus_windows_per_contig", TArray(TArray(TFloat64)), TFloat64, TTuple(TArray(TInt32), TArray(TInt32)), null) {
-      case (r: EmitRegion, rt: PTuple, (groupedT: PArray, coords: Code[Long]), (radiusT: PFloat64, radius: Code[Double])) =>
-        val region: Code[Region] = r.region
-
+      case (r: EmitRegion, rt: PTuple, (groupedT: PArray, _coords: Code[Long]), (radiusT: PFloat64, _radius: Code[Double])) =>
         val coordT = types.coerce[PArray](groupedT.elementType)
 
+        val coords = r.mb.newLocal[Long]("coords")
+        val radius = r.mb.newLocal[Double]("radius")
         val ncontigs = r.mb.newLocal[Int]("ncontigs")
         val totalLen = r.mb.newLocal[Int]("l")
         val iContig = r.mb.newLocal[Int]
@@ -287,14 +287,16 @@ object LocusFunctions extends RegistryFunctions {
         }
 
         val srvb = new StagedRegionValueBuilder(r, rt)
-        Code(
+        Code(Code(FastIndexedSeq(
+          coords := _coords,
+          radius := _radius,
           ncontigs := groupedT.loadLength(coords),
           totalLen := 0,
           forAllContigs(totalLen := totalLen + coordT.loadLength(coordsPerContig)),
           srvb.start(),
           srvb.addArray(PArray(PInt32()), addIdxWithCondition(startCond, _)),
           srvb.advance(),
-          srvb.addArray(PArray(PInt32()), addIdxWithCondition(endCond, _)),
+          srvb.addArray(PArray(PInt32()), addIdxWithCondition(endCond, _)))),
           srvb.end())
     }
 
@@ -343,7 +345,7 @@ object LocusFunctions extends RegistryFunctions {
         EmitCode(
           Code(ioff.setup, invalidMissing.setup),
           ioff.m || invalidMissing.m || Code(intervalLocal := interval, intervalLocal.isNull),
-          PCode(rt, emitInterval(r, interval, rt))
+          PCode(rt, emitInterval(r, intervalLocal, rt))
         )
     }
 
@@ -364,7 +366,7 @@ object LocusFunctions extends RegistryFunctions {
         EmitCode(
           Code(locoff.setup, pos1.setup, pos2.setup, include1.setup, include2.setup, invalidMissing.setup),
           locoff.m || pos1.m || pos2.m || include1.m || include2.m || invalidMissing.m || Code(intervalLocal := interval, intervalLocal.isNull),
-          PCode(rt, emitInterval(r, interval, rt))
+          PCode(rt, emitInterval(r, intervalLocal, rt))
         )
     }
 

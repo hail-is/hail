@@ -19,23 +19,25 @@ object LinearRegressionAggregator extends StagedAggregator {
   def createState(fb: EmitFunctionBuilder[_]): State =
     new TypedRegionBackedAggState(stateType, fb)
 
-  def initOpF(state: State)(mb: MethodBuilder, k: Code[Int], k0: Code[Int]): Code[Unit] = Code(
-    (k0 < 0 | k0 > k).mux(
-      Code._fatal[Unit](const("linreg: `nested_dim` must be between 0 and the number (")
-        .concat(k.toS)
-        .concat(") of covariates, inclusive")),
-      Code._empty),
-    state.off := stateType.allocate(state.region),
-    Region.storeAddress(
-      stateType.fieldOffset(state.off, 0),
-      vector.zeroes(mb, state.region, k)),
-    Region.storeAddress(
-      stateType.fieldOffset(state.off, 1),
-      vector.zeroes(mb, state.region, k*k)),
-    Region.storeInt(
-      stateType.loadField(state.off, 2),
-      k0)
-  )
+  def initOpF(state: State)(mb: MethodBuilder, k: Code[Int], k0: Code[Int]): Code[Unit] =
+    Code.memoize(k, "lra_init_k", k0, "lra_init_k0") { (k, k0) =>
+      Code(
+        (k0 < 0 | k0 > k).mux(
+          Code._fatal[Unit](const("linreg: `nested_dim` must be between 0 and the number (")
+            .concat(k.toS)
+            .concat(") of covariates, inclusive")),
+          Code._empty),
+        state.off := stateType.allocate(state.region),
+        Region.storeAddress(
+          stateType.fieldOffset(state.off, 0),
+          vector.zeroes(mb, state.region, k)),
+        Region.storeAddress(
+          stateType.fieldOffset(state.off, 1),
+          vector.zeroes(mb, state.region, k * k)),
+        Region.storeInt(
+          stateType.loadField(state.off, 2),
+          k0))
+    }
 
   def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     val _initOpF = state.fb.newMethod[Int, Int, Unit]("linregInitOp")(initOpF(state))
@@ -55,37 +57,39 @@ object LinearRegressionAggregator extends StagedAggregator {
     val xty = mb.newLocal[Long]
     val xtx = mb.newLocal[Long]
 
-    val body = Code(FastIndexedSeq(
-      xty := stateType.loadField(state.off, 0),
-      xtx := stateType.loadField(state.off, 1),
-      sptr := vector.firstElementOffset(xty, k),
-      xptr := vector.firstElementOffset(x, k),
-      k := vector.loadLength(xty),
-      i := 0,
-      Code.whileLoop(i < k, Code(
-        Region.storeDouble(sptr, Region.loadDouble(sptr)
-          + (Region.loadDouble(xptr) * y)),
-        i := i + 1,
-        sptr := sptr + scalar.byteSize,
-        xptr := xptr + scalar.byteSize
-      )),
+      Code.memoize(x, "lra_seqop_x") { x =>
+        val body = Code(FastIndexedSeq(
+          xty := stateType.loadField(state.off, 0),
+          xtx := stateType.loadField(state.off, 1),
+          sptr := vector.firstElementOffset(xty, k),
+          xptr := vector.firstElementOffset(x, k),
+          k := vector.loadLength(xty),
+          i := 0,
+          Code.whileLoop(i < k, Code(
+            Region.storeDouble(sptr, Region.loadDouble(sptr)
+              + (Region.loadDouble(xptr) * y)),
+            i := i + 1,
+            sptr := sptr + scalar.byteSize,
+            xptr := xptr + scalar.byteSize
+          )),
 
-      i := 0,
-      sptr := vector.firstElementOffset(xtx),
-      xptr := vector.firstElementOffset(x, k),
-      Code.whileLoop(i < k, Code(
-        j := 0,
-        xptr2 := vector.firstElementOffset(x, k),
-        Code.whileLoop(j < k, Code(
-          Region.storeDouble(sptr, Region.loadDouble(sptr)
-            + (Region.loadDouble(xptr) * Region.loadDouble(xptr2))),
-          j += 1,
-          sptr := sptr + scalar.byteSize,
-          xptr2 := xptr2 + scalar.byteSize)),
-        i += 1,
-        xptr := xptr + scalar.byteSize))))
+          i := 0,
+          sptr := vector.firstElementOffset(xtx),
+          xptr := vector.firstElementOffset(x, k),
+          Code.whileLoop(i < k, Code(
+            j := 0,
+            xptr2 := vector.firstElementOffset(x, k),
+            Code.whileLoop(j < k, Code(
+              Region.storeDouble(sptr, Region.loadDouble(sptr)
+                + (Region.loadDouble(xptr) * Region.loadDouble(xptr2))),
+              j += 1,
+              sptr := sptr + scalar.byteSize,
+              xptr2 := xptr2 + scalar.byteSize)),
+            i += 1,
+            xptr := xptr + scalar.byteSize))))
 
-    nrVec.anyMissing(mb, x).mux(Code._empty, body)
+        nrVec.anyMissing(mb, x).mux(Code._empty, body)
+      }
   }
 
   def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {

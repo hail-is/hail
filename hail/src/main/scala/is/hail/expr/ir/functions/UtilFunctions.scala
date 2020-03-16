@@ -1,7 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.asm4s
-import is.hail.asm4s._
+import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir._
 import is.hail.expr.types.physical.{PString, PTuple, PType}
 import is.hail.utils._
@@ -198,12 +198,16 @@ object UtilFunctions extends RegistryFunctions {
           Code.invokeScalaObject[Double, Double, Double](thisClass, ignoreNanName, v1, v2)
       }
 
-      def ignoreMissingTriplet[T](rt: PType, v1: EmitCode, v2: EmitCode, name: String)(implicit ct: ClassTag[T]): EmitCode =
+      def ignoreMissingTriplet[T](rt: PType, v1: EmitCode, v2: EmitCode, name: String)(implicit ct: ClassTag[T], ti: TypeInfo[T]): EmitCode = {
+        val m1 = Code.newLocal[Boolean]("min_max_igno_miss_m1")
+        val m2 = Code.newLocal[Boolean]("min_max_igno_miss_m2")
         EmitCode(
-          Code(v1.setup, v2.setup),
-          v1.m && v2.m,
-          PCode(rt, Code.invokeScalaObject[T, Boolean, T, Boolean, T](thisClass, name, v1.v.asInstanceOf[Code[T]], v1.m, v2.v.asInstanceOf[Code[T]], v2.m))
-        )
+          Code(v1.setup, v2.setup, m1 := v1.m, m2 := v2.m),
+          m1 && m2,
+          PCode(rt, Code.invokeScalaObject[T, Boolean, T, Boolean, T](thisClass, name,
+            m1.mux(coerce[T](defaultValue(ti)), v1.value[T]), m1,
+            m2.mux(coerce[T](defaultValue(ti)), v2.value[T]), m2)))
+      }
 
       registerCodeWithMissingness(ignoreMissingName, TInt32, TInt32, TInt32, null) {
         case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Int](rt, v1, v2, ignoreMissingName)

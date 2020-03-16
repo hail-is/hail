@@ -293,9 +293,10 @@ object CodeStream { self =>
           innerSource = inner(
             eos = LinnerEos.goto,
             push = push)
-          Code(innerSource.setup, inInnerStream := true, LinnerPull, innerSource.pull,
+          Code(FastIndexedSeq[Code[Unit]](
+            innerSource.setup, inInnerStream := true, LinnerPull, innerSource.pull,
               // for layout
-              LinnerEos, innerSource.close, inInnerStream := false, closing.mux(LcloseOuter.goto, LouterPull.goto))
+              LinnerEos, innerSource.close, inInnerStream := false, closing.mux(LcloseOuter.goto, LouterPull.goto)))
         })
       Source[A](
         setup0 = Code(closing := false, inInnerStream := false, outerSource.setup0, innerSource.setup0),
@@ -486,7 +487,7 @@ object EmitStream {
   def sequence(mb: EmitMethodBuilder, elemPType: PType, elements: IndexedSeq[EmitCode]): Stream[EmitCode] = new Stream[EmitCode] {
     def apply(eos: Code[Ctrl], push: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] = {
       val i = mb.newLocal[Int]
-      val t = mb.newEmitLocal(elemPType)
+      val t = mb.newEmitLocal("ss_t", elemPType)
       val Leos = CodeLabel()
       val Lpush = CodeLabel()
 
@@ -604,13 +605,6 @@ object EmitStream {
         case ToStream(containerIR) =>
           val aType = coerce[PContainer](containerIR.pType)
 
-          val b = {
-            val s: Set[Int] = Set(1, 2, 3)
-            val t: Set[Int] = Set(1, 2, 3)
-            s.equals(t)
-          }
-          println(b)
-
           COption.fromEmitCode(emitIR(containerIR)).mapCPS { (containerAddr, k) =>
             val xAddr = fb.newPField("ts_addr", aType)
             val len = mb.newLocal[Int]("ts_len")
@@ -632,12 +626,13 @@ object EmitStream {
                     eos))
             }
 
+            val sslen = mb.newLocal[Int]("ts_sslen")
             Code(
               xAddr := containerAddr,
               len := xAddr.get.asIndexable.loadLength(),
               k(SizedStream(
                 newStream,
-                Some((Code._empty, len)))))
+                Some((sslen := len, sslen)))))
           }
 
         case x@MakeStream(elements, t) =>
