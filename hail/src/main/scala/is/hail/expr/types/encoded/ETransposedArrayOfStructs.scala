@@ -62,7 +62,7 @@ final case class ETransposedArrayOfStructs(
     val fmbytes = mb.newLocal[Long]("fmbytes")
     val array = mb.newLocal[Long]("array")
 
-    val prefix = Code(
+    val prefix = Code.concat(
       len := in.readInt(),
       nMissing := pa.nMissingBytes(len),
       array := pa.allocate(region, len),
@@ -79,7 +79,7 @@ final case class ETransposedArrayOfStructs(
           alen := 0,
           Code.whileLoop(i < len,
             Code(
-              alen := alen + pa.isElementMissing(array, i).toI,
+              alen := alen + pa.isElementDefined(array, i).toI,
               i := i + const(1))),
           anMissing := UnsafeUtils.packBitsToBytes(alen)),
       if (fields.forall(_.typ.required)) {
@@ -112,14 +112,15 @@ final case class ETransposedArrayOfStructs(
               Code.whileLoop(i < len,
                   Code.concat(
                     pa.isElementDefined(array, i).mux(
-                    Code(
-                      Region.loadBit(fmbytes, j.toL).mux(
-                        ps.setFieldMissing(elem, pf.index),
-                        Code(
-                          ps.setFieldPresent(elem, pf.index),
-                          inplaceDecode(region, fld, in))),
-                      j := j + const(1)),
-                    Code._empty))))
+                      Code(
+                        Region.loadBit(fmbytes, j.toL).mux(
+                          ps.setFieldMissing(elem, pf.index),
+                          Code(
+                            ps.setFieldPresent(elem, pf.index),
+                            inplaceDecode(region, fld, in))),
+                        j := j + const(1)),
+                      Code._empty),
+                    i := i + const(1))))
           }
         case None =>
           val skip = ef.typ.buildSkip(mb)
