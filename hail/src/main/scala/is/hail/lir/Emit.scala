@@ -166,6 +166,8 @@ object Emit {
           mn.instructions.add(new IincInsnNode(getLocalIndex(x.l), x.i))
         case x: StmtOpX =>
           mn.instructions.add(new InsnNode(x.op))
+        case x: ThrowX =>
+          mn.instructions.add(new InsnNode(ATHROW))
       }
     }
 

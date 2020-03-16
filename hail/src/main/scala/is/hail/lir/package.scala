@@ -117,7 +117,11 @@ package object lir {
     x
   }
 
-  def stmtOp(op: Int, c: ValueX): StmtX = stmtOp(op, FastIndexedSeq(c))
+  def throwx(c: ValueX): ControlX = {
+    val x = new ThrowX()
+    setChildren(x, c)
+    x
+  }
 
   def stmtOp(op: Int, c1: ValueX, c2: ValueX, c3: ValueX): StmtX = stmtOp(op, FastIndexedSeq(c1, c2, c3))
 

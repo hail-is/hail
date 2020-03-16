@@ -286,7 +286,7 @@ object Code {
 
   def _throw[T <: java.lang.Throwable, U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] = {
     if (uti eq UnitInfo) {
-      cerr.end.append(lir.stmtOp(ATHROW, cerr.v))
+      cerr.end.append(lir.throwx(cerr.v))
       val newC = new VCode(cerr.start, cerr.end, null)
       cerr.clear()
       newC
@@ -924,7 +924,7 @@ object CodeLabel {
   }
 }
 
-class CodeLabel(private var L: lir.Block) extends Code[Unit] {
+class CodeLabel(val L: lir.Block) extends Code[Unit] {
   private var _start: lir.Block = L
 
   def start: lir.Block = {

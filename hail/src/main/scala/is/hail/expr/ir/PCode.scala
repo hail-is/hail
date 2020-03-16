@@ -28,6 +28,11 @@ object PCode {
   }
 
   def _empty: PCode = PCode(PVoid, Code._empty)
+
+  def memoize(mb: EmitMethodBuilder, pc: PCode, name: String)(f: (PValue) => Code[Unit]): Code[Unit] = {
+    val s = mb.newPLocal(name, pc.pt)
+    Code(s := pc, f(s))
+  }
 }
 
 abstract class PCode {
