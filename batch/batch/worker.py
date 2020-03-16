@@ -18,7 +18,7 @@ import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
-from hailtop.utils import time_msecs, request_retry_transient_errors, RETRY_FUNCTION_SCRIPT, \
+from hailtop.utils import time_msecs, request_retry_transient_errors, \
     sleep_and_backoff, retry_all_errors
 
 # import uvloop
@@ -52,6 +52,7 @@ BUCKET_NAME = os.environ['BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
 PROJECT = os.environ['PROJECT']
 WORKER_TYPE = os.environ['WORKER_TYPE']
+WORKER_IMAGE = os.environ['WORKER_IMAGE']
 
 log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
@@ -465,32 +466,23 @@ def populate_secret_host_path(host_path, secret_data):
 
 
 def copy_command(src, dst):
-    if not dst.startswith('gs://'):
-        mkdirs = f'mkdir -p {shq(os.path.dirname(dst))} && '
-    else:
-        mkdirs = ''
-    return f'{mkdirs}retry gsutil -m cp -R {shq(src)} {shq(dst)}'
+    return f'{shq(src)} {shq(dst)}'
 
 
 def copy(files):
     assert files
-
-    copies = ' && '.join([copy_command(f['from'], f['to']) for f in files])
+    copies = '\n'.join([copy_command(f['from'], f['to']) for f in files])
     return f'''
-set -ex
-
-{ RETRY_FUNCTION_SCRIPT }
-
-retry gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
-
+cat | python3 /batch/copy_files.py --key-file /gsa-key/key.json --project {PROJECT} --parallelism 10 <<EOF
 {copies}
+EOF
 '''
 
 
 def copy_container(job, name, files, volume_mounts):
     sh_expression = copy(files)
     copy_spec = {
-        'image': 'google/cloud-sdk:269.0.0-alpine',
+        'image': WORKER_IMAGE,
         'name': name,
         'command': ['/bin/sh', '-c', sh_expression],
         'cpu': '500m' if files else '100m',

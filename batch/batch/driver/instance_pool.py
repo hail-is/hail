@@ -265,6 +265,7 @@ docker run \
     -e INSTANCE_ID=$INSTANCE_ID \
     -e PROJECT=$PROJECT \
     -e WORKER_TYPE=$WORKER_TYPE \
+    -e WORKER_IMAGE=$BATCH_WORKER_IMAGE \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /usr/bin/docker:/usr/bin/docker \
     -v /batch:/batch \

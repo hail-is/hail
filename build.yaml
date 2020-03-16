@@ -1052,6 +1052,7 @@ steps:
    script: |
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      export HAIL_BASE_IMAGE={{ base_image.image }}
+     export BATCH_WORKER_IMAGE={{ batch_worker_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
      python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" --log-cli-level=INFO -s -vv --instafail -k "not test_scale" /io/test/
@@ -1076,6 +1077,7 @@ steps:
     - base_image
     - service_base_image
     - ci_utils_image
+    - batch_worker_image
     - deploy_batch
  - kind: runImage
    name: create_ci_test_repo

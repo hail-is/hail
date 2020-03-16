@@ -2,6 +2,7 @@ import os
 import time
 import re
 import pytest
+import uuid
 import aiohttp
 from flask import Response
 from hailtop.batch_client.client import BatchClient, Job
@@ -169,38 +170,6 @@ def test_no_parents_allowed_in_other_batches(client):
         assert re.search('parents from another batch', str(err))
         return
     assert False
-
-
-def test_input_dependency(client):
-    user = get_userinfo()
-    batch = client.create_batch()
-    head = batch.create_job('ubuntu:18.04',
-                            command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-                            output_files=[('/io/data*', f'gs://{user["bucket_name"]}')])
-    tail = batch.create_job('ubuntu:18.04',
-                            command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-                            input_files=[(f'gs://{user["bucket_name"]}/data*', '/io/')],
-                            parents=[head])
-    batch.submit()
-    tail.wait()
-    assert head._get_exit_code(head.status(), 'main') == 0, head._status
-    assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
-
-
-def test_input_dependency_directory(client):
-    user = get_userinfo()
-    batch = client.create_batch()
-    head = batch.create_job('ubuntu:18.04',
-                            command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
-                            output_files=[('/io/test/', f'gs://{user["bucket_name"]}')])
-    tail = batch.create_job('ubuntu:18.04',
-                            command=['/bin/sh', '-c', 'cat /io/test/data1 ; cat /io/test/data2'],
-                            input_files=[(f'gs://{user["bucket_name"]}/test', '/io/')],
-                            parents=[head])
-    batch.submit()
-    tail.wait()
-    assert head._get_exit_code(head.status(), 'main') == 0, head._status
-    assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 
 def test_always_run_cancel(client):
