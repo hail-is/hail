@@ -255,6 +255,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVa
 
   def toCRDDPtr: ContextRDD[Long] =
     crdd.cmap { (consumerCtx, rv) =>
+      // Need to track regions that are in use, but don't want to create a cycle.
       if (consumerCtx.region != rv.region) {
         consumerCtx.region.addReferenceTo(rv.region)
       }
