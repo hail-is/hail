@@ -310,7 +310,7 @@ private class Emit(
                 f(i + 1),
                 Code(mout := false, out := pt.copyFromPValue(mb, region, ec.pv))))
           } else
-            mout := true
+            Code(mout := true, out := pt.defaultValue)
         }
 
         EmitCode(
