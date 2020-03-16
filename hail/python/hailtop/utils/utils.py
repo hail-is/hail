@@ -9,6 +9,7 @@ import socket
 import requests
 import google.auth.exceptions
 import time
+import functools
 
 from .time import time_msecs
 
@@ -20,6 +21,10 @@ RETRY_FUNCTION_SCRIPT = """function retry() {
         (sleep 2 && "$@") ||
         (sleep 5 && "$@")
 }"""
+
+
+def flatten(xxs):
+    return [x for xs in xxs for x in xs]
 
 
 def grouped(n, ls):
@@ -44,7 +49,7 @@ def async_to_blocking(coro):
 
 async def blocking_to_async(thread_pool, fun, *args, **kwargs):
     return await asyncio.get_event_loop().run_in_executor(
-        thread_pool, lambda: fun(*args, **kwargs))
+        thread_pool, functools.partial(fun, *args, **kwargs))
 
 
 async def bounded_gather(*pfs, parallelism=10, return_exceptions=False):
@@ -114,8 +119,9 @@ class AsyncWorkerPool:
     def __init__(self, parallelism, queue_size=1000):
         self._queue = asyncio.Queue(maxsize=queue_size)
 
+        self._workers = []
         for _ in range(parallelism):
-            asyncio.ensure_future(self._worker())
+            self._workers.append(asyncio.ensure_future(self._worker()))
 
     async def _worker(self):
         while True:
@@ -125,19 +131,25 @@ class AsyncWorkerPool:
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
-                log.exception(f'worker pool caught exception')
+                log.exception(f'worker pool caught exception', stack_info=True)
 
     async def call(self, f, *args, **kwargs):
         await self._queue.put((f, args, kwargs))
 
+    async def cancel(self):
+        for worker in self._workers:
+            worker.cancel()
+
 
 class WaitableSharedPool:
-    def __init__(self, worker_pool):
+    def __init__(self, worker_pool, ignore_errors=True):
         self._worker_pool = worker_pool
         self._n_submitted = 0
         self._n_complete = 0
         self._waiting = False
         self._done = asyncio.Event()
+        self._errors = []
+        self._ignore_errors = ignore_errors
 
     async def call(self, f, *args, **kwargs):
         assert not self._waiting
@@ -146,6 +158,10 @@ class WaitableSharedPool:
         async def invoke():
             try:
                 await f(*args, **kwargs)
+            except Exception as err:  # pylint: disable=broad-except
+                if not self._ignore_errors:
+                    self._errors.append(err)
+                    self._done.set()
             finally:
                 self._n_complete += 1
                 if self._waiting and (self._n_complete == self._n_submitted):
@@ -158,7 +174,54 @@ class WaitableSharedPool:
         self._waiting = True
         if self._n_complete == self._n_submitted:
             self._done.set()
+        if not self._ignore_errors and self._errors:
+            self._done.set()
+
         await self._done.wait()
+
+        if self._errors:
+            raise self._errors[0]
+
+
+class WaitableBunch:
+    def __init__(self, shared_pool):
+        self.shared_pool = shared_pool
+        self._errors = []
+        self._done = asyncio.Event()
+        self._waiting = False
+        self._n_submitted = 0
+        self._n_complete = 0
+
+    async def call(self, f, *args, **kwargs):
+        assert not self._waiting
+        self._n_submitted += 1
+
+        async def invoke():
+            try:
+                await f(*args, **kwargs)
+            except Exception as err:  # pylint: disable=broad-except
+                self._errors.append(err)
+                self._done.set()
+            finally:
+                self._n_complete += 1
+                if self._waiting and (self._n_complete == self._n_submitted):
+                    self._done.set()
+
+        await self.shared_pool._worker_pool.call(invoke)
+
+    async def wait(self):
+        assert not self._waiting
+        self._waiting = True
+        if self._n_complete == self._n_submitted:
+            self._done.set()
+        if self._errors:
+            self._done.set()
+
+        await self._done.wait()
+
+        if self._errors:
+            error_types = [type(err) for err in self._errors]
+            raise self._errors[0]
 
 
 RETRYABLE_HTTP_STATUS_CODES = (408, 500, 502, 503, 504)
@@ -208,6 +271,10 @@ def is_transient_error(e):
     # google.auth.exceptions.TransportError: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))
     #
     # aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host batch.pr-6925-default-s24o4bgat8e8:80 ssl:None [Connect call failed ('10.36.7.86', 80)]
+    #
+    # requests.exceptions.ChunkedEncodingError: ("Connection broken: ConnectionResetError(104, 'Connection reset by peer')", ConnectionResetError(104, 'Connection reset by peer'))
+    #
+    # ChunkedEncodingError(ProtocolError("Connection broken: ConnectionResetError(104, 'Connection reset by peer')", ConnectionResetError(104, 'Connection reset by peer')),)
     if isinstance(e, aiohttp.ClientResponseError) and (
             e.status in RETRYABLE_HTTP_STATUS_CODES):
         # nginx returns 502 if it cannot connect to the upstream server
@@ -240,6 +307,10 @@ def is_transient_error(e):
         return True
     if isinstance(e, requests.exceptions.ConnectionError):
         return True
+    if isinstance(e, requests.exceptions.ChunkedEncodingError):
+        return is_transient_error(e.args[0])
+    if isinstance(e, urllib3.exceptions.ProtocolError):
+        return is_transient_error(e.args[1])
     if isinstance(e, socket.timeout):
         return True
     if isinstance(e, ConnectionResetError):
@@ -376,7 +447,7 @@ async def run_if_changed(changed, f, *args, **kwargs):
             await changed.wait()
 
 
-class LoggingTimerStep:
+class TimerStep:
     def __init__(self, timer, name):
         self.timer = timer
         self.name = name
@@ -390,23 +461,72 @@ class LoggingTimerStep:
         self.timer.timing[self.name] = finish_time - self.start_time
 
 
-class LoggingTimer:
-    def __init__(self, description, threshold_ms=None):
-        self.description = description
-        self.threshold_ms = threshold_ms
+class TimerBase:
+    def __init__(self):
         self.timing = {}
         self.start_time = None
+        self.finish_time = None
 
     def step(self, name):
-        return LoggingTimerStep(self, name)
+        return TimerStep(self, name)
 
     async def __aenter__(self):
         self.start_time = time_msecs()
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
-        finish_time = time_msecs()
-        total = finish_time - self.start_time
+        self.finish_time = time_msecs()
+
+
+class LoggingTimer(TimerBase):
+    def __init__(self, description, threshold_ms=None):
+        self.description = description
+        self.threshold_ms = threshold_ms
+        super().__init__()
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await super().__aexit__(exc_type, exc, tb)
+        total = self.finish_time - self.start_time
         if self.threshold_ms is None or total > self.threshold_ms:
             self.timing['total'] = total
             log.info(f'{self.description} timing {self.timing}')
+
+
+class NamedLock:
+    def __init__(self, lock_store, name, lock):
+        self.lock_store = lock_store
+        self.name = name
+        self.lock = lock
+
+    async def __aenter__(self):
+        await self.lock.acquire()
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self.lock.release()
+        self.lock_store.release_lock(self.name)
+
+
+class NamedLockStore:
+    def __init__(self):
+        self.locks = {}
+        self.n_holders = {}
+
+    def get_lock(self, name):
+        lock = self.locks.get(name)
+
+        if lock is None:
+            lock = asyncio.Lock()
+            self.locks[name] = lock
+            self.n_holders[name] = 0
+
+        self.n_holders[name] += 1
+
+        return NamedLock(self, name, lock)
+
+    def release_lock(self, file):
+        assert file in self.locks
+        assert file in self.n_holders
+        self.n_holders[file] -= 1
+        if self.n_holders[file] == 0:
+            del self.n_holders[file]
+            del self.locks[file]

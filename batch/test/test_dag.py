@@ -1,8 +1,7 @@
-import os
 import time
 import re
+import uuid
 import pytest
-import aiohttp
 from flask import Response
 from hailtop.batch_client.client import BatchClient, Job
 import hailtop.batch_client.aioclient as aioclient
@@ -11,6 +10,9 @@ from hailtop.auth import get_userinfo
 from .utils import batch_status_job_counter, \
     legacy_batch_status
 from .serverthread import ServerThread
+
+
+global_token = uuid.uuid4().hex[:8]
 
 
 @pytest.fixture
@@ -171,38 +173,6 @@ def test_no_parents_allowed_in_other_batches(client):
     assert False
 
 
-def test_input_dependency(client):
-    user = get_userinfo()
-    batch = client.create_batch()
-    head = batch.create_job('ubuntu:18.04',
-                            command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-                            output_files=[('/io/data*', f'gs://{user["bucket_name"]}')])
-    tail = batch.create_job('ubuntu:18.04',
-                            command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-                            input_files=[(f'gs://{user["bucket_name"]}/data*', '/io/')],
-                            parents=[head])
-    batch.submit()
-    tail.wait()
-    assert head._get_exit_code(head.status(), 'main') == 0, head._status
-    assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
-
-
-def test_input_dependency_directory(client):
-    user = get_userinfo()
-    batch = client.create_batch()
-    head = batch.create_job('ubuntu:18.04',
-                            command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
-                            output_files=[('/io/test/', f'gs://{user["bucket_name"]}')])
-    tail = batch.create_job('ubuntu:18.04',
-                            command=['/bin/sh', '-c', 'cat /io/test/data1 ; cat /io/test/data2'],
-                            input_files=[(f'gs://{user["bucket_name"]}/test', '/io/')],
-                            parents=[head])
-    batch.submit()
-    tail.wait()
-    assert head._get_exit_code(head.status(), 'main') == 0, head._status
-    assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
-
-
 def test_always_run_cancel(client):
     batch = client.create_batch()
     head = batch.create_job('ubuntu:18.04', command=['echo', 'head'])
@@ -246,3 +216,57 @@ def test_always_run_error(client):
         status = job.status()
         assert status['state'] == state, status
         assert job._get_exit_code(status, 'main') == ec, status
+
+
+def test_copy_input_to_filename(client):
+    user = get_userinfo()
+    batch = client.create_batch()
+    token = uuid.uuid4().hex[:6]
+    head = batch.create_job('ubuntu:18.04',
+                            command=['/bin/sh', '-c', 'echo head1 > /io/data1'],
+                            output_files=[('/io/data1', f'gs://{user["bucket_name"]}/{global_token}/{token}/data2')])
+    tail = batch.create_job('ubuntu:18.04',
+                            command=['/bin/sh', '-c', 'cat /io/data2'],
+                            input_files=[(f'gs://{user["bucket_name"]}/{global_token}/{token}/data2', '/io/')],
+                            parents=[head])
+    batch.submit()
+    tail.wait()
+    assert head._get_exit_code(head.status(), 'main') == 0, (head._status, global_token, token)
+    assert tail.log()['main'] == 'head1\n', (tail.status(), global_token, token)
+
+
+def test_copy_empty_file(client):
+    user = get_userinfo()
+    batch = client.create_batch()
+    token = uuid.uuid4().hex[:6]
+    head = batch.create_job('ubuntu:18.04',
+                            command=['/bin/sh', '-c', 'touch /io/data1'],
+                            output_files=[('/io/data1', f'gs://{user["bucket_name"]}/{global_token}/{token}/')])
+    tail = batch.create_job('ubuntu:18.04',
+                            command=['/bin/sh', '-c', 'cat /io/data1'],
+                            input_files=[(f'gs://{user["bucket_name"]}/{global_token}/{token}/data1', '/io/')],
+                            parents=[head])
+    batch.submit()
+    tail.wait()
+    assert head._get_exit_code(head.status(), 'main') == 0, (head._status, global_token, token)
+    assert tail.log()['main'] == '', (tail.status(), global_token, token)
+
+
+def test_copy_input_to_directory(client):
+    user = get_userinfo()
+    batch = client.create_batch()
+    token = uuid.uuid4().hex[:6]
+    head = batch.create_job('ubuntu:18.04',
+                            command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
+                            output_files=[('/io/data*', f'gs://{user["bucket_name"]}/{global_token}/{token}/')])
+    tail = batch.create_job('ubuntu:18.04',
+                            command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
+                            input_files=[(f'gs://{user["bucket_name"]}/{global_token}/{token}/data*', '/io/')],
+                            parents=[head])
+    batch.submit()
+    tail.wait()
+    assert head._get_exit_code(head.status(), 'main') == 0, (head._status, global_token, token)
+    assert tail.log()['main'] == 'head1\nhead2\n', (tail.status(), global_token, token)
+
+
+

@@ -265,13 +265,14 @@ docker run \
     -e INSTANCE_ID=$INSTANCE_ID \
     -e PROJECT=$PROJECT \
     -e WORKER_TYPE=$WORKER_TYPE \
+    -e WORKER_IMAGE=$BATCH_WORKER_IMAGE \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v /usr/bin/docker:/usr/bin/docker \
     -v /batch:/batch \
     -v /logs:/logs \
     -p 5000:5000 \
     $BATCH_WORKER_IMAGE \
-    python3 -u -m batch.worker >worker.log 2>&1
+    python3 -u -m batch.worker.worker >worker.log 2>&1
 
 while true; do
   gcloud -q compute instances delete $NAME --zone=$ZONE

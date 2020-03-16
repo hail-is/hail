@@ -1,6 +1,7 @@
 import re
 import logging
 import math
+import io
 
 from .front_end.validate import CPU_REGEX, MEMORY_REGEX
 
@@ -107,3 +108,52 @@ def parse_image_tag(image_string):
     if match:
         return match.group(3)
     return None
+
+
+class FileSlice(io.IOBase):
+    def __init__(self, filename, start, length):  # pylint: disable=super-init-not-called
+        self._start = start
+        self._length = length
+
+        f = open(filename, 'rb')
+        f.seek(start)
+        self._f = f
+
+    def tell(self):
+        offset = self._f.tell() - self._start
+        assert offset >= 0
+        return offset
+
+    def read(self, size=-1):
+        remaining = max(0, self._length - self.tell())
+        if size == -1:
+            size = remaining
+        elif size > remaining:
+            size = remaining
+        return self._f.read(size)
+
+    def seekable(self):
+        return True
+
+    def seek(self, offset, whence=io.SEEK_SET):
+        if whence == io.SEEK_SET:
+            abs_offset = offset
+        elif whence == io.SEEK_CUR:
+            abs_offset = self.tell() + offset
+        elif whence == io.SEEK_END:
+            abs_offset = self._length + offset
+
+        if abs_offset < 0:
+            raise ValueError('invalid argument: seek results in negative absolute offset')
+
+        self._f.seek(self._start + abs_offset, io.SEEK_SET)
+        return abs_offset
+
+    @property
+    def closed(self):
+        return self._f is None
+
+    def close(self):
+        if self._f is not None:
+            self._f.close()
+            self._f = None

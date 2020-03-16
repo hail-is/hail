@@ -6,8 +6,8 @@ from collections import defaultdict
 from shlex import quote as shq
 import yaml
 import jinja2
-from hailtop.utils import RETRY_FUNCTION_SCRIPT
-from .utils import flatten, generate_token
+from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
+from .utils import generate_token
 from .constants import BUCKET
 from .environment import GCP_PROJECT, GCP_ZONE, DOMAIN, IP, CI_UTILS_IMAGE, \
     DEFAULT_NAMESPACE, BATCH_PODS_NAMESPACE, KUBERNETES_SERVER_URL

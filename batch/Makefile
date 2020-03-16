@@ -16,6 +16,11 @@ check:
 	$(PYTHON) -m flake8  --config ../setup.cfg batch
 	$(PYTHON) -m pylint --rcfile ../pylintrc batch --score=n
 
+.PHONY: build-test-worker
+build-test-worker:
+	-docker pull python:3.7-slim-stretch
+	docker build -t batch-worker -f Dockerfile.worker --cache-from batch-worker,python:3.7-slim-stretch ..
+
 .PHONY: build
 build:
 	make -C ../docker build

@@ -420,6 +420,28 @@ class BatchTests(unittest.TestCase):
         b.write_output(input, f'{self.gcs_output_dir}/hello.txt')
         assert b.run(verbose=True).status()['state'] == 'success'
 
+    def test_io(self):
+        file = 'gs://hail-services/batch-testing/resources/random_file_512mb'
+        md5 = 'f9e464c667516676604ef8ce5d3ab349'
+
+        b = self.batch()
+        input = b.read_input(file)
+        head = b.new_job()
+        head.command(f'''
+actual_md5=$(md5sum {input} | awk '{{ print $1 }}')
+echo $actual_md5
+test "$actual_md5" = "{md5}" || exit 1
+cp {input} {head.out}
+''')
+        tail = b.new_job()
+        tail.command(f'''
+actual_md5=$(md5sum {head.out} | awk '{{ print $1 }}')
+echo $actual_md5
+test "$actual_md5" = "{md5}" || exit 1
+''')
+
+        assert b.run().status()['state'] == 'success'
+        
     def test_benchmark_lookalike_workflow(self):
         b = self.batch()
 
