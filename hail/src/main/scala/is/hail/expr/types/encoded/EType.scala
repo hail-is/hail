@@ -244,9 +244,7 @@ object EType {
     }
   }
 
-  def defaultFromPType(pt: PType): EType = defaultFromPType(pt, pt.required)
-
-  def defaultFromPType(pt: PType, required: Boolean): EType = {
+  def defaultFromPType(pt: PType): EType = {
     pt.fundamentalType match {
       case t: PInt32 => EInt32(t.required)
       case t: PInt64 => EInt64(t.required)
@@ -257,7 +255,7 @@ object EType {
       // FIXME(chrisvittal): turn this on when performance is adequate
       case t: PArray if t.elementType.fundamentalType.isOfType(PInt32(t.elementType.required)) &&
           HailContext.get.flags.get("use_packed_int_encoding") != null =>
-         EPackedIntArray(required, t.elementType.required)
+         EPackedIntArray(t.required, t.elementType.required)
       // FIXME(chrisvittal): Turn this on when it works
       case t: PArray if t.elementType.isInstanceOf[PBaseStruct] &&
           HailContext.get.flags.get("use_column_encoding") != null =>
