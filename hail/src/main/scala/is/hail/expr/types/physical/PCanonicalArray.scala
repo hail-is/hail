@@ -35,7 +35,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalArray(elementType, required)
+  def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalArray(elementType, required)
 
   def loadLength(aoff: Long): Int =
     Region.loadInt(aoff)
@@ -104,19 +104,26 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     !isElementDefined(aoff, i)
 
   def setElementMissing(aoff: Long, i: Int) {
-    assert(!elementType.required)
-    Region.setBit(aoff + lengthHeaderBytes, i)
+    if (!elementType.required)
+      Region.setBit(aoff + lengthHeaderBytes, i)
   }
 
   def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit] =
-    Region.setBit(aoff + lengthHeaderBytes, i.toL)
+    if (elementType.required)
+      Code._empty
+    else
+      Region.setBit(aoff + lengthHeaderBytes, i.toL)
 
   def setElementPresent(aoff: Long, i: Int) {
-    Region.clearBit(aoff + lengthHeaderBytes, i.toLong)
+    if (!elementType.required)
+      Region.clearBit(aoff + lengthHeaderBytes, i.toLong)
   }
 
   def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit] =
-    Region.clearBit(aoff + lengthHeaderBytes, i.toL)
+    if (elementType.required)
+      Code._empty
+    else
+      Region.clearBit(aoff + lengthHeaderBytes, i.toL)
 
   def firstElementOffset(aoff: Long, length: Int): Long =
     aoff + elementsOffset(length)
@@ -234,12 +241,14 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def zeroes(mb: MethodBuilder, region: Code[Region], length: Code[Int]): Code[Long] = {
     require(elementType.isNumeric)
-    val aoff = mb.newLocal[Long]
-    Code(
-      aoff := allocate(region, length),
-      stagedInitialize(aoff, length),
-      Region.setMemory(aoff + elementsOffset(length), length.toL * elementByteSize, 0.toByte),
-      aoff)
+    Code.memoize(length, "pcarr_zeros_len") { length =>
+      val aoff = mb.newLocal[Long]
+      Code(
+        aoff := allocate(region, length),
+        stagedInitialize(aoff, length),
+        Region.setMemory(aoff + elementsOffset(length), length.toL * elementByteSize, 0.toByte),
+        aoff)
+    }
   }
 
   def anyMissing(mb: MethodBuilder, aoff: Code[Long]): Code[Boolean] =
@@ -433,7 +442,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   private def constructOrCopy(mb: MethodBuilder, region: Code[Region], srcArray: PArray, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
-    if (srcArray == this) {
+    if (srcArray.elementType == elementType) {
       if (forceDeep) {
         val newAddr = mb.newLocal[Long]
         val len = mb.newLocal[Int]
@@ -465,13 +474,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
           srcArray.isElementDefined(srcAddrVar, i).orEmpty(
             Code(
               setElementPresent(newAddr, i),
-              elementType.constructAtAddress(mb, elementOffset(newAddr, len, i), region, srcArray.elementType, srcArray.loadElement(srcAddrVar, len, i), forceDeep)
-            )
-          ),
+              elementType.constructAtAddress(mb, elementOffset(newAddr, len, i), region, srcArray.elementType, srcArray.loadElement(srcAddrVar, len, i), forceDeep))),
           i := i + 1
         ),
-        newAddr
-      )
+        newAddr)
     }
   }
 
@@ -481,7 +487,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   private def constructOrCopy(region: Region, srcArray: PArray, srcAddress: Long, forceDeep: Boolean): Long = {
-    if (srcArray == this) {
+    if (srcArray.elementType == elementType) {
       if (forceDeep) {
         val len = srcArray.loadLength(srcAddress)
         val newAddr = allocate(region, len)

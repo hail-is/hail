@@ -6,9 +6,13 @@ import is.hail.utils._
 
 object InferPType {
 
-  def clearPTypes(x: IR): Unit = {
-    x._pType = null
-    x.children.foreach { c => clearPTypes(c.asInstanceOf[IR]) }
+  def clearPTypes(x: BaseIR): Unit = {
+    x match {
+      case x: IR =>
+        x._pType = null
+      case _ =>
+    }
+    x.children.foreach(clearPTypes)
   }
 
   // does not unify physical arg types if multiple nested seq/init ops appear; instead takes the first. The emitter checks equality.
@@ -231,7 +235,9 @@ object InferPType {
         infer(s)
         assert(i.pType isOfType PInt32())
 
-        coerce[PArray](a.pType).elementType.setRequired(a.pType.required && i.pType.required)
+        val aType = coerce[PArray](a.pType)
+        val elemType = aType.elementType
+        elemType.orMissing(a.pType.required && i.pType.required)
       case ArraySort(a, leftName, rightName, compare) =>
         infer(a)
         val et = coerce[PStream](a.pType).elementType
@@ -292,18 +298,20 @@ object InferPType {
 
         // Whether an array must return depends on a, but element requiredeness depends on body (null a elements elided)
         coerce[PStream](a.pType).copy(coerce[PIterable](body.pType).elementType, a.pType.required)
-      case StreamFold(a, zero, accumName, valueName, body) =>
+      case x@StreamFold(a, zero, accumName, valueName, body) =>
         infer(zero)
         infer(a)
-        infer(body, env.bind(accumName -> zero.pType, valueName -> a.pType.asInstanceOf[PStream].elementType))
-        if (body.pType != zero.pType) {
-          val resPType = InferPType.getNestedElementPTypes(FastSeq(body.pType, zero.pType))
+        val accType = zero.pType.orMissing(a.pType.required)
+        infer(body, env.bind(accumName -> accType, valueName -> a.pType.asInstanceOf[PStream].elementType))
+        if (body.pType != accType) {
+          val resPType = InferPType.getNestedElementPTypes(FastSeq(body.pType, accType))
           // the below does a two-pass inference to unify the accumulator with the body ptype.
           // this is not ideal, may cause problems in the future.
           clearPTypes(body)
           infer(body, env.bind(accumName -> resPType, valueName -> a.pType.asInstanceOf[PStream].elementType))
           resPType
-        } else zero.pType
+        } else
+          accType
       case StreamFor(a, value, body) =>
         infer(a)
         infer(body, env.bind(value -> a.pType.asInstanceOf[PStream].elementType))

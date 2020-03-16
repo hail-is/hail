@@ -23,10 +23,10 @@ object ExecStrategy extends Enumeration {
   type ExecStrategy = Value
   val Interpret, InterpretUnoptimized, JvmCompile, LoweredJVMCompile, JvmCompileUnoptimized = Value
 
-  val compileOnly: Set[ExecStrategy] = Set(JvmCompile)
-  val javaOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
+  val compileOnly: Set[ExecStrategy] = Set(JvmCompile, JvmCompileUnoptimized)
+  val javaOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile, JvmCompileUnoptimized)
   val interpretOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized)
-  val nonLowering: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
+  val nonLowering: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile, JvmCompileUnoptimized)
   val lowering: Set[ExecStrategy] = Set(LoweredJVMCompile)
   val backendOnly: Set[ExecStrategy] = Set(LoweredJVMCompile)
   val allRelational: Set[ExecStrategy] = interpretOnly.union(lowering)
@@ -338,6 +338,7 @@ object TestUtils {
         }
 
       filteredExecStrats.foreach { strat =>
+        InferPType.clearPTypes(x)
         try {
           val res = strat match {
             case ExecStrategy.Interpret =>
@@ -347,7 +348,7 @@ object TestUtils {
               assert(agg.isEmpty)
               Interpret[Any](ctx, x, env, args, optimize = false)
             case ExecStrategy.JvmCompile =>
-              assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
+              assert(Forall(x, node => Compilable(node)))
               eval(x, env, args, agg, bytecodePrinter =
                 Option(HailContext.getFlag("jvm_bytecode_dump"))
                   .map { path =>
@@ -356,7 +357,7 @@ object TestUtils {
                     pw
                   })
             case ExecStrategy.JvmCompileUnoptimized =>
-              assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
+              assert(Forall(x, node => Compilable(node)))
               eval(x, env, args, agg, bytecodePrinter =
                 Option(HailContext.getFlag("jvm_bytecode_dump"))
                   .map { path =>
