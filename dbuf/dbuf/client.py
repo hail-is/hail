@@ -109,11 +109,12 @@ class DBufClient:
         return results
 
     async def delete(self):
-        await self.aiosession.delete(self.session_url)
+        await utils.request_retry_transient_errors(
+            self.aiosession, 'DELETE', self.session_url)
 
     async def get_workers(self):
-        async with self.aiosession.get(f'{self.root_url}/w') as resp:
-            return await resp.json()
+        return await (await utils.request_retry_transient_errors(
+            self.aiosession, 'GET', f'{self.root_url}/w')).json()
 
 
 class DBufAppender:
