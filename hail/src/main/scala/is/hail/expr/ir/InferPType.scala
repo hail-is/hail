@@ -298,7 +298,7 @@ object InferPType {
 
         // Whether an array must return depends on a, but element requiredeness depends on body (null a elements elided)
         coerce[PStream](a.pType).copy(coerce[PIterable](body.pType).elementType, a.pType.required)
-      case x@StreamFold(a, zero, accumName, valueName, body) =>
+      case StreamFold(a, zero, accumName, valueName, body) =>
         infer(zero)
         infer(a)
         val accType = zero.pType.orMissing(a.pType.required)
