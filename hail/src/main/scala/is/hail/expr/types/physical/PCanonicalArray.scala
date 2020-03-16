@@ -115,15 +115,15 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       Code._fatal[Unit](s"Required element cannot be missing")
 
   def setElementPresent(aoff: Long, i: Int) {
-    assert(!elementType.required)
-    Region.clearBit(aoff + lengthHeaderBytes, i.toLong)
+    if (!elementType.required)
+      Region.clearBit(aoff + lengthHeaderBytes, i.toLong)
   }
 
   def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit] =
     if (!elementType.required)
       Region.clearBit(aoff + lengthHeaderBytes, i.toL)
     else
-      Code._fatal[Unit](s"Required element cannot be missing")
+      Code._empty
 
   def firstElementOffset(aoff: Long, length: Int): Long =
     aoff + elementsOffset(length)
@@ -200,15 +200,13 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def setAllMissingBits(aoff: Long, length: Int) {
-    if (elementType.required)
-      return
-    writeMissingness(aoff, length, -1)
+    if (!elementType.required)
+      writeMissingness(aoff, length, -1)
   }
 
   def clearMissingBits(aoff: Long, length: Int) {
-    if (elementType.required)
-      return
-    writeMissingness(aoff, length, 0)
+    if (!elementType.required)
+      writeMissingness(aoff, length, 0)
   }
 
   def initialize(aoff: Long, length: Int, setMissing: Boolean = false) {
@@ -325,9 +323,8 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def hasMissingValues(srcAddress: Code[Long]): Code[Boolean] = {
-    if(elementType.required) {
+    if (elementType.required)
       return const(false)
-    }
 
     Region.containsNonZeroBits(srcAddress + lengthHeaderBytes, loadLength(srcAddress).toL)
   }
