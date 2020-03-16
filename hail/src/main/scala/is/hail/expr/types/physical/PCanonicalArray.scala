@@ -104,26 +104,26 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     !isElementDefined(aoff, i)
 
   def setElementMissing(aoff: Long, i: Int) {
-    if (!elementType.required)
-      Region.setBit(aoff + lengthHeaderBytes, i)
+    assert(!elementType.required)
+    Region.setBit(aoff + lengthHeaderBytes, i)
   }
 
   def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit] =
-    if (elementType.required)
-      Code._empty
-    else
+    if (!elementType.required)
       Region.setBit(aoff + lengthHeaderBytes, i.toL)
+    else
+      Code._fatal[Unit](s"Required element cannot be missing")
 
   def setElementPresent(aoff: Long, i: Int) {
-    if (!elementType.required)
-      Region.clearBit(aoff + lengthHeaderBytes, i.toLong)
+    assert(!elementType.required)
+    Region.clearBit(aoff + lengthHeaderBytes, i.toLong)
   }
 
   def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit] =
-    if (elementType.required)
-      Code._empty
-    else
+    if (!elementType.required)
       Region.clearBit(aoff + lengthHeaderBytes, i.toL)
+    else
+      Code._fatal[Unit](s"Required element cannot be missing")
 
   def firstElementOffset(aoff: Long, length: Int): Long =
     aoff + elementsOffset(length)
@@ -442,7 +442,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   private def constructOrCopy(mb: MethodBuilder, region: Code[Region], srcArray: PArray, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
-    if (srcArray.elementType == elementType) {
+    if (srcArray.isInstanceOf[PCanonicalArray] && srcArray.elementType == elementType) {
       if (forceDeep) {
         val newAddr = mb.newLocal[Long]
         val len = mb.newLocal[Int]
@@ -487,7 +487,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   private def constructOrCopy(region: Region, srcArray: PArray, srcAddress: Long, forceDeep: Boolean): Long = {
-    if (srcArray.elementType == elementType) {
+    if (srcArray.isInstanceOf[PCanonicalArray] && srcArray.elementType == elementType) {
       if (forceDeep) {
         val len = srcArray.loadLength(srcAddress)
         val newAddr = allocate(region, len)

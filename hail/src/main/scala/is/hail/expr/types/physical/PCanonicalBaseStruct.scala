@@ -52,20 +52,22 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   }
 
   def setFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Unit] = {
-    assert(!fieldRequired(fieldIdx))
-    Region.setBit(offset, missingIdx(fieldIdx).toLong)
+    if (!fieldRequired(fieldIdx))
+      Region.setBit(offset, missingIdx(fieldIdx).toLong)
+    else
+      Code._fatal[Unit](s"Required field cannot be missing")
   }
 
   def setFieldPresent(offset: Long, fieldIdx: Int) {
-    if (!fieldRequired(fieldIdx))
-      Region.clearBit(offset, missingIdx(fieldIdx))
+    assert(!fieldRequired(fieldIdx))
+    Region.clearBit(offset, missingIdx(fieldIdx))
   }
 
   def setFieldPresent(offset: Code[Long], fieldIdx: Int): Code[Unit] = {
     if (!fieldRequired(fieldIdx))
       Region.clearBit(offset, missingIdx(fieldIdx).toLong)
     else
-      Code._empty
+      Code._fatal[Unit](s"Required field cannot be missing")
   }
 
   def fieldOffset(structAddress: Long, fieldIdx: Int): Long =
