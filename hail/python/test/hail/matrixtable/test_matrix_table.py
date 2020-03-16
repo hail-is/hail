@@ -189,6 +189,11 @@ class Tests(unittest.TestCase):
         qgs = mt.aggregate_entries(hl.Struct(x=agg.filter(False, agg.collect(mt.y1)),
                                               y=agg.filter(hl.rand_bool(0.1), agg.collect(mt.GT))))
 
+    def test_aggregate_rows_array_agg(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.annotate_rows(maf_flag = hl.empty_array('bool'))
+        mt.aggregate_rows(hl.agg.array_agg(lambda x: hl.agg.counter(x), mt.maf_flag))
+
     def test_col_agg_no_rows(self):
         mt = hl.utils.range_matrix_table(3, 3).filter_rows(False)
         mt = mt.annotate_cols(x = hl.agg.count())
