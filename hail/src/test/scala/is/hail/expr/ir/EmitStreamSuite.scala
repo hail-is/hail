@@ -222,6 +222,7 @@ class EmitStreamSuite extends HailSuite {
         case ToArray(s) => s
         case s => s
       }
+      TypeCheck(s)
       EmitStream(new Emit(ctx, fb), mb, s, Env.empty, EmitRegion.default(mb), None)
     }
     mb.emit {
@@ -273,6 +274,7 @@ class EmitStreamSuite extends HailSuite {
     val ir = streamIR.deepCopy()
     InferPType(ir, Env.empty)
     val optStream = ExecuteContext.scoped { ctx =>
+      TypeCheck(ir)
       EmitStream(new Emit(ctx, fb), mb, ir, Env.empty, EmitRegion.default(mb), None)
     }
     val L = CodeLabel()
@@ -382,7 +384,7 @@ class EmitStreamSuite extends HailSuite {
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       StreamFilter(ten, "x", x cne 5) -> (0 until 10).filter(_ != 5),
       StreamFilter(StreamMap(ten, "x", (x * 2).toL), "y", y > 5L) -> (3 until 10).map(x => (x * 2).toLong),
-      StreamFilter(StreamMap(ten, "x", (x * 2).toL), "y", NA(TInt32)) -> IndexedSeq(),
+      StreamFilter(StreamMap(ten, "x", (x * 2).toL), "y", NA(TBoolean)) -> IndexedSeq(),
       StreamFilter(StreamMap(ten, "x", NA(TInt32)), "z", True()) -> IndexedSeq.tabulate(10) { _ => null }
     )
     for ((ir, v) <- tests) {

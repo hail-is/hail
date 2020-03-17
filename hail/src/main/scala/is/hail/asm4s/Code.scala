@@ -741,7 +741,7 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
   def toB: Code[Byte] = Code(lhs, lir.insn1(I2B))
 
   // on the JVM Booleans are represented as Ints
-  def toZ: Code[Boolean] = lhs.asInstanceOf[Code[Boolean]]
+  def toZ: Code[Boolean] = lhs.cne(0)
 
   def toS: Code[String] = Code.invokeStatic[java.lang.Integer, Int, String]("toString", lhs)
 }
