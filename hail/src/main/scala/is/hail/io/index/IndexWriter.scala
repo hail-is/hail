@@ -3,6 +3,7 @@ package is.hail.io.index
 import java.io.OutputStream
 
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
+import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
 import is.hail.io.fs.FS
@@ -78,10 +79,14 @@ object IndexWriter {
     attributes: Map[String, Any] = Map.empty[String, Any]
   ): (FS, String) => IndexWriter = {
     val leafPType = LeafNodeBuilder.typ(keyType, annotationType)
-    val makeLeafEnc = TypedCodecSpec(leafPType, BufferSpec.default).buildEncoder(leafPType)
+    val makeLeafEnc = TypedCodecSpec(EType.defaultFromPType(leafPType, useTransposedArrayOfStructs = false),
+      leafPType.virtualType,
+      BufferSpec.default).buildEncoder(leafPType)
 
     val intPType = InternalNodeBuilder.typ(keyType, annotationType)
-    val makeIntEnc = TypedCodecSpec(intPType, BufferSpec.default).buildEncoder(intPType)
+    val makeIntEnc = TypedCodecSpec(EType.defaultFromPType(intPType, useTransposedArrayOfStructs = false),
+      intPType.virtualType,
+      BufferSpec.default).buildEncoder(intPType)
 
 
     { (fs: FS, path: String) =>

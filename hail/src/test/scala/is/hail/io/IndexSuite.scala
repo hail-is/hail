@@ -2,6 +2,7 @@ package is.hail.io
 
 import is.hail.HailSuite
 import is.hail.annotations.Annotation
+import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical.{PInt32, PString, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.fs.FS
@@ -41,15 +42,7 @@ class IndexSuite extends HailSuite {
     attributes: Map[String, Any]) {
     val bufferSpec = BufferSpec.default
 
-    val leafType = LeafNodeBuilder.typ(keyType, annotationType)
-    val leafCodec = TypedCodecSpec(leafType, bufferSpec)
-    val leafEnc = leafCodec.buildEncoder(leafType)
-
-    val intType = InternalNodeBuilder.typ(keyType, annotationType)
-    val intCodec = TypedCodecSpec(intType, bufferSpec)
-    val intEnc = intCodec.buildEncoder(intType)
-
-    val iw = new IndexWriter(hc.sFS, file, keyType, annotationType, leafEnc, intEnc, branchingFactor, attributes)
+    val iw = IndexWriter.builder(keyType, annotationType, branchingFactor, attributes)(hc.sFS, file)
     data.zip(annotations).zipWithIndex.foreach { case ((s, a), offset) =>
       iw += (s, offset, a)
     }
@@ -60,8 +53,12 @@ class IndexSuite extends HailSuite {
     val annotationPType = PType.canonical(annotationType)
     val leafPType = LeafNodeBuilder.typ(keyPType, annotationPType)
     val intPType = InternalNodeBuilder.typ(keyPType, annotationPType)
-    val leafSpec = TypedCodecSpec(leafPType, BufferSpec.default)
-    val intSpec = TypedCodecSpec(intPType, BufferSpec.default)
+    val leafSpec = TypedCodecSpec(EType.defaultFromPType(leafPType, useTransposedArrayOfStructs = false),
+      leafPType.virtualType,
+      BufferSpec.default)
+    val intSpec = TypedCodecSpec(EType.defaultFromPType(intPType, useTransposedArrayOfStructs = false),
+      intPType.virtualType,
+      BufferSpec.default)
 
     val (lrt, leafDec) = leafSpec.buildDecoder(leafPType.virtualType)
     assert(lrt == leafPType)
