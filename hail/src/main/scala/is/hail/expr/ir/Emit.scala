@@ -151,30 +151,45 @@ abstract class EmitValue {
   def get: EmitCode
 }
 
+object IEmitCode {
+  def apply(cb: EmitCodeBuilder, m: Code[Boolean], pc: PCode): IEmitCode = {
+    val Lmissing = CodeLabel()
+    val Lpresent = CodeLabel()
+    cb.ifx(m, { cb.goto(Lmissing) }, { cb.goto(Lpresent) })
+    IEmitCode(Lmissing, Lpresent, pc)
+  }
+}
+
+case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
+  def flatMap(cb: EmitCodeBuilder)(f: (PCode) => IEmitCode): IEmitCode = {
+    cb.define(Lpresent)
+    val ec2 = f(pc)
+    cb.define(ec2.Lmissing)
+    cb.goto(Lmissing)
+    IEmitCode(Lmissing, ec2.Lpresent, ec2.pc)
+  }
+}
+
 object EmitCode {
   def apply(setup: Code[Unit], ec: EmitCode): EmitCode =
     new EmitCode(Code(setup, ec.setup), ec.m, ec.pv)
 
-  def apply(f: (Code[Ctrl], (PCode) => Code[Ctrl]) => Code[Ctrl]): EmitCode = {
-    val Lmissing = CodeLabel()
-    val Lpresent = CodeLabel()
-    var _pv: PCode = null
-    val setup = f(Lmissing.goto, pv => {
-      _pv = pv
-      Lpresent.goto
-    })
-    val newEC = new EmitCode(Code._empty,
-      new CCode(setup.start, Lmissing.L, Lpresent.L),
-      _pv)
-    setup.clear()
-    Lmissing.clear()
-    Lpresent.clear()
-    newEC
-  }
-
   def present(pt: PType, v: Code[_]): EmitCode = EmitCode(Code._empty, false, PCode(pt, v))
 
   def missing(pt: PType): EmitCode = EmitCode(Code._empty, true, pt.defaultValue)
+
+  def fromI(mb: EmitMethodBuilder)(f: (EmitCodeBuilder) => IEmitCode): EmitCode = {
+    val cb = EmitCodeBuilder(mb)
+    val iec = f(cb)
+    val setup = cb.result()
+    val newEC = EmitCode(Code._empty,
+      new CCode(setup.start, iec.Lmissing.start, iec.Lpresent.start),
+      iec.pc)
+    iec.Lmissing.clear()
+    iec.Lpresent.clear()
+    setup.clear()
+    newEC
+  }
 }
 
 case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
@@ -186,20 +201,12 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
 
   def map(f: PCode => PCode): EmitCode = new EmitCode(setup, m, pv = f(pv))
 
-  def flatMap(f: (PCode) => EmitCode): EmitCode = {
+  def toI(cb: EmitCodeBuilder): IEmitCode = {
     val Lmissing = CodeLabel()
-    val ec2 = f(pv)
-    EmitCode { (missing, present) =>
-      Code(
-        setup,
-        m.mux[Unit](
-          Code(Lmissing, missing),
-          Code(
-            ec2.setup,
-            ec2.m.mux[Unit](
-              Lmissing.goto,
-              present(ec2.pv)))))
-    }
+    val Lpresent = CodeLabel()
+    cb += setup
+    cb.ifx(m, { cb.goto(Lmissing) }, { cb.goto(Lpresent) })
+    IEmitCode(Lmissing, Lpresent, pv)
   }
 
   def castTo(mb: EmitMethodBuilder, region: Value[Region], destType: PType): EmitCode = {
@@ -536,9 +543,6 @@ private class Emit(
         }
         present(pt, Code(srvb.start(args.size, init = true), wrapToMethod(args)(addElts), srvb.offset))
       case x@ArrayRef(a, i, s) =>
-        val pArray = coerce[PArray](a.pType)
-        val codeA = emit(a)
-        val codeI = emit(i)
         val errorTransformer: Code[String] => Code[String] = s match {
           case Str("") =>
             val prettied = Pretty.short(x)
@@ -555,26 +559,21 @@ private class Emit(
                       .concat(s.pType.asInstanceOf[PString].loadString(coerce[Long](codeS.v)))))
               }
         }
+        
+        EmitCode.fromI(mb) { cb =>
+          emit(a).toI(cb).flatMap(cb) { (ac) =>
+            emit(i).toI(cb).flatMap(cb) { (ic) =>
+              val av = ac.asIndexable.memoize(cb, "aref_a")
+              val iv = cb.memoize(ic.tcode[Int], "aref_i")
 
-        emit(a).flatMap { ac =>
-          emit(i).flatMap { ic =>
-            EmitCode { (missing, present) =>
-              PCode.memoize(mb, ac, "aref_a") { av =>
-                Code.memoize(ic.tcode[Int], "aref_i") { iv =>
-                  Code.memoize(av.get.asIndexable.loadLength(), "aref_len") { len =>
-                    (iv >= 0 && iv < len).mux[Unit](
-                      av.get.asIndexable.isElementDefined(iv)
-                        .mux[Unit](
-                          present(av.get.asIndexable.loadElement(len, iv)),
-                          missing),
-                      Code._fatal[Unit](errorTransformer(
-                        const("array index out of bounds: index=")
-                          .concat(iv.toS)
-                          .concat(", length=")
-                          .concat(len.toS))))
-                  }
-                }
-              }
+              cb.ifx(iv < 0 || iv >= av.loadLength(), {
+                cb._fatal(errorTransformer(
+                  const("array index out of bounds: index=")
+                    .concat(iv.toS)
+                    .concat(", length=")
+                    .concat(av.loadLength().toS)))
+              })
+              av.loadElement(cb, iv)
             }
           }
         }

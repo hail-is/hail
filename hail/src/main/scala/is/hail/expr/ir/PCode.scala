@@ -5,10 +5,56 @@ import is.hail.asm4s._
 import is.hail.utils._
 import is.hail.expr.types.physical._
 
-abstract class PValue {
+trait PValue {
   def pt: PType
 
   def get: PCode
+}
+
+abstract class PIndexableValue extends PValue {
+  def loadLength(): Value[Int]
+
+  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode
+}
+
+abstract class PIndexableSettable extends PIndexableValue with PSettable {
+  def loadLength(): Value[Int]
+
+  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode
+}
+
+object PCanonicalIndexableSettable {
+  def apply(sb: SettableBuilder, pt: PContainer, name: String): PCanonicalIndexableSettable = {
+    new PCanonicalIndexableSettable(pt,
+      sb.newSettable[Long](s"${ name }_a"),
+      sb.newSettable[Int](s"${ name }_length"),
+      sb.newSettable[Long](s"${ name }_elems_addr"))
+  }
+}
+
+class PCanonicalIndexableSettable(
+  val pt: PContainer,
+  val a: Settable[Long],
+  val length: Settable[Int],
+  val elementsAddress: Settable[Long]
+) extends PIndexableSettable {
+  def get: PIndexableCode = new PCanonicalIndexableCode(pt, a)
+
+  def loadLength(): Value[Int] = length
+
+  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
+    val iv = cb.memoize(i, "pcindval_i")
+    IEmitCode(cb,
+      pt.isElementMissing(a, iv),
+      pt.elementType.load(elementsAddress + iv.toL * pt.elementByteSize))
+  }
+
+  def store(pc: PCode): Code[Unit] = {
+    Code(
+      a := pc.asInstanceOf[PCanonicalIndexableCode].a,
+      length := pt.loadLength(a),
+      elementsAddress := pt.firstElementOffset(a, length))
+  }
 }
 
 object PCode {
@@ -28,14 +74,9 @@ object PCode {
   }
 
   def _empty: PCode = PCode(PVoid, Code._empty)
-
-  def memoize(mb: EmitMethodBuilder, pc: PCode, name: String)(f: (PValue) => Code[Unit]): Code[Unit] = {
-    val s = mb.newPLocal(name, pc.pt)
-    Code(s := pc, f(s))
-  }
 }
 
-abstract class PCode {
+abstract class PCode { self =>
   def pt: PType
 
   def code: Code[_]
@@ -62,9 +103,35 @@ abstract class PCode {
     PCode(destType,
       destType.copyFromTypeAndStackValue(mb, region, pt, code))
   }
+
+  // this is necessary because Scala doesn't infer the return type of
+  // PIndexableCode.memoize if PCode.memoize has a default implementation
+  def defaultMemoizeImpl(cb: EmitCodeBuilder, name: String): PValue = {
+    new PValue {
+      val pt: PType = self.pt
+
+      private val v = cb.memoizeAny(code, name)(typeToTypeInfo(pt))
+
+      def get: PCode = PCode(pt, v)
+    }
+  }
+
+  def defaultMemoizeFieldImpl(cb: EmitCodeBuilder, name: String): PValue = {
+    new PValue {
+      val pt: PType = self.pt
+
+      private val v = cb.memoizeFieldAny(code, name)(typeToTypeInfo(pt))
+
+      def get: PCode = PCode(pt, v)
+    }
+  }
+
+  def memoize(cb: EmitCodeBuilder, name: String): PValue
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PValue
 }
 
-abstract class PSettable extends PValue {
+trait PSettable extends PValue {
   def store(v: PCode): Code[Unit]
 
   def load(): PCode = get
@@ -75,63 +142,30 @@ abstract class PSettable extends PValue {
 class PPrimitiveCode(val pt: PType, val code: Code[_]) extends PCode {
   def store(mb: EmitMethodBuilder, r: Value[Region], a: Code[Long]): Code[Unit] =
     Region.storeIRIntermediate(pt)(a, code)
+
+  def memoize(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeImpl(cb, name)
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeFieldImpl(cb, name)
 }
 
 abstract class PIndexableCode extends PCode {
-  def loadLength(): Code[Int]
-
-  def isElementDefined(i: Code[Int]): Code[Boolean]
-
-  def loadElement(length: Code[Int], i: Code[Int]): PCode
-
-  def loadElement(i: Code[Int]): PCode
-
-  def isElementMissing(i: Code[Int]): Code[Boolean] = !isElementDefined(i)
+  def memoize(cb: EmitCodeBuilder, name: String): PIndexableValue
 }
 
 class PCanonicalIndexableCode(val pt: PContainer, val a: Code[Long]) extends PIndexableCode {
   def code: Code[_] = a
 
-  def elementType: PType = pt.elementType
-
-  def arrayElementSize: Long = UnsafeUtils.arrayElementSize(elementType)
-
-  def loadLength(): Code[Int] = Region.loadInt(a)
-
-  def nMissingBytes(len: Code[Int]): Code[Int] = (len + 7) >>> 3
-
-  def isElementDefined(i: Code[Int]): Code[Boolean] =
-    if (pt.elementType.required)
-      const(true)
-    else
-      !Region.loadBit(a + const(4L), i.toL)
-
-  def elementsOffset(length: Code[Int]): Code[Long] =
-    if (elementType.required)
-      UnsafeUtils.roundUpAlignment(4, elementType.alignment)
-    else
-      UnsafeUtils.roundUpAlignment(const(4L) + nMissingBytes(length).toL, elementType.alignment)
-
-  def elementsAddress(length: Code[Int]): Code[Long] = a + elementsOffset(length)
-
-  def elementAddress(length: Code[Int], i: Code[Int]): Code[Long] =
-    elementsAddress(length) + i.toL * arrayElementSize
-
-  def loadElement(length: Code[Int], i: Code[Int]): PCode = {
-    elementType.load(Code.memoize(a, "pcindexableval_a") { a =>
-      a + elementsOffset(length) + i.toL * arrayElementSize
-    })
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PIndexableValue = {
+    val s = PCanonicalIndexableSettable(sb, pt, name)
+    cb.assign(s, this)
+    s
   }
 
-  def loadElement(i: Code[Int]): PCode = {
-    elementType.load(Code.memoize(a, "pcindexableval_a") { a =>
-      val length = Region.loadInt(a)
-      a + elementsOffset(length) + i.toL * arrayElementSize
-    })
-  }
+  def memoize(cb: EmitCodeBuilder, name: String): PIndexableValue = memoize(cb, name, cb.localBuilder)
 
-  def store(mb: EmitMethodBuilder, r: Value[Region], dst: Code[Long]): Code[Unit] =
-    Region.storeAddress(dst, a)
+  def memoizeField(cb: EmitCodeBuilder, name: String): PIndexableValue = memoize(cb, name, cb.fieldBuilder)
+
+  def store(mb: EmitMethodBuilder, r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
 }
 
 abstract class PBaseStructCode extends PCode {
@@ -148,6 +182,10 @@ abstract class PBaseStructCode extends PCode {
   def isFieldDefined(fieldName: String): Code[Boolean] = !isFieldMissing(fieldName)
 
   def loadField(fieldName: String): PCode = loadField(pt.fieldIdx(fieldName))
+
+  def memoize(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeImpl(cb, name)
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeFieldImpl(cb, name)
 }
 
 class PCanonicalBaseStructCode(val pt: PCanonicalBaseStruct, val a: Code[Long]) extends PBaseStructCode {
