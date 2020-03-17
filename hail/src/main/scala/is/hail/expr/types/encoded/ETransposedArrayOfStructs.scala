@@ -18,6 +18,7 @@ final case class ETransposedArrayOfStructs(
   val fieldIdx: Map[String, Int] = fields.map(f => (f.name, f.index)).toMap
   def field(name: String): EField = fields(fieldIdx(name))
   def fieldType(name: String): EType = field(name).typ
+  def hasField(name: String): Boolean = fieldIdx.contains(name)
 
   override def _decodeCompatible(pt: PType): Boolean = pt match {
     case t: PArray =>
@@ -26,9 +27,9 @@ final case class ETransposedArrayOfStructs(
       else {
         val ps = t.elementType.asInstanceOf[PBaseStruct]
         ps.required == structRequired &&
-          size <= ps.size &&
-          fields.forall { f =>
-            ps.hasField(f.name) && f.typ.encodeCompatible(ps.fieldType(f.name))
+          size >= ps.size &&
+          ps.fields.forall { f =>
+            hasField(f.name) && fieldType(f.name).decodeCompatible(f.typ)
           }
       }
     case _ => false
