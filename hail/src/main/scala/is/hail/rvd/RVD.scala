@@ -539,8 +539,9 @@ class RVD(
     RVD(typ, newPartitioner, newRDD)
   }
 
-  def filter(p: (RVDContext, Long) => Boolean): RVD =
-    RVD(typ, partitioner, crdd.boundary.cfilter(p))
+  def filter(p: (RVDContext, Long) => Boolean): RVD = {
+    filterWithContext((_, _) => (), (_: Any, c, l) => p(c, l))
+  }
 
   def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RVDContext, Long) => Boolean): RVD = {
     val crdd: ContextRDD[Long] = this.crdd.cmapPartitionsWithContextAndIndex { (i, consumerCtx, iteratorToFilter) =>
