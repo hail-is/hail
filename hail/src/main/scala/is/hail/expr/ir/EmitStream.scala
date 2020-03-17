@@ -138,7 +138,7 @@ object COption {
     val L = CodeLabel()
     EmitCode(
       Code(
-        opt(Code(m := true, v := t.defaultValue, L.goto),
+        opt(Code(m := true, L.goto),
           a => Code(m := false, v := a, L.goto)),
         L),
       m, v.load())
@@ -198,7 +198,7 @@ object CodeStream { self =>
     val rem = mb.newLocal[Int]("sr_rem")
 
     unfold[Code[Int]](
-      init0 = Code(lstep := 0, cur := 0, rem := 0),
+      init0 = Code._empty,
       init = Code(lstep := step, cur := start, rem := len),
       f = {
         case (_ctx, k) =>
@@ -299,7 +299,7 @@ object CodeStream { self =>
               LinnerEos, innerSource.close, inInnerStream := false, closing.mux(LcloseOuter.goto, LouterPull.goto)))
         })
       Source[A](
-        setup0 = Code(closing := false, inInnerStream := false, outerSource.setup0, innerSource.setup0),
+        setup0 = Code(outerSource.setup0, innerSource.setup0),
         close0 = Code(innerSource.close0, outerSource.close0),
         setup = Code(closing := false, inInnerStream := false, outerSource.setup),
         close = Code(inInnerStream.mux(Code(closing := true, LinnerEos.goto), Code._empty), LcloseOuter, outerSource.close),
@@ -420,7 +420,7 @@ object CodeStream { self =>
         })
 
       Source[(EmitCode, EmitCode)](
-        setup0 = Code(pulledRight := false, rightEOS := false, lx.setDefault(), rx.setDefault(), rxOut.setDefault(), leftSource.setup0, rightSource.setup0),
+        setup0 = Code(leftSource.setup0, rightSource.setup0),
         close0 = Code(leftSource.close0, rightSource.close0),
         setup = Code(pulledRight := false, rightEOS := false, leftSource.setup, rightSource.setup),
         close = Code(leftSource.close, rightSource.close),
@@ -492,7 +492,7 @@ object EmitStream {
       val Lpush = CodeLabel()
 
       Source[EmitCode](
-        setup0 = i := const(0),
+        setup0 = Code._empty,
         close0 = Code._empty,
         setup = i := const(0),
         close = Code._empty,
@@ -520,7 +520,7 @@ object EmitStream {
       val r = right(Leos.goto, (a) => Code(elt := a, Lpush.goto))
 
       Source[EmitCode](
-        setup0 = Code(b := false, elt := EmitCode.missing(eltType), l.setup0, r.setup0),
+        setup0 = Code(l.setup0, r.setup0),
         close0 = Code(l.close0, r.close0),
         setup = Code(b := cond, b.get.mux(l.setup, r.setup)),
         close = b.get.mux(l.close, r.close),
@@ -535,7 +535,7 @@ object EmitStream {
       val Lpush = CodeLabel()
       val source = stream(Code(atEnd := true, Lpush.goto), a => Code(x := a, Lpush, push(COption(atEnd.get, x.get))))
       Source[COption[EmitCode]](
-        setup0 = Code(atEnd := false, x.setDefault(), source.setup0),
+        setup0 = source.setup0,
         close0 = source.close0,
         setup = Code(atEnd := false, source.setup),
         close = source.close,
@@ -611,7 +611,7 @@ object EmitStream {
             val newStream = new Stream[EmitCode] {
               def apply(eos: Code[Ctrl], push: (EmitCode) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] =
                 new Source[EmitCode](
-                  setup0 = i := 0,
+                  setup0 = Code._empty,
                   setup = i := 0,
                   close = Code._empty,
                   close0 = Code._empty,
@@ -662,7 +662,7 @@ object EmitStream {
                   dec(er.region, xRowBuf))))
             .map(
               EmitCode.present(eltType, _),
-              setup0 = Some(xRowBuf := Code._null),
+              setup0 = None,
               setup = Some(xRowBuf := spec
                 .buildCodeInputBuffer(fb.getUnsafeReader(pathString, true))))
 
@@ -687,7 +687,7 @@ object EmitStream {
                 xIter.load().next()))
             ).map(
               rv => EmitCode.present(eltType, Region.loadIRIntermediate(eltType)(rv.invoke[Long]("getOffset"))),
-              setup0 = Some(xIter := Code._null),
+              setup0 = None,
               setup = Some(xIter := iter)
             )
 
@@ -780,7 +780,7 @@ object EmitStream {
 
                 SizedStream(newStream, newLength)
 
-              case behavior@(ArrayZipBehavior.ExtendNA | ArrayZipBehavior.AssertSameLength) =>
+              case ArrayZipBehavior.AssertSameLength =>
                 // extend to infinite streams, where the COption becomes missing after EOS
                 val extended: IndexedSeq[Stream[COption[EmitCode]]] =
                   streams.zipWithIndex.map { case (stream, i) =>
@@ -790,16 +790,65 @@ object EmitStream {
                 // zip to an infinite stream, where the COption is missing when all streams are EOS
                 val flagged: Stream[COption[EmitCode]] = multiZip(extended)
                   .mapCPS { (_, elts, k) =>
-                    val assert = behavior == ArrayZipBehavior.AssertSameLength
+                    val allEOS = mb.newLocal[Boolean]("zip_stream_all_eos")
+                    val anyEOS = mb.newLocal[Boolean]("zip_stream_any_eos")
+                    // convert COption[TypedTriplet[_]] to TypedTriplet[_]
+                    // where COption encodes if the stream has ended; update
+                    // allEOS and anyEOS
+                    val checkedElts: IndexedSeq[Code[Unit]] =
+                      elts.zip(eltVars).map { case (optEC, eltVar) =>
+                        optEC.cases(mb)(
+                          anyEOS := true,
+                          ec => Code(
+                            allEOS := false,
+                            eltVar := ec))
+                      }
+
+                    val bodyEnv = env.bind(names.zip(eltVars): _*)
+                    val body = emitIR(bodyIR, env = bodyEnv)
+
+                    Code(
+                      allEOS := true,
+                      anyEOS := false,
+                      Code(checkedElts),
+                      (anyEOS & !allEOS).mux[Unit](
+                        Code._fatal[Unit]("zip: length mismatch"),
+                        k(COption(allEOS, body))): Code[Ctrl])
+                  }
+
+                // termininate the stream when all streams are EOS
+                val newStream = take(flagged)
+
+                val newLength =
+                    lengths.flatten.reduceLeftOption[(Code[Unit], Settable[Int])] {
+                      case ((s1, l1), (s2, l2)) =>
+                        (Code(s1,
+                          s2,
+                          l1.cne(l2).orEmpty(Code._fatal[Unit](
+                            const("zip: length mismatch: ").concat(l1.toS).concat(", ").concat(l2.toS)))),
+                          l1)
+                    }
+
+                SizedStream(newStream, newLength)
+
+              case ArrayZipBehavior.ExtendNA =>
+                // extend to infinite streams, where the COption becomes missing after EOS
+                val extended: IndexedSeq[Stream[COption[EmitCode]]] =
+                  streams.zipWithIndex.map { case (stream, i) =>
+                    extendNA(mb, eltTypes(i), stream)
+                  }
+
+                // zip to an infinite stream, where the COption is missing when all streams are EOS
+                val flagged: Stream[COption[EmitCode]] = multiZip(extended)
+                  .mapCPS { (_, elts, k) =>
                     val allEOS = mb.newLocal[Boolean]
-                    val anyEOS = if (assert) mb.newLocal[Boolean] else null
                     // convert COption[TypedTriplet[_]] to TypedTriplet[_]
                     // where COption encodes if the stream has ended; update
                     // allEOS and anyEOS
                     val checkedElts: IndexedSeq[EmitCode] =
                       elts.zip(eltTypes).map { case (optET, t) =>
                         val optElt =
-                          (if (assert) optET.doIfNone(anyEOS := true) else optET)
+                          optET
                             .flatMapCPS[PCode] { (elt, _, k) =>
                               Code(allEOS := false,
                                    k(COption.fromEmitCode(elt)))
@@ -812,14 +861,8 @@ object EmitStream {
 
                     Code(
                       allEOS := true,
-                      if (assert) anyEOS := false else Code._empty,
                       Code((eltVars, checkedElts).zipped.map { (v, x) => v := x }),
-                      if (assert)
-                        (anyEOS & !allEOS).mux[Unit](
-                          Code._fatal[Unit]("zip: length mismatch"),
-                          k(COption(allEOS, body))): Code[Ctrl]
-                      else
-                        k(COption(allEOS, body)))
+                      k(COption(allEOS, body)))
                   }
 
                 // termininate the stream when all streams are EOS
@@ -928,8 +971,7 @@ object EmitStream {
                   push = a => Code(xElt := a, tmpAcc := xAcc, xAcc := body, Lpush, push(xAcc)))
 
                 Source[EmitCode](
-                  setup0 = Code(hasPulled := false, xAcc := EmitCode.missing(accType), tmpAcc := EmitCode.missing(accType),
-                    xElt := EmitCode.missing(eltType), source.setup0),
+                  setup0 = source.setup0,
                   setup = Code(hasPulled := false, xAcc := zero, source.setup),
                   close = source.close,
                   close0 = source.close0,
@@ -969,7 +1011,7 @@ object EmitStream {
                   postt.m,
                   postt.pv)
               },
-              setup0 = Some(Code(xElt.setDefault(), aggSetup)),
+              setup0 = Some(aggSetup),
               close0 = Some(aggCleanup),
               setup = Some(cInit.setup))
 

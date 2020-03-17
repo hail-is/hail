@@ -160,17 +160,27 @@ class EmitMethodBuilder(
   def newEmitSettable(_pt: PType, ms: Settable[Boolean], vs: PSettable): EmitSettable = new EmitSettable {
     def pt: PType = _pt
 
-    def get: EmitCode = EmitCode(Code._empty, ms, vs.load())
+    def get: EmitCode = EmitCode(Code._empty,
+      if (_pt.required) false else ms.get,
+      vs.get)
 
     def store(ec: EmitCode): Code[Unit] =
-      Code(ec.setup, ms := ec.m, ms.mux(vs := _pt.defaultValue, vs := ec.pv))
+      if (_pt.required)
+        Code(ec.setup,
+          // FIXME put this under control of a debugging option
+          ec.m.mux(
+            Code._fatal[Unit](s"Required EmitSettable cannot be missing ${ _pt }"),
+            Code._empty),
+          vs := ec.pv)
+      else
+        Code(ec.setup, ec.m.mux(ms := true, Code(ms := false, vs := ec.pv)))
   }
 
   def newEmitLocal(pt: PType): EmitSettable =
-    newEmitSettable(pt, newLocal[Boolean], newPLocal(pt))
+    newEmitSettable(pt, if (pt.required) null else newLocal[Boolean], newPLocal(pt))
 
   def newEmitLocal(name: String, pt: PType): EmitSettable =
-    newEmitSettable(pt, newLocal[Boolean](name + "_missing"), newPLocal(name, pt))
+    newEmitSettable(pt, if (pt.required) null else newLocal[Boolean](name + "_missing"), newPLocal(name, pt))
 
   def newEmitField(pt: PType): EmitSettable =
     newEmitSettable(pt, newField[Boolean], newPField(pt))
