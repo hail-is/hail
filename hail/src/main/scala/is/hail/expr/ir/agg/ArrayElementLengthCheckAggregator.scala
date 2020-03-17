@@ -99,7 +99,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
     { ob: Value[OutputBuffer] =>
       Code(
         loadInit,
-        nested.toCodeWithArgs(fb, "array_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+        nested.toCodeWithArgs(fb,
           FastIndexedSeq(ob),
           { (i, _, args) =>
             Code.memoize(coerce[OutputBuffer](args.head), "aelca_ser_init_ob") { ob => serializers(i)(ob) }
@@ -108,7 +108,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
         idx := 0,
         Code.whileLoop(idx < lenRef,
           load,
-          nested.toCodeWithArgs(fb, "array_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+          nested.toCodeWithArgs(fb,
             FastIndexedSeq(ob),
             { case (i, _, args) =>
               Code.memoize(coerce[OutputBuffer](args.head), "aelca_ser_ob") { ob => serializers(i)(ob) }
@@ -121,7 +121,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
     val deserializers = nested.states.map(_.deserialize(codec));
     { ib: Value[InputBuffer] =>
       Code(
-        init(nested.toCodeWithArgs(fb, "array_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
+        init(nested.toCodeWithArgs(fb,
           FastIndexedSeq(ib),
           { (i, _, args) =>
             Code.memoize(coerce[InputBuffer](args.head), "aelca_deser_init_ib") { ib =>
@@ -132,7 +132,7 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
         lenRef := ib.readInt(),
         (lenRef < 0).mux(
           typ.setFieldMissing(off, 1),
-          seq(nested.toCodeWithArgs(fb, "array_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
+          seq(nested.toCodeWithArgs(fb,
             FastIndexedSeq(ib),
             { (i, _, args) =>
               Code.memoize(coerce[InputBuffer](args.head), "aelca_deser_ib") { ib =>
@@ -206,7 +206,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
         other.initLength(state.lenRef)),
       check),
       Code(other.idx := state.idx, other.load, state.load),
-      state.nested.toCode(state.fb, "array_nested_comb", (i, s) => nestedAggs(i).combOp(s, other.nested(i))))
+      state.nested.toCode(state.fb, (i, s) => nestedAggs(i).combOp(s, other.nested(i))))
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
@@ -221,7 +221,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
                 ssb.start(),
                 state.idx := sab.arrayIdx,
                 state.load,
-                state.nested.toCode(state.fb, "array_nested_result", { (i, s) =>
+                state.nested.toCode(state.fb, { (i, s) =>
                   Code(nestedAggs(i).result(s, ssb), ssb.advance())
                 }))
             }),

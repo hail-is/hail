@@ -120,8 +120,8 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
       lastNode := newNode)
   }
 
-  private def foreachNode(mb: MethodBuilder, tmpNode: Settable[Long])(body: Code[Unit]): Code[Unit] = {
-    val present = mb.newLocal[Boolean]
+  private def foreachNode(tmpNode: Settable[Long])(body: Code[Unit]): Code[Unit] = {
+    val present = Code.newLocal[Boolean]("sbll_foreach_node_n")
     Code(
       tmpNode := firstNode,
       present := true,
@@ -131,10 +131,10 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
         tmpNode := next(tmpNode)))
   }
 
-  private def foreach(mb: MethodBuilder)(f: EmitCode => Code[Unit]): Code[Unit] = {
-    val n = mb.newLocal[Long]
-    foreachNode(mb, n) {
-      val i = mb.newLocal[Int]
+  private def foreach(f: EmitCode => Code[Unit]): Code[Unit] = {
+    val n = Code.newLocal[Long]("sbll_foreach_n")
+    foreachNode(n) {
+      val i = Code.newLocal[Int]("sbll_foreach_i")
       val bufim = bufferType.isElementMissing(buffer(n), i)
       val bufiv = Region.loadIRIntermediate(elemType)(bufferType.elementOffset(buffer(n), capacity(n), i))
       Code(
@@ -179,7 +179,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
     val appF = fb.newMethod("blockLinkedListAppend",
       Array[TypeInfo[_]](typeInfo[Region]),
       typeInfo[Unit])
-    appF.emit(bll.foreach(appF) { elt =>
+    appF.emit(bll.foreach { elt =>
       push(appF, appF.getArg[Region](1), elt.m, elt.v)
     })
     appF.invoke(region)
@@ -187,20 +187,16 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
 
   def writeToSRVB(srvb: StagedRegionValueBuilder): Code[Unit] = {
     assert(srvb.typ.fundamentalType.isOfType(bufferType.fundamentalType), s"srvb: ${srvb.typ}, buf: ${bufferType.fundamentalType}")
-    val writeF = fb.newMethod("blockLinkedListToSRVB", Array[TypeInfo[_]](), typeInfo[Unit])
-    writeF.emit {
-      Code(
-        srvb.start(totalCount, init = true),
-        foreach(writeF) { elt =>
-          Code(
-            elt.setup,
-            elt.m.mux(
-              srvb.setMissing(),
-              srvb.addWithDeepCopy(elemType, elt.value)),
-            srvb.advance())
-        })
-    }
-    writeF.invoke()
+    Code(
+      srvb.start(totalCount, init = true),
+      foreach { elt =>
+        Code(
+          elt.setup,
+          elt.m.mux(
+            srvb.setMissing(),
+            srvb.addWithDeepCopy(elemType, elt.value)),
+          srvb.advance())
+      })
   }
 
   def serialize(region: Code[Region], outputBuffer: Code[OutputBuffer]): Code[Unit] = {
@@ -213,7 +209,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
       val i = serF.newLocal[Int]
       val b = serF.newLocal[Long]
       Code(
-        foreachNode(serF, n) { Code(
+        foreachNode(n) { Code(
           ob.writeBoolean(true),
           b := buffer(n),
           bufferEType.buildPrefixEncoder(bufferType.fundamentalType, serF, b, ob, count(n)))
@@ -270,7 +266,7 @@ class StagedBlockLinkedList(val elemType: PType, val fb: EmitFunctionBuilder[_])
         Code.memoize(buffer(firstNode), "sbll_init_deepcopy_buf") { buf =>
           Code(
             i := 0,
-            other.foreach(initF) { et =>
+            other.foreach { et =>
               Code(
                 et.setup,
                 et.m.mux(bufferType.setElementMissing(buf, i),

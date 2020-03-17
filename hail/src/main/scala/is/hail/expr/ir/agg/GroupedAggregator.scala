@@ -187,7 +187,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
     { ob: Value[OutputBuffer] =>
       Code(
         initContainer.load,
-        nested.toCodeWithArgs(fb, "grouped_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+        nested.toCodeWithArgs(fb,
           IndexedSeq(ob),
           { (i, _, args) =>
             Code.memoize(coerce[OutputBuffer](args.head), "ga_ser_init_ob") { ob => serializers(i)(ob) }
@@ -200,7 +200,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
             ob.writeBoolean(km),
             (!km).orEmpty(kEnc.invoke(kv, ob)),
             keyed.loadStates,
-            nested.toCodeWithArgs(fb, "grouped_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+            nested.toCodeWithArgs(fb,
               Array(ob.get),
               { (i, _, args) =>
                 Code.memoize(coerce[OutputBuffer](args.head), "ga_ser_init_ob") { ob => serializers(i)(ob) }
@@ -217,7 +217,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 
     { ib: Value[InputBuffer] =>
       Code(
-        init(nested.toCodeWithArgs(fb, "grouped_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
+        init(nested.toCodeWithArgs(fb,
           FastIndexedSeq(ib),
           { (i, _, args) =>
             Code.memoize(coerce[InputBuffer](args.head), "ga_deser_init_ib") { ib => deserializers(i)(ib) }
@@ -228,7 +228,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
             km := ib.readBoolean(),
             (!km).orEmpty(kv := kDec.invoke(region, ib)),
             initElement(_elt, km, kv),
-            nested.toCodeWithArgs(fb, "grouped_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
+            nested.toCodeWithArgs(fb,
               FastIndexedSeq(ib),
               { (i, _, args) =>
                 Code.memoize(coerce[InputBuffer](args.head), "ga_deser_ib") { ib => deserializers(i)(ib) }
@@ -258,7 +258,7 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
-    state.combine(other, state.nested.toCode(state.fb, "grouped_nested_comb", (i, s) => nestedAggs(i).combOp(s, other.nested(i))))
+    state.combine(other, state.nested.toCode(state.fb, (i, s) => nestedAggs(i).combOp(s, other.nested(i))))
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
@@ -276,7 +276,7 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
                 ssb.advance(),
                 ssb.addBaseStruct(resultEltType, { svb =>
                   Code(svb.start(),
-                    state.nested.toCode(state.fb, "grouped_result", { (i, s) =>
+                    state.nested.toCode(state.fb, { (i, s) =>
                       Code(nestedAggs(i).result(s, svb), svb.advance())
                     }))
                 }))),

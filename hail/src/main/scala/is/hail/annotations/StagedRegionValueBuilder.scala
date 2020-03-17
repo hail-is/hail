@@ -68,15 +68,15 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   private val ftype = typ.fundamentalType
 
   private var staticIdx: Int = 0
-  private var idx: ClassFieldRef[Int] = _
-  private var elementsOffset: ClassFieldRef[Long] = _
-  private val startOffset: ClassFieldRef[Long] = mb.newField[Long]("srvb_start")
+  private var idx: Settable[Int] = _
+  private var elementsOffset: Settable[Long] = _
+  private val startOffset: Settable[Long] = mb.newLocal[Long]("srvb_start")
 
   ftype match {
-    case t: PBaseStruct => elementsOffset = mb.newField[Long]("srvb_struct_addr")
+    case t: PBaseStruct => elementsOffset = mb.newLocal[Long]("srvb_struct_addr")
     case t: PArray =>
-      elementsOffset = mb.newField[Long]("srvb_array_addr")
-      idx = mb.newField[Int]("srvb_array_idx")
+      elementsOffset = mb.newLocal[Long]("srvb_array_addr")
+      idx = mb.newLocal[Int]("srvb_array_idx")
     case _ =>
   }
 
@@ -185,8 +185,8 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   }
 
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
-    val b = mb.newField[Array[Byte]]("srvb_add_binary_bytes")
-    val boff = mb.newField[Long]("srvb_add_binary_addr")
+    val b = mb.newLocal[Array[Byte]]("srvb_add_binary_bytes")
+    val boff = mb.newLocal[Long]("srvb_add_binary_addr")
     val pbT = currentPType().asInstanceOf[PBinary]
 
     Code(

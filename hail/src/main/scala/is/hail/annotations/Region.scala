@@ -108,15 +108,15 @@ object Region {
   }
 
 
-  def loadInt(addr: Code[Long]): Code[Int] = Code.invokeScalaObject[Long, Int](Region.getClass, "loadInt", addr)
+  def loadInt(addr: Code[Long]): Code[Int] = Code.invokeStatic[Memory, Long, Int]("loadInt", addr)
 
-  def loadLong(addr: Code[Long]): Code[Long] = Code.invokeScalaObject[Long, Long](Region.getClass, "loadLong", addr)
+  def loadLong(addr: Code[Long]): Code[Long] = Code.invokeStatic[Memory, Long, Long]("loadLong", addr)
 
-  def loadFloat(addr: Code[Long]): Code[Float] = Code.invokeScalaObject[Long, Float](Region.getClass, "loadFloat", addr)
+  def loadFloat(addr: Code[Long]): Code[Float] = Code.invokeStatic[Memory, Long, Float]("loadFloat", addr)
 
-  def loadDouble(addr: Code[Long]): Code[Double] = Code.invokeScalaObject[Long, Double](Region.getClass, "loadDouble", addr)
+  def loadDouble(addr: Code[Long]): Code[Double] = Code.invokeStatic[Memory, Long, Double]("loadDouble", addr)
 
-  def loadAddress(addr: Code[Long]): Code[Long] = Code.invokeScalaObject[Long, Long](Region.getClass, "loadAddress", addr)
+  def loadAddress(addr: Code[Long]): Code[Long] = Code.invokeStatic[Memory, Long, Long]("loadAddress", addr)
 
   def loadByte(addr: Code[Long]): Code[Byte] = Code.invokeScalaObject[Long, Byte](Region.getClass, "loadByte", addr)
 
@@ -124,17 +124,17 @@ object Region {
 
   def loadChar(addr: Code[Long]): Code[Char] = Code.invokeScalaObject[Long, Char](Region.getClass, "loadChar", addr)
 
-  def storeInt(addr: Code[Long], v: Code[Int]): Code[Unit] = Code.invokeScalaObject[Long, Int, Unit](Region.getClass, "storeInt", addr, v)
+  def storeInt(addr: Code[Long], v: Code[Int]): Code[Unit] = Code.invokeStatic[Memory, Long, Int, Unit]("storeInt", addr, v)
 
-  def storeLong(addr: Code[Long], v: Code[Long]): Code[Unit] = Code.invokeScalaObject[Long, Long, Unit](Region.getClass, "storeLong", addr, v)
+  def storeLong(addr: Code[Long], v: Code[Long]): Code[Unit] = Code.invokeStatic[Memory, Long, Long, Unit]("storeLong", addr, v)
 
-  def storeFloat(addr: Code[Long], v: Code[Float]): Code[Unit] = Code.invokeScalaObject[Long, Float, Unit](Region.getClass, "storeFloat", addr, v)
+  def storeFloat(addr: Code[Long], v: Code[Float]): Code[Unit] = Code.invokeStatic[Memory, Long, Float, Unit]("storeFloat", addr, v)
 
-  def storeDouble(addr: Code[Long], v: Code[Double]): Code[Unit] = Code.invokeScalaObject[Long, Double, Unit](Region.getClass, "storeDouble", addr, v)
+  def storeDouble(addr: Code[Long], v: Code[Double]): Code[Unit] = Code.invokeStatic[Memory, Long, Double, Unit]("storeDouble", addr, v)
 
   def storeChar(addr: Code[Long], v: Code[Char]): Code[Unit] = Code.invokeScalaObject[Long, Char, Unit](Region.getClass, "storeChar", addr, v)
 
-  def storeAddress(addr: Code[Long], v: Code[Long]): Code[Unit] = Code.invokeScalaObject[Long, Long, Unit](Region.getClass, "storeAddress", addr, v)
+  def storeAddress(addr: Code[Long], v: Code[Long]): Code[Unit] = Code.invokeStatic[Memory, Long, Long, Unit]("storeAddress", addr, v)
 
   def storeByte(addr: Code[Long], v: Code[Byte]): Code[Unit] = Code.invokeScalaObject[Long, Byte, Unit](Region.getClass, "storeByte", addr, v)
 

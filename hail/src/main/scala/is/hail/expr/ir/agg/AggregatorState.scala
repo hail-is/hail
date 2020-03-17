@@ -202,15 +202,18 @@ case class StateTuple(states: Array[AggregatorState]) {
     states(i)
   }
 
-  def toCode(fb: EmitFunctionBuilder[_], prefix: String, f: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
-    fb.wrapVoids(Array.tabulate(nStates)((i: Int) => f(i, states(i))), prefix)
+  def toCode(fb: EmitFunctionBuilder[_], f: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
+    Code(Array.tabulate(nStates)((i) => f(i, states(i))))
 
-  def toCodeWithArgs(fb: EmitFunctionBuilder[_], prefix: String, argTypes: IndexedSeq[TypeInfo[_]], args: IndexedSeq[Code[_]],
-    f: (Int, AggregatorState, Seq[Code[_]]) => Code[Unit]): Code[Unit] =
-    fb.wrapVoidsWithArgs(Array.tabulate(nStates)((i: Int) => { args: Seq[Code[_]] => f(i, states(i), args) }), prefix, argTypes, args)
+  def toCodeWithArgs(
+    fb: EmitFunctionBuilder[_],
+    args: IndexedSeq[Code[_]],
+    f: (Int, AggregatorState, Seq[Code[_]]) => Code[Unit]
+  ): Code[Unit] =
+    Code(Array.tabulate(nStates)((i) => f(i, states(i), args)))
 
   def createStates(fb: EmitFunctionBuilder[_]): Code[Unit] =
-    toCode(fb, "create_states", (i, s) => s.createState)
+    toCode(fb, (i, s) => s.createState)
 }
 
 class TupleAggregatorState(val fb: EmitFunctionBuilder[_], val states: StateTuple, val topRegion: Value[Region], val off: Value[Long], val rOff: Value[Int] = const(0)) {
@@ -226,11 +229,11 @@ class TupleAggregatorState(val fb: EmitFunctionBuilder[_], val states: StateTupl
     Code(Array.tabulate(states.nStates)(i => f(i, states(i))))
 
   def newState(i: Int): Code[Unit] = states(i).newState(getStateOffset(i))
-  def newState: Code[Unit] = states.toCode(fb, "new_state", (i, s) => s.newState(getStateOffset(i)))
-  def load: Code[Unit] = states.toCode(fb, "load", (i, s) => s.load(getRegion(i), getStateOffset(i)))
-  def store: Code[Unit] = states.toCode(fb, "store", (i, s) => s.store(setRegion(i), getStateOffset(i)))
+  def newState: Code[Unit] = states.toCode(fb, (i, s) => s.newState(getStateOffset(i)))
+  def load: Code[Unit] = states.toCode(fb, (i, s) => s.load(getRegion(i), getStateOffset(i)))
+  def store: Code[Unit] = states.toCode(fb, (i, s) => s.store(setRegion(i), getStateOffset(i)))
   def copyFrom(statesOffset: Code[Long]): Code[Unit] = {
-    states.toCodeWithArgs(fb, "copy_from", Array[TypeInfo[_]](LongInfo),
+    states.toCodeWithArgs(fb,
       Array(statesOffset),
       { case (i, s, Seq(o: Code[Long@unchecked])) => s.copyFrom(storageType.loadField(o, i)) })
   }

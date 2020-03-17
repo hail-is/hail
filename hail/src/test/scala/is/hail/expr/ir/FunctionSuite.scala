@@ -127,7 +127,7 @@ class FunctionSuite extends HailSuite {
       i := i + 6
     )
 
-    fb.emit(Code(i := 0, fb.wrapVoids(codes, "foo", 2), i))
+    fb.emit(Code(i := 0, Code(codes), i))
     Region.smallScoped { r =>
       assert(fb.resultWithIndex().apply(0, r).apply() == 21)
 

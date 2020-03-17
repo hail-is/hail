@@ -116,11 +116,23 @@ object Emit {
     def getLocalIndex(l: Local): Int = {
       l match {
         case p: Parameter => parameterIndex(p.i)
-        case _ =>localIndex(l)
+        case _ => localIndex(l)
       }
     }
 
     def emitX(x: X): Unit = {
+      x match {
+        case x: NewInstanceX =>
+          mn.instructions.add(new TypeInsnNode(NEW, x.ti.iname))
+          mn.instructions.add(new InsnNode(DUP))
+          x.children.foreach(emitX(_))
+          mn.instructions.add(
+            new MethodInsnNode(INVOKESPECIAL,
+              x.ctor.owner, x.ctor.name, x.ctor.desc, x.ctor.isInterface))
+          return
+        case _ =>
+      }
+
       x.children.foreach(emitX(_))
 
       x match {
@@ -154,8 +166,6 @@ object Emit {
         case x: MethodStmtX =>
           mn.instructions.add(new MethodInsnNode(x.op,
             x.method.owner, x.method.name, x.method.desc, x.method.isInterface))
-        case x: NewInstanceX =>
-          mn.instructions.add(new TypeInsnNode(NEW, x.ti.iname))
         case x: LdcX =>
           mn.instructions.add(new LdcInsnNode(x.a))
         case x: GetFieldX =>

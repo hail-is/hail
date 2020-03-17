@@ -199,6 +199,9 @@ class EmitMethodBuilder(
   def newPresentEmitLocal(pt: PType): PresentEmitSettable =
     newPresentEmitSettable(pt, newPLocal(pt))
 
+  def newPresentEmitLocal(name: String, pt: PType): PresentEmitSettable =
+    newPresentEmitSettable(pt, newPLocal(name, pt))
+
   def newPresentEmitField(pt: PType): PresentEmitSettable =
     newPresentEmitSettable(pt, newPField(pt))
 
@@ -587,9 +590,6 @@ class EmitFunctionBuilder[F >: Null](
     }
     m
   }
-
-  def wrapVoids(x: Seq[Code[Unit]], prefix: String, size: Int = 32): Code[Unit] =
-    wrapVoidsWithArgs(x.map { c => (s: Seq[Code[_]]) => c }, prefix, FastIndexedSeq(), FastIndexedSeq(), size)
 
   def wrapVoidsWithArgs(x: Seq[Seq[Code[_]] => Code[Unit]],
     suffix: String,

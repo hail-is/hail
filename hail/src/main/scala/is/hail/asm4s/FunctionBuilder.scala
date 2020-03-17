@@ -326,8 +326,7 @@ trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
     val L = new lir.Block()
 
     val obj = mb.lmethod.genLocal("new_dep_fun", classBuilder.ti)
-    L.append(lir.store(obj, lir.newInstance(classBuilder.ti)))
-    L.append(lir.methodStmt(INVOKESPECIAL, classBuilder.lInit, Array(lir.load(obj))))
+    L.append(lir.store(obj, lir.newInstance(classBuilder.ti, classBuilder.lInit, FastIndexedSeq.empty[lir.ValueX])))
 
     var end = L
     setFields.foreach { f =>
