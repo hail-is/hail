@@ -586,7 +586,16 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
     case _ =>
       val Ltrue = new lir.Block()
       val Lfalse = new lir.Block()
-      lhs.end.append(lir.ifx(IFNE, lhs.v, Ltrue, Lfalse))
+      lhs.v match {
+        case v: lir.LdcX =>
+          lhs.end.append(lir.goto(
+            if (v.a.asInstanceOf[Boolean])
+              Ltrue
+            else
+              Lfalse))
+        case _ =>
+          lhs.end.append(lir.ifx(IFNE, lhs.v, Ltrue, Lfalse))
+      }
       val newC = new CCode(lhs.start, Ltrue, Lfalse)
       lhs.clear()
       newC
