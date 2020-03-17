@@ -54,13 +54,12 @@ final case class ETransposedArrayOfStructs(
     val pa = pt.asInstanceOf[PArray]
     val ps = pa.elementType.asInstanceOf[PBaseStruct]
 
-    val len = mb.newLocal[Int]("len")
-    val alen = mb.newLocal[Int]("alen")
+    val len = mb.newField[Int]("len")
+    val alen = mb.newField[Int]("alen")
     val i = mb.newLocal[Int]("i")
-    val j = mb.newLocal[Int]("j")
     val nMissing = mb.newLocal[Int]("nMissing")
-    val anMissing = mb.newLocal[Int]("anMissing")
-    val fmbytes = mb.newLocal[Long]("fmbytes")
+    val anMissing = mb.newField[Int]("anMissing")
+    val fmbytes = mb.newField[Long]("fmbytes")
     val array = mb.newLocal[Long]("array")
 
     val prefix = Code.concat(
@@ -90,59 +89,71 @@ final case class ETransposedArrayOfStructs(
       }
     )
 
-    val decodeFields = Code.concat(fields.map { ef =>
-      ps.selfField(ef.name) match {
-        case Some(pf) =>
-          val inplaceDecode = ef.typ.buildInplaceDecoder(pf.typ, mb)
-          val elem = pa.elementOffset(array, len, i)
-          val fld = ps.fieldOffset(elem, pf.index)
-          if (ef.typ.required) {
-            Code(
-              i := 0,
-              Code.whileLoop(i < len,
-                Code(
-                  pa.isElementDefined(array, i).mux(
-                    inplaceDecode(region, fld, in),
-                    Code._empty),
-                  i := i + const(1))))
-          } else {
-            Code(
-              in.readBytes(region, fmbytes, anMissing),
-              i := 0,
-              j := 0,
-              Code.whileLoop(i < len,
-                  Code.concat(
-                    pa.isElementDefined(array, i).mux(
-                      Code(
-                        Region.loadBit(fmbytes, j.toL).mux(
-                          ps.setFieldMissing(elem, pf.index),
-                          Code(
-                            ps.setFieldPresent(elem, pf.index),
-                            inplaceDecode(region, fld, in))),
-                        j := j + const(1)),
+    val decodeFields = Code.concat(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
+      val groupMB = mb.fb.newMethod(s"read_fields_group_$groupIdx", Array[TypeInfo[_]](LongInfo, classInfo[Region], classInfo[InputBuffer]), UnitInfo)
+      val arrayGrp = groupMB.getArg[Long](1)
+      val regionGrp = groupMB.getArg[Region](2)
+      val inGrp = groupMB.getArg[InputBuffer](3)
+      val i = groupMB.newLocal[Int]("i")
+      val j = groupMB.newLocal[Int]("j")
+
+      val decoders = fieldGroup.map { ef =>
+        ps.selfField(ef.name) match {
+          case Some(pf) =>
+            val inplaceDecode = ef.typ.buildInplaceDecoder(pf.typ, mb)
+            val elem = pa.elementOffset(arrayGrp, len, i)
+            val fld = ps.fieldOffset(elem, pf.index)
+            if (ef.typ.required) {
+              Code(
+                i := 0,
+                Code.whileLoop(i < len,
+                  Code(
+                    pa.isElementDefined(arrayGrp, i).mux(
+                      inplaceDecode(regionGrp, fld, inGrp),
                       Code._empty),
                     i := i + const(1))))
-          }
-        case None =>
-          val skip = ef.typ.buildSkip(mb)
-          if (ef.typ.required) {
-            Code(
-              i := 0,
-              Code.whileLoop(i < alen, Code(skip(region, in), i := i + const(1)))
-            )
-          } else {
-            Code(
-              in.readBytes(region, fmbytes, anMissing),
-              i := 0,
-              Code.whileLoop(i < alen,
-                Code(
-                  Region.loadBit(fmbytes, i.toL).mux(
-                    Code._empty,
-                    skip(region, in)),
-                  i := i + 1)))
-          }
+            } else {
+              Code(
+                inGrp.readBytes(regionGrp, fmbytes, anMissing),
+                i := 0,
+                j := 0,
+                Code.whileLoop(i < len,
+                    Code.concat(
+                      pa.isElementDefined(arrayGrp, i).mux(
+                        Code(
+                          Region.loadBit(fmbytes, j.toL).mux(
+                            ps.setFieldMissing(elem, pf.index),
+                            Code(
+                              ps.setFieldPresent(elem, pf.index),
+                              inplaceDecode(regionGrp, fld, inGrp))),
+                          j := j + const(1)),
+                        Code._empty),
+                      i := i + const(1))))
+            }
+          case None =>
+            val skip = ef.typ.buildSkip(mb)
+            if (ef.typ.required) {
+              Code(
+                i := 0,
+                Code.whileLoop(i < alen, Code(skip(regionGrp, inGrp), i := i + const(1)))
+              )
+            } else {
+              Code(
+                inGrp.readBytes(regionGrp, fmbytes, anMissing),
+                i := 0,
+                Code.whileLoop(i < alen,
+                  Code(
+                    Region.loadBit(fmbytes, i.toL).mux(
+                      Code._empty,
+                      skip(regionGrp, inGrp)),
+                    i := i + 1)))
+            }
+        }
       }
-    }: _*)
+
+      groupMB.emit(Code.concat(decoders: _*))
+      groupMB.invoke(array, region, in)
+    }.toArray: _*)
 
     Code(
       prefix,
