@@ -268,6 +268,11 @@ object Region {
   def stagedCreate(blockSize: Size): Code[Region] =
     Code.invokeScalaObject[Int, RegionPool, Region](Region.getClass, "apply", asm4s.const(blockSize), Code._null)
 
+  def apply(blockSize: Region.Size = Region.REGULAR, pool: RegionPool = null): Region = {
+    (if (pool == null) RegionPool.get else pool)
+      .getRegion(blockSize)
+  }
+
   def apply(blockSize: Region.Size = Region.REGULAR, pool: RegionPool = null, creator: String = "default"): Region = {
     (if (pool == null) RegionPool.get else pool)
       .getRegion(blockSize, creator=creator)
