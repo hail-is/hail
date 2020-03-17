@@ -1,6 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.utils._
 
 import scala.collection.mutable
 
@@ -22,8 +23,17 @@ class RVDContext(val partitionRegion: Region, val r: Region) extends AutoCloseab
 
   own(r)
 
+  def freshContextFrom(caller: String): RVDContext = {
+    freshContextHelper(caller)
+  }
+
   def freshContext: RVDContext = {
-    val ctx = new RVDContext(partitionRegion, Region())
+    freshContextHelper("unnamed")
+  }
+
+  def freshContextHelper(name: String): RVDContext = {
+    log.info(s"FRESH CONTEXT CREATED BY: $name")
+    val ctx = new RVDContext(partitionRegion, Region(creator=name))
     own(ctx)
     ctx
   }

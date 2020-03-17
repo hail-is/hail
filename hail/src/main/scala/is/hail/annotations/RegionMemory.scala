@@ -108,6 +108,8 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     usedBlocks.clearAndResize()
   }
 
+  def getTotalChunkMemory(): Long = this.totalChunkMemory
+
   protected[annotations] def freeMemory(): Unit = {
     // freeMemory should be idempotent
     if (isFreed) {

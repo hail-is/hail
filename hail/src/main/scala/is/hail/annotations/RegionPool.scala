@@ -78,8 +78,8 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
   def getRegion(): Region = getRegion(Region.REGULAR)
 
-  def getRegion(size: Int): Region = {
-    val r = new Region(size, this)
+  def getRegion(size: Int, creator: String = "default"): Region = {
+    val r = new Region(size, this, creator = creator)
     r.memory = getMemory(size)
     r
   }

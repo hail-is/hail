@@ -546,7 +546,7 @@ class RVD(
   def filterWithContext[C](makeContext: (Int, RVDContext) => C, f: (C, RVDContext, Long) => Boolean): RVD = {
     val crdd: ContextRDD[Long] = this.crdd.cmapPartitionsWithContextAndIndex { (i, consumerCtx, iteratorToFilter) =>
       val c = makeContext(i, consumerCtx)
-      val producerCtx = consumerCtx.freshContext
+      val producerCtx = consumerCtx.freshContextFrom("RVD.filterWithContext")
       iteratorToFilter(producerCtx).filter { ptr =>
         val b = f(c, consumerCtx, ptr)
         if (b) {
