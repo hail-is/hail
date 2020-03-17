@@ -545,22 +545,21 @@ object EmitStream {
 
   private[ir] def apply[C](
     emitter: Emit[C],
-    mb: EmitMethodBuilder[C],
     streamIR0: IR,
+    mb: EmitMethodBuilder[C],
+    region: Value[Region],
     env0: Emit.E,
-    er: EmitRegion,
     container: Option[AggContainer]
   ): COption[SizedStream] = {
-    assert(mb eq er.mb)
 
     def emitStream(streamIR: IR, env: Emit.E): COption[SizedStream] = {
 
-      def emitIR(ir: IR, mb:  EmitMethodBuilder[C] = mb, env: Emit.E = env, container: Option[AggContainer] = container): EmitCode =
-        emitter.emit(ir, mb, env, er, container)
+      def emitIR(ir: IR, env: Emit.E = env, region: Value[Region] = region, container: Option[AggContainer] = container): EmitCode =
+        emitter.emitWithRegion(ir, mb, region, env, container)
 
       def emitVoidIR(ir: IR, mb:  EmitMethodBuilder[C] = mb, env: Emit.E = env, container: Option[AggContainer] = container): Code[Unit] = {
         EmitCodeBuilder.scopedVoid(mb) { cb =>
-          emitter.emitVoid(cb, ir, mb, env, er, container, None)
+          emitter.emitVoid(cb, ir, mb, env, EmitRegion(mb, region), container, None)
         }
       }
 
@@ -644,7 +643,7 @@ object EmitStream {
           val eltType = coerce[PStream](x.pType).elementType
           val stream = sequence(mb, eltType, elements.toFastIndexedSeq.map { ir =>
               val et = emitIR(ir)
-              EmitCode(et.setup, et.m, PCode(eltType, eltType.copyFromTypeAndStackValue(er.mb, er.region, ir.pType, et.value)))
+              EmitCode(et.setup, et.m, PCode(eltType, eltType.copyFromTypeAndStackValue(mb, region, ir.pType, et.value)))
           })
 
           val len = mb.newLocal[Int]()
@@ -666,7 +665,7 @@ object EmitStream {
               (_, k) =>
                 k(COption(
                   !xRowBuf.load().readByte().toZ,
-                  dec(er.region, xRowBuf))))
+                  dec(region, xRowBuf))))
             .map(
               EmitCode.present(eltType, _),
               setup0 = None,
@@ -966,10 +965,10 @@ object EmitStream {
             val xAcc = mb.newEmitField(accName, accType)
             val tmpAcc = mb.newEmitField(accName, accType)
 
-            val zero = emitIR(zeroIR).map(accType.copyFromPValue(mb, er.region, _))
+            val zero = emitIR(zeroIR).map(accType.copyFromPValue(mb, region, _))
             val bodyEnv = env.bind(accName -> tmpAcc, eltName -> xElt)
 
-            val body = emitIR(bodyIR, env = bodyEnv).map(accType.copyFromPValue(mb, er.region, _))
+            val body = emitIR(bodyIR, env = bodyEnv).map(accType.copyFromPValue(mb, region, _))
 
             val newStream = new Stream[EmitCode] {
               def apply(eos: Code[Ctrl], push: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] = {
