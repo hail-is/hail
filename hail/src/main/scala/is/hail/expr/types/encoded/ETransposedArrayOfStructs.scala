@@ -211,7 +211,6 @@ final case class ETransposedArrayOfStructs(
     val array = coerce[Long](v)
     val len = mb.newField[Int]("arrayLength")
     val i = mb.newLocal[Int]("i")
-    val nPresent = mb.newLocal[Int]("nPresent")
     val writeLen = out.writeInt(len)
 
     val writeMissingBytes =
@@ -219,14 +218,6 @@ final case class ETransposedArrayOfStructs(
         out.writeBytes(array + const(pa.lengthHeaderBytes), pa.nMissingBytes(len))
       } else
         Code._empty
-
-    val countPresent = Code.whileLoop(
-      i < len,
-      Code(
-        pa.isElementDefined(array, i).mux(
-          nPresent := nPresent + const(1),
-          Code._empty),
-        i := i + const(1)))
 
     val writeFields = Code.concat(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
       val groupMB = mb.fb.newMethod(s"write_fields_group_$groupIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
@@ -258,12 +249,12 @@ final case class ETransposedArrayOfStructs(
                   b := b | (ps.isFieldMissing(elem, fidx).toI << (presentIdx & 7)),
                   presentIdx := presentIdx + const(1),
                   (presentIdx & 7).ceq(0).mux(
-                    Code(out2.load().writeByte(b.toB), b := 0),
+                    Code(out2.writeByte(b.toB), b := 0),
                     Code._empty)),
                 Code._empty),
               j := j + const(1))),
           (presentIdx & 7).cne(0).mux(
-              out2.load().writeByte(b.toB),
+              out2.writeByte(b.toB),
               Code._empty))
         }
 
@@ -286,9 +277,7 @@ final case class ETransposedArrayOfStructs(
 
     Code(
       i := 0,
-      nPresent := 0,
       len := pa.loadLength(array),
-      countPresent,
 
       writeLen,
       writeMissingBytes,
