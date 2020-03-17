@@ -273,7 +273,7 @@ object Region {
       .getRegion(blockSize)
   }
 
-  def apply(blockSize: Region.Size = Region.REGULAR, pool: RegionPool = null, creator: String = "default"): Region = {
+  def makeNamed(blockSize: Region.Size = Region.REGULAR, pool: RegionPool = null, creator: String = "default"): Region = {
     (if (pool == null) RegionPool.get else pool)
       .getRegion(blockSize, creator=creator)
   }
