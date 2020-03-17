@@ -1411,3 +1411,15 @@ def test_group_within_partitions():
     ht = hl.utils.range_table(100).naive_coalesce(10)
     filter_then_group = ht.filter(ht.idx % 2 == 0)._group_within_partitions(5).collect()
     assert filter_then_group[0] == hl.Struct(idx=0, grouped_fields=[hl.Struct(idx=0), hl.Struct(idx=2), hl.Struct(idx=4), hl.Struct(idx=6), hl.Struct(idx=8)])
+
+
+def test_map_filter_region_memory():
+    high_mem_table = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(100_000_000))
+    high_mem_table = high_mem_table.filter(high_mem_table.idx % 2 == 0)
+    assert high_mem_table._force_count() == 15
+
+
+def test_head_and_tail_region_memory():
+    high_mem_table = hl.utils.range_table(100).annotate(big_array=hl.zeros(100_000_000))
+    high_mem_table = high_mem_table.head(30)
+    high_mem_table._force_count()
