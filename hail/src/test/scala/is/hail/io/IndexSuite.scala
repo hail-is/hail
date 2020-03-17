@@ -267,7 +267,7 @@ class IndexSuite extends HailSuite {
         stringsWithDups.zipWithIndex.map { case (s, i) => Row(s, i) },
         stringsWithDups.indices.map(i => Row()).toArray,
         keyType,
-        +PStruct(),
+        PStruct(),
         branchingFactor,
         Map.empty)
 
