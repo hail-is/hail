@@ -1172,9 +1172,7 @@ class Table(ExprContainer):
         -------
         :class:`Table`
 
-        Warning
-        -------
-        Do not checkpoint to a path that is being read from in the same computation.
+        .. include:: _templates/write_warning.rst
 
         Notes
         -----
@@ -1203,9 +1201,7 @@ class Table(ExprContainer):
 
         >>> table1.write('output/table1.ht')
 
-        Warning
-        -------
-        Do not write to a path that is being read from in the same computation.
+        .. include:: _templates/write_warning.rst
 
         Parameters
         ----------

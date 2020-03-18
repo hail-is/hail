@@ -567,6 +567,8 @@ class BlockMatrix(object):
     def write(self, path, overwrite=False, force_row_major=False, stage_locally=False):
         """Writes the block matrix.
 
+        .. include:: ../_templates/write_warning.rst
+
         Parameters
         ----------
         path: :obj:`str`
@@ -590,6 +592,8 @@ class BlockMatrix(object):
                       stage_locally=bool)
     def checkpoint(self, path, overwrite=False, force_row_major=False, stage_locally=False):
         """Checkpoint the block matrix.
+
+        .. include:: ../_templates/write_warning.rst
 
         Parameters
         ----------
