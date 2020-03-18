@@ -105,7 +105,7 @@ package object stats {
     }
   }
 
-  val hweStruct = PStruct("het_freq_hwe" -> PFloat64(), "p_value" -> PFloat64())
+  val hweStruct = PStruct("het_freq_hwe" -> PFloat64(true), "p_value" -> PFloat64(true))
 
   def hardyWeinbergTest(nHomRef: Int, nHet: Int, nHomVar: Int): Array[Double] = {
     if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
@@ -119,7 +119,7 @@ package object stats {
     Array(LH.getNumericalMean / n, LH.exactMidP(nAB))
   }
   
-  val chisqStruct = PStruct("p_value" -> PFloat64(), "odds_ratio" -> PFloat64())
+  val chisqStruct = PStruct("p_value" -> PFloat64(true), "odds_ratio" -> PFloat64(true))
   
   def chiSquaredTest(a0: Int, b0: Int, c0: Int, d0: Int): Array[Double] = {
     if (a0 < 0 || b0 < 0 || c0 < 0 || d0 < 0)
