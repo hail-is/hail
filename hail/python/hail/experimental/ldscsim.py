@@ -585,16 +585,6 @@ def calculate_phenotypes(mt, genotype, beta, h2, popstrat=None, popstrat_var=Non
     if mt['beta_'+tid].dtype == dtype('array<float64>'):  # if >1 traits
         if exact_h2:
             raise ValueError('exact_h2=True not supported for multitrait simulations')
-            # still working on this
-#            mt = mt.annotate_cols({'y_no_noise_'+tid: hl.agg.array_agg( #use tid because this is the unnormalized-for-h2 version of y_no_noise
-#                lambda beta: hl.agg.sum(beta*mt['norm_gt']), mt['beta_'+tid])})
-#            mt = mt.annotate_cols(y_no_noise=hl.agg.array_agg(
-#                lambda y_no_noise: y_no_noise/hl.agg.stats(y_no_noise).stdev, mt['y_no_noise_'+tid]))
-#            mt = mt.annotate_cols({'noise_'+tid: hl.literal(h2).map(lambda x: hl.rand_norm(0, hl.sqrt(1-x)))})
-#            mt = mt.annotate_cols(y=mt.y_no_noise +  hl.agg.array_agg(
-#                    lambda noise: noise/hl.agg.stats(y_no_noise)))
-#            mt = mt.annotate_cols(
-#                y=mt.y_no_noise + hl.literal(h2).map(lambda x: hl.rand_norm(0, hl.sqrt(1-x))))
         else:
             mt = mt.annotate_cols(y_no_noise=hl.agg.array_agg(
                 lambda beta: hl.agg.sum(beta*mt['norm_gt']), mt['beta_'+tid]))
