@@ -177,8 +177,6 @@ object EmitCode {
 abstract class EmitSettable extends EmitValue {
   def store(ec: EmitCode): Code[Unit]
 
-  def copyAndStore(ec: EmitCode): Code[Unit]
-
   def load(): EmitCode = get
 
   def :=(ec: EmitCode): Code[Unit] = store(ec)
