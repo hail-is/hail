@@ -164,7 +164,8 @@ class RVD(
       typ,
       partitioner,
       crdd.cmapPartitionsWithIndex { case (i, ctx, it) =>
-        val prevK = WritableRegionValue(localType.kType, ctx.freshRegion)
+        val regionForWriting = ctx.freshRegion // This one gets cleaned up when context is freed.
+        val prevK = WritableRegionValue(localType.kType, regionForWriting)
         val kUR = new UnsafeRow(localKPType)
 
         new Iterator[Long] {
