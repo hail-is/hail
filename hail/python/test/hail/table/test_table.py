@@ -1422,7 +1422,7 @@ def test_write_table_containing_ndarray():
     assert t._same(t2)
 
 def test_group_within_partitions():
-    t = hl.utils.range_table(10).naive_coalesce(2)
+    t = hl.utils.range_table(10).repartition(2)
     t = t.annotate(sq=t.idx ** 2)
 
     grouped1_collected = t._group_within_partitions(1).collect()
