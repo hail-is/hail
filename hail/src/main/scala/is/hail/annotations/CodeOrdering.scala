@@ -40,7 +40,7 @@ object CodeOrdering {
   ): CodeOrdering = new CodeOrdering {
     require(sortOrders == null || sortOrders.size == t1.size)
     type T = Long
-
+    
     val m1: LocalRef[Boolean] = mb.newLocal[Boolean]
     val m2: LocalRef[Boolean] = mb.newLocal[Boolean]
 
@@ -72,7 +72,7 @@ object CodeOrdering {
           val mbcmp = fieldOrdering(i, CodeOrdering.compare)
           Code(setup(i)(x, y),
             mbcmp((m1, v1s(i)), (m2, v2s(i))))
-        }.foldRight[Code[Int]](cmp.load()) { (ci, cont) => cmp.ceq(0).mux(Code(cmp := ci, cont), cmp) }
+        }.foldRight(cmp.get) { (ci, cont) => cmp.ceq(0).mux(Code(cmp := ci, cont), cmp) }
 
         Code(cmp := 0, c)
       }

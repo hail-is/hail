@@ -18,10 +18,10 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Value[Regio
 
   private val compLoader: EmitMethodBuilder = {
     val mb = fb.newMethod("compWithKey", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(compType)), typeInfo[Int])
-    val off = mb.getArg[Long](1).load()
-    val m = mb.getArg[Boolean](2).load()
-    val v = mb.getArg(3)(typeToTypeInfo(compType)).load()
-    mb.emit(compKeys(isKeyMissing(off) -> loadKey(off), m -> v))
+    val off = mb.getArg[Long](1)
+    val m = mb.getArg[Boolean](2)
+    val v = mb.getArg(3)(typeToTypeInfo(compType))
+    mb.emit(compKeys(isKeyMissing(off) -> loadKey(off), m.get -> v.get))
     mb
   }
 
@@ -38,19 +38,21 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Value[Regio
   def loadKey(off: Code[Long]): Code[_] = Region.loadIRIntermediate(kt)(storageType.fieldOffset(off, 0))
 
   def initValue(dest: Code[Long], km: Code[Boolean], kv: Code[_], rIdx: Code[Int]): Code[Unit] = {
-    val koff = storageType.fieldOffset(dest, 0)
-    var storeK =
-      if (kt.isPrimitive)
-        Region.storeIRIntermediate(kt)(koff, kv)
-      else
-        StagedRegionValueBuilder.deepCopy(fb, region, kt, coerce[Long](kv), koff)
-    if (!kt.required)
-      storeK = km.mux(storageType.setFieldMissing(dest, 0), Code(storageType.setFieldPresent(dest, 0), storeK))
+    Code.memoize(dest, "ga_init_value_dest") { dest =>
+      val koff = storageType.fieldOffset(dest, 0)
+      var storeK =
+        if (kt.isPrimitive)
+          Region.storeIRIntermediate(kt)(koff, kv)
+        else
+          StagedRegionValueBuilder.deepCopy(fb, region, kt, coerce[Long](kv), koff)
+      if (!kt.required)
+        storeK = km.mux(storageType.setFieldMissing(dest, 0), Code(storageType.setFieldPresent(dest, 0), storeK))
 
-    Code(
-      storeK,
-      storeRegionIdx(dest, rIdx),
-      container.newState)
+      Code(
+        storeK,
+        storeRegionIdx(dest, rIdx),
+        container.newState)
+    }
   }
 
   def loadStates: Code[Unit] = container.load
@@ -60,7 +62,7 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Value[Regio
   def storeRegionIdx(off: Code[Long], idx: Code[Int]): Code[Unit] =
     Region.storeInt(storageType.fieldOffset(off, 1), idx)
 
-  def containerOffset(off: Code[Long]): Value[Long] = new Value[Long] {
+  def containerOffset(off: Value[Long]): Value[Long] = new Value[Long] {
     def get: Code[Long] = storageType.fieldOffset(off, 2)
   }
 
@@ -73,14 +75,16 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Value[Regio
     Region.copyFrom(src, dest, storageType.byteSize)
 
   def deepCopy(er: EmitRegion, dest: Code[Long], src: Code[Long]): Code[Unit] =
-    Code(StagedRegionValueBuilder.deepCopy(er, storageType, src, dest),
-      container.copyFrom(containerOffset(src)),
-      container.store)
+    Code.memoize(src, "ga_deep_copy_src") { src =>
+      Code(StagedRegionValueBuilder.deepCopy(er, storageType, src, dest),
+        container.copyFrom(containerOffset(src)),
+        container.store)
+    }
 
   def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
     kcomp(k1, k2)
 
-  def loadCompKey(off: Code[Long]): (Code[Boolean], Code[_]) =
+  def loadCompKey(off: Value[Long]): (Code[Boolean], Code[_]) =
     isKeyMissing(off) -> isKeyMissing(off).mux(defaultValue(kt), loadKey(off))
 
 }
@@ -115,12 +119,16 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
   }
 
   def loadContainer(km: Code[Boolean], kv: Code[_]): Code[Unit] =
-    Code(
-      _elt := tree.getOrElseInitialize(km, km.mux(defaultValue(keyType), kv)),
-      keyed.isEmpty(_elt).mux(Code(
-        initElement(_elt, km, kv),
-        keyed.copyStatesFrom(initStatesOffset)),
-        keyed.loadStates))
+    Code.memoize(km, "ga_load_cont_km") { km =>
+      Code.memoizeAny(km.mux(defaultValue(keyType), kv), "ga_load_cont_kv") { kv =>
+        Code(
+          _elt := tree.getOrElseInitialize(km, kv),
+          keyed.isEmpty(_elt).mux(Code(
+            initElement(_elt, km, kv),
+            keyed.copyStatesFrom(initStatesOffset)),
+            keyed.loadStates))
+      }(typeToTypeInfo(keyType))
+    }
 
   def withContainer(km: Code[Boolean], kv: Code[_], seqOps: Code[Unit]): Code[Unit] =
     Code(loadContainer(km, kv), seqOps, keyed.storeStates)
@@ -151,7 +159,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
     size := 0,
     tree.init)
 
-  def combine(other: DictState, comb: Code[Unit]): Code[Unit] =
+  def combine(other: DictState, comb: => Code[Unit]): Code[Unit] =
     other.foreach { (km, kv) => withContainer(km, kv, comb) }
 
   // loads container; does not update.
@@ -163,10 +171,12 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
     }
 
   def copyFromAddress(src: Code[Long]): Code[Unit] =
-    Code(
-      init(initContainer.copyFrom(typ.loadField(src, 0))),
-      size := Region.loadInt(typ.loadField(src, 1)),
-      tree.deepCopy(Region.loadAddress(typ.loadField(src, 2))))
+    Code.memoize(src, "ga_copy_from_addr_src") { src =>
+      Code(
+        init(initContainer.copyFrom(typ.loadField(src, 0))),
+        size := Region.loadInt(typ.loadField(src, 1)),
+        tree.deepCopy(Region.loadAddress(typ.loadField(src, 2))))
+    }
 
   def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
     val serializers = nested.states.map(_.serialize(codec))
@@ -182,7 +192,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
           { (i, _, args) =>
             Code.memoize(coerce[OutputBuffer](args.head), "ga_ser_init_ob") { ob => serializers(i)(ob) }
           }),
-        tree.bulkStore(ob) { (ob: Code[OutputBuffer], kvOff: Code[Long]) =>
+        tree.bulkStore(ob) { (ob: Value[OutputBuffer], kvOff: Code[Long]) =>
           Code(
             _elt := kvOff,
             km := keyed.isKeyMissing(_elt),
@@ -191,7 +201,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
             (!km).orEmpty(kEnc.invoke(kv, ob)),
             keyed.loadStates,
             nested.toCodeWithArgs(fb, "grouped_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
-              Array(ob),
+              Array(ob.get),
               { (i, _, args) =>
                 Code.memoize(coerce[OutputBuffer](args.head), "ga_ser_init_ob") { ob => serializers(i)(ob) }
               }))

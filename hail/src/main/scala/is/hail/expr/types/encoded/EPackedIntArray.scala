@@ -33,7 +33,7 @@ final case class EPackedIntArray(
     val data = mb.newLocal[Array[Byte]]("data")
     val unpacker = mb.newLocal[IntPacker]("unpacker")
 
-    Code.concat[Long](
+    Code(Code(FastIndexedSeq(
       unpacker := getPacker(mb),
       len := in.readInt(),
       array := pa.allocate(region, len),
@@ -66,7 +66,7 @@ final case class EPackedIntArray(
             unpacker.invoke[Long, Unit]("unpack", pa.elementOffset(array, len, i)),
             Code._empty),
           i := i + 1
-        )),
+        )))),
       array)
   }
 
@@ -94,7 +94,7 @@ final case class EPackedIntArray(
     val keysLen = mb.newLocal[Int]("keysLen")
     val dataLen = mb.newLocal[Int]("dataLen")
 
-    Code.concat[Unit](
+    Code(Code(FastIndexedSeq(
       packer := getPacker(mb),
       len := pa.loadLength(array),
       out.writeInt(len),
@@ -115,7 +115,7 @@ final case class EPackedIntArray(
             i := i + const(1))),
       packer.load().finish(),
       out.writeInt(packer.load().ki + packer.load().di),
-      out.write(packer.load().keys, const(0), packer.load().ki),
+      out.write(packer.load().keys, const(0), packer.load().ki))),
       out.write(packer.load().data, const(0), packer.load().di))
   }
 

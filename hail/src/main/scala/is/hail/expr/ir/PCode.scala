@@ -6,6 +6,8 @@ import is.hail.utils._
 import is.hail.expr.types.physical._
 
 abstract class PValue {
+  def pt: PType
+
   def get: PCode
 }
 
@@ -40,9 +42,9 @@ abstract class PCode {
     code.asInstanceOf[Code[T]]
   }
 
-  def store(mb: EmitMethodBuilder, r: Code[Region], dst: Code[Long]): Code[Unit]
+  def store(mb: EmitMethodBuilder, r: Value[Region], dst: Code[Long]): Code[Unit]
 
-  def allocateAndStore(mb: EmitMethodBuilder, r: Code[Region]): (Code[Unit], Code[Long]) = {
+  def allocateAndStore(mb: EmitMethodBuilder, r: Value[Region]): (Code[Unit], Code[Long]) = {
     val dst = mb.newLocal[Long]
     (Code(dst := r.allocate(pt.byteSize, pt.alignment), store(mb, r, dst)), dst)
   }
@@ -50,6 +52,11 @@ abstract class PCode {
   def asIndexable: PIndexableCode = asInstanceOf[PIndexableCode]
 
   def asBaseStruct: PBaseStructCode = asInstanceOf[PBaseStructCode]
+
+  def castTo(mb: EmitMethodBuilder, region: Value[Region], destType: PType): PCode = {
+    PCode(destType,
+      destType.copyFromTypeAndStackValue(mb, region, pt, code))
+  }
 }
 
 abstract class PSettable extends PValue {
@@ -61,7 +68,7 @@ abstract class PSettable extends PValue {
 }
 
 class PPrimitiveCode(val pt: PType, val code: Code[_]) extends PCode {
-  def store(mb: EmitMethodBuilder, r: Code[Region], a: Code[Long]): Code[Unit] =
+  def store(mb: EmitMethodBuilder, r: Value[Region], a: Code[Long]): Code[Unit] =
     Region.storeIRIntermediate(pt)(a, code)
 }
 
@@ -118,7 +125,7 @@ class PCanonicalIndexableCode(val pt: PContainer, val a: Code[Long]) extends PIn
     })
   }
 
-  def store(mb: EmitMethodBuilder, r: Code[Region], dst: Code[Long]): Code[Unit] =
+  def store(mb: EmitMethodBuilder, r: Value[Region], dst: Code[Long]): Code[Unit] =
     Region.storeAddress(dst, a)
 }
 
@@ -151,6 +158,6 @@ class PCanonicalBaseStructCode(val pt: PCanonicalBaseStruct, val a: Code[Long]) 
 
   def loadField(fieldIdx: Int): PCode = pt.fields(fieldIdx).typ.load(fieldAddress(fieldIdx))
 
-  def store(mb: EmitMethodBuilder, r: Code[Region], dst: Code[Long]): Code[Unit] =
+  def store(mb: EmitMethodBuilder, r: Value[Region], dst: Code[Long]): Code[Unit] =
     pt.constructAtAddress(mb, dst, r, pt, a, forceDeep = false)
 }

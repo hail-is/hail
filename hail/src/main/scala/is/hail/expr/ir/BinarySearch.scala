@@ -52,9 +52,11 @@ class BinarySearch(mb: EmitMethodBuilder, typ: PContainer, eltType: PType, keyOn
   private[this] val high = findElt.newLocal[Int]
 
   def cmp(i: Code[Int]): Code[Int] =
-    compare((m, e),
-      (typ.isElementMissing(array, i),
-        Region.loadIRIntermediate(elt)(typ.elementOffset(array, len, i))))
+    Code.memoize(i, "binsearch_cmp_i") { i =>
+      compare((m, e),
+        (typ.isElementMissing(array, i),
+          Region.loadIRIntermediate(elt)(typ.elementOffset(array, len, i))))
+    }
 
   // Returns smallest i, 0 <= i < n, for which a(i) >= key, or returns n if a(i) < key for all i
   findElt.emit(Code(

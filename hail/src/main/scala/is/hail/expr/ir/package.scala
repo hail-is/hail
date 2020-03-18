@@ -3,6 +3,7 @@ package is.hail.expr
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.annotations.RegionValue
+import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
@@ -99,6 +100,7 @@ package object ir {
     case TFloat64 => F64(0d)
   }
 
+
   def mapIR(stream: IR)(f: IR => IR): IR = {
     val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
     StreamMap(stream, ref.name, f(ref))
@@ -106,4 +108,8 @@ package object ir {
 
   def rangeIR(n: IR): IR = StreamRange(0, n, 1)
   def rangeIR(start: IR, stop: IR): IR = StreamRange(start, stop, 1)
+
+  implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
+
+  implicit def emitValueToCode(ev: EmitValue): EmitCode = ev.get
 }

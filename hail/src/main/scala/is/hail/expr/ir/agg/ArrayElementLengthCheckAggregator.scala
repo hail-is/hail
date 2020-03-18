@@ -21,11 +21,11 @@ class ArrayElementState(val fb: EmitFunctionBuilder[_], val nested: StateTuple) 
   val idx: ClassFieldRef[Int] = fb.newField[Int]("arrayrva_idx")
   private val aoff: ClassFieldRef[Long] = fb.newField[Long]("arrayrva_aoff")
 
-  private def regionOffset(eltIdx: Code[Int]): Value[Int] = new Value[Int] {
+  private def regionOffset(eltIdx: Value[Int]): Value[Int] = new Value[Int] {
     def get: Code[Int] = (eltIdx + 1) * nStates
   }
 
-  private def statesOffset(eltIdx: Code[Int]): Value[Long] = new Value[Long] {
+  private def statesOffset(eltIdx: Value[Int]): Value[Long] = new Value[Long] {
     def get: Code[Long] = arrayType.loadElement(typ.loadField(off, 1), eltIdx)
   }
 
@@ -179,13 +179,20 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
     }
   }
 
-  //does a length check on arrays
+  // does a length check on arrays
   def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
-    val Array(len) = seq
-    var check = state.checkLength(len.value[Int])
-    if (!knownLength)
-      check = (state.lenRef < 0).mux(state.initLength(len.value[Int]), check)
-    Code(len.setup, len.m.mux(Code._empty, check))
+    assert(seq.length == 1)
+    val len = seq.head
+    Code(
+      len.setup,
+      len.m.mux(
+        Code._empty,
+        Code.memoize(len.value[Int], "aelca_seqop_len") { v =>
+          var check = state.checkLength(v)
+          if (!knownLength)
+            check = (state.lenRef < 0).mux(state.initLength(v), check)
+          check
+        }))
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {

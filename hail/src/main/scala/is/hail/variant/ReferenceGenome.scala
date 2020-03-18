@@ -200,7 +200,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       if (!isValidContig(contig))
         fatal(s"Invalid locus '$contig:$pos' found. Contig '$contig' is not in the reference genome '$name'.")
       else
-        fatal(s"Invalid locus '$contig:$pos' found. Position '$pos' is not within the range [1-${ contigLength(contig) }] for reference genome '$name'.")
+        fatal(s"Invalid locus '$contig:$pos' found. Position '$pos' is not within the range [1-${contigLength(contig)}] for reference genome '$name'.")
     }
   }
 

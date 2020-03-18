@@ -281,17 +281,17 @@ abstract class PType extends Serializable with Requiredness {
     }
 
   // Semantics: must be callable without requiredeness check: srcAddress must point to non-null value
-  def copyFromType(mb: MethodBuilder, region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long]
+  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long]
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_]
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_]
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Code[Region], srcPType: PType, stackValue: Code[_]): Code[_] =
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_]): Code[_] =
     this.copyFromTypeAndStackValue(mb, region, srcPType, stackValue, false)
 
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long
 
-  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit]
-  def constructAtAddressFromValue(mb: MethodBuilder, addr: Code[Long], region: Code[Region], srcPType: PType, src: Code[_], forceDeep: Boolean): Code[Unit]
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit]
+  def constructAtAddressFromValue(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], forceDeep: Boolean): Code[Unit]
     = constructAtAddress(mb, addr, region, srcPType, coerce[Long](src), forceDeep)
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit
@@ -300,7 +300,7 @@ abstract class PType extends Serializable with Requiredness {
 
   def defaultValue: PCode = PCode(this, ir.defaultValue(this))
 
-  def copyFromPValue(mb: MethodBuilder, region: Code[Region], pv: PCode): PCode =
+  def copyFromPValue(mb: MethodBuilder, region: Value[Region], pv: PCode): PCode =
     PCode(this, copyFromTypeAndStackValue(mb, region, pv.pt, pv.code))
 
   final def typeCheck(a: Any): Boolean = a == null || _typeCheck(a)

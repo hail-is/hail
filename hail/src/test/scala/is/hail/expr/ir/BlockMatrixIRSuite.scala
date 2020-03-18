@@ -3,7 +3,8 @@ package is.hail.expr.ir
 import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.expr.types.virtual.{TArray, TFloat64}
+import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TNDArray, TStream}
+import is.hail.linalg.BlockMatrix
 import is.hail.utils._
 import is.hail.TestUtils._
 import org.testng.annotations.Test
