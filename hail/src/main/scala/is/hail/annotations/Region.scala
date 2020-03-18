@@ -349,7 +349,7 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
 
   val fullID = s"$creator-$uuid"
 
-  log.info(s"REGION: New region ${fullID} created.")
+  //log.info(s"REGION: New region ${fullID} created.")
 
   def totalMemory: Long  = {
     if (isValid()) {
@@ -363,12 +363,12 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
   def isValid(): Boolean = memory != null
 
   def allocate(n: Long): Long = {
-    log.info(s"REGION: Allocating $n bytes to region ${fullID}")
+    //log.info(s"REGION: Allocating $n bytes to region ${fullID}")
     memory.allocate(n)
   }
 
   def allocate(a: Long, n: Long): Long = {
-    log.info(s"REGION: Allocating $n bytes to region ${fullID}")
+    //log.info(s"REGION: Allocating $n bytes to region ${fullID}")
     memory.allocate(a, n)
   }
 
@@ -381,10 +381,10 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
 
   def clear(): Unit = {
     if (memory.getReferenceCount == 1) {
-      log.info(s"REGION: Actually clearing $fullID, ref count was 1. Total memory = ${this.totalMemory}")
+      //log.info(s"REGION: Actually clearing $fullID, ref count was 1. Total memory = ${this.totalMemory}")
       memory.clear()
     } else {
-      log.info(s"REGION: Not actually clearing $fullID, ref count was ${memory.getReferenceCount}. Total memory = ${this.totalMemory}")
+      //log.info(s"REGION: Not actually clearing $fullID, ref count was ${memory.getReferenceCount}. Total memory = ${this.totalMemory}")
       memory.release()
       memory = pool.getMemory(blockSize)
     }
@@ -395,7 +395,7 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
   }
 
   def addReferenceTo(r: Region): Unit = {
-    log.info(s"REGION: Region ${fullID} adds reference to ${r.fullID}")
+    //log.info(s"REGION: Region ${fullID} adds reference to ${r.fullID}")
     memory.addReferenceTo(r.memory)
   }
 
