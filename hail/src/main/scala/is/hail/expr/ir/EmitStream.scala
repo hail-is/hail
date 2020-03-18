@@ -592,7 +592,6 @@ object EmitStream {
                     llen := (step < const(0)).mux(
                       (start <= stop).mux(const(0L), (start.toL - stop.toL - const(1L)) / (-step).toL + const(1L)),
                       (start >= stop).mux(const(0L), (stop.toL - start.toL - const(1L)) / step.toL + const(1L))),
-                    // FIXME for Ctrl
                     (llen > const(Int.MaxValue.toLong)).mux[Unit](
                       Code._fatal[Unit]("Array range cannot have more than MAXINT elements."),
                       some(SizedStream(
@@ -620,7 +619,6 @@ object EmitStream {
                     Code(i += 1,
                       push(
                         EmitCode(Code._empty,
-                          // FIXME loadElementEC or something
                           xAddr.get.asIndexable.isElementMissing(i - 1),
                           xAddr.get.asIndexable.loadElement(i - 1)))),
                     eos))

@@ -6,6 +6,8 @@ import is.hail.utils._
 import is.hail.expr.types.physical._
 
 abstract class PValue {
+  def pt: PType
+
   def get: PCode
 }
 
@@ -50,6 +52,11 @@ abstract class PCode {
   def asIndexable: PIndexableCode = asInstanceOf[PIndexableCode]
 
   def asBaseStruct: PBaseStructCode = asInstanceOf[PBaseStructCode]
+
+  def castTo(mb: EmitMethodBuilder, region: Value[Region], destType: PType): PCode = {
+    PCode(destType,
+      destType.copyFromTypeAndStackValue(mb, region, pt, code))
+  }
 }
 
 abstract class PSettable extends PValue {

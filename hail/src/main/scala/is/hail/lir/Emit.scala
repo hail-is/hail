@@ -70,8 +70,6 @@ object Emit {
   }
 
   def emit(cn: ClassNode, m: Method): Unit = {
-    // println(s"compiling ${ m.name }")
-
     val blocks = m.findBlocks()
 
     val mn = new MethodNode(ACC_PUBLIC, m.name, m.desc, null, null)
@@ -190,8 +188,6 @@ object Emit {
   }
 
   def apply(c: Classx[_], print: Option[PrintWriter]): Array[Byte] = {
-    // println(Pretty(c))
-
     val cn = new ClassNode()
 
     cn.version = V1_8

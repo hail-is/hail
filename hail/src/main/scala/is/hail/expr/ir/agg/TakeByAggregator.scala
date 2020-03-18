@@ -310,7 +310,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     mb.invoke(_)
   }
 
-  private def gc(): Code[Unit] = {
+  private lazy val gc: () => Code[Unit] = {
     if (canHaveGarbage) {
       val mb = fb.newMethod("take_by_garbage_collect", Array[TypeInfo[_]](), UnitInfo)
       val oldRegion = mb.newLocal[Region]("old_region")
@@ -326,9 +326,9 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
             oldRegion.invoke[Unit]("invalidate")
           ))
         ))
-      mb.invoke()
+      () => mb.invoke()
     } else
-      Code._empty
+      () => Code._empty
   }
 
 

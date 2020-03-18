@@ -141,8 +141,10 @@ class EmitMethodBuilder(
 
   def newRNG(seed: Long): Value[IRRandomness] = fb.newRNG(seed)
 
-  def newPSettable(pt: PType, s: Settable[_]): PSettable = new PSettable {
-    def get: PCode = PCode(pt, s)
+  def newPSettable(_pt: PType, s: Settable[_]): PSettable = new PSettable {
+    def pt: PType = _pt
+
+    def get: PCode = PCode(_pt, s)
 
     def store(v: PCode): Code[Unit] = s.storeAny(v.code)
   }
@@ -758,26 +760,32 @@ class EmitFunctionBuilder[F >: Null](
     }
   }
 
-  def newPLocal(pt: PType): PSettable = new PSettable {
-    private val l = newLocal(typeToTypeInfo(pt))
+  def newPLocal(_pt: PType): PSettable = new PSettable {
+    private val l = newLocal(typeToTypeInfo(_pt))
 
-    def get: PCode = PCode(pt, l.load())
+    def pt: PType = _pt
+
+    def get: PCode = PCode(_pt, l.load())
 
     def store(v: PCode): Code[Unit] = l.storeAny(v.code)
   }
 
-  def newPField(pt: PType): PSettable = new PSettable {
-    private val f = newField(typeToTypeInfo(pt))
+  def newPField(_pt: PType): PSettable = new PSettable {
+    private val f = newField(typeToTypeInfo(_pt))
 
-    def get: PCode = PCode(pt, f.load())
+    def pt: PType = _pt
+
+    def get: PCode = PCode(_pt, f.load())
 
     def store(v: PCode): Code[Unit] = f.storeAny(v.code)
   }
 
-  def newPField(name: String, pt: PType): PSettable = new PSettable {
-    private val f = newField(name)(typeToTypeInfo(pt))
+  def newPField(name: String, _pt: PType): PSettable = new PSettable {
+    private val f = newField(name)(typeToTypeInfo(_pt))
 
-    def get: PCode = PCode(pt, f.load())
+    def pt: PType = _pt
+
+    def get: PCode = PCode(_pt, f.load())
 
     def store(v: PCode): Code[Unit] = f.storeAny(v.code)
   }
@@ -793,14 +801,14 @@ class EmitFunctionBuilder[F >: Null](
     }
 
   def newEmitLocal(pt: PType): EmitSettable = {
-    // FIXME link name
+    // FIXME link name between ms, vs
     val ms = newLocal[Boolean]
     val vs = newPLocal(pt)
     newEmitSettable(pt, ms, vs)
   }
 
   def newEmitField(pt: PType): EmitSettable = {
-    // FIXME link names
+    // FIXME link names between ms, vs
     val ms = newField[Boolean]
     val vs = newPField(pt)
     newEmitSettable(pt, ms, vs)

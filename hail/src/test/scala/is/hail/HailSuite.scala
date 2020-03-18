@@ -15,7 +15,7 @@ object HailSuite {
         HailContext.createSparkConf(
           appName = "Hail.TestNG",
           master = Option(System.getProperty("hail.master")),
-          local = "local[1]",
+          local = "local[2]",
           blockSize = 0)
           .set("spark.unsafe.exceptionOnMemoryLeak", "true")),
       logFile = "/tmp/hail.log")

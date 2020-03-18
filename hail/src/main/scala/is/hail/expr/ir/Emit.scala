@@ -160,11 +160,11 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
 
   def map(f: PCode => PCode): EmitCode = copy(pv = f(pv))
 
-  def copyToRegion(mb: EmitMethodBuilder, region: Value[Region]): EmitCode = {
+  def castTo(mb: EmitMethodBuilder, region: Value[Region], destType: PType): EmitCode = {
     EmitCode(
       setup,
       m,
-      PCode(pt, pt.copyFromTypeAndStackValue(mb, region, pt, v)))
+      pv.castTo(mb, region, destType))
   }
 }
 
@@ -176,6 +176,8 @@ object EmitCode {
 
 abstract class EmitSettable extends EmitValue {
   def store(ec: EmitCode): Code[Unit]
+
+  def copyAndStore(ec: EmitCode): Code[Unit]
 
   def load(): EmitCode = get
 
@@ -803,15 +805,18 @@ private class Emit(
 
           def foldBody(elt: EmitCode): Code[Unit] =
             Code(xElt := elt,
-              tmpAccVars := typedCodeSeq.map(_.copyToRegion(mb, region)),
+              Code(tmpAccVars.zip(typedCodeSeq).map { case (v, x) =>
+                v := x.castTo(mb, region, v.pt)
+              }),
               accVars := tmpAccVars.load())
 
           def computeRes(): Code[Ctrl] =
               ret(COption.fromEmitCode(codeR))
 
           stream.stream
-            .fold(mb, accVars := acc.map(x => emit(x._2))
-              .map(_.copyToRegion(mb, region)),
+            .fold(mb, Code(accVars.zip(acc).map { case (v, (name, x)) =>
+              v := emit(x).castTo(mb, region, v.pt)
+            }),
               foldBody, computeRes())
         }
 
@@ -1228,7 +1233,6 @@ private class Emit(
 
         EmitCode(setup, overallMissing, PCode(pt, value))
       case x@NDArrayReindex(child, indexMap) =>
-        println("here")
         val childt = emit(child)
         val childPType = coerce[PNDArray](child.pType)
 
@@ -1321,8 +1325,7 @@ private class Emit(
 
         val isMissing = lT.m || rT.m
 
-        if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2 && false) {
-          println("here")
+        if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2) {
           val leftDataAddress = lPType.data.load(leftND)
           val rightDataAddress = rPType.data.load(rightND)
 
@@ -2028,7 +2031,6 @@ private class Emit(
         }
 
       case x@NDArrayReindex(child, indexExpr) =>
-        println("here deforest")
         val childEmitter = deforest(child)
         val childPType = child.pType.asInstanceOf[PNDArray]
 

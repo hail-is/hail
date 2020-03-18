@@ -415,7 +415,6 @@ class EmitStreamSuite extends HailSuite {
         IndexedSeq(0, 0, 1, 1, 2, 2, 3, 3)
     )
     for ((ir, v) <- tests) {
-      println(Pretty(ir))
       assert(evalStream(ir) == v, Pretty(ir))
       if (v != null)
         assert(evalStreamLen(ir) == None, Pretty(ir))
@@ -567,7 +566,6 @@ class EmitStreamSuite extends HailSuite {
     )
     val lens: Array[Option[Int]] = Array(Some(3), Some(4), Some(3), Some(0), Some(0), None)
     for (((ir, v), len) <- tests zip lens) {
-      println(Pretty(ir), v, len)
       assert(evalStream(ir) == v, Pretty(ir))
       assert(evalStreamLen(ir) == len, Pretty(ir))
     }
