@@ -22,37 +22,35 @@ final case class ETransposedArrayOfStructs(
 
   override def _decodeCompatible(pt: PType): Boolean = pt match {
     case t: PArray =>
-      if (!t.elementType.isInstanceOf[PBaseStruct])
-        false
-      else {
-        val ps = t.elementType.asInstanceOf[PBaseStruct]
-        ps.required == structRequired &&
-          size >= ps.size &&
-          ps.fields.forall { f =>
-            hasField(f.name) && fieldType(f.name).decodeCompatible(f.typ)
-          }
+      t.elementType match {
+        case struct: PBaseStruct =>
+          struct.required == structRequired &&
+            size >= struct.size &&
+            struct.fields.forall { f =>
+              hasField(f.name) && fieldType(f.name).decodeCompatible(f.typ)
+            }
+        case _ => false
       }
     case _ => false
   }
 
   override def _encodeCompatible(pt: PType): Boolean = pt match {
     case t: PArray =>
-      if (!t.elementType.isInstanceOf[PBaseStruct])
-        false
-      else {
-        val ps = t.elementType.asInstanceOf[PBaseStruct]
-        ps.required == structRequired &&
-        size <= ps.size &&
-        fields.forall { f =>
-          ps.hasField(f.name) && f.typ.encodeCompatible(ps.fieldType(f.name))
-        }
+      t.elementType match {
+        case struct: PBaseStruct =>
+          struct.required == structRequired &&
+            size <= struct.size &&
+            fields.forall { f =>
+              struct.hasField(f.name) && f.typ.encodeCompatible(struct.fieldType(f.name))
+            }
+        case _ => false
       }
     case _ => false
   }
 
   def _buildDecoder(pt: PType, mb: MethodBuilder, region: Value[Region], in: Value[InputBuffer]): Code[_] = {
-    val pa = pt.asInstanceOf[PArray]
-    val ps = pa.elementType.asInstanceOf[PBaseStruct]
+    val arrayPType = pt.asInstanceOf[PArray]
+    val elementPStruct = arrayPType.elementType.asInstanceOf[PBaseStruct]
 
     val len = mb.newField[Int]("len")
     val alen = mb.newField[Int]("alen")
@@ -64,9 +62,9 @@ final case class ETransposedArrayOfStructs(
 
     val prefix = Code(
       len := in.readInt(),
-      nMissing := pa.nMissingBytes(len),
-      array := pa.allocate(region, len),
-      pa.storeLength(array, len),
+      nMissing := arrayPType.nMissingBytes(len),
+      array := arrayPType.allocate(region, len),
+      arrayPType.storeLength(array, len),
       if (structRequired)
         Code(
           alen := len,
@@ -74,12 +72,12 @@ final case class ETransposedArrayOfStructs(
         )
       else
         Code(
-          in.readBytes(region, array + const(pa.lengthHeaderBytes), nMissing),
+          in.readBytes(region, array + const(arrayPType.lengthHeaderBytes), nMissing),
           i := 0,
           alen := 0,
           Code.whileLoop(i < len,
             Code(
-              alen := alen + pa.isElementDefined(array, i).toI,
+              alen := alen + arrayPType.isElementDefined(array, i).toI,
               i := i + const(1))),
           anMissing := UnsafeUtils.packBitsToBytes(alen)),
       if (fields.forall(_.typ.required)) {
@@ -97,19 +95,18 @@ final case class ETransposedArrayOfStructs(
       val i = groupMB.newLocal[Int]("i")
       val j = groupMB.newLocal[Int]("j")
 
-      val decoders = fieldGroup.map { ef =>
-        ps.selfField(ef.name) match {
+      val decoders = fieldGroup.map { encodedField =>
+        elementPStruct.selfField(encodedField.name) match {
           case Some(pf) =>
-            val inplaceDecode = ef.typ.buildInplaceDecoder(pf.typ, mb)
-            val elem = () => pa.elementOffset(arrayGrp, len, i)
-            if (ef.typ.required) {
+            val inplaceDecode = encodedField.typ.buildInplaceDecoder(pf.typ, mb)
+            val elem = () => arrayPType.elementOffset(arrayGrp, len, i)
+            if (encodedField.typ.required) {
               Code(
                 i := 0,
                 Code.whileLoop(i < len,
                   Code(
-                    pa.isElementDefined(arrayGrp, i).mux(
-                      inplaceDecode(regionGrp, ps.fieldOffset(elem(), pf.index), inGrp),
-                      Code._empty),
+                    arrayPType.isElementDefined(arrayGrp, i).orEmpty(
+                      inplaceDecode(regionGrp, elementPStruct.fieldOffset(elem(), pf.index), inGrp)),
                     i := i + const(1))))
             } else {
               Code(
@@ -118,20 +115,19 @@ final case class ETransposedArrayOfStructs(
                 j := 0,
                 Code.whileLoop(i < len,
                     Code(
-                      pa.isElementDefined(arrayGrp, i).mux(
+                      arrayPType.isElementDefined(arrayGrp, i).orEmpty(
                         Code(
                           Region.loadBit(fmbytes, j.toL).mux(
-                            ps.setFieldMissing(elem(), pf.index),
+                            elementPStruct.setFieldMissing(elem(), pf.index),
                             Code(
-                              ps.setFieldPresent(elem(), pf.index),
-                              inplaceDecode(regionGrp, ps.fieldOffset(elem(), pf.index), inGrp))),
-                          j := j + const(1)),
-                        Code._empty),
+                              elementPStruct.setFieldPresent(elem(), pf.index),
+                              inplaceDecode(regionGrp, elementPStruct.fieldOffset(elem(), pf.index), inGrp))),
+                          j := j + const(1))),
                       i := i + const(1))))
             }
           case None =>
-            val skip = ef.typ.buildSkip(mb)
-            if (ef.typ.required) {
+            val skip = encodedField.typ.buildSkip(mb)
+            if (encodedField.typ.required) {
               Code(
                 i := 0,
                 Code.whileLoop(i < alen, Code(skip(regionGrp, inGrp), i := i + const(1)))
@@ -216,8 +212,8 @@ final case class ETransposedArrayOfStructs(
   }
 
   def _buildEncoder(pt: PType, mb: MethodBuilder, v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
-    val pa = pt.asInstanceOf[PArray]
-    val ps = pa.elementType.asInstanceOf[PBaseStruct]
+    val arrayPType = pt.asInstanceOf[PArray]
+    val elementPStruct = arrayPType.elementType.asInstanceOf[PBaseStruct]
 
     val array = coerce[Long](v)
     val len = mb.newField[Int]("arrayLength")
@@ -226,7 +222,7 @@ final case class ETransposedArrayOfStructs(
 
     val writeMissingBytes =
       if (!structRequired) {
-        out.writeBytes(array + const(pa.lengthHeaderBytes), pa.nMissingBytes(len))
+        out.writeBytes(array + const(arrayPType.lengthHeaderBytes), arrayPType.nMissingBytes(len))
       } else
         Code._empty
 
@@ -239,13 +235,13 @@ final case class ETransposedArrayOfStructs(
       val j = groupMB.newLocal[Int]("j")
       val presentIdx = groupMB.newLocal[Int]("presentIdx")
 
-      val encoders = fieldGroup.map { ef =>
-        val fidx = ps.fieldIdx(ef.name)
-        val pf = ps.fields(fidx)
-        val encodeField = ef.typ.buildEncoder(pf.typ, groupMB)
-        val elem = () => pa.elementOffset(addr, len, j)
+      val encoders = fieldGroup.map { encodedField =>
+        val fidx = elementPStruct.fieldIdx(encodedField.name)
+        val pf = elementPStruct.fields(fidx)
+        val encodeField = encodedField.typ.buildEncoder(pf.typ, groupMB)
+        val elem = () => arrayPType.elementOffset(addr, len, j)
 
-        val writeMissingBytes = if (ef.typ.required)
+        val writeMissingBytes = if (encodedField.typ.required)
           Code._empty
         else {
           Code(
@@ -254,14 +250,13 @@ final case class ETransposedArrayOfStructs(
           presentIdx := 0,
           Code.whileLoop(j < len,
             Code(
-              pa.isElementDefined(addr, j).mux(
+              arrayPType.isElementDefined(addr, j).orEmpty(
                 Code(
-                  b := b | (ps.isFieldMissing(elem(), fidx).toI << (presentIdx & 7)),
+                  b := b | (elementPStruct.isFieldMissing(elem(), fidx).toI << (presentIdx & 7)),
                   presentIdx := presentIdx + const(1),
                   (presentIdx & 7).ceq(0).mux(
                     Code(out2.writeByte(b.toB), b := 0),
-                    Code._empty)),
-                Code._empty),
+                    Code._empty))),
               j := j + const(1))),
           (presentIdx & 7).cne(0).mux(
               out2.writeByte(b.toB),
@@ -273,11 +268,10 @@ final case class ETransposedArrayOfStructs(
           j := 0,
           Code.whileLoop(j < len,
             Code(
-            pa.isElementDefined(addr, j).mux(
-              ps.isFieldDefined(elem(), fidx).mux(
-                encodeField(Region.loadIRIntermediate(pf.typ)(ps.fieldOffset(elem(), fidx)), out2),
-                Code._empty),
-              Code._empty),
+            arrayPType.isElementDefined(addr, j).orEmpty(
+              elementPStruct.isFieldDefined(elem(), fidx).mux(
+                encodeField(Region.loadIRIntermediate(pf.typ)(elementPStruct.fieldOffset(elem(), fidx)), out2),
+                Code._empty)),
               j := j + 1)))
       }.toArray
 
@@ -287,7 +281,7 @@ final case class ETransposedArrayOfStructs(
 
     Code(
       i := 0,
-      len := pa.loadLength(array),
+      len := arrayPType.loadLength(array),
 
       writeLen,
       writeMissingBytes,
