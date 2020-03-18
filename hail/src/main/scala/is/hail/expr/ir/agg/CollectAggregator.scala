@@ -9,7 +9,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 
 class CollectAggregator(val elemType: PType) extends StagedAggregator {
 
-  assert(PType.canonical(elemType) == elemType)
+  assert(elemType.isCanonical)
   val resultType = PCanonicalArray(elemType, required = true)
 
   class State(val fb: EmitFunctionBuilder[_]) extends AggregatorState {
