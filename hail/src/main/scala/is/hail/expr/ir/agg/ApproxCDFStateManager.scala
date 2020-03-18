@@ -694,7 +694,7 @@ class ApproxCDFStateManager(val k: Int) {
 }
 
 object QuantilesAggregator {
-  val resultType: PType =
+  val resultType: PCanonicalStruct =
     PCanonicalStruct(required = true,
       "values" -> PCanonicalArray(PFloat64(true), required = true),
       "ranks" -> PCanonicalArray(PInt64(true), required = true),
