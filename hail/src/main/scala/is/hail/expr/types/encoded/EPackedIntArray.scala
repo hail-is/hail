@@ -11,7 +11,9 @@ import is.hail.utils._
 final case class EPackedIntArray(
   override val required: Boolean = false,
   val elementsRequired: Boolean
-) extends EType {
+) extends EContainer {
+  def elementType: EType = EInt32(elementsRequired)
+
   override def _compatible(pt: PType): Boolean = {
     pt.required == required &&
       pt.isInstanceOf[PArray] &&
