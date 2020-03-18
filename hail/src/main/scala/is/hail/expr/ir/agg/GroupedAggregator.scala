@@ -232,7 +232,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends StagedAggregator {
   type State = DictState
 
-  assert(PType.canonical(kt) == kt)
+  assert(kt.isCanonical)
   val resultEltType: PTuple = PCanonicalTuple(true, nestedAggs.map(_.resultType): _*)
   val resultType: PDict = PCanonicalDict(kt, resultEltType)
 
