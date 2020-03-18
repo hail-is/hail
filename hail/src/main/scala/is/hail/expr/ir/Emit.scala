@@ -180,8 +180,6 @@ abstract class EmitSettable extends EmitValue {
   def load(): EmitCode = get
 
   def :=(ec: EmitCode): Code[Unit] = store(ec)
-
-  def setDefault(): Code[Unit] = store(EmitCode(Code._empty, const(true), pt.defaultValue))
 }
 
 abstract class PresentEmitSettable extends EmitValue {
@@ -190,8 +188,6 @@ abstract class PresentEmitSettable extends EmitValue {
   def load(): EmitCode = get
 
   def :=(pc: PCode): Code[Unit] = store(pc)
-
-  def setDefault(): Code[Unit] = store(pt.defaultValue)
 }
 
 class RichIndexedSeqEmitSettable(is: IndexedSeq[EmitSettable]) {
@@ -431,17 +427,17 @@ private class Emit(
           val setup = Code(
             codeCond.setup,
             codeCond.m.mux(
-              Code(mout := true, out := pt.defaultValue),
+              mout := true,
               coerce[Boolean](codeCond.v).mux(
                 Code(codeCnsq.setup,
                   mout := codeCnsq.m,
                   mout.mux(
-                    out := pt.defaultValue,
+                    Code._empty,
                     out := ir.pType.copyFromPValue(mb, er.region, codeCnsq.pv))),
                 Code(codeAltr.setup,
                   mout := codeAltr.m,
                   mout.mux(
-                    out := pt.defaultValue,
+                    Code._empty,
                     out := ir.pType.copyFromPValue(mb, er.region, codeAltr.pv))))))
 
           EmitCode(setup, mout, out.load())
@@ -532,11 +528,8 @@ private class Emit(
         val setup = Code(
           codeA.setup,
           xma := codeA.m,
-          xa := pArray.defaultValue,
           codeI.setup,
           xmi := codeI.m,
-          xi := coerce[Int](defaultValue(TInt32)),
-          len := coerce[Int](defaultValue(TInt32)),
           (xmi || xma).mux(
             xmv := true,
             Code(
@@ -632,7 +625,7 @@ private class Emit(
           PCode(pt, Code(
             localA := a.value[Long],
             localElementMB := e.m,
-            localElementMB.mux(localElementValue.storeAny(defaultValue(elem.pType)), localElementValue.storeAny(e.v)),
+            localElementMB.mux(Code._empty, localElementValue.storeAny(e.v)),
             bs.getClosestIndex(localA, localElementMB, localElementValue))))
 
       case GroupByKey(collection) =>
@@ -1073,7 +1066,7 @@ private class Emit(
           codeO.setup,
           xmo := codeO.m,
           xmo.mux(
-            xo := t.defaultValue,
+            Code._empty,
             xo :=  codeO.pv))
         EmitCode(setup,
           xmo || xo.load().asBaseStruct.isFieldMissing(fieldIdx),
@@ -1099,7 +1092,7 @@ private class Emit(
           codeO.setup,
           xmo := codeO.m,
           xmo.mux(
-            xo := t.defaultValue,
+            Code._empty,
             xo := codeO.pv))
         EmitCode(setup,
           xmo || xo.load().asBaseStruct.isFieldMissing(idx),
