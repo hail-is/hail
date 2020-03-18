@@ -62,7 +62,7 @@ final case class ETransposedArrayOfStructs(
     val fmbytes = mb.newField[Long]("fmbytes")
     val array = mb.newLocal[Long]("array")
 
-    val prefix = Code.concat(
+    val prefix = Code(
       len := in.readInt(),
       nMissing := pa.nMissingBytes(len),
       array := pa.allocate(region, len),
@@ -89,7 +89,7 @@ final case class ETransposedArrayOfStructs(
       }
     )
 
-    val decodeFields = Code.concat(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
+    val decodeFields = Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
       val groupMB = mb.fb.newMethod(s"read_fields_group_$groupIdx", Array[TypeInfo[_]](LongInfo, classInfo[Region], classInfo[InputBuffer]), UnitInfo)
       val arrayGrp = groupMB.getArg[Long](1)
       val regionGrp = groupMB.getArg[Region](2)
@@ -118,7 +118,7 @@ final case class ETransposedArrayOfStructs(
                 i := 0,
                 j := 0,
                 Code.whileLoop(i < len,
-                    Code.concat(
+                    Code(
                       pa.isElementDefined(arrayGrp, i).mux(
                         Code(
                           Region.loadBit(fmbytes, j.toL).mux(
@@ -149,11 +149,11 @@ final case class ETransposedArrayOfStructs(
                     i := i + 1)))
             }
         }
-      }
+      }.toArray
 
-      groupMB.emit(Code.concat(decoders: _*))
+      groupMB.emit(Code(decoders))
       groupMB.invoke(array, region, in)
-    }.toArray: _*)
+    }.toArray)
 
     Code(
       prefix,
@@ -169,7 +169,7 @@ final case class ETransposedArrayOfStructs(
     val alen = mb.newLocal[Int]("alen")
     val anMissing = mb.newLocal[Int]("anMissing")
     val fmbytes = mb.newLocal[Long]("fmbytes")
-    val skipFields = Code.concat(fields.map { f =>
+    val skipFields = Code(fields.map { f =>
       val skip = f.typ.buildSkip(mb)
       if (f.typ.required) {
         Code(
@@ -186,7 +186,7 @@ final case class ETransposedArrayOfStructs(
                 skip(r, in)),
               i := i + 1)))
       }
-    }: _*)
+    }.toArray)
 
     val prefix = Code(len := in.readInt(), nMissing := UnsafeUtils.packBitsToBytes(len))
     if (structRequired) {
@@ -231,7 +231,7 @@ final case class ETransposedArrayOfStructs(
       } else
         Code._empty
 
-    val writeFields = Code.concat(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
+    val writeFields = Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
       val groupMB = mb.fb.newMethod(s"write_fields_group_$groupIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
       val addr = groupMB.getArg[Long](1)
       val out2 = groupMB.getArg[OutputBuffer](2)
@@ -281,11 +281,11 @@ final case class ETransposedArrayOfStructs(
                 Code._empty),
               Code._empty),
               j := j + 1)))
-      }
+      }.toArray
 
-      groupMB.emit(Code.concat(encoders: _*))
+      groupMB.emit(Code(encoders))
       groupMB.invoke(addr, out)
-    }.toArray: _*)
+    }.toArray)
 
     Code(
       i := 0,
