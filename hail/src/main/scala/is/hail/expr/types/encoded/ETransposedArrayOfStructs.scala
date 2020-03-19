@@ -254,13 +254,9 @@ final case class ETransposedArrayOfStructs(
                 Code(
                   b := b | (elementPStruct.isFieldMissing(elem(), fidx).toI << (presentIdx & 7)),
                   presentIdx := presentIdx + const(1),
-                  (presentIdx & 7).ceq(0).mux(
-                    Code(out2.writeByte(b.toB), b := 0),
-                    Code._empty))),
+                  (presentIdx & 7).ceq(0).orEmpty(Code(out2.writeByte(b.toB), b := 0)))),
               j := j + const(1))),
-          (presentIdx & 7).cne(0).mux(
-              out2.writeByte(b.toB),
-              Code._empty))
+          (presentIdx & 7).cne(0).orEmpty(out2.writeByte(b.toB)))
         }
 
         Code(
@@ -269,9 +265,8 @@ final case class ETransposedArrayOfStructs(
           Code.whileLoop(j < len,
             Code(
             arrayPType.isElementDefined(addr, j).orEmpty(
-              elementPStruct.isFieldDefined(elem(), fidx).mux(
-                encodeField(Region.loadIRIntermediate(pf.typ)(elementPStruct.fieldOffset(elem(), fidx)), out2),
-                Code._empty)),
+              elementPStruct.isFieldDefined(elem(), fidx).orEmpty(
+                encodeField(Region.loadIRIntermediate(pf.typ)(elementPStruct.fieldOffset(elem(), fidx)), out2))),
               j := j + 1)))
       }.toArray
 

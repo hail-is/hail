@@ -79,12 +79,12 @@ object IndexWriter {
     attributes: Map[String, Any] = Map.empty[String, Any]
   ): (FS, String) => IndexWriter = {
     val leafPType = LeafNodeBuilder.typ(keyType, annotationType)
-    val makeLeafEnc = TypedCodecSpec(EType.defaultFromPType(leafPType, useTransposedArrayOfStructs = false),
+    val makeLeafEnc = TypedCodecSpec(EType.defaultFromPType(leafPType),
       leafPType.virtualType,
       BufferSpec.default).buildEncoder(leafPType)
 
     val intPType = InternalNodeBuilder.typ(keyType, annotationType)
-    val makeIntEnc = TypedCodecSpec(EType.defaultFromPType(intPType, useTransposedArrayOfStructs = false),
+    val makeIntEnc = TypedCodecSpec(EType.defaultFromPType(intPType),
       intPType.virtualType,
       BufferSpec.default).buildEncoder(intPType)
 

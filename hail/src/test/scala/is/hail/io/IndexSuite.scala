@@ -50,21 +50,22 @@ class IndexSuite extends HailSuite {
   }
 
   def indexReader(fs: FS, file: String, annotationType: Type, keyPType: PType = PString()): IndexReader = {
-    val annotationPType = PType.canonical(annotationType)
+    indexReader(fs, file, PType.canonical(annotationType), keyPType)
+  }
+
+  def indexReader(fs: FS, file: String, annotationPType: PType, keyPType: PType): IndexReader = {
     val leafPType = LeafNodeBuilder.typ(keyPType, annotationPType)
     val intPType = InternalNodeBuilder.typ(keyPType, annotationPType)
-    val leafSpec = TypedCodecSpec(EType.defaultFromPType(leafPType, useTransposedArrayOfStructs = false),
-      leafPType.virtualType,
-      BufferSpec.default)
-    val intSpec = TypedCodecSpec(EType.defaultFromPType(intPType, useTransposedArrayOfStructs = false),
-      intPType.virtualType,
-      BufferSpec.default)
+    val leafSpec = TypedCodecSpec(EType.defaultFromPType(leafPType), leafPType.virtualType, BufferSpec.default)
+    val intSpec = TypedCodecSpec(EType.defaultFromPType(intPType), intPType.virtualType, BufferSpec.default)
 
     val (lrt, leafDec) = leafSpec.buildDecoder(leafPType.virtualType)
     assert(lrt == leafPType)
     val (irt, intDec) = intSpec.buildDecoder(intPType.virtualType)
     assert(irt == intPType)
-    IndexReaderBuilder.withDecoders(leafDec, intDec, keyPType.virtualType, annotationType, leafPType, intPType).apply(fs, file, 8)
+    IndexReaderBuilder.withDecoders(leafDec, intDec,
+      keyPType.virtualType, annotationPType.virtualType,
+      leafPType, intPType).apply(fs, file, 8)
   }
 
   def writeIndex(file: String,
@@ -270,7 +271,7 @@ class IndexSuite extends HailSuite {
 
       val leafChildren = stringsWithDups.zipWithIndex.map { case (s, i) => LeafChild(Row(s, i), i, Row()) }.toFastIndexedSeq
 
-      val index = indexReader(hc.sFS, file, TStruct.empty, keyPType = PStruct("a" -> PString(), "b" -> PInt32()))
+      val index = indexReader(hc.sFS, file, +PStruct(), keyPType = PStruct("a" -> PString(), "b" -> PInt32()))
       assert(index.queryByInterval(Row("cat", 3), Row("cat", 5), includesStart = true, includesEnd = false).toFastIndexedSeq ==
         leafChildren.slice(3, 5))
       assert(index.queryByInterval(Row("cat"), Row("cat", 5), includesStart = true, includesEnd = false).toFastIndexedSeq ==

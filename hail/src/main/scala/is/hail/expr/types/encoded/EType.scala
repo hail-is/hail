@@ -244,9 +244,7 @@ object EType {
     }
   }
 
-  def defaultFromPType(pt: PType,
-    useTransposedArrayOfStructs: Boolean = true
-  ): EType = {
+  def defaultFromPType(pt: PType): EType = {
     pt.fundamentalType match {
       case t: PInt32 => EInt32(t.required)
       case t: PInt64 => EInt64(t.required)
@@ -259,17 +257,17 @@ object EType {
           HailContext.get.flags.get("use_packed_int_encoding") != null =>
          EPackedIntArray(t.required, t.elementType.required)
       // FIXME(chrisvittal): Turn this on when it works
-      case t: PArray if t.elementType.isInstanceOf[PBaseStruct] && useTransposedArrayOfStructs &&
+      case t: PArray if t.elementType.isInstanceOf[PBaseStruct] &&
           HailContext.get.flags.get("use_column_encoding") != null =>
         val et = t.elementType.asInstanceOf[PBaseStruct]
         ETransposedArrayOfStructs(
-          et.fields.map(f => EField(f.name, defaultFromPType(f.typ, useTransposedArrayOfStructs), f.index)),
+          et.fields.map(f => EField(f.name, defaultFromPType(f.typ), f.index)),
           required = t.required,
           structRequired = et.required
         )
-      case t: PArray => EArray(defaultFromPType(t.elementType, useTransposedArrayOfStructs), t.required)
+      case t: PArray => EArray(defaultFromPType(t.elementType), t.required)
       case t: PBaseStruct => EBaseStruct(t.fields.map(f =>
-          EField(f.name, defaultFromPType(f.typ, useTransposedArrayOfStructs), f.index)), t.required)
+          EField(f.name, defaultFromPType(f.typ), f.index)), t.required)
     }
   }
 

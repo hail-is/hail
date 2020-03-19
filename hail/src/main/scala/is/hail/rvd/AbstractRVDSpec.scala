@@ -235,12 +235,12 @@ object IndexSpec {
   def fromKeyAndValuePTypes(relPath: String, keyPType: PType, annotationPType: PType, offsetFieldName: Option[String]): AbstractIndexSpec = {
     val leafType = LeafNodeBuilder.typ(keyPType, annotationPType)
     val leafNodeSpec = TypedCodecSpec(
-      EType.defaultFromPType(leafType, useTransposedArrayOfStructs = false),
+      EType.defaultFromPType(leafType),
       leafType.virtualType,
       BufferSpec.default)
     val internalType = InternalNodeBuilder.typ(keyPType, annotationPType)
     val internalNodeSpec = TypedCodecSpec(
-      EType.defaultFromPType(internalType, useTransposedArrayOfStructs = false),
+      EType.defaultFromPType(internalType),
       internalType.virtualType,
       BufferSpec.default)
     IndexSpec2(relPath, leafNodeSpec, internalNodeSpec, keyPType.virtualType, annotationPType.virtualType, offsetFieldName)
