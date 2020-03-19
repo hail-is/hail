@@ -322,7 +322,7 @@ def multitrait_ss(mt, h2, pi, rg=0, seed=None):
     -------
     May give inaccurate results if chosen parameters make the covariance matrix 
     not positive semi-definite. Covariance matrix is likely to not be positive
-    semi-definite when :mat:`p_{TT}` is small and rg is large.
+    semi-definite when :math:`p_{TT}` is small and rg is large.
 
     Returns
     -------
