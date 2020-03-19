@@ -3,6 +3,7 @@ import os
 import subprocess as sp
 import uuid
 import time
+import copy
 from shlex import quote as shq
 import webbrowser
 from hailtop.config import get_deploy_config
@@ -276,7 +277,7 @@ class BatchBackend(Backend):
 
         default_image = 'ubuntu:latest'
 
-        attributes = pipeline.attributes
+        attributes = copy.deepcopy(pipeline.attributes)
         if pipeline.name is not None:
             attributes['name'] = pipeline.name
 
@@ -352,7 +353,7 @@ class BatchBackend(Backend):
 
             parents = [task_to_job_mapping[t] for t in task._dependencies]
 
-            attributes = task.attributes
+            attributes = copy.deepcopy(task.attributes)
             if task.name:
                 attributes['name'] = task.name
 
