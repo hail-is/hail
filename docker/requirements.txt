@@ -17,7 +17,7 @@ gcsfs==0.2.1
 gidgethub==3.1.0
 google-api-python-client==1.7.10
 google-cloud-logging==1.12.1
-google-cloud-storage==1.16.1
+google-cloud-storage==1.26.0
 humanize==0.5.1
 hurry.filesize==0.9
 Jinja2==2.10.1
