@@ -234,15 +234,9 @@ case class IndexSpec2(_relPath: String,
 object IndexSpec {
   def fromKeyAndValuePTypes(relPath: String, keyPType: PType, annotationPType: PType, offsetFieldName: Option[String]): AbstractIndexSpec = {
     val leafType = LeafNodeBuilder.typ(keyPType, annotationPType)
-    val leafNodeSpec = TypedCodecSpec(
-      EType.defaultFromPType(leafType),
-      leafType.virtualType,
-      BufferSpec.default)
+    val leafNodeSpec = TypedCodecSpec(leafType, BufferSpec.default)
     val internalType = InternalNodeBuilder.typ(keyPType, annotationPType)
-    val internalNodeSpec = TypedCodecSpec(
-      EType.defaultFromPType(internalType),
-      internalType.virtualType,
-      BufferSpec.default)
+    val internalNodeSpec = TypedCodecSpec(internalType, BufferSpec.default)
     IndexSpec2(relPath, leafNodeSpec, internalNodeSpec, keyPType.virtualType, annotationPType.virtualType, offsetFieldName)
   }
 
