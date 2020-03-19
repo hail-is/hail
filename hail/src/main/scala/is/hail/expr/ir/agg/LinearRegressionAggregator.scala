@@ -7,13 +7,20 @@ import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitMethodBuilder}
 import is.hail.expr.types.physical._
 import is.hail.utils.FastIndexedSeq
 
-object LinearRegressionAggregator extends StagedAggregator {
-  type State = TypedRegionBackedAggState
+object LinearRegressionAggregator {
 
   val scalar = PFloat64(true)
   val vector = PArray(scalar, true)
   val stateType: PTuple = PTuple(true, vector, vector, PInt32(true))
-  def resultType = PCanonicalStruct(required = true, "xty" -> vector, "beta" -> vector, "diag_inv" -> vector, "beta0" -> vector)
+  def resultType: PCanonicalStruct = PCanonicalStruct(required = true, "xty" -> vector, "beta" -> vector, "diag_inv" -> vector, "beta0" -> vector)
+}
+
+class LinearRegressionAggregator(yt: PFloat64, xt: PCanonicalArray) extends StagedAggregator {
+  import LinearRegressionAggregator._
+
+  type State = TypedRegionBackedAggState
+
+  override def resultType: PType = LinearRegressionAggregator.resultType
 
   def createState(cb: EmitClassBuilder[_]): State =
     new TypedRegionBackedAggState(stateType, cb)
@@ -61,7 +68,7 @@ object LinearRegressionAggregator extends StagedAggregator {
           xty := stateType.loadField(state.off, 0),
           xtx := stateType.loadField(state.off, 1),
           sptr := vector.firstElementOffset(xty, k),
-          xptr := vector.firstElementOffset(x, k),
+          xptr := xt.firstElementOffset(x, k),
           k := vector.loadLength(xty),
           i := 0,
           Code.whileLoop(i < k, Code(
@@ -74,20 +81,20 @@ object LinearRegressionAggregator extends StagedAggregator {
 
           i := 0,
           sptr := vector.firstElementOffset(xtx),
-          xptr := vector.firstElementOffset(x, k),
+          xptr := xt.firstElementOffset(x, k),
           Code.whileLoop(i < k, Code(
             j := 0,
-            xptr2 := vector.firstElementOffset(x, k),
+            xptr2 := xt.firstElementOffset(x, k),
             Code.whileLoop(j < k, Code(
               Region.storeDouble(sptr, Region.loadDouble(sptr)
                 + (Region.loadDouble(xptr) * Region.loadDouble(xptr2))),
               j += 1,
               sptr := sptr + scalar.byteSize,
-              xptr2 := xptr2 + scalar.byteSize)),
+              xptr2 := xptr2 + xt.elementByteSize)),
             i += 1,
             xptr := xptr + scalar.byteSize))))
 
-        nrVec.anyMissing(mb, x).mux(Code._empty, body)
+        xt.anyMissing(mb, x).mux(Code._empty, body)
       }
   }
 
