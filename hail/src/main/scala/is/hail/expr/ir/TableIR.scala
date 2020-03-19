@@ -129,6 +129,8 @@ object TableReader {
 }
 
 abstract class TableReader {
+  def pathsUsed: Seq[String]
+
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue
 
   def partitionCounts: Option[IndexedSeq[Long]]
@@ -167,6 +169,7 @@ case class TableNativeReader(
   spec: AbstractTableSpec
 ) extends TableReader {
   def partitionCounts: Option[IndexedSeq[Long]] = if (intervals.isEmpty) Some(spec.partitionCounts) else None
+  def pathsUsed: Seq[String] = Array(path)
 
   override lazy val fullType: TableType = spec.table_type
 
@@ -208,6 +211,7 @@ case class TableNativeZippedReader(
   specLeft: AbstractTableSpec,
   specRight: AbstractTableSpec
 ) extends TableReader {
+  def pathsUsed: Seq[String] = FastSeq(pathLeft, pathRight)
   private lazy val filterIntervals = options.map(_.filterIntervals).getOrElse(false)
   private def intervals = options.map(_.intervals)
 
@@ -259,6 +263,7 @@ case class TableNativeZippedReader(
 }
 
 case class TableFromBlockMatrixNativeReader(path: String, nPartitions: Option[Int] = None) extends TableReader {
+  def pathsUsed: Seq[String] = FastSeq(path)
   val metadata: BlockMatrixMetadata = BlockMatrix.readMetadata(HailContext.get, path)
   val getNumPartitions: Int = nPartitions.getOrElse(HailContext.get.sc.defaultMinPartitions)
 

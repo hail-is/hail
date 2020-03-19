@@ -119,6 +119,8 @@ object MatrixReader {
 }
 
 trait MatrixReader {
+  def pathsUsed: Seq[String]
+
   def columnCount: Option[Int]
 
   def partitionCounts: Option[IndexedSeq[Long]]
@@ -209,6 +211,7 @@ case class MatrixNativeReader(
   spec: AbstractMatrixTableSpec
 ) extends MatrixReader {
 
+  def pathsUsed: Seq[String] = FastSeq(path)
   lazy val columnCount: Option[Int] = Some(colsSpec
     .partitionCounts
     .sum
@@ -279,6 +282,7 @@ case class MatrixNativeReader(
 }
 
 case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) extends MatrixReader {
+  def pathsUsed: Seq[String] = FastSeq()
   val fullMatrixType: MatrixType = MatrixType(
     globalType = TStruct.empty,
     colKey = Array("col_idx"),
