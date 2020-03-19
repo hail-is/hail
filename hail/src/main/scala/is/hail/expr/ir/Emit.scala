@@ -111,6 +111,7 @@ object AggContainer {
 
     (AggContainer(aggs, aggState), setup, cleanup)
   }
+
   def fromFunctionBuilder(aggs: Array[AggStatePhysicalSignature], fb: EmitFunctionBuilder[_], varPrefix: String): (AggContainer, Code[Unit], Code[Unit]) =
     fromVars(aggs, fb, fb.newField[Region](s"${varPrefix}_top_region"), fb.newField[Long](s"${varPrefix}_off"))
 }
@@ -161,6 +162,10 @@ object IEmitCode {
 }
 
 case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
+  def map(f: (PCode) => PCode): IEmitCode = {
+    IEmitCode(Lmissing, Lpresent, f(pc))
+  }
+
   def flatMap(cb: EmitCodeBuilder)(f: (PCode) => IEmitCode): IEmitCode = {
     cb.define(Lpresent)
     val ec2 = f(pc)
@@ -579,8 +584,11 @@ private class Emit(
         }
 
       case ArrayLen(a) =>
-        val codeA = emit(a)
-        strict(pt, a.pType.asInstanceOf[PArray].loadLength(coerce[Long](codeA.v)), codeA)
+        EmitCode.fromI(mb) { cb =>
+          emit(a).toI(cb).map { (ac) =>
+            PCode(PInt32Required, ac.asIndexable.loadLength())
+          }
+        }
 
       case x@(_: ArraySort | _: ToSet | _: ToDict) =>
         val atyp = coerce[PIterable](x.pType)
@@ -1090,20 +1098,12 @@ private class Emit(
           }
 
       case GetField(o, name) =>
-        val t = coerce[PStruct](o.pType)
-        val fieldIdx = t.fieldIdx(name)
-        val codeO = emit(o)
-        val xmo = mb.newLocal[Boolean]()
-        val xo = mb.newPLocal(t)
-        val setup = Code(
-          codeO.setup,
-          xmo := codeO.m,
-          xmo.mux(
-            Code._empty,
-            xo :=  codeO.pv))
-        EmitCode(setup,
-          xmo || xo.load().asBaseStruct.isFieldMissing(fieldIdx),
-          xo.load().asBaseStruct.loadField(fieldIdx))
+        EmitCode.fromI(mb) { cb =>
+          emit(o).toI(cb).flatMap(cb) { oc =>
+            val ov = oc.asBaseStruct.memoize(cb, "get_tup_elem_o")
+            ov.loadField(cb, name)
+          }
+        }
 
       case x@MakeTuple(fields) =>
         val srvb = new StagedRegionValueBuilder(mb, x.pType)
@@ -1116,20 +1116,12 @@ private class Emit(
         present(pt, Code(srvb.start(init = true), wrapToMethod(fields.map(_._2))(addFields), srvb.offset))
 
       case GetTupleElement(o, i) =>
-        val t = coerce[PTuple](o.pType)
-        val idx = t.fieldIndex(i)
-        val codeO = emit(o)
-        val xmo = mb.newLocal[Boolean]()
-        val xo = mb.newPLocal(t)
-        val setup = Code(
-          codeO.setup,
-          xmo := codeO.m,
-          xmo.mux(
-            Code._empty,
-            xo := codeO.pv))
-        EmitCode(setup,
-          xmo || xo.load().asBaseStruct.isFieldMissing(idx),
-          xo.load().asBaseStruct.loadField(idx))
+        EmitCode.fromI(mb) { cb =>
+          emit(o).toI(cb).flatMap(cb) { oc =>
+            val ov = oc.asBaseStruct.memoize(cb, "get_tup_elem_o")
+            ov.loadField(cb, i)
+          }
+        }
 
       case In(i, typ) =>
         normalArgument(mb, i, typ)
