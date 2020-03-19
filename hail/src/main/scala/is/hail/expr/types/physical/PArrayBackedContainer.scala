@@ -141,14 +141,14 @@ trait PArrayBackedContainer extends PContainer {
   override def unsafeOrdering(rightType: PType): UnsafeOrdering =
     arrayRep.unsafeOrdering(rightType)
 
-  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] =
-    this.arrayRep.copyFromType(mb, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, forceDeep)
+  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] =
+    this.arrayRep.copyFromType(mb, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
-    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], forceDeep)
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
+    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long =
-    this.arrayRep.copyFromType(region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, forceDeep)
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
+    this.arrayRep.copyFromType(region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
 
   def nextElementAddress(currentOffset: Long) =
     arrayRep.nextElementAddress(currentOffset)
@@ -156,9 +156,9 @@ trait PArrayBackedContainer extends PContainer {
   def nextElementAddress(currentOffset: Code[Long]) =
     arrayRep.nextElementAddress(currentOffset)
 
-  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] =
-    arrayRep.constructAtAddress(mb, addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, forceDeep)
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =
+    arrayRep.constructAtAddress(mb, addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
 
-  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
-    arrayRep.constructAtAddress(addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, forceDeep)
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
+    arrayRep.constructAtAddress(addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
 }

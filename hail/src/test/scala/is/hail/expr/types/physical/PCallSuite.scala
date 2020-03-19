@@ -9,21 +9,21 @@ import org.testng.annotations.Test
 
 class PCallSuite extends HailSuite {
   @Test def copyTests() {
-    def runTests(forceDeep: Boolean, interpret: Boolean = false) {
+    def runTests(deepCopy: Boolean, interpret: Boolean = false) {
       PhysicalTestUtils.copyTestExecutor(PCanonicalCall(), PCanonicalCall(),
         2,
-        forceDeep = forceDeep, interpret = interpret)
+        deepCopy = deepCopy, interpret = interpret)
 
       // downcast at top level allowed, since PCanonicalCall wraps a primitive
       PhysicalTestUtils.copyTestExecutor(PCanonicalCall(), PCanonicalCall(true),
         2,
-        forceDeep = forceDeep, interpret = interpret)
+        deepCopy = deepCopy, interpret = interpret)
 
       PhysicalTestUtils.copyTestExecutor(PArray(PCanonicalCall(true), true), PArray(PCanonicalCall()),
-        IndexedSeq(2, 3), forceDeep = forceDeep, interpret = interpret)
+        IndexedSeq(2, 3), deepCopy = deepCopy, interpret = interpret)
 
       PhysicalTestUtils.copyTestExecutor(PArray(PCanonicalCall(), true), PArray(PCanonicalCall(true)),
-        IndexedSeq(2, 3), expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
+        IndexedSeq(2, 3), expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
     }
 
     runTests(true)

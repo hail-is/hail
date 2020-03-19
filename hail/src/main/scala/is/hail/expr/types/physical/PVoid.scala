@@ -15,19 +15,19 @@ case object PVoid extends PType {
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = null
 
-  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean) =
+  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean) =
     throw new UnsupportedOperationException("PVoid copyFromType is currently undefined")
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean) =
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean) =
     throw new UnsupportedOperationException("PVoid copyFromType is currently undefined")
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
     stackValue
 
-  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] =
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =
     throw new NotImplementedError(s"$this is not constructable")
 
-  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     throw new NotImplementedError(s"$this is not constructable")
 
   def setRequired(required: Boolean) = PVoid

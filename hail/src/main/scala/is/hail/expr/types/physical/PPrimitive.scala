@@ -8,43 +8,43 @@ import is.hail.utils._
 trait PPrimitive extends PType {
   def byteSize: Long
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = {
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     assert(this.isOfType(srcPType))
-    if (forceDeep) {
+    if (deepCopy) {
       val addr = region.allocate(byteSize, byteSize)
-      constructAtAddress(addr, region, srcPType, srcAddress, forceDeep)
+      constructAtAddress(addr, region, srcPType, srcAddress, deepCopy)
       addr
     } else srcAddress
   }
 
-  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
     assert(this.isOfType(srcPType))
-    if (forceDeep) {
+    if (deepCopy) {
       val addr = mb.newLocal[Long]
       Code(
         addr := region.allocate(byteSize, byteSize),
-        constructAtAddress(mb, addr, region, srcPType, srcAddress, forceDeep),
+        constructAtAddress(mb, addr, region, srcPType, srcAddress, deepCopy),
         addr
       )
     } else srcAddress
   }
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] = {
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] = {
     assert(this.isOfType(srcPType))
     stackValue
   }
 
-  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] = {
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
     assert(srcPType.isOfType(this))
     Region.copyFrom(srcAddress, addr, byteSize)
   }
 
-  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit = {
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     assert(srcPType.isOfType(this))
     Region.copyFrom(srcAddress, addr, byteSize)
   }
 
-  override def constructAtAddressFromValue(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], forceDeep: Boolean): Code[Unit] = {
+  override def constructAtAddressFromValue(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], deepCopy: Boolean): Code[Unit] = {
     assert(this.isOfType(srcPType))
     storePrimitiveAtAddress(addr, srcPType, src)
   }
