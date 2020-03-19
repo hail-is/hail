@@ -107,7 +107,6 @@ class SparkBackend(Backend):
 
     def execute(self, ir, timed=False):
         jir = self._to_java_ir(ir)
-        print(Env.hail().expr.ir.Pretty.apply(jir, False, -1))
         result = json.loads(Env.hc()._jhc.backend().executeJSON(jir))
         value = ir.typ._from_json(result['value'])
         timings = result['timings']
