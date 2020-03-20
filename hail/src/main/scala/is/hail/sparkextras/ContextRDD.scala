@@ -157,13 +157,14 @@ class ContextRDD[T: ClassTag](
   }
 
   def run[U >: T : ClassTag]: RDD[U] =
-    rdd.mapPartitions { part =>
+    this.cleanupRegions.rdd.mapPartitions { part =>
       val c = sparkManagedContext()
       part.flatMap(_(c))
     }
 
-  def collect(): Array[T] =
+  def collect(): Array[T] = {
     run.collect()
+  }
 
   private[this] def inCtx[U: ClassTag](
     f: RVDContext => Iterator[U]

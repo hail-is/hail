@@ -22,6 +22,31 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
       v
     }.run
 
+  def cleanupRegions: ContextRDD[T] = {
+    crdd.cmapPartitionsAndContext { (ctx, part) =>
+      val it = part.flatMap(_ (ctx))
+      new Iterator[T]() {
+        private[this] var cleared: Boolean = false
+
+        def hasNext: Boolean = {
+          if (!cleared) {
+            cleared = true
+            ctx.region.clear()
+          }
+          it.hasNext
+        }
+
+        def next: T = {
+          if (!cleared) {
+            ctx.region.clear()
+          }
+          cleared = false
+          it.next
+        }
+      }
+    }
+  }
+
   // If idxPath is null, then mkIdxWriter should return null and not read its string argument
   def writePartitions(
     path: String,
