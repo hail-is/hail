@@ -81,7 +81,7 @@ class RVD(
 
   def stabilize(enc: AbstractTypedCodecSpec): RDD[Array[Byte]] = {
     val makeEnc = enc.buildEncoder(rowPType)
-    crdd.mapPartitions(RegionValue.toBytes(makeEnc, _)).clearingRun
+    crdd.mapPartitions(RegionValue.toBytes(makeEnc, _)).run
   }
 
   def encodedRDD(enc: AbstractTypedCodecSpec): RDD[Array[Byte]] =
@@ -102,7 +102,7 @@ class RVD(
         val bytes = encoder.regionValueToBytes(ptr)
         (keys, bytes)
       }
-    }.clearingRun
+    }.run
   }
 
   // Return an OrderedRVD whose key equals or at least starts with 'newKey'.
@@ -401,7 +401,7 @@ class RVD(
   // partitioner remains valid.
 
   def map[T](f: (RVDContext, Long) => T)(implicit tct: ClassTag[T]): RDD[T] =
-    crdd.cmap(f).clearingRun
+    crdd.cmap(f).run
 
   def map(newTyp: RVDType)(f: (RVDContext, Long) => Long): RVD = {
     require(newTyp.kType isPrefixOf typ.kType)
@@ -412,7 +412,7 @@ class RVD(
 
   def mapPartitions[T: ClassTag](
     f: (RVDContext, Iterator[Long]) => Iterator[T]
-  ): RDD[T] = crdd.cmapPartitions(f).clearingRun
+  ): RDD[T] = crdd.cmapPartitions(f).run
 
   def mapPartitions(
     newTyp: RVDType
@@ -427,7 +427,7 @@ class RVD(
 
   def mapPartitionsWithIndex[T: ClassTag](
     f: (Int, RVDContext, Iterator[Long]) => Iterator[T]
-  ): RDD[T] = crdd.cmapPartitionsWithIndex(f).clearingRun
+  ): RDD[T] = crdd.cmapPartitionsWithIndex(f).run
 
   def mapPartitionsWithIndex(
     newTyp: RVDType
@@ -1111,7 +1111,7 @@ class RVD(
         } else
           Iterator()
       }
-    }.clearingRun
+    }.run
 
     val nParts = getNumPartitions
     val intervalOrd = rightTyp.kType.types(0).virtualType.ordering.toOrdering.asInstanceOf[Ordering[Interval]]
