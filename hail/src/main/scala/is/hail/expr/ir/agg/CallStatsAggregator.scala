@@ -5,7 +5,6 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitCode}
 import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
-import is.hail.stats.CallStats
 import is.hail.utils._
 
 import scala.language.existentials
@@ -21,7 +20,6 @@ object CallStatsState {
     "AN" -> PInt32(),
     "homozygote_count" -> PArray(PInt32()))
 
-  assert(resultType.virtualType == CallStats.schema)
 }
 
 class CallStatsState(val fb: EmitFunctionBuilder[_]) extends PointerBasedRVAState {
