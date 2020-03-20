@@ -421,11 +421,11 @@ def get_cov_matrix(h2, rg, psd_rg=False):
     right, etc.), exluding the diagonal.
 
     >>> cov_matrix, rg = get_cov_matrix(h2=[0.1, 0.3, 0.2, 0.6], rg=[0.4, 0.3, 0.1, 0.2, 0.15, 0.6])
-    >>> print(cov_matrix)
+    >>> cov_matrix
     array([[0.1       , 0.06928203, 0.04242641, 0.0244949 ],
-        [0.06928203, 0.3       , 0.04898979, 0.06363961],
-        [0.04242641, 0.04898979, 0.2       , 0.2078461 ],
-        [0.0244949 , 0.06363961, 0.2078461 , 0.6       ]]
+           [0.06928203, 0.3       , 0.04898979, 0.06363961],
+           [0.04242641, 0.04898979, 0.2       , 0.2078461 ],
+           [0.0244949 , 0.06363961, 0.2078461 , 0.6       ]])
 
     The diagonal corresponds directly to `h2`, the list of h2 values for all traits.
     In the upper triangular matrix, excluding the diagonal, the entry :math:`(a, b)`, 
@@ -497,7 +497,7 @@ def get_cov_matrix(h2, rg, psd_rg=False):
         print('\n'.join(msg))
         rg = np.ravel(cor[idx])
     S = np.diag(h2)**(1/2)
-    cov_matrix = np.asarray(S@cor@S)  # covariance matrix decomposition
+    cov_matrix = S@cor@S  # covariance matrix decomposition
 
     # check positive semidefinite
     if not np.all(np.linalg.eigvals(cov_matrix) >= 0) and not psd_rg:
