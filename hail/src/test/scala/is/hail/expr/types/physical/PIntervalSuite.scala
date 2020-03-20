@@ -9,25 +9,25 @@ import org.testng.annotations.Test
 
 class PIntervalSuite extends HailSuite {
   @Test def copyTests() {
-    def runTests(forceDeep: Boolean, interpret: Boolean = false) {
+    def runTests(deepCopy: Boolean, interpret: Boolean = false) {
       PhysicalTestUtils.copyTestExecutor(PCanonicalInterval(PInt64()), PCanonicalInterval(PInt64()),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
-        forceDeep = forceDeep, interpret = interpret)
+        deepCopy = deepCopy, interpret = interpret)
 
       PhysicalTestUtils.copyTestExecutor(PCanonicalInterval(PInt64(true)), PCanonicalInterval(PInt64()),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
-        forceDeep = forceDeep, interpret = interpret)
+        deepCopy = deepCopy, interpret = interpret)
 
       PhysicalTestUtils.copyTestExecutor(PCanonicalInterval(PInt64(true)), PCanonicalInterval(PInt64(true)),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
-        forceDeep = forceDeep, interpret = interpret)
+        deepCopy = deepCopy, interpret = interpret)
 
       PhysicalTestUtils.copyTestExecutor(PCanonicalInterval(PInt64()), PCanonicalInterval(PInt64(true)),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
-        expectCompileErr = true, forceDeep = forceDeep, interpret = interpret)
+        expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
 
       PhysicalTestUtils.copyTestExecutor(PCanonicalInterval(PInt64(true)), PCanonicalInterval(PInt64(true)),
-        Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)), forceDeep = forceDeep, interpret = interpret)
+        Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)), deepCopy = deepCopy, interpret = interpret)
     }
 
     runTests(true)

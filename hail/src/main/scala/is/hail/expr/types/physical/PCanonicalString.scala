@@ -14,18 +14,18 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   lazy val binaryFundamentalType: PBinary = PBinary(required)
 
-  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
     this.fundamentalType.copyFromType(
-      mb, region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, forceDeep
+      mb, region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, deepCopy
     )
   }
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
-    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], forceDeep)
+  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
+    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long  = {
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
     this.fundamentalType.copyFromType(
-      region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, forceDeep
+      region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, deepCopy
     )
   }
 
@@ -66,11 +66,11 @@ class PCanonicalString(val required: Boolean) extends PString {
       dstAddress)
   }
 
-  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] =
-    fundamentalType.constructAtAddress(mb, addr, region, srcPType.fundamentalType, srcAddress, forceDeep)
+  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =
+    fundamentalType.constructAtAddress(mb, addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
 
-  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit =
-    fundamentalType.constructAtAddress(addr, region, srcPType.fundamentalType, srcAddress, forceDeep)
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
+    fundamentalType.constructAtAddress(addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
 
   def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalString(required)
 }

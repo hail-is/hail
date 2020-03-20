@@ -202,5 +202,5 @@ class PCanonicalBaseStructCode(val pt: PCanonicalBaseStruct, val a: Code[Long]) 
   def loadField(fieldIdx: Int): PCode = pt.fields(fieldIdx).typ.load(fieldAddress(fieldIdx))
 
   def store(mb: EmitMethodBuilder, r: Value[Region], dst: Code[Long]): Code[Unit] =
-    pt.constructAtAddress(mb, dst, r, pt, a, forceDeep = false)
+    pt.constructAtAddress(mb, dst, r, pt, a, deepCopy = false)
 }
