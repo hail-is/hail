@@ -151,6 +151,47 @@ abstract class EmitValue {
   def get: EmitCode
 }
 
+object IEmitCode {
+  def apply(cb: EmitCodeBuilder, m: Code[Boolean], pc: PCode): IEmitCode = {
+    val Lmissing = CodeLabel()
+    val Lpresent = CodeLabel()
+    cb.ifx(m, { cb.goto(Lmissing) }, { cb.goto(Lpresent) })
+    IEmitCode(Lmissing, Lpresent, pc)
+  }
+}
+
+case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
+  def flatMap(cb: EmitCodeBuilder)(f: (PCode) => IEmitCode): IEmitCode = {
+    cb.define(Lpresent)
+    val ec2 = f(pc)
+    cb.define(ec2.Lmissing)
+    cb.goto(Lmissing)
+    IEmitCode(Lmissing, ec2.Lpresent, ec2.pc)
+  }
+}
+
+object EmitCode {
+  def apply(setup: Code[Unit], ec: EmitCode): EmitCode =
+    new EmitCode(Code(setup, ec.setup), ec.m, ec.pv)
+
+  def present(pt: PType, v: Code[_]): EmitCode = EmitCode(Code._empty, false, PCode(pt, v))
+
+  def missing(pt: PType): EmitCode = EmitCode(Code._empty, true, pt.defaultValue)
+
+  def fromI(mb: EmitMethodBuilder)(f: (EmitCodeBuilder) => IEmitCode): EmitCode = {
+    val cb = EmitCodeBuilder(mb)
+    val iec = f(cb)
+    val setup = cb.result()
+    val newEC = EmitCode(Code._empty,
+      new CCode(setup.start, iec.Lmissing.start, iec.Lpresent.start),
+      iec.pc)
+    iec.Lmissing.clear()
+    iec.Lpresent.clear()
+    setup.clear()
+    newEC
+  }
+}
+
 case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
   def pt: PType = pv.pt
 
@@ -158,7 +199,15 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
 
   def value[T]: Code[T] = coerce[T](v)
 
-  def map(f: PCode => PCode): EmitCode = copy(pv = f(pv))
+  def map(f: PCode => PCode): EmitCode = new EmitCode(setup, m, pv = f(pv))
+
+  def toI(cb: EmitCodeBuilder): IEmitCode = {
+    val Lmissing = CodeLabel()
+    val Lpresent = CodeLabel()
+    cb += setup
+    cb.ifx(m, { cb.goto(Lmissing) }, { cb.goto(Lpresent) })
+    IEmitCode(Lmissing, Lpresent, pv)
+  }
 
   def castTo(mb: EmitMethodBuilder, region: Value[Region], destType: PType): EmitCode = {
     EmitCode(
@@ -166,12 +215,6 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
       m,
       pv.castTo(mb, region, destType))
   }
-}
-
-object EmitCode {
-  def present(pt: PType, v: Code[_]): EmitCode = EmitCode(Code._empty, false, PCode(pt, v))
-
-  def missing(pt: PType): EmitCode = EmitCode(Code._empty, true, pt.defaultValue)
 }
 
 abstract class EmitSettable extends EmitValue {
@@ -500,9 +543,6 @@ private class Emit(
         }
         present(pt, Code(srvb.start(args.size, init = true), wrapToMethod(args)(addElts), srvb.offset))
       case x@ArrayRef(a, i, s) =>
-        val pArray = coerce[PArray](a.pType)
-        val codeA = emit(a)
-        val codeI = emit(i)
         val errorTransformer: Code[String] => Code[String] = s match {
           case Str("") =>
             val prettied = Pretty.short(x)
@@ -519,32 +559,25 @@ private class Emit(
                       .concat(s.pType.asInstanceOf[PString].loadString(coerce[Long](codeS.v)))))
               }
         }
-        val xma = mb.newLocal[Boolean]()
-        val xa = mb.newPLocal(pArray)
-        val xi = mb.newLocal[Int]
-        val len = mb.newLocal[Int]
-        val xmi = mb.newLocal[Boolean]()
-        val xmv = mb.newLocal[Boolean]()
-        val setup = Code(
-          codeA.setup,
-          xma := codeA.m,
-          codeI.setup,
-          xmi := codeI.m,
-          (xmi || xma).mux(
-            xmv := true,
-            Code(
-              xa := codeA.pv,
-              xi := coerce[Int](codeI.v),
-              len := xa.load().asIndexable.loadLength(),
-              (xi < len && xi >= 0).mux(
-                xmv := !xa.load().asIndexable.isElementDefined(xi),
-                Code._fatal[Unit](errorTransformer(
-                  const("array index out of bounds: index=")
-                    .concat(xi.load().toS)
-                    .concat(", length=")
-                    .concat(len.load().toS)))))))
+        
+        EmitCode.fromI(mb) { cb =>
+          emit(a).toI(cb).flatMap(cb) { (ac) =>
+            emit(i).toI(cb).flatMap(cb) { (ic) =>
+              val av = ac.asIndexable.memoize(cb, "aref_a")
+              val iv = cb.memoize(ic.tcode[Int], "aref_i")
 
-        EmitCode(setup, xmv, xa.get.asIndexable.loadElement(len, xi))
+              cb.ifx(iv < 0 || iv >= av.loadLength(), {
+                cb._fatal(errorTransformer(
+                  const("array index out of bounds: index=")
+                    .concat(iv.toS)
+                    .concat(", length=")
+                    .concat(av.loadLength().toS)))
+              })
+              av.loadElement(cb, iv)
+            }
+          }
+        }
+
       case ArrayLen(a) =>
         val codeA = emit(a)
         strict(pt, a.pType.asInstanceOf[PArray].loadLength(coerce[Long](codeA.v)), codeA)

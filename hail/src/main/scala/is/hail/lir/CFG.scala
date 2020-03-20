@@ -18,8 +18,7 @@ object CFG {
         pred(j) += i
       }
 
-      val last = b.last
-      last match {
+      b.last match {
         case x: GotoX => edgeTo(x.L)
         case x: IfX =>
           edgeTo(x.Ltrue)
@@ -28,6 +27,7 @@ object CFG {
           edgeTo(x.Ldefault)
           x.Lcases.foreach(edgeTo)
         case x: ReturnX =>
+        case x: ThrowX =>
       }
     }
 

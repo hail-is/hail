@@ -81,6 +81,15 @@ class Classx[C](val name: String, val superName: String) {
       m.removeDeadCode()
     }
 
+    // check
+    for (m <- methods) {
+      val blocks = m.findBlocks()
+      for (b <- blocks) {
+        assert(b.first != null)
+        assert(b.last.isInstanceOf[ControlX])
+      }
+    }
+
     for (m <- methods) {
       m.simplifyBlocks()
     }
@@ -253,7 +262,6 @@ class Method private[lir] (
       while (x != null && !x.isInstanceOf[ControlX])
         x = x.next
       if (x != null) {
-        assert(x.isInstanceOf[ControlX])
         while (x.next != null)
           x.next.remove()
       }
@@ -559,6 +567,8 @@ class PutFieldX(val op: Int, val f: FieldRef) extends StmtX
 class IincX(val l: Local, val i: Int) extends StmtX
 
 class ReturnX() extends ControlX
+
+class ThrowX() extends ControlX
 
 class StmtOpX(val op: Int) extends StmtX
 

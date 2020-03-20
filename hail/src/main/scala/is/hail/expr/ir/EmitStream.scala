@@ -605,7 +605,10 @@ object EmitStream {
           val aType = coerce[PContainer](containerIR.pType)
 
           COption.fromEmitCode(emitIR(containerIR)).mapCPS { (containerAddr, k) =>
-            val xAddr = fb.newPField("ts_addr", aType)
+            val (asetup, a) = EmitCodeBuilder.scoped(mb) { cb =>
+              containerAddr.asIndexable.memoize(cb, "ts_a")
+            }
+
             val len = mb.newLocal[Int]("ts_len")
             val i = mb.newLocal[Int]("ts_i")
             val newStream = new Stream[EmitCode] {
@@ -618,16 +621,16 @@ object EmitStream {
                   pull = (i < len).mux(
                     Code(i += 1,
                       push(
-                        EmitCode(Code._empty,
-                          xAddr.get.asIndexable.isElementMissing(i - 1),
-                          xAddr.get.asIndexable.loadElement(i - 1)))),
+                        EmitCode.fromI(mb) { cb =>
+                          a.loadElement(cb, i - 1)
+                        })),
                     eos))
             }
 
             val sslen = mb.newLocal[Int]("ts_sslen")
             Code(
-              xAddr := containerAddr,
-              len := xAddr.get.asIndexable.loadLength(),
+              asetup,
+              len := a.loadLength(),
               k(SizedStream(
                 newStream,
                 Some((sslen := len, sslen)))))
