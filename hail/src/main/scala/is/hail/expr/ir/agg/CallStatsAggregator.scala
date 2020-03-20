@@ -12,14 +12,14 @@ import scala.language.existentials
 
 
 object CallStatsState {
-  val callStatsInternalArrayType = PArray(PInt32Required, required = true)
-  val stateType: PTuple = PTuple(true, callStatsInternalArrayType, callStatsInternalArrayType)
+  val callStatsInternalArrayType = PCanonicalArray(PInt32Required, required = true)
+  val stateType: PCanonicalTuple = PCanonicalTuple(true, callStatsInternalArrayType, callStatsInternalArrayType)
 
-  val resultType = PStruct(
-    "AC" -> PArray(PInt32()),
-    "AF" -> PArray(PFloat64()),
-    "AN" -> PInt32(),
-    "homozygote_count" -> PArray(PInt32()))
+  val resultType = PCanonicalStruct(required = true,
+    "AC" -> PCanonicalArray(PInt32(true), required = true),
+    "AF" -> PCanonicalArray(PFloat64(true), required = false),
+    "AN" -> PInt32(true),
+    "homozygote_count" -> PCanonicalArray(PInt32(true), required = true))
 
   assert(resultType.virtualType == CallStats.schema)
 }
