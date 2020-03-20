@@ -995,6 +995,7 @@ object EmitStream {
           val eltType = coerce[PStream](array.pType).elementType
 
           val xElt = mb.newEmitField("aggscan_elt", eltType)
+          val xResult = mb.newEmitField("aggscan_result", result.pType)
 
           val bodyEnv = env.bind(name -> xElt)
           val cInit = emitIR(init, container = Some(newContainer))
@@ -1009,10 +1010,9 @@ object EmitStream {
                 EmitCode(
                   Code(
                     xElt := eltt,
-                    postt.setup,
+                    xResult := postt,
                     seqPerElt.setup),
-                  postt.m,
-                  postt.pv)
+                  xResult.get)
               },
               setup0 = Some(aggSetup),
               close0 = Some(aggCleanup),

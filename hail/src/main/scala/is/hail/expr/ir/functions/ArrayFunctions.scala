@@ -325,10 +325,10 @@ object ArrayFunctions extends RegistryFunctions {
         EmitCode(
           Code(
             setup1,
-            setup2,
-            a1 := v1.tcode[Long],
-            a2 := v2.tcode[Long]),
+            setup2),
           m1 || m2 || Code(
+            a1 := v1.tcode[Long],
+            a2 := v2.tcode[Long],
             l1 := t1.loadLength(a1),
             l2 := t2.loadLength(a2),
             l1.cne(l2).mux(
