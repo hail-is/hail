@@ -17,7 +17,7 @@ object CallStatsState {
 
   val resultType = PCanonicalStruct(required = true,
     "AC" -> PCanonicalArray(PInt32(true), required = true),
-    "AF" -> PCanonicalArray(PFloat64(true), required = true),
+    "AF" -> PCanonicalArray(PFloat64(true), required = false),
     "AN" -> PInt32(true),
     "homozygote_count" -> PCanonicalArray(PInt32(true), required = true))
 
