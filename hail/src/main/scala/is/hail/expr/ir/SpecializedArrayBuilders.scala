@@ -6,16 +6,16 @@ import is.hail.expr.types.virtual.Type
 
 import scala.reflect.ClassTag
 
-class StagedArrayBuilder(val elt: PType, mb: MethodBuilder, len: Code[Int]) {
+class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int]) {
 
   val ti: TypeInfo[_] = typeToTypeInfo(elt)
 
   val ref: Value[Any] = coerce[Any](ti match {
-    case BooleanInfo => mb.newLazyField[BooleanArrayBuilder](Code.newInstance[BooleanArrayBuilder, Int](len), "zab")
-    case IntInfo => mb.newLazyField[IntArrayBuilder](Code.newInstance[IntArrayBuilder, Int](len), "iab")
-    case LongInfo => mb.newLazyField[LongArrayBuilder](Code.newInstance[LongArrayBuilder, Int](len), "jab")
-    case FloatInfo => mb.newLazyField[FloatArrayBuilder](Code.newInstance[FloatArrayBuilder, Int](len), "fab")
-    case DoubleInfo => mb.newLazyField[DoubleArrayBuilder](Code.newInstance[DoubleArrayBuilder, Int](len), "dab")
+    case BooleanInfo => mb.genLazyFieldThisRef[BooleanArrayBuilder](Code.newInstance[BooleanArrayBuilder, Int](len), "zab")
+    case IntInfo => mb.genLazyFieldThisRef[IntArrayBuilder](Code.newInstance[IntArrayBuilder, Int](len), "iab")
+    case LongInfo => mb.genLazyFieldThisRef[LongArrayBuilder](Code.newInstance[LongArrayBuilder, Int](len), "jab")
+    case FloatInfo => mb.genLazyFieldThisRef[FloatArrayBuilder](Code.newInstance[FloatArrayBuilder, Int](len), "fab")
+    case DoubleInfo => mb.genLazyFieldThisRef[DoubleArrayBuilder](Code.newInstance[DoubleArrayBuilder, Int](len), "dab")
     case ti => throw new RuntimeException(s"unsupported typeinfo found: $ti")
   })
 
@@ -80,7 +80,7 @@ class StagedArrayBuilder(val elt: PType, mb: MethodBuilder, len: Code[Int]) {
 
   def clear: Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Unit]("clear")
 
-  def applyEV(mb: MethodBuilder, i: Code[Int]): EmitValue =
+  def applyEV(mb: EmitMethodBuilder[_], i: Code[Int]): EmitValue =
     new EmitValue {
       def pt: PType = elt
 

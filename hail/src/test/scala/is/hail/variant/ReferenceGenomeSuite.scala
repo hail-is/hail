@@ -155,8 +155,8 @@ class ReferenceGenomeSuite extends HailSuite {
   @Test def testSerializeOnFB() {
     val grch38 = ReferenceGenome.GRCh38
     val fb = EmitFunctionBuilder[String, Boolean]("serialize_rg")
-
-    val rgfield = fb.newLazyField(grch38.codeSetup(fb))
+    val cb = fb.ecb
+    val rgfield = fb.genLazyFieldThisRef(grch38.codeSetup(cb))
     fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getArg[String](1)))
 
     Region.scoped { r =>
@@ -174,8 +174,8 @@ class ReferenceGenomeSuite extends HailSuite {
     rg.addSequence(hc, fastaFile, indexFile)
 
     val fb = EmitFunctionBuilder[String, Int, Int, Int, String]("serialize_rg")
-
-    val rgfield = fb.newLazyField(rg.codeSetup(fb))
+    val cb = fb.ecb
+    val rgfield = fb.genLazyFieldThisRef(rg.codeSetup(cb))
     fb.emit(rgfield.invoke[String, Int, Int, Int, String]("getSequence", fb.getArg[String](1), fb.getArg[Int](2), fb.getArg[Int](3), fb.getArg[Int](4)))
 
     Region.scoped { r =>
@@ -191,7 +191,8 @@ class ReferenceGenomeSuite extends HailSuite {
     grch37.addLiftover(hc, liftoverFile, "GRCh38")
 
     val fb = EmitFunctionBuilder[String, Locus, Double, (Locus, Boolean)]("serialize_with_liftover")
-    val rgfield = fb.newLazyField(grch37.codeSetup(fb))
+    val cb = fb.ecb
+    val rgfield = fb.genLazyFieldThisRef(grch37.codeSetup(cb))
     fb.emit(rgfield.invoke[String, Locus, Double, (Locus, Boolean)]("liftoverLocus", fb.getArg[String](1), fb.getArg[Locus](2), fb.getArg[Double](3)))
 
     Region.scoped { r =>

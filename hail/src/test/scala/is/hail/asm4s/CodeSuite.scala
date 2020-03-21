@@ -9,8 +9,8 @@ class CodeSuite extends HailSuite {
   @Test def testForLoop() {
     val fb = EmitFunctionBuilder[Int]("foo")
     val mb = fb.apply_method
-    val i = mb.newLocal[Int]
-    val sum = mb.newLocal[Int]
+    val i = mb.newLocal[Int]()
+    val sum = mb.newLocal[Int]()
     val code = Code(
       sum := 0,
       Code.forLoop(i := 0, i < 5, i := i + 1, sum :=  sum + i),

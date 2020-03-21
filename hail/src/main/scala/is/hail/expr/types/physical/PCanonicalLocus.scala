@@ -69,7 +69,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     }
   }
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
+  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
     assert(other isOfType this)
     new CodeOrderingCompareConsistentWithOthers {
       type T = Long

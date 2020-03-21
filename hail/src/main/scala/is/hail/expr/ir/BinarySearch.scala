@@ -4,12 +4,14 @@ import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
 import is.hail.expr.types.physical._
 
-class BinarySearch(mb: EmitMethodBuilder, typ: PContainer, eltType: PType, keyOnly: Boolean) {
+import scala.language.existentials
+
+class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType, keyOnly: Boolean) {
 
   val elt: PType = typ.elementType
   val ti: TypeInfo[_] = typeToTypeInfo(elt)
 
-  val (compare: CodeOrdering.F[Int], equiv: CodeOrdering.F[Boolean], findElt: EmitMethodBuilder, t: PType) = if (keyOnly) {
+  val (compare: CodeOrdering.F[Int], equiv: CodeOrdering.F[Boolean], findElt: EmitMethodBuilder[C], t: PType) = if (keyOnly) {
     val ttype = elt match {
       case t: PBaseStruct =>
         require(t.size == 2)
@@ -17,9 +19,9 @@ class BinarySearch(mb: EmitMethodBuilder, typ: PContainer, eltType: PType, keyOn
       case t: PInterval => t.representation.asInstanceOf[PStruct]
     }
     val kt = ttype.types(0)
-    val findMB = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(kt)), typeInfo[Int])
-    val mk2l = findMB.newLocal[Boolean]
-    val mk2l1 = mb.newLocal[Boolean]
+    val findMB = mb.genEmitMethod("findElt", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(kt)), typeInfo[Int])
+    val mk2l = findMB.newLocal[Boolean]()
+    val mk2l1 = mb.newLocal[Boolean]()
 
     val comp: CodeOrdering.F[Int] = {
       case ((mk1: Code[Boolean], k1: Code[_]), (m2: Code[Boolean], v2: Code[Long] @unchecked)) =>
@@ -41,15 +43,15 @@ class BinarySearch(mb: EmitMethodBuilder, typ: PContainer, eltType: PType, keyOn
   } else
     (mb.getCodeOrdering(eltType, elt, CodeOrdering.compare),
       mb.getCodeOrdering(eltType, elt, CodeOrdering.equiv),
-      mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(elt)), typeInfo[Int]), elt)
+      mb.genEmitMethod("findElt", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(elt)), typeInfo[Int]), elt)
 
   private[this] val array = findElt.getArg[Long](1)
   private[this] val m = findElt.getArg[Boolean](2)
   private[this] val e = findElt.getArg(3)(typeToTypeInfo(t))
-  private[this] val len = findElt.newLocal[Int]
-  private[this] val i = findElt.newLocal[Int]
-  private[this] val low = findElt.newLocal[Int]
-  private[this] val high = findElt.newLocal[Int]
+  private[this] val len = findElt.newLocal[Int]()
+  private[this] val i = findElt.newLocal[Int]()
+  private[this] val low = findElt.newLocal[Int]()
+  private[this] val high = findElt.newLocal[Int]()
 
   def cmp(i: Code[Int]): Code[Int] =
     Code.memoize(i, "binsearch_cmp_i") { i =>

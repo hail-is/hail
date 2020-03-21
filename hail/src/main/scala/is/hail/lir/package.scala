@@ -7,14 +7,12 @@ import org.objectweb.asm.Opcodes._
 package object lir {
   var counter: Long = 0
 
-  def genName(): String = {
+  def genName(tag: String, baseName: String): String = {
     counter += 1
-    s"__$counter"
-  }
-
-  def genName(prefix: String): String = {
-    counter += 1
-    s"__$prefix$counter"
+    if (baseName != null)
+      s"__$tag$counter$baseName"
+    else
+      s"__$tag${ counter }null"
   }
 
   def setChildren(x: X, cs: IndexedSeq[ValueX]): Unit = {

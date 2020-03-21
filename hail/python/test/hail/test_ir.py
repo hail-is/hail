@@ -91,7 +91,7 @@ class ValueIRTests(unittest.TestCase):
             ir.MakeTuple([i, b]),
             ir.GetTupleElement(t, 1),
             ir.Die(ir.Str('mumblefoo'), hl.tfloat64),
-            ir.Apply('&&', hl.tbool, b, c),
+            ir.Apply('land', hl.tbool, b, c),
             ir.Apply('toFloat64', hl.tfloat64, i),
             ir.Literal(hl.tarray(hl.tint32), [1, 2, None]),
             ir.TableCount(table),

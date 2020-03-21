@@ -18,7 +18,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import is.hail.expr.Parser._
-import is.hail.expr.ir.{EmitFunctionBuilder, RelationalSpec}
+import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, RelationalSpec}
 import is.hail.expr.ir.functions.{IRFunctionRegistry, ReferenceGenomeFunctions}
 import is.hail.expr.types.virtual.{TInt64, TInterval, TLocus, Type}
 import is.hail.io.reference.LiftOver
@@ -469,7 +469,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     Serialization.write(toJSON)
   }
 
-  def codeSetup(fb: EmitFunctionBuilder[_]): Code[ReferenceGenome] = {
+  def codeSetup(cb: EmitClassBuilder[_]): Code[ReferenceGenome] = {
     val json = toJSONString
     val chunkSize = (1 << 16) - 1
     val nChunks = (json.length() - 1) / chunkSize + 1
@@ -483,7 +483,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     if (fastaReader != null) {
       rg = rg.invoke[FS, String, String, Int, Int, ReferenceGenome](
         "addSequenceFromReader",
-        fb.getFS,
+        cb.getFS,
         fastaReader.fastaFile,
         fastaReader.indexFile,
         fastaReader.blockSize,
@@ -493,7 +493,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     for ((destRG, lo) <- liftoverMaps) {
       rg = rg.invoke[FS, String, String, ReferenceGenome](
         "addLiftoverFromFS",
-        fb.getFS,
+        cb.getFS,
         lo.chainFile,
         destRG)
     }
@@ -501,7 +501,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   }
 
   private[this] var registeredFunctions: Set[String] = Set.empty[String]
-  def wrapFunctionName(fname: String): String = s"$fname($name)"
+  def wrapFunctionName(fname: String): String = s"${ fname }_${ name }"
   def addIRFunctions(): Unit = {
     val irFunctions = new ReferenceGenomeFunctions(this)
     irFunctions.registerAll()

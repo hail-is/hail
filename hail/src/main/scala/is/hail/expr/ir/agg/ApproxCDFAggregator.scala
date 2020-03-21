@@ -2,27 +2,27 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitCode}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder}
 import is.hail.expr.types.physical.{PBooleanRequired, PInt32Required, PStruct, PType}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 
-class ApproxCDFState(val fb: EmitFunctionBuilder[_]) extends AggregatorState {
+class ApproxCDFState(val cb: EmitClassBuilder[_]) extends AggregatorState {
   override val regionSize: Region.Size = Region.TINIER
 
-  private val r: ClassFieldRef[Region] = fb.newField[Region]
+  private val r: Settable[Region] = cb.genFieldThisRef[Region]()
   val region: Value[Region] = r
 
   val storageType: PStruct = PStruct(true, ("id", PInt32Required), ("initialized", PBooleanRequired), ("k", PInt32Required))
-  private val aggr = fb.newField[ApproxCDFStateManager]("aggr")
+  private val aggr = cb.genFieldThisRef[ApproxCDFStateManager]("aggr")
 
-  private val initialized = fb.newField[Boolean]("initialized")
+  private val initialized = cb.genFieldThisRef[Boolean]("initialized")
   private val initializedOffset: Code[Long] => Code[Long] = storageType.loadField(_, "initialized")
 
-  private val id = fb.newField[Int]("id")
+  private val id = cb.genFieldThisRef[Int]("id")
   private val idOffset: Code[Long] => Code[Long] = storageType.loadField(_, "id")
 
-  private val k = fb.newField[Int]("k")
+  private val k = cb.genFieldThisRef[Int]("k")
   private val kOffset: Code[Long] => Code[Long] = storageType.loadField(_, "k")
 
   def init(k: Code[Int]): Code[Unit] = {
@@ -111,7 +111,7 @@ class ApproxCDFAggregator extends StagedAggregator {
 
   def resultType: PStruct = PType.canonical(QuantilesAggregator.resultType).asInstanceOf[PStruct]
 
-  def createState(fb: EmitFunctionBuilder[_]): State = new ApproxCDFState(fb)
+  def createState(cb: EmitClassBuilder[_]): State = new ApproxCDFState(cb)
 
   def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     val Array(k) = init

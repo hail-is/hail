@@ -26,9 +26,9 @@ class TestIRRandomness(val seed: Long) extends IRRandomness(seed) {
 }
 
 object TestRandomFunctions extends RegistryFunctions {
-  def getTestRNG(mb: EmitMethodBuilder, seed: Long): Code[TestIRRandomness] = {
-    val rng = mb.newField[IRRandomness]
-    mb.fb.rngs += rng -> Code.checkcast[IRRandomness](Code.newInstance[TestIRRandomness, Long](seed))
+  def getTestRNG(mb: EmitMethodBuilder[_], seed: Long): Code[TestIRRandomness] = {
+    val rng = mb.genFieldThisRef[IRRandomness]()
+    mb.ecb.rngs += rng -> Code.checkcast[IRRandomness](Code.newInstance[TestIRRandomness, Long](seed))
     Code.checkcast[TestIRRandomness](rng)
   }
 

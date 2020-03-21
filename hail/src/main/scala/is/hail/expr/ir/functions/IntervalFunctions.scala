@@ -15,8 +15,8 @@ object IntervalFunctions extends RegistryFunctions {
       case (r, rt, (startT, start), (endT, end), (includeStartT, includeStart), (includeEndT, includeEnd)) =>
         val srvb = new StagedRegionValueBuilder(r, rt)
 
-        val mv = r.mb.newLocal[Boolean]
-        val vv = r.mb.newLocal[Long]
+        val mv = r.mb.newLocal[Boolean]()
+        val vv = r.mb.newLocal[Long]()
 
         val ctor = Code(
           mv := includeStart.m || includeEnd.m,
@@ -50,7 +50,7 @@ object IntervalFunctions extends RegistryFunctions {
       (x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
       case (r, rt, (intervalT: PInterval, interval)) =>
         val region = r.region
-        val iv = r.mb.newLocal[Long]
+        val iv = r.mb.newLocal[Long]()
         EmitCode(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
           interval.m || !Code(iv := interval.value[Long], intervalT.startDefined(iv)),
@@ -62,7 +62,7 @@ object IntervalFunctions extends RegistryFunctions {
       (x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
       case (r, rt, (intervalT: PInterval, interval)) =>
         val region = r.region
-        val iv = r.mb.newLocal[Long]
+        val iv = r.mb.newLocal[Long]()
         EmitCode(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
           interval.m || !Code(iv := interval.value[Long], intervalT.endDefined(iv)),
@@ -82,10 +82,10 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("contains", TInterval(tv("T")), tv("T"), TBoolean, null) {
       case (r, rt, (intervalT: PInterval, intTriplet), (pointT, pointTriplet)) =>
-        val mPoint = r.mb.newLocal[Boolean]
+        val mPoint = r.mb.newLocal[Boolean]()
         val vPoint = r.mb.newLocal()(typeToTypeInfo(pointT))
 
-        val cmp = r.mb.newLocal[Int]
+        val cmp = r.mb.newLocal[Int]()
         val interval = new IRInterval(r, intervalT, intTriplet.value[Long])
         val compare = interval.ordering(CodeOrdering.compare)
 
@@ -142,7 +142,7 @@ object IntervalFunctions extends RegistryFunctions {
 }
 
 class IRInterval(r: EmitRegion, typ: PInterval, value: Code[Long]) {
-  val ref: LocalRef[Long] = r.mb.newLocal[Long]
+  val ref: LocalRef[Long] = r.mb.newLocal[Long]()
   val region: Code[Region] = r.region
 
   def ordering(op: CodeOrdering.Op): ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[op.ReturnType] =
@@ -167,7 +167,7 @@ class IRInterval(r: EmitRegion, typ: PInterval, value: Code[Long]) {
   }
 
   def isAboveOnNonempty(other: IRInterval): Code[Boolean] = {
-    val cmp = r.mb.newLocal[Int]
+    val cmp = r.mb.newLocal[Int]()
     val compare = ordering(CodeOrdering.compare)
     Code(
       cmp := compare(start, other.end),
@@ -175,7 +175,7 @@ class IRInterval(r: EmitRegion, typ: PInterval, value: Code[Long]) {
   }
 
   def isBelowOnNonempty(other: IRInterval): Code[Boolean] = {
-    val cmp = r.mb.newLocal[Int]
+    val cmp = r.mb.newLocal[Int]()
     val compare = ordering(CodeOrdering.compare)
     Code(
       cmp := compare(end, other.start),

@@ -1066,31 +1066,30 @@ trait Settable[T] extends Value[T] {
   def load(): Code[T] = get
 }
 
-class LazyFieldRef[T: TypeInfo](fb: FunctionBuilder[_], name: String, setup: Code[T]) extends Value[T] {
-  private[this] val value: ClassFieldRef[T] = fb.newField[T](name)
-  private[this] val present: ClassFieldRef[Boolean] = fb.newField[Boolean](s"${name}_present")
+class ThisLazyFieldRef[T: TypeInfo](cb: ClassBuilder[_], name: String, setup: Code[T]) extends Value[T] {
+  private[this] val value: Settable[T] = cb.genFieldThisRef[T](name)
+  private[this] val present: Settable[Boolean] = cb.genFieldThisRef[Boolean](s"${name}_present")
 
-  private[this] val setm = fb.newMethod[Unit]
+  private[this] val setm = cb.genMethod[Unit](s"setup_$name")
   setm.emit(Code(value := setup, present := true))
 
   def get: Code[T] =
     Code(present.mux(Code._empty, setm.invoke()), value.load())
 }
 
-class ClassFieldRef[T: TypeInfo](fb: FunctionBuilder[_], f: Field[T]) extends Settable[T] {
+class ThisFieldRef[T: TypeInfo](cb: ClassBuilder[_], f: Field[T]) extends Settable[T] {
   def name: String = f.name
 
-  private def _loadClass: Value[java.lang.Object] = fb.getArg[java.lang.Object](0)
+  def get: Code[T] = f.get(cb._this)
 
-  def get: Code[T] = f.get(_loadClass)
-
-  def store(rhs: Code[T]): Code[Unit] = f.put(_loadClass, rhs)
+  def store(rhs: Code[T]): Code[Unit] = f.put(cb._this, rhs)
 }
 
 class LocalRef[T](val l: lir.Local)(implicit tti: TypeInfo[T]) extends Settable[T] {
   def get: Code[T] = Code(lir.load(l))
 
   def store(rhs: Code[T]): Code[Unit] = {
+    assert(rhs.v != null)
     rhs.end.append(lir.store(l, rhs.v))
     val newC = new VCode(rhs.start, rhs.end, null)
     rhs.clear()

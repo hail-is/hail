@@ -131,7 +131,7 @@ object ExtractIntervalFilters {
 
   def extractAndRewrite(cond1: IR, es: ExtractionState): Option[(IR, Array[Interval])] = {
     cond1 match {
-      case ApplySpecial("||", Seq(l, r), t) =>
+      case ApplySpecial("lor", Seq(l, r), t) =>
         extractAndRewrite(l, es)
           .liftedZip(extractAndRewrite(r, es))
           .flatMap {
@@ -139,7 +139,7 @@ object ExtractIntervalFilters {
               Some((True(), Interval.union(i1 ++ i2, es.iOrd)))
             case _ => None
           }
-      case ApplySpecial("&&", Seq(l, r), t) =>
+      case ApplySpecial("land", Seq(l, r), t) =>
         val ll = extractAndRewrite(l, es)
         val rr = extractAndRewrite(r, es)
         (ll, rr) match {
@@ -147,17 +147,17 @@ object ExtractIntervalFilters {
             log.info(s"intersecting list of ${ i1.length } intervals with list of ${ i2.length } intervals")
             val intersection = Interval.intersection(i1, i2, es.iOrd)
             log.info(s"intersect generated ${ intersection.length } intersected intervals")
-            Some((invoke("&&", t, ir1, ir2), intersection))
+            Some((invoke("land", t, ir1, ir2), intersection))
           case (Some((ir1, i1)), None) =>
-            Some((invoke("&&", t, ir1, r), i1))
+            Some((invoke("land", t, ir1, r), i1))
           case (None, Some((ir2, i2))) =>
-            Some((invoke("&&", t, l, ir2), i2))
+            Some((invoke("land", t, l, ir2), i2))
           case (None, None) =>
             None
         }
       case StreamFold(lit: Literal, False(), acc, value, body) =>
         body match {
-          case ApplySpecial("||", Seq(Ref(`acc`, _), ApplySpecial("contains", Seq(Ref(`value`, _), k), _)), _) if es.isFirstKey(k) =>
+          case ApplySpecial("lor", Seq(Ref(`acc`, _), ApplySpecial("contains", Seq(Ref(`value`, _), k), _)), _) if es.isFirstKey(k) =>
             assert(lit.typ.asInstanceOf[TContainer].elementType.isInstanceOf[TInterval])
             Some((True(),
               Interval.union(constValue(lit).asInstanceOf[Iterable[_]]

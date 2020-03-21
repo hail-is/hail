@@ -21,7 +21,7 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
     }
   }
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
+  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
     assert(other isOfType this)
     new CodeOrderingCompareConsistentWithOthers {
       type T = Boolean

@@ -103,10 +103,10 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("abs", Array(TFloat32), TFloat32, null)(mathPackageClass, "abs")
     registerScalaFunction("abs", Array(TFloat64), TFloat64, null)(mathPackageClass, "abs")
 
-    registerScalaFunction("**", Array(TInt32, TInt32), TFloat64, null)(thisClass, "pow")
-    registerScalaFunction("**", Array(TInt64, TInt64), TFloat64, null)(thisClass, "pow")
-    registerScalaFunction("**", Array(TFloat32, TFloat32), TFloat64, null)(thisClass, "pow")
-    registerScalaFunction("**", Array(TFloat64, TFloat64), TFloat64, null)(thisClass, "pow")
+    registerScalaFunction("pow", Array(TInt32, TInt32), TFloat64, null)(thisClass, "pow")
+    registerScalaFunction("pow", Array(TInt64, TInt64), TFloat64, null)(thisClass, "pow")
+    registerScalaFunction("pow", Array(TFloat32, TFloat32), TFloat64, null)(thisClass, "pow")
+    registerScalaFunction("pow", Array(TFloat64, TFloat64), TFloat64, null)(thisClass, "pow")
 
     registerScalaFunction("exp", Array(TFloat64), TFloat64, null)(mathPackageClass, "exp")
     registerScalaFunction("log10", Array(TFloat64), TFloat64, null)(mathPackageClass, "log10")
@@ -142,10 +142,10 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("ceil", Array(TFloat32), TFloat32, null)(thisClass, "ceil")
     registerScalaFunction("ceil", Array(TFloat64), TFloat64, null)(thisClass, "ceil")
 
-    registerScalaFunction("%", Array(TInt32, TInt32), TInt32, null)(thisClass, "mod")
-    registerScalaFunction("%", Array(TInt64, TInt64), TInt64, null)(thisClass, "mod")
-    registerScalaFunction("%", Array(TFloat32, TFloat32), TFloat32, null)(thisClass, "mod")
-    registerScalaFunction("%", Array(TFloat64, TFloat64), TFloat64, null)(thisClass, "mod")
+    registerScalaFunction("mod", Array(TInt32, TInt32), TInt32, null)(thisClass, "mod")
+    registerScalaFunction("mod", Array(TInt64, TInt64), TInt64, null)(thisClass, "mod")
+    registerScalaFunction("mod", Array(TFloat32, TFloat32), TFloat32, null)(thisClass, "mod")
+    registerScalaFunction("mod", Array(TFloat64, TFloat64), TFloat64, null)(thisClass, "mod")
 
     registerJavaStaticFunction("isnan", Array(TFloat32), TBoolean, null)(jFloatClass, "isNaN")
     registerJavaStaticFunction("isnan", Array(TFloat64), TBoolean, null)(jDoubleClass, "isNaN")
@@ -168,7 +168,7 @@ object MathFunctions extends RegistryFunctions {
     registerCode("fisher_exact_test", TInt32, TInt32, TInt32, TInt32, fetStruct.virtualType,
       (_, _, _, _) => fetStruct
     ){ case (r, rt, (at, a), (bt, b), (ct, c), (dt, d)) =>
-      val res = r.mb.newLocal[Array[Double]]
+      val res = r.mb.newLocal[Array[Double]]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(Code(FastIndexedSeq(
         res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "fisherExactTest", a, b, c, d),
@@ -187,7 +187,7 @@ object MathFunctions extends RegistryFunctions {
     registerCode("chi_squared_test", TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
       (_, _, _, _) => chisqStruct
     ){ case (r, rt, (at, a), (bt, b), (ct, c), (dt, d))  =>
-      val res = r.mb.newLocal[Array[Double]]
+      val res = r.mb.newLocal[Array[Double]]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chiSquaredTest", a, b, c, d),
@@ -203,7 +203,7 @@ object MathFunctions extends RegistryFunctions {
     registerCode("contingency_table_test", TInt32, TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
       (_, _, _, _, _) => chisqStruct
     ){ case (r, rt, (at, a), (bt, b), (ct, c), (dt, d), (mccT, min_cell_count)) =>
-      val res = r.mb.newLocal[Array[Double]]
+      val res = r.mb.newLocal[Array[Double]]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Int, Int, Array[Double]](statsPackageClass, "contingencyTableTest", a, b, c, d, min_cell_count),
@@ -218,7 +218,7 @@ object MathFunctions extends RegistryFunctions {
 
     registerCode("hardy_weinberg_test", TInt32, TInt32, TInt32,
       hweStruct.virtualType, (_, _, _) => hweStruct) { case (r, rt, (nhrT, nHomRef), (nhT, nHet), (nhvT, nHomVar)) =>
-      val res = r.mb.newLocal[Array[Double]]
+      val res = r.mb.newLocal[Array[Double]]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Array[Double]](statsPackageClass, "hardyWeinbergTest", nHomRef, nHet, nHomVar),

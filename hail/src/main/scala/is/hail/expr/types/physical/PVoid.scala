@@ -13,18 +13,18 @@ case object PVoid extends PType {
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PVoid")
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = null
+  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = null
 
-  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean) =
+  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean) =
     throw new UnsupportedOperationException("PVoid copyFromType is currently undefined")
 
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean) =
     throw new UnsupportedOperationException("PVoid copyFromType is currently undefined")
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
+  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
     stackValue
 
-  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =
+  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =
     throw new NotImplementedError(s"$this is not constructable")
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =

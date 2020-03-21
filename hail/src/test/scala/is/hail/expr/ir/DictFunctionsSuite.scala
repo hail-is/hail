@@ -107,13 +107,13 @@ class DictFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("get", TInt32, IRDict(), 100, na), null)
     assertEvalsTo(invoke("get", TInt32, IRDict(), 100, 50), 50)
 
-    assertEvalsTo(invoke("[]", TInt32, d, 1), 3)
-    assertEvalsTo(invoke("[]", TInt32, d, 5), null)
-    assertEvalsTo(invoke("[]", TInt32, d, na), 5)
+    assertEvalsTo(invoke("index", TInt32, d, 1), 3)
+    assertEvalsTo(invoke("index", TInt32, d, 5), null)
+    assertEvalsTo(invoke("index", TInt32, d, na), 5)
 
-    assertFatal(invoke("[]", TInt32, d, -5), "dictionary")
-    assertFatal(invoke("[]", TInt32, d, 100), "dictionary")
-    assertFatal(invoke("[]", TInt32, IRDict(), 100), "dictionary")
+    assertFatal(invoke("index", TInt32, d, -5), "dictionary")
+    assertFatal(invoke("index", TInt32, d, 100), "dictionary")
+    assertFatal(invoke("index", TInt32, IRDict(), 100), "dictionary")
   }
 
   @Test def dictContains() {

@@ -191,19 +191,19 @@ abstract class PType extends Serializable with Requiredness {
 
   def _pretty(sb: StringBuilder, indent: Int, compact: Boolean)
 
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering =
+  def codeOrdering(mb: EmitMethodBuilder[_]): CodeOrdering =
     codeOrdering(mb, this)
 
-  def codeOrdering(mb: EmitMethodBuilder, so: SortOrder): CodeOrdering =
+  def codeOrdering(mb: EmitMethodBuilder[_], so: SortOrder): CodeOrdering =
     codeOrdering(mb, this, so)
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType, so: SortOrder): CodeOrdering =
+  def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: SortOrder): CodeOrdering =
     so match {
       case Ascending => codeOrdering(mb, other)
       case Descending => codeOrdering(mb, other).reverse
     }
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering
+  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering
 
   def byteSize: Long = 1
 
@@ -281,17 +281,17 @@ abstract class PType extends Serializable with Requiredness {
     }
 
   // Semantics: must be callable without requiredeness check: srcAddress must point to non-null value
-  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long]
+  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long]
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_]
+  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_]
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_]): Code[_] =
+  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_]): Code[_] =
     this.copyFromTypeAndStackValue(mb, region, srcPType, stackValue, false)
 
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long
 
-  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit]
-  def constructAtAddressFromValue(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], deepCopy: Boolean): Code[Unit]
+  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit]
+  def constructAtAddressFromValue(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], deepCopy: Boolean): Code[Unit]
     = constructAtAddress(mb, addr, region, srcPType, coerce[Long](src), deepCopy)
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit
@@ -300,7 +300,7 @@ abstract class PType extends Serializable with Requiredness {
 
   def defaultValue: PCode = PCode(this, ir.defaultValue(this))
 
-  def copyFromPValue(mb: MethodBuilder, region: Value[Region], pv: PCode): PCode =
+  def copyFromPValue(mb: EmitMethodBuilder[_], region: Value[Region], pv: PCode): PCode =
     PCode(this, copyFromTypeAndStackValue(mb, region, pv.pt, pv.code))
 
   final def typeCheck(a: Any): Boolean = a == null || _typeCheck(a)

@@ -31,10 +31,10 @@ object PStruct {
 trait PStruct extends PBaseStruct {
   lazy val virtualType: TStruct = TStruct(fields.map(f => Field(f.name, f.typ.virtualType, f.index)))
 
-  final def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering =
+  final def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering =
     codeOrdering(mb, other, null)
 
-  final def codeOrdering(mb: EmitMethodBuilder, other: PType, so: Array[SortOrder]): CodeOrdering = {
+  final def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: Array[SortOrder]): CodeOrdering = {
     assert(other isOfType this)
     assert(so == null || so.size == types.size)
     CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb, so)

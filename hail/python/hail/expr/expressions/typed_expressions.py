@@ -2171,7 +2171,7 @@ class BooleanExpression(NumericExpression):
         :class:`.BooleanExpression`
             ``True`` if both left and right are ``True``.
         """
-        return self._method("&&", tbool, other)
+        return self._method("land", tbool, other)
 
     @typecheck_method(other=expr_bool)
     def __or__(self, other):
@@ -2208,7 +2208,7 @@ class BooleanExpression(NumericExpression):
         :class:`.BooleanExpression`
             ``True`` if either left or right is ``True``.
         """
-        return self._method("||", tbool, other)
+        return self._method("lor", tbool, other)
 
     def __invert__(self):
         """Return the boolean negation.
@@ -2356,13 +2356,13 @@ class StringExpression(Expression):
         other = to_expr(other)
         if not other.dtype == tstr:
             raise NotImplementedError("'{}' + '{}'".format(self.dtype, other.dtype))
-        return self._bin_op("+", other, self.dtype)
+        return self._bin_op("concat", other, self.dtype)
 
     def __radd__(self, other):
         other = to_expr(other)
         if not other.dtype == tstr:
             raise NotImplementedError("'{}' + '{}'".format(other.dtype, self.dtype))
-        return self._bin_op_reverse("+", other, self.dtype)
+        return self._bin_op_reverse("concat", other, self.dtype)
 
     def length(self):
         """Returns the length of the string.
@@ -2696,7 +2696,7 @@ class StringExpression(Expression):
         :class:`.BooleanExpression`
             ``True`` if the string contains any match for the regex, otherwise ``False``.
         """
-        return regex._method("~", tbool, self)
+        return regex._method("regexMatch", tbool, self)
 
     def reverse(self):
         """Returns the reversed value.

@@ -3,19 +3,19 @@ package is.hail.expr.ir
 import is.hail.asm4s.{Code, CodeBuilderLike, MethodBuilder, TypeInfo, Value}
 
 object EmitCodeBuilder {
-  def apply(mb: EmitMethodBuilder): EmitCodeBuilder = new EmitCodeBuilder(mb, Code._empty)
+  def apply(mb: EmitMethodBuilder[_]): EmitCodeBuilder = new EmitCodeBuilder(mb, Code._empty)
 
-  def apply(mb: EmitMethodBuilder, code: Code[Unit]): EmitCodeBuilder = new EmitCodeBuilder(mb, code)
+  def apply(mb: EmitMethodBuilder[_], code: Code[Unit]): EmitCodeBuilder = new EmitCodeBuilder(mb, code)
 
-  def scoped[T](mb: EmitMethodBuilder)(f: (EmitCodeBuilder) => T): (Code[Unit], T) = {
+  def scoped[T](mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => T): (Code[Unit], T) = {
     val cb = EmitCodeBuilder(mb)
     val t = f(cb)
     (cb.result(), t)
   }
 }
 
-class EmitCodeBuilder(emb: EmitMethodBuilder, var code: Code[Unit]) extends CodeBuilderLike {
-  def mb: MethodBuilder = emb
+class EmitCodeBuilder(emb: EmitMethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
+  def mb: MethodBuilder[_] = emb.mb
 
   def append(c: Code[Unit]): Unit = {
     code = Code(code, c)

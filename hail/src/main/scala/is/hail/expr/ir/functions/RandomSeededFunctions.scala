@@ -73,7 +73,7 @@ object RandomSeededFunctions extends RegistryFunctions {
     }
 
     registerSeeded("rand_pois", TInt32, TFloat64, TArray(TFloat64), null) { case (r, rt, seed, (nT, n), (lambdaT, lambda)) =>
-      val length = r.mb.newLocal[Int]
+      val length = r.mb.newLocal[Int]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
         length := n,
@@ -92,11 +92,11 @@ object RandomSeededFunctions extends RegistryFunctions {
     registerSeeded("rand_beta", TFloat64, TFloat64, TFloat64, TFloat64, TFloat64, null) {
       case (r, rt, seed, (aT, a), (bT, b), (minT, min), (maxT, max)) =>
         val rng = r.mb.newRNG(seed)
-        val la = r.mb.newLocal[Double]
-        val lb = r.mb.newLocal[Double]
-        val value = r.mb.newLocal[Double]
-        val lmin = r.mb.newLocal[Double]
-        val lmax = r.mb.newLocal[Double]
+        val la = r.mb.newLocal[Double]()
+        val lb = r.mb.newLocal[Double]()
+        val value = r.mb.newLocal[Double]()
+        val lmin = r.mb.newLocal[Double]()
+        val lmax = r.mb.newLocal[Double]()
         Code(
           la := a,
           lb := b,
@@ -113,10 +113,10 @@ object RandomSeededFunctions extends RegistryFunctions {
     }
 
     registerSeeded("rand_cat", TArray(TFloat64), TInt32, null) { case (r, rt, seed, (aT: PArray, a)) =>
-      val array = r.mb.newLocal[Array[Double]]
-      val aoff = r.mb.newLocal[Long]
-      val length = r.mb.newLocal[Int]
-      val i = r.mb.newLocal[Int]
+      val array = r.mb.newLocal[Array[Double]]()
+      val aoff = r.mb.newLocal[Long]()
+      val length = r.mb.newLocal[Int]()
+      val i = r.mb.newLocal[Int]()
       Code(
         aoff := a,
         i := 0,

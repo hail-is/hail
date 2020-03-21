@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitCode}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder}
 import is.hail.expr.types.physical._
 
 object CountAggregator extends StagedAggregator {
@@ -10,7 +10,7 @@ object CountAggregator extends StagedAggregator {
 
   val resultType: PType = PInt64(true)
 
-  def createState(fb: EmitFunctionBuilder[_]): State = new PrimitiveRVAState(Array(PInt64(true)), fb)
+  def createState(cb: EmitClassBuilder[_]): State = new PrimitiveRVAState(Array(PInt64(true)), cb)
 
   def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)

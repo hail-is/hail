@@ -275,7 +275,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
       False(),
       "acc",
       "elt",
-      invoke("||", TBoolean, Ref("acc", TBoolean), invoke("contains", TBoolean, Ref("elt", TInterval(TInt32)), k1))
+      invoke("lor", TBoolean, Ref("acc", TBoolean), invoke("contains", TBoolean, Ref("elt", TInterval(TInt32)), k1))
     )
     val (rw, intervals) = ExtractIntervalFilters.extractPartitionFilters(ir, ref1, ref1Key).get
     assert(rw == True())
@@ -288,13 +288,13 @@ class ExtractIntervalFiltersSuite extends HailSuite {
     val ir1 = ApplyComparisonOp(GT(TInt32), k1, I32(0))
     val ir2 = ApplyComparisonOp(GT(TInt32), k1, I32(10))
 
-    val (rw, intervals) = ExtractIntervalFilters.extractPartitionFilters(invoke("||", TBoolean, ir1, ir2), ref1, ref1Key).get
+    val (rw, intervals) = ExtractIntervalFilters.extractPartitionFilters(invoke("lor", TBoolean, ir1, ir2), ref1, ref1Key).get
     assert(rw == True())
     assert(intervals.toSeq == FastSeq(Interval(wrappedIntervalEndpoint(0, 1), wrappedIntervalEndpoint(Int.MaxValue, 1))))
 
-    assert(ExtractIntervalFilters.extractPartitionFilters(invoke("||", TBoolean, ir1, Ref("foo", TBoolean)), ref1, ref1Key).isEmpty)
+    assert(ExtractIntervalFilters.extractPartitionFilters(invoke("lor", TBoolean, ir1, Ref("foo", TBoolean)), ref1, ref1Key).isEmpty)
 
-    val ir3 = invoke("||", TBoolean, ir1, invoke("&&", TBoolean, ir2, Ref("foo", TBoolean)))
+    val ir3 = invoke("lor", TBoolean, ir1, invoke("land", TBoolean, ir2, Ref("foo", TBoolean)))
     assert(ExtractIntervalFilters.extractPartitionFilters(ir3, ref1, ref1Key).isEmpty)
   }
 
@@ -303,15 +303,15 @@ class ExtractIntervalFiltersSuite extends HailSuite {
     val ir2 = ApplyComparisonOp(GT(TInt32), k1, I32(10))
     val ir3 = In(0, TBoolean)
 
-    val (rw1, intervals1) = ExtractIntervalFilters.extractPartitionFilters(invoke("&&", TBoolean, ir1, ir2), ref1, ref1Key).get
-    assert(rw1 == invoke("&&", TBoolean, True(), True()))
+    val (rw1, intervals1) = ExtractIntervalFilters.extractPartitionFilters(invoke("land", TBoolean, ir1, ir2), ref1, ref1Key).get
+    assert(rw1 == invoke("land", TBoolean, True(), True()))
     assert(intervals1.toSeq == FastSeq(Interval(wrappedIntervalEndpoint(10, 1), wrappedIntervalEndpoint(Int.MaxValue, 1))))
 
-    val (rw2, intervals2) = ExtractIntervalFilters.extractPartitionFilters(invoke("&&", TBoolean, ir3, ir2), ref1, ref1Key).get
-    assert(rw2 == invoke("&&", TBoolean, ir3, True()))
+    val (rw2, intervals2) = ExtractIntervalFilters.extractPartitionFilters(invoke("land", TBoolean, ir3, ir2), ref1, ref1Key).get
+    assert(rw2 == invoke("land", TBoolean, ir3, True()))
     assert(intervals2.toSeq == FastSeq(Interval(wrappedIntervalEndpoint(10, 1), wrappedIntervalEndpoint(Int.MaxValue, 1))))
 
-    assert(ExtractIntervalFilters.extractPartitionFilters(invoke("&&", TBoolean, ir3, ir3), ref1, ref1Key).isEmpty)
+    assert(ExtractIntervalFilters.extractPartitionFilters(invoke("land", TBoolean, ir3, ir3), ref1, ref1Key).isEmpty)
   }
 
   @Test def testIntegration() {
@@ -321,7 +321,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
     def k = GetField(Ref("row", tab1.typ.rowType), "idx")
 
     val tf = TableFilter(tab1,
-      Coalesce(FastSeq(invoke("&&", TBoolean,
+      Coalesce(FastSeq(invoke("land", TBoolean,
         ApplyComparisonOp(GT(TInt32), k, I32(3)),
         ApplyComparisonOp(LTEQ(TInt32), k, I32(9))
       ), False())))

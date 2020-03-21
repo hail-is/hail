@@ -2,22 +2,22 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{CodeOrdering, Region, RegionUtils, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, EmitCode, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, defaultValue, typeToTypeInfo}
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical._
 import is.hail.io._
 import is.hail.utils._
 
-class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Value[Region], val offset: Value[Long], states: StateTuple) extends BTreeKey {
+class GroupedBTreeKey(kt: PType, cb: EmitClassBuilder[_], region: Value[Region], val offset: Value[Long], states: StateTuple) extends BTreeKey {
   val storageType: PStruct = PCanonicalStruct(required = true,
     "kt" -> kt,
     "regionIdx" -> PInt32(true),
     "container" -> states.storageType)
   val compType: PType = kt
-  private val kcomp = fb.getCodeOrdering(kt, CodeOrdering.compare, ignoreMissingness = false)
+  private val kcomp = cb.getCodeOrdering(kt, CodeOrdering.compare, ignoreMissingness = false)
 
-  private val compLoader: EmitMethodBuilder = {
-    val mb = fb.newMethod("compWithKey", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(compType)), typeInfo[Int])
+  private val compLoader: EmitMethodBuilder[_] = {
+    val mb = cb.genEmitMethod("compWithKey", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(compType)), typeInfo[Int])
     val off = mb.getArg[Long](1)
     val m = mb.getArg[Boolean](2)
     val v = mb.getArg(3)(typeToTypeInfo(compType))
@@ -31,7 +31,7 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Value[Regio
   val regionIdx: Value[Int] = new Value[Int] {
     def get: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))
   }
-  val container = new TupleAggregatorState(fb, states, region, containerOffset(offset), regionIdx)
+  val container = new TupleAggregatorState(cb, states, region, containerOffset(offset), regionIdx)
 
   def isKeyMissing(off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 0)
@@ -44,7 +44,7 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Value[Regio
         if (kt.isPrimitive)
           Region.storeIRIntermediate(kt)(koff, kv)
         else
-          StagedRegionValueBuilder.deepCopy(fb, region, kt, coerce[Long](kv), koff)
+          StagedRegionValueBuilder.deepCopy(cb, region, kt, coerce[Long](kv), koff)
       if (!kt.required)
         storeK = km.mux(storageType.setFieldMissing(dest, 0), Code(storageType.setFieldPresent(dest, 0), storeK))
 
@@ -89,11 +89,11 @@ class GroupedBTreeKey(kt: PType, fb: EmitFunctionBuilder[_], region: Value[Regio
 
 }
 
-class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: StateTuple) extends PointerBasedRVAState {
+class DictState(val cb: EmitClassBuilder[_], val keyType: PType, val nested: StateTuple) extends PointerBasedRVAState {
   val nStates: Int = nested.nStates
   val valueType: PStruct = PStruct("regionIdx" -> PInt32(true), "states" -> nested.storageType)
-  val root: ClassFieldRef[Long] = fb.newField[Long]
-  val size: ClassFieldRef[Int] = fb.newField[Int]
+  val root: Settable[Long] = cb.genFieldThisRef[Long]()
+  val size: Settable[Int] = cb.genFieldThisRef[Int]()
   val keyEType = EType.defaultFromPType(keyType)
 
   val typ: PStruct = PStruct(
@@ -102,14 +102,14 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
     "size" -> PInt32(true),
     "tree" -> PInt64(true))
 
-  private val _elt = fb.newField[Long]
+  private val _elt = cb.genFieldThisRef[Long]()
   private val initStatesOffset: Value[Long] = new Value[Long] {
     def get: Code[Long] = typ.loadField(off, 0)
   }
-  val initContainer: TupleAggregatorState = new TupleAggregatorState(fb, nested, region, initStatesOffset)
+  val initContainer: TupleAggregatorState = new TupleAggregatorState(cb, nested, region, initStatesOffset)
 
-  val keyed = new GroupedBTreeKey(keyType, fb, region, _elt, nested)
-  val tree = new AppendOnlyBTree(fb, keyed, region, root, maxElements = 6)
+  val keyed = new GroupedBTreeKey(keyType, cb, region, _elt, nested)
+  val tree = new AppendOnlyBTree(cb, keyed, region, root, maxElements = 6)
 
   def initElement(eltOff: Code[Long], km: Code[Boolean], kv: Code[_]): Code[Unit] = {
     Code(
@@ -133,7 +133,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
   def withContainer(km: Code[Boolean], kv: Code[_], seqOps: Code[Unit]): Code[Unit] =
     Code(loadContainer(km, kv), seqOps, keyed.storeStates)
 
-  override def createState: Code[Unit] = Code(super.createState, nested.createStates(fb))
+  override def createState: Code[Unit] = Code(super.createState, nested.createStates(cb))
 
   override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] = {
     Code(super.load(regionLoader, src),
@@ -180,14 +180,14 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 
   def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
     val serializers = nested.states.map(_.serialize(codec))
-    val kEnc = keyEType.buildEncoderMethod(keyType, fb)
-    val km = fb.newField[Boolean]
-    val kv = fb.newField()(typeToTypeInfo(keyType))
+    val kEnc = keyEType.buildEncoderMethod(keyType, cb)
+    val km = cb.genFieldThisRef[Boolean]()
+    val kv = cb.genFieldThisRef()(typeToTypeInfo(keyType))
 
     { ob: Value[OutputBuffer] =>
       Code(
         initContainer.load,
-        nested.toCodeWithArgs(fb, "grouped_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+        nested.toCodeWithArgs(cb, "grouped_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
           IndexedSeq(ob),
           { (i, _, args) =>
             Code.memoize(coerce[OutputBuffer](args.head), "ga_ser_init_ob") { ob => serializers(i)(ob) }
@@ -200,7 +200,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
             ob.writeBoolean(km),
             (!km).orEmpty(kEnc.invoke(kv, ob)),
             keyed.loadStates,
-            nested.toCodeWithArgs(fb, "grouped_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+            nested.toCodeWithArgs(cb, "grouped_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
               Array(ob.get),
               { (i, _, args) =>
                 Code.memoize(coerce[OutputBuffer](args.head), "ga_ser_init_ob") { ob => serializers(i)(ob) }
@@ -211,13 +211,13 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
 
   def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
     val deserializers = nested.states.map(_.deserialize(codec))
-    val kDec = keyEType.buildDecoderMethod(keyType, fb)
-    val km = fb.newField[Boolean]
-    val kv = fb.newField()(typeToTypeInfo(keyType))
+    val kDec = keyEType.buildDecoderMethod(keyType, cb)
+    val km = cb.genFieldThisRef[Boolean]()
+    val kv = cb.genFieldThisRef()(typeToTypeInfo(keyType))
 
     { ib: Value[InputBuffer] =>
       Code(
-        init(nested.toCodeWithArgs(fb, "grouped_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
+        init(nested.toCodeWithArgs(cb, "grouped_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
           FastIndexedSeq(ib),
           { (i, _, args) =>
             Code.memoize(coerce[InputBuffer](args.head), "ga_deser_init_ib") { ib => deserializers(i)(ib) }
@@ -228,7 +228,7 @@ class DictState(val fb: EmitFunctionBuilder[_], val keyType: PType, val nested: 
             km := ib.readBoolean(),
             (!km).orEmpty(kv := kDec.invoke(region, ib)),
             initElement(_elt, km, kv),
-            nested.toCodeWithArgs(fb, "grouped_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
+            nested.toCodeWithArgs(cb, "grouped_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
               FastIndexedSeq(ib),
               { (i, _, args) =>
                 Code.memoize(coerce[InputBuffer](args.head), "ga_deser_ib") { ib => deserializers(i)(ib) }
@@ -246,7 +246,7 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
   val resultEltType: PTuple = PCanonicalTuple(true, nestedAggs.map(_.resultType): _*)
   val resultType: PDict = PCanonicalDict(kt, resultEltType)
 
-  def createState(fb: EmitFunctionBuilder[_]): State = new DictState(fb, kt, StateTuple(nestedAggs.map(_.createState(fb))))
+  def createState(cb: EmitClassBuilder[_]): State = new DictState(cb, kt, StateTuple(nestedAggs.map(_.createState(cb))))
 
   def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     val Array(inits) = init
@@ -259,7 +259,7 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
-    state.combine(other, state.nested.toCode(state.fb, "grouped_nested_comb", (i, s) => nestedAggs(i).combOp(s, other.nested(i))))
+    state.combine(other, state.nested.toCode(state.cb, "grouped_nested_comb", (i, s) => nestedAggs(i).combOp(s, other.nested(i))))
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
@@ -277,7 +277,7 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
                 ssb.advance(),
                 ssb.addBaseStruct(resultEltType, { svb =>
                   Code(svb.start(),
-                    state.nested.toCode(state.fb, "grouped_result", { (i, s) =>
+                    state.nested.toCode(state.cb, "grouped_result", { (i, s) =>
                       Code(nestedAggs(i).result(s, svb), svb.advance())
                     }))
                 }))),
