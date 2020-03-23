@@ -20,9 +20,9 @@ abstract class PString extends PType {
   protected val binaryFundamentalType: PBinary
   override lazy val fundamentalType: PBinary = binaryFundamentalType
 
-  def bytesOffset(boff: Long): Long
+  def bytesAddress(boff: Long): Long
 
-  def bytesOffset(boff: Code[Long]): Code[Long]
+  def bytesAddress(boff: Code[Long]): Code[Long]
 
   def loadLength(boff: Long): Int
 

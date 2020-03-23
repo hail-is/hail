@@ -226,8 +226,8 @@ object StringFunctions extends RegistryFunctions {
         Code(n := 0,
           i := 0,
           Code.whileLoop(i < len,
-            Region.loadByte(e1T.bytesOffset(v1) + i.toL)
-              .cne(Region.loadByte(e2T.bytesOffset(v2) + i.toL)).mux(
+            Region.loadByte(e1T.bytesAddress(v1) + i.toL)
+              .cne(Region.loadByte(e2T.bytesAddress(v2) + i.toL)).mux(
               n += 1,
               Code._empty),
             i += 1),
