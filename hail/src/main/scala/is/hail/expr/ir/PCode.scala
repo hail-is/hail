@@ -248,3 +248,27 @@ class PCanonicalBinaryCode(val pt: PBinary, a: Code[Long]) extends PBinaryCode {
 
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
 }
+
+abstract class PStringCode extends PCode {
+  def loadLength(): Code[Int]
+
+  def bytesAddress(): Code[Long]
+
+  def loadString(): Code[String]
+}
+
+class PCanonicalStringCode(val pt: PString, a: Code[Long]) extends PStringCode {
+  def code: Code[_] = a
+
+  def loadLength(): Code[Int] = pt.loadLength(a)
+
+  def bytesAddress(): Code[Long] = pt.bytesAddress(a)
+
+  def loadString(): Code[String] = pt.loadString(a)
+
+  def memoize(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeImpl(cb, name)
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeFieldImpl(cb, name)
+
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
+}
