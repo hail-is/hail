@@ -1093,7 +1093,7 @@ class RVD(
     val rightTyp = that.typ
     val codecSpec = TypedCodecSpec(that.rowPType, BufferSpec.wireSpec)
     val makeEnc = codecSpec.buildEncoder(that.rowPType)
-    val partitionKeyedIntervals = that.boundary.crdd.cmapPartitions { (ctx, it) =>
+    val partitionKeyedIntervals = that.crdd.cmapPartitions { (ctx, it) =>
       val encoder = new ByteArrayEncoder(makeEnc)
       TaskContext.get.addTaskCompletionListener { _ =>
         encoder.close()
