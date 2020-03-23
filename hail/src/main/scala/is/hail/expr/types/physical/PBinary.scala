@@ -19,8 +19,8 @@ abstract class PBinary extends PType {
       val l1 = loadLength(o1)
       val l2 = loadLength(o2)
 
-      val bOff1 = bytesOffset(o1)
-      val bOff2 = bytesOffset(o2)
+      val bOff1 = bytesAddress(o1)
+      val bOff2 = bytesAddress(o2)
 
       val lim = math.min(l1, l2)
       var i = 0
@@ -58,8 +58,8 @@ abstract class PBinary extends PType {
               cmp := 0,
               Code.whileLoop(cmp.ceq(0) && i < lim,
                 cmp := Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare",
-                  Code.invokeStatic[java.lang.Byte, Byte, Int]("toUnsignedInt", Region.loadByte(bytesOffset(x) + i.toL)),
-                  Code.invokeStatic[java.lang.Byte, Byte, Int]("toUnsignedInt", Region.loadByte(bytesOffset(y) + i.toL))),
+                  Code.invokeStatic[java.lang.Byte, Byte, Int]("toUnsignedInt", Region.loadByte(bytesAddress(x) + i.toL)),
+                  Code.invokeStatic[java.lang.Byte, Byte, Int]("toUnsignedInt", Region.loadByte(bytesAddress(y) + i.toL))),
                 i += 1),
               cmp.ceq(0).mux(Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare", l1, l2), cmp))
         }
@@ -95,9 +95,9 @@ abstract class PBinary extends PType {
 
   def storeLength(boff: Code[Long], len: Code[Int]): Code[Unit]
 
-  def bytesOffset(boff: Long): Long
+  def bytesAddress(boff: Long): Long
 
-  def bytesOffset(boff: Code[Long]): Code[Long]
+  def bytesAddress(boff: Code[Long]): Code[Long]
 
   def store(addr: Long, bytes: Array[Byte]): Unit
 

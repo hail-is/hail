@@ -20,7 +20,7 @@ class EBinary(override val required: Boolean) extends EType {
     Code(
       len := bT.loadLength(addr),
       out.writeInt(len),
-      out.writeBytes(bT.bytesOffset(addr), len))
+      out.writeBytes(bT.bytesAddress(addr), len))
   }
 
   def _buildDecoder(
@@ -36,7 +36,7 @@ class EBinary(override val required: Boolean) extends EType {
       len := in.readInt(),
       barray := bT.allocate(region, len),
       bT.storeLength(barray, len),
-      in.readBytes(region, bT.bytesOffset(barray), len),
+      in.readBytes(region, bT.bytesAddress(barray), len),
       barray.load())
   }
 

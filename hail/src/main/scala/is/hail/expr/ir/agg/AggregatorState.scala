@@ -30,7 +30,7 @@ trait AggregatorState {
     val lazyBuffer = cb.getOrDefineLazyField[MemoryBufferWrapper](Code.newInstance[MemoryBufferWrapper](), (this, "buffer"))
     val addr = cb.genFieldThisRef[Long]("addr")
     Code(addr := address,
-      lazyBuffer.invoke[Long, Int, Unit]("clearAndSetFrom", t.bytesOffset(addr), t.loadLength(addr)),
+      lazyBuffer.invoke[Long, Int, Unit]("clearAndSetFrom", t.bytesAddress(addr), t.loadLength(addr)),
       Code.memoize(lazyBuffer.invoke[InputBuffer]("buffer"), "aggstate_deser_from_bytes_ib") { ib =>
         deserialize(BufferSpec.defaultUncompressed)(ib)
       })
@@ -46,7 +46,7 @@ trait AggregatorState {
       },
       addr := t.allocate(r, lazyBuffer.invoke[Int]("length")),
       t.storeLength(addr, lazyBuffer.invoke[Int]("length")),
-      lazyBuffer.invoke[Long, Unit]("copyToAddress", t.bytesOffset(addr)),
+      lazyBuffer.invoke[Long, Unit]("copyToAddress", t.bytesAddress(addr)),
       addr)
   }
 }

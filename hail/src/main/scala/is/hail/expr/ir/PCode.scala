@@ -238,7 +238,7 @@ class PCanonicalBinaryCode(val pt: PBinary, a: Code[Long]) extends PBinaryCode {
 
   def loadLength(): Code[Int] = pt.loadLength(a)
 
-  def bytesAddress(): Code[Long] = pt.bytesOffset(a)
+  def bytesAddress(): Code[Long] = pt.bytesAddress(a)
 
   def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
 
