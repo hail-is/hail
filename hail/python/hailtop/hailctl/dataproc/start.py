@@ -52,6 +52,7 @@ REGION_TO_REPLICATE_MAPPING = {
     'europe-west2': 'uk',
     'europe-west3': 'eu',
     'europe-west4': 'eu',
+    'australia-southeast1': 'aus-sydney'
 }
 
 SPARK_VERSION = '2.4.0'
