@@ -48,7 +48,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   def loadLength(boff: Code[Long]): Code[Int] = Region.loadInt(boff)
 
   def loadBytes(bAddress: Code[Long], length: Code[Int]): Code[Array[Byte]] =
-    Region.loadBytes(this.bytesOffset(bAddress), length)
+    Region.loadBytes(this.bytesAddress(bAddress), length)
 
   def loadBytes(bAddress: Code[Long]): Code[Array[Byte]] =
     Code.memoize(bAddress, "pcbin_load_bytes_addr") { bAddress =>
@@ -56,7 +56,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     }
 
   def loadBytes(bAddress: Long, length: Int): Array[Byte] =
-    Region.loadBytes(this.bytesOffset(bAddress), length)
+    Region.loadBytes(this.bytesAddress(bAddress), length)
 
   def loadBytes(bAddress: Long): Array[Byte] =
     this.loadBytes(bAddress, this.loadLength(bAddress))
@@ -65,13 +65,13 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   def storeLength(boff: Code[Long], len: Code[Int]): Code[Unit] = Region.storeInt(boff, len)
 
-  def bytesOffset(boff: Long): Long = boff + lengthHeaderBytes
+  def bytesAddress(boff: Long): Long = boff + lengthHeaderBytes
 
-  def bytesOffset(boff: Code[Long]): Code[Long] = boff + lengthHeaderBytes
+  def bytesAddress(boff: Code[Long]): Code[Long] = boff + lengthHeaderBytes
 
   def store(addr: Long, bytes: Array[Byte]) {
     Region.storeInt(addr, bytes.length)
-    Region.storeBytes(bytesOffset(addr), bytes)
+    Region.storeBytes(bytesAddress(addr), bytes)
   }
 
   def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] =
@@ -79,7 +79,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
       Code.memoize(bytes, "pcbin_store_bytes") { bytes =>
         Code(
           Region.storeInt(addr, bytes.length),
-          Region.storeBytes(bytesOffset(addr), bytes))
+          Region.storeBytes(bytesAddress(addr), bytes))
       }
     }
 
