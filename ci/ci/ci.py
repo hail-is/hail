@@ -260,7 +260,7 @@ async def deploy_status(request, userdata):
     del userdata
     batch_client = request.app['batch_client']
 
-    def get_failure_information(batch):
+    async def get_failure_information(batch):
         return [
             {**j,
              'log': await batch_client.get_job_log(j['batch_id'], j['job_id'])}
@@ -271,7 +271,7 @@ async def deploy_status(request, userdata):
         'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
         'deploy_state': wb.deploy_state,
         'repo': wb.branch.repo.short_str(),
-        'failure_information': None if wb.deploy_state == 'success' else get_failure_information(wb.deploy_batch)
+        'failure_information': None if wb.deploy_state == 'success' else await get_failure_information(wb.deploy_batch)
     } for wb in watched_branches]
     return web.json_response(wb_configs)
 
