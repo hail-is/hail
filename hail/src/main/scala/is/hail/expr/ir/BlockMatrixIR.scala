@@ -188,7 +188,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
       case Apply("ceil", _, _) => ("ceil", numerics.ceil(_))
       case Apply("floor", _, _) => ("floor", numerics.floor(_))
 
-      case Apply("**", Seq(Ref(`eltName`, _), r), _) if !Mentions(r, eltName) =>
+      case Apply("pow", Seq(Ref(`eltName`, _), r), _) if !Mentions(r, eltName) =>
         ("**", binaryOp(evalIR(ctx, r), numerics.pow(_, _)))
       case ApplyBinaryPrimOp(Add(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
         ("+", binaryOp(evalIR(ctx, r), _ + _))

@@ -5,7 +5,7 @@ import java.util.Map.Entry
 import is.hail.HailContext
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{IRParser, PunctuationToken, TokenIterator, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder, IRParser, PunctuationToken, TokenIterator, typeToTypeInfo}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.Type
 import is.hail.expr.types.{BaseType, Requiredness}
@@ -27,15 +27,15 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   type StagedDecoder[T] = (Code[Region], Code[InputBuffer]) => Code[T]
   type StagedInplaceDecoder = (Code[Region], Code[Long], Code[InputBuffer]) => Code[Unit]
 
-  final def buildEncoder(pt: PType, mb: MethodBuilder): StagedEncoder = {
-    buildEncoderMethod(pt, mb.fb).invoke(_, _)
+  final def buildEncoder(pt: PType, cb: EmitClassBuilder[_]): StagedEncoder = {
+    buildEncoderMethod(pt, cb).invoke(_, _)
   }
 
-  final def buildEncoderMethod(pt: PType, fb: FunctionBuilder[_]): MethodBuilder = {
+  final def buildEncoderMethod(pt: PType, cb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
     if (!encodeCompatible(pt))
       throw new RuntimeException(s"encode incompatible:\n  PT: $pt\n  ET: ${ parsableString() }")
     val ptti = typeToTypeInfo(pt)
-    fb.getOrDefineMethod(s"ENCODE_${ pt.asIdent }_TO_${ asIdent }",
+    cb.getOrGenEmitMethod(s"ENCODE_${ pt.asIdent }_TO_${ asIdent }",
       (pt, this, "ENCODE"),
       Array[TypeInfo[_]](ptti, classInfo[OutputBuffer]),
       UnitInfo) { mb =>
@@ -46,14 +46,14 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     }
   }
 
-  final def buildDecoder[T](pt: PType, mb: MethodBuilder): StagedDecoder[T] = {
-    buildDecoderMethod(pt, mb.fb).invoke(_, _)
+  final def buildDecoder[T](pt: PType, cb: EmitClassBuilder[_]): StagedDecoder[T] = {
+    buildDecoderMethod(pt, cb).invoke(_, _)
   }
 
-  final def buildDecoderMethod[T](pt: PType, fb: FunctionBuilder[_]): MethodBuilder = {
+  final def buildDecoderMethod[T](pt: PType, cb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
     if (!decodeCompatible(pt))
       throw new RuntimeException(s"decode incompatible:\n  PT: $pt }\n  ET: ${ parsableString() }")
-    fb.getOrDefineMethod(s"DECODE_${ asIdent }_TO_${ pt.asIdent }",
+    cb.getOrGenEmitMethod(s"DECODE_${ asIdent }_TO_${ pt.asIdent }",
       (pt, this, "DECODE"),
       Array[TypeInfo[_]](typeInfo[Region], classInfo[InputBuffer]),
       typeToTypeInfo(pt)) { mb =>
@@ -65,14 +65,14 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     }
   }
 
-  final def buildInplaceDecoder(pt: PType, mb: MethodBuilder): StagedInplaceDecoder = {
-    buildInplaceDecoderMethod(pt, mb.fb).invoke(_, _, _)
+  final def buildInplaceDecoder(pt: PType, cb: EmitClassBuilder[_]): StagedInplaceDecoder = {
+    buildInplaceDecoderMethod(pt, cb).invoke(_, _, _)
   }
 
-  final def buildInplaceDecoderMethod(pt: PType, fb: FunctionBuilder[_]): MethodBuilder = {
+  final def buildInplaceDecoderMethod(pt: PType, cb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
     if (!decodeCompatible(pt))
       throw new RuntimeException(s"decode incompatible:\n  PT: $pt\n  ET: ${ parsableString() }")
-    fb.getOrDefineMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
+    cb.getOrGenEmitMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
       (pt, this, "INPLACE_DECODE"),
       Array[TypeInfo[_]](typeInfo[Region], typeInfo[Long], classInfo[InputBuffer]),
       UnitInfo)({ mb =>
@@ -85,8 +85,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     })
   }
 
-  final def buildSkip(mb: MethodBuilder): (Code[Region], Code[InputBuffer]) => Code[Unit] = {
-    mb.fb.getOrDefineMethod(s"SKIP_${ asIdent }",
+  final def buildSkip(mb: EmitMethodBuilder[_]): (Code[Region], Code[InputBuffer]) => Code[Unit] = {
+    mb.getOrDefineEmitMethod(s"SKIP_${ asIdent }",
       (this, "SKIP"),
       Array[TypeInfo[_]](classInfo[Region], classInfo[InputBuffer]),
       UnitInfo)({ mb =>
@@ -98,13 +98,13 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     }).invoke(_, _)
   }
 
-  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Value[_], out: Value[OutputBuffer]): Code[Unit]
+  def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit]
 
-  def _buildDecoder(pt: PType, mb: MethodBuilder, region: Value[Region], in: Value[InputBuffer]): Code[_]
+  def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_]
 
   def _buildInplaceDecoder(
     pt: PType,
-    mb: MethodBuilder,
+    mb: EmitMethodBuilder[_],
     region: Value[Region],
     addr: Value[Long],
     in: Value[InputBuffer]
@@ -114,7 +114,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     Region.storeIRIntermediate(pt)(addr, decoded)
   }
 
-  def _buildSkip(mb: MethodBuilder, r: Value[Region], in: Value[InputBuffer]): Code[Unit]
+  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit]
 
   def _compatible(pt: PType): Boolean = fatal("EType subclasses must override either `_compatible` or both `_encodeCompatible` and `_decodeCompatible`")
 
@@ -184,12 +184,11 @@ object EType {
       encoderCacheMisses += 1
       log.info(s"encoder cache miss ($encoderCacheHits hits, $encoderCacheMisses misses, " +
         s"${ formatDouble(encoderCacheHits.toDouble / (encoderCacheHits + encoderCacheMisses), 3) })")
-      val fb = new FunctionBuilder[EncoderAsmFunction](
+      val fb = EmitFunctionBuilder[EncoderAsmFunction]("etypeEncode",
         Array(NotGenericTypeInfo[Long], NotGenericTypeInfo[OutputBuffer]),
-        NotGenericTypeInfo[Unit],
-        namePrefix = "etypeEncode")
+        NotGenericTypeInfo[Unit])
       val mb = fb.apply_method
-      val f = et.buildEncoder(pt, mb)
+      val f = et.buildEncoder(pt, mb.ecb)
 
       val addr: Code[Long] = mb.getArg[Long](1)
       val out: Code[OutputBuffer] = mb.getArg[OutputBuffer](2)
@@ -218,13 +217,12 @@ object EType {
       decoderCacheMisses += 1
       log.info(s"decoder cache miss ($decoderCacheHits hits, $decoderCacheMisses misses, " +
         s"${ formatDouble(decoderCacheHits.toDouble / (decoderCacheHits + decoderCacheMisses), 3) }")
-      val fb = new FunctionBuilder[DecoderAsmFunction](
+      val fb = EmitFunctionBuilder[DecoderAsmFunction]("etypeDecode",
         Array(NotGenericTypeInfo[Region], NotGenericTypeInfo[InputBuffer]),
-        NotGenericTypeInfo[Long],
-        namePrefix = "etypeDecode")
+        NotGenericTypeInfo[Long])
       val mb = fb.apply_method
       val pt = et.decodedPType(t)
-      val f = et.buildDecoder(pt, mb)
+      val f = et.buildDecoder(pt, mb.ecb)
 
       val region: Code[Region] = mb.getArg[Region](1)
       val in: Code[InputBuffer] = mb.getArg[InputBuffer](2)

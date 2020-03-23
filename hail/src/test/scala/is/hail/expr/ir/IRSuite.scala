@@ -2636,7 +2636,7 @@ class IRSuite extends HailSuite {
       GetTupleElement(t, 1),
       In(2, TFloat64),
       Die("mumblefoo", TFloat64),
-      invoke("&&", TBoolean, b, c), // ApplySpecial
+      invoke("land", TBoolean, b, c), // ApplySpecial
       invoke("toFloat64", TFloat64, i), // Apply
       Literal(TStruct("x" -> TInt32), Row(1)),
       TableCount(table),

@@ -2,6 +2,7 @@ package is.hail.expr.types.encoded
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.BaseType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -12,18 +13,18 @@ case object EInt64Optional extends EInt64(false)
 case object EInt64Required extends EInt64(true)
 
 class EInt64(override val required: Boolean) extends EType {
-  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
+  def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     out.writeLong(coerce[Long](v))
   }
 
   def _buildDecoder(
     pt: PType,
-    mb: MethodBuilder,
+    mb: EmitMethodBuilder[_],
     region: Value[Region],
     in: Value[InputBuffer]
   ): Code[Long] = in.readLong()
 
-  def _buildSkip(mb: MethodBuilder, r: Value[Region], in: Value[InputBuffer]): Code[Unit] = in.skipLong()
+  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = in.skipLong()
 
   override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PInt64]
 

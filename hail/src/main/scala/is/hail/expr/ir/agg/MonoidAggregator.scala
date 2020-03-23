@@ -20,8 +20,8 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   val typ: PType = monoid.typ
   val resultType: PType = typ.setRequired(monoid.neutral.isDefined)
 
-  def createState(fb: EmitFunctionBuilder[_]): State =
-    new PrimitiveRVAState(Array(typ.setRequired(monoid.neutral.isDefined)), fb)
+  def createState(cb: EmitClassBuilder[_]): State =
+    new PrimitiveRVAState(Array(typ.setRequired(monoid.neutral.isDefined)), cb)
 
   def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)
@@ -35,8 +35,8 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     val Array(elt) = seq
     val (mOpt, v, _) = state.fields(0)
-    val eltm = state.fb.newField[Boolean]
-    val eltv = state.fb.newField(typeToTypeInfo(typ))
+    val eltm = state.cb.genFieldThisRef[Boolean]()
+    val eltv = state.cb.genFieldThisRef()(typeToTypeInfo(typ))
     Code(elt.setup,
       eltm := elt.m,
       eltm.mux(Code._empty, eltv := elt.value),
@@ -62,8 +62,8 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   }
 
   private def combine(
-    m1Opt: Option[ClassFieldRef[Boolean]],
-    v1: ClassFieldRef[_],
+    m1Opt: Option[Settable[Boolean]],
+    v1: Settable[_],
     m2Opt: Option[Code[Boolean]],
     v2: Code[_]
   ): Code[Unit] = {

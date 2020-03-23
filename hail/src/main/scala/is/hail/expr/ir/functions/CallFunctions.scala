@@ -29,7 +29,7 @@ object CallFunctions extends RegistryFunctions {
 
     registerScalaFunction("unphasedDiploidGtIndex", Array(TCall), TInt32, null)(Call.getClass, "unphasedDiploidGtIndex")
 
-    registerScalaFunction("[]", Array(TCall, TInt32), TInt32, null)(Call.getClass, "alleleByIndex")
+    registerScalaFunction("index", Array(TCall, TInt32), TInt32, null)(Call.getClass, "alleleByIndex")
 
     registerScalaFunction("downcode", Array(TCall, TInt32), TCall, null)(Call.getClass, "downcode")
 

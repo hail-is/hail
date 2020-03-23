@@ -114,25 +114,25 @@ trait PArrayBackedContainer extends PContainer {
   def zeroes(region: Region, length: Int): Long =
     arrayRep.zeroes(region, length)
 
-  def zeroes(mb: MethodBuilder, region: Value[Region], length: Code[Int]): Code[Long] =
+  def zeroes(mb: EmitMethodBuilder[_], region: Value[Region], length: Code[Int]): Code[Long] =
     arrayRep.zeroes(mb, region, length)
 
-  def anyMissing(mb: MethodBuilder, aoff: Code[Long]): Code[Boolean] =
+  def anyMissing(mb: EmitMethodBuilder[_], aoff: Code[Long]): Code[Boolean] =
     arrayRep.anyMissing(mb, aoff)
 
-  def forEach(mb: MethodBuilder, aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] =
+  def forEach(mb: EmitMethodBuilder[_], aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] =
     arrayRep.forEach(mb, aoff, body)
 
   def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean] =
     arrayRep.hasMissingValues(sourceOffset)
 
-  def checkedConvertFrom(mb: EmitMethodBuilder, r: Value[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long] =
+  def checkedConvertFrom(mb: EmitMethodBuilder[_], r: Value[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long] =
     arrayRep.checkedConvertFrom(mb, r, sourceOffset, sourceType, msg)
 
   def copyFrom(region: Region, srcOff: Long): Long =
     arrayRep.copyFrom(region, srcOff)
 
-  def copyFrom(mb: MethodBuilder, region: Code[Region], srcOff: Code[Long]): Code[Long] =
+  def copyFrom(mb: EmitMethodBuilder[_], region: Code[Region], srcOff: Code[Long]): Code[Long] =
     arrayRep.copyFrom(mb, region, srcOff)
 
   override def unsafeOrdering: UnsafeOrdering =
@@ -141,10 +141,10 @@ trait PArrayBackedContainer extends PContainer {
   override def unsafeOrdering(rightType: PType): UnsafeOrdering =
     arrayRep.unsafeOrdering(rightType)
 
-  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] =
+  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] =
     this.arrayRep.copyFromType(mb, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
+  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
     this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
   def copyFromType(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
@@ -156,7 +156,7 @@ trait PArrayBackedContainer extends PContainer {
   def nextElementAddress(currentOffset: Code[Long]) =
     arrayRep.nextElementAddress(currentOffset)
 
-  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =
+  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =
     arrayRep.constructAtAddress(mb, addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =

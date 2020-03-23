@@ -46,6 +46,8 @@ package asm4s {
 }
 
 package object asm4s {
+  def genName(tag: String, baseName: String): String = lir.genName(tag, baseName)
+
   def typeInfo[T](implicit tti: TypeInfo[T]): TypeInfo[T] = tti
 
   def coerce[T](c: Code[_]): Code[T] =

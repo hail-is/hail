@@ -28,9 +28,7 @@ class Classx[C](val name: String, val superName: String) {
     f
   }
 
-  def genField(ti: TypeInfo[_]): Field = newField(genName(), ti)
-
-  def genField(prefix: String, ti: TypeInfo[_]): Field = newField(genName(prefix), ti)
+  def genField(baseName: String, ti: TypeInfo[_]): Field = newField(genName("f", baseName), ti)
 
   def newMethod(name: String,
     parameterTypeInfo: IndexedSeq[TypeInfo[_]],
@@ -41,8 +39,6 @@ class Classx[C](val name: String, val superName: String) {
   }
 
   def asBytes(print: Option[PrintWriter]): Array[Byte] = {
-    // println(Pretty(this))
-
     for (m <- methods) {
       val blocks = m.findBlocks()
       for (b <- blocks) {
@@ -97,8 +93,6 @@ class Classx[C](val name: String, val superName: String) {
     for (m <- methods) {
       InitializeLocals(m)
     }
-
-    // println(Pretty(this))
 
     Emit(this,
       print
@@ -172,9 +166,7 @@ class Method private[lir] (
   def newLocal(name: String, ti: TypeInfo[_]): Local =
     new Local(this, name, ti)
 
-  def genLocal(prefix: String, ti: TypeInfo[_]): Local = newLocal(genName(prefix), ti)
-
-  def genLocal(ti: TypeInfo[_]): Local = newLocal(genName(), ti)
+  def genLocal(baseName: String, ti: TypeInfo[_]): Local = newLocal(genName("l", baseName), ti)
 
   def findBlocks(): IndexedSeq[Block] = {
     val blocks = mutable.ArrayBuffer[Block]()

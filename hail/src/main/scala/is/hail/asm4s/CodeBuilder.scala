@@ -5,11 +5,11 @@ abstract class SettableBuilder {
 }
 
 object CodeBuilder {
-  def apply(mb: MethodBuilder): CodeBuilder = new CodeBuilder(mb, Code._empty)
+  def apply(mb: MethodBuilder[_]): CodeBuilder = new CodeBuilder(mb, Code._empty)
 
-  def apply(mb: MethodBuilder, code: Code[Unit]): CodeBuilder = new CodeBuilder(mb, code)
+  def apply(mb: MethodBuilder[_], code: Code[Unit]): CodeBuilder = new CodeBuilder(mb, code)
 
-  def scoped[T](mb: MethodBuilder)(f: (CodeBuilder) => T): (Code[Unit], T) = {
+  def scoped[T](mb: MethodBuilder[_])(f: (CodeBuilder) => T): (Code[Unit], T) = {
     val cb = CodeBuilder(mb)
     val t = f(cb)
     (cb.result(), t)
@@ -17,7 +17,7 @@ object CodeBuilder {
 }
 
 trait CodeBuilderLike {
-  def mb: MethodBuilder
+  def mb: MethodBuilder[_]
 
   def append(c: Code[Unit]): Unit
 
@@ -28,7 +28,7 @@ trait CodeBuilderLike {
   }
 
   val fieldBuilder: SettableBuilder = new SettableBuilder {
-    def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] = mb.newField[T](name)
+    def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] = mb.genFieldThisRef[T](name)
   }
 
   def +=(c: Code[Unit]): Unit = append(c)
@@ -64,7 +64,7 @@ trait CodeBuilderLike {
   }
 
   def memoizeField[T](c: Code[T], name: String)(implicit tti: TypeInfo[T]): Settable[T] = {
-    val f = mb.newField[T](name)
+    val f = mb.genFieldThisRef[T](name)
     append(f := c)
     f
   }
@@ -92,7 +92,7 @@ trait CodeBuilderLike {
   }
 }
 
-class CodeBuilder(val mb: MethodBuilder, var code: Code[Unit]) extends CodeBuilderLike {
+class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
   def append(c: Code[Unit]): Unit = {
     code = Code(code, c)
   }

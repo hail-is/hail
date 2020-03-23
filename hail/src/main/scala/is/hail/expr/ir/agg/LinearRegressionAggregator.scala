@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import breeze.linalg.{DenseMatrix, DenseVector, diag, inv}
 import is.hail.annotations.{Region, RegionValueBuilder, StagedRegionValueBuilder, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitCode}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder, EmitMethodBuilder}
 import is.hail.expr.types.physical.{PArray, PFloat64, PInt32, PStruct, PTuple}
 import is.hail.utils.FastIndexedSeq
 
@@ -16,10 +16,10 @@ object LinearRegressionAggregator extends StagedAggregator {
   val nrVec = PArray(PFloat64())
   def resultType = PStruct("xty" -> nrVec, "beta" -> nrVec, "diag_inv" -> nrVec, "beta0" -> nrVec)
 
-  def createState(fb: EmitFunctionBuilder[_]): State =
-    new TypedRegionBackedAggState(stateType, fb)
+  def createState(cb: EmitClassBuilder[_]): State =
+    new TypedRegionBackedAggState(stateType, cb)
 
-  def initOpF(state: State)(mb: MethodBuilder, k: Code[Int], k0: Code[Int]): Code[Unit] =
+  def initOpF(state: State)(mb: EmitMethodBuilder[_], k: Code[Int], k0: Code[Int]): Code[Unit] =
     Code.memoize(k, "lra_init_k", k0, "lra_init_k0") { (k, k0) =>
       Code(
         (k0 < 0 | k0 > k).mux(
@@ -40,22 +40,22 @@ object LinearRegressionAggregator extends StagedAggregator {
     }
 
   def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
-    val _initOpF = state.fb.newMethod[Int, Int, Unit]("linregInitOp")(initOpF(state))
+    val _initOpF = state.cb.wrapInEmitMethod[Int, Int, Unit]("linregInitOp", initOpF(state))
     val Array(kt, k0t) = init
     (Code(kt.setup, kt.m) || Code(k0t.setup, k0t.m)).mux(
       Code._fatal[Unit]("linreg: init args may not be missing"),
       _initOpF(coerce[Int](kt.v), coerce[Int](k0t.v)))
   }
 
-  def seqOpF(state: State)(mb: MethodBuilder, y: Code[Double], x: Code[Long]): Code[Unit] = {
-    val k = mb.newLocal[Int]
-    val i = mb.newLocal[Int]
-    val j = mb.newLocal[Int]
-    val sptr = mb.newLocal[Long]
-    val xptr = mb.newLocal[Long]
-    val xptr2 = mb.newLocal[Long]
-    val xty = mb.newLocal[Long]
-    val xtx = mb.newLocal[Long]
+  def seqOpF(state: State)(mb: EmitMethodBuilder[_], y: Code[Double], x: Code[Long]): Code[Unit] = {
+    val k = mb.newLocal[Int]()
+    val i = mb.newLocal[Int]()
+    val j = mb.newLocal[Int]()
+    val sptr = mb.newLocal[Long]()
+    val xptr = mb.newLocal[Long]()
+    val xptr2 = mb.newLocal[Long]()
+    val xty = mb.newLocal[Long]()
+    val xtx = mb.newLocal[Long]()
 
       Code.memoize(x, "lra_seqop_x") { x =>
         val body = Code(FastIndexedSeq(
@@ -93,22 +93,22 @@ object LinearRegressionAggregator extends StagedAggregator {
   }
 
   def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
-    val _seqOpF = state.fb.newMethod[Double, Long, Unit]("linregSeqOp")(seqOpF(state))
+    val _seqOpF = state.cb.wrapInEmitMethod[Double, Long, Unit]("linregSeqOp", seqOpF(state))
     val Array(y, x) = seq
     (Code(y.setup, y.m) || Code(x.setup, x.m)).mux(
       Code._empty,
       _seqOpF(coerce[Double](y.v), coerce[Long](x.v)))
   }
 
-  def combOpF(state: State, other: State)(mb: MethodBuilder): Code[Unit] = {
-    val n = mb.newLocal[Int]
-    val i = mb.newLocal[Int]
-    val sptr = mb.newLocal[Long]
-    val optr = mb.newLocal[Long]
-    val xty = mb.newLocal[Long]
-    val xtx = mb.newLocal[Long]
-    val oxty = mb.newLocal[Long]
-    val oxtx = mb.newLocal[Long]
+  def combOpF(state: State, other: State)(mb: EmitMethodBuilder[_]): Code[Unit] = {
+    val n = mb.newLocal[Int]()
+    val i = mb.newLocal[Int]()
+    val sptr = mb.newLocal[Long]()
+    val optr = mb.newLocal[Long]()
+    val xty = mb.newLocal[Long]()
+    val xtx = mb.newLocal[Long]()
+    val oxty = mb.newLocal[Long]()
+    val oxtx = mb.newLocal[Long]()
 
     Code(FastIndexedSeq(
       xty := stateType.loadField(state.off, 0),
@@ -136,8 +136,9 @@ object LinearRegressionAggregator extends StagedAggregator {
         optr := optr + scalar.byteSize))))
   }
 
-  def combOp(state: State, other: State, dummy: Boolean): Code[Unit] =
-    state.fb.newMethod[Unit]("linregCombOp")(combOpF(state, other))
+  def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
+    state.cb.wrapInEmitMethod[Unit]("linregCombOp", combOpF(state, other))
+  }
 
   def computeResult(region: Region, xtyPtr: Long, xtxPtr: Long, k0: Int): Long = {
     val xty = DenseVector(UnsafeRow.readArray(vector, null, xtyPtr)
@@ -203,7 +204,7 @@ object LinearRegressionAggregator extends StagedAggregator {
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
-    val res = state.fb.newField[Long]
+    val res = state.cb.genFieldThisRef[Long]()
     coerce[Unit](Code(
       res := Code.invokeScalaObject[Region, Long, Long, Int, Long](getClass, "computeResult",
         srvb.region,

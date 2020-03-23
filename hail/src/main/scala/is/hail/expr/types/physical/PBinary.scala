@@ -37,17 +37,17 @@ abstract class PBinary extends PType {
     }
   }
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
+  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
     assert(other isOfType this)
     new CodeOrderingCompareConsistentWithOthers {
       type T = Long
 
       def compareNonnull(x: Code[T], y: Code[T]): Code[Int] = {
-        val l1 = mb.newLocal[Int]
-        val l2 = mb.newLocal[Int]
-        val lim = mb.newLocal[Int]
-        val i = mb.newLocal[Int]
-        val cmp = mb.newLocal[Int]
+        val l1 = mb.newLocal[Int]()
+        val l2 = mb.newLocal[Int]()
+        val lim = mb.newLocal[Int]()
+        val i = mb.newLocal[Int]()
+        val cmp = mb.newLocal[Int]()
 
         Code.memoize(x, "pbin_cord_x", y, "pbin_cord_y") { (x, y) =>
             Code(

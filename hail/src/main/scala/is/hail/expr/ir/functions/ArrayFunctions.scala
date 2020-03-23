@@ -11,16 +11,16 @@ import is.hail.utils._
 object ArrayFunctions extends RegistryFunctions {
   val arrayOps: Array[(String, Type, Type, (IR, IR) => IR)] =
     Array(
-      ("*", tnum("T"), tv("T"), ApplyBinaryPrimOp(Multiply(), _, _)),
-      ("/", TInt32, TFloat32, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-      ("/", TInt64, TFloat32, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-      ("/", TFloat32, TFloat32, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-      ("/", TFloat64, TFloat64, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-      ("//", tnum("T"), tv("T"), ApplyBinaryPrimOp(RoundToNegInfDivide(), _, _)),
-      ("+", tnum("T"), tv("T"), ApplyBinaryPrimOp(Add(), _, _)),
-      ("-", tnum("T"), tv("T"), ApplyBinaryPrimOp(Subtract(), _, _)),
-      ("**", tnum("T"), TFloat64, (ir1: IR, ir2: IR) => Apply("**", Seq(ir1, ir2), TFloat64)),
-      ("%", tnum("T"), tv("T"), (ir1: IR, ir2: IR) => Apply("%", Seq(ir1, ir2), ir2.typ)))
+      ("mul", tnum("T"), tv("T"), ApplyBinaryPrimOp(Multiply(), _, _)),
+      ("div", TInt32, TFloat32, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+      ("div", TInt64, TFloat32, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+      ("div", TFloat32, TFloat32, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+      ("div", TFloat64, TFloat64, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+      ("floordiv", tnum("T"), tv("T"), ApplyBinaryPrimOp(RoundToNegInfDivide(), _, _)),
+      ("add", tnum("T"), tv("T"), ApplyBinaryPrimOp(Add(), _, _)),
+      ("sub", tnum("T"), tv("T"), ApplyBinaryPrimOp(Subtract(), _, _)),
+      ("pow", tnum("T"), TFloat64, (ir1: IR, ir2: IR) => Apply("pow", Seq(ir1, ir2), TFloat64)),
+      ("mod", tnum("T"), tv("T"), (ir1: IR, ir2: IR) => Apply("mod", Seq(ir1, ir2), ir2.typ)))
 
   def mean(args: Seq[IR]): IR = {
     val Seq(a) = args
@@ -59,7 +59,7 @@ object ArrayFunctions extends RegistryFunctions {
       False(),
       "acc",
       "elt",
-      invoke("||",TBoolean,
+      invoke("lor",TBoolean,
         Ref("acc", TBoolean),
         cond(Ref("elt", t))))
   }
@@ -163,7 +163,7 @@ object ArrayFunctions extends RegistryFunctions {
             ArrayLen(a),
             If(size.ceq(0),
               NA(t),
-              If(invoke("%", TInt32, size, 2).cne(0),
+              If(invoke("mod", TInt32, size, 2).cne(0),
                 ref(midIdx), // odd number of non-missing elements
                 div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)))))))
     }
@@ -253,9 +253,7 @@ object ArrayFunctions extends RegistryFunctions {
           i), s)
     }
 
-    registerIR("[:]", TArray(tv("T")), TArray(tv("T"))) { (a) => a }
-
-    registerIR("[*:]", TArray(tv("T")), TInt32, TArray(tv("T"))) { (a, i) =>
+    registerIR("sliceRight", TArray(tv("T")), TInt32, TArray(tv("T"))) { (a, i) =>
       val idx = genUID()
       ToArray(StreamMap(
         StreamRange(
@@ -270,7 +268,7 @@ object ArrayFunctions extends RegistryFunctions {
         ArrayRef(a, Ref(idx, TInt32))))
     }
 
-    registerIR("[:*]", TArray(tv("T")), TInt32, TArray(tv("T"))) { (a, i) =>
+    registerIR("sliceLeft", TArray(tv("T")), TInt32, TArray(tv("T"))) { (a, i) =>
       val idx = genUID()
       If(IsNA(a), a,
         ToArray(StreamMap(
@@ -284,7 +282,7 @@ object ArrayFunctions extends RegistryFunctions {
           ArrayRef(a, Ref(idx, TInt32)))))
     }
 
-    registerIR("[*:*]", TArray(tv("T")), TInt32, TInt32, TArray(tv("T"))) { (a, i, j) =>
+    registerIR("slice", TArray(tv("T")), TInt32, TInt32, TArray(tv("T"))) { (a, i, j) =>
       val idx = genUID()
       ToArray(StreamMap(
         StreamRange(
@@ -308,19 +306,19 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("corr", TArray(TFloat64), TArray(TFloat64), TFloat64, null) {
       case (r, rt, (t1: PArray, EmitCode(setup1, m1, v1)), (t2: PArray, EmitCode(setup2, m2, v2))) =>
-        val a1 = r.mb.newLocal[Long]
-        val a2 = r.mb.newLocal[Long]
-        val xSum = r.mb.newLocal[Double]
-        val ySum = r.mb.newLocal[Double]
-        val xSqSum = r.mb.newLocal[Double]
-        val ySqSum = r.mb.newLocal[Double]
-        val xySum = r.mb.newLocal[Double]
-        val n = r.mb.newLocal[Int]
-        val i = r.mb.newLocal[Int]
-        val l1 = r.mb.newLocal[Int]
-        val l2 = r.mb.newLocal[Int]
-        val x = r.mb.newLocal[Double]
-        val y = r.mb.newLocal[Double]
+        val a1 = r.mb.newLocal[Long]()
+        val a2 = r.mb.newLocal[Long]()
+        val xSum = r.mb.newLocal[Double]()
+        val ySum = r.mb.newLocal[Double]()
+        val xSqSum = r.mb.newLocal[Double]()
+        val ySqSum = r.mb.newLocal[Double]()
+        val xySum = r.mb.newLocal[Double]()
+        val n = r.mb.newLocal[Int]()
+        val i = r.mb.newLocal[Int]()
+        val l1 = r.mb.newLocal[Int]()
+        val l2 = r.mb.newLocal[Int]()
+        val x = r.mb.newLocal[Double]()
+        val y = r.mb.newLocal[Double]()
 
         EmitCode(
           Code(

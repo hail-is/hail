@@ -13,7 +13,7 @@ import is.hail.utils._
 import org.testng.annotations.Test
 
 import scala.collection.mutable
-class TestBTreeKey(mb: EmitMethodBuilder) extends BTreeKey {
+class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
   private val comp = mb.getCodeOrdering(PInt64(), CodeOrdering.compare)
   def storageType: PTuple = PTuple(required = true, PInt64(), PTuple())
   def compType: PType = PInt64()
@@ -47,16 +47,17 @@ class TestBTreeKey(mb: EmitMethodBuilder) extends BTreeKey {
 object BTreeBackedSet {
   def bulkLoad(region: Region, serialized: Array[Byte], n: Int): BTreeBackedSet = {
     val fb = EmitFunctionBuilder[Region, InputBuffer, Long]("btree_bulk_load")
-    val root = fb.newField[Long]
-    val r = fb.newField[Region]
+    val cb = fb.ecb
+    val root = fb.genFieldThisRef[Long]()
+    val r = fb.genFieldThisRef[Region]()
     val ib = fb.getArg[InputBuffer](2)
-    val ib2 = fb.newField[InputBuffer]
+    val ib2 = fb.genFieldThisRef[InputBuffer]()
 
-    val km = fb.newField[Boolean]
-    val kv = fb.newField[Long]
+    val km = fb.genFieldThisRef[Boolean]()
+    val kv = fb.genFieldThisRef[Long]()
 
     val key = new TestBTreeKey(fb.apply_method)
-    val btree = new AppendOnlyBTree(fb: EmitFunctionBuilder[_], key, r, root, maxElements = n)
+    val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
     fb.emit(Code(
       r := fb.getArg[Region](1),
       btree.init,
@@ -82,11 +83,12 @@ class BTreeBackedSet(region: Region, n: Int) {
 
   private val newTreeF = {
     val fb = EmitFunctionBuilder[Region, Long]("new_tree")
-    val root = fb.newField[Long]
-    val r = fb.newField[Region]
+    val cb = fb.ecb
+    val root = fb.genFieldThisRef[Long]()
+    val r = fb.genFieldThisRef[Region]()
 
     val key = new TestBTreeKey(fb.apply_method)
-    val btree = new AppendOnlyBTree(fb: EmitFunctionBuilder[_], key, r, root, maxElements = n)
+    val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
     fb.emit(Code(
       r := fb.getArg[Region](1),
       btree.init, root))
@@ -96,14 +98,15 @@ class BTreeBackedSet(region: Region, n: Int) {
 
   private val getF = {
     val fb = EmitFunctionBuilder[Region, Long, Boolean, Long, Long]("get")
-    val root = fb.newField[Long]
-    val r = fb.newField[Region]
+    val cb = fb.ecb
+    val root = fb.genFieldThisRef[Long]()
+    val r = fb.genFieldThisRef[Region]()
     val m = fb.getArg[Boolean](3)
     val v = fb.getArg[Long](4)
-    val elt = fb.newLocal[Long]
+    val elt = fb.newLocal[Long]()
 
     val key = new TestBTreeKey(fb.apply_method)
-    val btree = new AppendOnlyBTree(fb: EmitFunctionBuilder[_], key, r, root, maxElements = n)
+    val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
 
     fb.emit(Code(
       r := fb.getArg[Region](1),
@@ -116,15 +119,16 @@ class BTreeBackedSet(region: Region, n: Int) {
 
   private val getResultsF = {
     val fb = EmitFunctionBuilder[Region, Long, Array[java.lang.Long]]("get_results")
-    val root = fb.newField[Long]
-    val r = fb.newField[Region]
+    val cb = fb.ecb
+    val root = fb.genFieldThisRef[Long]()
+    val r = fb.genFieldThisRef[Region]()
 
     val key = new TestBTreeKey(fb.apply_method)
-    val btree = new AppendOnlyBTree(fb: EmitFunctionBuilder[_], key, r, root, maxElements = n)
+    val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
 
     val sab = new StagedArrayBuilder(PInt64(), fb.apply_method, 16)
-    val idx = fb.newLocal[Int]
-    val returnArray = fb.newLocal[Array[java.lang.Long]]
+    val idx = fb.newLocal[Int]()
+    val returnArray = fb.newLocal[Array[java.lang.Long]]()
 
     fb.emit(Code(
       r := fb.getArg[Region](1),
@@ -151,13 +155,14 @@ class BTreeBackedSet(region: Region, n: Int) {
 
   private val bulkStoreF = {
     val fb = EmitFunctionBuilder[Long, OutputBuffer, Unit]("bulk_store")
-    val root = fb.newField[Long]
-    val r = fb.newField[Region]
+    val cb = fb.ecb
+    val root = fb.genFieldThisRef[Long]()
+    val r = fb.genFieldThisRef[Region]()
     val ob = fb.getArg[OutputBuffer](2)
-    val ob2 = fb.newField[OutputBuffer]
+    val ob2 = fb.genFieldThisRef[OutputBuffer]()
 
     val key = new TestBTreeKey(fb.apply_method)
-    val btree = new AppendOnlyBTree(fb: EmitFunctionBuilder[_], key, r, root, maxElements = n)
+    val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
 
     fb.emit(Code(
       root := fb.getArg[Long](1),
