@@ -577,6 +577,7 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
     -------
     :class:`.MatrixTable` or :class:`.Table`
         Dataset with new row-indexed field `name` containing VEP annotations.
+
     """
     if isinstance(dataset, MatrixTable):
         require_row_key_variant(dataset, 'vep')
