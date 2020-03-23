@@ -19,6 +19,7 @@ async def test_deploy():
 
         async def wait_forever():
             deploy_state = None
+            failure_information = None
             while deploy_state is None:
                 resp = await utils.request_retry_transient_errors(
                     session, 'GET', f'{ci_deploy_status_url}', headers=headers)
@@ -26,8 +27,9 @@ async def test_deploy():
                 assert len(deploy_statuses) == 1, deploy_statuses
                 deploy_status = deploy_statuses[0]
                 deploy_state = deploy_status['deploy_state']
+                failure_information = deploy_status.get('failure_information')
                 await asyncio.sleep(5)
-            return deploy_state
+            return deploy_state, failure_information
 
-        deploy_state = await asyncio.wait_for(wait_forever(), timeout=20 * 60)
-        assert deploy_state == 'success', deploy_state
+        deploy_state, failure_information = await asyncio.wait_for(wait_forever(), timeout=20 * 60)
+        assert deploy_state == 'success', failure_information
