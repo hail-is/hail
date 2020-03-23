@@ -227,12 +227,20 @@ class PCanonicalBaseStructCode(val pt: PBaseStruct, val a: Code[Long]) extends P
 
 abstract class PBinaryCode extends PCode {
   def loadLength(): Code[Int]
+
+  def bytesAddress(): Code[Long]
+
+  def loadBytes(): Code[Array[Byte]]
 }
 
 class PCanonicalBinaryCode(val pt: PBinary, a: Code[Long]) extends PBinaryCode {
   def code: Code[_] = a
 
   def loadLength(): Code[Int] = pt.loadLength(a)
+
+  def bytesAddress(): Code[Long] = pt.bytesOffset(a)
+
+  def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
 
   def memoize(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeImpl(cb, name)
 
