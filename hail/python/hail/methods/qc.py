@@ -501,6 +501,12 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
     Notes
     -----
 
+    **Installation**
+
+    This VEP command only works if you have already installed VEP on your
+    computing environment. If you use `hailctl dataproc` to start Hail clusters,
+    installing VEP is achieved by passing a `--vep` flag.
+
     **Configuration**
 
     :func:`.vep` needs a configuration file to tell it how to run VEP.
