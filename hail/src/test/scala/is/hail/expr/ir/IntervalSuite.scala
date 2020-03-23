@@ -164,7 +164,6 @@ class IntervalSuite extends HailSuite {
     ))
 
     assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(-1)), false)
-    /*
     assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(7)), false)
     assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(27)), false)
     assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(30)), false)
@@ -175,6 +174,5 @@ class IntervalSuite extends HailSuite {
     assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(11)), true)
     assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(31)), true)
     assertEvalsTo(invoke("sortedNonOverlappingIntervalsContain", TBoolean, intervals, I32(32)), true)
-    */
   }
 }
