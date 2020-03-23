@@ -35,7 +35,9 @@ Service Accounts
 
 A service account is automatically created for a new Batch user that is used by Batch to download data
 on your behalf. This service account needs to be added to Google Storage buckets with your data and Docker
-images under Permissions.
+images under Permissions. See this `page <https://cloud.google.com/container-registry/docs/access-control>`_
+for more information. To get the name of the service account, click on your name on the header bar or go to
+`<https://notebook.hail.is/user>`_.
 
 
 Billing

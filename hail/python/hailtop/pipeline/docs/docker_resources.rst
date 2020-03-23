@@ -88,7 +88,8 @@ To use an image with Pipeline, you need to upload your image to a place where Pi
 You can store images inside the `Google Container Registry <https://cloud.google.com/container-registry/docs/>`_ in
 addition to Dockerhub. Below is an example of pushing the image to the Google Container Registry.
 It's good practice to specify a tag that is unique for your image. If you don't tag your image, the default is
-`latest`.
+`latest`. For more information about pulling and pushing images for the Google Container Registry, see
+`here <https://cloud.google.com/container-registry/docs/pushing-and-pulling>`_.
 
 .. code-block:: sh
 
