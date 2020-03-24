@@ -109,7 +109,7 @@ class ApproxCDFState(val cb: EmitClassBuilder[_]) extends AggregatorState {
 class ApproxCDFAggregator extends StagedAggregator {
   type State = ApproxCDFState
 
-  def resultType: PStruct = PType.canonical(QuantilesAggregator.resultType).asInstanceOf[PStruct]
+  def resultType: PStruct = QuantilesAggregator.resultType
 
   def createState(cb: EmitClassBuilder[_]): State = new ApproxCDFState(cb)
 

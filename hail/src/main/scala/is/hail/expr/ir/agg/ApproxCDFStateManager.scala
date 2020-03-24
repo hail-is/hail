@@ -1,7 +1,7 @@
 package is.hail.expr.ir.agg
 
 import is.hail.annotations._
-import is.hail.expr.types.physical.{PArray, PFloat64, PInt32, PInt64, PStruct, PType}
+import is.hail.expr.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PInt32, PInt64, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.utils._
@@ -694,8 +694,11 @@ class ApproxCDFStateManager(val k: Int) {
 }
 
 object QuantilesAggregator {
-  def resultType: PType =
-    PStruct("values" -> PArray(PFloat64()), "ranks" -> PArray(PInt64()), "_compaction_counts" -> PArray(PInt32()))
+  val resultType: PCanonicalStruct =
+    PCanonicalStruct(required = true,
+      "values" -> PCanonicalArray(PFloat64(true), required = true),
+      "ranks" -> PCanonicalArray(PInt64(true), required = true),
+      "_compaction_counts" -> PCanonicalArray(PInt32(true), required = true))
 
   def floorOfLog2OfFraction(numer: Long, denom: Long): Int = {
     var count = 0
