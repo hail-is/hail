@@ -9,7 +9,6 @@ import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TStruct}
-import is.hail.rvd.RVDType
 import is.hail.stats._
 import is.hail.utils._
 import net.sourceforge.jdistlib.T
@@ -239,10 +238,10 @@ case class LinearRegressionRowsChained(
     val rvdType = tableType.canonicalRVDType
     val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_)).toArray
 
-    val newRVD = mv.rvd.boundary.mapPartitions(
-      rvdType) { (ctx, it) =>
+    val newRVD = mv.rvd.mapPartitionsWithContext(
+      rvdType) { (consumerCtx, it) =>
+        val producerCtx = consumerCtx.freshContext
         val rvb = new RegionValueBuilder()
-        val rv2 = RegionValue()
 
         val inputData = bc.value
         val builder = new ArrayBuilder[Int]
@@ -251,11 +250,11 @@ case class LinearRegressionRowsChained(
         val blockWRVs = new Array[WritableRegionValue](rowBlockSize)
         var i = 0
         while (i < rowBlockSize) {
-          blockWRVs(i) = WritableRegionValue(fullRowType, ctx.freshRegion)
+          blockWRVs(i) = WritableRegionValue(fullRowType, producerCtx.freshRegion)
           i += 1
         }
 
-        it.trueGroupedIterator(rowBlockSize)
+        it(producerCtx).trueGroupedIterator(rowBlockSize)
           .flatMap { git =>
             var i = 0
             while (git.hasNext) {
@@ -267,6 +266,7 @@ case class LinearRegressionRowsChained(
                 j += 1
               }
               blockWRVs(i).set(ptr, true)
+              producerCtx.region.clear()
               i += 1
             }
             val blockLength = i
@@ -352,7 +352,7 @@ case class LinearRegressionRowsChained(
 
               rvb.endStruct()
 
-              ctx.region.addReferenceTo(wrv.region)
+              producerCtx.region.addReferenceTo(wrv.region)
               rvb.end()
             }
           }
