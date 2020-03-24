@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder, ParamType, defaultValue, typeToTypeInfo}
 import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
@@ -46,12 +46,12 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   private val compareKey: ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[Int] = {
     val keyInfo = typeToTypeInfo(keyType.virtualType)
-    val cmp = cb.genEmitMethod("compare", Array[TypeInfo[_]](BooleanInfo, keyInfo, BooleanInfo, keyInfo), IntInfo)
+    val cmp = cb.genEmitMethod("compare", FastIndexedSeq[ParamType](BooleanInfo, keyInfo, BooleanInfo, keyInfo), IntInfo)
     val ord = keyType.codeOrdering(cmp)
-    val k1m = cmp.getArg[Boolean](1)
-    val k1 = cmp.getArg(2)(keyInfo)
-    val k2m = cmp.getArg[Boolean](3)
-    val k2 = cmp.getArg(4)(keyInfo)
+    val k1m = cmp.getCodeParam[Boolean](1)
+    val k1 = cmp.getCodeParam(2)(keyInfo)
+    val k2m = cmp.getCodeParam[Boolean](3)
+    val k2 = cmp.getCodeParam(4)(keyInfo)
 
     cmp.emit(
       ord.compare((k1m, asm4s.coerce[ord.T](k1)), (k2m, asm4s.coerce[ord.T](k2)))
@@ -64,21 +64,21 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     (k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])) => {
       Code.memoize(k1._1, "tba_comp_key_k1m",
         k2._1, "tba_comp_key_k2m") { (k1m, k2m) =>
-        cmp.invoke[Int](k1m, wrappedValue(k1m, k1._2), k2m, wrappedValue(k2m, k2._2))
+        cmp.invokeCode[Int](k1m, wrappedValue(k1m, k1._2), k2m, wrappedValue(k2m, k2._2))
       }
     }
   }
 
   private val compareIndexedKey: (Code[Long], Code[Long]) => Code[Int] = {
     val indexedkeyTypeTypeInfo = typeToTypeInfo(indexedKeyType.virtualType)
-    val cmp = cb.genEmitMethod("take_by_compare", Array[TypeInfo[_]](indexedkeyTypeTypeInfo, indexedkeyTypeTypeInfo), IntInfo)
+    val cmp = cb.genEmitMethod("take_by_compare", FastIndexedSeq[ParamType](indexedkeyTypeTypeInfo, indexedkeyTypeTypeInfo), IntInfo)
     val ord = indexedKeyType.codeOrdering(cmp)
-    val k1 = cmp.getArg(1)(indexedkeyTypeTypeInfo)
-    val k2 = cmp.getArg(2)(indexedkeyTypeTypeInfo)
+    val k1 = cmp.getCodeParam(1)(indexedkeyTypeTypeInfo)
+    val k2 = cmp.getCodeParam(2)(indexedkeyTypeTypeInfo)
 
     cmp.emit(ord.compare((false, asm4s.coerce[ord.T](k1)), (false, asm4s.coerce[ord.T](k2))))
 
-    cmp.invoke(_, _)
+    cmp.invokeCode(_, _)
   }
 
   private def maybeGCCode(alwaysRun: Code[Unit]*)(runIfGarbage: => Array[Code[Unit]], runBefore: Boolean = false): Code[Unit] = {
@@ -234,19 +234,19 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   private def loadKey(offset: Value[Long]): (Code[Boolean], Code[_]) = (keyIsMissing(offset), loadKeyValue(offset))
 
   private val compareElt: (Code[Long], Code[Long]) => Code[Int] = {
-    val mb = cb.genEmitMethod("i_gt_j", Array[TypeInfo[_]](LongInfo, LongInfo), IntInfo)
-    val i = mb.getArg[Long](1)
-    val j = mb.getArg[Long](2)
+    val mb = cb.genEmitMethod("i_gt_j", FastIndexedSeq[ParamType](LongInfo, LongInfo), IntInfo)
+    val i = mb.getCodeParam[Long](1)
+    val j = mb.getCodeParam[Long](2)
 
     mb.emit(compareIndexedKey(eltTuple.fieldOffset(i, 0), eltTuple.fieldOffset(j, 0)))
 
-    mb.invoke(_, _)
+    mb.invokeCode(_, _)
   }
 
   private val swap: (Code[Long], Code[Long]) => Code[Unit] = {
-    val mb = cb.genEmitMethod("swap", Array[TypeInfo[_]](LongInfo, LongInfo), UnitInfo)
-    val i = mb.getArg[Long](1)
-    val j = mb.getArg[Long](2)
+    val mb = cb.genEmitMethod("swap", FastIndexedSeq[ParamType](LongInfo, LongInfo), UnitInfo)
+    val i = mb.getCodeParam[Long](1)
+    val j = mb.getCodeParam[Long](2)
 
     mb.emit(
       Code(
@@ -254,13 +254,13 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
         Region.copyFrom(j, i, eltTuple.byteSize),
         Region.copyFrom(staging, j, eltTuple.byteSize))
     )
-    mb.invoke(_, _)
+    mb.invokeCode(_, _)
   }
 
 
   private val rebalanceUp: Code[Int] => Code[Unit] = {
-    val mb = cb.genEmitMethod("rebalance_up", Array[TypeInfo[_]](IntInfo), UnitInfo)
-    val idx = mb.getArg[Int](1)
+    val mb = cb.genEmitMethod("rebalance_up", FastIndexedSeq[ParamType](IntInfo), UnitInfo)
+    val idx = mb.getCodeParam[Int](1)
 
     val ii = mb.newLocal[Long]("rebalance_up_ii")
     val jj = mb.newLocal[Long]("rebalance_up_jj")
@@ -276,15 +276,15 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
           (compareElt(ii, jj) > 0).orEmpty(
             Code(
               swap(ii, jj),
-              mb.invoke(parent))
+              mb.invokeCode(parent))
           ))))
 
-    mb.invoke(_)
+    mb.invokeCode(_)
   }
 
   private val rebalanceDown: Code[Int] => Code[Unit] = {
-    val mb = cb.genEmitMethod("rebalance_down", Array[TypeInfo[_]](IntInfo), UnitInfo)
-    val idx = mb.getArg[Int](1)
+    val mb = cb.genEmitMethod("rebalance_down", FastIndexedSeq[ParamType](IntInfo), UnitInfo)
+    val idx = mb.getCodeParam[Int](1)
 
     val child1 = mb.newLocal[Int]("child_1")
     val child2 = mb.newLocal[Int]("child_2")
@@ -303,16 +303,16 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
           (compareElt(ii, jj) > 0).mux(
             Code(
               swap(ii, jj),
-              mb.invoke(minChild)
+              mb.invokeCode(minChild)
             ),
             Code._empty
           )))))
-    mb.invoke(_)
+    mb.invokeCode(_)
   }
 
   private lazy val gc: () => Code[Unit] = {
     if (canHaveGarbage) {
-      val mb = cb.genEmitMethod("take_by_garbage_collect", Array[TypeInfo[_]](), UnitInfo)
+      val mb = cb.genEmitMethod("take_by_garbage_collect", FastIndexedSeq[ParamType](), UnitInfo)
       val oldRegion = mb.newLocal[Region]("old_region")
       mb.emit(
         Code(
@@ -326,7 +326,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
             oldRegion.invoke[Unit]("invalidate")
           ))
         ))
-      () => mb.invoke()
+      () => mb.invokeCode()
     } else
       () => Code._empty
   }
@@ -381,13 +381,13 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     val ki = typeToTypeInfo(keyType)
     val vi = typeToTypeInfo(valueType)
     val mb = cb.genEmitMethod("take_by_seqop",
-      Array[TypeInfo[_]](BooleanInfo, vi, BooleanInfo, ki),
+      FastIndexedSeq[ParamType](BooleanInfo, vi, BooleanInfo, ki),
       UnitInfo)
 
-    val valueM = mb.getArg[Boolean](1)
-    val value = mb.getArg(2)(vi)
-    val keyM = mb.getArg[Boolean](3)
-    val key = mb.getArg(4)(ki)
+    val valueM = mb.getCodeParam[Boolean](1)
+    val value = mb.getCodeParam(2)(vi)
+    val keyM = mb.getCodeParam[Boolean](3)
+    val key = mb.getCodeParam(4)(ki)
 
     mb.emit(
       (maxSize > 0).orEmpty(
@@ -412,13 +412,13 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       Code(
         vmVar := vm,
         kmVar := km,
-        mb.invoke(vmVar, vmVar.mux(defaultValue(valueType), v), kmVar, kmVar.mux(defaultValue(keyType), k))
+        mb.invokeCode(vmVar, vmVar.mux(defaultValue(valueType), v), kmVar, kmVar.mux(defaultValue(keyType), k))
       )
     }
   }
 
   def combine(other: TakeByRVAS, dummy: Boolean): Code[Unit] = {
-    val mb = cb.genEmitMethod("take_by_combop", Array[TypeInfo[_]](), UnitInfo)
+    val mb = cb.genEmitMethod("take_by_combop", FastIndexedSeq[ParamType](), UnitInfo)
 
     val i = mb.newLocal[Int]("combine_i")
     val offset = mb.newLocal[Long]("combine_offset")
@@ -445,24 +445,24 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
         i := i + 1),
       maxIndex := maxIndex + other.maxIndex))
 
-    mb.invoke()
+    mb.invokeCode()
   }
 
   def result(_r: Code[Region], resultType: PArray): Code[Long] = {
-    val mb = cb.genEmitMethod("take_by_result", Array[TypeInfo[_]](classInfo[Region]), LongInfo)
+    val mb = cb.genEmitMethod("take_by_result", FastIndexedSeq[ParamType](classInfo[Region]), LongInfo)
 
     val quickSort: (Code[Long], Code[Int], Code[Int]) => Code[Unit] = {
-      val mb = cb.genEmitMethod("result_quicksort", Array[TypeInfo[_]](LongInfo, IntInfo, IntInfo), UnitInfo)
-      val indices = mb.getArg[Long](1)
-      val low = mb.getArg[Int](2)
-      val high = mb.getArg[Int](3)
+      val mb = cb.genEmitMethod("result_quicksort", FastIndexedSeq[ParamType](LongInfo, IntInfo, IntInfo), UnitInfo)
+      val indices = mb.getCodeParam[Long](1)
+      val low = mb.getCodeParam[Int](2)
+      val high = mb.getCodeParam[Int](3)
 
       val pivotIndex = mb.newLocal[Int]("pivotIdx")
 
       val swap: (Code[Long], Code[Long]) => Code[Unit] = {
-        val mb = cb.genEmitMethod("quicksort_swap", Array[TypeInfo[_]](LongInfo, LongInfo), UnitInfo)
-        val i = mb.getArg[Long](1)
-        val j = mb.getArg[Long](2)
+        val mb = cb.genEmitMethod("quicksort_swap", FastIndexedSeq[ParamType](LongInfo, LongInfo), UnitInfo)
+        val i = mb.getCodeParam[Long](1)
+        val j = mb.getCodeParam[Long](2)
 
         val tmp = mb.newLocal[Int]("swap_tmp")
 
@@ -473,15 +473,15 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
             Region.storeInt(j, tmp)
           )
         )
-        mb.invoke(_, _)
+        mb.invokeCode(_, _)
       }
 
       val partition: (Code[Long], Code[Int], Code[Int]) => Code[Int] = {
-        val mb = cb.genEmitMethod("quicksort_partition", Array[TypeInfo[_]](LongInfo, IntInfo, IntInfo), IntInfo)
+        val mb = cb.genEmitMethod("quicksort_partition", FastIndexedSeq[ParamType](LongInfo, IntInfo, IntInfo), IntInfo)
 
-        val indices = mb.getArg[Long](1)
-        val low = mb.getArg[Int](2)
-        val high = mb.getArg[Int](3)
+        val indices = mb.getCodeParam[Long](1)
+        val low = mb.getCodeParam[Int](2)
+        val high = mb.getCodeParam[Int](3)
 
         val pivotIndex = mb.newLocal[Int]("pivotIndex")
         val pivotOffset = mb.newLocal[Long]("pivot")
@@ -519,19 +519,19 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
           high
         )
         )
-        mb.invoke(_, _, _)
+        mb.invokeCode(_, _, _)
       }
 
       mb.emit(
         (low < high).orEmpty(
           Code(
             pivotIndex := partition(indices, low, high),
-            mb.invoke(indices, low, pivotIndex),
-            mb.invoke(indices, pivotIndex + 1, high))))
-      mb.invoke(_, _, _)
+            mb.invokeCode(indices, low, pivotIndex),
+            mb.invokeCode(indices, pivotIndex + 1, high))))
+      mb.invokeCode(_, _, _)
     }
 
-    val r = mb.getArg[Region](1)
+    val r = mb.getCodeParam[Region](1)
     val indicesToSort = mb.newLocal[Long]("indices_to_sort")
     val i = mb.newLocal[Int]("i")
     val o = mb.newLocal[Long]("i")
@@ -561,7 +561,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       ),
       srvb.end()
     ))
-    mb.invoke(_r)
+    mb.invokeCode(_r)
   }
 
 }

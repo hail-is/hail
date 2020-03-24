@@ -16,6 +16,7 @@ class RVDTypeSerializer extends CustomSerializer[RVDType](format => ( {
 
 final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
   extends Serializable {
+  require(rowType.required)
 
   val keySet: Set[String] = key.toSet
 

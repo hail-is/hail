@@ -28,12 +28,9 @@ abstract class ComplexPType extends PType {
   def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
     this.representation.copyFromTypeAndStackValue(mb, region, srcPType.asInstanceOf[ComplexPType].representation, stackValue, deepCopy)
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
-    assert(this isOfType srcPType)
-
+  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     val srcRepPType = srcPType.asInstanceOf[ComplexPType].representation
-
-    this.representation.copyFromType(region, srcRepPType, srcAddress, deepCopy)
+    representation.copyFromAddress(region, srcRepPType, srcAddress, deepCopy)
   }
 
   def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =

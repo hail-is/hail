@@ -213,12 +213,10 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
     this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
+  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
     val sourceNDPType = srcPType.asInstanceOf[PNDArray]
-
-    assert(this.elementType == sourceNDPType.elementType && this.nDims == sourceNDPType.nDims)
-
-    this.representation.copyFromType(region, sourceNDPType.representation, srcAddress, deepCopy)
+    assert(elementType == sourceNDPType.elementType && nDims == sourceNDPType.nDims)
+    representation.copyFromAddress(region, sourceNDPType.representation, srcAddress, deepCopy)
   }
 
   override def deepRename(t: Type) = deepRenameNDArray(t.asInstanceOf[TNDArray])

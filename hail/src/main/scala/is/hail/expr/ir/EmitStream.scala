@@ -550,7 +550,7 @@ object EmitStream {
     env0: Emit.E,
     container: Option[AggContainer]
   ): COption[SizedStream] =
-    emit(emitter, streamIR0, mb, mb.getArg[Region](1), env0, container)
+    emit(emitter, streamIR0, mb, mb.getCodeParam[Region](1), env0, container)
 
   private[ir] def emit[C](
     emitter: Emit[C],
@@ -687,13 +687,8 @@ object EmitStream {
         case In(n, PStream(eltType, _)) =>
           val xIter = mb.newLocal[Iterator[RegionValue]]()
 
-          new COption[Code[Iterator[RegionValue]]] {
-            def apply(none: Code[Ctrl], some: (Code[Iterator[RegionValue]]) => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
-              mb.getArg[Boolean](2 + 2 * n + 1).mux(
-                none,
-                some(mb.getArg[Iterator[RegionValue]](2 + 2 * n)))
-            }
-          }.map { iter =>
+          // this, Region, ...
+          mb.getStreamEmitParam(2 + n).map { iter =>
             val stream = unfold[Code[RegionValue]](
               Code._empty,
               Code._empty,

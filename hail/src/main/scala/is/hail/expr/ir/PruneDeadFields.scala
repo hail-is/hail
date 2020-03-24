@@ -1374,11 +1374,11 @@ object PruneDeadFields {
         val keys2 = requestedType.key
         // fully upcast before shuffle
         if (!isSorted && keys2.nonEmpty)
-          child2 = upcastTable(child2, memo.requestedType.lookup(child).asInstanceOf[TableType])
+          child2 = upcastTable(child2, memo.requestedType.lookup(child).asInstanceOf[TableType], upcastGlobals = false)
         TableKeyBy(child2, keys2, isSorted)
       case TableOrderBy(child, sortFields) =>
         // fully upcast before shuffle
-        val child2 = upcastTable(rebuild(child, memo), memo.requestedType.lookup(child).asInstanceOf[TableType])
+        val child2 = upcastTable(rebuild(child, memo), memo.requestedType.lookup(child).asInstanceOf[TableType], upcastGlobals = false)
         TableOrderBy(child2, sortFields)
       case TableLeftJoinRightDistinct(left, right, root) =>
         if (requestedType.rowType.hasField(root))

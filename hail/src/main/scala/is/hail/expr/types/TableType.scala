@@ -18,8 +18,8 @@ object TableType {
 }
 
 case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {
-  lazy val canonicalPType = PType.canonical(rowType).asInstanceOf[PStruct]
-  lazy val canonicalRVDType = RVDType(canonicalPType, key)
+  lazy val canonicalRowPType = PType.canonical(rowType).setRequired(true).asInstanceOf[PStruct]
+  lazy val canonicalRVDType = RVDType(canonicalRowPType, key)
 
   key.foreach {k =>
     if (!rowType.hasField(k))

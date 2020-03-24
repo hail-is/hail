@@ -2,7 +2,7 @@ package is.hail.expr.types.encoded
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitMethodBuilder, ParamType}
 import is.hail.expr.types.{BaseStruct, BaseType}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -89,10 +89,10 @@ final case class ETransposedArrayOfStructs(
     )
 
     val decodeFields = Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
-      val groupMB = mb.ecb.newEmitMethod(s"read_fields_group_$groupIdx", Array[TypeInfo[_]](LongInfo, classInfo[Region], classInfo[InputBuffer]), UnitInfo)
-      val arrayGrp = groupMB.getArg[Long](1)
-      val regionGrp = groupMB.getArg[Region](2)
-      val inGrp = groupMB.getArg[InputBuffer](3)
+      val groupMB = mb.ecb.newEmitMethod(s"read_fields_group_$groupIdx", FastIndexedSeq[ParamType](LongInfo, classInfo[Region], classInfo[InputBuffer]), UnitInfo)
+      val arrayGrp = groupMB.getCodeParam[Long](1)
+      val regionGrp = groupMB.getCodeParam[Region](2)
+      val inGrp = groupMB.getCodeParam[InputBuffer](3)
       val i = groupMB.newLocal[Int]("i")
       val j = groupMB.newLocal[Int]("j")
 
@@ -148,7 +148,7 @@ final case class ETransposedArrayOfStructs(
       }.toArray
 
       groupMB.emit(Code(decoders))
-      groupMB.invoke(array, region, in)
+      groupMB.invokeCode(array, region, in)
     }.toArray)
 
     Code(
@@ -228,9 +228,9 @@ final case class ETransposedArrayOfStructs(
         Code._empty
 
     val writeFields = Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
-      val groupMB = mb.ecb.newEmitMethod(s"write_fields_group_$groupIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
-      val addr = groupMB.getArg[Long](1)
-      val out2 = groupMB.getArg[OutputBuffer](2)
+      val groupMB = mb.ecb.newEmitMethod(s"write_fields_group_$groupIdx", FastIndexedSeq[ParamType](LongInfo, classInfo[OutputBuffer]), UnitInfo)
+      val addr = groupMB.getCodeParam[Long](1)
+      val out2 = groupMB.getCodeParam[OutputBuffer](2)
 
       val b = groupMB.newLocal[Int]("b")
       val j = groupMB.newLocal[Int]("j")
@@ -272,7 +272,7 @@ final case class ETransposedArrayOfStructs(
       }.toArray
 
       groupMB.emit(Code(encoders))
-      groupMB.invoke(addr, out)
+      groupMB.invokeCode(addr, out)
     }.toArray)
 
     Code(
@@ -348,4 +348,7 @@ final case class ETransposedArrayOfStructs(
       }
     }
   }
+
+  def setRequired(newRequired: Boolean): ETransposedArrayOfStructs =
+    ETransposedArrayOfStructs(fields, newRequired, structRequired)
 }

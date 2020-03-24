@@ -79,8 +79,6 @@ object Code {
   }
 
   def sequence1[T](cs: IndexedSeq[Code[Unit]], v: Code[T]): Code[T] = {
-    cs.foreach(_.check())
-    v.check()
     val start = new lir.Block()
     val end = (cs :+ v).foldLeft(start) { (end, c) =>
       end.append(lir.goto(c.start))
@@ -143,6 +141,16 @@ object Code {
     val newC = new VCode(ctor.start, ctor.end, lir.load(linst))
     ctor.clear()
     newC
+  }
+
+  def newInstance[C](cb: ClassBuilder[C], ctor: MethodBuilder[C], args: IndexedSeq[Code[_]]): Code[C] = {
+    val (start, end, argvs) = sequenceValues(args)
+
+    val linst = new lir.Local(null, "new_inst", cb.ti)
+    end.append(lir.store(linst, lir.newInstance(cb.ti)))
+    end.append(lir.methodStmt(INVOKESPECIAL, ctor.lmethod, argvs))
+
+    new VCode(start, end, lir.load(linst))
   }
 
   def newInstance[T <: AnyRef]()(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
@@ -329,7 +337,7 @@ object Code {
   def _println(c: Code[AnyRef]): Code[Unit] =
     Code.invokeScalaObject[AnyRef, Unit](scala.Console.getClass, "println", c)
 
-  def checkcast[T](v: Code[AnyRef])(implicit tti: TypeInfo[T]): Code[T] =
+  def checkcast[T](v: Code[_])(implicit tti: TypeInfo[T]): Code[T] =
     Code(v, lir.checkcast(tti.iname))
 
   def boxBoolean(cb: Code[Boolean]): Code[java.lang.Boolean] = Code.newInstance[java.lang.Boolean, Boolean](cb)
@@ -414,6 +422,16 @@ object Code {
 
   def newLocal[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] =
     new LocalRef[T](new lir.Local(null, name, tti))
+
+  def newTuple(mb: MethodBuilder[_], elems: IndexedSeq[Code[_]]): Code[_] = {
+    val t = mb.modb.tupleClass(elems.map(_.ti))
+    t.newTuple(elems)
+  }
+
+  def loadTuple(modb: ModuleBuilder, elemTypes: IndexedSeq[TypeInfo[_]], v: Value[_]): IndexedSeq[Code[_]] = {
+    val t = modb.tupleClass(elemTypes)
+    t.loadElementsAny(v)
+  }
 }
 
 trait Code[+T] {
@@ -426,6 +444,13 @@ trait Code[+T] {
   def check(): Unit
 
   def clear(): Unit
+
+  def ti: TypeInfo[_] = {
+    if (v == null)
+      UnitInfo
+    else
+      v.ti
+  }
 }
 
 class VCode[+T](
@@ -610,6 +635,7 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
             else
               Lfalse))
         case _ =>
+          assert(lhs.v.ti == BooleanInfo,lhs.v.ti)
           lhs.end.append(lir.ifx(IFNE, lhs.v, Ltrue, Lfalse))
       }
       val newC = new CCode(lhs.start, Ltrue, Lfalse)
@@ -624,10 +650,6 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
   }
 
   def mux[T](cthen: Code[T], celse: Code[T]): Code[T] = {
-    lhs.check()
-    cthen.check()
-    celse.check()
-
     val cond = lhs.toCCode
     val L = new lir.Block()
     val newC = if (cthen.v == null) {
@@ -640,7 +662,7 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
       new VCode(cond.entry, L, null)
     } else {
       assert(celse.v != null)
-      assert(cthen.v.ti.desc == celse.v.ti.desc)
+      assert(cthen.v.ti.desc == celse.v.ti.desc, s"${ cthen.v.ti.desc } == ${ celse.v.ti.desc }")
 
       val t = new lir.Local(null, "mux",
         cthen.v.ti)
@@ -1101,7 +1123,7 @@ class ThisFieldRef[T: TypeInfo](cb: ClassBuilder[_], f: Field[T]) extends Settab
   def store(rhs: Code[T]): Code[Unit] = f.put(cb._this, rhs)
 }
 
-class LocalRef[T](val l: lir.Local)(implicit tti: TypeInfo[T]) extends Settable[T] {
+class LocalRef[T](val l: lir.Local) extends Settable[T] {
   def get: Code[T] = Code(lir.load(l))
 
   def store(rhs: Code[T]): Code[Unit] = {

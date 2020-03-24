@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.expr.types.virtual.{TInterval, Type}
+import is.hail.utils.FastIndexedSeq
 
 final case class PCanonicalInterval(pointType: PType, override val required: Boolean = false) extends PInterval {
     def _asIdent = s"interval_of_${pointType.asIdent}"
@@ -96,6 +97,8 @@ class PCanonicalIntervalSettable(
 
 class PCanonicalIntervalCode(val pt: PCanonicalInterval, val a: Code[Long]) extends PIntervalCode {
   def code: Code[_] = a
+
+  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
   def includesStart(): Code[Boolean] = pt.includesStart(a)
 

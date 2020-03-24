@@ -1,8 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.annotations._
-import is.hail.asm4s.AsmFunction3
-import is.hail.expr.TypedAggregator
+import is.hail.asm4s._
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.types.physical.{PTuple, PType}
 import is.hail.expr.types.virtual._
@@ -10,7 +9,7 @@ import is.hail.io.BufferSpec
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDContext
 import is.hail.utils._
-import is.hail.{HailContext, stats}
+import is.hail.HailContext
 import org.apache.spark.sql.Row
 
 object Interpret {
@@ -57,7 +56,7 @@ object Interpret {
     ir: IR,
     env: Env[Any],
     args: IndexedSeq[(Any, Type)],
-    functionMemo: Memo[(PType, AsmFunction3[Region, Long, Boolean, Long])]): Any = {
+    functionMemo: Memo[(PType, AsmFunction2RegionLongLong)]): Any = {
 
     def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[(Any, Type)] = args): Any =
       run(ctx, ir, env, args, functionMemo)
@@ -540,7 +539,7 @@ object Interpret {
           else true
         }
       case ir: AbstractApplyNode[_] =>
-        val argTuple = PType.canonical(TTuple(ir.args.map(_.typ): _*)).asInstanceOf[PTuple]
+        val argTuple = PType.canonical(TTuple(ir.args.map(_.typ): _*)).setRequired(true).asInstanceOf[PTuple]
         Region.scoped { region =>
           val (rt, f) = functionMemo.getOrElseUpdate(ir, {
             val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (x, i) =>
@@ -548,7 +547,11 @@ object Interpret {
             }.toFastIndexedSeq
             val wrappedIR = Copy(ir, wrappedArgs)
 
-            val (rt, makeFunction) = Compile[Long, Long](ctx, "in", argTuple, MakeTuple.ordered(FastSeq(wrappedIR)), optimize = false)
+            val (rt, makeFunction) = Compile[AsmFunction2RegionLongLong](ctx,
+              FastIndexedSeq(("in", argTuple)),
+              FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
+              MakeTuple.ordered(FastSeq(wrappedIR)),
+              optimize = false)
             (rt, makeFunction(0, region))
           })
           val rvb = new RegionValueBuilder()
@@ -563,7 +566,7 @@ object Interpret {
           val offset = rvb.end()
 
           try {
-            val resultOffset = f(region, offset, false)
+            val resultOffset = f(region, offset)
             SafeRow(rt.asInstanceOf[PTuple], resultOffset).get(0)
           } catch {
             case e: Exception =>
@@ -606,12 +609,13 @@ object Interpret {
         val extracted = agg.Extract(query, res)
 
         val wrapped = if (extracted.aggs.isEmpty) {
-          val (rt: PTuple, f) = Compile[Long, Long](ctx,
-            "global", value.globals.t,
+          val (rt: PTuple, f) = Compile[AsmFunction2RegionLongLong](ctx,
+            FastIndexedSeq(("global", value.globals.t)),
+            FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
             MakeTuple.ordered(FastSeq(extracted.postAggIR)))
 
           Region.scoped { region =>
-            SafeRow(rt, f(0, region)(region, globalsOffset, false))
+            SafeRow(rt, f(0, region)(region, globalsOffset))
           }
         } else {
           val spec = BufferSpec.defaultUncompressed
@@ -622,24 +626,27 @@ object Interpret {
             Env("global" -> value.globals.t, "row" -> value.rvd.rowPType)
           )
 
-          val (_, initOp) = CompileWithAggregators2[Long, Unit](ctx,
+          val (_, initOp) = CompileWithAggregators2[AsmFunction2RegionLongUnit](ctx,
             physicalAggs,
-            "global", value.globals.t,
+            IndexedSeq(("global", value.globals.t)),
+            IndexedSeq(classInfo[Region], LongInfo), UnitInfo,
             extracted.init)
 
-          val (_, partitionOpSeq) = CompileWithAggregators2[Long, Long, Unit](ctx,
+          val (_, partitionOpSeq) = CompileWithAggregators2[AsmFunction3RegionLongLongUnit](ctx,
             physicalAggs,
-            "global", value.globals.t,
-            "row", value.rvd.rowPType,
+            FastIndexedSeq(("global", value.globals.t),
+              ("row", value.rvd.rowPType)),
+            FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
             extracted.seqPerElt)
 
           val read = extracted.deserialize(ctx, spec, physicalAggs)
           val write = extracted.serialize(ctx, spec, physicalAggs)
           val combOpF = extracted.combOpF(ctx, spec, physicalAggs)
 
-          val (rTyp: PTuple, f) = CompileWithAggregators2[Long, Long](ctx,
+          val (rTyp: PTuple, f) = CompileWithAggregators2[AsmFunction2RegionLongLong](ctx,
             physicalAggs,
-            "global", value.globals.t,
+            FastIndexedSeq(("global", value.globals.t)),
+            FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
             Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
           assert(rTyp.types(0).virtualType == query.typ)
 
@@ -653,7 +660,7 @@ object Interpret {
               val initF = initOp(0, region)
               Region.scoped { aggRegion =>
                 initF.newAggState(aggRegion)
-                initF(region, globalsOffset, false)
+                initF(region, globalsOffset)
                 write(aggRegion, initF.getAggOffset())
               }
             },
@@ -665,10 +672,10 @@ object Interpret {
 
               Region.smallScoped { aggRegion =>
                 init.newAggState(aggRegion)
-                init(partRegion, globalsOffset, false)
+                init(partRegion, globalsOffset)
                 seqOps.setAggState(aggRegion, init.getAggOffset())
                 it.foreach { rv =>
-                  seqOps(rv.region, globalsOffset, false, rv.offset, false)
+                  seqOps(rv.region, globalsOffset, rv.offset)
                   ctx.region.clear()
                 }
                 write(aggRegion, seqOps.getAggOffset())
@@ -679,14 +686,18 @@ object Interpret {
             val resF = f(0, r)
             Region.smallScoped { aggRegion =>
               resF.setAggState(aggRegion, read(aggRegion, aggResults))
-              SafeRow(rTyp, resF(r, globalsOffset, false))
+              SafeRow(rTyp, resF(r, globalsOffset))
             }
           }
         }
 
         wrapped.get(0)
       case LiftMeOut(child) =>
-        val (rt, makeFunction) = Compile[Long](ctx, MakeTuple.ordered(FastSeq(child)), None, false)
+        val (rt, makeFunction) = Compile[AsmFunction1RegionLong](ctx,
+          FastIndexedSeq(),
+          FastIndexedSeq(classInfo[Region]), LongInfo,
+          MakeTuple.ordered(FastSeq(child)),
+          optimize = false)
         Region.scoped { r =>
           SafeRow.read(rt, makeFunction(0, r)(r)).asInstanceOf[Row](0)
         }

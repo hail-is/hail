@@ -9,15 +9,15 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   val ti: TypeInfo[_] = typeToTypeInfo(typ)
   val mb: EmitMethodBuilder[_] = r.mb
 
-  def sort(sorter: DependentEmitFunction[_]): Code[Unit] = {
+  def sort(sorter: DependentEmitFunctionBuilder[_]): Code[Unit] = {
     val localF = ti match {
       case BooleanInfo => mb.genFieldThisRef[AsmFunction2[Boolean, Boolean, Boolean]]()
       case IntInfo => mb.genFieldThisRef[AsmFunction2[Int, Int, Boolean]]()
       case LongInfo => mb.genFieldThisRef[AsmFunction2[Int, Int, Boolean]]()
-      case FloatInfo => mb.genFieldThisRef[AsmFunction2[Int, Int, Boolean]]()
-      case DoubleInfo => mb.genFieldThisRef[AsmFunction2[Int, Int, Boolean]]()
+      case FloatInfo => mb.genFieldThisRef[AsmFunction2[Long, Long, Boolean]]()
+      case DoubleInfo => mb.genFieldThisRef[AsmFunction2[Double, Double, Boolean]]()
     }
-    Code(localF.storeAny(sorter.newInstance(mb.mb)), array.sort(localF))
+    Code(localF.storeAny(Code.checkcast(sorter.newInstance(mb))(localF.ti)), array.sort(localF))
   }
 
   def toRegion(): Code[Long] = {

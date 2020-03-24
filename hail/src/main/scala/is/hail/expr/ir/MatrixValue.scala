@@ -22,6 +22,9 @@ import org.json4s.jackson.JsonMethods.parse
 case class MatrixValue(
   typ: MatrixType,
   tv: TableValue) {
+  val colFieldType = tv.globals.t.fieldType(LowerMatrixIR.colsFieldName).asInstanceOf[PArray]
+  assert(colFieldType.required)
+  assert(colFieldType.elementType.required)
 
   lazy val globals: BroadcastRow = {
     val prevGlobals = tv.globals
@@ -101,7 +104,7 @@ case class MatrixValue(
   private def writeGlobals(fs: FS, path: String, bufferSpec: BufferSpec) {
     val partitionCounts = AbstractRVDSpec.writeSingle(fs, path + "/rows", globals.t, bufferSpec, Array(globals.javaValue))
 
-    AbstractRVDSpec.writeSingle(fs, path + "/globals", PCanonicalStruct.empty(), bufferSpec, Array[Annotation](Row()))
+    AbstractRVDSpec.writeSingle(fs, path + "/globals", PCanonicalStruct.empty(required = true), bufferSpec, Array[Annotation](Row()))
 
     val globalsSpec = TableSpec(
       FileFormat.version.rep,
@@ -222,7 +225,7 @@ case class MatrixValue(
     // only used in exportPlink
     assert(typ.colKey.isEmpty)
     val hc = HailContext.get
-    val colPType = PType.canonical(typ.colType).asInstanceOf[PStruct]
+    val colPType = PType.canonical(typ.colType).setRequired(true).asInstanceOf[PStruct]
 
     RVD.coerce(
       typ.colsTableType.canonicalRVDType,

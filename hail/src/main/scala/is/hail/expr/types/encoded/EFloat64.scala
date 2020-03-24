@@ -32,6 +32,8 @@ class EFloat64(override val required: Boolean) extends EType {
 
   def _asIdent = "float64"
   def _toPretty = "EFloat64"
+
+  def setRequired(newRequired: Boolean): EFloat64 = EFloat64(newRequired)
 }
 
 object EFloat64 {

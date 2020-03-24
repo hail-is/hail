@@ -98,13 +98,13 @@ class FunctionSuite extends HailSuite {
   def testFunctionBuilderGetOrDefine() {
     val fb = EmitFunctionBuilder[Int]("foo")
     val i = fb.genFieldThisRef[Int]()
-    val mb1 = fb.getOrGenMethod("foo", "foo", Array[TypeInfo[_]](), UnitInfo) { mb =>
+    val mb1 = fb.getOrGenEmitMethod("foo", "foo", FastIndexedSeq[ParamType](), UnitInfo) { mb =>
       mb.emit(i := i + 1)
     }
-    val mb2 = fb.getOrGenMethod("foo", "foo", Array[TypeInfo[_]](), UnitInfo) { mb =>
+    val mb2 = fb.getOrGenEmitMethod("foo", "foo", FastIndexedSeq[ParamType](), UnitInfo) { mb =>
       mb.emit(i := i - 100)
     }
-    fb.emit(Code(i := 0, mb1.invoke(), mb2.invoke(), i))
+    fb.emit(Code(i := 0, mb1.invokeCode(), mb2.invokeCode(), i))
     Region.scoped { r =>
 
       assert(fb.resultWithIndex().apply(0, r)() == 2)

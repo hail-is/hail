@@ -132,7 +132,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
         val dstFieldAddress = this.fieldOffset(dstStructAddress, i)
         dstFieldType match {
           case t@(_: PBinary | _: PArray) =>
-            Region.storeAddress(dstFieldAddress, t.copyFromType(region, dstFieldType, Region.loadAddress(dstFieldAddress), deepCopy = true))
+            Region.storeAddress(dstFieldAddress, t.copyFromAddress(region, dstFieldType, Region.loadAddress(dstFieldAddress), deepCopy = true))
           case t: PCanonicalBaseStruct =>
             t.deepPointerCopy(region, dstFieldAddress)
         }
@@ -158,18 +158,16 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   }
 
   def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
-    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
+    copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
-  def copyFromType(region: Region, srcPType: PType, srcStructAddress: Long, deepCopy: Boolean): Long = {
-    val sourceType = srcPType.asInstanceOf[PBaseStruct]
+  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+    if (equalModuloRequired(srcPType) && !deepCopy)
+      return srcAddress
 
-    if (this == sourceType && !deepCopy)
-      srcStructAddress
-    else {
-      val newAddr = allocate(region)
-      constructAtAddress(newAddr, region, sourceType, srcStructAddress, deepCopy)
-      newAddr
-    }
+    val srcBaseStructT = srcPType.asInstanceOf[PBaseStruct]
+    val newAddr = allocate(region)
+    constructAtAddress(newAddr, region, srcBaseStructT, srcAddress, deepCopy)
+    newAddr
   }
 
   def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
@@ -253,6 +251,8 @@ class PCanonicalBaseStructSettable(
 
 class PCanonicalBaseStructCode(val pt: PBaseStruct, val a: Code[Long]) extends PBaseStructCode {
   def code: Code[_] = a
+
+  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PBaseStructValue = {
     val s = PCanonicalBaseStructSettable(cb, pt, name, sb)

@@ -583,9 +583,13 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
   override def getAsMethod[C](cb: EmitClassBuilder[C], rpt: PType, args: PType*): EmitMethodBuilder[C] = {
     val unified = unify(args.map(_.virtualType) :+ rpt.virtualType)
     assert(unified)
-    val ts = argTypes.map(t => typeToTypeInfo(t.subst()))
-    val methodbuilder = cb.genEmitMethod(name, (typeInfo[Region] +: ts).toFastIndexedSeq, typeToTypeInfo(rpt))
-    methodbuilder.emit(apply(EmitRegion.default(methodbuilder), rpt, args.zip(ts.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }): _*))
+    val argTIs = argTypes.toFastIndexedSeq.map(t => t.subst().ti)
+    val methodbuilder = cb.genEmitMethod(name, (typeInfo[Region] +: argTIs).map(ti => ti: CodeParamType), typeToTypeInfo(rpt))
+    methodbuilder.emit(apply(EmitRegion.default(methodbuilder),
+      rpt,
+      args.zip(argTIs.zipWithIndex.map { case (ti, i) =>
+        methodbuilder.getCodeParam(i + 2)(ti).get
+      }): _*))
     methodbuilder
   }
 

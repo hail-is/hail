@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
 import is.hail.expr.types.physical._
+import is.hail.utils.FastIndexedSeq
 
 import scala.language.existentials
 
@@ -19,7 +20,7 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType,
       case t: PInterval => t.representation.asInstanceOf[PStruct]
     }
     val kt = ttype.types(0)
-    val findMB = mb.genEmitMethod("findElt", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(kt)), typeInfo[Int])
+    val findMB = mb.genEmitMethod("findElt", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(kt)), typeInfo[Int])
     val mk2l = findMB.newLocal[Boolean]()
     val mk2l1 = mb.newLocal[Boolean]()
 
@@ -43,11 +44,11 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType,
   } else
     (mb.getCodeOrdering(eltType, elt, CodeOrdering.compare),
       mb.getCodeOrdering(eltType, elt, CodeOrdering.equiv),
-      mb.genEmitMethod("findElt", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(elt)), typeInfo[Int]), elt)
+      mb.genEmitMethod("findElt", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Boolean], elt.ti), typeInfo[Int]), elt)
 
-  private[this] val array = findElt.getArg[Long](1)
-  private[this] val m = findElt.getArg[Boolean](2)
-  private[this] val e = findElt.getArg(3)(typeToTypeInfo(t))
+  private[this] val array = findElt.getCodeParam[Long](1)
+  private[this] val m = findElt.getCodeParam[Boolean](2)
+  private[this] val e = findElt.getCodeParam(3)(t.ti)
   private[this] val len = findElt.newLocal[Int]()
   private[this] val i = findElt.newLocal[Int]()
   private[this] val low = findElt.newLocal[Int]()
@@ -74,6 +75,6 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType,
 
   // check missingness of v before calling
   def getClosestIndex(array: Code[Long], m: Code[Boolean], v: Code[_]): Code[Int] = {
-    findElt.invoke(array, m, v)
+    findElt.invokeCode[Int](array, m, v)
   }
 }

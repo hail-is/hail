@@ -211,7 +211,7 @@ case class MatrixPLINKReader(
           nPartitions.getOrElse(sc.defaultMinPartitions)))
 
       val kType = requestedType.canonicalRVDType.kType
-      val rvRowType = requestedType.canonicalPType
+      val rvRowType = requestedType.canonicalRowPType
 
       val hasRsid = requestedType.rowType.hasField("rsid")
       val hasCmPos = requestedType.rowType.hasField("cm_position")

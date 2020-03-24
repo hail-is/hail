@@ -159,4 +159,6 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     elementType.pretty(sb, indent, compact)
     sb.append("]")
   }
+
+  def setRequired(newRequired: Boolean): EArray = EArray(elementType, newRequired)
 }

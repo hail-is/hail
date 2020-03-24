@@ -26,7 +26,7 @@ object LinearMixedModel {
       LMMData(gamma, residualSq, BDV(py), px, BDV(d), ydy, BDV(xdy), xdx, yOpt.map(BDV(_)), xOpt))
   }
   
-  private val rowType = PCanonicalStruct(
+  private val rowType = PCanonicalStruct(true,
       "idx" -> PInt64(),
       "beta" -> PFloat64(),
       "sigma_sq" -> PFloat64(),

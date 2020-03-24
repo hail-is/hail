@@ -13,9 +13,9 @@ object PhysicalTestUtils extends TestNGSuite {
 
     val srcAddress = ScalaToRegionValue(srcRegion, sourceType, sourceValue)
 
-    if(interpret) {
+    if (interpret) {
       try {
-        val copyOff = destType.fundamentalType.copyFromType(region, sourceType.fundamentalType, srcAddress, deepCopy = deepCopy)
+        val copyOff = destType.fundamentalType.copyFromAddress(region, sourceType.fundamentalType, srcAddress, deepCopy = deepCopy)
         val copy = UnsafeRow.read(destType, region, copyOff)
 
         log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
@@ -23,17 +23,16 @@ object PhysicalTestUtils extends TestNGSuite {
         region.clear()
         srcRegion.clear()
       } catch {
-        case e: AssertionError => {
+        case e: AssertionError =>
           srcRegion.clear()
           region.clear()
 
-          if(expectCompileErr) {
+          if (expectCompileErr) {
             log.info("OK: Caught expected compile-time error")
             return
           }
 
           throw new Error(e)
-        }
       }
 
       return
@@ -41,24 +40,23 @@ object PhysicalTestUtils extends TestNGSuite {
     
     var compileSuccess = false
     val fb = EmitFunctionBuilder[Region, Long, Long]("not_empty")
-    val codeRegion = fb.getArg[Region](1)
-    val value = fb.getArg[Long](2)
+    val codeRegion = fb.getCodeParam[Region](1)
+    val value = fb.getCodeParam[Long](2)
 
     try {
       fb.emit(destType.fundamentalType.copyFromType(fb.apply_method, codeRegion, sourceType.fundamentalType, value, deepCopy = deepCopy))
       compileSuccess = true
     } catch {
-      case e: AssertionError => {
+      case e: AssertionError =>
         srcRegion.clear()
         region.clear()
 
-        if(expectCompileErr) {
+        if (expectCompileErr) {
           log.info("OK: Caught expected compile-time error")
           return
         }
 
         throw new Error(e)
-      }
     }
 
     if(compileSuccess && expectCompileErr) {

@@ -345,7 +345,7 @@ class ASM4SSuite extends TestNGSuite {
         intField.store(fb.getArg[Int](1)),
         longField.store(fb.getArg[Long](2)),
         booleanField.store(fb.getArg[Boolean](3)))
-
+      
       typeInfo[T] match {
         case IntInfo => fb.emit(Code(c, intField.load()))
         case LongInfo => fb.emit(Code(c, longField.load()))

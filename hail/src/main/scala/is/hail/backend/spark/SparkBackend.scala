@@ -1,6 +1,7 @@
 package is.hail.backend.spark
 
 import is.hail.annotations.UnsafeRow
+import is.hail.asm4s._
 import is.hail.expr.ir.IRParser
 import is.hail.expr.types.encoded.EType
 import is.hail.io.{BufferSpec, TypedCodecSpec}
@@ -9,16 +10,14 @@ import is.hail.annotations.{Region, SafeRow}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.PTuple
+import is.hail.expr.types.physical.{PTuple, PType}
 import is.hail.expr.types.virtual.TVoid
 import is.hail.backend.{Backend, BroadcastValue, HailTaskContext}
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.utils._
 import is.hail.io.bgen.IndexBgen
-
 import org.json4s.DefaultFormats
 import org.json4s.jackson.{JsonMethods, Serialization}
-
 import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext, TaskContext}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.SparkSession
@@ -256,12 +255,24 @@ class SparkBackend(val sc: SparkContext) extends Backend {
 
     val res = ir.typ match {
       case TVoid =>
-        val (_, f) = ctx.timer.time("Compile")(Compile[Unit](ctx, ir, print))
+        val (_, f) = ctx.timer.time("Compile") {
+          Compile[AsmFunction1RegionUnit](ctx,
+            FastIndexedSeq[(String, PType)](),
+            FastIndexedSeq(classInfo[Region]), UnitInfo,
+            ir,
+            print = print)
+        }
         ctx.timer.time("Run")(Left(f(0, ctx.r)(ctx.r)))
 
       case _ =>
-        val (pt: PTuple, f) = ctx.timer.time("Compile")(Compile[Long](ctx, MakeTuple.ordered(FastSeq(ir)), print))
-        ctx.timer.time("Run")(Right((pt, f(0, ctx.r)(ctx.r))))
+        val (pt: PTuple, f) = ctx.timer.time("Compile") {
+          Compile[AsmFunction1RegionLong](ctx,
+            FastIndexedSeq[(String, PType)](),
+            FastIndexedSeq(classInfo[Region]), LongInfo,
+            MakeTuple.ordered(FastSeq(ir)),
+            print = print)
+        }
+        ctx.timer.time("Run")(Right((pt, f(0, ctx.r).apply(ctx.r))))
     }
 
     (res, ctx.timer)

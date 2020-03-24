@@ -18,7 +18,7 @@ case object PVoid extends PType {
   def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean) =
     throw new UnsupportedOperationException("PVoid copyFromType is currently undefined")
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean) =
+  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean) =
     throw new UnsupportedOperationException("PVoid copyFromType is currently undefined")
 
   def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =

@@ -359,7 +359,7 @@ object GetFieldByIdx {
 final case class GetField(o: IR, name: String) extends IR
 
 object MakeTuple {
-  def ordered(types: Seq[IR]): MakeTuple = MakeTuple(types.iterator.zipWithIndex.map { case (ir, i) => (i, ir)}.toFastIndexedSeq)
+  def ordered(types: Seq[IR]): MakeTuple = MakeTuple(types.iterator.zipWithIndex.map { case (ir, i) => (i, ir) }.toFastIndexedSeq)
 }
 
 final case class MakeTuple(fields: Seq[(Int, IR)]) extends IR

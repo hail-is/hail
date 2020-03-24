@@ -17,7 +17,7 @@ abstract class BaseType {
 
   def parsableString(): String = toPrettyString(0, compact = true)
 
-  def pyString(sb: StringBuilder) = pretty(sb, 0, compact = true)
+  def pyString(sb: StringBuilder): Unit = pretty(sb, 0, compact = true)
 }
 
 trait Requiredness {

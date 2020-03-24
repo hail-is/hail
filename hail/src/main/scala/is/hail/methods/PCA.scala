@@ -57,6 +57,8 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
     }
 
     val rowType = PCanonicalStruct.canonical(TStruct(mv.typ.rowKey.zip(mv.typ.rowKeyStruct.types): _*) ++ TStruct("loadings" -> TArray(TFloat64)))
+      .setRequired(true)
+      .asInstanceOf[PStruct]
     val rowKeysBc = HailContext.backend.broadcast(collectRowKeys())
     val localRowKeySignature = mv.typ.rowKeyStruct.types
 

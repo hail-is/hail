@@ -1549,7 +1549,7 @@ case class MatrixVCFReader(
 
   override lazy val fullType: TableType = fullMatrixType.canonicalTableType
 
-  val fullRVDType = RVDType(PCanonicalStruct(false,
+  val fullRVDType = RVDType(PCanonicalStruct(true,
     PCanonicalStruct.canonical(kType).fields.map { f => (f.name, f.typ) }
       ++ vaSignature.fields.map { f => (f.name, f.typ) }
       ++ Array(LowerMatrixIR.entriesFieldName -> PCanonicalArray(genotypeSignature)): _*),
@@ -1696,7 +1696,9 @@ class VCFsReader(
   val fullRVDType = RVDType(PCanonicalStruct(false,
     PCanonicalStruct.canonical(kType).fields.map { f => (f.name, f.typ) }
       ++ header1.vaSignature.fields.map { f => (f.name, f.typ) }
-      ++ Array(LowerMatrixIR.entriesFieldName -> PCanonicalArray(header1.genotypeSignature)): _*),
+      ++ Array(LowerMatrixIR.entriesFieldName -> PCanonicalArray(header1.genotypeSignature)): _*)
+    .setRequired(true)
+    .asInstanceOf[PStruct],
     typ.rowKey)
 
   val partitioner: RVDPartitioner = {

@@ -5,6 +5,7 @@ import java.io.{File, PrintWriter}
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
+import is.hail.asm4s._
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
 import is.hail.expr.ir.{BindingEnv, MakeTuple, Subst}
@@ -198,13 +199,13 @@ object TestUtils {
         }
       }
 
-      val argsPType = PType.canonical(argsType)
+      val argsPType = PType.canonical(argsType).setRequired(true)
       agg match {
         case Some((aggElements, aggType)) =>
           val aggElementVar = genUID()
           val aggArrayVar = genUID()
           val aggPType = PType.canonical(aggType)
-          val aggArrayPType = PCanonicalArray(aggPType)
+          val aggArrayPType = PCanonicalArray(aggPType, required = true)
 
           val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
             env.bind(f.name, GetField(Ref(aggElementVar, aggType), f.name))
@@ -213,9 +214,10 @@ object TestUtils {
             aggElementVar,
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))))
 
-          val (resultType2, f) = Compile[Long, Long, Long](ctx,
-            argsVar, argsPType,
-            aggArrayVar, aggArrayPType,
+          val (resultType2, f) = Compile[AsmFunction3RegionLongLongLong](ctx,
+            FastIndexedSeq((argsVar, argsPType),
+              (aggArrayVar, aggArrayPType)),
+            FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
             aggIR,
             print = bytecodePrinter,
             optimize = optimize)
@@ -241,13 +243,14 @@ object TestUtils {
             rvb.endArray()
             val aggOff = rvb.end()
 
-            val resultOff = f(0, region)(region, argsOff, false, aggOff, false)
+            val resultOff = f(0, region)(region, argsOff, aggOff)
             SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
           }
 
         case None =>
-          val (resultType2, f) = Compile[Long, Long](ctx,
-            argsVar, argsPType,
+          val (resultType2, f) = Compile[AsmFunction2RegionLongLong](ctx,
+            FastIndexedSeq((argsVar, argsPType)),
+            FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))),
             optimize = optimize,
             print = bytecodePrinter)
@@ -265,7 +268,7 @@ object TestUtils {
             rvb.endTuple()
             val argsOff = rvb.end()
 
-            val resultOff = f(0, region)(region, argsOff, false)
+            val resultOff = f(0, region)(region, argsOff)
             SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
           }
       }

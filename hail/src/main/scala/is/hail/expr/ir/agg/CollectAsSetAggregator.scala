@@ -128,7 +128,7 @@ class AppendOnlySetState(val cb: EmitClassBuilder[_], t: PType) extends PointerB
           Code(
             ob.writeBoolean(key.isKeyMissing(src)),
             (!key.isKeyMissing(src)).orEmpty(
-              kEnc.invoke(key.loadKey(src), ob)))
+              kEnc.invokeCode(key.loadKey(src), ob)))
         }
       }
     }
@@ -145,7 +145,7 @@ class AppendOnlySetState(val cb: EmitClassBuilder[_], t: PType) extends PointerB
         tree.bulkLoad(ib) { (ib, dest) =>
           Code(
             km := ib.readBoolean(),
-            (!km).orEmpty(kv.storeAny(kDec.invoke(region, ib))),
+            (!km).orEmpty(kv.storeAny(kDec.invokeCode(region, ib))),
             key.store(dest, km, kv),
             size := size + 1)
         })

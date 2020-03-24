@@ -111,7 +111,7 @@ case class IndexedRVDSpec private(
   private val lRvdType = LegacyEncodedTypeParser.parseLegacyRVDType(rvdType)
 
   lazy val shim = IndexedRVDSpec2(lRvdType.key,
-    TypedCodecSpec(lRvdType.rowEType, lRvdType.rowType, codecSpec.child),
+    TypedCodecSpec(lRvdType.rowEType.setRequired(true), lRvdType.rowType, codecSpec.child),
     indexSpec.toIndexSpec2, partFiles, jRangeBounds, Map.empty[String, String])
 }
 
@@ -126,7 +126,7 @@ case class UnpartitionedRVDSpec private(
 
   def key: IndexedSeq[String] = FastIndexedSeq()
 
-  def typedCodecSpec: AbstractTypedCodecSpec = TypedCodecSpec(rowEType, rowVType, codecSpec.child)
+  def typedCodecSpec: AbstractTypedCodecSpec = TypedCodecSpec(rowEType.setRequired(true), rowVType, codecSpec.child)
 
   val attrs: Map[String, String] = Map.empty
 }
@@ -147,7 +147,7 @@ case class OrderedRVDSpec private(
       JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]])
   }
 
-  override def typedCodecSpec: AbstractTypedCodecSpec = TypedCodecSpec(lRvdType.rowEType, lRvdType.rowType, codecSpec.child)
+  override def typedCodecSpec: AbstractTypedCodecSpec = TypedCodecSpec(lRvdType.rowEType.setRequired(true), lRvdType.rowType, codecSpec.child)
 
   val attrs: Map[String, String] = Map.empty
 }

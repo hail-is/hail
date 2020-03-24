@@ -1,6 +1,7 @@
 package is.hail.utils
 
 import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.asm4s._
 import is.hail.expr.types.physical.{PCanonicalTuple, PTuple, PType}
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple}
 import is.hail.expr.types.virtual._
@@ -53,13 +54,16 @@ object Graph {
     if (edges2.length > 400000)
       warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
 
-    val wrappedNodeType = PCanonicalTuple(false, PType.canonical(nodeType))
+    val wrappedNodeType = PCanonicalTuple(true, PType.canonical(nodeType))
     val refMap = Map("l" -> wrappedNodeType.virtualType, "r" -> wrappedNodeType.virtualType)
 
     Region.scoped { region =>
       val tieBreakerF = tieBreaker.map { e =>
         val ir = IRParser.parse_value_ir(e, IRParserEnvironment(refMap))
-        val (t, f) = Compile[Long, Long, Long](ctx, "l", wrappedNodeType, "r", wrappedNodeType, MakeTuple.ordered(FastSeq(ir)))
+        val (t, f) = Compile[AsmFunction3RegionLongLongLong](ctx,
+          IndexedSeq(("l", wrappedNodeType), ("r", wrappedNodeType)),
+          FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
+          MakeTuple.ordered(FastSeq(ir)))
         assert(t.virtualType == TTuple(TFloat64))
         val resultType = t.asInstanceOf[PTuple]
 
@@ -81,7 +85,7 @@ object Graph {
           rvb.endTuple()
           val rOffset = rvb.end()
 
-          val resultOffset = f(0, region)(region, lOffset, false, rOffset, false)
+          val resultOffset = f(0, region)(region, lOffset, rOffset)
           if (resultType.isFieldMissing(resultOffset, 0)) {
             throw new RuntimeException(
               s"a comparison returned a missing value when " +

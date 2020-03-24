@@ -94,6 +94,8 @@ class Classx[C](val name: String, val superName: String) {
       InitializeLocals(m)
     }
 
+    // println(Pretty(this))
+
     Emit(this,
       print
       // Some(new PrintWriter(System.out))
@@ -316,12 +318,12 @@ class MethodLit(
 ) extends MethodRef
 
 class Local(var method: Method, val name: String, val ti: TypeInfo[_]) {
-  override def toString: String = f"t${ System.identityHashCode(this) }%08x/$name"
-//  val stack = Thread.currentThread().getStackTrace
+  override def toString: String = f"t${ System.identityHashCode(this) }%08x/$name ${ ti.desc }"
+  // val stack = Thread.currentThread().getStackTrace
 }
 
 class Parameter(method: Method, val i: Int, ti: TypeInfo[_]) extends Local(method, null, ti) {
-  override def toString: String = s"arg:$i"
+  override def toString: String = s"arg:$i ${ ti.desc }"
 }
 
 class Block {
@@ -582,6 +584,14 @@ class InsnX(val op: Int, _ti: TypeInfo[_]) extends ValueX {
       return _ti
 
     op match {
+      // Int + Boolean
+      case IAND =>
+        children.head.ti
+      case IOR =>
+        children.head.ti
+      case IXOR =>
+        children.head.ti
+
       // Int
       case INEG => IntInfo
       case IADD => IntInfo
@@ -589,9 +599,6 @@ class InsnX(val op: Int, _ti: TypeInfo[_]) extends ValueX {
       case IMUL => IntInfo
       case IDIV => IntInfo
       case IREM => IntInfo
-      case IAND => IntInfo
-      case IOR => IntInfo
-      case IXOR => IntInfo
       case L2I => IntInfo
       case F2I => IntInfo
       case D2I => IntInfo

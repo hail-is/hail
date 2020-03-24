@@ -4,6 +4,7 @@ import java.io.{ByteArrayInputStream, DataInputStream, DataOutputStream}
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.asm4s._
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, TableToTableFunction}
 import is.hail.expr.types._
@@ -170,7 +171,7 @@ case class TableNativeReader(
         rvd.changeKey(tr.typ.key, ctx)
       }
     }
-    TableValue(tr.typ, BroadcastRow(RegionValue(ctx.r, globalsOffset), globalType.setRequired(false).asInstanceOf[PStruct], hc.backend), rvd)
+    TableValue(tr.typ, BroadcastRow(RegionValue(ctx.r, globalsOffset), globalType.setRequired(true).asInstanceOf[PStruct], hc.backend), rvd)
   }
 }
 
@@ -235,7 +236,7 @@ case class TableNativeZippedReader(
       }
     }
 
-    TableValue(tr.typ, BroadcastRow(RegionValue(ctx.r, globalsOffset), globalPType.setRequired(false).asInstanceOf[PStruct], hc.backend), rvd)
+    TableValue(tr.typ, BroadcastRow(RegionValue(ctx.r, globalsOffset), globalPType.setRequired(true).asInstanceOf[PStruct], hc.backend), rvd)
   }
 }
 
@@ -325,7 +326,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
 
     log.info(s"parallelized ${ rows.length } rows")
 
-    val rowPType = PType.canonical(ptype).asInstanceOf[PStruct].field("rows").typ.asInstanceOf[PArray].elementType.asInstanceOf[PStruct]
+    val rowPType = PType.canonical(ptype).asInstanceOf[PStruct].field("rows").typ.asInstanceOf[PArray].elementType.setRequired(true).asInstanceOf[PStruct]
     assert(rowPType.virtualType == typ.rowType)
     val rvd = ContextRDD.parallelize(hc.sc, rows, nPartitions)
       .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowPType))
@@ -392,7 +393,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     TStruct.empty)
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
-    val localRowType = PCanonicalStruct("idx" -> PInt32Required)
+    val localRowType = PCanonicalStruct(true, "idx" -> PInt32Required)
     val localPartCounts = partCounts
     val partStarts = partCounts.scanLeft(0)(_ + _)
     val hc = HailContext.get
@@ -444,14 +445,15 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
     else if (pred == False())
       return tv.copy(rvd = RVD.empty(HailContext.get.sc, typ.canonicalRVDType))
 
-    val (rTyp, f) = ir.Compile[Long, Long, Boolean](
+    val (rTyp, f) = ir.Compile[AsmFunction3RegionLongLongBoolean](
       ctx,
-      "row", tv.rvd.rowPType,
-      "global", tv.globals.t,
-      pred)
+      FastIndexedSeq(("row", tv.rvd.rowPType),
+        ("global", tv.globals.t)),
+      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), BooleanInfo,
+      Coalesce(FastIndexedSeq(pred, False())))
     assert(rTyp.virtualType == TBoolean)
 
-    tv.filterWithPartitionOp(f)((rowF, rv, globalRV) => rowF(rv.region, rv.offset, false, globalRV.offset, false))
+    tv.filterWithPartitionOp(f)((rowF, rv, globalRV) => rowF(rv.region, rv.offset, globalRV.offset))
   }
 }
 
@@ -628,7 +630,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     val rightKeyFieldIdx = rightRVDType.kFieldIdx
     val leftValueFieldIdx = leftRVDType.valueFieldIdx
     val rightValueFieldIdx = rightRVDType.valueFieldIdx
-    val newRowPType = PType.canonical(newRowType).asInstanceOf[PStruct]
+    val newRowPType = PType.canonical(newRowType).setRequired(true).asInstanceOf[PStruct]
 
     val rvMerger = { (_: RVDContext, it: Iterator[JoinedRegionValue]) =>
       val rvb = new RegionValueBuilder()
@@ -751,7 +753,7 @@ case class TableIntervalJoin(
       } else {
         val joiner = (rightPType: PStruct) => {
           val leftRowType = leftRVDType.rowType
-          val newRowType = leftRowType.appendKey(localRoot, rightPType.selectFields(rightValueFields))
+          val newRowType = leftRowType.appendKey(localRoot, rightPType.selectFields(rightValueFields).setRequired(false))
 
           (RVDType(newRowType, localKey), (_: RVDContext, it: Iterator[JoinedRegionValue]) => {
             val rvb = new RegionValueBuilder()
@@ -812,10 +814,11 @@ case class TableZipUnchecked(left: TableIR, right: TableIR) extends TableIR {
 
     val rvdType: RVDType = RVDType(inserter.pType, tv1.rvd.typ.key)
 
-    val (t2, makeF) = ir.Compile[Long, Long, Long](
+    val (t2, makeF) = ir.Compile[AsmFunction3RegionLongLongLong](
       ctx,
-      "left", tv1.rvd.typ.rowType,
-      "right", tv2.rvd.typ.rowType,
+      FastIndexedSeq(("left", tv1.rvd.typ.rowType),
+        ("right", tv2.rvd.typ.rowType)),
+      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
       inserter)
 
     assert(t2.virtualType == typ.rowType)
@@ -837,7 +840,7 @@ case class TableZipUnchecked(left: TableIR, right: TableIR) extends TableIR {
         def next(): RegionValue = {
           val rv1 = it1.next()
           val rv2 = it2.next()
-          val off = f(region, rv1.offset, false, rv2.offset, false)
+          val off = f(region, rv1.offset, rv2.offset)
           rv3.set(region, off)
           rv3
         }
@@ -876,7 +879,6 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     val childValues = children.map(_.execute(ctx))
     assert(childValues.map(_.rvd.typ).toSet.size == 1) // same physical types
 
-
     val childRVDs = RVD.unify(childValues.map(_.rvd)).toFastIndexedSeq
 
     val repartitionedRVDs =
@@ -896,7 +898,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     val keyIdx = rvdType.kFieldIdx
     val valIdx = rvdType.valueFieldIdx
     val localRVDType = rvdType
-    val localNewRowType = PType.canonical(newRowType).asInstanceOf[PStruct]
+    val localNewRowType = PType.canonical(newRowType).setRequired(true).asInstanceOf[PStruct]
     val localDataLength = children.length
     val rvMerger = { (ctx: RVDContext, it: Iterator[ArrayBuilder[(RegionValue, Int)]]) =>
       val rvb = new RegionValueBuilder()
@@ -994,13 +996,15 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     val scanRef = genUID()
     val extracted = agg.Extract.apply(agg.Extract.liftScan(newRow), scanRef)
 
-
     if (extracted.aggs.isEmpty) {
-      val (rTyp, f) = ir.Compile[Long, Long, Long](
+      val (rTyp, f) = ir.Compile[AsmFunction3RegionLongLongLong](
         ctx,
-        "global", tv.globals.t,
-        "row", tv.rvd.rowPType,
-        extracted.postAggIR)
+        FastIndexedSeq(("global", tv.globals.t),
+          ("row", tv.rvd.rowPType)),
+        FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
+        Coalesce(FastIndexedSeq(
+          extracted.postAggIR,
+            Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ))))
 
       val rowIterationNeedsGlobals = Mentions(extracted.postAggIR, "global")
       val globalsBc =
@@ -1019,7 +1023,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val rv2 = RegionValue()
         val newRow = f(i, globalRegion)
         it.map { rv =>
-          rv2.set(rv.region, newRow(rv.region, globals, false, rv.offset, false))
+          rv2.set(rv.region, newRow(rv.region, globals, rv.offset))
           rv2
         }
       }
@@ -1053,26 +1057,32 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     // 3. load in partition aggregations, comb op as necessary, serialize.
     // 4. load in partStarts, calculate newRow based on those results.
 
-    val (_, initF) = ir.CompileWithAggregators2[Long, Unit](ctx,
+    val (_, initF) = ir.CompileWithAggregators2[AsmFunction2RegionLongUnit](ctx,
       physicalAggs,
-      "global", tv.globals.t,
+      FastIndexedSeq(("global", tv.globals.t)),
+      FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
       Begin(FastIndexedSeq(extracted.init, extracted.serializeSet(0, 0, spec))))
 
-    val (_, eltSeqF) = ir.CompileWithAggregators2[Long, Long, Unit](ctx,
+    val (_, eltSeqF) = ir.CompileWithAggregators2[AsmFunction3RegionLongLongUnit](ctx,
       physicalAggs,
-      "global", Option(globalsBc).map(_.value.t).getOrElse(PCanonicalStruct()),
-      "row", tv.rvd.rowPType,
+      FastIndexedSeq(("global", tv.globals.t),
+        ("row", tv.rvd.rowPType)),
+      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
       extracted.eltOp(ctx))
 
     val read = extracted.deserialize(ctx, spec, physicalAggs)
     val write = extracted.serialize(ctx, spec, physicalAggs)
     val combOpF = extracted.combOpF(ctx, spec, physicalAggs)
 
-    val (rTyp, f) = ir.CompileWithAggregators2[Long, Long, Long](ctx,
+    val (rTyp, f) = ir.CompileWithAggregators2[AsmFunction3RegionLongLongLong](ctx,
       physicalAggs,
-      "global", Option(globalsBc).map(_.value.t).getOrElse(PCanonicalStruct()),
-      "row", tv.rvd.rowPType,
-      Let(scanRef, extracted.results, extracted.postAggIR))
+      FastIndexedSeq(("global", tv.globals.t),
+        ("row", tv.rvd.rowPType)),
+      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
+      Let(scanRef, extracted.results,
+        Coalesce(FastIndexedSeq(
+          extracted.postAggIR,
+          Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ)))))
     assert(rTyp.virtualType == newRow.typ)
 
     // 1. init op on all aggs and write out to initPath
@@ -1080,7 +1090,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       Region.scoped { fRegion =>
         val init = initF(0, fRegion)
         init.newAggState(aggRegion)
-        init(fRegion, tv.globals.value.offset, false)
+        init(fRegion, tv.globals.value.offset)
         init.getSerializedAgg(0)
       }
     }
@@ -1100,7 +1110,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
           seq.setAggState(aggRegion, read(aggRegion, initAgg))
           it.foreach { rv =>
-            seq(rv.region, globals, false, rv.offset, false)
+            seq(rv.region, globals, rv.offset)
             ctx.region.clear()
           }
           using(new DataOutputStream(fs.value.create(path))) { os =>
@@ -1185,9 +1195,9 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
         it.map { rv =>
           newRow.setAggState(aggRegion, aggOff)
-          val off = newRow(rv.region, globals, false, rv.offset, false)
+          val off = newRow(rv.region, globals, rv.offset)
           seq.setAggState(aggRegion, newRow.getAggOffset())
-          seq(rv.region, globals, false, rv.offset, false)
+          seq(rv.region, globals, rv.offset)
           aggOff = seq.getAggOffset()
           rv.setOffset(off)
           rv
@@ -1208,7 +1218,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
         seq.setAggState(aggRegion, read(aggRegion, initAgg))
         it.foreach { rv =>
-          seq(rv.region, globals, false, rv.offset, false)
+          seq(rv.region, globals, rv.offset)
           ctx.region.clear()
         }
         Iterator.single(write(aggRegion, seq.getAggOffset()))
@@ -1263,9 +1273,9 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
       it.map { rv =>
         newRow.setAggState(aggRegion, aggOff)
-        val off = newRow(rv.region, globals, false, rv.offset, false)
+        val off = newRow(rv.region, globals, rv.offset)
         seq.setAggState(aggRegion, newRow.getAggOffset())
-        seq(rv.region, globals, false, rv.offset, false)
+        seq(rv.region, globals, rv.offset)
         aggOff = seq.getAggOffset()
         rv.setOffset(off)
         rv
@@ -1274,7 +1284,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     tv.copy(
       typ = typ,
       rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), partitionIndices, itF))
-  }
+   }
 }
 
 case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
@@ -1295,11 +1305,14 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val tv = child.execute(ctx)
 
-    val (resultPType, f) = Compile[Long, Long](ctx, "global", tv.globals.t, newGlobals)
+    val (resultPType, f) = Compile[AsmFunction2RegionLongLong](ctx,
+      FastIndexedSeq(("global", tv.globals.t)),
+      FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
+      Coalesce(FastIndexedSeq(
+        newGlobals,
+        Die("Internal error: TableMapGlobals: globals missing", newGlobals.typ))))
 
-    val resultOff = f(0, ctx.r)(ctx.r,
-      tv.globals.value.offset, false
-    )
+    val resultOff = f(0, ctx.r)(ctx.r, tv.globals.value.offset)
     tv.copy(typ = typ,
       globals = BroadcastRow(RegionValue(ctx.r, resultOff), resultPType.asInstanceOf[PStruct], HailContext.get.backend))
   }
@@ -1316,12 +1329,11 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
   private val childRowType = child.typ.rowType
 
   private val length: IR = {
-    val lenUID = genUID()
-    Let(lenUID,
+    Coalesce(FastIndexedSeq(
       ArrayLen(CastToArray(
         path.foldLeft[IR](Ref("row", childRowType))((struct, field) =>
           GetField(struct, field)))),
-      If(IsNA(Ref(lenUID, TInt32)), 0, Ref(lenUID, TInt32)))
+      0))
   }
 
   val idx = Ref(genUID(), TInt32)
@@ -1349,11 +1361,15 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
 
-    val (len, l) = Compile[Long, Int](ctx, "row", prev.rvd.rowPType, length)
-    val (newRowType: PStruct, f) = Compile[Long, Int, Long](
+    val (len, l) = Compile[AsmFunction2RegionLongInt](ctx,
+      FastIndexedSeq(("row", prev.rvd.rowPType)),
+      FastIndexedSeq(classInfo[Region], LongInfo), IntInfo,
+      length)
+    val (newRowType: PStruct, f) = Compile[AsmFunction3RegionLongIntLong](
       ctx,
-      "row", prev.rvd.rowPType,
-      idx.name, PInt32(true),
+      FastIndexedSeq(("row", prev.rvd.rowPType),
+        (idx.name, PInt32(true))),
+      FastIndexedSeq(classInfo[Region], LongInfo, IntInfo), LongInfo,
       newRow)
     assert(newRowType.virtualType == typ.rowType)
 
@@ -1370,14 +1386,14 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
         val lenF = l(i, globalRegion)
         val rowF = f(i, globalRegion)
         it.flatMap { rv =>
-          val len = lenF(rv.region, rv.offset, false)
+          val len = lenF(rv.region, rv.offset)
           new Iterator[RegionValue] {
             private[this] var i = 0
 
             def hasNext: Boolean = i < len
 
             def next(): RegionValue = {
-              rv2.setOffset(rowF(rv2.region, rv.offset, false, i, false))
+              rv2.setOffset(rowF(rv2.region, rv.offset, i))
               i += 1
               rv2
             }
@@ -1501,11 +1517,13 @@ case class TableKeyByAndAggregate(
     val prev = child.execute(ctx)
 
     val localKeyType = keyType
-    val (localKeyPType: PStruct, makeKeyF) = ir.Compile[Long, Long, Long](ctx,
-      "row", prev.rvd.rowPType,
-      "global", prev.globals.t,
-      newKey
-    )
+    val (localKeyPType: PStruct, makeKeyF) = ir.Compile[AsmFunction3RegionLongLongLong](ctx,
+      FastIndexedSeq(("row", prev.rvd.rowPType),
+        ("global", prev.globals.t)),
+      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
+      Coalesce(FastIndexedSeq(
+        newKey,
+        Die("Internal error: TableKeyByAndAggregate: newKey missing", newKey.typ))))
 
     val globalsBc = prev.globals.broadcast
 
@@ -1519,20 +1537,23 @@ case class TableKeyByAndAggregate(
       Env("global" -> prev.globals.t, "row" -> prev.rvd.rowPType)
     )
 
-    val (_, makeInit) = ir.CompileWithAggregators2[Long, Unit](ctx,
+    val (_, makeInit) = ir.CompileWithAggregators2[AsmFunction2RegionLongUnit](ctx,
       physicalAggs,
-      "global", prev.globals.t,
+      FastIndexedSeq(("global", prev.globals.t)),
+      FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
       extracted.init)
 
-    val (_, makeSeq) = ir.CompileWithAggregators2[Long, Long, Unit](ctx,
+    val (_, makeSeq) = ir.CompileWithAggregators2[AsmFunction3RegionLongLongUnit](ctx,
       physicalAggs,
-      "global", prev.globals.t,
-      "row", prev.rvd.rowPType,
+      FastIndexedSeq(("global", prev.globals.t),
+        ("row", prev.rvd.rowPType)),
+      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
       extracted.seqPerElt)
 
-    val (rTyp: PStruct, makeAnnotate) = ir.CompileWithAggregators2[Long, Long](ctx,
+    val (rTyp: PStruct, makeAnnotate) = ir.CompileWithAggregators2[AsmFunction2RegionLongLong](ctx,
       physicalAggs,
-      "global", prev.globals.t,
+      FastIndexedSeq(("global", prev.globals.t)),
+      FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
       Let(res, extracted.results, extracted.postAggIR))
     assert(rTyp.virtualType == typ.valueType, s"$rTyp, ${ typ.valueType }")
 
@@ -1544,11 +1565,11 @@ case class TableKeyByAndAggregate(
     val globalsOffset = prev.globals.value.offset
     val initAggs = Region.scoped { aggRegion =>
       initF.newAggState(aggRegion)
-      initF(ctx.r, globalsOffset, false)
+      initF(ctx.r, globalsOffset)
       serialize(aggRegion, initF.getAggOffset())
     }
 
-    val newRowType = localKeyPType ++ rTyp
+    val newRowType = (localKeyPType ++ rTyp).setRequired(true).asInstanceOf[PStruct]
 
     val localBufferSize = bufferSize
     val rdd = prev.rvd
@@ -1559,7 +1580,7 @@ case class TableKeyByAndAggregate(
         val makeKey = {
           val f = makeKeyF(i, partRegion)
           rv: RegionValue => {
-            val keyOff = f(rv.region, rv.offset, false, globals, false)
+            val keyOff = f(rv.region, rv.offset, globals)
             SafeRow.read(localKeyPType, keyOff).asInstanceOf[Row]
           }
         }
@@ -1572,7 +1593,7 @@ case class TableKeyByAndAggregate(
           val f = makeSeq(i, partRegion)
           (rv: RegionValue, agg: RegionValue) => {
             f.setAggState(agg.region, agg.offset)
-            f(rv.region, globals, false, rv.offset, false)
+            f(rv.region, globals, rv.offset)
             agg.setOffset(f.getAggOffset())
           }
         }
@@ -1613,7 +1634,7 @@ case class TableKeyByAndAggregate(
 
           val aggOff = deserialize(rv.region, aggs)
           annotate.setAggState(rv.region, aggOff)
-          rvb.addAllFields(rTyp, region, annotate(region, globals, false))
+          rvb.addAllFields(rTyp, region, annotate(region, globals))
           rvb.endStruct()
           rv.setOffset(rvb.end())
           rv
@@ -1655,15 +1676,17 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
       Env("global" -> prev.globals.t, "row" -> prev.rvd.rowPType)
     )
 
-    val (_, makeInit) = ir.CompileWithAggregators2[Long, Unit](ctx,
+    val (_, makeInit) = ir.CompileWithAggregators2[AsmFunction2RegionLongUnit](ctx,
       physicalAggs,
-      "global", prev.globals.t,
+      FastIndexedSeq(("global", prev.globals.t)),
+      FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
       extracted.init)
 
-    val (_, makeSeq) = ir.CompileWithAggregators2[Long, Long, Unit](ctx,
+    val (_, makeSeq) = ir.CompileWithAggregators2[AsmFunction3RegionLongLongUnit](ctx,
       physicalAggs,
-      "global", prev.globals.t,
-      "row", prev.rvd.rowPType,
+      FastIndexedSeq(("global", prev.globals.t),
+        ("row", prev.rvd.rowPType)),
+      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
       extracted.seqPerElt)
 
     val valueIR = Let(res, extracted.results, extracted.postAggIR)
@@ -1672,12 +1695,14 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
     val key = Ref(genUID(), keyType.virtualType)
     val value = Ref(genUID(), valueIR.typ)
-    val (rowType: PStruct, makeRow) = ir.CompileWithAggregators2[Long, Long, Long](ctx,
+    val (rowType: PStruct, makeRow) = ir.CompileWithAggregators2[AsmFunction3RegionLongLongLong](ctx,
       physicalAggs,
-      "global", prev.globals.t,
-      key.name, keyType,
+      FastIndexedSeq(("global", prev.globals.t),
+        (key.name, keyType)),
+      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
       Let(value.name, valueIR,
         InsertFields(key, typ.valueType.fieldNames.map(n => n -> GetField(value, n)))))
+
     assert(rowType.virtualType == typ.rowType, s"$rowType, ${ typ.rowType }")
 
     val localChildRowType = prevRVD.rowPType
@@ -1727,18 +1752,18 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
             aggRegion.clear()
             initialize.newAggState(aggRegion)
-            initialize(region, globalsOff, false)
+            initialize(region, globalsOff)
             sequence.setAggState(aggRegion, initialize.getAggOffset())
 
             do {
               val region = current.region
               sequence(region,
-                globalsOff, false,
-                current.offset, false)
+                globalsOff,
+                current.offset)
               current = null
             } while (hasNext && keyOrd.equiv(rowKey.value, current))
             newRowF.setAggState(aggRegion, sequence.getAggOffset())
-            newRV.setOffset(newRowF(consumerRegion, globalsOff, false, rowKey.offset, false))
+            newRV.setOffset(newRowF(consumerRegion, globalsOff, rowKey.offset))
             newRV
           }
         }
@@ -1893,7 +1918,7 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
     val prevRowType = prev.rvd.typ.rowType
     val prevKeyType = prev.rvd.typ.kType
 
-    val rowType = prevKeyType ++ PCanonicalStruct(("grouped_fields", PCanonicalArray(prevRowType)))
+    val rowType = prevKeyType ++ PCanonicalStruct(true, ("grouped_fields", PCanonicalArray(prevRowType, required = true)))
     val newRVDType = prevRVD.typ.copy(rowType = rowType)
     val keyIndices = child.typ.keyFieldIdx
 
@@ -1933,7 +1958,7 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
       }
     })
 
-    prev.copy(rvd = newRVD, typ=this.typ)
+    prev.copy(rvd = newRVD, typ = typ)
   }
 }
 

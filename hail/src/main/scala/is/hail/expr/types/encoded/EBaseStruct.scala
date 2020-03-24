@@ -2,7 +2,7 @@ package is.hail.expr.types.encoded
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitMethodBuilder, ParamType}
 import is.hail.expr.types.{BaseStruct, BaseType}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -103,7 +103,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     } else {
       val groupSize = 64
       var methodIdx = 0
-      var currentMB = mb.genEmitMethod(s"missingbits_group_$methodIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
+      var currentMB = mb.genEmitMethod(s"missingbits_group_$methodIdx", FastIndexedSeq[ParamType](LongInfo, classInfo[OutputBuffer]), UnitInfo)
       var wrappedC: Code[Unit] = Code._empty
       var methodC: Code[Unit] = Code._empty
 
@@ -113,9 +113,9 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
         if (n % groupSize == 0) {
           currentMB.emit(methodC)
           methodC = Code._empty
-          wrappedC = Code(wrappedC, currentMB.invoke[Unit](v, out))
+          wrappedC = Code(wrappedC, currentMB.invokeCode[Unit](v, out))
           methodIdx += 1
-          currentMB = mb.genEmitMethod(s"missingbits_group_$methodIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
+          currentMB = mb.genEmitMethod(s"missingbits_group_$methodIdx", FastIndexedSeq[ParamType](LongInfo, classInfo[OutputBuffer]), UnitInfo)
         }
         var b: Code[Int] = 0
         var k = 0
@@ -123,28 +123,28 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
           val f = fields(j)
           if (!f.typ.required) {
             val i = ft.fieldIdx(f.name)
-            b = b | (ft.isFieldMissing(currentMB.getArg[Long](1), i).toI << k)
+            b = b | (ft.isFieldMissing(currentMB.getCodeParam[Long](1), i).toI << k)
             k += 1
           }
           j += 1
         }
         if (k > 0) {
-          methodC = Code(methodC, currentMB.getArg[OutputBuffer](2).load().writeByte(b.toB))
+          methodC = Code(methodC, currentMB.getCodeParam[OutputBuffer](2).load().writeByte(b.toB))
           n += 1
         }
       }
       currentMB.emit(methodC)
-      wrappedC = Code(wrappedC, currentMB.invoke[Unit](v, out))
+      wrappedC = Code(wrappedC, currentMB.invokeCode[Unit](v, out))
 
       assert(n == nMissingBytes)
       wrappedC
     }
 
     val writeFields = Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
-      val groupMB = mb.genEmitMethod(s"write_fields_group_$groupIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
+      val groupMB = mb.genEmitMethod(s"write_fields_group_$groupIdx", FastIndexedSeq[ParamType](LongInfo, classInfo[OutputBuffer]), UnitInfo)
 
-      val addr = groupMB.getArg[Long](1)
-      val out2 = groupMB.getArg[OutputBuffer](2)
+      val addr = groupMB.getCodeParam[Long](1)
+      val out2 = groupMB.getCodeParam[OutputBuffer](2)
       groupMB.emit(Code(
         fieldGroup.map { ef =>
           val i = ft.fieldIdx(ef.name)
@@ -158,7 +158,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
         }
       ))
 
-      groupMB.invoke[Unit](v, out)
+      groupMB.invokeCode[Unit](v, out)
     }.toArray)
 
     Code(writeMissingBytes, writeFields, Code._empty)
@@ -191,11 +191,11 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     val mbytes = mb.newLocal[Long]("mbytes")
 
     val readFields = coerce[Unit](Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
-      val groupMB = mb.genEmitMethod(s"read_fields_group_$groupIdx", Array[TypeInfo[_]](classInfo[Region], LongInfo, LongInfo, classInfo[InputBuffer]), UnitInfo)
-      val regionArg = groupMB.getArg[Region](1)
-      val addrArg = groupMB.getArg[Long](2)
-      val mbytesArg = groupMB.getArg[Long](3)
-      val inArg = groupMB.getArg[InputBuffer](4)
+      val groupMB = mb.genEmitMethod(s"read_fields_group_$groupIdx", FastIndexedSeq[ParamType](classInfo[Region], LongInfo, LongInfo, classInfo[InputBuffer]), UnitInfo)
+      val regionArg = groupMB.getCodeParam[Region](1)
+      val addrArg = groupMB.getCodeParam[Long](2)
+      val mbytesArg = groupMB.getCodeParam[Long](3)
+      val inArg = groupMB.getCodeParam[InputBuffer](4)
       groupMB.emit(Code(fieldGroup.map { f =>
         if (t.hasField(f.name)) {
           val rf = t.field(f.name)
@@ -219,7 +219,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
               skip(regionArg, inArg))
         }
       }))
-      groupMB.invoke[Unit](region, addr, mbytes, in)
+      groupMB.invokeCode[Unit](region, addr, mbytes, in)
     }.toArray))
 
     Code(
@@ -282,4 +282,6 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       }
     }
   }
+
+  def setRequired(newRequired: Boolean): EBaseStruct = EBaseStruct(fields, newRequired)
 }

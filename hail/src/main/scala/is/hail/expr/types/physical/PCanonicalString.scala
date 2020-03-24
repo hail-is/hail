@@ -3,6 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, MethodBuilder, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.utils.FastIndexedSeq
 
 case object PCanonicalStringOptional extends PCanonicalString(false)
 case object PCanonicalStringRequired extends PCanonicalString(true)
@@ -25,11 +26,8 @@ class PCanonicalString(val required: Boolean) extends PString {
   def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
     this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
-    this.fundamentalType.copyFromType(
-      region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, deepCopy
-    )
-  }
+  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  =
+    fundamentalType.copyFromAddress(region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, deepCopy)
 
   override def containsPointers: Boolean = true
 
@@ -85,6 +83,8 @@ object PCanonicalString {
 
 class PCanonicalStringCode(val pt: PCanonicalString, a: Code[Long]) extends PStringCode {
   def code: Code[_] = a
+
+  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
   def loadLength(): Code[Int] = pt.loadLength(a)
 

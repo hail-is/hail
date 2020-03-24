@@ -32,6 +32,8 @@ class EInt64(override val required: Boolean) extends EType {
 
   def _asIdent = "int64"
   def _toPretty = "EInt64"
+
+  def setRequired(newRequired: Boolean): EInt64 = EInt64(newRequired)
 }
 
 object EInt64 {

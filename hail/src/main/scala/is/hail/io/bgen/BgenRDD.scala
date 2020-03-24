@@ -35,13 +35,13 @@ object BgenSettings {
 
     val keyVType = indexKeyType(rg)
     val keyEType = EBaseStruct(FastIndexedSeq(
-      EField("locus", EBaseStruct(FastIndexedSeq(
-        EField("contig", EBinaryRequired, 0),
-        EField("position", EInt32Required, 1)
-      )), 0),
+      EField("locus",
+        EBaseStruct(FastIndexedSeq(
+          EField("contig", EBinaryRequired, 0),
+          EField("position", EInt32Required, 1))),
+        0),
       EField("alleles", EArray(EBinaryOptional, required = false), 1)),
-      required = false
-    )
+      required = true)
 
     val annotationVType = TStruct.empty
     val annotationEType = EBaseStruct(FastIndexedSeq(), required = true)
@@ -98,7 +98,7 @@ case class BgenSettings(
     .fieldOption(MatrixType.entriesIdentifier)
     .map(f => f.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
 
-  val rowPType: PStruct = PCanonicalStruct(
+  val rowPType: PStruct = PCanonicalStruct(required = true,
     Array(
       "locus" -> PCanonicalLocus.schemaFromRG(rg),
       "alleles" -> PCanonicalArray(PCanonicalString()),
@@ -112,8 +112,7 @@ case class BgenSettings(
           "GP" -> PCanonicalArray(PFloat64Required, required = true),
           "dosage" -> PFloat64Required
         ).filter { case (name, _) => entryType.exists(t => t.hasField(name))
-        }: _*
-      )))
+        }: _*)))
       .filter { case (name, _) => requestedType.rowType.hasField(name) }: _*)
 
   assert(rowPType.virtualType == requestedType.rowType, s"${ rowPType.virtualType.parsableString() } vs ${ requestedType.rowType.parsableString() }")

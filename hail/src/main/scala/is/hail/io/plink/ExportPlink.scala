@@ -61,7 +61,6 @@ object ExportPlink {
 
   def apply(mv: MatrixValue, path: String): Unit = {
     val hc = HailContext.get
-    val sc = hc.sc
     val fs = hc.fs
 
     val tmpBedDir = fs.getTemporaryFile(hc.tmpDir)

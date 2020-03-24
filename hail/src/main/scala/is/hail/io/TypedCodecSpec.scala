@@ -17,8 +17,8 @@ object TypedCodecSpec {
 }
 
 final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: BufferSpec) extends AbstractTypedCodecSpec {
-  val encodedType: EType = _eType
-  val encodedVirtualType: Type = _vType
+  def encodedType: EType = _eType
+  def encodedVirtualType: Type = _vType
 
   def computeSubsetPType(requestedType: Type): PType = {
     _eType._decodedPType(requestedType)
@@ -41,11 +41,11 @@ final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: Buffer
   def buildEmitDecoderF[T](requestedType: Type, cb: EmitClassBuilder[_]): (PType, StagedDecoderF[T]) = {
     val rt = encodedType.decodedPType(requestedType)
     val mb = encodedType.buildDecoderMethod(rt, cb)
-    (rt, (region: Value[Region], buf: Value[InputBuffer]) => mb.invoke[T](region, buf))
+    (rt, (region: Value[Region], buf: Value[InputBuffer]) => mb.invokeCode[T](region, buf))
   }
 
   def buildEmitEncoderF[T](t: PType, cb: EmitClassBuilder[_]): StagedEncoderF[T] = {
     val mb = encodedType.buildEncoderMethod(t, cb)
-    (region: Value[Region], off: Value[T], buf: Value[OutputBuffer]) => mb.invoke[Unit](off, buf)
+    (region: Value[Region], off: Value[T], buf: Value[OutputBuffer]) => mb.invokeCode[Unit](off, buf)
   }
 }
