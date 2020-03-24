@@ -11,7 +11,7 @@ import is.hail.utils._
 // seqOp args: array, other non-elt args for nestedAgg
 
 class ArrayElementState(val cb: EmitClassBuilder[_], val nested: StateTuple) extends PointerBasedRVAState {
-  val arrayType: PArray = PCanonicalArray(nested.storageType, required = true)
+  val arrayType: PArray = PCanonicalArray(nested.storageType)
   private val nStates: Int = nested.nStates
   override val regionSize: Int = Region.SMALL
 
@@ -28,8 +28,6 @@ class ArrayElementState(val cb: EmitClassBuilder[_], val nested: StateTuple) ext
   private def statesOffset(eltIdx: Value[Int]): Value[Long] = new Value[Long] {
     def get: Code[Long] = arrayType.loadElement(typ.loadField(off, 1), eltIdx)
   }
-
-
 
   val initContainer: TupleAggregatorState = new TupleAggregatorState(cb, nested, region, new Value[Long]{
     def get: Code[Long] = typ.loadField(off, 0)
