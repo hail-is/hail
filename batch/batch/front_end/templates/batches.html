@@ -71,7 +71,7 @@
 	    <td class="numeric-cell">{{ batch['n_succeeded'] }}</td>
 	    <td class="numeric-cell">{{ batch['n_failed'] }}</td>
 	    <td class="numeric-cell">{{ batch['n_cancelled'] }}</td>
-	    <td>
+	    <td class="numeric-cell">
 	      {% if 'cost' in batch and batch['cost'] is not none %}
 	      {{ batch['cost'] }}
 	      {% endif %}
