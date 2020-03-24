@@ -724,7 +724,7 @@ class Expression(object):
             raise NotImplementedError('cannot convert aggregated expression to table')
 
         if source is None:
-            return fallback_name, Env.dummy_table().select(**{fallback_name: self})
+            return fallback_name, hl.Table.parallelize([self], n_partitions=1)
 
         name = source._fields_inverse.get(self)
         top_level = name is not None
@@ -733,7 +733,7 @@ class Expression(object):
         named_self = {name: self}
         if len(axes) == 0:
             x = source.select_globals(**named_self)
-            ds = Env.dummy_table().select(**{name: x.index_globals()[name]})
+            ds = hl.Table.parallelize([x.index_globals()], n_partitions=1)
         elif isinstance(source, hail.Table):
             if top_level and name in source.key:
                 named_self = {}

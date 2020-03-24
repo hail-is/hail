@@ -431,4 +431,50 @@ class TableIRSuite extends HailSuite {
     val tir = TableRead(tr.fullType, true, tr)
     assert(tir.partitionCounts.forall(_.sum == 0))
   }
+
+  @Test def testScanInAggInMapRows() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+    val sumSig = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
+    var tr: TableIR = TableRange(10, 3)
+    tr = TableKeyBy(tr, FastIndexedSeq(), false)
+    tr = TableMapRows(tr, InsertFields(Ref("row", tr.typ.rowType),
+      FastSeq(("result",
+        StreamAgg(
+          StreamAggScan(
+            StreamRange(0, GetField(Ref("row", tr.typ.rowType), "idx"), 1),
+            "streamx",
+            ApplyScanOp(FastIndexedSeq(), FastIndexedSeq(Ref("streamx", TInt32).toL), sumSig)),
+          "aggx",
+          ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(Ref("aggx", TInt64)), sumSig))))))
+    assertEvalsTo(TableCollect(tr), Row(IndexedSeq.tabulate(10) { i =>
+      val r = (0 until i).map(_.toLong).scanLeft(0L)(_ + _).init.sum
+      Row(i, r)
+    }, Row()
+    ))
+  }
+
+  @Test def testScanInAggInScanInMapRows() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+    val sumSig = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
+    var tr: TableIR = TableRange(10, 3)
+    tr = TableKeyBy(tr, FastIndexedSeq(), false)
+    tr = TableMapRows(tr, InsertFields(Ref("row", tr.typ.rowType),
+      FastSeq(("result",
+        ApplyScanOp(FastIndexedSeq(),
+          FastIndexedSeq(StreamAgg(
+            StreamAggScan(
+              StreamRange(0, GetField(Ref("row", tr.typ.rowType), "idx"), 1),
+              "streamx",
+              ApplyScanOp(FastIndexedSeq(), FastIndexedSeq(Ref("streamx", TInt32).toL), sumSig)),
+            "aggx",
+            ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(Ref("aggx", TInt64)), sumSig))),
+          sumSig)))))
+    assertEvalsTo(TableCollect(tr), Row(Array.tabulate(10) { i =>
+      (0 until i).map(_.toLong).scanLeft(0L)(_ + _).init.sum
+    }.scanLeft(0L)(_ + _)
+      .zipWithIndex
+      .map { case (x, idx) => Row(idx, x) }.init.toFastIndexedSeq,
+      Row()
+    ))
+  }
 }
