@@ -568,16 +568,14 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
 class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregator {
 
-  private val copiedValueType = PType.canonical(valueType)
-  private val copiedKeyType = PType.canonical(keyType)
-  assert(copiedValueType == valueType)
-  assert(copiedKeyType == keyType)
+  assert(valueType.isCanonical)
+  assert(keyType.isCanonical)
   type State = TakeByRVAS
 
-  val resultType: PArray = PArray(copiedValueType, true)
+  val resultType: PArray = PCanonicalArray(valueType, true)
 
   def createState(fb: EmitClassBuilder[_]): State =
-    new TakeByRVAS(copiedValueType, copiedKeyType, resultType, fb)
+    new TakeByRVAS(valueType, keyType, resultType, fb)
 
   def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     assert(init.length == 1)

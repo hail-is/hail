@@ -115,14 +115,14 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val cb: EmitClassBuil
 }
 
 class TakeAggregator(typ: PType) extends StagedAggregator {
-  private val copiedType = PType.canonical(typ)
+  assert(typ.isCanonical)
 
   type State = TakeRVAS
 
-  val resultType: PArray = PArray(copiedType, required = true)
+  val resultType: PArray = PArray(typ, required = true)
 
   def createState(fb: EmitClassBuilder[_]): State =
-    new TakeRVAS(copiedType, resultType, fb)
+    new TakeRVAS(typ, resultType, fb)
 
   def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     assert(init.length == 1)
