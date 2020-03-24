@@ -65,6 +65,8 @@ object PCode {
 
     case pt: PBinary =>
       new PCanonicalBinaryCode(pt, coerce[Long](code))
+    case pt: PString =>
+      new PCanonicalStringCode(pt, coerce[Long](code))
 
     case _ =>
       new PPrimitiveCode(pt, code)
@@ -95,6 +97,8 @@ abstract class PCode { self =>
   def asIndexable: PIndexableCode = asInstanceOf[PIndexableCode]
 
   def asBaseStruct: PBaseStructCode = asInstanceOf[PBaseStructCode]
+
+  def asString: PStringCode = asInstanceOf[PStringCode]
 
   def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType): PCode = {
     PCode(destType,
