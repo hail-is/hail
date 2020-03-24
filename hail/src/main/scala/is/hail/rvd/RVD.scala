@@ -425,6 +425,14 @@ class RVD(
       crdd.cmapPartitions(f))
   }
 
+  def mapPartitionsWithContext(newTyp: RVDType)(f: (RVDContext, RVDContext => Iterator[Long]) => Iterator[Long]): RVD = {
+    RVD(
+      newTyp,
+      partitioner.coarsen(newTyp.key.length),
+      crdd.cmapPartitionsWithContext(f)
+    )
+  }
+
   def mapPartitionsWithIndex[T: ClassTag](
     f: (Int, RVDContext, Iterator[Long]) => Iterator[T]
   ): RDD[T] = crdd.cmapPartitionsWithIndex(f).run
