@@ -119,7 +119,7 @@ class TakeAggregator(typ: PType) extends StagedAggregator {
 
   type State = TakeRVAS
 
-  val resultType: PArray = PArray(typ, required = true)
+  val resultType: PCanonicalArray = PCanonicalArray(typ, required = true)
 
   def createState(fb: EmitClassBuilder[_]): State =
     new TakeRVAS(typ, resultType, fb)
