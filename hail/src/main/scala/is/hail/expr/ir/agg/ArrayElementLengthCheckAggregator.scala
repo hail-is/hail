@@ -163,7 +163,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   type State = ArrayElementState
 
   val resultEltType: PTuple = PCanonicalTuple(true, nestedAggs.map(_.resultType): _*)
-  val resultType: PArray = PCanonicalArray(resultEltType, required = true)
+  val resultType: PArray = PCanonicalArray(resultEltType, required = knownLength)
 
   def createState(cb: EmitClassBuilder[_]): State = new ArrayElementState(cb, StateTuple(nestedAggs.map(_.createState(cb))))
 
