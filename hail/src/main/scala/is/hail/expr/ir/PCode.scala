@@ -4,6 +4,7 @@ import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.types.physical._
 import is.hail.utils._
+import is.hail.variant.Genotype
 
 trait PValue {
   def pt: PType
@@ -69,6 +70,8 @@ object PCode {
       new PCanonicalStringCode(pt, coerce[Long](code))
     case pt: PLocus =>
       new PCanonicalLocusCode(pt, coerce[Long](code))
+    case pt: PCall =>
+      new PCanonicalCallCode(pt, coerce[Int](code))
 
     case _ =>
       new PPrimitiveCode(pt, code)
@@ -101,6 +104,8 @@ abstract class PCode { self =>
   def asBaseStruct: PBaseStructCode = asInstanceOf[PBaseStructCode]
 
   def asString: PStringCode = asInstanceOf[PStringCode]
+
+  def asCall: PCallCode = asInstanceOf[PCallCode]
 
   def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType): PCode = {
     PCode(destType,
@@ -333,4 +338,87 @@ class PCanonicalLocusCode(val pt: PLocus, val a: Code[Long]) extends PLocusCode 
   def memoizeField(cb: EmitCodeBuilder, name: String): PLocusValue = memoize(cb, name, cb.fieldBuilder)
 
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
+}
+
+abstract class PCallValue extends PValue {
+  def ploidy(): Code[Int]
+
+  def isPhased(): Code[Boolean]
+
+  def forEachAllele(mb: EmitMethodBuilder[_], alleleCode: Code[Int] => Code[Unit]): Code[Unit]
+}
+
+object PCanonicalCallSettable {
+  def apply(sb: SettableBuilder, pt: PCall, name: String): PCanonicalCallSettable =
+    new PCanonicalCallSettable(pt, sb.newSettable[Int](s"${ name }_call"))
+}
+
+class PCanonicalCallSettable(val pt: PCall, call: Settable[Int]) extends PCallValue with PSettable {
+  def get: PCallCode = new PCanonicalCallCode(pt, call)
+
+  def store(pc: PCode): Code[Unit] = call.store(pc.asInstanceOf[PCanonicalCallCode].call)
+
+  def ploidy(): Code[Int] = get.ploidy()
+
+  def isPhased(): Code[Boolean] = get.isPhased()
+
+  def forEachAllele(mb: EmitMethodBuilder[_], alleleCode: Code[Int] => Code[Unit]): Code[Unit] = {
+    val call2 = mb.newLocal[Int]("call2")
+    val p = mb.newLocal[Int]("p")
+    val j = mb.newLocal[Int]("j")
+    val k = mb.newLocal[Int]("k")
+
+    Code(
+      p := ploidy(),
+      call2 := call >>> 3,
+      p.ceq(2).mux(
+        Code(
+          (call2 < Genotype.nCachedAllelePairs).mux(
+            Code(
+              j := Code.invokeScalaObject[Int, Int](Genotype.getClass, "cachedAlleleJ", call2),
+              k := Code.invokeScalaObject[Int, Int](Genotype.getClass, "cachedAlleleK", call2)
+            ),
+            Code(
+              k := (Code.invokeStatic[Math, Double, Double]("sqrt", const(8d) * call2.toD + 1d) / 2d - 0.5).toI,
+              j := call2 - (k * (k + 1) / 2)
+            )
+          ),
+          alleleCode(j),
+          isPhased().mux(
+            alleleCode(k - j),
+            alleleCode(k))
+        ),
+        p.ceq(1).mux(
+          alleleCode(call2),
+          p.cne(0).orEmpty(Code._fatal[Unit](const("invalid ploidy: ").concat(p.toS)))
+        )
+      )
+    )
+  }
+}
+
+abstract class PCallCode extends PCode {
+  def ploidy(): Code[Int]
+
+  def isPhased(): Code[Boolean]
+}
+
+class PCanonicalCallCode(val pt: PCall, val call: Code[Int]) extends PCallCode {
+  def code: Code[_] = call
+
+  def ploidy(): Code[Int] = (call >>> 1) & 0x3
+
+  def isPhased(): Code[Boolean] = (call & 0x1).ceq(1)
+
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PCallValue = {
+    val s = PCanonicalCallSettable(sb, pt, name)
+    cb.assign(s, this)
+    s
+  }
+
+  def memoize(cb: EmitCodeBuilder, name: String): PCallValue = memoize(cb, name, cb.localBuilder)
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PCallValue = memoize(cb, name, cb.fieldBuilder)
+
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeInt(dst, call)
 }
