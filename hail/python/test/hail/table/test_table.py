@@ -1452,6 +1452,14 @@ def test_range_annotate_range():
     ht2 = hl.utils.range_table(5).annotate(x = 1)
     ht1.annotate(x = ht2[ht1.idx].x)._force_count()
 
+def test_group_within_partitions_after_explode():
+    t = hl.utils.range_table(10).repartition(2)
+    t = t.annotate(arr=hl.range(0, 20))
+    t = t.explode(t.arr)
+    t = t._group_within_partitions(10)
+    assert(t._force_count() == 20)
+
+
 def test_map_filter_region_memory():
     high_mem_table = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(100_000_000))
     high_mem_table = high_mem_table.filter(high_mem_table.idx % 2 == 0)
