@@ -340,6 +340,10 @@ class PCanonicalLocusCode(val pt: PLocus, val a: Code[Long]) extends PLocusCode 
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
 }
 
+object PCallValue {
+  def apply(pt: PCall, call: Settable[_]): PCallValue = new PCanonicalCallSettable(pt, coerce[Int](call))
+}
+
 abstract class PCallValue extends PValue {
   def ploidy(): Code[Int]
 
@@ -401,6 +405,10 @@ abstract class PCallCode extends PCode {
   def ploidy(): Code[Int]
 
   def isPhased(): Code[Boolean]
+
+  def memoize(cb: EmitCodeBuilder, name: String): PCallValue
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PCallValue
 }
 
 class PCanonicalCallCode(val pt: PCall, val call: Code[Int]) extends PCallCode {
