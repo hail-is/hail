@@ -724,7 +724,7 @@ class Expression(object):
             raise NotImplementedError('cannot convert aggregated expression to table')
 
         if source is None:
-            return fallback_name, hl.Table.parallelize([self], n_partitions=1)
+            return fallback_name, hl.Table.parallelize([hl.struct(**{fallback_name: self})], n_partitions=1)
 
         name = source._fields_inverse.get(self)
         top_level = name is not None
