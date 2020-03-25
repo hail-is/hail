@@ -433,7 +433,7 @@ class RVD(
     )
   }
 
-  def mapPartitionsWithContext(newTyp: RVDType)(f: (Int, RVDContext, RVDContext => Iterator[Long]) => Iterator[Long]): RVD = {
+  def mapPartitionsWithContextAndIndex(newTyp: RVDType)(f: (Int, RVDContext, RVDContext => Iterator[Long]) => Iterator[Long]): RVD = {
     RVD(
       newTyp,
       partitioner.coarsen(newTyp.key.length),
