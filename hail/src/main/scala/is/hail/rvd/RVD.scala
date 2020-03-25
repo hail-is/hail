@@ -1184,11 +1184,12 @@ object RVD {
   ): ContextRDD[Long] = {
     // The region values in 'crdd' are of type `typ.rowType`
     val localType = typ
-    crdd.boundary.cmapPartitions { (ctx, it) =>
-      // FIXME: this should copy keys into consumer's region.
-      val wrv = WritableRegionValue(localType.kType, ctx.region)
-      it.map { ptr =>
+    crdd.cmapPartitionsWithContext { (consumerCtx, it) =>
+      val producerCtx = consumerCtx.freshContext
+      val wrv = WritableRegionValue(localType.kType, consumerCtx.region)
+      it(producerCtx).map { ptr =>
         wrv.setSelect(localType.rowType, localType.kFieldIdx, ptr, deepCopy = true)
+        producerCtx.region.clear()
         wrv.value.offset
       }
     }
