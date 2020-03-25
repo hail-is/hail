@@ -25,9 +25,10 @@ BLOCK_SIZE = 64 * 1024 * 1024
 
 
 class CopyFileTimer:
-    def __init__(self, src, dest):
+    def __init__(self, src, dest, size):
         self.src = src
         self.dest = dest
+        self.size = size
         self.start_time = None
 
     async def __aenter__(self):
@@ -38,9 +39,9 @@ class CopyFileTimer:
         finish_time = time.time()
         total = finish_time - self.start_time
         if exc_type is None:
-            print(f'copied {self.src} to {self.dest} in {total:.3f}s')
+            print(f'copied {self.src} to {self.dest} ({self.size} bytes) in {total:.3f}s')
         else:
-            print(f'failed to copy {self.src} to {self.dest} in {total:.3f}s due to {exc_type} {exc!r}')
+            print(f'failed to copy {self.src} to {self.dest} in {total:.3f}s: {exc!r}')
 
 
 def is_gcs_path(file):
@@ -75,39 +76,35 @@ def get_dest_path(file, src, include_recurse_dir):
     return '/'.join(file[recurse_point:])
 
 
-async def copy_file_within_gcs(src, dest):
-    async with CopyFileTimer(src, dest):
+async def copy_file_within_gcs(src, dest, size):
+    async with CopyFileTimer(src, dest, size):
         await gcs_client.copy_gs_file(src, dest)
 
 
 async def write_file_to_gcs(src, dest, size):
-    async with CopyFileTimer(src, dest):
+    async with CopyFileTimer(src, dest, size):
         await gcs_client.write_gs_file_from_filename(dest, src)
 
 
 async def read_file_from_gcs(src, dest, size):
-    async with CopyFileTimer(src, dest):
+    async with CopyFileTimer(src, dest, size):
         dest = os.path.abspath(dest)
         await blocking_to_async(thread_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
         await gcs_client.read_gs_file_to_filename(src, dest)
 
 
-async def copy_local_files(src, dest):
-    async with CopyFileTimer(src, dest):
+async def copy_local_files(src, dest, size):
+    async with CopyFileTimer(src, dest, size):
         dest = os.path.abspath(dest)
         await blocking_to_async(thread_pool, os.makedirs, os.path.dirname(dest), exist_ok=True)
         await blocking_to_async(thread_pool, shutil.copy, src, dest)
 
 
 async def copies(copy_pool, src, dest):
-    print(f'src={src}, dest={dest}')
     if is_gcs_path(src):
         src_prefix = re.split('\\*|\\[\\?', src)[0].rstrip('/')
-        print(f'src_prefix = {src_prefix}')
         maybe_src_paths = [(path, size) for path, size in await gcs_client.list_gs_files(src_prefix)]
-        print(f'maybe_src_paths={maybe_src_paths}')
         non_recursive_matches = [(path, size) for path, size in maybe_src_paths if fnmatch.fnmatchcase(path, src)]
-        print(f'non_recursive_matches = {non_recursive_matches}')
         if not src.endswith('/') and non_recursive_matches:
             src_paths = non_recursive_matches
         else:
@@ -135,17 +132,16 @@ async def copies(copy_pool, src, dest):
     else:
         raise FileNotFoundError(src)
 
-    print(f'paths={paths}')
     for src_path, dest_path, size in paths:
         if is_gcs_path(src_path) and is_gcs_path(dest_path):
-            await copy_pool.call(copy_file_within_gcs, src_path, dest_path)
+            await copy_pool.call(copy_file_within_gcs, src_path, dest_path, size)
         elif is_gcs_path(src_path) and not is_gcs_path(dest_path):
             await copy_pool.call(read_file_from_gcs, src_path, dest_path, size)
         elif not is_gcs_path(src_path) and is_gcs_path(dest_path):
             await copy_pool.call(write_file_to_gcs, src_path, dest_path, size)
         else:
             assert not is_gcs_path(src_path) and not is_gcs_path(dest_path)
-            await copy_pool.call(copy_local_files, src_path, dest_path)
+            await copy_pool.call(copy_local_files, src_path, dest_path, size)
 
 
 async def main():

@@ -112,6 +112,7 @@ class GCS:
         f = bucket.blob(path)
         f.metadata = {'Cache-Control': 'no-cache'}
         f.upload_from_filename(filename, *args, **kwargs)
+        print(f.md5_hash)
 
     def _write_gs_file_from_file(self, uri, file, *args, **kwargs):
         bucket, path = GCS._parse_uri(uri)
@@ -142,6 +143,7 @@ class GCS:
         f = bucket.blob(path)
         f.metadata = {'Cache-Control': 'no-cache'}
         f.download_to_filename(filename, *args, **kwargs)
+        print(f.md5_hash)
 
     def _read_gs_file_to_file(self, uri, file, *args, **kwargs):
         bucket, path = GCS._parse_uri(uri)
