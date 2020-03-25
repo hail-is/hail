@@ -345,7 +345,8 @@ case class Skat(
     val n = completeColIdx.length
     val completeColIdxBc = HailContext.backend.broadcast(completeColIdx)
 
-    (mv.rvd.boundary.mapPartitions { (ctx, it) => it.flatMap { ptr =>
+    // I believe no `boundary` is needed here because `mapPartitions` calls `run` which calls `cleanupRegions`.
+    (mv.rvd.mapPartitions { (ctx, it) => it.flatMap { ptr =>
       val keyIsDefined = fullRowType.isFieldDefined(ptr, keyIndex)
       val weightIsDefined = fullRowType.isFieldDefined(ptr, weightIndex)
 
