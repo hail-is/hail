@@ -111,6 +111,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
             os.write('\n')
           }
+          rv.region.clear()
         }
 
         fileHandles.foreach(_.close())
