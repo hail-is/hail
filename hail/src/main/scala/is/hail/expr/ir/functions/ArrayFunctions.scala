@@ -305,7 +305,7 @@ object ArrayFunctions extends RegistryFunctions {
     }
 
     registerCodeWithMissingness("corr", TArray(TFloat64), TArray(TFloat64), TFloat64, {
-      (t1: PType, t2: PType) => InferPType.getNestedElementPTypes(Seq(t1, t2)).asInstanceOf[PArray].elementType.orMissing(t1.required & t2.required)
+      (t1: PType, t2: PType) => PFloat64()
     }) {
       case (r, rt, (t1: PArray, EmitCode(setup1, m1, v1)), (t2: PArray, EmitCode(setup2, m2, v2))) =>
         val a1 = r.mb.newLocal[Long]()
