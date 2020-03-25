@@ -2,8 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.utils._
 import is.hail.expr.types.physical._
+import is.hail.utils._
 
 trait PValue {
   def pt: PType
@@ -67,6 +67,8 @@ object PCode {
       new PCanonicalBinaryCode(pt, coerce[Long](code))
     case pt: PString =>
       new PCanonicalStringCode(pt, coerce[Long](code))
+    case pt: PLocus =>
+      new PCanonicalLocusCode(pt, coerce[Long](code))
 
     case _ =>
       new PPrimitiveCode(pt, code)
