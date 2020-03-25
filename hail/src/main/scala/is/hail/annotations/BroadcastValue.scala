@@ -80,19 +80,6 @@ case class BroadcastRow(value: RegionValue,
   def safeJavaValue: Row = SafeRow.read(t, value).asInstanceOf[Row]
 }
 
-object BroadcastIndexedSeq {
-  def apply(ctx: ExecuteContext, value: IndexedSeq[Annotation],
-    t: TArray,
-    backend: Backend): BroadcastIndexedSeq = {
-    val pType = PType.canonical(t).asInstanceOf[PArray]
-    val rvb = new RegionValueBuilder(ctx.r)
-    rvb.start(pType)
-    rvb.addAnnotation(t, value)
-    val offset = rvb.end()
-    BroadcastIndexedSeq(RegionValue(ctx.r, offset), pType, HailContext.get.backend)
-  }
-}
-
 case class BroadcastIndexedSeq(value: RegionValue,
   t: PArray,
   backend: Backend) extends BroadcastRegionValue {
