@@ -349,7 +349,7 @@ abstract class PCallValue extends PValue {
 
   def isPhased(): Code[Boolean]
 
-  def forEachAllele(mb: EmitMethodBuilder[_], alleleCode: Code[Int] => Code[Unit]): Code[Unit]
+  def forEachAllele(mb: EmitMethodBuilder[_], alleleCode: Value[Int] => Code[Unit]): Code[Unit]
 }
 
 object PCanonicalCallSettable {
@@ -366,38 +366,34 @@ class PCanonicalCallSettable(val pt: PCall, call: Settable[Int]) extends PCallVa
 
   def isPhased(): Code[Boolean] = get.isPhased()
 
-  def forEachAllele(mb: EmitMethodBuilder[_], alleleCode: Code[Int] => Code[Unit]): Code[Unit] = {
-    val call2 = mb.newLocal[Int]("call2")
-    val p = mb.newLocal[Int]("p")
-    val j = mb.newLocal[Int]("j")
-    val k = mb.newLocal[Int]("k")
+  def forEachAllele(mb: EmitMethodBuilder[_], alleleCode: Value[Int] => Code[Unit]): Code[Unit] = {
+    val cb = EmitCodeBuilder(mb)
 
-    Code(
-      p := ploidy(),
-      call2 := call >>> 3,
-      p.ceq(2).mux(
-        Code(
-          (call2 < Genotype.nCachedAllelePairs).mux(
-            Code(
-              j := Code.invokeScalaObject[Int, Int](Genotype.getClass, "cachedAlleleJ", call2),
-              k := Code.invokeScalaObject[Int, Int](Genotype.getClass, "cachedAlleleK", call2)
-            ),
-            Code(
-              k := (Code.invokeStatic[Math, Double, Double]("sqrt", const(8d) * call2.toD + 1d) / 2d - 0.5).toI,
-              j := call2 - (k * (k + 1) / 2)
-            )
-          ),
-          alleleCode(j),
-          isPhased().mux(
-            alleleCode(k - j),
-            alleleCode(k))
-        ),
-        p.ceq(1).mux(
-          alleleCode(call2),
-          p.cne(0).orEmpty(Code._fatal[Unit](const("invalid ploidy: ").concat(p.toS)))
-        )
-      )
-    )
+    val call2 = cb.memoize[Int](call >>> 3, "fea_call2")
+    val p = cb.memoize[Int](ploidy(), "fea_ploidy")
+    val j = cb.mb.newLocal[Int]("fea_j")
+    val k = cb.mb.newLocal[Int]("fea_k")
+
+    cb.ifx(p.ceq(2), {
+      cb.ifx(call2 < Genotype.nCachedAllelePairs, {
+        cb.assign(j, Code.invokeScalaObject[Int, Int](Genotype.getClass, "cachedAlleleJ", call2))
+        cb.assign(k, Code.invokeScalaObject[Int, Int](Genotype.getClass, "cachedAlleleK", call2))
+      }, {
+        cb.assign(k, (Code.invokeStatic[Math, Double, Double]("sqrt", const(8d) * call2.toD + 1d) / 2d - 0.5).toI)
+        cb.assign(j, call2 - (k * (k + 1) / 2))
+      })
+      cb += alleleCode(j)
+      cb.ifx(isPhased(),
+        cb.assign(k, k - j))
+      cb += alleleCode(k)
+    }, {
+      cb.ifx(p.ceq(1),
+        cb.append(alleleCode(call2)),
+        cb.ifx(p.cne(0),
+          cb.append(Code._fatal[Unit](const("invalid ploidy: ").concat(p.toS)))))
+    })
+
+    cb.result()
   }
 }
 

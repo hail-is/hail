@@ -145,7 +145,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
       val i = cb.memoize[Int](const(0), "i")
       val call = PCallValue(t, mb.getArg(1)(typeToTypeInfo(t)))
 
-      cb += call.forEachAllele(mb, allele => Code.memoize(allele, "allele") { allele: Value[Int] =>
+      cb += call.forEachAllele(mb, { allele: Value[Int] =>
         Code(
           checkSize(allele),
           state.updateAlleleCountAtIndex(allele, state.nAlleles, _ + 1),
