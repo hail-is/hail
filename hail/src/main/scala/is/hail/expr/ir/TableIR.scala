@@ -1444,9 +1444,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
     TableValue(typ,
       prev.globals,
       prev.rvd.boundary.mapPartitionsWithIndex(rvdType) { (i, ctx, it) =>
-        val region2 = ctx.region
         val globalRegion = ctx.partitionRegion
-        val rv2 = RegionValue(region2)
         val lenF = l(i, globalRegion)
         val rowF = f(i, globalRegion)
         it.flatMap { ptr =>
