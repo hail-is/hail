@@ -32,10 +32,10 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   override def containsPointers: Boolean = true
 
-  def bytesOffset(boff: Long): Long =
+  def bytesAddress(boff: Long): Long =
     this.fundamentalType.bytesAddress(boff)
 
-  def bytesOffset(boff: Code[Long]): Code[Long] =
+  def bytesAddress(boff: Code[Long]): Code[Long] =
     this.fundamentalType.bytesAddress(boff)
 
   def loadLength(boff: Long): Int =

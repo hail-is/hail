@@ -652,7 +652,7 @@ object EmitStream {
           val (_, dec) = spec.buildEmitDecoderF[Long](requestedType, mb.ecb)
 
           COption.fromEmitCode(emitIR(pathIR)).map { path =>
-            val pathString = strType.loadString(path.tcode[Long])
+            val pathString = path.asString.loadString()
             val xRowBuf = mb.newLocal[InputBuffer]()
             val stream = unfold[Code[Long]](
               Code._empty,
