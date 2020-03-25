@@ -26,6 +26,7 @@ import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
 import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
 import is.hail.io.fs.FS
+
 package utils {
   trait Truncatable {
     def truncate: String
@@ -71,6 +72,7 @@ package utils {
     }
   }
 }
+
 package object utils extends Logging
   with richUtils.Implicits
   with NumericPairImplicits
@@ -786,6 +788,20 @@ package object utils extends Logging
       os.write(buffer, 0, length);
       length = is.read(buffer)
     }
+  }
+
+  def isJavaIdentifier(id: String): Boolean = {
+    if (!java.lang.Character.isJavaIdentifierStart(id.head))
+      return false
+
+    var i = 1
+    while (i < id.length) {
+      if (!java.lang.Character.isJavaIdentifierPart(id(i)))
+        return false
+      i += 1
+    }
+
+    true
   }
 }
 

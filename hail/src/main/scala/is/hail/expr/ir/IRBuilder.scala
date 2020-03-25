@@ -150,9 +150,9 @@ object IRBuilder {
 
     def floorDiv(other: IRProxy): IRProxy = (env: E) => ApplyBinaryPrimOp(RoundToNegInfDivide(), ir(env), other(env))
 
-    def &&(other: IRProxy): IRProxy = invoke("&&", TBoolean, ir, other)
+    def &&(other: IRProxy): IRProxy = invoke("land", TBoolean, ir, other)
 
-    def ||(other: IRProxy): IRProxy = invoke("||", TBoolean, ir, other)
+    def ||(other: IRProxy): IRProxy = invoke("lor", TBoolean, ir, other)
 
     def toI: IRProxy = (env: E) => Cast(ir(env), TInt32)
 

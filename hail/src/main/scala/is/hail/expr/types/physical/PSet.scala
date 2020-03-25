@@ -14,7 +14,7 @@ abstract class PSet extends PContainer {
 
   def arrayFundamentalType: PArray = fundamentalType.asInstanceOf[PArray]
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
+  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
     assert(other isOfType this)
     CodeOrdering.setOrdering(this, other.asInstanceOf[PSet], mb)
   }

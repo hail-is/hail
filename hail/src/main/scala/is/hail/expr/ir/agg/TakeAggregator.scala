@@ -2,18 +2,18 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitCode}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder}
 import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 
-class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionBuilder[_]) extends AggregatorState {
-  private val r: ClassFieldRef[Region] = fb.newField[Region]
+class TakeRVAS(val eltType: PType, val resultType: PArray, val cb: EmitClassBuilder[_]) extends AggregatorState {
+  private val r: ThisFieldRef[Region] = cb.genFieldThisRef[Region]()
   val region: Value[Region] = r
 
-  val builder = new StagedArrayBuilder(eltType, fb, region)
+  val builder = new StagedArrayBuilder(eltType, cb, region)
   val storageType: PTuple = PTuple(true, PInt32Required, builder.stateType)
-  private val maxSize = fb.newField[Int]
+  private val maxSize = cb.genFieldThisRef[Int]()
   private val maxSizeOffset: Code[Long] => Code[Long] = storageType.loadField(_, 0)
   private val builderStateOffset: Code[Long] => Code[Long] = storageType.loadField(_, 1)
 
@@ -76,7 +76,7 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
   }
 
   def combine(other: TakeRVAS, dummy: Boolean): Code[Unit] = {
-    val j = fb.newField[Int]
+    val j = cb.genFieldThisRef[Int]()
     val (eltJMissing, eltJ) = other.builder.loadElement(j)
 
     Code(
@@ -120,8 +120,8 @@ class TakeAggregator(typ: PType) extends StagedAggregator {
 
   val resultType: PArray = PArray(typ)
 
-  def createState(fb: EmitFunctionBuilder[_]): State =
-    new TakeRVAS(typ, resultType, fb)
+  def createState(cb: EmitClassBuilder[_]): State =
+    new TakeRVAS(typ, resultType, cb)
 
   def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     assert(init.length == 1)

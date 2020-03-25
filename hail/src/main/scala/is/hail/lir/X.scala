@@ -28,9 +28,7 @@ class Classx[C](val name: String, val superName: String) {
     f
   }
 
-  def genField(ti: TypeInfo[_]): Field = newField(genName(), ti)
-
-  def genField(prefix: String, ti: TypeInfo[_]): Field = newField(genName(prefix), ti)
+  def genField(baseName: String, ti: TypeInfo[_]): Field = newField(genName("f", baseName), ti)
 
   def newMethod(name: String,
     parameterTypeInfo: IndexedSeq[TypeInfo[_]],
@@ -41,8 +39,6 @@ class Classx[C](val name: String, val superName: String) {
   }
 
   def asBytes(print: Option[PrintWriter]): Array[Byte] = {
-    // println(Pretty(this))
-
     for (m <- methods) {
       val blocks = m.findBlocks()
       for (b <- blocks) {
@@ -81,6 +77,15 @@ class Classx[C](val name: String, val superName: String) {
       m.removeDeadCode()
     }
 
+    // check
+    for (m <- methods) {
+      val blocks = m.findBlocks()
+      for (b <- blocks) {
+        assert(b.first != null)
+        assert(b.last.isInstanceOf[ControlX])
+      }
+    }
+
     for (m <- methods) {
       m.simplifyBlocks()
     }
@@ -88,8 +93,6 @@ class Classx[C](val name: String, val superName: String) {
     for (m <- methods) {
       InitializeLocals(m)
     }
-
-    // println(Pretty(this))
 
     Emit(this,
       print
@@ -163,9 +166,7 @@ class Method private[lir] (
   def newLocal(name: String, ti: TypeInfo[_]): Local =
     new Local(this, name, ti)
 
-  def genLocal(prefix: String, ti: TypeInfo[_]): Local = newLocal(genName(prefix), ti)
-
-  def genLocal(ti: TypeInfo[_]): Local = newLocal(genName(), ti)
+  def genLocal(baseName: String, ti: TypeInfo[_]): Local = newLocal(genName("l", baseName), ti)
 
   def findBlocks(): IndexedSeq[Block] = {
     val blocks = mutable.ArrayBuffer[Block]()
@@ -253,7 +254,6 @@ class Method private[lir] (
       while (x != null && !x.isInstanceOf[ControlX])
         x = x.next
       if (x != null) {
-        assert(x.isInstanceOf[ControlX])
         while (x.next != null)
           x.next.remove()
       }
@@ -559,6 +559,8 @@ class PutFieldX(val op: Int, val f: FieldRef) extends StmtX
 class IincX(val l: Local, val i: Int) extends StmtX
 
 class ReturnX() extends ControlX
+
+class ThrowX() extends ControlX
 
 class StmtOpX(val op: Int) extends StmtX
 

@@ -3,8 +3,8 @@ package is.hail.io
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream}
 
 import is.hail.annotations.{Region, RegionValue}
-import is.hail.asm4s.{Code, Value, TypeInfo}
-import is.hail.expr.ir.{EmitFunctionBuilder, typeToTypeInfo}
+import is.hail.asm4s.{Code, TypeInfo, Value}
+import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, typeToTypeInfo}
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
@@ -40,19 +40,19 @@ trait AbstractTypedCodecSpec extends Spec {
 
   def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer]
 
-  def buildEmitDecoderF[T](requestedType: Type, fb: EmitFunctionBuilder[_]): (PType, StagedDecoderF[T])
+  def buildEmitDecoderF[T](requestedType: Type, cb: EmitClassBuilder[_]): (PType, StagedDecoderF[T])
 
-  def buildEmitEncoderF[T](t: PType, fb: EmitFunctionBuilder[_]): StagedEncoderF[T]
+  def buildEmitEncoderF[T](t: PType, cb: EmitClassBuilder[_]): StagedEncoderF[T]
 
-  def buildEmitDecoderF[T](requestedType: Type, fb: EmitFunctionBuilder[_], ti: TypeInfo[T]): (PType, StagedDecoderF[T]) = {
-    val (ptype, dec) = buildEmitDecoderF[T](requestedType, fb)
+  def buildEmitDecoderF[T](requestedType: Type, cb: EmitClassBuilder[_], ti: TypeInfo[T]): (PType, StagedDecoderF[T]) = {
+    val (ptype, dec) = buildEmitDecoderF[T](requestedType, cb)
     assert(ti == typeToTypeInfo(requestedType))
     ptype -> dec
   }
 
-  def buildEmitEncoderF[T](t: PType, fb: EmitFunctionBuilder[_], ti: TypeInfo[T]): StagedEncoderF[T] = {
+  def buildEmitEncoderF[T](t: PType, cb: EmitClassBuilder[_], ti: TypeInfo[T]): StagedEncoderF[T] = {
     assert(ti == typeToTypeInfo(t))
-    buildEmitEncoderF[T](t, fb)
+    buildEmitEncoderF[T](t, cb)
   }
 
   // FIXME: is there a better place for this to live?

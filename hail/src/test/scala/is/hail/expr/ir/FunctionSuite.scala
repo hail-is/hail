@@ -45,9 +45,6 @@ class FunctionSuite extends HailSuite {
 
   TestRegisterFunctions.registerAll()
 
-  def emitFromFB[F >: Null : TypeInfo](fb: FunctionBuilder[F]) =
-    new EmitFunctionBuilder[F](fb.parameterTypeInfo, fb.returnTypeInfo, fb.packageName)
-
   def lookup(meth: String, rt: Type, types: Type*)(irs: IR*): IR =
     IRFunctionRegistry.lookupConversion(meth, rt, types).get(irs)
 
@@ -100,11 +97,11 @@ class FunctionSuite extends HailSuite {
   @Test
   def testFunctionBuilderGetOrDefine() {
     val fb = EmitFunctionBuilder[Int]("foo")
-    val i = fb.newField[Int]
-    val mb1 = fb.getOrDefineMethod("foo", "foo", Array[TypeInfo[_]](), UnitInfo) { mb =>
+    val i = fb.genFieldThisRef[Int]()
+    val mb1 = fb.getOrGenMethod("foo", "foo", Array[TypeInfo[_]](), UnitInfo) { mb =>
       mb.emit(i := i + 1)
     }
-    val mb2 = fb.getOrDefineMethod("foo", "foo", Array[TypeInfo[_]](), UnitInfo) { mb =>
+    val mb2 = fb.getOrGenMethod("foo", "foo", Array[TypeInfo[_]](), UnitInfo) { mb =>
       mb.emit(i := i - 100)
     }
     fb.emit(Code(i := 0, mb1.invoke(), mb2.invoke(), i))
@@ -116,7 +113,7 @@ class FunctionSuite extends HailSuite {
 
   @Test def testFunctionBuilderWrapVoids() {
     val fb = EmitFunctionBuilder[Int]("foo")
-    val i = fb.newField[Int]
+    val i = fb.genFieldThisRef[Int]()
 
     val codes = Array(
       i := i + 1,
@@ -136,8 +133,8 @@ class FunctionSuite extends HailSuite {
 
   @Test def testFunctionBuilderWrapVoidsWithArgs() {
     val fb = EmitFunctionBuilder[Int]("foo")
-    val i = fb.newLocal[Int]
-    val j = fb.newField[Int]
+    val i = fb.newLocal[Int]()
+    val j = fb.genFieldThisRef[Int]()
 
     val codes = Array[Seq[Code[_]] => Code[Unit]](
       { case Seq(ii: Code[Int@unchecked]) => j := j + const(1) * ii },

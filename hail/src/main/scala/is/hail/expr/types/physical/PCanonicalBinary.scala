@@ -2,6 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 
 case object PCanonicalBinaryOptional extends PCanonicalBinary(false)
@@ -12,16 +13,16 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   override def byteSize: Long = 8
 
-  def copyFromType(mb: MethodBuilder, region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
-      constructOrCopy(mb, region, srcPType.asInstanceOf[PBinary], srcAddress, forceDeep)
+  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
+      constructOrCopy(mb, region, srcPType.asInstanceOf[PBinary], srcAddress, deepCopy)
   }
 
-  def copyFromTypeAndStackValue(mb: MethodBuilder, region: Value[Region], srcPType: PType, stackValue: Code[_], forceDeep: Boolean): Code[_] =
-    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], forceDeep)
+  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
+    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Long = {
+  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     val srcBinary = srcPType.asInstanceOf[PBinary]
-    constructOrCopy(region, srcBinary, srcAddress, forceDeep)
+    constructOrCopy(region, srcBinary, srcAddress, deepCopy)
   }
 
   override def containsPointers: Boolean = true
@@ -47,7 +48,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   def loadLength(boff: Code[Long]): Code[Int] = Region.loadInt(boff)
 
   def loadBytes(bAddress: Code[Long], length: Code[Int]): Code[Array[Byte]] =
-    Region.loadBytes(this.bytesOffset(bAddress), length)
+    Region.loadBytes(this.bytesAddress(bAddress), length)
 
   def loadBytes(bAddress: Code[Long]): Code[Array[Byte]] =
     Code.memoize(bAddress, "pcbin_load_bytes_addr") { bAddress =>
@@ -55,7 +56,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     }
 
   def loadBytes(bAddress: Long, length: Int): Array[Byte] =
-    Region.loadBytes(this.bytesOffset(bAddress), length)
+    Region.loadBytes(this.bytesAddress(bAddress), length)
 
   def loadBytes(bAddress: Long): Array[Byte] =
     this.loadBytes(bAddress, this.loadLength(bAddress))
@@ -64,13 +65,13 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   def storeLength(boff: Code[Long], len: Code[Int]): Code[Unit] = Region.storeInt(boff, len)
 
-  def bytesOffset(boff: Long): Long = boff + lengthHeaderBytes
+  def bytesAddress(boff: Long): Long = boff + lengthHeaderBytes
 
-  def bytesOffset(boff: Code[Long]): Code[Long] = boff + lengthHeaderBytes
+  def bytesAddress(boff: Code[Long]): Code[Long] = boff + lengthHeaderBytes
 
   def store(addr: Long, bytes: Array[Byte]) {
     Region.storeInt(addr, bytes.length)
-    Region.storeBytes(bytesOffset(addr), bytes)
+    Region.storeBytes(bytesAddress(addr), bytes)
   }
 
   def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] =
@@ -78,21 +79,21 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
       Code.memoize(bytes, "pcbin_store_bytes") { bytes =>
         Code(
           Region.storeInt(addr, bytes.length),
-          Region.storeBytes(bytesOffset(addr), bytes))
+          Region.storeBytes(bytesAddress(addr), bytes))
       }
     }
 
-  def constructAtAddress(mb: MethodBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], forceDeep: Boolean): Code[Unit] = {
+  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
     val srcBinary = srcPType.asInstanceOf[PBinary]
-    Region.storeAddress(addr, constructOrCopy(mb, region, srcBinary, srcAddress, forceDeep))
+    Region.storeAddress(addr, constructOrCopy(mb, region, srcBinary, srcAddress, deepCopy))
   }
 
-  private def constructOrCopy(mb: MethodBuilder, region: Value[Region], srcBinary: PBinary, srcAddress: Code[Long], forceDeep: Boolean): Code[Long] = {
+  private def constructOrCopy(mb: EmitMethodBuilder[_], region: Value[Region], srcBinary: PBinary, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
     if (srcBinary == this) {
-      if (forceDeep) {
-        val srcAddrVar = mb.newLocal[Long]
-        val len = mb.newLocal[Int]
-        val newAddr = mb.newLocal[Long]
+      if (deepCopy) {
+        val srcAddrVar = mb.newLocal[Long]()
+        val len = mb.newLocal[Int]()
+        val newAddr = mb.newLocal[Long]()
         Code(
           srcAddrVar := srcAddress,
           len := srcBinary.loadLength(srcAddrVar),
@@ -102,9 +103,9 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
       } else
         srcAddress
     } else {
-      val srcAddrVar = mb.newLocal[Long]
-      val len = mb.newLocal[Int]
-      val newAddr = mb.newLocal[Long]
+      val srcAddrVar = mb.newLocal[Long]()
+      val len = mb.newLocal[Int]()
+      val newAddr = mb.newLocal[Long]()
       Code(
         srcAddrVar := srcAddress,
         len := srcBinary.loadLength(srcAddrVar),
@@ -116,14 +117,14 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     }
   }
 
-  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, forceDeep: Boolean): Unit = {
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     val srcArray = srcPType.asInstanceOf[PBinary]
-    Region.storeAddress(addr, constructOrCopy(region, srcArray, srcAddress, forceDeep))
+    Region.storeAddress(addr, constructOrCopy(region, srcArray, srcAddress, deepCopy))
   }
 
-  private def constructOrCopy(region: Region, srcBinary: PBinary, srcAddress: Long, forceDeep: Boolean): Long = {
+  private def constructOrCopy(region: Region, srcBinary: PBinary, srcAddress: Long, deepCopy: Boolean): Long = {
     if (srcBinary == this) {
-      if (forceDeep) {
+      if (deepCopy) {
         val len = srcBinary.loadLength(srcAddress)
         val newAddr = allocate(region, len)
         Region.copyFrom(srcAddress, newAddr, contentByteSize(len))

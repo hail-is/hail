@@ -2,13 +2,14 @@ package is.hail.expr.types.encoded
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.BaseType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.utils._
 
-final case class EArray(elementType: EType, override val required: Boolean = false) extends EType {
+final case class EArray(val elementType: EType, override val required: Boolean = false) extends EContainer {
   override def _decodeCompatible(pt: PType): Boolean = {
     pt.required == required &&
       pt.isInstanceOf[PArray] &&
@@ -34,7 +35,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
     }
   }
 
-  def buildPrefixEncoder(pt: PArray, mb: MethodBuilder, array: Value[Long],
+  def buildPrefixEncoder(pt: PArray, mb: EmitMethodBuilder[_], array: Value[Long],
     out: Value[OutputBuffer], prefixLength: Code[Int]
   ): Code[Unit] = {
     val len = mb.newLocal[Int]("len")
@@ -59,7 +60,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
 
     val i = mb.newLocal[Int]("i")
 
-    val writeElemF = elementType.buildEncoder(pt.elementType, mb)
+    val writeElemF = elementType.buildEncoder(pt.elementType, mb.ecb)
     val elem = pt.elementOffset(array, len, i)
     val writeElems = Code(
       i := 0,
@@ -79,7 +80,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
       writeElems)
   }
 
-  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
+  def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     val pa = pt.asInstanceOf[PArray]
     val array = coerce[Long](v)
     buildPrefixEncoder(pa, mb, array, out, pa.loadLength(array))
@@ -87,7 +88,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
 
   def _buildDecoder(
     pt: PType,
-    mb: MethodBuilder,
+    mb: EmitMethodBuilder[_],
     region: Value[Region],
     in: Value[InputBuffer]
   ): Code[Long] = {
@@ -95,7 +96,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
     val len = mb.newLocal[Int]("len")
     val i = mb.newLocal[Int]("i")
     val array = mb.newLocal[Long]("array")
-    val readElemF = elementType.buildInplaceDecoder(t.elementType, mb)
+    val readElemF = elementType.buildInplaceDecoder(t.elementType, mb.ecb)
 
     Code(
       len := in.readInt(),
@@ -120,7 +121,7 @@ final case class EArray(elementType: EType, override val required: Boolean = fal
       array.load())
   }
 
-  def _buildSkip(mb: MethodBuilder, r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
+  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
     val len = mb.newLocal[Int]("len")
     val i = mb.newLocal[Int]("i")
     val skip = elementType.buildSkip(mb)

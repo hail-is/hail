@@ -4836,7 +4836,7 @@ def get_sequence(contig, position, before=0, after=0, reference_genome='default'
 
     if not reference_genome.has_sequence():
         raise TypeError("Reference genome '{}' does not have a sequence loaded. Use 'add_sequence' to load the sequence from a FASTA file.".format(reference_genome.name))
-    return _func("getReferenceSequence({})".format(reference_genome.name), tstr,
+    return _func("getReferenceSequence_{}".format(reference_genome.name), tstr,
                  contig, position, before, after)
 
 @typecheck(contig=expr_str,
@@ -4862,7 +4862,7 @@ def is_valid_contig(contig, reference_genome='default') -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _func("isValidContig({})".format(reference_genome.name), tbool, contig)
+    return _func("isValidContig_{}".format(reference_genome.name), tbool, contig)
 
 @typecheck(contig=expr_str,
            reference_genome=reference_genome_type)
@@ -4884,7 +4884,7 @@ def contig_length(contig, reference_genome='default') -> Int32Expression:
     -------
     :class:`.Int32Expression`
     """
-    return _func("contigLength({})".format(reference_genome.name), tint32, contig)
+    return _func("contigLength_{}".format(reference_genome.name), tint32, contig)
 
 
 @typecheck(contig=expr_str,
@@ -4912,7 +4912,7 @@ def is_valid_locus(contig, position, reference_genome='default') -> BooleanExpre
     -------
     :class:`.BooleanExpression`
     """
-    return _func("isValidLocus({})".format(reference_genome.name), tbool, contig, position)
+    return _func("isValidLocus_{}".format(reference_genome.name), tbool, contig, position)
 
 
 @typecheck(locus=expr_locus(), is_female=expr_bool, father=expr_call, mother=expr_call, child=expr_call)

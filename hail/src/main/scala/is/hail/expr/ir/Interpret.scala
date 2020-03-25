@@ -515,7 +515,7 @@ object Interpret {
         fatal(if (message_ != null) message_ else "<exception message missing>")
       case ir@ApplyIR(function, functionArgs) =>
         interpret(ir.explicitNode, env, args)
-      case ApplySpecial("||", Seq(left_, right_), _) =>
+      case ApplySpecial("lor", Seq(left_, right_), _) =>
         val left = interpret(left_)
         if (left == true)
           true
@@ -527,7 +527,7 @@ object Interpret {
             null
           else false
         }
-      case ApplySpecial("&&", Seq(left_, right_), _) =>
+      case ApplySpecial("land", Seq(left_, right_), _) =>
         val left = interpret(left_)
         if (left == false)
           false

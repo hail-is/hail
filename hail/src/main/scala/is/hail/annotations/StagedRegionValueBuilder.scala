@@ -3,16 +3,16 @@ package is.hail.annotations
 import is.hail.asm4s.Code._
 import is.hail.asm4s.{Code, FunctionBuilder, _}
 import is.hail.expr.ir
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion}
+import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder, EmitRegion}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TBoolean, TFloat32, TFloat64, TInt32, TInt64, Type}
 import is.hail.utils._
 
 object StagedRegionValueBuilder {
-  def deepCopy(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PType, value: Code[_], dest: Code[Long]): Code[Unit] = {
+  def deepCopy(cb: EmitClassBuilder[_], region: Code[Region], typ: PType, value: Code[_], dest: Code[Long]): Code[Unit] = {
     val t = typ.fundamentalType
     val valueTI = ir.typeToTypeInfo(t)
-    val mb = fb.getOrDefineMethod("deepCopy", ("deepCopy", typ),
+    val mb = cb.getOrGenEmitMethod("deepCopy", ("deepCopy", typ),
       Array[TypeInfo[_]](classInfo[Region], valueTI, LongInfo), UnitInfo) { mb =>
       val r = mb.getArg[Region](1)
       val value = mb.getArg(2)(valueTI)
@@ -22,9 +22,9 @@ object StagedRegionValueBuilder {
     mb.invoke(region, value, dest)
   }
 
-  def deepCopyFromOffset(fb: EmitFunctionBuilder[_], region: Code[Region], typ: PType, value: Code[Long]): Code[Long] = {
+  def deepCopyFromOffset(cb: EmitClassBuilder[_], region: Code[Region], typ: PType, value: Code[Long]): Code[Long] = {
     val t = typ.fundamentalType
-    val mb = fb.getOrDefineMethod("deepCopyFromOffset", ("deepCopyFromOffset", typ),
+    val mb = cb.getOrGenEmitMethod("deepCopyFromOffset", ("deepCopyFromOffset", typ),
       Array[TypeInfo[_]](classInfo[Region], LongInfo), LongInfo) { mb =>
       val r = mb.getArg[Region](1)
       val value = mb.getArg[Long](2)
@@ -34,30 +34,30 @@ object StagedRegionValueBuilder {
   }
 
   def deepCopyFromOffset(er: EmitRegion, typ: PType, value: Code[Long]): Code[Long] =
-    deepCopyFromOffset(er.mb.fb, er.region, typ, value)
+    deepCopyFromOffset(er.mb.ecb, er.region, typ, value)
 
   def deepCopy(er: EmitRegion, typ: PType, value: Code[_], dest: Code[Long]): Code[Unit] =
-    deepCopy(er.mb.fb, er.region, typ, value, dest)
+    deepCopy(er.mb.ecb, er.region, typ, value, dest)
 }
 
-class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, var region: Value[Region], val pOffset: Value[Long]) {
-  def this(mb: MethodBuilder, typ: PType, parent: StagedRegionValueBuilder) = {
+class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: PType, var region: Value[Region], val pOffset: Value[Long]) {
+  def this(mb: EmitMethodBuilder[_], typ: PType, parent: StagedRegionValueBuilder) = {
     this(mb, typ, parent.region, parent.currentOffset)
   }
 
-  def this(fb: FunctionBuilder[_], rowType: PType) = {
+  def this(fb: EmitFunctionBuilder[_], rowType: PType) = {
     this(fb.apply_method, rowType, fb.apply_method.getArg[Region](1), null)
   }
 
-  def this(fb: FunctionBuilder[_], rowType: PType, pOffset: Value[Long]) = {
+  def this(fb: EmitFunctionBuilder[_], rowType: PType, pOffset: Value[Long]) = {
     this(fb.apply_method, rowType, fb.apply_method.getArg[Region](1), pOffset)
   }
 
-  def this(mb: MethodBuilder, rowType: PType) = {
+  def this(mb: EmitMethodBuilder[_], rowType: PType) = {
     this(mb, rowType, mb.getArg[Region](1), null)
   }
 
-  def this(mb: MethodBuilder, rowType: PType, r: Value[Region]) = {
+  def this(mb: EmitMethodBuilder[_], rowType: PType, r: Value[Region]) = {
     this(mb, rowType, r, null)
   }
 
@@ -68,15 +68,15 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   private val ftype = typ.fundamentalType
 
   private var staticIdx: Int = 0
-  private var idx: ClassFieldRef[Int] = _
-  private var elementsOffset: ClassFieldRef[Long] = _
-  private val startOffset: ClassFieldRef[Long] = mb.newField[Long]("srvb_start")
+  private var idx: Settable[Int] = _
+  private var elementsOffset: Settable[Long] = _
+  private val startOffset: Settable[Long] = mb.genFieldThisRef[Long]("srvb_start")
 
   ftype match {
-    case t: PBaseStruct => elementsOffset = mb.newField[Long]("srvb_struct_addr")
+    case t: PBaseStruct => elementsOffset = mb.genFieldThisRef[Long]("srvb_struct_addr")
     case t: PArray =>
-      elementsOffset = mb.newField[Long]("srvb_array_addr")
-      idx = mb.newField[Int]("srvb_array_idx")
+      elementsOffset = mb.genFieldThisRef[Long]("srvb_array_addr")
+      idx = mb.genFieldThisRef[Int]("srvb_array_idx")
     case _ =>
   }
 
@@ -185,8 +185,8 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   }
 
   def addBinary(bytes: Code[Array[Byte]]): Code[Unit] = {
-    val b = mb.newField[Array[Byte]]("srvb_add_binary_bytes")
-    val boff = mb.newField[Long]("srvb_add_binary_addr")
+    val b = mb.genFieldThisRef[Array[Byte]]("srvb_add_binary_bytes")
+    val boff = mb.genFieldThisRef[Long]("srvb_add_binary_addr")
     val pbT = currentPType().asInstanceOf[PBinary]
 
     Code(
@@ -226,7 +226,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     case t =>
       val current = currentPType()
       val valueTI = ir.typeToTypeInfo(t)
-      val m = mb.fb.getOrDefineMethod("addIRIntermediate", ("addIRIntermediate", current, t),
+      val m = mb.getOrDefineEmitMethod("addIRIntermediate", ("addIRIntermediate", current, t),
         Array[TypeInfo[_]](classInfo[Region], valueTI, LongInfo), UnitInfo) { mb =>
         val r = mb.getArg[Region](1)
         val value = mb.getArg(2)(valueTI)
@@ -240,7 +240,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     if (!(t.fundamentalType isOfType currentPType()))
       throw new RuntimeException(s"Fundamental type doesn't match. current=${currentPType()}, t=${t.fundamentalType}, ftype=$ftype")
     StagedRegionValueBuilder.deepCopy(
-      EmitRegion(mb.asInstanceOf[EmitMethodBuilder], region),
+      EmitRegion(mb.asInstanceOf[EmitMethodBuilder[_]], region),
       t, v, currentOffset)
   }
 

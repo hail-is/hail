@@ -12,7 +12,7 @@ abstract class PString extends PType {
 
   override def unsafeOrdering(): UnsafeOrdering = PBinary(required).unsafeOrdering()
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
+  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
     assert(this isOfType other)
     PBinary(required).codeOrdering(mb, PBinary(other.required))
   }
@@ -20,9 +20,9 @@ abstract class PString extends PType {
   protected val binaryFundamentalType: PBinary
   override lazy val fundamentalType: PBinary = binaryFundamentalType
 
-  def bytesOffset(boff: Long): Long
+  def bytesAddress(boff: Long): Long
 
-  def bytesOffset(boff: Code[Long]): Code[Long]
+  def bytesAddress(boff: Code[Long]): Code[Long]
 
   def loadLength(boff: Long): Int
 
@@ -34,7 +34,7 @@ abstract class PString extends PType {
 
   def allocateAndStoreString(region: Region, str: String): Long
 
-  def allocateAndStoreString(mb: MethodBuilder, region: Value[Region], str: Code[String]): Code[Long]
+  def allocateAndStoreString(mb: EmitMethodBuilder[_], region: Value[Region], str: Code[String]): Code[Long]
 }
 
 object PString {

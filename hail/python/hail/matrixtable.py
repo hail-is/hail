@@ -2455,9 +2455,7 @@ class MatrixTable(ExprContainer):
         -------
         :class:`MatrixTable`
 
-        Warning
-        -------
-        Do not checkpoint to a path that is being read from in the same computation.
+        .. include:: _templates/write_warning.rst
 
         Notes
         -----
@@ -2505,9 +2503,7 @@ class MatrixTable(ExprContainer):
 
         >>> dataset.write('output/dataset.mt')
 
-        Warning
-        -------
-        Do not write to a path that is being read from in the same computation.
+        .. include:: _templates/write_warning.rst
 
         Parameters
         ----------

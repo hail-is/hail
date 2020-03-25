@@ -36,7 +36,7 @@ object Compile {
       case None =>
     }
 
-    val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
+    val fb = EmitFunctionBuilder[F]("Compiled", argTypeInfo, GenericTypeInfo[R]())
 
     var ir = body
     ir = Subst(ir, BindingEnv(args
@@ -253,7 +253,7 @@ object CompileWithAggregators2 {
       case None =>
     }
 
-    val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
+    val fb = EmitFunctionBuilder[F]("CompiledWithAggs", argTypeInfo, GenericTypeInfo[R]())
 
     var ir = body
     ir = Subst(ir, BindingEnv(args

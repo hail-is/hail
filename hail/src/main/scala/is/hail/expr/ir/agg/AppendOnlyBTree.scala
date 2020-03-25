@@ -30,7 +30,7 @@ trait BTreeKey {
     }
 }
 
-class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Value[Region], root: ClassFieldRef[Long], maxElements: Int = 2) {
+class AppendOnlyBTree(cb: EmitClassBuilder[_], key: BTreeKey, region: Value[Region], root: Settable[Long], maxElements: Int = 2) {
   private val splitIdx = maxElements / 2
   private val eltType: PTuple = PTuple(key.storageType, PInt64(true))
   private val elementsType: PTuple = PCanonicalTuple(required = true, Array.fill[PType](maxElements)(eltType): _*)
@@ -73,8 +73,8 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Value[R
         Region.storeAddress(storageType.fieldOffset(child, 0), parent))
     }
 
-  private val insert: EmitMethodBuilder = {
-    val insertAt = fb.newMethod("btree_insert", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Int], typeInfo[Boolean], typeToTypeInfo(key.compType), typeInfo[Long]), typeInfo[Long])
+  private val insert: EmitMethodBuilder[_] = {
+    val insertAt = cb.genEmitMethod("btree_insert", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Int], typeInfo[Boolean], typeToTypeInfo(key.compType), typeInfo[Long]), typeInfo[Long])
     val node: Value[Long] = insertAt.getArg[Long](1)
     val insertIdx: Value[Int] = insertAt.getArg[Int](2)
     val km: Value[Boolean] = insertAt.getArg[Boolean](3)
@@ -83,7 +83,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Value[R
 
     def parent: Code[Long] = getParent(node)
 
-    val newNode = insertAt.newLocal[Long]
+    val newNode = insertAt.newLocal[Long]()
 
     def makeUninitialized(idx: Int): Code[Long] =
       Code(
@@ -166,14 +166,14 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Value[R
     insertAt
   }
 
-  private val getF: EmitMethodBuilder = {
-    val get = fb.newMethod("btree_get", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(key.compType)), typeInfo[Long])
+  private val getF: EmitMethodBuilder[_] = {
+    val get = cb.genEmitMethod("btree_get", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(key.compType)), typeInfo[Long])
     val node = get.getArg[Long](1)
     val km = get.getArg[Boolean](2)
     val kv = get.getArg(3)(typeToTypeInfo(key.compType))
 
-    val cmp = get.newLocal[Int]
-    val keyV = get.newLocal[Long]
+    val cmp = get.newLocal[Int]()
+    val keyV = get.newLocal[Long]()
 
     def insertOrGetAt(i: Int) = isLeaf(node).mux(
       Code(keyV := insert.invoke[Long](node, i, km, kv, 0L), cmp := 0),
@@ -201,7 +201,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Value[R
     getF.invoke(root, km, kv)
 
   def foreach(visitor: Code[Long] => Code[Unit]): Code[Unit] = {
-    val f = fb.newMethod("btree_foreach", Array[TypeInfo[_]](typeInfo[Long]), typeInfo[Unit])
+    val f = cb.genEmitMethod("btree_foreach", Array[TypeInfo[_]](typeInfo[Long]), typeInfo[Unit])
     val node = f.getArg[Long](1)
     val i = f.newLocal[Int]("aobt_foreach_i")
 
@@ -220,12 +220,12 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Value[R
   }
 
   val deepCopy: Code[Long] => Code[Unit] = {
-    val f = fb.newMethod("btree_deepCopy", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Long]), typeInfo[Unit])
+    val f = cb.genEmitMethod("btree_deepCopy", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Long]), typeInfo[Unit])
     val destNode = f.getArg[Long](1)
     val srcNode = f.getArg[Long](2)
 
     val er = EmitRegion(f, region)
-    val newNode = f.newLocal[Long]
+    val newNode = f.newLocal[Long]()
 
     def copyChild(i: Int) =
       Code(createNode(newNode),
@@ -251,7 +251,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Value[R
   }
 
   def bulkStore(obCode: Code[OutputBuffer])(keyStore: (Value[OutputBuffer], Code[Long]) => Code[Unit]): Code[Unit] = {
-    val f = fb.newMethod("btree_bulkStore", Array[TypeInfo[_]](typeInfo[Long], typeInfo[OutputBuffer]), typeInfo[Unit])
+    val f = cb.genEmitMethod("btree_bulkStore", Array[TypeInfo[_]](typeInfo[Long], typeInfo[OutputBuffer]), typeInfo[Unit])
     val node = f.getArg[Long](1)
     val ob = f.getArg[OutputBuffer](2)
 
@@ -269,11 +269,11 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Value[R
   }
 
   def bulkLoad(ibCode: Code[InputBuffer])(keyLoad: (Value[InputBuffer], Code[Long]) => Code[Unit]): Code[Unit] = {
-    val f = fb.newMethod("btree_bulkLoad", Array[TypeInfo[_]](typeInfo[Long], typeInfo[InputBuffer]), typeInfo[Unit])
+    val f = cb.genEmitMethod("btree_bulkLoad", Array[TypeInfo[_]](typeInfo[Long], typeInfo[InputBuffer]), typeInfo[Unit])
     val node = f.getArg[Long](1)
     val ib = f.getArg[InputBuffer](2)
-    val newNode = f.newLocal[Long]
-    val isInternalNode = f.newLocal[Boolean]
+    val newNode = f.newLocal[Long]()
+    val isInternalNode = f.newLocal[Boolean]()
 
     f.emit(Code(
       isInternalNode := ib.readBoolean(),

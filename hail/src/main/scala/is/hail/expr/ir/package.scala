@@ -88,9 +88,13 @@ package object ir {
   implicit def irToPrimitiveIR(ir: IR): PrimitiveIR = new PrimitiveIR(ir)
 
   implicit def intToIR(i: Int): IR = I32(i)
+
   implicit def longToIR(l: Long): IR = I64(l)
+
   implicit def floatToIR(f: Float): IR = F32(f)
+
   implicit def doubleToIR(d: Double): IR = F64(d)
+
   implicit def booleanToIR(b: Boolean): IR = if (b) True() else False()
 
   def zero(t: Type): IR = t match {
@@ -107,6 +111,7 @@ package object ir {
   }
 
   def rangeIR(n: IR): IR = StreamRange(0, n, 1)
+
   def rangeIR(start: IR, stop: IR): IR = StreamRange(start, stop, 1)
 
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)

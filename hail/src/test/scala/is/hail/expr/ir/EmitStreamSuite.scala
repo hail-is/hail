@@ -13,7 +13,7 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
-  private def compile1[T: TypeInfo, R: TypeInfo](f: (MethodBuilder, Value[T]) => Code[R]): T => R = {
+  private def compile1[T: TypeInfo, R: TypeInfo](f: (EmitMethodBuilder[_], Value[T]) => Code[R]): T => R = {
     val fb = EmitFunctionBuilder[T, R]("stream_test")
     val mb = fb.apply_method
     mb.emit(f(mb, mb.getArg[T](1)))
@@ -21,16 +21,16 @@ class EmitStreamSuite extends HailSuite {
     asmFn.apply
   }
 
-  private def compile2[T: TypeInfo, U: TypeInfo, R: TypeInfo](f: (MethodBuilder, Code[T], Code[U]) => Code[R]): (T, U) => R = {
-    val fb = FunctionBuilder.functionBuilder[T, U, R]
+  private def compile2[T: TypeInfo, U: TypeInfo, R: TypeInfo](f: (EmitMethodBuilder[_], Code[T], Code[U]) => Code[R]): (T, U) => R = {
+    val fb = EmitFunctionBuilder[T, U, R]("F")
     val mb = fb.apply_method
     mb.emit(f(mb, mb.getArg[T](1), mb.getArg[U](2)))
     val asmFn = fb.result()()
     asmFn.apply
   }
 
-  private def compile3[T: TypeInfo, U: TypeInfo, V: TypeInfo, R: TypeInfo](f: (MethodBuilder, Code[T], Code[U], Code[V]) => Code[R]): (T, U, V) => R = {
-    val fb = FunctionBuilder.functionBuilder[T, U, V, R]
+  private def compile3[T: TypeInfo, U: TypeInfo, V: TypeInfo, R: TypeInfo](f: (EmitMethodBuilder[_], Code[T], Code[U], Code[V]) => Code[R]): (T, U, V) => R = {
+    val fb = EmitFunctionBuilder[T, U, V, R]("F")
     val mb = fb.apply_method
     mb.emit(f(mb, mb.getArg[T](1), mb.getArg[U](2), mb.getArg[V](3)))
     val asmFn = fb.result()()
@@ -45,10 +45,10 @@ class EmitStreamSuite extends HailSuite {
       close0 = Some(Code._println(const(s"$name close0"))),
       close = Some(Code._println(const(s"$name close"))))
 
-  class CheckedStream[T](_stream: CodeStream.Stream[T], name: String, mb: MethodBuilder) {
-    val outerBit = mb.newLocal[Boolean]
-    val innerBit = mb.newLocal[Boolean]
-    val innerCount = mb.newLocal[Int]
+  class CheckedStream[T](_stream: CodeStream.Stream[T], name: String, mb: EmitMethodBuilder[_]) {
+    val outerBit = mb.newLocal[Boolean]()
+    val innerBit = mb.newLocal[Boolean]()
+    val innerCount = mb.newLocal[Int]()
 
     def init: Code[Unit] = Code(outerBit := false, innerBit := false, innerCount := 0)
 
@@ -89,9 +89,9 @@ class EmitStreamSuite extends HailSuite {
         Code._empty)
   }
 
-  def checkedRange(start: Code[Int], stop: Code[Int], name: String, mb: MethodBuilder): CheckedStream[Code[Int]] = {
-    val tstart = mb.newLocal[Int]
-    val len = mb.newLocal[Int]
+  def checkedRange(start: Code[Int], stop: Code[Int], name: String, mb: EmitMethodBuilder[_]): CheckedStream[Code[Int]] = {
+    val tstart = mb.newLocal[Int]()
+    val len = mb.newLocal[Int]()
     val s = CodeStream.range(mb, tstart, 1, len)
       .map(
         f = x => x,
@@ -212,7 +212,7 @@ class EmitStreamSuite extends HailSuite {
     inputTypes.foreach { t =>
       argTypeInfos ++= Seq(GenericTypeInfo()(typeToTypeInfo(t)), GenericTypeInfo[Boolean]())
     }
-    val fb = new EmitFunctionBuilder[F](argTypeInfos.result(), GenericTypeInfo[Long])
+    val fb = EmitFunctionBuilder[F]("F", argTypeInfos.result(), GenericTypeInfo[Long])
     val mb = fb.apply_method
     val ir = streamIR.deepCopy()
     InferPType(ir, Env.empty)
@@ -223,7 +223,7 @@ class EmitStreamSuite extends HailSuite {
         case s => s
       }
       TypeCheck(s)
-      EmitStream(new Emit(ctx, fb), mb, s, Env.empty, EmitRegion.default(mb), None)
+      EmitStream(new Emit(ctx, fb.ecb), mb, s, Env.empty, EmitRegion.default(mb), None)
     }
     mb.emit {
       val arrayt = EmitStream.toArray(mb, PArray(eltType), stream)
@@ -275,10 +275,10 @@ class EmitStreamSuite extends HailSuite {
     InferPType(ir, Env.empty)
     val optStream = ExecuteContext.scoped { ctx =>
       TypeCheck(ir)
-      EmitStream(new Emit(ctx, fb), mb, ir, Env.empty, EmitRegion.default(mb), None)
+      EmitStream(new Emit(ctx, fb.ecb), mb, ir, Env.empty, EmitRegion.default(mb), None)
     }
     val L = CodeLabel()
-    val len = mb.newLocal[Int]
+    val len = mb.newLocal[Int]()
     implicit val ctx = EmitStreamContext(mb)
     fb.emit(
       Code(

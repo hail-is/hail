@@ -7,17 +7,17 @@ import is.hail.expr.types.physical.{PArray, PType}
 class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   val typ: PType = array.elt
   val ti: TypeInfo[_] = typeToTypeInfo(typ)
-  val mb: EmitMethodBuilder = r.mb
+  val mb: EmitMethodBuilder[_] = r.mb
 
   def sort(sorter: DependentEmitFunction[_]): Code[Unit] = {
     val localF = ti match {
-      case BooleanInfo => mb.newField[AsmFunction2[Boolean, Boolean, Boolean]]
-      case IntInfo => mb.newField[AsmFunction2[Int, Int, Boolean]]
-      case LongInfo => mb.newField[AsmFunction2[Int, Int, Boolean]]
-      case FloatInfo => mb.newField[AsmFunction2[Int, Int, Boolean]]
-      case DoubleInfo => mb.newField[AsmFunction2[Int, Int, Boolean]]
+      case BooleanInfo => mb.genFieldThisRef[AsmFunction2[Boolean, Boolean, Boolean]]()
+      case IntInfo => mb.genFieldThisRef[AsmFunction2[Int, Int, Boolean]]()
+      case LongInfo => mb.genFieldThisRef[AsmFunction2[Int, Int, Boolean]]()
+      case FloatInfo => mb.genFieldThisRef[AsmFunction2[Int, Int, Boolean]]()
+      case DoubleInfo => mb.genFieldThisRef[AsmFunction2[Int, Int, Boolean]]()
     }
-    Code(localF.storeAny(sorter.newInstance(mb)), array.sort(localF))
+    Code(localF.storeAny(sorter.newInstance(mb.mb)), array.sort(localF))
   }
 
   def toRegion(): Code[Long] = {
@@ -33,8 +33,8 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   }
 
   def pruneMissing: Code[Unit] = {
-    val i = mb.newLocal[Int]
-    val n = mb.newLocal[Int]
+    val i = mb.newLocal[Int]()
+    val n = mb.newLocal[Int]()
 
     Code(
       n := 0,
@@ -51,8 +51,8 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   }
 
   def distinctFromSorted(discardNext: (Code[Region], Code[_], Code[Boolean], Code[_], Code[Boolean]) => Code[Boolean]): Code[Unit] = {
-    val i = mb.newLocal[Int]
-    val n = mb.newLocal[Int]
+    val i = mb.newLocal[Int]()
+    val n = mb.newLocal[Int]()
 
     Code(
       i := 0,

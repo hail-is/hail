@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitCode, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder, defaultValue, typeToTypeInfo}
 import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
@@ -12,23 +12,23 @@ object TakeByRVAS {
   val END_SERIALIZATION: Int = 0x1324
 }
 
-class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArray, val fb: EmitFunctionBuilder[_]) extends AggregatorState {
-  private val r: ClassFieldRef[Region] = fb.newField[Region]("takeby_region")
+class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArray, val cb: EmitClassBuilder[_]) extends AggregatorState {
+  private val r: Settable[Region] = cb.genFieldThisRef[Region]("takeby_region")
 
   val region: Value[Region] = r
 
   private val indexedKeyType = PCanonicalTuple(true, keyType, PInt64Required)
   private val eltTuple = PCanonicalTuple(true, indexedKeyType, valueType)
-  val ab = new StagedArrayBuilder(eltTuple, fb, region)
+  val ab = new StagedArrayBuilder(eltTuple, cb, region)
 
-  private val maxIndex = fb.newField[Long]("max_index")
-  private val maxSize = fb.newField[Int]("max_size")
-  private val staging = fb.newField[Long]("staging")
-  private val keyStage = fb.newField[Long]("key_stage")
-  private val tempPtr = fb.newField[Long]("tmp_ptr")
+  private val maxIndex = cb.genFieldThisRef[Long]("max_index")
+  private val maxSize = cb.genFieldThisRef[Int]("max_size")
+  private val staging = cb.genFieldThisRef[Long]("staging")
+  private val keyStage = cb.genFieldThisRef[Long]("key_stage")
+  private val tempPtr = cb.genFieldThisRef[Long]("tmp_ptr")
 
   private val canHaveGarbage = eltTuple.containsPointers
-  private val (garbage, maxGarbage) = if (canHaveGarbage) (fb.newField[Int], fb.newField[Int]) else (null, null)
+  private val (garbage, maxGarbage) = if (canHaveGarbage) (cb.genFieldThisRef[Int](), cb.genFieldThisRef[Int]()) else (null, null)
 
   private val garbageFields: IndexedSeq[(String, PType)] = if (canHaveGarbage)
     FastIndexedSeq(("current_garbage", PInt32Required), ("max_garbage", PInt32Required))
@@ -46,7 +46,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   private val compareKey: ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[Int] = {
     val keyInfo = typeToTypeInfo(keyType.virtualType)
-    val cmp = fb.newMethod("compare", Array[TypeInfo[_]](BooleanInfo, keyInfo, BooleanInfo, keyInfo), IntInfo)
+    val cmp = cb.genEmitMethod("compare", Array[TypeInfo[_]](BooleanInfo, keyInfo, BooleanInfo, keyInfo), IntInfo)
     val ord = keyType.codeOrdering(cmp)
     val k1m = cmp.getArg[Boolean](1)
     val k1 = cmp.getArg(2)(keyInfo)
@@ -71,7 +71,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   private val compareIndexedKey: (Code[Long], Code[Long]) => Code[Int] = {
     val indexedkeyTypeTypeInfo = typeToTypeInfo(indexedKeyType.virtualType)
-    val cmp = fb.newMethod("take_by_compare", Array[TypeInfo[_]](indexedkeyTypeTypeInfo, indexedkeyTypeTypeInfo), IntInfo)
+    val cmp = cb.genEmitMethod("take_by_compare", Array[TypeInfo[_]](indexedkeyTypeTypeInfo, indexedkeyTypeTypeInfo), IntInfo)
     val ord = indexedKeyType.codeOrdering(cmp)
     val k1 = cmp.getArg(1)(indexedkeyTypeTypeInfo)
     val k2 = cmp.getArg(2)(indexedkeyTypeTypeInfo)
@@ -234,7 +234,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   private def loadKey(offset: Value[Long]): (Code[Boolean], Code[_]) = (keyIsMissing(offset), loadKeyValue(offset))
 
   private val compareElt: (Code[Long], Code[Long]) => Code[Int] = {
-    val mb = fb.newMethod("i_gt_j", Array[TypeInfo[_]](LongInfo, LongInfo), IntInfo)
+    val mb = cb.genEmitMethod("i_gt_j", Array[TypeInfo[_]](LongInfo, LongInfo), IntInfo)
     val i = mb.getArg[Long](1)
     val j = mb.getArg[Long](2)
 
@@ -244,7 +244,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   }
 
   private val swap: (Code[Long], Code[Long]) => Code[Unit] = {
-    val mb = fb.newMethod("swap", Array[TypeInfo[_]](LongInfo, LongInfo), UnitInfo)
+    val mb = cb.genEmitMethod("swap", Array[TypeInfo[_]](LongInfo, LongInfo), UnitInfo)
     val i = mb.getArg[Long](1)
     val j = mb.getArg[Long](2)
 
@@ -259,7 +259,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
 
   private val rebalanceUp: Code[Int] => Code[Unit] = {
-    val mb = fb.newMethod("rebalance_up", Array[TypeInfo[_]](IntInfo), UnitInfo)
+    val mb = cb.genEmitMethod("rebalance_up", Array[TypeInfo[_]](IntInfo), UnitInfo)
     val idx = mb.getArg[Int](1)
 
     val ii = mb.newLocal[Long]("rebalance_up_ii")
@@ -283,7 +283,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   }
 
   private val rebalanceDown: Code[Int] => Code[Unit] = {
-    val mb = fb.newMethod("rebalance_down", Array[TypeInfo[_]](IntInfo), UnitInfo)
+    val mb = cb.genEmitMethod("rebalance_down", Array[TypeInfo[_]](IntInfo), UnitInfo)
     val idx = mb.getArg[Int](1)
 
     val child1 = mb.newLocal[Int]("child_1")
@@ -312,7 +312,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   private lazy val gc: () => Code[Unit] = {
     if (canHaveGarbage) {
-      val mb = fb.newMethod("take_by_garbage_collect", Array[TypeInfo[_]](), UnitInfo)
+      val mb = cb.genEmitMethod("take_by_garbage_collect", Array[TypeInfo[_]](), UnitInfo)
       val oldRegion = mb.newLocal[Region]("old_region")
       mb.emit(
         Code(
@@ -366,7 +366,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   private def swapStaging(): Code[Unit] = {
     Code(
-      StagedRegionValueBuilder.deepCopy(fb, region, eltTuple, staging, ab.elementOffset(0)._2),
+      StagedRegionValueBuilder.deepCopy(cb, region, eltTuple, staging, ab.elementOffset(0)._2),
       rebalanceDown(0)
     )
   }
@@ -380,7 +380,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   val seqOp: (Code[Boolean], Code[_], Code[Boolean], Code[_]) => Code[Unit] = {
     val ki = typeToTypeInfo(keyType)
     val vi = typeToTypeInfo(valueType)
-    val mb = fb.newMethod("take_by_seqop",
+    val mb = cb.genEmitMethod("take_by_seqop",
       Array[TypeInfo[_]](BooleanInfo, vi, BooleanInfo, ki),
       UnitInfo)
 
@@ -405,8 +405,8 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
                 swapStaging(),
                 gc()))))))
 
-    val kmVar = fb.newField[Boolean]("km")
-    val vmVar = fb.newField[Boolean]("vm")
+    val kmVar = cb.genFieldThisRef[Boolean]("km")
+    val vmVar = cb.genFieldThisRef[Boolean]("vm")
 
     { (vm: Code[Boolean], v: Code[_], km: Code[Boolean], k: Code[_]) =>
       Code(
@@ -418,7 +418,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   }
 
   def combine(other: TakeByRVAS, dummy: Boolean): Code[Unit] = {
-    val mb = fb.newMethod("take_by_combop", Array[TypeInfo[_]](), UnitInfo)
+    val mb = cb.genEmitMethod("take_by_combop", Array[TypeInfo[_]](), UnitInfo)
 
     val i = mb.newLocal[Int]("combine_i")
     val offset = mb.newLocal[Long]("combine_offset")
@@ -449,10 +449,10 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   }
 
   def result(_r: Code[Region], resultType: PArray): Code[Long] = {
-    val mb = fb.newMethod("take_by_result", Array[TypeInfo[_]](classInfo[Region]), LongInfo)
+    val mb = cb.genEmitMethod("take_by_result", Array[TypeInfo[_]](classInfo[Region]), LongInfo)
 
     val quickSort: (Code[Long], Code[Int], Code[Int]) => Code[Unit] = {
-      val mb = fb.newMethod("result_quicksort", Array[TypeInfo[_]](LongInfo, IntInfo, IntInfo), UnitInfo)
+      val mb = cb.genEmitMethod("result_quicksort", Array[TypeInfo[_]](LongInfo, IntInfo, IntInfo), UnitInfo)
       val indices = mb.getArg[Long](1)
       val low = mb.getArg[Int](2)
       val high = mb.getArg[Int](3)
@@ -460,7 +460,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       val pivotIndex = mb.newLocal[Int]("pivotIdx")
 
       val swap: (Code[Long], Code[Long]) => Code[Unit] = {
-        val mb = fb.newMethod("quicksort_swap", Array[TypeInfo[_]](LongInfo, LongInfo), UnitInfo)
+        val mb = cb.genEmitMethod("quicksort_swap", Array[TypeInfo[_]](LongInfo, LongInfo), UnitInfo)
         val i = mb.getArg[Long](1)
         val j = mb.getArg[Long](2)
 
@@ -477,7 +477,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       }
 
       val partition: (Code[Long], Code[Int], Code[Int]) => Code[Int] = {
-        val mb = fb.newMethod("quicksort_partition", Array[TypeInfo[_]](LongInfo, IntInfo, IntInfo), IntInfo)
+        val mb = cb.genEmitMethod("quicksort_partition", Array[TypeInfo[_]](LongInfo, IntInfo, IntInfo), IntInfo)
 
         val indices = mb.getArg[Long](1)
         val low = mb.getArg[Int](2)
@@ -572,8 +572,8 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
 
   val resultType: PArray = PArray(valueType)
 
-  def createState(fb: EmitFunctionBuilder[_]): State =
-    new TakeByRVAS(valueType, keyType, resultType, fb)
+  def createState(cb: EmitClassBuilder[_]): State =
+    new TakeByRVAS(valueType, keyType, resultType, cb)
 
   def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     assert(init.length == 1)

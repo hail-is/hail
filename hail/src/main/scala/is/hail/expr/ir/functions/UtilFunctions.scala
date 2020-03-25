@@ -159,8 +159,8 @@ object UtilFunctions extends RegistryFunctions {
       }
       registerCodeWithMissingness(s"to${name}OrMissing", TString, t, null) {
         case (r, rt, (xT: PString, x: EmitCode)) =>
-          val s = r.mb.newLocal[String]
-          val m = r.mb.newLocal[Boolean]
+          val s = r.mb.newLocal[String]()
+          val m = r.mb.newLocal[Boolean]()
           EmitCode(
             Code(x.setup, m := x.m, s := m.mux(Code._null[String], asm4s.coerce[String](wrapArg(r, xT)(x.v)))),
             (m || !Code.invokeScalaObject[String, Boolean](thisClass, s"isValid$name", s)),
@@ -241,13 +241,13 @@ object UtilFunctions extends RegistryFunctions {
           Code.checkcast[Row](asm4s.coerce[java.lang.Object](wrapArg(r, argsT)(args)))))
     }
 
-    registerCodeWithMissingness("&&", TBoolean, TBoolean, TBoolean, null) {
+    registerCodeWithMissingness("land", TBoolean, TBoolean, TBoolean, null) {
       case (er, rt, (lT, l), (rT, r)) =>
         val lv = l.value[Boolean]
         val rv = r.value[Boolean]
 
         // 00 ... 00 rv rm lv lm
-        val w = er.mb.newLocal[Int]
+        val w = er.mb.newLocal[Int]()
 
         // m/m, t/m, m/t
         val M = const((1 << 5) | (1 << 6) | (1 << 9))
@@ -271,13 +271,13 @@ object UtilFunctions extends RegistryFunctions {
           PCode(rt, w.ceq(10)))
     }
 
-    registerCodeWithMissingness("||", TBoolean, TBoolean, TBoolean, null) {
+    registerCodeWithMissingness("lor", TBoolean, TBoolean, TBoolean, null) {
       case (er, rt, (lT, l), (rT, r)) =>
         val lv = l.value[Boolean]
         val rv = r.value[Boolean]
 
         // 00 ... 00 rv rm lv lm
-        val w = er.mb.newLocal[Int]
+        val w = er.mb.newLocal[Int]()
 
         // m/m, f/m, m/f
         val M = const((1 << 5) | (1 << 1) | (1 << 4))
