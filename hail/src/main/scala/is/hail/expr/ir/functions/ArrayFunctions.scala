@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types.coerce
-import is.hail.expr.types.physical.{PArray, PFloat64}
+import is.hail.expr.types.physical.{PArray, PFloat64, PType}
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 
@@ -167,7 +167,7 @@ object ArrayFunctions extends RegistryFunctions {
                 ref(midIdx), // odd number of non-missing elements
                 div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)))))))
     }
-    
+
     def argF(a: IR, op: (Type) => ComparisonOp[Boolean]): IR = {
       val t = coerce[TArray](a.typ).elementType
       val tAccum = TStruct("m" -> t, "midx" -> TInt32)
@@ -306,8 +306,10 @@ object ArrayFunctions extends RegistryFunctions {
       ToArray(StreamFlatMap(ToStream(a), elt.name, ToStream(elt)))
     }
 
-    registerCodeWithMissingness("corr", TArray(TFloat64), TArray(TFloat64), TFloat64, null) {
-      case (r, rt, (t1: PArray, EmitCode(setup1, m1, v1)), (t2: PArray, EmitCode(setup2, m2, v2))) =>
+    registerCodeWithMissingness("corr", TArray(TFloat64), TArray(TFloat64), TFloat64, {
+      (t1: PType, t2: PType) => InferPType.getNestedElementPTypes(Seq(t1, t2)).asInstanceOf[PArray].elementType.orMissing(t1.required & t2.required)
+    }) {
+      case (r, rt: PFloat64, (t1: PArray, EmitCode(setup1, m1, v1)), (t2: PArray, EmitCode(setup2, m2, v2))) =>
         val a1 = r.mb.newLocal[Long]
         val a2 = r.mb.newLocal[Long]
         val xSum = r.mb.newLocal[Double]
@@ -337,7 +339,7 @@ object ArrayFunctions extends RegistryFunctions {
                 .concat(", ")
                 .concat(l2.toS)),
               l1.ceq(0))),
-          PCode(PFloat64(), Code(
+          PCode(rt, Code(
             i := 0,
             n := 0,
             xSum := 0d,
