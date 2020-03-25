@@ -55,7 +55,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerCodeWithMissingness("start", TInterval(tv("T")), tv("T"),
       (x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
       case (r, rt, (intervalT: PInterval, interval)) =>
-        val iv = r.mb.newLocal[Long]
+        val iv = r.mb.newLocal[Long]()
         EmitCode(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
           interval.m || !Code(iv := interval.value[Long], intervalT.startDefined(iv)),
@@ -66,7 +66,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerCodeWithMissingness("end", TInterval(tv("T")), tv("T"),
       (x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
       case (r, rt, (intervalT: PInterval, interval)) =>
-        val iv = r.mb.newLocal[Long]
+        val iv = r.mb.newLocal[Long]()
         EmitCode(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
           interval.m || !Code(iv := interval.value[Long], intervalT.endDefined(iv)),
