@@ -7,14 +7,12 @@ import org.objectweb.asm.Opcodes._
 package object lir {
   var counter: Long = 0
 
-  def genName(): String = {
+  def genName(tag: String, baseName: String): String = {
     counter += 1
-    s"__$counter"
-  }
-
-  def genName(prefix: String): String = {
-    counter += 1
-    s"__$prefix$counter"
+    if (baseName != null)
+      s"__$tag$counter$baseName"
+    else
+      s"__$tag${ counter }null"
   }
 
   def setChildren(x: X, cs: IndexedSeq[ValueX]): Unit = {
@@ -117,7 +115,11 @@ package object lir {
     x
   }
 
-  def stmtOp(op: Int, c: ValueX): StmtX = stmtOp(op, FastIndexedSeq(c))
+  def throwx(c: ValueX): ControlX = {
+    val x = new ThrowX()
+    setChildren(x, c)
+    x
+  }
 
   def stmtOp(op: Int, c1: ValueX, c2: ValueX, c3: ValueX): StmtX = stmtOp(op, FastIndexedSeq(c1, c2, c3))
 

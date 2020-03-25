@@ -184,7 +184,7 @@ object CompileDecoder {
     val cbfis = mb.getArg[HadoopFSDataBinaryReader](3)
     val csettings = mb.getArg[BgenSettings](4)
 
-    val regionField = mb.newField[Region]("region")
+    val regionField = mb.genFieldThisRef[Region]("region")
     val srvb = new StagedRegionValueBuilder(mb, settings.rowPType, regionField)
 
     val offset = mb.newLocal[Long]("offset")
@@ -211,9 +211,9 @@ object CompileDecoder {
     val phase = mb.newLocal[Int]("phase")
     val nBitsPerProb = mb.newLocal[Int]("nBitsPerProb")
     val nExpectedBytesProbs = mb.newLocal[Int]("nExpectedBytesProbs")
-    val c0 = mb.newField[Int]("c0")
-    val c1 = mb.newField[Int]("c1")
-    val c2 = mb.newField[Int]("c2")
+    val c0 = mb.genFieldThisRef[Int]("c0")
+    val c1 = mb.genFieldThisRef[Int]("c1")
+    val c2 = mb.genFieldThisRef[Int]("c2")
     val off = mb.newLocal[Int]("off")
     val d0 = mb.newLocal[Int]("d0")
     val d1 = mb.newLocal[Int]("d1")
@@ -321,12 +321,12 @@ object CompileDecoder {
           val includeGP = t.hasField("GP")
           val includeDosage = t.hasField("dosage")
 
-          val alreadyMemoized = mb.newField[Boolean]("alreadyMemoized")
-          val memoizedEntryData = mb.newField[Long]("memoizedEntryData")
+          val alreadyMemoized = mb.genFieldThisRef[Boolean]("alreadyMemoized")
+          val memoizedEntryData = mb.genFieldThisRef[Long]("memoizedEntryData")
 
           val memoTyp = PArray(entryType.setRequired(true), required = true)
           val memoizeAllValues: Code[Unit] = {
-            val memoMB = mb.fb.newMethod("memoizeEntries", Array[TypeInfo[_]](), UnitInfo)
+            val memoMB = mb.genEmitMethod("memoizeEntries", Array[TypeInfo[_]](), UnitInfo)
 
             val d0 = memoMB.newLocal[Int]("memoize_entries_d0")
             val d1 = memoMB.newLocal[Int]("memoize_entries_d1")
@@ -347,7 +347,7 @@ object CompileDecoder {
                       srvb.addBaseStruct(entryType, { srvb =>
                         val addGT: Code[Unit] = if (includeGT) {
 
-                          val addGtMB = mb.fb.newMethod("bgen_add_gt",
+                          val addGtMB = mb.genEmitMethod("bgen_add_gt",
                             Array[TypeInfo[_]](IntInfo, IntInfo, IntInfo),
                             UnitInfo)
                           val d0arg = addGtMB.getArg[Int](1)
@@ -375,7 +375,7 @@ object CompileDecoder {
                         } else Code._empty
 
                         val addGP: Code[Unit] = if (includeGP) {
-                          val addGpMB = mb.fb.newMethod("bgen_add_gp",
+                          val addGpMB = mb.genEmitMethod("bgen_add_gp",
                             Array[TypeInfo[_]](IntInfo, IntInfo, IntInfo),
                             UnitInfo)
 
@@ -401,7 +401,7 @@ object CompileDecoder {
                         } else Code._empty
 
                         val addDosage: Code[Unit] = if (includeDosage) {
-                          val addDosageMB = mb.fb.newMethod("bgen_add_dosage",
+                          val addDosageMB = mb.genEmitMethod("bgen_add_dosage",
                             Array[TypeInfo[_]](IntInfo, IntInfo),
                             UnitInfo)
 
@@ -427,7 +427,7 @@ object CompileDecoder {
           }
 
           val lookupEntry: (Code[Int], Code[Int]) => Code[Long] = {
-            val lookupMB = mb.fb.newMethod("bgen_look_up_add_entry", Array[TypeInfo[_]](IntInfo, IntInfo), LongInfo)
+            val lookupMB = mb.genEmitMethod("bgen_look_up_add_entry", Array[TypeInfo[_]](IntInfo, IntInfo), LongInfo)
 
             val d0 = lookupMB.getArg[Int](1)
             val d1 = lookupMB.getArg[Int](2)
@@ -439,7 +439,7 @@ object CompileDecoder {
           }
 
           val addEntries: Code[Array[Byte]] => Code[Unit] = {
-            val addEntriesMB = mb.fb.newMethod("bgen_add_entries", Array[TypeInfo[_]](typeInfo[Array[Byte]]), UnitInfo)
+            val addEntriesMB = mb.genEmitMethod("bgen_add_entries", Array[TypeInfo[_]](typeInfo[Array[Byte]]), UnitInfo)
             val data = addEntriesMB.getArg[Array[Byte]](1)
             val i = addEntriesMB.newLocal[Int]("i")
             val off = addEntriesMB.newLocal[Int]("off")

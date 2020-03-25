@@ -569,7 +569,7 @@ object Simplify {
 
     case TableFilter(TableFilter(t, p1), p2) =>
       TableFilter(t,
-        ApplySpecial("&&", Array(p1, p2), TBoolean))
+        ApplySpecial("land", Array(p1, p2), TBoolean))
 
     case TableFilter(TableKeyBy(child, key, isSorted), p) if canRepartition => TableKeyBy(TableFilter(child, p), key, isSorted)
     case TableFilter(TableRepartition(child, n, strategy), p) => TableRepartition(TableFilter(child, p), n, strategy)
@@ -866,11 +866,11 @@ object Simplify {
 
     case MatrixFilterCols(m, True()) => m
 
-    case MatrixFilterRows(MatrixFilterRows(child, pred1), pred2) => MatrixFilterRows(child, ApplySpecial("&&", FastSeq(pred1, pred2), TBoolean))
+    case MatrixFilterRows(MatrixFilterRows(child, pred1), pred2) => MatrixFilterRows(child, ApplySpecial("land", FastSeq(pred1, pred2), TBoolean))
 
-    case MatrixFilterCols(MatrixFilterCols(child, pred1), pred2) => MatrixFilterCols(child, ApplySpecial("&&", FastSeq(pred1, pred2), TBoolean))
+    case MatrixFilterCols(MatrixFilterCols(child, pred1), pred2) => MatrixFilterCols(child, ApplySpecial("land", FastSeq(pred1, pred2), TBoolean))
 
-    case MatrixFilterEntries(MatrixFilterEntries(child, pred1), pred2) => MatrixFilterEntries(child, ApplySpecial("&&", FastSeq(pred1, pred2), TBoolean))
+    case MatrixFilterEntries(MatrixFilterEntries(child, pred1), pred2) => MatrixFilterEntries(child, ApplySpecial("land", FastSeq(pred1, pred2), TBoolean))
 
     case MatrixMapGlobals(MatrixMapGlobals(child, ng1), ng2) =>
       val uid = genUID()

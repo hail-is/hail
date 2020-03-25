@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.{ExecuteContext, IRParser, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, TableLiteral, TableRead, TableValue, TextReaderOptions}
+import is.hail.expr.ir.{EmitFunctionBuilder, ExecuteContext, IRParser, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, TableLiteral, TableRead, TableValue, TextReaderOptions}
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -318,19 +318,19 @@ class CompiledLineParser(
     .map(f => f.typ.asInstanceOf[PArray])
   @transient private[this] val rowFieldsType = requestedRowType
     .dropFields(Set(MatrixType.entriesIdentifier))
-  @transient private[this] val fb = new Function4Builder[Region, String, Long, String, Long]("text_matrix_reader")
+  @transient private[this] val fb = EmitFunctionBuilder[Region, String, Long, String, Long]("text_matrix_reader")
   @transient private[this] val mb = fb.apply_method
-  @transient private[this] val region = fb.arg1
-  @transient private[this] val _filename = fb.arg2
-  @transient private[this] val _lineNumber = fb.arg3
-  @transient private[this] val _line = fb.arg4
-  @transient private[this] val filename = mb.newField[String]("filename")
-  @transient private[this] val lineNumber = mb.newField[Long]("lineNumber")
-  @transient private[this] val line = mb.newField[String]("line")
-  @transient private[this] val pos = mb.newField[Int]("pos")
+  @transient private[this] val region = fb.getArg[Region](1)
+  @transient private[this] val _filename = fb.getArg[String](2)
+  @transient private[this] val _lineNumber = fb.getArg[Long](3)
+  @transient private[this] val _line = fb.getArg[String](4)
+  @transient private[this] val filename = mb.genFieldThisRef[String]("filename")
+  @transient private[this] val lineNumber = mb.genFieldThisRef[Long]("lineNumber")
+  @transient private[this] val line = mb.genFieldThisRef[String]("line")
+  @transient private[this] val pos = mb.genFieldThisRef[Int]("pos")
   @transient private[this] val srvb = new StagedRegionValueBuilder(mb, requestedRowType)
 
-  fb.classBuilder.addInitInstructions(Code(
+  fb.cb.emitInit(Code(
     pos := 0,
     filename := Code._null,
     lineNumber := 0L,
@@ -338,17 +338,17 @@ class CompiledLineParser(
     srvb.init()))
 
 
-  @transient private[this] val parseStringMb = fb.newMethod[Region, String]
+  @transient private[this] val parseStringMb = fb.genMethod[Region, String]("parseString")
   parseStringMb.emit(parseString(parseStringMb))
-  @transient private[this] val parseIntMb = fb.newMethod[Region, Int]
+  @transient private[this] val parseIntMb = fb.genMethod[Region, Int]("parseInt")
   parseIntMb.emit(parseInt(parseIntMb))
-  @transient private[this] val parseLongMb = fb.newMethod[Region, Long]
+  @transient private[this] val parseLongMb = fb.genMethod[Region, Long]("parseLong")
   parseLongMb.emit(parseLong(parseLongMb))
-  @transient private[this] val parseRowFieldsMb = fb.newMethod[Region, Unit]
+  @transient private[this] val parseRowFieldsMb = fb.genMethod[Region, Unit]("parseRowFields")
   parseRowFieldsMb.emit(parseRowFields(parseRowFieldsMb))
 
   @transient private[this] val parseEntriesMbOpt = entriesType.map { entriesType =>
-    val parseEntriesMb = fb.newMethod[Region, Unit]
+    val parseEntriesMb = fb.genMethod[Region, Unit]("parseEntries")
     parseEntriesMb.emit(parseEntries(parseEntriesMb, entriesType))
     parseEntriesMb
   }
@@ -387,12 +387,12 @@ class CompiledLineParser(
     endField(pos)
 
   private[this] def missingOr(
-    mb: MethodBuilder,
+    mb: MethodBuilder[_],
     srvb: StagedRegionValueBuilder,
     parse: Code[Unit]
   ): Code[Unit] = {
     assert(missingValue.size > 0)
-    val end = mb.newField[Int]
+    val end = mb.genFieldThisRef[Int]()
     val condition = Code(
       end := pos + missingValue.size,
       end <= line.length && endField(end) &&
@@ -405,9 +405,9 @@ class CompiledLineParser(
       parse)
   }
 
-  private[this] def skipMissingOr(mb: MethodBuilder, skip: Code[Unit]): Code[Unit] = {
+  private[this] def skipMissingOr(mb: MethodBuilder[_], skip: Code[Unit]): Code[Unit] = {
     assert(missingValue.size > 0)
-    val end = mb.newField[Int]
+    val end = mb.genFieldThisRef[Int]()
     val condition = Code(
       end := pos + missingValue.size,
       end < line.length && endField(end) &&
@@ -418,7 +418,7 @@ class CompiledLineParser(
       skip)
   }
 
-  private[this] def parseInt(mb: MethodBuilder): Code[Int] = {
+  private[this] def parseInt(mb: MethodBuilder[_]): Code[Int] = {
     val mul = mb.newLocal[Int]("mul")
     val v = mb.newLocal[Int]("v")
     val c = mb.newLocal[Char]("c")
@@ -441,7 +441,7 @@ class CompiledLineParser(
         v * mul))
   }
 
-  private[this] def parseLong(mb: MethodBuilder): Code[Long] = {
+  private[this] def parseLong(mb: MethodBuilder[_]): Code[Long] = {
     val mul = mb.newLocal[Long]("mulL")
     val v = mb.newLocal[Long]("vL")
     val c = mb.newLocal[Char]("c")
@@ -462,7 +462,7 @@ class CompiledLineParser(
         v * mul))
   }
 
-  private[this] def parseString(mb: MethodBuilder): Code[String] = {
+  private[this] def parseString(mb: MethodBuilder[_]): Code[String] = {
     val start = mb.newLocal[Int]("start")
     Code(
       start := pos,
@@ -471,7 +471,7 @@ class CompiledLineParser(
       line.invoke[Int, Int, String]("substring", start, pos))
   }
 
-  private[this] def parseType(mb: MethodBuilder, srvb: StagedRegionValueBuilder, t: PType): Code[Unit] = {
+  private[this] def parseType(mb: MethodBuilder[_], srvb: StagedRegionValueBuilder, t: PType): Code[Unit] = {
     val parseDefinedValue = t match {
       case _: PInt32 =>
         srvb.addInt(parseIntMb.invoke(region))
@@ -489,12 +489,12 @@ class CompiledLineParser(
     if (t.required) parseDefinedValue else missingOr(mb, srvb, parseDefinedValue)
   }
 
-  private[this] def skipType(mb: MethodBuilder, t: PType): Code[Unit] = {
+  private[this] def skipType(mb: MethodBuilder[_], t: PType): Code[Unit] = {
     val skipDefinedValue = Code.whileLoop(!endField(), pos := pos + 1)
     if (t.required) skipDefinedValue else skipMissingOr(mb, skipDefinedValue)
   }
 
-  private[this] def parseRowFields(mb: MethodBuilder): Code[_] = {
+  private[this] def parseRowFields(mb: MethodBuilder[_]): Code[_] = {
     var inputIndex = 0
     var outputIndex = 0
     assert(onDiskRowFieldsType.size >= rowFieldsType.size)
@@ -534,7 +534,7 @@ class CompiledLineParser(
     Code(ab.result())
   }
 
-  private[this] def parseEntries(mb: MethodBuilder, entriesType: PArray): Code[Unit] = {
+  private[this] def parseEntries(mb: MethodBuilder[_], entriesType: PArray): Code[Unit] = {
     val i = mb.newLocal[Int]("i")
     val entryType = entriesType.elementType.asInstanceOf[PStruct]
     assert(entryType.fields.size == 1)

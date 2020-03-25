@@ -4,7 +4,7 @@ import java.io._
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitFunctionBuilder
+import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder}
 import is.hail.expr.types.encoded._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -38,14 +38,14 @@ final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: Buffer
 
   def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer] = _bufferSpec.buildCodeOutputBuffer(os)
 
-  def buildEmitDecoderF[T](requestedType: Type, fb: EmitFunctionBuilder[_]): (PType, StagedDecoderF[T]) = {
+  def buildEmitDecoderF[T](requestedType: Type, cb: EmitClassBuilder[_]): (PType, StagedDecoderF[T]) = {
     val rt = encodedType.decodedPType(requestedType)
-    val mb = encodedType.buildDecoderMethod(rt, fb)
+    val mb = encodedType.buildDecoderMethod(rt, cb)
     (rt, (region: Value[Region], buf: Value[InputBuffer]) => mb.invoke[T](region, buf))
   }
 
-  def buildEmitEncoderF[T](t: PType, fb: EmitFunctionBuilder[_]): StagedEncoderF[T] = {
-    val mb = encodedType.buildEncoderMethod(t, fb)
+  def buildEmitEncoderF[T](t: PType, cb: EmitClassBuilder[_]): StagedEncoderF[T] = {
+    val mb = encodedType.buildEncoderMethod(t, cb)
     (region: Value[Region], off: Value[T], buf: Value[OutputBuffer]) => mb.invoke[Unit](off, buf)
   }
 }

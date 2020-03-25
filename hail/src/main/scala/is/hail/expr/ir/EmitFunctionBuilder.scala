@@ -18,98 +18,90 @@ import org.apache.spark.TaskContext
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-object EmitFunctionBuilder {
-  def apply[R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction0[R]] =
-    new EmitFunctionBuilder[AsmFunction0[R]](FastIndexedSeq[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R], namePrefix = prefix)
+class EmitModuleBuilder(val modb: ModuleBuilder) extends WrappedModuleBuilder {
+  def newEmitClass[C](name: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
+    new EmitClassBuilder(this, modb.newClass(name))
 
-  def apply[A: TypeInfo, R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction1[A, R]] =
-    new EmitFunctionBuilder[AsmFunction1[A, R]](Array(GenericTypeInfo[A]), GenericTypeInfo[R], namePrefix = prefix)
-
-  def apply[A: TypeInfo, B: TypeInfo, R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction2[A, B, R]] =
-    new EmitFunctionBuilder[AsmFunction2[A, B, R]](Array(GenericTypeInfo[A], GenericTypeInfo[B]), GenericTypeInfo[R], namePrefix = prefix)
-
-  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction3[A, B, C, R]] =
-    new EmitFunctionBuilder[AsmFunction3[A, B, C, R]](Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C]), GenericTypeInfo[R], namePrefix = prefix)
-
-  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction4[A, B, C, D, R]] =
-    new EmitFunctionBuilder[AsmFunction4[A, B, C, D, R]](Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D]), GenericTypeInfo[R], namePrefix = prefix)
-
-  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction5[A, B, C, D, E, R]] =
-    new EmitFunctionBuilder[AsmFunction5[A, B, C, D, E, R]](Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E]), GenericTypeInfo[R], namePrefix = prefix)
-
-  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, F: TypeInfo, R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction6[A, B, C, D, E, F, R]] =
-    new EmitFunctionBuilder[AsmFunction6[A, B, C, D, E, F, R]](Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F]), GenericTypeInfo[R], namePrefix = prefix)
-
-  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, F: TypeInfo, G: TypeInfo, R: TypeInfo](prefix: String): EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]] =
-    new EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]](Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R], namePrefix = prefix)
+  def genEmitClass[C](baseName: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
+    newEmitClass[C](genName("C", baseName))
 }
 
-trait FunctionWithFS {
-  def addFS(fs: FS): Unit
+trait WrappedEmitModuleBuilder extends WrappedModuleBuilder {
+  def emodb: EmitModuleBuilder
+
+  def modb: ModuleBuilder
+
+  def newEmitClass[C](name: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] = emodb.newEmitClass[C](name)
+
+  def genEmitClass[C](baseName: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] = emodb.genEmitClass[C](baseName)
 }
 
-trait FunctionWithAggRegion {
-  def getAggOffset(): Long
+trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder with WrappedClassBuilder[C] {
+  def ecb: EmitClassBuilder[C]
 
-  def setAggState(region: Region, offset: Long): Unit
+  def emodb: EmitModuleBuilder = ecb.emodb
 
-  def newAggState(region: Region): Unit
+  def cb: ClassBuilder[C]
 
-  def setNumSerialized(i: Int): Unit
+  def getFS: Code[FS] = ecb.getFS
 
-  def setSerializedAgg(i: Int, b: Array[Byte]): Unit
+  def getSerializedAgg(i: Int): Code[Array[Byte]] = ecb.getSerializedAgg(i)
 
-  def getSerializedAgg(i: Int): Array[Byte]
-}
+  def setSerializedAgg(i: Int, b: Code[Array[Byte]]): Code[Unit] = ecb.setSerializedAgg(i, b)
 
-trait FunctionWithPartitionRegion {
-  def addPartitionRegion(r: Region): Unit
-}
+  def backend(): Code[BackendUtils] = ecb.backend()
 
-trait FunctionWithLiterals {
-  def addLiterals(lit: Array[Byte]): Unit
-}
+  def addModule(name: String, mod: (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit =
+    ecb.addModule(name, mod)
 
-trait FunctionWithSeededRandomness {
-  def setPartitionIndex(idx: Int): Unit
-}
+  def wrapVoids(x: Seq[Code[Unit]], prefix: String, size: Int = 32): Code[Unit] = ecb.wrapVoids(x, prefix, size)
 
-trait FunctionWithBackend {
-  def setBackend(spark: BackendUtils): Unit
-}
+  def wrapVoidsWithArgs(x: Seq[Seq[Code[_]] => Code[Unit]],
+    suffix: String,
+    argTypes: IndexedSeq[TypeInfo[_]],
+    args: IndexedSeq[Code[_]],
+    size: Int = 32): Code[Unit] = ecb.wrapVoidsWithArgs(x, suffix, argTypes, args, size)
 
-trait EmitMethodBuilderLike {
+  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = ecb.getReferenceGenome(rg)
 
-}
+  def partitionRegion: Settable[Region] = ecb.partitionRegion
 
-class EmitMethodBuilder(
-  override val fb: EmitFunctionBuilder[_],
-  mname: String,
-  parameterTypeInfo: IndexedSeq[TypeInfo[_]],
-  returnTypeInfo: TypeInfo[_]
-) extends MethodBuilder(fb, mname, parameterTypeInfo, returnTypeInfo) {
+  def addLiteral(v: Any, t: PType): Code[_] = ecb.addLiteral(v, t)
 
-  def getArgEV(i: Int, _pt: PType): EmitValue = new EmitValue {
-    def pt: PType = _pt
+  def getPType(t: PType): Code[PType] = ecb.getPType(t)
 
-    def get: EmitCode = {
-      EmitCode(Code._empty,
-        getArg[Boolean](2 + 2 * i + 1),
-        PCode(pt, getArg(2 + 2 * i)(typeToTypeInfo(_pt)).load()))
-    }
-  }
+  def getType(t: Type): Code[Type] = ecb.getType(t)
 
-  def numReferenceGenomes: Int = fb.numReferenceGenomes
+  def newEmitMethod(name: String, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder[C] =
+    ecb.newEmitMethod(name, argsInfo, returnInfo)
 
-  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] =
-    fb.getReferenceGenome(rg)
+  def newEmitMethod(name: String, argsInfo: IndexedSeq[MaybeGenericTypeInfo[_]], returnInfo: MaybeGenericTypeInfo[_]): EmitMethodBuilder[C] =
+    ecb.newEmitMethod(name, argsInfo, returnInfo)
 
-  def numTypes: Int = fb.numTypes
+  def genEmitMethod(baseName: String, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder[C] =
+    ecb.genEmitMethod(baseName, argsInfo, returnInfo)
 
-  def getType(t: Type): Code[Type] = fb.getType(t)
+  def getCodeOrdering(
+    t1: PType, t2: PType, sortOrder: SortOrder, op: CodeOrdering.Op, ignoreMissingness: Boolean
+  ): CodeOrdering.F[op.ReturnType] =
+    ecb.getCodeOrdering(t1, t2, sortOrder, op, ignoreMissingness)
 
-  def getPType(t: PType): Code[PType] = fb.getPType(t)
+  def addAggStates(aggSigs: Array[AggStatePhysicalSignature]): agg.TupleAggregatorState = ecb.addAggStates(aggSigs)
 
+  def genDependentFunction[F](baseName: String,
+    maybeGenericParameterTypeInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
+    maybeGenericReturnTypeInfo: MaybeGenericTypeInfo[_])(implicit fti: TypeInfo[F]): DependentEmitFunction[F] =
+    ecb.genDependentFunction(baseName, maybeGenericParameterTypeInfo, maybeGenericReturnTypeInfo)
+
+  def newRNG(seed: Long): Value[IRRandomness] = ecb.newRNG(seed)
+
+  def resultWithIndex(print: Option[PrintWriter] = None): (Int, Region) => C = ecb.resultWithIndex(print)
+
+  def getOrDefineEmitMethod(
+    baseName: String, key: Any, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]
+  )(body: EmitMethodBuilder[C] => Unit): EmitMethodBuilder[C] = ecb.getOrGenEmitMethod(baseName, key, argsInfo, returnInfo)(body)
+
+  // derived functions
   def getCodeOrdering(t: PType, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
     getCodeOrdering(t, t, sortOrder = Ascending, op, ignoreMissingness = false)
 
@@ -123,163 +115,61 @@ class EmitMethodBuilder(
     getCodeOrdering(t1, t2, sortOrder = Ascending, op, ignoreMissingness)
 
   def getCodeOrdering(
-    t1: PType,
-    t2: PType,
-    sortOrder: SortOrder,
-    op: CodeOrdering.Op
+    t1: PType, t2: PType, sortOrder: SortOrder, op: CodeOrdering.Op
   ): CodeOrdering.F[op.ReturnType] =
     getCodeOrdering(t1, t2, sortOrder, op, ignoreMissingness = false)
 
-  def getCodeOrdering(
-    t1: PType,
-    t2: PType,
-    sortOrder: SortOrder,
-    op: CodeOrdering.Op,
-    ignoreMissingness: Boolean
-  ): CodeOrdering.F[op.ReturnType] =
-    fb.getCodeOrdering(t1, t2, sortOrder, op, ignoreMissingness)
+  def genEmitMethod[R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
+    ecb.genEmitMethod[R](baseName)
 
-  def newRNG(seed: Long): Value[IRRandomness] = fb.newRNG(seed)
+  def genEmitMethod[A: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
+    ecb.genEmitMethod[A, R](baseName)
 
-  def newPSettable(_pt: PType, s: Settable[_]): PSettable = new PSettable {
-    def pt: PType = _pt
+  def genEmitMethod[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
+    ecb.genEmitMethod[A1, A2, R](baseName)
 
-    def get: PCode = PCode(_pt, s)
+  def genEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
+    ecb.genEmitMethod[A1, A2, A3, R](baseName)
 
-    def store(v: PCode): Code[Unit] = s.storeAny(v.code)
-  }
+  def geEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
+    ecb.genEmitMethod[A1, A2, A3, A4, R](baseName)
 
-  def newPLocal(pt: PType): PSettable = newPSettable(pt, newLocal(typeToTypeInfo(pt)))
+  def genEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, A5: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
+    ecb.genEmitMethod[A1, A2, A3, A4, A5, R](baseName)
 
-  def newPLocal(name: String, pt: PType): PSettable = newPSettable(pt, newLocal(name)(typeToTypeInfo(pt)))
+  def wrapInEmitMethod[R: TypeInfo](
+    baseName: String,
+    body: (EmitMethodBuilder[_]) => Code[R]): Code[R] = ecb.wrapInEmitMethod[R](baseName, body)
 
-  def newPField(pt: PType): PSettable = newPSettable(pt, newField(typeToTypeInfo(pt)))
+  def wrapInEmitMethod[A: TypeInfo, R: TypeInfo](
+    baseName: String,
+    body: (EmitMethodBuilder[_], Code[A]) => Code[R]
+  ): Code[A] => Code[R] = ecb.wrapInEmitMethod[A, R](baseName, body)
 
-  def newPField(name: String, pt: PType): PSettable = newPSettable(pt, newField(name)(typeToTypeInfo(pt)))
+  def wrapInEmitMethod[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](
+    baseName: String,
+    body: (EmitMethodBuilder[_], Code[A1], Code[A2]) => Code[R]
+  ): (Code[A1], Code[A2]) => Code[R] = ecb.wrapInEmitMethod[A1, A2, R](baseName, body)
 
-  def newEmitSettable(_pt: PType, ms: Settable[Boolean], vs: PSettable): EmitSettable = new EmitSettable {
-    def pt: PType = _pt
+  def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+    getFS.invoke[String, Boolean, InputStream]("unsafeReader", path, checkCodec)
 
-    def get: EmitCode = EmitCode(Code._empty,
-      if (_pt.required) false else ms.get,
-      vs.get)
+  def getUnsafeWriter(path: Code[String]): Code[OutputStream] =
+    getFS.invoke[String, OutputStream]("unsafeWriter", path)
 
-    def store(ec: EmitCode): Code[Unit] =
-      if (_pt.required)
-        Code(ec.setup,
-          // FIXME put this under control of a debugging option
-          ec.m.mux(
-            Code._fatal[Unit](s"Required EmitSettable cannot be missing ${ _pt }"),
-            Code._empty),
-          vs := ec.pv)
-      else
-        Code(ec.setup, ec.m.mux(ms := true, Code(ms := false, vs := ec.pv)))
-  }
+  def genDependentFunction[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](
+    baseName: String = null
+  ): DependentEmitFunction[AsmFunction2[A1, A2, R]] =
+    genDependentFunction[AsmFunction2[A1, A2, R]](baseName, Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R])
 
-  def newEmitLocal(pt: PType): EmitSettable =
-    newEmitSettable(pt, if (pt.required) null else newLocal[Boolean], newPLocal(pt))
-
-  def newEmitLocal(name: String, pt: PType): EmitSettable =
-    newEmitSettable(pt, if (pt.required) null else newLocal[Boolean](name + "_missing"), newPLocal(name, pt))
-
-  def newEmitField(pt: PType): EmitSettable =
-    newEmitSettable(pt, newField[Boolean], newPField(pt))
-
-  def newEmitField(name: String, pt: PType): EmitSettable =
-    newEmitSettable(pt, newField[Boolean](name + "_missing"), newPField(name, pt))
-
-  def newPresentEmitSettable(_pt: PType, ps: PSettable): PresentEmitSettable = new PresentEmitSettable {
-    def pt: PType = _pt
-
-    def get: EmitCode = EmitCode(Code._empty, const(false), ps.load())
-
-    def store(pv: PCode): Code[Unit] = ps := pv
-  }
-
-  def newPresentEmitLocal(pt: PType): PresentEmitSettable =
-    newPresentEmitSettable(pt, newPLocal(pt))
-
-  def newPresentEmitField(pt: PType): PresentEmitSettable =
-    newPresentEmitSettable(pt, newPField(pt))
-
-  def newPresentEmitField(name: String, pt: PType): PresentEmitSettable =
-    newPresentEmitSettable(pt, newPField(name, pt))
+  def genDependentFunction[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo]: DependentEmitFunction[AsmFunction3[A1, A2, A3, R]] =
+    genDependentFunction[AsmFunction3[A1, A2, A3, R]](null, Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]), GenericTypeInfo[R])
 }
 
-class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
-  parentfb: EmitFunctionBuilder[_],
-  parameterTypeInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
-  returnTypeInfo: MaybeGenericTypeInfo[_],
-  packageName: String = "is/hail/codegen/generated",
-  namePrefix: String = null,
-  initModule: ModuleBuilder = null
-) extends EmitFunctionBuilder[F](
-  parameterTypeInfo, returnTypeInfo, packageName, namePrefix = namePrefix, initModule = initModule
-) with DependentFunction[F] {
-
-  private[this] val rgMap: mutable.Map[ReferenceGenome, Value[ReferenceGenome]] =
-    mutable.Map[ReferenceGenome, Value[ReferenceGenome]]()
-
-  private[this] val typMap: mutable.Map[Type, Value[Type]] =
-    mutable.Map[Type, Value[Type]]()
-
-  private[this] val literalsMap: mutable.Map[(PType, Any), Value[_]] =
-    mutable.Map[(PType, Any), Value[_]]()
-
-  override def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] =
-    rgMap.getOrElseUpdate(rg, {
-      val fromParent = parentfb.getReferenceGenome(rg)
-      val field = newDepField[ReferenceGenome](fromParent)
-      field
-    })
-
-  override def getType(t: Type): Code[Type] =
-    typMap.getOrElseUpdate(t, {
-      val fromParent = parentfb.getType(t)
-      val field = newDepField[Type](fromParent)
-      field
-    })
-
-  override def addLiteral(v: Any, t: PType): Code[_] = {
-    assert(v != null)
-    literalsMap.getOrElseUpdate(t -> v, {
-      val fromParent = parentfb.addLiteral(v, t)
-      val ti: TypeInfo[_] = typeToTypeInfo(t)
-      val field = newDepFieldAny(fromParent)(ti)
-      field
-    })
-  }
-
-  def newDepEmitField(ec: EmitCode): EmitValue = {
-    val _pt = ec.pt
-    val ti = typeToTypeInfo(_pt)
-    val m = newField[Boolean]
-    val v = newField(ti)
-    setFields += { (obj: lir.ValueX) =>
-      val setup = ec.setup
-      setup.end.append(lir.putField(name, m.name, typeInfo[Boolean], obj, ec.m.v))
-      setup.end.append(lir.putField(name, v.name, ti, obj, ec.v.v))
-      val newC = new VCode(setup.start, setup.end, null)
-      setup.clear()
-      ec.m.clear()
-      ec.v.clear()
-      newC
-    }
-    new EmitValue {
-      def pt: PType = _pt
-
-      def get: EmitCode = EmitCode(Code._empty, m.load(), PCode(_pt, v.load()))
-    }
-  }
-}
-
-class EmitFunctionBuilder[F >: Null](
-  parameterTypeInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
-  returnTypeInfo: MaybeGenericTypeInfo[_],
-  packageName: String = "is/hail/codegen/generated",
-  namePrefix: String = null,
-  initModule: ModuleBuilder = null
-)(implicit interfaceTi: TypeInfo[F]) extends FunctionBuilder[F](parameterTypeInfo, returnTypeInfo, packageName, namePrefix, initModule) {
+class EmitClassBuilder[C](
+  val emodb: EmitModuleBuilder,
+  val cb: ClassBuilder[C]
+) extends WrappedEmitModuleBuilder with WrappedClassBuilder[C] { self =>
 
   private[this] val rgMap: mutable.Map[ReferenceGenome, Value[ReferenceGenome]] =
     mutable.Map[ReferenceGenome, Value[ReferenceGenome]]()
@@ -296,7 +186,7 @@ class EmitFunctionBuilder[F >: Null](
   def numReferenceGenomes: Int = rgMap.size
 
   def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] =
-    rgMap.getOrElseUpdate(rg, newLazyField[ReferenceGenome](rg.codeSetup(this)))
+    rgMap.getOrElseUpdate(rg, genLazyFieldThisRef[ReferenceGenome](rg.codeSetup(this)))
 
   def numTypes: Int = typMap.size
 
@@ -306,15 +196,16 @@ class EmitFunctionBuilder[F >: Null](
     rgExists.mux(Code._empty, addRG)
   }
 
-  private[this] val literalsMap: mutable.Map[(PType, Any), ClassFieldRef[_]] =
-    mutable.Map[(PType, Any), ClassFieldRef[_]]()
-  private[this] lazy val encLitField: ClassFieldRef[Array[Byte]] = newField[Array[Byte]]("encodedLiterals")
-  val partitionRegion: ClassFieldRef[Region] = newField[Region]("partitionRegion")
+  private[this] val literalsMap: mutable.Map[(PType, Any), Settable[_]] =
+    mutable.Map[(PType, Any), Settable[_]]()
+  private[this] lazy val encLitField: Settable[Array[Byte]] = genFieldThisRef[Array[Byte]]("encodedLiterals")
+
+  lazy val partitionRegion: Settable[Region] = genFieldThisRef[Region]("partitionRegion")
 
   def addLiteral(v: Any, t: PType): Code[_] = {
     assert(v != null)
     assert(t.isCanonical)
-    val f = literalsMap.getOrElseUpdate(t -> v, newField("literal")(typeToTypeInfo(t)))
+    val f = literalsMap.getOrElseUpdate(t -> v, genFieldThisRef("literal")(typeToTypeInfo(t)))
     f.load()
   }
 
@@ -325,9 +216,9 @@ class EmitFunctionBuilder[F >: Null](
 
     val (litRType, dec) = spec.buildEmitDecoderF[Long](litType.virtualType, this)
     assert(litRType == litType)
-    classBuilder.addInterface(typeInfo[FunctionWithLiterals].iname)
-    val mb2 = new EmitMethodBuilder(this, "addLiterals", Array(typeInfo[Array[Byte]]), typeInfo[Unit])
-    val off = mb2.newLocal[Long]
+    cb.addInterface(typeInfo[FunctionWithLiterals].iname)
+    val mb2 = newEmitMethod("addLiterals", Array(typeInfo[Array[Byte]]), typeInfo[Unit])
+    val off = mb2.newLocal[Long]()
     val storeFields = literals.zipWithIndex.map { case (((_, _), f), i) =>
       f.storeAny(Region.loadIRIntermediate(litType.types(i))(litType.fieldOffset(off, i)))
     }
@@ -339,7 +230,6 @@ class EmitFunctionBuilder[F >: Null](
       },
       Code(storeFields)
     ))
-    classBuilder.addMethod(mb2)
 
     val baos = new ByteArrayOutputStream()
     val enc = spec.buildEncoder(litType)(baos)
@@ -357,44 +247,37 @@ class EmitFunctionBuilder[F >: Null](
   }
 
   private[this] var _hfs: FS = _
-  private[this] var _hfield: ClassFieldRef[FS] = _
+  private[this] var _hfield: Settable[FS] = _
 
   private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
-  private[this] var _backendField: ClassFieldRef[BackendUtils] = _
+  private[this] var _backendField: Settable[BackendUtils] = _
 
   private[this] var _aggSigs: Array[AggStatePhysicalSignature] = _
-  private[this] var _aggRegion: ClassFieldRef[Region] = _
-  private[this] var _aggOff: ClassFieldRef[Long] = _
+  private[this] var _aggRegion: Settable[Region] = _
+  private[this] var _aggOff: Settable[Long] = _
   private[this] var _aggState: agg.TupleAggregatorState = _
   private[this] var _nSerialized: Int = 0
-  private[this] var _aggSerialized: ClassFieldRef[Array[Array[Byte]]] = _
+  private[this] var _aggSerialized: Settable[Array[Array[Byte]]] = _
 
   def addAggStates(aggSigs: Array[AggStatePhysicalSignature]): agg.TupleAggregatorState = {
     if (_aggSigs != null) {
       assert(aggSigs sameElements _aggSigs)
       return _aggState
     }
-    classBuilder.addInterface(typeInfo[FunctionWithAggRegion].iname)
+    cb.addInterface(typeInfo[FunctionWithAggRegion].iname)
     _aggSigs = aggSigs
-    _aggRegion = newField[Region]("agg_top_region")
-    _aggOff = newField[Long]("agg_off")
+    _aggRegion = genFieldThisRef[Region]("agg_top_region")
+    _aggOff = genFieldThisRef[Long]("agg_off")
     val states = agg.StateTuple(aggSigs.map(a => agg.Extract.getAgg(a, a.default).createState(this)).toArray)
     _aggState = new agg.TupleAggregatorState(this, states, _aggRegion, _aggOff)
-    _aggSerialized = newField[Array[Array[Byte]]]("agg_serialized")
+    _aggSerialized = genFieldThisRef[Array[Array[Byte]]]("agg_serialized")
 
-    val newF = new EmitMethodBuilder(this, "newAggState", FastIndexedSeq(typeInfo[Region]), typeInfo[Unit])
-    val setF = new EmitMethodBuilder(this, "setAggState", FastIndexedSeq(typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
-    val getF = new EmitMethodBuilder(this, "getAggOffset", FastIndexedSeq(), typeInfo[Long])
-    val setNSer = new EmitMethodBuilder(this, "setNumSerialized", FastIndexedSeq(typeInfo[Int]), typeInfo[Unit])
-    val setSer = new EmitMethodBuilder(this, "setSerializedAgg", FastIndexedSeq(typeInfo[Int], typeInfo[Array[Byte]]), typeInfo[Unit])
-    val getSer = new EmitMethodBuilder(this, "getSerializedAgg", FastIndexedSeq(typeInfo[Int]), typeInfo[Array[Byte]])
-
-    classBuilder.addMethod(newF)
-    classBuilder.addMethod(setF)
-    classBuilder.addMethod(getF)
-    classBuilder.addMethod(setNSer)
-    classBuilder.addMethod(setSer)
-    classBuilder.addMethod(getSer)
+    val newF = newEmitMethod("newAggState", FastIndexedSeq(typeInfo[Region]), typeInfo[Unit])
+    val setF = newEmitMethod("setAggState", FastIndexedSeq(typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
+    val getF = newEmitMethod("getAggOffset", FastIndexedSeq(), typeInfo[Long])
+    val setNSer = newEmitMethod("setNumSerialized", FastIndexedSeq(typeInfo[Int]), typeInfo[Unit])
+    val setSer = newEmitMethod("setSerializedAgg", FastIndexedSeq(typeInfo[Int], typeInfo[Array[Byte]]), typeInfo[Unit])
+    val getSer = newEmitMethod("getSerializedAgg", FastIndexedSeq(typeInfo[Int]), typeInfo[Array[Byte]])
 
     newF.emit(
       Code(_aggRegion := newF.getArg[Region](1),
@@ -436,10 +319,9 @@ class EmitFunctionBuilder[F >: Null](
 
   def backend(): Code[BackendUtils] = {
     if (_backendField == null) {
-      classBuilder.addInterface(typeInfo[FunctionWithBackend].iname)
-      val backendField = newField[BackendUtils]
-      val mb = new EmitMethodBuilder(this, "setBackend", Array(typeInfo[BackendUtils]), typeInfo[Unit])
-      classBuilder.addMethod(mb)
+      cb.addInterface(typeInfo[FunctionWithBackend].iname)
+      val backendField = genFieldThisRef[BackendUtils]()
+      val mb = newEmitMethod("setBackend", Array(typeInfo[BackendUtils]), typeInfo[Unit])
       mb.emit(backendField := mb.getArg[BackendUtils](1))
       _backendField = backendField
     }
@@ -452,10 +334,9 @@ class EmitFunctionBuilder[F >: Null](
 
   def getFS: Code[FS] = {
     if (_hfs == null) {
-      classBuilder.addInterface(typeInfo[FunctionWithFS].iname)
-      val confField = newField[FS]
-      val mb = new EmitMethodBuilder(this, "addFS", Array(typeInfo[FS]), typeInfo[Unit])
-      classBuilder.addMethod(mb)
+      cb.addInterface(typeInfo[FunctionWithFS].iname)
+      val confField = genFieldThisRef[FS]()
+      val mb = newEmitMethod("addFS", Array(typeInfo[FS]), typeInfo[Unit])
       mb.emit(confField := mb.getArg[FS](1))
       _hfs = HailContext.sFS
       _hfield = confField
@@ -465,19 +346,13 @@ class EmitFunctionBuilder[F >: Null](
     _hfield.load()
   }
 
-  def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
-     getFS.invoke[String, Boolean, InputStream]("unsafeReader", path, checkCodec)
-
-  def getUnsafeWriter(path: Code[String]): Code[OutputStream] =
-    getFS.invoke[String, OutputStream]("unsafeWriter", path)
-
   def getPType(t: PType): Code[PType] = {
     val references = ReferenceGenome.getReferences(t.virtualType).toArray
     val setup = Code(Code(references.map(addReferenceGenome)),
       Code.invokeScalaObject[String, PType](
         IRParser.getClass, "parsePType", t.toString))
     pTypeMap.getOrElseUpdate(t,
-      newLazyField[PType](setup))
+      genLazyFieldThisRef[PType](setup))
   }
 
   def getType(t: Type): Code[Type] = {
@@ -486,28 +361,8 @@ class EmitFunctionBuilder[F >: Null](
       Code.invokeScalaObject[String, Type](
         IRParser.getClass, "parseType", t.parsableString()))
     typMap.getOrElseUpdate(t,
-      newLazyField[Type](setup))
+      genLazyFieldThisRef[Type](setup))
   }
-
-  def getCodeOrdering(t: PType, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
-    getCodeOrdering(t, t, sortOrder = Ascending, op, ignoreMissingness = false)
-
-  def getCodeOrdering(t: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[op.ReturnType] =
-    getCodeOrdering(t, t, sortOrder = Ascending, op, ignoreMissingness)
-
-  def getCodeOrdering(t1: PType, t2: PType, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
-    getCodeOrdering(t1, t2, sortOrder = Ascending, op, ignoreMissingness = false)
-
-  def getCodeOrdering(t1: PType, t2: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[op.ReturnType] =
-    getCodeOrdering(t1, t2, sortOrder = Ascending, op, ignoreMissingness)
-
-  def getCodeOrdering(
-    t1: PType,
-    t2: PType,
-    sortOrder: SortOrder,
-    op: CodeOrdering.Op
-  ): CodeOrdering.F[op.ReturnType] =
-    getCodeOrdering(t1, t2, sortOrder, op, ignoreMissingness = false)
 
   def getCodeOrdering(
     t1: PType,
@@ -521,7 +376,7 @@ class EmitFunctionBuilder[F >: Null](
       val rt = if (op == CodeOrdering.compare) typeInfo[Int] else typeInfo[Boolean]
 
       val newMB = if (ignoreMissingness) {
-        val newMB = newMethod("cord", FastIndexedSeq[TypeInfo[_]](ti, ti), rt)
+        val newMB = genEmitMethod("cord", FastIndexedSeq[TypeInfo[_]](ti, ti), rt)
         val ord = t1.codeOrdering(newMB, t2, sortOrder)
         val v1 = newMB.getArg(1)(ti)
         val v2 = newMB.getArg(3)(ti)
@@ -537,7 +392,7 @@ class EmitFunctionBuilder[F >: Null](
         newMB.emit(c)
         newMB
       } else {
-        val newMB = newMethod("cord", FastIndexedSeq[TypeInfo[_]](typeInfo[Boolean], ti, typeInfo[Boolean], ti), rt)
+        val newMB = genEmitMethod("cord", FastIndexedSeq[TypeInfo[_]](typeInfo[Boolean], ti, typeInfo[Boolean], ti), rt)
         val ord = t1.codeOrdering(newMB, t2, sortOrder)
         val m1 = newMB.getArg[Boolean](1)
         val v1 = newMB.getArg(2)(ti)
@@ -574,20 +429,6 @@ class EmitFunctionBuilder[F >: Null](
   ): CodeOrdering.F[op.ReturnType] =
     getCodeOrdering(t, t, sortOrder, op, ignoreMissingness)
 
-  override val apply_method: EmitMethodBuilder = {
-    val m = new EmitMethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
-    if (parameterTypeInfo.exists(_.isGeneric) || returnTypeInfo.isGeneric) {
-      val generic = new MethodBuilder(this, "apply", parameterTypeInfo.map(_.generic), returnTypeInfo.generic)
-      classBuilder.addMethod(generic)
-      generic.emit(
-        returnTypeInfo.castToGeneric(
-          m.invoke(parameterTypeInfo.zipWithIndex.map { case (ti, i) =>
-            ti.castFromGeneric(generic.getArg(i + 1)(ti.generic))
-          }: _*)))
-    }
-    m
-  }
-
   def wrapVoids(x: Seq[Code[Unit]], prefix: String, size: Int = 32): Code[Unit] =
     wrapVoidsWithArgs(x.map { c => (s: Seq[Code[_]]) => c }, prefix, FastIndexedSeq(), FastIndexedSeq(), size)
 
@@ -603,100 +444,53 @@ class EmitFunctionBuilder[F >: Null](
     Code(
       Code((argTmps, args).zipped.map { case (t, arg) => t.storeAny(arg) }),
       Code(x.grouped(size).zipWithIndex.map { case (codes, i) =>
-        val mb = newMethod(suffix + s"_group$i", argTypes, UnitInfo)
+        val mb = genEmitMethod(suffix + s"_group$i", argTypes, UnitInfo)
         val methodArgs = argTypes.zipWithIndex.map { case (a, i) => mb.getArg(i + 1)(a) }
         mb.emit(Code(codes.map(_.apply(methodArgs.map(_.get)))))
         mb.invoke[Unit](argTmps.map(_.get): _*)
       }.toArray))
   }
 
-  override def newMethod(suffix: String, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
-    val mb = new EmitMethodBuilder(this, classBuilder.genName("m", suffix), argsInfo, returnInfo)
-    classBuilder.addMethod(mb)
-    mb
-  }
-
-  override def newMethod(argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder =
-    newMethod("method", argsInfo, returnInfo)
-
-  override def newMethod[R: TypeInfo]: EmitMethodBuilder =
-    newMethod(FastIndexedSeq[TypeInfo[_]](), typeInfo[R])
-
-  def newMethod[R: TypeInfo](prefix: String)(body: MethodBuilder => Code[R]): Code[R] = {
-    val mb = newMethod(prefix, FastIndexedSeq[TypeInfo[_]](), typeInfo[R])
-    mb.emit(body(mb))
-    mb.invoke[R]()
-  }
-
-  override def newMethod[A: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
-    newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[A]), typeInfo[R])
-
-  def newMethod[A: TypeInfo, R: TypeInfo](prefix: String)(
-    body: (MethodBuilder, Code[A]) => Code[R]
-  ): Code[A] => Code[R] = {
-    val mb = newMethod(prefix, FastIndexedSeq[TypeInfo[_]](typeInfo[A]), typeInfo[R])
-    mb.emit(body(mb, mb.getArg[A](1)))
-    a => mb.invoke[R](a)
-  }
-
-  override def newMethod[A: TypeInfo, B: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
-    newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[A], typeInfo[B]), typeInfo[R])
-
-  def newMethod[A: TypeInfo, B: TypeInfo, R: TypeInfo](prefix: String)(
-    body: (MethodBuilder, Code[A], Code[B]) => Code[R]
-  ): (Code[A], Code[B]) => Code[R] = {
-    val mb = newMethod(prefix, FastIndexedSeq[TypeInfo[_]](typeInfo[A], typeInfo[B]), typeInfo[R])
-    mb.emit(body(mb, mb.getArg[A](1).load(), mb.getArg[B](2).load()))
-    (a, b) => mb.invoke[R](a, b)
-  }
-
-  override def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
-    newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C]), typeInfo[R])
-
-  override def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
-    newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D]), typeInfo[R])
-
-  override def newMethod[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo]: EmitMethodBuilder =
-    newMethod(FastIndexedSeq[TypeInfo[_]](typeInfo[A], typeInfo[B], typeInfo[C], typeInfo[D], typeInfo[E]), typeInfo[R])
-
-  def newDependentFunction[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](
-    namePrefix: String = null
-  ): DependentEmitFunction[AsmFunction2[A1, A2, R]] = {
-    new DependentEmitFunction[AsmFunction2[A1, A2, R]](
+  def newEmitMethod(name: String, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder[C] = {
+    new EmitMethodBuilder[C](
       this,
-      Array(GenericTypeInfo[A1], GenericTypeInfo[A2]),
-      GenericTypeInfo[R],
-      namePrefix = namePrefix,
-      initModule = module)
+      newMethod(name, argsInfo, returnInfo))
   }
 
-  def newDependentFunction[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo]: DependentEmitFunction[AsmFunction3[A1, A2, A3, R]] = {
-    new DependentEmitFunction[AsmFunction3[A1, A2, A3, R]](
+  def newEmitMethod(name: String, argsInfo: IndexedSeq[MaybeGenericTypeInfo[_]], returnInfo: MaybeGenericTypeInfo[_]): EmitMethodBuilder[C] = {
+    new EmitMethodBuilder[C](
       this,
-      Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]),
-      GenericTypeInfo[R],
-      initModule = module)
+      newMethod(name, argsInfo, returnInfo))
   }
 
-  val rngs: ArrayBuilder[(ClassFieldRef[IRRandomness], Code[IRRandomness])] = new ArrayBuilder()
+  def genDependentFunction[F](baseName: String,
+    maybeGenericParameterTypeInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
+    maybeGenericReturnTypeInfo: MaybeGenericTypeInfo[_])(implicit fti: TypeInfo[F]): DependentEmitFunction[F] = {
+    val depCB = emodb.genEmitClass[F](baseName)
+    new DependentEmitFunction[F](
+      depCB,
+      new EmitMethodBuilder[F](
+        depCB,
+        depCB.cb.newMethod("apply", maybeGenericParameterTypeInfo, maybeGenericReturnTypeInfo)))
+  }
+
+  val rngs: ArrayBuilder[(Settable[IRRandomness], Code[IRRandomness])] = new ArrayBuilder()
 
   def makeAddPartitionRegion(): Unit = {
-    classBuilder.addInterface(typeInfo[FunctionWithPartitionRegion].iname)
-    val mb = new EmitMethodBuilder(this, "addPartitionRegion", Array(typeInfo[Region]), typeInfo[Unit])
+    cb.addInterface(typeInfo[FunctionWithPartitionRegion].iname)
+    val mb = newEmitMethod("addPartitionRegion", Array(typeInfo[Region]), typeInfo[Unit])
     mb.emit(partitionRegion := mb.getArg[Region](1))
-    classBuilder.addMethod(mb)
   }
 
   def makeRNGs() {
-    classBuilder.addInterface(typeInfo[FunctionWithSeededRandomness].iname)
+    cb.addInterface(typeInfo[FunctionWithSeededRandomness].iname)
 
-    val initialized = newField[Boolean]
-    val mb = new EmitMethodBuilder(this, "setPartitionIndex", Array(typeInfo[Int]), typeInfo[Unit])
-    classBuilder.addMethod(mb)
+    val initialized = genFieldThisRef[Boolean]()
+    val mb = newEmitMethod("setPartitionIndex", IndexedSeq(typeInfo[Int]), typeInfo[Unit])
 
     val rngFields = rngs.result()
     val initialize = Code(rngFields.map { case (field, initialization) =>
-        field := initialization
+      field := initialization
     })
 
     val reseed = Code(rngFields.map { case (field, _) =>
@@ -711,12 +505,12 @@ class EmitFunctionBuilder[F >: Null](
   }
 
   def newRNG(seed: Long): Value[IRRandomness] = {
-    val rng = newField[IRRandomness]
+    val rng = genFieldThisRef[IRRandomness]()
     rngs += rng -> Code.newInstance[IRRandomness, Long](seed)
     rng
   }
 
-  def resultWithIndex(print: Option[PrintWriter] = None): (Int, Region) => F = {
+  def resultWithIndex(print: Option[PrintWriter] = None): (Int, Region) => C = {
     makeRNGs()
     makeAddPartitionRegion()
 
@@ -740,93 +534,370 @@ class EmitFunctionBuilder[F >: Null](
       "FunctionBuilder emission should happen on master, but happened on worker")
 
     val n = name.replace("/", ".")
-    val classesBytes = module.classesBytes()
+    val classesBytes = modb.classesBytes()
 
-    new ((Int, Region) => F) with java.io.Serializable {
+    new ((Int, Region) => C) with java.io.Serializable {
       @transient @volatile private var theClass: Class[_] = null
 
-      def apply(idx: Int, region: Region): F = {
-          if (theClass == null) {
-            this.synchronized {
-              if (theClass == null) {
-                classesBytes.load()
-                theClass = loadClass(n)
-              }
+      def apply(idx: Int, region: Region): C = {
+        if (theClass == null) {
+          this.synchronized {
+            if (theClass == null) {
+              classesBytes.load()
+              theClass = loadClass(n)
             }
           }
-          val f = theClass.newInstance().asInstanceOf[F]
-          f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
-          if (localFS != null)
-            f.asInstanceOf[FunctionWithFS].addFS(localFS)
-          if (useBackend)
-            f.asInstanceOf[FunctionWithBackend].setBackend(backend)
-          if (hasLiterals)
-            f.asInstanceOf[FunctionWithLiterals].addLiterals(literalsBc.value)
-          if (nSerializedAggs != 0)
-            f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
-          f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
-          f
+        }
+        val f = theClass.newInstance().asInstanceOf[C]
+        f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
+        if (localFS != null)
+          f.asInstanceOf[FunctionWithFS].addFS(localFS)
+        if (useBackend)
+          f.asInstanceOf[FunctionWithBackend].setBackend(backend)
+        if (hasLiterals)
+          f.asInstanceOf[FunctionWithLiterals].addLiterals(literalsBc.value)
+        if (nSerializedAggs != 0)
+          f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
+        f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
+        f
       }
     }
   }
 
-  def newPLocal(_pt: PType): PSettable = new PSettable {
-    private val l = newLocal(typeToTypeInfo(_pt))
+  private[this] val methodMemo: mutable.Map[Any, EmitMethodBuilder[C]] = mutable.Map()
 
-    def pt: PType = _pt
-
-    def get: PCode = PCode(_pt, l.load())
-
-    def store(v: PCode): Code[Unit] = l.storeAny(v.code)
+  def getOrGenEmitMethod(
+    baseName: String, key: Any, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]
+  )(body: EmitMethodBuilder[C] => Unit): EmitMethodBuilder[C] = {
+    methodMemo.getOrElseUpdate(key, {
+      val mb = new EmitMethodBuilder(self, genMethod(baseName, argsInfo, returnInfo))
+      body(mb)
+      mb
+    })
   }
 
-  def newPField(_pt: PType): PSettable = new PSettable {
-    private val f = newField(typeToTypeInfo(_pt))
+  // derived functions
+  def getCodeOrdering(t: PType, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
+    getCodeOrdering(t, t, sortOrder = Ascending, op, ignoreMissingness = false)
 
-    def pt: PType = _pt
+  def getCodeOrdering(t: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[op.ReturnType] =
+    getCodeOrdering(t, t, sortOrder = Ascending, op, ignoreMissingness)
 
-    def get: PCode = PCode(_pt, f.load())
+  def getCodeOrdering(t1: PType, t2: PType, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
+    getCodeOrdering(t1, t2, sortOrder = Ascending, op, ignoreMissingness = false)
 
-    def store(v: PCode): Code[Unit] = f.storeAny(v.code)
+  def getCodeOrdering(t1: PType, t2: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[op.ReturnType] =
+    getCodeOrdering(t1, t2, sortOrder = Ascending, op, ignoreMissingness)
+
+  def getCodeOrdering(
+    t1: PType, t2: PType, sortOrder: SortOrder, op: CodeOrdering.Op
+  ): CodeOrdering.F[op.ReturnType] =
+    getCodeOrdering(t1, t2, sortOrder, op, ignoreMissingness = false)
+
+  def genEmitMethod(baseName: String, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder[C] =
+    newEmitMethod(genName("m", baseName), argsInfo, returnInfo)
+
+  def genEmitMethod[R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
+    genEmitMethod(baseName, FastIndexedSeq[TypeInfo[_]](), typeInfo[R])
+
+  def genEmitMethod[A: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
+    genEmitMethod(baseName, FastIndexedSeq[TypeInfo[_]](typeInfo[A]), typeInfo[R])
+
+  def genEmitMethod[A: TypeInfo, B: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
+    genEmitMethod(baseName, FastIndexedSeq[TypeInfo[_]](typeInfo[A], typeInfo[B]), typeInfo[R])
+
+  def genEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
+    genEmitMethod(baseName, FastIndexedSeq[TypeInfo[_]](typeInfo[A1], typeInfo[A2], typeInfo[A3]), typeInfo[R])
+
+  def genEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
+    genEmitMethod(baseName, FastIndexedSeq[TypeInfo[_]](typeInfo[A1], typeInfo[A2], typeInfo[A3], typeInfo[A4]), typeInfo[R])
+
+  def genEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, A5: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
+    genEmitMethod(baseName, FastIndexedSeq[TypeInfo[_]](typeInfo[A1], typeInfo[A2], typeInfo[A3], typeInfo[A4], typeInfo[A5]), typeInfo[R])
+
+  def wrapInEmitMethod[R: TypeInfo](
+    baseName: String,
+    body: (EmitMethodBuilder[_]) => Code[R]): Code[R] = {
+    val mb = genEmitMethod(baseName, FastIndexedSeq[TypeInfo[_]](), typeInfo[R])
+    mb.emit(body(mb))
+    mb.invoke[R]()
   }
 
-  def newPField(name: String, _pt: PType): PSettable = new PSettable {
-    private val f = newField(name)(typeToTypeInfo(_pt))
-
-    def pt: PType = _pt
-
-    def get: PCode = PCode(_pt, f.load())
-
-    def store(v: PCode): Code[Unit] = f.storeAny(v.code)
+  def wrapInEmitMethod[A: TypeInfo, R: TypeInfo](
+    baseName: String,
+    body: (EmitMethodBuilder[_], Code[A]) => Code[R]
+  ): Code[A] => Code[R] = {
+    val mb = genEmitMethod(baseName, FastIndexedSeq[TypeInfo[_]](typeInfo[A]), typeInfo[R])
+    mb.emit(body(mb, mb.getArg[A](1)))
+    a => mb.invoke[R](a)
   }
 
-  def newEmitSettable(_pt: PType, ms: Settable[Boolean], vs: PSettable): EmitSettable =
-    new EmitSettable {
+  def wrapInEmitMethod[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](
+    baseName: String,
+    body: (EmitMethodBuilder[_], Code[A1], Code[A2]) => Code[R]
+  ): (Code[A1], Code[A2]) => Code[R] = {
+    val mb = genEmitMethod(baseName, FastIndexedSeq[TypeInfo[_]](typeInfo[A1], typeInfo[A2]), typeInfo[R])
+    mb.emit(body(mb, mb.getArg[A1](1), mb.getArg[A2](2)))
+    (a1, a2) => mb.invoke[R](a1, a2)
+  }
+
+  def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+    getFS.invoke[String, Boolean, InputStream]("unsafeReader", path, checkCodec)
+
+  def getUnsafeWriter(path: Code[String]): Code[OutputStream] =
+    getFS.invoke[String, OutputStream]("unsafeWriter", path)
+
+  def genDependentFunction[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](
+    baseName: String = null
+  ): DependentEmitFunction[AsmFunction2[A1, A2, R]] =
+    genDependentFunction[AsmFunction2[A1, A2, R]](baseName, Array(GenericTypeInfo[A1], GenericTypeInfo[A2]), GenericTypeInfo[R])
+
+  def genDependentFunction[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo]: DependentEmitFunction[AsmFunction3[A1, A2, A3, R]] =
+    genDependentFunction[AsmFunction3[A1, A2, A3, R]](null, Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]), GenericTypeInfo[R])
+}
+
+object EmitFunctionBuilder {
+  def apply[F](
+    baseName: String, argInfo: IndexedSeq[MaybeGenericTypeInfo[_]], returnInfo: MaybeGenericTypeInfo[_]
+  )(implicit fti: TypeInfo[F]): EmitFunctionBuilder[F] = {
+    val modb = new EmitModuleBuilder(new ModuleBuilder())
+    val cb = modb.genEmitClass[F](baseName)
+        val apply = cb.newEmitMethod("apply", argInfo, returnInfo)
+    new EmitFunctionBuilder(apply)
+  }
+
+  def apply[R: TypeInfo](baseName: String): EmitFunctionBuilder[AsmFunction0[R]] =
+    EmitFunctionBuilder[AsmFunction0[R]](baseName, FastIndexedSeq[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
+
+  def apply[A: TypeInfo, R: TypeInfo](baseName: String): EmitFunctionBuilder[AsmFunction1[A, R]] =
+    EmitFunctionBuilder[AsmFunction1[A, R]](baseName, Array(GenericTypeInfo[A]), GenericTypeInfo[R])
+
+  def apply[A: TypeInfo, B: TypeInfo, R: TypeInfo](baseName: String): EmitFunctionBuilder[AsmFunction2[A, B, R]] =
+    EmitFunctionBuilder[AsmFunction2[A, B, R]](baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B]), GenericTypeInfo[R])
+
+  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo](baseName: String): EmitFunctionBuilder[AsmFunction3[A, B, C, R]] =
+    EmitFunctionBuilder[AsmFunction3[A, B, C, R]](baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C]), GenericTypeInfo[R])
+
+  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, R: TypeInfo](baseName: String): EmitFunctionBuilder[AsmFunction4[A, B, C, D, R]] =
+    EmitFunctionBuilder[AsmFunction4[A, B, C, D, R]](baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D]), GenericTypeInfo[R])
+
+  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo](baseName: String): EmitFunctionBuilder[AsmFunction5[A, B, C, D, E, R]] =
+    EmitFunctionBuilder[AsmFunction5[A, B, C, D, E, R]](baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E]), GenericTypeInfo[R])
+
+  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, F: TypeInfo, R: TypeInfo](baseName: String): EmitFunctionBuilder[AsmFunction6[A, B, C, D, E, F, R]] =
+    EmitFunctionBuilder[AsmFunction6[A, B, C, D, E, F, R]](baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F]), GenericTypeInfo[R])
+
+  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, F: TypeInfo, G: TypeInfo, R: TypeInfo](baseName: String): EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]] =
+    EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]](baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
+}
+
+trait FunctionWithFS {
+  def addFS(fs: FS): Unit
+}
+
+trait FunctionWithAggRegion {
+  def getAggOffset(): Long
+
+  def setAggState(region: Region, offset: Long): Unit
+
+  def newAggState(region: Region): Unit
+
+  def setNumSerialized(i: Int): Unit
+
+  def setSerializedAgg(i: Int, b: Array[Byte]): Unit
+
+  def getSerializedAgg(i: Int): Array[Byte]
+}
+
+trait FunctionWithPartitionRegion {
+  def addPartitionRegion(r: Region): Unit
+}
+
+trait FunctionWithLiterals {
+  def addLiterals(lit: Array[Byte]): Unit
+}
+
+trait FunctionWithSeededRandomness {
+  def setPartitionIndex(idx: Int): Unit
+}
+
+trait FunctionWithBackend {
+  def setBackend(spark: BackendUtils): Unit
+}
+
+class EmitMethodBuilder[C](
+  val ecb: EmitClassBuilder[C],
+  val mb: MethodBuilder[C]
+) extends WrappedEmitClassBuilder[C] with WrappedMethodBuilder[C] {
+  def getArgEV(i: Int, _pt: PType): EmitValue = new EmitValue {
+    def pt: PType = _pt
+
+    def get: EmitCode = {
+      EmitCode(Code._empty,
+        getArg[Boolean](2 + 2 * i + 1),
+        PCode(pt, getArg(2 + 2 * i)(typeToTypeInfo(_pt)).load()))
+    }
+  }
+
+  def newPSettable(_pt: PType, s: Settable[_]): PSettable = new PSettable {
+    def pt: PType = _pt
+
+    def get: PCode = PCode(_pt, s)
+
+    def store(v: PCode): Code[Unit] = s.storeAny(v.code)
+  }
+
+  def newPLocal(pt: PType): PSettable = newPSettable(pt, newLocal()(typeToTypeInfo(pt)))
+
+  def newPLocal(name: String, pt: PType): PSettable = newPSettable(pt, newLocal(name)(typeToTypeInfo(pt)))
+
+  def newPField(pt: PType): PSettable = newPSettable(pt, genFieldThisRef()(typeToTypeInfo(pt)))
+
+  def newPField(name: String, pt: PType): PSettable = newPSettable(pt, genFieldThisRef(name)(typeToTypeInfo(pt)))
+
+  def newEmitSettable(_pt: PType, ms: Settable[Boolean], vs: PSettable): EmitSettable = new EmitSettable {
+    def pt: PType = _pt
+
+    def get: EmitCode = EmitCode(Code._empty,
+      if (_pt.required) false else ms.get,
+      vs.get)
+
+    def store(ec: EmitCode): Code[Unit] =
+      if (_pt.required)
+        Code(ec.setup,
+          // FIXME put this under control of a debugging option
+          ec.m.mux(
+            Code._fatal[Unit](s"Required EmitSettable cannot be missing ${ _pt }"),
+            Code._empty),
+          vs := ec.pv)
+      else
+        Code(ec.setup, ec.m.mux(ms := true, Code(ms := false, vs := ec.pv)))
+  }
+
+  def newEmitLocal(pt: PType): EmitSettable =
+    newEmitSettable(pt, if (pt.required) null else newLocal[Boolean](), newPLocal(pt))
+
+  def newEmitLocal(name: String, pt: PType): EmitSettable =
+    newEmitSettable(pt, if (pt.required) null else newLocal[Boolean](name + "_missing"), newPLocal(name, pt))
+
+  def newEmitField(pt: PType): EmitSettable =
+    newEmitSettable(pt, genFieldThisRef[Boolean](), newPField(pt))
+
+  def newEmitField(name: String, pt: PType): EmitSettable =
+    newEmitSettable(pt, genFieldThisRef[Boolean](name + "_missing"), newPField(name, pt))
+
+  def newPresentEmitSettable(_pt: PType, ps: PSettable): PresentEmitSettable = new PresentEmitSettable {
+    def pt: PType = _pt
+
+    def get: EmitCode = EmitCode(Code._empty, const(false), ps.load())
+
+    def store(pv: PCode): Code[Unit] = ps := pv
+  }
+
+  def newPresentEmitLocal(pt: PType): PresentEmitSettable =
+    newPresentEmitSettable(pt, newPLocal(pt))
+
+  def newPresentEmitField(pt: PType): PresentEmitSettable =
+    newPresentEmitSettable(pt, newPField(pt))
+
+  def newPresentEmitField(name: String, pt: PType): PresentEmitSettable =
+    newPresentEmitSettable(pt, newPField(name, pt))
+}
+
+trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] with WrappedMethodBuilder[C] {
+  def emb: EmitMethodBuilder[C]
+
+  def ecb: EmitClassBuilder[C] = emb.ecb
+
+  def mb: MethodBuilder[C] = emb.mb
+
+  def getArgEV(i: Int, _pt: PType): EmitValue = emb.getArgEV(i, _pt)
+
+  def newPLocal(pt: PType): PSettable = emb.newPLocal(pt)
+
+  def newPLocal(name: String, pt: PType): PSettable = emb.newPLocal(name, pt)
+
+  def newPField(pt: PType): PSettable = emb.newPField(pt)
+
+  def newPField(name: String, pt: PType): PSettable = emb.newPField(name, pt)
+
+  def newEmitLocal(pt: PType): EmitSettable = emb.newEmitLocal(pt)
+
+  def newEmitLocal(name: String, pt: PType): EmitSettable = emb.newEmitLocal(name, pt)
+
+  def newEmitField(pt: PType): EmitSettable = emb.newEmitField(pt)
+
+  def newEmitField(name: String, pt: PType): EmitSettable = emb.newEmitField(name, pt)
+
+  def newPresentEmitLocal(pt: PType): PresentEmitSettable = emb.newPresentEmitLocal(pt)
+
+  def newPresentEmitField(pt: PType): PresentEmitSettable = emb.newPresentEmitField(pt)
+
+  def newPresentEmitField(name: String, pt: PType): PresentEmitSettable = emb.newPresentEmitField(name, pt)
+}
+
+class DependentEmitFunction[F](
+  parentcb: EmitClassBuilder[_],
+  val apply_method: EmitMethodBuilder[F]
+) extends WrappedEmitMethodBuilder[F] with DependentFunction[F] {
+  def emb: EmitMethodBuilder[F] = apply_method
+
+  private[this] val rgMap: mutable.Map[ReferenceGenome, Value[ReferenceGenome]] =
+    mutable.Map[ReferenceGenome, Value[ReferenceGenome]]()
+
+  private[this] val typMap: mutable.Map[Type, Value[Type]] =
+    mutable.Map[Type, Value[Type]]()
+
+  private[this] val literalsMap: mutable.Map[(PType, Any), Value[_]] =
+    mutable.Map[(PType, Any), Value[_]]()
+
+  override def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] =
+    rgMap.getOrElseUpdate(rg, {
+      val fromParent = parentcb.getReferenceGenome(rg)
+      val field = newDepField[ReferenceGenome](fromParent)
+      field
+    })
+
+  override def getType(t: Type): Code[Type] =
+    typMap.getOrElseUpdate(t, {
+      val fromParent = parentcb.getType(t)
+      val field = newDepField[Type](fromParent)
+      field
+    })
+
+  override def addLiteral(v: Any, t: PType): Code[_] = {
+    assert(v != null)
+    literalsMap.getOrElseUpdate(t -> v, {
+      val fromParent = parentcb.addLiteral(v, t)
+      val ti: TypeInfo[_] = typeToTypeInfo(t)
+      val field = newDepFieldAny(fromParent)(ti)
+      field
+    })
+  }
+
+  def newDepEmitField(ec: EmitCode): EmitValue = {
+    val _pt = ec.pt
+    val ti = typeToTypeInfo(_pt)
+    val m = genFieldThisRef[Boolean]()
+    val v = genFieldThisRef()(ti)
+    setFields += { (obj: lir.ValueX) =>
+      val setup = ec.setup
+      setup.end.append(lir.putField(name, m.name, typeInfo[Boolean], obj, ec.m.v))
+      setup.end.append(lir.putField(name, v.name, ti, obj, ec.v.v))
+      val newC = new VCode(setup.start, setup.end, null)
+      setup.clear()
+      ec.m.clear()
+      ec.v.clear()
+      newC
+    }
+    new EmitValue {
       def pt: PType = _pt
 
-      def get: EmitCode = EmitCode(Code._empty, ms, vs.load())
-
-      def store(ec: EmitCode): Code[Unit] =
-        Code(ec.setup, ms := ec.m, ms.mux(vs := pt.defaultValue, vs := ec.pv))
+      def get: EmitCode = EmitCode(Code._empty, m.load(), PCode(_pt, v.load()))
     }
-
-  def newEmitLocal(pt: PType): EmitSettable = {
-    // FIXME link name between ms, vs
-    val ms = newLocal[Boolean]
-    val vs = newPLocal(pt)
-    newEmitSettable(pt, ms, vs)
   }
+}
 
-  def newEmitField(pt: PType): EmitSettable = {
-    // FIXME link names between ms, vs
-    val ms = newField[Boolean]
-    val vs = newPField(pt)
-    newEmitSettable(pt, ms, vs)
-  }
-
-  def newEmitField(name: String, pt: PType): EmitSettable = {
-    val ms = newField[Boolean](name + "_missing")
-    val vs = newPField(name, pt)
-    newEmitSettable(pt, ms, vs)
-  }
+class EmitFunctionBuilder[F](val apply_method: EmitMethodBuilder[F]) extends WrappedEmitMethodBuilder[F] {
+  def emb: EmitMethodBuilder[F] = apply_method
 }

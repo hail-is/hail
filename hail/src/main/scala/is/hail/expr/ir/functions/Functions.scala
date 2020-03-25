@@ -28,10 +28,17 @@ object IRFunctionRegistry {
   val codeRegistry: mutable.MultiMap[String, IRFunction] =
     new mutable.HashMap[String, mutable.Set[IRFunction]] with mutable.MultiMap[String, IRFunction]
 
-  def addIRFunction(f: IRFunction): Unit =
+  def addIRFunction(f: IRFunction): Unit = {
+    if (!isJavaIdentifier(f.name))
+      throw new IllegalArgumentException(s"Illegal function name, not Java identifier: ${ f.name }")
+
     codeRegistry.addBinding(f.name, f)
+  }
 
   def addIR(name: String, argTypes: Seq[Type], retType: Type, alwaysInline: Boolean, f: Seq[IR] => IR): Unit = {
+    if (!isJavaIdentifier(name))
+      throw new IllegalArgumentException(s"Illegal function name, not Java identifier: $name")
+
     val m = irRegistry.getOrElseUpdate(name, new mutable.HashMap[(Seq[Type], Type, Boolean), Seq[IR] => IR]())
     m.update((argTypes, retType, alwaysInline), f)
   }
@@ -40,6 +47,9 @@ object IRFunctionRegistry {
     argNames: java.util.ArrayList[String],
     argTypeStrs: java.util.ArrayList[String], retType: String,
     body: IR): Unit = {
+    if (!isJavaIdentifier(mname))
+      throw new IllegalArgumentException(s"Illegal function name, not Java identifier: $mname")
+
     val argTypes = argTypeStrs.asScala.map(IRParser.parseType).toFastIndexedSeq
     userAddedFunctions += ((mname, (body.typ, argTypes)))
     addIR(mname,
@@ -215,9 +225,9 @@ abstract class RegistryFunctions {
     case TCall => coerce[Int]
     case TArray(TInt32) => c =>
       val srvb = new StagedRegionValueBuilder(r, pt)
-      val alocal = r.mb.newLocal[IndexedSeq[Int]]
-      val len = r.mb.newLocal[Int]
-      val v = r.mb.newLocal[java.lang.Integer]
+      val alocal = r.mb.newLocal[IndexedSeq[Int]]()
+      val len = r.mb.newLocal[Int]()
+      val v = r.mb.newLocal[java.lang.Integer]()
 
       Code(
         alocal := coerce[IndexedSeq[Int]](c),
@@ -231,9 +241,9 @@ abstract class RegistryFunctions {
         srvb.offset)
     case TArray(TFloat64) => c =>
       val srvb = new StagedRegionValueBuilder(r, pt)
-      val alocal = r.mb.newLocal[IndexedSeq[Double]]
-      val len = r.mb.newLocal[Int]
-      val v = r.mb.newLocal[java.lang.Double]
+      val alocal = r.mb.newLocal[IndexedSeq[Double]]()
+      val len = r.mb.newLocal[Int]()
+      val v = r.mb.newLocal[java.lang.Double]()
 
       Code(
         alocal := coerce[IndexedSeq[Double]](c),
@@ -247,9 +257,9 @@ abstract class RegistryFunctions {
         srvb.offset)
     case TArray(TString) => c =>
       val srvb = new StagedRegionValueBuilder(r, pt)
-      val alocal = r.mb.newLocal[IndexedSeq[String]]
-      val len = r.mb.newLocal[Int]
-      val v = r.mb.newLocal[java.lang.String]
+      val alocal = r.mb.newLocal[IndexedSeq[String]]()
+      val len = r.mb.newLocal[Int]()
+      val v = r.mb.newLocal[java.lang.String]()
 
       Code(
         alocal := coerce[IndexedSeq[String]](c),
@@ -433,6 +443,7 @@ abstract class RegistryFunctions {
 
   def registerSeeded(mname: String, aTypes: Array[Type], rType: Type, pt: Seq[PType] => PType)
     (impl: (EmitRegion, PType, Long, Array[(PType, Code[_])]) => Code[_]) {
+
     IRFunctionRegistry.addIRFunction(new SeededIRFunction {
       val isDeterministic: Boolean = false
 
@@ -495,7 +506,7 @@ sealed abstract class IRFunction {
 
   def apply(mb: EmitRegion, returnType: PType, args: (PType, EmitCode)*): EmitCode
 
-  def getAsMethod(fb: EmitFunctionBuilder[_], rpt: PType, args: PType*): EmitMethodBuilder = ???
+  def getAsMethod[C](cb: EmitClassBuilder[C], rpt: PType, args: PType*): EmitMethodBuilder[C] = ???
 
   def returnType: Type
 
@@ -527,11 +538,11 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
     EmitCode(setup, missing, PCode(returnPType, value))
   }
 
-  override def getAsMethod(fb: EmitFunctionBuilder[_], rpt: PType, args: PType*): EmitMethodBuilder = {
+  override def getAsMethod[C](cb: EmitClassBuilder[C], rpt: PType, args: PType*): EmitMethodBuilder[C] = {
     val unified = unify(args.map(_.virtualType) :+ rpt.virtualType)
     assert(unified)
     val ts = argTypes.map(t => typeToTypeInfo(t.subst()))
-    val methodbuilder = fb.newMethod((typeInfo[Region] +: ts).toArray, typeToTypeInfo(rpt))
+    val methodbuilder = cb.genEmitMethod(name, (typeInfo[Region] +: ts).toFastIndexedSeq, typeToTypeInfo(rpt))
     methodbuilder.emit(apply(EmitRegion.default(methodbuilder), rpt, args.zip(ts.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }): _*))
     methodbuilder
   }

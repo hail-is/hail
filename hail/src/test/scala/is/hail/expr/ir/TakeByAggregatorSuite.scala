@@ -12,12 +12,13 @@ class TakeByAggregatorSuite extends HailSuite {
   @Test def testPointers() {
     for ((size, n) <- Array((1000, 100), (1, 10), (100, 10000), (1000, 10000))) {
       val fb = EmitFunctionBuilder[Region, Long]("test_pointers")
+      val cb = fb.ecb
       val stringPT = PString(true)
-      val tba = new TakeByRVAS(PString(true), PInt64Optional, PArray(stringPT, required = true), fb)
+      val tba = new TakeByRVAS(PString(true), PInt64Optional, PArray(stringPT, required = true), cb)
       Region.scoped { r =>
         val argR = fb.getArg[Region](1)
-        val i = fb.newField[Long]
-        val off = fb.newField[Long]
+        val i = fb.genFieldThisRef[Long]()
+        val off = fb.genFieldThisRef[Long]()
         val rt = tba.resultType
 
         fb.emit(Code(
@@ -46,7 +47,8 @@ class TakeByAggregatorSuite extends HailSuite {
 
   @Test def testMissing() {
     val fb = EmitFunctionBuilder[Region, Long]("take_by_test_missing")
-    val tba = new TakeByRVAS(PInt32Optional, PInt32Optional, PArray(PInt32Optional, required = true), fb)
+    val cb = fb.ecb
+    val tba = new TakeByRVAS(PInt32Optional, PInt32Optional, PArray(PInt32Optional, required = true), cb)
     Region.scoped { r =>
       val argR = fb.getArg[Region](1)
       val rt = tba.resultType
@@ -76,15 +78,16 @@ class TakeByAggregatorSuite extends HailSuite {
     for (n <- Array(1, 2, 10, 100, 1000, 10000, 100000, 1000000)) {
       val nToTake = 1025
       val fb = EmitFunctionBuilder[Region, Long]("take_by_test_random")
+      val cb = fb.ecb
 
       Region.scoped { r =>
         val argR = fb.getArg[Region](1)
-        val i = fb.newField[Int]
-        val random = fb.newField[Int]
-        val resultOff = fb.newField[Long]
+        val i = fb.genFieldThisRef[Int]()
+        val random = fb.genFieldThisRef[Int]()
+        val resultOff = fb.genFieldThisRef[Long]()
 
-        val tba = new TakeByRVAS(PInt32Required, PInt32Required, PArray(PInt32Required, required = true), fb)
-        val ab = new agg.StagedArrayBuilder(PInt32Required, fb, argR)
+        val tba = new TakeByRVAS(PInt32Required, PInt32Required, PArray(PInt32Required, required = true), cb)
+        val ab = new agg.StagedArrayBuilder(PInt32Required, cb, argR)
         val rt = tba.resultType
         val er = new EmitRegion(fb.apply_method, argR)
         val rng = er.mb.newRNG(0)

@@ -100,38 +100,38 @@ object StringFunctions extends RegistryFunctions {
       asm4s.coerce[String](wrapArg(r, sT)(s)).invoke[Int]("length")
     }
 
-    registerCode("slice", TString, TInt32, TInt32, TString, null) {
+    registerCode("substring", TString, TInt32, TInt32, TString, null) {
       case (r: EmitRegion, rt, (sT: PString, s: Code[Long]), (startT, start: Code[Int]), (endT, end: Code[Int])) =>
       unwrapReturn(r, rt)(asm4s.coerce[String](wrapArg(r, sT)(s)).invoke[Int, Int, String]("substring", start, end))
     }
 
-    registerIR("[*:*]", TString, TInt32, TInt32, TString) { (str, start, end) =>
+    registerIR("slice", TString, TInt32, TInt32, TString) { (str, start, end) =>
       val len = Ref(genUID(), TInt32)
       val s = Ref(genUID(), TInt32)
       val e = Ref(genUID(), TInt32)
       Let(len.name, invoke("length", TInt32, str),
         Let(s.name, softBounds(start, len),
           Let(e.name, softBounds(end, len),
-            invoke("slice", TString, str, s, If(e < s, s, e)))))
+            invoke("substring", TString, str, s, If(e < s, s, e)))))
     }
 
-    registerIR("[]", TString, TInt32, TString) { (s, i) =>
+    registerIR("index", TString, TInt32, TString) { (s, i) =>
       val len = Ref(genUID(), TInt32)
       val idx = Ref(genUID(), TInt32)
       Let(len.name, invoke("length", TInt32, s),
         Let(idx.name,
           If((i < -len) || (i >= len),
-            Die(invoke("+", TString,
+            Die(invoke("concat", TString,
               Str("string index out of bounds: "),
-              invoke("+", TString,
+              invoke("concat", TString,
                 invoke("str", TString, i),
-                invoke("+", TString, Str(" / "), invoke("str", TString, len)))), TInt32),
+                invoke("concat", TString, Str(" / "), invoke("str", TString, len)))), TInt32),
             If(i < 0, i + len, i)),
-        invoke("slice", TString, s, idx, idx + 1)))
+        invoke("substring", TString, s, idx, idx + 1)))
     }
-    registerIR("[:]", TString, TString)(x => x)
-    registerIR("[*:]", TString, TInt32, TString) { (s, start) => invoke("[*:*]", TString, s, start, invoke("length", TInt32, s)) }
-    registerIR("[:*]", TString, TInt32, TString) { (s, end) => invoke("[*:*]", TString, s, I32(0), end) }
+
+    registerIR("sliceRight", TString, TInt32, TString) { (s, start) => invoke("slice", TString, s, start, invoke("length", TInt32, s)) }
+    registerIR("sliceLeft", TString, TInt32, TString) { (s, end) => invoke("slice", TString, s, I32(0), end) }
 
     registerCode("str", tv("T"), TString, null) { case (r, rt, (aT, a)) =>
       val annotation = boxArg(r, aT)(a)
@@ -162,9 +162,9 @@ object StringFunctions extends RegistryFunctions {
     registerWrappedScalaFunction("startswith", TString, TString, TBoolean, null)(thisClass, "startswith")
     registerWrappedScalaFunction("endswith", TString, TString, TBoolean, null)(thisClass, "endswith")
 
-    registerWrappedScalaFunction("~", TString, TString, TBoolean, null)(thisClass, "regexMatch")
+    registerWrappedScalaFunction("regexMatch", TString, TString, TBoolean, null)(thisClass, "regexMatch")
 
-    registerWrappedScalaFunction("+", TString, TString, TString, null)(thisClass, "concat")
+    registerWrappedScalaFunction("concat", TString, TString, TString, null)(thisClass, "concat")
 
     registerWrappedScalaFunction("split", TString, TString, TArray(TString), null)(thisClass, "split")
 
@@ -178,11 +178,11 @@ object StringFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("firstMatchIn", TString, TString, TArray(TString), null) {
       case (er: EmitRegion, rt: PArray, (sT: PString, s: EmitCode), (rT: PString, r: EmitCode)) =>
-      val out: LocalRef[IndexedSeq[String]] = er.mb.newLocal[IndexedSeq[String]]
+      val out: LocalRef[IndexedSeq[String]] = er.mb.newLocal[IndexedSeq[String]]()
 
       val srvb: StagedRegionValueBuilder = new StagedRegionValueBuilder(er, rt)
-      val len: LocalRef[Int] = er.mb.newLocal[Int]
-      val elt: LocalRef[String] = er.mb.newLocal[String]
+      val len: LocalRef[Int] = er.mb.newLocal[Int]()
+      val elt: LocalRef[String] = er.mb.newLocal[String]()
 
       val setup = Code(s.setup, r.setup)
       val missing = s.m || r.m || Code(
@@ -210,12 +210,12 @@ object StringFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("hamming", TString, TString, TInt32, null) {
       case (r: EmitRegion, rt, (e1T: PString, e1: EmitCode), (e2T: PString, e2: EmitCode)) =>
-      val len = r.mb.newLocal[Int]
-      val i = r.mb.newLocal[Int]
-      val n = r.mb.newLocal[Int]
+      val len = r.mb.newLocal[Int]()
+      val i = r.mb.newLocal[Int]()
+      val n = r.mb.newLocal[Int]()
 
-      val v1 = r.mb.newLocal[Long]
-      val v2 = r.mb.newLocal[Long]
+      val v1 = r.mb.newLocal[Long]()
+      val v2 = r.mb.newLocal[Long]()
 
       val m = Code(
         v1 := e1.value[Long],
@@ -226,8 +226,8 @@ object StringFunctions extends RegistryFunctions {
         Code(n := 0,
           i := 0,
           Code.whileLoop(i < len,
-            Region.loadByte(e1T.bytesOffset(v1) + i.toL)
-              .cne(Region.loadByte(e2T.bytesOffset(v2) + i.toL)).mux(
+            Region.loadByte(e1T.bytesAddress(v1) + i.toL)
+              .cne(Region.loadByte(e2T.bytesAddress(v2) + i.toL)).mux(
               n += 1,
               Code._empty),
             i += 1),

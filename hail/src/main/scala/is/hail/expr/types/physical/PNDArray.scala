@@ -22,7 +22,7 @@ abstract class PNDArray extends PType {
   lazy val virtualType: TNDArray = TNDArray(elementType.virtualType, Nat(nDims))
   assert(elementType.required, "elementType must be required")
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = throw new UnsupportedOperationException
+  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = throw new UnsupportedOperationException
 
   val flags: StaticallyKnownField[PInt32Required.type, Int]
   val offset: StaticallyKnownField[PInt32Required.type, Int]
@@ -36,24 +36,24 @@ abstract class PNDArray extends PType {
     Region.loadLong(shape.pType.fieldOffset(shape.load(off), idx))
   }
 
-  def numElements(shape: IndexedSeq[Code[Long]], mb: MethodBuilder): Code[Long]
+  def numElements(shape: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): Code[Long]
 
   def makeShapeBuilder(shapeArray: IndexedSeq[Code[Long]]): StagedRegionValueBuilder => Code[Unit]
 
-  def makeDefaultStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: MethodBuilder): StagedRegionValueBuilder => Code[Unit]
+  def makeDefaultStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit]
 
-  def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: MethodBuilder): Code[_]
+  def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_]
 
-  def outOfBounds(indices: IndexedSeq[Code[Long]], nd: Value[Long], mb: MethodBuilder): Code[Boolean]
+  def outOfBounds(indices: IndexedSeq[Code[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Boolean]
 
-  def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: MethodBuilder): Code[Long]
+  def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long]
 
-  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Value[Long]], mb: MethodBuilder): (Code[Unit], IndexedSeq[Value[Long]])
+  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): (Code[Unit], IndexedSeq[Value[Long]])
 
-  def copyRowMajorToColumnMajor(rowMajorAddress: Code[Long], targetAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: MethodBuilder): Code[Unit]
+  def copyRowMajorToColumnMajor(rowMajorAddress: Code[Long], targetAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: EmitMethodBuilder[_]): Code[Unit]
 
-  def copyColumnMajorToRowMajor(colMajorAddress: Code[Long], targetAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: MethodBuilder): Code[Unit]
+  def copyColumnMajorToRowMajor(colMajorAddress: Code[Long], targetAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: EmitMethodBuilder[_]): Code[Unit]
 
   def construct(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]),
-    stridesBuilder: (StagedRegionValueBuilder => Code[Unit]), data: Code[Long], mb: MethodBuilder): Code[Long]
+    stridesBuilder: (StagedRegionValueBuilder => Code[Unit]), data: Code[Long], mb: EmitMethodBuilder[_]): Code[Long]
 }

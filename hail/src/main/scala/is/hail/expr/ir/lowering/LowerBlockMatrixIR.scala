@@ -156,7 +156,7 @@ class LowerBlockMatrixIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
               NDArrayMatMul(left.blockBody(leftRef), right.blockBody(rightRef))))
 
           val sumRef = Ref(genUID(), blockMultiply.typ)
-          StreamFold(ToStream(invoke("[*:]", ctxType, ctxRef, I32(1))),
+          StreamFold(ToStream(invoke("sliceRight", ctxType, ctxRef, I32(1))),
             Let(ctxEltRef.name, ArrayRef(ctxRef, 0), blockMultiply),
             sumRef.name,
             ctxEltRef.name,

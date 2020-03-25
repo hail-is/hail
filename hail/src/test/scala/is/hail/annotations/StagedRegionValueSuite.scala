@@ -19,8 +19,8 @@ class StagedRegionValueSuite extends HailSuite {
   def testCanonicalString() {
     val rt = PCanonicalString()
     val input = "hello"
-    val fb = FunctionBuilder.functionBuilder[Region, String, Long]
-    val srvb = new StagedRegionValueBuilder(fb, rt)
+    val fb = EmitFunctionBuilder[Region, String, Long]("fb")
+    val srvb = new StagedRegionValueBuilder(fb.emb, rt)
 
     fb.emit(
       Code(
@@ -61,7 +61,7 @@ class StagedRegionValueSuite extends HailSuite {
   def testInt() {
     val rt = PInt32()
     val input = 3
-    val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
+    val fb = EmitFunctionBuilder[Region, Int, Long]("fb")
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
     fb.emit(
@@ -99,7 +99,7 @@ class StagedRegionValueSuite extends HailSuite {
   def testArray() {
     val rt = PArray(PInt32())
     val input = 3
-    val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
+    val fb = EmitFunctionBuilder[Region, Int, Long]("fb")
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
     fb.emit(
@@ -139,7 +139,7 @@ class StagedRegionValueSuite extends HailSuite {
   def testStruct() {
     val rt = PStruct("a" -> PString(), "b" -> PInt32())
     val input = 3
-    val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
+    val fb = EmitFunctionBuilder[Region, Int, Long]("fb")
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
     fb.emit(
@@ -181,7 +181,7 @@ class StagedRegionValueSuite extends HailSuite {
   def testArrayOfStruct() {
     val rt = PArray(PStruct("a" -> PInt32(), "b" -> PString()))
     val input = "hello"
-    val fb = FunctionBuilder.functionBuilder[Region, String, Long]
+    val fb = EmitFunctionBuilder[Region, String, Long]("fb")
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
     val struct = { ssb: StagedRegionValueBuilder =>
@@ -323,7 +323,7 @@ class StagedRegionValueSuite extends HailSuite {
   def testStructWithArray() {
     val rt = PStruct("a" -> PString(), "b" -> PArray(PInt32()))
     val input = "hello"
-    val fb = FunctionBuilder.functionBuilder[Region, String, Long]
+    val fb = EmitFunctionBuilder[Region, String, Long]("fb")
     val codeInput = fb.getArg[String](2)
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
@@ -388,7 +388,7 @@ class StagedRegionValueSuite extends HailSuite {
   def testMissingArray() {
     val rt = PArray(PInt32())
     val input = 3
-    val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
+    val fb = EmitFunctionBuilder[Region, Int, Long]("fb")
     val codeInput = fb.getArg[Int](2)
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
@@ -433,7 +433,7 @@ class StagedRegionValueSuite extends HailSuite {
   @Test
   def testAddPrimitive() {
     val t = PStruct("a" -> PInt32(), "b" -> PBoolean(), "c" -> PFloat64())
-    val fb = FunctionBuilder.functionBuilder[Region, Int, Boolean, Double, Long]
+    val fb = EmitFunctionBuilder[Region, Int, Boolean, Double, Long]("fb")
     val srvb = new StagedRegionValueBuilder(fb, t)
 
     fb.emit(

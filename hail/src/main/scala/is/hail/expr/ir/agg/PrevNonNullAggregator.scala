@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, RegionUtils, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitCode, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder, typeToTypeInfo}
 import is.hail.expr.types.physical._
 import is.hail.utils._
 
@@ -11,8 +11,8 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
   assert(PType.canonical(typ) == typ)
   val resultType: PType = typ
 
-  def createState(fb: EmitFunctionBuilder[_]): State =
-    new TypedRegionBackedAggState(typ.setRequired(false), fb)
+  def createState(cb: EmitClassBuilder[_]): State =
+    new TypedRegionBackedAggState(typ.setRequired(false), cb)
 
   def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)
@@ -21,7 +21,7 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
 
   def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     val Array(elt: EmitCode) = seq
-    val v = state.fb.newField(typeToTypeInfo(typ))
+    val v = state.cb.genFieldThisRef()(typeToTypeInfo(typ))
     Code(
       elt.setup,
       elt.m.mux(Code._empty,
@@ -31,7 +31,7 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
     val t = other.get()
-    val v = state.fb.newField(typeToTypeInfo(typ))
+    val v = state.cb.genFieldThisRef()(typeToTypeInfo(typ))
     Code(
       t.setup,
       t.m.mux(Code._empty,

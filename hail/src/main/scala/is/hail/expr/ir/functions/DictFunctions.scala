@@ -49,13 +49,13 @@ object DictFunctions extends RegistryFunctions {
       get(d, k, NA(types.coerce[TDict](d.typ).valueType))
     }
 
-    registerIR("[]", tdict, tv("key"), tv("value")) { (d, k) =>
+    registerIR("index", tdict, tv("key"), tv("value")) { (d, k) =>
       val vtype = types.coerce[TBaseStruct](types.coerce[TContainer](d.typ).elementType).types(1)
-      val errormsg = invoke("+", TString,
+      val errormsg = invoke("concat", TString,
         Str("Key '"),
-        invoke("+", TString,
+        invoke("concat", TString,
           invoke("str", TString, k),
-          invoke("+", TString,
+          invoke("concat", TString,
             Str("'    not found in dictionary. Keys: "),
             invoke("str", TString, invoke("keys", TArray(k.typ), d)))))
       get(d, k, Die(errormsg, vtype))

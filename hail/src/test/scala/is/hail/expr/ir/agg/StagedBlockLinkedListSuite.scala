@@ -18,9 +18,10 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
 
     private val initF: Region => Long = {
       val fb = EmitFunctionBuilder[Region, Long]("init")
-      val sbll = new StagedBlockLinkedList(elemPType, fb)
+      val cb = fb.ecb
+      val sbll = new StagedBlockLinkedList(elemPType, cb)
 
-      val ptr = fb.newField[Long]
+      val ptr = fb.genFieldThisRef[Long]()
       val r = fb.getArg[Region](1)
       fb.emit(Code(
         ptr := r.allocate(sbll.storageType.alignment, sbll.storageType.byteSize),
@@ -33,7 +34,8 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
 
     private val pushF: (Region, Long, E) => Unit = {
       val fb = EmitFunctionBuilder[Region, Long, Long, Unit]("push")
-      val sbll = new StagedBlockLinkedList(elemPType, fb)
+      val cb = fb.ecb
+      val sbll = new StagedBlockLinkedList(elemPType, cb)
 
       val r = fb.getArg[Region](1)
       val ptr = fb.getArg[Long](2)
@@ -53,8 +55,9 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
 
     private val appendF: (Region, Long, BlockLinkedList[E]) => Unit = {
       val fb = EmitFunctionBuilder[Region, Long, Long, Unit]("append")
-      val sbll1 = new StagedBlockLinkedList(elemPType, fb)
-      val sbll2 = new StagedBlockLinkedList(elemPType, fb)
+      val cb = fb.ecb
+      val sbll1 = new StagedBlockLinkedList(elemPType, cb)
+      val sbll2 = new StagedBlockLinkedList(elemPType, cb)
 
       val r = fb.getArg[Region](1)
       val ptr1 = fb.getArg[Long](2)
@@ -74,11 +77,12 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
 
     private val materializeF: (Region, Long) => IndexedSeq[E] = {
       val fb = EmitFunctionBuilder[Region, Long, Long]("materialize")
-      val sbll = new StagedBlockLinkedList(elemPType, fb)
+      val cb = fb.ecb
+      val sbll = new StagedBlockLinkedList(elemPType, cb)
 
       val rArg = fb.getArg[Region](1).load
       val ptr = fb.getArg[Long](2).load
-      val rField = fb.newField[Region]
+      val rField = fb.genFieldThisRef[Region]()
       val srvb = new StagedRegionValueBuilder(EmitRegion(fb.apply_method, rField), arrayPType)
       fb.emit(Code(
         rField := rArg,
@@ -95,9 +99,10 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
 
     private val initWithDeepCopyF: (Region, BlockLinkedList[E]) => Long = {
       val fb = EmitFunctionBuilder[Region, Long, Long]("init_with_copy")
-      val sbll2 = new StagedBlockLinkedList(elemPType, fb)
-      val sbll1 = new StagedBlockLinkedList(elemPType, fb)
-      val dstPtr = fb.newField[Long]
+      val cb = fb.ecb
+      val sbll2 = new StagedBlockLinkedList(elemPType, cb)
+      val sbll1 = new StagedBlockLinkedList(elemPType, cb)
+      val dstPtr = fb.genFieldThisRef[Long]()
       val r = fb.getArg[Region](1)
       val srcPtr = fb.getArg[Long](2)
       fb.emit(Code(

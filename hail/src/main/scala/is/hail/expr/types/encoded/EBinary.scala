@@ -2,6 +2,7 @@ package is.hail.expr.types.encoded
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.BaseType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -12,19 +13,19 @@ case object EBinaryOptional extends EBinary(false)
 case object EBinaryRequired extends EBinary(true)
 
 class EBinary(override val required: Boolean) extends EType {
-  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
+  def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     val addr = coerce[Long](v)
     val len = mb.newLocal[Int]("len")
     val bT = pt.asInstanceOf[PBinary]
     Code(
       len := bT.loadLength(addr),
       out.writeInt(len),
-      out.writeBytes(bT.bytesOffset(addr), len))
+      out.writeBytes(bT.bytesAddress(addr), len))
   }
 
   def _buildDecoder(
     pt: PType,
-    mb: MethodBuilder,
+    mb: EmitMethodBuilder[_],
     region: Value[Region],
     in: Value[InputBuffer]
   ): Code[_] = {
@@ -35,11 +36,11 @@ class EBinary(override val required: Boolean) extends EType {
       len := in.readInt(),
       barray := bT.allocate(region, len),
       bT.storeLength(barray, len),
-      in.readBytes(region, bT.bytesOffset(barray), len),
+      in.readBytes(region, bT.bytesAddress(barray), len),
       barray.load())
   }
 
-  def _buildSkip(mb: MethodBuilder, r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
+  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
     val len = mb.newLocal[Int]("len")
     Code(
       len := in.readInt(),

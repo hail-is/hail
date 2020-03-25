@@ -54,7 +54,7 @@ sealed trait ComparisonOp[ReturnType] {
   def t2: Type
   val op: CodeOrdering.Op
   val strict: Boolean = true
-  def codeOrdering(mb: EmitMethodBuilder, t1p: PType, t2p: PType): CodeOrdering.F[op.ReturnType] = {
+  def codeOrdering(mb: EmitMethodBuilder[_], t1p: PType, t2p: PType): CodeOrdering.F[op.ReturnType] = {
     ComparisonOp.checkCompatible(t1p.virtualType, t2p.virtualType)
     mb.getCodeOrdering(t1p, t2p, op)
   }

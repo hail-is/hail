@@ -67,6 +67,7 @@ if __name__ == '__main__':
 
     combine = p.new_task('combine_output')
     combine.command(f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output))
+    combine.command(f'cat {combine.ofile}')
 
     output_file = os.path.join(BUCKET_BASE, f'{labeled_sha}.json')
     print(f'writing output to {output_file}')

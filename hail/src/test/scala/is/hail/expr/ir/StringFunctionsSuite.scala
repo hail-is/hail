@@ -14,21 +14,21 @@ class StringFunctionsSuite extends TestNGSuite {
   implicit val execStrats = ExecStrategy.javaOnly
 
   @Test def testRegexMatch() {
-    assertEvalsTo(invoke("~", TBoolean, Str("a"), NA(TString)), null)
-    assertEvalsTo(invoke("~", TBoolean, NA(TString), Str("b")), null)
+    assertEvalsTo(invoke("regexMatch", TBoolean, Str("a"), NA(TString)), null)
+    assertEvalsTo(invoke("regexMatch", TBoolean, NA(TString), Str("b")), null)
 
-    assertEvalsTo(invoke("~", TBoolean, Str("a"), Str("b")), false)
-    assertEvalsTo(invoke("~", TBoolean, Str("a"), Str("a")), true)
+    assertEvalsTo(invoke("regexMatch", TBoolean, Str("a"), Str("b")), false)
+    assertEvalsTo(invoke("regexMatch", TBoolean, Str("a"), Str("a")), true)
 
-    assertEvalsTo(invoke("~", TBoolean, Str("[a-z][0-9]"), Str("t7")), true)
-    assertEvalsTo(invoke("~", TBoolean, Str("[a-z][0-9]"), Str("3x")), false)
+    assertEvalsTo(invoke("regexMatch", TBoolean, Str("[a-z][0-9]"), Str("t7")), true)
+    assertEvalsTo(invoke("regexMatch", TBoolean, Str("[a-z][0-9]"), Str("3x")), false)
   }
 
   @Test def testConcat() {
-    assertEvalsTo(invoke("+", TString, Str("a"), NA(TString)), null)
-    assertEvalsTo(invoke("+", TString, NA(TString), Str("b")), null)
+    assertEvalsTo(invoke("concat", TString, Str("a"), NA(TString)), null)
+    assertEvalsTo(invoke("concat", TString, NA(TString), Str("b")), null)
 
-    assertEvalsTo(invoke("+", TString, Str("a"), Str("b")), "ab")
+    assertEvalsTo(invoke("concat", TString, Str("a"), Str("b")), "ab")
   }
 
   @Test def testSplit() {

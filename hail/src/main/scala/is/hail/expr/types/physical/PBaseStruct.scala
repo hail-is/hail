@@ -89,10 +89,10 @@ abstract class PBaseStruct extends PType {
     sb.result()
   }
 
-  def codeOrdering(mb: EmitMethodBuilder, so: Array[SortOrder]): CodeOrdering =
+  def codeOrdering(mb: EmitMethodBuilder[_], so: Array[SortOrder]): CodeOrdering =
     codeOrdering(mb, this, so)
 
-  def codeOrdering(mb: EmitMethodBuilder, other: PType, so: Array[SortOrder]): CodeOrdering
+  def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: Array[SortOrder]): CodeOrdering
 
   def isIsomorphicTo(other: PBaseStruct): Boolean =
     size == other.size && isCompatibleWith(other)

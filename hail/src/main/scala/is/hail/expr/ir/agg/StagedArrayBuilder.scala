@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitFunctionBuilder
+import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder}
 import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.utils._
@@ -11,15 +11,15 @@ object StagedArrayBuilder {
   val END_SERIALIZATION: Int = 0x12345678
 }
 
-class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Value[Region], var initialCapacity: Int = 8) {
+class StagedArrayBuilder(eltType: PType, cb: EmitClassBuilder[_], region: Value[Region], var initialCapacity: Int = 8) {
   val eltArray = PArray(eltType.setRequired(false), required = true) // element type must be optional for serialization to work
   val stateType = PTuple(true, PInt32Required, PInt32Required, eltArray)
 
-  val size: ClassFieldRef[Int] = fb.newField[Int]("size")
-  private val capacity = fb.newField[Int]("capacity")
-  val data = fb.newField[Long]("data")
+  val size: Settable[Int] = cb.genFieldThisRef[Int]("size")
+  private val capacity = cb.genFieldThisRef[Int]("capacity")
+  val data = cb.genFieldThisRef[Long]("data")
 
-  private val tmpOff = fb.newField[Long]("tmp_offset")
+  private val tmpOff = cb.genFieldThisRef[Long]("tmp_offset")
   private val currentSizeOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 0)
   private val capacityOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 1)
   private val dataOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 2)
@@ -39,11 +39,11 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Val
       tmpOff := src,
       size := Region.loadInt(currentSizeOffset(tmpOff)),
       capacity := Region.loadInt(capacityOffset(tmpOff)),
-      data := StagedRegionValueBuilder.deepCopyFromOffset(fb, region, eltArray, Region.loadAddress(dataOffset(tmpOff))))
+      data := StagedRegionValueBuilder.deepCopyFromOffset(cb, region, eltArray, Region.loadAddress(dataOffset(tmpOff))))
   }
 
   def reallocateData(): Code[Unit] = {
-    data := StagedRegionValueBuilder.deepCopyFromOffset(fb, region, eltArray, data)
+    data := StagedRegionValueBuilder.deepCopyFromOffset(cb, region, eltArray, data)
   }
 
   def storeTo(dest: Code[Long]): Code[Unit] = {
@@ -57,7 +57,7 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Val
 
   def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
     { ob: Value[OutputBuffer] =>
-      val enc = TypedCodecSpec(eltArray, codec).buildEmitEncoderF[Long](eltArray, fb)
+      val enc = TypedCodecSpec(eltArray, codec).buildEmitEncoderF[Long](eltArray, cb)
 
       Code(
         ob.writeInt(size),
@@ -69,7 +69,7 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Val
   }
 
   def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
-    val (decType, dec) = TypedCodecSpec(eltArray, codec).buildEmitDecoderF[Long](eltArray.virtualType, fb)
+    val (decType, dec) = TypedCodecSpec(eltArray, codec).buildEmitDecoderF[Long](eltArray.virtualType, cb)
     assert(decType == eltArray)
 
     { (ib: Value[InputBuffer]) =>
@@ -97,7 +97,7 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Val
     Code(
       eltArray.setElementPresent(data, size),
       (if (deepCopy)
-        StagedRegionValueBuilder.deepCopy(fb, region, eltType, elt, dest)
+        StagedRegionValueBuilder.deepCopy(cb, region, eltType, elt, dest)
       else
         Region.storeIRIntermediate(eltType)(dest, elt)),
       incrementSize())
@@ -126,7 +126,7 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Val
   }
 
   private def resize(): Code[Unit] = {
-    val newDataOffset = fb.newField[Long]("new_data_offset")
+    val newDataOffset = cb.genFieldThisRef[Long]("new_data_offset")
     size.ceq(capacity)
       .orEmpty(
         Code(

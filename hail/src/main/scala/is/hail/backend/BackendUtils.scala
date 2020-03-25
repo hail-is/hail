@@ -4,9 +4,12 @@ import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.asm4s._
 
-class BackendUtils(mods: Array[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])]) {
-
+object BackendUtils {
   type F = AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]
+}
+
+class BackendUtils(mods: Array[(String, (Int, Region) => BackendUtils.F)]) {
+  import BackendUtils.F
 
   private[this] val loadedModules: Map[String, (Int, Region) => F] = mods.toMap
 
@@ -19,7 +22,6 @@ class BackendUtils(mods: Array[(String, (Int, Region) => AsmFunction3[Region, Ar
     val globalsBC = backend.broadcast(globals)
     val f = getModule(modID)
 
-    if (contexts.isEmpty) { return Array() }
     backend.parallelizeAndComputeWithIndex(contexts) { (ctx, i) =>
       val gs = globalsBC.value
       Region.scoped { region =>

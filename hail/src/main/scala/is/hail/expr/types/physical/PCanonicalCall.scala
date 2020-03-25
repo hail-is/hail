@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitFunctionBuilder
+import is.hail.expr.ir.EmitClassBuilder
 import is.hail.variant.Genotype
 
 final case class PCanonicalCall(required: Boolean = false) extends PCall {
@@ -17,12 +17,12 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
 
     def isPhased(c: Code[Int]): Code[Boolean] = (c & 0x1).ceq(1)
 
-    def forEachAllele(fb: EmitFunctionBuilder[_], _c: Code[Int], code: Code[Int] => Code[Unit]): Code[Unit] = {
-      val c = fb.newField[Int]
-      val c2 = fb.newField[Int]
-      val p = fb.newField[Int]
-      val j = fb.newField[Int]
-      val k = fb.newField[Int]
+    def forEachAllele(cb: EmitClassBuilder[_], _c: Code[Int], code: Code[Int] => Code[Unit]): Code[Unit] = {
+      val c = cb.genFieldThisRef[Int]()
+      val c2 = cb.genFieldThisRef[Int]()
+      val p = cb.genFieldThisRef[Int]()
+      val j = cb.genFieldThisRef[Int]()
+      val k = cb.genFieldThisRef[Int]()
 
       Code(
         c := _c,

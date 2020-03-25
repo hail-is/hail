@@ -6,9 +6,9 @@ import is.hail.asm4s._
 import is.hail.expr.types.physical.PType
 
 object LinalgCodeUtils {
-  def copyRowMajorToColumnMajor(rowMajorFirstElementAddress: Code[Long], targetFirstElementAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], elementPType: PType, mb: MethodBuilder): Code[Unit] = {
-    val rowIndex = mb.newField[Long]
-    val colIndex = mb.newField[Long]
+  def copyRowMajorToColumnMajor(rowMajorFirstElementAddress: Code[Long], targetFirstElementAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], elementPType: PType, mb: MethodBuilder[_]): Code[Unit] = {
+    val rowIndex = mb.genFieldThisRef[Long]()
+    val colIndex = mb.genFieldThisRef[Long]()
     val rowMajorCoord: Code[Long] = nCols * rowIndex + colIndex
     val colMajorCoord: Code[Long] = nRows * colIndex + rowIndex
     val currentElement = Region.loadPrimitive(elementPType)(rowMajorFirstElementAddress + rowMajorCoord * elementPType.byteSize)
@@ -37,9 +37,9 @@ object LinalgCodeUtils {
     }
   }
 
-  def copyColumnMajorToRowMajor(colMajorFirstElementAddress: Code[Long], targetFirstElementAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], elementPType: PType, mb: MethodBuilder): Code[Unit] = {
-    val rowIndex = mb.newField[Long]
-    val colIndex = mb.newField[Long]
+  def copyColumnMajorToRowMajor(colMajorFirstElementAddress: Code[Long], targetFirstElementAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], elementPType: PType, mb: MethodBuilder[_]): Code[Unit] = {
+    val rowIndex = mb.genFieldThisRef[Long]()
+    val colIndex = mb.genFieldThisRef[Long]()
     val rowMajorCoord: Code[Long] = nCols * rowIndex + colIndex
     val colMajorCoord: Code[Long] = nRows * colIndex + rowIndex
     val currentElement = Region.loadPrimitive(elementPType)(colMajorFirstElementAddress + colMajorCoord * elementPType.byteSize)

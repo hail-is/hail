@@ -114,7 +114,7 @@ class CallFunctionsSuite extends TestNGSuite {
 
   @Test(dataProvider = "basicWithIndex")
   def alleleByIndex(c: Call, idx: Int) {
-    assertEvalsTo(invoke("[]", TInt32, IRCall(c), I32(idx)),
+    assertEvalsTo(invoke("index", TInt32, IRCall(c), I32(idx)),
       Option(c).map(c => Call.alleleByIndex(c, idx)).orNull)
   }
 

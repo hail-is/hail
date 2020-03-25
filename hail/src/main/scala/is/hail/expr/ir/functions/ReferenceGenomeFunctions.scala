@@ -10,7 +10,7 @@ import is.hail.variant.ReferenceGenome
 
 class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
 
-  def rgCode(mb: EmitMethodBuilder): Code[ReferenceGenome] = mb.getReferenceGenome(rg)
+  def rgCode(mb: EmitMethodBuilder[_]): Code[ReferenceGenome] = mb.getReferenceGenome(rg)
 
   var registered: Set[String] = Set[String]()
 

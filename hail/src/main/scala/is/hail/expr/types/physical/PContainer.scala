@@ -57,7 +57,7 @@ abstract class PContainer extends PIterable {
 
   def copyFrom(region: Region, srcOff: Long): Long
 
-  def copyFrom(mb: MethodBuilder, region: Code[Region], srcOff: Code[Long]): Code[Long]
+  def copyFrom(mb: EmitMethodBuilder[_], region: Code[Region], srcOff: Code[Long]): Code[Long]
 
   def loadElement(aoff: Long, length: Int, i: Int): Long
 
@@ -81,15 +81,15 @@ abstract class PContainer extends PIterable {
 
   def zeroes(region: Region, length: Int): Long
 
-  def zeroes(mb: MethodBuilder, region: Value[Region], length: Code[Int]): Code[Long]
+  def zeroes(mb: EmitMethodBuilder[_], region: Value[Region], length: Code[Int]): Code[Long]
 
-  def anyMissing(mb: MethodBuilder, aoff: Code[Long]): Code[Boolean]
+  def anyMissing(mb: EmitMethodBuilder[_], aoff: Code[Long]): Code[Boolean]
 
-  def forEach(mb: MethodBuilder, aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit]
+  def forEach(mb: EmitMethodBuilder[_], aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit]
 
   def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean]
 
-  def checkedConvertFrom(mb: EmitMethodBuilder, r: Value[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long]
+  def checkedConvertFrom(mb: EmitMethodBuilder[_], r: Value[Region], sourceOffset: Code[Long], sourceType: PContainer, msg: String): Code[Long]
 
   def nextElementAddress(currentOffset: Long): Long
 
