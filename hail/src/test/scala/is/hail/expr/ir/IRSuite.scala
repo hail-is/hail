@@ -1577,8 +1577,8 @@ class IRSuite extends HailSuite {
       assertEvalSame(zipToTuple(b, empty), FastIndexedSeq())
     }
 
-    assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range6, range8), "zip: length mismatch")
-    assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range12, lit6), "zip: length mismatch")
+    assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range6, range8))
+    assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range12, lit6))
   }
 
   @Test def testToSet() {
@@ -2636,7 +2636,7 @@ class IRSuite extends HailSuite {
       GetTupleElement(t, 1),
       In(2, TFloat64),
       Die("mumblefoo", TFloat64),
-      invoke("land", TBoolean, b, c), // ApplySpecial
+      invoke("&&", TBoolean, b, c), // ApplySpecial
       invoke("toFloat64", TFloat64, i), // Apply
       Literal(TStruct("x" -> TInt32), Row(1)),
       TableCount(table),
