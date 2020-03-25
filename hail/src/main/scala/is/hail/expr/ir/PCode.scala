@@ -276,3 +276,59 @@ class PCanonicalStringCode(val pt: PString, a: Code[Long]) extends PStringCode {
 
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
 }
+
+abstract class PLocusValue extends PValue {
+  def contig(): PStringCode
+
+  def position(): Value[Int]
+}
+
+object PCanonicalLocusSettable {
+  def apply(sb: SettableBuilder, pt: PLocus, name: String): PCanonicalLocusSettable = {
+    new PCanonicalLocusSettable(pt,
+      sb.newSettable[Long](s"${ name }_a"),
+      sb.newSettable[Long](s"${ name }_contig"),
+      sb.newSettable[Int](s"${ name }_position"))
+
+  }
+}
+
+class PCanonicalLocusSettable(
+  val pt: PLocus,
+  val a: Settable[Long],
+  _contig: Settable[Long],
+  val position: Settable[Int]
+) extends PLocusValue with PSettable {
+  def get = new PCanonicalLocusCode(pt, a)
+
+  def store(pc: PCode): Code[Unit] = {
+    Code(
+      a := pc.asInstanceOf[PCanonicalLocusCode].a,
+      _contig := pt.contig(a),
+      position := pt.position(a))
+  }
+
+  def contig(): PStringCode = new PCanonicalStringCode(pt.contigType, _contig)
+}
+
+abstract class PLocusCode extends PCode {
+  def memoize(cb: EmitCodeBuilder, name: String): PLocusValue
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PLocusValue
+}
+
+class PCanonicalLocusCode(val pt: PLocus, val a: Code[Long]) extends PLocusCode {
+  def code: Code[_] = a
+
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PLocusValue = {
+    val s = PCanonicalLocusSettable(sb, pt, name)
+    cb.assign(s, this)
+    s
+  }
+
+  def memoize(cb: EmitCodeBuilder, name: String): PLocusValue = memoize(cb, name, cb.localBuilder)
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PLocusValue = memoize(cb, name, cb.fieldBuilder)
+
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
+}
