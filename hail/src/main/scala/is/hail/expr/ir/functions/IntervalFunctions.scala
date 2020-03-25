@@ -3,7 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.{PInterval, PType}
+import is.hail.expr.types.physical.{PBoolean, PCanonicalInterval, PInterval, PType}
 import is.hail.expr.types.virtual.{TArray, TBoolean, TInt32, TInterval}
 import is.hail.utils._
 
@@ -11,7 +11,13 @@ object IntervalFunctions extends RegistryFunctions {
 
   def registerAll(): Unit = {
 
-    registerCodeWithMissingness("Interval", tv("T"), tv("T"), TBoolean, TBoolean, TInterval(tv("T")), null) {
+    registerCodeWithMissingness("Interval", tv("T"), tv("T"), TBoolean, TBoolean, TInterval(tv("T")),
+      { case (startpt, endpt, includesStartPT, includesEndPT) =>
+        PCanonicalInterval(
+          InferPType.getNestedElementPTypes(Seq(startpt, endpt)),
+          required = includesStartPT.required && includesEndPT.required
+        )
+      }) {
       case (r, rt, (startT, start), (endT, end), (includeStartT, includeStart), (includeEndT, includeEnd)) =>
         val srvb = new StagedRegionValueBuilder(r, rt)
 
@@ -49,7 +55,6 @@ object IntervalFunctions extends RegistryFunctions {
     registerCodeWithMissingness("start", TInterval(tv("T")), tv("T"),
       (x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
       case (r, rt, (intervalT: PInterval, interval)) =>
-        val region = r.region
         val iv = r.mb.newLocal[Long]
         EmitCode(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
@@ -61,7 +66,6 @@ object IntervalFunctions extends RegistryFunctions {
     registerCodeWithMissingness("end", TInterval(tv("T")), tv("T"),
       (x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
       case (r, rt, (intervalT: PInterval, interval)) =>
-        val region = r.region
         val iv = r.mb.newLocal[Long]
         EmitCode(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
@@ -70,17 +74,23 @@ object IntervalFunctions extends RegistryFunctions {
         )
     }
 
-    registerCode("includesStart", TInterval(tv("T")), TBoolean, null) {
+    registerCode("includesStart", TInterval(tv("T")), TBoolean, (x: PType) =>
+      PBoolean(x.required)
+    ) {
       case (r, rt, (intervalT: PInterval, interval: Code[Long])) =>
         intervalT.includeStart(interval)
     }
 
-    registerCode("includesEnd", TInterval(tv("T")), TBoolean, null) {
+    registerCode("includesEnd", TInterval(tv("T")), TBoolean, (x: PType) =>
+      PBoolean(x.required)
+    ) {
       case (r, rt, (intervalT: PInterval, interval: Code[Long])) =>
         intervalT.includeEnd(interval)
     }
 
-    registerCodeWithMissingness("contains", TInterval(tv("T")), tv("T"), TBoolean, null) {
+    registerCodeWithMissingness("contains", TInterval(tv("T")), tv("T"), TBoolean, {
+      case(intervalT: PInterval, _: PType) => PBoolean(intervalT.required)
+    }) {
       case (r, rt, (intervalT: PInterval, intTriplet), (pointT, pointTriplet)) =>
         val mPoint = r.mb.newLocal[Boolean]
         val vPoint = r.mb.newLocal()(typeToTypeInfo(pointT))
@@ -104,7 +114,7 @@ object IntervalFunctions extends RegistryFunctions {
           PCode(rt, contains))
     }
 
-    registerCode("isEmpty", TInterval(tv("T")), TBoolean, null) {
+    registerCode("isEmpty", TInterval(tv("T")), TBoolean, (pt: PType) => PBoolean(pt.required)) {
       case (r, rt, (intervalT: PInterval, intOff)) =>
         val interval = new IRInterval(r, intervalT, intOff)
 
@@ -114,7 +124,10 @@ object IntervalFunctions extends RegistryFunctions {
         )
     }
 
-    registerCode("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, null) {
+    registerCode("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, {
+      case(i1t: PType, i2t: PType) =>
+        PBoolean(i1t.required && i2t.required)
+    }) {
       case (r, rt, (i1t: PInterval, iOff1), (i2t: PInterval, iOff2)) =>
         val interval1 = new IRInterval(r, i1t, iOff1)
         val interval2 = new IRInterval(r, i2t, iOff2)
