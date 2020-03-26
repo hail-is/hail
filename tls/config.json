@@ -1,0 +1,32 @@
+{
+  "ssl-mode": "REQUIRED",
+  "principals": [
+    {"name": "admin-pod", "domain": "admin-pod", "kind": "json", "trust": []},
+    {"name": "auth", "domain": "auth", "kind": "json", "trust": [
+      "admin-pod", "batch", "batch-driver", "ci", "notebook", "router",
+      "batch-tests", "ci-tests"]},
+    {"name": "batch", "domain": "batch", "kind": "json", "trust": [
+      "admin-pod", "router", "ci", "batch-tests"]},
+    {"name": "batch-driver", "domain": "batch-driver", "kind": "json", "trust": [
+      "admin-pod", "batch"]},
+    {"name": "ci", "domain": "ci", "kind": "json", "trust": [
+      "admin-pod", "router", "ci-tests"]},
+    {"name": "notebook", "domain": "notebook", "kind": "json", "trust": [
+      "admin-pod", "image-fetcher"]},
+    {"name": "gateway", "domain": "gateway", "kind": "nginx", "trust": [
+      "admin-pod"]},
+    {"name": "router", "domain": "router", "kind": "nginx", "trust": [
+      "admin-pod", "gateway"]},
+    {"name": "site", "domain": "site", "kind": "nginx", "trust": [
+      "admin-pod", "router"]},
+    {"name": "scorecard", "domain": "scorecard", "kind": "json", "trust": [
+      "admin-pod", "router"]},
+    {"name": "image-fetcher", "domain": "image-fetcher", "kind": "curl", "trust": []},
+    {"name": "blog", "domain": "blog", "kind": "nginx", "trust": [
+      "admin-pod", "router"]},
+    {"name": "batch-tests", "domain": "batch-tests", "kind": "json", "trust": [
+      "batch"]},
+    {"name": "ci-tests", "domain": "batch-tests", "kind": "json", "trust": [
+      "ci"]}
+  ]
+}

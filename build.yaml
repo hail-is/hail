@@ -107,6 +107,27 @@ steps:
        to: /repo/hailtop/
    dependsOn:
      - base_image
+ - kind: buildImage
+   name: create_certs_image
+   dockerFile: tls/Dockerfile
+   contextPath: tls
+   publishAs: create_certs_image
+   dependsOn:
+     - base_image
+ - kind: runImage
+   name: create_certs
+   image:
+     valueFrom: create_certs_image.image
+   script: |
+     set -ex
+     python3 create_certs.py {{ default_ns.name }} "$(cat config.json)"
+   serviceAccount:
+     name: admin
+     namespace:
+       valueFrom: default_ns.name
+   dependsOn:
+     - create_certs_image
+     - default_ns
  - kind: runImage
    name: check_gear
    image:
@@ -230,6 +251,7 @@ steps:
     - default_ns
     - service_base_image
     - create_deploy_config
+    - create_certs
  - kind: runImage
    name: create_session_key
    image:
@@ -883,6 +905,10 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: router/deployment.yaml
+   wait:
+    - kind: Service
+      name: router
+      for: alive
    link:
     - www
     - notebook
@@ -890,15 +916,21 @@ steps:
    dependsOn:
     - default_ns
     - router_image
+    - create_certs
  - kind: deploy
    name: deploy_site
    namespace:
      valueFrom: default_ns.name
    config: site/deployment.yaml
+   wait:
+    - kind: Service
+      name: site
+      for: alive
    dependsOn:
     - default_ns
     - site_image
     - deploy_router
+    - create_certs
  - kind: deploy
    name: deploy_scorecard
    namespace:
@@ -911,6 +943,7 @@ steps:
     - default_ns
     - scorecard_image
     - deploy_router
+    - create_certs
  - kind: runImage
    name: create_dummy_oauth2_client_secret
    image:
@@ -942,6 +975,7 @@ steps:
     - auth_database
     - auth_image
     - create_dummy_oauth2_client_secret
+    - create_certs
  - kind: runImage
    name: delete_batch_tables
    image:
@@ -1079,6 +1113,7 @@ steps:
     - batch_worker_image
     - batch_database
     - deploy_auth
+    - create_certs
  - kind: runImage
    name: test_batch
    image:
@@ -1103,6 +1138,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: ssl-config-batch-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
    dependsOn:
     - default_ns
     - batch_pods_ns
@@ -1186,6 +1225,7 @@ steps:
     - create_ci_test_repo
     - deploy_ci_agent
     - deploy_ci_agent_default
+    - create_certs
  - kind: runImage
    name: test_ci
    image:
@@ -1210,6 +1250,10 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /secret/ci-secrets
+    - name: ssl-config-ci-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
    timeout: 1200
    scopes:
     - test
@@ -1350,6 +1394,7 @@ steps:
     - deploy_router
     - deploy_auth
     - notebook_database
+    - create_certs
  - kind: deploy
    name: deploy_image_fetcher
    namespace:
@@ -1359,6 +1404,7 @@ steps:
     - default_ns
     - image_fetcher_image
     - deploy_notebook
+    - create_certs
  - kind: runImage
    name: cleanup_ci_test_repo
    image:
@@ -1430,6 +1476,11 @@ steps:
     - base_image
     - make_docs
     - build_hail
+ - kind: buildImage
+   name: blog_nginx_image
+   dockerFile: blog/Dockerfile.nginx
+   contextPath: blog
+   publishAs: blog_nginx
  - kind: deploy
    name: deploy_blog
    namespace:
@@ -1443,6 +1494,8 @@ steps:
    dependsOn:
     - default_ns
     - deploy_router
+    - blog_nginx_image
+    - create_certs
  - kind: runImage
    name: delete_batch_instances
    image:

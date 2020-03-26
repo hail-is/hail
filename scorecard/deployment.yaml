@@ -45,8 +45,12 @@ spec:
           - name: deploy-config
             mountPath: /deploy-config
             readOnly: true
+          - name: ssl-config-scorecard
+            mountPath: /ssl-config
+            readOnly: true
         readinessProbe:
             httpGet:
+              scheme: HTTPS
               path: /healthcheck
               port: 5000
             initialDelaySeconds: 5
@@ -63,17 +67,7 @@ spec:
           secret:
             optional: false
             secretName: deploy-config
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: scorecard
-  labels:
-    app: scorecard
-spec:
-  ports:
-  - port: 80
-    protocol: TCP
-    targetPort: 5000
-  selector:
-    app: scorecard
+        - name: ssl-config-scorecard
+          secret:
+            optional: false
+            secretName: ssl-config-scorecard

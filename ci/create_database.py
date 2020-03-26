@@ -22,8 +22,11 @@ def generate_token(size=12):
 
 
 async def write_user_config(namespace, database_name, user, config):
+    files = []
+
     with open(f'sql-config.json', 'w') as f:
         f.write(json.dumps(config))
+    files.append('sql-config.json')
 
     with open(f'sql-config.cnf', 'w') as f:
         f.write(f'''[client]
@@ -41,6 +44,7 @@ database={config["db"]}
             f.write(f'ssl-key={config["ssl-key"]}\n')
         if config.get('ssl-mode') is not None:
             f.write(f'ssl-mode={config["ssl-mode"]}\n')
+    files.append('sql-config.cnf')
 
     if os.path.exists('/sql-config/server-ca.pem'):
         shutil.copy('/sql-config/server-ca.pem', 'server-ca.pem')

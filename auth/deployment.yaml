@@ -188,10 +188,14 @@ spec:
           - name: gsa-key
             mountPath: /gsa-key
             readOnly: true
+          - name: ssl-config-auth
+            mountPath: /ssl-config
+            readOnly: true
          ports:
           - containerPort: 5000
          readinessProbe:
            httpGet:
+             scheme: HTTPS
              path: /healthcheck
              port: 5000
            initialDelaySeconds: 5
@@ -212,20 +216,10 @@ spec:
        - name: gsa-key
          secret:
            secretName: auth-gsa-key
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: auth
-  labels:
-    app: auth
-spec:
-  ports:
-   - port: 80
-     protocol: TCP
-     targetPort: 5000
-  selector:
-    app: auth
+       - name: ssl-config-auth
+         secret:
+           optional: false
+           secretName: ssl-config-auth
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler

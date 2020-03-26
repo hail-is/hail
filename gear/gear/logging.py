@@ -16,10 +16,10 @@ def configure_logging():
     fmt = CustomJsonFormatter('(levelname) (asctime) (filename) (funcNameAndLine) (message)')
 
     stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.INFO)
+    stream_handler.setLevel(logging.DEBUG)
     stream_handler.setFormatter(fmt)
 
-    logging.basicConfig(handlers=[stream_handler], level=logging.INFO)
+    logging.basicConfig(handlers=[stream_handler], level=logging.DEBUG)
 
 
 class AccessLogger(AbstractAccessLogger):
@@ -28,7 +28,7 @@ class AccessLogger(AbstractAccessLogger):
         now = datetime.datetime.now(tz)
         start_time = now - datetime.timedelta(seconds=duration)
         start_time_str = start_time.strftime('[%d/%b/%Y:%H:%M:%S %z]')
-        self.logger.info(f'{request.method} {request.path} '
+        self.logger.info(f'{request.scheme} {request.method} {request.path} '
                          f'done in {duration}s: {response.status}',
                          extra={'remote_address': request.remote,
                                 'request_start_time': start_time_str,

@@ -81,8 +81,12 @@ spec:
          - name: gsa-key
            mountPath: /gsa-key
            readOnly: true
+         - name: ssl-config-batch-driver
+           mountPath: /ssl-config
+           readOnly: true
         readinessProbe:
           httpGet:
+            scheme: HTTPS
             path: /healthcheck
             port: 5000
           initialDelaySeconds: 5
@@ -100,6 +104,10 @@ spec:
        - name: gsa-key
          secret:
            secretName: batch-gsa-key
+       - name: ssl-config-batch-driver
+         secret:
+           optional: false
+           secretName: ssl-config-batch-driver
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -194,8 +202,12 @@ spec:
          - name: gsa-key
            mountPath: /gsa-key
            readOnly: true
+         - name: ssl-config-batch
+           mountPath: /ssl-config
+           readOnly: true
         readinessProbe:
           httpGet:
+            scheme: HTTPS
             path: /healthcheck
             port: 5000
           initialDelaySeconds: 5
@@ -213,34 +225,10 @@ spec:
        - name: gsa-key
          secret:
            secretName: batch-gsa-key
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: batch
-  labels:
-    app: batch
-spec:
-  ports:
-  - port: 80
-    protocol: TCP
-    targetPort: 5000
-  selector:
-    app: batch
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: batch-driver
-  labels:
-    app: batch-driver
-spec:
-  ports:
-  - port: 80
-    protocol: TCP
-    targetPort: 5000
-  selector:
-    app: batch-driver
+       - name: ssl-config-batch
+         secret:
+           optional: false
+           secretName: ssl-config-batch
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler

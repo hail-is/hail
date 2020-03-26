@@ -8,6 +8,8 @@ import aiohttp
 import uvloop
 from kubernetes_asyncio import client, config
 
+from hailtop.ssl import ssl_client_session
+
 uvloop.install()
 
 
@@ -66,7 +68,7 @@ def internal_base_url(location, namespace, service):
 async def wait_for_service_alive(namespace, name, location, endpoint, headers):
     print('info: in wait_for_service_alive', file=sys.stderr)
     base_url = internal_base_url(location, namespace, name)
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5.0)) as session:
+    async with ssl_client_session(timeout=aiohttp.ClientTimeout(total=5.0)) as session:
         while True:
             try:
                 async with session.get(f'{base_url}{endpoint}', headers=headers) as resp:

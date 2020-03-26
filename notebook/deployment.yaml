@@ -92,6 +92,9 @@ spec:
           - name: sql-config
             mountPath: /sql-config
             readOnly: true
+          - name: ssl-config-notebook
+            mountPath: /ssl-config
+            readOnly: true
       volumes:
        - name: deploy-config
          secret:
@@ -105,34 +108,10 @@ spec:
          secret:
            optional: false
            secretName: "{{ notebook_database.user_secret_name }}"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: notebook
-  labels:
-    app: notebook
-spec:
-  ports:
-  - port: 80
-    protocol: TCP
-    targetPort: 5000
-  selector:
-    app: notebook
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: workshop
-  labels:
-    app: workshop
-spec:
-  ports:
-  - port: 80
-    protocol: TCP
-    targetPort: 5000
-  selector:
-    app: notebook
+       - name: ssl-config-notebook
+         secret:
+           optional: false
+           secretName: ssl-config-notebook
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler

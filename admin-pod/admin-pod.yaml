@@ -18,6 +18,7 @@ spec:
           - bash
           - -c
           - |
+              ln -s /ssl-config/admin-pod.curlrc $HOME/.curlrc
               ln -s /sql-config/sql-config.cnf $HOME/.my.cnf
               while true; do sleep 1000; done
          image: {{ service_base_image.image }}
@@ -28,6 +29,9 @@ spec:
           - name: sql-config
             mountPath: /sql-config
             readOnly: true
+          - name: ssl-config-admin-pod
+            mountPath: /ssl-config
+            readOnly: true
       volumes:
        - name: deploy-config
          secret:
@@ -35,3 +39,7 @@ spec:
        - name: sql-config
          secret:
            secretName: database-server-config
+       - name: ssl-config-admin-pod
+         secret:
+           optional: false
+           secretName: ssl-config-admin-pod
