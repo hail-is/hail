@@ -202,6 +202,8 @@ def is_transient_error(e):
     # ConnectionResetError: [Errno 104] Connection reset by peer
     #
     # google.auth.exceptions.TransportError: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))
+    #
+    # aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host batch.pr-6925-default-s24o4bgat8e8:80 ssl:None [Connect call failed ('10.36.7.86', 80)]
     if isinstance(e, aiohttp.ClientResponseError) and (
             e.status in (408, 500, 502, 503, 504)):
         # nginx returns 502 if it cannot connect to the upstream server
@@ -220,6 +222,8 @@ def is_transient_error(e):
         return True
     if isinstance(e, asyncio.TimeoutError):
         return True
+    if isinstance(e, aiohttp.client_exceptions.ClientConnectorError):
+        return is_transient_error(e.os_error)
     if isinstance(e, OSError) and (
             e.errno == errno.ETIMEDOUT or
             e.errno == errno.ECONNREFUSED or
