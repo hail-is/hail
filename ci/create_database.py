@@ -5,6 +5,7 @@ import string
 import json
 import secrets
 import asyncio
+import shutil
 from shlex import quote as shq
 from hailtop.utils import check_shell, check_shell_output
 from gear import Database
@@ -25,13 +26,11 @@ async def write_user_config(namespace, database_name, user, config):
         f.write(json.dumps(config))
 
     with open(f'sql-config.cnf', 'w') as f:
-        f.write(f'''
-[client]
-host={config["host"]}
-user={config["user"]}
-password="{config["password"]}"
-database={config["db"]}
-''')
+        f.write(f'[client]\n' + '\n'.join(f'{k}={v}' for k, v in config.items()))
+
+    shutil.copy('/sql-config/server-ca.pem', 'server-ca.pem')
+    shutil.copy('/sql-config/client-key.pem', 'client-key.pem')
+    shutil.copy('/sql-config/client-cert.pem', 'client-cert.pem')
 
     secret_name = f'sql-{database_name}-{user}-config'
     print(f'creating secret {secret_name}')
@@ -64,7 +63,6 @@ async def create_database():
 
     db = Database()
     await db.async_init()
-
     if scope == 'deploy':
         assert _name == database_name
 
@@ -96,7 +94,11 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
         'connection_name': sql_config['connection_name'],
         'user': admin_username,
         'password': admin_password,
-        'db': _name
+        'db': _name,
+        'ssl-ca': sql_config['ssl-ca'],
+        'ssl-cert': sql_config['ssl-cert'],
+        'ssl-key': sql_config['ssl-key'],
+        'ssl-mode': sql_config['ssl-mode']
     })
 
     await write_user_config(namespace, database_name, 'user', {
@@ -106,7 +108,11 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
         'connection_name': sql_config['connection_name'],
         'user': user_username,
         'password': user_password,
-        'db': _name
+        'db': _name,
+        'ssl-ca': sql_config['ssl-ca'],
+        'ssl-cert': sql_config['ssl-cert'],
+        'ssl-key': sql_config['ssl-key'],
+        'ssl-mode': sql_config['ssl-mode']
     })
 
 
