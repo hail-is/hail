@@ -6,7 +6,7 @@ import is.hail.annotations._
 import is.hail.expr.types.physical._
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
-import is.hail.rvd.{IndexSpec, MakeRVDSpec, RVDContext, RVDPartitioner, RVDType}
+import is.hail.rvd.{AbstractIndexSpec, IndexSpec, MakeRVDSpec, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
@@ -152,19 +152,20 @@ object RichContextRDDRegionValue {
     path: String,
     rowsCodecSpec: AbstractTypedCodecSpec,
     entriesCodecSpec: AbstractTypedCodecSpec,
+    rowsIndexSpec: AbstractIndexSpec,
+    entriesIndexSpec: AbstractIndexSpec,
     t: RVDType,
     rowsRVType: PStruct,
     entriesRVType: PStruct,
     partFiles: Array[String],
     partitioner: RVDPartitioner
   ) {
-    val rowsSpec = MakeRVDSpec(
-      t.key, rowsCodecSpec, partFiles, partitioner, IndexSpec.defaultAnnotation("../../index", t.kType))
+    val rowsSpec = MakeRVDSpec(t.key, rowsCodecSpec, partFiles, partitioner, rowsIndexSpec)
     rowsSpec.write(fs, path + "/rows/rows")
 
     val entriesSpec = MakeRVDSpec(
       FastIndexedSeq(), entriesCodecSpec, partFiles, RVDPartitioner.unkeyed(partitioner.numPartitions),
-      IndexSpec.defaultAnnotation("../../index", t.kType, withOffsetField = true))
+      entriesIndexSpec)
     entriesSpec.write(fs, path + "/entries/rows")
   }
 }

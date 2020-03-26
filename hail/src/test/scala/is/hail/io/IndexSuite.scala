@@ -2,6 +2,7 @@ package is.hail.io
 
 import is.hail.HailSuite
 import is.hail.annotations.Annotation
+import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical.{PInt32, PString, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.fs.FS
@@ -41,15 +42,7 @@ class IndexSuite extends HailSuite {
     attributes: Map[String, Any]) {
     val bufferSpec = BufferSpec.default
 
-    val leafType = LeafNodeBuilder.typ(keyType, annotationType)
-    val leafCodec = TypedCodecSpec(leafType, bufferSpec)
-    val leafEnc = leafCodec.buildEncoder(leafType)
-
-    val intType = InternalNodeBuilder.typ(keyType, annotationType)
-    val intCodec = TypedCodecSpec(intType, bufferSpec)
-    val intEnc = intCodec.buildEncoder(intType)
-
-    val iw = new IndexWriter(hc.sFS, file, keyType, annotationType, leafEnc, intEnc, branchingFactor, attributes)
+    val iw = IndexWriter.builder(keyType, annotationType, branchingFactor, attributes)(hc.sFS, file)
     data.zip(annotations).zipWithIndex.foreach { case ((s, a), offset) =>
       iw += (s, offset, a)
     }
@@ -57,7 +50,10 @@ class IndexSuite extends HailSuite {
   }
 
   def indexReader(fs: FS, file: String, annotationType: Type, keyPType: PType = PString()): IndexReader = {
-    val annotationPType = PType.canonical(annotationType)
+    indexReader(fs, file, PType.canonical(annotationType), keyPType)
+  }
+
+  def indexReader(fs: FS, file: String, annotationPType: PType, keyPType: PType): IndexReader = {
     val leafPType = LeafNodeBuilder.typ(keyPType, annotationPType)
     val intPType = InternalNodeBuilder.typ(keyPType, annotationPType)
     val leafSpec = TypedCodecSpec(leafPType, BufferSpec.default)
@@ -67,7 +63,9 @@ class IndexSuite extends HailSuite {
     assert(lrt == leafPType)
     val (irt, intDec) = intSpec.buildDecoder(intPType.virtualType)
     assert(irt == intPType)
-    IndexReaderBuilder.withDecoders(leafDec, intDec, keyPType.virtualType, annotationType, leafPType, intPType).apply(fs, file, 8)
+    IndexReaderBuilder.withDecoders(leafDec, intDec,
+      keyPType.virtualType, annotationPType.virtualType,
+      leafPType, intPType).apply(fs, file, 8)
   }
 
   def writeIndex(file: String,
@@ -273,7 +271,7 @@ class IndexSuite extends HailSuite {
 
       val leafChildren = stringsWithDups.zipWithIndex.map { case (s, i) => LeafChild(Row(s, i), i, Row()) }.toFastIndexedSeq
 
-      val index = indexReader(hc.sFS, file, TStruct.empty, keyPType = PStruct("a" -> PString(), "b" -> PInt32()))
+      val index = indexReader(hc.sFS, file, +PStruct(), keyPType = PStruct("a" -> PString(), "b" -> PInt32()))
       assert(index.queryByInterval(Row("cat", 3), Row("cat", 5), includesStart = true, includesEnd = false).toFastIndexedSeq ==
         leafChildren.slice(3, 5))
       assert(index.queryByInterval(Row("cat"), Row("cat", 5), includesStart = true, includesEnd = false).toFastIndexedSeq ==

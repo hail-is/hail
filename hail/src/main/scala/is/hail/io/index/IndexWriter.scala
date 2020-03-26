@@ -3,6 +3,7 @@ package is.hail.io.index
 import java.io.OutputStream
 
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
+import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
 import is.hail.io.fs.FS
@@ -82,7 +83,6 @@ object IndexWriter {
 
     val intPType = InternalNodeBuilder.typ(keyType, annotationType)
     val makeIntEnc = TypedCodecSpec(intPType, BufferSpec.default).buildEncoder(intPType)
-
 
     { (fs: FS, path: String) =>
       new IndexWriter(

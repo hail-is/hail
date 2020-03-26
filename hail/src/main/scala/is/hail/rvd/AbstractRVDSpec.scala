@@ -3,7 +3,7 @@ package is.hail.rvd
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.ExecuteContext
-import is.hail.expr.types.encoded.ETypeSerializer
+import is.hail.expr.types.encoded.{ETypeSerializer, EType}
 import is.hail.expr.types.physical.{PInt64Optional, PInt64Required, PStruct, PType, PTypeSerializer}
 import is.hail.expr.types.virtual.{TStructSerializer, _}
 import is.hail.io._
@@ -233,8 +233,10 @@ case class IndexSpec2(_relPath: String,
 
 object IndexSpec {
   def fromKeyAndValuePTypes(relPath: String, keyPType: PType, annotationPType: PType, offsetFieldName: Option[String]): AbstractIndexSpec = {
-    val leafNodeSpec = TypedCodecSpec(LeafNodeBuilder.typ(keyPType, annotationPType), BufferSpec.default)
-    val internalNodeSpec = TypedCodecSpec(InternalNodeBuilder.typ(keyPType, annotationPType), BufferSpec.default)
+    val leafType = LeafNodeBuilder.typ(keyPType, annotationPType)
+    val leafNodeSpec = TypedCodecSpec(leafType, BufferSpec.default)
+    val internalType = InternalNodeBuilder.typ(keyPType, annotationPType)
+    val internalNodeSpec = TypedCodecSpec(internalType, BufferSpec.default)
     IndexSpec2(relPath, leafNodeSpec, internalNodeSpec, keyPType.virtualType, annotationPType.virtualType, offsetFieldName)
   }
 

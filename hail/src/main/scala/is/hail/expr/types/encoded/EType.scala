@@ -150,7 +150,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     assert(decodeCompatible(ret),
       s"""Invalid requested type, cannot decode
          |encoded type  : ${ this }
-         |requested type: $requestedType""".stripMargin)
+         |requested type: $requestedType
+         |chosen ptype  : $ret""".stripMargin)
     ret
   }
 
@@ -243,9 +244,7 @@ object EType {
     }
   }
 
-  def defaultFromPType(pt: PType): EType = defaultFromPType(pt, pt.required)
-
-  def defaultFromPType(pt: PType, required: Boolean): EType = {
+  def defaultFromPType(pt: PType): EType = {
     pt.fundamentalType match {
       case t: PInt32 => EInt32(t.required)
       case t: PInt64 => EInt64(t.required)
@@ -256,9 +255,19 @@ object EType {
       // FIXME(chrisvittal): turn this on when performance is adequate
       case t: PArray if t.elementType.fundamentalType.isOfType(PInt32(t.elementType.required)) &&
           HailContext.get.flags.get("use_packed_int_encoding") != null =>
-         EPackedIntArray(required, t.elementType.required)
+         EPackedIntArray(t.required, t.elementType.required)
+      // FIXME(chrisvittal): Turn this on when it works
+      case t: PArray if t.elementType.isInstanceOf[PBaseStruct] &&
+          HailContext.get.flags.get("use_column_encoding") != null =>
+        val et = t.elementType.asInstanceOf[PBaseStruct]
+        ETransposedArrayOfStructs(
+          et.fields.map(f => EField(f.name, defaultFromPType(f.typ), f.index)),
+          required = t.required,
+          structRequired = et.required
+        )
       case t: PArray => EArray(defaultFromPType(t.elementType), t.required)
-      case t: PBaseStruct => EBaseStruct(t.fields.map(f => EField(f.name, defaultFromPType(f.typ), f.index)), t.required)
+      case t: PBaseStruct => EBaseStruct(t.fields.map(f =>
+          EField(f.name, defaultFromPType(f.typ), f.index)), t.required)
     }
   }
 
@@ -292,6 +301,14 @@ object EType {
         val args = IRParser.repsepUntil(it, IRParser.struct_field(eTypeParser), PunctuationToken(","), PunctuationToken("}"))
         IRParser.punctuation(it, "}")
         EBaseStruct(args.zipWithIndex.map { case ((name, t), i) => EField(name, t, i) }, req)
+      case "ETransposedArrayOfStructs" =>
+        IRParser.punctuation(it, "[")
+        val structRequired = IRParser.boolean_literal(it)
+        IRParser.punctuation(it, "]")
+        IRParser.punctuation(it, "{")
+        val args = IRParser.repsepUntil(it, IRParser.struct_field(eTypeParser), PunctuationToken(","), PunctuationToken("}"))
+        IRParser.punctuation(it, "}")
+        ETransposedArrayOfStructs(args.zipWithIndex.map { case ((name, t), i) => EField(name, t, i) }, req, structRequired)
     }
   }
 }
