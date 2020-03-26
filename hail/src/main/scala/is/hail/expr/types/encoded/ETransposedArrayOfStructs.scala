@@ -2,6 +2,7 @@ package is.hail.expr.types.encoded
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
+import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.{BaseStruct, BaseType}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -48,16 +49,16 @@ final case class ETransposedArrayOfStructs(
     case _ => false
   }
 
-  def _buildDecoder(pt: PType, mb: MethodBuilder, region: Value[Region], in: Value[InputBuffer]): Code[_] = {
+  def _buildDecoder(pt: PType, mb: EmitMethodBuilder[_], region: Value[Region], in: Value[InputBuffer]): Code[_] = {
     val arrayPType = pt.asInstanceOf[PArray]
     val elementPStruct = arrayPType.elementType.asInstanceOf[PBaseStruct]
 
-    val len = mb.newField[Int]("len")
-    val alen = mb.newField[Int]("alen")
+    val len = mb.cb.genFieldThisRef[Int]("len")
+    val alen = mb.genFieldThisRef[Int]("alen")
     val i = mb.newLocal[Int]("i")
     val nMissing = mb.newLocal[Int]("nMissing")
-    val anMissing = mb.newField[Int]("anMissing")
-    val fmbytes = mb.newField[Long]("fmbytes")
+    val anMissing = mb.cb.genFieldThisRef[Int]("anMissing")
+    val fmbytes = mb.cb.genFieldThisRef[Long]("fmbytes")
     val array = mb.newLocal[Long]("array")
 
     val prefix = Code(
@@ -88,7 +89,7 @@ final case class ETransposedArrayOfStructs(
     )
 
     val decodeFields = Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
-      val groupMB = mb.fb.newMethod(s"read_fields_group_$groupIdx", Array[TypeInfo[_]](LongInfo, classInfo[Region], classInfo[InputBuffer]), UnitInfo)
+      val groupMB = mb.ecb.newEmitMethod(s"read_fields_group_$groupIdx", Array[TypeInfo[_]](LongInfo, classInfo[Region], classInfo[InputBuffer]), UnitInfo)
       val arrayGrp = groupMB.getArg[Long](1)
       val regionGrp = groupMB.getArg[Region](2)
       val inGrp = groupMB.getArg[InputBuffer](3)
@@ -98,7 +99,7 @@ final case class ETransposedArrayOfStructs(
       val decoders = fieldGroup.map { encodedField =>
         elementPStruct.selfField(encodedField.name) match {
           case Some(pf) =>
-            val inplaceDecode = encodedField.typ.buildInplaceDecoder(pf.typ, mb)
+            val inplaceDecode = encodedField.typ.buildInplaceDecoder(pf.typ, groupMB.ecb)
             val elem = () => arrayPType.elementOffset(arrayGrp, len, i)
             if (encodedField.typ.required) {
               Code(
@@ -157,7 +158,7 @@ final case class ETransposedArrayOfStructs(
     )
   }
 
-  def _buildSkip(mb: MethodBuilder, r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
+  def _buildSkip(mb: EmitMethodBuilder[_], r: Value[Region], in: Value[InputBuffer]): Code[Unit] = {
     val len = mb.newLocal[Int]("len")
     val i = mb.newLocal[Int]("i")
     val nMissing = mb.newLocal[Int]("nMissing")
@@ -211,12 +212,12 @@ final case class ETransposedArrayOfStructs(
     }
   }
 
-  def _buildEncoder(pt: PType, mb: MethodBuilder, v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
+  def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     val arrayPType = pt.asInstanceOf[PArray]
     val elementPStruct = arrayPType.elementType.asInstanceOf[PBaseStruct]
 
     val array = coerce[Long](v)
-    val len = mb.newField[Int]("arrayLength")
+    val len = mb.cb.genFieldThisRef[Int]("arrayLength")
     val i = mb.newLocal[Int]("i")
     val writeLen = out.writeInt(len)
 
@@ -227,7 +228,7 @@ final case class ETransposedArrayOfStructs(
         Code._empty
 
     val writeFields = Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
-      val groupMB = mb.fb.newMethod(s"write_fields_group_$groupIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
+      val groupMB = mb.ecb.newEmitMethod(s"write_fields_group_$groupIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
       val addr = groupMB.getArg[Long](1)
       val out2 = groupMB.getArg[OutputBuffer](2)
 
@@ -238,7 +239,7 @@ final case class ETransposedArrayOfStructs(
       val encoders = fieldGroup.map { encodedField =>
         val fidx = elementPStruct.fieldIdx(encodedField.name)
         val pf = elementPStruct.fields(fidx)
-        val encodeField = encodedField.typ.buildEncoder(pf.typ, groupMB)
+        val encodeField = encodedField.typ.buildEncoder(pf.typ, groupMB.ecb)
         val elem = () => arrayPType.elementOffset(addr, len, j)
 
         val writeMissingBytes = if (encodedField.typ.required)
