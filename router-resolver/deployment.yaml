@@ -84,6 +84,9 @@ spec:
           - name: session-secret-key
             mountPath: /session-secret-key
             readOnly: true
+          - name: ssl-config-router-resolver
+            mountPath: /ssl-config
+            readOnly: true
       volumes:
        - name: deploy-config
          secret:
@@ -92,6 +95,10 @@ spec:
          secret:
            optional: false
            secretName: session-secret-key
+       - name: ssl-config-router-resolver
+         secret:
+           optional: false
+           secretName: ssl-config-router-resolver
 ---
 apiVersion: v1
 kind: Service

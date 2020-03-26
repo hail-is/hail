@@ -52,7 +52,7 @@ docker image using the `COPY` directive.
 
     RUN mkdir plink && \
         (cd plink && \
-         wget http://s3.amazonaws.com/plink1-assets/plink_linux_x86_64_20200217.zip && \
+         wget https://s3.amazonaws.com/plink1-assets/plink_linux_x86_64_20200217.zip && \
          unzip plink_linux_x86_64_20200217.zip && \
          rm -rf plink_linux_x86_64_20200217.zip)
 

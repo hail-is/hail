@@ -45,19 +45,26 @@ spec:
              memory: "1G"
              cpu: "1"
          ports:
-          - containerPort: 80
+          - containerPort: 443
+         volumeMounts:
+          - name: ssl-config-site
+            mountPath: /ssl-config
+            readOnly: true
          livenessProbe:
-           httpGet:
-             path: /health
-             port: 80
+           tcpSocket:
+             port: 443
            initialDelaySeconds: 5
            periodSeconds: 5
          readinessProbe:
-           httpGet:
-             path: /
-             port: 80
+           tcpSocket:
+             port: 443
            initialDelaySeconds: 5
            periodSeconds: 5
+      volumes:
+       - name: ssl-config-site
+         secret:
+           optional: false
+           secretName: ssl-config-site
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler

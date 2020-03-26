@@ -45,9 +45,11 @@ spec:
           - name: deploy-config
             mountPath: /deploy-config
             readOnly: true
+          - name: ssl-config-scorecard
+            mountPath: /ssl-config
+            readOnly: true
         readinessProbe:
-            httpGet:
-              path: /healthcheck
+            tcpSocket:
               port: 5000
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -63,3 +65,7 @@ spec:
           secret:
             optional: false
             secretName: deploy-config
+        - name: ssl-config-scorecard
+          secret:
+            optional: false
+            secretName: ssl-config-scorecard

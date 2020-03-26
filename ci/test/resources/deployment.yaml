@@ -31,14 +31,12 @@ spec:
           ports:
             - containerPort: 5000
           livenessProbe:
-            httpGet:
-              path: /healthcheck
+            tcpSocket:
               port: 5000
             initialDelaySeconds: 5
             periodSeconds: 5
           readinessProbe:
-            httpGet:
-              path: /healthcheck
+            tcpSocket:
               port: 5000
             initialDelaySeconds: 5
             periodSeconds: 5
