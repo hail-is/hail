@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.ExecStrategy
-import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual._
@@ -69,7 +68,17 @@ class StringFunctionsSuite extends TestNGSuite {
 
     // FIXME matches current FunctionRegistry, but should be a,NA,c
     assertEvalsTo(invoke("mkString", TString, IRStringSet("a", null, "c"), Str(",")), "a,c,null")
+  }
 
+  @Test def testFirstMatchIn() {
+    assertEvalsTo(invoke("firstMatchIn", TArray(TString), Str("""([a-zA-Z]+)"""), Str("1")), null)
+    assertEvalsTo(invoke("firstMatchIn", TArray(TString), Str("Hello world!"), Str("""([a-zA-Z]+)""")), FastIndexedSeq("Hello"))
+  }
+
+  @Test def testHammingDistance() {
+    assertEvalsTo(invoke("hamming", TInt32, Str("foo"), NA(TString)), null)
+    assertEvalsTo(invoke("hamming", TInt32, Str("foo"), Str("fool")), null)
+    assertEvalsTo(invoke("hamming", TInt32, Str("foo"), Str("fol")), 1)
   }
 
   @DataProvider(name = "str")
