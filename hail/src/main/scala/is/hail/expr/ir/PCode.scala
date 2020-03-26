@@ -68,6 +68,8 @@ object PCode {
       new PCanonicalBinaryCode(pt, coerce[Long](code))
     case pt: PString =>
       new PCanonicalStringCode(pt, coerce[Long](code))
+    case pt: PInterval =>
+      new PCanonicalIntervalCode(pt, coerce[Long](code))
     case pt: PLocus =>
       new PCanonicalLocusCode(pt, coerce[Long](code))
     case pt: PCall =>
@@ -104,6 +106,8 @@ abstract class PCode { self =>
   def asBaseStruct: PBaseStructCode = asInstanceOf[PBaseStructCode]
 
   def asString: PStringCode = asInstanceOf[PStringCode]
+
+  def asInterval: PIntervalCode = asInstanceOf[PIntervalCode]
 
   def asCall: PCallCode = asInstanceOf[PCallCode]
 
@@ -420,4 +424,72 @@ class PCanonicalCallCode(val pt: PCall, val call: Code[Int]) extends PCallCode {
   def memoizeField(cb: EmitCodeBuilder, name: String): PCallValue = memoize(cb, name, cb.fieldBuilder)
 
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeInt(dst, call)
+}
+
+abstract class PIntervalValue extends PValue {
+  def includesStart(): Value[Boolean]
+
+  def includesEnd(): Value[Boolean]
+
+  def loadStart(cb: EmitCodeBuilder): IEmitCode
+
+  def loadEnd(cb: EmitCodeBuilder): IEmitCode
+}
+
+object PCanonicalIntervalSettable {
+  def apply(sb: SettableBuilder, pt: PInterval, name: String): PCanonicalIntervalSettable = {
+    new PCanonicalIntervalSettable(pt,
+      sb.newSettable[Long](s"${ name }_a"),
+      sb.newSettable[Boolean](s"${ name }_includes_start"),
+      sb.newSettable[Boolean](s"${ name }_includes_end"))
+  }
+}
+
+class PCanonicalIntervalSettable(
+  val pt: PInterval,
+  a: Settable[Long],
+  val includesStart: Settable[Boolean],
+  val includesEnd: Settable[Boolean]
+) extends PIntervalValue with PSettable {
+  def get: PIntervalCode = new PCanonicalIntervalCode(pt, a)
+
+  def loadStart(cb: EmitCodeBuilder): IEmitCode =
+    IEmitCode(cb,
+      !(pt.startDefined(a)),
+      pt.pointType.load(pt.loadStart(a)))
+
+  def loadEnd(cb: EmitCodeBuilder): IEmitCode =
+    IEmitCode(cb,
+      !(pt.endDefined(a)),
+      pt.pointType.load(pt.loadEnd(a)))
+
+  def store(pc: PCode): Code[Unit] = {
+    Code(
+      a := pc.asInstanceOf[PCanonicalIntervalCode].a,
+      includesStart := pt.includesStart(a.load()),
+      includesEnd := pt.includesEnd(a.load()))
+  }
+}
+
+abstract class PIntervalCode extends PCode {
+  def memoize(cb: EmitCodeBuilder, name: String): PIntervalValue
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PIntervalValue
+}
+
+class PCanonicalIntervalCode(val pt: PInterval, val a: Code[Long]) extends PIntervalCode {
+  def code: Code[_] = a
+
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PIntervalValue = {
+    val s = PCanonicalIntervalSettable(sb, pt, name)
+    cb.assign(s, this)
+    s
+  }
+
+  def memoize(cb: EmitCodeBuilder, name: String): PIntervalValue = memoize(cb, name, cb.localBuilder)
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PIntervalValue = memoize(cb, name, cb.fieldBuilder)
+
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] =
+    pt.constructAtAddress(mb, dst, r, pt, a, deepCopy = false)
 }
