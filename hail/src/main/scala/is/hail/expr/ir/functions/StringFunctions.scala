@@ -96,12 +96,12 @@ object StringFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerCode("length", TString, TInt32, (pt: PType) => pt) { case (r: EmitRegion, rt, (sT: PString, s: Code[Long])) =>
+    registerCode("length", TString, TInt32, (_: PType) => PInt32()) { case (r: EmitRegion, rt, (sT: PString, s: Code[Long])) =>
       asm4s.coerce[String](wrapArg(r, sT)(s)).invoke[Int]("length")
     }
 
     registerCode("substring", TString, TInt32, TInt32, TString, {
-      (sT: PType, startT: PType, endT: PType) => PCanonicalString(sT.required && (startT.required || endT.required))
+      (_: PType, _: PType, _: PType) => PCanonicalString()
     }) {
       case (r: EmitRegion, rt, (sT: PString, s: Code[Long]), (startT, start: Code[Int]), (endT, end: Code[Int])) =>
       unwrapReturn(r, rt)(asm4s.coerce[String](wrapArg(r, sT)(s)).invoke[Int, Int, String]("substring", start, end))
@@ -135,7 +135,7 @@ object StringFunctions extends RegistryFunctions {
     registerIR("sliceRight", TString, TInt32, TString) { (s, start) => invoke("slice", TString, s, start, invoke("length", TInt32, s)) }
     registerIR("sliceLeft", TString, TInt32, TString) { (s, end) => invoke("slice", TString, s, I32(0), end) }
 
-    registerCode("str", tv("T"), TString, (pt: PType) => PCanonicalString(pt.required)) { case (r, rt, (aT, a)) =>
+    registerCode("str", tv("T"), TString, (_: PType) => PCanonicalString()) { case (r, rt, (aT, a)) =>
       val annotation = boxArg(r, aT)(a)
       val str = r.mb.getType(aT.virtualType).invoke[Any, String]("str", annotation)
       unwrapReturn(r, rt)(str)
@@ -209,7 +209,7 @@ object StringFunctions extends RegistryFunctions {
     })(thisClass, "arrayMkString")
 
     registerCodeWithMissingness("firstMatchIn", TString, TString, TArray(TString), {
-      case(sT: PType, _: PType) => PCanonicalArray(sT.setRequired(false))
+      case(sT: PType, _: PType) => PCanonicalArray(PCanonicalString(true))
     }) {
       case (er: EmitRegion, rt: PArray, (sT: PString, s: EmitCode), (rT: PString, r: EmitCode)) =>
       val out: LocalRef[IndexedSeq[String]] = er.mb.newLocal[IndexedSeq[String]]()

@@ -23,6 +23,19 @@ class StringFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("regexMatch", TBoolean, Str("[a-z][0-9]"), Str("3x")), false)
   }
 
+  @Test def testLength() {
+    assertEvalsTo(invoke("length", TInt32, Str("ab")), 2)
+    assertEvalsTo(invoke("length", TInt32, Str("")), 0)
+    assertEvalsTo(invoke("length", TInt32, NA(TString)), null)
+  }
+
+  @Test def testSubstring() {
+    assertEvalsTo(invoke("substring", TString, Str("ab"), 0, 1), "a")
+    assertEvalsTo(invoke("substring", TString, Str("ab"), NA(TInt32), 1), null)
+    assertEvalsTo(invoke("substring", TString, Str("ab"), 0, NA(TInt32)), null)
+    assertEvalsTo(invoke("substring", TString, NA(TString), 0, 1), null)
+  }
+
   @Test def testConcat() {
     assertEvalsTo(invoke("concat", TString, Str("a"), NA(TString)), null)
     assertEvalsTo(invoke("concat", TString, NA(TString), Str("b")), null)
