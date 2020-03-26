@@ -26,7 +26,17 @@ async def write_user_config(namespace, database_name, user, config):
         f.write(json.dumps(config))
 
     with open(f'sql-config.cnf', 'w') as f:
-        f.write(f'[client]\n' + '\n'.join(f'{k}={v}' for k, v in config.items()))
+        f.write(f'''
+[client]
+host={config["host"]}
+user={config["user"]}
+password="{config["password"]}"
+database={config["db"]}
+ssl-ca={config["ssl-ca"]}
+ssl-cert={config["ssl-cert"]}
+ssl-key={config["ssl-key"]}
+ssl-mode={config["ssl-mode"]}
+''')
 
     shutil.copy('/sql-config/server-ca.pem', 'server-ca.pem')
     shutil.copy('/sql-config/client-key.pem', 'client-key.pem')
