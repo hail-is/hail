@@ -77,15 +77,16 @@ spec:
            - mountPath: /zulip-config
              name: zulip-config
              readOnly: true
+           - name: ssl-config-ci
+             mountPath: /ssl-config
+             readOnly: true
           livenessProbe:
-            httpGet:
-              path: /healthcheck
+            tcpSocket:
               port: 5000
             initialDelaySeconds: 5
             periodSeconds: 5
           readinessProbe:
-            httpGet:
-              path: /healthcheck
+            tcpSocket:
               port: 5000
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -110,3 +111,7 @@ spec:
        - name: zulip-config
          secret:
            secretName: zulip-config
+       - name: ssl-config-ci
+         secret:
+           optional: false
+           secretName: ssl-config-ci

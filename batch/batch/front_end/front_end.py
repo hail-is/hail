@@ -18,6 +18,7 @@ from hailtop.utils import time_msecs, time_msecs_str, humanize_timedelta_msecs, 
     request_retry_transient_errors, run_if_changed, retry_long_running, \
     LoggingTimer
 from hailtop.config import get_deploy_config
+from hailtop.ssl import get_ssl_context, ssl_client_session
 from gear import Database, setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
     web_authenticated_developers_only, check_csrf_token, transaction, \
@@ -897,7 +898,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
         raise
 
-    async with aiohttp.ClientSession(
+    async with ssl_client_session(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
         await request_retry_transient_errors(
             session, 'PATCH',
@@ -1322,7 +1323,7 @@ async def index(request, userdata):
 
 
 async def cancel_batch_loop_body(app):
-    async with aiohttp.ClientSession(
+    async with ssl_client_session(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
         await request_retry_transient_errors(
             session, 'POST',
@@ -1334,7 +1335,7 @@ async def cancel_batch_loop_body(app):
 
 
 async def delete_batch_loop_body(app):
-    async with aiohttp.ClientSession(
+    async with ssl_client_session(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
         await request_retry_transient_errors(
             session, 'POST',
@@ -1413,4 +1414,5 @@ def run():
                                                  client_max_size=HTTP_CLIENT_MAX_SIZE),
                 host='0.0.0.0',
                 port=5000,
-                access_log_class=AccessLogger)
+                access_log_class=AccessLogger,
+                ssl_context=get_ssl_context())
