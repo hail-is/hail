@@ -18,7 +18,7 @@ object IntervalFunctions extends RegistryFunctions {
           required = includesStartPT.required && includesEndPT.required
         )
       }) {
-      case (r, rt, (startT, start), (endT, end), (includesStartT, includesStart), (includesEndT, includesEnd)) =>
+      case (r, rt, start, end, includesStart, includesEnd) =>
         val srvb = new StagedRegionValueBuilder(r, rt)
 
         val mv = r.mb.newLocal[Boolean]()
@@ -33,11 +33,11 @@ object IntervalFunctions extends RegistryFunctions {
               srvb.start(),
               start.m.mux(
                 srvb.setMissing(),
-                srvb.addIRIntermediate(startT)(start.v)),
+                srvb.addIRIntermediate(start.pt)(start.v)),
               srvb.advance(),
               end.m.mux(
                 srvb.setMissing(),
-                srvb.addIRIntermediate(endT)(end.v)),
+                srvb.addIRIntermediate(end.pt)(end.v)),
               srvb.advance(),
               srvb.addBoolean(includesStart.value[Boolean]),
               srvb.advance(),
@@ -54,7 +54,8 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("start", TInterval(tv("T")), tv("T"),
       (x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
-      case (r, rt, (intervalT: PInterval, interval)) =>
+      case (r, rt, interval) =>
+        val intervalT = interval.pt.asInstanceOf[PInterval]
         val iv = r.mb.newLocal[Long]()
         EmitCode(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
@@ -65,7 +66,8 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("end", TInterval(tv("T")), tv("T"),
       (x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
-      case (r, rt, (intervalT: PInterval, interval)) =>
+      case (r, rt, interval) =>
+        val intervalT = interval.pt.asInstanceOf[PInterval]
         val iv = r.mb.newLocal[Long]()
         EmitCode(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
@@ -91,26 +93,26 @@ object IntervalFunctions extends RegistryFunctions {
     registerCodeWithMissingness("contains", TInterval(tv("T")), tv("T"), TBoolean, {
       case(intervalT: PInterval, _: PType) => PBoolean(intervalT.required)
     }) {
-      case (r, rt, (intervalT: PInterval, intTriplet), (pointT, pointTriplet)) =>
+      case (r, rt, int, point) =>
         val mPoint = r.mb.newLocal[Boolean]()
-        val vPoint = r.mb.newLocal()(typeToTypeInfo(pointT))
+        val vPoint = r.mb.newLocal()(typeToTypeInfo(point.pt))
 
         val cmp = r.mb.newLocal[Int]()
-        val interval = new IRInterval(r, intervalT, intTriplet.value[Long])
+        val interval = new IRInterval(r, int.pt.asInstanceOf[PInterval], int.value[Long])
         val compare = interval.ordering(CodeOrdering.compare)
 
         val contains = Code(
           interval.storeToLocal,
-          mPoint := pointTriplet.m,
-          vPoint.storeAny(pointTriplet.v),
+          mPoint := point.m,
+          vPoint.storeAny(point.v),
           cmp := compare((mPoint, vPoint), interval.start),
           (cmp > 0 || (cmp.ceq(0) && interval.includesStart)) && Code(
             cmp := compare((mPoint, vPoint), interval.end),
             cmp < 0 || (cmp.ceq(0) && interval.includesEnd)))
 
         EmitCode(
-          Code(intTriplet.setup, pointTriplet.setup),
-          intTriplet.m,
+          Code(int.setup, point.setup),
+          int.m,
           PCode(rt, contains))
     }
 
