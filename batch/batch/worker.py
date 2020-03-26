@@ -20,6 +20,7 @@ from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
 from hailtop.utils import time_msecs, request_retry_transient_errors, RETRY_FUNCTION_SCRIPT, \
     sleep_and_backoff, retry_all_errors
+from hailtop.ssl import ssl_client_session
 
 # import uvloop
 
@@ -858,7 +859,7 @@ class Worker:
 
             log.info(f'idle {idle_duration} seconds, exiting')
 
-            async with aiohttp.ClientSession(
+            async with ssl_client_session(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                 # Don't retry.  If it doesn't go through, the driver
                 # monitoring loops will recover.  If the driver is
@@ -908,7 +909,7 @@ class Worker:
         delay_secs = 0.1
         while True:
             try:
-                async with aiohttp.ClientSession(
+                async with ssl_client_session(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                     await session.post(
                         deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
@@ -961,7 +962,7 @@ class Worker:
             'status': status
         }
 
-        async with aiohttp.ClientSession(
+        async with ssl_client_session(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
             await request_retry_transient_errors(
                 session, 'POST',
@@ -975,7 +976,7 @@ class Worker:
             log.exception(f'error while posting {job} started')
 
     async def activate(self):
-        async with aiohttp.ClientSession(
+        async with ssl_client_session(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             resp = await request_retry_transient_errors(
                 session, 'POST',

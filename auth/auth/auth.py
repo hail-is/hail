@@ -8,6 +8,7 @@ import google.oauth2.id_token
 import google.cloud.storage
 import google_auth_oauthlib.flow
 from hailtop.config import get_deploy_config
+from hailtop.ssl import get_ssl_context
 from gear import setup_aiohttp_session, create_database_pool, \
     rest_authenticated_users_only, web_authenticated_developers_only, \
     web_maybe_authenticated_user, create_session, check_csrf_token
@@ -307,4 +308,7 @@ def run():
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    web.run_app(deploy_config.prefix_application(app, 'auth'), host='0.0.0.0', port=5000)
+    web.run_app(deploy_config.prefix_application(app, 'auth'),
+                host='0.0.0.0',
+                port=5000,
+                ssl_context=get_ssl_context())
