@@ -40,7 +40,7 @@ object CodeOrdering {
   ): CodeOrdering = new CodeOrdering {
     require(sortOrders == null || sortOrders.size == t1.size)
     type T = Long
-    
+
     val m1: LocalRef[Boolean] = mb.newLocal[Boolean]()
     val m2: LocalRef[Boolean] = mb.newLocal[Boolean]()
 
@@ -271,15 +271,15 @@ object CodeOrdering {
         Code(loadStart(x, y),
           cmp := mbcmp((mp1, p1), (mp2, p2)),
           cmp.ceq(0).mux(
-            Code(mp1 := t1.includeStart(x),
-              mp1.cne(t2.includeStart(y)).mux(
+            Code(mp1 := t1.includesStart(x),
+              mp1.cne(t2.includesStart(y)).mux(
                 mp1.mux(-1, 1),
                 Code(
                   loadEnd(x, y),
                   cmp := mbcmp((mp1, p1), (mp2, p2)),
                   cmp.ceq(0).mux(
-                    Code(mp1 := t1.includeEnd(x),
-                      mp1.cne(t2.includeEnd(y)).mux(mp1.mux(1, -1), 0)),
+                    Code(mp1 := t1.includesEnd(x),
+                      mp1.cne(t2.includesEnd(y)).mux(mp1.mux(1, -1), 0)),
                     cmp)))),
             cmp))
       }
@@ -290,9 +290,9 @@ object CodeOrdering {
 
       Code.memoize(x, "cord_int_equiv_x", y, "cord_int_equiv_y") { (x, y) =>
         Code(loadStart(x, y), mbeq((mp1, p1), (mp2, p2))) &&
-          t1.includeStart(x).ceq(t2.includeStart(y)) &&
+          t1.includesStart(x).ceq(t2.includesStart(y)) &&
           Code(loadEnd(x, y), mbeq((mp1, p1), (mp2, p2))) &&
-          t1.includeEnd(x).ceq(t2.includeEnd(y))
+          t1.includesEnd(x).ceq(t2.includesEnd(y))
       }
     }
 
@@ -303,10 +303,10 @@ object CodeOrdering {
       Code.memoize(x, "cord_int_lt_x", y, "cord_int_lt_y") { (x, y) =>
         Code(loadStart(x, y), mblt((mp1, p1), (mp2, p2))) || (
           mbeq((mp1, p1), (mp2, p2)) && (
-            Code(mp1 := t1.includeStart(x), mp2 := t2.includeStart(y), mp1 && !mp2) || (mp1.ceq(mp2) && (
+            Code(mp1 := t1.includesStart(x), mp2 := t2.includesStart(y), mp1 && !mp2) || (mp1.ceq(mp2) && (
               Code(loadEnd(x, y), mblt((mp1, p1), (mp2, p2))) || (
                 mbeq((mp1, p1), (mp2, p2)) &&
-                  !t1.includeEnd(x) && t2.includeEnd(y))))))
+                  !t1.includesEnd(x) && t2.includesEnd(y))))))
       }
     }
 
@@ -317,10 +317,10 @@ object CodeOrdering {
       Code.memoize(x, "cord_int_lteq_x", y, "cord_int_lteq_y") { (x, y) =>
         Code(loadStart(x, y), mblteq((mp1, p1), (mp2, p2))) && (
           !mbeq((mp1, p1), (mp2, p2)) || (// if not equal, then lt
-            Code(mp1 := t1.includeStart(x), mp2 := t2.includeStart(y), mp1 && !mp2) || (mp1.ceq(mp2) && (
+            Code(mp1 := t1.includesStart(x), mp2 := t2.includesStart(y), mp1 && !mp2) || (mp1.ceq(mp2) && (
               Code(loadEnd(x, y), mblteq((mp1, p1), (mp2, p2))) && (
                 !mbeq((mp1, p1), (mp2, p2)) ||
-                  !t1.includeEnd(x) || t2.includeEnd(y))))))
+                  !t1.includesEnd(x) || t2.includesEnd(y))))))
       }
     }
 
@@ -331,10 +331,10 @@ object CodeOrdering {
       Code.memoize(x, "cord_int_gt_x", y, "cord_int_gt_y") { (x, y) =>
         Code(loadStart(x, y), mbgt((mp1, p1), (mp2, p2))) || (
           mbeq((mp1, p1), (mp2, p2)) && (
-            Code(mp1 := t1.includeStart(x), mp2 := t2.includeStart(y), !mp1 && mp2) || (mp1.ceq(mp2) && (
+            Code(mp1 := t1.includesStart(x), mp2 := t2.includesStart(y), !mp1 && mp2) || (mp1.ceq(mp2) && (
               Code(loadEnd(x, y), mbgt((mp1, p1), (mp2, p2))) || (
                 mbeq((mp1, p1), (mp2, p2)) &&
-                  t1.includeEnd(x) && !t2.includeEnd(y))))))
+                  t1.includesEnd(x) && !t2.includesEnd(y))))))
       }
     }
 
@@ -345,10 +345,10 @@ object CodeOrdering {
       Code.memoize(x, "cord_int_gteq_x", y, "cord_int_gteq_y") { (x, y) =>
         Code(loadStart(x, y), mbgteq((mp1, p1), (mp2, p2))) && (
           !mbeq((mp1, p1), (mp2, p2)) || (// if not equal, then lt
-            Code(mp1 := t1.includeStart(x), mp2 := t2.includeStart(y), !mp1 && mp2) || (mp1.ceq(mp2) && (
+            Code(mp1 := t1.includesStart(x), mp2 := t2.includesStart(y), !mp1 && mp2) || (mp1.ceq(mp2) && (
               Code(loadEnd(x, y), mbgteq((mp1, p1), (mp2, p2))) && (
                 !mbeq((mp1, p1), (mp2, p2)) ||
-                  t1.includeEnd(x) || !t2.includeEnd(y))))))
+                  t1.includesEnd(x) || !t2.includesEnd(y))))))
       }
     }
   }
