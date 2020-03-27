@@ -175,7 +175,7 @@ object EmitCode {
   def apply(setup: Code[Unit], ec: EmitCode): EmitCode =
     new EmitCode(Code(setup, ec.setup), ec.m, ec.pv)
 
-  def aply(setup: Code[Unit], ev: EmitValue): EmitCode =
+  def apply(setup: Code[Unit], ev: EmitValue): EmitCode =
     EmitCode(setup, ev.get)
 
   def present(pt: PType, v: Code[_]): EmitCode = EmitCode(Code._empty, false, PCode(pt, v))
@@ -565,6 +565,11 @@ private class Emit[C](
     val region = er.region
 
     val pt = ir.pType
+
+    // ideally, emit would not be called with void values, but initOp args can be void
+    // working towards removing this
+    if (pt == PVoid)
+      return new EmitCode(emitVoid(ir), const(false), PCode(pt, Code._empty))
 
     (ir: @unchecked) match {
       case I32(x) =>
