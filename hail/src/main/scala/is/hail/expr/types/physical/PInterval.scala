@@ -103,9 +103,9 @@ abstract class PInterval extends ComplexPType {
 
   def endDefined(off: Code[Long]): Code[Boolean]
 
-  def includeStart(off: Code[Long]): Code[Boolean]
+  def includesStart(off: Code[Long]): Code[Boolean]
 
-  def includeEnd(off: Code[Long]): Code[Boolean]
+  def includesEnd(off: Code[Long]): Code[Boolean]
 
   override def genNonmissingValue: Gen[Annotation] = Interval.gen(pointType.virtualType.ordering, pointType.genValue)
 }
