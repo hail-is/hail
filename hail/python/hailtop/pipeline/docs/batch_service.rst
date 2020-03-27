@@ -35,7 +35,9 @@ Service Accounts
 
 A service account is automatically created for a new Batch user that is used by Batch to download data
 on your behalf. This service account needs to be added to Google Storage buckets with your data and Docker
-images under Permissions.
+images under Permissions. See this `page <https://cloud.google.com/container-registry/docs/access-control>`__
+for more information. To get the name of the service account, click on your name on the header bar or go to
+`<https://notebook.hail.is/user>`__.
 
 
 Billing
@@ -146,7 +148,7 @@ run per job (:ref:`see above <file-localization>`) as well as a copy of the job 
 information about the job such as where the job was run, how long it took to pull the image for
 each container, and any error messages.
 
-To see all batches you've submitted, go to `<batch.hail.is>`_. Each batch will have a current state,
+To see all batches you've submitted, go to `<batch.hail.is>`__. Each batch will have a current state,
 number of jobs total, and the number of pending, succeeded, failed, and cancelled jobs as well as the
 running cost of the batch (computed from completed jobs only). The possible batch states are as follows:
 

@@ -15,8 +15,8 @@ called a container. For using Pipeline effectively, we're only going to focus on
 Installation
 ------------
 
-You can install Docker by following the instructions for either `Macs <https://docs.docker.com/docker-for-mac/install/>`_
-or for `Linux <https://docs.docker.com/install/linux/docker-ce/ubuntu/>`_.
+You can install Docker by following the instructions for either `Macs <https://docs.docker.com/docker-for-mac/install/>`__
+or for `Linux <https://docs.docker.com/install/linux/docker-ce/ubuntu/>`__.
 
 
 Creating a Dockerfile
@@ -74,7 +74,7 @@ Building Images
 To create a Docker image, we use a series of commands to build the image from a Dockerfile by specifying
 the context directory (in this case the current directory `.`). The `-f` option
 specifies what Dockerfile to read from. The `-t` option is the name of the image.
-More in depth information can be found `here <https://docs.docker.com/engine/reference/commandline/build/>`_.
+More in depth information can be found `here <https://docs.docker.com/engine/reference/commandline/build/>`__.
 
 .. code-block:: sh
 
@@ -85,10 +85,11 @@ Pushing Images
 --------------
 
 To use an image with Pipeline, you need to upload your image to a place where Pipeline can access it.
-You can store images inside the `Google Container Registry <https://cloud.google.com/container-registry/docs/>`_ in
+You can store images inside the `Google Container Registry <https://cloud.google.com/container-registry/docs/>`__ in
 addition to Dockerhub. Below is an example of pushing the image to the Google Container Registry.
 It's good practice to specify a tag that is unique for your image. If you don't tag your image, the default is
-`latest`.
+`latest`. For more information about pulling and pushing images for the Google Container Registry, see
+`here <https://cloud.google.com/container-registry/docs/pushing-and-pulling>`__.
 
 .. code-block:: sh
 
