@@ -11,7 +11,6 @@ plugins {
   id 'scala'
   id 'idea'
   id 'maven'
-  id 'jacoco'
   id 'com.github.johnrengelman.shadow' version '5.0.0'
   id "de.undercouch.download" version "3.2.0"
   id 'eclipse'
@@ -140,6 +139,7 @@ dependencies {
     }
     unbundled('org.apache.hadoop:hadoop-client:2.7.1') {
         exclude module: 'servlet-api'
+	exclude module: 'asm'
     }
     unbundled 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
     unbundled 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
@@ -161,9 +161,9 @@ dependencies {
         transitive = false
     }
 
-    bundled group: 'org.ow2.asm', name: 'asm', version: '5.1'
-    bundled group: 'org.ow2.asm', name: 'asm-util', version: '5.1'
-    bundled group: 'org.ow2.asm', name: 'asm-analysis', version: '5.1'
+    bundled group: 'org.ow2.asm', name: 'asm', version: '7.3.1'
+    bundled group: 'org.ow2.asm', name: 'asm-util', version: '7.3.1'
+    bundled group: 'org.ow2.asm', name: 'asm-analysis', version: '7.3.1'
 
     bundled 'net.java.dev.jna:jna:4.2.2'
     bundled('net.sourceforge.jdistlib:jdistlib:0.4.5') {
