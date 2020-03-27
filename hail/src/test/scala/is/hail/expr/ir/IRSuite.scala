@@ -3235,7 +3235,7 @@ class IRSuite extends HailSuite {
       assert(irFreeVarsTrue.agg.isDefined && irFreeVarsTrue.scan.isDefined)
 
       val irFreeVarsFalse = FreeVariables.apply(ir, false, false)
-//      assert(irFreeVarsFalse.agg.isEmpty && irFreeVarsTrue.scan.isEmpty)
+      assert(irFreeVarsFalse.agg.isEmpty && irFreeVarsFalse.scan.isEmpty)
     }
 
     val liftIR = LiftMeOut(Ref("x", TInt32))
@@ -3247,6 +3247,9 @@ class IRSuite extends HailSuite {
       "x",
       ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(Ref("x", TInt64)), sumSig))
     testFreeVarsHelper(streamAggIR)
+
+    val streamScanIR = StreamAggScan(Ref("st", TStream(TInt32)), "x", ApplyScanOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32), TInt64)), sumSig))
+    testFreeVarsHelper(streamScanIR)
   }
 
   @DataProvider(name = "nonNullTypesAndValues")

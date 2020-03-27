@@ -3,9 +3,6 @@ package is.hail.expr.ir
 object FreeVariables {
   def apply(ir: IR, supportsAgg: Boolean, supportsScan: Boolean): BindingEnv[Unit] = {
 
-    val defaultAgg = if (supportsAgg) Some(Env.empty[Unit]) else None
-    val defaultScan = if (supportsScan) Some(Env.empty[Unit]) else None
-
     def compute(ir1: IR, baseEnv: BindingEnv[Unit]): BindingEnv[Unit] = {
       ir1 match {
         case Ref(name, _) =>
@@ -15,11 +12,11 @@ object FreeVariables {
         case StreamAggScan(a, name, query) =>
           val aE = compute(a, baseEnv)
           val qE = compute(query, baseEnv.copy(scan = Some(Env.empty)))
-          aE.merge(qE.copy(eval = qE.eval.bindIterable(qE.scan.get.m - name), scan = defaultScan))
+          aE.merge(qE.copy(eval = qE.eval.bindIterable(qE.scan.get.m - name), scan = baseEnv.scan))
         case StreamAgg(a, name, query) =>
           val aE = compute(a, baseEnv)
           val qE = compute(query, baseEnv.copy(agg = Some(Env.empty)))
-          aE.merge(qE.copy(eval = qE.eval.bindIterable(qE.agg.get.m - name), agg = defaultAgg))
+          aE.merge(qE.copy(eval = qE.eval.bindIterable(qE.agg.get.m - name), agg = baseEnv.agg))
         case _ =>
           ir1.children
             .iterator
@@ -43,7 +40,7 @@ object FreeVariables {
     }
 
     compute(ir, BindingEnv(Env.empty,
-      defaultAgg,
-      defaultScan))
+      if (supportsAgg) Some(Env.empty[Unit]) else None,
+      if (supportsScan) Some(Env.empty[Unit]) else None))
   }
 }
