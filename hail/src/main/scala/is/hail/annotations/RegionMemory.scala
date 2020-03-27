@@ -78,7 +78,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     r
   }
 
-  private def isFreed: Boolean = blockSize == -1
+  protected[annotations] def isFreed: Boolean = blockSize == -1
 
   private def freeChunks(): Unit = {
     pool.freeChunks(bigChunks, totalChunkMemory)
@@ -129,6 +129,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       currentBlock = 0
       totalChunkMemory = 0
       blockSize = -1
+      referenceCount = 0
     }
   }
 

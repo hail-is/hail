@@ -1,10 +1,20 @@
 package is.hail.annotations
 
 import is.hail.utils._
+import org.apache.spark.TaskContext
 
 object RegionPool {
   private lazy val thePool: ThreadLocal[RegionPool] = new ThreadLocal[RegionPool]() {
-    override def initialValue(): RegionPool = RegionPool()
+    override def initialValue(): RegionPool = {
+      val pool = RegionPool()
+      val tc = TaskContext.get()
+      if (tc != null) {
+        tc.addTaskCompletionListener { (_: TaskContext) =>
+          pool.clear()
+        }
+      }
+      pool
+    }
   }
 
   def get: RegionPool = thePool.get()
@@ -116,6 +126,18 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
     log.info(s"RegionPool: $context: ${readableBytes(totalAllocatedBytes)} allocated (${readableBytes(inBlocks)} blocks / " +
       s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), thread $threadID: $threadName")
+  }
+
+  def clear(): Unit = {
+    report("CLEAR")
+    var i = 0
+    while (i < regions.size) {
+      if (!regions(i).isFreed) {
+        regions(i).freeMemory()
+        reclaim(regions(i))
+      }
+      i += 1
+    }
   }
 
   override def finalize(): Unit = close()
