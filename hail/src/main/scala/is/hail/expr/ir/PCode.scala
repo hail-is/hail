@@ -12,11 +12,11 @@ abstract class PValue {
 object PCode {
   def apply(pt: PType, code: Code[_]): PCode = pt match {
     case pt: PCanonicalArray =>
-      new PCanonicalIndexableCode(pt, coerce[Long](code))
+      new PCanonicalIndexableCode(pt, pt, coerce[Long](code))
     case pt: PCanonicalSet =>
-      new PCanonicalIndexableCode(pt.arrayRep, coerce[Long](code))
+      new PCanonicalIndexableCode(pt, pt.arrayRep, coerce[Long](code))
     case pt: PCanonicalDict =>
-      new PCanonicalIndexableCode(pt.arrayRep, coerce[Long](code))
+      new PCanonicalIndexableCode(pt, pt.arrayRep, coerce[Long](code))
 
     case pt: PCanonicalBaseStruct =>
       new PCanonicalBaseStructCode(pt, coerce[Long](code))
@@ -77,7 +77,7 @@ abstract class PIndexableCode extends PCode {
   def isElementMissing(i: Code[Int]): Code[Boolean] = !isElementDefined(i)
 }
 
-class PCanonicalIndexableCode(val pt: PCanonicalArray, val a: Code[Long]) extends PIndexableCode {
+class PCanonicalIndexableCode(val pt: PContainer, val arrayRep: PCanonicalArray, val a: Code[Long]) extends PIndexableCode {
   def code: Code[_] = a
 
   def elementType: PType = pt.elementType
