@@ -269,10 +269,10 @@ class ClassBuilder[C](
   def getOrDefineLazyField[T: TypeInfo](setup: Code[T], id: Any): Value[T] = {
     lazyFieldMemo.getOrElseUpdate(id, genLazyFieldThisRef[T](setup)).asInstanceOf[ThisLazyFieldRef[T]]
   }
-  
+
   def genMethod(baseName: String, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder[C] =
     newMethod(genName("m", baseName), argsInfo, returnInfo)
-  
+
   def genMethod[R: TypeInfo](baseName: String): MethodBuilder[C] =
     genMethod(baseName, FastIndexedSeq[TypeInfo[_]](), typeInfo[R])
 
@@ -281,7 +281,7 @@ class ClassBuilder[C](
 
   def genMethod[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](baseName: String): MethodBuilder[C] =
     genMethod(baseName, FastIndexedSeq[TypeInfo[_]](typeInfo[A1], typeInfo[A2]), typeInfo[R])
-  
+
   def genMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo](baseName: String): MethodBuilder[C] =
     genMethod(baseName, FastIndexedSeq[TypeInfo[_]](typeInfo[A1], typeInfo[A2], typeInfo[A3]), typeInfo[R])
 
@@ -389,6 +389,8 @@ class MethodBuilder[C](
 
     body.clear()
   }
+
+  def emitWithBuilder[T](f: (CodeBuilder) => Code[T]): Unit = emit(CodeBuilder.scopedCode[T](this)(f))
 
   def invoke[T](args: Code[_]*): Code[T] = {
     val (start, end, argvs) = Code.sequenceValues(args.toFastIndexedSeq)

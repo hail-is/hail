@@ -40,6 +40,10 @@ make PROJECT=hail-vdc IP=35.188.91.25 DOMAIN=hail.is build-out
    to broad-ctsa/artifacts.broad-ctsa.appspot.com to Storage Object
    Viewer role.
 
+### Finish
+
+ - destroy the privileged deploy service account with `make destroy-deploy`
+
 ### FIXME
 
  - Doesn't deploy ci, which can't have multiple running instances.
