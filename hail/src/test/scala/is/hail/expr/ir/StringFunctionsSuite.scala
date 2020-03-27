@@ -86,6 +86,7 @@ class StringFunctionsSuite extends TestNGSuite {
   @Test def testFirstMatchIn() {
     assertEvalsTo(invoke("firstMatchIn", TArray(TString), Str("""([a-zA-Z]+)"""), Str("1")), null)
     assertEvalsTo(invoke("firstMatchIn", TArray(TString), Str("Hello world!"), Str("""([a-zA-Z]+)""")), FastIndexedSeq("Hello"))
+    assertEvalsTo(invoke("firstMatchIn", TArray(TString), Str("Hello world!"), Str("""[a-zA-Z]+""")), FastIndexedSeq())
   }
 
   @Test def testHammingDistance() {
