@@ -4,14 +4,14 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.types.{coerce => _, _}
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.PArray
+import is.hail.expr.types.physical.{PArray, PFloat64, PInt32, PType}
 import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32}
 import is.hail.variant.Genotype
 
 object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
-    registerCode("gqFromPL", TArray(tv("N", "int32")), TInt32, null) { case (r, rt, (tPL: PArray, _pl: Code[Long])) =>
+    registerCode("gqFromPL", TArray(tv("N", "int32")), TInt32, (pt: PType) => PInt32()) { case (r, rt, (tPL: PArray, _pl: Code[Long])) =>
       val pl = r.mb.newLocal[Long]("pl")
       val m = r.mb.newLocal[Int]("m")
       val m2 = r.mb.newLocal[Int]("m2")
@@ -39,7 +39,7 @@ object GenotypeFunctions extends RegistryFunctions {
         m2 - m)
     }
 
-    registerCode[Long]("dosage", TArray(tv("N", "float64")), TFloat64, null) { case (r, rt, (gpPType, gpOff)) =>
+    registerCode[Long]("dosage", TArray(tv("N", "float64")), TFloat64,  (pt: PType) => PFloat64()) { case (r, rt, (gpPType, gpOff)) =>
       val gpPArray = coerce[PArray](gpPType)
 
       Code.memoize(gpOff, "dosage_gp") { gp =>
@@ -54,7 +54,7 @@ object GenotypeFunctions extends RegistryFunctions {
 
     // FIXME: remove when SkatSuite is moved to Python
     // the pl_dosage function in Python is implemented in Python
-    registerCode[Long]("plDosage", TArray(tv("N", "int32")), TFloat64, null) { case (r, rt, (plPType, plOff)) =>
+    registerCode[Long]("plDosage", TArray(tv("N", "int32")), TFloat64, (pt: PType) => PFloat64()) { case (r, rt, (plPType, plOff)) =>
       val plPArray = coerce[PArray](plPType)
 
       Code.memoize(plOff, "plDosage_pl") { pl =>
