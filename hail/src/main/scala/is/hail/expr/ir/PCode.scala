@@ -161,6 +161,8 @@ class PPrimitiveCode(val pt: PType, val code: Code[_]) extends PCode {
 }
 
 abstract class PIndexableCode extends PCode {
+  def pt: PContainer
+
   def loadLength(): Code[Int]
 
   def memoize(cb: EmitCodeBuilder, name: String): PIndexableValue
@@ -241,6 +243,8 @@ class PCanonicalBaseStructCode(val pt: PBaseStruct, val a: Code[Long]) extends P
 }
 
 abstract class PBinaryCode extends PCode {
+  def pt: PBinary
+
   def loadLength(): Code[Int]
 
   def bytesAddress(): Code[Long]
@@ -265,6 +269,8 @@ class PCanonicalBinaryCode(val pt: PBinary, a: Code[Long]) extends PBinaryCode {
 }
 
 abstract class PStringCode extends PCode {
+  def pt: PString
+
   def loadLength(): Code[Int]
 
   def bytesAddress(): Code[Long]
@@ -323,6 +329,8 @@ class PCanonicalLocusSettable(
 }
 
 abstract class PLocusCode extends PCode {
+  def pt: PLocus
+
   def memoize(cb: EmitCodeBuilder, name: String): PLocusValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PLocusValue
@@ -397,6 +405,8 @@ class PCanonicalCallSettable(val pt: PCall, call: Settable[Int]) extends PCallVa
 }
 
 abstract class PCallCode extends PCode {
+  def pt: PCall
+
   def ploidy(): Code[Int]
 
   def isPhased(): Code[Boolean]
@@ -472,6 +482,8 @@ class PCanonicalIntervalSettable(
 }
 
 abstract class PIntervalCode extends PCode {
+  def pt: PInterval
+
   def memoize(cb: EmitCodeBuilder, name: String): PIntervalValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PIntervalValue
