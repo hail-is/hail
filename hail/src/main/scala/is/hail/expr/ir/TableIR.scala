@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import java.io.ByteArrayInputStream
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, DataInputStream, InputStream}
 
 import is.hail.HailContext
 import is.hail.annotations._
@@ -14,6 +14,8 @@ import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlock
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
+import org.apache.hadoop.io.IOUtils
+import org.apache.spark.TaskContext
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
 import org.json4s.{Formats, ShortTypeHints}
@@ -1076,6 +1078,119 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         init(fRegion, tv.globals.value.offset, false)
         init.getSerializedAgg(0)
       }
+    }
+
+    val hc = HailContext.get
+    if (hc.flags.get("distributed_scan_comb_op") != null) {
+      val fs = hc.bcFS
+      val tmpBase = hc.tmpDir
+      val d = digitsNeeded(tv.rvd.getNumPartitions)
+      val files = tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
+        val path = tmpBase + "/" + partFile(d, i, TaskContext.get)
+        val globalRegion = ctx.freshRegion
+        val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion) else 0
+
+        Region.smallScoped { aggRegion =>
+          val seq = eltSeqF(i, globalRegion)
+
+          seq.setAggState(aggRegion, read(aggRegion, initAgg))
+          it.foreach { rv =>
+            seq(rv.region, globals, false, rv.offset, false)
+            ctx.region.clear()
+          }
+          fs.value.writeDataFile(path) { os =>
+            val bytes = write(aggRegion, seq.getAggOffset())
+            os.writeInt(bytes.length)
+            os.write(bytes)
+          }
+          Iterator.single(path)
+        }
+      }.collect()
+
+      val fileStack = new ArrayBuilder[Array[String]]()
+      var filesToMerge: Array[String] = files
+      while (filesToMerge.length > 1) {
+        val nToMerge = filesToMerge.length / 2
+        log.info(s"Running combOp stage with $nToMerge tasks")
+        fileStack += filesToMerge
+        filesToMerge = hc.sc.parallelize(0 until nToMerge, nToMerge)
+          .mapPartitions { it =>
+            val i = it.next()
+            assert(it.isEmpty)
+            val path = tmpBase + "/" + partFile(d, i, TaskContext.get)
+            val file1 = filesToMerge(i * 2)
+            val file2 = filesToMerge(i * 2 + 1)
+            def readToBytes(is: DataInputStream): Array[Byte] = {
+              val len = is.readInt()
+              val b = new Array[Byte](len)
+              is.readFully(b)
+              b
+            }
+            val b1 = fs.value.readDataFile(file1)(readToBytes)
+            val b2 = fs.value.readDataFile(file2)(readToBytes)
+            fs.value.writeDataFile(path) { os =>
+              val bytes = combOpF(b1, b2)
+              os.writeInt(bytes.length)
+              os.write(bytes)
+            }
+            Iterator.single(path)
+          }.collect()
+      }
+      fileStack += filesToMerge
+
+      val itF = { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
+        val globalRegion = ctx.freshRegion
+        val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
+          globalsBc.value.readRegionValue(globalRegion)
+        else
+          0
+        val partitionAggs = {
+          var j = 0
+          var x = i
+          val ab = new ArrayBuilder[String]
+          while (j < fileStack.length) {
+            assert(x <= fileStack(j).length)
+            if (x % 2 != 0) {
+              x -= 1
+              ab += fileStack(j)(x)
+            }
+            assert(x % 2 == 0)
+            x = x / 2
+            j += 1
+          }
+          assert(x == 0)
+          var b = initAgg
+          ab.result().reverseIterator.foreach { path =>
+            def readToBytes(is: DataInputStream): Array[Byte] = {
+              val len = is.readInt()
+              val b = new Array[Byte](len)
+              is.readFully(b)
+              b
+            }
+
+            b = combOpF(b, fs.value.readDataFile(path)(readToBytes))
+          }
+          b
+        }
+
+        val aggRegion = ctx.freshRegion
+        val newRow = f(i, globalRegion)
+        val seq = eltSeqF(i, globalRegion)
+        var aggOff = read(aggRegion, partitionAggs)
+
+        it.map { rv =>
+          newRow.setAggState(aggRegion, aggOff)
+          val off = newRow(rv.region, globals, false, rv.offset, false)
+          seq.setAggState(aggRegion, newRow.getAggOffset())
+          seq(rv.region, globals, false, rv.offset, false)
+          aggOff = seq.getAggOffset()
+          rv.setOffset(off)
+          rv
+        }
+      }
+      return tv.copy(
+        typ = typ,
+        rvd = tv.rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key), itF))
     }
 
     // 2. load in init op on each partition, seq op over partition, write out.
