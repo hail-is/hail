@@ -132,8 +132,10 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     report("CLEAR")
     var i = 0
     while (i < regions.size) {
-      regions(i).freeMemory()
-      reclaim(regions(i))
+      if (!regions(i).isFreed) {
+        regions(i).freeMemory()
+        reclaim(regions(i))
+      }
       i += 1
     }
   }
