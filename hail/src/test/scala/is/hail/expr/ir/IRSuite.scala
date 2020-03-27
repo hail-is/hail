@@ -3229,6 +3229,29 @@ class IRSuite extends HailSuite {
     assert(!HasIRSharing(ir1.deepCopy()))
   }
 
+  @Test def freeVariablesAggScanBindingEnv(): Unit = {
+    def testFreeVarsHelper(ir: IR): Unit = {
+      val irFreeVarsTrue = FreeVariables.apply(ir, true, true)
+      assert(irFreeVarsTrue.agg.isDefined && irFreeVarsTrue.scan.isDefined)
+
+      val irFreeVarsFalse = FreeVariables.apply(ir, false, false)
+      assert(irFreeVarsFalse.agg.isEmpty && irFreeVarsFalse.scan.isEmpty)
+    }
+
+    val liftIR = LiftMeOut(Ref("x", TInt32))
+    testFreeVarsHelper(liftIR)
+
+    val sumSig = AggSignature(Sum(), Seq(), Seq(TInt64))
+    val streamAggIR =  StreamAgg(
+      StreamMap(StreamRange(I32(0), I32(4), I32(1)), "x", Cast(Ref("x", TInt32), TInt64)),
+      "x",
+      ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(Ref("x", TInt64)), sumSig))
+    testFreeVarsHelper(streamAggIR)
+
+    val streamScanIR = StreamAggScan(Ref("st", TStream(TInt32)), "x", ApplyScanOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32), TInt64)), sumSig))
+    testFreeVarsHelper(streamScanIR)
+  }
+
   @DataProvider(name = "nonNullTypesAndValues")
   def nonNullTypesAndValues(): Array[Array[Any]] = Array(
     Array(PInt32(), 1),
