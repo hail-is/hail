@@ -538,7 +538,6 @@ private class Emit[C](
     emit(ir, mb, env, er, container, None)
 
   private def emit(ir: IR, mb: EmitMethodBuilder[C], env: E, er: EmitRegion, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): EmitCode = {
-    assert(ir.typ != TVoid, Pretty(ir))
 
     def emit(ir: IR, mb: EmitMethodBuilder[C] = mb, env: E = env, er: EmitRegion = er, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
       this.emit(ir, mb, env, er, container, loopEnv)
@@ -570,7 +569,7 @@ private class Emit[C](
     // working towards removing this
     if (pt == PVoid)
       return new EmitCode(emitVoid(ir), const(false), PCode(pt, Code._empty))
-
+    
     (ir: @unchecked) match {
       case I32(x) =>
         present(pt, const(x))
