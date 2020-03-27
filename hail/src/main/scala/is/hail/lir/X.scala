@@ -416,6 +416,7 @@ abstract class X {
       val c = children(i)
       c.parent = null
       children(i) = null
+      i += 1
     }
     children = java.util.Arrays.copyOf(children, n)
   }
