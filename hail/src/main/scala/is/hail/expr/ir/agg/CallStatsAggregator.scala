@@ -132,31 +132,25 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
     assert(t == call.pv.pt)
 
     val mb = state.cb.getOrGenEmitMethod("callstatsagg_seqop", t, Array(typeToTypeInfo(t)), UnitInfo) { mb =>
-      def checkSize(a: Code[Int]): Code[Unit] =
-        Code.memoize(a, "callstatsagg_check_size_a") { a =>
-          (a > state.nAlleles).orEmpty(
+      mb.emitWithBuilder[Unit] { cb =>
+        val hom = cb.memoize[Boolean](const(true), "hom")
+        val lastAllele = cb.memoize[Int](const(-1), "lastAllele")
+        val i = cb.memoize[Int](const(0), "i")
+        val call = PCallValue(t, mb.getArg(1)(typeToTypeInfo(t)))
+
+        call.forEachAllele(cb) { allele: Value[Int] =>
+          cb.ifx(allele > state.nAlleles,
             Code._fatal[Unit](const("found allele outside of expected range [0, ")
-              .concat(state.nAlleles.toS).concat("]: ").concat(a.toS)))
+              .concat(state.nAlleles.toS).concat("]: ").concat(allele.toS)))
+          cb += state.updateAlleleCountAtIndex(allele, state.nAlleles, _ + 1)
+          cb.ifx(i > 0, cb.assign(hom, hom && allele.ceq(lastAllele)))
+          cb.assign(lastAllele, allele)
+          cb.assign(i, i + 1)
         }
 
-      val cb = EmitCodeBuilder(mb)
-      val hom = cb.memoize[Boolean](const(true), "hom")
-      val lastAllele = cb.memoize[Int](const(-1), "lastAllele")
-      val i = cb.memoize[Int](const(0), "i")
-      val call = PCallValue(t, mb.getArg(1)(typeToTypeInfo(t)))
-
-      cb += call.forEachAllele(mb, { allele: Value[Int] =>
-        Code(
-          checkSize(allele),
-          state.updateAlleleCountAtIndex(allele, state.nAlleles, _ + 1),
-          (i > 0).orEmpty(hom := hom && allele.ceq(lastAllele)),
-          lastAllele := allele,
-          i := i + 1)
-      })
-
-      cb.ifx((i > 1) && hom, { cb += state.updateHomCountAtIndex(lastAllele, state.nAlleles, _ + 1) })
-
-      mb.emit(cb.result())
+        cb.ifx((i > 1) && hom, { cb += state.updateHomCountAtIndex(lastAllele, state.nAlleles, _ + 1) })
+        Code._empty
+      }
     }
 
     Code(call.setup, call.m.mux(
