@@ -23,17 +23,8 @@ class RVDContext(val partitionRegion: Region, val r: Region) extends AutoCloseab
 
   own(r)
 
-  def freshContextFrom(caller: String): RVDContext = {
-    freshContextHelper(caller)
-  }
-
-  def freshContext: RVDContext = {
-    freshContextHelper("unnamed")
-  }
-
-  def freshContextHelper(name: String): RVDContext = {
-    log.info(s"FRESH CONTEXT CREATED BY: $name")
-    val ctx = new RVDContext(partitionRegion, Region.makeNamed(creator=name))
+  def freshContext(): RVDContext = {
+    val ctx = new RVDContext(partitionRegion, Region())
     own(ctx)
     ctx
   }

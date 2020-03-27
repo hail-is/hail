@@ -273,9 +273,9 @@ object Region {
       .getRegion(blockSize)
   }
 
-  def makeNamed(blockSize: Region.Size = Region.REGULAR, pool: RegionPool = null, creator: String = "default"): Region = {
+  def makeNamed(blockSize: Region.Size = Region.REGULAR, pool: RegionPool = null): Region = {
     (if (pool == null) RegionPool.get else pool)
-      .getRegion(blockSize, creator=creator)
+      .getRegion(blockSize)
   }
 
   def pretty(t: PType, off: Long): String = {
@@ -344,10 +344,10 @@ object Region {
   }
 }
 
-final class Region protected[annotations](var blockSize: Region.Size, var pool: RegionPool, var memory: RegionMemory = null, var creator: String = "default") extends AutoCloseable {
-  val uuid = java.util.UUID.randomUUID.toString
+final class Region protected[annotations](var blockSize: Region.Size, var pool: RegionPool, var memory: RegionMemory = null) extends AutoCloseable {
+  //val uuid = java.util.UUID.randomUUID.toString
 
-  val fullID = s"$creator-$uuid"
+  //val fullID = s"$creator-$uuid"
 
   //log.info(s"REGION: New region ${fullID} created.")
 
