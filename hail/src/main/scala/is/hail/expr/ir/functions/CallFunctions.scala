@@ -27,7 +27,7 @@ object CallFunctions extends RegistryFunctions {
       "isHomVar", "isNonRef", "isHetNonRef", "isHetRef")
     for (q <- qualities) registerScalaFunction(q, Array(TCall), TBoolean, (pt: Seq[PType]) => PBoolean())(Call.getClass, q)
 
-    registerScalaFunction("ploidy", Array(TCall), TInt32, (pt: Seq[PType]) => PBoolean())(Call.getClass, "ploidy")
+    registerScalaFunction("ploidy", Array(TCall), TInt32, (pt: Seq[PType]) => PInt32())(Call.getClass, "ploidy")
 
     registerScalaFunction("nNonRefAlleles", Array(TCall), TInt32, (pt: Seq[PType]) => PInt32())(Call.getClass, "nNonRefAlleles")
 
@@ -35,7 +35,7 @@ object CallFunctions extends RegistryFunctions {
 
     registerScalaFunction("index", Array(TCall, TInt32), TInt32, (pt: Seq[PType]) => PInt32())(Call.getClass, "alleleByIndex")
 
-    registerScalaFunction("downcode", Array(TCall, TInt32), TCall, (pt: Seq[PType]) => pt(0))(Call.getClass, "downcode")
+    registerScalaFunction("downcode", Array(TCall, TInt32), TCall, (pt: Seq[PType]) => PCanonicalCall())(Call.getClass, "downcode")
 
     registerWrappedScalaFunction("oneHotAlleles", TCall, TInt32, TArray(TInt32), {
       case(_: PType, _: PType) => PCanonicalArray(PInt32(true))
