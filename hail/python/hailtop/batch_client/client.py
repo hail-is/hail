@@ -187,6 +187,10 @@ class BatchClient:
         j = async_to_blocking(self._async_client.get_job(batch_id, job_id))
         return Job.from_async_job(j)
 
+    def get_job_log(self, batch_id, job_id):
+        log = async_to_blocking(self._async_client.get_job_log(batch_id, job_id))
+        return log
+
     def get_batch(self, id):
         b = async_to_blocking(self._async_client.get_batch(id))
         return Batch.from_async_batch(b)

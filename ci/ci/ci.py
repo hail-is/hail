@@ -257,14 +257,21 @@ async def batch_callback_handler(request):
 @routes.get('/api/v1alpha/deploy_status')
 @rest_authenticated_developers_only
 async def deploy_status(request, userdata):
-    del request
     del userdata
+    batch_client = request.app['batch_client']
+
+    async def get_failure_information(batch):
+        return [
+            {**j,
+             'log': await batch_client.get_job_log(j['batch_id'], j['job_id'])}
+            for j in batch.jobs() if j['state'] != 'Success']
     wb_configs = [{
         'branch': wb.branch.short_str(),
         'sha': wb.sha,
         'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
         'deploy_state': wb.deploy_state,
-        'repo': wb.branch.repo.short_str()
+        'repo': wb.branch.repo.short_str(),
+        'failure_information': None if wb.deploy_state == 'success' else await get_failure_information(wb.deploy_batch)
     } for wb in watched_branches]
     return web.json_response(wb_configs)
 
