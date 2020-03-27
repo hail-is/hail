@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.ExecStrategy
-import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual._
@@ -22,6 +21,19 @@ class StringFunctionsSuite extends TestNGSuite {
 
     assertEvalsTo(invoke("regexMatch", TBoolean, Str("[a-z][0-9]"), Str("t7")), true)
     assertEvalsTo(invoke("regexMatch", TBoolean, Str("[a-z][0-9]"), Str("3x")), false)
+  }
+
+  @Test def testLength() {
+    assertEvalsTo(invoke("length", TInt32, Str("ab")), 2)
+    assertEvalsTo(invoke("length", TInt32, Str("")), 0)
+    assertEvalsTo(invoke("length", TInt32, NA(TString)), null)
+  }
+
+  @Test def testSubstring() {
+    assertEvalsTo(invoke("substring", TString, Str("ab"), 0, 1), "a")
+    assertEvalsTo(invoke("substring", TString, Str("ab"), NA(TInt32), 1), null)
+    assertEvalsTo(invoke("substring", TString, Str("ab"), 0, NA(TInt32)), null)
+    assertEvalsTo(invoke("substring", TString, NA(TString), 0, 1), null)
   }
 
   @Test def testConcat() {
@@ -69,7 +81,18 @@ class StringFunctionsSuite extends TestNGSuite {
 
     // FIXME matches current FunctionRegistry, but should be a,NA,c
     assertEvalsTo(invoke("mkString", TString, IRStringSet("a", null, "c"), Str(",")), "a,c,null")
+  }
 
+  @Test def testFirstMatchIn() {
+    assertEvalsTo(invoke("firstMatchIn", TArray(TString), Str("""([a-zA-Z]+)"""), Str("1")), null)
+    assertEvalsTo(invoke("firstMatchIn", TArray(TString), Str("Hello world!"), Str("""([a-zA-Z]+)""")), FastIndexedSeq("Hello"))
+    assertEvalsTo(invoke("firstMatchIn", TArray(TString), Str("Hello world!"), Str("""[a-zA-Z]+""")), FastIndexedSeq())
+  }
+
+  @Test def testHammingDistance() {
+    assertEvalsTo(invoke("hamming", TInt32, Str("foo"), NA(TString)), null)
+    assertEvalsTo(invoke("hamming", TInt32, Str("foo"), Str("fool")), null)
+    assertEvalsTo(invoke("hamming", TInt32, Str("foo"), Str("fol")), 1)
   }
 
   @DataProvider(name = "str")
