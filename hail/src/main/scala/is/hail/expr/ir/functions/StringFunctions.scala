@@ -96,8 +96,8 @@ object StringFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerCode("length", TString, TInt32, (_: PType) => PInt32()) { case (r: EmitRegion, rt, (sT: PString, s: Code[Long])) =>
-      asm4s.coerce[String](wrapArg(r, sT)(s)).invoke[Int]("length")
+    registerPCode("length", TString, TInt32, (_: PType) => PInt32()) { case (r: EmitRegion, rt, s: PStringCode) =>
+      PCode(rt, s.loadString().invoke[Int]("length"))
     }
 
     registerCode("substring", TString, TInt32, TInt32, TString, {

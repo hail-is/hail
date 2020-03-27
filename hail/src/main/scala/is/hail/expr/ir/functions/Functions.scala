@@ -273,6 +273,31 @@ abstract class RegistryFunctions {
         srvb.offset)
   }
 
+  def registerPCode(mname: String, aTypes: Array[Type], rType: Type, pt: Seq[PType] => PType)
+    (impl: (EmitRegion, PType, Array[PCode]) => PCode) {
+    IRFunctionRegistry.addIRFunction(new IRFunctionWithoutMissingness {
+      override val name: String = mname
+
+      override val argTypes: Seq[Type] = aTypes
+
+      override val returnType: Type = rType
+
+      override def returnPType(argTypes: Seq[PType], returnType: Type): PType = {
+        val p = if (pt == null) PType.canonical(returnType) else pt(argTypes)
+
+        // IRFunctionWithoutMissingness returns missing if any arguments are missing
+        p.setRequired(argTypes.forall(_.required))
+      }
+
+      override def apply(r: EmitRegion, returnPType: PType, args: PCode*): PCode = impl(r, returnPType, args.toArray)
+
+      override def apply(r: EmitRegion, returnPType: PType, args: (PType, Code[_])*): Code[_] = {
+        unify(args.map(_._1.virtualType))
+        apply(r, returnPType, args.map { case (t, a) => PCode(t, a) }: _*).code
+      }
+    })
+  }
+
   def registerCode(mname: String, aTypes: Array[Type], rType: Type, pt: Seq[PType] => PType)
     (impl: (EmitRegion, PType, Array[(PType, Code[_])]) => Code[_]) {
     IRFunctionRegistry.addIRFunction(new IRFunctionWithoutMissingness {
@@ -359,6 +384,11 @@ abstract class RegistryFunctions {
   def registerIR(mname: String, argTypes: Array[Type], retType: Type, inline: Boolean = false)(f: Seq[IR] => IR) {
     IRFunctionRegistry.addIR(mname, argTypes, retType, inline, f)
   }
+
+  def registerPCode(mname: String, mt1: Type, rt: Type, pt: PType => PType)(impl: (EmitRegion, PType, PCode) => PCode): Unit =
+    registerPCode(mname, Array(mt1), rt, unwrappedApply(pt)) {
+      case (r, rt, Array(a1)) => impl(r, rt, a1)
+    }
 
   def registerCode(mname: String, rt: Type, pType: PType)(impl: EmitRegion => Code[_]): Unit =
     registerCode(mname, Array[Type](), rt, (_: Seq[PType]) => pType) { case (r, rt, array) => impl(r) }
@@ -529,6 +559,9 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
   def argTypes: Seq[Type]
 
   def apply(r: EmitRegion, returnPType: PType, args: (PType, Code[_])*): Code[_]
+
+  def apply(r: EmitRegion, returnPType: PType, args: PCode*): PCode =
+    PCode(returnPType, apply(r, returnPType, args.map(pc => pc.pt -> pc.code): _*))
 
   def apply(r: EmitRegion, returnPType: PType, args: EmitCode*): EmitCode = {
     val setup = Code(args.map(_.setup))
