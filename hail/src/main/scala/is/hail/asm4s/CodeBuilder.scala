@@ -14,6 +14,11 @@ object CodeBuilder {
     val t = f(cb)
     (cb.result(), t)
   }
+
+  def scopedCode[T](mb: MethodBuilder[_])(f: (CodeBuilder) => Code[T]): Code[T] = {
+    val (cbcode, retcode) = CodeBuilder.scoped(mb)(f)
+    Code(cbcode, retcode)
+  }
 }
 
 trait CodeBuilderLike {

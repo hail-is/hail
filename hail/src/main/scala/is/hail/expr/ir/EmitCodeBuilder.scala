@@ -12,6 +12,11 @@ object EmitCodeBuilder {
     val t = f(cb)
     (cb.result(), t)
   }
+
+  def scopedCode[T](mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => Code[T]): Code[T] = {
+    val (cbcode, retcode) = EmitCodeBuilder.scoped(mb)(f)
+    Code(cbcode, retcode)
+  }
 }
 
 class EmitCodeBuilder(emb: EmitMethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
