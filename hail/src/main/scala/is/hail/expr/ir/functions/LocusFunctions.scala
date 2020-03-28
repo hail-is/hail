@@ -373,7 +373,7 @@ object LocusFunctions extends RegistryFunctions {
     registerCodeWithTypeAndMissingness("LocusInterval", TString, TInt32, TInt32, TBoolean, TBoolean, TBoolean, tinterval("T"), {
       (returnType: Type, _: PType, _: PType, _: PType, _: PType, _: PType, _: PType) => {
         val lPTyp = returnType.asInstanceOf[TInterval].pointType.asInstanceOf[TLocus]
-        PCanonicalInterval(PCanonicalLocus(lPTyp.rg, true))
+        PCanonicalInterval(PCanonicalLocus(lPTyp.rg))
       }
     }) {
       case (r: EmitRegion, rt: PInterval,
