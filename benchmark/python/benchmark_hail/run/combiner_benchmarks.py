@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 import hail as hl
 import hail.experimental.vcf_combiner as comb
 
-from .resources import empty_gvcf
+from .resources import empty_gvcf, single_gvcf
 from .utils import benchmark
 
 COMBINE_GVCF_MAX = 100
@@ -41,3 +41,18 @@ def python_only_10k_combine(path):
     mt = comb.transform_gvcf(vcf)
     mts = [mt] * 10_000
     _ = [comb.combine_gvcfs(mts) for mts in chunks(mts, COMBINE_GVCF_MAX)]
+
+@benchmark(args=single_gvcf.handle())
+def import_and_transform_gvcf(path):
+    vc = hl.experimental.vcf_combiner
+    intervals = vc.default_exome_intervals('GRCh38')
+    [mt] = hl.import_gvcfs([path], intervals, reference_genome='GRCh38')
+    mt = vc.transform_gvcf(mt)
+    mt._force_count()
+
+@benchmark(args=single_gvcf.handle())
+def import_gvcf_force_count(path):
+    vc = hl.experimental.vcf_combiner
+    intervals = vc.default_exome_intervals('GRCh38')
+    [mt] = hl.import_gvcfs([path], intervals, reference_genome='GRCh38')
+    mt._force_count_rows()

@@ -243,6 +243,22 @@ class EmptyGVCF(ResourceGroup):
         return 'empty.g.vcf.bgz'
 
 
+class SingleGVCF(ResourceGroup):
+    def __init__(self):
+        super(SingleGVCF, self).__init__('NA20760.hg38.g.vcf.gz.tbi', 'NA20760.hg38.g.vcf.gz')
+    def name(self):
+        return 'single_gvcf'
+
+    def _create(self, resource_dir):
+        for f in self.files:
+            download(resource_dir, f)
+            logging.info(f'downloading {f}')
+
+    def path(self, resource):
+        if resource is not None:
+            raise KeyError(resource)
+        return 'NA20760.hg38.g.vcf.gz'
+
 profile_25 = Profile25()
 many_partitions_tables = ManyPartitionsTables()
 gnomad_dp_sim = GnomadDPSim()
@@ -251,6 +267,7 @@ many_ints_table = ManyIntsTable()
 sim_ukbb = SimUKBB()
 random_doubles = RandomDoublesMatrixTable()
 empty_gvcf = EmptyGVCF()
+single_gvcf = SingleGVCF()
 
 all_resources = profile_25, many_partitions_tables, gnomad_dp_sim, many_strings_table, many_ints_table, sim_ukbb, \
     random_doubles, empty_gvcf
