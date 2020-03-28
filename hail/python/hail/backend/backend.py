@@ -76,6 +76,10 @@ class Backend(abc.ABC):
     def fs(self):
         pass
 
+    @abc.abstractmethod
+    def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
+        pass
+
     def persist_table(self, t, storage_level):
         return t
 
@@ -241,6 +245,9 @@ class SparkBackend(Backend):
     def parse_vcf_metadata(self, path):
         return json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(path))
 
+    def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
+        self._jbackend.pyIndexBgen(files, index_file_map, joption(rg), contig_recoding, skip_invalid_loci)
+
 
 class ServiceBackend(Backend):
     def __init__(self, deploy_config=None):
@@ -391,6 +398,22 @@ class ServiceBackend(Backend):
     def parse_vcf_metadata(self, path):
         resp = requests.post(f'{self.url}/parse-vcf-metadata',
                              json={'path': path},
+                             headers=self.headers)
+        if resp.status_code == 400:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
+        resp.raise_for_status()
+        return resp.json()
+
+    def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
+        resp = requests.post(f'{self.url}/index-bgen',
+                             json={
+                                 'files': files,
+                                 'index_file_map': index_file_map,
+                                 'rg': rg,
+                                 'contig_recoding': contig_recoding,
+                                 'skip_invalid_loci': skip_invalid_loci
+                             },
                              headers=self.headers)
         if resp.status_code == 400:
             resp_json = resp.json()

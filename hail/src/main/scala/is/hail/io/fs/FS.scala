@@ -3,6 +3,8 @@ package is.hail.io.fs
 import java.io._
 import java.util
 
+import is.hail.HailContext
+import is.hail.backend.BroadcastValue
 import is.hail.utils._
 
 import scala.io.Source
@@ -117,4 +119,6 @@ trait FS extends Serializable {
         }
     }
   }
+
+  lazy val broadcast: BroadcastValue[FS] = HailContext.backend.broadcast(this)
 }

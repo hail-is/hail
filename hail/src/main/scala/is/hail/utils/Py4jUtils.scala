@@ -155,7 +155,7 @@ trait Py4jUtils {
   def pyFromDF(df: DataFrame, jKey: java.util.List[String]): TableIR = {
     val key = jKey.asScala.toArray.toFastIndexedSeq
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[PStruct]
-    ExecuteContext.scoped { ctx =>
+    ExecuteContext.scoped() { ctx =>
       TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)), ctx)
     }
   }

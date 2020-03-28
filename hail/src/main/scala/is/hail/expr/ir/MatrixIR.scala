@@ -43,7 +43,7 @@ abstract sealed class MatrixIR extends BaseIR {
   override def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR
 
   def persist(storageLevel: StorageLevel): MatrixIR = {
-    ExecuteContext.scoped { ctx =>
+    ExecuteContext.scoped() { ctx =>
       val tv = Interpret(this, ctx, optimize = true)
       MatrixLiteral(this.typ, TableLiteral(tv.persist(storageLevel), ctx))
     }
@@ -72,7 +72,7 @@ abstract sealed class MatrixIR extends BaseIR {
 object MatrixLiteral {
   def apply(typ: MatrixType, rvd: RVD, globals: Row, colValues: IndexedSeq[Row]): MatrixLiteral = {
     val tt = typ.canonicalTableType
-    ExecuteContext.scoped { ctx =>
+    ExecuteContext.scoped() { ctx =>
       MatrixLiteral(typ,
         TableLiteral(
           TableValue(tt,

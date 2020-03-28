@@ -33,7 +33,7 @@ class PartitioningSuite extends HailSuite {
     val rvdType = nonEmptyRVD.typ
     val emptyRVD = RVD.empty(hc.sc, rvdType)
 
-    ExecuteContext.scoped { ctx =>
+    ExecuteContext.scoped() { ctx =>
       emptyRVD.orderedJoin(nonEmptyRVD, "left", (_, it) => it.map(_._1), rvdType, ctx).count()
       emptyRVD.orderedJoin(nonEmptyRVD, "inner", (_, it) => it.map(_._1), rvdType, ctx).count()
       nonEmptyRVD.orderedJoin(emptyRVD, "left", (_, it) => it.map(_._1), rvdType, ctx).count()

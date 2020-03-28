@@ -90,7 +90,7 @@ class RandomFunctionsSuite extends HailSuite {
       Interval(Row(10), Row(14), false, true))
     val newPartitioner = mapped.partitioner.copy(rangeBounds=newRangeBounds)
 
-    ExecuteContext.scoped { ctx =>
+    ExecuteContext.scoped() { ctx =>
       val repartitioned = mapped.repartition(newPartitioner, ctx)
       val cachedAndRepartitioned = mapped.cache().repartition(newPartitioner, ctx)
 

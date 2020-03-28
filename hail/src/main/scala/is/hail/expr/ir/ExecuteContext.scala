@@ -1,24 +1,24 @@
 package is.hail.expr.ir
 
+import is.hail.HailContext
 import is.hail.utils._
 import is.hail.annotations.Region
-import scala.collection.mutable.ArrayBuffer
+import is.hail.backend.Backend
+import is.hail.io.fs.FS
 
 object ExecuteContext {
-  def scoped[T](f: ExecuteContext => T): T = {
+  def scoped[T]()(f: ExecuteContext => T): T = scoped(HailContext.backend, HailContext.fs)(f)
+
+  def scoped[T](backend: Backend, fs: FS)(f: ExecuteContext => T): T = {
     Region.scoped { r =>
-      using(ExecuteContext(r,  new ExecutionTimer))(f)
+      val ctx = new ExecuteContext(backend, fs, r, new ExecutionTimer)
+      f(ctx)
     }
   }
 }
 
-case class ExecuteContext(r: Region, timer: ExecutionTimer) extends AutoCloseable {
-  private[this] val onExits = new ArrayBuffer[() => Unit]()
-  def addOnExit(onExit: () => Unit): Unit = {
-    onExits += onExit
-  }
-
-  def close(): Unit = {
-    onExits.foreach(_())
-  }
-}
+class ExecuteContext(
+  val backend: Backend,
+  val fs: FS,
+  val r: Region,
+  val timer: ExecutionTimer)

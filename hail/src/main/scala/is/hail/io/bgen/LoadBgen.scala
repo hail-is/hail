@@ -377,7 +377,7 @@ case class MatrixBGENReader(
 
   val (indexKeyType, indexAnnotationType) = LoadBgen.getIndexTypes(fileMetadata)
 
-  val (maybePartitions, partitionRangeBounds) = BgenRDDPartitions(referenceGenome, fileMetadata,
+  val (maybePartitions, partitionRangeBounds) = BgenRDDPartitions(fs, referenceGenome, fileMetadata,
     if (nPartitions.isEmpty && blockSizeInMB.isEmpty)
     Some(128)
   else
@@ -390,7 +390,7 @@ case class MatrixBGENReader(
       assert(rowType.isPrefixOf(fullMatrixType.rowKeyStruct))
       assert(rowType.types.nonEmpty)
 
-      ExecuteContext.scoped { ctx =>
+      ExecuteContext.scoped() { ctx =>
         val rvd = Interpret(ir.TableDistinct(variantsTableIR), ctx).rvd
 
         val repartitioned = RepartitionedOrderedRDD2(rvd, partitionRangeBounds.map(_.coarsen(rowType.types.length)))

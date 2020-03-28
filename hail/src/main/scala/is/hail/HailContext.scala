@@ -5,12 +5,12 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.backend.Backend
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.{BaseIR, ExecuteContext}
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
-import is.hail.io.bgen.IndexBgen
 import is.hail.io.fs.FS
 import is.hail.io.index._
 import is.hail.io.vcf._
@@ -28,7 +28,6 @@ import org.apache.spark.sql.Row
 import org.json4s.Extraction
 import org.json4s.jackson.JsonMethods
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
@@ -57,9 +56,13 @@ object HailContext {
 
   def setFlag(flag: String, value: String): Unit = get.flags.set(flag, value)
 
+  def sparkBackend(): SparkBackend = get.sparkBackend()
+
   def fs: FS = get.fs
 
   def fsBc: Broadcast[FS] = get.fsBc
+
+  def sc: SparkContext = get.sc
 
   def configureLogging(logFile: String, quiet: Boolean, append: Boolean) {
     val logProps = new Properties()
@@ -155,7 +158,7 @@ object HailContext {
   def clear(): Unit = synchronized {
     ReferenceGenome.reset()
     IRFunctionRegistry.clearUserFunctions()
-    backend.clear()
+    backend.stop()
 
     theContext = null
   }
@@ -444,11 +447,13 @@ class HailContext private(
   val tmpDirPath: String,
   val branchingFactor: Int,
   val optimizerIterations: Int) {
-  def sc: SparkContext = backend.asSpark().sc
+  def sparkBackend(): SparkBackend = backend.asSpark()
 
-  def fs: FS = backend.asSpark().fs
+  def sc: SparkContext = sparkBackend().sc
 
-  def fsBc: Broadcast[FS] = backend.asSpark().fsBc
+  def fs: FS = sparkBackend().fs
+
+  def fsBc: Broadcast[FS] = sparkBackend().fsBc
 
   val tmpDir: String = TempDir.createTempDir(tmpDirPath, fs)
   info(s"Hail temporary directory: $tmpDir")
@@ -501,25 +506,6 @@ class HailContext private(
 
   def getTemporaryFile(nChar: Int = 10, prefix: Option[String] = None, suffix: Option[String] = None): String =
     fs.getTemporaryFile(tmpDir, nChar, prefix, suffix)
-
-  def indexBgen(files: java.util.List[String],
-    indexFileMap: java.util.Map[String, String],
-    rg: Option[String],
-    contigRecoding: java.util.Map[String, String],
-    skipInvalidLoci: Boolean) {
-    indexBgen(files.asScala, indexFileMap.asScala.toMap, rg, contigRecoding.asScala.toMap, skipInvalidLoci)
-  }
-
-  def indexBgen(files: Seq[String],
-    indexFileMap: Map[String, String] = null,
-    rg: Option[String] = None,
-    contigRecoding: Map[String, String] = Map.empty[String, String],
-    skipInvalidLoci: Boolean = false) {
-    ExecuteContext.scoped { ctx =>
-      IndexBgen(this, files.toArray, indexFileMap, rg, contigRecoding, skipInvalidLoci, ctx)
-    }
-    info(s"Number of BGEN files indexed: ${ files.length }")
-  }
 
   def readPartitions[T: ClassTag](
     path: String,

@@ -37,7 +37,7 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
 
 case class BlockMatrixPersistWriter(id: String, storageLevel: String) extends BlockMatrixWriter {
   def apply(hc: HailContext, bm: BlockMatrix): Unit =
-    HailContext.backend.cache.persistBlockMatrix(id, bm, storageLevel)
+    HailContext.sparkBackend().bmCache.persistBlockMatrix(id, bm, storageLevel)
 }
 
 case class BlockMatrixRectanglesWriter(

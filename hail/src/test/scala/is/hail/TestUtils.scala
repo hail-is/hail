@@ -155,7 +155,7 @@ object TestUtils {
   ): Any = {
     if (agg.isDefined || !env.isEmpty || !args.isEmpty)
       throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
-    HailContext.backend.jvmLowerAndExecute(x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter)._1
+    HailContext.sparkBackend().jvmLowerAndExecute(x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter)._1
   }
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
@@ -167,7 +167,7 @@ object TestUtils {
     bytecodePrinter: Option[PrintWriter] = None,
     optimize: Boolean = true
   ): Any = {
-    ExecuteContext.scoped { ctx =>
+    ExecuteContext.scoped() { ctx =>
       val inputTypesB = new ArrayBuilder[Type]()
       val inputsB = new ArrayBuilder[Any]()
 
@@ -283,7 +283,7 @@ object TestUtils {
   def assertEvalSame(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)]) {
     val t = x.typ
 
-    val (i, i2, c) = ExecuteContext.scoped { ctx =>
+    val (i, i2, c) = ExecuteContext.scoped() { ctx =>
       val i = Interpret[Any](ctx, x, env, args)
       val i2 = Interpret[Any](ctx, x, env, args, optimize = false)
       val c = eval(x, env, args, None)
@@ -329,7 +329,7 @@ object TestUtils {
     val t = x.typ
     assert(t.typeCheck(expected), s"$t, $expected")
 
-    ExecuteContext.scoped { ctx =>
+    ExecuteContext.scoped() { ctx =>
       val filteredExecStrats: Set[ExecStrategy] =
         if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
         else {
@@ -385,7 +385,7 @@ object TestUtils {
   }
 
   def assertThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], regex: String) {
-    ExecuteContext.scoped { ctx =>
+    ExecuteContext.scoped() { ctx =>
       interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
       interceptException[E](regex)(Interpret[Any](ctx, x, env, args, optimize = false))
       interceptException[E](regex)(eval(x, env, args, None))
@@ -468,7 +468,7 @@ object TestUtils {
 
   def assertBMEvalsTo(bm: BlockMatrixIR, expected: DenseMatrix[Double])
     (implicit execStrats: Set[ExecStrategy]): Unit = {
-    ExecuteContext.scoped { ctx =>
+    ExecuteContext.scoped() { ctx =>
       val filteredExecStrats: Set[ExecStrategy] =
         if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
         else {
