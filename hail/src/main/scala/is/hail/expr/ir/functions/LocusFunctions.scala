@@ -310,6 +310,7 @@ object LocusFunctions extends RegistryFunctions {
 
     registerCode("Locus", TString, tlocus("T"), (_: PType) => {
       val locusType = tv("T", "locus").t.asInstanceOf[TLocus]
+      println(s"Locus2 type is ${locusType}, rg is ${locusType.rg}")
       PCanonicalLocus(locusType.rg)
     }) {
       case (r, rt: PLocus, (strT, locusoff: Code[Long])) =>
@@ -323,6 +324,7 @@ object LocusFunctions extends RegistryFunctions {
     registerCode("Locus", TString, TInt32, tlocus("T"), {
       case(_: PType, _: PType) => {
         val locusType = tv("T", "locus").t.asInstanceOf[TLocus]
+        println(s"Locus2 type is ${locusType}, rg is ${locusType.rg}")
         PCanonicalLocus(locusType.rg)
       }
     }) {
@@ -399,11 +401,9 @@ object LocusFunctions extends RegistryFunctions {
         )
     }
 
-    registerCode("globalPosToLocus", TInt64, tlocus("T"), {
-      case(_: PType) => {
-        val locusType = tv("T", "locus").t.asInstanceOf[TLocus]
-        PStruct("result" -> PCanonicalLocus(locusType.rg), "is_negative_strand" -> PBoolean())
-      }
+    registerCode("globalPosToLocus", TInt64, tlocus("T"), (_: PType) => {
+      val locusType = tv("T", "locus").t.asInstanceOf[TLocus]
+      PCanonicalLocus(locusType.rg)
     }) {
       case (r, rt: PLocus, (globalPositionT, globalPosition: Code[Long])) =>
         val locus = rgCode(r.mb, rt.rg).invoke[Long, Locus]("globalPosToLocus", globalPosition)
