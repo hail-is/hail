@@ -375,11 +375,11 @@ class BlockMatrixSuite extends HailSuite {
       13, 14, 15, 16))
 
     val fname = tmpDir.createTempFile("test")
-    m.write(hc.sFS, fname)
+    m.write(hc.fs, fname)
     assert(m.toBreezeMatrix() == BlockMatrix.read(hc, fname).toBreezeMatrix())
 
     val fname2 = tmpDir.createTempFile("test2")
-    m.write(hc.sFS, fname2, forceRowMajor = true)
+    m.write(hc.fs, fname2, forceRowMajor = true)
     assert(m.toBreezeMatrix() == BlockMatrix.read(hc, fname2).toBreezeMatrix())
   }
 
@@ -392,11 +392,11 @@ class BlockMatrixSuite extends HailSuite {
       13, 14, 15, 16))
 
     val fname = tmpDir.createTempFile("test")
-    m.T.write(hc.sFS, fname)
+    m.T.write(hc.fs, fname)
     assert(m.T.toBreezeMatrix() == BlockMatrix.read(hc, fname).toBreezeMatrix())
 
     val fname2 = tmpDir.createTempFile("test2")
-    m.T.write(hc.sFS, fname2, forceRowMajor = true)
+    m.T.write(hc.fs, fname2, forceRowMajor = true)
     assert(m.T.toBreezeMatrix() == BlockMatrix.read(hc, fname2).toBreezeMatrix())
   }
 
@@ -404,7 +404,7 @@ class BlockMatrixSuite extends HailSuite {
   def readWriteIdentityRandom() {
     forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val fname = tmpDir.createTempFile("test")
-      m.write(hc.sFS, fname)
+      m.write(hc.fs, fname)
       assert(sameDoubleMatrixNaNEqualsNaN(m.toBreezeMatrix(), BlockMatrix.read(hc, fname).toBreezeMatrix()))
       true
     }.check()
@@ -894,7 +894,7 @@ class BlockMatrixSuite extends HailSuite {
       assert(flm === fbm.toIndexedRowMatrix().toHailBlockMatrix().toBreezeMatrix())
       
       val fname = tmpDir.createTempFile("test")
-      fbm.write(hc.sFS, fname, forceRowMajor = true)
+      fbm.write(hc.fs, fname, forceRowMajor = true)
       
       assert(RowMatrix.readBlockMatrix(hc, fname, Some(3)).toBreezeMatrix() === flm)
 

@@ -39,7 +39,7 @@ object RichDenseMatrixDouble {
   }
 
   def read(hc: HailContext, path: String, bufferSpec: BufferSpec): BDM[Double] = {
-    using(new DataInputStream(hc.sFS.open(path)))(is => read(is, bufferSpec))
+    using(new DataInputStream(hc.fs.open(path)))(is => read(is, bufferSpec))
   }
 
   def importFromDoubles(hc: HailContext, path: String, nRows: Int, nCols: Int, rowMajor: Boolean): BDM[Double] = {
@@ -107,11 +107,11 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
   }
 
   def write(hc: HailContext, path: String, forceRowMajor: Boolean = false, bufferSpec: BufferSpec) {
-    using(hc.sFS.create(path))(os => write(os, forceRowMajor, bufferSpec: BufferSpec))
+    using(hc.fs.create(path))(os => write(os, forceRowMajor, bufferSpec: BufferSpec))
   }
 
   def writeBlockMatrix(hc: HailContext, path: String, blockSize: Int, forceRowMajor: Boolean = false, overwrite: Boolean = false) {
-    val fs = hc.sFS
+    val fs = hc.fs
     
     if (overwrite)
       fs.delete(path, recursive = true)

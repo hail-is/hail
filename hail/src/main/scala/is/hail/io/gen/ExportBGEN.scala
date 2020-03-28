@@ -84,7 +84,7 @@ object BgenWriter {
   }
 
   def writeSampleFile(path: String, sampleIds: IndexedSeq[String]) {
-    HailContext.sFS.writeTable(path + ".sample",
+    HailContext.fs.writeTable(path + ".sample",
       "ID_1 ID_2 missing" :: "0 0 0" :: sampleIds.map(s => s"$s $s 0").toList)
   }
 }
@@ -313,8 +313,8 @@ object ExportBGEN {
     val header = BgenWriter.headerBlock(sampleIds, nVariants)
 
     val hc = HailContext.get
-    val fs = HailContext.sFS
-    val bcFS = HailContext.bcFS
+    val fs = HailContext.fs
+    val bcFS = HailContext.fsBc
 
     fs.delete(path, recursive = true)
 

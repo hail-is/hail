@@ -18,7 +18,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
   def execute(ctx: ExecuteContext, mv: MatrixValue): Any = {
 
-    val fs = HailContext.sFS
+    val fs = HailContext.fs
 
     fs.delete(path, recursive = true) // overwrite by default
 
@@ -42,7 +42,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
       val partFileBase = path + "/tmp/"
 
-      val bcFS = HailContext.bcFS
+      val bcFS = HailContext.fsBc
 
       val extension = if (bgzip) ".tsv.bgz" else ".tsv"
       val localHeaderJsonInFile = headerJsonInFile

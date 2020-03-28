@@ -308,7 +308,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     if (hasSequence)
       fatal(s"FASTA sequence has already been loaded for reference genome '$name'.")
 
-    val fs = hc.sFS
+    val fs = hc.fs
     if (!fs.exists(fastaFile))
       fatal(s"FASTA file '$fastaFile' does not exist.")
     if (!fs.exists(indexFile))
@@ -374,7 +374,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       fatal(s"Destination reference genome cannot have the same name as this reference '$name'")
     if (hasLiftover(destRGName))
       fatal(s"Chain file already exists for source reference '$name' and destination reference '$destRGName'.")
-    val fs = hc.sFS
+    val fs = hc.fs
     if (!fs.exists(chainFile))
       fatal(s"Chain file '$chainFile' does not exist.")
 
@@ -579,7 +579,7 @@ object ReferenceGenome {
   }
 
   def fromFile(hc: HailContext, file: String): ReferenceGenome = {
-    val rg = using(hc.sFS.open(file))(read)
+    val rg = using(hc.fs.open(file))(read)
     addReference(rg)
     rg
   }
@@ -605,7 +605,7 @@ object ReferenceGenome {
   def fromFASTAFile(hc: HailContext, name: String, fastaFile: String, indexFile: String,
     xContigs: Array[String] = Array.empty[String], yContigs: Array[String] = Array.empty[String],
     mtContigs: Array[String] = Array.empty[String], parInput: Array[String] = Array.empty[String]): ReferenceGenome = {
-    val fs = hc.sFS
+    val fs = hc.fs
     if (!fs.exists(fastaFile))
       fatal(s"FASTA file '$fastaFile' does not exist.")
     if (!fs.exists(indexFile))

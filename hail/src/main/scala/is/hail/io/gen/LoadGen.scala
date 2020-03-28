@@ -115,7 +115,7 @@ case class MatrixGENReader(
   skipInvalidLoci: Boolean) extends MatrixHybridReader {
 
   files.foreach { input =>
-    if (!HailContext.get.sFS.stripCodec(input).endsWith(".gen"))
+    if (!HailContext.get.fs.stripCodec(input).endsWith(".gen"))
       fatal(s"gen inputs must end in .gen[.bgz], found $input")
   }
 
@@ -126,11 +126,11 @@ case class MatrixGENReader(
 
   referenceGenome.foreach(ref => ref.validateContigRemap(contigRecoding))
 
-  private val samples = LoadBgen.readSampleFile(HailContext.get.sFS, sampleFile)
+  private val samples = LoadBgen.readSampleFile(HailContext.get.fs, sampleFile)
   private val nSamples = samples.length
 
   // FIXME: can't specify multiple chromosomes
-  private val results = files.map(f => LoadGen(f, sampleFile, HailContext.get.sc, HailContext.sFS, referenceGenome.map(_.broadcast), nPartitions,
+  private val results = files.map(f => LoadGen(f, sampleFile, HailContext.get.sc, HailContext.fs, referenceGenome.map(_.broadcast), nPartitions,
     tolerance, chromosome, contigRecoding, skipInvalidLoci))
 
   private val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))

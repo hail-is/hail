@@ -39,7 +39,7 @@ object LiftOver {
   }
 
   def apply(hc: HailContext, chainFile: String): LiftOver =
-    new LiftOver(hc.sFS, chainFile)
+    new LiftOver(hc.fs, chainFile)
 }
 
 class LiftOver(val fs: FS, val chainFile: String) extends Serializable {

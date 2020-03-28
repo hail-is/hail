@@ -37,6 +37,8 @@ abstract class Backend {
 
   def parallelizeAndComputeWithIndex[T: ClassTag, U : ClassTag](collection: Array[T])(f: (T, Int) => U): Array[U]
 
+  def clear(): Unit
+
   private[this] def executionResultToAnnotation(ctx: ExecuteContext, result: Either[Unit, (PTuple, Long)]) = result match {
     case Left(x) => x
     case Right((pt, off)) => SafeRow(pt, off).get(0)

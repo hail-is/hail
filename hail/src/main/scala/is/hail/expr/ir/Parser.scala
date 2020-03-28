@@ -1713,3 +1713,4 @@ object IRParser {
 
   def parseMatrixType(code: String): MatrixType = parseMatrixType(code, TypeParserEnvironment.default)
 }
+

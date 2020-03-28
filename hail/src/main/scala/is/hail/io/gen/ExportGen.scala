@@ -13,7 +13,7 @@ object ExportGen {
 
   def apply(mv: MatrixValue, path: String, precision: Int = 4) {
     val hc = HailContext.get
-    val fs = hc.sFS
+    val fs = hc.fs
 
     fs.writeTable(path + ".sample",
       "ID_1 ID_2 missing\n0 0 0" +: mv.colValues.javaValue.map { a =>
@@ -99,7 +99,7 @@ object ExportGen {
         }
         sb.result()
       }
-    }.writeTable(hc.sFS, path + ".gen", hc.tmpDir, None)
+    }.writeTable(hc.fs, path + ".gen", hc.tmpDir, None)
   }
 }
 
