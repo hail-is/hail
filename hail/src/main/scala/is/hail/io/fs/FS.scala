@@ -58,8 +58,6 @@ trait FS extends Serializable {
 
   def listStatus(filename: String): Array[FileStatus]
 
-  def getFileSize(filename: String): Long
-
   def getTemporaryFile(tmpdir: String, nChar: Int = 10,
     prefix: Option[String] = None, suffix: Option[String] = None): String
 
@@ -89,6 +87,8 @@ trait FS extends Serializable {
   def makeQualified(path: String): String
 
   def deleteOnExit(path: String): Unit
+
+  def getFileSize(filename: String): Long = fileStatus(filename).getLen
 
   def readLines[T](filename: String, filtAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace())(reader: Iterator[WithContext[String]] => T): T = {
     using(open(filename)) {

@@ -103,9 +103,6 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     new hadoop.fs.Path(filename).getFileSystem(conf.value)
   }
 
-  def getFileSize(filename: String): Long =
-    fileStatus(filename).getLen
-
   def listStatus(filename: String): Array[FileStatus] = {
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)

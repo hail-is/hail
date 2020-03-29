@@ -63,7 +63,7 @@ class BGzipCodecSuite extends HailSuite {
     val uncompIS = sFS.open(uncompPath)
     val uncomp = IOUtils.toByteArray(uncompIS)
     uncompIS.close()
-    
+
     val decompIS = new BGzipInputStream(sFS.openNoCompression(compPath))
     val decomp = IOUtils.toByteArray(decompIS)
     decompIS.close()
