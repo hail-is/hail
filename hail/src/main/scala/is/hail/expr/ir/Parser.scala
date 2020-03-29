@@ -1544,23 +1544,6 @@ object IRParser {
   def blockmatrix_sparsifier(env: IRParserEnvironment)(it: TokenIterator): BlockMatrixSparsifier = {
     punctuation(it, "(")
     identifier(it) match {
-      case "PyRowIntervalSparsifier" =>
-        val blocksOnly = boolean_literal(it)
-        punctuation(it, ")")
-        val Row(starts: IndexedSeq[Long @unchecked], stops: IndexedSeq[Long @unchecked]) =
-          ExecuteContext.scoped[Row] { ctx => CompileAndEvaluate[Row](ctx, ir_value_expr(env)(it)) }
-        RowIntervalSparsifier(blocksOnly, starts, stops)
-      case "PyBandSparsifier" =>
-        val blocksOnly = boolean_literal(it)
-        punctuation(it, ")")
-        val Row(l: Long, u: Long) =
-          ExecuteContext.scoped[Row] { ctx => CompileAndEvaluate[Row](ctx, ir_value_expr(env)(it)) }
-        BandSparsifier(blocksOnly, l, u)
-      case "PyRectangleSparsifier" =>
-        punctuation(it, ")")
-        val rectangles: IndexedSeq[Long] =
-          ExecuteContext.scoped { ctx => CompileAndEvaluate[IndexedSeq[Long]](ctx, ir_value_expr(env)(it)) }
-        RectangleSparsifier(rectangles.grouped(4).toIndexedSeq)
       case "RowIntervalSparsifier" =>
         val blocksOnly = boolean_literal(it)
         val starts = int64_literals(it)
