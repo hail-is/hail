@@ -126,7 +126,7 @@ endif
 CXXFLAGS += $(HAIL_OPT_FLAGS) $(CXXSTD) -I$(LIBSIMDPP) -Wall -Wextra
 CXXFLAGS += -fPIC -ggdb -fno-strict-aliasing
 CXXFLAGS += -I../resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
-LIBFLAGS += -fvisibility=default
+LIBFLAGS += -Wl,--as-needed -fvisibility=default
 PREBUILT := ../../../prebuilt
 
 ifeq ($(UNAME_S),Linux)
