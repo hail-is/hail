@@ -338,7 +338,7 @@ object LocusFunctions extends RegistryFunctions {
     registerCodeWithType("LocusAlleles", TString, tvariant("T"), {
       (returnType: Type, _: PType) => {
         val lTyp = returnType.asInstanceOf[TStruct].field("locus").typ.asInstanceOf[TLocus]
-        PCanonicalStruct("locus" -> PCanonicalLocus(lTyp.rg), "alleles" -> PCanonicalArray(PCanonicalString(true), true))
+        PCanonicalStruct("locus" -> PCanonicalLocus(lTyp.rg, true), "alleles" -> PCanonicalArray(PCanonicalString(true), true))
       }
     }) {
       case (r, rt: PStruct, (strT, variantoff: Code[Long])) =>
