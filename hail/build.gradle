@@ -156,6 +156,8 @@ dependencies {
 
     bundled 'org.elasticsearch:elasticsearch-spark-20_2.11:6.2.4'
 
+    bundled 'com.google.cloud:google-cloud-storage:1.106.0'
+
     bundled 'org.apache.httpcomponents:httpcore:4.4.3'
     bundled('org.apache.httpcomponents:httpclient:4.5.1') {
         transitive = false
