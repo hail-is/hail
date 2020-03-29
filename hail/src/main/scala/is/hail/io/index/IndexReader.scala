@@ -79,7 +79,7 @@ class IndexReader(fs: FS,
   val indexRelativePath = metadata.indexPath
   val ordering = keyType.ordering
 
-  private val is = fs.open(path + "/" + indexRelativePath).asInstanceOf[FSDataInputStream]
+  private val is = fs.openNoCompression(path + "/" + indexRelativePath)
   private val leafDecoder = leafDecoderBuilder(is)
   private val internalDecoder = internalDecoderBuilder(is)
 

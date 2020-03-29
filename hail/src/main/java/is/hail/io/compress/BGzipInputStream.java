@@ -281,7 +281,13 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         final long compOff = BlockCompressedFilePointerUtil.getBlockAddress(pos);
         final int uncompOff = BlockCompressedFilePointerUtil.getBlockOffset(pos);
         if (inputBufferInPos != compOff) {
-            ((Seekable) in).seek(compOff);
+            if (in instanceof Seekable)
+                ((Seekable) in).seek(compOff);
+            else {
+                assert(in instanceof SeekableStream);
+                ((SeekableStream) in).seek(compOff);
+            }
+
             inputBufferSize = 0;
             inputBufferPos = 0;
             inputBufferInPos = compOff;

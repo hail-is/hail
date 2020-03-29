@@ -1,5 +1,7 @@
 package is.hail.io.bgen
 
+import java.io.DataInputStream
+
 import is.hail.HailContext
 import is.hail.expr.ir
 import is.hail.expr.ir.{ExecuteContext, IRParser, IRParserEnvironment, Interpret, MatrixHybridReader, Pretty, TableIR, TableRead, TableValue}
@@ -89,33 +91,29 @@ object LoadBgen {
   }
 
   def readState(fs: is.hail.io.fs.FS, file: String): BgenHeader = {
-    using(fs.open(file)) { is =>
-      val reader = new HadoopFSDataBinaryReader(is)
-      readState(reader, file, fs.getFileSize(file))
+    using(new DataInputStream(fs.open(file))) { is =>
+      readState(is, file, fs.getFileSize(file))
     }
   }
 
-  def readState(reader: HadoopFSDataBinaryReader, path: String, byteSize: Long): BgenHeader = {
-    reader.seek(0)
-    val allInfoLength = reader.readInt()
-    val headerLength = reader.readInt()
+  def readState(is: DataInputStream, path: String, byteSize: Long): BgenHeader = {
+    val allInfoLength = is.readInt()
+    val headerLength = is.readInt()
     val dataStart = allInfoLength + 4
 
     assert(headerLength <= allInfoLength)
-    val nVariants = reader.readInt()
-    val nSamples = reader.readInt()
+    val nVariants = is.readInt()
+    val nSamples = is.readInt()
 
-    val magicNumber = reader.readBytes(4)
-      .map(_.toInt)
-      .toSeq
+    val magicNumber = (0 until 3).map(_ => is.readByte().toInt)
 
     if (magicNumber != FastSeq(0, 0, 0, 0) && magicNumber != FastSeq(98, 103, 101, 110))
       fatal(s"expected magic number [0000] or [bgen], got [${ magicNumber.mkString }]")
 
     if (headerLength > 20)
-      reader.skipBytes(headerLength.toInt - 20)
+      is.skipBytes(headerLength.toInt - 20)
 
-    val flags = reader.readInt()
+    val flags = is.readInt()
     val compressType = flags & 3
 
     if (compressType != 0 && compressType != 1)
