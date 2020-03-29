@@ -104,14 +104,14 @@ trait Py4jUtils {
     (n / factor.toDouble).formatted("%.1f")
   }
 
-  def readFile(path: String, hc: HailContext, buffSize: Int): HadoopPyReader = hc.sFS.readFile(path) { in =>
-    new HadoopPyReader(hc.sFS.unsafeReader(path), buffSize)
+  def readFile(path: String, hc: HailContext, buffSize: Int): HadoopPyReader = using(hc.sFS.open(path)) { in =>
+    new HadoopPyReader(hc.sFS.open(path), buffSize)
   }
 
   def writeFile(path: String, hc: HailContext, exclusive: Boolean): HadoopPyWriter = {
     if (exclusive && hc.sFS.exists(path))
       fatal(s"a file already exists at '$path'")
-    new HadoopPyWriter(hc.sFS.unsafeWriter(path))
+    new HadoopPyWriter(hc.sFS.create(path))
   }
 
   def copyFile(from: String, to: String, hc: HailContext) {

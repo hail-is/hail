@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, DataInputStream, InputStream}
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, DataInputStream, DataOutputStream, InputStream}
 
 import is.hail.HailContext
 import is.hail.annotations._
@@ -14,6 +14,7 @@ import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlock
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
+import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
 import org.apache.hadoop.io.IOUtils
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.{DataFrame, Row}
@@ -1098,7 +1099,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
             seq(rv.region, globals, false, rv.offset, false)
             ctx.region.clear()
           }
-          fs.value.writeDataFile(path) { os =>
+          using(new DataOutputStream(fs.value.create(path))) { os =>
             val bytes = write(aggRegion, seq.getAggOffset())
             os.writeInt(bytes.length)
             os.write(bytes)
@@ -1126,9 +1127,9 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
               is.readFully(b)
               b
             }
-            val b1 = fs.value.readDataFile(file1)(readToBytes)
-            val b2 = fs.value.readDataFile(file2)(readToBytes)
-            fs.value.writeDataFile(path) { os =>
+            val b1 = using(new DataInputStream(fs.value.open(file1)))(readToBytes)
+            val b2 = using(new DataInputStream(fs.value.open(file2)))(readToBytes)
+            using(new DataOutputStream(fs.value.create(path))) { os =>
               val bytes = combOpF(b1, b2)
               os.writeInt(bytes.length)
               os.write(bytes)
@@ -1168,7 +1169,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
               b
             }
 
-            b = combOpF(b, fs.value.readDataFile(path)(readToBytes))
+            b = combOpF(b, using(new DataInputStream(fs.value.open(path)))(readToBytes))
           }
           b
         }
@@ -1216,7 +1217,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     val scanAggCount = tv.rvd.getNumPartitions
     val partitionIndices = new Array[Long](scanAggCount)
     val scanAggsPerPartitionFile = HailContext.get.getTemporaryFile()
-    HailContext.get.sFS.writeFileNoCompression(scanAggsPerPartitionFile) { os =>
+    using(new FSDataOutputStream(HailContext.get.sFS.createNoCompression(scanAggsPerPartitionFile))) { os =>
       partAggs.zipWithIndex.foreach { case (x, i) =>
         if (i < scanAggCount) {
           partitionIndices(i) = os.getPos
@@ -1236,7 +1237,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         globalsBc.value.readRegionValue(globalRegion)
       else
         0
-      val partitionAggs = bcFS.value.readFileNoCompression(scanAggsPerPartitionFile) { is =>
+      val partitionAggs = using(new FSDataInputStream(bcFS.value.openNoCompression(scanAggsPerPartitionFile))) { is =>
         is.seek(filePosition)
         val aggSize = is.readInt()
         val partAggs = new Array[Byte](aggSize)

@@ -1,8 +1,11 @@
 package is.hail.utils
 
 import is.hail.HailContext
-import java.io.{ ObjectInputStream, ObjectOutputStream }
+import java.io.{ObjectInputStream, ObjectOutputStream}
+
+import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
 import org.apache.spark.rdd.RDD
+
 import scala.reflect.ClassTag
 import scala.reflect.classTag
 
@@ -35,7 +38,7 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
     size += a.length
     if (size > sizeLimit) {
       val file = hc.getTemporaryFile()
-      fs.writeFileNoCompression(file) { os =>
+      using(new FSDataOutputStream(fs.createNoCompression(file))) { os =>
         var k = 0
         while (k < buf.length) {
           val vals = buf(k)
@@ -70,7 +73,7 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
         buf(i) = null
       } else {
         val (filename, pos) = files(i)
-        fs.readFileNoCompression(filename) { is =>
+        using(new FSDataInputStream(fs.openNoCompression(filename))) { is =>
           is.seek(pos)
           using(new ObjectInputStream(is)) { ois =>
             val length = ois.readInt()

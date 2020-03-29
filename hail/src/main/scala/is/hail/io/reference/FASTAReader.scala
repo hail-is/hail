@@ -41,8 +41,8 @@ object FASTAReader {
     val localFastaFile = tmpDir.createLocalTempFile(extension = "fasta")
     val uriLocalFastaFile = uriPath(localFastaFile)
 
-    fs.readFile(fastaFile) { in =>
-      fs.writeFile(localFastaFile) { out =>
+    using(fs.open(fastaFile)) { in =>
+      using(fs.create(localFastaFile)) { out =>
         IOUtils.copy(in, out)
       }}
 

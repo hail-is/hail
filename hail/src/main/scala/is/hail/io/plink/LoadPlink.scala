@@ -156,7 +156,7 @@ case class MatrixPLINKReader(
   info(s"Found $nSamples samples in fam file.")
   info(s"Found $nVariants variants in bim file.")
 
-  hc.sFS.readFile(bed) { dis =>
+  using(hc.sFS.open(bed)) { dis =>
     val b1 = dis.read()
     val b2 = dis.read()
     val b3 = dis.read()

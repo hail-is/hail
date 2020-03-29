@@ -1,6 +1,6 @@
 package is.hail.utils.richUtils
 
-import java.io.OutputStream
+import java.io.{OutputStream, OutputStreamWriter}
 
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
@@ -69,7 +69,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
     if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
       val headerExt = fs.getCodec(filename)
-      fs.writeTextFile(parallelOutputPath + "/header" + headerExt) { out =>
+      using(new OutputStreamWriter(fs.create(parallelOutputPath + "/header" + headerExt))) { out =>
         header.foreach { h =>
           out.write(h)
           out.write('\n')

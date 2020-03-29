@@ -214,7 +214,7 @@ class ReadBlocksAsRowsRDD(path: String,
               if (pi >= 0) {
                 val filename = path + "/parts/" + partFiles(pi)
 
-                val is = bcFS.value.unsafeReader(filename)
+                val is = bcFS.value.open(filename)
                 val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
 
                 val nColsInBlock = gp.blockColNCols(blockCol)

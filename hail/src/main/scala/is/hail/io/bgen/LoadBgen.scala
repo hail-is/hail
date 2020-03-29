@@ -50,7 +50,7 @@ object LoadBgen {
   def readSamples(fs: is.hail.io.fs.FS, file: String): Array[String] = {
     val bState = readState(fs, file)
     if (bState.hasIds) {
-      fs.readFile(file) { is =>
+      using(fs.open(file)) { is =>
         val reader = new HadoopFSDataBinaryReader(is)
 
         reader.seek(bState.headerLength + 4)
@@ -75,7 +75,7 @@ object LoadBgen {
   }
 
   def readSampleFile(fs: is.hail.io.fs.FS, file: String): Array[String] = {
-    fs.readFile(file) { s =>
+    using(fs.open(file)) { s =>
       Source.fromInputStream(s)
         .getLines()
         .drop(2)
@@ -89,7 +89,7 @@ object LoadBgen {
   }
 
   def readState(fs: is.hail.io.fs.FS, file: String): BgenHeader = {
-    fs.readFile(file) { is =>
+    using(fs.open(file)) { is =>
       val reader = new HadoopFSDataBinaryReader(is)
       readState(reader, file, fs.getFileSize(file))
     }

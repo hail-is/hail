@@ -3,11 +3,9 @@ package is.hail.io.fs
 import java.io._
 import java.util
 
-import is.hail.utils.{TextInputFilterAndReplace, WithContext}
-import net.jpountz.lz4.LZ4Compressor
-import com.esotericsoftware.kryo.io.{Input, Output}
-import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
+import is.hail.utils._
 
+import scala.io.Source
 
 trait FileStatus {
   def getPath: String
@@ -25,7 +23,13 @@ trait FS extends Serializable {
 
   def getProperties: Iterator[util.Map.Entry[String, String]]
 
+  def openNoCompression(filename: String): InputStream
+
   def open(filename: String, checkCodec: Boolean = true): InputStream
+
+  def createNoCompression(filename: String): OutputStream
+
+  def create(filename: String): OutputStream
 
   /**
     * @return true if a new directory was created, false otherwise
@@ -45,7 +49,7 @@ trait FS extends Serializable {
   def getFileSize(filename: String): Long
 
   def getTemporaryFile(tmpdir: String, nChar: Int = 10,
-                       prefix: Option[String] = None, suffix: Option[String] = None): String
+    prefix: Option[String] = None, suffix: Option[String] = None): String
 
   def glob(filename: String): Array[FileStatus]
 
@@ -62,7 +66,7 @@ trait FS extends Serializable {
     header: Boolean = true,
     partFilesOpt: Option[IndexedSeq[String]] = None): Unit
 
-  def copyMergeList(srcFileStatuses: Array[FileStatus], destFilename: String, deleteSource: Boolean = true)
+  def copyMergeList(srcFileStatuses: Array[FileStatus], destFilename: String, deleteSource: Boolean = true): Unit
 
   def stripCodec(s: String): String
 
@@ -70,41 +74,35 @@ trait FS extends Serializable {
 
   def fileStatus(filename: String): FileStatus
 
-  def writeObjectFile[T](filename: String)(f: (ObjectOutputStream) => T): T
-
-  def readObjectFile[T](filename: String)(f: (ObjectInputStream) => T): T
-
-  def writeDataFile[T](filename: String)(f: (DataOutputStream) => T): T
-
-  def readDataFile[T](filename: String)(f: (DataInputStream) => T): T
-
-  def writeTextFile[T](filename: String)(f: (OutputStreamWriter) => T): T
-
-  def readTextFile[T](filename: String)(f: (InputStreamReader) => T): T
-
-  def writeKryoFile[T](filename: String)(f: (Output) => T): T
-
-  def readKryoFile[T](filename: String)(f: (Input) => T): T
-
-  def readFile[T](filename: String)(f: (InputStream) => T): T
-
-  def writeFile[T](filename: String)(f: (OutputStream) => T): T
-
-  def readFileNoCompression[T](filename: String)(f: (FSDataInputStream) => T): T
-
-  def writeFileNoCompression[T](filename: String)(f: (FSDataOutputStream) => T): T
-
-  def readLines[T](filename: String, filtAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace())(reader: Iterator[WithContext[String]] => T): T
-
-  def writeTable(filename: String, lines: Traversable[String], header: Option[String] = None)
-
-  def writeLZ4DataFile[T](path: String, blockSize: Int, compressor: LZ4Compressor)(writer: (DataOutputStream) => T): T
-
-  def unsafeReader(filename: String, checkCodec: Boolean = true): InputStream
-
-  def unsafeWriter(filename: String): OutputStream
-
   def makeQualified(path: String): String
 
   def deleteOnExit(path: String): Unit
+
+  def readLines[T](filename: String, filtAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace())(reader: Iterator[WithContext[String]] => T): T = {
+    using(open(filename)) {
+      is =>
+        val lines = Source.fromInputStream(is)
+          .getLines()
+          .zipWithIndex
+          .map {
+            case (value, position) =>
+              val source = Context(value, filename, Some(position))
+              WithContext(value, source)
+          }
+        reader(filtAndReplace(lines))
+    }
+  }
+
+  def writeTable(filename: String, lines: Traversable[String], header: Option[String] = None): Unit = {
+    using(new OutputStreamWriter(create(filename))) { fw =>
+        header.foreach { h =>
+          fw.write(h)
+          fw.write('\n')
+        }
+        lines.foreach { line =>
+          fw.write(line)
+          fw.write('\n')
+        }
+    }
+  }
 }

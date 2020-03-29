@@ -158,9 +158,9 @@ object BlockMatrix {
   }
   
   def readMetadata(hc: HailContext, uri: String): BlockMatrixMetadata = {
-    hc.sFS.readTextFile(uri + metadataRelativePath) { isr =>
+    using(hc.sFS.open(uri + metadataRelativePath)) { is =>
       implicit val formats = defaultJSONFormats
-      jackson.Serialization.read[BlockMatrixMetadata](isr)
+      jackson.Serialization.read[BlockMatrixMetadata](is)
     }
   }
 
@@ -255,7 +255,7 @@ object BlockMatrix {
       }
       .collect()
 
-    fs.writeTextFile(prefix + "/_SUCCESS")(out => ())
+    using(fs.create(prefix + "/_SUCCESS"))(out => ())
   }
 
   def exportBlockMatrices(
@@ -296,7 +296,7 @@ object BlockMatrix {
           new PrintWriter(
             new BufferedWriter(
               new OutputStreamWriter(
-                bcFS.value.unsafeWriter(path))))) { f =>
+                bcFS.value.create(path))))) { f =>
           header.foreach { h =>
             f.println(h)
           }
@@ -324,7 +324,7 @@ object BlockMatrix {
       }
       .collect()
 
-    fs.writeTextFile(prefix + "/_SUCCESS")(out => ())
+    using(fs.create(prefix + "/_SUCCESS"))(out => ())
   }
 }
 
@@ -589,7 +589,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       val outputFile = output + "/rect-" + paddedIndex + "_" + r.mkString("-")
 
       if (rectData.size > 0) {
-        bcFS.value.writeFile(outputFile)(writeRectangle(_, rectData))
+        using(bcFS.value.create(outputFile))(writeRectangle(_, rectData))
       }
     }
   }
@@ -795,14 +795,14 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
     val (partFiles, partitionCounts) = blocks.writePartitions(uri, stageLocally, writeBlock)
 
-    fs.writeDataFile(uri + metadataRelativePath) { os =>
+    using(new DataOutputStream(fs.create(uri + metadataRelativePath))) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
         BlockMatrixMetadata(blockSize, nRows, nCols, gp.maybeBlocks, partFiles),
         os)
     }
 
-    fs.writeTextFile(uri + "/_SUCCESS")(out => ())
+    using(fs.create(uri + "/_SUCCESS"))(out => ())
 
     val nBlocks = partitionCounts.length
     assert(nBlocks == partitionCounts.sum)
@@ -1837,7 +1837,7 @@ class WriteBlocksRDD(path: String,
       val f = partFile(d, i, ctx)
       val filename = path + "/parts/" + f
 
-      val os = bcFS.value.unsafeWriter(filename)
+      val os = bcFS.value.create(filename)
       val out = BlockMatrix.bufferSpec.buildOutputBuffer(os)
 
       out.writeInt(nRowsInBlock)
@@ -1963,7 +1963,7 @@ class BlockMatrixReadRowBlockedRDD(
 
   private def readPartFileRow(fs: FS, rvb: RegionValueBuilder, rowIdx: Int, pFile: String) {
     val filename = path + "/parts/" + pFile
-    val is = fs.unsafeReader(filename)
+    val is = fs.open(filename)
     val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
 
     val rows = in.readInt()

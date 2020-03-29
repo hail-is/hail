@@ -1,6 +1,6 @@
 package is.hail.io
 
-import java.io.Closeable
+import java.io.{Closeable, DataOutputStream}
 import java.util.Arrays
 
 import is.hail.utils._
@@ -78,7 +78,7 @@ object IndexBTree {
     fileName: String,
     fs: FS,
     branchingFactor: Int = 1024
-  ): Unit = fs.writeDataFile(fileName) { w =>
+  ): Unit = using(new DataOutputStream(fs.create(fileName))) { w =>
     w.write(btreeBytes(arr, branchingFactor))
   }
 

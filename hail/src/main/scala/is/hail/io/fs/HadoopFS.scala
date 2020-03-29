@@ -32,8 +32,8 @@ class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
 }
 
 class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
-  private def create(filename: String): OutputStream = {
-    val fs = _fileSystem(filename)
+  def create(filename: String): OutputStream = {
+    val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
 
     val os = fs.create(hPath)
@@ -45,28 +45,18 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
       os
   }
 
-  private def createNoCompression(filename: String): FSDataOutputStream = {
-    val fs = _fileSystem(filename)
+  def createNoCompression(filename: String): OutputStream = {
+    val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    return fs.create(hPath)
+    fs.create(hPath)
   }
 
   def open(filename: String, checkCodec: Boolean = true): InputStream = {
-    val fs = _fileSystem(filename)
-    val hPath = new hadoop.fs.Path(filename)
+    val is = openNoCompression(filename)
 
-    val is = try {
-      fs.open(hPath)
-    } catch {
-      case e: FileNotFoundException =>
-        if (isDir(filename))
-          throw new FileNotFoundException(s"'$filename' is a directory (or native Table/MatrixTable)")
-        else
-          throw e
-    }
     if (checkCodec) {
       val codecFactory = new CompressionCodecFactory(conf.value)
-      val codec = codecFactory.getCodec(hPath)
+      val codec = codecFactory.getCodec(new hadoop.fs.Path(filename))
       if (codec != null)
         codec.createInputStream(is)
       else
@@ -75,8 +65,8 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
       is
   }
 
-  private def openNoCompression(filename: String): FSDataInputStream = {
-    val fs = _fileSystem(filename)
+  def openNoCompression(filename: String): FSDataInputStream = {
+    val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     try {
       fs.open(hPath)
@@ -101,7 +91,7 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     conf.value.iterator().asScala
   }
 
-  private def _fileSystem(filename: String): hadoop.fs.FileSystem = {
+  private def getFileSystem(filename: String): hadoop.fs.FileSystem = {
     new hadoop.fs.Path(filename).getFileSystem(conf.value)
   }
 
@@ -109,7 +99,7 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     fileStatus(filename).getLen
 
   def listStatus(filename: String): Array[FileStatus] = {
-    val fs = _fileSystem(filename)
+    val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     fs.globStatus(hPath)
       .map(_.getPath)
@@ -118,36 +108,36 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
   }
 
   def isDir(filename: String): Boolean = {
-    val fs = _fileSystem(filename)
+    val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     fs.isDirectory(hPath)
   }
 
   def isFile(filename: String): Boolean = {
-    val fs = _fileSystem(filename)
+    val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     fs.isFile(hPath)
   }
 
   def exists(files: String*): Boolean = {
-    files.forall(filename => _fileSystem(filename).exists(new hadoop.fs.Path(filename)))
+    files.forall(filename => getFileSystem(filename).exists(new hadoop.fs.Path(filename)))
   }
 
   /**
     * @return true if a new directory was created, false otherwise
     **/
   def mkDir(dirname: String): Boolean = {
-    _fileSystem(dirname).mkdirs(new hadoop.fs.Path(dirname))
+    getFileSystem(dirname).mkdirs(new hadoop.fs.Path(dirname))
   }
 
   def delete(filename: String, recursive: Boolean) {
-    _fileSystem(filename).delete(new hadoop.fs.Path(filename), recursive)
+    getFileSystem(filename).delete(new hadoop.fs.Path(filename), recursive)
   }
 
   def getTemporaryFile(tmpdir: String, nChar: Int = 10,
     prefix: Option[String] = None, suffix: Option[String] = None): String = {
 
-    val destFS = _fileSystem(tmpdir)
+    val destFS = getFileSystem(tmpdir)
     val prefixString = if (prefix.isDefined) prefix.get + "-" else ""
     val suffixString = if (suffix.isDefined) "." + suffix.get else ""
 
@@ -185,7 +175,7 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
   }
 
   def glob(filename: String): Array[FileStatus] = {
-    val fs = _fileSystem(filename)
+    val fs = getFileSystem(filename)
     val path = new hadoop.fs.Path(filename)
 
     val files = Option(fs.globStatus(path)).getOrElse(Array())
@@ -195,8 +185,8 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
 
   def copy(src: String, dst: String, deleteSource: Boolean = false) {
     hadoop.fs.FileUtil.copy(
-      _fileSystem(src), new hadoop.fs.Path(src),
-      _fileSystem(dst), new hadoop.fs.Path(dst),
+      getFileSystem(src), new hadoop.fs.Path(src),
+      getFileSystem(dst), new hadoop.fs.Path(dst),
       deleteSource, conf.value)
   }
 
@@ -318,87 +308,6 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
   def fileStatus(filename: String): FileStatus = {
     val p = new hadoop.fs.Path(filename)
     new HadoopFileStatus(p.getFileSystem(conf.value).getFileStatus(p))
-  }
-
-  def writeObjectFile[T](filename: String)(f: (ObjectOutputStream) => T): T =
-    using(create(filename)) { ois => using(new ObjectOutputStream(ois))(f) }
-
-  def readObjectFile[T](filename: String)(f: (ObjectInputStream) => T): T =
-    using(open(filename)) { is => using(new ObjectInputStream(is))(f) }
-
-  def writeDataFile[T](filename: String)(f: (DataOutputStream) => T): T =
-    using(new DataOutputStream(create(filename)))(f)
-
-  def readDataFile[T](filename: String)(f: (DataInputStream) => T): T =
-    using(new DataInputStream(open(filename)))(f)
-
-  def writeTextFile[T](filename: String)(f: (OutputStreamWriter) => T): T =
-    using(new OutputStreamWriter(create(filename)))(f)
-
-  def readTextFile[T](filename: String)(f: (InputStreamReader) => T): T =
-    using(new InputStreamReader(open(filename)))(f)
-
-  def writeKryoFile[T](filename: String)(f: (Output) => T): T =
-    using(new Output(create(filename)))(f)
-
-  def readKryoFile[T](filename: String)(f: (Input) => T): T =
-    using(new Input(open(filename)))(f)
-
-  def readFile[T](filename: String)(f: (InputStream) => T): T =
-    using(open(filename))(f)
-
-  def writeFile[T](filename: String)(f: (OutputStream) => T): T =
-    using(create(filename))(f)
-
-  def readFileNoCompression[T](filename: String)(f: (FSDataInputStream) => T): T =
-    using(openNoCompression(filename))(f)
-
-  def writeFileNoCompression[T](filename: String)(f: (FSDataOutputStream) => T): T =
-    using(createNoCompression(filename))(f)
-
-  def readLines[T](filename: String, filtAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace())(reader: Iterator[WithContext[String]] => T): T = {
-    readFile[T](filename) {
-      is =>
-        val lines = Source.fromInputStream(is)
-          .getLines()
-          .zipWithIndex
-          .map {
-            case (value, position) =>
-              val source = Context(value, filename, Some(position))
-              WithContext(value, source)
-          }
-        reader(filtAndReplace(lines))
-    }
-  }
-
-  def writeTable(filename: String, lines: Traversable[String], header: Option[String] = None) {
-    writeTextFile(filename) {
-      fw =>
-        header.foreach { h =>
-          fw.write(h)
-          fw.write('\n')
-        }
-        lines.foreach { line =>
-          fw.write(line)
-          fw.write('\n')
-        }
-    }
-  }
-
-  def unsafeReader(filename: String, checkCodec: Boolean = true): InputStream = open(filename, checkCodec)
-
-  def unsafeWriter(filename: String): OutputStream = create(filename)
-
-  def writeLZ4DataFile[T](path: String, blockSize: Int, compressor: LZ4Compressor)(writer: (DataOutputStream) => T): T = {
-    val oos = create(path)
-    val comp = new LZ4BlockOutputStream(oos, blockSize, compressor)
-    val dos = new DataOutputStream(comp)
-    try {
-      writer(dos)
-    } finally {
-      dos.flush()
-      dos.close()
-    }
   }
 
   def makeQualified(path: String): String = {

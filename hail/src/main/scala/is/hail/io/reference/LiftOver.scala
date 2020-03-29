@@ -27,8 +27,8 @@ object LiftOver {
     val tmpDir = TempDir(fs)
     val localChainFile = tmpDir.createLocalTempFile(extension = "chain")
 
-    fs.readFile(chainFile) { in =>
-      fs.writeFile(localChainFile) { out =>
+    using(fs.open(chainFile)) { in =>
+      using(fs.create(localChainFile)) { out =>
         IOUtils.copy(in, out)
       }}
 

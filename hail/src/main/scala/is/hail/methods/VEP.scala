@@ -31,7 +31,7 @@ case class VEPConfiguration(
 
 object VEP {
   def readConfiguration(fs: FS, path: String): VEPConfiguration = {
-    val jv = fs.readFile(path) { in =>
+    val jv = using(fs.open(path)) { in =>
       JsonMethods.parse(in)
     }
     implicit val formats = defaultJSONFormats + new TStructSerializer

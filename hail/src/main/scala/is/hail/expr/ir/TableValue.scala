@@ -102,7 +102,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
     writeNativeFileReadMe(path)
 
-    fs.writeTextFile(path + "/_SUCCESS")(out => ())
+    using(fs.create(path + "/_SUCCESS"))(out => ())
 
     val nRows = partitionCounts.sum
     info(s"wrote table with $nRows ${ plural(nRows, "row") } " +
