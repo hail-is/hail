@@ -1217,13 +1217,12 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     val scanAggCount = tv.rvd.getNumPartitions
     val partitionIndices = new Array[Long](scanAggCount)
     val scanAggsPerPartitionFile = HailContext.get.getTemporaryFile()
-    using(new FSDataOutputStream(HailContext.get.sFS.createNoCompression(scanAggsPerPartitionFile))) { os =>
+    using(HailContext.get.sFS.createNoCompression(scanAggsPerPartitionFile)) { os =>
       partAggs.zipWithIndex.foreach { case (x, i) =>
         if (i < scanAggCount) {
-          partitionIndices(i) = os.getPos
+          partitionIndices(i) = os.getPosition
           os.writeInt(x.length)
           os.write(x, 0, x.length)
-          os.hflush()
         }
       }
     }
@@ -1237,7 +1236,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         globalsBc.value.readRegionValue(globalRegion)
       else
         0
-      val partitionAggs = using(new FSDataInputStream(bcFS.value.openNoCompression(scanAggsPerPartitionFile))) { is =>
+      val partitionAggs = using(bcFS.value.openNoCompression(scanAggsPerPartitionFile)) { is =>
         is.seek(filePosition)
         val aggSize = is.readInt()
         val partAggs = new Array[Byte](aggSize)

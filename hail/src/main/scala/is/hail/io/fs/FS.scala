@@ -7,6 +7,18 @@ import is.hail.utils._
 
 import scala.io.Source
 
+trait PositionedStream {
+  def getPosition: Long
+}
+
+trait SeekableStream extends PositionedStream {
+  def seek(pos: Long): Unit
+}
+
+abstract class SeekableDataInputStream(is: InputStream) extends DataInputStream(is) with SeekableStream
+
+abstract class PositionedDataOutputStream(os: OutputStream) extends DataOutputStream(os) with PositionedStream
+
 trait FileStatus {
   def getPath: String
   def getModificationTime: Long
@@ -23,11 +35,11 @@ trait FS extends Serializable {
 
   def getProperties: Iterator[util.Map.Entry[String, String]]
 
-  def openNoCompression(filename: String): InputStream
+  def openNoCompression(filename: String): SeekableDataInputStream
 
   def open(filename: String, checkCodec: Boolean = true): InputStream
 
-  def createNoCompression(filename: String): OutputStream
+  def createNoCompression(filename: String): PositionedDataOutputStream
 
   def create(filename: String): OutputStream
 

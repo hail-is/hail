@@ -38,13 +38,13 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
     size += a.length
     if (size > sizeLimit) {
       val file = hc.getTemporaryFile()
-      using(new FSDataOutputStream(fs.createNoCompression(file))) { os =>
+      using(fs.createNoCompression(file)) { os =>
         var k = 0
         while (k < buf.length) {
           val vals = buf(k)
           if (vals != null) {
             buf(k) = null
-            val pos = os.getPos
+            val pos = os.getPosition
             val oos = new ObjectOutputStream(os)
             oos.writeInt(vals.length)
             var j = 0
@@ -73,7 +73,7 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
         buf(i) = null
       } else {
         val (filename, pos) = files(i)
-        using(new FSDataInputStream(fs.openNoCompression(filename))) { is =>
+        using(fs.openNoCompression(filename)) { is =>
           is.seek(pos)
           using(new ObjectInputStream(is)) { ois =>
             val length = ois.readInt()

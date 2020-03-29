@@ -45,10 +45,13 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
       os
   }
 
-  def createNoCompression(filename: String): OutputStream = {
+  def createNoCompression(filename: String): PositionedDataOutputStream = {
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    fs.create(hPath)
+    val os = fs.create(hPath)
+    new PositionedDataOutputStream(os) {
+      def getPosition: Long = os.getPos
+    }
   }
 
   def open(filename: String, checkCodec: Boolean = true): InputStream = {
@@ -65,10 +68,10 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
       is
   }
 
-  def openNoCompression(filename: String): FSDataInputStream = {
+  def openNoCompression(filename: String): SeekableDataInputStream = {
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    try {
+    val is = try {
       fs.open(hPath)
     } catch {
       case e: FileNotFoundException =>
@@ -76,6 +79,11 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
           throw new FileNotFoundException(s"'$filename' is a directory (or native Table/MatrixTable)")
         else
           throw e
+    }
+    new SeekableDataInputStream(is) {
+      def seek(pos: Long): Unit = is.seek(pos)
+
+      def getPosition: Long = is.getPos
     }
   }
 
