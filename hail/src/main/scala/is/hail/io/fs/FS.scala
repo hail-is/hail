@@ -6,21 +6,11 @@ import java.util
 import is.hail.utils.{TextInputFilterAndReplace, WithContext}
 import net.jpountz.lz4.LZ4Compressor
 import com.esotericsoftware.kryo.io.{Input, Output}
-import org.apache.hadoop.fs.{ FSDataInputStream, FSDataOutputStream }
+import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
 
-trait FileSystem {
-  def open: FSDataInputStream
-  def open(path: FilePath): FSDataInputStream
-  def open(path: String): FSDataInputStream
-
-  def getPath(path: String): FilePath
-  def makeQualified(path: String): FilePath
-  def makeQualified(path: FilePath): FilePath
-  def deleteOnExit(path: FilePath): Boolean
-}
 
 trait FileStatus {
-  def getPath: FilePath
+  def getPath: String
   def getModificationTime: Long
   def getLen: Long
   def isDirectory: Boolean
@@ -28,22 +18,15 @@ trait FileStatus {
   def getOwner: String
 }
 
-trait FilePath extends Serializable{
-  type Configuration
-
-  def toString: String
-  def getName: String
-  def getFileSystem(conf: Configuration): FileSystem
-}
-
-trait FS extends Serializable{
+trait FS extends Serializable {
   def getProperty(name: String): String
 
   def setProperty(name: String, value: String): Unit
 
   def getProperties: Iterator[util.Map.Entry[String, String]]
 
-  protected def open(filename: String, checkCodec: Boolean = true): InputStream
+  def open(filename: String, checkCodec: Boolean = true): InputStream
+
   /**
     * @return true if a new directory was created, false otherwise
     **/
@@ -59,8 +42,6 @@ trait FS extends Serializable{
 
   def listStatus(filename: String): Array[FileStatus]
 
-  def fileSystem(filename: String): FileSystem
-
   def getFileSize(filename: String): Long
 
   def getTemporaryFile(tmpdir: String, nChar: Int = 10,
@@ -74,12 +55,12 @@ trait FS extends Serializable{
 
   def copy(src: String, dst: String, deleteSource: Boolean = false): Unit
 
-  def copyMerge( sourceFolder: String,
-                 destinationFile: String,
-                 numPartFilesExpected: Int,
-                 deleteSource: Boolean = true,
-                 header: Boolean = true,
-                 partFilesOpt: Option[IndexedSeq[String]] = None ): Unit
+  def copyMerge(sourceFolder: String,
+    destinationFile: String,
+    numPartFilesExpected: Int,
+    deleteSource: Boolean = true,
+    header: Boolean = true,
+    partFilesOpt: Option[IndexedSeq[String]] = None): Unit
 
   def copyMergeList(srcFileStatuses: Array[FileStatus], destFilename: String, deleteSource: Boolean = true)
 
@@ -122,5 +103,8 @@ trait FS extends Serializable{
   def unsafeReader(filename: String, checkCodec: Boolean = true): InputStream
 
   def unsafeWriter(filename: String): OutputStream
-}
 
+  def makeQualified(path: String): String
+
+  def deleteOnExit(path: String): Unit
+}

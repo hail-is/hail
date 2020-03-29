@@ -17,60 +17,8 @@ import is.hail.utils._
 
 import scala.io.Source
 
-class HadoopFilePath(path: hadoop.fs.Path) extends FilePath {
-  type Configuration = hadoop.conf.Configuration
-
-  override def toString: String = {
-    path.toString()
-  }
-
-   def getName: String = {
-    path.getName()
-  }
-
-  def getFileSystem(conf: Configuration): HadoopFileSystem = {
-    new HadoopFileSystem(path.toString, conf)
-  }
-}
-
-class HadoopFileSystem(val filename: String, conf: hadoop.conf.Configuration) extends FileSystem  {
-  private val dPath = new hadoop.fs.Path(filename)
-  private val hfs = dPath.getFileSystem(conf)
-
-  def open: FSDataInputStream = {
-    val test = hfs.open(dPath)
-    hfs.open(dPath)
-  }
-
-  def open(fPath: FilePath): FSDataInputStream = {
-    hfs.open(new hadoop.fs.Path(fPath.toString()))
-  }
-
-  def open(fPath: String): FSDataInputStream = {
-    hfs.open(new hadoop.fs.Path(fPath))
-  }
-
-  def deleteOnExit(fPath: FilePath): Boolean = {
-    hfs.deleteOnExit(new hadoop.fs.Path(fPath.toString()))
-  }
-
-  def makeQualified(fPath: FilePath): FilePath = {
-    new HadoopFilePath(hfs.makeQualified(new hadoop.fs.Path(fPath.toString())))
-  }
-
-  def makeQualified(fPath: String): FilePath = {
-    new HadoopFilePath(hfs.makeQualified(new hadoop.fs.Path(fPath.toString())))
-  }
-
-  def getPath(path: String): FilePath = {
-    new HadoopFilePath(new hadoop.fs.Path(path))
-  }
-}
-
 class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
-  def getPath: HadoopFilePath = {
-    new HadoopFilePath(fs.getPath())
-  }
+  def getPath: String = fs.getPath.toString
 
   def getModificationTime: Long = fs.getModificationTime
 
@@ -155,10 +103,6 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
 
   private def _fileSystem(filename: String): hadoop.fs.FileSystem = {
     new hadoop.fs.Path(filename).getFileSystem(conf.value)
-  }
-
-  def fileSystem(filename: String): HadoopFileSystem = {
-    new HadoopFileSystem(filename, conf.value)
   }
 
   def getFileSize(filename: String): Long =
@@ -280,7 +224,7 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
       case None => glob(sourceFolder + "/part-*")
       case Some(files) => files.map(f => fileStatus(sourceFolder + "/" + f)).toArray
     }
-    val sortedPartFileStatuses = partFileStatuses.sortBy(fs => getPartNumber(fs.getPath.getName))
+    val sortedPartFileStatuses = partFileStatuses.sortBy(fs => getPartNumber(new hadoop.fs.Path(fs.getPath).getName))
     if (sortedPartFileStatuses.length != numPartFilesExpected)
       fatal(s"Expected $numPartFilesExpected part files but found ${ sortedPartFileStatuses.length }")
 
@@ -304,7 +248,6 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
 
   def copyMergeList(srcFileStatuses: Array[FileStatus], destFilename: String, deleteSource: Boolean = true) {
     val destPath = new hadoop.fs.Path(destFilename)
-    val destFS = _fileSystem(destFilename)
 
     val codecFactory = new CompressionCodecFactory(conf.value)
     val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(destFilename)))
@@ -314,6 +257,7 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
       fileStatus => fileStatus.getPath != destPath && fileStatus.isFile
     })
 
+    val destFS = destPath.getFileSystem(conf.value)
     val outputStream = destFS.create(destPath)
 
     try {
@@ -324,8 +268,9 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
           -28
         else
           0
-        val srcFS = fileSystem(fileStatus.getPath.toString)
-        val inputStream = srcFS.open(fileStatus.getPath)
+        val srcPath = new hadoop.fs.Path(fileStatus.getPath)
+        val srcFS = srcPath.getFileSystem(conf.value)
+        val inputStream = srcFS.open(srcPath)
         try {
           copyBytes(inputStream, outputStream,
             fileStatus.getLen + lenAdjust,
@@ -454,5 +399,17 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
       dos.flush()
       dos.close()
     }
+  }
+
+  def makeQualified(path: String): String = {
+    val ppath = new hadoop.fs.Path(path)
+    val pathFS = ppath.getFileSystem(conf.value)
+    pathFS.makeQualified(ppath).toString
+  }
+
+  def deleteOnExit(path: String): Unit = {
+    val ppath = new hadoop.fs.Path(path)
+    val pathFS = ppath.getFileSystem(conf.value)
+    pathFS.deleteOnExit(ppath)
   }
 }
