@@ -50,7 +50,7 @@ trait FS extends Serializable {
 
   def delete(filename: String, recursive: Boolean)
 
-  def exists(files: String*): Boolean
+  def exists(files: String): Boolean
 
   def isFile(filename: String): Boolean
 

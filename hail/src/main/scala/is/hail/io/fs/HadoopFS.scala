@@ -124,8 +124,9 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     fs.isFile(hPath)
   }
 
-  def exists(files: String*): Boolean = {
-    files.forall(filename => getFileSystem(filename).exists(new hadoop.fs.Path(filename)))
+  def exists(file: String): Boolean = {
+    val path = new hadoop.fs.Path(file)
+    path.getFileSystem(conf.value).exists(path)
   }
 
   /**
