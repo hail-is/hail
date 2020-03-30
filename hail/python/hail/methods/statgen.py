@@ -446,6 +446,151 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
 
     return ht_result.persist()
 
+@typecheck(y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
+           x=expr_float64,
+           covariates=sequenceof(expr_float64),
+           block_size=int,
+           pass_through=sequenceof(oneof(str, Expression)))
+def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) -> hail.Table:
+    mt = matrix_table_source('linear_regression_rows/x', x)
+    check_entry_indexed('linear_regression_rows/x', x)
+
+    y_is_list = isinstance(y, list)
+    if y_is_list and len(y) == 0:
+        raise ValueError(f"'linear_regression_rows': found no values for 'y'")
+    is_chained = y_is_list and isinstance(y[0], list)
+    if is_chained and any(len(l) == 0 for l in y):
+        raise ValueError(f"'linear_regression_rows': found empty inner list for 'y'")
+
+    y = wrap_to_list(y)
+
+    for e in (itertools.chain.from_iterable(y) if is_chained else y):
+        analyze('linear_regression_rows/y', e, mt._col_indices)
+
+    for e in covariates:
+        analyze('linear_regression_rows/covariates', e, mt._col_indices)
+
+    _warn_if_no_intercept('linear_regression_rows', covariates)
+
+    x_field_name = Env.get_uid()
+    if is_chained:
+        y_field_names = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
+        y_dict = dict(zip(itertools.chain.from_iterable(y_field_names), itertools.chain.from_iterable(y)))
+        func = 'LinearRegressionRowsChained'
+
+    else:
+        y_field_names = list(f'__y_{i}' for i in range(len(y)))
+        y_dict = dict(zip(y_field_names, y))
+        func = 'LinearRegressionRowsSingle'
+
+    cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+
+    row_fields = _get_regression_row_fields(mt, pass_through, 'linear_regression_rows')
+
+    # FIXME: selecting an existing entry field should be emitted as a SelectFields
+    mt = mt._select_all(col_exprs=dict(**y_dict,
+                                       **dict(zip(cov_field_names, covariates))),
+                        row_exprs=row_fields,
+                        col_key=[],
+                        entry_exprs={x_field_name: x})
+
+    # NEW STUFF
+    entries_field_name = 'ent'
+    sample_field_name = "by_sample"
+    X_field_name = entries_field_name + "_nd"
+
+
+    # TODO List:
+    # Either before or after localizing, need to find the missing samples and delete them
+    #   In the chained case, have to do this a bunch of times? Can't filter mutliple mts without recomputing?
+    #   No. In the chained case, what I want is for all of the different y based things to be arrays.
+
+    def all_defined(struct_root, field_names):
+        defined_array = hl.array([hl.is_defined(struct_root[field_name]) for field_name in field_names])
+        return defined_array.fold(lambda a, b: a & b, True)
+
+    def nd_to_array(mat):
+        if mat.ndim == 1:
+            return hl.range(hl.int32(mat.shape[0])).map(lambda i: mat[i])
+        elif mat.ndim == 2:
+            return hl.range(hl.int32(mat.shape[0])).map(lambda i:
+                                                        hl.range(hl.int32(mat.shape[1])).map(lambda j: (mat[i, j])))
+
+    def zip_to_struct(ht, struct_root_name, **kwargs):
+        mapping = list(kwargs.items())
+        sources = [pair[1] for pair in mapping]
+        dests = [pair[0] for pair in mapping]
+        ht = ht.annotate(**{struct_root_name: hl.zip(*sources)})
+        ht = ht.transmute(**{struct_root_name : ht[struct_root_name].map(lambda tup: hl.struct(**{dests[i]:tup[i] for i in range(len(dests))}))})
+        return ht
+
+    # Given a hail array, get the mean of the nonmissing entries and return new array where the missing entries are the mean.
+    def mean_impute(hl_array):
+        non_missing_mean = hl.mean(hl_array, filter_missing=True)
+        return hl.map(lambda arr_entry: hl.if_else(hl.is_defined(arr_entry), arr_entry, non_missing_mean), hl_array)
+
+    def select_array_indices(hl_array, indices):
+        return indices.map(lambda i: hl_array[i])
+
+    ht = mt._localize_entries(entries_field_name, sample_field_name)
+
+
+    # Now here, I want to transmute away the entries field name struct to get arrays
+    ht = ht.transmute(**{entries_field_name: ht[entries_field_name][x_field_name]})
+    just_before_grouping = ht
+    # Now need to group everything
+    ht = just_before_grouping.checkpoint("just_before_grouping_chk.mt", overwrite=True)
+    ht = ht._group_within_partitions(block_size)  # breaking point for show with filtering, idk why
+    just_after_grouping = ht
+
+
+    ys_and_covs_to_keep_with_indices = hl.zip_with_index(ht[sample_field_name]).filter(lambda struct_with_index: all_defined(struct_with_index[1], y_field_names + cov_field_names))
+    indices_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[0])
+    ys_and_covs_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[1])
+
+    ht = ht.annotate_globals(kept_samples=indices_to_keep,
+                             __y_nd=hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[y_name] for y_name in y_field_names]))),
+                             # TODO: When there are no covariates, can't call array.
+                             __cov_nd=hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[cov_name] for cov_name in cov_field_names]))))
+
+    k = builtins.len(covariates)
+    #if d < 1:
+    #    raise FatalError(f"{n} samples and {k + 1} covariates (including x) implies ${d} degrees of freedom.")
+
+    ht = ht.annotate(**{X_field_name: hl.nd.array(hl.map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples)), ht["grouped_fields"][entries_field_name])).T})
+    ht = ht.annotate_globals(n=hl.len(ht.kept_samples))
+    ht = ht.annotate_globals(d=ht.n-k-1)
+    ht = ht.annotate_globals(__cov_Qt=hl.if_else(k > 0, hl.nd.qr(ht.__cov_nd)[0].T, hl.nd.zeros((1, ht.n))))  # TODOD Why the hell does the zero matrix have 0 rows in Breeze? I'm probably handling this case wrong.
+    ht = ht.annotate_globals(__Qty=ht.__cov_Qt @ ht.__y_nd)
+    ht = ht.annotate_globals(__yyp=hl.nd.diagonal(ht.__y_nd.T @ ht.__y_nd) - hl.nd.diagonal(ht.__Qty.T @ ht.__Qty))
+
+    ht = ht.annotate(sum_x_nd=(ht[X_field_name].T @ hl.nd.ones((ht.n,))))
+    ht = ht.transmute(sum_x=nd_to_array(ht.sum_x_nd))
+    ht = ht.annotate(__Qtx=ht.__cov_Qt @ ht[X_field_name])
+    ht = ht.annotate(__ytx=ht.__y_nd.T @ ht[X_field_name])
+    ht = ht.annotate(__xyp=ht.__ytx - (ht.__Qty.T @ ht.__Qtx))
+    ht = ht.annotate(__xxpRec=(hl.nd.diagonal(ht[X_field_name].T @ ht[X_field_name]) - hl.nd.diagonal(ht.__Qtx.T @ ht.__Qtx)).map(lambda entry: 1 / entry))
+    ht = ht.annotate(__b=ht.__xyp * ht.__xxpRec)
+    ht = ht.annotate(__se=((1.0/ht.d) * (ht.__yyp.reshape((-1, 1)) @ ht.__xxpRec.reshape((1, -1)) - (ht.__b * ht.__b))).map(lambda entry: hl.sqrt(entry)))
+    ht = ht.annotate(__t=ht.__b / ht.__se)
+    ht = ht.annotate(__p=ht.__t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.d, True, False)))
+
+    res = ht.key_by()
+    key_fields = [key_field for key_field in ht.key]
+    key_dict = {key_field: res.grouped_fields[key_field] for key_field in key_fields}
+    linreg_fields_dict = {"sum_x": res.sum_x, "y_transpose_x": nd_to_array(res.__ytx.T), "beta": nd_to_array(res.__b.T),
+                          "standard_error": nd_to_array(res.__se.T), "t_stat":nd_to_array(res.__t.T), "p_value":nd_to_array(res.__p.T)}
+    combined_dict = {**key_dict, **linreg_fields_dict}
+    res = zip_to_struct(res, "all_zipped", **combined_dict)
+
+    res = res.explode(res.all_zipped)
+    res = res.select(**{field: res.row.all_zipped[field] for field in res.row.all_zipped})
+    res = res.key_by(*[res[key_field] for key_field in ht.key])
+
+    #res._tir.is_sorted = True #TODO Not sure what's going on with sorting, throwing assertion error.
+
+    return (res, ht, just_before_grouping, just_after_grouping)
+
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
            y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
