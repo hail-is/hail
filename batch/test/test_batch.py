@@ -14,6 +14,7 @@ import aiohttp
 import requests
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
+from hailtop.utils import sync_retry_transient_errors
 
 from .serverthread import ServerThread
 from .utils import legacy_batch_status
@@ -411,7 +412,7 @@ class Test(unittest.TestCase):
             (requests.get, '/batches/0/jobs/0', 302)]
         for f, url, expected in endpoints:
             full_url = deploy_config.url('batch', url)
-            r = f(full_url, allow_redirects=False)
+            r = sync_retry_transient_errors(f, full_url, allow_redirects=False)
             assert r.status_code == expected, (full_url, r, expected)
 
     def test_bad_token(self):
@@ -527,5 +528,7 @@ echo $HAIL_BATCH_WORKER_IP
         url = deploy_config.url('batch', '/api/v1alpha/batches/create')
         headers = service_auth_headers(deploy_config, 'batch')
         for config in bad_configs:
-            r = requests.post(url, json=config, allow_redirects=True, headers=headers)
+            r = sync_retry_transient_errors(
+                requests.post,
+                url, json=config, allow_redirects=True, headers=headers)
             assert r.status_code == 400, (config, r)

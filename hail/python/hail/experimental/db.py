@@ -4,6 +4,8 @@ import pkg_resources
 import requests
 import hail as hl
 
+from hailtop.utils import sync_retry_transient_errors
+
 from ..utils.java import Env
 from ..typecheck import typecheck_method, oneof
 from ..table import table_type
@@ -102,7 +104,7 @@ class DB:
                 with open(config_path) as f:
                     config = json.load(f)
             else:
-                response = requests.get(url)
+                response = sync_retry_transient_errors(requests.get, url)
                 config = response.json()
             assert isinstance(config, dict)
         else:
