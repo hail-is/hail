@@ -120,8 +120,9 @@ case class MatrixValue(
     fs: FS,
     path: String,
     bufferSpec: BufferSpec,
-    partitionCounts: Array[Long]
-  ) = {
+    partitionCounts: Array[Long],
+    consoleInfo: Boolean
+  ): Unit = {
     val globalsPath = path + "/globals"
     fs.mkDir(globalsPath)
     writeGlobals(fs, globalsPath, bufferSpec)
@@ -176,7 +177,8 @@ case class MatrixValue(
     using(fs.create(path + "/_SUCCESS"))(out => ())
 
     val nRows = partitionCounts.sum
-    info(s"wrote matrix table with $nRows ${ plural(nRows, "row") } " +
+    val printer: String=>Unit = if (consoleInfo) info else log.info
+    printer(s"wrote matrix table with $nRows ${ plural(nRows, "row") } " +
       s"and $nCols ${ plural(nCols, "column") } " +
       s"in ${ partitionCounts.length } ${ plural(partitionCounts.length, "partition") } " +
       s"to $path")
@@ -213,7 +215,7 @@ case class MatrixValue(
 
     val partitionCounts = rvd.writeRowsSplit(path, bufferSpec, stageLocally, targetPartitioner)
 
-    finalizeWrite(fs, path, bufferSpec, partitionCounts)
+    finalizeWrite(fs, path, bufferSpec, partitionCounts, consoleInfo = true)
   }
 
   def colsRVD(ctx: ExecuteContext): RVD = {
@@ -310,7 +312,7 @@ object MatrixValue {
 
     val partitionCounts = RVD.writeRowsSplitFiles(mvs.map(_.rvd), prefix, bufferSpec, stageLocally)
     for ((mv, path, partCounts) <- (mvs, paths, partitionCounts).zipped) {
-      mv.finalizeWrite(fs, path, bufferSpec, partCounts)
+      mv.finalizeWrite(fs, path, bufferSpec, partCounts, consoleInfo = false)
     }
   }
 
