@@ -1215,14 +1215,14 @@ private class Emit[C](
         val value = Code(Code(ins), meth.invoke[Any]((coerce[Any](mb.getArg[Region](1).get) +: vars.map(_.get)): _*))
         strict(pt, value, codeArgs: _*)
       case x@ApplySeeded(fn, args, seed, rt) =>
-        val codeArgs = args.map(a => (a.pType, emit(a)))
+        val codeArgs = args.map(a => emit(a))
         val impl = x.implementation
         val unified = impl.unify(args.map(_.typ) :+ rt)
         assert(unified)
         impl.setSeed(seed)
         impl.apply(er, pt, codeArgs: _*)
       case x@ApplySpecial(_, args, rt) =>
-        val codeArgs = args.map(a => (a.pType, emit(a)))
+        val codeArgs = args.map(a => emit(a))
         val impl = x.implementation
         impl.argTypes.foreach(_.clear())
         val unified = impl.unify(args.map(_.typ) :+ rt)

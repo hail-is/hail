@@ -143,16 +143,16 @@ object StringFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("showStr", tv("T"), TInt32, TString, {
       (_: PType, truncType: PType) => PCanonicalString(truncType.required)
-    }) { case (r, rt, (aT, a), (_, trunc)) =>
-      val annotation = Code(a.setup, a.m).muxAny(Code._null(boxedTypeInfo(aT)), boxArg(r, aT)(a.v))
-      val str = r.mb.getType(aT.virtualType).invoke[Any, Int, String]("showStr", annotation, trunc.value[Int])
+    }) { case (r, rt, a, trunc) =>
+      val annotation = Code(a.setup, a.m).muxAny(Code._null(boxedTypeInfo(a.pt)), boxArg(r, a.pt)(a.v))
+      val str = r.mb.getType(a.pt.virtualType).invoke[Any, Int, String]("showStr", annotation, trunc.value[Int])
       EmitCode(trunc.setup, trunc.m, PCode(rt, unwrapReturn(r, rt)(str)))
     }
 
-    registerCodeWithMissingness("json", tv("T"), TString, (_: PType) => PCanonicalString(true)) { case (r, rt, (aT, a)) =>
-      val bti = boxedTypeInfo(aT)
-      val annotation = Code(a.setup, a.m).muxAny(Code._null(bti), boxArg(r, aT)(a.v))
-      val json = r.mb.getType(aT.virtualType).invoke[Any, JValue]("toJSON", annotation)
+    registerCodeWithMissingness("json", tv("T"), TString, (_: PType) => PCanonicalString(true)) { case (r, rt, a) =>
+      val bti = boxedTypeInfo(a.pt)
+      val annotation = Code(a.setup, a.m).muxAny(Code._null(bti), boxArg(r, a.pt)(a.v))
+      val json = r.mb.getType(a.pt.virtualType).invoke[Any, JValue]("toJSON", annotation)
       val str = Code.invokeScalaObject[JValue, String](JsonMethods.getClass, "compact", json)
       EmitCode(Code._empty, false, PCode(rt, unwrapReturn(r, rt)(str)))
     }
@@ -207,7 +207,7 @@ object StringFunctions extends RegistryFunctions {
     registerCodeWithMissingness("firstMatchIn", TString, TString, TArray(TString), {
       case(_: PType, _: PType) => PCanonicalArray(PCanonicalString(true))
     }) {
-      case (er: EmitRegion, rt: PArray, (sT: PString, s: EmitCode), (rT: PString, r: EmitCode)) =>
+      case (er: EmitRegion, rt: PArray, s: EmitCode, r: EmitCode) =>
       val out: LocalRef[IndexedSeq[String]] = er.mb.newLocal[IndexedSeq[String]]()
 
       val srvb: StagedRegionValueBuilder = new StagedRegionValueBuilder(er, rt)
@@ -218,8 +218,8 @@ object StringFunctions extends RegistryFunctions {
       val missing = s.m || r.m || Code(
         out := Code.invokeScalaObject[String, String, IndexedSeq[String]](
           thisClass, "firstMatchIn",
-          asm4s.coerce[String](wrapArg(er, sT)(s.value[Long])),
-          asm4s.coerce[String](wrapArg(er, rT)(r.value[Long]))),
+          asm4s.coerce[String](wrapArg(er, s.pt)(s.value[Long])),
+          asm4s.coerce[String](wrapArg(er, r.pt)(r.value[Long]))),
         out.isNull)
       val value =
         out.ifNull(
@@ -240,8 +240,11 @@ object StringFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("hamming", TString, TString, TInt32, {
       case(_: PType, _: PType) => PInt32()
-    }) {
-      case (r: EmitRegion, rt, (e1T: PString, e1: EmitCode), (e2T: PString, e2: EmitCode)) =>
+    }) { case (r: EmitRegion, rt, e1: EmitCode, e2: EmitCode) =>
+
+      val e1T = e1.pt.asInstanceOf[PString]
+      val e2T = e2.pt.asInstanceOf[PString]
+
       val len = r.mb.newLocal[Int]()
       val i = r.mb.newLocal[Int]()
       val n = r.mb.newLocal[Int]()
