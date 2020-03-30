@@ -27,10 +27,10 @@ object RelationalSpec {
     new MatrixTypeSerializer
 
   def readMetadata(hc: HailContext, path: String): JValue = {
-    if (!hc.sFS.isDir(path))
+    if (!hc.fs.isDir(path))
       fatal(s"MatrixTable and Table files are directories; path '$path' is not a directory")
     val metadataFile = path + "/metadata.json.gz"
-    val jv = using(hc.sFS.open(metadataFile)) { in => parse(in) }
+    val jv = using(hc.fs.open(metadataFile)) { in => parse(in) }
 
     val fileVersion = jv \ "file_version" match {
       case JInt(rep) => SemanticVersion(rep.toInt)
@@ -66,7 +66,7 @@ object RelationalSpec {
     val referencesRelPath = (jv \ "references_rel_path": @unchecked) match {
       case JString(p) => p
     }
-    ReferenceGenome.readReferences(hc.sFS, path + "/" + referencesRelPath)
+    ReferenceGenome.readReferences(hc.fs, path + "/" + referencesRelPath)
   }
 }
 
@@ -100,7 +100,7 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
   def rvdSpec(fs: is.hail.io.fs.FS, path: String): AbstractRVDSpec =
     AbstractRVDSpec.read(fs, absolutePath(path))
 
-  def indexed(hc: HailContext, path: String): Boolean = rvdSpec(hc.sFS, path).indexed
+  def indexed(hc: HailContext, path: String): Boolean = rvdSpec(hc.fs, path).indexed
 
   def read(
     hc: HailContext,
@@ -111,13 +111,13 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
     filterIntervals: Boolean = false
   ): RVD = {
     val rvdPath = path + "/" + rel_path
-    rvdSpec(hc.sFS, path)
+    rvdSpec(hc.fs, path)
       .read(hc, rvdPath, requestedType, ctx, newPartitioner, filterIntervals)
   }
 
   def readLocalSingleRow(hc: HailContext, path: String, requestedType: TStruct, r: Region): (PStruct, Long) = {
     val rvdPath = path + "/" + rel_path
-    rvdSpec(hc.sFS, path)
+    rvdSpec(hc.fs, path)
       .readLocalSingleRow(hc, rvdPath, requestedType, r)
   }
 }

@@ -15,7 +15,7 @@ object RichArray {
   }
   
   def importFromDoubles(hc: HailContext, path: String, a: Array[Double], bufSize: Int): Unit = {
-    using(hc.sFS.open(path)) { is =>
+    using(hc.fs.open(path)) { is =>
       val in = new DoubleInputBuffer(is, bufSize)
 
       in.readDoubles(a)

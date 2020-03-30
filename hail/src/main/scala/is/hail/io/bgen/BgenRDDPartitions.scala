@@ -89,8 +89,8 @@ object BgenRDDPartitions extends Logging {
     keyType: Type
   ): (Array[Partition], Array[Interval]) = {
     val hc = HailContext.get
-    val fs = hc.sFS
-    val bcFS = hc.bcFS
+    val fs = hc.fs
+    val bcFS = hc.fsBc
 
     val fileRangeBounds = checkFilesDisjoint(fs, files, keyType)
     val intervalOrdering = TInterval(keyType).ordering

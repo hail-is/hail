@@ -205,7 +205,7 @@ case class TextMatrixReader(
   import TextMatrixReader._
   private[this] val hc = HailContext.get
   private[this] val sc = hc.sc
-  private[this] val fs = hc.sFS
+  private[this] val fs = hc.fs
 
   assert(separatorStr.length == 1)
   private[this] val separator = separatorStr.charAt(0)

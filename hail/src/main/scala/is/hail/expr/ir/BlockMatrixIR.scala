@@ -394,14 +394,14 @@ case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends Blo
       val path = hc.getTemporaryFile(suffix = Some("bm"))
       info(s"BlockMatrix multiply: writing left input with ${ leftBM.nRows } rows and ${ leftBM.nCols } cols " +
         s"(${ leftBM.gp.nBlocks } blocks of size ${ leftBM.blockSize }) to temporary file $path")
-      leftBM.write(hc.sFS, path)
+      leftBM.write(hc.fs, path)
       leftBM = BlockMatrixNativeReader(path).apply(ctx, hc)
     }
     if (!right.blockCostIsLinear) {
       val path = hc.getTemporaryFile(suffix = Some("bm"))
       info(s"BlockMatrix multiply: writing right input with ${ rightBM.nRows } rows and ${ rightBM.nCols } cols " +
         s"(${ rightBM.gp.nBlocks } blocks of size ${ rightBM.blockSize }) to temporary file $path")
-      rightBM.write(hc.sFS, path)
+      rightBM.write(hc.fs, path)
       rightBM = BlockMatrixNativeReader(path).apply(ctx, hc)
     }
     leftBM.dot(rightBM)

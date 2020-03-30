@@ -157,7 +157,7 @@ case class PCRelate(
 
   private def writeRead(m: M): M = {
     val file = hc.getTemporaryFile(suffix=Some("bm"))
-    m.write(hc.sFS, file)
+    m.write(hc.fs, file)
     BlockMatrix.read(hc, file)
   }
 

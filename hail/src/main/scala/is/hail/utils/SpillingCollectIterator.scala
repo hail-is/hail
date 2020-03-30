@@ -24,7 +24,7 @@ object SpillingCollectIterator {
 
 class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int) extends Iterator[T] {
   private[this] val hc = HailContext.get
-  private[this] val fs = hc.sFS
+  private[this] val fs = hc.fs
   private[this] val sc = hc.sc
   private[this] val files: Array[(String, Long)] = new Array(rdd.partitions.length)
   private[this] var buf: Array[Array[T]] = new Array(rdd.partitions.length)

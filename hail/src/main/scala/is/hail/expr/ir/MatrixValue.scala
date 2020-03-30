@@ -190,7 +190,7 @@ case class MatrixValue(
     partitionsTypeStr: String) = {
     assert(typ.isCanonical)
     val hc = HailContext.get
-    val fs = hc.sFS
+    val fs = hc.fs
 
     val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSON)
 
@@ -295,7 +295,7 @@ object MatrixValue {
     val first = mvs.head
     require(mvs.forall(_.typ == first.typ))
     val hc = HailContext.get
-    val fs = hc.sFS
+    val fs = hc.fs
     val bufferSpec = BufferSpec.default
 
     val d = digitsNeeded(mvs.length)

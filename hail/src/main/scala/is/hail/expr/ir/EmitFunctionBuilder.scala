@@ -338,11 +338,11 @@ class EmitClassBuilder[C](
       val confField = genFieldThisRef[FS]()
       val mb = newEmitMethod("addFS", Array(typeInfo[FS]), typeInfo[Unit])
       mb.emit(confField := mb.getArg[FS](1))
-      _hfs = HailContext.sFS
+      _hfs = HailContext.fs
       _hfield = confField
     }
 
-    assert(_hfs == HailContext.sFS && _hfield != null)
+    assert(_hfs == HailContext.fs && _hfield != null)
     _hfield.load()
   }
 

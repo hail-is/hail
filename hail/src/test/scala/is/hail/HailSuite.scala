@@ -1,6 +1,7 @@
 package is.hail
 
 import is.hail.annotations.Region
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.ExecuteContext
 import is.hail.utils.{ExecutionTimer, TempDir}
 import is.hail.io.fs.FS
@@ -9,17 +10,17 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.BeforeClass
 
 object HailSuite {
-  def withSparkBackend(): HailContext =
-    HailContext(
+  def withSparkBackend(): HailContext = {
+    val backend = SparkBackend(
       sc = new SparkContext(
-        HailContext.createSparkConf(
+        SparkBackend.createSparkConf(
           appName = "Hail.TestNG",
-          master = Option(System.getProperty("hail.master")),
+          master = System.getProperty("hail.master"),
           local = "local[2]",
           blockSize = 0)
-          .set("spark.unsafe.exceptionOnMemoryLeak", "true")),
-      logFile = "/tmp/hail.log")
-
+          .set("spark.unsafe.exceptionOnMemoryLeak", "true")))
+    HailContext(backend, logFile = "/tmp/hail.log")
+  }
 
   lazy val hc: HailContext = {
     val hc = withSparkBackend()
@@ -38,7 +39,7 @@ class HailSuite extends TestNGSuite {
 
   val ctx = ExecuteContext(Region(), new ExecutionTimer) // will get cleaned up on suite GC
 
-  def sFS: FS = hc.sFS
+  def fs: FS = hc.fs
 
-  lazy val tmpDir: TempDir = TempDir(sFS)
+  lazy val tmpDir: TempDir = TempDir(fs)
 }

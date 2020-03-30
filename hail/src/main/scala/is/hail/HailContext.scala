@@ -5,14 +5,13 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.backend.Backend
-import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.{BaseIR, ExecuteContext}
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.IndexBgen
-import is.hail.io.fs.{FS, HadoopFS}
+import is.hail.io.fs.FS
 import is.hail.io.index._
 import is.hail.io.vcf._
 import is.hail.io.{AbstractTypedCodecSpec, Decoder}
@@ -20,19 +19,17 @@ import is.hail.rvd.{AbstractIndexSpec, RVDContext}
 import is.hail.sparkextras.{ContextRDD, IndexReadRDD}
 import is.hail.utils.{log, _}
 import is.hail.variant.ReferenceGenome
-import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{Row, SparkSession}
+import org.apache.spark.sql.Row
 import org.json4s.Extraction
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
 case class FilePartition(index: Int, file: String) extends Partition
@@ -42,15 +39,13 @@ object HailContext {
 
   val logFormat: String = "%d{yyyy-MM-dd HH:mm:ss} %c{1}: %p: %m%n"
 
-  private val contextLock = new Object()
-
   private var theContext: HailContext = _
 
-  def isInitialized: Boolean = contextLock.synchronized {
+  def isInitialized: Boolean = synchronized {
     theContext != null
   }
 
-  def get: HailContext = contextLock.synchronized {
+  def get: HailContext = synchronized {
     assert(TaskContext.get() == null, "HailContext not available on worker")
     assert(theContext != null, "HailContext not initialized")
     theContext
@@ -62,98 +57,9 @@ object HailContext {
 
   def setFlag(flag: String, value: String): Unit = get.flags.set(flag, value)
 
-  def sFS: FS = get.sFS
+  def fs: FS = get.fs
 
-  def bcFS: Broadcast[FS] = get.bcFS
-
-  def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
-    def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
-
-    if (majorMinor(jarVersion) != majorMinor(sparkVersion))
-      fatal(s"This Hail JAR was compiled for Spark $jarVersion, cannot run with Spark $sparkVersion.\n" +
-        s"  The major and minor versions must agree, though the patch version can differ.")
-    else if (jarVersion != sparkVersion)
-      warn(s"This Hail JAR was compiled for Spark $jarVersion, running with Spark $sparkVersion.\n" +
-        s"  Compatibility is not guaranteed.")
-  }
-
-  def createSparkConf(appName: String, master: Option[String],
-    local: String, blockSize: Long): SparkConf = {
-    require(blockSize >= 0)
-    checkSparkCompatibility(is.hail.HAIL_SPARK_VERSION, org.apache.spark.SPARK_VERSION)
-
-    val conf = new SparkConf().setAppName(appName)
-
-    master match {
-      case Some(m) =>
-        conf.setMaster(m)
-      case None =>
-        if (!conf.contains("spark.master"))
-          conf.setMaster(local)
-    }
-
-    conf.set("spark.logConf", "true")
-    conf.set("spark.ui.showConsoleProgress", "false")
-
-    conf.set("spark.kryoserializer.buffer.max", "1g")
-    conf.set("spark.driver.maxResultSize", "0")
-
-    conf.set(
-      "spark.hadoop.io.compression.codecs",
-      "org.apache.hadoop.io.compress.DefaultCodec," +
-        "is.hail.io.compress.BGzipCodec," +
-        "is.hail.io.compress.BGzipCodecTbi," +
-        "org.apache.hadoop.io.compress.GzipCodec")
-
-    conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-    conf.set("spark.kryo.registrator", "is.hail.kryo.HailKryoRegistrator")
-
-    conf.set("spark.hadoop.mapreduce.input.fileinputformat.split.minsize", (blockSize * 1024L * 1024L).toString)
-
-    // load additional Spark properties from HAIL_SPARK_PROPERTIES
-    val hailSparkProperties = System.getenv("HAIL_SPARK_PROPERTIES")
-    if (hailSparkProperties != null) {
-      hailSparkProperties
-        .split(",")
-        .foreach { p =>
-          p.split("=") match {
-            case Array(k, v) =>
-              log.info(s"set Spark property from HAIL_SPARK_PROPERTIES: $k=$v")
-              conf.set(k, v)
-            case _ =>
-              warn(s"invalid key-value property pair in HAIL_SPARK_PROPERTIES: $p")
-          }
-        }
-    }
-    conf
-  }
-
-  def configureAndCreateSparkContext(appName: String, master: Option[String],
-    local: String, blockSize: Long): SparkContext = {
-    val sc = new SparkContext(createSparkConf(appName, master, local, blockSize))
-    sc
-  }
-
-  def checkSparkConfiguration(sc: SparkContext) {
-    val conf = sc.getConf
-
-    val problems = new ArrayBuffer[String]
-
-    val serializer = conf.getOption("spark.serializer")
-    val kryoSerializer = "org.apache.spark.serializer.KryoSerializer"
-    if (!serializer.contains(kryoSerializer))
-      problems += s"Invalid configuration property spark.serializer: required $kryoSerializer.  " +
-        s"Found: ${ serializer.getOrElse("empty parameter") }."
-
-    if (!conf.getOption("spark.kryo.registrator").exists(_.split(",").contains("is.hail.kryo.HailKryoRegistrator")))
-      problems += s"Invalid config parameter: spark.kryo.registrator must include is.hail.kryo.HailKryoRegistrator." +
-        s"Found ${ conf.getOption("spark.kryo.registrator").getOrElse("empty parameter.") }"
-
-    if (problems.nonEmpty)
-      fatal(
-        s"""Found problems with SparkContext configuration:
-           |  ${ problems.mkString("\n  ") }""".stripMargin)
-  }
+  def fsBc: Broadcast[FS] = get.fsBc
 
   def configureLogging(logFile: String, quiet: Boolean, append: Boolean) {
     val logProps = new Properties()
@@ -191,67 +97,38 @@ object HailContext {
     }
   }
 
-  def hailCompressionCodecs: Array[String] = Array(
-    "org.apache.hadoop.io.compress.DefaultCodec",
-    "is.hail.io.compress.BGzipCodec",
-    "is.hail.io.compress.BGzipCodecTbi",
-    "org.apache.hadoop.io.compress.GzipCodec")
-
-  /**
-    * If a HailContext has already been initialized, this function returns it regardless of the
-    * parameters with which it was initialized.
-    *
-    * Otherwise, it initializes and returns a new HailContext.
-    */
-  def getOrCreate(sc: SparkContext = null,
-    appName: String = "Hail",
-    master: Option[String] = None,
-    local: String = "local[*]",
+  def getOrCreate(backend: Backend,
     logFile: String = "hail.log",
     quiet: Boolean = false,
     append: Boolean = false,
-    minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
     tmpDir: String = "/tmp",
-    optimizerIterations: Int = 3): HailContext = contextLock.synchronized {
+    optimizerIterations: Int = 3): HailContext = {
+    if (theContext == null)
+      return HailContext(backend, logFile, quiet, append, branchingFactor, tmpDir, optimizerIterations)
 
-    if (theContext != null) {
-      val hc = theContext
-      if (sc == null) {
-        warn("Requested that Hail be initialized with a new SparkContext, but Hail " +
-          "has already been initialized. Different configuration settings will be ignored.")
-      }
-      val paramsDiff = (Map(
-        "tmpDir" -> Seq(tmpDir, hc.tmpDir),
-        "branchingFactor" -> Seq(branchingFactor, hc.branchingFactor),
-        "minBlockSize" -> Seq(minBlockSize, hc.sc.getConf.getLong("spark.hadoop.mapreduce.input.fileinputformat.split.minsize", 0L) / 1024L / 1024L)
-      ) ++ master.map(m => "master" -> Seq(m, hc.sc.master))).filter(_._2.areDistinct())
-      val paramsDiffStr = paramsDiff.map { case (name, Seq(provided, existing)) =>
-        s"Param: $name, Provided value: $provided, Existing value: $existing"
-      }.mkString("\n")
-      if (paramsDiff.nonEmpty) {
-        warn("Found differences between requested and initialized parameters. Ignoring requested " +
-          s"parameters.\n$paramsDiffStr")
-      }
+    if (theContext.logFile != logFile)
+      warn(s"Requested tmpDir $logFile, but already initialized to ${ theContext.logFile }.  Ignoring requested setting.")
 
-      hc
-    } else {
-      apply(sc, appName, master, local, logFile, quiet, append, minBlockSize, branchingFactor,
-        tmpDir, optimizerIterations)
-    }
+    if (theContext.branchingFactor != branchingFactor)
+      warn(s"Requested branchingFactor $branchingFactor, but already initialized to ${ theContext.branchingFactor }.  Ignoring requested setting.")
+
+    if (theContext.tmpDir != tmpDir)
+      warn(s"Requested tmpDir $tmpDir, but already initialized to ${ theContext.tmpDir }.  Ignoring requested setting.")
+
+    if (theContext.optimizerIterations != optimizerIterations)
+      warn(s"Requested optimizerIterations $optimizerIterations, but already initialized to ${ theContext.optimizerIterations }.  Ignoring requested setting.")
+
+    theContext
   }
 
-  def apply(sc: SparkContext = null,
-    appName: String = "Hail",
-    master: Option[String] = None,
-    local: String = "local[*]",
+  def apply(backend: Backend,
     logFile: String = "hail.log",
     quiet: Boolean = false,
     append: Boolean = false,
-    minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
     tmpDir: String = "/tmp",
-    optimizerIterations: Int = 3): HailContext = contextLock.synchronized {
+    optimizerIterations: Int = 3): HailContext = synchronized {
     require(theContext == null)
     checkJavaVersion()
 
@@ -265,38 +142,22 @@ object HailContext {
 
     configureLogging(logFile, quiet, append)
 
-    val sparkContext = if (sc == null)
-      configureAndCreateSparkContext(appName, master, local, minBlockSize)
-    else {
-      checkSparkConfiguration(sc)
-      sc
-    }
+    theContext = new HailContext(backend, logFile, tmpDir, branchingFactor, optimizerIterations)
 
-    sparkContext.hadoopConfiguration.set("io.compression.codecs", hailCompressionCodecs.mkString(","))
-
-    if (!quiet)
-      ProgressBarBuilder.build(sparkContext)
-
-    val hc = new HailContext(SparkBackend(sparkContext), new HadoopFS(new SerializableHadoopConfiguration(sparkContext.hadoopConfiguration)), logFile, tmpDir, branchingFactor, optimizerIterations)
-    sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
-
-    info(s"Running Hail version ${ hc.version }")
-    theContext = hc
+    info(s"Running Hail version ${ theContext.version }")
 
     // needs to be after `theContext` is set, since this creates broadcasts
     ReferenceGenome.addDefaultReferences()
 
-    hc
+    theContext
   }
 
-  def clear() {
+  def clear(): Unit = synchronized {
     ReferenceGenome.reset()
     IRFunctionRegistry.clearUserFunctions()
-    theContext = null
-  }
+    backend.clear()
 
-  def startProgressBar(sc: SparkContext) {
-    ProgressBarBuilder.build(sc)
+    theContext = null
   }
 
   def readRowsPartition(
@@ -481,7 +342,7 @@ object HailContext {
       }
     } catch {
       case e: Exception =>
-        idxr.map(_.close())
+        idxr.foreach(_.close())
         isRows.close()
         isEntries.close()
         throw e
@@ -491,7 +352,7 @@ object HailContext {
         null
       } else {
         val dec = mkEntriesDec(trackedEntriesIn)
-        idx.map { idx =>
+        idx.foreach { idx =>
           val i = idx.head
           val off = entriesIdxField.map { j => i.annotation.asInstanceOf[Row].getAs[Long](j) }.getOrElse(i.recordOffset)
           dec.seek(off)
@@ -500,7 +361,7 @@ object HailContext {
       }
     } catch {
       case e: Exception =>
-        idxr.map(_.close())
+        idxr.foreach(_.close())
         isRows.close()
         isEntries.close()
         throw e
@@ -533,7 +394,7 @@ object HailContext {
         if (cont == 0) {
           rows.close()
           entries.close()
-          idxr.map(_.close())
+          idxr.foreach(_.close())
         }
 
         rv
@@ -541,13 +402,13 @@ object HailContext {
         case e: Exception =>
           rows.close()
           entries.close()
-          idxr.map(_.close())
+          idxr.foreach(_.close())
           throw e
       }
     }
 
     override def finalize(): Unit = {
-      idxr.map(_.close())
+      idxr.foreach(_.close())
       if (rows != null) rows.close()
       if (entries != null) entries.close()
     }
@@ -558,7 +419,7 @@ object HailContext {
   private[this] val hailGzipAsBGZipCodec = "is.hail.io.compress.BGzipCodecGZ"
 
   def maybeGZipAsBGZip[T](force: Boolean)(body: => T): T = {
-    val fs = HailContext.get.sFS
+    val fs = HailContext.get.fs
     if (!force)
       body
     else {
@@ -579,17 +440,17 @@ object HailContext {
 
 class HailContext private(
   val backend: Backend,
-  val sFS: FS,
   val logFile: String,
   val tmpDirPath: String,
   val branchingFactor: Int,
   val optimizerIterations: Int) {
-  lazy val sc: SparkContext = backend.asSpark().sc
+  def sc: SparkContext = backend.asSpark().sc
 
-  lazy val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
-  lazy val bcFS: Broadcast[FS] = sc.broadcast(sFS)
+  def fs: FS = backend.asSpark().fs
 
-  val tmpDir = TempDir.createTempDir(tmpDirPath, sFS)
+  def fsBc: Broadcast[FS] = backend.asSpark().fsBc
+
+  val tmpDir: String = TempDir.createTempDir(tmpDirPath, fs)
   info(s"Hail temporary directory: $tmpDir")
 
   val flags: HailFeatureFlags = new HailFeatureFlags()
@@ -618,10 +479,10 @@ class HailContext private(
     maxLines: Int
   ): Map[String, Array[WithContext[String]]] = {
     val regexp = regex.r
-    sc.textFilesLines(sFS.globAll(files))
+    sc.textFilesLines(fs.globAll(files))
       .filter(line => regexp.findFirstIn(line.value).isDefined)
       .take(maxLines)
-      .groupBy(_.source.asInstanceOf[Context].file)
+      .groupBy(_.source.file)
   }
 
   def grepPrint(regex: String, files: Seq[String], maxLines: Int) {
@@ -639,7 +500,7 @@ class HailContext private(
     fileAndLineCounts(regex, files, maxLines).mapValues(_.map(_.value)).toArray
 
   def getTemporaryFile(nChar: Int = 10, prefix: Option[String] = None, suffix: Option[String] = None): String =
-    sFS.getTemporaryFile(tmpDir, nChar, prefix, suffix)
+    fs.getTemporaryFile(tmpDir, nChar, prefix, suffix)
 
   def indexBgen(files: java.util.List[String],
     indexFileMap: java.util.Map[String, String],
@@ -667,7 +528,7 @@ class HailContext private(
     optPartitioner: Option[Partitioner] = None): RDD[T] = {
     val nPartitions = partFiles.length
 
-    val localFS = bcFS
+    val localFS = fsBc
 
     new RDD[T](sc, Nil) {
       def getPartitions: Array[Partition] =
@@ -692,7 +553,7 @@ class HailContext private(
   ): RDD[(InputStream, IndexReader, Option[Interval], InputMetrics)] = {
     val idxPath = indexSpec.relPath
     val nPartitions = partFiles.length
-    val localFS = bcFS
+    val localFS = fsBc
     val (keyType, annotationType) = indexSpec.types
     indexSpec.offsetField.foreach { f =>
       require(annotationType.asInstanceOf[TStruct].hasField(f))
@@ -760,7 +621,7 @@ class HailContext private(
     requestedTypeEntries: TStruct
   ): (PStruct, ContextRDD[RegionValue]) = {
     require(!(indexSpecRows.isEmpty ^ indexSpecEntries.isEmpty))
-    val localFS = bcFS
+    val localFS = fsBc
     val (rowsType: PStruct, makeRowsDec) = rowsEnc.buildDecoder(requestedTypeRows)
     val (entriesType: PStruct, makeEntriesDec) = entriesEnc.buildDecoder(requestedTypeEntries)
 

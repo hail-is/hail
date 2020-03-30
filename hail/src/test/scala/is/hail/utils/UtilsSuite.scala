@@ -57,11 +57,11 @@ class UtilsSuite extends HailSuite {
   }
 
   @Test def testHadoopStripCodec() {
-    assert(sFS.stripCodec("file.tsv") == "file.tsv")
-    assert(sFS.stripCodec("file.tsv.gz") == "file.tsv")
-    assert(sFS.stripCodec("file.tsv.bgz") == "file.tsv")
-    assert(sFS.stripCodec("file.tsv.lz4") == "file.tsv")
-    assert(sFS.stripCodec("file") == "file")
+    assert(fs.stripCodec("file.tsv") == "file.tsv")
+    assert(fs.stripCodec("file.tsv.gz") == "file.tsv")
+    assert(fs.stripCodec("file.tsv.bgz") == "file.tsv")
+    assert(fs.stripCodec("file.tsv.lz4") == "file.tsv")
+    assert(fs.stripCodec("file") == "file")
   }
 
   @Test def testPairRDDNoDup() {

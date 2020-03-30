@@ -44,7 +44,7 @@ object AbstractRVDSpec {
       .extract[AbstractRVDSpec]
   }
 
-  def read(hc: HailContext, path: String): AbstractRVDSpec = read(hc.sFS, path)
+  def read(hc: HailContext, path: String): AbstractRVDSpec = read(hc.fs, path)
 
   def readLocal(hc: HailContext,
     path: String,
@@ -54,7 +54,7 @@ object AbstractRVDSpec {
     r: Region): (PStruct, Long) = {
     assert(partFiles.length == 1)
 
-    val fs = hc.sFS
+    val fs = hc.fs
 
     val (rType: PStruct, dec) = enc.buildDecoder(requestedType)
 

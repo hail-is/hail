@@ -334,7 +334,7 @@ case class MatrixBGENReader(
   includedVariants: Option[TableIR]) extends MatrixHybridReader {
   private val hc = HailContext.get
   private val sc = hc.sc
-  private val fs = hc.sFS
+  private val fs = hc.fs
 
   val allFiles = LoadBgen.getAllFilePaths(fs, files.toArray)
   val indexFiles = LoadBgen.getIndexFiles(fs, allFiles, indexFileMap)

@@ -24,7 +24,7 @@ case class MatrixWriteBlockMatrix(path: String,
 
     val hc = HailContext.get
     val sc = hc.sc
-    val fs = hc.sFS
+    val fs = hc.fs
 
     val partStarts = partitionCounts.scanLeft(0L)(_ + _)
     assert(partStarts.length == rvd.getNumPartitions + 1)

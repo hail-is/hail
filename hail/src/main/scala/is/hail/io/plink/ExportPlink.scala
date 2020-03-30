@@ -62,7 +62,7 @@ object ExportPlink {
   def apply(mv: MatrixValue, path: String): Unit = {
     val hc = HailContext.get
     val sc = hc.sc
-    val fs = hc.sFS
+    val fs = hc.fs
 
     val tmpBedDir = fs.getTemporaryFile(hc.tmpDir)
     val tmpBimDir = fs.getTemporaryFile(hc.tmpDir)
@@ -70,7 +70,7 @@ object ExportPlink {
     fs.mkDir(tmpBedDir)
     fs.mkDir(tmpBimDir)
 
-    val bcFS = hc.bcFS
+    val bcFS = hc.fsBc
 
     val nPartitions = mv.rvd.getNumPartitions
     val d = digitsNeeded(nPartitions)

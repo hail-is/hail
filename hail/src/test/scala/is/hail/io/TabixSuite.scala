@@ -13,8 +13,8 @@ class TabixSuite extends HailSuite {
   val vcfGzFile = vcfFile + ".gz"
   val vcfGzTbiFile = vcfGzFile + ".tbi"
 
-  lazy val bcFS = hc.bcFS
-  lazy val reader = new TabixReader(vcfGzFile, hc.sFS)
+  lazy val bcFS = hc.fsBc
+  lazy val reader = new TabixReader(vcfGzFile, hc.fs)
 
   @BeforeTest def initialize() {
     hc // reference to initialize
@@ -92,7 +92,7 @@ class TabixSuite extends HailSuite {
     val vcfFile = "src/test/resources/sample.vcf.bgz"
     val chr = "20"
     val htsjdkrdr = new HtsjdkTabixReader(vcfFile)
-    val hailrdr = new TabixReader(vcfFile, hc.sFS)
+    val hailrdr = new TabixReader(vcfFile, hc.fs)
     val tid = hailrdr.chr2tid(chr)
 
     for ((start, end) <-

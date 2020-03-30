@@ -726,7 +726,7 @@ package object utils extends Logging
     val hc = HailContext.get
     val dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss")
 
-    using(new OutputStreamWriter(hc.sFS.create(path + "/README.txt"))) { out =>
+    using(new OutputStreamWriter(hc.fs.create(path + "/README.txt"))) { out =>
       out.write(
         s"""This folder comprises a Hail (www.hail.is) native Table or MatrixTable.
            |  Written with version ${ hc.version }

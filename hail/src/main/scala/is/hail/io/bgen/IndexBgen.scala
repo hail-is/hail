@@ -45,8 +45,8 @@ object IndexBgen {
     skipInvalidLoci: Boolean = false,
     ctx: ExecuteContext
   ) {
-    val fs = hc.sFS
-    val bcFS = hc.bcFS
+    val fs = hc.fs
+    val bcFS = hc.fsBc
 
     val statuses = LoadBgen.getAllFileStatuses(fs, files)
     val bgenFilePaths = statuses.map(_.getPath.toString)

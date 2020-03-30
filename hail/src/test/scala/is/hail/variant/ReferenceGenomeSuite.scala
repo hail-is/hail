@@ -88,7 +88,7 @@ class ReferenceGenomeSuite extends HailSuite {
     val tmpFile = tmpDir.createTempFile("grWrite", ".json")
 
     val rg = ReferenceGenome.GRCh37
-    rg.copy(name = "GRCh37_2").write(hc.sFS, tmpFile)
+    rg.copy(name = "GRCh37_2").write(hc.fs, tmpFile)
     val gr2 = ReferenceGenome.fromFile(hc, tmpFile)
 
     assert((rg.contigs sameElements gr2.contigs) &&

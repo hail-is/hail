@@ -55,19 +55,19 @@ trait Py4jUtils {
 
   def makeDouble(d: Double): Double = d
 
-  def exists(path: String, hc: HailContext): Boolean = hc.sFS.exists(path)
+  def exists(path: String, hc: HailContext): Boolean = hc.fs.exists(path)
 
-  def isFile(path: String, hc: HailContext): Boolean = hc.sFS.isFile(path)
+  def isFile(path: String, hc: HailContext): Boolean = hc.fs.isFile(path)
 
-  def isDir(path: String, hc: HailContext): Boolean = hc.sFS.isDir(path)
+  def isDir(path: String, hc: HailContext): Boolean = hc.fs.isDir(path)
 
   def ls(path: String, hc: HailContext): String = {
-    val statuses = hc.sFS.listStatus(path)
+    val statuses = hc.fs.listStatus(path)
     JsonMethods.compact(JArray(statuses.map(fs => statusToJson(fs)).toList))
   }
 
   def stat(path: String, hc: HailContext): String = {
-    val stat = hc.sFS.fileStatus(path)
+    val stat = hc.fs.fileStatus(path)
     JsonMethods.compact(statusToJson(stat))
   }
 
@@ -104,18 +104,17 @@ trait Py4jUtils {
     (n / factor.toDouble).formatted("%.1f")
   }
 
-  def readFile(path: String, hc: HailContext, buffSize: Int): HadoopPyReader = using(hc.sFS.open(path)) { in =>
-    new HadoopPyReader(hc.sFS.open(path), buffSize)
-  }
+  def readFile(path: String, hc: HailContext, buffSize: Int): HadoopPyReader =
+    new HadoopPyReader(hc.fs.open(path), buffSize)
 
   def writeFile(path: String, hc: HailContext, exclusive: Boolean): HadoopPyWriter = {
-    if (exclusive && hc.sFS.exists(path))
+    if (exclusive && hc.fs.exists(path))
       fatal(s"a file already exists at '$path'")
-    new HadoopPyWriter(hc.sFS.create(path))
+    new HadoopPyWriter(hc.fs.create(path))
   }
 
   def copyFile(from: String, to: String, hc: HailContext) {
-    hc.sFS.copy(from, to)
+    hc.fs.copy(from, to)
   }
 
   def addSocketAppender(hostname: String, port: Int) {
@@ -135,16 +134,16 @@ trait Py4jUtils {
     error(msg)
   }
 
-  def fileExists(hc: HailContext, path: String): Boolean = hc.sFS.exists(path) && hc.sFS.isFile(path)
+  def fileExists(hc: HailContext, path: String): Boolean = hc.fs.exists(path) && hc.fs.isFile(path)
 
-  def dirExists(hc: HailContext, path: String): Boolean = hc.sFS.exists(path) && hc.sFS.isDir(path)
+  def dirExists(hc: HailContext, path: String): Boolean = hc.fs.exists(path) && hc.fs.isDir(path)
 
-  def mkdir(hc: HailContext, path: String): Boolean = hc.sFS.mkDir(path)
+  def mkdir(hc: HailContext, path: String): Boolean = hc.fs.mkDir(path)
 
   def copyToTmp(hc: HailContext, path: String, extension: String): String = {
-    val codecExt = hc.sFS.getCodec(path)
+    val codecExt = hc.fs.getCodec(path)
     val tmpFile = hc.getTemporaryFile(suffix = Some(extension + codecExt))
-    hc.sFS.copy(path, tmpFile)
+    hc.fs.copy(path, tmpFile)
     tmpFile
   }
 
@@ -165,7 +164,7 @@ trait Py4jUtils {
     delimiter: String = "\\t",
     missingValue: String = "NA"): String = {
     val ffConfig = FamFileConfig(isQuantPheno, delimiter, missingValue)
-    val (data, ptyp) = LoadPlink.parseFam(path, ffConfig, HailContext.sFS)
+    val (data, ptyp) = LoadPlink.parseFam(path, ffConfig, HailContext.fs)
     val jv = JSONAnnotationImpex.exportAnnotation(
       Row(ptyp.virtualType.toString, data),
       TStruct("type" -> TString, "data" -> TArray(ptyp.virtualType)))

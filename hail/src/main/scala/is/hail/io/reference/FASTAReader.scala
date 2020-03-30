@@ -64,7 +64,7 @@ object FASTAReader {
     if (capacity <= 0)
       fatal(s"'capacity' must be greater than 0. Found $capacity.")
 
-    new FASTAReader(hc.sFS, rg, fastaFile, indexFile, blockSize, capacity)
+    new FASTAReader(hc.fs, rg, fastaFile, indexFile, blockSize, capacity)
   }
 }
 
