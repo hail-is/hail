@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, DataInputStream, DataOutputStream, InputStream}
+import java.io.{ByteArrayInputStream, DataInputStream, DataOutputStream}
 
 import is.hail.HailContext
 import is.hail.annotations._
@@ -14,8 +14,6 @@ import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlock
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
-import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
-import org.apache.hadoop.io.IOUtils
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel

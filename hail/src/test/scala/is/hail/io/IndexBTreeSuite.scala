@@ -4,7 +4,6 @@ import is.hail.HailSuite
 import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.Properties
-import is.hail.utils._
 import org.testng.annotations.Test
 
 import scala.language.implicitConversions

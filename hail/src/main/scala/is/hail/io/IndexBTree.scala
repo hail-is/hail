@@ -5,7 +5,6 @@ import java.util.Arrays
 
 import is.hail.utils._
 import is.hail.io.fs.FS
-import org.apache.hadoop.fs.FSDataInputStream
 
 import scala.collection.mutable
 
