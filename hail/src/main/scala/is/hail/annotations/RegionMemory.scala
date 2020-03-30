@@ -140,6 +140,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       freeMemory()
       pool.reclaim(this)
     }
+    stackTrace = None
   }
 
   def getReferenceCount: Long = referenceCount
