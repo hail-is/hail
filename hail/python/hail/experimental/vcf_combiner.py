@@ -428,12 +428,8 @@ class CombinerConfig(object):
         return CombinerPlan(file_size, phases)
 
 
-def chunks(seq, size):
-    """iterate through a list size elements at a time"""
-    return list(seq[pos:pos + size] for pos in range(0, len(seq), size))
-
 def run_combiner(sample_names: List[str],
-                 sample_paths: Dict[str, str],
+                 sample_paths: List[str],
                  out_file: str,
                  tmp_path: str,
                  intervals: Optional[List[hl.utils.Interval]] = None,
@@ -453,7 +449,7 @@ def run_combiner(sample_names: List[str],
                             target_records=target_records)
     plan = config.plan(len(sample_names))
 
-    files_to_merge = [sample_paths[p] for p in sample_names]
+    files_to_merge = sample_paths
     n_phases = len(plan.phases)
     total_ops = len(files_to_merge) * n_phases
     total_work_done = 0
@@ -485,7 +481,7 @@ def run_combiner(sample_names: List[str],
                     mts = [transform_gvcf(vcf)
                            for vcf in hl.import_gvcfs(inputs, intervals, array_elements_required=False,
                                                       _external_header=header,
-                                                      _external_sample_ids=sample_names if header is not None else None)]
+                                                      _external_sample_ids=[sample_paths[i] for i in merge.inputs] if header is not None else None)]
                 else:
                     mts = [hl.read_matrix_table(path, _intervals=intervals) for path in inputs]
 
@@ -515,23 +511,22 @@ def run_combiner(sample_names: List[str],
 
     info("Finished!")
 
-def parse_sample_mapping(sample_map_path: str) -> Tuple[List[str], Dict[str, str]]:
+def parse_sample_mapping(sample_map_path: str) -> Tuple[List[str], List[str]]:
     sample_names: List[str] = list()
-    sample_paths: Dict[str, str] = dict()
+    sample_paths: List[str] = list()
 
     with hl.hadoop_open(sample_map_path) as f:
         for line in f:
             [name, path] = line.strip().split('\t')
             sample_names.append(name)
-            sample_paths[name] = path
+            sample_paths.append(path)
 
     return sample_names, sample_paths
 
 def main():
     parser = argparse.ArgumentParser(description="Driver for hail's GVCF combiner")
     parser.add_argument('sample_map',
-                        help='path to the sample map (must be readable by this script). '
-                             'The sample map should be tab separated with two columns. '
+                        help='path to the sample map, a tab-separated file with two columns. '
                              'The first column is the sample ID, and the second column '
                              'is the GVCF path.')
     parser.add_argument('out_file', help='path to final combiner output')
@@ -547,9 +542,9 @@ def main():
     parser.add_argument('--batch-size', type=int, default=CombinerConfig.default_batch_size, help='Batch size.')
     parser.add_argument('--target-records', type=int, default=CombinerConfig.default_target_records, help='Target records per partition.')
     parser.add_argument('--overwrite', help='overwrite the output path', action='store_true')
-    parser.add_argument('--default_reference', default='GRCh38', help='Default reference genome.')
+    parser.add_argument('--reference-genome', default='GRCh38', help='Reference genome.')
     args = parser.parse_args()
-    hl.init(default_reference=args.default_reference,
+    hl.init(default_reference=args.reference_genome,
             log=args.log)
 
     if not args.overwrite and hl.utils.hadoop_exists(args.out_file):
