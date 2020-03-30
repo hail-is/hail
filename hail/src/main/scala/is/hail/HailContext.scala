@@ -676,7 +676,7 @@ class HailContext private(
       override def compute(split: Partition, context: TaskContext): Iterator[T] = {
         val p = split.asInstanceOf[FilePartition]
         val filename = path + "/parts/" + p.file
-        val in = localFS.value.unsafeReader(filename)
+        val in = localFS.value.open(filename)
         read(p.index, in, context.taskMetrics().inputMetrics)
       }
 
@@ -707,7 +707,7 @@ class HailContext private(
       val idxname = s"$path/$idxPath/${ p.file }.idx"
       val filename = s"$path/parts/${ p.file }"
       val idxr = mkIndexReader(fs, idxname, 8) // default cache capacity
-      val in = fs.unsafeReader(filename)
+      val in = fs.open(filename)
       (in, idxr, p.bounds, context.taskMetrics().inputMetrics)
     })
   }
@@ -795,8 +795,8 @@ class HailContext private(
         val idxname = s"$pathRows/${ indexSpecRows.get.relPath }/${ p.file }.idx"
         mk(fs, idxname, 8) // default cache capacity
       }
-      val inRows = fs.unsafeReader(s"$pathRows/parts/${ p.file }")
-      val inEntries = fs.unsafeReader(s"$pathEntries/parts/${ p.file }")
+      val inRows = fs.open(s"$pathRows/parts/${ p.file }")
+      val inEntries = fs.open(s"$pathEntries/parts/${ p.file }")
       (inRows, inEntries, idxr, p.bounds, context.taskMetrics().inputMetrics)
     })
 

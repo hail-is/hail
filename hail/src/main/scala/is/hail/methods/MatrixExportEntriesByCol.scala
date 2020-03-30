@@ -57,7 +57,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
         val partFolder = partFileBase + partFile(d, i, TaskContext.get())
 
         val fileHandles = Array.tabulate(endIdx - startIdx) { j =>
-          new OutputStreamWriter(bcFS.value.unsafeWriter(partFolder + "/" + j.toString + extension), "UTF-8")
+          new OutputStreamWriter(bcFS.value.create(partFolder + "/" + j.toString + extension), "UTF-8")
         }
 
         if (i == 0) {

@@ -59,7 +59,7 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
           partPath -> idxPath
         } else
           finalFilename -> finalIdxFilename
-      val os = fs.unsafeWriter(filename)
+      val os = fs.create(filename)
       val iw = mkIdxWriter(fs, idxFilename)
       val count = write(ctx, it, os, iw)
       if (iw != null)

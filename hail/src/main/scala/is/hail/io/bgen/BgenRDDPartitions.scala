@@ -28,9 +28,7 @@ trait BgenPartition extends Partition {
   def bcFS: Broadcast[FS]
 
   def makeInputStream: HadoopFSDataBinaryReader = {
-    val fileSystem = bcFS.value.fileSystem(path)
-    val bfis = new HadoopFSDataBinaryReader(fileSystem.open)
-    bfis
+    new HadoopFSDataBinaryReader(bcFS.value.openNoCompression(path))
   }
 
   def recodeContig(contig: String): String = contigRecoding.getOrElse(contig, contig)

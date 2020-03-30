@@ -30,7 +30,7 @@ object RelationalSpec {
     if (!hc.sFS.isDir(path))
       fatal(s"MatrixTable and Table files are directories; path '$path' is not a directory")
     val metadataFile = path + "/metadata.json.gz"
-    val jv = hc.sFS.readFile(metadataFile) { in => parse(in) }
+    val jv = using(hc.sFS.open(metadataFile)) { in => parse(in) }
 
     val fileVersion = jv \ "file_version" match {
       case JInt(rep) => SemanticVersion(rep.toInt)
@@ -84,7 +84,7 @@ abstract class RelationalSpec {
   def partitionCounts: Array[Long] = getComponent[PartitionCountsComponentSpec]("partition_counts").counts.toArray
 
   def write(fs: is.hail.io.fs.FS, path: String) {
-    fs.writeTextFile(path + "/metadata.json.gz") { out =>
+    using(fs.create(path + "/metadata.json.gz")) { out =>
       Serialization.write(this, out)(RelationalSpec.formats)
     }
   }

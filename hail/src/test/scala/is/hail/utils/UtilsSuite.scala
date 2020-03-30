@@ -5,6 +5,7 @@ import is.hail.check.{Gen, Prop}
 import is.hail.io.fs.HadoopFS
 import org.apache.spark.storage.StorageLevel
 import org.testng.annotations.Test
+import org.apache.hadoop
 
 class UtilsSuite extends HailSuite {
   @Test def testD_==() {
@@ -86,7 +87,12 @@ class UtilsSuite extends HailSuite {
   @Test def testSortFileStatus() {
     val fs = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
-    val partFileNames = fs.glob("src/test/resources/part-*").sortBy(fileSystem => getPartNumber(fileSystem.getPath.getName)).map(_.getPath.getName)
+    val partFileNames = fs.glob("src/test/resources/part-*")
+      .map { fileStatus =>
+        (fileStatus, new hadoop.fs.Path(fileStatus.getPath))
+      }.sortBy { case (fileStatus, path) =>
+        getPartNumber(path.getName)
+      }.map(_._2.getName)
 
     assert(partFileNames(0) == "part-40001" && partFileNames(1) == "part-100001")
   }

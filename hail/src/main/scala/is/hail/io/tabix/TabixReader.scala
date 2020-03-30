@@ -103,7 +103,7 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
         fatal(s"unknown file extension for tabix index: $s")
   }
 
-  val index: Tabix = fs.readFile(indexPath) { is =>
+  val index: Tabix = using(fs.open(indexPath)) { is =>
     var buf = new Array[Byte](4)
     is.read(buf, 0, 4) // read magic bytes "TBI\1"
     if (!(Magic sameElements buf))
@@ -322,7 +322,7 @@ class TabixLineIterator(
   private var i: Int = -1
   private var curOff: Long = 0 // virtual file offset, not real offset
   private var isEof = false
-  private var is = new BGzipInputStream(bcFS.value.unsafeReader(filePath, checkCodec = false))
+  private var is = new BGzipInputStream(bcFS.value.open(filePath, checkCodec = false))
 
   def next(): String = {
     var s: String = null

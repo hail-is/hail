@@ -1876,7 +1876,7 @@ private class Emit[C](
       case x@ReadValue(path, spec, requestedType) =>
         val p = emit(path)
         val pathString = coerce[PString](path.pType).loadString(p.value[Long])
-        val rowBuf = spec.buildCodeInputBuffer(mb.getUnsafeReader(pathString, true))
+        val rowBuf = spec.buildCodeInputBuffer(mb.open(pathString, true))
         val (pt, dec) = spec.buildEmitDecoderF(requestedType, mb.ecb, typeToTypeInfo(x.pType))
         EmitCode(p.setup, p.m, PCode(pt,
           Code.memoize(rowBuf, "read_ib") { ib =>
@@ -1904,7 +1904,7 @@ private class Emit[C](
                   (!taskCtx.isNull).orEmpty(
                     pv := pv.concat("-").concat(taskCtx.invoke[String]("partSuffix")))
                 },
-                rb := spec.buildCodeOutputBuffer(mb.getUnsafeWriter(pv)),
+                rb := spec.buildCodeOutputBuffer(mb.create(pv)),
                 vti match {
                   case vti: TypeInfo[t] =>
                     val enc = spec.buildEmitEncoderF(value.pType, mb.ecb, vti)

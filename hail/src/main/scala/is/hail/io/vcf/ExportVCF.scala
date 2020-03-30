@@ -301,7 +301,7 @@ object ExportVCF {
       }
 
       append.foreach { f =>
-        fs.readFile(f) { s =>
+        using(fs.open(f)) { s =>
           Source.fromInputStream(s)
             .getLines()
             .filterNot(_.isEmpty)

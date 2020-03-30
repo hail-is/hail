@@ -95,7 +95,7 @@ case class MatrixValue(
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
     colsSpec.write(fs, path)
 
-    fs.writeTextFile(path + "/_SUCCESS")(out => ())
+    using(fs.create(path + "/_SUCCESS"))(out => ())
   }
 
   private def writeGlobals(fs: FS, path: String, bufferSpec: BufferSpec) {
@@ -113,7 +113,7 @@ case class MatrixValue(
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
     globalsSpec.write(fs, path)
 
-    fs.writeTextFile(path + "/_SUCCESS")(out => ())
+    using(fs.create(path + "/_SUCCESS"))(out => ())
   }
 
   private def finalizeWrite(
@@ -136,7 +136,7 @@ case class MatrixValue(
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
     rowsSpec.write(fs, path + "/rows")
 
-    fs.writeTextFile(path + "/rows/_SUCCESS")(out => ())
+    using(fs.create(path + "/rows/_SUCCESS"))(out => ())
 
     val entriesSpec = TableSpec(
       FileFormat.version.rep,
@@ -148,7 +148,7 @@ case class MatrixValue(
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
     entriesSpec.write(fs, path + "/entries")
 
-    fs.writeTextFile(path + "/entries/_SUCCESS")(out => ())
+    using(fs.create(path + "/entries/_SUCCESS"))(out => ())
 
     fs.mkDir(path + "/cols")
     writeCols(fs, path + "/cols", bufferSpec)
@@ -173,7 +173,7 @@ case class MatrixValue(
 
     writeNativeFileReadMe(path)
 
-    fs.writeTextFile(path + "/_SUCCESS")(out => ())
+    using(fs.create(path + "/_SUCCESS"))(out => ())
 
     val nRows = partitionCounts.sum
     info(s"wrote matrix table with $nRows ${ plural(nRows, "row") } " +

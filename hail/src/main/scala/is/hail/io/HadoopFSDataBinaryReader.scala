@@ -1,22 +1,18 @@
 package is.hail.io
 
-import java.io.InputStream
+import is.hail.io.fs.SeekableDataInputStream
 
-import org.apache.hadoop.fs.FSDataInputStream
-
-class HadoopFSDataBinaryReader(is: InputStream) extends AbstractBinaryReader {
-
-  val fis = new FSDataInputStream(is)
+class HadoopFSDataBinaryReader(fis: SeekableDataInputStream) extends AbstractBinaryReader with AutoCloseable {
 
   override def read(): Int = fis.read()
 
   override def read(byteArray: Array[Byte], hasRead: Int, toRead: Int): Int = fis.read(byteArray, hasRead, toRead)
 
-  def close() = fis.close()
+  def close(): Unit = fis.close()
 
-  def seek(pos: Long) = fis.seek(pos)
+  def seek(pos: Long): Unit = fis.seek(pos)
 
   def skipBytes(bytes: Long): Long = fis.skip(bytes)
 
-  def getPosition: Long = fis.getPos
+  def getPosition: Long = fis.getPosition
 }

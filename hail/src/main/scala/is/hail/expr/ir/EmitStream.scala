@@ -665,7 +665,7 @@ object EmitStream {
               EmitCode.present(eltType, _),
               setup0 = None,
               setup = Some(xRowBuf := spec
-                .buildCodeInputBuffer(mb.getUnsafeReader(pathString, true))))
+                .buildCodeInputBuffer(mb.open(pathString, true))))
 
             SizedStream(stream, None)
           }

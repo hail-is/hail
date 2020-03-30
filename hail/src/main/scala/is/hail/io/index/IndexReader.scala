@@ -39,7 +39,7 @@ object IndexReaderBuilder {
 
 object IndexReader {
   def readUntyped(fs: FS, path: String): IndexMetadataUntypedJSON = {
-    val jv = fs.readFile(path + "/metadata.json.gz") { in =>
+    val jv = using(fs.open(path + "/metadata.json.gz")) { in =>
       JsonMethods.parse(in)
         .removeField{ case (f, _) => f == "keyType" || f == "annotationType" }
     }
@@ -53,7 +53,7 @@ object IndexReader {
   }
 
   def readTypes(fs: FS, path: String): (Type, Type) = {
-    val jv = fs.readFile(path + "/metadata.json.gz") { in => JsonMethods.parse(in) }
+    val jv = using(fs.open(path + "/metadata.json.gz")) { in => JsonMethods.parse(in) }
     implicit val formats: Formats = defaultJSONFormats + new TypeSerializer
     val metadata = jv.extract[IndexMetadata]
     metadata.keyType -> metadata.annotationType
@@ -79,7 +79,7 @@ class IndexReader(fs: FS,
   val indexRelativePath = metadata.indexPath
   val ordering = keyType.ordering
 
-  private val is = fs.unsafeReader(path + "/" + indexRelativePath).asInstanceOf[FSDataInputStream]
+  private val is = fs.openNoCompression(path + "/" + indexRelativePath)
   private val leafDecoder = leafDecoderBuilder(is)
   private val internalDecoder = internalDecoderBuilder(is)
 

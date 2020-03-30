@@ -1,6 +1,6 @@
 package is.hail.io
 
-import java.io.Closeable
+import java.io.{Closeable, DataOutputStream}
 import java.util.Arrays
 
 import is.hail.utils._
@@ -77,7 +77,7 @@ object IndexBTree {
     fileName: String,
     fs: FS,
     branchingFactor: Int = 1024
-  ): Unit = fs.writeDataFile(fileName) { w =>
+  ): Unit = using(new DataOutputStream(fs.create(fileName))) { w =>
     w.write(btreeBytes(arr, branchingFactor))
   }
 
@@ -90,13 +90,13 @@ object IndexBTree {
 
 class IndexBTree(indexFileName: String, fs: FS, branchingFactor: Int = 1024) extends Closeable {
   val maxDepth = calcDepth()
-  private val fileSystem = try {
-    fs.fileSystem(indexFileName).open
+  private val is = try {
+    fs.openNoCompression(indexFileName)
   } catch {
     case e: Exception => fatal(s"Could not find a BGEN .idx file at $indexFileName. Try running HailContext.index_bgen().", e)
   }
 
-  def close() = fileSystem.close()
+  def close(): Unit = is.close()
 
   def calcDepth(): Int =
     IndexBTree.calcDepth(fs.getFileSize(indexFileName) / 8, branchingFactor)
@@ -113,7 +113,7 @@ class IndexBTree(indexFileName: String, fs: FS, branchingFactor: Int = 1024) ext
 
     def searchBlock(): Long = {
       def read(prevValue: Long, prevPos: Long): Long = {
-        val currValue = fileSystem.readLong()
+        val currValue = is.readLong()
 
         if (currentDepth != maxDepth && query >= prevValue && (query < currValue || currValue == -1L))
           prevPos
@@ -125,8 +125,8 @@ class IndexBTree(indexFileName: String, fs: FS, branchingFactor: Int = 1024) ext
           read(currValue, prevPos + 8)
       }
 
-      fileSystem.seek(startIndex)
-      val firstValue = fileSystem.readLong()
+      is.seek(startIndex)
+      val firstValue = is.readLong()
       if (currentDepth != maxDepth && query >= 0L && query <= firstValue)
         startIndex
       else if (currentDepth == maxDepth && query >= 0L && query <= firstValue)
@@ -137,7 +137,7 @@ class IndexBTree(indexFileName: String, fs: FS, branchingFactor: Int = 1024) ext
 
     def searchLastBlock(): (Long, Long) = {
       def read(prevValue: Long, prevPos: Long): (Long, Long) = {
-        val currValue = fileSystem.readLong()
+        val currValue = is.readLong()
 
         if (query <= currValue || currValue == -1L)
           (prevPos + 8, currValue)
@@ -147,8 +147,8 @@ class IndexBTree(indexFileName: String, fs: FS, branchingFactor: Int = 1024) ext
           read(currValue, prevPos + 8)
       }
 
-      fileSystem.seek(startIndex)
-      val firstValue = fileSystem.readLong()
+      is.seek(startIndex)
+      val firstValue = is.readLong()
       if (query >= 0L && query <= firstValue)
         (startIndex, firstValue)
       else
@@ -221,9 +221,9 @@ class OnDiskBTreeIndexToValue(
 
   private[this] val layers = numLayers(fs.getFileSize(path) / 8)
   private[this] val junk = leadingElements(layers - 1)
-  private[this] var fileSystem = try {
+  private[this] var is = try {
     log.info("reading index file: " + path)
-    fs.fileSystem(path).open
+    fs.openNoCompression(path)
   } catch {
     case e: Exception =>
       fatal(s"Could not find a BGEN .idx file at $path. Try running HailContext.index_bgen().", e)
@@ -236,8 +236,8 @@ class OnDiskBTreeIndexToValue(
       a
     } else {
       Arrays.sort(indices)
-      fileSystem.seek((junk + indices(0)) * 8)
-      a(0) = fileSystem.readLong()
+      is.seek((junk + indices(0)) * 8)
+      a(0) = is.readLong()
       assert(a(0) != -1)
       var i = 1
       while (i < indices.length) {
@@ -246,8 +246,8 @@ class OnDiskBTreeIndexToValue(
         } else {
           val jump = (indices(i) - indices(i - 1) - 1) * 8
           assert(jump >= 0)
-          fileSystem.skipBytes(jump)
-          a(i) = fileSystem.readLong()
+          is.skipBytes(jump)
+          a(i) = is.readLong()
           assert(a(i) != -1)
         }
         i += 1
@@ -257,9 +257,9 @@ class OnDiskBTreeIndexToValue(
   }
 
   override def close(): Unit = synchronized {
-    if (fileSystem != null) {
-      fileSystem.close()
-      fileSystem = null
+    if (is != null) {
+      is.close()
+      is = null
     }
   }
 }

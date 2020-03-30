@@ -43,7 +43,7 @@ object TextMatrixReader {
     nRowFields: Int,
     opts: TextMatrixReaderOptions
   ): HeaderInfo = {
-    val maybeFirstTwoLines = fs.readFile(file) { s =>
+    val maybeFirstTwoLines = using(fs.open(file)) { s =>
       Source.fromInputStream(s).getLines().filter(!opts.isComment(_)).take(2).toArray.toSeq }
 
     (opts.hasHeader, maybeFirstTwoLines) match {

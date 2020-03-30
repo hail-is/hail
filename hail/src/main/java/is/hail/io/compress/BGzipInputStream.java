@@ -1,6 +1,7 @@
 package is.hail.io.compress;
 
 import htsjdk.samtools.util.BlockCompressedFilePointerUtil;
+import is.hail.io.fs.SeekableStream;
 import org.apache.hadoop.fs.Seekable;
 import org.apache.hadoop.io.compress.SplitCompressionInputStream;
 import org.apache.hadoop.io.compress.SplittableCompressionCodec;
@@ -101,7 +102,12 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         super(in, start, end);
 
         assert (readMode == SplittableCompressionCodec.READ_MODE.BYBLOCK);
-        ((Seekable) in).seek(start);
+        if (in instanceof Seekable)
+            ((Seekable) in).seek(start);
+        else {
+            assert(in instanceof SeekableStream);
+            ((SeekableStream)in).seek(start);
+        }
         resetState();
         decompressNextBlock();
 
@@ -232,7 +238,13 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     public void resetState() throws IOException {
         inputBufferSize = 0;
         inputBufferPos = 0;
-        inputBufferInPos = ((Seekable) in).getPos();
+
+        if (in instanceof Seekable)
+            inputBufferInPos = ((Seekable) in).getPos();
+        else {
+            assert (in instanceof SeekableStream);
+            inputBufferInPos = ((SeekableStream) in).getPosition();
+        }
 
         outputBufferSize = 0;
         outputBufferPos = 0;
@@ -269,7 +281,13 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         final long compOff = BlockCompressedFilePointerUtil.getBlockAddress(pos);
         final int uncompOff = BlockCompressedFilePointerUtil.getBlockOffset(pos);
         if (inputBufferInPos != compOff) {
-            ((Seekable) in).seek(compOff);
+            if (in instanceof Seekable)
+                ((Seekable) in).seek(compOff);
+            else {
+                assert(in instanceof SeekableStream);
+                ((SeekableStream) in).seek(compOff);
+            }
+
             inputBufferSize = 0;
             inputBufferPos = 0;
             inputBufferInPos = compOff;
