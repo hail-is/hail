@@ -484,6 +484,10 @@ class PCanonicalIntervalSettable(
 abstract class PIntervalCode extends PCode {
   def pt: PInterval
 
+  def includesStart(): Code[Boolean]
+
+  def includesEnd(): Code[Boolean]
+
   def memoize(cb: EmitCodeBuilder, name: String): PIntervalValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PIntervalValue
@@ -491,6 +495,10 @@ abstract class PIntervalCode extends PCode {
 
 class PCanonicalIntervalCode(val pt: PInterval, val a: Code[Long]) extends PIntervalCode {
   def code: Code[_] = a
+
+  def includesStart(): Code[Boolean] = pt.includesStart(a)
+
+  def includesEnd(): Code[Boolean] = pt.includesEnd(a)
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PIntervalValue = {
     val s = PCanonicalIntervalSettable(sb, pt, name)

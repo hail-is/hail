@@ -159,7 +159,6 @@ def register_functions():
     register_function("log", (dtype("float64"),), dtype("float64"))
     register_function("foobar2", (), dtype("int32"))
     register_function("approxEqual", (dtype("float64"),dtype("float64"),dtype("float64"),dtype("bool"),dtype("bool"),), dtype("bool"))
-    register_function("plDosage", (dtype("array<?N:int32>"),), dtype("float64"))
     register_function("includesEnd", (dtype("interval<?T>"),), dtype("bool"))
     register_function("position", (dtype("?T:locus"),), dtype("int32"))
     register_seeded_function("rand_unif", (dtype("float64"),dtype("float64"),), dtype("float64"))

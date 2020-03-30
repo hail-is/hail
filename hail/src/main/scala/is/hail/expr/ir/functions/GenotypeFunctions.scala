@@ -39,32 +39,20 @@ object GenotypeFunctions extends RegistryFunctions {
         m2 - m)
     }
 
-    registerCode[Long]("dosage", TArray(tv("N", "float64")), TFloat64,  (pt: PType) => PFloat64()) { case (r, rt, (gpPType, gpOff)) =>
-      val gpPArray = coerce[PArray](gpPType)
+    registerCodeWithMissingness("dosage", TArray(tv("N", "float64")), TFloat64,  (pt: PType) => PFloat64()
+    ) { case (r, rt, gp) =>
+      EmitCode.fromI(r.mb) { cb =>
+        gp.toI(cb).flatMap(cb) { case (gpc: PIndexableCode) =>
+          val gpv = gpc.memoize(cb, "dosage_gp")
 
-      Code.memoize(gpOff, "dosage_gp") { gp =>
-        Code.memoize(gpPArray.loadLength(gp), "dosage_len") { len =>
-        len.cne(3).mux(
-          Code._fatal[Double](const("length of gp array must be 3, got ").concat(len.toS)),
-          Region.loadDouble(gpPArray.elementOffset(gp, 3, 1)) +
-            Region.loadDouble(gpPArray.elementOffset(gp, 3, 2)) * 2.0)
-        }
-      }
-    }
+          cb.ifx(gpv.loadLength().cne(3),
+            Code._fatal[Unit](const("length of gp array must be 3, got ").concat(gpv.loadLength().toS)))
 
-    // FIXME: remove when SkatSuite is moved to Python
-    // the pl_dosage function in Python is implemented in Python
-    registerCode[Long]("plDosage", TArray(tv("N", "int32")), TFloat64, (pt: PType) => PFloat64()) { case (r, rt, (plPType, plOff)) =>
-      val plPArray = coerce[PArray](plPType)
-
-      Code.memoize(plOff, "plDosage_pl") { pl =>
-        Code.memoize(plPArray.loadLength(pl), "plDosage_len") { len =>
-          len.cne(3).mux(
-            Code._fatal[Double](const("length of pl array must be 3, got ").concat(len.toS)),
-            Code.invokeScalaObject[Int, Int, Int, Double](Genotype.getClass, "plToDosage",
-              Region.loadInt(plPArray.elementOffset(pl, 3, 0)),
-              Region.loadInt(plPArray.elementOffset(pl, 3, 1)),
-              Region.loadInt(plPArray.elementOffset(pl, 3, 2))))
+          gpv.loadElement(cb, 1).flatMap(cb) { (_1: PCode) =>
+            gpv.loadElement(cb, 2).map { (_2: PCode) =>
+              PCode(rt, _1.tcode[Double] + _2.tcode[Double] * 2.0)
+            }
+          }
         }
       }
     }
