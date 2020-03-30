@@ -76,18 +76,16 @@ object IntervalFunctions extends RegistryFunctions {
         )
     }
 
-    registerCode("includesStart", TInterval(tv("T")), TBoolean, (x: PType) =>
+    registerPCode("includesStart", TInterval(tv("T")), TBoolean, (x: PType) =>
       PBoolean(x.required)
     ) {
-      case (r, rt, (intervalT: PInterval, interval: Code[Long])) =>
-        intervalT.includesStart(interval)
+      case (r, rt, interval: PIntervalCode) => PCode(rt, interval.includesStart())
     }
 
-    registerCode("includesEnd", TInterval(tv("T")), TBoolean, (x: PType) =>
+    registerPCode("includesEnd", TInterval(tv("T")), TBoolean, (x: PType) =>
       PBoolean(x.required)
     ) {
-      case (r, rt, (intervalT: PInterval, interval: Code[Long])) =>
-        intervalT.includesEnd(interval)
+      case (r, rt, interval: PIntervalCode) => PCode(rt, interval.includesEnd())
     }
 
     registerCodeWithMissingness("contains", TInterval(tv("T")), tv("T"), TBoolean, {
