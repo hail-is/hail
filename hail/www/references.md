@@ -10,7 +10,7 @@ Hail Team. Hail 0.2. https://github.com/hail-is/hail
 
 Otherwise, we welcome you to add additional examples by [editing this page directly](https://github.com/hail-is/hail/edit/master/hail/www/references.md), after which we will review the pull request to confirm the addition is valid. Please adhere to the existing formatting conventions.
 
-*Last updated on March 30th, 2020 at 11:00 AM EST*
+*Last updated on March 30th, 2020*
 
 ## 2020
 
