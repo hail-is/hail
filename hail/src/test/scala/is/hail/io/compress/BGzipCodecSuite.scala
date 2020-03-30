@@ -125,9 +125,9 @@ class BGzipCodecSuite extends HailSuite {
     val uncompPath = "src/test/resources/sample.vcf"
     val compPath = "src/test/resources/sample.vcf.gz"
 
-    val compIS = sFS.open(compPath)
+    using(sFS.openNoCompression(uncompPath)) { uncompIS =>
+      using(new BGzipInputStream(sFS.openNoCompression(compPath))) { decompIS =>
 
-    using(new FSDataInputStream(sFS.open(uncompPath))) { uncompIS => using (new BGzipInputStream(compIS)) { decompIS =>
       val fromEnd = 48 // arbitrary number of bytes from the end of block to attempt to seek to
       for (((cOff, nOff), uOff) <- blockStarts.zip(uncompBlockStarts);
            e <- Seq(0, 1024, maxBlockSize - fromEnd)) {

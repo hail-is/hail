@@ -1,7 +1,5 @@
 package is.hail.io.bgen
 
-import java.io.DataInputStream
-
 import is.hail.HailContext
 import is.hail.expr.ir
 import is.hail.expr.ir.{ExecuteContext, IRParser, IRParserEnvironment, Interpret, MatrixHybridReader, Pretty, TableIR, TableRead, TableValue}
@@ -49,15 +47,13 @@ case class BgenFileMetadata(
 )
 
 object LoadBgen {
-  def readSamples(fs: is.hail.io.fs.FS, file: String): Array[String] = {
+  def readSamples(fs: FS, file: String): Array[String] = {
     val bState = readState(fs, file)
     if (bState.hasIds) {
-      using(fs.open(file)) { is =>
-        val reader = new HadoopFSDataBinaryReader(is)
-
-        reader.seek(bState.headerLength + 4)
-        val sampleIdSize = reader.readInt()
-        val nSamples = reader.readInt()
+      using(new HadoopFSDataBinaryReader(fs.openNoCompression(file))) { is =>
+        is.seek(bState.headerLength + 4)
+        val sampleIdSize = is.readInt()
+        val nSamples = is.readInt()
 
         if (nSamples != bState.nSamples)
           fatal("BGEN file is malformed -- number of sample IDs in header does not equal number in file")
@@ -66,7 +62,7 @@ object LoadBgen {
           fatal("BGEN file is malformed -- offset is smaller than length of header")
 
         (0 until nSamples).map { i =>
-          reader.readLengthAndString(2)
+          is.readLengthAndString(2)
         }.toArray
       }
     } else {
@@ -76,7 +72,7 @@ object LoadBgen {
     }
   }
 
-  def readSampleFile(fs: is.hail.io.fs.FS, file: String): Array[String] = {
+  def readSampleFile(fs: FS, file: String): Array[String] = {
     using(fs.open(file)) { s =>
       Source.fromInputStream(s)
         .getLines()
@@ -90,13 +86,14 @@ object LoadBgen {
     }
   }
 
-  def readState(fs: is.hail.io.fs.FS, file: String): BgenHeader = {
-    using(new DataInputStream(fs.open(file))) { is =>
+  def readState(fs: FS, file: String): BgenHeader = {
+    using(new HadoopFSDataBinaryReader(fs.openNoCompression(file))) { is =>
       readState(is, file, fs.getFileSize(file))
     }
   }
 
-  def readState(is: DataInputStream, path: String, byteSize: Long): BgenHeader = {
+  def readState(is: HadoopFSDataBinaryReader, path: String, byteSize: Long): BgenHeader = {
+    is.seek(0)
     val allInfoLength = is.readInt()
     val headerLength = is.readInt()
     val dataStart = allInfoLength + 4
@@ -105,7 +102,7 @@ object LoadBgen {
     val nVariants = is.readInt()
     val nSamples = is.readInt()
 
-    val magicNumber = (0 until 3).map(_ => is.readByte().toInt)
+    val magicNumber = is.readBytes(4).map(_.toInt).toFastIndexedSeq
 
     if (magicNumber != FastSeq(0, 0, 0, 0) && magicNumber != FastSeq(98, 103, 101, 110))
       fatal(s"expected magic number [0000] or [bgen], got [${ magicNumber.mkString }]")

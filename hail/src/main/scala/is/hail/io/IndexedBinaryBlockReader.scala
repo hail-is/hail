@@ -1,6 +1,7 @@
 package is.hail.io
 
 import is.hail.annotations.RegionValueBuilder
+import is.hail.io.fs.SeekableDataInputStream
 import org.apache.commons.logging.{Log, LogFactory}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
@@ -36,7 +37,12 @@ abstract class IndexedBinaryBlockReader[T](job: Configuration, split: FileSplit)
   def openFile(): HadoopFSDataBinaryReader = {
     val file: Path = split.getPath
     val fs: FileSystem = file.getFileSystem(job)
-    new HadoopFSDataBinaryReader(fs.open(file))
+    val is = fs.open(file)
+    new HadoopFSDataBinaryReader(new SeekableDataInputStream(is) {
+      def seek(pos: Long): Unit = is.seek(pos)
+
+      def getPosition: Long = is.getPos
+    })
   }
 
   def createKey(): LongWritable = new LongWritable()
