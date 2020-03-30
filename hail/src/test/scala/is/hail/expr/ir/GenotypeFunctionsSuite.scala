@@ -18,7 +18,12 @@ class GenotypeFunctionsSuite extends TestNGSuite {
     Array(FastIndexedSeq(0.0, 1.0, 0.0), 1.0),
     Array(FastIndexedSeq(0.0, 0.0, 1.0), 2.0),
     Array(FastIndexedSeq(0.5, 0.5, 0.0), 0.5),
-    Array(FastIndexedSeq(0.0, 0.5, 0.5), 1.5))
+    Array(FastIndexedSeq(0.0, 0.5, 0.5), 1.5),
+    Array(null, null),
+    Array(FastIndexedSeq(null, null, null), null),
+    Array(FastIndexedSeq(null, 0.5, 0.5), 1.5),
+    Array(FastIndexedSeq(0.0, null, 1.0), null),
+    Array(FastIndexedSeq(0.0, 0.5, null), null))
 
   @DataProvider(name="pls")
   def plData(): Array[Array[Any]] = Array(

@@ -39,17 +39,22 @@ object GenotypeFunctions extends RegistryFunctions {
         m2 - m)
     }
 
-    registerPCode("dosage", TArray(tv("N", "float64")), TFloat64,  (pt: PType) => PFloat64()
-    ) { case (r, rt, gp: PIndexableCode) =>
-      val code = EmitCodeBuilder.scopedCode[Double](r.mb) { cb =>
-        val gpv: PIndexableValue = gp.memoize(cb, "dosage_gp")
-        cb.ifx(gpv.loadLength() > 3,
-          Code._fatal[Unit](const("length of gp array must be 3, got ").concat(gpv.loadLength().toS)))
+    registerCodeWithMissingness("dosage", TArray(tv("N", "float64")), TFloat64,  (pt: PType) => PFloat64()
+    ) { case (r, rt, gp) =>
+      EmitCode.fromI(r.mb) { cb =>
+        gp.toI(cb).flatMap(cb) { case (gpc: PIndexableCode) =>
+          val gpv = gpc.memoize(cb, "dosage_gp")
 
-        gpv.loadElement(cb, 1).pc.tcode[Double] +
-          gpv.loadElement(cb, 2).pc.tcode[Double] * const(2.0)
+          cb.ifx(gpv.loadLength().cne(3),
+            Code._fatal[Unit](const("length of gp array must be 3, got ").concat(gpv.loadLength().toS)))
+
+          gpv.loadElement(cb, 1).flatMap(cb) { (_1: PCode) =>
+            gpv.loadElement(cb, 2).map { (_2: PCode) =>
+              PCode(rt, _1.tcode[Double] + _2.tcode[Double] * 2.0)
+            }
+          }
+        }
       }
-      PCode(rt, code)
     }
 
     // FIXME: remove when SkatSuite is moved to Python
