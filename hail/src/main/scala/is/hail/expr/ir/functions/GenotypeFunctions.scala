@@ -56,22 +56,5 @@ object GenotypeFunctions extends RegistryFunctions {
         }
       }
     }
-
-    // FIXME: remove when SkatSuite is moved to Python
-    // the pl_dosage function in Python is implemented in Python
-    registerCode[Long]("plDosage", TArray(tv("N", "int32")), TFloat64, (pt: PType) => PFloat64()) { case (r, rt, (plPType, plOff)) =>
-      val plPArray = coerce[PArray](plPType)
-
-      Code.memoize(plOff, "plDosage_pl") { pl =>
-        Code.memoize(plPArray.loadLength(pl), "plDosage_len") { len =>
-          len.cne(3).mux(
-            Code._fatal[Double](const("length of pl array must be 3, got ").concat(len.toS)),
-            Code.invokeScalaObject[Int, Int, Int, Double](Genotype.getClass, "plToDosage",
-              Region.loadInt(plPArray.elementOffset(pl, 3, 0)),
-              Region.loadInt(plPArray.elementOffset(pl, 3, 1)),
-              Region.loadInt(plPArray.elementOffset(pl, 3, 2))))
-        }
-      }
-    }
   }
 }
