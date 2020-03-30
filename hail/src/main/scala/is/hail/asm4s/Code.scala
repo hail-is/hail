@@ -11,6 +11,10 @@ import org.objectweb.asm.Type
 
 import scala.reflect.ClassTag
 
+abstract class Thrower[T] {
+  def apply[U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U]
+}
+
 object Code {
   def void[T](v: lir.StmtX): Code[T] = {
     val L = new lir.Block()
@@ -283,6 +287,18 @@ object Code {
   def _null[T >: Null](implicit tti: TypeInfo[T]): Code[T] = Code(lir.insn(ACONST_NULL, tti))
 
   def _empty: Code[Unit] = Code[Unit](null: lir.ValueX)
+
+  def _throwAny[T <: java.lang.Throwable]: Thrower[T] = new Thrower[T] {
+    def apply[U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] = {
+      if (uti eq UnitInfo) {
+        cerr.end.append(lir.throwx(cerr.v))
+        val newC = new VCode(cerr.start, cerr.end, null)
+        cerr.clear()
+        newC
+      } else
+        Code(cerr, lir.insn1(ATHROW, uti))
+    }
+  }
 
   def _throw[T <: java.lang.Throwable, U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] = {
     if (uti eq UnitInfo) {
