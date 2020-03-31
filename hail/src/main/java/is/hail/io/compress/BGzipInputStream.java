@@ -1,8 +1,7 @@
 package is.hail.io.compress;
 
 import htsjdk.samtools.util.BlockCompressedFilePointerUtil;
-import is.hail.io.fs.SeekableStream;
-import org.apache.hadoop.fs.Seekable;
+import is.hail.io.fs.Seekable;
 import org.apache.hadoop.io.compress.SplitCompressionInputStream;
 import org.apache.hadoop.io.compress.SplittableCompressionCodec;
 import java.io.ByteArrayInputStream;
@@ -102,11 +101,11 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         super(in, start, end);
 
         assert (readMode == SplittableCompressionCodec.READ_MODE.BYBLOCK);
-        if (in instanceof Seekable)
-            ((Seekable) in).seek(start);
+        if (in instanceof org.apache.hadoop.fs.Seekable)
+            ((org.apache.hadoop.fs.Seekable) in).seek(start);
         else {
-            assert(in instanceof SeekableStream);
-            ((SeekableStream)in).seek(start);
+            assert(in instanceof Seekable);
+            ((Seekable)in).seek(start);
         }
         resetState();
         decompressNextBlock();
@@ -239,11 +238,11 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         inputBufferSize = 0;
         inputBufferPos = 0;
 
-        if (in instanceof Seekable)
-            inputBufferInPos = ((Seekable) in).getPos();
+        if (in instanceof org.apache.hadoop.fs.Seekable)
+            inputBufferInPos = ((org.apache.hadoop.fs.Seekable) in).getPos();
         else {
-            assert (in instanceof SeekableStream);
-            inputBufferInPos = ((SeekableStream) in).getPosition();
+            assert (in instanceof Seekable);
+            inputBufferInPos = ((Seekable) in).getPosition();
         }
 
         outputBufferSize = 0;
@@ -281,11 +280,11 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         final long compOff = BlockCompressedFilePointerUtil.getBlockAddress(pos);
         final int uncompOff = BlockCompressedFilePointerUtil.getBlockOffset(pos);
         if (inputBufferInPos != compOff) {
-            if (in instanceof Seekable)
-                ((Seekable) in).seek(compOff);
+            if (in instanceof org.apache.hadoop.fs.Seekable)
+                ((org.apache.hadoop.fs.Seekable) in).seek(compOff);
             else {
-                assert(in instanceof SeekableStream);
-                ((SeekableStream) in).seek(compOff);
+                assert(in instanceof Seekable);
+                ((Seekable) in).seek(compOff);
             }
 
             inputBufferSize = 0;

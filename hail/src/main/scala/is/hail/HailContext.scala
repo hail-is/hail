@@ -417,22 +417,23 @@ object HailContext {
     }
   }
 
-  private[this] val codecsKey = "io.compression.codecs"
-  private[this] val hadoopGzipCodec = "org.apache.hadoop.io.compress.GzipCodec"
-  private[this] val hailGzipAsBGZipCodec = "is.hail.io.compress.BGzipCodecGZ"
-
   def maybeGZipAsBGZip[T](force: Boolean)(body: => T): T = {
-    val fs = HailContext.get.fs
+    val fs = HailContext.fs
     if (!force)
+      return body
+
+    val codecs = fs.getCodecs()
+    try {
+      fs.setCodecs(
+        codecs.map { codec =>
+          if (codec == "org.apache.hadoop.io.compress.GzipCodec")
+            "is.hail.io.compress.BGzipCodecGZ"
+          else
+            codec
+        })
       body
-    else {
-      val defaultCodecs = fs.getProperty(codecsKey)
-      fs.setProperty(codecsKey, defaultCodecs.replaceAllLiterally(hadoopGzipCodec, hailGzipAsBGZipCodec))
-      try {
-        body
-      } finally {
-        fs.setProperty(codecsKey, defaultCodecs)
-      }
+    } finally {
+      fs.setCodecs(codecs)
     }
   }
 
@@ -455,8 +456,8 @@ class HailContext private(
 
   def fsBc: Broadcast[FS] = sparkBackend().fsBc
 
-  val tmpDir: String = TempDir.createTempDir(tmpDirPath, fs)
-  info(s"Hail temporary directory: $tmpDir")
+  lazy val tmpDir: String = TempDir.createTempDir(tmpDirPath, fs)
+  // info(s"Hail temporary directory: $tmpDir")
 
   val flags: HailFeatureFlags = new HailFeatureFlags()
 

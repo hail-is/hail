@@ -1,30 +1,67 @@
 package is.hail.backend.service
 
-import java.io.{FileInputStream, FileReader}
+import java.nio.file.{FileSystems, Files}
 
-import com.google.auth.oauth2.ServiceAccountCredentials
-import com.google.cloud.storage.StorageOptions
+import com.google.cloud.storage.Storage.BlobListOption
 import is.hail.backend.{Backend, BroadcastValue}
 import is.hail.expr.ir.ExecuteContext
 import is.hail.io.bgen.IndexBgen
-import is.hail.io.fs.FS
+import is.hail.io.fs.GoogleStorageFS
 import is.hail.utils._
+import py4j.GatewayServer
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-class GoogleFS extends FS {
-
+object ServiceBackendGateway {
+  def main(args: Array[String]): Unit = {
+    val gatewayServer = new GatewayServer();
+    gatewayServer.start();
+    System.out.println("Gateway Server Started");
+  }
 }
 
 object ServiceBackend {
   def main(args: Array[String]): Unit = {
+    val p = FileSystems.getDefault.getPath("/home/cotton/cseed-gsa-key.json")
+    val fs = new GoogleStorageFS(new String(Files.readAllBytes(p)))
+
+    val storage = fs.storage
+
+    for (b <- storage.list("hail-cseed-k0ox4", BlobListOption.prefix("x")).getValues.asScala) {
+      println(b.getName)
+      println(b.getOwner)
+    }
+
+
+    /*
+    val statuses = fs.glob("gs://hail-cseed-k0ox4/h*")
+    println(statuses(0).getPath)
+     */
+
+    /*
+    val is = fs.openNoCompression("gs://hail-cseed-k0ox4/hello.txt")
+    val b = new Array[Byte](1024)
+    var i = 0
+    while (i < 10) {
+      val n = is.read(b)
+      println(n)
+      if (n > 0) {
+        println(
+          new String(b, 0, n))
+      }
+      i += 1
+    } */
+
+    // println(s"content $content")
+
+    /*
     val storage = StorageOptions.newBuilder()
       .setCredentials(
         ServiceAccountCredentials.fromStream(new FileInputStream("/home/cotton/cseed-gsa-key.json")))
       .build()
-      .getService()
+      .getService
 
     val bucket = storage.get("hail-cseed-k0ox4")
 
@@ -33,14 +70,19 @@ object ServiceBackend {
     val content = new String(blob.getContent())
 
     println(s"content $content")
+     */
   }
+
+  def apply(): ServiceBackend = new ServiceBackend()
 }
 
-class User(
+case class User(
   username: String,
-  fs: GoogleFS)
+  fs: GoogleStorageFS)
 
-class ServiceBackend extends Backend {
+class ServiceBackend() extends Backend {
+  private[this] val users = mutable.Map[String, User]()
+
   def broadcast[T: ClassTag](_value: T): BroadcastValue[T] = new BroadcastValue[T] {
     def value: T = _value
   }
@@ -51,18 +93,40 @@ class ServiceBackend extends Backend {
 
   def stop(): Unit = ()
 
-  private[this] users: mutable.Map[String, User]
+  def pyAddUser(username: String, serviceAccountKey: String): Unit = {
+    require(!users.contains(username))
+    users += username -> User(username, new GoogleStorageFS(serviceAccountKey))
+  }
 
-  def fs: FS = ???
+  def pyRemoveUser(username: String): Unit = {
+    require(users.contains(username))
+    users -= username
+  }
 
   def pyIndexBgen(
+    username: String,
     files: java.util.List[String],
     indexFileMap: java.util.Map[String, String],
-    rg: Option[String],
+    rg: String,
     contigRecoding: java.util.Map[String, String],
     skipInvalidLoci: Boolean) {
-    ExecuteContext.scoped(this, fs) { ctx =>
-      IndexBgen(ctx, files.asScala.toArray, indexFileMap.asScala.toMap, rg, contigRecoding.asScala.toMap, skipInvalidLoci)
+    val user = users(username)
+    ExecuteContext.scoped(this, user.fs) { ctx =>
+      IndexBgen(ctx,
+        if (files != null)
+          files.asScala.toArray
+      else
+          null,
+        if (indexFileMap != null)
+          indexFileMap.asScala.toMap
+        else
+          null,
+        Some(rg),
+        if (contigRecoding != null)
+          contigRecoding.asScala.toMap
+        else
+          null,
+        skipInvalidLoci)
     }
     info(s"Number of BGEN files indexed: ${ files.size() }")
   }

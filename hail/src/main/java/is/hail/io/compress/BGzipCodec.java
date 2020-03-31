@@ -7,8 +7,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public class BGzipCodec implements SplittableCompressionCodec {
-    public BGzipCodec() {
-    }
+    public BGzipCodec() { }
 
     @Override
     public Compressor createCompressor() {

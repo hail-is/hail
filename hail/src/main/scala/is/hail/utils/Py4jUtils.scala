@@ -77,9 +77,12 @@ trait Py4jUtils {
       "size_bytes" -> JInt(fs.getLen),
       "size" -> JString(readableBytes(fs.getLen)),
       "is_dir" -> JBool(fs.isDirectory),
-      "modification_time" -> JString(new java.util.Date(fs.getModificationTime).toString),
-      "owner" -> JString(fs.getOwner)
-    )
+      "modification_time" ->
+        (if (fs.getModificationTime != null)
+          JString(new java.util.Date(fs.getModificationTime).toString)
+        else
+          JNull),
+      "owner" -> JString(fs.getOwner))
   }
 
   private val kilo: Long = 1024
@@ -138,10 +141,10 @@ trait Py4jUtils {
 
   def dirExists(hc: HailContext, path: String): Boolean = hc.fs.exists(path) && hc.fs.isDir(path)
 
-  def mkdir(hc: HailContext, path: String): Boolean = hc.fs.mkDir(path)
+  def mkdir(hc: HailContext, path: String): Unit = hc.fs.mkDir(path)
 
   def copyToTmp(hc: HailContext, path: String, extension: String): String = {
-    val codecExt = hc.fs.getCodec(path)
+    val codecExt = hc.fs.getCodecExtension(path)
     val tmpFile = hc.getTemporaryFile(suffix = Some(extension + codecExt))
     hc.fs.copy(path, tmpFile)
     tmpFile

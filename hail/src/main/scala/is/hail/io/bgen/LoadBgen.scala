@@ -214,8 +214,7 @@ object LoadBgen {
           nVariants,
           index.keyType,
           index.annotationType,
-          rangeBounds
-        )
+          rangeBounds)
       }
     }
   }
