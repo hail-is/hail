@@ -1,5 +1,5 @@
 <suite name="SuiteAll" verbose="1">
-    <test name="TestAll">
+    <test name="TestAll">  
         <packages>
           <package name="is.hail.*">
 	  </package>

@@ -225,16 +225,18 @@ class TestHadoopFS extends HailSuite with FSSuite {
 }
 
 class TestGoogleStorageFS extends TestNGSuite with FSSuite {
-  val bucket: String = "hail-cseed-k0ox4"
+  val bucket: String = "hail-test-dmk9z"
   
   val root: String = s"gs://$bucket"
   
-  lazy val fsResourcesRoot: String = s"gs://$bucket/test/resources/fs"
+  val fsResourcesRoot: String = System.getenv("HAIL_GS_TEST_RESOURCES")
+
+  private val keyFile = "/test-gsa-key/key.json"
   
   lazy val fs = new GoogleStorageFS(
-    new String(IOUtils.toByteArray(new FileInputStream("/home/cotton/cseed-gsa-key.json"))))
+    new String(IOUtils.toByteArray(new FileInputStream(keyFile))))
 
-  lazy val tmpdir: String = "gs://hail-cseed-k0ox4/tmp"
+  lazy val tmpdir: String = s"gs://$bucket/tmp"
 
   @Test def testDropTailingSlash(): Unit = {
     import GoogleStorageFS._

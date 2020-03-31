@@ -106,7 +106,7 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
     "org.apache.hadoop.io.compress.GzipCodec")
 
   @transient private var codecs: IndexedSeq[hadoop.io.compress.CompressionCodec] = _
-
+  
   def createCodecs(): Unit = {
     if (codecs != null)
       return
@@ -117,8 +117,7 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
     }
   }
 
-  // FIXME private
-  @transient lazy val storage: Storage = {
+  @transient private lazy val storage: Storage = {
     StorageOptions.newBuilder()
       .setCredentials(
         ServiceAccountCredentials.fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes)))
