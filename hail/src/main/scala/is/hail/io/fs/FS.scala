@@ -93,17 +93,28 @@ trait FS extends Serializable {
 
   def getFileSize(filename: String): Long = fileStatus(filename).getLen
 
-  def isFile(filename: String): Boolean = fileStatus(filename).isFile
+  def isFile(filename: String): Boolean = {
+    try {
+      fileStatus(filename).isFile
+    } catch {
+      case _: FileNotFoundException => false
+    }
+  }
 
-  def isDir(filename: String): Boolean = fileStatus(filename).isDirectory
+  def isDir(filename: String): Boolean = {
+    try {
+      fileStatus(filename).isDirectory
+    } catch {
+      case _: FileNotFoundException => false
+    }
+  }
 
   def exists(filename: String): Boolean = {
     try {
       fileStatus(filename)
       true
     } catch {
-      case _: FileNotFoundException =>
-        false
+      case _: FileNotFoundException => false
     }
   }
 
