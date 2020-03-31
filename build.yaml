@@ -636,18 +636,17 @@ steps:
      tar xzf test.tar.gz
      tar xzf resources.tar.gz
      tar xzf data.tar.gz
+     tar xvf wheel-container.tar
+     pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
-     export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./hail.jar --conf spark.executor.extraClassPath=./hail.jar --driver-memory 6g pyspark-shell"
-     export PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}./hail.zip
+     export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=0
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
-     - from: /hail.jar
-       to: /io/hail.jar
-     - from: /hail.zip
-       to: /io/hail.zip
+     - from: /wheel-container.tar
+       to: /io/wheel-container.tar
      - from: /test.tar.gz
        to: /io/test.tar.gz
      - from: /resources.tar.gz
@@ -655,8 +654,8 @@ steps:
      - from: /data.tar.gz
        to: /io/data.tar.gz
    dependsOn:
-    - hail_run_image
-    - build_hail
+     - hail_run_image
+     - build_hail
  - kind: runImage
    name: test_hail_python_1
    image:
@@ -670,18 +669,17 @@ steps:
      tar xzf test.tar.gz
      tar xzf resources.tar.gz
      tar xzf data.tar.gz
+     tar xvf wheel-container.tar
+     pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
-     export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./hail.jar --conf spark.executor.extraClassPath=./hail.jar --driver-memory 6g pyspark-shell"
-     export PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}./hail.zip
+     export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=1
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
-     - from: /hail.jar
-       to: /io/hail.jar
-     - from: /hail.zip
-       to: /io/hail.zip
+     - from: /wheel-container.tar
+       to: /io/wheel-container.tar
      - from: /test.tar.gz
        to: /io/test.tar.gz
      - from: /resources.tar.gz
@@ -704,18 +702,17 @@ steps:
      tar xzf test.tar.gz
      tar xzf resources.tar.gz
      tar xzf data.tar.gz
+     tar xvf wheel-container.tar
+     pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
-     export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./hail.jar --conf spark.executor.extraClassPath=./hail.jar --driver-memory 6g pyspark-shell"
-     export PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}./hail.zip
+     export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=2
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
-     - from: /hail.jar
-       to: /io/hail.jar
-     - from: /hail.zip
-       to: /io/hail.zip
+     - from: /wheel-container.tar
+       to: /io/wheel-container.tar
      - from: /test.tar.gz
        to: /io/test.tar.gz
      - from: /resources.tar.gz
@@ -738,18 +735,17 @@ steps:
      tar xzf test.tar.gz
      tar xzf resources.tar.gz
      tar xzf data.tar.gz
+     tar xvf wheel-container.tar
+     pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
-     export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./hail.jar --conf spark.executor.extraClassPath=./hail.jar --driver-memory 6g pyspark-shell"
-     export PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}./hail.zip
+     export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=3
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
-     - from: /hail.jar
-       to: /io/hail.jar
-     - from: /hail.zip
-       to: /io/hail.zip
+     - from: /wheel-container.tar
+       to: /io/wheel-container.tar
      - from: /test.tar.gz
        to: /io/test.tar.gz
      - from: /resources.tar.gz
@@ -772,18 +768,17 @@ steps:
      tar xzf test.tar.gz
      tar xzf resources.tar.gz
      tar xzf data.tar.gz
+     tar xvf wheel-container.tar
+     pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
-     export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./hail.jar --conf spark.executor.extraClassPath=./hail.jar --driver-memory 6g pyspark-shell"
-     export PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}./hail.zip
+     export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=4
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
-     - from: /hail.jar
-       to: /io/hail.jar
-     - from: /hail.zip
-       to: /io/hail.zip
+     - from: /wheel-container.tar
+       to: /io/wheel-container.tar
      - from: /test.tar.gz
        to: /io/test.tar.gz
      - from: /resources.tar.gz
@@ -1263,7 +1258,7 @@ steps:
     - base_image
     - copy_files
     - deploy_batch
-   timeout: 1200   
+   timeout: 1200
    inputs:
     - from: /repo/hailtop
       to: /io/
