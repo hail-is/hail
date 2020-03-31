@@ -11,6 +11,7 @@ DEFAULT_PROPERTIES = {
     "spark:spark.task.maxFailures": "20",
     "spark:spark.driver.extraJavaOptions": "-Xss4M",
     "spark:spark.executor.extraJavaOptions": "-Xss4M",
+    'spark:spark.speculation': 'true',
     "hdfs:dfs.replication": "1",
     'dataproc:dataproc.logging.stackdriver.enable': 'false',
     'dataproc:dataproc.monitoring.stackdriver.enable': 'false'
