@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.types.{coerce => _, _}
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.{PArray, PFloat64, PInt32, PType}
+import is.hail.expr.types.physical.{PArray, PCode, PIndexableCode, PFloat64, PInt32, PType}
 import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32}
 import is.hail.variant.Genotype
 

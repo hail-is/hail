@@ -2,7 +2,8 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, MethodBuilder, Value}
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+
 case object PCanonicalStringOptional extends PCanonicalString(false)
 case object PCanonicalStringRequired extends PCanonicalString(true)
 
@@ -80,4 +81,20 @@ object PCanonicalString {
   def apply(required: Boolean = false): PCanonicalString = if (required) PCanonicalStringRequired else PCanonicalStringOptional
 
   def unapply(t: PString): Option[Boolean] = Option(t.required)
+}
+
+class PCanonicalStringCode(val pt: PString, a: Code[Long]) extends PStringCode {
+  def code: Code[_] = a
+
+  def loadLength(): Code[Int] = pt.loadLength(a)
+
+  def bytesAddress(): Code[Long] = pt.bytesAddress(a)
+
+  def loadString(): Code[String] = pt.loadString(a)
+
+  def memoize(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeImpl(cb, name)
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeFieldImpl(cb, name)
+
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
 }

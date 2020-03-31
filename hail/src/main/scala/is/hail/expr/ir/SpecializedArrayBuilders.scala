@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s._
-import is.hail.expr.types.physical.PType
+import is.hail.expr.types.physical.{PType, PCode}
 import is.hail.expr.types.virtual.Type
 
 import scala.reflect.ClassTag

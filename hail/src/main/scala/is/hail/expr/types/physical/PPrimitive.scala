@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.asm4s.{Code, MethodBuilder}
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.utils._
 
 trait PPrimitive extends PType {
@@ -64,4 +64,13 @@ trait PPrimitive extends PType {
         case _: PFloat64 => PFloat64(required)
       }
   }
+}
+
+class PPrimitiveCode(val pt: PType, val code: Code[_]) extends PCode {
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], a: Code[Long]): Code[Unit] =
+    Region.storeIRIntermediate(pt)(a, code)
+
+  def memoize(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeImpl(cb, name)
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeFieldImpl(cb, name)
 }

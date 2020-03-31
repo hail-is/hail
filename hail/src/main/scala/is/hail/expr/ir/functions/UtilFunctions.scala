@@ -3,7 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.asm4s
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.{PBoolean, PCanonicalString, PFloat32, PFloat64, PInt32, PInt64, PString, PTuple, PType}
+import is.hail.expr.types.physical._
 import is.hail.utils._
 import is.hail.expr.types.virtual._
 import org.apache.spark.sql.Row

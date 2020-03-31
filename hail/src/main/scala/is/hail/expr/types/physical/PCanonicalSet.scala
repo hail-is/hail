@@ -2,7 +2,6 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.Region
 import is.hail.asm4s.Code
-import is.hail.expr.ir.{PCanonicalIndexableCode, PCode}
 import is.hail.expr.types.virtual.{TSet, Type}
 
 final case class PCanonicalSet(elementType: PType,  required: Boolean = false) extends PSet with PArrayBackedContainer {

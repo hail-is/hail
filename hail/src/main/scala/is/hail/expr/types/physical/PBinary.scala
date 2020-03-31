@@ -109,3 +109,13 @@ object PBinary {
 
   def unapply(t: PBinary): Option[Boolean] = PCanonicalBinary.unapply(t)
 }
+
+abstract class PBinaryCode extends PCode {
+  def pt: PBinary
+
+  def loadLength(): Code[Int]
+
+  def bytesAddress(): Code[Long]
+
+  def loadBytes(): Code[Array[Byte]]
+}

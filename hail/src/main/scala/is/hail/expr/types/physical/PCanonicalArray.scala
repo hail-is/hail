@@ -5,7 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
-import is.hail.expr.ir.{EmitMethodBuilder, PCanonicalIndexableCode, PCode}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.expr.types.virtual.{TArray, Type}
 import is.hail.utils._
 
@@ -529,4 +529,56 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   override def load(src: Code[Long]): PCode =
     new PCanonicalIndexableCode(this, Region.loadAddress(src))
+}
+
+class PCanonicalIndexableCode(val pt: PContainer, val a: Code[Long]) extends PIndexableCode {
+  def code: Code[_] = a
+
+  def loadLength(): Code[Int] = pt.loadLength(a)
+
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PIndexableValue = {
+    val s = PCanonicalIndexableSettable(sb, pt, name)
+    cb.assign(s, this)
+    s
+  }
+
+  def memoize(cb: EmitCodeBuilder, name: String): PIndexableValue = memoize(cb, name, cb.localBuilder)
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PIndexableValue = memoize(cb, name, cb.fieldBuilder)
+
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
+}
+
+object PCanonicalIndexableSettable {
+  def apply(sb: SettableBuilder, pt: PContainer, name: String): PCanonicalIndexableSettable = {
+    new PCanonicalIndexableSettable(pt,
+      sb.newSettable[Long](s"${ name }_a"),
+      sb.newSettable[Int](s"${ name }_length"),
+      sb.newSettable[Long](s"${ name }_elems_addr"))
+  }
+}
+
+class PCanonicalIndexableSettable(
+  val pt: PContainer,
+  val a: Settable[Long],
+  val length: Settable[Int],
+  val elementsAddress: Settable[Long]
+) extends PIndexableValue with PSettable {
+  def get: PIndexableCode = new PCanonicalIndexableCode(pt, a)
+
+  def loadLength(): Value[Int] = length
+
+  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
+    val iv = cb.memoize(i, "pcindval_i")
+    IEmitCode(cb,
+      pt.isElementMissing(a, iv),
+      pt.elementType.load(elementsAddress + iv.toL * pt.elementByteSize))
+  }
+
+  def store(pc: PCode): Code[Unit] = {
+    Code(
+      a := pc.asInstanceOf[PCanonicalIndexableCode].a,
+      length := pt.loadLength(a),
+      elementsAddress := pt.firstElementOffset(a, length))
+  }
 }

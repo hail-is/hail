@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.utils._
 
 case object PCanonicalBinaryOptional extends PCanonicalBinary(false)
@@ -147,4 +147,20 @@ object PCanonicalBinary {
   def apply(required: Boolean = false): PBinary = if (required) PCanonicalBinaryRequired else PCanonicalBinaryOptional
 
   def unapply(t: PBinary): Option[Boolean] = Option(t.required)
+}
+
+class PCanonicalBinaryCode(val pt: PBinary, a: Code[Long]) extends PBinaryCode {
+  def code: Code[_] = a
+
+  def loadLength(): Code[Int] = pt.loadLength(a)
+
+  def bytesAddress(): Code[Long] = pt.bytesAddress(a)
+
+  def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
+
+  def memoize(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeImpl(cb, name)
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeFieldImpl(cb, name)
+
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
 }

@@ -7,7 +7,7 @@ import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.backend.BackendUtils
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.types.physical.{PCanonicalTuple, PType}
+import is.hail.expr.types.physical.{PCanonicalTuple, PCode, PSettable, PType}
 import is.hail.expr.types.virtual.Type
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
