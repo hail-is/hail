@@ -114,6 +114,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
 object Extract {
   def liftScan(ir: IR): IR = ir match {
     case ApplyScanOp(init, seq, sig) => ApplyAggOp(init, seq, sig)
+    case StreamAggScan(a, name, query) => StreamAggScan(liftScan(a), name, query)
     case x => MapIR(liftScan)(x)
   }
 

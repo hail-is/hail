@@ -46,10 +46,10 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
     def endDefined(off: Code[Long]): Code[Boolean] = representation.isFieldDefined(off, 1)
 
-    def includeStart(off: Code[Long]): Code[Boolean] =
+    def includesStart(off: Code[Long]): Code[Boolean] =
       Region.loadBoolean(representation.loadField(off, 2))
 
-    def includeEnd(off: Code[Long]): Code[Boolean] =
+    def includesEnd(off: Code[Long]): Code[Boolean] =
       Region.loadBoolean(representation.loadField(off, 3))
 
     override def deepRename(t: Type) = deepRenameInterval(t.asInstanceOf[TInterval])

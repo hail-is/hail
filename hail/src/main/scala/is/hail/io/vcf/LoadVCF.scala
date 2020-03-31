@@ -1316,7 +1316,7 @@ object LoadVCF {
   }
 
   def parseHeaderMetadata(hc: HailContext, callFields: Set[String], entryFloatType: TNumeric, headerFile: String): VCFMetadata = {
-    val fs = hc.sFS
+    val fs = hc.fs
     val headerLines = getHeaderLines(fs, headerFile, TextInputFilterAndReplace())
     val VCFHeaderInfo(_, _, _, _, filterAttrs, infoAttrs, formatAttrs, _) = parseHeader(callFields, entryFloatType, headerLines)
 
@@ -1400,7 +1400,7 @@ class PartitionedVCFRDD(
   @(transient@param) _partitions: Array[Partition]
 ) extends RDD[String](sc, Seq()) {
   protected def getPartitions: Array[Partition] = _partitions
-  val bcFS = HailContext.bcFS
+  val bcFS = HailContext.fsBc
 
   def compute(split: Partition, context: TaskContext): Iterator[String] = {
     val p = split.asInstanceOf[PartitionedVCFPartition]
@@ -1463,7 +1463,7 @@ case class MatrixVCFReader(
 
   private val hc = HailContext.get
   private val sc = hc.sc
-  private val fs = hc.sFS
+  private val fs = hc.fs
   private val referenceGenome = rg.map(ReferenceGenome.getReference)
 
   referenceGenome.foreach(_.validateContigRemap(contigRecoding))
@@ -1476,7 +1476,7 @@ case class MatrixVCFReader(
   private val header1 = parseHeader(callFields, entryFloatType, headerLines1, arrayElementsRequired = arrayElementsRequired)
 
   if (headerFile.isEmpty) {
-    val bcFS = HailContext.bcFS
+    val bcFS = HailContext.fsBc
     val header1Bc = hc.backend.broadcast(header1)
 
     val localCallFields = callFields
@@ -1668,8 +1668,8 @@ class VCFsReader(
 
   private val hc = HailContext.get
   private val backend = HailContext.backend
-  private val fs = hc.sFS
-  private val bcFS = hc.bcFS
+  private val fs = hc.fs
+  private val bcFS = hc.fsBc
   private val referenceGenome = rg.map(ReferenceGenome.getReference)
 
   referenceGenome.foreach(_.validateContigRemap(contigRecoding))

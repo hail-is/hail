@@ -153,14 +153,14 @@ object BlockMatrix {
   val metadataRelativePath = "/metadata.json"
 
   def checkWriteSuccess(hc: HailContext, uri: String) {
-    if (!hc.sFS.exists(uri + "/_SUCCESS"))
+    if (!hc.fs.exists(uri + "/_SUCCESS"))
       fatal(s"Error reading block matrix. Earlier write failed: no success indicator found at uri $uri")    
   }
   
   def readMetadata(hc: HailContext, uri: String): BlockMatrixMetadata = {
-    hc.sFS.readTextFile(uri + metadataRelativePath) { isr =>
+    using(hc.fs.open(uri + metadataRelativePath)) { is =>
       implicit val formats = defaultJSONFormats
-      jackson.Serialization.read[BlockMatrixMetadata](isr)
+      jackson.Serialization.read[BlockMatrixMetadata](is)
     }
   }
 
@@ -232,7 +232,7 @@ object BlockMatrix {
   def collectMatrices(bms: IndexedSeq[BlockMatrix]): RDD[BDM[Double]] = new CollectMatricesRDD(bms)
 
   def binaryWriteBlockMatrices(bms: IndexedSeq[BlockMatrix], prefix: String, overwrite: Boolean): Unit = {
-    val fs = HailContext.sFS
+    val fs = HailContext.fs
 
     if (overwrite)
       fs.delete(prefix, recursive = true)
@@ -242,7 +242,7 @@ object BlockMatrix {
     fs.mkDir(prefix)
 
     val d = digitsNeeded(bms.length)
-    val bcFS = HailContext.bcFS
+    val bcFS = HailContext.fsBc
     val partitionCounts = collectMatrices(bms)
       .mapPartitionsWithIndex { case (i, it) =>
         assert(it.hasNext)
@@ -255,7 +255,7 @@ object BlockMatrix {
       }
       .collect()
 
-    fs.writeTextFile(prefix + "/_SUCCESS")(out => ())
+    using(fs.create(prefix + "/_SUCCESS"))(out => ())
   }
 
   def exportBlockMatrices(
@@ -267,7 +267,7 @@ object BlockMatrix {
     addIndex: Boolean,
     compression: Option[String],
     customFilenames: Option[Array[String]]): Unit = {
-    val fs = HailContext.sFS
+    val fs = HailContext.fs
 
     if (overwrite)
       fs.delete(prefix, recursive = true)
@@ -277,7 +277,7 @@ object BlockMatrix {
     fs.mkDir(prefix)
 
     val d = digitsNeeded(bms.length)
-    val bcFS = HailContext.bcFS
+    val bcFS = HailContext.fsBc
     
     val nameFunction = customFilenames match {
       case None => i: Int => StringUtils.leftPad(i.toString, d, '0') + ".tsv"
@@ -296,7 +296,7 @@ object BlockMatrix {
           new PrintWriter(
             new BufferedWriter(
               new OutputStreamWriter(
-                bcFS.value.unsafeWriter(path))))) { f =>
+                bcFS.value.create(path))))) { f =>
           header.foreach { h =>
             f.println(h)
           }
@@ -324,7 +324,7 @@ object BlockMatrix {
       }
       .collect()
 
-    fs.writeTextFile(prefix + "/_SUCCESS")(out => ())
+    using(fs.create(prefix + "/_SUCCESS"))(out => ())
   }
 }
 
@@ -582,14 +582,14 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     val writeRectangle = if (binary) writeRectangleBinary else writeRectangleText
 
     val dRect = digitsNeeded(rectangles.length)
-    val bcFS = hc.bcFS
+    val bcFS = hc.fsBc
     BlockMatrixRectanglesRDD(rectangles, bm = this).foreach { case (index, rectData) =>
       val r = rectangles(index)
       val paddedIndex = StringUtils.leftPad(index.toString, dRect, "0")
       val outputFile = output + "/rect-" + paddedIndex + "_" + r.mkString("-")
 
       if (rectData.size > 0) {
-        bcFS.value.writeFile(outputFile)(writeRectangle(_, rectData))
+        using(bcFS.value.create(outputFile))(writeRectangle(_, rectData))
       }
     }
   }
@@ -795,14 +795,14 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
     val (partFiles, partitionCounts) = blocks.writePartitions(uri, stageLocally, writeBlock)
 
-    fs.writeDataFile(uri + metadataRelativePath) { os =>
+    using(new DataOutputStream(fs.create(uri + metadataRelativePath))) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
         BlockMatrixMetadata(blockSize, nRows, nCols, gp.maybeBlocks, partFiles),
         os)
     }
 
-    fs.writeTextFile(uri + "/_SUCCESS")(out => ())
+    using(fs.create(uri + "/_SUCCESS"))(out => ())
 
     val nBlocks = partitionCounts.length
     assert(nBlocks == partitionCounts.sum)
@@ -1779,7 +1779,7 @@ class WriteBlocksRDD(path: String,
   private val rvRowType = rvd.rowPType
 
   private val d = digitsNeeded(gp.numPartitions)
-  private val bcFS = HailContext.bcFS
+  private val bcFS = HailContext.fsBc
 
   override def getDependencies: Seq[Dependency[_]] =
     Array[Dependency[_]](
@@ -1837,7 +1837,7 @@ class WriteBlocksRDD(path: String,
       val f = partFile(d, i, ctx)
       val filename = path + "/parts/" + f
 
-      val os = bcFS.value.unsafeWriter(filename)
+      val os = bcFS.value.create(filename)
       val out = BlockMatrix.bufferSpec.buildOutputBuffer(os)
 
       out.writeInt(nRowsInBlock)
@@ -1924,7 +1924,7 @@ class BlockMatrixReadRowBlockedRDD(
   partitionRanges: IndexedSeq[NumericRange.Exclusive[Long]],
   metadata: BlockMatrixMetadata,
   hc: HailContext) extends RDD[RVDContext => Iterator[RegionValue]](hc.sc, Nil) {
-  val bcFS = hc.bcFS
+  val bcFS = hc.fsBc
 
   val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = metadata
   val gp = GridPartitioner(blockSize, nRows, nCols)
@@ -1963,7 +1963,7 @@ class BlockMatrixReadRowBlockedRDD(
 
   private def readPartFileRow(fs: FS, rvb: RegionValueBuilder, rowIdx: Int, pFile: String) {
     val filename = path + "/parts/" + pFile
-    val is = fs.unsafeReader(filename)
+    val is = fs.open(filename)
     val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
 
     val rows = in.readInt()

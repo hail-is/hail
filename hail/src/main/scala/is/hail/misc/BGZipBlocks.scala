@@ -39,10 +39,8 @@ object BGZipBlocks {
       f()
     }
 
-    val fileSystem = fs.fileSystem(file)
-
     // no decompression codec
-    val is = fileSystem.open(file)
+    val is = fs.open(file)
 
     fillBuf(is)
 

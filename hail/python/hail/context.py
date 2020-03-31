@@ -1,5 +1,5 @@
 import pkg_resources
-from pyspark import SparkContext, SparkConf
+from pyspark import SparkContext
 from pyspark.sql import SparkSession
 
 import hail
@@ -44,41 +44,16 @@ class HailContext(object):
                 warn('Hail has already been initialized. If this call was intended to change configuration,'
                      ' close the session with hl.stop() first.')
 
-        if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
-            hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
-            assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
-            conf = SparkConf()
-
-            base_conf = spark_conf or {}
-            for k, v in base_conf.items():
-                conf.set(k, v)
-
-            jars = [hail_jar_path]
-
-            if os.environ.get('HAIL_SPARK_MONITOR'):
-                import sparkmonitor
-                jars.append(os.path.join(os.path.dirname(sparkmonitor.__file__), 'listener.jar'))
-                conf.set("spark.extraListeners", "sparkmonitor.listener.JupyterSparkMonitorListener")
-
-            conf.set('spark.jars', ','.join(jars))
-            conf.set('spark.driver.extraClassPath', ','.join(jars))
-            conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
-            if sc is None:
-                SparkContext._ensure_initialized(conf=conf)
+        if _backend is None:
+            if os.environ.get('HAIL_APISERVER_URL') is not None:
+                _backend = ServiceBackend()
             else:
-                import warnings
-                warnings.warn(
-                    'pip-installed Hail requires additional configuration options in Spark referring\n'
-                    '  to the path to the Hail Python module directory HAIL_DIR,\n'
-                    '  e.g. /path/to/python/site-packages/hail:\n'
-                    '    spark.jars=HAIL_DIR/hail-all-spark.jar\n'
-                    '    spark.driver.extraClassPath=HAIL_DIR/hail-all-spark.jar\n'
-                    '    spark.executor.extraClassPath=./hail-all-spark.jar')
-        else:
-            SparkContext._ensure_initialized()
+                _backend = SparkBackend(idempotent, sc, app_name, master, local, min_block_size)
+        self._backend = _backend
+        self._jbackend = _backend._jbackend
 
-        self._gateway = SparkContext._gateway
-        self._jvm = SparkContext._jvm
+        self._gateway = _backend._gateway
+        self._jvm = _backend._jvm
 
         # hail package
         self._hail = getattr(self._jvm, 'is').hail
@@ -88,15 +63,6 @@ class HailContext(object):
 
         Env._jvm = self._jvm
         Env._gateway = self._gateway
-
-        jsc = sc._jsc.sc() if sc else None
-
-        if _backend is None:
-            if os.environ.get('HAIL_APISERVER_URL') is not None:
-                _backend = ServiceBackend()
-            else:
-                _backend = SparkBackend()
-        self._backend = _backend
 
         tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
         optimizer_iterations = get_env_or_default(optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
@@ -110,20 +76,17 @@ class HailContext(object):
 
         # we always pass 'quiet' to the JVM because stderr output needs
         # to be routed through Python separately.
-        # if idempotent:
         if idempotent:
             self._jhc = self._hail.HailContext.getOrCreate(
-                jsc, app_name, joption(master), local, log, True, append,
-                min_block_size, branching_factor, tmp_dir, optimizer_iterations)
+                self._jbackend, log, True, append, branching_factor, tmp_dir, optimizer_iterations)
         else:
             self._jhc = self._hail.HailContext.apply(
-                jsc, app_name, joption(master), local, log, True, append,
-                min_block_size, branching_factor, tmp_dir, optimizer_iterations)
+                self._jbackend, log, True, append, branching_factor, tmp_dir, optimizer_iterations)
 
         self._jsc = self._jhc.sc()
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
-        self._jspark_session = self._jhc.sparkSession()
-        self._spark_session = SparkSession(self.sc, self._jhc.sparkSession())
+        self._jspark_session = self._jbackend.sparkSession()
+        self._spark_session = SparkSession(self.sc, self._jspark_session)
 
         super(HailContext, self).__init__()
 
@@ -153,7 +116,7 @@ class HailContext(object):
 
             connect_logger('localhost', 12888)
 
-            self._hail.HailContext.startProgressBar(self._jsc)
+            self._jbackend.startProgressBar()
 
             sys.stderr.write(
                 'Welcome to\n'

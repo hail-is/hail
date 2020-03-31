@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS `batches` (
 CREATE INDEX `batches_user_state_cancelled` ON `batches` (`user`, `state`, `cancelled`);
 CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
 CREATE INDEX `batches_token` ON `batches` (`token`);
+CREATE INDEX `batches_time_created` ON `batches` (`time_created`);
 
 CREATE TABLE IF NOT EXISTS `batches_staging` (
   `batch_id` BIGINT NOT NULL,

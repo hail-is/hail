@@ -68,29 +68,25 @@ object Emit {
   type E = Env[EmitValue]
 
   def apply[C](ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[C], aggs: Option[Array[AggStatePhysicalSignature]] = None) {
-    val triplet = emit[C](ctx, ir, fb, Env.empty, aggs)
-    typeToTypeInfo(ir.typ) match {
-      case ti: TypeInfo[t] =>
-        fb.emit(Code(triplet.setup, triplet.m.mux(
-          Code._throw[RuntimeException, t](Code.newInstance[RuntimeException, String]("cannot return empty"))(ti),
-          coerce[t](triplet.v))))
-    }
-  }
-
-  private def emit[C](
-    ctx: ExecuteContext,
-    ir: IR,
-    fb: EmitFunctionBuilder[C],
-    env: E,
-    aggs: Option[Array[AggStatePhysicalSignature]]): EmitCode = {
     TypeCheck(ir)
+
+    val mb = fb.apply_method
     val container = aggs.map { a =>
       val c = fb.addAggStates(a)
       AggContainer(a, c)
     }
-
-    new Emit[C](ctx, fb.ecb)
-      .emit(ir, fb.apply_method, env, EmitRegion.default(fb.apply_method), container = container)
+    val emitter = new Emit[C](ctx, fb.ecb)
+    if (ir.typ == TVoid) {
+      val cb = EmitCodeBuilder(mb)
+      emitter.emitVoid(cb, ir, mb, Env.empty, EmitRegion.default(fb.apply_method), container, None)
+      fb.emit(cb.result())
+    } else {
+      val triplet = emitter.emit(ir, mb, Env.empty, EmitRegion.default(fb.apply_method), container, None)
+      val ti = typeToTypeInfo(ir.pType)
+      fb.emit(Code(triplet.setup, triplet.m.muxAny(
+        Code._throwAny[RuntimeException](Code.newInstance[RuntimeException, String]("cannot return empty"))(ti),
+        triplet.v)))
+    }
   }
 }
 
@@ -178,6 +174,9 @@ case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
 object EmitCode {
   def apply(setup: Code[Unit], ec: EmitCode): EmitCode =
     new EmitCode(Code(setup, ec.setup), ec.m, ec.pv)
+
+  def apply(setup: Code[Unit], ev: EmitValue): EmitCode =
+    EmitCode(setup, ev.get)
 
   def present(pt: PType, v: Code[_]): EmitCode = EmitCode(Code._empty, false, PCode(pt, v))
 
@@ -335,6 +334,173 @@ private class Emit[C](
     EmitUtils.wrapToMethod(items, mb)
   }
 
+  private def wrapToVoid(irs: Seq[IR], mb: EmitMethodBuilder[C], env: E, container: Option[AggContainer]): Code[Unit] = {
+    val opSize: Int = 20
+    val items = irs.map { ir =>
+      new EstimableEmitter[C] {
+        def estimatedSize: Int = ir.size * opSize
+
+        def emit(mb: EmitMethodBuilder[C]): Code[Unit] = {
+          val (setup, _) = EmitCodeBuilder.scoped(mb) { cb =>
+            // wrapped methods can't contain uses of Recur
+            emitSelf.emitVoid(cb, ir, mb, env, EmitRegion.default(mb), container, None)
+          }
+          setup
+        }
+      }
+    }
+
+    EmitUtils.wrapToMethod(items, mb)
+  }
+
+  private[ir] def emitVoid(cb: EmitCodeBuilder, ir: IR, mb: EmitMethodBuilder[C], env: E, er: EmitRegion, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
+
+    def emit(ir: IR, mb: EmitMethodBuilder[C] = mb, env: E = env, er: EmitRegion = er, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
+      this.emit(ir, mb, env, er, container, loopEnv)
+
+    def wrapToMethod(irs: Seq[IR], mb: EmitMethodBuilder[C] = mb, env: E = env, container: Option[AggContainer] = container)(useValues: (EmitMethodBuilder[C], PType, EmitCode) => Code[Unit]): Code[Unit] =
+      this.wrapToMethod(irs, mb, env, container)(useValues)
+
+    def wrapToVoid(irs: Seq[IR], mb: EmitMethodBuilder[C] = mb, env: E = env, container: Option[AggContainer] = container): Code[Unit] =
+      this.wrapToVoid(irs, mb, env, container)
+
+    def emitStream(ir: IR, mb: EmitMethodBuilder[C] = mb): COption[EmitStream.SizedStream] =
+      EmitStream(this, mb, ir, env, er, container)
+
+    def emitVoid(cb: EmitCodeBuilder, ir: IR, mb: EmitMethodBuilder[C] = mb, env: E = env, er: EmitRegion = er, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
+      this.emitVoid(cb, ir, mb, env, er, container, loopEnv)
+
+    val region = er.region
+
+    (ir: @unchecked) match {
+      case Void() =>
+        Code._empty
+
+      case Begin(xs) =>
+        cb += wrapToVoid(xs)
+
+      case If(cond, cnsq, altr) =>
+        assert(cnsq.typ == TVoid && altr.typ == TVoid)
+
+        val codeCond = emit(cond)
+
+        cb += codeCond.setup
+        cb.ifx(codeCond.m, (), {
+          cb.ifx(codeCond.value[Boolean], emitVoid(cb, cnsq), emitVoid(cb, altr))
+        })
+
+      case Let(name, value, body) =>
+        val x = mb.newEmitField(name, value.pType)
+        val storeV = wrapToMethod(FastIndexedSeq(value)) { (_, _, ecV) =>
+          x := ecV
+        }
+        cb += storeV
+        emitVoid(cb, body, env = env.bind(name, x))
+
+      case StreamFor(a, valueName, body) =>
+        val eltType = a.pType.asInstanceOf[PStream].elementType
+        val streamOpt = emitStream(a)
+
+        def forBody(elt: EmitCode): Code[Unit] = {
+          val xElt = mb.newEmitField(valueName, eltType)
+          val bodyEnv = env.bind(
+            (valueName, xElt))
+          EmitCodeBuilder.scopedVoid(mb) { cb =>
+            cb.assign(xElt, elt)
+            emitVoid(cb, body, env = bodyEnv)
+          }
+        }
+
+        cb += streamOpt.cases(mb)(
+          Code._empty,
+          stream =>
+            stream.stream.forEach(mb)(forBody))
+
+      case x@InitOp(i, args, _, op) =>
+        val AggContainer(aggs, sc) = container.get
+        val statePTypes = aggs(i).lookup(op).physicalInitOpArgs
+        val rvAgg = agg.Extract.getAgg(aggs(i), op)
+
+        val argVars = args.zip(statePTypes).map { case (a, t) =>
+          emit(a, container = container.flatMap(_.nested(i, init = true)))
+            .map(t.copyFromPValue(mb, region, _))
+        }.toArray
+
+        cb += sc.newState(i)
+        cb += rvAgg.initOp(sc.states(i), argVars)
+
+      case x@SeqOp(i, args, _, op) =>
+        val AggContainer(aggs, sc) = container.get
+        val aggSig = aggs(i)
+        val statePTypes = aggSig.lookup(op).physicalSeqOpArgs
+        val rvAgg = agg.Extract.getAgg(aggSig, op)
+
+        val argVars = args.zip(statePTypes).map { case (a, t) =>
+          emit(a, container = container.flatMap(_.nested(i, init = false)))
+            .map(t.copyFromPValue(mb, region, _))
+        }.toArray
+
+        cb += rvAgg.seqOp(sc.states(i), argVars)
+
+      case x@CombOp(i1, i2, _) =>
+        val AggContainer(aggs, sc) = container.get
+        val aggSig = aggs(i1)
+        assert(agg.Extract.compatible(aggs(i2), aggSig), s"${aggs(i2)} vs $aggSig")
+        val rvAgg = agg.Extract.getAgg(aggSig, aggSig.default)
+
+        cb += rvAgg.combOp(sc.states(i1), sc.states(i2))
+
+      case x@SerializeAggs(start, sIdx, spec, sigs) =>
+        val AggContainer(_, sc) = container.get
+        val ob = mb.genFieldThisRef[OutputBuffer]()
+        val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
+
+        val serialize = Array.range(start, start + sigs.length)
+          .map { idx => sc.states(idx).serialize(spec)(ob) }
+
+        cb += Code(
+          baos := Code.newInstance[ByteArrayOutputStream](),
+          ob := spec.buildCodeOutputBuffer(baos),
+          mb.wrapVoids(serialize, "serialize_aggs"),
+          ob.invoke[Unit]("flush"),
+          ob.invoke[Unit]("close"),
+          mb.setSerializedAgg(sIdx, baos.invoke[Array[Byte]]("toByteArray")),
+          sc.store)
+
+      case DeserializeAggs(start, sIdx, spec, sigs) =>
+        val AggContainer(_, sc) = container.get
+        val ib = mb.genFieldThisRef[InputBuffer]()
+
+        val ns = sigs.length
+        val deserializers = sc.states.states
+          .slice(start, start + ns)
+          .map(sc => sc.deserialize(BufferSpec.defaultUncompressed))
+
+        val init = Code(Array.range(start, start + ns)
+          .map(i => sc.newState(i)))
+
+        val unserialize = Array.tabulate(ns) { j =>
+          deserializers(j)(ib)
+        }
+
+        cb += Code(
+          init,
+          ib := spec.buildCodeInputBuffer(
+            Code.newInstance[ByteArrayInputStream, Array[Byte]](
+              mb.getSerializedAgg(sIdx))),
+          mb.wrapVoids(unserialize, "deserialize_aggs"))
+
+      case Die(m, typ) =>
+        val cm = emit(m)
+        cb += cm.setup
+        cb._throw(Code.newInstance[HailException, String](
+            cm.m.mux[String](
+              "<exception message missing>",
+              coerce[String](StringFunctions.wrapArg(er, m.pType)(cm.v)))))
+    }
+  }
+
+
   /**
     * Invariants of the Returned Triplet
     * ----------------------------------
@@ -372,8 +538,15 @@ private class Emit[C](
     emit(ir, mb, env, er, container, None)
 
   private def emit(ir: IR, mb: EmitMethodBuilder[C], env: E, er: EmitRegion, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): EmitCode = {
+
     def emit(ir: IR, mb: EmitMethodBuilder[C] = mb, env: E = env, er: EmitRegion = er, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
       this.emit(ir, mb, env, er, container, loopEnv)
+
+    def emitVoid(ir: IR, mb: EmitMethodBuilder[C] = mb, env: E = env, er: EmitRegion = er, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Code[Unit] = {
+      EmitCodeBuilder.scopedVoid(mb) { cb =>
+        this.emitVoid(cb, ir, mb, env, er, container, loopEnv)
+      }
+    }
 
     def wrapToMethod(irs: Seq[IR], mb: EmitMethodBuilder[C] = mb, env: E = env, container: Option[AggContainer] = container)(useValues: (EmitMethodBuilder[C], PType, EmitCode) => Code[Unit]): Code[Unit] =
       this.wrapToMethod(irs, mb, env, container)(useValues)
@@ -392,6 +565,11 @@ private class Emit[C](
 
     val pt = ir.pType
 
+    // ideally, emit would not be called with void values, but initOp args can be void
+    // working towards removing this
+    if (pt == PVoid)
+      return new EmitCode(emitVoid(ir), const(false), PCode(pt, Code._empty))
+    
     (ir: @unchecked) match {
       case I32(x) =>
         present(pt, const(x))
@@ -409,8 +587,6 @@ private class Emit[C](
         present(pt, const(true))
       case False() =>
         present(pt, const(false))
-      case Void() =>
-        EmitCode(Code._empty, const(false), PCode(pt, Code._empty))
 
       case Cast(v, typ) =>
         val codeV = emit(v)
@@ -449,45 +625,29 @@ private class Emit[C](
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == altr.typ)
 
-        if (cnsq.typ == TVoid) {
-          val codeCond = emit(cond)
-          val codeCnsq = emit(cnsq)
-          val codeAltr = emit(altr)
-          EmitCode(
-            Code(
-              codeCond.setup,
-              codeCond.m.mux(
-                Code._empty,
-                codeCond.value[Boolean].mux(
-                  codeCnsq.setup,
-                  codeAltr.setup))),
-            false,
-            PCode._empty)
-        } else {
-          val codeCond = emit(cond)
-          val out = mb.newPLocal(pt)
-          val mout = mb.newLocal[Boolean]()
-          val codeCnsq = emit(cnsq)
-          val codeAltr = emit(altr)
+        val codeCond = emit(cond)
+        val out = mb.newPLocal(pt)
+        val mout = mb.newLocal[Boolean]()
+        val codeCnsq = emit(cnsq)
+        val codeAltr = emit(altr)
 
-          val setup = Code(
-            codeCond.setup,
-            codeCond.m.mux(
-              mout := true,
-              coerce[Boolean](codeCond.v).mux(
-                Code(codeCnsq.setup,
-                  mout := codeCnsq.m,
-                  mout.mux(
-                    Code._empty,
-                    out := ir.pType.copyFromPValue(mb, er.region, codeCnsq.pv))),
-                Code(codeAltr.setup,
-                  mout := codeAltr.m,
-                  mout.mux(
-                    Code._empty,
-                    out := ir.pType.copyFromPValue(mb, er.region, codeAltr.pv))))))
+        val setup = Code(
+          codeCond.setup,
+          codeCond.m.mux(
+            mout := true,
+            coerce[Boolean](codeCond.v).mux(
+              Code(codeCnsq.setup,
+                mout := codeCnsq.m,
+                mout.mux(
+                  Code._empty,
+                  out := ir.pType.copyFromPValue(mb, er.region, codeCnsq.pv))),
+              Code(codeAltr.setup,
+                mout := codeAltr.m,
+                mout.mux(
+                  Code._empty,
+                  out := ir.pType.copyFromPValue(mb, er.region, codeAltr.pv))))))
 
-          EmitCode(setup, mout, out.load())
-        }
+        EmitCode(setup, mout, out.load())
 
       case Let(name, value, body) =>
         val x = mb.newEmitField(name, value.pType)
@@ -852,76 +1012,20 @@ private class Emit[C](
 
         COption.toEmitCode(resOpt, res.pType, mb)
 
-      case StreamFor(a, valueName, body) =>
-        val eltType = a.pType.asInstanceOf[PStream].elementType
-        val streamOpt = emitStream(a)
-        def forBody(elt: EmitCode): Code[Unit] = {
-          val xElt = mb.newEmitField(valueName, eltType)
-          val bodyenv = env.bind(
-            (valueName, xElt))
-          val codeB = emit(body, env = bodyenv)
-
-          Code(xElt := elt, codeB.setup)
-        }
-
-        EmitCode(
-          streamOpt.cases(mb)(
-            Code._empty,
-            stream =>
-              stream.stream.forEach(mb)(forBody)),
-          const(false),
-          PCode._empty)
-
       case x@RunAgg(body, result, _) =>
         val aggs = x.physicalSignatures
         val (newContainer, aggSetup, aggCleanup) = AggContainer.fromClassBuilder(aggs, mb.ecb, "run_agg")
-        val codeBody = emit(body, env = env, container = Some(newContainer))
+        val codeBody = emitVoid(body, env = env, container = Some(newContainer))
         val codeRes = emit(result, env = env, container = Some(newContainer))
-        val resm = mb.genFieldThisRef[Boolean]()
-        val resv = mb.genFieldThisRef("run_agg_result")(typeToTypeInfo(result.pType))
+        val res = mb.newEmitField(result.pType)
 
         val aggregation = Code(
           aggSetup,
-          codeBody.setup,
-          codeRes.setup,
-          resm := codeRes.m,
-          resv.storeAny(resm.mux(defaultValue(result.pType), codeRes.v)),
+          codeBody,
+          res := codeRes,
           aggCleanup)
 
-        EmitCode(aggregation, resm, PCode(pt, resv))
-
-      case x@InitOp(i, args, _, op) =>
-        val AggContainer(aggs, sc) = container.get
-        val statePTypes = aggs(i).lookup(op).physicalInitOpArgs
-        val rvAgg = agg.Extract.getAgg(aggs(i), op)
-
-        val argVars = args.zip(statePTypes).map { case (a, t) =>
-          emit(a, container = container.flatMap(_.nested(i, init = true)))
-            .map(t.copyFromPValue(mb, region, _))
-        }.toArray
-        void(
-          sc.newState(i),
-          rvAgg.initOp(sc.states(i), argVars))
-
-      case x@SeqOp(i, args, _, op) =>
-        val AggContainer(aggs, sc) = container.get
-        val aggSig = aggs(i)
-        val statePTypes = aggSig.lookup(op).physicalSeqOpArgs
-        val rvAgg = agg.Extract.getAgg(aggSig, op)
-
-        val argVars = args.zip(statePTypes).map { case (a, t) =>
-          emit(a, container = container.flatMap(_.nested(i, init = false)))
-            .map(t.copyFromPValue(mb, region, _))
-        }.toArray
-        void(rvAgg.seqOp(sc.states(i), argVars))
-
-      case x@CombOp(i1, i2, _) =>
-        val AggContainer(aggs, sc) = container.get
-        val aggSig = aggs(i1)
-        assert(agg.Extract.compatible(aggs(i2), aggSig), s"${ aggs(i2) } vs $aggSig")
-        val rvAgg = agg.Extract.getAgg(aggSig, aggSig.default)
-
-        void(rvAgg.combOp(sc.states(i1), sc.states(i2)))
+        EmitCode(aggregation, res)
 
       case x@ResultOp(start, _) =>
         val newRegion = mb.genFieldThisRef[Region]()
@@ -947,54 +1051,6 @@ private class Emit[C](
 
       case x@AggStateValue(i, _) =>
         throw new NotImplementedError("AggStateValue emitter cannot be implemented until physical type passed across serialization boundary. See PR #8142")
-
-      case x@SerializeAggs(start, sIdx, spec, sigs) =>
-        val AggContainer(_, sc) = container.get
-        val ob = mb.genFieldThisRef[OutputBuffer]()
-        val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
-
-        val serialize = Array.range(start, start + sigs.length)
-          .map { idx => sc.states(idx).serialize(spec)(ob) }
-
-        void(
-          baos := Code.newInstance[ByteArrayOutputStream](),
-          ob := spec.buildCodeOutputBuffer(baos),
-          mb.wrapVoids(serialize, "serialize_aggs"),
-          ob.invoke[Unit]("flush"),
-          ob.invoke[Unit]("close"),
-          mb.setSerializedAgg(sIdx, baos.invoke[Array[Byte]]("toByteArray")),
-          sc.store)
-
-      case DeserializeAggs(start, sIdx, spec, sigs) =>
-        val AggContainer(_, sc) = container.get
-        val ib = mb.genFieldThisRef[InputBuffer]()
-
-        val ns = sigs.length
-        val deserializers = sc.states.states
-          .slice(start, start + ns)
-          .map(sc => sc.deserialize(BufferSpec.defaultUncompressed))
-
-        val init = Code(Array.range(start, start + ns)
-          .map(i => sc.newState(i)))
-
-        val unserialize = Array.tabulate(ns) { j =>
-          deserializers(j)(ib)
-        }
-
-        void(
-          init,
-          ib := spec.buildCodeInputBuffer(
-            Code.newInstance[ByteArrayInputStream, Array[Byte]](
-              mb.getSerializedAgg(sIdx))),
-          mb.wrapVoids(unserialize, "deserialize_aggs"))
-
-      case Begin(xs) =>
-        EmitCode(
-          wrapToMethod(xs) { case (_, t, code) =>
-            code.setup
-          },
-          false,
-          PCode._empty)
 
       case x@MakeStruct(fields) =>
         val srvb = new StagedRegionValueBuilder(mb, x.pType)
@@ -1132,7 +1188,7 @@ private class Emit[C](
               cm.m.mux[String](
                 "<exception message missing>",
                 coerce[String](StringFunctions.wrapArg(er, m.pType)(cm.v)))))),
-          false,
+          true,
           pt.defaultValue)
 
       case ir@Apply(fn, args, rt) =>
@@ -1159,14 +1215,14 @@ private class Emit[C](
         val value = Code(Code(ins), meth.invoke[Any]((coerce[Any](mb.getArg[Region](1).get) +: vars.map(_.get)): _*))
         strict(pt, value, codeArgs: _*)
       case x@ApplySeeded(fn, args, seed, rt) =>
-        val codeArgs = args.map(a => (a.pType, emit(a)))
+        val codeArgs = args.map(a => emit(a))
         val impl = x.implementation
         val unified = impl.unify(args.map(_.typ) :+ rt)
         assert(unified)
         impl.setSeed(seed)
         impl.apply(er, pt, codeArgs: _*)
       case x@ApplySpecial(_, args, rt) =>
-        val codeArgs = args.map(a => (a.pType, emit(a)))
+        val codeArgs = args.map(a => emit(a))
         val impl = x.implementation
         impl.argTypes.foreach(_.clear())
         val unified = impl.unify(args.map(_.typ) :+ rt)
@@ -1876,7 +1932,7 @@ private class Emit[C](
       case x@ReadValue(path, spec, requestedType) =>
         val p = emit(path)
         val pathString = coerce[PString](path.pType).loadString(p.value[Long])
-        val rowBuf = spec.buildCodeInputBuffer(mb.getUnsafeReader(pathString, true))
+        val rowBuf = spec.buildCodeInputBuffer(mb.open(pathString, true))
         val (pt, dec) = spec.buildEmitDecoderF(requestedType, mb.ecb, typeToTypeInfo(x.pType))
         EmitCode(p.setup, p.m, PCode(pt,
           Code.memoize(rowBuf, "read_ib") { ib =>
@@ -1904,7 +1960,7 @@ private class Emit[C](
                   (!taskCtx.isNull).orEmpty(
                     pv := pv.concat("-").concat(taskCtx.invoke[String]("partSuffix")))
                 },
-                rb := spec.buildCodeOutputBuffer(mb.getUnsafeWriter(pv)),
+                rb := spec.buildCodeOutputBuffer(mb.create(pv)),
                 vti match {
                   case vti: TypeInfo[t] =>
                     val enc = spec.buildEmitEncoderF(value.pType, mb.ecb, vti)
@@ -1964,8 +2020,6 @@ private class Emit[C](
 
   private def present(pt: PType, c: Code[_]): EmitCode =
     EmitCode(Code._empty, false, PCode(pt, c))
-
-  private def void(x: Code[Unit]*): EmitCode = EmitCode(Code(x), false, PCode._empty)
 
   private def strict(pt: PType, value: Code[_], args: EmitCode*): EmitCode = {
     EmitCode(

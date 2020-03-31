@@ -5,6 +5,7 @@ import is.hail.check.{Gen, Prop}
 import is.hail.io.fs.HadoopFS
 import org.apache.spark.storage.StorageLevel
 import org.testng.annotations.Test
+import org.apache.hadoop
 
 class UtilsSuite extends HailSuite {
   @Test def testD_==() {
@@ -56,11 +57,11 @@ class UtilsSuite extends HailSuite {
   }
 
   @Test def testHadoopStripCodec() {
-    assert(sFS.stripCodec("file.tsv") == "file.tsv")
-    assert(sFS.stripCodec("file.tsv.gz") == "file.tsv")
-    assert(sFS.stripCodec("file.tsv.bgz") == "file.tsv")
-    assert(sFS.stripCodec("file.tsv.lz4") == "file.tsv")
-    assert(sFS.stripCodec("file") == "file")
+    assert(fs.stripCodec("file.tsv") == "file.tsv")
+    assert(fs.stripCodec("file.tsv.gz") == "file.tsv")
+    assert(fs.stripCodec("file.tsv.bgz") == "file.tsv")
+    assert(fs.stripCodec("file.tsv.lz4") == "file.tsv")
+    assert(fs.stripCodec("file") == "file")
   }
 
   @Test def testPairRDDNoDup() {
@@ -86,7 +87,12 @@ class UtilsSuite extends HailSuite {
   @Test def testSortFileStatus() {
     val fs = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
-    val partFileNames = fs.glob("src/test/resources/part-*").sortBy(fileSystem => getPartNumber(fileSystem.getPath.getName)).map(_.getPath.getName)
+    val partFileNames = fs.glob("src/test/resources/part-*")
+      .map { fileStatus =>
+        (fileStatus, new hadoop.fs.Path(fileStatus.getPath))
+      }.sortBy { case (fileStatus, path) =>
+        getPartNumber(path.getName)
+      }.map(_._2.getName)
 
     assert(partFileNames(0) == "part-40001" && partFileNames(1) == "part-100001")
   }

@@ -3,6 +3,7 @@ import concurrent
 import logging
 import json
 import random
+import datetime
 import asyncio
 import aiohttp
 from aiohttp import web
@@ -27,7 +28,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 # import uvloop
 
 from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_memory_request, \
-    worker_memory_per_core_gb
+    worker_memory_per_core_gb, cost_from_msec_mcpu
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
@@ -58,6 +59,7 @@ REQUEST_TIME_POST_CANCEL_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch
 REQUEST_TIME_POST_DELETE_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/delete', verb='POST')
 REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET')
 REQUEST_TIME_GET_JOB_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id', verb="GET")
+REQUEST_TIME_GET_BILLING_UI = REQUEST_TIME.labels(endpoint='/billing', verb="GET")
 REQUEST_TIME_GET_BILLING_PROJECTS_UI = REQUEST_TIME.labels(endpoint='/billing_projects', verb="GET")
 REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/user/remove', verb="POST")
 REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/add', verb="POST")
@@ -1073,6 +1075,95 @@ WHERE batch_id = %s AND job_id = %s
         'job_status': json.dumps(job_status, indent=2)
     }
     return await render_template('batch', request, userdata, 'job.html', page_context)
+
+
+async def _query_billing(request):
+    db = request.app['db']
+
+    date_format = '%m/%d/%Y'
+
+    default_start = datetime.datetime.now().replace(day=1)
+    default_start = datetime.datetime.strftime(default_start, date_format)
+
+    default_end = datetime.datetime.now()
+    default_end = datetime.datetime.strftime(default_end, date_format)
+
+    async def parse_error(msg):
+        session = await aiohttp_session.get_session(request)
+        set_message(session, msg, 'error')
+        return ([], default_start, default_end)
+
+    start_query = request.query.get('start', default_start)
+    try:
+        start = datetime.datetime.strptime(start_query, date_format)
+        start = start.timestamp() * 1000
+    except ValueError:
+        return await parse_error(f"Invalid value for start '{start_query}'; must be in the format of MM/DD/YYYY.")
+
+    end_query = request.query.get('end', default_end)
+    try:
+        end = datetime.datetime.strptime(end_query, date_format)
+        end = (end + datetime.timedelta(days=1)).timestamp() * 1000
+    except ValueError:
+        return await parse_error(f"Invalid value for end '{end_query}'; must be in the format of MM/DD/YYYY.")
+
+    if start > end:
+        return await parse_error(f'Invalid search; start must be earlier than end.')
+
+    sql = f'''
+SELECT billing_project, user, CAST(COALESCE(SUM(msec_mcpu), 0) AS SIGNED) AS msec_mcpu
+FROM batches
+WHERE batches.`time_created` >= %s AND batches.`time_created` <= %s
+GROUP by billing_project, user;
+'''
+    sql_args = (start, end)
+
+    def billing_record_to_dict(app, record):
+        msec_mcpu = record['msec_mcpu']
+        record['cost'] = cost_from_msec_mcpu(app, msec_mcpu)
+        del record['msec_mcpu']
+        return record
+
+    billing = [billing_record_to_dict(request.app, record)
+               async for record
+               in db.select_and_fetchall(sql, sql_args)]
+
+    return (billing, start_query, end_query)
+
+
+@routes.get('/billing')
+@prom_async_time(REQUEST_TIME_GET_BILLING_UI)
+@web_authenticated_developers_only()
+async def ui_get_billing(request, userdata):
+    billing, start, end = await _query_billing(request)
+
+    billing_by_user = {}
+    billing_by_project = {}
+    for record in billing:
+        billing_project = record['billing_project']
+        user = record['user']
+        cost = record['cost']
+        billing_by_user[user] = billing_by_user.get(user, 0) + cost
+        billing_by_project[billing_project] = billing_by_project.get(billing_project, 0) + cost
+
+    billing_by_project = [{'billing_project': billing_project, 'cost': f'${cost:.4f}'} for billing_project, cost in billing_by_project.items()]
+    billing_by_project.sort(key=lambda record: record['billing_project'])
+
+    billing_by_user = [{'user': user, 'cost': f'${cost:.4f}'} for user, cost in billing_by_user.items()]
+    billing_by_user.sort(key=lambda record: record['user'])
+
+    billing_by_project_user = [{'billing_project': record['billing_project'], 'user': record['user'], 'cost': f'${record["cost"]:.4f}'}
+                               for record in billing]
+    billing_by_project_user.sort(key=lambda record: (record['billing_project'], record['user']))
+
+    page_context = {
+        'billing_by_project': billing_by_project,
+        'billing_by_user': billing_by_user,
+        'billing_by_project_user': billing_by_project_user,
+        'start': start,
+        'end': end
+    }
+    return await render_template('batch', request, userdata, 'billing.html', page_context)
 
 
 @routes.get('/billing_projects')

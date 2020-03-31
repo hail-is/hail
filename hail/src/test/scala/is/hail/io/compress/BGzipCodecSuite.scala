@@ -6,6 +6,7 @@ import is.hail.check.Prop.forAll
 import is.hail.utils._
 import htsjdk.samtools.util.BlockCompressedFilePointerUtil
 import org.apache.commons.io.IOUtils
+import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.{hadoop => hd}
 import org.testng.annotations.Test
 
@@ -59,13 +60,11 @@ class BGzipCodecSuite extends HailSuite {
      */
     val compPath = "src/test/resources/bgz.test.sample.vcf.bgz"
 
-    val fileSystem = sFS.fileSystem(uncompPath)
-
-    val uncompIS = fileSystem.open(uncompPath)
+    val uncompIS = fs.open(uncompPath)
     val uncomp = IOUtils.toByteArray(uncompIS)
     uncompIS.close()
 
-    val decompIS = new BGzipInputStream(fileSystem.open(compPath))
+    val decompIS = new BGzipInputStream(fs.openNoCompression(compPath))
     val decomp = IOUtils.toByteArray(decompIS)
     decompIS.close()
 
@@ -126,10 +125,9 @@ class BGzipCodecSuite extends HailSuite {
     val uncompPath = "src/test/resources/sample.vcf"
     val compPath = "src/test/resources/sample.vcf.gz"
 
-    val fileSystem = sFS.fileSystem(uncompPath)
-    val compIS = fileSystem.open(compPath)
+    using(fs.openNoCompression(uncompPath)) { uncompIS =>
+      using(new BGzipInputStream(fs.openNoCompression(compPath))) { decompIS =>
 
-    using (fileSystem.open(uncompPath)) { uncompIS => using (new BGzipInputStream(compIS)) { decompIS =>
       val fromEnd = 48 // arbitrary number of bytes from the end of block to attempt to seek to
       for (((cOff, nOff), uOff) <- blockStarts.zip(uncompBlockStarts);
            e <- Seq(0, 1024, maxBlockSize - fromEnd)) {

@@ -1,5 +1,7 @@
 package is.hail
 
+import java.io.OutputStreamWriter
+
 import is.hail.expr.types.virtual.Type
 import is.hail.utils._
 import is.hail.io.fs.FS
@@ -11,7 +13,7 @@ package object io {
 
   def exportTypes(filename: String, fs: FS, info: Array[(String, Type)]) {
     val sb = new StringBuilder
-    fs.writeTextFile(filename) { out =>
+    using(new OutputStreamWriter(fs.create(filename))) { out =>
       info.foreachBetween { case (name, t) =>
         sb.append(prettyIdentifier(name))
         sb.append(":")

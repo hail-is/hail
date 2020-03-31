@@ -95,7 +95,7 @@ case class MatrixValue(
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
     colsSpec.write(fs, path)
 
-    fs.writeTextFile(path + "/_SUCCESS")(out => ())
+    using(fs.create(path + "/_SUCCESS"))(out => ())
   }
 
   private def writeGlobals(fs: FS, path: String, bufferSpec: BufferSpec) {
@@ -113,15 +113,16 @@ case class MatrixValue(
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
     globalsSpec.write(fs, path)
 
-    fs.writeTextFile(path + "/_SUCCESS")(out => ())
+    using(fs.create(path + "/_SUCCESS"))(out => ())
   }
 
   private def finalizeWrite(
     fs: FS,
     path: String,
     bufferSpec: BufferSpec,
-    partitionCounts: Array[Long]
-  ) = {
+    partitionCounts: Array[Long],
+    consoleInfo: Boolean
+  ): Unit = {
     val globalsPath = path + "/globals"
     fs.mkDir(globalsPath)
     writeGlobals(fs, globalsPath, bufferSpec)
@@ -136,7 +137,7 @@ case class MatrixValue(
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
     rowsSpec.write(fs, path + "/rows")
 
-    fs.writeTextFile(path + "/rows/_SUCCESS")(out => ())
+    using(fs.create(path + "/rows/_SUCCESS"))(out => ())
 
     val entriesSpec = TableSpec(
       FileFormat.version.rep,
@@ -148,7 +149,7 @@ case class MatrixValue(
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
     entriesSpec.write(fs, path + "/entries")
 
-    fs.writeTextFile(path + "/entries/_SUCCESS")(out => ())
+    using(fs.create(path + "/entries/_SUCCESS"))(out => ())
 
     fs.mkDir(path + "/cols")
     writeCols(fs, path + "/cols", bufferSpec)
@@ -173,10 +174,11 @@ case class MatrixValue(
 
     writeNativeFileReadMe(path)
 
-    fs.writeTextFile(path + "/_SUCCESS")(out => ())
+    using(fs.create(path + "/_SUCCESS"))(out => ())
 
     val nRows = partitionCounts.sum
-    info(s"wrote matrix table with $nRows ${ plural(nRows, "row") } " +
+    val printer: String=>Unit = if (consoleInfo) info else log.info
+    printer(s"wrote matrix table with $nRows ${ plural(nRows, "row") } " +
       s"and $nCols ${ plural(nCols, "column") } " +
       s"in ${ partitionCounts.length } ${ plural(partitionCounts.length, "partition") } " +
       s"to $path")
@@ -190,7 +192,7 @@ case class MatrixValue(
     partitionsTypeStr: String) = {
     assert(typ.isCanonical)
     val hc = HailContext.get
-    val fs = hc.sFS
+    val fs = hc.fs
 
     val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSON)
 
@@ -213,7 +215,7 @@ case class MatrixValue(
 
     val partitionCounts = rvd.writeRowsSplit(path, bufferSpec, stageLocally, targetPartitioner)
 
-    finalizeWrite(fs, path, bufferSpec, partitionCounts)
+    finalizeWrite(fs, path, bufferSpec, partitionCounts, consoleInfo = true)
   }
 
   def colsRVD(ctx: ExecuteContext): RVD = {
@@ -295,7 +297,7 @@ object MatrixValue {
     val first = mvs.head
     require(mvs.forall(_.typ == first.typ))
     val hc = HailContext.get
-    val fs = hc.sFS
+    val fs = hc.fs
     val bufferSpec = BufferSpec.default
 
     val d = digitsNeeded(mvs.length)
@@ -310,7 +312,7 @@ object MatrixValue {
 
     val partitionCounts = RVD.writeRowsSplitFiles(mvs.map(_.rvd), prefix, bufferSpec, stageLocally)
     for ((mv, path, partCounts) <- (mvs, paths, partitionCounts).zipped) {
-      mv.finalizeWrite(fs, path, bufferSpec, partCounts)
+      mv.finalizeWrite(fs, path, bufferSpec, partCounts, consoleInfo = false)
     }
   }
 

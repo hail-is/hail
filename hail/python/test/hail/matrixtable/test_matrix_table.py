@@ -1531,3 +1531,10 @@ class Tests(unittest.TestCase):
         hl.experimental.write_matrix_tables(mts, f)
         assert hl.read_matrix_table(f + '0.mt')._same(mts[0])
         assert hl.read_matrix_table(f + '1.mt')._same(mts[1])
+
+    def test_key_cols_by_extract_issue(self):
+        mt = hl.utils.range_matrix_table(1000, 100)
+        mt = mt.key_cols_by(col_id = hl.str(mt.col_idx))
+        mt = mt.add_col_index()
+        mt.show()
+

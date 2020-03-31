@@ -67,7 +67,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSON: String) {
     assert(typ.isCanonical)
     val hc = HailContext.get
-    val fs = hc.sFS
+    val fs = hc.fs
 
     val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSON)
 
@@ -102,7 +102,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
     writeNativeFileReadMe(path)
 
-    fs.writeTextFile(path + "/_SUCCESS")(out => ())
+    using(fs.create(path + "/_SUCCESS"))(out => ())
 
     val nRows = partitionCounts.sum
     info(s"wrote table with $nRows ${ plural(nRows, "row") } " +
@@ -112,12 +112,12 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
   def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED, delimiter: String = "\t") {
     val hc = HailContext.get
-    hc.sFS.delete(path, recursive = true)
+    hc.fs.delete(path, recursive = true)
 
     val fields = typ.rowType.fields
 
     Option(typesFile).foreach { file =>
-      exportTypes(file, hc.sFS, fields.map(f => (f.name, f.typ)).toArray)
+      exportTypes(file, hc.fs, fields.map(f => (f.name, f.typ)).toArray)
     }
 
     val localSignature = rvd.rowPType
@@ -136,11 +136,11 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
         sb.result()
       }
-    }.writeTable(hc.sFS, path, hc.tmpDir, Some(fields.map(_.name).mkString(localDelim)).filter(_ => header), exportType = exportType)
+    }.writeTable(hc.fs, path, hc.tmpDir, Some(fields.map(_.name).mkString(localDelim)).filter(_ => header), exportType = exportType)
   }
 
   def toDF(): DataFrame = {
-    HailContext.get.sparkSession.createDataFrame(
+    HailContext.backend.asSpark().sparkSession.createDataFrame(
       rvd.toRows,
       typ.rowType.schema.asInstanceOf[StructType])
   }

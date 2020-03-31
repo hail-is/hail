@@ -62,7 +62,7 @@ object ExportPlink {
   def apply(mv: MatrixValue, path: String): Unit = {
     val hc = HailContext.get
     val sc = hc.sc
-    val fs = hc.sFS
+    val fs = hc.fs
 
     val tmpBedDir = fs.getTemporaryFile(hc.tmpDir)
     val tmpBimDir = fs.getTemporaryFile(hc.tmpDir)
@@ -70,7 +70,7 @@ object ExportPlink {
     fs.mkDir(tmpBedDir)
     fs.mkDir(tmpBimDir)
 
-    val bcFS = hc.bcFS
+    val bcFS = hc.fsBc
 
     val nPartitions = mv.rvd.getNumPartitions
     val d = digitsNeeded(nPartitions)
@@ -85,8 +85,8 @@ object ExportPlink {
       val bimPartPath = tmpBimDir + "/" + f
       var rowCount = 0L
 
-      fs.writeTextFile(bimPartPath) { bimOS =>
-        fs.writeFile(bedPartPath) { bedOS =>
+      using(new OutputStreamWriter(fs.create(bimPartPath))) { bimOS =>
+        using(fs.create(bedPartPath)) { bedOS =>
           val v = new RegionValueVariant(fullRowType)
           val a = new BimAnnotationView(fullRowType)
           val hcv = HardCallView(fullRowType)
@@ -110,11 +110,11 @@ object ExportPlink {
 
     val nRecordsWritten = nRecordsWrittenPerPartition.sum
 
-    fs.writeFile(tmpBedDir + "/_SUCCESS")(out => ())
-    fs.writeFile(tmpBedDir + "/header")(out => out.write(ExportPlink.bedHeader))
+    using(fs.create(tmpBedDir + "/_SUCCESS"))(out => ())
+    using(fs.create(tmpBedDir + "/header"))(out => out.write(ExportPlink.bedHeader))
     fs.copyMerge(tmpBedDir, path + ".bed", nPartitions, header = true, partFilesOpt = Some(partFiles))
 
-    fs.writeTextFile(tmpBimDir + "/_SUCCESS")(out => ())
+    using(fs.create(tmpBimDir + "/_SUCCESS"))(out => ())
     fs.copyMerge(tmpBimDir, path + ".bim", nPartitions, header = false, partFilesOpt = Some(partFiles))
 
     ExecuteContext.scoped { ctx =>

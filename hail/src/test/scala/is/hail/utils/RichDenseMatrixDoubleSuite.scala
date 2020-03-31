@@ -22,13 +22,13 @@ class RichDenseMatrixDoubleSuite extends HailSuite {
   def testReadWriteDoubles(): Unit = {
     val file = tmpDir.createTempFile("test")
     val m = BDM.rand[Double](50, 100)
-    RichDenseMatrixDouble.exportToDoubles(hc.sFS, file, m, forceRowMajor = false)
+    RichDenseMatrixDouble.exportToDoubles(hc.fs, file, m, forceRowMajor = false)
     val m2 = RichDenseMatrixDouble.importFromDoubles(hc, file, 50, 100, rowMajor = false)
     assert(m === m2)
     
     val fileT = tmpDir.createTempFile("test2")
     val mT = m.t
-    RichDenseMatrixDouble.exportToDoubles(hc.sFS, fileT, mT, forceRowMajor = true)
+    RichDenseMatrixDouble.exportToDoubles(hc.fs, fileT, mT, forceRowMajor = true)
     val lmT2 = RichDenseMatrixDouble.importFromDoubles(hc, fileT, 100, 50, rowMajor = true)
     assert(mT === mT)
     

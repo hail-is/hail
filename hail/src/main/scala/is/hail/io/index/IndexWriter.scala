@@ -118,7 +118,7 @@ class IndexWriter(
   private val internalNodeBuilders = new ArrayBuilder[InternalNodeBuilder]()
   internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType)
 
-  private val trackedOS = new ByteTrackingOutputStream(fs.unsafeWriter(path + "/index"))
+  private val trackedOS = new ByteTrackingOutputStream(fs.create(path + "/index"))
 
   private val leafEncoder = makeLeafEncoder(trackedOS)
   private val internalEncoder = makeInternalEncoder(trackedOS)
@@ -209,7 +209,7 @@ class IndexWriter(
   }
 
   private def writeMetadata(rootOffset: Long) = {
-    fs.writeTextFile(path + "/metadata.json.gz") { out =>
+    using(fs.create(path + "/metadata.json.gz")) { out =>
       val metadata = IndexMetadata(
         IndexWriter.version.rep,
         branchingFactor,

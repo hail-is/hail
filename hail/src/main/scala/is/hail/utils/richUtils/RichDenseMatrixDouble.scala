@@ -1,6 +1,6 @@
 package is.hail.utils.richUtils
 
-import java.io.{InputStream, OutputStream}
+import java.io.{DataInputStream, DataOutputStream, InputStream, OutputStream}
 
 import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.io.fs.FS
@@ -39,7 +39,7 @@ object RichDenseMatrixDouble {
   }
 
   def read(hc: HailContext, path: String, bufferSpec: BufferSpec): BDM[Double] = {
-    hc.sFS.readDataFile(path)(is => read(is, bufferSpec))
+    using(new DataInputStream(hc.fs.open(path)))(is => read(is, bufferSpec))
   }
 
   def importFromDoubles(hc: HailContext, path: String, nRows: Int, nCols: Int, rowMajor: Boolean): BDM[Double] = {
@@ -107,11 +107,11 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
   }
 
   def write(hc: HailContext, path: String, forceRowMajor: Boolean = false, bufferSpec: BufferSpec) {
-    hc.sFS.writeFile(path)(os => write(os, forceRowMajor, bufferSpec: BufferSpec))
+    using(hc.fs.create(path))(os => write(os, forceRowMajor, bufferSpec: BufferSpec))
   }
 
   def writeBlockMatrix(hc: HailContext, path: String, blockSize: Int, forceRowMajor: Boolean = false, overwrite: Boolean = false) {
-    val fs = hc.sFS
+    val fs = hc.fs
     
     if (overwrite)
       fs.delete(path, recursive = true)
@@ -140,7 +140,7 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
     }
       .toArray
 
-    fs.writeDataFile(path + BlockMatrix.metadataRelativePath) { os =>
+    using(new DataOutputStream(fs.create(path + BlockMatrix.metadataRelativePath))) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
         BlockMatrixMetadata(blockSize, m.rows, m.cols, gp.maybeBlocks, partFiles),
@@ -149,6 +149,6 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
 
     info(s"wrote $nParts ${ plural(nParts, "item") } in $nParts ${ plural(nParts, "partition") }")
 
-    fs.writeTextFile(path + "/_SUCCESS")(out => ())
+    using(fs.create(path + "/_SUCCESS"))(out => ())
   }
 }

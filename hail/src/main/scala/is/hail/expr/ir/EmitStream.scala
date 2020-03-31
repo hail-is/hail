@@ -558,6 +558,12 @@ object EmitStream {
       def emitIR(ir: IR, mb:  EmitMethodBuilder[C] = mb, env: Emit.E = env, container: Option[AggContainer] = container): EmitCode =
         emitter.emit(ir, mb, env, er, container)
 
+      def emitVoidIR(ir: IR, mb:  EmitMethodBuilder[C] = mb, env: Emit.E = env, container: Option[AggContainer] = container): Code[Unit] = {
+        EmitCodeBuilder.scopedVoid(mb) { cb =>
+          emitter.emitVoid(cb, ir, mb, env, er, container, None)
+        }
+      }
+
       streamIR match {
         case NA(_) =>
           COption.None
@@ -665,7 +671,7 @@ object EmitStream {
               EmitCode.present(eltType, _),
               setup0 = None,
               setup = Some(xRowBuf := spec
-                .buildCodeInputBuffer(mb.getUnsafeReader(pathString, true))))
+                .buildCodeInputBuffer(mb.open(pathString, true))))
 
             SizedStream(stream, None)
           }
@@ -996,8 +1002,8 @@ object EmitStream {
           val xResult = mb.newEmitField("aggscan_result", result.pType)
 
           val bodyEnv = env.bind(name -> xElt)
-          val cInit = emitIR(init, container = Some(newContainer))
-          val seqPerElt = emitIR(seqs, env = bodyEnv, container = Some(newContainer))
+          val cInit = emitVoidIR(init, container = Some(newContainer))
+          val seqPerElt = emitVoidIR(seqs, env = bodyEnv, container = Some(newContainer))
           val postt = emitIR(result, env = bodyEnv, container = Some(newContainer))
 
           val optStream = emitStream(array, env)
@@ -1009,12 +1015,12 @@ object EmitStream {
                   Code(
                     xElt := eltt,
                     xResult := postt,
-                    seqPerElt.setup),
+                    seqPerElt),
                   xResult.get)
               },
               setup0 = Some(aggSetup),
               close0 = Some(aggCleanup),
-              setup = Some(cInit.setup))
+              setup = Some(cInit))
 
             SizedStream(newStream, len)
           }

@@ -356,9 +356,9 @@ object LocusFunctions extends RegistryFunctions {
         PCanonicalInterval(PCanonicalLocus(lPTyp.asInstanceOf[TLocus].rg))
       }
     }) {
-      case (r: EmitRegion, rt: PInterval, (strT, ioff: EmitCode), (missingT, invalidMissing: EmitCode)) =>
+      case (r: EmitRegion, rt: PInterval, ioff: EmitCode, invalidMissing: EmitCode) =>
         val plocus = rt.pointType.asInstanceOf[PLocus]
-        val sinterval = asm4s.coerce[String](wrapArg(r, strT)(ioff.value[Long]))
+        val sinterval = asm4s.coerce[String](wrapArg(r, ioff.pt)(ioff.value[Long]))
         val intervalLocal = r.mb.newLocal[Interval](name="intervalObject")
         val interval = Code.invokeScalaObject[String, ReferenceGenome, Boolean, Interval](
           locusClass, "parseInterval", sinterval, rgCode(r.mb, plocus.rg), invalidMissing.value[Boolean])
@@ -377,14 +377,14 @@ object LocusFunctions extends RegistryFunctions {
       }
     }) {
       case (r: EmitRegion, rt: PInterval,
-      (locoffT, locoff: EmitCode),
-      (pos1T, pos1: EmitCode),
-      (pos2T, pos2: EmitCode),
-      (include1T, include1: EmitCode),
-      (include2T, include2: EmitCode),
-      (invalidMissingT, invalidMissing: EmitCode)) =>
+      locoff: EmitCode,
+      pos1: EmitCode,
+      pos2: EmitCode,
+      include1: EmitCode,
+      include2: EmitCode,
+      invalidMissing: EmitCode) =>
         val plocus = rt.pointType.asInstanceOf[PLocus]
-        val sloc = asm4s.coerce[String](wrapArg(r, locoffT)(locoff.value[Long]))
+        val sloc = asm4s.coerce[String](wrapArg(r, locoff.pt)(locoff.value[Long]))
         val intervalLocal = r.mb.newLocal[Interval]("intervalObject")
         val interval = Code.invokeScalaObject[String, Int, Int, Boolean, Boolean, ReferenceGenome, Boolean, Interval](
           locusClass, "makeInterval", sloc, pos1.value[Int], pos2.value[Int], include1.value[Boolean], include2.value[Boolean], rgCode(r.mb, plocus.rg), invalidMissing.value[Boolean])
@@ -416,8 +416,9 @@ object LocusFunctions extends RegistryFunctions {
         val lTyp = returnType.asInstanceOf[TStruct].field("result").typ.asInstanceOf[TLocus]
         PCanonicalStruct("result" -> PCanonicalLocus(lTyp.rg, true), "is_negative_strand" -> PBoolean(true))
       }
-    }){
-      case (r, rt: PStruct, (locT: PLocus, loc), (minMatchT, minMatch)) =>
+    }) {
+      case (r, rt: PStruct, loc, minMatch) =>
+        val locT = loc.pt.asInstanceOf[PLocus]
         val srcRG = locT.rg
 
         val destRG = rt.types(0).asInstanceOf[PLocus].rg
@@ -438,7 +439,8 @@ object LocusFunctions extends RegistryFunctions {
         PCanonicalStruct("result" -> PCanonicalInterval(PCanonicalLocus(lTyp.rg, true), true), "is_negative_strand" -> PBoolean(true))
       }
     }) {
-      case (r, rt: PStruct, (iT: PInterval, i), (minMatchT, minMatch)) =>
+      case (r, rt: PStruct, i, minMatch) =>
+        val iT = i.pt.asInstanceOf[PInterval]
         val srcRG = iT.pointType.asInstanceOf[PLocus].rg
         val destRG = rt.types(0).asInstanceOf[PInterval].pointType.asInstanceOf[PLocus].rg
         val interval = Code.checkcast[Interval](asm4s.coerce[AnyRef](wrapArg(r, iT)(i.value[Long])))

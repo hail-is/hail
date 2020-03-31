@@ -4,7 +4,6 @@ import is.hail.HailSuite
 import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.Properties
-import is.hail.utils._
 import org.testng.annotations.Test
 
 import scala.language.implicitConversions
@@ -38,11 +37,11 @@ class IndexBTreeSuite extends HailSuite {
         val maxLong = arrayRandomStarts.takeRight(1)(0)
         val index = tmpDir.createTempFile(prefix = "testBtree", extension = ".idx")
 
-        sFS.delete(index, true)
-        IndexBTree.write(arrayRandomStarts, index, sFS)
-        val btree = new IndexBTree(index, sFS)
+        fs.delete(index, true)
+        IndexBTree.write(arrayRandomStarts, index, fs)
+        val btree = new IndexBTree(index, fs)
 
-        val indexSize = sFS.getFileSize(index)
+        val indexSize = fs.getFileSize(index)
         val padding = 1024 - (arraySize % 1024)
         val numEntries = arraySize + padding + (1 until depth).map {
           math.pow(1024, _).toInt
@@ -80,9 +79,9 @@ class IndexBTreeSuite extends HailSuite {
     val fileSize = 30 //made-up value greater than index
     val idxFile = tmpDir.createTempFile(prefix = "testBtree_1variant", extension = ".idx")
 
-    sFS.delete(idxFile, recursive = true)
-    IndexBTree.write(index, idxFile, sFS)
-    val btree = new IndexBTree(idxFile, sFS)
+    fs.delete(idxFile, recursive = true)
+    IndexBTree.write(index, idxFile, fs)
+    val btree = new IndexBTree(idxFile, fs)
 
 
     intercept[IllegalArgumentException] {
@@ -101,8 +100,8 @@ class IndexBTreeSuite extends HailSuite {
     intercept[IllegalArgumentException] {
       val index = Array[Long]()
       val idxFile = tmpDir.createTempFile(prefix = "testBtree_0variant", extension = ".idx")
-      sFS.delete(idxFile, recursive = true)
-      IndexBTree.write(index, idxFile, sFS)
+      fs.delete(idxFile, recursive = true)
+      IndexBTree.write(index, idxFile, fs)
     }
   }
 
@@ -126,8 +125,8 @@ class IndexBTreeSuite extends HailSuite {
     IndexBTree.write(
       Array.tabulate(1024)(i => i),
       idxFile,
-      sFS)
-    val index = new IndexBTree(idxFile, sFS)
+      fs)
+    val index = new IndexBTree(idxFile, fs)
     assert(index.queryIndex(33).contains(33L))
   }
 
@@ -135,8 +134,8 @@ class IndexBTreeSuite extends HailSuite {
     val f = tmpDir.createTempFile(prefix = "btree")
     val v = Array[Long](1, 2, 3, 40, 50, 60, 70)
     val branchingFactor = 1024
-    IndexBTree.write(v, f, sFS, branchingFactor = branchingFactor)
-    val bt = new IndexBTree(f, sFS, branchingFactor = branchingFactor)
+    IndexBTree.write(v, f, fs, branchingFactor = branchingFactor)
+    val bt = new IndexBTree(f, fs, branchingFactor = branchingFactor)
     assert(bt.queryArrayPositionAndFileOffset(1).contains((0, 1)))
     assert(bt.queryArrayPositionAndFileOffset(2).contains((1, 2)))
     assert(bt.queryArrayPositionAndFileOffset(3).contains((2, 3)))
@@ -154,8 +153,8 @@ class IndexBTreeSuite extends HailSuite {
     val f = tmpDir.createTempFile(prefix = "btree")
     val v = Array.tabulate(1025)(x => sqr(x))
     val branchingFactor = 1024
-    IndexBTree.write(v, f, sFS, branchingFactor = branchingFactor)
-    val bt = new IndexBTree(f, sFS, branchingFactor = branchingFactor)
+    IndexBTree.write(v, f, fs, branchingFactor = branchingFactor)
+    val bt = new IndexBTree(f, fs, branchingFactor = branchingFactor)
     assert(bt.queryArrayPositionAndFileOffset(sqr(1022)).contains((1022, sqr(1022))))
 
     assert(bt.queryArrayPositionAndFileOffset(sqr(1022) + 1).contains((1023, sqr(1023))))
@@ -181,8 +180,8 @@ class IndexBTreeSuite extends HailSuite {
     val f = tmpDir.createTempFile(prefix = "btree")
     val v = Array.tabulate(1024 * 1024 + 1)(x => sqr(x))
     val branchingFactor = 1024
-    IndexBTree.write(v, f, sFS, branchingFactor = branchingFactor)
-    val bt = new IndexBTree(f, sFS, branchingFactor = branchingFactor)
+    IndexBTree.write(v, f, fs, branchingFactor = branchingFactor)
+    val bt = new IndexBTree(f, fs, branchingFactor = branchingFactor)
     assert(bt.queryArrayPositionAndFileOffset(sqr(1022)).contains((1022, sqr(1022))))
 
     assert(bt.queryArrayPositionAndFileOffset(sqr(1022) + 1).contains((1023, sqr(1023))))
@@ -216,8 +215,8 @@ class IndexBTreeSuite extends HailSuite {
     val v = Array[Long](1, 2, 3, 4, 5, 6, 7)
     val branchingFactor = 3
     try {
-      IndexBTree.write(v, f, sFS, branchingFactor)
-      val bt = new OnDiskBTreeIndexToValue(f, sFS, branchingFactor)
+      IndexBTree.write(v, f, fs, branchingFactor)
+      val bt = new OnDiskBTreeIndexToValue(f, fs, branchingFactor)
       assert(bt.positionOfVariants(Array()) sameElements Array[Long]())
       assert(bt.positionOfVariants(Array(5)) sameElements Array(6L))
 
@@ -243,8 +242,8 @@ class IndexBTreeSuite extends HailSuite {
     forAll(g) { case (indices, longs, branchingFactor) =>
       val f = tmpDir.createTempFile()
       try {
-        IndexBTree.write(longs, f, sFS, branchingFactor)
-        val bt = new OnDiskBTreeIndexToValue(f, sFS, branchingFactor)
+        IndexBTree.write(longs, f, fs, branchingFactor)
+        val bt = new OnDiskBTreeIndexToValue(f, fs, branchingFactor)
         val actual = bt.positionOfVariants(indices.toArray)
         val expected = indices.sorted.map(longs)
         assert(actual sameElements expected,
@@ -265,8 +264,8 @@ class IndexBTreeSuite extends HailSuite {
     val f = tmpDir.createTempFile()
     val branchingFactor = 3
     try {
-      IndexBTree.write(longs, f, sFS, branchingFactor)
-      val bt = new OnDiskBTreeIndexToValue(f, sFS, branchingFactor)
+      IndexBTree.write(longs, f, fs, branchingFactor)
+      val bt = new OnDiskBTreeIndexToValue(f, fs, branchingFactor)
       val expected = indices.sorted.map(longs)
       val actual = bt.positionOfVariants(indices.toArray)
       assert(actual sameElements expected,

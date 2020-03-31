@@ -164,7 +164,7 @@ class RowMatrix(val hc: HailContext,
         writeRow(sb, index, v)
         sb.result()
       }.filter(_.nonEmpty)
-    }.writeTable(hc.sFS, path, hc.tmpDir, header, exportType)
+    }.writeTable(hc.fs, path, hc.tmpDir, header, exportType)
   }
 }
 
@@ -189,7 +189,7 @@ class ReadBlocksAsRowsRDD(path: String,
   private val nBlockCols = gp.nBlockCols
   private val blockSize = gp.blockSize
 
-  private val bcFS = HailContext.bcFS
+  private val bcFS = HailContext.fsBc
 
   protected def getPartitions: Array[Partition] = Array.tabulate(partitionStarts.length - 1)(pi => 
     ReadBlocksAsRowsRDDPartition(pi, partitionStarts(pi), partitionStarts(pi + 1)))
@@ -214,7 +214,7 @@ class ReadBlocksAsRowsRDD(path: String,
               if (pi >= 0) {
                 val filename = path + "/parts/" + partFiles(pi)
 
-                val is = bcFS.value.unsafeReader(filename)
+                val is = bcFS.value.open(filename)
                 val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
 
                 val nColsInBlock = gp.blockColNCols(blockCol)

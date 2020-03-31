@@ -12,11 +12,11 @@ object FreeVariables {
         case StreamAggScan(a, name, query) =>
           val aE = compute(a, baseEnv)
           val qE = compute(query, baseEnv.copy(scan = Some(Env.empty)))
-          aE.merge(qE.copy(eval = qE.eval.bindIterable(qE.scan.get.m - name), scan = None))
+          aE.merge(qE.copy(eval = qE.eval.bindIterable(qE.scan.get.m - name), scan = baseEnv.scan))
         case StreamAgg(a, name, query) =>
           val aE = compute(a, baseEnv)
           val qE = compute(query, baseEnv.copy(agg = Some(Env.empty)))
-          aE.merge(qE.copy(eval = qE.eval.bindIterable(qE.agg.get.m - name), agg = None))
+          aE.merge(qE.copy(eval = qE.eval.bindIterable(qE.agg.get.m - name), agg = baseEnv.agg))
         case _ =>
           ir1.children
             .iterator
@@ -40,7 +40,7 @@ object FreeVariables {
     }
 
     compute(ir, BindingEnv(Env.empty,
-      if (supportsAgg) Some(Env.empty) else None,
-      if (supportsScan) Some(Env.empty) else None))
+      if (supportsAgg) Some(Env.empty[Unit]) else None,
+      if (supportsScan) Some(Env.empty[Unit]) else None))
   }
 }

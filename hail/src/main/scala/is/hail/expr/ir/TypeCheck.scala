@@ -286,10 +286,8 @@ object TypeCheck {
         assert(body.typ == TVoid)
       case x@StreamAgg(a, name, query) =>
         assert(a.typ.isInstanceOf[TStream])
-        assert(env.agg.isEmpty)
       case x@StreamAggScan(a, name, query) =>
         assert(a.typ.isInstanceOf[TStream])
-        assert(env.scan.isEmpty)
         assert(x.typ.asInstanceOf[TStream].elementType == query.typ)
       case x@RunAgg(body, result, _) =>
         assert(x.typ == result.typ)

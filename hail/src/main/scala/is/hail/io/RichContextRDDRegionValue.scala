@@ -92,11 +92,11 @@ object RichContextRDDRegionValue {
       } else
         (finalRowsPartPath, finalEntriesPartPath, finalIdxPath)
 
-    val rowCount = fs.writeFile(rowsPartPath) { rowsOS =>
+    val rowCount = using(fs.create(rowsPartPath)) { rowsOS =>
       val trackedRowsOS = new ByteTrackingOutputStream(rowsOS)
       using(makeRowsEnc(trackedRowsOS)) { rowsEN =>
 
-        fs.writeFile(entriesPartPath) { entriesOS =>
+        using(fs.create(entriesPartPath)) { entriesOS =>
           val trackedEntriesOS = new ByteTrackingOutputStream(entriesOS)
           using(makeEntriesEnc(trackedEntriesOS)) { entriesEN =>
             using(makeIndexWriter(fs, idxPath)) { iw =>

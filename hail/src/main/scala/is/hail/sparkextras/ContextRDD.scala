@@ -148,17 +148,9 @@ class ContextRDD[T: ClassTag](
 ) extends Serializable {
   type ElementType = ContextRDD.ElementType[T]
 
-  private[this] def sparkManagedContext(): RVDContext = {
-    val c = RVDContext.default
-    TaskContext.get().addTaskCompletionListener { (_: TaskContext) =>
-      c.close()
-    }
-    c
-  }
-
   def run[U >: T : ClassTag]: RDD[U] =
     rdd.mapPartitions { part =>
-      val c = sparkManagedContext()
+      val c = RVDContext.default
       part.flatMap(_(c))
     }
 
@@ -326,7 +318,7 @@ class ContextRDD[T: ClassTag](
     sparkContext.runJob(
       rdd,
       { (it: Iterator[ElementType]) =>
-        val c = sparkManagedContext()
+        val c = RVDContext.default
         f(it.flatMap(_(c)))
       },
       partitions)

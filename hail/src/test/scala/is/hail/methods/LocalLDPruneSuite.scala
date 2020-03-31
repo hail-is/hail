@@ -244,7 +244,7 @@ class LocalLDPruneSuite extends HailSuite {
       Array(1, 0, 1, 0, 2, 2, 1, 1).map(toC2)
     )
 
-    val actualR2 = new MultiArray2(7, 7, sFS.readLines("src/test/resources/ldprune_corrtest.txt")(_.flatMap(_.map { line =>
+    val actualR2 = new MultiArray2(7, 7, fs.readLines("src/test/resources/ldprune_corrtest.txt")(_.flatMap(_.map { line =>
       line.trim.split("\t").map(r2 => if (r2 == "NA") None else Some(r2.toDouble))
     }.value).toArray))
 

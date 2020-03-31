@@ -228,7 +228,7 @@ object TextTableReader {
     val TextTableReaderOptions(files, _, comment, separator, missing, hasHeader, impute, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ) = options
 
     val globbedFiles: Array[String] = {
-      val fs = HailContext.get.sFS
+      val fs = HailContext.get.fs
       val globbed = fs.globAll(files)
       if (globbed.isEmpty)
         fatal("arguments refer to no files")
@@ -246,7 +246,7 @@ object TextTableReader {
     val nPartitions: Int = options.nPartitions
 
     val firstFile = globbedFiles.head
-    val header = hc.sFS.readLines(firstFile, filterAndReplace) { lines =>
+    val header = hc.fs.readLines(firstFile, filterAndReplace) { lines =>
       val filt = lines.filter(line => !options.isComment(line.value) && !(skipBlankLines && line.value.isEmpty))
 
       if (filt.isEmpty)

@@ -1,0 +1,1 @@
+CREATE INDEX `batches_time_created` ON `batches` (`time_created`);

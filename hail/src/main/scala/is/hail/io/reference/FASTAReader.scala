@@ -41,8 +41,8 @@ object FASTAReader {
     val localFastaFile = tmpDir.createLocalTempFile(extension = "fasta")
     val uriLocalFastaFile = uriPath(localFastaFile)
 
-    fs.readFile(fastaFile) { in =>
-      fs.writeFile(localFastaFile) { out =>
+    using(fs.open(fastaFile)) { in =>
+      using(fs.create(localFastaFile)) { out =>
         IOUtils.copy(in, out)
       }}
 
@@ -64,7 +64,7 @@ object FASTAReader {
     if (capacity <= 0)
       fatal(s"'capacity' must be greater than 0. Found $capacity.")
 
-    new FASTAReader(hc.sFS, rg, fastaFile, indexFile, blockSize, capacity)
+    new FASTAReader(hc.fs, rg, fastaFile, indexFile, blockSize, capacity)
   }
 }
 

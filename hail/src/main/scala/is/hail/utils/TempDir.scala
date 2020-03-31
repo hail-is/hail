@@ -2,11 +2,9 @@ package is.hail.utils
 
 import java.io.IOException
 
-import org.apache.hadoop
-
 import scala.util.Random
 
-import is.hail.io.fs.{FS, FilePath}
+import is.hail.io.fs.FS
 
 object TempDir {
   def createTempDir(tmpdir: String, fs: FS): String = {
@@ -19,11 +17,10 @@ object TempDir {
         } else {
           fs.mkDir(dir)
 
-          val fileSystem = fs.fileSystem(tmpdir)
-          val qDir = fileSystem.makeQualified(dir)
-          fileSystem.deleteOnExit(qDir)
+          val qDir = fs.makeQualified(dir)
+          fs.deleteOnExit(qDir)
 
-          return qDir.toString
+          return qDir
         }
       } catch {
         case e: IOException =>

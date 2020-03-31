@@ -1,5 +1,7 @@
 package is.hail.expr.ir.functions
 
+import java.io.DataOutputStream
+
 import is.hail.HailContext
 import is.hail.expr.ir.{ExecuteContext, MatrixValue}
 import is.hail.expr.types.MatrixType
@@ -22,7 +24,7 @@ case class MatrixWriteBlockMatrix(path: String,
 
     val hc = HailContext.get
     val sc = hc.sc
-    val fs = hc.sFS
+    val fs = hc.fs
 
     val partStarts = partitionCounts.scanLeft(0L)(_ + _)
     assert(partStarts.length == rvd.getNumPartitions + 1)
@@ -49,7 +51,7 @@ case class MatrixWriteBlockMatrix(path: String,
     blockPartFiles.foreach { case (i, f) => partFiles(i) = f }
 
     // write metadata
-    fs.writeDataFile(path + BlockMatrix.metadataRelativePath) { os =>
+    using(new DataOutputStream(fs.create(path + BlockMatrix.metadataRelativePath))) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
         BlockMatrixMetadata(blockSize, nRows, localNCols, gp.maybeBlocks, partFiles),
@@ -59,7 +61,7 @@ case class MatrixWriteBlockMatrix(path: String,
     assert(blockCount == gp.numPartitions)
     info(s"Wrote all $blockCount blocks of $nRows x $localNCols matrix with block size $blockSize.")
 
-    fs.writeTextFile(path + "/_SUCCESS")(out => ())
+    using(fs.create(path + "/_SUCCESS"))(out => ())
 
     null
   }

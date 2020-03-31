@@ -43,7 +43,7 @@ object TextMatrixReader {
     nRowFields: Int,
     opts: TextMatrixReaderOptions
   ): HeaderInfo = {
-    val maybeFirstTwoLines = fs.readFile(file) { s =>
+    val maybeFirstTwoLines = using(fs.open(file)) { s =>
       Source.fromInputStream(s).getLines().filter(!opts.isComment(_)).take(2).toArray.toSeq }
 
     (opts.hasHeader, maybeFirstTwoLines) match {
@@ -205,7 +205,7 @@ case class TextMatrixReader(
   import TextMatrixReader._
   private[this] val hc = HailContext.get
   private[this] val sc = hc.sc
-  private[this] val fs = hc.sFS
+  private[this] val fs = hc.fs
 
   assert(separatorStr.length == 1)
   private[this] val separator = separatorStr.charAt(0)

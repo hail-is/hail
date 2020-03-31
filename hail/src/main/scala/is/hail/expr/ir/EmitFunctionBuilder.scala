@@ -151,11 +151,11 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder with WrappedCl
     body: (EmitMethodBuilder[_], Code[A1], Code[A2]) => Code[R]
   ): (Code[A1], Code[A2]) => Code[R] = ecb.wrapInEmitMethod[A1, A2, R](baseName, body)
 
-  def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
-    getFS.invoke[String, Boolean, InputStream]("unsafeReader", path, checkCodec)
+  def open(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+    getFS.invoke[String, Boolean, InputStream]("open", path, checkCodec)
 
-  def getUnsafeWriter(path: Code[String]): Code[OutputStream] =
-    getFS.invoke[String, OutputStream]("unsafeWriter", path)
+  def create(path: Code[String]): Code[OutputStream] =
+    getFS.invoke[String, OutputStream]("create", path)
 
   def genDependentFunction[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](
     baseName: String = null
@@ -338,11 +338,11 @@ class EmitClassBuilder[C](
       val confField = genFieldThisRef[FS]()
       val mb = newEmitMethod("addFS", Array(typeInfo[FS]), typeInfo[Unit])
       mb.emit(confField := mb.getArg[FS](1))
-      _hfs = HailContext.sFS
+      _hfs = HailContext.fs
       _hfield = confField
     }
 
-    assert(_hfs == HailContext.sFS && _hfield != null)
+    assert(_hfs == HailContext.fs && _hfield != null)
     _hfield.load()
   }
 

@@ -1,8 +1,9 @@
 """An experimental library for combining (g)VCFS into sparse matrix tables"""
 # these are necessary for the diver script included at the end of this file
 import argparse
-import time
+import math
 import uuid
+from typing import Optional, List, Dict, Tuple
 
 import hail as hl
 from hail import MatrixTable, Table
@@ -11,6 +12,7 @@ from hail.expr.expressions import expr_bool, expr_str
 from hail.genetics.reference_genome import reference_genome_type
 from hail.ir import Apply, TableMapRows, TopLevelReference
 from hail.typecheck import oneof, sequenceof, typecheck
+from hail.utils.java import info
 
 _transform_rows_function_map = {}
 _merge_function_map = {}
@@ -296,7 +298,7 @@ def calculate_new_intervals(ht, n, reference_genome='default'):
     return intervals
 
 @typecheck(reference_genome=reference_genome_type)
-def default_exome_intervals(reference_genome='default'):
+def default_exome_intervals(reference_genome='default') -> List[hl.utils.Interval]:
     """create a list of locus intervals suitable for importing and merging exome gvcfs. As exomes
     are small. One partition per chromosome works well here.
 
@@ -323,114 +325,241 @@ def default_exome_intervals(reference_genome='default'):
 
 # END OF VCF COMBINER LIBRARY, BEGINNING OF BEST PRACTICES SCRIPT #
 
-DEFAULT_REF = 'GRCh38'
-MAX_MULTI_WRITE_NUMBER = 100
-MAX_COMBINE_NUMBER = 100
-# The target number of rows per partition during each round of merging
-TARGET_RECORDS = 30_000
 
-def chunks(seq, size):
-    """iterate through a list size elements at a time"""
-    return (seq[pos:pos + size] for pos in range(0, len(seq), size))
+class Merge(object):
+    def __init__(self,
+                 inputs: List[int],
+                 input_total_size: int):
+        self.inputs: List[int] = inputs
+        self.input_total_size: int = input_total_size
 
 
-def stage_one(paths, sample_names, tmp_path, intervals, header, out_path):
-    """stage one of the combiner, responsible for importing gvcfs, transforming them
-       into what the combiner expects, and writing intermediates."""
-    def h(paths, sample_names, tmp_path, intervals, header, out_path, i, first):
-        vcfs = [transform_gvcf(vcf)
-                for vcf in hl.import_gvcfs(paths, intervals, array_elements_required=False,
-                                           _external_header=header,
-                                           _external_sample_ids=sample_names if header is not None else None)]
-        combined = [combine_gvcfs(mts) for mts in chunks(vcfs, MAX_COMBINE_NUMBER)]
-        if first and len(paths) <= MAX_COMBINE_NUMBER:  # only 1 item, just write it, unless we have already written other items
-            combined[0].write(out_path, overwrite=True)
-            return []
-        pad = len(str(len(combined)))
-        hl.experimental.write_matrix_tables(combined, tmp_path + f'{i}/', overwrite=True)
-        return [tmp_path + f'{i}/' + str(n).zfill(pad) + '.mt' for n in range(len(combined))]
+class Job(object):
+    def __init__(self, merges: List[Merge]):
+        self.merges: List[Merge] = merges
+        self.input_total_size = sum(m.input_total_size for m in merges)
 
-    assert len(paths) == len(sample_names)
-    tmp_path += f'{uuid.uuid4()}/'
-    out_paths = []
-    i = 0
-    size = MAX_MULTI_WRITE_NUMBER * MAX_COMBINE_NUMBER
-    first = True
-    for pos in range(0, len(paths), size):
-        tmp = h(paths[pos:pos + size], sample_names[pos:pos + size], tmp_path, intervals, header,
-                out_path, i, first)
-        if not tmp:
-            return tmp
-        out_paths.extend(tmp)
-        first = False
-        i += 1
-    return out_paths
 
-def run_combiner(sample_names, sample_paths, intervals, out_file, tmp_path, header, overwrite):
+class Phase(object):
+    def __init__(self, jobs: List[Job]):
+        self.jobs: List[Job] = jobs
+
+
+class CombinerPlan(object):
+    def __init__(self,
+                 file_size: List[List[int]],
+                 phases: List[Phase]):
+        self.file_size = file_size
+        self.phases = phases
+        self.merge_per_phase = len(file_size[0])
+        self.total_merge = self.merge_per_phase * len(phases)
+
+class CombinerConfig(object):
+    default_branch_factor = 100
+    default_batch_size = 100
+    default_target_records = 30_000
+
+    def __init__(self,
+                 branch_factor: int = default_branch_factor,
+                 batch_size: int = default_batch_size,
+                 target_records: int = default_target_records):
+        self.branch_factor: int = branch_factor
+        self.batch_size: int = batch_size
+        self.target_records: int = target_records
+
+
+    @classmethod
+    def default(cls) -> 'CombinerConfig':
+        return CombinerConfig()
+
+    def plan(self, n_inputs: int) -> CombinerPlan:
+        assert n_inputs > 0
+
+        def int_ceil(x):
+            return int(math.ceil(x))
+
+        tree_height = int_ceil(math.log(n_inputs, self.branch_factor))
+        phases: List[Phase] = []
+        file_size: List[List[int]] = [] # List of file size per phase
+
+        file_size.append([1 for _ in range(n_inputs)])
+        while len(file_size[-1]) > 1:
+            last_stage_files = file_size[-1]
+            n = len(last_stage_files)
+            i = 0
+            jobs = []
+            while (i < n):
+                job = []
+                job_i = 0
+                while job_i < self.batch_size and i < n:
+                    merge = []
+                    merge_i = 0
+                    merge_size = 0
+                    while merge_i < self.branch_factor and i < n:
+                        merge_size += last_stage_files[i]
+                        merge.append(i)
+                        merge_i += 1
+                        i += 1
+                    job.append(Merge(merge, merge_size))
+                    job_i += 1
+                jobs.append(Job(job))
+            file_size.append([merge.input_total_size for job in jobs for merge in job.merges])
+            phases.append(Phase(jobs))
+
+        assert len(phases) == tree_height
+        for layer in file_size:
+            assert sum(layer) == n_inputs
+
+        phase_strs = []
+        total_jobs = 0
+        for i, phase in enumerate(phases):
+            n = len(phase.jobs)
+            job_str = hl.utils.misc.plural('job', n)
+            n_files_produced = len(file_size[i + 1])
+            adjective = 'final' if n_files_produced == 1 else 'intermediate'
+            file_str = hl.utils.misc.plural('file', n_files_produced)
+            phase_strs.append(f'\n        Phase {i+1}: {n} {job_str} corresponding to {n_files_produced} {adjective} output {file_str}.')
+            total_jobs += n
+
+        info(f"GVCF combiner plan:\n"
+             f"    Branch factor: {self.branch_factor}\n"
+             f"    Batch size: {self.batch_size}\n"
+             f"    Combining {n_inputs} input files in {tree_height} phases with {total_jobs} total jobs.{''.join(phase_strs)}\n")
+        return CombinerPlan(file_size, phases)
+
+
+def run_combiner(sample_names: List[str],
+                 sample_paths: List[str],
+                 out_file: str,
+                 tmp_path: str,
+                 intervals: Optional[List[hl.utils.Interval]] = None,
+                 header: Optional[str] = None,
+                 branch_factor: int = CombinerConfig.default_branch_factor,
+                 batch_size: int = CombinerConfig.default_batch_size,
+                 target_records: int = CombinerConfig.default_target_records,
+                 overwrite: bool = False):
     tmp_path += f'/combiner-temporary/{uuid.uuid4()}/'
     assert len(sample_names) == len(sample_paths)
-    out_paths = stage_one(sample_paths, sample_names, tmp_path, intervals, header, out_file)
-    if not out_paths:
-        return
-    tmp_path += f'{uuid.uuid4()}/'
 
-    ht = hl.read_matrix_table(out_paths[0]).rows()
-    intervals = calculate_new_intervals(ht, TARGET_RECORDS)
+    # FIXME: this should be hl.default_reference().even_intervals_contig_boundary
+    intervals = intervals or default_exome_intervals()
 
-    mts = [hl.read_matrix_table(path, _intervals=intervals) for path in out_paths]
-    combined_mts = [combine_gvcfs(mt) for mt in chunks(mts, MAX_COMBINE_NUMBER)]
-    i = 0
-    while len(combined_mts) > 1:
-        tmp = tmp_path + f'{i}/'
-        pad = len(str(len(combined_mts)))
-        hl.experimental.write_matrix_tables(combined_mts, tmp, overwrite=True)
-        paths = [tmp + str(n).zfill(pad) + '.mt' for n in range(len(combined_mts))]
+    config = CombinerConfig(branch_factor=branch_factor,
+                            batch_size=batch_size,
+                            target_records=target_records)
+    plan = config.plan(len(sample_names))
 
-        ht = hl.read_matrix_table(out_paths[0]).rows()
-        intervals = calculate_new_intervals(ht, TARGET_RECORDS)
+    files_to_merge = sample_paths
+    n_phases = len(plan.phases)
+    total_ops = len(files_to_merge) * n_phases
+    total_work_done = 0
+    for phase_i, phase in enumerate(plan.phases):
+        phase_i += 1  # used for info messages, 1-indexed for readability
 
-        mts = [hl.read_matrix_table(path, _intervals=intervals) for path in paths]
-        combined_mts = [combine_gvcfs(mts) for mt in chunks(mts, MAX_COMBINE_NUMBER)]
-        i += 1
-    combined_mts[0].write(out_file, overwrite=overwrite)
+        n_jobs = len(phase.jobs)
+        merge_str = 'input GVCFs' if phase_i == 1 else 'intermediate sparse matrix tables'
+        job_str = hl.utils.misc.plural('job', n_jobs)
+        info(f"Starting phase {phase_i}/{n_phases}, merging {len(files_to_merge)} {merge_str} in {n_jobs} {job_str}.")
 
-def drive_combiner(sample_map_path, intervals, out_file, tmp_path, header, overwrite=False):
-    with open(sample_map_path) as sample_map:
-        samples = [l.strip().split('\t') for l in sample_map]
-    sample_names, sample_paths = [list(x) for x in zip(*samples)]
-    sample_names = [[n] for n in sample_names]
-    run_combiner(sample_names, sample_paths, intervals, out_file, tmp_path, header, overwrite)
+        if phase_i > 1:
+            intervals = calculate_new_intervals(hl.read_matrix_table(files_to_merge[0]).rows(), config.target_records)
+
+        new_files_to_merge = []
+
+        for job_i, job in enumerate(phase.jobs):
+            job_i += 1  # used for info messages, 1-indexed for readability
+
+            n_merges = len(job.merges)
+            merge_str = hl.utils.misc.plural('file', n_merges)
+            pct_total = 100 * job.input_total_size / total_ops
+            info(f"Starting job {job_i}/{len(phase.jobs)} to create {n_merges} merged {merge_str}, corresponding to ~{pct_total:.1f}% of total I/O.")
+            merge_mts: List[MatrixTable] = []
+            for merge in job.merges:
+                inputs = [files_to_merge[i] for i in merge.inputs]
+
+                if phase_i == 1:
+                    mts = [transform_gvcf(vcf)
+                           for vcf in hl.import_gvcfs(inputs, intervals, array_elements_required=False,
+                                                      _external_header=header,
+                                                      _external_sample_ids=[sample_paths[i] for i in merge.inputs] if header is not None else None)]
+                else:
+                    mts = [hl.read_matrix_table(path, _intervals=intervals) for path in inputs]
+
+                merge_mts.append(combine_gvcfs(mts))
+
+            if phase_i == n_phases: # final merge!
+                assert n_jobs == 1
+                assert len(merge_mts) == 1
+                [final_mt] = merge_mts
+                final_mt.write(out_file, overwrite=overwrite)
+                new_files_to_merge = [out_file]
+                info(f"Finished job {job_i}/{len(phase.jobs)}, {100 * total_work_done / total_ops}% of total I/O finished.")
+                break
+
+            tmp = f'{tmp_path}_phase{phase_i}_job{job_i}/'
+            hl.experimental.write_matrix_tables(merge_mts, tmp, overwrite=True)
+            pad = len(str(len(merge_mts)))
+            new_files_to_merge.extend(tmp + str(n).zfill(pad) + '.mt' for n in range(len(merge_mts)))
+            total_work_done += job.input_total_size
+            info(f"Finished job {job_i}/{len(phase.jobs)}, {100 * total_work_done / total_ops}% of total I/O finished.")
+
+        info(f"Finished phase {phase_i}/{n_phases}.")
+
+        files_to_merge = new_files_to_merge
+
+    assert files_to_merge == [out_file]
+
+    info("Finished!")
+
+def parse_sample_mapping(sample_map_path: str) -> Tuple[List[str], List[str]]:
+    sample_names: List[str] = list()
+    sample_paths: List[str] = list()
+
+    with hl.hadoop_open(sample_map_path) as f:
+        for line in f:
+            [name, path] = line.strip().split('\t')
+            sample_names.append(name)
+            sample_paths.append(path)
+
+    return sample_names, sample_paths
 
 def main():
     parser = argparse.ArgumentParser(description="Driver for hail's GVCF combiner")
     parser.add_argument('sample_map',
-                        help='path to the sample map (must be readable by this script). '
-                             'The sample map should be tab separated with two columns. '
+                        help='path to the sample map, a tab-separated file with two columns. '
                              'The first column is the sample ID, and the second column '
                              'is the GVCF path.')
     parser.add_argument('out_file', help='path to final combiner output')
     parser.add_argument('--tmp-path', help='path to folder for intermediate output (can be a cloud bucket)',
                         default='/tmp')
-    parser.add_argument('--log', help='path to hail log file',
-                        default='/hail-joint-caller-' + time.strftime('%Y%m%d-%H%M') + '.log')
+    parser.add_argument('--log', help='path to hail log file')
     parser.add_argument('--header',
                         help='external header, must be readable by all executors. '
                              'WARNING: if this option is used, the sample names in the '
                              'gvcfs will be overridden by the names in sample map.',
                         required=False)
+    parser.add_argument('--branch-factor', type=int, default=CombinerConfig.default_branch_factor, help='Branch factor.')
+    parser.add_argument('--batch-size', type=int, default=CombinerConfig.default_batch_size, help='Batch size.')
+    parser.add_argument('--target-records', type=int, default=CombinerConfig.default_target_records, help='Target records per partition.')
     parser.add_argument('--overwrite', help='overwrite the output path', action='store_true')
+    parser.add_argument('--reference-genome', default='GRCh38', help='Reference genome.')
     args = parser.parse_args()
-    hl.init(default_reference=DEFAULT_REF,
+    hl.init(default_reference=args.reference_genome,
             log=args.log)
 
-    # NOTE: This will need to be changed to support genomes as well
-    intervals = default_exome_intervals()
-    with open(args.sample_map) as sample_map:
-        samples = [l.strip().split('\t') for l in sample_map]
     if not args.overwrite and hl.utils.hadoop_exists(args.out_file):
         raise FileExistsError(f"path '{args.out_file}' already exists, use --overwrite to overwrite this path")
 
-    drive_combiner(samples, intervals, args.out_file, args.tmp_path, args.header, args.overwrite)
+    sample_names, sample_paths = parse_sample_mapping(args.sample_map)
+    run_combiner(sample_names,
+                 sample_paths,
+                 args.out_file,
+                 args.tmp_path,
+                 header=args.header,
+                 batch_size=args.batch_size,
+                 branch_factor=args.branch_factor,
+                 target_records=args.target_records,
+                 overwrite=args.overwrite)
 
 
 if __name__ == '__main__':

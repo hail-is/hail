@@ -3,7 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.asm4s
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.{PString, PTuple, PType}
+import is.hail.expr.types.physical.{PBoolean, PCanonicalString, PFloat32, PFloat64, PInt32, PInt64, PString, PTuple, PType}
 import is.hail.utils._
 import is.hail.expr.types.virtual._
 import org.apache.spark.sql.Row
@@ -125,7 +125,9 @@ object UtilFunctions extends RegistryFunctions {
   def registerAll() {
     val thisClass = getClass
 
-    registerCode("valuesSimilar", tv("T"), tv("U"), TFloat64, TBoolean, TBoolean, null) {
+    registerCode("valuesSimilar", tv("T"), tv("U"), TFloat64, TBoolean, TBoolean, {
+      case(_: PType, _: PType, _: PType, _: PType) => PBoolean()
+    }) {
       case (er, rt, (lT, l), (rT, r), (tolT, tolerance), (absT, absolute)) =>
         assert(lT.virtualType == rT.virtualType)
         val lb = boxArg(er, lT)(l)
@@ -133,36 +135,36 @@ object UtilFunctions extends RegistryFunctions {
         er.mb.getType(lT.virtualType).invoke[Any, Any, Double, Boolean, Boolean]("valuesSimilar", lb, rb, tolerance, absolute)
     }
 
-    registerCode[Int]("triangle", TInt32, TInt32, null) { case (_, rt, (nT, n: Code[Int])) =>
+    registerCode[Int]("triangle", TInt32, TInt32, (n: PType) => n) { case (_, rt, (nT, n: Code[Int])) =>
       Code.memoize(n, "triangle_n") { n =>
         (n * (n + 1)) / 2
       }
     }
 
-    registerCode[Boolean]("toInt32", TBoolean, TInt32, null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI }
-    registerCode[Boolean]("toInt64", TBoolean, TInt64, null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI.toL }
-    registerCode[Boolean]("toFloat32", TBoolean, TFloat32, null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI.toF }
-    registerCode[Boolean]("toFloat64", TBoolean, TFloat64, null) { case (_, rt, (xT, x: Code[Boolean])) => x.toI.toD }
+    registerCode[Boolean]("toInt32", TBoolean, TInt32, (_: PType) => PInt32()) { case (_, rt, (xT, x: Code[Boolean])) => x.toI }
+    registerCode[Boolean]("toInt64", TBoolean, TInt64, (_: PType) => PInt64()) { case (_, rt, (xT, x: Code[Boolean])) => x.toI.toL }
+    registerCode[Boolean]("toFloat32", TBoolean, TFloat32, (_: PType) => PFloat32()) { case (_, rt, (xT, x: Code[Boolean])) => x.toI.toF }
+    registerCode[Boolean]("toFloat64", TBoolean, TFloat64, (_: PType) => PFloat64()) { case (_, rt, (xT, x: Code[Boolean])) => x.toI.toD }
 
-    for ((name, t, ct) <- Seq[(String, Type, ClassTag[_])](
-      ("Boolean", TBoolean, implicitly[ClassTag[Boolean]]),
-      ("Int32", TInt32, implicitly[ClassTag[Int]]),
-      ("Int64", TInt64, implicitly[ClassTag[Long]]),
-      ("Float64", TFloat64, implicitly[ClassTag[Double]]),
-      ("Float32", TFloat32, implicitly[ClassTag[Float]])
+    for ((name, t, rpt, ct) <- Seq[(String, Type, PType, ClassTag[_])](
+      ("Boolean", TBoolean, PBoolean(), implicitly[ClassTag[Boolean]]),
+      ("Int32", TInt32, PInt32(), implicitly[ClassTag[Int]]),
+      ("Int64", TInt64, PInt64(), implicitly[ClassTag[Long]]),
+      ("Float64", TFloat64, PFloat64(), implicitly[ClassTag[Double]]),
+      ("Float32", TFloat32, PFloat32(), implicitly[ClassTag[Float]])
     )) {
       val ctString: ClassTag[String] = implicitly
-      registerCode(s"to$name", TString, t, null) {
+      registerCode(s"to$name", TString, t, (_: PType) => rpt) {
         case (r, rt, (xT: PString, x: Code[Long])) =>
           val s = asm4s.coerce[String](wrapArg(r, xT)(x))
           Code.invokeScalaObject(thisClass, s"parse$name", s)(ctString, ct)
       }
-      registerCodeWithMissingness(s"to${name}OrMissing", TString, t, null) {
-        case (r, rt, (xT: PString, x: EmitCode)) =>
+      registerCodeWithMissingness(s"to${name}OrMissing", TString, t, (xPT: PType) => rpt.setRequired(xPT.required)) {
+        case (r, rt, x) =>
           val s = r.mb.newLocal[String]()
           val m = r.mb.newLocal[Boolean]()
           EmitCode(
-            Code(x.setup, m := x.m, s := m.mux(Code._null[String], asm4s.coerce[String](wrapArg(r, xT)(x.v)))),
+            Code(x.setup, m := x.m, s := m.mux(Code._null[String], asm4s.coerce[String](wrapArg(r, x.pt)(x.v)))),
             (m || !Code.invokeScalaObject[String, Boolean](thisClass, s"isValid$name", s)),
             PCode(rt, Code.invokeScalaObject(thisClass, s"parse$name", s)(ctString, ct)))
       }
@@ -174,12 +176,16 @@ object UtilFunctions extends RegistryFunctions {
     }
 
     Array("min", "max").foreach { name =>
-      registerCode(name, TFloat32, TFloat32, TFloat32, null) {
+      registerCode(name, TFloat32, TFloat32, TFloat32, {
+        case(_: PType, _: PType) => PFloat32()
+      }) {
         case (r, rt, (t1, v1: Code[Float]), (t2, v2: Code[Float])) =>
           Code.invokeStatic[Math, Float, Float, Float](name, v1, v2)
       }
 
-      registerCode(name, TFloat64, TFloat64, TFloat64, null) {
+      registerCode(name, TFloat64, TFloat64, TFloat64, {
+        case(_: PType, _: PType) => PFloat64()
+      }) {
         case (r, rt, (t1, v1: Code[Double]), (t2, v2: Code[Double])) =>
           Code.invokeStatic[Math, Double, Double, Double](name, v1, v2)
       }
@@ -188,12 +194,16 @@ object UtilFunctions extends RegistryFunctions {
       val ignoreNanName = "nan" + name
       val ignoreBothName = ignoreNanName + "_ignore_missing"
 
-      registerCode(ignoreNanName, TFloat32, TFloat32, TFloat32, null) {
+      registerCode(ignoreNanName, TFloat32, TFloat32, TFloat32, {
+        case(_: PType, _: PType) => PFloat32()
+      }) {
         case (r, rt, (t1, v1: Code[Float]), (t2, v2: Code[Float])) =>
           Code.invokeScalaObject[Float, Float, Float](thisClass, ignoreNanName, v1, v2)
       }
 
-      registerCode(ignoreNanName, TFloat64, TFloat64, TFloat64, null) {
+      registerCode(ignoreNanName, TFloat64, TFloat64, TFloat64, {
+        case(_: PType, _: PType) => PFloat64()
+      }) {
         case (r, rt, (t1, v1: Code[Double]), (t2, v2: Code[Double])) =>
           Code.invokeScalaObject[Double, Double, Double](thisClass, ignoreNanName, v1, v2)
       }
@@ -209,40 +219,56 @@ object UtilFunctions extends RegistryFunctions {
             m2.mux(coerce[T](defaultValue(ti)), v2.value[T]), m2)))
       }
 
-      registerCodeWithMissingness(ignoreMissingName, TInt32, TInt32, TInt32, null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Int](rt, v1, v2, ignoreMissingName)
+      registerCodeWithMissingness(ignoreMissingName, TInt32, TInt32, TInt32, {
+        case(t1: PType, t2: PType) => PInt32(t1.required && t2.required)
+      }) {
+        case (r, rt, v1, v2) => ignoreMissingTriplet[Int](rt, v1, v2, ignoreMissingName)
       }
 
-      registerCodeWithMissingness(ignoreMissingName, TInt64, TInt64, TInt64, null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Long](rt, v1, v2, ignoreMissingName)
+      registerCodeWithMissingness(ignoreMissingName, TInt64, TInt64, TInt64, {
+        case(t1: PType, t2: PType) => PInt64(t1.required && t2.required)
+      }) {
+        case (r, rt, v1, v2) => ignoreMissingTriplet[Long](rt, v1, v2, ignoreMissingName)
       }
 
-      registerCodeWithMissingness(ignoreMissingName, TFloat32, TFloat32, TFloat32, null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Float](rt, v1, v2, ignoreMissingName)
+      registerCodeWithMissingness(ignoreMissingName, TFloat32, TFloat32, TFloat32, {
+        case(t1: PType, t2: PType) => PFloat32(t1.required && t2.required)
+      }) {
+        case (r, rt, v1, v2) => ignoreMissingTriplet[Float](rt, v1, v2, ignoreMissingName)
       }
 
-      registerCodeWithMissingness(ignoreMissingName, TFloat64, TFloat64, TFloat64, null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Double](rt, v1, v2, ignoreMissingName)
+      registerCodeWithMissingness(ignoreMissingName, TFloat64, TFloat64, TFloat64, {
+        case(t1: PType, t2: PType) => PFloat64(t1.required && t2.required)
+      }) {
+        case (r, rt, v1, v2) => ignoreMissingTriplet[Double](rt, v1, v2, ignoreMissingName)
       }
 
-      registerCodeWithMissingness(ignoreBothName, TFloat32, TFloat32, TFloat32, null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Float](rt, v1, v2, ignoreBothName)
+      registerCodeWithMissingness(ignoreBothName, TFloat32, TFloat32, TFloat32, {
+        case(t1: PType, t2: PType) => PFloat32(t1.required && t2.required)
+      }) {
+        case (r, rt, v1, v2) => ignoreMissingTriplet[Float](rt, v1, v2, ignoreBothName)
       }
 
-      registerCodeWithMissingness(ignoreBothName, TFloat64, TFloat64, TFloat64, null) {
-        case (r, rt, (t1, v1), (t2, v2)) => ignoreMissingTriplet[Double](rt, v1, v2, ignoreBothName)
+      registerCodeWithMissingness(ignoreBothName, TFloat64, TFloat64, TFloat64, {
+        case(t1: PType, t2: PType) => PFloat64(t1.required && t2.required)
+      }) {
+        case (r, rt, v1, v2) => ignoreMissingTriplet[Double](rt, v1, v2, ignoreBothName)
       }
     }
 
-    registerCode("format", TString, tv("T", "tuple"), TString, null) {
+    registerCode("format", TString, tv("T", "tuple"), TString, {
+      case(_: PType, _: PType) => PCanonicalString()
+    }) {
       case (r, rt, (fmtT: PString, format: Code[Long]), (argsT: PTuple, args: Code[Long])) =>
         unwrapReturn(r, rt)(Code.invokeScalaObject[String, Row, String](thisClass, "format",
           asm4s.coerce[String](wrapArg(r, fmtT)(format)),
           Code.checkcast[Row](asm4s.coerce[java.lang.Object](wrapArg(r, argsT)(args)))))
     }
 
-    registerCodeWithMissingness("land", TBoolean, TBoolean, TBoolean, null) {
-      case (er, rt, (lT, l), (rT, r)) =>
+    registerCodeWithMissingness("land", TBoolean, TBoolean, TBoolean, {
+      case(_: PType, _: PType) => PBoolean()
+    }) {
+      case (er, rt, l, r) =>
         val lv = l.value[Boolean]
         val rv = r.value[Boolean]
 
@@ -271,8 +297,10 @@ object UtilFunctions extends RegistryFunctions {
           PCode(rt, w.ceq(10)))
     }
 
-    registerCodeWithMissingness("lor", TBoolean, TBoolean, TBoolean, null) {
-      case (er, rt, (lT, l), (rT, r)) =>
+    registerCodeWithMissingness("lor", TBoolean, TBoolean, TBoolean, {
+      case(_: PType, _: PType) => PBoolean()
+    }) {
+      case (er, rt, l, r) =>
         val lv = l.value[Boolean]
         val rv = r.value[Boolean]
 

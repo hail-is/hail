@@ -39,12 +39,12 @@ object AbstractRVDSpec {
 
   def read(fs: is.hail.io.fs.FS, path: String): AbstractRVDSpec = {
     val metadataFile = path + "/metadata.json.gz"
-    fs.readFile(metadataFile) { in => JsonMethods.parse(in) }
+    using(fs.open(metadataFile)) { in => JsonMethods.parse(in) }
       .transformField { case ("orvdType", value) => ("rvdType", value) } // ugh
       .extract[AbstractRVDSpec]
   }
 
-  def read(hc: HailContext, path: String): AbstractRVDSpec = read(hc.sFS, path)
+  def read(hc: HailContext, path: String): AbstractRVDSpec = read(hc.fs, path)
 
   def readLocal(hc: HailContext,
     path: String,
@@ -54,12 +54,12 @@ object AbstractRVDSpec {
     r: Region): (PStruct, Long) = {
     assert(partFiles.length == 1)
 
-    val fs = hc.sFS
+    val fs = hc.fs
 
     val (rType: PStruct, dec) = enc.buildDecoder(requestedType)
 
     val f = partPath(path, partFiles(0))
-    fs.readFile(f) { in =>
+    using(fs.open(f)) { in =>
       val Array(rv) = HailContext.readRowsPartition(dec)(r, in).toArray
       (rType, rv.offset)
     }
@@ -84,7 +84,7 @@ object AbstractRVDSpec {
     val codecSpec = TypedCodecSpec(rowType, bufferSpec)
 
     val part0Count =
-      fs.writeFile(partsPath + "/" + filePath) { os =>
+      using(fs.create(partsPath + "/" + filePath)) { os =>
         using(RVDContext.default) { ctx =>
           val rvb = ctx.rvb
           val region = ctx.region
@@ -187,7 +187,7 @@ abstract class AbstractRVDSpec {
     AbstractRVDSpec.readLocal(hc, path, typedCodecSpec, partFiles, requestedType, r)
 
   def write(fs: FS, path: String) {
-    fs.writeTextFile(path + "/metadata.json.gz") { out =>
+    using(fs.create(path + "/metadata.json.gz")) { out =>
       import AbstractRVDSpec.formats
       Serialization.write(this, out)
     }

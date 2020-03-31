@@ -19,6 +19,11 @@ object CodeBuilder {
     val (cbcode, retcode) = CodeBuilder.scoped(mb)(f)
     Code(cbcode, retcode)
   }
+
+  def scopedVoid[T](mb: MethodBuilder[_])(f: (CodeBuilder) => Unit): Code[Unit] = {
+    val (cbcode, _) = CodeBuilder.scoped(mb)(f)
+    cbcode
+  }
 }
 
 trait CodeBuilderLike {
@@ -94,6 +99,10 @@ trait CodeBuilderLike {
 
   def _fatal(msg: Code[String]): Unit = {
     append(Code._fatal[Unit](msg))
+  }
+
+  def _throw[T <: java.lang.Throwable](cerr: Code[T]): Unit = {
+    append(Code._throw[T, Unit](cerr))
   }
 }
 

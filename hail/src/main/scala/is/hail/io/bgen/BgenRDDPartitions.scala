@@ -28,9 +28,7 @@ trait BgenPartition extends Partition {
   def bcFS: Broadcast[FS]
 
   def makeInputStream: HadoopFSDataBinaryReader = {
-    val fileSystem = bcFS.value.fileSystem(path)
-    val bfis = new HadoopFSDataBinaryReader(fileSystem.open)
-    bfis
+    new HadoopFSDataBinaryReader(bcFS.value.openNoCompression(path))
   }
 
   def recodeContig(contig: String): String = contigRecoding.getOrElse(contig, contig)
@@ -91,8 +89,8 @@ object BgenRDDPartitions extends Logging {
     keyType: Type
   ): (Array[Partition], Array[Interval]) = {
     val hc = HailContext.get
-    val fs = hc.sFS
-    val bcFS = hc.bcFS
+    val fs = hc.fs
+    val bcFS = hc.fsBc
 
     val fileRangeBounds = checkFilesDisjoint(fs, files, keyType)
     val intervalOrdering = TInterval(keyType).ordering

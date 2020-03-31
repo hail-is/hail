@@ -11,7 +11,7 @@ import zulip
 from hailtop.config import get_deploy_config
 from hailtop.batch_client.aioclient import Batch
 from hailtop.utils import check_shell, check_shell_output, RETRY_FUNCTION_SCRIPT
-from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
+from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS, GITHUB_STATUS_CONTEXT
 from .build import BuildConfiguration, Code
 from .globals import is_test_deployment
 
@@ -176,8 +176,13 @@ class PR(Code):
         self.batch = None
         self.source_sha_failed = None
 
-        # error, success, failure
+        # 'error', 'success', 'failure', None
         self._build_state = None
+
+        # the build_state as communicated to GitHub:
+        # 'failure', 'success', 'pending'
+        self.intended_github_status = self.github_status_from_build_state()
+        self.last_known_github_status = None
 
         # don't need to set github_changed because we are refreshing github
         self.target_branch.batch_changed = True
@@ -271,7 +276,7 @@ class PR(Code):
             'sha': self.sha
         }
 
-    def github_status(self):
+    def github_status_from_build_state(self):
         if self.build_state == 'failure' or self.build_state == 'error':
             return 'failure'
         if (self.build_state == 'success' and
@@ -289,7 +294,7 @@ class PR(Code):
             'target_url': f'https://ci.hail.is/watched_branches/{self.target_branch.index}/pr/{self.number}',
             # FIXME improve
             'description': gh_status,
-            'context': 'ci-test'
+            'context': GITHUB_STATUS_CONTEXT
         }
         try:
             await gh_client.post(
@@ -299,6 +304,32 @@ class PR(Code):
             log.info(f'{self.short_str()}: notify github of build state failed due to exception: {e}')
         except aiohttp.client_exceptions.ClientResponseError as e:
             log.error(f'{self.short_str()}: Unexpected exception in post to github: {e}')
+
+    async def _update_github(self, gh):
+        await self._update_last_known_github_status(gh)
+        await self._update_github_review_state(gh)
+
+    @staticmethod
+    def _hail_github_status_from_statuses(statuses_json):
+        statuses = statuses_json["statuses"]
+        hail_status = [s for s in statuses if s["context"] == GITHUB_STATUS_CONTEXT]
+        n_hail_status = len(hail_status)
+        if n_hail_status == 0:
+            return None
+        if n_hail_status == 1:
+            return hail_status[1]
+        raise ValueError(
+            f'github sent multiple status summaries for our one '
+            'context {GITHUB_STATUS_CONTEXT}: {hail_status}\n\n{statuses_json}')
+
+    async def _update_last_known_github_status(self, gh):
+        if self.source_sha:
+            source_sha_json = await gh.get(
+                f'/repos/{self.target_branch.branch.repo.short_str()}/commits/{self.source_sha}/status')
+            last_known_github_status = PR._hail_github_status_from_statuses(source_sha_json)
+            if last_known_github_status != self.last_known_github_status:
+                self.last_known_github_status = last_known_github_status
+                self.target_branch.state_changed = True
 
     async def _update_github_review_state(self, gh):
         latest_state_by_login = {}
@@ -433,10 +464,20 @@ mkdir -p {shq(repo_dir)}
                     self.source_sha_failed = True
                 self.target_branch.state_changed = True
 
-    async def _heal(self, batch_client, dbpool, on_deck):
+            intended_github_status = self.github_status_from_build_state()
+            if intended_github_status != self.intended_github_status:
+                self.intended_github_status = intended_github_status
+                self.target_branch.state_chagned = True
+
+    async def _heal(self, batch_client, dbpool, on_deck, gh):
         # can't merge target if we don't know what it is
         if self.target_branch.sha is None:
             return
+
+        if self.source_sha:
+            if self.intended_github_status != self.last_known_github_status:
+                await self.post_github_status(gh, self.intended_github_status)
+                self.last_known_github_status = self.intended_github_status
 
         if not await self.authorized(dbpool):
             return
@@ -500,7 +541,6 @@ class WatchedBranch(Code):
         self.batch_changed = True
         self.state_changed = True
 
-        self.statuses = {}
         self.n_running_batches = None
 
     @property
@@ -558,23 +598,20 @@ class WatchedBranch(Code):
                 if self.github_changed:
                     self.github_changed = False
                     await self._update_github(gh)
-                    await self.try_to_merge(gh)
 
                 if self.batch_changed:
                     self.batch_changed = False
                     await self._update_batch(batch_client)
-                    await self.try_to_merge(gh)
 
                 if self.state_changed:
                     self.state_changed = False
-                    await self._heal(batch_client, dbpool)
-            await self.update_statuses(gh)
+                    await self._heal(batch_client, dbpool, gh)
+                    await self.try_to_merge(gh)
         finally:
             log.info(f'update done {self.short_str()}')
             self.updating = False
 
     async def try_to_merge(self, gh):
-        await self.update_statuses(gh)
         for pr in self.prs.values():
             if pr.is_mergeable():
                 if await pr.merge(gh):
@@ -582,16 +619,6 @@ class WatchedBranch(Code):
                     self.sha = None
                     self.state_changed = True
                     return
-
-    async def update_statuses(self, gh):
-        new_statuses = {}
-        for pr in self.prs.values():
-            if pr.source_sha:
-                gh_status = pr.github_status()
-                if pr.source_sha not in self.statuses or self.statuses[pr.source_sha] != gh_status:
-                    await pr.post_github_status(gh, gh_status)
-                new_statuses[pr.source_sha] = gh_status
-        self.statuses = new_statuses
 
     async def _update_github(self, gh):
         log.info(f'update github {self.short_str()}')
@@ -617,7 +644,7 @@ class WatchedBranch(Code):
         self.prs = new_prs
 
         for pr in new_prs.values():
-            await pr._update_github_review_state(gh)
+            await pr._update_github(gh)
 
     async def _update_deploy(self, batch_client):
         assert self.deployable
@@ -691,7 +718,7 @@ url: https://ci.hail.is/batches/{self.deploy_batch.id}
         for pr in self.prs.values():
             await pr._update_batch(batch_client)
 
-    async def _heal(self, batch_client, dbpool):
+    async def _heal(self, batch_client, dbpool, gh):
         log.info(f'heal {self.short_str()}')
 
         if self.deployable:
@@ -715,7 +742,7 @@ url: https://ci.hail.is/batches/{self.deploy_batch.id}
         self.n_running_batches = sum(1 for pr in self.prs.values() if pr.batch and not pr.build_state)
 
         for pr in self.prs.values():
-            await pr._heal(batch_client, dbpool, pr == merge_candidate)
+            await pr._heal(batch_client, dbpool, pr == merge_candidate, gh)
 
         # cancel orphan builds
         running_batches = batch_client.list_batches(

@@ -259,7 +259,7 @@ object ExportVCF {
 
     def header: String = {
       val sb = new StringBuilder()
-      val fs = HailContext.sFS
+      val fs = HailContext.fs
 
       sb.append("##fileformat=VCFv4.2\n")
       sb.append(s"##hailversion=${ hail.HAIL_PRETTY_VERSION }\n")
@@ -301,7 +301,7 @@ object ExportVCF {
       }
 
       append.foreach { f =>
-        fs.readFile(f) { s =>
+        using(fs.open(f)) { s =>
           Source.fromInputStream(s)
             .getLines()
             .filterNot(_.isEmpty)
@@ -365,7 +365,7 @@ object ExportVCF {
     val localEntriesType = mv.entryArrayPType
 
     val hc = HailContext.get
-    val fs = hc.sFS
+    val fs = hc.fs
     val tmpDir = hc.tmpDir
 
     mv.rvd.mapPartitions { it =>
