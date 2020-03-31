@@ -242,6 +242,7 @@ class PR(Code):
             self.batch = None
             self.source_sha_failed = None
             self.build_state = None
+            self.intended_github_status = self.github_status_from_build_state()
             self.target_branch.batch_changed = True
             self.target_branch.state_changed = True
 
@@ -354,12 +355,22 @@ class PR(Code):
             self.review_state = review_state
             self.target_branch.state_changed = True
 
+    def _update_intended_github_status_from_build_state(self):
+        intended_github_status = self.github_status_from_build_state()
+        if intended_github_status != self.intended_github_status:
+            self.intended_github_status = intended_github_status
+            self.target_branch.state_changed = True
+
     async def _start_build(self, dbpool, batch_client):
         assert await self.authorized(dbpool)
 
         # clear current batch
         self.batch = None
         self.build_state = None
+        intended_github_status = self.github_status_from_build_state()
+        if intended_github_status != self.intended_github_status:
+            self.intended_github_status = intended_github_status
+            self.target_branch.state_changed = True
 
         batch = None
         try:
@@ -408,6 +419,7 @@ mkdir -p {shq(repo_dir)}
                     'target_sha': self.target_branch.sha,
                 })
             self.build_state = 'error'
+            self.intended_github_status = self.github_status_from_build_state()
             self.source_sha_failed = True
             self.target_branch.state_changed = True
         finally:
@@ -454,6 +466,8 @@ mkdir -p {shq(repo_dir)}
                     log.info(f'batch {self.batch.id} was deleted by someone')
                     self.batch = None
                     self.build_state = None
+                    self.intended_github_status = self.github_status_from_build_state()
+                    self.target_branch.state_changed = True
                     return
                 raise exc
             if status['complete']:
@@ -462,12 +476,9 @@ mkdir -p {shq(repo_dir)}
                 else:
                     self.build_state = 'failure'
                     self.source_sha_failed = True
+                self.intended_github_status = self.github_status_from_build_state()
                 self.target_branch.state_changed = True
 
-            intended_github_status = self.github_status_from_build_state()
-            if intended_github_status != self.intended_github_status:
-                self.intended_github_status = intended_github_status
-                self.target_branch.state_chagned = True
 
     async def _heal(self, batch_client, dbpool, on_deck, gh):
         # can't merge target if we don't know what it is
