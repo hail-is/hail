@@ -7,7 +7,7 @@ import scala.collection.mutable
 object RVDContext {
   def default: RVDContext = {
     val partRegion = Region()
-    val ctx = new RVDContext(Region(), Region())
+    val ctx = new RVDContext(partRegion, Region())
     ctx.own(partRegion)
     ctx
   }
