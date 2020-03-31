@@ -317,7 +317,7 @@ class PR(Code):
         if n_hail_status == 0:
             return None
         if n_hail_status == 1:
-            return hail_status[1]
+            return hail_status[0]
         raise ValueError(
             f'github sent multiple status summaries for our one '
             'context {GITHUB_STATUS_CONTEXT}: {hail_status}\n\n{statuses_json}')
