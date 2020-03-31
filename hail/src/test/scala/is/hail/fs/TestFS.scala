@@ -229,7 +229,7 @@ class TestGoogleStorageFS extends TestNGSuite with FSSuite {
   
   val root: String = s"gs://$bucket"
   
-  val fsResourcesRoot: String = System.getenv("HAIL_GS_TEST_RESOURCES")
+  val fsResourcesRoot: String = System.getenv("HAIL_GS_FS_TEST_RESOURCES")
 
   private val keyFile = "/test-gsa-key/key.json"
   
