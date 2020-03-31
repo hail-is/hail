@@ -90,7 +90,7 @@ class Backend(abc.ABC):
 
 
 class SparkBackend(Backend):
-    def __init__(self, idempotent, sc, app_name, master, local, min_block_size):
+    def __init__(self, idempotent, sc, spark_conf, app_name, master, local, min_block_size):
         if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
