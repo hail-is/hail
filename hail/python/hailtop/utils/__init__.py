@@ -6,7 +6,7 @@ from .utils import unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool,
     retry_long_running, run_if_changed, LoggingTimer, \
     WaitableSharedPool, RETRY_FUNCTION_SCRIPT, sync_retry_transient_errors
 from .process import CalledProcessError, check_shell, check_shell_output
-from .tqdm import tqdm, TQDM_DEFAULT_DISABLEn
+from .tqdm import tqdm, TQDM_DEFAULT_DISABLE
 
 __all__ = [
     'time_msecs',
