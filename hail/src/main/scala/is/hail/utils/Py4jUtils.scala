@@ -82,7 +82,11 @@ trait Py4jUtils {
           JString(new java.util.Date(fs.getModificationTime).toString)
         else
           JNull),
-      "owner" -> JString(fs.getOwner))
+      "owner" -> (
+        if (fs.getOwner != null)
+          JString(fs.getOwner)
+        else
+          JNull))
   }
 
   private val kilo: Long = 1024
