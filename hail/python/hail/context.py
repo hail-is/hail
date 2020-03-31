@@ -96,6 +96,7 @@ class HailContext(object):
         ReferenceGenome._from_config(_backend.get_reference('GRCh37'), True)
         ReferenceGenome._from_config(_backend.get_reference('GRCh38'), True)
         ReferenceGenome._from_config(_backend.get_reference('GRCm38'), True)
+        ReferenceGenome._from_config(_backend.get_reference('CanFam3'), True)
 
         if default_reference in ReferenceGenome._references:
             self._default_ref = ReferenceGenome._references[default_reference]
@@ -163,7 +164,7 @@ class HailContext(object):
            min_block_size=int,
            branching_factor=int,
            tmp_dir=str,
-           default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38'),
+           default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'),
            idempotent=bool,
            global_seed=nullable(int),
            spark_conf=nullable(dictof(str, str)),
@@ -239,7 +240,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         file path.
     default_reference : :obj:`str`
         Default reference genome. Either ``'GRCh37'``, ``'GRCh38'``,
-        or ``'GRCm38'``.
+        ``'GRCm38'``, or ``'CanFam3'``.
     idempotent : :obj:`bool`
         If ``True``, calling this function is a no-op if Hail has already been initialized.
     global_seed : :obj:`int`, optional
@@ -337,7 +338,8 @@ def get_reference(name) -> 'hail.ReferenceGenome':
     Notes
     -----
 
-    Hail's built-in references are ``'GRCh37'``, ``GRCh38'``, and ``'GRCm38'``.
+    Hail's built-in references are ``'GRCh37'``, ``GRCh38'``, ``'GRCm38'``, and
+    ``'CanFam3'``.
     The contig names and lengths come from the GATK resource bundle:
     `human_g1k_v37.dict
     <ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37.dict>`__
@@ -351,7 +353,8 @@ def get_reference(name) -> 'hail.ReferenceGenome':
     ----------
     name : :obj:`str`
         Name of a previously loaded reference genome or one of Hail's built-in
-        references: ``'GRCh37'``, ``'GRCh38'``, ``'GRCm38'``, and ``'default'``.
+        references: ``'GRCh37'``, ``'GRCh38'``, ``'GRCm38'``, ``'CanFam3'``, and
+        ``'default'``.
 
     Returns
     -------
