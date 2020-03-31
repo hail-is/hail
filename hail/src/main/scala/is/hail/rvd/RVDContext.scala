@@ -21,6 +21,7 @@ class RVDContext(val partitionRegion: Region, val r: Region) extends AutoCloseab
     assert(children.remove(child))
 
   own(r)
+  own(partitionRegion)
 
   def freshContext: RVDContext = {
     val ctx = new RVDContext(partitionRegion, Region())
