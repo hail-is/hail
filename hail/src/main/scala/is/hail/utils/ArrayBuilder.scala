@@ -41,6 +41,12 @@ final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: Cla
     size_ = 0
   }
 
+  def clearAndResize(): Unit = {
+    size_ = 0
+    if (b.length > initialCapacity)
+      b = new Array[T](initialCapacity)
+  }
+
   def +=(x: T) {
     ensureCapacity(size_ + 1)
     b(size_) = x
