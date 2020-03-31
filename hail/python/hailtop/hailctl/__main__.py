@@ -28,6 +28,9 @@ def print_help():
     subs.add_parser('batch',
                     help='Manage batches running on the batch service managed by the Hail team.',
                     description='Manage batches running on the batch service managed by the Hail team.')
+    subs.add_parser('curl',
+                    help='Issue authenticated curl requests to Hail infrastructure.',
+                    description='Issue authenticated curl requests to Hail infrastructure.')
 
     main_parser.print_help()
 
@@ -101,6 +104,9 @@ def main():
         elif module == 'batch':
             from hailtop.hailctl.batch import cli
             cli.main(args)
+        elif module == 'curl':
+            from hailtop.hailctl.curl import main
+            main(args)
         elif module in ('-h', '--help', 'help'):
             print_help()
         else:
