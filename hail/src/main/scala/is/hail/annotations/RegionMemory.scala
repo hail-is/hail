@@ -82,7 +82,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
   private def freeChunks(): Unit = {
     pool.freeChunks(bigChunks, totalChunkMemory)
-    bigChunks.clear()
+    bigChunks.clearAndResize()
     totalChunkMemory = 0L
   }
 
@@ -96,7 +96,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       }
       j += 1
     }
-    references.clear()
+    references.clearAndResize()
   }
 
   private def freeObjects(): Unit = jObjects.clearAndSetMem(null)
@@ -105,7 +105,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
   private def freeFullBlocks(ab: ArrayBuilder[Long]): Unit = {
     ab.appendFrom(usedBlocks)
-    usedBlocks.clear()
+    usedBlocks.clearAndResize()
   }
 
   protected[annotations] def freeMemory(): Unit = {
