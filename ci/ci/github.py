@@ -324,7 +324,7 @@ class PR(Code):
 
     async def _update_last_known_github_status(self, gh):
         if self.source_sha:
-            source_sha_json = await gh.get(
+            source_sha_json = await gh.getitem(
                 f'/repos/{self.target_branch.branch.repo.short_str()}/commits/{self.source_sha}/status')
             last_known_github_status = PR._hail_github_status_from_statuses(source_sha_json)
             if last_known_github_status != self.last_known_github_status:
