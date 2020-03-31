@@ -10,7 +10,7 @@ from .utils import run_all, run_pattern, run_list, RunConfig, init_logging
 
 
 def main(args_):
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('--tests', '-t',
                         type=str,
