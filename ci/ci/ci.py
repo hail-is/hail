@@ -276,6 +276,20 @@ async def deploy_status(request, userdata):
     return web.json_response(wb_configs)
 
 
+@routes.post('/api/v1alpha/update')
+@rest_authenticated_developers_only
+async def post_update(request, userdata):
+    del userdata
+    log.info(f'developer triggered update')
+
+    async def update_all():
+        for wb in watched_branches:
+            await wb.update(request.app)
+
+    await asyncio.shield(update_all())
+    return web.json_response({})
+
+
 @routes.post('/api/v1alpha/dev_deploy_branch')
 @rest_authenticated_developers_only
 async def dev_deploy_branch(request, userdata):
