@@ -2498,7 +2498,7 @@ def subst(ir, env, agg_env):
         return AggArrayPerElement(_subst(ir.array, delete(agg_env, ir.element_name)),
                                   ir.element_name,
                                   ir.index_name,
-                                  ir.agg_ir,
+                                  _subst(ir.agg_ir, delete(env, ir.index_name), delete(agg_env, ir.element_name)),
                                   ir.is_scan)
     else:
         assert isinstance(ir, IR)
