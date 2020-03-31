@@ -564,6 +564,7 @@ steps:
         valueFrom: batch_pods_ns.name
       mountPath: /test-gsa-key
    dependsOn:
+    - batch_pods_ns
     - hail_run_image
     - build_hail
  - kind: buildImage
