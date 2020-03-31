@@ -1,8 +1,9 @@
-package is.hail
+package is.hail.fs
 
 import java.io.{FileInputStream, FileNotFoundException}
 
-import is.hail.io.fs.{FS, FileStatus, GoogleStorageFS, HadoopFS}
+import is.hail.HailSuite
+import is.hail.io.fs.{FS, FileStatus, GoogleStorageFS}
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
