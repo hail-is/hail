@@ -3,8 +3,9 @@ package is.hail.expr.ir
 import is.hail.ExecStrategy
 import is.hail.HailSuite
 import is.hail.TestUtils.assertEvalsTo
+import is.hail.expr.types.physical.{PCanonicalLocus, PInterval}
 import is.hail.expr.types.virtual._
-import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.utils.{FastIndexedSeq, FastSeq, Interval}
 import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -80,5 +81,32 @@ class LocusFunctionsSuite extends HailSuite {
       invoke("Locus", TLocus(ReferenceGenome.GRCh38), Str("chr1"), I32(1))))
 
     assertEvalsTo(ir, Row(Locus("1", 1, ReferenceGenome.GRCh37), Locus("chr1", 1, ReferenceGenome.GRCh38)))
+  }
+
+  @Test def testMakeInterval() {
+    // TString, TInt32, TInt32, TBoolean, TBoolean, TBoolean
+    val ir = MakeTuple.ordered(FastSeq(
+      invoke("LocusInterval", TInterval(TLocus(grch38)), NA(TString), I32(1), I32(100), True(), True(), False()),
+      invoke("LocusInterval", TInterval(TLocus(grch38)), Str("chr1"), NA(TInt32), I32(100), True(), True(), False()),
+      invoke("LocusInterval", TInterval(TLocus(grch38)), Str("chr1"), I32(1), NA(TInt32), True(), True(), False()),
+      invoke("LocusInterval", TInterval(TLocus(grch38)), Str("chr1"), I32(1), I32(100), NA(TBoolean), True(), False()),
+      invoke("LocusInterval", TInterval(TLocus(grch38)), Str("chr1"), I32(1), I32(100), True(), NA(TBoolean), False()),
+      invoke("LocusInterval", TInterval(TLocus(grch38)), Str("chr1"), I32(1), I32(100), True(), True(), NA(TBoolean)),
+      invoke("LocusInterval", TInterval(TLocus(grch38)), Str("chr1"), I32(-1), I32(0), True(), True(), True()),
+      invoke("LocusInterval", TInterval(TLocus(grch38)), Str("chr1"), I32(1), I32(100), True(), True(), True())
+    ))
+
+    assertEvalsTo(ir,
+      Row(
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        Interval(Locus("chr1", 1, grch38), Locus("chr1", 100, grch38), true, true)
+      )
+    )
   }
 }
