@@ -518,6 +518,7 @@ object ReferenceGenome {
   var GRCh37: ReferenceGenome = _
   var GRCh38: ReferenceGenome = _
   var GRCm38: ReferenceGenome = _
+  var CanFam3: ReferenceGenome = _
   var hailReferences: Set[String] = _
 
   def addDefaultReferences() : Unit = {
@@ -525,6 +526,7 @@ object ReferenceGenome {
     GRCh37 = fromResource("reference/grch37.json")
     GRCh38 = fromResource("reference/grch38.json")
     GRCm38 = fromResource("reference/grcm38.json")
+    CanFam3 = fromResource("reference/canfam3.json")
     hailReferences = references.keySet
   }
 
@@ -535,6 +537,7 @@ object ReferenceGenome {
     GRCh37 = null
     GRCh38 = null
     GRCm38 = null
+    CanFam3 = null
     hailReferences = null
   }
 
