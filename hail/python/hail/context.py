@@ -65,6 +65,7 @@ class HailContext(object):
         Env._gateway = self._gateway
 
         tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
+        self.tmp_dir = tmp_dir
         optimizer_iterations = get_env_or_default(optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
         py_version = version()
