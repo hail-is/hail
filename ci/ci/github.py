@@ -291,7 +291,9 @@ class PR(Code):
         data = {
             'state': gh_status,
             # FIXME should be this build, not the pr
-            'target_url': f'https://ci.hail.is/watched_branches/{self.target_branch.index}/pr/{self.number}',
+            'target_url': deploy_config.external_url(
+                'ci',
+                f'/watched_branches/{self.target_branch.index}/pr/{self.number}'),
             # FIXME improve
             'description': gh_status,
             'context': GITHUB_STATUS_CONTEXT
@@ -682,6 +684,9 @@ class WatchedBranch(Code):
                     self.deploy_state = 'failure'
 
                 if not is_test_deployment and self.deploy_state == 'failure':
+                    url = deploy_config.external_url(
+                        'ci',
+                        f'/batches/{self.deploy_batch.id}')
                     request = {
                         'type': 'stream',
                         'to': 'team',
@@ -691,7 +696,7 @@ class WatchedBranch(Code):
 state: {self.deploy_state}
 branch: {self.branch.short_str()}
 sha: {self.sha}
-url: https://ci.hail.is/batches/{self.deploy_batch.id}
+url: {url}
 '''}
                     result = zulip_client.send_message(request)
                     log.info(result)

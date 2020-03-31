@@ -187,7 +187,7 @@ async def post_authorized_source_sha(request, userdata):  # pylint: disable=unus
     log.info(f'authorized sha: {sha}')
     session = await aiohttp_session.get_session(request)
     set_message(session, f'SHA {sha} authorized.', 'info')
-    raise web.HTTPFound('/')
+    raise web.HTTPFound(deploy_config.base_path('ci') + '/')
 
 
 @routes.get('/healthcheck')
