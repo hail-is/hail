@@ -255,13 +255,11 @@ class ServiceBackend(Backend):
         from hailtop.config import get_deploy_config
         from hailtop.auth import service_auth_headers
 
-        self._jbackend = hail.backend.service.ServiceBackend.apply()
-
-        # if not deploy_config:
-        #     deploy_config = get_deploy_config()
-        # self.url = deploy_config.base_url('apiserver')
-        # self.headers = service_auth_headers(deploy_config, 'apiserver')
-        # self._fs = None
+        if not deploy_config:
+            deploy_config = get_deploy_config()
+        self.url = deploy_config.base_url('apiserver')
+        self.headers = service_auth_headers(deploy_config, 'apiserver')
+        self._fs = None
 
     @property
     def fs(self):
