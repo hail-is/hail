@@ -910,7 +910,7 @@ python3 create_database.py {shq(json.dumps(create_database_config))}
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, parents):
-        if scope in ['deploy', 'dev']:
+        if scope in ['deploy', 'dev'] or self.cant_create_database:
             return
 
         cleanup_script = f'''
