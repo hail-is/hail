@@ -361,7 +361,7 @@ abstract class RegistryFunctions {
   }
 
   def registerCodeWithTypeAndMissingness(mname: String, aTypes: Array[Type], rType: Type, pt: (Type, Seq[PType]) => PType)
-                                 (impl: (EmitRegion, PType, Array[(PType, EmitCode)]) => EmitCode) {
+                                 (impl: (EmitRegion, PType, Array[EmitCode]) => EmitCode) {
     IRFunctionRegistry.addIRFunction(new IRFunctionWithMissingness {
       override val name: String = mname
 
@@ -371,8 +371,8 @@ abstract class RegistryFunctions {
 
       override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(returnType, argTypes)
 
-      override def apply(r: EmitRegion, rpt: PType, args: (PType, EmitCode)*): EmitCode = {
-        unify(args.map(_._1.virtualType))
+      override def apply(r: EmitRegion, rpt: PType, args: EmitCode*): EmitCode = {
+        unify(args.map(_.pt.virtualType))
         impl(r, rpt, args.toArray)
       }
     })
