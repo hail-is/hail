@@ -239,6 +239,18 @@ server {
 }
 
 server {
+    server_name query.*;
+
+    location / {
+        proxy_pass http://query/;
+        include /etc/nginx/proxy.conf;
+    }
+
+    listen 80;
+    listen [::]:80;
+}
+
+server {
     server_name blog.*;
     client_max_body_size 8m;
 
