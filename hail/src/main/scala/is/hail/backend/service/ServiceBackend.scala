@@ -4,7 +4,13 @@ import is.hail.backend.{Backend, BroadcastValue}
 
 import scala.reflect.ClassTag
 
-object ServiceBackend extends Backend {
+object ServiceBackend {
+  def apply(): ServiceBackend = {
+    new ServiceBackend()
+  }
+}
+
+class ServiceBackend() extends Backend {
   def broadcast[T: ClassTag](_value: T): BroadcastValue[T] = new BroadcastValue[T] {
     def value: T = _value
   }
@@ -22,11 +28,5 @@ object ServiceBackend extends Backend {
 
   def stop(): Unit = ()
 
-  def apply(): ServiceBackend = {
-    new ServiceBackend()
-  }
-}
-
-class ServiceBackend() {
   def request(): Int = 5
 }

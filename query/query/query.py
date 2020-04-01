@@ -3,7 +3,6 @@ import concurrent
 import uvloop
 from aiohttp import web
 from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
-from hail.utils import FatalError
 from hailtop.utils import blocking_to_async
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, rest_authenticated_users_only
@@ -38,14 +37,10 @@ def blocking_get_reference(app, data):
 async def get_reference(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     thread_pool = app['thread_pool']
-    try:
-        data = await request.json()
-        result = await blocking_to_async(thread_pool, blocking_get_reference, app, data)
-        return web.json_response(result)
-    except FatalError as e:
-        return web.json_response({
-            'message': e.args[0]
-        }, status=400)
+    data = await request.json()
+    # FIXME error handling
+    result = await blocking_to_async(thread_pool, blocking_get_reference, app, data)
+    return web.json_response(result)
 
 
 async def on_startup(app):

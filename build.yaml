@@ -519,7 +519,7 @@ steps:
    publishAs: query
    inputs:
      - from: /hail.jar
-       to: /hail.jar
+       to: /query/hail.jar
    dependsOn:
      - service_base_image
      - build_hail

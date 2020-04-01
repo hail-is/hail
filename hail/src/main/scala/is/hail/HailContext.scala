@@ -456,8 +456,11 @@ class HailContext private(
 
   def fsBc: Broadcast[FS] = sparkBackend().fsBc
 
-  val tmpDir: String = TempDir.createTempDir(tmpDirPath, fs)
-  info(s"Hail temporary directory: $tmpDir")
+  lazy val tmpDir: String = {
+    val tmpDir = TempDir.createTempDir(tmpDirPath, fs)
+    info(s"Hail temporary directory: $tmpDir")
+    tmpDir
+  }
 
   val flags: HailFeatureFlags = new HailFeatureFlags()
 
