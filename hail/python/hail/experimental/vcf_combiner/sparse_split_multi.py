@@ -2,7 +2,10 @@ import hail as hl
 
 
 def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
-    """Splits multiallelic variants on a sparse MatrixTable.
+    """Splits multiallelic variants on a sparse matrix table.
+
+    Analogous to :func:`.split_multi_hts` (splits entry fields) for sparse
+    representations.
 
     Takes a dataset formatted like the output of :func:`.vcf_combiner`. The
     splitting will add `was_split` and `a_index` fields, as :func:`.split_multi`
@@ -75,8 +78,7 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
 
     Unlike the normal split_multi function. Sparse split multi will not filter
     ``*`` alleles. This is because a row with a bi-allelic spanning deletion
-    may contain ref blocks that start at this position for other samples. And filtering
-    the ref block will remove
+    may contain reference blocks that start at this position for other samples.
 
     Parameters
     ----------

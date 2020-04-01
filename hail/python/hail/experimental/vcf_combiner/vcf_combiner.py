@@ -1,9 +1,8 @@
 """An experimental library for combining (g)VCFS into sparse matrix tables"""
 # these are necessary for the diver script included at the end of this file
-import argparse
 import math
 import uuid
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Tuple
 
 import hail as hl
 from hail import MatrixTable, Table
@@ -17,11 +16,13 @@ from hail.utils.java import info
 _transform_rows_function_map = {}
 _merge_function_map = {}
 
+
 @typecheck(string=expr_str, has_non_ref=expr_bool)
 def parse_as_ints(string, has_non_ref):
     ints = string.split(r'\|')
     ints = hl.cond(has_non_ref, ints[:-1], ints)
     return ints.map(lambda i: hl.cond((hl.len(i) == 0) | (i == '.'), hl.null(hl.tint32), hl.int32(i)))
+
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
 def parse_as_doubles(string, has_non_ref):
@@ -29,11 +30,13 @@ def parse_as_doubles(string, has_non_ref):
     ints = hl.cond(has_non_ref, ints[:-1], ints)
     return ints.map(lambda i: hl.cond((hl.len(i) == 0) | (i == '.'), hl.null(hl.tfloat64), hl.float64(i)))
 
+
 @typecheck(string=expr_str, has_non_ref=expr_bool)
 def parse_as_sb_table(string, has_non_ref):
     ints = string.split(r'\|')
     ints = hl.cond(has_non_ref, ints[:-1], ints)
     return ints.map(lambda xs: xs.split(",").map(hl.int32))
+
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
 def parse_as_ranksum(string, has_non_ref):
@@ -48,6 +51,7 @@ def parse_as_ranksum(string, has_non_ref):
             hl.null(hl.ttuple(hl.tfloat64, hl.tint32)),
             hl.tuple([hl.float64(ss[0]), hl.int32(ss[1])])))))
 
+
 _as_function_map = {
     'AS_QUALapprox': parse_as_ints,
     'AS_RAW_MQ': parse_as_doubles,
@@ -57,19 +61,23 @@ _as_function_map = {
     'AS_VarDP': parse_as_ints,
 }
 
+
 def parse_as_fields(info, has_non_ref):
     return hl.struct(**{f: info[f] if f not in _as_function_map
-                        else _as_function_map[f](info[f], has_non_ref) for f in info})
+    else _as_function_map[f](info[f], has_non_ref) for f in info})
+
 
 def localize(mt):
     if isinstance(mt, MatrixTable):
         return mt._localize_entries('__entries', '__cols')
     return mt
 
+
 def unlocalize(mt):
     if isinstance(mt, Table):
         return mt._unlocalize_entries('__entries', '__cols', ['s'])
     return mt
+
 
 @typecheck(mt=oneof(Table, MatrixTable), info_to_keep=sequenceof(str))
 def transform_gvcf(mt, info_to_keep=[]) -> Table:
@@ -159,15 +167,17 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
     transform_row = _transform_rows_function_map[mt.row.dtype]
     return Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row'))))
 
+
 def transform_one(mt, info_to_keep=[]) -> Table:
     return transform_gvcf(mt, info_to_keep)
+
 
 def combine(ts):
     def merge_alleles(alleles):
         from hail.expr.functions import _num_allele_type, _allele_ints
         return hl.rbind(
             alleles.map(lambda a: hl.or_else(a[0], ''))
-                   .fold(lambda s, t: hl.cond(hl.len(s) > hl.len(t), s, t), ''),
+                .fold(lambda s, t: hl.cond(hl.len(s) > hl.len(t), s, t), ''),
             lambda ref:
             hl.rbind(
                 alleles.map(
@@ -213,7 +223,7 @@ def combine(ts):
                             lambda i:
                             hl.cond(hl.is_missing(row.data[i].__entries),
                                     hl.range(0, hl.len(gbl.g[i].__cols))
-                                      .map(lambda _: hl.null(row.data[i].__entries.dtype.element_type)),
+                                    .map(lambda _: hl.null(row.data[i].__entries.dtype.element_type)),
                                     hl.bind(
                                         lambda old_to_new: row.data[i].__entries.map(
                                             lambda e: renumber_entry(e, old_to_new)),
@@ -229,6 +239,7 @@ def combine(ts):
                                            TopLevelReference('row'),
                                            TopLevelReference('global'))))
     return ts.transmute_globals(__cols=hl.flatten(ts.g.map(lambda g: g.__cols)))
+
 
 @typecheck(mts=sequenceof(oneof(Table, MatrixTable)))
 def combine_gvcfs(mts):
@@ -251,6 +262,7 @@ def combine_gvcfs(mts):
     ts = hl.Table.multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
     combined = combine(ts)
     return unlocalize(combined)
+
 
 @typecheck(ht=hl.Table, n=int, reference_genome=reference_genome_type)
 def calculate_new_intervals(ht, n, reference_genome):
@@ -284,11 +296,11 @@ def calculate_new_intervals(ht, n, reference_genome):
     ht = ht.select()
     ht = ht.annotate(x=hl.scan.count())
     ht = ht.annotate(y=ht.x + 1)
-    ht = ht.filter((ht.x // n != ht.y // n) | (ht.x == (n_rows-1)))
+    ht = ht.filter((ht.x // n != ht.y // n) | (ht.x == (n_rows - 1)))
     ht = ht.select()
     ht = ht.annotate(start=hl.or_else(
         hl.scan._prev_nonnull(hl.locus_from_global_position(ht.locus.global_position() + 1,
-                              reference_genome=reference_genome)),
+                                                            reference_genome=reference_genome)),
         hl.locus_from_global_position(0, reference_genome=reference_genome)))
     ht = ht.key_by()
     ht = ht.select(interval=hl.interval(start=ht.start, end=ht.locus, includes_end=True))
@@ -301,6 +313,7 @@ def calculate_new_intervals(ht, n, reference_genome):
     interval = hl.Interval(start=last_st, end=end, includes_end=True)
     intervals.append(interval)
     return intervals
+
 
 @typecheck(reference_genome=reference_genome_type)
 def default_exome_intervals(reference_genome) -> List[hl.utils.Interval]:
@@ -322,7 +335,8 @@ def default_exome_intervals(reference_genome) -> List[hl.utils.Interval]:
     elif reference_genome.name == 'GRCh38':
         contigs = [f'chr{i}' for i in range(1, 23)] + ['chrX', 'chrY', 'chrM']
     else:
-        raise ValueError(f"Invalid reference genome '{reference_genome.name}', only 'GRCh37' and 'GRCh38' are supported")
+        raise ValueError(
+            f"Invalid reference genome '{reference_genome.name}', only 'GRCh37' and 'GRCh38' are supported")
     return [hl.Interval(start=hl.Locus(contig=contig, position=1, reference_genome=reference_genome),
                         end=hl.Locus.parse(f'{contig}:END', reference_genome=reference_genome),
                         includes_end=True) for contig in contigs]
@@ -359,6 +373,7 @@ class CombinerPlan(object):
         self.merge_per_phase = len(file_size[0])
         self.total_merge = self.merge_per_phase * len(phases)
 
+
 class CombinerConfig(object):
     default_branch_factor = 100
     default_batch_size = 100
@@ -372,7 +387,6 @@ class CombinerConfig(object):
         self.batch_size: int = batch_size
         self.target_records: int = target_records
 
-
     @classmethod
     def default(cls) -> 'CombinerConfig':
         return CombinerConfig()
@@ -385,7 +399,7 @@ class CombinerConfig(object):
 
         tree_height = int_ceil(math.log(n_inputs, self.branch_factor))
         phases: List[Phase] = []
-        file_size: List[List[int]] = [] # List of file size per phase
+        file_size: List[List[int]] = []  # List of file size per phase
 
         file_size.append([1 for _ in range(n_inputs)])
         while len(file_size[-1]) > 1:
@@ -423,7 +437,8 @@ class CombinerConfig(object):
             n_files_produced = len(file_size[i + 1])
             adjective = 'final' if n_files_produced == 1 else 'intermediate'
             file_str = hl.utils.misc.plural('file', n_files_produced)
-            phase_strs.append(f'\n        Phase {i+1}: {n} {job_str} corresponding to {n_files_produced} {adjective} output {file_str}.')
+            phase_strs.append(
+                f'\n        Phase {i + 1}: {n} {job_str} corresponding to {n_files_produced} {adjective} output {file_str}.')
             total_jobs += n
 
         info(f"GVCF combiner plan:\n"
@@ -433,19 +448,52 @@ class CombinerConfig(object):
         return CombinerPlan(file_size, phases)
 
 
-def run_combiner(sample_names: List[str],
-                 sample_paths: List[str],
+def run_combiner(sample_paths: List[str],
                  out_file: str,
                  tmp_path: str,
                  intervals: Optional[List[hl.utils.Interval]] = None,
                  header: Optional[str] = None,
+                 sample_names: Optional[List[str]] = None,
                  branch_factor: int = CombinerConfig.default_branch_factor,
                  batch_size: int = CombinerConfig.default_batch_size,
                  target_records: int = CombinerConfig.default_target_records,
                  overwrite: bool = False,
                  reference_genome: str = 'default'):
+    """Run the Hail VCF combiner, performing a hierarchical merge to create a combined sparse matrix table.
+
+    Parameters
+    ----------
+    sample_paths : :obj:`list` of :obj:`str`
+        Paths to individual GVCFs.
+    out_file : :obj:`str`
+        Path to final combined matrix table.
+    tmp_path : :obj:`str`
+        Path for intermediate output.
+    intervals : list of :class:`.Interval` or None
+        Partitioning with which to import GVCFs in first phase of combiner.
+    header : :obj:`str` or None
+        External header file to use as GVCF header for all inputs. If defined, `sample_names` must be defined as well.
+    sample_names: list of :obj:`str` or None
+        Sample names, to be used with `header`.
+    branch_factor : :obj:`int`
+        Combiner branch factor.
+    batch_size : :obj:`int`
+        Combiner batch size.
+    target_records : :obj:`int`
+        Target records per partition in each combiner phase after the first.
+    overwrite : :obj:`bool`
+        Overwrite output file, if it exists.
+    reference_genome : :obj:`str`
+        Reference genome for GVCF import.
+
+    Returns
+    -------
+    None
+    """
     tmp_path += f'/combiner-temporary/{uuid.uuid4()}/'
-    assert len(sample_names) == len(sample_paths)
+    if header is not None:
+        assert sample_names is not None
+        assert len(sample_names) == len(sample_paths)
 
     # FIXME: this should be hl.default_reference().even_intervals_contig_boundary
     intervals = intervals or default_exome_intervals(reference_genome)
@@ -453,7 +501,7 @@ def run_combiner(sample_names: List[str],
     config = CombinerConfig(branch_factor=branch_factor,
                             batch_size=batch_size,
                             target_records=target_records)
-    plan = config.plan(len(sample_names))
+    plan = config.plan(len(sample_paths))
 
     files_to_merge = sample_paths
     n_phases = len(plan.phases)
@@ -480,7 +528,8 @@ def run_combiner(sample_names: List[str],
             n_merges = len(job.merges)
             merge_str = hl.utils.misc.plural('file', n_merges)
             pct_total = 100 * job.input_total_size / total_ops
-            info(f"Starting phase {phase_i}/{n_phases}, job {job_i}/{len(phase.jobs)} to create {n_merges} merged {merge_str}, corresponding to ~{pct_total:.1f}% of total I/O.")
+            info(
+                f"Starting phase {phase_i}/{n_phases}, job {job_i}/{len(phase.jobs)} to create {n_merges} merged {merge_str}, corresponding to ~{pct_total:.1f}% of total I/O.")
             merge_mts: List[MatrixTable] = []
             for merge in job.merges:
                 inputs = [files_to_merge[i] for i in merge.inputs]
@@ -489,14 +538,15 @@ def run_combiner(sample_names: List[str],
                     mts = [transform_gvcf(vcf)
                            for vcf in hl.import_gvcfs(inputs, intervals, array_elements_required=False,
                                                       _external_header=header,
-                                                      _external_sample_ids=[sample_paths[i] for i in merge.inputs] if header is not None else None,
+                                                      _external_sample_ids=[sample_names[i] for i in
+                                                                            merge.inputs] if header is not None else None,
                                                       reference_genome=reference_genome)]
                 else:
                     mts = [hl.read_matrix_table(path, _intervals=intervals) for path in inputs]
 
                 merge_mts.append(combine_gvcfs(mts))
 
-            if phase_i == n_phases: # final merge!
+            if phase_i == n_phases:  # final merge!
                 assert n_jobs == 1
                 assert len(merge_mts) == 1
                 [final_mt] = merge_mts
@@ -510,7 +560,8 @@ def run_combiner(sample_names: List[str],
             pad = len(str(len(merge_mts)))
             new_files_to_merge.extend(tmp + str(n).zfill(pad) + '.mt' for n in range(len(merge_mts)))
             total_work_done += job.input_total_size
-            info(f"Finished {phase_i}/{n_phases}, job {job_i}/{len(phase.jobs)}, {100 * total_work_done / total_ops:.1f}% of total I/O finished.")
+            info(
+                f"Finished {phase_i}/{n_phases}, job {job_i}/{len(phase.jobs)}, {100 * total_work_done / total_ops:.1f}% of total I/O finished.")
 
         info(f"Finished phase {phase_i}/{n_phases}.")
 
@@ -519,6 +570,7 @@ def run_combiner(sample_names: List[str],
     assert files_to_merge == [out_file]
 
     info("Finished!")
+
 
 def parse_sample_mapping(sample_map_path: str) -> Tuple[List[str], List[str]]:
     sample_names: List[str] = list()
@@ -531,45 +583,3 @@ def parse_sample_mapping(sample_map_path: str) -> Tuple[List[str], List[str]]:
             sample_paths.append(path)
 
     return sample_names, sample_paths
-
-def main():
-    parser = argparse.ArgumentParser(description="Driver for hail's GVCF combiner")
-    parser.add_argument('sample_map',
-                        help='path to the sample map, a tab-separated file with two columns. '
-                             'The first column is the sample ID, and the second column '
-                             'is the GVCF path.')
-    parser.add_argument('out_file', help='path to final combiner output')
-    parser.add_argument('--tmp-path', help='path to folder for intermediate output (can be a cloud bucket)',
-                        default='/tmp')
-    parser.add_argument('--log', help='path to hail log file')
-    parser.add_argument('--header',
-                        help='external header, must be readable by all executors. '
-                             'WARNING: if this option is used, the sample names in the '
-                             'gvcfs will be overridden by the names in sample map.',
-                        required=False)
-    parser.add_argument('--branch-factor', type=int, default=CombinerConfig.default_branch_factor, help='Branch factor.')
-    parser.add_argument('--batch-size', type=int, default=CombinerConfig.default_batch_size, help='Batch size.')
-    parser.add_argument('--target-records', type=int, default=CombinerConfig.default_target_records, help='Target records per partition.')
-    parser.add_argument('--overwrite', help='overwrite the output path', action='store_true')
-    parser.add_argument('--reference-genome', default='GRCh38', help='Reference genome.')
-    args = parser.parse_args()
-    hl.init(log=args.log)
-
-    if not args.overwrite and hl.utils.hadoop_exists(args.out_file):
-        raise FileExistsError(f"path '{args.out_file}' already exists, use --overwrite to overwrite this path")
-
-    sample_names, sample_paths = parse_sample_mapping(args.sample_map)
-    run_combiner(sample_names,
-                 sample_paths,
-                 args.out_file,
-                 args.tmp_path,
-                 header=args.header,
-                 batch_size=args.batch_size,
-                 branch_factor=args.branch_factor,
-                 target_records=args.target_records,
-                 overwrite=args.overwrite,
-                 reference_genome=args.reference_genome)
-
-
-if __name__ == '__main__':
-    main()

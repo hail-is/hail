@@ -1,7 +1,7 @@
 import hail as hl
 
 def densify(sparse_mt):
-    """Convert sparse MatrixTable to a dense one.
+    """Convert sparse matrix table to a dense VCF-like representation by expanding reference blocks.
 
     Parameters
     ----------
@@ -15,6 +15,10 @@ def densify(sparse_mt):
     :class:`.MatrixTable`
         The densified MatrixTable.  The ``END`` entry field is dropped.
 
+    While computationally expensive, this
+    operation is necessary for many downstream analyses, and should be thought of as
+    roughly costing as much as reading a matrix table created by importing a dense
+    project VCF.
     """
     if list(sparse_mt.row_key)[0] != 'locus' or not isinstance(sparse_mt.locus.dtype, hl.tlocus):
         raise ValueError("first row key field must be named 'locus' and have type 'locus'")
