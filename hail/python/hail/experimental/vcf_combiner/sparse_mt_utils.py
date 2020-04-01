@@ -5,14 +5,14 @@ from hail.typecheck import typecheck
 
 @typecheck(lgt=expr_call, la=expr_array(expr_int32))
 def lgt_to_gt(lgt, la):
-    """Transforming Local GT and Local Alleles into the true GT
+    """Transform LGT into GT using local alleles array.
 
     Parameters
     ----------
     lgt : :class:`.CallExpression`
-        The LGT value
+        LGT value.
     la : :class:`.ArrayExpression`
-        The Local Alleles array
+        Local alleles array.
 
     Returns
     -------
