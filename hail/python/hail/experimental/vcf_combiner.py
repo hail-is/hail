@@ -253,7 +253,7 @@ def combine_gvcfs(mts):
     return unlocalize(combined)
 
 @typecheck(ht=hl.Table, n=int, reference_genome=reference_genome_type)
-def calculate_new_intervals(ht, n, reference_genome='default'):
+def calculate_new_intervals(ht, n, reference_genome):
     """takes a table, keyed by ['locus', ...] and produces a list of intervals suitable
     for repartitioning a combiner matrix table
 
@@ -276,10 +276,15 @@ def calculate_new_intervals(ht, n, reference_genome='default'):
                    reference_genome.lengths[reference_genome.contigs[-1]],
                    reference_genome=reference_genome)
 
+    n_rows = ht.count()
+
+    if n_rows == 0:
+        raise ValueError('empty table!')
+
     ht = ht.select()
     ht = ht.annotate(x=hl.scan.count())
     ht = ht.annotate(y=ht.x + 1)
-    ht = ht.filter(ht.x // n != ht.y // n)
+    ht = ht.filter((ht.x // n != ht.y // n) | (ht.x == (n_rows-1)))
     ht = ht.select()
     ht = ht.annotate(start=hl.or_else(
         hl.scan._prev_nonnull(hl.locus_from_global_position(ht.locus.global_position() + 1,
@@ -298,7 +303,7 @@ def calculate_new_intervals(ht, n, reference_genome='default'):
     return intervals
 
 @typecheck(reference_genome=reference_genome_type)
-def default_exome_intervals(reference_genome='default') -> List[hl.utils.Interval]:
+def default_exome_intervals(reference_genome) -> List[hl.utils.Interval]:
     """create a list of locus intervals suitable for importing and merging exome gvcfs. As exomes
     are small. One partition per chromosome works well here.
 
@@ -437,12 +442,13 @@ def run_combiner(sample_names: List[str],
                  branch_factor: int = CombinerConfig.default_branch_factor,
                  batch_size: int = CombinerConfig.default_batch_size,
                  target_records: int = CombinerConfig.default_target_records,
-                 overwrite: bool = False):
+                 overwrite: bool = False,
+                 reference_genome: str = 'default'):
     tmp_path += f'/combiner-temporary/{uuid.uuid4()}/'
     assert len(sample_names) == len(sample_paths)
 
     # FIXME: this should be hl.default_reference().even_intervals_contig_boundary
-    intervals = intervals or default_exome_intervals()
+    intervals = intervals or default_exome_intervals(reference_genome)
 
     config = CombinerConfig(branch_factor=branch_factor,
                             batch_size=batch_size,
@@ -462,7 +468,9 @@ def run_combiner(sample_names: List[str],
         info(f"Starting phase {phase_i}/{n_phases}, merging {len(files_to_merge)} {merge_str} in {n_jobs} {job_str}.")
 
         if phase_i > 1:
-            intervals = calculate_new_intervals(hl.read_matrix_table(files_to_merge[0]).rows(), config.target_records)
+            intervals = calculate_new_intervals(hl.read_matrix_table(files_to_merge[0]).rows(),
+                                                config.target_records,
+                                                reference_genome=reference_genome)
 
         new_files_to_merge = []
 
@@ -472,7 +480,7 @@ def run_combiner(sample_names: List[str],
             n_merges = len(job.merges)
             merge_str = hl.utils.misc.plural('file', n_merges)
             pct_total = 100 * job.input_total_size / total_ops
-            info(f"Starting job {job_i}/{len(phase.jobs)} to create {n_merges} merged {merge_str}, corresponding to ~{pct_total:.1f}% of total I/O.")
+            info(f"Starting phase {phase_i}/{n_phases}, job {job_i}/{len(phase.jobs)} to create {n_merges} merged {merge_str}, corresponding to ~{pct_total:.1f}% of total I/O.")
             merge_mts: List[MatrixTable] = []
             for merge in job.merges:
                 inputs = [files_to_merge[i] for i in merge.inputs]
@@ -481,7 +489,8 @@ def run_combiner(sample_names: List[str],
                     mts = [transform_gvcf(vcf)
                            for vcf in hl.import_gvcfs(inputs, intervals, array_elements_required=False,
                                                       _external_header=header,
-                                                      _external_sample_ids=[sample_paths[i] for i in merge.inputs] if header is not None else None)]
+                                                      _external_sample_ids=[sample_paths[i] for i in merge.inputs] if header is not None else None,
+                                                      reference_genome=reference_genome)]
                 else:
                     mts = [hl.read_matrix_table(path, _intervals=intervals) for path in inputs]
 
@@ -493,7 +502,7 @@ def run_combiner(sample_names: List[str],
                 [final_mt] = merge_mts
                 final_mt.write(out_file, overwrite=overwrite)
                 new_files_to_merge = [out_file]
-                info(f"Finished job {job_i}/{len(phase.jobs)}, {100 * total_work_done / total_ops}% of total I/O finished.")
+                info(f"Finished phase {phase_i}/{n_phases}, job {job_i}/{len(phase.jobs)}, 100% of total I/O finished.")
                 break
 
             tmp = f'{tmp_path}_phase{phase_i}_job{job_i}/'
@@ -501,7 +510,7 @@ def run_combiner(sample_names: List[str],
             pad = len(str(len(merge_mts)))
             new_files_to_merge.extend(tmp + str(n).zfill(pad) + '.mt' for n in range(len(merge_mts)))
             total_work_done += job.input_total_size
-            info(f"Finished job {job_i}/{len(phase.jobs)}, {100 * total_work_done / total_ops}% of total I/O finished.")
+            info(f"Finished {phase_i}/{n_phases}, job {job_i}/{len(phase.jobs)}, {100 * total_work_done / total_ops:.1f}% of total I/O finished.")
 
         info(f"Finished phase {phase_i}/{n_phases}.")
 
@@ -544,8 +553,7 @@ def main():
     parser.add_argument('--overwrite', help='overwrite the output path', action='store_true')
     parser.add_argument('--reference-genome', default='GRCh38', help='Reference genome.')
     args = parser.parse_args()
-    hl.init(default_reference=args.reference_genome,
-            log=args.log)
+    hl.init(log=args.log)
 
     if not args.overwrite and hl.utils.hadoop_exists(args.out_file):
         raise FileExistsError(f"path '{args.out_file}' already exists, use --overwrite to overwrite this path")
@@ -559,7 +567,8 @@ def main():
                  batch_size=args.batch_size,
                  branch_factor=args.branch_factor,
                  target_records=args.target_records,
-                 overwrite=args.overwrite)
+                 overwrite=args.overwrite,
+                 reference_genome=args.reference_genome)
 
 
 if __name__ == '__main__':

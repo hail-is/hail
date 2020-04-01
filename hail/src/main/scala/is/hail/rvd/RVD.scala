@@ -1483,7 +1483,12 @@ object RVD {
     stageLocally: Boolean
   ): Array[Array[Long]] = {
     val first = rvds.head
-    require(rvds.forall(rvd => rvd.typ == first.typ && rvd.partitioner == first.partitioner))
+    rvds.foreach {rvd =>
+      if (rvd.typ != first.typ)
+        throw new RuntimeException(s"Type mismatch!\n  head: ${ first.typ }\n  altr: ${ rvd.typ }")
+      if (rvd.partitioner != first.partitioner)
+        throw new RuntimeException(s"Partitioner mismatch!\n  head:${ first.partitioner }\n  altr: ${ rvd.partitioner }")
+    }
 
     val sc = HailContext.get.sc
     val fs = HailContext.fs
