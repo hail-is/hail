@@ -55,6 +55,7 @@ async def aexit(acontext_manager, exc_type=None, exc_val=None, exc_tb=None):
 @retry_transient_mysql_errors
 async def create_database_pool(config_file=None, autocommit=True, maxsize=10):
     ssl_context = ssl.create_default_context(cafile='/sql-config/server-ca.pem')
+    ssl_context.check_hostname = False
     if config_file is None:
         config_file = os.environ.get('HAIL_DATABASE_CONFIG_FILE', '/sql-config/sql-config.json')
     with open(config_file, 'r') as f:
