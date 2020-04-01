@@ -151,7 +151,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
-     mysql --defaults-extra-file=/database-server-config/sql-config.cnf < /io/sql/delete-auth-tables.sql
+     mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-auth-tables.sql
    inputs:
     - from: /repo/auth/sql
       to: /io/
@@ -159,7 +159,7 @@ steps:
     - name: database-server-config
       namespace:
         valueFrom: default_ns.name
-      mountPath: /database-server-config
+      mountPath: /sql-config
    runIfRequested: true
    scopes:
     - dev
@@ -911,7 +911,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
-     mysql --defaults-extra-file=/database-server-config/sql-config.cnf < /io/sql/delete-batch-tables.sql
+     mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-batch-tables.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
@@ -919,7 +919,7 @@ steps:
     - name: database-server-config
       namespace:
         valueFrom: default_ns.name
-      mountPath: /database-server-config
+      mountPath: /sql-config
    runIfRequested: true
    scopes:
     - dev
@@ -933,7 +933,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
-     mysql --defaults-extra-file=/database-server-config/sql-config.cnf < /io/sql/delete-ci-tables.sql
+     mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-ci-tables.sql
    inputs:
     - from: /repo/ci/sql
       to: /io/
@@ -941,7 +941,7 @@ steps:
     - name: database-server-config
       namespace:
         valueFrom: default_ns.name
-      mountPath: /database-server-config
+      mountPath: /sql-config
    runIfRequested: true
    scopes:
     - dev
