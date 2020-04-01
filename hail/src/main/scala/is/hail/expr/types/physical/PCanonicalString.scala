@@ -82,8 +82,6 @@ class PCanonicalStringCode(val pt: PCanonicalString, a: Code[Long]) extends PStr
 
   def loadLength(): Code[Int] = pt.loadLength(a)
 
-  def bytesAddress(): Code[Long] = pt.bytesAddress(a)
-
   def loadString(): Code[String] = pt.loadString(a)
 
   def asBytes(): PBinaryCode = new PCanonicalBinaryCode(pt.binaryFundamentalType, a)
