@@ -65,8 +65,8 @@ spec:
            - name: session-secret-key
              mountPath: /session-secret-key
              readOnly: true
-           - mountPath: /ci-user-secret
-             name: ci-user-secret
+           - mountPath: /sql-config
+             name: sql-config
              readOnly: true
            - mountPath: /secrets/oauth-token
              name: hail-ci-0-1-github-oauth-token
@@ -97,7 +97,7 @@ spec:
          secret:
            optional: false
            secretName: session-secret-key
-       - name: ci-user-secret
+       - name: sql-config
          secret:
            optional: false
            secretName: "{{ ci_database.user_secret_name }}"
