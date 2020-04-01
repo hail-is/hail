@@ -188,10 +188,9 @@ class PR(Code):
         self.target_branch.batch_changed = True
         self.target_branch.state_changed = True
 
-    def set_build_state(self, build_state, batch_changed=True):
+    def set_build_state(self, build_state):
         if build_state != self.build_state:
             self.build_state = build_state
-            self.target_branch.batch_changed = batch_changed
 
             intended_github_status = self.github_status_from_build_state()
             if intended_github_status != self.intended_github_status:
@@ -365,7 +364,7 @@ class PR(Code):
 
         # clear current batch
         self.batch = None
-        self.set_build_state(None, batch_changed=False)
+        self.set_build_state(None)
 
         batch = None
         try:
@@ -458,7 +457,7 @@ mkdir -p {shq(repo_dir)}
                 if exc.status == 404:
                     log.info(f'batch {self.batch.id} was deleted by someone')
                     self.batch = None
-                    self.set_build_state(None, batch_changed=False)
+                    self.set_build_state(None)
                     return
                 raise exc
             if status['complete']:
@@ -467,6 +466,7 @@ mkdir -p {shq(repo_dir)}
                 else:
                     self.set_build_state('failure')
                     self.source_sha_failed = True
+                self.target_branch.state_changed = True
 
     async def _heal(self, batch_client, dbpool, on_deck, gh):
         # can't merge target if we don't know what it is
