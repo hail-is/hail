@@ -33,7 +33,7 @@ async def wait_and_exit(proc):
 async def on_startup(app):
     port = launch_gateway(
         jarpath='/spark-2.4.0-bin-hadoop2.7/jars/py4j-0.10.7.jar',
-        classpath='/spark-2.4.0-bin-hadoop2.7/jars/*:/hail-all-spark.jar',
+        classpath='/spark-2.4.0-bin-hadoop2.7/jars/*:/hail.jar',
         die_on_exit=True)
     gateway = JavaGateway(
         gateway_parameters=GatewayParameters(port=port),
