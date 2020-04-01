@@ -141,9 +141,10 @@ class RandomFunctionsSuite extends HailSuite {
   }
 
   @Test def testRandCat() {
-    assertEvalsTo(invokeSeeded("rand_cat", TInt32, MakeArray(IndexedSeq(0.1), TArray(TFloat64)), I64(5L)), 0)
-    assertEvalsTo(invokeSeeded("rand_cat", TInt32, MakeArray(IndexedSeq(0.3, 0.2, 0.95, 0.05), TArray(TFloat64)), I64(5L)), 1)
-    assertEvalsTo(invokeSeeded("rand_cat", TInt32, NA(TArray(TFloat64)), I64(5L)), null)
-    assertFatal(invokeSeeded("rand_cat", TInt32, MakeArray(IndexedSeq(0.3, NA(TFloat64)), TArray(TFloat64)), I64(5L)), "rand_cat")
+    val seed = I64(5L)
+    assertEvalsTo(invokeSeeded("rand_cat", TInt32, MakeArray(IndexedSeq(0.1), TArray(TFloat64)), seed), 0)
+    assertEvalsTo(invokeSeeded("rand_cat", TInt32, MakeArray(IndexedSeq(0.3, 0.2, 0.95, 0.05), TArray(TFloat64)), seed), 1)
+    assertEvalsTo(invokeSeeded("rand_cat", TInt32, NA(TArray(TFloat64)), seed), null)
+    assertFatal(invokeSeeded("rand_cat", TInt32, MakeArray(IndexedSeq(0.3, NA(TFloat64)), TArray(TFloat64)), seed), "rand_cat")
   }
 }
