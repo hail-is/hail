@@ -414,6 +414,7 @@ mkdir -p {shq(repo_dir)}
                 })
             self.set_build_state('error')
             self.source_sha_failed = True
+            self.target_branch.state_changed = True
         finally:
             if batch and not self.batch:
                 log.info(f'cancelling partial test batch {batch.id}')
