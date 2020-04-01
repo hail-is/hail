@@ -48,7 +48,7 @@ class HailContext(object):
             if os.environ.get('HAIL_APISERVER_URL') is not None:
                 _backend = ServiceBackend()
             else:
-                _backend = SparkBackend(idempotent, sc, app_name, master, local, min_block_size)
+                _backend = SparkBackend(idempotent, sc, spark_conf, app_name, master, local, min_block_size)
         self._backend = _backend
         self._jbackend = _backend._jbackend
 

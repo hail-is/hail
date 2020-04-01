@@ -39,6 +39,7 @@ SCALA_BUILD_INFO := src/main/resources/build-info.properties
 
 SHADOW_JAR := build/libs/hail-all-spark.jar
 SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
+PYTHON_JAR := python/hail/backend/hail-all-spark.jar
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 
 .PHONY: shadowJar
@@ -98,12 +99,12 @@ python/hailtop/hailctl/hail_version: python/hail/hail_version
 python/README.md: ../README.md
 	cp ../README.md python/
 
-python/hail/hail-all-spark.jar: $(SHADOW_JAR)
+$(PYTHON_JAR): $(SHADOW_JAR)
 	cp -f $< $@
 
 .PHONY: pytest
 pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
-pytest: python/README.md python/hail/hail-all-spark.jar
+pytest: python/README.md $(PYTHON_JAR)
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
      --addopts "-v \
      --color=no \
@@ -115,7 +116,7 @@ pytest: python/README.md python/hail/hail-all-spark.jar
 
 .PHONY: doctest
 doctest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
-doctest: python/README.md python/hail/hail-all-spark.jar
+doctest: python/README.md $(PYTHON_JAR)
 	cd python && $(HAIL_PYTHON3) setup.py pytest \
 	  --addopts "-v \
     --color=no \
@@ -139,7 +140,7 @@ doctest: python/README.md python/hail/hail-all-spark.jar
 .PHONY: wheel
 wheel: $(WHEEL)
 
-$(WHEEL): $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES)
+$(WHEEL): $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) $(PYTHON_JAR)
 	rm -rf build/deploy
 	mkdir -p build/deploy
 	mkdir -p build/deploy/src
@@ -152,7 +153,6 @@ $(WHEEL): $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES)
 	    --exclude 'test/' \
 	    --exclude '*.log' \
 	    python/ build/deploy/
-	cp build/libs/hail-all-spark.jar build/deploy/hail/
 	cd build/deploy; $(HAIL_PYTHON3) setup.py sdist bdist_wheel
 
 # if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
@@ -190,7 +190,7 @@ upload-artifacts: $(WHEEL)
 
 .PHONY: install-editable
 install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
-install-editable: python/README.md python/hail/hail-all-spark.jar
+install-editable: python/README.md $(PYTHON_JAR)
 	-$(PIP) uninstall -y hail
 	cd python && $(PIP) install -e .
 
@@ -378,7 +378,7 @@ native-lib-reset-prebuilt:
 clean: clean-env clean-docs native-lib-clean
 	./gradlew clean $(GRADLE_ARGS)
 	rm -rf build/
-	rm -rf python/hail/hail-all-spark.jar
+	rm -rf $(PYTHON_JAR)
 	rm -rf python/README.md
 	rm -rf $(SCALA_BUILD_INFO)
 	rm -rf $(PYTHON_VERSION_INFO)
