@@ -456,7 +456,7 @@ abstract class RegistryFunctions {
       override def returnPType(argPTypes: Seq[PType], returnType: Type): PType = {
         val rt = if (pt == null) PType.canonical(returnType) else pt(argPTypes)
 
-        // applySeeded sets EmitCode.m missing if any argument not required
+        // applySeeded returns a missing value if any argument is missing
         rt.setRequired(argPTypes.forall(_.required))
       }
 

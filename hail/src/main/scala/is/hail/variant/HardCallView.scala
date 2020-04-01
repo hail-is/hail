@@ -3,6 +3,7 @@ package is.hail.variant
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
+import is.hail.expr.types.virtual.TCall
 
 final class ArrayGenotypeView(rvType: PStruct) {
   private val entriesIndex = rvType.fieldByName(MatrixType.entriesIdentifier).index
@@ -83,18 +84,16 @@ final class HardCallView(rvType: PStruct, callField: String) {
   private val tgs = rvType.types(entriesIndex).asInstanceOf[PArray]
   private val tg = tgs.elementType.asInstanceOf[PStruct]
 
-  private def lookupField(name: String, expected: PType): (Boolean, Int) = {
-    tg.selfField(name) match {
+  private val (gtExists, gtIndex) = {
+    tg.selfField(callField) match {
       case Some(f) =>
-        if (f.typ == expected)
+        if (f.typ.virtualType == TCall)
           (true, f.index)
         else
           (false, 0)
       case None => (false, 0)
     }
   }
-
-  private val (gtExists, gtIndex) = lookupField(callField, PCall())
 
   private var gsOffset: Long = _
   private var gOffset: Long = _
