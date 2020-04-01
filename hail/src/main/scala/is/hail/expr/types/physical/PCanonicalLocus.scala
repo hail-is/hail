@@ -32,9 +32,11 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   val representation: PStruct = PCanonicalLocus.representation(required)
 
-  def contig(address: Code[Long]): Code[Long] = representation.loadField(address, 0)
+  private[physical] def contigAddr(address: Code[Long]): Code[Long] = representation.loadField(address, 0)
 
-  def contig(address: Long): Long = representation.loadField(address, 0)
+  private[physical] def contigAddr(address: Long): Long = representation.loadField(address, 0)
+
+  def contig(address: Long): String = contigType.loadString(contigAddr(address))
 
   lazy val contigType: PString = representation.field("contig").typ.asInstanceOf[PString]
 
@@ -100,17 +102,16 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 }
 
 object PCanonicalLocusSettable {
-  def apply(sb: SettableBuilder, pt: PLocus, name: String): PCanonicalLocusSettable = {
+  def apply(sb: SettableBuilder, pt: PCanonicalLocus, name: String): PCanonicalLocusSettable = {
     new PCanonicalLocusSettable(pt,
       sb.newSettable[Long](s"${ name }_a"),
       sb.newSettable[Long](s"${ name }_contig"),
       sb.newSettable[Int](s"${ name }_position"))
-
   }
 }
 
 class PCanonicalLocusSettable(
-  val pt: PLocus,
+  val pt: PCanonicalLocus,
   val a: Settable[Long],
   _contig: Settable[Long],
   val position: Settable[Int]
@@ -120,15 +121,27 @@ class PCanonicalLocusSettable(
   def store(pc: PCode): Code[Unit] = {
     Code(
       a := pc.asInstanceOf[PCanonicalLocusCode].a,
-      _contig := pt.contig(a),
+      _contig := pt.contigAddr(a),
       position := pt.position(a))
   }
 
   def contig(): PStringCode = new PCanonicalStringCode(pt.contigType, _contig)
 }
 
-class PCanonicalLocusCode(val pt: PLocus, val a: Code[Long]) extends PLocusCode {
+class PCanonicalLocusCode(val pt: PCanonicalLocus, val a: Code[Long]) extends PLocusCode {
   def code: Code[_] = a
+
+  def contig(): PStringCode = new PCanonicalStringCode(pt.contigType, pt.contigAddr(a))
+
+  def position(): Code[Int] = pt.position(a)
+
+  def getLocusObj(): Code[Locus] = {
+    Code.memoize(a, "get_locus_code_memo") { a =>
+      Code.invokeStatic[Locus, String, Int, Locus]("apply",
+        pt.contigType.loadString(pt.contigAddr(a)),
+        pt.position(a))
+    }
+  }
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PLocusValue = {
     val s = PCanonicalLocusSettable(sb, pt, name)

@@ -47,6 +47,8 @@ abstract class PCode { self =>
 
   def asInterval: PIntervalCode = asInstanceOf[PIntervalCode]
 
+  def asLocus: PLocusCode = asInstanceOf[PLocusCode]
+
   def asCall: PCallCode = asInstanceOf[PCallCode]
 
   def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType): PCode = {
@@ -99,7 +101,7 @@ object PCode {
       new PCanonicalStringCode(pt, coerce[Long](code))
     case pt: PInterval =>
       new PCanonicalIntervalCode(pt, coerce[Long](code))
-    case pt: PLocus =>
+    case pt: PCanonicalLocus =>
       new PCanonicalLocusCode(pt, coerce[Long](code))
     case pt: PCall =>
       new PCanonicalCallCode(pt, coerce[Int](code))

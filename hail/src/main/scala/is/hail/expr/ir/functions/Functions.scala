@@ -178,7 +178,7 @@ abstract class RegistryFunctions {
     case _: PFloat64 => coerce[Double]
     case _: PCall => coerce[Int]
     case t: PString => c => t.loadString(coerce[Long](c))
-    case t: PLocus => c => LocusFunctions.getLocus(r, coerce[Long](c), t)
+    case t: PLocus => c => PCode(t, c).asLocus.getLocusObj()
     case _ => c =>
       Code.invokeScalaObject[PType, Region, Long, Any](
         UnsafeRow.getClass, "read",
@@ -206,7 +206,7 @@ abstract class RegistryFunctions {
     case _: PFloat64 => c => Code.boxDouble(coerce[Double](c))
     case _: PCall => c => Code.boxInt(coerce[Int](c))
     case t: PString => c => t.loadString(coerce[Long](c))
-    case t: PLocus => c => LocusFunctions.getLocus(r, coerce[Long](c), t)
+    case t: PLocus => c => PCode(t, c).asLocus.getLocusObj()
     case _ => c =>
       Code.invokeScalaObject[PType, Region, Long, AnyRef](
         UnsafeRow.getClass, "readAnyRef",
@@ -389,6 +389,12 @@ abstract class RegistryFunctions {
   def registerPCode(mname: String, mt1: Type, rt: Type, pt: (Type, PType) => PType)(impl: (EmitRegion, PType, PCode) => PCode): Unit =
     registerPCode(mname, Array(mt1), rt, unwrappedApply(pt)) {
       case (r, rt, Array(a1)) => impl(r, rt, a1)
+    }
+
+  def registerPCode(mname: String, mt1: Type, mt2: Type, rt: Type, pt: (Type, PType, PType) => PType)
+    (impl: (EmitRegion, PType, PCode, PCode) => PCode): Unit =
+    registerPCode(mname, Array(mt1, mt2), rt, unwrappedApply(pt)) {
+      case (r, rt, Array(a1, a2)) => impl(r, rt, a1, a2)
     }
 
   def registerCode[A1](mname: String, mt1: Type, rt: Type, pt: (Type, PType) => PType)(impl: (EmitRegion, PType, (PType, Code[A1])) => Code[_]): Unit =

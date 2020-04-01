@@ -33,7 +33,7 @@ class RegionValueVariant(rowType: PStruct) extends View {
 
   def contig(): String = {
     if (cachedContig == null)
-      cachedContig = locusPType.contigType.loadString(locusPType.contig(locusAddress))
+      cachedContig = locusPType.contig(locusAddress)
     cachedContig
   }
 
