@@ -1727,11 +1727,6 @@ def binom_test(x, n, p, alternative: str) -> Float64Expression:
     - ``'greater'``: a one-tailed test of the significance of `x` or more successes, and
     - ``'two-sided'``: a two-tailed test of the significance of `x` or any equivalent or more unlikely outcome.
 
-    The alternatives are computed in this manner:
-    - ``'less'``: the value of the binomial cumulative density function evaluated at `x`
-    - ``'greater'``: the value of the binomial cumulative density function evaluated at `1 - x`
-    - ``'two-sided'``: the value of the binomial cumulative density function evaluated at `x` or `1 - x` (if `x` is below the mean or above, respectively) plus the value of the binomial cumulative density function evaluated at the equally likely or next most unlikely outcome on the other side of the distribution.
-
     Examples
     --------
 
