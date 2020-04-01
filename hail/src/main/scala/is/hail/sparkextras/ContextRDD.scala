@@ -228,7 +228,7 @@ class ContextRDD[T: ClassTag](
     sparkContext.runJob(
       rdd,
       { (taskContext, it: Iterator[RVDContext => Iterator[T]]) =>
-        val c = sparkManagedContext()
+        val c = RVDContext.default
         f(taskContext.partitionId(), c, it.flatMap(_(c)))
       })
 

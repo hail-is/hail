@@ -1174,8 +1174,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
           val seq = eltSeqF(i, globalRegion)
 
           seq.setAggState(aggRegion, read(aggRegion, initAgg))
-          it.foreach { rv =>
-            seq(rv.region, globals, rv.offset)
+          it.foreach { ptr =>
+            seq(ctx.region, globals, ptr)
             ctx.region.clear()
           }
           using(new DataOutputStream(fs.value.create(path))) { os =>
@@ -1218,7 +1218,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       }
       fileStack += filesToMerge
 
-      val itF = { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
+      val itF = { (i: Int, ctx: RVDContext, it: Iterator[Long]) =>
         val globalRegion = ctx.freshRegion
         val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
           globalsBc.value.readRegionValue(globalRegion)
@@ -1258,19 +1258,18 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val seq = eltSeqF(i, globalRegion)
         var aggOff = read(aggRegion, partitionAggs)
 
-        it.map { rv =>
+        it.map { ptr =>
           newRow.setAggState(aggRegion, aggOff)
-          val off = newRow(rv.region, globals, rv.offset)
+          val newPtr = newRow(ctx.region, globals, ptr)
           seq.setAggState(aggRegion, newRow.getAggOffset())
-          seq(rv.region, globals, rv.offset)
+          seq(ctx.region, globals, ptr)
           aggOff = seq.getAggOffset()
-          rv.setOffset(off)
-          rv
+          newPtr
         }
       }
       return tv.copy(
         typ = typ,
-        rvd = tv.rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key), itF))
+        rvd = tv.rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key))(itF))
     }
 
     // 2. load in init op on each partition, seq op over partition, write out.
