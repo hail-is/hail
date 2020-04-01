@@ -1,9 +1,9 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{CodeOrdering, _}
-import is.hail.asm4s.Code
+import is.hail.asm4s._
 import is.hail.check.Gen
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.expr.types.virtual.TInterval
 import is.hail.utils._
 
@@ -108,4 +108,26 @@ abstract class PInterval extends ComplexPType {
   def includesEnd(off: Code[Long]): Code[Boolean]
 
   override def genNonmissingValue: Gen[Annotation] = Interval.gen(pointType.virtualType.ordering, pointType.genValue)
+}
+
+abstract class PIntervalValue extends PValue {
+  def includesStart(): Value[Boolean]
+
+  def includesEnd(): Value[Boolean]
+
+  def loadStart(cb: EmitCodeBuilder): IEmitCode
+
+  def loadEnd(cb: EmitCodeBuilder): IEmitCode
+}
+
+abstract class PIntervalCode extends PCode {
+  def pt: PInterval
+
+  def includesStart(): Code[Boolean]
+
+  def includesEnd(): Code[Boolean]
+
+  def memoize(cb: EmitCodeBuilder, name: String): PIntervalValue
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PIntervalValue
 }

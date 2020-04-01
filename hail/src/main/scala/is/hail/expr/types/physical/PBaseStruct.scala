@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
 import is.hail.check.Gen
-import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
 import is.hail.utils._
 
 object PBaseStruct {
@@ -75,7 +75,7 @@ abstract class PBaseStruct extends PType {
   }
 
   def identBase: String
-  
+
   def _asIdent: String = {
     val sb = new StringBuilder
     sb.append(identBase)
@@ -182,4 +182,18 @@ abstract class PBaseStruct extends PType {
     } else
       Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*))
   }
+}
+
+abstract class PBaseStructValue extends PValue {
+  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode
+
+  def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadField(cb, pt.asInstanceOf[PBaseStruct].fieldIdx(fieldName))
+}
+
+abstract class PBaseStructCode extends PCode {
+  def pt: PBaseStruct
+
+  def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue
 }

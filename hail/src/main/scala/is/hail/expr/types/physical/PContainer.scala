@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 
 abstract class PContainer extends PIterable {
   override def containsPointers: Boolean = true
@@ -94,4 +94,20 @@ abstract class PContainer extends PIterable {
   def nextElementAddress(currentOffset: Long): Long
 
   def nextElementAddress(currentOffset: Code[Long]): Code[Long]
+}
+
+abstract class PIndexableValue extends PValue {
+  def loadLength(): Value[Int]
+
+  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode
+}
+
+abstract class PIndexableCode extends PCode {
+  def pt: PContainer
+
+  def loadLength(): Code[Int]
+
+  def memoize(cb: EmitCodeBuilder, name: String): PIndexableValue
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PIndexableValue
 }

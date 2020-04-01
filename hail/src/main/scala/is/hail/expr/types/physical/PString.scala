@@ -42,3 +42,13 @@ object PString {
 
   def unapply(t: PString): Option[Boolean] = PCanonicalString.unapply(t)
 }
+
+abstract class PStringCode extends PCode {
+  def pt: PString
+
+  def loadLength(): Code[Int]
+
+  def bytesAddress(): Code[Long]
+
+  def loadString(): Code[String]
+}

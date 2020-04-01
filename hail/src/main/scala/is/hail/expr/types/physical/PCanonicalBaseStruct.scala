@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitMethodBuilder, PCanonicalBaseStructCode, PCode}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.expr.types.BaseStruct
 import is.hail.utils._
 
@@ -226,4 +226,44 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   override def load(src: Code[Long]): PCode =
     new PCanonicalBaseStructCode(this, src)
+}
+
+object PCanonicalBaseStructSettable {
+  def apply(cb: EmitCodeBuilder, pt: PBaseStruct, name: String, sb: SettableBuilder): PCanonicalBaseStructSettable = {
+    new PCanonicalBaseStructSettable(pt, sb.newSettable(name))
+  }
+}
+
+class PCanonicalBaseStructSettable(
+  val pt: PBaseStruct,
+  val a: Settable[Long]
+) extends PBaseStructValue with PSettable {
+  def get: PBaseStructCode = new PCanonicalBaseStructCode(pt, a)
+
+  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
+    IEmitCode(cb,
+      pt.isFieldMissing(a, fieldIdx),
+      pt.fields(fieldIdx).typ.load(pt.fieldOffset(a, fieldIdx)))
+  }
+
+  def store(pv: PCode): Code[Unit] = {
+    a := pv.asInstanceOf[PCanonicalBaseStructCode].a
+  }
+}
+
+class PCanonicalBaseStructCode(val pt: PBaseStruct, val a: Code[Long]) extends PBaseStructCode {
+  def code: Code[_] = a
+
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PBaseStructValue = {
+    val s = PCanonicalBaseStructSettable(cb, pt, name, sb)
+    cb.assign(s, this)
+    s
+  }
+
+  def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue = memoize(cb, name, cb.localBuilder)
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue = memoize(cb, name, cb.fieldBuilder)
+
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] =
+    pt.constructAtAddress(mb, dst, r, pt, a, deepCopy = false)
 }
