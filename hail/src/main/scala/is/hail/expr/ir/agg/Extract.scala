@@ -190,8 +190,8 @@ object Extract {
       new CollectAsSetAggregator(PType.canonical(t))
     case PhysicalAggSignature(Collect(), _, Seq(t)) =>
       new CollectAggregator(t)
-    case PhysicalAggSignature(LinearRegression(), _, _) =>
-      LinearRegressionAggregator
+    case PhysicalAggSignature(LinearRegression(), _, Seq(yt: PFloat64, xt: PCanonicalArray)) =>
+      new LinearRegressionAggregator(yt, xt)
     case PhysicalAggSignature(ApproxCDF(), _, _) => new ApproxCDFAggregator
     case PhysicalAggSignature(Downsample(), _, Seq(_, _, label)) => new DownsampleAggregator(label.asInstanceOf[PArray])
     case _ => throw new UnsupportedExtraction(aggSig.toString)
