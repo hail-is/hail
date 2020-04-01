@@ -1,6 +1,7 @@
 package is.hail.io.bgen
 
 import is.hail.HailContext
+import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.TableType
 import is.hail.expr.types.physical.PStruct
@@ -11,7 +12,7 @@ import is.hail.io._
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import org.apache.spark.broadcast.Broadcast
+
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, TaskContext}
 
@@ -23,7 +24,7 @@ private case class IndexBgenPartition(
   startByteOffset: Long,
   endByteOffset: Long,
   partitionIndex: Int,
-  bcFS: Broadcast[FS]
+  fsBc: BroadcastValue[FS]
 ) extends BgenPartition {
 
   def index = partitionIndex
@@ -37,16 +38,15 @@ object IndexBgen {
         new StreamBlockBufferSpec)))
 
   def apply(
-    hc: HailContext,
+    ctx: ExecuteContext,
     files: Array[String],
     indexFileMap: Map[String, String] = null,
     rg: Option[String] = None,
     contigRecoding: Map[String, String] = null,
-    skipInvalidLoci: Boolean = false,
-    ctx: ExecuteContext
+    skipInvalidLoci: Boolean = false
   ) {
-    val fs = hc.fs
-    val bcFS = hc.fsBc
+    val fs = ctx.fs
+    val fsBc = fs.broadcast
 
     val statuses = LoadBgen.getAllFileStatuses(fs, files)
     val bgenFilePaths = statuses.map(_.getPath.toString)
@@ -91,7 +91,7 @@ object IndexBgen {
         f.dataStart,
         f.fileByteSize,
         i,
-        bcFS)
+        fsBc)
     }
 
     val rowType = typ.rowType
@@ -108,7 +108,7 @@ object IndexBgen {
 
     val rangeBounds = bgenFilePaths.zipWithIndex.map { case (_, i) => Interval(Row(i), Row(i), includesStart = true, includesEnd = true) }
     val partitioner = new RVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
-    val crvd = BgenRDD(hc.sc, partitions, settings, null)
+    val crvd = BgenRDD(HailContext.sc, partitions, settings, null)
 
     val (leafCodec, intCodec) = BgenSettings.indexCodecSpecs(referenceGenome)
     val leafPType = LeafNodeBuilder.typ(indexKeyType, annotationType)
@@ -123,7 +123,7 @@ object IndexBgen {
       .foreachPartition { it =>
         val partIdx = TaskContext.get.partitionId()
 
-        using(new IndexWriter(bcFS.value, indexFilePaths(partIdx), indexKeyType, annotationType,
+        using(new IndexWriter(fsBc.value, indexFilePaths(partIdx), indexKeyType, annotationType,
           leafEnc, intEnc, attributes = attributes)) { iw =>
           it.foreach { r =>
             assert(r.getInt(fileIdxIdx) == partIdx)

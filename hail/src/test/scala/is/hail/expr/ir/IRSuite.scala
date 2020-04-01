@@ -13,7 +13,7 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.expr.Nat
 import is.hail.expr.types.encoded.{EArray, EBaseStruct, EBinary, EField, EFloat32, EFloat64, EInt32, EInt64, EType}
-import is.hail.io.bgen.MatrixBGENReader
+import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
@@ -2499,7 +2499,7 @@ class IRSuite extends HailSuite {
 
   @DataProvider(name = "valueIRs")
   def valueIRs(): Array[Array[IR]] = {
-    hc.indexBgen(FastIndexedSeq("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
+    IndexBgen(ctx, Array("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
 
     val b = True()
     val c = Ref("c", TBoolean)
@@ -2733,7 +2733,7 @@ class IRSuite extends HailSuite {
   @DataProvider(name = "matrixIRs")
   def matrixIRs(): Array[Array[MatrixIR]] = {
     try {
-      hc.indexBgen(FastIndexedSeq("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
+      IndexBgen(ctx, Array("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
 
       val tableRead = TableIR.read(hc, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
       val read = MatrixIR.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
@@ -3173,7 +3173,7 @@ class IRSuite extends HailSuite {
         |       (MakeStruct (locus  (Apply start Locus(GRCh37) (Ref __uid_3))))
         |       (MakeStruct (locus  (Apply end Locus(GRCh37) (Ref __uid_3)))) (True) (False))))
         |""".stripMargin)
-    val (v, _) = HailContext.backend.execute(ir, optimize = true)
+    val (v, _) = HailContext.sparkBackend().execute(ir, optimize = true)
     assert(
       ir.typ.ordering.equiv(
         FastIndexedSeq(

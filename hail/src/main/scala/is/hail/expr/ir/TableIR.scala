@@ -46,7 +46,7 @@ abstract sealed class TableIR extends BaseIR {
 
   def persist(storageLevel: StorageLevel): TableIR = {
     // FIXME: store table literal in cache, return ID
-    ExecuteContext.scoped { ctx =>
+    ExecuteContext.scoped() { ctx =>
       val tv = Interpret(this, ctx, optimize = true)
       TableLiteral(tv.persist(storageLevel), ctx)
     }
@@ -72,7 +72,7 @@ abstract sealed class TableIR extends BaseIR {
   def pyUnpersist(): TableIR = unpersist()
 
   def pyToDF(): DataFrame = {
-    ExecuteContext.scoped { ctx =>
+    ExecuteContext.scoped() { ctx =>
       Interpret(this, ctx).toDF()
     }
   }

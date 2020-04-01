@@ -1,11 +1,10 @@
 package is.hail.backend.spark
 
-import is.hail.backend.ValueCache
 import is.hail.linalg.BlockMatrix
 
 import scala.collection.mutable
 
-case class SparkValueCache() extends ValueCache {
+case class SparkBlockMatrixCache() {
   private[this] val blockmatrices: mutable.Map[String, BlockMatrix] = new mutable.HashMap()
 
   def persistBlockMatrix(id: String, value: BlockMatrix, storageLevel: String): Unit =

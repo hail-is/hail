@@ -5,7 +5,7 @@ import is.hail.utils.HailException
 
 object FoldConstants {
   def apply(ir: BaseIR): BaseIR =
-    ExecuteContext.scoped { ctx =>
+    ExecuteContext.scoped() { ctx =>
       RewriteBottomUp(ir, {
         case _: Ref |
              _: In |

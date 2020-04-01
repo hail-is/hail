@@ -2315,7 +2315,7 @@ def index_bgen(path,
         index_file_map = {}
     if contig_recoding is None:
         contig_recoding = {}
-    Env.hc()._jhc.indexBgen(wrap_to_list(path), index_file_map, joption(rg), contig_recoding, skip_invalid_loci)
+    Env.backend().index_bgen(wrap_to_list(path), index_file_map, rg, contig_recoding, skip_invalid_loci)
 
 
 @typecheck(path=str,

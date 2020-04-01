@@ -117,7 +117,7 @@ object ExportPlink {
     using(fs.create(tmpBimDir + "/_SUCCESS"))(out => ())
     fs.copyMerge(tmpBimDir, path + ".bim", nPartitions, header = false, partFilesOpt = Some(partFiles))
 
-    ExecuteContext.scoped { ctx =>
+    ExecuteContext.scoped() { ctx =>
       mv.colsTableValue(ctx).export(path + ".fam", header = false)
     }
 

@@ -37,7 +37,7 @@ object Graph {
 
   def pyMaximalIndependentSet(edgesIR: IR, nodeTypeStr: String, tieBreaker: Option[String]): IR = {
     val nodeType = IRParser.parseType(nodeTypeStr)
-    ExecuteContext.scoped { ctx =>
+    ExecuteContext.scoped() { ctx =>
       val edges = Interpret[IndexedSeq[Row]](ctx, edgesIR).toArray
 
       val resultType = TSet(nodeType)

@@ -37,7 +37,7 @@ class HailSuite extends TestNGSuite {
 
   @BeforeClass def ensureHailContextInitialized() { hc }
 
-  val ctx = ExecuteContext(Region(), new ExecutionTimer) // will get cleaned up on suite GC
+  val ctx = new ExecuteContext(hc.backend, hc.fs, Region(), new ExecutionTimer) // will get cleaned up on suite GC
 
   def fs: FS = hc.fs
 

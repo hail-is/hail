@@ -36,7 +36,7 @@ object LinearMixedModel {
   private val tableType = TableType(rowType.virtualType, FastIndexedSeq("idx"), TStruct.empty)
 
   def toTableIR(rvd: RVD): TableIR = {
-    ExecuteContext.scoped { ctx =>
+    ExecuteContext.scoped() { ctx =>
       TableLiteral(TableValue(tableType, BroadcastRow.empty(ctx), rvd), ctx)
     }
   }

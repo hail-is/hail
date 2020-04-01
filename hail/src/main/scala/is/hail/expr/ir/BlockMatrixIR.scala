@@ -61,7 +61,7 @@ abstract sealed class BlockMatrixIR extends BaseIR {
   def typ: BlockMatrixType
 
   def pyExecute(): BlockMatrix = {
-    ExecuteContext.scoped { ctx =>
+    ExecuteContext.scoped() { ctx =>
       Interpret(this, ctx, optimize = true)
     }
   }
@@ -131,7 +131,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
 }
 
 case class BlockMatrixPersistReader(id: String) extends BlockMatrixReader {
-  lazy val bm: BlockMatrix = HailContext.backend.cache.getPersistedBlockMatrix(id)
+  lazy val bm: BlockMatrix = HailContext.sparkBackend().bmCache.getPersistedBlockMatrix(id)
   lazy val fullType: BlockMatrixType = BlockMatrixType.fromBlockMatrix(bm)
   def apply(ctx: ExecuteContext, hc: HailContext): BlockMatrix = bm
 }

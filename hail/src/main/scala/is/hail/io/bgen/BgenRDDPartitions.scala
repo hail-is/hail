@@ -3,6 +3,7 @@ package is.hail.io.bgen
 import is.hail.HailContext
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s.{coerce, _}
+import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion}
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.types._
@@ -25,10 +26,10 @@ trait BgenPartition extends Partition {
 
   def contigRecoding: Map[String, String]
 
-  def bcFS: Broadcast[FS]
+  def fsBc: BroadcastValue[FS]
 
   def makeInputStream: HadoopFSDataBinaryReader = {
-    new HadoopFSDataBinaryReader(bcFS.value.openNoCompression(path))
+    new HadoopFSDataBinaryReader(fsBc.value.openNoCompression(path))
   }
 
   def recodeContig(contig: String): String = contigRecoding.getOrElse(contig, contig)
@@ -44,7 +45,7 @@ private case class LoadBgenPartition(
   partitionIndex: Int,
   startIndex: Long,
   endIndex: Long,
-  bcFS: Broadcast[FS]
+  fsBc: BroadcastValue[FS]
 ) extends BgenPartition {
   assert(startIndex <= endIndex)
 
@@ -82,15 +83,14 @@ object BgenRDDPartitions extends Logging {
   }
 
   def apply(
+    fs: FS,
     rg: Option[ReferenceGenome],
     files: Seq[BgenFileMetadata],
     blockSizeInMB: Option[Int],
     nPartitions: Option[Int],
     keyType: Type
   ): (Array[Partition], Array[Interval]) = {
-    val hc = HailContext.get
-    val fs = hc.fs
-    val bcFS = hc.fsBc
+    val fsBc = fs.broadcast
 
     val fileRangeBounds = checkFilesDisjoint(fs, files, keyType)
     val intervalOrdering = TInterval(keyType).ordering
@@ -152,7 +152,7 @@ object BgenRDDPartitions extends Logging {
               partitionIndex,
               firstVariantIndex,
               lastVariantIndex,
-              bcFS
+              fsBc
             )
 
             rangeBounds += Interval(
