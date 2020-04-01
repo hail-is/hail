@@ -4,14 +4,13 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.types.{coerce => _, _}
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.{PArray, PCode, PIndexableCode, PFloat64, PInt32, PType}
-import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32}
-import is.hail.variant.Genotype
+import is.hail.expr.types.physical.{PArray, PCode, PFloat64, PIndexableCode, PInt32, PType}
+import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, Type}
 
 object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
-    registerCode("gqFromPL", TArray(tv("N", "int32")), TInt32, (pt: PType) => PInt32()) { case (r, rt, (tPL: PArray, _pl: Code[Long])) =>
+    registerCode("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: PType) => PInt32()) { case (r, rt, (tPL: PArray, _pl: Code[Long])) =>
       val pl = r.mb.newLocal[Long]("pl")
       val m = r.mb.newLocal[Int]("m")
       val m2 = r.mb.newLocal[Int]("m2")
@@ -39,7 +38,7 @@ object GenotypeFunctions extends RegistryFunctions {
         m2 - m)
     }
 
-    registerCodeWithMissingness("dosage", TArray(tv("N", "float64")), TFloat64,  (pt: PType) => PFloat64()
+    registerCodeWithMissingness("dosage", TArray(tv("N", "float64")), TFloat64,  (_: Type, _: PType) => PFloat64()
     ) { case (r, rt, gp) =>
       EmitCode.fromI(r.mb) { cb =>
         gp.toI(cb).flatMap(cb) { case (gpc: PIndexableCode) =>
