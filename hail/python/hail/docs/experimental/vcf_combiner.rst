@@ -144,12 +144,12 @@ example: ::
     DP: 9
     GQ: 77
     LA: [0, 2]
-    LGT: 0/2
+    LGT: 0/1
     LAD: [3, 6]
     LPL: [137, 0, 77]
     END: NA
 
-    equivalent GT: 0/1
+    equivalent GT: 0/2
     equivalent AD: [3, 0, 6]
     equivalent PL: [137, 137*, 137*, 0, 137*, 77]
 
