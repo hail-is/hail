@@ -354,12 +354,6 @@ class PR(Code):
             self.review_state = review_state
             self.target_branch.state_changed = True
 
-    def _update_intended_github_status_from_build_state(self):
-        intended_github_status = self.github_status_from_build_state()
-        if intended_github_status != self.intended_github_status:
-            self.intended_github_status = intended_github_status
-            self.target_branch.state_changed = True
-
     async def _start_build(self, dbpool, batch_client):
         assert await self.authorized(dbpool)
 
