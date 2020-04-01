@@ -243,6 +243,7 @@ class PR(Code):
             self.source_sha_failed = None
             self.set_build_state(None)
             self.target_branch.batch_changed = True
+            self.target_branch.state_changed = True
 
         self.source_repo = Repo.from_gh_json(head['repo'])
 
