@@ -2494,6 +2494,12 @@ def subst(ir, env, agg_env):
         return ApplyAggOp(ir.agg_op,
                           subst_init_op_args,
                           subst_seq_op_args)
+    elif isinstance(ir, AggArrayPerElement):
+        return AggArrayPerElement(_subst(ir.array, agg_env),
+                                  ir.element_name,
+                                  ir.index_name,
+                                  _subst(ir.agg_ir, delete(env, ir.index_name), delete(agg_env, ir.element_name)),
+                                  ir.is_scan)
     else:
         assert isinstance(ir, IR)
         return ir.map_ir(lambda x: _subst(x))
