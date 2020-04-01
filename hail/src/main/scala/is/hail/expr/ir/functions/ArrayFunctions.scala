@@ -305,7 +305,7 @@ object ArrayFunctions extends RegistryFunctions {
     }
 
     registerCodeWithMissingness("corr", TArray(TFloat64), TArray(TFloat64), TFloat64, {
-      (t1: PType, t2: PType) => PFloat64()
+      (_: Type, _: PType, _: PType) => PFloat64()
     }) { case (r, rt, EmitCode(setup1, m1, v1), EmitCode(setup2, m2, v2)) =>
         val t1 = v1.pt.asInstanceOf[PArray]
         val t2 = v2.pt.asInstanceOf[PArray]

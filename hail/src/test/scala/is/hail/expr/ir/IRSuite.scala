@@ -37,7 +37,7 @@ object IRSuite {
 
   object TestFunctions extends RegistryFunctions {
 
-    def registerSeededWithMissingness(mname: String, aTypes: Array[Type], rType: Type, pt: Seq[PType] => PType)(impl: (EmitRegion, PType, Long, Array[EmitCode]) => EmitCode) {
+    def registerSeededWithMissingness(mname: String, aTypes: Array[Type], rType: Type, pt: (Type, Seq[PType]) => PType)(impl: (EmitRegion, PType, Long, Array[EmitCode]) => EmitCode) {
       IRFunctionRegistry.addIRFunction(new SeededIRFunction {
         val isDeterministic: Boolean = false
 
@@ -47,7 +47,7 @@ object IRSuite {
 
         override val returnType: Type = rType
 
-        override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(argTypes)
+        override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(returnType, argTypes)
 
         def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: EmitCode*): EmitCode = {
           unify(args.map(_.pt.virtualType))
@@ -56,7 +56,7 @@ object IRSuite {
       })
     }
 
-    def registerSeededWithMissingness(mname: String, mt1: Type, rType: Type, pt: PType => PType)(impl: (EmitRegion, PType, Long, EmitCode) => EmitCode): Unit =
+    def registerSeededWithMissingness(mname: String, mt1: Type, rType: Type, pt: (Type, PType) => PType)(impl: (EmitRegion, PType, Long, EmitCode) => EmitCode): Unit =
       registerSeededWithMissingness(mname, Array(mt1), rType, unwrappedApply(pt)) { case (r, rt, seed, Array(a1)) => impl(r, rt, seed, a1) }
 
     def registerAll() {
