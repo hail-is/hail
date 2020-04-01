@@ -290,8 +290,8 @@ class ServiceBackend(Backend):
 
         if not deploy_config:
             deploy_config = get_deploy_config()
-        self.url = deploy_config.base_url('apiserver')
-        self.headers = service_auth_headers(deploy_config, 'apiserver')
+        self.url = deploy_config.base_url('query')
+        self.headers = service_auth_headers(deploy_config, 'query')
         self._fs = None
 
     @property
