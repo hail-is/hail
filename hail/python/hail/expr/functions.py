@@ -1753,8 +1753,8 @@ def binom_test(x, n, p, alternative: str) -> Float64Expression:
     Test if a coin is biased towards heads after observing thirty-two heads out
     of fifty flips:
 
-    >>> hl.eval(hl.binom_test(32, 50, 0.4, 'greater'))
-    0.0005193012313665977
+    >>> hl.eval(hl.binom_test(32, 50, 0.5, 'greater'))
+    0.03245432353613613
 
     Parameters
     ----------
