@@ -362,7 +362,7 @@ package object stats {
       case 0 => TestKind.TWO_SIDED
       case 1 => TestKind.LOWER
       case 2 => TestKind.GREATER
-      case _ => fatal(s"""Invalid alternative "$alternative". Must be "two_sided", "less" or "greater".""")
+      case _ => fatal(s"""Invalid alternative "$alternative". Must be "two-sided", "less" or "greater".""")
     }
 
     DistributionTest.binomial_test(nSuccess, n, p, kind)(1)

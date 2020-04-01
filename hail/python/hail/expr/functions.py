@@ -10,7 +10,7 @@ from hail.expr.types import from_numpy
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 from hail.ir import *
 from hail.typecheck import *
-from hail.utils.java import Env
+from hail.utils.java import Env, warn
 from hail.utils.misc import plural
 
 import numpy as np
@@ -1714,25 +1714,42 @@ def or_missing(predicate, value):
 
 
 @typecheck(x=expr_int32, n=expr_int32, p=expr_float64,
-           alternative=enumeration("two.sided", "greater", "less"))
+           alternative=enumeration("two.sided", "two-sided", "greater", "less"))
 def binom_test(x, n, p, alternative: str) -> Float64Expression:
     """Performs a binomial test on `p` given `x` successes in `n` trials.
-
-    Examples
-    --------
-
-    >>> hl.eval(hl.binom_test(5, 10, 0.5, 'less'))
-    0.6230468749999999
-
-    With alternative ``less``, the p-value is the probability of at most `x`
-    successes, i.e. the cumulative probability at `x` of the distribution
-    Binom(`n`, `p`). With ``greater``, the p-value is the probably of at least
-    `x` successes. With ``two.sided``, the p-value is the total probability of
-    all outcomes with probability at most that of `x`.
 
     Returns the p-value from the `exact binomial test
     <https://en.wikipedia.org/wiki/Binomial_test>`__ of the null hypothesis that
     success has probability `p`, given `x` successes in `n` trials.
+
+    The alternatives are interpreted as follows:
+    - ``'less'``: a one-tailed test of the significance of `x` or fewer successes,
+    - ``'greater'``: a one-tailed test of the significance of `x` or more successes, and
+    - ``'two-sided'``: a two-tailed test of the significance of `x` or any equivalent or more unlikely outcome.
+
+    Examples
+    --------
+
+    All the examples below use a fair coin as the null hypothesis. Zero is
+    interpreted as tail and one as heads.
+
+    Test if a coin is biased towards heads or tails after observing two heads
+    out of ten flips:
+
+    >>> hl.eval(hl.binom_test(2, 10, 0.5, 'two-sided'))
+    0.10937499999999994
+
+    Test if a coin is biased towards tails after observing four heads out of ten
+    flips:
+
+    >>> hl.eval(hl.binom_test(4, 10, 0.5, 'less'))
+    0.3769531250000001
+
+    Test if a coin is biased towards heads after observing thirty-two heads out
+    of fifty flips:
+
+    >>> hl.eval(hl.binom_test(32, 50, 0.5, 'greater'))
+    0.03245432353613613
 
     Parameters
     ----------
@@ -1743,7 +1760,7 @@ def binom_test(x, n, p, alternative: str) -> Float64Expression:
     p : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Probability of success, between 0 and 1.
     alternative
-        : One of, "two.sided", "greater", "less".
+        : One of, "two-sided", "greater", "less", (deprecated: "two.sided").
 
     Returns
     -------
@@ -1751,7 +1768,13 @@ def binom_test(x, n, p, alternative: str) -> Float64Expression:
         p-value.
     """
 
-    alt_enum = {"two.sided": 0, "greater": 1, "less": 2}[alternative]
+    if alternative == 'two.sided':
+        warn('"two.sided" is a deprecated and will be removed in a future '
+             'release, please use "two-sided" for the `alternative` parameter '
+             'to hl.binom_test')
+        alternative = 'two-sided'
+
+    alt_enum = {"two-sided": 0, "less": 1, "greater": 2}[alternative]
     return _func("binomTest", tfloat64, x, n, p, to_expr(alt_enum))
 
 
