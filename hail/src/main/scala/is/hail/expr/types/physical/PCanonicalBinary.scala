@@ -149,7 +149,7 @@ object PCanonicalBinary {
   def unapply(t: PBinary): Option[Boolean] = Option(t.required)
 }
 
-class PCanonicalBinaryCode(val pt: PBinary, a: Code[Long]) extends PBinaryCode {
+class PCanonicalBinaryCode(val pt: PCanonicalBinary, a: Code[Long]) extends PBinaryCode {
   def code: Code[_] = a
 
   def loadLength(): Code[Int] = pt.loadLength(a)

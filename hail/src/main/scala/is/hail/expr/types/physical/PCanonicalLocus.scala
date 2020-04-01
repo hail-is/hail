@@ -125,7 +125,7 @@ class PCanonicalLocusSettable(
       position := pt.position(a))
   }
 
-  def contig(): PStringCode = new PCanonicalStringCode(pt.contigType, _contig)
+  def contig(): PStringCode = new PCanonicalStringCode(pt.contigType.asInstanceOf[PCanonicalString], _contig)
 }
 
 class PCanonicalLocusCode(val pt: PCanonicalLocus, val a: Code[Long]) extends PLocusCode {

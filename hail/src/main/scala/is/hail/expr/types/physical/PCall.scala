@@ -13,7 +13,9 @@ abstract class PCall extends ComplexPType {
 }
 
 object PCallValue {
-  def apply(pt: PCall, call: Settable[_]): PCallValue = new PCanonicalCallSettable(pt, coerce[Int](call))
+  def apply(pt: PCall, call: Settable[_]): PCallValue = pt match {
+    case t: PCanonicalCall => new PCanonicalCallSettable(t, coerce[Int](call))
+  }
 }
 
 abstract class PCallValue extends PValue {

@@ -83,7 +83,7 @@ object PCanonicalString {
   def unapply(t: PString): Option[Boolean] = Option(t.required)
 }
 
-class PCanonicalStringCode(val pt: PString, a: Code[Long]) extends PStringCode {
+class PCanonicalStringCode(val pt: PCanonicalString, a: Code[Long]) extends PStringCode {
   def code: Code[_] = a
 
   def loadLength(): Code[Int] = pt.loadLength(a)
