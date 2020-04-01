@@ -3,9 +3,10 @@ package is.hail.expr.ir
 import is.hail.TestUtils._
 import is.hail.asm4s.Code
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
-import is.hail.expr.types.virtual.{TArray, TInt32, TInt64, TStream}
+import is.hail.expr.types.physical.{PInt32, PInt64}
+import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TInt64, TStream}
 import is.hail.utils._
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.{ExecStrategy, HailContext, HailSuite}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{BeforeClass, Test}
 
@@ -33,15 +34,15 @@ object TestRandomFunctions extends RegistryFunctions {
   }
 
   def registerAll() {
-    registerSeeded("counter_seeded", TInt32, null) { case (r, rt, seed) =>
+    registerSeeded("counter_seeded", TInt32, PInt32(true)) { case (r, rt, seed) =>
       getTestRNG(r.mb, seed).invoke[Int]("counter")
     }
 
-    registerSeeded("seed_seeded", TInt64, null) { case (r, rt, seed) =>
+    registerSeeded("seed_seeded", TInt64, PInt64(true)) { case (r, rt, seed) =>
       getTestRNG(r.mb, seed).invoke[Long]("seed")
     }
 
-    registerSeeded("pi_seeded", TInt32, null) { case (r, rt, seed) =>
+    registerSeeded("pi_seeded", TInt32, PInt32(true)) { case (r, rt, seed) =>
       getTestRNG(r.mb, seed).invoke[Int]("partitionIndex")
     }
   }
@@ -137,5 +138,13 @@ class RandomFunctionsSuite extends HailSuite {
     val actual = CompileAndEvaluate[IndexedSeq[Row]](ctx, GetField(TableCollect(tir), "rows"), false)
 
     assert(expected.sameElements(actual))
+  }
+
+  @Test def testRandCat() {
+    val seed = I64(5L)
+    assertEvalsTo(invokeSeeded("rand_cat", TInt32, MakeArray(IndexedSeq(0.1), TArray(TFloat64)), seed), 0)
+    assertEvalsTo(invokeSeeded("rand_cat", TInt32, MakeArray(IndexedSeq(0.3, 0.2, 0.95, 0.05), TArray(TFloat64)), seed), 1)
+    assertEvalsTo(invokeSeeded("rand_cat", TInt32, NA(TArray(TFloat64)), seed), null)
+    assertFatal(invokeSeeded("rand_cat", TInt32, MakeArray(IndexedSeq(0.3, NA(TFloat64)), TArray(TFloat64)), seed), "rand_cat")
   }
 }
