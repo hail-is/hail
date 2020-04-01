@@ -135,6 +135,7 @@ object RandomSeededFunctions extends RegistryFunctions {
         length := aT.loadLength(aoff),
         array := Code.newArray[Double](length),
         Code.whileLoop(i < length,
+          aT.isElementMissing(aoff, i).orEmpty(Code._fatal[Unit]("rand_cat requires all elements of input array to be present")),
           array.load().update(i, Region.loadDouble(aT.elementOffset(aoff, length, i))),
           i += 1),
         r.mb.newRNG(seed).invoke[Array[Double], Int]("rcat", array))

@@ -84,6 +84,10 @@ package object ir {
     case None => fatal(s"no conversion found for $name(${args.map(_.typ).mkString(", ")}) => $rt")
   }
 
+  def invokeSeeded(name: String, rt: Type, args: IR*): IR = IRFunctionRegistry.lookupConversion(name, rt, args.init.map(_.typ)) match {
+    case Some(f) => f(args)
+    case None => fatal(s"no conversion found for $name(${args.map(_.typ).mkString(", ")}) => $rt")
+  }
 
   implicit def irToPrimitiveIR(ir: IR): PrimitiveIR = new PrimitiveIR(ir)
 

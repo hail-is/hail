@@ -4,9 +4,9 @@ import is.hail.TestUtils._
 import is.hail.asm4s.Code
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
 import is.hail.expr.types.physical.{PInt32, PInt64}
-import is.hail.expr.types.virtual.{TArray, TInt32, TInt64, TStream}
+import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TInt64, TStream}
 import is.hail.utils._
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.{ExecStrategy, HailContext, HailSuite}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{BeforeClass, Test}
 
@@ -138,5 +138,12 @@ class RandomFunctionsSuite extends HailSuite {
     val actual = CompileAndEvaluate[IndexedSeq[Row]](ctx, GetField(TableCollect(tir), "rows"), false)
 
     assert(expected.sameElements(actual))
+  }
+
+  @Test def testRandCat() {
+    assertEvalsTo(invokeSeeded("rand_cat", TInt32, MakeArray(IndexedSeq(3.0D), TArray(TFloat64)), I64(5L)), 0)
+    assertEvalsTo(invokeSeeded("rand_cat", TInt32, MakeArray(IndexedSeq(12.0D, 4.0D, 5.0D, 7.0D), TArray(TFloat64)), I64(5L)), 0)
+    assertEvalsTo(invokeSeeded("rand_cat", TInt32, NA(TArray(TFloat64)), I64(5L)), null)
+    assertFatal(invokeSeeded("rand_cat", TInt32, MakeArray(IndexedSeq(5.0D, NA(TFloat64)), TArray(TFloat64)), I64(5L)), "rand_cat")
   }
 }
