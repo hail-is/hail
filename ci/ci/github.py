@@ -286,15 +286,18 @@ class PR(Code):
 
     async def post_github_status(self, gh_client, gh_status):
         assert self.source_sha is not None
-        assert self.batch is not None
-        assert self.batch.id is not None
 
         log.info(f'{self.short_str()}: notify github state: {gh_status}')
+        if self.batch:
+            assert self.batch.id is not None
+            target_url = deploy_config.external_url(
+                'ci',
+                f'/batches/{self.batch.id}')
+        else:
+            target_url = f'https://ci.hail.is/watched_branches/{self.target_branch.index}/pr/{self.number}'
         data = {
             'state': gh_status,
-            'target_url': deploy_config.external_url(
-                'ci',
-                f'/batches/{self.batch.id}'),
+            'target_url': target_url,
             # FIXME improve
             'description': gh_status,
             'context': GITHUB_STATUS_CONTEXT
