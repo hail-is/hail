@@ -22,6 +22,36 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.35
+
+Released 2020-04-01
+
+### Critical Memory Management Bug Fix
+
+- (hail#8412) Fixed a serious per-partition memory leak that causes certain pipelines to run out of memory unexpectedly. Please update from 0.2.34.
+
+### New features
+
+- (hail#8404) Added "CanFam3" (a reference genome for dogs) as a bundled reference genome.
+
+### Bug fixes
+
+- (hail#8420) Fixed a bug where `hl.binom_test`'s `"lower"` and `"upper"` alternative options were reversed.
+- (hail#8377) Fixed "inconsistent agg or scan environments" error.
+- (hail#8322) Fixed bug where `aggregate_rows` did not interact with `hl.agg.array_agg` correctly.
+
+### Performance Improvements
+
+- (hail#8413) Improves internal region memory management, decreasing JVM overhead.
+- (hail#8383) Significantly improve GVCF import speed.
+- (hail#8358) Fixed memory leak in `hl.experimental.export_entries_by_col`. 
+
+### hailctl dataproc
+
+- (hail#8399) Enable spark speculation by default.
+- (hail#8340) Add new Australia region to `--vep`.
+- (hail#8347) Support all GCP machine types as potential master machines.
+
 ---
 
 ## Version 0.2.34
