@@ -25,11 +25,6 @@ async def request(request):
     return web.json_response({'value': resp})
 
 
-async def wait_and_exit(proc):
-    await proc.wait()
-    sys.exit(proc.returncode)
-
-
 async def on_startup(app):
     port = launch_gateway(
         jarpath='/spark-2.4.0-bin-hadoop2.7/jars/py4j-0.10.7.jar',
