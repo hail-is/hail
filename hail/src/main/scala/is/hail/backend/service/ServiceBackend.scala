@@ -1,4 +1,4 @@
-package is.hail.backend
+package is.hail.backend.service
 
 object ServiceBackend {
   def apply(): ServiceBackend = {

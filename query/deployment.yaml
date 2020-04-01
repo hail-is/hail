@@ -14,9 +14,7 @@ spec:
     metadata:
       labels:
         app: query
-	labels:
-	  app: query
-	  hail.is/sha: "{{ code.sha }}"
+        hail.is/sha: "{{ code.sha }}"
     spec:
 {% if deploy %}
       priorityClassName: production
@@ -24,26 +22,26 @@ spec:
       containers:
         - name: query
           image: "{{ query_image.image }}"
-	  command:
-	   - python3
-	   - -m
-	   - query
-	  env:
-	   - name: HAIL_DOMAIN
-	     value: "{{ global.domain }}"
-	   - name: HAIL_DEPLOY_CONFIG_FILE
-	     value: /deploy-config/deploy-config.json
-	   - name: HAIL_SHA
-	     value: "{{ code.sha }}"
+          command:
+           - python3
+           - -m
+           - query
+          env:
+           - name: HAIL_DOMAIN
+             value: "{{ global.domain }}"
+           - name: HAIL_DEPLOY_CONFIG_FILE
+             value: /deploy-config/deploy-config.json
+           - name: HAIL_SHA
+             value: "{{ code.sha }}"
           ports:
            - containerPort: 5000
-	  volumeMounts:
-	   - name: deploy-config
-	     mountPath: /deploy-config
-	     readOnly: true
-	   - name: session-secret-key
-	     mountPath: /session-secret-key
-	     readOnly: true
+          volumeMounts:
+           - name: deploy-config
+             mountPath: /deploy-config
+             readOnly: true
+           - name: session-secret-key
+             mountPath: /session-secret-key
+             readOnly: true
           resources:
             requests:
               memory: "3.75G"
@@ -70,8 +68,7 @@ metadata:
     app: query
 spec:
   ports:
-  - name: query
-    port: 5000
+  - port: 80
     protocol: TCP
     targetPort: 5000
   selector:

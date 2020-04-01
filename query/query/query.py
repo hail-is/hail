@@ -2,7 +2,7 @@ import sys
 import asyncio
 import uvloop
 from aiohttp import web
-from py4j.java_gateway import JavaGateway
+from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session
 
@@ -31,12 +31,13 @@ async def wait_and_exit(proc):
 
 
 async def on_startup(app):
-    java_proc = asyncio.create_subprocess_exec(
-        'java', '-cp', '/spark-2.4.0-bin-hadoop2.7/jars*:/hail-all-spark.jar', 'is.hail.backend.service.ServiceBackendGateway')
-    app['java_proc'] = java_proc
-    asyncio.ensure_future(wait_and_exit(java_proc))
-
-    gateway = JavaGateway(auto_convert=True)
+    port = launch_gateway(
+        jarpath='/spark-2.4.0-bin-hadoop2.7/jars/py4j-0.10.7.jar',
+        classpath='/spark-2.4.0-bin-hadoop2.7/jars/*:/hail-all-spark.jar',
+        die_on_exit=True)
+    gateway = JavaGateway(
+        gateway_parameters=GatewayParameters(port=port),
+        auto_convert=True)
     app['gateway'] = gateway
 
     jbackend = getattr(gateway.jvm, 'is').hail.backend.service.ServiceBackend.apply()
