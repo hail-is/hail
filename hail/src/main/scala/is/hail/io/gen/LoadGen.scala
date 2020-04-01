@@ -115,7 +115,7 @@ case class MatrixGENReader(
   skipInvalidLoci: Boolean) extends MatrixHybridReader {
 
   files.foreach { input =>
-    if (!HailContext.get.fs.stripCodec(input).endsWith(".gen"))
+    if (!HailContext.get.fs.stripCodecExtension(input).endsWith(".gen"))
       fatal(s"gen inputs must end in .gen[.bgz], found $input")
   }
 

@@ -12,7 +12,7 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.methods.VEP._
-import is.hail.rvd.{RVD, RVDContext, RVDType}
+import is.hail.rvd.RVD
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant, VariantMethods}
@@ -22,7 +22,6 @@ import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.io.Source
 
 case class VEPConfiguration(
   command: Array[String],
