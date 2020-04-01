@@ -29,9 +29,7 @@ def init_temp_dir():
 
 def _mkdir(jhc, path):
     if not Env.jutils().dirExists(jhc, path):
-        r = Env.jutils().mkdir(jhc, path)
-        if not r:
-            raise IOError(f'could not mkdir {path}')
+        Env.jutils().mkdir(jhc, path)
 
 
 def get_1kg(output_dir, overwrite: bool = False):
