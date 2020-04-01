@@ -515,6 +515,29 @@ steps:
    dependsOn:
     - hail_build_image
  - kind: buildImage
+   name: query_image
+   dockerFile: query/Dockerfile
+   contextPath: .
+   publishAs: query
+   inputs:
+     - from: /hail.jar
+       to: /hail.jar
+   dependsOn:
+     - service_base_image
+     - build_hail
+ - kind: deploy
+   name: deploy_query
+   namespace:
+     valueFrom: default_ns.name
+   config: query/deployment.yaml
+   wait:
+    - kind: Service
+      name: query
+      for: alive
+   dependsOn:
+    - default_ns
+    - query_image
+ - kind: buildImage
    name: hail_repl_image
    dockerFile: hail/Dockerfile.hail-repl
    contextPath: hail
