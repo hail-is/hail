@@ -1742,7 +1742,7 @@ def binom_test(x, n, p, alternative: str) -> Float64Expression:
     out of ten flips:
 
     >>> hl.eval(hl.binom_test(2, 10, 0.5, 'two-sided'))
-    0.10937500000000003
+    0.10937499999999994
 
     Test if a coin is biased towards tails after observing four heads out of ten
     flips:
@@ -1754,7 +1754,7 @@ def binom_test(x, n, p, alternative: str) -> Float64Expression:
     of fifty flips:
 
     >>> hl.eval(hl.binom_test(32, 50, 0.4, 'greater'))
-    0.000519301231366599
+    0.0005193012313665977
 
     Parameters
     ----------
