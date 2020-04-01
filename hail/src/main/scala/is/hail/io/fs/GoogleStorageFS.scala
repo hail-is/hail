@@ -27,7 +27,7 @@ object GoogleStorageFS {
           i += 1
         else
           return false
-      } else if (c == '*' || c == '{' || c == '?')
+      } else if (c == '*' || c == '{' || c == '?' || c == '[')
         return true
 
       i += 1
@@ -350,9 +350,7 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
 
   def fileStatus(filename: String): FileStatus = {
     var (bucket, path) = getBucketPath(filename)
-
-    while (path.endsWith("/"))
-      path = path.dropRight(1)
+    path = dropTrailingSlash(path)
 
     if (path == "")
       return new GoogleStorageFileStatus(s"gs://$bucket", null, 0, true)
