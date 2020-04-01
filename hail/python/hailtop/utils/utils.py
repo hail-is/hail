@@ -8,6 +8,7 @@ import urllib3
 import socket
 import requests
 import google.auth.exceptions
+import time
 
 from .time import time_msecs
 
@@ -252,6 +253,13 @@ async def sleep_and_backoff(delay):
     return min(delay * 2, 60.0)
 
 
+def sync_sleep_and_backoff(delay):
+    # exponentially back off, up to (expected) max of 30s
+    t = delay * random.random()
+    time.sleep(t)
+    return min(delay * 2, 60.0)
+
+
 def retry_all_errors(msg=None, error_logging_interval=10):
     async def _wrapper(f, *args, **kwargs):
         delay = 0.1
@@ -284,6 +292,23 @@ async def retry_transient_errors(f, *args, **kwargs):
             else:
                 raise
         delay = await sleep_and_backoff(delay)
+
+
+def sync_retry_transient_errors(f, *args, **kwargs):
+    delay = 0.1
+    errors = 0
+    while True:
+        try:
+            return f(*args, **kwargs)
+        except Exception as e:
+            errors += 1
+            if errors % 10 == 0:
+                log.warning(f'encountered {errors} errors, most recent one was {e}', exc_info=True)
+            if is_transient_error(e):
+                pass
+            else:
+                raise
+        delay = sync_sleep_and_backoff(delay)
 
 
 async def request_retry_transient_errors(session, method, url, **kwargs):

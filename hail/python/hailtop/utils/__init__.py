@@ -4,7 +4,7 @@ from .utils import unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool,
     request_retry_transient_errors, request_raise_transient_errors, \
     collect_agen, retry_all_errors, retry_transient_errors, \
     retry_long_running, run_if_changed, LoggingTimer, \
-    WaitableSharedPool, RETRY_FUNCTION_SCRIPT
+    WaitableSharedPool, RETRY_FUNCTION_SCRIPT, sync_retry_transient_errors
 from .process import CalledProcessError, check_shell, check_shell_output
 from .tqdm import tqdm, TQDM_DEFAULT_DISABLE
 
@@ -34,5 +34,6 @@ __all__ = [
     'collect_agen',
     'tqdm',
     'TQDM_DEFAULT_DISABLE',
-    'RETRY_FUNCTION_SCRIPT'
+    'RETRY_FUNCTION_SCRIPT',
+    'sync_retry_transient_errors'
 ]
