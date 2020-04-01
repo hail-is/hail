@@ -1,10 +1,12 @@
-import sys
-import asyncio
+import json
+import concurrent
 import uvloop
 from aiohttp import web
 from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
+from hail.utils import FatalError
+from hailtop.utils import blocking_to_async
 from hailtop.config import get_deploy_config
-from gear import setup_aiohttp_session
+from gear import setup_aiohttp_session, rest_authenticated_users_only
 
 uvloop.install()
 
@@ -25,7 +27,31 @@ async def request(request):
     return web.json_response({'value': resp})
 
 
+def blocking_get_reference(app, data):
+    hail_pkg = app['hail_pkg']
+    return json.loads(
+        hail_pkg.variant.ReferenceGenome.getReference(data['name']).toJSONString())
+
+
+@routes.get('/references/get')
+@rest_authenticated_users_only
+async def get_reference(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    thread_pool = app['thread_pool']
+    try:
+        data = await request.json()
+        result = await blocking_to_async(thread_pool, blocking_get_reference, app, data)
+        return web.json_response(result)
+    except FatalError as e:
+        return web.json_response({
+            'message': e.args[0]
+        }, status=400)
+
+
 async def on_startup(app):
+    thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=16)
+    app['thread_pool'] = thread_pool
+
     port = launch_gateway(
         jarpath='/spark-2.4.0-bin-hadoop2.7/jars/py4j-0.10.7.jar',
         classpath='/spark-2.4.0-bin-hadoop2.7/jars/*:/hail.jar',
@@ -35,8 +61,15 @@ async def on_startup(app):
         auto_convert=True)
     app['gateway'] = gateway
 
-    jbackend = getattr(gateway.jvm, 'is').hail.backend.service.ServiceBackend.apply()
+    hail_pkg = getattr(gateway.jvm, 'is').hail
+    app['hail_pkg'] = hail_pkg
+
+    jbackend = hail_pkg.backend.service.ServiceBackend.apply()
     app['jbackend'] = jbackend
+
+    jhc = hail_pkg.HailContext.apply(
+        jbackend, 'hail.log', False, False, 50, "/tmp", 3)
+    app['jhc'] = jhc
 
 
 def run():
