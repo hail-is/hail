@@ -21,7 +21,7 @@ from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativ
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
-from hail.utils.java import Env, jarray, joption
+from hail.utils.java import Env, joption
 
 block_matrix_type = lazy()
 
@@ -1898,8 +1898,7 @@ class BlockMatrix(object):
                 raise ValueError(f'rectangle {r} does not satisfy '
                                  f'0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols')
 
-        flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
-        rectangles = hl.literal(flattened_rectangles, hl.tarray(hl.tint64))
+        rectangles = hl.literal(list(itertools.chain(*rectangles)), hl.tarray(hl.tint64))
         return BlockMatrix(
             BlockMatrixSparsify(self._bmir, rectangles._ir, RectangleSparsifier))
 

@@ -1,6 +1,5 @@
 import pkg_resources
 from pyspark import SparkContext
-from pyspark.sql import SparkSession
 
 import hail
 from hail.genetics.reference_genome import ReferenceGenome
@@ -44,50 +43,30 @@ class HailContext(object):
                 warn('Hail has already been initialized. If this call was intended to change configuration,'
                      ' close the session with hl.stop() first.')
 
-        if _backend is None:
-            if os.environ.get('HAIL_APISERVER_URL') is not None:
-                _backend = ServiceBackend()
-            else:
-                _backend = SparkBackend(idempotent, sc, spark_conf, app_name, master, local, min_block_size)
-        self._backend = _backend
-        self._jbackend = _backend._jbackend
-
-        self._gateway = _backend._gateway
-        self._jvm = _backend._jvm
-
-        # hail package
-        self._hail = getattr(self._jvm, 'is').hail
-
-        self._warn_cols_order = True
-        self._warn_entries_order = True
-
-        Env._jvm = self._jvm
-        Env._gateway = self._gateway
-
-        tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
-        self.tmp_dir = tmp_dir
-        optimizer_iterations = get_env_or_default(optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
-
         py_version = version()
-
+        
         if log is None:
             log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
                                             suffix=f'-{py_version}.log')
         self._log = log
 
-        # we always pass 'quiet' to the JVM because stderr output needs
-        # to be routed through Python separately.
-        if idempotent:
-            self._jhc = self._hail.HailContext.getOrCreate(
-                self._jbackend, log, True, append, branching_factor, tmp_dir, optimizer_iterations)
-        else:
-            self._jhc = self._hail.HailContext.apply(
-                self._jbackend, log, True, append, branching_factor, tmp_dir, optimizer_iterations)
+        tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
+        self.tmp_dir = tmp_dir
 
-        self._jsc = self._jhc.sc()
-        self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
-        self._jspark_session = self._jbackend.sparkSession()
-        self._spark_session = SparkSession(self.sc, self._jspark_session)
+        optimizer_iterations = get_env_or_default(optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
+
+        if _backend is None:
+            if os.environ.get('HAIL_APISERVER_URL') is not None:
+                _backend = ServiceBackend()
+            else:
+                _backend = SparkBackend(
+                    idempotent, sc, spark_conf, app_name, master, local, log,
+                    quiet, append, min_block_size, branching_factor, tmp_dir,
+                    optimizer_iterations)
+        self._backend = _backend
+
+        self._warn_cols_order = True
+        self._warn_entries_order = True
 
         super(HailContext, self).__init__()
 
@@ -104,22 +83,7 @@ class HailContext(object):
         else:
             self._default_ref = ReferenceGenome.read(default_reference)
 
-        jar_version = self._jhc.version()
-
-        if jar_version != py_version:
-            raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
-                               f"  JAR:    {jar_version}\n"
-                               f"  Python: {py_version}")
-
         if not quiet:
-            sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
-            if self._jsc.uiWebUrl().isDefined():
-                sys.stderr.write('SparkUI available at {}\n'.format(self._jsc.uiWebUrl().get()))
-
-            connect_logger('localhost', 12888)
-
-            self._jbackend.startProgressBar()
-
             sys.stderr.write(
                 'Welcome to\n'
                 '     __  __     <>__\n'
@@ -146,7 +110,6 @@ class HailContext(object):
         self.sc.stop()
         self.sc = None
         Env._jvm = None
-        Env._gateway = None
         Env._hc = None
         uninstall_exception_handler()
         Env._dummy_table = None

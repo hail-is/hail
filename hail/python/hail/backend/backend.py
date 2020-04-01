@@ -1,5 +1,6 @@
 import pkg_resources
 from pyspark import SparkContext, SparkConf
+from pyspark.sql import SparkSession
 import abc
 import os
 import requests
@@ -95,7 +96,9 @@ class Backend(abc.ABC):
 
 
 class SparkBackend(Backend):
-    def __init__(self, idempotent, sc, spark_conf, app_name, master, local, min_block_size):
+    def __init__(self, idempotent, sc, spark_conf, app_name, master,
+                 local, log, quiet, append, min_block_size,
+                 branching_factor, tmp_dir, optimizer_iterations):
         if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
@@ -132,6 +135,9 @@ class SparkBackend(Backend):
         self._gateway = SparkContext._gateway
         self._jvm = SparkContext._jvm
 
+        Env._jvm = self._jvm
+        Env._gateway = self._gateway
+
         # hail package
         hail = getattr(self._jvm, 'is').hail
 
@@ -140,11 +146,38 @@ class SparkBackend(Backend):
         if idempotent:
             self._jbackend = hail.backend.spark.SparkBackend.getOrCreate(
                 jsc, app_name, master, local, True, min_block_size)
+            self._jhc = hail.HailContext.getOrCreate(
+                self._jbackend, log, True, append, branching_factor, tmp_dir, optimizer_iterations)
         else:
             self._jbackend = hail.backend.spark.SparkBackend.apply(
                 jsc, app_name, master, local, True, min_block_size)
+            self._jhc = hail.HailContext.apply(
+                self._jbackend, log, True, append, branching_factor, tmp_dir, optimizer_iterations)
+
+        self._jsc = self._jhc.sc()
+        self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
+        self._jspark_session = self._jbackend.sparkSession()
+        self._spark_session = SparkSession(self.sc, self._jspark_session)
+
+        from hail.context import version
+
+        py_version = version()
+        jar_version = self._jhc.version()
+        if jar_version != py_version:
+            raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
+                               f"  JAR:    {jar_version}\n"
+                               f"  Python: {py_version}")
 
         self._fs = None
+
+        if not quiet:
+            sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
+            if self._jsc.uiWebUrl().isDefined():
+                sys.stderr.write('SparkUI available at {}\n'.format(self._jsc.uiWebUrl().get()))
+
+            connect_logger('localhost', 12888)
+
+            self._jbackend.startProgressBar()
 
     @property
     def fs(self):
@@ -162,7 +195,7 @@ class SparkBackend(Backend):
 
     def execute(self, ir, timed=False):
         jir = self._to_java_ir(ir)
-        result = json.loads(Env.hc()._jhc.backend().executeJSON(jir))
+        result = json.loads(self._jhc.backend().executeJSON(jir))
         value = ir.typ._from_json(result['value'])
         timings = result['timings']
 
@@ -219,7 +252,7 @@ class SparkBackend(Backend):
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         Env.hail().variant.ReferenceGenome.fromFASTAFile(
-            Env.hc()._jhc,
+            self._jhc,
             name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par)
 
     def remove_reference(self, name):
@@ -244,7 +277,7 @@ class SparkBackend(Backend):
             name, dest_reference_genome)
 
     def parse_vcf_metadata(self, path):
-        return json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(path))
+        return json.loads(self._jhc.pyParseVCFMetadataJSON(path))
 
     def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
         self._jbackend.pyIndexBgen(files, index_file_map, joption(rg), contig_recoding, skip_invalid_loci)

@@ -46,13 +46,6 @@ class Env:
         return Env._hail_package
 
     @staticmethod
-    def gateway():
-        if not Env._gateway:
-            Env.hc()
-            assert Env._gateway is not None
-        return Env._gateway
-
-    @staticmethod
     def jutils():
         if not Env._jutils:
             Env._jutils = scala_package_object(Env.hail().utils)
@@ -107,13 +100,6 @@ class Env:
         if Env._seed_generator is None:
             Env.set_seed(None)
         return Env._seed_generator.next_seed()
-
-
-def jarray(jtype, lst):
-    jarr = Env.gateway().new_array(jtype, len(lst))
-    for i, s in enumerate(lst):
-        jarr[i] = s
-    return jarr
 
 
 def scala_object(jpackage, name):
