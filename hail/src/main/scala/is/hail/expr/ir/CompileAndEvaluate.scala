@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.SafeRow
 import is.hail.expr.ir.lowering.LoweringPipeline
-import is.hail.expr.types.physical.{PTuple, PBaseStruct}
+import is.hail.expr.types.physical.{PBaseStruct, PTuple, PType, PVoid}
 import is.hail.expr.types.virtual.TVoid
 import is.hail.utils.FastSeq
 
@@ -15,6 +15,18 @@ object CompileAndEvaluate {
       _apply(ctx, ir0, optimize) match {
         case Left(()) => ().asInstanceOf[T]
         case Right((t, off)) => SafeRow(t, off).getAs[T](0)
+      }
+    }
+  }
+
+  def applyWithType[T](ctx: ExecuteContext,
+               ir0: IR,
+               optimize: Boolean = true
+              ): (PType, T) = {
+    ctx.timer.time("CompileAndEvaluate") {
+      _apply(ctx, ir0, optimize) match {
+        case Left(()) => (PVoid, ().asInstanceOf[T])
+        case Right((t, off)) => (t.fields(0).typ, SafeRow(t, off).getAs[T](0))
       }
     }
   }

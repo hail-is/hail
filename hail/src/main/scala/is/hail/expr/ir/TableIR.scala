@@ -311,7 +311,9 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val hc = HailContext.get
-    val Row(_rows: IndexedSeq[_], globals: Row) = CompileAndEvaluate[Row](ctx, rowsAndGlobal, optimize = false)
+    val (ptype, res) = CompileAndEvaluate.applyWithType[Row](ctx, rowsAndGlobal, optimize = false)
+    val Row(_rows: IndexedSeq[_], globals: Row) = res
+
     val rows = _rows.asInstanceOf[IndexedSeq[Row]]
     rows.zipWithIndex.foreach { case (r, idx) =>
       if (r == null)
@@ -320,10 +322,11 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
 
     log.info(s"parallelized ${ rows.length } rows")
 
-    val rowTyp = PType.canonical(typ.rowType).asInstanceOf[PStruct]
+    val rowPType = ptype.asInstanceOf[PStruct].field("rows").typ.asInstanceOf[PArray].elementType.asInstanceOf[PStruct]
+    assert(rowPType.virtualType == typ.rowType)
     val rvd = ContextRDD.parallelize(hc.sc, rows, nPartitions)
-      .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowTyp))
-    TableValue(typ, BroadcastRow(ctx, globals, typ.globalType), RVD.unkeyed(rowTyp, rvd))
+      .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowPType))
+    TableValue(typ, BroadcastRow(ctx, globals, typ.globalType), RVD.unkeyed(rowPType, rvd))
   }
 }
 
