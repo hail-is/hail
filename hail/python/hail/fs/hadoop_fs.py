@@ -21,28 +21,28 @@ class HadoopFS(FS):
             return io.TextIOWrapper(handle, encoding='iso-8859-1')
 
     def copy(self, src: str, dest: str):
-        Env.jutils().copyFile(src, dest, Env.hc()._jhc)
+        Env.jutils().copyFile(src, dest, Env.backend()._jhc)
 
     def exists(self, path: str) -> bool:
-        return Env.jutils().exists(path, Env.hc()._jhc)
+        return Env.jutils().exists(path, Env.backend()._jhc)
 
     def is_file(self, path: str) -> bool:
-        return Env.jutils().isFile(path, Env.hc()._jhc)
+        return Env.jutils().isFile(path, Env.backend()._jhc)
 
     def is_dir(self, path: str) -> bool:
-        return Env.jutils().isDir(path, Env.hc()._jhc)
+        return Env.jutils().isDir(path, Env.backend()._jhc)
 
     def stat(self, path: str) -> Dict:
-        return json.loads(Env.jutils().stat(path, Env.hc()._jhc))
+        return json.loads(Env.jutils().stat(path, Env.backend()._jhc))
 
     def ls(self, path: str) -> List[Dict]:
-        r = Env.jutils().ls(path, Env.hc()._jhc)
+        r = Env.jutils().ls(path, Env.backend()._jhc)
         return json.loads(r)
 
 
 class HadoopReader(io.RawIOBase):
     def __init__(self, path, buffer_size):
-        self._jfile = Env.jutils().readFile(path, Env.hc()._jhc, buffer_size)
+        self._jfile = Env.jutils().readFile(path, Env.backend()._jhc, buffer_size)
         super(HadoopReader, self).__init__()
 
     def close(self):
@@ -60,7 +60,7 @@ class HadoopReader(io.RawIOBase):
 
 class HadoopWriter(io.RawIOBase):
     def __init__(self, path, exclusive=False):
-        self._jfile = Env.jutils().writeFile(path, Env.hc()._jhc, exclusive)
+        self._jfile = Env.jutils().writeFile(path, Env.backend()._jhc, exclusive)
         super(HadoopWriter, self).__init__()
 
     def writable(self):

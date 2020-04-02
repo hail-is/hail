@@ -47,7 +47,7 @@ def get_1kg(output_dir, overwrite: bool = False):
     overwrite
         If ``True``, overwrite any existing files/directories at `output_dir`.
     """
-    jhc = Env.hc()._jhc
+    jhc = Env.backend()._jhc
 
     _mkdir(jhc, output_dir)
 
@@ -110,7 +110,7 @@ def get_movie_lens(output_dir, overwrite: bool = False):
         If ``True``, overwrite existing files/directories at those locations.
     """
 
-    jhc = Env.hc()._jhc
+    jhc = Env.backend()._jhc
 
     _mkdir(jhc, output_dir)
 

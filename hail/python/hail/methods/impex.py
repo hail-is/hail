@@ -931,9 +931,9 @@ def grep(regex, path, max_count=100, *, show=True):
     :obj:`dict` of :obj:`str` to :obj:`list` of :obj:`str`
     """
     if show:
-        Env.hc()._jhc.grepPrint(regex, jindexed_seq_args(path), max_count)
+        Env.backend()._jhc.grepPrint(regex, jindexed_seq_args(path), max_count)
     else:
-        jarr = Env.hc()._jhc.grepReturn(regex, jindexed_seq_args(path), max_count)
+        jarr = Env.backend()._jhc.grepReturn(regex, jindexed_seq_args(path), max_count)
         return {x._1(): list(x._2()) for x in jarr}
 
 

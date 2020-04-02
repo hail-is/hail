@@ -346,11 +346,11 @@ def set_global_seed(seed):
 
 
 def _set_flags(**flags):
-    available = set(Env.hc()._jhc.flags().available())
+    available = set(Env.backend()._jhc.flags().available())
     invalid = []
     for flag, value in flags.items():
         if flag in available:
-            Env.hc()._jhc.flags().set(flag, value)
+            Env.backend()._jhc.flags().set(flag, value)
         else:
             invalid.append(flag)
     if len(invalid) != 0:
@@ -359,7 +359,7 @@ def _set_flags(**flags):
 
 
 def _get_flags(*flags):
-    return {flag: Env.hc()._jhc.flags().get(flag) for flag in flags}
+    return {flag: Env.backend()._jhc.flags().get(flag) for flag in flags}
 
 
 def debug_info():
