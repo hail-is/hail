@@ -282,7 +282,7 @@ def spark_context():
     -------
     :class:`pyspark.SparkContext`
     """
-    return Env.hc().sc
+    return Env.backend().sc
 
 def current_backend():
     return Env.hc()._backend
