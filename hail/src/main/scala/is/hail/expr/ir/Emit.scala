@@ -2078,7 +2078,7 @@ private class Emit[C](
       case NDArrayMap(child, elemName, body) =>
         val childP = child.pType.asInstanceOf[PNDArray]
         val elemPType = childP.elementType
-        val elemRef = mb.newPresentEmitField(elemPType) // FIXME elemName
+        val elemRef = mb.newPresentEmitField("ndarray_map_element_name", elemPType)
         val bodyEnv = env.bind(elemName, elemRef)
         val bodyt = emit(body, env = bodyEnv)
 
