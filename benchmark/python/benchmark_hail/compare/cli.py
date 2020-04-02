@@ -4,7 +4,7 @@ from .compare import compare
 
 
 def main(args_):
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('run1',
                         type=str,

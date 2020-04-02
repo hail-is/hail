@@ -6,7 +6,7 @@ from ..run.utils import ensure_resources, ensure_single_resource
 
 
 def main(args_):
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument("--data-dir", "-d",
                         type=str,

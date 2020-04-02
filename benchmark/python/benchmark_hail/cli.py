@@ -6,7 +6,8 @@ import argparse
 def print_help():
     main_parser = argparse.ArgumentParser(
         prog='hail-bench',
-        description='Run and analyze Hail benchmarks.')
+        description='Run and analyze Hail benchmarks.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     subparsers = main_parser.add_subparsers()
 
     subparsers.add_parser(
