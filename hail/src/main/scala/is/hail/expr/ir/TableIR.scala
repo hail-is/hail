@@ -629,6 +629,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     val rightValueType = rightRVDType.valueType
 
     val newRowPType = leftKeyType ++ leftValueType ++ rightValueType
+    assert(newRowPType.virtualType == newRowType)
 
     val rvMerger = { (_: RVDContext, it: Iterator[JoinedRegionValue]) =>
       val rvb = new RegionValueBuilder()
