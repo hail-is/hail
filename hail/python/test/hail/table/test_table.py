@@ -1411,3 +1411,9 @@ def test_group_within_partitions():
     ht = hl.utils.range_table(100).naive_coalesce(10)
     filter_then_group = ht.filter(ht.idx % 2 == 0)._group_within_partitions(5).collect()
     assert filter_then_group[0] == hl.Struct(idx=0, grouped_fields=[hl.Struct(idx=0), hl.Struct(idx=2), hl.Struct(idx=4), hl.Struct(idx=6), hl.Struct(idx=8)])
+
+def test_range_annotate_range():
+    # tests left join right distinct requiredness
+    ht1 = hl.utils.range_table(10)
+    ht2 = hl.utils.range_table(5).annotate(x = 1)
+    ht1.annotate(x = ht2[ht1.idx].x)._force_count()
