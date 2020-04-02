@@ -1,3 +1,4 @@
+import os
 import json
 import base64
 import concurrent
@@ -12,8 +13,8 @@ from gear import setup_aiohttp_session, rest_authenticated_users_only
 
 uvloop.install()
 
+BATCH_PODS_NAMESPACE = os.environ['HAIL_BATCH_PODS_NAMESPACE']
 log = logging.getLogger('batch')
-
 routes = web.RouteTableDef()
 
 
@@ -29,7 +30,7 @@ def add_user(app, userdata):
         k8s_client.read_namespaced_secret,
         userdata['gsa_key_secret_name'],
         # FIXME parameterize
-        'batch-pods',
+        BATCH_PODS_NAMESPACE,
         _request_timeout=5.0)
     gsa_key = base64.b64decode(gsa_key_secret['key.json']).decode()
     jbackend.addUser(username, gsa_key)

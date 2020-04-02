@@ -544,6 +544,7 @@ steps:
       for: alive
    dependsOn:
     - default_ns
+    - batch_pods_ns
     - query_image
  - kind: buildImage
    name: hail_repl_image
