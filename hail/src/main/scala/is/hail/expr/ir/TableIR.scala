@@ -590,6 +590,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
 
     leftKeyType ++ leftValueType ++ rightValueType
   }
+
   private val newGlobalType = left.typ.globalType ++ right.typ.globalType
 
   private val newKey = left.typ.key ++ right.typ.key.drop(joinKey)
@@ -622,7 +623,12 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     val rightKeyFieldIdx = rightRVDType.kFieldIdx
     val leftValueFieldIdx = leftRVDType.valueFieldIdx
     val rightValueFieldIdx = rightRVDType.valueFieldIdx
-    val newRowPType = PType.canonical(newRowType).asInstanceOf[PStruct]
+
+    val leftKeyType = leftRVDType.kType
+    val leftValueType = leftRVDType.valueType
+    val rightValueType = rightRVDType.valueType
+
+    val newRowPType = leftKeyType ++ leftValueType ++ rightValueType
 
     val rvMerger = { (_: RVDContext, it: Iterator[JoinedRegionValue]) =>
       val rvb = new RegionValueBuilder()
