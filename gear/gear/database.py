@@ -58,17 +58,17 @@ def ssl_context_from_sql_config(sql_config):
         # change to the following in a follow up PR
         # raise ValueError(f'cleartext database connections are not '
         #                  f'permitted. {json.dumps(sql_config)}')
-        log.warn(f'using a cleartext mysql connection')
+        log.warning(f'using a cleartext mysql connection')
 
         return False
-    elif ssl_mode == 'REQUIRED':
+    if ssl_mode == 'REQUIRED':
         # change to the following in a follow up PR
         # raise ValueError(f'unverified database connections are not '
         #                  f'permitted. {json.dumps(sql_config)}')
         assert 'ssl-cert' in sql_config
         assert 'ssl-key' in sql_config
 
-        log.warn(f'not verifying msyql server certificates')
+        log.warning(f'not verifying msyql server certificates')
 
         ssl_context = ssl.create_default_context()
         ssl_context.load_cert_chain(
@@ -76,7 +76,7 @@ def ssl_context_from_sql_config(sql_config):
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
         return ssl_context
-    elif ssl_mode == 'VERIFY_CA':
+    if ssl_mode == 'VERIFY_CA':
         assert 'ssl-cert' in sql_config
         assert 'ssl-key' in sql_config
         assert 'ssl-ca' in sql_config
@@ -88,9 +88,8 @@ def ssl_context_from_sql_config(sql_config):
             sql_config['ssl-cert'], keyfile=sql_config['ssl-key'], password=None)
         ssl_context.check_hostname = False
         return ssl_context
-    else:
-        raise ValueError(f'only DISABLED, REQURIED, and VERIFY_CA are '
-                         'supported for ssl-mode. {json.dumps(sql_config)}')
+    raise ValueError(f'only DISABLED, REQURIED, and VERIFY_CA are '
+                     'supported for ssl-mode. {json.dumps(sql_config)}')
 
 
 @retry_transient_mysql_errors
