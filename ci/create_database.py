@@ -76,6 +76,7 @@ async def create_database():
 
     db = Database()
     await db.async_init()
+
     if scope == 'deploy':
         assert _name == database_name
 
