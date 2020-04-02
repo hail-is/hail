@@ -24,7 +24,7 @@ an earlier version of Hail to read files written in a later version.
 
 ## Version 0.2.35
 
-Released 2020-04-01
+Released 2020-04-02
 
 ### Critical Memory Management Bug Fix
 
@@ -44,7 +44,8 @@ Released 2020-04-01
 
 - (hail#8413) Improves internal region memory management, decreasing JVM overhead.
 - (hail#8383) Significantly improve GVCF import speed.
-- (hail#8358) Fixed memory leak in `hl.experimental.export_entries_by_col`. 
+- (hail#8358) Fixed memory leak in `hl.experimental.export_entries_by_col`.
+- (hail#8326) Codegen infrastructure improvement resulting in ~3% overall speedup.
 
 ### hailctl dataproc
 
