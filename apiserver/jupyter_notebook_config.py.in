@@ -1,3 +1,0 @@
-c.NotebookApp.contents_manager_class = 'jgscm.GoogleStorageContentManager'
-c.GoogleStorageContentManager.project = '@project@'
-c.GoogleStorageContentManager.keyfile = '/gsa-key/key.json'

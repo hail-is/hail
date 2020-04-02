@@ -157,33 +157,6 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: scheduler
-  labels:
-    app: scheduler
-spec:
-  ports:
-  - name: http
-    port: 80
-    protocol: TCP
-    targetPort: 5000
-  - name: executor
-    port: 5051
-    protocol: TCP
-    targetPort: 5051
-  - name: client-submit
-    port: 5052
-    protocol: TCP
-    targetPort: 5052
-  - name: client-result
-    port: 5053
-    protocol: TCP
-    targetPort: 5053
-  selector:
-    app: scheduler
----
-apiVersion: v1
-kind: Service
-metadata:
   name: hello
   labels:
     app: hello
@@ -195,6 +168,21 @@ spec:
       targetPort: 5000
   selector:
     app: hello
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: query
+  labels:
+    app: query
+spec:
+  ports:
+  - name: query
+    port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: query
 ---
 apiVersion: apps/v1
 kind: Deployment

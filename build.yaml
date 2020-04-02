@@ -513,6 +513,29 @@ steps:
    dependsOn:
     - hail_build_image
  - kind: buildImage
+   name: query_image
+   dockerFile: query/Dockerfile
+   contextPath: .
+   publishAs: query
+   inputs:
+     - from: /hail.jar
+       to: /hail.jar
+   dependsOn:
+     - service_base_image
+     - build_hail
+ - kind: deploy
+   name: deploy_query
+   namespace:
+     valueFrom: default_ns.name
+   config: query/deployment.yaml
+   wait:
+    - kind: Service
+      name: query
+      for: alive
+   dependsOn:
+    - default_ns
+    - query_image
+ - kind: buildImage
    name: hail_repl_image
    dockerFile: hail/Dockerfile.hail-repl
    contextPath: hail
@@ -570,7 +593,7 @@ steps:
     - build_hail
  - kind: buildImage
    name: hail_base_image
-   dockerFile: apiserver/Dockerfile.hail-base
+   dockerFile: hail/Dockerfile.hail-base
    contextPath: .
    publishAs: hail-base
    dependsOn:
@@ -579,19 +602,6 @@ steps:
    inputs:
     - from: /hail.jar
       to: /hail.jar
-    - from: /hail.zip
-      to: /hail.zip
- - kind: buildImage
-   name: hail_test_base_image
-   dockerFile: apiserver/Dockerfile.hail-test-base
-   contextPath: .
-   publishAs: hail-test-base
-   dependsOn:
-    - hail_run_image
-    - build_hail
-   inputs:
-    - from: /hail-test.jar
-      to: /hail-test.jar
     - from: /hail.zip
       to: /hail.zip
  - kind: runImage
@@ -604,14 +614,6 @@ steps:
      python3 -m pylint --rcfile pylintrc hailtop
    dependsOn:
      - hail_base_image
- - kind: buildImage
-   name: hail_jupyter_image
-   dockerFile: apiserver/Dockerfile.hail-jupyter
-   contextPath: .
-   publishAs: hail-jupyter
-   dependsOn:
-    - hail_base_image
-    - default_ns
  - kind: buildImage
    name: notebook_image
    dockerFile: notebook/Dockerfile

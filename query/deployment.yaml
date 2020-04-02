@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: query
+  labels:
+    app: query
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: query
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: query
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      containers:
+        - name: query
+          image: "{{ query_image.image }}"
+          command:
+           - python3
+           - -m
+           - query
+          env:
+           - name: HAIL_DOMAIN
+             value: "{{ global.domain }}"
+           - name: HAIL_DEPLOY_CONFIG_FILE
+             value: /deploy-config/deploy-config.json
+           - name: HAIL_SHA
+             value: "{{ code.sha }}"
+          ports:
+           - containerPort: 5000
+          volumeMounts:
+           - name: deploy-config
+             mountPath: /deploy-config
+             readOnly: true
+           - name: session-secret-key
+             mountPath: /session-secret-key
+             readOnly: true
+          resources:
+            requests:
+              memory: "3.75G"
+              cpu: "1"
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+       - name: deploy-config
+         secret:
+           secretName: deploy-config
+       - name: session-secret-key
+         secret:
+           secretName: session-secret-key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: query
+  labels:
+    app: query
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: query
