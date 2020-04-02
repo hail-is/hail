@@ -231,7 +231,7 @@ class ImageCache:
                 image.last_used = time.time()
                 return
 
-            if image.startswith('gcr.io/'):
+            if image.name.startswith('gcr.io/'):
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{(name, user)}')(
                     docker.images.pull, image, auth=auth)
                 image.users.add(user)
