@@ -192,7 +192,7 @@ object SparkBackend {
     theSparkBackend = new SparkBackend(sc1)
     theSparkBackend
   }
-
+  
   def stop(): Unit = synchronized {
     if (theSparkBackend != null) {
       theSparkBackend.sc.stop()

@@ -16,3 +16,4 @@ abstract class Backend {
 
   def asSpark(): SparkBackend = fatal("SparkBackend needed for this operation.")
 }
+

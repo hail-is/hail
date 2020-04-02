@@ -519,10 +519,20 @@ steps:
    publishAs: query
    inputs:
      - from: /hail.jar
-       to: /hail.jar
+       to: /query/hail.jar
    dependsOn:
      - service_base_image
      - build_hail
+ - kind: runImage
+   name: check_query
+   image:
+     valueFrom: query_image.image
+   script: |
+     set -ex
+     python3 -m flake8 query
+     python3 -m pylint --rcfile pylintrc query
+   dependsOn:
+     - query_image
  - kind: deploy
    name: deploy_query
    namespace:

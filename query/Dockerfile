@@ -5,6 +5,6 @@ COPY query/query /query/query/
 RUN pip3 install --no-cache-dir /query && \
   rm -rf /query
 
-COPY hail.jar /
+COPY query/hail.jar /
 
 EXPOSE 5000

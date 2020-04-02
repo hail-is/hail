@@ -377,7 +377,7 @@ class JIRVectorReference(object):
 
     def __del__(self):
         try:
-            Env.hc()._jhc.pyRemoveIrVector(self.jid)
+            Env.backend()._jhc.pyRemoveIrVector(self.jid)
         # there is only so much we can do if the attempt to remove the unused IR fails,
         # especially since this will often get called during interpreter shutdown.
         except Exception:

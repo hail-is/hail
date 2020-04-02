@@ -155,7 +155,7 @@ object HailContext {
     theContext
   }
 
-  def clear(): Unit = synchronized {
+  def stop(): Unit = synchronized {
     ReferenceGenome.reset()
     IRFunctionRegistry.clearUserFunctions()
     backend.stop()
@@ -448,6 +448,8 @@ class HailContext private(
   val tmpDirPath: String,
   val branchingFactor: Int,
   val optimizerIterations: Int) {
+  def stop(): Unit = HailContext.stop()
+
   def sparkBackend(): SparkBackend = backend.asSpark()
 
   def sc: SparkContext = sparkBackend().sc
@@ -456,8 +458,11 @@ class HailContext private(
 
   def fsBc: Broadcast[FS] = sparkBackend().fsBc
 
-  val tmpDir: String = TempDir.createTempDir(tmpDirPath, fs)
-  info(s"Hail temporary directory: $tmpDir")
+  lazy val tmpDir: String = {
+    val tmpDir = TempDir.createTempDir(tmpDirPath, fs)
+    info(s"Hail temporary directory: $tmpDir")
+    tmpDir
+  }
 
   val flags: HailFeatureFlags = new HailFeatureFlags()
 
