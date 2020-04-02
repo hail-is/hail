@@ -60,7 +60,7 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 }
 
 object PCanonicalIntervalSettable {
-  def apply(sb: SettableBuilder, pt: PInterval, name: String): PCanonicalIntervalSettable = {
+  def apply(sb: SettableBuilder, pt: PCanonicalInterval, name: String): PCanonicalIntervalSettable = {
     new PCanonicalIntervalSettable(pt,
       sb.newSettable[Long](s"${ name }_a"),
       sb.newSettable[Boolean](s"${ name }_includes_start"),
@@ -69,7 +69,7 @@ object PCanonicalIntervalSettable {
 }
 
 class PCanonicalIntervalSettable(
-  val pt: PInterval,
+  val pt: PCanonicalInterval,
   a: Settable[Long],
   val includesStart: Settable[Boolean],
   val includesEnd: Settable[Boolean]
@@ -94,7 +94,7 @@ class PCanonicalIntervalSettable(
   }
 }
 
-class PCanonicalIntervalCode(val pt: PInterval, val a: Code[Long]) extends PIntervalCode {
+class PCanonicalIntervalCode(val pt: PCanonicalInterval, val a: Code[Long]) extends PIntervalCode {
   def code: Code[_] = a
 
   def includesStart(): Code[Boolean] = pt.includesStart(a)

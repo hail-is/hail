@@ -95,15 +95,15 @@ object PCode {
     case pt: PCanonicalBaseStruct =>
       new PCanonicalBaseStructCode(pt, coerce[Long](code))
 
-    case pt: PBinary =>
+    case pt: PCanonicalBinary =>
       new PCanonicalBinaryCode(pt, coerce[Long](code))
-    case pt: PString =>
+    case pt: PCanonicalString =>
       new PCanonicalStringCode(pt, coerce[Long](code))
-    case pt: PInterval =>
+    case pt: PCanonicalInterval =>
       new PCanonicalIntervalCode(pt, coerce[Long](code))
     case pt: PCanonicalLocus =>
       new PCanonicalLocusCode(pt, coerce[Long](code))
-    case pt: PCall =>
+    case pt: PCanonicalCall =>
       new PCanonicalCallCode(pt, coerce[Int](code))
 
     case _ =>
