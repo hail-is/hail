@@ -26,17 +26,20 @@ async def write_user_config(namespace, database_name, user, config):
         f.write(json.dumps(config))
 
     with open(f'sql-config.cnf', 'w') as f:
-        f.write(f'''
-[client]
+        f.write(f'''[client]
 host={config["host"]}
 user={config["user"]}
 password="{config["password"]}"
 database={config["db"]}
-ssl-ca={config["ssl-ca"]}
-ssl-cert={config["ssl-cert"]}
-ssl-key={config["ssl-key"]}
-ssl-mode={config["ssl-mode"]}
 ''')
+        if 'ssl-ca' in config:
+            f.write(f'ssl-ca={config["ssl-ca"]}\n')
+        if 'ssl-cert' in config:
+            f.write(f'ssl-cert={config["ssl-cert"]}\n')
+        if 'ssl-key' in config:
+            f.write(f'ssl-key={config["ssl-key"]}\n')
+        if 'ssl-mode' in config:
+            f.write(f'ssl-mode={config["ssl-mode"]}\n')
 
     shutil.copy('/sql-config/server-ca.pem', 'server-ca.pem')
     shutil.copy('/sql-config/client-key.pem', 'client-key.pem')
@@ -105,10 +108,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
         'user': admin_username,
         'password': admin_password,
         'db': _name,
-        'ssl-ca': sql_config['ssl-ca'],
-        'ssl-cert': sql_config['ssl-cert'],
-        'ssl-key': sql_config['ssl-key'],
-        'ssl-mode': sql_config['ssl-mode']
+        'ssl-ca': sql_config.get('ssl-ca'),
+        'ssl-cert': sql_config.get('ssl-cert'),
+        'ssl-key': sql_config.get('ssl-key'),
+        'ssl-mode': sql_config.get('ssl-mode')
     })
 
     await write_user_config(namespace, database_name, 'user', {
@@ -119,10 +122,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
         'user': user_username,
         'password': user_password,
         'db': _name,
-        'ssl-ca': sql_config['ssl-ca'],
-        'ssl-cert': sql_config['ssl-cert'],
-        'ssl-key': sql_config['ssl-key'],
-        'ssl-mode': sql_config['ssl-mode']
+        'ssl-ca': sql_config.get('ssl-ca'),
+        'ssl-cert': sql_config.get('ssl-cert'),
+        'ssl-key': sql_config.get('ssl-key'),
+        'ssl-mode': sql_config.get('ssl-mode')
     })
 
 
