@@ -20,16 +20,6 @@ object LocusFunctions extends RegistryFunctions {
   def tvariant(name: String): TStruct = TStruct("locus" -> tlocus(name), "alleles" -> TArray(TString))
   def tinterval(name: String): TInterval = TInterval(tlocus(name))
 
-  def getLocus(r: EmitRegion, locus: Code[Long], locusT: PLocus): Code[Locus] = {
-    val l = r.mb.newLocal[Long]()
-    val lObject = r.mb.newLocal[Locus]()
-    Code(
-      l := locus,
-      lObject := Code.invokeStatic[Locus, String, Int, Locus]("apply",
-        locusT.contigType.loadString(locusT.contig(l)),
-        locusT.position(l)), lObject)
-  }
-
   def emitLocus(r: EmitRegion, locus: Code[Locus], rt: PLocus): Code[Long] = {
     val srvb = new StagedRegionValueBuilder(r, rt)
     Code(emitLocus(srvb, locus), srvb.offset)
@@ -170,10 +160,10 @@ object LocusFunctions extends RegistryFunctions {
   def registerAll() {
     val locusClass = Locus.getClass
 
-    registerCode("contig", tlocus("T"), TString,
+    registerPCode("contig", tlocus("T"), TString,
       (_: Type, x: PType) => x.asInstanceOf[PLocus].contigType) {
-      case (r, rt, (locusT: PLocus, locus: Code[Long])) =>
-        locusT.contig(locus)
+      case (r, rt, locus: PLocusCode) =>
+        locus.contig()
     }
 
     registerCode("position", tlocus("T"), TInt32, (_: Type, x: PType) => x.asInstanceOf[PLocus].positionType) {
@@ -190,18 +180,19 @@ object LocusFunctions extends RegistryFunctions {
     registerLocusCode("inXNonPar") { locus => inX(locus) && !inPar(locus) }
     registerLocusCode("inYNonPar") { locus => inY(locus) && !inPar(locus) }
 
-    registerCode("min_rep", tlocus("T"), TArray(TString), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString)), {
+    registerPCode("min_rep", tlocus("T"), TArray(TString), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString)), {
       (returnType: Type, _: PType, _: PType) => {
         val locusPT = PCanonicalLocus(returnType.asInstanceOf[TStruct].field("locus").typ.asInstanceOf[TLocus].rg, true)
         PCanonicalStruct("locus" -> locusPT, "alleles" -> PCanonicalArray(PCanonicalString(true), true))
       }
     }) {
-      case (r, rt: PStruct, (locusT: PLocus, lOff), (allelesT, aOff)) =>
-        val locus = getLocus(r, lOff, locusT)
-        val alleles = Code.checkcast[IndexedSeq[String]](wrapArg(r, allelesT)(aOff).asInstanceOf[Code[AnyRef]])
-        val tuple = Code.invokeScalaObject[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](VariantMethods.getClass, "minRep", locus, alleles)
+      case (r, rt: PStruct, locus: PLocusCode, alleles: PIndexableCode) =>
+        val tuple = Code.invokeScalaObject[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](
+          VariantMethods.getClass, "minRep",
+          locus.getLocusObj(),
+          Code.checkcast[IndexedSeq[String]](wrapArg(r, alleles.pt)(alleles.code).asInstanceOf[Code[AnyRef]]))
 
-        Code.memoize(tuple, "min_rep_tuple") { tuple =>
+        val code = Code.memoize(tuple, "min_rep_tuple") { tuple =>
           Code.memoize(
             Code.checkcast[Locus](tuple.getField[java.lang.Object]("_1")), "min_rep_new_locus",
             Code.checkcast[IndexedSeq[String]](tuple.getField[java.lang.Object]("_2")), "min_rep_new_alleles"
@@ -229,6 +220,7 @@ object LocusFunctions extends RegistryFunctions {
               srvb.offset)
           }
         }
+        PCode(rt, code)
     }
 
     registerCode("locus_windows_per_contig", TArray(TArray(TFloat64)), TFloat64, TTuple(TArray(TInt32), TArray(TInt32)), {

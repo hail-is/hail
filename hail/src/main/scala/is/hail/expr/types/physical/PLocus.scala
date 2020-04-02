@@ -23,13 +23,11 @@ abstract class PLocus extends ComplexPType {
 
   def rg: ReferenceGenome
 
-  def contig(address: Long): Long
-
-  def contig(address: Code[Long]): Code[Long]
+  def contig(value: Long): String
 
   def contigType: PString
 
-  def position(address: Code[Long]): Code[Int]
+  def position(value: Code[Long]): Code[Int]
 
   def positionType: PInt32
 }
@@ -38,10 +36,19 @@ abstract class PLocusValue extends PValue {
   def contig(): PStringCode
 
   def position(): Value[Int]
+
+  def getLocusObj(): Code[Locus] = Code.invokeStatic[Locus, String, Int, Locus]("apply",
+    contig().loadString(), position())
 }
 
 abstract class PLocusCode extends PCode {
   def pt: PLocus
+
+  def contig(): PStringCode
+
+  def position(): Code[Int]
+
+  def getLocusObj(): Code[Locus]
 
   def memoize(cb: EmitCodeBuilder, name: String): PLocusValue
 
