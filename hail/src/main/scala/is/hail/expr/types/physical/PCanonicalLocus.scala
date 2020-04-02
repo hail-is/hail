@@ -38,7 +38,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   def contig(address: Long): String = contigType.loadString(contigAddr(address))
 
-  lazy val contigType: PString = representation.field("contig").typ.asInstanceOf[PString]
+  lazy val contigType: PCanonicalString = representation.field("contig").typ.asInstanceOf[PCanonicalString]
 
   def position(off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(off, 1))
 
