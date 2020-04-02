@@ -155,7 +155,7 @@ object HailContext {
     theContext
   }
 
-  def clear(): Unit = synchronized {
+  def stop(): Unit = synchronized {
     ReferenceGenome.reset()
     IRFunctionRegistry.clearUserFunctions()
     backend.stop()
