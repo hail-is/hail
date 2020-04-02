@@ -106,8 +106,8 @@ class HailContext(object):
         return self._default_ref
 
     def stop(self):
-        # HailContext.stop calls backend.stop() on the JVM backend
-        Env.hail().HailContext.stop()
+        self._backend.stop()
+        self._backend = None
         Env._jvm = None
         Env._hc = None
         uninstall_exception_handler()

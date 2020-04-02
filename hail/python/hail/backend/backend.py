@@ -18,6 +18,10 @@ from hailtop.utils import sync_retry_transient_errors
 
 class Backend(abc.ABC):
     @abc.abstractmethod
+    def stop(self):
+        pass
+
+    @abc.abstractmethod
     def execute(self, ir, timed=False):
         pass
 
@@ -178,6 +182,12 @@ class SparkBackend(Backend):
             connect_logger('localhost', 12888)
 
             self._jbackend.startProgressBar()
+
+    def stop(self):
+        self._jhc.stop()
+        self._jhc = None
+        self.sc.stop()
+        self.sc = None
 
     @property
     def fs(self):

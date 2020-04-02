@@ -448,6 +448,8 @@ class HailContext private(
   val tmpDirPath: String,
   val branchingFactor: Int,
   val optimizerIterations: Int) {
+  def stop(): Unit = HailContext.stop()
+
   def sparkBackend(): SparkBackend = backend.asSpark()
 
   def sc: SparkContext = sparkBackend().sc
