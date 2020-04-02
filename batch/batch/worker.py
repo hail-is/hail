@@ -10,6 +10,7 @@ import traceback
 import base64
 import uuid
 import shutil
+import time
 import aiohttp
 import aiohttp.client_exceptions
 from aiohttp import web
@@ -70,6 +71,8 @@ docker = None
 port_allocator = None
 
 worker = None
+
+image_cache = None
 
 
 class PortAllocator:
@@ -202,6 +205,60 @@ class ContainerStepManager:
         self.timing['duration'] = finish_time - start_time
 
 
+class Image:
+    def __init__(self, name):
+        self.name = name
+        self.users = set()
+        self.lock = asyncio.Lock()
+        self.created = None
+        self.last_used = None
+
+
+class ImageCache:
+    def __init__(self, docker, refresh_time):
+        self.docker = docker
+        self.refresh_time = refresh_time
+
+        self.images = {}
+        self.cached_images = {'ubuntu:18.04', 'google/cloud-sdk:269.0.0-alpine'}
+
+    async def pull_image(self, name, user, auth):
+        image = self.images.get(name, Image(name))
+
+        async with image.lock:
+            valid_user = not image.name.startswith('gcr.io/') or user in image.users
+            if valid_user and image.created and time.time() - image.created <= self.refresh_time:
+                image.last_used = time.time()
+                return
+
+            if image.startswith('gcr.io/'):
+                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{(name, user)}')(
+                    docker.images.pull, image, auth=auth)
+                image.users.add(user)
+            else:
+                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{(name, user)}')(
+                    docker.images.pull, image)
+
+            now = time.time()
+            image.created = now
+            image.last_used = now
+
+    async def remove_old_images(self):
+        while True:
+            await asyncio.sleep(self.refresh_time)
+            for name, image in self.images.items():
+                if name not in self.cached_images and image.last_used < time.time() - self.refresh_time:
+                    try:
+                        await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{name}')(
+                            docker.images.delete, name)
+                    except DockerError as err:
+                        if err.status == 409:  # image in use by a container
+                            image.last_used = time.time()
+                            continue
+
+                        log.exception(f'error while removing image {name}', stack_info=True)
+
+
 class Container:
     def __init__(self, job, name, spec):
         self.job = job
@@ -311,28 +368,13 @@ class Container:
     async def run(self, worker, cpu_sem):
         try:
             async with self.step('pulling'):
-                if self.image.startswith('gcr.io/'):
-                    key = base64.b64decode(
-                        self.job.gsa_key['key.json']).decode()
-                    auth = {
-                        'username': '_json_key',
-                        'password': key
-                    }
-                    # Pull to verify this user has access to this
-                    # image.
-                    # FIXME improve the performance of this with a
-                    # per-user image cache.
-                    await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                        docker.images.pull, self.image, auth=auth)
-                else:
-                    # this caches public images
-                    try:
-                        await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-                            docker.images.get, self.image)
-                    except DockerError as e:
-                        if e.status == 404:
-                            await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                                docker.images.pull, self.image)
+                key = base64.b64decode(
+                    self.job.gsa_key['key.json']).decode()
+                auth = {
+                    'username': '_json_key',
+                    'password': key
+                }
+                await image_cache.pull_image(self.image, self.job.user, auth)
 
             if self.port is not None:
                 async with self.step('allocating_port'):
@@ -991,9 +1033,13 @@ class Worker:
 
 
 async def async_main():
-    global port_allocator, worker, docker
+    global port_allocator, worker, docker, image_cache
 
     docker = aiodocker.Docker()
+
+    image_cache = ImageCache(docker, refresh_time=5 * 60)
+
+    asyncio.ensure_future(image_cache.remove_old_images())
 
     port_allocator = PortAllocator()
     worker = Worker()
