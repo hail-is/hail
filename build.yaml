@@ -103,6 +103,8 @@ steps:
        to: /repo/notebook/
      - from: /io/repo/hail/python/hailtop
        to: /repo/hailtop/
+     - from: /io/repo/hail/python/test
+       to: /repo/test/
    dependsOn:
      - base_image
  - kind: runImage
@@ -1231,15 +1233,15 @@ steps:
    script: |
      set -e
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-     gsutil -m cp -r /io/hailtop/batch/test/resources/* gs://hail-test-dmk9z/{{ token }}/batch/input/
+     gsutil -m cp -r /io/test/hailtop/batch/resources/* gs://hail-test-dmk9z/{{ token }}/batch/input/
    
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      export SCRATCH=gs://hail-test-dmk9z/{{ token }}/batch
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/hailtop/batch/test/
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/hailtop/batch/
 
      gsutil -m rm -r gs://hail-test-dmk9z/{{ token }}/batch
    inputs:
-    - from: /repo/hailtop
+    - from: /repo/test
       to: /io/
    timeout: 1200
    secrets:
@@ -1272,8 +1274,7 @@ steps:
      python3 -m pytest --instafail \
        --doctest-modules \
        --doctest-glob='*.rst' \
-       --ignore=docs/conf.py \
-       --ignore=test/test_batch.py
+       --ignore=docs/conf.py
    secrets:
     - name: gce-deploy-config
       namespace:
