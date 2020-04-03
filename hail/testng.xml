@@ -2,6 +2,7 @@
     <test name="TestAll">
         <packages>
           <package name="is.hail.*">
+            <exclude name="is.hail.fs.TestGoogleStorageFS"></exclude>
 	  </package>
         </packages>
     </test>
