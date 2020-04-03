@@ -99,8 +99,6 @@ steps:
        to: /repo/batch/
      - from: /io/repo/batch/test
        to: /repo/batch/
-     - from: /io/repo/pipeline/test
-       to: /repo/pipeline/
      - from: /io/repo/notebook/sql
        to: /repo/notebook/
      - from: /io/repo/hail/python/hailtop
@@ -1227,7 +1225,7 @@ steps:
     - test_ci_image
     - create_ci_test_repo
  - kind: runImage
-   name: test_pipeline
+   name: test_hailtop_batch
    image:
      valueFrom: service_base_image.image
    script: |
@@ -1241,7 +1239,7 @@ steps:
 
      gsutil -m rm -r gs://hail-test-dmk9z/{{ token }}/batch
    inputs:
-    - from: /repo/pipeline/test
+    - from: /repo/hailtop/batch/test
       to: /io/
    timeout: 1200
    secrets:
@@ -1446,4 +1444,4 @@ steps:
     - base_image
     - test_batch
     - test_ci
-    - test_pipeline
+    - test_hailtop_batch
