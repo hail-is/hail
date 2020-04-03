@@ -216,35 +216,10 @@ trait FSSuite {
   }
 }
 
-class TestHadoopFS extends HailSuite with FSSuite {
+class HadoopFSSuite extends HailSuite with FSSuite {
   val root: String = "file:/"
   
   lazy val fsResourcesRoot: String = "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
   
   lazy val tmpdir: String = tmpDir.createTempFile()
-}
-
-class TestGoogleStorageFS extends TestNGSuite with FSSuite {
-  val bucket: String = "hail-test-dmk9z"
-  
-  val root: String = s"gs://$bucket"
-  
-  val fsResourcesRoot: String = System.getenv("HAIL_GS_FS_TEST_RESOURCES")
-
-  private val keyFile = "/test-gsa-key/key.json"
-  
-  lazy val fs = new GoogleStorageFS(
-    new String(IOUtils.toByteArray(new FileInputStream(keyFile))))
-
-  lazy val tmpdir: String = s"gs://$bucket/tmp"
-
-  @Test def testDropTailingSlash(): Unit = {
-    import GoogleStorageFS._
-
-    assert(dropTrailingSlash("") == "")
-    assert(dropTrailingSlash("/foo/bar") == "/foo/bar")
-    assert(dropTrailingSlash("foo/bar/") == "foo/bar")
-    assert(dropTrailingSlash("/foo///") == "/foo")
-    assert(dropTrailingSlash("///") == "")
-  }
 }
