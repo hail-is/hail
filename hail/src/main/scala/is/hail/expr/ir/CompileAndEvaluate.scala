@@ -19,18 +19,6 @@ object CompileAndEvaluate {
     }
   }
 
-  def applyWithType[T](ctx: ExecuteContext,
-               ir0: IR,
-               optimize: Boolean = true
-              ): (PType, T) = {
-    ctx.timer.time("CompileAndEvaluate") {
-      _apply(ctx, ir0, optimize) match {
-        case Left(()) => (PVoid, ().asInstanceOf[T])
-        case Right((t, off)) => (t.fields(0).typ, SafeRow(t, off).getAs[T](0))
-      }
-    }
-  }
-
   def _apply(
     ctx: ExecuteContext,
     ir0: IR,
