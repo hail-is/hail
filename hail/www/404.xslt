@@ -5,12 +5,4 @@
 
     <xsl:template name="page-title">404</xsl:template>
     <xsl:template name="meta-description"></xsl:template>
-    <xsl:template name="navbar-script">
-        <script>
-          $(document).ready(function () {
-            $("#hail-navbar").load("/navbar.html",
-                                   function () {});
-          });
-        </script>
-    </xsl:template>
 </xsl:stylesheet>

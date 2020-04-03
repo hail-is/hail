@@ -7,11 +7,5 @@
     <xsl:template name="meta-description">
         <meta name="description" content="Hail Science"/>
     </xsl:template>
-    <xsl:template name="navbar-script">
-        <script>
-            $(document).ready(function () {$("#hail-navbar").load("navbar.html", function () {$(".nav li")
-            .removeClass("active"); $("#home").addClass("active");});});
-        </script>
-    </xsl:template>
 
 </xsl:stylesheet>
