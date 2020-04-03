@@ -24,8 +24,6 @@ abstract class PNDArray extends PType {
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = throw new UnsupportedOperationException
 
-  val flags: StaticallyKnownField[PInt32Required.type, Int]
-  val offset: StaticallyKnownField[PInt32Required.type, Int]
   val shape: StaticallyKnownField[PTuple, Long]
   val strides: StaticallyKnownField[PTuple, Long]
   val data: StaticallyKnownField[PArray, Long]
@@ -54,6 +52,5 @@ abstract class PNDArray extends PType {
 
   def copyColumnMajorToRowMajor(colMajorAddress: Code[Long], targetAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: EmitMethodBuilder[_]): Code[Unit]
 
-  def construct(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]),
-    stridesBuilder: (StagedRegionValueBuilder => Code[Unit]), data: Code[Long], mb: EmitMethodBuilder[_]): Code[Long]
+  def construct(shapeBuilder: StagedRegionValueBuilder => Code[Unit], stridesBuilder: StagedRegionValueBuilder => Code[Unit], data: Code[Long], mb: EmitMethodBuilder[_]): Code[Long]
 }

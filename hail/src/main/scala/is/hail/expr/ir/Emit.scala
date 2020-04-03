@@ -1272,7 +1272,7 @@ private class Emit[C](
               Code._fatal[Unit](s"shape missing at index $index"),
               shapeVariables(index) := shapeTuple(index))
           },
-          xP.construct(0, 0, shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb))
+          xP.construct(shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb))
         EmitCode(setup, datat.m || shapet.m, PCode(pt, result))
       case NDArrayShape(ndIR) =>
         val ndt = emit(ndIR)
@@ -1320,29 +1320,23 @@ private class Emit[C](
               val childShape = new CodePTuple(childPType.shape.pType, childShapeAddr)
               val childStrides = new CodePTuple(childPType.strides.pType, childStridesAddr)
 
-              x.pType.construct(
-                childPType.flags.load(childAddress),
-                childPType.offset.load(childAddress),
-                { srvb =>
-                  Code(
-                    srvb.start(),
-                    Code.foreach(indexMap) { childIndex =>
-                      Code(
-                        srvb.addLong(if (childIndex < childPType.nDims) childShape(childIndex) else 1L),
-                        srvb.advance())
-                    })
-                },
-                { srvb =>
-                  Code(
-                    srvb.start(),
-                    Code.foreach(indexMap) { index =>
-                      Code(
-                        srvb.addLong(if (index < childPType.nDims) childStrides(index) else 0L),
-                        srvb.advance())
-                    })
-                },
-                childPType.data.load(childAddress),
-                mb)
+              x.pType.construct({ srvb =>
+                                Code(
+                                  srvb.start(),
+                                  Code.foreach(indexMap) { childIndex =>
+                                    Code(
+                                      srvb.addLong(if (childIndex < childPType.nDims) childShape(childIndex) else 1L),
+                                      srvb.advance())
+                                  })
+                              }, { srvb =>
+                                Code(
+                                  srvb.start(),
+                                  Code.foreach(indexMap) { index =>
+                                    Code(
+                                      srvb.addLong(if (index < childPType.nDims) childStrides(index) else 0L),
+                                      srvb.advance())
+                                  })
+                              }, childPType.data.load(childAddress), mb)
             }
           }
         EmitCode(setup, childt.m, PCode(pt, value))
@@ -1468,7 +1462,7 @@ private class Emit[C](
             Code.invokeStatic[Memory, Long, Unit]("free", leftColumnMajorAddress.load()),
             Code.invokeStatic[Memory, Long, Unit]("free", rightColumnMajorAddress.load()),
             Code.invokeStatic[Memory, Long, Unit]("free", answerColumnMajorAddress.load()))),
-            outputPType.construct(0, 0, outputPType.makeShapeBuilder(IndexedSeq(M, N)), outputPType.makeDefaultStridesBuilder(IndexedSeq(M, N), mb), answerRowMajorPArrayAddress, mb)
+            outputPType.construct(outputPType.makeShapeBuilder(IndexedSeq(M, N)), outputPType.makeDefaultStridesBuilder(IndexedSeq(M, N), mb), answerRowMajorPArrayAddress, mb)
           )
 
           EmitCode(missingSetup, isMissing, PCode(pt, multiplyViaDGEMM))
@@ -1602,8 +1596,8 @@ private class Emit[C](
           val tauShapeBuilder = tauPType.makeShapeBuilder(FastIndexedSeq(K.get))
           val tauStridesBuilder = tauPType.makeDefaultStridesBuilder(FastIndexedSeq(K.get), mb)
 
-          val h = hPType.construct(0, 0, hShapeBuilder, hStridesBuilder, aAddressDGEQRF, mb)
-          val tau = tauPType.construct(0, 0, tauShapeBuilder, tauStridesBuilder, tauAddress, mb)
+          val h = hPType.construct(hShapeBuilder, hStridesBuilder, aAddressDGEQRF, mb)
+          val tau = tauPType.construct(tauShapeBuilder, tauStridesBuilder, tauAddress, mb)
 
           val constructHAndTauTuple = Code(
             rawOutputSrvb.start(),
@@ -1656,7 +1650,7 @@ private class Emit[C](
             rPType.copyColumnMajorToRowMajor(aAddressDGEQRF,
               rDataAddress, M, N, mb),
             zeroOutLowerTriangle,
-            rPType.construct(0, 0, rShapeBuilder, rStridesBuilder, rDataAddress, mb)
+            rPType.construct(rShapeBuilder, rStridesBuilder, rDataAddress, mb)
           )
 
           if (mode == "r") {
@@ -1735,7 +1729,7 @@ private class Emit[C](
               qPType.copyColumnMajorToRowMajor(aAddressDORGQR, qDataAddress, M, numColsToUse, mb),
 
               crOutputSrvb.start(),
-              crOutputSrvb.addIRIntermediate(qPType)(qPType.construct(0, 0, qShapeBuilder, qStridesBuilder, qDataAddress, mb)),
+              crOutputSrvb.addIRIntermediate(qPType)(qPType.construct(qShapeBuilder, qStridesBuilder, qDataAddress, mb)),
               crOutputSrvb.advance(),
               crOutputSrvb.addIRIntermediate(rPType)(rNDArrayAddress),
               crOutputSrvb.advance())),
@@ -2554,7 +2548,7 @@ abstract class NDArrayEmitter(
           Code.foreach(0 until nDims)(index => outputShapeVariables(index) := outputShape(index)))))
 
     EmitCode(fullSetup, m,
-      PCode(targetType, targetType.construct(0, 0, shapeBuilder, targetType.makeDefaultStridesBuilder(outputShapeVariables.map(_.load()), mb), dataAddress, mb)))
+      PCode(targetType, targetType.construct(shapeBuilder, targetType.makeDefaultStridesBuilder(outputShapeVariables.map(_.load()), mb), dataAddress, mb)))
   }
 
   private def emitLoops(mb: EmitMethodBuilder[_], outputShapeVariables: IndexedSeq[Value[Long]], srvb: StagedRegionValueBuilder): Code[Unit] = {

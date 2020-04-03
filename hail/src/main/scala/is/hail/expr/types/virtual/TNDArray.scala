@@ -47,8 +47,8 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
   override def str(a: Annotation): String = {
     if (a == null) "NA" else {
       val a_row = a.asInstanceOf[Row]
-      val shape = a_row(2).asInstanceOf[Row].toSeq.asInstanceOf[Seq[Long]].map(_.toInt)
-      val data = a_row(4).asInstanceOf[UnsafeIndexedSeq]
+      val shape = a_row(this.representation.fieldIdx("shape")).asInstanceOf[Row].toSeq.asInstanceOf[Seq[Long]].map(_.toInt)
+      val data = a_row(this.representation.fieldIdx("data")).asInstanceOf[UnsafeIndexedSeq]
 
       def dataToNestedString(data: Iterator[Annotation], shape: Seq[Int], sb: StringBuilder):Unit  = {
         if (shape.isEmpty) {
@@ -99,8 +99,6 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
   val ordering: ExtendedOrdering = null
 
   lazy val representation = TStruct(
-    ("flags", TInt32),
-    ("offset", TInt32),
     ("shape", TTuple(Array.tabulate(nDims)(_ => TInt64):_*)),
     ("strides", TTuple(Array.tabulate(nDims)(_ => TInt64):_*)),
     ("data", TArray(elementType))
