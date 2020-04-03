@@ -13,7 +13,8 @@ import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 
-case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boolean, headerJsonInFile: Boolean) extends MatrixToValueFunction {
+case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boolean,
+  headerJsonInFile: Boolean, useStringKeyAsFileName: Boolean) extends MatrixToValueFunction {
   def typ(childType: MatrixType): Type = TVoid
 
   def execute(ctx: ExecuteContext, mv: MatrixValue): Any = {
@@ -133,7 +134,14 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
     val padding = digitsNeeded(mv.nCols)
     val extension = if (bgzip) ".tsv.bgz" else ".tsv"
 
-    def finalPath(idx: Int): String = path + "/" + partFile(padding, idx) + extension
+    val fileNames: IndexedSeq[String] = if (useStringKeyAsFileName)
+      mv.stringSampleIds
+    else
+      Array.tabulate(mv.nCols)(i => partFile(padding, i))
+
+    def finalPath(idx: Int): String = {
+      path + "/" + fileNames(idx) + extension
+    }
 
     resultFiles.zipWithIndex.foreach { case (filePath, i) =>
       fs.copy(filePath, finalPath(i), deleteSource = true)
