@@ -78,7 +78,7 @@
                                 <a href="https://workshop.hail.is">Workshop</a>
                             </li>
                             <li id='about' class="nav-item">
-                                <a href="/about.html">ABOUT</a>
+                                <a href="/about.html">About</a>
                             </li>
 
                             </ul>
