@@ -628,16 +628,21 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     var leftValueType = leftRVDType.valueType
     var rightValueType = rightRVDType.valueType
 
-    if(joinType == "inner") {
-      leftValueType = leftValueType.setFieldsRequiredeness(true)
-      rightValueType = rightValueType.setFieldsRequiredeness(true)
-    } else if(joinType == "left") {
-      rightValueType = rightValueType.setFieldsRequiredeness(false)
-    } else if(joinType == "right") {
-      leftValueType = leftValueType.setFieldsRequiredeness(false)
-    } else if(joinType == "outer" || joinType == "zip") {
-      leftValueType = leftValueType.setFieldsRequiredeness(false)
-      rightValueType = rightValueType.setFieldsRequiredeness(false)
+    joinType match {
+      case "inner" => {
+        leftValueType = leftValueType.setFieldsRequiredeness(true)
+        rightValueType = rightValueType.setFieldsRequiredeness(true)
+      }
+      case "left" => {
+        rightValueType = rightValueType.setFieldsRequiredeness(false)
+      }
+      case "right" => {
+        leftValueType = leftValueType.setFieldsRequiredeness(false)
+      }
+      case "outer" | "zip" => {
+        leftValueType = leftValueType.setFieldsRequiredeness(false)
+        rightValueType = rightValueType.setFieldsRequiredeness(false)
+      }
     }
 
     val newRowPType = leftKeyType ++ leftValueType ++ rightValueType
