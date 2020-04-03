@@ -223,7 +223,7 @@ class EmitStreamSuite extends HailSuite {
         case s => s
       }
       TypeCheck(s)
-      EmitStream(new Emit(ctx, fb.ecb), mb, s, Env.empty, EmitRegion.default(mb), None)
+      EmitStream.emit(new Emit(ctx, fb.ecb), s, mb, Env.empty, None)
     }
     mb.emit {
       val arrayt = EmitStream.toArray(mb, PArray(eltType), stream)
@@ -275,7 +275,7 @@ class EmitStreamSuite extends HailSuite {
     InferPType(ir, Env.empty)
     val optStream = ExecuteContext.scoped() { ctx =>
       TypeCheck(ir)
-      EmitStream(new Emit(ctx, fb.ecb), mb, ir, Env.empty, EmitRegion.default(mb), None)
+      EmitStream.emit(new Emit(ctx, fb.ecb), ir, mb, Env.empty, None)
     }
     val L = CodeLabel()
     val len = mb.newLocal[Int]()
