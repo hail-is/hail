@@ -28,7 +28,7 @@ body {
   padding: .875rem;
   padding-top: 0px;
   margin: auto;
-  max-width: 42rem;
+  max-width: 44rem;
   background: #fff;
   border-color: #ddd;
 }
@@ -355,3 +355,36 @@ pre {
 pre code {
   padding: 0;
 }
+
+.myButton {
+  box-shadow: 0px 0px 14px -3px #276873;
+  background-color:#283891;
+  border-radius:18px;
+  border:3px solid #283870;
+  display:inline-block;
+  cursor: pointer;
+  cursor: hand;
+  color: #ffffff; 
+  font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
+  font-size:20px;
+  font-weight:bold;
+  margin: 5px 40px;
+  padding:15px 11px;
+  text-align: center;
+  text-decoration:none;
+  text-shadow:-1px 0px 0px #3d768a;
+  transition-duration: 0.4s;
+  width: 250px;
+  }
+  .myButton:hover{
+    box-shadow: 0 12px 16px 0 rgba(0,0,0,0.24), 0 17px 50px 0 rgba(0,0,0,0.19); 
+    text-decoration:none;
+  }
+  .myButton:active {
+  position:relative;
+  top:1px;
+  text-decoration:none;
+}
+  .myButton:visited{
+    color: white;
+  }

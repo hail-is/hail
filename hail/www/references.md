@@ -2,8 +2,13 @@
 
 The following is an incomplete list of scientific work enabled by Hail.
 
-If you use Hail for published work, please cite the software.
+If you use Hail for published work, please cite the software. You can get a citation for the version of Hail you installed by executing:
+```python
+import hail as hl
+print(hl.citation())
+```
 
+Or you could include the following line in your bibliography: 
 ```
 Hail Team. Hail 0.2. https://github.com/hail-is/hail
 ```
