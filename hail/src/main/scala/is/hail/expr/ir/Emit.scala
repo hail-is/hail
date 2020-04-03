@@ -78,7 +78,7 @@ object Emit {
     val emitter = new Emit[C](ctx, fb.ecb)
     if (ir.typ == TVoid) {
       val cb = EmitCodeBuilder(mb)
-      emitter.emitVoid(cb, ir, mb, Env.empty, EmitRegion.default(fb.apply_method), container, None)
+      emitter.emitVoid(cb, ir, mb, Env.empty, container)
       fb.emit(cb.result())
     } else {
       val triplet = emitter.emit(ir, mb, Env.empty, container)
@@ -343,7 +343,7 @@ private class Emit[C](
         def emit(mb: EmitMethodBuilder[C]): Code[Unit] = {
           val (setup, _) = EmitCodeBuilder.scoped(mb) { cb =>
             // wrapped methods can't contain uses of Recur
-            emitSelf.emitVoid(cb, ir, mb, env, EmitRegion.default(mb), container, None)
+            emitSelf.emitVoid(cb, ir, mb, env, container)
           }
           setup
         }
@@ -353,10 +353,13 @@ private class Emit[C](
     EmitUtils.wrapToMethod(items, mb)
   }
 
-  private[ir] def emitVoid(cb: EmitCodeBuilder, ir: IR, mb: EmitMethodBuilder[C], env: E, er: EmitRegion, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
+  private[ir] def emitVoid(cb: EmitCodeBuilder, ir: IR, mb: EmitMethodBuilder[C], env: E, container: Option[AggContainer]): Unit =
+    emitVoid(cb, ir, mb, mb.getArg[Region](1), env, container, None)
 
-    def emit(ir: IR, mb: EmitMethodBuilder[C] = mb, env: E = env, er: EmitRegion = er, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
-      this.emit(ir, mb, er.region, env, container, loopEnv)
+  private[ir] def emitVoid(cb: EmitCodeBuilder, ir: IR, mb: EmitMethodBuilder[C], region: Value[Region], env: E, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
+
+    def emit(ir: IR, mb: EmitMethodBuilder[C] = mb, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
+      this.emit(ir, mb, region, env, container, loopEnv)
 
     def wrapToMethod(irs: Seq[IR], mb: EmitMethodBuilder[C] = mb, env: E = env, container: Option[AggContainer] = container)(useValues: (EmitMethodBuilder[C], PType, EmitCode) => Code[Unit]): Code[Unit] =
       this.wrapToMethod(irs, mb, env, container)(useValues)
@@ -365,12 +368,10 @@ private class Emit[C](
       this.wrapToVoid(irs, mb, env, container)
 
     def emitStream(ir: IR, mb: EmitMethodBuilder[C] = mb): COption[EmitStream.SizedStream] =
-      EmitStream(this, ir, mb, er.region, env, container)
+      EmitStream.emit(this, ir, mb, region, env, container)
 
-    def emitVoid(cb: EmitCodeBuilder, ir: IR, mb: EmitMethodBuilder[C] = mb, env: E = env, er: EmitRegion = er, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
-      this.emitVoid(cb, ir, mb, env, er, container, loopEnv)
-
-    val region = er.region
+    def emitVoid(cb: EmitCodeBuilder, ir: IR, mb: EmitMethodBuilder[C] = mb, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
+      this.emitVoid(cb, ir, mb, region, env, container, loopEnv)
 
     (ir: @unchecked) match {
       case Void() =>
@@ -496,7 +497,7 @@ private class Emit[C](
         cb._throw(Code.newInstance[HailException, String](
             cm.m.mux[String](
               "<exception message missing>",
-              coerce[String](StringFunctions.wrapArg(er, m.pType)(cm.v)))))
+              coerce[String](StringFunctions.wrapArg(EmitRegion(mb, region), m.pType)(cm.v)))))
     }
   }
 
@@ -548,9 +549,9 @@ private class Emit[C](
     def emitInMethod(ir: IR, mb: EmitMethodBuilder[C]): EmitCode =
       this.emit(ir, mb, Env.empty, container)
 
-    def emitVoid(ir: IR, mb: EmitMethodBuilder[C] = mb, env: E = env, er: EmitRegion = EmitRegion(mb, region), container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Code[Unit] = {
+    def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Code[Unit] = {
       EmitCodeBuilder.scopedVoid(mb) { cb =>
-        this.emitVoid(cb, ir, mb, env, er, container, loopEnv)
+        this.emitVoid(cb, ir, mb, region, env, container, loopEnv)
       }
     }
 
@@ -558,7 +559,7 @@ private class Emit[C](
       this.wrapToMethod(irs, mb, env, container)(useValues)
 
     def emitStream(ir: IR): COption[EmitStream.SizedStream] =
-      EmitStream(this, ir, mb, region, env, container)
+      EmitStream.emit(this, ir, mb, region, env, container)
 
     def emitDeforestedNDArray(ir: IR): EmitCode =
       deforestNDArray(ir, mb, region, env).emit(coerce[PNDArray](ir.pType))

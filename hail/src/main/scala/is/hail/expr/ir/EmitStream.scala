@@ -543,7 +543,16 @@ object EmitStream {
     }
   }
 
-  private[ir] def apply[C](
+  private[ir] def emit[C](
+    emitter: Emit[C],
+    streamIR0: IR,
+    mb: EmitMethodBuilder[C],
+    env0: Emit.E,
+    container: Option[AggContainer]
+  ): COption[SizedStream] =
+    emit(emitter, streamIR0, mb, mb.getArg[Region](1), env0, container)
+
+  private[ir] def emit[C](
     emitter: Emit[C],
     streamIR0: IR,
     mb: EmitMethodBuilder[C],
@@ -557,9 +566,9 @@ object EmitStream {
       def emitIR(ir: IR, env: Emit.E = env, region: Value[Region] = region, container: Option[AggContainer] = container): EmitCode =
         emitter.emitWithRegion(ir, mb, region, env, container)
 
-      def emitVoidIR(ir: IR, mb:  EmitMethodBuilder[C] = mb, env: Emit.E = env, container: Option[AggContainer] = container): Code[Unit] = {
+      def emitVoidIR(ir: IR, env: Emit.E = env, container: Option[AggContainer] = container): Code[Unit] = {
         EmitCodeBuilder.scopedVoid(mb) { cb =>
-          emitter.emitVoid(cb, ir, mb, env, EmitRegion(mb, region), container, None)
+          emitter.emitVoid(cb, ir, mb, region, env, container, None)
         }
       }
 
