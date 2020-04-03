@@ -21,10 +21,11 @@ Contents
     Tutorials <tutorials-landing>
     Reference (Python API) <api>
     Overview <overview/index>
-    Datasets <datasets>
-    Annotation Database <annotation_database_ui>
     How-To Guides <guides>
     Cheatsheets <cheatsheets>
+    Datasets <datasets>
+    Annotation Database <annotation_database_ui>
+    Libraries <libraries>
     For Software Developers <getting_started_developing>
     Other Resources <other_resources>
     Change Log <change_log>
