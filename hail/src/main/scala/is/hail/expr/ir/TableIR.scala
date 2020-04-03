@@ -312,7 +312,6 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val hc = HailContext.get
     val (ptype, res) = CompileAndEvaluate._apply(ctx, rowsAndGlobal, optimize = false) match {
-      case Left(()) => (PVoid, ().asInstanceOf[Row])
       case Right((t, off)) => (t.fields(0).typ, SafeRow(t, off).getAs[Row](0))
     }
 
