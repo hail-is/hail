@@ -10,7 +10,7 @@ Docker is a tool for packaging up operating systems, scripts, and environments i
 be able to run the same code regardless of what machine the code is executing on. This packaged
 code is called an image. There are three parts to Docker: a mechanism for building images,
 an image repository called DockerHub, and a way to execute code in an image
-called a container. For using Pipeline effectively, we're only going to focus on building images.
+called a container. For using Batch effectively, we're only going to focus on building images.
 
 Installation
 ------------
@@ -84,7 +84,7 @@ More in depth information can be found `here <https://docs.docker.com/engine/ref
 Pushing Images
 --------------
 
-To use an image with Pipeline, you need to upload your image to a place where Pipeline can access it.
+To use an image with Batch, you need to upload your image to a place where Batch can access it.
 You can store images inside the `Google Container Registry <https://cloud.google.com/container-registry/docs/>`__ in
 addition to Dockerhub. Below is an example of pushing the image to the Google Container Registry.
 It's good practice to specify a tag that is unique for your image. If you don't tag your image, the default is
@@ -97,5 +97,5 @@ It's good practice to specify a tag that is unique for your image. If you don't 
     docker push gcr.io/<my-project>/<my-image>:<tag>
 
 
-Now you can use your Docker image with Pipeline to run your code with the method :meth:`.Task.image`
+Now you can use your Docker image with Batch to run your code with the method :meth:`.Job.image`
 specifying the image as `gcr.io/<my-project>/<my-image>:<tag>`!

@@ -7,12 +7,12 @@ Getting Started
 Installation
 ------------
 
-Pipeline is a Python module available inside the Hail Python package located
-at `hailtop.pipeline`.
+Batch is a Python module available inside the Hail Python package located
+at `hailtop.batch`.
 
 
-Installing Pipeline on Mac OS X or GNU/Linux with pip
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Installing Batch on Mac OS X or GNU/Linux with pip
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Create a `conda enviroment
 <https://conda.io/docs/user-guide/concepts.html#conda-environments>`__ named
@@ -25,14 +25,14 @@ Create a `conda enviroment
     pip install hail
 
 
-To try Pipeline out, open iPython or a Jupyter notebook and run:
+To try `batch` out, open iPython or a Jupyter notebook and run:
 
 .. code-block:: python
 
-    >>> import hailtop.pipeline as hp
-    >>> p = hp.Pipeline()
-    >>> t = p.new_task(name='hello')
-    >>> t.command('echo "hello world"')
-    >>> p.run()
+    >>> import hailtop.batch as hb
+    >>> b = hb.Batch()
+    >>> j = b.new_job(name='hello')
+    >>> j.command('echo "hello world"')
+    >>> b.run()
 
 You're now all set to run the :ref:`tutorial <sec-tutorial>`!

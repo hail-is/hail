@@ -26,8 +26,8 @@ clean:
 
 .PHONY: check-python
 check-python:
-	@echo "Ensuring that Pipeline can be imported..."
-	python3 -c "import hailtop.pipeline"
+	@echo "Ensuring that Batch can be imported..."
+	python3 -c "import hailtop.batch"
 
 .PHONY: html
 html: check-python

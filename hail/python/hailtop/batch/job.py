@@ -2,7 +2,7 @@ import re
 
 from .backend import BatchBackend
 from .resource import ResourceFile, ResourceGroup
-from .utils import PipelineException
+from .utils import BatchException
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
@@ -22,38 +22,38 @@ def _add_resource_to_set(resource_set, resource, include_rg=True):
             resource_set.add(resource_file)
 
 
-class Task:
+class Job:
     """
     Object representing a single job to execute.
 
     Examples
     --------
 
-    Create a pipeline object:
+    Create a batch object:
 
-    >>> p = Pipeline()
+    >>> b = Batch()
 
-    Create a new pipeline task that prints hello to a temporary file `t.ofile`:
+    Create a new job that prints hello to a temporary file `t.ofile`:
 
-    >>> t = p.new_task()
-    >>> t.command(f'echo "hello" > {t.ofile}')
+    >>> j = b.new_job()
+    >>> j.command(f'echo "hello" > {j.ofile}')
 
     Write the temporary file `t.ofile` to a permanent location
 
-    >>> p.write_output(t.ofile, 'hello.txt')
+    >>> b.write_output(j.ofile, 'hello.txt')
 
     Execute the DAG:
 
-    >>> p.run()
+    >>> b.run()
 
     Notes
     -----
-    This class should never be created directly by the user. Use `Pipeline.new_task` instead.
+    This class should never be created directly by the user. Use `Batch.new_job` instead.
     """
 
     _counter = 0
-    _uid_prefix = "__TASK__"
-    _regex_pattern = r"(?P<TASK>{}\d+)".format(_uid_prefix)
+    _uid_prefix = "__JOB__"
+    _regex_pattern = r"(?P<JOB>{}\d+)".format(_uid_prefix)
 
     @classmethod
     def _new_uid(cls):
@@ -61,8 +61,8 @@ class Task:
         cls._counter += 1
         return uid
 
-    def __init__(self, pipeline, name=None, attributes=None):
-        self._pipeline = pipeline
+    def __init__(self, batch, name=None, attributes=None):
+        self._batch = batch
         self.name = name
         self.attributes = attributes
         self._cpu = None
@@ -75,7 +75,7 @@ class Task:
 
         self._resources = {}  # dict of name to resource
         self._resources_inverse = {}  # dict of resource to name
-        self._uid = Task._new_uid()
+        self._uid = Job._new_uid()
 
         self._inputs = set()
         self._internal_outputs = set()
@@ -86,7 +86,7 @@ class Task:
 
     def _get_resource(self, item):
         if item not in self._resources:
-            r = self._pipeline._new_task_resource_file(self)
+            r = self._batch._new_job_resource_file(self)
             self._resources[item] = r
             self._resources_inverse[r] = item
 
@@ -106,24 +106,24 @@ class Task:
 
     def declare_resource_group(self, **mappings):
         """
-        Declare a resource group for a task.
+        Declare a resource group for a job.
 
         Examples
         --------
 
         Declare a resource group:
 
-        >>> p = Pipeline()
-        >>> input = p.read_input_group(bed='data/example.bed',
+        >>> b = Batch()
+        >>> input = b.read_input_group(bed='data/example.bed',
         ...                            bim='data/example.bim',
         ...                            fam='data/example.fam')
-        >>> t = p.new_task()
-        >>> t.declare_resource_group(tmp1={'bed': '{root}.bed',
+        >>> j = b.new_job()
+        >>> j.declare_resource_group(tmp1={'bed': '{root}.bed',
         ...                                'bim': '{root}.bim',
         ...                                'fam': '{root}.fam',
         ...                                'log': '{root}.log'})
-        >>> t.command(f'plink --bfile {input} --make-bed --out {t.tmp1}')
-        >>> p.run()  # doctest: +SKIP
+        >>> j.command(f'plink --bfile {input} --make-bed --out {j.tmp1}')
+        >>> b.run()  # doctest: +SKIP
 
         Warning
         -------
@@ -140,110 +140,110 @@ class Task:
 
         Returns
         -------
-        :class:`.Task`
-            Same task object with resource groups set.
+        :class:`.Job`
+            Same job object with resource groups set.
         """
 
         for name, d in mappings.items():
             assert name not in self._resources
             if not isinstance(d, dict):
-                raise PipelineException(f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
-            rg = self._pipeline._new_resource_group(self, d)
+                raise BatchException(f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
+            rg = self._batch._new_resource_group(self, d)
             self._resources[name] = rg
             _add_resource_to_set(self._valid, rg)
         return self
 
-    def depends_on(self, *tasks):
+    def depends_on(self, *jobs):
         """
-        Explicitly set dependencies on other tasks.
+        Explicitly set dependencies on other jobs.
 
         Examples
         --------
 
-        Initialize the pipeline:
+        Initialize the batch:
 
-        >>> p = Pipeline()
+        >>> b = Batch()
 
-        Create the first task:
+        Create the first job:
 
-        >>> t1 = p.new_task()
-        >>> t1.command(f'echo "hello"')
+        >>> j1 = b.new_job()
+        >>> j1.command(f'echo "hello"')
 
-        Create the second task that depends on `t1`:
+        Create the second job `j2` that depends on `j1`:
 
-        >>> t2 = p.new_task()
-        >>> t2.depends_on(t1)
-        >>> t2.command(f'echo "world"')
+        >>> j2 = b.new_job()
+        >>> j2.depends_on(j1)
+        >>> j2.command(f'echo "world"')
 
-        Execute the pipeline:
+        Execute the batch:
 
-        >>> p.run()
+        >>> b.run()
 
         Notes
         -----
-        Dependencies between tasks are automatically created when resources from
-        one task are used in a subsequent task. This method is only needed when
+        Dependencies between jobs are automatically created when resources from
+        one job are used in a subsequent job. This method is only needed when
         no intermediate resource exists and the dependency needs to be explicitly
         set.
 
         Parameters
         ----------
-        tasks: :class:`.Task`, varargs
-            Sequence of tasks to depend on.
+        jobs: :class:`.Job`, varargs
+            Sequence of jobs to depend on.
 
         Returns
         -------
-        :class:`.Task`
-            Same task object with dependencies set.
+        :class:`.Job`
+            Same job object with dependencies set.
         """
 
-        for t in tasks:
-            self._dependencies.add(t)
+        for j in jobs:
+            self._dependencies.add(j)
         return self
 
     def command(self, command):
         """
-        Set the task's command to execute.
+        Set the job's command to execute.
 
         Examples
         --------
 
-        Simple task with no output files:
+        Simple job with no output files:
 
-        >>> p = Pipeline()
-        >>> t = p.new_task()
-        >>> t.command(f'echo "hello"')
-        >>> p.run()
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> j.command(f'echo "hello"')
+        >>> b.run()
 
-        Simple task with one temporary file `t2.ofile` that is written to a
+        Simple job with one temporary file `j.ofile` that is written to a
         permanent location:
 
-        >>> p = Pipeline()
-        >>> t = p.new_task()
-        >>> t.command(f'echo "hello world" > {t.ofile}')
-        >>> p.write_output(t.ofile, 'output/hello.txt')
-        >>> p.run()
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> j.command(f'echo "hello world" > {j.ofile}')
+        >>> b.write_output(j.ofile, 'output/hello.txt')
+        >>> b.run()
 
-        Two tasks with a file interdependency:
+        Two jobs with a file interdependency:
 
-        >>> p = Pipeline()
-        >>> t1 = p.new_task()
-        >>> t1.command(f'echo "hello" > {t1.ofile}')
-        >>> t2 = p.new_task()
-        >>> t2.command(f'cat {t1.ofile} > {t2.ofile}')
-        >>> p.write_output(t2.ofile, 'output/cat_output.txt')
-        >>> p.run()
+        >>> b = Batch()
+        >>> j1 = b.new_job()
+        >>> j1.command(f'echo "hello" > {j1.ofile}')
+        >>> j2 = b.new_job()
+        >>> j2.command(f'cat {j1.ofile} > {j2.ofile}')
+        >>> b.write_output(j2.ofile, 'output/cat_output.txt')
+        >>> b.run()
 
-        Specify multiple commands in the same task:
+        Specify multiple commands in the same job:
 
-        >>> p = Pipeline()
-        >>> t = p.new_task()
-        >>> t.command(f'echo "hello" > {t.tmp1}')
-        >>> t.command(f'echo "world" > {t.tmp2}')
-        >>> t.command(f'echo "!" > {t.tmp3}')
-        >>> t.command(f'cat {t.tmp1} {t.tmp2} {t.tmp3} > {t.ofile}')
-        >>> p.write_output(t.ofile, 'output/concatenated.txt')
-        >>> p.run()
+        >>> b = Batch()
+        >>> t = b.new_job()
+        >>> j.command(f'echo "hello" > {j.tmp1}')
+        >>> j.command(f'echo "world" > {j.tmp2}')
+        >>> j.command(f'echo "!" > {j.tmp3}')
+        >>> j.command(f'cat {j.tmp1} {j.tmp2} {j.tmp3} > {j.ofile}')
+        >>> b.write_output(j.ofile, 'output/concatenated.txt')
+        >>> b.run()
 
         Notes
         -----
@@ -251,19 +251,19 @@ class Task:
         append commands to run to the set of previously defined commands
         rather than overriding an existing command.
 
-        To declare a resource file of type :class:`.TaskResourceFile`, use either
-        the get attribute syntax of `task.{identifier}` or the get item syntax of
-        `task['identifier']`. If an object for that identifier doesn't exist,
+        To declare a resource file of type :class:`.JobResourceFile`, use either
+        the get attribute syntax of `job.{identifier}` or the get item syntax of
+        `job['identifier']`. If an object for that identifier doesn't exist,
         then one will be created automatically (only allowed in the :meth:`.command`
         method). The identifier name can be any valid Python identifier
         such as `ofile5000`.
 
-        All :class:`.TaskResourceFile` are temporary files and must be written
-        to a permanent location using :func:`.Pipeline.write_output` if the output needs
+        All :class:`.JobResourceFile` are temporary files and must be written
+        to a permanent location using :func:`.Batch.write_output` if the output needs
         to be saved.
 
-        Only Resources can be referred to in commands. Referencing a :class:`.Pipeline`
-        or :class:`.Task` will result in an error.
+        Only resources can be referred to in commands. Referencing a :class:`.Batch`
+        or :class:`.Job` will result in an error.
 
         Parameters
         ----------
@@ -271,31 +271,31 @@ class Task:
 
         Returns
         -------
-        :class:`.Task`
-            Same task object with command appended.
+        :class:`.Job`
+            Same job object with command appended.
         """
 
         def handler(match_obj):
             groups = match_obj.groupdict()
-            if groups['TASK']:
-                raise PipelineException(f"found a reference to a Task object in command '{command}'.")
-            if groups['PIPELINE']:
-                raise PipelineException(f"found a reference to a Pipeline object in command '{command}'.")
+            if groups['JOB']:
+                raise BatchException(f"found a reference to a Job object in command '{command}'.")
+            if groups['BATCH']:
+                raise BatchException(f"found a reference to a Batch object in command '{command}'.")
 
             assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP']
             r_uid = match_obj.group()
-            r = self._pipeline._resource_map.get(r_uid)
+            r = self._batch._resource_map.get(r_uid)
             if r is None:
-                raise PipelineException(f"undefined resource '{r_uid}' in command '{command}'.\n"
-                                        f"Hint: resources must be from the same pipeline as the current task.")
+                raise BatchException(f"undefined resource '{r_uid}' in command '{command}'.\n"
+                                        f"Hint: resources must be from the same batch as the current job.")
             if r._source != self:
                 self._add_inputs(r)
                 if r._source is not None:
                     if r not in r._source._valid:
                         name = r._source._resources_inverse[r]
-                        raise PipelineException(f"undefined resource '{name}'\n"
+                        raise BatchException(f"undefined resource '{name}'\n"
                                                 f"Hint: resources must be defined within "
-                                                "the task methods 'command' or 'declare_resource_group'")
+                                                "the job methods 'command' or 'declare_resource_group'")
                     self._dependencies.add(r._source)
                     r._source._add_internal_outputs(r)
             else:
@@ -303,10 +303,10 @@ class Task:
             self._mentioned.add(r)
             return f"${{{r_uid}}}"
 
-        from .pipeline import Pipeline  # pylint: disable=cyclic-import
+        from .batch import Batch  # pylint: disable=cyclic-import
 
         subst_command = re.sub(f"({ResourceFile._regex_pattern})|({ResourceGroup._regex_pattern})"
-                               f"|({Task._regex_pattern})|({Pipeline._regex_pattern})",
+                               f"|({Job._regex_pattern})|({Batch._regex_pattern})",
                                handler,
                                command)
         self._command.append(subst_command)
@@ -314,18 +314,18 @@ class Task:
 
     def storage(self, storage):
         """
-        Set the task's storage size.
+        Set the job's storage size.
 
         Examples
         --------
 
-        Set the task's disk requirements to 1 Gi:
+        Set the job's disk requirements to 1 Gi:
 
-        >>> p = Pipeline()
-        >>> t = p.new_task()
-        >>> (t.storage('1Gi')
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> (j.storage('1Gi')
         ...   .command(f'echo "hello"'))
-        >>> p.run()
+        >>> b.run()
 
         Parameters
         ----------
@@ -333,26 +333,26 @@ class Task:
 
         Returns
         -------
-        :class:`.Task`
-            Same task object with storage set.
+        :class:`.Job`
+            Same job object with storage set.
         """
         self._storage = storage
         return self
 
     def memory(self, memory):
         """
-        Set the task's memory requirements.
+        Set the job's memory requirements.
 
         Examples
         --------
 
-        Set the task's memory requirement to 5GB:
+        Set the job's memory requirement to 5GB:
 
-        >>> p = Pipeline()
-        >>> t = p.new_task()
-        >>> (t.memory(5)
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> (j.memory(5)
         ...   .command(f'echo "hello"'))
-        >>> p.run()
+        >>> b.run()
 
         Parameters
         ----------
@@ -361,26 +361,26 @@ class Task:
 
         Returns
         -------
-        :class:`.Task`
-            Same task object with memory requirements set.
+        :class:`.Job`
+            Same job object with memory requirements set.
         """
         self._memory = str(memory)
         return self
 
     def cpu(self, cores):
         """
-        Set the task's CPU requirements.
+        Set the job's CPU requirements.
 
         Examples
         --------
 
-        Set the task's CPU requirement to 0.1 cores:
+        Set the job's CPU requirement to 0.1 cores:
 
-        >>> p = Pipeline()
-        >>> t = p.new_task()
-        >>> (t.cpu(0.1)
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> (j.cpu(0.1)
         ...   .command(f'echo "hello"'))
-        >>> p.run()
+        >>> b.run()
 
         Parameters
         ----------
@@ -388,8 +388,8 @@ class Task:
 
         Returns
         -------
-        :class:`.Task`
-            Same task object with CPU requirements set.
+        :class:`.Job`
+            Same job object with CPU requirements set.
         """
 
         self._cpu = str(cores)
@@ -397,18 +397,18 @@ class Task:
 
     def image(self, image):
         """
-        Set the task's docker image.
+        Set the job's docker image.
 
         Examples
         --------
 
-        Set the task's docker image to `alpine`:
+        Set the job's docker image to `ubuntu:18.04`:
 
-        >>> p = Pipeline()
-        >>> t = p.new_task()
-        >>> (t.image('ubuntu:18.04')
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> (j.image('ubuntu:18.04')
         ...   .command(f'echo "hello"'))
-        >>> p.run()  # doctest: +SKIP
+        >>> b.run()  # doctest: +SKIP
 
         Parameters
         ----------
@@ -417,8 +417,8 @@ class Task:
 
         Returns
         -------
-        :class:`.Task`
-            Same task object with docker image set.
+        :class:`.Job`
+            Same job object with docker image set.
         """
 
         self._image = image
@@ -426,32 +426,36 @@ class Task:
 
     def always_run(self, always_run=True):
         """
-        Set the task to always run, even if dependencies fail.
+        Set the job to always run, even if dependencies fail.
 
         Notes
         -----
         Can only be used with the :class:`.BatchBackend`.
 
+        Warning
+        -------
+        Jobs set to always run are not cancellable!
+
         Examples
         --------
 
-        >>> p = Pipeline(backend=BatchBackend('test'))
-        >>> t = p.new_task()
-        >>> (t.always_run()
+        >>> b = Batch(backend=BatchBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.always_run()
         ...   .command(f'echo "hello"'))
 
         Parameters
         ----------
         always_run: :obj:`bool`
-            If True, set task to always run.
+            If True, set job to always run.
 
         Returns
         -------
-        :class:`.Task`
-            Same task object set to always run.
+        :class:`.Job`
+            Same job object set to always run.
         """
 
-        if not isinstance(self._pipeline._backend, BatchBackend):
+        if not isinstance(self._batch._backend, BatchBackend):
             raise NotImplementedError("A BatchBackend is required to use the 'always_run' option")
 
         self._always_run = always_run
@@ -459,7 +463,7 @@ class Task:
 
     def timeout(self, timeout):
         """
-        Set the maximum amount of time this task can run for.
+        Set the maximum amount of time this job can run for.
 
         Notes
         -----
@@ -468,30 +472,30 @@ class Task:
         Examples
         --------
 
-        >>> p = Pipeline(backend=BatchBackend('test'))
-        >>> t = p.new_task()
-        >>> (t.timeout(10)
+        >>> b = Batch(backend=BatchBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.timeout(10)
         ...   .command(f'echo "hello"'))
 
         Parameters
         ----------
         timeout: :obj:`float` or :obj:`int`
-            Maximum amount of time for a task to run before being killed.
+            Maximum amount of time for a job to run before being killed.
 
         Returns
         -------
-        :class:`.Task`
-            Same task object set with a timeout.
+        :class:`.Job`
+            Same job object set with a timeout.
         """
 
-        if not isinstance(self._pipeline._backend, BatchBackend):
+        if not isinstance(self._batch._backend, BatchBackend):
             raise NotImplementedError("A BatchBackend is required to use the 'timeout' option")
 
         self._timeout = timeout
         return self
 
     def _pretty(self):
-        s = f"Task '{self._uid}'" \
+        s = f"Job '{self._uid}'" \
             f"\tName:\t'{self.name}'" \
             f"\tAttributes:\t'{self.attributes}'" \
             f"\tImage:\t'{self._image}'" \

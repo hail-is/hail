@@ -2,7 +2,7 @@ import abc
 
 from shlex import quote as shq
 
-from .utils import PipelineException
+from .utils import BatchException
 
 
 class Resource:
@@ -27,7 +27,7 @@ class Resource:
 class ResourceFile(Resource, str):
     """
     Class representing a single file resource. There exist two subclasses:
-    :class:`.InputResourceFile` and :class:`.TaskResourceFile`.
+    :class:`.InputResourceFile` and :class:`.JobResourceFile`.
     """
     _counter = 0
     _uid_prefix = "__RESOURCE_FILE__"
@@ -58,8 +58,8 @@ class ResourceFile(Resource, str):
         raise NotImplementedError
 
     def _add_source(self, source):
-        from .task import Task  # pylint: disable=cyclic-import
-        assert isinstance(source, Task)
+        from .job import Job  # pylint: disable=cyclic-import
+        assert isinstance(source, Job)
         self._source = source
         return self
 
@@ -84,11 +84,11 @@ class ResourceFile(Resource, str):
         Examples
         --------
 
-        >>> p = Pipeline()
-        >>> t = p.new_task()
-        >>> t.command(f'echo "hello" > {t.ofile}')
-        >>> t.ofile.add_extension('.txt')
-        >>> p.run()
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> j.command(f'echo "hello" > {j.ofile}')
+        >>> j.ofile.add_extension('.txt')
+        >>> b.run()
 
         Notes
         -----
@@ -106,7 +106,7 @@ class ResourceFile(Resource, str):
             Same resource file with the extension specified
         """
         if self._has_extension:
-            raise PipelineException("Resource already has a file extension added.")
+            raise BatchException("Resource already has a file extension added.")
         self._value += extension
         self._has_extension = True
         return self
@@ -124,14 +124,14 @@ class InputResourceFile(ResourceFile):
 
     Examples
     --------
-    `input` is an :class:`.InputResourceFile` of the pipeline `p`
-    and is used in task `t`:
+    `input` is an :class:`.InputResourceFile` of the batch `b`
+    and is used in job `j`:
 
-    >>> p = Pipeline()
-    >>> input = p.read_input('data/hello.txt')
-    >>> t = p.new_task(name='hello')
-    >>> t.command(f'cat {input}')
-    >>> p.run()
+    >>> b = Batch()
+    >>> input = b.read_input('data/hello.txt')
+    >>> j = b.new_job(name='hello')
+    >>> j.command(f'cat {input}')
+    >>> b.run()
     """
 
     def __init__(self, value):
@@ -147,23 +147,23 @@ class InputResourceFile(ResourceFile):
         return shq(directory + '/inputs/' + self._value)
 
 
-class TaskResourceFile(ResourceFile):
+class JobResourceFile(ResourceFile):
     """
-    Class representing an intermediate file from a task.
+    Class representing an intermediate file from a job.
 
     Examples
     --------
-    `t.ofile` is a :class:`.TaskResourceFile` on the task `t`:
+    `j.ofile` is a :class:`.JobResourceFile` on the job`j`:
 
-    >>> p = Pipeline()
-    >>> t = p.new_task(name='hello-tmp')
-    >>> t.command(f'echo "hello world" > {t.ofile}')
-    >>> p.run()
+    >>> b = Batch()
+    >>> j = b.new_job(name='hello-tmp')
+    >>> j.command(f'echo "hello world" > {j.ofile}')
+    >>> b.run()
 
     Notes
     -----
-    All :class:`.TaskResourceFile` are temporary files and must be written
-    to a permanent location using :meth:`.Pipeline.write_output` if the output needs
+    All :class:`.JobResourceFile` are temporary files and must be written
+    to a permanent location using :meth:`.Batch.write_output` if the output needs
     to be saved.
     """
 
@@ -180,39 +180,39 @@ class ResourceGroup(Resource):
     Examples
     --------
 
-    Initialize a pipeline and create a new task:
+    Initialize a batch and create a new job:
 
-    >>> p = Pipeline()
-    >>> t = p.new_task()
+    >>> b = Batch()
+    >>> j = b.new_job()
 
     Read a set of input files as a resource group:
 
-    >>> bfile = p.read_input_group(bed="data/example.bed",
-    ...                            bim="data/example.bim",
-    ...                            fam="data/example.fam")
+    >>> bfile = b.read_input_group(bed='data/example.bed',
+    ...                            bim='data/example.bim',
+    ...                            fam='data/example.fam')
 
-    Create a resource group from a task intermediate:
+    Create a resource group from a job intermediate:
 
-    >>> t.declare_resource_group(ofile={'bed': '{root}.bed',
+    >>> j.declare_resource_group(ofile={'bed': '{root}.bed',
     ...                                 'bim': '{root}.bim',
     ...                                 'fam': '{root}.fam'})
-    >>> t.command(f"plink --bfile {bfile} --make-bed --out {t.ofile}")
+    >>> j.command(f'plink --bfile {bfile} --make-bed --out {j.ofile}')
 
     Reference the entire file group:
 
-    >>> t.command(f"plink --bfile {bfile} --geno 0.2 --make-bed --out {t.ofile}")
+    >>> j.command(f'plink --bfile {bfile} --geno 0.2 --make-bed --out {j.ofile}')
 
     Reference a single file:
 
-    >>> t.command(f"wc -l {bfile.fam}")
+    >>> j.command(f'wc -l {bfile.fam}')
 
-    Execute the pipeline:
+    Execute the batch:
 
-    >>> p.run() # doctest: +SKIP
+    >>> b.run() # doctest: +SKIP
 
     Notes
     -----
-    All files in the resource group are copied between tasks even if only one
+    All files in the resource group are copied between jobs even if only one
     file in the resource group is mentioned. This is to account for files that
     are implicitly assumed to always be together such as a FASTA file and its
     index.
@@ -249,7 +249,7 @@ class ResourceGroup(Resource):
 
     def _get_resource(self, item):
         if item not in self._resources:
-            raise PipelineException(f"'{item}' not found in the resource group.\n"
+            raise BatchException(f"'{item}' not found in the resource group.\n"
                                     f"Hint: you must declare each attribute when constructing the resource group.")
         return self._resources[item]
 

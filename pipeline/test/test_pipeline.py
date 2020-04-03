@@ -4,8 +4,8 @@ import subprocess as sp
 import tempfile
 from shlex import quote as shq
 
-from hailtop.pipeline import Pipeline, BatchBackend, LocalBackend
-from hailtop.pipeline.utils import arg_max
+from hailtop.batch import Batch, BatchBackend, LocalBackend
+from hailtop.batch.utils import arg_max
 from hailtop.utils import grouped
 
 gcs_input_dir = os.environ.get('SCRATCH') + '/input'
@@ -13,8 +13,8 @@ gcs_output_dir = os.environ.get('SCRATCH') + '/output'
 
 
 class LocalTests(unittest.TestCase):
-    def pipeline(self):
-        return Pipeline(backend=LocalBackend())
+    def batch(self):
+        return Batch(backend=LocalBackend())
 
     def read(self, file):
         with open(file, 'r') as f:
@@ -30,10 +30,10 @@ class LocalTests(unittest.TestCase):
             input_file.write('abc')
             input_file.flush()
 
-            p = self.pipeline()
-            input = p.read_input(input_file.name)
-            p.write_output(input, output_file.name)
-            p.run()
+            b = self.batch()
+            input = b.read_input(input_file.name)
+            b.write_output(input, output_file.name)
+            b.run()
 
             self.assert_same_file(input_file.name, output_file.name)
 
@@ -48,13 +48,13 @@ class LocalTests(unittest.TestCase):
             input_file1.flush()
             input_file2.flush()
 
-            p = self.pipeline()
-            input = p.read_input_group(in1=input_file1.name,
+            b = self.batch()
+            input = b.read_input_group(in1=input_file1.name,
                                        in2=input_file2.name)
 
-            p.write_output(input.in1, output_file1.name)
-            p.write_output(input.in2, output_file2.name)
-            p.run()
+            b.write_output(input.in1, output_file1.name)
+            b.write_output(input.in2, output_file2.name)
+            b.run()
 
             self.assert_same_file(input_file1.name, output_file1.name)
             self.assert_same_file(input_file2.name, output_file2.name)
@@ -64,45 +64,45 @@ class LocalTests(unittest.TestCase):
                 tempfile.NamedTemporaryFile('w') as input_file2, \
                 tempfile.TemporaryDirectory() as output_dir:
 
-            p = self.pipeline()
-            input = p.read_input_group(in1=input_file1.name,
+            b = self.batch()
+            input = b.read_input_group(in1=input_file1.name,
                                        in2=input_file2.name)
 
-            p.write_output(input, output_dir + '/foo')
-            p.run()
+            b.write_output(input, output_dir + '/foo')
+            b.run()
 
             self.assert_same_file(input_file1.name, output_dir + '/foo.in1')
             self.assert_same_file(input_file2.name, output_dir + '/foo.in2')
 
-    def test_single_task(self):
+    def test_single_job(self):
         with tempfile.NamedTemporaryFile('w') as output_file:
             msg = 'hello world'
 
-            p = self.pipeline()
-            t = p.new_task()
-            t.command(f'echo "{msg}" > {t.ofile}')
-            p.write_output(t.ofile, output_file.name)
-            p.run()
+            b = self.batch()
+            j = b.new_job()
+            j.command(f'echo "{msg}" > {j.ofile}')
+            b.write_output(j.ofile, output_file.name)
+            b.run()
 
             assert self.read(output_file.name) == msg
 
-    def test_single_task_w_input(self):
+    def test_single_job_w_input(self):
         with tempfile.NamedTemporaryFile('w') as input_file, \
                 tempfile.NamedTemporaryFile('w') as output_file:
             msg = 'abc'
             input_file.write(msg)
             input_file.flush()
 
-            p = self.pipeline()
-            input = p.read_input(input_file.name)
-            t = p.new_task()
-            t.command(f'cat {input} > {t.ofile}')
-            p.write_output(t.ofile, output_file.name)
-            p.run()
+            b = self.batch()
+            input = b.read_input(input_file.name)
+            j = b.new_job()
+            j.command(f'cat {input} > {j.ofile}')
+            b.write_output(j.ofile, output_file.name)
+            b.run()
 
             assert self.read(output_file.name) == msg
 
-    def test_single_task_w_input_group(self):
+    def test_single_job_w_input_group(self):
         with tempfile.NamedTemporaryFile('w') as input_file1, \
                 tempfile.NamedTemporaryFile('w') as input_file2, \
                 tempfile.NamedTemporaryFile('w') as output_file:
@@ -114,82 +114,82 @@ class LocalTests(unittest.TestCase):
             input_file1.flush()
             input_file2.flush()
 
-            p = self.pipeline()
-            input = p.read_input_group(in1=input_file1.name,
+            b = self.batch()
+            input = b.read_input_group(in1=input_file1.name,
                                        in2=input_file2.name)
-            t = p.new_task()
-            t.command(f'cat {input.in1} {input.in2} > {t.ofile}')
-            p.write_output(t.ofile, output_file.name)
-            p.run()
+            j = b.new_job()
+            j.command(f'cat {input.in1} {input.in2} > {j.ofile}')
+            b.write_output(j.ofile, output_file.name)
+            b.run()
 
             assert self.read(output_file.name) == msg1 + msg2
 
-    def test_single_task_bad_command(self):
-        p = self.pipeline()
-        t = p.new_task()
-        t.command("foo")  # this should fail!
+    def test_single_job_bad_command(self):
+        b = self.batch()
+        j = b.new_job()
+        j.command("foo")  # this should fail!
         with self.assertRaises(sp.CalledProcessError):
-            p.run()
+            b.run()
 
     def test_declare_resource_group(self):
         with tempfile.NamedTemporaryFile('w') as output_file:
             msg = 'hello world'
-            p = self.pipeline()
-            t = p.new_task()
-            t.declare_resource_group(ofile={'log': "{root}.txt"})
-            t.command(f'echo "{msg}" > {t.ofile.log}')
-            p.write_output(t.ofile.log, output_file.name)
-            p.run()
+            b = self.batch()
+            j = b.new_job()
+            j.declare_resource_group(ofile={'log': "{root}.txt"})
+            j.command(f'echo "{msg}" > {j.ofile.log}')
+            b.write_output(j.ofile.log, output_file.name)
+            b.run()
 
             assert self.read(output_file.name) == msg
 
     def test_resource_group_get_all_inputs(self):
-        p = self.pipeline()
-        input = p.read_input_group(fasta="foo",
+        b = self.batch()
+        input = b.read_input_group(fasta="foo",
                                    idx="bar")
-        t = p.new_task()
-        t.command(f"cat {input.fasta}")
-        assert input.fasta in t._inputs
-        assert input.idx in t._inputs
+        j = b.new_job()
+        j.command(f"cat {input.fasta}")
+        assert input.fasta in j._inputs
+        assert input.idx in j._inputs
 
     def test_resource_group_get_all_mentioned(self):
-        p = self.pipeline()
-        t = p.new_task()
-        t.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
-        t.command(f"cat {t.foo.bed}")
-        assert t.foo.bed in t._mentioned
-        assert t.foo.bim not in t._mentioned
+        b = self.batch()
+        j = b.new_job()
+        j.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
+        j.command(f"cat {j.foo.bed}")
+        assert j.foo.bed in j._mentioned
+        assert j.foo.bim not in j._mentioned
 
-    def test_resource_group_get_all_mentioned_dependent_tasks(self):
-        p = self.pipeline()
-        t = p.new_task()
-        t.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
-        t.command(f"cat")
-        t2 = p.new_task()
-        t2.command(f"cat {t.foo}")
+    def test_resource_group_get_all_mentioned_dependent_jobs(self):
+        b = self.batch()
+        j = b.new_job()
+        j.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
+        j.command(f"cat")
+        j2 = b.new_job()
+        j2.command(f"cat {j.foo}")
 
     def test_resource_group_get_all_outputs(self):
-        p = self.pipeline()
-        t1 = p.new_task()
-        t1.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
-        t1.command(f"cat {t1.foo.bed}")
-        t2 = p.new_task()
-        t2.command(f"cat {t1.foo.bed}")
+        b = self.batch()
+        j1 = b.new_job()
+        j1.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
+        j1.command(f"cat {j1.foo.bed}")
+        j2 = b.new_job()
+        j2.command(f"cat {j1.foo.bed}")
 
-        for r in [t1.foo.bed, t1.foo.bim]:
-            assert r in t1._internal_outputs
-            assert r in t2._inputs
+        for r in [j1.foo.bed, j1.foo.bim]:
+            assert r in j1._internal_outputs
+            assert r in j2._inputs
 
-        assert t1.foo.bed in t1._mentioned
-        assert t1.foo.bim not in t1._mentioned
+        assert j1.foo.bed in j1._mentioned
+        assert j1.foo.bim not in j1._mentioned
 
-        assert t1.foo.bed in t2._mentioned
-        assert t1.foo.bim not in t2._mentioned
+        assert j1.foo.bed in j2._mentioned
+        assert j1.foo.bim not in j2._mentioned
 
-        assert t1.foo not in t1._mentioned
+        assert j1.foo not in j1._mentioned
 
-    def test_multiple_isolated_tasks(self):
-        p = self.pipeline()
+    def test_multiple_isolated_jobs(self):
+        b = self.batch()
 
         output_files = []
         try:
@@ -197,10 +197,10 @@ class LocalTests(unittest.TestCase):
 
             for i, ofile in enumerate(output_files):
                 msg = f'hello world {i}'
-                t = p.new_task()
-                t.command(f'echo "{msg}" > {t.ofile}')
-                p.write_output(t.ofile, ofile.name)
-            p.run()
+                j = b.new_job()
+                j.command(f'echo "{msg}" > {j.ofile}')
+                b.write_output(j.ofile, ofile.name)
+            b.run()
 
             for i, ofile in enumerate(output_files):
                 msg = f'hello world {i}'
@@ -208,59 +208,59 @@ class LocalTests(unittest.TestCase):
         finally:
             [ofile.close() for ofile in output_files]
 
-    def test_multiple_dependent_tasks(self):
+    def test_multiple_dependent_jobs(self):
         with tempfile.NamedTemporaryFile('w') as output_file:
-            p = self.pipeline()
-            t = p.new_task()
-            t.command(f'echo "0" >> {t.ofile}')
+            b = self.batch()
+            j = b.new_job()
+            j.command(f'echo "0" >> {j.ofile}')
 
             for i in range(1, 3):
-                t2 = p.new_task()
-                t2.command(f'echo "{i}" > {t2.tmp1}')
-                t2.command(f'cat {t.ofile} {t2.tmp1} > {t2.ofile}')
-                t = t2
+                j2 = b.new_job()
+                j2.command(f'echo "{i}" > {j2.tmp1}')
+                j2.command(f'cat {j.ofile} {j2.tmp1} > {j2.ofile}')
+                j = j2
 
-            p.write_output(t.ofile, output_file.name)
-            p.run()
+            b.write_output(j.ofile, output_file.name)
+            b.run()
 
             assert self.read(output_file.name) == "0\n1\n2"
 
-    def test_select_tasks(self):
-        p = self.pipeline()
+    def test_select_jobs(self):
+        b = self.batch()
         for i in range(3):
-            t = p.new_task(name=f'foo{i}')
-        self.assertTrue(len(p.select_tasks('foo')) == 3)
+            b.new_job(name=f'foo{i}')
+        self.assertTrue(len(b.select_jobs('foo')) == 3)
 
     def test_scatter_gather(self):
         with tempfile.NamedTemporaryFile('w') as output_file:
-            p = self.pipeline()
+            b = self.batch()
 
             for i in range(3):
-                t = p.new_task(name=f'foo{i}')
-                t.command(f'echo "{i}" > {t.ofile}')
+                j = b.new_job(name=f'foo{i}')
+                j.command(f'echo "{i}" > {j.ofile}')
 
-            merger = p.new_task()
-            merger.command('cat {files} > {ofile}'.format(files=' '.join([t.ofile for t in sorted(p.select_tasks('foo'),
+            merger = b.new_job()
+            merger.command('cat {files} > {ofile}'.format(files=' '.join([j.ofile for j in sorted(b.select_jobs('foo'),
                                                                                                   key=lambda x: x.name,
                                                                                                   reverse=True)]),
                                                           ofile=merger.ofile))
 
-            p.write_output(merger.ofile, output_file.name)
-            p.run()
+            b.write_output(merger.ofile, output_file.name)
+            b.run()
 
             assert self.read(output_file.name) == '2\n1\n0'
 
-    def test_add_extension_task_resource_file(self):
-        p = self.pipeline()
-        t = p.new_task()
-        t.command(f'echo "hello" > {t.ofile}')
-        t.ofile.add_extension('.txt.bgz')
-        assert t.ofile._value.endswith('.txt.bgz')
+    def test_add_extension_job_resource_file(self):
+        b = self.batch()
+        j = b.new_job()
+        j.command(f'echo "hello" > {j.ofile}')
+        j.ofile.add_extension('.txt.bgz')
+        assert j.ofile._value.endswith('.txt.bgz')
 
     def test_add_extension_input_resource_file(self):
         input_file1 = '/tmp/data/example1.txt.bgz.foo'
-        p = self.pipeline()
-        in1 = p.read_input(input_file1, extension='.txt.bgz.foo')
+        b = self.batch()
+        in1 = b.read_input(input_file1, extension='.txt.bgz.foo')
         with self.assertRaises(Exception):
             in1.add_extension('.baz')
         assert in1._value.endswith('.txt.bgz.foo')
@@ -272,24 +272,24 @@ class LocalTests(unittest.TestCase):
             input_file.write('abc')
             input_file.flush()
 
-            p = self.pipeline()
-            input = p.read_input(input_file.name)
-            t = p.new_task()
-            t.command(f'cat {input} > {t.ofile}')
-            p.write_output(t.ofile, output_file.name)
-            p.run()
+            b = self.batch()
+            input = b.read_input(input_file.name)
+            j = b.new_job()
+            j.command(f'cat {input} > {j.ofile}')
+            b.write_output(j.ofile, output_file.name)
+            b.run()
 
             self.assert_same_file(input_file.name, output_file.name)
 
     def test_resource_group_mentioned(self):
-        p = self.pipeline()
-        t = p.new_task()
-        t.declare_resource_group(foo={'bed': '{root}.bed'})
-        t.command(f'echo "hello" > {t.foo}')
+        b = self.batch()
+        j = b.new_job()
+        j.declare_resource_group(foo={'bed': '{root}.bed'})
+        j.command(f'echo "hello" > {j.foo}')
 
-        t2 = p.new_task()
-        t2.command(f'echo "hello" >> {t.foo.bed}')
-        p.run()
+        t2 = b.new_job()
+        t2.command(f'echo "hello" >> {j.foo.bed}')
+        b.run()
 
 
 class BatchTests(unittest.TestCase):
@@ -299,147 +299,147 @@ class BatchTests(unittest.TestCase):
     def tearDown(self):
         self.backend.close()
 
-    def pipeline(self):
-        return Pipeline(backend=self.backend,
-                        default_image='google/cloud-sdk:237.0.0-alpine',
-                        attributes={'foo': 'a', 'bar': 'b'})
+    def batch(self):
+        return Batch(backend=self.backend,
+                     default_image='google/cloud-sdk:237.0.0-alpine',
+                     attributes={'foo': 'a', 'bar': 'b'})
 
     def test_single_task_no_io(self):
-        p = self.pipeline()
-        t = p.new_task()
-        t.command('echo hello')
-        assert p.run().status()['state'] == 'success'
+        b = self.batch()
+        j = b.new_job()
+        j.command('echo hello')
+        assert b.run().status()['state'] == 'success'
 
     def test_single_task_input(self):
-        p = self.pipeline()
-        input = p.read_input(f'{gcs_input_dir}/hello.txt')
-        t = p.new_task()
-        t.command(f'cat {input}')
-        assert p.run().status()['state'] == 'success'
+        b = self.batch()
+        input = b.read_input(f'{gcs_input_dir}/hello.txt')
+        j = b.new_job()
+        j.command(f'cat {input}')
+        assert b.run().status()['state'] == 'success'
 
     def test_single_task_input_resource_group(self):
-        p = self.pipeline()
-        input = p.read_input_group(foo=f'{gcs_input_dir}/hello.txt')
-        t = p.new_task()
-        t.storage('0.25Gi')
-        t.command(f'cat {input.foo}')
-        assert p.run().status()['state'] == 'success'
+        b = self.batch()
+        input = b.read_input_group(foo=f'{gcs_input_dir}/hello.txt')
+        j = b.new_job()
+        j.storage('0.25Gi')
+        j.command(f'cat {input.foo}')
+        assert b.run().status()['state'] == 'success'
 
     def test_single_task_output(self):
-        p = self.pipeline()
-        t = p.new_task(attributes={'a': 'bar', 'b': 'foo'})
-        t.command(f'echo hello > {t.ofile}')
-        assert p.run().status()['state'] == 'success'
+        b = self.batch()
+        j = b.new_job(attributes={'a': 'bar', 'b': 'foo'})
+        j.command(f'echo hello > {j.ofile}')
+        assert b.run().status()['state'] == 'success'
 
     def test_single_task_write_output(self):
-        p = self.pipeline()
-        t = p.new_task()
-        t.command(f'echo hello > {t.ofile}')
-        p.write_output(t.ofile, f'{gcs_output_dir}/test_single_task_output.txt')
-        assert p.run().status()['state'] == 'success'
+        b = self.batch()
+        j = b.new_job()
+        j.command(f'echo hello > {j.ofile}')
+        b.write_output(j.ofile, f'{gcs_output_dir}/test_single_task_output.txt')
+        assert b.run().status()['state'] == 'success'
 
     def test_single_task_resource_group(self):
-        p = self.pipeline()
-        t = p.new_task()
-        t.declare_resource_group(output={'foo': '{root}.foo'})
-        t.command(f'echo "hello" > {t.output.foo}')
-        assert p.run().status()['state'] == 'success'
+        b = self.batch()
+        j = b.new_job()
+        j.declare_resource_group(output={'foo': '{root}.foo'})
+        j.command(f'echo "hello" > {j.output.foo}')
+        assert b.run().status()['state'] == 'success'
 
     def test_single_task_write_resource_group(self):
-        p = self.pipeline()
-        t = p.new_task()
-        t.declare_resource_group(output={'foo': '{root}.foo'})
-        t.command(f'echo "hello" > {t.output.foo}')
-        p.write_output(t.output, f'{gcs_output_dir}/test_single_task_write_resource_group')
-        p.write_output(t.output.foo, f'{gcs_output_dir}/test_single_task_write_resource_group_file.txt')
-        assert p.run().status()['state'] == 'success'
+        b = self.batch()
+        j = b.new_job()
+        j.declare_resource_group(output={'foo': '{root}.foo'})
+        j.command(f'echo "hello" > {j.output.foo}')
+        b.write_output(j.output, f'{gcs_output_dir}/test_single_task_write_resource_group')
+        b.write_output(j.output.foo, f'{gcs_output_dir}/test_single_task_write_resource_group_file.txt')
+        assert b.run().status()['state'] == 'success'
 
     def test_multiple_dependent_tasks(self):
         output_file = f'{gcs_output_dir}/test_multiple_dependent_tasks.txt'
-        p = self.pipeline()
-        t = p.new_task()
-        t.command(f'echo "0" >> {t.ofile}')
+        b = self.batch()
+        j = b.new_job()
+        j.command(f'echo "0" >> {j.ofile}')
 
         for i in range(1, 3):
-            t2 = p.new_task()
-            t2.command(f'echo "{i}" > {t2.tmp1}')
-            t2.command(f'cat {t.ofile} {t2.tmp1} > {t2.ofile}')
-            t = t2
+            j2 = b.new_job()
+            j2.command(f'echo "{i}" > {j2.tmp1}')
+            j2.command(f'cat {j.ofile} {j2.tmp1} > {j2.ofile}')
+            j = j2
 
-        p.write_output(t.ofile, output_file)
-        assert p.run().status()['state'] == 'success'
+        b.write_output(j.ofile, output_file)
+        assert b.run().status()['state'] == 'success'
 
     def test_specify_cpu(self):
-        p = self.pipeline()
-        t = p.new_task()
-        t.cpu('0.5')
-        t.command(f'echo "hello" > {t.ofile}')
-        assert p.run().status()['state'] == 'success'
+        b = self.batch()
+        j = b.new_job()
+        j.cpu('0.5')
+        j.command(f'echo "hello" > {j.ofile}')
+        assert b.run().status()['state'] == 'success'
 
     def test_specify_memory(self):
-        p = self.pipeline()
-        t = p.new_task()
-        t.memory('100M')
-        t.command(f'echo "hello" > {t.ofile}')
-        assert p.run().status()['state'] == 'success'
+        b = self.batch()
+        j = b.new_job()
+        j.memory('100M')
+        j.command(f'echo "hello" > {j.ofile}')
+        assert b.run().status()['state'] == 'success'
 
     def test_scatter_gather(self):
-        p = self.pipeline()
+        b = self.batch()
 
         for i in range(3):
-            t = p.new_task(name=f'foo{i}')
-            t.command(f'echo "{i}" > {t.ofile}')
+            j = b.new_job(name=f'foo{i}')
+            j.command(f'echo "{i}" > {j.ofile}')
 
-        merger = p.new_task()
-        merger.command('cat {files} > {ofile}'.format(files=' '.join([t.ofile for t in sorted(p.select_tasks('foo'),
+        merger = b.new_job()
+        merger.command('cat {files} > {ofile}'.format(files=' '.join([j.ofile for j in sorted(b.select_jobs('foo'),
                                                                                               key=lambda x: x.name,
                                                                                               reverse=True)]),
                                                       ofile=merger.ofile))
 
-        assert p.run().status()['state'] == 'success'
+        assert b.run().status()['state'] == 'success'
 
     def test_file_name_space(self):
-        p = self.pipeline()
-        input = p.read_input(f'{gcs_input_dir}/hello (foo) spaces.txt')
-        t = p.new_task()
-        t.command(f'cat {input} > {t.ofile}')
-        p.write_output(t.ofile, f'{gcs_output_dir}/hello (foo) spaces.txt')
-        assert p.run().status()['state'] == 'success'
+        b = self.batch()
+        input = b.read_input(f'{gcs_input_dir}/hello (foo) spaces.txt')
+        j = b.new_job()
+        j.command(f'cat {input} > {j.ofile}')
+        b.write_output(j.ofile, f'{gcs_output_dir}/hello (foo) spaces.txt')
+        assert b.run().status()['state'] == 'success'
 
     def test_dry_run(self):
-        p = self.pipeline()
-        t = p.new_task()
-        t.command(f'echo hello > {t.ofile}')
-        p.write_output(t.ofile, f'{gcs_output_dir}/test_single_task_output.txt')
-        p.run(dry_run=True)
+        b = self.batch()
+        j = b.new_job()
+        j.command(f'echo hello > {j.ofile}')
+        b.write_output(j.ofile, f'{gcs_output_dir}/test_single_job_output.txt')
+        b.run(dry_run=True)
 
     def test_verbose(self):
-        p = self.pipeline()
-        input = p.read_input(f'{gcs_input_dir}/hello.txt')
-        t = p.new_task()
-        t.command(f'cat {input}')
-        p.write_output(input, f'{gcs_output_dir}/hello.txt')
-        assert p.run(verbose=True).status()['state'] == 'success'
+        b = self.batch()
+        input = b.read_input(f'{gcs_input_dir}/hello.txt')
+        j = b.new_job()
+        j.command(f'cat {input}')
+        b.write_output(input, f'{gcs_output_dir}/hello.txt')
+        assert b.run(verbose=True).status()['state'] == 'success'
 
     def test_benchmark_lookalike_workflow(self):
-        p = self.pipeline()
+        b = self.batch()
 
-        setup_tasks = []
+        setup_jobs = []
         for i in range(10):
-            t = p.new_task(f'setup_{i}').cpu(0.1)
-            t.command(f'echo "foo" > {t.ofile}')
-            setup_tasks.append(t)
+            j = b.new_job(f'setup_{i}').cpu(0.1)
+            j.command(f'echo "foo" > {j.ofile}')
+            setup_jobs.append(j)
 
-        tasks = []
+        jobs = []
         for i in range(500):
-            t = p.new_task(f'create_file_{i}').cpu(0.1)
-            t.command(f'echo {setup_tasks[i % len(setup_tasks)].ofile} > {t.ofile}')
-            t.command(f'echo "bar" >> {t.ofile}')
-            tasks.append(t)
+            j = b.new_job(f'create_file_{i}').cpu(0.1)
+            j.command(f'echo {setup_jobs[i % len(setup_jobs)].ofile} > {j.ofile}')
+            j.command(f'echo "bar" >> {j.ofile}')
+            jobs.append(j)
 
-        combine = p.new_task(f'combine_output').cpu(0.1)
-        for tasks in grouped(arg_max(), tasks):
-            combine.command(f'cat {" ".join(shq(t.ofile) for t in tasks)} >> {combine.ofile}')
-        p.write_output(combine.ofile, f'{gcs_output_dir}/pipeline_benchmark_test.txt')
+        combine = b.new_job(f'combine_output').cpu(0.1)
+        for tasks in grouped(arg_max(), jobs):
+            combine.command(f'cat {" ".join(shq(j.ofile) for j in jobs)} >> {combine.ofile}')
+        b.write_output(combine.ofile, f'{gcs_output_dir}/pipeline_benchmark_test.txt')
         # too slow
-        # assert p.run().status()['state'] == 'success'
+        # assert b.run().status()['state'] == 'success'

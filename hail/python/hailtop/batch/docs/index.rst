@@ -1,9 +1,9 @@
-Pipeline
-========
+Batch
+=====
 
-Pipeline is a Python module for creating and executing tasks. A task consists of a bash
+Batch is a Python module for creating and executing jobs. A job consists of a bash
 command to run as well as a specification of the resources required and some metadata.
-Pipeline allows you to easily build complicated pipelines with many tasks and numerous
+Batch allows you to easily build complicated computational pipelines with many jobs and numerous
 dependencies. Tasks can either be executed locally or with the :ref:`Batch Service <sec-batch-service>`.
 
 

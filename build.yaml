@@ -856,11 +856,11 @@ steps:
        | pandoc -o python/hail/docs/change_log.rst
      make -C www
      make -C python/hail/docs BUILDDIR=_build clean html
-     make -C python/hailtop/pipeline/docs BUILDDIR=_build clean html
+     make -C python/hailtop/batch/docs BUILDDIR=_build clean html
      mkdir -p www/docs
      rm -f www/*.md
      mv python/hail/docs/_build/html www/docs/0.2
-     mv python/hailtop/pipeline/docs/_build/html www/docs/pipeline
+     mv python/hailtop/batch/docs/_build/html www/docs/batch
      HAIL_CACHE_VERSION=$(cat python/hail/hail_version)
      find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
      tar czf /io/www.tar.gz www

@@ -1,13 +1,13 @@
 import nest_asyncio
 
-from .pipeline import Pipeline
+from .batch import Batch
 from .backend import LocalBackend, BatchBackend
-from .utils import PipelineException
+from .utils import BatchException
 
-__all__ = ['Pipeline',
+__all__ = ['Batch',
            'LocalBackend',
            'BatchBackend',
-           'PipelineException'
+           'BatchException'
            ]
 
 nest_asyncio.apply()
