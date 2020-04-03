@@ -19,10 +19,6 @@ abstract class PString extends PType {
   protected val binaryFundamentalType: PBinary
   override lazy val fundamentalType: PBinary = binaryFundamentalType
 
-  def bytesAddress(boff: Long): Long
-
-  def bytesAddress(boff: Code[Long]): Code[Long]
-
   def loadLength(boff: Long): Int
 
   def loadLength(boff: Code[Long]): Code[Int]
