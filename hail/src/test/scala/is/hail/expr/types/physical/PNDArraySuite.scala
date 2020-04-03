@@ -10,7 +10,7 @@ import org.testng.annotations.Test
 class PNDArraySuite extends HailSuite {
   @Test def copyTests() {
     def runTests(deepCopy: Boolean, interpret: Boolean = false) {
-      PhysicalTestUtils.copyTestExecutor(PNDArray(PInt64(true), 1), PNDArray(PInt64(true), 1), Annotation(0, 1, Annotation(1L), Annotation(1L), IndexedSeq(4L,5L,6L)),
+      PhysicalTestUtils.copyTestExecutor(PNDArray(PInt64(true), 1), PNDArray(PInt64(true), 1), Annotation(Annotation(1L), Annotation(1L), IndexedSeq(4L,5L,6L)),
         deepCopy = deepCopy, interpret = interpret)
     }
 
