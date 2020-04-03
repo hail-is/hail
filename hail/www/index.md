@@ -23,15 +23,6 @@ Hail is maintained by a team in the [Neale lab](https://nealelab.is/) at the [St
 
 Contact the Hail team at <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a>.
 
-<dl>
-  <dt>Definition list</dt>
-  <dd>Is something people use sometimes.</dd>
-
-  <dt>Markdown in HTML</dt>
-  <dd>Does *not* work **very** well. Use HTML <em>tags</em>.</dd>
-</dl>
-
-
 ### Citing Hail
 
 If you use Hail for published work, please cite the software. You can get a citation for the version of Hail you installed by executing:
