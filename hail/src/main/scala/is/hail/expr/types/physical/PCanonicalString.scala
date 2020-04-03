@@ -92,6 +92,8 @@ class PCanonicalStringCode(val pt: PCanonicalString, a: Code[Long]) extends PStr
 
   def loadString(): Code[String] = pt.loadString(a)
 
+  def asBytes(): PBinaryCode = new PCanonicalBinaryCode(pt.binaryFundamentalType, a)
+
   def memoize(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeImpl(cb, name)
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeFieldImpl(cb, name)

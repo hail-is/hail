@@ -44,4 +44,6 @@ abstract class PStringCode extends PCode {
   def bytesAddress(): Code[Long]
 
   def loadString(): Code[String]
+
+  def asBytes(): PBinaryCode
 }
