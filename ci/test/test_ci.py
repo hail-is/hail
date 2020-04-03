@@ -32,4 +32,4 @@ async def test_deploy():
             return deploy_state, failure_information
 
         deploy_state, failure_information = await asyncio.wait_for(wait_forever(), timeout=20 * 60)
-        assert deploy_state == 'success', failure_information
+        assert deploy_state == 'success', str(failure_information)
