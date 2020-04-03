@@ -1227,33 +1227,19 @@ steps:
     - test_ci_image
     - create_ci_test_repo
  - kind: runImage
-   name: setup_pipeline
-   image:
-     valueFrom: base_image.image
-   script: |
-     set -e
-     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-     gsutil -m cp -r /io/test/resources/* gs://hail-test-dmk9z/{{ token }}/pipeline/input/
-   inputs:
-    - from: /repo/pipeline/test
-      to: /io/
-   secrets:
-    - name: test-gsa-key
-      namespace:
-        valueFrom: batch_pods_ns.name
-      mountPath: /test-gsa-key
-   dependsOn:
-    - batch_pods_ns
-    - copy_files
-    - base_image
- - kind: runImage
    name: test_pipeline
    image:
      valueFrom: service_base_image.image
    script: |
+     set -e
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
+     gsutil -m cp -r /io/test/resources/* gs://hail-test-dmk9z/{{ token }}/batch/input/
+   
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
-     export SCRATCH=gs://hail-test-dmk9z/{{ setup_pipeline.token }}/pipeline
+     export SCRATCH=gs://hail-test-dmk9z/{{ token }}/batch
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/
+
+     gsutil -m rm -r gs://hail-test-dmk9z/{{ token }}/batch
    inputs:
     - from: /repo/pipeline/test
       to: /io/
@@ -1267,21 +1253,24 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key      
    dependsOn:
     - default_ns
     - batch_pods_ns
     - copy_files
     - service_base_image
     - deploy_batch
-    - setup_pipeline
  - kind: runImage
-   name: test_pipeline_docs
+   name: test_batch_docs
    image:
      valueFrom: base_image.image
    script: |
      set -ex
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
-     cd /io/hailtop/hailtop/pipeline
+     cd /io/hailtop/hailtop/batch
      python3 -m pytest --instafail \
        --doctest-modules \
        --doctest-glob='*.rst' \
@@ -1305,26 +1294,6 @@ steps:
    inputs:
     - from: /repo/hailtop
       to: /io/
- - kind: runImage
-   name: cleanup_pipeline
-   image:
-     valueFrom: base_image.image
-   alwaysRun: true
-   script: |
-     set -e
-     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-     gsutil -m rm -r gs://hail-test-dmk9z/{{ setup_pipeline.token }}/pipeline
-   secrets:
-    # hail|test-batch
-    - name: test-gsa-key
-      namespace:
-        valueFrom: batch_pods_ns.name
-      mountPath: /test-gsa-key
-   dependsOn:
-    - batch_pods_ns
-    - base_image
-    - setup_pipeline
-    - test_pipeline
  - kind: createDatabase
    name: notebook_database
    databaseName: notebook
