@@ -3124,7 +3124,7 @@ class IRSuite extends HailSuite {
     Array(NPartitionsMatrixTable()),
     Array(WrappedMatrixToValueFunction(NPartitionsMatrixTable(), "foo", "bar", FastIndexedSeq("a", "c"))),
     Array(MatrixWriteBlockMatrix("a", false, "b", 1)),
-    Array(MatrixExportEntriesByCol(1, "asd", false, true)),
+    Array(MatrixExportEntriesByCol(1, "asd", false, true, false)),
     Array(GetElement(FastSeq(1, 2)))
   )
 
