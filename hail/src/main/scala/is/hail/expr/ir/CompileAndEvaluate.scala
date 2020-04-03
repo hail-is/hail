@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.SafeRow
 import is.hail.expr.ir.lowering.LoweringPipeline
-import is.hail.expr.types.physical.{PTuple, PBaseStruct}
+import is.hail.expr.types.physical.{PBaseStruct, PTuple, PType, PVoid}
 import is.hail.expr.types.virtual.TVoid
 import is.hail.utils.FastSeq
 
