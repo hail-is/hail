@@ -17,11 +17,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     sb.append(s",$nDims]")
   }
 
-  @transient lazy val flags = new StaticallyKnownField(PInt32Required, off => Region.loadInt(representation.loadField(off, "flags")))
-  @transient lazy val offset = new StaticallyKnownField(
-    PInt32Required,
-    off => Region.loadInt(representation.loadField(off, "offset"))
-  )
   @transient lazy val shape = new StaticallyKnownField(
     PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*): PTuple,
     off => representation.loadField(off, "shape")
@@ -38,8 +33,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   lazy val representation: PStruct = {
     PStruct(required,
-      ("flags", flags.pType),
-      ("offset", offset.pType),
       ("shape", shape.pType),
       ("strides", strides.pType),
       ("data", data.pType))
@@ -195,16 +188,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     }
   }
 
-  def construct(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]),
+  override def construct(flags: Code[Int], offset: Code[Int], shapeBuilder: (StagedRegionValueBuilder => Code[Unit]),
     stridesBuilder: (StagedRegionValueBuilder => Code[Unit]), data: Code[Long], mb: EmitMethodBuilder[_]): Code[Long] = {
     val srvb = new StagedRegionValueBuilder(mb, this.representation)
 
     Code(Code(FastIndexedSeq(
       srvb.start(),
-      srvb.addInt(flags),
-      srvb.advance(),
-      srvb.addInt(offset),
-      srvb.advance(),
       srvb.addBaseStruct(this.shape.pType, shapeBuilder),
       srvb.advance(),
       srvb.addBaseStruct(this.strides.pType, stridesBuilder),

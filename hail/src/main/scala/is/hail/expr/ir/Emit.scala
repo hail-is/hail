@@ -1316,8 +1316,8 @@ private class Emit[C](
               val childStrides = new CodePTuple(childPType.strides.pType, childStridesAddr)
 
               x.pType.construct(
-                childPType.flags.load(childAddress),
-                childPType.offset.load(childAddress),
+                0,
+                0,
                 { srvb =>
                   Code(
                     srvb.start(),
