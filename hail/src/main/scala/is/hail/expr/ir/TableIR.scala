@@ -625,10 +625,23 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     val rightValueFieldIdx = rightRVDType.valueFieldIdx
 
     val leftKeyType = leftRVDType.kType
-    val leftValueType = leftRVDType.valueType
-    val rightValueType = rightRVDType.valueType
+    var leftValueType = leftRVDType.valueType
+    var rightValueType = rightRVDType.valueType
+
+    if(joinType == "inner") {
+      leftValueType = leftValueType.setFieldsRequiredeness(true)
+      rightValueType = rightValueType.setFieldsRequiredeness(true)
+    } else if(joinType == "left") {
+      rightValueType = rightValueType.setFieldsRequiredeness(false)
+    } else if(joinType == "right") {
+      leftValueType = leftValueType.setFieldsRequiredeness(false)
+    } else if(joinType == "outer" || joinType == "zip") {
+      leftValueType = leftValueType.setFieldsRequiredeness(false)
+      rightValueType = rightValueType.setFieldsRequiredeness(false)
+    }
 
     val newRowPType = leftKeyType ++ leftValueType ++ rightValueType
+
     assert(newRowPType.virtualType == newRowType)
 
     val rvMerger = { (_: RVDContext, it: Iterator[JoinedRegionValue]) =>

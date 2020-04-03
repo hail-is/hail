@@ -131,6 +131,14 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
       names.map(f => f -> field(f).typ): _*)
   }
 
+  def setFieldsRequiredeness(required: Boolean): PStruct = {
+    if(this.fields.forall(_.typ.required == required)) {
+      return this
+    }
+
+    PCanonicalStruct(this.fields.map(pf => PField(pf.name, pf.typ.setRequired(false), pf.index)), this.required)
+  }
+
   def select(keep: IndexedSeq[String]): (PStruct, (Row) => Row) = {
     val t = PCanonicalStruct(keep.map { n =>
       n -> field(n).typ

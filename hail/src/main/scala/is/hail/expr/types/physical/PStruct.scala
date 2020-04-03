@@ -75,5 +75,7 @@ trait PStruct extends PBaseStruct {
 
   def setFieldMissing(offset: Code[Long], fieldName: String): Code[Unit]
 
+  def setFieldsRequiredeness(required: Boolean): PStruct
+
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct
 }
