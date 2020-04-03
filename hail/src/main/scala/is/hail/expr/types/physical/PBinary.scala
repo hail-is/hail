@@ -3,7 +3,9 @@ package is.hail.expr.types.physical
 import is.hail.annotations.CodeOrdering
 import is.hail.annotations.{Region, UnsafeOrdering, _}
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.check.Arbitrary._
+import is.hail.check.Gen
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.expr.types.virtual.TBinary
 
 abstract class PBinary extends PType {
@@ -99,12 +101,22 @@ abstract class PBinary extends PType {
   def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit]
 }
 
+abstract class PBinaryValue extends PValue {
+  def loadLength(): Code[Int]
+
+  def loadBytes(): Code[Array[Byte]]
+
+  def loadByte(i: Code[Int]): Code[Byte]
+}
+
 abstract class PBinaryCode extends PCode {
   def pt: PBinary
 
   def loadLength(): Code[Int]
 
-  def bytesAddress(): Code[Long]
-
   def loadBytes(): Code[Array[Byte]]
+
+  def memoize(cb: EmitCodeBuilder, name: String): PBinaryValue
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PBinaryValue
 }

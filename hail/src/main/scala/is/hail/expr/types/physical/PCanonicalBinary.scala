@@ -146,20 +146,38 @@ object PCanonicalBinary {
   def unapply(t: PBinary): Option[Boolean] = Option(t.required)
 }
 
-class PCanonicalBinaryCode(val pt: PCanonicalBinary, a: Code[Long]) extends PBinaryCode {
-  def code: Code[_] = a
+class PCanonicalBinarySettable(val pt: PCanonicalBinary, a: Settable[Long]) extends PBinaryValue with PSettable {
+  def get: PBinaryCode = new PCanonicalBinaryCode(pt, a)
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
   def loadLength(): Code[Int] = pt.loadLength(a)
 
-  def bytesAddress(): Code[Long] = pt.bytesAddress(a)
+  def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
+
+  def loadByte(i: Code[Int]): Code[Byte] = Region.loadByte(pt.bytesAddress(a) + i.toL)
+
+  def store(pc: PCode): Code[Unit] = a.store(pc.asInstanceOf[PCanonicalBinaryCode].a)
+}
+
+class PCanonicalBinaryCode(val pt: PCanonicalBinary, val a: Code[Long]) extends PBinaryCode {
+  def code: Code[_] = a
+
+  def loadLength(): Code[Int] = pt.loadLength(a)
 
   def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
 
-  def memoize(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeImpl(cb, name)
+  def memoize(cb: EmitCodeBuilder, sb: SettableBuilder, name: String): PCanonicalBinarySettable = {
+    val s = new PCanonicalBinarySettable(pt, sb.newSettable[Long](name))
+    cb.assign(s, this)
+    s
+  }
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeFieldImpl(cb, name)
+  def memoize(cb: EmitCodeBuilder, name: String): PCanonicalBinarySettable =
+    memoize(cb, cb.localBuilder, name)
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): PCanonicalBinarySettable =
+    memoize(cb, cb.fieldBuilder, name)
 
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
 }
