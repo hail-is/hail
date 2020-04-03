@@ -92,7 +92,11 @@ if role == 'Master':
         safe_call('/bin/sh', '-c',
                   'echo "export {}={}" | tee -a /etc/environment /usr/lib/spark/conf/spark-env.sh'.format(e, value))
 
-    hail_jar = '/opt/conda/default/lib/python3.6/site-packages/hail/backend/hail-all-spark.jar'
+    hail_jar = sp.check_output([
+        '/bin/sh', '-c',
+        'pip3 show hail | grep Location | sed "s/Location: //"'
+    ]).decode('ascii').strip() + '/hail/backend/hail-all-spark.jar'
+
     conf_to_set = [
         'spark.executorEnv.PYTHONHASHSEED=0',
         'spark.app.name=Hail',
