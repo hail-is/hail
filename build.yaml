@@ -1231,15 +1231,15 @@ steps:
    script: |
      set -e
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-     gsutil -m cp -r /io/test/resources/* gs://hail-test-dmk9z/{{ token }}/batch/input/
+     gsutil -m cp -r /io/hailtop/batch/test/resources/* gs://hail-test-dmk9z/{{ token }}/batch/input/
    
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      export SCRATCH=gs://hail-test-dmk9z/{{ token }}/batch
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/hailtop/batch/test/
 
      gsutil -m rm -r gs://hail-test-dmk9z/{{ token }}/batch
    inputs:
-    - from: /repo/hailtop/batch/test
+    - from: /repo/hailtop
       to: /io/
    timeout: 1200
    secrets:
@@ -1272,7 +1272,8 @@ steps:
      python3 -m pytest --instafail \
        --doctest-modules \
        --doctest-glob='*.rst' \
-       --ignore=docs/conf.py
+       --ignore=docs/conf.py \
+       --ignore=test/test_batch.py
    secrets:
     - name: gce-deploy-config
       namespace:
