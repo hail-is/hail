@@ -117,19 +117,19 @@ async def create_container(config, name):
     delay = 0.1
     error = 0
 
+    async def handle_error(e):
+        nonlocal error, delay
+        error += 1
+        if error < 10:
+            delay = await sleep_and_backoff(delay)
+            return
+        log.exception(f'encountered 10 errors while creating container {name}, aborting', stack_info=True)
+        raise ValueError('too many failures in create_container') from e
+
     while True:
         try:
             return await docker.containers.create(config, name=name)
         except DockerError as e:
-            async def handle_error():
-                nonlocal error, delay
-                error += 1
-                if error < 10:
-                    delay = await sleep_and_backoff(delay)
-                    return True
-                log.exception(f'encountered 10 errors while creating container {name}, aborting', stack_info=True)
-                return False
-
             # 409 container with name already exists
             if e.status == 409:
                 try:
@@ -138,15 +138,12 @@ async def create_container(config, name):
                 except DockerError as eget:
                     # 404 No such container
                     if eget.status == 404:
-                        try_again = await handle_error()
-                        if try_again:
-                            continue
-                        raise
+                        await handle_error(eget)
+                        continue
             # No such image: gcr.io/...
             if e.status == 404 and 'No such image' in e.message:
-                try_again = await handle_error()
-                if try_again:
-                    continue
+                await handle_error(e)
+                continue
             raise
 
 
