@@ -145,8 +145,6 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
     (t.asInstanceOf[TStruct], f)
   }
 
-  def updateKey(key: String, sig: Type): TStruct = updateKey(key, fieldIdx(key), sig)
-
   def updateKey(key: String, i: Int, sig: Type): TStruct = {
     assert(fieldIdx.contains(key))
 
