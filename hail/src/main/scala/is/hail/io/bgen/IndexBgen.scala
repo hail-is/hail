@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.TableType
-import is.hail.expr.types.physical.{PCanonicalStruct}
+import is.hail.expr.types.physical.{PCanonicalStruct, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.io.fs.FS
 import is.hail.io.index.{IndexWriter, InternalNodeBuilder, LeafNodeBuilder}
@@ -99,7 +99,7 @@ object IndexBgen {
     val offsetIdx = rowType.fieldIdx("offset")
     val fileIdxIdx = rowType.fieldIdx("file_idx")
     val (keyType, _) = rowType.virtualType.select(Array("file_idx", "locus", "alleles"))
-    val indexKeyType = rowType.selectFields(Array("locus", "alleles"))
+    val indexKeyType = rowType.selectFields(Array("locus", "alleles")).setRequired(false).asInstanceOf[PStruct]
 
     val attributes = Map("reference_genome" -> rg.orNull,
       "contig_recoding" -> recoding,
