@@ -637,13 +637,11 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
         val keyType = leftRVDType.kType.setFieldsRequiredeness(true)
         (keyType, leftRVDType.valueType, rightRVDType.valueType)
       case "left" =>
-        val keyType = leftRVDType.kType.setFieldsRequiredeness(true)
         val rValueType = rightRVDType.valueType.setFieldsRequiredeness(false)
-        (keyType, leftRVDType.valueType, rValueType)
+        (leftRVDType.kType, leftRVDType.valueType, rValueType)
       case "right" =>
-        val keyType = leftRVDType.kType.setFieldsRequiredeness(true)
         val lValueType = leftRVDType.valueType.setFieldsRequiredeness(false)
-        (keyType, lValueType, rightRVDType.valueType)
+        (leftRVDType.kType, lValueType, rightRVDType.valueType)
       case "outer" | "zip" =>
         val keyType = leftRVDType.kType.setFieldsRequiredeness(false)
         val lValueType = leftRVDType.valueType.setFieldsRequiredeness(false)
