@@ -26,7 +26,5 @@ case class MatrixFilterPartitions(parts: Seq[Int], keep: Boolean) extends Matrix
 
   override def typ(childType: MatrixType): MatrixType = childType
 
-  override def execute(ctx: ExecuteContext, mv: MatrixValue): MatrixValue = throw new UnsupportedOperationException
-
-  override def lower(): Option[TableToTableFunction] = Some(TableFilterPartitions(parts, keep))
+  override def lower(): TableToTableFunction = TableFilterPartitions(parts, keep)
 }

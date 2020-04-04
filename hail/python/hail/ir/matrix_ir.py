@@ -585,15 +585,6 @@ class MatrixToMatrixApply(MatrixIR):
         child_typ = self.child.typ
         if name == 'MatrixFilterPartitions':
             self._type = child_typ
-        else:
-            assert name == 'WindowByLocus', name
-            self._type = hl.tmatrix(
-                child_typ.global_type,
-                child_typ.col_type,
-                child_typ.col_key,
-                child_typ.row_type._insert_field('prev_rows', hl.tarray(child_typ.row_type)),
-                child_typ.row_key,
-                child_typ.entry_type._insert_field('prev_entries', hl.tarray(child_typ.entry_type)))
 
 
 class MatrixRename(MatrixIR):
