@@ -44,7 +44,13 @@ final class ByteArrayDecoder(
   }
 
   def regionValueFromBytes(region: Region, bytes: Array[Byte]): Long = {
+    set(bytes)
+    readValue(region)
+  }
+
+  def readValue(region: Region): Long = dec.readRegionValue(region)
+
+  def set(bytes: Array[Byte]) {
     bais.restart(bytes)
-    dec.readRegionValue(region)
   }
 }

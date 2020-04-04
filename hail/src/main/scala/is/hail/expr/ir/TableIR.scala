@@ -327,26 +327,41 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     val rowsAddr = ptype.loadField(res, 0)
     val nRows = rowsT.loadLength(rowsAddr)
 
-    val encRows = Array.tabulate(nRows) { i =>
-      if (rowsT.isElementMissing(rowsAddr, i))
-        fatal(s"cannot parallelize null values: found null value at index $i")
-      val baos = new ByteArrayOutputStream()
-      makeEnc(baos).writeRegionValue(ctx.r, rowsT.loadElement(rowsAddr, i))
-      baos.toByteArray
+    val nSplits = nPartitions.getOrElse(16)
+    val rowsPerPartition = nRows / nSplits
+    val leftOver = nRows - (nSplits * rowsPerPartition) // if partition index < leftOver, has rowsPerPartition + 1
+
+    val bae = new ByteArrayEncoder(makeEnc)
+    var idx = 0
+    val encRows = Array.tabulate(nSplits) { splitIdx =>
+      val n = if (splitIdx < leftOver) rowsPerPartition + 1 else rowsPerPartition
+      bae.reset()
+      val stop = idx + n
+      while (idx < stop) {
+        if (rowsT.isElementMissing(rowsAddr, idx))
+          fatal(s"cannot parallelize null values: found null value at index $idx")
+        bae.writeRegionValue(ctx.r, rowsT.loadElement(rowsAddr, idx))
+        idx += 1
+      }
+      (n, bae.result())
     }
 
     val (resultRowType: PStruct, makeDec) = spec.buildDecoder(typ.rowType)
     assert(resultRowType.virtualType == typ.rowType)
 
-    log.info(s"parallelized ${ nRows } rows")
+    log.info(s"parallelized $nRows rows in $nSplits partitions")
 
-    val rvd = ContextRDD.parallelize(hc.sc, encRows, nPartitions)
+    val rvd = ContextRDD.parallelize(hc.sc, encRows, encRows.length)
       .cmapPartitions { (ctx, it) =>
         val rv = RegionValue(ctx.region)
-        it.map { arr =>
-          val bais = new ByteArrayInputStream(arr)
-          rv.setOffset(makeDec(bais).readRegionValue(ctx.region))
-          rv
+        it.flatMap { case (nRows, arr) =>
+          val bais = new ByteArrayDecoder(makeDec)
+          bais.set(arr)
+          Iterator.range(0, nRows)
+            .map { _ =>
+              rv.setOffset(bais.readValue(ctx.region))
+              rv
+            }
         }
       }
     TableValue(typ, globals, RVD.unkeyed(resultRowType, rvd))
