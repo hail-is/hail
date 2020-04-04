@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.ir.agg.Extract
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual._
+import is.hail.utils.FastSeq
 
 object AggStateSignature {
   def apply(sig: AggSignature): AggStateSignature = AggStateSignature(Map(sig.op -> sig), sig.op)
@@ -14,6 +15,19 @@ case class AggStateSignature(m: Map[AggOp, AggSignature], default: AggOp, nested
   def lookup(op: AggOp): AggSignature = m(op)
 }
 
+object AggSignature {
+  def prune(agg: AggSignature, requestedType: Type): AggSignature = agg match {
+    case AggSignature(Collect(), Seq(), Seq(_)) =>
+      AggSignature(Collect(), FastSeq(), FastSeq(requestedType.asInstanceOf[TArray].elementType))
+    case AggSignature(Take(), Seq(n), Seq(_)) =>
+      AggSignature(Take(), FastSeq(n), FastSeq(requestedType.asInstanceOf[TArray].elementType))
+    case AggSignature(TakeBy(), Seq(n), Seq(_, k)) =>
+      AggSignature(TakeBy(), FastSeq(n), FastSeq(requestedType.asInstanceOf[TArray].elementType, k))
+    case AggSignature(PrevNonnull(), Seq(), Seq(_)) =>
+      AggSignature(PrevNonnull(), FastSeq(), FastSeq(requestedType))
+    case _ => agg
+  }
+}
 
 case class AggSignature(
   op: AggOp,

@@ -1259,4 +1259,64 @@ class PruneSuite extends HailSuite {
          | supertype: ${ t1.toPrettyString(0, true) }
          | subtype:   ${ t2.toPrettyString(0, true) }""".stripMargin)
   }
+
+  @Test def testApplyScanOp() {
+    val x = Ref("x", TInt32)
+    val y = Ref("y", TInt32)
+    val collectScan = ApplyScanOp(
+      FastIndexedSeq(),
+      FastIndexedSeq(MakeStruct(FastSeq(("x", x), ("y", y)))),
+      AggSignature(Collect(), FastSeq(), FastSeq(TStruct("x" -> TInt32, "y" -> TInt32))))
+    checkRebuild(collectScan, TArray(TStruct("y" -> TInt32)), { (_: BaseIR, reb: BaseIR) => reb.typ == TArray(TStruct("y" -> TInt32))})
+
+    val takeScan = ApplyScanOp(
+      FastIndexedSeq(I32(1)),
+      FastIndexedSeq(MakeStruct(FastSeq(("x", x), ("y", y)))),
+      AggSignature(Take(), FastSeq(TInt32), FastSeq(TStruct("x" -> TInt32, "y" -> TInt32))))
+    checkRebuild(takeScan, TArray(TStruct("y" -> TInt32)), { (_: BaseIR, reb: BaseIR) => reb.typ == TArray(TStruct("y" -> TInt32))})
+
+    val prevnn = ApplyScanOp(
+      FastIndexedSeq(),
+      FastIndexedSeq(MakeStruct(FastSeq(("x", x), ("y", y)))),
+      AggSignature(PrevNonnull(), FastSeq(), FastSeq(TStruct("x" -> TInt32, "y" -> TInt32))))
+    checkRebuild(prevnn, TStruct("y" -> TInt32), { (_: BaseIR, reb: BaseIR) => reb.typ == TStruct("y" -> TInt32)})
+
+    val takeByScan = ApplyScanOp(
+      FastIndexedSeq(I32(1)),
+      FastIndexedSeq(MakeStruct(FastSeq(("x", x), ("y", y))), MakeStruct(FastSeq(("x", x), ("y", y)))),
+      AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(TStruct("x" -> TInt32, "y" -> TInt32), TStruct("x" -> TInt32, "y" -> TInt32))))
+    checkRebuild(takeByScan, TArray(TStruct("y" -> TInt32)), { (_: BaseIR, reb: BaseIR) =>
+      val s = reb.asInstanceOf[ApplyScanOp]
+      s.seqOpArgs == FastIndexedSeq(MakeStruct(FastSeq(("y", y))), MakeStruct(FastSeq(("x", x), ("y", y))))})
+  }
+
+  @Test def testApplyAggOp() {
+    val x = Ref("x", TInt32)
+    val y = Ref("y", TInt32)
+    val collectAgg = ApplyAggOp(
+      FastIndexedSeq(),
+      FastIndexedSeq(MakeStruct(FastSeq(("x", x), ("y", y)))),
+      AggSignature(Collect(), FastSeq(), FastSeq(TStruct("x" -> TInt32, "y" -> TInt32))))
+    checkRebuild(collectAgg, TArray(TStruct("y" -> TInt32)), { (_: BaseIR, reb: BaseIR) => reb.typ == TArray(TStruct("y" -> TInt32))})
+
+    val takeAgg = ApplyAggOp(
+      FastIndexedSeq(I32(1)),
+      FastIndexedSeq(MakeStruct(FastSeq(("x", x), ("y", y)))),
+      AggSignature(Take(), FastSeq(TInt32), FastSeq(TStruct("x" -> TInt32, "y" -> TInt32))))
+    checkRebuild(takeAgg, TArray(TStruct("y" -> TInt32)), { (_: BaseIR, reb: BaseIR) => reb.typ == TArray(TStruct("y" -> TInt32))})
+
+    val prevnn = ApplyAggOp(
+      FastIndexedSeq(),
+      FastIndexedSeq(MakeStruct(FastSeq(("x", x), ("y", y)))),
+      AggSignature(PrevNonnull(), FastSeq(), FastSeq(TStruct("x" -> TInt32, "y" -> TInt32))))
+    checkRebuild(prevnn, TStruct("y" -> TInt32), { (_: BaseIR, reb: BaseIR) => reb.typ == TStruct("y" -> TInt32)})
+
+    val takeByAgg = ApplyAggOp(
+      FastIndexedSeq(I32(1)),
+      FastIndexedSeq(MakeStruct(FastSeq(("x", x), ("y", y))), MakeStruct(FastSeq(("x", x), ("y", y)))),
+      AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(TStruct("x" -> TInt32, "y" -> TInt32), TStruct("x" -> TInt32, "y" -> TInt32))))
+    checkRebuild(takeByAgg, TArray(TStruct("y" -> TInt32)), { (_: BaseIR, reb: BaseIR) =>
+      val a = reb.asInstanceOf[ApplyAggOp]
+      a.seqOpArgs == FastIndexedSeq(MakeStruct(FastSeq(("y", y))), MakeStruct(FastSeq(("x", x), ("y", y))))})
+  }
 }
