@@ -2,7 +2,7 @@ import os.path
 from tempfile import TemporaryDirectory
 
 import hail as hl
-import hail.experimental.vcf_combiner as comb
+import hail.experimental.vcf_combiner.vcf_combiner as vc_all
 
 from .resources import empty_gvcf, single_gvcf
 from .utils import benchmark
@@ -23,8 +23,8 @@ def setup(path):
 @benchmark(args=empty_gvcf.handle())
 def compile_2k_merge(path):
     vcf = setup(path)
-    vcfs = [comb.transform_gvcf(vcf)] * COMBINE_GVCF_MAX
-    combined = [comb.combine_gvcfs(vcfs)] * 20
+    vcfs = [vc_all.transform_gvcf(vcf)] * COMBINE_GVCF_MAX
+    combined = [vc_all.combine_gvcfs(vcfs)] * 20
     with TemporaryDirectory() as tmpdir:
         hl.experimental.write_matrix_tables(combined, os.path.join(tmpdir, 'combiner-multi-write'), overwrite=True)
 
@@ -33,26 +33,24 @@ def compile_2k_merge(path):
 def python_only_10k_transform(path):
     vcf = setup(path)
     vcfs = [vcf] * 10_000
-    _ = [comb.transform_gvcf(vcf) for vcf in vcfs]
+    _ = [vc_all.transform_gvcf(vcf) for vcf in vcfs]
 
 @benchmark(args=empty_gvcf.handle())
 def python_only_10k_combine(path):
     vcf = setup(path)
-    mt = comb.transform_gvcf(vcf)
+    mt = vc_all.transform_gvcf(vcf)
     mts = [mt] * 10_000
-    _ = [comb.combine_gvcfs(mts) for mts in chunks(mts, COMBINE_GVCF_MAX)]
+    _ = [vc_all.combine_gvcfs(mts) for mts in chunks(mts, COMBINE_GVCF_MAX)]
 
 @benchmark(args=single_gvcf.handle())
 def import_and_transform_gvcf(path):
-    vc = hl.experimental.vcf_combiner
-    intervals = vc.default_exome_intervals('GRCh38')
+    intervals = vc_all.default_exome_intervals('GRCh38')
     [mt] = hl.import_gvcfs([path], intervals, reference_genome='GRCh38')
-    mt = vc.transform_gvcf(mt)
+    mt = vc_all.transform_gvcf(mt)
     mt._force_count()
 
 @benchmark(args=single_gvcf.handle())
 def import_gvcf_force_count(path):
-    vc = hl.experimental.vcf_combiner
-    intervals = vc.default_exome_intervals('GRCh38')
+    intervals = vc_all.default_exome_intervals('GRCh38')
     [mt] = hl.import_gvcfs([path], intervals, reference_genome='GRCh38')
     mt._force_count_rows()
