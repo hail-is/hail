@@ -213,7 +213,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
           types(idx).constructAtAddress(
             fieldOffset(addr, idx), region, srcStruct.types(idx), srcStruct.loadField(srcAddress, idx), deepCopy)
         } else
-          assert(!required)
+          assert(!fieldRequired(idx))
         idx += 1
       }
     }

@@ -459,7 +459,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
           setElementPresent(newAddr, i)
           elementType.constructAtAddress(elementOffset(newAddr, len, i), region, srcElementT, srcArrayT.loadElement(srcAddress, len, i), deepCopy)
         } else
-          assert(!required)
+          assert(!elementType.required)
 
         i += 1
       }
