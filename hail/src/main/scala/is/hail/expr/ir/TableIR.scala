@@ -624,25 +624,27 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     val leftValueFieldIdx = leftRVDType.valueFieldIdx
     val rightValueFieldIdx = rightRVDType.valueFieldIdx
 
-    val leftKeyType = leftRVDType.kType
-    var leftValueType = leftRVDType.valueType
-    var rightValueType = rightRVDType.valueType
-
-    joinType match {
-      case "inner" => {
-        leftValueType = leftValueType.setFieldsRequiredeness(true)
-        rightValueType = rightValueType.setFieldsRequiredeness(true)
-      }
-      case "left" => {
-        rightValueType = rightValueType.setFieldsRequiredeness(false)
-      }
-      case "right" => {
-        leftValueType = leftValueType.setFieldsRequiredeness(false)
-      }
-      case "outer" | "zip" => {
-        leftValueType = leftValueType.setFieldsRequiredeness(false)
-        rightValueType = rightValueType.setFieldsRequiredeness(false)
-      }
+    val (leftKeyType, leftValueType, rightValueType) = joinType match {
+      case "inner" =>
+        val keyType = leftRVDType.kType.setFieldsRequiredeness(true)
+        val lValueType = leftRVDType.valueType.setFieldsRequiredeness(true)
+        val rValueType = rightRVDType.valueType.setFieldsRequiredeness(true)
+        (keyType, lValueType, rValueType)
+      case "left" =>
+        val keyType = leftRVDType.kType.setFieldsRequiredeness(true)
+        val lValueType = leftRVDType.valueType.setFieldsRequiredeness(true)
+        val rValueType = rightRVDType.valueType.setFieldsRequiredeness(false)
+        (keyType, lValueType, rValueType)
+      case "right" =>
+        val keyType = leftRVDType.kType.setFieldsRequiredeness(true)
+        val lValueType = leftRVDType.valueType.setFieldsRequiredeness(false)
+        val rValueType = rightRVDType.valueType.setFieldsRequiredeness(true)
+        (keyType, lValueType, rValueType)
+      case "outer" | "zip" =>
+        val keyType = leftRVDType.kType.setFieldsRequiredeness(false)
+        val lValueType = leftRVDType.valueType.setFieldsRequiredeness(false)
+        val rValueType = rightRVDType.valueType.setFieldsRequiredeness(false)
+        (keyType, lValueType, rValueType)
     }
 
     val newRowPType = leftKeyType ++ leftValueType ++ rightValueType

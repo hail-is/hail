@@ -136,7 +136,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
       return this
     }
 
-    PCanonicalStruct(this.fields.map(pf => PField(pf.name, pf.typ.setRequired(false), pf.index)), this.required)
+    PCanonicalStruct(this.fields.map(pf => PField(pf.name, pf.typ.setRequired(required), pf.index)), this.required)
   }
 
   def select(keep: IndexedSeq[String]): (PStruct, (Row) => Row) = {
