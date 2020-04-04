@@ -39,7 +39,7 @@ object AbstractRVDSpec {
 
   def read(fs: is.hail.io.fs.FS, path: String): AbstractRVDSpec = {
     val metadataFile = path + "/metadata.json.gz"
-    val r = using(fs.open(metadataFile)) { in => JsonMethods.parse(in) }
+    using(fs.open(metadataFile)) { in => JsonMethods.parse(in) }
       .transformField { case ("orvdType", value) => ("rvdType", value) } // ugh
       .extract[AbstractRVDSpec]
   }
