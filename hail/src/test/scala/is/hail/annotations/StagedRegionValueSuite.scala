@@ -25,7 +25,7 @@ class StagedRegionValueSuite extends HailSuite {
     fb.emit(
       Code(
         srvb.start(),
-        srvb.addString(fb.getArg[String](2)),
+        srvb.addString(fb.getCodeParam[String](2)),
         srvb.end()
       )
     )
@@ -67,7 +67,7 @@ class StagedRegionValueSuite extends HailSuite {
     fb.emit(
       Code(
         srvb.start(),
-        srvb.addInt(fb.getArg[Int](2)),
+        srvb.addInt(fb.getCodeParam[Int](2)),
         srvb.end()
       )
     )
@@ -105,7 +105,7 @@ class StagedRegionValueSuite extends HailSuite {
     fb.emit(
       Code(
         srvb.start(1),
-        srvb.addInt(fb.getArg[Int](2)),
+        srvb.addInt(fb.getCodeParam[Int](2)),
         srvb.advance(),
         srvb.end()
       )
@@ -147,7 +147,7 @@ class StagedRegionValueSuite extends HailSuite {
         srvb.start(),
         srvb.addString("hello"),
         srvb.advance(),
-        srvb.addInt(fb.getArg[Int](2)),
+        srvb.addInt(fb.getCodeParam[Int](2)),
         srvb.end()
       )
     )
@@ -189,7 +189,7 @@ class StagedRegionValueSuite extends HailSuite {
         ssb.start(),
         ssb.addInt(srvb.arrayIdx + 1),
         ssb.advance(),
-        ssb.addString(fb.getArg[String](2))
+        ssb.addString(fb.getCodeParam[String](2))
       )
     }
 
@@ -324,7 +324,7 @@ class StagedRegionValueSuite extends HailSuite {
     val rt = PCanonicalStruct("a" -> PCanonicalString(), "b" -> PCanonicalArray(PInt32()))
     val input = "hello"
     val fb = EmitFunctionBuilder[Region, String, Long]("fb")
-    val codeInput = fb.getArg[String](2)
+    val codeInput = fb.getCodeParam[String](2)
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
     val array = { sab: StagedRegionValueBuilder =>
@@ -389,7 +389,7 @@ class StagedRegionValueSuite extends HailSuite {
     val rt = PCanonicalArray(PInt32())
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long]("fb")
-    val codeInput = fb.getArg[Int](2)
+    val codeInput = fb.getCodeParam[Int](2)
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
     fb.emit(
@@ -439,11 +439,11 @@ class StagedRegionValueSuite extends HailSuite {
     fb.emit(
       Code(
         srvb.start(),
-        srvb.addIRIntermediate(PInt32())(fb.getArg[Int](2)),
+        srvb.addIRIntermediate(PInt32())(fb.getCodeParam[Int](2)),
         srvb.advance(),
-        srvb.addIRIntermediate(PBoolean())(fb.getArg[Boolean](3)),
+        srvb.addIRIntermediate(PBoolean())(fb.getCodeParam[Boolean](3)),
         srvb.advance(),
-        srvb.addIRIntermediate(PFloat64())(fb.getArg[Double](4)),
+        srvb.addIRIntermediate(PFloat64())(fb.getCodeParam[Double](4)),
         srvb.advance(),
         srvb.end()
       )
@@ -479,7 +479,7 @@ class StagedRegionValueSuite extends HailSuite {
             StagedRegionValueBuilder.deepCopyFromOffset(
               EmitRegion.default(fb.apply_method),
               t,
-              fb.getArg[Long](2).load()))
+              fb.getCodeParam[Long](2)))
           val copyF = fb.resultWithIndex()(0, region)
           val newOff = copyF(region, src)
 

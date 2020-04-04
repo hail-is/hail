@@ -118,7 +118,7 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
         val partCounts = partition(n, nPartitionsAdj)
         val partStarts = partCounts.scanLeft(0)(_ + _)
 
-        val rvdType = RVDType(PType.canonical(tir.typ.rowType).asInstanceOf[PStruct], Array("idx"))
+        val rvdType = RVDType(PType.canonical(tir.typ.rowType).setRequired(true).asInstanceOf[PStruct], Array("idx"))
 
         val contextType = TStruct(
           "start" -> TInt32,

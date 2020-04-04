@@ -9,13 +9,14 @@ import is.hail.utils._
 trait PPrimitive extends PType {
   def byteSize: Long
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
-    assert(this.isOfType(srcPType))
-    if (deepCopy) {
-      val addr = region.allocate(byteSize, byteSize)
-      constructAtAddress(addr, region, srcPType, srcAddress, deepCopy)
-      addr
-    } else srcAddress
+  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+    if (!deepCopy)
+      return srcAddress
+
+    // FIXME push down
+    val addr = region.allocate(byteSize, byteSize)
+    constructAtAddress(addr, region, srcPType, srcAddress, deepCopy)
+    addr
   }
 
   def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
@@ -67,6 +68,8 @@ trait PPrimitive extends PType {
 }
 
 class PPrimitiveCode(val pt: PType, val code: Code[_]) extends PCode {
+  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
+
   def store(mb: EmitMethodBuilder[_], r: Value[Region], a: Code[Long]): Code[Unit] =
     Region.storeIRIntermediate(pt)(a, code)
 

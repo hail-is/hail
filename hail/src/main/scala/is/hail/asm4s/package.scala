@@ -18,6 +18,16 @@ package asm4s {
     def slots: Int = 1
 
     def newArray(): AbstractInsnNode
+
+    override def hashCode(): Int = desc.hashCode()
+
+    override def equals(that: Any): Boolean = that match {
+      case that: TypeInfo[_] =>
+        return desc == that.desc
+      case _ => false
+    }
+
+    override def toString: String = desc
   }
 
   class ClassInfo[C](className: String) extends TypeInfo[C] {

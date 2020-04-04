@@ -35,6 +35,8 @@ class EInt32(override val required: Boolean) extends EType {
 
   def _asIdent = "int32"
   def _toPretty = "EInt32"
+
+  def setRequired(newRequired: Boolean): EInt32 = EInt32(newRequired)
 }
 
 object EInt32 {

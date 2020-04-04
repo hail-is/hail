@@ -75,7 +75,7 @@ object InferPType {
 
   def getNestedElementPTypes(ptypes: Seq[PType]): PType = {
     assert(ptypes.forall(_.virtualType == ptypes.head.virtualType))
-    getNestedElementPTypesOfSameType(ptypes: Seq[PType])
+    getNestedElementPTypesOfSameType(ptypes)
   }
 
   def getNestedElementPTypesOfSameType(ptypes: Seq[PType]): PType = {
@@ -141,7 +141,7 @@ object InferPType {
       case F32(_) => PFloat32(true)
       case F64(_) => PFloat64(true)
       case Str(_) => PCanonicalString(true)
-      case Literal(t, _) => PType.canonical(t, true)
+      case Literal(t, a) => PType.literalPType(t, a)
       case True() | False() => PBoolean(true)
       case Cast(ir, t) =>
         infer(ir)
@@ -460,7 +460,7 @@ object InferPType {
 
         fieldOrder.map { fds =>
           assert(fds.length == s.size)
-          PCanonicalStruct(fds.map(f => f -> s.fieldType(f)): _*)
+          PCanonicalStruct(tbs.required, fds.map(f => f -> s.fieldType(f)): _*)
         }.getOrElse(s)
       case GetField(o, name) =>
         infer(o)
@@ -502,10 +502,12 @@ object InferPType {
 
         branchType.setRequired(branchType.required && cond.pType.required)
       case Coalesce(values) =>
-        getNestedElementPTypes(values.map(theIR => {
-          infer(theIR)
-          theIR.pType
-        }))
+        values.foreach(v => infer(v))
+        val pt = getNestedElementPTypes(values.map(_.pType))
+        if (values.exists(_.pType.required))
+          pt.setRequired(true)
+        else
+          pt
       case In(_, pType: PType) => pType
       case CollectDistributedArray(contextsIR, globalsIR, contextsName, globalsName, bodyIR) =>
         infer(contextsIR)

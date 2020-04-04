@@ -11,7 +11,7 @@ import is.hail.utils._
 
 final case class EPackedIntArray(
   override val required: Boolean = false,
-  val elementsRequired: Boolean
+  elementsRequired: Boolean
 ) extends EContainer {
   def elementType: EType = EInt32(elementsRequired)
 
@@ -128,4 +128,6 @@ final case class EPackedIntArray(
   private def getPacker(mb: EmitMethodBuilder[_]): Value[IntPacker] = {
     mb.getOrDefineLazyField[IntPacker](Code.newInstance[IntPacker], "thePacker")
   }
+
+  def setRequired(newRequired: Boolean): EPackedIntArray = EPackedIntArray(newRequired, elementsRequired)
 }

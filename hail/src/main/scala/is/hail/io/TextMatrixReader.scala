@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.{EmitFunctionBuilder, ExecuteContext, IRParser, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, TableLiteral, TableRead, TableValue, TextReaderOptions}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, TableLiteral, TableRead, TableValue, TextReaderOptions}
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -286,7 +286,7 @@ case class TextMatrixReader(
     val rvd = if (tr.dropRows)
       RVD.empty(sc, requestedType.canonicalRVDType)
     else
-      RVD.unkeyed(PCanonicalStruct.canonical(requestedType.rowType), rdd)
+      RVD.unkeyed(PCanonicalStruct.canonical(requestedType.rowType).setRequired(true).asInstanceOf[PStruct], rdd)
     val globalValue = makeGlobalValue(ctx, requestedType, headerInfo.columnIdentifiers.map(Row(_)))
     TableValue(tr.typ, globalValue, rvd)
   }
@@ -312,7 +312,7 @@ class CompiledLineParser(
   hasHeader: Boolean
 ) extends ((Int, RVDContext, Iterator[WithContext[String]]) => Iterator[RegionValue]) with Serializable {
   assert(!missingValue.contains(separator))
-  @transient private[this] val requestedRowType = requestedTableType.canonicalPType
+  @transient private[this] val requestedRowType = requestedTableType.canonicalRowPType
   @transient private[this] val entriesType = requestedRowType
     .selfField(MatrixType.entriesIdentifier)
     .map(f => f.typ.asInstanceOf[PArray])
@@ -320,10 +320,10 @@ class CompiledLineParser(
     .dropFields(Set(MatrixType.entriesIdentifier))
   @transient private[this] val fb = EmitFunctionBuilder[Region, String, Long, String, Long]("text_matrix_reader")
   @transient private[this] val mb = fb.apply_method
-  @transient private[this] val region = fb.getArg[Region](1)
-  @transient private[this] val _filename = fb.getArg[String](2)
-  @transient private[this] val _lineNumber = fb.getArg[Long](3)
-  @transient private[this] val _line = fb.getArg[String](4)
+  @transient private[this] val region = fb.getCodeParam[Region](1)
+  @transient private[this] val _filename = fb.getCodeParam[String](2)
+  @transient private[this] val _lineNumber = fb.getCodeParam[Long](3)
+  @transient private[this] val _line = fb.getCodeParam[String](4)
   @transient private[this] val filename = mb.genFieldThisRef[String]("filename")
   @transient private[this] val lineNumber = mb.genFieldThisRef[Long]("lineNumber")
   @transient private[this] val line = mb.genFieldThisRef[String]("line")
@@ -338,17 +338,17 @@ class CompiledLineParser(
     srvb.init()))
 
 
-  @transient private[this] val parseStringMb = fb.genMethod[Region, String]("parseString")
+  @transient private[this] val parseStringMb = fb.genEmitMethod[Region, String]("parseString")
   parseStringMb.emit(parseString(parseStringMb))
-  @transient private[this] val parseIntMb = fb.genMethod[Region, Int]("parseInt")
+  @transient private[this] val parseIntMb = fb.genEmitMethod[Region, Int]("parseInt")
   parseIntMb.emit(parseInt(parseIntMb))
-  @transient private[this] val parseLongMb = fb.genMethod[Region, Long]("parseLong")
+  @transient private[this] val parseLongMb = fb.genEmitMethod[Region, Long]("parseLong")
   parseLongMb.emit(parseLong(parseLongMb))
-  @transient private[this] val parseRowFieldsMb = fb.genMethod[Region, Unit]("parseRowFields")
+  @transient private[this] val parseRowFieldsMb = fb.genEmitMethod[Region, Unit]("parseRowFields")
   parseRowFieldsMb.emit(parseRowFields(parseRowFieldsMb))
 
   @transient private[this] val parseEntriesMbOpt = entriesType.map { entriesType =>
-    val parseEntriesMb = fb.genMethod[Region, Unit]("parseEntries")
+    val parseEntriesMb = fb.genEmitMethod[Region, Unit]("parseEntries")
     parseEntriesMb.emit(parseEntries(parseEntriesMb, entriesType))
     parseEntriesMb
   }
@@ -359,8 +359,8 @@ class CompiledLineParser(
     lineNumber := _lineNumber,
     line := _line,
     srvb.start(),
-    parseRowFieldsMb.invoke(region),
-    parseEntriesMbOpt.map(_.invoke(region)).getOrElse(Code._empty),
+    parseRowFieldsMb.invokeCode(region),
+    parseEntriesMbOpt.map(_.invokeCode(region)).getOrElse(Code._empty),
     srvb.end()))
 
   private[this] val loadParserOnWorker = fb.result()
@@ -387,7 +387,7 @@ class CompiledLineParser(
     endField(pos)
 
   private[this] def missingOr(
-    mb: MethodBuilder[_],
+    mb: EmitMethodBuilder[_],
     srvb: StagedRegionValueBuilder,
     parse: Code[Unit]
   ): Code[Unit] = {
@@ -405,7 +405,7 @@ class CompiledLineParser(
       parse)
   }
 
-  private[this] def skipMissingOr(mb: MethodBuilder[_], skip: Code[Unit]): Code[Unit] = {
+  private[this] def skipMissingOr(mb: EmitMethodBuilder[_], skip: Code[Unit]): Code[Unit] = {
     assert(missingValue.size > 0)
     val end = mb.genFieldThisRef[Int]()
     val condition = Code(
@@ -418,7 +418,7 @@ class CompiledLineParser(
       skip)
   }
 
-  private[this] def parseInt(mb: MethodBuilder[_]): Code[Int] = {
+  private[this] def parseInt(mb: EmitMethodBuilder[_]): Code[Int] = {
     val mul = mb.newLocal[Int]("mul")
     val v = mb.newLocal[Int]("v")
     val c = mb.newLocal[Char]("c")
@@ -441,7 +441,7 @@ class CompiledLineParser(
         v * mul))
   }
 
-  private[this] def parseLong(mb: MethodBuilder[_]): Code[Long] = {
+  private[this] def parseLong(mb: EmitMethodBuilder[_]): Code[Long] = {
     val mul = mb.newLocal[Long]("mulL")
     val v = mb.newLocal[Long]("vL")
     val c = mb.newLocal[Char]("c")
@@ -462,7 +462,7 @@ class CompiledLineParser(
         v * mul))
   }
 
-  private[this] def parseString(mb: MethodBuilder[_]): Code[String] = {
+  private[this] def parseString(mb: EmitMethodBuilder[_]): Code[String] = {
     val start = mb.newLocal[Int]("start")
     Code(
       start := pos,
@@ -471,30 +471,30 @@ class CompiledLineParser(
       line.invoke[Int, Int, String]("substring", start, pos))
   }
 
-  private[this] def parseType(mb: MethodBuilder[_], srvb: StagedRegionValueBuilder, t: PType): Code[Unit] = {
+  private[this] def parseType(mb: EmitMethodBuilder[_], srvb: StagedRegionValueBuilder, t: PType): Code[Unit] = {
     val parseDefinedValue = t match {
       case _: PInt32 =>
-        srvb.addInt(parseIntMb.invoke(region))
+        srvb.addInt(parseIntMb.invokeCode(region))
       case _: PInt64 =>
-        srvb.addLong(parseLongMb.invoke(region))
+        srvb.addLong(parseLongMb.invokeCode(region))
       case _: PFloat32 =>
         srvb.addFloat(
-          Code.invokeStatic[java.lang.Float, String, Float]("parseFloat", parseStringMb.invoke(region)))
+          Code.invokeStatic[java.lang.Float, String, Float]("parseFloat", parseStringMb.invokeCode(region)))
       case _: PFloat64 =>
         srvb.addDouble(
-          Code.invokeStatic[java.lang.Double, String, Double]("parseDouble", parseStringMb.invoke(region)))
+          Code.invokeStatic[java.lang.Double, String, Double]("parseDouble", parseStringMb.invokeCode(region)))
       case _: PString =>
-        srvb.addString(parseStringMb.invoke(region))
+        srvb.addString(parseStringMb.invokeCode(region))
     }
     if (t.required) parseDefinedValue else missingOr(mb, srvb, parseDefinedValue)
   }
 
-  private[this] def skipType(mb: MethodBuilder[_], t: PType): Code[Unit] = {
+  private[this] def skipType(mb: EmitMethodBuilder[_], t: PType): Code[Unit] = {
     val skipDefinedValue = Code.whileLoop(!endField(), pos := pos + 1)
     if (t.required) skipDefinedValue else skipMissingOr(mb, skipDefinedValue)
   }
 
-  private[this] def parseRowFields(mb: MethodBuilder[_]): Code[_] = {
+  private[this] def parseRowFields(mb: EmitMethodBuilder[_]): Code[_] = {
     var inputIndex = 0
     var outputIndex = 0
     assert(onDiskRowFieldsType.size >= rowFieldsType.size)
@@ -534,7 +534,7 @@ class CompiledLineParser(
     Code(ab.result())
   }
 
-  private[this] def parseEntries(mb: MethodBuilder[_], entriesType: PArray): Code[Unit] = {
+  private[this] def parseEntries(mb: EmitMethodBuilder[_], entriesType: PArray): Code[Unit] = {
     val i = mb.newLocal[Int]("i")
     val entryType = entriesType.elementType.asInstanceOf[PStruct]
     assert(entryType.fields.size == 1)

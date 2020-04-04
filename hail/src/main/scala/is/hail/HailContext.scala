@@ -4,6 +4,7 @@ import java.io.InputStream
 import java.util.Properties
 
 import is.hail.annotations._
+import is.hail.asm4s._
 import is.hail.backend.Backend
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
@@ -307,7 +308,7 @@ object HailContext {
   def readSplitRowsPartition(
     mkRowsDec: (InputStream) => Decoder,
     mkEntriesDec: (InputStream) => Decoder,
-    mkInserter: (Int, Region) => (is.hail.asm4s.AsmFunction5[is.hail.annotations.Region,Long,Boolean,Long,Boolean,Long])
+    mkInserter: (Int, Region) => AsmFunction3RegionLongLongLong
   )(ctx: RVDContext,
     isRows: InputStream,
     isEntries: InputStream,
@@ -332,7 +333,7 @@ object HailContext {
     private val rows = try {
       if (idx.map(_.hasNext).getOrElse(true)) {
         val dec = mkRowsDec(trackedRowsIn)
-        idx.map { idx =>
+        idx.foreach { idx =>
           val i = idx.head
           val off = rowsIdxField.map { j => i.annotation.asInstanceOf[Row].getAs[Long](j) }.getOrElse(i.recordOffset)
           dec.seek(off)
@@ -390,7 +391,7 @@ object HailContext {
         idx.map(_.next())
         val rowOff = rows.readRegionValue(region)
         val entOff = entries.readRegionValue(region)
-        val off = inserter(region, rowOff, false, entOff, false)
+        val off = inserter(region, rowOff, entOff)
         rv.setOffset(off)
         cont = nextCont()
 
@@ -622,14 +623,14 @@ class HailContext private(
       requestedTypeEntries.fieldNames.map(f =>
           f -> ir.GetField(ir.Ref("right", requestedTypeEntries), f)))
 
-    val (t: PStruct, makeInserter) = ir.Compile[Long, Long, Long](ctx,
-      "left", rowsType,
-      "right", entriesType,
+    val (t: PStruct, makeInserter) = ir.Compile[AsmFunction3RegionLongLongLong](ctx,
+      FastIndexedSeq(
+        ("left", rowsType),
+        ("right", entriesType)),
+      FastIndexedSeq(typeInfo[Region], LongInfo, LongInfo), LongInfo,
       inserterIR)
 
-    val nPartitions = partFiles.length
     val mkIndexReader = indexSpecRows.map { indexSpec =>
-      val idxPath = indexSpec.relPath
       val (keyType, annotationType) = indexSpec.types
       indexSpec.offsetField.foreach { f =>
         require(annotationType.asInstanceOf[TStruct].hasField(f))

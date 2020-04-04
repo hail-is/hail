@@ -24,8 +24,8 @@ class PContainerTest extends HailSuite {
     log.info(s"Testing $data")
 
     val fb = EmitFunctionBuilder[Region, Long, Long]("not_empty")
-    val codeRegion = fb.getArg[Region](1)
-    val value = fb.getArg[Long](2)
+    val codeRegion = fb.getCodeParam[Region](1)
+    val value = fb.getCodeParam[Long](2)
 
     fb.emit(destType.checkedConvertFrom(fb.apply_method, codeRegion, value, sourceType, "ShouldHaveNoNull"))
 
@@ -55,7 +55,7 @@ class PContainerTest extends HailSuite {
     log.info(s"Testing $data")
 
     val fb = EmitFunctionBuilder[Long, Boolean]("not_empty")
-    val value = fb.getArg[Long](1)
+    val value = fb.getCodeParam[Long](1)
 
     fb.emit(Region.containsNonZeroBits(value + sourceType.lengthHeaderBytes, sourceType.loadLength(value).toL))
 
@@ -70,7 +70,7 @@ class PContainerTest extends HailSuite {
     log.info(s"\nTesting $data")
 
     val fb = EmitFunctionBuilder[Long, Boolean]("not_empty")
-    val value = fb.getArg[Long](1)
+    val value = fb.getCodeParam[Long](1)
 
     fb.emit(sourceType.hasMissingValues(value))
 

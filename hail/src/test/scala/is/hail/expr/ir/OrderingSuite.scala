@@ -35,8 +35,8 @@ class OrderingSuite extends HailSuite {
   ): AsmFunction3[Region, Long, Long, op.ReturnType] = {
     implicit val x = op.rtti
     val fb = EmitFunctionBuilder[Region, Long, Long, op.ReturnType]("lifted")
-    val cv1 = Region.getIRIntermediate(t)(fb.getArg[Long](2))
-    val cv2 = Region.getIRIntermediate(t)(fb.getArg[Long](3))
+    val cv1 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](2))
+    val cv2 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](3))
     fb.emit(fb.apply_method.getCodeOrdering(t, op)((const(false), cv1), (const(false), cv2)))
     fb.resultWithIndex()(0, r)
   }
@@ -291,9 +291,9 @@ class OrderingSuite extends HailSuite {
         val eoff = rvb.end()
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int]("binary_search")
-        val cregion = fb.getArg[Region](1).load()
-        val cset = fb.getArg[Long](2)
-        val cetuple = fb.getArg[Long](3)
+        val cregion = fb.getCodeParam[Region](1).load()
+        val cset = fb.getCodeParam[Long](2)
+        val cetuple = fb.getCodeParam[Long](3)
 
         val bs = new BinarySearch(fb.apply_method, pset, pset.elementType, keyOnly = false)
         fb.emit(bs.getClosestIndex(cset, false, Region.loadIRIntermediate(pt)(pTuple.fieldOffset(cetuple, 0))))
@@ -331,9 +331,9 @@ class OrderingSuite extends HailSuite {
         val eoff = rvb.end()
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int]("binary_search_dict")
-        val cregion = fb.getArg[Region](1).load()
-        val cdict = fb.getArg[Long](2)
-        val cktuple = fb.getArg[Long](3)
+        val cregion = fb.getCodeParam[Region](1)
+        val cdict = fb.getCodeParam[Long](2)
+        val cktuple = fb.getCodeParam[Long](3)
 
         val bs = new BinarySearch(fb.apply_method, pDict, pDict.keyType, keyOnly = true)
         val m = ptuple.isFieldMissing(cktuple, 0)

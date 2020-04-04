@@ -1255,7 +1255,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def entriesTable(ctx: ExecuteContext): TableValue = {
-    val rowType = PCanonicalStruct("i" -> PInt64Optional, "j" -> PInt64Optional, "entry" -> PFloat64Optional)
+    val rowType = PCanonicalStruct(true, "i" -> PInt64Optional, "j" -> PInt64Optional, "entry" -> PFloat64Optional)
     
     val entriesRDD = ContextRDD.weaken(blocks).cflatMap { case (ctx, ((blockRow, blockCol), block)) =>
       val rowOffset = blockRow * blockSize.toLong

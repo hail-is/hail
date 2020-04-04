@@ -10,9 +10,7 @@ object TTuple {
 
   val empty: TTuple = TTuple()
 
-  def apply(required: Boolean, args: Type*): TTuple = TTuple(args.iterator.zipWithIndex.map { case (t, i) => TupleField(i, t)}.toArray)
-
-  def apply(args: Type*): TTuple = apply(false, args: _*)
+  def apply(args: Type*): TTuple = TTuple(args.iterator.zipWithIndex.map { case (t, i) => TupleField(i, t)}.toArray)
 }
 
 case class TupleField(index: Int, typ: Type)

@@ -27,7 +27,7 @@ class Aggregators2Suite extends HailSuite {
   ): Unit = {
     assert(seqOps.length >= 2 * nPartitions, s"Test aggregators with a larger stream!")
 
-    val argT = PType.canonical(TStruct(args.map { case (n, (typ, _)) => n -> typ }: _*)).asInstanceOf[PStruct]
+    val argT = PType.canonical(TStruct(args.map { case (n, (typ, _)) => n -> typ }: _*)).setRequired(true).asInstanceOf[PStruct]
     val argVs = Row.fromSeq(args.map { case (_, (_, v)) => v })
     val argRef = Ref(genUID(), argT.virtualType)
     val spec = BufferSpec.defaultUncompressed
@@ -43,16 +43,20 @@ class Aggregators2Suite extends HailSuite {
     }
 
     val psig = toCanonicalPhysical(aggSig)
-    val (_, combAndDuplicate) = CompileWithAggregators2[Unit](ctx,
+    val (_, combAndDuplicate) = CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
       Array.fill(nPartitions)(psig),
+      FastIndexedSeq(),
+      FastIndexedSeq(classInfo[Region]), UnitInfo,
       Begin(
         Array.tabulate(nPartitions)(i => DeserializeAggs(i, i, spec, Array(aggSig))) ++
           Array.range(1, nPartitions).map(i => CombOp(0, i, aggSig)) :+
           SerializeAggs(0, 0, spec, Array(aggSig)) :+
           DeserializeAggs(1, 0, spec, Array(aggSig))))
 
-    val (rt: PTuple, resF) = CompileWithAggregators2[Long](ctx,
+    val (rt: PTuple, resF) = CompileWithAggregators2[AsmFunction1RegionLong](ctx,
       Array.fill(nPartitions)(psig),
+      FastIndexedSeq(),
+      FastIndexedSeq(classInfo[Region]), LongInfo,
       ResultOp(0, Array(aggSig, aggSig)))
     assert(rt.types(0) == rt.types(1))
 
@@ -64,31 +68,37 @@ class Aggregators2Suite extends HailSuite {
       val argOff = ScalaToRegionValue(region, argT, argVs)
 
       def withArgs(foo: IR) = {
-        CompileWithAggregators2[Long, Unit](ctx,
+        CompileWithAggregators2[AsmFunction2RegionLongUnit](ctx,
           Array(psig),
-          argRef.name, argT,
+          FastIndexedSeq((argRef.name, argT)),
+          FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
           args.map(_._1).foldLeft[IR](foo) { case (op, name) =>
             Let(name, GetField(argRef, name), op)
           })._2
       }
 
       val serialize = SerializeAggs(0, 0, spec, Array(aggSig))
-      val (_, writeF) = CompileWithAggregators2[Unit](ctx,
+      val (_, writeF) = CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
         Array(psig),
+        FastIndexedSeq(),
+        FastIndexedSeq(classInfo[Region]), UnitInfo,
         serialize)
 
       val initF = withArgs(initOp)
 
       expectedInit.foreach { v =>
-        val (rt: PBaseStruct, resOneF) = CompileWithAggregators2[Long](ctx,
-          Array(psig), ResultOp(0, Array(aggSig)))
+        val (rt: PBaseStruct, resOneF) = CompileWithAggregators2[AsmFunction1RegionLong](ctx,
+          Array(psig),
+          FastIndexedSeq(),
+          FastIndexedSeq(classInfo[Region]), LongInfo,
+          ResultOp(0, Array(aggSig)))
 
         val init = initF(0, region)
         val res = resOneF(0, region)
 
         Region.smallScoped { aggRegion =>
           init.newAggState(aggRegion)
-          init(region, argOff, false)
+          init(region, argOff)
           res.setAggState(aggRegion, init.getAggOffset())
           val result = SafeRow(rt, res(region)).get(0)
           assert(resultType.virtualType.valuesSimilar(result, v))
@@ -101,10 +111,10 @@ class Aggregators2Suite extends HailSuite {
         val write = writeF(0, region)
         Region.smallScoped { aggRegion =>
           init.newAggState(aggRegion)
-          init(region, argOff, false)
+          init(region, argOff)
           val ioff = init.getAggOffset()
           seq.setAggState(aggRegion, ioff)
-          seq(region, argOff, false)
+          seq(region, argOff)
           val soff = seq.getAggOffset()
           write.setAggState(aggRegion, soff)
           write(region)

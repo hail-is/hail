@@ -278,16 +278,16 @@ class IRSuite extends HailSuite {
 
   @Test def testCoalesceInferPType() {
     assertPType(Coalesce(FastSeq(In(0, PInt32()))), PInt32())
-    assertPType(Coalesce(FastSeq(In(0, PInt32()), In(0, PInt32(true)))), PInt32())
+    assertPType(Coalesce(FastSeq(In(0, PInt32()), In(0, PInt32(true)))), PInt32(true))
     assertPType(Coalesce(FastSeq(In(0, PCanonicalArray(PCanonicalArray(PInt32()))), In(0, PCanonicalArray(PCanonicalArray(PInt32(true)))))), PCanonicalArray(PCanonicalArray(PInt32())))
     assertPType(Coalesce(FastSeq(In(0, PCanonicalArray(PCanonicalArray(PInt32()))), In(0, PCanonicalArray(PCanonicalArray(PInt32(true), true))))), PCanonicalArray(PCanonicalArray(PInt32())))
-    assertPType(Coalesce(FastSeq(In(0, PCanonicalArray(PCanonicalArray(PInt32()))), In(0, PCanonicalArray(PCanonicalArray(PInt32(true), true), true)))), PCanonicalArray(PCanonicalArray(PInt32())))
-    assertPType(Coalesce(FastSeq(In(0, PCanonicalArray(PCanonicalArray(PInt32()))), In(0, PCanonicalArray(PCanonicalArray(PInt32(true), true), true)))), PCanonicalArray(PCanonicalArray(PInt32())))
+    assertPType(Coalesce(FastSeq(In(0, PCanonicalArray(PCanonicalArray(PInt32()))), In(0, PCanonicalArray(PCanonicalArray(PInt32(true), true), true)))), PCanonicalArray(PCanonicalArray(PInt32()), true))
+    assertPType(Coalesce(FastSeq(In(0, PCanonicalArray(PCanonicalArray(PInt32()))), In(0, PCanonicalArray(PCanonicalArray(PInt32(true), true), true)))), PCanonicalArray(PCanonicalArray(PInt32()), true))
     assertPType(Coalesce(FastSeq(
       In(0, PCanonicalArray(PCanonicalArray(PInt32()))),
       In(0, PCanonicalArray(PCanonicalArray(PInt32(), true))),
       In(0, PCanonicalArray(PCanonicalArray(PInt32(true)), true))
-    )), PCanonicalArray(PCanonicalArray(PInt32())))
+    )), PCanonicalArray(PCanonicalArray(PInt32()), true))
   }
 
   val i32na = NA(TInt32)

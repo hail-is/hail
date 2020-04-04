@@ -157,7 +157,7 @@ class ReferenceGenomeSuite extends HailSuite {
     val fb = EmitFunctionBuilder[String, Boolean]("serialize_rg")
     val cb = fb.ecb
     val rgfield = fb.genLazyFieldThisRef(grch38.codeSetup(cb))
-    fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getArg[String](1)))
+    fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getCodeParam[String](1)))
 
     Region.scoped { r =>
       val f = fb.resultWithIndex()(0, r)
@@ -176,7 +176,7 @@ class ReferenceGenomeSuite extends HailSuite {
     val fb = EmitFunctionBuilder[String, Int, Int, Int, String]("serialize_rg")
     val cb = fb.ecb
     val rgfield = fb.genLazyFieldThisRef(rg.codeSetup(cb))
-    fb.emit(rgfield.invoke[String, Int, Int, Int, String]("getSequence", fb.getArg[String](1), fb.getArg[Int](2), fb.getArg[Int](3), fb.getArg[Int](4)))
+    fb.emit(rgfield.invoke[String, Int, Int, Int, String]("getSequence", fb.getCodeParam[String](1), fb.getCodeParam[Int](2), fb.getCodeParam[Int](3), fb.getCodeParam[Int](4)))
 
     Region.scoped { r =>
       val f = fb.resultWithIndex()(0, r)
@@ -193,7 +193,7 @@ class ReferenceGenomeSuite extends HailSuite {
     val fb = EmitFunctionBuilder[String, Locus, Double, (Locus, Boolean)]("serialize_with_liftover")
     val cb = fb.ecb
     val rgfield = fb.genLazyFieldThisRef(grch37.codeSetup(cb))
-    fb.emit(rgfield.invoke[String, Locus, Double, (Locus, Boolean)]("liftoverLocus", fb.getArg[String](1), fb.getArg[Locus](2), fb.getArg[Double](3)))
+    fb.emit(rgfield.invoke[String, Locus, Double, (Locus, Boolean)]("liftoverLocus", fb.getCodeParam[String](1), fb.getCodeParam[Locus](2), fb.getCodeParam[Double](3)))
 
     Region.scoped { r =>
       val f = fb.resultWithIndex()(0, r)

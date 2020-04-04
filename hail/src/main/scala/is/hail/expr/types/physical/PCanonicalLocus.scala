@@ -3,6 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.utils.FastIndexedSeq
 import is.hail.variant._
 
 object PCanonicalLocus {
@@ -130,6 +131,8 @@ class PCanonicalLocusSettable(
 
 class PCanonicalLocusCode(val pt: PCanonicalLocus, val a: Code[Long]) extends PLocusCode {
   def code: Code[_] = a
+
+  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
   def contig(): PStringCode = new PCanonicalStringCode(pt.contigType, pt.contigAddr(a))
 

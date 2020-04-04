@@ -96,7 +96,7 @@ object LowerMatrixIR {
           irIf('row (Symbol(entries)).isNA) {
             irDie("missing entry array unsupported in 'to_matrix_table_row_major'", lc.typ.rowType)
           } {
-            irIf('row (Symbol(entries)).len.cne( 'global (Symbol(cols)).len)) {
+            irIf('row (Symbol(entries)).len.cne('global (Symbol(cols)).len)) {
               irDie("length mismatch between entry array and column array in 'to_matrix_table_row_major'", lc.typ.rowType)
             } {
               'row

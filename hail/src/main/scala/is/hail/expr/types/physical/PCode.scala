@@ -25,6 +25,8 @@ abstract class PCode { self =>
 
   def code: Code[_]
 
+  def codeTuple(): IndexedSeq[Code[_]]
+
   def typeInfo: TypeInfo[_] = typeToTypeInfo(pt)
 
   def tcode[T](implicit ti: TypeInfo[T]): Code[T] = {

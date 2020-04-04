@@ -361,7 +361,7 @@ class RegionValueBuilder(var region: Region) {
 
   def selectRegionValue(fromT: PStruct, fromFieldIdx: Array[Int], region: Region, offset: Long) {
     val t = fromT.typeAfterSelect(fromFieldIdx).fundamentalType
-    assert(currentType() == t)
+    assert(currentType().setRequired(true) == t.setRequired(true))
     assert(t.size == fromFieldIdx.length)
     startStruct()
     addFields(fromT, region, offset, fromFieldIdx)
@@ -376,7 +376,7 @@ class RegionValueBuilder(var region: Region) {
     val toT = currentType()
 
     if (typestk.isEmpty) {
-      val r = toT.copyFromType(region, t.fundamentalType, fromOff, region.ne(fromRegion))
+      val r = toT.copyFromAddress(region, t.fundamentalType, fromOff, region ne fromRegion)
       start = r
       return
     }

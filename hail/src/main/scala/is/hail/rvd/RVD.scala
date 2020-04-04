@@ -66,6 +66,7 @@ class RVD(
     new RVD(newTyp, newPartitioner, crdd)
   }
 
+
   // Exporting
 
   def toRows: RDD[Row] = {
@@ -955,10 +956,9 @@ class RVD(
     root: String): RVD = {
     assert(!typ.key.contains(root))
 
-    val valueStruct = right.typ.valueType
     val rightRowType = right.typ.rowType
 
-    val newRowType = rowPType.appendKey(root, right.typ.valueType)
+    val newRowType = rowPType.appendKey(root, right.typ.valueType.setRequired(false))
 
     val localRowType = rowPType
 
@@ -1439,7 +1439,7 @@ object RVD {
   }
 
   private def copyFromType(destPType: PType, srcPType: PType, srcRegionValue: RegionValue): RegionValue =
-    RegionValue(srcRegionValue.region, destPType.copyFromType(srcRegionValue.region, srcPType, srcRegionValue.offset, false))
+    RegionValue(srcRegionValue.region, destPType.copyFromAddress(srcRegionValue.region, srcPType, srcRegionValue.offset, false))
 
   def unify(rvds: Seq[RVD]): Seq[RVD] = {
     if (rvds.length == 1 || rvds.forall(_.rowPType == rvds.head.rowPType))
@@ -1447,11 +1447,11 @@ object RVD {
 
     val unifiedRowPType = InferPType.getNestedElementPTypesOfSameType(rvds.map(_.rowPType)).asInstanceOf[PStruct]
 
-    rvds.map(rvd => {
+    rvds.map { rvd =>
       val srcRowPType = rvd.rowPType
       val newRVDType = rvd.typ.copy(rowType = unifiedRowPType)
       rvd.map(newRVDType)(copyFromType(unifiedRowPType, srcRowPType, _))
-    })
+    }
   }
 
   def union(

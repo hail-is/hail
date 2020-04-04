@@ -125,7 +125,7 @@ object AbstractRVDSpec {
     val parts = if (specLeft.key.isEmpty)
       specLeft.partFiles
     else
-      tmpPartitioner.rangeBounds.map { b => specLeft.partFiles(partitioner.lowerBoundInterval(b)) }.toArray
+      tmpPartitioner.rangeBounds.map { b => specLeft.partFiles(partitioner.lowerBoundInterval(b)) }
 
     val (isl, isr) = (specLeft, specRight) match {
       case (l: Indexed, r: Indexed) => (Some(l.indexSpec), Some(r.indexSpec))
@@ -308,12 +308,21 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
   _partFiles: Array[String],
   _jRangeBounds: JValue,
   _attrs: Map[String, String]) extends AbstractRVDSpec with Indexed {
-  def typedCodecSpec: AbstractTypedCodecSpec = _codecSpec
+
+  // some lagacy OrderedRVDSpec2 were written out without the toplevel encoder required
+  private val codecSpec2 = _codecSpec match {
+    case cs: TypedCodecSpec =>
+      TypedCodecSpec(cs._eType.setRequired(true), cs._vType, cs._bufferSpec)
+  }
+
+  require(codecSpec2.encodedType.required)
+
+  def typedCodecSpec: AbstractTypedCodecSpec = codecSpec2
 
   def indexSpec: AbstractIndexSpec = _indexSpec
 
   lazy val partitioner: RVDPartitioner = {
-    val keyType = _codecSpec.encodedVirtualType.asInstanceOf[TStruct].select(key)._1
+    val keyType = codecSpec2.encodedVirtualType.asInstanceOf[TStruct].select(key)._1
     val rangeBoundsType = TArray(TInterval(keyType))
     new RVDPartitioner(keyType,
       JSONAnnotationImpex.importAnnotation(_jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]])
@@ -361,8 +370,17 @@ case class OrderedRVDSpec2(_key: IndexedSeq[String],
   _partFiles: Array[String],
   _jRangeBounds: JValue,
   _attrs: Map[String, String]) extends AbstractRVDSpec {
+
+  // some lagacy OrderedRVDSpec2 were written out without the toplevel encoder required
+  private val codecSpec2 = _codecSpec match {
+    case cs: TypedCodecSpec =>
+      TypedCodecSpec(cs._eType.setRequired(true), cs._vType, cs._bufferSpec)
+  }
+
+  require(codecSpec2.encodedType.required)
+
   lazy val partitioner: RVDPartitioner = {
-    val keyType = _codecSpec.encodedVirtualType.asInstanceOf[TStruct].select(key)._1
+    val keyType = codecSpec2.encodedVirtualType.asInstanceOf[TStruct].select(key)._1
     val rangeBoundsType = TArray(TInterval(keyType))
     new RVDPartitioner(keyType,
       JSONAnnotationImpex.importAnnotation(_jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]])
@@ -374,5 +392,5 @@ case class OrderedRVDSpec2(_key: IndexedSeq[String],
 
   val attrs: Map[String, String] = _attrs
 
-  def typedCodecSpec: AbstractTypedCodecSpec = _codecSpec
+  def typedCodecSpec: AbstractTypedCodecSpec = codecSpec2
 }

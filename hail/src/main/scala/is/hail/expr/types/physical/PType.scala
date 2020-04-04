@@ -6,9 +6,10 @@ import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.types.virtual._
-import is.hail.expr.types.{Requiredness}
+import is.hail.expr.types.Requiredness
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
@@ -152,6 +153,147 @@ object PType {
       case PVoid => PVoid
     }
   }
+
+  def literalPType(t: Type, a: Annotation): PType = {
+    val rb = new ArrayBuilder[Boolean]()
+    val crib = new ArrayBuilder[Int]()
+    val cib = new ArrayBuilder[Int]()
+
+    def indexTypes(t: Type): Unit = {
+      val ci = crib.size
+
+      rb += true
+
+      t match {
+        case t: TSet =>
+          indexTypes(t.elementType)
+        case t: TDict =>
+          crib += 0
+          cib += 0
+          indexTypes(t.keyType)
+          crib(ci) = rb.size
+          cib(ci) = crib.size
+          indexTypes(t.valueType)
+        case t: TArray =>
+          indexTypes(t.elementType)
+        case t: TStream =>
+          indexTypes(t.elementType)
+        case t: TInterval =>
+          indexTypes(t.pointType)
+        case t: TNDArray =>
+          indexTypes(t.elementType)
+        case t: TBaseStruct =>
+          val n = t.size
+
+          crib.setSizeUninitialized(ci + n)
+          cib.setSizeUninitialized(ci + n)
+
+          var j = 0
+          while (j < n) {
+            crib(ci + j) = rb.size
+            cib(ci + j) = crib.size
+            indexTypes(t.types(j))
+            j += 1
+          }
+        case _ =>
+      }
+    }
+
+    indexTypes(t)
+
+    val requiredVector = rb.result()
+    val childRequiredIndex = crib.result()
+    val childIndex = cib.result()
+
+    def setOptional(t: Type, a: Annotation, ri: Int, ci: Int): Unit = {
+      if (a == null) {
+        requiredVector(ri) = false
+        return
+      }
+
+      t match {
+        case t: TSet =>
+          a.asInstanceOf[Set[_]].iterator
+            .foreach(x => setOptional(t.elementType, x, ri + 1, ci))
+        case t: TDict =>
+          a.asInstanceOf[Map[_, _]].iterator
+            .foreach { case (k, v) =>
+              setOptional(t.keyType, k, ri + 1, ci + 1)
+              setOptional(t.valueType, v, childRequiredIndex(ci), childIndex(ci))
+            }
+        case t: TArray =>
+          a.asInstanceOf[IndexedSeq[_]].iterator
+            .foreach(x => setOptional(t.elementType, x, ri + 1, ci))
+        case t: TStream =>
+          a.asInstanceOf[IndexedSeq[_]].iterator
+            .foreach(x => setOptional(t.elementType, x, ri + 1, ci))
+        case t: TInterval =>
+          val i = a.asInstanceOf[Interval]
+          setOptional(t.pointType, i.start, ri + 1, ci)
+          setOptional(t.pointType, i.end, ri + 1, ci)
+        case t: TNDArray =>
+          val r = a.asInstanceOf[Row]
+          val elems = r(2).asInstanceOf[IndexedSeq[_]]
+          elems.foreach { x =>
+            setOptional(t.elementType, x, ri + 1, ci)
+          }
+        case t: TBaseStruct =>
+          val r = a.asInstanceOf[Row]
+          val n = r.size
+
+          var j = 0
+          while (j < n) {
+            setOptional(t.types(j), r(j), childRequiredIndex(ci + j), childIndex(ci + j))
+            j += 1
+          }
+        case _ =>
+      }
+    }
+
+    setOptional(t, a, 0, 0)
+
+    def canonical(t: Type, ri: Int, ci: Int): PType = {
+      t match {
+        case TBinary => PCanonicalBinary(requiredVector(ri))
+        case TBoolean => PBoolean(requiredVector(ri))
+        case TVoid => PVoid
+        case t: TSet =>
+          PCanonicalSet(canonical(t.elementType, ri + 1, ci), requiredVector(ri))
+        case t: TDict =>
+          PCanonicalDict(
+            canonical(t.keyType, ri + 1, ci + 1),
+            canonical(t.valueType, childRequiredIndex(ci), childIndex(ci)),
+            requiredVector(ri))
+        case t: TArray =>
+          PCanonicalArray(canonical(t.elementType, ri + 1, ci), requiredVector(ri))
+        case t: TStream =>
+          PCanonicalArray(canonical(t.elementType, ri + 1, ci), requiredVector(ri))
+        case TInt32 => PInt32(requiredVector(ri))
+        case TInt64 => PInt64(requiredVector(ri))
+        case TFloat32 => PFloat32(requiredVector(ri))
+        case TFloat64 => PFloat64(requiredVector(ri))
+        case t: TInterval =>
+          PCanonicalInterval(canonical(t.pointType, ri + 1, ci), requiredVector(ri))
+        case t: TLocus => PCanonicalLocus(t.rg, requiredVector(ri))
+        case TCall => PCanonicalCall(requiredVector(ri))
+        case t: TNDArray =>
+          PCanonicalNDArray(canonical(t.elementType, ri + 1, ci), t.nDims, requiredVector(ri))
+        case TString => PCanonicalString(requiredVector(ri))
+        case t: TStruct =>
+          PCanonicalStruct(requiredVector(ri),
+            t.fields.zipWithIndex.map { case (f, j) =>
+              f.name -> canonical(f.typ, childRequiredIndex(ci + j), childIndex(ci + j))
+            }: _*)
+        case t: TTuple =>
+          PCanonicalTuple(requiredVector(ri),
+            t.types.zipWithIndex.map { case (ft, j) =>
+              canonical(ft, childRequiredIndex(ci + j), childIndex(ci + j))
+            }: _*)
+      }
+    }
+
+    canonical(t, 0, 0)
+  }
 }
 
 abstract class PType extends Serializable with Requiredness {
@@ -218,6 +360,8 @@ abstract class PType extends Serializable with Requiredness {
   final def unary_-(): PType = setRequired(false)
 
   def setRequired(required: Boolean): PType
+
+  def equalModuloRequired(that: PType): Boolean = this == that.setRequired(required)
 
   final def orMissing(required2: Boolean): PType = {
     if (!required2)
@@ -288,7 +432,15 @@ abstract class PType extends Serializable with Requiredness {
   def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_]): Code[_] =
     this.copyFromTypeAndStackValue(mb, region, srcPType, stackValue, false)
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long
+  protected def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long
+
+  def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+    // no requirement for requiredness
+    // this can have more/less requiredness than srcPType
+    // if value is not compatible with this, an exception will be thrown
+    assert(virtualType == srcPType.virtualType)
+    _copyFromAddress(region, srcPType, srcAddress, deepCopy)
+  }
 
   def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit]
   def constructAtAddressFromValue(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], deepCopy: Boolean): Code[Unit]
@@ -296,7 +448,7 @@ abstract class PType extends Serializable with Requiredness {
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit
 
-  def deepRename(t: Type) = this
+  def deepRename(t: Type): PType = this
 
   def defaultValue: PCode = PCode(this, ir.defaultValue(this))
 
@@ -308,4 +460,17 @@ abstract class PType extends Serializable with Requiredness {
   def _typeCheck(a: Any): Boolean = virtualType._typeCheck(a)
 
   def load(src: Code[Long]): PCode = PCode(this, Region.loadIRIntermediate(this)(src))
+
+  def ti: TypeInfo[_] = typeToTypeInfo(this)
+
+  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(ti)
+
+  def nCodes: Int = 1
+
+  def codeReturnType(): TypeInfo[_] = ???
+
+  def fromCodeTuple(ct: IndexedSeq[Code[_]]): PCode = {
+    assert(ct.length == 1)
+    PCode(this, ct(0))
+  }
 }

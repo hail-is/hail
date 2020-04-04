@@ -294,7 +294,8 @@ object IBD {
       }
   }
 
-  private val ibdPType = PCanonicalStruct(("i", PCanonicalString()), ("j", PCanonicalString())) ++ ExtendedIBDInfo.pType
+  private val ibdPType =
+    (PCanonicalStruct(("i", PCanonicalString()), ("j", PCanonicalString())) ++ ExtendedIBDInfo.pType).setRequired(true).asInstanceOf[PStruct]
   private val ibdKey = FastIndexedSeq("i", "j")
 
   private[methods] def generateComputeMaf(input: MatrixValue, fieldName: String): (RegionValue) => Double = {

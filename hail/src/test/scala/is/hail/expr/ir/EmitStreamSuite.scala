@@ -16,7 +16,7 @@ class EmitStreamSuite extends HailSuite {
   private def compile1[T: TypeInfo, R: TypeInfo](f: (EmitMethodBuilder[_], Value[T]) => Code[R]): T => R = {
     val fb = EmitFunctionBuilder[T, R]("stream_test")
     val mb = fb.apply_method
-    mb.emit(f(mb, mb.getArg[T](1)))
+    mb.emit(f(mb, mb.getCodeParam[T](1)))
     val asmFn = fb.result()()
     asmFn.apply
   }
@@ -24,7 +24,7 @@ class EmitStreamSuite extends HailSuite {
   private def compile2[T: TypeInfo, U: TypeInfo, R: TypeInfo](f: (EmitMethodBuilder[_], Code[T], Code[U]) => Code[R]): (T, U) => R = {
     val fb = EmitFunctionBuilder[T, U, R]("F")
     val mb = fb.apply_method
-    mb.emit(f(mb, mb.getArg[T](1), mb.getArg[U](2)))
+    mb.emit(f(mb, mb.getCodeParam[T](1), mb.getCodeParam[U](2)))
     val asmFn = fb.result()()
     asmFn.apply
   }
@@ -32,7 +32,7 @@ class EmitStreamSuite extends HailSuite {
   private def compile3[T: TypeInfo, U: TypeInfo, V: TypeInfo, R: TypeInfo](f: (EmitMethodBuilder[_], Code[T], Code[U], Code[V]) => Code[R]): (T, U, V) => R = {
     val fb = EmitFunctionBuilder[T, U, V, R]("F")
     val mb = fb.apply_method
-    mb.emit(f(mb, mb.getArg[T](1), mb.getArg[U](2), mb.getArg[V](3)))
+    mb.emit(f(mb, mb.getCodeParam[T](1), mb.getCodeParam[U](2), mb.getCodeParam[V](3)))
     val asmFn = fb.result()()
     asmFn.apply
   }
@@ -203,16 +203,11 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  private def compileStream[F >: Null : TypeInfo, T](
+  private def compileStream[F: TypeInfo, T](
     streamIR: IR,
-    inputTypes: Seq[PType]
+    inputTypes: IndexedSeq[PType]
   )(call: (F, Region, T) => Long): T => IndexedSeq[Any] = {
-    val argTypeInfos = new ArrayBuilder[MaybeGenericTypeInfo[_]]
-    argTypeInfos += GenericTypeInfo[Region]()
-    inputTypes.foreach { t =>
-      argTypeInfos ++= Seq(GenericTypeInfo()(typeToTypeInfo(t)), GenericTypeInfo[Boolean]())
-    }
-    val fb = EmitFunctionBuilder[F]("F", argTypeInfos.result(), GenericTypeInfo[Long])
+    val fb = EmitFunctionBuilder[F]("F", (classInfo[Region]: ParamType) +: inputTypes.map(pt => EmitParamType(pt): ParamType), LongInfo)
     val mb = fb.apply_method
     val ir = streamIR.deepCopy()
     InferPType(ir, Env.empty)
@@ -240,8 +235,8 @@ class EmitStreamSuite extends HailSuite {
   }
 
   private def compileStream(ir: IR, inputType: PType): Any => IndexedSeq[Any] = {
-    type F = AsmFunction3[Region, Long, Boolean, Long]
-    compileStream[F, Any](ir, Seq(inputType)) { (f: F, r: Region, arg: Any) =>
+    type F = AsmFunction3RegionLongBooleanLong
+    compileStream[F, Any](ir, FastIndexedSeq(inputType)) { (f: F, r: Region, arg: Any) =>
       if (arg == null)
         f(r, 0L, true)
       else
@@ -250,8 +245,8 @@ class EmitStreamSuite extends HailSuite {
   }
 
   private def compileStreamWithIter(ir: IR, streamType: PStream): Iterator[Any] => IndexedSeq[Any] = {
-    type F = AsmFunction3[Region, Iterator[RegionValue], Boolean, Long]
-    compileStream[F, Iterator[Any]](ir, Seq(streamType)) { (f: F, r: Region, it: Iterator[Any]) =>
+    type F = AsmFunction3RegionIteratorRegionValueBooleanLong
+    compileStream[F, Iterator[Any]](ir, IndexedSeq(streamType)) { (f: F, r: Region, it: Iterator[Any]) =>
       val rv = RegionValue(r)
       val rvi = new Iterator[RegionValue] {
         def hasNext: Boolean = it.hasNext
@@ -265,7 +260,7 @@ class EmitStreamSuite extends HailSuite {
   }
 
   private def evalStream(ir: IR): IndexedSeq[Any] =
-    compileStream[AsmFunction1[Region, Long], Unit](ir, Seq()) { (f, r, _) => f(r) }
+    compileStream[AsmFunction1RegionLong, Unit](ir, FastIndexedSeq()) { (f, r, _) => f(r) }
       .apply(())
 
   private def evalStreamLen(streamIR: IR): Option[Int] = {
@@ -478,7 +473,7 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testEmitAggScan() {
-    def assertAggScan(ir: IR, inType: Type, tests: (Any, Any)*) = {
+    def assertAggScan(ir: IR, inType: Type, tests: (Any, Any)*): Unit = {
       val aggregate = compileStream(LoweringPipeline.compileLowerer.apply(ctx, ir, false).asInstanceOf[IR],
         PType.canonical(inType))
       for ((inp, expected) <- tests)
@@ -573,7 +568,7 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testZipIfNA() {
 
-    val t = PCanonicalStruct("missingParam" -> PCanonicalArray(PFloat64()),
+    val t = PCanonicalStruct(true, "missingParam" -> PCanonicalArray(PFloat64()),
       "xs" -> PCanonicalArray(PFloat64()),
       "ys" -> PCanonicalArray(PFloat64()))
     val i1 = Ref("in", t.virtualType)
@@ -592,7 +587,10 @@ class EmitStreamSuite extends HailSuite {
       Ref("foldAcc", TFloat64) + Ref("foldVal", TFloat64)
     )))
 
-    val (pt, f) = Compile[Long, Long](ctx, "in", t, ir)
+    val (pt, f) = Compile[AsmFunction2RegionLongLong](ctx,
+      FastIndexedSeq(("in", t)),
+      FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
+      ir)
 
     Region.smallScoped { r =>
       val rvb = new RegionValueBuilder(r)
@@ -600,7 +598,7 @@ class EmitStreamSuite extends HailSuite {
       rvb.addAnnotation(t.virtualType, Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)))
       val input = rvb.end()
 
-      assert(SafeRow.read(pt, f(0, r)(r, input, false)) == Row(null))
+      assert(SafeRow.read(pt, f(0, r)(r, input)) == Row(null))
     }
   }
 }

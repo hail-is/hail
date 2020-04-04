@@ -124,7 +124,7 @@ object Pretty {
     case x: IfX => s"${ asm.util.Printer.OPCODES(x.op) } ${ x.Ltrue } ${ x.Lfalse }"
     case x: GotoX => x.L.toString
     case x: SwitchX => s"${ x.Ldefault } (${ x.Lcases.mkString(" ") })"
-    case x: LdcX => x.a.toString
+    case x: LdcX => s"${ x.a.toString } ${ x.ti }"
     case x: InsnX => asm.util.Printer.OPCODES(x.op)
     case x: StoreX => x.l.toString
     case x: IincX => s"${ x.l.toString } ${ x.i }"

@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s.{coerce, _}
 import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ParamType}
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PCanonicalArray, PStruct, PType}
@@ -177,10 +177,10 @@ object CompileDecoder {
   ): (Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
     val fb = EmitFunctionBuilder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long]("bgen_rdd_decoder")
     val mb = fb.apply_method
-    val region = mb.getArg[Region](1)
-    val cp = mb.getArg[BgenPartition](2)
-    val cbfis = mb.getArg[HadoopFSDataBinaryReader](3)
-    val csettings = mb.getArg[BgenSettings](4)
+    val region = mb.getCodeParam[Region](1)
+    val cp = mb.getCodeParam[BgenPartition](2)
+    val cbfis = mb.getCodeParam[HadoopFSDataBinaryReader](3)
+    val csettings = mb.getCodeParam[BgenSettings](4)
 
     val regionField = mb.genFieldThisRef[Region]("region")
     val srvb = new StagedRegionValueBuilder(mb, settings.rowPType, regionField)
@@ -324,7 +324,7 @@ object CompileDecoder {
 
           val memoTyp = PCanonicalArray(entryType.setRequired(true), required = true)
           val memoizeAllValues: Code[Unit] = {
-            val memoMB = mb.genEmitMethod("memoizeEntries", Array[TypeInfo[_]](), UnitInfo)
+            val memoMB = mb.genEmitMethod("memoizeEntries", FastIndexedSeq[ParamType](), UnitInfo)
 
             val d0 = memoMB.newLocal[Int]("memoize_entries_d0")
             val d1 = memoMB.newLocal[Int]("memoize_entries_d1")
@@ -346,11 +346,11 @@ object CompileDecoder {
                         val addGT: Code[Unit] = if (includeGT) {
 
                           val addGtMB = mb.genEmitMethod("bgen_add_gt",
-                            Array[TypeInfo[_]](IntInfo, IntInfo, IntInfo),
+                            FastIndexedSeq[ParamType](IntInfo, IntInfo, IntInfo),
                             UnitInfo)
-                          val d0arg = addGtMB.getArg[Int](1)
-                          val d1arg = addGtMB.getArg[Int](2)
-                          val d2arg = addGtMB.getArg[Int](3)
+                          val d0arg = addGtMB.getCodeParam[Int](1)
+                          val d1arg = addGtMB.getCodeParam[Int](2)
+                          val d2arg = addGtMB.getCodeParam[Int](3)
 
                           addGtMB.emit(
                             Code(
@@ -369,17 +369,17 @@ object CompileDecoder {
                                     srvb.setMissing(),
                                     srvb.addInt(c1)))),
                               if (includeGP || includeDosage) srvb.advance() else Code._empty))
-                          addGtMB.invoke(d0, d1, d2)
+                          addGtMB.invokeCode(d0, d1, d2)
                         } else Code._empty
 
                         val addGP: Code[Unit] = if (includeGP) {
                           val addGpMB = mb.genEmitMethod("bgen_add_gp",
-                            Array[TypeInfo[_]](IntInfo, IntInfo, IntInfo),
+                            FastIndexedSeq[ParamType](IntInfo, IntInfo, IntInfo),
                             UnitInfo)
 
-                          val d0arg = addGpMB.getArg[Int](1)
-                          val d1arg = addGpMB.getArg[Int](2)
-                          val d2arg = addGpMB.getArg[Int](3)
+                          val d0arg = addGpMB.getCodeParam[Int](1)
+                          val d1arg = addGpMB.getCodeParam[Int](2)
+                          val d2arg = addGpMB.getCodeParam[Int](3)
 
                           val divisor = addGpMB.newLocal[Double]("divisor")
 
@@ -395,19 +395,19 @@ object CompileDecoder {
                                 srvb.addDouble(d2arg.toD / divisor))
                             }),
                             if (includeDosage) srvb.advance() else Code._empty))
-                          addGpMB.invoke(d0, d1, d2)
+                          addGpMB.invokeCode(d0, d1, d2)
                         } else Code._empty
 
                         val addDosage: Code[Unit] = if (includeDosage) {
                           val addDosageMB = mb.genEmitMethod("bgen_add_dosage",
-                            Array[TypeInfo[_]](IntInfo, IntInfo),
+                            FastIndexedSeq[ParamType](IntInfo, IntInfo),
                             UnitInfo)
 
-                          val d1arg = addDosageMB.getArg[Int](1)
-                          val d2arg = addDosageMB.getArg[Int](2)
+                          val d1arg = addDosageMB.getCodeParam[Int](1)
+                          val d2arg = addDosageMB.getCodeParam[Int](2)
 
                           addDosageMB.emit(srvb.addDouble((d1arg + (d2arg << 1)).toD / 255.0))
-                          addDosageMB.invoke(d1, d2)
+                          addDosageMB.invokeCode(d1, d2)
                         } else Code._empty
 
                         Code(srvb.start(), addGT, addGP, addDosage)
@@ -421,24 +421,24 @@ object CompileDecoder {
                 alreadyMemoized := true
               )
             ))
-            memoMB.invoke()
+            memoMB.invokeCode()
           }
 
           val lookupEntry: (Code[Int], Code[Int]) => Code[Long] = {
-            val lookupMB = mb.genEmitMethod("bgen_look_up_add_entry", Array[TypeInfo[_]](IntInfo, IntInfo), LongInfo)
+            val lookupMB = mb.genEmitMethod("bgen_look_up_add_entry", FastIndexedSeq[ParamType](IntInfo, IntInfo), LongInfo)
 
-            val d0 = lookupMB.getArg[Int](1)
-            val d1 = lookupMB.getArg[Int](2)
+            val d0 = lookupMB.getCodeParam[Int](1)
+            val d1 = lookupMB.getCodeParam[Int](2)
             lookupMB.emit(Code(
               Code._empty,
               memoTyp.elementOffset(memoizedEntryData, settings.nSamples, (d0 << 8) | d1)
             ))
-            lookupMB.invoke(_, _)
+            lookupMB.invokeCode(_, _)
           }
 
           val addEntries: Code[Array[Byte]] => Code[Unit] = {
-            val addEntriesMB = mb.genEmitMethod("bgen_add_entries", Array[TypeInfo[_]](typeInfo[Array[Byte]]), UnitInfo)
-            val data = addEntriesMB.getArg[Array[Byte]](1)
+            val addEntriesMB = mb.genEmitMethod("bgen_add_entries", FastIndexedSeq[ParamType](typeInfo[Array[Byte]]), UnitInfo)
+            val data = addEntriesMB.getCodeParam[Array[Byte]](1)
             val i = addEntriesMB.newLocal[Int]("i")
             val off = addEntriesMB.newLocal[Int]("off")
             val d0 = addEntriesMB.newLocal[Int]("d0")
@@ -462,7 +462,7 @@ object CompileDecoder {
                       i := i + 1))
                 })
             )
-            addEntriesMB.invoke(_)
+            addEntriesMB.invokeCode(_)
           }
 
           Code(FastIndexedSeq(

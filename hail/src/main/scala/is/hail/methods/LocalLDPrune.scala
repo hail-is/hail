@@ -15,8 +15,14 @@ import is.hail.variant._
 object BitPackedVectorView {
   val bpvElementSize: Long = PInt64Required.byteSize
 
-  def rvRowPType(locusType: PType, allelesType: PType): PStruct = PCanonicalStruct("locus" -> locusType, "alleles" -> allelesType,
-    "bpv" -> PCanonicalArray(PInt64Required), "nSamples" -> PInt32Required, "mean" -> PFloat64(), "centered_length_rec" -> PFloat64())
+  def rvRowPType(locusType: PType, allelesType: PType): PStruct =
+    PCanonicalStruct(true,
+      "locus" -> locusType,
+      "alleles" -> allelesType,
+      "bpv" -> PCanonicalArray(PInt64Required),
+      "nSamples" -> PInt32Required,
+      "mean" -> PFloat64(),
+      "centered_length_rec" -> PFloat64())
 }
 
 class BitPackedVectorView(rvRowType: PStruct) {
@@ -309,7 +315,7 @@ case class LocalLDPrune(
     val tableType = typ(mv.typ)
 
     val standardizedRDD = mv.rvd
-      .mapPartitions(mv.rvd.typ.copy(rowType = bpvType))({ it =>
+      .mapPartitions(mv.rvd.typ.copy(rowType = bpvType)) { it =>
         val hcView = new HardCallView(fullRowPType, callField)
         val region = Region()
         val rvb = new RegionValueBuilder(region)
@@ -333,7 +339,7 @@ case class LocalLDPrune(
           else
             None
         }
-      })
+      }
 
     val rvdLP = LocalLDPrune.pruneLocal(standardizedRDD, r2Threshold, windowSize, Some(maxQueueSize))
 
@@ -349,7 +355,7 @@ case class LocalLDPrune(
       it.map { rv =>
         region.clear()
         rvb.set(region)
-        rvb.start(tableType.canonicalPType)
+        rvb.start(tableType.canonicalRowPType)
         rvb.startStruct()
         rvb.addFields(bpvType, rv, fieldIndicesToAdd)
         rvb.endStruct()
