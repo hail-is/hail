@@ -645,7 +645,11 @@ class RVD(
 
     val makeComb: () => Combiner[U] = () => Combiner(zeroValue, combOp, commutative = commutative, associative = true)
 
-    var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
+    var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) =>
+      val it2 = Iterator.single(itF(i, ctx, it))
+      ctx.close()
+      it2
+    }
 
     if (tree) {
       val depth = treeAggDepth(HailContext.get, reduced.getNumPartitions)
