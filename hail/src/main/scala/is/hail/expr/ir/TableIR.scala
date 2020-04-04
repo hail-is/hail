@@ -327,14 +327,13 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     val rowsAddr = ptype.loadField(res, 0)
     val nRows = rowsT.loadLength(rowsAddr)
 
-    val nSplits = nPartitions.getOrElse(16)
-    val rowsPerPartition = nRows / nSplits
-    val leftOver = nRows - (nSplits * rowsPerPartition) // if partition index < leftOver, has rowsPerPartition + 1
+    val parts = partition(nRows, nPartitions.getOrElse(16))
+    val nSplits = parts.length
 
     val bae = new ByteArrayEncoder(makeEnc)
     var idx = 0
     val encRows = Array.tabulate(nSplits) { splitIdx =>
-      val n = if (splitIdx < leftOver) rowsPerPartition + 1 else rowsPerPartition
+      val n = parts(splitIdx)
       bae.reset()
       val stop = idx + n
       while (idx < stop) {
@@ -354,10 +353,10 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     val rvd = ContextRDD.parallelize(hc.sc, encRows, encRows.length)
       .cmapPartitions { (ctx, it) =>
         val rv = RegionValue(ctx.region)
-        it.flatMap { case (nRows, arr) =>
+        it.flatMap { case (nRowPartition, arr) =>
           val bais = new ByteArrayDecoder(makeDec)
           bais.set(arr)
-          Iterator.range(0, nRows)
+          Iterator.range(0, nRowPartition)
             .map { _ =>
               rv.setOffset(bais.readValue(ctx.region))
               rv
