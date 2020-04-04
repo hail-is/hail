@@ -10,7 +10,7 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.{BindingEnv, MakeTuple, Subst}
 import is.hail.expr.ir.lowering.LowererUnsupportedOperation
 import is.hail.expr.types.MatrixType
-import is.hail.expr.types.physical.{PArray, PBaseStruct, PCanonicalString, PCanonicalTuple, PStruct, PTuple, PTupleField, PType}
+import is.hail.expr.types.physical.{PArray, PBaseStruct, PCanonicalArray, PCanonicalString, PCanonicalTuple, PStruct, PTuple, PTupleField, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
@@ -204,7 +204,7 @@ object TestUtils {
           val aggElementVar = genUID()
           val aggArrayVar = genUID()
           val aggPType = PType.canonical(aggType)
-          val aggArrayPType = PArray(aggPType)
+          val aggArrayPType = PCanonicalArray(aggPType)
 
           val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
             env.bind(f.name, GetField(Ref(aggElementVar, aggType), f.name))

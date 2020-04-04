@@ -36,7 +36,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     FastIndexedSeq()
 
   val storageType: PStruct =
-    PStruct(true,
+    PCanonicalStruct(true,
       Array(("state", ab.stateType),
         ("staging", PInt64Required),
         ("key_stage", PInt64Required),

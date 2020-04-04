@@ -288,27 +288,27 @@ final case class ETransposedArrayOfStructs(
     case t: TDict =>
       val keyType = fieldType("key")
       val valueType = fieldType("value")
-      PDict(keyType.decodedPType(t.keyType), valueType.decodedPType(t.valueType), required)
+      PCanonicalDict(keyType.decodedPType(t.keyType), valueType.decodedPType(t.valueType), required)
     case t: TIterable =>
       val pElementType = t.elementType match {
-        case elem: TStruct => PStruct(elem.fields.map { case Field(name, typ, idx) =>
+        case elem: TStruct => PCanonicalStruct(elem.fields.map { case Field(name, typ, idx) =>
           PField(name, fieldType(name).decodedPType(typ), idx)
         }, structRequired)
-        case elem: TTuple => PTuple(elem.fields.map { case Field(name, typ, idx) =>
+        case elem: TTuple => PCanonicalTuple(elem.fields.map { case Field(name, typ, idx) =>
           PTupleField(idx, fieldType(name).decodedPType(typ))
         }, structRequired)
-        case elem: TLocus => PLocus(elem.rgBc, structRequired)
+        case elem: TLocus => PCanonicalLocus(elem.rgBc, structRequired)
         case elem: TInterval =>
           val pointType = fieldType("start")
           require(pointType == fieldType("end"))
-          PInterval(pointType.decodedPType(elem.pointType), structRequired)
+          PCanonicalInterval(pointType.decodedPType(elem.pointType), structRequired)
         case elem: TNDArray =>
           val elementType = fieldType("data").asInstanceOf[EContainer].elementType
-          PNDArray(elementType.decodedPType(elem.elementType), elem.nDims, structRequired)
+          PCanonicalNDArray(elementType.decodedPType(elem.elementType), elem.nDims, structRequired)
       }
       t match {
-        case _: TSet => PSet(pElementType, required)
-        case _: TArray => PArray(pElementType, required)
+        case _: TSet => PCanonicalSet(pElementType, required)
+        case _: TArray => PCanonicalArray(pElementType, required)
       }
   }
 

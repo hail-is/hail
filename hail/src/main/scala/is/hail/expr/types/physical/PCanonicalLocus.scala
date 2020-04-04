@@ -10,9 +10,9 @@ object PCanonicalLocus {
 
   def apply(rg: ReferenceGenome, required: Boolean): PLocus = PCanonicalLocus(rg.broadcastRG, required)
 
-  private def representation(required: Boolean = false): PStruct = PStruct(
+  private def representation(required: Boolean = false): PStruct = PCanonicalStruct(
     required,
-    "contig" -> PString(required = true),
+    "contig" -> PCanonicalString(required = true),
     "position" -> PInt32(required = true))
 
   def schemaFromRG(rg: Option[ReferenceGenome], required: Boolean = false): PType = rg match {

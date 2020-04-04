@@ -8,7 +8,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{ExecuteContext, TableValue}
 import is.hail.expr.ir.functions.TableToTableFunction
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PStruct, PType}
+import is.hail.expr.types.physical.{PCanonicalStruct, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
@@ -452,7 +452,7 @@ object Nirvana {
           }
       }
 
-    val nirvanaRVDType = prev.typ.copy(rowType = PStruct.canonical(tv.typ.rowType ++ TStruct("nirvana" -> nirvanaSignature)))
+    val nirvanaRVDType = prev.typ.copy(rowType = PCanonicalStruct.canonical(tv.typ.rowType ++ TStruct("nirvana" -> nirvanaSignature)))
 
     val nirvanaRowType = nirvanaRVDType.rowType
 

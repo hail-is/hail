@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.TableType
-import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.physical.{PCanonicalStruct}
 import is.hail.expr.types.virtual._
 import is.hail.io.fs.FS
 import is.hail.io.index.{IndexWriter, InternalNodeBuilder, LeafNodeBuilder}
@@ -12,7 +12,6 @@ import is.hail.io._
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, TaskContext}
 
@@ -65,7 +64,7 @@ object IndexBgen {
     val headers = LoadBgen.getFileHeaders(fs, bgenFilePaths)
     LoadBgen.checkVersionTwo(headers)
 
-    val annotationType = +PStruct()
+    val annotationType = PCanonicalStruct(true)
 
     val settings: BgenSettings = BgenSettings(
       0, // nSamples not used if there are no entries

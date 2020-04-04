@@ -8,8 +8,8 @@ import is.hail.utils.ArrayBuilder
 object InternalNodeBuilder {
   def virtualType(keyType: Type, annotationType: Type): TStruct = typ(PType.canonical(keyType), PType.canonical(annotationType)).virtualType
 
-  def legacyTyp(keyType: PType, annotationType: PType) = PStruct(
-    "children" -> +PArray(+PStruct(
+  def legacyTyp(keyType: PType, annotationType: PType) = PCanonicalStruct(
+    "children" -> +PCanonicalArray(+PCanonicalStruct(
       "index_file_offset" -> +PInt64(),
       "first_idx" -> +PInt64(),
       "first_key" -> keyType,
@@ -18,8 +18,8 @@ object InternalNodeBuilder {
     ), required = true)
   )
 
-  def typ(keyType: PType, annotationType: PType) = PStruct(
-    "children" -> +PArray(+PStruct(
+  def typ(keyType: PType, annotationType: PType) = PCanonicalStruct(
+    "children" -> +PCanonicalArray(+PCanonicalStruct(
       "index_file_offset" -> +PInt64(),
       "first_idx" -> +PInt64(),
       "first_key" -> keyType,

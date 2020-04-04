@@ -7,12 +7,6 @@ import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.expr.types.virtual.TInterval
 import is.hail.utils._
 
-import scala.reflect.{ClassTag, classTag}
-
-object PInterval {
-  def apply(pointType: PType, required: Boolean = false) = PCanonicalInterval(pointType, required)
-}
-
 abstract class PInterval extends ComplexPType {
   val pointType: PType
 

@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PInt64, PStruct, PType}
+import is.hail.expr.types.physical.{PCanonicalStruct, PInt64, PStruct, PType}
 import is.hail.expr.types.virtual.{TArray, TInt64, TInterval, TStruct}
 import is.hail.io._
 import is.hail.io.index.IndexWriter
@@ -818,7 +818,7 @@ class RVD(
     val entriesIndexSpec = IndexSpec.defaultAnnotation("../../index", typ.kType, withOffsetField = true)
     val makeRowsEnc = rowsCodecSpec.buildEncoder(fullRowType)
     val makeEntriesEnc = entriesCodecSpec.buildEncoder(fullRowType)
-    val makeIndexWriter = IndexWriter.builder(typ.kType, +PStruct("entries_offset" -> PInt64()))
+    val makeIndexWriter = IndexWriter.builder(typ.kType, +PCanonicalStruct("entries_offset" -> PInt64()))
 
     val localTyp = typ
 
@@ -1510,7 +1510,7 @@ object RVD {
     val entriesIndexSpec = IndexSpec.defaultAnnotation("../../index", localTyp.kType, withOffsetField = true)
     val makeRowsEnc = rowsCodecSpec.buildEncoder(fullRowType)
     val makeEntriesEnc = entriesCodecSpec.buildEncoder(fullRowType)
-    val makeIndexWriter = IndexWriter.builder(localTyp.kType, +PStruct("entries_offset" -> PInt64()))
+    val makeIndexWriter = IndexWriter.builder(localTyp.kType, +PCanonicalStruct("entries_offset" -> PInt64()))
 
     val partDigits = digitsNeeded(nPartitions)
     val fileDigits = digitsNeeded(rvds.length)

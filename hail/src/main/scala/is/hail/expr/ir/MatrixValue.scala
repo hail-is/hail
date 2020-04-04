@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.types.physical.{PArray, PStruct, PType}
+import is.hail.expr.types.physical.{PArray, PCanonicalStruct, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.io.BufferSpec
@@ -101,7 +101,7 @@ case class MatrixValue(
   private def writeGlobals(fs: FS, path: String, bufferSpec: BufferSpec) {
     val partitionCounts = AbstractRVDSpec.writeSingle(fs, path + "/rows", globals.t, bufferSpec, Array(globals.javaValue))
 
-    AbstractRVDSpec.writeSingle(fs, path + "/globals", PStruct.empty(), bufferSpec, Array[Annotation](Row()))
+    AbstractRVDSpec.writeSingle(fs, path + "/globals", PCanonicalStruct.empty(), bufferSpec, Array[Annotation](Row()))
 
     val globalsSpec = TableSpec(
       FileFormat.version.rep,

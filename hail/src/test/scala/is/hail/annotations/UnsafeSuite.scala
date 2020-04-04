@@ -50,7 +50,7 @@ class UnsafeSuite extends HailSuite {
 
   @DataProvider(name = "codecs")
   def codecs(): Array[Array[Any]] = {
-    (BufferSpec.specs ++ Array(TypedCodecSpec(PStruct("x" -> PInt64()), BufferSpec.default)))
+    (BufferSpec.specs ++ Array(TypedCodecSpec(PCanonicalStruct("x" -> PInt64()), BufferSpec.default)))
       .map(x => Array[Any](x))
   }
 
@@ -142,9 +142,9 @@ class UnsafeSuite extends HailSuite {
       6L -> PInt64(),
       5.5f -> PFloat32(),
       5.7d -> PFloat64(),
-      "foo" -> PString(),
-      Array[Byte](61, 62, 63) -> PBinary(),
-      FastIndexedSeq[Int](1, 2, 3) -> PArray(PInt32()))
+      "foo" -> PCanonicalString(),
+      Array[Byte](61, 62, 63) -> PCanonicalBinary(),
+      FastIndexedSeq[Int](1, 2, 3) -> PCanonicalArray(PInt32()))
 
     valuesAndTypes.foreach { case (v, t) =>
       Region.scoped { region =>
@@ -322,7 +322,7 @@ class UnsafeSuite extends HailSuite {
   }
 
   @Test def testEmptySize() {
-    assert(PStruct().byteSize == 0)
+    assert(PCanonicalStruct().byteSize == 0)
   }
 
   @Test def testUnsafeOrdering() {

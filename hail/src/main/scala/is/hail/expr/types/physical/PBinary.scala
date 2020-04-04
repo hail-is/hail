@@ -3,13 +3,8 @@ package is.hail.expr.types.physical
 import is.hail.annotations.CodeOrdering
 import is.hail.annotations.{Region, UnsafeOrdering, _}
 import is.hail.asm4s._
-import is.hail.check.Arbitrary._
-import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TBinary
-import is.hail.utils._
-
-import scala.reflect.{ClassTag, _}
 
 abstract class PBinary extends PType {
   lazy val virtualType: TBinary.type = TBinary
@@ -102,12 +97,6 @@ abstract class PBinary extends PType {
   def store(addr: Long, bytes: Array[Byte]): Unit
 
   def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit]
-}
-
-object PBinary {
-  def apply(required: Boolean = false): PBinary = PCanonicalBinary(required)
-
-  def unapply(t: PBinary): Option[Boolean] = PCanonicalBinary.unapply(t)
 }
 
 abstract class PBinaryCode extends PCode {

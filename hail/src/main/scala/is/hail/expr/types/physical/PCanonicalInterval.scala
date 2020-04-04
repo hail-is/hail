@@ -14,7 +14,7 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
       sb.append("]")
     }
 
-    override val representation: PStruct = PStruct(
+    override val representation: PStruct = PCanonicalStruct(
       required,
       "start" -> pointType,
       "end" -> pointType,

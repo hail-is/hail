@@ -21,7 +21,7 @@ class PTypeSuite extends HailSuite {
       PFloat64(true),
       PBoolean(true),
       PCanonicalCall(true),
-      PBinary(false),
+      PCanonicalBinary(false),
       PCanonicalString(true),
       PCanonicalLocus(ReferenceGenome.GRCh37, false),
       PCanonicalArray(PInt32Required, true),

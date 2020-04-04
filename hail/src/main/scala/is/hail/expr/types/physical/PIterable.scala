@@ -4,7 +4,7 @@ abstract class PIterable extends PType {
   def elementType: PType
 
   def asPContainer: PContainer = this match {
-    case _: PStream => PArray(this.elementType, this.required)
+    case _: PStream => PCanonicalArray(this.elementType, this.required)
     case x: PContainer => x
   }
 }

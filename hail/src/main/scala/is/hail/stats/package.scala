@@ -1,7 +1,6 @@
 package is.hail
 
-import is.hail.expr.types.physical.{PFloat64, PStruct}
-import is.hail.expr.types.virtual._
+import is.hail.expr.types.physical.{PCanonicalStruct, PFloat64, PStruct}
 import is.hail.utils._
 import net.sourceforge.jdistlib.disttest.{DistributionTest, TestKind}
 import net.sourceforge.jdistlib.{Beta, ChiSquare, Normal, Poisson}
@@ -105,7 +104,7 @@ package object stats {
     }
   }
 
-  val hweStruct = PStruct("het_freq_hwe" -> PFloat64(true), "p_value" -> PFloat64(true))
+  val hweStruct = PCanonicalStruct("het_freq_hwe" -> PFloat64(true), "p_value" -> PFloat64(true))
 
   def hardyWeinbergTest(nHomRef: Int, nHet: Int, nHomVar: Int): Array[Double] = {
     if (nHomRef < 0 || nHet < 0 || nHomVar < 0)
@@ -119,7 +118,7 @@ package object stats {
     Array(LH.getNumericalMean / n, LH.exactMidP(nAB))
   }
   
-  val chisqStruct = PStruct("p_value" -> PFloat64(true), "odds_ratio" -> PFloat64(true))
+  val chisqStruct = PCanonicalStruct("p_value" -> PFloat64(true), "odds_ratio" -> PFloat64(true))
   
   def chiSquaredTest(a0: Int, b0: Int, c0: Int, d0: Int): Array[Double] = {
     if (a0 < 0 || b0 < 0 || c0 < 0 || d0 < 0)
@@ -148,7 +147,7 @@ package object stats {
       fisherExactTest(a, b, c, d)
   }
   
-  val fetStruct = PStruct(
+  val fetStruct = PCanonicalStruct(
     "p_value" -> PFloat64(),
     "odds_ratio" -> PFloat64(),
     "ci_95_lower" -> PFloat64(),

@@ -1,10 +1,8 @@
 package is.hail.utils
 
-import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
-import is.hail.expr.ir.{Compile, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple}
-import is.hail.expr.types.physical.{PBaseStruct, PSet, PTuple, PType}
+import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.expr.types.physical.{PCanonicalTuple, PTuple, PType}
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple}
-import is.hail.expr.types.physical.PBaseStruct
 import is.hail.expr.types.virtual._
 import org.apache.spark.sql.Row
 
@@ -55,7 +53,7 @@ object Graph {
     if (edges2.length > 400000)
       warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
 
-    val wrappedNodeType = PTuple(PType.canonical(nodeType))
+    val wrappedNodeType = PCanonicalTuple(false, PType.canonical(nodeType))
     val refMap = Map("l" -> wrappedNodeType.virtualType, "r" -> wrappedNodeType.virtualType)
 
     Region.scoped { region =>

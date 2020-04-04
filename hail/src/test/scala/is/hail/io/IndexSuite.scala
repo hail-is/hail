@@ -3,7 +3,7 @@ package is.hail.io
 import is.hail.HailSuite
 import is.hail.annotations.Annotation
 import is.hail.expr.types.encoded.EType
-import is.hail.expr.types.physical.{PInt32, PString, PStruct, PType}
+import is.hail.expr.types.physical.{PCanonicalString, PCanonicalStruct, PInt32, PString, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.fs.FS
 import is.hail.io.index._
@@ -49,7 +49,7 @@ class IndexSuite extends HailSuite {
     iw.close()
   }
 
-  def indexReader(fs: FS, file: String, annotationType: Type, keyPType: PType = PString()): IndexReader = {
+  def indexReader(fs: FS, file: String, annotationType: Type, keyPType: PType = PCanonicalString()): IndexReader = {
     indexReader(fs, file, PType.canonical(annotationType), keyPType)
   }
 
@@ -74,7 +74,7 @@ class IndexSuite extends HailSuite {
     annotationType: Type,
     branchingFactor: Int = 2,
     attributes: Map[String, Any] = Map.empty[String, Any]): Unit =
-    writeIndex(file, data.map(_.asInstanceOf[Any]), annotations, PString(), PType.canonical(annotationType), branchingFactor, attributes)
+    writeIndex(file, data.map(_.asInstanceOf[Any]), annotations, PCanonicalString(), PType.canonical(annotationType), branchingFactor, attributes)
 
   @Test(dataProvider = "elements")
   def writeReadGivesSameAsInput(data: Array[String]) {
@@ -259,19 +259,19 @@ class IndexSuite extends HailSuite {
 
   @Test def testIntervalIteratorWorksWithGeneralEndpoints() {
     for (branchingFactor <- 2 to 5) {
-      val keyType = PStruct("a" -> PString(), "b" -> PInt32())
+      val keyType = PCanonicalStruct("a" -> PCanonicalString(), "b" -> PInt32())
       val file = tmpDir.createTempFile("from", "idx")
       writeIndex(file,
         stringsWithDups.zipWithIndex.map { case (s, i) => Row(s, i) },
         stringsWithDups.indices.map(i => Row()).toArray,
         keyType,
-        +PStruct(),
+        +PCanonicalStruct(),
         branchingFactor,
         Map.empty)
 
       val leafChildren = stringsWithDups.zipWithIndex.map { case (s, i) => LeafChild(Row(s, i), i, Row()) }.toFastIndexedSeq
 
-      val index = indexReader(hc.fs, file, +PStruct(), keyPType = PStruct("a" -> PString(), "b" -> PInt32()))
+      val index = indexReader(hc.fs, file, +PCanonicalStruct(), keyPType = PCanonicalStruct("a" -> PCanonicalString(), "b" -> PInt32()))
       assert(index.queryByInterval(Row("cat", 3), Row("cat", 5), includesStart = true, includesEnd = false).toFastIndexedSeq ==
         leafChildren.slice(3, 5))
       assert(index.queryByInterval(Row("cat"), Row("cat", 5), includesStart = true, includesEnd = false).toFastIndexedSeq ==

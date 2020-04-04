@@ -50,8 +50,8 @@ class EBinary(override val required: Boolean) extends EType {
   override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PBinary]
 
   def _decodedPType(requestedType: Type): PType = requestedType match {
-    case TBinary => PBinary(required)
-    case TString => PString(required)
+    case TBinary => PCanonicalBinary(required)
+    case TString => PCanonicalString(required)
   }
 
   def _asIdent = "binary"

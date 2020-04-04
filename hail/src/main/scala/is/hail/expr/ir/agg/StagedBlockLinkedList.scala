@@ -21,7 +21,7 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
   private val lastNode = cb.genFieldThisRef[Long]()
   private val totalCount = cb.genFieldThisRef[Int]()
 
-  val storageType = PStruct(
+  val storageType = PCanonicalStruct(
     "firstNode" -> PInt64Required,
     "lastNode" -> PInt64Required,
     "totalCount" -> PInt32Required)
@@ -44,10 +44,10 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
 
   type Node = Value[Long]
 
-  val bufferType = PArray(elemType, required = true)
+  val bufferType = PCanonicalArray(elemType, required = true)
   val bufferEType = EArray(EType.defaultFromPType(elemType), required = true)
 
-  val nodeType = PStruct(
+  val nodeType = PCanonicalStruct(
     "buf" -> bufferType,
     "count" -> PInt32Required,
     "next" -> PInt64Required)

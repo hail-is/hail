@@ -25,13 +25,13 @@ final case class EArray(val elementType: EType, override val required: Boolean =
   def _decodedPType(requestedType: Type): PType = {
     val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TContainer].elementType)
     requestedType match {
-      case t: TSet =>
-        PSet(elementPType, required)
-      case t: TArray =>
-        PArray(elementPType, required)
-      case t: TDict =>
+      case _: TSet =>
+        PCanonicalSet(elementPType, required)
+      case _: TArray =>
+        PCanonicalArray(elementPType, required)
+      case _: TDict =>
         val et = elementPType.asInstanceOf[PStruct]
-        PDict(et.fieldType("key"), et.fieldType("value"), required)
+        PCanonicalDict(et.fieldType("key"), et.fieldType("value"), required)
     }
   }
 

@@ -354,10 +354,10 @@ object CodeOrdering {
   }
 
   def mapOrdering(t1: PDict, t2: PDict, mb: EmitMethodBuilder[_]): CodeOrdering =
-    iterableOrdering(PArray(t1.elementType, t1.required), PArray(t2.elementType, t2.required), mb)
+    iterableOrdering(PCanonicalArray(t1.elementType, t1.required), PCanonicalArray(t2.elementType, t2.required), mb)
 
   def setOrdering(t1: PSet, t2: PSet, mb: EmitMethodBuilder[_]): CodeOrdering =
-    iterableOrdering(PArray(t1.elementType, t1.required), PArray(t2.elementType, t2.required), mb)
+    iterableOrdering(PCanonicalArray(t1.elementType, t1.required), PCanonicalArray(t2.elementType, t2.required), mb)
 
 }
 

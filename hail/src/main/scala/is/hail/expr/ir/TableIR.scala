@@ -727,7 +727,7 @@ case class TableIntervalJoin(
       if (product) {
         val joiner = (rightPType: PStruct) => {
           val leftRowType = leftRVDType.rowType
-          val newRowType = leftRowType.appendKey(localRoot, PArray(rightPType.selectFields(rightValueFields)))
+          val newRowType = leftRowType.appendKey(localRoot, PCanonicalArray(rightPType.selectFields(rightValueFields)))
           (RVDType(newRowType, localKey), (_: RVDContext, it: Iterator[Muple[RegionValue, Iterable[RegionValue]]]) => {
             val rvb = new RegionValueBuilder()
             val rv2 = RegionValue()
@@ -1060,7 +1060,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     val (_, eltSeqF) = ir.CompileWithAggregators2[Long, Long, Unit](ctx,
       physicalAggs,
-      "global", Option(globalsBc).map(_.value.t).getOrElse(PStruct()),
+      "global", Option(globalsBc).map(_.value.t).getOrElse(PCanonicalStruct()),
       "row", tv.rvd.rowPType,
       extracted.eltOp(ctx))
 
@@ -1070,7 +1070,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     val (rTyp, f) = ir.CompileWithAggregators2[Long, Long, Long](ctx,
       physicalAggs,
-      "global", Option(globalsBc).map(_.value.t).getOrElse(PStruct()),
+      "global", Option(globalsBc).map(_.value.t).getOrElse(PCanonicalStruct()),
       "row", tv.rvd.rowPType,
       Let(scanRef, extracted.results, extracted.postAggIR))
     assert(rTyp.virtualType == newRow.typ)
@@ -1893,7 +1893,7 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
     val prevRowType = prev.rvd.typ.rowType
     val prevKeyType = prev.rvd.typ.kType
 
-    val rowType = prevKeyType ++ PStruct(("grouped_fields", PArray(prevRowType)))
+    val rowType = prevKeyType ++ PCanonicalStruct(("grouped_fields", PCanonicalArray(prevRowType)))
     val newRVDType = prevRVD.typ.copy(rowType = rowType)
     val keyIndices = child.typ.keyFieldIdx
 

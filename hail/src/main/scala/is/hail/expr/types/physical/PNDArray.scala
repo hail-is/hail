@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
-import is.hail.asm4s.{Code, MethodBuilder, _}
+import is.hail.asm4s.{Code, _}
 import is.hail.expr.Nat
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TNDArray
@@ -10,10 +10,6 @@ final class StaticallyKnownField[T, U](
   val pType: T,
   val load: Code[Long] => Code[U]
 )
-
-object PNDArray {
-  def apply(elementType: PType, nDims: Int, required: Boolean = false) = PCanonicalNDArray(elementType, nDims, required)
-}
 
 abstract class PNDArray extends PType {
   val elementType: PType

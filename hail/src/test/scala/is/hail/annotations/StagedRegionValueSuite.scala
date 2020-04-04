@@ -97,7 +97,7 @@ class StagedRegionValueSuite extends HailSuite {
 
   @Test
   def testArray() {
-    val rt = PArray(PInt32())
+    val rt = PCanonicalArray(PInt32())
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long]("fb")
     val srvb = new StagedRegionValueBuilder(fb, rt)
@@ -137,7 +137,7 @@ class StagedRegionValueSuite extends HailSuite {
 
   @Test
   def testStruct() {
-    val rt = PStruct("a" -> PString(), "b" -> PInt32())
+    val rt = PCanonicalStruct("a" -> PCanonicalString(), "b" -> PInt32())
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long]("fb")
     val srvb = new StagedRegionValueBuilder(fb, rt)
@@ -179,7 +179,7 @@ class StagedRegionValueSuite extends HailSuite {
 
   @Test
   def testArrayOfStruct() {
-    val rt = PArray(PStruct("a" -> PInt32(), "b" -> PString()))
+    val rt = PCanonicalArray(PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString()))
     val input = "hello"
     val fb = EmitFunctionBuilder[Region, String, Long]("fb")
     val srvb = new StagedRegionValueBuilder(fb, rt)
@@ -242,7 +242,7 @@ class StagedRegionValueSuite extends HailSuite {
 
   @Test
   def testMissingRandomAccessArray() {
-    val rt = PArray(PStruct("a" -> PInt32(), "b" -> PString()))
+    val rt = PCanonicalArray(PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString()))
     val intVal = 20
     val strVal = "a string with a partner of 20"
     val region = Region()
@@ -283,7 +283,7 @@ class StagedRegionValueSuite extends HailSuite {
 
   @Test
   def testSetFieldPresent() {
-    val rt = PStruct("a" -> PInt32(), "b" -> PString(), "c" -> PFloat64())
+    val rt = PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString(), "c" -> PFloat64())
     val intVal = 30
     val floatVal = 39.273d
     val r = Region()
@@ -321,7 +321,7 @@ class StagedRegionValueSuite extends HailSuite {
 
   @Test
   def testStructWithArray() {
-    val rt = PStruct("a" -> PString(), "b" -> PArray(PInt32()))
+    val rt = PCanonicalStruct("a" -> PCanonicalString(), "b" -> PCanonicalArray(PInt32()))
     val input = "hello"
     val fb = EmitFunctionBuilder[Region, String, Long]("fb")
     val codeInput = fb.getArg[String](2)
@@ -386,7 +386,7 @@ class StagedRegionValueSuite extends HailSuite {
 
   @Test
   def testMissingArray() {
-    val rt = PArray(PInt32())
+    val rt = PCanonicalArray(PInt32())
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long]("fb")
     val codeInput = fb.getArg[Int](2)
@@ -432,7 +432,7 @@ class StagedRegionValueSuite extends HailSuite {
 
   @Test
   def testAddPrimitive() {
-    val t = PStruct("a" -> PInt32(), "b" -> PBoolean(), "c" -> PFloat64())
+    val t = PCanonicalStruct("a" -> PInt32(), "b" -> PBoolean(), "c" -> PFloat64())
     val fb = EmitFunctionBuilder[Region, Int, Boolean, Double, Long]("fb")
     val srvb = new StagedRegionValueBuilder(fb, t)
 
@@ -500,9 +500,9 @@ class StagedRegionValueSuite extends HailSuite {
     val t1 = PCanonicalArray(PCanonicalStruct(
       true,
       "x1" -> PInt32(),
-      "x2" -> PArray(PInt32(), required = true),
-      "x3" -> PArray(PInt32(true), required = true),
-      "x4" -> PSet(PCanonicalStruct(true, "y" -> PString(true)), required = false)
+      "x2" -> PCanonicalArray(PInt32(), required = true),
+      "x3" -> PCanonicalArray(PInt32(true), required = true),
+      "x4" -> PCanonicalSet(PCanonicalStruct(true, "y" -> PCanonicalString(true)), required = false)
     ), required = false)
     val t2 = t1.deepInnerRequired(false)
 
@@ -530,9 +530,9 @@ class StagedRegionValueSuite extends HailSuite {
     val t1 = PCanonicalStruct(false, "a" -> PCanonicalArray(PCanonicalStruct(
       true,
       "x1" -> PInt32(),
-      "x2" -> PArray(PInt32(), required = true),
-      "x3" -> PArray(PInt32(true), required = true),
-      "x4" -> PSet(PCanonicalStruct(true, "y" -> PString(true)), required = false)
+      "x2" -> PCanonicalArray(PInt32(), required = true),
+      "x3" -> PCanonicalArray(PInt32(true), required = true),
+      "x4" -> PCanonicalSet(PCanonicalStruct(true, "y" -> PCanonicalString(true)), required = false)
     ), required = false))
     val t2 = t1.deepInnerRequired(false).asInstanceOf[PStruct]
 

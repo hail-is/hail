@@ -6,7 +6,7 @@ import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PStruct, PType}
+import is.hail.expr.types.physical.{PCanonicalStruct, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
@@ -56,7 +56,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
         .collect()
     }
 
-    val rowType = PStruct.canonical(TStruct(mv.typ.rowKey.zip(mv.typ.rowKeyStruct.types): _*) ++ TStruct("loadings" -> TArray(TFloat64)))
+    val rowType = PCanonicalStruct.canonical(TStruct(mv.typ.rowKey.zip(mv.typ.rowKeyStruct.types): _*) ++ TStruct("loadings" -> TArray(TFloat64)))
     val rowKeysBc = HailContext.backend.broadcast(collectRowKeys())
     val localRowKeySignature = mv.typ.rowKeyStruct.types
 

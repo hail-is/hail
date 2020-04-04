@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.types.physical.{PArray, PType}
+import is.hail.expr.types.physical.{PCanonicalArray, PType}
 
 class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   val typ: PType = array.elt
@@ -21,7 +21,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   }
 
   def toRegion(): Code[Long] = {
-    val srvb = new StagedRegionValueBuilder(r, PArray(typ))
+    val srvb = new StagedRegionValueBuilder(r, PCanonicalArray(typ))
     Code(
       srvb.start(array.size),
       Code.whileLoop(srvb.arrayIdx < array.size,

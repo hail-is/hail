@@ -6,7 +6,7 @@ import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.types.virtual._
-import is.hail.expr.types.{BaseType, Requiredness}
+import is.hail.expr.types.{Requiredness}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.json4s.CustomSerializer
@@ -20,7 +20,7 @@ class PTypeSerializer extends CustomSerializer[PType](format => (
 object PType {
   def genScalar(required: Boolean): Gen[PType] =
     Gen.oneOf(PBoolean(required), PInt32(required), PInt64(required), PFloat32(required),
-      PFloat64(required), PString(required), PCall(required))
+      PFloat64(required), PCanonicalString(required), PCanonicalCall(required))
 
   val genOptionalScalar: Gen[PType] = genScalar(false)
 
@@ -28,8 +28,8 @@ object PType {
 
   def genComplexType(required: Boolean): Gen[ComplexPType] = {
     val rgDependents = ReferenceGenome.references.values.toArray.map(rg =>
-      PLocus(rg, required))
-    val others = Array(PCall(required))
+      PCanonicalLocus(rg, required))
+    val others = Array(PCanonicalCall(required))
     Gen.oneOfSeq(rgDependents ++ others)
   }
 
@@ -46,12 +46,12 @@ object PType {
 
   def preGenStruct(required: Boolean, genFieldType: Gen[PType]): Gen[PStruct] = {
     for (fields <- genFields(required, genFieldType)) yield
-      PStruct(fields, required)
+      PCanonicalStruct(fields, required)
   }
 
   def preGenTuple(required: Boolean, genFieldType: Gen[PType]): Gen[PTuple] = {
     for (fields <- genFields(required, genFieldType)) yield
-      PTuple(required, fields.map(_.typ): _*)
+      PCanonicalTuple(required, fields.map(_.typ): _*)
   }
 
   private val defaultRequiredGenRatio = 0.2
@@ -70,7 +70,7 @@ object PType {
 
   def genSized(size: Int, required: Boolean, genPStruct: Gen[PStruct]): Gen[PType] =
     if (size < 1)
-      Gen.const(PStruct.empty(required))
+      Gen.const(PCanonicalStruct.empty(required))
     else if (size < 2)
       genScalar(required)
     else {
@@ -78,16 +78,16 @@ object PType {
         (4, genScalar(required)),
         (1, genComplexType(required)),
         (1, genArb.map {
-          PArray(_)
+          PCanonicalArray(_)
         }),
         (1, genArb.map {
-          PSet(_)
+          PCanonicalSet(_)
         }),
         (1, genArb.map {
-          PInterval(_)
+          PCanonicalInterval(_)
         }),
         (1, preGenTuple(required, genArb)),
-        (1, Gen.zip(genRequired, genArb).map { case (k, v) => PDict(k, v) }),
+        (1, Gen.zip(genRequired, genArb).map { case (k, v) => PCanonicalDict(k, v) }),
         (1, genPStruct.resize(size)))
     }
 
@@ -111,18 +111,18 @@ object PType {
       case TFloat32 => PFloat32(required)
       case TFloat64 => PFloat64(required)
       case TBoolean => PBoolean(required)
-      case TBinary => PBinary(required)
-      case TString => PString(required)
-      case TCall => PCall(required)
-      case t: TLocus => PLocus(t.rg, required)
-      case t: TInterval => PInterval(canonical(t.pointType), required)
+      case TBinary => PCanonicalBinary(required)
+      case TString => PCanonicalString(required)
+      case TCall => PCanonicalCall(required)
+      case t: TLocus => PCanonicalLocus(t.rg, required)
+      case t: TInterval => PCanonicalInterval(canonical(t.pointType), required)
       case t: TStream => PStream(canonical(t.elementType), required)
-      case t: TArray => PArray(canonical(t.elementType), required)
-      case t: TSet => PSet(canonical(t.elementType), required)
-      case t: TDict => PDict(canonical(t.keyType), canonical(t.valueType), required)
-      case t: TTuple => PTuple(t._types.map(tf => PTupleField(tf.index, canonical(tf.typ))), required)
-      case t: TStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), required)
-      case t: TNDArray => PNDArray(canonical(t.elementType).setRequired(true), t.nDims, required)
+      case t: TArray => PCanonicalArray(canonical(t.elementType), required)
+      case t: TSet => PCanonicalSet(canonical(t.elementType), required)
+      case t: TDict => PCanonicalDict(canonical(t.keyType), canonical(t.valueType), required)
+      case t: TTuple => PCanonicalTuple(t._types.map(tf => PTupleField(tf.index, canonical(tf.typ))), required)
+      case t: TStruct => PCanonicalStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), required)
+      case t: TNDArray => PCanonicalNDArray(canonical(t.elementType).setRequired(true), t.nDims, required)
       case TVoid => PVoid
     }
   }
@@ -137,18 +137,18 @@ object PType {
       case t: PFloat32 => PFloat32(t.required)
       case t: PFloat64 => PFloat64(t.required)
       case t: PBoolean => PBoolean(t.required)
-      case t: PBinary => PBinary(t.required)
-      case t: PString => PString(t.required)
-      case t: PCall => PCall(t.required)
-      case t: PLocus => PLocus(t.rg, t.required)
-      case t: PInterval => PInterval(canonical(t.pointType), t.required)
+      case t: PBinary => PCanonicalBinary(t.required)
+      case t: PString => PCanonicalString(t.required)
+      case t: PCall => PCanonicalCall(t.required)
+      case t: PLocus => PCanonicalLocus(t.rg, t.required)
+      case t: PInterval => PCanonicalInterval(canonical(t.pointType), t.required)
       case t: PStream => PStream(canonical(t.elementType), t.required)
-      case t: PArray => PArray(canonical(t.elementType), t.required)
-      case t: PSet => PSet(canonical(t.elementType), t.required)
-      case t: PTuple => PTuple(t._types.map(pf => PTupleField(pf.index, canonical(pf.typ))), t.required)
-      case t: PStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
-      case t: PNDArray => PNDArray(canonical(t.elementType), t.nDims, t.required)
-      case t: PDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)
+      case t: PArray => PCanonicalArray(canonical(t.elementType), t.required)
+      case t: PSet => PCanonicalSet(canonical(t.elementType), t.required)
+      case t: PTuple => PCanonicalTuple(t._types.map(pf => PTupleField(pf.index, canonical(pf.typ))), t.required)
+      case t: PStruct => PCanonicalStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
+      case t: PNDArray => PCanonicalNDArray(canonical(t.elementType), t.nDims, t.required)
+      case t: PDict => PCanonicalDict(canonical(t.keyType), canonical(t.valueType), t.required)
       case PVoid => PVoid
     }
   }
@@ -267,15 +267,15 @@ abstract class PType extends Serializable with Requiredness {
 
   def deepInnerRequired(required: Boolean): PType =
     this match {
-      case t: PArray => PArray(t.elementType.deepInnerRequired(true), required)
-      case t: PSet => PSet(t.elementType.deepInnerRequired(true), required)
-      case t: PDict => PDict(t.keyType.deepInnerRequired(true), t.valueType.deepInnerRequired(true), required)
+      case t: PArray => PCanonicalArray(t.elementType.deepInnerRequired(true), required)
+      case t: PSet => PCanonicalSet(t.elementType.deepInnerRequired(true), required)
+      case t: PDict => PCanonicalDict(t.keyType.deepInnerRequired(true), t.valueType.deepInnerRequired(true), required)
       case t: PStruct =>
-        PStruct(t.fields.map(f => PField(f.name, f.typ.deepInnerRequired(true), f.index)), required)
+        PCanonicalStruct(t.fields.map(f => PField(f.name, f.typ.deepInnerRequired(true), f.index)), required)
       case t: PCanonicalTuple =>
         PCanonicalTuple(t._types.map { f => f.copy(typ = f.typ.deepInnerRequired(true)) }, required)
       case t: PInterval =>
-        PInterval(t.pointType.deepInnerRequired(true), required)
+        PCanonicalInterval(t.pointType.deepInnerRequired(true), required)
       case t =>
         t.setRequired(required)
     }

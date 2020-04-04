@@ -4,9 +4,6 @@ import is.hail.annotations.{Annotation, CodeOrdering}
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TArray
-object PArray {
-  def apply(elementType: PType, required: Boolean = false) = new PCanonicalArray(elementType, required)
-}
 
 trait PArrayIterator {
   def hasNext: Boolean
