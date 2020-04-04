@@ -207,7 +207,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVa
       path,
       idxRelPath,
       stageLocally,
-      IndexWriter.builder(t.kType, +PStruct()),
+      IndexWriter.builder(t.kType, +PCanonicalStruct()),
       RichContextRDDRegionValue.writeRowsPartition(
         encoding.buildEncoder(t.rowType),
         t.kFieldIdx,

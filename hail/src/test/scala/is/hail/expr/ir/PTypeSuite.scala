@@ -2,9 +2,12 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.expr.types.physical._
+import is.hail.expr.types.virtual
+import is.hail.expr.types.virtual.{TArray, TDict, TInt32, TInterval, TStruct}
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
 import org.testng.annotations.{DataProvider, Test}
 
@@ -21,7 +24,7 @@ class PTypeSuite extends HailSuite {
       PFloat64(true),
       PBoolean(true),
       PCanonicalCall(true),
-      PBinary(false),
+      PCanonicalBinary(false),
       PCanonicalString(true),
       PCanonicalLocus(ReferenceGenome.GRCh37, false),
       PCanonicalArray(PInt32Required, true),
@@ -42,5 +45,24 @@ class PTypeSuite extends HailSuite {
     implicit val formats = AbstractRVDSpec.formats
     val s = Serialization.write(ptype)
     assert(Serialization.read[PType](s) == ptype)
+  }
+
+  @Test def testLiteralPType(): Unit = {
+    assert(PType.literalPType(TInt32, 5) == PInt32(true))
+    assert(PType.literalPType(TInt32, null) == PInt32())
+
+    assert(PType.literalPType(TArray(TInt32), null) == PCanonicalArray(PInt32(true)))
+    assert(PType.literalPType(TArray(TInt32), FastIndexedSeq(1, null)) == PCanonicalArray(PInt32(), true))
+    assert(PType.literalPType(TArray(TInt32), FastIndexedSeq(1, 5)) == PCanonicalArray(PInt32(true), true))
+
+    assert(PType.literalPType(TInterval(TInt32), Interval(5, null, false, true)) == PCanonicalInterval(PInt32(), true))
+
+    val p = TStruct("a" -> TInt32, "b" -> TInt32)
+    val d = TDict(p, p)
+    assert(PType.literalPType(d, Map(Row(3, null) -> Row(null, 3))) ==
+      PCanonicalDict(
+        PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32()),
+        PCanonicalStruct(true, "a" -> PInt32(), "b" -> PInt32(true)),
+        true))
   }
 }

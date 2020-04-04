@@ -153,7 +153,7 @@ def local_path_uri(path):
 
 
 def new_temp_file(suffix=None, prefix=None, n_char=10):
-    return Env.hc()._jhc.getTemporaryFile(n_char, joption(prefix), joption(suffix))
+    return Env.backend()._jhc.getTemporaryFile(n_char, joption(prefix), joption(suffix))
 
 
 def new_local_temp_dir(suffix=None, prefix=None, dir=None):

@@ -270,7 +270,7 @@ empty_gvcf = EmptyGVCF()
 single_gvcf = SingleGVCF()
 
 all_resources = profile_25, many_partitions_tables, gnomad_dp_sim, many_strings_table, many_ints_table, sim_ukbb, \
-    random_doubles, empty_gvcf
+    random_doubles, empty_gvcf, single_gvcf
 
 __all__ = ['profile_25',
            'many_partitions_tables',

@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PInt64, PStruct, PType}
+import is.hail.expr.types.physical.{PCanonicalStruct, PInt64, PStruct, PType}
 import is.hail.expr.types.virtual.{TArray, TInt64, TInterval, TStruct}
 import is.hail.io._
 import is.hail.io.index.IndexWriter
@@ -65,6 +65,7 @@ class RVD(
     val newPartitioner = partitioner.rename(nameMap)
     new RVD(newTyp, newPartitioner, crdd)
   }
+
 
   // Exporting
 
@@ -818,7 +819,7 @@ class RVD(
     val entriesIndexSpec = IndexSpec.defaultAnnotation("../../index", typ.kType, withOffsetField = true)
     val makeRowsEnc = rowsCodecSpec.buildEncoder(fullRowType)
     val makeEntriesEnc = entriesCodecSpec.buildEncoder(fullRowType)
-    val makeIndexWriter = IndexWriter.builder(typ.kType, +PStruct("entries_offset" -> PInt64()))
+    val makeIndexWriter = IndexWriter.builder(typ.kType, +PCanonicalStruct("entries_offset" -> PInt64()))
 
     val localTyp = typ
 
@@ -955,10 +956,9 @@ class RVD(
     root: String): RVD = {
     assert(!typ.key.contains(root))
 
-    val valueStruct = right.typ.valueType
     val rightRowType = right.typ.rowType
 
-    val newRowType = rowPType.appendKey(root, right.typ.valueType)
+    val newRowType = rowPType.appendKey(root, right.typ.valueType.setRequired(false))
 
     val localRowType = rowPType
 
@@ -1439,7 +1439,7 @@ object RVD {
   }
 
   private def copyFromType(destPType: PType, srcPType: PType, srcRegionValue: RegionValue): RegionValue =
-    RegionValue(srcRegionValue.region, destPType.copyFromType(srcRegionValue.region, srcPType, srcRegionValue.offset, false))
+    RegionValue(srcRegionValue.region, destPType.copyFromAddress(srcRegionValue.region, srcPType, srcRegionValue.offset, false))
 
   def unify(rvds: Seq[RVD]): Seq[RVD] = {
     if (rvds.length == 1 || rvds.forall(_.rowPType == rvds.head.rowPType))
@@ -1447,11 +1447,11 @@ object RVD {
 
     val unifiedRowPType = InferPType.getNestedElementPTypesOfSameType(rvds.map(_.rowPType)).asInstanceOf[PStruct]
 
-    rvds.map(rvd => {
+    rvds.map { rvd =>
       val srcRowPType = rvd.rowPType
       val newRVDType = rvd.typ.copy(rowType = unifiedRowPType)
       rvd.map(newRVDType)(copyFromType(unifiedRowPType, srcRowPType, _))
-    })
+    }
   }
 
   def union(
@@ -1510,7 +1510,7 @@ object RVD {
     val entriesIndexSpec = IndexSpec.defaultAnnotation("../../index", localTyp.kType, withOffsetField = true)
     val makeRowsEnc = rowsCodecSpec.buildEncoder(fullRowType)
     val makeEntriesEnc = entriesCodecSpec.buildEncoder(fullRowType)
-    val makeIndexWriter = IndexWriter.builder(localTyp.kType, +PStruct("entries_offset" -> PInt64()))
+    val makeIndexWriter = IndexWriter.builder(localTyp.kType, +PCanonicalStruct("entries_offset" -> PInt64()))
 
     val partDigits = digitsNeeded(nPartitions)
     val fileDigits = digitsNeeded(rvds.length)

@@ -21,7 +21,7 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
   private val lastNode = cb.genFieldThisRef[Long]()
   private val totalCount = cb.genFieldThisRef[Int]()
 
-  val storageType = PStruct(
+  val storageType = PCanonicalStruct(
     "firstNode" -> PInt64Required,
     "lastNode" -> PInt64Required,
     "totalCount" -> PInt32Required)
@@ -44,10 +44,10 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
 
   type Node = Value[Long]
 
-  val bufferType = PArray(elemType, required = true)
+  val bufferType = PCanonicalArray(elemType, required = true)
   val bufferEType = EArray(EType.defaultFromPType(elemType), required = true)
 
-  val nodeType = PStruct(
+  val nodeType = PCanonicalStruct(
     "buf" -> bufferType,
     "count" -> PInt32Required,
     "next" -> PInt64Required)
@@ -159,17 +159,17 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
   def push(region: Value[Region], elt: EmitCode): Code[Unit] = {
     val eltTI = typeToTypeInfo(elemType)
     val pushF = cb.genEmitMethod("blockLinkedListPush",
-      Array[TypeInfo[_]](typeInfo[Region], typeInfo[Boolean], eltTI),
+      FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Boolean], eltTI),
       typeInfo[Unit])
     pushF.emit(push(pushF,
-      pushF.getArg[Region](1),
-      pushF.getArg[Boolean](2),
-      pushF.getArg(3)(eltTI)))
+      pushF.getCodeParam[Region](1),
+      pushF.getCodeParam[Boolean](2),
+      pushF.getCodeParam(3)(eltTI).get))
     Code(
       elt.setup,
       elt.m.mux(
-        pushF.invoke(region, true, defaultValue(elemType)),
-        pushF.invoke(region, false, elt.v)))
+        pushF.invokeCode(region, const(true), defaultValue(elemType)),
+        pushF.invokeCode(region, const(false), elt.v)))
   }
 
   def append(region: Value[Region], bll: StagedBlockLinkedList): Code[Unit] = {
@@ -177,17 +177,17 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
     assert(bll ne this)
     assert(bll.elemType.isOfType(elemType))
     val appF = cb.genEmitMethod("blockLinkedListAppend",
-      Array[TypeInfo[_]](typeInfo[Region]),
+      FastIndexedSeq[ParamType](typeInfo[Region]),
       typeInfo[Unit])
     appF.emit(bll.foreach(appF) { elt =>
-      push(appF, appF.getArg[Region](1), elt.m, elt.v)
+      push(appF, appF.getCodeParam[Region](1), elt.m, elt.v)
     })
-    appF.invoke(region)
+    appF.invokeCode(region)
   }
 
   def writeToSRVB(srvb: StagedRegionValueBuilder): Code[Unit] = {
     assert(srvb.typ.fundamentalType.isOfType(bufferType.fundamentalType), s"srvb: ${srvb.typ}, buf: ${bufferType.fundamentalType}")
-    val writeF = cb.genEmitMethod("blockLinkedListToSRVB", Array[TypeInfo[_]](), typeInfo[Unit])
+    val writeF = cb.genEmitMethod("blockLinkedListToSRVB", FastIndexedSeq[ParamType](), typeInfo[Unit])
     writeF.emit {
       Code(
         srvb.start(totalCount, init = true),
@@ -200,14 +200,14 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
             srvb.advance())
         })
     }
-    writeF.invoke()
+    writeF.invokeCode()
   }
 
   def serialize(region: Code[Region], outputBuffer: Code[OutputBuffer]): Code[Unit] = {
     val serF = cb.genEmitMethod("blockLinkedListSerialize",
-      Array[TypeInfo[_]](typeInfo[Region], typeInfo[OutputBuffer]),
+      FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[OutputBuffer]),
       typeInfo[Unit])
-    val ob = serF.getArg[OutputBuffer](2)
+    val ob = serF.getCodeParam[OutputBuffer](2)
     serF.emit {
       val n = serF.newLocal[Long]()
       val i = serF.newLocal[Int]()
@@ -220,15 +220,15 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
         },
         ob.writeBoolean(false))
     }
-    serF.invoke(region, outputBuffer)
+    serF.invokeCode(region, outputBuffer)
   }
 
   def deserialize(region: Code[Region], inputBuffer: Code[InputBuffer]): Code[Unit] = {
     val desF = cb.genEmitMethod("blockLinkedListDeserialize",
-      Array[TypeInfo[_]](typeInfo[Region], typeInfo[InputBuffer]),
+      FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[InputBuffer]),
       typeInfo[Unit])
-    val r = desF.getArg[Region](1)
-    val ib = desF.getArg[InputBuffer](2)
+    val r = desF.getCodeParam[Region](1)
+    val ib = desF.getCodeParam[InputBuffer](2)
     val array = desF.newLocal[Long]("array")
     val dec = bufferEType.buildDecoder(bufferType, desF.ecb)
     desF.emit(
@@ -236,7 +236,7 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
         array := dec(r, ib),
         appendShallow(desF, r, array))
     )
-    desF.invoke(region, inputBuffer)
+    desF.invokeCode[Unit](region, inputBuffer)
   }
 
   private def appendShallow(mb: EmitMethodBuilder[_], r: Code[Region], aoff: Code[Long]): Code[Unit] = {
@@ -259,9 +259,9 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
     assert(other ne this)
     assert(other.cb eq cb)
     val initF = cb.genEmitMethod("blockLinkedListDeepCopy",
-      Array[TypeInfo[_]](typeInfo[Region]),
+      FastIndexedSeq[ParamType](typeInfo[Region]),
       typeInfo[Unit])
-    val r = initF.getArg[Region](1)
+    val r = initF.getCodeParam[Region](1)
     initF.emit {
       val i = initF.newLocal[Int]()
       Code(
@@ -283,6 +283,6 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
             totalCount := other.totalCount)
         })
     }
-    initF.invoke(region)
+    initF.invokeCode(region)
   }
 }

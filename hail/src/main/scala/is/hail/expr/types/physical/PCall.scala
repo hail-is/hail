@@ -4,16 +4,14 @@ import is.hail.asm4s._
 import is.hail.expr.types.virtual.TCall
 import is.hail.expr.ir.EmitCodeBuilder
 
-object PCall {
-  def apply(required: Boolean = false): PCall = PCanonicalCall(required)
-}
-
 abstract class PCall extends ComplexPType {
   lazy val virtualType: TCall.type = TCall
 }
 
 object PCallValue {
-  def apply(pt: PCall, call: Settable[_]): PCallValue = new PCanonicalCallSettable(pt, coerce[Int](call))
+  def apply(pt: PCall, call: Settable[_]): PCallValue = pt match {
+    case t: PCanonicalCall => new PCanonicalCallSettable(t, coerce[Int](call))
+  }
 }
 
 abstract class PCallValue extends PValue {

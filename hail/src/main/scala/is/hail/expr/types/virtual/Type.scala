@@ -1,10 +1,10 @@
 package is.hail.expr.types.virtual
 
 import is.hail.annotations._
+import is.hail.asm4s._
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.ir.IRParser
+import is.hail.expr.ir._
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PType
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.utils
 import is.hail.utils._
@@ -104,6 +104,8 @@ object Type {
 
 abstract class Type extends BaseType with Serializable {
   self =>
+
+  def ti: TypeInfo[_] = typeToTypeInfo(this)
 
   def children: Seq[Type] = FastSeq()
 

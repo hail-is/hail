@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType, typeToTypeInfo}
 import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.utils._
@@ -131,12 +131,12 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
     val Array(call) = seq
     assert(t == call.pv.pt)
 
-    val mb = state.cb.getOrGenEmitMethod("callstatsagg_seqop", t, Array(typeToTypeInfo(t)), UnitInfo) { mb =>
+    val mb = state.cb.getOrGenEmitMethod("callstatsagg_seqop", t, FastIndexedSeq[ParamType](typeToTypeInfo(t)), UnitInfo) { mb =>
       mb.emitWithBuilder[Unit] { cb =>
         val hom = cb.memoize[Boolean](const(true), "hom")
         val lastAllele = cb.memoize[Int](const(-1), "lastAllele")
         val i = cb.memoize[Int](const(0), "i")
-        val call = PCallValue(t, mb.getArg(1)(typeToTypeInfo(t)))
+        val call = PCallValue(t, mb.getCodeParam(1)(typeToTypeInfo(t)))
 
         call.forEachAllele(cb) { allele: Value[Int] =>
           cb.ifx(allele > state.nAlleles,
@@ -155,7 +155,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
 
     Code(call.setup, call.m.mux(
       Code._empty,
-      mb.invoke(call.v)))
+      mb.invokeCode(call.v)))
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {

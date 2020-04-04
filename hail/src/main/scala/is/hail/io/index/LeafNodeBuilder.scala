@@ -8,17 +8,17 @@ import is.hail.utils.ArrayBuilder
 object LeafNodeBuilder {
   def virtualType(keyType: Type, annotationType: Type): TStruct = typ(PType.canonical(keyType), PType.canonical(annotationType)).virtualType
 
-  def legacyTyp(keyType: PType, annotationType: PType) = PStruct(
+  def legacyTyp(keyType: PType, annotationType: PType) = PCanonicalStruct(
     "first_idx" -> +PInt64(),
-    "keys" -> +PArray(+PStruct(
+    "keys" -> +PCanonicalArray(+PCanonicalStruct(
       "key" -> keyType,
       "offset" -> +PInt64(),
       "annotation" -> annotationType
     ), required = true))
 
-  def typ(keyType: PType, annotationType: PType) = PStruct(
+  def typ(keyType: PType, annotationType: PType) = PCanonicalStruct(
     "first_idx" -> +PInt64(),
-    "keys" -> +PArray(+PStruct(
+    "keys" -> +PCanonicalArray(+PCanonicalStruct(
       "key" -> keyType,
       "offset" -> +PInt64(),
       "annotation" -> annotationType

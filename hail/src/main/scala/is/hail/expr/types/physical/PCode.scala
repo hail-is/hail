@@ -25,6 +25,8 @@ abstract class PCode { self =>
 
   def code: Code[_]
 
+  def codeTuple(): IndexedSeq[Code[_]]
+
   def typeInfo: TypeInfo[_] = typeToTypeInfo(pt)
 
   def tcode[T](implicit ti: TypeInfo[T]): Code[T] = {
@@ -46,6 +48,8 @@ abstract class PCode { self =>
   def asString: PStringCode = asInstanceOf[PStringCode]
 
   def asInterval: PIntervalCode = asInstanceOf[PIntervalCode]
+
+  def asLocus: PLocusCode = asInstanceOf[PLocusCode]
 
   def asCall: PCallCode = asInstanceOf[PCallCode]
 
@@ -93,15 +97,15 @@ object PCode {
     case pt: PCanonicalBaseStruct =>
       new PCanonicalBaseStructCode(pt, coerce[Long](code))
 
-    case pt: PBinary =>
+    case pt: PCanonicalBinary =>
       new PCanonicalBinaryCode(pt, coerce[Long](code))
-    case pt: PString =>
+    case pt: PCanonicalString =>
       new PCanonicalStringCode(pt, coerce[Long](code))
-    case pt: PInterval =>
+    case pt: PCanonicalInterval =>
       new PCanonicalIntervalCode(pt, coerce[Long](code))
-    case pt: PLocus =>
+    case pt: PCanonicalLocus =>
       new PCanonicalLocusCode(pt, coerce[Long](code))
-    case pt: PCall =>
+    case pt: PCanonicalCall =>
       new PCanonicalCallCode(pt, coerce[Int](code))
 
     case _ =>

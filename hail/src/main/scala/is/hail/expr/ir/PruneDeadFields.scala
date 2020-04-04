@@ -1183,13 +1183,15 @@ object PruneDeadFields {
             BindingEnv(agg = Some(aEnv.eval))
           ) ++ knownLength.map(x => memoizeValueIR(x, x.typ, memo)))
         }
-      case ApplyAggOp(initOpArgs, seqOpArgs, _) =>
-        val initEnv = unifyEnvsSeq(initOpArgs.map(i => memoizeValueIR(i, i.typ, memo)))
-        val seqOpEnv = unifyEnvsSeq(seqOpArgs.map(arg => memoizeValueIR(arg, arg.typ, memo)))
+      case ApplyAggOp(initOpArgs, seqOpArgs, sig) =>
+        val prunedSig = AggSignature.prune(sig, requestedType)
+        val initEnv = unifyEnvsSeq(initOpArgs.zip(prunedSig.initOpArgs).map { case (arg, req) => memoizeValueIR(arg, req, memo) })
+        val seqOpEnv = unifyEnvsSeq(seqOpArgs.zip(prunedSig.seqOpArgs).map { case (arg, req) => memoizeValueIR(arg, req, memo) })
         BindingEnv(eval = initEnv.eval, agg = Some(seqOpEnv.eval))
-      case ApplyScanOp(initOpArgs, seqOpArgs, _) =>
-        val initEnv = unifyEnvsSeq(initOpArgs.map(i => memoizeValueIR(i, i.typ, memo)))
-        val seqOpEnv = unifyEnvsSeq(seqOpArgs.map(arg => memoizeValueIR(arg, arg.typ, memo)))
+      case ApplyScanOp(initOpArgs, seqOpArgs, sig) =>
+        val prunedSig = AggSignature.prune(sig, requestedType)
+        val initEnv = unifyEnvsSeq(initOpArgs.zip(prunedSig.initOpArgs).map { case (arg, req) => memoizeValueIR(arg, req, memo) })
+        val seqOpEnv = unifyEnvsSeq(seqOpArgs.zip(prunedSig.seqOpArgs).map { case (arg, req) => memoizeValueIR(arg, req, memo) })
         BindingEnv(eval = initEnv.eval, scan = Some(seqOpEnv.eval))
       case StreamAgg(a, name, query) =>
         val aType = a.typ.asInstanceOf[TStream]
@@ -1374,11 +1376,11 @@ object PruneDeadFields {
         val keys2 = requestedType.key
         // fully upcast before shuffle
         if (!isSorted && keys2.nonEmpty)
-          child2 = upcastTable(child2, memo.requestedType.lookup(child).asInstanceOf[TableType])
+          child2 = upcastTable(child2, memo.requestedType.lookup(child).asInstanceOf[TableType], upcastGlobals = false)
         TableKeyBy(child2, keys2, isSorted)
       case TableOrderBy(child, sortFields) =>
         // fully upcast before shuffle
-        val child2 = upcastTable(rebuild(child, memo), memo.requestedType.lookup(child).asInstanceOf[TableType])
+        val child2 = upcastTable(rebuild(child, memo), memo.requestedType.lookup(child).asInstanceOf[TableType], upcastGlobals = false)
         TableOrderBy(child2, sortFields)
       case TableLeftJoinRightDistinct(left, right, root) =>
         if (requestedType.rowType.hasField(root))

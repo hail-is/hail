@@ -2,26 +2,26 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.types.physical.{PArray, PType}
+import is.hail.expr.types.physical.{PCanonicalArray, PType}
 
 class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   val typ: PType = array.elt
   val ti: TypeInfo[_] = typeToTypeInfo(typ)
   val mb: EmitMethodBuilder[_] = r.mb
 
-  def sort(sorter: DependentEmitFunction[_]): Code[Unit] = {
+  def sort(sorter: DependentEmitFunctionBuilder[_]): Code[Unit] = {
     val localF = ti match {
       case BooleanInfo => mb.genFieldThisRef[AsmFunction2[Boolean, Boolean, Boolean]]()
       case IntInfo => mb.genFieldThisRef[AsmFunction2[Int, Int, Boolean]]()
       case LongInfo => mb.genFieldThisRef[AsmFunction2[Int, Int, Boolean]]()
-      case FloatInfo => mb.genFieldThisRef[AsmFunction2[Int, Int, Boolean]]()
-      case DoubleInfo => mb.genFieldThisRef[AsmFunction2[Int, Int, Boolean]]()
+      case FloatInfo => mb.genFieldThisRef[AsmFunction2[Long, Long, Boolean]]()
+      case DoubleInfo => mb.genFieldThisRef[AsmFunction2[Double, Double, Boolean]]()
     }
-    Code(localF.storeAny(sorter.newInstance(mb.mb)), array.sort(localF))
+    Code(localF.storeAny(Code.checkcast(sorter.newInstance(mb))(localF.ti)), array.sort(localF))
   }
 
   def toRegion(): Code[Long] = {
-    val srvb = new StagedRegionValueBuilder(r, PArray(typ))
+    val srvb = new StagedRegionValueBuilder(r, PCanonicalArray(typ))
     Code(
       srvb.start(array.size),
       Code.whileLoop(srvb.arrayIdx < array.size,

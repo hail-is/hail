@@ -15,7 +15,7 @@ import org.testng.annotations.Test
 import scala.collection.mutable
 class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
   private val comp = mb.getCodeOrdering(PInt64(), CodeOrdering.compare)
-  def storageType: PTuple = PTuple(required = true, PInt64(), PTuple())
+  def storageType: PTuple = PCanonicalTuple(required = true, PInt64(), PCanonicalTuple(false))
   def compType: PType = PInt64()
   def isEmpty(off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 1)
@@ -50,7 +50,7 @@ object BTreeBackedSet {
     val cb = fb.ecb
     val root = fb.genFieldThisRef[Long]()
     val r = fb.genFieldThisRef[Region]()
-    val ib = fb.getArg[InputBuffer](2)
+    val ib = fb.getCodeParam[InputBuffer](2)
     val ib2 = fb.genFieldThisRef[InputBuffer]()
 
     val km = fb.genFieldThisRef[Boolean]()
@@ -59,7 +59,7 @@ object BTreeBackedSet {
     val key = new TestBTreeKey(fb.apply_method)
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
     fb.emit(Code(
-      r := fb.getArg[Region](1),
+      r := fb.getCodeParam[Region](1),
       btree.init,
       btree.bulkLoad(ib) { (ib, off) =>
         Code(
@@ -90,7 +90,7 @@ class BTreeBackedSet(region: Region, n: Int) {
     val key = new TestBTreeKey(fb.apply_method)
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
     fb.emit(Code(
-      r := fb.getArg[Region](1),
+      r := fb.getCodeParam[Region](1),
       btree.init, root))
 
     fb.resultWithIndex()(0, region)
@@ -101,16 +101,16 @@ class BTreeBackedSet(region: Region, n: Int) {
     val cb = fb.ecb
     val root = fb.genFieldThisRef[Long]()
     val r = fb.genFieldThisRef[Region]()
-    val m = fb.getArg[Boolean](3)
-    val v = fb.getArg[Long](4)
+    val m = fb.getCodeParam[Boolean](3)
+    val v = fb.getCodeParam[Long](4)
     val elt = fb.newLocal[Long]()
 
     val key = new TestBTreeKey(fb.apply_method)
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
 
     fb.emit(Code(
-      r := fb.getArg[Region](1),
-      root := fb.getArg[Long](2),
+      r := fb.getCodeParam[Region](1),
+      root := fb.getCodeParam[Long](2),
       elt := btree.getOrElseInitialize(m, v),
       key.isEmpty(elt).orEmpty(key.storeKey(elt, m, v)),
       root))
@@ -131,8 +131,8 @@ class BTreeBackedSet(region: Region, n: Int) {
     val returnArray = fb.newLocal[Array[java.lang.Long]]()
 
     fb.emit(Code(
-      r := fb.getArg[Region](1),
-      root := fb.getArg[Long](2),
+      r := fb.getCodeParam[Region](1),
+      root := fb.getCodeParam[Long](2),
       sab.clear,
       btree.foreach { koff =>
         Code.memoize(koff, "koff") { koff =>
@@ -158,14 +158,14 @@ class BTreeBackedSet(region: Region, n: Int) {
     val cb = fb.ecb
     val root = fb.genFieldThisRef[Long]()
     val r = fb.genFieldThisRef[Region]()
-    val ob = fb.getArg[OutputBuffer](2)
+    val ob = fb.getCodeParam[OutputBuffer](2)
     val ob2 = fb.genFieldThisRef[OutputBuffer]()
 
     val key = new TestBTreeKey(fb.apply_method)
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
 
     fb.emit(Code(
-      root := fb.getArg[Long](1),
+      root := fb.getCodeParam[Long](1),
       ob2 := ob,
       btree.bulkStore(ob2) { (ob, off) =>
         Code.memoize(ob, "ob", off, "off") { (ob, off) =>

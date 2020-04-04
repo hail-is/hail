@@ -51,7 +51,7 @@ object LoadPlink {
 
     val phenoSig = if (ffConfig.isQuantPheno) ("quant_pheno", PFloat64()) else ("is_case", PBoolean())
 
-    val signature = PCanonicalStruct(("id", PString()), ("fam_id", PCanonicalString()), ("pat_id", PCanonicalString()),
+    val signature = PCanonicalStruct(("id", PCanonicalString()), ("fam_id", PCanonicalString()), ("pat_id", PCanonicalString()),
       ("mat_id", PCanonicalString()), ("is_female", PBoolean()), phenoSig)
 
     val idBuilder = new ArrayBuilder[String]
@@ -211,7 +211,7 @@ case class MatrixPLINKReader(
           nPartitions.getOrElse(sc.defaultMinPartitions)))
 
       val kType = requestedType.canonicalRVDType.kType
-      val rvRowType = requestedType.canonicalPType
+      val rvRowType = requestedType.canonicalRowPType
 
       val hasRsid = requestedType.rowType.hasField("rsid")
       val hasCmPos = requestedType.rowType.hasField("cm_position")

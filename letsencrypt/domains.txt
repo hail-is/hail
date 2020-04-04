@@ -9,4 +9,5 @@ blog.@domain@
 internal.@domain@
 auth.@domain@
 ukbb-rg.@domain@
+query.@domain@
 workshop.@domain@

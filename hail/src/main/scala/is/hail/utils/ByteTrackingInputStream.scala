@@ -2,8 +2,7 @@ package is.hail.utils
 
 import java.io.InputStream
 
-import is.hail.io.fs.SeekableStream
-import org.apache.hadoop.fs.Seekable
+import is.hail.io.fs.Seekable
 
 class ByteTrackingInputStream(base: InputStream) extends InputStream {
   var bytesRead = 0L
@@ -37,7 +36,7 @@ class ByteTrackingInputStream(base: InputStream) extends InputStream {
     base match {
       case base: Seekable =>
         base.seek(offset)
-      case base: SeekableStream =>
+      case base: org.apache.hadoop.fs.Seekable =>
         base.seek(offset)
     }
   }

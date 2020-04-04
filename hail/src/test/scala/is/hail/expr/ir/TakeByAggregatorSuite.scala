@@ -13,10 +13,10 @@ class TakeByAggregatorSuite extends HailSuite {
     for ((size, n) <- Array((1000, 100), (1, 10), (100, 10000), (1000, 10000))) {
       val fb = EmitFunctionBuilder[Region, Long]("test_pointers")
       val cb = fb.ecb
-      val stringPT = PString(true)
-      val tba = new TakeByRVAS(PString(true), PInt64Optional, PArray(stringPT, required = true), cb)
+      val stringPT = PCanonicalString(true)
+      val tba = new TakeByRVAS(PCanonicalString(true), PInt64Optional, PCanonicalArray(stringPT, required = true), cb)
       Region.scoped { r =>
-        val argR = fb.getArg[Region](1)
+        val argR = fb.getCodeParam[Region](1)
         val i = fb.genFieldThisRef[Long]()
         val off = fb.genFieldThisRef[Long]()
         val rt = tba.resultType
@@ -48,9 +48,9 @@ class TakeByAggregatorSuite extends HailSuite {
   @Test def testMissing() {
     val fb = EmitFunctionBuilder[Region, Long]("take_by_test_missing")
     val cb = fb.ecb
-    val tba = new TakeByRVAS(PInt32Optional, PInt32Optional, PArray(PInt32Optional, required = true), cb)
+    val tba = new TakeByRVAS(PInt32Optional, PInt32Optional, PCanonicalArray(PInt32Optional, required = true), cb)
     Region.scoped { r =>
-      val argR = fb.getArg[Region](1)
+      val argR = fb.getCodeParam[Region](1)
       val rt = tba.resultType
 
       fb.emit(Code(Code(FastIndexedSeq(
@@ -81,12 +81,12 @@ class TakeByAggregatorSuite extends HailSuite {
       val cb = fb.ecb
 
       Region.scoped { r =>
-        val argR = fb.getArg[Region](1)
+        val argR = fb.getCodeParam[Region](1)
         val i = fb.genFieldThisRef[Int]()
         val random = fb.genFieldThisRef[Int]()
         val resultOff = fb.genFieldThisRef[Long]()
 
-        val tba = new TakeByRVAS(PInt32Required, PInt32Required, PArray(PInt32Required, required = true), cb)
+        val tba = new TakeByRVAS(PInt32Required, PInt32Required, PCanonicalArray(PInt32Required, required = true), cb)
         val ab = new agg.StagedArrayBuilder(PInt32Required, cb, argR)
         val rt = tba.resultType
         val er = new EmitRegion(fb.apply_method, argR)

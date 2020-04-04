@@ -121,4 +121,16 @@ package object ir {
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
 
   implicit def emitValueToCode(ev: EmitValue): EmitCode = ev.get
+
+  implicit def toCodeParamType(ti: TypeInfo[_]): CodeParamType = CodeParamType(ti)
+
+  implicit def toEmitParamType(pt: PType): EmitParamType = EmitParamType(pt)
+
+  implicit def toCodeParam(c: Code[_]): CodeParam = CodeParam(c)
+
+  implicit def valueToCodeParam(v: Value[_]): CodeParam = CodeParam(v)
+
+  implicit def toEmitParam(ec: EmitCode): EmitParam = EmitParam(ec)
+
+  implicit def emitValueToEmitParam(ev: EmitValue): EmitParam = EmitParam(ev)
 }

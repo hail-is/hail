@@ -3,6 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.utils.FastIndexedSeq
 import is.hail.variant._
 
 object PCanonicalLocus {
@@ -10,9 +11,9 @@ object PCanonicalLocus {
 
   def apply(rg: ReferenceGenome, required: Boolean): PLocus = PCanonicalLocus(rg.broadcastRG, required)
 
-  private def representation(required: Boolean = false): PStruct = PStruct(
+  private def representation(required: Boolean = false): PStruct = PCanonicalStruct(
     required,
-    "contig" -> PString(required = true),
+    "contig" -> PCanonicalString(required = true),
     "position" -> PInt32(required = true))
 
   def schemaFromRG(rg: Option[ReferenceGenome], required: Boolean = false): PType = rg match {
@@ -32,11 +33,13 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   val representation: PStruct = PCanonicalLocus.representation(required)
 
-  def contig(address: Code[Long]): Code[Long] = representation.loadField(address, 0)
+  private[physical] def contigAddr(address: Code[Long]): Code[Long] = representation.loadField(address, 0)
 
-  def contig(address: Long): Long = representation.loadField(address, 0)
+  private[physical] def contigAddr(address: Long): Long = representation.loadField(address, 0)
 
-  lazy val contigType: PString = representation.field("contig").typ.asInstanceOf[PString]
+  def contig(address: Long): String = contigType.loadString(contigAddr(address))
+
+  lazy val contigType: PCanonicalString = representation.field("contig").typ.asInstanceOf[PCanonicalString]
 
   def position(off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(off, 1))
 
@@ -100,17 +103,16 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 }
 
 object PCanonicalLocusSettable {
-  def apply(sb: SettableBuilder, pt: PLocus, name: String): PCanonicalLocusSettable = {
+  def apply(sb: SettableBuilder, pt: PCanonicalLocus, name: String): PCanonicalLocusSettable = {
     new PCanonicalLocusSettable(pt,
       sb.newSettable[Long](s"${ name }_a"),
       sb.newSettable[Long](s"${ name }_contig"),
       sb.newSettable[Int](s"${ name }_position"))
-
   }
 }
 
 class PCanonicalLocusSettable(
-  val pt: PLocus,
+  val pt: PCanonicalLocus,
   val a: Settable[Long],
   _contig: Settable[Long],
   val position: Settable[Int]
@@ -120,15 +122,29 @@ class PCanonicalLocusSettable(
   def store(pc: PCode): Code[Unit] = {
     Code(
       a := pc.asInstanceOf[PCanonicalLocusCode].a,
-      _contig := pt.contig(a),
+      _contig := pt.contigAddr(a),
       position := pt.position(a))
   }
 
-  def contig(): PStringCode = new PCanonicalStringCode(pt.contigType, _contig)
+  def contig(): PStringCode = new PCanonicalStringCode(pt.contigType.asInstanceOf[PCanonicalString], _contig)
 }
 
-class PCanonicalLocusCode(val pt: PLocus, val a: Code[Long]) extends PLocusCode {
+class PCanonicalLocusCode(val pt: PCanonicalLocus, val a: Code[Long]) extends PLocusCode {
   def code: Code[_] = a
+
+  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
+
+  def contig(): PStringCode = new PCanonicalStringCode(pt.contigType, pt.contigAddr(a))
+
+  def position(): Code[Int] = pt.position(a)
+
+  def getLocusObj(): Code[Locus] = {
+    Code.memoize(a, "get_locus_code_memo") { a =>
+      Code.invokeStatic[Locus, String, Int, Locus]("apply",
+        pt.contigType.loadString(pt.contigAddr(a)),
+        pt.position(a))
+    }
+  }
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PLocusValue = {
     val s = PCanonicalLocusSettable(sb, pt, name)

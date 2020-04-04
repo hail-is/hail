@@ -2,7 +2,7 @@ package is.hail.expr.types.encoded
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitMethodBuilder, ParamType}
 import is.hail.expr.types.{BaseStruct, BaseType}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -89,10 +89,10 @@ final case class ETransposedArrayOfStructs(
     )
 
     val decodeFields = Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
-      val groupMB = mb.ecb.newEmitMethod(s"read_fields_group_$groupIdx", Array[TypeInfo[_]](LongInfo, classInfo[Region], classInfo[InputBuffer]), UnitInfo)
-      val arrayGrp = groupMB.getArg[Long](1)
-      val regionGrp = groupMB.getArg[Region](2)
-      val inGrp = groupMB.getArg[InputBuffer](3)
+      val groupMB = mb.ecb.newEmitMethod(s"read_fields_group_$groupIdx", FastIndexedSeq[ParamType](LongInfo, classInfo[Region], classInfo[InputBuffer]), UnitInfo)
+      val arrayGrp = groupMB.getCodeParam[Long](1)
+      val regionGrp = groupMB.getCodeParam[Region](2)
+      val inGrp = groupMB.getCodeParam[InputBuffer](3)
       val i = groupMB.newLocal[Int]("i")
       val j = groupMB.newLocal[Int]("j")
 
@@ -148,7 +148,7 @@ final case class ETransposedArrayOfStructs(
       }.toArray
 
       groupMB.emit(Code(decoders))
-      groupMB.invoke(array, region, in)
+      groupMB.invokeCode(array, region, in)
     }.toArray)
 
     Code(
@@ -228,9 +228,9 @@ final case class ETransposedArrayOfStructs(
         Code._empty
 
     val writeFields = Code(fields.grouped(64).zipWithIndex.map { case (fieldGroup, groupIdx) =>
-      val groupMB = mb.ecb.newEmitMethod(s"write_fields_group_$groupIdx", Array[TypeInfo[_]](LongInfo, classInfo[OutputBuffer]), UnitInfo)
-      val addr = groupMB.getArg[Long](1)
-      val out2 = groupMB.getArg[OutputBuffer](2)
+      val groupMB = mb.ecb.newEmitMethod(s"write_fields_group_$groupIdx", FastIndexedSeq[ParamType](LongInfo, classInfo[OutputBuffer]), UnitInfo)
+      val addr = groupMB.getCodeParam[Long](1)
+      val out2 = groupMB.getCodeParam[OutputBuffer](2)
 
       val b = groupMB.newLocal[Int]("b")
       val j = groupMB.newLocal[Int]("j")
@@ -272,7 +272,7 @@ final case class ETransposedArrayOfStructs(
       }.toArray
 
       groupMB.emit(Code(encoders))
-      groupMB.invoke(addr, out)
+      groupMB.invokeCode(addr, out)
     }.toArray)
 
     Code(
@@ -288,27 +288,27 @@ final case class ETransposedArrayOfStructs(
     case t: TDict =>
       val keyType = fieldType("key")
       val valueType = fieldType("value")
-      PDict(keyType.decodedPType(t.keyType), valueType.decodedPType(t.valueType), required)
+      PCanonicalDict(keyType.decodedPType(t.keyType), valueType.decodedPType(t.valueType), required)
     case t: TIterable =>
       val pElementType = t.elementType match {
-        case elem: TStruct => PStruct(elem.fields.map { case Field(name, typ, idx) =>
+        case elem: TStruct => PCanonicalStruct(elem.fields.map { case Field(name, typ, idx) =>
           PField(name, fieldType(name).decodedPType(typ), idx)
         }, structRequired)
-        case elem: TTuple => PTuple(elem.fields.map { case Field(name, typ, idx) =>
+        case elem: TTuple => PCanonicalTuple(elem.fields.map { case Field(name, typ, idx) =>
           PTupleField(idx, fieldType(name).decodedPType(typ))
         }, structRequired)
-        case elem: TLocus => PLocus(elem.rgBc, structRequired)
+        case elem: TLocus => PCanonicalLocus(elem.rgBc, structRequired)
         case elem: TInterval =>
           val pointType = fieldType("start")
           require(pointType == fieldType("end"))
-          PInterval(pointType.decodedPType(elem.pointType), structRequired)
+          PCanonicalInterval(pointType.decodedPType(elem.pointType), structRequired)
         case elem: TNDArray =>
           val elementType = fieldType("data").asInstanceOf[EContainer].elementType
-          PNDArray(elementType.decodedPType(elem.elementType), elem.nDims, structRequired)
+          PCanonicalNDArray(elementType.decodedPType(elem.elementType), elem.nDims, structRequired)
       }
       t match {
-        case _: TSet => PSet(pElementType, required)
-        case _: TArray => PArray(pElementType, required)
+        case _: TSet => PCanonicalSet(pElementType, required)
+        case _: TArray => PCanonicalArray(pElementType, required)
       }
   }
 
@@ -348,4 +348,7 @@ final case class ETransposedArrayOfStructs(
       }
     }
   }
+
+  def setRequired(newRequired: Boolean): ETransposedArrayOfStructs =
+    ETransposedArrayOfStructs(fields, newRequired, structRequired)
 }

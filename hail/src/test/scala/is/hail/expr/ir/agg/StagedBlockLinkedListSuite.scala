@@ -14,7 +14,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
 
   class BlockLinkedList[E](region: Region, val elemPType: PType, initImmediately: Boolean = true)
       extends Growable[E] {
-    val arrayPType = PArray(elemPType)
+    val arrayPType = PCanonicalArray(elemPType)
 
     private val initF: Region => Long = {
       val fb = EmitFunctionBuilder[Region, Long]("init")
@@ -22,7 +22,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
       val sbll = new StagedBlockLinkedList(elemPType, cb)
 
       val ptr = fb.genFieldThisRef[Long]()
-      val r = fb.getArg[Region](1)
+      val r = fb.getCodeParam[Region](1)
       fb.emit(Code(
         ptr := r.allocate(sbll.storageType.alignment, sbll.storageType.byteSize),
         sbll.init(r),
@@ -37,9 +37,9 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
       val cb = fb.ecb
       val sbll = new StagedBlockLinkedList(elemPType, cb)
 
-      val r = fb.getArg[Region](1)
-      val ptr = fb.getArg[Long](2)
-      val eltOff = fb.getArg[Long](3)
+      val r = fb.getCodeParam[Region](1)
+      val ptr = fb.getCodeParam[Long](2)
+      val eltOff = fb.getCodeParam[Long](3)
       fb.emit(Code(
         sbll.load(ptr),
         sbll.push(r, EmitCode(Code._empty,
@@ -59,9 +59,9 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
       val sbll1 = new StagedBlockLinkedList(elemPType, cb)
       val sbll2 = new StagedBlockLinkedList(elemPType, cb)
 
-      val r = fb.getArg[Region](1)
-      val ptr1 = fb.getArg[Long](2)
-      val ptr2 = fb.getArg[Long](3)
+      val r = fb.getCodeParam[Region](1)
+      val ptr1 = fb.getCodeParam[Long](2)
+      val ptr2 = fb.getCodeParam[Long](3)
       fb.emit(Code(
         sbll1.load(ptr1),
         sbll2.load(ptr2),
@@ -80,8 +80,8 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
       val cb = fb.ecb
       val sbll = new StagedBlockLinkedList(elemPType, cb)
 
-      val rArg = fb.getArg[Region](1).load
-      val ptr = fb.getArg[Long](2).load
+      val rArg = fb.getCodeParam[Region](1)
+      val ptr = fb.getCodeParam[Long](2)
       val rField = fb.genFieldThisRef[Region]()
       val srvb = new StagedRegionValueBuilder(EmitRegion(fb.apply_method, rField), arrayPType)
       fb.emit(Code(
@@ -103,8 +103,8 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
       val sbll2 = new StagedBlockLinkedList(elemPType, cb)
       val sbll1 = new StagedBlockLinkedList(elemPType, cb)
       val dstPtr = fb.genFieldThisRef[Long]()
-      val r = fb.getArg[Region](1)
-      val srcPtr = fb.getArg[Long](2)
+      val r = fb.getCodeParam[Region](1)
+      val srcPtr = fb.getCodeParam[Long](2)
       fb.emit(Code(
         dstPtr := r.allocate(sbll1.storageType.alignment, sbll1.storageType.byteSize),
         sbll2.load(srcPtr),
@@ -143,7 +143,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
   @Test def testPushStrsMissing() {
     Region.scoped { region =>
       val a = new ArrayBuilder[String]()
-      val b = new BlockLinkedList[String](region, PString())
+      val b = new BlockLinkedList[String](region, PCanonicalString())
       for (i <- 1 to 100) {
         val elt = if(i%3 == 0) null else i.toString()
         a += elt
@@ -155,8 +155,8 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
 
   @Test def testAppendAnother() {
     Region.scoped { region =>
-      val b1 = new BlockLinkedList[String](region, PString())
-      val b2 = new BlockLinkedList[String](region, PString())
+      val b1 = new BlockLinkedList[String](region, PCanonicalString())
+      val b2 = new BlockLinkedList[String](region, PCanonicalString())
       b1 += "{"
       b2 ++= Seq("foo", "bar")
       b1 ++= b2

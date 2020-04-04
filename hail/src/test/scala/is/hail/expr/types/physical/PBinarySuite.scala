@@ -7,13 +7,13 @@ import org.testng.annotations.Test
 class PBinarySuite extends HailSuite {
   @Test def testCopy() {
     def runTests(deepCopy: Boolean, interpret: Boolean = false) {
-      PhysicalTestUtils.copyTestExecutor(PString(), PString(), "",
+      PhysicalTestUtils.copyTestExecutor(PCanonicalString(), PCanonicalString(), "",
         deepCopy = deepCopy, interpret = interpret)
 
-      PhysicalTestUtils.copyTestExecutor(PString(), PString(true), "TopLevelDowncastAllowed",
+      PhysicalTestUtils.copyTestExecutor(PCanonicalString(), PCanonicalString(true), "TopLevelDowncastAllowed",
         deepCopy = deepCopy, interpret = interpret)
 
-      PhysicalTestUtils.copyTestExecutor(PString(true), PString(), "UpcastAllowed",
+      PhysicalTestUtils.copyTestExecutor(PCanonicalString(true), PCanonicalString(), "UpcastAllowed",
         deepCopy = deepCopy, interpret = interpret)
     }
 

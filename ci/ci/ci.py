@@ -102,6 +102,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     pr = wb.prs[pr_number]
 
     page_context = {}
+    page_context['wb'] = wb
     page_context['repo'] = wb.branch.repo.short_str()
     page_context['pr'] = pr
     # FIXME
@@ -261,10 +262,11 @@ async def deploy_status(request, userdata):
     batch_client = request.app['batch_client']
 
     async def get_failure_information(batch):
+        jobs = await collect_agen(batch.jobs())
         return [
             {**j,
              'log': await batch_client.get_job_log(j['batch_id'], j['job_id'])}
-            for j in batch.jobs() if j['state'] != 'Success']
+            for j in jobs if j['state'] != 'Success']
     wb_configs = [{
         'branch': wb.branch.short_str(),
         'sha': wb.sha,

@@ -357,7 +357,7 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
     val rowTyp = tr.typ.rowType
     val nFieldOrig = fullType.rowType.size
     val rowFields = rowTyp.fields
-    val rowPType = PType.canonical(rowTyp).asInstanceOf[PStruct]
+    val rowPType = PType.canonical(rowTyp).setRequired(true).asInstanceOf[PStruct]
 
     val useColIndices = rowTyp.fields.map(f => fullType.rowType.fieldIdx(f.name))
 

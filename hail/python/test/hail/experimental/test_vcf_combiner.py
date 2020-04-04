@@ -23,7 +23,7 @@ def test_1kg_chr22():
 
     sample_names = all_samples[:5]
     paths = [os.path.join(resource('gvcfs'), '1kg_chr22', f'{s}.hg38.g.vcf.gz') for s in sample_names]
-    vc.run_combiner(sample_names, paths,
+    vc.run_combiner(paths,
                     out_file=out_file,
                     tmp_path=Env.hc().tmp_dir,
                     branch_factor=2,

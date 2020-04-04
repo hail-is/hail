@@ -13,11 +13,9 @@ import org.json4s.jackson.Serialization
 abstract class MatrixToMatrixFunction {
   def typ(childType: MatrixType): MatrixType
 
-  def execute(ctx: ExecuteContext, mv: MatrixValue): MatrixValue
-
   def preservesPartitionCounts: Boolean
 
-  def lower(): Option[TableToTableFunction] = None
+  def lower(): TableToTableFunction
 
   def requestType(requestedType: MatrixType, childBaseType: MatrixType): MatrixType = childBaseType
 }
@@ -51,23 +49,6 @@ case class WrappedMatrixToTableFunction(
   def execute(ctx: ExecuteContext, tv: TableValue): TableValue = function.execute(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
 
   override def preservesPartitionCounts: Boolean = function.preservesPartitionCounts
-}
-
-case class WrappedMatrixToMatrixFunction(function: MatrixToMatrixFunction,
-  inColsFieldName: String,
-  inEntriesFieldName: String,
-  colKey: IndexedSeq[String]) extends TableToTableFunction {
-  override def typ(childType: TableType): TableType = {
-    val mType = MatrixType.fromTableType(childType, inColsFieldName, inEntriesFieldName, colKey)
-    val outMatrixType = function.typ(mType)
-    outMatrixType.canonicalTableType
-  }
-
-  def execute(ctx: ExecuteContext, tv: TableValue): TableValue = function.execute(ctx, tv
-    .toMatrixValue(colKey, inColsFieldName, inEntriesFieldName))
-    .toTableValue
-
-  def preservesPartitionCounts: Boolean = function.preservesPartitionCounts
 }
 
 abstract class TableToTableFunction {
@@ -137,7 +118,6 @@ object RelationalFunctions {
     classOf[Nirvana],
     classOf[GetElement],
     classOf[WrappedMatrixToTableFunction],
-    classOf[WrappedMatrixToMatrixFunction],
     classOf[WrappedMatrixToValueFunction],
     classOf[PCRelate]
   ))

@@ -32,6 +32,8 @@ class EBoolean(override val required: Boolean) extends EType {
 
   def _asIdent = "bool"
   def _toPretty = "EBoolean"
+
+  def setRequired(newRequired: Boolean): EBoolean = EBoolean(newRequired)
 }
 
 object EBoolean {

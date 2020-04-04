@@ -370,7 +370,7 @@ class VCFTests(unittest.TestCase):
 
     @skip_unless_spark_backend()
     def test_combiner_works(self):
-        from hail.experimental.vcf_combiner import transform_one, combine_gvcfs
+        from hail.experimental.vcf_combiner.vcf_combiner import transform_one, combine_gvcfs
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
         paths = [resource(p) for p in _paths]
         parts = [
@@ -395,7 +395,7 @@ class VCFTests(unittest.TestCase):
         comb._force_count_rows()
 
     def test_combiner_parse_as_annotations(self):
-        import hail.experimental.vcf_combiner as c
+        from hail.experimental.vcf_combiner.vcf_combiner import parse_as_fields
         infos = hl.array([
             hl.struct(
                 AS_QUALapprox="|1171|",
@@ -412,7 +412,7 @@ class VCFTests(unittest.TestCase):
                 AS_RAW_MQRankSum="|NaN|NaN",
                 AS_RAW_ReadPosRankSum="|NaN|NaN")])
 
-        output = hl.eval(infos.map(lambda info: c.parse_as_fields(info, False)))
+        output = hl.eval(infos.map(lambda info: parse_as_fields(info, False)))
         expected = [
             hl.Struct(
                 AS_QUALapprox=[None, 1171, None],

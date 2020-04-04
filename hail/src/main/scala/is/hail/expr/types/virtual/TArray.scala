@@ -2,7 +2,6 @@ package is.hail.expr.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.check.Gen
-import is.hail.expr.types.physical.PArray
 import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, classTag}

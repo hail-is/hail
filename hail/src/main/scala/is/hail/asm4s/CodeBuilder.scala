@@ -73,6 +73,18 @@ trait CodeBuilderLike {
     append(Lafter)
   }
 
+  def whileLoop(c: Code[Boolean], emitBody: => Unit): Unit = {
+    val Lstart = CodeLabel()
+    val Lbody = CodeLabel()
+    val Lafter = CodeLabel()
+    append(Lstart)
+    append(c.mux(Lbody.goto, Lafter.goto))
+    append(Lbody)
+    emitBody
+    append(Lstart.goto)
+    append(Lafter)
+  }
+
   def memoizeField[T](c: Code[T], name: String)(implicit tti: TypeInfo[T]): Settable[T] = {
     val f = mb.genFieldThisRef[T](name)
     append(f := c)

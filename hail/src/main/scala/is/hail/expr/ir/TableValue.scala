@@ -3,11 +3,11 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.TableAnnotationImpex
-import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PStruct}
 import is.hail.expr.types.virtual.{Field, TArray, TStruct}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.io.{BufferSpec, TypedCodecSpec, exportTypes}
-import is.hail.rvd.{AbstractRVDSpec, RVD, RVDContext, RVDType}
+import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -19,14 +19,16 @@ import org.json4s.jackson.JsonMethods
 
 object TableValue {
   def apply(ctx: ExecuteContext, rowType: PStruct, key: IndexedSeq[String], rdd: ContextRDD[RegionValue]): TableValue = {
+    assert(rowType.required)
     val tt = TableType(rowType.virtualType, key, TStruct.empty)
     TableValue(tt,
       BroadcastRow.empty(ctx),
       RVD.coerce(RVDType(rowType, key), rdd, ctx))
   }
 
-  def apply(ctx: ExecuteContext, rowType:  TStruct, key: IndexedSeq[String], rdd: RDD[Row], rowPType: Option[PStruct] = None): TableValue = {
-    val canonicalRowType = rowPType.getOrElse(PStruct.canonical(rowType))
+  def apply(ctx: ExecuteContext, rowType: TStruct, key: IndexedSeq[String], rdd: RDD[Row], rowPType: Option[PStruct] = None): TableValue = {
+    val canonicalRowType = rowPType.getOrElse(PCanonicalStruct.canonical(rowType).setRequired(true).asInstanceOf[PStruct])
+    assert(canonicalRowType.required)
     val tt = TableType(rowType, key, TStruct.empty)
     TableValue(tt,
       BroadcastRow.empty(ctx),
@@ -44,6 +46,8 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     throw new RuntimeException(s"key mismatch:\n  typ: ${ typ.key }\n  rvd: ${ rvd.typ.key }")
   if (typ.globalType != globals.t.virtualType)
     throw new RuntimeException(s"globals mismatch:\n  typ: ${ typ.globalType.parsableString() }\n  val: ${ globals.t.virtualType.parsableString() }")
+  if (!globals.t.required)
+    throw new RuntimeException(s"globals not required; ${ globals.t }")
 
   def rdd: RDD[Row] =
     rvd.toRows
@@ -170,7 +174,20 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
       typ.rowType.deleteKey(entriesFieldName),
       typ.rowType.field(MatrixType.entriesIdentifier).typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
 
-    MatrixValue(mType, rename(
+    val globalsT = globals.t
+    val colsT = globalsT.field(colsFieldName).typ.asInstanceOf[PArray]
+
+    val globals2 =
+      if (colsT.required && colsT.elementType.required)
+        globals
+      else
+        globals.cast(
+          globalsT.insertFields(FastIndexedSeq(
+            colsFieldName -> PCanonicalArray(colsT.elementType.setRequired(true), true))))
+
+    val newTV = TableValue(typ, globals2, rvd)
+
+    MatrixValue(mType, newTV.rename(
       Map(colsFieldName -> LowerMatrixIR.colsFieldName),
       Map(entriesFieldName -> LowerMatrixIR.entriesFieldName)))
   }

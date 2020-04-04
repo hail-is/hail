@@ -4,42 +4,41 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.types.{coerce => _, _}
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.{PArray, PCode, PIndexableCode, PFloat64, PInt32, PType}
-import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32}
-import is.hail.variant.Genotype
+import is.hail.expr.types.physical.{PArray, PCode, PFloat64, PIndexableCode, PInt32, PType}
+import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, Type}
 
 object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
-    registerCode("gqFromPL", TArray(tv("N", "int32")), TInt32, (pt: PType) => PInt32()) { case (r, rt, (tPL: PArray, _pl: Code[Long])) =>
-      val pl = r.mb.newLocal[Long]("pl")
-      val m = r.mb.newLocal[Int]("m")
-      val m2 = r.mb.newLocal[Int]("m2")
-      val len = r.mb.newLocal[Int]("len")
-      val pli = r.mb.newLocal[Int]("pli")
-      val i = r.mb.newLocal[Int]("i")
-      Code(
-        pl := _pl,
-        m := 99,
-        m2 := 99,
-        len := tPL.loadLength(pl),
-        i := 0,
-        Code.whileLoop(i < len,
-          tPL.isElementDefined(pl, i).mux(
-            Code._empty,
-            Code._fatal[Unit]("PL cannot have missing elements.")),
-          pli := Region.loadInt(tPL.loadElement(pl, len, i)),
-          (pli < m).mux(
-            Code(m2 := m, m := pli),
-            (pli < m2).mux(
-              m2 := pli,
-              Code._empty)),
-          i := i + 1
-        ),
-        m2 - m)
+    registerPCode("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: PType) => PInt32())
+    { case (r, rt, _pl: PIndexableCode) =>
+      val code = EmitCodeBuilder.scopedCode(r.mb) { cb =>
+        val pl = _pl.memoize(cb, "plv")
+        val m = cb.memoize[Int](const(99), "m")
+        val m2 = cb.memoize[Int](const(99), "m2")
+        val i = cb.memoize[Int](const(0), "i")
+
+        cb.whileLoop(i < pl.loadLength(), {
+          val iec = pl.loadElement(cb, i)
+          cb += iec.Lmissing
+          cb += Code._fatal[Unit]("PL cannot have missing elements.")
+          cb += iec.Lpresent
+          val pli = cb.memoize[Int](iec.pc.tcode[Int], "pli")
+          cb.ifx(pli < m, {
+            cb.assign(m2, m)
+            cb.assign(m, pli)
+          }, {
+            cb.ifx(pli < m2,
+              cb.assign(m2, pli))
+          })
+          cb.assign(i, i + 1)
+        })
+        m2 - m
+      }
+      PCode(rt, code)
     }
 
-    registerCodeWithMissingness("dosage", TArray(tv("N", "float64")), TFloat64,  (pt: PType) => PFloat64()
+    registerCodeWithMissingness("dosage", TArray(tv("N", "float64")), TFloat64,  (_: Type, _: PType) => PFloat64()
     ) { case (r, rt, gp) =>
       EmitCode.fromI(r.mb) { cb =>
         gp.toI(cb).flatMap(cb) { case (gpc: PIndexableCode) =>

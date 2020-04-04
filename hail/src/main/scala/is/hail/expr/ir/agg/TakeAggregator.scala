@@ -12,7 +12,7 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val cb: EmitClassBuil
   val region: Value[Region] = r
 
   val builder = new StagedArrayBuilder(eltType, cb, region)
-  val storageType: PTuple = PTuple(true, PInt32Required, builder.stateType)
+  val storageType: PCanonicalTuple = PCanonicalTuple(true, PInt32Required, builder.stateType)
   private val maxSize = cb.genFieldThisRef[Int]()
   private val maxSizeOffset: Code[Long] => Code[Long] = storageType.loadField(_, 0)
   private val builderStateOffset: Code[Long] => Code[Long] = storageType.loadField(_, 1)
@@ -115,13 +115,14 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val cb: EmitClassBuil
 }
 
 class TakeAggregator(typ: PType) extends StagedAggregator {
+  assert(typ.isCanonical)
 
   type State = TakeRVAS
 
-  val resultType: PArray = PArray(typ)
+  val resultType: PCanonicalArray = PCanonicalArray(typ, required = true)
 
-  def createState(cb: EmitClassBuilder[_]): State =
-    new TakeRVAS(typ, resultType, cb)
+  def createState(fb: EmitClassBuilder[_]): State =
+    new TakeRVAS(typ, resultType, fb)
 
   def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
     assert(init.length == 1)

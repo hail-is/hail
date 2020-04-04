@@ -748,51 +748,31 @@ package object utils extends Logging
     compressedLength
   }
 
-  def unwrappedApply[T](f: T => T): Seq[T] => T = if (f == null) null else { s =>
-    val Seq(arg1) = s
-    f(arg1)
-  }
-
-  def unwrappedApply2[U, T](f: (U, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
+  def unwrappedApply[U, T](f: (U, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
     f(s, ts(0))
   }
 
-  def unwrappedApply[T](f: (T, T) => T): Seq[T] => T = if (f == null) null else { s =>
-    val Seq(arg1, arg2) = s
-    f(arg1, arg2)
-  }
-
-  def unwrappedApply2[U, T](f: (U, T, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
+  def unwrappedApply[U, T](f: (U, T, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
     val Seq(t1, t2) = ts
     f(s, t1, t2)
   }
 
-  def unwrappedApply[T](f: (T, T, T) => T): Seq[T] => T = if (f == null) null else { s =>
-    val Seq(arg1, arg2, arg3) = s
-    f(arg1, arg2, arg3)
-  }
-
-  def unwrappedApply2[U, T](f: (U, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
+  def unwrappedApply[U, T](f: (U, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
     val Seq(t1, t2, t3) = ts
     f(s, t1, t2, t3)
   }
 
-  def unwrappedApply[T](f: (T, T, T, T) => T): Seq[T] => T = if (f == null) null else { s =>
-    val Seq(arg1, arg2, arg3, arg4) = s
-    f(arg1, arg2, arg3, arg4)
+  def unwrappedApply[U, T](f: (U, T, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
+    val Seq(t1, t2, t3, t4) = ts
+    f(s, t1, t2, t3, t4)
   }
 
-  def unwrappedApply[T](f: (T, T, T, T, T) => T): Seq[T] => T = if (f == null) null else { s =>
-    val Seq(arg1, arg2, arg3, arg4, arg5) = s
-    f(arg1, arg2, arg3, arg4, arg5)
+  def unwrappedApply[U, T](f: (U, T, T, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
+    val Seq(t1, t2, t3, t4, t5) = ts
+    f(s, t1, t2, t3, t4, t5)
   }
 
-  def unwrappedApply[T](f: (T, T, T, T, T, T) => T): Seq[T] => T = if (f == null) null else { s =>
-    val Seq(arg1, arg2, arg3, arg4, arg5, arg6) = s
-    f(arg1, arg2, arg3, arg4, arg5, arg6)
-  }
-
-  def unwrappedApply2[U, T](f: (U, T, T, T, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
+  def unwrappedApply[U, T](f: (U, T, T, T, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
     val Seq(arg1, arg2, arg3, arg4, arg5, arg6) = ts
     f(s, arg1, arg2, arg3, arg4, arg5, arg6)
   }

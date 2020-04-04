@@ -3,6 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.utils.FastIndexedSeq
 import is.hail.variant.Genotype
 
 final case class PCanonicalCall(required: Boolean = false) extends PCall {
@@ -21,11 +22,11 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
 }
 
 object PCanonicalCallSettable {
-  def apply(sb: SettableBuilder, pt: PCall, name: String): PCanonicalCallSettable =
+  def apply(sb: SettableBuilder, pt: PCanonicalCall, name: String): PCanonicalCallSettable =
     new PCanonicalCallSettable(pt, sb.newSettable[Int](s"${ name }_call"))
 }
 
-class PCanonicalCallSettable(val pt: PCall, call: Settable[Int]) extends PCallValue with PSettable {
+class PCanonicalCallSettable(val pt: PCanonicalCall, call: Settable[Int]) extends PCallValue with PSettable {
   def get: PCallCode = new PCanonicalCallCode(pt, call)
 
   def store(pc: PCode): Code[Unit] = call.store(pc.asInstanceOf[PCanonicalCallCode].call)
@@ -60,8 +61,10 @@ class PCanonicalCallSettable(val pt: PCall, call: Settable[Int]) extends PCallVa
   }
 }
 
-class PCanonicalCallCode(val pt: PCall, val call: Code[Int]) extends PCallCode {
+class PCanonicalCallCode(val pt: PCanonicalCall, val call: Code[Int]) extends PCallCode {
   def code: Code[_] = call
+
+  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(call)
 
   def ploidy(): Code[Int] = (call >>> 1) & 0x3
 

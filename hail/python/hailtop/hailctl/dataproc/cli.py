@@ -15,7 +15,8 @@ from . import submit
 def parser():
     main_parser = argparse.ArgumentParser(
         prog='hailctl dataproc',
-        description='Manage and monitor Hail deployments.')
+        description='Manage and monitor Hail deployments.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     main_parser.add_argument(
         '--beta',

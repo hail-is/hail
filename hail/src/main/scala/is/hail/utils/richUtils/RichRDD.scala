@@ -68,7 +68,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }
 
     if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
-      val headerExt = fs.getCodec(filename)
+      val headerExt = fs.getCodecExtension(filename)
       using(new OutputStreamWriter(fs.create(parallelOutputPath + "/header" + headerExt))) { out =>
         header.foreach { h =>
           out.write(h)

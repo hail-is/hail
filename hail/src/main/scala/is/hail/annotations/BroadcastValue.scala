@@ -5,10 +5,9 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import is.hail.HailContext
 import is.hail.backend.{Backend, BroadcastValue}
 import is.hail.expr.ir.ExecuteContext
-import is.hail.expr.types.physical.{PArray, PBaseStruct, PStruct, PType}
-import is.hail.expr.types.virtual.{TArray, TBaseStruct, TStruct}
+import is.hail.expr.types.physical.{PArray, PStruct, PType}
+import is.hail.expr.types.virtual.{TBaseStruct, TStruct}
 import is.hail.io.{BufferSpec, Decoder, TypedCodecSpec}
-import is.hail.rvd.RVD
 import org.apache.spark.sql.Row
 
 
@@ -25,7 +24,7 @@ object BroadcastRow {
   def empty(ctx: ExecuteContext): BroadcastRow = apply(ctx, Row(), TStruct.empty)
 
   def apply(ctx: ExecuteContext, value: Row, t: TBaseStruct): BroadcastRow = {
-    val pType = PType.canonical(t).asInstanceOf[PStruct]
+    val pType = PType.literalPType(t, value).asInstanceOf[PStruct]
     val rvb = new RegionValueBuilder(ctx.r)
     rvb.start(pType)
     rvb.addAnnotation(t, value)
@@ -78,6 +77,17 @@ case class BroadcastRow(value: RegionValue,
   def javaValue: UnsafeRow = UnsafeRow.readBaseStruct(t, value.region, value.offset)
 
   def safeJavaValue: Row = SafeRow.read(t, value).asInstanceOf[Row]
+
+  def cast(newT: PStruct): BroadcastRow = {
+    assert(t.virtualType == newT.virtualType)
+    if (t == newT)
+      return this
+
+    BroadcastRow(
+      RegionValue(value.region, newT.copyFromAddress(value.region, t, value.offset, deepCopy = false)),
+      newT,
+      backend)
+  }
 }
 
 case class BroadcastIndexedSeq(value: RegionValue,
@@ -87,4 +97,15 @@ case class BroadcastIndexedSeq(value: RegionValue,
   def safeJavaValue: IndexedSeq[Row] = SafeRow.read(t, value).asInstanceOf[IndexedSeq[Row]]
 
   def javaValue: UnsafeIndexedSeq = new UnsafeIndexedSeq(t, value.region, value.offset)
+
+  def cast(newT: PArray): BroadcastIndexedSeq = {
+    assert(t.virtualType == newT.virtualType)
+    if (t == newT)
+      return this
+
+    BroadcastIndexedSeq(
+      RegionValue(value.region, newT.copyFromAddress(value.region, t, value.offset, deepCopy = false)),
+      newT,
+      backend)
+  }
 }

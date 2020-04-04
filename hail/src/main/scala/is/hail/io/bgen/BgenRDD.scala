@@ -6,7 +6,7 @@ import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.PruneDeadFields
 import is.hail.expr.types._
 import is.hail.expr.types.encoded.{EArray, EBaseStruct, EBinaryOptional, EBinaryRequired, EField, EInt32Optional, EInt32Required, EInt64Required}
-import is.hail.expr.types.physical.{PArray, PCall, PCanonicalLocus, PFloat64Required, PInt32, PInt64, PLocus, PString, PStruct}
+import is.hail.expr.types.physical.{PArray, PCall, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PFloat64Required, PInt32, PInt64, PLocus, PString, PStruct}
 import is.hail.expr.types.virtual.{Field, TArray, TInt64, TLocus, TString, TStruct, Type}
 import is.hail.io.{AbstractTypedCodecSpec, BlockingBufferSpec, HadoopFSDataBinaryReader, LEB128BufferSpec, LZ4HCBlockBufferSpec, StreamBlockBufferSpec, TypedCodecSpec}
 import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}
@@ -37,11 +37,9 @@ object BgenSettings {
     val keyEType = EBaseStruct(FastIndexedSeq(
       EField("locus", EBaseStruct(FastIndexedSeq(
         EField("contig", EBinaryRequired, 0),
-        EField("position", EInt32Required, 1)
-      )), 0),
+        EField("position", EInt32Required, 1))), 0),
       EField("alleles", EArray(EBinaryOptional, required = false), 1)),
-      required = false
-    )
+      required = false)
 
     val annotationVType = TStruct.empty
     val annotationEType = EBaseStruct(FastIndexedSeq(), required = true)
@@ -98,22 +96,21 @@ case class BgenSettings(
     .fieldOption(MatrixType.entriesIdentifier)
     .map(f => f.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
 
-  val rowPType: PStruct = PStruct(
+  val rowPType: PStruct = PCanonicalStruct(required = true,
     Array(
       "locus" -> PCanonicalLocus.schemaFromRG(rg),
-      "alleles" -> PArray(PString()),
-      "rsid" -> PString(),
-      "varid" -> PString(),
+      "alleles" -> PCanonicalArray(PCanonicalString()),
+      "rsid" -> PCanonicalString(),
+      "varid" -> PCanonicalString(),
       "offset" -> PInt64(),
       "file_idx" -> PInt32(),
-      MatrixType.entriesIdentifier -> PArray(PStruct(
+      MatrixType.entriesIdentifier -> PCanonicalArray(PCanonicalStruct(
         Array(
-          "GT" -> PCall(),
-          "GP" -> PArray(PFloat64Required, required = true),
+          "GT" -> PCanonicalCall(),
+          "GP" -> PCanonicalArray(PFloat64Required, required = true),
           "dosage" -> PFloat64Required
         ).filter { case (name, _) => entryType.exists(t => t.hasField(name))
-        }: _*
-      )))
+        }: _*)))
       .filter { case (name, _) => requestedType.rowType.hasField(name) }: _*)
 
   assert(rowPType.virtualType == requestedType.rowType, s"${ rowPType.virtualType.parsableString() } vs ${ requestedType.rowType.parsableString() }")

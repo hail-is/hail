@@ -49,8 +49,6 @@ Genetics Methods
     import_gtf
     get_gene_intervals
     export_entries_by_col
-    sparse_split_multi
-    densify
     pc_project
 
 `dplyr`-inspired Methods
@@ -79,9 +77,6 @@ Functions
 .. autofunction:: import_gtf
 .. autofunction:: get_gene_intervals
 .. autofunction:: export_entries_by_col
-.. autofunction:: sparse_split_multi
-.. autofunction:: densify
-.. autofunction:: lgt_to_gt
 .. autofunction:: gather
 .. autofunction:: separate
 .. autofunction:: spread

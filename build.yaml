@@ -151,7 +151,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
-     mysql --defaults-extra-file=/database-server-config/sql-config.cnf < /io/sql/delete-auth-tables.sql
+     mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-auth-tables.sql
    inputs:
     - from: /repo/auth/sql
       to: /io/
@@ -159,7 +159,7 @@ steps:
     - name: database-server-config
       namespace:
         valueFrom: default_ns.name
-      mountPath: /database-server-config
+      mountPath: /sql-config
    runIfRequested: true
    scopes:
     - dev
@@ -492,12 +492,10 @@ steps:
        to: /hail.jar
      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
        to: /hail-test.jar
-     - from: /io/repo/hail/testng.xml
-       to: /testng.xml
+     - from: /io/repo/hail/testng-build.xml
+       to: /testng-build.xml
      - from: /io/repo/hail/testng-cpp-codegen.xml
        to: /testng-cpp-codegen.xml
-     - from: /io/repo/hail/testng-distributed-backend.xml
-       to: /testng-distributed-backend.xml
      - from: /io/repo/hail/python/hail.zip
        to: /hail.zip
      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
@@ -514,6 +512,39 @@ steps:
        to: /cluster-tests.tar.gz
    dependsOn:
     - hail_build_image
+ - kind: buildImage
+   name: query_image
+   dockerFile: query/Dockerfile
+   contextPath: .
+   publishAs: query
+   inputs:
+     - from: /hail.jar
+       to: /query/hail.jar
+   dependsOn:
+     - service_base_image
+     - build_hail
+ - kind: runImage
+   name: check_query
+   image:
+     valueFrom: query_image.image
+   script: |
+     set -ex
+     python3 -m flake8 query
+     python3 -m pylint --rcfile pylintrc query
+   dependsOn:
+     - query_image
+ - kind: deploy
+   name: deploy_query
+   namespace:
+     valueFrom: default_ns.name
+   config: query/deployment.yaml
+   wait:
+    - kind: Service
+      name: query
+      for: alive
+   dependsOn:
+    - default_ns
+    - query_image
  - kind: buildImage
    name: hail_repl_image
    dockerFile: hail/Dockerfile.hail-repl
@@ -548,23 +579,31 @@ steps:
      cd /io
      mkdir -p src/test
      tar xzf resources.tar.gz -C src/test
-     HAIL_TEST_SKIP_R=1 java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng.xml
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
+     gsutil -m cp -r src/test/resources/fs gs://hail-test-dmk9z/{{ token }}/test/resources/
+     HAIL_TEST_SKIP_R=1 HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-build.xml
    inputs:
     - from: /resources.tar.gz
       to: /io/resources.tar.gz
     - from: /hail-test.jar
       to: /io/hail-test.jar
-    - from: /testng.xml
-      to: /io/testng.xml
+    - from: /testng-build.xml
+      to: /io/testng-build.xml
    outputs:
     - from: /io/test-output
       to: /test-output
+   secrets:
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key
    dependsOn:
+    - batch_pods_ns
     - hail_run_image
     - build_hail
  - kind: buildImage
    name: hail_base_image
-   dockerFile: apiserver/Dockerfile.hail-base
+   dockerFile: hail/Dockerfile.hail-base
    contextPath: .
    publishAs: hail-base
    dependsOn:
@@ -573,19 +612,6 @@ steps:
    inputs:
     - from: /hail.jar
       to: /hail.jar
-    - from: /hail.zip
-      to: /hail.zip
- - kind: buildImage
-   name: hail_test_base_image
-   dockerFile: apiserver/Dockerfile.hail-test-base
-   contextPath: .
-   publishAs: hail-test-base
-   dependsOn:
-    - hail_run_image
-    - build_hail
-   inputs:
-    - from: /hail-test.jar
-      to: /hail-test.jar
     - from: /hail.zip
       to: /hail.zip
  - kind: runImage
@@ -598,14 +624,6 @@ steps:
      python3 -m pylint --rcfile pylintrc hailtop
    dependsOn:
      - hail_base_image
- - kind: buildImage
-   name: hail_jupyter_image
-   dockerFile: apiserver/Dockerfile.hail-jupyter
-   contextPath: .
-   publishAs: hail-jupyter
-   dependsOn:
-    - hail_base_image
-    - default_ns
  - kind: buildImage
    name: notebook_image
    dockerFile: notebook/Dockerfile
@@ -911,7 +929,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
-     mysql --defaults-extra-file=/database-server-config/sql-config.cnf < /io/sql/delete-batch-tables.sql
+     mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-batch-tables.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
@@ -919,7 +937,7 @@ steps:
     - name: database-server-config
       namespace:
         valueFrom: default_ns.name
-      mountPath: /database-server-config
+      mountPath: /sql-config
    runIfRequested: true
    scopes:
     - dev
@@ -933,7 +951,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
-     mysql --defaults-extra-file=/database-server-config/sql-config.cnf < /io/sql/delete-ci-tables.sql
+     mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-ci-tables.sql
    inputs:
     - from: /repo/ci/sql
       to: /io/
@@ -941,7 +959,7 @@ steps:
     - name: database-server-config
       namespace:
         valueFrom: default_ns.name
-      mountPath: /database-server-config
+      mountPath: /sql-config
    runIfRequested: true
    scopes:
     - dev
@@ -1190,7 +1208,7 @@ steps:
    script: |
      set -e
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-     gsutil -m cp -r /io/test/resources/*  gs://hail-test-dmk9z/{{ token }}/pipeline/input/
+     gsutil -m cp -r /io/test/resources/* gs://hail-test-dmk9z/{{ token }}/pipeline/input/
    inputs:
     - from: /repo/pipeline/test
       to: /io/

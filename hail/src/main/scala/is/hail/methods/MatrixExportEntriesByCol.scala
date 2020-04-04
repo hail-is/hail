@@ -13,7 +13,8 @@ import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 
-case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boolean, headerJsonInFile: Boolean) extends MatrixToValueFunction {
+case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boolean,
+  headerJsonInFile: Boolean, useStringKeyAsFileName: Boolean) extends MatrixToValueFunction {
   def typ(childType: MatrixType): Type = TVoid
 
   def execute(ctx: ExecuteContext, mv: MatrixValue): Any = {
@@ -21,6 +22,15 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
     val fs = HailContext.fs
 
     fs.delete(path, recursive = true) // overwrite by default
+
+    val padding = digitsNeeded(mv.nCols)
+    val fileNames: IndexedSeq[String] = if (useStringKeyAsFileName) {
+      val ids = mv.stringSampleIds
+      if (ids.toSet.size != ids.length) // there are duplicates
+        fatal("export_entries_by_col cannot export with 'use_string_key_as_file_name' with duplicate keys")
+      ids
+    } else
+      Array.tabulate(mv.nCols)(i => partFile(padding, i))
 
     val allColValuesJSON = mv.colValues.javaValue.map(TableAnnotationImpex.exportAnnotation(_, mv.typ.colType)).toArray
 
@@ -130,10 +140,11 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
       newFiles
     }
 
-    val padding = digitsNeeded(mv.nCols)
     val extension = if (bgzip) ".tsv.bgz" else ".tsv"
 
-    def finalPath(idx: Int): String = path + "/" + partFile(padding, idx) + extension
+    def finalPath(idx: Int): String = {
+      path + "/" + fileNames(idx) + extension
+    }
 
     resultFiles.zipWithIndex.foreach { case (filePath, i) =>
       fs.copy(filePath, finalPath(i), deleteSource = true)

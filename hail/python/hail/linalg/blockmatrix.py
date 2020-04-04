@@ -21,7 +21,7 @@ from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativ
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
-from hail.utils.java import Env, jarray, joption
+from hail.utils.java import Env, joption
 
 block_matrix_type = lazy()
 
@@ -1817,7 +1817,7 @@ class BlockMatrix(object):
             Describes which entries to export. One of:
             ``'full'``, ``'lower'``, ``'strict_lower'``, ``'upper'``, ``'strict_upper'``.
         """
-        jrm = Env.hail().linalg.RowMatrix.readBlockMatrix(Env.hc()._jhc, path_in, joption(partition_size))
+        jrm = Env.hail().linalg.RowMatrix.readBlockMatrix(Env.backend()._jhc, path_in, joption(partition_size))
 
         export_type = Env.hail().utils.ExportType.getExportType(parallel)
 
@@ -1898,8 +1898,7 @@ class BlockMatrix(object):
                 raise ValueError(f'rectangle {r} does not satisfy '
                                  f'0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols')
 
-        flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
-        rectangles = hl.literal(flattened_rectangles, hl.tarray(hl.tint64))
+        rectangles = hl.literal(list(itertools.chain(*rectangles)), hl.tarray(hl.tint64))
         return BlockMatrix(
             BlockMatrixSparsify(self._bmir, rectangles._ir, RectangleSparsifier))
 
@@ -2429,20 +2428,20 @@ def _jarray_from_ndarray(nd):
     path = new_local_temp_file()
     uri = local_path_uri(path)
     nd.tofile(path)
-    return Env.hail().utils.richUtils.RichArray.importFromDoubles(Env.hc()._jhc, uri, nd.size)
+    return Env.hail().utils.richUtils.RichArray.importFromDoubles(Env.backend()._jhc, uri, nd.size)
 
 
 def _ndarray_from_jarray(ja):
     path = new_local_temp_file()
     uri = local_path_uri(path)
-    Env.hail().utils.richUtils.RichArray.exportToDoubles(Env.hc()._jhc, uri, ja)
+    Env.hail().utils.richUtils.RichArray.exportToDoubles(Env.backend()._jhc, uri, ja)
     return np.fromfile(path)
 
 
 def _breeze_fromfile(uri, n_rows, n_cols):
     _check_entries_size(n_rows, n_cols)
 
-    return Env.hail().utils.richUtils.RichDenseMatrixDouble.importFromDoubles(Env.hc()._jhc, uri, n_rows, n_cols, True)
+    return Env.hail().utils.richUtils.RichDenseMatrixDouble.importFromDoubles(Env.backend()._jhc, uri, n_rows, n_cols, True)
 
 
 def _check_entries_size(n_rows, n_cols):

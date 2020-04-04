@@ -5,7 +5,7 @@ import is.hail.HailContext
 import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
 import is.hail.expr.ir.{ExecuteContext, TableIR, TableLiteral, TableValue}
 import is.hail.expr.types.TableType
-import is.hail.expr.types.physical.{PFloat64, PInt64, PStruct}
+import is.hail.expr.types.physical.{PCanonicalStruct, PFloat64, PInt64, PStruct}
 import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{RVD, RVDContext, RVDType}
@@ -26,7 +26,7 @@ object LinearMixedModel {
       LMMData(gamma, residualSq, BDV(py), px, BDV(d), ydy, BDV(xdy), xdx, yOpt.map(BDV(_)), xOpt))
   }
   
-  private val rowType = PStruct(
+  private val rowType = PCanonicalStruct(true,
       "idx" -> PInt64(),
       "beta" -> PFloat64(),
       "sigma_sq" -> PFloat64(),

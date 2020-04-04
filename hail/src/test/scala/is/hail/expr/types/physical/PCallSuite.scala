@@ -1,10 +1,6 @@
 package is.hail.expr.types.physical
 
 import is.hail.HailSuite
-import is.hail.annotations.{Annotation, Region, ScalaToRegionValue}
-import is.hail.asm4s._
-import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.utils._
 import org.testng.annotations.Test
 
 class PCallSuite extends HailSuite {
@@ -19,10 +15,10 @@ class PCallSuite extends HailSuite {
         2,
         deepCopy = deepCopy, interpret = interpret)
 
-      PhysicalTestUtils.copyTestExecutor(PArray(PCanonicalCall(true), true), PArray(PCanonicalCall()),
+      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PCanonicalCall(true), true), PCanonicalArray(PCanonicalCall()),
         IndexedSeq(2, 3), deepCopy = deepCopy, interpret = interpret)
 
-      PhysicalTestUtils.copyTestExecutor(PArray(PCanonicalCall(), true), PArray(PCanonicalCall(true)),
+      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PCanonicalCall(), true), PCanonicalArray(PCanonicalCall(true)),
         IndexedSeq(2, 3), expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
     }
 

@@ -1,10 +1,11 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.SafeRow
+import is.hail.annotations.{Region, SafeRow}
+import is.hail.asm4s._
 import is.hail.expr.ir.lowering.LoweringPipeline
-import is.hail.expr.types.physical.{PTuple, PBaseStruct}
+import is.hail.expr.types.physical.{PBaseStruct, PTuple}
 import is.hail.expr.types.virtual.TVoid
-import is.hail.utils.FastSeq
+import is.hail.utils.{FastIndexedSeq, FastSeq}
 
 object CompileAndEvaluate {
   def apply[T](ctx: ExecuteContext,
@@ -30,8 +31,11 @@ object CompileAndEvaluate {
       // void is not really supported by IR utilities
       return Left(())
 
-    val (resultPType: PTuple, f) = ctx.timer.time("Compile")(Compile[Long](ctx,
-      MakeTuple.ordered(FastSeq(ir)), None, optimize = false))
+    val (resultPType: PTuple, f) = ctx.timer.time("Compile")(Compile[AsmFunction1RegionLong](ctx,
+      FastIndexedSeq(),
+      FastIndexedSeq(classInfo[Region]), LongInfo,
+      MakeTuple.ordered(FastSeq(ir)),
+      print = None, optimize = false))
 
     val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(0, ctx.r))
     val resultAddress = ctx.timer.time("RunCompiledFunction")(fRunnable(ctx.r))

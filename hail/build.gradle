@@ -134,6 +134,7 @@ configurations {
 dependencies {
     unbundled 'org.scala-lang:scala-library:' + scalaVersion
     unbundled 'org.scala-lang:scala-reflect:' + scalaVersion
+
     unbundled('org.apache.spark:spark-core_' + scalaMajorVersion + ':' + sparkVersion) {
         exclude module: 'hadoop-client'
     }
@@ -155,6 +156,8 @@ dependencies {
     bundled group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
 
     bundled 'org.elasticsearch:elasticsearch-spark-20_2.11:6.2.4'
+
+    bundled 'com.google.cloud:google-cloud-storage:1.106.0'
 
     bundled 'org.apache.httpcomponents:httpcore:4.4.3'
     bundled('org.apache.httpcomponents:httpclient:4.5.1') {

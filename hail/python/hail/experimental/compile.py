@@ -29,7 +29,7 @@ def load_libhail():
 
 
 def compile_comparison_binary(op, codecName, l_type, r_type):
-    return Env.hc()._jhc.backend().compileComparisonBinary(
+    return Env.backend()._jhc.backend().compileComparisonBinary(
         op, codecName, l_type, r_type)
 
 

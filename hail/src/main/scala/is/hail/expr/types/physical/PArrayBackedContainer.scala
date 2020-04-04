@@ -147,13 +147,13 @@ trait PArrayBackedContainer extends PContainer {
   def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
     this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
-  def copyFromType(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
-    this.arrayRep.copyFromType(region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
+  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
+    arrayRep.copyFromAddress(region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
 
-  def nextElementAddress(currentOffset: Long) =
+  def nextElementAddress(currentOffset: Long): Long =
     arrayRep.nextElementAddress(currentOffset)
 
-  def nextElementAddress(currentOffset: Code[Long]) =
+  def nextElementAddress(currentOffset: Code[Long]): Code[Long] =
     arrayRep.nextElementAddress(currentOffset)
 
   def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =

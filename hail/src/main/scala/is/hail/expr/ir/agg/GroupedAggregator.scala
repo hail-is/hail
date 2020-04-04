@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{CodeOrdering, Region, RegionUtils, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ParamType, defaultValue, typeToTypeInfo}
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical._
 import is.hail.io._
@@ -17,16 +17,16 @@ class GroupedBTreeKey(kt: PType, cb: EmitClassBuilder[_], region: Value[Region],
   private val kcomp = cb.getCodeOrdering(kt, CodeOrdering.compare, ignoreMissingness = false)
 
   private val compLoader: EmitMethodBuilder[_] = {
-    val mb = cb.genEmitMethod("compWithKey", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(compType)), typeInfo[Int])
-    val off = mb.getArg[Long](1)
-    val m = mb.getArg[Boolean](2)
-    val v = mb.getArg(3)(typeToTypeInfo(compType))
+    val mb = cb.genEmitMethod("compWithKey", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Boolean], compType.ti), typeInfo[Int])
+    val off = mb.getCodeParam[Long](1)
+    val m = mb.getCodeParam[Boolean](2)
+    val v = mb.getCodeParam(3)(compType.ti)
     mb.emit(compKeys(isKeyMissing(off) -> loadKey(off), m.get -> v.get))
     mb
   }
 
   override def compWithKey(off: Code[Long], k: (Code[Boolean], Code[_])): Code[Int] =
-    compLoader.invoke[Int](off, k._1, k._2)
+    compLoader.invokeCode[Int](off, k._1, k._2)
 
   val regionIdx: Value[Int] = new Value[Int] {
     def get: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))
@@ -91,12 +91,12 @@ class GroupedBTreeKey(kt: PType, cb: EmitClassBuilder[_], region: Value[Region],
 
 class DictState(val cb: EmitClassBuilder[_], val keyType: PType, val nested: StateTuple) extends PointerBasedRVAState {
   val nStates: Int = nested.nStates
-  val valueType: PStruct = PStruct("regionIdx" -> PInt32(true), "states" -> nested.storageType)
+  val valueType: PStruct = PCanonicalStruct("regionIdx" -> PInt32(true), "states" -> nested.storageType)
   val root: Settable[Long] = cb.genFieldThisRef[Long]()
   val size: Settable[Int] = cb.genFieldThisRef[Int]()
   val keyEType = EType.defaultFromPType(keyType)
 
-  val typ: PStruct = PStruct(
+  val typ: PStruct = PCanonicalStruct(
     required = true,
     "inits" -> nested.storageType,
     "size" -> PInt32(true),
@@ -198,7 +198,7 @@ class DictState(val cb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
             km := keyed.isKeyMissing(_elt),
             kv.storeAny(keyed.loadKey(_elt)),
             ob.writeBoolean(km),
-            (!km).orEmpty(kEnc.invoke(kv, ob)),
+            (!km).orEmpty(kEnc.invokeCode(kv, ob)),
             keyed.loadStates,
             nested.toCodeWithArgs(cb, "grouped_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
               Array(ob.get),
@@ -226,7 +226,7 @@ class DictState(val cb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
           Code(
             _elt := koff,
             km := ib.readBoolean(),
-            (!km).orEmpty(kv := kDec.invoke(region, ib)),
+            (!km).orEmpty(kv := kDec.invokeCode(region, ib)),
             initElement(_elt, km, kv),
             nested.toCodeWithArgs(cb, "grouped_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
               FastIndexedSeq(ib),

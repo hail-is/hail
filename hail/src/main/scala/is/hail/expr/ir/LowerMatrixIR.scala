@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.ir.functions.{WrappedMatrixToMatrixFunction, WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
+import is.hail.expr.ir.functions.{WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TArray, TBaseStruct, TDict, TInt32, TInterval, TStruct}
 import is.hail.utils._
@@ -96,7 +96,7 @@ object LowerMatrixIR {
           irIf('row (Symbol(entries)).isNA) {
             irDie("missing entry array unsupported in 'to_matrix_table_row_major'", lc.typ.rowType)
           } {
-            irIf('row (Symbol(entries)).len.cne( 'global (Symbol(cols)).len)) {
+            irIf('row (Symbol(entries)).len.cne('global (Symbol(cols)).len)) {
               irDie("length mismatch between entry array and column array in 'to_matrix_table_row_major'", lc.typ.rowType)
             } {
               'row
@@ -106,11 +106,7 @@ object LowerMatrixIR {
 
       case MatrixToMatrixApply(child, function) =>
         val loweredChild = lower(child, ab)
-        TableToTableApply(loweredChild, function.lower()
-          .getOrElse(WrappedMatrixToMatrixFunction(function,
-            colsFieldName,
-            entriesFieldName,
-            child.typ.colKey)))
+        TableToTableApply(loweredChild, function.lower())
 
       case MatrixRename(child, globalMap, colMap, rowMap, entryMap) =>
         var t = lower(child, ab).rename(rowMap, globalMap)

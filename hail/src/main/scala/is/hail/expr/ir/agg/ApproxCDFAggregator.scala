@@ -2,8 +2,8 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder}
-import is.hail.expr.types.physical.{PBooleanRequired, PInt32Required, PStruct, PType}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode}
+import is.hail.expr.types.physical.{PBooleanRequired, PCanonicalStruct, PInt32Required, PStruct}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 
@@ -13,7 +13,7 @@ class ApproxCDFState(val cb: EmitClassBuilder[_]) extends AggregatorState {
   private val r: Settable[Region] = cb.genFieldThisRef[Region]()
   val region: Value[Region] = r
 
-  val storageType: PStruct = PStruct(true, ("id", PInt32Required), ("initialized", PBooleanRequired), ("k", PInt32Required))
+  val storageType: PStruct = PCanonicalStruct(true, ("id", PInt32Required), ("initialized", PBooleanRequired), ("k", PInt32Required))
   private val aggr = cb.genFieldThisRef[ApproxCDFStateManager]("aggr")
 
   private val initialized = cb.genFieldThisRef[Boolean]("initialized")

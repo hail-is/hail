@@ -2,6 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.HailContext
 import is.hail.annotations.{Region, RegionValue}
+import is.hail.asm4s._
 import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.LoweringPipeline
@@ -45,8 +46,11 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
   def eltOp(ctx: ExecuteContext): IR = seqPerElt
 
   def deserialize(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): ((Region, Array[Byte]) => Long) = {
-    val (_, f) = ir.CompileWithAggregators2[Unit](ctx,
-      physicalAggs, ir.DeserializeAggs(0, 0, spec, aggs))
+    val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
+      physicalAggs,
+      FastIndexedSeq(),
+      FastIndexedSeq(classInfo[Region]), UnitInfo,
+      ir.DeserializeAggs(0, 0, spec, aggs))
 
     { (aggRegion: Region, bytes: Array[Byte]) =>
       val f2 = f(0, aggRegion);
@@ -58,8 +62,11 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
   }
 
   def serialize(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (Region, Long) => Array[Byte] = {
-    val (_, f) = ir.CompileWithAggregators2[Unit](ctx,
-      physicalAggs, ir.SerializeAggs(0, 0, spec, aggs))
+    val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
+      physicalAggs,
+      FastIndexedSeq(),
+      FastIndexedSeq(classInfo[Region]), UnitInfo,
+      ir.SerializeAggs(0, 0, spec, aggs))
 
     { (aggRegion: Region, off: Long) =>
       val f2 = f(0, aggRegion);
@@ -70,8 +77,10 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
   }
 
   def combOpF(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (Array[Byte], Array[Byte]) => Array[Byte] = {
-    val (_, f) = ir.CompileWithAggregators2[Unit](ctx,
+    val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
       physicalAggs ++ physicalAggs,
+      FastIndexedSeq(),
+      FastIndexedSeq(classInfo[Region]), UnitInfo,
       Begin(
         deserializeSet(0, 0, spec) +:
           deserializeSet(1, 1, spec) +:
