@@ -35,13 +35,11 @@ object BgenSettings {
 
     val keyVType = indexKeyType(rg)
     val keyEType = EBaseStruct(FastIndexedSeq(
-      EField("locus",
-        EBaseStruct(FastIndexedSeq(
-          EField("contig", EBinaryRequired, 0),
-          EField("position", EInt32Required, 1))),
-        0),
+      EField("locus", EBaseStruct(FastIndexedSeq(
+        EField("contig", EBinaryRequired, 0),
+        EField("position", EInt32Required, 1))), 0),
       EField("alleles", EArray(EBinaryOptional, required = false), 1)),
-      required = true)
+      required = false)
 
     val annotationVType = TStruct.empty
     val annotationEType = EBaseStruct(FastIndexedSeq(), required = true)
