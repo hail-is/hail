@@ -185,21 +185,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
           globalsT.insertFields(FastIndexedSeq(
             colsFieldName -> PCanonicalArray(colsT.elementType.setRequired(true), true))))
 
-    val entriesT = rvd.rowPType.field(entriesFieldName).typ.asInstanceOf[PArray]
-    val rvd2 =
-      if (entriesT.required && entriesT.elementType.required)
-        rvd
-      else
-        rvd.cast(
-          PCanonicalStruct(true,
-            rvd.rowPType.fields.map { f =>
-              if (f.name == entriesFieldName)
-                entriesFieldName -> PCanonicalArray(entriesT.elementType.setRequired(true), true)
-              else
-                f.name -> f.typ
-            }: _*))
-
-    val newTV = TableValue(typ, globals2, rvd2)
+    val newTV = TableValue(typ, globals2, rvd)
 
     MatrixValue(mType, newTV.rename(
       Map(colsFieldName -> LowerMatrixIR.colsFieldName),

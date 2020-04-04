@@ -164,9 +164,8 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     if (equalModuloRequired(srcPType) && !deepCopy)
       return srcAddress
 
-    val srcBaseStructT = srcPType.asInstanceOf[PBaseStruct]
     val newAddr = allocate(region)
-    constructAtAddress(newAddr, region, srcBaseStructT, srcAddress, deepCopy)
+    constructAtAddress(newAddr, region, srcPType.asInstanceOf[PBaseStruct], srcAddress, deepCopy)
     newAddr
   }
 
@@ -201,7 +200,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     val srcStruct = srcPType.asInstanceOf[PBaseStruct]
-    if (srcStruct == this) {
+    if (equalModuloRequired(srcStruct)) {
       Region.copyFrom(srcAddress, addr, byteSize)
       if (deepCopy)
         deepPointerCopy(region, addr)
@@ -209,14 +208,12 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
       initialize(addr, setMissing = true)
       var idx = 0
       while (idx < types.length) {
-        val dest = types(idx)
-        val src = srcStruct.types(idx)
-        assert(dest.required <= src.required)
-
         if (srcStruct.isFieldDefined(srcAddress, idx)) {
           setFieldPresent(addr, idx)
-          dest.constructAtAddress(fieldOffset(addr, idx), region, src, srcStruct.loadField(srcAddress, idx), deepCopy)
-        }
+          types(idx).constructAtAddress(
+            fieldOffset(addr, idx), region, srcStruct.types(idx), srcStruct.loadField(srcAddress, idx), deepCopy)
+        } else
+          assert(!required)
         idx += 1
       }
     }

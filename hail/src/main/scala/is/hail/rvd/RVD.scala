@@ -66,6 +66,7 @@ class RVD(
     new RVD(newTyp, newPartitioner, crdd)
   }
 
+
   // Exporting
 
   def toRows: RDD[Row] = {
