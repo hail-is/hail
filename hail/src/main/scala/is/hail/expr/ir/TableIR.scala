@@ -635,19 +635,15 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     val (leftKeyType, leftValueType, rightValueType) = joinType match {
       case "inner" =>
         val keyType = leftRVDType.kType.setFieldsRequiredeness(true)
-        val lValueType = leftRVDType.valueType.setFieldsRequiredeness(true)
-        val rValueType = rightRVDType.valueType.setFieldsRequiredeness(true)
-        (keyType, lValueType, rValueType)
+        (keyType, leftRVDType.valueType, rightRVDType.valueType)
       case "left" =>
         val keyType = leftRVDType.kType.setFieldsRequiredeness(true)
-        val lValueType = leftRVDType.valueType.setFieldsRequiredeness(true)
         val rValueType = rightRVDType.valueType.setFieldsRequiredeness(false)
-        (keyType, lValueType, rValueType)
+        (keyType, leftRVDType.valueType, rValueType)
       case "right" =>
         val keyType = leftRVDType.kType.setFieldsRequiredeness(true)
         val lValueType = leftRVDType.valueType.setFieldsRequiredeness(false)
-        val rValueType = rightRVDType.valueType.setFieldsRequiredeness(true)
-        (keyType, lValueType, rValueType)
+        (keyType, lValueType, rightRVDType.valueType)
       case "outer" | "zip" =>
         val keyType = leftRVDType.kType.setFieldsRequiredeness(false)
         val lValueType = leftRVDType.valueType.setFieldsRequiredeness(false)
@@ -655,7 +651,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
         (keyType, lValueType, rValueType)
     }
 
-    val newRowPType = (leftKeyType ++ leftValueType ++ rightValueType).setRequired(true).asInstanceOf[PStruct]
+    val newRowPType = leftKeyType ++ leftValueType ++ rightValueType
 
     assert(newRowPType.virtualType == newRowType)
 
