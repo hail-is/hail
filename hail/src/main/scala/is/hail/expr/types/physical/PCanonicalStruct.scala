@@ -54,16 +54,6 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   override def truncate(newSize: Int): PStruct =
     PCanonicalStruct(fields.take(newSize), required)
 
-  def updateKey(key: String, i: Int, sig: PType): PStruct = {
-    assert(fieldIdx.contains(key))
-
-    val newFields = Array.fill[PField](fields.length)(null)
-    for (i <- fields.indices)
-      newFields(i) = fields(i)
-    newFields(i) = PField(key, sig, i)
-    PCanonicalStruct(newFields, required)
-  }
-
   def deleteField(key: String): PStruct = {
     assert(fieldIdx.contains(key))
     val index = fieldIdx(key)
@@ -129,18 +119,6 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   def selectFields(names: Seq[String]): PStruct = {
     PCanonicalStruct(required,
       names.map(f => f -> field(f).typ): _*)
-  }
-
-  def select(keep: IndexedSeq[String]): (PStruct, (Row) => Row) = {
-    val t = PCanonicalStruct(keep.map { n =>
-      n -> field(n).typ
-    }: _*)
-
-    val keepIdx = keep.map(fieldIdx)
-    val selectF: Row => Row = { r =>
-      Row.fromSeq(keepIdx.map(r.get))
-    }
-    (t, selectF)
   }
 
   def dropFields(names: Set[String]): PStruct =

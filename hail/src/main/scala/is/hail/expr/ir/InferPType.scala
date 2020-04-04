@@ -448,7 +448,7 @@ object InferPType {
       case SelectFields(old, fields) =>
         infer(old)
         val tbs = coerce[PStruct](old.pType)
-        tbs.select(fields.toFastIndexedSeq)._1
+        tbs.selectFields(fields.toFastIndexedSeq)
       case InsertFields(old, fields, fieldOrder) =>
         infer(old)
         val tbs = coerce[PStruct](old.pType)

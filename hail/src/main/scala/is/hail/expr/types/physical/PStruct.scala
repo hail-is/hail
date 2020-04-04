@@ -18,8 +18,6 @@ trait PStruct extends PBaseStruct {
     CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb, so)
   }
 
-  def updateKey(key: String, i: Int, sig: PType): PStruct
-
   def deleteField(key: String): PStruct
 
   def appendKey(key: String, sig: PType): PStruct
@@ -31,8 +29,6 @@ trait PStruct extends PBaseStruct {
   def identBase: String = "tuple"
 
   def selectFields(names: Seq[String]): PStruct
-
-  def select(keep: IndexedSeq[String]): (PStruct, (Row) => Row)
 
   def dropFields(names: Set[String]): PStruct
 
