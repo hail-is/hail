@@ -196,7 +196,7 @@ def get_obj_metadata(obj):
     from hail.matrixtable import MatrixTable, GroupedMatrixTable
     from hail.table import Table, GroupedTable
     from hail.utils import Struct
-    from hail.expr.expressions import StructExpression
+    from hail.expr.expressions import StructExpression, ArrayStructExpression, SetStructExpression
 
     def table_error(index_obj):
         def fmt_field(field):
@@ -231,6 +231,10 @@ def get_obj_metadata(obj):
         return 'Struct', Struct, struct_error(obj), False
     elif isinstance(obj, StructExpression):
         return 'StructExpression', StructExpression, struct_error(obj), True
+    elif isinstance(obj, ArrayStructExpression):
+        return 'ArrayStructExpression', StructExpression, struct_error(obj), True
+    elif isinstance(obj, SetStructExpression):
+        return 'SetStructExpression', StructExpression, struct_error(obj), True
     else:
         raise NotImplementedError(obj)
 
