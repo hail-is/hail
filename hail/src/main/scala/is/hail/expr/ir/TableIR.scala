@@ -649,7 +649,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
         (keyType, lValueType, rValueType)
     }
 
-    val newRowPType = leftKeyType ++ leftValueType ++ rightValueType
+    val newRowPType = (leftKeyType ++ leftValueType ++ rightValueType).setRequired(true).asInstanceOf[PStruct]
 
     assert(newRowPType.virtualType == newRowType)
 
