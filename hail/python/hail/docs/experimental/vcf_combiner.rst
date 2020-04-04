@@ -74,6 +74,32 @@ driver machine, and jobs that take advantage of the entire cluster. For this
 reason, its is recommended that clusters with autoscaling functionality are
 used, to reduce the overall cost of the pipeline.
 
+For users running with Google Dataproc, the full documentation for creating
+autoscaling policies `can be found here <https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/autoscaling#create_an_autoscaling_policy>`__.
+
+A typical YAML policy might look like: ::
+
+    basicAlgorithm:
+      cooldownPeriod: 120s
+      yarnConfig:
+        gracefulDecommissionTimeout: 120s
+        scaleDownFactor: 1.0
+        scaleUpFactor: 1.0
+    secondaryWorkerConfig:
+      maxInstances: MAX_PREEMPTIBLE_INSTANCES
+      weight: 1
+    workerConfig:
+      maxInstances: 2
+      minInstances: 2
+      weight: 1
+
+For ``MAX_PREEMPTIBLE_INSTANCES``, you should fill in a value based on the number of GVCFs you are merging.
+For sample sizes up to about 10,000, a value of 100 should be fine.
+
+You can start a cluster with this autoscaling policy using ``hailctl``: ::
+
+    hailctl dataproc start cluster_name ...args... --autoscaling-policy=policy_id_or_uri
+
 Working with sparse matrix tables
 ---------------------------------
 
