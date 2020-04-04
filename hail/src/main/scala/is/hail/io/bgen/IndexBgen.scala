@@ -64,7 +64,7 @@ object IndexBgen {
     val headers = LoadBgen.getFileHeaders(fs, bgenFilePaths)
     LoadBgen.checkVersionTwo(headers)
 
-    val annotationType = PCanonicalStruct(true)
+    val annotationType = +PCanonicalStruct()
 
     val settings: BgenSettings = BgenSettings(
       0, // nSamples not used if there are no entries

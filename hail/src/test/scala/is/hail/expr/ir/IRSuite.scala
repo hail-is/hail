@@ -3260,7 +3260,7 @@ class IRSuite extends HailSuite {
     Array(PFloat64(), 1.2),
     Array(PCanonicalString(), "foo"),
     Array(PCanonicalArray(PInt32()), FastIndexedSeq(5, 7, null, 3)),
-    Array(PCanonicalTuple(PInt32(), PCanonicalString(), PCanonicalStruct()), Row(3, "bar", Row()))
+    Array(PCanonicalTuple(false, PInt32(), PCanonicalString(), PCanonicalStruct()), Row(3, "bar", Row()))
   )
 
   @Test(dataProvider = "nonNullTypesAndValues")
