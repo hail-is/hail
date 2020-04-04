@@ -135,10 +135,6 @@ dependencies {
     unbundled 'org.scala-lang:scala-library:' + scalaVersion
     unbundled 'org.scala-lang:scala-reflect:' + scalaVersion
 
-    bundled group: 'org.ow2.asm', name: 'asm', version: '7.3.1'
-    bundled group: 'org.ow2.asm', name: 'asm-util', version: '7.3.1'
-    bundled group: 'org.ow2.asm', name: 'asm-analysis', version: '7.3.1'
-
     unbundled('org.apache.spark:spark-core_' + scalaMajorVersion + ':' + sparkVersion) {
         exclude module: 'hadoop-client'
     }

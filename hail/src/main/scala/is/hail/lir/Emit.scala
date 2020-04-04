@@ -6,7 +6,6 @@ import is.hail.utils._
 import org.objectweb.asm.{ClassReader, ClassWriter}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
-import org.objectweb.asm.tree.analysis.AnalyzerException
 import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
 
 import scala.collection.JavaConverters._
