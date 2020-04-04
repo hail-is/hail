@@ -1038,7 +1038,7 @@ class PruneSuite extends HailSuite {
     checkRebuild(AggLet("foo", NA(ref.typ),
       ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(
         SelectFields(Ref("foo", ref.typ), Seq("a"))),
-        AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(ref.typ))), false), subsetTS("b"),
+        AggSignature(Collect(), FastIndexedSeq(), FastIndexedSeq(ref.typ))), false), TArray(subsetTS("a")),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[AggLet]
         ir.value.typ == subsetTS("a")
