@@ -257,7 +257,10 @@ def main(args, pass_through_args):
         # VEP is too expensive if you have to pay egress charges. We must choose the right replicate.
         replicate = REGION_TO_REPLICATE_MAPPING.get(project_region)
         if replicate is None:
-            raise RuntimeError("The --vep argument is not currently provided in your region. Please contact the Hail team on https://discuss.hail.is for support.")
+            raise RuntimeError(f"The --vep argument is not currently provided in your region.\n"
+                               f"  Please contact the Hail team on https://discuss.hail.is for support.\n"
+                               f"  Your region: {project_region}\n"
+                               f"  Supported regions: {', '.join(REGION_TO_REPLICATE_MAPPING.keys())}")
         print(f"Pulling VEP data from bucket in {replicate}.")
         conf.extend_flag('metadata', {"VEP_REPLICATE": replicate})
         conf.extend_flag('initialization-actions', [deploy_metadata[f'vep-{args.vep}.sh']])
