@@ -226,7 +226,7 @@ class EmitStreamSuite extends HailSuite {
       EmitStream.emit(new Emit(ctx, fb.ecb), s, mb, Env.empty, None)
     }
     mb.emit {
-      val arrayt = EmitStream.toArray(mb, PArray(eltType), stream)
+      val arrayt = EmitStream.toArray(mb, PCanonicalArray(eltType), stream)
       Code(arrayt.setup, arrayt.m.mux(0L, arrayt.v))
     }
     val f = fb.resultWithIndex()
@@ -235,7 +235,7 @@ class EmitStreamSuite extends HailSuite {
       if (off == 0L)
         null
       else
-        SafeRow.read(PArray(eltType), off).asInstanceOf[IndexedSeq[Any]]
+        SafeRow.read(PCanonicalArray(eltType), off).asInstanceOf[IndexedSeq[Any]]
     }
   }
 
@@ -317,7 +317,7 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testEmitRange() {
-    val tripleType = PStruct(false, "start" -> PInt32(), "stop" -> PInt32(), "step" -> PInt32())
+    val tripleType = PCanonicalStruct(false, "start" -> PInt32(), "stop" -> PInt32(), "step" -> PInt32())
     val range = compileStream(
       StreamRange(GetField(In(0, tripleType), "start"), GetField(In(0, tripleType), "stop"), GetField(In(0, tripleType), "step")),
       tripleType)

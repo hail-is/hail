@@ -5,10 +5,6 @@ import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TDict
 
-object PDict {
-  def apply(keyType: PType, valueType: PType, required: Boolean = false) = PCanonicalDict(keyType, valueType, required)
-}
-
 abstract class PDict extends PContainer {
   lazy val virtualType: TDict = TDict(keyType.virtualType, valueType.virtualType)
 

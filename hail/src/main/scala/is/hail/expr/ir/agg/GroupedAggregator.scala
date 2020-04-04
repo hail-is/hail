@@ -91,12 +91,12 @@ class GroupedBTreeKey(kt: PType, cb: EmitClassBuilder[_], region: Value[Region],
 
 class DictState(val cb: EmitClassBuilder[_], val keyType: PType, val nested: StateTuple) extends PointerBasedRVAState {
   val nStates: Int = nested.nStates
-  val valueType: PStruct = PStruct("regionIdx" -> PInt32(true), "states" -> nested.storageType)
+  val valueType: PStruct = PCanonicalStruct("regionIdx" -> PInt32(true), "states" -> nested.storageType)
   val root: Settable[Long] = cb.genFieldThisRef[Long]()
   val size: Settable[Int] = cb.genFieldThisRef[Int]()
   val keyEType = EType.defaultFromPType(keyType)
 
-  val typ: PStruct = PStruct(
+  val typ: PStruct = PCanonicalStruct(
     required = true,
     "inits" -> nested.storageType,
     "size" -> PInt32(true),

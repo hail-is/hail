@@ -5,10 +5,6 @@ import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TSet
 
-object PSet {
-  def apply(elementType: PType, required: Boolean = false) = PCanonicalSet(elementType, required)
-}
-
 abstract class PSet extends PContainer {
   lazy val virtualType: TSet = TSet(elementType.virtualType)
 

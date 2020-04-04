@@ -235,7 +235,7 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
 
   def seqOpTypes: Array[PType] = Array(PInt32(), PVoid)
 
-  def resultType: PType = PArray(PTuple(nestedAggs.map(_.resultType): _*))
+  def resultType: PType = PCanonicalArray(PCanonicalTuple(false, nestedAggs.map(_.resultType): _*))
 
   def createState(cb: EmitClassBuilder[_]): State =
     throw new UnsupportedOperationException(s"State must be created by ArrayElementLengthCheckAggregator")

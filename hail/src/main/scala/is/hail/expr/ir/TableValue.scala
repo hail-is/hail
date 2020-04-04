@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.TableAnnotationImpex
-import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.physical.{PCanonicalStruct, PStruct}
 import is.hail.expr.types.virtual.{Field, TArray, TStruct}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.io.{BufferSpec, TypedCodecSpec, exportTypes}
@@ -26,7 +26,7 @@ object TableValue {
   }
 
   def apply(ctx: ExecuteContext, rowType:  TStruct, key: IndexedSeq[String], rdd: RDD[Row], rowPType: Option[PStruct] = None): TableValue = {
-    val canonicalRowType = rowPType.getOrElse(PStruct.canonical(rowType))
+    val canonicalRowType = rowPType.getOrElse(PCanonicalStruct.canonical(rowType))
     val tt = TableType(rowType, key, TStruct.empty)
     TableValue(tt,
       BroadcastRow.empty(ctx),

@@ -10,7 +10,7 @@ import is.hail.utils._
 
 class TypedKey(typ: PType, cb: EmitClassBuilder[_], region: Value[Region]) extends BTreeKey {
   val inline: Boolean = typ.isPrimitive
-  val storageType: PTuple = PTuple(if (inline) typ else PInt64(typ.required), PTuple())
+  val storageType: PTuple = PCanonicalTuple(false, if (inline) typ else PInt64(typ.required), PCanonicalTuple(false))
   val compType: PType = typ
   private val kcomp = cb.getCodeOrdering(typ, CodeOrdering.compare, ignoreMissingness = false)
 
@@ -63,7 +63,7 @@ class AppendOnlySetState(val cb: EmitClassBuilder[_], t: PType) extends PointerB
   val tree = new AppendOnlyBTree(cb, key, region, root)
   val et = EType.defaultFromPType(t)
 
-  val typ: PStruct = PStruct(
+  val typ: PStruct = PCanonicalStruct(
     required = true,
     "size" -> PInt32(true),
     "tree" -> PInt64(true))

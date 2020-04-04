@@ -1386,7 +1386,7 @@ private class Emit[C](
             rightShapeArraySetup,
             unifyShapeSetup)
 
-        val outputPType = PNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), true)
+        val outputPType = PCanonicalNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), true)
 
         val numericElementType = coerce[PNumeric](lPType.elementType)
 
@@ -1532,7 +1532,7 @@ private class Emit[C](
 
         val dataAddress = ndPType.data.load(ndAddress)
 
-        val tauPType = PArray(PFloat64Required, true)
+        val tauPType = PCanonicalArray(PFloat64Required, true)
         val tauAddress = mb.genFieldThisRef[Long]()
         val workAddress = mb.genFieldThisRef[Long]()
         val aAddressDGEQRF = mb.genFieldThisRef[Long]() // Should be column major
@@ -1750,9 +1750,9 @@ private class Emit[C](
         val gType = globals.pType
         val bType = body.pType
 
-        val ctxTypeTuple = PTuple(ctxType)
-        val gTypeTuple = PTuple(gType)
-        val bTypeTuple = PTuple(bType)
+        val ctxTypeTuple = PCanonicalTuple(false, ctxType)
+        val gTypeTuple = PCanonicalTuple(false, gType)
+        val bTypeTuple = PCanonicalTuple(false, bType)
 
         val spec = BufferSpec.defaultUncompressed
         val parentCB = mb.ecb
@@ -1832,7 +1832,7 @@ private class Emit[C](
         val encRes = mb.genFieldThisRef[Array[Array[Byte]]]()
 
         def etToTuple(et: EmitCode, t: PType): Code[Long] = {
-          val srvb = new StagedRegionValueBuilder(mb, PTuple(t))
+          val srvb = new StagedRegionValueBuilder(mb, PCanonicalTuple(false, t))
           Code(
             srvb.start(),
             et.setup,

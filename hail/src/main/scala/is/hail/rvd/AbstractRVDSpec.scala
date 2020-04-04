@@ -3,8 +3,8 @@ package is.hail.rvd
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.ExecuteContext
-import is.hail.expr.types.encoded.{ETypeSerializer, EType}
-import is.hail.expr.types.physical.{PInt64Optional, PInt64Required, PStruct, PType, PTypeSerializer}
+import is.hail.expr.types.encoded.{EType, ETypeSerializer}
+import is.hail.expr.types.physical.{PCanonicalStruct, PInt64Optional, PInt64Required, PStruct, PType, PTypeSerializer}
 import is.hail.expr.types.virtual.{TStructSerializer, _}
 import is.hail.io._
 import is.hail.io.fs.FS
@@ -241,12 +241,12 @@ object IndexSpec {
   }
 
   def emptyAnnotation(relPath: String, keyType: PStruct): AbstractIndexSpec = {
-    fromKeyAndValuePTypes(relPath, keyType, PStruct(required = true), None)
+    fromKeyAndValuePTypes(relPath, keyType, PCanonicalStruct(required = true), None)
   }
 
   def defaultAnnotation(relPath: String, keyType: PStruct, withOffsetField: Boolean = false): AbstractIndexSpec = {
     val name = "entries_offset"
-    fromKeyAndValuePTypes(relPath, keyType, PStruct(required = true, name -> PInt64Optional),
+    fromKeyAndValuePTypes(relPath, keyType, PCanonicalStruct(required = true, name -> PInt64Optional),
       if (withOffsetField) Some(name) else None)
   }
 }

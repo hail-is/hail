@@ -14,7 +14,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
 
   class BlockLinkedList[E](region: Region, val elemPType: PType, initImmediately: Boolean = true)
       extends Growable[E] {
-    val arrayPType = PArray(elemPType)
+    val arrayPType = PCanonicalArray(elemPType)
 
     private val initF: Region => Long = {
       val fb = EmitFunctionBuilder[Region, Long]("init")
@@ -143,7 +143,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
   @Test def testPushStrsMissing() {
     Region.scoped { region =>
       val a = new ArrayBuilder[String]()
-      val b = new BlockLinkedList[String](region, PString())
+      val b = new BlockLinkedList[String](region, PCanonicalString())
       for (i <- 1 to 100) {
         val elt = if(i%3 == 0) null else i.toString()
         a += elt
@@ -155,8 +155,8 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
 
   @Test def testAppendAnother() {
     Region.scoped { region =>
-      val b1 = new BlockLinkedList[String](region, PString())
-      val b2 = new BlockLinkedList[String](region, PString())
+      val b1 = new BlockLinkedList[String](region, PCanonicalString())
+      val b2 = new BlockLinkedList[String](region, PCanonicalString())
       b1 += "{"
       b2 ++= Seq("foo", "bar")
       b1 ++= b2

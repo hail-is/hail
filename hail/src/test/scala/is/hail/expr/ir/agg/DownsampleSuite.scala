@@ -4,14 +4,14 @@ import is.hail.HailSuite
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.expr.types.physical.{PArray, PString}
+import is.hail.expr.types.physical.{PCanonicalArray, PCanonicalString}
 import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.Test
 
 class DownsampleSuite extends HailSuite {
 
   @Test def testLargeRandom(): Unit = {
-    val lt = PArray(PString())
+    val lt = PCanonicalArray(PCanonicalString())
     val fb = EmitFunctionBuilder[Unit]("foo")
     val cb = fb.ecb
     val ds1 = new DownsampleState(cb, lt, maxBufferSize = 4)

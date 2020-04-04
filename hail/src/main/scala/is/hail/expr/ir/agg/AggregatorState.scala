@@ -84,7 +84,7 @@ trait PointerBasedRVAState extends RegionBackedAggState {
 
 class TypedRegionBackedAggState(val typ: PType, val cb: EmitClassBuilder[_]) extends RegionBackedAggState {
   override val regionSize: Int = Region.TINIER
-  val storageType: PTuple = PTuple(required = true, typ)
+  val storageType: PTuple = PCanonicalTuple(required = true, typ)
   val off: Settable[Long] = cb.genFieldThisRef[Long]()
 
   override def newState(src: Code[Long]): Code[Unit] = Code(off := src, super.newState(off))
@@ -132,7 +132,7 @@ class PrimitiveRVAState(val types: Array[PType], val cb: EmitClassBuilder[_]) ex
     val v = cb.genFieldThisRef(s"primitiveRVA_${i}_v")(typeToTypeInfo(types(i)))
     (m, v, types(i))
   }
-  val storageType: PTuple = PTuple(types: _*)
+  val storageType: PTuple = PCanonicalTuple(false, types: _*)
 
   def foreachField(f: (Int, ValueField) => Code[Unit]): Code[Unit] =
     Code(Array.tabulate(nFields)(i => f(i, fields(i))))
@@ -194,7 +194,7 @@ class PrimitiveRVAState(val types: Array[PType], val cb: EmitClassBuilder[_]) ex
 
 case class StateTuple(states: Array[AggregatorState]) {
   val nStates: Int = states.length
-  val storageType: PTuple = PTuple(true, states.map { s => s.storageType }: _*)
+  val storageType: PTuple = PCanonicalTuple(true, states.map { s => s.storageType }: _*)
 
   def apply(i: Int): AggregatorState = {
     if (i >= states.length)

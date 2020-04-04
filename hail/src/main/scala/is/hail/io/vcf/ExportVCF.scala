@@ -43,7 +43,7 @@ object ExportVCF {
           sb += '.'
         else
           sb.append(x.formatted("%.6g"))
-      case t@PString(_) =>
+      case t@PCanonicalString(_) =>
         sb.append(t.loadString(offset))
       case _: PCall =>
         val c = Region.loadInt(offset)
@@ -244,11 +244,11 @@ object ExportVCF {
           case _: TStruct => mv.rvRowPType.field("info").typ.asInstanceOf[PStruct]
           case t =>
             warn(s"export_vcf found row field 'info' of type $t, but expected type 'Struct'. Emitting no INFO fields.")
-            PStruct.empty()
+            PCanonicalStruct.empty()
         }
       } else {
         warn(s"export_vcf found no row field 'info'. Emitting no INFO fields.")
-        PStruct.empty()
+        PCanonicalStruct.empty()
       }
 
     val rg = mv.referenceGenome

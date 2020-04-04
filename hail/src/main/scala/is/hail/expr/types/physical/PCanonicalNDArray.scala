@@ -27,12 +27,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   )
 
   @transient lazy val data: StaticallyKnownField[PArray, Long] = new StaticallyKnownField(
-    PArray(elementType, required = true),
+    PCanonicalArray(elementType, required = true),
     off => representation.loadField(off, "data")
   )
 
   lazy val representation: PStruct = {
-    PStruct(required,
+    PCanonicalStruct(required,
       ("shape", shape.pType),
       ("strides", strides.pType),
       ("data", data.pType))

@@ -10,7 +10,7 @@ import is.hail.annotations._
 import is.hail.expr.Parser
 import is.hail.expr.ir.{CompileAndEvaluate, ExecuteContext, IR, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PFloat64, PFloat64Optional, PInt64, PInt64Optional, PStruct}
+import is.hail.expr.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PFloat64Optional, PInt64, PInt64Optional, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
@@ -1255,7 +1255,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def entriesTable(ctx: ExecuteContext): TableValue = {
-    val rowType = PStruct("i" -> PInt64Optional, "j" -> PInt64Optional, "entry" -> PFloat64Optional)
+    val rowType = PCanonicalStruct("i" -> PInt64Optional, "j" -> PInt64Optional, "entry" -> PFloat64Optional)
     
     val entriesRDD = ContextRDD.weaken(blocks).cflatMap { case (ctx, ((blockRow, blockCol), block)) =>
       val rowOffset = blockRow * blockSize.toLong
@@ -1942,7 +1942,7 @@ class BlockMatrixReadRowBlockedRDD(
         val pfs = partFilesForRow(row, partFiles)
         val rowInPartFile = (row % blockSize).toInt
 
-        rvb.start(PStruct(("row_idx", PInt64()), ("entries", PArray(PFloat64()))))
+        rvb.start(PCanonicalStruct(("row_idx", PInt64()), ("entries", PCanonicalArray(PFloat64()))))
         rvb.startStruct()
         rvb.addLong(row)
         rvb.startArray(nCols.toInt)

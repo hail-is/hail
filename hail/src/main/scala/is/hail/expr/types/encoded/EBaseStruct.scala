@@ -71,23 +71,23 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     case t: TInterval =>
       val repr = t.representation
       val pointType = _decodedPType(repr).asInstanceOf[PStruct].fieldType("start")
-      PInterval(pointType, required)
-    case t: TLocus => PLocus(t.rg, required)
+      PCanonicalInterval(pointType, required)
+    case t: TLocus => PCanonicalLocus(t.rg, required)
     case t: TStruct =>
       val pFields = t.fields.map { case Field(name, typ, idx) =>
         val pt = fieldType(name).decodedPType(typ)
         PField(name, pt, idx)
       }
-      PStruct(pFields, required)
+      PCanonicalStruct(pFields, required)
     case t: TTuple =>
       val pFields = t.fields.map { case Field(name, typ, idx) =>
         val pt = fieldType(name).decodedPType(typ)
         PTupleField(idx, pt)
       }
-      PTuple(pFields, required)
+      PCanonicalTuple(pFields, required)
     case t: TNDArray =>
       val elementType = _decodedPType(t.representation).asInstanceOf[PStruct].fieldType("data").asInstanceOf[PArray].elementType
-      PNDArray(elementType, t.nDims, required)
+      PCanonicalNDArray(elementType, t.nDims, required)
   }
 
   def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {

@@ -286,7 +286,7 @@ case class TextMatrixReader(
     val rvd = if (tr.dropRows)
       RVD.empty(sc, requestedType.canonicalRVDType)
     else
-      RVD.unkeyed(PStruct.canonical(requestedType.rowType), rdd)
+      RVD.unkeyed(PCanonicalStruct.canonical(requestedType.rowType), rdd)
     val globalValue = makeGlobalValue(ctx, requestedType, headerInfo.columnIdentifiers.map(Row(_)))
     TableValue(tr.typ, globalValue, rvd)
   }

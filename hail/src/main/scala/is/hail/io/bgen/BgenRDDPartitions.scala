@@ -7,7 +7,7 @@ import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion}
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PStruct, PType}
+import is.hail.expr.types.physical.{PArray, PCanonicalArray, PStruct, PType}
 import is.hail.expr.types.virtual.{TArray, TInterval, Type}
 import is.hail.io.index.{IndexReader, IndexReaderBuilder}
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
@@ -322,7 +322,7 @@ object CompileDecoder {
           val alreadyMemoized = mb.genFieldThisRef[Boolean]("alreadyMemoized")
           val memoizedEntryData = mb.genFieldThisRef[Long]("memoizedEntryData")
 
-          val memoTyp = PArray(entryType.setRequired(true), required = true)
+          val memoTyp = PCanonicalArray(entryType.setRequired(true), required = true)
           val memoizeAllValues: Code[Unit] = {
             val memoMB = mb.genEmitMethod("memoizeEntries", Array[TypeInfo[_]](), UnitInfo)
 

@@ -1142,8 +1142,8 @@ object LoadVCF {
       case (VCFHeaderLineType.Integer, false) => PInt32()
       case (VCFHeaderLineType.Float, false) => PType.canonical(floatType)
       case (VCFHeaderLineType.String, true) => PCanonicalCall()
-      case (VCFHeaderLineType.String, false) => PString()
-      case (VCFHeaderLineType.Character, false) => PString()
+      case (VCFHeaderLineType.String, false) => PCanonicalString()
+      case (VCFHeaderLineType.Character, false) => PCanonicalString()
       case (VCFHeaderLineType.Flag, false) => PBoolean()
       case (_, true) => fatal(s"Can only convert a header line with type 'String' to a call type. Found '${ line.getType }'.")
     }
@@ -1550,7 +1550,7 @@ case class MatrixVCFReader(
   override lazy val fullType: TableType = fullMatrixType.canonicalTableType
 
   val fullRVDType = RVDType(PCanonicalStruct(false,
-    PStruct.canonical(kType).fields.map { f => (f.name, f.typ) }
+    PCanonicalStruct.canonical(kType).fields.map { f => (f.name, f.typ) }
       ++ vaSignature.fields.map { f => (f.name, f.typ) }
       ++ Array(LowerMatrixIR.entriesFieldName -> PCanonicalArray(genotypeSignature)): _*),
     fullType.key)
@@ -1694,7 +1694,7 @@ class VCFsReader(
     entryType = header1.genotypeSignature.virtualType)
 
   val fullRVDType = RVDType(PCanonicalStruct(false,
-    PStruct.canonical(kType).fields.map { f => (f.name, f.typ) }
+    PCanonicalStruct.canonical(kType).fields.map { f => (f.name, f.typ) }
       ++ header1.vaSignature.fields.map { f => (f.name, f.typ) }
       ++ Array(LowerMatrixIR.entriesFieldName -> PCanonicalArray(header1.genotypeSignature)): _*),
     typ.rowKey)

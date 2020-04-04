@@ -14,7 +14,7 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   override def byteSize: Long = 8
 
-  lazy val binaryFundamentalType: PBinary = PBinary(required)
+  lazy val binaryFundamentalType: PBinary = PCanonicalBinary(required)
 
   def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
     this.fundamentalType.copyFromType(

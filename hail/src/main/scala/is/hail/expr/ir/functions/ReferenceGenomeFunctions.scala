@@ -3,7 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.{PBoolean, PInt32, PString, PType}
+import is.hail.expr.types.physical.{PBoolean, PCanonicalString, PInt32, PType}
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -67,7 +67,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
         rgCode(r.mb).invoke[String, Int, Boolean]("isValidLocus", scontig, pos)
     }
 
-    registerRGCode("getReferenceSequenceFromValidLocus", TString, TInt32, TInt32, TInt32, TString, (_: Type, _: PType, _: PType, _: PType, _: PType) => PString()) {
+    registerRGCode("getReferenceSequenceFromValidLocus", TString, TInt32, TInt32, TInt32, TString, (_: Type, _: PType, _: PType, _: PType, _: PType) => PCanonicalString()) {
       case (r, rt, (contigT, contig: Code[Long]), (posT, pos: Code[Int]), (beforeT, before: Code[Int]), (afterT, after: Code[Int])) =>
         val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
         unwrapReturn(r, rt)(rgCode(r.mb).invoke[String, Int, Int, Int, String]("getSequence", scontig, pos, before, after))

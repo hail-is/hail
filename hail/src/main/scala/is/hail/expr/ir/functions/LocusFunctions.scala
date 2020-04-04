@@ -293,9 +293,9 @@ object LocusFunctions extends RegistryFunctions {
           totalLen := 0,
           forAllContigs(totalLen := totalLen + coordT.loadLength(coordsPerContig)),
           srvb.start(),
-          srvb.addArray(PArray(PInt32()), addIdxWithCondition(startCond, _)),
+          srvb.addArray(PCanonicalArray(PInt32()), addIdxWithCondition(startCond, _)),
           srvb.advance(),
-          srvb.addArray(PArray(PInt32()), addIdxWithCondition(endCond, _)))),
+          srvb.addArray(PCanonicalArray(PInt32()), addIdxWithCondition(endCond, _)))),
           srvb.end())
     }
 
