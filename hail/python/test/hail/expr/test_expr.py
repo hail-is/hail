@@ -3311,3 +3311,8 @@ class Tests(unittest.TestCase):
         assert np.allclose(hl.eval(np.float32(3.4)), 3.4)
         assert np.allclose(hl.eval(np.float64(8.89)), 8.89)
         assert hl.eval(np.str("cat")) == "cat"
+
+    def test_array_struct_error(self):
+        a = hl.array([hl.struct(a=5)])
+        with pytest.raises(AttributeError, match='ArrayStructExpression instance has no field, method, or property'):
+            a.x
