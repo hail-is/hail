@@ -163,6 +163,8 @@ class PCanonicalBinarySettable(val pt: PCanonicalBinary, a: Settable[Long]) exte
 class PCanonicalBinaryCode(val pt: PCanonicalBinary, val a: Code[Long]) extends PBinaryCode {
   def code: Code[_] = a
 
+  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
+
   def loadLength(): Code[Int] = pt.loadLength(a)
 
   def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
