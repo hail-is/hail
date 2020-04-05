@@ -2310,17 +2310,22 @@ class Table(ExprContainer):
 
         Notes
         -----
-        Tables are joined by comparing the values of their "Key" fields, row by row.
-        How this comparison is made depends on the join strategy:
+        Tables are joined at rows whose key fields have equal values.
+        The inclusion of a row with no match in the opposite table depends on the
+        join strategy:
 
-        - **inner** -- Key values must match in both the left and right tables.
-        - **outer** -- All rows from both tables are kept in the joined table. For key values found only in the left table, the
-          right table's fields will be missing in the joined table. For key values found only in the right table, the
-          left table's fields will be missing.
-        - **left** -- All rows from the left table are kept. For left table key values with no match in the right table,
-          the right table's fields will be missing.
-        - **right** -- All rows from the right table are kept. For right table key values with no match in the left table,
-          the left table's fields will be missing.
+        - **inner** -- Only rows with a matching key in the opposite table are included
+        in the resulting table.
+        - **left** -- All rows from the left table are included in the resulting table.
+        If a row in the left table has no match in the right table, then the fields
+        derived from the right table will be missing.
+        - **right** -- All rows from the right table are included in the resulting table.
+        If a row in the right table has no match in the left table, then the fields
+        derived from the left table will be missing.
+        - **outer** -- All rows are included in the resulting table. If a row in the right
+        table has no match in the left table, then the fields derived from the left
+        table will be missing. If a row in the right table has no match in the left table,
+        then the fields derived from the left table will be missing.
 
         Both tables must have the same number of keys and the corresponding
         types of each key must be the same (order matters), but the key names
