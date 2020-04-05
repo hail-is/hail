@@ -2310,17 +2310,16 @@ class Table(ExprContainer):
 
         Notes
         -----
-        Hail supports four types of joins specified by `how`:
+        Hail supports four types of joins specified by `how`.
 
-        - **inner** -- Key must be present in both the left and right tables.
-        - **outer** -- Key present in either the left or the right. For keys
-          only in the left table, the right table's fields will be missing.
-          For keys only in the right table, the left table's fields will be
-          missing.
-        - **left** -- Key present in the left table. For keys not found on
-          the right, the right table's fields will be missing.
-        - **right** -- Key present in the right table. For keys not found on
-          the right, the right table's fields will be missing.
+        - **inner** -- Key values must match in both the left and right tables for a record to be in the joined table.
+        - **outer** -- Joined table contains all rows from both tables. For key values found only in the left table, the
+          right table's fields will be missing in the joined table. For key values found only in the right table, the
+          left table's fields will be missing.
+        - **left** -- All rows from the left table returned. Where left table key values have no match in the right table,
+          the right table's fields will be missing.
+        - **right** -- All rows from the right table returned. Where right table key values have no match in the left table,
+          the left table's fields will be missing.
 
         Both tables must have the same number of keys and the corresponding
         types of each key must be the same (order matters), but the key names
@@ -2333,6 +2332,8 @@ class Table(ExprContainer):
         The key fields and order from the left table are preserved,
         while the key fields from the right table are not present in
         the result.
+
+        Missing (NA) keys never match.
 
         Note
         ----
