@@ -2310,15 +2310,16 @@ class Table(ExprContainer):
 
         Notes
         -----
-        Hail supports four types of joins specified by `how`.
+        Tables are joined by comparing the values of their "Key" fields, row by row.
+        How this comparison is made depends on the join strategy:
 
-        - **inner** -- Key values must match in both the left and right tables for a record to be in the joined table.
-        - **outer** -- Joined table contains all rows from both tables. For key values found only in the left table, the
+        - **inner** -- Key values must match in both the left and right tables.
+        - **outer** -- All rows from both tables are kept in the joined table. For key values found only in the left table, the
           right table's fields will be missing in the joined table. For key values found only in the right table, the
           left table's fields will be missing.
-        - **left** -- All rows from the left table returned. Where left table key values have no match in the right table,
+        - **left** -- All rows from the left table are kept. For left table key values with no match in the right table,
           the right table's fields will be missing.
-        - **right** -- All rows from the right table returned. Where right table key values have no match in the left table,
+        - **right** -- All rows from the right table are kept. For right table key values with no match in the left table,
           the left table's fields will be missing.
 
         Both tables must have the same number of keys and the corresponding
