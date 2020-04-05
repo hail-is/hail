@@ -2310,7 +2310,7 @@ class Table(ExprContainer):
 
         Notes
         -----
-        Tables are joined at rows whose key fields have equal values.
+        Tables are joined at rows whose key fields have equal values. Missing values never match.
         The inclusion of a row with no match in the opposite table depends on the
         join strategy:
 
@@ -2338,8 +2338,6 @@ class Table(ExprContainer):
         The key fields and order from the left table are preserved,
         while the key fields from the right table are not present in
         the result.
-
-        Missing (NA) keys never match.
 
         Note
         ----
