@@ -1,5 +1,4 @@
 import os
-import json
 import base64
 import concurrent
 import logging
@@ -18,7 +17,7 @@ log = logging.getLogger('batch')
 routes = web.RouteTableDef()
 
 
-def add_user(app, userdata):
+async def add_user(app, userdata):
     username = userdata['username']
     users = app['users']
     if username in users:
@@ -29,10 +28,9 @@ def add_user(app, userdata):
     gsa_key_secret = await retry_transient_errors(
         k8s_client.read_namespaced_secret,
         userdata['gsa_key_secret_name'],
-        # FIXME parameterize
         BATCH_PODS_NAMESPACE,
         _request_timeout=5.0)
-    gsa_key = base64.b64decode(gsa_key_secret['key.json']).decode()
+    gsa_key = base64.b64decode(gsa_key_secret.data['key.json']).decode()
     jbackend.addUser(username, gsa_key)
     users.add(username)
 
@@ -51,13 +49,13 @@ def blocking_execute(jbackend, username, code):
 async def execute(request, userdata):
     app = request.app
     thread_pool = app['thread_pool']
-    jbackend = app['thread_pool']
+    jbackend = app['jbackend']
     code = await request.json()
     log.info(f'execute: {code}')
-    add_user(app, userdata)
+    await add_user(app, userdata)
     result = await blocking_to_async(thread_pool, blocking_execute, jbackend, userdata['username'], code)
     log.info(f'result: {result}')
-    return web.json_response(result)
+    return web.json_response(text=result)
 
 
 def blocking_value_type(jbackend, username, code):
@@ -69,13 +67,13 @@ def blocking_value_type(jbackend, username, code):
 async def value_type(request, userdata):
     app = request.app
     thread_pool = app['thread_pool']
-    jbackend = app['thread_pool']
+    jbackend = app['jbackend']
     code = await request.json()
     log.info(f'value type: {code}')
-    add_user(app, userdata)
+    await add_user(app, userdata)
     result = await blocking_to_async(thread_pool, blocking_value_type, jbackend, userdata['username'], code)
     log.info(f'result: {result}')
-    return web.json_response(result)
+    return web.json_response(text=result)
 
 
 def blocking_table_type(jbackend, username, code):
@@ -87,13 +85,13 @@ def blocking_table_type(jbackend, username, code):
 async def table_type(request, userdata):
     app = request.app
     thread_pool = app['thread_pool']
-    jbackend = app['thread_pool']
+    jbackend = app['jbackend']
     code = await request.json()
     log.info(f'table type: {code}')
-    add_user(app, userdata)
+    await add_user(app, userdata)
     result = await blocking_to_async(thread_pool, blocking_table_type, jbackend, userdata['username'], code)
     log.info(f'result: {result}')
-    return web.json_response(result)
+    return web.json_response(text=result)
 
 
 def blocking_matrix_type(jbackend, username, code):
@@ -105,13 +103,13 @@ def blocking_matrix_type(jbackend, username, code):
 async def matrix_type(request, userdata):
     app = request.app
     thread_pool = app['thread_pool']
-    jbackend = app['thread_pool']
+    jbackend = app['jbackend']
     code = await request.json()
     log.info(f'matrix type: {code}')
-    add_user(app, userdata)
+    await add_user(app, userdata)
     result = await blocking_to_async(thread_pool, blocking_matrix_type, jbackend, userdata['username'], code)
     log.info(f'result: {result}')
-    return web.json_response(result)
+    return web.json_response(text=result)
 
 
 def blocking_blockmatrix_type(jbackend, username, code):
@@ -123,19 +121,18 @@ def blocking_blockmatrix_type(jbackend, username, code):
 async def blockmatrix_type(request, userdata):
     app = request.app
     thread_pool = app['thread_pool']
-    jbackend = app['thread_pool']
+    jbackend = app['jbackend']
     code = await request.json()
     log.info(f'blockmatrix type: {code}')
-    add_user(app, userdata)
+    await add_user(app, userdata)
     result = await blocking_to_async(thread_pool, blocking_blockmatrix_type, jbackend, userdata['username'], code)
     log.info(f'result: {result}')
-    return web.json_response(result)
+    return web.json_response(text=result)
 
 
 def blocking_get_reference(app, data):
     hail_pkg = app['hail_pkg']
-    return json.loads(
-        hail_pkg.variant.ReferenceGenome.getReference(data['name']).toJSONString())
+    return hail_pkg.variant.ReferenceGenome.getReference(data['name']).toJSONString()
 
 
 @routes.get('/references/get')
@@ -145,7 +142,7 @@ async def get_reference(request, userdata):  # pylint: disable=unused-argument
     thread_pool = app['thread_pool']
     data = await request.json()
     result = await blocking_to_async(thread_pool, blocking_get_reference, app, data)
-    return web.json_response(result)
+    return web.json_response(text=result)
 
 
 async def on_startup(app):

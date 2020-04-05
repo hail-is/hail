@@ -8,7 +8,7 @@ import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple}
 import is.hail.expr.types.physical.PBaseStruct
 import is.hail.io.fs.GoogleStorageFS
 import is.hail.utils.FastIndexedSeq
-import org.json4s.JsonAST.{JObject, JString}
+import org.json4s.JsonAST.{JArray, JBool, JInt, JObject, JString}
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable
@@ -37,6 +37,8 @@ class ServiceBackend() extends Backend {
     users -= username
   }
 
+  def defaultParallelism: Int = 10
+
   def broadcast[T: ClassTag](_value: T): BroadcastValue[T] = new BroadcastValue[T] {
     def value: T = _value
   }
@@ -61,17 +63,33 @@ class ServiceBackend() extends Backend {
 
   def tableType(username: String, s: String): String = {
     val x = IRParser.parse_table_ir(s)
-    x.typ.toString
+    val t = x.typ
+    val jv = JObject("global" -> JString(t.globalType.toString),
+      "row" -> JString(t.rowType.toString),
+      "row_key" -> JArray(t.key.map(f => JString(f)).toList))
+    JsonMethods.compact(jv)
   }
 
   def matrixTableType(username: String, s: String): String = {
     val x = IRParser.parse_matrix_ir(s)
-    x.typ.toString
+    val t = x.typ
+    val jv = JObject("global" -> JString(t.globalType.toString),
+      "col" -> JString(t.colType.toString),
+      "col_key" -> JArray(t.colKey.map(f => JString(f)).toList),
+      "row" -> JString(t.rowType.toString),
+      "row_key" -> JArray(t.rowKey.map(f => JString(f)).toList),
+      "entry" -> JString(t.entryType.toString))
+    JsonMethods.compact(jv)
   }
 
   def blockMatrixType(username: String, s: String): String = {
     val x = IRParser.parse_blockmatrix_ir(s)
-    x.typ.toString
+    val t = x.typ
+    val jv = JObject("element_type" -> JString(t.elementType.toString),
+      "shape" -> JArray(t.shape.map(s => JInt(s)).toList),
+      "is_row_vector" -> JBool(t.isRowVector),
+      "block_size" -> JInt(t.blockSize))
+    JsonMethods.compact(jv)
   }
 
   def execute(username: String, s: String): String = {
@@ -87,7 +105,7 @@ class ServiceBackend() extends Backend {
 
       JsonMethods.compact(
         JObject(List("value" -> JSONAnnotationImpex.exportAnnotation(v.get(0), x.typ),
-          "type" -> JString(pt.virtualType.toString))))
+          "type" -> JString(x.typ.toString))))
     }
   }
 }

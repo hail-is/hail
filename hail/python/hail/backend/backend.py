@@ -311,6 +311,9 @@ class ServiceBackend(Backend):
             self._fs = GoogleCloudStorageFS()
         return self._fs
 
+    def stop(self):
+        pass
+
     def _render(self, ir):
         r = CSERenderer()
         assert len(r.jirs) == 0
@@ -325,14 +328,12 @@ class ServiceBackend(Backend):
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
-
         resp_json = resp.json()
         typ = dtype(resp_json['type'])
-        result = json.loads(resp_json['result'])
-        value = typ._from_json(result['value'])
-        timings = result['timings']
+        value = typ._convert_from_json_na(resp_json['value'])
+        # FIXME put back timings
 
-        return (value, timings) if timed else value
+        return (value, None) if timed else value
 
     def _request_type(self, ir, kind):
         code = self._render(ir)

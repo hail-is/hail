@@ -256,16 +256,14 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
   val columnCount: Option[Int] = Some(nCols)
 
   lazy val partitionCounts: Option[IndexedSeq[Long]] = {
-    val nPartitionsAdj = math.min(nRows, nPartitions.getOrElse(HailContext.get.sc.defaultParallelism))
+    val nPartitionsAdj = math.min(nRows, nPartitions.getOrElse(HailContext.backend.defaultParallelism))
     Some(partition(nRows, nPartitionsAdj).map(_.toLong))
   }
 
   override def lower(mr: MatrixRead): TableIR = {
-    val uid1 = Symbol(genUID())
-
     val nRowsAdj = if (mr.dropRows) 0 else nRows
     val nColsAdj = if (mr.dropCols) 0 else nCols
-    TableRange(nRowsAdj, nPartitions.getOrElse(HailContext.get.sc.defaultParallelism))
+    TableRange(nRowsAdj, nPartitions.getOrElse(HailContext.backend.defaultParallelism))
       .rename(Map("idx" -> "row_idx"))
       .mapGlobals(makeStruct(LowerMatrixIR.colsField ->
         irRange(0, nColsAdj).map('i ~> makeStruct('col_idx -> 'i))))

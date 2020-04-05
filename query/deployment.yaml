@@ -16,6 +16,7 @@ spec:
         app: query
         hail.is/sha: "{{ code.sha }}"
     spec:
+      serviceAccountName: query
 {% if deploy %}
       priorityClassName: production
 {% endif %}
@@ -31,8 +32,8 @@ spec:
              value: "{{ global.domain }}"
            - name: HAIL_DEPLOY_CONFIG_FILE
              value: /deploy-config/deploy-config.json
-	   - name: HAIL_BATCH_PODS_NAMESPACE
-	     value: "{{ batch_pods_ns.name }}"
+           - name: HAIL_BATCH_PODS_NAMESPACE
+             value: "{{ batch_pods_ns.name }}"
            - name: HAIL_SHA
              value: "{{ code.sha }}"
           ports:
