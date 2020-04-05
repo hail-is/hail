@@ -1,11 +1,12 @@
 package is.hail.backend.service
 
 import is.hail.annotations.UnsafeRow
+import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, TypeInfo}
 import is.hail.backend.{Backend, BroadcastValue}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.{DArrayLowering, LoweringPipeline}
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple}
-import is.hail.expr.types.physical.PBaseStruct
+import is.hail.expr.types.physical.{PBaseStruct, PType}
 import is.hail.io.fs.GoogleStorageFS
 import is.hail.utils.FastIndexedSeq
 import org.json4s.JsonAST.{JArray, JBool, JInt, JObject, JString}
@@ -98,7 +99,11 @@ class ServiceBackend() extends Backend {
       var x = IRParser.parse_value_ir(s)
       x = LoweringPipeline.darrayLowerer(DArrayLowering.All).apply(ctx, x, optimize = true)
         .asInstanceOf[IR]
-      val (pt, f) = Compile[Long](ctx, MakeTuple.ordered(FastIndexedSeq(x)), None, optimize = true)
+      val (pt, f) = Compile[AsmFunction1RegionLong](ctx,
+        FastIndexedSeq[(String, PType)](),
+        FastIndexedSeq[TypeInfo[_]](), LongInfo,
+        MakeTuple.ordered(FastIndexedSeq(x)),
+        optimize = true)
 
       val a = f(0, ctx.r)(ctx.r)
       val v = new UnsafeRow(pt.asInstanceOf[PBaseStruct], ctx.r, a)
