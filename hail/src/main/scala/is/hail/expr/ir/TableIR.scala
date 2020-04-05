@@ -614,6 +614,14 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       joinKey)
   }
 
+  def setFieldsRequiredeness(ps: PStruct, required: Boolean): IndexedSeq[PField] = {
+    if(ps.fields.forall(_.typ.required == required)) {
+      return ps.fields
+    }
+
+    ps.fields.map(pf => PField(pf.name, pf.typ.setRequired(required), pf.index))
+  }
+
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val leftTV = left.execute(ctx)
     val rightTV = right.execute(ctx)
@@ -634,22 +642,22 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
 
     val (leftKeyType, leftValueType, rightValueType) = joinType match {
       case "inner" =>
-        val keyType = leftRVDType.kType.setFieldsRequiredeness(true)
-        (keyType, leftRVDType.valueType, rightRVDType.valueType)
+        val keyType = setFieldsRequiredeness(leftRVDType.kType, true)
+        (keyType, leftRVDType.valueType.fields, rightRVDType.valueType.fields)
       case "left" =>
-        val rValueType = rightRVDType.valueType.setFieldsRequiredeness(false)
-        (leftRVDType.kType, leftRVDType.valueType, rValueType)
+        val rValueType = setFieldsRequiredeness(rightRVDType.valueType, false)
+        (leftRVDType.kType.fields, leftRVDType.valueType.fields, rValueType)
       case "right" =>
-        val lValueType = leftRVDType.valueType.setFieldsRequiredeness(false)
-        (leftRVDType.kType, lValueType, rightRVDType.valueType)
+        val lValueType = setFieldsRequiredeness(leftRVDType.valueType, false)
+        (leftRVDType.kType.fields, lValueType, rightRVDType.valueType.fields)
       case "outer" | "zip" =>
-        val keyType = leftRVDType.kType.setFieldsRequiredeness(false)
-        val lValueType = leftRVDType.valueType.setFieldsRequiredeness(false)
-        val rValueType = rightRVDType.valueType.setFieldsRequiredeness(false)
+        val keyType = setFieldsRequiredeness(leftRVDType.kType, false)
+        val lValueType = setFieldsRequiredeness(leftRVDType.valueType, false)
+        val rValueType = setFieldsRequiredeness(rightRVDType.valueType, false)
         (keyType, lValueType, rValueType)
     }
 
-    val newRowPType = (leftKeyType ++ leftValueType ++ rightValueType).setRequired(true).asInstanceOf[PStruct]
+    val newRowPType = PCanonicalStruct(leftKeyType ++ leftValueType ++ rightValueType, true)
 
     assert(newRowPType.virtualType == newRowType)
 
