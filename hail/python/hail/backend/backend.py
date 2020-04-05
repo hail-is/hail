@@ -412,7 +412,8 @@ class ServiceBackend(Backend):
         return resp.json()
 
     def load_references_from_dataset(self, path):
-        raise NotImplementedError
+        # FIXME
+        return []
 
     def add_sequence(self, name, fasta_file, index_file):
         resp = sync_retry_transient_errors(
