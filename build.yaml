@@ -1019,6 +1019,8 @@ steps:
       script: /io/sql/add-instance-zone.sql
     - name: add-batches-time-created-index
       script: /io/sql/add-batches-time-created-index.sql
+    - name: change-test-worker-disk-size
+      script: /io/sql/change_test_worker_disk_size.py
    inputs:
     - from: /repo/batch/sql
       to: /io/
