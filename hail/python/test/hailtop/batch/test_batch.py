@@ -8,7 +8,7 @@ from hailtop.batch import Batch, BatchBackend, LocalBackend
 from hailtop.batch.utils import arg_max
 from hailtop.utils import grouped
 
-gcs_input_dir = os.environ.get('SCRATCH') + '/input'
+gcs_input_dir = 'gs://hail-services/batch-testing/resources/'
 gcs_output_dir = os.environ.get('SCRATCH') + '/output'
 
 

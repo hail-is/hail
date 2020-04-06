@@ -1231,15 +1231,9 @@ steps:
    image:
      valueFrom: service_base_image.image
    script: |
-     set -e
-     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-     gsutil -m cp -r /io/test/hailtop/batch/resources/* gs://hail-test-dmk9z/{{ token }}/batch/input/
-   
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      export SCRATCH=gs://hail-test-dmk9z/{{ token }}/batch
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/hailtop/batch/
-
-     gsutil -m rm -r gs://hail-test-dmk9z/{{ token }}/batch
    inputs:
     - from: /repo/test
       to: /io/
