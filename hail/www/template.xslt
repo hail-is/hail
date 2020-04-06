@@ -19,12 +19,9 @@
                 <title><xsl:call-template name="page-title"/></title>
                 <link rel='shortcut icon' href='hail_logo_sq.ico' type='image/x-icon'/>
                 <xsl:call-template name="meta-description"/>
-                <script src="/vendors/jquery-3.4.1.min.js"></script>
-                <script src="/vendors/bootstrap/js/bootstrap.min.js"></script>
                 <link rel="stylesheet" href="/vendors/bootstrap/css/bootstrap.min.css" type="text/css"/>
                 <link rel="stylesheet" href="/style.css"/>
                 <link rel="stylesheet" href="/navbar.css"/>
-                <xsl:call-template name="navbar-script"/>
                 <script>
                     (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
                     (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
@@ -37,11 +34,88 @@
             </head>
 
             <div id="body">
-                <nav class="navbar align-content-start justify-content-start" id="hail-navbar"></nav>
+                <nav class="navbar align-content-start justify-content-start" id="hail-navbar">
+                    <div class="container-fluid align-content-start justify-content-start d-flex" id="hail-container-fluid">
+                        <div class="navbar-header" id="hail-navbar-header">
+                            <a class="navbar-left" id="hail-navbar-brand" href="/"
+                            ><img alt="Hail" id="logo" src="/hail-logo-cropped.png"
+                            /></a>
+                            <button
+                            type="button"
+                            class="navbar-toggler"
+                            data-toggle="collapse"
+                            data-target="#hail-navbar-collapse"
+                            aria-expanded="false"
+                            >
+                            <span class="sr-only">Toggle navigation</span>
+                            <span class="icon-bar"></span>
+                            <span class="icon-bar"></span>
+                            <span class="icon-bar"></span>
+                            </button>
+                        </div>
+
+                        <div class="collapse navbar-collapse" id="hail-navbar-collapse">
+                            <ul class="nav navbar-nav navbar-right" id="hail-menu">
+                                <li id="docs" class="nav-item">
+                                    <a href="/docs/0.2/index.html">Docs</a>
+                                </li>
+                                <li id="forum" class="nav-item">
+                                    <a href="http://discuss.hail.is">Forum</a>
+                                </li>
+                                <li id="chat" class="nav-item">
+                                    <a href="http://hail.zulipchat.com">Chat</a>
+                                </li>
+                                <li id="code" class="nav-item">
+                                    <a href="https://github.com/hail-is/hail">Code</a>
+                                </li>
+                                <li id='powered-science' class="nav-item">
+                                    <a href="/references.html">Powered-Science</a>
+                                </li>
+                                <li id='blog' class="nav-item">
+                                    <a href="https://blog.hail.is/">Blog</a>
+                                </li>
+                                <li id='workshop' class="nav-item">
+                                    <a href="https://workshop.hail.is">Workshop</a>
+                                </li>
+                                <li id='about' class="nav-item">
+                                    <a href="/about.html">About</a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </nav>
                 <body>
                     <xsl:apply-templates select="body"/>
                 </body>
             </div>
+            <script>
+                <xsl:text disable-output-escaping="yes" >
+                    <![CDATA[
+                        (function () {
+                            var cpage = location.pathname;
+
+                            if (cpage === "" || cpage === "/" || cpage === "/index.html") {
+                                document.getElementById('hail-navbar-brand').className = "active";
+                                return;
+                            };
+
+                            var menuItems = document.querySelectorAll('#hail-menu a');
+
+                            for (var i = 0; i < menuItems.length; i++) {
+                                var href = menuItems[i].pathname;
+
+                                if (href === cpage) {
+                                    menuItems[i].className = "active";
+                                    return;
+                                }
+                            }
+                        })();
+                    ]]>
+                </xsl:text>
+            </script>
+
+            <script src="/vendors/jquery-3.4.1.min.js"></script>
+            <script src="/vendors/bootstrap/js/bootstrap.min.js"></script>
         </html>
     </xsl:template>
 </xsl:stylesheet>

@@ -52,15 +52,17 @@
   border-color: inherit;
 }
 
-#hail-navbar #hail-navbar-collapse a {
+#hail-navbar a {
   color: #444;
   text-decoration: none;
   outline: none;
   background: inherit; /*defeat bootstrap focus background*/
+  text-transform: uppercase;
 }
 
-#hail-navbar #hail-navbar-collapse a:hover {
+#hail-menu a:hover, #hail-menu a.active {
   color: #2a388f;
+  border-bottom: 1px solid #2a388f;
 }
 
 #hail-navbar #hail-menu .nav-item {
