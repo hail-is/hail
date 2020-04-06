@@ -92,7 +92,7 @@ class Handler (
     assert(hasNext != -1)
     while (hasNext == 1) {
       val off = decoder.readRegionValue(region)
-      val koff = shuffle.keyedCodecSpec.keyPType.copyFromType(region, shuffle.keyedCodecSpec.pType, off, false)
+      val koff = shuffle.keyedCodecSpec.keyPType.copyFromAddress(region, shuffle.keyedCodecSpec.pType, off, false)
       shuffle.store.store.put(koff, off)
       hasNext = in.read()
     }
@@ -119,7 +119,7 @@ class Handler (
       val v = kv.getValue
       if (shuffle.store.ord.lt(k, r)) {
         encoder.writeByte(1)
-        encoder.writeRegionValue(null, v)
+        encoder.writeRegionValue(v)
         encoder.flush()
         continue = it.hasNext
       } else {
@@ -152,7 +152,7 @@ class Shuffle (
       val enc = makeKeyEnc(out)
 
       { (x: Long) =>
-        enc.writeRegionValue(null, x)
+        enc.writeRegionValue(x)
         enc.flush()
       }
     }
@@ -164,7 +164,7 @@ class Shuffle (
       val enc = makeEnc(out)
 
       { (x: Long) =>
-        enc.writeRegionValue(null, x)
+        enc.writeRegionValue(x)
         enc.flush()
       }
     }
