@@ -1458,29 +1458,3 @@ def test_group_within_partitions_after_explode():
     t = t.explode(t.arr)
     t = t._group_within_partitions(10)
     assert(t._force_count() == 20)
-
-
-def test_map_filter_region_memory():
-    high_mem_table = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(100_000_000))
-    high_mem_table = high_mem_table.filter(high_mem_table.idx % 2 == 0)
-    assert high_mem_table._force_count() == 15
-
-
-def test_head_and_tail_region_memory():
-    high_mem_table = hl.utils.range_table(100).annotate(big_array=hl.zeros(100_000_000))
-    high_mem_table = high_mem_table.head(30)
-    high_mem_table._force_count()
-
-
-def test_inner_join_region_memory():
-    high_mem_table = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(50_000_000))
-    high_mem_table2 = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(50_000_000))
-    joined = high_mem_table.join(high_mem_table2)
-    joined._force_count()
-
-
-def test_left_join_region_memory():
-    high_mem_table = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(50_000_000))
-    high_mem_table2 = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(50_000_000))
-    joined = high_mem_table.join(high_mem_table2, how='left')
-    joined._force_count()

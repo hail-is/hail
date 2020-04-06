@@ -286,7 +286,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVa
       }
     }
   }
-  
+
 
   def toRows(rowType: PStruct): RDD[Row] = {
     crdd.run.map(rv => SafeRow(rowType, rv.offset))
