@@ -10,7 +10,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   private var totalChunkMemory = 0L
   private var currentBlock: Long = 0L
   private var offsetWithinBlock: Long = _
-  var stackTrace: Option[IndexedSeq[StackTraceElement]] = None
+//  var stackTrace: Option[IndexedSeq[StackTraceElement]] = None
 
   // blockThreshold and blockByteSize are mutable because RegionMemory objects are reused with different sizes
   protected[annotations] var blockSize: Region.Size = -1
@@ -140,7 +140,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       freeMemory()
       pool.reclaim(this)
     }
-    stackTrace = None
+//    stackTrace = None
   }
 
   def getReferenceCount: Long = referenceCount
@@ -170,7 +170,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     assert(currentBlock == 0)
     assert(totalChunkMemory == 0)
 
-    this.stackTrace = Some(Thread.currentThread().getStackTrace.toIndexedSeq.drop(4))
+//    this.stackTrace = Some(Thread.currentThread().getStackTrace.toIndexedSeq.drop(4))
 
     blockSize = newSize
     blockByteSize = Region.SIZES(blockSize)
