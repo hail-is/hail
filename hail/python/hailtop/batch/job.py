@@ -287,15 +287,15 @@ class Job:
             r = self._batch._resource_map.get(r_uid)
             if r is None:
                 raise BatchException(f"undefined resource '{r_uid}' in command '{command}'.\n"
-                                        f"Hint: resources must be from the same batch as the current job.")
+                                     f"Hint: resources must be from the same batch as the current job.")
             if r._source != self:
                 self._add_inputs(r)
                 if r._source is not None:
                     if r not in r._source._valid:
                         name = r._source._resources_inverse[r]
                         raise BatchException(f"undefined resource '{name}'\n"
-                                                f"Hint: resources must be defined within "
-                                                "the job methods 'command' or 'declare_resource_group'")
+                                             f"Hint: resources must be defined within "
+                                             f"the job methods 'command' or 'declare_resource_group'")
                     self._dependencies.add(r._source)
                     r._source._add_internal_outputs(r)
             else:

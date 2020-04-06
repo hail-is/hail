@@ -326,8 +326,8 @@ class Batch:
         if isinstance(resource, JobResourceFile) and resource not in resource._source._mentioned:
             name = resource._source._resources_inverse
             raise BatchException(f"undefined resource '{name}'\n"
-                                    f"Hint: resources must be defined within the "
-                                    "job methods 'command' or 'declare_resource_group'")
+                                 f"Hint: resources must be defined within the "
+                                 f"job methods 'command' or 'declare_resource_group'")
 
         if isinstance(self._backend, LocalBackend):
             dest = os.path.abspath(dest)

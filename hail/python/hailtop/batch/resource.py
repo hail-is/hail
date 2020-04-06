@@ -250,7 +250,7 @@ class ResourceGroup(Resource):
     def _get_resource(self, item):
         if item not in self._resources:
             raise BatchException(f"'{item}' not found in the resource group.\n"
-                                    f"Hint: you must declare each attribute when constructing the resource group.")
+                                 f"Hint: you must declare each attribute when constructing the resource group.")
         return self._resources[item]
 
     def __getitem__(self, item):
