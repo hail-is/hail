@@ -358,7 +358,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
           Iterator.range(0, nRowPartition)
             .map { _ =>
               bais.readValue(ctx.region)
-]           }
+           }
         }
       }
     TableValue(typ, globals, RVD.unkeyed(resultRowType, rvd))

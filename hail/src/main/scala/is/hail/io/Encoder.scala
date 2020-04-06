@@ -63,7 +63,7 @@ final class ByteArrayEncoder(
   }
 
   def reset(): Unit = baos.reset()
-  def writeRegionValue(region: Region, offset: Long): Unit = enc.writeRegionValue(region, offset)
+  def writeRegionValue(region: Region, offset: Long): Unit = enc.writeRegionValue(offset)
 
   def result(): Array[Byte] = {
     enc.flush()
