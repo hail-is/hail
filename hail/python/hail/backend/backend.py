@@ -13,7 +13,7 @@ from hail.expr.blockmatrix_type import *
 from hail.ir.renderer import CSERenderer, Renderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
-from hailtop.utils import sync_retry_transient_errors
+from hailtop.utils import retry_response_returning_functions
 
 
 class Backend(abc.ABC):
@@ -321,7 +321,7 @@ class ServiceBackend(Backend):
 
     def execute(self, ir, timed=False):
         code = self._render(ir)
-        resp = sync_retry_transient_errors(
+        resp = retry_response_returning_functions(
             requests.post,
             f'{self.url}/execute', json=code, headers=self.headers)
         if resp.status_code == 400:
@@ -337,7 +337,7 @@ class ServiceBackend(Backend):
 
     def _request_type(self, ir, kind):
         code = self._render(ir)
-        resp = sync_retry_transient_errors(
+        resp = retry_response_returning_functions(
             requests.post,
             f'{self.url}/type/{kind}', json=code, headers=self.headers)
         if resp.status_code == 400:
@@ -364,7 +364,7 @@ class ServiceBackend(Backend):
         return tblockmatrix._from_json(resp)
 
     def add_reference(self, config):
-        resp = sync_retry_transient_errors(
+        resp = retry_response_returning_functions(
             requests.post,
             f'{self.url}/references/create', json=config, headers=self.headers)
         if resp.status_code == 400:
@@ -373,24 +373,25 @@ class ServiceBackend(Backend):
         resp.raise_for_status()
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
-        resp = sync_retry_transient_errors(
+        resp = retry_response_returning_functions(
             requests.post,
-            f'{self.url}/references/create/fasta', json={
-            'name': name,
-            'fasta_file': fasta_file,
-            'index_file': index_file,
-            'x_contigs': x_contigs,
-            'y_contigs': y_contigs,
-            'mt_contigs': mt_contigs,
-            'par': par
-        }, headers=self.headers)
+            f'{self.url}/references/create/fasta',
+            json={
+                'name': name,
+                'fasta_file': fasta_file,
+                'index_file': index_file,
+                'x_contigs': x_contigs,
+                'y_contigs': y_contigs,
+                'mt_contigs': mt_contigs,
+                'par': par
+            }, headers=self.headers)
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
 
     def remove_reference(self, name):
-        resp = sync_retry_transient_errors(
+        resp = retry_response_returning_functions(
             requests.delete,
             f'{self.url}/references/delete',
             json={'name': name},
@@ -401,8 +402,9 @@ class ServiceBackend(Backend):
         resp.raise_for_status()
 
     def get_reference(self, name):
-        resp = sync_retry_transient_errors(
-            requests.get, f'{self.url}/references/get',
+        resp = retry_response_returning_functions(
+            requests.get,
+            f'{self.url}/references/get',
             json={'name': name},
             headers=self.headers)
         if resp.status_code == 400:
@@ -416,7 +418,7 @@ class ServiceBackend(Backend):
         return []
 
     def add_sequence(self, name, fasta_file, index_file):
-        resp = sync_retry_transient_errors(
+        resp = retry_response_returning_functions(
             requests.post,
             f'{self.url}/references/sequence/set',
             json={'name': name, 'fasta_file': fasta_file, 'index_file': index_file},
@@ -427,7 +429,7 @@ class ServiceBackend(Backend):
         resp.raise_for_status()
 
     def remove_sequence(self, name):
-        resp = sync_retry_transient_errors(
+        resp = retry_response_returning_functions(
             requests.delete,
             f'{self.url}/references/sequence/delete',
             json={'name': name},
@@ -438,7 +440,7 @@ class ServiceBackend(Backend):
         resp.raise_for_status()
 
     def add_liftover(self, name, chain_file, dest_reference_genome):
-        resp = sync_retry_transient_errors(
+        resp = retry_response_returning_functions(
             requests.post,
             f'{self.url}/references/liftover/add',
             json={'name': name, 'chain_file': chain_file,
@@ -450,7 +452,7 @@ class ServiceBackend(Backend):
         resp.raise_for_status()
 
     def remove_liftover(self, name, dest_reference_genome):
-        resp = sync_retry_transient_errors(
+        resp = retry_response_returning_functions(
             requests.delete,
             f'{self.url}/references/liftover/remove',
             json={'name': name, 'dest_reference_genome': dest_reference_genome},
@@ -461,7 +463,7 @@ class ServiceBackend(Backend):
         resp.raise_for_status()
 
     def parse_vcf_metadata(self, path):
-        resp = sync_retry_transient_errors(
+        resp = retry_response_returning_functions(
             requests.post,
             f'{self.url}/parse-vcf-metadata',
             json={'path': path},
@@ -473,15 +475,17 @@ class ServiceBackend(Backend):
         return resp.json()
 
     def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
-        resp = requests.post(f'{self.url}/index-bgen',
-                             json={
-                                 'files': files,
-                                 'index_file_map': index_file_map,
-                                 'rg': rg,
-                                 'contig_recoding': contig_recoding,
-                                 'skip_invalid_loci': skip_invalid_loci
-                             },
-                             headers=self.headers)
+        resp = retry_response_returning_functions(
+            requests.post,
+            f'{self.url}/index-bgen',
+            json={
+                'files': files,
+                'index_file_map': index_file_map,
+                'rg': rg,
+                'contig_recoding': contig_recoding,
+                'skip_invalid_loci': skip_invalid_loci
+            },
+            headers=self.headers)
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
