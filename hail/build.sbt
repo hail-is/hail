@@ -31,13 +31,14 @@ lazy val root = (project in file(".")).
     ),
     libraryDependencies ++= Seq(
           "org.scalatest" %% "scalatest" % "3.0.3" % Test
+        , "com.google.cloud" % "google-cloud-storage" % "1.106.0"
         , "org.ow2.asm" % "asm" % "5.1"
         , "org.ow2.asm" % "asm-util" % "5.1"
         , "org.ow2.asm" % "asm-analysis" % "5.1"
         , "org.apache.spark" %% "spark-core" % sparkVersion % "provided"
         , "org.apache.spark" %% "spark-sql" % sparkVersion % "provided"
         , "org.apache.spark" %% "spark-mllib" % sparkVersion % "provided"
-        , "net.jpountz.lz4" % "lz4" % "1.4.0"
+        , "org.lz4" % "lz4-java" % "1.4.0"
         , "org.scalanlp" %% "breeze-natives" % si.breezeVersion
         , "com.github.samtools" % "htsjdk" % "2.21.0"
         , "org.slf4j" % "slf4j-api" % "1.7.25"
