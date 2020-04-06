@@ -614,25 +614,6 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       joinKey)
   }
 
-  def noIndex(pfs: IndexedSeq[PField]): IndexedSeq[(String, PType)] =
-    pfs.map(pf => (pf.name, pf.typ))
-
-  def castFieldToPType(ps: PStruct, ps2: PStruct): IndexedSeq[(String, PType)] =
-    ps.fields.zip(ps2.fields).map({
-      case(pf1, pf2) => {
-        assert(pf1.typ isOfType pf2.typ)
-        (pf1.name, pf2.typ)
-      }
-    })
-
-  def unionFieldPTypes(ps: PStruct, ps2: PStruct): IndexedSeq[(String, PType)] =
-    ps.fields.zip(ps2.fields).map({
-      case(pf1, pf2) => (pf1.name, InferPType.getNestedElementPTypes(Seq(pf1.typ, pf2.typ)))
-    })
-
-  def castFieldRequiredeness(ps: PStruct, required: Boolean): IndexedSeq[(String, PType)] =
-    ps.fields.map(pf => (pf.name, pf.typ.setRequired(required)))
-
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val leftTV = left.execute(ctx)
     val rightTV = right.execute(ctx)
@@ -651,6 +632,17 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     val leftValueFieldIdx = leftRVDType.valueFieldIdx
     val rightValueFieldIdx = rightRVDType.valueFieldIdx
 
+    def noIndex(pfs: IndexedSeq[PField]): IndexedSeq[(String, PType)] =
+      pfs.map(pf => (pf.name, pf.typ))
+
+    def unionFieldPTypes(ps: PStruct, ps2: PStruct): IndexedSeq[(String, PType)] =
+      ps.fields.zip(ps2.fields).map({
+        case(pf1, pf2) => (pf1.name, InferPType.getNestedElementPTypes(Seq(pf1.typ, pf2.typ)))
+      })
+
+    def castFieldRequiredeness(ps: PStruct, required: Boolean): IndexedSeq[(String, PType)] =
+      ps.fields.map(pf => (pf.name, pf.typ.setRequired(required)))
+
     val (lkT, lvT, rvT) = joinType match {
       case "inner" =>
         val keyTypeFields = castFieldRequiredeness(leftRVDType.kType, true)
@@ -659,7 +651,12 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
         val rValueTypeFields = castFieldRequiredeness(rightRVDType.valueType, false)
         (noIndex(leftRVDType.kType.fields), noIndex(leftRVDType.valueType.fields), rValueTypeFields)
       case "right" =>
-        val keyTypeFields = castFieldToPType(leftRVDType.kType, rightRVDType.kType)
+        val keyTypeFields = leftRVDType.kType.fields.zip(rightRVDType.kType.fields).map({
+          case(pf1, pf2) => {
+            assert(pf1.typ isOfType pf2.typ)
+            (pf1.name, pf2.typ)
+          }
+        })
         val lValueTypeFields = castFieldRequiredeness(leftRVDType.valueType, false)
         (keyTypeFields, lValueTypeFields, noIndex(rightRVDType.valueType.fields))
       case "outer" | "zip" =>
