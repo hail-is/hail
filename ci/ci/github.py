@@ -307,9 +307,9 @@ class PR(Code):
                 f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}',
                 data=data)
         except gidgethub.HTTPException as e:
-            log.info(f'{self.short_str()}: notify github of build state failed due to exception: {e}')
+            log.info(f'{self.short_str()}: notify github of build state failed due to exception: {data} {e}')
         except aiohttp.client_exceptions.ClientResponseError as e:
-            log.error(f'{self.short_str()}: Unexpected exception in post to github: {e}')
+            log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data} {e}')
 
     async def _update_github(self, gh):
         await self._update_last_known_github_status(gh)
@@ -323,7 +323,7 @@ class PR(Code):
         if n_hail_status == 0:
             return None
         if n_hail_status == 1:
-            return hail_status[0]
+            return hail_status[0]['state']
         raise ValueError(
             f'github sent multiple status summaries for our one '
             'context {GITHUB_STATUS_CONTEXT}: {hail_status}\n\n{statuses_json}')
