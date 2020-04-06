@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import java.io.{ByteArrayInputStream, DataInputStream, DataOutputStream}
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, DataInputStream, DataOutputStream}
 
 import is.hail.HailContext
 import is.hail.annotations._
@@ -312,25 +312,58 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val hc = HailContext.get
-    val (ptype, res) = CompileAndEvaluate._apply(ctx, rowsAndGlobal, optimize = false) match {
-      case Right((t, off)) => (t.fields(0).typ, SafeRow(t, off).getAs[Row](0))
+    val (ptype: PStruct, res) = CompileAndEvaluate._apply(ctx, rowsAndGlobal, optimize = false) match {
+      case Right((t: PTuple, off)) => (t.fields(0).typ, t.loadField(off, 0))
     }
 
-    val Row(_rows: IndexedSeq[_], globals: Row) = res
+    val globalsT = ptype.types(1).asInstanceOf[PStruct]
+    val globals = BroadcastRow(RegionValue(ctx.r, ptype.loadField(res, 1)), globalsT, ctx.backend)
 
-    val rows = _rows.asInstanceOf[IndexedSeq[Row]]
-    rows.zipWithIndex.foreach { case (r, idx) =>
-      if (r == null)
-        fatal(s"cannot parallelize null values: found null value at index $idx")
+    val rowsT = ptype.types(0).asInstanceOf[PArray]
+    val rowT = rowsT.elementType.asInstanceOf[PStruct].setRequired(true)
+    val spec = TypedCodecSpec(rowT, BufferSpec.wireSpec)
+
+    val makeEnc = spec.buildEncoder(rowT)
+    val rowsAddr = ptype.loadField(res, 0)
+    val nRows = rowsT.loadLength(rowsAddr)
+
+    val nSplits = math.min(nPartitions.getOrElse(16), math.max(nRows, 1))
+    val parts = partition(nRows, nSplits)
+
+    val bae = new ByteArrayEncoder(makeEnc)
+    var idx = 0
+    val encRows = Array.tabulate(nSplits) { splitIdx =>
+      val n = parts(splitIdx)
+      bae.reset()
+      val stop = idx + n
+      while (idx < stop) {
+        if (rowsT.isElementMissing(rowsAddr, idx))
+          fatal(s"cannot parallelize null values: found null value at index $idx")
+        bae.writeRegionValue(ctx.r, rowsT.loadElement(rowsAddr, idx))
+        idx += 1
+      }
+      (n, bae.result())
     }
 
-    log.info(s"parallelized ${ rows.length } rows")
+    val (resultRowType: PStruct, makeDec) = spec.buildDecoder(typ.rowType)
+    assert(resultRowType.virtualType == typ.rowType)
 
-    val rowPType = PType.canonical(ptype).asInstanceOf[PStruct].field("rows").typ.asInstanceOf[PArray].elementType.setRequired(true).asInstanceOf[PStruct]
-    assert(rowPType.virtualType == typ.rowType)
-    val rvd = ContextRDD.parallelize(hc.sc, rows, nPartitions)
-      .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowPType))
-    TableValue(typ, BroadcastRow(ctx, globals, typ.globalType), RVD.unkeyed(rowPType, rvd))
+    log.info(s"parallelized $nRows rows in $nSplits partitions")
+
+    val rvd = ContextRDD.parallelize(hc.sc, encRows, encRows.length)
+      .cmapPartitions { (ctx, it) =>
+        val rv = RegionValue(ctx.region)
+        it.flatMap { case (nRowPartition, arr) =>
+          val bais = new ByteArrayDecoder(makeDec)
+          bais.set(arr)
+          Iterator.range(0, nRowPartition)
+            .map { _ =>
+              rv.setOffset(bais.readValue(ctx.region))
+              rv
+            }
+        }
+      }
+    TableValue(typ, globals, RVD.unkeyed(resultRowType, rvd))
   }
 }
 
