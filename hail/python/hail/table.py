@@ -2315,17 +2315,17 @@ class Table(ExprContainer):
         join strategy:
 
         - **inner** -- Only rows with a matching key in the opposite table are included
-        in the resulting table.
+          in the resulting table.
         - **left** -- All rows from the left table are included in the resulting table.
-        If a row in the left table has no match in the right table, then the fields
-        derived from the right table will be missing.
+          If a row in the left table has no match in the right table, then the fields
+          derived from the right table will be missing.
         - **right** -- All rows from the right table are included in the resulting table.
-        If a row in the right table has no match in the left table, then the fields
-        derived from the left table will be missing.
+          If a row in the right table has no match in the left table, then the fields
+          derived from the left table will be missing.
         - **outer** -- All rows are included in the resulting table. If a row in the right
-        table has no match in the left table, then the fields derived from the left
-        table will be missing. If a row in the right table has no match in the left table,
-        then the fields derived from the left table will be missing.
+          table has no match in the left table, then the fields derived from the left
+          table will be missing. If a row in the right table has no match in the left table,
+          then the fields derived from the left table will be missing.
 
         Both tables must have the same number of keys and the corresponding
         types of each key must be the same (order matters), but the key names
