@@ -62,6 +62,7 @@
 
 #hail-menu a:hover, #hail-menu a.active {
   color: #2a388f;
+  border-bottom: 1px solid #2a388f;
 }
 
 #hail-navbar #hail-menu .nav-item {

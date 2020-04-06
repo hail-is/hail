@@ -56,31 +56,30 @@
 
                         <div class="collapse navbar-collapse" id="hail-navbar-collapse">
                             <ul class="nav navbar-nav navbar-right" id="hail-menu">
-                            <li id="docs" class="nav-item">
-                                <a href="/docs/0.2/index.html">Docs</a>
-                            </li>
-                            <li id="forum" class="nav-item">
-                                <a href="http://discuss.hail.is">Forum</a>
-                            </li>
-                            <li id="chat" class="nav-item">
-                                <a href="http://hail.zulipchat.com">Chat</a>
-                            </li>
-                            <li id="code" class="nav-item">
-                                <a href="https://github.com/hail-is/hail">Code</a>
-                            </li>
-                            <li id='powered-science' class="nav-item">
-                                <a href="/references.html">Powered-Science</a>
-                            </li>
-                            <li id='blog' class="nav-item">
-                                <a href="https://blog.hail.is/">Blog</a>
-                            </li>
-                            <li id='workshop' class="nav-item">
-                                <a href="https://workshop.hail.is">Workshop</a>
-                            </li>
-                            <li id='about' class="nav-item">
-                                <a href="/about.html">About</a>
-                            </li>
-
+                                <li id="docs" class="nav-item">
+                                    <a href="/docs/0.2/index.html">Docs</a>
+                                </li>
+                                <li id="forum" class="nav-item">
+                                    <a href="http://discuss.hail.is">Forum</a>
+                                </li>
+                                <li id="chat" class="nav-item">
+                                    <a href="http://hail.zulipchat.com">Chat</a>
+                                </li>
+                                <li id="code" class="nav-item">
+                                    <a href="https://github.com/hail-is/hail">Code</a>
+                                </li>
+                                <li id='powered-science' class="nav-item">
+                                    <a href="/references.html">Powered-Science</a>
+                                </li>
+                                <li id='blog' class="nav-item">
+                                    <a href="https://blog.hail.is/">Blog</a>
+                                </li>
+                                <li id='workshop' class="nav-item">
+                                    <a href="https://workshop.hail.is">Workshop</a>
+                                </li>
+                                <li id='about' class="nav-item">
+                                    <a href="/about.html">About</a>
+                                </li>
                             </ul>
                         </div>
                     </div>
@@ -93,17 +92,19 @@
                 <xsl:text disable-output-escaping="yes" >
                     <![CDATA[
                         (function () {
-                            var parts = location.pathname.split('/');
-                            var page = parts[parts.length - 1]
+                            var cpage = location.pathname;
 
-                            if (page === "" || page === "index.html") {
+                            if (cpage === "" || cpage === "/" || cpage === "/index.html") {
                                 document.getElementById('hail-navbar-brand').className = "active";
+                                return;
                             };
 
                             var menuItems = document.querySelectorAll('#hail-menu a');
 
-                            for (var i = 0; i <= menuItems.length; i++) {
-                                if (menuItems[i].getAttribute("href").indexOf(page) !== -1) {
+                            for (var i = 0; i < menuItems.length; i++) {
+                                var href = menuItems[i].pathname;
+
+                                if (href === cpage) {
                                     menuItems[i].className = "active";
                                     return;
                                 }
