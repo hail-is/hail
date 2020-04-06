@@ -2,8 +2,11 @@ import unittest
 import os
 import subprocess as sp
 import tempfile
+from shlex import quote as shq
 
 from hailtop.pipeline import Pipeline, BatchBackend, LocalBackend
+from hailtop.pipeline.utils import arg_max
+from hailtop.utils import grouped
 
 gcs_input_dir = os.environ.get('SCRATCH') + '/input'
 gcs_output_dir = os.environ.get('SCRATCH') + '/output'
@@ -435,7 +438,7 @@ class BatchTests(unittest.TestCase):
             tasks.append(t)
 
         combine = p.new_task(f'combine_output').cpu(0.1)
-        for t in tasks:
-            combine.command(f'cat {t.ofile} >> {combine.ofile}')
+        for tasks in grouped(arg_max(), tasks):
+            combine.command(f'cat {" ".join(shq(t.ofile) for t in tasks)} >> {combine.ofile}')
         p.write_output(combine.ofile, f'{gcs_output_dir}/pipeline_benchmark_test.txt')
         assert p.run().status()['state'] == 'success'
