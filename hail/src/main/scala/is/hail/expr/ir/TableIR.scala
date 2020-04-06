@@ -320,7 +320,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     val globals = BroadcastRow(RegionValue(ctx.r, ptype.loadField(res, 1)), globalsT, ctx.backend)
 
     val rowsT = ptype.types(0).asInstanceOf[PArray]
-    val rowT = rowsT.elementType.asInstanceOf[PStruct]
+    val rowT = rowsT.elementType.asInstanceOf[PStruct].setRequired(true)
     val spec = TypedCodecSpec(rowT, BufferSpec.wireSpec)
 
     val makeEnc = spec.buildEncoder(rowT)
