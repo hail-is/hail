@@ -452,7 +452,7 @@ object Nirvana {
           }
       }
 
-    val nirvanaRVDType = prev.typ.copy(rowType = PCanonicalStruct.canonical(tv.typ.rowType ++ TStruct("nirvana" -> nirvanaSignature)))
+    val nirvanaRVDType = prev.typ.copy(rowType = prev.rowPType.appendKey("nirvana", PType.canonical(nirvanaSignature)))
 
     val nirvanaRowType = nirvanaRVDType.rowType
 

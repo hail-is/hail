@@ -216,7 +216,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
 
     val vepType: Type = if (csq) TArray(TString) else vepSignature
 
-    val vepRVDType = prev.typ.copy(rowType = PType.canonical(prev.rowType ++ TStruct("vep" -> vepType)).asInstanceOf[PStruct])
+    val vepRVDType = prev.typ.copy(rowType = prev.rowPType.appendKey("vep", PType.canonical(vepType)))
 
     val vepRowType = vepRVDType.rowType
 
