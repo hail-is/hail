@@ -16,7 +16,7 @@ async def main():
 
     await db.execute_insertone(
         '''
-INSERT INTO globals (worker_disk_size_gb) VALUES (%s);
+UPDATE globals SET worker_disk_size_gb = %s;
 ''',
         (worker_disk_size_gb,))
 
