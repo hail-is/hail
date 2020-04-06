@@ -7,7 +7,6 @@ import concurrent.futures
 import aiohttp
 from aiohttp import web
 import aiohttp_session
-import aiomysql
 import uvloop
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 from hailtop.utils import collect_agen, humanize_timedelta_msecs
