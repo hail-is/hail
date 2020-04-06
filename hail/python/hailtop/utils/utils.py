@@ -329,11 +329,18 @@ async def request_raise_transient_errors(session, method, url, **kwargs):
 
 
 def retry_response_returning_functions(fun, *args, **kwargs):
+    delay = 0.1
+    errors = 0
     response = sync_retry_transient_errors(
         fun, *args, **kwargs)
     while response.status_code in RETRYABLE_HTTP_STATUS_CODES:
+        errors += 1
+        if errors % 10 == 0:
+            log.warning(f'encountered {errors} bad status codes, most recent '
+                        f'one was {response.status_code}', exc_info=True)
         response = sync_retry_transient_errors(
             fun, *args, **kwargs)
+        delay = sync_sleep_and_backoff(delay)
     return response
 
 
