@@ -2312,7 +2312,7 @@ class Table(ExprContainer):
         -----
         Tables are joined at rows whose key fields have equal values. Missing values never match.
         The inclusion of a row with no match in the opposite table depends on the
-        join strategy:
+        join type:
 
         - **inner** -- Only rows with a matching key in the opposite table are included
           in the resulting table.
@@ -2350,9 +2350,9 @@ class Table(ExprContainer):
         Parameters
         ----------
         right : :class:`.Table`
-            Table with which to join.
+            Table to join.
         how : :obj:`str`
-            Join type. One of "inner", "outer", "left", "right".
+            Join type. One of "inner", "left", "right", "outer"
 
         Returns
         -------
