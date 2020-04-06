@@ -1789,16 +1789,7 @@ private class Emit[C](
         val gType = globals.pType
         val bType = body.pType
 
-        val ctxTypeTuple = PCanonicalTuple(false, ctxType)
-        val gTypeTuple = PCanonicalTuple(false, gType)
-        val bTypeTuple = PCanonicalTuple(false, bType)
-
-        val spec = BufferSpec.defaultUncompressed
         val parentCB = mb.ecb
-
-        val cCodec = TypedCodecSpec(ctxTypeTuple, spec)
-        val gCodec = TypedCodecSpec(gTypeTuple, spec)
-        val bCodec = TypedCodecSpec(bTypeTuple, spec)
 
         val functionID: String = {
           val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]]("collect_distributed_array")
@@ -1806,13 +1797,12 @@ private class Emit[C](
             Array[ParamType](typeInfo[Region], ctxType, gType),
             typeInfo[Long])
 
-          val (cRetPtype, cDec) = cCodec.buildEmitDecoderF[Long](ctxTypeTuple.virtualType, bodyFB.ecb)
-          val (gRetPtype, gDec) = gCodec.buildEmitDecoderF[Long](gTypeTuple.virtualType, bodyFB.ecb)
-          val bEnc = bCodec.buildEmitEncoderF[Long](bTypeTuple, bodyFB.ecb)
+          val (cRetPtype, cDec) = x.contextSpec.buildEmitDecoderF[Long](x.contextPTuple.virtualType, bodyFB.ecb)
+          assert(cRetPtype == x.decodedContextPTuple)
+          val (gRetPtype, gDec) = x.globalSpec.buildEmitDecoderF[Long](x.globalPTuple.virtualType, bodyFB.ecb)
+          assert(gRetPtype == x.decodedGlobalPTuple)
+          val bEnc = x.bodySpec.buildEmitEncoderF[Long](x.bodyPTuple, bodyFB.ecb)
           val bOB = bodyFB.genFieldThisRef[OutputBuffer]()
-
-          assert(cRetPtype == ctxTypeTuple)
-          assert(gRetPtype == gTypeTuple)
 
           val env = Env[EmitValue](
             (cname, bodyMB.getEmitParam(2)),
@@ -1833,21 +1823,21 @@ private class Emit[C](
           val bOS = bodyFB.newLocal[ByteArrayOutputStream]()
 
           bodyFB.emit(Code(
-            ctxOff := Code.memoize(cCodec.buildCodeInputBuffer(ctxIS), "cda_ctx_ib") { ib =>
+            ctxOff := Code.memoize(x.contextSpec.buildCodeInputBuffer(ctxIS), "cda_ctx_ib") { ib =>
               cDec(bodyFB.getCodeParam[Region](1), ib)
             },
-            gOff := Code.memoize(gCodec.buildCodeInputBuffer(gIS), "cda_g_ib") { ib =>
+            gOff := Code.memoize(x.globalSpec.buildCodeInputBuffer(gIS), "cda_g_ib") { ib =>
               gDec(bodyFB.getCodeParam[Region](1), ib)
             },
             bOff := bodyMB.invokeCode[Long](bodyFB.getCodeParam[Region](1),
               new EmitCode(Code._empty,
-                ctxTypeTuple.isFieldMissing(ctxOff, 0),
-                PCode(ctxType, Region.loadIRIntermediate(ctxType)(ctxTypeTuple.fieldOffset(ctxOff, 0)))),
+                x.decodedContextPTuple.isFieldMissing(ctxOff, 0),
+                PCode(ctxType, Region.loadIRIntermediate(ctxType)(x.decodedContextPTuple.fieldOffset(ctxOff, 0)))),
               new EmitCode(Code._empty,
-                gTypeTuple.isFieldMissing(gOff, 0),
-                PCode(gType, Region.loadIRIntermediate(gType)(gTypeTuple.fieldOffset(gOff, 0))))),
+                x.decodedGlobalPTuple.isFieldMissing(gOff, 0),
+                PCode(gType, Region.loadIRIntermediate(gType)(x.decodedGlobalPTuple.fieldOffset(gOff, 0))))),
             bOS := Code.newInstance[ByteArrayOutputStream](),
-            bOB := bCodec.buildCodeOutputBuffer(bOS),
+            bOB := x.bodySpec.buildCodeOutputBuffer(bOS),
             bEnc(bodyFB.getCodeParam[Region](1), bOff, bOB),
             bOB.invoke[Unit]("flush"),
             bOB.invoke[Unit]("close"),
@@ -1863,11 +1853,10 @@ private class Emit[C](
         val optCtxStream = emitStream(contexts)
         val globalsT = emit(globals)
 
-        val cEnc = cCodec.buildEmitEncoderF[Long](ctxTypeTuple, parentCB)
-        val gEnc = gCodec.buildEmitEncoderF[Long](gTypeTuple, parentCB)
-        val (bRetPType, bDec) = bCodec.buildEmitDecoderF[Long](bTypeTuple.virtualType, parentCB)
-
-        assert(bRetPType == bTypeTuple)
+        val cEnc = x.contextSpec.buildEmitEncoderF[Long](x.contextPTuple, parentCB)
+        val gEnc = x.globalSpec.buildEmitEncoderF[Long](x.globalPTuple, parentCB)
+        val (bRetPType, bDec) = x.bodySpec.buildEmitDecoderF[Long](x.bodyPTuple.virtualType, parentCB)
+        assert(bRetPType == x.decodedBodyPTuple)
 
         val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
         val buf = mb.genFieldThisRef[OutputBuffer]()
@@ -1914,19 +1903,19 @@ private class Emit[C](
           Code(
             sab.start(encRes.length()),
             Code.whileLoop(sab.arrayIdx < encRes.length(),
-              eltTupled := Code.memoize(bCodec.buildCodeInputBuffer(bais), "decode_ib") { ib =>
+              eltTupled := Code.memoize(x.bodySpec.buildCodeInputBuffer(bais), "decode_ib") { ib =>
                 bDec(region, ib)
               },
-              bTypeTuple.isFieldMissing(eltTupled, 0).mux(
+              x.decodedBodyPTuple.isFieldMissing(eltTupled, 0).mux(
                 sab.setMissing(),
-                sab.addIRIntermediate(bType)(Region.loadIRIntermediate(bType)(bTypeTuple.fieldOffset(eltTupled, 0)))),
+                sab.addIRIntermediate(bType)(Region.loadIRIntermediate(bType)(x.decodedBodyPTuple.fieldOffset(eltTupled, 0)))),
               sab.advance()),
             sab.end())
         }
 
         val optRes = optCtxStream.map { ctxStream => PCode(pt, Code(
           baos := Code.newInstance[ByteArrayOutputStream](),
-          buf := cCodec.buildCodeOutputBuffer(baos), // TODO: take a closer look at whether we need two codec buffers?
+          buf := x.contextSpec.buildCodeOutputBuffer(baos), // TODO: take a closer look at whether we need two codec buffers?
           ctxab := Code.newInstance[ByteArrayArrayBuilder, Int](16),
           addContexts(ctxStream),
           baos.invoke[Unit]("reset"),

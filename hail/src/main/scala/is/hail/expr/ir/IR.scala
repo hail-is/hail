@@ -6,7 +6,7 @@ import is.hail.expr.ir.functions._
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
+import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.utils.{FastIndexedSeq, _}
 
 import scala.language.existentials
@@ -440,7 +440,25 @@ final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWrite
 
 final case class BlockMatrixMultiWrite(blockMatrices: IndexedSeq[BlockMatrixIR], writer: BlockMatrixMultiWriter) extends IR
 
-final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR) extends IR
+final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR) extends IR {
+  val bufferSpec: BufferSpec = BufferSpec.defaultUncompressed
+
+  lazy val contextPTuple: PTuple = PCanonicalTuple(required = true, coerce[PStream](contexts.pType).elementType)
+  lazy val globalPTuple: PTuple = PCanonicalTuple(required = true, globals.pType)
+  lazy val bodyPTuple: PTuple = PCanonicalTuple(required = true, body.pType)
+
+  lazy val contextSpec: TypedCodecSpec = TypedCodecSpec(contextPTuple, bufferSpec)
+  lazy val globalSpec: TypedCodecSpec = TypedCodecSpec(globalPTuple, bufferSpec)
+  lazy val bodySpec: TypedCodecSpec = TypedCodecSpec(bodyPTuple, bufferSpec)
+
+  lazy val decodedContextPTuple: PTuple = contextSpec.encodedType.decodedPType(contextPTuple.virtualType).asInstanceOf[PTuple]
+  lazy val decodedGlobalPTuple: PTuple = globalSpec.encodedType.decodedPType(globalPTuple.virtualType).asInstanceOf[PTuple]
+  lazy val decodedBodyPTuple: PTuple = bodySpec.encodedType.decodedPType(bodyPTuple.virtualType).asInstanceOf[PTuple]
+
+  def decodedContextPType: PType = decodedContextPTuple.types(0)
+  def decodedGlobalPType: PType = decodedGlobalPTuple.types(0)
+  def decodedBodyPType: PType = decodedBodyPTuple.types(0)
+}
 
 final case class ReadPartition(path: IR, spec: AbstractTypedCodecSpec, rowType: TStruct) extends IR
 
