@@ -22,6 +22,20 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.36
+
+Released 2020-04-06
+
+### Critical Memory Management Bug Fix
+
+- (hail#8463) Reverted a change (separate to the bug in 0.2.34) that led to a memory leak in version 0.2.35.
+
+### Bug fixes
+- (hail#8371) Fix runtime error in joins leading to "Cannot set required field missing" error message.
+- (hail#8436) Fix compiler bug leading to possibly-invalid generated code.
+
+---
+
 ## Version 0.2.35
 
 Released 2020-04-02
