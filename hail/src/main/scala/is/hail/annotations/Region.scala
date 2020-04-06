@@ -345,30 +345,14 @@ object Region {
 }
 
 final class Region protected[annotations](var blockSize: Region.Size, var pool: RegionPool, var memory: RegionMemory = null) extends AutoCloseable {
-  //val uuid = java.util.UUID.randomUUID.toString
-
-  //val fullID = s"$creator-$uuid"
-
-  //log.info(s"REGION: New region ${fullID} created.")
-
-  def totalMemory: Long  = {
-    if (isValid()) {
-      this.memory.getTotalChunkMemory()
-    }
-    else {
-      0L
-    }
-  }
 
   def isValid(): Boolean = memory != null
 
   def allocate(n: Long): Long = {
-    //log.info(s"REGION: Allocating $n bytes to region ${fullID}")
     memory.allocate(n)
   }
 
   def allocate(a: Long, n: Long): Long = {
-    //log.info(s"REGION: Allocating $n bytes to region ${fullID}")
     memory.allocate(a, n)
   }
 
@@ -381,10 +365,8 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
 
   def clear(): Unit = {
     if (memory.getReferenceCount == 1) {
-      //log.info(s"REGION: Actually clearing $fullID, ref count was 1. Total memory = ${this.totalMemory}")
       memory.clear()
     } else {
-      //log.info(s"REGION: Not actually clearing $fullID, ref count was ${memory.getReferenceCount}. Total memory = ${this.totalMemory}")
       memory.release()
       memory = pool.getMemory(blockSize)
     }
@@ -395,15 +377,12 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
   }
 
   def addReferenceTo(r: Region): Unit = {
-    //log.info(s"REGION: Region ${fullID} adds reference to ${r.fullID}")
     memory.addReferenceTo(r.memory)
   }
 
   def move(r: Region): Unit = {
     r.addReferenceTo(this)
     this.clear()
-//    this.memory.unsafeMoveReferenceTo(r.memory)
-//    this.memory = pool.getMemory(blockSize)
   }
 
   def nReferencedRegions(): Long = memory.nReferencedRegions()
