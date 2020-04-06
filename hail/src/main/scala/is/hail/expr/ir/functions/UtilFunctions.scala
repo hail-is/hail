@@ -159,7 +159,7 @@ object UtilFunctions extends RegistryFunctions {
           val s = asm4s.coerce[String](wrapArg(r, xT)(x))
           Code.invokeScalaObject(thisClass, s"parse$name", s)(ctString, ct)
       }
-      registerCodeWithMissingness(s"to${name}OrMissing", TString, t, (_: Type, xPT: PType) => rpt.setRequired(xPT.required)) {
+      registerEmitCode(s"to${name}OrMissing", TString, t, (_: Type, xPT: PType) => rpt.setRequired(xPT.required)) {
         case (r, rt, x) =>
           val s = r.mb.newLocal[String]()
           val m = r.mb.newLocal[Boolean]()
@@ -219,37 +219,37 @@ object UtilFunctions extends RegistryFunctions {
             m2.mux(coerce[T](defaultValue(ti)), v2.value[T]), m2)))
       }
 
-      registerCodeWithMissingness(ignoreMissingName, TInt32, TInt32, TInt32, {
+      registerEmitCode(ignoreMissingName, TInt32, TInt32, TInt32, {
         case(_: Type, t1: PType, t2: PType) => PInt32(t1.required && t2.required)
       }) {
         case (r, rt, v1, v2) => ignoreMissingTriplet[Int](rt, v1, v2, ignoreMissingName)
       }
 
-      registerCodeWithMissingness(ignoreMissingName, TInt64, TInt64, TInt64, {
+      registerEmitCode(ignoreMissingName, TInt64, TInt64, TInt64, {
         case(_: Type, t1: PType, t2: PType) => PInt64(t1.required && t2.required)
       }) {
         case (r, rt, v1, v2) => ignoreMissingTriplet[Long](rt, v1, v2, ignoreMissingName)
       }
 
-      registerCodeWithMissingness(ignoreMissingName, TFloat32, TFloat32, TFloat32, {
+      registerEmitCode(ignoreMissingName, TFloat32, TFloat32, TFloat32, {
         case(_: Type, t1: PType, t2: PType) => PFloat32(t1.required && t2.required)
       }) {
         case (r, rt, v1, v2) => ignoreMissingTriplet[Float](rt, v1, v2, ignoreMissingName)
       }
 
-      registerCodeWithMissingness(ignoreMissingName, TFloat64, TFloat64, TFloat64, {
+      registerEmitCode(ignoreMissingName, TFloat64, TFloat64, TFloat64, {
         case(_: Type, t1: PType, t2: PType) => PFloat64(t1.required && t2.required)
       }) {
         case (r, rt, v1, v2) => ignoreMissingTriplet[Double](rt, v1, v2, ignoreMissingName)
       }
 
-      registerCodeWithMissingness(ignoreBothName, TFloat32, TFloat32, TFloat32, {
+      registerEmitCode(ignoreBothName, TFloat32, TFloat32, TFloat32, {
         case(_: Type, t1: PType, t2: PType) => PFloat32(t1.required && t2.required)
       }) {
         case (r, rt, v1, v2) => ignoreMissingTriplet[Float](rt, v1, v2, ignoreBothName)
       }
 
-      registerCodeWithMissingness(ignoreBothName, TFloat64, TFloat64, TFloat64, {
+      registerEmitCode(ignoreBothName, TFloat64, TFloat64, TFloat64, {
         case(_: Type, t1: PType, t2: PType) => PFloat64(t1.required && t2.required)
       }) {
         case (r, rt, v1, v2) => ignoreMissingTriplet[Double](rt, v1, v2, ignoreBothName)
@@ -265,7 +265,7 @@ object UtilFunctions extends RegistryFunctions {
           Code.checkcast[Row](asm4s.coerce[java.lang.Object](wrapArg(r, argsT)(args)))))
     }
 
-    registerCodeWithMissingness("land", TBoolean, TBoolean, TBoolean, {
+    registerEmitCode("land", TBoolean, TBoolean, TBoolean, {
       case(_: Type, _: PType, _: PType) => PBoolean()
     }) {
       case (er, rt, l, r) =>
@@ -297,7 +297,7 @@ object UtilFunctions extends RegistryFunctions {
           PCode(rt, w.ceq(10)))
     }
 
-    registerCodeWithMissingness("lor", TBoolean, TBoolean, TBoolean, {
+    registerEmitCode("lor", TBoolean, TBoolean, TBoolean, {
       case(_: Type, _: PType, _: PType) => PBoolean()
     }) {
       case (er, rt, l, r) =>

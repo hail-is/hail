@@ -11,7 +11,7 @@ object IntervalFunctions extends RegistryFunctions {
 
   def registerAll(): Unit = {
 
-    registerCodeWithMissingness("Interval", tv("T"), tv("T"), TBoolean, TBoolean, TInterval(tv("T")),
+    registerEmitCode("Interval", tv("T"), tv("T"), TBoolean, TBoolean, TInterval(tv("T")),
       { case (_: Type, startpt, endpt, includesStartPT, includesEndPT) =>
         PCanonicalInterval(
           InferPType.getNestedElementPTypes(Seq(startpt, endpt)),
@@ -52,7 +52,7 @@ object IntervalFunctions extends RegistryFunctions {
           PCode(rt, vv))
     }
 
-    registerCodeWithMissingness("start", TInterval(tv("T")), tv("T"),
+    registerEmitCode("start", TInterval(tv("T")), tv("T"),
       (_: Type, x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
       case (r, rt, interval) =>
         val intervalT = interval.pt.asInstanceOf[PInterval]
@@ -64,7 +64,7 @@ object IntervalFunctions extends RegistryFunctions {
         )
     }
 
-    registerCodeWithMissingness("end", TInterval(tv("T")), tv("T"),
+    registerEmitCode("end", TInterval(tv("T")), tv("T"),
       (_: Type, x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
       case (r, rt, interval) =>
         val intervalT = interval.pt.asInstanceOf[PInterval]
@@ -88,7 +88,7 @@ object IntervalFunctions extends RegistryFunctions {
       case (r, rt, interval: PIntervalCode) => PCode(rt, interval.includesEnd())
     }
 
-    registerCodeWithMissingness("contains", TInterval(tv("T")), tv("T"), TBoolean, {
+    registerEmitCode("contains", TInterval(tv("T")), tv("T"), TBoolean, {
       case(_: Type, intervalT: PInterval, _: PType) => PBoolean(intervalT.required)
     }) {
       case (r, rt, int, point) =>
