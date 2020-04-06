@@ -9,7 +9,73 @@ from aiohttp import web
 import aiohttp_session
 import aiomysql
 import uvloop
+import gidgethub
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
+from gidgethub import (BadRequest, GitHubBroken, HTTPException, InvalidField,
+                       RateLimitExceeded, RedirectionException)
+from typing import Any, Dict, Mapping, Optional, Tuple, Type
+
+
+def decipher_response(status_code: int, headers: Mapping,
+                      body: bytes) -> Tuple[Any, Optional[gidgethub.sansio.RateLimit], Optional[str]]:
+    """Decipher an HTTP response for a GitHub API request.
+    The mapping providing the headers is expected to support lowercase keys.
+    The parameters of this function correspond to the three main parts
+    of an HTTP response: the status code, headers, and body. Assuming
+    no errors which lead to an exception being raised, a 3-item tuple
+    is returned. The first item is the decoded body (typically a JSON
+    object, but possibly None or a string depending on the content
+    type of the body). The second item is an instance of RateLimit
+    based on what the response specified.
+    The last item of the tuple is the URL where to request the next
+    part of results. If there are no more results then None is
+    returned. Do be aware that the URL can be a URI template and so
+    may need to be expanded.
+    If the status code is anything other than 200, 201, or 204, then
+    an HTTPException is raised.
+    """
+    data = gidgethub.sansio._decode_body(headers.get("content-type"), body)
+    if status_code in {200, 201, 204}:
+        return data, gidgethub.sansio.RateLimit.from_http(headers), gidgethub.sansio._next_link(headers.get("link"))
+    else:
+        try:
+            message = data["message"]
+        except (TypeError, KeyError):
+            message = None
+        exc_type: Type[HTTPException]
+        if status_code >= 500:
+            exc_type = GitHubBroken
+        elif status_code >= 400:
+            exc_type = BadRequest
+            if status_code == 403:
+                rate_limit = gidgethub.sansio.RateLimit.from_http(headers)
+                if rate_limit and not rate_limit.remaining:
+                    raise RateLimitExceeded(rate_limit, message)
+            elif status_code == 422:
+                errors = data.get("errors", None)
+                log.info(f'fml {body.decode()} {errors}')
+                if errors:
+                    fields = ", ".join(repr(e["field"]) for e in errors)
+                    message = f"{message} for {fields}"
+                else:
+                    message = data["message"]
+                raise InvalidField(errors, message)
+        elif status_code >= 300:
+            exc_type = RedirectionException
+        else:
+            exc_type = HTTPException
+        import http
+        status_code_enum = http.HTTPStatus(status_code)
+        args: Tuple
+        if message:
+            args = status_code_enum, message
+        else:
+            args = status_code_enum,
+        raise exc_type(*args)
+
+gidgethub.sansio.decipher_response = decipher_response
+
+
 from hailtop.utils import collect_agen, humanize_timedelta_msecs
 from hailtop.batch_client.aioclient import BatchClient
 from hailtop.config import get_deploy_config
