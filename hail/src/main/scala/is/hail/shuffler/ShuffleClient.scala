@@ -59,7 +59,7 @@ class ShuffleClient (
     while (values.hasNext) {
       encoder.writeByte(1)
       val off = values.next
-      encoder.writeRegionValue(null, off)
+      encoder.writeRegionValue(off)
     }
     encoder.writeByte(0)
     encoder.flush()
@@ -75,8 +75,8 @@ class ShuffleClient (
     keyEncoder.flush()
     out.writeUTF(uuid)
     out.flush()
-    keyEncoder.writeRegionValue(null, start)
-    keyEncoder.writeRegionValue(null, end)
+    keyEncoder.writeRegionValue(start)
+    keyEncoder.writeRegionValue(end)
     keyEncoder.flush()
 
     log.info(s"CLNT get receiving values")
