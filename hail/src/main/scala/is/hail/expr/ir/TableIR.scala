@@ -327,8 +327,8 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     val rowsAddr = ptype.loadField(res, 0)
     val nRows = rowsT.loadLength(rowsAddr)
 
-    val parts = partition(nRows, nPartitions.getOrElse(16))
-    val nSplits = parts.length
+    val nSplits = math.min(nPartitions.getOrElse(16), nRows)
+    val parts = partition(nRows, nSplits)
 
     val bae = new ByteArrayEncoder(makeEnc)
     var idx = 0
