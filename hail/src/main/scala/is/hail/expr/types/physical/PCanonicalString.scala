@@ -15,7 +15,7 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   override def byteSize: Long = 8
 
-  lazy val binaryFundamentalType: PBinary = PCanonicalBinary(required)
+  lazy val binaryFundamentalType: PCanonicalBinary = PCanonicalBinary(required)
 
   def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
     this.fundamentalType.copyFromType(
@@ -30,12 +30,6 @@ class PCanonicalString(val required: Boolean) extends PString {
     fundamentalType.copyFromAddress(region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, deepCopy)
 
   override def containsPointers: Boolean = true
-
-  def bytesAddress(boff: Long): Long =
-    this.fundamentalType.bytesAddress(boff)
-
-  def bytesAddress(boff: Code[Long]): Code[Long] =
-    this.fundamentalType.bytesAddress(boff)
 
   def loadLength(boff: Long): Int =
     this.fundamentalType.loadLength(boff)
@@ -88,9 +82,9 @@ class PCanonicalStringCode(val pt: PCanonicalString, a: Code[Long]) extends PStr
 
   def loadLength(): Code[Int] = pt.loadLength(a)
 
-  def bytesAddress(): Code[Long] = pt.bytesAddress(a)
-
   def loadString(): Code[String] = pt.loadString(a)
+
+  def asBytes(): PBinaryCode = new PCanonicalBinaryCode(pt.binaryFundamentalType, a)
 
   def memoize(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeImpl(cb, name)
 

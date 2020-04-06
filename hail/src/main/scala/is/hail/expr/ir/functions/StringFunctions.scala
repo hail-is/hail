@@ -241,37 +241,27 @@ object StringFunctions extends RegistryFunctions {
     registerCodeWithMissingness("hamming", TString, TString, TInt32, {
       case(_: Type, _: PType, _: PType) => PInt32()
     }) { case (r: EmitRegion, rt, e1: EmitCode, e2: EmitCode) =>
+      EmitCode.fromI(r.mb) { cb =>
+        e1.toI(cb).flatMap(cb) { case (sc1: PStringCode) =>
+          e2.toI(cb).flatMap(cb) { case (sc2: PStringCode) =>
+            val n = cb.memoize(0, "hamming_n")
+            val i = cb.memoize(0, "hamming_i")
 
-      val e1T = e1.pt.asInstanceOf[PString]
-      val e2T = e2.pt.asInstanceOf[PString]
+            val v1 = sc1.asBytes().memoize(cb, "hamming_bytes_1")
+            val v2 = sc2.asBytes().memoize(cb, "hamming_bytes_2")
 
-      val len = r.mb.newLocal[Int]()
-      val i = r.mb.newLocal[Int]()
-      val n = r.mb.newLocal[Int]()
+            val m = v1.loadLength().cne(v2.loadLength())
 
-      val v1 = r.mb.newLocal[Long]()
-      val v2 = r.mb.newLocal[Long]()
+            cb.whileLoop(i < v1.loadLength(), {
+              cb.ifx(v1.loadByte(i).cne(v2.loadByte(i)),
+                cb.assign(n, n + 1))
+              cb.assign(i, i + 1)
+            })
 
-      val m = Code(
-        v1 := e1.value[Long],
-        v2 := e2.value[Long],
-        len := e1T.loadLength(v1),
-        len.cne(e2T.loadLength(v2)))
-      val v =
-        Code(n := 0,
-          i := 0,
-          Code.whileLoop(i < len,
-            Region.loadByte(e1T.bytesAddress(v1) + i.toL)
-              .cne(Region.loadByte(e2T.bytesAddress(v2) + i.toL)).mux(
-              n += 1,
-              Code._empty),
-            i += 1),
-          n)
-
-        EmitCode(
-          Code(e1.setup, e2.setup),
-          e1.m || e2.m || m,
-          PCode(rt, v))
+            IEmitCode(cb, m, PCode(rt, n))
+          }
+        }
+      }
     }
 
     registerWrappedScalaFunction("escapeString", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass, "escapeString")
