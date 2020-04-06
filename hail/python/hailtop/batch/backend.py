@@ -281,7 +281,7 @@ class BatchBackend(Backend):
         if batch.name is not None:
             attributes['name'] = batch.name
 
-        batch = self._batch_client.create_batch(attributes=attributes)
+        bc_batch = self._batch_client.create_batch(attributes=attributes)
 
         n_jobs_submitted = 0
         used_remote_tmpdir = False
@@ -322,9 +322,9 @@ class BatchBackend(Backend):
             if dry_run:
                 commands.append(write_cmd)
             else:
-                j = batch.create_job(image='google/cloud-sdk:237.0.0-alpine',
-                                     command=['/bin/bash', '-c', write_cmd],
-                                     attributes={'name': 'write_external_inputs'})
+                j = bc_batch.create_job(image='google/cloud-sdk:237.0.0-alpine',
+                                        command=['/bin/bash', '-c', write_cmd],
+                                        attributes={'name': 'write_external_inputs'})
                 jobs_to_command[j] = write_cmd
                 n_jobs_submitted += 1
 
@@ -363,17 +363,17 @@ class BatchBackend(Backend):
             if job._memory:
                 resources['memory'] = job._memory
 
-            j = batch.create_job(image=job._image if job._image else default_image,
-                                 command=['/bin/bash', '-c', cmd],
-                                 parents=parents,
-                                 attributes=attributes,
-                                 resources=resources,
-                                 input_files=inputs if len(inputs) > 0 else None,
-                                 output_files=outputs if len(outputs) > 0 else None,
-                                 pvc_size=job._storage,
-                                 always_run=job._always_run,
-                                 timeout=job._timeout,
-                                 env=env_vars)
+            j = bc_batch.create_job(image=job._image if job._image else default_image,
+                                    command=['/bin/bash', '-c', cmd],
+                                    parents=parents,
+                                    attributes=attributes,
+                                    resources=resources,
+                                    input_files=inputs if len(inputs) > 0 else None,
+                                    output_files=outputs if len(outputs) > 0 else None,
+                                    pvc_size=job._storage,
+                                    always_run=job._always_run,
+                                    timeout=job._timeout,
+                                    env=env_vars)
 
             n_jobs_submitted += 1
 
@@ -388,7 +388,7 @@ class BatchBackend(Backend):
             parents = list(jobs_to_command.keys())
             rm_cmd = f'gsutil -m rm -r {remote_tmpdir}'
             cmd = bash_flags + f'{activate_service_account} && {rm_cmd}'
-            j = batch.create_job(
+            j = bc_batch.create_job(
                 image='google/cloud-sdk:237.0.0-alpine',
                 command=['/bin/bash', '-c', cmd],
                 parents=parents,
@@ -401,25 +401,25 @@ class BatchBackend(Backend):
             print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
 
         submit_batch_start = time.time()
-        batch = batch.submit(disable_progress_bar=disable_progress_bar)
+        bc_batch = bc_batch.submit(disable_progress_bar=disable_progress_bar)
 
         jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 
         if verbose:
-            print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
+            print(f'Submitted batch {bc_batch.id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
 
             print('')
 
         deploy_config = get_deploy_config()
-        url = deploy_config.url('batch', f'/batches/{batch.id}')
-        print(f'Submitted batch {batch.id}, see {url}')
+        url = deploy_config.url('batch', f'/batches/{bc_batch.id}')
+        print(f'Submitted batch {bc_batch.id}, see {url}')
 
         if open:
             webbrowser.open(url)
         if wait:
-            print(f'Waiting for batch {batch.id}...')
-            status = batch.wait()
-            print(f'batch {batch.id} complete: {status["state"]}')
-        return batch
+            print(f'Waiting for batch {bc_batch.id}...')
+            status = bc_batch.wait()
+            print(f'batch {bc_batch.id} complete: {status["state"]}')
+        return bc_batch

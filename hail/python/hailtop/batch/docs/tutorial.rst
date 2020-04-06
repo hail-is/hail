@@ -60,7 +60,7 @@ To learn more about f-strings, check out this `tutorial <https://www.datacamp.co
 Hello World
 -----------
 
-A :class:`.Batch` consists of a set of :class:`.Job`s to execute. There can be
+A :class:`.Batch` consists of a set of :class:`.Job` to execute. There can be
 an arbitrary number of jobs in the batch that are executed in order of their dependencies.
 A dependency between two jobs states that the dependent job should not run until
 the previous job completes. Thus, under the covers a batch is a directed acyclic graph (DAG)

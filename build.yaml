@@ -680,7 +680,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=0
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -713,7 +713,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=1
-     python3 -m pytest --ignore=test_batch.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -746,7 +746,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=2
-     python3 -m pytest --ignore=test_batch.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -779,7 +779,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=3
-     python3 -m pytest --ignore=test_batch.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -812,7 +812,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=4
-     python3 -m pytest --ignore=test_batch.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
