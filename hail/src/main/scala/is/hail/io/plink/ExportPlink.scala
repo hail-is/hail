@@ -91,12 +91,12 @@ object ExportPlink {
           val hcv = HardCallView(fullRowType)
           val bp = new BitPacker(2, bedOS)
 
-          it.foreach { rv =>
-            v.setRegion(rv)
-            a.setRegion(rv)
+          it.foreach { ptr =>
+            v.set(ptr)
+            a.set(ptr)
             ExportPlink.writeBimRow(v, a, bimOS)
 
-            hcv.setRegion(rv)
+            hcv.set(ptr)
             ExportPlink.writeBedRow(hcv, bp, nSamples)
             ctx.region.clear()
             rowCount += 1
@@ -136,7 +136,7 @@ class BimAnnotationView(rowType: PStruct) extends View {
 
   private var cachedVarid: String = _
 
-  def setRegion(region: Region, offset: Long) {
+  def set(offset: Long) {
     assert(rowType.isFieldDefined(offset, varidIdx))
     assert(rowType.isFieldDefined(offset, cmPosIdx))
 

@@ -273,6 +273,11 @@ object Region {
       .getRegion(blockSize)
   }
 
+  def makeNamed(blockSize: Region.Size = Region.REGULAR, pool: RegionPool = null): Region = {
+    (if (pool == null) RegionPool.get else pool)
+      .getRegion(blockSize)
+  }
+
   def pretty(t: PType, off: Long): String = {
     val v = new PrettyVisitor()
     visit(t, off, v)
@@ -340,6 +345,7 @@ object Region {
 }
 
 final class Region protected[annotations](var blockSize: Region.Size, var pool: RegionPool, var memory: RegionMemory = null) extends AutoCloseable {
+
   def isValid(): Boolean = memory != null
 
   def allocate(n: Long): Long = {
@@ -372,6 +378,11 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
 
   def addReferenceTo(r: Region): Unit = {
     memory.addReferenceTo(r.memory)
+  }
+
+  def move(r: Region): Unit = {
+    r.addReferenceTo(this)
+    this.clear()
   }
 
   def nReferencedRegions(): Long = memory.nReferencedRegions()

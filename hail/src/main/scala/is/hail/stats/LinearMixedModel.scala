@@ -120,7 +120,7 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
     val rvd = RVD(
       RVDType(rowType, LinearMixedModel.tableType.key),
       pa_t.partitioner(),
-      ContextRDD.weaken(rdd)).persist(StorageLevel.MEMORY_AND_DISK)
+      ContextRDD.weaken(rdd).toCRDDPtr).persist(StorageLevel.MEMORY_AND_DISK)
 
     LinearMixedModel.toTableIR(rvd)
   }
@@ -186,7 +186,7 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
     val rvd = RVD(
       RVDType(rowType, LinearMixedModel.tableType.key),
       pa_t.partitioner(),
-      ContextRDD.weaken(rdd)).persist(StorageLevel.MEMORY_AND_DISK)
+      ContextRDD.weaken(rdd).toCRDDPtr).persist(StorageLevel.MEMORY_AND_DISK)
 
     LinearMixedModel.toTableIR(rvd)
   }

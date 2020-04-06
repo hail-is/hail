@@ -62,11 +62,9 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
     val rowKeysBc = HailContext.backend.broadcast(collectRowKeys())
     val localRowKeySignature = mv.typ.rowKeyStruct.types
 
-    val crdd: ContextRDD[RegionValue] = if (computeLoadings) {
+    val crdd: ContextRDD[Long] = if (computeLoadings) {
       ContextRDD.weaken(svd.U.rows).cmapPartitions { (ctx, it) =>
-        val region = ctx.region
-        val rv = RegionValue(region)
-        val rvb = new RegionValueBuilder(region)
+        val rvb = ctx.rvb
         it.map { ir =>
           rvb.start(rowType)
           rvb.startStruct()
@@ -86,8 +84,8 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
           }
           rvb.endArray()
           rvb.endStruct()
-          rv.setOffset(rvb.end())
-          rv
+
+          rvb.end()
         }
       }
     } else

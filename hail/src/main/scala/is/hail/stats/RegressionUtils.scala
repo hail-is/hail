@@ -13,7 +13,7 @@ object RegressionUtils {
     offset: Int,
     completeColIdx: Array[Int],
     missingCompleteCols: ArrayBuilder[Int],
-    rv: RegionValue,
+    rv: Long,
     rvRowType: PStruct,
     entryArrayType: PArray,
     entryType: PStruct,
@@ -23,8 +23,7 @@ object RegressionUtils {
     missingCompleteCols.clear()
     val n = completeColIdx.length
     var sum = 0.0
-    val region = rv.region
-    val entryArrayOffset = rvRowType.loadField(rv.offset, entryArrayIdx)
+    val entryArrayOffset = rvRowType.loadField(rv, entryArrayIdx)
 
     var j = 0
     while (j < n) {

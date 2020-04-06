@@ -39,7 +39,7 @@ class UnsafeIndexedSeq(
 }
 
 object UnsafeRow {
-  def readBinary(region: Region, boff: Long, t: PBinary): Array[Byte] =
+  def readBinary(boff: Long, t: PBinary): Array[Byte] =
     t.loadBytes(boff)
 
   def readArray(t: PContainer, region: Region, aoff: Long): IndexedSeq[Any] =
@@ -48,13 +48,13 @@ object UnsafeRow {
   def readBaseStruct(t: PBaseStruct, region: Region, offset: Long): UnsafeRow =
     new UnsafeRow(t, region, offset)
 
-  def readString(region: Region, boff: Long, t: PString): String =
-    new String(readBinary(region, boff, t.fundamentalType))
+  def readString(boff: Long, t: PString): String =
+    new String(readBinary(boff, t.fundamentalType))
 
-  def readLocus(region: Region, offset: Long, t: PLocus): Locus = {
+  def readLocus(offset: Long, t: PLocus): Locus = {
     val ft = t.representation.asInstanceOf[PStruct]
     Locus(
-      readString(region, ft.loadField(offset, 0), t.contigType),
+      readString(ft.loadField(offset, 0), t.contigType),
       Region.loadInt(ft.loadField(offset, 1)))
   }
 
@@ -72,13 +72,13 @@ object UnsafeRow {
         readArray(t, region, offset)
       case t: PSet =>
         readArray(t, region, offset).toSet
-      case t: PString => readString(region, offset, t)
-      case t: PBinary => readBinary(region, offset, t)
+      case t: PString => readString(offset, t)
+      case t: PBinary => readBinary(offset, t)
       case td: PDict =>
         val a = readArray(td, region, offset)
         a.asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
       case t: PBaseStruct => readBaseStruct(t, region, offset)
-      case x: PLocus => readLocus(region, offset, x)
+      case x: PLocus => readLocus(offset, x)
       case x: PInterval =>
         val start: Annotation =
           if (x.startDefined(offset))
@@ -93,7 +93,7 @@ object UnsafeRow {
         val includesStart = x.includesStart(offset)
         val includesEnd = x.includesEnd(offset)
         Interval(start, end, includesStart, includesEnd)
-      case nd: PNDArray => UnsafeRow.read(nd.representation, region, offset)
+      case nd: PNDArray => read(nd.representation, region, offset)
     }
   }
 }

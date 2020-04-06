@@ -5,6 +5,7 @@ import java.io.PrintWriter
 import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual.TStruct
+import is.hail.rvd.RVDContext
 
 import scala.collection.JavaConverters._
 import scala.io.Source
@@ -12,6 +13,13 @@ import is.hail.utils.{FlipbookIterator, StagingIterator, StateMachine}
 import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
+
+class RichIteratorLong(val it: Iterator[Long]) extends AnyVal {
+  def toIteratorRV(region: Region): Iterator[RegionValue] = {
+    val rv = RegionValue(region)
+    it.map(ptr => { rv.setOffset(ptr); rv })
+  }
+}
 
 class RichIterator[T](val it: Iterator[T]) extends AnyVal {
   def toStagingIterator: StagingIterator[T] = {
@@ -109,14 +117,12 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
 }
 
 class RichRowIterator(val it: Iterator[Row]) extends AnyVal {
-  def toRegionValueIterator(region: Region, rowTyp: PStruct): Iterator[RegionValue] = {
+  def copyToRegion(region: Region, rowTyp: PStruct): Iterator[Long] = {
     val rvb = new RegionValueBuilder(region)
-    val rv = RegionValue(region)
     it.map { row =>
       rvb.start(rowTyp)
       rvb.addAnnotation(rowTyp.virtualType, row)
-      rv.setOffset(rvb.end())
-      rv
+      rvb.end()
     }
   }
 }

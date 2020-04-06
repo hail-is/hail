@@ -301,14 +301,18 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def addField(t: PBaseStruct, fromRegion: Region, fromOff: Long, i: Int) {
-    if (t.isFieldDefined(fromOff, i))
-      addRegionValue(t.types(i), fromRegion, t.loadField(fromOff, i))
-    else
-      setMissing()
+    addField(t, fromOff, i, region.ne(fromRegion))
   }
 
   def addField(t: PBaseStruct, rv: RegionValue, i: Int) {
     addField(t, rv.region, rv.offset, i)
+  }
+
+  def addField(t: PBaseStruct, fromOff: Long, i: Int, deepCopy: Boolean) {
+    if (t.isFieldDefined(fromOff, i))
+      addRegionValue(t.types(i), t.loadField(fromOff, i), deepCopy)
+    else
+      setMissing()
   }
 
   def skipFields(n: Int) {
@@ -373,10 +377,14 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def addRegionValue(t: PType, fromRegion: Region, fromOff: Long) {
+    addRegionValue(t, fromOff, region.ne(fromRegion))
+  }
+
+  def addRegionValue(t: PType, fromOff: Long, deepCopy: Boolean) {
     val toT = currentType()
 
     if (typestk.isEmpty) {
-      val r = toT.copyFromAddress(region, t.fundamentalType, fromOff, region ne fromRegion)
+      val r = toT.copyFromAddress(region, t.fundamentalType, fromOff, deepCopy)
       start = r
       return
     }
@@ -384,7 +392,7 @@ class RegionValueBuilder(var region: Region) {
     val toOff = currentOffset()
     assert(typestk.nonEmpty || toOff == start)
 
-    toT.constructAtAddress(toOff, region, t.fundamentalType, fromOff, region.ne(fromRegion))
+    toT.constructAtAddress(toOff, region, t.fundamentalType, fromOff, deepCopy)
 
     advance()
   }

@@ -34,12 +34,10 @@ final class ArrayGenotypeView(rvType: PStruct) {
   private var gOffset: Long = _
   var gIsDefined: Boolean = _
 
-  def setRegion(mb: Region, offset: Long) {
+  def set(offset: Long) {
     gsOffset = rvType.loadField(offset, entriesIndex)
     gsLength = tgs.loadLength(gsOffset)
   }
-
-  def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)
 
   def setGenotype(idx: Int) {
     require(idx >= 0 && idx < gsLength)
@@ -101,12 +99,10 @@ final class HardCallView(rvType: PStruct, callField: String) {
   var gsLength: Int = _
   var gIsDefined: Boolean = _
 
-  def setRegion(mb: Region, offset: Long) {
+  def set(offset: Long) {
     gsOffset = rvType.loadField(offset, entriesIndex)
     gsLength = tgs.loadLength(gsOffset)
   }
-
-  def setRegion(rv: RegionValue): Unit = setRegion(rv.region, rv.offset)
 
   def setGenotype(idx: Int) {
     require(idx >= 0 && idx < gsLength)

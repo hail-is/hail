@@ -5,7 +5,7 @@ import java.io.InputStream
 import breeze.linalg.DenseMatrix
 import is.hail.annotations.{JoinedRegionValue, Region, RegionValue, RegionValueBuilder}
 import is.hail.asm4s.{Code, Value}
-import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDRegionValue}
+import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDRegionValue, RichContextRDDLong}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
 import is.hail.utils.{IntPacker, HailIterator, MultiArray2, Truncatable, WithContext}
@@ -45,6 +45,8 @@ trait Implicits {
 
   implicit def toRichIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
+  implicit def toRichIteratorLong(it: Iterator[Long]): RichIteratorLong = new RichIteratorLong(it)
+
   implicit def toRichRowIterator(it: Iterator[Row]): RichRowIterator = new RichRowIterator(it)
 
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
@@ -69,6 +71,8 @@ trait Implicits {
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichContextRDDRegionValue(r: ContextRDD[RegionValue]): RichContextRDDRegionValue = new RichContextRDDRegionValue(r)
+
+  implicit def toRichContextRDDLong(r: ContextRDD[Long]): RichContextRDDLong = new RichContextRDDLong(r)
 
   implicit def toRichRegex(r: Regex): RichRegex = new RichRegex(r)
 

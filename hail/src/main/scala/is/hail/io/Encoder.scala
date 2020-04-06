@@ -11,7 +11,7 @@ trait Encoder extends Closeable {
 
   def close(): Unit
 
-  def writeRegionValue(region: Region, offset: Long): Unit
+  def writeRegionValue(offset: Long): Unit
 
   def writeByte(b: Byte): Unit
 
@@ -28,7 +28,7 @@ final class CompiledEncoder(out: OutputBuffer, f: () => EncoderAsmFunction) exte
   }
 
   private[this] val compiled = f()
-  def writeRegionValue(region: Region, offset: Long) {
+  def writeRegionValue(offset: Long) {
     compiled(offset, out)
   }
 
@@ -56,8 +56,15 @@ final class ByteArrayEncoder(
     result()
   }
 
+  def regionValueToBytes(offset: Long): Array[Byte] = {
+    baos.reset()
+    enc.writeRegionValue(offset)
+    result()
+  }
+
   def reset(): Unit = baos.reset()
-  def writeRegionValue(region: Region, offset: Long): Unit = enc.writeRegionValue(region, offset)
+  def writeRegionValue(region: Region, offset: Long): Unit = enc.writeRegionValue(offset)
+
   def result(): Array[Byte] = {
     enc.flush()
     baos.toByteArray

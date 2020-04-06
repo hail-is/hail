@@ -1261,9 +1261,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       val rowOffset = blockRow * blockSize.toLong
       val colOffset = blockCol * blockSize.toLong
 
-      val region = ctx.region
-      val rvb = new RegionValueBuilder(region)
-      val rv = RegionValue(region)
+      val rvb = new RegionValueBuilder(ctx.region)
 
       block.activeIterator
         .map { case ((i, j), entry) =>
@@ -1273,8 +1271,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
           rvb.addLong(colOffset + j)
           rvb.addDouble(entry)
           rvb.endStruct()
-          rv.setOffset(rvb.end())
-          rv
+          rvb.end()
         }
     }
 
@@ -1876,9 +1873,8 @@ class WriteBlocksRDD(path: String,
         var i = 0
         while (it.hasNext && i < nRowsInBlock) {
           val rv = it.next()
-          val region = rv.region
 
-          val entryArrayOffset = rvRowType.loadField(rv.offset, entryArrayIdx)
+          val entryArrayOffset = rvRowType.loadField(rv, entryArrayIdx)
 
           var blockCol = 0
           var colIdx = 0
@@ -1923,13 +1919,13 @@ class BlockMatrixReadRowBlockedRDD(
   path: String,
   partitionRanges: IndexedSeq[NumericRange.Exclusive[Long]],
   metadata: BlockMatrixMetadata,
-  hc: HailContext) extends RDD[RVDContext => Iterator[RegionValue]](hc.sc, Nil) {
+  hc: HailContext) extends RDD[RVDContext => Iterator[Long]](hc.sc, Nil) {
   val bcFS = hc.fsBc
 
   val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = metadata
   val gp = GridPartitioner(blockSize, nRows, nCols)
 
-  override def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[RegionValue]] = {
+  override def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[Long]] = {
     val pi = split.index
     val rowsForPartition = partitionRanges(pi)
 
@@ -1950,8 +1946,7 @@ class BlockMatrixReadRowBlockedRDD(
         rvb.endArray()
         rvb.endStruct()
 
-        rv.setOffset(rvb.end())
-        rv
+        rvb.end()
       }
     }
   }

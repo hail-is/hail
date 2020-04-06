@@ -7,7 +7,7 @@ import is.hail.expr.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, P
 import is.hail.expr.types.virtual.{Field, TArray, TStruct}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.io.{BufferSpec, TypedCodecSpec, exportTypes}
-import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType}
+import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -18,7 +18,7 @@ import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 object TableValue {
-  def apply(ctx: ExecuteContext, rowType: PStruct, key: IndexedSeq[String], rdd: ContextRDD[RegionValue]): TableValue = {
+  def apply(ctx: ExecuteContext, rowType: PStruct, key: IndexedSeq[String], rdd: ContextRDD[Long]): TableValue = {
     assert(rowType.required)
     val tt = TableType(rowType.virtualType, key, TStruct.empty)
     TableValue(tt,
@@ -55,17 +55,17 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   def persist(level: StorageLevel) =
     TableValue(typ, globals, rvd.persist(level))
 
-  def filterWithPartitionOp[P](partitionOp: (Int, Region) => P)(pred: (P, RegionValue, RegionValue) => Boolean): TableValue = {
+  def filterWithPartitionOp[P](partitionOp: (Int, Region) => P)(pred: (P, RVDContext, Long, Long) => Boolean): TableValue = {
     val localGlobals = globals.broadcast
-    copy(rvd = rvd.filterWithContext[(P, RegionValue)](
+    copy(rvd = rvd.filterWithContext[(P, Long)](
       { (partitionIdx, ctx) =>
         val globalRegion = ctx.partitionRegion
-        (partitionOp(partitionIdx, globalRegion), RegionValue(globalRegion, localGlobals.value.readRegionValue(globalRegion)))
-      }, { case ((p, glob), rv) => pred(p, rv, glob) }))
+        (partitionOp(partitionIdx, globalRegion), localGlobals.value.readRegionValue(globalRegion))
+      }, { case ((p, glob), ctx, ptr) => pred(p, ctx, ptr, glob) }))
   }
 
-  def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {
-    filterWithPartitionOp((_, _) => ())((_, rv1, rv2) => p(rv1, rv2))
+  def filter(p: (RVDContext, Long, Long) => Boolean): TableValue = {
+    filterWithPartitionOp((_, _) => ())((_, ctx, ptr, glob) => p(ctx, ptr, glob))
   }
 
   def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSON: String) {
@@ -128,11 +128,11 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     val localTypes = fields.map(_.typ)
 
     val localDelim = delimiter
-    rvd.mapPartitions { it =>
+    rvd.mapPartitions { (ctx, it) =>
       val sb = new StringBuilder()
 
-      it.map { rv =>
-        val ur = new UnsafeRow(localSignature, rv)
+      it.map { ptr =>
+        val ur = new UnsafeRow(localSignature, ctx.r, ptr)
         sb.clear()
         localTypes.indices.foreachBetween { i =>
           sb.append(TableAnnotationImpex.exportAnnotation(ur.get(i), localTypes(i)))

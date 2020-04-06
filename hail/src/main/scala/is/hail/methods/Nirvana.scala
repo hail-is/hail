@@ -412,7 +412,7 @@ object Nirvana {
     val prev = tv.rvd
 
     val annotations = prev
-      .mapPartitions { it =>
+      .mapPartitions { (_, it) =>
         val pb = new ProcessBuilder(cmd.asJava)
         val env = pb.environment()
         if (path.orNull != null)
@@ -422,8 +422,8 @@ object Nirvana {
 
         val rvv = new RegionValueVariant(localRowType)
 
-        it.map { rv =>
-          rvv.setRegion(rv)
+        it.map { ptr =>
+          rvv.set(ptr)
           (rvv.locus(), rvv.alleles())
         }
           .grouped(localBlockSize)
@@ -460,9 +460,7 @@ object Nirvana {
       nirvanaRVDType,
       prev.partitioner,
       ContextRDD.weaken(annotations).cmapPartitions { (ctx, it) =>
-        val region = ctx.region
-        val rvb = new RegionValueBuilder(region)
-        val rv = RegionValue(region)
+        val rvb = new RegionValueBuilder(ctx.region)
 
         it.map { case (v, nirvana) =>
           rvb.start(nirvanaRowType)
@@ -471,9 +469,8 @@ object Nirvana {
           rvb.addAnnotation(nirvanaRowType.types(1).virtualType, v.asInstanceOf[Row].get(1))
           rvb.addAnnotation(nirvanaRowType.types(2).virtualType, nirvana)
           rvb.endStruct()
-          rv.setOffset(rvb.end())
 
-          rv
+          rvb.end()
         }
       }).persist(StorageLevel.MEMORY_AND_DISK)
 

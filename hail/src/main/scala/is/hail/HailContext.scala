@@ -169,10 +169,9 @@ object HailContext {
   )(r: Region,
     in: InputStream,
     metrics: InputMetrics = null
-  ): Iterator[RegionValue] =
-    new Iterator[RegionValue] {
+  ): Iterator[Long] =
+    new Iterator[Long] {
       private val region = r
-      private val rv = RegionValue(region)
 
       private val trackedIn = new ByteTrackingInputStream(in)
       private val dec =
@@ -191,13 +190,13 @@ object HailContext {
       // can't throw
       def hasNext: Boolean = cont != 0
 
-      def next(): RegionValue = {
+      def next(): Long = {
         // !hasNext => cont == 0 => dec has been closed
         if (!hasNext)
           throw new NoSuchElementException("next on empty iterator")
 
         try {
-          rv.setOffset(dec.readRegionValue(region))
+          val res = dec.readRegionValue(region)
           cont = dec.readByte()
           if (metrics != null) {
             ExposedMetrics.incrementRecord(metrics)
@@ -207,7 +206,7 @@ object HailContext {
           if (cont == 0)
             dec.close()
 
-          rv
+          res
         } catch {
           case e: Exception =>
             dec.close()
@@ -228,14 +227,13 @@ object HailContext {
     offsetField: Option[String],
     bounds: Option[Interval],
     metrics: InputMetrics = null
-  ): Iterator[RegionValue] =
+  ): Iterator[Long] =
     if (bounds.isEmpty) {
       idxr.close()
       HailContext.readRowsPartition(makeDec)(ctx.r, in, metrics)
     } else {
-      new Iterator[RegionValue] {
+      new Iterator[Long] {
         private val region = ctx.region
-        private val rv = RegionValue(region)
         private val idx = idxr.queryByInterval(bounds.get).buffered
 
         private val trackedIn = new ByteTrackingInputStream(in)
@@ -271,13 +269,13 @@ object HailContext {
 
         def hasNext: Boolean = cont != 0 && idx.hasNext
 
-        def next(): RegionValue = {
+        def next(): Long = {
           if (!hasNext)
             throw new NoSuchElementException("next on empty iterator")
 
           try {
             idx.next()
-            rv.setOffset(dec.readRegionValue(region))
+            val res = dec.readRegionValue(region)
             cont = dec.readByte()
             if (metrics != null) {
               ExposedMetrics.incrementRecord(metrics)
@@ -289,7 +287,7 @@ object HailContext {
               idxr.close()
             }
 
-            rv
+            res
           } catch {
             case e: Exception =>
               dec.close()
@@ -318,9 +316,8 @@ object HailContext {
     bounds: Option[Interval],
     partIdx: Int,
     metrics: InputMetrics = null
-  ): Iterator[RegionValue] = new Iterator[RegionValue] {
+  ): Iterator[Long] = new Iterator[Long] {
     private val region = ctx.region
-    private val rv = RegionValue(region)
     private val idx = idxr.map(_.queryByInterval(bounds.get).buffered)
 
     private val trackedRowsIn = new ByteTrackingInputStream(isRows)
@@ -383,7 +380,7 @@ object HailContext {
 
     def hasNext: Boolean = cont != 0 && idx.map(_.hasNext).getOrElse(true)
 
-    def next(): RegionValue = {
+    def next(): Long = {
       if (!hasNext)
         throw new NoSuchElementException("next on empty iterator")
 
@@ -392,7 +389,6 @@ object HailContext {
         val rowOff = rows.readRegionValue(region)
         val entOff = entries.readRegionValue(region)
         val off = inserter(region, rowOff, entOff)
-        rv.setOffset(off)
         cont = nextCont()
 
         if (cont == 0) {
@@ -401,7 +397,7 @@ object HailContext {
           idxr.foreach(_.close())
         }
 
-        rv
+        off
       } catch {
         case e: Exception =>
           rows.close()
@@ -571,7 +567,7 @@ class HailContext private(
     enc: AbstractTypedCodecSpec,
     partFiles: Array[String],
     requestedType: TStruct
-  ): (PStruct, ContextRDD[RegionValue]) = {
+  ): (PStruct, ContextRDD[Long]) = {
     val (pType: PStruct, makeDec) = enc.buildDecoder(requestedType)
     (pType, ContextRDD.weaken(readPartitions(path, partFiles, (_, is, m) => Iterator.single(is -> m)))
       .cmapPartitions { (ctx, it) =>
@@ -589,7 +585,7 @@ class HailContext private(
     partFiles: Array[String],
     bounds: Array[Interval],
     requestedType: TStruct
-  ): (PStruct, ContextRDD[RegionValue]) = {
+  ): (PStruct, ContextRDD[Long]) = {
     val (pType: PStruct, makeDec) = enc.buildDecoder(requestedType)
     (pType, ContextRDD.weaken(readIndexedPartitions(path, indexSpec, partFiles, Some(bounds)))
       .cmapPartitions { (ctx, it) =>
@@ -612,7 +608,7 @@ class HailContext private(
     bounds: Array[Interval],
     requestedTypeRows: TStruct,
     requestedTypeEntries: TStruct
-  ): (PStruct, ContextRDD[RegionValue]) = {
+  ): (PStruct, ContextRDD[Long]) = {
     require(!(indexSpecRows.isEmpty ^ indexSpecEntries.isEmpty))
     val localFS = fsBc
     val (rowsType: PStruct, makeRowsDec) = rowsEnc.buildDecoder(requestedTypeRows)
