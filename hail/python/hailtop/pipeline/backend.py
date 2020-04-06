@@ -336,17 +336,16 @@ class BatchBackend(Backend):
                 used_remote_tmpdir = True
             outputs += [x for r in task._external_outputs for x in copy_external_output(r)]
 
-            resource_defs = [r._declare(directory=local_tmpdir) for r in task._mentioned]
+            env_vars = {r._name(): r._value(local_tmpdir) for r in task._mentioned}
 
             if task._image is None:
                 if verbose:
                     print(f"Using image '{default_image}' since no image was specified.")
 
             make_local_tmpdir = f'mkdir -p {local_tmpdir}/{task._uid}/; '
-            defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
             task_command = [cmd.strip() for cmd in task._command]
 
-            cmd = bash_flags + make_local_tmpdir + defs + " && ".join(task_command)
+            cmd = bash_flags + make_local_tmpdir + " && ".join(task_command)
             if dry_run:
                 commands.append(cmd)
                 continue
@@ -372,7 +371,8 @@ class BatchBackend(Backend):
                                  output_files=outputs if len(outputs) > 0 else None,
                                  pvc_size=task._storage,
                                  always_run=task._always_run,
-                                 timeout=task._timeout)
+                                 timeout=task._timeout,
+                                 env=env_vars)
             n_jobs_submitted += 1
 
             task_to_job_mapping[task] = j
