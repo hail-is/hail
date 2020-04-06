@@ -7,7 +7,7 @@ from .utils import PipelineException
 __all__ = ['Pipeline',
            'LocalBackend',
            'BatchBackend',
-           'PipelineException',
+           'PipelineException'
            ]
 
 nest_asyncio.apply()
