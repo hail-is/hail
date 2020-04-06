@@ -1,7 +1,18 @@
 package is.hail.backend.service
 
+import is.hail.annotations.UnsafeRow
+import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, TypeInfo}
 import is.hail.backend.{Backend, BroadcastValue}
+import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.lowering.{DArrayLowering, LoweringPipeline}
+import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple}
+import is.hail.expr.types.physical.{PBaseStruct, PType}
+import is.hail.io.fs.GoogleStorageFS
+import is.hail.utils.FastIndexedSeq
+import org.json4s.JsonAST.{JArray, JBool, JInt, JObject, JString}
+import org.json4s.jackson.JsonMethods
 
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
 object ServiceBackend {
@@ -10,7 +21,25 @@ object ServiceBackend {
   }
 }
 
+class User(
+  val username: String,
+  val fs: GoogleStorageFS)
+
 class ServiceBackend() extends Backend {
+  private[this] val users = mutable.Map[String, User]()
+
+  def addUser(username: String, key: String): Unit = {
+    assert(!users.contains(username))
+    users += username -> new User(username, new GoogleStorageFS(key))
+  }
+
+  def removeUser(username: String): Unit = {
+    assert(users.contains(username))
+    users -= username
+  }
+
+  def defaultParallelism: Int = 10
+
   def broadcast[T: ClassTag](_value: T): BroadcastValue[T] = new BroadcastValue[T] {
     def value: T = _value
   }
@@ -28,5 +57,60 @@ class ServiceBackend() extends Backend {
 
   def stop(): Unit = ()
 
-  def request(): Int = 5
+  def valueType(username: String, s: String): String = {
+    val x = IRParser.parse_value_ir(s)
+    x.typ.toString
+  }
+
+  def tableType(username: String, s: String): String = {
+    val x = IRParser.parse_table_ir(s)
+    val t = x.typ
+    val jv = JObject("global" -> JString(t.globalType.toString),
+      "row" -> JString(t.rowType.toString),
+      "row_key" -> JArray(t.key.map(f => JString(f)).toList))
+    JsonMethods.compact(jv)
+  }
+
+  def matrixTableType(username: String, s: String): String = {
+    val x = IRParser.parse_matrix_ir(s)
+    val t = x.typ
+    val jv = JObject("global" -> JString(t.globalType.toString),
+      "col" -> JString(t.colType.toString),
+      "col_key" -> JArray(t.colKey.map(f => JString(f)).toList),
+      "row" -> JString(t.rowType.toString),
+      "row_key" -> JArray(t.rowKey.map(f => JString(f)).toList),
+      "entry" -> JString(t.entryType.toString))
+    JsonMethods.compact(jv)
+  }
+
+  def blockMatrixType(username: String, s: String): String = {
+    val x = IRParser.parse_blockmatrix_ir(s)
+    val t = x.typ
+    val jv = JObject("element_type" -> JString(t.elementType.toString),
+      "shape" -> JArray(t.shape.map(s => JInt(s)).toList),
+      "is_row_vector" -> JBool(t.isRowVector),
+      "block_size" -> JInt(t.blockSize))
+    JsonMethods.compact(jv)
+  }
+
+  def execute(username: String, s: String): String = {
+    val user = users(username)
+    ExecuteContext.scoped(this, user.fs) { ctx =>
+      var x = IRParser.parse_value_ir(s)
+      x = LoweringPipeline.darrayLowerer(DArrayLowering.All).apply(ctx, x, optimize = true)
+        .asInstanceOf[IR]
+      val (pt, f) = Compile[AsmFunction1RegionLong](ctx,
+        FastIndexedSeq[(String, PType)](),
+        FastIndexedSeq[TypeInfo[_]](), LongInfo,
+        MakeTuple.ordered(FastIndexedSeq(x)),
+        optimize = true)
+
+      val a = f(0, ctx.r)(ctx.r)
+      val v = new UnsafeRow(pt.asInstanceOf[PBaseStruct], ctx.r, a)
+
+      JsonMethods.compact(
+        JObject(List("value" -> JSONAnnotationImpex.exportAnnotation(v.get(0), x.typ),
+          "type" -> JString(x.typ.toString))))
+    }
+  }
 }

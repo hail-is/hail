@@ -221,14 +221,15 @@ class SparkBackend(val sc: SparkContext) extends Backend {
     }.collect()
   }
 
-
-  def startProgressBar() {
-    ProgressBarBuilder.build(sc)
-  }
+  def defaultParallelism: Int = sc.defaultParallelism
 
   override def asSpark(): SparkBackend = this
 
   def stop(): Unit = SparkBackend.stop()
+
+  def startProgressBar() {
+    ProgressBarBuilder.build(sc)
+  }
 
   private[this] def executionResultToAnnotation(ctx: ExecuteContext, result: Either[Unit, (PTuple, Long)]) = result match {
     case Left(x) => x

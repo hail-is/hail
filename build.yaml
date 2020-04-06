@@ -534,6 +534,22 @@ steps:
    dependsOn:
      - query_image
  - kind: deploy
+   name: deploy_query_sa
+   namespace:
+     valueFrom: default_ns.name
+   config: query/service-account.yaml
+   dependsOn:
+    - default_ns
+ - kind: deploy
+   name: deploy_query_sa_batch_pods
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: query/service-account-batch-pods.yaml
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - deploy_query_sa
+ - kind: deploy
    name: deploy_query
    namespace:
      valueFrom: default_ns.name
@@ -544,7 +560,10 @@ steps:
       for: alive
    dependsOn:
     - default_ns
+    - batch_pods_ns
     - query_image
+    - deploy_query_sa
+    - deploy_query_sa_batch_pods
  - kind: buildImage
    name: hail_repl_image
    dockerFile: hail/Dockerfile.hail-repl

@@ -15,6 +15,13 @@ object ExecuteContext {
       f(ctx)
     }
   }
+
+  def scopedNewRegion[T](ctx: ExecuteContext)(f: ExecuteContext => T): T = {
+    Region.scoped { r =>
+      val newCtx = new ExecuteContext(ctx.backend, ctx.fs, r, ctx.timer)
+      f(newCtx)
+    }
+  }
 }
 
 class ExecuteContext(
