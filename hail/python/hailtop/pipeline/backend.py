@@ -336,7 +336,7 @@ class BatchBackend(Backend):
                 used_remote_tmpdir = True
             outputs += [x for r in task._external_outputs for x in copy_external_output(r)]
 
-            env_vars = {r._name(): r._value(local_tmpdir) for r in task._mentioned}
+            env_vars = {r._uid: r._get_path(local_tmpdir) for r in task._mentioned}
 
             if task._image is None:
                 if verbose:
