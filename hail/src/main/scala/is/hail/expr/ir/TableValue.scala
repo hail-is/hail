@@ -7,7 +7,7 @@ import is.hail.expr.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, P
 import is.hail.expr.types.virtual.{Field, TArray, TStruct}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.io.{BufferSpec, TypedCodecSpec, exportTypes}
-import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType}
+import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome

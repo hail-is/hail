@@ -1422,7 +1422,7 @@ object RVD {
     rvds.map { rvd =>
       val srcRowPType = rvd.rowPType
       val newRVDType = rvd.typ.copy(rowType = unifiedRowPType)
-      rvd.map(newRVDType)((ctx, ptr) => unifiedRowPType.copyFromType(ctx.r, srcRowPType, ptr, false))
+      rvd.map(newRVDType)((ctx, ptr) => unifiedRowPType.copyFromAddress(ctx.r, srcRowPType, ptr, false))
     }
   }
 

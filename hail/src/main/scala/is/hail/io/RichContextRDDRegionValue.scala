@@ -215,7 +215,7 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
       path,
       idxRelPath,
       stageLocally,
-      IndexWriter.builder(t.kType, +PStruct()),
+      IndexWriter.builder(t.kType, +PCanonicalStruct()),
       RichContextRDDRegionValue.writeRowsPartition(
         encoding.buildEncoder(t.rowType),
         t.kFieldIdx,
@@ -287,23 +287,23 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVa
     }
   }
 
-  def writeRows(
-    path: String,
-    idxRelPath: String,
-    t: RVDType,
-    stageLocally: Boolean,
-    encoding: AbstractTypedCodecSpec
-  ): (Array[String], Array[Long]) = {
-    crdd.writePartitions(
-      path,
-      idxRelPath,
-      stageLocally,
-      IndexWriter.builder(t.kType, +PCanonicalStruct()),
-      RichContextRDDRegionValue.writeRowsPartition(
-        encoding.buildEncoder(t.rowType),
-        t.kFieldIdx,
-        t.rowType))
-  }
+//  def writeRows(
+//    path: String,
+//    idxRelPath: String,
+//    t: RVDType,
+//    stageLocally: Boolean,
+//    encoding: AbstractTypedCodecSpec
+//  ): (Array[String], Array[Long]) = {
+//    crdd.writePartitions(
+//      path,
+//      idxRelPath,
+//      stageLocally,
+//      IndexWriter.builder(t.kType, +PCanonicalStruct()),
+//      RichContextRDDRegionValue.writeRowsPartition(
+//        encoding.buildEncoder(t.rowType),
+//        t.kFieldIdx,
+//        t.rowType))
+//  }
 
   def toRows(rowType: PStruct): RDD[Row] = {
     crdd.run.map(rv => SafeRow(rowType, rv.offset))

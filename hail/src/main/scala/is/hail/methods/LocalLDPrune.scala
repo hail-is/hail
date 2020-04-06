@@ -313,7 +313,7 @@ case class LocalLDPrune(
     val tableType = typ(mv.typ)
 
     val standardizedRDD = mv.rvd
-      .mapPartitions(mv.rvd.typ.copy(rowType = bpvType))({ (ctx, it) =>
+      .mapPartitions(mv.rvd.typ.copy(rowType = bpvType)){ (ctx, it) =>
         val hcView = new HardCallView(fullRowPType, callField)
         val region = Region()
         val rvb = new RegionValueBuilder(region)
