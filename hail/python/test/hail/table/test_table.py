@@ -991,6 +991,40 @@ class Tests(unittest.TestCase):
         self.assertEqual(inner_join.collect(), inner_join_expected)
         self.assertEqual(outer_join.collect(), outer_join_expected)
 
+    def test_joins_one_null(self):
+        tr = hl.utils.range_table(7, 1)
+        table1 = tr.key_by(new_key=tr.idx)
+        table1 = table1.select(idx1=table1.idx)
+        table2 = tr.key_by(new_key=hl.cond((tr.idx == 4) | (tr.idx == 6), hl.null(hl.tint32), tr.idx))
+        table2 = table2.select(idx2=table2.idx)
+
+        left_join = table1.join(table2, 'left')
+        right_join = table1.join(table2, 'right')
+        inner_join = table1.join(table2, 'inner')
+        outer_join = table1.join(table2, 'outer')
+
+        def row(new_key, idx1, idx2):
+            return hl.Struct(new_key=new_key, idx1=idx1, idx2=idx2)
+
+        left_join_expected = [row(0, 0, 0), row(1, 1, 1), row(2, 2, 2), row(3, 3, 3),
+                              row(4, 4, None), row(5, 5, 5), row(6, 6, None)]
+
+        right_join_expected = [row(0, 0, 0), row(1, 1, 1), row(2, 2, 2),
+                               row(3, 3, 3), row(5, 5, 5),
+                               row(None, None, 4), row(None, None, 6)]
+
+        inner_join_expected = [row(0, 0, 0), row(1, 1, 1), row(2, 2, 2), row(3, 3, 3), row(5, 5, 5)]
+
+        outer_join_expected = [row(0, 0, 0), row(1, 1, 1), row(2, 2, 2),
+                               row(3, 3, 3), row(4, 4, None),
+                               row(5, 5, 5), row(6, 6, None),
+                               row(None, None, 4), row(None, None, 6)]
+
+        self.assertEqual(left_join.collect(), left_join_expected)
+        self.assertEqual(right_join.collect(), right_join_expected)
+        self.assertEqual(inner_join.collect(), inner_join_expected)
+        self.assertEqual(outer_join.collect(), outer_join_expected)
+
     def test_partitioning_rewrite(self):
         ht = hl.utils.range_table(10, 3)
         ht1 = ht.annotate(x=hl.rand_unif(0, 1))

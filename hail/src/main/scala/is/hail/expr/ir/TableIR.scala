@@ -631,6 +631,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
 
     leftKeyType ++ leftValueType ++ rightValueType
   }
+
   private val newGlobalType = left.typ.globalType ++ right.typ.globalType
 
   private val newKey = left.typ.key ++ right.typ.key.drop(joinKey)
@@ -663,7 +664,44 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     val rightKeyFieldIdx = rightRVDType.kFieldIdx
     val leftValueFieldIdx = leftRVDType.valueFieldIdx
     val rightValueFieldIdx = rightRVDType.valueFieldIdx
-    val newRowPType = PType.canonical(newRowType).setRequired(true).asInstanceOf[PStruct]
+
+    def noIndex(pfs: IndexedSeq[PField]): IndexedSeq[(String, PType)] =
+      pfs.map(pf => (pf.name, pf.typ))
+
+    def unionFieldPTypes(ps: PStruct, ps2: PStruct): IndexedSeq[(String, PType)] =
+      ps.fields.zip(ps2.fields).map({
+        case(pf1, pf2) => (pf1.name, InferPType.getNestedElementPTypes(Seq(pf1.typ, pf2.typ)))
+      })
+
+    def castFieldRequiredeness(ps: PStruct, required: Boolean): IndexedSeq[(String, PType)] =
+      ps.fields.map(pf => (pf.name, pf.typ.setRequired(required)))
+
+    val (lkT, lvT, rvT) = joinType match {
+      case "inner" =>
+        val keyTypeFields = castFieldRequiredeness(leftRVDType.kType, true)
+        (keyTypeFields, noIndex(leftRVDType.valueType.fields), noIndex(rightRVDType.valueType.fields))
+      case "left" =>
+        val rValueTypeFields = castFieldRequiredeness(rightRVDType.valueType, false)
+        (noIndex(leftRVDType.kType.fields), noIndex(leftRVDType.valueType.fields), rValueTypeFields)
+      case "right" =>
+        val keyTypeFields = leftRVDType.kType.fields.zip(rightRVDType.kType.fields).map({
+          case(pf1, pf2) => {
+            assert(pf1.typ isOfType pf2.typ)
+            (pf1.name, pf2.typ)
+          }
+        })
+        val lValueTypeFields = castFieldRequiredeness(leftRVDType.valueType, false)
+        (keyTypeFields, lValueTypeFields, noIndex(rightRVDType.valueType.fields))
+      case "outer" | "zip" =>
+        val keyTypeFields = unionFieldPTypes(leftRVDType.kType, rightRVDType.kType)
+        val lValueTypeFields = castFieldRequiredeness(leftRVDType.valueType, false)
+        val rValueTypeFields = castFieldRequiredeness(rightRVDType.valueType, false)
+        (keyTypeFields, lValueTypeFields, rValueTypeFields)
+    }
+
+    val newRowPType = PCanonicalStruct(true, lkT ++ lvT ++ rvT :_*)
+
+    assert(newRowPType.virtualType == newRowType)
 
     val rvMerger = { (_: RVDContext, it: Iterator[JoinedRegionValue]) =>
       val rvb = new RegionValueBuilder()
