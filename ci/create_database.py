@@ -41,9 +41,12 @@ database={config["db"]}
         if 'ssl-mode' in config:
             f.write(f'ssl-mode={config["ssl-mode"]}\n')
 
-    shutil.copy('/sql-config/server-ca.pem', 'server-ca.pem')
-    shutil.copy('/sql-config/client-key.pem', 'client-key.pem')
-    shutil.copy('/sql-config/client-cert.pem', 'client-cert.pem')
+    if os.path.exists('/sql-config/server-ca.pem'):
+        shutil.copy('/sql-config/server-ca.pem', 'server-ca.pem')
+    if os.path.exists('/sql-config/client-key.pem'):
+        shutil.copy('/sql-config/client-key.pem', 'client-key.pem')
+    if os.path.exists('/sql-config/client-cert.pem'):
+        shutil.copy('/sql-config/client-cert.pem', 'client-cert.pem')
 
     secret_name = f'sql-{database_name}-{user}-config'
     print(f'creating secret {secret_name}')

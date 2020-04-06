@@ -88,8 +88,9 @@ def ssl_context_from_sql_config(sql_config):
             sql_config['ssl-cert'], keyfile=sql_config['ssl-key'], password=None)
         ssl_context.check_hostname = False
         return ssl_context
-    raise ValueError(f'only DISABLED, REQURIED, and VERIFY_CA are '
-                     'supported for ssl-mode. {json.dumps(sql_config)}')
+    raise ValueError(f'Only DISABLED, REQURIED, and VERIFY_CA are '
+                     f'supported for ssl-mode. ssl-mode was set to '
+                     f'{sql_config.get("ssl-mode")}.')
 
 
 @retry_transient_mysql_errors
