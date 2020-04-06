@@ -438,3 +438,4 @@ class BatchTests(unittest.TestCase):
         for t in tasks:
             combine.command(f'cat {t.ofile} >> {combine.ofile}')
         p.write_output(combine.ofile, f'{gcs_output_dir}/pipeline_benchmark_test.txt')
+        p.run()
