@@ -65,7 +65,26 @@ if __name__ == '__main__':
                   f'hail-bench run -o {t.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}')
         all_output.append(t.ofile)
 
-    combine = p.new_task('combine_output')
+    combine_branch_factor = int(os.environ.get('BENCHMARK_BRANCH_FACTOR', 32))
+    phase_i = 1
+    while len(all_output) > combine_branch_factor:
+
+        new_output = []
+
+        job_i = 1
+        i = 0
+        while i < len(all_output):
+            combine = p.new_task(f'combine_output_phase{phase_i}_job{job_i}')
+            combine.command(
+                f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output[i:i + combine_branch_factor]))
+            new_output.append(combine.ofile)
+            i += combine_branch_factor
+            job_i += 1
+
+        phase_i += 1
+        all_output = new_output
+
+    combine = p.new_task('final_combine_output')
     combine.command(f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output))
     combine.command(f'cat {combine.ofile}')
 
