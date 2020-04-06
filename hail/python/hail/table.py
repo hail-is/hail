@@ -2310,17 +2310,22 @@ class Table(ExprContainer):
 
         Notes
         -----
-        Hail supports four types of joins specified by `how`:
+        Tables are joined at rows whose key fields have equal values. Missing values never match.
+        The inclusion of a row with no match in the opposite table depends on the
+        join type:
 
-        - **inner** -- Key must be present in both the left and right tables.
-        - **outer** -- Key present in either the left or the right. For keys
-          only in the left table, the right table's fields will be missing.
-          For keys only in the right table, the left table's fields will be
-          missing.
-        - **left** -- Key present in the left table. For keys not found on
-          the right, the right table's fields will be missing.
-        - **right** -- Key present in the right table. For keys not found on
-          the right, the right table's fields will be missing.
+        - **inner** -- Only rows with a matching key in the opposite table are included
+          in the resulting table.
+        - **left** -- All rows from the left table are included in the resulting table.
+          If a row in the left table has no match in the right table, then the fields
+          derived from the right table will be missing.
+        - **right** -- All rows from the right table are included in the resulting table.
+          If a row in the right table has no match in the left table, then the fields
+          derived from the left table will be missing.
+        - **outer** -- All rows are included in the resulting table. If a row in the right
+          table has no match in the left table, then the fields derived from the left
+          table will be missing. If a row in the right table has no match in the left table,
+          then the fields derived from the left table will be missing.
 
         Both tables must have the same number of keys and the corresponding
         types of each key must be the same (order matters), but the key names
@@ -2345,9 +2350,9 @@ class Table(ExprContainer):
         Parameters
         ----------
         right : :class:`.Table`
-            Table with which to join.
+            Table to join.
         how : :obj:`str`
-            Join type. One of "inner", "outer", "left", "right".
+            Join type. One of "inner", "left", "right", "outer"
 
         Returns
         -------
