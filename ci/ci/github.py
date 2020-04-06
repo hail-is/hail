@@ -306,8 +306,6 @@ class PR(Code):
             await gh_client.post(
                 f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}',
                 data=data)
-        except KeyError as e:
-            log.exception(f'{self.short_str()}: notify github of build state failed due to exception: {data} {e}')
         except gidgethub.HTTPException as e:
             log.info(f'{self.short_str()}: notify github of build state failed due to exception: {data} {e}')
         except aiohttp.client_exceptions.ClientResponseError as e:
