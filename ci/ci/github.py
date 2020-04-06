@@ -309,7 +309,7 @@ class PR(Code):
         except gidgethub.HTTPException as e:
             log.info(f'{self.short_str()}: notify github of build state failed due to exception: {e}')
         except aiohttp.client_exceptions.ClientResponseError as e:
-            log.error(f'{self.short_str()}: Unexpected exception in post to github: {e}')
+            log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data} {e}')
 
     async def _update_github(self, gh):
         await self._update_last_known_github_status(gh)
