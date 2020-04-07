@@ -52,7 +52,7 @@ class TableNativeReader(TableReader):
                 'name': 'NativeReaderOptions',
                 'intervals': self._interval_type._convert_to_json(self.intervals),
                 'intervalPointType': self._interval_type.element_type.point_type._parsable_string(),
-                'filterIntervals': self.filter_intervals,
+                'filterIntervals': self.filter_intervals
             }
         return escape_str(json.dumps(reader))
 

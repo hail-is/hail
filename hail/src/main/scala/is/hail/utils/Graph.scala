@@ -57,9 +57,10 @@ object Graph {
     val wrappedNodeType = PCanonicalTuple(true, PType.canonical(nodeType))
     val refMap = Map("l" -> wrappedNodeType.virtualType, "r" -> wrappedNodeType.virtualType)
 
-    Region.scoped { region =>
+    ExecuteContext.scoped() { ctx =>
+      val region = ctx.r
       val tieBreakerF = tieBreaker.map { e =>
-        val ir = IRParser.parse_value_ir(e, IRParserEnvironment(refMap))
+        val ir = IRParser.parse_value_ir(e, IRParserEnvironment(ctx, refMap = refMap))
         val (t, f) = Compile[AsmFunction3RegionLongLongLong](ctx,
           IndexedSeq(("l", wrappedNodeType), ("r", wrappedNodeType)),
           FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,

@@ -168,12 +168,12 @@ case class MatrixNativeReader(
   _spec: AbstractMatrixTableSpec = null
 ) extends MatrixReader {
   lazy val spec: AbstractMatrixTableSpec = Option(_spec).getOrElse(
-    (RelationalSpec.read(HailContext.get, path): @unchecked) match {
+    (RelationalSpec.read(HailContext.fs, path): @unchecked) match {
       case mts: AbstractMatrixTableSpec => mts
       case _: AbstractTableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
     })
 
-  lazy val columnCount: Option[Int] = Some(RelationalSpec.read(HailContext.get, path + "/cols")
+  lazy val columnCount: Option[Int] = Some(RelationalSpec.read(HailContext.fs, path + "/cols")
     .asInstanceOf[AbstractTableSpec]
     .partitionCounts
     .sum
@@ -197,7 +197,7 @@ case class MatrixNativeReader(
 
     if (mr.dropCols) {
       val tt = TableType(mr.typ.rowType, mr.typ.rowKey, mr.typ.globalType)
-      val trdr: TableReader = TableNativeReader(rowsPath, options, _spec = spec.rowsTableSpec(rowsPath))
+      val trdr: TableReader = TableNativeReader(rowsPath, options, spec.rowsTableSpec(rowsPath))
       var tr: TableIR = TableRead(tt, mr.dropRows, trdr)
       tr = TableMapGlobals(
         tr,

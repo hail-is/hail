@@ -11,6 +11,7 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io._
+import is.hail.io.fs.FS
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
@@ -18,17 +19,18 @@ import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
-import org.json4s.{Formats, ShortTypeHints}
+import org.json4s.JsonAST.{JNothing, JString}
+import org.json4s.{Formats, JObject, ShortTypeHints}
 
 import scala.reflect.ClassTag
 
 object TableIR {
-  def read(hc: HailContext, path: String, dropRows: Boolean = false, requestedType: Option[TableType] = None): TableIR = {
+  def read(fs: FS, path: String, dropRows: Boolean = false, requestedType: Option[TableType] = None): TableIR = {
     val successFile = path + "/_SUCCESS"
-    if (!hc.fs.exists(path + "/_SUCCESS"))
+    if (!fs.exists(path + "/_SUCCESS"))
       fatal(s"write failed: file not found: $successFile")
 
-    val tr = TableNativeReader(path)
+    val tr = TableNativeReader.read(fs, path, None)
     TableRead(requestedType.getOrElse(tr.fullType), dropRows = dropRows, tr)
   }
 }
@@ -117,6 +119,13 @@ object TableReader {
       classOf[TextInputFilterAndReplace],
       classOf[TableFromBlockMatrixNativeReader])
     ) + new NativeReaderOptionsSerializer()
+
+  def fromJson(fs: FS, jv: JObject): TableReader = {
+    (jv \ "name").extract[String] match {
+      case "TableNativeReader" => TableNativeReader.fromJson(fs, jv)
+      case _ => jv.extract[TableReader]
+    }
+  }
 }
 
 abstract class TableReader {
@@ -127,19 +136,36 @@ abstract class TableReader {
   def fullType: TableType
 }
 
-case class TableNativeReader(
-  path: String,
-  options: Option[NativeReaderOptions] = None,
-  var _spec: AbstractTableSpec = null
-) extends TableReader {
-  lazy val spec = if (_spec != null)
-    _spec
-  else
-    (RelationalSpec.read(HailContext.get, path): @unchecked) match {
+object TableNativeReader {
+  def read(fs: FS, path: String, options: Option[NativeReaderOptions]): TableNativeReader = {
+    val spec = (RelationalSpec.read(fs, path): @unchecked) match {
       case ts: AbstractTableSpec => ts
       case _: AbstractMatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
     }
 
+    TableNativeReader(path, options, spec)
+  }
+
+  def fromJson(fs: FS, readerJV: JObject): TableNativeReader = {
+    val path = readerJV \ "path" match {
+      case JString(s) => s
+    }
+
+    val options = readerJV \ "options" match {
+      case optionsJV: JObject =>
+        Some(NativeReaderOptions.fromJson(optionsJV))
+      case JNothing => None
+    }
+
+    read(fs, path, options)
+  }
+}
+
+case class TableNativeReader(
+  path: String,
+  options: Option[NativeReaderOptions],
+  spec: AbstractTableSpec
+) extends TableReader {
   def partitionCounts: Option[IndexedSeq[Long]] = if (intervals.isEmpty) Some(spec.partitionCounts) else None
 
   override lazy val fullType: TableType = spec.table_type
@@ -182,7 +208,7 @@ case class TableNativeZippedReader(
   var _specLeft: AbstractTableSpec = null,
   var _specRight: AbstractTableSpec = null
 ) extends TableReader {
-  private def getSpec(path: String) = (RelationalSpec.read(HailContext.get, path): @unchecked) match {
+  private def getSpec(path: String) = (RelationalSpec.read(HailContext.fs, path): @unchecked) match {
     case ts: AbstractTableSpec => ts
     case _: AbstractMatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
   }

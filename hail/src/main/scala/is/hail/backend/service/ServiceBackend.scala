@@ -1,7 +1,7 @@
 package is.hail.backend.service
 
-import is.hail.annotations.UnsafeRow
-import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, TypeInfo}
+import is.hail.annotations.{Region, UnsafeRow}
+import is.hail.asm4s._
 import is.hail.backend.{Backend, BroadcastValue}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.{DArrayLowering, LoweringPipeline}
@@ -38,6 +38,11 @@ class ServiceBackend() extends Backend {
     users -= username
   }
 
+  def userContext[T](username: String)(f: (ExecuteContext) => T): T = {
+    val user = users(username)
+    ExecuteContext.scoped(this, user.fs)(f)
+  }
+
   def defaultParallelism: Int = 10
 
   def broadcast[T: ClassTag](_value: T): BroadcastValue[T] = new BroadcastValue[T] {
@@ -58,50 +63,57 @@ class ServiceBackend() extends Backend {
   def stop(): Unit = ()
 
   def valueType(username: String, s: String): String = {
-    val x = IRParser.parse_value_ir(s)
-    x.typ.toString
+    userContext(username) { ctx =>
+      val x = IRParser.parse_value_ir(ctx, s)
+      x.typ.toString
+    }
   }
 
   def tableType(username: String, s: String): String = {
-    val x = IRParser.parse_table_ir(s)
-    val t = x.typ
-    val jv = JObject("global" -> JString(t.globalType.toString),
-      "row" -> JString(t.rowType.toString),
-      "row_key" -> JArray(t.key.map(f => JString(f)).toList))
-    JsonMethods.compact(jv)
+    userContext(username) { ctx =>
+      val x = IRParser.parse_table_ir(ctx, s)
+      val t = x.typ
+      val jv = JObject("global" -> JString(t.globalType.toString),
+        "row" -> JString(t.rowType.toString),
+        "row_key" -> JArray(t.key.map(f => JString(f)).toList))
+      JsonMethods.compact(jv)
+    }
   }
 
   def matrixTableType(username: String, s: String): String = {
-    val x = IRParser.parse_matrix_ir(s)
-    val t = x.typ
-    val jv = JObject("global" -> JString(t.globalType.toString),
-      "col" -> JString(t.colType.toString),
-      "col_key" -> JArray(t.colKey.map(f => JString(f)).toList),
-      "row" -> JString(t.rowType.toString),
-      "row_key" -> JArray(t.rowKey.map(f => JString(f)).toList),
-      "entry" -> JString(t.entryType.toString))
-    JsonMethods.compact(jv)
+    userContext(username) { ctx =>
+      val x = IRParser.parse_matrix_ir(ctx, s)
+      val t = x.typ
+      val jv = JObject("global" -> JString(t.globalType.toString),
+        "col" -> JString(t.colType.toString),
+        "col_key" -> JArray(t.colKey.map(f => JString(f)).toList),
+        "row" -> JString(t.rowType.toString),
+        "row_key" -> JArray(t.rowKey.map(f => JString(f)).toList),
+        "entry" -> JString(t.entryType.toString))
+      JsonMethods.compact(jv)
+    }
   }
 
   def blockMatrixType(username: String, s: String): String = {
-    val x = IRParser.parse_blockmatrix_ir(s)
-    val t = x.typ
-    val jv = JObject("element_type" -> JString(t.elementType.toString),
-      "shape" -> JArray(t.shape.map(s => JInt(s)).toList),
-      "is_row_vector" -> JBool(t.isRowVector),
-      "block_size" -> JInt(t.blockSize))
-    JsonMethods.compact(jv)
+    userContext(username) { ctx =>
+      val x = IRParser.parse_blockmatrix_ir(ctx, s)
+      val t = x.typ
+      val jv = JObject("element_type" -> JString(t.elementType.toString),
+        "shape" -> JArray(t.shape.map(s => JInt(s)).toList),
+        "is_row_vector" -> JBool(t.isRowVector),
+        "block_size" -> JInt(t.blockSize))
+      JsonMethods.compact(jv)
+    }
   }
 
   def execute(username: String, s: String): String = {
-    val user = users(username)
-    ExecuteContext.scoped(this, user.fs) { ctx =>
-      var x = IRParser.parse_value_ir(s)
+    userContext(username) { ctx =>
+      var x = IRParser.parse_value_ir(ctx, s)
       x = LoweringPipeline.darrayLowerer(DArrayLowering.All).apply(ctx, x, optimize = true)
         .asInstanceOf[IR]
       val (pt, f) = Compile[AsmFunction1RegionLong](ctx,
         FastIndexedSeq[(String, PType)](),
-        FastIndexedSeq[TypeInfo[_]](), LongInfo,
+        FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
         MakeTuple.ordered(FastIndexedSeq(x)),
         optimize = true)
 

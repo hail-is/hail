@@ -2673,7 +2673,7 @@ class IRSuite extends HailSuite {
   @DataProvider(name = "tableIRs")
   def tableIRs(): Array[Array[TableIR]] = {
     try {
-      val read = TableIR.read(hc, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
+      val read = TableIR.read(fs, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
       val mtRead = MatrixIR.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
       val b = True()
 
@@ -2735,7 +2735,7 @@ class IRSuite extends HailSuite {
     try {
       IndexBgen(ctx, Array("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
 
-      val tableRead = TableIR.read(hc, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
+      val tableRead = TableIR.read(fs, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
       val read = MatrixIR.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
       val range = MatrixIR.range(hc, 3, 7, None)
       val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
@@ -2852,29 +2852,30 @@ class IRSuite extends HailSuite {
 
   @Test(dataProvider = "valueIRs")
   def testValueIRParser(x: IR) {
-    val env = IRParserEnvironment(refMap = Map(
-      "c" -> TBoolean,
-      "a" -> TArray(TInt32),
-      "aa" -> TArray(TArray(TInt32)),
-      "da" -> TArray(TTuple(TInt32, TString)),
-      "st" -> TStream(TInt32),
-      "sta" -> TStream(TArray(TInt32)),
-      "std" -> TStream(TTuple(TInt32, TString)),
-      "nd" -> TNDArray(TFloat64, Nat(1)),
-      "nd2" -> TNDArray(TArray(TString), Nat(1)),
-      "v" -> TInt32,
-      "l" -> TInt32,
-      "r" -> TInt32,
-      "s" -> TStruct("x" -> TInt32, "y" -> TInt64, "z" -> TFloat64),
-      "t" -> TTuple(TInt32, TInt64, TFloat64),
-      "call" -> TCall,
-      "x" -> TInt32
-    ))
+    ExecuteContext.scoped() { ctx =>
+      val env = IRParserEnvironment(ctx, refMap = Map(
+        "c" -> TBoolean,
+        "a" -> TArray(TInt32),
+        "aa" -> TArray(TArray(TInt32)),
+        "da" -> TArray(TTuple(TInt32, TString)),
+        "st" -> TStream(TInt32),
+        "sta" -> TStream(TArray(TInt32)),
+        "std" -> TStream(TTuple(TInt32, TString)),
+        "nd" -> TNDArray(TFloat64, Nat(1)),
+        "nd2" -> TNDArray(TArray(TString), Nat(1)),
+        "v" -> TInt32,
+        "l" -> TInt32,
+        "r" -> TInt32,
+        "s" -> TStruct("x" -> TInt32, "y" -> TInt64, "z" -> TFloat64),
+        "t" -> TTuple(TInt32, TInt64, TFloat64),
+        "call" -> TCall,
+        "x" -> TInt32))
 
-    val s = Pretty(x, elideLiterals = false)
-    val x2 = IRParser.parse_value_ir(s, env)
+      val s = Pretty(x, elideLiterals = false)
+      val x2 = IRParser.parse_value_ir(s, env)
 
-    assert(x2 == x)
+      assert(x2 == x)
+    }
   }
 
   @Test(dataProvider = "tableIRs")
@@ -2901,28 +2902,36 @@ class IRSuite extends HailSuite {
   @Test def testCachedIR() {
     val cached = Literal(TSet(TInt32), Set(1))
     val s = s"(JavaIR __uid1)"
-    val x2 = IRParser.parse_value_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+    val x2 = ExecuteContext.scoped() { ctx =>
+      IRParser.parse_value_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+    }
     assert(x2 eq cached)
   }
 
   @Test def testCachedTableIR() {
     val cached = TableRange(1, 1)
     val s = s"(JavaTable __uid1)"
-    val x2 = IRParser.parse_table_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+    val x2 = ExecuteContext.scoped() { ctx =>
+      IRParser.parse_table_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+    }
     assert(x2 eq cached)
   }
 
   @Test def testCachedMatrixIR() {
     val cached = MatrixIR.range(hc, 3, 7, None)
     val s = s"(JavaMatrix __uid1)"
-    val x2 = IRParser.parse_matrix_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+    val x2 = ExecuteContext.scoped() { ctx =>
+      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+    }
     assert(x2 eq cached)
   }
 
   @Test def testCachedBlockMatrixIR() {
     val cached = new BlockMatrixLiteral(BlockMatrix.fill(hc, 3, 7, 1))
     val s = s"(JavaBlockMatrix __uid1)"
-    val x2 = IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+    val x2 = ExecuteContext.scoped() { ctx =>
+      IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+    }
     assert(x2 eq cached)
   }
 
@@ -2930,7 +2939,9 @@ class IRSuite extends HailSuite {
     val cached = MatrixIR.range(hc, 3, 8, None)
     val id = hc.addIrVector(Array(cached))
     val s = s"(JavaMatrixVectorRef $id 0)"
-    val x2 = IRParser.parse_matrix_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map.empty))
+    val x2 = ExecuteContext.scoped() { ctx =>
+      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map.empty))
+    }
     assert(cached eq x2)
 
     is.hail.HailContext.pyRemoveIrVector(id)
