@@ -121,7 +121,6 @@ object TableReader {
     ) + new NativeReaderOptionsSerializer()
 
   def fromJson(fs: FS, jv: JObject): TableReader = {
-    println(jv)
     (jv \ "name").extract[String] match {
       case "TableNativeReader" => TableNativeReader.fromJson(fs, jv)
       case _ => jv.extract[TableReader]
@@ -147,14 +146,14 @@ object TableNativeReader {
     TableNativeReader(path, options, spec)
   }
 
-  def fromJson(fs: FS, jv: JObject): TableNativeReader = {
-    val path = jv \ "path" match {
+  def fromJson(fs: FS, readerJV: JObject): TableNativeReader = {
+    val path = readerJV \ "path" match {
       case JString(s) => s
     }
 
-    val options = jv \ "options" match {
+    val options = readerJV \ "options" match {
       case optionsJV: JObject =>
-        Some(NativeReaderOptions.fromJson(jv))
+        Some(NativeReaderOptions.fromJson(optionsJV))
       case JNothing => None
     }
 

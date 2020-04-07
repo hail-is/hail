@@ -29,17 +29,17 @@ class NativeReaderOptionsSerializer() extends CustomSerializer[NativeReaderOptio
 )
 
 object NativeReaderOptions {
-  def fromJson(jv: JObject): NativeReaderOptions = {
+  def fromJson(optionsJV: JObject): NativeReaderOptions = {
     implicit val formats: Formats = DefaultFormats
 
-    val filterIntervals = (jv \ "filterIntervals").extract[Boolean]
-    val intervalPointType = IRParser.parseType((jv \ "intervalPointType").extract[String])
+    val filterIntervals = (optionsJV \ "filterIntervals").extract[Boolean]
+    val intervalPointType = IRParser.parseType((optionsJV \ "intervalPointType").extract[String])
     val intervals = {
-      val jvIntervals = jv \ "intervals"
+      val jvIntervals = optionsJV \ "intervals"
       val ty = TArray(TInterval(intervalPointType))
       JSONAnnotationImpex.importAnnotation(jvIntervals, ty).asInstanceOf[IndexedSeq[Interval]]
     }
-    new NativeReaderOptions(intervals, intervalPointType, filterIntervals)
+    NativeReaderOptions(intervals, intervalPointType, filterIntervals)
   }
 }
 
