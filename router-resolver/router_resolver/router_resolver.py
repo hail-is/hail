@@ -60,6 +60,31 @@ async def auth(request):
                             'X-Router-Scheme': scheme})
 
 
+@routes.get('/router-scheme/{namespace}')
+async def router_scheme(request):
+    app = request.app
+    k8s_client = app['k8s_client']
+    namespace = request.match_info['namespace']
+
+    try:
+        router = await k8s_client.read_namespaced_service('router', namespace)
+    except client.rest.ApiException as err:
+        if err.status == 404:
+            return web.Response(status=403)
+        raise
+    ports = router.spec.ports
+    assert len(ports) == 1
+    port = ports[0].port
+    if port == 80:
+        scheme = 'http'
+    else:
+        assert port == 443
+        scheme = 'https'
+    return web.Response(status=200,
+                        headers={
+                            'X-Router-Scheme': scheme})
+
+
 app.add_routes(routes)
 
 
