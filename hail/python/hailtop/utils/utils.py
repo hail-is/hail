@@ -161,6 +161,9 @@ class WaitableSharedPool:
         await self._done.wait()
 
 
+RETRYABLE_HTTP_STATUS_CODES = (408, 500, 502, 503, 504)
+
+
 def is_transient_error(e):
     # observed exceptions:
     #
@@ -206,7 +209,7 @@ def is_transient_error(e):
     #
     # aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host batch.pr-6925-default-s24o4bgat8e8:80 ssl:None [Connect call failed ('10.36.7.86', 80)]
     if isinstance(e, aiohttp.ClientResponseError) and (
-            e.status in (408, 500, 502, 503, 504)):
+            e.status in RETRYABLE_HTTP_STATUS_CODES):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 500 internal server error, 502 bad gateway
         # 503 service unavailable, 504 gateway timeout
@@ -323,6 +326,22 @@ async def request_raise_transient_errors(session, method, url, **kwargs):
             log.exception('request failed with transient exception: {method} {url}')
             raise web.HTTPServiceUnavailable()
         raise
+
+
+def retry_response_returning_functions(fun, *args, **kwargs):
+    delay = 0.1
+    errors = 0
+    response = sync_retry_transient_errors(
+        fun, *args, **kwargs)
+    while response.status_code in RETRYABLE_HTTP_STATUS_CODES:
+        errors += 1
+        if errors % 10 == 0:
+            log.warning(f'encountered {errors} bad status codes, most recent '
+                        f'one was {response.status_code}', exc_info=True)
+        response = sync_retry_transient_errors(
+            fun, *args, **kwargs)
+        delay = sync_sleep_and_backoff(delay)
+    return response
 
 
 async def collect_agen(agen):

@@ -5,7 +5,7 @@ import requests
 from werkzeug.serving import make_server
 from flask import Response
 
-from hailtop.utils import sync_retry_transient_errors
+from hailtop.utils import retry_response_returning_functions
 
 
 class ServerThread(threading.Thread):
@@ -32,7 +32,8 @@ class ServerThread(threading.Thread):
         up = False
         while not up:
             try:
-                sync_retry_transient_errors(requests.get, ping_url)
+                retry_response_returning_functions(
+                    requests.get, ping_url)
                 up = True
             except requests.exceptions.ConnectionError:
                 time.sleep(0.01)
