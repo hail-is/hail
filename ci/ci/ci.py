@@ -257,8 +257,7 @@ async def batch_callback_handler(request):
 
 @routes.get('/api/v1alpha/deploy_status')
 @rest_authenticated_developers_only
-async def deploy_status(request, userdata):
-    del userdata
+async def deploy_status(request, userdata):  # pylint: disable=unused-argument
     batch_client = request.app['batch_client']
 
     async def get_failure_information(batch):
@@ -276,6 +275,19 @@ async def deploy_status(request, userdata):
         'failure_information': None if wb.deploy_state == 'success' else await get_failure_information(wb.deploy_batch)
     } for wb in watched_branches]
     return web.json_response(wb_configs)
+
+
+@routes.post('/api/v1alpha/update')
+@rest_authenticated_developers_only
+async def post_update(request, userdata):  # pylint: disable=unused-argument
+    log.info(f'developer triggered update')
+
+    async def update_all():
+        for wb in watched_branches:
+            await wb.update(request.app)
+
+    await asyncio.ensure_future(update_all())
+    return web.Response(status=200)
 
 
 @routes.post('/api/v1alpha/dev_deploy_branch')
