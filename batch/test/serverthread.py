@@ -33,7 +33,7 @@ class ServerThread(threading.Thread):
         while not up:
             try:
                 retry_response_returning_functions(
-                    requests.get, ping_url, raise_for_status=True)
+                    requests.get, ping_url)
                 up = True
             except requests.exceptions.ConnectionError:
                 time.sleep(0.01)
