@@ -141,7 +141,7 @@ object StringFunctions extends RegistryFunctions {
       unwrapReturn(r, rt)(str)
     }
 
-    registerCodeWithMissingness("showStr", tv("T"), TInt32, TString, {
+    registerEmitCode("showStr", tv("T"), TInt32, TString, {
       (_: Type, _: PType, truncType: PType) => PCanonicalString(truncType.required)
     }) { case (r, rt, a, trunc) =>
       val annotation = Code(a.setup, a.m).muxAny(Code._null(boxedTypeInfo(a.pt)), boxArg(r, a.pt)(a.v))
@@ -149,7 +149,7 @@ object StringFunctions extends RegistryFunctions {
       EmitCode(trunc.setup, trunc.m, PCode(rt, unwrapReturn(r, rt)(str)))
     }
 
-    registerCodeWithMissingness("json", tv("T"), TString, (_: Type, _: PType) => PCanonicalString(true)) { case (r, rt, a) =>
+    registerEmitCode("json", tv("T"), TString, (_: Type, _: PType) => PCanonicalString(true)) { case (r, rt, a) =>
       val bti = boxedTypeInfo(a.pt)
       val annotation = Code(a.setup, a.m).muxAny(Code._null(bti), boxArg(r, a.pt)(a.v))
       val json = r.mb.getType(a.pt.virtualType).invoke[Any, JValue]("toJSON", annotation)
@@ -204,7 +204,7 @@ object StringFunctions extends RegistryFunctions {
       case (_: Type, _: PType, _: PType) => PCanonicalString()
     })(thisClass, "arrayMkString")
 
-    registerCodeWithMissingness("firstMatchIn", TString, TString, TArray(TString), {
+    registerEmitCode("firstMatchIn", TString, TString, TArray(TString), {
       case(_: Type, _: PType, _: PType) => PCanonicalArray(PCanonicalString(true))
     }) {
       case (er: EmitRegion, rt: PArray, s: EmitCode, r: EmitCode) =>
@@ -238,7 +238,7 @@ object StringFunctions extends RegistryFunctions {
       EmitCode(setup, missing, PCode(rt, value))
     }
 
-    registerCodeWithMissingness("hamming", TString, TString, TInt32, {
+    registerEmitCode("hamming", TString, TString, TInt32, {
       case(_: Type, _: PType, _: PType) => PInt32()
     }) { case (r: EmitRegion, rt, e1: EmitCode, e2: EmitCode) =>
       EmitCode.fromI(r.mb) { cb =>

@@ -38,7 +38,7 @@ object GenotypeFunctions extends RegistryFunctions {
       PCode(rt, code)
     }
 
-    registerCodeWithMissingness("dosage", TArray(tv("N", "float64")), TFloat64,  (_: Type, _: PType) => PFloat64()
+    registerEmitCode("dosage", TArray(tv("N", "float64")), TFloat64,  (_: Type, _: PType) => PFloat64()
     ) { case (r, rt, gp) =>
       EmitCode.fromI(r.mb) { cb =>
         gp.toI(cb).flatMap(cb) { case (gpc: PIndexableCode) =>
