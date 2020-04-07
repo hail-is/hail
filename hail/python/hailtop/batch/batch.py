@@ -52,17 +52,17 @@ class Batch:
     default_memory: :obj:`str`, optional
         Memory setting to use by default if not specified by a job. Only
         applicable if a docker image is specified for the :class:`.LocalBackend`
-        or the :class:`.BatchBackend`. Value is in GB.
+        or the :class:`.ServiceBackend`. Value is in GB.
     default_cpu: :obj:`str`, optional
         CPU setting to use by default if not specified by a job. Only
         applicable if a docker image is specified for the :class:`.LocalBackend`
-        or the :class:`.BatchBackend`.
+        or the :class:`.ServiceBackend`.
     default_storage: :obj:`str`, optional
         Storage setting to use by default if not specified by a job. Only
-        applicable for the :class:`.BatchBackend`.
+        applicable for the :class:`.ServiceBackend`.
     default_timeout: :obj:`float` or :obj:`int`, optional
         Maximum time in seconds for a job to run before being killed. Only
-        applicable for the :class:`.BatchBackend`. If `None`, there is no
+        applicable for the :class:`.ServiceBackend`. If `None`, there is no
         timeout.
     """
 

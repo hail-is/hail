@@ -1,6 +1,6 @@
 import re
 
-from .backend import BatchBackend
+from .backend import ServiceBackend
 from .resource import ResourceFile, ResourceGroup
 from .utils import BatchException
 
@@ -430,7 +430,7 @@ class Job:
 
         Notes
         -----
-        Can only be used with the :class:`.BatchBackend`.
+        Can only be used with the :class:`.ServiceBackend`.
 
         Warning
         -------
@@ -439,7 +439,7 @@ class Job:
         Examples
         --------
 
-        >>> b = Batch(backend=BatchBackend('test'))
+        >>> b = Batch(backend=ServiceBackend('test'))
         >>> j = b.new_job()
         >>> (j.always_run()
         ...   .command(f'echo "hello"'))
@@ -455,8 +455,8 @@ class Job:
             Same job object set to always run.
         """
 
-        if not isinstance(self._batch._backend, BatchBackend):
-            raise NotImplementedError("A BatchBackend is required to use the 'always_run' option")
+        if not isinstance(self._batch._backend, ServiceBackend):
+            raise NotImplementedError("A ServiceBackend is required to use the 'always_run' option")
 
         self._always_run = always_run
         return self
@@ -467,12 +467,12 @@ class Job:
 
         Notes
         -----
-        Can only be used with the :class:`.BatchBackend`.
+        Can only be used with the :class:`.ServiceBackend`.
 
         Examples
         --------
 
-        >>> b = Batch(backend=BatchBackend('test'))
+        >>> b = Batch(backend=ServiceBackend('test'))
         >>> j = b.new_job()
         >>> (j.timeout(10)
         ...   .command(f'echo "hello"'))
@@ -488,8 +488,8 @@ class Job:
             Same job object set with a timeout.
         """
 
-        if not isinstance(self._batch._backend, BatchBackend):
-            raise NotImplementedError("A BatchBackend is required to use the 'timeout' option")
+        if not isinstance(self._batch._backend, ServiceBackend):
+            raise NotImplementedError("A ServiceBackend is required to use the 'timeout' option")
 
         self._timeout = timeout
         return self

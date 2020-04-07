@@ -4,7 +4,7 @@ import subprocess as sp
 import tempfile
 from shlex import quote as shq
 
-from hailtop.batch import Batch, BatchBackend, LocalBackend
+from hailtop.batch import Batch, ServiceBackend, LocalBackend
 from hailtop.batch.utils import arg_max
 from hailtop.utils import grouped
 
@@ -294,7 +294,7 @@ class LocalTests(unittest.TestCase):
 
 class BatchTests(unittest.TestCase):
     def setUp(self):
-        self.backend = BatchBackend('test')
+        self.backend = ServiceBackend('test')
 
     def tearDown(self):
         self.backend.close()

@@ -1,4 +1,4 @@
-.. _sec-batch-service:
+.. _sec-service:
 
 =============
 Batch Service
@@ -112,7 +112,7 @@ Submitting a Batch to the Service
 ---------------------------------
 
 To execute a batch on the Batch service rather than locally, first construct a
-:class:`.BatchBackend` object with a valid billing project name. Next, pass the :class:`.BatchBackend`
+:class:`.ServiceBackend` object with a valid billing project name. Next, pass the :class:`.ServiceBackend`
 object to the :class:`.Batch` constructor with the parameter name `backend`.
 
 An example of running "Hello World" on the Batch service rather than locally is shown below.
@@ -121,7 +121,7 @@ You can open iPython or a Jupyter notebook and execute the following batch:
 .. code-block:: python
 
     >>> import hailtop.batch as hb
-    >>> backend = hb.BatchBackend('test') # replace 'test' with your own billing project
+    >>> backend = hb.ServiceBackend('test') # replace 'test' with your own billing project
     >>> b = hb.Batch(backend=backend, name='test')
     >>> j = b.new_job(name='hello')
     >>> j.command('echo "hello world"')

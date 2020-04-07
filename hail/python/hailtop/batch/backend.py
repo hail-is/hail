@@ -202,17 +202,17 @@ class LocalBackend(Backend):
         return _get_random_name()
 
 
-class BatchBackend(Backend):
+class ServiceBackend(Backend):
     """
     Backend that executes batches on Hail's Batch Service on Google Cloud.
 
     Examples
     --------
 
-    >>> batch_backend = BatchBackend('test')
-    >>> b = Batch(backend=batch_backend)
+    >>> service_backend = ServiceBackend('test')
+    >>> b = Batch(backend=service_backend)
     >>> b.run() # doctest: +SKIP
-    >>> batch_backend.close()
+    >>> service_backend.close()
 
     Parameters
     ----------
@@ -248,7 +248,7 @@ class BatchBackend(Backend):
         Warning
         -------
         This method should not be called directly. Instead, use :meth:`.Batch.run`
-        and pass :class:`.BatchBackend` specific arguments as key-word arguments.
+        and pass :class:`.ServiceBackend` specific arguments as key-word arguments.
 
         Parameters
         ----------

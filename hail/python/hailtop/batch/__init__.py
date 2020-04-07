@@ -1,12 +1,12 @@
 import nest_asyncio
 
 from .batch import Batch
-from .backend import LocalBackend, BatchBackend
+from .backend import LocalBackend, ServiceBackend
 from .utils import BatchException
 
 __all__ = ['Batch',
            'LocalBackend',
-           'BatchBackend',
+           'ServiceBackend',
            'BatchException'
            ]
 

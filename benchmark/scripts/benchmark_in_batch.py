@@ -20,7 +20,7 @@ if __name__ == '__main__':
     if label:
         labeled_sha = f'{labeled_sha}-{label}'
     b = hb.Batch(name=f'benchmark-{labeled_sha}',
-                 backend=hb.BatchBackend(billing_project='hail'),
+                 backend=hb.ServiceBackend(billing_project='hail'),
                  default_image=BENCHMARK_IMAGE,
                  default_storage='100G',
                  default_memory='7G',

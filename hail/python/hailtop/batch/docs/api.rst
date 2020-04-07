@@ -62,10 +62,10 @@ Backends
 ~~~~~~~~
 
 A :class:`.Backend` is an abstract class that can execute a :class:`.Batch`. Currently,
-there are two types of backends: :class:`.LocalBackend` and :class:`.BatchBackend`. The
-local backend executes a batch on your local computer by running a shell script. The Batch
+there are two types of backends: :class:`.LocalBackend` and :class:`.ServiceBackend`. The
+local backend executes a batch on your local computer by running a shell script. The service
 backend executes a batch on Google Compute Engine VMs operated by the Hail team
-(:ref:`Batch Service <sec-batch-service>`). You can access the UI for the Batch Service
+(:ref:`Batch Service <sec-service>`). You can access the UI for the Batch Service
 at `<batch.hail.is>`_.
 
 .. autosummary::
@@ -75,4 +75,4 @@ at `<batch.hail.is>`_.
 
     backend.Backend
     backend.LocalBackend
-    backend.BatchBackend
+    backend.ServiceBackend

@@ -4,7 +4,7 @@ Batch
 Batch is a Python module for creating and executing jobs. A job consists of a bash
 command to run as well as a specification of the resources required and some metadata.
 Batch allows you to easily build complicated computational pipelines with many jobs and numerous
-dependencies. Tasks can either be executed locally or with the :ref:`Batch Service <sec-batch-service>`.
+dependencies. Tasks can either be executed locally or with the :ref:`Batch Service <sec-service>`.
 
 
 .. image:: _static/images/dags/dags.008.png
@@ -19,7 +19,7 @@ Contents
    Getting Started <getting_started>
    Tutorial <tutorial>
    Docker Resources <docker_resources>
-   Batch Service <batch_service>
+   Batch Service <service>
    Reference (Python API) <api>
 
 

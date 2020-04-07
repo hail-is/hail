@@ -9,7 +9,7 @@ def flip(p):
 def stress():
     b = hb.Batch(
         name='stress',
-        backend=hb.BatchBackend(billing_project='hail'),
+        backend=hb.ServiceBackend(billing_project='hail'),
         default_image='ubuntu:18.04')
 
     for i in range(100):
