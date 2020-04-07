@@ -52,7 +52,7 @@ async def auth(request):
     return web.Response(status=200,
                         headers={
                             'X-Router-IP': router.spec.cluster_ip,
-                            'X-Router-Scheme': port})
+                            'X-Router-Scheme': str(port)})
 
 
 app.add_routes(routes)
