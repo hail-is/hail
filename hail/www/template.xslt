@@ -82,36 +82,33 @@
                                 </li>
                             </ul>
                         </div>
+                        <script>
+                            <xsl:text disable-output-escaping="yes" >
+                                <![CDATA[
+                                    (function(){
+                                        var cpage = location.pathname;
+                                        var menuItems = document.querySelectorAll('#hail-menu a');
+
+                                        for (var i = 0; i < menuItems.length; i++) {
+                                            if (menuItems[i].pathname === cpage && menuItems[i].host == location.host) {
+                                                menuItems[i].className = "active";
+                                                return;
+                                            }
+                                        }
+
+                                        if (cpage === "/" || cpage === "/index.html") {
+                                            document.getElementById('hail-navbar-brand').className = "active";
+                                        };
+                                    })();
+                                ]]>
+                            </xsl:text>
+                        </script>
                     </div>
                 </nav>
                 <body>
                     <xsl:apply-templates select="body"/>
                 </body>
             </div>
-            <script>
-                <xsl:text disable-output-escaping="yes" >
-                    <![CDATA[
-                        (function () {
-                            var cpage = location.pathname;
-
-                            if (cpage === "/" || cpage === "/index.html") {
-                                document.getElementById('hail-navbar-brand').className = "active";
-                                return;
-                            };
-
-                            var menuItems = document.querySelectorAll('#hail-menu a');
-
-                            for (var i = 0; i < menuItems.length; i++) {
-                                if (menuItems[i].pathname === cpage && menuItems[i].host == location.host) {
-                                    menuItems[i].className = "active";
-                                    return;
-                                }
-                            }
-                        })();
-                    ]]>
-                </xsl:text>
-            </script>
-
             <script src="/vendors/jquery-3.4.1.min.js"></script>
             <script src="/vendors/bootstrap/js/bootstrap.min.js"></script>
         </html>
