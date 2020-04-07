@@ -1820,7 +1820,7 @@ class BlockMatrix(object):
         jrm = Env.hail().linalg.RowMatrix.readBlockMatrix(Env.backend()._jhc, path_in, joption(partition_size))
 
         if parallel is None:
-            parallel = 'concatenated
+            parallel = 'concatenated'
         export_type = parallel
 
         if entries == 'full':
