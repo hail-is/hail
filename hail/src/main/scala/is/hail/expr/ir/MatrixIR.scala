@@ -9,6 +9,7 @@ import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io.TextMatrixReader
 import is.hail.io.bgen.MatrixBGENReader
+import is.hail.io.fs.FS
 import is.hail.io.gen.MatrixGENReader
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
@@ -20,8 +21,8 @@ import org.apache.spark.storage.StorageLevel
 import org.json4s._
 
 object MatrixIR {
-  def read(hc: HailContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType] = None): MatrixIR = {
-    val reader = MatrixNativeReader(path)
+  def read(fs: FS, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType] = None): MatrixIR = {
+    val reader = MatrixNativeReader.read(fs, path)
     MatrixRead(requestedType.getOrElse(reader.fullMatrixType), dropCols, dropRows, reader)
   }
 
@@ -107,6 +108,13 @@ object MatrixReader {
       classOf[TextInputFilterAndReplace],
       classOf[TextMatrixReader])
   ) + new NativeReaderOptionsSerializer()
+
+  def fromJson(fs: FS, readerJV: JObject): MatrixReader = {
+    (readerJV \ "name").extract[String] match {
+      case "TableNativeReader" => MatrixNativeReader.fromJson(fs, readerJV)
+      case _ => readerJV.extract[MatrixReader]
+    }
+  }
 }
 
 trait MatrixReader {
@@ -162,16 +170,37 @@ abstract class MatrixHybridReader extends TableReader with MatrixReader {
   }
 }
 
+object MatrixNativeReader {
+  def read(fs: FS, path: String, options: Option[NativeReaderOptions] = None): MatrixNativeReader = {
+    val spec =
+      (RelationalSpec.read(HailContext.fs, path): @unchecked) match {
+        case mts: AbstractMatrixTableSpec => mts
+        case _: AbstractTableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
+      }
+
+    MatrixNativeReader(path, options, spec)
+  }
+
+  def fromJson(fs: FS, readerJV: JObject): MatrixNativeReader = {
+    val path = readerJV \ "path" match {
+      case JString(s) => s
+    }
+
+    val options = readerJV \ "options" match {
+      case optionsJV: JObject =>
+        Some(NativeReaderOptions.fromJson(optionsJV))
+      case JNothing => None
+    }
+
+    read(fs, path, options)
+  }
+}
+
 case class MatrixNativeReader(
   path: String,
-  options: Option[NativeReaderOptions] = None,
-  _spec: AbstractMatrixTableSpec = null
+  options: Option[NativeReaderOptions],
+  spec: AbstractMatrixTableSpec
 ) extends MatrixReader {
-  lazy val spec: AbstractMatrixTableSpec = Option(_spec).getOrElse(
-    (RelationalSpec.read(HailContext.fs, path): @unchecked) match {
-      case mts: AbstractMatrixTableSpec => mts
-      case _: AbstractTableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
-    })
 
   lazy val columnCount: Option[Int] = Some(RelationalSpec.read(HailContext.fs, path + "/cols")
     .asInstanceOf[AbstractTableSpec]
