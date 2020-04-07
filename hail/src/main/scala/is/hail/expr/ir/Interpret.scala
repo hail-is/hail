@@ -570,7 +570,7 @@ object Interpret {
             SafeRow(rt.asInstanceOf[PTuple], resultOffset).get(0)
           } catch {
             case e: Exception =>
-              fatal(s"error while calling '${ ir.implementation.name }'", e)
+              fatal(s"error while calling '${ ir.implementation.name }': ${ e.getMessage }", e)
           }
         }
       case TableCount(child) =>

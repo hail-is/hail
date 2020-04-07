@@ -45,7 +45,7 @@ object GenotypeFunctions extends RegistryFunctions {
           val gpv = gpc.memoize(cb, "dosage_gp")
 
           cb.ifx(gpv.loadLength().cne(3),
-            Code._fatal[Unit](const("length of gp array must be 3, got ").concat(gpv.loadLength().toS)))
+            cb._fatal(const("length of gp array must be 3, got ").concat(gpv.loadLength().toS)))
 
           gpv.loadElement(cb, 1).flatMap(cb) { (_1: PCode) =>
             gpv.loadElement(cb, 2).map { (_2: PCode) =>

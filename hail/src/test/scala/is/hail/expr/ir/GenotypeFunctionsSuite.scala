@@ -30,7 +30,7 @@ class GenotypeFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("dosage", TFloat64, toIRDoubleArray(gp)), expected)
   }
 
-  def testDosageLength() {
+  @Test def testDosageLength() {
     assertFatal(invoke("dosage", TFloat64, IRDoubleArray(1.0, 1.5)), "length")
     assertFatal(invoke("dosage", TFloat64, IRDoubleArray(1.0, 1.5, 0.0, 0.0)), "length")
   }
