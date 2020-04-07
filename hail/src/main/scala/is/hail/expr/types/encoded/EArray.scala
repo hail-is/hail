@@ -9,7 +9,7 @@ import is.hail.expr.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.utils._
 
-final case class EArray(val elementType: EType, override val required: Boolean = false) extends EContainer {
+final case class EArray(val elementType: EType, override val required: Boolean = false) extends EContainer with EFundamentalType {
   override def _decodeCompatible(pt: PType): Boolean = {
     pt.required == required &&
       pt.isInstanceOf[PArray] &&
@@ -80,13 +80,13 @@ final case class EArray(val elementType: EType, override val required: Boolean =
       writeElems)
   }
 
-  def _buildEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
+  def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     val pa = pt.asInstanceOf[PArray]
     val array = coerce[Long](v)
     buildPrefixEncoder(pa, mb, array, out, pa.loadLength(array))
   }
 
-  def _buildDecoder(
+  def _buildFundamentalDecoder(
     pt: PType,
     mb: EmitMethodBuilder[_],
     region: Value[Region],

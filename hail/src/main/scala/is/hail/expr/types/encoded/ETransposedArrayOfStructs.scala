@@ -21,7 +21,7 @@ final case class ETransposedArrayOfStructs(
   def fieldType(name: String): EType = field(name).typ
   def hasField(name: String): Boolean = fieldIdx.contains(name)
 
-  override def _decodeCompatible(pt: PType): Boolean = pt match {
+  def _decodeCompatible(pt: PType): Boolean = pt match {
     case t: PArray =>
       t.elementType match {
         case struct: PBaseStruct =>
@@ -35,7 +35,7 @@ final case class ETransposedArrayOfStructs(
     case _ => false
   }
 
-  override def _encodeCompatible(pt: PType): Boolean = pt match {
+  def _encodeCompatible(pt: PType): Boolean = pt match {
     case t: PArray =>
       t.elementType match {
         case struct: PBaseStruct =>

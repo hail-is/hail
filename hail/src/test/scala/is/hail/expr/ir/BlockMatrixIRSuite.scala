@@ -3,7 +3,10 @@ package is.hail.expr.ir
 import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TNDArray, TStream}
+import is.hail.expr.Nat
+import is.hail.expr.types.encoded.{EFloat64Required, EBlockMatrixNDArray}
+import is.hail.expr.types.virtual._
+import is.hail.io.TypedCodecSpec
 import is.hail.linalg.BlockMatrix
 import is.hail.utils._
 import is.hail.TestUtils._
@@ -109,5 +112,21 @@ class BlockMatrixIRSuite extends HailSuite {
     val m1 = BDM.tabulate[Double](5, 4)((i, j) => (i + 1) * j)
     val m2 = BDM.tabulate[Double](4, 6)((i, j) => (i + 5) * (j - 2))
     assertBMEvalsTo(BlockMatrixDot(toIR(m1), toIR(m2)), m1 * m2)
+  }
+
+  @Test def readBlockMatrixIR() {
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
+    val etype = EBlockMatrixNDArray(EFloat64Required, required = true)
+    val path = "src/test/resources/blockmatrix_example/0/parts/part-0-28-0-0-0feb7ac2-ab02-6cd4-5547-bfcb94dacb33"
+    val matrix = BlockMatrix.read(hc, "src/test/resources/blockmatrix_example/0").toBreezeMatrix()
+    val expected = Array.tabulate(2)(i => Array.tabulate(2)(j => matrix(i, j)).toFastIndexedSeq).toFastIndexedSeq
+
+    val typ = TNDArray(TFloat64, Nat(2))
+    val spec = TypedCodecSpec(etype, typ, BlockMatrix.bufferSpec)
+    val read = ReadValue(Str(path), spec, typ)
+    assertNDEvals(read, expected)
+    assertNDEvals(ReadValue(
+      WriteValue(read, Str(tmpDir.createLocalTempFile()), spec),
+      spec, typ), expected)
   }
 }
