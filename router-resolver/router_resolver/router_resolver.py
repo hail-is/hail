@@ -47,7 +47,7 @@ async def auth(request):
             return web.Response(status=403)
         raise
     ports = router.spec.ports
-    assert ports.length == 1
+    assert len(ports) == 1
     port = ports[0].port
     return web.Response(status=200,
                         headers={
