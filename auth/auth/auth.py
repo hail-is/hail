@@ -231,7 +231,7 @@ async def rest_callback(request):
         raise web.HTTPUnauthorized()
     user = users[0]
 
-    session_id = await create_session(dbpool, user['id'])
+    session_id = await create_session(dbpool, user['id'], max_age_secs=None)
 
     return web.json_response({
         'token': session_id,
