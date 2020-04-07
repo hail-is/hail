@@ -1440,8 +1440,7 @@ object IRParser {
         val dropCols = boolean_literal(it)
         val dropRows = boolean_literal(it)
         val readerStr = string_literal(it)
-        implicit val formats: Formats = MatrixReader.formats + new MatrixBGENReaderSerializer(env)
-        val reader = deserialize[MatrixReader](readerStr)
+        val reader = MatrixReader.fromJson(env, JsonMethods.parse(readerStr).asInstanceOf[JObject])
         MatrixRead(requestedType.getOrElse(reader.fullMatrixType), dropCols, dropRows, reader)
       case "MatrixAnnotateRowsTable" =>
         val root = string_literal(it)

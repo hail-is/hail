@@ -17,7 +17,7 @@ import is.hail.variant._
 import org.apache.spark.Partition
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST.{JArray, JInt, JNull, JString}
-import org.json4s.{CustomSerializer, JObject}
+import org.json4s.{CustomSerializer, DefaultFormats, Formats, JObject}
 
 import scala.io.Source
 
@@ -318,9 +318,19 @@ object MatrixBGENReader {
       entryType = TStruct(
         "GT" -> TCall,
         "GP" -> TArray(TFloat64),
-        "dosage" -> TFloat64
-      )
-    )
+        "dosage" -> TFloat64))
+  }
+
+  def fromJson(env: IRParserEnvironment, jObj: JObject): MatrixBGENReader = {
+    implicit val formats: Formats = DefaultFormats
+
+    val files = (jObj \ "files").extract[Array[String]]
+    val sampleFile = (jObj \ "sampleFile").extractOpt[String]
+    val indexFileMap = (jObj \ "indexFileMap").extract[Map[String, String]]
+    val nPartitions = (jObj \ "nPartitions").extractOpt[Int]
+    val blockSizeInMB = (jObj \ "blockSizeInMB").extractOpt[Int]
+    val includedVariantsIR = (jObj \ "includedVariants").extractOpt[String].map(IRParser.parse_table_ir(_, env))
+    MatrixBGENReader(files, sampleFile, indexFileMap, nPartitions, blockSizeInMB, includedVariantsIR)
   }
 }
 

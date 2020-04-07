@@ -26,7 +26,7 @@ object MatrixIR {
     MatrixRead(requestedType.getOrElse(reader.fullMatrixType), dropCols, dropRows, reader)
   }
 
-  def range(hc: HailContext, nRows: Int, nCols: Int, nPartitions: Option[Int], dropCols: Boolean = false, dropRows: Boolean = false): MatrixIR = {
+  def range(nRows: Int, nCols: Int, nPartitions: Option[Int], dropCols: Boolean = false, dropRows: Boolean = false): MatrixIR = {
     val reader = MatrixRangeReader(nRows, nCols, nPartitions)
     MatrixRead(reader.fullMatrixType, dropCols = dropCols, dropRows = dropRows, reader = reader)
   }
@@ -109,10 +109,11 @@ object MatrixReader {
       classOf[TextMatrixReader])
   ) + new NativeReaderOptionsSerializer()
 
-  def fromJson(fs: FS, readerJV: JObject): MatrixReader = {
-    (readerJV \ "name").extract[String] match {
-      case "TableNativeReader" => MatrixNativeReader.fromJson(fs, readerJV)
-      case _ => readerJV.extract[MatrixReader]
+  def fromJson(env: IRParserEnvironment, readerJObj: JObject): MatrixReader = {
+    (readerJObj \ "name").extract[String] match {
+      case "MatrixNativeReader" => MatrixNativeReader.fromJson(env.ctx.fs, readerJObj)
+      case "MatrixBGENReader" => MatrixBGENReader.fromJson(env, readerJObj)
+      case _ => readerJObj.extract[MatrixReader]
     }
   }
 }
@@ -173,12 +174,15 @@ abstract class MatrixHybridReader extends TableReader with MatrixReader {
 object MatrixNativeReader {
   def read(fs: FS, path: String, options: Option[NativeReaderOptions] = None): MatrixNativeReader = {
     val spec =
-      (RelationalSpec.read(HailContext.fs, path): @unchecked) match {
+      (RelationalSpec.read(fs, path): @unchecked) match {
         case mts: AbstractMatrixTableSpec => mts
         case _: AbstractTableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
       }
+    val rowsSpec = RelationalSpec.read(fs, path + "/rows").asInstanceOf[AbstractTableSpec]
+    val entriesSpec = RelationalSpec.read(fs, path + "/entries").asInstanceOf[AbstractTableSpec]
+    val colsSpec = RelationalSpec.read(fs, path + "/cols").asInstanceOf[AbstractTableSpec]
 
-    MatrixNativeReader(path, options, spec)
+    MatrixNativeReader(path, options, rowsSpec, entriesSpec, colsSpec, spec)
   }
 
   def fromJson(fs: FS, readerJV: JObject): MatrixNativeReader = {
@@ -199,11 +203,13 @@ object MatrixNativeReader {
 case class MatrixNativeReader(
   path: String,
   options: Option[NativeReaderOptions],
+  rowsSpec: AbstractTableSpec,
+  entriesSpec: AbstractTableSpec,
+  colsSpec: AbstractTableSpec,
   spec: AbstractMatrixTableSpec
 ) extends MatrixReader {
 
-  lazy val columnCount: Option[Int] = Some(RelationalSpec.read(HailContext.fs, path + "/cols")
-    .asInstanceOf[AbstractTableSpec]
+  lazy val columnCount: Option[Int] = Some(colsSpec
     .partitionCounts
     .sum
     .toInt)
@@ -226,7 +232,7 @@ case class MatrixNativeReader(
 
     if (mr.dropCols) {
       val tt = TableType(mr.typ.rowType, mr.typ.rowKey, mr.typ.globalType)
-      val trdr: TableReader = TableNativeReader(rowsPath, options, spec.rowsTableSpec(rowsPath))
+      val trdr: TableReader = TableNativeReader(rowsPath, options, rowsSpec)
       var tr: TableIR = TableRead(tt, mr.dropRows, trdr)
       tr = TableMapGlobals(
         tr,
@@ -247,8 +253,8 @@ case class MatrixNativeReader(
         rowsPath,
         entriesPath,
         options,
-        spec.rowsTableSpec(rowsPath),
-        spec.entriesTableSpec(entriesPath))
+        rowsSpec,
+        entriesSpec)
       val tr: TableIR = TableRead(tt, mr.dropRows, trdr)
       val colsTableSpec = spec.colsTableSpec(colsPath)
       val colsRVDSpec = colsTableSpec.rowsSpec(colsPath)
