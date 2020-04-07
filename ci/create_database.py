@@ -53,7 +53,7 @@ database={config["db"]}
     await check_shell(
         f'''
 kubectl -n {shq(namespace)} delete --ignore-not-found=true secret {shq(secret_name)}
-kubectl -n {shq(namespace)} create secret generic {shq(secret_name)} --from-file=sql-config.json --from-file=sql-config.cnf
+kubectl -n {shq(namespace)} create secret generic {shq(secret_name)} --from-file=sql-config.json --from-file=sql-config.cnf --from-file=server-ca.pem --from-file=client-key.pem --from-file=client-cert.pem
 ''')
 
 
