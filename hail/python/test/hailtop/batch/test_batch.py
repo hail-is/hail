@@ -8,8 +8,8 @@ from hailtop.batch import Batch, ServiceBackend, LocalBackend
 from hailtop.batch.utils import arg_max
 from hailtop.utils import grouped
 
-gcs_input_dir = 'gs://hail-services/batch-testing/resources/'
-gcs_output_dir = os.environ.get('SCRATCH') + '/output'
+gcs_input_dir = 'gs://hail-services/batch-testing/resources'
+gcs_output_dir = os.environ.get('SCRATCH').rstrip('/') + '/output'
 
 
 class LocalTests(unittest.TestCase):
@@ -312,7 +312,7 @@ class BatchTests(unittest.TestCase):
 
     def test_single_task_input(self):
         b = self.batch()
-        input = b.read_input(f'{gcs_input_dir}/hello.txt')
+        input = b.read_input(f'{gcs_input_dir}hello.txt')
         j = b.new_job()
         j.command(f'cat {input}')
         assert b.run().status()['state'] == 'success'
