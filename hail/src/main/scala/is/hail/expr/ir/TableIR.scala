@@ -113,13 +113,15 @@ case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, e
 
 object TableReader {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
-    List(classOf[TableNativeZippedReader],
+    List(classOf[TableNativeReader],
+      classOf[TableNativeZippedReader],
       classOf[TextTableReader],
       classOf[TextInputFilterAndReplace],
       classOf[TableFromBlockMatrixNativeReader])
     ) + new NativeReaderOptionsSerializer()
 
   def fromJson(fs: FS, jv: JObject): TableReader = {
+    println(jv)
     (jv \ "name").extract[String] match {
       case "TableNativeReader" => TableNativeReader.fromJson(fs, jv)
       case _ => jv.extract[TableReader]
