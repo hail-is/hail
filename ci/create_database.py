@@ -32,6 +32,7 @@ user={config["user"]}
 password="{config["password"]}"
 database={config["db"]}
 ''')
+        files = ['sql-config.json', 'sql-config.cnf']
         if 'ssl-ca' in config:
             f.write(f'ssl-ca={config["ssl-ca"]}\n')
         if 'ssl-cert' in config:
@@ -43,17 +44,21 @@ database={config["db"]}
 
     if os.path.exists('/sql-config/server-ca.pem'):
         shutil.copy('/sql-config/server-ca.pem', 'server-ca.pem')
+        files.append('server-ca.pem')
     if os.path.exists('/sql-config/client-key.pem'):
         shutil.copy('/sql-config/client-key.pem', 'client-key.pem')
+        files.append('client-key.pem')
     if os.path.exists('/sql-config/client-cert.pem'):
         shutil.copy('/sql-config/client-cert.pem', 'client-cert.pem')
+        files.append('client-cert.pem')
 
     secret_name = f'sql-{database_name}-{user}-config'
     print(f'creating secret {secret_name}')
+    from_files = ' '.join('--from-file={f}' for f in files)
     await check_shell(
         f'''
 kubectl -n {shq(namespace)} delete --ignore-not-found=true secret {shq(secret_name)}
-kubectl -n {shq(namespace)} create secret generic {shq(secret_name)} --from-file=sql-config.json --from-file=sql-config.cnf --from-file=server-ca.pem --from-file=client-key.pem --from-file=client-cert.pem
+kubectl -n {shq(namespace)} create secret generic {shq(secret_name)} {from_files}
 ''')
 
 
