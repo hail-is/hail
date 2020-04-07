@@ -114,3 +114,36 @@ object PCode {
 
   def _empty: PCode = PCode(PVoid, Code._empty)
 }
+
+object PSettable {
+  def apply(sb: SettableBuilder, _pt: PType, name: String): PSettable = _pt match {
+    case pt: PCanonicalArray =>
+      PCanonicalIndexableSettable(sb, pt, name)
+    case pt: PCanonicalSet =>
+      PCanonicalIndexableSettable(sb, pt, name)
+    case pt: PCanonicalDict =>
+      PCanonicalIndexableSettable(sb, pt, name)
+
+    case pt: PCanonicalBaseStruct =>
+      PCanonicalBaseStructSettable(sb, pt, name)
+
+    case pt: PCanonicalInterval =>
+      PCanonicalIntervalSettable(sb, pt, name)
+    case pt: PCanonicalLocus =>
+      PCanonicalLocusSettable(sb, pt, name)
+    case pt: PCanonicalCall =>
+      PCanonicalCallSettable(sb, pt, name)
+
+    case _ => new PSettable {
+      val pt: PType = _pt
+
+      private val v = sb.newSettable(name)(typeToTypeInfo(pt))
+
+      def get: PCode = PCode(pt, v)
+
+      def store(pv: PCode): Code[Unit] = {
+        v.storeAny(pv.code)
+      }
+    }
+  }
+}

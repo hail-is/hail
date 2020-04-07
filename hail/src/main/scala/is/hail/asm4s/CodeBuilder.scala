@@ -33,13 +33,9 @@ trait CodeBuilderLike {
 
   def result(): Code[Unit]
 
-  val localBuilder: SettableBuilder = new SettableBuilder {
-    def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] = mb.newLocal[T](name)
-  }
+  def localBuilder: SettableBuilder = mb.localBuilder
 
-  val fieldBuilder: SettableBuilder = new SettableBuilder {
-    def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] = mb.genFieldThisRef[T](name)
-  }
+  def fieldBuilder: SettableBuilder = mb.fieldBuilder
 
   def +=(c: Code[Unit]): Unit = append(c)
 
