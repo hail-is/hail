@@ -49,10 +49,15 @@ async def auth(request):
     ports = router.spec.ports
     assert len(ports) == 1
     port = ports[0].port
+    if port == 80:
+        scheme = 'http'
+    else:
+        assert port == 443
+        scheme = 'https'
     return web.Response(status=200,
                         headers={
                             'X-Router-IP': router.spec.cluster_ip,
-                            'X-Router-Scheme': str(port)})
+                            'X-Router-Scheme': scheme})
 
 
 app.add_routes(routes)
