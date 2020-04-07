@@ -375,16 +375,20 @@ pre code {
   text-shadow:-1px 0px 0px #3d768a;
   transition-duration: 0.4s;
   width: 250px;
-  }
-  .myButton:hover{
-    box-shadow: 0 12px 16px 0 rgba(0,0,0,0.24), 0 17px 50px 0 rgba(0,0,0,0.19); 
-    text-decoration:none;
-  }
-  .myButton:active {
+}
+
+.myButton:hover {
+  color: white;
+  box-shadow: 0 12px 16px 0 rgba(0,0,0,0.24), 0 17px 50px 0 rgba(0,0,0,0.19);
+  text-decoration:none;
+}
+
+.myButton:active {
   position:relative;
   top:1px;
   text-decoration:none;
 }
-  .myButton:visited{
-    color: white;
-  }
+
+.myButton:visited {
+  color: white;
+}
