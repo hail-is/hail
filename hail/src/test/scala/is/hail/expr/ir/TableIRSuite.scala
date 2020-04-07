@@ -33,8 +33,8 @@ class TableIRSuite extends HailSuite {
     val path = tmpDir.createTempFile()
     CompileAndEvaluate[Unit](ctx, TableWrite(original, TableNativeWriter(path, overwrite = true)), false)
 
-    val read = TableIR.read(hc, path, false, None)
-    val droppedRows = TableIR.read(hc, path, true, None)
+    val read = TableIR.read(fs, path, false, None)
+    val droppedRows = TableIR.read(fs, path, true, None)
 
     val expectedRows = Array.tabulate(10)(i => Row(i)).toFastIndexedSeq
     val expectedGlobals = Row(57)
@@ -415,7 +415,7 @@ class TableIRSuite extends HailSuite {
     val path = tmpDir.createLocalTempFile(extension = "ht")
     Interpret[Unit](ctx, TableWrite(table, TableNativeWriter(path)))
     val before = table.execute(ctx)
-    val after = Interpret(TableIR.read(hc, path), ctx, false)
+    val after = Interpret(TableIR.read(fs, path), ctx, false)
     assert(before.globals.javaValue == after.globals.javaValue)
     assert(before.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
   }

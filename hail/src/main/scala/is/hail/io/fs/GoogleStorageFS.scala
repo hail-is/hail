@@ -100,12 +100,14 @@ class GoogleStorageFileStatus(path: String, modificationTime: java.lang.Long, si
 class GoogleStorageFS(serviceAccountKey: String) extends FS {
   import GoogleStorageFS._
 
-  var codecNames: IndexedSeq[String] = FastIndexedSeq(
+  private var codecNames: IndexedSeq[String] = FastIndexedSeq(
     "is.hail.io.compress.BGzipCodec",
     "is.hail.io.compress.BGzipCodecTbi",
     "org.apache.hadoop.io.compress.GzipCodec")
 
   @transient private var codecs: IndexedSeq[hadoop.io.compress.CompressionCodec] = _
+
+  private val defaultHadoopConf = new hadoop.conf.Configuration()
 
   def createCodecs(): Unit = {
     if (codecs != null)
@@ -113,7 +115,14 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
 
     codecs = codecNames.map { codecName =>
       val codecClass = Class.forName(codecName)
-      codecClass.newInstance().asInstanceOf[hadoop.io.compress.CompressionCodec]
+      val codec = codecClass.newInstance().asInstanceOf[hadoop.io.compress.CompressionCodec]
+
+      codec match {
+        case codec: hadoop.io.compress.DefaultCodec =>
+          codec.setConf(defaultHadoopConf)
+        case _ =>
+      }
+      codec
     }
   }
 

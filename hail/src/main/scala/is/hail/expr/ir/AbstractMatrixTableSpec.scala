@@ -5,6 +5,7 @@ import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
+import is.hail.io.fs.FS
 import is.hail.rvd._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -26,11 +27,11 @@ object RelationalSpec {
     new TableTypeSerializer +
     new MatrixTypeSerializer
 
-  def readMetadata(hc: HailContext, path: String): JValue = {
-    if (!hc.fs.isDir(path))
+  def readMetadata(fs: FS, path: String): JValue = {
+    if (!fs.isDir(path))
       fatal(s"MatrixTable and Table files are directories; path '$path' is not a directory")
     val metadataFile = path + "/metadata.json.gz"
-    val jv = using(hc.fs.open(metadataFile)) { in => parse(in) }
+    val jv = using(fs.open(metadataFile)) { in => parse(in) }
 
     val fileVersion = jv \ "file_version" match {
       case JInt(rep) => SemanticVersion(rep.toInt)
@@ -46,9 +47,9 @@ object RelationalSpec {
     jv
   }
 
-  def read(hc: HailContext, path: String): RelationalSpec = {
-    val jv = readMetadata(hc, path)
-    val references = readReferences(hc, path, jv)
+  def read(fs: FS, path: String): RelationalSpec = {
+    val jv = readMetadata(fs, path)
+    val references = readReferences(fs, path, jv)
 
     references.foreach { rg =>
       if (!ReferenceGenome.hasReference(rg.name))
@@ -58,15 +59,13 @@ object RelationalSpec {
     jv.extract[RelationalSpec]
   }
 
-  def readReferences(hc: HailContext, path: String): Array[ReferenceGenome] =
-    readReferences(hc, path, readMetadata(hc, path))
+  def readReferences(fs: FS, path: String): Array[ReferenceGenome] =
+    readReferences(fs, path, readMetadata(fs, path))
 
-  def readReferences(hc: HailContext, path: String, jv: JValue): Array[ReferenceGenome] = {
+  def readReferences(fs: FS, path: String, jv: JValue): Array[ReferenceGenome] = {
     // FIXME this violates the abstraction of the serialization boundary
-    val referencesRelPath = (jv \ "references_rel_path": @unchecked) match {
-      case JString(p) => p
-    }
-    ReferenceGenome.readReferences(hc.fs, path + "/" + referencesRelPath)
+    val referencesRelPath = (jv \ "references_rel_path").extract[String]
+    ReferenceGenome.readReferences(fs, path + "/" + referencesRelPath)
   }
 }
 
@@ -137,9 +136,9 @@ abstract class AbstractMatrixTableSpec extends RelationalSpec {
 
   def indexed(path: String): Boolean = rowsComponent.indexed(HailContext.get, path)
 
-  def rowsTableSpec(path: String): AbstractTableSpec = RelationalSpec.read(HailContext.get, path).asInstanceOf[AbstractTableSpec]
-  def colsTableSpec(path: String): AbstractTableSpec = RelationalSpec.read(HailContext.get, path).asInstanceOf[AbstractTableSpec]
-  def entriesTableSpec(path: String): AbstractTableSpec = RelationalSpec.read(HailContext.get, path).asInstanceOf[AbstractTableSpec]
+  def rowsTableSpec(path: String): AbstractTableSpec = RelationalSpec.read(HailContext.fs, path).asInstanceOf[AbstractTableSpec]
+  def colsTableSpec(path: String): AbstractTableSpec = RelationalSpec.read(HailContext.fs, path).asInstanceOf[AbstractTableSpec]
+  def entriesTableSpec(path: String): AbstractTableSpec = RelationalSpec.read(HailContext.fs, path).asInstanceOf[AbstractTableSpec]
 }
 
 case class MatrixTableSpec(
