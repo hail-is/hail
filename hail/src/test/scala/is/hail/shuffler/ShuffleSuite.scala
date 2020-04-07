@@ -30,7 +30,7 @@ class ShuffleSuite extends TestNGSuite {
       port)
     server.serveInBackground()
     try {
-      val pt = PStruct("x" -> PInt32())
+      val pt = PCanonicalStruct("x" -> PInt32())
       val t = pt.virtualType
       val key = Array("x")
       val c = new ShuffleClient(
