@@ -325,11 +325,7 @@ object EmitUtils {
       newMB.emit(Code(c.map(_.emit(newMB))))
       new EstimableEmitter[C] {
         def emit(mb: EmitMethodBuilder[C]): Code[Unit] = {
-          newMB.invokeCode[Unit](
-            mb.emitParamTypes.toFastIndexedSeq.zipWithIndex.map {
-              case (CodeParamType(ti), i) => CodeParam(mb.getCodeParam(i + 1)(ti)): Param
-              case (EmitParamType(pt), i) => EmitParam(mb.getEmitParam(i + 1)): Param
-            }: _*)
+          newMB.invokeCode[Unit](mb.getParamsList():_*)
         }
 
         def estimatedSize: Int = 5
@@ -2606,11 +2602,6 @@ abstract class NDArrayEmitter[C](
       )
     }
     innerMethod.emit(loops)
-
-    val mbParams = mb.emitParamTypes.toFastIndexedSeq.zipWithIndex.map {
-      case (CodeParamType(ti), i) => CodeParam(mb.getCodeParam(i + 1)(ti)): Param
-      case (EmitParamType(pt), i) => EmitParam(mb.getEmitParam(i + 1)): Param
-    }
-    innerMethod.invokeCode[Unit](mbParams:_*)
+    innerMethod.invokeCode[Unit](mb.getParamsList():_*)
   }
 }
