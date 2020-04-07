@@ -1233,7 +1233,7 @@ steps:
    script: |
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      export SCRATCH=gs://hail-test-dmk9z/{{ token }}/batch
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/hailtop/batch/
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/test/hailtop/batch/
    inputs:
     - from: /repo/test
       to: /io/

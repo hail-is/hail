@@ -53,7 +53,7 @@ BENCHMARK_REPLICATES ?= 5
 HAIL_WHEEL_DESCRIPTOR ?= $(HAIL_VERSION)-$(SHORT_REVISION)
 .PHONY: benchmark
 benchmark: push-benchmark-image install
-	$(HAIL_PYTHON3) scripts/benchmark_in_pipeline.py $(BENCHMARK_LATEST) gs://hail-benchmarks/$(shell whoami) $(HAIL_WHEEL_DESCRIPTOR) $(BENCHMARK_REPLICATES) $(BENCHMARK_ITERS)
+	$(HAIL_PYTHON3) scripts/benchmark_in_batch.py $(BENCHMARK_LATEST) gs://hail-benchmarks/$(shell whoami) $(HAIL_WHEEL_DESCRIPTOR) $(BENCHMARK_REPLICATES) $(BENCHMARK_ITERS)
 
 clean:
 	rm -rf python/dist/*
