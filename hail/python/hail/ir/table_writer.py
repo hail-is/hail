@@ -46,7 +46,7 @@ class TableTextWriter(TableWriter):
     @typecheck_method(path=str,
                       types_file=nullable(str),
                       header=bool,
-                      export_type=int,
+                      export_type=str,
                       delimiter=str)
     def __init__(self, path, types_file, header, export_type, delimiter):
         super(TableTextWriter, self).__init__()

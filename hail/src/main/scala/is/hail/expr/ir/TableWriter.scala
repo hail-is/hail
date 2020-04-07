@@ -29,7 +29,7 @@ case class TableTextWriter(
   path: String,
   typesFile: String = null,
   header: Boolean = true,
-  exportType: Int = ExportType.CONCATENATED,
+  exportType: String = ExportType.CONCATENATED,
   delimiter: String
 ) extends TableWriter {
   def apply(tv: TableValue): Unit = tv.export(path, typesFile, header, exportType, delimiter)

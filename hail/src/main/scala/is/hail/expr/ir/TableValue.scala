@@ -114,7 +114,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
       s"to $path")
   }
 
-  def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED, delimiter: String = "\t") {
+  def export(path: String, typesFile: String = null, header: Boolean = true, exportType: String = ExportType.CONCATENATED, delimiter: String = "\t") {
     val hc = HailContext.get
     hc.fs.delete(path, recursive = true)
 

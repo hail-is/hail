@@ -217,7 +217,7 @@ object ExportVCF {
     getAttributes(k1, attributes).flatMap(_.get(k2))
 
   def apply(mv: MatrixValue, path: String, append: Option[String],
-    exportType: Int, metadata: Option[VCFMetadata]) {
+    exportType: String, metadata: Option[VCFMetadata]) {
 
     mv.typ.requireColKeyString()
     mv.typ.requireRowKeyVariant()

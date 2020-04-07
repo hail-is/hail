@@ -1,7 +1,7 @@
 import json
 
 from hail.typecheck import *
-from hail.utils.java import Env, joption, FatalError, jindexed_seq_args, jset_args
+from hail.utils.java import Env, FatalError, jindexed_seq_args
 from hail.utils import wrap_to_list
 from hail.utils.misc import plural
 from hail.matrixtable import MatrixTable
@@ -216,6 +216,9 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
         if 'rsid' in mt.row and mt.rsid.dtype == tstr:
             rsid = mt.rsid
 
+    if parallel is None:
+        parallel = 'concatenated'
+
     l = mt.locus
     a = mt.alleles
     gen_exprs = {'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
@@ -232,7 +235,7 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
 
     Env.backend().execute(MatrixWrite(mt._mir, MatrixBGENWriter(
         output,
-        Env.hail().utils.ExportType.getExportType(parallel))))
+        parallel)))
 
 
 @typecheck(dataset=MatrixTable,
@@ -507,9 +510,12 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         hl.utils.java.warn('export_vcf: ignored the following fields:' + ignored_str)
         dataset = dataset.drop(*(f for f, _ in fields_dropped))
 
+    if parallel is None:
+        parallel = 'concatenated'
+
     writer = MatrixVCFWriter(output,
                              append_to_header,
-                             Env.hail().utils.ExportType.getExportType(parallel),
+                             parallel,
                              metadata)
     Env.backend().execute(MatrixWrite(dataset._mir, writer))
 

@@ -1819,7 +1819,9 @@ class BlockMatrix(object):
         """
         jrm = Env.hail().linalg.RowMatrix.readBlockMatrix(Env.backend()._jhc, path_in, joption(partition_size))
 
-        export_type = Env.hail().utils.ExportType.getExportType(parallel)
+        if parallel is None:
+            parallel = 'concatenated
+        export_type = parallel
 
         if entries == 'full':
             jrm.export(path_out, delimiter, joption(header), add_index, export_type)

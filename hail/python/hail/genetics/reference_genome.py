@@ -2,7 +2,7 @@ import json
 import re
 from hail.typecheck import *
 from hail.utils import wrap_to_list
-from hail.utils.java import jiterable_to_list, Env, joption
+from hail.utils.java import Env
 from hail.typecheck import oneof, transformed
 import hail as hl
 
