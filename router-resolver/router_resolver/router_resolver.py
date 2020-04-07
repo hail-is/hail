@@ -46,7 +46,13 @@ async def auth(request):
         if err.status == 404:
             return web.Response(status=403)
         raise
-    return web.Response(status=200, headers={'X-Router-IP': router.spec.cluster_ip})
+    ports = router.spec.ports
+    assert ports.length == 1
+    port = ports[0].port
+    return web.Response(status=200,
+                        headers={
+                            'X-Router-IP': router.spec.cluster_ip,
+                            'X-Router-Scheme': port})
 
 
 app.add_routes(routes)
