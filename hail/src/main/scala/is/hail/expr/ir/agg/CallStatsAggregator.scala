@@ -140,7 +140,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
 
         call.forEachAllele(cb) { allele: Value[Int] =>
           cb.ifx(allele > state.nAlleles,
-            Code._fatal[Unit](const("found allele outside of expected range [0, ")
+            cb._fatal(const("found allele outside of expected range [0, ")
               .concat(state.nAlleles.toS).concat("]: ").concat(allele.toS)))
           cb += state.updateAlleleCountAtIndex(allele, state.nAlleles, _ + 1)
           cb.ifx(i > 0, cb.assign(hom, hom && allele.ceq(lastAllele)))
