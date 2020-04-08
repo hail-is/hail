@@ -1287,6 +1287,7 @@ private class Emit[C](
         val requiredData = dataPType.checkedConvertFrom(mb, region, datat.value[Long], coerce[PArray](dataContainer), "NDArray cannot have missing data")
         val shapeAddress = mb.genFieldThisRef[Long]()
 
+        val oldShapeTuple = new CodePTuple(shapePType, shapeAddress)
         val shapeTuple: PBaseStructCode = shapePType.load(shapeAddress)
 
         val shapeVariables = (0 until nDims).map(_ => mb.newLocal[Long]()).toArray
@@ -1311,7 +1312,7 @@ private class Emit[C](
           Code.foreach(0 until nDims) { index =>
             shapeTuple.isFieldMissing(index).mux[Unit](
               Code._fatal[Unit](s"shape missing at index $index"),
-              shapeVariables(index) := shapeTuple(index))
+              shapeVariables(index) := oldShapeTuple(index))
           },
           xP.construct(shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb))
         EmitCode(setup, datat.m || shapet.m, PCode(pt, result))
