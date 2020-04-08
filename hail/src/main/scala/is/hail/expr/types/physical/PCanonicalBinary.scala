@@ -149,7 +149,7 @@ object PCanonicalBinary {
 class PCanonicalBinarySettable(val pt: PCanonicalBinary, a: Settable[Long]) extends PBinaryValue with PSettable {
   def get: PBinaryCode = new PCanonicalBinaryCode(pt, a)
 
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
+  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
   def loadLength(): Code[Int] = pt.loadLength(a)
 

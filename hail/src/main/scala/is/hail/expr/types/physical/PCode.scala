@@ -15,6 +15,8 @@ trait PValue {
 trait PSettable extends PValue {
   def store(v: PCode): Code[Unit]
 
+  def settableTuple(): IndexedSeq[Settable[_]]
+
   def load(): PCode = get
 
   def :=(v: PCode): Code[Unit] = store(v)
@@ -138,6 +140,8 @@ object PSettable {
       val pt: PType = _pt
 
       private val v = sb.newSettable(name)(typeToTypeInfo(pt))
+
+      def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(v)
 
       def get: PCode = PCode(pt, v)
 

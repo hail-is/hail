@@ -235,6 +235,8 @@ class PCanonicalBaseStructSettable(
 ) extends PBaseStructValue with PSettable {
   def get: PBaseStructCode = new PCanonicalBaseStructCode(pt, a)
 
+  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
+
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     IEmitCode(cb,
       pt.isFieldMissing(a, fieldIdx),

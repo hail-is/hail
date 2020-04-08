@@ -1058,7 +1058,9 @@ class DependentEmitFunctionBuilder[F](
     val field = newPField(pc.pt)
     dep_apply_method.setFields += { (obj: lir.ValueX) =>
       val code = pc.code
-      code.end.append(lir.putField(className, ???, ti, obj, code.v)) // FIXME need a name
+      // XXX below assumes that the first settable is the 'base' of the PSettable
+      val baseField = field.settableTuple()(0).asInstanceOf[ThisFieldRef[_]]
+      code.end.append(lir.putField(className, baseField.name, ti, obj, code.v))
       // FIXME need to initialize other potential settables in the PSettable here
       val newC = new VCode(code.start, code.end, null)
       code.clear()
