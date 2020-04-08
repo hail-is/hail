@@ -179,7 +179,7 @@ object MatrixNativeReader {
         case _: AbstractTableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
       }
     val rowsSpec = RelationalSpec.read(fs, path + "/rows").asInstanceOf[AbstractTableSpec]
-    val entriesSpec = RelationalSpec.read(fs, path + "/entries").asInstanceOf[AbstractTableSpec]
+    val entriesSpec = spec.entriesTableSpec(fs, path)
     val colsSpec = RelationalSpec.read(fs, path + "/cols").asInstanceOf[AbstractTableSpec]
 
     MatrixNativeReader(path, options, rowsSpec, entriesSpec, colsSpec, spec)
@@ -256,9 +256,8 @@ case class MatrixNativeReader(
         rowsSpec,
         entriesSpec)
       val tr: TableIR = TableRead(tt, mr.dropRows, trdr)
-      val colsTableSpec = spec.colsTableSpec(colsPath)
-      val colsRVDSpec = colsTableSpec.rowsSpec(colsPath)
-      val partFiles = colsRVDSpec.absolutePartPaths(colsTableSpec.rowsComponent.absolutePath(colsPath))
+      val colsRVDSpec = colsSpec.rowsSpec(colsPath)
+      val partFiles = colsRVDSpec.absolutePartPaths(colsSpec.rowsComponent.absolutePath(colsPath))
 
       val cols = if (partFiles.length == 1) {
         ReadPartition(Str(partFiles.head), colsRVDSpec.typedCodecSpec, mr.typ.colType)
