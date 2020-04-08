@@ -1542,20 +1542,3 @@ class Tests(unittest.TestCase):
         mt = mt.key_cols_by(col_id = hl.str(mt.col_idx))
         mt = mt.add_col_index()
         mt.show()
-
-    def test_ndarray_extract_failure(self):
-        import numpy as np
-
-        mt = hl.utils.range_matrix_table(10, 10)
-        mt = mt.annotate_cols(phenotype_boolean=hl.rand_bool(.5))
-
-        np_pheno = np.array(mt.phenotype_boolean.collect())
-        np_pheno[np_pheno == None] = 2
-        np_pheno = np_pheno.astype(int)
-        np_pheno_mat = np.repeat(np_pheno, 1).reshape(np_pheno.size, 1)
-        np.random.shuffle(np_pheno_mat[:,0])
-        mt = mt.annotate_globals(pheno_perm = np_pheno_mat)
-        mt = mt.annotate_globals(pheno_perm = mt.pheno_perm.map(
-            lambda x: { hl.array([False, True, hl.null(hl.tbool)])[hl.int(x)] }))
-
-        mt._force_count_rows()
