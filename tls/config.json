@@ -12,11 +12,11 @@
     {"name": "ci", "domain": "ci", "kind": "json", "trust": [
       "admin-pod", "router", "ci-tests"]},
     {"name": "notebook", "domain": "notebook", "kind": "json", "trust": [
-      "admin-pod", "image-fetcher"]},
+      "admin-pod", "image-fetcher", "router"]},
     {"name": "gateway", "domain": "gateway", "kind": "nginx", "trust": [
       "admin-pod"]},
     {"name": "router", "domain": "router", "kind": "nginx", "trust": [
-      "admin-pod", "gateway"]},
+      "admin-pod", "gateway", "internal-gateway"]},
     {"name": "site", "domain": "site", "kind": "nginx", "trust": [
       "admin-pod", "router"]},
     {"name": "scorecard", "domain": "scorecard", "kind": "json", "trust": [
@@ -30,7 +30,7 @@
       "admin-pod"]},
     {"name": "batch-tests", "domain": "batch-tests", "kind": "json", "trust": [
       "admin-pod", "batch"]},
-    {"name": "ci-tests", "domain": "batch-tests", "kind": "json", "trust": [
+    {"name": "ci-tests", "domain": "ci-tests", "kind": "json", "trust": [
       "admin-pod", "ci"]}
   ]
 }
