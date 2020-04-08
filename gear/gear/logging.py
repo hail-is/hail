@@ -16,10 +16,10 @@ def configure_logging():
     fmt = CustomJsonFormatter('(levelname) (asctime) (filename) (funcNameAndLine) (message)')
 
     stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.DEBUG)
+    stream_handler.setLevel(logging.INFO)
     stream_handler.setFormatter(fmt)
 
-    logging.basicConfig(handlers=[stream_handler], level=logging.DEBUG)
+    logging.basicConfig(handlers=[stream_handler], level=logging.INFO)
 
 
 class AccessLogger(AbstractAccessLogger):
