@@ -1,6 +1,6 @@
 #!/bin/bash
 
-URL_ROOT="http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502";
+URL_ROOT="https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502";
 
 for i in {1..22}; do
   wget -c -O - "${URL_ROOT}/ALL.chr${i}.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz" |

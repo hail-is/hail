@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="ISO-8859-15"?>
-<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+<xsl:stylesheet version="1.0" xmlns:xsl="https://www.w3.org/1999/XSL/Transform">
     <xsl:output method="html" encoding="utf-8" indent="yes"/>
 
     <xsl:template match="@*|node()">
@@ -60,10 +60,10 @@
                                     <a href="/docs/0.2/index.html">Docs</a>
                                 </li>
                                 <li class="nav-item">
-                                    <a href="http://discuss.hail.is">Forum</a>
+                                    <a href="https://discuss.hail.is">Forum</a>
                                 </li>
                                 <li class="nav-item">
-                                    <a href="http://hail.zulipchat.com">Chat</a>
+                                    <a href="https://hail.zulipchat.com">Chat</a>
                                 </li>
                                 <li class="nav-item">
                                     <a href="https://github.com/hail-is/hail">Code</a>

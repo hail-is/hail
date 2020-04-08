@@ -40,7 +40,16 @@ spec:
              memory: "250M"
              cpu: "200m"
          ports:
-          - containerPort: 80
+          - containerPort: 443
+         volumeMounts:
+          - name: ssl-config-internal-gateway
+            mountPath: /ssl-config
+            readOnly: true
+      volumes:
+       - name: ssl-config-internal-gateway
+         secret:
+           optional: false
+           secretName: ssl-config-internal-gateway
 ---
 apiVersion: policy/v1beta1
 kind: PodDisruptionBudget

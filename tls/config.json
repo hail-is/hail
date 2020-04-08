@@ -24,9 +24,13 @@
     {"name": "image-fetcher", "domain": "image-fetcher", "kind": "curl", "trust": []},
     {"name": "blog", "domain": "blog", "kind": "nginx", "trust": [
       "admin-pod", "router"]},
+    {"name": "router-resolver", "domain": "router-resolver", "kind": "json", "trust": [
+      "admin-pod", "internal-gateway", "gateway"]},
+    {"name": "internal-gateway", "domain": "internal-gateway", "kind": "nginx", "trust": [
+      "admin-pod"]},
     {"name": "batch-tests", "domain": "batch-tests", "kind": "json", "trust": [
-      "batch"]},
+      "admin-pod", "batch"]},
     {"name": "ci-tests", "domain": "batch-tests", "kind": "json", "trust": [
-      "ci"]}
+      "admin-pod", "ci"]}
   ]
 }

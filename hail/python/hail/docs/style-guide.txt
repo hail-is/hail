@@ -1,9 +1,9 @@
 # Hail Python Docs Style Guide
 
 ## Build Dependencies
- - [pandoc](http://pandoc.org/installing.html)
- - [sphinx v1.5.4](http://www.sphinx-doc.org/)
- - [nbsphinx](http://nbsphinx.readthedocs.io/)
+ - [pandoc](https://pandoc.org/installing.html)
+ - [sphinx v1.5.4](https://www.sphinx-doc.org/)
+ - [nbsphinx](https://nbsphinx.readthedocs.io/)
  - [read the docs Sphinx theme v0.1.9](https://github.com/snide/sphinx_rtd_theme)
  - pandas
  - numpy
@@ -61,7 +61,7 @@
  - All function/command references should use a Sphinx directive to link ```:py:meth:`~hail.VariantDataset.vep````.
 
 ## Code Examples
- - All examples are automatically tested with the [Sphinx doctest extension](http://www.sphinx-doc.org/en/stable/ext/doctest.html) to make sure they run with no errors. The content of the result is not checked.
+ - All examples are automatically tested with the [Sphinx doctest extension](https://www.sphinx-doc.org/en/stable/ext/doctest.html) to make sure they run with no errors. The content of the result is not checked.
  - All input files required must be placed in `python/hail/docs/data`. When referencing the files in the code example, the input directory is `data/` and the output directory is `output/`.
  - Each command should start with `>>>`. If the command statement is on multiple lines, use `...` for each subsequent line.
  - To skip execution of a command, see the `vep` example in `dataset.py`. Please try not to use this unless absolutely necessary.
