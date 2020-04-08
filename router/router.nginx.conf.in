@@ -250,16 +250,3 @@ server {
     listen 80;
     listen [::]:80;
 }
-
-server {
-    server_name ~^(?<sub_domain>.*)\.dbuf\..*$;
-
-    location / {
-        resolver kube-dns.kube-system.svc.cluster.local;
-        proxy_pass http://$sub_domain.dbuf.@namespace@.svc.cluster.local:$server_port;
-        include /etc/nginx/proxy.conf;
-    }
-
-    listen 80;
-    listen [::]:80;
-}
