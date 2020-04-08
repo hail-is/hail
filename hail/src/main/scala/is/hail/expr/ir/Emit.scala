@@ -7,7 +7,6 @@ import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.asm4s._
 import is.hail.backend.HailTaskContext
 import is.hail.expr.ir.functions.StringFunctions
-import is.hail.expr.types.physical
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
@@ -1288,7 +1287,6 @@ private class Emit[C](
         val requiredData = dataPType.checkedConvertFrom(mb, region, datat.value[Long], coerce[PArray](dataContainer), "NDArray cannot have missing data")
         val shapeAddress = mb.genFieldThisRef[Long]()
 
-        //val shapeTuple = new CodePTuple(shapePType, shapeAddress)
         val shapeTuple: PBaseStructCode = shapePType.load(shapeAddress)
 
         val shapeVariables = (0 until nDims).map(_ => mb.newLocal[Long]()).toArray
@@ -1307,16 +1305,6 @@ private class Emit[C](
           shapet.setup,
           datat.setup,
           rowMajort.setup)
-
-//        val newResult = EmitCode.fromI(mb) { cb =>
-//          val newShapeAddress = cb.memoize(shapet, "make_nd_shape")
-//
-//
-//          IEmitCode(cb, ???, {
-//            val newRes = xP.construct(shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb)
-//            PCode(pt, ???)
-//          })
-//        }
 
         val result = Code(
           shapeAddress := shapet.value[Long],
