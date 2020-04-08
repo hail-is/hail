@@ -329,25 +329,18 @@ async def update_loop(app):
 
 
 async def on_startup(app):
-    session = aiohttp.ClientSession(
-        raise_for_status=True,
-        timeout=aiohttp.ClientTimeout(total=60))
-    app['client_session'] = session
     app['github_client'] = gh_aiohttp.GitHubAPI(
         aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=60)),
         'ci',
         oauth_token=oauth_token)
-    app['batch_client'] = await BatchClient('ci', session=session)
+    app['batch_client'] = await BatchClient('ci')
     app['dbpool'] = await create_database_pool()
 
     asyncio.ensure_future(update_loop(app))
 
 
 async def on_cleanup(app):
-    session = app['client_session']
-    await session.close()
-
     dbpool = app['dbpool']
     dbpool.close()
     await dbpool.wait_closed()
