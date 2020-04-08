@@ -244,8 +244,8 @@ object StringFunctions extends RegistryFunctions {
       EmitCode.fromI(r.mb) { cb =>
         e1.toI(cb).flatMap(cb) { case (sc1: PStringCode) =>
           e2.toI(cb).flatMap(cb) { case (sc2: PStringCode) =>
-            val n = cb.memoize(0, "hamming_n")
-            val i = cb.memoize(0, "hamming_i")
+            val n = cb.newLocal("hamming_n", 0)
+            val i = cb.newLocal("hamming_i", 0)
 
             val v1 = sc1.asBytes().memoize(cb, "hamming_bytes_1")
             val v2 = sc2.asBytes().memoize(cb, "hamming_bytes_2")

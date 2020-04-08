@@ -133,9 +133,9 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
 
     val mb = state.cb.getOrGenEmitMethod("callstatsagg_seqop", t, FastIndexedSeq[ParamType](typeToTypeInfo(t)), UnitInfo) { mb =>
       mb.emitWithBuilder[Unit] { cb =>
-        val hom = cb.memoize[Boolean](const(true), "hom")
-        val lastAllele = cb.memoize[Int](const(-1), "lastAllele")
-        val i = cb.memoize[Int](const(0), "i")
+        val hom = cb.newLocal[Boolean]("hom", true)
+        val lastAllele = cb.newLocal[Int]("lastAllele", -1)
+        val i = cb.newLocal[Int]("i", 0)
         val call = PCallValue(t, mb.getCodeParam(1)(typeToTypeInfo(t)))
 
         call.forEachAllele(cb) { allele: Value[Int] =>

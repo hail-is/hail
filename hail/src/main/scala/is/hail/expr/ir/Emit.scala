@@ -760,7 +760,7 @@ private class Emit[C](
           emit(a).toI(cb).flatMap(cb) { (ac) =>
             emit(i).toI(cb).flatMap(cb) { (ic) =>
               val av = ac.asIndexable.memoize(cb, "aref_a")
-              val iv = cb.memoize(ic.tcode[Int], "aref_i")
+              val iv = cb.newLocal("i", ic.tcode[Int])
 
               cb.ifx(iv < 0 || iv >= av.loadLength(), {
                 cb._fatal(errorTransformer(
