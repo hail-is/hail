@@ -33,13 +33,13 @@ password="{config["password"]}"
 database={config["db"]}
 ''')
         files = ['sql-config.json', 'sql-config.cnf']
-        if 'ssl-ca' in config:
+        if config.get('ssl-ca') is not None:
             f.write(f'ssl-ca={config["ssl-ca"]}\n')
-        if 'ssl-cert' in config:
+        if config.get('ssl-cert') is not None:
             f.write(f'ssl-cert={config["ssl-cert"]}\n')
-        if 'ssl-key' in config:
+        if config.get('ssl-key') is not None:
             f.write(f'ssl-key={config["ssl-key"]}\n')
-        if 'ssl-mode' in config:
+        if config.get('ssl-mode') is not None:
             f.write(f'ssl-mode={config["ssl-mode"]}\n')
 
     if os.path.exists('/sql-config/server-ca.pem'):
