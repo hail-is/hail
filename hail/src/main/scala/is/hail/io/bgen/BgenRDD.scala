@@ -98,8 +98,8 @@ case class BgenSettings(
 
   val rowPType: PStruct = PCanonicalStruct(required = true,
     Array(
-      "locus" -> PCanonicalLocus.schemaFromRG(rg, required = true),
-      "alleles" -> PCanonicalArray(PCanonicalString(true), true),
+      "locus" -> PCanonicalLocus.schemaFromRG(rg, required = false),
+      "alleles" -> PCanonicalArray(PCanonicalString(false), false),
       "rsid" -> PString(),
       "varid" -> PString(),
       "offset" -> PInt64(),
