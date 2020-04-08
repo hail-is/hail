@@ -586,6 +586,7 @@ steps:
     - query_image
     - deploy_query_sa
     - deploy_query_sa_batch_pods
+    - create_certs
  - kind: buildImage
    name: hail_repl_image
    dockerFile: hail/Dockerfile.hail-repl
