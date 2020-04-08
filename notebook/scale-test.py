@@ -8,6 +8,7 @@ import numpy as np
 from gear import configure_logging
 from hailtop.auth import service_auth_headers
 from hailtop.config import get_deploy_config
+from hailtop.ssl import ssl_client_session
 
 configure_logging()
 log = logging.getLogger('nb-scale-test')
@@ -25,7 +26,7 @@ def get_cookie(session, name):
 async def run(args, i):
     headers = service_auth_headers(deploy_config, 'workshop', authorize_target=False)
 
-    async with aiohttp.ClientSession(raise_for_status=True) as session:
+    async with ssl_client_session(raise_for_status=True) as session:
         # make sure notebook is up
         async with session.get(
                 deploy_config.url('workshop', ''),

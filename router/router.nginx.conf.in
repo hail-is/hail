@@ -6,24 +6,24 @@ server {
     }
 
     location / {
-        proxy_pass http://site/;
+        proxy_pass https://site/;
         include /etc/nginx/proxy.conf;
     }
 
-    listen 80 default_server;
-    listen [::]:80 default_server;
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
 }
 
 server {
     server_name scorecard.*;
 
     location / {
-        proxy_pass http://scorecard/;
+        proxy_pass https://scorecard/;
         include /etc/nginx/proxy.conf;
     }
 
-    listen 80;
-    listen [::]:80;
+    listen 443 ssl;
+    listen [::]:443 ssl;
 }
 
 server {
@@ -35,12 +35,12 @@ server {
     }
 
     location / {
-        proxy_pass http://ci/;
+        proxy_pass https://ci/;
         include /etc/nginx/proxy.conf;
     }
 
-    listen 80;
-    listen [::]:80;
+    listen 443 ssl;
+    listen [::]:443 ssl;
 }
 
 server {
@@ -60,24 +60,24 @@ server {
     client_max_body_size 8m;
 
     location / {
-        proxy_pass http://batch/;
+        proxy_pass https://batch/;
         include /etc/nginx/proxy.conf;
     }
 
-    listen 80;
-    listen [::]:80;
+    listen 443 ssl;
+    listen [::]:443 ssl;
 }
 
 server {
     server_name batch-driver.*;
 
     location / {
-        proxy_pass http://batch-driver/;
+        proxy_pass https://batch-driver/;
         include /etc/nginx/proxy.conf;
     }
 
-    listen 80;
-    listen [::]:80;
+    listen 443 ssl;
+    listen [::]:443 ssl;
 }
 
 server {
@@ -88,7 +88,7 @@ server {
 
     location = /auth {
         internal;
-        proxy_pass http://notebook@notebook_base_path@/auth/$notebook_token;
+        proxy_pass https://notebook@notebook_base_path@/auth/$notebook_token;
     }
 
     location ~ @notebook_base_path@/instance/([^/]+)/(.*) {
@@ -117,7 +117,7 @@ server {
     }
 
     location / {
-        proxy_pass http://notebook;
+        proxy_pass https://notebook;
 
         # don't set Host, notebook dispatches off domain
         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
@@ -132,8 +132,8 @@ server {
         proxy_read_timeout 86400;
     }
 
-    listen 80;
-    listen [::]:80;
+    listen 443 ssl;
+    listen [::]:443 ssl;
 }
 
 server {
@@ -144,7 +144,7 @@ server {
 
     location = /auth {
         internal;
-        proxy_pass http://workshop@workshop_base_path@/auth/$notebook_token;
+        proxy_pass https://workshop@workshop_base_path@/auth/$notebook_token;
     }
 
     location ~ @workshop_base_path@/instance/([^/]+)/(.*) {
@@ -173,7 +173,7 @@ server {
     }
 
     location / {
-        proxy_pass http://workshop;
+        proxy_pass https://workshop;
 
         # don't set Host, notebook dispatches off domain
         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
@@ -188,8 +188,8 @@ server {
         proxy_read_timeout 86400;
     }
 
-    listen 80;
-    listen [::]:80;
+    listen 443 ssl;
+    listen [::]:443 ssl;
 }
 
 server {
@@ -218,12 +218,12 @@ server {
     server_name auth.*;
 
     location / {
-        proxy_pass http://auth/;
+        proxy_pass https://auth/;
         include /etc/nginx/proxy.conf;
     }
 
-    listen 80;
-    listen [::]:80;
+    listen 443 ssl;
+    listen [::]:443 ssl;
 }
 
 server {
@@ -243,10 +243,10 @@ server {
     client_max_body_size 8m;
 
     location / {
-        proxy_pass http://blog/;
+        proxy_pass https://blog/;
         include /etc/nginx/proxy.conf;
     }
 
-    listen 80;
-    listen [::]:80;
+    listen 443 ssl;
+    listen [::]:443 ssl;
 }

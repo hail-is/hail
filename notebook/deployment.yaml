@@ -92,6 +92,9 @@ spec:
           - name: sql-config
             mountPath: /sql-config
             readOnly: true
+          - name: ssl-config-notebook
+            mountPath: /ssl-config
+            readOnly: true
       volumes:
        - name: deploy-config
          secret:
@@ -105,6 +108,10 @@ spec:
          secret:
            optional: false
            secretName: "{{ notebook_database.user_secret_name }}"
+       - name: ssl-config-notebook
+         secret:
+           optional: false
+           secretName: ssl-config-notebook
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler

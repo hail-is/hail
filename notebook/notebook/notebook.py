@@ -12,6 +12,7 @@ from kubernetes_asyncio import client, config
 import kubernetes_asyncio as kube
 
 from hailtop.config import get_deploy_config
+from hailtop.ssl import get_server_ssl_context, ssl_client_session
 from gear import setup_aiohttp_session, create_database_pool, \
     web_authenticated_users_only, web_maybe_authenticated_user, web_authenticated_developers_only, \
     check_csrf_token, AccessLogger
@@ -241,7 +242,7 @@ async def notebook_status_from_notebook(k8s, service, headers, cookies, notebook
                 service,
                 f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}')
             try:
-                async with aiohttp.ClientSession(
+                async with ssl_client_session(
                         timeout=aiohttp.ClientTimeout(total=1),
                         headers=headers,
                         cookies=cookies) as session:
@@ -821,4 +822,5 @@ def run():
     web.run_app(root_app,
                 host='0.0.0.0',
                 port=5000,
-                access_log_class=AccessLogger)
+                access_log_class=AccessLogger,
+                ssl_context=get_server_ssl_context())

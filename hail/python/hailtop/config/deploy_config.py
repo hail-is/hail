@@ -47,7 +47,8 @@ class DeployConfig:
         return self._service_namespace.get(service, self._default_ns)
 
     def scheme(self, base_scheme='http'):
-        return (base_scheme + 's') if self._location == 'external' else base_scheme
+        # FIXME: should depend on ssl context
+        return (base_scheme + 's') if self._location in ('external', 'k8s') else base_scheme
 
     def domain(self, service):
         ns = self.service_ns(service)

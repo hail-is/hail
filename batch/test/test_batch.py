@@ -16,7 +16,6 @@ from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
 from hailtop.utils import retry_response_returning_functions
 
-from .serverthread import ServerThread
 from .utils import legacy_batch_status
 from .failure_injecting_client_session import FailureInjectingClientSession
 
