@@ -7,5 +7,5 @@ RUN apt-get update && \
   && rm -rf /var/lib/apt/lists/* && \
   sed -i 's/^RANDFILE/#RANDFILE/' /etc/ssl/openssl.cnf
 
-COPY config.json .
+COPY config.yaml .
 COPY create_certs.py .
