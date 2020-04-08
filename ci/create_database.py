@@ -24,10 +24,11 @@ def generate_token(size=12):
 async def write_user_config(namespace, database_name, user, config):
     files = []
 
+    files.append('sql-config.json')
     with open(f'sql-config.json', 'w') as f:
         f.write(json.dumps(config))
-    files.append('sql-config.json')
 
+    files.append('sql-config.cnf')
     with open(f'sql-config.cnf', 'w') as f:
         f.write(f'''[client]
 host={config["host"]}
@@ -35,7 +36,6 @@ user={config["user"]}
 password="{config["password"]}"
 database={config["db"]}
 ''')
-        files = ['sql-config.json', 'sql-config.cnf']
         if config.get('ssl-ca') is not None:
             f.write(f'ssl-ca={config["ssl-ca"]}\n')
         if config.get('ssl-cert') is not None:
@@ -44,17 +44,16 @@ database={config["db"]}
             f.write(f'ssl-key={config["ssl-key"]}\n')
         if config.get('ssl-mode') is not None:
             f.write(f'ssl-mode={config["ssl-mode"]}\n')
-    files.append('sql-config.cnf')
 
     if os.path.exists('/sql-config/server-ca.pem'):
-        shutil.copy('/sql-config/server-ca.pem', 'server-ca.pem')
         files.append('server-ca.pem')
+        shutil.copy('/sql-config/server-ca.pem', 'server-ca.pem')
     if os.path.exists('/sql-config/client-key.pem'):
-        shutil.copy('/sql-config/client-key.pem', 'client-key.pem')
         files.append('client-key.pem')
+        shutil.copy('/sql-config/client-key.pem', 'client-key.pem')
     if os.path.exists('/sql-config/client-cert.pem'):
-        shutil.copy('/sql-config/client-cert.pem', 'client-cert.pem')
         files.append('client-cert.pem')
+        shutil.copy('/sql-config/client-cert.pem', 'client-cert.pem')
 
     secret_name = f'sql-{database_name}-{user}-config'
     print(f'creating secret {secret_name}')
