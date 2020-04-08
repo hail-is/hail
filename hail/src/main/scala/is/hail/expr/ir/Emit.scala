@@ -2098,13 +2098,6 @@ private class Emit[C](
         val lP = coerce[PNDArray](lChild.pType)
         val rP = coerce[PNDArray](rChild.pType)
 
-        val lElemRef = mb.newPresentEmitField(lName, lP.elementType)
-        val rElemRef = mb.newPresentEmitField(rName, rP.elementType)
-
-        val bodyEnv = env.bind(lName, lElemRef)
-          .bind(rName, rElemRef)
-        val bodyt = emit(body, env = bodyEnv)
-
         val leftChildEmitter = deforest(lChild)
         val rightChildEmitter = deforest(rChild)
 
@@ -2115,6 +2108,12 @@ private class Emit[C](
 
         new NDArrayEmitter[C](lP.shape.pType.size, shapeArray, lP.shape.pType, body.pType, setupShape, setupMissing, leftChildEmitter.missing || rightChildEmitter.missing) {
           override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
+            val lElemRef = elemMB.newPresentEmitField(lName, lP.elementType)
+            val rElemRef = elemMB.newPresentEmitField(rName, rP.elementType)
+
+            val bodyEnv = env.bind(lName, lElemRef)
+              .bind(rName, rElemRef)
+            val bodyt = emitSelf.emit(body, elemMB, bodyEnv, None)
 
             val lIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(elemMB, idxVars, nDims, leftChildEmitter.outputShape)
             val rIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(elemMB, idxVars, nDims, rightChildEmitter.outputShape)
