@@ -85,21 +85,27 @@ trait CodeBuilderLike {
     append(Lafter)
   }
 
-  def memoizeField[T](c: Code[T], name: String)(implicit tti: TypeInfo[T]): Settable[T] = {
-    val f = mb.genFieldThisRef[T](name)
-    append(f := c)
-    f
-  }
+  def newLocal[T](name: String)(implicit tti: TypeInfo[T]): LocalRef[T] = mb.newLocal[T](name)
 
-  def memoizeFieldAny[T](c: Code[_], name: String)(implicit tti: TypeInfo[T]): Settable[T] = memoizeField(coerce[T](c), name)
-
-  def memoize[T](c: Code[T], name: String)(implicit tti: TypeInfo[T]): Settable[T] = {
-    val l = mb.newLocal[T](name)
+  def newLocal[T](name: String, c: Code[T])(implicit tti: TypeInfo[T]): LocalRef[T] = {
+    val l = newLocal[T](name)
     append(l := c)
     l
   }
 
-  def memoizeAny[T](c: Code[_], name: String)(implicit tti: TypeInfo[T]): Settable[T] = memoize(coerce[T](c), name)
+  def newLocalAny[T](name: String, c: Code[_])(implicit tti: TypeInfo[T]): LocalRef[T] =
+    newLocal[T](name, coerce[T](c))
+
+  def newField[T](name: String)(implicit tti: TypeInfo[T]): ThisFieldRef[T] = mb.genFieldThisRef[T](name)
+
+  def newField[T](name: String, c: Code[T])(implicit tti: TypeInfo[T]): ThisFieldRef[T] = {
+    val f = newField[T](name)
+    append(f := c)
+    f
+  }
+
+  def newFieldAny[T](name: String, c: Code[_])(implicit tti: TypeInfo[T]): ThisFieldRef[T] =
+    newField[T](name, coerce[T](c))
 
   def goto(L: CodeLabel): Unit = {
     append(L.goto)

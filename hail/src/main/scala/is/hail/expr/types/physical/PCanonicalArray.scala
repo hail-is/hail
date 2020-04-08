@@ -569,7 +569,7 @@ class PCanonicalIndexableSettable(
   def loadLength(): Value[Int] = length
 
   def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
-    val iv = cb.memoize(i, "pcindval_i")
+    val iv = cb.newLocal("pcindval_i", i)
     IEmitCode(cb,
       pt.isElementMissing(a, iv),
       pt.elementType.load(elementsAddress + iv.toL * pt.elementByteSize))

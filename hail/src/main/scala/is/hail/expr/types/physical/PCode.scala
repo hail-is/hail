@@ -64,7 +64,7 @@ abstract class PCode { self =>
     new PValue {
       val pt: PType = self.pt
 
-      private val v = cb.memoizeAny(code, name)(typeToTypeInfo(pt))
+      private val v = cb.newLocalAny(name, code)(typeToTypeInfo(pt))
 
       def get: PCode = PCode(pt, v)
     }
@@ -74,7 +74,7 @@ abstract class PCode { self =>
     new PValue {
       val pt: PType = self.pt
 
-      private val v = cb.memoizeFieldAny(code, name)(typeToTypeInfo(pt))
+      private val v = cb.newFieldAny(name, code)(typeToTypeInfo(pt))
 
       def get: PCode = PCode(pt, v)
     }
