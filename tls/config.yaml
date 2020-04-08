@@ -1,11 +1,11 @@
 ssl-mode: REQUIRED
 principals:
-- domain: admin-pod
+- name: admin-pod
+  domain: admin-pod
   kind: json
-  name: admin-pod
-- domain: auth
+- name: auth
+  domain: auth
   kind: json
-  name: auth
   trust:
   - admin-pod
   - batch
@@ -15,88 +15,89 @@ principals:
   - router
   - batch-tests
   - ci-tests
-- domain: batch
+- name: batch
+  domain: batch
   kind: json
-  name: batch
   trust:
   - admin-pod
   - router
   - ci
   - batch-tests
-- domain: batch-driver
+- name: batch-driver
+  domain: batch-driver
   kind: json
-  name: batch-driver
   trust:
   - admin-pod
   - batch
-- domain: ci
+- name: ci
+  domain: ci
   kind: json
-  name: ci
   trust:
   - admin-pod
   - router
+  - batch  # callbacks
   - ci-tests
-- domain: notebook
+- name: notebook
+  domain: notebook
   kind: json
-  name: notebook
   trust:
   - admin-pod
   - image-fetcher
   - router
-- domain: gateway
+- name: gateway
+  domain: gateway
   kind: nginx
-  name: gateway
   trust:
   - admin-pod
-- domain: router
+- name: router
+  domain: router
   kind: nginx
-  name: router
   trust:
   - admin-pod
   - gateway
   - internal-gateway
-- domain: site
+- name: site
+  domain: site
   kind: nginx
-  name: site
   trust:
   - admin-pod
   - router
-- domain: scorecard
+- name: scorecard
+  domain: scorecard
   kind: json
-  name: scorecard
   trust:
   - admin-pod
   - router
-- domain: image-fetcher
+- name: image-fetcher
+  domain: image-fetcher
   kind: curl
-  name: image-fetcher
-- domain: blog
+- name: blog
+  domain: blog
   kind: nginx
-  name: blog
   trust:
   - admin-pod
   - router
-- domain: router-resolver
+- name: router-resolver
+  domain: router-resolver
   kind: json
-  name: router-resolver
   trust:
   - admin-pod
   - internal-gateway
   - gateway
-- domain: internal-gateway
+- name: internal-gateway
+  domain: internal-gateway
   kind: nginx
-  name: internal-gateway
   trust:
   - admin-pod
-- domain: batch-tests
+- name: batch-tests
+  domain: batch-tests
   kind: json
-  name: batch-tests
   trust:
   - admin-pod
   - batch
-- domain: ci-tests
+- name: ci-tests
+  domain: ci-tests
   kind: json
-  name: ci-tests
   trust:
   - admin-pod
   - ci
