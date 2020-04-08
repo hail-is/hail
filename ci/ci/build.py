@@ -721,7 +721,7 @@ set +e
 kubectl -n {self.namespace} rollout status --timeout=1h deployment {name} && \
   kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name}
 EC=$?
-kubectl -n {self.namespace} logs --tail=999999 -l app={name} | {pretty_print_log}
+kubectl -n {self.namespace} logs --tail=999999 -l app={name} --all-containers=true | {pretty_print_log}
 set -e
 (exit $EC)
 '''
