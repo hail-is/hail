@@ -1,7 +1,7 @@
 #!/bin/bash
 
-SNVS_URL="http://krishna.gs.washington.edu/download/CADD/v1.4/GRCh38/whole_genome_SNVs.tsv.gz"
-INDELS_URL="http://krishna.gs.washington.edu/download/CADD/v1.4/GRCh38/InDels.tsv.gz"
+SNVS_URL="https://krishna.gs.washington.edu/download/CADD/v1.4/GRCh38/whole_genome_SNVs.tsv.gz"
+INDELS_URL="https://krishna.gs.washington.edu/download/CADD/v1.4/GRCh38/InDels.tsv.gz"
 
 wget -c -O - $SNVS_URL $INDELS_URL | \
 zcat | \
