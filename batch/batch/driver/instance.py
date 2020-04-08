@@ -3,9 +3,7 @@ import datetime
 import logging
 import secrets
 import humanize
-
 from hailtop.utils import time_msecs, time_msecs_str
-from hailtop.ssl import ssl_client_session
 
 from ..database import check_call_procedure
 from ..globals import INSTANCE_VERSION
@@ -137,7 +135,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
     async def check_is_active_and_healthy(self):
         if self._state == 'active' and self.ip_address:
             try:
-                async with ssl_client_session(
+                async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                     async with session.get(f'http://{self.ip_address}:5000/healthcheck') as resp:
                         actual_name = (await resp.json()).get('name')
