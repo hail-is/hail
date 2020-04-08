@@ -101,7 +101,6 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     pr = wb.prs[pr_number]
 
     page_context = {}
-    page_context['wb'] = wb
     page_context['repo'] = wb.branch.repo.short_str()
     page_context['pr'] = pr
     # FIXME
