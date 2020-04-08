@@ -33,8 +33,8 @@ class Test(unittest.TestCase):
 
         self.assertEqual(deploy_config.domain('quam'), 'quam.default')
         self.assertEqual(deploy_config.base_path('quam'), '')
-        self.assertEqual(deploy_config.base_url('quam'), 'http://quam.default')
-        self.assertEqual(deploy_config.url('quam', '/moo'), 'http://quam.default/moo')
+        self.assertEqual(deploy_config.base_url('quam'), 'https://quam.default')
+        self.assertEqual(deploy_config.url('quam', '/moo'), 'https://quam.default/moo')
         self.assertEqual(deploy_config.external_url('quam', '/moo'), 'https://quam.hail.is/moo')
 
         self.assertEqual(deploy_config.base_path('foo'), '/bar/foo')
