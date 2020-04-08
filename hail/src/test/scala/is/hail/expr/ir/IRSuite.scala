@@ -2454,7 +2454,7 @@ class IRSuite extends HailSuite {
   @Test def testMatrixAggregate() {
     implicit val execStrats = ExecStrategy.interpretOnly
 
-    val matrix = MatrixIR.range(hc, 5, 5, None)
+    val matrix = MatrixIR.range(5, 5, None)
     val countSig = AggSignature(Count(), Seq(), Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, countSig)
     assertEvalsTo(MatrixAggregate(matrix, MakeStruct(Seq("foo" -> count))), Row(25L))
@@ -2538,7 +2538,7 @@ class IRSuite extends HailSuite {
 
     val table = TableRange(100, 10)
 
-    val mt = MatrixIR.range(hc, 20, 2, Some(3))
+    val mt = MatrixIR.range(20, 2, Some(3))
     val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
 
     val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
@@ -2674,7 +2674,7 @@ class IRSuite extends HailSuite {
   def tableIRs(): Array[Array[TableIR]] = {
     try {
       val read = TableIR.read(fs, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
-      val mtRead = MatrixIR.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
+      val mtRead = MatrixIR.read(fs, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
       val b = True()
 
       val xs: Array[TableIR] = Array(
@@ -2736,15 +2736,15 @@ class IRSuite extends HailSuite {
       IndexBgen(ctx, Array("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
 
       val tableRead = TableIR.read(fs, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
-      val read = MatrixIR.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
-      val range = MatrixIR.range(hc, 3, 7, None)
+      val read = MatrixIR.read(fs, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
+      val range = MatrixIR.range(3, 7, None)
       val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
 
       val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
       val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
 
-      val range1 = MatrixIR.range(hc, 20, 2, Some(3))
-      val range2 = MatrixIR.range(hc, 20, 2, Some(4))
+      val range1 = MatrixIR.range(20, 2, Some(3))
+      val range2 = MatrixIR.range(20, 2, Some(4))
 
       val b = True()
 
@@ -2918,7 +2918,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testCachedMatrixIR() {
-    val cached = MatrixIR.range(hc, 3, 7, None)
+    val cached = MatrixIR.range(3, 7, None)
     val s = s"(JavaMatrix __uid1)"
     val x2 = ExecuteContext.scoped() { ctx =>
       IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
@@ -2936,7 +2936,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testContextSavedMatrixIR() {
-    val cached = MatrixIR.range(hc, 3, 8, None)
+    val cached = MatrixIR.range(3, 8, None)
     val id = hc.addIrVector(Array(cached))
     val s = s"(JavaMatrixVectorRef $id 0)"
     val x2 = ExecuteContext.scoped() { ctx =>

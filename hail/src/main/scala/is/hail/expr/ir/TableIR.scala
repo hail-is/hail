@@ -204,18 +204,10 @@ case class TableNativeReader(
 case class TableNativeZippedReader(
   pathLeft: String,
   pathRight: String,
-  options: Option[NativeReaderOptions] = None,
-  var _specLeft: AbstractTableSpec = null,
-  var _specRight: AbstractTableSpec = null
+  options: Option[NativeReaderOptions],
+  specLeft: AbstractTableSpec,
+  specRight: AbstractTableSpec
 ) extends TableReader {
-  private def getSpec(path: String) = (RelationalSpec.read(HailContext.fs, path): @unchecked) match {
-    case ts: AbstractTableSpec => ts
-    case _: AbstractMatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
-  }
-
-  lazy val specLeft = if (_specLeft != null) _specLeft else getSpec(pathLeft)
-  lazy val specRight = if (_specRight != null) _specRight else getSpec(pathRight)
-
   private lazy val filterIntervals = options.map(_.filterIntervals).getOrElse(false)
   private def intervals = options.map(_.intervals)
 
