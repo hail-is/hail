@@ -213,20 +213,6 @@ spec:
          secret:
            secretName: auth-gsa-key
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: auth
-  labels:
-    app: auth
-spec:
-  ports:
-   - port: 80
-     protocol: TCP
-     targetPort: 5000
-  selector:
-    app: auth
----
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
 metadata:

@@ -62,17 +62,3 @@ spec:
        - name: session-secret-key
          secret:
            secretName: session-secret-key
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: query
-  labels:
-    app: query
-spec:
-  ports:
-  - port: 80
-    protocol: TCP
-    targetPort: 5000
-  selector:
-    app: query

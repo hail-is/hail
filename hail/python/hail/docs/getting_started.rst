@@ -221,4 +221,4 @@ Then add extra Spark configuration Spark pointing to the directory where BLAS is
 
     --conf spark.executor.extraClassPath="/path/to/BLAS"
 
-See `netlib-java <http://github.com/fommil/netlib-java>`_ for more information.
+See `netlib-java <https://github.com/fommil/netlib-java>`_ for more information.
