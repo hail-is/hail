@@ -149,11 +149,13 @@ abstract class EmitValue {
 }
 
 object IEmitCode {
-  def apply(cb: EmitCodeBuilder, m: Code[Boolean], pc: PCode): IEmitCode = {
+  def apply(cb: EmitCodeBuilder, m: Code[Boolean], pc: => PCode): IEmitCode = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
-    cb.ifx(m, { cb.goto(Lmissing) }, { cb.goto(Lpresent) })
-    IEmitCode(Lmissing, Lpresent, pc)
+    cb.ifx(m, { cb.goto(Lmissing) })
+    val resPc: PCode = pc
+    cb.goto(Lpresent)
+    IEmitCode(Lmissing, Lpresent, resPc)
   }
 }
 
@@ -600,7 +602,7 @@ private class Emit[C](
     // working towards removing this
     if (pt == PVoid)
       return new EmitCode(emitVoid(ir), const(false), PCode(pt, Code._empty))
-    
+
     (ir: @unchecked) match {
       case I32(x) =>
         present(pt, const(x))

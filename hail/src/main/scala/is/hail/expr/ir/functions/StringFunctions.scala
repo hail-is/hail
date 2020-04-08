@@ -252,13 +252,14 @@ object StringFunctions extends RegistryFunctions {
 
             val m = v1.loadLength().cne(v2.loadLength())
 
-            cb.whileLoop(i < v1.loadLength(), {
-              cb.ifx(v1.loadByte(i).cne(v2.loadByte(i)),
-                cb.assign(n, n + 1))
-              cb.assign(i, i + 1)
+            IEmitCode(cb, m, {
+              cb.whileLoop(i < v1.loadLength(), {
+                cb.ifx(v1.loadByte(i).cne(v2.loadByte(i)),
+                  cb.assign(n, n + 1))
+                cb.assign(i, i + 1)
+              })
+              PCode(rt, n)
             })
-
-            IEmitCode(cb, m, PCode(rt, n))
           }
         }
       }
