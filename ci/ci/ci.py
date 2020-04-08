@@ -7,7 +7,6 @@ import concurrent.futures
 import aiohttp
 from aiohttp import web
 import aiohttp_session
-import aiomysql
 import uvloop
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 from hailtop.utils import collect_agen, humanize_timedelta_msecs
@@ -15,7 +14,7 @@ from hailtop.batch_client.aioclient import BatchClient
 from hailtop.config import get_deploy_config
 from gear import setup_aiohttp_session, \
     rest_authenticated_developers_only, web_authenticated_developers_only, \
-    check_csrf_token, AccessLogger
+    check_csrf_token, AccessLogger, create_database_pool
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 
@@ -341,17 +340,7 @@ async def on_startup(app):
         'ci',
         oauth_token=oauth_token)
     app['batch_client'] = await BatchClient('ci', session=session)
-
-    with open('/ci-user-secret/sql-config.json', 'r') as f:
-        config = json.loads(f.read().strip())
-        app['dbpool'] = await aiomysql.create_pool(host=config['host'],
-                                                   port=config['port'],
-                                                   db=config['db'],
-                                                   user=config['user'],
-                                                   password=config['password'],
-                                                   charset='utf8',
-                                                   cursorclass=aiomysql.cursors.DictCursor,
-                                                   autocommit=True)
+    app['dbpool'] = await create_database_pool()
 
     asyncio.ensure_future(update_loop(app))
 

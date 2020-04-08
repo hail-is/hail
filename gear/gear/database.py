@@ -4,6 +4,7 @@ import pymysql
 import aiomysql
 import logging
 import functools
+import ssl
 
 from hailtop.utils import sleep_and_backoff, LoggingTimer
 
@@ -51,18 +52,61 @@ async def aexit(acontext_manager, exc_type=None, exc_val=None, exc_tb=None):
     return await acontext_manager.__aexit__(exc_type, exc_val, exc_tb)
 
 
+def ssl_context_from_sql_config(sql_config):
+    ssl_mode = sql_config.get('ssl-mode', 'DISABLED')
+    if ssl_mode == 'DISABLED':
+        # change to the following in a follow up PR
+        # raise ValueError(f'cleartext database connections are not '
+        #                  f'permitted. {json.dumps(sql_config)}')
+        log.warning(f'using a cleartext mysql connection')
+
+        return False
+    if ssl_mode == 'REQUIRED':
+        # change to the following in a follow up PR
+        # raise ValueError(f'unverified database connections are not '
+        #                  f'permitted. {json.dumps(sql_config)}')
+        assert 'ssl-cert' in sql_config
+        assert 'ssl-key' in sql_config
+
+        log.warning(f'not verifying msyql server certificates')
+
+        ssl_context = ssl.create_default_context()
+        ssl_context.load_cert_chain(
+            sql_config['ssl-cert'], keyfile=sql_config['ssl-key'], password=None)
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        return ssl_context
+    if ssl_mode == 'VERIFY_CA':
+        assert 'ssl-cert' in sql_config
+        assert 'ssl-key' in sql_config
+        assert 'ssl-ca' in sql_config
+
+        log.info(f'verifying msyql server certificates')
+
+        ssl_context = ssl.create_default_context(cafile=sql_config['ssl-ca'])
+        ssl_context.load_cert_chain(
+            sql_config['ssl-cert'], keyfile=sql_config['ssl-key'], password=None)
+        ssl_context.check_hostname = False
+        return ssl_context
+    raise ValueError(f'Only DISABLED, REQURIED, and VERIFY_CA are '
+                     f'supported for ssl-mode. ssl-mode was set to '
+                     f'{sql_config.get("ssl-mode")}.')
+
+
 @retry_transient_mysql_errors
 async def create_database_pool(config_file=None, autocommit=True, maxsize=10):
     if config_file is None:
         config_file = os.environ.get('HAIL_DATABASE_CONFIG_FILE', '/sql-config/sql-config.json')
     with open(config_file, 'r') as f:
         sql_config = json.loads(f.read())
+    ssl_context = ssl_context_from_sql_config(sql_config)
+    assert ssl_context is not None
     return await aiomysql.create_pool(
         maxsize=maxsize,
         # connection args
         host=sql_config['host'], user=sql_config['user'], password=sql_config['password'],
         db=sql_config.get('db'), port=sql_config['port'], charset='utf8',
-        cursorclass=aiomysql.cursors.DictCursor, autocommit=autocommit)
+        ssl=ssl_context, cursorclass=aiomysql.cursors.DictCursor, autocommit=autocommit)
 
 
 class TransactionAsyncContextManager:

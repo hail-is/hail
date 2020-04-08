@@ -5,6 +5,7 @@ import string
 import json
 import secrets
 import asyncio
+import shutil
 from shlex import quote as shq
 from hailtop.utils import check_shell, check_shell_output
 from gear import Database
@@ -25,20 +26,39 @@ async def write_user_config(namespace, database_name, user, config):
         f.write(json.dumps(config))
 
     with open(f'sql-config.cnf', 'w') as f:
-        f.write(f'''
-[client]
+        f.write(f'''[client]
 host={config["host"]}
 user={config["user"]}
 password="{config["password"]}"
 database={config["db"]}
 ''')
+        files = ['sql-config.json', 'sql-config.cnf']
+        if 'ssl-ca' in config:
+            f.write(f'ssl-ca={config["ssl-ca"]}\n')
+        if 'ssl-cert' in config:
+            f.write(f'ssl-cert={config["ssl-cert"]}\n')
+        if 'ssl-key' in config:
+            f.write(f'ssl-key={config["ssl-key"]}\n')
+        if 'ssl-mode' in config:
+            f.write(f'ssl-mode={config["ssl-mode"]}\n')
+
+    if os.path.exists('/sql-config/server-ca.pem'):
+        shutil.copy('/sql-config/server-ca.pem', 'server-ca.pem')
+        files.append('server-ca.pem')
+    if os.path.exists('/sql-config/client-key.pem'):
+        shutil.copy('/sql-config/client-key.pem', 'client-key.pem')
+        files.append('client-key.pem')
+    if os.path.exists('/sql-config/client-cert.pem'):
+        shutil.copy('/sql-config/client-cert.pem', 'client-cert.pem')
+        files.append('client-cert.pem')
 
     secret_name = f'sql-{database_name}-{user}-config'
     print(f'creating secret {secret_name}')
+    from_files = ' '.join(f'--from-file={f}' for f in files)
     await check_shell(
         f'''
 kubectl -n {shq(namespace)} delete --ignore-not-found=true secret {shq(secret_name)}
-kubectl -n {shq(namespace)} create secret generic {shq(secret_name)} --from-file=sql-config.json --from-file=sql-config.cnf
+kubectl -n {shq(namespace)} create secret generic {shq(secret_name)} {from_files}
 ''')
 
 
@@ -96,7 +116,11 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
         'connection_name': sql_config['connection_name'],
         'user': admin_username,
         'password': admin_password,
-        'db': _name
+        'db': _name,
+        'ssl-ca': sql_config.get('ssl-ca'),
+        'ssl-cert': sql_config.get('ssl-cert'),
+        'ssl-key': sql_config.get('ssl-key'),
+        'ssl-mode': sql_config.get('ssl-mode')
     })
 
     await write_user_config(namespace, database_name, 'user', {
@@ -106,7 +130,11 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
         'connection_name': sql_config['connection_name'],
         'user': user_username,
         'password': user_password,
-        'db': _name
+        'db': _name,
+        'ssl-ca': sql_config.get('ssl-ca'),
+        'ssl-cert': sql_config.get('ssl-cert'),
+        'ssl-key': sql_config.get('ssl-key'),
+        'ssl-mode': sql_config.get('ssl-mode')
     })
 
 
