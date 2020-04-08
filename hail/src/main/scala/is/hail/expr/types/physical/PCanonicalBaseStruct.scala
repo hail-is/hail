@@ -219,18 +219,18 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  override def load(src: Code[Long]): PCode =
+  override def load(src: Code[Long]): PCanonicalBaseStructCode =
     new PCanonicalBaseStructCode(this, src)
 }
 
 object PCanonicalBaseStructSettable {
-  def apply(cb: EmitCodeBuilder, pt: PBaseStruct, name: String, sb: SettableBuilder): PCanonicalBaseStructSettable = {
+  def apply(cb: EmitCodeBuilder, pt: PCanonicalBaseStruct, name: String, sb: SettableBuilder): PCanonicalBaseStructSettable = {
     new PCanonicalBaseStructSettable(pt, sb.newSettable(name))
   }
 }
 
 class PCanonicalBaseStructSettable(
-  val pt: PBaseStruct,
+  val pt: PCanonicalBaseStruct,
   val a: Settable[Long]
 ) extends PBaseStructValue with PSettable {
   def get: PBaseStructCode = new PCanonicalBaseStructCode(pt, a)
@@ -246,7 +246,7 @@ class PCanonicalBaseStructSettable(
   }
 }
 
-class PCanonicalBaseStructCode(val pt: PBaseStruct, val a: Code[Long]) extends PBaseStructCode {
+class PCanonicalBaseStructCode(val pt: PCanonicalBaseStruct, val a: Code[Long]) extends PBaseStructCode {
   def code: Code[_] = a
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)

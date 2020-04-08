@@ -182,6 +182,8 @@ abstract class PBaseStruct extends PType {
     } else
       Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*))
   }
+
+  override def load(src: Code[Long]): PBaseStructCode = ???
 }
 
 abstract class PBaseStructValue extends PValue {
@@ -193,7 +195,18 @@ abstract class PBaseStructValue extends PValue {
 abstract class PBaseStructCode extends PCode {
   def pt: PBaseStruct
 
+  val a: Code[Long]
+
+  def apply[T](i: Int): Value[T] =
+    new Value[T] {
+      def get: Code[T] = coerce[T](Region.loadIRIntermediate(pt.types(i))(pt.loadField(a, i)))
+    }
+
   def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue
+
+  def isFieldMissing(fieldIdx: Int): Code[Boolean] = {
+    this.pt.isFieldMissing(a, fieldIdx)
+  }
 }
