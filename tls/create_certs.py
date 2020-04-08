@@ -1,12 +1,13 @@
 import sys
 import json
+import yaml
 import shutil
 import subprocess as sp
 import tempfile
 
 namespace = sys.argv[1]
 assert namespace is not None, namespace
-arg_config = json.loads(sys.argv[2])
+arg_config = yaml.safe_load(sys.argv[2])
 
 
 def create_cert_and_key(principal, domain):
@@ -84,7 +85,7 @@ def create_nginx_config(principal, trust, cert, key):
             pass
         else:
             assert False, 'only DISABLED, REQURIED, and VERIFY_CA are ' \
-                'supported for ssl-mode. {json.dumps(config)}'
+                'supported for ssl-mode. {arg_config.get("ssl-mode")}'
         return [http_config_file, proxy_config_file]
 
 
@@ -104,7 +105,7 @@ def create_curl_config(principal, trust, cert, key):
             pass
         else:
             assert False, 'only DISABLED, REQURIED, and VERIFY_CA are ' \
-                'supported for ssl-mode. {json.dumps(config)}'
+                'supported for ssl-mode. {arg_config.get("ssl-mode")}'
         return [config_file]
 
 
@@ -143,4 +144,4 @@ key_and_cert = {
 
 for p in arg_config['principals']:
     key, cert = key_and_cert[p['name']]
-    create_principal(p['name'], p['trust'], p['domain'], p['kind'], key, cert)
+    create_principal(p['name'], p.get('trust', []), p['domain'], p['kind'], key, cert)

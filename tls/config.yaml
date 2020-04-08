@@ -1,0 +1,102 @@
+ssl-mode: REQUIRED
+principals:
+- domain: admin-pod
+  kind: json
+  name: admin-pod
+- domain: auth
+  kind: json
+  name: auth
+  trust:
+  - admin-pod
+  - batch
+  - batch-driver
+  - ci
+  - notebook
+  - router
+  - batch-tests
+  - ci-tests
+- domain: batch
+  kind: json
+  name: batch
+  trust:
+  - admin-pod
+  - router
+  - ci
+  - batch-tests
+- domain: batch-driver
+  kind: json
+  name: batch-driver
+  trust:
+  - admin-pod
+  - batch
+- domain: ci
+  kind: json
+  name: ci
+  trust:
+  - admin-pod
+  - router
+  - ci-tests
+- domain: notebook
+  kind: json
+  name: notebook
+  trust:
+  - admin-pod
+  - image-fetcher
+  - router
+- domain: gateway
+  kind: nginx
+  name: gateway
+  trust:
+  - admin-pod
+- domain: router
+  kind: nginx
+  name: router
+  trust:
+  - admin-pod
+  - gateway
+  - internal-gateway
+- domain: site
+  kind: nginx
+  name: site
+  trust:
+  - admin-pod
+  - router
+- domain: scorecard
+  kind: json
+  name: scorecard
+  trust:
+  - admin-pod
+  - router
+- domain: image-fetcher
+  kind: curl
+  name: image-fetcher
+- domain: blog
+  kind: nginx
+  name: blog
+  trust:
+  - admin-pod
+  - router
+- domain: router-resolver
+  kind: json
+  name: router-resolver
+  trust:
+  - admin-pod
+  - internal-gateway
+  - gateway
+- domain: internal-gateway
+  kind: nginx
+  name: internal-gateway
+  trust:
+  - admin-pod
+- domain: batch-tests
+  kind: json
+  name: batch-tests
+  trust:
+  - admin-pod
+  - batch
+- domain: ci-tests
+  kind: json
+  name: ci-tests
+  trust:
+  - admin-pod
+  - ci
