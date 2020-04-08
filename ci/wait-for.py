@@ -1,10 +1,8 @@
-import os
 import sys
 import traceback
 import argparse
 import concurrent.futures
 import asyncio
-import aiohttp
 import uvloop
 from kubernetes_asyncio import client, config
 
@@ -50,38 +48,6 @@ async def wait_for_pod_complete(v1, namespace, name):
         await asyncio.sleep(1)
 
 
-# this needs to agree with hailtop.config
-def internal_base_url(location, namespace, service):
-    if location == 'gce':
-        if namespace == 'default':
-            return f'http://{service}.hail'
-        return f'http://internal.hail/{namespace}/{service}'
-
-    assert location == 'k8s'
-    if namespace == 'default':
-        return f'http://{service}.default'
-    return f'http://{service}.{namespace}/{namespace}/{service}'
-
-
-async def wait_for_service_alive(namespace, name, location, endpoint, headers):
-    print('info: in wait_for_service_alive', file=sys.stderr)
-    base_url = internal_base_url(location, namespace, name)
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5.0)) as session:
-        while True:
-            try:
-                async with session.get(f'{base_url}{endpoint}', headers=headers) as resp:
-                    if resp.status >= 200 and resp.status < 300:
-                        print('info: success')
-                        sys.exit(0)
-            except concurrent.futures.CancelledError:
-                print('info: CancelledError', file=sys.stderr)
-                raise
-            except Exception as e:
-                print(f'wait_for_service_alive failed due to exception {traceback.format_exc()}{e}', file=sys.stderr)
-
-            await asyncio.sleep(1)
-
-
 async def main():
     parser = argparse.ArgumentParser()
 
@@ -93,23 +59,12 @@ async def main():
     pod_parser = subparsers.add_parser('Pod')
     pod_parser.add_argument('name', type=str)
 
-    service_parser = subparsers.add_parser('Service')
-    service_parser.add_argument('name', type=str)
-    service_parser.add_argument('--location', type=str, default='gce')
-    service_parser.add_argument('--endpoint', '-e', type=str, default='/healthcheck')
-    service_parser.add_argument('--header', action='append', type=str, nargs=2)
-
     args = parser.parse_args()
 
-    if args.kind == 'Pod':
-        await config.load_kube_config()
-        v1 = client.CoreV1Api()
-
-        t = wait_for_pod_complete(v1, args.namespace, args.name)
-    else:
-        assert args.kind == 'Service'
-        headers = None if args.header is None else {flag: val for flag, val in args.header}
-        t = wait_for_service_alive(args.namespace, args.name, args.location, args.endpoint, headers)
+    assert args.kind == 'Pod'
+    await config.load_kube_config()
+    v1 = client.CoreV1Api()
+    t = wait_for_pod_complete(v1, args.namespace, args.name)
 
     await asyncio.gather(timeout(args.timeout_seconds), t)
 
