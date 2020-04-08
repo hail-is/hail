@@ -54,7 +54,7 @@ database={config["db"]}
 
     secret_name = f'sql-{database_name}-{user}-config'
     print(f'creating secret {secret_name}')
-    from_files = ' '.join('--from-file={f}' for f in files)
+    from_files = ' '.join(f'--from-file={f}' for f in files)
     await check_shell(
         f'''
 kubectl -n {shq(namespace)} delete --ignore-not-found=true secret {shq(secret_name)}
