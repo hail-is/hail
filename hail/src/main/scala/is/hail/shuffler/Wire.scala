@@ -1,6 +1,5 @@
 package is.hail.shuffler
 
-import is.hail.HailLSM
 import is.hail.annotations.Region
 import is.hail.expr.ir.IRParser
 import is.hail.expr.types.encoded.EType
@@ -24,9 +23,12 @@ import scala.annotation.switch
 import is.hail.utils._
 
 object Wire {
+  val EOS: Byte = -1.toByte
   val START: Byte = 0.toByte
   val PUT: Byte = 1.toByte
   val GET: Byte = 2.toByte
+
+  val ID_SIZE = 4096 / 8
 
   import AbstractRVDSpec.formats
 
@@ -38,16 +40,20 @@ object Wire {
   def writeTStruct(out: DataOutputStream, x: TStruct): Unit = {
     out.writeUTF(x.parsableString())
   }
+
   def readTStruct(in: DataInputStream): TStruct = {
     IRParser.parseStructType(in.readUTF())
   }
+
   def writeTypedCodecSpec(out: DataOutputStream, x: TypedCodecSpec): Unit = {
     Serialization.write(x, out)
   }
+
   def readTypedCodecSpec(in: DataInputStream): TypedCodecSpec = {
     JsonMethods.parse(in).extract[TypedCodecSpec]
   }
-  def writeListOfStrings(out: DataOutputStream, x: Array[String]): Unit = {
+
+  def writeStringArray(out: DataOutputStream, x: Array[String]): Unit = {
     val n = x.length
     out.writeInt(n)
     var i = 0
@@ -56,7 +62,8 @@ object Wire {
       i += 1
     }
   }
-  def readListOfStrings(in: DataInputStream): Array[String] = {
+
+  def readStringArray(in: DataInputStream): Array[String] = {
     val n = in.readInt()
     val a = new Array[String](n)
     var i = 0
@@ -64,6 +71,19 @@ object Wire {
       a(i) = in.readUTF()
       i += 1
     }
+    a
+  }
+
+  def writeByteArray(out: DataOutputStream, x: Array[Byte]): Unit = {
+    val n = x.length
+    out.writeInt(n)
+    out.write(x)
+  }
+
+  def readByteArray(in: DataInputStream): Array[Byte] = {
+    val n = in.readInt()
+    val a = new Array[Byte](n)
+    in.read(a)
     a
   }
 }

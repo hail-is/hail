@@ -1,4 +1,4 @@
-package is.hail
+package is.hail.shuffler
 
 import is.hail.annotations._
 import is.hail.utils._
@@ -91,16 +91,41 @@ class RegionValueSerializer(
   }
 }
 
-class HailLSM (
+class LSM (
   path: String,
-  val ord: UnsafeOrdering,
-  makeKeyDec: InputStream => () => Long,
-  makeKeyEnc: (OutputStream) => Long => Unit,
-  makeDec: InputStream => () => Long,
-  makeEnc: (OutputStream) => Long => Unit
+  codecs: KeyedCodecSpec
 ) {
+  val ord: UnsafeOrdering = codecs.decodedKeyPType.unsafeOrdering
+
+  def keyDec(in: InputStream) = {
+    val dec = codecs.makeKeyDec(in)
+
+    () => dec.readRegionValue(rootRegion)
+  }
+  def keyEnc(out: OutputStream) = {
+    val enc = codecs.makeKeyEnc(out)
+
+    { (x: Long) =>
+      enc.writeRegionValue(x)
+      enc.flush()
+    }
+  }
+  def dec(in: InputStream) = {
+    val dec = codecs.makeDec(in)
+
+    () => dec.readRegionValue(rootRegion)
+  }
+  def enc(out: OutputStream) = {
+    val enc = codecs.makeEnc(out)
+
+    { (x: Long) =>
+      enc.writeRegionValue(x)
+      enc.flush()
+    }
+  }
+
   val store = new StoreBuilder[Long, Long](new File(path),
-    new RegionValueSerializer(makeKeyDec, makeKeyEnc),
-    new RegionValueSerializer(makeDec, makeEnc)
+    new RegionValueSerializer(keyDec _, keyEnc _),
+    new RegionValueSerializer(dec _, enc _)
   ).setComparator(ord).build()
 }

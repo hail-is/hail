@@ -1,5 +1,14 @@
 package is.hail
 
+import is.hail.annotations._
+import is.hail.expr.types.physical._
+import java.io._
+import java.net._
+import java.security.KeyStore;
+import javax.net._
+import javax.net.ssl._
+import javax.security.cert.X509Certificate;
+
 package object shuffler {
   /**
     * The following creates a server key and cert, client key and cert, a server
@@ -21,7 +30,7 @@ package object shuffler {
     keyStorePassPhrase: String,
     trustStorePath: String,
     trustStorePassPhrase: String
-  ): SSLContext = apply(
+  ): SSLContext = sslContext(
     new FileInputStream(keyStorePath), keyStorePassPhrase,
     new FileInputStream(trustStorePath), trustStorePassPhrase)
 
@@ -43,4 +52,7 @@ package object shuffler {
     ctx.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null)
     ctx
   }
+
+  def rvstr(pt: PType, off: Long): String =
+    UnsafeRow.read(pt, null, off).toString
 }

@@ -1,8 +1,5 @@
 package is.hail.shuffler
 
-import is.hail.shuffler.ShuffleUtils._
-import org.apache.log4j.Logger;
-import is.hail.HailLSM
 import is.hail.annotations.{Region, UnsafeRow}
 import is.hail.expr.ir.IRParser
 import is.hail.expr.types.encoded.EType
@@ -12,27 +9,30 @@ import is.hail.io.TypedCodecSpec
 import is.hail.rvd.AbstractRVDSpec
 import java.io._
 import java.net._
+import java.nio.charset.StandardCharsets
 import java.security.KeyStore;
-import java.util.UUID
+import java.security.SecureRandom
+import java.util.Base64
+import java.util.concurrent._
 import java.util.concurrent.{ConcurrentSkipListMap, Executors}
 import javax.net._
 import javax.net.ssl._
 import javax.security.cert.X509Certificate;
-import java.util.concurrent._
+import org.apache.log4j.Logger;
 import org.json4s.jackson.{JsonMethods, Serialization}
-import java.nio.charset.StandardCharsets
 
 import scala.annotation.switch
 
 import is.hail.utils._
 
 class Handler (
-  val server: ShuffleServer,
-  val socket: Socket
+  private[this] val server: ShuffleServer,
+  private[this] val socket: Socket
 ) extends Runnable {
-  val log = Logger.getLogger(this.getClass.getName());
-  val in = new DataInputStream(socket.getInputStream)
-  val out = new DataOutputStream(socket.getOutputStream)
+  private[this] val log = Logger.getLogger(this.getClass.getName());
+  private[this] val in = new DataInputStream(socket.getInputStream)
+  private[this] val out = new DataOutputStream(socket.getOutputStream)
+  private[this] val random = new SecureRandom();
 
   def run(): Unit = {
     try {
@@ -46,7 +46,7 @@ class Handler (
             case Wire.START => start()
             case Wire.PUT => put()
             case Wire.GET => get()
-            case -1 =>
+            case Wire.EOS =>
               log.info(s"client closed socket, exiting cleanly")
               continue = false
             case op => fatal(s"bad operation number $op")
@@ -57,8 +57,7 @@ class Handler (
       }
     } catch {
       case e: Exception =>
-        println(s"exception while serving ${e.getMessage}")
-        log.info(s"exception while serving", e)
+        log.warn(s"exception while serving", e)
     }
   }
 
@@ -75,24 +74,25 @@ class Handler (
     log.info(s"SERV start")
     val t = Wire.readTStruct(in)
     val codecSpec = Wire.readTypedCodecSpec(in)
-    val key = Wire.readListOfStrings(in)
-    val uuid = UUID.randomUUID().toString()
+    val key = Wire.readStringArray(in)
+    val uuid = new Array[Byte](Wire.ID_SIZE)
+    random.nextBytes(uuid)
     server.shuffles.put(uuid, new Shuffle(uuid, t, codecSpec, key))
-    out.writeUTF(uuid)
+    Wire.writeByteArray(out, uuid)
     out.flush()
     log.info(s"SERV start done")
   }
 
   def put(): Unit = {
     log.info(s"SERV put")
-    val shuffle = readShuffleUUID
-    val decoder = shuffle.keyedCodecSpec.makeDec(in)
+    val shuffle = readShuffleUUID()
+    val decoder = shuffle.codecs.makeDec(in)
     val region = shuffle.region()
     var hasNext = in.read()
     assert(hasNext != -1)
     while (hasNext == 1) {
       val off = decoder.readRegionValue(region)
-      val koff = shuffle.keyedCodecSpec.keyPType.copyFromAddress(region, shuffle.keyedCodecSpec.pType, off, false)
+      val koff = shuffle.codecs.keyPType.copyFromAddress(region, shuffle.codecs.pType, off, false)
       shuffle.store.store.put(koff, off)
       hasNext = in.read()
     }
@@ -105,12 +105,12 @@ class Handler (
     log.info(s"SERV get")
     val shuffle = readShuffleUUID
     val region = shuffle.region()
-    val keyDecoder = shuffle.keyedCodecSpec.makeKeyDec(in)
-    val encoder = shuffle.keyedCodecSpec.makeEnc(out)
+    val keyDecoder = shuffle.codecs.makeKeyDec(in)
+    val encoder = shuffle.codecs.makeEnc(out)
     val l = keyDecoder.readRegionValue(region)
     val r = keyDecoder.readRegionValue(region)
 
-    log.info(s"SERV get l ${rvstr(shuffle.keyedCodecSpec.keyPType, l)} r ${rvstr(shuffle.keyedCodecSpec.keyPType, r)}")
+    log.info(s"SERV get l ${rvstr(shuffle.codecs.keyPType, l)} r ${rvstr(shuffle.codecs.keyPType, r)}")
     val it = shuffle.store.store.iterator(l, true)
     var continue = it.hasNext
     while (continue) {
@@ -133,51 +133,17 @@ class Handler (
 }
 
 class Shuffle (
-  uuid: String,
+  uuid: Array[Byte],
   t: TStruct,
   codecSpec: TypedCodecSpec,
   key: Array[String]
 ) extends AutoCloseable {
-  val keyedCodecSpec = new KeyedCodecSpec(t, codecSpec, key)
-  import keyedCodecSpec._
+  private[this] val b64uuid = Base64.getEncoder().encode(uuid)
 
-  val rootRegion = Region()
+  val codecs = new KeyedCodecSpec(t, codecSpec, key)
+  val store = new LSM(s"/tmp/${b64uuid}", codecs)
 
-  val store = {
-    def keyDec(in: InputStream) = {
-      val dec = makeKeyDec(in)
-      () => dec.readRegionValue(rootRegion)
-    }
-    def keyEnc(out: OutputStream) = {
-      val enc = makeKeyEnc(out)
-
-      { (x: Long) =>
-        enc.writeRegionValue(x)
-        enc.flush()
-      }
-    }
-    def dec(in: InputStream) = {
-      val dec = makeDec(in)
-      () => dec.readRegionValue(rootRegion)
-    }
-    def enc(out: OutputStream) = {
-      val enc = makeEnc(out)
-
-      { (x: Long) =>
-        enc.writeRegionValue(x)
-        enc.flush()
-      }
-    }
-
-    new HailLSM(
-      s"/tmp/${uuid}",
-      decodedKeyPType.unsafeOrdering,
-      keyDec,
-      keyEnc,
-      dec,
-      enc
-    )
-  }
+  private[this] val rootRegion = Region()
 
   def region(): Region = {
     val region = Region()
@@ -194,7 +160,7 @@ class ShuffleServer (
 ) {
   val log = Logger.getLogger(this.getClass.getName());
 
-  val shuffles = new ConcurrentSkipListMap[String, Shuffle]()
+  val shuffles = new ConcurrentSkipListMap[Array[Byte], Shuffle]()
 
   val ssf = ssl.getServerSocketFactory()
   val ss = ssf.createServerSocket(port)

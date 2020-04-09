@@ -1,20 +1,13 @@
 package is.hail.shuffler
 
 import org.apache.log4j.Logger;
-import is.hail.shuffler.ShuffleUtils._
 import is.hail.utils._
 import is.hail.annotations._
 import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual.TStruct
 import is.hail.io.TypedCodecSpec
 import java.io._
-import java.net._
-import java.security.KeyStore;
-import java.util.UUID
-import java.util.concurrent.{ConcurrentSkipListMap, Executors}
-import javax.net._
 import javax.net.ssl._
-import javax.security.cert.X509Certificate;
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 class ShuffleClient (
@@ -25,7 +18,7 @@ class ShuffleClient (
   host: String,
   port: Int
 ) {
-  val log = Logger.getLogger(this.getClass.getName());
+  val log = Logger.getLogger(getClass.getName())
 
   val sf = ssl.getSocketFactory()
   val s = sf.createSocket(host, port)
@@ -36,16 +29,16 @@ class ShuffleClient (
   val keyedCodecSpec = new KeyedCodecSpec(t, codecSpec, key)
   import keyedCodecSpec._
 
-  var uuid: String = null
+  var uuid: Array[Byte] = null
 
   def start(): Unit = {
     log.info(s"CLNT start")
     out.write(Wire.START)
     Wire.writeTStruct(out, t)
     Wire.writeTypedCodecSpec(out, codecSpec)
-    Wire.writeListOfStrings(out, key)
+    Wire.writeStringArray(out, key)
     out.flush()
-    uuid = in.readUTF()
+    uuid = Wire.readByteArray(in)
     log.info(s"CLNT start done")
   }
 
@@ -54,7 +47,7 @@ class ShuffleClient (
     val encoder = makeEnc(out)
     encoder.writeByte(Wire.PUT)
     encoder.flush()
-    out.writeUTF(uuid)
+    Wire.writeByteArray(out, uuid)
     out.flush()
     while (values.hasNext) {
       encoder.writeByte(1)
@@ -73,7 +66,7 @@ class ShuffleClient (
     val decoder = makeDec(in)
     keyEncoder.writeByte(Wire.GET)
     keyEncoder.flush()
-    out.writeUTF(uuid)
+    Wire.writeByteArray(out, uuid)
     out.flush()
     keyEncoder.writeRegionValue(start)
     keyEncoder.writeRegionValue(end)
