@@ -3,6 +3,9 @@ import logging
 import json
 import os
 import ssl
+import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.poolmanager import PoolManager
 
 log = logging.getLogger('hailtop.ssl')
 
@@ -19,65 +22,113 @@ log = logging.getLogger('hailtop.ssl')
 # certificates which we trust.
 
 
-def ssl_context_from_config(ssl_config, encryption_required=False, verification_required=False):
+class SSLParameters:
+    def __init__(self, disabled, ssl_cert, ssl_key, ssl_ca, check_hostname):
+        self.disabled = disabled
+        assert disabled or None not in (ssl_cert, ssl_key, ssl_ca, check_hostname)
+        self.ssl_cert = ssl_cert
+        self.ssl_key = ssl_key
+        self.ssl_ca = ssl_ca
+        self.check_hostname = check_hostname
+
+
+def parameters_from_ssl_config(ssl_config, encryption_required=False, verification_required=False):
     ssl_mode = ssl_config.get('ssl-mode') or 'DISABLED'
     if ssl_mode == 'DISABLED':
         if encryption_required or verification_required:
             raise ValueError(f'cleartext connections are not permitted. '
                              f'{json.dumps(ssl_config)}')
         log.warning(f'!!! not using tls !!!')
-        return False
+        return SSLParameters(True, None, None, None, None)
+
+    assert ssl_config.get('ssl-cert') is not None
+    assert ssl_config.get('ssl-key') is not None
+    assert ssl_config.get('ssl-ca') is not None
+
+    if not os.path.isfile(ssl_config['ssl-cert']):
+        raise ValueError(f'specified ssl-cert, {ssl_config["ssl-cert"]} does not exist')
+    if not os.path.isfile(ssl_config['ssl-key']):
+        raise ValueError(f'specified ssl-key, {ssl_config["ssl-key"]} does not exist')
+    if not os.path.isfile(ssl_config['ssl-ca']):
+        raise ValueError(f'specified ssl-ca, {ssl_config["ssl-ca"]} does not exist')
+
     if ssl_mode == 'REQUIRED':
         if verification_required:
             raise ValueError(f'unverified connections are not permitted. '
                              f'{json.dumps(ssl_config)}')
         log.warning(f'using tls and not verifying certificates')
-        assert ssl_config.get('ssl-cert') is not None
-        assert ssl_config.get('ssl-key') is not None
-
-        if not os.path.isfile(ssl_config['ssl-cert']):
-            raise ValueError(f'specified ssl-cert, {ssl_config["ssl-cert"]} does not exist')
-        if not os.path.isfile(ssl_config['ssl-key']):
-            raise ValueError(f'specified ssl-key, {ssl_config["ssl-key"]} does not exist')
-
-        context = ssl.create_default_context()
-        context.load_cert_chain(
-            ssl_config['ssl-cert'], keyfile=ssl_config['ssl-key'], password=None)
-        context.check_hostname = False
-        return context
+        return SSLParameters(False, ssl_config['ssl-cert'], ssl_config['ssl-key'], ssl_config['ssl-ca'], False)
     if ssl_mode == 'VERIFY_CA':
         log.info(f'using tls and verifying certificates')
-        assert ssl_config.get('ssl-cert') is not None
-        assert ssl_config.get('ssl-key') is not None
-        assert ssl_config.get('ssl-ca') is not None
-
-        if not os.path.isfile(ssl_config['ssl-cert']):
-            raise ValueError(f'specified ssl-cert, {ssl_config["ssl-cert"]} does not exist')
-        if not os.path.isfile(ssl_config['ssl-key']):
-            raise ValueError(f'specified ssl-key, {ssl_config["ssl-key"]} does not exist')
-        if not os.path.isfile(ssl_config['ssl-ca']):
-            raise ValueError(f'specified ssl-ca, {ssl_config["ssl-ca"]} does not exist')
-
-        context = ssl.create_default_context(cafile=ssl_config['ssl-ca'])
-        context.load_cert_chain(
-            ssl_config['ssl-cert'], keyfile=ssl_config['ssl-key'], password=None)
-        return context
+        return SSLParameters(False, ssl_config['ssl-cert'], ssl_config['ssl-key'], ssl_config['ssl-ca'], True)
     raise ValueError(f'Only DISABLED, REQURIED, and VERIFY_CA are '
                      f'supported for ssl-mode. ssl-mode was set to '
                      f'{json.dumps(ssl_config)}.')
 
 
+def ssl_context_from_config(ssl_config, encryption_required=False, verification_required=False):
+    params = parameters_from_ssl_config(ssl_config, encryption_required, verification_required)
+    if params.disabled:
+        return False
+    context = ssl.create_default_context(cafile=ssl_config['ssl-ca'])
+    context.load_cert_chain(params.ssl_cert, keyfile=params.ssl_key, password=None)
+    context.check_hostname = params.check_hostname
+    return context
+
+
+class TLSAdapter(HTTPAdapter):
+    def __init__(self, ssl_cert, ssl_key, ssl_ca, check_hostname):
+        self.ssl_cert = ssl_cert
+        self.ssl_key = ssl_key
+        self.ssl_ca = ssl_ca
+        self.check_hostname = check_hostname
+
+    def init_poolmanager(self, connections, maxsize, block=False):
+        self.poolmanager = PoolManager(
+            key_file=self.ssl_key,
+            cert_file=self.ssl_cert,
+            ca_certs=self.ssl_ca,
+            assert_hostname=self.check_hostname)
+
+
+def requests_session_from_config(ssl_config,
+                                 encryption_required=False,
+                                 verification_required=False,
+                                 *args,
+                                 **kwargs):
+    session = requests.Session(*args, **kwargs)
+    if ssl_config is None:
+        return session
+    params = parameters_from_ssl_config(ssl_config, encryption_required, verification_required)
+    if params.disabled:
+        return session
+    session.mount('https://', TLSAdapter(params.ssl_cert,
+                                         params.ssl_key,
+                                         params.ssl_ca,
+                                         params.check_hostname))
+    return session
+
+
 ssl_context = None
+
+
+def _get_ssl_config():
+    config_file = os.environ.get('HAIL_SSL_CONFIG_FILE', '/ssl-config/ssl-config.json')
+    if os.path.isfile(config_file):
+        log.info(f'ssl config file found at {config_file}')
+        with open(config_file, 'r') as f:
+            return json.loads(f.read())
+    else:
+        log.warning(f'no ssl config found at {config_file}')
+        return None
 
 
 def get_ssl_context():
     global ssl_context
     if ssl_context is None:
-        config_file = os.environ.get('HAIL_SSL_CONFIG_FILE', '/ssl-config/ssl-config.json')
-        if os.path.isfile(config_file):
-            log.warning(f'ssl config file found at {config_file}')
-            with open(config_file, 'r') as f:
-                ssl_context = ssl_context_from_config(json.loads(f.read()))
+        ssl_config = _get_ssl_config()
+        if ssl_config is None:
+            ssl_context = ssl_context_from_config(ssl_config)
         else:
             log.warning(f'no config file found, using default ssl context')
             ssl_context = ssl.create_default_context()
@@ -85,12 +136,15 @@ def get_ssl_context():
 
 
 def ssl_client_session(*args, **kwargs):
-    return TlsAioHttpClientSession(
+    return TLSAIOHTTPClientSession(
         get_ssl_context(),
         aiohttp.ClientSession(*args, **kwargs))
 
 
-class TlsAioHttpClientSession:
+def ssl_requests_client_session(*args, **kwargs):
+    return requests_session_from_config(_get_ssl_config(), *args, **kwargs)
+
+class TLSAIOHTTPClientSession:
     def __init__(self, ssl_context, session):
         self.ssl_context = ssl_context
         self.session = session

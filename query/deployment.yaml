@@ -45,6 +45,9 @@ spec:
            - name: session-secret-key
              mountPath: /session-secret-key
              readOnly: true
+           - name: ssl-config-query
+             mountPath: /ssl-config
+             readOnly: true
           resources:
             requests:
               memory: "3.75G"
@@ -62,3 +65,6 @@ spec:
        - name: session-secret-key
          secret:
            secretName: session-secret-key
+       - name: ssl-config-query
+         secret:
+           secretName: ssl-config-query

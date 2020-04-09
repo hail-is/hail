@@ -77,6 +77,12 @@ principals:
   trust:
   - admin-pod
   - router
+- name: query
+  domain: query
+  kind: json
+  trust:
+  - admin-pod
+  - router
 - name: router-resolver
   domain: router-resolver
   kind: json

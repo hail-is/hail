@@ -3,7 +3,6 @@ from pyspark import SparkContext, SparkConf
 from pyspark.sql import SparkSession
 import abc
 import os
-import requests
 import pyspark
 from hail.utils.java import *
 from hail.expr.types import dtype
@@ -14,6 +13,7 @@ from hail.ir.renderer import CSERenderer, Renderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 from hailtop.utils import retry_response_returning_functions
+from hailtop.ssl import ssl_requests_client_session
 
 
 class Backend(abc.ABC):
@@ -303,6 +303,7 @@ class ServiceBackend(Backend):
         self.url = deploy_config.base_url('query')
         self.headers = service_auth_headers(deploy_config, 'query')
         self._fs = None
+        self.session = ssl_requests_client_session()
 
     @property
     def fs(self):
@@ -322,7 +323,7 @@ class ServiceBackend(Backend):
     def execute(self, ir, timed=False):
         code = self._render(ir)
         resp = retry_response_returning_functions(
-            requests.post,
+            self.session.post,
             f'{self.url}/execute', json=code, headers=self.headers)
         if resp.status_code == 400:
             resp_json = resp.json()
@@ -338,7 +339,7 @@ class ServiceBackend(Backend):
     def _request_type(self, ir, kind):
         code = self._render(ir)
         resp = retry_response_returning_functions(
-            requests.post,
+            self.session.post,
             f'{self.url}/type/{kind}', json=code, headers=self.headers)
         if resp.status_code == 400:
             resp_json = resp.json()
@@ -365,7 +366,7 @@ class ServiceBackend(Backend):
 
     def add_reference(self, config):
         resp = retry_response_returning_functions(
-            requests.post,
+            self.session.post,
             f'{self.url}/references/create', json=config, headers=self.headers)
         if resp.status_code == 400:
             resp_json = resp.json()
@@ -374,7 +375,7 @@ class ServiceBackend(Backend):
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         resp = retry_response_returning_functions(
-            requests.post,
+            self.session.post,
             f'{self.url}/references/create/fasta',
             json={
                 'name': name,
@@ -392,7 +393,7 @@ class ServiceBackend(Backend):
 
     def remove_reference(self, name):
         resp = retry_response_returning_functions(
-            requests.delete,
+            self.session.delete,
             f'{self.url}/references/delete',
             json={'name': name},
             headers=self.headers)
@@ -403,7 +404,7 @@ class ServiceBackend(Backend):
 
     def get_reference(self, name):
         resp = retry_response_returning_functions(
-            requests.get,
+            self.session.get,
             f'{self.url}/references/get',
             json={'name': name},
             headers=self.headers)
@@ -419,7 +420,7 @@ class ServiceBackend(Backend):
 
     def add_sequence(self, name, fasta_file, index_file):
         resp = retry_response_returning_functions(
-            requests.post,
+            self.session.post,
             f'{self.url}/references/sequence/set',
             json={'name': name, 'fasta_file': fasta_file, 'index_file': index_file},
             headers=self.headers)
@@ -430,7 +431,7 @@ class ServiceBackend(Backend):
 
     def remove_sequence(self, name):
         resp = retry_response_returning_functions(
-            requests.delete,
+            self.session.delete,
             f'{self.url}/references/sequence/delete',
             json={'name': name},
             headers=self.headers)
@@ -441,7 +442,7 @@ class ServiceBackend(Backend):
 
     def add_liftover(self, name, chain_file, dest_reference_genome):
         resp = retry_response_returning_functions(
-            requests.post,
+            self.session.post,
             f'{self.url}/references/liftover/add',
             json={'name': name, 'chain_file': chain_file,
                   'dest_reference_genome': dest_reference_genome},
@@ -453,7 +454,7 @@ class ServiceBackend(Backend):
 
     def remove_liftover(self, name, dest_reference_genome):
         resp = retry_response_returning_functions(
-            requests.delete,
+            self.session.delete,
             f'{self.url}/references/liftover/remove',
             json={'name': name, 'dest_reference_genome': dest_reference_genome},
             headers=self.headers)
@@ -464,7 +465,7 @@ class ServiceBackend(Backend):
 
     def parse_vcf_metadata(self, path):
         resp = retry_response_returning_functions(
-            requests.post,
+            self.session.post,
             f'{self.url}/parse-vcf-metadata',
             json={'path': path},
             headers=self.headers)
@@ -476,7 +477,7 @@ class ServiceBackend(Backend):
 
     def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
         resp = retry_response_returning_functions(
-            requests.post,
+            self.session.post,
             f'{self.url}/index-bgen',
             json={
                 'files': files,
