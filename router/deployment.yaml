@@ -156,36 +156,6 @@ spec:
   selector:
     app: query
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: ukbb-rg-static
-  namespace: ukbb-rg
-  labels:
-    app: ukbb-rg-static
-spec:
-  ports:
-  - port: 80
-    protocol: TCP
-    targetPort: 80
-  selector:
-    app: ukbb-rg-static
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: ukbb-rg-browser
-  namespace: ukbb-rg
-  labels:
-    app: ukbb-rg-browser
-spec:
-  ports:
-  - port: 80
-    protocol: TCP
-    targetPort: 3838
-  selector:
-    app: ukbb-rg-browser
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
