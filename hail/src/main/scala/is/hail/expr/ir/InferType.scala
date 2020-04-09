@@ -181,6 +181,7 @@ object InferType {
         }: _*)
       case SelectFields(old, fields) =>
         val tbs = coerce[TStruct](old.typ)
+        println("RAN")
         tbs.select(fields.toFastIndexedSeq)._1
       case InsertFields(old, fields, fieldOrder) =>
         val tbs = coerce[TStruct](old.typ)

@@ -1105,36 +1105,13 @@ private class Emit[C](
 
       case x@SelectFields(oldStruct, fields) =>
         val old = emit(oldStruct)
-        val oldt = coerce[PStruct](oldStruct.pType)
         val oldv = mb.genFieldThisRef[Long]()
-        val srvb = new StagedRegionValueBuilder(mb, x.pType)
-
-        val addFields = fields.map { name =>
-          new EstimableEmitter[C] {
-            def estimatedSize: Int = 20
-
-            def emit(mb: EmitMethodBuilder[C]): Code[Unit] = {
-              val i = oldt.fieldIdx(name)
-              val t = oldt.types(i)
-              val fieldMissing = oldt.isFieldMissing(oldv, i)
-              val fieldValue = Region.loadIRIntermediate(t)(oldt.fieldOffset(oldv, i))
-              Code(
-                fieldMissing.mux(
-                  srvb.setMissing(),
-                  srvb.addIRIntermediate(t)(fieldValue)),
-                srvb.advance())
-            }
-          }
-        }
-
+        println(s"GOT SELECTFIELDS X IS ${x.pType}")
         EmitCode(
           old.setup,
           old.m,
-          PCode(pt, Code(
-            oldv := old.value[Long],
-            srvb.start(),
-            EmitUtils.wrapToMethod(addFields, mb),
-            srvb.offset)))
+          PCode(pt, old.value[Long])
+        )
 
       case x@InsertFields(old, fields, fieldOrder) =>
         if (fields.isEmpty)

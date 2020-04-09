@@ -4,7 +4,15 @@ import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s.{Code, Settable, SettableBuilder, Value, const}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.expr.types.BaseStruct
+import is.hail.expr.types.virtual.TStruct
 import is.hail.utils._
+
+object PSubsetStruct {
+  def apply(ps: PStruct, fieldNames: String*): PSubsetStruct = {
+    val f = fieldNames.map(f => ps.field(f)).toFastIndexedSeq
+    PSubsetStruct(ps, f)
+  }
+}
 
 // PSubsetStruct is a view of some other PStruct
 // Operations it can take:
@@ -13,7 +21,7 @@ import is.hail.utils._
 // 3) Modify properties of the fields in the view (rename), which requires the generation of a new backing PStruct
 // Creating entirely new fields seems out of scope
 final case class PSubsetStruct(ps: PStruct, fields: IndexedSeq[PField]) extends PStruct {
-  if(fields == ps.fields) {
+  if (fields == ps.fields) {
     log.warn("PSubsetStruct used without subsetting input PStruct")
   }
 
@@ -23,10 +31,12 @@ final case class PSubsetStruct(ps: PStruct, fields: IndexedSeq[PField]) extends 
     val psField = ps.field(f.name)
     assert(f == psField)
     psField.index
-  }}
+  }
+  }
 
   val required = ps.required
 
+  override lazy val virtualType = TStruct(fields.map(f => (f.name -> f.typ.virtualType)):_*)
   override val types: Array[PType] = fields.map(_.typ).toArray
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
@@ -51,7 +61,7 @@ final case class PSubsetStruct(ps: PStruct, fields: IndexedSeq[PField]) extends 
   override def truncate(newSize: Int): PSubsetStruct =
     PSubsetStruct(ps, fields.take(newSize))
 
-  override def deleteField(key: String): PStruct  = {
+  override def deleteField(key: String): PStruct = {
     assert(fieldIdx.contains(key))
     val index = fieldIdx(key)
     val newFields = Array.fill[PField](fields.length - 1)(null)
@@ -79,7 +89,7 @@ final case class PSubsetStruct(ps: PStruct, fields: IndexedSeq[PField]) extends 
     val overlapping = fields.map(_.name).toSet.intersect(
       that.fields.map(_.name).toSet)
     if (overlapping.nonEmpty)
-      fatal(s"overlapping fields in struct concatenation: ${ overlapping.mkString(", ") }")
+      fatal(s"overlapping fields in struct concatenation: ${overlapping.mkString(", ")}")
 
     PSubsetStruct(ps, fields ++ that.fields)
   }
@@ -120,7 +130,7 @@ final case class PSubsetStruct(ps: PStruct, fields: IndexedSeq[PField]) extends 
     ps.isFieldMissing(structAddress, idxMap(fieldIdx))
 
   override def setFieldMissing(structAddress: Long, fieldIdx: Int): Unit =
-  ps.setFieldMissing(structAddress, idxMap(fieldIdx))
+    ps.setFieldMissing(structAddress, idxMap(fieldIdx))
 
   override def setFieldMissing(structAddress: Code[Long], fieldIdx: Int): Code[Unit] =
     ps.setFieldMissing(structAddress, idxMap(fieldIdx))
@@ -144,8 +154,9 @@ final case class PSubsetStruct(ps: PStruct, fields: IndexedSeq[PField]) extends 
     ps.loadField(structAddress, idxMap(fieldIdx))
 
   // FIXME: goal is to ensure isn't constructed
-  override val byteSize = ???
-  override val alignment = ???
+  // byteSize, alignment needed in InferPType...
+  override val byteSize = ps.byteSize
+  override val alignment = ps.alignment
 
   override def appendKey(key: String, sig: PType): PStruct = ???
 
@@ -195,7 +206,7 @@ class PSubsetStructSettable(val pt: PSubsetStruct, val a: Settable[Long]) extend
   }
 }
 
-// TODO: I don't think we have this, because we don't allow construction
+// TODO: We don't allow construction, so what do we do here for store?
 class PSubsetStructCode(val pt: PSubsetStruct, val a: Code[Long]) extends PBaseStructCode {
   def code: Code[_] = a
 

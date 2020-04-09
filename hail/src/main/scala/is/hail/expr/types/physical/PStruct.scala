@@ -33,7 +33,7 @@ trait PStruct extends PBaseStruct {
 
   def typeAfterSelect(keep: IndexedSeq[Int]): PStruct
 
-  protected val structFundamentalType: PStruct
+  val structFundamentalType: PStruct
   override lazy val fundamentalType: PStruct = structFundamentalType
 
   def loadField(offset: Code[Long], fieldName: String): Code[Long]
