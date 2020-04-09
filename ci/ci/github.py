@@ -459,10 +459,10 @@ mkdir -p {shq(repo_dir)}
             self.set_build_state(None)
         elif min_batch_status['complete']:
             if min_batch_status['state'] == 'success':
-                self.set_build_state = 'success'
+                self.set_build_state('success')
                 self.source_sha_failed = False
             else:
-                self.set_build_state = 'failure'
+                self.set_build_state('failure')
                 self.source_sha_failed = True
             self.target_branch.state_changed = True
 
