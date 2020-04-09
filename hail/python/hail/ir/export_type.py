@@ -5,10 +5,7 @@ class ExportType:
     PARALLEL_SEPARATE_HEADER = "separate_header"
     PARALLEL_HEADER_IN_SHARD = "header_per_shard"
 
-    checker = enumeration(
-        ExportType.CONCATENATED,
-        ExportType.PARALLEL_SEPARATE_HEADER,
-        ExportType.PARALLEL_HEADER_IN_SHARD)
+    checker = enumeration("concatenated", "separate_header", "header_per_shard")
 
     @staticmethod
     def default(export_type):
