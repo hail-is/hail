@@ -1106,7 +1106,7 @@ private class Emit[C](
       case x@SelectFields(oldStruct, fields) =>
         val old = emit(oldStruct)
         val oldv = mb.genFieldThisRef[Long]()
-        println(s"GOT SELECTFIELDS X IS ${x.pType}")
+
         EmitCode(
           old.setup,
           old.m,
