@@ -1312,7 +1312,7 @@ private class Emit[C](
           Code.foreach(0 until nDims) { index =>
             shapeTuple.isFieldMissing(index).mux[Unit](
               Code._fatal[Unit](s"shape missing at index $index"),
-              shapeVariables(index) := oldShapeTuple(index))
+              shapeVariables(index) := shapeTuple(index))
           },
           xP.construct(shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb))
         EmitCode(setup, datat.m || shapet.m, PCode(pt, result))
