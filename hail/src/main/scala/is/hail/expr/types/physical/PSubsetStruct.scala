@@ -79,9 +79,7 @@ final case class PSubsetStruct(ps: PStruct, fields: IndexedSeq[PField]) extends 
   override def rename(m: Map[String, String]): PStruct = ???
 
   // TODO: what are the semantics of this? I think most straightforward is concatenating a 2nd view of the same
-  // PStruct
-  // that already exists in this backing PStruct, rather than modify the backing PStruct
-  // Else it's not really a view
+  // PStruct, rather than modify the backing PStruct (else we're combining views of different PStructs
   override def ++(that: PStruct): PSubsetStruct = {
     assert(that.isInstanceOf[PSubsetStruct])
     val thatSubset = that.asInstanceOf[PSubsetStruct]
@@ -89,7 +87,7 @@ final case class PSubsetStruct(ps: PStruct, fields: IndexedSeq[PField]) extends 
     val overlapping = fields.map(_.name).toSet.intersect(
       that.fields.map(_.name).toSet)
     if (overlapping.nonEmpty)
-      fatal(s"overlapping fields in struct concatenation: ${overlapping.mkString(", ")}")
+      fatal(s"overlapping fields in PSubsetStruct concatenation: ${overlapping.mkString(", ")}")
 
     PSubsetStruct(ps, fields ++ that.fields)
   }
@@ -155,6 +153,7 @@ final case class PSubsetStruct(ps: PStruct, fields: IndexedSeq[PField]) extends 
 
   // FIXME: goal is to ensure isn't constructed
   // byteSize, alignment needed in InferPType...
+  // FIXME: the correct answer here depends on our structFundamentalType decision
   override val byteSize = ps.byteSize
   override val alignment = ps.alignment
 
