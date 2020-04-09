@@ -51,7 +51,7 @@ Otherwise, we welcome you to add additional examples by [editing this page direc
 
 * Collaborative, Epi25, et al. "Ultra-rare genetic variation in the epilepsies: a whole-exome sequencing study of 17,606 individuals." *American Journal of Human Genetics* (2019): <https://www.cell.com/ajhg/fulltext/S0002-9297(19)30207-1>
 
-* Karczewski, Konrad J., et al. "Variation across 141,456 human exomes and genomes reveals the spectrum of loss-of-function intolerance across human protein-coding genes." *bioRxiv* (2019): 531210. <https://www.biorxiv.org/content/10.1101/531210v2.abstract>
+* Karczewski, Konrad J., et al. "The mutational constraint spectrum quantified from variation in 141,456 humans." *bioRxiv* (2019): 531210. <https://www.biorxiv.org/content/10.1101/531210v4>
 
 * Whiffin, Nicola, et al. "Human loss-of-function variants suggest that partial LRRK2 inhibition is a safe therapeutic strategy for Parkinsons disease." *bioRxiv*() (2019): 561472. <https://www.biorxiv.org/content/10.1101/561472v1>
 
