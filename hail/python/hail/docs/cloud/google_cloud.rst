@@ -57,3 +57,27 @@ Importantly, to shut down a cluster when done with it, use:
 .. code-block:: text
 
     hailctl dataproc stop CLUSTER_NAME
+
+Requester Pays
+--------------
+
+Some google cloud buckets are `Requester Pays <https://cloud.google.com/storage/docs/requester-pays>`_, meaning 
+that accessing them will incur charges on the requester. Google breaks down the charges in the linked document,
+but the most important class of charges to be aware of are `Network Charges <https://cloud.google.com/storage/pricing#network-pricing>`_.
+Specifically, the egress charges. You should always be careful reading data from a bucket in a different region
+then your own project, as it is easy to rack up a large bill. For this reason, you must specifically enable 
+requester pays on your `hailctl dataproc` cluster if you'd like to use it.
+
+To allow your cluster to read from any requester pays bucket, use:
+
+.. code-block:: text
+
+    hailctl dataproc start CLUSTER_NAME --requester-pays-allow-all
+
+To make it easier to avoid accidentally reading from a requester pays bucket, we also have
+``--requester-pays-allow-buckets``. If you'd like to enable only reading from buckets named
+``hail-bucket`` and ``big-data``, you can specify the following:
+
+.. code-block:: text
+
+    hailctl dataproc start  my-cluster --requester-pays-allow-buckets hail-bucket,big-data
