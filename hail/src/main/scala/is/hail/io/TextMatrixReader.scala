@@ -203,6 +203,7 @@ case class TextMatrixReader(
   comment: Array[String]
 ) extends MatrixHybridReader {
   import TextMatrixReader._
+  def pathsUsed: Seq[String] = paths
   private[this] val hc = HailContext.get
   private[this] val sc = hc.sc
   private[this] val fs = hc.fs

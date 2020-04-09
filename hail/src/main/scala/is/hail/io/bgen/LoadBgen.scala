@@ -341,6 +341,8 @@ case class MatrixBGENReader(
   nPartitions: Option[Int],
   blockSizeInMB: Option[Int],
   includedVariants: Option[TableIR]) extends MatrixHybridReader {
+  def pathsUsed: Seq[String] = files
+
   private val hc = HailContext.get
   private val sc = hc.sc
   private val fs = hc.fs

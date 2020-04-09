@@ -13,6 +13,7 @@ object TableWriter {
 }
 
 abstract class TableWriter {
+  def path: String
   def apply(mv: TableValue): Unit
 }
 

@@ -89,6 +89,9 @@ class PruneSuite extends HailSuite {
     false).execute(ctx), ctx)
 
   lazy val tr = TableRead(tab.typ, false, new TableReader {
+
+    def pathsUsed: Seq[String] = FastSeq()
+
     def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???
 
     def partitionCounts: Option[IndexedSeq[Long]] = ???
@@ -109,6 +112,8 @@ class PruneSuite extends HailSuite {
     FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3)))))
 
   val mr = MatrixRead(mat.typ, false, false, new MatrixReader {
+    def pathsUsed: Seq[String] = FastSeq()
+
     override def columnCount: Option[Int] = None
 
     def partitionCounts: Option[IndexedSeq[Long]] = None

@@ -340,6 +340,8 @@ object TextTableReader {
 }
 
 case class TextTableReader(options: TextTableReaderOptions) extends TableReader {
+  def pathsUsed: Seq[String] = options.files
+
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
   private lazy val metadata = TextTableReader.readMetadata(options)

@@ -114,6 +114,8 @@ case class MatrixGENReader(
   contigRecoding: Map[String, String],
   skipInvalidLoci: Boolean) extends MatrixHybridReader {
 
+  def pathsUsed: Seq[String] = files
+
   files.foreach { input =>
     if (!HailContext.get.fs.stripCodecExtension(input).endsWith(".gen"))
       fatal(s"gen inputs must end in .gen[.bgz], found $input")

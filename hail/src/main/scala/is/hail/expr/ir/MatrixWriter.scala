@@ -21,10 +21,12 @@ case class WrappedMatrixWriter(writer: MatrixWriter,
   colsFieldName: String,
   entriesFieldName: String,
   colKey: IndexedSeq[String]) extends TableWriter {
+  def path: String = writer.path
   def apply(tv: TableValue): Unit = writer(tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
 }
 
 abstract class MatrixWriter {
+  def path: String
   def apply(mv: MatrixValue): Unit
 }
 
