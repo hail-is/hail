@@ -399,11 +399,10 @@ private class Emit[C](
         def estimatedSize: Int = ir.size * opSize
 
         def emit(mb: EmitMethodBuilder[C]): Code[Unit] = {
-          val (setup, _) = EmitCodeBuilder.scoped(mb) { cb =>
+          EmitCodeBuilder.scopedVoid(mb) { cb =>
             // wrapped methods can't contain uses of Recur
             emitSelf.emitVoid(cb, ir, mb, env, container)
           }
-          setup
         }
       }
     }
@@ -630,7 +629,7 @@ private class Emit[C](
     // ideally, emit would not be called with void values, but initOp args can be void
     // working towards removing this
     if (pt == PVoid)
-      return new EmitCode(emitVoid(ir), const(false), PCode(pt, Code._empty))
+      return new EmitCode(emitVoid(ir), const(false), PCode._empty)
 
     (ir: @unchecked) match {
       case I32(x) =>

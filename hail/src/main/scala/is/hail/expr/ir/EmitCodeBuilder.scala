@@ -25,7 +25,7 @@ object EmitCodeBuilder {
   }
 }
 
-class EmitCodeBuilder(emb: EmitMethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
+class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
   def isOpenEnded: Boolean = {
     val last = code.end.last
     (last == null) || !last.isInstanceOf[is.hail.lir.ControlX]
