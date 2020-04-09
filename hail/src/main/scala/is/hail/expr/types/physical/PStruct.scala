@@ -4,7 +4,6 @@ import is.hail.annotations._
 import is.hail.asm4s.Code
 import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
 import is.hail.expr.types.virtual.{Field, TStruct}
-import org.apache.spark.sql.Row
 
 trait PStruct extends PBaseStruct {
   lazy val virtualType: TStruct = TStruct(fields.map(f => Field(f.name, f.typ.virtualType, f.index)))
