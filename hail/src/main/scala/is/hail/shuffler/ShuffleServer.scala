@@ -62,7 +62,7 @@ class Handler (
   }
 
   def readShuffleUUID(): Shuffle = {
-    val uuid = in.readUTF()
+    val uuid = Wire.readByteArray(in)
     val shuffle = server.shuffles.get(uuid)
     if (shuffle == null) {
       throw new RuntimeException(s"shuffle does not exist $uuid")
@@ -167,7 +167,7 @@ class ShuffleServer (
 ) {
   val log = Logger.getLogger(this.getClass.getName());
 
-  val shuffles = new ConcurrentSkipListMap[Array[Byte], Shuffle]()
+  val shuffles = new ConcurrentSkipListMap[Array[Byte], Shuffle](new SameLengthByteArrayComparator())
 
   val ssf = ssl.getServerSocketFactory()
   val ss = ssf.createServerSocket(port)
