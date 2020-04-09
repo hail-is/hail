@@ -8,7 +8,7 @@ class ExportType:
     checker = enumeration(
         ExportType.CONCATENATED,
         ExportType.PARALLEL_SEPARATE_HEADER,
-        ExporType.PARALLEL_HEADER_IN_SHARD)
+        ExportType.PARALLEL_HEADER_IN_SHARD)
 
     @staticmethod
     def default(export_type):
