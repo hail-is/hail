@@ -101,7 +101,7 @@ class LSM (
   def keyDec(in: InputStream) = {
     val dec = codecs.makeKeyDec(in)
 
-    () => dec.readRegionValue(rootRegion)
+    () => dec.readRegionValue(region)
   }
   def keyEnc(out: OutputStream) = {
     val enc = codecs.makeKeyEnc(out)
@@ -115,7 +115,7 @@ class LSM (
   def dec(in: InputStream) = {
     val dec = codecs.makeDec(in)
 
-    () => dec.readRegionValue(rootRegion)
+    () => dec.readRegionValue(region)
   }
   def enc(out: OutputStream) = {
     val enc = codecs.makeEnc(out)
