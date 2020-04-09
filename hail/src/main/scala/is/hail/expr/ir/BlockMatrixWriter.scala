@@ -17,6 +17,7 @@ object BlockMatrixWriter {
 
 
 abstract class BlockMatrixWriter {
+  def pathOpt: Option[String]
   def apply(hc: HailContext, bm: BlockMatrix): Unit
 }
 
@@ -25,17 +26,20 @@ case class BlockMatrixNativeWriter(
   overwrite: Boolean,
   forceRowMajor: Boolean,
   stageLocally: Boolean) extends BlockMatrixWriter {
+  def pathOpt: Option[String] = Some(path)
 
   def apply(hc: HailContext, bm: BlockMatrix): Unit = bm.write(hc.fs, path, overwrite, forceRowMajor, stageLocally)
 }
 
 case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
+  def pathOpt: Option[String] = Some(path)
   def apply(hc: HailContext, bm: BlockMatrix): Unit = {
     RichDenseMatrixDouble.exportToDoubles(hc.fs, path, bm.toBreezeMatrix(), forceRowMajor = true)
   }
 }
 
 case class BlockMatrixPersistWriter(id: String, storageLevel: String) extends BlockMatrixWriter {
+  def pathOpt: Option[String] = None
   def apply(hc: HailContext, bm: BlockMatrix): Unit =
     HailContext.sparkBackend().bmCache.persistBlockMatrix(id, bm, storageLevel)
 }
@@ -45,6 +49,8 @@ case class BlockMatrixRectanglesWriter(
   rectangles: Array[Array[Long]],
   delimiter: String,
   binary: Boolean) extends BlockMatrixWriter {
+
+  def pathOpt: Option[String] = Some(path)
 
   def apply(hc: HailContext, bm: BlockMatrix): Unit = {
     bm.exportRectangles(hc, path, rectangles, delimiter, binary)

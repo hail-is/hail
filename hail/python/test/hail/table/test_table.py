@@ -1250,6 +1250,15 @@ class Tests(unittest.TestCase):
         assert ht.naive_coalesce(4)._same(ht)
         assert ht.repartition(3, shuffle=False)._same(ht)
 
+    def test_path_collision_error(self):
+        path = new_temp_file(suffix='ht')
+        ht = hl.utils.range_table(10)
+        ht.write(path)
+        ht = hl.read_table(path)
+        with pytest.raises(hl.utils.FatalError) as exc:
+            ht.write(path)
+        assert "both an input and output source" in str(exc.value)
+
 def test_large_number_of_fields(tmpdir):
     ht = hl.utils.range_table(100)
     ht = ht.annotate(**{

@@ -1460,6 +1460,8 @@ case class MatrixVCFReader(
   filterAndReplace: TextInputFilterAndReplace,
   partitionsJSON: String) extends MatrixHybridReader {
 
+  def pathsUsed: Seq[String] = files
+
   private val hc = HailContext.get
   private val sc = hc.sc
   private val fs = hc.fs

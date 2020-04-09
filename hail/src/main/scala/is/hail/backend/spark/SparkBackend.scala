@@ -7,7 +7,7 @@ import is.hail.expr.types.encoded.EType
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.HailContext
 import is.hail.annotations.{Region, SafeRow}
-import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.{JSONAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir._
 import is.hail.expr.types.physical.{PTuple, PType}
@@ -287,6 +287,7 @@ class SparkBackend(val sc: SparkContext) extends Backend {
 
   private[this] def _execute(ctx: ExecuteContext, ir: IR, optimize: Boolean): (Either[Unit, (PTuple, Long)], ExecutionTimer) = {
     TypeCheck(ir)
+    Validate(ir)
     try {
       val lowerTable = HailContext.get.flags.get("lower") != null
       val lowerBM = HailContext.get.flags.get("lower_bm") != null

@@ -36,10 +36,10 @@ class PCanonicalCallSettable(val pt: PCanonicalCall, call: Settable[Int]) extend
   def isPhased(): Code[Boolean] = get.isPhased()
 
   def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit): Unit = {
-    val call2 = cb.memoize[Int](call >>> 3, "fea_call2")
-    val p = cb.memoize[Int](ploidy(), "fea_ploidy")
-    val j = cb.localBuilder.newSettable[Int]("fea_j")
-    val k = cb.localBuilder.newSettable[Int]("fea_k")
+    val call2 = cb.newLocal[Int]("fea_call2", call >>> 3)
+    val p = cb.newLocal[Int]("fea_ploidy", ploidy())
+    val j = cb.newLocal[Int]("fea_j")
+    val k = cb.newLocal[Int]("fea_k")
 
     cb.ifx(p.ceq(2), {
       cb.ifx(call2 < Genotype.nCachedAllelePairs, {

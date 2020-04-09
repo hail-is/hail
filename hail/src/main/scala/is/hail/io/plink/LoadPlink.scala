@@ -132,6 +132,9 @@ case class MatrixPLINKReader(
   contigRecoding: Map[String, String] = Map.empty[String, String],
   skipInvalidLoci: Boolean = false
 ) extends MatrixHybridReader {
+
+  def pathsUsed: Seq[String] = FastSeq(bed, bim, fam)
+
   private val hc = HailContext.get
   private val sc = hc.sc
   private val referenceGenome = rg.map(ReferenceGenome.getReference)
