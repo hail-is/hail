@@ -171,7 +171,7 @@ final case class PSubsetStruct(ps: PStruct, fields: IndexedSeq[PField]) extends 
   override def allocate(region: Code[Region]): Code[Long] = ???
 
   // This would mean changing the requiredeness of the backing PStruct, since requiredeness in the view
-  // is derived from the backign PStruct
+  // is derived from the backing PStruct
   override def setRequired(required: Boolean): PType = ???
 
   override def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = ???
