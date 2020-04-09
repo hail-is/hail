@@ -11,7 +11,7 @@ from hail.expr.nat import NatBase, NatLiteral
 from hail.expr.type_parsing import type_grammar, type_node_visitor
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import *
-from hail.utils.java import scala_object, jset, Env, escape_parsable
+from hail.utils.java import escape_parsable
 
 __all__ = [
     'dtype',

@@ -1,7 +1,7 @@
 import json
 
 from hail.typecheck import *
-from hail.utils.java import Env, joption, FatalError, jindexed_seq_args, jset_args
+from hail.utils.java import Env, FatalError, jindexed_seq_args
 from hail.utils import wrap_to_list
 from hail.utils.misc import plural
 from hail.matrixtable import MatrixTable
@@ -166,7 +166,7 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
            gp=nullable(expr_array(expr_float64)),
            varid=nullable(expr_str),
            rsid=nullable(expr_str),
-           parallel=nullable(str))
+           parallel=nullable(ExportType.checker))
 def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
     """Export MatrixTable as :class:`.MatrixTable` as BGEN 1.2 file with 8
     bits of per probability.  Also writes SAMPLE file.
@@ -216,6 +216,8 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
         if 'rsid' in mt.row and mt.rsid.dtype == tstr:
             rsid = mt.rsid
 
+    parallel = ExportType.default(parallel)
+
     l = mt.locus
     a = mt.alleles
     gen_exprs = {'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
@@ -232,7 +234,7 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
 
     Env.backend().execute(MatrixWrite(mt._mir, MatrixBGENWriter(
         output,
-        Env.hail().utils.ExportType.getExportType(parallel))))
+        parallel)))
 
 
 @typecheck(dataset=MatrixTable,
@@ -380,7 +382,7 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
 @typecheck(dataset=MatrixTable,
            output=str,
            append_to_header=nullable(str),
-           parallel=nullable(enumeration('separate_header', 'header_per_shard')),
+           parallel=nullable(ExportType.checker),
            metadata=nullable(dictof(str, dictof(str, dictof(str, str)))))
 def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=None):
     """Export a :class:`.MatrixTable` as a VCF file.
@@ -507,9 +509,11 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         hl.utils.java.warn('export_vcf: ignored the following fields:' + ignored_str)
         dataset = dataset.drop(*(f for f, _ in fields_dropped))
 
+    parallel = ExportType.default(parallel)
+
     writer = MatrixVCFWriter(output,
                              append_to_header,
-                             Env.hail().utils.ExportType.getExportType(parallel),
+                             parallel,
                              metadata)
     Env.backend().execute(MatrixWrite(dataset._mir, writer))
 

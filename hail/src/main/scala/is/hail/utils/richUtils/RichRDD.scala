@@ -28,7 +28,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     Iterator(it.exists(p))
   }.fold(false)(_ || _)
 
-  def writeTable(fs: FS, filename: String, tmpDir: String, header: Option[String] = None, exportType: Int = ExportType.CONCATENATED) {
+  def writeTable(fs: FS, filename: String, tmpDir: String, header: Option[String] = None, exportType: String = ExportType.CONCATENATED) {
     val hConf = r.sparkContext.hadoopConfiguration
     val codecFactory = new CompressionCodecFactory(hConf)
     val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(filename)))
