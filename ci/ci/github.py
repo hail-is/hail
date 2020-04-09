@@ -441,7 +441,7 @@ mkdir -p {shq(repo_dir)}
         min_batch = None
         min_batch_status = None
         async for b in batches:
-            if self.is_invalidated_batch(b, dbpool):
+            if await self.is_invalidated_batch(b, dbpool):
                 continue
             try:
                 s = await b.status()
