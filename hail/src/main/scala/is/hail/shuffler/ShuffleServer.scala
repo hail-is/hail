@@ -29,7 +29,7 @@ class Handler (
   private[this] val server: ShuffleServer,
   private[this] val socket: Socket
 ) extends Runnable {
-  private[this] val log = Logger.getLogger(this.getClass.getName());
+  private[this] val log = Logger.getLogger(getClass.getName())
   private[this] val in = new DataInputStream(socket.getInputStream)
   private[this] val out = new DataOutputStream(socket.getOutputStream)
   private[this] val random = new SecureRandom();
@@ -86,48 +86,14 @@ class Handler (
   def put(): Unit = {
     log.info(s"SERV put")
     val shuffle = readShuffleUUID()
-    val decoder = shuffle.codecs.makeDec(in)
-    val region = shuffle.region()
-    var hasNext = in.read()
-    assert(hasNext != -1)
-    while (hasNext == 1) {
-      val off = decoder.readRegionValue(region)
-      val koff = shuffle.codecs.keyPType.copyFromAddress(region, shuffle.codecs.pType, off, false)
-      shuffle.store.store.put(koff, off)
-      hasNext = in.read()
-    }
-    out.write(0)
-    out.flush()
+    shuffle.put(in, out)
     log.info(s"SERV put done")
   }
 
   def get(): Unit = {
     log.info(s"SERV get")
-    val shuffle = readShuffleUUID
-    val region = shuffle.region()
-    val keyDecoder = shuffle.codecs.makeKeyDec(in)
-    val encoder = shuffle.codecs.makeEnc(out)
-    val l = keyDecoder.readRegionValue(region)
-    val r = keyDecoder.readRegionValue(region)
-
-    log.info(s"SERV get l ${rvstr(shuffle.codecs.keyPType, l)} r ${rvstr(shuffle.codecs.keyPType, r)}")
-    val it = shuffle.store.store.iterator(l, true)
-    var continue = it.hasNext
-    while (continue) {
-      val kv = it.next
-      val k = kv.getKey
-      val v = kv.getValue
-      if (shuffle.store.ord.lt(k, r)) {
-        encoder.writeByte(1)
-        encoder.writeRegionValue(v)
-        encoder.flush()
-        continue = it.hasNext
-      } else {
-        continue = false
-      }
-    }
-    encoder.writeByte(0)
-    out.flush()
+    val shuffle = readShuffleUUID()
+    shuffle.get(in, out)
     log.info(s"SERV get done")
   }
 }
@@ -138,20 +104,62 @@ class Shuffle (
   codecSpec: TypedCodecSpec,
   key: Array[String]
 ) extends AutoCloseable {
+  private[this] val log = Logger.getLogger(getClass.getName());
   private[this] val b64uuid = Base64.getEncoder().encode(uuid)
-
-  val codecs = new KeyedCodecSpec(t, codecSpec, key)
-  val store = new LSM(s"/tmp/${b64uuid}", codecs)
+  private[this] val codecs = new KeyedCodecSpec(t, codecSpec, key)
+  private[this] val store = new LSM(s"/tmp/${b64uuid}", codecs)
 
   private[this] val rootRegion = Region()
 
-  def region(): Region = {
+  private[this] def makeRegion(): Region = {
     val region = Region()
     rootRegion.addReferenceTo(region)
     region
   }
 
   def close(): Unit = rootRegion.close()
+
+  def put(in: DataInputStream, out: DataOutputStream) {
+    val decoder = codecs.makeDec(in)
+    val region = makeRegion()
+    var hasNext = in.read()
+    assert(hasNext != -1)
+    while (hasNext == 1) {
+      val off = decoder.readRegionValue(region)
+      val koff = codecs.keyPType.copyFromAddress(region, codecs.pType, off, false)
+      store.store.put(koff, off)
+      hasNext = in.read()
+    }
+    out.write(0)
+    out.flush()
+  }
+
+  def get(in: DataInputStream, out: DataOutputStream) {
+    val region = makeRegion()
+    val keyDecoder = codecs.makeKeyDec(in)
+    val encoder = codecs.makeEnc(out)
+    val l = keyDecoder.readRegionValue(region)
+    val r = keyDecoder.readRegionValue(region)
+
+    log.info(s"SERV get l ${rvstr(codecs.keyPType, l)} r ${rvstr(codecs.keyPType, r)}")
+    val it = store.store.iterator(l, true)
+    var continue = it.hasNext
+    while (continue) {
+      val kv = it.next
+      val k = kv.getKey
+      val v = kv.getValue
+      if (store.ord.lt(k, r)) {
+        encoder.writeByte(1)
+        encoder.writeRegionValue(v)
+        encoder.flush()
+        continue = it.hasNext
+      } else {
+        continue = false
+      }
+    }
+    encoder.writeByte(0)
+    out.flush()
+  }
 }
 
 class ShuffleServer (
