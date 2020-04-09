@@ -193,26 +193,42 @@ object CodeStream { self =>
       CodeStream.flatMap(map(f))
   }
 
-  def range(mb: EmitMethodBuilder[_], start: Code[Int], step: Code[Int], len: Code[Int]): Stream[Code[Int]] = {
+  def iota(mb: EmitMethodBuilder[_], start: Code[Int], step: Code[Int]): Stream[Code[Int]] = {
     val lstep = mb.newLocal[Int]("sr_lstep")
     val cur = mb.newLocal[Int]("sr_cur")
-    val t = mb.newLocal[Int]("sr_t")
-    val rem = mb.newLocal[Int]("sr_rem")
 
     unfold[Code[Int]](
       init0 = Code._empty,
-      init = Code(lstep := step, cur := start, rem := len),
+      init = Code(lstep := step, cur := start - lstep),
       f = {
         case (_ctx, k) =>
           implicit val ctx = _ctx
-          k(COption(rem <= 0,
-            Code(
-              t := cur,
-              rem := rem - 1,
-              cur := cur + lstep,
-              t)))
+          Code(cur := cur + lstep, k(COption.present(cur)))
       })
   }
+
+  def iotaL(mb: EmitMethodBuilder[_], start: Code[Long], step: Code[Int]): Stream[Code[Long]] = {
+    val lstep = mb.newLocal[Int]("sr_lstep")
+    val cur = mb.newLocal[Long]("sr_cur")
+
+    unfold[Code[Long]](
+      init0 = Code._empty,
+      init = Code(lstep := step, cur := start - lstep.toL),
+      f = {
+        case (_ctx, k) =>
+          implicit val ctx = _ctx
+          Code(cur := cur + lstep.toL, k(COption.present(cur)))
+      })
+  }
+
+  def range(mb: EmitMethodBuilder[_], start: Code[Int], step: Code[Int], len: Code[Int]): Stream[Code[Int]] =
+    CodeStream.take(
+      CodeStream.zip(
+        iota(mb, start, step),
+        iota(mb, len, -1))
+      .map[COption[Code[Int]]] { case (cur, rem) =>
+        COption(rem <= 0, cur)
+      })
 
   def unfold[A](
     init0: Code[Unit],
@@ -705,6 +721,21 @@ object EmitStream {
             )
 
             SizedStream.unsized(stream)
+          }
+
+        case StreamTake(a, num) =>
+          val optStream = emitStream(a, env)
+          val optN = COption.fromEmitCode(emitIR(num))
+          val xN = mb.newLocal[Int]("st_n")
+          optStream.flatMap { case SizedStream(setup, stream, len) =>
+            optN.map { n =>
+              val newStream = CodeStream.zip(stream, range(mb, 0, 1, xN))
+                .map({ case (elt, count) => elt })
+              SizedStream(
+                Code(setup, xN := n.tcode[Int], (xN < 0).orEmpty(Code._fatal[Unit](const("StreamTake: negative length")))),
+                newStream,
+                len.map(_.min(xN)))
+            }
           }
 
         case StreamMap(childIR, name, bodyIR) =>

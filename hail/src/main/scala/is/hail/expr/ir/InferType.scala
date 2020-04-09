@@ -97,6 +97,8 @@ object InferType {
       case GroupByKey(collection) =>
         val elt = coerce[TBaseStruct](coerce[TStream](collection.typ).elementType)
         TDict(elt.types(0), TArray(elt.types(1)))
+      case StreamTake(a, _) =>
+        a.typ
       case StreamMap(a, name, body) =>
         TStream(body.typ)
       case StreamZip(as, _, body, _) =>

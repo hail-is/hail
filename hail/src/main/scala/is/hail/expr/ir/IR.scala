@@ -206,6 +206,8 @@ final case class StreamMap(a: IR, name: String, body: IR) extends IR {
   def elementTyp: Type = typ.elementType
 }
 
+final case class StreamTake(a: IR, num: IR) extends IR
+
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value
   val AssumeSameLength: Value = Value(0)

@@ -937,6 +937,9 @@ object PruneDeadFields {
         )
       case ArrayLen(a) =>
         memoizeValueIR(a, minimal(a.typ), memo)
+      case StreamTake(a, len) =>
+        memoizeValueIR(a, requestedType, memo)
+        memoizeValueIR(len, len.typ, memo)
       case StreamMap(a, name, body) =>
         val aType = a.typ.asInstanceOf[TStream]
         val bodyEnv = memoizeValueIR(body,

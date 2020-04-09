@@ -1741,6 +1741,18 @@ class IRSuite extends HailSuite {
     assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, NA(TInt32), onKey = true), 2)
   }
 
+  @Test def testStreamTake() {
+    val naa = NA(TStream(TInt32))
+    val a = MakeStream(Seq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
+
+    assertEvalsTo(ToArray(StreamTake(naa, I32(2))), null)
+    assertEvalsTo(ToArray(StreamTake(a, NA(TInt32))), null)
+    assertEvalsTo(ToArray(StreamTake(a, I32(0))), FastIndexedSeq())
+    assertEvalsTo(ToArray(StreamTake(a, I32(2))), FastIndexedSeq(3, null))
+    assertEvalsTo(ToArray(StreamTake(a, I32(5))), FastIndexedSeq(3, null, 7))
+    assertFatal(ToArray(StreamTake(a, I32(-1))), "StreamTake: negative length")
+  }
+
   @Test def testStreamMap() {
     val naa = NA(TStream(TInt32))
     val a = MakeStream(Seq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
@@ -2592,6 +2604,7 @@ class IRSuite extends HailSuite {
       ToStream(a),
       LowerBoundOnOrderedCollection(a, i, onKey = true),
       GroupByKey(da),
+      StreamTake(st, I32(10)),
       StreamMap(st, "v", v),
       StreamZip(FastIndexedSeq(st, st), FastIndexedSeq("foo", "bar"), True(), ArrayZipBehavior.TakeMinLength),
       StreamFilter(st, "v", b),

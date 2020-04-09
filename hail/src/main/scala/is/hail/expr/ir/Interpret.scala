@@ -342,7 +342,16 @@ object Interpret {
         interpret(collection, env, args).asInstanceOf[IndexedSeq[Row]]
           .groupBy { case Row(k, _) => k }
           .mapValues { elt: IndexedSeq[Row] => elt.map { case Row(_, v) => v } }
-
+      case StreamTake(a, len) =>
+        val aValue = interpret(a, env, args)
+        val lenValue = interpret(len, env, args)
+        if (aValue == null || lenValue == null)
+          null
+        else {
+          val len = lenValue.asInstanceOf[Int]
+          if (len < 0) fatal("StreamTake: negative length")
+          aValue.asInstanceOf[IndexedSeq[Any]].take(len)
+        }
       case StreamMap(a, name, body) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
