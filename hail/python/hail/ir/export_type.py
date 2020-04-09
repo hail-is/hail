@@ -1,11 +1,14 @@
 from hail.typecheck import *
 
 class ExportType:
-    checker = enumeration('separate_header', 'header_per_shard')
-
     CONCATENATED = "concatenated"
     PARALLEL_SEPARATE_HEADER = "separate_header"
     PARALLEL_HEADER_IN_SHARD = "header_per_shard"
+
+    checker = enumeration(
+        ExportType.CONCATENATED,
+        ExportType.PARALLEL_SEPARATE_HEADER,
+        ExporType.PARALLEL_HEADER_IN_SHARD)
 
     @staticmethod
     def default(export_type):
