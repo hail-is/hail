@@ -107,9 +107,8 @@ class Shuffle (
   private[this] val log = Logger.getLogger(getClass.getName());
   private[this] val b64uuid = Base64.getEncoder().encode(uuid)
   private[this] val codecs = new KeyedCodecSpec(t, codecSpec, key)
-  private[this] val store = new LSM(s"/tmp/${b64uuid}", codecs)
-
   private[this] val rootRegion = Region()
+  private[this] val store = new LSM(s"/tmp/${b64uuid}", codecs, rootRegion)
 
   private[this] def makeRegion(): Region = {
     val region = Region()

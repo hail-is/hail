@@ -93,7 +93,8 @@ class RegionValueSerializer(
 
 class LSM (
   path: String,
-  codecs: KeyedCodecSpec
+  codecs: KeyedCodecSpec,
+  private[this] val region: Region
 ) {
   val ord: UnsafeOrdering = codecs.decodedKeyPType.unsafeOrdering
 
@@ -106,6 +107,7 @@ class LSM (
     val enc = codecs.makeKeyEnc(out)
 
     { (x: Long) =>
+      // FIXME: leaky regions here, maybe?
       enc.writeRegionValue(x)
       enc.flush()
     }
@@ -119,6 +121,7 @@ class LSM (
     val enc = codecs.makeEnc(out)
 
     { (x: Long) =>
+      // FIXME: leaky regions here, maybe?
       enc.writeRegionValue(x)
       enc.flush()
     }
