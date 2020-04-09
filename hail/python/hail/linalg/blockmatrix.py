@@ -18,6 +18,7 @@ from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, Ref, F
     RowIntervalSparsifier, BandSparsifier, UnpersistBlockMatrix
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader, BlockMatrixPersistReader
 from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter, BlockMatrixPersistWriter
+from hail.ir import ExportType
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
@@ -1667,7 +1668,7 @@ class BlockMatrix(object):
                delimiter=str,
                header=nullable(str),
                add_index=bool,
-               parallel=nullable(enumeration('separate_header', 'header_per_shard')),
+               parallel=nullable(ExportType.checker),
                partition_size=nullable(int),
                entries=enumeration('full', 'lower', 'strict_lower', 'upper', 'strict_upper'))
     def export(path_in, path_out, delimiter='\t', header=None, add_index=False, parallel=None,
@@ -1819,9 +1820,7 @@ class BlockMatrix(object):
         """
         jrm = Env.hail().linalg.RowMatrix.readBlockMatrix(Env.backend()._jhc, path_in, joption(partition_size))
 
-        if parallel is None:
-            parallel = 'concatenated'
-        export_type = parallel
+        export_type = ExportType.default(parallel)
 
         if entries == 'full':
             jrm.export(path_out, delimiter, joption(header), add_index, export_type)
