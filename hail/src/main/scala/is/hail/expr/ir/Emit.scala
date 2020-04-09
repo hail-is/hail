@@ -6,6 +6,7 @@ import is.hail.annotations._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.asm4s._
 import is.hail.backend.HailTaskContext
+import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -442,8 +443,7 @@ private class Emit[C](
 
         cb += streamOpt.cases(mb)(
           Code._empty,
-          stream =>
-            stream.stream.forEach(mb)(forBody))
+          _.getStream.forEach(mb)(forBody))
 
       case x@InitOp(i, args, _, op) =>
         val AggContainer(aggs, sc) = container.get
@@ -992,7 +992,7 @@ private class Emit[C](
         val accType = ir.pType
 
         val streamOpt = emitStream(a)
-        val resOpt: COption[PCode] = streamOpt.flatMapCPS { (stream, _ctx, ret) =>
+        val resOpt: COption[PCode] = streamOpt.flatMapCPS { (ss, _ctx, ret) =>
           implicit val c = _ctx
 
           val xAcc = mb.newEmitField(accumName, accType)
@@ -1012,8 +1012,8 @@ private class Emit[C](
           def retTT(): Code[Ctrl] =
             ret(COption.fromEmitCode(xAcc.get))
 
-          stream.stream
-                .fold(mb, xAcc := codeZ, foldBody, retTT())
+          ss.getStream
+            .fold(mb, xAcc := codeZ, foldBody, retTT())
         }
 
         COption.toEmitCode(resOpt, accType, mb)
@@ -1033,7 +1033,7 @@ private class Emit[C](
         val typedCodeSeq = seq.map(ir => emit(ir, env = seqEnv))
 
         val streamOpt = emitStream(a)
-         val resOpt = streamOpt.flatMapCPS[PCode] { (stream, _ctx, ret) =>
+         val resOpt = streamOpt.flatMapCPS[PCode] { (ss, _ctx, ret) =>
           implicit val c = _ctx
 
           def foldBody(elt: EmitCode): Code[Unit] =
@@ -1046,7 +1046,7 @@ private class Emit[C](
           def computeRes(): Code[Ctrl] =
               ret(COption.fromEmitCode(codeR))
 
-          stream.stream
+          ss.getStream
             .fold(mb, Code(accVars.zip(acc).map { case (v, (name, x)) =>
               v := emit(x).castTo(mb, region, v.pt)
             }),
@@ -1876,13 +1876,12 @@ private class Emit[C](
             srvb.offset)
         }
 
-        def addContexts(ctxStream: EmitStream.SizedStream): Code[Unit] =
+        def addContexts(ctxStream: SizedStream): Code[Unit] = ctxStream match {
+          case SizedStream(setup, stream, len) =>
           Code(
-            ctxStream.length match {
-              case None => ctxab.invoke[Int, Unit]("ensureCapacity", 16)
-              case Some((setupLen, len)) => Code(setupLen, ctxab.invoke[Int, Unit]("ensureCapacity", len))
-            },
-            ctxStream.stream.map(etToTuple(_, ctxType)).forEach(mb) { offset =>
+            setup,
+            ctxab.invoke[Int, Unit]("ensureCapacity", len.getOrElse(16)),
+            stream.map(etToTuple(_, ctxType)).forEach(mb) { offset =>
               Code(
                 baos.invoke[Unit]("reset"),
                 Code.memoize(offset, "cda_add_contexts_addr") { offset =>
@@ -1891,6 +1890,7 @@ private class Emit[C](
                 buf.invoke[Unit]("flush"),
                 ctxab.invoke[Array[Byte], Unit]("add", baos.invoke[Array[Byte]]("toByteArray")))
             })
+        }
 
         val addGlobals = Code(
           Code.memoize(etToTuple(globalsT, gType), "cda_g") { g =>
