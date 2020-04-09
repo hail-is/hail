@@ -540,7 +540,6 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
     ht = ht.transmute(**{entries_field_name: ht[entries_field_name][x_field_name]})
     just_before_grouping = ht
     # Now need to group everything
-    ht = just_before_grouping.checkpoint("just_before_grouping_chk.mt", overwrite=True)
     ht = ht._group_within_partitions(block_size)  # breaking point for show with filtering, idk why
     just_after_grouping = ht
 
