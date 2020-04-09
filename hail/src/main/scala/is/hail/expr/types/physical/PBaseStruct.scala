@@ -187,6 +187,8 @@ abstract class PBaseStruct extends PType {
 }
 
 abstract class PBaseStructValue extends PValue {
+  def apply[T](i: Int): Value[T]
+
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode
 
   def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadField(cb, pt.asInstanceOf[PBaseStruct].fieldIdx(fieldName))
@@ -196,11 +198,6 @@ abstract class PBaseStructCode extends PCode {
   def pt: PBaseStruct
 
   val a: Code[Long]
-
-  def apply[T](i: Int): Value[T] =
-    new Value[T] {
-      def get: Code[T] = coerce[T](Region.loadIRIntermediate(pt.types(i))(pt.loadField(a, i)))
-    }
 
   def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue
 

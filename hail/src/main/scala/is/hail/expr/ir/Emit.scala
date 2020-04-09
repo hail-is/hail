@@ -1302,6 +1302,12 @@ private class Emit[C](
             })
         }
 
+        val newResult = EmitCode.fromI(mb) { cb =>
+          val shapeValue = cb.memoize(shapet, "foo")
+
+          ???
+        }
+
         val setup = Code(
           shapet.setup,
           datat.setup,
@@ -1312,7 +1318,7 @@ private class Emit[C](
           Code.foreach(0 until nDims) { index =>
             shapeTuple.isFieldMissing(index).mux[Unit](
               Code._fatal[Unit](s"shape missing at index $index"),
-              shapeVariables(index) := shapeTuple(index))
+              shapeVariables(index) := oldShapeTuple(index))
           },
           xP.construct(shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb))
         EmitCode(setup, datat.m || shapet.m, PCode(pt, result))
