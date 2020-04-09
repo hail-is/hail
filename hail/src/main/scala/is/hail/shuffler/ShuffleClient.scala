@@ -4,18 +4,18 @@ import org.apache.log4j.Logger;
 import is.hail.shuffler.ShuffleUtils._
 import is.hail.utils._
 import is.hail.annotations._
-import is.hail.expr.types.physical.{ PStruct, PType }
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual.TStruct
 import is.hail.io.TypedCodecSpec
 import java.io._
 import java.net._
 import java.security.KeyStore;
 import java.util.UUID
-import java.util.concurrent.{ ConcurrentSkipListMap, Executors }
+import java.util.concurrent.{ConcurrentSkipListMap, Executors}
 import javax.net._
 import javax.net.ssl._
 import javax.security.cert.X509Certificate;
-import org.json4s.jackson.{ JsonMethods, Serialization }
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 class ShuffleClient (
   t: TStruct,

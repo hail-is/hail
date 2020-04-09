@@ -20,8 +20,7 @@ class ShuffleSuite extends TestNGSuite {
 
   @Test def testShuffle() {
     val port = 8080
-    val server = new ShuffleServer(
-      HailSSLContext(
+    val server = new ShuffleServer(sslContext(
       "src/test/resources/non-secret-key-and-trust-stores/server-keystore.p12",
       "hailhail",
       "src/test/resources/non-secret-key-and-trust-stores/server-truststore.p12",
@@ -37,7 +36,7 @@ class ShuffleSuite extends TestNGSuite {
         t,
         TypedCodecSpec(pt, BufferSpec.unblockedUncompressed),
         key,
-        HailSSLContext(
+        sslContext(
           "src/test/resources/non-secret-key-and-trust-stores/client-keystore.p12",
           "hailhail",
           "src/test/resources/non-secret-key-and-trust-stores/client-truststore.p12",
