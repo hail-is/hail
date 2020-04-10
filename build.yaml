@@ -90,6 +90,7 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
+     make python/hail/hail_pip_version
    outputs:
      - from: /io/repo/auth/sql
        to: /repo/auth/
@@ -105,6 +106,8 @@ steps:
        to: /repo/notebook/
      - from: /io/repo/hail/python/hailtop
        to: /repo/hailtop/
+     - from: /io/repo/hail/python/hail/hail_pip_version
+       to: hail_pip_version
    dependsOn:
      - base_image
  - kind: runImage
@@ -1478,3 +1481,54 @@ steps:
     - test_batch
     - test_ci
     - test_pipeline
+ - kind: buildImage
+   name: hail_public_image
+   dockerFile: docker/hail/Dockerfile
+   contextPath: docker/hail/
+   publishAs: hail_public
+   dependsOn:
+    - copy_files
+   inputs:
+     - from: hail_pip_version
+       to: hail_pip_version
+ - kind: buildImage
+   name: genetics_public_image
+   dockerFile: docker/genetics/Dockerfile
+   contextPath: docker/genetics/
+   publishAs: genetics
+   dependsOn:
+    - hail_public_image
+ - kind: runImage
+   name: push_to_docker_hub
+   image:
+     valueFrom: ci_utils_image.image
+   script: |
+     set -ex
+     gcloud auth activate-service-account --key-file=/secrets/test-gsa-key
+     gcloud auth configure-docker
+     cat /docker-hub-hailgenetics/password | docker login --username hailgenetics --password-stdin
+
+     docker pull {{ hail_public_image.name }}
+     docker tag {{ hail_public_image.name }} hailgenetics/hail:$(cat hail_pip_version)
+     docker push hailgenetics/hail:$(cat hail_pip_version)
+
+     docker pull {{ genetics_public_image.name }}
+     docker tag {{ genetics_public_image.name }} hailgenetics/genetics:$(cat hail_pip_version)
+     docker push hailgenetics/genetics:$(cat hail_pip_version)
+   dependsOn:
+    - ci_utils_image
+    - genetics_public_image
+    - hail_public_image
+    - copy_files
+   inputs:
+     - from: hail_pip_version
+       to: hail_pip_version
+   secrets:
+    - name: docker-hub-hailgenetics
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /docker-hub-hailgenetics
+    - name: test-gsa-key
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /test-gsa-key
