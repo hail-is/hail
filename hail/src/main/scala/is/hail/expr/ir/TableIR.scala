@@ -1653,7 +1653,8 @@ case class TableKeyByAndAggregate(
       serialize(aggRegion, initF.getAggOffset())
     }
 
-    val newRowType = (localKeyPType ++ rTyp).setRequired(true).asInstanceOf[PStruct]
+    val newRowType = PCanonicalStruct(required = true,
+      localKeyPType.fields.map(f => (f.name, PType.canonical(f.typ))) ++ rTyp.fields.map(f => (f.name, f.typ)): _*)
 
     val localBufferSize = bufferSize
     val rdd = prev.rvd
@@ -1995,9 +1996,10 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
     val prev = child.execute(ctx)
     val prevRVD = prev.rvd
     val prevRowType = prev.rvd.typ.rowType
-    val prevKeyType = prev.rvd.typ.kType
 
-    val rowType = prevKeyType ++ PCanonicalStruct(true, ("grouped_fields", PCanonicalArray(prevRowType, required = true)))
+    val rowType = PCanonicalStruct(required = true,
+      prev.rvd.typ.kType.fields.map(f => (f.name, f.typ)) ++
+        Array(("grouped_fields", PCanonicalArray(prevRowType, required = true))): _*)
     val newRVDType = prevRVD.typ.copy(rowType = rowType)
     val keyIndices = child.typ.keyFieldIdx
 
