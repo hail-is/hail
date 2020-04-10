@@ -229,10 +229,7 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
   def toI(cb: EmitCodeBuilder): IEmitCode = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
-    cb.append(Code._println(s"PType is: ${pt.toString}"))
-    cb.append(Code._println("Pre setup"))
     cb += setup
-    cb.append(Code._println("Post setup"))
     cb.ifx(m, { cb.goto(Lmissing) }, { cb.goto(Lpresent) })
     IEmitCode(Lmissing, Lpresent, pv)
   }
