@@ -382,21 +382,21 @@ def table_scan_sum_1k_partitions():
     ht._force_count()
 
 
-@benchmark
+@benchmark()
 def test_map_filter_region_memory():
     high_mem_table = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(100_000_000))
     high_mem_table = high_mem_table.filter(high_mem_table.idx % 2 == 0)
     assert high_mem_table._force_count() == 15
 
 
-@benchmark
+@benchmark()
 def test_head_and_tail_region_memory():
     high_mem_table = hl.utils.range_table(100).annotate(big_array=hl.zeros(100_000_000))
     high_mem_table = high_mem_table.head(30)
     high_mem_table._force_count()
 
 
-@benchmark
+@benchmark()
 def test_inner_join_region_memory():
     high_mem_table = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(50_000_000))
     high_mem_table2 = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(50_000_000))
@@ -404,7 +404,7 @@ def test_inner_join_region_memory():
     joined._force_count()
 
 
-@benchmark
+@benchmark()
 def test_left_join_region_memory():
     high_mem_table = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(50_000_000))
     high_mem_table2 = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(50_000_000))

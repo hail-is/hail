@@ -344,7 +344,8 @@ class VCFTests(unittest.TestCase):
 
     @skip_unless_spark_backend()
     def test_import_multiple_vcfs(self):
-        _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
+        # _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
+        _paths = ['gvcfs/HG00268.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
         paths = [resource(p) for p in _paths]
         parts = [
             hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 17821257, reference_genome='GRCh38')),
