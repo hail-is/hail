@@ -58,4 +58,3 @@ RUN find \
       king \
       -type f -executable \
     | xargs -I % /bin/sh -c 'set -ex ; ln -s ${PWD}/% /usr/local/bin/$(basename %)'
-

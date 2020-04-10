@@ -1488,6 +1488,9 @@ steps:
    publishAs: hail_public
    dependsOn:
     - build_hail
+   inputs:
+     - from: /wheel-container.tar
+       to: /wheel-container.tar
  - kind: runImage
    name: test_hail_public_image
    image:
@@ -1563,5 +1566,5 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /test-gsa-key
-   # scopes:
-   #   - deploy
+   scopes:
+     - deploy
