@@ -1292,61 +1292,36 @@ private class Emit[C](
         val shapet = emit(shapeIR)
         val rowMajort = emit(rowMajorIR)
 
-        val shapeAddress = mb.genFieldThisRef[Long]()
-
-        val oldShapeTuple = new CodePTuple(shapePType, shapeAddress)
-
-        val shapeVariables = (0 until nDims).map(_ => mb.newLocal[Long]()).toArray
-
-        def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
-          Code(
-            srvb.start(),
-            Code.foreach(0 until nDims) { index =>
-              Code(
-                srvb.addLong(shapeVariables(index)),
-                srvb.advance())
-            })
-        }
-
-        val newResult = EmitCode.fromI(mb) { cb =>
-          cb.append(Code._println("Started making an ndarray"))
-
+        EmitCode.fromI(mb) { cb =>
           shapet.toI(cb).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
-            cb.append(Code._println("Flatmapped once"))
             datat.toI(cb).map(cb) { case dataCode: PIndexableCode =>
-              cb.append(Code._println("Mapped!"))
               val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
               val dataValue = dataCode.memoize(cb, "make_ndarray_data")
               val dataPtr = dataValue.get.code.asInstanceOf[Code[Long]]
-              cb.append(Code._println("Made it this far"))
               val requiredData = dataPType.checkedConvertFrom(mb, region, dataPtr, coerce[PArray](dataContainer), "NDArray cannot have missing data")
 
               (0 until nDims).foreach { index =>
                 cb.ifx(shapeTupleValue.isFieldMissing(index),
-                  Code._fatal[Unit](s"shape missing at index $index"),
-                  shapeVariables(index) := shapeTupleValue(index))
+                  cb.append(Code._fatal[Unit](s"shape missing at index $index")))
               }
 
-              PCode(pt, xP.construct(shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb))
+              val shapeCodeSeq = (0 until nDims).map(shapeTupleValue[Long](_).get)
+
+              def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
+                Code(
+                  srvb.start(),
+                  Code.foreach(0 until nDims) { index =>
+                    Code(
+                      srvb.addLong(shapeTupleValue(index)),
+                      srvb.advance())
+                  })
+              }
+
+              PCode(pt, xP.construct(shapeBuilder, xP.makeDefaultStridesBuilder(shapeCodeSeq, mb), requiredData, mb))
             }
           }
         }
-        newResult
 
-//        val setup = Code(
-//          shapet.setup,
-//          datat.setup,
-//          rowMajort.setup)
-//
-//        val result = Code(
-//          shapeAddress := shapet.value[Long],
-//          Code.foreach(0 until nDims) { index =>
-//            oldShapeTuple.isMissing(index).mux[Unit](
-//              Code._fatal[Unit](s"shape missing at index $index"),
-//              shapeVariables(index) := oldShapeTuple(index))
-//          },
-//          xP.construct(shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb))
-//        EmitCode(setup, datat.m || shapet.m, PCode(pt, result))
       case NDArrayShape(ndIR) =>
         val ndt = emit(ndIR)
         val ndP = ndIR.pType.asInstanceOf[PNDArray]
