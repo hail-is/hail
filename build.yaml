@@ -1000,6 +1000,8 @@ steps:
    migrations:
     - name: initial
       script: /io/sql/initial.sql
+    - name: invalidated-batches
+      script: /io/sql/invalidated-batches.sql
    inputs:
     - from: /repo/ci/sql
       to: /io/

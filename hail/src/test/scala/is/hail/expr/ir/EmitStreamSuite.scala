@@ -278,9 +278,8 @@ class EmitStreamSuite extends HailSuite {
     fb.emit(
       Code(
         optStream(
-          Code(len := 0, L.goto), { stream =>
-            stream.length.map[Code[Ctrl]] { case (s, l) => Code(s, len := l, L.goto) }.getOrElse[Code[Ctrl]](
-              Code(len := -1, L.goto))
+          Code(len := 0, L.goto), { case EmitStream.SizedStream(setup, _, length) =>
+            Code(setup, len := length.getOrElse(-1), L.goto)
           }),
         L,
         len))

@@ -299,7 +299,7 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
 }
 
 object ExportBGEN {
-  def apply(mv: MatrixValue, path: String, exportType: Int): Unit = {
+  def apply(mv: MatrixValue, path: String, exportType: String): Unit = {
     val colValues = mv.colValues.javaValue
 
     val sampleIds = colValues.map(_.asInstanceOf[Row].getString(0))

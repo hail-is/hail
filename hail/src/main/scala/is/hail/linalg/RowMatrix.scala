@@ -96,29 +96,29 @@ class RowMatrix(val hc: HailContext,
     new DenseMatrix[Double](nRowsInt, nCols, a.flatten, 0, nCols, isTranspose = true)
   }
   
-  def export(path: String, columnDelimiter: String, header: Option[String], addIndex: Boolean, exportType: Int) {
+  def export(path: String, columnDelimiter: String, header: Option[String], addIndex: Boolean, exportType: String) {
     val localNCols = nCols
     exportDelimitedRowSlices(path, columnDelimiter, header, addIndex, exportType, _ => 0, _ => localNCols)
   }
 
   // includes the diagonal
-  def exportLowerTriangle(path: String, columnDelimiter: String, header: Option[String], addIndex: Boolean, exportType: Int) {
+  def exportLowerTriangle(path: String, columnDelimiter: String, header: Option[String], addIndex: Boolean, exportType: String) {
     val localNCols = nCols
     exportDelimitedRowSlices(path, columnDelimiter, header, addIndex, exportType, _ => 0, i => math.min(i + 1, localNCols.toLong).toInt)
   }
 
-  def exportStrictLowerTriangle(path: String, columnDelimiter: String, header: Option[String], addIndex: Boolean, exportType: Int) {
+  def exportStrictLowerTriangle(path: String, columnDelimiter: String, header: Option[String], addIndex: Boolean, exportType: String) {
     val localNCols = nCols
     exportDelimitedRowSlices(path, columnDelimiter, header, addIndex, exportType, _ => 0, i => math.min(i, localNCols.toLong).toInt)
   }
 
   // includes the diagonal
-  def exportUpperTriangle(path: String, columnDelimiter: String, header: Option[String], addIndex: Boolean, exportType: Int) {
+  def exportUpperTriangle(path: String, columnDelimiter: String, header: Option[String], addIndex: Boolean, exportType: String) {
     val localNCols = nCols
     exportDelimitedRowSlices(path, columnDelimiter, header, addIndex, exportType, i => math.min(i, localNCols.toLong).toInt, _ => localNCols)
   }  
   
-  def exportStrictUpperTriangle(path: String, columnDelimiter: String, header: Option[String], addIndex: Boolean, exportType: Int) {
+  def exportStrictUpperTriangle(path: String, columnDelimiter: String, header: Option[String], addIndex: Boolean, exportType: String) {
     val localNCols = nCols
     exportDelimitedRowSlices(path, columnDelimiter, header, addIndex, exportType, i => math.min(i + 1, localNCols.toLong).toInt, _ => localNCols)
   }
@@ -129,7 +129,7 @@ class RowMatrix(val hc: HailContext,
     columnDelimiter: String,
     header: Option[String],
     addIndex: Boolean,
-    exportType: Int, 
+    exportType: String,
     start: (Long) => Int, 
     end: (Long) => Int) {
     
@@ -154,7 +154,7 @@ class RowMatrix(val hc: HailContext,
   def genericExport(
     path: String, 
     header: Option[String], 
-    exportType: Int, 
+    exportType: String,
     writeRow: (StringBuilder, Long, Array[Double]) => Unit) {
     
     rows.mapPartitions { it =>

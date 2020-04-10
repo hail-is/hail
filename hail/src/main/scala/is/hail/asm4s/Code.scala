@@ -728,6 +728,12 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
 
   def %(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, lir.insn2(IREM))
 
+  def max(rhs: Code[Int]): Code[Int] =
+    Code.invokeStatic[Math, Int, Int, Int]("max", lhs, rhs)
+
+  def min(rhs: Code[Int]): Code[Int] =
+    Code.invokeStatic[Math, Int, Int, Int]("min", lhs, rhs)
+
   def compare(op: Int, rhs: Code[Int]): Code[Boolean] = {
     val Ltrue = new lir.Block()
     val Lfalse = new lir.Block()
