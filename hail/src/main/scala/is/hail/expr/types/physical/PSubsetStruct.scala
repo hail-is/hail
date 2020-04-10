@@ -16,7 +16,8 @@ object PSubsetStruct {
 
 // Semantics: PSubsetStruct is a non-constructible view of another PStruct, which is not allowed to mutate
 // that underlying PStruct's region data
-final case class PSubsetStruct(ps: PStruct, override val fieldNames: Array[String]) extends PStruct {
+final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends PStruct {
+  override lazy val fieldNames = _fieldNames
   val fields = fieldNames.map(f => ps.field(f)).toFastIndexedSeq
   val required = ps.required
 
