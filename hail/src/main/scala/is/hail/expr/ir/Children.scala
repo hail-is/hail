@@ -83,6 +83,8 @@ object Children {
       Array(collection)
     case StreamTake(a, len) =>
       Array(a, len)
+    case StreamDrop(a, len) =>
+      Array(a, len)
     case StreamMap(a, name, body) =>
       Array(a, body)
     case StreamZip(as, names, body, _) =>

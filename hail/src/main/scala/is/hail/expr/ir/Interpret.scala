@@ -352,6 +352,16 @@ object Interpret {
           if (len < 0) fatal("StreamTake: negative length")
           aValue.asInstanceOf[IndexedSeq[Any]].take(len)
         }
+      case StreamDrop(a, num) =>
+        val aValue = interpret(a, env, args)
+        val numValue = interpret(num, env, args)
+        if (aValue == null || numValue == null)
+          null
+        else {
+          val n = numValue.asInstanceOf[Int]
+          if (n < 0) fatal("StreamDrop: negative num")
+          aValue.asInstanceOf[IndexedSeq[Any]].drop(n)
+        }
       case StreamMap(a, name, body) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
