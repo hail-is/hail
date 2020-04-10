@@ -25,10 +25,10 @@ RUN pip3 --no-cache-dir install \
       matplotlib \
       pandas
 RUN curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar \
-         > $(find_spark_home)/jars/gcs-connector-hadoop2-2.0.1.jar && \
-    mkdir -p $(find_spark_home)/conf && \
-    touch $(find_spark_home)/spark-defaults.conf && \
-    sed -i $(find_spark_home)/spark-defaults.conf \
+         > $(find_spark_home.py)/jars/gcs-connector-hadoop2-2.0.1.jar && \
+    mkdir -p $(find_spark_home.py)/conf && \
+    touch $(find_spark_home.py)/spark-defaults.conf && \
+    sed -i $(find_spark_home.py)/spark-defaults.conf \
         's:spark\.hadoop\.google\.cloud\.auth\.service\.account\.enable.*:spark.hadoop.google.cloud.auth.service.account.enable true' \
         's:spark\.hadoop\.google\.cloud\.auth\.service\.account\.json\.keyfile.*:spark\.hadoop\.google\.cloud\.auth\.service\.account\.json\.keyfile /gsa-key/key.json'
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux

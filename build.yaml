@@ -1556,3 +1556,6 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /test-gsa-key
+   # FIXME
+   # scopes:
+   #   - deploy
