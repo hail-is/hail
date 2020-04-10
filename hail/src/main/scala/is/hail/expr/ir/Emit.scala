@@ -160,8 +160,12 @@ object IEmitCode {
 }
 
 case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
-  def map(f: (PCode) => PCode): IEmitCode = {
-    IEmitCode(Lmissing, Lpresent, f(pc))
+  def map(cb: EmitCodeBuilder)(f: (PCode) => PCode): IEmitCode = {
+    val Lpresent2 = CodeLabel()
+    cb.define(Lpresent)
+    val pc2 = f(pc)
+    cb.goto(Lpresent2)
+    IEmitCode(Lmissing, Lpresent2, pc2)
   }
 
   def flatMap(cb: EmitCodeBuilder)(f: (PCode) => IEmitCode): IEmitCode = {
@@ -230,7 +234,7 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
     cb += setup
     cb.append(Code._println("Post setup"))
     cb.ifx(m, {cb.append(Code._println("Was missing")); cb.goto(Lmissing) },
-      {cb.append(Code._println("Was missing")); cb.append(Code._println("Was present")); cb.goto(Lpresent) })
+      {cb.append(Code._println("Was present")); cb.goto(Lpresent) })
     IEmitCode(Lmissing, Lpresent, pv)
   }
 
@@ -780,7 +784,7 @@ private class Emit[C](
 
       case ArrayLen(a) =>
         EmitCode.fromI(mb) { cb =>
-          emit(a).toI(cb).map { (ac) =>
+          emit(a).toI(cb).map(cb) { (ac) =>
             PCode(PInt32Required, ac.asIndexable.loadLength())
           }
         }
@@ -1309,7 +1313,7 @@ private class Emit[C](
 
           shapet.toI(cb).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
             cb.append(Code._println("Flatmapped once"))
-            datat.toI(cb).map { case dataCode: PIndexableCode =>
+            datat.toI(cb).map(cb) { case dataCode: PIndexableCode =>
               cb.append(Code._println("Mapped!"))
               val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
               val dataValue = dataCode.memoize(cb, "make_ndarray_data")
