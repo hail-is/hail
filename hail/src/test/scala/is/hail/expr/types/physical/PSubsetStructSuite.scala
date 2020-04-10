@@ -5,7 +5,7 @@ import is.hail.annotations.{Region, RegionValue, StagedRegionValueBuilder}
 import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitFunctionBuilder
 import org.testng.annotations.Test
-
+import is.hail.asm4s._
 class PSubsetStructSuite extends HailSuite {
   val debug = true
 
@@ -36,7 +36,21 @@ class PSubsetStructSuite extends HailSuite {
       println(rv.pretty(rt))
     }
 
-    val view = PSubsetStruct(rt, IndexedSeq(rt.fields(0), rt.fields(1)))
-    assert(Region.loadInt(rt.loadField(rv.offset, 1)) == Region.loadInt(view.loadField(rv.offset, 1)))
+    val view = PSubsetStruct(rt, "a", "c")
+    println(s"view: ${view.size}")
+    assert(view.size == 2)
+    assert(Region.loadInt(rt.loadField(rv.offset, 0)) == Region.loadInt(view.loadField(rv.offset, 0)))
+    assert(Region.loadInt(rt.loadField(rv.offset, 2)) == Region.loadInt(view.loadField(rv.offset, 1)))
+
+    assert(Region.loadInt(rt.loadField(rv.offset, "a")) == Region.loadInt(view.loadField(rv.offset, "a")))
+    assert(Region.loadInt(rt.loadField(rv.offset, "c")) == Region.loadInt(view.loadField(rv.offset, "c")))
+
+    val view2 = view.selectFields(Seq("c"))
+    assert(view2.size == 1)
+    assert(Region.loadInt(rt.loadField(rv.offset, 2)) == Region.loadInt(view2.loadField(rv.offset, 0)))
+
+    val view3 = view.dropFields(Set("c"))
+    assert(view3.size == 1)
+    assert(Region.loadInt(rt.loadField(rv.offset, 0)) == Region.loadInt(view3.loadField(rv.offset, 0)))
   }
 }
