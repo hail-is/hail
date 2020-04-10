@@ -1539,6 +1539,7 @@ steps:
      docker tag {{ genetics_public_image.image }} hailgenetics/genetics:$(cat hail_pip_version)
      docker push hailgenetics/genetics:$(cat hail_pip_version)
    dependsOn:
+    - default_ns
     - ci_utils_image
     - genetics_public_image
     - hail_public_image
@@ -1555,3 +1556,5 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /test-gsa-key
+   scopes:
+     - deploy
