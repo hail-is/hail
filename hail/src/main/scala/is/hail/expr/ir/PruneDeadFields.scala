@@ -942,8 +942,9 @@ object PruneDeadFields {
           memoizeValueIR(a, requestedType, memo),
           memoizeValueIR(len, len.typ, memo))
       case StreamDrop(a, len) =>
-        memoizeValueIR(a, requestedType, memo)
-        memoizeValueIR(len, len.typ, memo)
+        unifyEnvs(
+          memoizeValueIR(a, requestedType, memo),
+          memoizeValueIR(len, len.typ, memo))
       case StreamMap(a, name, body) =>
         val aType = a.typ.asInstanceOf[TStream]
         val bodyEnv = memoizeValueIR(body,
