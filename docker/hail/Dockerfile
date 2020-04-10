@@ -21,7 +21,7 @@ RUN pip3 --no-cache-dir install \
       ipython \
       matplotlib \
       numpy \
-      pandas
+      pandas \
       scikit-learn \
       scipy \
 RUN curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar \
