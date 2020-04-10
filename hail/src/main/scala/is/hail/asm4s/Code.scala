@@ -334,8 +334,13 @@ object Code {
     newC
   }
 
-  def _println(c: Code[AnyRef]): Code[Unit] =
-    Code.invokeScalaObject[AnyRef, Unit](scala.Console.getClass, "println", c)
+  def _println(c: Code[AnyRef]): Code[Unit] = {
+    Code(
+      Code.invokeScalaObject[AnyRef, Unit](scala.Console.getClass, "println", c),
+      Code.invokeScalaObject[Unit](scala.Console.getClass, "flush")
+    )
+  }
+
 
   def checkcast[T](v: Code[_])(implicit tti: TypeInfo[T]): Code[T] =
     Code(v, lir.checkcast(tti.iname))

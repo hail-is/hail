@@ -225,8 +225,12 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
   def toI(cb: EmitCodeBuilder): IEmitCode = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
+    cb.append(Code._println(s"PType is: ${pt.toString}"))
+    cb.append(Code._println("Pre setup"))
     cb += setup
-    cb.ifx(m, { cb.goto(Lmissing) }, { cb.goto(Lpresent) })
+    cb.append(Code._println("Post setup"))
+    cb.ifx(m, {cb.append(Code._println("Was missing")); cb.goto(Lmissing) },
+      {cb.append(Code._println("Was missing")); cb.append(Code._println("Was present")); cb.goto(Lpresent) })
     IEmitCode(Lmissing, Lpresent, pv)
   }
 
@@ -1284,11 +1288,9 @@ private class Emit[C](
         val shapet = emit(shapeIR)
         val rowMajort = emit(rowMajorIR)
 
-        val requiredData = dataPType.checkedConvertFrom(mb, region, datat.value[Long], coerce[PArray](dataContainer), "NDArray cannot have missing data")
         val shapeAddress = mb.genFieldThisRef[Long]()
 
         val oldShapeTuple = new CodePTuple(shapePType, shapeAddress)
-        val shapeTuple: PBaseStructCode = shapePType.load(shapeAddress)
 
         val shapeVariables = (0 until nDims).map(_ => mb.newLocal[Long]()).toArray
 
@@ -1303,25 +1305,44 @@ private class Emit[C](
         }
 
         val newResult = EmitCode.fromI(mb) { cb =>
-          val shapeValue = cb.memoize(shapet, "foo")
+          cb.append(Code._println("Started making an ndarray"))
 
-          ???
+          shapet.toI(cb).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
+            cb.append(Code._println("Flatmapped once"))
+            datat.toI(cb).map { case dataCode: PIndexableCode =>
+              cb.append(Code._println("Mapped!"))
+              val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
+              val dataValue = dataCode.memoize(cb, "make_ndarray_data")
+              val dataPtr = dataValue.get.code.asInstanceOf[Code[Long]]
+              cb.append(Code._println("Made it this far"))
+              val requiredData = dataPType.checkedConvertFrom(mb, region, dataPtr, coerce[PArray](dataContainer), "NDArray cannot have missing data")
+
+              (0 until nDims).foreach { index =>
+                cb.ifx(shapeTupleValue.isFieldMissing(index),
+                  Code._fatal[Unit](s"shape missing at index $index"),
+                  shapeVariables(index) := shapeTupleValue(index))
+              }
+
+              PCode(pt, xP.construct(shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb))
+            }
+          }
         }
+        newResult
 
-        val setup = Code(
-          shapet.setup,
-          datat.setup,
-          rowMajort.setup)
-
-        val result = Code(
-          shapeAddress := shapet.value[Long],
-          Code.foreach(0 until nDims) { index =>
-            shapeTuple.isFieldMissing(index).mux[Unit](
-              Code._fatal[Unit](s"shape missing at index $index"),
-              shapeVariables(index) := oldShapeTuple(index))
-          },
-          xP.construct(shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb))
-        EmitCode(setup, datat.m || shapet.m, PCode(pt, result))
+//        val setup = Code(
+//          shapet.setup,
+//          datat.setup,
+//          rowMajort.setup)
+//
+//        val result = Code(
+//          shapeAddress := shapet.value[Long],
+//          Code.foreach(0 until nDims) { index =>
+//            oldShapeTuple.isMissing(index).mux[Unit](
+//              Code._fatal[Unit](s"shape missing at index $index"),
+//              shapeVariables(index) := oldShapeTuple(index))
+//          },
+//          xP.construct(shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb))
+//        EmitCode(setup, datat.m || shapet.m, PCode(pt, result))
       case NDArrayShape(ndIR) =>
         val ndt = emit(ndIR)
         val ndP = ndIR.pType.asInstanceOf[PNDArray]

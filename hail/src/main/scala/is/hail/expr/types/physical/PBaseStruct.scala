@@ -189,6 +189,8 @@ abstract class PBaseStruct extends PType {
 abstract class PBaseStructValue extends PValue {
   def apply[T](i: Int): Value[T]
 
+  def isFieldMissing(fieldIdx: Int): Code[Boolean]
+
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode
 
   def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadField(cb, pt.asInstanceOf[PBaseStruct].fieldIdx(fieldName))
@@ -202,8 +204,4 @@ abstract class PBaseStructCode extends PCode {
   def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue
-
-  def isFieldMissing(fieldIdx: Int): Code[Boolean] = {
-    this.pt.isFieldMissing(a, fieldIdx)
-  }
 }
