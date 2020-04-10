@@ -43,7 +43,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   override val types: Array[PType] = fields.map(_.typ).toArray
 
   // FIXME: should structFundamentalType be a ps.selectFields(fieldNames).structFundamentalType?
-  lazy val structFundamentalType: PStruct = ps.structFundamentalType
+  lazy val structFundamentalType: PStruct = PSubsetStruct(ps.structFundamentalType, _fieldNames)
   // FIXME: should byteSize && alignment reflect underlying PStruct or ps.selectFields(fieldNames)?
   // byteSize, alignment needed in InferPType
   override val byteSize = ps.byteSize
@@ -68,43 +68,12 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
     }
   }
 
-  override def truncate(newSize: Int): PSubsetStruct =
-    PSubsetStruct(ps, fields.take(newSize).map(_.name).toArray)
-
-  override def deleteField(key: String): PStruct = {
-    assert(fieldIdx.contains(key))
-    val newFieldNames = fieldIdx.-(key).map(_._1).toArray
-
-    PSubsetStruct(ps, newFieldNames)
-  }
-
   override def rename(m: Map[String, String]): PStruct = {
       val newNames = fieldNames.map(fieldName => m.getOrElse(fieldName, fieldName))
       val newPStruct = ps.rename(m)
 
       PSubsetStruct(newPStruct, newNames)
   }
-
-  override def ++(that: PStruct): PSubsetStruct = {
-    assert(that.isInstanceOf[PSubsetStruct])
-    val thatSubset = that.asInstanceOf[PSubsetStruct]
-    assert(thatSubset.ps == ps)
-    val overlapping = fields.map(_.name).toSet.intersect(
-      that.fields.map(_.name).toSet)
-    if (overlapping.nonEmpty)
-      fatal(s"overlapping fields in PSubsetStruct concatenation: ${overlapping.mkString(", ")}")
-
-    PSubsetStruct(ps, fieldNames ++ that.fieldNames)
-  }
-
-  def selectFields(names: Seq[String]): PSubsetStruct =
-    PSubsetStruct(ps, names.toArray)
-
-  def dropFields(names: Set[String]): PSubsetStruct =
-    selectFields(fieldNames.filter(!names.contains(_)))
-
-  def typeAfterSelect(keep: IndexedSeq[Int]): PSubsetStruct =
-    PSubsetStruct(ps, keep.map(i => fieldNames(i)).toArray)
 
   override def isFieldMissing(structAddress: Code[Long], fieldName: String): Code[Boolean] =
     ps.isFieldMissing(structAddress, fieldName)
@@ -147,8 +116,6 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   override def setFieldPresent(structAddress: Long, fieldIdx: Int): Unit = ???
 
   override def setFieldPresent(structAddress: Code[Long], fieldIdx: Int): Code[Unit] = ???
-
-  override def appendKey(key: String, sig: PType): PStruct = ???
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PSubsetStruct = ???
 

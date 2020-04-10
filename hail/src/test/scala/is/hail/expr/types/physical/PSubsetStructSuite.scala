@@ -44,13 +44,5 @@ class PSubsetStructSuite extends HailSuite {
 
     assert(Region.loadInt(rt.loadField(rv.offset, "a")) == Region.loadInt(view.loadField(rv.offset, "a")))
     assert(Region.loadInt(rt.loadField(rv.offset, "c")) == Region.loadInt(view.loadField(rv.offset, "c")))
-
-    val view2 = view.selectFields(Seq("c"))
-    assert(view2.size == 1)
-    assert(Region.loadInt(rt.loadField(rv.offset, 2)) == Region.loadInt(view2.loadField(rv.offset, 0)))
-
-    val view3 = view.dropFields(Set("c"))
-    assert(view3.size == 1)
-    assert(Region.loadInt(rt.loadField(rv.offset, 0)) == Region.loadInt(view3.loadField(rv.offset, 0)))
   }
 }
