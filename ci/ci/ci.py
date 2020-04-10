@@ -163,7 +163,7 @@ async def post_retry_pr(request, userdata):  # pylint: disable=unused-argument
 
     await asyncio.shield(retry_pr(wb, pr, request))
     return web.HTTPFound(
-        deploy_config.url('ci', f'/watched_branches/{wb.index}/pr/{pr.number}'))
+        deploy_config.external_url('ci', f'/watched_branches/{wb.index}/pr/{pr.number}'))
 
 
 @routes.get('/batches')
@@ -226,7 +226,7 @@ async def post_authorized_source_sha(request, userdata):  # pylint: disable=unus
     session = await aiohttp_session.get_session(request)
     set_message(session, f'SHA {sha} authorized.', 'info')
     return web.HTTPFound(
-        deploy_config.url('ci', '/'))
+        deploy_config.external_url('ci', '/'))
 
 
 @routes.get('/healthcheck')
