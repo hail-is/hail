@@ -90,7 +90,7 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
-     make python/hail/hail_pip_version
+     make -C hail python/hail/hail_pip_version
    outputs:
      - from: /io/repo/auth/sql
        to: /repo/auth/
@@ -1556,5 +1556,3 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /test-gsa-key
-   scopes:
-     - deploy
