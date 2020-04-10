@@ -1500,6 +1500,8 @@ steps:
      python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
      python3 -c 'import numpy; import pandas import sklearn; import matplotlib;import scipy'
      gcloud --version
+   dependsOn:
+     - hail_public_image
  - kind: buildImage
    name: genetics_public_image
    dockerFile: docker/genetics/Dockerfile
@@ -1517,6 +1519,8 @@ steps:
      plink --version
      plink2 --version
      king --version
+   dependsOn:
+     - genetics_public_image
  - kind: runImage
    name: push_to_docker_hub
    image:
