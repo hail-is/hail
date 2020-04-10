@@ -1,11 +1,10 @@
-FROM {{ hail_public_image.image }}
+FROM 5c8432c11ea6
 
 RUN apt-get update && \
   apt-get -y install \
     cmake \
     libbz2-dev \
     libcurl4-openssl-dev \
-    libgsl-dev \
     liblzma-dev \
     zlib1g-dev \
   && rm -rf /var/lib/apt/lists/*
@@ -38,6 +37,14 @@ RUN mkdir gcta && \
      curl -LO https://cnsgenomics.com/software/gcta/bin/gcta_1.93.1beta.zip && \
      unzip gcta_1.93.1beta.zip && \
      rm -rf gcta_1.93.1beta.zip)
+
+RUN apt-get update && \
+  apt-get -y install \
+    libgsl-dev \
+    liblapacke-dev \
+    libopenblas-dev \
+  && rm -rf /var/lib/apt/lists/*
+
 RUN mkdir eigenstrat && \
     (cd eigenstrat && \
      git clone https://github.com/DReichLab/EIG.git && \
