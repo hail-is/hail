@@ -19,11 +19,11 @@ RUN apt-get update && \
 RUN pip3 --no-cache-dir install \
       hail==$(cat hail_pip_version) \
       ipython \
-      numpy \
-      scipy \
-      scikit-learn \
       matplotlib \
+      numpy \
       pandas
+      scikit-learn \
+      scipy \
 RUN curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar \
          > $(find_spark_home.py)/jars/gcs-connector-hadoop2-2.0.1.jar && \
     mkdir -p $(find_spark_home.py)/conf && \

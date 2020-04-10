@@ -1531,13 +1531,23 @@ steps:
      gcloud auth configure-docker
      cat /docker-hub-hailgenetics/password | docker login --username hailgenetics --password-stdin
 
-     docker pull {{ hail_public_image.image }}
-     docker tag {{ hail_public_image.image }} hailgenetics/hail:$(cat hail_pip_version)
-     docker push hailgenetics/hail:$(cat hail_pip_version)
+     function image_exists() {
+         NAME=$(echo $1 | sed 's/:.*//')
+         TAG=$(echo $1 | sed 's/.*://')
+         curl -sfL https://index.docker.io/v1/repositories/$NAME/tags/$TAG > /dev/null
+     }
 
-     docker pull {{ genetics_public_image.image }}
-     docker tag {{ genetics_public_image.image }} hailgenetics/genetics:$(cat hail_pip_version)
-     docker push hailgenetics/genetics:$(cat hail_pip_version)
+     function push_if_absent() {
+         if ! image_exists $2
+         then
+             docker pull $1
+             docker tag $1 $2
+             docker push $2
+         fi
+     }
+
+     push_if_absent {{ hail_public_image.image }} hailgenetics/hail:$(cat hail_pip_version)
+     push_if_absent {{ genetics_public_image.image }} hailgenetics/genetics:$(cat hail_pip_version)
    dependsOn:
     - default_ns
     - ci_utils_image
