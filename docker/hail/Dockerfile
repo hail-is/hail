@@ -33,4 +33,4 @@ RUN curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0
         's:spark\.hadoop\.google\.cloud\.auth\.service\.account\.json\.keyfile.*:spark\.hadoop\.google\.cloud\.auth\.service\.account\.json\.keyfile /gsa-key/key.json'
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux
 RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
-    mv /root/google-cloud-sdk /
+    mv /root/google-cloud-sdk && \

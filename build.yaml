@@ -1491,6 +1491,15 @@ steps:
    inputs:
      - from: hail_pip_version
        to: hail_pip_version
+ - kind: runImage
+   name: test_hail_public_image
+   image:
+     valueFrom: hail_public_image.image
+   script: |
+     set -ex
+     python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
+     python3 -c 'import numpy; import pandas import sklearn; import matplotlib;import scipy'
+     gcloud --version
  - kind: buildImage
    name: genetics_public_image
    dockerFile: docker/genetics/Dockerfile
@@ -1498,6 +1507,16 @@ steps:
    publishAs: genetics
    dependsOn:
     - hail_public_image
+ - kind: runImage
+   name: test_genetics_public_image
+   image:
+     valueFrom: genetics_public_image.image
+   script: |
+     set -ex
+     bcftools --version
+     plink --version
+     plink2 --version
+     king --version
  - kind: runImage
    name: push_to_docker_hub
    image:
