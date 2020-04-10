@@ -182,9 +182,15 @@ abstract class PBaseStruct extends PType {
     } else
       Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*))
   }
+
+  override def load(src: Code[Long]): PBaseStructCode = ???
 }
 
 abstract class PBaseStructValue extends PValue {
+  def apply[T](i: Int): Value[T]
+
+  def isFieldMissing(fieldIdx: Int): Code[Boolean]
+
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode
 
   def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadField(cb, pt.asInstanceOf[PBaseStruct].fieldIdx(fieldName))
