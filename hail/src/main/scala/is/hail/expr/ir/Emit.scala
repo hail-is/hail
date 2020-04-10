@@ -87,7 +87,7 @@ object Emit {
         val iec = emitter.emitI(ir, cb, Env.empty, container)
         cb += iec.Lpresent.goto
         cb += iec.Lmissing
-        cb += Code._throw[RuntimeException, Unit](
+        cb._throw[RuntimeException](
           Code.newInstance[RuntimeException, String]("cannot return empty"))
         cb += iec.Lpresent
         iec.pc.code
@@ -192,6 +192,12 @@ case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
     cb.goto(Lmissing)
     IEmitCode(Lmissing, ec2.Lpresent, ec2.pc)
   }
+
+  def pt: PType = pc.pt
+
+  def code: Code[_] = pc.code
+
+  def tcode[T](implicit ti: TypeInfo[T]): Code[T] = pc.tcode[T]
 }
 
 object EmitCode {
@@ -432,8 +438,11 @@ private class Emit[C](
     def emitStream(ir: IR, mb: EmitMethodBuilder[C] = mb): COption[EmitStream.SizedStream] =
       EmitStream.emit(this, ir, mb, region, env, container)
 
-    def emitVoid(cb: EmitCodeBuilder, ir: IR, mb: EmitMethodBuilder[C] = mb, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
+    def emitVoid(ir: IR, cb: EmitCodeBuilder = cb, mb: EmitMethodBuilder[C] = mb, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir, mb, region, env, container, loopEnv)
+
+    def emitI(ir: IR, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+      this.emitI(ir, cb, region, env, container, loopEnv)
 
     (ir: @unchecked) match {
       case Void() =>
@@ -445,12 +454,10 @@ private class Emit[C](
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == TVoid && altr.typ == TVoid)
 
-        val codeCond = emit(cond)
-
-        cb += codeCond.setup
-        cb.ifx(codeCond.m, (), {
-          cb.ifx(codeCond.value[Boolean], emitVoid(cb, cnsq), emitVoid(cb, altr))
-        })
+        val codeCond = emitI(cond)
+        cb += codeCond.Lpresent
+        cb.ifx(codeCond.tcode[Boolean], { emitVoid(cnsq) }, { emitVoid(altr) })
+        cb += codeCond.Lmissing
 
       case Let(name, value, body) =>
         val x = mb.newEmitField(name, value.pType)
@@ -458,7 +465,7 @@ private class Emit[C](
           x := ecV
         }
         cb += storeV
-        emitVoid(cb, body, env = env.bind(name, x))
+        emitVoid(body, env = env.bind(name, x))
 
       case StreamFor(a, valueName, body) =>
         val eltType = a.pType.asInstanceOf[PStream].elementType
@@ -470,7 +477,7 @@ private class Emit[C](
             (valueName, xElt))
           EmitCodeBuilder.scopedVoid(mb) { cb =>
             cb.assign(xElt, elt)
-            emitVoid(cb, body, env = bodyEnv)
+            emitVoid(body, cb, env = bodyEnv)
           }
         }
 
@@ -545,20 +552,19 @@ private class Emit[C](
           deserializers(j)(ib)
         }
 
-        cb += Code(
-          init,
-          ib := spec.buildCodeInputBuffer(
+        cb += init
+        cb.assign(ib, spec.buildCodeInputBuffer(
             Code.newInstance[ByteArrayInputStream, Array[Byte]](
-              mb.getSerializedAgg(sIdx))),
-          mb.wrapVoids(unserialize, "deserialize_aggs"))
+              mb.getSerializedAgg(sIdx))))
+        cb += mb.wrapVoids(unserialize, "deserialize_aggs")
 
       case Die(m, typ) =>
-        val cm = emit(m)
-        cb += cm.setup
-        cb._throw(Code.newInstance[HailException, String](
-            cm.m.mux[String](
-              "<exception message missing>",
-              coerce[String](StringFunctions.wrapArg(EmitRegion(mb, region), m.pType)(cm.v)))))
+        val cm = emitI(m)
+        val msg = cb.newLocal[String]("exmsg", "<exception message missing>")
+        cb += cm.Lpresent
+        cb.assign(msg, coerce[String](StringFunctions.wrapArg(EmitRegion(mb, region), cm.pt)(cm.code)))
+        cb += cm.Lmissing
+        cb._throw(Code.newInstance[HailException, String](msg))
     }
   }
 
