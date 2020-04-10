@@ -78,15 +78,20 @@ object Emit {
     }
     val emitter = new Emit[C](ctx, fb.ecb)
     if (ir.typ == TVoid) {
-      val cb = EmitCodeBuilder(mb)
-      emitter.emitVoid(cb, ir, mb, Env.empty, container)
-      fb.emit(cb.result())
+      fb.emitWithBuilder { cb =>
+        emitter.emitVoid(cb, ir, mb, Env.empty, container)
+        Code._empty
+      }
     } else {
-      val triplet = emitter.emit(ir, mb, Env.empty, container)
-      val ti = typeToTypeInfo(ir.pType)
-      fb.emit(Code(triplet.setup, triplet.m.muxAny(
-        Code._throwAny[RuntimeException](Code.newInstance[RuntimeException, String]("cannot return empty"))(ti),
-        triplet.v)))
+      fb.emitWithBuilder { cb =>
+        val iec = emitter.emitI(ir, cb, Env.empty, container)
+        cb += iec.Lpresent.goto
+        cb += iec.Lmissing
+        cb += Code._throw[RuntimeException, Unit](
+          Code.newInstance[RuntimeException, String]("cannot return empty"))
+        cb += iec.Lpresent
+        iec.pc.code
+      }
     }
   }
 }
@@ -557,6 +562,59 @@ private class Emit[C](
     }
   }
 
+  private[ir] def emitI(ir: IR, cb: EmitCodeBuilder, env: E, container: Option[AggContainer]): IEmitCode =
+    emitI(ir, cb, cb.emb.getCodeParam[Region](1), env, container, None)
+
+  private def emitI(ir: IR, cb: EmitCodeBuilder, region: Value[Region], env: E,
+    container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]
+  ): IEmitCode = {
+    val mb: EmitMethodBuilder[C] = cb.emb.asInstanceOf[EmitMethodBuilder[C]]
+
+    def emitI(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+      this.emitI(ir, cb, region, env, container, loopEnv)
+
+    def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
+      this.emitVoid(cb, ir: IR, mb, region, env, container, loopEnv)
+
+    def emitFallback(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+      this.emit(ir, mb, region, env, container, loopEnv).toI(cb)
+
+    val pt = ir.pType
+
+    if (pt == PVoid) {
+      emitVoid(ir)
+      return IEmitCode(CodeLabel(), CodeLabel(), PCode._empty)
+    }
+
+    (ir: @unchecked) match {
+      case I32(x) =>
+        presentI(cb, pt, const(x))
+      case I64(x) =>
+        presentI(cb, pt, const(x))
+      case F32(x) =>
+        presentI(cb, pt, const(x))
+      case F64(x) =>
+        presentI(cb, pt, const(x))
+      case s@Str(x) =>
+        presentI(cb, mb.addLiteral(x, coerce[PString](s.pType)))
+      case x@Literal(t, v) =>
+        presentI(cb, mb.addLiteral(v, x.pType))
+      case True() =>
+        presentI(cb, pt, const(true))
+      case False() =>
+        presentI(cb, pt, const(false))
+
+      case Cast(v, typ) =>
+        val iec = emitI(v)
+        val cast = Casts.get(v.typ, typ)
+        iec.map(pc => PCode(pt, cast(pc.code)))
+      case CastRename(v, _typ) =>
+        emitI(v)
+
+      case _ =>
+        emitFallback(ir)
+    }
+  }
 
   /**
     * Invariants of the Returned Triplet
@@ -632,31 +690,6 @@ private class Emit[C](
       return new EmitCode(emitVoid(ir), const(false), PCode._empty)
 
     (ir: @unchecked) match {
-      case I32(x) =>
-        present(pt, const(x))
-      case I64(x) =>
-        present(pt, const(x))
-      case F32(x) =>
-        present(pt, const(x))
-      case F64(x) =>
-        present(pt, const(x))
-      case s@Str(x) =>
-        present(mb.addLiteral(x, coerce[PString](s.pType)))
-      case x@Literal(t, v) =>
-        present(mb.addLiteral(v, x.pType))
-      case True() =>
-        present(pt, const(true))
-      case False() =>
-        present(pt, const(false))
-
-      case Cast(v, typ) =>
-        val codeV = emit(v)
-        val cast = Casts.get(v.typ, typ)
-        EmitCode(codeV.setup, codeV.m, PCode(pt, cast(codeV.v)))
-
-      case CastRename(v, _typ) =>
-        emit(v)
-
       case NA(typ) =>
         EmitCode(Code._empty, const(true), pt.defaultValue)
       case IsNA(v) =>
@@ -2072,6 +2105,14 @@ private class Emit[C](
 
   private def present(pt: PType, c: Code[_]): EmitCode =
     EmitCode(Code._empty, false, PCode(pt, c))
+
+  private def presentI(cb: EmitCodeBuilder, pc: PCode): IEmitCode = {
+    val Lpresent = CodeLabel()
+    cb += Lpresent.goto
+    IEmitCode(CodeLabel(), Lpresent, pc)
+  }
+
+  private def presentI(cb: EmitCodeBuilder, pt: PType, c: Code[_]): IEmitCode = presentI(cb, PCode(pt, c))
 
   private def strict(pt: PType, value: Code[_], args: EmitCode*): EmitCode = {
     EmitCode(
