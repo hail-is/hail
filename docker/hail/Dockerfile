@@ -29,8 +29,9 @@ RUN curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0
     mkdir -p $(find_spark_home.py)/conf && \
     touch $(find_spark_home.py)/spark-defaults.conf && \
     sed -i $(find_spark_home.py)/spark-defaults.conf \
-        's:spark\.hadoop\.google\.cloud\.auth\.service\.account\.enable.*:spark.hadoop.google.cloud.auth.service.account.enable true' \
-        's:spark\.hadoop\.google\.cloud\.auth\.service\.account\.json\.keyfile.*:spark\.hadoop\.google\.cloud\.auth\.service\.account\.json\.keyfile /gsa-key/key.json'
+        -e 's:spark\.hadoop\.google\.cloud\.auth\.service\.account\.enable.*:spark.hadoop.google.cloud.auth.service.account.enable true:' \
+        -e 's:spark\.hadoop\.google\.cloud\.auth\.service\.account\.json\.keyfile.*:spark\.hadoop\.google\.cloud\.auth\.service\.account\.json\.keyfile /gsa-key/key.json:'
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux
-RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
-    mv /root/google-cloud-sdk && \
+RUN curl https://sdk.cloud.google.com | bash && \
+    echo 'source /root/google-cloud-sdk/completion.bash.inc' >> ~/.profile && \
+    echo 'source /root/google-cloud-sdk/path.bash.inc' >> ~/.profile
