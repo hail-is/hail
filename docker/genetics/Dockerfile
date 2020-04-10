@@ -1,4 +1,4 @@
-FROM 5c8432c11ea6
+FROM {{ hail_public_image.image }}
 
 RUN apt-get update && \
   apt-get -y install \
