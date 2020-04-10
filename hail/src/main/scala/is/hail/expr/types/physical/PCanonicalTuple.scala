@@ -13,9 +13,6 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
 
   def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalTuple(_types, required)
 
-  override def truncate(newSize: Int): PTuple =
-    PCanonicalTuple(_types.take(newSize), required)
-
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     sb.append("PCTuple[")
     _types.foreachBetween { fd =>

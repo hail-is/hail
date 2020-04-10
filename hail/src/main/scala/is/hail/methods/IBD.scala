@@ -293,7 +293,7 @@ object IBD {
   }
 
   private val ibdPType =
-    (PCanonicalStruct(("i", PCanonicalString()), ("j", PCanonicalString())) ++ ExtendedIBDInfo.pType).setRequired(true).asInstanceOf[PStruct]
+    PCanonicalStruct(required = true, Array(("i", PCanonicalString()), ("j", PCanonicalString())) ++ ExtendedIBDInfo.pType.fields.map(f => (f.name, f.typ)): _*)
   private val ibdKey = FastIndexedSeq("i", "j")
 
   private[methods] def generateComputeMaf(input: MatrixValue, fieldName: String): (RegionValue) => Double = {
