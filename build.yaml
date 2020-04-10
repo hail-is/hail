@@ -1487,10 +1487,7 @@ steps:
    contextPath: docker/hail/
    publishAs: hail_public
    dependsOn:
-    - copy_files
-   inputs:
-     - from: hail_pip_version
-       to: hail_pip_version
+    - build_hail
  - kind: runImage
    name: test_hail_public_image
    image:
@@ -1566,5 +1563,5 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /test-gsa-key
-   scopes:
-     - deploy
+   # scopes:
+   #   - deploy
