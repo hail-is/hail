@@ -66,7 +66,7 @@ there are two types of backends: :class:`.LocalBackend` and :class:`.ServiceBack
 local backend executes a batch on your local computer by running a shell script. The service
 backend executes a batch on Google Compute Engine VMs operated by the Hail team
 (:ref:`Batch Service <sec-service>`). You can access the UI for the Batch Service
-at `<batch.hail.is>`_.
+at `<https://batch.hail.is>`__.
 
 .. autosummary::
     :toctree: api/backend/

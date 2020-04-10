@@ -12,7 +12,7 @@ Instead of executing jobs on your local computer (the default in Batch), you can
 your jobs on a multi-tenant compute cluster in Google Cloud that is managed by the Hail team
 and is called the Batch Service. The Batch Service consists of a scheduler that receives job
 submission requests from users and then executes jobs in Docker containers on Google Compute
-Engine VMs (workers) that are shared amongst all Batch users. A UI is available at `<batch.hail.is>`_
+Engine VMs (workers) that are shared amongst all Batch users. A UI is available at `<https://batch.hail.is>`__
 that allows a user to see job progress and access logs.
 
 
@@ -148,7 +148,7 @@ run per job (:ref:`see above <file-localization>`) as well as a copy of the job 
 information about the job such as where the job was run, how long it took to pull the image for
 each container, and any error messages.
 
-To see all batches you've submitted, go to `<batch.hail.is>`__. Each batch will have a current state,
+To see all batches you've submitted, go to `<https://batch.hail.is>`__. Each batch will have a current state,
 number of jobs total, and the number of pending, succeeded, failed, and cancelled jobs as well as the
 running cost of the batch (computed from completed jobs only). The possible batch states are as follows:
 
