@@ -46,19 +46,19 @@ case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: PStruct, vaSig
 
 class VCFParseError(val msg: String, val pos: Int) extends RuntimeException(msg)
 
-final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
-  var pos: Int = 0
 
-  val abs = new MissingArrayBuilder[String]
-  val abi = new MissingArrayBuilder[Int]
-  val abf = new MissingArrayBuilder[Float]
-  val abd = new MissingArrayBuilder[Double]
+final class VCFLine(val line: String, arrayElementsRequired: Boolean,
+  val abs: MissingArrayBuilder[String],
+  val abi: MissingArrayBuilder[Int],
+  val abf: MissingArrayBuilder[Float],
+  val abd: MissingArrayBuilder[Double]) {
+  var pos: Int = 0
 
   def parseError(msg: String): Unit = throw new VCFParseError(msg, pos)
 
   def numericValue(c: Char): Int = {
     if (c < '0' || c > '9')
-      parseError(s"invalid character '$c' in integer literal")
+      parseError(s"invalid character '${StringEscapeUtils.escapeString(c.toString)}' in integer literal")
     c - '0'
   }
 
@@ -929,18 +929,19 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
           parseAddInfoField(rvb, infoType.fieldType(key))
       }
     }
-    rvb.startStruct()
+    rvb.startStruct(init = true, setMissing = true)
     infoType.fields.foreach { f =>
-      if (infoFlagFieldNames.contains(f.name))
+      if (infoFlagFieldNames.contains(f.name)) {
+        rvb.setFieldIndex(f.index)
         rvb.addBoolean(false)
-      else
-        rvb.setMissing()
+      }
     }
 
     // handle first key, which may be '.' for missing info
     var key = parseInfoKey()
     if (key == ".") {
       if (endField()) {
+        rvb.setFieldIndex(infoType.size)
         rvb.endStruct()
         return
       } else
@@ -976,7 +977,7 @@ object FormatParser {
   }
 }
 
-class FormatParser(
+final class FormatParser(
   gType: TStruct,
   formatFieldGIndex: Array[Int],
   missingGIndices: Array[Int]) {
@@ -1011,7 +1012,7 @@ class FormatParser(
     }
   }
 
-  def setFieldMissing(rvb: RegionValueBuilder, i: Int) {
+  def setMissing(rvb: RegionValueBuilder, i: Int) {
     val idx = formatFieldGIndex(i)
     if (idx >= 0) {
       rvb.setFieldIndex(idx)
@@ -1036,7 +1037,7 @@ class FormatParser(
     i = 1
     while (i < formatFieldGIndex.length) {
       if (end)
-        setFieldMissing(rvb, i)
+        setMissing(rvb, i)
       else {
         l.nextFormatField()
         parseAddField(l, rvb, i)
@@ -1062,15 +1063,15 @@ class ParseLineContext(typ: TableType, val infoFlagFieldNames: Set[String], val 
   val hasFilters = typ.rowType.hasField("filters")
   val hasEntryFields = entryType.size > 0
 
-  val formatParsers = mutable.Map[String, FormatParser]()
+  val formatParsers = new java.util.HashMap[String, FormatParser]()
 
   def getFormatParser(format: String): FormatParser = {
-    formatParsers.get(format) match {
-      case Some(fp) => fp
-      case None =>
-        val fp = FormatParser(entryType, format)
-        formatParsers += format -> fp
-        fp
+    if (formatParsers.containsKey(format))
+      formatParsers.get(format)
+    else {
+      val fp = FormatParser(entryType, format)
+      formatParsers.put(format, fp)
+      fp
     }
   }
 }
@@ -1144,7 +1145,7 @@ object LoadVCF {
       case (VCFHeaderLineType.String, true) => PCanonicalCall()
       case (VCFHeaderLineType.String, false) => PCanonicalString()
       case (VCFHeaderLineType.Character, false) => PCanonicalString()
-      case (VCFHeaderLineType.Flag, false) => PBoolean()
+      case (VCFHeaderLineType.Flag, false) => PBoolean(true)
       case (_, true) => fatal(s"Can only convert a header line with type 'String' to a call type. Found '${ line.getType }'.")
     }
 
@@ -1263,12 +1264,17 @@ object LoadVCF {
 
         var present: Boolean = false
 
+        val abs = new MissingArrayBuilder[String]
+        val abi = new MissingArrayBuilder[Int]
+        val abf = new MissingArrayBuilder[Float]
+        val abd = new MissingArrayBuilder[Double]
+
         def hasNext: Boolean = {
           while (!present && it.hasNext) {
             val lwc = it.next()
             val line = lwc.value
             try {
-              val vcfLine = new VCFLine(line, arrayElementsRequired)
+              val vcfLine = new VCFLine(line, arrayElementsRequired, abs, abi, abf, abd)
               rvb.start(rowPType)
               rvb.startStruct()
               present = vcfLine.parseAddVariant(rvb, rgBc.map(_.value), contigRecoding, hasRSID, skipInvalidLoci)
@@ -1433,7 +1439,7 @@ class PartitionedVCFRDD(
     }
 
     it.filter { l =>
-      var t1 = l.indexOf('\t')
+      val t1 = l.indexOf('\t')
       val t2 = l.indexOf('\t', t1 + 1)
 
       val chrom = l.substring(0, t1)

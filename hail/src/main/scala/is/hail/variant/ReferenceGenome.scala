@@ -77,8 +77,28 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   if (yContigs.intersect(mtContigs).nonEmpty)
     fatal(s"Found the contigs '${ yContigs.intersect(mtContigs).mkString(", ") }' in both Y and MT contigs.")
 
-  val contigsIndex: Map[String, Int] = contigs.zipWithIndex.toMap
-  val contigsSet: Set[String] = contigs.toSet
+  val contigsIndex: java.util.HashMap[String, Int] = {
+    val m = new java.util.HashMap[String, Int]
+    contigs.zipWithIndex.foreach { case (c, i) =>
+      m.put(c, i)
+    }
+    m
+  }
+
+  val contigsSet: java.util.HashSet[String] = {
+    val s = new java.util.HashSet[String]
+    contigs.foreach(c => s.add(c))
+    s
+  }
+
+  private val jLengths: java.util.HashMap[String, Int] = {
+    val m = new java.util.HashMap[String, Int]
+    lengths.foreach { case (c, i) =>
+      m.put(c, i)
+    }
+    m
+  }
+
   val lengthsByIndex: Array[Int] = contigs.map(lengths)
 
   lengths.foreach { case (n, l) =>
@@ -86,9 +106,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       fatal(s"Contig length must be positive. Contig '$n' has length equal to $l.")
   }
 
-  val xNotInRef = xContigs.diff(contigsSet)
-  val yNotInRef = yContigs.diff(contigsSet)
-  val mtNotInRef = mtContigs.diff(contigsSet)
+  val xNotInRef = xContigs.diff(contigsSet.asScala)
+  val yNotInRef = yContigs.diff(contigsSet.asScala)
+  val mtNotInRef = mtContigs.diff(contigsSet.asScala)
 
   if (xNotInRef.nonEmpty)
     fatal(s"The following X contig names are absent from the reference: '${ xNotInRef.mkString(", ") }'.")
@@ -99,9 +119,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   if (mtNotInRef.nonEmpty)
     fatal(s"The following mitochondrial contig names are absent from the reference: '${ mtNotInRef.mkString(", ") }'.")
 
-  val xContigIndices = xContigs.map(contigsIndex)
-  val yContigIndices = yContigs.map(contigsIndex)
-  val mtContigIndices = mtContigs.map(contigsIndex)
+  val xContigIndices = xContigs.map(contigsIndex.get)
+  val yContigIndices = yContigs.map(contigsIndex.get)
+  val mtContigIndices = mtContigs.map(contigsIndex.get)
 
   val locusOrdering = {
     val localContigsIndex = contigsIndex
@@ -171,10 +191,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     Locus(contig, (idx - globalPosContigStarts(contig) + 1).toInt)
   }
 
-  def contigLength(contig: String): Int = lengths.get(contig) match {
-    case Some(l) => l
-    case None => fatal(s"Invalid contig name: '$contig'.")
-  }
+  def contigLength(contig: String): Int = jLengths.get(contig)
 
   def contigLength(contigIdx: Int): Int = {
     require(contigIdx >= 0 && contigIdx < nContigs)
@@ -677,16 +694,11 @@ object ReferenceGenome {
     rgs.foreach(writeReference(fs, path, _))
   }
 
-  def compare(contigsIndex: Map[String, Int], c1: String, c2: String): Int = {
-    (contigsIndex.get(c1), contigsIndex.get(c2)) match {
-      case (Some(i), Some(j)) => i.compare(j)
-      case (Some(_), None) => -1
-      case (None, Some(_)) => 1
-      case (None, None) => c1.compare(c2)
-    }
+  def compare(contigsIndex: java.util.HashMap[String, Int], c1: String, c2: String): Int = {
+    Integer.compare(contigsIndex.get(c1), contigsIndex.get(c2))
   }
 
-  def compare(contigsIndex: Map[String, Int], l1: Locus, l2: Locus): Int = {
+  def compare(contigsIndex: java.util.HashMap[String, Int], l1: Locus, l2: Locus): Int = {
     val c = compare(contigsIndex, l1.contig, l2.contig)
     if (c != 0)
       return c
