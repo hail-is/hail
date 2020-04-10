@@ -233,8 +233,7 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
     cb.append(Code._println("Pre setup"))
     cb += setup
     cb.append(Code._println("Post setup"))
-    cb.ifx(m, {cb.append(Code._println("Was missing")); cb.goto(Lmissing) },
-      {cb.append(Code._println("Was present")); cb.goto(Lpresent) })
+    cb.ifx(m, { cb.goto(Lmissing) }, { cb.goto(Lpresent) })
     IEmitCode(Lmissing, Lpresent, pv)
   }
 
@@ -1297,7 +1296,7 @@ private class Emit[C](
             datat.toI(cb).map(cb) { case dataCode: PIndexableCode =>
               val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
               val dataValue = dataCode.memoize(cb, "make_ndarray_data")
-              val dataPtr = dataValue.get.code.asInstanceOf[Code[Long]]
+              val dataPtr = dataValue.get.tcode[Long]
               val requiredData = dataPType.checkedConvertFrom(mb, region, dataPtr, coerce[PArray](dataContainer), "NDArray cannot have missing data")
 
               (0 until nDims).foreach { index =>

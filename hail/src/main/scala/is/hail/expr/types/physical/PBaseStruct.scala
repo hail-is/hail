@@ -199,8 +199,6 @@ abstract class PBaseStructValue extends PValue {
 abstract class PBaseStructCode extends PCode {
   def pt: PBaseStruct
 
-  val a: Code[Long]
-
   def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue
