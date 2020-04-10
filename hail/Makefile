@@ -13,6 +13,7 @@ SPARK_VERSION := 2.4.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
 HAIL_PATCH_VERSION := 36
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
+HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 
 $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
@@ -83,8 +84,11 @@ src/main/resources/build-info.properties: Makefile
 .PHONY: python-version-info
 python-version-info: $(PYTHON_VERSION_INFO)
 
+spark_version: $(SPARK_VERSION)
+	echo $(SPARK_VERSION) > spark_version
+
 python/hail/hail_version: env/SHORT_REVISION env/HAIL_PIP_VERSION
-	echo $(HAIL_PIP_VERSION)-$(SHORT_REVISION) > $@
+	echo $(HAIL_VERSION) > $@
 
 python/hail/hail_pip_version: env/HAIL_PIP_VERSION
 	echo $(HAIL_PIP_VERSION) > $@
@@ -222,59 +226,14 @@ test-dataproc: install-hailctl
 	for FILE in $(cluster_38_test_files); do \
 	  hailctl dataproc submit $(cluster_name_38) $$FILE || exit 1; done || exit
 
-
-DEPLOYED_VERSION = $(shell \
-  $(PIP) --no-cache-dir search hail \
-   | grep '^hail ' \
-   | sed 's/hail (//' \
-   | sed 's/).*//')
-.PHONY: check-pypi
-check-pypi:
-	if [ -z "$$DEPLOY_REMOTE" ]; then \
-	  echo "ERROR: DEPLOY_REMOTE must be set to deploy to PyPI"; exit 1; fi
-	if [ "$(DEPLOYED_VERSION)" = "$(HAIL_PIP_VERSION)" ]; then \
-	  echo "ERROR: version $(HAIL_PIP_VERSION) already deployed"; exit 1; fi
-
-HAIL_TWINE_CREDS_FOLDER ?= /secrets/
-
-.PHONY: pypi-deploy
-pypi-deploy: check-pypi test-dataproc set-docs-sha
-	TWINE_USERNAME=$(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username) \
-	TWINE_PASSWORD=$(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password) \
-	twine upload build/deploy/dist/*
-
-TAG_EXISTS = $(shell git ls-remote --exit-code --tags origin $(HAIL_PIP_VERSION) || echo "does not exist")
-.PHONY: check-tag
-check-tag:
-	if [ -z "$(TAG_EXISTS)" ]; then echo "ERROR: tag $(HAIL_PIP_VERSION) already exists"; exit 1; fi
-
-GITHUB_RELEASE_URL = https://github.com/hail-is/hail/releases/new
-.PHONY: tag
-tag: check-tag pypi-deploy
-	git tag $(HAIL_PIP_VERSION) -m "Hail version $(HAIL_PIP_VERSION)"
-	git push $(DEPLOY_REMOTE) $(HAIL_PIP_VERSION)
-	@echo Please make a release: $(GITHUB_RELEASE_URL)
-	if [ `uname` == "Darwin" ]; then open $(GITHUB_RELEASE_URL); fi
-
-annotation_db_json_url := gs://hail-common/annotationdb/$(HAIL_PIP_VERSION)-$(SHORT_REVISION)/annotation_db.json
-.PHONY: deploy-annotation-db
-deploy-annotation-db:
-	gsutil cp python/hail/experimental/annotation_db.json $(annotation_db_json_url)
-	gsutil -m retention temp set $(annotation_db_json_url)
-
-docs_location := gs://hail-common/builds/0.2/docs/hail-0.2-docs-$(REVISION).tar.gz
-local_sha_location := build/deploy/latest-hash-spark-$(SPARK_VERSION).txt
-cloud_sha_location := gs://hail-common/builds/0.2/latest-hash/cloudtools-5-spark-2.4.0.txt
-.PHONY: set-docs-sha
-set-docs-sha: deploy-annotation-db
-	mkdir -p $(dir $(local_sha_location))
-	gsutil ls $(docs_location)  # make sure file exists
-	echo "$(REVISION)" > $(local_sha_location)
-	gsutil cp $(local_sha_location) $(cloud_sha_location)
-	gsutil acl set public-read $(cloud_sha_location)
-
+# use curl version >=7.55.0
+# set DEPLOY_REMOTE to the hail-is/hail remote
+# create an access token with full repo privileges at https://github.com/settings/tokens
+# create a file that contains "Authorization: token YOUR_ACCESS_TOKEN_HERE"
+# set GITHUB_OAUTH_HEADER_FILE to that filename
 .PHONY: deploy
-deploy: tag
+deploy: test-dataproc $(WHEEL)
+	bash deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE)
 
 .PHONY: install-dev-deps
 install-dev-deps:
