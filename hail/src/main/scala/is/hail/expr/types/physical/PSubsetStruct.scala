@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, UnsafeUtils}
-import is.hail.asm4s.{Code, Settable, SettableBuilder, Value, const}
+import is.hail.asm4s.{Code, Settable, SettableBuilder, Value, coerce, const}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.expr.types.BaseStruct
 import is.hail.expr.types.virtual.TStruct
@@ -31,10 +31,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
     psField.index
   }.toArray
 
-  override lazy val fieldIdx: Map[String, Int] = fields.zipWithIndex.map { case (f, i) =>
-    assert(f.index >= i)
-    (f.name, i)
-  }.toMap
+  override lazy val fieldIdx: Map[String, Int] = fields.zipWithIndex.map { case (f, i) => (f.name, i) }.toMap
 
   lazy val missingIdx: Array[Int] = idxMap.map(i => ps.missingIdx(i))
   lazy val nMissing: Int = missingIdx.length
@@ -155,6 +152,14 @@ class PSubsetStructSettable(val pt: PStruct, val a: Settable[Long]) extends PBas
       pt.isFieldMissing(a, fieldIdx),
       pt.fields(fieldIdx).typ.load(pt.fieldOffset(a, fieldIdx)))
   }
+
+  def apply[T](i: Int): Value[T] =
+    new Value[T] {
+      def get: Code[T] = coerce[T](Region.loadIRIntermediate(pt.types(i))(pt.loadField(a, i)))
+    }
+
+  def isFieldMissing(fieldIdx: Int): Code[Boolean] =
+    pt.isFieldMissing(a, fieldIdx)
 
   def store(pv: PCode): Code[Unit] = {
     a := pv.asInstanceOf[PSubsetStructCode].a
