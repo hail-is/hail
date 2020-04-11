@@ -20,14 +20,14 @@ If you'd like to discuss or contribute to the development of methods or infrastr
 
 - see the [For Software Developers](https://hail.is/docs/0.2/getting_started_developing.html) section of the installation guide for info on compiling Hail
 - chat with us about development in our [Zulip chatroom](https://hail.zulipchat.com)
-- visit the [Development Forum](http://dev.hail.is) for longer-form discussions
+- visit the [Development Forum](https://dev.hail.is) for longer-form discussions
 <!--- - read [this post]() (coming soon!) for tips on submitting a successful Pull Request to our repository --->
 
-Hail uses a continuous deployment approach to software development, which means we frequently add new features. We update users about changes to Hail via the [Discussion Forum](http://discuss.hail.is). We recommend creating an account on the Discussion Forum so that you can subscribe to these updates as well.
+Hail uses a continuous deployment approach to software development, which means we frequently add new features. We update users about changes to Hail via the [Discussion Forum](https://discuss.hail.is). We recommend creating an account on the Discussion Forum so that you can subscribe to these updates as well.
 
 ### Maintainer
 
-Hail is maintained by a team in the [Neale lab](https://nealelab.is/) at the [Stanley Center for Psychiatric Research](http://www.broadinstitute.org/stanley) of the [Broad Institute of MIT and Harvard](http://www.broadinstitute.org) and the [Analytic and Translational Genetics Unit](https://www.atgu.mgh.harvard.edu/) of [Massachusetts General Hospital](http://www.massgeneral.org/).
+Hail is maintained by a team in the [Neale lab](https://nealelab.is/) at the [Stanley Center for Psychiatric Research](https://www.broadinstitute.org/stanley) of the [Broad Institute of MIT and Harvard](https://www.broadinstitute.org) and the [Analytic and Translational Genetics Unit](https://www.atgu.mgh.harvard.edu/) of [Massachusetts General Hospital](https://www.massgeneral.org/).
 
 Contact the Hail team at <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a>.
 

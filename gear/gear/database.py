@@ -53,7 +53,7 @@ async def aexit(acontext_manager, exc_type=None, exc_val=None, exc_tb=None):
 
 
 def ssl_context_from_sql_config(sql_config):
-    ssl_mode = sql_config.get('ssl-mode', 'DISABLED')
+    ssl_mode = sql_config.get('ssl-mode') or 'DISABLED'
     if ssl_mode == 'DISABLED':
         # change to the following in a follow up PR
         # raise ValueError(f'cleartext database connections are not '
@@ -65,8 +65,8 @@ def ssl_context_from_sql_config(sql_config):
         # change to the following in a follow up PR
         # raise ValueError(f'unverified database connections are not '
         #                  f'permitted. {json.dumps(sql_config)}')
-        assert 'ssl-cert' in sql_config
-        assert 'ssl-key' in sql_config
+        assert sql_config.get('ssl-cert') is not None
+        assert sql_config.get('ssl-key') is not None
 
         log.warning(f'not verifying msyql server certificates')
 
@@ -77,9 +77,9 @@ def ssl_context_from_sql_config(sql_config):
         ssl_context.verify_mode = ssl.CERT_NONE
         return ssl_context
     if ssl_mode == 'VERIFY_CA':
-        assert 'ssl-cert' in sql_config
-        assert 'ssl-key' in sql_config
-        assert 'ssl-ca' in sql_config
+        assert sql_config.get('ssl-cert') is not None
+        assert sql_config.get('ssl-key') is not None
+        assert sql_config.get('ssl-ca') is not None
 
         log.info(f'verifying msyql server certificates')
 

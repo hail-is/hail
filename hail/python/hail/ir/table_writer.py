@@ -2,6 +2,7 @@ import abc
 import json
 from ..typecheck import *
 from ..utils.misc import escape_str
+from .export_type import ExportType
 
 
 class TableWriter(object):
@@ -46,7 +47,7 @@ class TableTextWriter(TableWriter):
     @typecheck_method(path=str,
                       types_file=nullable(str),
                       header=bool,
-                      export_type=int,
+                      export_type=ExportType.checker,
                       delimiter=str)
     def __init__(self, path, types_file, header, export_type, delimiter):
         super(TableTextWriter, self).__init__()

@@ -94,16 +94,11 @@ abstract class PBaseStruct extends PType {
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: Array[SortOrder]): CodeOrdering
 
-  def isIsomorphicTo(other: PBaseStruct): Boolean =
-    size == other.size && isCompatibleWith(other)
-
   def isPrefixOf(other: PBaseStruct): Boolean =
     size <= other.size && isCompatibleWith(other)
 
   def isCompatibleWith(other: PBaseStruct): Boolean =
     fields.zip(other.fields).forall{ case (l, r) => l.typ isOfType r.typ }
-
-  def truncate(newSize: Int): PBaseStruct
 
   override def unsafeOrdering(): UnsafeOrdering =
     unsafeOrdering(this)
@@ -182,9 +177,15 @@ abstract class PBaseStruct extends PType {
     } else
       Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*))
   }
+
+  override def load(src: Code[Long]): PBaseStructCode = ???
 }
 
 abstract class PBaseStructValue extends PValue {
+  def apply[T](i: Int): Value[T]
+
+  def isFieldMissing(fieldIdx: Int): Code[Boolean]
+
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode
 
   def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadField(cb, pt.asInstanceOf[PBaseStruct].fieldIdx(fieldName))

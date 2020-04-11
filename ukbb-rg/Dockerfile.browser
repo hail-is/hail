@@ -9,7 +9,7 @@ RUN apt-get update && \
     gdebi-core && \
   rm -rf /var/lib/apt/lists/*
 
-RUN R -e "install.packages(c('shiny', 'rmarkdown', 'data.table', 'formattable', 'dplyr', 'DT', 'shinyWidgets', 'shinyjs'), repos='http://cran.rstudio.com/', Ncpus=4)"
+RUN R -e "install.packages(c('shiny', 'rmarkdown', 'data.table', 'formattable', 'dplyr', 'DT', 'shinyWidgets', 'shinyjs'), repos='https://cran.rstudio.com/', Ncpus=4)"
 
 RUN wget -nv -O shiny-server-1.5.9.923-amd64.deb https://download3.rstudio.org/ubuntu-14.04/x86_64/shiny-server-1.5.9.923-amd64.deb && \
  gdebi -n shiny-server-1.5.9.923-amd64.deb && \

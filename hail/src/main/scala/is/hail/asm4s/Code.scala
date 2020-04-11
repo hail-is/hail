@@ -334,8 +334,13 @@ object Code {
     newC
   }
 
-  def _println(c: Code[AnyRef]): Code[Unit] =
-    Code.invokeScalaObject[AnyRef, Unit](scala.Console.getClass, "println", c)
+  def _println(c: Code[AnyRef]): Code[Unit] = {
+    Code(
+      Code.invokeScalaObject[AnyRef, Unit](scala.Console.getClass, "println", c),
+      Code.invokeScalaObject[Unit](scala.Console.getClass, "flush")
+    )
+  }
+
 
   def checkcast[T](v: Code[_])(implicit tti: TypeInfo[T]): Code[T] =
     Code(v, lir.checkcast(tti.iname))
@@ -727,6 +732,12 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
   def /(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, lir.insn2(IDIV))
 
   def %(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, lir.insn2(IREM))
+
+  def max(rhs: Code[Int]): Code[Int] =
+    Code.invokeStatic[Math, Int, Int, Int]("max", lhs, rhs)
+
+  def min(rhs: Code[Int]): Code[Int] =
+    Code.invokeStatic[Math, Int, Int, Int]("min", lhs, rhs)
 
   def compare(op: Int, rhs: Code[Int]): Code[Boolean] = {
     val Ltrue = new lir.Block()

@@ -77,8 +77,7 @@ class RVDPartitioner(
     b.toHashCode
   }
 
-  @transient
-  @volatile var partitionerBc: Broadcast[RVDPartitioner] = _
+  @transient @volatile var partitionerBc: Broadcast[RVDPartitioner] = _
 
   def broadcast(sc: SparkContext): Broadcast[RVDPartitioner] = {
     if (partitionerBc == null) {

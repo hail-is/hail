@@ -22,8 +22,8 @@ repositories {
     mavenCentral()
     jcenter()
     maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
-    maven { url "http://repo.hortonworks.com/content/repositories/releases/" }
-    maven { url "http://repo.spring.io/plugins-release/" }
+    maven { url "https://repo.hortonworks.com/content/repositories/releases/" }
+    maven { url "https://repo.spring.io/plugins-release/" }
 }
 
 String sparkVersion = System.getProperty("spark.version", "2.4.0")

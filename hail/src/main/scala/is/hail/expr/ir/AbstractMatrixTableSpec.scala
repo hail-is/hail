@@ -136,9 +136,9 @@ abstract class AbstractMatrixTableSpec extends RelationalSpec {
 
   def indexed(path: String): Boolean = rowsComponent.indexed(HailContext.get, path)
 
-  def rowsTableSpec(path: String): AbstractTableSpec = RelationalSpec.read(HailContext.fs, path).asInstanceOf[AbstractTableSpec]
-  def colsTableSpec(path: String): AbstractTableSpec = RelationalSpec.read(HailContext.fs, path).asInstanceOf[AbstractTableSpec]
-  def entriesTableSpec(path: String): AbstractTableSpec = RelationalSpec.read(HailContext.fs, path).asInstanceOf[AbstractTableSpec]
+  def entriesTableSpec(fs: FS, path: String): AbstractTableSpec = {
+    RelationalSpec.read(fs, path + "/entries").asInstanceOf[AbstractTableSpec]
+  }
 }
 
 case class MatrixTableSpec(
@@ -149,8 +149,8 @@ case class MatrixTableSpec(
   components: Map[String, ComponentSpec]) extends AbstractMatrixTableSpec {
 
   // some legacy files written as MatrixTableSpec wrote the wrong type to the entries table metadata
-  override def entriesTableSpec(path: String): AbstractTableSpec = {
-    val writtenETS = super.entriesTableSpec(path).asInstanceOf[TableSpec]
+  override def entriesTableSpec(fs: FS, path: String): AbstractTableSpec = {
+    val writtenETS = super.entriesTableSpec(fs, path).asInstanceOf[TableSpec]
     writtenETS.copy(table_type = TableType(matrix_type.entriesRVType, FastIndexedSeq(), matrix_type.globalType))
   }
 }

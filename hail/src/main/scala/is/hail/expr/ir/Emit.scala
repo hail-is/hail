@@ -6,6 +6,7 @@ import is.hail.annotations._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.asm4s._
 import is.hail.backend.HailTaskContext
+import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -149,17 +150,23 @@ abstract class EmitValue {
 }
 
 object IEmitCode {
-  def apply(cb: EmitCodeBuilder, m: Code[Boolean], pc: PCode): IEmitCode = {
+  def apply(cb: EmitCodeBuilder, m: Code[Boolean], pc: => PCode): IEmitCode = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
-    cb.ifx(m, { cb.goto(Lmissing) }, { cb.goto(Lpresent) })
-    IEmitCode(Lmissing, Lpresent, pc)
+    cb.ifx(m, { cb.goto(Lmissing) })
+    val resPc: PCode = pc
+    cb.goto(Lpresent)
+    IEmitCode(Lmissing, Lpresent, resPc)
   }
 }
 
 case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
-  def map(f: (PCode) => PCode): IEmitCode = {
-    IEmitCode(Lmissing, Lpresent, f(pc))
+  def map(cb: EmitCodeBuilder)(f: (PCode) => PCode): IEmitCode = {
+    val Lpresent2 = CodeLabel()
+    cb.define(Lpresent)
+    val pc2 = f(pc)
+    cb.goto(Lpresent2)
+    IEmitCode(Lmissing, Lpresent2, pc2)
   }
 
   def flatMap(cb: EmitCodeBuilder)(f: (PCode) => IEmitCode): IEmitCode = {
@@ -440,8 +447,7 @@ private class Emit[C](
 
         cb += streamOpt.cases(mb)(
           Code._empty,
-          stream =>
-            stream.stream.forEach(mb)(forBody))
+          _.getStream.forEach(mb)(forBody))
 
       case x@InitOp(i, args, _, op) =>
         val AggContainer(aggs, sc) = container.get
@@ -600,7 +606,7 @@ private class Emit[C](
     // working towards removing this
     if (pt == PVoid)
       return new EmitCode(emitVoid(ir), const(false), PCode(pt, Code._empty))
-    
+
     (ir: @unchecked) match {
       case I32(x) =>
         present(pt, const(x))
@@ -758,7 +764,7 @@ private class Emit[C](
           emit(a).toI(cb).flatMap(cb) { (ac) =>
             emit(i).toI(cb).flatMap(cb) { (ic) =>
               val av = ac.asIndexable.memoize(cb, "aref_a")
-              val iv = cb.memoize(ic.tcode[Int], "aref_i")
+              val iv = cb.newLocal("i", ic.tcode[Int])
 
               cb.ifx(iv < 0 || iv >= av.loadLength(), {
                 cb._fatal(errorTransformer(
@@ -774,7 +780,7 @@ private class Emit[C](
 
       case ArrayLen(a) =>
         EmitCode.fromI(mb) { cb =>
-          emit(a).toI(cb).map { (ac) =>
+          emit(a).toI(cb).map(cb) { (ac) =>
             PCode(PInt32Required, ac.asIndexable.loadLength())
           }
         }
@@ -990,7 +996,7 @@ private class Emit[C](
         val accType = ir.pType
 
         val streamOpt = emitStream(a)
-        val resOpt: COption[PCode] = streamOpt.flatMapCPS { (stream, _ctx, ret) =>
+        val resOpt: COption[PCode] = streamOpt.flatMapCPS { (ss, _ctx, ret) =>
           implicit val c = _ctx
 
           val xAcc = mb.newEmitField(accumName, accType)
@@ -1010,8 +1016,8 @@ private class Emit[C](
           def retTT(): Code[Ctrl] =
             ret(COption.fromEmitCode(xAcc.get))
 
-          stream.stream
-                .fold(mb, xAcc := codeZ, foldBody, retTT())
+          ss.getStream
+            .fold(mb, xAcc := codeZ, foldBody, retTT())
         }
 
         COption.toEmitCode(resOpt, accType, mb)
@@ -1031,7 +1037,7 @@ private class Emit[C](
         val typedCodeSeq = seq.map(ir => emit(ir, env = seqEnv))
 
         val streamOpt = emitStream(a)
-         val resOpt = streamOpt.flatMapCPS[PCode] { (stream, _ctx, ret) =>
+         val resOpt = streamOpt.flatMapCPS[PCode] { (ss, _ctx, ret) =>
           implicit val c = _ctx
 
           def foldBody(elt: EmitCode): Code[Unit] =
@@ -1044,7 +1050,7 @@ private class Emit[C](
           def computeRes(): Code[Ctrl] =
               ret(COption.fromEmitCode(codeR))
 
-          stream.stream
+          ss.getStream
             .fold(mb, Code(accVars.zip(acc).map { case (v, (name, x)) =>
               v := emit(x).castTo(mb, region, v.pt)
             }),
@@ -1282,36 +1288,36 @@ private class Emit[C](
         val shapet = emit(shapeIR)
         val rowMajort = emit(rowMajorIR)
 
-        val requiredData = dataPType.checkedConvertFrom(mb, region, datat.value[Long], coerce[PArray](dataContainer), "NDArray cannot have missing data")
-        val shapeAddress = mb.genFieldThisRef[Long]()
+        EmitCode.fromI(mb) { cb =>
+          shapet.toI(cb).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
+            datat.toI(cb).map(cb) { case dataCode: PIndexableCode =>
+              val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
+              val dataValue = dataCode.memoize(cb, "make_ndarray_data")
+              val dataPtr = dataValue.get.tcode[Long]
+              val requiredData = dataPType.checkedConvertFrom(mb, region, dataPtr, coerce[PArray](dataContainer), "NDArray cannot have missing data")
 
-        val shapeTuple = new CodePTuple(shapePType, shapeAddress)
+              (0 until nDims).foreach { index =>
+                cb.ifx(shapeTupleValue.isFieldMissing(index),
+                  cb.append(Code._fatal[Unit](s"shape missing at index $index")))
+              }
 
-        val shapeVariables = (0 until nDims).map(_ => mb.newLocal[Long]()).toArray
+              val shapeCodeSeq = (0 until nDims).map(shapeTupleValue[Long](_).get)
 
-        def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
-          Code(
-            srvb.start(),
-            Code.foreach(0 until nDims) { index =>
-              Code(
-                srvb.addLong(shapeVariables(index)),
-                srvb.advance())
-            })
+              def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
+                Code(
+                  srvb.start(),
+                  Code.foreach(0 until nDims) { index =>
+                    Code(
+                      srvb.addLong(shapeTupleValue(index)),
+                      srvb.advance())
+                  })
+              }
+
+              PCode(pt, xP.construct(shapeBuilder, xP.makeDefaultStridesBuilder(shapeCodeSeq, mb), requiredData, mb))
+            }
+          }
         }
 
-        val setup = Code(
-          shapet.setup,
-          datat.setup,
-          rowMajort.setup)
-        val result = Code(
-          shapeAddress := shapet.value[Long],
-          Code.foreach(0 until nDims) { index =>
-            shapeTuple.isMissing(index).mux[Unit](
-              Code._fatal[Unit](s"shape missing at index $index"),
-              shapeVariables(index) := shapeTuple(index))
-          },
-          xP.construct(shapeBuilder, xP.makeDefaultStridesBuilder(shapeVariables.map(_.load()), mb), requiredData, mb))
-        EmitCode(setup, datat.m || shapet.m, PCode(pt, result))
       case NDArrayShape(ndIR) =>
         val ndt = emit(ndIR)
         val ndP = ndIR.pType.asInstanceOf[PNDArray]
@@ -1874,13 +1880,12 @@ private class Emit[C](
             srvb.offset)
         }
 
-        def addContexts(ctxStream: EmitStream.SizedStream): Code[Unit] =
+        def addContexts(ctxStream: SizedStream): Code[Unit] = ctxStream match {
+          case SizedStream(setup, stream, len) =>
           Code(
-            ctxStream.length match {
-              case None => ctxab.invoke[Int, Unit]("ensureCapacity", 16)
-              case Some((setupLen, len)) => Code(setupLen, ctxab.invoke[Int, Unit]("ensureCapacity", len))
-            },
-            ctxStream.stream.map(etToTuple(_, ctxType)).forEach(mb) { offset =>
+            setup,
+            ctxab.invoke[Int, Unit]("ensureCapacity", len.getOrElse(16)),
+            stream.map(etToTuple(_, ctxType)).forEach(mb) { offset =>
               Code(
                 baos.invoke[Unit]("reset"),
                 Code.memoize(offset, "cda_add_contexts_addr") { offset =>
@@ -1889,6 +1894,7 @@ private class Emit[C](
                 buf.invoke[Unit]("flush"),
                 ctxab.invoke[Array[Byte], Unit]("add", baos.invoke[Array[Byte]]("toByteArray")))
             })
+        }
 
         val addGlobals = Code(
           Code.memoize(etToTuple(globalsT, gType), "cda_g") { g =>
