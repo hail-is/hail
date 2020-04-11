@@ -1527,6 +1527,9 @@ steps:
      valueFrom: ci_utils_image.image
    script: |
      set -ex
+
+     cd /io
+
      gcloud auth activate-service-account --key-file=/secrets/test-gsa-key
      gcloud auth configure-docker
      cat /docker-hub-hailgenetics/password | docker login --username hailgenetics --password-stdin
@@ -1555,8 +1558,8 @@ steps:
     - hail_public_image
     - copy_files
    inputs:
-     - from: hail_pip_version
-       to: hail_pip_version
+     - from: /hail_pip_version
+       to: /io/hail_pip_version
    secrets:
     - name: docker-hub-hailgenetics
       namespace:
@@ -1566,5 +1569,5 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /test-gsa-key
-   scopes:
-     - deploy
+   # scopes:
+   #   - deploy
