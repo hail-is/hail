@@ -1,8 +1,7 @@
 package is.hail.utils
 
 import breeze.linalg.{DenseMatrix => BDM, _}
-import is.hail.{HailSuite, TestUtils}
-import is.hail.linalg.BlockMatrix
+import is.hail.HailSuite
 import is.hail.linalg.BlockMatrix.ops._
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{DistributedMatrix, IndexedRow, IndexedRowMatrix}

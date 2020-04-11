@@ -2,11 +2,11 @@ package is.hail.linalg
 
 import java.lang.reflect.Method
 
-import com.sun.jna.{FunctionMapper, Library, Native, NativeLibrary, Pointer}
-import com.sun.jna.ptr.{DoubleByReference, IntByReference}
+import com.sun.jna.ptr.IntByReference
+import com.sun.jna.{FunctionMapper, Library, Native, NativeLibrary}
+import is.hail.utils._
 
 import scala.util.{Failure, Success, Try}
-import is.hail.utils._
 
 class UnderscoreFunctionMapper extends FunctionMapper {
   override def getFunctionName(library: NativeLibrary, method: Method): String = {

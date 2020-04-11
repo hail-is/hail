@@ -3,10 +3,10 @@ package is.hail.utils
 import java.io.{InputStream, OutputStream}
 
 import is.hail.HailContext
-import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir.{ExecuteContext, TableIR, TableLiteral, TableValue}
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual.{TArray, TString, TStruct, Type}
+import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.io.fs.FileStatus
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import org.apache.spark.sql.{DataFrame, Row}

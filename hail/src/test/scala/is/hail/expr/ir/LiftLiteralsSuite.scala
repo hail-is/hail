@@ -1,9 +1,9 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.TestUtils._
 import is.hail.expr.types.virtual.TInt64
 import is.hail.utils.FastSeq
-import is.hail.TestUtils._
+import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 

@@ -1,19 +1,17 @@
 package is.hail.io.plink
 
 import is.hail.HailContext
-import is.hail.annotations._
-import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, PruneDeadFields, TableRead, TableValue}
+import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixHybridReader, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PBoolean, PCanonicalString, PCanonicalStruct, PFloat64, PString, PStruct}
+import is.hail.expr.types.physical.{PBoolean, PCanonicalString, PCanonicalStruct, PFloat64}
 import is.hail.expr.types.virtual._
+import is.hail.io.fs.FS
 import is.hail.io.vcf.LoadVCF
-import is.hail.rvd.{RVD, RVDContext, RVDType}
+import is.hail.rvd.RVD
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.{Locus, _}
-import is.hail.io.fs.FS
-import org.apache.hadoop
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.sql.Row
 

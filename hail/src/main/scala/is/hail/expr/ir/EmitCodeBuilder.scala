@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.asm4s.{Code, CodeBuilderLike, MethodBuilder, TypeInfo, Value}
-import is.hail.expr.types.physical.{PCode, PValue, PSettable}
+import is.hail.asm4s.{Code, CodeBuilderLike, MethodBuilder}
+import is.hail.expr.types.physical.{PCode, PSettable, PValue}
 
 object EmitCodeBuilder {
   def apply(mb: EmitMethodBuilder[_]): EmitCodeBuilder = new EmitCodeBuilder(mb, Code._empty)

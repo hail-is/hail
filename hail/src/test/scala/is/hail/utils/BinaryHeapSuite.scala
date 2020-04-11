@@ -1,12 +1,13 @@
 package is.hail.utils
 
+import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.check.Prop._
-import is.hail.check.Arbitrary._
-import scala.collection.mutable
+import org.scalatest.Matchers._
 import org.scalatest._
-import Matchers._
 import org.testng.annotations.Test
+
+import scala.collection.mutable
 
 class BinaryHeapSuite {
   @Test

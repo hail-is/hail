@@ -1,6 +1,4 @@
 package is.hail.expr.types.physical
-import is.hail.annotations.UnsafeUtils
-import is.hail.expr.types.BaseStruct
 import is.hail.expr.types.virtual.{TTuple, Type}
 import is.hail.utils._
 

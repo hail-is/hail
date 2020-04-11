@@ -1,9 +1,7 @@
 package is.hail.expr.types.virtual
 
 import is.hail.annotations._
-import is.hail.backend.BroadcastValue
 import is.hail.check._
-import is.hail.expr.types.physical.PLocus
 import is.hail.utils._
 import is.hail.variant._
 

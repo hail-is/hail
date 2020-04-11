@@ -1,16 +1,14 @@
 package is.hail.expr.ir
 
-import java.io.PrintWriter
-
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
 import is.hail.expr.types.virtual._
-import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.utils.FastIndexedSeq
 import is.hail.variant.Call2
+import is.hail.{ExecStrategy, HailSuite}
 import org.testng.annotations.Test
-import is.hail.TestUtils._
 
 object ScalaTestObject {
   def testFunction(): Int = 1

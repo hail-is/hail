@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import is.hail.{HailSuite, TestUtils}
+import is.hail.HailSuite
 import org.testng.annotations.Test
 
 class RichRDDSuite extends HailSuite {

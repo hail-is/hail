@@ -1,10 +1,6 @@
 package is.hail.annotations
 
-import is.hail.expr.ir.ExecuteContext
-import is.hail.expr.types.virtual._
-import is.hail.testUtils._
-import is.hail.utils._
-import is.hail.{HailSuite, TestUtils}
+import is.hail.HailSuite
 import org.testng.annotations.Test
 
 import scala.language.implicitConversions

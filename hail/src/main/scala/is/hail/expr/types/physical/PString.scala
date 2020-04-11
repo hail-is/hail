@@ -1,8 +1,7 @@
 package is.hail.expr.types.physical
 
+import is.hail.annotations.{CodeOrdering, UnsafeOrdering, _}
 import is.hail.asm4s._
-import is.hail.annotations.CodeOrdering
-import is.hail.annotations.{UnsafeOrdering, _}
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TString
 

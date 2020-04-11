@@ -1,21 +1,20 @@
 package is.hail.methods
 
-import is.hail.utils._
-import is.hail.expr.types._
-import is.hail.nativecode.NativeCode
-import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD}
-import is.hail.annotations.{Annotation, BroadcastRow, Region, UnsafeRow}
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, _}
 import breeze.numerics._
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
 import com.sun.jna.Native
 import com.sun.jna.ptr.IntByReference
 import is.hail.HailContext
-import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
+import is.hail.annotations.{Annotation, Region, UnsafeRow}
 import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
+import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TFloat64, TInt32, TStruct, Type}
-import is.hail.rvd.RVDType
+import is.hail.nativecode.NativeCode
+import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD}
+import is.hail.utils._
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 
 /*
 Skat implements the burden test described in:

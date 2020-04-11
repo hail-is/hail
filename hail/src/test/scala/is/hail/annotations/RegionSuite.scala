@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.utils.{info, using}
+import is.hail.utils.using
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 

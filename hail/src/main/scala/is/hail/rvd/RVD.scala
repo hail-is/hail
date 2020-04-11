@@ -5,22 +5,20 @@ import java.util
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.PruneDeadFields.isSupertype
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PCanonicalStruct, PInt64, PStruct, PType}
-import is.hail.expr.types.virtual.{TArray, TInt64, TInterval, TStruct}
-import is.hail.io._
-import is.hail.io.index.IndexWriter
-import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, RichContextRDDRegionValue, TypedCodecSpec}
-import is.hail.sparkextras._
-import is.hail.utils._
 import is.hail.expr.ir.{ExecuteContext, InferPType}
+import is.hail.expr.types._
+import is.hail.expr.types.physical.{PCanonicalStruct, PInt64, PStruct}
+import is.hail.expr.types.virtual.{TInterval, TStruct}
+import is.hail.io.index.IndexWriter
+import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, RichContextRDDRegionValue, TypedCodecSpec, _}
+import is.hail.sparkextras._
 import is.hail.utils.PartitionCounts.{PCSubsetOffset, getPCSubsetOffset, incrementalPCSubsetOffset}
+import is.hail.utils._
 import org.apache.commons.lang3.StringUtils
-import org.apache.spark.TaskContext
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.{Partitioner, SparkContext}
+import org.apache.spark.{Partitioner, SparkContext, TaskContext}
 
 import scala.language.existentials
 import scala.reflect.ClassTag

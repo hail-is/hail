@@ -1,6 +1,5 @@
 package is.hail.utils.richUtils
 
-import is.hail.annotations.Region
 import is.hail.asm4s.Code
 import is.hail.utils.IntPacker
 

@@ -1,7 +1,7 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir._
+import is.hail.expr.ir.agg.Extract
 import is.hail.utils.FastSeq
 
 trait LoweringPass {

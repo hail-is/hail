@@ -2,8 +2,8 @@ package is.hail.annotations
 
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
-import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
+import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr.types.physical._
 import is.hail.utils._
 import is.hail.variant.Locus

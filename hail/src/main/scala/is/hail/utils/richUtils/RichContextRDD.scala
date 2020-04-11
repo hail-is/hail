@@ -6,11 +6,9 @@ import is.hail.HailContext
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
 import is.hail.rvd.RVDContext
-import is.hail.utils._
 import is.hail.sparkextras._
-import org.apache.hadoop.conf.{Configuration => HadoopConf}
+import is.hail.utils._
 import org.apache.spark.TaskContext
-import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
 

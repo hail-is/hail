@@ -4,8 +4,8 @@ import is.hail.HailSuite
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr._
-import is.hail.expr.types.virtual.{TFloat64, TInt32, Type}
 import is.hail.expr.ir.IRParser
+import is.hail.expr.types.virtual.{TFloat64, TInt32, Type}
 import is.hail.utils.StringEscapeUtils._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._

@@ -1,10 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s._
-import is.hail.expr.types.physical.{PType, PCode}
-import is.hail.expr.types.virtual.Type
-
-import scala.reflect.ClassTag
+import is.hail.expr.types.physical.{PCode, PType}
 
 class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int]) {
 

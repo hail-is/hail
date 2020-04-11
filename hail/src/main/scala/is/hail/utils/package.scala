@@ -9,6 +9,7 @@ import java.util.zip.{Deflater, Inflater}
 
 import is.hail.annotations.ExtendedOrdering
 import is.hail.check.Gen
+import is.hail.io.fs.FS
 import org.apache.commons.io.output.TeeOutputStream
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.fs.PathIOException
@@ -25,7 +26,6 @@ import scala.collection.generic.CanBuildFrom
 import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
 import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
-import is.hail.io.fs.FS
 
 package utils {
   trait Truncatable {

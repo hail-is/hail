@@ -5,10 +5,9 @@ import java.io.InputStream
 import breeze.linalg.DenseMatrix
 import is.hail.annotations.{JoinedRegionValue, Region, RegionValue, RegionValueBuilder}
 import is.hail.asm4s.{Code, Value}
-import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDRegionValue, RichContextRDDLong}
-import is.hail.rvd.RVDContext
+import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDLong, RichContextRDDRegionValue}
 import is.hail.sparkextras._
-import is.hail.utils.{IntPacker, HailIterator, MultiArray2, Truncatable, WithContext}
+import is.hail.utils.{HailIterator, IntPacker, MultiArray2, Truncatable, WithContext}
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
 import org.apache.spark.rdd.RDD

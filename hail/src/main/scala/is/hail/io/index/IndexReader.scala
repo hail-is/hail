@@ -5,18 +5,15 @@ import java.util
 import java.util.Map.Entry
 
 import is.hail.annotations._
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual.{Type, TypeSerializer}
-import is.hail.expr.ir.IRParser
-import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.io._
-import is.hail.io.bgen.BgenSettings
-import is.hail.utils._
 import is.hail.io.fs.FS
-import is.hail.rvd.{AbstractIndexSpec, AbstractRVDSpec}
-import org.apache.hadoop.fs.FSDataInputStream
+import is.hail.rvd.AbstractIndexSpec
+import is.hail.utils._
 import org.apache.spark.sql.Row
-import org.json4s.{Formats, NoTypeHints}
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.Formats
+import org.json4s.jackson.JsonMethods
 
 object IndexReaderBuilder {
   def fromSpec(spec: AbstractIndexSpec): (FS, String, Int) => IndexReader = {

@@ -3,9 +3,8 @@ package is.hail.io
 import java.io._
 
 import is.hail.annotations.Region
-import is.hail.asm4s._
-import is.hail.utils.RestartableByteArrayInputStream
 import is.hail.expr.types.encoded.DecoderAsmFunction
+import is.hail.utils.RestartableByteArrayInputStream
 
 trait Decoder extends Closeable {
   def close()

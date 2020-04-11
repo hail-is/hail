@@ -1,22 +1,20 @@
 package is.hail.methods
 
-import java.io.BufferedInputStream
-
 import com.fasterxml.jackson.core.JsonParseException
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.expr.ir.{ExecuteContext, TableValue}
 import is.hail.expr.ir.functions.TableToTableFunction
+import is.hail.expr.ir.{ExecuteContext, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PStruct, PType}
+import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual._
+import is.hail.io.fs.FS
 import is.hail.methods.VEP._
 import is.hail.rvd.RVD
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant, VariantMethods}
-import is.hail.io.fs.FS
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 

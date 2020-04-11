@@ -1,12 +1,11 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
-import is.hail.annotations.{BroadcastIndexedSeq, BroadcastRow}
 import is.hail.expr.Nat
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
-import is.hail.rvd.{RVD, RVDType}
+import is.hail.rvd.RVD
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}

@@ -1,6 +1,6 @@
 package is.hail.io.hadoop
 
-import java.io.{DataOutput, DataInput}
+import java.io.{DataInput, DataOutput}
 
 import org.apache.hadoop.io.Writable
 

@@ -2,17 +2,15 @@ package is.hail.asm4s
 
 import java.io._
 
-import is.hail.utils._
 import is.hail.lir
-
+import is.hail.utils._
 import org.apache.spark.TaskContext
-import org.objectweb.asm.tree._
-import org.objectweb.asm.Opcodes._
-import org.objectweb.asm.util.{Textifier, TraceClassVisitor}
 import org.objectweb.asm.ClassReader
+import org.objectweb.asm.Opcodes._
+import org.objectweb.asm.tree._
+import org.objectweb.asm.util.{Textifier, TraceClassVisitor}
 
 import scala.collection.mutable
-import scala.reflect.ClassTag
 
 class Field[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
   val ti: TypeInfo[T] = implicitly

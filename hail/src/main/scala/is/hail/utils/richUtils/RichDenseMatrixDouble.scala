@@ -3,10 +3,10 @@ package is.hail.utils.richUtils
 import java.io.{DataInputStream, DataOutputStream, InputStream, OutputStream}
 
 import breeze.linalg.{DenseMatrix => BDM}
-import is.hail.io.fs.FS
 import is.hail.HailContext
-import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
 import is.hail.io._
+import is.hail.io.fs.FS
+import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
 import is.hail.utils._
 import org.json4s.jackson
 

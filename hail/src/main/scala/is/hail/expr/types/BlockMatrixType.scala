@@ -1,8 +1,8 @@
 package is.hail.expr.types
 
-import is.hail.utils._
 import is.hail.expr.types.virtual.{TFloat64, Type}
 import is.hail.linalg.BlockMatrix
+import is.hail.utils._
 
 object BlockMatrixSparsity {
   private val builder: ArrayBuilder[(Int, Int)] = new ArrayBuilder[(Int, Int)]

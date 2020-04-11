@@ -3,8 +3,8 @@ package is.hail.rvd
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.ExecuteContext
-import is.hail.expr.types.encoded.{EType, ETypeSerializer}
-import is.hail.expr.types.physical.{PCanonicalStruct, PInt64Optional, PInt64Required, PStruct, PType, PTypeSerializer}
+import is.hail.expr.types.encoded.ETypeSerializer
+import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TStructSerializer, _}
 import is.hail.io._
 import is.hail.io.fs.FS

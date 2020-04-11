@@ -2,7 +2,7 @@ package is.hail.io.index
 
 import is.hail.annotations.RegionValueBuilder
 import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.{TArray, TInt64, TStruct, Type}
+import is.hail.expr.types.virtual.{TStruct, Type}
 import is.hail.utils.ArrayBuilder
 
 object InternalNodeBuilder {

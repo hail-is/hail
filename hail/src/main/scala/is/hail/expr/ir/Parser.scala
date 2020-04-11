@@ -6,15 +6,14 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
-import is.hail.io.bgen.MatrixBGENReaderSerializer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
 import is.hail.rvd.{AbstractRVDSpec, RVDType}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
-import org.json4s.{Formats, JObject}
 import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.{Formats, JObject}
 
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag

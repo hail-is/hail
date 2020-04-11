@@ -1,9 +1,6 @@
 package is.hail.expr.types.physical
 
 import is.hail.HailSuite
-import is.hail.annotations.{Annotation, Region, ScalaToRegionValue}
-import is.hail.asm4s._
-import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.utils._
 import org.testng.annotations.Test
 

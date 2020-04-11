@@ -3,9 +3,8 @@ package is.hail.expr.types.physical
 import is.hail.asm4s.Code
 import is.hail.expr.types.virtual.{TStruct, Type}
 import is.hail.utils._
-import org.apache.spark.sql.Row
 
-import collection.JavaConverters._
+import scala.collection.JavaConverters._
 
 object PCanonicalStruct {
   private val requiredEmpty = PCanonicalStruct(Array.empty[PField], true)

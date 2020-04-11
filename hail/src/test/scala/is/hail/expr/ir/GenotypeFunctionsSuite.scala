@@ -5,8 +5,8 @@ import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual.TFloat64
 import is.hail.utils.FastIndexedSeq
-import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
+import org.testng.annotations.{DataProvider, Test}
 
 class GenotypeFunctionsSuite extends TestNGSuite {
 

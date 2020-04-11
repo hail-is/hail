@@ -1,8 +1,8 @@
 package is.hail.methods
 
-import is.hail.{HailSuite, TestUtils}
-import is.hail.utils._
 import breeze.linalg._
+import is.hail.utils._
+import is.hail.{HailSuite, TestUtils}
 import org.testng.annotations.Test
 
 case class SkatAggForR(xs: ArrayBuilder[DenseVector[Double]], weights: ArrayBuilder[Double])

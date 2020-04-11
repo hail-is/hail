@@ -1,20 +1,19 @@
 package is.hail.io.bgen
 
 import is.hail.annotations._
-import is.hail.asm4s.{AsmFunction4, AsmFunction5}
+import is.hail.asm4s.AsmFunction4
 import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.PruneDeadFields
 import is.hail.expr.types._
-import is.hail.expr.types.encoded.{EArray, EBaseStruct, EBinaryOptional, EBinaryRequired, EField, EInt32Optional, EInt32Required, EInt64Required}
-import is.hail.expr.types.physical.{PArray, PCall, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PFloat64Required, PInt32, PInt64, PLocus, PString, PStruct}
-import is.hail.expr.types.virtual.{Field, TArray, TInt64, TLocus, TString, TStruct, Type}
-import is.hail.io.{AbstractTypedCodecSpec, BlockingBufferSpec, HadoopFSDataBinaryReader, LEB128BufferSpec, LZ4HCBlockBufferSpec, StreamBlockBufferSpec, TypedCodecSpec}
+import is.hail.expr.types.encoded._
+import is.hail.expr.types.physical._
+import is.hail.expr.types.virtual._
 import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}
+import is.hail.io._
 import is.hail.rvd._
 import is.hail.sparkextras._
 import is.hail.utils.FastIndexedSeq
 import is.hail.variant.ReferenceGenome
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{OneToOneDependency, Partition, SparkContext, TaskContext}

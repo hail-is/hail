@@ -3,7 +3,6 @@ package is.hail.expr.types.encoded
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.BaseType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}

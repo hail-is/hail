@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.Region
 import is.hail.asm4s.Code
-import is.hail.expr.types.virtual.{TArray, TDict, Type}
+import is.hail.expr.types.virtual.{TDict, Type}
 
 final case class PCanonicalDict(keyType: PType, valueType: PType, required: Boolean = false) extends PDict with PArrayBackedContainer {
   val elementType = PCanonicalStruct(required = true, "key" -> keyType, "value" -> valueType)

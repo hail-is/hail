@@ -1,8 +1,8 @@
 package is.hail.expr.types.physical
 
 import is.hail.asm4s._
-import is.hail.expr.types.virtual.TCall
 import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.expr.types.virtual.TCall
 
 abstract class PCall extends ComplexPType {
   lazy val virtualType: TCall.type = TCall

@@ -1,10 +1,9 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.{Region, UnsafeUtils}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.utils._
-import is.hail.variant.Genotype
 
 trait PValue {
   def pt: PType

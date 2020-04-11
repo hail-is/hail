@@ -3,15 +3,13 @@ package is.hail.io.index
 import java.io.OutputStream
 
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
-import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
-import is.hail.io.fs.FS
 import is.hail.io._
+import is.hail.io.fs.FS
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
-import org.json4s.Formats
 import org.json4s.jackson.Serialization
 
 trait AbstractIndexMetadata {

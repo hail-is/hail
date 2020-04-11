@@ -17,7 +17,6 @@ import org.apache.commons.lang3.StringUtils
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
-import org.json4s.jackson.JsonMethods.parse
 
 case class MatrixValue(
   typ: MatrixType,

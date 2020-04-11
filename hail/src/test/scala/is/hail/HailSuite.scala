@@ -3,8 +3,8 @@ package is.hail
 import is.hail.annotations.Region
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.ExecuteContext
-import is.hail.utils.{ExecutionTimer, TempDir}
 import is.hail.io.fs.FS
+import is.hail.utils.{ExecutionTimer, TempDir}
 import org.apache.spark.SparkContext
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.BeforeClass

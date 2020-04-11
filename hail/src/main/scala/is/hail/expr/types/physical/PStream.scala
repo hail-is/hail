@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{CodeOrdering, Region}
-import is.hail.asm4s.{Code, MethodBuilder, Value}
+import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.{TStream, Type}
 

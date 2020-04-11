@@ -1,12 +1,11 @@
 package is.hail.io.compress
 
+import htsjdk.samtools.util.BlockCompressedFilePointerUtil
 import is.hail.HailSuite
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.utils._
-import htsjdk.samtools.util.BlockCompressedFilePointerUtil
 import org.apache.commons.io.IOUtils
-import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.{hadoop => hd}
 import org.testng.annotations.Test
 

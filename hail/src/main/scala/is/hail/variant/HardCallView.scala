@@ -1,6 +1,6 @@
 package is.hail.variant
 
-import is.hail.annotations.{Region, RegionValue}
+import is.hail.annotations.Region
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.TCall

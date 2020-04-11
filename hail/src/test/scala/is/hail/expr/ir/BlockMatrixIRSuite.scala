@@ -2,14 +2,14 @@ package is.hail.expr.ir
 
 import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.TestUtils._
 import is.hail.expr.Nat
-import is.hail.expr.types.encoded.{EFloat64Required, EBlockMatrixNDArray}
+import is.hail.expr.types.encoded.{EBlockMatrixNDArray, EFloat64Required}
 import is.hail.expr.types.virtual._
 import is.hail.io.TypedCodecSpec
 import is.hail.linalg.BlockMatrix
 import is.hail.utils._
-import is.hail.TestUtils._
+import is.hail.{ExecStrategy, HailSuite}
 import org.testng.annotations.Test
 
 class BlockMatrixIRSuite extends HailSuite {

@@ -7,21 +7,20 @@ import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sq
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
-import is.hail.expr.Parser
 import is.hail.expr.ir.{CompileAndEvaluate, ExecuteContext, IR, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PFloat64Optional, PInt64, PInt64Optional, PStruct}
+import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io._
-import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
+import is.hail.io.fs.FS
+import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.utils.richUtils.{RichArray, RichDenseMatrixDouble}
-import is.hail.io.fs.FS
 import org.apache.commons.lang3.StringUtils
 import org.apache.commons.math3.random.MersenneTwister
-import org.apache.spark.executor.InputMetrics
 import org.apache.spark._
+import org.apache.spark.executor.InputMetrics
 import org.apache.spark.mllib.linalg.distributed._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row

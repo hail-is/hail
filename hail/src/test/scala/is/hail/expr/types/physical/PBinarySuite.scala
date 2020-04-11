@@ -1,7 +1,6 @@
 package is.hail.expr.types.physical
 
 import is.hail.HailSuite
-import is.hail.annotations.Annotation
 import org.testng.annotations.Test
 
 class PBinarySuite extends HailSuite {

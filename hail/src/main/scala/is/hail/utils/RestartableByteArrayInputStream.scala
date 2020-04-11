@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import java.io.{ IOException, InputStream }
+import java.io.{IOException, InputStream}
 
 // not thread safe
 class RestartableByteArrayInputStream extends InputStream {

@@ -2,7 +2,7 @@ package is.hail.expr
 
 import is.hail.annotations.Annotation
 import is.hail.expr.ir.functions.UtilFunctions
-import is.hail.expr.types.physical.{PBoolean, PCanonicalArray, PCanonicalBinary, PCanonicalString, PCanonicalStruct, PFloat32, PFloat64, PInt32, PInt64, PType}
+import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils.{Interval, _}
 import is.hail.variant._

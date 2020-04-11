@@ -4,7 +4,7 @@ import java.io.Serializable
 
 import is.hail.utils._
 
-import scala.collection.{TraversableOnce, mutable}
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
 class RichIterable[T](val i: Iterable[T]) extends Serializable {

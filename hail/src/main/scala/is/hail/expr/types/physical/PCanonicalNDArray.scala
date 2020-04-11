@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder, UnsafeOrdering}
-import is.hail.asm4s.{Code, MethodBuilder, _}
+import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.{TNDArray, Type}
 import is.hail.utils.FastIndexedSeq

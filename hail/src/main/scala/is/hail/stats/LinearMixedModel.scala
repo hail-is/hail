@@ -5,13 +5,12 @@ import is.hail.HailContext
 import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
 import is.hail.expr.ir.{ExecuteContext, TableIR, TableLiteral, TableValue}
 import is.hail.expr.types.TableType
-import is.hail.expr.types.physical.{PCanonicalStruct, PFloat64, PInt64, PStruct}
-import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
+import is.hail.expr.types.physical.{PCanonicalStruct, PFloat64, PInt64}
+import is.hail.expr.types.virtual.TStruct
 import is.hail.linalg.RowMatrix
-import is.hail.rvd.{RVD, RVDContext, RVDType}
+import is.hail.rvd.{RVD, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
-import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 
 case class LMMData(gamma: Double, residualSq: Double, py: BDV[Double], px: BDM[Double], d: BDV[Double],

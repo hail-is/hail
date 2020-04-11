@@ -2,9 +2,9 @@ package is.hail.utils
 
 import java.io.IOException
 
-import scala.util.Random
-
 import is.hail.io.fs.FS
+
+import scala.util.Random
 
 object TempDir {
   def createTempDir(tmpdir: String, fs: FS): String = {

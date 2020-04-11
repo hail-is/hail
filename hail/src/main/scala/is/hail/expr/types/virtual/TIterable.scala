@@ -1,6 +1,5 @@
 package is.hail.expr.types.virtual
 
-import is.hail.expr.types.physical.PIterable
 import is.hail.utils.FastSeq
 
 abstract class TIterable extends Type {

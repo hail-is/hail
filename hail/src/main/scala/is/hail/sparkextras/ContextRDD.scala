@@ -2,10 +2,8 @@ package is.hail.sparkextras
 
 import is.hail.rvd.RVDContext
 import is.hail.utils._
-import is.hail.utils.PartitionCounts._
-import org.apache.spark._
+import org.apache.spark.{ExposedUtils, _}
 import org.apache.spark.rdd._
-import org.apache.spark.ExposedUtils
 
 import scala.reflect.ClassTag
 

@@ -1,18 +1,13 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
-import is.hail.expr._
-import is.hail.expr.types._
-import is.hail.utils._
 import is.hail.TestUtils._
-import is.hail.check.{Gen, Prop}
-import is.hail.expr.types.virtual._
-import org.testng.annotations.Test
-import is.hail.utils.{FastIndexedSeq, FastSeq}
-import is.hail.variant.Call2
-import is.hail.utils._
 import is.hail.expr.ir.IRBuilder._
+import is.hail.expr.types.virtual._
+import is.hail.utils.{FastIndexedSeq, FastSeq, _}
+import is.hail.variant.Call2
+import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
+import org.testng.annotations.Test
 
 class AggregatorsSuite extends HailSuite {
 

@@ -4,6 +4,7 @@ import htsjdk.samtools.util.BlockCompressedFilePointerUtil;
 import is.hail.io.fs.Seekable;
 import org.apache.hadoop.io.compress.SplitCompressionInputStream;
 import org.apache.hadoop.io.compress.SplittableCompressionCodec;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;

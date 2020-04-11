@@ -2,7 +2,6 @@ package is.hail.utils
 
 import is.hail.HailSuite
 import is.hail.expr.ir.TextTableReader
-import is.hail.expr.types.virtual._
 import org.testng.annotations.Test
 
 class TextTableSuite extends HailSuite {

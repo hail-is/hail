@@ -2,11 +2,12 @@ package is.hail.annotations
 
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
-import scala.collection.generic.Growable
-import scala.collection.mutable.{ArrayBuffer, PriorityQueue}
 import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.rvd.RVDContext
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
+
+import scala.collection.generic.Growable
+import scala.collection.mutable.{ArrayBuffer, PriorityQueue}
 
 object WritableRegionValue {
   def apply(t: PType, initial: RegionValue, region: Region): WritableRegionValue =

@@ -1,7 +1,6 @@
 package is.hail.rvd
 
 import is.hail.annotations.{Region, RegionValueBuilder}
-import is.hail.utils._
 
 import scala.collection.mutable
 

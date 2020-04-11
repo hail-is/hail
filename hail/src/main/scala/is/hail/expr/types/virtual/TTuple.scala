@@ -1,10 +1,7 @@
 package is.hail.expr.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
-import is.hail.expr.types.physical.{PTuple, PTupleField}
 import is.hail.utils._
-
-import scala.collection.JavaConverters._
 
 object TTuple {
 

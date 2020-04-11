@@ -6,7 +6,6 @@ import is.hail.HailContext
 import is.hail.backend.BroadcastValue
 import is.hail.io.compress.BGzipCodec
 import is.hail.utils._
-
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop
 

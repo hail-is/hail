@@ -5,8 +5,8 @@ import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils.IRCall
 import is.hail.expr.types.virtual.{TArray, TBoolean, TCall, TInt32}
 import is.hail.variant._
-import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
+import org.testng.annotations.{DataProvider, Test}
 
 class CallFunctionsSuite extends TestNGSuite {
 

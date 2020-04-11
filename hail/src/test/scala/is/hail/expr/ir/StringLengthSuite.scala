@@ -1,8 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import is.hail.expr.types.virtual.TInt32
+import is.hail.{ExecStrategy, HailSuite}
 import org.testng.annotations.Test
 
 class StringLengthSuite extends HailSuite {

@@ -1,12 +1,11 @@
 package is.hail.io.fs
 
-import is.hail.utils._
+import java.io._
 
+import is.hail.utils._
 import org.apache.hadoop
 import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
 import org.apache.hadoop.io.compress.{CompressionCodec, CompressionCodecFactory}
-
-import java.io._
 
 class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
   val normalizedPath = fs.getPath

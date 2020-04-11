@@ -5,13 +5,13 @@ import java.util.Map.Entry
 
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory
 import is.hail.HailContext
+import is.hail.io.fs.FS
 import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.commons.io.IOUtils
-import is.hail.io.fs.FS
 
-import scala.language.postfixOps
 import scala.collection.concurrent
+import scala.language.postfixOps
 
 class SerializableReferenceSequenceFile(val fs: FS, val fastaFile: String, val indexFile: String) extends Serializable {
   @transient lazy val value = {

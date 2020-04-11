@@ -1,7 +1,6 @@
 package is.hail.expr.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
-import is.hail.expr.types.physical.PVoid
 
 case object TVoid extends Type {
   override def _toPretty = "Void"

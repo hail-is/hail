@@ -1,10 +1,7 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.CodeOrdering
-import is.hail.annotations.{Region, UnsafeOrdering, _}
+import is.hail.annotations.{CodeOrdering, Region, UnsafeOrdering, _}
 import is.hail.asm4s._
-import is.hail.check.Arbitrary._
-import is.hail.check.Gen
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.expr.types.virtual.TBinary
 

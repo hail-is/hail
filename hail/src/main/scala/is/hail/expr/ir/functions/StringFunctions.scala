@@ -1,16 +1,16 @@
 package is.hail.expr.ir.functions
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import java.time.temporal.ChronoField
+import java.time.{Instant, ZoneId}
+import java.util.Locale
+
+import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
-import java.util.Locale
-import java.time.{Instant, ZoneId}
-import java.time.temporal.ChronoField
-
 import org.json4s.JValue
 import org.json4s.jackson.JsonMethods
 

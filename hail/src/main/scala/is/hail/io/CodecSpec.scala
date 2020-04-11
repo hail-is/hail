@@ -4,11 +4,10 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, Output
 
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.asm4s.{Code, TypeInfo, Value}
-import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, typeToTypeInfo}
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
-import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils.using
 import org.apache.spark.rdd.RDD

@@ -1,6 +1,6 @@
 package is.hail
 
-import is.hail.asm4s.{ArrayInfo, BooleanInfo, ClassInfo, DoubleInfo, FloatInfo, IntInfo, LongInfo, TypeInfo, UnitInfo}
+import is.hail.asm4s.{ArrayInfo, BooleanInfo, ClassInfo, DoubleInfo, FloatInfo, IntInfo, LongInfo, TypeInfo}
 import is.hail.utils.FastIndexedSeq
 import org.objectweb.asm.Opcodes._
 

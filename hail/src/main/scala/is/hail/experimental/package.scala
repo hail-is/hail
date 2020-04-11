@@ -1,8 +1,8 @@
 package is.hail
 
-import is.hail.stats._
-import breeze.linalg.{Vector, DenseVector, max, sum}
+import breeze.linalg.{DenseVector, max, sum}
 import breeze.numerics._
+import is.hail.stats._
 import is.hail.utils._
 
 package object experimental {

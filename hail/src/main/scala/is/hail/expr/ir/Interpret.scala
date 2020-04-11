@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.lowering.LoweringPipeline
@@ -9,7 +10,6 @@ import is.hail.io.BufferSpec
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDContext
 import is.hail.utils._
-import is.hail.HailContext
 import org.apache.spark.sql.Row
 
 object Interpret {

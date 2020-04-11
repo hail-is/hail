@@ -3,7 +3,6 @@ package is.hail.expr.ir.lowering
 import is.hail.expr.Nat
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.GetElement
-import is.hail.expr.types.BlockMatrixSparsity
 import is.hail.expr.types.virtual._
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 

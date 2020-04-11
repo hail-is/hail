@@ -1,8 +1,7 @@
 package is.hail.linalg
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, MethodBuilder}
-import is.hail.asm4s._
+import is.hail.asm4s.{Code, MethodBuilder, _}
 import is.hail.expr.types.physical.PType
 
 object LinalgCodeUtils {

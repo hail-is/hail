@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode}
 import is.hail.expr.types.physical._
 
 object CountAggregator extends StagedAggregator {

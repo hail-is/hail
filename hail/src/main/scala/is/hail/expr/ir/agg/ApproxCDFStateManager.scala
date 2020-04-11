@@ -1,11 +1,9 @@
 package is.hail.expr.ir.agg
 
 import is.hail.annotations._
-import is.hail.expr.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PInt32, PInt64, PStruct, PType}
-import is.hail.expr.types.virtual._
+import is.hail.expr.types.physical._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.utils._
-import org.apache.commons.lang.SerializationUtils
 import org.apache.spark.sql.Row
 
 object ApproxCDFHelper {

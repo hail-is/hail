@@ -1,6 +1,6 @@
 package is.hail.utils.richUtils
 
-import is.hail.annotations.{RegionValue, RegionValueBuilder}
+import is.hail.annotations.RegionValueBuilder
 import is.hail.asm4s.Code
 import is.hail.expr.types.physical.PType
 

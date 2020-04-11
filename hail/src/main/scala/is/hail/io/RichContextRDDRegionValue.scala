@@ -6,15 +6,13 @@ import is.hail.annotations._
 import is.hail.expr.types.physical._
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
-import is.hail.rvd.{AbstractIndexSpec, IndexSpec, MakeRVDSpec, RVDContext, RVDPartitioner, RVDType}
+import is.hail.rvd._
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{ExposedMetrics, TaskContext}
-
-import scala.reflect.ClassTag
 
 object RichContextRDDRegionValue {
   def writeRowsPartition(

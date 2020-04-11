@@ -2,7 +2,7 @@ package is.hail.io
 
 import java.util
 
-import is.hail.annotations.{Memory, Region}
+import is.hail.annotations.Memory
 
 final class MemoryBuffer extends Serializable {
   var mem: Array[Byte] = new Array[Byte](8)

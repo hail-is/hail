@@ -2,7 +2,7 @@ package is.hail.io.plink
 
 import is.hail.annotations.RegionValueBuilder
 import is.hail.io.{IndexedBinaryBlockReader, KeySerializedValueRecord}
-import is.hail.variant.{Call, Call2}
+import is.hail.variant.Call2
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.hadoop.mapred.FileSplit

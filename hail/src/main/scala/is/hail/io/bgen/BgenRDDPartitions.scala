@@ -1,21 +1,18 @@
 package is.hail.io.bgen
 
-import is.hail.HailContext
 import is.hail.annotations.{Region, _}
-import is.hail.asm4s.{coerce, _}
+import is.hail.asm4s._
 import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ParamType}
-import is.hail.expr.ir.functions.StringFunctions
+import is.hail.expr.ir.{EmitFunctionBuilder, ParamType}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PCanonicalArray, PStruct, PType}
-import is.hail.expr.types.virtual.{TArray, TInterval, Type}
-import is.hail.io.index.{IndexReader, IndexReaderBuilder}
+import is.hail.expr.types.physical.{PArray, PCanonicalArray, PStruct}
+import is.hail.expr.types.virtual.{TInterval, Type}
+import is.hail.io.fs.FS
+import is.hail.io.index.IndexReaderBuilder
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
 import is.hail.utils._
 import is.hail.variant.{Call2, ReferenceGenome}
-import is.hail.io.fs.FS
-import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.{Partition, SparkContext}
+import org.apache.spark.Partition
 
 trait BgenPartition extends Partition {
   def path: String

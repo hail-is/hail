@@ -3,13 +3,11 @@
 import is.hail.annotations.{Region, RegionValue, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
-import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.types.physical._
-import is.hail.io.{AbstractTypedCodecSpec, InputBuffer}
+import is.hail.io.InputBuffer
 import is.hail.utils._
 
 import scala.language.{existentials, higherKinds}
-import scala.reflect.ClassTag
 
 case class EmitStreamContext(mb: EmitMethodBuilder[_])
 

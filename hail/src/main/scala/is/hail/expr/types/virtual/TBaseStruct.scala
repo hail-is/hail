@@ -2,8 +2,6 @@ package is.hail.expr.types.virtual
 
 import is.hail.annotations._
 import is.hail.check.Gen
-import is.hail.expr.types.physical.PBaseStruct
-import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 

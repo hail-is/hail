@@ -1,6 +1,7 @@
 package is.hail.utils.richUtils
 
 import java.io.InputStream
+
 import is.hail.utils._
 
 class RichInputStream(val in: InputStream) extends AnyVal {

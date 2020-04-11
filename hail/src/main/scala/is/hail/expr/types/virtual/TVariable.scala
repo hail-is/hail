@@ -2,7 +2,6 @@ package is.hail.expr.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
 import is.hail.expr.types.Box
-import is.hail.expr.types.physical.PType
 
 import scala.collection.mutable
 import scala.reflect.ClassTag

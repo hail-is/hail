@@ -1,15 +1,14 @@
 package is.hail.io.tabix
 
-import is.hail.io.compress.BGzipInputStream
-import is.hail.utils._
-import is.hail.io.fs.FS
-
-import htsjdk.tribble.util.{ParsingUtils, TabixUtils}
-import htsjdk.samtools.util.FileExtensions
-import org.apache.spark.broadcast.Broadcast
-
 import java.io.InputStream
 import java.nio.charset.StandardCharsets
+
+import htsjdk.samtools.util.FileExtensions
+import htsjdk.tribble.util.ParsingUtils
+import is.hail.io.compress.BGzipInputStream
+import is.hail.io.fs.FS
+import is.hail.utils._
+import org.apache.spark.broadcast.Broadcast
 
 import scala.collection.mutable
 import scala.language.implicitConversions

@@ -1,6 +1,6 @@
 package is.hail.io.compress
 
-import net.jpountz.lz4.{ LZ4Compressor, LZ4Factory, LZ4FastDecompressor }
+import net.jpountz.lz4.{LZ4Compressor, LZ4Factory, LZ4FastDecompressor}
 
 object LZ4 {
   val factory = LZ4Factory.fastestInstance()

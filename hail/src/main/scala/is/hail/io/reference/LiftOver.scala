@@ -1,10 +1,10 @@
 package is.hail.io.reference
 
 import is.hail.HailContext
-import is.hail.variant.{Locus, ReferenceGenome}
-import is.hail.utils._
-import org.apache.commons.io.IOUtils
 import is.hail.io.fs.FS
+import is.hail.utils._
+import is.hail.variant.{Locus, ReferenceGenome}
+import org.apache.commons.io.IOUtils
 
 import scala.collection.JavaConverters._
 import scala.collection.concurrent

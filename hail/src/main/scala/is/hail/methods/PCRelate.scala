@@ -1,17 +1,17 @@
 package is.hail.methods
 
 import breeze.linalg.{DenseMatrix => BDM}
-import is.hail.linalg.BlockMatrix
-import is.hail.linalg.BlockMatrix.ops._
-import is.hail.utils._
 import is.hail.HailContext
 import is.hail.expr.ir.functions.BlockMatrixToTableFunction
 import is.hail.expr.ir.{ExecuteContext, TableValue}
-import is.hail.expr.types.{BlockMatrixType, TableType}
 import is.hail.expr.types.virtual._
-import org.apache.spark.storage.StorageLevel
+import is.hail.expr.types.{BlockMatrixType, TableType}
+import is.hail.linalg.BlockMatrix
+import is.hail.linalg.BlockMatrix.ops._
+import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
+import org.apache.spark.storage.StorageLevel
 
 import scala.language.{higherKinds, implicitConversions}
 

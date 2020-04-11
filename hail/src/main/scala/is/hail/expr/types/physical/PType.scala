@@ -5,8 +5,8 @@ import is.hail.asm4s._
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir
 import is.hail.expr.ir._
-import is.hail.expr.types.virtual._
 import is.hail.expr.types.Requiredness
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row

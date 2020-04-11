@@ -1,10 +1,9 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, RegionUtils, StagedRegionValueBuilder}
+import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, typeToTypeInfo}
 import is.hail.expr.types.physical._
-import is.hail.utils._
 
 class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
   type State = TypedRegionBackedAggState

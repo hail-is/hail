@@ -1,13 +1,11 @@
 package is.hail.expr.ir
 
 import is.hail.ExecStrategy
-import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual._
-import is.hail.utils.FastSeq
-import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
+import org.testng.annotations.Test
 
 class SetFunctionsSuite extends TestNGSuite {
   val naa = NA(TArray(TInt32))

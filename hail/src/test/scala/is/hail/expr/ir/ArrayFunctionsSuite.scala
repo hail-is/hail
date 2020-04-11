@@ -1,13 +1,11 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
-import is.hail.expr.types.{virtual, _}
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual._
 import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.{ExecStrategy, HailSuite}
 import org.testng.annotations.{DataProvider, Test}
-import org.scalatest.testng.TestNGSuite
 
 class ArrayFunctionsSuite extends HailSuite {
   val naa = NA(TArray(TInt32))

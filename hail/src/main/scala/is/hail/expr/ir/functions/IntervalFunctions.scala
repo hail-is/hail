@@ -3,8 +3,8 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.{PBoolean, PCanonicalInterval, PCode, PInterval, PIntervalCode, PType}
-import is.hail.expr.types.virtual.{TArray, TBoolean, TInt32, TInterval, Type}
+import is.hail.expr.types.physical._
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 object IntervalFunctions extends RegistryFunctions {

@@ -2,7 +2,6 @@ package is.hail.expr.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.check.Gen
-import is.hail.expr.types.physical.PInterval
 import is.hail.utils.{FastSeq, Interval}
 
 import scala.reflect.{ClassTag, classTag}

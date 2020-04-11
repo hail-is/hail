@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.expr.types.virtual.TLocus
 import is.hail.variant._
 

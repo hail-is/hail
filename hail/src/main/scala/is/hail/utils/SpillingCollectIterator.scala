@@ -1,13 +1,11 @@
 package is.hail.utils
 
-import is.hail.HailContext
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
-import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
+import is.hail.HailContext
 import org.apache.spark.rdd.RDD
 
-import scala.reflect.ClassTag
-import scala.reflect.classTag
+import scala.reflect.{ClassTag, classTag}
 
 object SpillingCollectIterator {
   def apply[T: ClassTag](rdd: RDD[T], sizeLimit: Int): SpillingCollectIterator[T] = {

@@ -7,7 +7,7 @@ import is.hail.expr.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, P
 import is.hail.expr.types.virtual.{Field, TArray, TStruct}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.io.{BufferSpec, TypedCodecSpec, exportTypes}
-import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType, RVDContext}
+import is.hail.rvd.{AbstractRVDSpec, RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -15,7 +15,6 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
-import org.json4s.jackson.JsonMethods
 
 object TableValue {
   def apply(ctx: ExecuteContext, rowType: PStruct, key: IndexedSeq[String], rdd: ContextRDD[Long]): TableValue = {

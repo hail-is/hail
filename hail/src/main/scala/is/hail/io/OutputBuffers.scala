@@ -1,7 +1,6 @@
 package is.hail.io
 
 import java.io._
-import java.util
 
 import is.hail.annotations.{Memory, Region}
 import is.hail.io.compress.LZ4

@@ -1,6 +1,6 @@
 package is.hail.utils.richUtils
 
-import is.hail.asm4s.{Code, MethodBuilder, TypeInfo, Value}
+import is.hail.asm4s.{Code, TypeInfo, Value}
 import is.hail.expr.ir.EmitMethodBuilder
 
 class RichCodeIndexedSeq[T](cs: IndexedSeq[Code[T]]) {

@@ -3,12 +3,12 @@ package is.hail.expr.ir
 import java.util.regex.Pattern
 
 import is.hail.HailContext
-import is.hail.annotations.{BroadcastRow, RegionValue}
+import is.hail.annotations.BroadcastRow
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PCanonicalStruct, PStruct, PType}
 import is.hail.expr.types.virtual._
-import is.hail.rvd.{RVD, RVDContext}
+import is.hail.rvd.RVD
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._

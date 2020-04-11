@@ -3,7 +3,6 @@ package is.hail.expr.types.virtual
 import is.hail.annotations._
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
-import is.hail.expr.types.physical.PBinary
 
 import scala.reflect.{ClassTag, _}
 

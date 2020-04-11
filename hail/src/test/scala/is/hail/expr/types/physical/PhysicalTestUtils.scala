@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
-import is.hail.utils.log
-import is.hail.annotations.{Region, SafeIndexedSeq, SafeRow, ScalaToRegionValue, UnsafeRow}
+import is.hail.annotations.{Region, ScalaToRegionValue, UnsafeRow}
 import is.hail.expr.ir.EmitFunctionBuilder
+import is.hail.utils.log
 import org.scalatest.testng.TestNGSuite
 
 object PhysicalTestUtils extends TestNGSuite {

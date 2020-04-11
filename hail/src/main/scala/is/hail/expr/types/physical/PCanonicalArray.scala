@@ -1,10 +1,7 @@
 package is.hail.expr.types.physical
 
-import is.hail.annotations.Region
-import is.hail.asm4s.Code
-import is.hail.annotations._
-import is.hail.asm4s._
-import is.hail.asm4s.joinpoint._
+import is.hail.annotations.{Region, _}
+import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.expr.types.virtual.{TArray, Type}
 import is.hail.utils._

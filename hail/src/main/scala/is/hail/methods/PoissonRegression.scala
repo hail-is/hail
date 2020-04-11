@@ -7,7 +7,6 @@ import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
 import is.hail.expr.types.virtual.{TFloat64, TStruct}
 import is.hail.expr.types.{MatrixType, TableType}
-import is.hail.rvd.RVDType
 import is.hail.stats._
 import is.hail.utils._
 

@@ -1,15 +1,13 @@
 package is.hail.io
 
-import is.hail.compatibility.LZ4BlockBufferSpec
-import is.hail.rvd.AbstractRVDSpec
 import java.io._
 
 import is.hail.asm4s._
+import is.hail.compatibility.LZ4BlockBufferSpec
 import is.hail.io.compress.LZ4
-import org.json4s.{ DefaultFormats, Formats, ShortTypeHints }
-
+import is.hail.rvd.AbstractRVDSpec
+import org.json4s.{JValue, ShortTypeHints}
 import org.json4s.jackson.JsonMethods
-import org.json4s.{Extraction, JValue}
 
 object BufferSpec {
   val default: BufferSpec = LEB128BufferSpec(

@@ -1,7 +1,6 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.expr.ir._
-import is.hail.expr.types.virtual.TStream
 
 trait Rule {
   def allows(ir: BaseIR): Boolean

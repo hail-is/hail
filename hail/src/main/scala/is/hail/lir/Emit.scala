@@ -3,10 +3,10 @@ package is.hail.lir
 import java.io.{PrintWriter, StringWriter}
 
 import is.hail.utils._
-import org.objectweb.asm.{ClassReader, ClassWriter}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
+import org.objectweb.asm.{ClassReader, ClassWriter}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable

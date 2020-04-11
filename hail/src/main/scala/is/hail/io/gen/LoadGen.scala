@@ -3,20 +3,19 @@ package is.hail.io.gen
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, TableRead, TableValue}
+import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixHybridReader, TableRead, TableValue}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.LoadBgen
+import is.hail.io.fs.FS
 import is.hail.io.vcf.LoadVCF
-import is.hail.rvd.{RVD, RVDContext, RVDType}
+import is.hail.rvd.RVD
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
-import is.hail.io.fs.FS
-import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.broadcast.Broadcast
 
 case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Annotation, Iterable[Annotation])])
 

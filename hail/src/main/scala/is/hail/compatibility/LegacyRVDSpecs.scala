@@ -6,7 +6,7 @@ import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.encoded._
 import is.hail.expr.types.virtual._
 import is.hail.io._
-import is.hail.rvd.{AbstractRVDSpec, IndexSpec2, IndexedRVDSpec2, RVD, RVDPartitioner}
+import is.hail.rvd._
 import is.hail.utils.{FastIndexedSeq, Interval}
 import org.json4s.JValue
 

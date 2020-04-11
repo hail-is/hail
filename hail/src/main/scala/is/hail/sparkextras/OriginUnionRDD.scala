@@ -1,7 +1,7 @@
 package is.hail.sparkextras
 
-import org.apache.spark.{Dependency, Partition, RangeDependency, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
+import org.apache.spark._
 
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag

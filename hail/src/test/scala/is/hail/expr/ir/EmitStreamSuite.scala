@@ -1,14 +1,14 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, RegionValue, RegionValueBuilder, SafeRow, ScalaToRegionValue}
+import is.hail.HailSuite
+import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
+import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
-import is.hail.HailSuite
-import is.hail.expr.ir.lowering.LoweringPipeline
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 

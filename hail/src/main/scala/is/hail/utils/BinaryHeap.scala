@@ -1,6 +1,7 @@
 package is.hail.utils
 
-import Math.signum
+import java.lang.Math.signum
+
 import scala.collection.mutable
 import scala.reflect.ClassTag
 

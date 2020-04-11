@@ -1,11 +1,10 @@
 package is.hail.expr.ir
 
-import is.hail.ExecStrategy
-import is.hail.HailSuite
-import is.hail.annotations._
-import is.hail.check.{Gen, Prop}
-import is.hail.asm4s._
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
+import is.hail.annotations._
+import is.hail.asm4s._
+import is.hail.check.{Gen, Prop}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._

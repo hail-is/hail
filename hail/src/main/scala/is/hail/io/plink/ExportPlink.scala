@@ -1,15 +1,13 @@
 package is.hail.io.plink
 
-import is.hail.expr.ir.ExecuteContext
 import java.io.{OutputStream, OutputStreamWriter}
 
 import is.hail.HailContext
 import is.hail.annotations.Region
-import is.hail.expr.ir.MatrixValue
-import is.hail.expr.types._
+import is.hail.expr.ir.{ExecuteContext, MatrixValue}
 import is.hail.expr.types.physical.{PString, PStruct}
-import is.hail.variant._
 import is.hail.utils._
+import is.hail.variant._
 import org.apache.spark.TaskContext
 
 object ExportPlink {

@@ -9,7 +9,7 @@ import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple}
 import is.hail.expr.types.physical.{PBaseStruct, PType}
 import is.hail.io.fs.GoogleStorageFS
 import is.hail.utils.FastIndexedSeq
-import org.json4s.JsonAST.{JArray, JBool, JInt, JObject, JString}
+import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable

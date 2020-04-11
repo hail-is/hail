@@ -4,7 +4,6 @@ import is.hail.annotations.Annotation
 import is.hail.expr.ir.{Env, IRParser, LowerMatrixIR}
 import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual._
-import is.hail.rvd.RVDType
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row

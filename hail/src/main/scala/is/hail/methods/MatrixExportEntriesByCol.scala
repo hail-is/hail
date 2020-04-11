@@ -5,8 +5,8 @@ import java.io.OutputStreamWriter
 import is.hail.HailContext
 import is.hail.annotations.{UnsafeIndexedSeq, UnsafeRow}
 import is.hail.expr.TableAnnotationImpex
-import is.hail.expr.ir.{ExecuteContext, MatrixValue}
 import is.hail.expr.ir.functions.MatrixToValueFunction
+import is.hail.expr.ir.{ExecuteContext, MatrixValue}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual.{TVoid, Type}
 import is.hail.utils._

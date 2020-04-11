@@ -3,7 +3,6 @@ package is.hail.io
 import java.io._
 
 import is.hail.annotations.Region
-import is.hail.asm4s._
 import is.hail.expr.types.encoded.EncoderAsmFunction
 
 trait Encoder extends Closeable {

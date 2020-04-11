@@ -1,7 +1,6 @@
 package is.hail.utils
 
 import org.scalatest.Matchers._
-import org.scalatest._
 import org.testng.annotations.Test
 
 import scala.collection.mutable

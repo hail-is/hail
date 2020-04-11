@@ -2,7 +2,6 @@ package is.hail.expr.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering, UnsafeIndexedSeq}
 import is.hail.expr.{Nat, NatBase}
-import is.hail.expr.types.physical.PNDArray
 import org.apache.spark.sql.Row
 
 import scala.reflect.{ClassTag, classTag}

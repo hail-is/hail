@@ -1,11 +1,10 @@
 package is.hail.expr.ir.functions
 
-import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixValue, RelationalSpec, TableValue}
+import is.hail.expr.ir.{ExecuteContext, MatrixValue, RelationalSpec, TableValue}
 import is.hail.expr.types.virtual.Type
 import is.hail.expr.types.{BlockMatrixType, MatrixType, TableType}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
-import is.hail.rvd.RVDType
 import org.json4s.ShortTypeHints
 import org.json4s.jackson.Serialization
 

@@ -1,10 +1,10 @@
 package is.hail.utils
 
 import java.time.DayOfWeek
-import java.util.Locale
+import java.time.chrono.Chronology
 import java.time.format.{DateTimeFormatter, DateTimeFormatterBuilder, TextStyle}
 import java.time.temporal.{ChronoField, WeekFields}
-import java.time.chrono.{ChronoLocalDate, Chronology}
+import java.util.Locale
 
 object DateFormatUtils {
   def parseDateFormat(str: String, locale: Locale): DateTimeFormatter = {

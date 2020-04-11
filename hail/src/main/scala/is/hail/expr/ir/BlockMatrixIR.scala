@@ -1,21 +1,17 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
-import is.hail.expr.types.{BlockMatrixSparsity, BlockMatrixType}
-import is.hail.expr.types.virtual.{TArray, TBaseStruct, TFloat64, TInt64, TTuple, Type}
-import is.hail.linalg.BlockMatrix
-import is.hail.utils._
-import breeze.linalg
 import breeze.linalg.DenseMatrix
 import breeze.numerics
-import is.hail.annotations.Region
-
-import scala.collection.mutable.ArrayBuffer
+import is.hail.HailContext
+import is.hail.expr.types.virtual._
+import is.hail.expr.types.{BlockMatrixSparsity, BlockMatrixType}
+import is.hail.linalg.BlockMatrix
+import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
-import org.apache.spark.sql.Row
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 
 import scala.collection.immutable.NumericRange
+import scala.collection.mutable.ArrayBuffer
 
 object BlockMatrixIR {
   def checkFitsIntoArray(nRows: Long, nCols: Long) {

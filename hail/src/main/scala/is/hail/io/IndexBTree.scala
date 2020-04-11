@@ -3,8 +3,8 @@ package is.hail.io
 import java.io.{Closeable, DataOutputStream}
 import java.util.Arrays
 
-import is.hail.utils._
 import is.hail.io.fs.FS
+import is.hail.utils._
 
 import scala.collection.mutable
 

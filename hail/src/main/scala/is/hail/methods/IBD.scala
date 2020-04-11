@@ -1,17 +1,14 @@
 package is.hail.methods
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.expr.types.physical.{PCanonicalString, PCanonicalStruct, PFloat64, PInt64, PString, PStruct}
+import is.hail.expr.types.physical.{PCanonicalString, PCanonicalStruct, PFloat64, PInt64}
 import is.hail.expr.types.virtual.{TFloat64, TStruct}
 import is.hail.expr.types.{MatrixType, TableType}
-import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.{Call, Genotype, HardCallView}
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 import scala.language.higherKinds

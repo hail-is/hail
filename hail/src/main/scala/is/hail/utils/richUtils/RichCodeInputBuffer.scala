@@ -1,11 +1,10 @@
 package is.hail.utils.richUtils
 
 import is.hail.annotations.Region
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, _}
+import is.hail.expr.types.physical._
 import is.hail.io.InputBuffer
 import is.hail.utils._
-import is.hail.asm4s._
-import is.hail.expr.types.physical._
 
 class RichCodeInputBuffer(in: Code[InputBuffer]) {
   def readByte(): Code[Byte] = {

@@ -3,16 +3,15 @@ package is.hail.expr.ir
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.annotations._
-import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.asm4s._
+import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.backend.HailTaskContext
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
+import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
-import is.hail.lir
 import is.hail.utils._
 
 import scala.collection.mutable

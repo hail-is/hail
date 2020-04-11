@@ -1,9 +1,9 @@
 package is.hail.utils
 
-import is.hail.{HailSuite, TestUtils}
-import is.hail.utils.richUtils.RichDenseMatrixDouble
 import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.linalg.BlockMatrix
+import is.hail.utils.richUtils.RichDenseMatrixDouble
+import is.hail.{HailSuite, TestUtils}
 import org.testng.annotations.Test
 
 class RichDenseMatrixDoubleSuite extends HailSuite {

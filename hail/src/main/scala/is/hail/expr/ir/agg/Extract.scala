@@ -1,7 +1,6 @@
 package is.hail.expr.ir.agg
 
-import is.hail.HailContext
-import is.hail.annotations.{Region, RegionValue}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir
 import is.hail.expr.ir._
@@ -9,7 +8,6 @@ import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.BufferSpec
-import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.utils._
 
 import scala.collection.mutable

@@ -1,7 +1,7 @@
 package is.hail.linalg
 
-import com.sun.jna.{FunctionMapper, Library, Native}
 import com.sun.jna.ptr.{DoubleByReference, FloatByReference, IntByReference}
+import com.sun.jna.{FunctionMapper, Library, Native}
 import is.hail.utils._
 
 import scala.util.{Failure, Success, Try}

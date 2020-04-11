@@ -2,8 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual
-import is.hail.expr.types.virtual.{TArray, TDict, TInt32, TInterval, TStruct}
+import is.hail.expr.types.virtual._
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome

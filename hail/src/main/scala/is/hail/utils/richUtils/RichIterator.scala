@@ -4,14 +4,11 @@ import java.io.PrintWriter
 
 import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
 import is.hail.expr.types.physical.PStruct
-import is.hail.expr.types.virtual.TStruct
-import is.hail.rvd.RVDContext
-
-import scala.collection.JavaConverters._
-import scala.io.Source
 import is.hail.utils.{FlipbookIterator, StagingIterator, StateMachine}
 import org.apache.spark.sql.Row
 
+import scala.collection.JavaConverters._
+import scala.io.Source
 import scala.reflect.ClassTag
 
 class RichIteratorLong(val it: Iterator[Long]) extends AnyVal {

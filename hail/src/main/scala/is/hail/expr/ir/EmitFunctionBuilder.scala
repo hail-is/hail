@@ -2,18 +2,18 @@ package is.hail.expr.ir
 
 import java.io._
 
-import is.hail.{HailContext, lir}
 import is.hail.annotations.{CodeOrdering, Region, RegionValue, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.backend.BackendUtils
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.types.physical.{PCanonicalTuple, PStream, PCode, PSettable, PType}
+import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.Type
-import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
+import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+import is.hail.{HailContext, lir}
 import org.apache.spark.TaskContext
 
 import scala.collection.mutable

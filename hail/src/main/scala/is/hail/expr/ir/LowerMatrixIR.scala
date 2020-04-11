@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.ir.functions.{WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
 import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TArray, TBaseStruct, TDict, TInt32, TInterval, TStruct}
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 object LowerMatrixIR {

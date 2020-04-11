@@ -6,9 +6,9 @@ import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.TableType
 import is.hail.expr.types.physical.{PCanonicalStruct, PStruct}
 import is.hail.expr.types.virtual._
+import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.io.index.{IndexWriter, InternalNodeBuilder, LeafNodeBuilder}
-import is.hail.io._
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome

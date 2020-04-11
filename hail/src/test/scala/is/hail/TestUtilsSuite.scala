@@ -1,12 +1,7 @@
 package is.hail
 
-import java.io.File
-import java.lang.reflect.Modifier
-import java.net.URI
-
 import breeze.linalg.{DenseMatrix, DenseVector}
-import is.hail.utils.ArrayBuilder
-import org.testng.annotations.{DataProvider, Test}
+import org.testng.annotations.Test
 
 class TestUtilsSuite extends HailSuite {
 

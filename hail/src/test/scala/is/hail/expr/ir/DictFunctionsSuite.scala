@@ -6,8 +6,8 @@ import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual._
 import is.hail.utils.FastIndexedSeq
 import org.apache.spark.sql.Row
-import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
+import org.testng.annotations.{DataProvider, Test}
 
 class DictFunctionsSuite extends TestNGSuite {
   def tuplesToMap(a: Seq[(Integer, Integer)]): Map[Integer, Integer] =

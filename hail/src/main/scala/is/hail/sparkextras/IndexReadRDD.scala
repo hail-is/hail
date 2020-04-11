@@ -1,9 +1,8 @@
 package is.hail.sparkextras
 
 import is.hail.utils.Interval
-
-import org.apache.spark.{Dependency, Partition, RangeDependency, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.{Partition, SparkContext, TaskContext}
 
 import scala.reflect.ClassTag
 

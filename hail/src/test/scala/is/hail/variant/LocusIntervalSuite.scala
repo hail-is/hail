@@ -1,7 +1,7 @@
 package is.hail.variant
 
-import is.hail.{HailSuite, TestUtils}
 import is.hail.utils._
+import is.hail.{HailSuite, TestUtils}
 import org.testng.annotations.Test
 
 class LocusIntervalSuite extends HailSuite {

@@ -1,6 +1,6 @@
 package is.hail.expr.types.physical
 
-import is.hail.asm4s.{Code, TypeInfo, coerce}
+import is.hail.asm4s.Code
 
 abstract class PNumeric extends PType {
   type NType <: PType

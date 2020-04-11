@@ -3,9 +3,9 @@ package is.hail.utils
 import is.hail.HailSuite
 import is.hail.check.{Gen, Prop}
 import is.hail.io.fs.HadoopFS
+import org.apache.hadoop
 import org.apache.spark.storage.StorageLevel
 import org.testng.annotations.Test
-import org.apache.hadoop
 
 class UtilsSuite extends HailSuite {
   @Test def testD_==() {

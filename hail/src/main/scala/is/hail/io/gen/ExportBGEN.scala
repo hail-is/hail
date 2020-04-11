@@ -1,12 +1,10 @@
 package is.hail.io.gen
 
 import is.hail.HailContext
-import is.hail.annotations.{RegionValue, UnsafeRow}
 import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types.physical.PStruct
-import is.hail.utils.ArrayBuilder
-import is.hail.variant.{ArrayGenotypeView, RegionValueVariant, View}
-import is.hail.utils._
+import is.hail.utils.{ArrayBuilder, _}
+import is.hail.variant.{ArrayGenotypeView, RegionValueVariant}
 import org.apache.hadoop.io.IOUtils
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row

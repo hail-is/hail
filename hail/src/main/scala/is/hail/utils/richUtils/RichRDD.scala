@@ -2,17 +2,16 @@ package is.hail.utils.richUtils
 
 import java.io.{OutputStream, OutputStreamWriter}
 
-import is.hail.rvd.RVDContext
+import is.hail.io.fs.FS
 import is.hail.sparkextras._
 import is.hail.utils._
-import is.hail.io.fs.FS
 import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
-import org.apache.spark.{NarrowDependency, Partition, Partitioner, TaskContext}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.{NarrowDependency, Partition, Partitioner, TaskContext}
 
-import scala.reflect.ClassTag
 import scala.collection.mutable
+import scala.reflect.ClassTag
 
 case class SubsetRDDPartition(index: Int, parentPartition: Partition) extends Partition
 

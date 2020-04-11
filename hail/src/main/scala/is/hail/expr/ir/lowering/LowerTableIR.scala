@@ -3,7 +3,6 @@ package is.hail.expr.ir.lowering
 import is.hail.HailContext
 import is.hail.expr.ir._
 import is.hail.expr.types
-import is.hail.expr.types._
 import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner, RVDType}

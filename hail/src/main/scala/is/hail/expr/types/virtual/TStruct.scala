@@ -2,7 +2,6 @@ package is.hail.expr.types.virtual
 
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.expr.ir.{Env, IRParser}
-import is.hail.expr.types.physical.{PField, PStruct}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer

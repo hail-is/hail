@@ -1,31 +1,30 @@
 package is.hail.backend.spark
 
-import is.hail.annotations.UnsafeRow
-import is.hail.asm4s._
-import is.hail.expr.ir.IRParser
-import is.hail.expr.types.encoded.EType
-import is.hail.io.{BufferSpec, TypedCodecSpec}
+import java.io.PrintWriter
+
 import is.hail.HailContext
-import is.hail.annotations.{Region, SafeRow}
-import is.hail.expr.{JSONAnnotationImpex, Validate}
+import is.hail.annotations.{Region, SafeRow, UnsafeRow}
+import is.hail.asm4s._
+import is.hail.backend.{Backend, BroadcastValue, HailTaskContext}
+import is.hail.expr.ir.{IRParser, _}
 import is.hail.expr.ir.lowering._
-import is.hail.expr.ir._
+import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical.{PTuple, PType}
 import is.hail.expr.types.virtual.TVoid
-import is.hail.backend.{Backend, BroadcastValue, HailTaskContext}
-import is.hail.io.fs.{FS, HadoopFS}
-import is.hail.utils._
+import is.hail.expr.{JSONAnnotationImpex, Validate}
 import is.hail.io.bgen.IndexBgen
-import org.json4s.DefaultFormats
-import org.json4s.jackson.{JsonMethods, Serialization}
-import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext, TaskContext}
+import is.hail.io.fs.{FS, HadoopFS}
+import is.hail.io.{BufferSpec, TypedCodecSpec}
+import is.hail.utils._
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.{ProgressBarBuilder, SparkConf, SparkContext, TaskContext}
+import org.json4s.DefaultFormats
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
-import java.io.PrintWriter
 
 
 class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Serializable {
