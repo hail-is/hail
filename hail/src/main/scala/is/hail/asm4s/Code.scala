@@ -380,7 +380,7 @@ object Code {
       c.v match {
         case v: lir.LdcX =>
           val t = new Value[T] {
-            def get: Code[T] = Code(lir.ldcInsn(v.a))
+            def get: Code[T] = Code(lir.ldcInsn(v.a, v.ti))
           }
           return f(t)
         // You can't forward local references here because the local might have changed
@@ -554,9 +554,9 @@ class CCode(
       val c = new lir.Local(null, "bool", BooleanInfo)
       _start = _entry
       _end = new lir.Block()
-      _Ltrue.append(lir.store(c, lir.ldcInsn(1)))
+      _Ltrue.append(lir.store(c, lir.ldcInsn(1, BooleanInfo)))
       _Ltrue.append(lir.goto(_end))
-      _Lfalse.append(lir.store(c, lir.ldcInsn(0)))
+      _Lfalse.append(lir.store(c, lir.ldcInsn(0, BooleanInfo)))
       _Lfalse.append(lir.goto(_end))
       _v = lir.load(c)
 
