@@ -1243,8 +1243,7 @@ private class Emit[C](
         val argPTypes = args.map(_.pType)
         val meth =
           methods(fn).filter { case (argt, rtExpected, _) =>
-            argt.zip(argPTypes).forall { case (t1, t2) => t1 == t2 } &&
-              rtExpected == ir.pType
+            argt == argPTypes && rtExpected == ir.pType
           } match {
             case Seq((_, _, funcMB)) =>
               funcMB

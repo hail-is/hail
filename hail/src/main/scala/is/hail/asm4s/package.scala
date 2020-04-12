@@ -315,7 +315,14 @@ package object asm4s {
   implicit def toLocalRefInt(f: LocalRef[Int]): LocalRefInt = new LocalRefInt(f)
 
   def _const[T](a: T): Value[T] = new Value[T] {
-    def get: Code[T] = Code(lir.ldcInsn(a))
+    def get: Code[T] = {
+      a match {
+        case a: Boolean =>
+          Code(lir.ldcInsn(if (a) 1 else 0))
+        case _ =>
+          Code(lir.ldcInsn(a))
+      }
+    }
   }
 
   implicit def const(s: String): Value[String] = _const(s)

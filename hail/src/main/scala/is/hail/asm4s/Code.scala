@@ -630,7 +630,7 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
       lhs.v match {
         case v: lir.LdcX =>
           lhs.end.append(lir.goto(
-            if (v.a.asInstanceOf[Boolean])
+            if (v.a.asInstanceOf[Int] != 0)
               Ltrue
             else
               Lfalse))
