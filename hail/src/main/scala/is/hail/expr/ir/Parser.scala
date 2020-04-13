@@ -873,6 +873,14 @@ object IRParser {
         val a = ir_value_expr(env)(it)
         val body = ir_value_expr(env + (name -> coerce[TStream](a.typ).elementType))(it)
         StreamMap(a, name, body)
+      case "StreamTake" =>
+        val a = ir_value_expr(env)(it)
+        val num = ir_value_expr(env)(it)
+        StreamTake(a, num)
+      case "StreamDrop" =>
+        val a = ir_value_expr(env)(it)
+        val num = ir_value_expr(env)(it)
+        StreamDrop(a, num)
       case "StreamZip" =>
         val behavior = identifier(it) match {
           case "AssertSameLength" => ArrayZipBehavior.AssertSameLength

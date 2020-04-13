@@ -1,6 +1,5 @@
 import subprocess as sp
 
-
 __ARG_MAX = None
 
 
@@ -11,7 +10,7 @@ def arg_max():
     return __ARG_MAX
 
 
-class PipelineException(Exception):
+class BatchException(Exception):
     def __init__(self, msg=''):
         self.msg = msg
-        super(PipelineException, self).__init__(msg)
+        super(BatchException, self).__init__(msg)

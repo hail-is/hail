@@ -19,7 +19,7 @@ import inspect
 
 # -- Project information -----------------------------------------------------
 
-project = 'Pipeline'
+project = 'Batch'
 copyright = '2020, Hail Team'
 author = 'Hail Team'
 

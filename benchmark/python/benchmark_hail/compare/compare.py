@@ -59,8 +59,8 @@ def compare(args):
     for name in overlap:
         d1 = data1[name]
         d2 = data2[name]
-        d1_failed = d1.get('failed') or d1.get('times') == [] # rescue bugs in previous versions
-        d2_failed = d2.get('failed') or d2.get('times') == [] # rescue bugs in previous versions
+        d1_failed = d1.get('failed') or d1.get('times') == []  # rescue bugs in previous versions
+        d2_failed = d2.get('failed') or d2.get('times') == []  # rescue bugs in previous versions
         if d1_failed:
             failed_1.append(name)
         if d2_failed:

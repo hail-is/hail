@@ -135,6 +135,12 @@ object Copy {
       case GroupByKey(_) =>
         assert(newChildren.length == 1)
         GroupByKey(newChildren(0).asInstanceOf[IR])
+      case StreamTake(_, _) =>
+        assert(newChildren.length == 2)
+        StreamTake(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
+      case StreamDrop(_, _) =>
+        assert(newChildren.length == 2)
+        StreamDrop(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
       case StreamMap(_, name, _) =>
         assert(newChildren.length == 2)
         StreamMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])

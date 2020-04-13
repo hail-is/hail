@@ -2,7 +2,7 @@ import doctest
 import os
 import pytest
 
-import hailtop.pipeline as pipeline
+import hailtop.batch as batch
 
 
 @pytest.fixture(autouse=True)
@@ -25,7 +25,7 @@ def init(doctest_namespace):
     # This gets run once per process -- must avoid race conditions
     print("setting up doctest...")
 
-    doctest_namespace['Pipeline'] = pipeline.Pipeline
+    doctest_namespace['Batch'] = batch.Batch
 
     olddir = os.getcwd()
     os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
