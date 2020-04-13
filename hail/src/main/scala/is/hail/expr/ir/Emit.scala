@@ -1307,7 +1307,7 @@ private class Emit[C](
                   })
               }
 
-              PCode(pt, xP.construct(shapeBuilder, xP.makeDefaultColumnMajorStridesBuilder(shapeCodeSeq, mb), requiredData, mb))
+              PCode(pt, xP.construct(shapeBuilder, xP.makeDefaultRowMajorStridesBuilder(shapeCodeSeq, mb), requiredData, mb))
             }
           }
         }
@@ -2592,7 +2592,8 @@ abstract class NDArrayEmitter[C](
         srvb.addIRIntermediate(outputElementPType)(storeElement),
         srvb.advance()
       )
-    val loops = idxVars.zipWithIndex.foldRight(body) { case ((dimVar, dimIdx), innerLoops) =>
+
+    val columnMajorLoops = idxVars.zipWithIndex.foldLeft(body) { case (innerLoops, (dimVar, dimIdx)) =>
       Code(
         dimVar := 0L,
         Code.whileLoop(dimVar < outputShapeVariables(dimIdx),
@@ -2601,7 +2602,7 @@ abstract class NDArrayEmitter[C](
         )
       )
     }
-    innerMethod.emit(loops)
+    innerMethod.emit(columnMajorLoops)
     innerMethod.invokeCode[Unit](mb.getParamsList(): _*)
   }
 }
