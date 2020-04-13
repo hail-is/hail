@@ -1570,3 +1570,4 @@ steps:
       mountPath: /test-gsa-key
    scopes:
      - deploy
+     - dev  # FIXME: revert this
