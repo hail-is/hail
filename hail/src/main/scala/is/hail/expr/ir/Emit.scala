@@ -348,7 +348,7 @@ private class Emit[C](
   val ctx: ExecuteContext,
   val cb: EmitClassBuilder[C]) { emitSelf =>
 
-  val methods: mutable.Map[String, Seq[(Seq[PType], PType, EmitMethodBuilder[C])]] = mutable.Map().withDefaultValue(FastSeq())
+  val methods: mutable.Map[(String, Seq[PType], PType), EmitMethodBuilder[C]] = mutable.Map()
 
   import Emit.E
 
@@ -1245,17 +1245,15 @@ private class Emit[C](
         assert(unified)
 
         val argPTypes = args.map(_.pType)
+        val k = (fn, argPTypes, pt)
         val meth =
-          methods(fn).filter { case (argt, rtExpected, _) =>
-            argt.zip(argPTypes).forall { case (t1, t2) => t1 == t2 } &&
-              rtExpected == ir.pType
-          } match {
-            case Seq((_, _, funcMB)) =>
+          methods.get(k) match {
+            case Some(funcMB) =>
               funcMB
-            case Seq() =>
-              val methodbuilder = impl.getAsMethod(mb.ecb, pt, argPTypes: _*)
-              methods.update(fn, methods(fn) :+ ((argPTypes, pt, methodbuilder)))
-              methodbuilder
+            case None =>
+              val funcMB = impl.getAsMethod(mb.ecb, pt, argPTypes: _*)
+              methods.update(k, funcMB)
+              funcMB
           }
         val codeArgs = args.map(emit(_))
         val vars = args.map { a => coerce[Any](mb.newLocal()(typeToTypeInfo(a.typ))) }

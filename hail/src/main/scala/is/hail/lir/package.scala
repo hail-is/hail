@@ -215,7 +215,7 @@ package object lir {
     x
   }
 
-  def ldcInsn(a: Any): ValueX = new LdcX(a)
+  def ldcInsn(a: Any, ti: TypeInfo[_]): ValueX = new LdcX(a, ti)
 
   def returnx(): ControlX = new ReturnX()
 
@@ -244,11 +244,11 @@ package object lir {
   }
 
   def defaultValue(ti: TypeInfo[_]): ValueX = ti match {
-    case BooleanInfo => ldcInsn(false)
-    case IntInfo => ldcInsn(0)
-    case LongInfo => ldcInsn(0L)
-    case FloatInfo => ldcInsn(0.0f)
-    case DoubleInfo => ldcInsn(0.0)
+    case BooleanInfo => ldcInsn(0, ti)
+    case IntInfo => ldcInsn(0, ti)
+    case LongInfo => ldcInsn(0L, ti)
+    case FloatInfo => ldcInsn(0.0f, ti)
+    case DoubleInfo => ldcInsn(0.0, ti)
     case _: ClassInfo[_] => insn(ACONST_NULL, ti)
     case _: ArrayInfo[_] => insn(ACONST_NULL, ti)
   }

@@ -181,15 +181,13 @@ object StringFunctions extends RegistryFunctions {
     })(thisClass, "concat")
 
     registerWrappedScalaFunction("split", TString, TString, TArray(TString), {
-      case (_: Type, _: PType, _: PType) => {
+      case (_: Type, _: PType, _: PType) =>
         PCanonicalArray(PCanonicalString(true))
-      }
     })(thisClass, "split")
 
     registerWrappedScalaFunction("split", TString, TString, TInt32, TArray(TString), {
-      case (_: Type, _: PType, _: PType, _: PType) => {
+      case (_: Type, _: PType, _: PType, _: PType) =>
         PCanonicalArray(PCanonicalString(true))
-      }
     })(thisClass, "splitLimited")
 
     registerWrappedScalaFunction("replace", TString, TString, TString, TString, {
