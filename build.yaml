@@ -1566,7 +1566,7 @@ steps:
       mountPath: /docker-hub-hailgenetics
     - name: test-gsa-key
       namespace:
-        valueFrom: default_ns.name
+        valueFrom: batch_pods_ns.name
       mountPath: /test-gsa-key
    scopes:
      - deploy
