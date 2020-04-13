@@ -1,6 +1,6 @@
 package is.hail.lir
 
-import java.io.{PrintWriter, StringWriter}
+import java.io.PrintWriter
 
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._
