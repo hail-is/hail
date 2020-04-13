@@ -1473,17 +1473,18 @@ steps:
      mkdir -p python
      mv cluster-tests python/cluster-tests
 
-     tar xvf wheel-container.tar
-     python3 -m pip install -U hail-*-py3-none-any.whl
+     # tar xvf wheel-container.tar
+     # python3 -m pip install -U hail-*-py3-none-any.whl
+     pip install -U hail==0.2.35
      gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
      gcloud config set project hail-vdc
-     gcloud config set zone us-central1-a
+     gcloud config set dataproc/region us-central1
 
      bash test-dataproc.sh
    dependsOn:
      - ci_utils_image
      - copy_files
-     - build_hail
+     # - build_hail
      - default_ns
    inputs:
      - from: /repo/hail/python/cluster-tests
