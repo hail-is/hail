@@ -503,7 +503,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   private[this] var registeredFunctions: Set[(String, Type, Seq[Type], Seq[Type])] = Set()
   def addIRFunctions(): Unit = {
     val irFunctions = new ReferenceGenomeFunctions(this)
+
     irFunctions.registerAll()
+
     registeredFunctions ++= irFunctions.registered
   }
   def removeIRFunctions(): Unit = {

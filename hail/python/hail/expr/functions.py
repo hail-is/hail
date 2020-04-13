@@ -4858,6 +4858,7 @@ def get_sequence(contig, position, before=0, after=0, reference_genome='default'
 
     if not reference_genome.has_sequence():
         raise TypeError("Reference genome '{}' does not have a sequence loaded. Use 'add_sequence' to load the sequence from a FASTA file.".format(reference_genome.name))
+
     return _func("getReferenceSequence", tstr, contig, position, before, after, type_args=(tlocus(reference_genome), ))
 
 @typecheck(contig=expr_str,

@@ -46,40 +46,42 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     }
 
   def registerAll() {
-    registerRGCode("isValidContig", TLocus(rg), TString, TBoolean, (_: Type, _: PType) => PBoolean()) {
+    val tl =  Array[Type](TLocus(rg))
+
+    registerRGCode("isValidContig", tl(0), TString, TBoolean, (_: Type, _: PType) => PBoolean()) {
       case (r, rt, typeArg: TLocus, (contigT, contig: Code[Long])) =>
         val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
         rgCode(r.mb, typeArg.rg).invoke[String, Boolean]("isValidContig", scontig)
     }
 
-    registerRGCode("isValidLocus", TLocus(rg), TString, TInt32, TBoolean, (_: Type, _: PType, _: PType) => PBoolean()) {
+    registerRGCode("isValidLocus", tl(0), TString, TInt32, TBoolean, (_: Type, _: PType, _: PType) => PBoolean()) {
       case (r, rt, typeArg: TLocus, (contigT, contig: Code[Long]), (posT, pos: Code[Int])) =>
         val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
         rgCode(r.mb, typeArg.rg).invoke[String, Int, Boolean]("isValidLocus", scontig, pos)
     }
 
-    registerRGCode("getReferenceSequenceFromValidLocus", TLocus(rg), TString, TInt32, TInt32, TInt32, TString, (_: Type, _: PType, _: PType, _: PType, _: PType) => PCanonicalString()) {
+    registerRGCode("getReferenceSequenceFromValidLocus", tl(0), TString, TInt32, TInt32, TInt32, TString, (_: Type, _: PType, _: PType, _: PType, _: PType) => PCanonicalString()) {
       case (r, rt, typeArg: TLocus, (contigT, contig: Code[Long]), (posT, pos: Code[Int]), (beforeT, before: Code[Int]), (afterT, after: Code[Int])) =>
         val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
         unwrapReturn(r, rt)(rgCode(r.mb, typeArg.rg).invoke[String, Int, Int, Int, String]("getSequence", scontig, pos, before, after))
     }
 
-    registerIR("getReferenceSequence", TString, TInt32, TInt32, TInt32, TString) {
+    registerIR("getReferenceSequence", tl, TString, TInt32, TInt32, TInt32, TString) {
       (contig, pos, before, after) =>
-        //lookupConversion(name: String, rt: Type, typeArgs: Seq[Type], args: Seq[Type]): Option[Seq[IR] => IR]
         val getRef = IRFunctionRegistry.lookupConversion(
           name = "getReferenceSequenceFromValidLocus",
           rt = TString,
-          typeArgs = Array(TLocus(rg)),
+          typeArgs = tl,
           args = Seq(TString, TInt32, TInt32, TInt32)).get
         val isValid = IRFunctionRegistry.lookupConversion(
           "isValidLocus",
           TBoolean,
+          typeArgs = tl,
           Seq(TString, TInt32)).get
         If(isValid(Array(contig, pos)), getRef(Array(contig, pos, before, after)), NA(TString))
     }
 
-    registerRGCode("contigLength", TLocus(rg), TString, TInt32, (_: Type, _: PType) => PInt32()) {
+    registerRGCode("contigLength", tl(0), TString, TInt32, (_: Type, _: PType) => PInt32()) {
       case (r, rt, typeArg: TLocus, (contigT, contig: Code[Long])) =>
         val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
         rgCode(r.mb, typeArg.rg).invoke[String, Int]("contigLength", scontig)

@@ -506,6 +506,9 @@ abstract class RegistryFunctions {
   def registerIR(mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, retType: Type)(f: (IR, IR, IR, IR) => IR): Unit =
     registerIR(mname, Array(mt1, mt2, mt3, mt4), retType) { case Seq(a1, a2, a3, a4) => f(a1, a2, a3, a4) }
 
+  def registerIR(mname: String, typeArgs: Array[Type], mt1: Type, mt2: Type, mt3: Type, mt4: Type, retType: Type)(f: (IR, IR, IR, IR) => IR): Unit =
+    registerIR(mname, typeArgs, Array(mt1, mt2, mt3, mt4), retType, false) { case Seq(a1, a2, a3, a4) => f(a1, a2, a3, a4) }
+
   def registerSeeded(mname: String, aTypes: Array[Type], rType: Type, pt: (Type, Seq[PType]) => PType)
     (impl: (EmitRegion, PType, Long, Array[(PType, Code[_])]) => Code[_]) {
 
