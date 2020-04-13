@@ -4,7 +4,7 @@ import is.hail.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual._
-org.scalatestplus.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class SetFunctionsSuite extends TestNGSuite {

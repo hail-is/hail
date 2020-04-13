@@ -1,6 +1,6 @@
 package is.hail.utils
 
-org.scalatestplus.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class SemanticVersionSuite extends TestNGSuite {

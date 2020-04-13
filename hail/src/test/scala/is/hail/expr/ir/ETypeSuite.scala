@@ -4,7 +4,7 @@ import is.hail.expr.types.encoded._
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._
 import org.json4s.jackson.Serialization
-org.scalatestplus.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
 
 class ETypeSuite extends TestNGSuite {

@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations.{Region, ScalaToRegionValue, UnsafeRow}
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.utils.log
-org.scalatestplus.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 
 object PhysicalTestUtils extends TestNGSuite {
   def copyTestExecutor(sourceType: PType, destType: PType, sourceValue: Any,

@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.asm4s.AsmFunction2
 import is.hail.utils.FastIndexedSeq
-org.scalatestplus.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
 
 import scala.reflect.ClassTag

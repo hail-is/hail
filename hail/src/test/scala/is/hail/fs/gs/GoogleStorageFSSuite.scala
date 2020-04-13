@@ -5,7 +5,7 @@ import java.io.FileInputStream
 import is.hail.fs.FSSuite
 import is.hail.io.fs.GoogleStorageFS
 import org.apache.commons.io.IOUtils
-org.scalatestplus.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class GoogleStorageFSSuite extends TestNGSuite with FSSuite {

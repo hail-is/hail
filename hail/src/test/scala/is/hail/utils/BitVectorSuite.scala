@@ -2,7 +2,7 @@ package is.hail.utils
 
 import is.hail.check.Prop._
 import is.hail.check._
-org.scalatestplus.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class BitVectorSuite extends TestNGSuite {

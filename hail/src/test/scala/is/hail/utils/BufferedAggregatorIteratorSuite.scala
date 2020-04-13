@@ -1,7 +1,7 @@
 package is.hail.utils
 
 import is.hail.check.{Gen, Prop}
-org.scalatestplus.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class SumAgg() {
