@@ -19,9 +19,9 @@ Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
 Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
 
 
-def _func(name, ret_type, typeArgs = (), *args):
+def _func(name, ret_type, *args, type_args = None):
     indices, aggregations = unify_all(*args)
-    return construct_expr(Apply(name, ret_type, typeArgs, *(a._ir for a in args)), ret_type, indices, aggregations)
+    return construct_expr(Apply(name, ret_type, *(a._ir for a in args), type_args=type_args), ret_type, indices, aggregations)
 
 def _seeded_func(name, ret_type, seed, *args):
     seed = seed if seed is not None else Env.next_seed()
@@ -4858,7 +4858,7 @@ def get_sequence(contig, position, before=0, after=0, reference_genome='default'
 
     if not reference_genome.has_sequence():
         raise TypeError("Reference genome '{}' does not have a sequence loaded. Use 'add_sequence' to load the sequence from a FASTA file.".format(reference_genome.name))
-    return _func("getReferenceSequence", tstr, (tlocus(reference_genome), ), contig, position, before, after)
+    return _func("getReferenceSequence", tstr, contig, position, before, after, type_args=(tlocus(reference_genome), ))
 
 @typecheck(contig=expr_str,
            reference_genome=reference_genome_type)
@@ -4883,7 +4883,7 @@ def is_valid_contig(contig, reference_genome='default') -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _func("isValidContig", tbool, (tlocus(reference_genome), ), contig)
+    return _func("isValidContig", tbool, contig, type_args=(tlocus(reference_genome), ))
 
 @typecheck(contig=expr_str,
            reference_genome=reference_genome_type)
@@ -4905,7 +4905,7 @@ def contig_length(contig, reference_genome='default') -> Int32Expression:
     -------
     :class:`.Int32Expression`
     """
-    return _func("contigLength", tint32, (tlocus(reference_genome), ), contig)
+    return _func("contigLength", tint32, contig, type_args=(tlocus(reference_genome), ))
 
 
 @typecheck(contig=expr_str,
@@ -4933,7 +4933,7 @@ def is_valid_locus(contig, position, reference_genome='default') -> BooleanExpre
     -------
     :class:`.BooleanExpression`
     """
-    return _func("isValidLocus", tbool, (tlocus(reference_genome), ), contig, position, reference_genome)
+    return _func("isValidLocus", tbool, contig, position, reference_genome, type_args=(tlocus(reference_genome), ))
 
 
 @typecheck(locus=expr_locus(), is_female=expr_bool, father=expr_call, mother=expr_call, child=expr_call)

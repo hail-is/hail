@@ -35,7 +35,6 @@ object IRFunctionRegistry {
   }
 
   def addIR(name: String, typeArgs: Seq[Type], argTypes: Seq[Type], retType: Type, alwaysInline: Boolean, f: Seq[IR] => IR): Unit = {
-//    println(s"adding ir for $name: typeArgs: ${typeArgs}, argTypes: ${argTypes}")
     if (!isJavaIdentifier(name))
       throw new IllegalArgumentException(s"Illegal function name, not Java identifier: $name")
 
@@ -83,25 +82,18 @@ object IRFunctionRegistry {
     lookupIR(name, rt, Seq.empty[Type], argTypes)
 
   def lookupIR(name: String, rt: Type, typeArgs: Seq[Type], argTypes: Seq[Type]): Option[((Seq[Type], Seq[Type], Type, Boolean), Seq[IR] => IR)] = {
-//    println(s"lookupIR ${name}, rt: ${rt}, typeArgs: ${typeArgs}, argTypes: ${argTypes}")
-//    println(s"irRegistry: ${irRegistry}")
-    val l = irRegistry.getOrElse(name, Map.empty)
-//    println(s"REGISTRY: ${l}")
-    l.filter { case ((typeArgsCached: Seq[Type], argTypesCached: Seq[Type], rtCached: Type, _), _) => {
-      println(s"Cehcking: rt: ${rt}, rtCached: ${rtCached}, typeArgsCached: ${typeArgsCached}, typeArgs: ${typeArgs}, argTypesCached: ${argTypesCached}, argTypes: ${argTypes}")
-      argTypes.length == argTypesCached.length && {
-        argTypesCached.foreach(_.clear())
-        (argTypes, argTypesCached).zipped.forall(_.unify(_))
+    irRegistry.getOrElse(name, Map.empty).filter { case ((typeArgsFound: Seq[Type], argTypesFound: Seq[Type], _, _), _) =>
+      typeArgsFound.length == typeArgs.length && {
+        typeArgsFound.foreach(_.clear())
+        (typeArgsFound, typeArgs).zipped.forall(_.unify(_))
+      } && argTypesFound.length == argTypes.length && {
+        argTypesFound.foreach(_.clear())
+        (argTypesFound, argTypes).zipped.forall(_.unify(_))
       }
-    }
-
     }.toSeq match {
-      case Seq() => {
-        println(s"nothing found for $name")
-        None
-      }
+      case Seq() => None
       case Seq(kv) => Some(kv)
-      case _ => fatal(s"Multiple functions found that satisfy $name(${typeArgs.mkString(",")}, ${argTypes.mkString(",")}): $rt.")
+      case _ => fatal(s"Multiple functions found that satisfy $name(${argTypes.mkString(",")}).")
     }
   }
 

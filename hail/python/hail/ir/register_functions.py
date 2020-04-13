@@ -6,13 +6,13 @@ from .ir import register_function, register_seeded_function
 def register_reference_genome_functions(rg):
     from hail.expr.types import dtype, tlocus
 
-    register_function(f"isValidContig", (tlocus(rg),), (dtype("str"),), dtype("bool"))
-    register_function(f"isValidLocus", (tlocus(rg),), (dtype("str"),dtype("int32"),), dtype("bool"))
+    register_function(f"isValidContig", (dtype("str"),), dtype("bool"), (tlocus(rg),))
+    register_function(f"isValidLocus", (dtype("str"),dtype("int32"),), dtype("bool"), (tlocus(rg),))
 
-    register_function(f"contigLength", (tlocus(rg),), (dtype("str"),), dtype("int32"))
+    register_function(f"contigLength", (dtype("str"),), dtype("int32"), (tlocus(rg),))
 
-    register_function(f"getReferenceSequenceFromValidLocus", (tlocus(rg),), (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
-    register_function(f"getReferenceSequence", (tlocus(rg),), (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
+    register_function(f"getReferenceSequenceFromValidLocus", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"), (tlocus(rg),))
+    register_function(f"getReferenceSequence", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"), (tlocus(rg),))
 
 
 def register_functions():
