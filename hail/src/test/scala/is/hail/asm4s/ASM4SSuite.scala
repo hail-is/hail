@@ -4,7 +4,7 @@ import java.io.PrintWriter
 
 import is.hail.asm4s.Code._
 import is.hail.check.{Gen, Prop}
-import org.scalatest.testng.TestNGSuite
+org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 import scala.language.postfixOps

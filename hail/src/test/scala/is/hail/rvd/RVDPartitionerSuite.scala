@@ -3,7 +3,7 @@ package is.hail.rvd
 import is.hail.expr.types.virtual.{TInt32, TStruct}
 import is.hail.utils.{FastIndexedSeq, Interval}
 import org.apache.spark.sql.Row
-import org.scalatest.testng.TestNGSuite
+org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class RVDPartitionerSuite extends TestNGSuite {

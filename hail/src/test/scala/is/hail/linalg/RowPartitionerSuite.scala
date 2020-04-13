@@ -2,7 +2,7 @@ package is.hail.linalg
 
 import is.hail.check.Arbitrary.arbitrary
 import is.hail.check.{Gen, Prop}
-import org.scalatest.testng.TestNGSuite
+org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class RowPartitionerSuite extends TestNGSuite {

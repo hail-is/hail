@@ -5,7 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, EmitRegion}
 import is.hail.expr.types.physical._
 import is.hail.utils._
-import org.scalatest.testng.TestNGSuite
+org.scalatestplus.testng.TestNGSuite
 import org.testng.Assert._
 import org.testng.annotations.Test
 

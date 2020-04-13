@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.types.virtual.{TBoolean, TStream}
-import org.scalatest.testng.TestNGSuite
+org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class UtilFunctionsSuite extends TestNGSuite {

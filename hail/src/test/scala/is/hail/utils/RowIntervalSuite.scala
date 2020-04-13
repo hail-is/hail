@@ -2,7 +2,7 @@ package is.hail.utils
 
 import is.hail.expr.types.virtual.{TInt32, TTuple}
 import org.apache.spark.sql.Row
-import org.scalatest.testng.TestNGSuite
+org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class RowIntervalSuite extends TestNGSuite {

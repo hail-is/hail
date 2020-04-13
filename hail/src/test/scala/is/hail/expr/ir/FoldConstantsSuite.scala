@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types.virtual.{TFloat64, TInt32}
-import org.scalatest.testng.TestNGSuite
+org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class FoldConstantsSuite extends TestNGSuite {

@@ -6,7 +6,7 @@ import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual._
 import is.hail.utils.FastIndexedSeq
 import org.json4s.jackson.JsonMethods
-import org.scalatest.testng.TestNGSuite
+org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
 
 class StringFunctionsSuite extends TestNGSuite {

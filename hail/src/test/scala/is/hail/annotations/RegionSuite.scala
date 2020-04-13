@@ -1,7 +1,7 @@
 package is.hail.annotations
 
 import is.hail.utils.using
-import org.scalatest.testng.TestNGSuite
+org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class RegionSuite extends TestNGSuite {
