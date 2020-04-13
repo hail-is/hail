@@ -403,8 +403,7 @@ sealed abstract class AbstractApplyNode[F <: IRFunction] extends IR {
 }
 
 object Apply {
-  def apply(function: String, args: Seq[IR], returnType: Type): Apply =
-    Apply(function, Array.empty[Type], args, returnType)
+  def apply(function: String, args: Seq[IR], returnType: Type): Apply = Apply(function, Array.empty[Type], args, returnType)
 }
 final case class Apply(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithoutMissingness]
 
@@ -413,8 +412,7 @@ final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, return
 }
 
 object ApplySpecial {
-  def apply(function: String, args: Seq[IR], returnType: Type): ApplySpecial =
-    ApplySpecial(function, Array.empty[Type], args, returnType)
+  def apply(function: String, args: Seq[IR], returnType: Type): ApplySpecial = ApplySpecial(function, Array.empty[Type], args, returnType)
 }
 final case class ApplySpecial(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithMissingness]
 

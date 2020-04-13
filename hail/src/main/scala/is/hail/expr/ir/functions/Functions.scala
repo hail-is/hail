@@ -668,7 +668,4 @@ abstract class SeededIRFunction extends IRFunction {
   def returnType: Type
 
   def isStrict: Boolean = false
-
-  def unify(argTypesIn: Seq[Type], returnTypeIn: Type): Boolean =
-    super.unify(Seq.empty[Type], argTypesIn, returnTypeIn)
 }

@@ -131,7 +131,7 @@ object ExtractIntervalFilters {
 
   def extractAndRewrite(cond1: IR, es: ExtractionState): Option[(IR, Array[Interval])] = {
     cond1 match {
-      case ApplySpecial("lor", typeArgs, Seq(l, r), t) =>
+      case ApplySpecial("lor", _, Seq(l, r), t) =>
         extractAndRewrite(l, es)
           .liftedZip(extractAndRewrite(r, es))
           .flatMap {
@@ -139,7 +139,7 @@ object ExtractIntervalFilters {
               Some((True(), Interval.union(i1 ++ i2, es.iOrd)))
             case _ => None
           }
-      case ApplySpecial("land", typeArgs, Seq(l, r), t) =>
+      case ApplySpecial("land", _, Seq(l, r), t) =>
         val ll = extractAndRewrite(l, es)
         val rr = extractAndRewrite(r, es)
         (ll, rr) match {

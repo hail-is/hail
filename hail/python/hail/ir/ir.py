@@ -1880,7 +1880,7 @@ def clear_session_functions():
     _udf_registry = dict()
 
 
-def remove_function(name, param_types, ret_type, type_args = ()):
+def remove_function(name, param_types, ret_type, type_args=()):
     f = (param_types, ret_type, type_args)
     bindings = _function_registry[name]
     bindings = [b for b in bindings if b != f]
@@ -1889,7 +1889,7 @@ def remove_function(name, param_types, ret_type, type_args = ()):
     else:
         _function_registry[name] = bindings
 
-def register_function(name, param_types, ret_type, type_args = ()):
+def register_function(name, param_types, ret_type, type_args=()):
     _register(_function_registry, name, (param_types, ret_type, type_args))
 
 def register_seeded_function(name, param_types, ret_type):

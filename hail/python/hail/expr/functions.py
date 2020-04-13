@@ -19,7 +19,7 @@ Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
 Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
 
 
-def _func(name, ret_type, *args, type_args = ()):
+def _func(name, ret_type, *args, type_args=()):
     indices, aggregations = unify_all(*args)
     return construct_expr(Apply(name, ret_type, *(a._ir for a in args), type_args=type_args), ret_type, indices, aggregations)
 
