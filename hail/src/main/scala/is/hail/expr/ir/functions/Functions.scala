@@ -301,8 +301,10 @@ abstract class RegistryFunctions {
 
       override def apply(r: EmitRegion, returnPType: PType, typeArgs: Seq[Type], args: PCode*): PCode = impl(r, returnPType, args.toArray)
 
-      override def apply(r: EmitRegion, returnPType: PType, typeArgs: Seq[Type], args: (PType, Code[_])*): Code[_] =
+      override def apply(r: EmitRegion, returnPType: PType, typeArgs: Seq[Type], args: (PType, Code[_])*): Code[_] = {
+        assert(unify(typeArgs, args.map(_._1.virtualType), returnPType.virtualType))
         apply(r, returnPType, typeArgs, args.map { case (t, a) => PCode(t, a) }: _*).code
+      }
     })
   }
 
@@ -324,8 +326,10 @@ abstract class RegistryFunctions {
         p.setRequired(argTypes.forall(_.required))
       }
 
-      override def apply(r: EmitRegion, returnPType: PType, typeArgs: Seq[Type], args: (PType, Code[_])*): Code[_] =
+      override def apply(r: EmitRegion, returnPType: PType, typeArgs: Seq[Type], args: (PType, Code[_])*): Code[_] = {
+        assert(unify(typeArgs, args.map(_._1.virtualType), returnPType.virtualType))
         impl(r, returnPType, args.toArray)
+      }
     })
   }
 
@@ -348,6 +352,7 @@ abstract class RegistryFunctions {
       }
 
       override def apply(r: EmitRegion, returnPType: PType, typeArgs: Seq[Type], args: (PType, Code[_])*): Code[_] = {
+        assert(unify(typeArgs, args.map(_._1.virtualType), returnPType.virtualType))
         impl(r, returnPType, typeArgs.toArray, args.toArray)
       }
     })
@@ -367,8 +372,10 @@ abstract class RegistryFunctions {
       override def returnPType(argTypes: Seq[PType], returnType: Type): PType =
         if (pt == null) PType.canonical(returnType) else pt(returnType, argTypes)
 
-      override def apply(r: EmitRegion, rpt: PType, typeArgs: Seq[Type], args: EmitCode*): EmitCode =
+      override def apply(r: EmitRegion, rpt: PType, typeArgs: Seq[Type], args: EmitCode*): EmitCode = {
+        assert(unify(typeArgs, args.map(_.pt.virtualType), rpt.virtualType))
         impl(r, rpt, args.toArray)
+      }
     })
   }
 
@@ -527,8 +534,10 @@ abstract class RegistryFunctions {
         rt.setRequired(argPTypes.forall(_.required))
       }
 
-      def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: (PType, Code[_])*): Code[_] =
+      def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: (PType, Code[_])*): Code[_] = {
+        assert(unify(Array.empty[Type], args.map(_._1.virtualType), rpt))
         impl(r, rpt, seed, args.toArray)
+      }
 
       def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: EmitCode*): EmitCode = {
         val setup = Code(args.map(_.setup))
