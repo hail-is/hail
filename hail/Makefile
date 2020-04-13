@@ -84,7 +84,7 @@ src/main/resources/build-info.properties: Makefile
 .PHONY: python-version-info
 python-version-info: $(PYTHON_VERSION_INFO)
 
-spark_version: $(SPARK_VERSION)
+spark_version: env/SPARK_VERSION
 	echo $(SPARK_VERSION) > spark_version
 
 python/hail/hail_version: env/SHORT_REVISION env/HAIL_PIP_VERSION
