@@ -1467,6 +1467,17 @@ steps:
    script: |
      set -ex
 
+     mkdir -p repo
+     cd repo
+     {{ code.checkout_script }}
+     if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
+     then
+         echo "tag $HAIL_PIP_VERSION already exists"
+         exit 0
+     fi
+     cd ..
+     rm -rf repo
+
      cd /io
 
      mkdir -p python
@@ -1491,6 +1502,8 @@ steps:
        to: /io/wheel-container.tar
      - from: /test-dataproc.sh
        to: /io/test-dataproc.sh
+     - from: /hail_pip_version
+       to: /io/hail_pip_version
    secrets:
      - name: test-dataproc-service-account-key
        namespace:
