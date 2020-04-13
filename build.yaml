@@ -107,7 +107,7 @@ steps:
      - from: /io/repo/hail/python/hailtop
        to: /repo/hailtop/
      - from: /io/repo/hail/python/hail/hail_pip_version
-       to: hail_pip_version
+       to: /hail_pip_version
    dependsOn:
      - base_image
  - kind: runImage
