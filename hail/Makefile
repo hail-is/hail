@@ -84,9 +84,6 @@ src/main/resources/build-info.properties: Makefile
 .PHONY: python-version-info
 python-version-info: $(PYTHON_VERSION_INFO)
 
-spark_version: $(SPARK_VERSION)
-	echo $(SPARK_VERSION) > spark_version
-
 python/hail/hail_version: env/SHORT_REVISION env/HAIL_PIP_VERSION
 	echo $(HAIL_VERSION) > $@
 
@@ -161,7 +158,7 @@ $(WHEEL): $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) $(PYT
 
 # if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
 ifndef DEPLOY_REMOTE
-DEV_CLARIFIER := $(shell whoami)-dev/
+DEV_CLARIFIER ?= $(shell whoami)-dev/
 CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 UPLOAD_RETENTION =
 else
@@ -212,19 +209,9 @@ install-on-cluster: $(WHEEL)
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
 
-cluster_name_37 := cluster-$(shell whoami)-$(shell LC_ALL=C tr -dc '[:lower:]' </dev/urandom | head -c 6)
-cluster_name_38 := cluster-$(shell whoami)-$(shell LC_ALL=C tr -dc '[:lower:]' </dev/urandom | head -c 6)
-cluster_test_files := $(wildcard python/cluster-tests/*.py)
-cluster_37_test_files := $(filter-out python/cluster-tests/cluster-vep-check-GRCh38.py, $(cluster_test_files))
-cluster_38_test_files := $(filter-out python/cluster-tests/cluster-vep-check-GRCh37.py, $(cluster_test_files))
 .PHONY: test-dataproc
 test-dataproc: install-hailctl
-	hailctl dataproc start $(cluster_name_37) --max-idle 10m --vep GRCh37 --requester-pays-allow-buckets hail-us-vep
-	for FILE in $(cluster_37_test_files); do \
-	  hailctl dataproc submit $(cluster_name_37) $$FILE || exit 1; done || exit
-	hailctl dataproc start $(cluster_name_38) --max-idle 10m --vep GRCh38 --requester-pays-allow-buckets hail-us-vep
-	for FILE in $(cluster_38_test_files); do \
-	  hailctl dataproc submit $(cluster_name_38) $$FILE || exit 1; done || exit
+	bash test-dataproc.sh
 
 # use curl version >=7.55.0
 # set DEPLOY_REMOTE to the hail-is/hail remote
