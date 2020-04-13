@@ -39,7 +39,7 @@ fi
 
 if curl -sf https://github.com/hail-is/hail/releases/tag/$HAIL_PIP_VERSION >/dev/null
 then
-    echo "release $HAIL_PIP_VERSOIN already exists"
+    echo "release $HAIL_PIP_VERSION already exists"
     exit 1
 fi
 
