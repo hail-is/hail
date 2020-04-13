@@ -108,6 +108,8 @@ steps:
        to: /repo/hailtop/
      - from: /io/repo/hail/python/test
        to: /repo/test/
+     - from: /io/repo/hail/python/cluster-tests/
+       to: /repo/hail/python/cluster-tests
      - from: /io/repo/hail/python/hail/hail_version
        to: /hail_version
      - from: /io/repo/git_version
@@ -1478,6 +1480,8 @@ steps:
      - build_hail
      - default_ns
    inputs:
+     - from: /repo/hail/python/cluster-tests
+       to: /io/python/cluster-tests
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
      - from: /test-dataproc.sh
