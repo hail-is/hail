@@ -1568,5 +1568,5 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /test-gsa-key
-   # scopes:
-   #   - deploy
+   scopes:
+     - deploy
