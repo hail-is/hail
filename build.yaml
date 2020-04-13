@@ -1486,8 +1486,8 @@ steps:
    dockerFile: docker/hail/Dockerfile
    contextPath: docker/hail/
    publishAs: hail_public
-   dependsOn:
-    - build_hail
+   # dependsOn:
+   #  - build_hail
    inputs:
      - from: /wheel-container.tar
        to: /wheel-container.tar
@@ -1548,8 +1548,8 @@ steps:
          fi
      }
 
-     push_if_absent {{ hail_public_image.image }} hailgenetics/hail:$(cat hail_pip_version)
-     push_if_absent {{ genetics_public_image.image }} hailgenetics/genetics:$(cat hail_pip_version)
+     push_if_absent {{ hail_public_image.image }} hailgenetics/garbage1:$(cat hail_pip_version)
+     push_if_absent {{ genetics_public_image.image }} hailgenetics/garbage2:$(cat hail_pip_version)
    dependsOn:
     - default_ns
     - ci_utils_image
