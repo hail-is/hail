@@ -99,12 +99,12 @@ steps:
        to: /repo/batch/
      - from: /io/repo/batch/test
        to: /repo/batch/
-     - from: /io/repo/pipeline/test
-       to: /repo/pipeline/
      - from: /io/repo/notebook/sql
        to: /repo/notebook/
      - from: /io/repo/hail/python/hailtop
        to: /repo/hailtop/
+     - from: /io/repo/hail/python/test
+       to: /repo/test/
    dependsOn:
      - base_image
  - kind: runImage
@@ -680,7 +680,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=0
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -713,7 +713,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=1
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -746,7 +746,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=2
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -779,7 +779,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=3
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -812,7 +812,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=4
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -856,11 +856,11 @@ steps:
        | pandoc -o python/hail/docs/change_log.rst
      make -C www
      make -C python/hail/docs BUILDDIR=_build clean html
-     make -C python/hailtop/pipeline/docs BUILDDIR=_build clean html
+     make -C python/hailtop/batch/docs BUILDDIR=_build clean html
      mkdir -p www/docs
      rm -f www/*.md
      mv python/hail/docs/_build/html www/docs/0.2
-     mv python/hailtop/pipeline/docs/_build/html www/docs/pipeline
+     mv python/hailtop/batch/docs/_build/html www/docs/batch
      HAIL_CACHE_VERSION=$(cat python/hail/hail_version)
      find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
      tar czf /io/www.tar.gz www
@@ -1227,35 +1227,15 @@ steps:
     - test_ci_image
     - create_ci_test_repo
  - kind: runImage
-   name: setup_pipeline
-   image:
-     valueFrom: base_image.image
-   script: |
-     set -e
-     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-     gsutil -m cp -r /io/test/resources/* gs://hail-test-dmk9z/{{ token }}/pipeline/input/
-   inputs:
-    - from: /repo/pipeline/test
-      to: /io/
-   secrets:
-    - name: test-gsa-key
-      namespace:
-        valueFrom: batch_pods_ns.name
-      mountPath: /test-gsa-key
-   dependsOn:
-    - batch_pods_ns
-    - copy_files
-    - base_image
- - kind: runImage
-   name: test_pipeline
+   name: test_hailtop_batch
    image:
      valueFrom: service_base_image.image
    script: |
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
-     export SCRATCH=gs://hail-test-dmk9z/{{ setup_pipeline.token }}/pipeline
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/
+     export SCRATCH=gs://hail-test-dmk9z/{{ token }}/batch
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/test/hailtop/batch/
    inputs:
-    - from: /repo/pipeline/test
+    - from: /repo/test
       to: /io/
    timeout: 1200
    secrets:
@@ -1267,21 +1247,24 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key      
    dependsOn:
     - default_ns
     - batch_pods_ns
     - copy_files
     - service_base_image
     - deploy_batch
-    - setup_pipeline
  - kind: runImage
-   name: test_pipeline_docs
+   name: test_batch_docs
    image:
      valueFrom: base_image.image
    script: |
      set -ex
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
-     cd /io/hailtop/hailtop/pipeline
+     cd /io/hailtop/hailtop/batch
      python3 -m pytest --instafail \
        --doctest-modules \
        --doctest-glob='*.rst' \
@@ -1305,26 +1288,6 @@ steps:
    inputs:
     - from: /repo/hailtop
       to: /io/
- - kind: runImage
-   name: cleanup_pipeline
-   image:
-     valueFrom: base_image.image
-   alwaysRun: true
-   script: |
-     set -e
-     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-     gsutil -m rm -r gs://hail-test-dmk9z/{{ setup_pipeline.token }}/pipeline
-   secrets:
-    # hail|test-batch
-    - name: test-gsa-key
-      namespace:
-        valueFrom: batch_pods_ns.name
-      mountPath: /test-gsa-key
-   dependsOn:
-    - batch_pods_ns
-    - base_image
-    - setup_pipeline
-    - test_pipeline
  - kind: createDatabase
    name: notebook_database
    databaseName: notebook
@@ -1477,4 +1440,4 @@ steps:
     - base_image
     - test_batch
     - test_ci
-    - test_pipeline
+    - test_hailtop_batch

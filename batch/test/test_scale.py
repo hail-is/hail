@@ -5,6 +5,7 @@ from hailtop.batch_client.client import BatchClient
 from .utils import batch_status_job_counter, \
     legacy_batch_status
 
+
 @pytest.fixture
 def client():
     client = BatchClient('test')
@@ -24,6 +25,4 @@ def test_scale(client):
     status = legacy_batch_status(batch)
 
     assert batch_status_job_counter(status, 'Success') == n_jobs, status
-
-    exit_codes = [{'input': 0, 'main': 0, 'output': 0} for _ in range(n_jobs)]
     assert all([j['exit_code'] == 0 for j in status['jobs']])

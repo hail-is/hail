@@ -304,16 +304,16 @@ base-docs: install-dev-deps
 	$(MAKE) -C build/www
 	rm build/www/*.md
 
-.PHONY: pipeline-docs
-pipeline-docs: base-docs
-	mkdir -p build/pipeline/docs
-	rm -rf build/pipeline/docs
-	cp -R python/hailtop/pipeline/docs build/pipeline/
-	$(MAKE) -C build/pipeline/docs BUILDDIR=_build clean html
+.PHONY: batch-docs
+batch-docs: base-docs
+	mkdir -p build/batch/docs
+	rm -rf build/batch/docs
+	cp -R python/hailtop/batch/docs build/batch/
+	$(MAKE) -C build/batch/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
-	rm -rf build/www/docs/pipeline
-	mv build/pipeline/docs/_build/html build/www/docs/pipeline
-	@echo Built Pipeline docs: build/www/docs/pipeline/index.html
+	rm -rf build/www/docs/batch
+	mv build/batch/docs/_build/html build/www/docs/batch
+	@echo Built Batch docs: build/www/docs/batch/index.html
 
 HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
 .PHONY: hail-docs
@@ -333,7 +333,7 @@ hail-docs: install $(PYTHON_VERSION_INFO) base-docs
 	@echo Built Hail docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: upload-docs
-upload-docs: hail-docs pipeline-docs
+upload-docs: hail-docs batch-docs
 	cd build && tar czf www.tar.gz www
 	gsutil -m cp build/www.tar.gz $(docs_location)
 	gsutil -m retention temp set $(docs_location)
