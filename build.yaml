@@ -1469,6 +1469,7 @@ steps:
 
      cd /io
 
+     ls -al
      mkdir -p python
      mv cluster-tests python/cluster-tests
 
@@ -1484,7 +1485,7 @@ steps:
      - default_ns
    inputs:
      - from: /repo/hail/python/cluster-tests
-       to: /io/cluster-tests
+       to: /io/
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
      - from: /test-dataproc.sh
