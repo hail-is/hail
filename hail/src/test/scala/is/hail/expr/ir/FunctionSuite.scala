@@ -45,8 +45,10 @@ class FunctionSuite extends HailSuite {
 
   TestRegisterFunctions.registerAll()
 
-  def lookup(meth: String, rt: Type, types: Type*)(irs: (Seq[Type]IR*): IR =
-    IRFunctionRegistry.lookupConversion(meth, rt, types).get(irs)
+  def lookup(meth: String, rt: Type, types: Type*)(irs: IR*): IR = {
+    val l = IRFunctionRegistry.lookupConversion(meth, rt, types).get
+    l(Seq(), irs)
+  }
 
   @Test
   def testCodeFunction() {

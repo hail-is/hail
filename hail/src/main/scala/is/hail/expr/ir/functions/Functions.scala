@@ -135,7 +135,8 @@ object IRFunctionRegistry {
     SetFunctions,
     StringFunctions,
     UtilFunctions,
-    ExperimentalFunctions
+    ExperimentalFunctions,
+    ReferenceGenomeFunctions
   ).foreach(_.registerAll())
 
   def dumpFunctions(): Unit = {

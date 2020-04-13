@@ -499,11 +499,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
     rg
   }
-
-  def addIRFunctions(): Unit = {
-    val irFunctions = new ReferenceGenomeFunctions(this)
-    irFunctions.registerAll()
-  }
 }
 
 object ReferenceGenome {
@@ -540,8 +535,6 @@ object ReferenceGenome {
             s"@1", references.keys.truncatable("\n  "))
         }
       case None =>
-        if (TaskContext.get() == null) // don't add IR functions on workers
-          rg.addIRFunctions()
         references += (rg.name -> rg)
     }
   }
