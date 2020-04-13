@@ -1489,8 +1489,8 @@ steps:
    inputs:
      - from: /repo/hail/python/cluster-tests
        to: /io/
-     - from: /wheel-container.tar
-       to: /io/wheel-container.tar
+     # - from: /wheel-container.tar
+     #   to: /io/wheel-container.tar
      - from: /test-dataproc.sh
        to: /io/test-dataproc.sh
    secrets:
