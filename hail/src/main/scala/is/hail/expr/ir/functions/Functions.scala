@@ -307,7 +307,7 @@ abstract class RegistryFunctions {
   }
 
   def registerCode(mname: String, aTypes: Array[Type], rType: Type, pt: (Type, Seq[PType]) => PType)
-                  (impl: (EmitRegion, PType, Array[(PType, Code[_])]) => Code[_]) {
+    (impl: (EmitRegion, PType, Array[(PType, Code[_])]) => Code[_]) {
     IRFunctionRegistry.addIRFunction(new IRFunctionWithoutMissingness {
       override val name: String = mname
 
@@ -437,7 +437,7 @@ abstract class RegistryFunctions {
     }
 
   def registerCode[A1, A2](mname: String, mt1: Type, mt2: Type, rt: Type, pt: (Type, PType, PType) => PType)
-                          (impl: (EmitRegion, PType, (PType, Code[A1]), (PType, Code[A2])) => Code[_]): Unit =
+    (impl: (EmitRegion, PType, (PType, Code[A1]), (PType, Code[A2])) => Code[_]): Unit =
     registerCode(mname, Array(mt1, mt2), rt, unwrappedApply(pt)) {
       case (r, rt, Array(
       a1: (PType, Code[A1]) @unchecked,
@@ -454,7 +454,7 @@ abstract class RegistryFunctions {
     }
 
   def registerCode[A1, A2, A3, A4](mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, rt: Type, pt: (Type, PType, PType, PType, PType) => PType)
-                                  (impl: (EmitRegion, PType, (PType, Code[A1]), (PType, Code[A2]), (PType, Code[A3]), (PType, Code[A4])) => Code[_]): Unit =
+    (impl: (EmitRegion, PType, (PType, Code[A1]), (PType, Code[A2]), (PType, Code[A3]), (PType, Code[A4])) => Code[_]): Unit =
     registerCode(mname, Array(mt1, mt2, mt3, mt4), rt, unwrappedApply(pt)) {
       case (r, rt, Array(
       a1: (PType, Code[A1]) @unchecked,
@@ -463,9 +463,8 @@ abstract class RegistryFunctions {
       a4: (PType, Code[A4]) @unchecked)) => impl(r, rt, a1, a2, a3, a4)
     }
 
-  def registerCode[A1, A2, A3, A4, A5](mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, mt5: Type, rt: Type,
-                                       pt: (Type, PType, PType, PType, PType, PType) => PType)
-                                      (impl: (EmitRegion, PType, (PType, Code[A1]), (PType, Code[A2]), (PType, Code[A3]), (PType, Code[A4]), (PType, Code[A5])) => Code[_]): Unit =
+  def registerCode[A1, A2, A3, A4, A5](mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, mt5: Type, rt: Type, pt: (Type, PType, PType, PType, PType, PType) => PType)
+    (impl: (EmitRegion, PType, (PType, Code[A1]), (PType, Code[A2]), (PType, Code[A3]), (PType, Code[A4]), (PType, Code[A5])) => Code[_]): Unit =
     registerCode(mname, Array(mt1, mt2, mt3, mt4, mt5), rt, unwrappedApply(pt)) {
       case (r, rt, Array(
       a1: (PType, Code[A1]) @unchecked,
