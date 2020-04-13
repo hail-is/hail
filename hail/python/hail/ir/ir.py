@@ -1926,7 +1926,8 @@ class Apply(IR):
         return Apply(self.function, self.return_type, *args, self.type_args)
 
     def head_str(self):
-        return f'{escape_id(self.function)} {self.return_type._parsable_string()}'
+        type_args = "(" + " ".join([a._parsable_string() for a in self.type_args]) + ")"
+        return f'{escape_id(self.function)} {type_args} {self.return_type._parsable_string()}'
 
     def _eq(self, other):
         return other.function == self.function and \
