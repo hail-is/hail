@@ -10,8 +10,8 @@ stop_dataproc () {
 
     set +e
 
-    hailctl dataproc stop $cluster_name_37
-    hailctl dataproc stop $cluster_name_38
+    hailctl dataproc stop $cluster_name_37 || true  # max idle is 10m anyway
+    hailctl dataproc stop $cluster_name_38 || true  # max idle is 10m anyway
 
     exit $exit_code
 }
@@ -23,6 +23,7 @@ cluster_38_test_files=$(ls python/cluster-tests/*.py | grep -ve 'python/cluster-
 hailctl dataproc \
         start $cluster_name_37 \
         --max-idle 10m \
+        --max-age 120m \
         --vep GRCh37 \
         --requester-pays-allow-buckets hail-us-vep
 for file in $cluster_37_test_files
@@ -35,11 +36,12 @@ done
 hailctl dataproc \
         start $cluster_name_38 \
         --max-idle 10m \
+        --max-age 120m \
         --vep GRCh38 \
         --requester-pays-allow-buckets hail-us-vep
 for file in $cluster_38_test_files
 do
     hailctl dataproc \
             submit \
-            $cluster_name_38 $filen
+            $cluster_name_38 $file
 done
