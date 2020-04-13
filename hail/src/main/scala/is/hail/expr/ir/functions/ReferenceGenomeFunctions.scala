@@ -36,7 +36,7 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
     }
 
     registerIR("getReferenceSequence", LocusFunctions.tlocus("R"), TString, TInt32, TInt32, TInt32, TString) {
-      (tlocus: Type, contig, pos, before, after) =>
+      (tlocus, contig, pos, before, after) =>
         val tl = Seq(tlocus)
         val getRef = IRFunctionRegistry.lookupConversion(
           name = "getReferenceSequenceFromValidLocus",
