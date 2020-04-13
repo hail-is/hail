@@ -1506,6 +1506,9 @@ steps:
    script: |
      set -ex
      cd /io
+
+     {{ code.checkout_script }}
+
      gcloud auth activate-service-account --key-file=/ci-deploy-0-1--hail-is-hail/ci-deploy-0-1--hail-is-hail.json
      tar xvf wheel-container.tar
      cp /pypi-credentials/pypirc $HOME/.pypirc
