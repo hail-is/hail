@@ -1960,6 +1960,7 @@ class BlockMatrixReadRowBlockedRDD(
     val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
 
     val cols = in.readInt()
+    in.readInt() // rows
     val isTranspose = in.readBoolean()
     assert(isTranspose, "BlockMatrix must be saved in row-major format")
 
