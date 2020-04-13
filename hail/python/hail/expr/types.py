@@ -659,8 +659,8 @@ class tndarray(HailType):
 
         strides = []
         axis_one_step_byte_size = x.itemsize
-        for dimension_size in reversed(x.shape):
-            strides.insert(0, axis_one_step_byte_size)
+        for dimension_size in x.shape:
+            strides.append(axis_one_step_byte_size)
             axis_one_step_byte_size *= (dimension_size if dimension_size > 0 else 1)
 
         json_dict = {
