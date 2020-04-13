@@ -1437,10 +1437,7 @@ private class Emit[C](
           val leftDataAddress = lPType.data.load(leftND)
           val rightDataAddress = rPType.data.load(rightND)
 
-          val leftColumnMajorAddress = mb.newLocal[Long]()
-          val rightColumnMajorAddress = mb.newLocal[Long]()
-          val answerColumnMajorAddress = mb.newLocal[Long]()
-          val answerRowMajorPArrayAddress = mb.genFieldThisRef[Long]()
+          val answerPArrayAddress = mb.genFieldThisRef[Long]()
           val M = leftShapeArray(lPType.nDims - 2)
           val N = rightShapeArray(rPType.nDims - 1)
           val K = leftShapeArray(lPType.nDims - 1)
@@ -1448,18 +1445,11 @@ private class Emit[C](
           val LDA = M
           val LDB = K
           val LDC = M
-          val elementByteSize = lPType.elementType.byteSize
 
-          val multiplyViaDGEMM = Code(Code(FastIndexedSeq(
+          val multiplyViaDGEMM = Code(
             shapeSetup,
-            leftColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * K * elementByteSize),
-            rightColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", K * N * elementByteSize),
-            answerColumnMajorAddress := Code.invokeStatic[Memory, Long, Long]("malloc", M * N * elementByteSize),
-
-            Code.invokeScalaObject[Long, Long, Long, Long, Long, Unit](LinalgCodeUtils.getClass,
-              method="copyRowMajorToColumnMajor", lPType.data.pType.firstElementOffset(leftDataAddress), leftColumnMajorAddress, M, K, lPType.elementType.byteSize),
-            Code.invokeScalaObject[Long, Long, Long, Long, Long, Unit](LinalgCodeUtils.getClass,
-              method="copyRowMajorToColumnMajor", rPType.data.pType.firstElementOffset(rightDataAddress), rightColumnMajorAddress, K, N, rPType.elementType.byteSize),
+            answerPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
+            outputPType.data.pType.stagedInitialize(answerPArrayAddress, (M * N).toI),
             lPType.elementType match {
               case PFloat32(_) =>
                 Code.invokeScalaObject[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method="sgemm",
@@ -1469,12 +1459,12 @@ private class Emit[C](
                   N.toI,
                   K.toI,
                   1.0f,
-                  leftColumnMajorAddress,
+                  lPType.data.pType.firstElementOffset(leftDataAddress),
                   LDA.toI,
-                  rightColumnMajorAddress,
+                  rPType.data.pType.firstElementOffset(rightDataAddress),
                   LDB.toI,
                   0.0f,
-                  answerColumnMajorAddress,
+                  outputPType.data.pType.firstElementOffset(answerPArrayAddress, (M * N).toI),
                   LDC.toI
                 )
               case PFloat64(_) =>
@@ -1485,23 +1475,16 @@ private class Emit[C](
                   N.toI,
                   K.toI,
                   1.0,
-                  leftColumnMajorAddress,
+                  lPType.data.pType.firstElementOffset(leftDataAddress),
                   LDA.toI,
-                  rightColumnMajorAddress,
+                  rPType.data.pType.firstElementOffset(rightDataAddress),
                   LDB.toI,
                   0.0,
-                  answerColumnMajorAddress,
+                  outputPType.data.pType.firstElementOffset(answerPArrayAddress, (M * N).toI),
                   LDC.toI
                 )
             },
-            answerRowMajorPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
-            outputPType.data.pType.stagedInitialize(answerRowMajorPArrayAddress, (M * N).toI),
-            Code.invokeScalaObject[Long, Long, Long, Long, Long, Unit](LinalgCodeUtils.getClass,
-              method="copyColumnMajorToRowMajor", answerColumnMajorAddress, outputPType.data.pType.firstElementOffset(answerRowMajorPArrayAddress, (M * N).toI), M, N, const(lPType.elementType.byteSize)),
-            Code.invokeStatic[Memory, Long, Unit]("free", leftColumnMajorAddress.load()),
-            Code.invokeStatic[Memory, Long, Unit]("free", rightColumnMajorAddress.load()),
-            Code.invokeStatic[Memory, Long, Unit]("free", answerColumnMajorAddress.load()))),
-            outputPType.construct(outputPType.makeShapeBuilder(IndexedSeq(M, N)), outputPType.makeDefaultRowMajorStridesBuilder(IndexedSeq(M, N), mb), answerRowMajorPArrayAddress, mb)
+            outputPType.construct(outputPType.makeShapeBuilder(IndexedSeq(M, N)), outputPType.makeDefaultColumnMajorStridesBuilder(IndexedSeq(M, N), mb), answerPArrayAddress, mb)
           )
 
           EmitCode(missingSetup, isMissing, PCode(pt, multiplyViaDGEMM))
