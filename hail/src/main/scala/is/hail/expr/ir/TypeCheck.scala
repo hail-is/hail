@@ -255,6 +255,10 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TStream])
         assert(x.typ == a.typ)
         assert(num.typ == TInt32)
+      case x@StreamDrop(a, num) =>
+        assert(a.typ.isInstanceOf[TStream])
+        assert(x.typ == a.typ)
+        assert(num.typ == TInt32)
       case x@StreamMap(a, name, body) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(x.elementTyp == body.typ)

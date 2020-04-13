@@ -575,6 +575,10 @@ class PruneSuite extends HailSuite {
     checkMemo(StreamTake(st, I32(2)), TStream(justA), Array(TStream(justA), null))
   }
 
+  @Test def testStreamDropMemo() {
+    checkMemo(StreamDrop(st, I32(2)), TStream(justA), Array(TStream(justA), null))
+  }
+
   @Test def testStreamMapMemo() {
     checkMemo(StreamMap(st, "foo", Ref("foo", ref.typ)),
       TStream(justB), Array(TStream(justB), null))
@@ -1066,6 +1070,14 @@ class PruneSuite extends HailSuite {
     checkRebuild(StreamTake(MakeStream(Seq(NA(ts)), TStream(ts)), I32(2)), TStream(subsetTS("b")),
                  (_: BaseIR, r: BaseIR) => {
                    val ir = r.asInstanceOf[StreamTake]
+                   ir.a.typ == TStream(subsetTS("b"))
+                 })
+  }
+
+  @Test def testStreamDropRebuild() {
+    checkRebuild(StreamDrop(MakeStream(Seq(NA(ts)), TStream(ts)), I32(2)), TStream(subsetTS("b")),
+                 (_: BaseIR, r: BaseIR) => {
+                   val ir = r.asInstanceOf[StreamDrop]
                    ir.a.typ == TStream(subsetTS("b"))
                  })
   }

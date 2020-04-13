@@ -738,6 +738,22 @@ object EmitStream {
             }
           }
 
+        case StreamDrop(a, num) =>
+          val optStream = emitStream(a, env)
+          val optN = COption.fromEmitCode(emitIR(num))
+          val xN = mb.newLocal[Int]("st_n")
+          optStream.flatMap { case SizedStream(setup, stream, len) =>
+            optN.map { n =>
+              val newStream = CodeStream.filter(
+               CodeStream.zip(stream, iota(mb, 0, 1))
+                .map({ case (elt, count) => COption(count < xN, elt) }))
+              SizedStream(
+                Code(setup, xN := n.tcode[Int], (xN < 0).orEmpty(Code._fatal[Unit](const("StreamDrop: negative num")))),
+                newStream,
+                len.map(l => (l - xN).max(0)))
+            }
+          }
+
         case StreamMap(childIR, name, bodyIR) =>
           val childEltType = coerce[PStream](childIR.pType).elementType
 
