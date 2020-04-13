@@ -116,6 +116,8 @@ steps:
        to: /hail_pip_version
      - from: /io/repo/hail/spark_version
        to: /spark_version
+     - from: /io/repo/hail/test-dataproc.sh
+       to: /test-dataproc.sh
    dependsOn:
      - base_image
  - kind: runImage
@@ -1457,6 +1459,36 @@ steps:
     - test_ci
     - test_hailtop_batch
  - kind: runImage
+   name: test_dataproc
+   image:
+     valueFrom: ci_utils_image.image
+   script: |
+     set -ex
+
+     cd /io
+
+     tar xvf wheel-container.tar
+     python3 -m pip install -U --no-dependencies hail-*-py3-none-any.whl
+     gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
+
+     bash test-dataproc.sh
+   dependsOn:
+     - copy_files
+     - build_hail
+   inputs:
+     - from: /wheel-container.tar
+       to: /io/wheel-container.tar
+     - from: /test-dataproc.sh
+       to: /io/test-dataproc.sh
+   secrets:
+     - name: test-dataproc-service-account-key
+       namespace:
+         valueFrom: default_ns.name
+       mountPath: /test-dataproc-service-account-key
+   scopes:
+     - deploy
+     - dev
+ - kind: runImage
    name: deploy
    image:
      valueFrom: ci_utils_image.image
@@ -1499,6 +1531,7 @@ steps:
    scopes:
     - deploy
    dependsOn:
+    - test_dataproc
     - default_ns
     - copy_files
     - ci_utils_image
