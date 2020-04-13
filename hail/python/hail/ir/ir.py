@@ -1914,8 +1914,8 @@ def udf(*param_types):
 
 
 class Apply(IR):
-    @typecheck_method(function=str, return_type=hail_type, args=IR, type_args=nullable(tupleof(hail_type)))
-    def __init__(self, function, return_type, *args, type_args=None):
+    @typecheck_method(function=str, return_type=hail_type, args=IR, type_args=tupleof(hail_type))
+    def __init__(self, function, return_type, *args, type_args=()):
         super().__init__(*args)
         self.function = function
         self.return_type = return_type

@@ -44,7 +44,8 @@ object IRFunctionRegistry {
   def pyRegisterIR(mname: String,
     typeArgStrs: java.util.ArrayList[String],
     argNames: java.util.ArrayList[String],
-    argTypeStrs: java.util.ArrayList[String], retType: String,
+    argTypeStrs: java.util.ArrayList[String],
+    retType: String,
     body: IR): Unit = {
     if (!isJavaIdentifier(mname))
       throw new IllegalArgumentException(s"Illegal function name, not Java identifier: $mname")

@@ -17,8 +17,8 @@ class Function(object):
         return self._f(*args)
 
 
-@typecheck(f=anytype, param_types=hail_type, _name=nullable(str), type_args = nullable(tupleof(hail_type)))
-def define_function(f, *param_types, _name=None, type_args=None):
+@typecheck(f=anytype, param_types=hail_type, _name=nullable(str), type_args = tupleof(hail_type))
+def define_function(f, *param_types, _name=None, type_args=()):
     mname = _name if _name is not None else Env.get_uid()
     param_names = [Env.get_uid() for _ in param_types]
     body = f(*(construct_expr(Ref(pn), pt) for pn, pt in zip(param_names, param_types)))
@@ -28,14 +28,14 @@ def define_function(f, *param_types, _name=None, type_args=None):
     code = r(body._ir)
     jbody = body._ir.parse(code, ref_map=dict(zip(param_names, param_types)), ir_map=r.jirs)
 
-    targs = None if not type_args else [ta._parsable_string() for ta in type_args]
     Env.hail().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
-        mname, param_names, targs, [pt._parsable_string() for pt in param_types], ret_type._parsable_string(),
+        [ta._parsable_string() for ta in type_args],
+        mname, param_names, [pt._parsable_string() for pt in param_types], ret_type._parsable_string(),
         jbody)
 
     @typecheck(args=expr_any)
     def f(*args):
         indices, aggregations = unify_all(*args)
-        return construct_expr(Apply(mname, ret_type, type_args, *(a._ir for a in args)), ret_type, indices, aggregations)
+        return construct_expr(Apply(mname, ret_type, *(a._ir for a in args), type_args=type_args), ret_type, indices, aggregations)
 
-    return Function(f, param_types, ret_type, mname)
+    return Function(f, param_types, ret_type, mname, type_args)
