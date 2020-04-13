@@ -1529,7 +1529,9 @@ steps:
 
      cd /io
 
-     gcloud auth activate-service-account --key-file=/secrets/test-gsa-key
+     gcloud -q auth activate-service-account \
+       --key-file=/gcr-pull-service-account-key/gcr-pull-service-account-key.json
+     gcloud -q auth configure-docker
      gcloud auth configure-docker
      cat /docker-hub-hailgenetics/password | docker login --username hailgenetics --password-stdin
 
@@ -1565,10 +1567,10 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /docker-hub-hailgenetics
-    - name: test-gsa-key
+    - name: gcr-pull-service-account-key
       namespace:
         valueFrom: batch_pods_ns.name
-      mountPath: /test-gsa-key
+      mountPath: /gcr-pull-service-account-key
    scopes:
      - deploy
      - dev  # FIXME: revert this
