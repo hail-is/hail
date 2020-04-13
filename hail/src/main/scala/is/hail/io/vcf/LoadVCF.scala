@@ -7,12 +7,13 @@ import is.hail.backend.BroadcastValue
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{ExecuteContext, IRParser, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PBoolean, PCall, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalSet, PCanonicalString, PCanonicalStruct, PField, PFloat64, PInt32, PString, PStruct, PType}
+import is.hail.expr.types.physical.{PBoolean, PCall, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalSet, PCanonicalString, PCanonicalStruct, PField, PFloat64, PInt32, PStruct, PType}
 import is.hail.expr.types.virtual._
+import is.hail.io.fs.FS
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
 import is.hail.io.{VCFAttributes, VCFMetadata}
-import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
+import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
@@ -23,11 +24,10 @@ import org.json4s.JsonAST.{JInt, JObject}
 import org.json4s.jackson.JsonMethods
 
 import scala.annotation.meta.param
+import scala.annotation.switch
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
-import scala.collection.mutable
 import scala.language.implicitConversions
-import is.hail.io.fs.FS
 
 class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {
   override def peek(): String = bit.head
@@ -310,6 +310,20 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
     pos += 1 // colon
   }
 
+  def acceptableRefAlleleBases(ref: String): Boolean = {
+    var i = 0
+    var isStandardAllele: Boolean = true
+    while (i < ref.length) {
+      (ref(i): @switch) match {
+        case 'A' | 'T' | 'G' | 'C' | 'a' | 't' | 'g' | 'c' | 'N' | 'n' =>
+        case _ =>
+          isStandardAllele = false
+      }
+      i += 1
+    }
+    return isStandardAllele || htsjdk.variant.variantcontext.Allele.acceptableAlleleBases(ref)
+  }
+
   // return false if it should be filtered
   def parseAddVariant(
     rvb: RegionValueBuilder,
@@ -343,7 +357,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
 
     // REF
     val ref = parseString()
-    if (!htsjdk.variant.variantcontext.Allele.acceptableAlleleBases(ref, true))
+    if (!acceptableRefAlleleBases(ref))
       return false
     nextField()
 
@@ -913,42 +927,44 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
     }
   }
 
-  def parseAddInfo(rvb: RegionValueBuilder, infoType: TStruct, infoFlagFieldNames: Set[String]) {
-    def addField(key: String) = {
-      if (infoType.hasField(key)) {
-        rvb.setFieldIndex(infoType.fieldIdx(key))
-        if (infoFlagFieldNames.contains(key)) {
-          if (pos != line.length && line(pos) == '=') {
-            pos += 1
-            val s = parseInfoString()
-            if (s != "0")
-              rvb.addBoolean(true)
-          } else
+  def addInfoField(key: String, rvb: RegionValueBuilder, c: ParseLineContext): Unit = {
+    if (c.infoFields.containsKey(key)) {
+      val idx = c.infoFields.get(key)
+      rvb.setFieldIndex(idx)
+      if (c.infoFlagFieldNames.contains(key)) {
+        if (pos != line.length && line(pos) == '=') {
+          pos += 1
+          val s = parseInfoString()
+          if (s != "0")
             rvb.addBoolean(true)
         } else
-          parseAddInfoField(rvb, infoType.fieldType(key))
-      }
+          rvb.addBoolean(true)
+      } else
+        parseAddInfoField(rvb, c.infoFieldTypes(idx))
     }
+  }
+
+  def parseAddInfo(rvb: RegionValueBuilder, c: ParseLineContext) {
     rvb.startStruct(init = true, setMissing = true)
-    infoType.fields.foreach { f =>
-      if (infoFlagFieldNames.contains(f.name)) {
-        rvb.setFieldIndex(f.index)
-        rvb.addBoolean(false)
-      }
+    var i = 0
+    while (i < c.infoFieldFlagIndices.length) {
+      rvb.setFieldIndex(c.infoFieldFlagIndices(i))
+      rvb.addBoolean(false)
+      i += 1
     }
 
     // handle first key, which may be '.' for missing info
     var key = parseInfoKey()
     if (key == ".") {
       if (endField()) {
-        rvb.setFieldIndex(infoType.size)
+        rvb.setFieldIndex(c.infoFieldTypes.length)
         rvb.endStruct()
         return
       } else
         parseError(s"invalid INFO key $key")
     }
 
-    addField(key)
+    addInfoField(key, rvb, c)
     skipInfoField()
 
     while (!endField()) {
@@ -957,11 +973,11 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
       if (key == ".") {
         parseError(s"invalid INFO key $key")
       }
-      addField(key)
+      addInfoField(key, rvb, c)
       skipInfoField()
     }
 
-    rvb.setFieldIndex(infoType.size)
+    rvb.setFieldIndex(c.infoFieldTypes.size)
     rvb.endStruct()
   }
 }
@@ -1053,7 +1069,7 @@ final class FormatParser(
   }
 }
 
-class ParseLineContext(typ: TableType, val infoFlagFieldNames: Set[String], val nSamples: Int) {
+class ParseLineContext(typ: TableType, val infoFlagFieldNames: java.util.HashSet[String], val nSamples: Int) {
   val entryType: TStruct = typ.rowType.fieldOption(LowerMatrixIR.entriesFieldName) match {
     case Some(entriesArray) => entriesArray.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
     case None => TStruct.empty
@@ -1063,6 +1079,13 @@ class ParseLineContext(typ: TableType, val infoFlagFieldNames: Set[String], val 
   val hasFilters = typ.rowType.hasField("filters")
   val hasEntryFields = entryType.size > 0
 
+  val infoFields: java.util.HashMap[String, Int] = makeJavaMap(infoSignature.fieldIdx)
+  val infoFieldTypes: Array[Type] = infoSignature.types
+  val infoFieldFlagIndices: Array[Int] = infoSignature.fields
+    .iterator
+    .filter(f => infoFlagFieldNames.contains(f.name))
+    .map(_.index)
+    .toArray
   val formatParsers = new java.util.HashMap[String, FormatParser]()
 
   def getFormatParser(format: String): FormatParser = {
@@ -1364,7 +1387,7 @@ object LoadVCF {
 
     // info
     if (c.infoSignature != null)
-      l.parseAddInfo(rvb, c.infoSignature, c.infoFlagFieldNames)
+      l.parseAddInfo(rvb, c)
     else
       l.skipField()
 
@@ -1599,7 +1622,7 @@ case class MatrixVCFReader(
         rvdType,
         parseLines { () =>
           new ParseLineContext(requestedType,
-            localInfoFlagFieldNames,
+            makeJavaSet(localInfoFlagFieldNames),
             localSampleIDs.length)
         } { (c, l, rvb) => LoadVCF.parseLine(c, l, rvb, dropSamples) }(
           lines, rvdType.rowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci
@@ -1783,7 +1806,7 @@ class VCFsReader(
 
     val parsedLines = parseLines { () =>
       new ParseLineContext(tt,
-        localInfoFlagFieldNames,
+        makeJavaSet(localInfoFlagFieldNames),
         sampleIDs.length)
     } { (c, l, rvb) =>
       LoadVCF.parseLine(c, l, rvb)

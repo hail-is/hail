@@ -77,27 +77,11 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   if (yContigs.intersect(mtContigs).nonEmpty)
     fatal(s"Found the contigs '${ yContigs.intersect(mtContigs).mkString(", ") }' in both Y and MT contigs.")
 
-  val contigsIndex: java.util.HashMap[String, Int] = {
-    val m = new java.util.HashMap[String, Int]
-    contigs.zipWithIndex.foreach { case (c, i) =>
-      m.put(c, i)
-    }
-    m
-  }
+  val contigsIndex: java.util.HashMap[String, Int] = makeJavaMap(contigs.iterator.zipWithIndex)
 
-  val contigsSet: java.util.HashSet[String] = {
-    val s = new java.util.HashSet[String]
-    contigs.foreach(c => s.add(c))
-    s
-  }
+  val contigsSet: java.util.HashSet[String] = makeJavaSet(contigs)
 
-  private val jLengths: java.util.HashMap[String, Int] = {
-    val m = new java.util.HashMap[String, Int]
-    lengths.foreach { case (c, i) =>
-      m.put(c, i)
-    }
-    m
-  }
+  private val jLengths: java.util.HashMap[String, Int] = makeJavaMap(lengths.iterator)
 
   val lengthsByIndex: Array[Int] = contigs.map(lengths)
 

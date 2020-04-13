@@ -7,6 +7,7 @@ import htsjdk.tribble.util.{ParsingUtils, TabixUtils}
 import htsjdk.samtools.util.FileExtensions
 import org.apache.spark.broadcast.Broadcast
 import java.io.{EOFException, InputStream}
+import java.nio.{ByteBuffer, CharBuffer}
 import java.nio.charset.StandardCharsets
 
 import scala.collection.mutable
@@ -348,6 +349,14 @@ final class TabixLineIterator(
     }
   }
 
+  def decodeString(start: Int, end: Int): String = {
+    var stop = end
+    if (stop > start && buffer(stop) == '\r')
+      stop -= 1
+    val len = end - start
+    new String(buffer, start, len, StandardCharsets.UTF_8)
+  }
+
   def readLine(): String = {
     assert(bufferPos <= bufferLen)
     if (isEof)
@@ -369,7 +378,8 @@ final class TabixLineIterator(
         if (bufferEOF) {
           isEof = true
           bufferPos = ptr + 1
-          return new String(buffer, start, ptr - start, StandardCharsets.UTF_8)
+          return decodeString(start, ptr)
+//          return new String(buffer, start, ptr - start, StandardCharsets.UTF_8)
         } else {
 
           if (bufferPos == 0) {
@@ -397,12 +407,10 @@ final class TabixLineIterator(
           i += 1
         }
       } else {
-        var stop = ptr
-        // need to construct a string from start to ptr
-        if (stop > start && buffer(stop) == '\r')
-          stop -= 1
         bufferPos = ptr + 1
-        return new String(buffer, start, stop - start, StandardCharsets.UTF_8)
+        // need to construct a string from start to ptr
+        return decodeString(start, ptr)
+//        return new String(buffer, start, stop - start, StandardCharsets.UTF_8)
       }
     }
     null // inaccessible
@@ -419,7 +427,8 @@ final class TabixLineIterator(
         }
         if (i >= 0) {
           val expected = offsets(i)._2
-          assert(curOff >= expected && curOff < expected + (1 << 16))
+          if (!(curOff >= expected && curOff < expected + (1 << 16)))
+            throw new RuntimeException(s"index error: curOff=$curOff, expected=$expected, diff=${curOff-expected}")
 //          assert(curOff == offsets(i)._2, s"curOff=$curOff, offset=${offsets(i)._2}")
         }
         if (i < 0 || offsets(i)._2 != offsets(i + 1)._1) {
