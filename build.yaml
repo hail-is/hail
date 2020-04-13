@@ -1473,6 +1473,7 @@ steps:
 
      bash test-dataproc.sh
    dependsOn:
+     - ci_utils_image
      - copy_files
      - build_hail
    inputs:
