@@ -1476,6 +1476,8 @@ steps:
      tar xvf wheel-container.tar
      python3 -m pip install -U hail-*-py3-none-any.whl
      gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
+     gcloud config set project hail-vdc
+     gcloud config set zone us-central1-a
 
      bash test-dataproc.sh
    dependsOn:
