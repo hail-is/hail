@@ -10,8 +10,8 @@ stop_dataproc () {
 
     set +e
 
-    hailctl dataproc stop $cluster_name_37 || true  # max idle is 10m anyway
-    hailctl dataproc stop $cluster_name_38 || true  # max idle is 10m anyway
+    hailctl dataproc stop $cluster_name_37 || true  # max-idle or max-age will delete it
+    hailctl dataproc stop $cluster_name_38 || true  # max-idle or max-age will delete it
 
     exit $exit_code
 }
