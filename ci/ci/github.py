@@ -308,6 +308,11 @@ class PR(Code):
             await gh_client.post(
                 f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}',
                 data=data)
+        except KeyError:
+            log.exception(f'{self.short_str()}: KeyError when updating github status, this is likely due to'
+                          f'a bug in gidgethub. Gidgethub does not correctly parse and raise the too many'
+                          f'status updates error. If that is the issue, pushing a fresh commit to this PR'
+                          f'will fix the problem. {data}')
         except gidgethub.HTTPException as e:
             log.info(f'{self.short_str()}: notify github of build state failed due to exception: {data} {e}')
         except aiohttp.client_exceptions.ClientResponseError as e:
