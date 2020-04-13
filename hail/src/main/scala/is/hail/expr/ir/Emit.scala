@@ -1266,7 +1266,7 @@ private class Emit[C](
       case x@ApplySeeded(fn, args, seed, rt) =>
         val codeArgs = args.map(a => emit(a))
         val impl = x.implementation
-        val unified = impl.unify(args.map(_.typ), rt)
+        val unified = impl.unify(Array.empty[Type], args.map(_.typ), rt)
         assert(unified)
         impl.setSeed(seed)
         impl.apply(EmitRegion(mb, region), pt, codeArgs: _*)

@@ -22,8 +22,7 @@ object IRFunctionRegistry {
     userAddedFunctions.clear()
   }
 
-  val irRegistry: mutable.Map[String, mutable.Map[(Seq[Type], Seq[Type], Type, Boolean), Seq[IR] => IR]] =
-    new mutable.HashMap[String, mutable.Map[(Seq[Type], Seq[Type], Type, Boolean), Seq[IR] => IR]]()
+  val irRegistry: mutable.Map[String, mutable.Map[(Seq[Type], Seq[Type], Type, Boolean), Seq[IR] => IR]] = new mutable.HashMap()
 
   val codeRegistry: mutable.MultiMap[String, IRFunction] =
     new mutable.HashMap[String, mutable.Set[IRFunction]] with mutable.MultiMap[String, IRFunction]
@@ -31,12 +30,12 @@ object IRFunctionRegistry {
   def addIRFunction(f: IRFunction): Unit = {
     if (!isJavaIdentifier(f.name))
       throw new IllegalArgumentException(s"Illegal function name, not Java identifier: ${ f.name }")
-
+//    println(s"adding function ${f.name}, ${f}, typeArgs: ${f.typeArgs}")
     codeRegistry.addBinding(f.name, f)
   }
 
   def addIR(name: String, typeArgs: Seq[Type], argTypes: Seq[Type], retType: Type, alwaysInline: Boolean, f: Seq[IR] => IR): Unit = {
-    println(s"addingIR ${name}, typeArgs: ${typeArgs}, argTypes: ${argTypes}, retType: ${retType}")
+//    println(s"adding ir for $name: typeArgs: ${typeArgs}, argTypes: ${argTypes}")
     if (!isJavaIdentifier(name))
       throw new IllegalArgumentException(s"Illegal function name, not Java identifier: $name")
 
@@ -71,7 +70,8 @@ object IRFunctionRegistry {
   }
 
   def lookupFunction(name: String, rt: Type, typeArgs: Seq[Type], argTypes: Seq[Type]): Option[IRFunction] = {
-    println(s"lookupFunction ${name}, typeArgs: ${typeArgs}, argTypes: ${argTypes}")
+//    println(s"lookupFunction ${name}, typeArgs: ${typeArgs}, argTypes: ${argTypes}")
+//    println(s"codeRegistry: ${codeRegistry}")
     codeRegistry.lift(name).map { fs => fs.filter(t => t.unify(typeArgs, argTypes, rt)).toSeq }.getOrElse(FastSeq()) match {
       case Seq() => None
       case Seq(f) => Some(f)
@@ -83,11 +83,23 @@ object IRFunctionRegistry {
     lookupIR(name, rt, Seq.empty[Type], argTypes)
 
   def lookupIR(name: String, rt: Type, typeArgs: Seq[Type], argTypes: Seq[Type]): Option[((Seq[Type], Seq[Type], Type, Boolean), Seq[IR] => IR)] = {
-    println(s"lookupIR ${name}, typeArgs: ${typeArgs}, argTypes: ${argTypes}")
-    irRegistry.getOrElse(name, Map.empty).filter { case ((typeArgsCached: Seq[Type], argTypesCached: Seq[Type], rtCached: Type, _), _) =>
-      rt == rtCached && typeArgsCached == typeArgs && argTypesCached == argTypes
+//    println(s"lookupIR ${name}, rt: ${rt}, typeArgs: ${typeArgs}, argTypes: ${argTypes}")
+//    println(s"irRegistry: ${irRegistry}")
+    val l = irRegistry.getOrElse(name, Map.empty)
+//    println(s"REGISTRY: ${l}")
+    l.filter { case ((typeArgsCached: Seq[Type], argTypesCached: Seq[Type], rtCached: Type, _), _) => {
+      println(s"Cehcking: rt: ${rt}, rtCached: ${rtCached}, typeArgsCached: ${typeArgsCached}, typeArgs: ${typeArgs}, argTypesCached: ${argTypesCached}, argTypes: ${argTypes}")
+      argTypes.length == argTypesCached.length && {
+        argTypesCached.foreach(_.clear())
+        (argTypes, argTypesCached).zipped.forall(_.unify(_))
+      }
+    }
+
     }.toSeq match {
-      case Seq() => None
+      case Seq() => {
+        println(s"nothing found for $name")
+        None
+      }
       case Seq(kv) => Some(kv)
       case _ => fatal(s"Multiple functions found that satisfy $name(${typeArgs.mkString(",")}, ${argTypes.mkString(",")}): $rt.")
     }
@@ -104,7 +116,7 @@ object IRFunctionRegistry {
         x.inline = inline
         x
     }
-    println(s"validIR: ${validIR}")
+
     val validMethods = lookupFunction(name, rt, typeArgs, args).map { f => { irArgs: Seq[IR] =>
       f match {
         case _: SeededIRFunction =>
@@ -112,8 +124,7 @@ object IRFunctionRegistry {
         case _: IRFunctionWithoutMissingness => Apply(name, typeArgs, irArgs, f.returnType.subst())
         case _: IRFunctionWithMissingness => ApplySpecial(name, typeArgs, irArgs, f.returnType.subst())
       }
-    }
-    }
+    } }
 
     (validIR, validMethods) match {
       case (None, None) =>
@@ -584,11 +595,11 @@ sealed abstract class IRFunction {
   override def toString: String = s"$name(${ argTypes.mkString(", ") }, ${ argTypes.mkString(", ") }): $returnType"
 
   def unify(typeArgsIn: Seq[Type], argTypesIn: Seq[Type], returnTypeIn: Type): Boolean = {
-    val types = typeArgsIn ++ argTypesIn :+ returnTypeIn
-    val inTypes = typeArgs ++ argTypes :+ returnType
-    types.length == inTypes.length && {
+    val concrete = (typeArgsIn ++ argTypesIn) :+ returnTypeIn
+    val types = (typeArgs ++ argTypes) :+ returnType
+    types.length == concrete.length && {
       types.foreach(_.clear())
-      types.zip(inTypes).forall { case (i, j) => i.unify(j) }
+      types.zip(concrete).forall { case (i, j) => i.unify(j) }
     }
   }
 }
