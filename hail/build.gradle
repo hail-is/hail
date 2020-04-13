@@ -174,7 +174,7 @@ dependencies {
     }
 
     hailTest 'org.testng:testng:6.8.21'
-    hailTest 'org.scalatest:scalatest_' + scalaMajorVersion + ':3.1.1'
+    hailTest 'org.scalatest:scalatest_' + scalaMajorVersion + ':3.0.8'
 
     unbundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
     bundled group: 'commons-codec', name: 'commons-codec', version: '1.11'

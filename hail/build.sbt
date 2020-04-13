@@ -33,7 +33,7 @@ lazy val root = (project in file(".")).
       "-Xlint:-unsound-match"
     ),
     libraryDependencies ++= Seq(
-          "org.scalatest" %% "scalatest" % "3.1.1" % Test
+          "org.scalatest" %% "scalatest" % "3.0.8" % Test
         , "com.google.cloud" % "google-cloud-storage" % "1.106.0"
         , "org.ow2.asm" % "asm" % "5.1"
         , "org.ow2.asm" % "asm-util" % "5.1"
