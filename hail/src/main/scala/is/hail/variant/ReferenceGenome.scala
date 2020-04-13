@@ -77,11 +77,11 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   if (yContigs.intersect(mtContigs).nonEmpty)
     fatal(s"Found the contigs '${ yContigs.intersect(mtContigs).mkString(", ") }' in both Y and MT contigs.")
 
-  val contigsIndex: java.util.HashMap[String, Int] = makeJavaMap(contigs.iterator.zipWithIndex)
+  val contigsIndex: java.util.HashMap[String, Integer] = makeJavaMap(contigs.iterator.zipWithIndex.map { case (c, i) => (c, box(i))})
 
   val contigsSet: java.util.HashSet[String] = makeJavaSet(contigs)
 
-  private val jLengths: java.util.HashMap[String, Int] = makeJavaMap(lengths.iterator)
+  private val jLengths: java.util.HashMap[String, java.lang.Integer] = makeJavaMap(lengths.iterator.map { case (c, i) => (c, box(i))})
 
   val lengthsByIndex: Array[Int] = contigs.map(lengths)
 
@@ -175,7 +175,12 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     Locus(contig, (idx - globalPosContigStarts(contig) + 1).toInt)
   }
 
-  def contigLength(contig: String): Int = jLengths.get(contig)
+  def contigLength(contig: String): Int = {
+    val r = jLengths.get(contig)
+    if (r == null)
+      fatal(s"Invalid contig name: '$contig'.")
+    r.intValue()
+  }
 
   def contigLength(contigIdx: Int): Int = {
     require(contigIdx >= 0 && contigIdx < nContigs)
@@ -678,11 +683,22 @@ object ReferenceGenome {
     rgs.foreach(writeReference(fs, path, _))
   }
 
-  def compare(contigsIndex: java.util.HashMap[String, Int], c1: String, c2: String): Int = {
-    Integer.compare(contigsIndex.get(c1), contigsIndex.get(c2))
+  def compare(contigsIndex: java.util.HashMap[String, Integer], c1: String, c2: String): Int = {
+    val i1 = contigsIndex.get(c1)
+    val i2 = contigsIndex.get(c2)
+    if (i1 == null)
+      if (i2 == null)
+        c1.compare(c2)
+      else
+        1
+    else
+      if (i2 == null)
+        -1
+      else
+        Integer.compare(i1.intValue(), i2.intValue())
   }
 
-  def compare(contigsIndex: java.util.HashMap[String, Int], l1: Locus, l2: Locus): Int = {
+  def compare(contigsIndex: java.util.HashMap[String, Integer], l1: Locus, l2: Locus): Int = {
     val c = compare(contigsIndex, l1.contig, l2.contig)
     if (c != 0)
       return c
