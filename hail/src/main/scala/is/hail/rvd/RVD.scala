@@ -1418,7 +1418,7 @@ object RVD {
       return rvds
 
     val unifiedRowPType = InferPType.getNestedElementPTypesOfSameType(rvds.map(_.rowPType)).asInstanceOf[PStruct]
-    val unifiedKey = rvds.map(_.typ.key).reduce { case (l, r) => if (l.length < r.length) l else r }
+    val unifiedKey = rvds.map(_.typ.key).reduce((l, r) => commonPrefix(l, r))
     rvds.map { rvd =>
       val srcRowPType = rvd.rowPType
       val newRVDType = rvd.typ.copy(rowType = unifiedRowPType, key = unifiedKey)
