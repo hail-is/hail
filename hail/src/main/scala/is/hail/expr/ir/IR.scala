@@ -379,11 +379,11 @@ object Die {
 final case class Die(message: IR, _typ: Type) extends IR
 
 final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR]) extends IR {
-  var conversion: Seq[IR] => IR = _
+  var conversion: (Seq[Type], Seq[IR]) => IR = _
   var inline: Boolean = _
 
   private lazy val refs = args.map(a => Ref(genUID(), a.typ)).toArray
-  lazy val body: IR = conversion(refs).deepCopy()
+  lazy val body: IR = conversion(typeArgs, refs).deepCopy()
 
   lazy val explicitNode: IR = {
     // foldRight because arg1 should be at the top so it is evaluated first
@@ -402,18 +402,12 @@ sealed abstract class AbstractApplyNode[F <: IRFunction] extends IR {
       .asInstanceOf[F]
 }
 
-object Apply {
-  def apply(function: String, args: Seq[IR], returnType: Type): Apply = Apply(function, Array.empty[Type], args, returnType)
-}
 final case class Apply(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithoutMissingness]
 
 final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, returnType: Type) extends AbstractApplyNode[SeededIRFunction] {
   val typeArgs: Seq[Type] = Seq.empty[Type]
 }
 
-object ApplySpecial {
-  def apply(function: String, args: Seq[IR], returnType: Type): ApplySpecial = ApplySpecial(function, Array.empty[Type], args, returnType)
-}
 final case class ApplySpecial(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithMissingness]
 
 final case class LiftMeOut(child: IR) extends IR

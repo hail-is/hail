@@ -46,10 +46,10 @@ class BlockMatrixIRSuite extends HailSuite {
 
   @Test def testBlockMatrixMap() {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
-    val sqrtIR = BlockMatrixMap(ones, "element", Apply("sqrt", FastIndexedSeq(Ref("element", TFloat64)), TFloat64), false)
+    val sqrtIR = BlockMatrixMap(ones, "element", Apply("sqrt", FastIndexedSeq(), FastIndexedSeq(Ref("element", TFloat64)), TFloat64), false)
     val negIR = BlockMatrixMap(ones, "element", ApplyUnaryPrimOp(Negate(), Ref("element", TFloat64)), false)
-    val logIR = BlockMatrixMap(ones, "element", Apply("log", FastIndexedSeq(Ref("element", TFloat64)), TFloat64), true)
-    val absIR = BlockMatrixMap(ones, "element", Apply("abs", FastIndexedSeq(Ref("element", TFloat64)), TFloat64), false)
+    val logIR = BlockMatrixMap(ones, "element", Apply("log", FastIndexedSeq(), FastIndexedSeq(Ref("element", TFloat64)), TFloat64), true)
+    val absIR = BlockMatrixMap(ones, "element", Apply("abs", FastIndexedSeq(), FastIndexedSeq(Ref("element", TFloat64)), TFloat64), false)
 
     assertBMEvalsTo(sqrtIR, BDM.fill[Double](3, 3)(1))
     assertBMEvalsTo(negIR, BDM.fill[Double](3, 3)(-1))

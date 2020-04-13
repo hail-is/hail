@@ -372,6 +372,7 @@ class OrderingSuite extends HailSuite {
     val set2 = ToSet(MakeStream(Seq(I32(9), I32(1), I32(4)), TStream(TInt32)))
     assertEvalsTo(StreamFold(ToStream(set1), True(), "accumulator", "setelt",
         ApplySpecial("land",
+          FastSeq(),
           FastSeq(
             Ref("accumulator", TBoolean),
             invoke("contains", TBoolean, set2, Ref("setelt", TInt32))), TBoolean)), true)

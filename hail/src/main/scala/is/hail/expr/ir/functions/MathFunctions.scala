@@ -93,10 +93,10 @@ object MathFunctions extends RegistryFunctions {
     val jDoubleClass = classOf[java.lang.Double]    
 
     // numeric conversions
-    registerIR("toInt32", tnum("T"), TInt32)(x => Cast(x, TInt32))
-    registerIR("toInt64", tnum("T"), TInt64)(x => Cast(x, TInt64))
-    registerIR("toFloat32", tnum("T"), TFloat32)(x => Cast(x, TFloat32))
-    registerIR("toFloat64", tnum("T"), TFloat64)(x => Cast(x, TFloat64))
+    registerIR("toInt32", tnum("T"), TInt32)((_, x) => Cast((x), TInt32))
+    registerIR("toInt64", tnum("T"), TInt64)((_, x) => Cast(x, TInt64))
+    registerIR("toFloat32", tnum("T"), TFloat32)((_, x) => Cast(x, TFloat32))
+    registerIR("toFloat64", tnum("T"), TFloat64)((_, x) => Cast(x, TFloat64))
     
     registerScalaFunction("abs", Array(TInt32), TInt32, (_: Type, _: Seq[PType]) => PInt32())(mathPackageClass, "abs")
     registerScalaFunction("abs", Array(TInt64), TInt64, (_: Type, _: Seq[PType]) => PInt64())(mathPackageClass, "abs")

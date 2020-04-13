@@ -139,7 +139,7 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerIR("sortedNonOverlappingIntervalsContain",
-      TArray(TInterval(tv("T"))), tv("T"), TBoolean) { case (intervals, value) =>
+      TArray(TInterval(tv("T"))), tv("T"), TBoolean) { case (_, intervals, value) =>
       val uid = genUID()
       val uid2 = genUID()
       Let(uid, LowerBoundOnOrderedCollection(intervals, value, onKey = true),

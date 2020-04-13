@@ -27,7 +27,7 @@ class ScalaTestCompanion {
 
 object TestRegisterFunctions extends RegistryFunctions {
   def registerAll() {
-    registerIR("addone", TInt32, TInt32)(ApplyBinaryPrimOp(Add(), _, I32(1)))
+    registerIR("addone", TInt32, TInt32)((_, a) => ApplyBinaryPrimOp(Add(), a, I32(1)))
     registerJavaStaticFunction("compare", Array(TInt32, TInt32), TInt32, null)(classOf[java.lang.Integer], "compare")
     registerScalaFunction("foobar1", Array(), TInt32, null)(ScalaTestObject.getClass, "testFunction")
     registerScalaFunction("foobar2", Array(), TInt32, null)(ScalaTestCompanion.getClass, "testFunction")
@@ -45,7 +45,7 @@ class FunctionSuite extends HailSuite {
 
   TestRegisterFunctions.registerAll()
 
-  def lookup(meth: String, rt: Type, types: Type*)(irs: IR*): IR =
+  def lookup(meth: String, rt: Type, types: Type*)(irs: (Seq[Type]IR*): IR =
     IRFunctionRegistry.lookupConversion(meth, rt, types).get(irs)
 
   @Test

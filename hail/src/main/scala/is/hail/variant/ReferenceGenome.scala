@@ -500,17 +500,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     rg
   }
 
-  private[this] var registeredFunctions: Set[(String, Type, Seq[Type], Seq[Type])] = Set()
   def addIRFunctions(): Unit = {
     val irFunctions = new ReferenceGenomeFunctions(this)
-
     irFunctions.registerAll()
-
-    registeredFunctions ++= irFunctions.registered
-  }
-  def removeIRFunctions(): Unit = {
-    registeredFunctions.foreach(f => IRFunctionRegistry.removeIRFunction(f._1, f._2, f._3, f._4))
-    registeredFunctions = Set()
   }
 }
 
@@ -532,8 +524,6 @@ object ReferenceGenome {
   }
 
   def reset(): Unit = {
-    if (TaskContext.get() == null) // don't add IR functions on workers
-      references.foreach { case (name, rg) => rg.removeIRFunctions() }
     references = Map()
     GRCh37 = null
     GRCh38 = null

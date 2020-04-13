@@ -107,7 +107,7 @@ object StringFunctions extends RegistryFunctions {
       unwrapReturn(r, rt)(asm4s.coerce[String](wrapArg(r, sT)(s)).invoke[Int, Int, String]("substring", start, end))
     }
 
-    registerIR("slice", TString, TInt32, TInt32, TString) { (str, start, end) =>
+    registerIR("slice", TString, TInt32, TInt32, TString) { (_, str, start, end) =>
       val len = Ref(genUID(), TInt32)
       val s = Ref(genUID(), TInt32)
       val e = Ref(genUID(), TInt32)
@@ -117,7 +117,7 @@ object StringFunctions extends RegistryFunctions {
             invoke("substring", TString, str, s, If(e < s, s, e)))))
     }
 
-    registerIR("index", TString, TInt32, TString) { (s, i) =>
+    registerIR("index", TString, TInt32, TString) { (_, s, i) =>
       val len = Ref(genUID(), TInt32)
       val idx = Ref(genUID(), TInt32)
       Let(len.name, invoke("length", TInt32, s),
@@ -132,8 +132,8 @@ object StringFunctions extends RegistryFunctions {
         invoke("substring", TString, s, idx, idx + 1)))
     }
 
-    registerIR("sliceRight", TString, TInt32, TString) { (s, start) => invoke("slice", TString, s, start, invoke("length", TInt32, s)) }
-    registerIR("sliceLeft", TString, TInt32, TString) { (s, end) => invoke("slice", TString, s, I32(0), end) }
+    registerIR("sliceRight", TString, TInt32, TString) { (_, s, start) => invoke("slice", TString, s, start, invoke("length", TInt32, s)) }
+    registerIR("sliceLeft", TString, TInt32, TString) { (_, s, end) => invoke("slice", TString, s, I32(0), end) }
 
     registerCode("str", tv("T"), TString, (_: Type, _: PType) => PCanonicalString()) { case (r, rt, (aT, a)) =>
       val annotation = boxArg(r, aT)(a)

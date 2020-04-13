@@ -22,7 +22,7 @@ object IRFunctionRegistry {
     userAddedFunctions.clear()
   }
 
-  val irRegistry: mutable.Map[String, mutable.Map[(Seq[Type], Seq[Type], Type, Boolean), Seq[IR] => IR]] = new mutable.HashMap()
+  val irRegistry: mutable.Map[String, mutable.Map[(Seq[Type], Seq[Type], Type, Boolean), (Seq[Type], Seq[IR]) => IR]] = new mutable.HashMap()
 
   val codeRegistry: mutable.MultiMap[String, IRFunction] =
     new mutable.HashMap[String, mutable.Set[IRFunction]] with mutable.MultiMap[String, IRFunction]
@@ -33,7 +33,7 @@ object IRFunctionRegistry {
     codeRegistry.addBinding(f.name, f)
   }
 
-  def addIR(name: String, typeArgs: Seq[Type], argTypes: Seq[Type], retType: Type, alwaysInline: Boolean, f: Seq[IR] => IR): Unit = {
+  def addIR(name: String, typeArgs: Seq[Type], argTypes: Seq[Type], retType: Type, alwaysInline: Boolean, f: (Seq[Type], Seq[IR]) => IR): Unit = {
     if (!isJavaIdentifier(name))
       throw new IllegalArgumentException(s"Illegal function name, not Java identifier: $name")
 
@@ -55,7 +55,7 @@ object IRFunctionRegistry {
     userAddedFunctions += ((mname, (body.typ, typeArgs, argTypes)))
     addIR(mname,
       typeArgs,
-      argTypes, IRParser.parseType(retType), false, { args =>
+      argTypes, IRParser.parseType(retType), false, { (_, args) =>
         Subst(body,
           BindingEnv(Env[IR](argNames.asScala.zip(args): _*)))
       })
@@ -76,10 +76,7 @@ object IRFunctionRegistry {
     }
   }
 
-  def lookupIR(name: String, rt: Type, argTypes: Seq[Type]): Option[((Seq[Type], Seq[Type], Type, Boolean), Seq[IR] => IR)] =
-    lookupIR(name, rt, Seq.empty[Type], argTypes)
-
-  def lookupIR(name: String, rt: Type, typeArgs: Seq[Type], argTypes: Seq[Type]): Option[((Seq[Type], Seq[Type], Type, Boolean), Seq[IR] => IR)] = {
+  def lookupIR(name: String, rt: Type, typeArgs: Seq[Type], argTypes: Seq[Type]): Option[((Seq[Type], Seq[Type], Type, Boolean), (Seq[Type], Seq[IR]) => IR)] = {
     irRegistry.getOrElse(name, Map.empty).filter { case ((typeArgsFound: Seq[Type], argTypesFound: Seq[Type], _, _), _) =>
       typeArgsFound.length == typeArgs.length && {
         typeArgsFound.foreach(_.clear())
@@ -95,24 +92,24 @@ object IRFunctionRegistry {
     }
   }
 
-  def lookupConversion(name: String, rt: Type, args: Seq[Type]): Option[Seq[IR] => IR] =
+  def lookupConversion(name: String, rt: Type, args: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] =
     lookupConversion(name, rt, Array.empty[Type], args)
 
-  def lookupConversion(name: String, rt: Type, typeArgs: Seq[Type], args: Seq[Type]): Option[Seq[IR] => IR] = {
-    val validIR: Option[Seq[IR] => IR] = lookupIR(name, rt, typeArgs, args).map {
-      case ((_, _, _, inline), conversion) => args =>
-        val x = ApplyIR(name, typeArgs, args)
+  def lookupConversion(name: String, rt: Type, typeArgs: Seq[Type], args: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] = {
+    val validIR: Option[(Seq[Type], Seq[IR]) => IR] = lookupIR(name, rt, typeArgs, args).map {
+      case ((_, _, _, inline), conversion) => (typeArgsPassed, args) =>
+        val x = ApplyIR(name, typeArgsPassed, args)
         x.conversion = conversion
         x.inline = inline
         x
     }
 
-    val validMethods = lookupFunction(name, rt, typeArgs, args).map { f => { irArgs: Seq[IR] =>
+    val validMethods = lookupFunction(name, rt, typeArgs, args).map { f => { (irTypeArgs: Seq[Type], irArgs: Seq[IR]) =>
       f match {
         case _: SeededIRFunction =>
           ApplySeeded(name, irArgs.init, irArgs.last.asInstanceOf[I64].x, f.returnType.subst())
-        case _: IRFunctionWithoutMissingness => Apply(name, typeArgs, irArgs, f.returnType.subst())
-        case _: IRFunctionWithMissingness => ApplySpecial(name, typeArgs, irArgs, f.returnType.subst())
+        case _: IRFunctionWithoutMissingness => Apply(name, irTypeArgs, irArgs, f.returnType.subst())
+        case _: IRFunctionWithMissingness => ApplySpecial(name, irTypeArgs, irArgs, f.returnType.subst())
       }
     } }
 
@@ -421,11 +418,12 @@ abstract class RegistryFunctions {
     }
   }
 
-  def registerIR(mname: String, typeArgs: Array[Type], argTypes: Array[Type], retType: Type, inline: Boolean)(f: Seq[IR] => IR): Unit =
+  def registerIR(mname: String, typeArgs: Array[Type], argTypes: Array[Type], retType: Type, inline: Boolean)(f: (Seq[Type], Seq[IR]) => IR): Unit =
     IRFunctionRegistry.addIR(mname, typeArgs, argTypes, retType, inline, f)
 
-  def registerIR(mname: String, argTypes: Array[Type], retType: Type, inline: Boolean = false)(f: Seq[IR] => IR): Unit =
+  def registerIR(mname: String, argTypes: Array[Type], retType: Type, inline: Boolean = false)(f: (Seq[Type], Seq[IR]) => IR): Unit = {
     registerIR(mname, Array.empty[Type], argTypes, retType, inline)(f)
+  }
 
   def registerPCode(mname: String, mt1: Type, rt: Type, pt: (Type, PType) => PType)(impl: (EmitRegion, PType, PCode) => PCode): Unit =
     registerPCode(mname, Array(mt1), rt, unwrappedApply(pt)) {
@@ -481,6 +479,29 @@ abstract class RegistryFunctions {
       a5: (PType, Code[A5]) @unchecked)) => impl(r, rt, a1, a2, a3, a4, a5)
     }
 
+  def registerCode[A1](mname: String, typeArg1: Type, arg1: Type, rt: Type, pt: (Type, PType) => PType)
+                        (impl: (EmitRegion, PType, Type, (PType, Code[A1])) => Code[_]): Unit =
+    registerCode(mname, Array(typeArg1), Array[Type](arg1), rt, unwrappedApply(pt)) {
+      case (r, rt, Array(t1: TLocus), Array(a1: (PType, Code[A1]) @unchecked)) => impl(r, rt, t1, a1)
+    }
+
+  def registerCode[A1, A2](mname: String, typeArg1: Type, arg1: Type, arg2: Type, rt: Type, pt: (Type, PType, PType) => PType)
+                            (impl: (EmitRegion, PType, Type, (PType, Code[A1]), (PType, Code[A2])) => Code[_]): Unit =
+    registerCode(mname, Array(typeArg1), Array[Type](arg1, arg2), rt, unwrappedApply(pt)) {
+      case (r, rt, Array(t1: TLocus), Array(a1: (PType, Code[A1]) @unchecked, a2: (PType, Code[A2]) @unchecked)) => impl(r, rt, t1, a1, a2)
+    }
+
+  def registerCode[A1, A2, A3, A4](mname: String, typeArg1: Type, arg1: Type, arg2: Type, arg3: Type, arg4: Type, rt: Type, pt: (Type, PType, PType, PType, PType) => PType)
+                                    (impl: (EmitRegion, PType, Type, (PType, Code[A1]), (PType, Code[A2]), (PType, Code[A3]), (PType, Code[A4])) => Code[_]): Unit =
+    registerCode(mname, Array(typeArg1), Array[Type](arg1, arg2, arg3, arg4), rt, unwrappedApply(pt)) {
+      case (r, rt, Array(t1: TLocus), Array(
+      a1: (PType, Code[A1]) @unchecked,
+      a2: (PType, Code[A2]) @unchecked,
+      a3: (PType, Code[A3]) @unchecked,
+      a4: (PType, Code[A4]) @unchecked)) => impl(r, rt, t1, a1, a2, a3, a4)
+    }
+
+
   def registerEmitCode(mname: String, rt: Type, pt: PType)(impl: EmitRegion => EmitCode): Unit =
     registerEmitCode(mname, Array[Type](), rt, (_: Type, _: Seq[PType]) => pt) { case (r, rt, Array()) => impl(r) }
 
@@ -500,20 +521,20 @@ abstract class RegistryFunctions {
     (impl: (EmitRegion, PType, EmitCode, EmitCode, EmitCode, EmitCode, EmitCode, EmitCode) => EmitCode): Unit =
     registerEmitCode(mname, Array(mt1, mt2, mt3, mt4, mt5, mt6), rt, unwrappedApply(pt)) { case (r, rt, Array(a1, a2, a3, a4, a5, a6)) => impl(r, rt, a1, a2, a3, a4, a5, a6) }
 
-  def registerIR(mname: String, mt1: Type, retType: Type)(f: IR => IR): Unit =
-    registerIR(mname, Array(mt1), retType) { case Seq(a1) => f(a1) }
+  def registerIR(mname: String, mt1: Type, retType: Type)(f: (Seq[Type], IR) => IR): Unit =
+    registerIR(mname, Array(mt1), retType) { case (t, Seq(a1)) => f(t, a1) }
 
-  def registerIR(mname: String, mt1: Type, mt2: Type, retType: Type)(f: (IR, IR) => IR): Unit =
-    registerIR(mname, Array(mt1, mt2), retType) { case Seq(a1, a2) => f(a1, a2) }
+  def registerIR(mname: String, mt1: Type, mt2: Type, retType: Type)(f: (Seq[Type], IR, IR) => IR): Unit =
+    registerIR(mname, Array(mt1, mt2), retType) { case (t, Seq(a1, a2)) => f(t, a1, a2) }
 
-  def registerIR(mname: String, mt1: Type, mt2: Type, mt3: Type, retType: Type)(f: (IR, IR, IR) => IR): Unit =
-    registerIR(mname, Array(mt1, mt2, mt3), retType) { case Seq(a1, a2, a3) => f(a1, a2, a3) }
+  def registerIR(mname: String, mt1: Type, mt2: Type, mt3: Type, retType: Type)(f: (Seq[Type], IR, IR, IR) => IR): Unit =
+    registerIR(mname, Array(mt1, mt2, mt3), retType) { case (t, Seq(a1, a2, a3)) => f(t, a1, a2, a3) }
 
-  def registerIR(mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, retType: Type)(f: (IR, IR, IR, IR) => IR): Unit =
-    registerIR(mname, Array(mt1, mt2, mt3, mt4), retType) { case Seq(a1, a2, a3, a4) => f(a1, a2, a3, a4) }
+  def registerIR(mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, retType: Type)(f: (Seq[Type], IR, IR, IR, IR) => IR): Unit =
+    registerIR(mname, Array(mt1, mt2, mt3, mt4), retType) { case (t, Seq(a1, a2, a3, a4)) => f(t, a1, a2, a3, a4) }
 
-  def registerIR(mname: String, typeArgs: Array[Type], mt1: Type, mt2: Type, mt3: Type, mt4: Type, retType: Type)(f: (IR, IR, IR, IR) => IR): Unit =
-    registerIR(mname, typeArgs, Array(mt1, mt2, mt3, mt4), retType, false) { case Seq(a1, a2, a3, a4) => f(a1, a2, a3, a4) }
+  def registerIR(mname: String, typeArg: Type, mt1: Type, mt2: Type, mt3: Type, mt4: Type, retType: Type)(f: (Type, IR, IR, IR, IR) => IR): Unit =
+    registerIR(mname, Array(typeArg), Array(mt1, mt2, mt3, mt4), retType, false) { case (Seq(t), Seq(a1, a2, a3, a4)) => f(t, a1, a2, a3, a4) }
 
   def registerSeeded(mname: String, aTypes: Array[Type], rType: Type, pt: (Type, Seq[PType]) => PType)
     (impl: (EmitRegion, PType, Long, Array[(PType, Code[_])]) => Code[_]) {
