@@ -883,6 +883,10 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: router/deployment.yaml
+   wait:
+     - kind: Service
+       name: router
+       for: alive
    link:
     - www
     - notebook
