@@ -12,8 +12,14 @@ stop_dataproc () {
 
     set +e
 
-    hailctl dataproc stop $cluster_name_37
-    hailctl dataproc stop $cluster_name_38
+    hailctl dataproc \
+            --project $project \
+            --zone $zone \
+            stop $cluster_name_37
+    hailctl dataproc
+            --project $project \
+            --zone $zone \
+            stop $cluster_name_38
 
     exit $exit_code
 }
@@ -31,9 +37,10 @@ hailctl dataproc \
         --requester-pays-allow-buckets hail-us-vep
 for file in $cluster_37_test_files
 do
-    hailctl --project $project \
+    hailctl dataproc \
+            --project $project \
             --zone $zone \
-            dataproc submit \
+            submit \
             $cluster_name_37 $file
 done
 
@@ -46,8 +53,9 @@ hailctl dataproc \
         --requester-pays-allow-buckets hail-us-vep
 for file in $cluster_38_test_files
 do
-    hailctl --project $project \
+    hailctl dataproc \
+            --project $project \
             --zone $zone \
-            dataproc submit \
+            submit \
             $cluster_name_38 $filen
 done
