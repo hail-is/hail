@@ -63,17 +63,3 @@ spec:
           secret:
             optional: false
             secretName: deploy-config
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: scorecard
-  labels:
-    app: scorecard
-spec:
-  ports:
-  - port: 80
-    protocol: TCP
-    targetPort: 5000
-  selector:
-    app: scorecard
