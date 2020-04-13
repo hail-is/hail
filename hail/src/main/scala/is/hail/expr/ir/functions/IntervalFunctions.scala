@@ -124,10 +124,7 @@ object IntervalFunctions extends RegistryFunctions {
         )
     }
 
-    registerCode("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, {
-      case(_: Type, i1t: PType, i2t: PType) =>
-        PBoolean(i1t.required && i2t.required)
-    }) {
+    registerCode("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, (_: Type, i1t: PType, i2t: PType) => PBoolean(i1t.required && i2t.required)) {
       case (r, rt, (i1t: PInterval, iOff1), (i2t: PInterval, iOff2)) =>
         val interval1 = new IRInterval(r, i1t, iOff1)
         val interval2 = new IRInterval(r, i2t, iOff2)

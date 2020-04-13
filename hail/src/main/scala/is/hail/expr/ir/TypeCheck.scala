@@ -367,9 +367,9 @@ object TypeCheck {
         assert(typ != null)
       case Die(msg, typ) =>
         assert(msg.typ == TString)
-      case x@ApplyIR(fn, args) =>
+      case x@ApplyIR(fn, typeArgs, args) =>
       case x: AbstractApplyNode[_] =>
-        assert(x.implementation.unify(x.args.map(_.typ) :+ x.returnType))
+        assert(x.implementation.unify(x.typeArgs, x.args.map(_.typ), x.returnType))
       case MatrixWrite(_, _) =>
       case MatrixMultiWrite(_, _) => // do nothing
       case x@TableAggregate(child, query) =>

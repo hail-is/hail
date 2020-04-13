@@ -223,7 +223,7 @@ object InferPType {
           i.pType
         })
         a.implementation.returnPType(pTypes, a.returnType)
-      case a@ApplySpecial(_, args, _) =>
+      case a@ApplySpecial(_, _, args, _) =>
         val pTypes = args.map(i => {
           infer(i)
           i.pType

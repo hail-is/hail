@@ -30,7 +30,6 @@ def define_function(f, *param_types, _name=None):
     Env.hail().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
         mname, param_names, [pt._parsable_string() for pt in param_types], ret_type._parsable_string(),
         jbody)
-    register_session_function(mname, param_types, ret_type)
 
     @typecheck(args=expr_any)
     def f(*args):

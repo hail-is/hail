@@ -79,12 +79,15 @@ package object ir {
 
   private[ir] def coerce[T <: PType](x: PType): T = types.coerce[T](x)
 
-  def invoke(name: String, rt: Type, args: IR*): IR = IRFunctionRegistry.lookupConversion(name, rt, args.map(_.typ)) match {
+  def invoke(name: String, rt: Type, typeArgs: Array[Type], args: IR*): IR = IRFunctionRegistry.lookupConversion(name, rt, typeArgs, args.map(_.typ)) match {
     case Some(f) => f(args)
-    case None => fatal(s"no conversion found for $name(${args.map(_.typ).mkString(", ")}) => $rt")
+    case None => fatal(s"no conversion found for $name(${typeArgs.mkString(", ")}, ${args.map(_.typ).mkString(", ")}) => $rt")
   }
 
-  def invokeSeeded(name: String, rt: Type, args: IR*): IR = IRFunctionRegistry.lookupConversion(name, rt, args.init.map(_.typ)) match {
+  def invoke(name: String, rt: Type, args: IR*): IR =
+    invoke(name, rt, Array.empty[Type], args:_*)
+
+  def invokeSeeded(name: String, rt: Type, args: IR*): IR = IRFunctionRegistry.lookupConversion(name, rt, Array.empty[Type], args.init.map(_.typ)) match {
     case Some(f) => f(args)
     case None => fatal(s"no conversion found for $name(${args.map(_.typ).mkString(", ")}) => $rt")
   }

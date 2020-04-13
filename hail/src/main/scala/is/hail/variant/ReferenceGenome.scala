@@ -500,16 +500,15 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     rg
   }
 
-  private[this] var registeredFunctions: Set[String] = Set.empty[String]
-  def wrapFunctionName(fname: String): String = s"${ fname }_${ name }"
+  private[this] var registeredFunctions: Set[(String, Type, Seq[Type], Seq[Type])] = Set()
   def addIRFunctions(): Unit = {
     val irFunctions = new ReferenceGenomeFunctions(this)
     irFunctions.registerAll()
     registeredFunctions ++= irFunctions.registered
   }
   def removeIRFunctions(): Unit = {
-    registeredFunctions.foreach(IRFunctionRegistry.removeIRFunction)
-    registeredFunctions = Set.empty[String]
+    registeredFunctions.foreach(f => IRFunctionRegistry.removeIRFunction(f._1, f._2, f._3, f._4))
+    registeredFunctions = Set()
   }
 }
 

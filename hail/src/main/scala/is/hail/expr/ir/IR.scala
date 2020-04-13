@@ -378,7 +378,11 @@ object Die {
 
 final case class Die(message: IR, _typ: Type) extends IR
 
-final case class ApplyIR(function: String, args: Seq[IR]) extends IR {
+object ApplyIR {
+  def apply(function: String, args: Seq[IR]): ApplyIR =
+    ApplyIR(function, Array.empty[Type], args)
+}
+final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR]) extends IR {
   var conversion: Seq[IR] => IR = _
   var inline: Boolean = _
 
@@ -395,17 +399,28 @@ sealed abstract class AbstractApplyNode[F <: IRFunction] extends IR {
   def function: String
   def args: Seq[IR]
   def returnType: Type
+  def typeArgs: Seq[Type]
   def argTypes: Seq[Type] = args.map(_.typ)
-  lazy val implementation: F = IRFunctionRegistry.lookupFunction(function, returnType, argTypes)
+  lazy val implementation: F = IRFunctionRegistry.lookupFunction(function, returnType, typeArgs, argTypes)
     .getOrElse(throw new RuntimeException(s"no function match for $function: ${ argTypes.map(_.parsableString()).mkString(", ") }"))
       .asInstanceOf[F]
 }
 
-final case class Apply(function: String, args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithoutMissingness]
+object Apply {
+  def apply(function: String, args: Seq[IR], returnType: Type): Apply =
+    Apply(function, Array.empty[Type], args, returnType)
+}
+final case class Apply(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithoutMissingness]
 
-final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, returnType: Type) extends AbstractApplyNode[SeededIRFunction]
+final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, returnType: Type) extends AbstractApplyNode[SeededIRFunction] {
+  val typeArgs: Seq[Type] = Seq.empty[Type]
+}
 
-final case class ApplySpecial(function: String, args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithMissingness]
+object ApplySpecial {
+  def apply(function: String, args: Seq[IR], returnType: Type): ApplySpecial =
+    ApplySpecial(function, Array.empty[Type], args, returnType)
+}
+final case class ApplySpecial(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithMissingness]
 
 final case class LiftMeOut(child: IR) extends IR
 final case class TableCount(child: TableIR) extends IR

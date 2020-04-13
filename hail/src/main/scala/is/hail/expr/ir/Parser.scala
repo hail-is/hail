@@ -141,7 +141,7 @@ case class IRParserEnvironment(
   ctx: ExecuteContext,
   refMap: Map[String, Type] = Map.empty,
   irMap: Map[String, BaseIR] = Map.empty,
-  typEnv: TypeParserEnvironment = TypeParserEnvironment.default
+  typEnv: TypeParserEnvironment = TypeParserEnvironment.empty
 ) {
   def update(newRefMap: Map[String, Type] = Map.empty, newIRMap: Map[String, BaseIR] = Map.empty): IRParserEnvironment =
     copy(refMap = refMap ++ newRefMap, irMap = irMap ++ newIRMap)
@@ -1085,8 +1085,9 @@ object IRParser {
       case "ApplyIR" | "ApplySpecial" | "Apply" =>
         val function = identifier(it)
         val rt = type_expr(env.typEnv)(it)
+        val typeArgs = type_exprs(env.typEnv)(it)
         val args = ir_value_children(env)(it)
-        invoke(function, rt, args: _*)
+        invoke(function, rt, typeArgs, args: _*)
       case "MatrixCount" =>
         val child = matrix_ir(env.withRefMap(Map.empty))(it)
         MatrixCount(child)
