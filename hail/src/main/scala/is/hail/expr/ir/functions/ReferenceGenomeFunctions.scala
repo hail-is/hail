@@ -40,6 +40,11 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       a4: (PType, Code[A4]) @unchecked)) => impl(r, rt, t1, a1, a2, a3, a4)
     }
 
+  def registerRGIR(mname: String, typeArgs: Array[Type], mt1: Type, mt2: Type, mt3: Type, mt4: Type, rt: Type)(f: (IR, IR, IR, IR) => IR): Unit = {
+    registered += ((mname, rt, typeArgs, Array(mt1, mt2, mt3, mt4)))
+    registerIR(mname, typeArgs, mt1, mt2, mt3, mt4, rt)(f)
+  }
+
   def registerAll() {
     val tl =  Array[Type](TLocus(rg))
 

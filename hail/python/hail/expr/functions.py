@@ -4934,7 +4934,7 @@ def is_valid_locus(contig, position, reference_genome='default') -> BooleanExpre
     -------
     :class:`.BooleanExpression`
     """
-    return _func("isValidLocus", tbool, contig, position, reference_genome, type_args=(tlocus(reference_genome), ))
+    return _func("isValidLocus", tbool, contig, position, type_args=(tlocus(reference_genome), ))
 
 
 @typecheck(locus=expr_locus(), is_female=expr_bool, father=expr_call, mother=expr_call, child=expr_call)
