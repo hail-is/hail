@@ -967,9 +967,9 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val childValues = children.map(_.execute(ctx))
-    assert(childValues.map(_.rvd.typ).toSet.size == 1) // same physical types
 
     val childRVDs = RVD.unify(childValues.map(_.rvd)).toFastIndexedSeq
+    assert(childRVDs.forall(_.typ.key.startsWith(typ.key)))
 
     val repartitionedRVDs =
       if (childRVDs(0).partitioner.satisfiesAllowedOverlap(typ.key.length - 1) &&
