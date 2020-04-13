@@ -1552,6 +1552,7 @@ steps:
      push_if_absent {{ genetics_public_image.image }} hailgenetics/garbage2:$(cat hail_pip_version)
    dependsOn:
     - default_ns
+    - batch_pods_ns
     - ci_utils_image
     - genetics_public_image
     - hail_public_image
