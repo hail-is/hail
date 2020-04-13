@@ -1468,7 +1468,7 @@ steps:
      cd /io
 
      tar xvf wheel-container.tar
-     python3 -m pip install -U --no-dependencies hail-*-py3-none-any.whl
+     python3 -m pip install -U hail-*-py3-none-any.whl
      gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
 
      bash test-dataproc.sh
