@@ -37,7 +37,7 @@ object IRFunctionRegistry {
     if (!isJavaIdentifier(name))
       throw new IllegalArgumentException(s"Illegal function name, not Java identifier: $name")
 
-    val m = irRegistry.getOrElseUpdate(name, new mutable.HashMap[(Seq[Type], Seq[Type], Type, Boolean), Seq[IR] => IR]())
+    val m = irRegistry.getOrElseUpdate(name, new mutable.HashMap())
     m.update((typeArgs, argTypes, retType, alwaysInline), f)
   }
 
