@@ -1469,6 +1469,9 @@ steps:
 
      cd /io
 
+     mkdir -p python
+     mv cluster-tests python/cluster-tests
+
      tar xvf wheel-container.tar
      python3 -m pip install -U hail-*-py3-none-any.whl
      gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
@@ -1481,7 +1484,7 @@ steps:
      - default_ns
    inputs:
      - from: /repo/hail/python/cluster-tests
-       to: /io/python/cluster-tests
+       to: /io/cluster-tests
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
      - from: /test-dataproc.sh
