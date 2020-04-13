@@ -25,10 +25,9 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       case (r, rt, Array(t1: TLocus), Array(a1: (PType, Code[A1]) @unchecked)) => impl(r, rt, t1, a1)
     }
 
-  def registerRGCode[A1, A2](
-                              mname: String, typeArg1: Type, arg1: Type, arg2: Type, rt: Type, pt: (Type, PType, PType) => PType)(
-                              impl: (EmitRegion, PType, Type, (PType, Code[A1]), (PType, Code[A2])) => Code[_]
-                            ): Unit =
+  def registerRGCode[A1, A2](mname: String, typeArg1: Type, arg1: Type, arg2: Type, rt: Type, pt: (Type, PType, PType) => PType)(
+    impl: (EmitRegion, PType, Type, (PType, Code[A1]), (PType, Code[A2])) => Code[_]
+  ): Unit =
     registerRGCode(mname, Array(typeArg1), Array[Type](arg1, arg2), rt, unwrappedApply(pt)) {
       case (r, rt, Array(t1: TLocus), Array(a1: (PType, Code[A1]) @unchecked, a2: (PType, Code[A2]) @unchecked)) => impl(r, rt, t1, a1, a2)
     }
@@ -45,11 +44,16 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       a4: (PType, Code[A4]) @unchecked)) => impl(r, rt, t1, a1, a2, a3, a4)
     }
 
+  def registerRGIR(mname: String, typeArgs: Array[Type], mt1: Type, mt2: Type, mt3: Type, mt4: Type, rt: Type)(f: (IR, IR, IR, IR) => IR): Unit = {
+    registered += ((mname, rt, typeArgs, Array(mt1, mt2, mt3, mt4)))
+    registerIR(mname, typeArgs, mt1, mt2, mt3, mt4, rt)(f)
+  }
+
   def registerAll() {
     val tl =  Array[Type](TLocus(rg))
 
     registerRGCode("isValidContig", tl(0), TString, TBoolean, (_: Type, _: PType) => PBoolean()) {
-      case (r, rt, typeArg: TLocus, (contigT, contig: Code[Long])) =>
+      case (r, rt, typeArg: TLocus, (contigT, contig: Code[Long])) => {}
         val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
         rgCode(r.mb, typeArg.rg).invoke[String, Boolean]("isValidContig", scontig)
     }
@@ -66,7 +70,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
         unwrapReturn(r, rt)(rgCode(r.mb, typeArg.rg).invoke[String, Int, Int, Int, String]("getSequence", scontig, pos, before, after))
     }
 
-    registerIR("getReferenceSequence", tl, TString, TInt32, TInt32, TInt32, TString) {
+    registerRGIR("getReferenceSequence", tl, TString, TInt32, TInt32, TInt32, TString) {
       (contig, pos, before, after) =>
         val getRef = IRFunctionRegistry.lookupConversion(
           name = "getReferenceSequenceFromValidLocus",

@@ -6,7 +6,7 @@ from hail.expr.expressions import construct_expr, anytype, expr_any, unify_all
 from hail.typecheck import typecheck, nullable, tupleof
 
 class Function(object):
-    def __init__(self, f, param_types, ret_type, name, type_args = ()):
+    def __init__(self, f, param_types, ret_type, name, type_args=()):
         self._f = f
         self._name = name
         self._type_args = type_args
@@ -17,7 +17,7 @@ class Function(object):
         return self._f(*args)
 
 
-@typecheck(f=anytype, param_types=hail_type, _name=nullable(str), type_args = tupleof(hail_type))
+@typecheck(f=anytype, param_types=hail_type, _name=nullable(str), type_args=tupleof(hail_type))
 def define_function(f, *param_types, _name=None, type_args=()):
     mname = _name if _name is not None else Env.get_uid()
     param_names = [Env.get_uid() for _ in param_types]

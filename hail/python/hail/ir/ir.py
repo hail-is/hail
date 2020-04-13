@@ -1923,7 +1923,7 @@ class Apply(IR):
         self.args = args
 
     def copy(self, *args):
-        return Apply(self.function, self.return_type, *args, self.type_args)
+        return Apply(self.function, self.return_type, *args, type_args=self.type_args)
 
     def head_str(self):
         type_args = "(" + " ".join([a._parsable_string() for a in self.type_args]) + ")"
