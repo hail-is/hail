@@ -110,16 +110,16 @@ steps:
        to: /repo/test/
      - from: /io/repo/hail/python/cluster-tests/
        to: /repo/hail/python/cluster-tests
+     - from: /io/repo/hail/test-dataproc.sh
+       to: /test-dataproc.sh
      - from: /io/repo/hail/python/hail/hail_version
        to: /hail_version
-     - from: /io/repo/git_version
-       to: /git_version
      - from: /io/repo/hail/python/hail/hail_pip_version
        to: /hail_pip_version
      - from: /io/repo/hail/spark_version
        to: /spark_version
-     - from: /io/repo/hail/test-dataproc.sh
-       to: /test-dataproc.sh
+     - from: /io/repo/git_version
+       to: /git_version
    dependsOn:
      - base_image
  - kind: runImage
@@ -1469,28 +1469,26 @@ steps:
 
      cd /io
 
-     ls -al
      mkdir -p python
      mv cluster-tests python/cluster-tests
 
-     # tar xvf wheel-container.tar
-     # python3 -m pip install -U hail-*-py3-none-any.whl
-     python3 -m pip install -U hail==0.2.35
+     tar xvf wheel-container.tar
+     python3 -m pip install -U hail-*-py3-none-any.whl
      gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
      gcloud config set project hail-vdc
      gcloud config set dataproc/region us-central1
 
-     bash test-dataproc.sh
+     ./test-dataproc.sh
    dependsOn:
      - ci_utils_image
      - copy_files
-     # - build_hail
+     - build_hail
      - default_ns
    inputs:
      - from: /repo/hail/python/cluster-tests
        to: /io/
-     # - from: /wheel-container.tar
-     #   to: /io/wheel-container.tar
+     - from: /wheel-container.tar
+       to: /io/wheel-container.tar
      - from: /test-dataproc.sh
        to: /io/test-dataproc.sh
    secrets:
@@ -1543,6 +1541,7 @@ steps:
       mountPath: /hail-ci-0-1-github-oauth-token
    scopes:
     - deploy
+    - dev
    dependsOn:
     - test_dataproc
     - default_ns
