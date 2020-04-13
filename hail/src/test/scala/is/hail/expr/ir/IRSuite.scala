@@ -2872,6 +2872,7 @@ class IRSuite extends HailSuite {
         "x" -> TInt32))
 
       val s = Pretty(x, elideLiterals = false)
+      println(s"the ir ${s}")
       val x2 = IRParser.parse_value_ir(s, env)
 
       assert(x2 == x)

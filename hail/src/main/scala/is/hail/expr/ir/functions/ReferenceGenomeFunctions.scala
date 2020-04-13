@@ -8,16 +8,10 @@ import is.hail.expr.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
-// FIXME: get rid of the rg? Only needed in registerIR(getReferenceSequence)
 class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
   def rgCode(mb: EmitMethodBuilder[_], rg: ReferenceGenome): Code[ReferenceGenome] = mb.getReferenceGenome(rg)
   var registered: Set[(String, Type, Seq[Type], Seq[Type])] = Set()
 
-//  def registerRGCode(mname: String, typeArgs: Array[Type], args: Array[Type], rt: Type, pt: (Type, Seq[PType]) => PType)(
-//    impl: (EmitRegion, PType, Array[Type], Array[(PType, Code[_])]) => Code[_]): Unit = {
-//    registered += ((mname, typeArgs, args, rt))
-//    registerCode(mname, typeArgs, args, rt, pt)(impl)
-//  }
   def registerRGCode(mname: String, typeArgs: Array[Type], args: Array[Type], rt: Type, pt: (Type, Seq[PType]) => PType)(
                       impl: (EmitRegion, PType, Array[Type], Array[(PType, Code[_])]) => Code[_]
                     ): Unit = {

@@ -30,7 +30,6 @@ object IRFunctionRegistry {
   def addIRFunction(f: IRFunction): Unit = {
     if (!isJavaIdentifier(f.name))
       throw new IllegalArgumentException(s"Illegal function name, not Java identifier: ${ f.name }")
-//    println(s"adding function ${f.name}, ${f}, typeArgs: ${f.typeArgs}")
     codeRegistry.addBinding(f.name, f)
   }
 
@@ -69,8 +68,6 @@ object IRFunctionRegistry {
   }
 
   def lookupFunction(name: String, rt: Type, typeArgs: Seq[Type], argTypes: Seq[Type]): Option[IRFunction] = {
-//    println(s"lookupFunction ${name}, typeArgs: ${typeArgs}, argTypes: ${argTypes}")
-//    println(s"codeRegistry: ${codeRegistry}")
     codeRegistry.lift(name).map { fs => fs.filter(t => t.unify(typeArgs, argTypes, rt)).toSeq }.getOrElse(FastSeq()) match {
       case Seq() => None
       case Seq(f) => Some(f)

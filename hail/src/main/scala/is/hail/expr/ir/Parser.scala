@@ -141,7 +141,7 @@ case class IRParserEnvironment(
   ctx: ExecuteContext,
   refMap: Map[String, Type] = Map.empty,
   irMap: Map[String, BaseIR] = Map.empty,
-  typEnv: TypeParserEnvironment = TypeParserEnvironment.empty
+  typEnv: TypeParserEnvironment = TypeParserEnvironment.default
 ) {
   def update(newRefMap: Map[String, Type] = Map.empty, newIRMap: Map[String, BaseIR] = Map.empty): IRParserEnvironment =
     copy(refMap = refMap ++ newRefMap, irMap = irMap ++ newIRMap)

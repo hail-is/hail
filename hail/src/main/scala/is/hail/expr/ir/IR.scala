@@ -378,10 +378,6 @@ object Die {
 
 final case class Die(message: IR, _typ: Type) extends IR
 
-object ApplyIR {
-  def apply(function: String, args: Seq[IR]): ApplyIR =
-    ApplyIR(function, Array.empty[Type], args)
-}
 final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR]) extends IR {
   var conversion: Seq[IR] => IR = _
   var inline: Boolean = _
