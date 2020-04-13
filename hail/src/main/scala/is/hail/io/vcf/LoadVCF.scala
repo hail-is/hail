@@ -1079,13 +1079,15 @@ class ParseLineContext(typ: TableType, val infoFlagFieldNames: java.util.HashSet
   val hasFilters = typ.rowType.hasField("filters")
   val hasEntryFields = entryType.size > 0
 
-  val infoFields: java.util.HashMap[String, Int] = makeJavaMap(infoSignature.fieldIdx)
-  val infoFieldTypes: Array[Type] = infoSignature.types
-  val infoFieldFlagIndices: Array[Int] = infoSignature.fields
-    .iterator
-    .filter(f => infoFlagFieldNames.contains(f.name))
-    .map(_.index)
-    .toArray
+  val infoFields: java.util.HashMap[String, Int] = if (infoSignature != null) makeJavaMap(infoSignature.fieldIdx) else null
+  val infoFieldTypes: Array[Type] = if (infoSignature != null) infoSignature.types else null
+  val infoFieldFlagIndices: Array[Int] = if (infoSignature != null) {
+    infoSignature.fields
+      .iterator
+      .filter(f => infoFlagFieldNames.contains(f.name))
+      .map(_.index)
+      .toArray
+  } else null
   val formatParsers = new java.util.HashMap[String, FormatParser]()
 
   def getFormatParser(format: String): FormatParser = {

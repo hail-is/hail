@@ -364,13 +364,11 @@ final class TabixLineIterator(
 
     var start = bufferPos
     var ptr: Int = bufferPos
-//    println(s"ENTERING READLINE")
+
     while (true) {
-//      println(s"entering loop, ptr=$ptr, bufferLen=$bufferLen, start=$start")
       while (ptr < bufferLen && buffer(ptr) != '\n') {
         ptr += 1
       }
-//      println(s"after inner while loop, ptr=$ptr")
 
       // no newline before end of buffer
       if (ptr >= bufferLen) {
@@ -379,7 +377,6 @@ final class TabixLineIterator(
           isEof = true
           bufferPos = ptr + 1
           return decodeString(start, ptr)
-//          return new String(buffer, start, ptr - start, StandardCharsets.UTF_8)
         } else {
 
           if (bufferPos == 0) {
@@ -408,12 +405,10 @@ final class TabixLineIterator(
         }
       } else {
         bufferPos = ptr + 1
-        // need to construct a string from start to ptr
         return decodeString(start, ptr)
-//        return new String(buffer, start, stop - start, StandardCharsets.UTF_8)
       }
     }
-    null // inaccessible
+    throw new AssertionError()
   }
 
   def next(): String = {
@@ -424,12 +419,6 @@ final class TabixLineIterator(
         if (i == offsets.length - 1) {
           isEof = true
           return s
-        }
-        if (i >= 0) {
-          val expected = offsets(i)._2
-          if (!(curOff >= expected && curOff < expected + (1 << 16)))
-            throw new RuntimeException(s"index error: curOff=$curOff, expected=$expected, diff=${curOff-expected}")
-//          assert(curOff == offsets(i)._2, s"curOff=$curOff, offset=${offsets(i)._2}")
         }
         if (i < 0 || offsets(i)._2 != offsets(i + 1)._1) {
           virtualSeek(offsets(i + 1)._1)
