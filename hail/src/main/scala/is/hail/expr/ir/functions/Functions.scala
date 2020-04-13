@@ -535,7 +535,7 @@ abstract class RegistryFunctions {
       }
 
       def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: (PType, Code[_])*): Code[_] = {
-        assert(unify(Array.empty[Type], args.map(_._1.virtualType), rpt))
+        assert(unify(Array.empty[Type], args.map(_._1.virtualType), rpt.virtualType))
         impl(r, rpt, seed, args.toArray)
       }
 
