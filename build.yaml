@@ -1489,7 +1489,7 @@ steps:
      gcloud config set project hail-vdc
      gcloud config set dataproc/region us-central1
 
-     ./test-dataproc.sh
+     bash test-dataproc.sh
    dependsOn:
      - ci_utils_image
      - copy_files
@@ -1527,12 +1527,12 @@ steps:
      cp /pypi-credentials/pypirc $HOME/.pypirc
      printf 'Authorization: token ' > github-oauth
      cat /hail-ci-0-1-github-oauth-token/oauth-token >>github-oauth
-     ./deploy.sh $(cat hail_pip_version) \
-                 $(cat hail_version) \
-                 $(cat git_version) \
-                 origin \
-                 hail-*-py3-none-any.whl \
-                 github-oauth
+     bash deploy.sh $(cat hail_pip_version) \
+                    $(cat hail_version) \
+                    $(cat git_version) \
+                    origin \
+                    hail-*-py3-none-any.whl \
+                    github-oauth
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
