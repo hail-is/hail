@@ -22,7 +22,7 @@ final class ArrayGenotypeView(rvType: PStruct) {
     }
   }
 
-  private val (gtExists, gtIndex, gtType) = lookupField("GT", _ == PCanonicalCall())
+  private val (gtExists, gtIndex, _) = lookupField("GT", _ == PCanonicalCall())
   private val (gpExists, gpIndex, _gpType) = lookupField("GP",
     pt => pt.isInstanceOf[PArray] && pt.asInstanceOf[PArray].elementType.isInstanceOf[PFloat64])
   // Do not try to move this cast into the destructuring above

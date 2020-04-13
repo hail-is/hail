@@ -1813,7 +1813,6 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
           var current: Long = 0
           val rowKey: WritableRegionValue = WritableRegionValue(keyType, ctx.freshRegion)
           val consumerRegion: Region = ctx.region
-          val newRV = RegionValue(consumerRegion)
 
           def hasNext: Boolean = {
             if (isEnd || (current == 0 && !it.hasNext)) {

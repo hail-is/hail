@@ -24,10 +24,9 @@ import org.json4s.JsonAST.{JInt, JObject}
 import org.json4s.jackson.JsonMethods
 
 import scala.annotation.meta.param
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.language.implicitConversions
 
 class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {
   override def peek(): String = bit.head
@@ -1170,7 +1169,7 @@ object LoadVCF {
     floatType: TNumeric,
     arrayElementsRequired: Boolean = false
   ): (PStruct, VCFAttributes, Set[String]) = {
-    val (fields, attrs, flags) = lines
+    val (fields, attrs, flags) = lines.asScala
       .map { line => headerField(line, callFields, floatType, arrayElementsRequired) }
       .unzip3
 
@@ -1196,7 +1195,7 @@ object LoadVCF {
 
     val filterAttrs: VCFAttributes = header
       .getFilterLines
-      .toList
+      .asScala
       // (ID, description)
       .map(line => (line.getID, Map("Description" -> line.getDescription)))
       .toMap
@@ -1292,8 +1291,8 @@ object LoadVCF {
                 val prefix = if (excerptStart > 0) "... " else ""
                 val suffix = if (excerptEnd < line.length) " ..." else ""
 
-                var caretPad = prefix.length + pos - excerptStart
-                var pad = " " * caretPad
+                val caretPad = prefix.length + pos - excerptStart
+                val pad = " " * caretPad
 
                 fatal(s"${ source.locationString(pos) }: ${ e.msg }\n$prefix$excerpt$suffix\n$pad^\noffending line: @1\nsee the Hail log for the full offending line", line, e)
               case e: Throwable =>
@@ -1413,7 +1412,7 @@ class PartitionedVCFRDD(
 
     // clean up
     val context = TaskContext.get
-    context.addTaskCompletionListener { (context: TaskContext) =>
+    context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
       lines.close()
     }
 
@@ -1433,7 +1432,7 @@ class PartitionedVCFRDD(
     }
 
     it.filter { l =>
-      var t1 = l.indexOf('\t')
+      val t1 = l.indexOf('\t')
       val t2 = l.indexOf('\t', t1 + 1)
 
       val chrom = l.substring(0, t1)
@@ -1527,7 +1526,7 @@ case class MatrixVCFReader(
       "INFO fields, and FORMAT fields were not checked for agreement with input data.")
   }
 
-  private val VCFHeaderInfo(sampleIDs, infoSignature, vaSignature, genotypeSignature, _, _, _, infoFlagFieldNames) = header1
+  private val VCFHeaderInfo(sampleIDs, _, vaSignature, genotypeSignature, _, _, _, infoFlagFieldNames) = header1
 
   private val nCols: Int = sampleIDs.length
 
@@ -1636,12 +1635,11 @@ object ImportVCFs {
       forceGZ,
       TextInputFilterAndReplace(Option(find), Option(filter), Option(replace)),
       partitionsJSON, partitionsTypeStr,
-      Option(externalSampleIds).map(_.map(_.asScala.toArray).toArray),
+      Option(externalSampleIds).map(_.asScala.map(_.asScala.toArray).toArray),
       Option(externalHeader))
 
     val irArray = reader.read()
     val id = HailContext.get.addIrVector(irArray)
-    val sb = new StringBuilder
     val out = JObject(
       "vector_ir_id" -> JInt(id),
       "length" -> JInt(irArray.length),
@@ -1668,7 +1666,6 @@ class VCFsReader(
   require(!(externalSampleIds.isEmpty ^ externalHeader.isEmpty))
 
   private val hc = HailContext.get
-  private val backend = HailContext.backend
   private val fs = hc.fs
   private val bcFS = hc.fsBc
   private val referenceGenome = rg.map(ReferenceGenome.getReference)
@@ -1680,7 +1677,6 @@ class VCFsReader(
 
   private val file1 = files.head
   private val headerLines1 = getHeaderLines(fs, externalHeader.getOrElse(file1), filterAndReplace)
-  private val headerLines1Bc = backend.broadcast(headerLines1)
   private val entryFloatType = LoadVCF.getEntryFloatType(entryFloatTypeName)
   private val header1 = parseHeader(callFields, entryFloatType, headerLines1, arrayElementsRequired = arrayElementsRequired)
 

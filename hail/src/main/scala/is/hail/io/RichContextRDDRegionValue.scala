@@ -83,7 +83,7 @@ object RichContextRDDRegionValue {
         val rowsPartPath = fs.getTemporaryFile("file:///tmp")
         val entriesPartPath = fs.getTemporaryFile("file:///tmp")
         val idxPath = rowsPartPath + ".idx"
-        context.addTaskCompletionListener { (context: TaskContext) =>
+        context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
           fs.delete(rowsPartPath, recursive = false)
           fs.delete(entriesPartPath, recursive = false)
           fs.delete(idxPath, recursive = true)

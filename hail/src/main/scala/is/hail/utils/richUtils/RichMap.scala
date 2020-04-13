@@ -7,6 +7,6 @@ class RichMap[K, V](val m: Map[K, V]) extends AnyVal {
     (m.keySet ++ other.keySet).map { k => (k, (m.get(k), other.get(k))) }.toMap
   }
 
-  def isTrivial(implicit eq: K =:= V): Boolean =
+  def isTrivial(): Boolean =
     m.forall { case (k, v) => k == v }
 }

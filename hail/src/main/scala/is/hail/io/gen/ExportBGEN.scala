@@ -302,13 +302,10 @@ object ExportBGEN {
 
     val sampleIds = colValues.map(_.asInstanceOf[Row].getString(0))
     val partitionSizes = mv.rvd.countPerPartition()
-    val nPartitions = partitionSizes.length
     val nVariants = partitionSizes.sum
     val nSamples = colValues.length
 
     val localRVRowPType = mv.rvRowPType
-
-    val header = BgenWriter.headerBlock(sampleIds, nVariants)
 
     val hc = HailContext.get
     val fs = HailContext.fs

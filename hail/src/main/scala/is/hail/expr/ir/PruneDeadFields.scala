@@ -722,7 +722,6 @@ object PruneDeadFields {
         memoizeMatrixIR(child, dep, memo)
       case MatrixColsTail(child, n) => memoizeMatrixIR(child, requestedType, memo)
       case CastTableToMatrix(child, entriesFieldName, colsFieldName, _) =>
-        val m = Map(MatrixType.entriesIdentifier -> entriesFieldName)
         val childDep = child.typ.copy(
           key = requestedType.rowKey,
           globalType = unify(child.typ.globalType, requestedType.globalType, TStruct((colsFieldName, TArray(requestedType.colType)))),
@@ -1087,7 +1086,6 @@ object PruneDeadFields {
           memoizeValueIR(a, TStream(valueType), memo)
         )
       case MakeNDArray(data, _, _) =>
-        val dataType = data.typ.asInstanceOf[TArray]
         val elementType = requestedType.asInstanceOf[TNDArray].elementType
         memoizeValueIR(data, TArray(elementType), memo)
       case NDArrayMap(nd, valueName, body) =>
@@ -1249,7 +1247,6 @@ object PruneDeadFields {
         val sType = requestedType.asInstanceOf[TStruct]
         val insFieldNames = fields.map(_._1).toSet
         val rightDep = sType.filter(f => insFieldNames.contains(f.name))._1
-        val rightDepFields = rightDep.fieldNames.toSet
         val leftDep = TStruct(
           old.typ.asInstanceOf[TStruct]
             .fields
@@ -1282,7 +1279,6 @@ object PruneDeadFields {
                 memoizeValueIR(value, tType.types(idx), memo)
               }})
       case GetTupleElement(o, idx) =>
-        val childTupleType = o.typ.asInstanceOf[TTuple]
         val tupleDep = TTuple(FastIndexedSeq(TupleField(idx, requestedType)))
         memoizeValueIR(o, tupleDep, memo)
       case MatrixCount(child) =>

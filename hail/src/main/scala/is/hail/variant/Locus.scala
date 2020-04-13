@@ -9,7 +9,6 @@ import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructT
 import org.json4s._
 
 import scala.collection.JavaConverters._
-import scala.language.implicitConversions
 
 object Locus {
   val simpleContigs: Seq[String] = (1 to 22).map(_.toString) ++ Seq("X", "Y", "MT")

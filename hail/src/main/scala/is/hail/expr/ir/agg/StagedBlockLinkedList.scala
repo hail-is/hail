@@ -210,7 +210,6 @@ class StagedBlockLinkedList(val elemType: PType, val cb: EmitClassBuilder[_]) {
     val ob = serF.getCodeParam[OutputBuffer](2)
     serF.emit {
       val n = serF.newLocal[Long]()
-      val i = serF.newLocal[Int]()
       val b = serF.newLocal[Long]()
       Code(
         foreachNode(serF, n) { Code(

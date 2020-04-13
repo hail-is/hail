@@ -32,8 +32,6 @@ final case class EPackedIntArray(
     val dlen = mb.newLocal[Int]("dlen")
     val klen = mb.newLocal[Int]("klen")
     val array = mb.newLocal[Long]("array")
-    val keys = mb.newLocal[Array[Byte]]("keys")
-    val data = mb.newLocal[Array[Byte]]("data")
     val unpacker = mb.newLocal[IntPacker]("unpacker")
 
     Code(Code(FastIndexedSeq(

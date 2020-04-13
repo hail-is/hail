@@ -21,9 +21,9 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def reorderPartitions(oldIndices: Array[Int])(implicit tct: ClassTag[T]): RDD[T] =
     new ReorderedPartitionsRDD[T](r, oldIndices)
 
-  def forall(p: T => Boolean)(implicit tct: ClassTag[T]): Boolean = !exists(x => !p(x))
+  def forall(p: T => Boolean): Boolean = !exists(x => !p(x))
 
-  def exists(p: T => Boolean)(implicit tct: ClassTag[T]): Boolean = r.mapPartitions { it =>
+  def exists(p: T => Boolean): Boolean = r.mapPartitions { it =>
     Iterator(it.exists(p))
   }.fold(false)(_ || _)
 
@@ -154,7 +154,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }
   }
 
-  def countPerPartition()(implicit ct: ClassTag[T]): Array[Long] = {
+  def countPerPartition(): Array[Long] = {
     val sc = r.sparkContext
     sc.runJob(r, getIteratorSize _)
   }

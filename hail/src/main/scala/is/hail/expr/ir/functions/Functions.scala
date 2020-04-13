@@ -1,9 +1,8 @@
 package is.hail.expr.ir.functions
 import is.hail.annotations._
-import is.hail.asm4s.{coerce, _}
+import is.hail.asm4s.{coerce => _, _}
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.ir._
-import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
@@ -157,8 +156,6 @@ object IRFunctionRegistry {
 abstract class RegistryFunctions {
 
   def registerAll(): Unit
-
-  private val boxes = mutable.Map[String, Box[Type]]()
 
   def tv(name: String): TVariable =
     TVariable(name)
@@ -478,8 +475,6 @@ abstract class RegistryFunctions {
     (impl: (EmitRegion, PType, Long, Array[(PType, Code[_])]) => Code[_]) {
 
     IRFunctionRegistry.addIRFunction(new SeededIRFunction {
-      val isDeterministic: Boolean = false
-
       override val name: String = mname
 
       override val argTypes: Seq[Type] = aTypes

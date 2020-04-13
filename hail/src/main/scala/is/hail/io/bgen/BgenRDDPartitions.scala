@@ -201,7 +201,6 @@ object CompileDecoder {
     val nAlleles2 = mb.newLocal[Int]("nAlleles2")
     val minPloidy = mb.newLocal[Int]("minPloidy")
     val maxPloidy = mb.newLocal[Int]("maxPloidy")
-    val longPloidy = mb.newLocal[Long]("longPloidy")
     val ploidy = mb.newLocal[Int]("ploidy")
     val phase = mb.newLocal[Int]("phase")
     val nBitsPerProb = mb.newLocal[Int]("nBitsPerProb")
@@ -209,10 +208,6 @@ object CompileDecoder {
     val c0 = mb.genFieldThisRef[Int]("c0")
     val c1 = mb.genFieldThisRef[Int]("c1")
     val c2 = mb.genFieldThisRef[Int]("c2")
-    val off = mb.newLocal[Int]("off")
-    val d0 = mb.newLocal[Int]("d0")
-    val d1 = mb.newLocal[Int]("d1")
-    val d2 = mb.newLocal[Int]("d2")
     val c = Code(Code(FastIndexedSeq(
       offset := cbfis.invoke[Long]("getPosition"),
       fileIdx := cp.invoke[Int]("index"),

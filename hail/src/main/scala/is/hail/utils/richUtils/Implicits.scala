@@ -64,10 +64,9 @@ trait Implicits {
 
   implicit def toRichOrderedSeq[T: Ordering](s: Seq[T]): RichOrderedSeq[T] = new RichOrderedSeq[T](s)
 
-  implicit def toRichPairRDD[K, V](r: RDD[(K, V)])(implicit kct: ClassTag[K],
-    vct: ClassTag[V]): RichPairRDD[K, V] = new RichPairRDD(r)
+  implicit def toRichPairRDD[K, V](r: RDD[(K, V)]): RichPairRDD[K, V] = new RichPairRDD(r)
 
-  implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
+  implicit def toRichRDD[T](r: RDD[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichContextRDDRegionValue(r: ContextRDD[RegionValue]): RichContextRDDRegionValue = new RichContextRDDRegionValue(r)
 

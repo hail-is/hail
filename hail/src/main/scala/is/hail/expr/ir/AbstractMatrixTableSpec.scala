@@ -13,8 +13,6 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.jackson.Serialization
 
-import scala.language.{existentials, implicitConversions}
-
 abstract class ComponentSpec
 
 object RelationalSpec {

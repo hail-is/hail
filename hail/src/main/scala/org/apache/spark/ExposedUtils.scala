@@ -6,11 +6,6 @@ import org.apache.spark.util._
 import scala.reflect._
 
 object ExposedUtils {
-  def clean[F <: AnyRef](f: F, checkSerializable: Boolean = true): F = {
-    ClosureCleaner.clean(f, checkSerializable)
-    f
-  }
-
   def clone[T: ClassTag](value: T, sc: SparkContext): T =
     clone(value, sc.env.serializer.newInstance())
 

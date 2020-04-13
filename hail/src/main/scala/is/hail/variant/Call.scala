@@ -8,7 +8,6 @@ import is.hail.utils._
 
 import scala.annotation.switch
 import scala.collection.JavaConverters._
-import scala.language.implicitConversions
 
 object Call0 {
   def apply(phased: Boolean = false): Call = {

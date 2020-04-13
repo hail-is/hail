@@ -7,8 +7,6 @@ import is.hail.expr.types.physical._
 import is.hail.io.InputBuffer
 import is.hail.utils._
 
-import scala.language.{existentials, higherKinds}
-
 case class EmitStreamContext(mb: EmitMethodBuilder[_])
 
 abstract class COption[+A] { self =>
@@ -200,7 +198,6 @@ object CodeStream { self =>
       init = Code(lstep := step, cur := start - lstep),
       f = {
         case (_ctx, k) =>
-          implicit val ctx = _ctx
           Code(cur := cur + lstep, k(COption.present(cur)))
       })
   }
@@ -214,7 +211,6 @@ object CodeStream { self =>
       init = Code(lstep := step, cur := start - lstep.toL),
       f = {
         case (_ctx, k) =>
-          implicit val ctx = _ctx
           Code(cur := cur + lstep.toL, k(COption.present(cur)))
       })
   }
@@ -587,7 +583,7 @@ object EmitStream {
       def emitIR(ir: IR, env: Emit.E = env, region: Value[Region] = region, container: Option[AggContainer] = container): EmitCode =
         emitter.emitWithRegion(ir, mb, region, env, container)
 
-      def emitVoidIR(ir: IR, env: Emit.E = env, container: Option[AggContainer] = container): Code[Unit] = {
+      def emitVoidIR(ir: IR, env: Emit.E = env, container: Option[AggContainer]): Code[Unit] = {
         EmitCodeBuilder.scopedVoid(mb) { cb =>
           emitter.emitVoid(cb, ir, mb, region, env, container, None)
         }
@@ -636,8 +632,6 @@ object EmitStream {
           }
 
         case ToStream(containerIR) =>
-          val aType = coerce[PContainer](containerIR.pType)
-
           COption.fromEmitCode(emitIR(containerIR)).mapCPS { (containerAddr, k) =>
             val (asetup, a) = EmitCodeBuilder.scoped(mb) { cb =>
               containerAddr.asIndexable.memoize(cb, "ts_a")
@@ -678,7 +672,6 @@ object EmitStream {
 
         case x@ReadPartition(pathIR, spec, requestedType) =>
           val eltType = coerce[PStream](x.pType).elementType
-          val strType = coerce[PString](pathIR.pType)
 
           val (_, dec) = spec.buildEmitDecoderF[Long](requestedType, mb.ecb)
 

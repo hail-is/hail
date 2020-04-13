@@ -271,7 +271,7 @@ object IRParser {
   def int32_literals: TokenIterator => Array[Int] = literals(int32_literal)
   def int64_literals: TokenIterator => Array[Long] = literals(int64_literal)
 
-  def opt[T](it: TokenIterator, f: (TokenIterator) => T)(implicit tct: ClassTag[T]): Option[T] = {
+  def opt[T](it: TokenIterator, f: (TokenIterator) => T): Option[T] = {
     it.head match {
       case x: IdentifierToken if x.value == "None" =>
         consumeToken(it)

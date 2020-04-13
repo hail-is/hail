@@ -17,7 +17,6 @@ import is.hail.{HailContext, lir}
 import org.apache.spark.TaskContext
 
 import scala.collection.mutable
-import scala.language.existentials
 
 sealed trait ParamType  {
   def nCodes: Int

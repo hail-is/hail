@@ -285,8 +285,6 @@ object TypeCheck {
         assert(body.typ == zero.typ)
         assert(coerce[TStream](x.typ).elementType == zero.typ)
       case x@StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
-        val ltyp = coerce[TStream](left.typ)
-        val rtyp = coerce[TStream](right.typ)
         assert(compare.typ == TInt32)
         assert(coerce[TStream](x.typ).elementType == join.typ)
       case x@StreamFor(a, valueName, body) =>

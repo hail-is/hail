@@ -11,7 +11,6 @@ import is.hail.io.BufferSpec
 import is.hail.utils._
 
 import scala.collection.mutable
-import scala.language.{existentials, postfixOps}
 
 class UnsupportedExtraction(msg: String) extends Exception(msg)
 

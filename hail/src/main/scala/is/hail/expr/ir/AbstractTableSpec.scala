@@ -4,8 +4,6 @@ import is.hail.HailContext
 import is.hail.expr.types._
 import is.hail.rvd._
 
-import scala.language.implicitConversions
-
 object SortOrder {
   def deserialize(b: Byte): SortOrder =
     if (b == 0.toByte) Ascending

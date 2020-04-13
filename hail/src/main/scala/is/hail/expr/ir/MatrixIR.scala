@@ -608,7 +608,7 @@ case class MatrixAnnotateColsTable(
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  private val (colType, inserter) = child.typ.colType.structInsert(table.typ.valueType, List(root))
+  private val (colType, _) = child.typ.colType.structInsert(table.typ.valueType, List(root))
   val typ: MatrixType = child.typ.copy(colType = colType)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAnnotateColsTable = {
@@ -847,7 +847,7 @@ case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends 
 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
-  private val (keysType, querier) = child.typ.colType.queryTyped(path.toList)
+  private val (keysType, _) = child.typ.colType.queryTyped(path.toList)
   private val keyType = keysType match {
     case TArray(e) => e
     case TSet(e) => e

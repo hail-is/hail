@@ -11,8 +11,6 @@ import is.hail.utils._
 import is.hail.variant.{Call, Genotype, HardCallView}
 import org.apache.spark.sql.Row
 
-import scala.language.higherKinds
-
 object IBDInfo {
   def apply(Z0: Double, Z1: Double, Z2: Double): IBDInfo = {
     IBDInfo(Z0, Z1, Z2, Z1 / 2 + Z2)

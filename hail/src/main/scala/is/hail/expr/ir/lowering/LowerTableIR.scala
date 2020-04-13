@@ -3,14 +3,12 @@ package is.hail.expr.ir.lowering
 import is.hail.HailContext
 import is.hail.expr.ir._
 import is.hail.expr.types
-import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual._
-import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner, RVDType}
+import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
 class LowererUnsupportedOperation(msg: String = null) extends Exception(msg)
-
 case class ShuffledStage(child: TableStage)
 
 case class Binding(name: String, value: IR)
@@ -116,8 +114,6 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
         val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
         val partCounts = partition(n, nPartitionsAdj)
         val partStarts = partCounts.scanLeft(0)(_ + _)
-
-        val rvdType = RVDType(PType.canonical(tir.typ.rowType).setRequired(true).asInstanceOf[PStruct], Array("idx"))
 
         val contextType = TStruct(
           "start" -> TInt32,

@@ -8,7 +8,7 @@ import is.hail.io.fs.FS
 object BGZipBlocks {
   //Print block starts of block gzip (bgz) file
   def apply(fs: FS, file: String) {
-    var buf = new Array[Byte](64 * 1024)
+    val buf = new Array[Byte](64 * 1024)
 
     // position of 'buf[0]' in input stream
     var bufPos = 0L

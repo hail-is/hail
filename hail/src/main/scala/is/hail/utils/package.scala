@@ -24,7 +24,7 @@ import org.json4s.{Extraction, Formats, NoTypeHints, Serializer}
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
-import scala.language.{higherKinds, implicitConversions}
+import scala.language.{higherKinds}
 import scala.reflect.ClassTag
 
 package utils {
@@ -60,7 +60,7 @@ package utils {
 
   sealed trait MapAccumulate[C[_], U] {
     def apply[T, S](a: Iterable[T], z: S)(f: (T, S) => (U, S))
-      (implicit uct: ClassTag[U], cbf: CanBuildFrom[Nothing, U, C[U]]): C[U] = {
+      (implicit cbf: CanBuildFrom[Nothing, U, C[U]]): C[U] = {
       val b = cbf()
       var acc = z
       for ((x, i) <- a.zipWithIndex) {
@@ -80,7 +80,7 @@ package object utils extends Logging
   with Py4jUtils
   with ErrorHandling {
 
-  def getStderrAndLogOutputStream[T](implicit tct: ClassTag[T]): OutputStream =
+  def getStderrAndLogOutputStream[T](): OutputStream =
     new TeeOutputStream(new LoggerOutputStream(log, Level.ERROR), System.err)
 
   def format(s: String, substitutions: Any*): String = {
@@ -565,8 +565,6 @@ package object utils extends Logging
   }
 
   def partFile(d: Int, i: Int, ctx: TaskContext): String = {
-    val rng = new java.security.SecureRandom()
-    val fileUUID = new java.util.UUID(rng.nextLong(), rng.nextLong())
     s"${ partFile(d, i) }-${ partSuffix(ctx) }"
   }
 

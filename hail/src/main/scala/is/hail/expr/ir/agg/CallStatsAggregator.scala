@@ -7,9 +7,6 @@ import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.utils._
 
-import scala.language.existentials
-
-
 object CallStatsState {
   val callStatsInternalArrayType = PCanonicalArray(PInt32Required, required = true)
   val stateType: PCanonicalTuple = PCanonicalTuple(true, callStatsInternalArrayType, callStatsInternalArrayType)

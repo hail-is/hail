@@ -369,7 +369,6 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
           (!options.hasHeader || metadata.header != line.value) &&
           !(options.skipBlankLines && line.value.isEmpty)
       }.cmapPartitions { (ctx, it) =>
-      val region = ctx.region
       val rvb = ctx.rvb
 
       val ab = new ArrayBuilder[String]

@@ -4,7 +4,6 @@ import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Dependency, NarrowDependency, Partition, TaskContext}
 
-import scala.language.existentials
 import scala.reflect.ClassTag
 
 case class BlockedRDDPartition(@transient rdd: RDD[_],

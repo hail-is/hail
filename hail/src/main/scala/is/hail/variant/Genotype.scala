@@ -6,8 +6,6 @@ import is.hail.expr.types.virtual.{TArray, TCall, TInt32, TStruct}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
-import scala.language.implicitConversions
-
 object GenotypeType extends Enumeration {
   type GenotypeType = Value
   val HomRef = Value(0)

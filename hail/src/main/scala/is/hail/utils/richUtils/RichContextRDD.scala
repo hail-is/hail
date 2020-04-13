@@ -69,7 +69,7 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
           val context = TaskContext.get
           val partPath = fs.getTemporaryFile("file:///tmp")
           val idxPath = partPath + ".idx"
-          context.addTaskCompletionListener { (context: TaskContext) =>
+          context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
             fs.delete(partPath, recursive = false)
             fs.delete(idxPath, recursive = true)
           }
@@ -94,7 +94,6 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
       .collect()
       .unzip
 
-    val itemCount = partitionCounts.sum
     assert(nPartitions == partitionCounts.length)
 
     (partFiles, partitionCounts)

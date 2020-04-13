@@ -8,8 +8,6 @@ import is.hail.expr.types.virtual._
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.utils.{FastIndexedSeq, _}
 
-import scala.language.existentials
-
 sealed trait IR extends BaseIR {
   protected[ir] var _pType: PType = null
   private var _typ: Type = null

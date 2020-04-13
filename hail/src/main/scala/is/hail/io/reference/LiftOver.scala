@@ -8,7 +8,6 @@ import org.apache.commons.io.IOUtils
 
 import scala.collection.JavaConverters._
 import scala.collection.concurrent
-import scala.language.implicitConversions
 
 class SerializableHtsjdkLiftOver(val fs: FS, val chainFile: String) extends Serializable {
   @transient lazy val value = {

@@ -2,7 +2,7 @@ package is.hail.sparkextras
 
 import is.hail.rvd.RVDContext
 import is.hail.utils._
-import org.apache.spark.{ExposedUtils, _}
+import org.apache.spark._
 import org.apache.spark.rdd._
 
 import scala.reflect.ClassTag
@@ -148,7 +148,7 @@ class ContextRDD[T: ClassTag](
 
   private[this] def sparkManagedContext(): RVDContext = {
     val c = RVDContext.default
-    TaskContext.get().addTaskCompletionListener { (_: TaskContext) =>
+    TaskContext.get().addTaskCompletionListener[Unit] { (_: TaskContext) =>
       c.close()
     }
     c
@@ -364,9 +364,6 @@ class ContextRDD[T: ClassTag](
 
   def preferredLocations(partition: Partition): Seq[String] =
     rdd.preferredLocations(partition)
-
-  private[this] def clean[U <: AnyRef](value: U): U =
-    ExposedUtils.clean(value)
 
   def partitions: Array[Partition] = rdd.partitions
 

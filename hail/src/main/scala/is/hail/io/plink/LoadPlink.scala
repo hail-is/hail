@@ -55,7 +55,7 @@ object LoadPlink {
     val idBuilder = new ArrayBuilder[String]
     val structBuilder = new ArrayBuilder[Row]
 
-    val m = fs.readLines(filename) {
+    fs.readLines(filename) {
       _.foreachLine { line =>
         val split = line.split(delimiter)
         if (split.length != 6)

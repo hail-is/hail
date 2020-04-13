@@ -116,7 +116,6 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
       fatal(s"Hail only supports tabix indexing for VCF, found format code ${ format }")
     val colSeq = readInt(is)
     val colBeg = readInt(is)
-    val colEnd = readInt(is)
     val meta = readInt(is)
     // meta char for VCF is '#'
     if (meta != '#')

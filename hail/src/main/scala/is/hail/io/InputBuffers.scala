@@ -168,7 +168,7 @@ final class MemoryInputBuffer(mb: MemoryBuffer) extends InputBuffer {
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = mb.readBytes(toOff, n)
 
   def readBytesArray(n: Int): Array[Byte] = {
-    var arr = new Array[Byte](n)
+    val arr = new Array[Byte](n)
     mb.readBytesArray(arr, n)
     arr
   }
@@ -354,7 +354,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
   }
 
   def readBytesArray(n: Int): Array[Byte] = {
-    var arr = new Array[Byte](n)
+    val arr = new Array[Byte](n)
     read(arr, 0, n)
     arr
   }
@@ -436,9 +436,7 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
 }
 
 final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
-  private val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
-  private var decompBuf = new Array[Byte](blockSize)
-  private var lim = 0
+  private[this] val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
 
   def close() {
     in.close()
@@ -456,7 +454,6 @@ final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) 
       lz4.decompress(buf, 0, decompLen, comp, 4, compLen)
       decompLen
     }
-    lim = result
     result
   }
 }

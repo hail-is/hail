@@ -8,8 +8,6 @@ import org.apache.spark.sql.Row
 import org.json4s.JValue
 import org.json4s.JsonAST.JObject
 
-import scala.language.implicitConversions
-
 case class IntervalEndpoint(point: Any, sign: Int) extends Serializable {
   require(-1 <= sign && sign <= 1)
 

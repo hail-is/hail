@@ -132,7 +132,7 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
       val (blockNRows, blockNCols) = gp.blockDims(pi)
       val iOffset = i * blockSize
       val jOffset = j * blockSize
-      var block = m(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols)
+      val block = m(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols)
 
       block.write(hc, filename, forceRowMajor, BlockMatrix.bufferSpec)
 

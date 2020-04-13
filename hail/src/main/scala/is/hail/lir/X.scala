@@ -172,7 +172,7 @@ class Method private[lir] (
   def findBlocks(): IndexedSeq[Block] = {
     val blocks = mutable.ArrayBuffer[Block]()
 
-    val s = new mutable.Stack[Block]()
+    val s = new mutable.ArrayStack[Block]()
     val visited = mutable.Set[Block]()
 
     s.push(entry)

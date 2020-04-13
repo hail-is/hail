@@ -6,6 +6,7 @@ import is.hail.lir
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
+import java.lang.reflect
 
 import scala.reflect.ClassTag
 
@@ -151,27 +152,27 @@ object Code {
     new VCode(start, end, lir.load(linst))
   }
 
-  def newInstance[T <: AnyRef]()(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
+  def newInstance[T <: AnyRef]()(implicit tct: ClassTag[T]): Code[T] =
     newInstance[T](Array[Class[_]](), Array[Code[_]]())
 
   def newInstance[T <: AnyRef, A1](a1: Code[A1])(implicit a1ct: ClassTag[A1],
-    tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
+    tct: ClassTag[T]): Code[T] =
     newInstance[T](Array[Class[_]](a1ct.runtimeClass), Array[Code[_]](a1))
 
   def newInstance[T <: AnyRef, A1, A2](a1: Code[A1], a2: Code[A2])(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2],
-    tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
+    tct: ClassTag[T]): Code[T] =
     newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array[Code[_]](a1, a2))
 
   def newInstance[T <: AnyRef, A1, A2, A3](a1: Code[A1], a2: Code[A2], a3: Code[A3])(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2],
-    a3ct: ClassTag[A3], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
+    a3ct: ClassTag[A3], tct: ClassTag[T]): Code[T] =
     newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass), Array[Code[_]](a1, a2, a3))
 
   def newInstance[T <: AnyRef, A1, A2, A3, A4](a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4]
-  )(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
+  )(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], tct: ClassTag[T]): Code[T] =
     newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4))
 
   def newInstance[T <: AnyRef, A1, A2, A3, A4, A5](a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5]
-  )(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
+  )(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], tct: ClassTag[T]): Code[T] =
     newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5))
 
   def newArray[T](size: Code[Int])(implicit tti: TypeInfo[T]): Code[Array[T]] =

@@ -15,7 +15,6 @@ import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.utils._
 
 import scala.collection.mutable
-import scala.language.{existentials, postfixOps}
 
 object SetupBuilder {
   def apply(mb: EmitMethodBuilder[_]): SetupBuilder = new SetupBuilder(mb, Code._empty)
@@ -913,8 +912,6 @@ private class Emit[C](
 
         val srvb = new StagedRegionValueBuilder(mb, ir.pType)
 
-        type E = Env[(TypeInfo[_], Code[Boolean], Code[_])]
-
         val (lastKey, currKey) = (etyp.virtualType: @unchecked) match {
           case ts: TStruct =>
             GetField(Ref("i-1", ts), ts.fieldNames(0)) -> GetField(Ref("i", ts), ts.fieldNames(0))
@@ -996,8 +993,6 @@ private class Emit[C](
 
         val streamOpt = emitStream(a)
         val resOpt: COption[PCode] = streamOpt.flatMapCPS { (ss, _ctx, ret) =>
-          implicit val c = _ctx
-
           val xAcc = mb.newEmitField(accumName, accType)
           val tmpAcc = mb.newEmitField(accumName, accType)
 
@@ -1037,8 +1032,6 @@ private class Emit[C](
 
         val streamOpt = emitStream(a)
          val resOpt = streamOpt.flatMapCPS[PCode] { (ss, _ctx, ret) =>
-          implicit val c = _ctx
-
           def foldBody(elt: EmitCode): Code[Unit] =
             Code(xElt := elt,
               Code(tmpAccVars.zip(typedCodeSeq).map { case (v, x) =>
@@ -1274,7 +1267,7 @@ private class Emit[C](
         val unified = impl.unify(args.map(_.typ) :+ rt)
         assert(unified)
         impl.apply(EmitRegion(mb, region), pt, codeArgs: _*)
-      case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
+      case x@MakeNDArray(dataIR, shapeIR, _) =>
         val xP = x.pType
         val dataContainer = dataIR.pType
         val shapePType = coerce[PTuple](shapeIR.pType)
@@ -1283,7 +1276,6 @@ private class Emit[C](
 
         val datat = emit(dataIR)
         val shapet = emit(shapeIR)
-        val rowMajort = emit(rowMajorIR)
 
         EmitCode.fromI(mb) { cb =>
           shapet.toI(cb).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
@@ -2492,8 +2484,6 @@ object NDArrayEmitter {
   }
 
   def matmulShape(mb: EmitMethodBuilder[_], leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): (Code[Unit], IndexedSeq[Value[Long]]) = {
-    val sb = SetupBuilder(mb)
-
     assert(leftShape.nonEmpty)
     assert(rightShape.nonEmpty)
 

@@ -16,7 +16,6 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 import scala.io.Source
-import scala.language.{existentials, implicitConversions}
 
 object TextMatrixReader {
 

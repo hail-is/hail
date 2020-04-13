@@ -11,7 +11,6 @@ import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.commons.io.IOUtils
 
 import scala.collection.concurrent
-import scala.language.postfixOps
 
 class SerializableReferenceSequenceFile(val fs: FS, val fastaFile: String, val indexFile: String) extends Serializable {
   @transient lazy val value = {

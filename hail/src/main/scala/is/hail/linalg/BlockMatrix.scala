@@ -242,7 +242,7 @@ object BlockMatrix {
 
     val d = digitsNeeded(bms.length)
     val bcFS = HailContext.fsBc
-    val partitionCounts = collectMatrices(bms)
+    collectMatrices(bms)
       .mapPartitionsWithIndex { case (i, it) =>
         assert(it.hasNext)
         val m = it.next()
@@ -285,7 +285,7 @@ object BlockMatrix {
 
     val compressionExtension = compression.map(x => "." + x).getOrElse("")
 
-    val partitionCounts = collectMatrices(bms)
+    collectMatrices(bms)
       .mapPartitionsWithIndex { case (i, it) =>
         assert(it.hasNext)
         val m = it.next()
@@ -1931,7 +1931,6 @@ class BlockMatrixReadRowBlockedRDD(
     Iterator.single { ctx =>
       val region = ctx.region
       val rvb = new RegionValueBuilder(region)
-      val rv = RegionValue(region)
 
       rowsForPartition.iterator.map { row =>
         val pfs = partFilesForRow(row, partFiles)
@@ -1960,7 +1959,6 @@ class BlockMatrixReadRowBlockedRDD(
     val is = fs.open(filename)
     val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
 
-    val rows = in.readInt()
     val cols = in.readInt()
     val isTranspose = in.readBoolean()
     assert(isTranspose, "BlockMatrix must be saved in row-major format")

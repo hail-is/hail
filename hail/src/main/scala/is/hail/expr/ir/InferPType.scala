@@ -593,7 +593,6 @@ object InferPType {
             if (seqs != null)
               seqs(i) += RecursiveArrayBuilderElement(x, Some(newSeqs))
           case AggElementsLengthCheck() =>
-            val nested = sig.nested.get
             val IndexedSeq(idx) = args
             infer(idx, env, null, inits = null, seqs = null)
             if (seqs != null)

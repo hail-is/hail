@@ -20,7 +20,6 @@ import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{Partitioner, SparkContext, TaskContext}
 
-import scala.language.existentials
 import scala.reflect.ClassTag
 
 abstract class RVDCoercer(val fullType: RVDType) {
@@ -92,7 +91,7 @@ class RVD(
     val localRowPType = rowPType
     crdd.cmapPartitions { (ctx, it) =>
       val encoder = new ByteArrayEncoder(makeEnc)
-      TaskContext.get.addTaskCompletionListener { _ =>
+      TaskContext.get.addTaskCompletionListener[Unit] { _ =>
         encoder.close()
       }
       it.map { ptr =>
@@ -1109,7 +1108,7 @@ class RVD(
     val makeEnc = codecSpec.buildEncoder(that.rowPType)
     val partitionKeyedIntervals = that.crdd.cmapPartitions { (ctx, it) =>
       val encoder = new ByteArrayEncoder(makeEnc)
-      TaskContext.get.addTaskCompletionListener { _ =>
+      TaskContext.get.addTaskCompletionListener[Unit] { _ =>
         encoder.close()
       }
       it.flatMap { ptr =>
@@ -1295,7 +1294,6 @@ object RVD {
       def _coerce(typ: RVDType, crdd: CRDD): RVD = empty(sc, typ)
     }
 
-    val numPartitions = keys.getNumPartitions
     val keyInfo = getKeyInfo(fullType, partitionKey, keys)
 
     if (keyInfo.isEmpty)

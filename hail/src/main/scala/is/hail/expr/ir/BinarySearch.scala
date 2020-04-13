@@ -5,8 +5,6 @@ import is.hail.asm4s._
 import is.hail.expr.types.physical._
 import is.hail.utils.FastIndexedSeq
 
-import scala.language.existentials
-
 class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType, keyOnly: Boolean) {
 
   val elt: PType = typ.elementType

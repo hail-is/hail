@@ -6,16 +6,21 @@ import java.nio.ByteBuffer
 import java.nio.file.FileSystems
 
 import is.hail.utils._
+import com.google.auth.oauth2.ServiceAccountCredentials
+import com.google.cloud.{ReadChannel, WriteChannel}
+import com.google.cloud.storage.Storage.BlobListOption
+import com.google.cloud.storage.{Blob, BlobId, BlobInfo, Storage, StorageOptions}
 import org.apache.commons.io.FilenameUtils
 import org.apache.hadoop
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 object GoogleStorageFS {
   def containsWildcard(path: String): Boolean = {
     var i = 0
     while (i < path.length) {
-      var c = path(i)
+      val c = path(i)
       if (c == '\\') {
         i += 1
         if (i < path.length)

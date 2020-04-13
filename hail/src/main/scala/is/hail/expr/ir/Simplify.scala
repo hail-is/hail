@@ -111,18 +111,6 @@ object Simplify {
       case _ => true
     }
 
-  private[this] def areFieldSelects(fields: Seq[(String, IR)]): Boolean = {
-    assert(fields.nonEmpty)
-    fields.head match {
-      case (_, GetField(s1, _)) =>
-        fields.forall {
-          case (f1, GetField(s2, f2)) if f1 == f2 && s1 == s2 => true
-          case _ => false
-        }
-      case _ => false
-    }
-  }
-
   private[this] def valueRules: PartialFunction[IR, IR] = {
     // propagate NA
     case x: IR if isStrict(x) && Children(x).exists(_.isInstanceOf[NA]) =>
@@ -292,7 +280,6 @@ object Simplify {
 
       allRefsCanBePassedThrough(body)
     } =>
-      val r = Ref(name, x.typ)
       val fieldNames = newFields.map(_._1).toArray
       val newFieldMap = newFields.toMap
       val newFieldRefs = newFieldMap.map { case (k, ir) =>

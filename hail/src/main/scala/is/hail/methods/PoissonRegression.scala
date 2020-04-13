@@ -48,7 +48,7 @@ case class PoissonRegression(
       + s"    with input variable x, and ${ k } additional ${ plural(k, "covariate") }...")
 
     val nullModel = new PoissonRegressionModel(cov, y)
-    var nullFit = nullModel.fit()
+    val nullFit = nullModel.fit()
 
     if (!nullFit.converged)
       fatal("Failed to fit poisson regression null model (standard MLE with covariates only): " + (

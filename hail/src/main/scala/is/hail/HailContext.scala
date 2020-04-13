@@ -541,7 +541,6 @@ class HailContext private(
     intervalBounds: Option[Array[Interval]] = None
   ): RDD[(InputStream, IndexReader, Option[Interval], InputMetrics)] = {
     val idxPath = indexSpec.relPath
-    val nPartitions = partFiles.length
     val localFS = fsBc
     val (keyType, annotationType) = indexSpec.types
     indexSpec.offsetField.foreach { f =>

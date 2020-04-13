@@ -11,7 +11,7 @@ object PCanonicalLocus {
 
   def apply(rg: ReferenceGenome, required: Boolean): PLocus = PCanonicalLocus(rg.broadcastRG, required)
 
-  private def representation(required: Boolean = false): PStruct = PCanonicalStruct(
+  private def representation(required: Boolean): PStruct = PCanonicalStruct(
     required,
     "contig" -> PCanonicalString(required = true),
     "position" -> PInt32(required = true))
