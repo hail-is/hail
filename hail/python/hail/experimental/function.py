@@ -29,8 +29,10 @@ def define_function(f, *param_types, _name=None, type_args=()):
     jbody = body._ir.parse(code, ref_map=dict(zip(param_names, param_types)), ir_map=r.jirs)
 
     Env.hail().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
+        mname,
         [ta._parsable_string() for ta in type_args],
-        mname, param_names, [pt._parsable_string() for pt in param_types], ret_type._parsable_string(),
+        param_names, [pt._parsable_string() for pt in param_types],
+        ret_type._parsable_string(),
         jbody)
 
     @typecheck(args=expr_any)
