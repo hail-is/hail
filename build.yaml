@@ -1498,7 +1498,7 @@ steps:
    script: |
      set -ex
      python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
-     python3 -c 'import numpy; import pandas import sklearn; import matplotlib; import scipy'
+     python3 -c 'import numpy; import pandas; import sklearn; import matplotlib; import scipy'
      gcloud --version
    dependsOn:
      - hail_public_image
@@ -1515,10 +1515,9 @@ steps:
      valueFrom: genetics_public_image.image
    script: |
      set -ex
-     bcftools --version
+     samtools --version
      plink --version
      plink2 --version
-     king --version
    dependsOn:
      - genetics_public_image
  - kind: runImage

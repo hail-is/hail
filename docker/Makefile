@@ -21,6 +21,18 @@ service-base:
 	python3 ../ci/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile.service-base Dockerfile.service-base.out
 	docker build -t service-base -f Dockerfile.service-base.out --cache-from service-base,$(SERVICE_BASE_LATEST),base ..
 
+.PHONY: hail-public-image
+hail-public-image:
+	make -C ../hail wheel
+	cp ../hail/build/deploy/dist/hail-*-py3-none-any.whl hail/
+	cd hail && tar -cvf wheel-container.tar hail-*-py3-none-any.whl
+	docker build hail -f hail/Dockerfile -t hail-public-image
+
+.PHONY: genetics-public-image
+genetics-public-image: hail-public-image
+	python3 ../ci/jinja2_render.py '{"hail_public_image":{"image":"hail-public-image"}}' genetics/Dockerfile genetics/Dockerfile.out
+	docker build genetics -f genetics/Dockerfile -t genetics-public-image
+
 .PHONY: push
 push: build
 	docker tag base $(BASE_LATEST)
