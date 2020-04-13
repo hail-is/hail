@@ -60,7 +60,7 @@ Install development dependencies::
 A couple Hail tests compare to PLINK 1.9 (not PLINK 2.0 [ignore the confusing
 URL]):
 
- - `PLINK 1.9 <http://www.cog-genomics.org/plink2>`_
+ - `PLINK 1.9 <https://www.cog-genomics.org/plink2>`_
 
 Execute every Hail test using at most 8 parallel threads::
 
