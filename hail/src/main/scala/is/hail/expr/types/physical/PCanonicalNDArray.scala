@@ -64,7 +64,30 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     ))
   }
 
-  def makeDefaultStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+  def makeDefaultColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+    val runningProduct = mb.newLocal[Long]()
+    val tempShapeStorage = mb.newLocal[Long]()
+    val computedStrides = (0 until nDims).map(_ => mb.genFieldThisRef[Long]())
+    Code(
+      srvb.start(),
+      runningProduct := elementType.byteSize,
+      Code.foreach(0 until nDims){ index =>
+        Code(
+          computedStrides(index) := runningProduct,
+          tempShapeStorage := sourceShapeArray(index),
+          runningProduct := runningProduct * (tempShapeStorage > 0L).mux(tempShapeStorage, 1L)
+        )
+      },
+      Code.foreach(0 until nDims)(index =>
+        Code(
+          srvb.addLong(computedStrides(index)),
+          srvb.advance()
+        )
+      )
+    )
+  }
+
+  def makeDefaultRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
     val runningProduct = mb.newLocal[Long]()
     val tempShapeStorage = mb.newLocal[Long]()
     val computedStrides = (0 until nDims).map(_ => mb.genFieldThisRef[Long]())
