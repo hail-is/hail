@@ -13,6 +13,11 @@ server_ssl_context = None
 client_ssl_context = None
 
 
+class NoSSLConfigFound(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+
+
 def _get_ssl_config():
     config_file = os.environ.get('HAIL_SSL_CONFIG_FILE', '/ssl-config/ssl-config.json')
     if os.path.isfile(config_file):
@@ -21,7 +26,7 @@ def _get_ssl_config():
             ssl_config = json.loads(f.read())
         check_ssl_config(ssl_config)
         return ssl_config
-    raise ValueError(f'no ssl config found at {config_file}')
+    raise NoSSLConfigFound(f'no ssl config found at {config_file}')
 
 
 def get_server_ssl_context():
@@ -42,15 +47,19 @@ def get_server_ssl_context():
 def get_client_ssl_context():
     global client_ssl_context
     if client_ssl_context is None:
-        ssl_config = _get_ssl_config()
-        client_ssl_context = ssl.create_default_context(
-            purpose=Purpose.SERVER_AUTH,
-            cafile=ssl_config['outgoing_trust'])
-        client_ssl_context.load_cert_chain(ssl_config['cert'],
-                                           keyfile=ssl_config['key'],
-                                           password=None)
-        client_ssl_context.verify_mode = ssl.CERT_REQUIRED
-        client_ssl_context.check_hostname = True
+        try:
+            ssl_config = _get_ssl_config()
+            client_ssl_context = ssl.create_default_context(
+                purpose=Purpose.SERVER_AUTH,
+                cafile=ssl_config['outgoing_trust'])
+            client_ssl_context.load_cert_chain(ssl_config['cert'],
+                                               keyfile=ssl_config['key'],
+                                               password=None)
+            client_ssl_context.verify_mode = ssl.CERT_REQUIRED
+            client_ssl_context.check_hostname = True
+        except NoSSLConfigFound:
+            log.info(f'no ssl config file found, using sensible defaults')
+            client_ssl_context = ssl.create_default_context(purpose=Purpose.SERVER_AUTH)
     return client_ssl_context
 
 

@@ -37,7 +37,6 @@ spec:
         readinessProbe:
           tcpSocket:
             port: 443
-            path: /healthcheck
           initialDelaySeconds: 5
           periodSeconds: 5
         volumeMounts:

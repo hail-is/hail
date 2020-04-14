@@ -1291,7 +1291,11 @@ steps:
     - name: test-gsa-key
       namespace:
         valueFrom: batch_pods_ns.name
-      mountPath: /test-gsa-key      
+      mountPath: /test-gsa-key
+    - name: ssl-config-batch-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
    dependsOn:
     - default_ns
     - batch_pods_ns
