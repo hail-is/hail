@@ -2580,7 +2580,7 @@ abstract class NDArrayEmitter[C](
   }
 
   private def emitLoops(mb: EmitMethodBuilder[C], outputShapeVariables: IndexedSeq[Value[Long]], srvb: StagedRegionValueBuilder): Code[Unit] = {
-    val innerMethod = mb.genEmitMethod("ndaLoop", mb.emitParamTypes, CodeParamType(UnitInfo))
+    val innerMethod = mb.genEmitMethod("ndaLoop", mb.emitParamTypes, UnitInfo)
 
     val idxVars = Array.tabulate(nDims) { _ => mb.genFieldThisRef[Long]() }.toFastIndexedSeq
     val storeElement = innerMethod.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType.virtualType))
@@ -2601,6 +2601,6 @@ abstract class NDArrayEmitter[C](
       )
     }
     innerMethod.emit(loops)
-    innerMethod.invokeCode[Unit](mb.getParamsList():_*)
+    innerMethod.invokeCode[Unit](mb.getParamsList(): _*)
   }
 }

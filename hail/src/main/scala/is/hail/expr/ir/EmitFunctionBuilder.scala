@@ -877,7 +877,7 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def getParamsList(): Seq[Param] = {
+  def getParamsList(): IndexedSeq[Param] = {
     emitParamTypes.toFastIndexedSeq.zipWithIndex.map {
       case (CodeParamType(ti), i) => CodeParam(this.getCodeParam(i + 1)(ti)): Param
       case (EmitParamType(pt), i) => EmitParam(this.getEmitParam(i + 1)): Param
