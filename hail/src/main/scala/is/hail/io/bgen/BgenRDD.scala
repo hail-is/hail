@@ -100,8 +100,8 @@ case class BgenSettings(
     Array(
       "locus" -> PCanonicalLocus.schemaFromRG(rg, required = false),
       "alleles" -> PCanonicalArray(PCanonicalString(false), false),
-      "rsid" -> PString(),
-      "varid" -> PString(),
+      "rsid" -> PCanonicalString(),
+      "varid" -> PCanonicalString(),
       "offset" -> PInt64(),
       "file_idx" -> PInt32(),
       MatrixType.entriesIdentifier -> PCanonicalArray(PCanonicalStruct(
