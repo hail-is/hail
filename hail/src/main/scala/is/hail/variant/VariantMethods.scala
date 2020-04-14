@@ -24,6 +24,11 @@ object VariantMethods {
     s"$locus:${ alleles(0) }:${ alleles.tail.mkString(",") }"
 
   def minRep(locus: Locus, alleles: IndexedSeq[String]): (Locus, IndexedSeq[String]) = {
+    if (alleles.isEmpty)
+      fatal(s"min_rep: expect at least one allele, found no alleles")
+    if (alleles.contains(null))
+      fatal(s"min_rep: found null allele at locus $locus")
+
     val ref = alleles(0)
 
     val altAlleles = alleles.tail
