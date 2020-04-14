@@ -443,7 +443,7 @@ private class Emit[C](
 
         cb += streamOpt.cases(mb)(
           Code._empty,
-          _.getStream.forEach(mb)(forBody))
+          _.getStream.forEach(mb, forBody))
 
       case x@InitOp(i, args, _, op) =>
         val AggContainer(aggs, sc) = container.get
@@ -1875,11 +1875,10 @@ private class Emit[C](
         }
 
         def addContexts(ctxStream: SizedStream): Code[Unit] = ctxStream match {
-          case SizedStream(setup, stream, len) =>
-          Code(
+          case SizedStream(setup, stream, len) => Code(
             setup,
             ctxab.invoke[Int, Unit]("ensureCapacity", len.getOrElse(16)),
-            stream.map(etToTuple(_, ctxType)).forEach(mb) { offset =>
+            stream.map(etToTuple(_, ctxType)).forEach(mb, { offset =>
               Code(
                 baos.invoke[Unit]("reset"),
                 Code.memoize(offset, "cda_add_contexts_addr") { offset =>
@@ -1887,8 +1886,8 @@ private class Emit[C](
                 },
                 buf.invoke[Unit]("flush"),
                 ctxab.invoke[Array[Byte], Unit]("add", baos.invoke[Array[Byte]]("toByteArray")))
-            })
-        }
+            }))
+          }
 
         val addGlobals = Code(
           Code.memoize(etToTuple(globalsT, gType), "cda_g") { g =>
