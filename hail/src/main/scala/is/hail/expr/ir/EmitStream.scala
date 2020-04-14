@@ -758,7 +758,7 @@ object EmitStream {
             SizedStream.unsized(stream)
           }
 
-        case In(n, PStream(eltType, _)) =>
+        case In(n, PCanonicalStream(eltType, _)) =>
           val xIter = mb.newLocal[Iterator[RegionValue]]()
 
           // this, Region, ...
