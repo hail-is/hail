@@ -1569,10 +1569,12 @@ private class Emit[C](
           ndAddress := ndt.value[Long],
           aNumElements := ndPType.numElements(shapeArray.map(_.get), mb),
 
-          // Make some space for the column major form (which means copying the input)
+          // Make some space for A, which will be overriden during DGEQRF
           aAddressDGEQRF := ndPType.data.pType.allocate(region, aNumElements.toI),
           ndPType.data.pType.stagedInitialize(aAddressDGEQRF, aNumElements.toI),
-          ndPType.copyRowMajorToColumnMajor(dataAddress, aAddressDGEQRF, M, N, mb),
+
+          //ndPType.copyRowMajorToColumnMajor(dataAddress, aAddressDGEQRF, M, N, mb),  FIXME: Remove, replaced by copyFrom below.
+          Region.copyFrom(ndPType.data.pType.firstElementOffset(dataAddress, (M * N).toI), aAddressDGEQRF, (M * N) * 8L),
 
           tauAddress := tauPType.allocate(region, K.toI),
           tauPType.stagedInitialize(tauAddress, K.toI),
@@ -1582,9 +1584,9 @@ private class Emit[C](
           infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
             M.toI,
             N.toI,
-            ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
+            ndPType.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
             LDA.toI,
-            tauPType.elementOffset(tauAddress, K.toI, 0),
+            tauPType.firstElementOffset(tauAddress, K.toI),
             LWORKAddress,
             -1
           ),
@@ -1701,7 +1703,6 @@ private class Emit[C](
             val numColsToUse = mb.genFieldThisRef[Long]()
             val aAddressDORGQR = mb.genFieldThisRef[Long]()
 
-            // val qNumElements = M * numColsToUse
             val qNumElements = mb.genFieldThisRef[Long]()
 
             val computeCompleteOrReduced = Code(Code(FastIndexedSeq(
