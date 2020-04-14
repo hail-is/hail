@@ -80,7 +80,7 @@ def create_nginx_config(principal, incoming_trust, outgoing_trust, key, cert):
 
         http.write(f'ssl_certificate /ssl-config/{cert};\n')
         http.write(f'ssl_certificate_key /ssl-config/{key};\n')
-        http.write(f'ssl_trusted_certificate /ssl-config/{incoming_trust};\n')
+        http.write(f'ssl_client_certificate /ssl-config/{incoming_trust};\n')
         http.write(f'ssl_verify_client on;\n')
     return [http_config_file, proxy_config_file]
 
