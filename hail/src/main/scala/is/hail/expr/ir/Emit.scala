@@ -617,6 +617,14 @@ private class Emit[C](
       case CastRename(v, _typ) =>
         emitI(v)
 
+      case NA(typ) =>
+        IEmitCode(cb, const(true), pt.defaultValue)
+      case IsNA(v) =>
+        val iec = emitI(v)
+        val m = new CCode(cb.result().start, iec.Lmissing.start, iec.Lpresent.start)
+        // ^ XXX is there a better way to do this?
+        presentI(cb, pt, m)
+
       case x@ArrayRef(a, i, s) =>
         val errorTransformer: Code[String] => Code[String] = s match {
           case Str("") =>
@@ -787,12 +795,6 @@ private class Emit[C](
       return new EmitCode(emitVoid(ir), const(false), PCode._empty)
 
     (ir: @unchecked) match {
-      case NA(typ) =>
-        EmitCode(Code._empty, const(true), pt.defaultValue)
-      case IsNA(v) =>
-        val codeV = emit(v)
-        EmitCode(codeV.setup, const(false), PCode(pt, codeV.m))
-
       case Coalesce(values) =>
         val mout = mb.newLocal[Boolean]()
         val out = mb.newPLocal(pt)

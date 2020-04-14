@@ -37,7 +37,11 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     code = Code(code, c)
   }
 
-  def result(): Code[Unit] = code
+  def result(): Code[Unit] = {
+    val tmp = code
+    code = Code._empty
+    tmp
+  }
 
   def assign(s: PSettable, v: PCode): Unit = {
     append(s := v)
