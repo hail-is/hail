@@ -12,7 +12,7 @@ from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh
 from hailtop.utils import collect_agen, humanize_timedelta_msecs
 from hailtop.batch_client.aioclient import BatchClient
 from hailtop.config import get_deploy_config
-from hailtop.ssl import get_ssl_context
+from hailtop.ssl import get_server_ssl_context
 from gear import setup_aiohttp_session, \
     rest_authenticated_developers_only, web_authenticated_developers_only, \
     check_csrf_token, AccessLogger, create_database_pool
@@ -402,4 +402,4 @@ def run():
                 host='0.0.0.0',
                 port=5000,
                 access_log_class=AccessLogger,
-                ssl_context=get_ssl_context())
+                ssl_context=get_server_ssl_context())

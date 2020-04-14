@@ -13,7 +13,7 @@ from gear import Database, setup_aiohttp_session, web_authenticated_developers_o
     check_csrf_token, transaction, AccessLogger
 from hailtop.config import get_deploy_config
 from hailtop.utils import time_msecs
-from hailtop.ssl import get_ssl_context
+from hailtop.ssl import get_server_ssl_context
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
     set_message
 import googlecloudprofiler
@@ -563,4 +563,4 @@ def run():
                 host='0.0.0.0',
                 port=5000,
                 access_log_class=AccessLogger,
-                ssl_context=get_ssl_context())
+                ssl_context=get_server_ssl_context())

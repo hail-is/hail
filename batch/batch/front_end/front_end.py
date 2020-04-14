@@ -18,7 +18,7 @@ from hailtop.utils import time_msecs, time_msecs_str, humanize_timedelta_msecs, 
     request_retry_transient_errors, run_if_changed, retry_long_running, \
     LoggingTimer
 from hailtop.config import get_deploy_config
-from hailtop.ssl import get_ssl_context, ssl_client_session
+from hailtop.ssl import get_server_ssl_context, ssl_client_session
 from gear import Database, setup_aiohttp_session, \
     rest_authenticated_users_only, web_authenticated_users_only, \
     web_authenticated_developers_only, check_csrf_token, transaction, \
@@ -1415,4 +1415,4 @@ def run():
                 host='0.0.0.0',
                 port=5000,
                 access_log_class=AccessLogger,
-                ssl_context=get_ssl_context())
+                ssl_context=get_server_ssl_context())

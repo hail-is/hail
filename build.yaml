@@ -120,7 +120,7 @@ steps:
      valueFrom: create_certs_image.image
    script: |
      set -ex
-     python3 create_certs.py {{ default_ns.name }} "$(cat config.yaml)"
+     python3 create_certs.py {{ default_ns.name }} config.yaml
    serviceAccount:
      name: admin
      namespace:

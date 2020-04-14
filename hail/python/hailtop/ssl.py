@@ -3,12 +3,14 @@ import logging
 import json
 import os
 import ssl
+from ssl import Purpose
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
 log = logging.getLogger('hailtop.ssl')
-ssl_context = None
+server_ssl_context = None
+client_ssl_context = None
 
 
 def _get_ssl_config():
@@ -23,38 +25,55 @@ def _get_ssl_config():
         raise ValueError(f'no ssl config found at {config_file}')
 
 
-def get_ssl_context():
-    global ssl_context
-    if ssl_context is None:
+def get_server_ssl_context():
+    global server_ssl_context
+    if server_ssl_context is None:
         ssl_config = _get_ssl_config()
-        ssl_context = ssl.create_default_context(cafile=ssl_config['ssl-ca'])
-        ssl_context.load_cert_chain(ssl_config['ssl-cert'],
-                                    keyfile=ssl_config['ssl-key'],
-                                    password=None)
-        ssl_context.verify_mode = ssl.CERT_REQUIRED
-        ssl_context.check_hostname = True
-    return ssl_context
+        server_ssl_context = ssl.create_default_context(
+            purpose=Purpose.CLIENT_AUTH,
+            cafile=ssl_config['incoming_trust'])
+        server_ssl_context.load_cert_chain(ssl_config['cert'],
+                                           keyfile=ssl_config['key'],
+                                           password=None)
+        server_ssl_context.verify_mode = ssl.CERT_REQUIRED
+        server_ssl_context.check_hostname = True
+    return server_ssl_context
+
+
+def get_client_ssl_context():
+    global client_ssl_context
+    if client_ssl_context is None:
+        ssl_config = _get_ssl_config()
+        client_ssl_context = ssl.create_default_context(
+            purpose=Purpose.SERVER_AUTH,
+            cafile=ssl_config['outgoing_trust'])
+        client_ssl_context.load_cert_chain(ssl_config['cert'],
+                                           keyfile=ssl_config['key'],
+                                           password=None)
+        client_ssl_context.verify_mode = ssl.CERT_REQUIRED
+        client_ssl_context.check_hostname = True
+    return client_ssl_context
 
 
 def ssl_client_session(*args, **kwargs):
     return TLSAIOHTTPClientSession(
-        get_ssl_context(),
+        get_client_ssl_context(),
         aiohttp.ClientSession(*args, **kwargs))
 
 
 def ssl_requests_client_session(*args, **kwargs):
     session = requests.Session(*args, **kwargs)
     ssl_config = _get_ssl_config()
-    session.mount('https://', TLSAdapter(ssl_config['ssl-cert'],
-                                         ssl_config['ssl-key'],
-                                         ssl_config['ssl-ca']))
+    session.mount('https://', TLSAdapter(ssl_config['cert'],
+                                         ssl_config['key'],
+                                         ssl_config['outgoing_trust']))
     return session
 
 
 def check_ssl_config(ssl_config):
-    for key in ('ssl-cert', 'ssl-key', 'ssl-ca'):
+    for key in ('cert', 'key', 'outgoing_trust', 'incoming_trust'):
         assert ssl_config.get(key) is not None, key
-    for key in ('ssl-cert', 'ssl-key', 'ssl-ca'):
+    for key in ('cert', 'key', 'outgoing_trust', 'incoming_trust'):
         if not os.path.isfile(ssl_config[key]):
             raise ValueError(f'specified {key}, {ssl_config[key]} does not exist')
     log.info(f'using tls and verifying client and server certificates')
