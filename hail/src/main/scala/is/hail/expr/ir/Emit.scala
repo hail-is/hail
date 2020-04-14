@@ -1561,8 +1561,6 @@ private class Emit[C](
         val rDataAddress = mb.genFieldThisRef[Long]()
         val aNumElements = mb.genFieldThisRef[Long]()
 
-        val debug = mb.genFieldThisRef[Long]()
-
         val infoDGEQRFResult = mb.newLocal[Int]()
         val infoDGEQRFErrorTest = (extraErrorMsg: String) => (infoDGEQRFResult cne  0)
           .orEmpty(Code._fatal[Unit](const(s"LAPACK error DGEQRF. $extraErrorMsg Error code = ").concat(infoDGEQRFResult.toS)))
@@ -1603,16 +1601,6 @@ private class Emit[C](
             tauPType.firstElementOffset(tauAddress, K.toI),
             workAddress,
             LWORK
-          ),
-
-          Code._println("Printing contents of A"),
-          Code.forLoop(debug := 0L, debug < (M * N), debug := debug + 1L,
-            Code._println(Region.loadDouble(ndPType.data.pType.firstElementOffset(aAddressDGEQRF) + (debug * 8L)).toS)
-          ),
-
-          Code._println("Printing contents of Tau"),
-          Code.forLoop(debug := 0L, debug < (K), debug := debug + 1L,
-            Code._println(Region.loadDouble(tauPType.firstElementOffset(tauAddress) + (debug * 8L)).toS)
           ),
 
           Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load()),
@@ -1666,25 +1654,24 @@ private class Emit[C](
           val rShapeBuilder = rPType.makeShapeBuilder(rShapeArray.map(_.get))
           val rStridesBuilder = rPType.makeDefaultColumnMajorStridesBuilder(rShapeArray.map(_.get), mb)
 
-          //This block assumes rDataAddress is a column major representation of an ndarray.
-          val zeroOutLowerTriangle =
+          // This block assumes that `rDataAddress` and `aAddressDGEQRF` point to column major stored ndarrays.
+          // TODO: Abstract this into ndarray ptype/pcode interface methods.
+          val copyOutUpperTriangle =
             Code.forLoop(currCol := 0, currCol < N.toI, currCol := currCol + 1,
-              Code.forLoop(currRow := 0, currRow < M.toI, currRow := currRow + 1,
-                (currRow > currCol).orEmpty(
-                  Region.storeDouble(
-                    ndPType.data.pType.elementOffset(rDataAddress, aNumElements.toI, currCol * M.toI + currRow),
-                    0.0)
+              Code.forLoop(currRow := 0, currRow < rShapeArray(0).toI, currRow := currRow + 1,
+                Region.storeDouble(
+                  ndPType.data.pType.elementOffset(rDataAddress, aNumElements.toI, currCol * rShapeArray(0).toI + currRow),
+                  (currCol >= currRow).mux(
+                    Region.loadDouble(ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, currCol * M.toI + currRow)),
+                    0.0
+                  )
                 )
               )
             )
-
           val computeR = Code(
-            // FIXME: this always makes room for the (M, N) R, and in cases where we need only the (K, N) R the smaller shape
-            // results in these elements being ignored. When everything is column major all the time should be easy to fix.
             rDataAddress := rPType.data.pType.allocate(region, aNumElements.toI),
-            rPType.data.pType.stagedInitialize(rDataAddress, aNumElements.toI),
-            Region.copyFrom(ndPType.data.pType.firstElementOffset(aAddressDGEQRF), rPType.data.pType.firstElementOffset(rDataAddress), aNumElements * 8L),
-            zeroOutLowerTriangle,
+            rPType.data.pType.stagedInitialize(rDataAddress, (rShapeArray(0) * rShapeArray(1)).toI),
+            copyOutUpperTriangle,
             rPType.construct(rShapeBuilder, rStridesBuilder, rDataAddress, mb)
           )
 
@@ -1701,7 +1688,7 @@ private class Emit[C](
             val qPType = crPType.types(0).asInstanceOf[PNDArray]
             val qShapeArray = if (mode == "complete") Array(M, M) else Array(M, K)
             val qShapeBuilder = qPType.makeShapeBuilder(qShapeArray.map(_.get))
-            val qStridesBuilder = qPType.makeDefaultRowMajorStridesBuilder(qShapeArray.map(_.get), mb)
+            val qStridesBuilder = qPType.makeDefaultColumnMajorStridesBuilder(qShapeArray.map(_.get), mb)
 
             val rNDArrayAddress = mb.genFieldThisRef[Long]()
             val qDataAddress = mb.genFieldThisRef[Long]()
@@ -1760,7 +1747,9 @@ private class Emit[C](
 
               qDataAddress := qPType.data.pType.allocate(region, qNumElements.toI),
               qPType.data.pType.stagedInitialize(qDataAddress, qNumElements.toI),
-              qPType.copyColumnMajorToRowMajor(aAddressDORGQR, qDataAddress, M, numColsToUse, mb),
+              Region.copyFrom(ndPType.data.pType.firstElementOffset(aAddressDORGQR),
+                qPType.data.pType.firstElementOffset(qDataAddress), (M * numColsToUse) * 8L),
+              //qPType.copyColumnMajorToRowMajor(aAddressDORGQR, qDataAddress, M, numColsToUse, mb),
 
               crOutputSrvb.start(),
               crOutputSrvb.addIRIntermediate(qPType)(qPType.construct(qShapeBuilder, qStridesBuilder, qDataAddress, mb)),
