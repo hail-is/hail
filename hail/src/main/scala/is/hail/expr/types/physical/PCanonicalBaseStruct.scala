@@ -224,7 +224,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 }
 
 object PCanonicalBaseStructSettable {
-  def apply(sb: SettableBuilder, pt: PBaseStruct, name: String): PCanonicalBaseStructSettable = {
+  def apply(sb: SettableBuilder, pt: PCanonicalBaseStruct, name: String): PCanonicalBaseStructSettable = {
     new PCanonicalBaseStructSettable(pt, sb.newSettable(name))
   }
 }
