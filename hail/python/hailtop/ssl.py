@@ -21,8 +21,7 @@ def _get_ssl_config():
             ssl_config = json.loads(f.read())
         check_ssl_config(ssl_config)
         return ssl_config
-    else:
-        raise ValueError(f'no ssl config found at {config_file}')
+    raise ValueError(f'no ssl config found at {config_file}')
 
 
 def get_server_ssl_context():
