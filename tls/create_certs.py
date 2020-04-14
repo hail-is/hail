@@ -1,5 +1,6 @@
 import argparse
 import base64
+import os
 import sys
 import json
 import yaml
@@ -85,7 +86,7 @@ def create_nginx_config(principal, incoming_trust, outgoing_trust, cert, key):
 
 
 def create_curl_config(principal, incoming_trust, outgoing_trust, cert, key):
-    if incoming_trust:
+    if os.stat(incoming_trust).st_size != 0:
         raise ValueError(f'curl accepts no connections so incoming trust is '
                          f'nonsensical, but was: {incoming_trust}')
     config_file = f'ssl-config.curlrc'
