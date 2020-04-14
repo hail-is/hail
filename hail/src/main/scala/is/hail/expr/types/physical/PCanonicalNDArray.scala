@@ -64,7 +64,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     ))
   }
 
-  def makeDefaultColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+  def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
     val runningProduct = mb.newLocal[Long]()
     val tempShapeStorage = mb.newLocal[Long]()
     Code(
@@ -81,7 +81,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def makeDefaultRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+  def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
     val runningProduct = mb.newLocal[Long]()
     val tempShapeStorage = mb.newLocal[Long]()
     val computedStrides = (0 until nDims).map(_ => mb.genFieldThisRef[Long]())
