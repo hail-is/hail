@@ -218,6 +218,75 @@ abstract class Stream[+A] { self =>
 
   def addSetup(setup: Code[Unit]) = map(x => x, setup = Some(setup))
 
+  def grouped(size: Code[Int]): Stream[Stream[A]] = new Stream[Stream[A]] {
+    def apply(outerEos: Code[Ctrl], outerPush: Stream[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[Stream[A]] = {
+      val xCounter = ctx.mb.newLocal[Int]("st_grp_ctr")
+      val xInOuter = ctx.mb.newLocal[Boolean]("st_grp_ff")
+      val xSize = ctx.mb.newLocal[Int]("st_grp_sz")
+      val LchildPull = CodeLabel()
+      val LouterPush = CodeLabel()
+      val LinnerPush = CodeLabel()
+      val LouterEos = CodeLabel()
+
+      var childSource: Source[A] = null
+      val inner = new Stream[A] {
+        def apply(innerEos: Code[Ctrl], innerPush: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
+          val LinnerEos = CodeLabel()
+
+          childSource = self(
+            xInOuter.mux(LouterEos.goto, LinnerEos.goto),
+            { a =>
+              Code(LinnerPush, innerPush(a))
+
+              Code(
+                // xCounter takes values in [1, xSize + 1]
+                xCounter := xCounter + 1,
+                // !xInOuter iff this element was requested by an inner stream.
+                // Else we are stepping to the beginning of the next group.
+                xInOuter.mux(
+                  (xCounter > xSize).mux(
+                    // first of a group
+                    Code(xCounter := 1, LouterPush.goto),
+                    LchildPull.goto),
+                  LinnerPush.goto))
+            })
+
+          Code(LinnerEos, innerEos)
+          Code(LchildPull, childSource.pull)
+
+          Source[A](
+            setup0 = Code._empty,
+            close0 = Code._empty,
+            setup = Code._empty,
+            close = Code._empty,
+            pull = xInOuter.mux(
+              // xInOuter iff this is the first pull from inner stream,
+              // in which case the element has already been produced
+              Code(
+                xInOuter := false,
+                xCounter.cne(1).orEmpty(Code._fatal[Unit](const("expected counter = 1"))),
+                LinnerPush.goto),
+              (xCounter < xSize).mux(
+                LchildPull.goto,
+                LinnerEos.goto)))
+        }
+      }
+
+      Code(LouterPush, outerPush(inner))
+      Code(LouterEos, outerEos)
+
+      Source[Stream[A]](
+        setup0 = childSource.setup0,
+        close0 = childSource.close0,
+        setup = Code(
+          childSource.setup,
+          xSize := size,
+          xCounter := xSize),
+        close = childSource.close,
+        pull = Code(xInOuter := true, LchildPull.goto))
+    }
+  }
+
   def flatMap[B](f: A => Stream[B]): Stream[B] =
     map(f).flatten
 }
