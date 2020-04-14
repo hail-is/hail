@@ -212,10 +212,6 @@ object CompileDecoder {
     val c0 = mb.genFieldThisRef[Int]("c0")
     val c1 = mb.genFieldThisRef[Int]("c1")
     val c2 = mb.genFieldThisRef[Int]("c2")
-    val off = mb.newLocal[Int]("off")
-    val d0 = mb.newLocal[Int]("d0")
-    val d1 = mb.newLocal[Int]("d1")
-    val d2 = mb.newLocal[Int]("d2")
     val c = Code(Code(FastIndexedSeq(
       offset := cbfis.invoke[Long]("getPosition"),
       fileIdx := cp.invoke[Int]("index"),
