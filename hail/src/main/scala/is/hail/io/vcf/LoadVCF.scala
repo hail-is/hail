@@ -1550,7 +1550,7 @@ case class MatrixVCFReader(
 
   override lazy val fullType: TableType = fullMatrixType.canonicalTableType
 
-  val fullRVDType = RVDType(PCanonicalStruct(false,
+  val fullRVDType = RVDType(PCanonicalStruct(true,
     FastIndexedSeq(("locus", PCanonicalLocus.schemaFromRG(referenceGenome, true)), ("alleles", PCanonicalArray(PCanonicalString(true), true)))
       ++ header1.vaSignature.fields.map { f => (f.name, f.typ) }
       ++ Array(LowerMatrixIR.entriesFieldName -> PCanonicalArray(header1.genotypeSignature, true)): _*),
@@ -1694,7 +1694,7 @@ class VCFsReader(
     rowKey = Array("locus"),
     entryType = header1.genotypeSignature.virtualType)
 
-  val fullRVDType = RVDType(PCanonicalStruct(false,
+  val fullRVDType = RVDType(PCanonicalStruct(true,
     FastIndexedSeq(("locus", PCanonicalLocus.schemaFromRG(referenceGenome, true)), ("alleles", PCanonicalArray(PCanonicalString(true), true)))
       ++ header1.vaSignature.fields.map { f => (f.name, f.typ) }
       ++ Array(LowerMatrixIR.entriesFieldName -> PCanonicalArray(header1.genotypeSignature, true)): _*),
