@@ -1641,26 +1641,28 @@ private class Emit[C](
           val currRow = mb.genFieldThisRef[Int]()
           val currCol = mb.genFieldThisRef[Int]()
 
-          val (rPType, rShapeArray) = if (mode == "r") {
-            (x.pType.asInstanceOf[PNDArray], FastIndexedSeq[Value[Long]](K, N))
+          val (rPType, rRows, rCols) = if (mode == "r") {
+            (x.pType.asInstanceOf[PNDArray], K, N)
           } else if (mode == "complete") {
-            (x.pType.asInstanceOf[PTuple].types(1).asInstanceOf[PNDArray], FastIndexedSeq[Value[Long]](M, N))
+            (x.pType.asInstanceOf[PTuple].types(1).asInstanceOf[PNDArray], M, N)
           } else if (mode == "reduced") {
-            (x.pType.asInstanceOf[PTuple].types(1).asInstanceOf[PNDArray], FastIndexedSeq[Value[Long]](K, N))
+            (x.pType.asInstanceOf[PTuple].types(1).asInstanceOf[PNDArray], K, N)
           } else {
             throw new AssertionError(s"Unsupported QR mode $mode")
           }
 
+          val rShapeArray = FastIndexedSeq[Value[Long]](rRows, rCols)
+
           val rShapeBuilder = rPType.makeShapeBuilder(rShapeArray.map(_.get))
           val rStridesBuilder = rPType.makeDefaultColumnMajorStridesBuilder(rShapeArray.map(_.get), mb)
 
-          // This block assumes that `rDataAddress` and `aAddressDGEQRF` point to column major stored ndarrays.
+          // This block assumes that `rDataAddress` and `aAddressDGEQRF` point to column major arrays.
           // TODO: Abstract this into ndarray ptype/pcode interface methods.
           val copyOutUpperTriangle =
-            Code.forLoop(currCol := 0, currCol < N.toI, currCol := currCol + 1,
-              Code.forLoop(currRow := 0, currRow < rShapeArray(0).toI, currRow := currRow + 1,
+            Code.forLoop(currCol := 0, currCol < rCols.toI, currCol := currCol + 1,
+              Code.forLoop(currRow := 0, currRow < rRows.toI, currRow := currRow + 1,
                 Region.storeDouble(
-                  ndPType.data.pType.elementOffset(rDataAddress, aNumElements.toI, currCol * rShapeArray(0).toI + currRow),
+                  ndPType.data.pType.elementOffset(rDataAddress, aNumElements.toI, currCol * rRows.toI + currRow),
                   (currCol >= currRow).mux(
                     Region.loadDouble(ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, currCol * M.toI + currRow)),
                     0.0
@@ -1670,7 +1672,7 @@ private class Emit[C](
             )
           val computeR = Code(
             rDataAddress := rPType.data.pType.allocate(region, aNumElements.toI),
-            rPType.data.pType.stagedInitialize(rDataAddress, (rShapeArray(0) * rShapeArray(1)).toI),
+            rPType.data.pType.stagedInitialize(rDataAddress, (rRows * rCols).toI),
             copyOutUpperTriangle,
             rPType.construct(rShapeBuilder, rStridesBuilder, rDataAddress, mb)
           )
@@ -1749,7 +1751,6 @@ private class Emit[C](
               qPType.data.pType.stagedInitialize(qDataAddress, qNumElements.toI),
               Region.copyFrom(ndPType.data.pType.firstElementOffset(aAddressDORGQR),
                 qPType.data.pType.firstElementOffset(qDataAddress), (M * numColsToUse) * 8L),
-              //qPType.copyColumnMajorToRowMajor(aAddressDORGQR, qDataAddress, M, numColsToUse, mb),
 
               crOutputSrvb.start(),
               crOutputSrvb.addIRIntermediate(qPType)(qPType.construct(qShapeBuilder, qStridesBuilder, qDataAddress, mb)),
