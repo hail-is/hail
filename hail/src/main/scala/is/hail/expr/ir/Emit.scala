@@ -1561,6 +1561,8 @@ private class Emit[C](
         val rDataAddress = mb.genFieldThisRef[Long]()
         val aNumElements = mb.genFieldThisRef[Long]()
 
+        val debug = mb.genFieldThisRef[Long]()
+
         val infoDGEQRFResult = mb.newLocal[Int]()
         val infoDGEQRFErrorTest = (extraErrorMsg: String) => (infoDGEQRFResult cne  0)
           .orEmpty(Code._fatal[Unit](const(s"LAPACK error DGEQRF. $extraErrorMsg Error code = ").concat(infoDGEQRFResult.toS)))
@@ -1572,9 +1574,8 @@ private class Emit[C](
           // Make some space for A, which will be overriden during DGEQRF
           aAddressDGEQRF := ndPType.data.pType.allocate(region, aNumElements.toI),
           ndPType.data.pType.stagedInitialize(aAddressDGEQRF, aNumElements.toI),
-
-          //ndPType.copyRowMajorToColumnMajor(dataAddress, aAddressDGEQRF, M, N, mb),  FIXME: Remove, replaced by copyFrom below.
-          Region.copyFrom(ndPType.data.pType.firstElementOffset(dataAddress, (M * N).toI), aAddressDGEQRF, (M * N) * 8L),
+          Region.copyFrom(ndPType.data.pType.firstElementOffset(dataAddress, (M * N).toI),
+            ndPType.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI), (M * N) * 8L),
 
           tauAddress := tauPType.allocate(region, K.toI),
           tauPType.stagedInitialize(tauAddress, K.toI),
@@ -1597,12 +1598,23 @@ private class Emit[C](
           infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
             M.toI,
             N.toI,
-            ndPType.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, 0),
+            ndPType.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
             LDA.toI,
-            tauPType.elementOffset(tauAddress, K.toI, 0),
+            tauPType.firstElementOffset(tauAddress, K.toI),
             workAddress,
             LWORK
           ),
+
+          Code._println("Printing contents of A"),
+          Code.forLoop(debug := 0L, debug < (M * N), debug := debug + 1L,
+            Code._println(Region.loadDouble(ndPType.data.pType.firstElementOffset(aAddressDGEQRF) + (debug * 8L)).toS)
+          ),
+
+          Code._println("Printing contents of Tau"),
+          Code.forLoop(debug := 0L, debug < (K), debug := debug + 1L,
+            Code._println(Region.loadDouble(tauPType.firstElementOffset(tauAddress) + (debug * 8L)).toS)
+          ),
+
           Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load()),
           infoDGEQRFErrorTest("Failed to compute H and Tau.")
         ))
@@ -1652,27 +1664,26 @@ private class Emit[C](
           }
 
           val rShapeBuilder = rPType.makeShapeBuilder(rShapeArray.map(_.get))
-          val rStridesBuilder = rPType.makeDefaultRowMajorStridesBuilder(rShapeArray.map(_.get), mb)
+          val rStridesBuilder = rPType.makeDefaultColumnMajorStridesBuilder(rShapeArray.map(_.get), mb)
 
-          //This block assumes rDataAddress is a row major ndarray.
+          //This block assumes rDataAddress is a column major representation of an ndarray.
           val zeroOutLowerTriangle =
-            Code.forLoop(currRow := 0, currRow < M.toI, currRow := currRow + 1,
-              Code.forLoop(currCol := 0, currCol < N.toI, currCol := currCol + 1,
+            Code.forLoop(currCol := 0, currCol < N.toI, currCol := currCol + 1,
+              Code.forLoop(currRow := 0, currRow < M.toI, currRow := currRow + 1,
                 (currRow > currCol).orEmpty(
                   Region.storeDouble(
-                    ndPType.data.pType.elementOffset(rDataAddress, aNumElements.toI, currRow * N.toI + currCol),
+                    ndPType.data.pType.elementOffset(rDataAddress, aNumElements.toI, currCol * M.toI + currRow),
                     0.0)
                 )
               )
             )
 
           val computeR = Code(
-            // Note: this always makes room for the (M, N) R, and in cases where we need only the (K, N) R the smaller shape
+            // FIXME: this always makes room for the (M, N) R, and in cases where we need only the (K, N) R the smaller shape
             // results in these elements being ignored. When everything is column major all the time should be easy to fix.
             rDataAddress := rPType.data.pType.allocate(region, aNumElements.toI),
             rPType.data.pType.stagedInitialize(rDataAddress, aNumElements.toI),
-            rPType.copyColumnMajorToRowMajor(aAddressDGEQRF,
-              rDataAddress, M, N, mb),
+            Region.copyFrom(ndPType.data.pType.firstElementOffset(aAddressDGEQRF), rPType.data.pType.firstElementOffset(rDataAddress), aNumElements * 8L),
             zeroOutLowerTriangle,
             rPType.construct(rShapeBuilder, rStridesBuilder, rDataAddress, mb)
           )
