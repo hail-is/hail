@@ -71,15 +71,12 @@ def create_nginx_config(principal, incoming_trust, outgoing_trust, key, cert):
     http_config_file = f'ssl-config-http.conf'
     proxy_config_file = f'ssl-config-proxy.conf'
     with open(proxy_config_file, 'w') as proxy, open(http_config_file, 'w') as http:
-        proxy.write('proxy_ssl_certificate         /ssl-config/{cert};\n')
-        print('proxy_ssl_certificate         /ssl-config/{cert};\n')
-        proxy.write('proxy_ssl_certificate_key     /ssl-config/{key};\n')
-        print('proxy_ssl_certificate_key     /ssl-config/{key};\n')
-        proxy.write('proxy_ssl_trusted_certificate /ssl-config/{outgoing_trust};\n')
-        print('proxy_ssl_trusted_certificate /ssl-config/{outgoing_trust};\n')
-        proxy.write('proxy_ssl_verify              on;\n')
-        proxy.write('proxy_ssl_verify_depth        1;\n')
-        proxy.write('proxy_ssl_session_reuse       on;\n')
+        proxy.write(f'proxy_ssl_certificate         /ssl-config/{cert};\n')
+        proxy.write(f'proxy_ssl_certificate_key     /ssl-config/{key};\n')
+        proxy.write(f'proxy_ssl_trusted_certificate /ssl-config/{outgoing_trust};\n')
+        proxy.write(f'proxy_ssl_verify              on;\n')
+        proxy.write(f'proxy_ssl_verify_depth        1;\n')
+        proxy.write(f'proxy_ssl_session_reuse       on;\n')
 
         http.write(f'ssl_certificate /ssl-config/{cert};\n')
         http.write(f'ssl_certificate_key /ssl-config/{key};\n')
