@@ -52,21 +52,18 @@ async def aexit(acontext_manager, exc_type=None, exc_val=None, exc_tb=None):
     return await acontext_manager.__aexit__(exc_type, exc_val, exc_tb)
 
 
-sql_config = None
-
-
-def get_sql_config():
-    global sql_config
-    if sql_config is None:
+def get_sql_config(config_file=None):
+    if config_file is None:
         config_file = os.environ.get('HAIL_DATABASE_CONFIG_FILE',
                                      '/sql-config/sql-config.json')
-        with open(config_file, 'r') as f:
-            sql_config = json.loads(f.read())
-        check_sql_config(sql_config)
+    with open(config_file, 'r') as f:
+        sql_config = json.loads(f.read())
+    check_sql_config(sql_config)
     return sql_config
 
 
 def check_sql_config(sql_config):
+    assert sql_config is not None
     for key in ('ssl-cert', 'ssl-key', 'ssl-ca', 'ssl-mode'):
         assert sql_config.get(key) is not None, key
     for key in ('ssl-cert', 'ssl-key', 'ssl-ca'):
@@ -78,10 +75,11 @@ def check_sql_config(sql_config):
 database_ssl_context = None
 
 
-def get_database_ssl_context():
+def get_database_ssl_context(sql_config=None):
     global database_ssl_context
     if database_ssl_context is None:
-        sql_config = get_sql_config()
+        if sql_config is None:
+            sql_config = get_sql_config()
         database_ssl_context = ssl.create_default_context(
             cafile=sql_config['ssl-ca'])
         database_ssl_context.load_cert_chain(sql_config['ssl-cert'],
@@ -93,9 +91,9 @@ def get_database_ssl_context():
 
 
 @retry_transient_mysql_errors
-async def create_database_pool(autocommit=True, maxsize=10):
-    sql_config = get_sql_config()
-    ssl_context = get_database_ssl_context()
+async def create_database_pool(config_file=None, autocommit=True, maxsize=10):
+    sql_config = get_sql_config(config_file)
+    ssl_context = get_database_ssl_context(sql_config)
     assert ssl_context is not None
     return await aiomysql.create_pool(
         maxsize=maxsize,
@@ -220,8 +218,8 @@ class Database:
     def __init__(self):
         self.pool = None
 
-    async def async_init(self, maxsize=10):
-        self.pool = await create_database_pool(autocommit=False, maxsize=maxsize)
+    async def async_init(self, config_file=None, maxsize=10):
+        self.pool = await create_database_pool(config_file=config_file, autocommit=False, maxsize=maxsize)
 
     def start(self, read_only=False):
         return TransactionAsyncContextManager(self.pool, read_only)
