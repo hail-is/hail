@@ -54,12 +54,12 @@ def create_trust(principal, trust_type, trusted_principals):
     return trust_file
 
 
-def create_json_config(principal, incoming_trust, outgoing_trust, cert, key):
+def create_json_config(principal, incoming_trust, outgoing_trust, key, cert):
     principal_config = {
         'outgoing_trust': f'/ssl-config/{outgoing_trust}',
         'incoming_trust': f'/ssl-config/{incoming_trust}',
-        'cert': f'/ssl-config/{cert}',
-        'key': f'/ssl-config/{key}'
+        'key': f'/ssl-config/{key}',
+        'cert': f'/ssl-config/{cert}'
     }
     config_file = f'ssl-config.json'
     with open(config_file, 'w') as out:
@@ -67,13 +67,16 @@ def create_json_config(principal, incoming_trust, outgoing_trust, cert, key):
         return [config_file]
 
 
-def create_nginx_config(principal, incoming_trust, outgoing_trust, cert, key):
+def create_nginx_config(principal, incoming_trust, outgoing_trust, key, cert):
     http_config_file = f'ssl-config-http.conf'
     proxy_config_file = f'ssl-config-proxy.conf'
     with open(proxy_config_file, 'w') as proxy, open(http_config_file, 'w') as http:
         proxy.write('proxy_ssl_certificate         /ssl-config/{cert};\n')
+        print('proxy_ssl_certificate         /ssl-config/{cert};\n')
         proxy.write('proxy_ssl_certificate_key     /ssl-config/{key};\n')
+        print('proxy_ssl_certificate_key     /ssl-config/{key};\n')
         proxy.write('proxy_ssl_trusted_certificate /ssl-config/{outgoing_trust};\n')
+        print('proxy_ssl_trusted_certificate /ssl-config/{outgoing_trust};\n')
         proxy.write('proxy_ssl_verify              on;\n')
         proxy.write('proxy_ssl_verify_depth        1;\n')
         proxy.write('proxy_ssl_session_reuse       on;\n')
@@ -85,31 +88,31 @@ def create_nginx_config(principal, incoming_trust, outgoing_trust, cert, key):
     return [http_config_file, proxy_config_file]
 
 
-def create_curl_config(principal, incoming_trust, outgoing_trust, cert, key):
+def create_curl_config(principal, incoming_trust, outgoing_trust, key, cert):
     if os.stat(incoming_trust).st_size != 0:
         raise ValueError(f'curl accepts no connections so incoming trust is '
                          f'nonsensical, but was: {incoming_trust}')
     config_file = f'ssl-config.curlrc'
     with open(config_file, 'w') as out:
-        out.write(f'cert      /ssl-config/{cert}\n')
         out.write(f'key       /ssl-config/{key}\n')
+        out.write(f'cert      /ssl-config/{cert}\n')
         out.write(f'cacert    /ssl-config/{outgoing_trust}\n')
     return [config_file]
 
 
-def create_config(principal, incoming_trust, outgoing_trust, cert, key, kind):
+def create_config(principal, incoming_trust, outgoing_trust, key, cert, kind):
     if kind == 'json':
-        return create_json_config(principal, incoming_trust, outgoing_trust, cert, key)
+        return create_json_config(principal, incoming_trust, outgoing_trust, key, cert)
     if kind == 'curl':
-        return create_curl_config(principal, incoming_trust, outgoing_trust, cert, key)
+        return create_curl_config(principal, incoming_trust, outgoing_trust, key, cert)
     assert kind == 'nginx'
-    return create_nginx_config(principal, incoming_trust, outgoing_trust, cert, key)
+    return create_nginx_config(principal, incoming_trust, outgoing_trust, key, cert)
 
 
 def create_principal(principal, incoming_principals, outgoing_principals, domain, kind, key, cert):
     incoming_trust = create_trust(principal, 'incoming', incoming_principals)
     outgoing_trust = create_trust(principal, 'outgoing', outgoing_principals)
-    configs = create_config(principal, incoming_trust, outgoing_trust, cert, key, kind)
+    configs = create_config(principal, incoming_trust, outgoing_trust, key, cert, kind)
     with tempfile.NamedTemporaryFile() as k8s_secret:
         sp.check_call(
             ['kubectl', 'create', 'secret', 'generic', f'ssl-config-{principal}',
