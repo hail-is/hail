@@ -109,7 +109,7 @@ async def callback(request):
 
 @routes.get('/copy_paste_token')
 @web_authenticated_user
-aysnc def get_copy_paste_token(request, userdata):
+async def get_copy_paste_token(request, userdata):
     dbpool = request.app['dbpool']
     session = await aiohttp_session.get_session(request)
     session_id = session['session_id']
