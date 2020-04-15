@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.Nat
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.expr.types.virtual.TNDArray
 
 final class StaticallyKnownField[T, U](
@@ -50,9 +50,11 @@ abstract class PNDArray extends PType {
 }
 
 abstract class PNDArrayValue extends PValue {
+  val a: Value[Long]
 
+  def apply(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Value[_]
 }
 
 abstract class PNDArrayCode extends PCode {
-
+  def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue
 }

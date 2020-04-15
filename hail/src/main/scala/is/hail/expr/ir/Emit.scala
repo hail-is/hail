@@ -1319,8 +1319,7 @@ private class Emit[C](
       case NDArrayRef(nd, idxs) =>
         val ndt = emit(nd)
         val idxst = idxs.map(emit(_))
-        val childPType = coerce[PNDArray](nd.pType)
-        val ndAddress = mb.genFieldThisRef[Long]()
+        val ndPType = coerce[PNDArray](nd.pType)
         val overallMissing = mb.genFieldThisRef[Boolean]()
 
         val idxFields = idxst.map(_ => mb.genFieldThisRef[Long]())
@@ -1329,28 +1328,23 @@ private class Emit[C](
             field := idxTriplet.value[Long]
           })
 
-        val setup = coerce[Unit](Code(
-          ndt.setup,
-          overallMissing := ndt.m,
-
-          Code(idxst.map(_.setup)),
-          Code.foreach(idxst.map(_.m)){ idxMissingness =>
-            overallMissing := overallMissing || idxMissingness
-          }))
-
-        val newValue = EmitCode.fromI(mb) { cb =>
+        EmitCode.fromI(mb) { cb =>
           ndt.toI(cb).flatMap(cb) { case ndCode: PNDArrayCode =>
-            IEmitCode(cb, false, ndCode)
+            cb.append(Code(idxst.map(_.setup)))
+            cb.assign(overallMissing, false)
+            cb.append(Code.foreach(idxst.map(_.m)){ idxMissingness =>
+              overallMissing := overallMissing || idxMissingness
+            })
+            cb.append(idxFieldsBinding)
+
+            val ndValue = ndCode.memoize(cb, "reffed_ndarray")
+
+            cb.append(ndPType.outOfBounds(idxFields, ndValue.a, mb)
+              .orEmpty(Code._fatal[Unit]("Index out of bounds")))
+
+            IEmitCode(cb, overallMissing, PCode(ndPType.elementType, ndValue.apply(idxFields, mb)))
           }
         }
-
-        val value = Code(
-          ndAddress := ndt.value[Long],
-          idxFieldsBinding,
-          childPType.outOfBounds(idxFields, ndAddress, mb).orEmpty(Code._fatal[Unit]("Index out of bounds")),
-          childPType.loadElementToIRIntermediate(idxFields, ndAddress, mb))
-
-        EmitCode(setup, overallMissing, PCode(pt, value))
       case x@NDArrayReindex(child, indexMap) =>
         val childt = emit(child)
         val childPType = coerce[PNDArray](child.pType)
