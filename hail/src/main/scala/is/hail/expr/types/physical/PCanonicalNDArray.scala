@@ -222,15 +222,34 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     throw new NotImplementedError("constructAtAddress should only be called on fundamental types; PCanonicalNDarray is not fundamental")
 }
 
+object PCanonicalNDArraySettable {
+  def apply(cb: EmitCodeBuilder, pt: PCanonicalNDArray, name: String, sb: SettableBuilder): PCanonicalNDArraySettable = {
+    new PCanonicalNDArraySettable(pt, sb.newSettable(name))
+  }
+}
+
+class PCanonicalNDArraySettable(val pt: PCanonicalNDArray, val a: Settable[Long]) extends PNDArrayValue with PSettable {
+  override def get: PCode = ???
+
+  override def store(pv: PCode): Code[Unit] = a := pv.asInstanceOf[PCanonicalNDArrayCode].a
+}
+
 class PCanonicalNDArrayCode(val pt: PCanonicalNDArray, val a: Code[Long]) extends PNDArrayCode {
 
-  def code: Code[_] = a
+  override def code: Code[_] = a
 
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
+  override def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
   override def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = ???
 
-  override def memoize(cb: EmitCodeBuilder, name: String): PValue = ???
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PNDArrayValue = {
+    val s = PCanonicalNDArraySettable(cb, pt, name, sb)
+    cb.assign(s, this)
+    s
+    ???
+  }
 
-  override def memoizeField(cb: EmitCodeBuilder, name: String): PValue = ???
+  override def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue = memoize(cb, name, cb.localBuilder)
+
+  override def memoizeField(cb: EmitCodeBuilder, name: String): PValue = memoize(cb, name, cb.fieldBuilder)
 }
