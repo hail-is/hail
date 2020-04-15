@@ -17,8 +17,7 @@ object PSubsetStruct {
 // Semantics: PSubsetStruct is a non-constructible view of another PStruct, which is not allowed to mutate
 // that underlying PStruct's region data
 final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends PStruct {
-  override lazy val fieldNames = _fieldNames
-  val fields = fieldNames.map(f => ps.field(f)).toFastIndexedSeq
+  val fields = _fieldNames.map(f => ps.field(f)).toFastIndexedSeq
   val required = ps.required
 
   if (fields == ps.fields) {
@@ -93,9 +92,6 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   def loadField(structAddress: Code[Long], fieldName: String): Code[Long] =
     ps.loadField(structAddress, fieldName)
 
-  def loadField(structAddress: Long, fieldName: String): Long =
-    ps.loadField(structAddress, fieldName)
-
   override def loadField(structAddress: Long, fieldIdx: Int): Long =
     ps.loadField(structAddress, idxMap(fieldIdx))
 
@@ -138,15 +134,14 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
 }
 
 object PSubsetStructSettable {
-  def apply(cb: EmitCodeBuilder, pt: PStruct, name: String, sb: SettableBuilder): PSubsetStructSettable = {
+  def apply(cb: EmitCodeBuilder, pt: PSubsetStruct, name: String, sb: SettableBuilder): PSubsetStructSettable = {
     new PSubsetStructSettable(pt, sb.newSettable(name))
   }
 }
 
-class PSubsetStructSettable(val pt: PStruct, val a: Settable[Long]) extends PBaseStructValue with PSettable {
+class PSubsetStructSettable(val pt: PSubsetStruct) extends PBaseStructValue with PSettable {
   def get: PSubsetStructCode = new PSubsetStructCode(pt, a)
 
-  // Again, is fieldIdx here the backing PStruct?
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     IEmitCode(cb,
       pt.isFieldMissing(a, fieldIdx),
@@ -166,8 +161,7 @@ class PSubsetStructSettable(val pt: PStruct, val a: Settable[Long]) extends PBas
   }
 }
 
-// TODO: We don't allow construction, so what do we do here for store?
-class PSubsetStructCode(val pt: PStruct, val a: Code[Long]) extends PBaseStructCode {
+class PSubsetStructCode(val pt: PSubsetStruct, val a: Code[Long]) extends PBaseStructCode {
   def code: Code[_] = a
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
@@ -183,5 +177,5 @@ class PSubsetStructCode(val pt: PStruct, val a: Code[Long]) extends PBaseStructC
   def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue = memoize(cb, name, cb.fieldBuilder)
 
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] =
-    pt.constructAtAddress(mb, dst, r, pt, a, deepCopy = false)
+    pt.ps.constructAtAddress(mb, dst, r, pt.ps, a, deepCopy = false)
 }

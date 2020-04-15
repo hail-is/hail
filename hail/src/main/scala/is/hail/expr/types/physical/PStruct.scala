@@ -52,8 +52,6 @@ trait PStruct extends PBaseStruct {
 
   def loadField(offset: Code[Long], fieldName: String): Code[Long]
 
-  def loadField(offset: Long, fieldName: String): Long
-
   final def isFieldDefined(offset: Code[Long], fieldName: String): Code[Boolean] = !isFieldMissing(offset, fieldName)
 
   def isFieldMissing(offset: Code[Long], fieldName: String): Code[Boolean]

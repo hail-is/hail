@@ -41,8 +41,5 @@ class PSubsetStructSuite extends HailSuite {
     assert(view.field("c") == rt.field("c"))
     assert(Region.loadInt(rt.loadField(rv.offset, 0)) == Region.loadInt(view.loadField(rv.offset, 0)))
     assert(Region.loadInt(rt.loadField(rv.offset, 2)) == Region.loadInt(view.loadField(rv.offset, 1)))
-
-    assert(Region.loadInt(rt.loadField(rv.offset, "a")) == Region.loadInt(view.loadField(rv.offset, "a")))
-    assert(Region.loadInt(rt.loadField(rv.offset, "c")) == Region.loadInt(view.loadField(rv.offset, "c")))
   }
 }
