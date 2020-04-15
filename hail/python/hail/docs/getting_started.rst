@@ -90,7 +90,7 @@ resources, it is necessary to set an environment variable:
 Running on a Spark cluster
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Hail can run on any Spark 2.4 cluster.
+Hail can run on any Spark 2.4 cluster built with Scala 2.11.
 
 For Cloudera-specific instructions, see :ref:`running-on-a-cloudera-cluster`.
 
