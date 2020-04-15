@@ -84,8 +84,8 @@ object Emit {
       }
     } else {
       fb.emitWithBuilder { cb =>
+        // FIXME (use IEmitCode.consume)
         val iec = emitter.emitI(ir, cb, Env.empty, container)
-        cb += iec.Lpresent.goto
         cb += iec.Lmissing
         cb._throw[RuntimeException](
           Code.newInstance[RuntimeException, String]("cannot return empty"))
@@ -193,11 +193,17 @@ case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
     IEmitCode(Lmissing, ec2.Lpresent, ec2.pc)
   }
 
+  def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (PCode) => Unit): Unit = {
+    val Lafter = CodeLabel()
+    cb.define(Lmissing)
+    ifMissing
+    cb.goto(Lafter)
+    cb.define(Lpresent)
+    ifPresent(pc)
+    cb.define(Lafter)
+  }
+
   def pt: PType = pc.pt
-
-  def code: Code[_] = pc.code
-
-  def tcode[T](implicit ti: TypeInfo[T]): Code[T] = pc.tcode[T]
 }
 
 object EmitCode {
@@ -454,10 +460,7 @@ private class Emit[C](
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == TVoid && altr.typ == TVoid)
 
-        val codeCond = emitI(cond)
-        cb += codeCond.Lpresent
-        cb.ifx(codeCond.tcode[Boolean], { emitVoid(cnsq) }, { emitVoid(altr) })
-        cb += codeCond.Lmissing
+        emitI(cond).consume(cb, {}, m => cb.ifx(m.tcode[Boolean], emitVoid(cnsq), emitVoid(altr)))
 
       case Let(name, value, body) =>
         val x = mb.newEmitField(name, value.pType)
@@ -561,9 +564,7 @@ private class Emit[C](
       case Die(m, typ) =>
         val cm = emitI(m)
         val msg = cb.newLocal[String]("exmsg", "<exception message missing>")
-        cb += cm.Lpresent
-        cb.assign(msg, coerce[String](StringFunctions.wrapArg(EmitRegion(mb, region), cm.pt)(cm.code)))
-        cb += cm.Lmissing
+        cm.consume(cb, {}, s => cb.assign(msg, s.asString.loadString()))
         cb._throw(Code.newInstance[HailException, String](msg))
     }
   }
@@ -620,9 +621,8 @@ private class Emit[C](
       case NA(typ) =>
         IEmitCode(cb, const(true), pt.defaultValue)
       case IsNA(v) =>
-        val iec = emitI(v)
-        val m = new CCode(cb.result().start, iec.Lmissing.start, iec.Lpresent.start)
-        // ^ XXX is there a better way to do this?
+        val m = cb.newLocal[Boolean]("isna")
+        emitI(v).consume(cb, cb.assign(m, const(true)), { _ => cb.assign(m, const(false)) })
         presentI(cb, pt, m)
 
       case x@ArrayRef(a, i, s) =>
@@ -636,10 +636,10 @@ private class Emit[C](
             (_c: Code[String]) => {
               val ies = emitI(s)
               val c = cb.newLocal("array_ref_c", _c)
-              cb += ies.Lpresent
-              cb.assign(c, c.concat("\n----------\nPython traceback:\n")
-                      .concat(ies.pc.asString.loadString()))
-              cb += ies.Lmissing
+              ies.consume(cb, {}, { pc =>
+                cb.assign(c, c.concat("\n----------\nPython traceback:\n")
+                        .concat(pc.asString.loadString()))
+              })
               c.load()
             }
         }
