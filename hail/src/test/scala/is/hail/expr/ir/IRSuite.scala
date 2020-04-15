@@ -1577,8 +1577,9 @@ class IRSuite extends HailSuite {
       assertEvalSame(zipToTuple(b, empty), FastIndexedSeq())
     }
 
-    assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range6, range8), "zip: length mismatch")
-    assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range12, lit6), "zip: length mismatch")
+    // https://github.com/hail-is/hail/issues/8359
+    is.hail.TestUtils.assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range6, range8): IR, "zip: length mismatch": String)
+    is.hail.TestUtils.assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range12, lit6): IR, "zip: length mismatch": String)
   }
 
   @Test def testToSet() {

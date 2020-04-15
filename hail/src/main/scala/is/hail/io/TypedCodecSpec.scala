@@ -34,6 +34,11 @@ final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: Buffer
     (rt, (in: InputStream) => new CompiledDecoder(_bufferSpec.buildInputBuffer(in), f))
   }
 
+  def buildStructDecoder(requestedType: TStruct): (PStruct, (InputStream) => Decoder) = {
+    val (pType: PStruct, makeDec) = buildDecoder(requestedType)
+    pType -> makeDec
+  }
+
   def buildCodeInputBuffer(is: Code[InputStream]): Code[InputBuffer] = _bufferSpec.buildCodeInputBuffer(is)
 
   def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer] = _bufferSpec.buildCodeOutputBuffer(os)
