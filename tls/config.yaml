@@ -67,6 +67,7 @@ principals:
   - auth
 - name: gateway
   domain: gateway
+  unmanged: True
   kind: nginx
   incoming:
   - admin-pod
@@ -114,6 +115,7 @@ principals:
   - router
 - name: router-resolver
   domain: router-resolver
+  unmanged: True
   kind: json
   incoming:
   - admin-pod
@@ -121,6 +123,7 @@ principals:
   - gateway
 - name: internal-gateway
   domain: internal-gateway
+  unmanged: True
   kind: nginx
   incoming:
   - admin-pod

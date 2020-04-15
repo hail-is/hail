@@ -21,9 +21,14 @@ with open(args.config_file) as f:
 just_check = args.check
 
 
-def create_key_and_cert(principal, domain):
-    key_file = f'{principal}-key.pem'
-    cert_file = f'{principal}-cert.pem'
+def create_key_and_cert(p):
+    name = p['name']
+    domain = p['domain']
+    unmanaged = p.get('unmanaged', False)
+    if unmanaged and namespace != 'default':
+        return
+    key_file = f'{name}-key.pem'
+    cert_file = f'{name}-cert.pem'
     names = [
         domain,
         f'{domain}.{namespace}',
@@ -106,7 +111,9 @@ def create_config(principal, incoming_trust, outgoing_trust, key, cert, kind):
     return create_nginx_config(principal, incoming_trust, outgoing_trust, key, cert)
 
 
-def create_principal(principal, incoming_principals, outgoing_principals, domain, kind, key, cert):
+def create_principal(principal, incoming_principals, outgoing_principals, domain, kind, key, cert, unmanaged):
+    if unmanaged and namespace != 'default':
+        return
     incoming_trust = create_trust(principal, 'incoming', incoming_principals)
     outgoing_trust = create_trust(principal, 'outgoing', outgoing_principals)
     configs = create_config(principal, incoming_trust, outgoing_trust, key, cert, kind)
@@ -126,10 +133,15 @@ def create_principal(principal, incoming_principals, outgoing_principals, domain
 
 def download_previous_certs():
     for p in arg_config['principals']:
-        principal = p["name"]
+        name = p["name"]
+        unmanaged = p.get('unmanaged', False)
+        if unmanaged and namespace != 'default':
+            config_source_namespace = 'default'
+        else:
+            config_source_namespace = namespace
         result = sp.run(
-            ['kubectl', 'get', 'secret', f'ssl-config-{principal}',
-             f'--namespace={namespace}', '-o', 'json'],
+            ['kubectl', 'get', 'secret', f'ssl-config-{name}',
+             f'--namespace={config_source_namespace}', '-o', 'json'],
             stderr=sp.PIPE,
             stdout=sp.PIPE)
         if result.returncode == 1:
@@ -139,8 +151,8 @@ def download_previous_certs():
                 raise ValueError(f'something went wrong: {result.stderr.decode()}\n---\n{result.stdout.decode()}')
         else:
             secret = json.loads(result.stdout.decode())
-            cert = base64.standard_b64decode(secret['data'][f'{principal}-cert.pem'])
-        with open(f'previous-{principal}-cert.pem', 'wb') as f:
+            cert = base64.standard_b64decode(secret['data'][f'{name}-cert.pem'])
+        with open(f'previous-{name}-cert.pem', 'wb') as f:
             f.write(cert)
 
 
@@ -175,7 +187,7 @@ if untrusted_clients or untrusted_servers:
 if not just_check:
     principal_by_name = {
         p['name']: {**p,
-                    **create_key_and_cert(p['name'], p['domain'])}
+                    **create_key_and_cert(p)}
         for p in arg_config['principals']
     }
     download_previous_certs()
@@ -186,4 +198,5 @@ if not just_check:
                          p['domain'],
                          p['kind'],
                          p['key'],
-                         p['cert'])
+                         p['cert'],
+                         p.get('unmanaged', False))

@@ -39,7 +39,7 @@ def get_server_ssl_context():
         server_ssl_context.load_cert_chain(ssl_config['cert'],
                                            keyfile=ssl_config['key'],
                                            password=None)
-        server_ssl_context.verify_mode = ssl.CERT_REQUIRED
+        server_ssl_context.verify_mode = ssl.CERT_OPTIONAL
         server_ssl_context.check_hostname = False  # clients have no hostnames
     return server_ssl_context
 
