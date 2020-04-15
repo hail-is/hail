@@ -8,9 +8,6 @@ from hailtop.batch import Batch, ServiceBackend, LocalBackend
 from hailtop.batch.utils import arg_max
 from hailtop.utils import grouped
 
-gcs_input_dir = 'gs://hail-services/batch-testing/resources'
-gcs_output_dir = os.environ.get('SCRATCH').rstrip('/') + '/output'
-
 
 class LocalTests(unittest.TestCase):
     def batch(self):
@@ -295,6 +292,8 @@ class LocalTests(unittest.TestCase):
 class BatchTests(unittest.TestCase):
     def setUp(self):
         self.backend = ServiceBackend('test')
+        self.gcs_input_dir = 'gs://hail-services/batch-testing/resources'
+        self.gcs_output_dir = os.environ.get('SCRATCH').rstrip('/') + '/output'
 
     def tearDown(self):
         self.backend.close()
@@ -312,14 +311,14 @@ class BatchTests(unittest.TestCase):
 
     def test_single_task_input(self):
         b = self.batch()
-        input = b.read_input(f'{gcs_input_dir}/hello.txt')
+        input = b.read_input(f'{self.gcs_input_dir}/hello.txt')
         j = b.new_job()
         j.command(f'cat {input}')
         assert b.run().status()['state'] == 'success'
 
     def test_single_task_input_resource_group(self):
         b = self.batch()
-        input = b.read_input_group(foo=f'{gcs_input_dir}/hello.txt')
+        input = b.read_input_group(foo=f'{self.gcs_input_dir}/hello.txt')
         j = b.new_job()
         j.storage('0.25Gi')
         j.command(f'cat {input.foo}')
@@ -335,7 +334,7 @@ class BatchTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job()
         j.command(f'echo hello > {j.ofile}')
-        b.write_output(j.ofile, f'{gcs_output_dir}/test_single_task_output.txt')
+        b.write_output(j.ofile, f'{self.gcs_output_dir}/test_single_task_output.txt')
         assert b.run().status()['state'] == 'success'
 
     def test_single_task_resource_group(self):
@@ -350,12 +349,12 @@ class BatchTests(unittest.TestCase):
         j = b.new_job()
         j.declare_resource_group(output={'foo': '{root}.foo'})
         j.command(f'echo "hello" > {j.output.foo}')
-        b.write_output(j.output, f'{gcs_output_dir}/test_single_task_write_resource_group')
-        b.write_output(j.output.foo, f'{gcs_output_dir}/test_single_task_write_resource_group_file.txt')
+        b.write_output(j.output, f'{self.gcs_output_dir}/test_single_task_write_resource_group')
+        b.write_output(j.output.foo, f'{self.gcs_output_dir}/test_single_task_write_resource_group_file.txt')
         assert b.run().status()['state'] == 'success'
 
     def test_multiple_dependent_tasks(self):
-        output_file = f'{gcs_output_dir}/test_multiple_dependent_tasks.txt'
+        output_file = f'{self.gcs_output_dir}/test_multiple_dependent_tasks.txt'
         b = self.batch()
         j = b.new_job()
         j.command(f'echo "0" >> {j.ofile}')
@@ -400,25 +399,25 @@ class BatchTests(unittest.TestCase):
 
     def test_file_name_space(self):
         b = self.batch()
-        input = b.read_input(f'{gcs_input_dir}/hello (foo) spaces.txt')
+        input = b.read_input(f'{self.gcs_input_dir}/hello (foo) spaces.txt')
         j = b.new_job()
         j.command(f'cat {input} > {j.ofile}')
-        b.write_output(j.ofile, f'{gcs_output_dir}/hello (foo) spaces.txt')
+        b.write_output(j.ofile, f'{self.gcs_output_dir}/hello (foo) spaces.txt')
         assert b.run().status()['state'] == 'success'
 
     def test_dry_run(self):
         b = self.batch()
         j = b.new_job()
         j.command(f'echo hello > {j.ofile}')
-        b.write_output(j.ofile, f'{gcs_output_dir}/test_single_job_output.txt')
+        b.write_output(j.ofile, f'{self.gcs_output_dir}/test_single_job_output.txt')
         b.run(dry_run=True)
 
     def test_verbose(self):
         b = self.batch()
-        input = b.read_input(f'{gcs_input_dir}/hello.txt')
+        input = b.read_input(f'{self.gcs_input_dir}/hello.txt')
         j = b.new_job()
         j.command(f'cat {input}')
-        b.write_output(input, f'{gcs_output_dir}/hello.txt')
+        b.write_output(input, f'{self.gcs_output_dir}/hello.txt')
         assert b.run(verbose=True).status()['state'] == 'success'
 
     def test_benchmark_lookalike_workflow(self):
@@ -440,6 +439,6 @@ class BatchTests(unittest.TestCase):
         combine = b.new_job(f'combine_output').cpu(0.1)
         for tasks in grouped(arg_max(), jobs):
             combine.command(f'cat {" ".join(shq(j.ofile) for j in jobs)} >> {combine.ofile}')
-        b.write_output(combine.ofile, f'{gcs_output_dir}/pipeline_benchmark_test.txt')
+        b.write_output(combine.ofile, f'{self.gcs_output_dir}/pipeline_benchmark_test.txt')
         # too slow
         # assert b.run().status()['state'] == 'success'
