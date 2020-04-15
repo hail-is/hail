@@ -301,14 +301,17 @@ class BatchTests(unittest.TestCase):
         self.gcs_output_dir = f'gs://{bucket_name}/batch-tests/{token}'
         gcs_client = google.cloud.storage.Client(project='hail-vdc')
         bucket = gcs_client.bucket(bucket_name)
-        if not bucket.blob('/batch-tests/resources/hello (foo) spaces.txt').exists():
-            bucket.blob('/batch-tests/resources/random_file_512mb').upload_from_string(
+        if not bucket.blob('batch-tests/resources/hello (foo) spaces.txt').exists():
+            print('uploading 512 MB to GCS, this may take some time, but only '
+                  'happens once per-user')
+            bucket.blob('batch-tests/resources/random_file_512mb').upload_from_string(
                 os.urandom(512 * 1024 * 1024))
-            bucket.blob('/batch-tests/resources/hello.txt').upload_from_string(
+            print('done.')
+            bucket.blob('batch-tests/resources/hello.txt').upload_from_string(
                 'hello world')
-            bucket.blob('/batch-tests/resources/hello spaces.txt').upload_from_string(
+            bucket.blob('batch-tests/resources/hello spaces.txt').upload_from_string(
                 'hello')
-            bucket.blob('/batch-tests/resources/hello (foo) spaces.txt').upload_from_string(
+            bucket.blob('batch-tests/resources/hello (foo) spaces.txt').upload_from_string(
                 'hello')
 
     def tearDown(self):
