@@ -362,6 +362,16 @@ object Interpret {
           if (n < 0) fatal("StreamDrop: negative num")
           aValue.asInstanceOf[IndexedSeq[Any]].drop(n)
         }
+      case StreamGrouped(a, size) =>
+        val aValue = interpret(a, env, args)
+        val sizeValue = interpret(size, env, args)
+        if (aValue == null || sizeValue == null)
+          null
+        else {
+          val size = sizeValue.asInstanceOf[Int]
+          if (size <= 0) fatal("StreamGrouped: nonpositive size")
+          aValue.asInstanceOf[IndexedSeq[Any]].grouped(size).toFastIndexedSeq
+        }
       case StreamMap(a, name, body) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)

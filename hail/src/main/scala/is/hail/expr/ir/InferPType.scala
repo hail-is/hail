@@ -287,6 +287,12 @@ object InferPType {
         assert(len.pType isOfType PInt32())
         assert(a.pType.isInstanceOf[PStream])
         a.pType.orMissing(len.pType.required)
+      case StreamGrouped(a, size) =>
+        infer(a)
+        infer(size)
+        assert(size.pType isOfType PInt32())
+        assert(a.pType.isInstanceOf[PStream])
+        PCanonicalStream(a.pType.setRequired(true)).orMissing(a.pType.required && size.pType.required)
       case StreamMap(a, name, body) =>
         infer(a)
         infer(body, env.bind(name, a.pType.asInstanceOf[PStream].elementType))

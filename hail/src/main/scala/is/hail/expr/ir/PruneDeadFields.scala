@@ -957,6 +957,10 @@ object PruneDeadFields {
           bodyEnv.deleteEval(name),
           memoizeValueIR(a, TStream(valueType), memo)
         )
+      case StreamGrouped(a, size) =>
+        unifyEnvs(
+          memoizeValueIR(a, requestedType.asInstanceOf[TStream].elementType, memo),
+          memoizeValueIR(size, size.typ, memo))
       case StreamZip(as, names, body, behavior) =>
         val bodyEnv = memoizeValueIR(body,
           requestedType.asInstanceOf[TStream].elementType,
