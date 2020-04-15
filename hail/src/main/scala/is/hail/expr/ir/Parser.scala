@@ -1092,9 +1092,10 @@ object IRParser {
         ApplySeeded(function, args, seed, rt)
       case "ApplyIR" | "ApplySpecial" | "Apply" =>
         val function = identifier(it)
+        val typeArgs = type_exprs(env.typEnv)(it)
         val rt = type_expr(env.typEnv)(it)
         val args = ir_value_children(env)(it)
-        invoke(function, rt, args: _*)
+        invoke(function, rt, typeArgs, args: _*)
       case "MatrixCount" =>
         val child = matrix_ir(env.withRefMap(Map.empty))(it)
         MatrixCount(child)

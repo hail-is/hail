@@ -2,9 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.functions.RelationalFunctions
-import is.hail.expr.types.virtual.{TArray, TInterval}
+import is.hail.expr.types.virtual.{TArray, TInterval, Type}
 import is.hail.utils._
-import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object Pretty {
@@ -20,6 +19,8 @@ object Pretty {
   def prettyStrings(xs: IndexedSeq[String]): String = xs.map(prettyStringLiteral).mkString("(", " ", ")")
 
   def prettyStringsOpt(x: Option[IndexedSeq[String]]): String = x.map(prettyStrings).getOrElse("None")
+
+  def prettyTypes(x: Seq[Type]): String = x.map(typ => typ.parsableString()).mkString("(", " ", ")")
 
   def prettyBooleanLiteral(b: Boolean): String =
     if (b) "True" else "False"
@@ -289,10 +290,10 @@ object Pretty {
             case NDArrayConcat(_, axis) => axis.toString
             case NDArrayAgg(_, axes) => prettyInts(axes)
             case ArraySort(_, l, r, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
-            case ApplyIR(function, _) => prettyIdentifier(function) + " " + ir.typ.parsableString()
-            case Apply(function, _, t) => prettyIdentifier(function) + " " + t.parsableString()
+            case ApplyIR(function, typeArgs, _) => prettyIdentifier(function) + " " + prettyTypes(typeArgs) + " " + ir.typ.parsableString()
+            case Apply(function, typeArgs, _, t) => prettyIdentifier(function) + " " + prettyTypes(typeArgs) + " " + t.parsableString()
             case ApplySeeded(function, _, seed, t) => prettyIdentifier(function) + " " + seed.toString + " " + t.parsableString()
-            case ApplySpecial(function, _, t) => prettyIdentifier(function) + " " + t.parsableString()
+            case ApplySpecial(function, typeArgs, _, t) => prettyIdentifier(function) + " " + prettyTypes(typeArgs) + " " + t.parsableString()
             case SelectFields(_, fields) => fields.map(prettyIdentifier).mkString("(", " ", ")")
             case LowerBoundOnOrderedCollection(_, _, onKey) => prettyBooleanLiteral(onKey)
             case In(i, typ) => s"$typ $i"

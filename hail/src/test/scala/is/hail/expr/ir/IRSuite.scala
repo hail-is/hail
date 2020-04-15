@@ -50,7 +50,7 @@ object IRSuite {
         override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(returnType, argTypes)
 
         def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: EmitCode*): EmitCode = {
-          unify(args.map(_.pt.virtualType))
+          assert(unify(super.typeArgs, args.map(_.pt.virtualType), rpt.virtualType))
           impl(r, rpt, seed, args.toArray)
         }
       })
@@ -2899,6 +2899,7 @@ class IRSuite extends HailSuite {
         "x" -> TInt32))
 
       val s = Pretty(x, elideLiterals = false)
+
       val x2 = IRParser.parse_value_ir(s, env)
 
       assert(x2 == x)

@@ -168,13 +168,13 @@ object Children {
       none
     case Die(message, typ) =>
       Array(message)
-    case ApplyIR(_, args) =>
+    case ApplyIR(_, _, args) =>
       args.toFastIndexedSeq
-    case Apply(_, args, _) =>
+    case Apply(_, _, args, _) =>
       args.toFastIndexedSeq
     case ApplySeeded(_, args, seed, _) =>
       args.toFastIndexedSeq
-    case ApplySpecial(_, args, _) =>
+    case ApplySpecial(_, _, args, _) =>
       args.toFastIndexedSeq
     // from MatrixIR
     case MatrixWrite(child, _) => Array(child)

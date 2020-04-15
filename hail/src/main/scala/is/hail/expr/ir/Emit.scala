@@ -344,7 +344,7 @@ private class Emit[C](
   val ctx: ExecuteContext,
   val cb: EmitClassBuilder[C]) { emitSelf =>
 
-  val methods: mutable.Map[(String, Seq[PType], PType), EmitMethodBuilder[C]] = mutable.Map()
+  val methods: mutable.Map[(String, Seq[Type], Seq[PType], PType), EmitMethodBuilder[C]] = mutable.Map()
 
   import Emit.E
 
@@ -1235,19 +1235,19 @@ private class Emit[C](
           true,
           pt.defaultValue)
 
-      case ir@Apply(fn, args, rt) =>
+      case ir@Apply(fn, typeArgs, args, rt) =>
         val impl = ir.implementation
-        val unified = impl.unify(args.map(_.typ) :+ rt)
+        val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
 
         val argPTypes = args.map(_.pType)
-        val k = (fn, argPTypes, pt)
+        val k = (fn, typeArgs, argPTypes, pt)
         val meth =
           methods.get(k) match {
             case Some(funcMB) =>
               funcMB
             case None =>
-              val funcMB = impl.getAsMethod(mb.ecb, pt, argPTypes: _*)
+              val funcMB = impl.getAsMethod(mb.ecb, pt, typeArgs, argPTypes: _*)
               methods.update(k, funcMB)
               funcMB
           }
@@ -1260,17 +1260,16 @@ private class Emit[C](
       case x@ApplySeeded(fn, args, seed, rt) =>
         val codeArgs = args.map(a => emit(a))
         val impl = x.implementation
-        val unified = impl.unify(args.map(_.typ) :+ rt)
+        val unified = impl.unify(Array.empty[Type], args.map(_.typ), rt)
         assert(unified)
         impl.setSeed(seed)
         impl.apply(EmitRegion(mb, region), pt, codeArgs: _*)
-      case x@ApplySpecial(_, args, rt) =>
+      case x@ApplySpecial(_, typeArgs, args, rt) =>
         val codeArgs = args.map(a => emit(a))
         val impl = x.implementation
-        impl.argTypes.foreach(_.clear())
-        val unified = impl.unify(args.map(_.typ) :+ rt)
+        val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
-        impl.apply(EmitRegion(mb, region), pt, codeArgs: _*)
+        impl.apply(EmitRegion(mb, region), pt, typeArgs, codeArgs: _*)
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
         val xP = x.pType
         val dataContainer = dataIR.pType

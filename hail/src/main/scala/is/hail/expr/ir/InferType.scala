@@ -69,8 +69,9 @@ object InferType {
         }
       case a: ApplyIR => a.explicitNode.typ
       case a: AbstractApplyNode[_] =>
+        val typeArgs = a.typeArgs
         val argTypes = a.args.map(_.typ)
-        a.implementation.unify(argTypes :+ a.returnType)
+        assert(a.implementation.unify(typeArgs, argTypes, a.returnType))
         a.returnType
       case ArrayRef(a, i, s) =>
         assert(i.typ == TInt32)

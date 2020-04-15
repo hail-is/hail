@@ -250,17 +250,17 @@ object Copy {
       case Die(_, typ) =>
         assert(newChildren.length == 1)
         Die(newChildren(0).asInstanceOf[IR], typ)
-      case x@ApplyIR(fn, args) =>
-        val r = ApplyIR(fn, newChildren.map(_.asInstanceOf[IR]))
+      case x@ApplyIR(fn, typeArgs, args) =>
+        val r = ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]))
         r.conversion = x.conversion
         r.inline = x.inline
         r
-      case Apply(fn, args, t) =>
-        Apply(fn, newChildren.map(_.asInstanceOf[IR]), t)
+      case Apply(fn, typeArgs, args, t) =>
+        Apply(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t)
       case ApplySeeded(fn, args, seed, t) =>
         ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed, t)
-      case ApplySpecial(fn, args, t) =>
-        ApplySpecial(fn, newChildren.map(_.asInstanceOf[IR]), t)
+      case ApplySpecial(fn, typeArgs, args, t) =>
+        ApplySpecial(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t)
       // from MatrixIR
       case MatrixWrite(_, writer) =>
         assert(newChildren.length == 1)

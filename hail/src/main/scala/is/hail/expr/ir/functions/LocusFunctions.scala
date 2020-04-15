@@ -133,7 +133,7 @@ object LocusFunctions extends RegistryFunctions {
   }
 
   def registerLocusCode(methodName: String)(f: IR => IR): Unit =
-    registerIR(methodName, tlocus("T"), TBoolean)(f)
+    registerIR(methodName, tlocus("T"), TBoolean)((_, a) => f(a))
 
   def inX(locus: IR): IR = {
     val xContigs = Literal(TSet(TString), locus.typ.asInstanceOf[TLocus].rg.xContigs)

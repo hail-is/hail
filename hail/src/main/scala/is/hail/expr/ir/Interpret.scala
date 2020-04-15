@@ -531,9 +531,9 @@ object Interpret {
       case Die(message, typ) =>
         val message_ = interpret(message).asInstanceOf[String]
         fatal(if (message_ != null) message_ else "<exception message missing>")
-      case ir@ApplyIR(function, functionArgs) =>
+      case ir@ApplyIR(function, _, functionArgs) =>
         interpret(ir.explicitNode, env, args)
-      case ApplySpecial("lor", Seq(left_, right_), _) =>
+      case ApplySpecial("lor", _, Seq(left_, right_), _) =>
         val left = interpret(left_)
         if (left == true)
           true
@@ -545,7 +545,7 @@ object Interpret {
             null
           else false
         }
-      case ApplySpecial("land", Seq(left_, right_), _) =>
+      case ApplySpecial("land", _, Seq(left_, right_), _) =>
         val left = interpret(left_)
         if (left == false)
           false
