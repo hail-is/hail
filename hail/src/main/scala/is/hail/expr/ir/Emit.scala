@@ -1531,7 +1531,7 @@ private class Emit[C](
 
       case x@NDArrayQR(nd, mode) =>
         // See here to understand different modes: https://docs.scipy.org/doc/numpy/reference/generated/numpy.linalg.qr.html
-        val ndt = emit(nd)
+        val ndt = emitNDArrayStandardStrides(nd)
         val ndAddress = mb.genFieldThisRef[Long]()
         val ndPType = nd.pType.asInstanceOf[PNDArray]
         // This does a lot of byte level copying currently, so only trust
