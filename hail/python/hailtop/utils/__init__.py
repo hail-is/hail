@@ -43,9 +43,6 @@ __all__ = [
     'TQDM_DEFAULT_DISABLE',
     'RETRY_FUNCTION_SCRIPT',
     'sync_retry_transient_errors',
-<<<<<<< HEAD
-    'retry_response_returning_functions'
-=======
+    'retry_response_returning_functions',
     'AsyncOS'
->>>>>>> [batch] replace gsutil in input/output containers
 ]

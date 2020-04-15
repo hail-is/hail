@@ -267,6 +267,3 @@ def test_copy_input_to_directory(client):
     tail.wait()
     assert head._get_exit_code(head.status(), 'main') == 0, (head._status, global_token, token)
     assert tail.log()['main'] == 'head1\nhead2\n', (tail.status(), global_token, token)
-
-
-
