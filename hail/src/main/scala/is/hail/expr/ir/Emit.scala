@@ -202,6 +202,25 @@ object EmitCode {
     newEC
   }
 
+  def mapN(ecs: IndexedSeq[EmitCode], cb: EmitCodeBuilder)(f: IndexedSeq[PCode] => PCode): EmitCode = {
+    val emptySeq = IndexedSeq[PCode]()
+
+    def helper(i: Int, pcs: IndexedSeq[PCode]): EmitCode = {
+      if (i == ecs.length - 1) {
+        ecs(i).map { pc =>
+          f(pcs :+ pc)
+        }
+      }
+      else {
+        ecs(i).map { pc =>
+          helper(i + 1, pcs :+ pc)
+        }
+      }
+    }
+
+    helper(0, emptySeq)
+  }
+
   def codeTupleTypes(pt: PType): IndexedSeq[TypeInfo[_]] = {
     val ts = pt.codeTupleTypes()
     if (pt.required)

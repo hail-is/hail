@@ -53,6 +53,8 @@ abstract class PNDArrayValue extends PValue {
   val a: Value[Long]
 
   def apply(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Value[_]
+
+  def outOfBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Value[Boolean]
 }
 
 abstract class PNDArrayCode extends PCode {

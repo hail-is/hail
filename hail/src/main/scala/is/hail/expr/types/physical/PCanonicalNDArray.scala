@@ -240,6 +240,8 @@ class PCanonicalNDArraySettable(val pt: PCanonicalNDArray, val a: Settable[Long]
   override def get: PCode = new PCanonicalNDArrayCode(pt, a)
 
   override def store(pv: PCode): Code[Unit] = a := pv.asInstanceOf[PCanonicalNDArrayCode].a
+
+  override def outOfBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Value[Boolean] = ???
 }
 
 class PCanonicalNDArrayCode(val pt: PCanonicalNDArray, val a: Code[Long]) extends PNDArrayCode {
