@@ -180,6 +180,54 @@ class EmitStreamSuite extends HailSuite {
     f(10, 3)
   }
 
+  @Test def testES2Grouped() {
+    val f = compile1[Int, Unit] { (mb, n) =>
+      val r = checkedRange(0, n, "range", mb)
+      var checkedInner: CheckedStream[Code[Int]] = null
+      val outer = r.stream.grouped(2).map { inner =>
+        checkedInner = new CheckedStream(inner, "inner", mb)
+        checkedInner.stream
+      }
+      val checkedOuter = new CheckedStream(outer, "outer", mb)
+      val run = checkedOuter.stream.forEach(mb, { inner =>
+        inner.forEach(mb, i => Code._println(i.toS))
+      })
+
+      Code(
+        r.init, checkedOuter.init, checkedInner.init,
+        run,
+        r.assertClosed(1),
+        checkedOuter.assertClosed(1),
+        checkedInner.assertClosed((n + 1) / 2))
+    }
+    for (i <- 0 to 5) { f(i) }
+  }
+
+  @Test def testES2GroupedTake() {
+    val f = compile1[Int, Unit] { (mb, n) =>
+      val r = checkedRange(0, n, "range", mb)
+      var checkedInner: CheckedStream[Code[Int]] = null
+      val outer = r.stream.grouped(2).map { inner =>
+        val take = Stream.zip(inner, Stream.range(mb, 0, 1, 1))
+                         .map { case (i, count) => i }
+        checkedInner = new CheckedStream(take, "inner", mb)
+        checkedInner.stream
+      }
+      val checkedOuter = new CheckedStream(outer, "outer", mb)
+      val run = checkedOuter.stream.forEach(mb, { inner =>
+        inner.forEach(mb, i => Code._println(i.toS))
+      })
+
+      Code(
+        r.init, checkedOuter.init, checkedInner.init,
+        run,
+        r.assertClosed(1),
+        checkedOuter.assertClosed(1),
+        checkedInner.assertClosed((n + 1) / 2))
+    }
+    for (i <- 0 to 5) { f(i) }
+  }
+
   @Test def testES2MultiZip() {
     import scala.collection.IndexedSeq
     val f = compile3[Int, Int, Int, Unit] { (mb, n1, n2, n3) =>
