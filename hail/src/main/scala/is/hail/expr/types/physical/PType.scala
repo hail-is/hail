@@ -375,6 +375,8 @@ abstract class PType extends Serializable with Requiredness {
   final def isPrimitive: Boolean =
     fundamentalType.isInstanceOf[PBoolean] || isNumeric
 
+  final def isRealizable: Boolean = !isInstanceOf[PUnrealizable]
+
   final def isNumeric: Boolean =
     fundamentalType.isInstanceOf[PInt32] ||
       fundamentalType.isInstanceOf[PInt64] ||

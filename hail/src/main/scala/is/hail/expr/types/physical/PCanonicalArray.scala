@@ -11,6 +11,8 @@ import is.hail.utils._
 
 // This is a pointer array, whose byteSize is the size of its pointer
 final case class PCanonicalArray(elementType: PType, required: Boolean = false) extends PArray {
+  assert(elementType.isRealizable)
+
   def _asIdent = s"array_of_${elementType.asIdent}"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {

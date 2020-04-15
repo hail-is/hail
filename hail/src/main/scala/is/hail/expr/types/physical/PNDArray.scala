@@ -15,6 +15,8 @@ abstract class PNDArray extends PType {
   val elementType: PType
   val nDims: Int
 
+  assert(elementType.isRealizable)
+
   lazy val virtualType: TNDArray = TNDArray(elementType.virtualType, Nat(nDims))
   assert(elementType.required, "elementType must be required")
 
