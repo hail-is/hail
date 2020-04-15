@@ -566,6 +566,8 @@ class PCanonicalIndexableSettable(
 ) extends PIndexableValue with PSettable {
   def get: PIndexableCode = new PCanonicalIndexableCode(pt, a)
 
+  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, length, elementsAddress)
+
   def loadLength(): Value[Int] = length
 
   def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {

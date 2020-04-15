@@ -119,6 +119,8 @@ class PCanonicalLocusSettable(
 ) extends PLocusValue with PSettable {
   def get = new PCanonicalLocusCode(pt, a)
 
+  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, _contig, position)
+
   def store(pc: PCode): Code[Unit] = {
     Code(
       a := pc.asInstanceOf[PCanonicalLocusCode].a,

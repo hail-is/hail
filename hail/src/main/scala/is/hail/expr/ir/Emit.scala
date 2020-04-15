@@ -613,9 +613,9 @@ private class Emit[C](
       case F64(x) =>
         present(pt, const(x))
       case s@Str(x) =>
-        present(pt, mb.addLiteral(x, coerce[PString](s.pType)))
+        present(mb.addLiteral(x, coerce[PString](s.pType)))
       case x@Literal(t, v) =>
-        present(pt, mb.addLiteral(v, x.pType))
+        present(mb.addLiteral(v, x.pType))
       case True() =>
         present(pt, const(true))
       case False() =>
@@ -2051,6 +2051,8 @@ private class Emit[C](
       new EmitCode(Code._empty, false, PCode(elemPType, f.getCodeParam[T](2)))))
     f
   }
+
+  private def present(pv: PCode): EmitCode = EmitCode(Code._empty, false, pv)
 
   private def present(pt: PType, c: Code[_]): EmitCode =
     EmitCode(Code._empty, false, PCode(pt, c))

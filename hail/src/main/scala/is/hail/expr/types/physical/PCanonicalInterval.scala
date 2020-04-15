@@ -77,6 +77,8 @@ class PCanonicalIntervalSettable(
 ) extends PIntervalValue with PSettable {
   def get: PIntervalCode = new PCanonicalIntervalCode(pt, a)
 
+  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, includesStart, includesEnd)
+
   def loadStart(cb: EmitCodeBuilder): IEmitCode =
     IEmitCode(cb,
       !(pt.startDefined(a)),
