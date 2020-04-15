@@ -3,10 +3,12 @@ import os
 import subprocess as sp
 import tempfile
 from shlex import quote as shq
+import uuid
 
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
 from hailtop.batch.utils import arg_max
 from hailtop.utils import grouped
+from hailtop.auth import get_userinfo
 
 
 class LocalTests(unittest.TestCase):
@@ -293,7 +295,9 @@ class BatchTests(unittest.TestCase):
     def setUp(self):
         self.backend = ServiceBackend()
         self.gcs_input_dir = 'gs://hail-services/batch-testing/resources'
-        self.gcs_output_dir = os.environ.get('SCRATCH').rstrip('/') + '/output'
+        bucket_name = get_userinfo()['bucket_name']
+        token = uuid.uuid4()
+        self.gcs_output_dir = f'gs://{bucket_name}/batch-tests/{token}'
 
     def tearDown(self):
         self.backend.close()
