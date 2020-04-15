@@ -229,7 +229,14 @@ object PCanonicalNDArraySettable {
 }
 
 class PCanonicalNDArraySettable(val pt: PCanonicalNDArray, val a: Settable[Long]) extends PNDArrayValue with PSettable {
-  override def get: PCode = ???
+  //FIXME: Rewrite apply to not require a methodBuilder, meaning also rewrite loadElementToIRIntermediate
+  def apply(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Value[_] = {
+    new Value[Any] {
+      override def get: Code[Any] = pt.loadElementToIRIntermediate(indices, a, mb)
+    }
+  }
+
+  override def get: PCode = new PCanonicalNDArrayCode(pt, a)
 
   override def store(pv: PCode): Code[Unit] = a := pv.asInstanceOf[PCanonicalNDArrayCode].a
 }
@@ -246,7 +253,6 @@ class PCanonicalNDArrayCode(val pt: PCanonicalNDArray, val a: Code[Long]) extend
     val s = PCanonicalNDArraySettable(cb, pt, name, sb)
     cb.assign(s, this)
     s
-    ???
   }
 
   override def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue = memoize(cb, name, cb.localBuilder)
