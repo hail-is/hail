@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder, UnsafeOrdering}
 import is.hail.asm4s.{Code, MethodBuilder, _}
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.expr.types.virtual.{TNDArray, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -220,4 +220,17 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     throw new NotImplementedError("constructAtAddress should only be called on fundamental types; PCanonicalNDarray is not fundamental")
+}
+
+class PCanonicalNDArrayCode(val pt: PCanonicalNDArray, val a: Code[Long]) extends PNDArrayCode {
+
+  def code: Code[_] = a
+
+  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
+
+  override def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = ???
+
+  override def memoize(cb: EmitCodeBuilder, name: String): PValue = ???
+
+  override def memoizeField(cb: EmitCodeBuilder, name: String): PValue = ???
 }

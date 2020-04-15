@@ -48,3 +48,7 @@ abstract class PNDArray extends PType {
 
   def construct(shapeBuilder: StagedRegionValueBuilder => Code[Unit], stridesBuilder: StagedRegionValueBuilder => Code[Unit], data: Code[Long], mb: EmitMethodBuilder[_]): Code[Long]
 }
+
+abstract class PNDArrayCode extends PCode {
+
+}

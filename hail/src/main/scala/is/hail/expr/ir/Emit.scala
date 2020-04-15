@@ -1338,6 +1338,12 @@ private class Emit[C](
             overallMissing := overallMissing || idxMissingness
           }))
 
+        val newValue = EmitCode.fromI(mb) { cb =>
+          ndt.toI(cb).flatMap(cb) { case ndCode: PNDArrayCode =>
+            IEmitCode(cb, false, ndCode)
+          }
+        }
+
         val value = Code(
           ndAddress := ndt.value[Long],
           idxFieldsBinding,

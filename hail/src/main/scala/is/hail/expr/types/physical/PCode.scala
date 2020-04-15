@@ -109,7 +109,8 @@ object PCode {
       new PCanonicalLocusCode(pt, coerce[Long](code))
     case pt: PCanonicalCall =>
       new PCanonicalCallCode(pt, coerce[Int](code))
-
+    case pt: PCanonicalNDArray =>
+      new PCanonicalNDArrayCode(pt, coerce[Long](code))
     case _ =>
       new PPrimitiveCode(pt, code)
   }
