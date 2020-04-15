@@ -24,6 +24,8 @@ principals:
   - ci
   - notebook
   - router
+  - ci-tests
+  - batch-tests
 - name: batch
   domain: batch
   kind: json
@@ -130,8 +132,10 @@ principals:
   kind: json
   outgoing:
   - batch
+  - auth
 - name: ci-tests
   domain: ci-tests
   kind: json
   outgoing:
   - ci
+  - auth
