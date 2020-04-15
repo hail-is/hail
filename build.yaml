@@ -1236,7 +1236,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
-     export SCRATCH=gs://hail-test-dmk9z/{{ token }}/batch
+     python3 -m hailctl config set batch/billing_project test
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/test/hailtop/batch/
    inputs:
     - from: /repo/test
@@ -1254,7 +1254,7 @@ steps:
     - name: test-gsa-key
       namespace:
         valueFrom: batch_pods_ns.name
-      mountPath: /test-gsa-key      
+      mountPath: /test-gsa-key
    dependsOn:
     - default_ns
     - batch_pods_ns
