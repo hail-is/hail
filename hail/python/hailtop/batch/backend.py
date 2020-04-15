@@ -203,13 +203,21 @@ class LocalBackend(Backend):
 
 
 class ServiceBackend(Backend):
-    """
-    Backend that executes batches on Hail's Batch Service on Google Cloud.
+    """Backend that executes batches on Hail's Batch Service on Google Cloud.
 
     Examples
     --------
 
     >>> service_backend = ServiceBackend('test')
+    >>> b = Batch(backend=service_backend)
+    >>> b.run() # doctest: +SKIP
+    >>> service_backend.close()
+
+    If the Hail configuration parameter batch/billing_project was previously set
+    with ``hailctl config set``, then one may elide the billing_project
+    parameter.
+
+    >>> service_backend = ServiceBackend()
     >>> b = Batch(backend=service_backend)
     >>> b.run() # doctest: +SKIP
     >>> service_backend.close()
