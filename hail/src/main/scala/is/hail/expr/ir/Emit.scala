@@ -1534,6 +1534,9 @@ private class Emit[C](
         val ndt = emit(nd)
         val ndAddress = mb.genFieldThisRef[Long]()
         val ndPType = nd.pType.asInstanceOf[PNDArray]
+        // This does a lot of byte level copying currently, so only trust
+        // the PCanonicalNDArray representation.
+        assert(ndPType.isInstanceOf[PCanonicalNDArray])
 
         val shapeAddress: Value[Long] = new Value[Long] {
           def get: Code[Long] = ndPType.shape.load(ndAddress)
