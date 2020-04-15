@@ -5,7 +5,7 @@ from .auth import userdata_from_web_request, userdata_from_rest_request, \
     web_authenticated_users_only, web_maybe_authenticated_user, rest_authenticated_users_only, \
     web_authenticated_developers_only, rest_authenticated_developers_only
 from .csrf import new_csrf_token, check_csrf_token
-from .auth_utils import insert_user, create_session
+from .auth_utils import insert_user, create_session, create_copy_paste_token
 
 __all__ = [
     'configure_logging',
@@ -23,6 +23,7 @@ __all__ = [
     'check_csrf_token',
     'insert_user',
     'create_session',
+    'create_copy_paste_token',
     'transaction',
     'AccessLogger'
 ]

@@ -8,11 +8,16 @@ import google.oauth2.id_token
 import google.cloud.storage
 import google_auth_oauthlib.flow
 from hailtop.config import get_deploy_config
-from gear import setup_aiohttp_session, create_database_pool, \
-    rest_authenticated_users_only, web_authenticated_developers_only, \
-    web_maybe_authenticated_user, create_session, check_csrf_token
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, \
-    set_message, render_template
+from gear import (
+    setup_aiohttp_session, create_database_pool,
+    rest_authenticated_users_only, web_authenticated_developers_only,
+    web_maybe_authenticated_user, create_session, check_csrf_token,
+    create_copy_paste_token
+)
+from web_common import (
+    setup_aiohttp_jinja2, setup_common_static_routes, set_message,
+    render_template
+)
 
 log = logging.getLogger('auth')
 
@@ -62,6 +67,9 @@ async def login(request, userdata):
     session = await aiohttp_session.new_session(request)
     session['state'] = state
     session['next'] = next
+    copy_paste_mode = request.query.get('copy_paste_mode')
+    if copy_paste_mode is not None:
+        session['copy_paste_mode'] = True
 
     return aiohttp.web.HTTPFound(authorization_url)
 
@@ -96,8 +104,16 @@ async def callback(request):
 
     session_id = await create_session(dbpool, user['id'])
 
+    copy_paste_mode = session.get('copy_paste_mode', False)
+
+    del session['copy_paste_mode']
     del session['state']
     session['session_id'] = session_id
+
+    if copy_paste_mode:
+        copy_paste_token = await create_copy_paste_token(dbpool, session_id, user['id'])
+        return web.Response(
+            body=f'Your copy paste token is: {copy_paste_token}')
     next = session.pop('next')
     return aiohttp.web.HTTPFound(next)
 
@@ -236,6 +252,33 @@ async def rest_callback(request):
     return web.json_response({
         'token': session_id,
         'username': user['username']
+    })
+
+
+@routes.get('/api/v1alpha/copy-paste-login')
+async def rest_copy_paste_login(request):
+    copy_paste_token = request.query['copy_paste_token']
+
+    dbpool = request.app['dbpool']
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute("""
+SELECT sessions.session_id AS session_id, users.username AS username FROM users
+INNER JOIN sessions ON users.id == sessions.user_id
+INNER JOIN copy_paste_tokens ON sessions.id == copy_paste_tokens.session_id
+WHERE copy_paste_tokens.id = %s
+  AND TIMESTAMPADD(SECOND, copy_paste_tokens.max_age_secs, copy_paste_tokens.created) < NOW()
+  AND users.state = 'active';""",
+                                 copy_paste_token)
+            sessions = await cursor.fetchall()
+
+    if len(sessions) != 1:
+        raise web.HTTPUnauthorized()
+    session = sessions[0]
+
+    return web.json_response({
+        'token': session['session_id'],
+        'username': session['username']
     })
 
 
