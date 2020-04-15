@@ -36,7 +36,6 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
     val allColValuesJSON = mv.colValues.javaValue.map(TableAnnotationImpex.exportAnnotation(_, mv.typ.colType)).toArray
 
     val tempFolders = new ArrayBuilder[String]
-    val bcFS = HailContext.fsBc
 
     info(s"exporting ${ mv.nCols } files in batches of $parallelism...")
     val nBatches = (mv.nCols + parallelism - 1) / parallelism
@@ -65,6 +64,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
           .map(allColValuesJSON)
           .toArray)
 
+      val bcFS = HailContext.fsBc
       val partFolders = mv.rvd.crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
 
         val partFolder = partFileBase + partFile(d, i, TaskContext.get())
@@ -164,6 +164,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
     // clean up temporary files
     val temps = tempFolders.result()
+    val bcFS = HailContext.fsBc
     HailContext.get.sc.parallelize(temps, temps.length / 32).foreach { path =>
       bcFS.value.delete(path, recursive = true)
     }
