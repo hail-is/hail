@@ -41,7 +41,8 @@ CREATE TABLE `copy_paste_tokens` (
   `session_id` VARCHAR(255) NOT NULL,
   `max_age_secs` INT(11) UNSIGNED DEFAULT NOT NULL,
   `created` TIMESTAMP DEFAULT NOW(),
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`session_id`) REFERENCES sessions(session_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE EVENT `purge_copy_paste_tokens`
