@@ -26,11 +26,11 @@ async def create_session(dbpool, user_id, max_age_secs=2592000):
     return session_id
 
 
-async def create_copy_paste_token(dbpool, session_id, user_id, max_age_secs=300):
+async def create_copy_paste_token(dbpool, session_id, max_age_secs=300):
     copy_paste_token = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute(
-                "INSERT INTO copy_paste_tokens (idm session_id, user_id, max_age_secs) VALUES(%s, %s, %s, %s);",
-                (copy_paste_token, session_id, user_id, max_age_secs))
+                "INSERT INTO copy_paste_tokens (idm session_id, max_age_secs) VALUES(%s, %s, %s, %s);",
+                (copy_paste_token, session_id, max_age_secs))
     return session_id
