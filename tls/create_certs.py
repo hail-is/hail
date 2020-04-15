@@ -34,7 +34,7 @@ def create_key_and_cert(principal, domain):
         '-new',
         '-x509',
         '-subj', f'/CN={names[0]}',
-        '-addext', f'subjectAltName = {" ".join("DNS:" + n for n in names)}',
+        '-addext', f'subjectAltName = {",".join("DNS:" + n for n in names)}',
         '-nodes',  # no password, key itself is cleartext
         '-newkey', 'rsa:4096',
         '-keyout', key_file,
