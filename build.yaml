@@ -183,6 +183,8 @@ steps:
    migrations:
     - name: initial
       script: /io/sql/initial.sql
+    - name: copy-paste-tokens
+      script: /io/sql/copy-paste-tokens.sql
    inputs:
     - from: /repo/auth/sql
       to: /io/
