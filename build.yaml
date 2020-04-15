@@ -1235,8 +1235,10 @@ steps:
    image:
      valueFrom: service_base_image.image
    script: |
+     set -ex
+
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
-     python3 -m hailctl config set batch/billing_project test
+     python3 -m hailtop.hailctl config set batch/billing_project test
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/test/hailtop/batch/
    inputs:
     - from: /repo/test
@@ -1267,8 +1269,10 @@ steps:
      valueFrom: base_image.image
    script: |
      set -ex
+
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      cd /io/hailtop/hailtop/batch
+     python3 -m hailtop.hailctl config set batch/billing_project test
      python3 -m pytest --instafail \
        --doctest-modules \
        --doctest-glob='*.rst' \
