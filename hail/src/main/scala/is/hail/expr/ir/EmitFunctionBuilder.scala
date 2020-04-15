@@ -877,6 +877,13 @@ class EmitMethodBuilder[C](
     }
   }
 
+  def getParamsList(): IndexedSeq[Param] = {
+    emitParamTypes.toFastIndexedSeq.zipWithIndex.map {
+      case (CodeParamType(ti), i) => CodeParam(this.getCodeParam(i + 1)(ti)): Param
+      case (EmitParamType(pt), i) => EmitParam(this.getEmitParam(i + 1)): Param
+    }
+  }
+
   def invokeCode[T](args: Param*): Code[T] = {
     assert(emitReturnType.isInstanceOf[CodeParamType])
     mb.invoke(args.flatMap {

@@ -695,3 +695,10 @@ def test_numpy_interop():
                           np.array([[6, 9], [10, 15]]))
     assert np.array_equal(hl.eval(np.array(b) @ hl.nd.array(a)),
                           np.array([[6, 9], [10, 15]]))
+
+
+def test_ndarray_emitter_extract():
+    np_mat = np.array([0, 1, 2, 1, 0])
+    mat = hl.nd.array(np_mat)
+    mapped_mat = mat.map(lambda x: hl.array([3, 4, 5])[hl.int(x)])
+    assert hl.eval(hl.range(5).map(lambda i: mapped_mat[i])) == [3, 4, 5, 4, 3]

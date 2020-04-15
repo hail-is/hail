@@ -1542,4 +1542,3 @@ class Tests(unittest.TestCase):
         mt = mt.key_cols_by(col_id = hl.str(mt.col_idx))
         mt = mt.add_col_index()
         mt.show()
-

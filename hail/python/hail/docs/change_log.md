@@ -22,6 +22,24 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.37
+
+Released 2020-04-14
+
+### Bug fixes
+
+- (hail#8487) Fix incorrect handling of badly formatted data for `hl.gp_dosage`.
+- (hail#8497) Fix handling of missingness for `hl.hamming`.
+- (hail#8537) Fix compile-time errror.
+- (hail#8539) Fix compiler error in `Table.multi_way_zip_join`.
+- (hail#8488) Fix `hl.agg.call_stats` to appropriately throw an error for badly-formatted calls.
+
+### New features
+
+- (hail#8327) Attempting to write to the same file being read from in a pipeline will now throw an error instead of corrupting data.
+
+---
+
 ## Version 0.2.36
 
 Released 2020-04-06

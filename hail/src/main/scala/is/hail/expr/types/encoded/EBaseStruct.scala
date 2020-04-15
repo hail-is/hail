@@ -46,7 +46,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       false
     else {
       val ps = pt.asInstanceOf[PBaseStruct]
-      ps.required == required &&
+      ps.required <= required &&
         ps.size <= size &&
         ps.fields.forall { f =>
           hasField(f.name) && fieldType(f.name).decodeCompatible(f.typ)
@@ -59,7 +59,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       false
     else {
       val ps = pt.asInstanceOf[PBaseStruct]
-      ps.required == required &&
+      ps.required >= required &&
         size <= ps.size &&
         fields.forall { f =>
           ps.hasField(f.name) && f.typ.encodeCompatible(ps.fieldType(f.name))

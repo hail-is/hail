@@ -106,8 +106,7 @@
 </head>
 
 <body class="wy-body-for-nav" role="document">
-
-  <nav id="hail-navbar-placeholder"></nav>
+  <nav id="hail-navbar" class="documentation-view"></nav>
 
   <div class="wy-grid-for-nav">
 
@@ -214,9 +213,10 @@
       });
   </script>
   {% endif %}
+
   <script type="text/javascript">
     $.get('/index.html', function(data) {
-      $("#hail-navbar-placeholder").replaceWith($("#hail-navbar", data).addClass("documentation-view"));
+      $("#hail-navbar").replaceWith($("#hail-navbar", data).addClass("documentation-view"));
     });
   </script>
 
