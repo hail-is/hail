@@ -9,6 +9,7 @@ import is.hail.expr.ir.{ExecuteContext, MatrixValue}
 import is.hail.expr.ir.functions.MatrixToValueFunction
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual.{TVoid, Type}
+import is.hail.io.fs.FileStatus
 import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
@@ -34,6 +35,9 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
     val allColValuesJSON = mv.colValues.javaValue.map(TableAnnotationImpex.exportAnnotation(_, mv.typ.colType)).toArray
 
+    val tempFolders = new ArrayBuilder[String]
+    val bcFS = HailContext.fsBc
+
     info(s"exporting ${ mv.nCols } files in batches of $parallelism...")
     val nBatches = (mv.nCols + parallelism - 1) / parallelism
     val resultFiles = (0 until nBatches).flatMap { batch =>
@@ -52,7 +56,6 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
       val partFileBase = path + "/tmp/"
 
-      val bcFS = HailContext.fsBc
 
       val extension = if (bgzip) ".tsv.bgz" else ".tsv"
       val localHeaderJsonInFile = headerJsonInFile
@@ -133,9 +136,11 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
         .map { sampleIdx =>
           val partFilePath = path + "/" + partFile(digitsNeeded(nCols), sampleIdx, TaskContext.get)
           val fileStatuses = partFolders.map(pf => bcFS.value.fileStatus(pf + s"/$sampleIdx" + extension))
-          bcFS.value.copyMergeList(fileStatuses, partFilePath, deleteSource = true)
+          bcFS.value.copyMergeList(fileStatuses, partFilePath, deleteSource = false)
           partFilePath
         }.collect()
+
+      tempFolders ++= partFolders
 
       newFiles
     }
@@ -155,6 +160,14 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
       s"${ finalPath(i) }\t$json"
     })
 
-    info("export finished!")
+    info("Export finished. Cleaning up temporary files...")
+
+    // clean up temporary files
+    val temps = tempFolders.result()
+    HailContext.get.sc.parallelize(temps, temps.length / 32).foreach { path =>
+      bcFS.value.delete(path, recursive = true)
+    }
+
+    info("Done cleaning up temporary files.")
   }
 }
