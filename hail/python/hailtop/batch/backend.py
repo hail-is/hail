@@ -6,7 +6,7 @@ import time
 import copy
 from shlex import quote as shq
 import webbrowser
-from hailtop.config import get_deploy_config
+from hailtop.config import get_deploy_config, get_user_config
 from hailtop.batch_client.client import BatchClient
 
 from .resource import InputResourceFile, JobResourceFile
@@ -220,7 +220,14 @@ class ServiceBackend(Backend):
         Name of billing project to use.
     """
 
-    def __init__(self, billing_project):
+    def __init__(self, billing_project=None):
+        if billing_project is None:
+            billing_project = get_user_config().get('batch', 'billing_project')
+        if billing_project is None:
+            raise ValueError(
+                f'you must specify the billing_project parameter of '
+                f'ServiceBackend or set "batch/billing_project" using hailctl '
+                f'config set')
         self._batch_client = BatchClient(billing_project)
 
     def close(self):

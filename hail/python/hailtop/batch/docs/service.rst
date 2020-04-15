@@ -127,6 +127,12 @@ You can open iPython or a Jupyter notebook and execute the following batch:
     >>> j.command('echo "hello world"')
     >>> b.run(open=True)
 
+You may elide the ``billing_project`` parameter if you set a default billing
+project with ``hailctl``:
+
+.. code-block:: sh
+
+    hailctl config set batch/billing_project hail
 
 Using the UI
 ------------

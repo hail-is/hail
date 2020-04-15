@@ -291,7 +291,7 @@ class LocalTests(unittest.TestCase):
 
 class BatchTests(unittest.TestCase):
     def setUp(self):
-        self.backend = ServiceBackend('test')
+        self.backend = ServiceBackend()
         self.gcs_input_dir = 'gs://hail-services/batch-testing/resources'
         self.gcs_output_dir = os.environ.get('SCRATCH').rstrip('/') + '/output'
 
