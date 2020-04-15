@@ -90,6 +90,8 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
+     make -C hail python/hail/hail_version python/hail/hail_pip_version
+     git rev-parse HEAD > git_version
    outputs:
      - from: /io/repo/auth/sql
        to: /repo/auth/
@@ -105,6 +107,14 @@ steps:
        to: /repo/hailtop/
      - from: /io/repo/hail/python/test
        to: /repo/test/
+     - from: /io/repo/hail/python/cluster-tests/
+       to: /repo/hail/python/cluster-tests
+     - from: /io/repo/hail/python/hail/hail_version
+       to: /hail_version
+     - from: /io/repo/hail/python/hail/hail_pip_version
+       to: /hail_pip_version
+     - from: /io/repo/git_version
+       to: /git_version
    dependsOn:
      - base_image
  - kind: runImage
@@ -223,7 +233,7 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: admin-pod/admin-pod.yaml
-   scope:
+   scopes:
     - deploy
     - dev
    dependsOn:
@@ -1445,3 +1455,99 @@ steps:
     - test_batch
     - test_ci
     - test_hailtop_batch
+ - kind: runImage
+   name: test_dataproc
+   image:
+     valueFrom: ci_utils_image.image
+   script: |
+     set -ex
+
+     cd /io
+
+     gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
+     gcloud config set project hail-vdc
+     gcloud config set dataproc/region us-central1
+
+     mkdir -p repo
+     cd repo
+
+     {{ code.checkout_script }}
+
+     if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
+     then
+         echo "tag $HAIL_PIP_VERSION already exists"
+         exit 0
+     fi
+
+     cd hail
+     make test-dataproc DEV_CLARIFIER=ci_test_dataproc
+   dependsOn:
+     - ci_utils_image
+     - copy_files
+     - default_ns
+   inputs:
+     - from: /hail_pip_version
+       to: /io/hail_pip_version
+   secrets:
+     - name: test-dataproc-service-account-key
+       namespace:
+         valueFrom: default_ns.name
+       mountPath: /test-dataproc-service-account-key
+   scopes:
+     - deploy
+     - dev
+ - kind: runImage
+   name: deploy
+   image:
+     valueFrom: ci_utils_image.image
+   script: |
+     set -ex
+     cd /io
+
+     tar xvf wheel-container.tar
+     gcloud auth activate-service-account --key-file=/ci-deploy-0-1--hail-is-hail/ci-deploy-0-1--hail-is-hail.json
+     cp /pypi-credentials/pypirc $HOME/.pypirc
+     printf 'Authorization: token ' > github-oauth
+     cat /hail-ci-0-1-github-oauth-token/oauth-token >>github-oauth
+
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+
+     bash scripts/deploy.sh $(cat /io/hail_pip_version) \
+                            $(cat /io/hail_version) \
+                            $(cat /io/git_version) \
+                            origin \
+                            /io/hail-*-py3-none-any.whl \
+                            /io/github-oauth
+   inputs:
+     - from: /wheel-container.tar
+       to: /io/wheel-container.tar
+     - from: /hail_version
+       to: /io/hail_version
+     - from: /hail_pip_version
+       to: /io/hail_pip_version
+     - from: /git_version
+       to: /io/git_version
+   secrets:
+    - name: pypi-credentials
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /pypi-credentials
+    - name: ci-deploy-0-1--hail-is-hail
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /ci-deploy-0-1--hail-is-hail
+    - name: hail-ci-0-1-github-oauth-token
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /hail-ci-0-1-github-oauth-token
+   scopes:
+    - deploy
+    - dev
+   dependsOn:
+    - test_dataproc
+    - default_ns
+    - copy_files
+    - ci_utils_image
+    - build_hail
