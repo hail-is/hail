@@ -139,7 +139,7 @@ object PSubsetStructSettable {
   }
 }
 
-class PSubsetStructSettable(val pt: PSubsetStruct) extends PBaseStructValue with PSettable {
+class PSubsetStructSettable(val pt: PSubsetStruct, a: Settable[Long]) extends PBaseStructValue with PSettable {
   def get: PSubsetStructCode = new PSubsetStructCode(pt, a)
 
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {

@@ -1,11 +1,12 @@
 package is.hail.expr.types.physical
 
 import is.hail.HailSuite
-import is.hail.annotations.{Region, RegionValue, StagedRegionValueBuilder}
+import is.hail.annotations.{Region, RegionValue, SafeRow, StagedRegionValueBuilder}
 import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitFunctionBuilder
 import org.testng.annotations.Test
 import is.hail.asm4s._
+import org.apache.spark.sql.Row
 class PSubsetStructSuite extends HailSuite {
   val debug = true
 
@@ -38,8 +39,12 @@ class PSubsetStructSuite extends HailSuite {
 
     val view = PSubsetStruct(rt, "a", "c")
     assert(view.size == 2)
+    assert(view.field("a") == rt.field("a"))
     assert(view.field("c") == rt.field("c"))
-    assert(Region.loadInt(rt.loadField(rv.offset, 0)) == Region.loadInt(view.loadField(rv.offset, 0)))
-    assert(Region.loadInt(rt.loadField(rv.offset, 2)) == Region.loadInt(view.loadField(rv.offset, 1)))
+
+    val rtV = SafeRow.read(rt, rv.offset).asInstanceOf[Row]
+    val viewV = SafeRow.read(view, rv.offset).asInstanceOf[Row]
+
+    assert(rtV(0)  == viewV(0) && rtV(2) == viewV(1))
   }
 }
