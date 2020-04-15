@@ -165,7 +165,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
     // clean up temporary files
     val temps = tempFolders.result()
     val bcFS = HailContext.fsBc
-    HailContext.get.sc.parallelize(temps, temps.length / 32).foreach { path =>
+    HailContext.get.sc.parallelize(temps, (temps.length / 32).max(1)).foreach { path =>
       bcFS.value.delete(path, recursive = true)
     }
 
