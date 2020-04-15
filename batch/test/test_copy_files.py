@@ -11,16 +11,10 @@ from hailtop.auth import get_userinfo
 
 from batch.google_storage import GCS
 
-# key_file = '/gsa-key/key.json'
-key_file = '/Users/jigold/.hail/key.json'
-
-# project = os.environ['PROJECT']
-project = 'hail-vdc'
-
-# user = get_userinfo()
-# tmp_bucket = user['bucket_name']
-
-tmp_bucket = 'gs://hail-jigold-59hi5/testing-suite'
+key_file = '/gsa-key/key.json'
+project = os.environ['PROJECT']
+user = get_userinfo()
+tmp_bucket = user['bucket_name']
 
 credentials = google.oauth2.service_account.Credentials.from_service_account_file(key_file)
 gcs_client = GCS(None, project=project, credentials=credentials)
