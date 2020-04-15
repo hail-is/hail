@@ -211,7 +211,7 @@ install-hailctl: install upload-artifacts
 
 .PHONY: test-dataproc
 test-dataproc: install-hailctl
-	bash test-dataproc.sh
+	bash scripts/test-dataproc.sh
 
 # use curl version >=7.55.0
 # set DEPLOY_REMOTE to the hail-is/hail remote
@@ -220,7 +220,7 @@ test-dataproc: install-hailctl
 # set GITHUB_OAUTH_HEADER_FILE to that filename
 .PHONY: deploy
 deploy: test-dataproc $(WHEEL)
-	bash deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE)
+	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE)
 
 .PHONY: install-dev-deps
 install-dev-deps:

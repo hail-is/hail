@@ -23,15 +23,17 @@ then
     exit 0
 fi
 
+
+pip_versions_file=$(mktemp)
 pip install hail== 2>&1 \
     | head -n 1 \
     | sed 's/.*versions: //' \
     | sed 's/)//' \
     | sed 's/ //g' \
     | tr ',' '\n' \
-         > pip_versions
+         > $pip_versions_file
 
-if grep -q -e $HAIL_PIP_VERSION pip_versions
+if grep -q -e $HAIL_PIP_VERSION $pip_versions_file
 then
     echo "package $HAIL_PIP_VERSION already exists"
     exit 1
