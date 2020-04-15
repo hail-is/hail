@@ -40,7 +40,7 @@ def get_server_ssl_context():
                                            keyfile=ssl_config['key'],
                                            password=None)
         server_ssl_context.verify_mode = ssl.CERT_REQUIRED
-        server_ssl_context.check_hostname = True
+        server_ssl_context.check_hostname = False  # clients have no hostnames
     return server_ssl_context
 
 
