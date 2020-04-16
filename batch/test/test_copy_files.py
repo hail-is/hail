@@ -1,16 +1,14 @@
 import os
 import unittest
 import tempfile
-import glob
 import subprocess as sp
 import uuid
 import random
 import string
-import hashlib
 from shlex import quote as shq
 import google.oauth2.service_account
-from hailtop.utils import flatten
 from hailtop.auth import get_userinfo
+from hailtop.utils.os import _glob
 
 from batch.google_storage import GCS
 
@@ -80,17 +78,7 @@ def cp_gsutil(src, dest):
 
 
 def _glob_local_files(path):
-    path = os.path.abspath(path)
-    paths = glob.glob(GCS._escape(path), recursive=True)
-
-    def listdir(path):
-        if not os.path.exists(path):
-            raise FileNotFoundError(path)
-        if os.path.isfile(path):
-            return [path]
-        return flatten([listdir(path + '/' + f) for f in os.listdir(path)])
-
-    return flatten([listdir(path) for path in paths])
+    return _glob(path)
 
 
 def glob_local_files(dir):

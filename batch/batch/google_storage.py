@@ -1,20 +1,16 @@
-import re
 import logging
 import fnmatch
-import glob
 import google.api_core.exceptions
 import google.oauth2.service_account
 import google.cloud.storage
 from hailtop.utils import blocking_to_async, retry_transient_errors
+from hailtop.utils.os import escape, contains_wildcard, unescape_escaped_wildcards, prefix_wout_wildcard
 
 
 from .utils import FileSlice
 
 
 logging.getLogger("google").setLevel(logging.WARNING)
-
-
-wildcards = ('*', '?', '[', ']', '{', '}')
 
 
 class GCS:
@@ -25,66 +21,6 @@ class GCS:
         bucket = uri[0]
         path = '/'.join(uri[1:])
         return bucket, path
-
-    @staticmethod
-    def _escape(path):
-        new_path = []
-        n = len(path)
-        i = 0
-        while i < n:
-            if i <= n - 1 and path[i] == '\\' and path[i + 1] in wildcards:
-                new_path.append('[')
-                new_path.append(path[i + 1])
-                new_path.append(']')
-                i += 2
-                continue
-
-            new_path.append(path[i])
-            i += 1
-        return ''.join(new_path)
-
-    @staticmethod
-    def _contains_wildcard(c):
-        i = 0
-        n = len(c)
-        while i < n:
-            if i <= n - 1 and c[i] == '\\' and c[i + 1] in wildcards:
-                i += 2
-                continue
-            elif c[i] in wildcards:
-                return True
-            i += 1
-        return False
-
-    @staticmethod
-    def _unescape_escaped_wildcards(c):
-        new_c = []
-        i = 0
-        n = len(c)
-        while i < n:
-            if i <= n - 1 and c[i] == '\\' and c[i + 1] in wildcards:
-                new_c.append(c[i + 1])
-                i += 2
-                continue
-            new_c.append(c[i])
-            i += 1
-        return ''.join(new_c)
-
-    @staticmethod
-    def _prefix_wout_wildcard(c):
-        new_c = []
-        i = 0
-        n = len(c)
-        while i < n:
-            if i <= n - 1 and c[i] == '\\' and c[i + 1] in wildcards:
-                new_c.append(c[i + 1])
-                i += 2
-                continue
-            elif c[i] in wildcards:
-                return ''.join(new_c)
-            new_c.append(c[i])
-            i += 1
-        return ''.join(new_c)
 
     def __init__(self, blocking_pool, *, project=None, credentials=None):
         self.blocking_pool = blocking_pool
@@ -229,9 +165,7 @@ class GCS:
         assert '**' not in uri
 
         bucket_name, path = GCS._parse_uri(uri)
-        pattern = GCS._escape(path)
-        # need a custom escape because escaped characters are not treated properly with glob.escape
-        # and fnmatch doesn't work with escaped characters like \?
+        pattern = escape(path)
 
         components = path.rstrip('/').split('/')
         pattern_components = pattern.rstrip('/').split('/')
@@ -243,12 +177,12 @@ class GCS:
                 if not path.endswith('/') and path in blobs:
                     return [blobs[path]]
                 return [blob for _, blob in blobs.items()
-                        if fnmatch.fnmatchcase(GCS._unescape_escaped_wildcards(blob.name), pattern) or
-                        fnmatch.fnmatchcase(GCS._unescape_escaped_wildcards(blob.name), pattern.rstrip('/')) or
-                        fnmatch.fnmatchcase(GCS._unescape_escaped_wildcards(blob.name), pattern.rstrip('/') + '/*')]
+                        if fnmatch.fnmatchcase(unescape_escaped_wildcards(blob.name), pattern) or
+                        fnmatch.fnmatchcase(unescape_escaped_wildcards(blob.name), pattern.rstrip('/')) or
+                        fnmatch.fnmatchcase(unescape_escaped_wildcards(blob.name), pattern.rstrip('/') + '/*')]
 
             c = components[i]
-            if i != len(components) - 1 and GCS._contains_wildcard(c):
+            if i != len(components) - 1 and contains_wildcard(c):
                 blobs = []
                 if prefix:
                     prefix += '/'
@@ -256,17 +190,17 @@ class GCS:
                     for new_prefix in page.prefixes:
                         new_prefix = new_prefix.rstrip('/')
                         p = '/'.join(pattern_components[:i+1])
-                        if fnmatch.fnmatchcase(GCS._unescape_escaped_wildcards(new_prefix), p):
+                        if fnmatch.fnmatchcase(unescape_escaped_wildcards(new_prefix), p):
                             blobs.extend(_glob(bucket, new_prefix, i + 1))
                 return blobs
 
-            c = GCS._prefix_wout_wildcard(c)
-            c = GCS._unescape_escaped_wildcards(c)
+            c = prefix_wout_wildcard(c)
+            c = unescape_escaped_wildcards(c)
             new_prefix = f'{prefix}/{c}' if prefix else c
             return _glob(bucket, new_prefix, i + 1)
 
         if '*' in bucket_name:
-            bucket_prefix = GCS._prefix_wout_wildcard(bucket_name)
+            bucket_prefix = prefix_wout_wildcard(bucket_name)
             buckets = [bucket for bucket in self.gcs_client.list_buckets(prefix=bucket_prefix)
                        if fnmatch.fnmatchcase(bucket.name, bucket_name)]
         else:

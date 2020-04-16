@@ -3,7 +3,6 @@ import asyncio
 import argparse
 import logging
 import humanize
-import fnmatch
 import glob
 import concurrent
 import uuid
@@ -11,7 +10,7 @@ import traceback
 import google.oauth2.service_account
 
 from hailtop.utils import AsyncWorkerPool, blocking_to_async, WaitableSharedPool, WaitableBunch, \
-    retry_transient_errors, flatten, AsyncOS, LoggingTimer, TimerBase, NamedLockStore
+    flatten, AsyncOS, TimerBase, NamedLockStore
 
 from ..google_storage import GCS
 from ..utils import parse_memory_in_bytes
@@ -115,21 +114,7 @@ async def glob_gcs(path):
 
 
 async def glob_local(path):
-    is_dir = path.endswith('/')
-    path = os.path.abspath(path)
-    if is_dir:
-        path += '/'
-    paths = glob.glob(GCS._escape(path), recursive=True)
-
-    async def listdir(path):
-        if not os.path.exists(path):
-            raise FileNotFoundError(path)
-        if os.path.isfile(path):
-            return [(path, os.path.getsize(path))]
-        # gsutil doesn't copy empty directories
-        return flatten([await listdir(path.rstrip('/') + '/' + f) for f in await async_os.listdir(path)])
-
-    return flatten([await listdir(path) for path in paths])
+    return await async_os.glob(path)
 
 
 async def is_gcs_dir(path):
@@ -140,21 +125,19 @@ async def is_gcs_dir(path):
 async def is_local_dir(path):
     # gsutil does not copy empty local directories
     return not is_gcs_path(path) and \
-           (path.endswith('/') or len(await glob_local(path.rstrip('/') + '/*')) != 0)
+           (path.endswith('/') or len(await async_os.glob(path.rstrip('/') + '/*')) != 0)
 
 
 async def is_dir(path):
     if is_gcs_path(path):
         return await is_gcs_dir(path)
-    else:
-        return await is_local_dir(path)
+    return await is_local_dir(path)
 
 
 async def dir_exists(path):
     if is_gcs_path(path):
         return next(await gcs_client.list_gs_files(path + '/', max_results=1), None) is not None
-    else:
-        return os.path.isdir(path)
+    return os.path.isdir(path)
 
 
 def any_recursive_match(pattern, paths):
@@ -171,9 +154,8 @@ async def add_destination_paths(src, glob_paths, dest):
                 if is_gcs_path(src):
                     print('skipping destination file ending with slash')
                     return []
-                else:
-                    print('destination is a directory')
-                    raise IsADirectoryError
+                print('destination is a directory')
+                raise IsADirectoryError
             elif len(glob_paths) > 1:
                 print('destination must name a directory when matching multiple files')
                 raise NotADirectoryError
@@ -184,13 +166,12 @@ async def add_destination_paths(src, glob_paths, dest):
     if not is_dir_src and not is_dir_dest:
         if len(glob_paths) == 0:
             raise FileNotFoundError
-        elif len(glob_paths) == 1:
+        if len(glob_paths) == 1:
             return [(file, dest, size) for file, size in glob_paths]
-        else:
-            if is_gcs_path(dest):
-                include_recurse_dir = not is_gcs_path(dest) or await is_gcs_dir(dest)  # DOUBLE CHECK THIS!!!
-                return [(path, dest.rstrip('/') + '/' + get_dest_path(path, src, include_recurse_dir), size) for path, size in glob_paths]
-            raise NotADirectoryError
+        if is_gcs_path(dest):
+            include_recurse_dir = not is_gcs_path(dest) or await is_gcs_dir(dest)  # DOUBLE CHECK THIS!!!
+            return [(path, dest.rstrip('/') + '/' + get_dest_path(path, src, include_recurse_dir), size) for path, size in glob_paths]
+        raise NotADirectoryError
     elif not is_dir_src and is_dir_dest:
         if len(glob_paths) == 0:
             raise FileNotFoundError
@@ -199,10 +180,9 @@ async def add_destination_paths(src, glob_paths, dest):
     elif is_dir_src and not is_dir_dest:
         if len(glob_paths) == 0:
             raise FileNotFoundError
-        elif len(glob_paths) == 1:
+        if len(glob_paths) == 1:
             return [(file, dest, size) for file, size in glob_paths]
-        else:
-            raise NotADirectoryError
+        raise NotADirectoryError
     else:
         assert is_dir_src and is_dir_dest
         if len(glob_paths) == 0:
@@ -225,7 +205,7 @@ class Copier:
         tasks = await add_destination_paths(src, await self._glob(src), dest)
         for s, d, size in tasks:
             await cp(s, d, size)
-            
+
     def _copy_method_for_remoteness(self, src_is_remote, dest_is_remote):
         if src_is_remote:
             if dest_is_remote:
