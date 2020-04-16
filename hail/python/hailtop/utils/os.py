@@ -135,19 +135,19 @@ class AsyncOS:
         return wrapped
 
     async def makedirs(self, path):
-        return await self._wrapped_makedirs(self, path)
+        return await self._wrapped_makedirs(path)
 
     async def cp(self, src, dest):  # pylint: disable=invalid-name
-        return await self._wrapped_cp(self, src, dest)
+        return await self._wrapped_cp(src, dest)
 
     async def listdir(self, path):
-        return await self._wrapped_listdir(self, path)
+        return await self._wrapped_listdir(path)
 
     async def remove(self, path):
-        return await self._wrapped_remove(self, path)
+        return await self._wrapped_remove(path)
 
     async def new_file(self, path, size):
-        return await self._wrapped_new_file(self, path, size)
+        return await self._wrapped_new_file(path, size)
 
     async def glob(self, path):
-        return await self._wrapped_glob(self, path)
+        return await self._wrapped_glob(path)

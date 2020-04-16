@@ -1143,6 +1143,10 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /deploy-config
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
    dependsOn:
     - default_ns
     - batch_pods_ns

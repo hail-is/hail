@@ -3,14 +3,13 @@ import asyncio
 import argparse
 import logging
 import humanize
-import glob
 import concurrent
 import uuid
 import traceback
 import google.oauth2.service_account
 
 from hailtop.utils import AsyncWorkerPool, blocking_to_async, WaitableSharedPool, WaitableBunch, \
-    flatten, AsyncOS, TimerBase, NamedLockStore
+    AsyncOS, TimerBase, NamedLockStore
 
 from ..google_storage import GCS
 from ..utils import parse_memory_in_bytes
@@ -156,7 +155,7 @@ async def add_destination_paths(src, glob_paths, dest):
                     return []
                 print('destination is a directory')
                 raise IsADirectoryError
-            elif len(glob_paths) > 1:
+            if len(glob_paths) > 1:
                 print('destination must name a directory when matching multiple files')
                 raise NotADirectoryError
 
@@ -172,25 +171,27 @@ async def add_destination_paths(src, glob_paths, dest):
             include_recurse_dir = not is_gcs_path(dest) or await is_gcs_dir(dest)  # DOUBLE CHECK THIS!!!
             return [(path, dest.rstrip('/') + '/' + get_dest_path(path, src, include_recurse_dir), size) for path, size in glob_paths]
         raise NotADirectoryError
-    elif not is_dir_src and is_dir_dest:
+
+    if not is_dir_src and is_dir_dest:
         if len(glob_paths) == 0:
             raise FileNotFoundError
         dest = dest.rstrip('/') + '/'
         return [(file, f'{dest}{os.path.basename(file)}', size) for file, size in glob_paths]
-    elif is_dir_src and not is_dir_dest:
+
+    if is_dir_src and not is_dir_dest:
         if len(glob_paths) == 0:
             raise FileNotFoundError
         if len(glob_paths) == 1:
             return [(file, dest, size) for file, size in glob_paths]
         raise NotADirectoryError
-    else:
-        assert is_dir_src and is_dir_dest
-        if len(glob_paths) == 0:
-            raise FileNotFoundError
 
-        # https://cloud.google.com/storage/docs/gsutil/commands/cp#how-names-are-constructed_1
-        include_recurse_dir = not is_gcs_path(dest) or await is_gcs_dir(dest)  # DOUBLE CHECK THIS!!!
-        return [(path, dest.rstrip('/') + '/' + get_dest_path(path, src, include_recurse_dir), size) for path, size in glob_paths]
+    assert is_dir_src and is_dir_dest
+    if len(glob_paths) == 0:
+        raise FileNotFoundError
+
+    # https://cloud.google.com/storage/docs/gsutil/commands/cp#how-names-are-constructed_1
+    include_recurse_dir = not is_gcs_path(dest) or await is_gcs_dir(dest)  # DOUBLE CHECK THIS!!!
+    return [(path, dest.rstrip('/') + '/' + get_dest_path(path, src, include_recurse_dir), size) for path, size in glob_paths]
 
 
 class Copier:
