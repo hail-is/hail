@@ -18,17 +18,17 @@ object SetFunctions extends RegistryFunctions {
   }
 
   def registerAll() {
-    registerIR("toSet", TArray(tv("T")), TSet(tv("T"))) { (_, a) =>
+    registerIR1("toSet", TArray(tv("T")), TSet(tv("T"))) { (_, a) =>
       ToSet(ToStream(a))
     }
 
-    registerIR("isEmpty", TSet(tv("T")), TBoolean) { (_, s) =>
+    registerIR1("isEmpty", TSet(tv("T")), TBoolean) { (_, s) =>
       ArrayFunctions.isEmpty(CastToArray(s))
     }
 
-    registerIR("contains", TSet(tv("T")), tv("T"), TBoolean)((_, a, b) => contains(a, b))
+    registerIR2("contains", TSet(tv("T")), tv("T"), TBoolean)((_, a, b) => contains(a, b))
 
-    registerIR("remove", TSet(tv("T")), tv("T"), TSet(tv("T"))) { (_, s, v) =>
+    registerIR2("remove", TSet(tv("T")), tv("T"), TSet(tv("T"))) { (_, s, v) =>
       val t = v.typ
       val x = genUID()
       ToSet(
@@ -38,7 +38,7 @@ object SetFunctions extends RegistryFunctions {
           ApplyComparisonOp(NEQWithNA(t), Ref(x, t), v)))
     }
 
-    registerIR("add", TSet(tv("T")), tv("T"), TSet(tv("T"))) { (_, s, v) =>
+    registerIR2("add", TSet(tv("T")), tv("T"), TSet(tv("T"))) { (_, s, v) =>
       val t = v.typ
       val x = genUID()
       ToSet(
@@ -48,7 +48,7 @@ object SetFunctions extends RegistryFunctions {
           ToStream(Ref(x, TArray(t)))))
     }
 
-    registerIR("union", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (_, s1, s2) =>
+    registerIR2("union", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (_, s1, s2) =>
       val t = s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
@@ -58,7 +58,7 @@ object SetFunctions extends RegistryFunctions {
           ToStream(Ref(x, TArray(t)))))
     }
 
-    registerIR("intersection", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (_, s1, s2) =>
+    registerIR2("intersection", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (_, s1, s2) =>
       val t = s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
@@ -66,7 +66,7 @@ object SetFunctions extends RegistryFunctions {
           contains(s2, Ref(x, t))))
     }
 
-    registerIR("difference", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (_, s1, s2) =>
+    registerIR2("difference", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (_, s1, s2) =>
       val t = s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
@@ -74,7 +74,7 @@ object SetFunctions extends RegistryFunctions {
           ApplyUnaryPrimOp(Bang(), contains(s2, Ref(x, t)))))
     }
 
-    registerIR("isSubset", TSet(tv("T")), TSet(tv("T")), TBoolean) { (_, s, w) =>
+    registerIR2("isSubset", TSet(tv("T")), TSet(tv("T")), TBoolean) { (_, s, w) =>
       val t = s.typ.asInstanceOf[TSet].elementType
       val a = genUID()
       val x = genUID()
@@ -83,7 +83,7 @@ object SetFunctions extends RegistryFunctions {
         ApplySpecial("land", FastSeq(), FastSeq(Ref(a, TBoolean), contains(w, Ref(x, t))), TBoolean))
     }
 
-    registerIR("median", TSet(tnum("T")), tv("T")) { (_, s) =>
+    registerIR1("median", TSet(tnum("T")), tv("T")) { (_, s) =>
       val t = s.typ.asInstanceOf[TSet].elementType
       val a = Ref(genUID(), TArray(t))
       val size = Ref(genUID(), TInt32)

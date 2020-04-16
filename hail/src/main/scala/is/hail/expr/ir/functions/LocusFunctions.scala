@@ -133,7 +133,7 @@ object LocusFunctions extends RegistryFunctions {
   }
 
   def registerLocusCode(methodName: String)(f: IR => IR): Unit =
-    registerIR(methodName, tlocus("T"), TBoolean)((_, a) => f(a))
+    registerIR1(methodName, tlocus("T"), TBoolean)((_, a) => f(a))
 
   def inX(locus: IR): IR = {
     val xContigs = Literal(TSet(TString), locus.typ.asInstanceOf[TLocus].rg.xContigs)
@@ -160,13 +160,13 @@ object LocusFunctions extends RegistryFunctions {
   def registerAll() {
     val locusClass = Locus.getClass
 
-    registerPCode("contig", tlocus("T"), TString,
+    registerPCode1("contig", tlocus("T"), TString,
       (_: Type, x: PType) => x.asInstanceOf[PLocus].contigType) {
       case (r, rt, locus: PLocusCode) =>
         locus.contig()
     }
 
-    registerCode("position", tlocus("T"), TInt32, (_: Type, x: PType) => x.asInstanceOf[PLocus].positionType) {
+    registerCode1("position", tlocus("T"), TInt32, (_: Type, x: PType) => x.asInstanceOf[PLocus].positionType) {
       case (r, rt, (locusT: PLocus, locus: Code[Long])) =>
         locusT.position(locus)
     }
@@ -180,7 +180,7 @@ object LocusFunctions extends RegistryFunctions {
     registerLocusCode("inXNonPar") { locus => inX(locus) && !inPar(locus) }
     registerLocusCode("inYNonPar") { locus => inY(locus) && !inPar(locus) }
 
-    registerPCode("min_rep", tlocus("T"), TArray(TString), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString)), {
+    registerPCode2("min_rep", tlocus("T"), TArray(TString), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString)), {
       (returnType: Type, _: PType, _: PType) => {
         val locusPT = PCanonicalLocus(returnType.asInstanceOf[TStruct].field("locus").typ.asInstanceOf[TLocus].rg, true)
         PCanonicalStruct("locus" -> locusPT, "alleles" -> PCanonicalArray(PCanonicalString(true), true))
@@ -223,7 +223,7 @@ object LocusFunctions extends RegistryFunctions {
         PCode(rt, code)
     }
 
-    registerCode("locus_windows_per_contig", TArray(TArray(TFloat64)), TFloat64, TTuple(TArray(TInt32), TArray(TInt32)), {
+    registerCode2("locus_windows_per_contig", TArray(TArray(TFloat64)), TFloat64, TTuple(TArray(TInt32), TArray(TInt32)), {
       (_: Type, _: PType, _: PType) =>
         PCanonicalTuple(false, PCanonicalArray(PInt32(true), true), PCanonicalArray(PInt32(true), true))
     }) {
@@ -299,7 +299,7 @@ object LocusFunctions extends RegistryFunctions {
           srvb.end())
     }
 
-    registerCode("Locus", TString, tlocus("T"), {
+    registerCode1("Locus", TString, tlocus("T"), {
       (returnType: Type, _: PType) => PCanonicalLocus(returnType.asInstanceOf[TLocus].rg)
     }) {
       case (r, rt: PLocus, (strT, locusoff: Code[Long])) =>
@@ -310,7 +310,7 @@ object LocusFunctions extends RegistryFunctions {
         emitLocus(r, locus, rt)
     }
 
-    registerCode("Locus", TString, TInt32, tlocus("T"), {
+    registerCode2("Locus", TString, TInt32, tlocus("T"), {
       (returnType: Type, _: PType, _: PType) => PCanonicalLocus(returnType.asInstanceOf[TLocus].rg)
     }) {
       case (r, rt: PLocus, (contigT, contig: Code[Long]), (posT, pos: Code[Int])) =>
@@ -327,7 +327,7 @@ object LocusFunctions extends RegistryFunctions {
         }
     }
 
-    registerCode("LocusAlleles", TString, tvariant("T"), {
+    registerCode1("LocusAlleles", TString, tvariant("T"), {
       (returnType: Type, _: PType) => {
         val lTyp = returnType.asInstanceOf[TStruct].field("locus").typ.asInstanceOf[TLocus]
         PCanonicalStruct("locus" -> PCanonicalLocus(lTyp.rg, true), "alleles" -> PCanonicalArray(PCanonicalString(true), true))
@@ -342,7 +342,7 @@ object LocusFunctions extends RegistryFunctions {
         emitVariant(r, variant, rt)
     }
 
-    registerEmitCode("LocusInterval", TString, TBoolean, tinterval("T"), {
+    registerEmitCode2("LocusInterval", TString, TBoolean, tinterval("T"), {
       (returnType: Type, _: PType, _: PType) => {
         val lPTyp = returnType.asInstanceOf[TInterval].pointType.asInstanceOf[TLocus]
         PCanonicalInterval(PCanonicalLocus(lPTyp.asInstanceOf[TLocus].rg))
@@ -362,7 +362,7 @@ object LocusFunctions extends RegistryFunctions {
         )
     }
 
-    registerEmitCode("LocusInterval", TString, TInt32, TInt32, TBoolean, TBoolean, TBoolean, tinterval("T"), {
+    registerEmitCode6("LocusInterval", TString, TInt32, TInt32, TBoolean, TBoolean, TBoolean, tinterval("T"), {
       (returnType: Type, _: PType, _: PType, _: PType, _: PType, _: PType, _: PType) => {
         val lPTyp = returnType.asInstanceOf[TInterval].pointType.asInstanceOf[TLocus]
         PCanonicalInterval(PCanonicalLocus(lPTyp.rg))
@@ -388,7 +388,7 @@ object LocusFunctions extends RegistryFunctions {
         )
     }
 
-    registerCode("globalPosToLocus", TInt64, tlocus("T"), {
+    registerCode1("globalPosToLocus", TInt64, tlocus("T"), {
       (returnType: Type, _: PType) =>
         PCanonicalLocus(returnType.asInstanceOf[TLocus].rg)
     }) {
@@ -397,13 +397,13 @@ object LocusFunctions extends RegistryFunctions {
         emitLocus(r, locus, rt)
     }
 
-    registerCode("locusToGlobalPos", tlocus("T"), TInt64, (_: Type, _: PType) => PInt64()) {
+    registerCode1("locusToGlobalPos", tlocus("T"), TInt64, (_: Type, _: PType) => PInt64()) {
       case (r, rt, (locusT: PLocus, locus: Code[Long])) =>
         val locusObject = Code.checkcast[Locus](wrapArg(r, locusT)(locus).asInstanceOf[Code[AnyRef]])
         unwrapReturn(r, rt)(rgCode(r.mb, locusT.rg).invoke[Locus, Long]("locusToGlobalPos", locusObject))
     }
 
-    registerEmitCode("liftoverLocus", tlocus("T"), TFloat64, TStruct("result" -> tv("U", "locus"), "is_negative_strand" -> TBoolean), {
+    registerEmitCode2("liftoverLocus", tlocus("T"), TFloat64, TStruct("result" -> tv("U", "locus"), "is_negative_strand" -> TBoolean), {
       (returnType: Type, _: PType, _: PType) => {
         val lTyp = returnType.asInstanceOf[TStruct].field("result").typ.asInstanceOf[TLocus]
         PCanonicalStruct("result" -> PCanonicalLocus(lTyp.rg, true), "is_negative_strand" -> PBoolean(true))
@@ -425,7 +425,7 @@ object LocusFunctions extends RegistryFunctions {
         )
     }
 
-    registerEmitCode("liftoverLocusInterval", tinterval("T"), TFloat64, TStruct("result" -> tinterval("U"), "is_negative_strand" -> TBoolean), {
+    registerEmitCode2("liftoverLocusInterval", tinterval("T"), TFloat64, TStruct("result" -> tinterval("U"), "is_negative_strand" -> TBoolean), {
       (returnType: Type, _: PType, _: PType) => {
         val lTyp = returnType.asInstanceOf[TStruct].field("result").typ.asInstanceOf[TInterval].pointType.asInstanceOf[TLocus]
         PCanonicalStruct("result" -> PCanonicalInterval(PCanonicalLocus(lTyp.rg, true), true), "is_negative_strand" -> PBoolean(true))

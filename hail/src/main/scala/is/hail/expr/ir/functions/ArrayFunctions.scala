@@ -88,28 +88,28 @@ object ArrayFunctions extends RegistryFunctions {
   }
 
   def registerAll() {
-    registerIR("isEmpty", TArray(tv("T")), TBoolean)((_, a) => isEmpty(a))
+    registerIR1("isEmpty", TArray(tv("T")), TBoolean)((_, a) => isEmpty(a))
 
-    registerIR("extend", TArray(tv("T")), TArray(tv("T")), TArray(tv("T")))((_, a, b) => extend(a, b))
+    registerIR2("extend", TArray(tv("T")), TArray(tv("T")), TArray(tv("T")))((_, a, b) => extend(a, b))
 
-    registerIR("append", TArray(tv("T")), tv("T"), TArray(tv("T"))) { (_, a, c) =>
+    registerIR2("append", TArray(tv("T")), tv("T"), TArray(tv("T"))) { (_, a, c) =>
       extend(a, MakeArray(Seq(c), TArray(c.typ)))
     }
 
-    registerIR("contains", TArray(tv("T")), tv("T"), TBoolean) { (_, a, e) => contains(a, e) }
+    registerIR2("contains", TArray(tv("T")), tv("T"), TBoolean) { (_, a, e) => contains(a, e) }
 
     for ((stringOp, argType, retType, irOp) <- arrayOps) {
-      registerIR(stringOp, TArray(argType), argType, TArray(retType)) { (_, a, c) =>
+      registerIR2(stringOp, TArray(argType), argType, TArray(retType)) { (_, a, c) =>
         val i = genUID()
         ToArray(StreamMap(ToStream(a), i, irOp(Ref(i, c.typ), c)))
       }
 
-      registerIR(stringOp, argType, TArray(argType), TArray(retType)) { (_, c, a) =>
+      registerIR2(stringOp, argType, TArray(argType), TArray(retType)) { (_, c, a) =>
         val i = genUID()
         ToArray(StreamMap(ToStream(a), i, irOp(c, Ref(i, c.typ))))
       }
 
-      registerIR(stringOp, TArray(argType), TArray(argType), TArray(retType)) { (_, array1, array2) =>
+      registerIR2(stringOp, TArray(argType), TArray(argType), TArray(retType)) { (_, array1, array2) =>
         val a1id = genUID()
         val e1 = Ref(a1id, coerce[TArray](array1.typ).elementType)
         val a2id = genUID()
@@ -118,9 +118,9 @@ object ArrayFunctions extends RegistryFunctions {
       }
     }
 
-    registerIR("sum", TArray(tnum("T")), tv("T"))((_, a) => sum(a))
+    registerIR1("sum", TArray(tnum("T")), tv("T"))((_, a) => sum(a))
 
-    registerIR("product", TArray(tnum("T")), tv("T"))((_, a) => product(a))
+    registerIR1("product", TArray(tnum("T")), tv("T"))((_, a) => product(a))
 
     def makeMinMaxOp(op: String): Seq[IR] => IR = {
       { case Seq(a) =>
@@ -146,7 +146,7 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("mean", Array(TArray(tnum("T"))), TFloat64, inline = true)((_, a) => mean(a))
 
-    registerIR("median", TArray(tnum("T")), tv("T")) { (_, array) =>
+    registerIR1("median", TArray(tnum("T")), tv("T")) { (_, array) =>
       val t = array.typ.asInstanceOf[TArray].elementType
       val v = Ref(genUID(), t)
       val a = Ref(genUID(), TArray(t))
@@ -198,9 +198,9 @@ object ArrayFunctions extends RegistryFunctions {
       ), "midx")
     }
 
-    registerIR("argmin", TArray(tv("T")), TInt32)((_, a) => argF(a, LT(_)))
+    registerIR1("argmin", TArray(tv("T")), TInt32)((_, a) => argF(a, LT(_)))
 
-    registerIR("argmax", TArray(tv("T")), TInt32)((_, a) => argF(a, GT(_)))
+    registerIR1("argmax", TArray(tv("T")), TInt32)((_, a) => argF(a, GT(_)))
 
     def uniqueIndex(a: IR, op: (Type) => ComparisonOp[Boolean]): IR = {
       val t = coerce[TArray](a.typ).elementType
@@ -241,11 +241,11 @@ object ArrayFunctions extends RegistryFunctions {
         NA(TInt32)))
     }
 
-    registerIR("uniqueMinIndex", TArray(tv("T")), TInt32)((_, a) => uniqueIndex(a, LT(_)))
+    registerIR1("uniqueMinIndex", TArray(tv("T")), TInt32)((_, a) => uniqueIndex(a, LT(_)))
 
-    registerIR("uniqueMaxIndex", TArray(tv("T")), TInt32)((_, a) => uniqueIndex(a, GT(_)))
+    registerIR1("uniqueMaxIndex", TArray(tv("T")), TInt32)((_, a) => uniqueIndex(a, GT(_)))
 
-    registerIR("indexArray", TArray(tv("T")), TInt32, TString, tv("T")) { (_, a, i, s) =>
+    registerIR3("indexArray", TArray(tv("T")), TInt32, TString, tv("T")) { (_, a, i, s) =>
       ArrayRef(
         a,
         If(ApplyComparisonOp(LT(TInt32), i, I32(0)),
@@ -253,7 +253,7 @@ object ArrayFunctions extends RegistryFunctions {
           i), s)
     }
 
-    registerIR("sliceRight", TArray(tv("T")), TInt32, TArray(tv("T"))) { (_, a, i) =>
+    registerIR2("sliceRight", TArray(tv("T")), TInt32, TArray(tv("T"))) { (_, a, i) =>
       val idx = genUID()
       ToArray(StreamMap(
         StreamRange(
@@ -268,7 +268,7 @@ object ArrayFunctions extends RegistryFunctions {
         ArrayRef(a, Ref(idx, TInt32))))
     }
 
-    registerIR("sliceLeft", TArray(tv("T")), TInt32, TArray(tv("T"))) { (_, a, i) =>
+    registerIR2("sliceLeft", TArray(tv("T")), TInt32, TArray(tv("T"))) { (_, a, i) =>
       val idx = genUID()
       If(IsNA(a), a,
         ToArray(StreamMap(
@@ -282,7 +282,7 @@ object ArrayFunctions extends RegistryFunctions {
           ArrayRef(a, Ref(idx, TInt32)))))
     }
 
-    registerIR("slice", TArray(tv("T")), TInt32, TInt32, TArray(tv("T"))) { case(_, a, i, j) =>
+    registerIR3("slice", TArray(tv("T")), TInt32, TInt32, TArray(tv("T"))) { case(_, a, i, j) =>
       val idx = genUID()
       ToArray(StreamMap(
         StreamRange(
@@ -299,12 +299,12 @@ object ArrayFunctions extends RegistryFunctions {
         ArrayRef(a, Ref(idx, TInt32))))
     }
 
-    registerIR("flatten", TArray(TArray(tv("T"))), TArray(tv("T"))) { (_, a) =>
+    registerIR1("flatten", TArray(TArray(tv("T"))), TArray(tv("T"))) { (_, a) =>
       val elt = Ref(genUID(), coerce[TArray](a.typ).elementType)
       ToArray(StreamFlatMap(ToStream(a), elt.name, ToStream(elt)))
     }
 
-    registerEmitCode("corr", TArray(TFloat64), TArray(TFloat64), TFloat64, {
+    registerEmitCode2("corr", TArray(TFloat64), TArray(TFloat64), TFloat64, {
       (_: Type, _: PType, _: PType) => PFloat64()
     }) { case (r, rt, EmitCode(setup1, m1, v1), EmitCode(setup2, m2, v2)) =>
         val t1 = v1.pt.asInstanceOf[PArray]
