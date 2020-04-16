@@ -18,7 +18,7 @@ VALUES ({', '.join([f'%({k})s' for k in spec.keys()])})
 
 # 2592000s = 30d
 async def create_session(dbpool, user_id, max_age_secs=2592000):
-    session_id = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
+    session_id = base64.b32encode(secrets.token_bytes(32)).decode('ascii')
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute('INSERT INTO sessions (session_id, user_id, max_age_secs) VALUES (%s, %s, %s);',
