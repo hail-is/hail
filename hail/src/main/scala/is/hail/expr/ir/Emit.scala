@@ -84,13 +84,10 @@ object Emit {
       }
     } else {
       fb.emitWithBuilder { cb =>
-        // FIXME (use IEmitCode.consume)
-        val iec = emitter.emitI(ir, cb, Env.empty, container)
-        cb += iec.Lmissing
-        cb._throw[RuntimeException](
-          Code.newInstance[RuntimeException, String]("cannot return empty"))
-        cb += iec.Lpresent
-        iec.pc.code
+        emitter.emitI(ir, cb, Env.empty, container).handle(cb, {
+          cb._throw[RuntimeException](
+            Code.newInstance[RuntimeException, String]("cannot return empty"))
+        }).code
       }
     }
   }
@@ -199,6 +196,13 @@ case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
     cb.define(ec2.Lmissing)
     cb.goto(Lmissing)
     IEmitCode(Lmissing, ec2.Lpresent, ec2.pc)
+  }
+
+  def handle(cb: EmitCodeBuilder, ifMissing: => Unit): PCode = {
+    cb.define(Lmissing)
+    ifMissing
+    cb.define(Lpresent)
+    pc
   }
 
   def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (PCode) => Unit): Unit = {
@@ -601,23 +605,31 @@ private class Emit[C](
       return IEmitCode(CodeLabel(), CodeLabel(), PCode._empty)
     }
 
+    def presentPC(pc: PCode): IEmitCode = {
+      val Lpresent = CodeLabel()
+      cb.goto(Lpresent)
+      IEmitCode(CodeLabel(), Lpresent, pc)
+    }
+
+    def presentC(c: Code[_]): IEmitCode = presentPC(PCode(pt, c))
+
     (ir: @unchecked) match {
       case I32(x) =>
-        presentI(cb, pt, const(x))
+        presentC(const(x))
       case I64(x) =>
-        presentI(cb, pt, const(x))
+        presentC(const(x))
       case F32(x) =>
-        presentI(cb, pt, const(x))
+        presentC(const(x))
       case F64(x) =>
-        presentI(cb, pt, const(x))
+        presentC(const(x))
       case s@Str(x) =>
-        presentI(cb, mb.addLiteral(x, coerce[PString](s.pType)))
+        presentPC(mb.addLiteral(x, coerce[PString](s.pType)))
       case x@Literal(t, v) =>
-        presentI(cb, mb.addLiteral(v, x.pType))
+        presentPC(mb.addLiteral(v, x.pType))
       case True() =>
-        presentI(cb, pt, const(true))
+        presentC(const(true))
       case False() =>
-        presentI(cb, pt, const(false))
+        presentC(const(false))
 
       case Cast(v, typ) =>
         val iec = emitI(v)
@@ -631,7 +643,7 @@ private class Emit[C](
       case IsNA(v) =>
         val m = cb.newLocal[Boolean]("isna")
         emitI(v).consume(cb, cb.assign(m, const(true)), { _ => cb.assign(m, const(false)) })
-        presentI(cb, pt, m)
+        presentC(m)
 
       /* FIXME
       case If(cond, cnsq, altr) =>
@@ -2141,14 +2153,6 @@ private class Emit[C](
 
   private def present(pt: PType, c: Code[_]): EmitCode =
     EmitCode(Code._empty, false, PCode(pt, c))
-
-  private def presentI(cb: EmitCodeBuilder, pc: PCode): IEmitCode = {
-    val Lpresent = CodeLabel()
-    cb += Lpresent.goto
-    IEmitCode(CodeLabel(), Lpresent, pc)
-  }
-
-  private def presentI(cb: EmitCodeBuilder, pt: PType, c: Code[_]): IEmitCode = presentI(cb, PCode(pt, c))
 
   private def strict(pt: PType, value: Code[_], args: EmitCode*): EmitCode = {
     EmitCode(
