@@ -108,6 +108,7 @@ async def callback(request):
 
 
 @routes.get('/copy_paste_token')
+@check_csrf_token
 @web_authenticated_users_only()
 async def get_copy_paste_token(request, userdata):
     dbpool = request.app['dbpool']
