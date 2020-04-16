@@ -1576,8 +1576,6 @@ class Emit[C](
               val element = coerce[Any](elemMB.genFieldThisRef("matmul_element")(eVti))
               val k = elemMB.genFieldThisRef[Long]()
 
-              val innerMethod = elemMB.genEmitMethod("ndaMatMulLoop", FastIndexedSeq.empty[ParamType], eVti)
-
               val (lIndices: IndexedSeq[Value[Long]], rIndices: IndexedSeq[Value[Long]]) = (lPType.nDims, rPType.nDims, idxVars) match {
                 case (1, 1, Seq()) => (IndexedSeq(k), IndexedSeq(k))
                 case (1, _, stack :+ m) =>
@@ -1592,8 +1590,8 @@ class Emit[C](
                   (lStackVars :+ n :+ k, rStackVars :+ k :+  m)
               }
 
-              val lElem = lPType.loadElementToIRIntermediate(lIndices, leftND, innerMethod)
-              val rElem = rPType.loadElementToIRIntermediate(rIndices, rightND, innerMethod)
+              val lElem = lPType.loadElementToIRIntermediate(lIndices, leftND, elemMB)
+              val rElem = rPType.loadElementToIRIntermediate(rIndices, rightND, elemMB)
               val kLen = elemMB.genFieldThisRef[Long]()
 
               val loopCode = Code(
@@ -1604,8 +1602,7 @@ class Emit[C](
                   element := numericElementType.add(numericElementType.multiply(lElem, rElem), element),
                   k := k + 1L),
                 element)
-              innerMethod.emit(loopCode)
-              innerMethod.invokeCode[Unit]()
+              loopCode
             }
           }
           emitter.emit(mb, outputPType)
