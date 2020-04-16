@@ -33,4 +33,4 @@ async def create_copy_paste_token(dbpool, session_id, max_age_secs=300):
             await cursor.execute(
                 "INSERT INTO copy_paste_tokens (id, session_id, max_age_secs) VALUES(%s, %s, %s);",
                 (copy_paste_token, session_id, max_age_secs))
-    return session_id
+    return copy_paste_token

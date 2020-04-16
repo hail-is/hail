@@ -267,7 +267,7 @@ SELECT sessions.session_id AS session_id, users.username AS username FROM copy_p
 INNER JOIN sessions ON sessions.session_id = copy_paste_tokens.session_id
 INNER JOIN users ON users.id = sessions.user_id
 WHERE copy_paste_tokens.id = %s
-  AND TIMESTAMPADD(SECOND, copy_paste_tokens.max_age_secs, copy_paste_tokens.created) < NOW()
+  AND NOW() < TIMESTAMPADD(SECOND, copy_paste_tokens.max_age_secs, copy_paste_tokens.created)
   AND users.state = 'active';""",
                                  copy_paste_token)
             sessions = await cursor.fetchall()
