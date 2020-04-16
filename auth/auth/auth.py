@@ -107,7 +107,7 @@ async def callback(request):
     return aiohttp.web.HTTPFound(next)
 
 
-@routes.get('/copy_paste_token')
+@routes.post('/copy-paste-token')
 @check_csrf_token
 @web_authenticated_users_only()
 async def get_copy_paste_token(request, userdata):

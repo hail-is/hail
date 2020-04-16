@@ -24,8 +24,8 @@ async def async_main(args):
 
     async with aiohttp.ClientSession(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers) as session:
-        async with session.get(deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
-                               params={'copy_paste_token': args.copy_paste_token}) as resp:
+        async with session.post(deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
+                                params={'copy_paste_token': args.copy_paste_token}) as resp:
             resp = await resp.json()
     token = resp['token']
     username = resp['username']

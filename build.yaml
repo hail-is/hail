@@ -1335,6 +1335,10 @@ steps:
     - deploy_router
     - deploy_auth
     - notebook_database
+   wait:
+    - kind: Service
+      name: notebook
+      for: alive
  - kind: deploy
    name: deploy_image_fetcher
    namespace:
