@@ -659,7 +659,10 @@ object EmitStream {
 
       streamIR match {
         case x@NA(_) =>
-          COption.none(SizedStream.unsized(coerce[PCanonicalStream](x.pType).defaultValue.stream))
+          COption.none(SizedStream(
+            Code._empty,
+            coerce[PCanonicalStream](x.pType).defaultValue.stream,
+            Some(0)))
 
         case x@StreamRange(startIR, stopIR, stepIR) =>
           val eltType = coerce[PStream](x.pType).elementType
@@ -1033,7 +1036,7 @@ object EmitStream {
           val optRightStream = emitStream(els, env)
 
           // TODO: set xCond in setup of choose, don't need CPS
-          condT.flatMapCPS[SizedStream] { (cond, _, k) =>
+          condT.flatMap[SizedStream] { cond =>
             val newOptStream = COption.choose[SizedStream](
               xCond,
               optLeftStream,
@@ -1051,7 +1054,7 @@ object EmitStream {
                   SizedStream(newSetup, newStream, newLen)
               })
 
-            Code(xCond := cond.tcode[Boolean], k(newOptStream))
+            newOptStream.addSetup(xCond := cond.tcode[Boolean])
           }
 
         case Let(name, valueIR, bodyIR) =>
