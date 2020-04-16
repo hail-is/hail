@@ -277,6 +277,10 @@ WHERE copy_paste_tokens.id = %s
         raise web.HTTPUnauthorized()
     session = sessions[0]
 
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute("DELETE FROM copy_paste_tokens WHERE id = %s;", copy_paste_token)
+
     return web.json_response({
         'token': session['session_id'],
         'username': session['username']
