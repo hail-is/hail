@@ -165,6 +165,14 @@ class EmitUnrealizableValue(val pt: PType, private val ec: EmitCode) extends Emi
   }
 }
 
+/**
+ * Notes on IEmitCode;
+ *  1. It is the responsibility of the producers of IEmitCode to emit the relevant
+ *     jumps for the Lmissing and Lpresent labels (cb.goto or similar)
+ *  2. It is the responsibility of consumers to define these labels and to
+ *     prevent the pcode from being used on any code path taken as a result of
+ *     jumping to Lmissing.
+ */
 object IEmitCode {
   def apply(cb: EmitCodeBuilder, m: Code[Boolean], pc: => PCode): IEmitCode = {
     val Lmissing = CodeLabel()
