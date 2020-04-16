@@ -14,8 +14,7 @@ client_ssl_context = None
 
 
 class NoSSLConfigFound(Exception):
-    def __init__(self, message):
-        super().__init__(message)
+    pass
 
 
 def _get_ssl_config():
