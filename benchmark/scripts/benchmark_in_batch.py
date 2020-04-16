@@ -1,6 +1,7 @@
 import os
 import random
 import sys
+import re
 
 from benchmark_hail.run.resources import all_resources
 from benchmark_hail.run.utils import list_benchmarks
@@ -40,13 +41,23 @@ if __name__ == '__main__':
 
     all_output = []
 
-    print(f'generating {len(all_benchmarks)} * {N_REPLICATES} = '
-          f'{len(all_benchmarks) * N_REPLICATES} individual benchmark tasks')
 
+    task_filter_regex = os.environ.get('BENCHMARK_REGEX')
+    if task_filter_regex:
+        task_filter = lambda t: re.match(task_filter_regex, t) is not None
+    else:
+        task_filter = lambda t: True
+
+
+    n_passed_filter = 0
     task_fs = []
     for benchmark in all_benchmarks:
-        for replicate in range(N_REPLICATES):
-            task_fs.append((benchmark.name, replicate, benchmark.groups))
+        if task_filter(benchmark.name):
+            n_passed_filter += 1
+            for replicate in range(N_REPLICATES):
+                task_fs.append((benchmark.name, replicate, benchmark.groups))
+
+    print(f'generating {n_passed_filter} * {N_REPLICATES} = {n_passed_filter * N_REPLICATES} individual benchmark tasks')
 
     random.shuffle(task_fs)
 
