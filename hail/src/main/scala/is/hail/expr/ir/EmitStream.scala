@@ -1106,18 +1106,23 @@ object EmitStream {
 
         case Let(name, valueIR, bodyIR) =>
           val valueType = valueIR.pType
-          val valuet = emitIR(valueIR)
 
-          if (valueType.isRealizable) {
-            val xValue = mb.newEmitField(name, valueType)
+          valueType match {
+            case streamType: PCanonicalStream =>
+              val valuet = COption.toEmitCode(
+                emitStream(valueIR, env)
+                  .map(ss => PCanonicalStreamCode(streamType, ss.getStream)),
+                mb)
+              val bodyEnv = env.bind(name -> new EmitUnrealizableValue(valueType, valuet))
 
-            val bodyEnv = env.bind(name -> xValue)
+              emitStream(bodyIR, bodyEnv)
 
-            emitStream(bodyIR, bodyEnv).addSetup(xValue := valuet)
-          } else {
-            val bodyEnv = env.bind(name -> new EmitUnrealizableValue(valueType, valuet))
+            case _ =>
+              val xValue = mb.newEmitField(name, valueType)
+              val bodyEnv = env.bind(name -> xValue)
+              val valuet = emitIR(valueIR)
 
-            emitStream(bodyIR, bodyEnv)
+              emitStream(bodyIR, bodyEnv).addSetup(xValue := valuet)
           }
 
         case x@StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>

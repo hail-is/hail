@@ -832,6 +832,17 @@ class IRSuite extends HailSuite {
         "x", Ref("x", TInt32) + Ref("q", TInt32))),
         "y", Ref("y", TInt32) + I32(3))),
       FastIndexedSeq(5, 6, 7, 8, 9))
+
+    // test let binding streams
+    assertEvalsTo(Let("s", MakeStream(Seq(I32(0), I32(5)), TStream(TInt32)), ToArray(Ref("s", TStream(TInt32)))),
+                  FastIndexedSeq(0, 5))
+    assertEvalsTo(Let("s", NA(TStream(TInt32)), ToArray(Ref("s", TStream(TInt32)))),
+                  null)
+    assertEvalsTo(
+      ToArray(Let("s",
+                  MakeStream(Seq(I32(0), I32(5)), TStream(TInt32)),
+                  StreamTake(Ref("s", TStream(TInt32)), I32(1)))),
+      FastIndexedSeq(0))
   }
 
   @Test def testMakeArray() {
