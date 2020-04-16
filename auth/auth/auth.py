@@ -255,7 +255,7 @@ async def rest_callback(request):
     })
 
 
-@routes.get('/api/v1alpha/copy-paste-login')
+@routes.post('/api/v1alpha/copy-paste-login')
 async def rest_copy_paste_login(request):
     copy_paste_token = request.query['copy_paste_token']
 
