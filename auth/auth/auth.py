@@ -11,7 +11,7 @@ from hailtop.config import get_deploy_config
 from gear import (
     setup_aiohttp_session, create_database_pool,
     rest_authenticated_users_only, web_authenticated_developers_only,
-    web_maybe_authenticated_user, web_authenticated_user, create_session,
+    web_maybe_authenticated_user, web_authenticated_users_only, create_session,
     check_csrf_token, create_copy_paste_token
 )
 from web_common import (
@@ -108,7 +108,7 @@ async def callback(request):
 
 
 @routes.get('/copy_paste_token')
-@web_authenticated_user
+@web_authenticated_users_only
 async def get_copy_paste_token(request, userdata):
     dbpool = request.app['dbpool']
     session = await aiohttp_session.get_session(request)
