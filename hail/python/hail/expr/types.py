@@ -626,7 +626,7 @@ class tndarray(HailType):
 
     def _traverse(self, obj, f):
         if f(self, obj):
-            for elt in np.nditer(obj):
+            for elt in np.nditer(obj, ['zerosize_ok']):
                 self.element_type._traverse(elt.item(), f)
 
     def _typecheck_one_level(self, annotation):
