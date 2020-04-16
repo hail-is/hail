@@ -50,7 +50,7 @@ def main(args):
     if not args:
         parser().print_help()
         sys.exit(0)
-    args, pass_through_args = parser().parse_known_args(args=args)
+    args = parser().parse_args(args=args)
 
     config_file = get_user_config_path()
     if args.module == 'config-location':

@@ -4,6 +4,7 @@ import subprocess as sp
 import tempfile
 from shlex import quote as shq
 import uuid
+import google.oauth2.service_account
 import google.cloud.storage
 
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
@@ -299,7 +300,10 @@ class BatchTests(unittest.TestCase):
         token = uuid.uuid4()
         self.gcs_input_dir = f'gs://{bucket_name}/batch-tests/resources'
         self.gcs_output_dir = f'gs://{bucket_name}/batch-tests/{token}'
-        gcs_client = google.cloud.storage.Client(project='hail-vdc')
+        gcs_client = google.cloud.storage.Client(
+            project='hail-vdc',
+            credentials=google.oauth2.service_account.Credentials.from_service_account_file(
+                '/test-gsa-key/key.json'))
         bucket = gcs_client.bucket(bucket_name)
         if not bucket.blob('batch-tests/resources/hello (foo) spaces.txt').exists():
             print('uploading 512 MB to GCS, this may take some time, but only '
