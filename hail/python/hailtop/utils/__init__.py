@@ -44,5 +44,6 @@ __all__ = [
     'RETRY_FUNCTION_SCRIPT',
     'sync_retry_transient_errors',
     'retry_response_returning_functions',
-    'AsyncOS'
+    'AsyncOS',
+    'NamedLockStore'
 ]

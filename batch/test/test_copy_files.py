@@ -4,6 +4,9 @@ import tempfile
 import glob
 import subprocess as sp
 import uuid
+import random
+import string
+import hashlib
 from shlex import quote as shq
 import google.oauth2.service_account
 from hailtop.utils import flatten
@@ -14,7 +17,7 @@ from batch.google_storage import GCS
 key_file = '/gsa-key/key.json'
 project = os.environ['PROJECT']
 user = get_userinfo()
-tmp_bucket = user['bucket_name']
+tmp_bucket = f'gs://{user["bucket_name"]}/test_copy_files'
 
 credentials = google.oauth2.service_account.Credentials.from_service_account_file(key_file)
 gcs_client = GCS(None, project=project, credentials=credentials)
@@ -47,35 +50,44 @@ def remove_remote_dir(path):
 def touch_file(path, data=None):
     dir = os.path.dirname(path)
     if not os.path.isdir(dir):
-        os.makedirs(dir)
+        os.makedirs(dir, exist_ok=True)
 
     with open(path, 'w') as file:
         if data:
             file.write(data)
 
 
-def cp_batch(src, dest):
-    cmd = f'python3 -u -m batch.worker.copy_files --key-file {key_file} --project {project} -f {shq(src)} {shq(dest)} 2>&1'
+def cp_batch(src, dest, parallelism=1, min_partition_size='1Gi',
+             max_upload_partitions=32, max_download_partitions=32):
+    cmd = f'''
+python3 -u -m batch.worker.copy_files \\
+  --key-file {key_file} \\
+  --project {project} \\
+  --parallelism {parallelism} \\
+  --min-partition-size {min_partition_size} \\
+  --max-upload-partitions {max_upload_partitions} \\
+  --max-download-partitions {max_download_partitions} \\
+  -f {shq(src)} {shq(dest)} 2>&1
+'''
     result = sp.run(cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
     return str(result.stdout), result.returncode
 
 
 def cp_gsutil(src, dest):
-    cmd = f'gsutil -m -q cp -r {shq(src)} {shq(dest)} 2>&1'
+    cmd = f'gcloud -q auth activate-service-account --key-file={key_file}; gsutil -m -q cp -r {shq(src)} {shq(dest)} 2>&1'
     result = sp.run(cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
     return str(result.stdout), result.returncode
 
 
 def _glob_local_files(path):
     path = os.path.abspath(path)
-    paths = glob.glob(path, recursive=True)
+    paths = glob.glob(GCS._escape(path), recursive=True)
 
     def listdir(path):
         if not os.path.exists(path):
             raise FileNotFoundError(path)
         if os.path.isfile(path):
             return [path]
-        # gsutil doesn't copy empty directories
         return flatten([listdir(path + '/' + f) for f in os.listdir(path)])
 
     return flatten([listdir(path) for path in paths])
@@ -407,8 +419,8 @@ class TestDownloadFileWithEscapedWildcards(unittest.TestCase):
     def setUp(self):
         self.local_dir = tempfile.TemporaryDirectory()
         touch_file(self.local_dir.name + '/data/foo/bar/dog/a')
-        touch_file(self.local_dir.name + '/data/foo/b\\?r/dog/b')
-        touch_file(self.local_dir.name + '/data/foo/bar/dog/h\\*llo')
+        touch_file(self.local_dir.name + '/data/foo/baz/dog/h*llo')
+        touch_file(self.local_dir.name + '/data/foo/b?r/dog/b')
         token = uuid.uuid4().hex[:6]
         self.remote_dir = f'{tmp_bucket}/{token}'
         upload_files(self.local_dir.name, self.remote_dir)
@@ -426,27 +438,43 @@ class TestDownloadFileWithEscapedWildcards(unittest.TestCase):
         self.assert_batch_same_as_gsutil('/data/foo/', '/')
 
     def test_download_directory_with_escaped_question_mark(self):
-        self.assert_batch_same_as_gsutil('/data/foo/b\\?r/dog/', '/')
+        # gsutil does not have a mechanism for copying a path with an escaped wildcard
+        # CommandException: No URLs matched: /var/folders/f_/ystbcjb13z78n85cyz6_jpl9sbv79d/T/tmpz9l9v9tf/data/foo/b\?r/dog/ CommandException: 1 file/object could not be transferred.
+        expected = {'/dog/b'}
+
+        result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, '/data/foo/b\\?r/dog/', '/')
+        assert not all(_get_batch_gsutil_files_same(result)), str(result)
+
+        assert _get_files(result, 'rr', 'batch') == expected, _get_output(result, 'rr', 'batch')
+        assert _get_rc(result, 'rr', 'batch') == 0, _get_rc(result, 'rr', 'batch')
+
+        assert _get_files(result, 'rl', 'batch') == expected, _get_output(result, 'rl', 'batch')
+        assert _get_rc(result, 'rl', 'batch') == 0, _get_rc(result, 'rl', 'batch')
+
+        assert _get_files(result, 'lr', 'batch') == expected, _get_output(result, 'lr', 'batch')
+        assert _get_rc(result, 'lr', 'batch') == 0, _get_rc(result, 'lr', 'batch')
+
+        assert _get_files(result, 'll', 'batch') == expected, _get_output(result, 'll', 'batch')
+        assert _get_rc(result, 'll', 'batch') == 0, _get_rc(result, 'll', 'batch')
 
     def test_download_directory_with_nonescaped_question_mark(self):
         # gsutil refuses to copy a path with a wildcard in it
         # Cloud folder gs://hail-jigold-59hi5/testing-suite/9f347b/data/foo/b\?r/ contains a wildcard; gsutil does not currently support objects with wildcards in their name.
-        # unclear why gsutil will work for other tests
-        expected = {'/dog/a', '/dog/b', '/dog/h\\*llo'}
+        expected = {'/dog/a', '/dog/b'}
 
         result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, '/data/foo/b?r/dog/', '/')
         assert not all(_get_batch_gsutil_files_same(result)), str(result)
 
-        assert _get_files(result, 'rr', 'batch') == expected, _get_files(result, 'rr', 'batch')
+        assert _get_files(result, 'rr', 'batch') == expected, _get_output(result, 'rr', 'batch')
         assert _get_rc(result, 'rr', 'batch') == 0, _get_rc(result, 'rr', 'batch')
 
-        assert _get_files(result, 'rl', 'batch') == expected, _get_files(result, 'rl', 'batch')
+        assert _get_files(result, 'rl', 'batch') == expected, _get_output(result, 'rl', 'batch')
         assert _get_rc(result, 'rl', 'batch') == 0, _get_rc(result, 'rl', 'batch')
 
-        assert _get_files(result, 'lr', 'batch') == expected, _get_files(result, 'lr', 'batch')
+        assert _get_files(result, 'lr', 'batch') == expected, _get_output(result, 'lr', 'batch')
         assert _get_rc(result, 'lr', 'batch') == 0, _get_rc(result, 'lr', 'batch')
 
-        assert _get_files(result, 'll', 'batch') == expected, _get_files(result, 'll', 'batch')
+        assert _get_files(result, 'll', 'batch') == expected, _get_output(result, 'll', 'batch')
         assert _get_rc(result, 'll', 'batch') == 0, _get_rc(result, 'll', 'batch')
 
 
@@ -478,7 +506,6 @@ class TestDownloadComplicatedDirectory(unittest.TestCase):
     def setUp(self):
         self.local_dir = tempfile.TemporaryDirectory()
         touch_file(self.local_dir.name + '/data/foo/a/data1')
-        touch_file(self.local_dir.name + '/data/foo/a/data2')
         touch_file(self.local_dir.name + '/data/bar/a')
         touch_file(self.local_dir.name + '/data/baz')
         touch_file(self.local_dir.name + '/data/dog/dog/dog')
@@ -495,18 +522,38 @@ class TestDownloadComplicatedDirectory(unittest.TestCase):
         assert all(_get_batch_gsutil_files_same(result)), str(result)
 
     def test_download_all_files(self):
-        # gsutil works for all cases here
         self.assert_batch_same_as_gsutil('/data/', '/')
 
     def test_download_all_files_without_slash(self):
-        # I don't understand why gsutil is failing for the local->local case
-        # /var/folders/f_/ystbcjb13z78n85cyz6_jpl9sbv79d/T/tmpfr0056u5/data/foo/a\ CommandException: 1 file/object could not be transferred.
-        # The files it did copy are {'/data/baz', '/data/bar/a', '/data/foo/a/data2', '/data/dog/dog/dog'}
         self.assert_batch_same_as_gsutil('/data', '/')
 
-        # result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, '/data', '/')
-        # assert result['rr']['success'] and result['rl']['success'] and result['lr']['success'], str(result)
-        #
-        # expected = {'/data/foo/a/data1', '/data/foo/a/data2', '/data/bar/a', '/data/baz', '/data/dog/dog/dog'}
-        # assert _get_files(result, 'll', 'batch') == expected, _get_files(result, 'll', 'batch')
-        # assert _get_rc(result, 'll', 'batch') == 0, _get_rc(result, 'll', 'batch')
+
+class TestNonEmptyFile(unittest.TestCase):
+    def setUp(self):
+        self.local_dir = tempfile.TemporaryDirectory()
+        self.data = ''.join([random.choice(string.ascii_letters) for _ in range(16 * 1024)])
+
+        with open(f'{self.local_dir.name}/data', 'w') as f:
+            f.write(self.data)
+
+        token = uuid.uuid4().hex[:6]
+        self.remote_dir = f'{tmp_bucket}/{token}'
+        upload_files(self.local_dir.name, self.remote_dir)
+
+    def tearDown(self):
+        self.local_dir.cleanup()
+        remove_remote_dir(self.remote_dir)
+
+    def test_download_multiple_partitions(self):
+        with tempfile.TemporaryDirectory() as dest_dir:
+            output, _ = cp_batch(f'{self.remote_dir}/data', f'{dest_dir}/data', parallelism=4, min_partition_size='4Ki')
+            with open(f'{dest_dir}/data', 'r') as f:
+                assert f.read() == self.data, output
+
+    def test_upload_multiple_partitions(self):
+        with RemoteTemporaryDirectory() as remote_dest_dir:
+            with tempfile.TemporaryDirectory() as local_dest_dir:
+                output, _ = cp_batch(f'{self.local_dir.name}/data', f'{remote_dest_dir}/data', parallelism=4, min_partition_size='4Ki')
+                cp_batch(f'{remote_dest_dir}/data', f'{local_dest_dir}/data')
+                with open(f'{local_dest_dir}/data', 'r') as f:
+                    assert f.read() == self.data, output

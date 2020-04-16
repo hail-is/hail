@@ -483,7 +483,7 @@ def copy(files):
     assert files
     copies = ' '.join([copy_command(f['from'], f['to']) for f in files])
     return f'''
-python3 -u -m batch.worker.copy_files --key-file /gsa-key/key.json --project {copies}
+python3 -u -m batch.worker.copy_files --key-file /gsa-key/key.json --project {PROJECT} {copies}
 '''
 
 

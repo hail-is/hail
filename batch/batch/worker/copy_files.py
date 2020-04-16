@@ -3,6 +3,7 @@ import asyncio
 import argparse
 import logging
 import humanize
+import fnmatch
 import glob
 import concurrent
 import uuid
@@ -118,7 +119,7 @@ async def glob_local(path):
     path = os.path.abspath(path)
     if is_dir:
         path += '/'
-    paths = glob.glob(path, recursive=True)
+    paths = glob.glob(GCS._escape(path), recursive=True)
 
     async def listdir(path):
         if not os.path.exists(path):

@@ -39,7 +39,11 @@ class AsyncOS:
 
     def _makedirs(self, path):
         path = os.path.abspath(path)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+        except OSError as err:
+            if err.errno == 17:
+                pass
 
     def _cp(self, src, dest):
         src = os.path.abspath(src)

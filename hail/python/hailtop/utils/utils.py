@@ -220,7 +220,6 @@ class WaitableBunch:
         await self._done.wait()
 
         if self._errors:
-            error_types = [type(err) for err in self._errors]
             raise self._errors[0]
 
 
