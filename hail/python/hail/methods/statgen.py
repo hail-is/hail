@@ -589,7 +589,7 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
 
     #res._tir.is_sorted = True #TODO Not sure what's going on with sorting, throwing assertion error.
 
-    return (res, ht, just_before_grouping, just_after_grouping)
+    return res
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
