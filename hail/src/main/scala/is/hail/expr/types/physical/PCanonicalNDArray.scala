@@ -127,7 +127,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     Region.loadIRIntermediate(data.pType.elementType)(getElementAddress(indices, ndAddress, mb))
   }
 
-  def outOfBounds(indices: IndexedSeq[Code[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Boolean] = {
+  def outOfBounds(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Boolean] = {
     val shapeTuple = new CodePTuple(shape.pType, new Value[Long] {
       def get: Code[Long] = shape.load(nd)
     })

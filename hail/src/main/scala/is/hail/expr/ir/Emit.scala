@@ -202,23 +202,22 @@ object EmitCode {
     newEC
   }
 
-  def mapN(ecs: IndexedSeq[EmitCode], cb: EmitCodeBuilder)(f: IndexedSeq[PCode] => PCode): EmitCode = {
-    val emptySeq = IndexedSeq[PCode]()
+  def mapN(ecs: IndexedSeq[EmitCode], cb: EmitCodeBuilder)(f: IndexedSeq[PCode] => PCode): IEmitCode = {
+    val Lmissing = CodeLabel()
+    val Lpresent = CodeLabel()
 
-    def helper(i: Int, pcs: IndexedSeq[PCode]): EmitCode = {
-      if (i == ecs.length - 1) {
-        ecs(i).map { pc =>
-          f(pcs :+ pc)
-        }
-      }
-      else {
-        ecs(i).map { pc =>
-          helper(i + 1, pcs :+ pc)
-        }
-      }
+    val pcs = ecs.map { ec =>
+      val iec = ec.toI(cb)
+      cb.define(iec.Lmissing)
+      cb.goto(Lmissing)
+      cb.define(iec.Lpresent)
+
+      iec.pc
     }
+    val pc = f(pcs)
+    cb.goto(Lpresent)
 
-    helper(0, emptySeq)
+    IEmitCode(Lmissing, Lpresent, pc)
   }
 
   def codeTupleTypes(pt: PType): IndexedSeq[TypeInfo[_]] = {
@@ -1339,29 +1338,22 @@ private class Emit[C](
         val ndt = emit(nd)
         val idxst = idxs.map(emit(_))
         val ndPType = coerce[PNDArray](nd.pType)
-        val overallMissing = mb.genFieldThisRef[Boolean]()
-
-        val idxFields = idxst.map(_ => mb.genFieldThisRef[Long]())
-        val idxFieldsBinding = Code(
-          idxFields.zip(idxst).map { case (field, idxTriplet) =>
-            field := idxTriplet.value[Long]
-          })
 
         EmitCode.fromI(mb) { cb =>
           ndt.toI(cb).flatMap(cb) { case ndCode: PNDArrayCode =>
-            cb.append(Code(idxst.map(_.setup)))
-            cb.assign(overallMissing, false)
-            cb.append(Code.foreach(idxst.map(_.m)){ idxMissingness =>
-              overallMissing := overallMissing || idxMissingness
-            })
-            cb.append(idxFieldsBinding)
+            EmitCode.mapN(idxst, cb) { idxPCodes: IndexedSeq[PCode] =>
+              val memoizedIndices = idxPCodes.zipWithIndex.map { case (pc, idx) =>
+                pc.memoize(cb,s"ref_idx_$idx")
+              }
 
-            val ndValue = ndCode.memoize(cb, "reffed_ndarray")
+              val ndValue = ndCode.memoize(cb, "reffed_ndarray")
+              val idxValues = memoizedIndices.map(_.value.asInstanceOf[Value[Long]])
 
-            cb.append(ndPType.outOfBounds(idxFields, ndValue.a, mb)
-              .orEmpty(Code._fatal[Unit]("Index out of bounds")))
+              cb.append(ndPType.outOfBounds(idxValues, ndValue.a, mb)
+                .orEmpty(Code._fatal[Unit]("Index out of bounds")))
 
-            IEmitCode(cb, overallMissing, PCode(ndPType.elementType, ndValue.apply(idxFields, mb)))
+              PCode(ndPType.elementType, ndValue.apply(idxValues, mb))
+            }
           }
         }
       case x@NDArrayReindex(child, indexMap) =>

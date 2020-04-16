@@ -40,7 +40,7 @@ abstract class PNDArray extends PType {
 
   def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_]
 
-  def outOfBounds(indices: IndexedSeq[Code[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Boolean]
+  def outOfBounds(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Boolean]
 
   def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long]
 
