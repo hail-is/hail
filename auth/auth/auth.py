@@ -264,7 +264,7 @@ async def rest_copy_paste_login(request):
         async with conn.cursor() as cursor:
             await cursor.execute("""
 SELECT sessions.session_id AS session_id, users.username AS username FROM copy_paste_tokens
-INNER JOIN sessions ON sessions.id = copy_paste_tokens.session_id
+INNER JOIN sessions ON sessions.session_id = copy_paste_tokens.session_id
 INNER JOIN users ON users.id = sessions.user_id
 WHERE copy_paste_tokens.id = %s
   AND TIMESTAMPADD(SECOND, copy_paste_tokens.max_age_secs, copy_paste_tokens.created) < NOW()
