@@ -251,6 +251,14 @@ object TypeCheck {
         val td = coerce[TDict](x.typ)
         assert(td.keyType == telt.types(0))
         assert(td.valueType == TArray(telt.types(1)))
+      case x@StreamTake(a, num) =>
+        assert(a.typ.isInstanceOf[TStream])
+        assert(x.typ == a.typ)
+        assert(num.typ == TInt32)
+      case x@StreamDrop(a, num) =>
+        assert(a.typ.isInstanceOf[TStream])
+        assert(x.typ == a.typ)
+        assert(num.typ == TInt32)
       case x@StreamMap(a, name, body) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(x.elementTyp == body.typ)
@@ -367,9 +375,9 @@ object TypeCheck {
         assert(typ != null)
       case Die(msg, typ) =>
         assert(msg.typ == TString)
-      case x@ApplyIR(fn, args) =>
+      case x@ApplyIR(fn, typeArgs, args) =>
       case x: AbstractApplyNode[_] =>
-        assert(x.implementation.unify(x.args.map(_.typ) :+ x.returnType))
+        assert(x.implementation.unify(x.typeArgs, x.args.map(_.typ), x.returnType))
       case MatrixWrite(_, _) =>
       case MatrixMultiWrite(_, _) => // do nothing
       case x@TableAggregate(child, query) =>

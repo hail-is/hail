@@ -50,7 +50,7 @@ object IRSuite {
         override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(returnType, argTypes)
 
         def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: EmitCode*): EmitCode = {
-          unify(args.map(_.pt.virtualType))
+          assert(unify(FastSeq(), args.map(_.pt.virtualType), rpt.virtualType))
           impl(r, rpt, seed, args.toArray)
         }
       })
@@ -1577,8 +1577,9 @@ class IRSuite extends HailSuite {
       assertEvalSame(zipToTuple(b, empty), FastIndexedSeq())
     }
 
-    assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range6, range8), "zip: length mismatch")
-    assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range12, lit6), "zip: length mismatch")
+    // https://github.com/hail-is/hail/issues/8359
+    is.hail.TestUtils.assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range6, range8): IR, "zip: length mismatch": String)
+    is.hail.TestUtils.assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range12, lit6): IR, "zip: length mismatch": String)
   }
 
   @Test def testToSet() {
@@ -1739,6 +1740,30 @@ class IRSuite extends HailSuite {
     assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, I32(-1), onKey = true), 0)
     assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, I32(4), onKey = true), 2)
     assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, NA(TInt32), onKey = true), 2)
+  }
+
+  @Test def testStreamTake() {
+    val naa = NA(TStream(TInt32))
+    val a = MakeStream(Seq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
+
+    assertEvalsTo(ToArray(StreamTake(naa, I32(2))), null)
+    assertEvalsTo(ToArray(StreamTake(a, NA(TInt32))), null)
+    assertEvalsTo(ToArray(StreamTake(a, I32(0))), FastIndexedSeq())
+    assertEvalsTo(ToArray(StreamTake(a, I32(2))), FastIndexedSeq(3, null))
+    assertEvalsTo(ToArray(StreamTake(a, I32(5))), FastIndexedSeq(3, null, 7))
+    assertFatal(ToArray(StreamTake(a, I32(-1))), "StreamTake: negative length")
+  }
+
+  @Test def testStreamDrop() {
+    val naa = NA(TStream(TInt32))
+    val a = MakeStream(Seq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
+
+    assertEvalsTo(ToArray(StreamDrop(naa, I32(2))), null)
+    assertEvalsTo(ToArray(StreamDrop(a, NA(TInt32))), null)
+    assertEvalsTo(ToArray(StreamDrop(a, I32(0))), FastIndexedSeq(3, null, 7))
+    assertEvalsTo(ToArray(StreamDrop(a, I32(2))), FastIndexedSeq(7))
+    assertEvalsTo(ToArray(StreamDrop(a, I32(5))), FastIndexedSeq())
+    assertFatal(ToArray(StreamDrop(a, I32(-1))), "StreamDrop: negative num")
   }
 
   @Test def testStreamMap() {
@@ -2453,7 +2478,7 @@ class IRSuite extends HailSuite {
   @Test def testMatrixAggregate() {
     implicit val execStrats = ExecStrategy.interpretOnly
 
-    val matrix = MatrixIR.range(hc, 5, 5, None)
+    val matrix = MatrixIR.range(5, 5, None)
     val countSig = AggSignature(Count(), Seq(), Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, countSig)
     assertEvalsTo(MatrixAggregate(matrix, MakeStruct(Seq("foo" -> count))), Row(25L))
@@ -2537,7 +2562,7 @@ class IRSuite extends HailSuite {
 
     val table = TableRange(100, 10)
 
-    val mt = MatrixIR.range(hc, 20, 2, Some(3))
+    val mt = MatrixIR.range(20, 2, Some(3))
     val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
 
     val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
@@ -2591,6 +2616,8 @@ class IRSuite extends HailSuite {
       ToStream(a),
       LowerBoundOnOrderedCollection(a, i, onKey = true),
       GroupByKey(da),
+      StreamTake(st, I32(10)),
+      StreamDrop(st, I32(10)),
       StreamMap(st, "v", v),
       StreamZip(FastIndexedSeq(st, st), FastIndexedSeq("foo", "bar"), True(), ArrayZipBehavior.TakeMinLength),
       StreamFilter(st, "v", b),
@@ -2673,7 +2700,7 @@ class IRSuite extends HailSuite {
   def tableIRs(): Array[Array[TableIR]] = {
     try {
       val read = TableIR.read(fs, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
-      val mtRead = MatrixIR.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
+      val mtRead = MatrixIR.read(fs, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
       val b = True()
 
       val xs: Array[TableIR] = Array(
@@ -2735,15 +2762,15 @@ class IRSuite extends HailSuite {
       IndexBgen(ctx, Array("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
 
       val tableRead = TableIR.read(fs, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
-      val read = MatrixIR.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
-      val range = MatrixIR.range(hc, 3, 7, None)
+      val read = MatrixIR.read(fs, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
+      val range = MatrixIR.range(3, 7, None)
       val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
 
       val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
       val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
 
-      val range1 = MatrixIR.range(hc, 20, 2, Some(3))
-      val range2 = MatrixIR.range(hc, 20, 2, Some(4))
+      val range1 = MatrixIR.range(20, 2, Some(3))
+      val range2 = MatrixIR.range(20, 2, Some(4))
 
       val b = True()
 
@@ -2871,6 +2898,7 @@ class IRSuite extends HailSuite {
         "x" -> TInt32))
 
       val s = Pretty(x, elideLiterals = false)
+
       val x2 = IRParser.parse_value_ir(s, env)
 
       assert(x2 == x)
@@ -2917,7 +2945,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testCachedMatrixIR() {
-    val cached = MatrixIR.range(hc, 3, 7, None)
+    val cached = MatrixIR.range(3, 7, None)
     val s = s"(JavaMatrix __uid1)"
     val x2 = ExecuteContext.scoped() { ctx =>
       IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
@@ -2935,7 +2963,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testContextSavedMatrixIR() {
-    val cached = MatrixIR.range(hc, 3, 8, None)
+    val cached = MatrixIR.range(3, 8, None)
     val id = hc.addIrVector(Array(cached))
     val s = s"(JavaMatrixVectorRef $id 0)"
     val x2 = ExecuteContext.scoped() { ctx =>

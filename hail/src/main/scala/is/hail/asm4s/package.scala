@@ -314,39 +314,40 @@ package object asm4s {
 
   implicit def toLocalRefInt(f: LocalRef[Int]): LocalRefInt = new LocalRefInt(f)
 
-  def _const[T](a: T): Value[T] = new Value[T] {
-    def get: Code[T] = Code(lir.ldcInsn(a))
-  }
+  def _const[T](a: Any, ti: TypeInfo[T]): Value[T] =
+    new Value[T] {
+      def get: Code[T] = Code(lir.ldcInsn(a, ti))
+    }
 
-  implicit def const(s: String): Value[String] = _const(s)
+  implicit def const(s: String): Value[String] = _const(s, classInfo[String])
 
-  implicit def const(b: Boolean): Value[Boolean] = _const(b)
+  implicit def const(b: Boolean): Value[Boolean] = _const(if (b) 1 else 0, BooleanInfo)
 
-  implicit def const(i: Int): Value[Int] = _const(i)
+  implicit def const(i: Int): Value[Int] = _const(i, IntInfo)
 
-  implicit def const(l: Long): Value[Long] = _const(l)
+  implicit def const(l: Long): Value[Long] = _const(l, LongInfo)
 
-  implicit def const(f: Float): Value[Float] = _const(f)
+  implicit def const(f: Float): Value[Float] = _const(f, FloatInfo)
 
-  implicit def const(d: Double): Value[Double] = _const(d)
+  implicit def const(d: Double): Value[Double] = _const(d, DoubleInfo)
 
-  implicit def const(c: Char): Value[Char] = _const(c)
+  implicit def const(c: Char): Value[Char] = _const(c, CharInfo)
 
-  implicit def const(b: Byte): Value[Byte] = _const(b)
+  implicit def const(b: Byte): Value[Byte] = _const(b, ByteInfo)
 
-  implicit def strToCode(s: String): Code[String] = _const(s)
+  implicit def strToCode(s: String): Code[String] = const(s)
 
-  implicit def boolToCode(b: Boolean): Code[Boolean] = _const(b)
+  implicit def boolToCode(b: Boolean): Code[Boolean] = const(b)
 
-  implicit def intToCode(i: Int): Code[Int] = _const(i)
+  implicit def intToCode(i: Int): Code[Int] = const(i)
 
-  implicit def longToCode(l: Long): Code[Long] = _const(l)
+  implicit def longToCode(l: Long): Code[Long] = const(l)
 
-  implicit def floatToCode(f: Float): Code[Float] = _const(f)
+  implicit def floatToCode(f: Float): Code[Float] = const(f)
 
-  implicit def doubleToCode(d: Double): Code[Double] = _const(d)
+  implicit def doubleToCode(d: Double): Code[Double] = const(d)
 
-  implicit def charToCode(c: Char): Code[Char] = _const(c)
+  implicit def charToCode(c: Char): Code[Char] = const(c)
 
-  implicit def byteToCode(b: Byte): Code[Byte] = _const(b)
+  implicit def byteToCode(b: Byte): Code[Byte] = const(b)
 }

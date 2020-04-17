@@ -13,10 +13,7 @@ import scala.collection.mutable
 
 object Emit {
   def asBytes(cn: ClassNode, print: Option[PrintWriter]): Array[Byte] = {
-    val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
-    val sw1 = new StringWriter()
-    var bytes: Array[Byte] = new Array[Byte](0)
-    try {
+    val bytes = try {
       for (method <- cn.methods.asInstanceOf[java.util.List[MethodNode]].asScala) {
         val count = method.instructions.size
         log.info(s"instruction count: $count: ${ cn.name }.${ method.name }")
@@ -24,43 +21,18 @@ object Emit {
           log.warn(s"big method: $count: ${ cn.name }.${ method.name }")
       }
 
+      val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
       cn.accept(cw)
-      bytes = cw.toByteArray
+      cw.toByteArray
       //       This next line should always be commented out!
       //      CheckClassAdapter.verify(new ClassReader(bytes), false, new PrintWriter(sw1))
     } catch {
       case e: Exception =>
-        // if we fail with frames, try without frames for better error message
-        val cwNoFrames = new ClassWriter(ClassWriter.COMPUTE_MAXS)
-        val sw2 = new StringWriter()
-        cn.accept(cwNoFrames)
-        try {
-          CheckClassAdapter.verify(new ClassReader(cwNoFrames.toByteArray), false, new PrintWriter(sw2))
-        } catch {
-          case e: Exception =>
-            log.error("Verify Output 1 for " + cn.name + ":")
-            throw e
-        }
-
-        if (sw2.toString.length() != 0) {
-          System.err.println("Verify Output 2 for " + cn.name + ":")
-          System.err.println(sw2)
-          throw new IllegalStateException("Bytecode failed verification 1", e)
-        } else {
-          if (sw1.toString.length() != 0) {
-            System.err.println("Verify Output 1 for " + cn.name + ":")
-            System.err.println(sw1)
-          }
-          throw e
-        }
+        val trace = new TraceClassVisitor(new PrintWriter(System.err))
+        val check = new CheckClassAdapter(trace)
+        cn.accept(check)
+        throw e
     }
-
-    if (sw1.toString.length != 0) {
-      System.err.println("Verify Output 1 for " + cn.name + ":")
-      System.err.println(sw1)
-      throw new IllegalStateException("Bytecode failed verification 2")
-    }
-
     print.foreach { pw =>
       val cr = new ClassReader(bytes)
       val tcv = new TraceClassVisitor(null, new Textifier, pw)
@@ -113,6 +85,8 @@ object Emit {
       }
     }
 
+    mn.maxLocals = n
+
     def getLocalIndex(l: Local): Int = {
       l match {
         case p: Parameter => parameterIndex(p.i)
@@ -120,8 +94,16 @@ object Emit {
       }
     }
 
-    def emitX(x: X): Unit = {
-      x.children.foreach(emitX(_))
+    var maxStack = 0
+    def emitX(x: X, depth: Int): Unit = {
+      var i = 0
+      while (i < x.children.length) {
+        emitX(x.children(i), depth + i)
+        i += 1
+      }
+
+      if (depth + 1 > maxStack)
+        maxStack = depth + 1
 
       x match {
         case x: IfX =>
@@ -175,7 +157,7 @@ object Emit {
       mn.instructions.add(labelNodes(L))
       var x = L.first
       while (x != null) {
-        emitX(x)
+        emitX(x, 0)
         x = x.next
       }
     }
@@ -187,6 +169,8 @@ object Emit {
         emitBlock(b)
     }
     mn.instructions.add(end)
+
+    mn.maxStack = maxStack
   }
 
   def apply(c: Classx[_], print: Option[PrintWriter]): Array[Byte] = {

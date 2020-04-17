@@ -10,6 +10,6 @@ object ExperimentalFunctions extends RegistryFunctions {
     val experimentalPackageClass = Class.forName("is.hail.experimental.package$")
 
     registerScalaFunction("filtering_allele_frequency", Array(TInt32, TInt32, TFloat64), TFloat64, (_: Type, pt: Seq[PType]) => PFloat64())(experimentalPackageClass, "calcFilterAlleleFreq")
-    registerWrappedScalaFunction("haplotype_freq_em", TArray(TInt32), TArray(TFloat64), (_: Type, pt: PType) => PCanonicalArray(PFloat64(true)))(experimentalPackageClass, "haplotypeFreqEM")
+    registerWrappedScalaFunction1("haplotype_freq_em", TArray(TInt32), TArray(TFloat64), (_: Type, pt: PType) => PCanonicalArray(PFloat64(true)))(experimentalPackageClass, "haplotypeFreqEM")
   }
 }

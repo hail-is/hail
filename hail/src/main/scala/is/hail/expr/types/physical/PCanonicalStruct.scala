@@ -46,31 +46,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
       s"${fieldNames.map(prettyIdentifier).mkString(", ")}", fieldNames.duplicates())
   }
 
-
-  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalStruct(fields, required)
-
-  override def truncate(newSize: Int): PStruct =
-    PCanonicalStruct(fields.take(newSize), required)
-
-  def deleteField(key: String): PStruct = {
-    assert(fieldIdx.contains(key))
-    val index = fieldIdx(key)
-    val newFields = Array.fill[PField](fields.length - 1)(null)
-    for (i <- 0 until index)
-      newFields(i) = fields(i)
-    for (i <- index + 1 until fields.length)
-      newFields(i - 1) = fields(i).copy(index = i - 1)
-    PCanonicalStruct(newFields, required)
-  }
-
-  def appendKey(key: String, sig: PType): PStruct = {
-    assert(!fieldIdx.contains(key))
-    val newFields = Array.fill[PField](fields.length + 1)(null)
-    for (i <- fields.indices)
-      newFields(i) = fields(i)
-    newFields(fields.length) = PField(key, sig, fields.length)
-    PCanonicalStruct(newFields, required)
-  }
+  def setRequired(required: Boolean): PCanonicalStruct = if(required == this.required) this else PCanonicalStruct(fields, required)
 
   def rename(m: Map[String, String]): PStruct = {
     val newFieldsBuilder = new ArrayBuilder[(String, PType)]()
@@ -79,15 +55,6 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
       newFieldsBuilder += (m.getOrElse(n, n) -> fd.typ)
     }
     PCanonicalStruct(required, newFieldsBuilder.result(): _*)
-  }
-
-  def ++(that: PStruct): PStruct = {
-    val overlapping = fields.map(_.name).toSet.intersect(
-      that.fields.map(_.name).toSet)
-    if (overlapping.nonEmpty)
-      fatal(s"overlapping fields in struct concatenation: ${ overlapping.mkString(", ") }")
-
-    PCanonicalStruct(required && that.required, fields.map(f => (f.name, f.typ)) ++ that.fields.map(f => (f.name, f.typ)): _*)
   }
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
@@ -108,17 +75,6 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
       }
     }
   }
-
-  def selectFields(names: Seq[String]): PStruct = {
-    PCanonicalStruct(required,
-      names.map(f => f -> field(f).typ): _*)
-  }
-
-  def dropFields(names: Set[String]): PStruct =
-    selectFields(fieldNames.filter(!names.contains(_)))
-
-  def typeAfterSelect(keep: IndexedSeq[Int]): PStruct =
-    PCanonicalStruct(required, keep.map(i => fieldNames(i) -> types(i)): _*)
 
   lazy val structFundamentalType: PStruct = {
     val fundamentalFieldTypes = fields.map(f => f.typ.fundamentalType)

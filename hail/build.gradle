@@ -22,8 +22,8 @@ repositories {
     mavenCentral()
     jcenter()
     maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
-    maven { url "http://repo.hortonworks.com/content/repositories/releases/" }
-    maven { url "http://repo.spring.io/plugins-release/" }
+    maven { url "https://repo.hortonworks.com/content/repositories/releases/" }
+    maven { url "https://repo.spring.io/plugins-release/" }
 }
 
 String sparkVersion = System.getProperty("spark.version", "2.4.0")
@@ -178,6 +178,9 @@ dependencies {
 
     unbundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
     bundled group: 'commons-codec', name: 'commons-codec', version: '1.11'
+
+    bundled 'com.indeed:lsmtree-core:1.0.7'
+    bundled 'com.indeed:util-serialization:1.0.30'
 }
 
 task(checkSettings) doLast {

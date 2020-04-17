@@ -27,14 +27,14 @@ class ScalaTestCompanion {
 
 object TestRegisterFunctions extends RegistryFunctions {
   def registerAll() {
-    registerIR("addone", TInt32, TInt32)(ApplyBinaryPrimOp(Add(), _, I32(1)))
+    registerIR1("addone", TInt32, TInt32)((_, a) => ApplyBinaryPrimOp(Add(), a, I32(1)))
     registerJavaStaticFunction("compare", Array(TInt32, TInt32), TInt32, null)(classOf[java.lang.Integer], "compare")
     registerScalaFunction("foobar1", Array(), TInt32, null)(ScalaTestObject.getClass, "testFunction")
     registerScalaFunction("foobar2", Array(), TInt32, null)(ScalaTestCompanion.getClass, "testFunction")
-    registerCode[Int, Int]("testCodeUnification", tnum("x"), tv("x", "int32"), tv("x"), null) {
+    registerCode2[Int, Int]("testCodeUnification", tnum("x"), tv("x", "int32"), tv("x"), null) {
       case (_, rt, (aT, a: Code[Int]), (bT, b: Code[Int])) => a + b
     }
-    registerCode("testCodeUnification2", tv("x"), tv("x"), null) { case (_, rt, (aT, a: Code[Long])) => a }
+    registerCode1("testCodeUnification2", tv("x"), tv("x"), null) { case (_, rt, (aT, a: Code[Long])) => a }
   }
 }
 
@@ -45,8 +45,10 @@ class FunctionSuite extends HailSuite {
 
   TestRegisterFunctions.registerAll()
 
-  def lookup(meth: String, rt: Type, types: Type*)(irs: IR*): IR =
-    IRFunctionRegistry.lookupConversion(meth, rt, types).get(irs)
+  def lookup(meth: String, rt: Type, types: Type*)(irs: IR*): IR = {
+    val l = IRFunctionRegistry.lookupConversion(meth, rt, types).get
+    l(Seq(), irs)
+  }
 
   @Test
   def testCodeFunction() {

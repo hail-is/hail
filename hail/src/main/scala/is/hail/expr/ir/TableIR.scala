@@ -129,6 +129,8 @@ object TableReader {
 }
 
 abstract class TableReader {
+  def pathsUsed: Seq[String]
+
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue
 
   def partitionCounts: Option[IndexedSeq[Long]]
@@ -167,6 +169,7 @@ case class TableNativeReader(
   spec: AbstractTableSpec
 ) extends TableReader {
   def partitionCounts: Option[IndexedSeq[Long]] = if (intervals.isEmpty) Some(spec.partitionCounts) else None
+  def pathsUsed: Seq[String] = Array(path)
 
   override lazy val fullType: TableType = spec.table_type
 
@@ -204,18 +207,11 @@ case class TableNativeReader(
 case class TableNativeZippedReader(
   pathLeft: String,
   pathRight: String,
-  options: Option[NativeReaderOptions] = None,
-  var _specLeft: AbstractTableSpec = null,
-  var _specRight: AbstractTableSpec = null
+  options: Option[NativeReaderOptions],
+  specLeft: AbstractTableSpec,
+  specRight: AbstractTableSpec
 ) extends TableReader {
-  private def getSpec(path: String) = (RelationalSpec.read(HailContext.fs, path): @unchecked) match {
-    case ts: AbstractTableSpec => ts
-    case _: AbstractMatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
-  }
-
-  lazy val specLeft = if (_specLeft != null) _specLeft else getSpec(pathLeft)
-  lazy val specRight = if (_specRight != null) _specRight else getSpec(pathRight)
-
+  def pathsUsed: Seq[String] = FastSeq(pathLeft, pathRight)
   private lazy val filterIntervals = options.map(_.filterIntervals).getOrElse(false)
   private def intervals = options.map(_.intervals)
 
@@ -267,6 +263,7 @@ case class TableNativeZippedReader(
 }
 
 case class TableFromBlockMatrixNativeReader(path: String, nPartitions: Option[Int] = None) extends TableReader {
+  def pathsUsed: Seq[String] = FastSeq(path)
   val metadata: BlockMatrixMetadata = BlockMatrix.readMetadata(HailContext.get, path)
   val getNumPartitions: Int = nPartitions.getOrElse(HailContext.get.sc.defaultMinPartitions)
 
@@ -970,9 +967,9 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val childValues = children.map(_.execute(ctx))
-    assert(childValues.map(_.rvd.typ).toSet.size == 1) // same physical types
 
     val childRVDs = RVD.unify(childValues.map(_.rvd)).toFastIndexedSeq
+    assert(childRVDs.forall(_.typ.key.startsWith(typ.key)))
 
     val repartitionedRVDs =
       if (childRVDs(0).partitioner.satisfiesAllowedOverlap(typ.key.length - 1) &&
@@ -991,7 +988,11 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     val keyIdx = rvdType.kFieldIdx
     val valIdx = rvdType.valueFieldIdx
     val localRVDType = rvdType
-    val localNewRowType = PType.canonical(newRowType).setRequired(true).asInstanceOf[PStruct]
+    val keyFields = rvdType.kType.fields.map(f => (f.name, f.typ))
+    val valueFields = rvdType.valueType.fields.map(f => (f.name, f.typ))
+    val localNewRowType = PCanonicalStruct(required = true,
+      keyFields ++ Array((fieldName, PCanonicalArray(
+        PCanonicalStruct(required = false, valueFields: _*)))): _*)
     val localDataLength = children.length
     val rvMerger = { (ctx: RVDContext, it: Iterator[ArrayBuilder[(RegionValue, Int)]]) =>
       val rvb = new RegionValueBuilder()
@@ -1656,7 +1657,8 @@ case class TableKeyByAndAggregate(
       serialize(aggRegion, initF.getAggOffset())
     }
 
-    val newRowType = (localKeyPType ++ rTyp).setRequired(true).asInstanceOf[PStruct]
+    val newRowType = PCanonicalStruct(required = true,
+      localKeyPType.fields.map(f => (f.name, PType.canonical(f.typ))) ++ rTyp.fields.map(f => (f.name, f.typ)): _*)
 
     val localBufferSize = bufferSize
     val rdd = prev.rvd
@@ -1998,9 +2000,10 @@ case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
     val prev = child.execute(ctx)
     val prevRVD = prev.rvd
     val prevRowType = prev.rvd.typ.rowType
-    val prevKeyType = prev.rvd.typ.kType
 
-    val rowType = prevKeyType ++ PCanonicalStruct(true, ("grouped_fields", PCanonicalArray(prevRowType, required = true)))
+    val rowType = PCanonicalStruct(required = true,
+      prev.rvd.typ.kType.fields.map(f => (f.name, f.typ)) ++
+        Array(("grouped_fields", PCanonicalArray(prevRowType, required = true))): _*)
     val newRVDType = prevRVD.typ.copy(rowType = rowType)
     val keyIndices = child.typ.keyFieldIdx
 

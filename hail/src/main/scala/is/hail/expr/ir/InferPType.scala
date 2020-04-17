@@ -230,7 +230,7 @@ object InferPType {
           i.pType
         })
         a.implementation.returnPType(pTypes, a.returnType)
-      case a@ApplySpecial(_, args, _) =>
+      case a@ApplySpecial(_, _, args, _) =>
         val pTypes = args.map(i => {
           infer(i)
           i.pType
@@ -281,6 +281,18 @@ object InferPType {
         infer(collection)
         val elt = coerce[PBaseStruct](coerce[PStream](collection.pType).elementType)
         PCanonicalDict(elt.types(0), PCanonicalArray(elt.types(1)), collection.pType.required)
+      case StreamTake(a, len) =>
+        infer(a)
+        infer(len)
+        assert(len.pType isOfType PInt32())
+        assert(a.pType.isInstanceOf[PStream])
+        a.pType.orMissing(len.pType.required)
+      case StreamDrop(a, len) =>
+        infer(a)
+        infer(len)
+        assert(len.pType isOfType PInt32())
+        assert(a.pType.isInstanceOf[PStream])
+        a.pType.orMissing(len.pType.required)
       case StreamMap(a, name, body) =>
         infer(a)
         infer(body, env.bind(name, a.pType.asInstanceOf[PStream].elementType))

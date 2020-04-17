@@ -22,6 +22,10 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://hail.is",
+    project_urls={
+        'Documentation': 'https://hail.is/docs/0.2/',
+        'Repository': 'https://github.com/hail-is/hail',
+    },
     packages=find_packages('.'),
     package_dir={
         'hail': 'hail',

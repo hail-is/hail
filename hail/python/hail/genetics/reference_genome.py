@@ -2,7 +2,7 @@ import json
 import re
 from hail.typecheck import *
 from hail.utils import wrap_to_list
-from hail.utils.java import jiterable_to_list, Env, joption
+from hail.utils.java import Env
 from hail.typecheck import oneof, transformed
 import hail as hl
 
@@ -115,8 +115,6 @@ class ReferenceGenome(object):
 
         if not _builtin:
             Env.backend().add_reference(self._config)
-
-        hl.ir.register_reference_genome_functions(name)
 
         self._sequence_files = None
         self._liftovers = dict()

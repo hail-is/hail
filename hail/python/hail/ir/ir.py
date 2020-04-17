@@ -1869,24 +1869,19 @@ class Die(IR):
 
 _function_registry = defaultdict(list)
 _seeded_function_registry = defaultdict(list)
-_session_functions = set()
 _udf_registry = dict()
 
 
 def clear_session_functions():
-    global _session_functions, _udf_registry
-    for name, param_types, ret_type in _session_functions:
-        remove_function(name, param_types, ret_type)
-
+    global _udf_registry
     for f in _udf_registry.values():
-        remove_function(f._name, f._param_types, f._ret_type)
+        remove_function(f._name, f._param_types, f._ret_type, f._type_args)
 
-    _session_functions = set()
     _udf_registry = dict()
 
 
-def remove_function(name, param_types, ret_type):
-    f = (param_types, ret_type)
+def remove_function(name, param_types, ret_type, type_args=()):
+    f = (param_types, ret_type, type_args)
     bindings = _function_registry[name]
     bindings = [b for b in bindings if b != f]
     if not bindings:
@@ -1894,15 +1889,8 @@ def remove_function(name, param_types, ret_type):
     else:
         _function_registry[name] = bindings
 
-
-def register_session_function(name, param_types, ret_type):
-    _session_functions.add((name, param_types, ret_type))
-    register_function(name, param_types, ret_type)
-
-
-def register_function(name, param_types, ret_type):
-    _register(_function_registry, name, (param_types, ret_type))
-
+def register_function(name, param_types, ret_type, type_args=()):
+    _register(_function_registry, name, (param_types, ret_type, type_args))
 
 def register_seeded_function(name, param_types, ret_type):
     _register(_seeded_function_registry, name, (param_types, ret_type))
@@ -1926,21 +1914,24 @@ def udf(*param_types):
 
 
 class Apply(IR):
-    @typecheck_method(function=str, return_type=hail_type, args=IR)
-    def __init__(self, function, return_type, *args):
+    @typecheck_method(function=str, return_type=hail_type, args=IR, type_args=tupleof(hail_type))
+    def __init__(self, function, return_type, *args, type_args=()):
         super().__init__(*args)
         self.function = function
         self.return_type = return_type
+        self.type_args = type_args
         self.args = args
 
     def copy(self, *args):
-        return Apply(self.function, self.return_type, *args)
+        return Apply(self.function, self.return_type, *args, type_args=self.type_args)
 
     def head_str(self):
-        return f'{escape_id(self.function)} {self.return_type._parsable_string()}'
+        type_args = "(" + " ".join([a._parsable_string() for a in self.type_args]) + ")"
+        return f'{escape_id(self.function)} {type_args} {self.return_type._parsable_string()}'
 
     def _eq(self, other):
         return other.function == self.function and \
+               other.type_args == self.type_args and \
                other.return_type == self.return_type
 
     def _compute_type(self, env, agg_env):

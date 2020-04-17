@@ -100,12 +100,14 @@ object BlockMatrixReader {
 }
 
 abstract class BlockMatrixReader {
+  def pathsUsed: Seq[String]
   def apply(ctx: ExecuteContext, hc: HailContext): BlockMatrix
   def fullType: BlockMatrixType
 }
 
 case class BlockMatrixNativeReader(path: String) extends BlockMatrixReader {
-  override lazy val fullType = {
+  def pathsUsed: Seq[String] = Array(path)
+  lazy val fullType = {
     val metadata = BlockMatrix.readMetadata(HailContext.get, path)
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(metadata.nRows, metadata.nCols)
 
@@ -113,18 +115,20 @@ case class BlockMatrixNativeReader(path: String) extends BlockMatrixReader {
     BlockMatrixType(TFloat64, tensorShape, isRowVector, metadata.blockSize, sparsity)
   }
 
-  override def apply(ctx: ExecuteContext, hc: HailContext): BlockMatrix = BlockMatrix.read(hc, path)
+  def apply(ctx: ExecuteContext, hc: HailContext): BlockMatrix = BlockMatrix.read(hc, path)
 }
 
 case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockSize: Int) extends BlockMatrixReader {
+  def pathsUsed: Seq[String] = Array(path)
+
   val IndexedSeq(nRows, nCols) = shape
   BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
 
-  override lazy val fullType: BlockMatrixType = {
+  lazy val fullType: BlockMatrixType = {
     BlockMatrixType.dense(TFloat64, nRows, nCols, blockSize)
   }
 
-  override def apply(ctx: ExecuteContext, hc: HailContext): BlockMatrix = {
+  def apply(ctx: ExecuteContext, hc: HailContext): BlockMatrix = {
     val breezeMatrix = RichDenseMatrixDouble.importFromDoubles(hc, path, nRows.toInt, nCols.toInt, rowMajor = true)
     BlockMatrix.fromBreezeMatrix(hc.sc, breezeMatrix, blockSize)
   }
@@ -132,6 +136,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
 
 case class BlockMatrixPersistReader(id: String) extends BlockMatrixReader {
   lazy val bm: BlockMatrix = HailContext.sparkBackend().bmCache.getPersistedBlockMatrix(id)
+  def pathsUsed: Seq[String] = FastSeq()
   lazy val fullType: BlockMatrixType = BlockMatrixType.fromBlockMatrix(bm)
   def apply(ctx: ExecuteContext, hc: HailContext): BlockMatrix = bm
 }
@@ -182,13 +187,13 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
 
     val (name, breezeF): (String, DenseMatrix[Double] => DenseMatrix[Double]) = f match {
       case ApplyUnaryPrimOp(Negate(), _) => ("negate", BlockMatrix.negationOp)
-      case Apply("abs", _, _) => ("abs", numerics.abs(_))
-      case Apply("log", _, _) => ("log", numerics.log(_))
-      case Apply("sqrt", _, _) => ("sqrt", numerics.sqrt(_))
-      case Apply("ceil", _, _) => ("ceil", numerics.ceil(_))
-      case Apply("floor", _, _) => ("floor", numerics.floor(_))
+      case Apply("abs", _, _, _) => ("abs", numerics.abs(_))
+      case Apply("log", _, _, _) => ("log", numerics.log(_))
+      case Apply("sqrt", _, _, _) => ("sqrt", numerics.sqrt(_))
+      case Apply("ceil", _, _, _) => ("ceil", numerics.ceil(_))
+      case Apply("floor", _, _, _) => ("floor", numerics.floor(_))
 
-      case Apply("pow", Seq(Ref(`eltName`, _), r), _) if !Mentions(r, eltName) =>
+      case Apply("pow", _, Seq(Ref(`eltName`, _), r), _) if !Mentions(r, eltName) =>
         ("**", binaryOp(evalIR(ctx, r), numerics.pow(_, _)))
       case ApplyBinaryPrimOp(Add(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
         ("+", binaryOp(evalIR(ctx, r), _ + _))

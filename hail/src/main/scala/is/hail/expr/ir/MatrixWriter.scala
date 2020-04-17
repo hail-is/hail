@@ -21,10 +21,12 @@ case class WrappedMatrixWriter(writer: MatrixWriter,
   colsFieldName: String,
   entriesFieldName: String,
   colKey: IndexedSeq[String]) extends TableWriter {
+  def path: String = writer.path
   def apply(tv: TableValue): Unit = writer(tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
 }
 
 abstract class MatrixWriter {
+  def path: String
   def apply(mv: MatrixValue): Unit
 }
 
@@ -42,7 +44,7 @@ case class MatrixNativeWriter(
 case class MatrixVCFWriter(
   path: String,
   append: Option[String] = None,
-  exportType: Int = ExportType.CONCATENATED,
+  exportType: String = ExportType.CONCATENATED,
   metadata: Option[VCFMetadata] = None
 ) extends MatrixWriter {
   def apply(mv: MatrixValue): Unit = ExportVCF(mv, path, append, exportType, metadata)
@@ -57,7 +59,7 @@ case class MatrixGENWriter(
 
 case class MatrixBGENWriter(
   path: String,
-  exportType: Int
+  exportType: String
 ) extends MatrixWriter {
   def apply(mv: MatrixValue): Unit = ExportBGEN(mv, path, exportType)
 }

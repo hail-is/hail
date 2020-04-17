@@ -18,7 +18,7 @@ class LocusFunctionsSuite extends HailSuite {
   private def tlocus = TLocus(grch38)
   private def tvariant = TStruct("locus" -> tlocus, "alleles" -> TArray(TString))
 
-  def locusIR: Apply = Apply("Locus", FastSeq(Str("chr22"), I32(1)), tlocus)
+  def locusIR: Apply = Apply("Locus", FastSeq(), FastSeq(Str("chr22"), I32(1)), tlocus)
 
   def locus = Locus("chr22", 1, grch38)
 

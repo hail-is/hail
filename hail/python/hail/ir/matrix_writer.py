@@ -3,6 +3,7 @@ import json
 from hail.expr.types import hail_type
 from ..typecheck import *
 from ..utils.misc import escape_str
+from .export_type import ExportType
 
 
 class MatrixWriter(object):
@@ -54,7 +55,7 @@ class MatrixNativeWriter(MatrixWriter):
 class MatrixVCFWriter(MatrixWriter):
     @typecheck_method(path=str,
                       append=nullable(str),
-                      export_type=int,
+                      export_type=ExportType.checker,
                       metadata=nullable(dictof(str, dictof(str, dictof(str, str)))))
     def __init__(self, path, append, export_type, metadata):
         self.path = path
@@ -98,7 +99,7 @@ class MatrixGENWriter(MatrixWriter):
 
 
 class MatrixBGENWriter(MatrixWriter):
-    @typecheck_method(path=str, export_type=int)
+    @typecheck_method(path=str, export_type=ExportType.checker)
     def __init__(self, path, export_type):
         self.path = path
         self.export_type = export_type

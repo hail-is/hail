@@ -37,22 +37,22 @@ class EmitStreamSuite extends HailSuite {
     asmFn.apply
   }
 
-  def range(start: Code[Int], stop: Code[Int], name: String)(implicit ctx: EmitStreamContext): CodeStream.Stream[Code[Int]] =
-    CodeStream.map(CodeStream.range(ctx.mb, start, 1, stop - start))(
+  def range(start: Code[Int], stop: Code[Int], name: String)(implicit ctx: EmitStreamContext): Stream[Code[Int]] =
+    Stream.range(ctx.mb, start, 1, stop - start).map(
       a => a,
       setup0 = Some(Code._println(const(s"$name setup0"))),
       setup = Some(Code._println(const(s"$name setup"))),
       close0 = Some(Code._println(const(s"$name close0"))),
       close = Some(Code._println(const(s"$name close"))))
 
-  class CheckedStream[T](_stream: CodeStream.Stream[T], name: String, mb: EmitMethodBuilder[_]) {
+  class CheckedStream[T](_stream: Stream[T], name: String, mb: EmitMethodBuilder[_]) {
     val outerBit = mb.newLocal[Boolean]()
     val innerBit = mb.newLocal[Boolean]()
     val innerCount = mb.newLocal[Int]()
 
     def init: Code[Unit] = Code(outerBit := false, innerBit := false, innerCount := 0)
 
-    val stream: CodeStream.Stream[T] = _stream.mapCPS(
+    val stream: Stream[T] = _stream.mapCPS(
       (ctx, a, k) => (outerBit & innerBit).mux(
         k(a),
         Code._fatal[Unit](s"$name: pulled from when not setup")),
@@ -92,7 +92,7 @@ class EmitStreamSuite extends HailSuite {
   def checkedRange(start: Code[Int], stop: Code[Int], name: String, mb: EmitMethodBuilder[_]): CheckedStream[Code[Int]] = {
     val tstart = mb.newLocal[Int]()
     val len = mb.newLocal[Int]()
-    val s = CodeStream.range(mb, tstart, 1, len)
+    val s = Stream.range(mb, tstart, 1, len)
       .map(
         f = x => x,
         setup0 = Some(Code(tstart := 0, len := 0)),
@@ -106,7 +106,7 @@ class EmitStreamSuite extends HailSuite {
 
       Code(
         r.init,
-        r.stream.forEach(mb)(i => Code._println(i.toS)),
+        r.stream.forEach(mb, i => Code._println(i.toS)),
         r.assertClosed(1))
     }
     for (i <- 0 to 2) { f(i) }
@@ -116,11 +116,11 @@ class EmitStreamSuite extends HailSuite {
     val f = compile2[Int, Int, Unit] { (mb, m, n) =>
       val l = checkedRange(0, m, "left", mb)
       val r = checkedRange(0, n, "right", mb)
-      val z = CodeStream.zip(l.stream, r.stream)
+      val z = Stream.zip(l.stream, r.stream)
 
       Code(
         l.init, r.init,
-        z.forEach(mb)(x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")"))),
+        z.forEach(mb, x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")"))),
         l.assertClosed(1), r.assertClosed(1))
     }
     for {
@@ -139,7 +139,7 @@ class EmitStreamSuite extends HailSuite {
         inner = checkedRange(0, i, "inner", mb)
         inner.stream
       }
-      val run = outer.stream.flatMap(f).forEach(mb)(i => Code._println(i.toS))
+      val run = outer.stream.flatMap(f).forEach(mb, i => Code._println(i.toS))
 
       Code(
         outer.init, inner.init,
@@ -161,8 +161,9 @@ class EmitStreamSuite extends HailSuite {
         rInner = checkedRange(0, i, "right inner", mb)
         rInner.stream
       }
-      val run = CodeStream.zip(l.stream, rOuter.stream.flatMap(f))
-                          .forEach(mb)(x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")")))
+      val run = Stream
+        .zip(l.stream, rOuter.stream.flatMap(f))
+        .forEach(mb, x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")")))
 
       Code(
         l.init, rOuter.init, rInner.init,
@@ -179,17 +180,65 @@ class EmitStreamSuite extends HailSuite {
     f(10, 3)
   }
 
+  @Test def testES2Grouped() {
+    val f = compile1[Int, Unit] { (mb, n) =>
+      val r = checkedRange(0, n, "range", mb)
+      var checkedInner: CheckedStream[Code[Int]] = null
+      val outer = r.stream.grouped(2).map { inner =>
+        checkedInner = new CheckedStream(inner, "inner", mb)
+        checkedInner.stream
+      }
+      val checkedOuter = new CheckedStream(outer, "outer", mb)
+      val run = checkedOuter.stream.forEach(mb, { inner =>
+        inner.forEach(mb, i => Code._println(i.toS))
+      })
+
+      Code(
+        r.init, checkedOuter.init, checkedInner.init,
+        run,
+        r.assertClosed(1),
+        checkedOuter.assertClosed(1),
+        checkedInner.assertClosed((n + 1) / 2))
+    }
+    for (i <- 0 to 5) { f(i) }
+  }
+
+  @Test def testES2GroupedTake() {
+    val f = compile1[Int, Unit] { (mb, n) =>
+      val r = checkedRange(0, n, "range", mb)
+      var checkedInner: CheckedStream[Code[Int]] = null
+      val outer = r.stream.grouped(2).map { inner =>
+        val take = Stream.zip(inner, Stream.range(mb, 0, 1, 1))
+                         .map { case (i, count) => i }
+        checkedInner = new CheckedStream(take, "inner", mb)
+        checkedInner.stream
+      }
+      val checkedOuter = new CheckedStream(outer, "outer", mb)
+      val run = checkedOuter.stream.forEach(mb, { inner =>
+        inner.forEach(mb, i => Code._println(i.toS))
+      })
+
+      Code(
+        r.init, checkedOuter.init, checkedInner.init,
+        run,
+        r.assertClosed(1),
+        checkedOuter.assertClosed(1),
+        checkedInner.assertClosed((n + 1) / 2))
+    }
+    for (i <- 0 to 5) { f(i) }
+  }
+
   @Test def testES2MultiZip() {
     import scala.collection.IndexedSeq
     val f = compile3[Int, Int, Int, Unit] { (mb, n1, n2, n3) =>
       val s1 = checkedRange(0, n1, "s1", mb)
       val s2 = checkedRange(0, n2, "s2", mb)
       val s3 = checkedRange(0, n3, "s3", mb)
-      val z = CodeStream.multiZip(IndexedSeq(s1.stream, s2.stream, s3.stream)).asInstanceOf[CodeStream.Stream[IndexedSeq[Code[Int]]]]
+      val z = Stream.multiZip(IndexedSeq(s1.stream, s2.stream, s3.stream)).asInstanceOf[Stream[IndexedSeq[Code[Int]]]]
 
       Code(
         s1.init, s2.init, s3.init,
-        z.forEach(mb)(x => Code._println(const("(").concat(x(0).toS).concat(", ").concat(x(1).toS).concat(", ").concat(x(2).toS).concat(")"))),
+        z.forEach(mb, x => Code._println(const("(").concat(x(0).toS).concat(", ").concat(x(1).toS).concat(", ").concat(x(2).toS).concat(")"))),
         s1.assertClosed(1),
         s2.assertClosed(1),
         s3.assertClosed(1))
@@ -278,9 +327,8 @@ class EmitStreamSuite extends HailSuite {
     fb.emit(
       Code(
         optStream(
-          Code(len := 0, L.goto), { stream =>
-            stream.length.map[Code[Ctrl]] { case (s, l) => Code(s, len := l, L.goto) }.getOrElse[Code[Ctrl]](
-              Code(len := -1, L.goto))
+          Code(len := 0, L.goto), { case EmitStream.SizedStream(setup, _, length) =>
+            Code(setup, len := length.getOrElse(-1), L.goto)
           }),
         L,
         len))

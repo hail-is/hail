@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 {% block title %}PR {{ number }}{% endblock %}
 {% block content %}
-    <h1>{{ pr.title }} <a href="https://github.com/{{ wb.repo }}/pull/{{ pr.number }}"><span class="gh-number">#{{ pr.number }}</span></a></h1>
+    <h1>{{ pr.title }} <a href="https://github.com/{{ repo }}/pull/{{ pr.number }}"><span class="gh-number">#{{ pr.number }}</span></a></h1>
     {% if batch is defined %}
     <div class="attributes">
       <div>batch: <a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></div>
@@ -13,6 +13,10 @@
       <div>{{ name }}: {{ value }}</div>
       {% endfor %}
     </div>
+    <form action="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ pr.number }}/retry" method="post">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+      <button type="submit">Retry</button>
+    </form>
     <h2>Jobs</h2>
     <table class="data-table" style="line-height: 175%">
       <thead>

@@ -1,22 +1,18 @@
 import hail as hl
 from hail.expr.nat import NatVariable
-from .ir import register_function, register_session_function, register_seeded_function
-
-
-def register_reference_genome_functions(rg):
-    from hail.expr.types import dtype
-
-    register_session_function(f"isValidContig_{rg}", (dtype("str"),), dtype("bool"))
-    register_session_function(f"isValidLocus_{rg}", (dtype("str"),dtype("int32"),), dtype("bool"))
-
-    register_session_function(f"contigLength_{rg}", (dtype("str"),), dtype("int32"))
-
-    register_session_function(f"getReferenceSequenceFromValidLocus_{rg}", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
-    register_session_function(f"getReferenceSequence_{rg}", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
+from .ir import register_function, register_seeded_function
 
 
 def register_functions():
-    from hail.expr.types import dtype
+    from hail.expr.types import dtype, tvariable
+
+    locusVar = tvariable("R", "locus")
+
+    register_function(f"isValidContig", (dtype("str"),), dtype("bool"), (locusVar,))
+    register_function(f"isValidLocus", (dtype("str"), dtype("int32"),), dtype("bool"), (locusVar,))
+    register_function(f"contigLength", (dtype("str"),), dtype("int32"), (locusVar,))
+    register_function(f"getReferenceSequenceFromValidLocus", (dtype("str"), dtype("int32"), dtype("int32"), dtype("int32"),), dtype("str"), (locusVar,))
+    register_function(f"getReferenceSequence", (dtype("str"),dtype("int32"), dtype("int32"), dtype("int32"),), dtype("str"), (locusVar,))
 
     register_function("flatten", (dtype("array<array<?T>>"),), dtype("array<?T>"))
     register_function("difference", (dtype("set<?T>"),dtype("set<?T>"),), dtype("set<?T>"))

@@ -334,8 +334,13 @@ object Code {
     newC
   }
 
-  def _println(c: Code[AnyRef]): Code[Unit] =
-    Code.invokeScalaObject[AnyRef, Unit](scala.Console.getClass, "println", c)
+  def _println(c: Code[AnyRef]): Code[Unit] = {
+    Code(
+      Code.invokeScalaObject[AnyRef, Unit](scala.Console.getClass, "println", c),
+      Code.invokeScalaObject[Unit](scala.Console.getClass, "flush")
+    )
+  }
+
 
   def checkcast[T](v: Code[_])(implicit tti: TypeInfo[T]): Code[T] =
     Code(v, lir.checkcast(tti.iname))
@@ -380,7 +385,7 @@ object Code {
       c.v match {
         case v: lir.LdcX =>
           val t = new Value[T] {
-            def get: Code[T] = Code(lir.ldcInsn(v.a))
+            def get: Code[T] = Code(lir.ldcInsn(v.a, v.ti))
           }
           return f(t)
         // You can't forward local references here because the local might have changed
@@ -554,9 +559,9 @@ class CCode(
       val c = new lir.Local(null, "bool", BooleanInfo)
       _start = _entry
       _end = new lir.Block()
-      _Ltrue.append(lir.store(c, lir.ldcInsn(1)))
+      _Ltrue.append(lir.store(c, lir.ldcInsn(1, BooleanInfo)))
       _Ltrue.append(lir.goto(_end))
-      _Lfalse.append(lir.store(c, lir.ldcInsn(0)))
+      _Lfalse.append(lir.store(c, lir.ldcInsn(0, BooleanInfo)))
       _Lfalse.append(lir.goto(_end))
       _v = lir.load(c)
 
@@ -630,7 +635,7 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
       lhs.v match {
         case v: lir.LdcX =>
           lhs.end.append(lir.goto(
-            if (v.a.asInstanceOf[Boolean])
+            if (v.a.asInstanceOf[Int] != 0)
               Ltrue
             else
               Lfalse))
@@ -727,6 +732,12 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
   def /(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, lir.insn2(IDIV))
 
   def %(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, lir.insn2(IREM))
+
+  def max(rhs: Code[Int]): Code[Int] =
+    Code.invokeStatic[Math, Int, Int, Int]("max", lhs, rhs)
+
+  def min(rhs: Code[Int]): Code[Int] =
+    Code.invokeStatic[Math, Int, Int, Int]("min", lhs, rhs)
 
   def compare(op: Int, rhs: Code[Int]): Code[Boolean] = {
     val Ltrue = new lir.Block()

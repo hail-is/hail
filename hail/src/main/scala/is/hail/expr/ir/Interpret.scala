@@ -342,7 +342,26 @@ object Interpret {
         interpret(collection, env, args).asInstanceOf[IndexedSeq[Row]]
           .groupBy { case Row(k, _) => k }
           .mapValues { elt: IndexedSeq[Row] => elt.map { case Row(_, v) => v } }
-
+      case StreamTake(a, len) =>
+        val aValue = interpret(a, env, args)
+        val lenValue = interpret(len, env, args)
+        if (aValue == null || lenValue == null)
+          null
+        else {
+          val len = lenValue.asInstanceOf[Int]
+          if (len < 0) fatal("StreamTake: negative length")
+          aValue.asInstanceOf[IndexedSeq[Any]].take(len)
+        }
+      case StreamDrop(a, num) =>
+        val aValue = interpret(a, env, args)
+        val numValue = interpret(num, env, args)
+        if (aValue == null || numValue == null)
+          null
+        else {
+          val n = numValue.asInstanceOf[Int]
+          if (n < 0) fatal("StreamDrop: negative num")
+          aValue.asInstanceOf[IndexedSeq[Any]].drop(n)
+        }
       case StreamMap(a, name, body) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
@@ -512,9 +531,9 @@ object Interpret {
       case Die(message, typ) =>
         val message_ = interpret(message).asInstanceOf[String]
         fatal(if (message_ != null) message_ else "<exception message missing>")
-      case ir@ApplyIR(function, functionArgs) =>
+      case ir@ApplyIR(function, _, functionArgs) =>
         interpret(ir.explicitNode, env, args)
-      case ApplySpecial("lor", Seq(left_, right_), _) =>
+      case ApplySpecial("lor", _, Seq(left_, right_), _) =>
         val left = interpret(left_)
         if (left == true)
           true
@@ -526,7 +545,7 @@ object Interpret {
             null
           else false
         }
-      case ApplySpecial("land", Seq(left_, right_), _) =>
+      case ApplySpecial("land", _, Seq(left_, right_), _) =>
         val left = interpret(left_)
         if (left == false)
           false

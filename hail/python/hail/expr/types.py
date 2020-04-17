@@ -11,7 +11,7 @@ from hail.expr.nat import NatBase, NatLiteral
 from hail.expr.type_parsing import type_grammar, type_node_visitor
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import *
-from hail.utils.java import scala_object, jset, Env, escape_parsable
+from hail.utils.java import escape_parsable
 
 __all__ = [
     'dtype',
@@ -654,12 +654,12 @@ class tndarray(HailType):
         return np.ndarray(shape=x['shape'], buffer=np.array(x['data'], dtype=np_type), strides=x['strides'], dtype=np_type)
 
     def _convert_to_json(self, x):
-        data = x.reshape(x.size).tolist()
+        data = x.flatten("F").tolist()
 
         strides = []
         axis_one_step_byte_size = x.itemsize
-        for dimension_size in reversed(x.shape):
-            strides.insert(0, axis_one_step_byte_size)
+        for dimension_size in x.shape:
+            strides.append(axis_one_step_byte_size)
             axis_one_step_byte_size *= (dimension_size if dimension_size > 0 else 1)
 
         json_dict = {

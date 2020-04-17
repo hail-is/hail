@@ -143,6 +143,8 @@ trait WrappedClassBuilder[C] extends WrappedModuleBuilder {
 
   def getOrDefineLazyField[T: TypeInfo](setup: Code[T], id: Any): Value[T] = cb.getOrDefineLazyField(setup, id)
 
+  def fieldBuilder: SettableBuilder = cb.fieldBuilder
+
   def newMethod(name: String, parameterTypeInfo: IndexedSeq[TypeInfo[_]], returnTypeInfo: TypeInfo[_]): MethodBuilder[C] =
     cb.newMethod(name, parameterTypeInfo, returnTypeInfo)
 
@@ -294,6 +296,10 @@ class ClassBuilder[C](
 
   def _this: Value[C] = new LocalRef[C](new lir.Parameter(null, 0, ti))
 
+  val fieldBuilder: SettableBuilder = new SettableBuilder {
+    def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] = genFieldThisRef[T](name)
+  }
+
   def genFieldThisRef[T: TypeInfo](name: String = null): ThisFieldRef[T] =
     new ThisFieldRef[T](this, genField[T](name))
 
@@ -374,6 +380,8 @@ trait WrappedMethodBuilder[C] extends WrappedClassBuilder[C] {
 
   def newLocal[T: TypeInfo](name: String = null): LocalRef[T] = mb.newLocal(name)
 
+  def localBuilder: SettableBuilder = mb.localBuilder
+
   def getArg[T: TypeInfo](i: Int): LocalRef[T] = mb.getArg[T](i)
 
   def emitStartup(c: Code[Unit]): Unit = mb.emitStartup(c)
@@ -394,6 +402,10 @@ class MethodBuilder[C](
     throw new IllegalArgumentException(s"Illegal method name, not Java identifier: $methodName")
 
   val lmethod: lir.Method = cb.lclass.newMethod(methodName, parameterTypeInfo, returnTypeInfo)
+
+  val localBuilder: SettableBuilder = new SettableBuilder {
+    def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] = newLocal[T](name)
+  }
 
   def newLocal[T: TypeInfo](name: String = null): LocalRef[T] =
     new LocalRef[T](lmethod.newLocal(name, typeInfo[T]))

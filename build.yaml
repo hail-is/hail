@@ -90,6 +90,8 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
+     make -C hail python/hail/hail_version python/hail/hail_pip_version
+     git rev-parse HEAD > git_version
    outputs:
      - from: /io/repo/auth/sql
        to: /repo/auth/
@@ -99,12 +101,20 @@ steps:
        to: /repo/batch/
      - from: /io/repo/batch/test
        to: /repo/batch/
-     - from: /io/repo/pipeline/test
-       to: /repo/pipeline/
      - from: /io/repo/notebook/sql
        to: /repo/notebook/
      - from: /io/repo/hail/python/hailtop
        to: /repo/hailtop/
+     - from: /io/repo/hail/python/test
+       to: /repo/test/
+     - from: /io/repo/hail/python/cluster-tests/
+       to: /repo/hail/python/cluster-tests
+     - from: /io/repo/hail/python/hail/hail_version
+       to: /hail_version
+     - from: /io/repo/hail/python/hail/hail_pip_version
+       to: /hail_pip_version
+     - from: /io/repo/git_version
+       to: /git_version
    dependsOn:
      - base_image
  - kind: runImage
@@ -223,7 +233,7 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: admin-pod/admin-pod.yaml
-   scope:
+   scopes:
     - deploy
     - dev
    dependsOn:
@@ -680,7 +690,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=0
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -713,7 +723,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=1
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -746,7 +756,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=2
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -779,7 +789,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=3
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -812,7 +822,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=4
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /wheel-container.tar
        to: /io/wheel-container.tar
@@ -856,11 +866,11 @@ steps:
        | pandoc -o python/hail/docs/change_log.rst
      make -C www
      make -C python/hail/docs BUILDDIR=_build clean html
-     make -C python/hailtop/pipeline/docs BUILDDIR=_build clean html
+     make -C python/hailtop/batch/docs BUILDDIR=_build clean html
      mkdir -p www/docs
      rm -f www/*.md
      mv python/hail/docs/_build/html www/docs/0.2
-     mv python/hailtop/pipeline/docs/_build/html www/docs/pipeline
+     mv python/hailtop/batch/docs/_build/html www/docs/batch
      HAIL_CACHE_VERSION=$(cat python/hail/hail_version)
      find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
      tar czf /io/www.tar.gz www
@@ -883,6 +893,10 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: router/deployment.yaml
+   wait:
+     - kind: Service
+       name: router
+       for: alive
    link:
     - www
     - notebook
@@ -895,6 +909,10 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: site/deployment.yaml
+   wait:
+    - kind: Service
+      name: site
+      for: alive
    dependsOn:
     - default_ns
     - site_image
@@ -992,6 +1010,8 @@ steps:
    migrations:
     - name: initial
       script: /io/sql/initial.sql
+    - name: invalidated-batches
+      script: /io/sql/invalidated-batches.sql
    inputs:
     - from: /repo/ci/sql
       to: /io/
@@ -1221,35 +1241,15 @@ steps:
     - test_ci_image
     - create_ci_test_repo
  - kind: runImage
-   name: setup_pipeline
-   image:
-     valueFrom: base_image.image
-   script: |
-     set -e
-     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-     gsutil -m cp -r /io/test/resources/* gs://hail-test-dmk9z/{{ token }}/pipeline/input/
-   inputs:
-    - from: /repo/pipeline/test
-      to: /io/
-   secrets:
-    - name: test-gsa-key
-      namespace:
-        valueFrom: batch_pods_ns.name
-      mountPath: /test-gsa-key
-   dependsOn:
-    - batch_pods_ns
-    - copy_files
-    - base_image
- - kind: runImage
-   name: test_pipeline
+   name: test_hailtop_batch
    image:
      valueFrom: service_base_image.image
    script: |
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
-     export SCRATCH=gs://hail-test-dmk9z/{{ setup_pipeline.token }}/pipeline
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/
+     export SCRATCH=gs://hail-test-dmk9z/{{ token }}/batch
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/test/hailtop/batch/
    inputs:
-    - from: /repo/pipeline/test
+    - from: /repo/test
       to: /io/
    timeout: 1200
    secrets:
@@ -1261,21 +1261,24 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
+    - name: test-gsa-key
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /test-gsa-key      
    dependsOn:
     - default_ns
     - batch_pods_ns
     - copy_files
     - service_base_image
     - deploy_batch
-    - setup_pipeline
  - kind: runImage
-   name: test_pipeline_docs
+   name: test_batch_docs
    image:
      valueFrom: base_image.image
    script: |
      set -ex
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
-     cd /io/hailtop/hailtop/pipeline
+     cd /io/hailtop/hailtop/batch
      python3 -m pytest --instafail \
        --doctest-modules \
        --doctest-glob='*.rst' \
@@ -1299,26 +1302,6 @@ steps:
    inputs:
     - from: /repo/hailtop
       to: /io/
- - kind: runImage
-   name: cleanup_pipeline
-   image:
-     valueFrom: base_image.image
-   alwaysRun: true
-   script: |
-     set -e
-     gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-     gsutil -m rm -r gs://hail-test-dmk9z/{{ setup_pipeline.token }}/pipeline
-   secrets:
-    # hail|test-batch
-    - name: test-gsa-key
-      namespace:
-        valueFrom: batch_pods_ns.name
-      mountPath: /test-gsa-key
-   dependsOn:
-    - batch_pods_ns
-    - base_image
-    - setup_pipeline
-    - test_pipeline
  - kind: createDatabase
    name: notebook_database
    databaseName: notebook
@@ -1471,4 +1454,100 @@ steps:
     - base_image
     - test_batch
     - test_ci
-    - test_pipeline
+    - test_hailtop_batch
+ - kind: runImage
+   name: test_dataproc
+   image:
+     valueFrom: ci_utils_image.image
+   script: |
+     set -ex
+
+     cd /io
+
+     gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
+     gcloud config set project hail-vdc
+     gcloud config set dataproc/region us-central1
+
+     mkdir -p repo
+     cd repo
+
+     {{ code.checkout_script }}
+
+     if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
+     then
+         echo "tag $HAIL_PIP_VERSION already exists"
+         exit 0
+     fi
+
+     cd hail
+     make test-dataproc DEV_CLARIFIER=ci_test_dataproc
+   dependsOn:
+     - ci_utils_image
+     - copy_files
+     - default_ns
+   inputs:
+     - from: /hail_pip_version
+       to: /io/hail_pip_version
+   secrets:
+     - name: test-dataproc-service-account-key
+       namespace:
+         valueFrom: default_ns.name
+       mountPath: /test-dataproc-service-account-key
+   scopes:
+     - deploy
+     - dev
+ - kind: runImage
+   name: deploy
+   image:
+     valueFrom: ci_utils_image.image
+   script: |
+     set -ex
+     cd /io
+
+     tar xvf wheel-container.tar
+     gcloud auth activate-service-account --key-file=/ci-deploy-0-1--hail-is-hail/ci-deploy-0-1--hail-is-hail.json
+     cp /pypi-credentials/pypirc $HOME/.pypirc
+     printf 'Authorization: token ' > github-oauth
+     cat /hail-ci-0-1-github-oauth-token/oauth-token >>github-oauth
+
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+
+     bash scripts/deploy.sh $(cat /io/hail_pip_version) \
+                            $(cat /io/hail_version) \
+                            $(cat /io/git_version) \
+                            origin \
+                            /io/hail-*-py3-none-any.whl \
+                            /io/github-oauth
+   inputs:
+     - from: /wheel-container.tar
+       to: /io/wheel-container.tar
+     - from: /hail_version
+       to: /io/hail_version
+     - from: /hail_pip_version
+       to: /io/hail_pip_version
+     - from: /git_version
+       to: /io/git_version
+   secrets:
+    - name: pypi-credentials
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /pypi-credentials
+    - name: ci-deploy-0-1--hail-is-hail
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /ci-deploy-0-1--hail-is-hail
+    - name: hail-ci-0-1-github-oauth-token
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /hail-ci-0-1-github-oauth-token
+   scopes:
+    - deploy
+    - dev
+   dependsOn:
+    - test_dataproc
+    - default_ns
+    - copy_files
+    - ci_utils_image
+    - build_hail

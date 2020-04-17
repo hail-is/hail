@@ -802,6 +802,18 @@ package object utils extends Logging
 
     true
   }
+
+  def commonPrefix[T](left: IndexedSeq[T], right: IndexedSeq[T]): IndexedSeq[T] = {
+    var i = 0
+    while (i < left.length && i < right.length && left(i) == right(i))
+      i += 1
+    if (i == left.length)
+      left
+    else if (i == right.length)
+      right
+    else
+      left.take(i)
+  }
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d

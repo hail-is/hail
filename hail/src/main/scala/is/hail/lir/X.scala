@@ -653,19 +653,7 @@ class NewArrayX(val eti: TypeInfo[_]) extends ValueX {
 
 class NewInstanceX(val ti: TypeInfo[_]) extends ValueX
 
-class LdcX(val a: Any) extends ValueX {
-  val ti: TypeInfo[_] = a match {
-    case _: Boolean => BooleanInfo
-    case _: Byte => ByteInfo
-    case _: Short => ShortInfo
-    case _: Int => IntInfo
-    case _: Long => LongInfo
-    case _: Char => CharInfo
-    case _: Float => FloatInfo
-    case _: Double => DoubleInfo
-    case _: String => classInfo[String]
-  }
-}
+class LdcX(val a: Any, val ti: TypeInfo[_]) extends ValueX
 
 class MethodX(val op: Int, val method: MethodRef) extends ValueX {
   def ti: TypeInfo[_] = method.returnTypeInfo

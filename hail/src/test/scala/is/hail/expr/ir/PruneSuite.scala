@@ -89,6 +89,9 @@ class PruneSuite extends HailSuite {
     false).execute(ctx), ctx)
 
   lazy val tr = TableRead(tab.typ, false, new TableReader {
+
+    def pathsUsed: Seq[String] = FastSeq()
+
     def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???
 
     def partitionCounts: Option[IndexedSeq[Long]] = ???
@@ -109,6 +112,8 @@ class PruneSuite extends HailSuite {
     FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3)))))
 
   val mr = MatrixRead(mat.typ, false, false, new MatrixReader {
+    def pathsUsed: Seq[String] = FastSeq()
+
     override def columnCount: Option[Int] = None
 
     def partitionCounts: Option[IndexedSeq[Long]] = None
@@ -564,6 +569,14 @@ class PruneSuite extends HailSuite {
 
   @Test def testArrayLenMemo() {
     checkMemo(ArrayLen(arr), TInt32, Array(TArray(empty)))
+  }
+
+  @Test def testStreamTakeMemo() {
+    checkMemo(StreamTake(st, I32(2)), TStream(justA), Array(TStream(justA), null))
+  }
+
+  @Test def testStreamDropMemo() {
+    checkMemo(StreamDrop(st, I32(2)), TStream(justA), Array(TStream(justA), null))
   }
 
   @Test def testStreamMapMemo() {
@@ -1051,6 +1064,22 @@ class PruneSuite extends HailSuite {
         val ir = r.asInstanceOf[MakeArray]
         ir.args.head.typ == subsetTS("b")
       })
+  }
+
+  @Test def testStreamTakeRebuild() {
+    checkRebuild(StreamTake(MakeStream(Seq(NA(ts)), TStream(ts)), I32(2)), TStream(subsetTS("b")),
+                 (_: BaseIR, r: BaseIR) => {
+                   val ir = r.asInstanceOf[StreamTake]
+                   ir.a.typ == TStream(subsetTS("b"))
+                 })
+  }
+
+  @Test def testStreamDropRebuild() {
+    checkRebuild(StreamDrop(MakeStream(Seq(NA(ts)), TStream(ts)), I32(2)), TStream(subsetTS("b")),
+                 (_: BaseIR, r: BaseIR) => {
+                   val ir = r.asInstanceOf[StreamDrop]
+                   ir.a.typ == TStream(subsetTS("b"))
+                 })
   }
 
   @Test def testStreamMapRebuild() {

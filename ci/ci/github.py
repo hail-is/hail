@@ -289,7 +289,9 @@ class PR(Code):
 
         log.info(f'{self.short_str()}: notify github state: {gh_status}')
         if self.batch is None or isinstance(self.batch, MergeFailureBatch):
-            target_url = f'https://ci.hail.is/watched_branches/{self.target_branch.index}/pr/{self.number}'
+            target_url = deploy_config.external_url(
+                'ci',
+                f'/watched_branches/{self.target_branch.index}/pr/{self.number}')
         else:
             assert self.batch.id is not None
             target_url = deploy_config.external_url(
@@ -306,6 +308,11 @@ class PR(Code):
             await gh_client.post(
                 f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}',
                 data=data)
+        except KeyError:
+            log.exception(f'{self.short_str()}: KeyError when updating github status, this is likely due to'
+                          f'a bug in gidgethub. Gidgethub does not correctly parse and raise the too many'
+                          f'status updates error. If that is the issue, pushing a fresh commit to this PR'
+                          f'will fix the problem. {data}')
         except gidgethub.HTTPException as e:
             log.info(f'{self.short_str()}: notify github of build state failed due to exception: {data} {e}')
         except aiohttp.client_exceptions.ClientResponseError as e:
@@ -421,54 +428,48 @@ mkdir -p {shq(repo_dir)}
                 log.info(f'cancelling partial test batch {batch.id}')
                 await batch.cancel()
 
-    async def _update_batch(self, batch_client):
-        if self.build_state:
-            assert self.batch
-            return
+    @staticmethod
+    async def is_invalidated_batch(batch, dbpool):
+        assert batch is not None
+        async with dbpool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute('SELECT * from invalidated_batches WHERE batch_id = %s;', batch.id)
+                row = await cursor.fetchone()
+                return row is not None
 
-        if self.batch is None:
-            # find the latest non-cancelled batch for source
-            batches = batch_client.list_batches(
-                f'test=1 '
-                f'target_branch={self.target_branch.branch.short_str()} '
-                f'source_sha={self.source_sha}')
-
-            min_batch = None
-            failed = None
-            async for b in batches:
-                try:
-                    s = await b.status()
-                except Exception as err:
-                    log.info(f'failed to get the status for batch {b.id} due to error: {err}')
-                    raise
-                if s['state'] != 'cancelled':
-                    if min_batch is None or b.id > min_batch.id:
-                        min_batch = b
-
-                    if s['state'] == 'failure':
-                        failed = True
-                    elif failed is None:
-                        failed = False
-            self.batch = min_batch
-            self.source_sha_failed = failed
-
-        if self.batch:
+    async def _update_batch(self, batch_client, dbpool):
+        # find the latest non-cancelled batch for source
+        batches = batch_client.list_batches(
+            f'test=1 '
+            f'target_branch={self.target_branch.branch.short_str()} '
+            f'source_sha={self.source_sha}')
+        min_batch = None
+        min_batch_status = None
+        async for b in batches:
+            if await self.is_invalidated_batch(b, dbpool):
+                continue
             try:
-                status = await self.batch.status()
-            except aiohttp.client_exceptions.ClientResponseError as exc:
-                if exc.status == 404:
-                    log.info(f'batch {self.batch.id} was deleted by someone')
-                    self.batch = None
-                    self.set_build_state(None)
-                    return
-                raise exc
-            if status['complete']:
-                if status['state'] == 'success':
-                    self.set_build_state('success')
-                else:
-                    self.set_build_state('failure')
-                    self.source_sha_failed = True
-                self.target_branch.state_changed = True
+                s = await b.status()
+            except Exception as err:
+                log.info(f'failed to get the status for batch {b.id} due to error: {err}')
+                raise
+            if s['state'] != 'cancelled':
+                if min_batch is None or b.id > min_batch.id:
+                    min_batch = b
+                    min_batch_status = s
+        self.batch = min_batch
+        self.source_sha_failed = None
+
+        if min_batch_status is None:
+            self.set_build_state(None)
+        elif min_batch_status['complete']:
+            if min_batch_status['state'] == 'success':
+                self.set_build_state('success')
+                self.source_sha_failed = False
+            else:
+                self.set_build_state('failure')
+                self.source_sha_failed = True
+            self.target_branch.state_changed = True
 
     async def _heal(self, batch_client, dbpool, on_deck, gh):
         # can't merge target if we don't know what it is
@@ -602,7 +603,7 @@ class WatchedBranch(Code):
 
                 if self.batch_changed:
                     self.batch_changed = False
-                    await self._update_batch(batch_client)
+                    await self._update_batch(batch_client, dbpool)
 
                 if self.state_changed:
                     self.state_changed = False
@@ -713,14 +714,14 @@ url: {url}
             async with repos_lock:
                 await self._start_deploy(batch_client)
 
-    async def _update_batch(self, batch_client):
+    async def _update_batch(self, batch_client, dbpool):
         log.info(f'update batch {self.short_str()}')
 
         if self.deployable:
             await self._update_deploy(batch_client)
 
         for pr in self.prs.values():
-            await pr._update_batch(batch_client)
+            await pr._update_batch(batch_client, dbpool)
 
     async def _heal(self, batch_client, dbpool, gh):
         log.info(f'heal {self.short_str()}')

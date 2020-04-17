@@ -47,6 +47,8 @@ lazy val root = (project in file(".")).
         , "net.sourceforge.jdistlib" % "jdistlib" % "0.4.5"
         , "org.apache.commons" % "commons-math3" % "3.6.1"
         , "org.testng" % "testng" % "6.8.21" % Test
+        , "com.indeed" % "lsmtree-core" % "1.0.7"
+        , "com.indeed" % "util-serialization" % "1.0.30"
     ),
     unmanagedClasspath in Test += baseDirectory.value / "prebuilt" / "lib"
   )

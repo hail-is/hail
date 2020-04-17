@@ -86,9 +86,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
     return await render_template('ci', request, userdata, 'index.html', page_context)
 
 
-@routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
-@web_authenticated_developers_only()
-async def get_pr(request, userdata):  # pylint: disable=unused-argument
+def wb_and_pr_from_request(request):
     watched_branch_index = int(request.match_info['watched_branch_index'])
     pr_number = int(request.match_info['pr_number'])
 
@@ -98,11 +96,17 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
 
     if not wb.prs or pr_number not in wb.prs:
         raise web.HTTPNotFound()
-    pr = wb.prs[pr_number]
+    return wb, wb.prs[pr_number]
+
+
+@routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
+@web_authenticated_developers_only()
+async def get_pr(request, userdata):  # pylint: disable=unused-argument
+    wb, pr = wb_and_pr_from_request(request)
 
     page_context = {}
-    page_context['wb'] = wb
     page_context['repo'] = wb.branch.repo.short_str()
+    page_context['wb'] = wb
     page_context['pr'] = pr
     # FIXME
     if pr.batch:
@@ -121,11 +125,45 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
 
     batch_client = request.app['batch_client']
     batches = batch_client.list_batches(
-        f'test=1 pr={pr_number}')
+        f'test=1 pr={pr.number}')
     batches = sorted([b async for b in batches], key=lambda b: b.id, reverse=True)
     page_context['history'] = [await b.status() for b in batches]
 
     return await render_template('ci', request, userdata, 'pr.html', page_context)
+
+
+async def retry_pr(wb, pr, request):
+    app = request.app
+    session = await aiohttp_session.get_session(request)
+
+    if pr.batch is None:
+        log.info('retry cannot be requested for PR #{pr.number} because it has no batch')
+        set_message(
+            session,
+            f'Retry cannot be requested for PR #{pr.number} because it has no batch.',
+            'error')
+        return
+
+    batch_id = pr.batch.id
+    dbpool = app['dbpool']
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('INSERT INTO invalidated_batches (batch_id) VALUES (%s);', batch_id)
+    await wb.notify_batch_changed(app)
+
+    log.info(f'retry requested for PR: {pr.number}')
+    set_message(session, f'Retry requested for PR #{pr.number}.', 'info')
+
+
+@routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
+@check_csrf_token
+@web_authenticated_developers_only(redirect=False)
+async def post_retry_pr(request, userdata):  # pylint: disable=unused-argument
+    wb, pr = wb_and_pr_from_request(request)
+
+    await asyncio.shield(retry_pr(wb, pr, request))
+    return web.HTTPFound(
+        deploy_config.external_url('ci', f'/watched_branches/{wb.index}/pr/{pr.number}'))
 
 
 @routes.get('/batches')
@@ -187,7 +225,8 @@ async def post_authorized_source_sha(request, userdata):  # pylint: disable=unus
     log.info(f'authorized sha: {sha}')
     session = await aiohttp_session.get_session(request)
     set_message(session, f'SHA {sha} authorized.', 'info')
-    raise web.HTTPFound(deploy_config.base_path('ci') + '/')
+    return web.HTTPFound(
+        deploy_config.external_url('ci', '/'))
 
 
 @routes.get('/healthcheck')
@@ -330,25 +369,18 @@ async def update_loop(app):
 
 
 async def on_startup(app):
-    session = aiohttp.ClientSession(
-        raise_for_status=True,
-        timeout=aiohttp.ClientTimeout(total=60))
-    app['client_session'] = session
     app['github_client'] = gh_aiohttp.GitHubAPI(
         aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=60)),
         'ci',
         oauth_token=oauth_token)
-    app['batch_client'] = await BatchClient('ci', session=session)
+    app['batch_client'] = await BatchClient('ci')
     app['dbpool'] = await create_database_pool()
 
     asyncio.ensure_future(update_loop(app))
 
 
 async def on_cleanup(app):
-    session = app['client_session']
-    await session.close()
-
     dbpool = app['dbpool']
     dbpool.close()
     await dbpool.wait_closed()

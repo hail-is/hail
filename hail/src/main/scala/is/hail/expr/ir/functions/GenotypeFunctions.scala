@@ -10,20 +10,20 @@ import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, Type}
 object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
-    registerPCode("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: PType) => PInt32())
+    registerPCode1("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: PType) => PInt32())
     { case (r, rt, _pl: PIndexableCode) =>
       val code = EmitCodeBuilder.scopedCode(r.mb) { cb =>
         val pl = _pl.memoize(cb, "plv")
-        val m = cb.memoize[Int](const(99), "m")
-        val m2 = cb.memoize[Int](const(99), "m2")
-        val i = cb.memoize[Int](const(0), "i")
+        val m = cb.newLocal[Int]("m", 99)
+        val m2 = cb.newLocal[Int]("m2", 99)
+        val i = cb.newLocal[Int]("i", 0)
 
         cb.whileLoop(i < pl.loadLength(), {
           val iec = pl.loadElement(cb, i)
-          cb += iec.Lmissing
+          cb.define(iec.Lmissing)
           cb += Code._fatal[Unit]("PL cannot have missing elements.")
-          cb += iec.Lpresent
-          val pli = cb.memoize[Int](iec.pc.tcode[Int], "pli")
+          cb.define(iec.Lpresent)
+          val pli = cb.newLocal[Int]("pli", iec.pc.tcode[Int])
           cb.ifx(pli < m, {
             cb.assign(m2, m)
             cb.assign(m, pli)
@@ -38,7 +38,7 @@ object GenotypeFunctions extends RegistryFunctions {
       PCode(rt, code)
     }
 
-    registerEmitCode("dosage", TArray(tv("N", "float64")), TFloat64,  (_: Type, _: PType) => PFloat64()
+    registerEmitCode1("dosage", TArray(tv("N", "float64")), TFloat64,  (_: Type, _: PType) => PFloat64()
     ) { case (r, rt, gp) =>
       EmitCode.fromI(r.mb) { cb =>
         gp.toI(cb).flatMap(cb) { case (gpc: PIndexableCode) =>
@@ -48,7 +48,7 @@ object GenotypeFunctions extends RegistryFunctions {
             cb._fatal(const("length of gp array must be 3, got ").concat(gpv.loadLength().toS)))
 
           gpv.loadElement(cb, 1).flatMap(cb) { (_1: PCode) =>
-            gpv.loadElement(cb, 2).map { (_2: PCode) =>
+            gpv.loadElement(cb, 2).map(cb) { (_2: PCode) =>
               PCode(rt, _1.tcode[Double] + _2.tcode[Double] * 2.0)
             }
           }

@@ -29,17 +29,24 @@ object CodeBuilder {
 trait CodeBuilderLike {
   def mb: MethodBuilder[_]
 
-  def append(c: Code[Unit]): Unit
+  def isOpenEnded: Boolean
+
+  protected def uncheckedAppend(c: Code[Unit]): Unit
+
+  def append(c: Code[Unit]): Unit = {
+    assert(isOpenEnded)
+    uncheckedAppend(c)
+  }
+
+  def define(L: CodeLabel): Unit = {
+    uncheckedAppend(L)
+  }
 
   def result(): Code[Unit]
 
-  val localBuilder: SettableBuilder = new SettableBuilder {
-    def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] = mb.newLocal[T](name)
-  }
+  def localBuilder: SettableBuilder = mb.localBuilder
 
-  val fieldBuilder: SettableBuilder = new SettableBuilder {
-    def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] = mb.genFieldThisRef[T](name)
-  }
+  def fieldBuilder: SettableBuilder = mb.fieldBuilder
 
   def +=(c: Code[Unit]): Unit = append(c)
 
@@ -55,9 +62,9 @@ trait CodeBuilderLike {
     val Ltrue = CodeLabel()
     val Lafter = CodeLabel()
     append(c.mux(Ltrue.goto, Lafter.goto))
-    append(Ltrue)
+    define(Ltrue)
     emitThen
-    append(Lafter)
+    define(Lafter)
   }
 
   def ifx(c: Code[Boolean], emitThen: => Unit, emitElse: => Unit): Unit = {
@@ -65,48 +72,50 @@ trait CodeBuilderLike {
     val Lfalse = CodeLabel()
     val Lafter = CodeLabel()
     append(c.mux(Ltrue.goto, Lfalse.goto))
-    append(Ltrue)
+    define(Ltrue)
     emitThen
-    append(Lafter.goto)
-    append(Lfalse)
+    if (isOpenEnded) goto(Lafter)
+    define(Lfalse)
     emitElse
-    append(Lafter)
+    define(Lafter)
   }
 
   def whileLoop(c: Code[Boolean], emitBody: => Unit): Unit = {
     val Lstart = CodeLabel()
     val Lbody = CodeLabel()
     val Lafter = CodeLabel()
-    append(Lstart)
+    define(Lstart)
     append(c.mux(Lbody.goto, Lafter.goto))
-    append(Lbody)
+    define(Lbody)
     emitBody
-    append(Lstart.goto)
-    append(Lafter)
+    goto(Lstart)
+    define(Lafter)
   }
 
-  def memoizeField[T](c: Code[T], name: String)(implicit tti: TypeInfo[T]): Settable[T] = {
-    val f = mb.genFieldThisRef[T](name)
-    append(f := c)
-    f
-  }
+  def newLocal[T](name: String)(implicit tti: TypeInfo[T]): LocalRef[T] = mb.newLocal[T](name)
 
-  def memoizeFieldAny[T](c: Code[_], name: String)(implicit tti: TypeInfo[T]): Settable[T] = memoizeField(coerce[T](c), name)
-
-  def memoize[T](c: Code[T], name: String)(implicit tti: TypeInfo[T]): Settable[T] = {
-    val l = mb.newLocal[T](name)
+  def newLocal[T](name: String, c: Code[T])(implicit tti: TypeInfo[T]): LocalRef[T] = {
+    val l = newLocal[T](name)
     append(l := c)
     l
   }
 
-  def memoizeAny[T](c: Code[_], name: String)(implicit tti: TypeInfo[T]): Settable[T] = memoize(coerce[T](c), name)
+  def newLocalAny[T](name: String, c: Code[_])(implicit tti: TypeInfo[T]): LocalRef[T] =
+    newLocal[T](name, coerce[T](c))
+
+  def newField[T](name: String)(implicit tti: TypeInfo[T]): ThisFieldRef[T] = mb.genFieldThisRef[T](name)
+
+  def newField[T](name: String, c: Code[T])(implicit tti: TypeInfo[T]): ThisFieldRef[T] = {
+    val f = newField[T](name)
+    append(f := c)
+    f
+  }
+
+  def newFieldAny[T](name: String, c: Code[_])(implicit tti: TypeInfo[T]): ThisFieldRef[T] =
+    newField[T](name, coerce[T](c))
 
   def goto(L: CodeLabel): Unit = {
     append(L.goto)
-  }
-
-  def define(L: CodeLabel): Unit = {
-    append(L)
   }
 
   def _fatal(msg: Code[String]): Unit = {
@@ -119,7 +128,12 @@ trait CodeBuilderLike {
 }
 
 class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
-  def append(c: Code[Unit]): Unit = {
+  def isOpenEnded: Boolean = {
+    val last = code.end.last
+    (last == null) || !last.isInstanceOf[is.hail.lir.ControlX]
+  }
+
+  def uncheckedAppend(c: Code[Unit]): Unit = {
     code = Code(code, c)
   }
 

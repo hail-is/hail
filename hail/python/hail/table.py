@@ -29,9 +29,6 @@ class Ascending(object):
     def __ne__(self, other):
         return not self == other
 
-    def _j_obj(self):
-        return scala_package_object(Env.hail().table).asc(self.col)
-
 
 class Descending(object):
     def __init__(self, col):
@@ -42,9 +39,6 @@ class Descending(object):
 
     def __ne__(self, other):
         return not self == other
-
-    def _j_obj(self):
-        return scala_package_object(Env.hail().table).desc(self.col)
 
 
 @typecheck(col=oneof(Expression, str))
@@ -968,7 +962,7 @@ class Table(ExprContainer):
     @typecheck_method(output=str,
                       types_file=nullable(str),
                       header=bool,
-                      parallel=nullable(enumeration('separate_header', 'header_per_shard')),
+                      parallel=nullable(ExportType.checker),
                       delimiter=str)
     def export(self, output, types_file=None, header=True, parallel=None, delimiter='\t'):
         """Export to a TSV file.
@@ -1007,10 +1001,9 @@ class Table(ExprContainer):
         delimiter : :obj:`str`
             Field delimiter.
         """
-
+        parallel = ExportType.default(parallel)
         Env.backend().execute(
-            TableWrite(self._tir, TableTextWriter(output, types_file, header,
-                                                  Env.hail().utils.ExportType.getExportType(parallel), delimiter)))
+            TableWrite(self._tir, TableTextWriter(output, types_file, header, parallel, delimiter)))
 
     def group_by(self, *exprs, **named_exprs) -> 'GroupedTable':
         """Group by a new key for use with :meth:`.GroupedTable.aggregate`.

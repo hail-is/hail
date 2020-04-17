@@ -15,6 +15,8 @@ trait PValue {
 trait PSettable extends PValue {
   def store(v: PCode): Code[Unit]
 
+  def settableTuple(): IndexedSeq[Settable[_]]
+
   def load(): PCode = get
 
   def :=(v: PCode): Code[Unit] = store(v)
@@ -64,7 +66,7 @@ abstract class PCode { self =>
     new PValue {
       val pt: PType = self.pt
 
-      private val v = cb.memoizeAny(code, name)(typeToTypeInfo(pt))
+      private val v = cb.newLocalAny(name, code)(typeToTypeInfo(pt))
 
       def get: PCode = PCode(pt, v)
     }
@@ -74,7 +76,7 @@ abstract class PCode { self =>
     new PValue {
       val pt: PType = self.pt
 
-      private val v = cb.memoizeFieldAny(code, name)(typeToTypeInfo(pt))
+      private val v = cb.newFieldAny(name, code)(typeToTypeInfo(pt))
 
       def get: PCode = PCode(pt, v)
     }
@@ -113,4 +115,39 @@ object PCode {
   }
 
   def _empty: PCode = PCode(PVoid, Code._empty)
+}
+
+object PSettable {
+  def apply(sb: SettableBuilder, _pt: PType, name: String): PSettable = _pt match {
+    case pt: PCanonicalArray =>
+      PCanonicalIndexableSettable(sb, pt, name)
+    case pt: PCanonicalSet =>
+      PCanonicalIndexableSettable(sb, pt, name)
+    case pt: PCanonicalDict =>
+      PCanonicalIndexableSettable(sb, pt, name)
+
+    case pt: PCanonicalBaseStruct =>
+      PCanonicalBaseStructSettable(sb, pt, name)
+
+    case pt: PCanonicalInterval =>
+      PCanonicalIntervalSettable(sb, pt, name)
+    case pt: PCanonicalLocus =>
+      PCanonicalLocusSettable(sb, pt, name)
+    case pt: PCanonicalCall =>
+      PCanonicalCallSettable(sb, pt, name)
+
+    case _ => new PSettable {
+      val pt: PType = _pt
+
+      private val v = sb.newSettable(name)(typeToTypeInfo(pt))
+
+      def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(v)
+
+      def get: PCode = PCode(pt, v)
+
+      def store(pv: PCode): Code[Unit] = {
+        v.storeAny(pv.code)
+      }
+    }
+  }
 }

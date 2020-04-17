@@ -133,14 +133,14 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
 
     val mb = state.cb.getOrGenEmitMethod("callstatsagg_seqop", t, FastIndexedSeq[ParamType](typeToTypeInfo(t)), UnitInfo) { mb =>
       mb.emitWithBuilder[Unit] { cb =>
-        val hom = cb.memoize[Boolean](const(true), "hom")
-        val lastAllele = cb.memoize[Int](const(-1), "lastAllele")
-        val i = cb.memoize[Int](const(0), "i")
+        val hom = cb.newLocal[Boolean]("hom", true)
+        val lastAllele = cb.newLocal[Int]("lastAllele", -1)
+        val i = cb.newLocal[Int]("i", 0)
         val call = PCallValue(t, mb.getCodeParam(1)(typeToTypeInfo(t)))
 
         call.forEachAllele(cb) { allele: Value[Int] =>
           cb.ifx(allele > state.nAlleles,
-            Code._fatal[Unit](const("found allele outside of expected range [0, ")
+            cb._fatal(const("found allele outside of expected range [0, ")
               .concat(state.nAlleles.toS).concat("]: ").concat(allele.toS)))
           cb += state.updateAlleleCountAtIndex(allele, state.nAlleles, _ + 1)
           cb.ifx(i > 0, cb.assign(hom, hom && allele.ceq(lastAllele)))
