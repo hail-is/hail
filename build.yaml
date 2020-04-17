@@ -962,6 +962,31 @@ steps:
     - auth_image
     - create_dummy_oauth2_client_secret
  - kind: runImage
+   name: test_auth_copy_paste_login
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+
+     COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth -sSL -XPOST /api/v1alpha/copy-paste-token)
+     hailctl auth copy-paste-login "$(COPY_PASTE_TOKEN)" --namespace {{ default_ns.name }}
+
+     COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth -sSL -XPOST /api/v1alpha/copy-paste-token)
+     python3 -c '
+from hailtop.auth import copy_paste_login;
+copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
+'
+   secrets:
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+   dependsOn:
+    - default_ns
+    - deploy_auth
+    - batch_pods_ns.name
+    - service_base_image
+ - kind: runImage
    name: delete_batch_tables
    image:
      valueFrom: service_base_image.image
