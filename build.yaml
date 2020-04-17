@@ -973,9 +973,9 @@ steps:
 
      COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth -sSL -XPOST /api/v1alpha/copy-paste-token)
      python3 -c '
-from hailtop.auth import copy_paste_login;
-copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
-'
+     from hailtop.auth import copy_paste_login;
+     copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
+     '
    secrets:
     - name: test-tokens
       namespace:
