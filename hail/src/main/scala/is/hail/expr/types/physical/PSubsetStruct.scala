@@ -61,10 +61,10 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   }
 
   override def rename(m: Map[String, String]): PStruct = {
-      val newNames = fieldNames.map(fieldName => m.getOrElse(fieldName, fieldName))
-      val newPStruct = ps.rename(m)
+    val newNames = fieldNames.map(fieldName => m.getOrElse(fieldName, fieldName))
+    val newPStruct = ps.rename(m)
 
-      PSubsetStruct(newPStruct, newNames)
+    PSubsetStruct(newPStruct, newNames)
   }
 
   override def isFieldMissing(structAddress: Code[Long], fieldName: String): Code[Boolean] =
@@ -160,6 +160,8 @@ object PSubsetStructSettable {
 
 class PSubsetStructSettable(val pt: PSubsetStruct, a: Settable[Long]) extends PBaseStructValue with PSettable {
   def get: PSubsetStructCode = new PSubsetStructCode(pt, a)
+
+  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     IEmitCode(cb,
