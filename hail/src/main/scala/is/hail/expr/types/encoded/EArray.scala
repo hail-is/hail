@@ -11,13 +11,13 @@ import is.hail.utils._
 
 final case class EArray(val elementType: EType, override val required: Boolean = false) extends EContainer with EFundamentalType {
   override def _decodeCompatible(pt: PType): Boolean = {
-    pt.required == required &&
+    pt.required <= required &&
       pt.isInstanceOf[PArray] &&
       elementType.decodeCompatible(pt.asInstanceOf[PArray].elementType)
   }
 
   override def _encodeCompatible(pt: PType): Boolean = {
-    pt.required == required &&
+    pt.required >= required &&
       pt.isInstanceOf[PArray] &&
       elementType.encodeCompatible(pt.asInstanceOf[PArray].elementType)
   }
@@ -43,7 +43,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
 
     val writeLen = out.writeInt(prefixLen)
     val writeMissingBytes =
-      if (!pt.elementType.required) {
+      if (!elementType.required) {
         val nMissingLocal = mb.newLocal[Int]("nMissingBytes")
         Code(
           nMissingLocal := pt.nMissingBytes(prefixLen),

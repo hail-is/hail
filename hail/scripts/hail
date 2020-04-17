@@ -1,5 +1,0 @@
-#!/bin/bash
-
-source "$(dirname $0)"/setup_env
-
-python3 "$@"

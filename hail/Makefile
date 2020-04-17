@@ -11,8 +11,9 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 36
+HAIL_PATCH_VERSION := 37
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
+HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 
 $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
@@ -84,7 +85,7 @@ src/main/resources/build-info.properties: Makefile
 python-version-info: $(PYTHON_VERSION_INFO)
 
 python/hail/hail_version: env/SHORT_REVISION env/HAIL_PIP_VERSION
-	echo $(HAIL_PIP_VERSION)-$(SHORT_REVISION) > $@
+	echo $(HAIL_VERSION) > $@
 
 python/hail/hail_pip_version: env/HAIL_PIP_VERSION
 	echo $(HAIL_PIP_VERSION) > $@
@@ -157,7 +158,7 @@ $(WHEEL): $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) $(PYT
 
 # if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
 ifndef DEPLOY_REMOTE
-DEV_CLARIFIER := $(shell whoami)-dev/
+DEV_CLARIFIER ?= $(shell whoami)-dev/
 CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 UPLOAD_RETENTION =
 else
@@ -208,73 +209,18 @@ install-on-cluster: $(WHEEL)
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
 
-cluster_name_37 := cluster-$(shell whoami)-$(shell LC_ALL=C tr -dc '[:lower:]' </dev/urandom | head -c 6)
-cluster_name_38 := cluster-$(shell whoami)-$(shell LC_ALL=C tr -dc '[:lower:]' </dev/urandom | head -c 6)
-cluster_test_files := $(wildcard python/cluster-tests/*.py)
-cluster_37_test_files := $(filter-out python/cluster-tests/cluster-vep-check-GRCh38.py, $(cluster_test_files))
-cluster_38_test_files := $(filter-out python/cluster-tests/cluster-vep-check-GRCh37.py, $(cluster_test_files))
 .PHONY: test-dataproc
 test-dataproc: install-hailctl
-	hailctl dataproc start $(cluster_name_37) --max-idle 10m --vep GRCh37 --requester-pays-allow-buckets hail-us-vep
-	for FILE in $(cluster_37_test_files); do \
-	  hailctl dataproc submit $(cluster_name_37) $$FILE || exit 1; done || exit
-	hailctl dataproc start $(cluster_name_38) --max-idle 10m --vep GRCh38 --requester-pays-allow-buckets hail-us-vep
-	for FILE in $(cluster_38_test_files); do \
-	  hailctl dataproc submit $(cluster_name_38) $$FILE || exit 1; done || exit
+	bash scripts/test-dataproc.sh
 
-
-DEPLOYED_VERSION = $(shell \
-  $(PIP) --no-cache-dir search hail \
-   | grep '^hail ' \
-   | sed 's/hail (//' \
-   | sed 's/).*//')
-.PHONY: check-pypi
-check-pypi:
-	if [ -z "$$DEPLOY_REMOTE" ]; then \
-	  echo "ERROR: DEPLOY_REMOTE must be set to deploy to PyPI"; exit 1; fi
-	if [ "$(DEPLOYED_VERSION)" = "$(HAIL_PIP_VERSION)" ]; then \
-	  echo "ERROR: version $(HAIL_PIP_VERSION) already deployed"; exit 1; fi
-
-HAIL_TWINE_CREDS_FOLDER ?= /secrets/
-
-.PHONY: pypi-deploy
-pypi-deploy: check-pypi test-dataproc set-docs-sha
-	TWINE_USERNAME=$(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username) \
-	TWINE_PASSWORD=$(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password) \
-	twine upload build/deploy/dist/*
-
-TAG_EXISTS = $(shell git ls-remote --exit-code --tags origin $(HAIL_PIP_VERSION) || echo "does not exist")
-.PHONY: check-tag
-check-tag:
-	if [ -z "$(TAG_EXISTS)" ]; then echo "ERROR: tag $(HAIL_PIP_VERSION) already exists"; exit 1; fi
-
-GITHUB_RELEASE_URL = https://github.com/hail-is/hail/releases/new
-.PHONY: tag
-tag: check-tag pypi-deploy
-	git tag $(HAIL_PIP_VERSION) -m "Hail version $(HAIL_PIP_VERSION)"
-	git push $(DEPLOY_REMOTE) $(HAIL_PIP_VERSION)
-	@echo Please make a release: $(GITHUB_RELEASE_URL)
-	if [ `uname` == "Darwin" ]; then open $(GITHUB_RELEASE_URL); fi
-
-annotation_db_json_url := gs://hail-common/annotationdb/$(HAIL_PIP_VERSION)-$(SHORT_REVISION)/annotation_db.json
-.PHONY: deploy-annotation-db
-deploy-annotation-db:
-	gsutil cp python/hail/experimental/annotation_db.json $(annotation_db_json_url)
-	gsutil -m retention temp set $(annotation_db_json_url)
-
-docs_location := gs://hail-common/builds/0.2/docs/hail-0.2-docs-$(REVISION).tar.gz
-local_sha_location := build/deploy/latest-hash-spark-$(SPARK_VERSION).txt
-cloud_sha_location := gs://hail-common/builds/0.2/latest-hash/cloudtools-5-spark-2.4.0.txt
-.PHONY: set-docs-sha
-set-docs-sha: deploy-annotation-db
-	mkdir -p $(dir $(local_sha_location))
-	gsutil ls $(docs_location)  # make sure file exists
-	echo "$(REVISION)" > $(local_sha_location)
-	gsutil cp $(local_sha_location) $(cloud_sha_location)
-	gsutil acl set public-read $(cloud_sha_location)
-
+# use curl version >=7.55.0
+# set DEPLOY_REMOTE to the hail-is/hail remote
+# create an access token with full repo privileges at https://github.com/settings/tokens
+# create a file that contains "Authorization: token YOUR_ACCESS_TOKEN_HERE"
+# set GITHUB_OAUTH_HEADER_FILE to that filename
 .PHONY: deploy
-deploy: tag
+deploy: test-dataproc $(WHEEL)
+	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE)
 
 .PHONY: install-dev-deps
 install-dev-deps:
@@ -285,7 +231,7 @@ install-deps: install-dev-deps
 	$(PIP) install -U -r python/requirements.txt
 
 .PHONY: benchmark
-benchmark: install
+benchmark: $(WHEEL)
 	HAIL_WHEEL=../hail/$(WHEEL) HAIL_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark benchmark
 
 .PHONY: install-benchmark
@@ -304,16 +250,16 @@ base-docs: install-dev-deps
 	$(MAKE) -C build/www
 	rm build/www/*.md
 
-.PHONY: pipeline-docs
-pipeline-docs: base-docs
-	mkdir -p build/pipeline/docs
-	rm -rf build/pipeline/docs
-	cp -R python/hailtop/pipeline/docs build/pipeline/
-	$(MAKE) -C build/pipeline/docs BUILDDIR=_build clean html
+.PHONY: batch-docs
+batch-docs: base-docs
+	mkdir -p build/batch/docs
+	rm -rf build/batch/docs
+	cp -R python/hailtop/batch/docs build/batch/
+	$(MAKE) -C build/batch/docs BUILDDIR=_build clean html
 	mkdir -p build/www/docs
-	rm -rf build/www/docs/pipeline
-	mv build/pipeline/docs/_build/html build/www/docs/pipeline
-	@echo Built Pipeline docs: build/www/docs/pipeline/index.html
+	rm -rf build/www/docs/batch
+	mv build/batch/docs/_build/html build/www/docs/batch
+	@echo Built Batch docs: build/www/docs/batch/index.html
 
 HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
 .PHONY: hail-docs
@@ -333,7 +279,7 @@ hail-docs: install $(PYTHON_VERSION_INFO) base-docs
 	@echo Built Hail docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: upload-docs
-upload-docs: hail-docs pipeline-docs
+upload-docs: hail-docs batch-docs
 	cd build && tar czf www.tar.gz www
 	gsutil -m cp build/www.tar.gz $(docs_location)
 	gsutil -m retention temp set $(docs_location)

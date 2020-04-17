@@ -206,6 +206,9 @@ final case class StreamMap(a: IR, name: String, body: IR) extends IR {
   def elementTyp: Type = typ.elementType
 }
 
+final case class StreamTake(a: IR, num: IR) extends IR
+final case class StreamDrop(a: IR, num: IR) extends IR
+
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value
   val AssumeSameLength: Value = Value(0)
@@ -378,12 +381,12 @@ object Die {
 
 final case class Die(message: IR, _typ: Type) extends IR
 
-final case class ApplyIR(function: String, args: Seq[IR]) extends IR {
-  var conversion: Seq[IR] => IR = _
+final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR]) extends IR {
+  var conversion: (Seq[Type], Seq[IR]) => IR = _
   var inline: Boolean = _
 
   private lazy val refs = args.map(a => Ref(genUID(), a.typ)).toArray
-  lazy val body: IR = conversion(refs).deepCopy()
+  lazy val body: IR = conversion(typeArgs, refs).deepCopy()
 
   lazy val explicitNode: IR = {
     // foldRight because arg1 should be at the top so it is evaluated first
@@ -395,17 +398,20 @@ sealed abstract class AbstractApplyNode[F <: IRFunction] extends IR {
   def function: String
   def args: Seq[IR]
   def returnType: Type
+  def typeArgs: Seq[Type]
   def argTypes: Seq[Type] = args.map(_.typ)
-  lazy val implementation: F = IRFunctionRegistry.lookupFunction(function, returnType, argTypes)
+  lazy val implementation: F = IRFunctionRegistry.lookupFunction(function, returnType, typeArgs, argTypes)
     .getOrElse(throw new RuntimeException(s"no function match for $function: ${ argTypes.map(_.parsableString()).mkString(", ") }"))
       .asInstanceOf[F]
 }
 
-final case class Apply(function: String, args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithoutMissingness]
+final case class Apply(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithoutMissingness]
 
-final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, returnType: Type) extends AbstractApplyNode[SeededIRFunction]
+final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, returnType: Type) extends AbstractApplyNode[SeededIRFunction] {
+  val typeArgs: Seq[Type] = Seq.empty[Type]
+}
 
-final case class ApplySpecial(function: String, args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithMissingness]
+final case class ApplySpecial(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithMissingness]
 
 final case class LiftMeOut(child: IR) extends IR
 final case class TableCount(child: TableIR) extends IR

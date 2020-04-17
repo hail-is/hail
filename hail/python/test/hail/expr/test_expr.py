@@ -2847,6 +2847,12 @@ class Tests(unittest.TestCase):
         assert_min_reps_to(['GCTAA', 'GCAAA', 'GCCAA'], ['T', 'A', 'C'], pos_change=2)
         assert_min_reps_to(['GCTAA', 'GCAAA', 'GCCAA', '*'], ['T', 'A', 'C', '*'], pos_change=2)
 
+    def test_min_rep_error(self):
+        with pytest.raises(hl.utils.FatalError, match='min_rep: found null allele'):
+            hl.eval(hl.min_rep(hl.locus('1', 100), ['A', hl.null('str')]))
+        with pytest.raises(hl.utils.FatalError, match='min_rep: expect at least one allele'):
+            hl.eval(hl.min_rep(hl.locus('1', 100), hl.empty_array('str')))
+
     def assert_evals_to(self, e, v):
         assert_evals_to(e, v)
 

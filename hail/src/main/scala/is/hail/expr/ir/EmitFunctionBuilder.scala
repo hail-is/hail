@@ -8,7 +8,7 @@ import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.backend.BackendUtils
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.types.physical.{PCanonicalTuple, PStream, PCode, PSettable, PType}
+import is.hail.expr.types.physical.{PCanonicalTuple, PCode, PSettable, PStream, PType, PValue}
 import is.hail.expr.types.virtual.Type
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
@@ -77,6 +77,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def getOrDefineLazyField[T: TypeInfo](setup: Code[T], id: Any): Value[T] = ecb.getOrDefineLazyField(setup, id)
 
+  def fieldBuilder: SettableBuilder = cb.fieldBuilder
+
   def result(print: Option[PrintWriter] = None): () => C = cb.result(print)
 
   def getFS: Code[FS] = ecb.getFS
@@ -102,7 +104,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def partitionRegion: Settable[Region] = ecb.partitionRegion
 
-  def addLiteral(v: Any, t: PType): Code[_] = ecb.addLiteral(v, t)
+  def addLiteral(v: Any, t: PType): PValue = ecb.addLiteral(v, t)
 
   def getPType(t: PType): Code[PType] = ecb.getPType(t)
 
@@ -219,6 +221,8 @@ class EmitClassBuilder[C](
 
   def getOrDefineLazyField[T: TypeInfo](setup: Code[T], id: Any): Value[T] = cb.getOrDefineLazyField(setup, id)
 
+  def fieldBuilder: SettableBuilder = cb.fieldBuilder
+
   def result(print: Option[PrintWriter] = None): () => C = cb.result(print)
 
   // EmitClassBuilder methods
@@ -247,17 +251,16 @@ class EmitClassBuilder[C](
     rgExists.mux(Code._empty, addRG)
   }
 
-  private[this] val literalsMap: mutable.Map[(PType, Any), Settable[_]] =
-    mutable.Map[(PType, Any), Settable[_]]()
+  private[this] val literalsMap: mutable.Map[(PType, Any), PSettable] =
+    mutable.Map[(PType, Any), PSettable]()
   private[this] lazy val encLitField: Settable[Array[Byte]] = genFieldThisRef[Array[Byte]]("encodedLiterals")
 
   lazy val partitionRegion: Settable[Region] = genFieldThisRef[Region]("partitionRegion")
 
-  def addLiteral(v: Any, t: PType): Code[_] = {
+  def addLiteral(v: Any, t: PType): PValue = {
     assert(v != null)
     assert(t.isCanonical)
-    val f = literalsMap.getOrElseUpdate(t -> v, genFieldThisRef("literal")(typeToTypeInfo(t)))
-    f.load()
+    literalsMap.getOrElseUpdate(t -> v, PSettable(fieldBuilder, t, "literal"))
   }
 
   private[this] def encodeLiterals(): Array[Byte] = {
@@ -271,7 +274,7 @@ class EmitClassBuilder[C](
     val mb2 = newEmitMethod("addLiterals", FastIndexedSeq[ParamType](typeInfo[Array[Byte]]), typeInfo[Unit])
     val off = mb2.newLocal[Long]()
     val storeFields = literals.zipWithIndex.map { case (((_, _), f), i) =>
-      f.storeAny(Region.loadIRIntermediate(litType.types(i))(litType.fieldOffset(off, i)))
+      f.store(litType.types(i).load(litType.fieldOffset(off, i)))
     }
 
     mb2.emit(Code(
@@ -815,6 +818,8 @@ class EmitMethodBuilder[C](
   // wrapped MethodBuilder methods
   def newLocal[T: TypeInfo](name: String = null): LocalRef[T] = mb.newLocal[T](name)
 
+  def localBuilder: SettableBuilder = mb.localBuilder
+
   // FIXME needs to code and emit variants
   def emit(body: Code[_]): Unit = mb.emit(body)
 
@@ -877,6 +882,13 @@ class EmitMethodBuilder[C](
     }
   }
 
+  def getParamsList(): IndexedSeq[Param] = {
+    emitParamTypes.toFastIndexedSeq.zipWithIndex.map {
+      case (CodeParamType(ti), i) => CodeParam(this.getCodeParam(i + 1)(ti)): Param
+      case (EmitParamType(pt), i) => EmitParam(this.getEmitParam(i + 1)): Param
+    }
+  }
+
   def invokeCode[T](args: Param*): Code[T] = {
     assert(emitReturnType.isInstanceOf[CodeParamType])
     mb.invoke(args.flatMap {
@@ -898,21 +910,15 @@ class EmitMethodBuilder[C](
       EmitCode.fromCodeTuple(pt, Code.loadTuple(modb, EmitCode.codeTupleTypes(pt), r)))
   }
 
-  def newPSettable(_pt: PType, s: Settable[_]): PSettable = new PSettable {
-    def pt: PType = _pt
+  def newPSettable(sb: SettableBuilder, pt: PType, name: String = null): PSettable = PSettable(sb, pt, name)
 
-    def get: PCode = PCode(_pt, s)
+  def newPLocal(pt: PType): PSettable = newPSettable(localBuilder, pt)
 
-    def store(v: PCode): Code[Unit] = s.storeAny(v.code)
-  }
+  def newPLocal(name: String, pt: PType): PSettable = newPSettable(localBuilder, pt, name)
 
-  def newPLocal(pt: PType): PSettable = newPSettable(pt, newLocal()(typeToTypeInfo(pt)))
+  def newPField(pt: PType): PSettable = newPSettable(fieldBuilder, pt)
 
-  def newPLocal(name: String, pt: PType): PSettable = newPSettable(pt, newLocal(name)(typeToTypeInfo(pt)))
-
-  def newPField(pt: PType): PSettable = newPSettable(pt, genFieldThisRef()(typeToTypeInfo(pt)))
-
-  def newPField(name: String, pt: PType): PSettable = newPSettable(pt, genFieldThisRef(name)(typeToTypeInfo(pt)))
+  def newPField(name: String, pt: PType): PSettable = newPSettable(fieldBuilder, pt, name)
 
   def newEmitSettable(_pt: PType, ms: Settable[Boolean], vs: PSettable): EmitSettable = new EmitSettable {
     def pt: PType = _pt
@@ -975,6 +981,8 @@ trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
 
   def newLocal[T: TypeInfo](name: String = null): LocalRef[T] = mb.newLocal[T](name)
 
+  def localBuilder = mb.localBuilder
+
   // FIXME needs to code and emit variants
   def emit(body: Code[_]): Unit = mb.emit(body)
 
@@ -1027,8 +1035,8 @@ class DependentEmitFunctionBuilder[F](
   private[this] val typMap: mutable.Map[Type, Value[Type]] =
     mutable.Map[Type, Value[Type]]()
 
-  private[this] val literalsMap: mutable.Map[(PType, Any), Value[_]] =
-    mutable.Map[(PType, Any), Value[_]]()
+  private[this] val literalsMap: mutable.Map[(PType, Any), PValue] =
+    mutable.Map[(PType, Any), PValue]()
 
   override def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] =
     rgMap.getOrElseUpdate(rg, {
@@ -1044,14 +1052,28 @@ class DependentEmitFunctionBuilder[F](
       field
     })
 
-  override def addLiteral(v: Any, t: PType): Code[_] = {
+  override def addLiteral(v: Any, t: PType): PValue = {
     assert(v != null)
     literalsMap.getOrElseUpdate(t -> v, {
       val fromParent = parentcb.addLiteral(v, t)
-      val ti: TypeInfo[_] = typeToTypeInfo(t)
-      val field = newDepFieldAny(fromParent)(ti)
-      field
+      newDepPField(fromParent.get)
     })
+  }
+
+  def newDepPField(pc: PCode): PValue = {
+    val ti = typeToTypeInfo(pc.pt)
+    val field = newPField(pc.pt)
+    dep_apply_method.setFields += { (obj: lir.ValueX) =>
+      val code = pc.code
+      // XXX below assumes that the first settable is the 'base' of the PSettable
+      val baseField = field.settableTuple()(0).asInstanceOf[ThisFieldRef[_]]
+      code.end.append(lir.putField(className, baseField.name, ti, obj, code.v))
+      // FIXME need to initialize other potential settables in the PSettable here
+      val newC = new VCode(code.start, code.end, null)
+      code.clear()
+      newC
+    }
+    field
   }
 
   def newDepEmitField(ec: EmitCode): EmitValue = {

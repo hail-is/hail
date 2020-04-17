@@ -116,8 +116,6 @@ class ReferenceGenome(object):
         if not _builtin:
             Env.backend().add_reference(self._config)
 
-        hl.ir.register_reference_genome_functions(name)
-
         self._sequence_files = None
         self._liftovers = dict()
 

@@ -64,7 +64,24 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     ))
   }
 
-  def makeDefaultStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+  def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+    val runningProduct = mb.newLocal[Long]()
+    val tempShapeStorage = mb.newLocal[Long]()
+    Code(
+      srvb.start(),
+      runningProduct := elementType.byteSize,
+      Code.foreach(0 until nDims){ index =>
+        Code(
+          srvb.addLong(runningProduct),
+          srvb.advance(),
+          tempShapeStorage := sourceShapeArray(index),
+          runningProduct := runningProduct * (tempShapeStorage > 0L).mux(tempShapeStorage, 1L)
+        )
+      }
+    )
+  }
+
+  def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Code[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
     val runningProduct = mb.newLocal[Long]()
     val tempShapeStorage = mb.newLocal[Long]()
     val computedStrides = (0 until nDims).map(_ => mb.genFieldThisRef[Long]())
@@ -158,38 +175,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       }
     )
     (createShape, newIndices)
-  }
-
-  def copyRowMajorToColumnMajor(rowMajorAddress: Code[Long], targetAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: EmitMethodBuilder[_]): Code[Unit] = {
-    Code.memoize(nRows, "pcndarr_tocol_n_rows", nCols, "pcndarr_tocol_n_cols") { (nRows, nCols) =>
-      val rowIndex = mb.genFieldThisRef[Long]()
-      val colIndex = mb.genFieldThisRef[Long]()
-      val rowMajorCoord = nCols * rowIndex + colIndex
-      val colMajorCoord = nRows * colIndex + rowIndex
-      val rowMajorFirstElementAddress = this.data.pType.firstElementOffset(rowMajorAddress, (nRows * nCols).toI)
-      val targetFirstElementAddress = this.data.pType.firstElementOffset(targetAddress, (nRows * nCols).toI)
-      val currentElement = Region.loadDouble(rowMajorFirstElementAddress + rowMajorCoord * 8L)
-
-      Code.forLoop(rowIndex := 0L, rowIndex < nRows, rowIndex := rowIndex + 1L,
-        Code.forLoop(colIndex := 0L, colIndex < nCols, colIndex := colIndex + 1L,
-          Region.storeDouble(targetFirstElementAddress + colMajorCoord * 8L, currentElement)))
-    }
-  }
-
-  def copyColumnMajorToRowMajor(colMajorAddress: Code[Long], targetAddress: Code[Long], nRows: Code[Long], nCols: Code[Long], mb: EmitMethodBuilder[_]): Code[Unit] = {
-    Code.memoize(nRows, "pcndarr_torow_n_rows", nCols, "pcndarr_torow_n_cols") { (nRows, nCols) =>
-      val rowIndex = mb.genFieldThisRef[Long]()
-      val colIndex = mb.genFieldThisRef[Long]()
-      val rowMajorCoord = nCols * rowIndex + colIndex
-      val colMajorCoord = nRows * colIndex + rowIndex
-      val colMajorFirstElementAddress = this.data.pType.firstElementOffset(colMajorAddress, (nRows * nCols).toI)
-      val targetFirstElementAddress = this.data.pType.firstElementOffset(targetAddress, (nRows * nCols).toI)
-      val currentElement = Region.loadDouble(colMajorFirstElementAddress + colMajorCoord * 8L)
-
-      Code.forLoop(rowIndex := 0L, rowIndex < nRows, rowIndex := rowIndex + 1L,
-        Code.forLoop(colIndex := 0L, colIndex < nCols, colIndex := colIndex + 1L,
-          Region.storeDouble(targetFirstElementAddress + rowMajorCoord * 8L, currentElement)))
-    }
   }
 
   override def construct(shapeBuilder: StagedRegionValueBuilder => Code[Unit], stridesBuilder: StagedRegionValueBuilder => Code[Unit], data: Code[Long], mb: EmitMethodBuilder[_]): Code[Long] = {

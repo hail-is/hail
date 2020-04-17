@@ -967,9 +967,9 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val childValues = children.map(_.execute(ctx))
-    assert(childValues.map(_.rvd.typ).toSet.size == 1) // same physical types
 
     val childRVDs = RVD.unify(childValues.map(_.rvd)).toFastIndexedSeq
+    assert(childRVDs.forall(_.typ.key.startsWith(typ.key)))
 
     val repartitionedRVDs =
       if (childRVDs(0).partitioner.satisfiesAllowedOverlap(typ.key.length - 1) &&
@@ -988,7 +988,11 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     val keyIdx = rvdType.kFieldIdx
     val valIdx = rvdType.valueFieldIdx
     val localRVDType = rvdType
-    val localNewRowType = PType.canonical(newRowType).setRequired(true).asInstanceOf[PStruct]
+    val keyFields = rvdType.kType.fields.map(f => (f.name, f.typ))
+    val valueFields = rvdType.valueType.fields.map(f => (f.name, f.typ))
+    val localNewRowType = PCanonicalStruct(required = true,
+      keyFields ++ Array((fieldName, PCanonicalArray(
+        PCanonicalStruct(required = false, valueFields: _*)))): _*)
     val localDataLength = children.length
     val rvMerger = { (ctx: RVDContext, it: Iterator[ArrayBuilder[(RegionValue, Int)]]) =>
       val rvb = new RegionValueBuilder()

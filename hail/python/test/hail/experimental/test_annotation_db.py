@@ -18,11 +18,11 @@ class AnnotationDBTests(unittest.TestCase):
         cls.temp_dir = d
         cls.db_json = {
             'unique_dataset': {'description': 'now with unique rows!',
-                               'url': 'http://example.com',
+                               'url': 'https://example.com',
                                'key_properties': ['unique'],
                                'versions': [{'url': fname, 'version': 'v1-GRCh37'}]},
             'nonunique_dataset': {'description': 'non-unique rows :(',
-                                  'url': 'http://example.net',
+                                  'url': 'https://example.net',
                                   'key_properties': [],
                                   'versions': [{'url': fname, 'version': 'v1-GRCh37'}]}}
 

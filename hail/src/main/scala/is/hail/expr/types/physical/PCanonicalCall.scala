@@ -29,6 +29,8 @@ object PCanonicalCallSettable {
 class PCanonicalCallSettable(val pt: PCanonicalCall, call: Settable[Int]) extends PCallValue with PSettable {
   def get: PCallCode = new PCanonicalCallCode(pt, call)
 
+  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(call)
+
   def store(pc: PCode): Code[Unit] = call.store(pc.asInstanceOf[PCanonicalCallCode].call)
 
   def ploidy(): Code[Int] = get.ploidy()

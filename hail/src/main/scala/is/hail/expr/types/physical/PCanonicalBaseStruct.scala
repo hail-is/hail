@@ -224,7 +224,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 }
 
 object PCanonicalBaseStructSettable {
-  def apply(cb: EmitCodeBuilder, pt: PCanonicalBaseStruct, name: String, sb: SettableBuilder): PCanonicalBaseStructSettable = {
+  def apply(sb: SettableBuilder, pt: PCanonicalBaseStruct, name: String): PCanonicalBaseStructSettable = {
     new PCanonicalBaseStructSettable(pt, sb.newSettable(name))
   }
 }
@@ -234,6 +234,8 @@ class PCanonicalBaseStructSettable(
   val a: Settable[Long]
 ) extends PBaseStructValue with PSettable {
   def get: PBaseStructCode = new PCanonicalBaseStructCode(pt, a)
+
+  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     IEmitCode(cb,
@@ -261,7 +263,7 @@ class PCanonicalBaseStructCode(val pt: PCanonicalBaseStruct, val a: Code[Long]) 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PBaseStructValue = {
-    val s = PCanonicalBaseStructSettable(cb, pt, name, sb)
+    val s = PCanonicalBaseStructSettable(sb, pt, name)
     cb.assign(s, this)
     s
   }

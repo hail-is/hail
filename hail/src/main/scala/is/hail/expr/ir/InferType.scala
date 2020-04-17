@@ -69,8 +69,9 @@ object InferType {
         }
       case a: ApplyIR => a.explicitNode.typ
       case a: AbstractApplyNode[_] =>
+        val typeArgs = a.typeArgs
         val argTypes = a.args.map(_.typ)
-        a.implementation.unify(argTypes :+ a.returnType)
+        assert(a.implementation.unify(typeArgs, argTypes, a.returnType))
         a.returnType
       case ArrayRef(a, i, s) =>
         assert(i.typ == TInt32)
@@ -97,6 +98,10 @@ object InferType {
       case GroupByKey(collection) =>
         val elt = coerce[TBaseStruct](coerce[TStream](collection.typ).elementType)
         TDict(elt.types(0), TArray(elt.types(1)))
+      case StreamTake(a, _) =>
+        a.typ
+      case StreamDrop(a, _) =>
+        a.typ
       case StreamMap(a, name, body) =>
         TStream(body.typ)
       case StreamZip(as, _, body, _) =>

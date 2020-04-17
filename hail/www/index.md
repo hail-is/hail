@@ -30,8 +30,5 @@ We are grateful for generous support from:
  - The Chan Zuckerburg Initiative
 
 We would like to thank <a href="https://zulipchat.com/">Zulip</a> for supporting
-open-source by providing free hosting, and YourKit, LLC for generously providing
-free licenses for <a href="https://www.yourkit.com/java/profiler/">YourKit Java
-Profiler</a> for open-source development.
-
-<img src="https://www.yourkit.com/images/yklogo.png" align="right" />
+open-source development by providing free hosting, and building a productivity-first
+chat app.

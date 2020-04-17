@@ -18,7 +18,7 @@ def main(args_):
                         help='Minimum runtime in either run for inclusion.')
     parser.add_argument('--metric',
                         type=str,
-                        default='best',
+                        default='median',
                         choices=['best', 'median'],
                         help='Comparison metric.')
 

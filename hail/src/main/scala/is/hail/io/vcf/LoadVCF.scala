@@ -7,7 +7,7 @@ import is.hail.backend.BroadcastValue
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{ExecuteContext, IRParser, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PBoolean, PCall, PCanonicalArray, PCanonicalCall, PCanonicalSet, PCanonicalString, PCanonicalStruct, PField, PFloat64, PInt32, PString, PStruct, PType}
+import is.hail.expr.types.physical.{PBoolean, PCall, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalSet, PCanonicalString, PCanonicalStruct, PField, PFloat64, PInt32, PString, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
@@ -1178,7 +1178,7 @@ object LoadVCF {
       .flatMap { case ((f, _), isFlag) => if (isFlag) Some(f) else None }
       .toSet
 
-    (PCanonicalStruct(false, fields.toArray: _*), attrs.toMap, flagFieldNames)
+    (PCanonicalStruct(true, fields.toArray: _*), attrs.toMap, flagFieldNames)
   }
 
   def parseHeader(
@@ -1210,8 +1210,8 @@ object LoadVCF {
     val vaSignature = PCanonicalStruct(Array(
       PField("rsid", PCanonicalString(), 0),
       PField("qual", PFloat64(), 1),
-      PField("filters", PCanonicalSet(PCanonicalString()), 2),
-      PField("info", infoSignature, 3)), false)
+      PField("filters", PCanonicalSet(PCanonicalString(true)), 2),
+      PField("info", infoSignature, 3)), true)
 
     val headerLine = lines.last
     if (!(headerLine(0) == '#' && headerLine(1) != '#'))
@@ -1551,9 +1551,9 @@ case class MatrixVCFReader(
   override lazy val fullType: TableType = fullMatrixType.canonicalTableType
 
   val fullRVDType = RVDType(PCanonicalStruct(true,
-    PCanonicalStruct.canonical(kType).fields.map { f => (f.name, f.typ) }
-      ++ vaSignature.fields.map { f => (f.name, f.typ) }
-      ++ Array(LowerMatrixIR.entriesFieldName -> PCanonicalArray(genotypeSignature)): _*),
+    FastIndexedSeq(("locus", PCanonicalLocus.schemaFromRG(referenceGenome, true)), ("alleles", PCanonicalArray(PCanonicalString(true), true)))
+      ++ header1.vaSignature.fields.map { f => (f.name, f.typ) }
+      ++ Array(LowerMatrixIR.entriesFieldName -> PCanonicalArray(header1.genotypeSignature, true)): _*),
     fullType.key)
 
   private lazy val lines = {
@@ -1694,12 +1694,10 @@ class VCFsReader(
     rowKey = Array("locus"),
     entryType = header1.genotypeSignature.virtualType)
 
-  val fullRVDType = RVDType(PCanonicalStruct(false,
-    PCanonicalStruct.canonical(kType).fields.map { f => (f.name, f.typ) }
+  val fullRVDType = RVDType(PCanonicalStruct(true,
+    FastIndexedSeq(("locus", PCanonicalLocus.schemaFromRG(referenceGenome, true)), ("alleles", PCanonicalArray(PCanonicalString(true), true)))
       ++ header1.vaSignature.fields.map { f => (f.name, f.typ) }
-      ++ Array(LowerMatrixIR.entriesFieldName -> PCanonicalArray(header1.genotypeSignature)): _*)
-    .setRequired(true)
-    .asInstanceOf[PStruct],
+      ++ Array(LowerMatrixIR.entriesFieldName -> PCanonicalArray(header1.genotypeSignature, true)): _*),
     typ.rowKey)
 
   val partitioner: RVDPartitioner = {

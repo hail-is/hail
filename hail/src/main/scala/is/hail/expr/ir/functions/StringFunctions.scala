@@ -96,18 +96,18 @@ object StringFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerPCode("length", TString, TInt32, (_: Type, _: PType) => PInt32()) { case (r: EmitRegion, rt, s: PStringCode) =>
+    registerPCode1("length", TString, TInt32, (_: Type, _: PType) => PInt32()) { case (r: EmitRegion, rt, s: PStringCode) =>
       PCode(rt, s.loadString().invoke[Int]("length"))
     }
 
-    registerCode("substring", TString, TInt32, TInt32, TString, {
+    registerCode3("substring", TString, TInt32, TInt32, TString, {
       (_: Type, _: PType, _: PType, _: PType) => PCanonicalString()
     }) {
       case (r: EmitRegion, rt, (sT: PString, s: Code[Long]), (startT, start: Code[Int]), (endT, end: Code[Int])) =>
       unwrapReturn(r, rt)(asm4s.coerce[String](wrapArg(r, sT)(s)).invoke[Int, Int, String]("substring", start, end))
     }
 
-    registerIR("slice", TString, TInt32, TInt32, TString) { (str, start, end) =>
+    registerIR3("slice", TString, TInt32, TInt32, TString) { (_, str, start, end) =>
       val len = Ref(genUID(), TInt32)
       val s = Ref(genUID(), TInt32)
       val e = Ref(genUID(), TInt32)
@@ -117,7 +117,7 @@ object StringFunctions extends RegistryFunctions {
             invoke("substring", TString, str, s, If(e < s, s, e)))))
     }
 
-    registerIR("index", TString, TInt32, TString) { (s, i) =>
+    registerIR2("index", TString, TInt32, TString) { (_, s, i) =>
       val len = Ref(genUID(), TInt32)
       val idx = Ref(genUID(), TInt32)
       Let(len.name, invoke("length", TInt32, s),
@@ -132,16 +132,16 @@ object StringFunctions extends RegistryFunctions {
         invoke("substring", TString, s, idx, idx + 1)))
     }
 
-    registerIR("sliceRight", TString, TInt32, TString) { (s, start) => invoke("slice", TString, s, start, invoke("length", TInt32, s)) }
-    registerIR("sliceLeft", TString, TInt32, TString) { (s, end) => invoke("slice", TString, s, I32(0), end) }
+    registerIR2("sliceRight", TString, TInt32, TString) { (_, s, start) => invoke("slice", TString, s, start, invoke("length", TInt32, s)) }
+    registerIR2("sliceLeft", TString, TInt32, TString) { (_, s, end) => invoke("slice", TString, s, I32(0), end) }
 
-    registerCode("str", tv("T"), TString, (_: Type, _: PType) => PCanonicalString()) { case (r, rt, (aT, a)) =>
+    registerCode1("str", tv("T"), TString, (_: Type, _: PType) => PCanonicalString()) { case (r, rt, (aT, a)) =>
       val annotation = boxArg(r, aT)(a)
       val str = r.mb.getType(aT.virtualType).invoke[Any, String]("str", annotation)
       unwrapReturn(r, rt)(str)
     }
 
-    registerEmitCode("showStr", tv("T"), TInt32, TString, {
+    registerEmitCode2("showStr", tv("T"), TInt32, TString, {
       (_: Type, _: PType, truncType: PType) => PCanonicalString(truncType.required)
     }) { case (r, rt, a, trunc) =>
       val annotation = Code(a.setup, a.m).muxAny(Code._null(boxedTypeInfo(a.pt)), boxArg(r, a.pt)(a.v))
@@ -149,7 +149,7 @@ object StringFunctions extends RegistryFunctions {
       EmitCode(trunc.setup, trunc.m, PCode(rt, unwrapReturn(r, rt)(str)))
     }
 
-    registerEmitCode("json", tv("T"), TString, (_: Type, _: PType) => PCanonicalString(true)) { case (r, rt, a) =>
+    registerEmitCode1("json", tv("T"), TString, (_: Type, _: PType) => PCanonicalString(true)) { case (r, rt, a) =>
       val bti = boxedTypeInfo(a.pt)
       val annotation = Code(a.setup, a.m).muxAny(Code._null(bti), boxArg(r, a.pt)(a.v))
       val json = r.mb.getType(a.pt.virtualType).invoke[Any, JValue]("toJSON", annotation)
@@ -157,54 +157,52 @@ object StringFunctions extends RegistryFunctions {
       EmitCode(Code._empty, false, PCode(rt, unwrapReturn(r, rt)(str)))
     }
 
-    registerWrappedScalaFunction("reverse", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass,"reverse")
-    registerWrappedScalaFunction("upper", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass,"upper")
-    registerWrappedScalaFunction("lower", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass,"lower")
-    registerWrappedScalaFunction("strip", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass,"strip")
-    registerWrappedScalaFunction("contains", TString, TString, TBoolean, {
+    registerWrappedScalaFunction1("reverse", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass,"reverse")
+    registerWrappedScalaFunction1("upper", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass,"upper")
+    registerWrappedScalaFunction1("lower", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass,"lower")
+    registerWrappedScalaFunction1("strip", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass,"strip")
+    registerWrappedScalaFunction2("contains", TString, TString, TBoolean, {
       case (_: Type, _: PType, _: PType) => PBoolean()
     })(thisClass, "contains")
-    registerWrappedScalaFunction("translate", TString, TDict(TString, TString), TString, {
+    registerWrappedScalaFunction2("translate", TString, TDict(TString, TString), TString, {
       case (_: Type, _: PType, _: PType) => PCanonicalString()
     })(thisClass, "translate")
-    registerWrappedScalaFunction("startswith", TString, TString, TBoolean, {
+    registerWrappedScalaFunction2("startswith", TString, TString, TBoolean, {
       case (_: Type, _: PType, _: PType) => PBoolean()
     })(thisClass, "startswith")
-    registerWrappedScalaFunction("endswith", TString, TString, TBoolean, {
+    registerWrappedScalaFunction2("endswith", TString, TString, TBoolean, {
       case (_: Type, _: PType, _: PType) => PBoolean()
     })(thisClass, "endswith")
-    registerWrappedScalaFunction("regexMatch", TString, TString, TBoolean, {
+    registerWrappedScalaFunction2("regexMatch", TString, TString, TBoolean, {
       case (_: Type, _: PType, _: PType) => PBoolean()
     })(thisClass, "regexMatch")
-    registerWrappedScalaFunction("concat", TString, TString, TString, {
+    registerWrappedScalaFunction2("concat", TString, TString, TString, {
       case (_: Type, _: PType, _: PType) => PCanonicalString()
     })(thisClass, "concat")
 
-    registerWrappedScalaFunction("split", TString, TString, TArray(TString), {
-      case (_: Type, _: PType, _: PType) => {
+    registerWrappedScalaFunction2("split", TString, TString, TArray(TString), {
+      case (_: Type, _: PType, _: PType) =>
         PCanonicalArray(PCanonicalString(true))
-      }
     })(thisClass, "split")
 
-    registerWrappedScalaFunction("split", TString, TString, TInt32, TArray(TString), {
-      case (_: Type, _: PType, _: PType, _: PType) => {
+    registerWrappedScalaFunction3("split", TString, TString, TInt32, TArray(TString), {
+      case (_: Type, _: PType, _: PType, _: PType) =>
         PCanonicalArray(PCanonicalString(true))
-      }
     })(thisClass, "splitLimited")
 
-    registerWrappedScalaFunction("replace", TString, TString, TString, TString, {
+    registerWrappedScalaFunction3("replace", TString, TString, TString, TString, {
       case (_: Type, _: PType, _: PType, _: PType) => PCanonicalString()
     })(thisClass, "replace")
 
-    registerWrappedScalaFunction("mkString", TSet(TString), TString, TString, {
+    registerWrappedScalaFunction2("mkString", TSet(TString), TString, TString, {
       case (_: Type, _: PType, _: PType) => PCanonicalString()
     })(thisClass, "setMkString")
 
-    registerWrappedScalaFunction("mkString", TArray(TString), TString, TString, {
+    registerWrappedScalaFunction2("mkString", TArray(TString), TString, TString, {
       case (_: Type, _: PType, _: PType) => PCanonicalString()
     })(thisClass, "arrayMkString")
 
-    registerEmitCode("firstMatchIn", TString, TString, TArray(TString), {
+    registerEmitCode2("firstMatchIn", TString, TString, TArray(TString), {
       case(_: Type, _: PType, _: PType) => PCanonicalArray(PCanonicalString(true))
     }) {
       case (er: EmitRegion, rt: PArray, s: EmitCode, r: EmitCode) =>
@@ -238,7 +236,7 @@ object StringFunctions extends RegistryFunctions {
       EmitCode(setup, missing, PCode(rt, value))
     }
 
-    registerEmitCode("hamming", TString, TString, TInt32, {
+    registerEmitCode2("hamming", TString, TString, TInt32, {
       case(_: Type, _: PType, _: PType) => PInt32()
     }) { case (r: EmitRegion, rt, e1: EmitCode, e2: EmitCode) =>
       EmitCode.fromI(r.mb) { cb =>
@@ -265,11 +263,11 @@ object StringFunctions extends RegistryFunctions {
       }
     }
 
-    registerWrappedScalaFunction("escapeString", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass, "escapeString")
-    registerWrappedScalaFunction("strftime", TString, TInt64, TString, TString, {
+    registerWrappedScalaFunction1("escapeString", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass, "escapeString")
+    registerWrappedScalaFunction3("strftime", TString, TInt64, TString, TString, {
       case(_: Type, _: PType, _: PType, _: PType) => PCanonicalString()
     })(thisClass, "strftime")
-    registerWrappedScalaFunction("strptime", TString, TString, TString, TInt64, {
+    registerWrappedScalaFunction3("strptime", TString, TString, TString, TInt64, {
       case(_: Type, _: PType, _: PType, _: PType) => PInt64()
     })(thisClass, "strptime")
   }

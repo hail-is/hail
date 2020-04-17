@@ -81,6 +81,10 @@ object Children {
       Array(orderedCollection, elem)
     case GroupByKey(collection) =>
       Array(collection)
+    case StreamTake(a, len) =>
+      Array(a, len)
+    case StreamDrop(a, len) =>
+      Array(a, len)
     case StreamMap(a, name, body) =>
       Array(a, body)
     case StreamZip(as, names, body, _) =>
@@ -164,13 +168,13 @@ object Children {
       none
     case Die(message, typ) =>
       Array(message)
-    case ApplyIR(_, args) =>
+    case ApplyIR(_, _, args) =>
       args.toFastIndexedSeq
-    case Apply(_, args, _) =>
+    case Apply(_, _, args, _) =>
       args.toFastIndexedSeq
     case ApplySeeded(_, args, seed, _) =>
       args.toFastIndexedSeq
-    case ApplySpecial(_, args, _) =>
+    case ApplySpecial(_, _, args, _) =>
       args.toFastIndexedSeq
     // from MatrixIR
     case MatrixWrite(child, _) => Array(child)

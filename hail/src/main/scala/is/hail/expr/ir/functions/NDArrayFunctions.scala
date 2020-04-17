@@ -9,17 +9,17 @@ object NDArrayFunctions extends RegistryFunctions {
   override def registerAll() {
     for ((stringOp, argType, retType, irOp) <- ArrayFunctions.arrayOps) {
       val nDimVar = NatVariable()
-      registerIR(stringOp, TNDArray(argType, nDimVar), argType, TNDArray(retType, nDimVar)) { (a, c) =>
+      registerIR2(stringOp, TNDArray(argType, nDimVar), argType, TNDArray(retType, nDimVar)) { (_, a, c) =>
         val i = genUID()
         NDArrayMap(a, i, irOp(Ref(i, c.typ), c))
       }
 
-      registerIR(stringOp, argType, TNDArray(argType, nDimVar), TNDArray(retType, nDimVar)) { (c, a) =>
+      registerIR2(stringOp, argType, TNDArray(argType, nDimVar), TNDArray(retType, nDimVar)) { (_, c, a) =>
         val i = genUID()
         NDArrayMap(a, i, irOp(c, Ref(i, c.typ)))
       }
 
-      registerIR(stringOp, TNDArray(argType, nDimVar), TNDArray(argType, nDimVar), TNDArray(retType, nDimVar)) { (l, r) =>
+      registerIR2(stringOp, TNDArray(argType, nDimVar), TNDArray(argType, nDimVar), TNDArray(retType, nDimVar)) { (_, l, r) =>
         val lid = genUID()
         val rid = genUID()
         val lElemRef = Ref(lid, coerce[TNDArray](l.typ).elementType)

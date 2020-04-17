@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 import hail as hl
 import hail.experimental.vcf_combiner.vcf_combiner as vc_all
 
-from .resources import empty_gvcf, single_gvcf
+from .resources import empty_gvcf, single_gvcf, chr22_gvcfs
 from .utils import benchmark
 
 COMBINE_GVCF_MAX = 100
@@ -54,3 +54,13 @@ def import_gvcf_force_count(path):
     intervals = vc_all.default_exome_intervals('GRCh38')
     [mt] = hl.import_gvcfs([path], intervals, reference_genome='GRCh38')
     mt._force_count_rows()
+
+@benchmark(args=[chr22_gvcfs.handle(name) for name in chr22_gvcfs.samples])
+def full_combiner_chr22(*paths):
+    with TemporaryDirectory() as tmpdir:
+        vc_all.run_combiner(list(paths),
+                            out_file=tmpdir,
+                            tmp_path='/tmp',
+                            branch_factor=16,
+                            reference_genome='GRCh38',
+                            overwrite=True)

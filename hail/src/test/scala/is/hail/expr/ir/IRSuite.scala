@@ -50,7 +50,7 @@ object IRSuite {
         override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(returnType, argTypes)
 
         def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: EmitCode*): EmitCode = {
-          unify(args.map(_.pt.virtualType))
+          assert(unify(FastSeq(), args.map(_.pt.virtualType), rpt.virtualType))
           impl(r, rpt, seed, args.toArray)
         }
       })
@@ -1577,8 +1577,9 @@ class IRSuite extends HailSuite {
       assertEvalSame(zipToTuple(b, empty), FastIndexedSeq())
     }
 
-    assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range6, range8), "zip: length mismatch")
-    assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range12, lit6), "zip: length mismatch")
+    // https://github.com/hail-is/hail/issues/8359
+    is.hail.TestUtils.assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range6, range8): IR, "zip: length mismatch": String)
+    is.hail.TestUtils.assertThrows[HailException](zipToTuple(ArrayZipBehavior.AssertSameLength, range12, lit6): IR, "zip: length mismatch": String)
   }
 
   @Test def testToSet() {
@@ -1739,6 +1740,30 @@ class IRSuite extends HailSuite {
     assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, I32(-1), onKey = true), 0)
     assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, I32(4), onKey = true), 2)
     assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, NA(TInt32), onKey = true), 2)
+  }
+
+  @Test def testStreamTake() {
+    val naa = NA(TStream(TInt32))
+    val a = MakeStream(Seq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
+
+    assertEvalsTo(ToArray(StreamTake(naa, I32(2))), null)
+    assertEvalsTo(ToArray(StreamTake(a, NA(TInt32))), null)
+    assertEvalsTo(ToArray(StreamTake(a, I32(0))), FastIndexedSeq())
+    assertEvalsTo(ToArray(StreamTake(a, I32(2))), FastIndexedSeq(3, null))
+    assertEvalsTo(ToArray(StreamTake(a, I32(5))), FastIndexedSeq(3, null, 7))
+    assertFatal(ToArray(StreamTake(a, I32(-1))), "StreamTake: negative length")
+  }
+
+  @Test def testStreamDrop() {
+    val naa = NA(TStream(TInt32))
+    val a = MakeStream(Seq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
+
+    assertEvalsTo(ToArray(StreamDrop(naa, I32(2))), null)
+    assertEvalsTo(ToArray(StreamDrop(a, NA(TInt32))), null)
+    assertEvalsTo(ToArray(StreamDrop(a, I32(0))), FastIndexedSeq(3, null, 7))
+    assertEvalsTo(ToArray(StreamDrop(a, I32(2))), FastIndexedSeq(7))
+    assertEvalsTo(ToArray(StreamDrop(a, I32(5))), FastIndexedSeq())
+    assertFatal(ToArray(StreamDrop(a, I32(-1))), "StreamDrop: negative num")
   }
 
   @Test def testStreamMap() {
@@ -2591,6 +2616,8 @@ class IRSuite extends HailSuite {
       ToStream(a),
       LowerBoundOnOrderedCollection(a, i, onKey = true),
       GroupByKey(da),
+      StreamTake(st, I32(10)),
+      StreamDrop(st, I32(10)),
       StreamMap(st, "v", v),
       StreamZip(FastIndexedSeq(st, st), FastIndexedSeq("foo", "bar"), True(), ArrayZipBehavior.TakeMinLength),
       StreamFilter(st, "v", b),
@@ -2871,6 +2898,7 @@ class IRSuite extends HailSuite {
         "x" -> TInt32))
 
       val s = Pretty(x, elideLiterals = false)
+
       val x2 = IRParser.parse_value_ir(s, env)
 
       assert(x2 == x)
