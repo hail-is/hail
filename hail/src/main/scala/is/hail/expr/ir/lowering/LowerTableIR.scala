@@ -113,6 +113,27 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
             throw new LowererUnsupportedOperation(s"can't lower a TableRead with reader $r.")
         }
 
+      case TableParallelize(rowsAndGlobal, nPartitions) =>
+        val nPartitionsAdj = nPartitions.getOrElse(16)
+        val loweredRowsAndGlobal = lower(rowsAndGlobal)
+
+        val contextType = TStruct(
+
+        )
+
+        val context = MakeStream((0 until nPartitionsAdj).map { partIdx =>
+          MakeStruct(Seq.empty[(String, IR)])
+        }, TStream(contextType))
+
+        TableStage(
+          loweredRowsAndGlobal,//SelectFields(loweredRowsAndGlobal, FastSeq("global")),
+          "global",
+          RVDPartitioner.unkeyed(nPartitionsAdj),
+          contextType,
+          context,
+          ???
+        )
+
       case TableRange(n, nPartitions) =>
         val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
         val partCounts = partition(n, nPartitionsAdj)
