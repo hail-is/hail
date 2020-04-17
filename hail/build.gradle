@@ -11,13 +11,12 @@ plugins {
   id 'scala'
   id 'idea'
   id 'maven'
-  id 'com.github.johnrengelman.shadow' version '5.0.0'
+  id 'com.github.johnrengelman.shadow' version "5.0.0"
   id "de.undercouch.download" version "3.2.0"
   id 'eclipse'
 }
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-import com.github.jengelman.gradle.plugins.shadow.tasks.ConfigureShadowRelocation
 
 repositories {
     mavenCentral()
@@ -177,8 +176,9 @@ dependencies {
     hailTest 'org.testng:testng:6.8.21'
     hailTest 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
 
-    unbundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
+    bundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
     bundled group: 'commons-codec', name: 'commons-codec', version: '1.11'
+    bundled group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
 
     bundled 'com.indeed:lsmtree-core:1.0.7'
     bundled 'com.indeed:util-serialization:1.0.30'
@@ -238,14 +238,6 @@ task testAll(type: Exec) {
     commandLine 'sh', '-c', 'echo "use make test; gradle is being phased out"; exit 1'
 }
 
-task relocateShadowJar(type: ConfigureShadowRelocation) {
-    target = tasks.shadowJar
-    prefix = "is.hail.auto.relocated"
-
-}
-
-tasks.shadowJar.dependsOn tasks.relocateShadowJar
-
 tasks.withType(ShadowJar) {
     manifest {
         attributes 'Implementation-Title': 'Hail',
@@ -258,6 +250,7 @@ tasks.withType(ShadowJar) {
     relocate 'org.apache.http', 'is.hail.relocated.org.apache.http'
     relocate 'com.google.common', 'is.hail.relocated.com.google.common'
     relocate 'org.objectweb', 'is.hail.relocated.org.objectweb'
+    relocate 'org.codehaus.jackson', 'is.hail.relocated.org.codehaus.jackson'
 
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.SF'
