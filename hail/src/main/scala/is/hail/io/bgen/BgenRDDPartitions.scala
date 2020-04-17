@@ -466,7 +466,7 @@ object CompileDecoder {
               Code(
                 uncompressedSize := cbfis.invoke[Int]("readInt"),
                 input := cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize - 4),
-                data := Code.invokeScalaObject[Array[Byte], Int, Array[Byte]](
+                data := Code.invokeScalaObject2[Array[Byte], Int, Array[Byte]](
                   BgenRDD.getClass, "decompress", input, uncompressedSize)),
               data := cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize)),
             reader := Code.newInstance[ByteArrayReader, Array[Byte]](data),

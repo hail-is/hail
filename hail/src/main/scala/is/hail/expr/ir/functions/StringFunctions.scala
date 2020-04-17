@@ -153,7 +153,7 @@ object StringFunctions extends RegistryFunctions {
       val bti = boxedTypeInfo(a.pt)
       val annotation = Code(a.setup, a.m).muxAny(Code._null(bti), boxArg(r, a.pt)(a.v))
       val json = r.mb.getType(a.pt.virtualType).invoke[Any, JValue]("toJSON", annotation)
-      val str = Code.invokeScalaObject[JValue, String](JsonMethods.getClass, "compact", json)
+      val str = Code.invokeScalaObject1[JValue, String](JsonMethods.getClass, "compact", json)
       EmitCode(Code._empty, false, PCode(rt, unwrapReturn(r, rt)(str)))
     }
 
@@ -214,7 +214,7 @@ object StringFunctions extends RegistryFunctions {
 
       val setup = Code(s.setup, r.setup)
       val missing = s.m || r.m || Code(
-        out := Code.invokeScalaObject[String, String, IndexedSeq[String]](
+        out := Code.invokeScalaObject2[String, String, IndexedSeq[String]](
           thisClass, "firstMatchIn",
           asm4s.coerce[String](wrapArg(er, s.pt)(s.value[Long])),
           asm4s.coerce[String](wrapArg(er, r.pt)(r.value[Long]))),

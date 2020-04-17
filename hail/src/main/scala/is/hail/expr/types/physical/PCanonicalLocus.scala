@@ -94,7 +94,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
             c1 := representation.loadField(x, 0),
             c2 := representation.loadField(y, 0),
             cmp.ceq(0).mux(
-              Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare", p1, p2),
+              Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", p1, p2),
               codeRG.invoke[String, String, Int]("compare", s1, s2)))
         }
       }
@@ -142,7 +142,7 @@ class PCanonicalLocusCode(val pt: PCanonicalLocus, val a: Code[Long]) extends PL
 
   def getLocusObj(): Code[Locus] = {
     Code.memoize(a, "get_locus_code_memo") { a =>
-      Code.invokeStatic[Locus, String, Int, Locus]("apply",
+      Code.invokeStatic2[Locus, String, Int, Locus]("apply",
         pt.contigType.loadString(pt.contigAddr(a)),
         pt.position(a))
     }
