@@ -1,5 +1,7 @@
 import logging
 import fnmatch
+from functools import wraps
+
 import google.api_core.exceptions
 import google.oauth2.service_account
 import google.cloud.storage
@@ -82,7 +84,6 @@ class GCS:
                                             self, sources, dest, *args, **kwargs)
 
     async def list_gs_files(self, uri, max_results=None):
-        print('here')
         return await retry_transient_errors(self._wrapped_list_gs_files,
                                             self, uri, max_results=max_results)
 
@@ -95,12 +96,12 @@ class GCS:
                                             self, uri)
 
     def _wrap_network_call(self, fun):
+        @wraps(fun)
         async def wrapped(*args, **kwargs):
             return await blocking_to_async(self.blocking_pool,
                                            fun,
                                            *args,
                                            **kwargs)
-        wrapped.__name__ = fun.__name__
         return wrapped
 
     def _write_gs_file_from_string(self, uri, string, *args, **kwargs):
@@ -158,8 +159,7 @@ class GCS:
     def _list_gs_files(self, uri, max_results=None):
         bucket_name, prefix = GCS._parse_uri(uri)
         bucket = self.gcs_client.bucket(bucket_name)
-        for blob in bucket.list_blobs(prefix=prefix, max_results=max_results):
-            yield blob
+        return iter(bucket.list_blobs(prefix=prefix, max_results=max_results))
 
     def _glob_gs_files(self, uri):
         assert '**' not in uri

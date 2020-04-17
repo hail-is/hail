@@ -5,17 +5,20 @@ import subprocess as sp
 import uuid
 import random
 import string
-from shlex import quote as shq
 import google.oauth2.service_account
 from hailtop.auth import get_userinfo
 from hailtop.utils.os import _glob
 
 from batch.google_storage import GCS
 
-key_file = '/gsa-key/key.json'
-project = os.environ['PROJECT']
-user = get_userinfo()
-tmp_bucket = f'gs://{user["bucket_name"]}/test_copy_files'
+# key_file = '/gsa-key/key.json'
+# project = os.environ['PROJECT']
+# user = get_userinfo()
+# tmp_bucket = f'gs://{user["bucket_name"]}/test_copy_files'
+
+key_file = '/Users/jigold/.hail/key.json'
+project = 'hail-vdc'
+tmp_bucket = f'gs://hail-jigold-59hi5/test_copy_files'
 
 credentials = google.oauth2.service_account.Credentials.from_service_account_file(key_file)
 gcs_client = GCS(None, project=project, credentials=credentials)
@@ -34,15 +37,16 @@ class RemoteTemporaryDirectory:
 
 
 def upload_files(src, dest):
-    os.system(f'gsutil -m -q cp -r {src} {dest}')
+    sp.check_output(['gsutil', '-m', '-q', 'cp', '-r', src, dest])
 
 
 def move_files(src, dest):
-    os.system(f'gsutil -m -q mv -r {src} {dest}')
+    sp.check_output(['gsutil', '-m', '-q', 'mv', '-r', src, dest])
 
 
 def remove_remote_dir(path):
-    os.system(f'gsutil -m -q rm -r {path}')
+    path = path.rstrip('/') + '/'
+    sp.run(['gsutil', '-m', '-q', 'rm', '-r', path], stdout=sp.PIPE, stderr=sp.PIPE)
 
 
 def touch_file(path, data=None):
@@ -57,23 +61,21 @@ def touch_file(path, data=None):
 
 def cp_batch(src, dest, parallelism=1, min_partition_size='1Gi',
              max_upload_partitions=32, max_download_partitions=32):
-    cmd = f'''
-python3 -u -m batch.worker.copy_files \\
-  --key-file {key_file} \\
-  --project {project} \\
-  --parallelism {parallelism} \\
-  --min-partition-size {min_partition_size} \\
-  --max-upload-partitions {max_upload_partitions} \\
-  --max-download-partitions {max_download_partitions} \\
-  -f {shq(src)} {shq(dest)} 2>&1
-'''
-    result = sp.run(cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
+    cmd = ['python3', '-u', '-m', 'batch.worker.copy_files',
+           '--key-file', key_file,
+           '--project', project,
+           '--parallelism', str(parallelism),
+           '--min-partition-size', min_partition_size,
+           '--max-upload-partitions', str(max_upload_partitions),
+           '--max-download-partitions', str(max_download_partitions),
+           '-f', src, dest]
+    result = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
     return str(result.stdout), result.returncode
 
 
 def cp_gsutil(src, dest):
-    cmd = f'gcloud -q auth activate-service-account --key-file={key_file}; gsutil -m -q cp -r {shq(src)} {shq(dest)} 2>&1'
-    result = sp.run(cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
+    cmd = ['gsutil', '-m', '-q', 'cp', '-r', src, dest]
+    result = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
     return str(result.stdout), result.returncode
 
 
@@ -83,7 +85,7 @@ def _glob_local_files(path):
 
 def glob_local_files(dir):
     files = _glob_local_files(dir)
-    return {f.replace(dir, '') for f in files}
+    return {f.replace(dir, '') for f, _ in files}
 
 
 def glob_remote_files(dir):
@@ -174,22 +176,21 @@ def _get_rc(result, version, method):
 
 
 def _get_batch_gsutil_files_same(result):
-    return [result['rr']['success'],
-            result['rl']['success'],
-            result['lr']['success'],
-            result['ll']['success']]
+    return [result[t]['success'] for t in result]
 
 
 class TestEmptyDirectory(unittest.TestCase):
-    def setUp(self):
-        self.local_dir = tempfile.TemporaryDirectory()
+    @classmethod
+    def setUpClass(cls):
+        cls.local_dir = tempfile.TemporaryDirectory()
         token = uuid.uuid4().hex[:6]
-        self.remote_dir = f'{tmp_bucket}/{token}'
-        upload_files(self.local_dir.name, self.remote_dir)
+        cls.remote_dir = f'{tmp_bucket}/{token}'
+        upload_files(cls.local_dir.name, cls.remote_dir)
 
-    def tearDown(self):
-        self.local_dir.cleanup()
-        remove_remote_dir(self.remote_dir)
+    @classmethod
+    def tearDownClass(cls):
+        cls.local_dir.cleanup()
+        remove_remote_dir(cls.remote_dir)
 
     def assert_batch_same_as_gsutil(self, src, dest):
         result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
@@ -209,16 +210,18 @@ class TestEmptyDirectory(unittest.TestCase):
 
 
 class TestSingleFileTopLevel(unittest.TestCase):
-    def setUp(self):
-        self.local_dir = tempfile.TemporaryDirectory()
-        touch_file(self.local_dir.name + '/data/a')
+    @classmethod
+    def setUpClass(cls):
+        cls.local_dir = tempfile.TemporaryDirectory()
+        touch_file(cls.local_dir.name + '/data/a')
         token = uuid.uuid4().hex[:6]
-        self.remote_dir = f'{tmp_bucket}/{token}'
-        upload_files(self.local_dir.name, self.remote_dir)
+        cls.remote_dir = f'{tmp_bucket}/{token}'
+        upload_files(cls.local_dir.name, cls.remote_dir)
 
-    def tearDown(self):
-        self.local_dir.cleanup()
-        remove_remote_dir(self.remote_dir)
+    @classmethod
+    def tearDownClass(cls):
+        cls.local_dir.cleanup()
+        remove_remote_dir(cls.remote_dir)
 
     def assert_batch_same_as_gsutil(self, src, dest):
         result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
@@ -264,16 +267,18 @@ class TestSingleFileTopLevel(unittest.TestCase):
 
 
 class TestFileNestedInMultipleSubdirs(unittest.TestCase):
-    def setUp(self):
-        self.local_dir = tempfile.TemporaryDirectory()
-        touch_file(self.local_dir.name + '/data/a/b/c')
+    @classmethod
+    def setUpClass(cls):
+        cls.local_dir = tempfile.TemporaryDirectory()
+        touch_file(cls.local_dir.name + '/data/a/b/c')
         token = uuid.uuid4().hex[:6]
-        self.remote_dir = f'{tmp_bucket}/{token}'
-        upload_files(self.local_dir.name, self.remote_dir)
+        cls.remote_dir = f'{tmp_bucket}/{token}'
+        upload_files(cls.local_dir.name, cls.remote_dir)
 
-    def tearDown(self):
-        self.local_dir.cleanup()
-        remove_remote_dir(self.remote_dir)
+    @classmethod
+    def tearDownClass(cls):
+        cls.local_dir.cleanup()
+        remove_remote_dir(cls.remote_dir)
 
     def assert_batch_same_as_gsutil(self, src, dest):
         result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
@@ -303,18 +308,20 @@ class TestFileNestedInMultipleSubdirs(unittest.TestCase):
 
 
 class TestDownloadMultipleFilesAtTopLevel(unittest.TestCase):
-    def setUp(self):
-        self.local_dir = tempfile.TemporaryDirectory()
-        touch_file(self.local_dir.name + '/data/a')
-        touch_file(self.local_dir.name + '/data/b')
-        touch_file(self.local_dir.name + '/data/c')
+    @classmethod
+    def setUpClass(cls):
+        cls.local_dir = tempfile.TemporaryDirectory()
+        touch_file(cls.local_dir.name + '/data/a')
+        touch_file(cls.local_dir.name + '/data/b')
+        touch_file(cls.local_dir.name + '/data/c')
         token = uuid.uuid4().hex[:6]
-        self.remote_dir = f'{tmp_bucket}/{token}'
-        upload_files(self.local_dir.name, self.remote_dir)
+        cls.remote_dir = f'{tmp_bucket}/{token}'
+        upload_files(cls.local_dir.name, cls.remote_dir)
 
-    def tearDown(self):
-        self.local_dir.cleanup()
-        remove_remote_dir(self.remote_dir)
+    @classmethod
+    def tearDownClass(cls):
+        cls.local_dir.cleanup()
+        remove_remote_dir(cls.remote_dir)
 
     def assert_batch_same_as_gsutil(self, src, dest):
         result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
@@ -366,56 +373,21 @@ class TestDownloadMultipleFilesAtTopLevel(unittest.TestCase):
         assert 'NotADirectoryError' in _get_output(result, 'll', 'batch'), _get_output(result, 'll', 'batch')
 
 
-class TestDownloadFileDirectoryWithSameName(unittest.TestCase):
-    def setUp(self):
-        self.local_dir = tempfile.TemporaryDirectory()
-        touch_file(self.local_dir.name + '/data/a')
-        token = uuid.uuid4().hex[:6]
-        self.remote_dir = f'{tmp_bucket}/{token}'
-        upload_files(self.local_dir.name, self.remote_dir)
-        upload_files(self.remote_dir + '/data/a', self.remote_dir + '/data/a/b')
-
-    def tearDown(self):
-        self.local_dir.cleanup()
-        remove_remote_dir(self.remote_dir)
-
-    def assert_batch_same_as_gsutil(self, src, dest):
-        result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
-        assert all(_get_batch_gsutil_files_same(result)), str(result)
-        return result
-
-    def test_download_file_by_name(self):
-        self.assert_batch_same_as_gsutil('/data/a', '/')
-
-    def test_download_file_by_name_in_subdir(self):
-        self.assert_batch_same_as_gsutil('/data/a/b', '/')
-
-    def test_download_directory_with_same_name_as_file(self):
-        src = '/data/a/'
-        dest = '/'
-
-        rr = run_remote_to_remote(f'{self.remote_dir}{src}', dest)
-        rl = run_remote_to_local(f'{self.remote_dir}{src}', dest)
-
-        assert rr['success'] and not rl['success']
-
-        rl_batch_output = rl['result']['batch']['output']
-        assert 'NotADirectory' in rl_batch_output or 'FileExistsError' in rl_batch_output, rl_batch_output
-
-
 class TestDownloadFileWithEscapedWildcards(unittest.TestCase):
-    def setUp(self):
-        self.local_dir = tempfile.TemporaryDirectory()
-        touch_file(self.local_dir.name + '/data/foo/bar/dog/a')
-        touch_file(self.local_dir.name + '/data/foo/baz/dog/h*llo')
-        touch_file(self.local_dir.name + '/data/foo/b?r/dog/b')
+    @classmethod
+    def setUpClass(cls):
+        cls.local_dir = tempfile.TemporaryDirectory()
+        touch_file(cls.local_dir.name + '/data/foo/bar/dog/a')
+        touch_file(cls.local_dir.name + '/data/foo/baz/dog/h*llo')
+        touch_file(cls.local_dir.name + '/data/foo/b?r/dog/b')
         token = uuid.uuid4().hex[:6]
-        self.remote_dir = f'{tmp_bucket}/{token}'
-        upload_files(self.local_dir.name, self.remote_dir)
+        cls.remote_dir = f'{tmp_bucket}/{token}'
+        upload_files(cls.local_dir.name, cls.remote_dir)
 
-    def tearDown(self):
-        self.local_dir.cleanup()
-        remove_remote_dir(self.remote_dir)
+    @classmethod
+    def tearDownClass(cls):
+        cls.local_dir.cleanup()
+        remove_remote_dir(cls.remote_dir)
 
     def assert_batch_same_as_gsutil(self, src, dest):
         result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
@@ -467,17 +439,19 @@ class TestDownloadFileWithEscapedWildcards(unittest.TestCase):
 
 
 class TestDownloadFileWithSpaces(unittest.TestCase):
-    def setUp(self):
-        self.local_dir = tempfile.TemporaryDirectory()
-        touch_file(self.local_dir.name + '/data/foo/bar/dog/file with spaces.txt')
-        touch_file(self.local_dir.name + '/data/f o o/hello')
+    @classmethod
+    def setUpClass(cls):
+        cls.local_dir = tempfile.TemporaryDirectory()
+        touch_file(cls.local_dir.name + '/data/foo/bar/dog/file with spaces.txt')
+        touch_file(cls.local_dir.name + '/data/f o o/hello')
         token = uuid.uuid4().hex[:6]
-        self.remote_dir = f'{tmp_bucket}/{token}'
-        upload_files(self.local_dir.name, self.remote_dir)
+        cls.remote_dir = f'{tmp_bucket}/{token}'
+        upload_files(cls.local_dir.name, cls.remote_dir)
 
-    def tearDown(self):
-        self.local_dir.cleanup()
-        remove_remote_dir(self.remote_dir)
+    @classmethod
+    def tearDownClass(cls):
+        cls.local_dir.cleanup()
+        remove_remote_dir(cls.remote_dir)
 
     def assert_batch_same_as_gsutil(self, src, dest):
         result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
@@ -491,19 +465,21 @@ class TestDownloadFileWithSpaces(unittest.TestCase):
 
 
 class TestDownloadComplicatedDirectory(unittest.TestCase):
-    def setUp(self):
-        self.local_dir = tempfile.TemporaryDirectory()
-        touch_file(self.local_dir.name + '/data/foo/a/data1')
-        touch_file(self.local_dir.name + '/data/bar/a')
-        touch_file(self.local_dir.name + '/data/baz')
-        touch_file(self.local_dir.name + '/data/dog/dog/dog')
+    @classmethod
+    def setUpClass(cls):
+        cls.local_dir = tempfile.TemporaryDirectory()
+        touch_file(cls.local_dir.name + '/data/foo/a/data1')
+        touch_file(cls.local_dir.name + '/data/bar/a')
+        touch_file(cls.local_dir.name + '/data/baz')
+        touch_file(cls.local_dir.name + '/data/dog/dog/dog')
         token = uuid.uuid4().hex[:6]
-        self.remote_dir = f'{tmp_bucket}/{token}'
-        upload_files(self.local_dir.name, self.remote_dir)
+        cls.remote_dir = f'{tmp_bucket}/{token}'
+        upload_files(cls.local_dir.name, cls.remote_dir)
 
-    def tearDown(self):
-        self.local_dir.cleanup()
-        remove_remote_dir(self.remote_dir)
+    @classmethod
+    def tearDownClass(cls):
+        cls.local_dir.cleanup()
+        remove_remote_dir(cls.remote_dir)
 
     def assert_batch_same_as_gsutil(self, src, dest):
         result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
@@ -517,20 +493,22 @@ class TestDownloadComplicatedDirectory(unittest.TestCase):
 
 
 class TestNonEmptyFile(unittest.TestCase):
-    def setUp(self):
-        self.local_dir = tempfile.TemporaryDirectory()
-        self.data = ''.join([random.choice(string.ascii_letters) for _ in range(16 * 1024)])
+    @classmethod
+    def setUpClass(cls):
+        cls.local_dir = tempfile.TemporaryDirectory()
+        cls.data = ''.join([random.choice(string.ascii_letters) for _ in range(16 * 1024)])
 
-        with open(f'{self.local_dir.name}/data', 'w') as f:
-            f.write(self.data)
+        with open(f'{cls.local_dir.name}/data', 'w') as f:
+            f.write(cls.data)
 
         token = uuid.uuid4().hex[:6]
-        self.remote_dir = f'{tmp_bucket}/{token}'
-        upload_files(self.local_dir.name, self.remote_dir)
+        cls.remote_dir = f'{tmp_bucket}/{token}'
+        upload_files(cls.local_dir.name, cls.remote_dir)
 
-    def tearDown(self):
-        self.local_dir.cleanup()
-        remove_remote_dir(self.remote_dir)
+    @classmethod
+    def tearDownClass(cls):
+        cls.local_dir.cleanup()
+        remove_remote_dir(cls.remote_dir)
 
     def test_download_multiple_partitions(self):
         with tempfile.TemporaryDirectory() as dest_dir:
@@ -545,3 +523,95 @@ class TestNonEmptyFile(unittest.TestCase):
                 cp_batch(f'{remote_dest_dir}/data', f'{local_dest_dir}/data')
                 with open(f'{local_dest_dir}/data', 'r') as f:
                     assert f.read() == self.data, output
+
+
+class TestDownloadFileDirectoryWithSameName(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.local_dir = tempfile.TemporaryDirectory()
+        touch_file(cls.local_dir.name + '/data/foo/a')
+        token = uuid.uuid4().hex[:6]
+        cls.remote_dir = f'{tmp_bucket}/{token}'
+        upload_files(cls.local_dir.name, cls.remote_dir)
+        upload_files(cls.remote_dir + '/data/foo/a', cls.remote_dir + '/data/foo/a/b')
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.local_dir.cleanup()
+        remove_remote_dir(cls.remote_dir)
+
+    def assert_batch_same_as_gsutil(self, src, dest):
+        result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
+        assert all(_get_batch_gsutil_files_same(result)), str(result)
+        return result
+
+    def test_download_file_by_name(self):
+        self.assert_batch_same_as_gsutil('/data/foo/a', '/')
+
+    def test_download_file_by_name_in_subdir(self):
+        self.assert_batch_same_as_gsutil('/data/foo/a/b', '/')
+
+    def test_download_directory_with_same_name_as_file(self):
+        src = '/data/foo/a/'
+        dest = '/'
+
+        rr = run_remote_to_remote(f'{self.remote_dir}{src}', dest)
+        rl = run_remote_to_local(f'{self.remote_dir}{src}', dest)
+
+        assert rr['success'] and not rl['success']
+
+        rl_batch_output = rl['result']['batch']['output']
+        assert 'NotADirectory' in rl_batch_output or 'FileExistsError' in rl_batch_output, rl_batch_output
+
+    def test_download_file_with_wildcard(self):
+        self.assert_batch_same_as_gsutil('/data/*/a', '/')
+
+
+class TestEmptyFileSlashWithSameNameAsDirectory(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        token = uuid.uuid4().hex[:6]
+        cls.remote_dir = f'{tmp_bucket}/{token}'
+        gcs_client._write_gs_file_from_string(f'{cls.remote_dir}/data/foo/', '')
+        gcs_client._write_gs_file_from_string(f'{cls.remote_dir}/data/foo/a', 'a')
+        gcs_client._write_gs_file_from_string(f'{cls.remote_dir}/data/foo/b', 'b')
+
+    @classmethod
+    def tearDownClass(cls):
+        remove_remote_dir(cls.remote_dir)
+
+    def assert_batch_same_as_gsutil(self, src, dest):
+        result = {'rr': run_remote_to_remote(f'{self.remote_dir}/data{src}', dest),
+                  'rl': run_remote_to_local(f'{self.remote_dir}/data{src}', dest)}
+        assert all(_get_batch_gsutil_files_same(result)), str(result)
+        return result
+
+    def test_download_single_file_with_slash(self):
+        result = self.assert_batch_same_as_gsutil('/foo/', '/')
+        print(_get_output(result, 'rr', 'batch'))
+
+    #     # def test_download_single_file_without_slash(self):
+    #     #     result = self.assert_batch_same_as_gsutil('/foo/a', '/')
+    #     #     print(result)
+
+    # def test_download_directory(self):
+    #     # gsutil doesn't copy files that end in a slash
+    #     # https://github.com/GoogleCloudPlatform/gsutil/issues/444
+    #     expected = {'/data/foo/', '/data/foo/a', '/data/foo/b'}
+    #
+    #     result = {'rr': run_remote_to_remote(f'{self.remote_dir}/data/', '/'),
+    #               'rl': run_remote_to_local(f'{self.remote_dir}/data/', '/')}
+    #
+    #     assert not result['rr']['success'], str(result['rr'])
+    #     assert _get_files(result, 'rr', 'batch') == expected, str(result['rr'])
+    #     assert _get_rc(result, 'rr', 'batch') == 0, str(result['rr'])
+    #
+    #     # We refuse to copy all the files because the file ends in a slash
+    #     # gsutil ignores it with return code 0
+    #     assert result['rl']['success'], str(result['rl'])
+    #     assert _get_files(result, 'rl', 'batch') == {}, str(result['rl'])
+    #     assert _get_rc(result, 'rl', 'batch') != 0, str(result['rl'])
+
+    # def test_download_directory_partial_name(self):
+    #     result = run_remote_to_remote(f'{self.remote_dir}/foo', '/')
+    #     assert result['success'], str(result)

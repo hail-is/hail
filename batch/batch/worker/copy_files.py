@@ -238,7 +238,7 @@ class Copier:
             async with CopyFileTimer(src, dest, size) as timer:
                 try:
                     async with timer.step('setup'):
-                        await async_os.makedirs(dest)
+                        await async_os.make_parent_dirs(dest)
                         await async_os.remove(dest)
                         await async_os.new_file(dest, size)
 

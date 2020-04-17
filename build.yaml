@@ -1131,6 +1131,7 @@ steps:
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      export PROJECT={{ global.project }}
      # FIXME parallelize this
+     gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
      python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" --log-cli-level=INFO -s -vv --instafail /io/test/test_copy_files.py
    inputs:
     - from: /repo/batch/test
@@ -1148,11 +1149,7 @@ steps:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
    dependsOn:
-    - default_ns
-    - batch_pods_ns
     - copy_files
-    - base_image
-    - service_base_image
     - batch_image
  - kind: runImage
    name: create_ci_test_repo
