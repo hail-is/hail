@@ -179,7 +179,9 @@ dependencies {
     unbundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
     bundled group: 'commons-codec', name: 'commons-codec', version: '1.11'
 
-    bundled 'com.indeed:lsmtree-core:1.0.7'
+    bundled('com.indeed:lsmtree-core:1.0.7') {
+        transitive = false
+    }
     bundled 'com.indeed:util-serialization:1.0.30'
 }
 

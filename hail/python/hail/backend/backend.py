@@ -124,9 +124,8 @@ class SparkBackend(Backend):
             conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
             if sc is None:
                 SparkContext._ensure_initialized(conf=conf)
-            else:
-                import warnings
-                warnings.warn(
+            elif not quiet:
+                sys.stderr.write(
                     'pip-installed Hail requires additional configuration options in Spark referring\n'
                     '  to the path to the Hail Python module directory HAIL_DIR,\n'
                     '  e.g. /path/to/python/site-packages/hail:\n'

@@ -65,19 +65,21 @@ object HailContext {
 
   def sc: SparkContext = get.sc
 
-  def configureLogging(logFile: String, quiet: Boolean, append: Boolean) {
-    val logProps = new Properties()
+  def configureLogging(logFile: String, quiet: Boolean, append: Boolean, skipLoggingConfiguration: Boolean) {
+    if (!skipLoggingConfiguration) {
+      val logProps = new Properties()
 
-    logProps.put("log4j.rootLogger", "INFO, logfile")
-    logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
-    logProps.put("log4j.appender.logfile.append", append.toString)
-    logProps.put("log4j.appender.logfile.file", logFile)
-    logProps.put("log4j.appender.logfile.threshold", "INFO")
-    logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
-    logProps.put("log4j.appender.logfile.layout.ConversionPattern", HailContext.logFormat)
+      logProps.put("log4j.rootLogger", "INFO, logfile")
+      logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
+      logProps.put("log4j.appender.logfile.append", append.toString)
+      logProps.put("log4j.appender.logfile.file", logFile)
+      logProps.put("log4j.appender.logfile.threshold", "INFO")
+      logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
+      logProps.put("log4j.appender.logfile.layout.ConversionPattern", HailContext.logFormat)
 
-    LogManager.resetConfiguration()
-    PropertyConfigurator.configure(logProps)
+      LogManager.resetConfiguration()
+      PropertyConfigurator.configure(logProps)
+    }
 
     if (!quiet)
       consoleLog.addAppender(new ConsoleAppender(new PatternLayout(HailContext.logFormat), "System.err"))
@@ -146,9 +148,7 @@ object HailContext {
         DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD)
     }
 
-    if (!skipLoggingConfiguration) {
-      configureLogging(logFile, quiet, append)
-    }
+    configureLogging(logFile, quiet, append, skipLoggingConfiguration)
 
     theContext = new HailContext(backend, logFile, tmpDir, branchingFactor, optimizerIterations)
 
