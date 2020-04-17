@@ -2417,7 +2417,6 @@ class IRSuite extends HailSuite {
         MakeStruct(FastSeq("a" -> 6, "b" -> 0.0, "c" -> 3L)),
         FastSeq("b", "a")),
       Row(0.0, 6))
-
   }
 
   @Test def testGetField() {

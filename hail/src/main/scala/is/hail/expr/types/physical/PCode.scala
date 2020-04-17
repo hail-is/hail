@@ -95,10 +95,10 @@ object PCode {
       new PCanonicalIndexableCode(pt, coerce[Long](code))
     case pt: PCanonicalDict =>
       new PCanonicalIndexableCode(pt, coerce[Long](code))
-
+    case pt: PSubsetStruct =>
+      new PSubsetStructCode(pt, coerce[Long](code))
     case pt: PCanonicalBaseStruct =>
       new PCanonicalBaseStructCode(pt, coerce[Long](code))
-
     case pt: PCanonicalBinary =>
       new PCanonicalBinaryCode(pt, coerce[Long](code))
     case pt: PCanonicalString =>
