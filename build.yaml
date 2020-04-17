@@ -984,7 +984,7 @@ steps:
    dependsOn:
     - default_ns
     - deploy_auth
-    - batch_pods_ns.name
+    - batch_pods_ns
     - service_base_image
  - kind: runImage
    name: delete_batch_tables
