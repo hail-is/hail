@@ -78,6 +78,21 @@ class PContainerTest extends HailSuite {
     res
   }
 
+  def testAnyMissing(sourceType: PCanonicalArray, data: IndexedSeq[Any]) = {
+    val srcRegion = Region()
+    val src = ScalaToRegionValue(srcRegion, sourceType, data)
+
+    log.info(s"\nTesting $data")
+
+    val fb = EmitFunctionBuilder[Long, Boolean]("not_empty")
+    val value = fb.getCodeParam[Long](1)
+
+    fb.emit(sourceType.anyMissing(fb.apply_method, value))
+
+    val res = fb.result()()(src)
+    res
+  }
+
   @Test def checkFirstNonZeroByte() {
     val sourceType = PCanonicalArray(PInt64(false))
 
@@ -132,6 +147,12 @@ class PContainerTest extends HailSuite {
 
     assert(testHasMissingValues(sourceType, nullInByte(1, 0)) == false)
     assert(testHasMissingValues(sourceType, nullInByte(1, 1)) == true)
+    assert(testHasMissingValues(sourceType, nullInByte(2, 1)) == true)
+
+    for {
+      num <- Seq(2, 16, 31, 32, 33, 50, 63, 64, 65, 90, 127, 128, 129)
+        missing <- 1 to num
+    } assert(testHasMissingValues(sourceType, nullInByte(num, missing)) == true)
   }
 
   @Test def checkedConvertFromTest() {
