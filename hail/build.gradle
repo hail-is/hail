@@ -17,6 +17,7 @@ plugins {
 }
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import com.github.jengelman.gradle.plugins.shadow.tasks.ConfigureShadowRelocation
 
 repositories {
     mavenCentral()
@@ -236,6 +237,14 @@ task doctest(type: Exec) {
 task testAll(type: Exec) {
     commandLine 'sh', '-c', 'echo "use make test; gradle is being phased out"; exit 1'
 }
+
+task relocateShadowJar(type: ConfigureShadowRelocation) {
+    target = tasks.shadowJar
+    prefix = "is.hail.auto.relocated"
+
+}
+
+tasks.shadowJar.dependsOn tasks.relocateShadowJar
 
 tasks.withType(ShadowJar) {
     manifest {
