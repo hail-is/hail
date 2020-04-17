@@ -9,7 +9,7 @@ import is.hail.variant._
 
 object CallFunctions extends RegistryFunctions {
   def registerAll() {
-    registerWrappedScalaFunction("Call", TString, TCall, (rt: Type, _: PType) => PCanonicalCall())(Call.getClass, "parse")
+    registerWrappedScalaFunction1("Call", TString, TCall, (rt: Type, _: PType) => PCanonicalCall())(Call.getClass, "parse")
 
     registerScalaFunction("Call", Array(TBoolean), TCall, (rt: Type, _: Seq[PType]) => PCanonicalCall())(Call0.getClass, "apply")
 
@@ -19,7 +19,7 @@ object CallFunctions extends RegistryFunctions {
 
     registerScalaFunction("UnphasedDiploidGtIndexCall", Array(TInt32), TCall, (rt: Type, _: Seq[PType]) => PCanonicalCall())(Call2.getClass, "fromUnphasedDiploidGtIndex")
 
-    registerWrappedScalaFunction("Call", TArray(TInt32), TBoolean, TCall, {
+    registerWrappedScalaFunction2("Call", TArray(TInt32), TBoolean, TCall, {
       case(rt: Type, _: PType, _: PType) => PCanonicalCall()
     })(CallN.getClass, "apply")
 
@@ -37,7 +37,7 @@ object CallFunctions extends RegistryFunctions {
 
     registerScalaFunction("downcode", Array(TCall, TInt32), TCall, (rt: Type, _: Seq[PType]) => PCanonicalCall())(Call.getClass, "downcode")
 
-    registerWrappedScalaFunction("oneHotAlleles", TCall, TInt32, TArray(TInt32), {
+    registerWrappedScalaFunction2("oneHotAlleles", TCall, TInt32, TArray(TInt32), {
       case(rt: Type, _: PType, _: PType) => PCanonicalArray(PInt32(true))
     })(Call.getClass, "oneHotAlleles")
   }

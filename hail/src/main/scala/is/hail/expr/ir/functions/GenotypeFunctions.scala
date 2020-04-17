@@ -10,7 +10,7 @@ import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, Type}
 object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
-    registerPCode("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: PType) => PInt32())
+    registerPCode1("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: PType) => PInt32())
     { case (r, rt, _pl: PIndexableCode) =>
       val code = EmitCodeBuilder.scopedCode(r.mb) { cb =>
         val pl = _pl.memoize(cb, "plv")
@@ -38,7 +38,7 @@ object GenotypeFunctions extends RegistryFunctions {
       PCode(rt, code)
     }
 
-    registerEmitCode("dosage", TArray(tv("N", "float64")), TFloat64,  (_: Type, _: PType) => PFloat64()
+    registerEmitCode1("dosage", TArray(tv("N", "float64")), TFloat64,  (_: Type, _: PType) => PFloat64()
     ) { case (r, rt, gp) =>
       EmitCode.fromI(r.mb) { cb =>
         gp.toI(cb).flatMap(cb) { case (gpc: PIndexableCode) =>
