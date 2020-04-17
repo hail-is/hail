@@ -159,7 +159,7 @@ class LinearRegressionAggregator(yt: PFloat64, xt: PCanonicalArray) extends Stag
           i += 1,
           xptr := xptr + scalar.byteSize))))
 
-      xt.anyMissing(mb, x).mux(Code._empty, body)
+      xt.hasMissingValues(x).mux(Code._empty, body)
     }
   }
 
