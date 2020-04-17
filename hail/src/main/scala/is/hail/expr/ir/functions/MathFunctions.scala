@@ -171,7 +171,7 @@ object MathFunctions extends RegistryFunctions {
       val res = r.mb.newLocal[Array[Double]]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(Code(FastIndexedSeq(
-        res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "fisherExactTest", a, b, c, d),
+        res := Code.invokeScalaObject4[Int, Int, Int, Int, Array[Double]](statsPackageClass, "fisherExactTest", a, b, c, d),
         srvb.start(),
         srvb.addDouble(res(0)),
         srvb.advance(),
@@ -190,7 +190,7 @@ object MathFunctions extends RegistryFunctions {
       val res = r.mb.newLocal[Array[Double]]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
-        res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chiSquaredTest", a, b, c, d),
+        res := Code.invokeScalaObject4[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chiSquaredTest", a, b, c, d),
         srvb.start(),
         srvb.addDouble(res(0)),
         srvb.advance(),
@@ -206,7 +206,7 @@ object MathFunctions extends RegistryFunctions {
       val res = r.mb.newLocal[Array[Double]]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
-        res := Code.invokeScalaObject[Int, Int, Int, Int, Int, Array[Double]](statsPackageClass, "contingencyTableTest", a, b, c, d, min_cell_count),
+        res := Code.invokeScalaObject5[Int, Int, Int, Int, Int, Array[Double]](statsPackageClass, "contingencyTableTest", a, b, c, d, min_cell_count),
         srvb.start(),
         srvb.addDouble(res(0)),
         srvb.advance(),
@@ -221,7 +221,7 @@ object MathFunctions extends RegistryFunctions {
       val res = r.mb.newLocal[Array[Double]]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
-        res := Code.invokeScalaObject[Int, Int, Int, Array[Double]](statsPackageClass, "hardyWeinbergTest", nHomRef, nHet, nHomVar),
+        res := Code.invokeScalaObject3[Int, Int, Int, Array[Double]](statsPackageClass, "hardyWeinbergTest", nHomRef, nHet, nHomVar),
         srvb.start(),
         srvb.addDouble(res(0)),
         srvb.advance(),

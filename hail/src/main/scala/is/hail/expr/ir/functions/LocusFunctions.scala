@@ -187,7 +187,7 @@ object LocusFunctions extends RegistryFunctions {
       }
     }) {
       case (r, rt: PStruct, locus: PLocusCode, alleles: PIndexableCode) =>
-        val tuple = Code.invokeScalaObject[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](
+        val tuple = Code.invokeScalaObject2[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](
           VariantMethods.getClass, "minRep",
           locus.getLocusObj(),
           Code.checkcast[IndexedSeq[String]](wrapArg(r, alleles.pt)(alleles.code).asInstanceOf[Code[AnyRef]]))
@@ -305,7 +305,7 @@ object LocusFunctions extends RegistryFunctions {
       case (r, rt: PLocus, (strT, locusoff: Code[Long])) =>
         val slocus = asm4s.coerce[String](wrapArg(r, strT)(locusoff))
         val locus = Code
-          .invokeScalaObject[String, ReferenceGenome, Locus](
+          .invokeScalaObject2[String, ReferenceGenome, Locus](
           locusClass, "parse", slocus, rgCode(r.mb, rt.rg))
         emitLocus(r, locus, rt)
     }
@@ -337,7 +337,7 @@ object LocusFunctions extends RegistryFunctions {
         val plocus = rt.types(0).asInstanceOf[PLocus]
         val svar = asm4s.coerce[String](wrapArg(r, strT)(variantoff))
         val variant = Code
-          .invokeScalaObject[String, ReferenceGenome, (Locus, IndexedSeq[String])](
+          .invokeScalaObject2[String, ReferenceGenome, (Locus, IndexedSeq[String])](
           VariantMethods.getClass, "parse", svar, rgCode(r.mb, plocus.rg))
         emitVariant(r, variant, rt)
     }
@@ -352,7 +352,7 @@ object LocusFunctions extends RegistryFunctions {
         val plocus = rt.pointType.asInstanceOf[PLocus]
         val sinterval = asm4s.coerce[String](wrapArg(r, ioff.pt)(ioff.value[Long]))
         val intervalLocal = r.mb.newLocal[Interval](name="intervalObject")
-        val interval = Code.invokeScalaObject[String, ReferenceGenome, Boolean, Interval](
+        val interval = Code.invokeScalaObject3[String, ReferenceGenome, Boolean, Interval](
           locusClass, "parseInterval", sinterval, rgCode(r.mb, plocus.rg), invalidMissing.value[Boolean])
 
         EmitCode(
@@ -378,7 +378,7 @@ object LocusFunctions extends RegistryFunctions {
         val plocus = rt.pointType.asInstanceOf[PLocus]
         val sloc = asm4s.coerce[String](wrapArg(r, locoff.pt)(locoff.value[Long]))
         val intervalLocal = r.mb.newLocal[Interval]("intervalObject")
-        val interval = Code.invokeScalaObject[String, Int, Int, Boolean, Boolean, ReferenceGenome, Boolean, Interval](
+        val interval = Code.invokeScalaObject7[String, Int, Int, Boolean, Boolean, ReferenceGenome, Boolean, Interval](
           locusClass, "makeInterval", sloc, pos1.value[Int], pos2.value[Int], include1.value[Boolean], include2.value[Boolean], rgCode(r.mb, plocus.rg), invalidMissing.value[Boolean])
 
         EmitCode(

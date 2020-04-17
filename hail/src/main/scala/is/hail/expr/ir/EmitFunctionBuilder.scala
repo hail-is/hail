@@ -246,8 +246,8 @@ class EmitClassBuilder[C](
   def numTypes: Int = typMap.size
 
   private[this] def addReferenceGenome(rg: ReferenceGenome): Code[Unit] = {
-    val rgExists = Code.invokeScalaObject[String, Boolean](ReferenceGenome.getClass, "hasReference", rg.name)
-    val addRG = Code.invokeScalaObject[ReferenceGenome, Unit](ReferenceGenome.getClass, "addReference", getReferenceGenome(rg))
+    val rgExists = Code.invokeScalaObject1[String, Boolean](ReferenceGenome.getClass, "hasReference", rg.name)
+    val addRG = Code.invokeScalaObject1[ReferenceGenome, Unit](ReferenceGenome.getClass, "addReference", getReferenceGenome(rg))
     rgExists.mux(Code._empty, addRG)
   }
 
@@ -403,7 +403,7 @@ class EmitClassBuilder[C](
   def getPType(t: PType): Code[PType] = {
     val references = ReferenceGenome.getReferences(t.virtualType).toArray
     val setup = Code(Code(references.map(addReferenceGenome)),
-      Code.invokeScalaObject[String, PType](
+      Code.invokeScalaObject1[String, PType](
         IRParser.getClass, "parsePType", t.toString))
     pTypeMap.getOrElseUpdate(t,
       genLazyFieldThisRef[PType](setup))
@@ -412,7 +412,7 @@ class EmitClassBuilder[C](
   def getType(t: Type): Code[Type] = {
     val references = ReferenceGenome.getReferences(t).toArray
     val setup = Code(Code(references.map(addReferenceGenome)),
-      Code.invokeScalaObject[String, Type](
+      Code.invokeScalaObject1[String, Type](
         IRParser.getClass, "parseType", t.parsableString()))
     typMap.getOrElseUpdate(t,
       genLazyFieldThisRef[Type](setup))

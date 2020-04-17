@@ -42,7 +42,7 @@ object BinaryOp {
           case Subtract() => ll - rr
           case Multiply() => ll * rr
           case FloatingPointDivide() => ll.toF / rr.toF
-          case RoundToNegInfDivide() => Code.invokeStatic[Math, Int, Int, Int]("floorDiv", ll, rr)
+          case RoundToNegInfDivide() => Code.invokeStatic2[Math, Int, Int, Int]("floorDiv", ll, rr)
           case BitAnd() => ll & rr
           case BitOr() => ll | rr
           case BitXOr() => ll ^ rr
@@ -68,7 +68,7 @@ object BinaryOp {
           case Subtract() => ll - rr
           case Multiply() => ll * rr
           case FloatingPointDivide() => ll.toF / rr.toF
-          case RoundToNegInfDivide() => Code.invokeStatic[Math, Long, Long, Long]("floorDiv", ll, rr)
+          case RoundToNegInfDivide() => Code.invokeStatic2[Math, Long, Long, Long]("floorDiv", ll, rr)
           case BitAnd() => ll & rr
           case BitOr() => ll | rr
           case BitXOr() => ll ^ rr
@@ -82,7 +82,7 @@ object BinaryOp {
           case Subtract() => ll - rr
           case Multiply() => ll * rr
           case FloatingPointDivide() => ll / rr
-          case RoundToNegInfDivide() => Code.invokeStatic[Math, Double, Double]("floor", ll.toD / rr.toD).toF
+          case RoundToNegInfDivide() => Code.invokeStatic1[Math, Double, Double]("floor", ll.toD / rr.toD).toF
           case _ => incompatible(lt, rt, op)
         }
       case (TFloat64, TFloat64) =>
@@ -93,7 +93,7 @@ object BinaryOp {
           case Subtract() => ll - rr
           case Multiply() => ll * rr
           case FloatingPointDivide() => ll / rr
-          case RoundToNegInfDivide() => Code.invokeStatic[Math, Double, Double]("floor", ll / rr)
+          case RoundToNegInfDivide() => Code.invokeStatic1[Math, Double, Double]("floor", ll / rr)
           case _ => incompatible(lt, rt, op)
         }
       case (TBoolean, TBoolean) =>

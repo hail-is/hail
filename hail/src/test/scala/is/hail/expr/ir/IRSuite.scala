@@ -61,21 +61,21 @@ object IRSuite {
 
     def registerAll() {
       registerSeededWithMissingness("incr_s", TBoolean, TBoolean, null) { case (mb, rt,  _, l) =>
-        EmitCode(Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.setup),
+        EmitCode(Code(Code.invokeScalaObject0[Unit](outer.getClass, "incr"), l.setup),
           l.m,
           PCode(rt, l.v))
       }
 
       registerSeededWithMissingness("incr_m", TBoolean, TBoolean, null) { case (mb, rt, _, l) =>
         EmitCode(l.setup,
-          Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.m),
+          Code(Code.invokeScalaObject0[Unit](outer.getClass, "incr"), l.m),
           PCode(rt, l.v))
       }
 
       registerSeededWithMissingness("incr_v", TBoolean, TBoolean, null) { case (mb, rt, _, l) =>
         EmitCode(l.setup,
           l.m,
-          PCode(rt, Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.v)))
+          PCode(rt, Code(Code.invokeScalaObject0[Unit](outer.getClass, "incr"), l.v)))
       }
     }
   }

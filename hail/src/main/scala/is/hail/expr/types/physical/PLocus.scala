@@ -26,7 +26,7 @@ abstract class PLocusValue extends PValue {
 
   def position(): Value[Int]
 
-  def getLocusObj(): Code[Locus] = Code.invokeStatic[Locus, String, Int, Locus]("apply",
+  def getLocusObj(): Code[Locus] = Code.invokeStatic2[Locus, String, Int, Locus]("apply",
     contig().loadString(), position())
 }
 

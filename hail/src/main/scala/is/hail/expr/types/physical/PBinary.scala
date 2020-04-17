@@ -54,11 +54,11 @@ abstract class PBinary extends PType {
               i := 0,
               cmp := 0,
               Code.whileLoop(cmp.ceq(0) && i < lim,
-                cmp := Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare",
-                  Code.invokeStatic[java.lang.Byte, Byte, Int]("toUnsignedInt", Region.loadByte(bytesAddress(x) + i.toL)),
-                  Code.invokeStatic[java.lang.Byte, Byte, Int]("toUnsignedInt", Region.loadByte(bytesAddress(y) + i.toL))),
+                cmp := Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare",
+                  Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", Region.loadByte(bytesAddress(x) + i.toL)),
+                  Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", Region.loadByte(bytesAddress(y) + i.toL))),
                 i += 1),
-              cmp.ceq(0).mux(Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare", l1, l2), cmp))
+              cmp.ceq(0).mux(Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", l1, l2), cmp))
         }
       }
     }

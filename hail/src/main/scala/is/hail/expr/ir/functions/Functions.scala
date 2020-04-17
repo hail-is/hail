@@ -186,7 +186,7 @@ abstract class RegistryFunctions {
     case t: PString => c => t.loadString(coerce[Long](c))
     case t: PLocus => c => PCode(t, c).asLocus.getLocusObj()
     case _ => c =>
-      Code.invokeScalaObject[PType, Region, Long, Any](
+      Code.invokeScalaObject3[PType, Region, Long, Any](
         UnsafeRow.getClass, "read",
         r.mb.getPType(t),
         r.region, coerce[Long](c))
@@ -214,7 +214,7 @@ abstract class RegistryFunctions {
     case t: PString => c => t.loadString(coerce[Long](c))
     case t: PLocus => c => PCode(t, c).asLocus.getLocusObj()
     case _ => c =>
-      Code.invokeScalaObject[PType, Region, Long, AnyRef](
+      Code.invokeScalaObject3[PType, Region, Long, AnyRef](
         UnsafeRow.getClass, "readAnyRef",
         r.mb.getPType(t),
         r.region, coerce[Long](c))

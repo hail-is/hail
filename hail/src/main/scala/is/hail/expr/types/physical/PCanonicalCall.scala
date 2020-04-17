@@ -45,10 +45,10 @@ class PCanonicalCallSettable(val pt: PCanonicalCall, call: Settable[Int]) extend
 
     cb.ifx(p.ceq(2), {
       cb.ifx(call2 < Genotype.nCachedAllelePairs, {
-        cb.assign(j, Code.invokeScalaObject[Int, Int](Genotype.getClass, "cachedAlleleJ", call2))
-        cb.assign(k, Code.invokeScalaObject[Int, Int](Genotype.getClass, "cachedAlleleK", call2))
+        cb.assign(j, Code.invokeScalaObject1[Int, Int](Genotype.getClass, "cachedAlleleJ", call2))
+        cb.assign(k, Code.invokeScalaObject1[Int, Int](Genotype.getClass, "cachedAlleleK", call2))
       }, {
-        cb.assign(k, (Code.invokeStatic[Math, Double, Double]("sqrt", const(8d) * call2.toD + 1d) / 2d - 0.5).toI)
+        cb.assign(k, (Code.invokeStatic1[Math, Double, Double]("sqrt", const(8d) * call2.toD + 1d) / 2d - 0.5).toI)
         cb.assign(j, call2 - (k * (k + 1) / 2))
       })
       alleleCode(j)

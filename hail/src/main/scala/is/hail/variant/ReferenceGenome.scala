@@ -479,7 +479,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     val stringAssembler =
       chunks.tail.foldLeft[Code[String]](chunks.head) { (c, s) => c.invoke[String, String]("concat", s) }
 
-    var rg = Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass, "parse", stringAssembler)
+    var rg = Code.invokeScalaObject1[String, ReferenceGenome](ReferenceGenome.getClass, "parse", stringAssembler)
     if (fastaReader != null) {
       rg = rg.invoke[FS, String, String, Int, Int, ReferenceGenome](
         "addSequenceFromReader",
