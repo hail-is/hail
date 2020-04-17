@@ -38,12 +38,8 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   override lazy val virtualType = TStruct(fields.map(f => (f.name -> f.typ.virtualType)):_*)
   override val types: Array[PType] = fields.map(_.typ).toArray
 
-  // FIXME: should structFundamentalType be a ps.selectFields(fieldNames).structFundamentalType?
   lazy val structFundamentalType: PStruct = PSubsetStruct(ps.structFundamentalType, _fieldNames)
-  // FIXME: should byteSize && alignment reflect underlying PStruct or ps.selectFields(fieldNames)?
-  // byteSize, alignment needed in InferPType
-  override val byteSize = ps.byteSize
-  override val alignment = ps.alignment
+  override val byteSize: Long = 8
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (compact) {
@@ -112,25 +108,48 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PSubsetStruct = ???
 
-  override def initialize(structAddress: Long, setMissing: Boolean): Unit = ???
+  override def initialize(structAddress: Long, setMissing: Boolean): Unit =
+    ps.initialize(structAddress, setMissing)
 
-  override def stagedInitialize(structAddress: Code[Long], setMissing: Boolean): Code[Unit] = ???
+  override def stagedInitialize(structAddress: Code[Long], setMissing: Boolean): Code[Unit] =
+    ps.stagedInitialize(structAddress, setMissing)
 
-  override def allocate(region: Region): Long = ???
+  def allocate(region: Region): Long =
+    ps.allocate(region)
 
-  override def allocate(region: Code[Region]): Code[Long] = ???
+  def allocate(region: Code[Region]): Code[Long] =
+    ps.allocate(region)
 
-  override def setRequired(required: Boolean): PType = ???
+  override def setRequired(required: Boolean): PType =
+    PSubsetStruct(ps.setRequired(required).asInstanceOf[PStruct], _fieldNames)
 
-  override def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = ???
+  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
+    val srcPSubsetStruct = srcPType.asInstanceOf[PSubsetStruct]
+    ps.copyFromType(mb, region, srcPSubsetStruct.ps, srcAddress, deepCopy)
+  }
 
-  override def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] = ???
+  override def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+    val srcPSubsetStruct = srcPType.asInstanceOf[PSubsetStruct]
+    ps.copyFromAddress(region, srcPSubsetStruct.ps, srcAddress, deepCopy)
+  }
 
-  override protected def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = ???
+  override def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+    val srcPSubsetStruct = srcPType.asInstanceOf[PSubsetStruct]
+    ps.copyFromAddress(region, srcPSubsetStruct.ps, srcAddress, deepCopy)
+  }
 
-  override def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = ???
+  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
+    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
-  override def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = ???
+  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
+    val srcPSubsetStruct = srcPType.asInstanceOf[PSubsetStruct]
+    Region.storeAddress(addr, ps.copyFromType(mb, region, srcPSubsetStruct.ps, srcAddress, deepCopy))
+  }
+
+  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+    val srcPSubsetStruct = srcPType.asInstanceOf[PSubsetStruct]
+    Region.storeAddress(addr, ps.copyFromAddress(region, srcPSubsetStruct.ps, srcAddress, deepCopy))
+  }
 }
 
 object PSubsetStructSettable {
