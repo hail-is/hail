@@ -572,6 +572,7 @@ class TestEmptyFileSlashWithSameNameAsDirectory(unittest.TestCase):
     def setUpClass(cls):
         token = uuid.uuid4().hex[:6]
         cls.remote_dir = f'{tmp_bucket}/{token}'
+        gcs_client._write_gs_file_from_string(f'{cls.remote_dir}/data/bar/', 'bar')
         gcs_client._write_gs_file_from_string(f'{cls.remote_dir}/data/foo/', '')
         gcs_client._write_gs_file_from_string(f'{cls.remote_dir}/data/foo/a', 'a')
         gcs_client._write_gs_file_from_string(f'{cls.remote_dir}/data/foo/b', 'b')

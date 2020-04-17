@@ -107,9 +107,9 @@ def partition_boundaries(file_size, min_partition_size, max_partitions):
     return (boundaries, n_partitions)
 
 
-async def glob_gcs(path):
+async def glob_gcs(path, recursive=False):
     return [('gs://' + blob.bucket.name + '/' + blob.name, blob.size)
-            for blob in await gcs_client.glob_gs_files(path)]
+            for blob in await gcs_client.glob_gs_files(path, recursive=recursive)]
 
 
 async def glob_local(path):
@@ -118,13 +118,13 @@ async def glob_local(path):
 
 async def is_gcs_dir(path):
     return is_gcs_path(path) and \
-           (path.endswith('/') or len(await gcs_client.glob_gs_files(path.rstrip('/') + '/*')) != 0)  # FIXME: Add max_results to glob
+           (path.endswith('/') or len(await gcs_client.glob_gs_files(path.rstrip('/') + '/*', recursive=True)) != 0)
 
 
 async def is_local_dir(path):
     # gsutil does not copy empty local directories
     return not is_gcs_path(path) and \
-           (path.endswith('/') or len(await async_os.glob(path.rstrip('/') + '/*')) != 0)
+           (path.endswith('/') or len(await async_os.glob(path.rstrip('/') + '/*', recursive=True)) != 0)
 
 
 async def is_dir(path):
@@ -145,6 +145,73 @@ def any_recursive_match(pattern, paths):
     return x
 
 
+async def check_for_invalid_inputs(src, glob_paths, dest):
+    remote_src = is_gcs_path(src)
+    remote_dest = is_gcs_path(dest)
+    has_recursive_match = any_recursive_match(src, [p for p, _ in glob_paths])
+
+    if len(glob_paths) == 0:
+        raise FileNotFoundError(src)
+
+    if not remote_dest and len(glob_paths) > 1 and not has_recursive_match and not await is_dir(dest):
+        print('destination must name a directory when matching multiple files')
+        raise NotADirectoryError
+
+    if remote_src and src.endswith('/'):
+        src_is_file = len(await gcs_client.glob_gs_files(src, recursive=False)) == 1
+        if src_is_file and not remote_dest and await is_dir(dest):
+            print(f'cannot copy a remote file ending in a slash to a local directory')
+            raise NotImplementedError
+
+    if not remote_src and not remote_dest:
+        if not has_recursive_match and dest.endswith('/') and not await dir_exists(dest):
+            print('local destination is a directory ')
+            raise IsADirectoryError
+
+
+    if not remote_dest:
+        has_recursive_match = any_recursive_match(src, [p for p, _ in glob_paths])
+        if not has_recursive_match and dest.endswith('/') and not await dir_exists(dest):
+            if len(glob_paths) == 1:
+                if is_gcs_path(src):
+                    print('skipping destination file ending with slash')
+                    return []
+                print('destination is a directory')
+                raise IsADirectoryError
+            if len(glob_paths) > 1:
+                print('destination must name a directory when matching multiple files')
+                raise NotADirectoryError
+
+
+
+
+    if not remote_src:
+        if len(glob_paths) == 0 and not await is_dir(src):
+            raise FileNotFoundError(src)
+        if len(glob_paths) > 1 and not await is_dir(dest):
+            raise NotADirectoryError
+
+    if remote_src:
+        if len(glob_paths) == 0 and not await is_dir(dest)
+
+    if not remote_dest:
+        has_recursive_match = any_recursive_match(src, [p for p, _ in glob_paths])
+        if not has_recursive_match and dest.endswith('/') and not await dir_exists(dest):
+            if len(glob_paths) == 1:
+                if is_gcs_path(src):
+                    print('skipping destination file ending with slash')
+                    return []
+                print('destination is a directory')
+                raise IsADirectoryError
+            if len(glob_paths) > 1:
+                print('destination must name a directory when matching multiple files')
+                raise NotADirectoryError
+
+    if remote_src:
+        if len(glob_paths) == 0 and src.endswith('/'):
+
+
+
 async def add_destination_paths(src, glob_paths, dest):
     if not is_gcs_path(dest):
         has_recursive_match = any_recursive_match(src, [p for p, _ in glob_paths])
@@ -158,6 +225,14 @@ async def add_destination_paths(src, glob_paths, dest):
             if len(glob_paths) > 1:
                 print('destination must name a directory when matching multiple files')
                 raise NotADirectoryError
+
+    if is_gcs_path(src) and src.endswith('/'):
+        src_is_file = len(await gcs_client.glob_gs_files(src, recursive=False)) == 1
+        if src_is_file:
+            if not is_gcs_path(dest) and await is_dir(dest):
+                print(f'cannot copy a remote file ending in a slash to a local directory')
+                raise NotImplementedError
+            return [(file, dest, size) for file, size in glob_paths]
 
     is_dir_src = await is_dir(src)
     is_dir_dest = await is_dir(dest)
@@ -186,8 +261,10 @@ async def add_destination_paths(src, glob_paths, dest):
         raise NotADirectoryError
 
     assert is_dir_src and is_dir_dest
-    if len(glob_paths) == 0:
-        raise FileNotFoundError
+
+    # Why should this be here? It shouldn't error to copy an empty directory
+    # if len(glob_paths) == 0:
+    #     raise FileNotFoundError
 
     # https://cloud.google.com/storage/docs/gsutil/commands/cp#how-names-are-constructed_1
     include_recurse_dir = not is_gcs_path(dest) or await is_gcs_dir(dest)  # DOUBLE CHECK THIS!!!

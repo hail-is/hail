@@ -87,9 +87,9 @@ class GCS:
         return await retry_transient_errors(self._wrapped_list_gs_files,
                                             self, uri, max_results=max_results)
 
-    async def glob_gs_files(self, uri):
+    async def glob_gs_files(self, uri, recursive=False):
         return await retry_transient_errors(self._wrapped_glob_gs_files,
-                                            self, uri)
+                                            self, uri, recursive=recursive)
 
     async def get_blob(self, uri):
         return await retry_transient_errors(self._wrapped_get_blob,
@@ -161,7 +161,7 @@ class GCS:
         bucket = self.gcs_client.bucket(bucket_name)
         return iter(bucket.list_blobs(prefix=prefix, max_results=max_results))
 
-    def _glob_gs_files(self, uri):
+    def _glob_gs_files(self, uri, recursive=False):
         assert '**' not in uri
 
         bucket_name, path = GCS._parse_uri(uri)
@@ -172,14 +172,14 @@ class GCS:
 
         def _glob(bucket, prefix, i):
             if i == len(components):
-                blobs = {blob.name: blob
-                         for blob in bucket.list_blobs(prefix=prefix, delimiter=None)}
-                if not path.endswith('/') and path in blobs:
-                    return [blobs[path]]
-                return [blob for _, blob in blobs.items()
-                        if fnmatch.fnmatchcase(unescape_escaped_wildcards(blob.name), pattern) or
-                        fnmatch.fnmatchcase(unescape_escaped_wildcards(blob.name), pattern.rstrip('/')) or
-                        fnmatch.fnmatchcase(unescape_escaped_wildcards(blob.name), pattern.rstrip('/') + '/*')]
+                if recursive:
+                    return [blob for _, blob in bucket.list_blobs(prefix=prefix, delimiter=None)
+                            if fnmatch.fnmatchcase(unescape_escaped_wildcards(blob.name), pattern) or
+                            fnmatch.fnmatchcase(unescape_escaped_wildcards(blob.name), pattern.rstrip('/')) or
+                            fnmatch.fnmatchcase(unescape_escaped_wildcards(blob.name), pattern.rstrip('/') + '/*')]
+                else:
+                    return [blob for _, blob in bucket.list_blobs(prefix=prefix, delimiter=None)
+                            if fnmatch.fnmatchcase(unescape_escaped_wildcards(blob.name), pattern)]
 
             c = components[i]
             if i != len(components) - 1 and contains_wildcard(c):

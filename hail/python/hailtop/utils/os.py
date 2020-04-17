@@ -96,7 +96,7 @@ def new_file(path, size):
         fp.truncate(size)
 
 
-def _glob(path):
+def _glob(path, recursive=False):
     paths = glob.glob(escape(path), recursive=True)
 
     def _listdir(path):
@@ -105,8 +105,9 @@ def _glob(path):
         if os.path.isfile(path):
             return [(os.path.abspath(path), os.path.getsize(path))]
         # gsutil doesn't copy empty directories
-        return flatten([_listdir(path.rstrip('/') + '/' + f) for f in os.listdir(path)])
-
+        if recursive:
+            return flatten([_listdir(path.rstrip('/') + '/' + f) for f in os.listdir(path)])
+        return []
     return flatten([_listdir(path) for path in paths])
 
 
@@ -144,5 +145,5 @@ class AsyncOS:
     async def new_file(self, path, size):
         return await self._wrapped_new_file(path, size)
 
-    async def glob(self, path):
-        return await self._wrapped_glob(path)
+    async def glob(self, path, recursive=False):
+        return await self._wrapped_glob(path, recursive=recursive)
