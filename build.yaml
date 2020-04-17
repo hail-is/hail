@@ -1179,7 +1179,7 @@ steps:
      export ORGANIZATION=hail-ci-test
      export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
      export NAMESPACE="{{ default_ns.name }}"
-     python3 -m pytest --log-cli-level=INFO -s -vvl --instafail /test/
+     python3 -m pytest --tb=no --log-cli-level=INFO -s -vvl --instafail /test/
    secrets:
     - name: gce-deploy-config
       namespace:
