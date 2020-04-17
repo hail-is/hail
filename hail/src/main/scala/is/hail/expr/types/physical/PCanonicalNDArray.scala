@@ -237,6 +237,8 @@ class PCanonicalNDArraySettable(val pt: PCanonicalNDArray, val a: Settable[Long]
     }
   }
 
+  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
+
   override def get: PCode = new PCanonicalNDArrayCode(pt, a)
 
   override def store(pv: PCode): Code[Unit] = a := pv.asInstanceOf[PCanonicalNDArrayCode].a
