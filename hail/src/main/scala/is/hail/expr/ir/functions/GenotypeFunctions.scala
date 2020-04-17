@@ -20,9 +20,9 @@ object GenotypeFunctions extends RegistryFunctions {
 
         cb.whileLoop(i < pl.loadLength(), {
           val iec = pl.loadElement(cb, i)
-          cb += iec.Lmissing
+          cb.define(iec.Lmissing)
           cb += Code._fatal[Unit]("PL cannot have missing elements.")
-          cb += iec.Lpresent
+          cb.define(iec.Lpresent)
           val pli = cb.newLocal[Int]("pli", iec.pc.tcode[Int])
           cb.ifx(pli < m, {
             cb.assign(m2, m)

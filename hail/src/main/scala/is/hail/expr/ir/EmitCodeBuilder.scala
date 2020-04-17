@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.asm4s.{Code, CodeBuilderLike, MethodBuilder, TypeInfo, Value}
-import is.hail.expr.types.physical.{PCode, PValue, PSettable}
+import is.hail.asm4s.{Code, CodeBuilderLike, MethodBuilder}
+import is.hail.expr.types.physical.{PCode, PSettable, PValue}
 
 object EmitCodeBuilder {
   def apply(mb: EmitMethodBuilder[_]): EmitCodeBuilder = new EmitCodeBuilder(mb, Code._empty)
@@ -26,9 +26,14 @@ object EmitCodeBuilder {
 }
 
 class EmitCodeBuilder(emb: EmitMethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
+  def isOpenEnded: Boolean = {
+    val last = code.end.last
+    (last == null) || !last.isInstanceOf[is.hail.lir.ControlX]
+  }
+
   def mb: MethodBuilder[_] = emb.mb
 
-  def append(c: Code[Unit]): Unit = {
+  def uncheckedAppend(c: Code[Unit]): Unit = {
     code = Code(code, c)
   }
 
