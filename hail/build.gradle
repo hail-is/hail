@@ -182,6 +182,7 @@ dependencies {
 
     bundled 'com.indeed:lsmtree-core:1.0.7'
     bundled 'com.indeed:util-serialization:1.0.30'
+    bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.14'
 }
 
 task(checkSettings) doLast {
@@ -258,6 +259,7 @@ tasks.withType(ShadowJar) {
     relocate 'org.elasticsearch', 'is.hail.relocated.org.elasticsearch'
     relocate 'com.github.samtools', 'is.hail.relocated.com.github.samtools'
     relocate 'org.lz4', 'is.hail.relocated.org.lz4'
+    relocate 'org.freemarker', 'is.hail.relocated.org.freemarker'
 
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.SF'
