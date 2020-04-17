@@ -102,7 +102,7 @@ class Backend(abc.ABC):
 class SparkBackend(Backend):
     def __init__(self, idempotent, sc, spark_conf, app_name, master,
                  local, log, quiet, append, min_block_size,
-                 branching_factor, tmp_dir, configure_logger, optimizer_iterations):
+                 branching_factor, tmp_dir, skip_logging_configuration, optimizer_iterations):
         if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
@@ -151,12 +151,12 @@ class SparkBackend(Backend):
             self._jbackend = hail.backend.spark.SparkBackend.getOrCreate(
                 jsc, app_name, master, local, True, min_block_size)
             self._jhc = hail.HailContext.getOrCreate(
-                self._jbackend, log, True, append, branching_factor, tmp_dir, configure_logger, optimizer_iterations)
+                self._jbackend, log, True, append, branching_factor, tmp_dir, skip_logging_configuration, optimizer_iterations)
         else:
             self._jbackend = hail.backend.spark.SparkBackend.apply(
                 jsc, app_name, master, local, True, min_block_size)
             self._jhc = hail.HailContext.apply(
-                self._jbackend, log, True, append, branching_factor, tmp_dir, configure_logger, optimizer_iterations)
+                self._jbackend, log, True, append, branching_factor, tmp_dir, skip_logging_configuration, optimizer_iterations)
 
         self._jsc = self._jhc.sc()
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))

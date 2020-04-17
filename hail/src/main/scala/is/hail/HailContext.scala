@@ -107,10 +107,10 @@ object HailContext {
     append: Boolean = false,
     branchingFactor: Int = 50,
     tmpDir: String = "/tmp",
-    configureLogger: Boolean = true,
+    skipLoggingConfiguration: Boolean = false,
     optimizerIterations: Int = 3): HailContext = {
     if (theContext == null)
-      return HailContext(backend, logFile, quiet, append, branchingFactor, tmpDir, configureLogger, optimizerIterations)
+      return HailContext(backend, logFile, quiet, append, branchingFactor, tmpDir, skipLoggingConfiguration, optimizerIterations)
 
     if (theContext.logFile != logFile)
       warn(s"Requested tmpDir $logFile, but already initialized to ${ theContext.logFile }.  Ignoring requested setting.")
@@ -133,7 +133,7 @@ object HailContext {
     append: Boolean = false,
     branchingFactor: Int = 50,
     tmpDir: String = "/tmp",
-    configureLogger: Boolean = true,
+    skipLoggingConfiguration: Boolean = false,
     optimizerIterations: Int = 3): HailContext = synchronized {
     require(theContext == null)
     checkJavaVersion()
@@ -146,7 +146,7 @@ object HailContext {
         DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD)
     }
 
-    if (configureLogger) {
+    if (!skipLoggingConfiguration) {
       configureLogging(logFile, quiet, append)
     }
 
