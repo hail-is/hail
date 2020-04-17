@@ -219,7 +219,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     HailContext(sc, app_name, master, local, log, quiet, append,
                 min_block_size, branching_factor, tmp_dir,
                 default_reference, idempotent, global_seed, spark_conf,
-                skip_logging_configuration,_optimizer_iterations,_backend)
+                skip_logging_configuration, _optimizer_iterations, _backend)
 
 
 def version():
