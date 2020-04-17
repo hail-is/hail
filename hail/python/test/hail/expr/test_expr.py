@@ -3322,3 +3322,18 @@ class Tests(unittest.TestCase):
         a = hl.array([hl.struct(a=5)])
         with pytest.raises(AttributeError, match='ArrayStructExpression instance has no field, method, or property'):
             a.x
+
+    def test_parse_json(self):
+        values = [
+            hl.null('int32'),
+            hl.null('str'),
+            hl.null('struct{a:int32,b:str}'),
+            hl.locus('1', 10000),
+            hl.set({'x', 'y'}),
+            hl.array([1, 2, hl.null('int32')]),
+            hl.call(0, 2, phased=True),
+            hl.locus_interval('1', 10000, 10005),
+            hl.struct(foo='bar'),
+            hl.tuple([1, 2, 'str'])
+        ]
+        assert hl.eval(hl._compare(hl.tuple(values), hl.tuple(hl.parse_json(hl.json(v), v.dtype) for v in values)) == 0)

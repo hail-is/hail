@@ -1552,6 +1552,30 @@ def json(x) -> StringExpression:
     return _func("json", tstr, x)
 
 
+@typecheck(x=expr_str, dtype=hail_type)
+def parse_json(x, dtype):
+    """Convert a JSON string to a structured expression.
+
+    Examples
+    --------
+    >>> json_str = '{"a": 5, "b": 1.1, "c": "foo"}'
+    >>> parsed = hl.parse_json(json_str, dtype='struct{a: int32, b: float64, c: str}')
+    >>> hl.eval(parsed.a)
+    5
+
+    Parameters
+    ----------
+    x : :class:`.StringExpression`
+        JSON string.
+    dtype
+        Type of value to parse.
+
+    Returns
+    -------
+    :class:`.Expression`
+    """
+    return _func("parse_json", ttuple(dtype), x, type_args=(dtype,))[0]
+
 @typecheck(x=expr_float64, base=nullable(expr_float64))
 def log(x, base=None) -> Float64Expression:
     """Take the logarithm of the `x` with base `base`.
