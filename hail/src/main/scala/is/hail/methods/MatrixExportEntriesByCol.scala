@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import java.io.OutputStreamWriter
+import java.io.{BufferedOutputStream, OutputStreamWriter}
 
 import is.hail.HailContext
 import is.hail.annotations.{UnsafeIndexedSeq, UnsafeRow}
@@ -70,7 +70,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
         val partFolder = partFileBase + partFile(d, i, TaskContext.get())
 
         val fileHandles = Array.tabulate(endIdx - startIdx) { j =>
-          new OutputStreamWriter(bcFS.value.create(partFolder + "/" + j.toString + extension), "UTF-8")
+          new OutputStreamWriter(new BufferedOutputStream(bcFS.value.create(partFolder + "/" + j.toString + extension)), "UTF-8")
         }
 
         if (i == 0) {
@@ -127,7 +127,10 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
           ctx.region.clear()
         }
 
-        fileHandles.foreach(_.close())
+        fileHandles.foreach { f =>
+          f.flush()
+          f.close()
+        }
         Iterator(partFolder)
       }.collect()
 
