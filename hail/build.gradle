@@ -176,7 +176,7 @@ dependencies {
     hailTest 'org.testng:testng:6.8.21'
     hailTest 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
 
-    bundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
+    unbundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
     bundled group: 'commons-codec', name: 'commons-codec', version: '1.11'
     bundled group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
 
@@ -251,7 +251,7 @@ tasks.withType(ShadowJar) {
     relocate 'com.google.common', 'is.hail.relocated.com.google.common'
     relocate 'org.objectweb', 'is.hail.relocated.org.objectweb'
     relocate 'org.codehaus.jackson', 'is.hail.relocated.org.codehaus.jackson'
-    relocate 'org.apache.commons', 'is.hail.relocated.org.apache.commons'
+    relocate 'org.apache.commons.lang3', 'is.hail.relocated.org.apache.commons.lang3'
     relocate 'org.apache.httpcomponents', 'is.hail.relocated.org.apache.httpcomponents'
     relocate 'com.indeed', 'is.hail.relocated.com.indeed'
     relocate 'com.google.cloud', 'is.hail.relocated.com.google.cloud'
