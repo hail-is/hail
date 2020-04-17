@@ -110,7 +110,7 @@ async def callback(request):
 @routes.post('/copy-paste-token')
 @check_csrf_token
 @web_authenticated_users_only()
-async def get_copy_paste_token(request, userdata):
+async def get_copy_paste_token(request, userdata):  # pylint: disable=unused-argument
     dbpool = request.app['dbpool']
     session = await aiohttp_session.get_session(request)
     session_id = session['session_id']

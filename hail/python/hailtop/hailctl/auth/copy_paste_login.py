@@ -1,9 +1,6 @@
-import os
 import asyncio
-import aiohttp
 
-from hailtop.config import get_deploy_config
-from hailtop.auth import get_tokens, namespace_auth_headers
+from hailtop.auth import copy_paste_login
 
 
 def init_parser(parser):
@@ -14,28 +11,7 @@ def init_parser(parser):
 
 
 async def async_main(args):
-    deploy_config = get_deploy_config()
-    if args.namespace:
-        auth_ns = args.namespace
-        deploy_config = deploy_config.with_service('auth', auth_ns)
-    else:
-        auth_ns = deploy_config.service_ns('auth')
-    headers = namespace_auth_headers(deploy_config, auth_ns, authorize_target=False)
-
-    async with aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers) as session:
-        async with session.post(deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
-                                params={'copy_paste_token': args.copy_paste_token}) as resp:
-            resp = await resp.json()
-    token = resp['token']
-    username = resp['username']
-
-    tokens = get_tokens()
-    tokens[auth_ns] = token
-    dot_hail_dir = os.path.expanduser('~/.hail')
-    if not os.path.exists(dot_hail_dir):
-        os.mkdir(dot_hail_dir, mode=0o700)
-    tokens.write()
+    auth_ns, username = copy_paste_login(args.copy_paste_token, args.namespace)
 
     if auth_ns == 'default':
         print(f'Logged in as {username}.')
