@@ -89,17 +89,10 @@ object InferPType {
       case _: PCanonicalSet =>
         val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PSet].elementType))
         PCanonicalSet(elementType, ptypes.forall(_.required))
-      case x: PCanonicalStruct =>
+      case x: PStruct =>
         PCanonicalStruct(ptypes.forall(_.required), x.fieldNames.map(fieldName =>
           fieldName -> getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PStruct].field(fieldName).typ))
         ): _*)
-      case x: PSubsetStruct => {
-        val ps = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PSubsetStruct].ps))
-        val fieldNamesSorted = x.fieldNames.sorted
-        assert(ptypes.forall(_.asInstanceOf[PSubsetStruct].fieldNames.sorted == fieldNamesSorted))
-
-        PSubsetStruct(ps.asInstanceOf[PStruct], fieldNamesSorted:_*)
-      }
       case x: PCanonicalTuple =>
         PCanonicalTuple(x._types.map(pTupleField =>
           pTupleField.copy(typ = getNestedElementPTypesOfSameType(ptypes.map { case t: PTuple => t._types(t.fieldIndex(pTupleField.index)).typ }))
