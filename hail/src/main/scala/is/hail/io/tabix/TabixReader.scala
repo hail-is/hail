@@ -1,18 +1,17 @@
 package is.hail.io.tabix
 
-import is.hail.io.compress.BGzipInputStream
-import is.hail.utils._
-import is.hail.io.fs.FS
-import htsjdk.tribble.util.{ParsingUtils, TabixUtils}
-import htsjdk.samtools.util.FileExtensions
-import org.apache.spark.broadcast.Broadcast
-import java.io.{EOFException, InputStream}
-import java.nio.{ByteBuffer, CharBuffer}
+import java.io.InputStream
 import java.nio.charset.StandardCharsets
+
+import htsjdk.samtools.util.FileExtensions
+import htsjdk.tribble.util.ParsingUtils
+import is.hail.io.compress.BGzipInputStream
+import is.hail.io.fs.FS
+import is.hail.utils._
+import org.apache.spark.broadcast.Broadcast
 
 import scala.collection.mutable
 import scala.language.implicitConversions
-import scala.util.Random
 
 // Helper data classes
 
@@ -322,31 +321,29 @@ final class TabixLineIterator(
   private var isEof = false
   private var is = new BGzipInputStream(bcFS.value.open(filePath, checkCodec = false))
 
-  private var buffer = new Array[Byte](8192)
-  private var bufferPos: Int = 0
+  private var buffer = new Array[Byte](1 << 16)  // gvcf block is 64k; this can decode an entire block with one call to read()
+  private var cursor: Int = 0
   private var bufferLen: Int = 0
   private var bufferEOF: Boolean = false
-
-  private def getVirtualFileOffset(): Long = {
-    is.getVirtualOffset - (bufferLen - bufferPos)
-  }
+  private var virtualFileOffsetAtLastRead = 0L
+  private var bufferPositionAtLastRead = 0L
 
   private def virtualSeek(l: Long): Unit = {
     is.virtualSeek(l)
     refreshBuffer(0)
-    bufferPos = 0
+    cursor = 0
   }
 
-  private def refreshBuffer(start: Int = 0): Unit = {
+  private def refreshBuffer(start: Int): Unit = {
     assert(start < buffer.length)
     bufferLen = start
-    while (!bufferEOF && bufferLen < buffer.length) {
-      val nRead = is.read(buffer, bufferLen, buffer.length - bufferLen)
-      if (nRead < 0)
-        bufferEOF = true
-      else
-        bufferLen += nRead
-    }
+    virtualFileOffsetAtLastRead = is.getVirtualOffset
+    bufferPositionAtLastRead = start
+    val bytesRead = is.read(buffer, start, buffer.length - start)
+    if (bytesRead < 0)
+      bufferEOF = true
+    else
+      bufferLen = start + bytesRead
   }
 
   def decodeString(start: Int, end: Int): String = {
@@ -358,29 +355,29 @@ final class TabixLineIterator(
   }
 
   def readLine(): String = {
-    assert(bufferPos <= bufferLen)
+    assert(cursor <= bufferLen)
     if (isEof)
       return null
 
-    var start = bufferPos
-    var ptr: Int = bufferPos
+    var start = cursor
 
     while (true) {
-      while (ptr < bufferLen && buffer(ptr) != '\n') {
-        ptr += 1
+      while (cursor < bufferLen && buffer(cursor) != '\n') {
+        cursor += 1
       }
 
+      if (cursor >= bufferLen) {
       // no newline before end of buffer
-      if (ptr >= bufferLen) {
-
         if (bufferEOF) {
           isEof = true
-          bufferPos = ptr + 1
-          return decodeString(start, ptr)
+          val str = decodeString(start, cursor)
+          cursor += 1
+          return str
         } else {
 
-          if (bufferPos == 0) {
+          if (cursor == 0) {
             // line overflows buffer, need to increase buffer size
+
             assert(bufferLen == buffer.length)
             val tmp = new Array[Byte](buffer.length * 2)
             System.arraycopy(buffer, 0, tmp, 0, buffer.length)
@@ -388,24 +385,19 @@ final class TabixLineIterator(
 
             refreshBuffer(bufferLen)
           } else {
-            // line does not overflow buffer, but spans buffer. copy line to the beginning of buffer and continue
+            // line does not overflow buffer, but spans buffer. Copy line left to the beginning of buffer and continue
 
             val nToCopy = bufferLen - start
             System.arraycopy(buffer, start, buffer, 0, nToCopy)
-            bufferPos = 0
             start = 0
-            ptr = nToCopy
-            refreshBuffer(ptr)
+            cursor = nToCopy
+            refreshBuffer(cursor)
           }
         }
-        var i = 0
-        while (i + bufferPos < bufferLen) {
-          buffer(i) = buffer(bufferPos + i)
-          i += 1
-        }
       } else {
-        bufferPos = ptr + 1
-        return decodeString(start, ptr)
+        val str = decodeString(start, cursor)
+        cursor += 1
+        return str
       }
     }
     throw new AssertionError()
@@ -414,7 +406,7 @@ final class TabixLineIterator(
   def next(): String = {
     var s: String = null
     while (s == null && !isEof) {
-      val curOff = getVirtualFileOffset()
+      val curOff = virtualFileOffsetAtLastRead
       if (curOff == 0 || !TbiOrd.less64(curOff, offsets(i)._2)) { // jump to next chunk
         if (i == offsets.length - 1) {
           isEof = true

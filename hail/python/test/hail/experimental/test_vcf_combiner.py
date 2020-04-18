@@ -1,7 +1,7 @@
 import os
 
 import hail as hl
-from hail.experimental import vcf_combiner as vc
+from hail.experimental.vcf_combiner import vcf_combiner as vc
 from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
 from ..helpers import resource
@@ -47,3 +47,8 @@ def test_1kg_chr22():
         true_n, true_n_variant = sample_data[sample]
         assert n == true_n, sample
         assert n_variant == true_n_variant, sample
+
+def test_gvcf_1k_same_as_import_vcf():
+    path = os.path.join(resource('gvcfs'), '1kg_chr22', f'HG00308.hg38.g.vcf.gz')
+    [mt] = hl.import_gvcfs([path], vc.default_exome_intervals('GRCh38'), reference_genome='GRCh38')
+    assert mt._same(hl.import_vcf(path, force_bgz=True, reference_genome='GRCh38').key_rows_by('locus'))

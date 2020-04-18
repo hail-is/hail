@@ -1440,6 +1440,9 @@ class PartitionedVCFRDD(
       val tid = r.chr2tid(p.chrom)
       r.queryPairs(tid, p.start - 1, p.end)
     }
+    if (reg.isEmpty)
+      return Iterator.empty
+
     val lines = new TabixLineIterator(bcFS, file, reg)
 
     // clean up
