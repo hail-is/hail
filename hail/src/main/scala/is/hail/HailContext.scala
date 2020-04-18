@@ -681,7 +681,8 @@ class HailFeatureFlags {
       "distributed_scan_comb_op" -> sys.env.getOrElse("HAIL_DEV_DISTRIBUTED_SCAN_COMB_OP", null),
       "jvm_bytecode_dump" -> sys.env.getOrElse("HAIL_DEV_JVM_BYTECODE_DUMP", null),
       "use_packed_int_encoding" -> sys.env.getOrElse("HAIL_DEV_USE_PACKED_INT_ENCODING", null),
-      "use_column_encoding" -> sys.env.getOrElse("HAIL_DEV_USE_COLUMN_ENCODING", null)
+      "use_column_encoding" -> sys.env.getOrElse("HAIL_DEV_USE_COLUMN_ENCODING", null),
+      "use_spicy_ptypes" -> sys.env.getOrElse("HAIL_USE_SPICY_PTYPES", null)
     )
 
   val available: java.util.ArrayList[String] =

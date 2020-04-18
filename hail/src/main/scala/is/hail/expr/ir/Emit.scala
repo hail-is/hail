@@ -12,7 +12,7 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
-import is.hail.lir
+import is.hail.{HailContext, lir}
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -1107,36 +1107,45 @@ private class Emit[C](
 
       case x@SelectFields(oldStruct, fields) =>
         val old = emit(oldStruct)
-        val oldt = coerce[PStruct](oldStruct.pType)
-        val oldv = mb.genFieldThisRef[Long]()
-        val srvb = new StagedRegionValueBuilder(mb, x.pType)
 
-        val addFields = fields.map { name =>
-          new EstimableEmitter[C] {
-            def estimatedSize: Int = 20
+        if(HailContext.getFlag("use_spicy_ptypes") != null) {
+          EmitCode(
+            old.setup,
+            old.m,
+            PCode(pt, old.value[Long])
+          )
+        } else {
+          val oldt = coerce[PStruct](oldStruct.pType)
+          val oldv = mb.genFieldThisRef[Long]()
+          val srvb = new StagedRegionValueBuilder(mb, x.pType)
 
-            def emit(mb: EmitMethodBuilder[C]): Code[Unit] = {
-              val i = oldt.fieldIdx(name)
-              val t = oldt.types(i)
-              val fieldMissing = oldt.isFieldMissing(oldv, i)
-              val fieldValue = Region.loadIRIntermediate(t)(oldt.fieldOffset(oldv, i))
-              Code(
-                fieldMissing.mux(
-                  srvb.setMissing(),
-                  srvb.addIRIntermediate(t)(fieldValue)),
-                srvb.advance())
+          val addFields = fields.map { name =>
+            new EstimableEmitter[C] {
+              def estimatedSize: Int = 20
+
+              def emit(mb: EmitMethodBuilder[C]): Code[Unit] = {
+                val i = oldt.fieldIdx(name)
+                val t = oldt.types(i)
+                val fieldMissing = oldt.isFieldMissing(oldv, i)
+                val fieldValue = Region.loadIRIntermediate(t)(oldt.fieldOffset(oldv, i))
+                Code(
+                  fieldMissing.mux(
+                    srvb.setMissing(),
+                    srvb.addIRIntermediate(t)(fieldValue)),
+                  srvb.advance())
+              }
             }
           }
-        }
 
-        EmitCode(
-          old.setup,
-          old.m,
-          PCode(pt, Code(
-            oldv := old.value[Long],
-            srvb.start(),
-            EmitUtils.wrapToMethod(addFields, mb),
-            srvb.offset)))
+          EmitCode(
+            old.setup,
+            old.m,
+            PCode(pt, Code(
+              oldv := old.value[Long],
+              srvb.start(),
+              EmitUtils.wrapToMethod(addFields, mb),
+              srvb.offset)))
+        }
 
       case x@InsertFields(old, fields, fieldOrder) =>
         if (fields.isEmpty)

@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TNDArray, TVoid}
 import is.hail.utils._
+import is.hail.HailContext
 
 object InferPType {
 
@@ -89,7 +90,7 @@ object InferPType {
       case _: PCanonicalSet =>
         val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PSet].elementType))
         PCanonicalSet(elementType, ptypes.forall(_.required))
-      case x: PCanonicalStruct =>
+      case x: PStruct =>
         PCanonicalStruct(ptypes.forall(_.required), x.fieldNames.map(fieldName =>
           fieldName -> getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PStruct].field(fieldName).typ))
         ): _*)
@@ -459,8 +460,12 @@ object InferPType {
         }: _ *)
       case SelectFields(old, fields) =>
         infer(old)
-        val tbs = coerce[PStruct](old.pType)
-        tbs.selectFields(fields.toFastIndexedSeq)
+        if(HailContext.getFlag("use_spicy_ptypes") != null) {
+          PSubsetStruct(coerce[PStruct](old.pType), fields:_*)
+        } else {
+          val tbs = coerce[PStruct](old.pType)
+          tbs.selectFields(fields.toFastIndexedSeq)
+        }
       case InsertFields(old, fields, fieldOrder) =>
         infer(old)
         val tbs = coerce[PStruct](old.pType)
