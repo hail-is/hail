@@ -6,20 +6,26 @@ import org.scalatest.testng.TestNGSuite
 
 object PhysicalTestUtils extends TestNGSuite {
   def copyTestExecutor(sourceType: PType, destType: PType, sourceValue: Any,
-    expectCompileErr: Boolean = false, deepCopy: Boolean = false, interpret: Boolean = false) {
+    expectCompileErr: Boolean = false, deepCopy: Boolean = false, interpret: Boolean = false, expectedValue: Any = null) {
 
     val srcRegion = Region()
     val region = Region()
 
-    val srcAddress = ScalaToRegionValue(srcRegion, sourceType, sourceValue)
+    val srcAddress = sourceType match {
+      case x: PSubsetStruct => ScalaToRegionValue(srcRegion, x.ps, sourceValue)
+      case _ => ScalaToRegionValue(srcRegion, sourceType, sourceValue)
+    }
 
     if (interpret) {
       try {
         val copyOff = destType.fundamentalType.copyFromAddress(region, sourceType.fundamentalType, srcAddress, deepCopy = deepCopy)
         val copy = UnsafeRow.read(destType, region, copyOff)
 
-        log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
-        assert(copy == sourceValue)
+        if(expectedValue != null) {
+          assert(copy == expectedValue)
+        } else {
+          assert(copy == sourceValue)
+        }
         region.clear()
         srcRegion.clear()
       } catch {
@@ -70,7 +76,13 @@ object PhysicalTestUtils extends TestNGSuite {
     val copy = UnsafeRow.read(destType, region, copyOff)
 
     log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
-    assert(copy == sourceValue)
+
+    if(expectedValue != null) {
+      println("NOT NULL")
+      assert(copy == expectedValue)
+    } else {
+      assert(copy == sourceValue)
+    }
     region.clear()
     srcRegion.clear()
   }

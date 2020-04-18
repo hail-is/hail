@@ -1,11 +1,12 @@
 package is.hail.expr.types.physical
 
 import is.hail.HailSuite
-import is.hail.annotations.{Region, RegionValue, SafeRow, StagedRegionValueBuilder}
+import is.hail.annotations.{Annotation, Region, RegionValue, SafeRow, StagedRegionValueBuilder}
 import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitFunctionBuilder
 import org.testng.annotations.Test
 import is.hail.asm4s._
+import is.hail.utils.FastIndexedSeq
 import org.apache.spark.sql.Row
 class PSubsetStructSuite extends HailSuite {
   val debug = true
@@ -46,5 +47,16 @@ class PSubsetStructSuite extends HailSuite {
     val viewV = SafeRow.read(view, rv.offset).asInstanceOf[Row]
 
     assert(rtV(0)  == viewV(0) && rtV(2) == viewV(1))
+  }
+
+  @Test def testConstruction(): Unit = {
+    val ps1 = PCanonicalStruct("a" -> PCanonicalArray(PInt32(true)), "b" -> PInt64())
+    val ps2 = PCanonicalStruct("a" -> PCanonicalArray(PInt32(true)), "b" -> PInt64())
+
+    val srcType = PSubsetStruct(ps1, "b")
+    val destType = PSubsetStruct(ps2, "b")
+    val srcValue = Annotation(IndexedSeq(1,5,7,2,31415926), 31415926535897L)
+    val dstValue = Annotation(31415926535897L)
+    PhysicalTestUtils.copyTestExecutor(srcType, destType, srcValue, deepCopy = false, interpret = true, expectedValue = dstValue)
   }
 }
