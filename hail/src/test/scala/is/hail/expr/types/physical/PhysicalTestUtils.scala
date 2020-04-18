@@ -21,6 +21,8 @@ object PhysicalTestUtils extends TestNGSuite {
         val copyOff = destType.fundamentalType.copyFromAddress(region, sourceType.fundamentalType, srcAddress, deepCopy = deepCopy)
         val copy = UnsafeRow.read(destType, region, copyOff)
 
+        log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
+
         if(expectedValue != null) {
           assert(copy == expectedValue)
         } else {
