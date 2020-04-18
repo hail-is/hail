@@ -6,7 +6,6 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitFunctionBuilder
 import org.testng.annotations.Test
 import is.hail.asm4s._
-import is.hail.utils.FastIndexedSeq
 import org.apache.spark.sql.Row
 class PSubsetStructSuite extends HailSuite {
   val debug = true
