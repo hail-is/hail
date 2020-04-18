@@ -78,7 +78,6 @@ object PhysicalTestUtils extends TestNGSuite {
     log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
 
     if(expectedValue != null) {
-      println("NOT NULL")
       assert(copy == expectedValue)
     } else {
       assert(copy == sourceValue)
