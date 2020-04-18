@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TNDArray, TVoid}
 import is.hail.utils._
+import is.hail.HailContext
 
 object InferPType {
 
@@ -459,7 +460,12 @@ object InferPType {
         }: _ *)
       case SelectFields(old, fields) =>
         infer(old)
-        PSubsetStruct(coerce[PStruct](old.pType), fields:_*)
+        if(HailContext.getFlag("use_spicy_ptypes") != null) {
+          PSubsetStruct(coerce[PStruct](old.pType), fields:_*)
+        } else {
+          val tbs = coerce[PStruct](old.pType)
+          tbs.selectFields(fields.toFastIndexedSeq)
+        }
       case InsertFields(old, fields, fieldOrder) =>
         infer(old)
         val tbs = coerce[PStruct](old.pType)
