@@ -1428,7 +1428,7 @@ private class Emit[C](
             outputPType.data.pType.stagedInitialize(answerPArrayAddress, (M * N).toI),
             lPType.elementType match {
               case PFloat32(_) =>
-                Code.invokeScalaObject[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method="sgemm",
+                Code.invokeScalaObject13[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method="sgemm",
                   "N",
                   "N",
                   M.toI,
@@ -1444,7 +1444,7 @@ private class Emit[C](
                   LDC.toI
                 )
               case PFloat64(_) =>
-                Code.invokeScalaObject[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemm",
+                Code.invokeScalaObject13[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemm",
                   "N",
                   "N",
                   M.toI,
@@ -1559,7 +1559,7 @@ private class Emit[C](
 
           LWORKAddress := region.allocate(8L, 8L),
 
-          infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
+          infoDGEQRFResult := Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
             M.toI,
             N.toI,
             ndPType.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
@@ -1570,9 +1570,9 @@ private class Emit[C](
           ),
           infoDGEQRFErrorTest("Failed size query."),
 
-          workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toL * 8L),
+          workAddress := Code.invokeStatic1[Memory, Long, Long]("malloc", LWORK.toL * 8L),
 
-          infoDGEQRFResult := Code.invokeScalaObject[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
+          infoDGEQRFResult := Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
             M.toI,
             N.toI,
             ndPType.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
@@ -1582,7 +1582,7 @@ private class Emit[C](
             LWORK
           ),
 
-          Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load()),
+          Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()),
           infoDGEQRFErrorTest("Failed to compute H and Tau.")
         ))
 
@@ -1699,7 +1699,7 @@ private class Emit[C](
               ),
 
               // Query optimal size for work array
-              infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
+              infoDORGQRResult := Code.invokeScalaObject8[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
                 M.toI,
                 numColsToUse.toI,
                 K.toI,
@@ -1711,9 +1711,9 @@ private class Emit[C](
               ),
               infoDORQRErrorTest("Failed size query."),
 
-              workAddress := Code.invokeStatic[Memory, Long, Long]("malloc", LWORK.toL * 8L),
+              workAddress := Code.invokeStatic1[Memory, Long, Long]("malloc", LWORK.toL * 8L),
 
-              infoDORGQRResult := Code.invokeScalaObject[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
+              infoDORGQRResult := Code.invokeScalaObject8[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
                 M.toI,
                 numColsToUse.toI,
                 K.toI,
@@ -1723,7 +1723,7 @@ private class Emit[C](
                 workAddress,
                 LWORK
               ),
-              Code.invokeStatic[Memory, Long, Unit]("free", workAddress.load()),
+              Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()),
               infoDORQRErrorTest("Failed to compute Q."),
 
               qDataAddress := qPType.data.pType.allocate(region, qNumElements.toI),
@@ -1939,7 +1939,7 @@ private class Emit[C](
         val pv = mb.newLocal[String]()
         val rb = mb.newLocal[OutputBuffer]()
 
-        val taskCtx = Code.invokeScalaObject[HailTaskContext](HailTaskContext.getClass, "get")
+        val taskCtx = Code.invokeScalaObject0[HailTaskContext](HailTaskContext.getClass, "get")
         val vti = typeToTypeInfo(value.pType)
 
         EmitCode(

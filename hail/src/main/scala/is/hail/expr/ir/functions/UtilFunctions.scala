@@ -157,7 +157,7 @@ object UtilFunctions extends RegistryFunctions {
       registerCode1(s"to$name", TString, t, (_: Type, _: PType) => rpt) {
         case (r, rt, (xT: PString, x: Code[Long])) =>
           val s = asm4s.coerce[String](wrapArg(r, xT)(x))
-          Code.invokeScalaObject(thisClass, s"parse$name", s)(ctString, ct)
+          Code.invokeScalaObject1(thisClass, s"parse$name", s)(ctString, ct)
       }
       registerEmitCode1(s"to${name}OrMissing", TString, t, (_: Type, xPT: PType) => rpt.setRequired(xPT.required)) {
         case (r, rt, x) =>
@@ -165,8 +165,8 @@ object UtilFunctions extends RegistryFunctions {
           val m = r.mb.newLocal[Boolean]()
           EmitCode(
             Code(x.setup, m := x.m, s := m.mux(Code._null[String], asm4s.coerce[String](wrapArg(r, x.pt)(x.v)))),
-            (m || !Code.invokeScalaObject[String, Boolean](thisClass, s"isValid$name", s)),
-            PCode(rt, Code.invokeScalaObject(thisClass, s"parse$name", s)(ctString, ct)))
+            (m || !Code.invokeScalaObject1[String, Boolean](thisClass, s"isValid$name", s)),
+            PCode(rt, Code.invokeScalaObject1(thisClass, s"parse$name", s)(ctString, ct)))
       }
     }
 
@@ -178,12 +178,12 @@ object UtilFunctions extends RegistryFunctions {
     Array("min", "max").foreach { name =>
       registerCode2(name, TFloat32, TFloat32, TFloat32, (_: Type, _: PType, _: PType) => PFloat32()) {
         case (r, rt, (t1, v1: Code[Float]), (t2, v2: Code[Float])) =>
-          Code.invokeStatic[Math, Float, Float, Float](name, v1, v2)
+          Code.invokeStatic2[Math, Float, Float, Float](name, v1, v2)
       }
 
       registerCode2(name, TFloat64, TFloat64, TFloat64, (_: Type, _: PType, _: PType) => PFloat64()) {
         case (r, rt, (t1, v1: Code[Double]), (t2, v2: Code[Double])) =>
-          Code.invokeStatic[Math, Double, Double, Double](name, v1, v2)
+          Code.invokeStatic2[Math, Double, Double, Double](name, v1, v2)
       }
 
       val ignoreMissingName = name + "_ignore_missing"
@@ -192,12 +192,12 @@ object UtilFunctions extends RegistryFunctions {
 
       registerCode2(ignoreNanName, TFloat32, TFloat32, TFloat32, (_: Type, _: PType, _: PType) => PFloat32()) {
         case (r, rt, (t1, v1: Code[Float]), (t2, v2: Code[Float])) =>
-          Code.invokeScalaObject[Float, Float, Float](thisClass, ignoreNanName, v1, v2)
+          Code.invokeScalaObject2[Float, Float, Float](thisClass, ignoreNanName, v1, v2)
       }
 
       registerCode2(ignoreNanName, TFloat64, TFloat64, TFloat64, (_: Type, _: PType, _: PType) => PFloat64()) {
         case (r, rt, (t1, v1: Code[Double]), (t2, v2: Code[Double])) =>
-          Code.invokeScalaObject[Double, Double, Double](thisClass, ignoreNanName, v1, v2)
+          Code.invokeScalaObject2[Double, Double, Double](thisClass, ignoreNanName, v1, v2)
       }
 
       def ignoreMissingTriplet[T](rt: PType, v1: EmitCode, v2: EmitCode, name: String)(implicit ct: ClassTag[T], ti: TypeInfo[T]): EmitCode = {
@@ -206,7 +206,7 @@ object UtilFunctions extends RegistryFunctions {
         EmitCode(
           Code(v1.setup, v2.setup, m1 := v1.m, m2 := v2.m),
           m1 && m2,
-          PCode(rt, Code.invokeScalaObject[T, Boolean, T, Boolean, T](thisClass, name,
+          PCode(rt, Code.invokeScalaObject4[T, Boolean, T, Boolean, T](thisClass, name,
             m1.mux(coerce[T](defaultValue(ti)), v1.value[T]), m1,
             m2.mux(coerce[T](defaultValue(ti)), v2.value[T]), m2)))
       }
@@ -238,7 +238,7 @@ object UtilFunctions extends RegistryFunctions {
 
     registerCode2("format", TString, tv("T", "tuple"), TString, (_: Type, _: PType, _: PType) => PCanonicalString()) {
       case (r, rt, (fmtT: PString, format: Code[Long]), (argsT: PTuple, args: Code[Long])) =>
-        unwrapReturn(r, rt)(Code.invokeScalaObject[String, Row, String](thisClass, "format",
+        unwrapReturn(r, rt)(Code.invokeScalaObject2[String, Row, String](thisClass, "format",
           asm4s.coerce[String](wrapArg(r, fmtT)(format)),
           Code.checkcast[Row](asm4s.coerce[java.lang.Object](wrapArg(r, argsT)(args)))))
     }

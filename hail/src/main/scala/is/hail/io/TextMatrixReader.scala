@@ -480,10 +480,10 @@ class CompiledLineParser(
         srvb.addLong(parseLongMb.invokeCode(region))
       case _: PFloat32 =>
         srvb.addFloat(
-          Code.invokeStatic[java.lang.Float, String, Float]("parseFloat", parseStringMb.invokeCode(region)))
+          Code.invokeStatic1[java.lang.Float, String, Float]("parseFloat", parseStringMb.invokeCode(region)))
       case _: PFloat64 =>
         srvb.addDouble(
-          Code.invokeStatic[java.lang.Double, String, Double]("parseDouble", parseStringMb.invokeCode(region)))
+          Code.invokeStatic1[java.lang.Double, String, Double]("parseDouble", parseStringMb.invokeCode(region)))
       case _: PString =>
         srvb.addString(parseStringMb.invokeCode(region))
     }

@@ -364,7 +364,7 @@ object ArrayFunctions extends RegistryFunctions {
                 i := i + 1
               )
             ),
-            (n.toD * xySum - xSum * ySum) / Code.invokeScalaObject[Double, Double](
+            (n.toD * xySum - xSum * ySum) / Code.invokeScalaObject1[Double, Double](
               MathFunctions.mathPackageClass,
               "sqrt",
               (n.toD * xSqSum - xSum * xSum) * (n.toD * ySqSum - ySum * ySum))
