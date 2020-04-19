@@ -281,7 +281,7 @@ INNER JOIN users ON users.id = sessions.user_id
 WHERE copy_paste_tokens.id = %s
   AND NOW() < TIMESTAMPADD(SECOND, copy_paste_tokens.max_age_secs, copy_paste_tokens.created)
   AND users.state = 'active';""", copy_paste_token)
-        if len(sessions) != 1:
+        if sessions is None:
             raise web.HTTPUnauthorized()
         session = sessions[0]
         await tx.just_execute("DELETE FROM copy_paste_tokens WHERE id = %s;", copy_paste_token)

@@ -971,9 +971,9 @@ steps:
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
 
      COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth /api/v1alpha/copy-paste-token -sSL -XPOST)
-     hailctl auth copy-paste-login "$(COPY_PASTE_TOKEN)" --namespace {{ default_ns.name }}
+     hailctl auth copy-paste-login "$COPY_PASTE_TOKEN" --namespace {{ default_ns.name }}
 
-     if hailctl auth copy-paste-login "$(COPY_PASTE_TOKEN)" --namespace {{ default_ns.name }}
+     if hailctl auth copy-paste-login "$COPY_PASTE_TOKEN" --namespace {{ default_ns.name }}
      then
          echo "reusing a token should not work, but did"
          exit 1
@@ -1020,7 +1020,7 @@ steps:
 
      COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth /api/v1alpha/copy-paste-token -sSL -XPOST)
      sleep $(( 5 * 60 + 1))
-     if hailctl auth copy-paste-login "$(COPY_PASTE_TOKEN)" --namespace {{ default_ns.name }}
+     if hailctl auth copy-paste-login "$COPY_PASTE_TOKEN" --namespace {{ default_ns.name }}
      then
          echo "using an expired token should not work, but did"
          exit 1
