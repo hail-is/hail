@@ -1547,6 +1547,7 @@ steps:
     - dev
    dependsOn:
     - test_dataproc
+    - batch_pods
     - default_ns
     - copy_files
     - ci_utils_image
