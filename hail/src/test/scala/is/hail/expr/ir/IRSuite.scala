@@ -12,7 +12,6 @@ import is.hail.expr.types.TableType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.expr.Nat
-import is.hail.expr.types.encoded.{EArray, EBaseStruct, EBinary, EField, EFloat32, EFloat64, EInt32, EInt64, EType}
 import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
@@ -22,7 +21,7 @@ import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
 import is.hail.{ExecStrategy, HailContext, HailSuite}
 import org.apache.spark.sql.Row
-import org.json4s.jackson.Serialization
+import org.json4s.jackson.{JsonMethods, Serialization}
 import org.testng.annotations.{DataProvider, Test}
 
 import scala.language.{dynamics, implicitConversions}
@@ -2524,6 +2523,14 @@ class IRSuite extends HailSuite {
 
   @DataProvider(name = "valueIRs")
   def valueIRs(): Array[Array[IR]] = {
+    withExecuteContext() { ctx =>
+      valueIRs(ctx)
+    }
+  }
+
+  def valueIRs(ctx: ExecuteContext): Array[Array[IR]] = {
+    val fs = ctx.fs
+
     IndexBgen(ctx, Array("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
 
     val b = True()
@@ -2564,18 +2571,17 @@ class IRSuite extends HailSuite {
     val table = TableRange(100, 10)
 
     val mt = MatrixIR.range(20, 2, Some(3))
-    val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
+    val vcf = is.hail.TestUtils.importVCF(ctx, "src/test/resources/sample.vcf")
 
-    val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
+    val bgenReader = MatrixBGENReader(ctx, FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
     val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
 
-    val blockMatrix = BlockMatrixRead(BlockMatrixNativeReader(tmpDir.createLocalTempFile()))
-    val blockMatrixWriter = BlockMatrixNativeWriter(tmpDir.createLocalTempFile(), false, false, false)
-    val blockMatrixMultiWriter = BlockMatrixBinaryMultiWriter(tmpDir.createLocalTempFile(), false)
+    val blockMatrix = BlockMatrixRead(BlockMatrixNativeReader(fs, "src/test/resources/blockmatrix_example/0"))
+    val blockMatrixWriter = BlockMatrixNativeWriter("/path/to/file.bm", false, false, false)
+    val blockMatrixMultiWriter = BlockMatrixBinaryMultiWriter("/path/to/prefix", false)
     val nd = MakeNDArray(MakeArray(FastSeq(I32(-1), I32(1)), TArray(TInt32)),
       MakeTuple.ordered(FastSeq(I64(1), I64(2))),
       True())
-
 
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
@@ -2600,7 +2606,7 @@ class IRSuite extends HailSuite {
       NDArrayMap2(nd, nd, "l", "r", ApplyBinaryPrimOp(Add(), l, r)),
       NDArrayReindex(nd, FastIndexedSeq(0, 1)),
       NDArrayAgg(nd, FastIndexedSeq(0)),
-      NDArrayWrite(nd, Str(tmpDir.createTempFile())),
+      NDArrayWrite(nd, Str("/path/to/ndarray")),
       NDArrayMatMul(nd, nd),
       NDArraySlice(nd, MakeTuple.ordered(FastSeq(MakeTuple.ordered(FastSeq(F64(0), F64(2), F64(1))),
                                          MakeTuple.ordered(FastSeq(F64(0), F64(2), F64(1)))))),
@@ -2673,13 +2679,13 @@ class IRSuite extends HailSuite {
       TableAggregate(table, MakeStruct(Seq("foo" -> count))),
       TableToValueApply(table, ForceCountTable()),
       MatrixToValueApply(mt, ForceCountMatrixTable()),
-      TableWrite(table, TableNativeWriter(tmpDir.createLocalTempFile(extension = "ht"))),
-      MatrixWrite(mt, MatrixNativeWriter(tmpDir.createLocalTempFile(extension = "mt"))),
-      MatrixWrite(vcf, MatrixVCFWriter(tmpDir.createLocalTempFile(extension = "vcf"))),
-      MatrixWrite(vcf, MatrixPLINKWriter(tmpDir.createLocalTempFile())),
-      MatrixWrite(bgen, MatrixGENWriter(tmpDir.createLocalTempFile())),
-      MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(tmpDir.createLocalTempFile())),
-      TableMultiWrite(Array(table, table), WrappedMatrixNativeMultiWriter(MatrixNativeMultiWriter(tmpDir.createLocalTempFile()), FastIndexedSeq("foo"))),
+      TableWrite(table, TableNativeWriter("/path/to/data.ht")),
+      MatrixWrite(mt, MatrixNativeWriter("/path/to/data.mt")),
+      MatrixWrite(vcf, MatrixVCFWriter("/path/to/sample.vcf")),
+      MatrixWrite(vcf, MatrixPLINKWriter("/path/to/base")),
+      MatrixWrite(bgen, MatrixGENWriter("/path/to/base")),
+      MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter("/path/to/prefix")),
+      TableMultiWrite(Array(table, table), WrappedMatrixNativeMultiWriter(MatrixNativeMultiWriter("/path/to/prefix"), FastIndexedSeq("foo"))),
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count))),
       BlockMatrixCollect(blockMatrix),
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
@@ -2699,7 +2705,15 @@ class IRSuite extends HailSuite {
 
   @DataProvider(name = "tableIRs")
   def tableIRs(): Array[Array[TableIR]] = {
+    withExecuteContext() { ctx =>
+      tableIRs(ctx)
+    }
+  }
+
+  def tableIRs(ctx: ExecuteContext): Array[Array[TableIR]] = {
     try {
+      val fs = ctx.fs
+
       val read = TableIR.read(fs, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
       val mtRead = MatrixIR.read(fs, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
       val b = True()
@@ -2759,15 +2773,23 @@ class IRSuite extends HailSuite {
 
   @DataProvider(name = "matrixIRs")
   def matrixIRs(): Array[Array[MatrixIR]] = {
+    withExecuteContext() { ctx =>
+      matrixIRs(ctx)
+    }
+  }
+
+  def matrixIRs(ctx: ExecuteContext): Array[Array[MatrixIR]] = {
     try {
+      val fs = ctx.fs
+
       IndexBgen(ctx, Array("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
 
       val tableRead = TableIR.read(fs, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
       val read = MatrixIR.read(fs, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
       val range = MatrixIR.range(3, 7, None)
-      val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
+      val vcf = is.hail.TestUtils.importVCF(ctx, "src/test/resources/sample.vcf")
 
-      val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
+      val bgenReader = MatrixBGENReader(ctx, FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
       val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
 
       val range1 = MatrixIR.range(20, 2, Some(3))
@@ -2831,8 +2853,7 @@ class IRSuite extends HailSuite {
         MatrixAnnotateRowsTable(read, tableRead, "uid_123", product=false),
         MatrixRename(read, Map("global_i64" -> "foo"), Map("col_i64" -> "bar"), Map("row_i64" -> "baz"), Map("entry_i64" -> "quam")),
         MatrixFilterIntervals(read, FastIndexedSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))), keep = false),
-        RelationalLetMatrixTable("x", I32(0), read)
-      )
+        RelationalLetMatrixTable("x", I32(0), read))
 
       xs.map(x => Array(x))
     } catch {
@@ -2845,7 +2866,7 @@ class IRSuite extends HailSuite {
 
   @DataProvider(name = "blockMatrixIRs")
   def blockMatrixIRs(): Array[Array[BlockMatrixIR]] = {
-    val read = BlockMatrixRead(BlockMatrixNativeReader("src/test/resources/blockmatrix_example/0"))
+    val read = BlockMatrixRead(BlockMatrixNativeReader(fs, "src/test/resources/blockmatrix_example/0"))
     val transpose = BlockMatrixBroadcast(read, FastIndexedSeq(1, 0), FastIndexedSeq(2, 2), 2)
     val dot = BlockMatrixDot(read, transpose)
     val slice = BlockMatrixSlice(read, FastIndexedSeq(FastIndexedSeq(0, 2, 1), FastIndexedSeq(0, 1, 1)))
@@ -2879,31 +2900,29 @@ class IRSuite extends HailSuite {
 
   @Test(dataProvider = "valueIRs")
   def testValueIRParser(x: IR) {
-    ExecuteContext.scoped() { ctx =>
-      val env = IRParserEnvironment(ctx, refMap = Map(
-        "c" -> TBoolean,
-        "a" -> TArray(TInt32),
-        "aa" -> TArray(TArray(TInt32)),
-        "da" -> TArray(TTuple(TInt32, TString)),
-        "st" -> TStream(TInt32),
-        "sta" -> TStream(TArray(TInt32)),
-        "std" -> TStream(TTuple(TInt32, TString)),
-        "nd" -> TNDArray(TFloat64, Nat(1)),
-        "nd2" -> TNDArray(TArray(TString), Nat(1)),
-        "v" -> TInt32,
-        "l" -> TInt32,
-        "r" -> TInt32,
-        "s" -> TStruct("x" -> TInt32, "y" -> TInt64, "z" -> TFloat64),
-        "t" -> TTuple(TInt32, TInt64, TFloat64),
-        "call" -> TCall,
-        "x" -> TInt32))
+    val env = IRParserEnvironment(ctx, refMap = Map(
+      "c" -> TBoolean,
+      "a" -> TArray(TInt32),
+      "aa" -> TArray(TArray(TInt32)),
+      "da" -> TArray(TTuple(TInt32, TString)),
+      "st" -> TStream(TInt32),
+      "sta" -> TStream(TArray(TInt32)),
+      "std" -> TStream(TTuple(TInt32, TString)),
+      "nd" -> TNDArray(TFloat64, Nat(1)),
+      "nd2" -> TNDArray(TArray(TString), Nat(1)),
+      "v" -> TInt32,
+      "l" -> TInt32,
+      "r" -> TInt32,
+      "s" -> TStruct("x" -> TInt32, "y" -> TInt64, "z" -> TFloat64),
+      "t" -> TTuple(TInt32, TInt64, TFloat64),
+      "call" -> TCall,
+      "x" -> TInt32))
 
-      val s = Pretty(x, elideLiterals = false)
+    val s = Pretty(x, elideLiterals = false)
 
-      val x2 = IRParser.parse_value_ir(s, env)
+    val x2 = IRParser.parse_value_ir(s, env)
 
-      assert(x2 == x)
-    }
+    assert(x2 == x)
   }
 
   @Test(dataProvider = "tableIRs")
@@ -3077,8 +3096,8 @@ class IRSuite extends HailSuite {
 
     val t1 = TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct("g1" -> TInt32, "g2" -> TFloat64))
     val t2 = TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct("g3" -> TInt32, "g4" -> TFloat64))
-    val tab1 = TableLiteral(TableValue(t1, BroadcastRow(ctx, Row(1, 1.1), t1.globalType), RVD.empty(sc, t1.canonicalRVDType)), ctx)
-    val tab2 = TableLiteral(TableValue(t2, BroadcastRow(ctx, Row(2, 2.2), t2.globalType), RVD.empty(sc, t2.canonicalRVDType)), ctx)
+    val tab1 = TableLiteral(TableValue(ctx, t1, BroadcastRow(ctx, Row(1, 1.1), t1.globalType), RVD.empty(sc, t1.canonicalRVDType)))
+    val tab2 = TableLiteral(TableValue(ctx, t2, BroadcastRow(ctx, Row(2, 2.2), t2.globalType), RVD.empty(sc, t2.canonicalRVDType)))
 
     assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), Row(1, 1.1, 2, 2.2))
     assertEvalsTo(TableGetGlobals(TableMapGlobals(tab1, InsertFields(Ref("global", t1.globalType), Seq("g1" -> I32(3))))), Row(3, 1.1))
@@ -3145,7 +3164,7 @@ class IRSuite extends HailSuite {
   @DataProvider(name = "relationalFunctions")
   def relationalFunctionsData(): Array[Array[Any]] = Array(
     Array(TableFilterPartitions(Array(1, 2, 3), keep = true)),
-    Array(VEP("foo", false, 1)),
+    Array(VEP(fs, "src/test/resources/dummy_vep_config.json", false, 1)),
     Array(WrappedMatrixToTableFunction(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b")), "foo", "bar", FastIndexedSeq("ck"))),
     Array(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b"))),
     Array(LinearRegressionRowsChained(FastIndexedSeq(FastIndexedSeq("foo")), "bar", Array("baz"), 1, Array("a", "b"))),
@@ -3175,13 +3194,13 @@ class IRSuite extends HailSuite {
     implicit val formats = RelationalFunctions.formats
 
     x match {
-      case x: MatrixToMatrixFunction => assert(RelationalFunctions.lookupMatrixToMatrix(Serialization.write(x)) == x)
-      case x: MatrixToTableFunction => assert(RelationalFunctions.lookupMatrixToTable(Serialization.write(x)) == x)
-      case x: MatrixToValueFunction => assert(RelationalFunctions.lookupMatrixToValue(Serialization.write(x)) == x)
-      case x: TableToTableFunction => assert(RelationalFunctions.lookupTableToTable(Serialization.write(x)) == x)
-      case x: TableToValueFunction => assert(RelationalFunctions.lookupTableToValue(Serialization.write(x)) == x)
-      case x: BlockMatrixToTableFunction => assert(RelationalFunctions.lookupBlockMatrixToTable(Serialization.write(x)) == x)
-      case x: BlockMatrixToValueFunction => assert(RelationalFunctions.lookupBlockMatrixToValue(Serialization.write(x)) == x)
+      case x: MatrixToMatrixFunction => assert(RelationalFunctions.lookupMatrixToMatrix(ctx, Serialization.write(x)) == x)
+      case x: MatrixToTableFunction => assert(RelationalFunctions.lookupMatrixToTable(ctx, Serialization.write(x)) == x)
+      case x: MatrixToValueFunction => assert(RelationalFunctions.lookupMatrixToValue(ctx, Serialization.write(x)) == x)
+      case x: TableToTableFunction => assert(RelationalFunctions.lookupTableToTable(ctx, JsonMethods.compact(x.toJValue)) == x)
+      case x: TableToValueFunction => assert(RelationalFunctions.lookupTableToValue(ctx, Serialization.write(x)) == x)
+      case x: BlockMatrixToTableFunction => assert(RelationalFunctions.lookupBlockMatrixToTable(ctx, Serialization.write(x)) == x)
+      case x: BlockMatrixToValueFunction => assert(RelationalFunctions.lookupBlockMatrixToValue(ctx, Serialization.write(x)) == x)
     }
   }
 
@@ -3306,7 +3325,7 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.compileOnly
     val node = In(0, pt)
     val spec = TypedCodecSpec(pt, BufferSpec.defaultUncompressed)
-    val prefix = tmpDir.createTempFile()
+    val prefix = ctx.createTmpPath("test-read-write-values")
     val filename = WriteValue(node, Str(prefix), spec)
     for (v <- Array(value, null)) {
       assertEvalsTo(ReadValue(filename, spec, pt.virtualType), FastIndexedSeq(v -> pt.virtualType), v)
@@ -3318,7 +3337,7 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.compileOnly
     val node = In(0, pt)
     val spec = TypedCodecSpec(pt, BufferSpec.defaultUncompressed)
-    val prefix = tmpDir.createTempFile()
+    val prefix = ctx.createTmpPath("test-read-write-value-dist")
     val readArray = Let("files",
       CollectDistributedArray(StreamMap(StreamRange(0, 10, 1), "x", node), MakeStruct(FastSeq()),
         "ctx", "globals",

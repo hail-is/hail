@@ -29,22 +29,22 @@ object BroadcastRow {
     rvb.start(pType)
     rvb.addAnnotation(t, value)
     val offset = rvb.end()
-    BroadcastRow(RegionValue(ctx.r, offset), pType, HailContext.get.backend)
+    BroadcastRow(ctx, RegionValue(ctx.r, offset), pType)
   }
 }
 
 trait BroadcastRegionValue {
+  // FIXME need to pull out
+  def ctx: ExecuteContext
 
   def value: RegionValue
 
   def t: PType
 
-  def backend: Backend
-
   lazy val broadcast: BroadcastValue[SerializableRegionValue] = {
     val encoding = TypedCodecSpec(t, BufferSpec.wireSpec)
-    val makeEnc = encoding.buildEncoder(t)
-    val (decodedPType, makeDec) = encoding.buildDecoder(t.virtualType)
+    val makeEnc = encoding.buildEncoder(ctx, t)
+    val (decodedPType, makeDec) = encoding.buildDecoder(ctx, t.virtualType)
     assert(decodedPType == t)
 
     val baos = new ByteArrayOutputStream()
@@ -55,7 +55,7 @@ trait BroadcastRegionValue {
     enc.close()
 
     val srv = SerializableRegionValue(baos.toByteArray, decodedPType, makeDec)
-    backend.broadcast(srv)
+    ctx.backend.broadcast(srv)
   }
 
   def javaValue: Any
@@ -63,16 +63,17 @@ trait BroadcastRegionValue {
   def safeJavaValue: Any
 
   override def equals(obj: Any): Boolean = obj match {
-    case b: BroadcastRegionValue => t == b.t && backend == b.backend && t.unsafeOrdering().compare(value, b.value) == 0
+    case b: BroadcastRegionValue => t == b.t && (ctx eq b.ctx) && t.unsafeOrdering().compare(value, b.value) == 0
     case _ => false
   }
 
   override def hashCode(): Int = javaValue.hashCode()
 }
 
-case class BroadcastRow(value: RegionValue,
-  t: PStruct,
-  backend: Backend) extends BroadcastRegionValue {
+case class BroadcastRow(ctx: ExecuteContext,
+  value: RegionValue,
+  t: PStruct
+) extends BroadcastRegionValue {
 
   def javaValue: UnsafeRow = UnsafeRow.readBaseStruct(t, value.region, value.offset)
 
@@ -83,16 +84,17 @@ case class BroadcastRow(value: RegionValue,
     if (t == newT)
       return this
 
-    BroadcastRow(
+    BroadcastRow(ctx,
       RegionValue(value.region, newT.copyFromAddress(value.region, t, value.offset, deepCopy = false)),
-      newT,
-      backend)
+      newT)
   }
 }
 
-case class BroadcastIndexedSeq(value: RegionValue,
-  t: PArray,
-  backend: Backend) extends BroadcastRegionValue {
+case class BroadcastIndexedSeq(
+  ctx: ExecuteContext,
+  value: RegionValue,
+  t: PArray
+) extends BroadcastRegionValue {
 
   def safeJavaValue: IndexedSeq[Row] = SafeRow.read(t, value).asInstanceOf[IndexedSeq[Row]]
 
@@ -103,9 +105,8 @@ case class BroadcastIndexedSeq(value: RegionValue,
     if (t == newT)
       return this
 
-    BroadcastIndexedSeq(
+    BroadcastIndexedSeq(ctx,
       RegionValue(value.region, newT.copyFromAddress(value.region, t, value.offset, deepCopy = false)),
-      newT,
-      backend)
+      newT)
   }
 }

@@ -98,7 +98,7 @@ class FunctionSuite extends HailSuite {
 
   @Test
   def testFunctionBuilderGetOrDefine() {
-    val fb = EmitFunctionBuilder[Int]("foo")
+    val fb = EmitFunctionBuilder[Int](ctx, "foo")
     val i = fb.genFieldThisRef[Int]()
     val mb1 = fb.getOrGenEmitMethod("foo", "foo", FastIndexedSeq[ParamType](), UnitInfo) { mb =>
       mb.emit(i := i + 1)
@@ -114,7 +114,7 @@ class FunctionSuite extends HailSuite {
   }
 
   @Test def testFunctionBuilderWrapVoids() {
-    val fb = EmitFunctionBuilder[Int]("foo")
+    val fb = EmitFunctionBuilder[Int](ctx, "foo")
     val i = fb.genFieldThisRef[Int]()
 
     val codes = Array(
@@ -134,7 +134,7 @@ class FunctionSuite extends HailSuite {
   }
 
   @Test def testFunctionBuilderWrapVoidsWithArgs() {
-    val fb = EmitFunctionBuilder[Int]("foo")
+    val fb = EmitFunctionBuilder[Int](ctx, "foo")
     val i = fb.newLocal[Int]()
     val j = fb.genFieldThisRef[Int]()
 

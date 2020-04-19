@@ -22,7 +22,7 @@ object LinearMixedModel {
     ydy: Double, xdy: Array[Double], xdx: BDM[Double],
     yOpt: Option[Array[Double]], xOpt: Option[BDM[Double]]): LinearMixedModel = {
 
-    new LinearMixedModel(HailContext.get,
+    new LinearMixedModel(
       LMMData(gamma, residualSq, BDV(py), px, BDV(d), ydy, BDV(xdy), xdx, yOpt.map(BDV(_)), xOpt))
   }
   
@@ -35,30 +35,28 @@ object LinearMixedModel {
 
   private val tableType = TableType(rowType.virtualType, FastIndexedSeq("idx"), TStruct.empty)
 
-  def toTableIR(rvd: RVD): TableIR = {
-    ExecuteContext.scoped() { ctx =>
-      TableLiteral(TableValue(tableType, BroadcastRow.empty(ctx), rvd), ctx)
-    }
+  def toTableIR(ctx: ExecuteContext, rvd: RVD): TableIR = {
+    TableLiteral(TableValue(ctx, tableType, BroadcastRow.empty(ctx), rvd))
   }
 }
 
-class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
-  def fit(pa_t: RowMatrix, a_t: Option[RowMatrix]): TableIR =
+class LinearMixedModel(lmmData: LMMData) {
+  def fit(ctx: ExecuteContext, pa_t: RowMatrix, a_t: Option[RowMatrix]): TableIR =
     if (a_t.isDefined) {
       assert(lmmData.yOpt.isDefined && lmmData.xOpt.isDefined)
-      fitLowRank(pa_t, a_t.get)
+      fitLowRank(ctx, pa_t, a_t.get)
     } else {
       assert(lmmData.yOpt.isEmpty && lmmData.xOpt.isEmpty)
-      fitFullRank(pa_t)
+      fitFullRank(ctx, pa_t)
     }
  
-  def fitLowRank(pa_t: RowMatrix, a_t: RowMatrix): TableIR = {
+  def fitLowRank(ctx: ExecuteContext, pa_t: RowMatrix, a_t: RowMatrix): TableIR = {
     if (pa_t.nRows != a_t.nRows)
       fatal(s"pa_t and a_t must have the same number of rows, but found ${pa_t.nRows} and ${a_t.nRows}")
     else if (!(pa_t.partitionCounts() sameElements a_t.partitionCounts()))
       fatal(s"pa_t and a_t both have ${pa_t.nRows} rows, but row partitions are not aligned")
 
-    val lmmDataBc = hc.backend.broadcast(lmmData)
+    val lmmDataBc = ctx.backend.broadcast(lmmData)
     val rowType = LinearMixedModel.rowType
 
     val rdd = pa_t.rows.zipPartitions(a_t.rows) { case (itPAt, itAt) =>
@@ -120,13 +118,13 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
     val rvd = RVD(
       RVDType(rowType, LinearMixedModel.tableType.key),
       pa_t.partitioner(),
-      ContextRDD.weaken(rdd).toCRDDPtr).persist(StorageLevel.MEMORY_AND_DISK)
+      ContextRDD.weaken(rdd).toCRDDPtr).persist(ctx, StorageLevel.MEMORY_AND_DISK)
 
-    LinearMixedModel.toTableIR(rvd)
+    LinearMixedModel.toTableIR(ctx, rvd)
   }
   
-  def fitFullRank(pa_t: RowMatrix): TableIR = {
-    val lmmDataBc = hc.backend.broadcast(lmmData)
+  def fitFullRank(ctx: ExecuteContext, pa_t: RowMatrix): TableIR = {
+    val lmmDataBc = ctx.backend.broadcast(lmmData)
     val rowType = LinearMixedModel.rowType
     
     val rdd = pa_t.rows.mapPartitions { itPAt =>
@@ -186,8 +184,8 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
     val rvd = RVD(
       RVDType(rowType, LinearMixedModel.tableType.key),
       pa_t.partitioner(),
-      ContextRDD.weaken(rdd).toCRDDPtr).persist(StorageLevel.MEMORY_AND_DISK)
+      ContextRDD.weaken(rdd).toCRDDPtr).persist(ctx, StorageLevel.MEMORY_AND_DISK)
 
-    LinearMixedModel.toTableIR(rvd)
+    LinearMixedModel.toTableIR(ctx, rvd)
   }
 }

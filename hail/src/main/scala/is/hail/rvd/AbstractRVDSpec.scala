@@ -37,26 +37,24 @@ object AbstractRVDSpec {
     new RVDTypeSerializer +
     new ETypeSerializer
 
-  def read(fs: is.hail.io.fs.FS, path: String): AbstractRVDSpec = {
+  def read(fs: FS, path: String): AbstractRVDSpec = {
     val metadataFile = path + "/metadata.json.gz"
     using(fs.open(metadataFile)) { in => JsonMethods.parse(in) }
       .transformField { case ("orvdType", value) => ("rvdType", value) } // ugh
       .extract[AbstractRVDSpec]
   }
 
-  def read(hc: HailContext, path: String): AbstractRVDSpec = read(hc.fs, path)
-
-  def readLocal(hc: HailContext,
+  def readLocal(
+    ctx: ExecuteContext,
     path: String,
     enc: AbstractTypedCodecSpec,
     partFiles: Array[String],
-    requestedType: TStruct,
-    r: Region): (PStruct, Long) = {
+    requestedType: TStruct): (PStruct, Long) = {
     assert(partFiles.length == 1)
+    val fs = ctx.fs
+    val r = ctx.r
 
-    val fs = hc.fs
-
-    val (rType: PStruct, dec) = enc.buildDecoder(requestedType)
+    val (rType: PStruct, dec) = enc.buildDecoder(ctx, requestedType)
 
     val f = partPath(path, partFiles(0))
     using(fs.open(f)) { in =>
@@ -68,12 +66,13 @@ object AbstractRVDSpec {
   def partPath(path: String, partFile: String): String = path + "/parts/" + partFile
 
   def writeSingle(
-    fs: is.hail.io.fs.FS,
+    execCtx: ExecuteContext,
     path: String,
     rowType: PStruct,
     bufferSpec: BufferSpec,
     rows: IndexedSeq[Annotation]
   ): Array[Long] = {
+    val fs = execCtx.fs
     val partsPath = path + "/parts"
     fs.mkDir(partsPath)
 
@@ -87,7 +86,7 @@ object AbstractRVDSpec {
       using(fs.create(partsPath + "/" + filePath)) { os =>
         using(RVDContext.default) { ctx =>
           val rvb = ctx.rvb
-          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(rowType))(ctx,
+          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(execCtx, rowType))(ctx,
             rows.iterator.map { a =>
               rvb.start(rowType)
               rvb.addAnnotation(rowType.virtualType, a)
@@ -103,7 +102,7 @@ object AbstractRVDSpec {
   }
 
   def readZipped(
-    hc: HailContext,
+    ctx: ExecuteContext,
     specLeft: AbstractRVDSpec,
     specRight: AbstractRVDSpec,
     pathLeft: String,
@@ -112,8 +111,7 @@ object AbstractRVDSpec {
     requestedTypeLeft: TStruct,
     requestedTypeRight: TStruct,
     newPartitioner: Option[RVDPartitioner],
-    filterIntervals: Boolean,
-    ctx: ExecuteContext
+    filterIntervals: Boolean
   ): RVD = {
     require(specRight.key.isEmpty)
     require(requestedType == requestedTypeLeft ++ requestedTypeRight)
@@ -131,14 +129,14 @@ object AbstractRVDSpec {
       case _ => (None, None)
     }
 
-    val (t, crdd) = hc.readRowsSplit(ctx,
+    val (t, crdd) = HailContext.readRowsSplit(ctx,
       pathLeft, pathRight, isl, isr,
       specLeft.typedCodecSpec, specRight.typedCodecSpec, parts, tmpPartitioner.rangeBounds,
       requestedTypeLeft, requestedTypeRight)
     assert(t.virtualType == requestedType)
     val tmprvd = RVD(RVDType(t, requestedKey), tmpPartitioner.coarsen(requestedKey.length), crdd)
     newPartitioner match {
-      case Some(part) if !filterIntervals => tmprvd.repartition(part.coarsen(requestedKey.length), ctx)
+      case Some(part) if !filterIntervals => tmprvd.repartition(ctx, part.coarsen(requestedKey.length))
       case _ => tmprvd
     }
   }
@@ -166,24 +164,23 @@ abstract class AbstractRVDSpec {
   def attrs: Map[String, String]
 
   def read(
-    hc: HailContext,
+    ctx: ExecuteContext,
     path: String,
     requestedType: TStruct,
-    ctx: ExecuteContext,
     newPartitioner: Option[RVDPartitioner] = None,
     filterIntervals: Boolean = false
   ): RVD = newPartitioner match {
     case Some(_) => fatal("attempted to read unindexed data as indexed")
     case None =>
       val requestedKey = key.takeWhile(requestedType.hasField)
-      val (pType: PStruct, crdd) = hc.readRows(path, typedCodecSpec, partFiles, requestedType)
+      val (pType: PStruct, crdd) = HailContext.readRows(ctx, path, typedCodecSpec, partFiles, requestedType)
       val rvdType = RVDType(pType, requestedKey)
 
       RVD(rvdType, partitioner.coarsen(requestedKey.length), crdd)
   }
 
-  def readLocalSingleRow(hc: HailContext, path: String, requestedType: TStruct, r: Region): (PStruct, Long) =
-    AbstractRVDSpec.readLocal(hc, path, typedCodecSpec, partFiles, requestedType, r)
+  def readLocalSingleRow(ctx: ExecuteContext, path: String, requestedType: TStruct): (PStruct, Long) =
+    AbstractRVDSpec.readLocal(ctx, path, typedCodecSpec, partFiles, requestedType)
 
   def write(fs: FS, path: String) {
     using(fs.create(path + "/metadata.json.gz")) { out =>
@@ -334,10 +331,9 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
   val attrs: Map[String, String] = _attrs
 
   override def read(
-    hc: HailContext,
+    ctx: ExecuteContext,
     path: String,
     requestedType: TStruct,
-    ctx: ExecuteContext,
     newPartitioner: Option[RVDPartitioner] = None,
     filterIntervals: Boolean = false
   ): RVD = {
@@ -349,17 +345,17 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
         assert(key.nonEmpty)
         val parts = tmpPartitioner.rangeBounds.map { b => partFiles(partitioner.lowerBoundInterval(b)) }
 
-        val (decPType: PStruct, crdd) = hc.readIndexedRows(path, _indexSpec, typedCodecSpec, parts, tmpPartitioner.rangeBounds, requestedType)
+        val (decPType: PStruct, crdd) = HailContext.readIndexedRows(ctx, path, _indexSpec, typedCodecSpec, parts, tmpPartitioner.rangeBounds, requestedType)
         val rvdType = RVDType(decPType, requestedKey)
         val tmprvd = RVD(rvdType, tmpPartitioner.coarsen(requestedKey.length), crdd)
 
         if (filterIntervals)
           tmprvd
         else
-          tmprvd.repartition(np.coarsen(requestedKey.length), ctx)
+          tmprvd.repartition(ctx, np.coarsen(requestedKey.length))
       case None =>
         // indexed reads are costly; don't use an indexed read when possible
-        super.read(hc, path, requestedType, ctx, None, filterIntervals)
+        super.read(ctx, path, requestedType, None, filterIntervals)
     }
   }
 }

@@ -401,8 +401,8 @@ object Simplify {
     case MatrixCount(MatrixAnnotateRowsTable(child, _, _, _)) => MatrixCount(child)
     case MatrixCount(MatrixRepartition(child, _, _)) => MatrixCount(child)
     case MatrixCount(MatrixRename(child, _, _, _, _)) => MatrixCount(child)
-    case TableCount(TableRead(_, false, r: MatrixBGENReader)) if r.includedVariants.isEmpty =>
-      I64(r.fileMetadata.map(_.nVariants).sum)
+    case TableCount(TableRead(_, false, r: MatrixBGENReader)) if r.params.includedVariants.isEmpty =>
+      I64(r.nVariants)
 
     // TableGetGlobals should simplify very aggressively
     case TableGetGlobals(child) if child.typ.globalType == TStruct.empty => MakeStruct(FastSeq())
@@ -792,10 +792,10 @@ object Simplify {
       //   TableKeyBy(TableFilter(child, pred), keys, isSorted)
 
     case TableFilterIntervals(TableRead(t, false, tr: TableNativeReader), intervals, true) if canRepartition
-      && tr.spec.indexed(tr.path)
-      && tr.options.forall(_.filterIntervals)
+      && tr.spec.indexed
+      && tr.filterIntervals
       && SemanticVersion(tr.spec.file_version) >= SemanticVersion(1, 3, 0) =>
-      val newOpts = tr.options match {
+      val newOpts = tr.params.options match {
         case None =>
           val pt = t.keyType
           NativeReaderOptions(Interval.union(intervals.toArray, pt.ordering.intervalEndpointOrdering), pt, true)
@@ -805,10 +805,10 @@ object Simplify {
             Interval.intersection(Interval.union(preIntervals.toArray, iord), Interval.union(intervals.toArray, iord), iord),
             intervalPointType, true)
       }
-      TableRead(t, false, TableNativeReader(tr.path, Some(newOpts), tr.spec))
+      TableRead(t, false, new TableNativeReader(TableNativeReaderParameters(tr.params.path, Some(newOpts)), tr.spec))
 
     case TableFilterIntervals(TableRead(t, false, tr: TableNativeZippedReader), intervals, true) if canRepartition
-      && tr.specLeft.indexed(tr.pathLeft)
+      && tr.specLeft.indexed
       && tr.options.forall(_.filterIntervals)
       && SemanticVersion(tr.specLeft.file_version) >= SemanticVersion(1, 3, 0) =>
       val newOpts = tr.options match {
@@ -906,8 +906,8 @@ object Simplify {
     case MatrixColsHead(MatrixChooseCols(child, oldIndices), n) => MatrixChooseCols(child, oldIndices.take(n))
     case MatrixColsHead(MatrixColsHead(child, n1), n2) => MatrixColsHead(child, math.min(n1, n2))
     case MatrixColsHead(MatrixFilterRows(child, pred), n) => MatrixFilterRows(MatrixColsHead(child, n), pred)
-    case MatrixColsHead(MatrixRead(t, dr, dc, MatrixRangeReader(nRows, nCols, nPartitions)), n) =>
-      MatrixRead(t, dr, dc, MatrixRangeReader(nRows, math.min(nCols, n), nPartitions))
+    case MatrixColsHead(MatrixRead(t, dr, dc, r: MatrixRangeReader), n) =>
+      MatrixRead(t, dr, dc, MatrixRangeReader(r.params.nRows, math.min(r.params.nCols, n), r.params.nPartitions))
     case MatrixColsHead(MatrixMapRows(child, newRow), n) if !Mentions.inAggOrScan(newRow, "sa") =>
       MatrixMapRows(MatrixColsHead(child, n), newRow)
     case MatrixColsHead(MatrixMapGlobals(child, newGlobals), n) => MatrixMapGlobals(MatrixColsHead(child, n), newGlobals)

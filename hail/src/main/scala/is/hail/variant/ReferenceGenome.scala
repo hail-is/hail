@@ -17,10 +17,8 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
-import is.hail.expr.Parser._
-import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, RelationalSpec}
-import is.hail.expr.ir.functions.{IRFunctionRegistry, ReferenceGenomeFunctions}
-import is.hail.expr.types.virtual.{TInt64, TInterval, TLocus, Type}
+import is.hail.expr.ir.{EmitClassBuilder, ExecuteContext, RelationalSpec}
+import is.hail.expr.types.virtual.{TInt64, TLocus, Type}
 import is.hail.io.reference.LiftOver
 import is.hail.io.fs.FS
 import org.apache.spark.TaskContext
@@ -304,18 +302,21 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def hasSequence: Boolean = fastaReader != null
 
-  def addSequence(hc: HailContext, fastaFile: String, indexFile: String) {
+  def addSequence(ctx: ExecuteContext, fastaFile: String, indexFile: String) {
     if (hasSequence)
       fatal(s"FASTA sequence has already been loaded for reference genome '$name'.")
 
-    val fs = hc.fs
+    val tmpdir = ctx.localTmpdir
+    val fs = ctx.fs
     if (!fs.exists(fastaFile))
       fatal(s"FASTA file '$fastaFile' does not exist.")
     if (!fs.exists(indexFile))
       fatal(s"FASTA index file '$indexFile' does not exist.")
 
-    val localIndexFile = FASTAReader.getUriLocalIndexFile(fs, indexFile)
-    val index = new FastaSequenceIndex(new java.io.File(localIndexFile))
+    val localIndexFile = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fasta-reader-add-seq", "fai")
+    fs.copyRecode(indexFile, localIndexFile)
+
+    val index = new FastaSequenceIndex(new java.io.File(uriPath(localIndexFile)))
 
     val missingContigs = contigs.filterNot(index.hasIndexEntry)
     if (missingContigs.nonEmpty)
@@ -336,11 +337,11 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     val fastaPath = fs.fileStatus(fastaFile).getPath.toString
     val indexPath = fs.fileStatus(indexFile).getPath.toString
-    fastaReader = FASTAReader(hc, this, fastaPath, indexPath)
+    fastaReader = FASTAReader(ctx.localTmpdir, fs, this, fastaPath, indexPath)
   }
 
-  def addSequenceFromReader(fs: FS, fastaFile: String, indexFile: String, blockSize: Int, capacity: Int): ReferenceGenome = {
-    fastaReader = new FASTAReader(fs, this, fastaFile, indexFile, blockSize, capacity)
+  def addSequenceFromReader(tmpdir: String, fs: FS, fastaFile: String, indexFile: String, blockSize: Int, capacity: Int): ReferenceGenome = {
+    fastaReader = new FASTAReader(tmpdir, fs.broadcast, this, fastaFile, indexFile, blockSize, capacity)
     this
   }
 
@@ -369,17 +370,20 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def hasLiftover(destRGName: String): Boolean = liftoverMaps.contains(destRGName)
 
-  def addLiftover(hc: HailContext, chainFile: String, destRGName: String): Unit = {
+  def addLiftover(ctx: ExecuteContext, chainFile: String, destRGName: String): Unit = {
     if (name == destRGName)
       fatal(s"Destination reference genome cannot have the same name as this reference '$name'")
     if (hasLiftover(destRGName))
       fatal(s"Chain file already exists for source reference '$name' and destination reference '$destRGName'.")
-    val fs = hc.fs
+
+    val tmpdir = ctx.localTmpdir
+    val fs = ctx.fs
+
     if (!fs.exists(chainFile))
       fatal(s"Chain file '$chainFile' does not exist.")
 
     val chainFilePath = fs.fileStatus(chainFile).getPath.toString
-    val lo = LiftOver(hc, chainFilePath)
+    val lo = LiftOver(tmpdir, ctx.fs, chainFilePath)
 
     val destRG = ReferenceGenome.getReference(destRGName)
     lo.checkChainFile(this, destRG)
@@ -387,8 +391,8 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     liftoverMaps += destRGName -> lo
   }
 
-  def addLiftoverFromFS(fs: FS, chainFilePath: String, destRGName: String): ReferenceGenome = {
-    val lo = new LiftOver(fs, chainFilePath)
+  def addLiftoverFromFS(tmpdir: String, fs: FS, chainFilePath: String, destRGName: String): ReferenceGenome = {
+    val lo = new LiftOver(tmpdir, fs.broadcast, chainFilePath)
     liftoverMaps += destRGName -> lo
     this
   }
@@ -469,7 +473,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     Serialization.write(toJSON)
   }
 
-  def codeSetup(cb: EmitClassBuilder[_]): Code[ReferenceGenome] = {
+  def codeSetup(localTmpdir: String, cb: EmitClassBuilder[_]): Code[ReferenceGenome] = {
     val json = toJSONString
     val chunkSize = (1 << 16) - 1
     val nChunks = (json.length() - 1) / chunkSize + 1
@@ -481,8 +485,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     var rg = Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass, "parse", stringAssembler)
     if (fastaReader != null) {
-      rg = rg.invoke[FS, String, String, Int, Int, ReferenceGenome](
+      rg = rg.invoke[String, FS, String, String, Int, Int, ReferenceGenome](
         "addSequenceFromReader",
+        localTmpdir,
         cb.getFS,
         fastaReader.fastaFile,
         fastaReader.indexFile,
@@ -491,8 +496,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
 
     for ((destRG, lo) <- liftoverMaps) {
-      rg = rg.invoke[FS, String, String, ReferenceGenome](
+      rg = rg.invoke[String, FS, String, String, ReferenceGenome](
         "addLiftoverFromFS",
+        localTmpdir,
         cb.getFS,
         lo.chainFile,
         destRG)
@@ -565,14 +571,14 @@ object ReferenceGenome {
     rg
   }
 
-  def fromFile(hc: HailContext, file: String): ReferenceGenome = {
-    val rg = using(hc.fs.open(file))(read)
+  def fromFile(fs: FS, file: String): ReferenceGenome = {
+    val rg = using(fs.open(file))(read)
     addReference(rg)
     rg
   }
 
-  def fromHailDataset(path: String): String = {
-    val references = RelationalSpec.readReferences(HailContext.fs, path)
+  def fromHailDataset(fs: FS, path: String): String = {
+    val references = RelationalSpec.readReferences(fs, path)
     implicit val formats: Formats = defaultJSONFormats
     Serialization.write(references.map(_.toJSON).toFastIndexedSeq)
   }
@@ -583,23 +589,26 @@ object ReferenceGenome {
     rg
   }
 
-  def fromFASTAFile(hc: HailContext, name: String, fastaFile: String, indexFile: String,
+  def fromFASTAFile(ctx: ExecuteContext, name: String, fastaFile: String, indexFile: String,
     xContigs: java.util.List[String], yContigs: java.util.List[String],
     mtContigs: java.util.List[String], parInput: java.util.List[String]): ReferenceGenome =
-    fromFASTAFile(hc, name, fastaFile, indexFile, xContigs.asScala.toArray, yContigs.asScala.toArray,
+    fromFASTAFile(ctx, name, fastaFile, indexFile, xContigs.asScala.toArray, yContigs.asScala.toArray,
       mtContigs.asScala.toArray, parInput.asScala.toArray)
 
-  def fromFASTAFile(hc: HailContext, name: String, fastaFile: String, indexFile: String,
+  def fromFASTAFile(ctx: ExecuteContext, name: String, fastaFile: String, indexFile: String,
     xContigs: Array[String] = Array.empty[String], yContigs: Array[String] = Array.empty[String],
     mtContigs: Array[String] = Array.empty[String], parInput: Array[String] = Array.empty[String]): ReferenceGenome = {
-    val fs = hc.fs
+    val tmpdir = ctx.localTmpdir
+    val fs = ctx.fs
+
     if (!fs.exists(fastaFile))
       fatal(s"FASTA file '$fastaFile' does not exist.")
     if (!fs.exists(indexFile))
       fatal(s"FASTA index file '$indexFile' does not exist.")
 
-    val localIndexFile = FASTAReader.getUriLocalIndexFile(fs, indexFile)
-    val index = new FastaSequenceIndex(new java.io.File(localIndexFile))
+    val localIndexFile = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fasta-reader-from-fasta", "fai")
+    fs.copyRecode(indexFile, localIndexFile)
+    val index = new FastaSequenceIndex(new java.io.File(uriPath(localIndexFile)))
 
     val contigs = new ArrayBuilder[String]
     val lengths = new ArrayBuilder[(String, Int)]
@@ -612,20 +621,20 @@ object ReferenceGenome {
     }
 
     val rg = ReferenceGenome(name, contigs.result(), lengths.result().toMap, xContigs, yContigs, mtContigs, parInput)
-    rg.fastaReader = FASTAReader(hc, rg, fastaFile, indexFile)
+    rg.fastaReader = FASTAReader(tmpdir, ctx.fs, rg, fastaFile, indexFile)
     rg
   }
 
-  def addSequence(name: String, fastaFile: String, indexFile: String): Unit = {
-    references(name).addSequence(HailContext.get, fastaFile, indexFile)
+  def addSequence(ctx: ExecuteContext, name: String, fastaFile: String, indexFile: String): Unit = {
+    references(name).addSequence(ctx, fastaFile, indexFile)
   }
 
   def removeSequence(name: String): Unit = {
     references(name).removeSequence()
   }
 
-  def referenceAddLiftover(name: String, chainFile: String, destRGName: String): Unit = {
-    references(name).addLiftover(HailContext.get, chainFile, destRGName)
+  def referenceAddLiftover(ctx: ExecuteContext, name: String, chainFile: String, destRGName: String): Unit = {
+    references(name).addLiftover(ctx, chainFile, destRGName)
   }
 
   def referenceRemoveLiftover(name: String, destRGName: String): Unit = {

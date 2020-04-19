@@ -4,9 +4,9 @@ import java.io._
 
 import is.hail.HailContext
 import is.hail.backend.BroadcastValue
+import is.hail.expr.ir.ExecuteContext
 import is.hail.io.compress.BGzipCodec
 import is.hail.utils._
-
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop
 
@@ -143,6 +143,16 @@ trait FS extends Serializable {
       delete(src, recursive = false)
   }
 
+  def copyRecode(src: String, dst: String, deleteSource: Boolean = false) {
+    using(open(src)) { is =>
+      using(create(dst)) { os =>
+        IOUtils.copy(is, os)
+      }
+    }
+    if (deleteSource)
+      delete(src, recursive = false)
+  }
+
   def readLines[T](filename: String, filtAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace())(reader: Iterator[WithContext[String]] => T): T = {
     using(open(filename)) {
       is =>
@@ -248,25 +258,6 @@ trait FS extends Serializable {
         delete(fileStatus.getPath.toString, recursive = true)
       }
     }
-  }
-
-  def getTemporaryFile(tmpdir: String, nChar: Int = 10,
-    prefix: Option[String] = None, suffix: Option[String] = None): String = {
-
-    val prefixString = if (prefix.isDefined) prefix.get + "-" else ""
-    val suffixString = if (suffix.isDefined) "." + suffix.get else ""
-
-    def getRandomName: String = {
-      val randomName = tmpdir + "/" + prefixString + scala.util.Random.alphanumeric.take(nChar).mkString + suffixString
-      val fileExists = exists(randomName)
-
-      if (!fileExists)
-        randomName
-      else
-        getRandomName
-    }
-
-    getRandomName
   }
 
   def touch(filename: String): Unit = {

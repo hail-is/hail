@@ -528,11 +528,11 @@ object InferPType {
         PCanonicalArray(x.decodedBodyPType, contextsIR.pType.required)
       case ReadPartition(rowIR, codecSpec, rowType) =>
         infer(rowIR)
-        val child = codecSpec.buildDecoder(rowType)._1
+        val child = codecSpec.decodedPType(rowType)
         PStream(child, child.required)
       case ReadValue(path, spec, requestedType) =>
         infer(path)
-        spec.buildDecoder(requestedType)._1
+        spec.decodedPType(requestedType)
       case WriteValue(value, pathPrefix, spec) =>
         infer(value)
         infer(pathPrefix)

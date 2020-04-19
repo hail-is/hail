@@ -3,41 +3,40 @@ package is.hail.utils
 import is.hail.HailContext
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
-import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
+import is.hail.expr.ir.ExecuteContext
+import is.hail.io.fs.FS
 import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
 import scala.reflect.classTag
 
 object SpillingCollectIterator {
-  def apply[T: ClassTag](rdd: RDD[T], sizeLimit: Int): SpillingCollectIterator[T] = {
-    val x = new SpillingCollectIterator(rdd, sizeLimit)
+  def apply[T: ClassTag](localTmpdir: String, fs: FS, rdd: RDD[T], sizeLimit: Int): SpillingCollectIterator[T] = {
+    val nPartitions = rdd.partitions.length
+    val x = new SpillingCollectIterator(localTmpdir, fs, nPartitions, sizeLimit)
     val ctc = classTag[T]
     HailContext.get.sc.runJob(
       rdd,
       (_, it: Iterator[T]) => it.toArray(ctc),
-      0 until rdd.partitions.length,
+      0 until nPartitions,
       x.append _)
     x
   }
 }
 
-class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int) extends Iterator[T] {
-  private[this] val hc = HailContext.get
-  private[this] val fs = hc.fs
-  private[this] val sc = hc.sc
-  private[this] val files: Array[(String, Long)] = new Array(rdd.partitions.length)
-  private[this] var buf: Array[Array[T]] = new Array(rdd.partitions.length)
-  private[this] var size: Long = 0L
+class SpillingCollectIterator[T: ClassTag] private (localTmpdir: String, fs: FS, nPartitions: Int, sizeLimit: Int) extends Iterator[T] {
+  private[this] val files: Array[(String, Long)] = new Array(nPartitions)
+  private[this] val buf: Array[Array[T]] = new Array(nPartitions)
+  private[this] var _size: Long = 0L
   private[this] var i: Int = 0
   private[this] var it: Iterator[T] = null
 
   private def append(partition: Int, a: Array[T]): Unit = synchronized {
     assert(buf(partition) == null)
     buf(partition) = a
-    size += a.length
-    if (size > sizeLimit) {
-      val file = hc.getTemporaryFile()
+    _size += a.length
+    if (_size > sizeLimit) {
+      val file = ExecuteContext.createTmpPathNoCleanup(localTmpdir, s"spilling-collect-iterator-$partition")
       using(fs.createNoCompression(file)) { os =>
         var k = 0
         while (k < buf.length) {
@@ -58,7 +57,7 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
           k += 1
         }
       }
-      size = 0
+      _size = 0
     }
   }
 

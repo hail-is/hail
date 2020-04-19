@@ -11,7 +11,7 @@ import org.testng.annotations.Test
 class TakeByAggregatorSuite extends HailSuite {
   @Test def testPointers() {
     for ((size, n) <- Array((1000, 100), (1, 10), (100, 10000), (1000, 10000))) {
-      val fb = EmitFunctionBuilder[Region, Long]("test_pointers")
+      val fb = EmitFunctionBuilder[Region, Long](ctx, "test_pointers")
       val cb = fb.ecb
       val stringPT = PCanonicalString(true)
       val tba = new TakeByRVAS(PCanonicalString(true), PInt64Optional, PCanonicalArray(stringPT, required = true), cb)
@@ -46,7 +46,7 @@ class TakeByAggregatorSuite extends HailSuite {
   }
 
   @Test def testMissing() {
-    val fb = EmitFunctionBuilder[Region, Long]("take_by_test_missing")
+    val fb = EmitFunctionBuilder[Region, Long](ctx, "take_by_test_missing")
     val cb = fb.ecb
     val tba = new TakeByRVAS(PInt32Optional, PInt32Optional, PCanonicalArray(PInt32Optional, required = true), cb)
     Region.scoped { r =>
@@ -77,7 +77,7 @@ class TakeByAggregatorSuite extends HailSuite {
   @Test def testRandom() {
     for (n <- Array(1, 2, 10, 100, 1000, 10000, 100000, 1000000)) {
       val nToTake = 1025
-      val fb = EmitFunctionBuilder[Region, Long]("take_by_test_random")
+      val fb = EmitFunctionBuilder[Region, Long](ctx, "take_by_test_random")
       val cb = fb.ecb
 
       Region.scoped { r =>

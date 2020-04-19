@@ -3,13 +3,12 @@ package is.hail.io.tabix
 import is.hail.io.compress.BGzipInputStream
 import is.hail.utils._
 import is.hail.io.fs.FS
-
-import htsjdk.tribble.util.{ParsingUtils, TabixUtils}
+import htsjdk.tribble.util.ParsingUtils
 import htsjdk.samtools.util.FileExtensions
-import org.apache.spark.broadcast.Broadcast
-
 import java.io.InputStream
 import java.nio.charset.StandardCharsets
+
+import is.hail.backend.BroadcastValue
 
 import scala.collection.mutable
 import scala.language.implicitConversions
@@ -313,7 +312,7 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
 }
 
 class TabixLineIterator(
-  private val bcFS: Broadcast[FS],
+  private val fsBc: BroadcastValue[FS],
   private val filePath: String,
   private val offsets: Array[TbiPair]
 )
@@ -322,7 +321,7 @@ class TabixLineIterator(
   private var i: Int = -1
   private var curOff: Long = 0 // virtual file offset, not real offset
   private var isEof = false
-  private var is = new BGzipInputStream(bcFS.value.open(filePath, checkCodec = false))
+  private var is = new BGzipInputStream(fsBc.value.open(filePath, checkCodec = false))
 
   def next(): String = {
     var s: String = null

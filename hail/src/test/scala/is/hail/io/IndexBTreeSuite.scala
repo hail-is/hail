@@ -35,7 +35,7 @@ class IndexBTreeSuite extends HailSuite {
       forAll(arraySizeGenerator) { case (depth: Int, arraySize: Int) =>
         val arrayRandomStarts = fillRandomArray(arraySize)
         val maxLong = arrayRandomStarts.takeRight(1)(0)
-        val index = tmpDir.createTempFile(prefix = "testBtree", extension = ".idx")
+        val index = ctx.createTmpPath("testBtree", "idx")
 
         fs.delete(index, true)
         IndexBTree.write(arrayRandomStarts, index, fs)
@@ -77,7 +77,7 @@ class IndexBTreeSuite extends HailSuite {
   @Test def oneVariant() {
     val index = Array(24.toLong)
     val fileSize = 30 //made-up value greater than index
-    val idxFile = tmpDir.createTempFile(prefix = "testBtree_1variant", extension = ".idx")
+    val idxFile = ctx.createTmpPath("testBtree_1variant", "idx")
 
     fs.delete(idxFile, recursive = true)
     IndexBTree.write(index, idxFile, fs)
@@ -99,7 +99,7 @@ class IndexBTreeSuite extends HailSuite {
   @Test def zeroVariants() {
     intercept[IllegalArgumentException] {
       val index = Array[Long]()
-      val idxFile = tmpDir.createTempFile(prefix = "testBtree_0variant", extension = ".idx")
+      val idxFile = ctx.createTmpPath("testBtree_0variant", "idx")
       fs.delete(idxFile, recursive = true)
       IndexBTree.write(index, idxFile, fs)
     }
@@ -121,7 +121,7 @@ class IndexBTreeSuite extends HailSuite {
   }
 
   @Test def writeReadMultipleOfBranchingFactorDoesNotError() {
-    val idxFile = tmpDir.createTempFile(prefix = "btree")
+    val idxFile = ctx.createTmpPath("btree")
     IndexBTree.write(
       Array.tabulate(1024)(i => i),
       idxFile,
@@ -131,7 +131,7 @@ class IndexBTreeSuite extends HailSuite {
   }
 
   @Test def queryArrayPositionAndFileOffsetIsCorrectSmallArray() {
-    val f = tmpDir.createTempFile(prefix = "btree")
+    val f = ctx.createTmpPath("btree")
     val v = Array[Long](1, 2, 3, 40, 50, 60, 70)
     val branchingFactor = 1024
     IndexBTree.write(v, f, fs, branchingFactor = branchingFactor)
@@ -150,7 +150,7 @@ class IndexBTreeSuite extends HailSuite {
 
   @Test def queryArrayPositionAndFileOffsetIsCorrectTwoLevelsArray() {
     def sqr(x: Long) = x * x
-    val f = tmpDir.createTempFile(prefix = "btree")
+    val f = ctx.createTmpPath("btree")
     val v = Array.tabulate(1025)(x => sqr(x))
     val branchingFactor = 1024
     IndexBTree.write(v, f, fs, branchingFactor = branchingFactor)
@@ -177,7 +177,7 @@ class IndexBTreeSuite extends HailSuite {
 
   @Test def queryArrayPositionAndFileOffsetIsCorrectThreeLevelsArray() {
     def sqr(x: Long) = x * x
-    val f = tmpDir.createTempFile(prefix = "btree")
+    val f = ctx.createTmpPath("btree")
     val v = Array.tabulate(1024 * 1024 + 1)(x => sqr(x))
     val branchingFactor = 1024
     IndexBTree.write(v, f, fs, branchingFactor = branchingFactor)
@@ -211,7 +211,7 @@ class IndexBTreeSuite extends HailSuite {
   }
 
   @Test def onDiskBTreeIndexToValueSmallCorrect() {
-    val f = tmpDir.createTempFile()
+    val f = ctx.createTmpPath("btree")
     val v = Array[Long](1, 2, 3, 4, 5, 6, 7)
     val branchingFactor = 3
     try {
@@ -240,7 +240,7 @@ class IndexBTreeSuite extends HailSuite {
       branchingFactor <- choose(2, 1024)
     } yield (indices, longs, branchingFactor)
     forAll(g) { case (indices, longs, branchingFactor) =>
-      val f = tmpDir.createTempFile()
+      val f = ctx.createTmpPath("test")
       try {
         IndexBTree.write(longs, f, fs, branchingFactor)
         val bt = new OnDiskBTreeIndexToValue(f, fs, branchingFactor)
@@ -261,7 +261,7 @@ class IndexBTreeSuite extends HailSuite {
   @Test def onDiskBTreeIndexToValueFourLayers() {
     val longs = Array.tabulate(3 * 3 * 3 * 3)(x => x.toLong)
     val indices = Array(0, 3, 10, 20, 26, 27, 34, 55, 79, 80)
-    val f = tmpDir.createTempFile()
+    val f = ctx.createTmpPath("btree")
     val branchingFactor = 3
     try {
       IndexBTree.write(longs, f, fs, branchingFactor)

@@ -472,9 +472,9 @@ object Nirvana {
 
           rvb.end()
         }
-      }).persist(StorageLevel.MEMORY_AND_DISK)
+      }).persist(ctx, StorageLevel.MEMORY_AND_DISK)
 
-      TableValue(
+      TableValue(ctx,
         TableType(nirvanaRowType.virtualType, FastIndexedSeq("locus", "alleles"), TStruct.empty),
         BroadcastRow.empty(ctx),
         nirvanaRVD

@@ -22,9 +22,7 @@ case class MatrixWriteBlockMatrix(path: String,
     // FIXME
     val partitionCounts = rvd.countPerPartition()
 
-    val hc = HailContext.get
-    val sc = hc.sc
-    val fs = hc.fs
+    val fs = ctx.fs
 
     val partStarts = partitionCounts.scanLeft(0L)(_ + _)
     assert(partStarts.length == rvd.getNumPartitions + 1)
@@ -43,7 +41,7 @@ case class MatrixWriteBlockMatrix(path: String,
     fs.mkDir(path + "/parts")
     val gp = GridPartitioner(blockSize, nRows, localNCols)
     val blockPartFiles =
-      new WriteBlocksRDD(path, rvd, sc, partStarts, entryField, gp)
+      new WriteBlocksRDD(fs.broadcast, path, rvd, partStarts, entryField, gp)
         .collect()
 
     val blockCount = blockPartFiles.length

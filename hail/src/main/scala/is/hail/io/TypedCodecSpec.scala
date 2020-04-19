@@ -4,7 +4,7 @@ import java.io._
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder}
+import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, ExecuteContext}
 import is.hail.expr.types.encoded._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -24,18 +24,22 @@ final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: Buffer
     _eType._decodedPType(requestedType)
   }
 
-  def buildEncoder(t: PType): (OutputStream) => Encoder = {
-    val f = EType.buildEncoder(encodedType, t)
+  def buildEncoder(ctx: ExecuteContext, t: PType): (OutputStream) => Encoder = {
+    val f = EType.buildEncoder(ctx, encodedType, t)
     out: OutputStream => new CompiledEncoder(_bufferSpec.buildOutputBuffer(out), f)
   }
 
-  def buildDecoder(requestedType: Type): (PType, (InputStream) => Decoder) = {
-    val (rt, f) = EType.buildDecoder(encodedType, requestedType)
+  def decodedPType(requestedType: Type): PType = {
+    encodedType.decodedPType(requestedType)
+  }
+
+  def buildDecoder(ctx: ExecuteContext, requestedType: Type): (PType, (InputStream) => Decoder) = {
+    val (rt, f) = EType.buildDecoder(ctx, encodedType, requestedType)
     (rt, (in: InputStream) => new CompiledDecoder(_bufferSpec.buildInputBuffer(in), f))
   }
 
-  def buildStructDecoder(requestedType: TStruct): (PStruct, (InputStream) => Decoder) = {
-    val (pType: PStruct, makeDec) = buildDecoder(requestedType)
+  def buildStructDecoder(ctx: ExecuteContext, requestedType: TStruct): (PStruct, (InputStream) => Decoder) = {
+    val (pType: PStruct, makeDec) = buildDecoder(ctx, requestedType)
     pType -> makeDec
   }
 

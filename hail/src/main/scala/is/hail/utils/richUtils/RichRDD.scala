@@ -2,6 +2,7 @@ package is.hail.utils.richUtils
 
 import java.io.{OutputStream, OutputStreamWriter}
 
+import is.hail.expr.ir.ExecuteContext
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
 import is.hail.utils._
@@ -28,16 +29,17 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     Iterator(it.exists(p))
   }.fold(false)(_ || _)
 
-  def writeTable(fs: FS, filename: String, tmpDir: String, header: Option[String] = None, exportType: String = ExportType.CONCATENATED) {
+  def writeTable(ctx: ExecuteContext, filename: String, header: Option[String] = None, exportType: String = ExportType.CONCATENATED) {
     val hConf = r.sparkContext.hadoopConfiguration
     val codecFactory = new CompressionCodecFactory(hConf)
     val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(filename)))
 
+    val fs = ctx.fs
     fs.delete(filename, recursive = true) // overwriting by default
 
     val parallelOutputPath =
       if (exportType == ExportType.CONCATENATED)
-        fs.getTemporaryFile(tmpDir)
+        ctx.createTmpPath("write-table-concatenated")
       else
         filename
 
@@ -100,7 +102,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     )
   }
 
-  def subsetPartitions(keep: Array[Int], newPartitioner: Option[Partitioner] = None)(implicit ct: ClassTag[T]): RDD[T] = {
+  def subsetPartitions(keep: IndexedSeq[Int], newPartitioner: Option[Partitioner] = None)(implicit ct: ClassTag[T]): RDD[T] = {
     require(keep.length <= r.partitions.length,
       s"tried to subset to more partitions than exist ${keep.toSeq} ${r.partitions.toSeq}")
     require(keep.isIncreasing && (keep.isEmpty || (keep.head >= 0 && keep.last < r.partitions.length)),
@@ -122,7 +124,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   }
 
   def supersetPartitions(
-    oldToNewPI: Array[Int],
+    oldToNewPI: IndexedSeq[Int],
     newNPartitions: Int,
     newPIPartition: Int => Iterator[T],
     newPartitioner: Option[Partitioner] = None)(implicit ct: ClassTag[T]): RDD[T] = {
@@ -161,15 +163,16 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   }
 
   def writePartitions(
+    ctx: ExecuteContext,
     path: String,
     stageLocally: Boolean,
     write: (Iterator[T], OutputStream) => Long
   )(implicit tct: ClassTag[T]
   ): (Array[String], Array[Long]) =
-    ContextRDD.weaken(r).writePartitions(
+    ContextRDD.weaken(r).writePartitions(ctx,
       path,
       null,
       stageLocally,
-      (_, _) => null,
+      (_) => null,
       (_, it, os, _) => write(it, os))
 }

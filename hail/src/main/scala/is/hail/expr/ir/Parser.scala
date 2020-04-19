@@ -6,7 +6,6 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
-import is.hail.io.bgen.MatrixBGENReaderSerializer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
 import is.hail.rvd.{AbstractRVDSpec, RVDType}
 import is.hail.utils.StringEscapeUtils._
@@ -1115,15 +1114,15 @@ object IRParser {
       case "TableToValueApply" =>
         val config = string_literal(it)
         val child = table_ir(env)(it)
-        TableToValueApply(child, RelationalFunctions.lookupTableToValue(config))
+        TableToValueApply(child, RelationalFunctions.lookupTableToValue(env.ctx, config))
       case "MatrixToValueApply" =>
         val config = string_literal(it)
         val child = matrix_ir(env)(it)
-        MatrixToValueApply(child, RelationalFunctions.lookupMatrixToValue(config))
+        MatrixToValueApply(child, RelationalFunctions.lookupMatrixToValue(env.ctx, config))
       case "BlockMatrixToValueApply" =>
         val config = string_literal(it)
         val child = blockmatrix_ir(env)(it)
-        BlockMatrixToValueApply(child, RelationalFunctions.lookupBlockMatrixToValue(config))
+        BlockMatrixToValueApply(child, RelationalFunctions.lookupBlockMatrixToValue(env.ctx, config))
       case "BlockMatrixCollect" =>
         val child = blockmatrix_ir(env)(it)
         BlockMatrixCollect(child)
@@ -1341,16 +1340,16 @@ object IRParser {
       case "MatrixToTableApply" =>
         val config = string_literal(it)
         val child = matrix_ir(env)(it)
-        MatrixToTableApply(child, RelationalFunctions.lookupMatrixToTable(config))
+        MatrixToTableApply(child, RelationalFunctions.lookupMatrixToTable(env.ctx, config))
       case "TableToTableApply" =>
         val config = string_literal(it)
         val child = table_ir(env)(it)
-        TableToTableApply(child, RelationalFunctions.lookupTableToTable(config))
+        TableToTableApply(child, RelationalFunctions.lookupTableToTable(env.ctx, config))
       case "BlockMatrixToTableApply" =>
         val config = string_literal(it)
         val bm = blockmatrix_ir(env)(it)
         val aux = ir_value_expr(env)(it)
-        BlockMatrixToTableApply(bm, aux, RelationalFunctions.lookupBlockMatrixToTable(config))
+        BlockMatrixToTableApply(bm, aux, RelationalFunctions.lookupBlockMatrixToTable(env.ctx, config))
       case "BlockMatrixToTable" =>
         val child = blockmatrix_ir(env)(it)
         BlockMatrixToTable(child)
@@ -1513,7 +1512,7 @@ object IRParser {
       case "MatrixToMatrixApply" =>
         val config = string_literal(it)
         val child = matrix_ir(env)(it)
-        MatrixToMatrixApply(child, RelationalFunctions.lookupMatrixToMatrix(config))
+        MatrixToMatrixApply(child, RelationalFunctions.lookupMatrixToMatrix(env.ctx, config))
       case "MatrixRename" =>
         val globalK = string_literals(it)
         val globalV = string_literals(it)

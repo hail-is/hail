@@ -498,7 +498,7 @@ object TestUtils {
     }
   }
 
-  def importVCF(hc: HailContext, file: String, force: Boolean = false,
+  def importVCF(ctx: ExecuteContext, file: String, force: Boolean = false,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
@@ -514,7 +514,7 @@ object TestUtils {
     }
     val entryFloatType = TFloat64._toPretty
 
-    val reader = MatrixVCFReader(
+    val reader = MatrixVCFReader(ctx,
       Array(file),
       callFields,
       entryFloatType,
@@ -527,8 +527,7 @@ object TestUtils {
       forceBGZ,
       force,
       TextInputFilterAndReplace(),
-      partitionsJSON
-    )
+      partitionsJSON)
     MatrixRead(reader.fullMatrixType, dropSamples, false, reader)
   }
 }

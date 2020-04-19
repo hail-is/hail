@@ -8,6 +8,7 @@ import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PCanonicalStruct, PStruct, PType}
 import is.hail.expr.types.virtual._
+import is.hail.io.fs.FS
 import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils.StringEscapeUtils._
@@ -216,19 +217,16 @@ object TextTableReader {
     }.zip(allDefined).toArray
   }
 
-  def readMetadata(options: TextTableReaderOptions): TextTableReaderMetadata = {
-    HailContext.maybeGZipAsBGZip(options.forceBGZ) {
-      readMetadata1(options)
+  def readMetadata(fs: FS, options: TextTableReaderOptions): TextTableReaderMetadata = {
+    HailContext.maybeGZipAsBGZip(fs, options.forceBGZ) {
+      readMetadata1(fs, options)
     }
   }
 
-  def readMetadata1(options: TextTableReaderOptions): TextTableReaderMetadata = {
-    val hc = HailContext.get
-
+  def readMetadata1(fs: FS, options: TextTableReaderOptions): TextTableReaderMetadata = {
     val TextTableReaderOptions(files, _, comment, separator, missing, hasHeader, impute, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ) = options
 
     val globbedFiles: Array[String] = {
-      val fs = HailContext.get.fs
       val globbed = fs.globAll(files)
       if (globbed.isEmpty)
         fatal("arguments refer to no files")
@@ -246,7 +244,7 @@ object TextTableReader {
     val nPartitions: Int = options.nPartitions
 
     val firstFile = globbedFiles.head
-    val header = hc.fs.readLines(firstFile, filterAndReplace) { lines =>
+    val header = fs.readLines(firstFile, filterAndReplace) { lines =>
       val filt = lines.filter(line => !options.isComment(line.value) && !(skipBlankLines && line.value.isEmpty))
 
       if (filt.isEmpty)
@@ -271,7 +269,7 @@ object TextTableReader {
         duplicates.map { case (pre, post) => s"'$pre' -> '$post'" }.truncatable("\n  "))
     }
 
-    val rdd = hc.sc.textFilesLines(globbedFiles, nPartitions)
+    val rdd = HailContext.sc.textFilesLines(globbedFiles, nPartitions)
       .filter { line =>
         !options.isComment(line.value) &&
           (!hasHeader || line.value != header) &&
@@ -337,19 +335,22 @@ object TextTableReader {
 
     TextTableReaderMetadata(globbedFiles, header, PCanonicalStruct(namesAndTypes: _*))
   }
+
+  def apply(ctx: ExecuteContext, options: TextTableReaderOptions): TextTableReader = {
+    val metadata = TextTableReader.readMetadata(ctx.fs, options)
+    TextTableReader(metadata, options)
+  }
 }
 
-case class TextTableReader(options: TextTableReaderOptions) extends TableReader {
+case class TextTableReader(metadata: TextTableReaderMetadata, options: TextTableReaderOptions) extends TableReader {
   def pathsUsed: Seq[String] = options.files
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
-  private lazy val metadata = TextTableReader.readMetadata(options)
-
   lazy val fullType: TableType = metadata.fullType
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    HailContext.maybeGZipAsBGZip(options.forceBGZ) {
+    HailContext.maybeGZipAsBGZip(ctx.fs, options.forceBGZ) {
       apply1(tr, ctx)
     }
   }
@@ -369,7 +370,6 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
           (!options.hasHeader || metadata.header != line.value) &&
           !(options.skipBlankLines && line.value.isEmpty)
       }.cmapPartitions { (ctx, it) =>
-      val region = ctx.region
       val rvb = ctx.rvb
 
       val ab = new ArrayBuilder[String]
@@ -408,6 +408,6 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
       }
     }
 
-    TableValue(tr.typ, BroadcastRow.empty(ctx), RVD.unkeyed(rowPType, crdd))
+    TableValue(ctx, tr.typ, BroadcastRow.empty(ctx), RVD.unkeyed(rowPType, crdd))
   }
 }

@@ -1,10 +1,11 @@
 package is.hail.expr.types.physical
-import is.hail.utils.log
-import is.hail.annotations.{Region, SafeIndexedSeq, SafeRow, ScalaToRegionValue, UnsafeRow}
-import is.hail.expr.ir.EmitFunctionBuilder
-import org.scalatest.testng.TestNGSuite
 
-object PhysicalTestUtils extends TestNGSuite {
+import is.hail.HailSuite
+import is.hail.utils.log
+import is.hail.annotations.{Region, ScalaToRegionValue, UnsafeRow}
+import is.hail.expr.ir.EmitFunctionBuilder
+
+abstract class PhysicalTestUtils extends HailSuite {
   def copyTestExecutor(sourceType: PType, destType: PType, sourceValue: Any,
     expectCompileErr: Boolean = false, deepCopy: Boolean = false, interpret: Boolean = false) {
 
@@ -39,7 +40,7 @@ object PhysicalTestUtils extends TestNGSuite {
     }
     
     var compileSuccess = false
-    val fb = EmitFunctionBuilder[Region, Long, Long]("not_empty")
+    val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "not_empty")
     val codeRegion = fb.getCodeParam[Region](1)
     val value = fb.getCodeParam[Long](2)
 

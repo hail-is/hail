@@ -7,7 +7,7 @@ import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir.{ExecuteContext, TableIR, TableLiteral, TableValue}
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual.{TArray, TString, TStruct, Type}
-import is.hail.io.fs.FileStatus
+import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import org.apache.spark.sql.{DataFrame, Row}
 import org.json4s.JsonAST._
@@ -55,22 +55,6 @@ trait Py4jUtils {
 
   def makeDouble(d: Double): Double = d
 
-  def exists(path: String, hc: HailContext): Boolean = hc.fs.exists(path)
-
-  def isFile(path: String, hc: HailContext): Boolean = hc.fs.isFile(path)
-
-  def isDir(path: String, hc: HailContext): Boolean = hc.fs.isDir(path)
-
-  def ls(path: String, hc: HailContext): String = {
-    val statuses = hc.fs.listStatus(path)
-    JsonMethods.compact(JArray(statuses.map(fs => statusToJson(fs)).toList))
-  }
-
-  def stat(path: String, hc: HailContext): String = {
-    val stat = hc.fs.fileStatus(path)
-    JsonMethods.compact(statusToJson(stat))
-  }
-
   private def statusToJson(fs: FileStatus): JObject = {
     JObject(
       "path" -> JString(fs.getPath.toString),
@@ -111,19 +95,6 @@ trait Py4jUtils {
     (n / factor.toDouble).formatted("%.1f")
   }
 
-  def readFile(path: String, hc: HailContext, buffSize: Int): HadoopPyReader =
-    new HadoopPyReader(hc.fs.open(path), buffSize)
-
-  def writeFile(path: String, hc: HailContext, exclusive: Boolean): HadoopPyWriter = {
-    if (exclusive && hc.fs.exists(path))
-      fatal(s"a file already exists at '$path'")
-    new HadoopPyWriter(hc.fs.create(path))
-  }
-
-  def copyFile(from: String, to: String, hc: HailContext) {
-    hc.fs.copy(from, to)
-  }
-
   def addSocketAppender(hostname: String, port: Int) {
     val app = new StringSocketAppender(hostname, port, HailContext.logFormat)
     consoleLog.addAppender(app)
@@ -141,37 +112,16 @@ trait Py4jUtils {
     error(msg)
   }
 
-  def fileExists(hc: HailContext, path: String): Boolean = hc.fs.exists(path) && hc.fs.isFile(path)
-
-  def dirExists(hc: HailContext, path: String): Boolean = hc.fs.exists(path) && hc.fs.isDir(path)
-
-  def mkdir(hc: HailContext, path: String): Unit = hc.fs.mkDir(path)
-
-  def copyToTmp(hc: HailContext, path: String, extension: String): String = {
-    val codecExt = hc.fs.getCodecExtension(path)
-    val tmpFile = hc.getTemporaryFile(suffix = Some(extension + codecExt))
-    hc.fs.copy(path, tmpFile)
-    tmpFile
-  }
-
   def makeJSON(t: Type, value: Any): String = {
     val jv = JSONAnnotationImpex.exportAnnotation(value, t)
     JsonMethods.compact(jv)
   }
 
-  def pyFromDF(df: DataFrame, jKey: java.util.List[String]): TableIR = {
-    val key = jKey.asScala.toArray.toFastIndexedSeq
-    val signature = SparkAnnotationImpex.importType(df.schema).setRequired(true).asInstanceOf[PStruct]
-    ExecuteContext.scoped() { ctx =>
-      TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)), ctx)
-    }
-  }
-
-  def importFamJSON(path: String, isQuantPheno: Boolean = false,
+  def importFamJSON(fs: FS, path: String, isQuantPheno: Boolean = false,
     delimiter: String = "\\t",
     missingValue: String = "NA"): String = {
     val ffConfig = FamFileConfig(isQuantPheno, delimiter, missingValue)
-    val (data, ptyp) = LoadPlink.parseFam(path, ffConfig, HailContext.fs)
+    val (data, ptyp) = LoadPlink.parseFam(fs, path, ffConfig)
     val jv = JSONAnnotationImpex.exportAnnotation(
       Row(ptyp.virtualType.toString, data),
       TStruct("type" -> TString, "data" -> TArray(ptyp.virtualType)))

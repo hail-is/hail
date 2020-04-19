@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s.{coerce, _}
 import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ParamType}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ExecuteContext, ParamType}
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PCanonicalArray, PStruct, PType}
@@ -83,13 +83,14 @@ object BgenRDDPartitions extends Logging {
   }
 
   def apply(
-    fs: FS,
+    ctx: ExecuteContext,
     rg: Option[ReferenceGenome],
     files: Seq[BgenFileMetadata],
     blockSizeInMB: Option[Int],
     nPartitions: Option[Int],
     keyType: Type
   ): (Array[Partition], Array[Interval]) = {
+    val fs = ctx.fs
     val fsBc = fs.broadcast
 
     val fileRangeBounds = checkFilesDisjoint(fs, files, keyType)
@@ -120,8 +121,8 @@ object BgenRDDPartitions extends Logging {
 
     val indexReaderBuilder = {
       val (leafCodec, internalNodeCodec) = BgenSettings.indexCodecSpecs(rg)
-      val (leafPType: PStruct, leafDec) = leafCodec.buildDecoder(leafCodec.encodedVirtualType)
-      val (intPType: PStruct, intDec) = internalNodeCodec.buildDecoder(internalNodeCodec.encodedVirtualType)
+      val (leafPType: PStruct, leafDec) = leafCodec.buildDecoder(ctx, leafCodec.encodedVirtualType)
+      val (intPType: PStruct, intDec) = internalNodeCodec.buildDecoder(ctx, internalNodeCodec.encodedVirtualType)
       IndexReaderBuilder.withDecoders(leafDec, intDec, BgenSettings.indexKeyType(rg), BgenSettings.indexAnnotationType, leafPType, intPType)
     }
     if (nonEmptyFilesAfterFilter.isEmpty) {
@@ -173,9 +174,10 @@ object BgenRDDPartitions extends Logging {
 
 object CompileDecoder {
   def apply(
+    ctx: ExecuteContext,
     settings: BgenSettings
   ): (Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
-    val fb = EmitFunctionBuilder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long]("bgen_rdd_decoder")
+    val fb = EmitFunctionBuilder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long](ctx, "bgen_rdd_decoder")
     val mb = fb.apply_method
     val region = mb.getCodeParam[Region](1)
     val cp = mb.getCodeParam[BgenPartition](2)

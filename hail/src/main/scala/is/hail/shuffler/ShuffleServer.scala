@@ -1,7 +1,7 @@
 package is.hail.shuffler
 
 import is.hail.annotations.{Region, UnsafeRow}
-import is.hail.expr.ir.IRParser
+import is.hail.expr.ir.{ExecuteContext, IRParser}
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual.{TStruct, Type}
@@ -10,19 +10,19 @@ import is.hail.rvd.AbstractRVDSpec
 import java.io._
 import java.net._
 import java.nio.charset.StandardCharsets
-import java.security.KeyStore;
+import java.security.KeyStore
 import java.security.SecureRandom
 import java.util.Base64
 import java.util.concurrent._
 import java.util.concurrent.{ConcurrentSkipListMap, Executors}
+
 import javax.net._
 import javax.net.ssl._
-import javax.security.cert.X509Certificate;
-import org.apache.log4j.Logger;
+import javax.security.cert.X509Certificate
+import org.apache.log4j.Logger
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.annotation.switch
-
 import is.hail.utils._
 
 class Handler (
@@ -104,10 +104,11 @@ class Shuffle (
   codecSpec: TypedCodecSpec,
   key: Array[String]
 ) extends AutoCloseable {
-  private[this] val log = Logger.getLogger(getClass.getName());
-  private[this] val b64uuid = Base64.getEncoder().encode(uuid)
-  private[this] val codecs = new KeyedCodecSpec(t, codecSpec, key)
-  private[this] val rootRegion = Region()
+  private[this] val log = Logger.getLogger(getClass.getName)
+  private[this] val ctx = new ExecuteContext("/tmp", "file:///tmp", null, null, Region(), new ExecutionTimer())
+  private[this] val b64uuid = Base64.getEncoder.encode(uuid)
+  private[this] val codecs = new KeyedCodecSpec(ctx, t, codecSpec, key)
+  private[this] val rootRegion = ctx.r
   private[this] val store = new LSM(s"/tmp/${b64uuid}", codecs, rootRegion)
 
   private[this] def makeRegion(): Region = {
@@ -116,7 +117,10 @@ class Shuffle (
     region
   }
 
-  def close(): Unit = rootRegion.close()
+  def close(): Unit = {
+    rootRegion.close()
+    ctx.close()
+  }
 
   def put(in: DataInputStream, out: DataOutputStream) {
     val decoder = codecs.makeDec(in)

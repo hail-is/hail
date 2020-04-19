@@ -107,17 +107,17 @@ object IndexBgen {
 
     val rangeBounds = bgenFilePaths.zipWithIndex.map { case (_, i) => Interval(Row(i), Row(i), includesStart = true, includesEnd = true) }
     val partitioner = new RVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
-    val crvd = BgenRDD(HailContext.sc, partitions, settings, null).toCRDDPtr
+    val crvd = BgenRDD(ctx, partitions, settings, null).toCRDDPtr
 
     val (leafCodec, intCodec) = BgenSettings.indexCodecSpecs(referenceGenome)
     val leafPType = LeafNodeBuilder.typ(indexKeyType, annotationType)
-    val leafEnc = leafCodec.buildEncoder(leafPType)
+    val leafEnc = leafCodec.buildEncoder(ctx, leafPType)
 
     val intPType = InternalNodeBuilder.typ(indexKeyType, annotationType)
-    val intEnc = intCodec.buildEncoder(intPType)
+    val intEnc = intCodec.buildEncoder(ctx, intPType)
 
     RVD.unkeyed(rowType, crvd)
-      .repartition(partitioner, ctx, shuffle = true)
+      .repartition(ctx, partitioner, shuffle = true)
       .toRows
       .foreachPartition { it =>
         val partIdx = TaskContext.get.partitionId()

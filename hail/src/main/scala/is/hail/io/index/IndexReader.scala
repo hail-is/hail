@@ -6,7 +6,7 @@ import java.util.Map.Entry
 
 import is.hail.annotations._
 import is.hail.expr.types.virtual.{Type, TypeSerializer}
-import is.hail.expr.ir.IRParser
+import is.hail.expr.ir.{ExecuteContext, IRParser}
 import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.io._
 import is.hail.io.bgen.BgenSettings
@@ -19,10 +19,10 @@ import org.json4s.{Formats, NoTypeHints}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object IndexReaderBuilder {
-  def fromSpec(spec: AbstractIndexSpec): (FS, String, Int) => IndexReader = {
+  def fromSpec(ctx: ExecuteContext, spec: AbstractIndexSpec): (FS, String, Int) => IndexReader = {
     val (keyType, annotationType) = spec.types
-    val (leafPType: PStruct, leafDec) = spec.leafCodec.buildDecoder(spec.leafCodec.encodedVirtualType)
-    val (intPType: PStruct, intDec) = spec.internalNodeCodec.buildDecoder(spec.internalNodeCodec.encodedVirtualType)
+    val (leafPType: PStruct, leafDec) = spec.leafCodec.buildDecoder(ctx, spec.leafCodec.encodedVirtualType)
+    val (intPType: PStruct, intDec) = spec.internalNodeCodec.buildDecoder(ctx, spec.internalNodeCodec.encodedVirtualType)
     withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
 
   }

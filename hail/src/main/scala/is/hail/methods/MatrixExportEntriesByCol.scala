@@ -19,8 +19,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
   def typ(childType: MatrixType): Type = TVoid
 
   def execute(ctx: ExecuteContext, mv: MatrixValue): Any = {
-
-    val fs = HailContext.fs
+    val fs = ctx.fs
 
     fs.delete(path, recursive = true) // overwrite by default
 
@@ -64,13 +63,13 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
           .map(allColValuesJSON)
           .toArray)
 
-      val bcFS = HailContext.fsBc
+      val fsBc = fs.broadcast
       val partFolders = mv.rvd.crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
 
         val partFolder = partFileBase + partFile(d, i, TaskContext.get())
 
         val fileHandles = Array.tabulate(endIdx - startIdx) { j =>
-          new OutputStreamWriter(bcFS.value.create(partFolder + "/" + j.toString + extension), "UTF-8")
+          new OutputStreamWriter(fsBc.value.create(partFolder + "/" + j.toString + extension), "UTF-8")
         }
 
         if (i == 0) {
@@ -135,8 +134,8 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
       val newFiles = mv.sparkContext.parallelize(0 until ns, numSlices = ns)
         .map { sampleIdx =>
           val partFilePath = path + "/" + partFile(digitsNeeded(nCols), sampleIdx, TaskContext.get)
-          val fileStatuses = partFolders.map(pf => bcFS.value.fileStatus(pf + s"/$sampleIdx" + extension))
-          bcFS.value.copyMergeList(fileStatuses, partFilePath, deleteSource = false)
+          val fileStatuses = partFolders.map(pf => fsBc.value.fileStatus(pf + s"/$sampleIdx" + extension))
+          fsBc.value.copyMergeList(fileStatuses, partFilePath, deleteSource = false)
           partFilePath
         }.collect()
 
@@ -164,9 +163,9 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
     // clean up temporary files
     val temps = tempFolders.result()
-    val bcFS = HailContext.fsBc
+    val fsBc = fs.broadcast
     HailContext.get.sc.parallelize(temps, (temps.length / 32).max(1)).foreach { path =>
-      bcFS.value.delete(path, recursive = true)
+      fsBc.value.delete(path, recursive = true)
     }
 
     info("Done cleaning up temporary files.")

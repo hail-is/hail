@@ -40,7 +40,7 @@ sealed trait Param
 case class EmitParam(ec: EmitCode) extends Param
 case class CodeParam(c: Code[_]) extends Param
 
-class EmitModuleBuilder(val modb: ModuleBuilder) {
+class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   def newEmitClass[C](name: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
     new EmitClassBuilder(this, modb.newClass(name))
 
@@ -52,6 +52,8 @@ trait WrappedEmitModuleBuilder {
   def emodb: EmitModuleBuilder
 
   def modb: ModuleBuilder = emodb.modb
+
+  def ctx: ExecuteContext = emodb.ctx
 
   def newEmitClass[C](name: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] = emodb.newEmitClass[C](name)
 
@@ -241,7 +243,7 @@ class EmitClassBuilder[C](
   def numReferenceGenomes: Int = rgMap.size
 
   def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] =
-    rgMap.getOrElseUpdate(rg, genLazyFieldThisRef[ReferenceGenome](rg.codeSetup(this)))
+    rgMap.getOrElseUpdate(rg, genLazyFieldThisRef[ReferenceGenome](rg.codeSetup(ctx.localTmpdir, this)))
 
   def numTypes: Int = typMap.size
 
@@ -286,7 +288,7 @@ class EmitClassBuilder[C](
     ))
 
     val baos = new ByteArrayOutputStream()
-    val enc = spec.buildEncoder(litType)(baos)
+    val enc = spec.buildEncoder(ctx, litType)(baos)
     Region.scoped { region =>
       val rvb = new RegionValueBuilder(region)
       rvb.start(litType)
@@ -300,8 +302,7 @@ class EmitClassBuilder[C](
     baos.toByteArray
   }
 
-  private[this] var _hfs: FS = _
-  private[this] var _hfield: Settable[FS] = _
+  private[this] var _fsField: Settable[FS] = _
 
   private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
   private[this] var _backendField: Settable[BackendUtils] = _
@@ -387,17 +388,15 @@ class EmitClassBuilder[C](
   }
 
   def getFS: Code[FS] = {
-    if (_hfs == null) {
+    if (_fsField == null) {
       cb.addInterface(typeInfo[FunctionWithFS].iname)
-      val confField = genFieldThisRef[FS]()
+      _fsField = genFieldThisRef[FS]()
       val mb = newEmitMethod("addFS", FastIndexedSeq[ParamType](typeInfo[FS]), typeInfo[Unit])
-      mb.emit(confField := mb.getCodeParam[FS](1))
-      _hfs = HailContext.fs
-      _hfield = confField
+      mb.emit(_fsField := mb.getCodeParam[FS](1))
     }
 
-    assert(_hfs == HailContext.fs && _hfield != null)
-    _hfield.load()
+    assert(_fsField != null)
+    _fsField
   }
 
   def getPType(t: PType): Code[PType] = {
@@ -591,14 +590,14 @@ class EmitClassBuilder[C](
 
     val hasLiterals: Boolean = literalsMap.nonEmpty
 
-    val literalsBc = if (hasLiterals) {
-      HailContext.get.backend.broadcast(encodeLiterals())
-    } else {
+    val literalsBc = if (hasLiterals)
+      ctx.backend.broadcast(encodeLiterals())
+    else
       // if there are no literals, there might not be a HailContext
       null
-    }
 
-    val localFS = _hfs
+    val useFS = _fsField != null
+    val localFS = if (useFS) ctx.fs else null
 
     val nSerializedAggs = _nSerialized
 
@@ -625,7 +624,7 @@ class EmitClassBuilder[C](
         }
         val f = theClass.newInstance().asInstanceOf[C]
         f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
-        if (localFS != null)
+        if (useFS)
           f.asInstanceOf[FunctionWithFS].addFS(localFS)
         if (useBackend)
           f.asInstanceOf[FunctionWithBackend].setBackend(backend)
@@ -733,46 +732,46 @@ class EmitClassBuilder[C](
 
 object EmitFunctionBuilder {
   def apply[F](
-    baseName: String, paramTypes: IndexedSeq[ParamType], returnType: ParamType
+    ctx: ExecuteContext, baseName: String, paramTypes: IndexedSeq[ParamType], returnType: ParamType
   )(implicit fti: TypeInfo[F]): EmitFunctionBuilder[F] = {
-    val modb = new EmitModuleBuilder(new ModuleBuilder())
+    val modb = new EmitModuleBuilder(ctx, new ModuleBuilder())
     val cb = modb.genEmitClass[F](baseName)
     val apply = cb.newEmitMethod("apply", paramTypes, returnType)
     new EmitFunctionBuilder(apply)
   }
 
   def apply[F](
-    baseName: String, argInfo: IndexedSeq[MaybeGenericTypeInfo[_]], returnInfo: MaybeGenericTypeInfo[_]
+    ctx: ExecuteContext, baseName: String, argInfo: IndexedSeq[MaybeGenericTypeInfo[_]], returnInfo: MaybeGenericTypeInfo[_]
   )(implicit fti: TypeInfo[F]): EmitFunctionBuilder[F] = {
-    val modb = new EmitModuleBuilder(new ModuleBuilder())
+    val modb = new EmitModuleBuilder(ctx, new ModuleBuilder())
     val cb = modb.genEmitClass[F](baseName)
         val apply = cb.newEmitMethod("apply", argInfo, returnInfo)
     new EmitFunctionBuilder(apply)
   }
 
-  def apply[R: TypeInfo](baseName: String): EmitFunctionBuilder[AsmFunction0[R]] =
-    EmitFunctionBuilder[AsmFunction0[R]](baseName, FastIndexedSeq[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
+  def apply[R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction0[R]] =
+    EmitFunctionBuilder[AsmFunction0[R]](ctx, baseName, FastIndexedSeq[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
 
-  def apply[A: TypeInfo, R: TypeInfo](baseName: String): EmitFunctionBuilder[AsmFunction1[A, R]] =
-    EmitFunctionBuilder[AsmFunction1[A, R]](baseName, Array(GenericTypeInfo[A]), GenericTypeInfo[R])
+  def apply[A: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction1[A, R]] =
+    EmitFunctionBuilder[AsmFunction1[A, R]](ctx, baseName, Array(GenericTypeInfo[A]), GenericTypeInfo[R])
 
-  def apply[A: TypeInfo, B: TypeInfo, R: TypeInfo](baseName: String): EmitFunctionBuilder[AsmFunction2[A, B, R]] =
-    EmitFunctionBuilder[AsmFunction2[A, B, R]](baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B]), GenericTypeInfo[R])
+  def apply[A: TypeInfo, B: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction2[A, B, R]] =
+    EmitFunctionBuilder[AsmFunction2[A, B, R]](ctx, baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B]), GenericTypeInfo[R])
 
-  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo](baseName: String): EmitFunctionBuilder[AsmFunction3[A, B, C, R]] =
-    EmitFunctionBuilder[AsmFunction3[A, B, C, R]](baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C]), GenericTypeInfo[R])
+  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction3[A, B, C, R]] =
+    EmitFunctionBuilder[AsmFunction3[A, B, C, R]](ctx, baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C]), GenericTypeInfo[R])
 
-  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, R: TypeInfo](baseName: String): EmitFunctionBuilder[AsmFunction4[A, B, C, D, R]] =
-    EmitFunctionBuilder[AsmFunction4[A, B, C, D, R]](baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D]), GenericTypeInfo[R])
+  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction4[A, B, C, D, R]] =
+    EmitFunctionBuilder[AsmFunction4[A, B, C, D, R]](ctx, baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D]), GenericTypeInfo[R])
 
-  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo](baseName: String): EmitFunctionBuilder[AsmFunction5[A, B, C, D, E, R]] =
-    EmitFunctionBuilder[AsmFunction5[A, B, C, D, E, R]](baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E]), GenericTypeInfo[R])
+  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction5[A, B, C, D, E, R]] =
+    EmitFunctionBuilder[AsmFunction5[A, B, C, D, E, R]](ctx, baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E]), GenericTypeInfo[R])
 
-  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, F: TypeInfo, R: TypeInfo](baseName: String): EmitFunctionBuilder[AsmFunction6[A, B, C, D, E, F, R]] =
-    EmitFunctionBuilder[AsmFunction6[A, B, C, D, E, F, R]](baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F]), GenericTypeInfo[R])
+  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, F: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction6[A, B, C, D, E, F, R]] =
+    EmitFunctionBuilder[AsmFunction6[A, B, C, D, E, F, R]](ctx, baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F]), GenericTypeInfo[R])
 
-  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, F: TypeInfo, G: TypeInfo, R: TypeInfo](baseName: String): EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]] =
-    EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]](baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
+  def apply[A: TypeInfo, B: TypeInfo, C: TypeInfo, D: TypeInfo, E: TypeInfo, F: TypeInfo, G: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]] =
+    EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]](ctx, baseName, Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
 }
 
 trait FunctionWithFS {

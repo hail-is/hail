@@ -3,12 +3,13 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.expr.types.{BlockMatrixSparsity, BlockMatrixType}
 import is.hail.expr.types.virtual.{TArray, TBaseStruct, TFloat64, TInt64, TTuple, Type}
-import is.hail.linalg.BlockMatrix
+import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
 import is.hail.utils._
 import breeze.linalg
 import breeze.linalg.DenseMatrix
 import breeze.numerics
 import is.hail.annotations.Region
+import is.hail.io.fs.FS
 
 import scala.collection.mutable.ArrayBuffer
 import is.hail.utils.richUtils.RichDenseMatrixDouble
@@ -84,9 +85,7 @@ case class BlockMatrixRead(reader: BlockMatrixReader) extends BlockMatrixIR {
     BlockMatrixRead(reader)
   }
 
-  override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
-    reader(ctx, HailContext.get)
-  }
+  override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = reader(ctx)
 
   val blockCostIsLinear: Boolean = true
 }
@@ -101,21 +100,27 @@ object BlockMatrixReader {
 
 abstract class BlockMatrixReader {
   def pathsUsed: Seq[String]
-  def apply(ctx: ExecuteContext, hc: HailContext): BlockMatrix
+  def apply(ctx: ExecuteContext): BlockMatrix
   def fullType: BlockMatrixType
 }
 
-case class BlockMatrixNativeReader(path: String) extends BlockMatrixReader {
+object BlockMatrixNativeReader {
+  def apply(fs: FS, path: String): BlockMatrixNativeReader = {
+    val metadata = BlockMatrix.readMetadata(fs, path)
+    BlockMatrixNativeReader(metadata, path)
+  }
+}
+
+case class BlockMatrixNativeReader(metadata: BlockMatrixMetadata, path: String) extends BlockMatrixReader {
   def pathsUsed: Seq[String] = Array(path)
-  lazy val fullType = {
-    val metadata = BlockMatrix.readMetadata(HailContext.get, path)
+  lazy val fullType: BlockMatrixType = {
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(metadata.nRows, metadata.nCols)
 
     val sparsity = BlockMatrixSparsity.fromLinearBlocks(metadata.nRows, metadata.nCols, metadata.blockSize, metadata.maybeFiltered)
     BlockMatrixType(TFloat64, tensorShape, isRowVector, metadata.blockSize, sparsity)
   }
 
-  def apply(ctx: ExecuteContext, hc: HailContext): BlockMatrix = BlockMatrix.read(hc, path)
+  def apply(ctx: ExecuteContext): BlockMatrix = BlockMatrix.read(ctx.fs, path)
 }
 
 case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockSize: Int) extends BlockMatrixReader {
@@ -128,9 +133,9 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
     BlockMatrixType.dense(TFloat64, nRows, nCols, blockSize)
   }
 
-  def apply(ctx: ExecuteContext, hc: HailContext): BlockMatrix = {
-    val breezeMatrix = RichDenseMatrixDouble.importFromDoubles(hc, path, nRows.toInt, nCols.toInt, rowMajor = true)
-    BlockMatrix.fromBreezeMatrix(hc.sc, breezeMatrix, blockSize)
+  def apply(ctx: ExecuteContext): BlockMatrix = {
+    val breezeMatrix = RichDenseMatrixDouble.importFromDoubles(ctx.fs, path, nRows.toInt, nCols.toInt, rowMajor = true)
+    BlockMatrix.fromBreezeMatrix(HailContext.sc, breezeMatrix, blockSize)
   }
 }
 
@@ -138,7 +143,7 @@ case class BlockMatrixPersistReader(id: String) extends BlockMatrixReader {
   lazy val bm: BlockMatrix = HailContext.sparkBackend().bmCache.getPersistedBlockMatrix(id)
   def pathsUsed: Seq[String] = FastSeq()
   lazy val fullType: BlockMatrixType = BlockMatrixType.fromBlockMatrix(bm)
-  def apply(ctx: ExecuteContext, hc: HailContext): BlockMatrix = bm
+  def apply(ctx: ExecuteContext): BlockMatrix = bm
 }
 
 class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
@@ -394,20 +399,20 @@ case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends Blo
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
     var leftBM = left.execute(ctx)
     var rightBM = right.execute(ctx)
-    val hc = HailContext.get
+    val fs = ctx.fs
     if (!left.blockCostIsLinear) {
-      val path = hc.getTemporaryFile(suffix = Some("bm"))
+      val path = ctx.createTmpPath("blockmatrix-dot-left", "bm")
       info(s"BlockMatrix multiply: writing left input with ${ leftBM.nRows } rows and ${ leftBM.nCols } cols " +
         s"(${ leftBM.gp.nBlocks } blocks of size ${ leftBM.blockSize }) to temporary file $path")
-      leftBM.write(hc.fs, path)
-      leftBM = BlockMatrixNativeReader(path).apply(ctx, hc)
+      leftBM.write(ctx, path)
+      leftBM = BlockMatrixNativeReader(fs, path).apply(ctx)
     }
     if (!right.blockCostIsLinear) {
-      val path = hc.getTemporaryFile(suffix = Some("bm"))
+      val path = ctx.createTmpPath("blockmatrix-dot-right", "bm")
       info(s"BlockMatrix multiply: writing right input with ${ rightBM.nRows } rows and ${ rightBM.nCols } cols " +
         s"(${ rightBM.gp.nBlocks } blocks of size ${ rightBM.blockSize }) to temporary file $path")
-      rightBM.write(hc.fs, path)
-      rightBM = BlockMatrixNativeReader(path).apply(ctx, hc)
+      rightBM.write(ctx, path)
+      rightBM = BlockMatrixNativeReader(fs, path).apply(ctx)
     }
     leftBM.dot(rightBM)
   }

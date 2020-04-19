@@ -3,6 +3,7 @@ package is.hail.utils.richUtils
 import java.io._
 
 import is.hail.HailContext
+import is.hail.expr.ir.ExecuteContext
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
 import is.hail.rvd.RVDContext
@@ -43,15 +44,16 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
 
   // If idxPath is null, then mkIdxWriter should return null and not read its string argument
   def writePartitions(
+    ctx: ExecuteContext,
     path: String,
     idxRelPath: String,
     stageLocally: Boolean,
-    mkIdxWriter: (FS, String) => IndexWriter,
+    mkIdxWriter: (String) => IndexWriter,
     write: (RVDContext, Iterator[T], OutputStream, IndexWriter) => Long
   ): (Array[String], Array[Long]) = {
-    val hc = HailContext.get
-    val fs = hc.fs
-    val bcFS = hc.fsBc
+    val localTmpdir = ctx.localTmpdir
+    val fs = ctx.fs
+    val fsBc = ctx.fsBc
 
     fs.mkDir(path + "/parts")
     if (idxRelPath != null)
@@ -62,14 +64,14 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
     val d = digitsNeeded(nPartitions)
 
     val (partFiles, partitionCounts) = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
-      val fs = bcFS.value
+      val fs = fsBc.value
       val f = partFile(d, i, TaskContext.get)
       val finalFilename = path + "/parts/" + f
       val finalIdxFilename = if (idxRelPath != null) path + "/" + idxRelPath + "/" + f + ".idx" else null
       val (filename, idxFilename) =
         if (stageLocally) {
           val context = TaskContext.get
-          val partPath = fs.getTemporaryFile("file:///tmp")
+          val partPath = ExecuteContext.createTmpPathNoCleanup(localTmpdir, "write-partitions-part")
           val idxPath = partPath + ".idx"
           context.addTaskCompletionListener { (context: TaskContext) =>
             fs.delete(partPath, recursive = false)
@@ -79,7 +81,7 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
         } else
           finalFilename -> finalIdxFilename
       val os = fs.create(filename)
-      val iw = mkIdxWriter(fs, idxFilename)
+      val iw = mkIdxWriter(idxFilename)
       val count = write(ctx, it, os, iw)
       if (iw != null)
         iw.close()

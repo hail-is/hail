@@ -304,7 +304,7 @@ object Pretty {
               (if (typ == reader.fullMatrixType) "None" else typ.parsableString()) + " " +
               prettyBooleanLiteral(dropCols) + " " +
               prettyBooleanLiteral(dropRows) + " " +
-              '"' + StringEscapeUtils.escapeString(Serialization.write(reader)(MatrixReader.formats)) + '"'
+                '"' + StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue)) + '"'
             case MatrixWrite(_, writer) =>
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixWriter.formats)) + '"'
             case MatrixMultiWrite(_, writer) =>
@@ -356,7 +356,7 @@ object Pretty {
             case TableRead(typ, dropRows, tr) =>
               (if (typ == tr.fullType) "None" else typ.parsableString()) + " " +
                 prettyBooleanLiteral(dropRows) + " " +
-                '"' + StringEscapeUtils.escapeString(Serialization.write(tr)(TableReader.formats)) + '"'
+                '"' + StringEscapeUtils.escapeString(JsonMethods.compact(tr.toJValue)) + '"'
             case TableWrite(_, writer) =>
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(TableWriter.formats)) + '"'
             case TableMultiWrite(_, writer) =>
@@ -388,7 +388,7 @@ object Pretty {
                 prettyIdentifiers(colKey)
             case MatrixToMatrixApply(_, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
             case MatrixToTableApply(_, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
-            case TableToTableApply(_, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
+            case TableToTableApply(_, function) => prettyStringLiteral(JsonMethods.compact(function.toJValue))
             case TableToValueApply(_, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
             case MatrixToValueApply(_, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
             case BlockMatrixToTableApply(_, _, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
