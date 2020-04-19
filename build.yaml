@@ -968,6 +968,8 @@ steps:
    script: |
      set -ex
 
+     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+
      COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth /api/v1alpha/copy-paste-token -sSL -XPOST)
      hailctl auth copy-paste-login "$(COPY_PASTE_TOKEN)" --namespace {{ default_ns.name }}
 
@@ -1013,6 +1015,8 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
+
+     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
 
      COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth /api/v1alpha/copy-paste-token -sSL -XPOST)
      sleep $(( 5 * 60 + 1))
