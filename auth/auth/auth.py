@@ -117,10 +117,12 @@ async def handle_copy_paste_token(request):
 @routes.post('/copy-paste-token')
 @check_csrf_token
 @web_authenticated_users_only()
-async def get_copy_paste_token(request, userdata):  # pylint: disable=unused-argument
+async def get_copy_paste_token(request, userdata):
     copy_paste_token = await handle_copy_paste_token(request)
-    return web.Response(
-        body=f'Your copy paste token is: {copy_paste_token}')
+    page_context = {
+        'copy_paste_token': copy_paste_token
+    }
+    return await render_template('auth', request, userdata, 'copy-patse-token.html', page_context)
 
 
 @routes.post('/api/v1alpha/copy-paste-token')

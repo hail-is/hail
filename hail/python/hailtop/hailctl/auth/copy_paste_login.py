@@ -1,6 +1,6 @@
 import asyncio
 
-from hailtop.auth import copy_paste_login
+from hailtop.auth import async_copy_paste_login
 
 
 def init_parser(parser):
@@ -11,7 +11,7 @@ def init_parser(parser):
 
 
 async def async_main(args):
-    auth_ns, username = copy_paste_login(args.copy_paste_token, args.namespace)
+    auth_ns, username = await async_copy_paste_login(args.copy_paste_token, args.namespace)
 
     if auth_ns == 'default':
         print(f'Logged in as {username}.')

@@ -38,7 +38,11 @@ def service_auth_headers(deploy_config, service, authorize_target=True):
     return namespace_auth_headers(deploy_config, ns, authorize_target)
 
 
-async def copy_paste_login(copy_paste_token, namespace=None):
+def copy_paste_login(copy_paste_token, namespace=None):
+    return async_to_blocking(async_copy_paste_login(copy_paste_token, namespace))
+
+
+async def async_copy_paste_login(copy_paste_token, namespace=None):
     deploy_config = get_deploy_config()
     if namespace is not None:
         auth_ns = namespace
