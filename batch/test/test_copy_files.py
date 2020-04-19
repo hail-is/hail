@@ -5,6 +5,7 @@ import subprocess as sp
 import uuid
 import random
 import string
+import time
 import google.oauth2.service_account
 from hailtop.auth import get_userinfo
 from hailtop.utils.os import _glob
@@ -34,6 +35,17 @@ class RemoteTemporaryDirectory:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         remove_remote_dir(self.name)
+
+
+class Timer:
+    def __init__(self):
+        self.start = None
+
+    def __enter__(self):
+        self.start = time.time()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        print(f'took {time.time() - self.start}s')
 
 
 def upload_files(src, dest):
@@ -69,27 +81,27 @@ def cp_batch(src, dest, parallelism=1, min_partition_size='1Gi',
            '--max-upload-partitions', str(max_upload_partitions),
            '--max-download-partitions', str(max_download_partitions),
            '-f', src, dest]
-    result = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
+    print(' '.join(cmd))
+    with Timer():
+        result = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
     return str(result.stdout), result.returncode
 
 
 def cp_gsutil(src, dest):
     cmd = ['gsutil', '-m', '-q', 'cp', '-r', src, dest]
-    result = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
+    print(' '.join(cmd))
+    with Timer():
+        result = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
     return str(result.stdout), result.returncode
 
 
-def _glob_local_files(path):
-    return _glob(path)
-
-
 def glob_local_files(dir):
-    files = _glob_local_files(dir)
+    files = _glob(dir, recursive=True)
     return {f.replace(dir, '') for f, _ in files}
 
 
 def glob_remote_files(dir):
-    blobs = gcs_client._list_gs_files(dir)
+    blobs = gcs_client._glob_gs_files(dir, recursive=True)
     files = {'gs://' + blob.bucket.name + '/' + blob.name for blob in blobs}
     return {f.replace(dir, '') for f in files}
 
@@ -183,25 +195,26 @@ class TestEmptyDirectory(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.local_dir = tempfile.TemporaryDirectory()
-        token = uuid.uuid4().hex[:6]
-        cls.remote_dir = f'{tmp_bucket}/{token}'
-        upload_files(cls.local_dir.name, cls.remote_dir)
 
     @classmethod
     def tearDownClass(cls):
         cls.local_dir.cleanup()
-        remove_remote_dir(cls.remote_dir)
 
     def assert_batch_same_as_gsutil(self, src, dest):
-        result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
+        result = {'ll': run_local_to_local(f'{self.local_dir.name}/', dest),
+                  'lr': run_local_to_remote(f'{self.local_dir.name}/', dest)}
         assert all(_get_batch_gsutil_files_same(result)), str(result)
         return result
 
     def test_download_directory(self):
-        self.assert_batch_same_as_gsutil('/', '/')
+        r = self.assert_batch_same_as_gsutil('/', '/')
+        assert 'FileNotFoundError' in _get_output(r, 'll', 'batch'), _get_output(r, 'll', 'batch')
+        assert 'FileNotFoundError' in _get_output(r, 'lr', 'batch'), _get_output(r, 'lr', 'batch')
 
     def test_download_asterisk(self):
-        self.assert_batch_same_as_gsutil('/*', '/')
+        r = self.assert_batch_same_as_gsutil('/*', '/')
+        assert 'FileNotFoundError' in _get_output(r, 'll', 'batch'), _get_output(r, 'll', 'batch')
+        assert 'FileNotFoundError' in _get_output(r, 'lr', 'batch'), _get_output(r, 'lr', 'batch')
 
     def test_download_double_asterisk(self):
         result = run_local_to_local(f'{self.local_dir.name}/**', '/')
@@ -226,6 +239,7 @@ class TestSingleFileTopLevel(unittest.TestCase):
     def assert_batch_same_as_gsutil(self, src, dest):
         result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
         assert all(_get_batch_gsutil_files_same(result)), str(result)
+        print(result)
         return result
 
     def test_download_file_by_name(self):
@@ -243,6 +257,9 @@ class TestSingleFileTopLevel(unittest.TestCase):
 
     def test_download_directory(self):
         self.assert_batch_same_as_gsutil('/data/', '/')
+
+    def test_download_directory_without_slash(self):
+        self.assert_batch_same_as_gsutil('/data/', '')
 
     def test_download_single_wildcard(self):
         self.assert_batch_same_as_gsutil('/data/*', '/')
@@ -564,7 +581,16 @@ class TestDownloadFileDirectoryWithSameName(unittest.TestCase):
         assert 'NotADirectory' in rl_batch_output or 'FileExistsError' in rl_batch_output, rl_batch_output
 
     def test_download_file_with_wildcard(self):
-        self.assert_batch_same_as_gsutil('/data/*/a', '/')
+        src = '/data/*/a'
+        dest = '/'
+
+        rr = run_remote_to_remote(f'{self.remote_dir}{src}', dest)
+        rl = run_remote_to_local(f'{self.remote_dir}{src}', dest)
+
+        assert rr['success'] and not rl['success']
+
+        rl_batch_output = rl['result']['batch']['output']
+        assert 'NotADirectory' in rl_batch_output or 'FileExistsError' in rl_batch_output, rl_batch_output
 
 
 class TestEmptyFileSlashWithSameNameAsDirectory(unittest.TestCase):
@@ -585,34 +611,37 @@ class TestEmptyFileSlashWithSameNameAsDirectory(unittest.TestCase):
         result = {'rr': run_remote_to_remote(f'{self.remote_dir}/data{src}', dest),
                   'rl': run_remote_to_local(f'{self.remote_dir}/data{src}', dest)}
         assert all(_get_batch_gsutil_files_same(result)), str(result)
+        print(result)
         return result
 
     def test_download_single_file_with_slash(self):
-        result = self.assert_batch_same_as_gsutil('/foo/', '/')
-        print(_get_output(result, 'rr', 'batch'))
+        self.assert_batch_same_as_gsutil('/foo/', '/')
 
-    #     # def test_download_single_file_without_slash(self):
-    #     #     result = self.assert_batch_same_as_gsutil('/foo/a', '/')
-    #     #     print(result)
+    def test_download_single_file_without_slash(self):
+        self.assert_batch_same_as_gsutil('/foo/a', '/')
 
-    # def test_download_directory(self):
-    #     # gsutil doesn't copy files that end in a slash
-    #     # https://github.com/GoogleCloudPlatform/gsutil/issues/444
-    #     expected = {'/data/foo/', '/data/foo/a', '/data/foo/b'}
-    #
-    #     result = {'rr': run_remote_to_remote(f'{self.remote_dir}/data/', '/'),
-    #               'rl': run_remote_to_local(f'{self.remote_dir}/data/', '/')}
-    #
-    #     assert not result['rr']['success'], str(result['rr'])
-    #     assert _get_files(result, 'rr', 'batch') == expected, str(result['rr'])
-    #     assert _get_rc(result, 'rr', 'batch') == 0, str(result['rr'])
-    #
-    #     # We refuse to copy all the files because the file ends in a slash
-    #     # gsutil ignores it with return code 0
-    #     assert result['rl']['success'], str(result['rl'])
-    #     assert _get_files(result, 'rl', 'batch') == {}, str(result['rl'])
-    #     assert _get_rc(result, 'rl', 'batch') != 0, str(result['rl'])
+    def test_download_directory(self):
+        # gsutil doesn't copy files that end in a slash
+        # https://github.com/GoogleCloudPlatform/gsutil/issues/444
+        expected = {'/data/foo/', '/data/foo/a', '/data/foo/b', '/data/bar/'}
 
-    # def test_download_directory_partial_name(self):
-    #     result = run_remote_to_remote(f'{self.remote_dir}/foo', '/')
-    #     assert result['success'], str(result)
+        result = {'rr': run_remote_to_remote(f'{self.remote_dir}/data/', '/'),
+                  'rl': run_remote_to_local(f'{self.remote_dir}/data/', '/')}
+
+        assert not result['rr']['success'], str(result['rr'])
+        assert _get_files(result, 'rr', 'batch') == expected, str(result['rr'])
+        assert _get_rc(result, 'rr', 'batch') == 0, str(result['rr'])
+
+        # We refuse to copy all the files because the file ends in a slash
+        # gsutil ignores it with return code 0
+        assert result['rl']['success'], str(result['rl'])
+        assert _get_files(result, 'rl', 'batch') == {}, str(result['rl'])
+        assert _get_rc(result, 'rl', 'batch') != 0, str(result['rl'])
+
+    def test_download_directory_partial_name(self):
+        result = run_remote_to_remote(f'{self.remote_dir}/foo', '/')
+        assert result['success'], str(result)
+
+    def test_download_wildcard(self):
+        result = run_remote_to_remote(f'{self.remote_dir}/f*', '/')
+        assert result['success'], str(result)

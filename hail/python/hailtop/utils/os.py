@@ -97,7 +97,7 @@ def new_file(path, size):
 
 
 def _glob(path, recursive=False):
-    paths = glob.glob(escape(path), recursive=True)
+    paths = glob.glob(escape(path), recursive=recursive)
 
     def _listdir(path):
         if not os.path.exists(path):

@@ -10,6 +10,7 @@ import google.oauth2.service_account
 
 from hailtop.utils import AsyncWorkerPool, blocking_to_async, WaitableSharedPool, WaitableBunch, \
     AsyncOS, TimerBase, NamedLockStore
+from hailtop.utils.os import contains_wildcard
 
 from ..google_storage import GCS
 from ..utils import parse_memory_in_bytes
@@ -69,6 +70,7 @@ def is_gcs_path(path):
 def get_dest_path(file, src, include_recurse_dir):
     src = src.rstrip('/').split('/')
     file = file.split('/')
+    print(f'file {file} src {src}')
     assert len(src) <= len(file)
 
     if len(src) == len(file):
@@ -112,10 +114,6 @@ async def glob_gcs(path, recursive=False):
             for blob in await gcs_client.glob_gs_files(path, recursive=recursive)]
 
 
-async def glob_local(path):
-    return await async_os.glob(path)
-
-
 async def is_gcs_dir(path):
     return is_gcs_path(path) and \
            (path.endswith('/') or len(await gcs_client.glob_gs_files(path.rstrip('/') + '/*', recursive=True)) != 0)
@@ -131,6 +129,12 @@ async def is_dir(path):
     if is_gcs_path(path):
         return await is_gcs_dir(path)
     return await is_local_dir(path)
+
+
+async def is_file(path):
+    if is_gcs_path(path):
+        return len(await glob_gcs(path, recursive=False)) == 1
+    return os.path.isfile(path)
 
 
 async def dir_exists(path):
@@ -194,14 +198,14 @@ async def add_destination_paths(src, glob_paths, dest):
         dest = dest.rstrip('/') + '/'
         return [(file, f'{dest}{os.path.basename(file)}', size) for file, size in glob_paths]
 
-    if is_dir_src and not is_dir_dest:
-        if len(glob_paths) == 1:
-            return [(file, dest, size) for file, size in glob_paths]
-        raise NotADirectoryError
+    #
+    # if is_dir_src and not is_dir_dest:
+    #     if len(glob_paths) == 1:
+    #         return [(file, dest, size) for file, size in glob_paths]
 
-    assert is_dir_src and is_dir_dest
     # https://cloud.google.com/storage/docs/gsutil/commands/cp#how-names-are-constructed_1
-    include_recurse_dir = not is_gcs_path(dest) or await dir_exists(dest)  #  await is_gcs_dir(dest)
+    include_recurse_dir = not is_gcs_path(dest) or dest.endswith('/') or await dir_exists(dest)
+    print(f'include_recurse_dir {include_recurse_dir}')
     return [(path, dest.rstrip('/') + '/' + get_dest_path(path, src, include_recurse_dir), size) for path, size in glob_paths]
 
 
@@ -214,7 +218,8 @@ class Copier:
 
     async def copy(self, src, dest):
         cp = self._copy_method_for_remoteness(is_gcs_path(src), is_gcs_path(dest))
-        tasks = await add_destination_paths(src, await self._glob(src), dest)
+        recursive = src.endswith('/') or contains_wildcard(src) or not await is_file(src)
+        tasks = await add_destination_paths(src, await self._glob(src, recursive=recursive), dest)
         for s, d, size in tasks:
             await cp(s, d, size)
 
@@ -227,10 +232,10 @@ class Copier:
             return self._write_file_to_gcs
         return self._copy_local_files
 
-    async def _glob(self, path):
+    async def _glob(self, path, recursive=False):
         if is_gcs_path(path):
-            return await glob_gcs(path)
-        return await glob_local(path)
+            return await glob_gcs(path, recursive=recursive)
+        return await async_os.glob(path, recursive=recursive)
 
     async def _copy_local_files(self, src, dest, size):
         async def _copy(src, dest):

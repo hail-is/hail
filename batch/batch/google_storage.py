@@ -173,13 +173,12 @@ class GCS:
         def _glob(bucket, prefix, i):
             if i == len(components):
                 if recursive:
-                    return [blob for _, blob in bucket.list_blobs(prefix=prefix, delimiter=None)
+                    return [blob for blob in bucket.list_blobs(prefix=prefix, delimiter=None)
                             if fnmatch.fnmatchcase(unescape_escaped_wildcards(blob.name), pattern) or
                             fnmatch.fnmatchcase(unescape_escaped_wildcards(blob.name), pattern.rstrip('/')) or
                             fnmatch.fnmatchcase(unescape_escaped_wildcards(blob.name), pattern.rstrip('/') + '/*')]
-                else:
-                    return [blob for _, blob in bucket.list_blobs(prefix=prefix, delimiter=None)
-                            if fnmatch.fnmatchcase(unescape_escaped_wildcards(blob.name), pattern)]
+                return [blob for blob in bucket.list_blobs(prefix=prefix, delimiter=None)
+                        if fnmatch.fnmatchcase(unescape_escaped_wildcards(blob.name), pattern)]
 
             c = components[i]
             if i != len(components) - 1 and contains_wildcard(c):
