@@ -234,8 +234,8 @@ class ServiceBackend(Backend):
         if billing_project is None:
             raise ValueError(
                 f'the billing_project parameter of ServiceBackend must be set '
-                f'or run hailctl config set batch/billing_project '
-                f'YOUR_BILLING_PROJECT')
+                f'or run `hailctl config set batch/billing_project '
+                f'YOUR_BILLING_PROJECT`')
         self._batch_client = BatchClient(billing_project)
 
     def close(self):

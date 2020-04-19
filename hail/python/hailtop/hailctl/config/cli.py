@@ -78,6 +78,7 @@ A parameter with more than one slash is invalid, for example:
 "batch/billing/project".
 '''.lstrip('\n'), file=sys.stderr)
         sys.exit(1)
+
     if args.module == 'set':
         if section not in config:
             config[section] = dict()
