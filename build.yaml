@@ -968,13 +968,68 @@ steps:
    script: |
      set -ex
 
-     COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth -sSL -XPOST /api/v1alpha/copy-paste-token)
+     COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth /api/v1alpha/copy-paste-token -sSL -XPOST)
      hailctl auth copy-paste-login "$(COPY_PASTE_TOKEN)" --namespace {{ default_ns.name }}
 
-     COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth -sSL -XPOST /api/v1alpha/copy-paste-token)
+     if hailctl auth copy-paste-login "$(COPY_PASTE_TOKEN)" --namespace {{ default_ns.name }}
+     then
+         echo "reusing a token should not work, but did"
+         exit 1
+     fi
+
+     COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth /api/v1alpha/copy-paste-token -sSL -XPOST)
      python3 -c '
      from hailtop.auth import copy_paste_login;
      copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
+     '
+
+     python3 -c '
+     from hailtop.auth import copy_paste_login;
+     try:
+         copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
+         print("reusing a token should not work, but did")
+         sys.exit(1)
+     except aiohttp.client_exceptions.ClientResponseError as exc:
+         assert(exc.status == 401)
+     '
+   secrets:
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+   dependsOn:
+    - default_ns
+    - deploy_auth
+    - create_deploy_config
+    - batch_pods_ns
+    - service_base_image
+ - kind: runImage
+   name: test_auth_copy_paste_login_timeout
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+
+     COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth /api/v1alpha/copy-paste-token -sSL -XPOST)
+     sleep $(( 5 * 60 + 1))
+     if hailctl auth copy-paste-login "$(COPY_PASTE_TOKEN)" --namespace {{ default_ns.name }}
+     then
+         echo "using an expired token should not work, but did"
+         exit 1
+     fi
+
+     python3 -c '
+     from hailtop.auth import copy_paste_login;
+     try:
+         copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
+         print("using an expired token should not work, but did")
+         sys.exit(1)
+     except aiohttp.client_exceptions.ClientResponseError as exc:
+         assert(exc.status == 401)
      '
    secrets:
     - name: test-tokens
