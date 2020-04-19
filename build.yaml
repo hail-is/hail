@@ -1513,6 +1513,7 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
+     cd hail
 
      bash scripts/deploy.sh $(cat /io/hail_pip_version) \
                             $(cat /io/hail_version) \
