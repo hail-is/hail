@@ -122,7 +122,7 @@ async def get_copy_paste_token(request, userdata):
     page_context = {
         'copy_paste_token': copy_paste_token
     }
-    return await render_template('auth', request, userdata, 'copy-patse-token.html', page_context)
+    return await render_template('auth', request, userdata, 'copy-paste-token.html', page_context)
 
 
 @routes.post('/api/v1alpha/copy-paste-token')
