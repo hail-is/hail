@@ -12,7 +12,7 @@ from gear import (
     setup_aiohttp_session, create_database_pool,
     rest_authenticated_users_only, web_authenticated_developers_only,
     web_maybe_authenticated_user, web_authenticated_users_only, create_session,
-    check_csrf_token, create_copy_paste_token
+    check_csrf_token, create_copy_paste_token, transaction, Database
 )
 from web_common import (
     setup_aiohttp_jinja2, setup_common_static_routes, set_message,
@@ -270,28 +270,24 @@ async def rest_callback(request):
 @routes.post('/api/v1alpha/copy-paste-login')
 async def rest_copy_paste_login(request):
     copy_paste_token = request.query['copy_paste_token']
+    db = request.app['db']
 
-    dbpool = request.app['dbpool']
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute("""
+    @transaction(db)
+    async def maybe_pop_token(tx):
+        sessions = await tx.execute_and_fetchone("""
 SELECT sessions.session_id AS session_id, users.username AS username FROM copy_paste_tokens
 INNER JOIN sessions ON sessions.session_id = copy_paste_tokens.session_id
 INNER JOIN users ON users.id = sessions.user_id
 WHERE copy_paste_tokens.id = %s
   AND NOW() < TIMESTAMPADD(SECOND, copy_paste_tokens.max_age_secs, copy_paste_tokens.created)
-  AND users.state = 'active';""",
-                                 copy_paste_token)
-            sessions = await cursor.fetchall()
+  AND users.state = 'active';""", copy_paste_token)
+        if len(sessions) != 1:
+            raise web.HTTPUnauthorized()
+        session = sessions[0]
+        await tx.just_execute("DELETE FROM copy_paste_tokens WHERE id = %s;", copy_paste_token)
+        return session
 
-    if len(sessions) != 1:
-        raise web.HTTPUnauthorized()
-    session = sessions[0]
-
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute("DELETE FROM copy_paste_tokens WHERE id = %s;", copy_paste_token)
-
+    session = await maybe_pop_token()  # pylint: disable=no-value-for-parameter
     return web.json_response({
         'token': session['session_id'],
         'username': session['username']
@@ -346,7 +342,10 @@ WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions
 
 
 async def on_startup(app):
-    app['dbpool'] = await create_database_pool()
+    db = Database()
+    await db.async_init(maxsize=50)
+    app['db'] = db
+    app['dbpool'] = db.pool
 
 
 async def on_cleanup(app):
