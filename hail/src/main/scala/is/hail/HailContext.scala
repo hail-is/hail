@@ -60,10 +60,6 @@ object HailContext {
 
   def sc: SparkContext = get.sc
 
-  def tmpdir: String = get.tmpdir
-
-  def localTmpdir: String = get.localTmpdir
-
   def configureLogging(logFile: String, quiet: Boolean, append: Boolean) {
     val logProps = new Properties()
 
@@ -105,23 +101,15 @@ object HailContext {
     quiet: Boolean = false,
     append: Boolean = false,
     branchingFactor: Int = 50,
-    tmpdir: String = "/tmp",
-    localTmpdir: String = "file:///tmp",
     optimizerIterations: Int = 3): HailContext = {
     if (theContext == null)
-      return HailContext(backend, logFile, quiet, append, branchingFactor, tmpdir, localTmpdir, optimizerIterations)
+      return HailContext(backend, logFile, quiet, append, branchingFactor, optimizerIterations)
 
     if (theContext.logFile != logFile)
       warn(s"Requested logFile $logFile, but already initialized to ${ theContext.logFile }.  Ignoring requested setting.")
 
     if (theContext.branchingFactor != branchingFactor)
       warn(s"Requested branchingFactor $branchingFactor, but already initialized to ${ theContext.branchingFactor }.  Ignoring requested setting.")
-
-    if (theContext.tmpdir != tmpdir)
-      warn(s"Requested tmpdir $tmpdir, but already initialized to ${ theContext.tmpdir }.  Ignoring requested setting.")
-
-    if (theContext.localTmpdir != localTmpdir)
-      warn(s"Requested localTmpdir $localTmpdir, but already initialized to ${ theContext.localTmpdir }.  Ignoring requested setting.")
 
     if (theContext.optimizerIterations != optimizerIterations)
       warn(s"Requested optimizerIterations $optimizerIterations, but already initialized to ${ theContext.optimizerIterations }.  Ignoring requested setting.")
@@ -601,8 +589,6 @@ class HailContext private(
   val backend: Backend,
   val logFile: String,
   val branchingFactor: Int,
-  val tmpdir: String,
-  val localTmpdir: String,
   val optimizerIterations: Int) {
   def stop(): Unit = HailContext.stop()
 
