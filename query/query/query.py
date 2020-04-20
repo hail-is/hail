@@ -165,7 +165,7 @@ async def on_startup(app):
     app['jbackend'] = jbackend
 
     jhc = hail_pkg.HailContext.apply(
-        jbackend, 'hail.log', False, False, 50, "/tmp", 3)
+        jbackend, 'hail.log', False, False, 50, 3)
     app['jhc'] = jhc
 
     app['users'] = set()

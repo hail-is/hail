@@ -150,6 +150,13 @@ class BlockMatrixNativeReader(
   override def toJValue: JValue = {
     decomposeWithName(params, "BlockMatrixNativeReader")(BlockMatrixReader.formats)
   }
+
+  override def hashCode(): Int = params.hashCode()
+
+  override def equals(that: Any): Boolean = that match {
+    case that: BlockMatrixNativeReader => params == that.params
+    case _ => false
+  }
 }
 
 case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockSize: Int) extends BlockMatrixReader {

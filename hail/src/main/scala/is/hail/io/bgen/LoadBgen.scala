@@ -415,9 +415,8 @@ case class MatrixBGENReaderParameters(
       "name" -> JString("MatrixBGENReader"),
       "files" -> JArray(files.map(JString).toList),
       "sampleFile" -> sampleFile.map(JString).getOrElse(JNull),
-      "indexFileMap" -> JArray(indexFileMap.map { case (k, v) =>
-        JObject(
-          "key" -> JString(k), "value" -> JString(v))
+      "indexFileMap" -> JObject(indexFileMap.map { case (k, v) =>
+        k -> JString(v)
       }.toList),
       "nPartitions" -> nPartitions.map(JInt(_)).getOrElse(JNull),
       "blockSizeInMB" -> blockSizeInMB.map(JInt(_)).getOrElse(JNull),
