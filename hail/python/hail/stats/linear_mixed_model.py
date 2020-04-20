@@ -727,19 +727,21 @@ class LinearMixedModel(object):
         if self._scala_model is None:
             self._set_scala_model()
 
+        jfs = Env.spark_backend('LinearMixedModel.fit_alternatives').fs._jfs
+
         if partition_size is None:
-            block_size = Env.hail().linalg.BlockMatrix.readMetadata(Env.backend()._jhc, pa_t_path).blockSize()
+            block_size = Env.hail().linalg.BlockMatrix.readMetadata(jfs, pa_t_path).blockSize()
             partition_size = block_size
         elif partition_size <= 0:
             raise ValueError(f'partition_size must be positive, found {partition_size}')
 
-        jpa_t = Env.hail().linalg.RowMatrix.readBlockMatrix(Env.backend()._jhc, pa_t_path, jsome(partition_size))
+        jpa_t = Env.hail().linalg.RowMatrix.readBlockMatrix(jfs, pa_t_path, jsome(partition_size))
 
         if a_t_path is None:
             maybe_ja_t = jnone()
         else:
             maybe_ja_t = jsome(
-                Env.hail().linalg.RowMatrix.readBlockMatrix(Env.backend()._jhc, a_t_path, jsome(partition_size)))
+                Env.hail().linalg.RowMatrix.readBlockMatrix(jfs, a_t_path, jsome(partition_size)))
 
         return Table._from_java(self._scala_model.fit(jpa_t, maybe_ja_t))
 
