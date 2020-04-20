@@ -1,20 +1,20 @@
 package is.hail.expr.types.physical
 
-import is.hail.HailSuite
 import is.hail.annotations.{Annotation, Region, RegionValue, SafeRow, StagedRegionValueBuilder}
 import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitFunctionBuilder
 import org.testng.annotations.Test
 import is.hail.asm4s._
 import org.apache.spark.sql.Row
-class PSubsetStructSuite extends HailSuite {
+
+class PSubsetStructSuite extends PhysicalTestUtils {
   val debug = true
 
   @Test def testSubsetStruct() {
     val rt = PCanonicalStruct("a" -> PCanonicalString(), "b" -> PInt32(), "c" -> PInt64())
     val intInput = 3
     val longInput = 4L
-    val fb = EmitFunctionBuilder[Region, Int, Long, Long]("fb")
+    val fb = EmitFunctionBuilder[Region, Int, Long, Long](ctx, "fb")
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
     fb.emit(
@@ -56,6 +56,6 @@ class PSubsetStructSuite extends HailSuite {
     val destType = PSubsetStruct(ps2, "b")
     val srcValue = Annotation(IndexedSeq(1,5,7,2,31415926), 31415926535897L)
     val dstValue = Annotation(31415926535897L)
-    PhysicalTestUtils.copyTestExecutor(srcType, destType, srcValue, deepCopy = false, interpret = true, expectedValue = dstValue)
+    copyTestExecutor(srcType, destType, srcValue, deepCopy = false, interpret = true, expectedValue = dstValue)
   }
 }
