@@ -56,13 +56,17 @@ class HailContext(object):
         optimizer_iterations = get_env_or_default(optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
         if _backend is None:
-            if os.environ.get('HAIL_APISERVER_URL') is not None:
+            backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
+            if backend_name == 'service':
                 _backend = ServiceBackend()
-            else:
+            elif backend_name == 'spark':
                 _backend = SparkBackend(
                     idempotent, sc, spark_conf, app_name, master, local, log,
                     quiet, append, min_block_size, branching_factor, tmp_dir,
                     optimizer_iterations)
+            else:
+                raise ValueError(f'invalid value for HAIL_QUERY_BACKDEND: unknown backend: {backend_name}')
+
         self._backend = _backend
 
         self._warn_cols_order = True
