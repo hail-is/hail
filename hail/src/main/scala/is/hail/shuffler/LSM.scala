@@ -1,16 +1,10 @@
 package is.hail.shuffler
 
+import java.io._
+
+import com.indeed.lsmtree.core._
 import is.hail.annotations._
 import is.hail.utils._
-import is.hail.expr.types.physical.PType
-import is.hail.io.TypedCodecSpec
-import java.io.{ DataInput, DataOutput, EOFException, File, IOException, InputStream, OutputStream }
-import com.indeed.lsmtree.core._
-import com.indeed.util.serialization._
-import com.indeed.util.serialization.array._
-import java.util.Comparator
-import java.io.DataInputStream
-import java.io.DataOutputStream
 
 class DataOutputIsOutputStream(
   var out: DataOutput

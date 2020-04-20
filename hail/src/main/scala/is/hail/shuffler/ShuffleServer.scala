@@ -1,46 +1,19 @@
 package is.hail.shuffler
 
-import is.hail.annotations.{Region, UnsafeRow}
-import is.hail.expr.ir.IRParser
-import is.hail.expr.types.encoded.EType
-import is.hail.expr.types.physical.{PStruct, PType}
-import is.hail.expr.types.virtual.{TStruct, Type}
-import is.hail.shuffler.ShuffleUtils._
-import org.apache.log4j.Logger;
-import is.hail.HailLSM
-import is.hail.annotations.{ Region, UnsafeRow }
-import is.hail.expr.ir.IRParser
-import is.hail.expr.types.encoded.EType
-import is.hail.expr.types.physical.{ PStruct, PType }
-import is.hail.expr.types.virtual.{ TStruct, Type }
-import is.hail.io.TypedCodecSpec
-import is.hail.rvd.AbstractRVDSpec
 import java.io._
 import java.net._
-import java.nio.charset.StandardCharsets
-import java.security.KeyStore;
 import java.security.SecureRandom
 import java.util.Base64
-import java.util.concurrent._
-import java.util.concurrent.{ConcurrentSkipListMap, Executors}
-import javax.net._
+import java.util.concurrent.{ConcurrentSkipListMap, Executors, _}
+
+import is.hail.annotations.Region
+import is.hail.expr.types.virtual.TStruct
+import is.hail.io.TypedCodecSpec
+import is.hail.utils._
 import javax.net.ssl._
-import javax.security.cert.X509Certificate;
-import org.apache.log4j.Logger;
-import org.json4s.jackson.{JsonMethods, Serialization}
-import java.security.KeyStore;
-import java.util.UUID
-import java.util.concurrent.{ ConcurrentSkipListMap, Executors }
-import javax.net._
-import javax.net.ssl._
-import javax.security.cert.X509Certificate;
-import java.util.concurrent._
-import org.json4s.jackson.{ JsonMethods, Serialization }
-import java.nio.charset.StandardCharsets
+import org.apache.log4j.Logger
 
 import scala.annotation.switch
-
-import is.hail.utils._
 
 class Handler (
   private[this] val server: ShuffleServer,

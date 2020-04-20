@@ -1,11 +1,9 @@
 package is.hail.shuffler
 
 import java.io._
-import java.nio.charset.StandardCharsets
-import java.security.KeyStore;
-import javax.net._
-import javax.net.ssl._
-import javax.security.cert.X509Certificate;
+import java.security.KeyStore
+
+import javax.net.ssl._;
 
 /**
   * The following creates a server key and cert, client key and cert, a server
