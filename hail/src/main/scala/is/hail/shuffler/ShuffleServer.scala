@@ -5,6 +5,14 @@ import is.hail.expr.ir.IRParser
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual.{TStruct, Type}
+import is.hail.shuffler.ShuffleUtils._
+import org.apache.log4j.Logger;
+import is.hail.HailLSM
+import is.hail.annotations.{ Region, UnsafeRow }
+import is.hail.expr.ir.IRParser
+import is.hail.expr.types.encoded.EType
+import is.hail.expr.types.physical.{ PStruct, PType }
+import is.hail.expr.types.virtual.{ TStruct, Type }
 import is.hail.io.TypedCodecSpec
 import is.hail.rvd.AbstractRVDSpec
 import java.io._
@@ -20,6 +28,15 @@ import javax.net.ssl._
 import javax.security.cert.X509Certificate;
 import org.apache.log4j.Logger;
 import org.json4s.jackson.{JsonMethods, Serialization}
+import java.security.KeyStore;
+import java.util.UUID
+import java.util.concurrent.{ ConcurrentSkipListMap, Executors }
+import javax.net._
+import javax.net.ssl._
+import javax.security.cert.X509Certificate;
+import java.util.concurrent._
+import org.json4s.jackson.{ JsonMethods, Serialization }
+import java.nio.charset.StandardCharsets
 
 import scala.annotation.switch
 
@@ -46,6 +63,7 @@ class Handler (
             case Wire.START => start()
             case Wire.PUT => put()
             case Wire.GET => get()
+            case Wrie.STOP => stop()
             case Wire.EOS =>
               log.info(s"client closed socket, exiting cleanly")
               continue = false
@@ -95,6 +113,16 @@ class Handler (
     val shuffle = readShuffleUUID()
     shuffle.get(in, out)
     log.info(s"SERV get done")
+  }
+
+  def stop(): Unit = {
+    log.info(s"SERV stop")
+    val uuid = Wire.readByteArray(in)
+    val shuffle = server.shuffles.remove(uuid)
+    if (shuffle != null) {
+      shuffle.close()
+    }
+    log.info(s"SERV stop done")
   }
 }
 

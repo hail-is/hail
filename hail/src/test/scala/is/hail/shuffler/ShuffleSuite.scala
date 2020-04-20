@@ -86,6 +86,7 @@ class ShuffleSuite extends TestNGSuite {
         }
         assert(result.length == max)
       }
+      c.stop()
     } finally {
       server.stop()
     }
