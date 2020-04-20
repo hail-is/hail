@@ -55,6 +55,16 @@ trait Py4jUtils {
 
   def makeDouble(d: Double): Double = d
 
+  def ls(fs: FS, path: String): String = {
+    val statuses = fs.listStatus(path)
+    JsonMethods.compact(JArray(statuses.map(fs => statusToJson(fs)).toList))
+  }
+
+  def stat(fs: FS, path: String): String = {
+    val stat = fs.fileStatus(path)
+    JsonMethods.compact(statusToJson(stat))
+  }
+
   private def statusToJson(fs: FileStatus): JObject = {
     JObject(
       "path" -> JString(fs.getPath.toString),
@@ -93,6 +103,15 @@ trait Py4jUtils {
 
   private def formatDigits(n: Long, factor: Long): String = {
     (n / factor.toDouble).formatted("%.1f")
+  }
+
+  def readFile(fs: FS, path: String, buffSize: Int): HadoopPyReader =
+    new HadoopPyReader(fs.open(path), buffSize)
+
+  def writeFile(fs: FS, path: String, exclusive: Boolean): HadoopPyWriter = {
+    if (exclusive && fs.exists(path))
+      fatal(s"a file already exists at '$path'")
+    new HadoopPyWriter(fs.create(path))
   }
 
   def addSocketAppender(hostname: String, port: Int) {
@@ -151,7 +170,6 @@ class HadoopPyReader(in: InputStream, buffSize: Int) {
 }
 
 class HadoopPyWriter(out: OutputStream) {
-
   def write(b: Array[Byte]) {
     out.write(b)
   }

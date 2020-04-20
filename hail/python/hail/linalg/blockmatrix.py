@@ -1818,7 +1818,7 @@ class BlockMatrix(object):
             Describes which entries to export. One of:
             ``'full'``, ``'lower'``, ``'strict_lower'``, ``'upper'``, ``'strict_upper'``.
         """
-        jrm = Env.hail().linalg.RowMatrix.readBlockMatrix(Env.backend()._jhc, path_in, joption(partition_size))
+        jrm = Env.hail().linalg.RowMatrix.readBlockMatrix(Env.spark_backend('BlockMatrix.export').fs._jfs, path_in, joption(partition_size))
 
         export_type = ExportType.default(parallel)
 
@@ -2429,20 +2429,20 @@ def _jarray_from_ndarray(nd):
     path = new_local_temp_file()
     uri = local_path_uri(path)
     nd.tofile(path)
-    return Env.hail().utils.richUtils.RichArray.importFromDoubles(Env.backend()._jhc, uri, nd.size)
+    return Env.hail().utils.richUtils.RichArray.importFromDoubles(Env.spark_backend('_jarray_from_ndarray').fs._jfs, uri, nd.size)
 
 
 def _ndarray_from_jarray(ja):
     path = new_local_temp_file()
     uri = local_path_uri(path)
-    Env.hail().utils.richUtils.RichArray.exportToDoubles(Env.backend()._jhc, uri, ja)
+    Env.hail().utils.richUtils.RichArray.exportToDoubles(Env.spark_backend('_ndarray_from_jarray').fs._jfs, uri, ja)
     return np.fromfile(path)
 
 
 def _breeze_fromfile(uri, n_rows, n_cols):
     _check_entries_size(n_rows, n_cols)
 
-    return Env.hail().utils.richUtils.RichDenseMatrixDouble.importFromDoubles(Env.backend()._jhc, uri, n_rows, n_cols, True)
+    return Env.hail().utils.richUtils.RichDenseMatrixDouble.importFromDoubles(Env.spark_backend('_breeze_fromfile').fs._jfs, uri, n_rows, n_cols, True)
 
 
 def _check_entries_size(n_rows, n_cols):

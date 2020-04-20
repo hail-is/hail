@@ -7,13 +7,17 @@ from hail.utils.java import Env
 
 
 class HadoopFS(FS):
+    def __init__(self, utils_package_object, jfs):
+        self._utils_package_object = utils_package_object
+        self._jfs = jfs
+
     def open(self, path: str, mode: str = 'r', buffer_size: int = 8192):
         if 'r' in mode:
-            handle = io.BufferedReader(HadoopReader(path, buffer_size), buffer_size=buffer_size)
+            handle = io.BufferedReader(HadoopReader(self, path, buffer_size), buffer_size=buffer_size)
         elif 'w' in mode:
-            handle = io.BufferedWriter(HadoopWriter(path), buffer_size=buffer_size)
+            handle = io.BufferedWriter(HadoopWriter(self, path), buffer_size=buffer_size)
         elif 'x' in mode:
-            handle = io.BufferedWriter(HadoopWriter(path, exclusive=True), buffer_size=buffer_size)
+            handle = io.BufferedWriter(HadoopWriter(self, path, exclusive=True), buffer_size=buffer_size)
 
         if 'b' in mode:
             return handle
@@ -21,29 +25,30 @@ class HadoopFS(FS):
             return io.TextIOWrapper(handle, encoding='iso-8859-1')
 
     def copy(self, src: str, dest: str):
-        Env.jutils().copyFile(src, dest, Env.backend()._jhc)
+        self._jfs.copy(src, dest, False)
 
     def exists(self, path: str) -> bool:
-        return Env.jutils().exists(path, Env.backend()._jhc)
+        return self._jfs.exists(path)
 
     def is_file(self, path: str) -> bool:
-        return Env.jutils().isFile(path, Env.backend()._jhc)
+        return self._jfs.isFile(path)
 
     def is_dir(self, path: str) -> bool:
-        return Env.jutils().isDir(path, Env.backend()._jhc)
+        return self._jfs.isDir(path)
 
     def stat(self, path: str) -> Dict:
-        return json.loads(Env.jutils().stat(path, Env.backend()._jhc))
+        return json.loads(self._utils_package_object.stat(self._jfs, path))
 
     def ls(self, path: str) -> List[Dict]:
-        r = Env.jutils().ls(path, Env.backend()._jhc)
-        return json.loads(r)
+        return json.loads(self._utils_package_object.ls(self._jfs, path))
 
+    def mkdir(self, path: str) -> None:
+        return self._jfs.mkDir(path)
 
 class HadoopReader(io.RawIOBase):
-    def __init__(self, path, buffer_size):
-        self._jfile = Env.jutils().readFile(path, Env.backend()._jhc, buffer_size)
+    def __init__(self, hfs, path, buffer_size):
         super(HadoopReader, self).__init__()
+        self._jfile = hfs._utils_package_object.readFile(hfs._jfs, path, buffer_size)
 
     def close(self):
         self._jfile.close()
@@ -59,8 +64,8 @@ class HadoopReader(io.RawIOBase):
 
 
 class HadoopWriter(io.RawIOBase):
-    def __init__(self, path, exclusive=False):
-        self._jfile = Env.jutils().writeFile(path, Env.backend()._jhc, exclusive)
+    def __init__(self, hfs, path, exclusive=False):
+        self._jfile = hfs._utils_package_object.writeFile(hfs._jfs, path, exclusive)
         super(HadoopWriter, self).__init__()
 
     def writable(self):

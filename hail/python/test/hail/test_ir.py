@@ -35,7 +35,7 @@ class ValueIRTests(unittest.TestCase):
             resource('backward_compatability/1.0.0/matrix_table/0.hmt'), None, False),
             False, False)
 
-        block_matrix_read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader('fake_file_path'))
+        block_matrix_read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader(resource('blockmatrix_example/0')))
 
         value_irs = [
             i, ir.I64(5), ir.F32(3.14), ir.F64(3.14), s, ir.TrueIR(), ir.FalseIR(), ir.Void(),
@@ -111,7 +111,7 @@ class ValueIRTests(unittest.TestCase):
             ir.MatrixWrite(matrix_read, ir.MatrixGENWriter(new_temp_file(), 4)),
             ir.MatrixWrite(matrix_read, ir.MatrixPLINKWriter(new_temp_file())),
             ir.MatrixMultiWrite([matrix_read, matrix_read], ir.MatrixNativeMultiWriter(new_temp_file(), False, False)),
-            ir.BlockMatrixWrite(block_matrix_read, ir.BlockMatrixNativeWriter('fake_file_path', False, False, False)),
+            ir.BlockMatrixWrite(block_matrix_read, ir.BlockMatrixNativeWriter('fake.bm', False, False, False)),
             ir.LiftMeOut(ir.I32(1)),
             ir.BlockMatrixWrite(block_matrix_read, ir.BlockMatrixPersistWriter('x', 'MEMORY_ONLY')),
             ir.UnpersistBlockMatrix(block_matrix_read),
@@ -155,7 +155,7 @@ class TableIRTests(unittest.TestCase):
             ir.MatrixNativeReader(resource('backward_compatability/1.0.0/matrix_table/0.hmt'), None, False),
             False, False)
 
-        block_matrix_read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader('fake_file_path'))
+        block_matrix_read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader(resource('blockmatrix_example/0')))
 
         aa = hl.literal([[0.00],[0.01],[0.02]])._ir
 

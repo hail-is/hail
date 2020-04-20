@@ -1235,7 +1235,7 @@ object IRParser {
         val requestedType = opt(it, table_type_expr(env.typEnv))
         val dropRows = boolean_literal(it)
         val readerStr = string_literal(it)
-        val reader = TableReader.fromJson(env.ctx.fs, JsonMethods.parse(readerStr).asInstanceOf[JObject])
+        val reader = TableReader.fromJValue(env.ctx.fs, JsonMethods.parse(readerStr).asInstanceOf[JObject])
         TableRead(requestedType.getOrElse(reader.fullType), dropRows, reader)
       case "MatrixColsTable" =>
         val child = matrix_ir(env)(it)
@@ -1598,8 +1598,7 @@ object IRParser {
     identifier(it) match {
       case "BlockMatrixRead" =>
         val readerStr = string_literal(it)
-        implicit val formats: Formats = BlockMatrixReader.formats
-        val reader = deserialize[BlockMatrixReader](readerStr)
+        val reader = BlockMatrixReader.fromJValue(env.ctx, JsonMethods.parse(readerStr))
         BlockMatrixRead(reader)
       case "BlockMatrixMap" =>
         val name = identifier(it)

@@ -91,13 +91,13 @@ object TableReader {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
     List(
       classOf[TableNativeZippedReader],
-      classOf[TextTableReader],
       classOf[TableFromBlockMatrixNativeReader])
     ) + new NativeReaderOptionsSerializer()
 
-  def fromJson(fs: FS, jv: JObject): TableReader = {
+  def fromJValue(fs: FS, jv: JValue): TableReader = {
     (jv \ "name").extract[String] match {
       case "TableNativeReader" => TableNativeReader.fromJValue(fs, jv)
+      case "TextTableReader" => TextTableReader.fromJValue(fs, jv)
       case _ => jv.extract[TableReader]
     }
   }

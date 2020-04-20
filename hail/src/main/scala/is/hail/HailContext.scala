@@ -122,8 +122,6 @@ object HailContext {
     quiet: Boolean = false,
     append: Boolean = false,
     branchingFactor: Int = 50,
-    tmpdir: String = "/tmp",
-    localTmpdir: String = "file:///tmp",
     optimizerIterations: Int = 3): HailContext = synchronized {
     require(theContext == null)
     checkJavaVersion()
@@ -138,7 +136,7 @@ object HailContext {
 
     configureLogging(logFile, quiet, append)
 
-    theContext = new HailContext(backend, logFile, branchingFactor, tmpdir, localTmpdir, optimizerIterations)
+    theContext = new HailContext(backend, logFile, branchingFactor, optimizerIterations)
 
     info(s"Running Hail version ${ theContext.version }")
 

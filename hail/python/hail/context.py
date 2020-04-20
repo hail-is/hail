@@ -1,3 +1,7 @@
+import sys
+import os
+from urllib.parse import urlparse, urlunparse
+
 import pkg_resources
 from pyspark import SparkContext
 
@@ -7,9 +11,6 @@ from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, d
 from hail.utils import get_env_or_default
 from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler, warn
 from hail.backend import Backend, ServiceBackend, SparkBackend
-
-import sys
-import os
 
 
 class HailContext(object):
@@ -22,7 +23,7 @@ class HailContext(object):
                       append=bool,
                       min_block_size=int,
                       branching_factor=int,
-                      tmp_dir=nullable(str),
+                      tmpdir=nullable(str), local_tmpdir=nullable(str),
                       default_reference=str,
                       idempotent=bool,
                       global_seed=nullable(int),
@@ -31,7 +32,7 @@ class HailContext(object):
                       _backend=nullable(Backend))
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log=None, quiet=False, append=False,
-                 min_block_size=1, branching_factor=50, tmp_dir=None,
+                 min_block_size=1, branching_factor=50, tmpdir=None, local_tmpdir=None,
                  default_reference="GRCh37", idempotent=False,
                  global_seed=6348563392232659379, spark_conf=None,
                  optimizer_iterations=None, _backend=None):
@@ -50,8 +51,17 @@ class HailContext(object):
                                             suffix=f'-{py_version}.log')
         self._log = log
 
-        tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
-        self.tmp_dir = tmp_dir
+        if tmpdir is None:
+            tmpdir = '/tmp'
+        self._tmpdir = tmpdir
+
+        local_tmpdir = get_env_or_default(local_tmpdir, 'TMPDIR', 'file:///tmp')
+        r = urlparse(local_tmpdir)
+        if not r.scheme:
+            r = r._replace(scheme='file')
+        elif r.scheme != 'file':
+            raise ValueError('invalid local_tmpfile: must use scheme file, got scheme {r.scheme}')
+        self._local_tmpdir = urlunparse(r)
 
         optimizer_iterations = get_env_or_default(optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
@@ -61,7 +71,7 @@ class HailContext(object):
             else:
                 _backend = SparkBackend(
                     idempotent, sc, spark_conf, app_name, master, local, log,
-                    quiet, append, min_block_size, branching_factor, tmp_dir,
+                    quiet, append, min_block_size, branching_factor, tmpdir, local_tmpdir,
                     optimizer_iterations)
         self._backend = _backend
 
@@ -131,6 +141,7 @@ class HailContext(object):
            idempotent=bool,
            global_seed=nullable(int),
            spark_conf=nullable(dictof(str, str)),
+           local_tmpdir=nullable(str),
            _optimizer_iterations=nullable(int),
            _backend=nullable(Backend))
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
@@ -139,6 +150,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
          default_reference='GRCh37', idempotent=False,
          global_seed=6348563392232659379,
          spark_conf=None,
+         local_tmpdir=None,
          _optimizer_iterations=None,
          _backend=None):
     """Initialize Hail and Spark.
@@ -198,9 +210,9 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         Minimum file block size in MB.
     branching_factor : :obj:`int`
         Branching factor for tree aggregation.
-    tmp_dir : :obj:`str`
-        Temporary directory for Hail files. Must be a network-visible
-        file path.
+    tmp_dir : :obj:`str`, optional
+        Networked temporary directory.  Must be a network-visible file
+        path.  Defaults to /tmp in the default scheme.
     default_reference : :obj:`str`
         Default reference genome. Either ``'GRCh37'``, ``'GRCh38'``,
         ``'GRCm38'``, or ``'CanFam3'``.
@@ -210,9 +222,12 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         Global random seed.
     spark_conf : :obj:`dict[str, str]`, optional
         Spark configuration parameters.
+    local_tmpdir : obj:`str`, optional
+        Local temporary directory.  Used on driver and executor nodes.
+        Must use the file scheme.  Defaults to TMPDIR, or /tmp.
     """
     HailContext(sc, app_name, master, local, log, quiet, append,
-                min_block_size, branching_factor, tmp_dir,
+                min_block_size, branching_factor, tmp_dir, local_tmpdir,
                 default_reference, idempotent, global_seed, spark_conf,
                 _optimizer_iterations,_backend)
 

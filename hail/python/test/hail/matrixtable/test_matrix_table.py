@@ -83,7 +83,7 @@ class Tests(unittest.TestCase):
         mts = [mt1, mt2]
 
         for mt in mts:
-            tmp_file = new_temp_file(suffix='mt')
+            tmp_file = new_temp_file(extension='mt')
 
             mt.write(tmp_file)
             mt_readback = hl.read_matrix_table(tmp_file)
@@ -109,7 +109,7 @@ class Tests(unittest.TestCase):
         mts = [mt1, mt2]
 
         for mt in mts:
-            tmp_file = new_temp_file(suffix='mt')
+            tmp_file = new_temp_file(extension='mt')
 
             mt.write(tmp_file)
             mt_readback = hl.read_matrix_table(tmp_file)
@@ -811,7 +811,7 @@ class Tests(unittest.TestCase):
     def test_read_stored_cols(self):
         ds = self.get_mt()
         ds = ds.annotate_globals(x='foo')
-        f = new_temp_file(suffix='mt')
+        f = new_temp_file(extension='mt')
         ds.write(f)
         t = hl.read_table(f + '/cols')
         self.assertTrue(ds.cols()._same(t))
@@ -819,7 +819,7 @@ class Tests(unittest.TestCase):
     def test_read_stored_rows(self):
         ds = self.get_mt()
         ds = ds.annotate_globals(x='foo')
-        f = new_temp_file(suffix='mt')
+        f = new_temp_file(extension='mt')
         ds.write(f)
         t = hl.read_table(f + '/rows')
         self.assertTrue(ds.rows()._same(t))
@@ -827,14 +827,14 @@ class Tests(unittest.TestCase):
     def test_read_stored_globals(self):
         ds = self.get_mt()
         ds = ds.annotate_globals(x=5, baz='foo')
-        f = new_temp_file(suffix='mt')
+        f = new_temp_file(extension='mt')
         ds.write(f)
         t = hl.read_table(f + '/globals')
         self.assertTrue(ds.globals_table()._same(t))
 
     def test_indexed_read(self):
         mt = hl.utils.range_matrix_table(2000, 100, 10)
-        f = new_temp_file(suffix='mt')
+        f = new_temp_file(extension='mt')
         mt.write(f)
         mt2 = hl.read_matrix_table(f, _intervals=[
             hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
@@ -852,7 +852,7 @@ class Tests(unittest.TestCase):
 
     def test_indexed_read_vcf(self):
         vcf = self.get_mt(10)
-        f = new_temp_file(suffix='mt')
+        f = new_temp_file(extension='mt')
         vcf.write(f)
         l1, l2, l3, l4 = hl.Locus('20', 10000000), hl.Locus('20', 11000000), hl.Locus('20', 13000000), hl.Locus('20', 14000000)
         mt = hl.read_matrix_table(f, _intervals=[
@@ -868,7 +868,7 @@ class Tests(unittest.TestCase):
         from hail.utils.java import scala_object
         supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
         ds = self.get_mt()
-        temp = new_temp_file(suffix='hmt')
+        temp = new_temp_file(extension='mt')
         for codec in supported_codecs:
             ds.write(temp, overwrite=True, _codec_spec=codec.toString())
             ds2 = hl.read_matrix_table(temp)
@@ -878,7 +878,7 @@ class Tests(unittest.TestCase):
         from hail.utils.java import scala_object
         supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
         rt = self.get_mt().rows()
-        temp = new_temp_file(suffix='ht')
+        temp = new_temp_file(extension='ht')
         for codec in supported_codecs:
             rt.write(temp, overwrite=True, _codec_spec=codec.toString())
             rt2 = hl.read_table(temp)
@@ -1165,7 +1165,7 @@ class Tests(unittest.TestCase):
 
     def test_write_stage_locally(self):
         mt = self.get_mt()
-        f = new_temp_file(suffix='mt')
+        f = new_temp_file(extension='mt')
         mt.write(f, stage_locally=True)
 
         mt2 = hl.read_matrix_table(f)
@@ -1462,7 +1462,7 @@ class Tests(unittest.TestCase):
                 for (s, e, _is, ie) in parts
             ]
 
-            tmp = new_temp_file(suffix='mt')
+            tmp = new_temp_file(extension='mt')
             mt.write(tmp, _partitions=parts)
 
             mt2 = hl.read_matrix_table(tmp)
@@ -1496,7 +1496,7 @@ class Tests(unittest.TestCase):
         parts = [
             hl.Interval(hl.Locus('20', 10277621), hl.Locus('20', 11898992))
         ]
-        tmp = new_temp_file(suffix='mt')
+        tmp = new_temp_file(extension='mt')
         mt.write(tmp, _partitions=parts)
 
         mt2 = hl.read_matrix_table(tmp)
@@ -1505,7 +1505,7 @@ class Tests(unittest.TestCase):
 
     def test_overwrite(self):
         mt = hl.utils.range_matrix_table(1, 1)
-        f = new_temp_file(suffix='mt')
+        f = new_temp_file(extension='mt')
         mt.write(f)
 
         with pytest.raises(hl.utils.FatalError, match= "file already exists"):

@@ -84,8 +84,8 @@ class TextTableReader(TableReader):
         }
 
     def render(self):
-        reader = {'name': 'TextTableReader',
-                  'options': self.config}
+        reader = dict(self.config)
+        reader['name'] = 'TextTableReader'
         return escape_str(json.dumps(reader))
 
     def __eq__(self, other):

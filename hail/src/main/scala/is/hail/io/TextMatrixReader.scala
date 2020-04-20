@@ -188,12 +188,12 @@ object TextMatrixReader {
       }.countPerPartition()
   }
 
-  def fromJson(ctx: ExecuteContext, jObj: JObject): TextMatrixReader = {
+  def fromJValue(ctx: ExecuteContext, jv: JValue): TextMatrixReader = {
     val backend = ctx.backend
     val fs = ctx.fs
 
     implicit val formats: Formats = DefaultFormats
-    val params = jObj.extract[TextMatrixReaderParameters]
+    val params = jv.extract[TextMatrixReaderParameters]
 
     assert(params.separatorStr.length == 1)
     val separator = params.separatorStr.charAt(0)

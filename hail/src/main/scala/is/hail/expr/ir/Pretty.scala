@@ -310,7 +310,7 @@ object Pretty {
             case MatrixMultiWrite(_, writer) =>
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixNativeMultiWriter.formats)) + '"'
             case BlockMatrixRead(reader) =>
-              '"' + StringEscapeUtils.escapeString(Serialization.write(reader)(BlockMatrixReader.formats)) + '"'
+              '"' + StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue)) + '"'
             case BlockMatrixWrite(_, writer) =>
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats)) + '"'
             case BlockMatrixMultiWrite(_, writer) =>

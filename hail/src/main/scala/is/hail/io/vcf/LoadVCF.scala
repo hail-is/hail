@@ -1574,9 +1574,9 @@ object MatrixVCFReader {
     new MatrixVCFReader(params, infoFlagFieldNames, referenceGenome, fullMatrixType, fullRVDType, sampleIDs, coercer, lines)
   }
 
-  def fromJson(ctx: ExecuteContext, jObj: JObject): MatrixVCFReader = {
+  def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixVCFReader = {
     implicit val formats: Formats = DefaultFormats
-    val params = jObj.extract[MatrixVCFReaderParameters]
+    val params = jv.extract[MatrixVCFReaderParameters]
 
     MatrixVCFReader(ctx, params)
   }

@@ -745,7 +745,7 @@ class Tests(unittest.TestCase):
 
     def test_write_stage_locally(self):
         t = hl.utils.range_table(5)
-        f = new_temp_file(suffix='ht')
+        f = new_temp_file(extension='ht')
         t.write(f, stage_locally=True)
         t2 = hl.read_table(f)
         self.assertTrue(t._same(t2))
@@ -755,14 +755,14 @@ class Tests(unittest.TestCase):
 
     def test_read_back_same_as_exported(self):
         t, _ = create_all_values_datasets()
-        tmp_file = new_temp_file(prefix="test", suffix=".tsv")
+        tmp_file = new_temp_file(prefix="test", extension=".tsv")
         t.export(tmp_file)
         t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
         self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
 
     def test_indexed_read(self):
         t = hl.utils.range_table(2000, 10)
-        f = new_temp_file(suffix='ht')
+        f = new_temp_file(extension='ht')
         t.write(f)
         t2 = hl.read_table(f, _intervals=[
             hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
@@ -1065,8 +1065,8 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(100, 5)
         ht = ht.key_by(idx2=ht.idx // 2)
 
-        f1 = new_temp_file('ht')
-        f2 = new_temp_file('ht')
+        f1 = new_temp_file(extension='ht')
+        f2 = new_temp_file(extension='ht')
 
         ht.write(f1)
         ht.write(f2)
@@ -1189,7 +1189,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(t1._same(t3))
 
     def test_rvd_key_write(self):
-        tempfile = new_temp_file(suffix='ht')
+        tempfile = new_temp_file(extension='ht')
         ht1 = hl.utils.range_table(1).key_by(foo='a', bar='b')
         ht1.write(tempfile)  # write ensures that table is written with both key fields
 
@@ -1240,7 +1240,7 @@ class Tests(unittest.TestCase):
         assert ht.fd.collect()[0] == ["e", "é"]
 
     def test_physical_key_truncation(self):
-        path = new_temp_file(suffix='ht')
+        path = new_temp_file(extension='ht')
         hl.import_vcf(resource('sample.vcf')).rows().key_by('locus').write(path)
         hl.read_table(path).select()._force_count()
 
@@ -1251,7 +1251,7 @@ class Tests(unittest.TestCase):
         assert ht.repartition(3, shuffle=False)._same(ht)
 
     def test_path_collision_error(self):
-        path = new_temp_file(suffix='ht')
+        path = new_temp_file(extension='ht')
         ht = hl.utils.range_table(10)
         ht.write(path)
         ht = hl.read_table(path)
@@ -1369,7 +1369,7 @@ def test_can_process_wide_tables():
         print(f'working on width {w}')
         path = resource(f'width_scale_tests/{w}.tsv')
         ht = hl.import_table(path, impute=True)
-        out_path = new_temp_file(suffix='ht')
+        out_path = new_temp_file(extension='ht')
         ht.write(out_path)
         ht = hl.read_table(out_path)
         ht.annotate(another_field=5)._force_count()
@@ -1425,7 +1425,7 @@ def test_join_distinct_preserves_count():
 def test_write_table_containing_ndarray():
     t = hl.utils.range_table(5)
     t = t.annotate(n = hl._nd.arange(t.idx))
-    f = new_temp_file(suffix='ht')
+    f = new_temp_file(extension='ht')
     t.write(f)
     t2 = hl.read_table(f)
     assert t._same(t2)

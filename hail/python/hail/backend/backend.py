@@ -102,7 +102,7 @@ class Backend(abc.ABC):
 class SparkBackend(Backend):
     def __init__(self, idempotent, sc, spark_conf, app_name, master,
                  local, log, quiet, append, min_block_size,
-                 branching_factor, tmp_dir, optimizer_iterations):
+                 branching_factor, tmpdir, local_tmpdir, optimizer_iterations):
         if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
@@ -142,21 +142,23 @@ class SparkBackend(Backend):
         Env._jvm = self._jvm
         Env._gateway = self._gateway
 
-        # hail package
-        hail = getattr(self._jvm, 'is').hail
+        hail_package = getattr(self._jvm, 'is').hail
+
+        self._hail_package = hail_package
+        self._utils_package_object = scala_package_object(hail_package.utils)
 
         jsc = sc._jsc.sc() if sc else None
 
         if idempotent:
-            self._jbackend = hail.backend.spark.SparkBackend.getOrCreate(
-                jsc, app_name, master, local, True, min_block_size)
-            self._jhc = hail.HailContext.getOrCreate(
-                self._jbackend, log, True, append, branching_factor, tmp_dir, optimizer_iterations)
+            self._jbackend = hail_package.backend.spark.SparkBackend.getOrCreate(
+                jsc, app_name, master, local, True, min_block_size, tmpdir, local_tmpdir)
+            self._jhc = hail_package.HailContext.getOrCreate(
+                self._jbackend, log, True, append, branching_factor, optimizer_iterations)
         else:
-            self._jbackend = hail.backend.spark.SparkBackend.apply(
-                jsc, app_name, master, local, True, min_block_size)
-            self._jhc = hail.HailContext.apply(
-                self._jbackend, log, True, append, branching_factor, tmp_dir, optimizer_iterations)
+            self._jbackend = hail_package.backend.spark.SparkBackend.apply(
+                jsc, app_name, master, local, True, min_block_size, tmpdir, local_tmpdir)
+            self._jhc = hail_package.HailContext.apply(
+                self._jbackend, log, True, append, branching_factor, optimizer_iterations)
 
         self._jsc = self._jhc.sc()
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
@@ -183,6 +185,15 @@ class SparkBackend(Backend):
 
             self._jbackend.startProgressBar()
 
+    def jvm(self):
+        return self._jvm
+
+    def hail_package(self):
+        return self._hail_package
+
+    def utils_package_object(self):
+        return self._utils_package_object
+
     def stop(self):
         self._jhc.stop()
         self._jhc = None
@@ -193,7 +204,7 @@ class SparkBackend(Backend):
     def fs(self):
         if self._fs is None:
             from hail.fs.hadoop_fs import HadoopFS
-            self._fs = HadoopFS()
+            self._fs = HadoopFS(self._utils_package_object, self._jbackend.fs())
         return self._fs
 
     def _to_java_ir(self, ir):
@@ -224,13 +235,13 @@ class SparkBackend(Backend):
         return tmatrix._from_java(jir.typ())
 
     def persist_table(self, t, storage_level):
-        return Table._from_java(self._to_java_ir(t._tir).pyPersist(storage_level))
+        return Table._from_java(self._jbackend.pyPersistTable(storage_level, self._to_java_ir(t._tir)))
 
     def unpersist_table(self, t):
         return Table._from_java(self._to_java_ir(t._tir).pyUnpersist())
 
     def persist_matrix_table(self, mt, storage_level):
-        return MatrixTable._from_java(self._to_java_ir(mt._mir).pyPersist(storage_level))
+        return MatrixTable._from_java(self._jbackend.pyPersistMatrix(storage_level, self._to_java_ir(mt._mir)))
 
     def unpersist_matrix_table(self, mt):
         return MatrixTable._from_java(self._to_java_ir(mt._mir).pyUnpersist())
@@ -240,13 +251,13 @@ class SparkBackend(Backend):
         return tblockmatrix._from_java(jir.typ())
 
     def from_spark(self, df, key):
-        return Table._from_java(Env.jutils().pyFromDF(df._jdf, key))
+        return Table._from_java(self._jbackend.pyFromDF(df._jdf, key))
 
     def to_spark(self, t, flatten):
         t = t.expand_types()
         if flatten:
             t = t.flatten()
-        return pyspark.sql.DataFrame(self._to_java_ir(t._tir).pyToDF(), Env.spark_session()._wrapped)
+        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_ir(t._tir)), Env.spark_session()._wrapped)
 
     def to_pandas(self, t, flatten):
         return self.to_spark(t, flatten).toPandas()
@@ -258,7 +269,7 @@ class SparkBackend(Backend):
         Env.hail().variant.ReferenceGenome.fromJSON(json.dumps(config))
 
     def load_references_from_dataset(self, path):
-        return json.loads(Env.hail().variant.ReferenceGenome.fromHailDataset(path))
+        return json.loads(Env.hail().variant.ReferenceGenome.fromHailDataset(self.fs._jfs, path))
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         Env.hail().variant.ReferenceGenome.fromFASTAFile(
@@ -287,7 +298,7 @@ class SparkBackend(Backend):
             name, dest_reference_genome)
 
     def parse_vcf_metadata(self, path):
-        return json.loads(self._jhc.pyParseVCFMetadataJSON(path))
+        return json.loads(self._jhc.pyParseVCFMetadataJSON(self.fs._jfs, path))
 
     def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
         self._jbackend.pyIndexBgen(files, index_file_map, joption(rg), contig_recoding, skip_invalid_loci)

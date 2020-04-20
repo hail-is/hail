@@ -118,12 +118,12 @@ object LoadPlink {
 }
 
 object MatrixPLINKReader {
-  def fromJson(ctx: ExecuteContext, jObj: JObject): MatrixPLINKReader = {
+  def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixPLINKReader = {
     val backend = ctx.backend
     val fs = ctx.fs
 
     implicit val formats: Formats = DefaultFormats
-    val params = jObj.extract[MatrixPLINKReaderParameters]
+    val params = jv.extract[MatrixPLINKReaderParameters]
 
     val referenceGenome = params.rg.map(ReferenceGenome.getReference)
     referenceGenome.foreach(_.validateContigRemap(params.contigRecoding))

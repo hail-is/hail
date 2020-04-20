@@ -97,7 +97,7 @@ class Tests(unittest.TestCase):
         assert np.allclose(res['beta'], beta_fastlmm)
         assert np.allclose(res['p_value'], pval_hail)
 
-        pa_t_path = utils.new_temp_file(suffix='bm')
+        pa_t_path = utils.new_temp_file(extension='bm')
         BlockMatrix.from_numpy(pa.T).write(pa_t_path, force_row_major=True)
 
         res = model.fit_alternatives(pa_t_path).to_pandas()
@@ -128,10 +128,10 @@ class Tests(unittest.TestCase):
         assert np.allclose(res['beta'], beta_fastlmm)
         assert np.allclose(res['p_value'], pval_hail)
 
-        a_t_path = utils.new_temp_file(suffix='bm')
+        a_t_path = utils.new_temp_file(extension='bm')
         BlockMatrix.from_numpy(a.T).write(a_t_path, force_row_major=True)
 
-        pa_t_path = utils.new_temp_file(suffix='bm')
+        pa_t_path = utils.new_temp_file(extension='bm')
         BlockMatrix.from_numpy(pa.T).write(pa_t_path, force_row_major=True)
 
         res = model.fit_alternatives(pa_t_path, a_t_path).to_pandas()

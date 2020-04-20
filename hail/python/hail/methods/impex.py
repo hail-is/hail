@@ -884,7 +884,7 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
     -------
     :class:`.Table`
     """
-    type_and_data = json.loads(Env.jutils().importFamJSON(path, quant_pheno, delimiter, missing))
+    type_and_data = json.loads(Env.jutils().importFamJSON(Env.spark_backend('import_fam').fs._jfs, path, quant_pheno, delimiter, missing))
     typ = hl.dtype(type_and_data['type'])
     return hl.Table.parallelize(
         hl.tarray(typ)._convert_from_json_na(type_and_data['data']), typ, key=['id'])

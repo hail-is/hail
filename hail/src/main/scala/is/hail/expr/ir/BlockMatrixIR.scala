@@ -14,7 +14,7 @@ import is.hail.io.fs.FS
 import scala.collection.mutable.ArrayBuffer
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.apache.spark.sql.Row
-import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
+import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import scala.collection.immutable.NumericRange
 
@@ -96,23 +96,48 @@ object BlockMatrixReader {
       List(classOf[BlockMatrixNativeReader], classOf[BlockMatrixBinaryReader], classOf[BlockMatrixPersistReader]))
     override val typeHintFieldName: String = "name"
   }
+
+  def fromJValue(ctx: ExecuteContext, jv: JValue): BlockMatrixReader = {
+    (jv \ "name").extract[String] match {
+      case "BlockMatrixNativeReader" => BlockMatrixNativeReader.fromJValue(ctx.fs, jv)
+      case _ => jv.extract[BlockMatrixReader]
+    }
+  }
 }
+
 
 abstract class BlockMatrixReader {
   def pathsUsed: Seq[String]
   def apply(ctx: ExecuteContext): BlockMatrix
   def fullType: BlockMatrixType
-}
-
-object BlockMatrixNativeReader {
-  def apply(fs: FS, path: String): BlockMatrixNativeReader = {
-    val metadata = BlockMatrix.readMetadata(fs, path)
-    BlockMatrixNativeReader(metadata, path)
+  def toJValue: JValue = {
+    Extraction.decompose(this)(BlockMatrixReader.formats)
   }
 }
 
-case class BlockMatrixNativeReader(metadata: BlockMatrixMetadata, path: String) extends BlockMatrixReader {
-  def pathsUsed: Seq[String] = Array(path)
+object BlockMatrixNativeReader {
+  def apply(fs: FS, path: String): BlockMatrixNativeReader =
+    BlockMatrixNativeReader(fs, BlockMatrixNativeReaderParameters(path))
+
+  def apply(fs: FS, params: BlockMatrixNativeReaderParameters): BlockMatrixNativeReader = {
+    val metadata = BlockMatrix.readMetadata(fs, params.path)
+    new BlockMatrixNativeReader(params, metadata)
+  }
+
+  def fromJValue(fs: FS, jv: JValue): BlockMatrixNativeReader = {
+    implicit val formats: Formats = BlockMatrixReader.formats
+    val params = jv.extract[BlockMatrixNativeReaderParameters]
+    BlockMatrixNativeReader(fs, params)
+  }
+}
+
+case class BlockMatrixNativeReaderParameters(path: String)
+
+class BlockMatrixNativeReader(
+  val params: BlockMatrixNativeReaderParameters,
+  val metadata: BlockMatrixMetadata) extends BlockMatrixReader {
+  def pathsUsed: Seq[String] = Array(params.path)
+
   lazy val fullType: BlockMatrixType = {
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(metadata.nRows, metadata.nCols)
 
@@ -120,7 +145,11 @@ case class BlockMatrixNativeReader(metadata: BlockMatrixMetadata, path: String) 
     BlockMatrixType(TFloat64, tensorShape, isRowVector, metadata.blockSize, sparsity)
   }
 
-  def apply(ctx: ExecuteContext): BlockMatrix = BlockMatrix.read(ctx.fs, path)
+  def apply(ctx: ExecuteContext): BlockMatrix = BlockMatrix.read(ctx.fs, params.path)
+
+  override def toJValue: JValue = {
+    decomposeWithName(params, "BlockMatrixNativeReader")(BlockMatrixReader.formats)
+  }
 }
 
 case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockSize: Int) extends BlockMatrixReader {

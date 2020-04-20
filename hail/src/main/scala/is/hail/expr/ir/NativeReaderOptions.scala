@@ -29,13 +29,13 @@ class NativeReaderOptionsSerializer() extends CustomSerializer[NativeReaderOptio
 )
 
 object NativeReaderOptions {
-  def fromJson(optionsJV: JObject): NativeReaderOptions = {
+  def fromJValue(jv: JValue): NativeReaderOptions = {
     implicit val formats: Formats = DefaultFormats
 
-    val filterIntervals = (optionsJV \ "filterIntervals").extract[Boolean]
-    val intervalPointType = IRParser.parseType((optionsJV \ "intervalPointType").extract[String])
+    val filterIntervals = (jv \ "filterIntervals").extract[Boolean]
+    val intervalPointType = IRParser.parseType((jv \ "intervalPointType").extract[String])
     val intervals = {
-      val jvIntervals = optionsJV \ "intervals"
+      val jvIntervals = jv \ "intervals"
       val ty = TArray(TInterval(intervalPointType))
       JSONAnnotationImpex.importAnnotation(jvIntervals, ty).asInstanceOf[IndexedSeq[Interval]]
     }

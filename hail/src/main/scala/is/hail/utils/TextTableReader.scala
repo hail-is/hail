@@ -14,6 +14,8 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
+import org.json4s.{Formats, JValue}
+import org.json4s.JsonAST.JValue
 
 import scala.collection.mutable
 import scala.util.matching.Regex
@@ -29,7 +31,7 @@ abstract class TextReaderOptions {
     commentStartsWith.exists(pattern => line.startsWith(pattern)) || commentRegexes.exists(pattern => pattern.matches(line))
 }
 
-case class TextTableReaderOptions(
+case class TextTableReaderParameters(
   files: Array[String],
   typeMapStr: Map[String, String],
   comment: Array[String],
@@ -217,14 +219,14 @@ object TextTableReader {
     }.zip(allDefined).toArray
   }
 
-  def readMetadata(fs: FS, options: TextTableReaderOptions): TextTableReaderMetadata = {
+  def readMetadata(fs: FS, options: TextTableReaderParameters): TextTableReaderMetadata = {
     HailContext.maybeGZipAsBGZip(fs, options.forceBGZ) {
       readMetadata1(fs, options)
     }
   }
 
-  def readMetadata1(fs: FS, options: TextTableReaderOptions): TextTableReaderMetadata = {
-    val TextTableReaderOptions(files, _, comment, separator, missing, hasHeader, impute, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ) = options
+  def readMetadata1(fs: FS, options: TextTableReaderParameters): TextTableReaderMetadata = {
+    val TextTableReaderParameters(files, _, comment, separator, missing, hasHeader, impute, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ) = options
 
     val globbedFiles: Array[String] = {
       val globbed = fs.globAll(files)
@@ -336,21 +338,27 @@ object TextTableReader {
     TextTableReaderMetadata(globbedFiles, header, PCanonicalStruct(namesAndTypes: _*))
   }
 
-  def apply(ctx: ExecuteContext, options: TextTableReaderOptions): TextTableReader = {
-    val metadata = TextTableReader.readMetadata(ctx.fs, options)
-    TextTableReader(metadata, options)
+  def apply(fs: FS, params: TextTableReaderParameters): TextTableReader = {
+    val metadata = TextTableReader.readMetadata(fs, params)
+    TextTableReader(params, metadata)
+  }
+
+  def fromJValue(fs: FS, jv: JValue): TextTableReader = {
+    implicit val formats: Formats = TableReader.formats
+    val params = jv.extract[TextTableReaderParameters]
+    TextTableReader(fs, params)
   }
 }
 
-case class TextTableReader(metadata: TextTableReaderMetadata, options: TextTableReaderOptions) extends TableReader {
-  def pathsUsed: Seq[String] = options.files
+case class TextTableReader(params: TextTableReaderParameters, metadata: TextTableReaderMetadata) extends TableReader {
+  def pathsUsed: Seq[String] = params.files
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
   lazy val fullType: TableType = metadata.fullType
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    HailContext.maybeGZipAsBGZip(ctx.fs, options.forceBGZ) {
+    HailContext.maybeGZipAsBGZip(ctx.fs, params.forceBGZ) {
       apply1(tr, ctx)
     }
   }
@@ -364,11 +372,11 @@ case class TextTableReader(metadata: TextTableReaderMetadata, options: TextTable
 
     val useColIndices = rowTyp.fields.map(f => fullType.rowType.fieldIdx(f.name))
 
-    val crdd = ContextRDD.textFilesLines(hc.sc, metadata.globbedFiles, options.nPartitions, options.filterAndReplace)
+    val crdd = ContextRDD.textFilesLines(hc.sc, metadata.globbedFiles, params.nPartitions, params.filterAndReplace)
       .filter { line =>
-        !options.isComment(line.value) &&
-          (!options.hasHeader || metadata.header != line.value) &&
-          !(options.skipBlankLines && line.value.isEmpty)
+        !params.isComment(line.value) &&
+          (!params.hasHeader || metadata.header != line.value) &&
+          !(params.skipBlankLines && line.value.isEmpty)
       }.cmapPartitions { (ctx, it) =>
       val rvb = ctx.rvb
 
@@ -376,7 +384,7 @@ case class TextTableReader(metadata: TextTableReaderMetadata, options: TextTable
       val sb = new StringBuilder
       it.map {
         _.map { line =>
-          val sp = TextTableReader.splitLine(line, options.separator, options.quote, ab, sb)
+          val sp = TextTableReader.splitLine(line, params.separator, params.quote, ab, sb)
           if (sp.length != nFieldOrig)
             fatal(s"expected $nFieldOrig fields, but found ${ sp.length } fields")
 
@@ -390,7 +398,7 @@ case class TextTableReader(metadata: TextTableReaderMetadata, options: TextTable
             val typ = f.typ
             val field = sp(useColIndices(i))
             try {
-              if (options.missing.contains(field))
+              if (params.missing.contains(field))
                 rvb.setMissing()
               else
                 rvb.addAnnotation(typ, TableAnnotationImpex.importAnnotation(field, typ))
@@ -409,5 +417,9 @@ case class TextTableReader(metadata: TextTableReaderMetadata, options: TextTable
     }
 
     TableValue(ctx, tr.typ, BroadcastRow.empty(ctx), RVD.unkeyed(rowPType, crdd))
+  }
+
+  override def toJValue: JValue = {
+    decomposeWithName(params, "TextTableReader")(TableReader.formats)
   }
 }

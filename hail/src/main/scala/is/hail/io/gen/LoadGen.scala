@@ -106,11 +106,11 @@ object LoadGen {
 }
 
 object MatrixGENReader {
-  def apply(ctx: ExecuteContext, jObj: JObject): MatrixGENReader = {
+  def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixGENReader = {
     val fs = ctx.fs
 
     implicit val formats: Formats = DefaultFormats
-    val params = jObj.extract[MatrixGENReaderParameters]
+    val params = jv.extract[MatrixGENReaderParameters]
 
     params.files.foreach { input =>
       if (!fs.stripCodecExtension(input).endsWith(".gen"))

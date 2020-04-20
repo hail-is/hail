@@ -79,16 +79,16 @@ case class MatrixLiteral(typ: MatrixType, tl: TableLiteral) extends MatrixIR {
 }
 
 object MatrixReader {
-  def fromJson(env: IRParserEnvironment, readerJObj: JObject): MatrixReader = {
+  def fromJson(env: IRParserEnvironment, jv: JValue): MatrixReader = {
     implicit val formats: Formats = DefaultFormats
-    (readerJObj \ "name").extract[String] match {
-      case "MatrixRangeReader" => MatrixRangeReader.fromJson(env.ctx, readerJObj)
-      case "MatrixNativeReader" => MatrixNativeReader.fromJson(env.ctx.fs, readerJObj)
-      case "MatrixBGENReader" => MatrixBGENReader.fromJValue(env, readerJObj)
-      case "TextMatrixReader" => TextMatrixReader.fromJson(env.ctx, readerJObj)
-      case "MatrixGENReader" => TextMatrixReader.fromJson(env.ctx, readerJObj)
-      case "MatrixPLINKReader" => MatrixPLINKReader.fromJson(env.ctx, readerJObj)
-      case "MatrixVCFReader" => MatrixVCFReader.fromJson(env.ctx, readerJObj)
+    (jv \ "name").extract[String] match {
+      case "MatrixRangeReader" => MatrixRangeReader.fromJValue(env.ctx, jv)
+      case "MatrixNativeReader" => MatrixNativeReader.fromJValue(env.ctx.fs, jv)
+      case "MatrixBGENReader" => MatrixBGENReader.fromJValue(env, jv)
+      case "TextMatrixReader" => TextMatrixReader.fromJValue(env.ctx, jv)
+      case "MatrixGENReader" => MatrixGENReader.fromJValue(env.ctx, jv)
+      case "MatrixPLINKReader" => MatrixPLINKReader.fromJValue(env.ctx, jv)
+      case "MatrixVCFReader" => MatrixVCFReader.fromJValue(env.ctx, jv)
     }
   }
 }
@@ -170,14 +170,14 @@ object MatrixNativeReader {
     new MatrixNativeReader(params, spec)
   }
 
-  def fromJson(fs: FS, readerJV: JObject): MatrixNativeReader = {
-    val path = readerJV \ "path" match {
+  def fromJValue(fs: FS, jv: JValue): MatrixNativeReader = {
+    val path = jv \ "path" match {
       case JString(s) => s
     }
 
-    val options = readerJV \ "options" match {
+    val options = jv \ "options" match {
       case optionsJV: JObject =>
-        Some(NativeReaderOptions.fromJson(optionsJV))
+        Some(NativeReaderOptions.fromJValue(optionsJV))
       case JNothing => None
     }
 
@@ -273,9 +273,9 @@ object MatrixRangeReader {
   def apply(nRows: Int, nCols: Int, nPartitions: Option[Int]): MatrixRangeReader =
     MatrixRangeReader(MatrixRangeReaderParameters(nRows, nCols, nPartitions))
 
-  def fromJson(ctx: ExecuteContext, jObj: JObject): MatrixRangeReader = {
+  def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixRangeReader = {
     implicit val formats: Formats = DefaultFormats
-    val params = jObj.extract[MatrixRangeReaderParameters]
+    val params = jv.extract[MatrixRangeReaderParameters]
 
     MatrixRangeReader(params)
   }
