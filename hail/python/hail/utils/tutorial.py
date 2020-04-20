@@ -27,9 +27,12 @@ def init_temp_dir():
         tmp_dir = new_local_temp_dir()
 
 
-def _mkdir(jhc, path):
-    if not Env.jutils().dirExists(jhc, path):
-        Env.jutils().mkdir(jhc, path)
+def _dir_exists(fs, path):
+    return fs.exists(path) and fs.is_dir(path)
+
+
+def _file_exists(fs, path):
+    return fs.exists(path) and fs.is_file(path)
 
 
 def get_1kg(output_dir, overwrite: bool = False):
@@ -47,9 +50,10 @@ def get_1kg(output_dir, overwrite: bool = False):
     overwrite
         If ``True``, overwrite any existing files/directories at `output_dir`.
     """
-    jhc = Env.backend()._jhc
+    fs = Env.fs()
 
-    _mkdir(jhc, output_dir)
+    if not _dir_exits(fs, output_dir):
+        fs.mkdir(output_dir)
 
     matrix_table_path = os.path.join(output_dir, '1kg.mt')
     vcf_path = os.path.join(output_dir, '1kg.vcf.bgz')
@@ -57,10 +61,10 @@ def get_1kg(output_dir, overwrite: bool = False):
     gene_annotations_path = os.path.join(output_dir, 'ensembl_gene_annotations.txt')
 
     if (overwrite
-            or not Env.jutils().dirExists(jhc, matrix_table_path)
-            or not Env.jutils().fileExists(jhc, sample_annotations_path)
-            or not Env.jutils().fileExists(jhc, vcf_path)
-            or not Env.jutils().fileExists(jhc, gene_annotations_path)):
+            or not _dir_exists(fs, matrix_table_path)
+            or not _file_exists(fs, sample_annotations_path)
+            or not _file_exists(fs, vcf_path)
+            or not _file_exists(fs, gene_annotations_path)):
         init_temp_dir()
         tmp_vcf = os.path.join(tmp_dir, '1kg.vcf.bgz')
         source = resources['1kg_matrix_table']
@@ -109,13 +113,13 @@ def get_movie_lens(output_dir, overwrite: bool = False):
     overwrite
         If ``True``, overwrite existing files/directories at those locations.
     """
+    fs = Env.fs()
 
-    jhc = Env.backend()._jhc
-
-    _mkdir(jhc, output_dir)
+    if not _dir_exists(fs, output_dir):
+        fs.mkdir(output_dir)
 
     paths = [os.path.join(output_dir, x) for x in ['movies.ht', 'ratings.ht', 'users.ht']]
-    if overwrite or any(not Env.jutils().dirExists(jhc, f) for f in paths):
+    if overwrite or any(not _dir_exists(fs, f) for f in paths):
         init_temp_dir()
         source = resources['movie_lens_100k']
         tmp_path = os.path.join(tmp_dir, 'ml-100k.zip')

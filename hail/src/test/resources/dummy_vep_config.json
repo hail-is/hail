@@ -1,0 +1,9 @@
+{
+    "command": [
+	"vep",
+	"--arg",
+	"--another-arg"
+    ],
+    "env": {},
+    "vep_json_schema": "Struct{cnsq:String}"
+}
