@@ -26,9 +26,6 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
   def preservesPartitionCounts: Boolean = false
 
   def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
-    val hc = HailContext.get
-    val sc = hc.sc
-
     if (k < 1)
       fatal(s"""requested invalid number of components: $k
                |  Expect componenents >= 1""".stripMargin)
@@ -89,7 +86,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
         }
       }
     } else
-      ContextRDD.empty(sc)
+      ContextRDD.empty()
     val rvd = RVD.coerce(ctx, RVDType(rowType, mv.typ.rowKey), crdd)
 
     val (t1, f1) = mv.typ.globalType.insert(TArray(TFloat64), "eigenvalues")

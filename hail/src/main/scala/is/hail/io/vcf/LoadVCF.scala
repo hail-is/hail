@@ -4,6 +4,7 @@ import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.BroadcastValue
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{ExecuteContext, IRParser, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
@@ -1429,7 +1430,7 @@ class PartitionedVCFRDD(
   fsBc: BroadcastValue[FS],
   file: String,
   @(transient@param) _partitions: Array[Partition]
-) extends RDD[String](HailContext.sc, Seq()) {
+) extends RDD[String](SparkBackend.sc, Seq()) {
   protected def getPartitions: Array[Partition] = _partitions
 
   def compute(split: Partition, context: TaskContext): Iterator[String] = {
@@ -1525,7 +1526,7 @@ object MatrixVCFReader {
       val localInputs = inputs
       val localArrayElementsRequired = params.arrayElementsRequired
       val localFilterAndReplace = params.filterAndReplace
-      HailContext.sc.parallelize(inputs.tail, math.max(1, inputs.length - 1)).foreach { file =>
+      SparkBackend.sc.parallelize(inputs.tail, math.max(1, inputs.length - 1)).foreach { file =>
         val fs = fsBc.value
         val hd = parseHeader(
           localCallFields, localFloatType, getHeaderLines(fs, file, localFilterAndReplace),
@@ -1591,7 +1592,7 @@ object MatrixVCFReader {
       fullType.key)
 
     val lines = HailContext.maybeGZipAsBGZip(fs, params.gzAsBGZ) {
-      ContextRDD.textFilesLines(HailContext.sc, inputs, params.minPartitions, params.filterAndReplace)
+      ContextRDD.textFilesLines(inputs, params.minPartitions, params.filterAndReplace)
     }
 
     def coercer(ctx: ExecuteContext) = RVD.makeCoercer(
@@ -1664,7 +1665,7 @@ class MatrixVCFReader(
 
     val rvdType = RVDType(coerce[PStruct](fullRVDType.rowType.subsetTo(requestedType.rowType)), requestedType.key)
     val rvd = if (tr.dropRows)
-      RVD.empty(HailContext.sc, rvdType)
+      RVD.empty(rvdType)
     else
       coercer(ctx).coerce(
         rvdType,
@@ -1783,7 +1784,7 @@ class VCFsReader(
     val localGenotypeSignature = header1.genotypeSignature
     val localVASignature = header1.vaSignature
 
-    HailContext.sc.parallelize(files, files.length).map { file =>
+    SparkBackend.sc.parallelize(files, files.length).map { file =>
       val fs = localBcFS.value
       val headerLines = getHeaderLines(fs, file, localFilterAndReplace)
       val header = parseHeader(

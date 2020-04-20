@@ -2,6 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.HailContext
 import is.hail.backend.BroadcastValue
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.{ExecuteContext, IRParser, IRParserEnvironment, Interpret, MatrixHybridReader, Pretty, TableIR, TableRead, TableValue}
 import is.hail.expr.types._
@@ -459,7 +460,7 @@ class MatrixBGENReader(
       fullType.key.take(requestedType.key.length))
 
     val rvd = if (tr.dropRows)
-      RVD.empty(HailContext.sc, rvdType)
+      RVD.empty(rvdType)
     else
       new RVD(
         rvdType,

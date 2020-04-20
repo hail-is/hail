@@ -9,6 +9,7 @@ import breeze.linalg
 import breeze.linalg.DenseMatrix
 import breeze.numerics
 import is.hail.annotations.Region
+import is.hail.backend.spark.SparkBackend
 import is.hail.io.fs.FS
 
 import scala.collection.mutable.ArrayBuffer
@@ -26,13 +27,12 @@ object BlockMatrixIR {
   }
 
   def toBlockMatrix(
-    hc: HailContext,
     nRows: Int,
     nCols: Int,
     data: Array[Double],
     blockSize: Int = BlockMatrix.defaultBlockSize): BlockMatrix = {
 
-    BlockMatrix.fromBreezeMatrix(hc.sc,
+    BlockMatrix.fromBreezeMatrix(SparkBackend.sc,
       new DenseMatrix[Double](nRows, nCols, data, 0, nCols, isTranspose = true), blockSize)
   }
 
@@ -171,7 +171,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
 
   def apply(ctx: ExecuteContext): BlockMatrix = {
     val breezeMatrix = RichDenseMatrixDouble.importFromDoubles(ctx.fs, path, nRows.toInt, nCols.toInt, rowMajor = true)
-    BlockMatrix.fromBreezeMatrix(HailContext.sc, breezeMatrix, blockSize)
+    BlockMatrix.fromBreezeMatrix(SparkBackend.sc, breezeMatrix, blockSize)
   }
 }
 
@@ -518,31 +518,31 @@ case class BlockMatrixBroadcast(
         BlockMatrix.fill(hc, nRows, nCols, scalar, blockSize)
       case IndexedSeq(0) =>
         BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-        broadcastColVector(hc, childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
+        broadcastColVector(childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
       case IndexedSeq(1) =>
         BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-        broadcastRowVector(hc, childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
+        broadcastRowVector(childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
         // FIXME: I'm pretty sure this case is broken.
       case IndexedSeq(0, 0) =>
         BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-        BlockMatrixIR.toBlockMatrix(hc, nRows.toInt, nCols.toInt, childBm.diagonal(), blockSize)
+        BlockMatrixIR.toBlockMatrix(nRows.toInt, nCols.toInt, childBm.diagonal(), blockSize)
       case IndexedSeq(1, 0) => childBm.transpose()
       case IndexedSeq(0, 1) => childBm
     }
   }
 
-  private def broadcastRowVector(hc: HailContext, vec: Array[Double], nRows: Int, nCols: Int): BlockMatrix = {
+  private def broadcastRowVector(vec: Array[Double], nRows: Int, nCols: Int): BlockMatrix = {
     val data = ArrayBuffer[Double]()
     data.sizeHint(nRows * nCols)
     (0 until nRows).foreach(_ => data ++= vec)
-    BlockMatrixIR.toBlockMatrix(hc, nRows, nCols, data.toArray, blockSize)
+    BlockMatrixIR.toBlockMatrix(nRows, nCols, data.toArray, blockSize)
   }
 
-  private def broadcastColVector(hc: HailContext, vec: Array[Double], nRows: Int, nCols: Int): BlockMatrix = {
+  private def broadcastColVector(vec: Array[Double], nRows: Int, nCols: Int): BlockMatrix = {
     val data = ArrayBuffer[Double]()
     data.sizeHint(nRows * nCols)
     (0 until nRows).foreach(row => (0 until nCols).foreach(_ => data += vec(row)))
-    BlockMatrixIR.toBlockMatrix(hc, nRows, nCols, data.toArray, blockSize)
+    BlockMatrixIR.toBlockMatrix(nRows, nCols, data.toArray, blockSize)
   }
 }
 
@@ -586,7 +586,7 @@ case class BlockMatrixAgg(
     val childBm = child.execute(ctx)
 
     outIndexExpr match {
-      case IndexedSeq() => BlockMatrixIR.toBlockMatrix(HailContext.get, nRows = 1, nCols = 1, Array(childBm.sum()), typ.blockSize)
+      case IndexedSeq() => BlockMatrixIR.toBlockMatrix(nRows = 1, nCols = 1, Array(childBm.sum()), typ.blockSize)
       case IndexedSeq(1) => childBm.rowSum()
       case IndexedSeq(0) => childBm.colSum()
     }
@@ -856,7 +856,7 @@ case class ValueToBlockMatrix(
         assert(nRows == 1 && nCols == 1)
         BlockMatrix.fill(hc, nRows, nCols, scalar, blockSize)
       case data: IndexedSeq[_] =>
-        BlockMatrixIR.toBlockMatrix(hc, nRows.toInt, nCols.toInt, data.asInstanceOf[IndexedSeq[Double]].toArray, blockSize)
+        BlockMatrixIR.toBlockMatrix(nRows.toInt, nCols.toInt, data.asInstanceOf[IndexedSeq[Double]].toArray, blockSize)
     }
   }
 }

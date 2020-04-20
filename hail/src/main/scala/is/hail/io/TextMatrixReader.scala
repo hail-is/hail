@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.BroadcastValue
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, TableLiteral, TableRead, TableValue, TextReaderOptions}
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
@@ -228,7 +229,7 @@ object TextMatrixReader {
       warnDuplicates(headerInfo.columnIdentifiers.asInstanceOf[Array[String]])
     val lines = HailContext.maybeGZipAsBGZip(fs, params.gzipAsBGZip) {
       val localOpts = opts
-      HailContext.sc.textFilesLines(resolvedPaths, params.nPartitions.getOrElse(backend.defaultParallelism))
+      SparkBackend.sc.textFilesLines(resolvedPaths, params.nPartitions.getOrElse(backend.defaultParallelism))
         .filter(line => line.value.nonEmpty && !localOpts.isComment(line.value))
     }
 
@@ -320,7 +321,7 @@ class TextMatrixReader(
     val rdd = ContextRDD.weaken(lines.filter(l => l.value.nonEmpty))
       .cmapPartitionsWithIndex(compiledLineParser)
     val rvd = if (tr.dropRows)
-      RVD.empty(HailContext.sc, requestedType.canonicalRVDType)
+      RVD.empty(requestedType.canonicalRVDType)
     else
       RVD.unkeyed(PCanonicalStruct.canonical(requestedType.rowType).setRequired(true).asInstanceOf[PStruct], rdd)
     val globalValue = makeGlobalValue(ctx, requestedType, headerInfo.columnIdentifiers.map(Row(_)))

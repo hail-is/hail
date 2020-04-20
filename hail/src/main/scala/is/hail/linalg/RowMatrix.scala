@@ -3,6 +3,7 @@ package is.hail.linalg
 import breeze.linalg.DenseMatrix
 import is.hail.HailContext
 import is.hail.backend.BroadcastValue
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.virtual.{TInt64, TStruct}
 import is.hail.io.InputBuffer
@@ -180,7 +181,7 @@ class ReadBlocksAsRowsRDD(
   path: String,
   partFiles: IndexedSeq[String],
   partitionCounts: Array[Long],
-  gp: GridPartitioner) extends RDD[(Long, Array[Double])](HailContext.sc, Nil) {
+  gp: GridPartitioner) extends RDD[(Long, Array[Double])](SparkBackend.sc, Nil) {
   
   private val partitionStarts = partitionCounts.scanLeft(0L)(_ + _)
   

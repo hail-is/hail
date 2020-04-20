@@ -1,6 +1,7 @@
 package is.hail.io.plink
 
 import is.hail.HailContext
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixHybridReader, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PBoolean, PCanonicalString, PCanonicalStruct, PFloat64}
@@ -215,13 +216,13 @@ class MatrixPLINKReader(
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val backend = ctx.backend
-    val sc = HailContext.sc
+    val sc = SparkBackend.sc
 
     val requestedType = tr.typ
     assert(PruneDeadFields.isSupertype(requestedType, fullType))
 
     val rvd = if (tr.dropRows)
-      RVD.empty(sc, requestedType.canonicalRVDType)
+      RVD.empty(requestedType.canonicalRVDType)
     else {
       val variantsBc = ctx.backend.broadcast(variants)
       sc.hadoopConfiguration.setInt("nSamples", nSamples)

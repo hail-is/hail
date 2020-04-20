@@ -4,6 +4,7 @@ import java.util.regex.Pattern
 
 import is.hail.HailContext
 import is.hail.annotations.BroadcastRow
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PCanonicalStruct, PStruct, PType}
@@ -49,7 +50,7 @@ case class TextTableReaderParameters(
 
   val quote: java.lang.Character = if (quoteStr != null) quoteStr(0) else null
 
-  def nPartitions: Int = nPartitionsOpt.getOrElse(HailContext.get.sc.defaultParallelism)
+  def nPartitions: Int = nPartitionsOpt.getOrElse(HailContext.backend.defaultParallelism)
 }
 
 case class TextTableReaderMetadata(globbedFiles: Array[String], header: String, rowPType: PStruct) {
@@ -271,7 +272,7 @@ object TextTableReader {
         duplicates.map { case (pre, post) => s"'$pre' -> '$post'" }.truncatable("\n  "))
     }
 
-    val rdd = HailContext.sc.textFilesLines(globbedFiles, nPartitions)
+    val rdd = SparkBackend.sc.textFilesLines(globbedFiles, nPartitions)
       .filter { line =>
         !options.isComment(line.value) &&
           (!hasHeader || line.value != header) &&
@@ -372,7 +373,7 @@ case class TextTableReader(params: TextTableReaderParameters, metadata: TextTabl
 
     val useColIndices = rowTyp.fields.map(f => fullType.rowType.fieldIdx(f.name))
 
-    val crdd = ContextRDD.textFilesLines(hc.sc, metadata.globbedFiles, params.nPartitions, params.filterAndReplace)
+    val crdd = ContextRDD.textFilesLines(metadata.globbedFiles, params.nPartitions, params.filterAndReplace)
       .filter { line =>
         !params.isComment(line.value) &&
           (!params.hasHeader || metadata.header != line.value) &&

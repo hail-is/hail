@@ -58,8 +58,6 @@ object HailContext {
 
   def sparkBackend(): SparkBackend = get.sparkBackend()
 
-  def sc: SparkContext = get.sc
-
   def configureLogging(logFile: String, quiet: Boolean, append: Boolean, skipLoggingConfiguration: Boolean) {
     if (!skipLoggingConfiguration) {
       val logProps = new Properties()
@@ -441,7 +439,7 @@ object HailContext {
 
     val fsBc = fs.broadcast
 
-    new RDD[T](sc, Nil) {
+    new RDD[T](SparkBackend.sc, Nil) {
       def getPartitions: Array[Partition] =
         Array.tabulate(nPartitions)(i => FilePartition(i, partFiles(i)))
 
@@ -511,7 +509,7 @@ object HailContext {
     val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(ctx, indexSpec.internalNodeCodec.encodedVirtualType)
     val mkIndexReader = IndexReaderBuilder.withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
 
-    new IndexReadRDD(sc, partFiles, intervalBounds, { (p, context) =>
+    new IndexReadRDD(SparkBackend.sc, partFiles, intervalBounds, { (p, context) =>
       val fs = fsBc.value
       val idxname = s"$path/$idxPath/${ p.file }.idx"
       val filename = s"$path/parts/${ p.file }"
@@ -564,7 +562,7 @@ object HailContext {
       IndexReaderBuilder.fromSpec(ctx, indexSpec)
     }
 
-    val rdd = new IndexReadRDD(sc, partFiles, indexSpecRows.map(_ => bounds), (p, context) => {
+    val rdd = new IndexReadRDD(SparkBackend.sc, partFiles, indexSpecRows.map(_ => bounds), (p, context) => {
       val fs = fsBc.value
       val idxr = mkIndexReader.map { mk =>
         val idxname = s"$pathRows/${ indexSpecRows.get.relPath }/${ p.file }.idx"
@@ -596,8 +594,6 @@ class HailContext private(
 
   def sparkBackend(): SparkBackend = backend.asSpark()
 
-  def sc: SparkContext = sparkBackend().sc
-
   val flags: HailFeatureFlags = new HailFeatureFlags()
 
   var checkRVDKeys: Boolean = false
@@ -625,7 +621,7 @@ class HailContext private(
     maxLines: Int
   ): Map[String, Array[WithContext[String]]] = {
     val regexp = regex.r
-    sc.textFilesLines(fs.globAll(files))
+    SparkBackend.sc.textFilesLines(fs.globAll(files))
       .filter(line => regexp.findFirstIn(line.value).isDefined)
       .take(maxLines)
       .groupBy(_.source.file)

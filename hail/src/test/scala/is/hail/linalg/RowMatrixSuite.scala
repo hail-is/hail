@@ -34,7 +34,7 @@ class RowMatrixSuite extends HailSuite {
     val rowMatrix = rowArrayToRowMatrix(rowArrays)
     val localMatrix = rowArrayToLocalMatrix(rowArrays)
     
-    BlockMatrix.fromBreezeMatrix(hc.sc, localMatrix).write(ctx, fname)
+    BlockMatrix.fromBreezeMatrix(sc, localMatrix).write(ctx, fname)
     
     assert(rowMatrix.toBreezeMatrix() === localMatrix)
   }
@@ -47,7 +47,7 @@ class RowMatrixSuite extends HailSuite {
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0))
     
-    BlockMatrix.fromBreezeMatrix(hc.sc, localMatrix).write(ctx, fname, forceRowMajor = true)
+    BlockMatrix.fromBreezeMatrix(sc, localMatrix).write(ctx, fname, forceRowMajor = true)
     
     val rowMatrixFromBlock = RowMatrix.readBlockMatrix(fs, fname, Some(1))
     

@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s.{AsmFunction4, AsmFunction5}
 import is.hail.backend.BroadcastValue
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{ExecuteContext, PruneDeadFields}
 import is.hail.expr.types._
 import is.hail.expr.types.encoded.{EArray, EBaseStruct, EBinaryOptional, EBinaryRequired, EField, EInt32Optional, EInt32Required, EInt64Required}
@@ -154,7 +155,7 @@ private class BgenRDD(
   parts: Array[Partition],
   settings: BgenSettings,
   keys: RDD[Row]
-) extends RDD[RVDContext => Iterator[RegionValue]](HailContext.sc, if (keys == null) Nil else Seq(new OneToOneDependency(keys))) {
+) extends RDD[RVDContext => Iterator[RegionValue]](SparkBackend.sc, if (keys == null) Nil else Seq(new OneToOneDependency(keys))) {
 
   protected def getPartitions: Array[Partition] = parts
 

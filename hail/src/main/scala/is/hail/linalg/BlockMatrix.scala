@@ -8,6 +8,7 @@ import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
 import is.hail.backend.BroadcastValue
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.Parser
 import is.hail.expr.ir.{CompileAndEvaluate, ExecuteContext, IR, TableValue}
 import is.hail.expr.types._
@@ -35,7 +36,7 @@ case class CollectMatricesRDDPartition(index: Int, firstPartition: Int, blockPar
   def nBlocks: Int = blockPartitions.length
 }
 
-class CollectMatricesRDD(@transient var bms: IndexedSeq[BlockMatrix]) extends RDD[BDM[Double]](HailContext.get.sc, Nil) {
+class CollectMatricesRDD(@transient var bms: IndexedSeq[BlockMatrix]) extends RDD[BDM[Double]](SparkBackend.sc, Nil) {
   private val nBlocks = bms.map(_.blocks.getNumPartitions)
   private val firstPartition = nBlocks.scan(0)(_ + _).init
 
@@ -90,9 +91,9 @@ object BlockMatrix {
       new LZ4FastBlockBufferSpec(32 * 1024,
         new StreamBlockBufferSpec))
   
-  def apply(sc: SparkContext, gp: GridPartitioner, piBlock: (GridPartitioner, Int) => ((Int, Int), BDM[Double])): BlockMatrix =
+  def apply(gp: GridPartitioner, piBlock: (GridPartitioner, Int) => ((Int, Int), BDM[Double])): BlockMatrix =
     new BlockMatrix(
-      new RDD[((Int, Int), BDM[Double])](sc, Nil) {
+      new RDD[((Int, Int), BDM[Double])](SparkBackend.sc, Nil) {
         override val partitioner = Some(gp)
   
         protected def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(pi =>
@@ -117,7 +118,7 @@ object BlockMatrix {
       HailContext.backend.broadcast(lm(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols).copy)
     }
     
-    BlockMatrix(sc, gp, (gp, pi) => (gp.blockCoordinates(pi), localBlocksBc(pi).value))
+    BlockMatrix(gp, (gp, pi) => (gp.blockCoordinates(pi), localBlocksBc(pi).value))
   }
 
   def fromIRM(irm: IndexedRowMatrix): M =
@@ -127,7 +128,7 @@ object BlockMatrix {
     irm.toHailBlockMatrix(blockSize)
 
   def fill(hc: HailContext, nRows: Long, nCols: Long, value: Double, blockSize: Int = defaultBlockSize): BlockMatrix =
-    BlockMatrix(hc.sc, GridPartitioner(blockSize, nRows, nCols), (gp, pi) => {
+    BlockMatrix(GridPartitioner(blockSize, nRows, nCols), (gp, pi) => {
       val (i, j) = gp.blockCoordinates(pi)
       ((i, j), BDM.fill[Double](gp.blockRowNRows(i), gp.blockColNCols(j))(value))
     })
@@ -135,7 +136,7 @@ object BlockMatrix {
   // uniform or Gaussian
   def random(hc: HailContext, nRows: Long, nCols: Long, blockSize: Int = defaultBlockSize,
     seed: Long = 0, gaussian: Boolean): M =
-    BlockMatrix(hc.sc, GridPartitioner(blockSize, nRows, nCols), (gp, pi) => {
+    BlockMatrix(GridPartitioner(blockSize, nRows, nCols), (gp, pi) => {
       val (i, j) = gp.blockCoordinates(pi)
       val blockSeed = seed + 15485863 * pi // millionth prime
 
@@ -1768,7 +1769,7 @@ class WriteBlocksRDD(
   rvd: RVD,
   parentPartStarts: Array[Long],
   entryField: String,
-  gp: GridPartitioner) extends RDD[(Int, String)](HailContext.sc, Nil) {
+  gp: GridPartitioner) extends RDD[(Int, String)](SparkBackend.sc, Nil) {
 
   require(gp.nRows == parentPartStarts.last)
 
@@ -1920,7 +1921,7 @@ class BlockMatrixReadRowBlockedRDD(
   path: String,
   partitionRanges: IndexedSeq[NumericRange.Exclusive[Long]],
   metadata: BlockMatrixMetadata,
-  hc: HailContext) extends RDD[RVDContext => Iterator[Long]](hc.sc, Nil) {
+  hc: HailContext) extends RDD[RVDContext => Iterator[Long]](SparkBackend.sc, Nil) {
 
   val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = metadata
   val gp = GridPartitioner(blockSize, nRows, nCols)

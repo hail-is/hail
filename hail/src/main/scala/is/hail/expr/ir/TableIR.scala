@@ -5,6 +5,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, DataInputStream, Da
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, TableToTableFunction}
 import is.hail.expr.types._
@@ -162,7 +163,7 @@ class TableNativeReader(
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val (globalType, globalsOffset) = spec.globalsComponent.readLocalSingleRow(ctx, params.path, tr.typ.globalType)
     val rvd = if (tr.dropRows) {
-      RVD.empty(HailContext.sc, tr.typ.canonicalRVDType)
+      RVD.empty(tr.typ.canonicalRVDType)
     } else {
       val partitioner = if (filterIntervals)
         params.options.map(opts => RVDPartitioner.union(tr.typ.keyType, opts.intervals, tr.typ.key.length - 1))
@@ -216,7 +217,7 @@ case class TableNativeZippedReader(
     val fs = ctx.fs
     val (globalPType: PStruct, globalsOffset) = specLeft.globalsComponent.readLocalSingleRow(ctx, pathLeft, tr.typ.globalType)
     val rvd = if (tr.dropRows) {
-      RVD.empty(HailContext.sc, tr.typ.canonicalRVDType)
+      RVD.empty(tr.typ.canonicalRVDType)
     } else {
       val partitioner = if (filterIntervals)
         intervals.map(i => RVDPartitioner.union(tr.typ.keyType, i, tr.typ.key.length - 1))
@@ -381,7 +382,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
 
     log.info(s"parallelized $nRows rows in $nSplits partitions")
 
-    val rvd = ContextRDD.parallelize(HailContext.sc, encRows, encRows.length)
+    val rvd = ContextRDD.parallelize(SparkBackend.sc, encRows, encRows.length)
       .cmapPartitions { (ctx, it) =>
         it.flatMap { case (nRowPartition, arr) =>
           val bais = new ByteArrayDecoder(makeDec)
@@ -469,7 +470,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
             val end = partStarts(i + 1)
             Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
           }),
-        ContextRDD.parallelize(hc.sc, Range(0, nPartitionsAdj), nPartitionsAdj)
+        ContextRDD.parallelize(SparkBackend.sc, Range(0, nPartitionsAdj), nPartitionsAdj)
           .cmapPartitionsWithIndex { case (i, ctx, _) =>
             val region = ctx.region
 
@@ -503,7 +504,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
     if (pred == True())
       return tv
     else if (pred == False())
-      return tv.copy(rvd = RVD.empty(HailContext.get.sc, typ.canonicalRVDType))
+      return tv.copy(rvd = RVD.empty(typ.canonicalRVDType))
 
     val (rTyp, f) = ir.Compile[AsmFunction3RegionLongLongBoolean](
       ctx,
@@ -1228,7 +1229,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val nToMerge = filesToMerge.length / 2
         log.info(s"Running combOp stage with $nToMerge tasks")
         fileStack += filesToMerge
-        filesToMerge = hc.sc.parallelize(0 until nToMerge, nToMerge)
+        filesToMerge = SparkBackend.sc.parallelize(0 until nToMerge, nToMerge)
           .mapPartitions { it =>
             val i = it.next()
             assert(it.isEmpty)
