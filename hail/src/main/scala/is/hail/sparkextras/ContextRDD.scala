@@ -119,11 +119,11 @@ object ContextRDD {
   def parallelize[T: ClassTag](sc: SparkContext, data: Seq[T], nPartitions: Option[Int] = None): ContextRDD[T] =
     weaken(sc.parallelize(data, nPartitions.getOrElse(sc.defaultMinPartitions)))
 
-  def parallelize[T: ClassTag](sc: SparkContext, data: Seq[T], numSlices: Int): ContextRDD[T] =
-    weaken(sc.parallelize(data, numSlices))
+  def parallelize[T: ClassTag](data: Seq[T], numSlices: Int): ContextRDD[T] =
+    weaken(SparkBackend.sc.parallelize(data, numSlices))
 
-  def parallelize[T: ClassTag](sc: SparkContext, data: Seq[T]): ContextRDD[T] =
-    weaken(sc.parallelize(data))
+  def parallelize[T: ClassTag](data: Seq[T]): ContextRDD[T] =
+    weaken(SparkBackend.sc.parallelize(data))
 
   type ElementType[T] = RVDContext => Iterator[T]
 

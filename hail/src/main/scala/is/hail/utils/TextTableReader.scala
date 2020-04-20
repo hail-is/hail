@@ -365,7 +365,6 @@ case class TextTableReader(params: TextTableReaderParameters, metadata: TextTabl
   }
 
   def apply1(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    val hc = HailContext.get
     val rowTyp = tr.typ.rowType
     val nFieldOrig = fullType.rowType.size
     val rowFields = rowTyp.fields

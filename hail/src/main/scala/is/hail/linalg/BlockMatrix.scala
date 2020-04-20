@@ -103,10 +103,10 @@ object BlockMatrix {
           Iterator.single(piBlock(gp, split.index))
       }, gp.blockSize, gp.nRows, gp.nCols)
   
-  def fromBreezeMatrix(sc: SparkContext, lm: BDM[Double]): M =
-    fromBreezeMatrix(sc, lm, defaultBlockSize)
+  def fromBreezeMatrix(lm: BDM[Double]): M =
+    fromBreezeMatrix(lm, defaultBlockSize)
 
-  def fromBreezeMatrix(sc: SparkContext, lm: BDM[Double], blockSize: Int): M = {
+  def fromBreezeMatrix(lm: BDM[Double], blockSize: Int): M = {
     val gp = GridPartitioner(blockSize, lm.rows, lm.cols)
     
     val localBlocksBc = Array.tabulate(gp.numPartitions) { pi =>
@@ -127,14 +127,14 @@ object BlockMatrix {
   def fromIRM(irm: IndexedRowMatrix, blockSize: Int): M =
     irm.toHailBlockMatrix(blockSize)
 
-  def fill(hc: HailContext, nRows: Long, nCols: Long, value: Double, blockSize: Int = defaultBlockSize): BlockMatrix =
+  def fill(nRows: Long, nCols: Long, value: Double, blockSize: Int = defaultBlockSize): BlockMatrix =
     BlockMatrix(GridPartitioner(blockSize, nRows, nCols), (gp, pi) => {
       val (i, j) = gp.blockCoordinates(pi)
       ((i, j), BDM.fill[Double](gp.blockRowNRows(i), gp.blockColNCols(j))(value))
     })
   
   // uniform or Gaussian
-  def random(hc: HailContext, nRows: Long, nCols: Long, blockSize: Int = defaultBlockSize,
+  def random(nRows: Long, nCols: Long, blockSize: Int = defaultBlockSize,
     seed: Long = 0, gaussian: Boolean): M =
     BlockMatrix(GridPartitioner(blockSize, nRows, nCols), (gp, pi) => {
       val (i, j) = gp.blockCoordinates(pi)
@@ -1920,8 +1920,7 @@ class BlockMatrixReadRowBlockedRDD(
   fsBc: BroadcastValue[FS],
   path: String,
   partitionRanges: IndexedSeq[NumericRange.Exclusive[Long]],
-  metadata: BlockMatrixMetadata,
-  hc: HailContext) extends RDD[RVDContext => Iterator[Long]](SparkBackend.sc, Nil) {
+  metadata: BlockMatrixMetadata) extends RDD[RVDContext => Iterator[Long]](SparkBackend.sc, Nil) {
 
   val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = metadata
   val gp = GridPartitioner(blockSize, nRows, nCols)

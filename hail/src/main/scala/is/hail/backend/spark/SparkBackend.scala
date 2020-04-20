@@ -312,8 +312,8 @@ class SparkBackend(
     TypeCheck(ir)
     Validate(ir)
     try {
-      val lowerTable = HailContext.get.flags.get("lower") != null
-      val lowerBM = HailContext.get.flags.get("lower_bm") != null
+      val lowerTable = HailContext.getFlag("lower") != null
+      val lowerBM = HailContext.getFlag("lower_bm") != null
       _jvmLowerAndExecute(ctx, ir, optimize, lowerTable, lowerBM)
     } catch {
       case _: LowererUnsupportedOperation =>

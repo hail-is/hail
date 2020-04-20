@@ -655,7 +655,7 @@ class RVD(
     var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
 
     if (tree) {
-      val depth = treeAggDepth(HailContext.get, reduced.getNumPartitions)
+      val depth = treeAggDepth(reduced.getNumPartitions)
       val scale = math.max(
         math.ceil(math.pow(reduced.partitions.length, 1.0 / depth)).toInt,
         2)

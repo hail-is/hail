@@ -233,7 +233,7 @@ case class MatrixValue(
 
     RVD.coerce(ctx,
       typ.colsTableType.canonicalRVDType,
-      ContextRDD.parallelize(SparkBackend.sc, colValues.safeJavaValue)
+      ContextRDD.parallelize(colValues.safeJavaValue)
         .cmapPartitions { (ctx, it) => it.copyToRegion(ctx.region, colPType) })
   }
 

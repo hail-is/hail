@@ -32,7 +32,7 @@ object BlockMatrixIR {
     data: Array[Double],
     blockSize: Int = BlockMatrix.defaultBlockSize): BlockMatrix = {
 
-    BlockMatrix.fromBreezeMatrix(SparkBackend.sc,
+    BlockMatrix.fromBreezeMatrix(
       new DenseMatrix[Double](nRows, nCols, data, 0, nCols, isTranspose = true), blockSize)
   }
 
@@ -171,7 +171,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
 
   def apply(ctx: ExecuteContext): BlockMatrix = {
     val breezeMatrix = RichDenseMatrixDouble.importFromDoubles(ctx.fs, path, nRows.toInt, nCols.toInt, rowMajor = true)
-    BlockMatrix.fromBreezeMatrix(SparkBackend.sc, breezeMatrix, blockSize)
+    BlockMatrix.fromBreezeMatrix(breezeMatrix, blockSize)
   }
 }
 
@@ -507,7 +507,6 @@ case class BlockMatrixBroadcast(
   }
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
-    val hc = HailContext.get
     val childBm = child.execute(ctx)
     val nRows = shape(0)
     val nCols = shape(1)
@@ -515,7 +514,7 @@ case class BlockMatrixBroadcast(
     inIndexExpr match {
       case IndexedSeq() =>
         val scalar = childBm.getElement(row = 0, col = 0)
-        BlockMatrix.fill(hc, nRows, nCols, scalar, blockSize)
+        BlockMatrix.fill(nRows, nCols, scalar, blockSize)
       case IndexedSeq(0) =>
         BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
         broadcastColVector(childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
@@ -850,11 +849,10 @@ case class ValueToBlockMatrix(
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
     val IndexedSeq(nRows, nCols) = shape
     BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-    val hc = HailContext.get
     Interpret[Any](ctx, child) match {
       case scalar: Double =>
         assert(nRows == 1 && nCols == 1)
-        BlockMatrix.fill(hc, nRows, nCols, scalar, blockSize)
+        BlockMatrix.fill(nRows, nCols, scalar, blockSize)
       case data: IndexedSeq[_] =>
         BlockMatrixIR.toBlockMatrix(nRows.toInt, nCols.toInt, data.asInstanceOf[IndexedSeq[Double]].toArray, blockSize)
     }
@@ -882,7 +880,7 @@ case class BlockMatrixRandom(
   }
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
-    BlockMatrix.random(HailContext.get, shape(0), shape(1), blockSize, seed, gaussian)
+    BlockMatrix.random(shape(0), shape(1), blockSize, seed, gaussian)
   }
 }
 

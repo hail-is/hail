@@ -334,7 +334,8 @@ object TestUtils {
 
     ExecuteContext.scoped() { ctx =>
       val filteredExecStrats: Set[ExecStrategy] =
-        if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
+        if (HailContext.backend.isInstanceOf[SparkBackend])
+          execStrats
         else {
           info("skipping interpret and non-lowering compile steps on non-spark backend")
           execStrats.intersect(ExecStrategy.backendOnly)

@@ -509,7 +509,7 @@ object HailContext {
     val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(ctx, indexSpec.internalNodeCodec.encodedVirtualType)
     val mkIndexReader = IndexReaderBuilder.withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
 
-    new IndexReadRDD(SparkBackend.sc, partFiles, intervalBounds, { (p, context) =>
+    new IndexReadRDD(partFiles, intervalBounds, { (p, context) =>
       val fs = fsBc.value
       val idxname = s"$path/$idxPath/${ p.file }.idx"
       val filename = s"$path/parts/${ p.file }"
@@ -562,7 +562,7 @@ object HailContext {
       IndexReaderBuilder.fromSpec(ctx, indexSpec)
     }
 
-    val rdd = new IndexReadRDD(SparkBackend.sc, partFiles, indexSpecRows.map(_ => bounds), (p, context) => {
+    val rdd = new IndexReadRDD(partFiles, indexSpecRows.map(_ => bounds), (p, context) => {
       val fs = fsBc.value
       val idxr = mkIndexReader.map { mk =>
         val idxname = s"$pathRows/${ indexSpecRows.get.relPath }/${ p.file }.idx"

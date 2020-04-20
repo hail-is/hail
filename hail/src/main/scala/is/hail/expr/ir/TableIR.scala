@@ -290,7 +290,7 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
   }
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    val rowsRDD = new BlockMatrixReadRowBlockedRDD(ctx.fsBc, params.path, partitionRanges, metadata, HailContext.get)
+    val rowsRDD = new BlockMatrixReadRowBlockedRDD(ctx.fsBc, params.path, partitionRanges, metadata)
 
     val partitionBounds = partitionRanges.map { r => Interval(Row(r.start), Row(r.end), true, false) }
     val partitioner = new RVDPartitioner(fullType.keyType, partitionBounds)
@@ -382,7 +382,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
 
     log.info(s"parallelized $nRows rows in $nSplits partitions")
 
-    val rvd = ContextRDD.parallelize(SparkBackend.sc, encRows, encRows.length)
+    val rvd = ContextRDD.parallelize(encRows, encRows.length)
       .cmapPartitions { (ctx, it) =>
         it.flatMap { case (nRowPartition, arr) =>
           val bais = new ByteArrayDecoder(makeDec)
@@ -459,7 +459,6 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     val localRowType = PCanonicalStruct(true, "idx" -> PInt32Required)
     val localPartCounts = partCounts
     val partStarts = partCounts.scanLeft(0)(_ + _)
-    val hc = HailContext.get
     TableValue(ctx, typ,
       BroadcastRow.empty(ctx),
       new RVD(
@@ -470,7 +469,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
             val end = partStarts(i + 1)
             Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
           }),
-        ContextRDD.parallelize(SparkBackend.sc, Range(0, nPartitionsAdj), nPartitionsAdj)
+        ContextRDD.parallelize(Range(0, nPartitionsAdj), nPartitionsAdj)
           .cmapPartitionsWithIndex { case (i, ctx, _) =>
             val region = ctx.region
 
@@ -1196,8 +1195,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       }
     }
 
-    val hc = HailContext.get
-    if (hc.flags.get("distributed_scan_comb_op") != null) {
+    if (HailContext.getFlag("distributed_scan_comb_op") != null) {
       val fsBc = ctx.fs.broadcast
       val tmpBase = ctx.createTmpPath("table-map-rows-distributed-scan")
       val d = digitsNeeded(tv.rvd.getNumPartitions)
@@ -1323,7 +1321,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         }
         Iterator.single(write(aggRegion, seq.getAggOffset()))
       }
-    }, HailContext.get.flags.get("max_leader_scans").toInt)
+    }, HailContext.getFlag("max_leader_scans").toInt)
 
     // 3. load in partition aggregations, comb op as necessary, write back out.
     val partAggs = scanPartitionAggs.scanLeft(initAgg)(combOpF)
