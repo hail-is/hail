@@ -36,7 +36,7 @@ class Handler (
             case Wire.START => start()
             case Wire.PUT => put()
             case Wire.GET => get()
-            case Wrie.STOP => stop()
+            case Wire.STOP => stop()
             case Wire.EOS =>
               log.info(s"client closed socket, exiting cleanly")
               continue = false

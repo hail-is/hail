@@ -3,6 +3,7 @@ package is.hail.shuffler
 import java.io._
 
 import com.indeed.lsmtree.core._
+import com.indeed.util.serialization._
 import is.hail.annotations._
 import is.hail.utils._
 
