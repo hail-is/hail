@@ -7,12 +7,15 @@ import is.hail.expr.ir.EmitFunctionBuilder
 
 abstract class PhysicalTestUtils extends HailSuite {
   def copyTestExecutor(sourceType: PType, destType: PType, sourceValue: Any,
-    expectCompileErr: Boolean = false, deepCopy: Boolean = false, interpret: Boolean = false) {
+    expectCompileErr: Boolean = false, deepCopy: Boolean = false, interpret: Boolean = false, expectedValue: Any = null) {
 
     val srcRegion = Region()
     val region = Region()
 
-    val srcAddress = ScalaToRegionValue(srcRegion, sourceType, sourceValue)
+    val srcAddress = sourceType match {
+      case x: PSubsetStruct => ScalaToRegionValue(srcRegion, x.ps, sourceValue)
+      case _ => ScalaToRegionValue(srcRegion, sourceType, sourceValue)
+    }
 
     if (interpret) {
       try {
@@ -20,7 +23,12 @@ abstract class PhysicalTestUtils extends HailSuite {
         val copy = UnsafeRow.read(destType, region, copyOff)
 
         log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
-        assert(copy == sourceValue)
+
+        if(expectedValue != null) {
+          assert(copy == expectedValue)
+        } else {
+          assert(copy == sourceValue)
+        }
         region.clear()
         srcRegion.clear()
       } catch {
@@ -71,7 +79,12 @@ abstract class PhysicalTestUtils extends HailSuite {
     val copy = UnsafeRow.read(destType, region, copyOff)
 
     log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
-    assert(copy == sourceValue)
+
+    if(expectedValue != null) {
+      assert(copy == expectedValue)
+    } else {
+      assert(copy == sourceValue)
+    }
     region.clear()
     srcRegion.clear()
   }

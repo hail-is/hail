@@ -49,7 +49,7 @@ object IRSuite {
         override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(returnType, argTypes)
 
         def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: EmitCode*): EmitCode = {
-          assert(unify(super.typeArgs, args.map(_.pt.virtualType), rpt.virtualType))
+          assert(unify(FastSeq(), args.map(_.pt.virtualType), rpt.virtualType))
           impl(r, rpt, seed, args.toArray)
         }
       })
@@ -60,21 +60,21 @@ object IRSuite {
 
     def registerAll() {
       registerSeededWithMissingness("incr_s", TBoolean, TBoolean, null) { case (mb, rt,  _, l) =>
-        EmitCode(Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.setup),
+        EmitCode(Code(Code.invokeScalaObject0[Unit](outer.getClass, "incr"), l.setup),
           l.m,
           PCode(rt, l.v))
       }
 
       registerSeededWithMissingness("incr_m", TBoolean, TBoolean, null) { case (mb, rt, _, l) =>
         EmitCode(l.setup,
-          Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.m),
+          Code(Code.invokeScalaObject0[Unit](outer.getClass, "incr"), l.m),
           PCode(rt, l.v))
       }
 
       registerSeededWithMissingness("incr_v", TBoolean, TBoolean, null) { case (mb, rt, _, l) =>
         EmitCode(l.setup,
           l.m,
-          PCode(rt, Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.v)))
+          PCode(rt, Code(Code.invokeScalaObject0[Unit](outer.getClass, "incr"), l.v)))
       }
     }
   }
@@ -2416,7 +2416,6 @@ class IRSuite extends HailSuite {
         MakeStruct(FastSeq("a" -> 6, "b" -> 0.0, "c" -> 3L)),
         FastSeq("b", "a")),
       Row(0.0, 6))
-
   }
 
   @Test def testGetField() {

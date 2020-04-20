@@ -231,7 +231,7 @@ install-deps: install-dev-deps
 	$(PIP) install -U -r python/requirements.txt
 
 .PHONY: benchmark
-benchmark: install
+benchmark: $(WHEEL)
 	HAIL_WHEEL=../hail/$(WHEEL) HAIL_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark benchmark
 
 .PHONY: install-benchmark

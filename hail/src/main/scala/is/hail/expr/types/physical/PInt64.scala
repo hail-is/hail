@@ -27,7 +27,7 @@ class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
       type T = Long
 
       def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
-        Code.invokeStatic[java.lang.Long, Long, Long, Int]("compare", x, y)
+        Code.invokeStatic2[java.lang.Long, Long, Long, Int]("compare", x, y)
 
       override def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x < y
 

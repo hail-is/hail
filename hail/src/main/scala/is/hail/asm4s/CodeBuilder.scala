@@ -29,7 +29,18 @@ object CodeBuilder {
 trait CodeBuilderLike {
   def mb: MethodBuilder[_]
 
-  def append(c: Code[Unit]): Unit
+  def isOpenEnded: Boolean
+
+  protected def uncheckedAppend(c: Code[Unit]): Unit
+
+  def append(c: Code[Unit]): Unit = {
+    assert(isOpenEnded)
+    uncheckedAppend(c)
+  }
+
+  def define(L: CodeLabel): Unit = {
+    uncheckedAppend(L)
+  }
 
   def result(): Code[Unit]
 
@@ -51,9 +62,9 @@ trait CodeBuilderLike {
     val Ltrue = CodeLabel()
     val Lafter = CodeLabel()
     append(c.mux(Ltrue.goto, Lafter.goto))
-    append(Ltrue)
+    define(Ltrue)
     emitThen
-    append(Lafter)
+    define(Lafter)
   }
 
   def ifx(c: Code[Boolean], emitThen: => Unit, emitElse: => Unit): Unit = {
@@ -61,24 +72,24 @@ trait CodeBuilderLike {
     val Lfalse = CodeLabel()
     val Lafter = CodeLabel()
     append(c.mux(Ltrue.goto, Lfalse.goto))
-    append(Ltrue)
+    define(Ltrue)
     emitThen
-    append(Lafter.goto)
-    append(Lfalse)
+    if (isOpenEnded) goto(Lafter)
+    define(Lfalse)
     emitElse
-    append(Lafter)
+    define(Lafter)
   }
 
   def whileLoop(c: Code[Boolean], emitBody: => Unit): Unit = {
     val Lstart = CodeLabel()
     val Lbody = CodeLabel()
     val Lafter = CodeLabel()
-    append(Lstart)
+    define(Lstart)
     append(c.mux(Lbody.goto, Lafter.goto))
-    append(Lbody)
+    define(Lbody)
     emitBody
-    append(Lstart.goto)
-    append(Lafter)
+    goto(Lstart)
+    define(Lafter)
   }
 
   def newLocal[T](name: String)(implicit tti: TypeInfo[T]): LocalRef[T] = mb.newLocal[T](name)
@@ -107,10 +118,6 @@ trait CodeBuilderLike {
     append(L.goto)
   }
 
-  def define(L: CodeLabel): Unit = {
-    append(L)
-  }
-
   def _fatal(msg: Code[String]): Unit = {
     append(Code._fatal[Unit](msg))
   }
@@ -121,7 +128,12 @@ trait CodeBuilderLike {
 }
 
 class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
-  def append(c: Code[Unit]): Unit = {
+  def isOpenEnded: Boolean = {
+    val last = code.end.last
+    (last == null) || !last.isInstanceOf[is.hail.lir.ControlX]
+  }
+
+  def uncheckedAppend(c: Code[Unit]): Unit = {
     code = Code(code, c)
   }
 

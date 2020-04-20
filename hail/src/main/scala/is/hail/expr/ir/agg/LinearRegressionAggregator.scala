@@ -214,7 +214,7 @@ class LinearRegressionAggregator(yt: PFloat64, xt: PCanonicalArray) extends Stag
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
     val res = state.cb.genFieldThisRef[Long]()
     coerce[Unit](Code(
-      res := Code.invokeScalaObject[Region, Long, Long, Int, Long](LinearRegressionAggregator.getClass, "computeResult",
+      res := Code.invokeScalaObject4[Region, Long, Long, Int, Long](LinearRegressionAggregator.getClass, "computeResult",
         srvb.region,
         stateType.loadField(state.off, 0),
         stateType.loadField(state.off, 1),
