@@ -9,7 +9,7 @@ import google.cloud.storage
 import google_auth_oauthlib.flow
 from hailtop.config import get_deploy_config
 from gear import (
-    setup_aiohttp_session, create_database_pool,
+    setup_aiohttp_session,
     rest_authenticated_users_only, web_authenticated_developers_only,
     web_maybe_authenticated_user, web_authenticated_users_only, create_session,
     check_csrf_token, create_copy_paste_token, transaction, Database
