@@ -2,14 +2,12 @@ package is.hail.annotations
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
-import is.hail.HailContext
-import is.hail.backend.{Backend, BroadcastValue}
+import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.physical.{PArray, PStruct, PType}
 import is.hail.expr.types.virtual.{TBaseStruct, TStruct}
 import is.hail.io.{BufferSpec, Decoder, TypedCodecSpec}
 import org.apache.spark.sql.Row
-
 
 case class SerializableRegionValue(encodedValue: Array[Byte], t: PType, makeDecoder: ByteArrayInputStream => Decoder) {
   def readRegionValue(r: Region): Long = {
@@ -34,7 +32,6 @@ object BroadcastRow {
 }
 
 trait BroadcastRegionValue {
-  // FIXME need to pull out
   def ctx: ExecuteContext
 
   def value: RegionValue

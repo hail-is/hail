@@ -3,19 +3,19 @@ package is.hail.expr.ir
 import java.util.regex.Pattern
 
 import is.hail.HailContext
-import is.hail.annotations.{BroadcastRow, RegionValue}
+import is.hail.annotations.BroadcastRow
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PCanonicalStruct, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.fs.FS
-import is.hail.rvd.{RVD, RVDContext}
+import is.hail.rvd.RVD
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
-import org.json4s.{Formats, JValue}
-import org.json4s.JsonAST.JValue
+import org.json4s.Formats
+import org.json4s.JValue
 
 import scala.collection.mutable
 import scala.util.matching.Regex

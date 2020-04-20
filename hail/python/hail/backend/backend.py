@@ -272,8 +272,7 @@ class SparkBackend(Backend):
         return json.loads(Env.hail().variant.ReferenceGenome.fromHailDataset(self.fs._jfs, path))
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
-        Env.hail().variant.ReferenceGenome.fromFASTAFile(
-            self._jhc,
+        self._jbackend.pyFromFASTAFile(
             name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par)
 
     def remove_reference(self, name):
@@ -283,15 +282,13 @@ class SparkBackend(Backend):
         return json.loads(Env.hail().variant.ReferenceGenome.getReference(name).toJSONString())
 
     def add_sequence(self, name, fasta_file, index_file):
-        scala_object(Env.hail().variant, 'ReferenceGenome').addSequence(
-            name, fasta_file, index_file)
+        self._jbackend.pyAddSequence(name, fasta_file, index_file)
 
     def remove_sequence(self, name):
         scala_object(Env.hail().variant, 'ReferenceGenome').removeSequence(name)
 
     def add_liftover(self, name, chain_file, dest_reference_genome):
-        scala_object(Env.hail().variant, 'ReferenceGenome').referenceAddLiftover(
-            name, chain_file, dest_reference_genome)
+        self._jbackend.pyReferenceAddLiftover(name, chain_file, dest_reference_genome)
 
     def remove_liftover(self, name, dest_reference_genome):
         scala_object(Env.hail().variant, 'ReferenceGenome').referenceRemoveLiftover(

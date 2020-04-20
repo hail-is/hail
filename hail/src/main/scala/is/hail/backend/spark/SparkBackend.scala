@@ -25,11 +25,13 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.reflect.ClassTag
-
 import scala.collection.JavaConverters._
 import java.io.PrintWriter
 
 import is.hail.io.vcf.VCFsReader
+import is.hail.linalg.RowMatrix
+import is.hail.stats.LinearMixedModel
+import is.hail.variant.ReferenceGenome
 import org.apache.spark.storage.StorageLevel
 import org.json4s.JsonAST.{JInt, JObject}
 
@@ -447,6 +449,54 @@ class SparkBackend(
         "length" -> JInt(irs.length),
         "type" -> reader.typ.pyJson)
       JsonMethods.compact(out)
+    }
+  }
+
+  def pyReferenceAddLiftover(name: String, chainFile: String, destRGName: String): Unit = {
+    withExecuteContext() { ctx =>
+      ReferenceGenome.referenceAddLiftover(ctx, name, chainFile, destRGName)
+    }
+  }
+
+  def pyFromFASTAFile(name: String, fastaFile: String, indexFile: String,
+    xContigs: java.util.List[String], yContigs: java.util.List[String], mtContigs: java.util.List[String],
+    parInput: java.util.List[String]): ReferenceGenome = {
+    withExecuteContext() { ctx =>
+      ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile,
+        xContigs.asScala.toArray, yContigs.asScala.toArray, mtContigs.asScala.toArray, parInput.asScala.toArray)
+    }
+  }
+
+  def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit = {
+    withExecuteContext() { ctx =>
+      ReferenceGenome.addSequence(ctx, name, fastaFile, indexFile)
+    }
+  }
+
+  def pyExportBlockMatrix(
+    pathIn: String, pathOut: String, delimiter: String, header: String, addIndex: Boolean, exportType: String,
+    partitionSize: java.lang.Integer, entries: String): Unit = {
+    withExecuteContext() { ctx =>
+      val rm = RowMatrix.readBlockMatrix(fs, pathIn,
+        if (partitionSize == null) None else Some(partitionSize))
+      entries match {
+        case "full" =>
+          rm.export(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
+        case "lower" =>
+          rm.exportLowerTriangle(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
+        case "strict_lower" =>
+          rm.exportStrictLowerTriangle(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
+        case "upper" =>
+          rm.exportUpperTriangle(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
+        case "strict_upper" =>
+          rm.exportStrictUpperTriangle(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
+      }
+    }
+  }
+
+  def pyFitLinearMixedModel(lmm: LinearMixedModel, pa_t: RowMatrix, a_t: RowMatrix): TableIR = {
+    withExecuteContext() { ctx =>
+      lmm.fit(ctx, pa_t, Option(a_t))
     }
   }
 }

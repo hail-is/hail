@@ -299,12 +299,7 @@ object MatrixBGENReader {
   }
 
   def fromJValue(env: IRParserEnvironment, jv: JValue): MatrixBGENReader = {
-    val ctx = env.ctx
-
-    implicit val formats: Formats = DefaultFormats
-    val params = jv.extract[MatrixBGENReaderParameters]
-
-    MatrixBGENReader(ctx, params)
+    MatrixBGENReader(env.ctx, MatrixBGENReaderParameters.fromJValue(env, jv))
   }
 
   def apply(ctx: ExecuteContext,
@@ -394,13 +389,41 @@ object MatrixBGENReader {
   }
 }
 
+object MatrixBGENReaderParameters {
+  def fromJValue(env: IRParserEnvironment, jv: JValue): MatrixBGENReaderParameters = {
+    implicit val foramts: Formats = DefaultFormats
+    val files = (jv \ "files").extract[Array[String]]
+    val sampleFile = (jv \ "sampleFile").extractOpt[String]
+    val indexFileMap = (jv \ "indexFileMap").extract[Map[String, String]]
+    val nPartitions = (jv \ "nPartitions").extractOpt[Int]
+    val blockSizeInMB = (jv \ "blockSizeInMB").extractOpt[Int]
+    val includedVariantsIR = (jv \ "includedVariants").extractOpt[String].map(IRParser.parse_table_ir(_, env))
+    new MatrixBGENReaderParameters(files, sampleFile, indexFileMap, nPartitions, blockSizeInMB, includedVariantsIR)
+  }
+}
+
 case class MatrixBGENReaderParameters(
   files: Seq[String],
   sampleFile: Option[String],
   indexFileMap: Map[String, String],
   nPartitions: Option[Int],
   blockSizeInMB: Option[Int],
-  includedVariants: Option[TableIR])
+  includedVariants: Option[TableIR]) {
+
+  def toJValue: JValue = {
+    JObject(List(
+      "name" -> JString("MatrixBGENReader"),
+      "files" -> JArray(files.map(JString).toList),
+      "sampleFile" -> sampleFile.map(JString).getOrElse(JNull),
+      "indexFileMap" -> JArray(indexFileMap.map { case (k, v) =>
+        JObject(
+          "key" -> JString(k), "value" -> JString(v))
+      }.toList),
+      "nPartitions" -> nPartitions.map(JInt(_)).getOrElse(JNull),
+      "blockSizeInMB" -> blockSizeInMB.map(JInt(_)).getOrElse(JNull),
+      "includedVariants" -> includedVariants.map(t => JString(Pretty(t))).getOrElse(JNull)))
+  }
+}
 
 class MatrixBGENReader(
   val params: MatrixBGENReaderParameters,
@@ -449,10 +472,7 @@ class MatrixBGENReader(
     TableValue(ctx, tr.typ, globalValue, rvd)
   }
 
-  override def toJValue: JValue = {
-    implicit val formats: Formats = DefaultFormats
-    decomposeWithName(params, "MatrixBGENReader")
-  }
+  override def toJValue: JValue = params.toJValue
 
   override def hashCode(): Int = params.hashCode()
 

@@ -727,7 +727,8 @@ class LinearMixedModel(object):
         if self._scala_model is None:
             self._set_scala_model()
 
-        jfs = Env.spark_backend('LinearMixedModel.fit_alternatives').fs._jfs
+        backend = Env.spark_backend('LinearMixedModel.fit_alternatives')
+        jfs = backend.fs._jfs
 
         if partition_size is None:
             block_size = Env.hail().linalg.BlockMatrix.readMetadata(jfs, pa_t_path).blockSize()
@@ -738,12 +739,12 @@ class LinearMixedModel(object):
         jpa_t = Env.hail().linalg.RowMatrix.readBlockMatrix(jfs, pa_t_path, jsome(partition_size))
 
         if a_t_path is None:
-            maybe_ja_t = jnone()
+            maybe_ja_t = None
         else:
-            maybe_ja_t = jsome(
-                Env.hail().linalg.RowMatrix.readBlockMatrix(jfs, a_t_path, jsome(partition_size)))
+            maybe_ja_t = Env.hail().linalg.RowMatrix.readBlockMatrix(jfs, a_t_path, jsome(partition_size))
 
-        return Table._from_java(self._scala_model.fit(jpa_t, maybe_ja_t))
+        return Table._from_java(backend._jbackend.pyFitLinearMixedModel(
+            self._scala_model, jpa_t, maybe_ja_t))
 
     @typecheck_method(pa=np.ndarray, a=nullable(np.ndarray), return_pandas=bool)
     def fit_alternatives_numpy(self, pa, a=None, return_pandas=False):

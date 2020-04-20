@@ -49,7 +49,7 @@ class LinearMixedModel(lmmData: LMMData) {
       assert(lmmData.yOpt.isEmpty && lmmData.xOpt.isEmpty)
       fitFullRank(ctx, pa_t)
     }
- 
+
   def fitLowRank(ctx: ExecuteContext, pa_t: RowMatrix, a_t: RowMatrix): TableIR = {
     if (pa_t.nRows != a_t.nRows)
       fatal(s"pa_t and a_t must have the same number of rows, but found ${pa_t.nRows} and ${a_t.nRows}")

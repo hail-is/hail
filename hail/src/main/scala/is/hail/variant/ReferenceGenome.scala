@@ -590,12 +590,6 @@ object ReferenceGenome {
   }
 
   def fromFASTAFile(ctx: ExecuteContext, name: String, fastaFile: String, indexFile: String,
-    xContigs: java.util.List[String], yContigs: java.util.List[String],
-    mtContigs: java.util.List[String], parInput: java.util.List[String]): ReferenceGenome =
-    fromFASTAFile(ctx, name, fastaFile, indexFile, xContigs.asScala.toArray, yContigs.asScala.toArray,
-      mtContigs.asScala.toArray, parInput.asScala.toArray)
-
-  def fromFASTAFile(ctx: ExecuteContext, name: String, fastaFile: String, indexFile: String,
     xContigs: Array[String] = Array.empty[String], yContigs: Array[String] = Array.empty[String],
     mtContigs: Array[String] = Array.empty[String], parInput: Array[String] = Array.empty[String]): ReferenceGenome = {
     val tmpdir = ctx.localTmpdir

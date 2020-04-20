@@ -15,8 +15,6 @@ import hail as hl
 
 from typing import List
 
-_cached_importvcfs = None
-
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end,
                         reference_genome, skip_invalid_intervals):
@@ -2201,16 +2199,12 @@ def import_gvcfs(path,
 
     rg = reference_genome.name if reference_genome else None
 
-    global _cached_importvcfs
-    if _cached_importvcfs is None:
-        _cached_importvcfs = Env.hail().io.vcf.ImportVCFs
-
     if partitions is not None:
         partitions, partitions_type = hl.utils._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg), alleles=hl.tarray(hl.tstr)))
     else:
         partitions_type = None
 
-    vector_ref_s = _cached_importvcfs.pyApply(
+    vector_ref_s = Env.spark_backend('import_vcfs')._jbackend.pyImportVCFs(
         wrap_to_list(path),
         wrap_to_list(call_fields),
         entry_float_type._parsable_string(),

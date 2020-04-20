@@ -89,15 +89,14 @@ case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, e
 
 object TableReader {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
-    List(
-      classOf[TableNativeZippedReader],
-      classOf[TableFromBlockMatrixNativeReader])
-    ) + new NativeReaderOptionsSerializer()
+    List(classOf[TableNativeZippedReader])
+  ) + new NativeReaderOptionsSerializer()
 
   def fromJValue(fs: FS, jv: JValue): TableReader = {
     (jv \ "name").extract[String] match {
       case "TableNativeReader" => TableNativeReader.fromJValue(fs, jv)
       case "TextTableReader" => TextTableReader.fromJValue(fs, jv)
+      case "TableFromBlockMatrixNativeReader" => TableFromBlockMatrixNativeReader.fromJValue(fs, jv)
       case _ => jv.extract[TableReader]
     }
   }
@@ -251,15 +250,27 @@ case class TableNativeZippedReader(
 }
 
 object TableFromBlockMatrixNativeReader {
-  def apply(fs: FS, path: String, nPartitions: Option[Int] = None): TableFromBlockMatrixNativeReader = {
-    val metadata: BlockMatrixMetadata = BlockMatrix.readMetadata(fs, path)
-    TableFromBlockMatrixNativeReader(metadata, path, nPartitions)
+  def apply(fs: FS, params: TableFromBlockMatrixNativeReaderParameters): TableFromBlockMatrixNativeReader = {
+    val metadata: BlockMatrixMetadata = BlockMatrix.readMetadata(fs, params.path)
+    TableFromBlockMatrixNativeReader(params, metadata)
+
+  }
+
+  def apply(fs: FS, path: String, nPartitions: Option[Int] = None): TableFromBlockMatrixNativeReader =
+    TableFromBlockMatrixNativeReader(fs, TableFromBlockMatrixNativeReaderParameters(path, nPartitions))
+
+  def fromJValue(fs: FS, jv: JValue): TableFromBlockMatrixNativeReader = {
+    implicit val formats: Formats = TableReader.formats
+    val params = jv.extract[TableFromBlockMatrixNativeReaderParameters]
+    TableFromBlockMatrixNativeReader(fs, params)
   }
 }
 
-case class TableFromBlockMatrixNativeReader(metadata: BlockMatrixMetadata, path: String, nPartitions: Option[Int]) extends TableReader {
-  def pathsUsed: Seq[String] = FastSeq(path)
-  val getNumPartitions: Int = nPartitions.getOrElse(HailContext.backend.defaultParallelism)
+case class TableFromBlockMatrixNativeReaderParameters(path: String, nPartitions: Option[Int])
+
+case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeReaderParameters, metadata: BlockMatrixMetadata) extends TableReader {
+  def pathsUsed: Seq[String] = FastSeq(params.path)
+  val getNumPartitions: Int = params.nPartitions.getOrElse(HailContext.backend.defaultParallelism)
 
   val partitionRanges = (0 until getNumPartitions).map { i =>
     val nRows = metadata.nRows
@@ -278,13 +289,17 @@ case class TableFromBlockMatrixNativeReader(metadata: BlockMatrixMetadata, path:
   }
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    val rowsRDD = new BlockMatrixReadRowBlockedRDD(ctx.fsBc, path, partitionRanges, metadata, HailContext.get)
+    val rowsRDD = new BlockMatrixReadRowBlockedRDD(ctx.fsBc, params.path, partitionRanges, metadata, HailContext.get)
 
     val partitionBounds = partitionRanges.map { r => Interval(Row(r.start), Row(r.end), true, false) }
     val partitioner = new RVDPartitioner(fullType.keyType, partitionBounds)
 
     val rvd = RVD(fullType.canonicalRVDType, partitioner, ContextRDD(rowsRDD))
     TableValue(ctx, fullType, BroadcastRow.empty(ctx), rvd)
+  }
+
+  override def toJValue: JValue = {
+    decomposeWithName(params, "TableFromBlockMatrixNativeReader")(TableReader.formats)
   }
 }
 
