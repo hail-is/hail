@@ -373,15 +373,17 @@ class TableIRSuite extends HailSuite {
   @Test def testTableParallelize() {
     implicit val execStrats = ExecStrategy.allRelational
     val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
-    val value = Row(FastIndexedSeq(Row(0, "row1"), Row(1, "row2")), Row("glob"))
-
-    assertEvalsTo(
-      collectNoKey(
-        TableParallelize(
-          Literal(
-            t,
-            value
-          ))), value)
+    Array(1, 10, 17, 34, 103).foreach { length =>
+      val mySeq = FastIndexedSeq((0 until length): _*).map(i => Row(i, "row" + i))
+      val value = Row(mySeq, Row("global"))
+      assertEvalsTo(
+        collectNoKey(
+          TableParallelize(
+            Literal(
+              t,
+              value
+            ))), value)
+    }
   }
 
   @Test def testTableParallelizeCount() {

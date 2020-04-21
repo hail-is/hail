@@ -125,16 +125,19 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
           val numRows = ArrayLen(GetField(loweredRowsAndGlobal, "rows"))
           val numNonEmptyPartitions = If(numRows < nPartitionsAdj, numRows, nPartitionsAdj)
           val q = numRows floorDiv numNonEmptyPartitions
-          val m = q * numNonEmptyPartitions - numRows //
+          val m = numRows - q * numNonEmptyPartitions
           val length = If(numNonEmptyPartitions >= partIdx,
             If(m > 0,
-              If(m < partIdx, q + 1, q),
+              If(m > partIdx, q + 1, q),
               q),
             0
           )
-          val start = If(m > 0,
-            If(m < partIdx, (q + 1) * m + (m - partIdx) * q, (q + 1) * partIdx),
-            q * partIdx
+          val start = If(numNonEmptyPartitions >= partIdx,
+            If(m > 0,
+              If(m < partIdx, (q + 1) * m + (-m + partIdx) * q, (q + 1) * partIdx),
+              q * partIdx
+            ),
+            0
           )
           val elements = ToArray(StreamTake(StreamDrop(ToStream(GetField(loweredRowsAndGlobal, "rows")), start), length))
           MakeStruct(FastIndexedSeq("elements" -> elements))
