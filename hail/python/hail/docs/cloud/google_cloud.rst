@@ -81,3 +81,16 @@ To make it easier to avoid accidentally reading from a requester pays bucket, we
 .. code-block:: text
 
     hailctl dataproc start  my-cluster --requester-pays-allow-buckets hail-bucket,big-data
+
+Variant Effect Predictor (VEP)
+------------------------------
+
+The following cluster configuration enables Hail to run VEP in parallel on every
+variant in a dataset:
+
+.. code-block:: text
+
+    hailctl dataproc start NAME --vep
+
+A cluster started without the `--vep` argument is unable to run VEP and cannot
+be modified to run VEP. You must start a new cluster using `--vep`.
