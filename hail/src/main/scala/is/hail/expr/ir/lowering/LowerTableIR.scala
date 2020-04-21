@@ -114,24 +114,38 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
         }
 
       case TableParallelize(rowsAndGlobal, nPartitions) =>
-        val nPartitionsAdj = nPartitions.getOrElse(16)
-        val loweredRowsAndGlobal = lower(rowsAndGlobal)
+        val nPartitionsAdj = 1//nPartitions.getOrElse(16)
+        val loweredRowsAndGlobal = lowerIR(rowsAndGlobal)
 
         val contextType = TStruct(
-
+          "elements" -> TArray(GetField(loweredRowsAndGlobal, "rows").typ.asInstanceOf[TArray].elementType)
         )
 
+        //     val parts = Array.tabulate(k)(i => (n - i + k - 1) / k)
+
+//        val context = MakeStream((0 until nPartitionsAdj).map { partIdx =>
+//          val numRows = ArrayLen(GetField(loweredRowsAndGlobal, "rows"))
+//          val numElementsInPart = (numRows - partIdx + nPartitionsAdj - 1) / nPartitionsAdj
+//          val timesDivides = numRows.floorDiv(nPartitionsAdj)
+//          val sizeChangeIndex
+//          val startIR = ???
+//          val endIR = ???
+//          MakeStruct(FastIndexedSeq("start" -> startIR, "end" -> endIR))
+//        }, TStream(contextType))
+
         val context = MakeStream((0 until nPartitionsAdj).map { partIdx =>
-          MakeStruct(Seq.empty[(String, IR)])
+//          val start = 0
+//          val end = ArrayLen(GetField(loweredRowsAndGlobal, "rows"))
+          MakeStruct(FastIndexedSeq("elements" -> GetField(loweredRowsAndGlobal, "rows")))
         }, TStream(contextType))
 
         TableStage(
-          loweredRowsAndGlobal,//SelectFields(loweredRowsAndGlobal, FastSeq("global")),
+          SelectFields(loweredRowsAndGlobal, FastSeq("global")),
           "global",
           RVDPartitioner.unkeyed(nPartitionsAdj),
           contextType,
           context,
-          ???
+          ToStream(GetField(Ref("context", contextType), "elements"))
         )
 
       case TableRange(n, nPartitions) =>
