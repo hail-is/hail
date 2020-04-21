@@ -92,8 +92,8 @@ async def callback(request):
         raise web.HTTPUnauthorized()
 
     db = request.app['db']
-    users = db.select_and_fetchall(
-        "SELECT * FROM users WHERE email = %s AND state = 'active';", email)
+    users = list(db.select_and_fetchall(
+        "SELECT * FROM users WHERE email = %s AND state = 'active';", email))
 
     if len(users) != 1:
         raise web.HTTPUnauthorized()
@@ -175,7 +175,7 @@ async def rest_login(request):
 @web_authenticated_developers_only()
 async def get_users(request, userdata):
     db = request.app['db']
-    users = await db.select_and_fetchall('SELECT * FROM users;')
+    users = list(await db.select_and_fetchall('SELECT * FROM users;'))
     page_context = {
         'users': users
     }
@@ -248,7 +248,7 @@ async def rest_callback(request):
         raise web.HTTPUnauthorized()
 
     db = request.app['db']
-    users = db.select_and_fetchall("SELECT * FROM users WHERE email = %s AND state = 'active';", email)
+    users = list(db.select_and_fetchall("SELECT * FROM users WHERE email = %s AND state = 'active';", email))
 
     if len(users) != 1:
         raise web.HTTPUnauthorized()
@@ -317,11 +317,11 @@ async def userinfo(request):
         raise web.HTTPUnauthorized()
 
     db = request.app['db']
-    users = await db.select_and_fetchall('''
+    users = list(await db.select_and_fetchall('''
 SELECT users.*, sessions.session_id FROM users
 INNER JOIN sessions ON users.id = sessions.user_id
 WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
-''', session_id)
+''', session_id))
 
     if len(users) != 1:
         log.info(f'Unknown session id: {session_id}')
