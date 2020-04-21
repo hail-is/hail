@@ -30,8 +30,6 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
     psField.index
   }.toArray
 
-  override lazy val fieldIdx: Map[String, Int] = fields.zipWithIndex.map { case (f, i) => (f.name, i) }.toMap
-
   lazy val missingIdx: Array[Int] = idxMap.map(i => ps.missingIdx(i))
   lazy val nMissing: Int = missingIdx.length
 

@@ -4,7 +4,11 @@ import hail as hl
 from hail.experimental.vcf_combiner import vcf_combiner as vc
 from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
-from ..helpers import resource
+from ..helpers import resource, startTestHailContext, stopTestHailContext
+
+setUpModule = startTestHailContext
+tearDownModule = stopTestHailContext
+
 
 all_samples = ['HG00308', 'HG00592', 'HG02230', 'NA18534', 'NA20760',
                'NA18530', 'HG03805', 'HG02223', 'HG00637', 'NA12249',
@@ -50,5 +54,10 @@ def test_1kg_chr22():
 
 def test_gvcf_1k_same_as_import_vcf():
     path = os.path.join(resource('gvcfs'), '1kg_chr22', f'HG00308.hg38.g.vcf.gz')
+    [mt] = hl.import_gvcfs([path], vc.default_exome_intervals('GRCh38'), reference_genome='GRCh38')
+    assert mt._same(hl.import_vcf(path, force_bgz=True, reference_genome='GRCh38').key_rows_by('locus'))
+
+def test_gvcf_subset_same_as_import_vcf():
+    path = os.path.join(resource('gvcfs'), 'subset', f'HG00187.hg38.g.vcf.gz')
     [mt] = hl.import_gvcfs([path], vc.default_exome_intervals('GRCh38'), reference_genome='GRCh38')
     assert mt._same(hl.import_vcf(path, force_bgz=True, reference_genome='GRCh38').key_rows_by('locus'))

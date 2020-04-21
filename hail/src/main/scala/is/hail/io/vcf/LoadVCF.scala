@@ -1451,7 +1451,7 @@ class PartitionedVCFRDD(
       lines.close()
     }
 
-    val it = new Iterator[String] {
+    val it: Iterator[String] = new Iterator[String] {
       private var l = lines.next()
 
       def hasNext: Boolean = l != null
@@ -1473,7 +1473,9 @@ class PartitionedVCFRDD(
       val chrom = l.substring(0, t1)
       val pos = l.substring(t1 + 1, t2).toInt
 
-      assert(chrom == p.chrom)
+      if (chrom != p.chrom) {
+        throw new RuntimeException(s"bad chromosome! ${p.chrom}, $l")
+      }
       p.start <= pos && pos <= p.end
     }
   }
