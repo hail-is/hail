@@ -2,7 +2,9 @@ FROM ubuntu:18.04
 
 ENV LANG C.UTF-8
 
-RUN add-apt-repository ppa:apt-fast/stable && \
+RUN apt-get update && \
+  apt-get install software-properties-common && \
+  add-apt-repository ppa:apt-fast/stable && \
   apt-get update && \
   DEBIAN_FRONTEND=noninteractive apt-get -y install apt-fast && \
   apt-fast -y install \
