@@ -134,9 +134,18 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
 //        }, TStream(contextType))
 
         val context = MakeStream((0 until nPartitionsAdj).map { partIdx =>
-//          val start = 0
-//          val end = ArrayLen(GetField(loweredRowsAndGlobal, "rows"))
-          MakeStruct(FastIndexedSeq("elements" -> GetField(loweredRowsAndGlobal, "rows")))
+          val numRows = ArrayLen(GetField(loweredRowsAndGlobal, "rows"))
+          val q = numRows floorDiv nPartitionsAdj
+          val m = q * nPartitionsAdj
+          val length = If(m > 0,
+            If(m < partIdx, q + 1, q),
+            q)
+          val start = If(m > 0,
+            If(m < partIdx, (q + 1) * m + (m + -partIdx) * q, (q + 1) * partIdx),
+            q * partIdx
+          )
+          val elements = StreamTake(StreamDrop(ToStream(GetField(loweredRowsAndGlobal, "rows")), start), length)
+          MakeStruct(FastIndexedSeq("elements" -> elements))
         }, TStream(contextType))
 
         TableStage(
@@ -145,7 +154,7 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
           RVDPartitioner.unkeyed(nPartitionsAdj),
           contextType,
           context,
-          ToStream(GetField(Ref("context", contextType), "elements"))
+          GetField(Ref("context", contextType), "elements")
         )
 
       case TableRange(n, nPartitions) =>
