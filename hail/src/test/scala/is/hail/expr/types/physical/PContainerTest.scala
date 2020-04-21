@@ -78,21 +78,6 @@ class PContainerTest extends HailSuite {
     res
   }
 
-  def testAnyMissing(sourceType: PCanonicalArray, data: IndexedSeq[Any]) = {
-    val srcRegion = Region()
-    val src = ScalaToRegionValue(srcRegion, sourceType, data)
-
-    log.info(s"\nTesting $data")
-
-    val fb = EmitFunctionBuilder[Long, Boolean]("not_empty")
-    val value = fb.getCodeParam[Long](1)
-
-    fb.emit(sourceType.anyMissing(fb.apply_method, value))
-
-    val res = fb.result()()(src)
-    res
-  }
-
   @Test def checkFirstNonZeroByte() {
     val sourceType = PCanonicalArray(PInt64(false))
 
