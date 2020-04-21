@@ -24,8 +24,7 @@ hailctl dataproc \
         start $cluster_name_37 \
         --max-idle 10m \
         --max-age 120m \
-        --vep GRCh37 \
-        --requester-pays-allow-buckets hail-us-vep
+        --vep GRCh37
 for file in $cluster_37_test_files
 do
     hailctl dataproc \
@@ -37,8 +36,7 @@ hailctl dataproc \
         start $cluster_name_38 \
         --max-idle 10m \
         --max-age 120m \
-        --vep GRCh38 \
-        --requester-pays-allow-buckets hail-us-vep
+        --vep GRCh38
 for file in $cluster_38_test_files
 do
     hailctl dataproc \
