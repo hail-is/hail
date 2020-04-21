@@ -15,6 +15,7 @@ class TableIRSuite extends HailSuite {
   def rangeKT: TableIR = TableKeyBy(TableRange(20, 4), FastIndexedSeq())
 
   def collect(tir: TableIR): TableCollect = TableCollect(TableKeyBy(tir, FastIndexedSeq()))
+  def collectNoKey(tir: TableIR): TableCollect = TableCollect(tir)
 
   implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.LoweredJVMCompile)
 
@@ -370,12 +371,12 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableParallelize() {
-    implicit val execStrats = ExecStrategy.interpretOnly
+    implicit val execStrats = ExecStrategy.allRelational
     val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
     val value = Row(FastIndexedSeq(Row(0, "row1"), Row(1, "row2")), Row("glob"))
 
     assertEvalsTo(
-      collect(
+      collectNoKey(
         TableParallelize(
           Literal(
             t,
@@ -383,8 +384,8 @@ class TableIRSuite extends HailSuite {
           ))), value)
   }
 
-  @Test def testTableParallelizeLowering() {
-    implicit val execStrats = ExecStrategy.lowering
+  @Test def testTableParallelizeCount() {
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.allRelational
     val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
     val value = Row(FastIndexedSeq(Row(0, "row1"), Row(1, "row2")), Row("glob"))
 

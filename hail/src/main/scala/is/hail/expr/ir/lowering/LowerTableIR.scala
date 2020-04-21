@@ -114,37 +114,29 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
         }
 
       case TableParallelize(rowsAndGlobal, nPartitions) =>
-        val nPartitionsAdj = 1//nPartitions.getOrElse(16)
+        val nPartitionsAdj = nPartitions.getOrElse(16)
         val loweredRowsAndGlobal = lowerIR(rowsAndGlobal)
 
         val contextType = TStruct(
           "elements" -> TArray(GetField(loweredRowsAndGlobal, "rows").typ.asInstanceOf[TArray].elementType)
         )
 
-        //     val parts = Array.tabulate(k)(i => (n - i + k - 1) / k)
-
-//        val context = MakeStream((0 until nPartitionsAdj).map { partIdx =>
-//          val numRows = ArrayLen(GetField(loweredRowsAndGlobal, "rows"))
-//          val numElementsInPart = (numRows - partIdx + nPartitionsAdj - 1) / nPartitionsAdj
-//          val timesDivides = numRows.floorDiv(nPartitionsAdj)
-//          val sizeChangeIndex
-//          val startIR = ???
-//          val endIR = ???
-//          MakeStruct(FastIndexedSeq("start" -> startIR, "end" -> endIR))
-//        }, TStream(contextType))
-
         val context = MakeStream((0 until nPartitionsAdj).map { partIdx =>
           val numRows = ArrayLen(GetField(loweredRowsAndGlobal, "rows"))
-          val q = numRows floorDiv nPartitionsAdj
-          val m = q * nPartitionsAdj
-          val length = If(m > 0,
-            If(m < partIdx, q + 1, q),
-            q)
+          val numNonEmptyPartitions = If(numRows < nPartitionsAdj, numRows, nPartitionsAdj)
+          val q = numRows floorDiv numNonEmptyPartitions
+          val m = q * numNonEmptyPartitions - numRows //
+          val length = If(numNonEmptyPartitions >= partIdx,
+            If(m > 0,
+              If(m < partIdx, q + 1, q),
+              q),
+            0
+          )
           val start = If(m > 0,
-            If(m < partIdx, (q + 1) * m + (m + -partIdx) * q, (q + 1) * partIdx),
+            If(m < partIdx, (q + 1) * m + (m - partIdx) * q, (q + 1) * partIdx),
             q * partIdx
           )
-          val elements = StreamTake(StreamDrop(ToStream(GetField(loweredRowsAndGlobal, "rows")), start), length)
+          val elements = ToArray(StreamTake(StreamDrop(ToStream(GetField(loweredRowsAndGlobal, "rows")), start), length))
           MakeStruct(FastIndexedSeq("elements" -> elements))
         }, TStream(contextType))
 
@@ -154,7 +146,7 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
           RVDPartitioner.unkeyed(nPartitionsAdj),
           contextType,
           context,
-          GetField(Ref("context", contextType), "elements")
+          ToStream(GetField(Ref("context", contextType), "elements"))
         )
 
       case TableRange(n, nPartitions) =>
