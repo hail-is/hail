@@ -1,13 +1,11 @@
 package is.hail
 
+import java.io._
+import java.security.KeyStore
+
 import is.hail.annotations._
 import is.hail.expr.types.physical._
-import java.io._
-import java.net._
-import java.security.KeyStore;
-import javax.net._
-import javax.net.ssl._
-import javax.security.cert.X509Certificate;
+import javax.net.ssl._;
 
 package object shuffler {
   /**
