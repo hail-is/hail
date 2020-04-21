@@ -20,12 +20,18 @@ if __name__ == '__main__':
     label = os.environ.get('BENCHMARK_LABEL')
     if label:
         labeled_sha = f'{labeled_sha}-{label}'
+    output_file = os.path.join(BUCKET_BASE, f'{labeled_sha}.json')
+
     b = hb.Batch(name=f'benchmark-{labeled_sha}',
                  backend=hb.ServiceBackend(billing_project='hail'),
                  default_image=BENCHMARK_IMAGE,
                  default_storage='100G',
                  default_memory='7G',
-                 default_cpu=2)
+                 default_cpu=2,
+                 attributes={'output_file': output_file,
+                             'n_replicates': N_REPLICATES,
+                             'n_iters': N_ITERS,
+                             'image': BENCHMARK_IMAGE})
 
     resource_tasks = {}
     for r in all_resources:
@@ -99,7 +105,6 @@ if __name__ == '__main__':
     combine.command(f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output))
     combine.command(f'cat {combine.ofile}')
 
-    output_file = os.path.join(BUCKET_BASE, f'{labeled_sha}.json')
     print(f'writing output to {output_file}')
 
     b.write_output(combine.ofile, output_file)
