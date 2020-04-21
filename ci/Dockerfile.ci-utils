@@ -1,7 +1,7 @@
 FROM {{ service_base_image.image }}
 
-RUN apt-get update && \
-  apt-get -y install docker.io && \
+RUN apt-fast update && \
+  apt-fast -y install docker.io && \
   rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m hailpip --no-cache-dir twine

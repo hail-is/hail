@@ -2,8 +2,10 @@ FROM ubuntu:18.04
 
 ENV LANG C.UTF-8
 
-RUN apt-get update && \
-  apt-get -y install \
+RUN add-apt-repository ppa:apt-fast/stable && \
+  apt-get update && \
+  DEBIAN_FRONTEND=noninteractive apt-get -y install apt-fast && \
+  apt-fast -y install \
     git \
     htop \
     unzip bzip2 zip tar \

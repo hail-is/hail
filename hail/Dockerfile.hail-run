@@ -4,8 +4,8 @@ COPY python/requirements.txt .
 COPY python/dev-requirements.txt .
 RUN python3 -m hailpip --no-cache-dir -r requirements.txt -r dev-requirements.txt
 
-RUN apt-get update && \
-  apt-get -y install \
+RUN apt-fast update && \
+  apt-fast -y install \
     liblz4-dev
 
 # FIXME belongs in hail-test image

@@ -1,7 +1,7 @@
 FROM {{ base_image.image }}
 
-RUN apt-get update && \
-  apt-get -y install \
+RUN apt-fast update && \
+  apt-fast -y install \
     build-essential \
   && rm -rf /var/lib/apt/lists/*
 
