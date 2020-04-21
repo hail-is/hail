@@ -231,6 +231,11 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
 
         loweredChild.copy(body = StreamFlatMap(loweredChild.body, row.name, StreamMap(fieldRef, elt.name, newRow)))
 
+      case TableRename(child, rowMap, globalMap) =>
+        val loweredChild = lower(child)
+        
+        ???
+
       case node =>
         throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(node) }")
     }
