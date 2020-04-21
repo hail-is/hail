@@ -284,7 +284,7 @@ steps:
      from hailtop.config import get_deploy_config
      from hailtop.auth import get_tokens
      from hailtop.utils import async_to_blocking
-     from gear import create_database_pool, insert_user, create_session
+     from gear import Database, insert_user, create_session
      async def main():
          db = Database()
          try:
