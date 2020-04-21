@@ -1,8 +1,10 @@
 import os
+
 import re
 import uuid
+from typing import Optional, Dict, Union
 
-from .backend import LocalBackend
+from .backend import Backend, LocalBackend
 from .job import Job
 from .resource import Resource, InputResourceFile, JobResourceFile, ResourceGroup
 from .utils import BatchException
@@ -76,9 +78,15 @@ class Batch:
         cls._counter += 1
         return uid
 
-    def __init__(self, name=None, backend=None, attributes=None,
-                 default_image=None, default_memory=None, default_cpu=None,
-                 default_storage=None, default_timeout=None):
+    def __init__(self,
+                 name: Optional[str] = None,
+                 backend: Optional[Backend] = None,
+                 attributes: Optional[Dict[str, str]] = None,
+                 default_image: Optional[str] = None,
+                 default_memory: Optional[str] = None,
+                 default_cpu: Optional[str] = None,
+                 default_storage: Optional[str] = None,
+                 default_timeout: Optional[Union[float, int]] = None):
         self._jobs = []
         self._resource_map = {}
         self._allocated_files = set()
