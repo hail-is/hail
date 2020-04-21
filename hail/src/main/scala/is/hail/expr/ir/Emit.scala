@@ -149,6 +149,17 @@ abstract class EmitValue {
   def get: EmitCode
 }
 
+class EmitUnrealizableValue(val pt: PType, private val ec: EmitCode) extends EmitValue {
+  assert(!pt.isRealizable)
+  private var used: Boolean = false
+
+  def get: EmitCode = {
+    assert(!used)
+    used = true
+    ec
+  }
+}
+
 object IEmitCode {
   def apply(cb: EmitCodeBuilder, m: Code[Boolean], pc: => PCode): IEmitCode = {
     val Lmissing = CodeLabel()
@@ -861,7 +872,7 @@ private class Emit[C](
             sorter.toRegion()))
         }
 
-        COption.toEmitCode(result, atyp, mb)
+        COption.toEmitCode(result, mb)
 
       case CastToArray(a) =>
         val et = emit(a)
@@ -988,7 +999,7 @@ private class Emit[C](
                 srvb.offset))))
         }
 
-        COption.toEmitCode(result, pt, mb)
+        COption.toEmitCode(result, mb)
 
       case ArrayZeros(length) =>
         val lengthTriplet = emit(length)
@@ -1034,7 +1045,7 @@ private class Emit[C](
             .fold(mb, xAcc := codeZ, foldBody, retTT())
         }
 
-        COption.toEmitCode(resOpt, accType, mb)
+        COption.toEmitCode(resOpt, mb)
 
       case x@StreamFold2(a, acc, valueName, seq, res) =>
         val eltType = coerce[PStream](a.pType).elementType
@@ -1071,7 +1082,7 @@ private class Emit[C](
               foldBody, computeRes())
         }
 
-        COption.toEmitCode(resOpt, res.pType, mb)
+        COption.toEmitCode(resOpt, mb)
 
       case x@RunAgg(body, result, _) =>
         val aggs = x.physicalSignatures
@@ -1932,7 +1943,7 @@ private class Emit[C](
           decodeResult))
         }
 
-        COption.toEmitCode(optRes, x.pType, mb)
+        COption.toEmitCode(optRes, mb)
 
       case x@TailLoop(name, args, body) =>
         val label = CodeLabel()
