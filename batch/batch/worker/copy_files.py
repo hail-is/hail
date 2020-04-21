@@ -50,9 +50,10 @@ class CopyFileTimer(TimerBase):
 def process_initializer(project, key_file):
     assert project is not None
 
-    global gcs_client
-    credentials = google.oauth2.service_account.Credentials.from_service_account_file(key_file)
-    gcs_client = GCS(blocking_pool=None, project=project, credentials=credentials)
+    with Timer('setup process'):
+        global gcs_client
+        credentials = google.oauth2.service_account.Credentials.from_service_account_file(key_file)
+        gcs_client = GCS(blocking_pool=None, project=project, credentials=credentials)
 
 
 def read_gs_file(uri, file_name, offset, *args, **kwargs):
@@ -70,7 +71,6 @@ def is_gcs_path(path):
 def get_dest_path(file, src, include_recurse_dir):
     src = src.rstrip('/').split('/')
     file = file.split('/')
-    print(f'file {file} src {src}')
     assert len(src) <= len(file)
 
     if len(src) == len(file):
@@ -131,7 +131,7 @@ async def is_dir(path):
     return await is_local_dir(path)
 
 
-async def is_file(path):
+async def file_exists(path):
     if is_gcs_path(path):
         return len(await glob_gcs(path, recursive=False)) == 1
     return os.path.isfile(path)
@@ -139,74 +139,228 @@ async def is_file(path):
 
 async def dir_exists(path):
     if is_gcs_path(path):
-        return next(await gcs_client.list_gs_files(path + '/', max_results=1), None) is not None
+        return next(await gcs_client.list_gs_files(path.rstrip('/') + '/*', max_results=1), None) is not None
     return os.path.isdir(path)
 
 
 def any_recursive_match(pattern, paths):
-    pattern = pattern.split('/')
+    pattern = pattern.rstrip('/').split('/')
     x = any([len(pattern) != len(path.split('/')) for path in paths])
     return x
 
 
 async def add_destination_paths(src, glob_paths, dest):
-    is_dir_src = await is_dir(src)
-    is_dir_dest = await is_dir(dest)
-
+    # gsutil throws an error if no files match
     if len(glob_paths) == 0:
         raise FileNotFoundError
 
-    if not is_gcs_path(dest):
-        has_recursive_match = any_recursive_match(src, [p for p, _ in glob_paths])
-        if not has_recursive_match and dest.endswith('/') and not await dir_exists(dest):
-            if len(glob_paths) == 1:
-                if is_gcs_path(src):
-                    print('skipping destination file ending with slash')
-                    return []
-                print('destination is a directory')
-                raise IsADirectoryError
-            if len(glob_paths) > 1:
-                print('destination must name a directory when matching multiple files')
-                raise NotADirectoryError
+    recursive_match = any_recursive_match(src, (p for p, _ in glob_paths))
 
-    if is_gcs_path(src) and src.endswith('/'):
-        src_is_file = len(await gcs_client.glob_gs_files(src, recursive=False)) == 1
-        if src_is_file:
-            if not is_gcs_path(dest) and is_dir_dest:
-                print(f'cannot copy a remote file ending in a slash to a local directory')
-                raise NotImplementedError
-            return [(file, dest, size) for file, size in glob_paths]
+    if is_gcs_path(src):
+        is_dir_src = recursive_match
+    else:
+        is_dir_src = recursive_match
 
-    if is_gcs_path(src) and not is_gcs_path(dest):
-        filtered_glob_paths = []
-        for path, size in glob_paths:
-            if path.endswith('/'):
-                print(f'ignoring file ending with slash of size {humanize.naturalsize(size)}, {path}')
-            filtered_glob_paths.append((path, size))
-        glob_paths = filtered_glob_paths
+    if is_gcs_path(dest):
+        is_dir_dest = dest.endswith('/') or await dir_exists(dest)
+    else:
+        is_dir_dest = os.path.isdir(dest)
+
+    print(f'is_dir_src {is_dir_src} is_dir_dest {is_dir_dest}')
 
     if not is_dir_src and not is_dir_dest:
         if len(glob_paths) == 1:
+            file, _ = glob_paths[0]
+            if file.endswith('/'):
+                print(f'cannot copy a remote file ending in a slash to a local directory, {file}')
+                raise NotImplementedError
             return [(file, dest, size) for file, size in glob_paths]
-        if is_gcs_path(dest):
-            include_recurse_dir = False
-            return [(path, dest.rstrip('/') + '/' + get_dest_path(path, src, include_recurse_dir), size)
-                    for path, size in glob_paths]
+        print('destination must name a directory when matching multiple files')
         raise NotADirectoryError
+
+    filtered_glob_paths = []
+    for path, size in glob_paths:
+        if path.endswith('/'):
+            print(f'ignoring file ending with slash of size {humanize.naturalsize(size)}, {path}')
+        filtered_glob_paths.append((path, size))
+    glob_paths = filtered_glob_paths
 
     if not is_dir_src and is_dir_dest:
         dest = dest.rstrip('/') + '/'
         return [(file, f'{dest}{os.path.basename(file)}', size) for file, size in glob_paths]
 
-    #
-    # if is_dir_src and not is_dir_dest:
-    #     if len(glob_paths) == 1:
-    #         return [(file, dest, size) for file, size in glob_paths]
-
+    assert is_dir_src
     # https://cloud.google.com/storage/docs/gsutil/commands/cp#how-names-are-constructed_1
-    include_recurse_dir = not is_gcs_path(dest) or dest.endswith('/') or await dir_exists(dest)
-    print(f'include_recurse_dir {include_recurse_dir}')
-    return [(path, dest.rstrip('/') + '/' + get_dest_path(path, src, include_recurse_dir), size) for path, size in glob_paths]
+    include_recurse_dir = not is_gcs_path(dest) or is_dir_dest
+    return [(file, dest.rstrip('/') + '/' + get_dest_path(file, src, include_recurse_dir), size) for file, size in glob_paths]
+
+
+    # async def add_destination_paths(src, glob_paths, dest):
+#     # gsutil throws an error if no files match
+#     if len(glob_paths) == 0:
+#         raise FileNotFoundError
+#
+#     recursive_match = any_recursive_match(src, (p for p, _ in glob_paths))
+#
+#     # local -> local
+#     if not is_gcs_path(src) and not is_gcs_path(dest):
+#         is_dir_src = recursive_match
+#         is_dir_dest = os.path.isdir(dest)
+#
+#         if not is_dir_src and not is_dir_dest:
+#             if len(glob_paths) == 1:
+#                 return [(file, dest, size) for file, size in glob_paths]
+#             print('destination must name a directory when matching multiple files')
+#             raise NotADirectoryError
+#
+#         if not is_dir_src and is_dir_dest:
+#             dest = dest.rstrip('/') + '/'
+#             return [(file, f'{dest}{os.path.basename(file)}', size) for file, size in glob_paths]
+#
+#         assert is_dir_src
+#         # https://cloud.google.com/storage/docs/gsutil/commands/cp#how-names-are-constructed_1
+#         include_recurse_dir = not is_gcs_path(dest) or dest.endswith('/') or await dir_exists(dest)
+#         return [(path, dest.rstrip('/') + '/' + get_dest_path(path, src, include_recurse_dir), size) for path, size in glob_paths]
+#
+#     # remote -> local
+#     if is_gcs_path(src) and not is_gcs_path(dest):
+#         is_dir_src = recursive_match
+#         is_dir_dest = os.path.isdir(dest)
+#
+#         if not is_dir_src and not is_dir_dest:
+#             if len(glob_paths) == 1:
+#                 file, _ = glob_paths[0]
+#                 if file.endswith('/'):
+#                     print(f'cannot copy a remote file ending in a slash to a local directory, {file}')
+#                     raise NotImplementedError
+#                 return [(file, dest, size) for file, size in glob_paths]
+#             print('destination must name a directory when matching multiple files')
+#             raise NotADirectoryError
+#
+#         filtered_glob_paths = []
+#         for path, size in glob_paths:
+#             if path.endswith('/'):
+#                 print(f'ignoring file ending with slash of size {humanize.naturalsize(size)}, {path}')
+#             filtered_glob_paths.append((path, size))
+#         glob_paths = filtered_glob_paths
+#
+#         if not is_dir_src and is_dir_dest:
+#             dest = dest.rstrip('/') + '/'
+#             return [(file, f'{dest}{os.path.basename(file)}', size) for file, size in glob_paths]
+#
+#         assert is_dir_src
+#         # https://cloud.google.com/storage/docs/gsutil/commands/cp#how-names-are-constructed_1
+#         include_recurse_dir = not is_gcs_path(dest) or dest.endswith('/') or await dir_exists(dest)
+#         return [(path, dest.rstrip('/') + '/' + get_dest_path(path, src, include_recurse_dir), size) for path, size in glob_paths]
+#
+#     # local -> remote, remote -> remote
+#     is_dir_src = recursive_match
+#     is_dir_dest = dest.endswith('/') or await dir_exists(dest)
+#
+#     if not is_dir_src:
+#         if len(glob_paths) == 1:
+#             return [(file, dest, size) for file, size in glob_paths]
+#         if not is_dir_dest:
+#             print('destination must name a directory when matching multiple files')
+#             raise NotADirectoryError
+#
+#     # https://cloud.google.com/storage/docs/gsutil/commands/cp#how-names-are-constructed_1
+#     return [(file, dest.rstrip('/') + '/' + get_dest_path(file, src, is_dir_dest), size) for file, size in glob_paths]
+
+
+
+
+
+    # is_dir_src, is_dir_dest = await asyncio.gather(is_dir(src), is_dir(dest))
+    # recursive_match = any_recursive_match(src, (p for p, _ in glob_paths))
+    #
+    # # local src files
+    # if not is_gcs_path(src):
+    #     if not is_dir_src and not is_dir_dest:
+    #         assert not recursive_match
+    #         if len(glob_paths) == 1:
+    #             return [(file, dest, size) for file, size in glob_paths]
+    #         print('destination must name a directory when matching multiple files')
+    #         raise NotADirectoryError
+    #     if not is_dir_src and is_dir_dest:
+    #         dest = dest.rstrip('/') + '/'
+    #         return [(file, f'{dest}{os.path.basename(file)}', size) for file, size in glob_paths]
+    #     assert is_dir_src
+    #     # https://cloud.google.com/storage/docs/gsutil/commands/cp#how-names-are-constructed_1
+    #     include_recurse_dir = not is_gcs_path(dest) or dest.endswith('/') or await dir_exists(dest)
+    #     return [(path, dest.rstrip('/') + '/' + get_dest_path(path, src, include_recurse_dir), size) for path, size in glob_paths]
+
+
+# is_file_dest, is_dir_dest = await asyncio.gather(file_exists(dest), dir_exists(dest))
+
+
+
+
+
+# async def add_destination_paths(src, glob_paths, dest):
+#     is_dir_src = await is_dir(src)
+#     is_dir_dest = await is_dir(dest)
+#
+#     if len(glob_paths) == 0:
+#         raise FileNotFoundError
+#
+#     if is_gcs_path(src) and not is_gcs_path(dest):
+#         has_recursive_match = any_recursive_match(src, [p for p, _ in glob_paths])
+#         if not has_recursive_match and dest.endswith('/') and not await dir_exists(dest):
+#             if len(glob_paths) == 1:
+#                 if is_gcs_path(src):
+#                     print('skipping destination file ending with slash')
+#                     return []
+#                 print('destination is a directory')
+#                 raise IsADirectoryError
+#             if len(glob_paths) > 1:
+#                 print('destination must name a directory when matching multiple files')
+#                 raise NotADirectoryError
+#
+#     if is_gcs_path(src) and src.endswith('/'):
+#         src_is_file = len(await gcs_client.glob_gs_files(src, recursive=False)) == 1
+#         if src_is_file:
+#             if not is_gcs_path(dest) and is_dir_dest:
+#                 print(f'cannot copy a remote file ending in a slash to a local directory')
+#                 raise NotImplementedError
+#             return [(file, dest, size) for file, size in glob_paths]
+#
+#     if is_gcs_path(src) and not is_gcs_path(dest):
+#         filtered_glob_paths = []
+#         for path, size in glob_paths:
+#             if path.endswith('/'):
+#                 print(f'ignoring file ending with slash of size {humanize.naturalsize(size)}, {path}')
+#             filtered_glob_paths.append((path, size))
+#         glob_paths = filtered_glob_paths
+#
+#     if not is_dir_src and not is_dir_dest:
+#         if len(glob_paths) == 1:
+#             return [(file, dest, size) for file, size in glob_paths]
+#         if is_gcs_path(dest):
+#             include_recurse_dir = False
+#             return [(path, dest.rstrip('/') + '/' + get_dest_path(path, src, include_recurse_dir), size)
+#                     for path, size in glob_paths]
+#         raise NotADirectoryError
+#
+#     if not is_dir_src and is_dir_dest:
+#         dest = dest.rstrip('/') + '/'
+#         return [(file, f'{dest}{os.path.basename(file)}', size) for file, size in glob_paths]
+#
+#     # https://cloud.google.com/storage/docs/gsutil/commands/cp#how-names-are-constructed_1
+#     include_recurse_dir = not is_gcs_path(dest) or dest.endswith('/') or await dir_exists(dest)
+#     return [(path, dest.rstrip('/') + '/' + get_dest_path(path, src, include_recurse_dir), size) for path, size in glob_paths]
+
+import time
+class Timer:
+    def __init__(self, desc):
+        self.start = None
+        self.desc = desc
+
+    def __enter__(self):
+        self.start = time.time()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        print(f'took {self.desc} {time.time() - self.start}s')
 
 
 class Copier:
@@ -218,8 +372,11 @@ class Copier:
 
     async def copy(self, src, dest):
         cp = self._copy_method_for_remoteness(is_gcs_path(src), is_gcs_path(dest))
-        recursive = src.endswith('/') or contains_wildcard(src) or not await is_file(src)
-        tasks = await add_destination_paths(src, await self._glob(src, recursive=recursive), dest)
+        recursive = src.endswith('/') or contains_wildcard(src) or not await file_exists(src)
+        with Timer('glob files'):
+            glob_paths = await self._glob(src, recursive=recursive)
+        with Timer('add dest paths'):
+            tasks = await add_destination_paths(src, glob_paths, dest)
         for s, d, size in tasks:
             await cp(s, d, size)
 
@@ -316,43 +473,48 @@ async def main():
     parser.add_argument('--min-partition-size', type=str, default='1Gi')
     parser.add_argument('-f', '--files', action='append', type=str, nargs=2, metavar=('src', 'dest'))
 
-    args = parser.parse_args()
+    with Timer('parse args'):
+        args = parser.parse_args()
 
     global process_pool, thread_pool, gcs_client, file_lock_store, async_os
 
-    process_pool = concurrent.futures.ProcessPoolExecutor(
-        initializer=process_initializer,
-        initargs=(args.project, args.key_file))
+    with Timer('setup all global variables'):
+        process_pool = concurrent.futures.ProcessPoolExecutor(
+            initializer=process_initializer,
+            initargs=(args.project, args.key_file))
 
-    thread_pool = concurrent.futures.ThreadPoolExecutor()
-    credentials = google.oauth2.service_account.Credentials.from_service_account_file(args.key_file)
-    gcs_client = GCS(thread_pool, project=args.project, credentials=credentials)
+        thread_pool = concurrent.futures.ThreadPoolExecutor()
+        credentials = google.oauth2.service_account.Credentials.from_service_account_file(args.key_file)
+        gcs_client = GCS(thread_pool, project=args.project, credentials=credentials)
 
-    async_os = AsyncOS(thread_pool)
+        async_os = AsyncOS(thread_pool)
 
-    file_worker_pool = AsyncWorkerPool(10)  # max 10 simultaneous globbing of files
-    file_pool = WaitableSharedPool(file_worker_pool, ignore_errors=False)
+        file_worker_pool = AsyncWorkerPool(10)  # max 10 simultaneous globbing of files
+        file_pool = WaitableSharedPool(file_worker_pool, ignore_errors=False)
 
-    copy_worker_pool = AsyncWorkerPool(args.parallelism)
-    copy_pool = WaitableSharedPool(copy_worker_pool, ignore_errors=False)
+        copy_worker_pool = AsyncWorkerPool(args.parallelism)
+        copy_pool = WaitableSharedPool(copy_worker_pool, ignore_errors=False)
 
-    file_lock_store = NamedLockStore()
+        file_lock_store = NamedLockStore()
 
-    copier = Copier(copy_pool, parse_memory_in_bytes(args.min_partition_size),
-                    args.max_upload_partitions, args.max_download_partitions)
+        copier = Copier(copy_pool, parse_memory_in_bytes(args.min_partition_size),
+                        args.max_upload_partitions, args.max_download_partitions)
 
     try:
         for src, dest in args.files:
             if '**' in src:
                 raise NotImplementedError(f'** not supported; got {src}')
-            await file_pool.call(copier.copy, src, dest)
-        await file_pool.wait()
-        await copy_pool.wait()
+            with Timer('glob and add to copy pool'):
+                await file_pool.call(copier.copy, src, dest)
+        with Timer('wait for globbing and copying to be done'):
+            await file_pool.wait()
+            await copy_pool.wait()
     finally:
-        await file_worker_pool.cancel()
-        await copy_worker_pool.cancel()
+        with Timer('cancel worker pools'):
+            await file_worker_pool.cancel()
+            await copy_worker_pool.cancel()
 
-
-loop = asyncio.get_event_loop()
-loop.run_until_complete(main())
-loop.close()
+with Timer('time in event loop'):
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
+    loop.close()

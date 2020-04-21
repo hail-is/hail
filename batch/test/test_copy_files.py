@@ -6,6 +6,7 @@ import uuid
 import random
 import string
 import time
+from shlex import quote as shq
 import google.oauth2.service_account
 from hailtop.auth import get_userinfo
 from hailtop.utils.os import _glob
@@ -34,18 +35,20 @@ class RemoteTemporaryDirectory:
         return self.name
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        remove_remote_dir(self.name)
+        with Timer('remove remote temporary directory'):
+            remove_remote_dir(self.name)
 
 
 class Timer:
-    def __init__(self):
+    def __init__(self, desc=None):
         self.start = None
+        self.desc = desc
 
     def __enter__(self):
         self.start = time.time()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        print(f'took {time.time() - self.start}s')
+        print(f'took {self.desc} {time.time() - self.start}s')
 
 
 def upload_files(src, dest):
@@ -82,7 +85,7 @@ def cp_batch(src, dest, parallelism=1, min_partition_size='1Gi',
            '--max-download-partitions', str(max_download_partitions),
            '-f', src, dest]
     print(' '.join(cmd))
-    with Timer():
+    with Timer('batch sp'):
         result = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
     return str(result.stdout), result.returncode
 
@@ -90,7 +93,7 @@ def cp_batch(src, dest, parallelism=1, min_partition_size='1Gi',
 def cp_gsutil(src, dest):
     cmd = ['gsutil', '-m', '-q', 'cp', '-r', src, dest]
     print(' '.join(cmd))
-    with Timer():
+    with Timer('gsutil sp'):
         result = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
     return str(result.stdout), result.returncode
 
@@ -107,13 +110,17 @@ def glob_remote_files(dir):
 
 
 def _copy_to_local(src, dest):
-    with tempfile.TemporaryDirectory() as batch_dest_dir:
-        batch_output, batch_rc = cp_batch(src, batch_dest_dir + dest)
-        batch_files = glob_local_files(batch_dest_dir)
+    with Timer('copy batch with local temp dir'):
+        with tempfile.TemporaryDirectory() as batch_dest_dir:
+            batch_output, batch_rc = cp_batch(src, batch_dest_dir + dest)
+            with Timer('glob local files'):
+                batch_files = glob_local_files(batch_dest_dir)
 
-    with tempfile.TemporaryDirectory() as gsutil_dest_dir:
-        gsutil_output, gsutil_rc = cp_gsutil(src, gsutil_dest_dir + dest)
-        gsutil_files = glob_local_files(gsutil_dest_dir)
+    with Timer('copy gsutil with local temp dir'):
+        with tempfile.TemporaryDirectory() as gsutil_dest_dir:
+            gsutil_output, gsutil_rc = cp_gsutil(src, gsutil_dest_dir + dest)
+            with Timer('glob local files'):
+                gsutil_files = glob_local_files(gsutil_dest_dir)
 
     return {
         'batch': {'files': batch_files, 'output': batch_output, 'rc': batch_rc},
@@ -122,13 +129,17 @@ def _copy_to_local(src, dest):
 
 
 def _copy_to_remote(src, dest):
-    with RemoteTemporaryDirectory() as batch_dest_dir:
-        batch_output, batch_rc = cp_batch(src, batch_dest_dir + dest)
-        batch_files = glob_remote_files(batch_dest_dir)
+    with Timer('copy batch with remote temp dir'):
+        with RemoteTemporaryDirectory() as batch_dest_dir:
+            batch_output, batch_rc = cp_batch(src, batch_dest_dir + dest)
+            with Timer('glob remote files'):
+                batch_files = glob_remote_files(batch_dest_dir)
 
-    with RemoteTemporaryDirectory() as gsutil_dest_dir:
-        gsutil_output, gsutil_rc = cp_gsutil(src, gsutil_dest_dir + dest)
-        gsutil_files = glob_remote_files(gsutil_dest_dir)
+    with Timer('copy gsutil with remote temp dir'):
+        with RemoteTemporaryDirectory() as gsutil_dest_dir:
+            gsutil_output, gsutil_rc = cp_gsutil(src, gsutil_dest_dir + dest)
+            with Timer('glob remote files'):
+                gsutil_files = glob_remote_files(gsutil_dest_dir)
 
     return {
         'batch': {'files': batch_files, 'output': batch_output, 'rc': batch_rc},
@@ -259,7 +270,7 @@ class TestSingleFileTopLevel(unittest.TestCase):
         self.assert_batch_same_as_gsutil('/data/', '/')
 
     def test_download_directory_without_slash(self):
-        self.assert_batch_same_as_gsutil('/data/', '')
+        self.assert_batch_same_as_gsutil('/data', '')
 
     def test_download_single_wildcard(self):
         self.assert_batch_same_as_gsutil('/data/*', '/')
