@@ -44,8 +44,6 @@ object PBaseStruct {
 abstract class PBaseStruct extends PType {
   val types: Array[PType]
 
-  assert(types.forall(_.isRealizable))
-
   val fields: IndexedSeq[PField]
 
   lazy val allFieldsRequired: Boolean = types.forall(_.required)
