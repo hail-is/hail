@@ -1032,6 +1032,7 @@ steps:
      fi
 
      python3 -c '
+     import aiohttp
      from hailtop.auth import copy_paste_login;
      try:
          copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
