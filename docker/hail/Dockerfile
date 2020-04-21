@@ -26,11 +26,12 @@ RUN tar xvf wheel-container.tar && \
       scikit-learn \
       scipy \
     && rm -rf hail-*-py3-none-any.whl
-RUN curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar \
-         > $(find_spark_home.py)/jars/gcs-connector-hadoop2-2.0.1.jar && \
-    mkdir -p $(find_spark_home.py)/conf && \
-    touch $(find_spark_home.py)/spark-defaults.conf && \
-    sed -i $(find_spark_home.py)/spark-defaults.conf \
+RUN export SPARK_HOME=$(find_spark_home.py) && \
+    curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar \
+         >$SPARK_HOME /jars/gcs-connector-hadoop2-2.0.1.jar && \
+    mkdir -p $SPARK_HOME/conf && \
+    touch $SPARK_HOME/spark-defaults.conf && \
+    sed -i $SPARK_HOME/spark-defaults.conf \
         -e 's:spark\.hadoop\.google\.cloud\.auth\.service\.account\.enable.*:spark.hadoop.google.cloud.auth.service.account.enable true:' \
         -e 's:spark\.hadoop\.google\.cloud\.auth\.service\.account\.json\.keyfile.*:spark\.hadoop\.google\.cloud\.auth\.service\.account\.json\.keyfile /gsa-key/key.json:'
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux

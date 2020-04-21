@@ -1555,7 +1555,7 @@ steps:
    name: hail_public_image
    dockerFile: docker/hail/Dockerfile
    contextPath: docker/hail/
-   publishAs: hail_public
+   publishAs: hail-public
    dependsOn:
     - build_hail
    inputs:
@@ -1576,7 +1576,7 @@ steps:
    name: genetics_public_image
    dockerFile: docker/genetics/Dockerfile
    contextPath: docker/genetics/
-   publishAs: genetics
+   publishAs: genetics-public
    dependsOn:
     - hail_public_image
  - kind: runImage
