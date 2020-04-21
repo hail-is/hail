@@ -645,30 +645,6 @@ private class Emit[C](
         emitI(v).consume(cb, cb.assign(m, const(true)), { _ => cb.assign(m, const(false)) })
         presentC(m)
 
-      /* FIXME
-      case If(cond, cnsq, altr) =>
-        assert(cnsq.typ == altr.typ)
-
-        emitI(cond).flatMap(cb) { cond =>
-          val out = mb.newPLocal("emitI_if_out", pt)
-          val m = cb.newLocal("emitI_if_m", const(false))
-          cb.ifx(cond.tcode[Boolean], {
-            emitI(cnsq).consume(cb, {
-              cb.assign(m, const(true))
-            }, { pc =>
-              cb.assign(out, pc)
-            })
-          }, {
-            emitI(altr).consume(cb, {
-              cb.assign(m, const(true))
-            }, { pc =>
-              cb.assign(out, pc)
-            })
-          })
-          IEmitCode(cb, m, out.load())
-        }
-      */
-
       case x@ArrayRef(a, i, s) =>
         val errorTransformer: Code[String] => Code[String] = s match {
           case Str("") =>
