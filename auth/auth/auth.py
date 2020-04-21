@@ -1,3 +1,5 @@
+import base64
+import secrets
 import logging
 import aiohttp
 from aiohttp import web
@@ -12,7 +14,7 @@ from gear import (
     setup_aiohttp_session,
     rest_authenticated_users_only, web_authenticated_developers_only,
     web_maybe_authenticated_user, web_authenticated_users_only, create_session,
-    check_csrf_token, create_copy_paste_token, transaction, Database
+    check_csrf_token, transaction, Database
 )
 from web_common import (
     setup_aiohttp_jinja2, setup_common_static_routes, set_message,
@@ -89,22 +91,28 @@ async def callback(request):
         log.exception('oauth2 callback: could not fetch and verify token')
         raise web.HTTPUnauthorized()
 
-    dbpool = request.app['dbpool']
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute("SELECT * FROM users WHERE email = %s AND state = 'active';", email)
-            users = await cursor.fetchall()
+    db = request.app['db']
+    users = db.select_and_fetchall(
+        "SELECT * FROM users WHERE email = %s AND state = 'active';", email)
 
     if len(users) != 1:
         raise web.HTTPUnauthorized()
     user = users[0]
 
-    session_id = await create_session(dbpool, user['id'])
+    session_id = await create_session(db, user['id'])
 
     del session['state']
     session['session_id'] = session_id
     next = session.pop('next')
     return aiohttp.web.HTTPFound(next)
+
+
+async def create_copy_paste_token(db, session_id, max_age_secs=300):
+    copy_paste_token = base64.b32encode(secrets.token_bytes(32)).decode('ascii')
+    await db.just_execute(
+        "INSERT INTO copy_paste_tokens (id, session_id, max_age_secs) VALUES(%s, %s, %s);",
+        (copy_paste_token, session_id, max_age_secs))
+    return copy_paste_token
 
 
 @routes.post('/copy-paste-token')
@@ -113,8 +121,8 @@ async def callback(request):
 async def get_copy_paste_token(request, userdata):
     session = await aiohttp_session.get_session(request)
     session_id = session['session_id']
-    dbpool = request.app['dbpool']
-    copy_paste_token = await create_copy_paste_token(dbpool, session_id)
+    db = request.app['db']
+    copy_paste_token = await create_copy_paste_token(db, session_id)
     page_context = {
         'copy_paste_token': copy_paste_token
     }
@@ -125,8 +133,8 @@ async def get_copy_paste_token(request, userdata):
 @rest_authenticated_users_only
 async def get_copy_paste_token_api(request, userdata):
     session_id = userdata['session_id']
-    dbpool = request.app['dbpool']
-    copy_paste_token = await create_copy_paste_token(dbpool, session_id)
+    db = request.app['db']
+    copy_paste_token = await create_copy_paste_token(db, session_id)
     return web.Response(body=copy_paste_token)
 
 
@@ -137,11 +145,9 @@ async def logout(request, userdata):
     if not userdata:
         return web.HTTPFound(deploy_config.external_url('notebook', ''))
 
-    dbpool = request.app['dbpool']
+    db = request.app['db']
     session_id = userdata['session_id']
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute('DELETE FROM sessions WHERE session_id = %s;', session_id)
+    await db.just_execute('DELETE FROM sessions WHERE session_id = %s;', session_id)
 
     session = await aiohttp_session.get_session(request)
     if 'session_id' in session:
@@ -168,11 +174,8 @@ async def rest_login(request):
 @routes.get('/users')
 @web_authenticated_developers_only()
 async def get_users(request, userdata):
-    dbpool = request.app['dbpool']
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute('SELECT * FROM users;')
-            users = await cursor.fetchall()
+    db = request.app['db']
+    users = await db.execute_and_fetchall('SELECT * FROM users;')
     page_context = {
         'users': users
     }
@@ -184,21 +187,18 @@ async def get_users(request, userdata):
 @web_authenticated_developers_only()
 async def post_create_user(request, userdata):  # pylint: disable=unused-argument
     session = await aiohttp_session.get_session(request)
-    dbpool = request.app['dbpool']
+    db = request.app['db']
     post = await request.post()
     username = post['username']
     email = post['email']
     is_developer = post.get('is_developer') == '1'
 
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute(
-                '''
+    user_id = await db.execute_insertone(
+        '''
 INSERT INTO users (state, username, email, is_developer)
 VALUES (%s, %s, %s, %s);
 ''',
-                ('creating', username, email, is_developer))
-            user_id = cursor.lastrowid
+        ('creating', username, email, is_developer))
 
     set_message(session, f'Created user {user_id} {username}.', 'info')
 
@@ -210,25 +210,23 @@ VALUES (%s, %s, %s, %s);
 @web_authenticated_developers_only()
 async def delete_user(request, userdata):  # pylint: disable=unused-argument
     session = await aiohttp_session.get_session(request)
-    dbpool = request.app['dbpool']
+    db = request.app['db']
     post = await request.post()
     id = post['id']
     username = post['username']
 
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            n_rows = await cursor.execute(
-                '''
+    n_rows = await db.execute_update(
+        '''
 UPDATE users
 SET state = 'deleting'
 WHERE id = %s AND username = %s;
 ''',
-                (id, username))
-            if n_rows != 1:
-                assert n_rows == 0
-                set_message(session, f'Delete failed, no such user {id} {username}.', 'error')
-
-    set_message(session, f'Deleted user {id} {username}.', 'info')
+        (id, username))
+    if n_rows != 1:
+        assert n_rows == 0
+        set_message(session, f'Delete failed, no such user {id} {username}.', 'error')
+    else:
+        set_message(session, f'Deleted user {id} {username}.', 'info')
 
     return web.HTTPFound(deploy_config.external_url('auth', '/users'))
 
@@ -249,17 +247,14 @@ async def rest_callback(request):
         log.exception('fetching and decoding token')
         raise web.HTTPUnauthorized()
 
-    dbpool = request.app['dbpool']
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute("SELECT * FROM users WHERE email = %s AND state = 'active';", email)
-            users = await cursor.fetchall()
+    db = request.app['db']
+    users = db.execute_fetchall("SELECT * FROM users WHERE email = %s AND state = 'active';", email)
 
     if len(users) != 1:
         raise web.HTTPUnauthorized()
     user = users[0]
 
-    session_id = await create_session(dbpool, user['id'], max_age_secs=None)
+    session_id = await create_session(db, user['id'], max_age_secs=None)
 
     return web.json_response({
         'token': session_id,
@@ -298,10 +293,8 @@ WHERE copy_paste_tokens.id = %s
 @rest_authenticated_users_only
 async def rest_logout(request, userdata):
     session_id = userdata['session_id']
-    dbpool = request.app['dbpool']
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute('DELETE FROM sessions WHERE session_id = %s;', session_id)
+    db = request.app['db']
+    await db.just_execute('DELETE FROM sessions WHERE session_id = %s;', session_id)
 
     return web.Response(status=200)
 
@@ -323,15 +316,12 @@ async def userinfo(request):
         log.info('Session id != 44 bytes')
         raise web.HTTPUnauthorized()
 
-    dbpool = request.app['dbpool']
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute('''
+    db = request.app['db']
+    users = await db.execute_fetchall('''
 SELECT users.*, sessions.session_id FROM users
 INNER JOIN sessions ON users.id = sessions.user_id
 WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
 ''', session_id)
-            users = await cursor.fetchall()
 
     if len(users) != 1:
         log.info(f'Unknown session id: {session_id}')
@@ -345,13 +335,10 @@ async def on_startup(app):
     db = Database()
     await db.async_init(maxsize=50)
     app['db'] = db
-    app['dbpool'] = db.pool
 
 
 async def on_cleanup(app):
-    dbpool = app['dbpool']
-    dbpool.close()
-    await dbpool.wait_closed()
+    await app['db'].async_close()
 
 
 def run():
