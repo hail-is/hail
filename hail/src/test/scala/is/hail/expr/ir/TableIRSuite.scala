@@ -374,8 +374,7 @@ class TableIRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.allRelational
     val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
     Array(1, 10, 17, 34, 103).foreach { length =>
-      val mySeq = FastIndexedSeq((0 until length): _*).map(i => Row(i, "row" + i))
-      val value = Row(mySeq, Row("global"))
+      val value = Row(FastIndexedSeq(0 until length: _*).map(i => Row(i, "row" + i)), Row("global"))
       assertEvalsTo(
         collectNoKey(
           TableParallelize(
