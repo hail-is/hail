@@ -1,14 +1,14 @@
 package is.hail.shuffler
 
-import org.apache.log4j.Logger
-import is.hail.utils._
-import is.hail.annotations._
-import is.hail.expr.types.virtual.TStruct
-import is.hail.io.TypedCodecSpec
 import java.io._
 
+import is.hail.annotations._
 import is.hail.expr.ir.ExecuteContext
+import is.hail.expr.types.virtual.TStruct
+import is.hail.io.TypedCodecSpec
+import is.hail.utils._
 import javax.net.ssl._
+import org.apache.log4j.Logger
 
 class ShuffleClient (
   t: TStruct,
@@ -87,5 +87,13 @@ class ShuffleClient (
     assert(hasNext == 0)
     log.info(s"CLNT get done")
     ab.result()
+  }
+
+  def stop(): Unit = {
+    log.info(s"CLNT stop")
+    out.write(Wire.STOP)
+    Wire.writeByteArray(out, uuid)
+    out.flush()
+    log.info(s"CLNT stop done")
   }
 }
