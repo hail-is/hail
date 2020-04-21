@@ -272,16 +272,15 @@ async def rest_copy_paste_login(request):
 
     @transaction(db)
     async def maybe_pop_token(tx):
-        sessions = await tx.execute_and_fetchone("""
+        session = await tx.execute_and_fetchone("""
 SELECT sessions.session_id AS session_id, users.username AS username FROM copy_paste_tokens
 INNER JOIN sessions ON sessions.session_id = copy_paste_tokens.session_id
 INNER JOIN users ON users.id = sessions.user_id
 WHERE copy_paste_tokens.id = %s
   AND NOW() < TIMESTAMPADD(SECOND, copy_paste_tokens.max_age_secs, copy_paste_tokens.created)
   AND users.state = 'active';""", copy_paste_token)
-        if sessions is None:
+        if session is None:
             raise web.HTTPUnauthorized()
-        session = sessions[0]
         await tx.just_execute("DELETE FROM copy_paste_tokens WHERE id = %s;", copy_paste_token)
         return session
 
