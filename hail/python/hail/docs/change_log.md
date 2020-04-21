@@ -28,7 +28,7 @@ Released 2020-04-21
 
 ### Critical Linreg Aggregator Correctness Bug
 
-- (hail#8575) Fixed a correctness bug in the linear regression aggregator. This was introduce in version 0.2.29.
+- (hail#8575) Fixed a correctness bug in the linear regression aggregator. This was introduced in version 0.2.29.
 See https://discuss.hail.is/t/possible-incorrect-linreg-aggregator-results-in-0-2-29-0-2-37/1375 for more details.
 
 ### Performance improvements
