@@ -297,7 +297,7 @@ steps:
              tokens[auth_ns] = await create_session(db, user_id)
              tokens.write()
          finally:
-             db.async_close()
+             await db.async_close()
      async_to_blocking(main())
      EOF
      # batch, auth gsa keys
