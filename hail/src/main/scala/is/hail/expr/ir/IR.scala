@@ -1,13 +1,16 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, Region}
+import is.hail.asm4s.Value
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
+import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions._
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.utils.{FastIndexedSeq, _}
+import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 
 import scala.language.existentials
 
@@ -466,7 +469,37 @@ final case class CollectDistributedArray(contexts: IR, globals: IR, cname: Strin
   def decodedBodyPType: PType = decodedBodyPTuple.types(0)
 }
 
-final case class ReadPartition(path: IR, spec: AbstractTypedCodecSpec, rowType: TStruct) extends IR
+object PartitionReader {
+  implicit val formats: Formats = new DefaultFormats() {
+    override val typeHints = ShortTypeHints(List(
+      classOf[PartitionNativeReader],
+      classOf[AbstractTypedCodecSpec],
+      classOf[TypedCodecSpec])
+    ) + BufferSpec.shortTypeHints
+    override val typeHintFieldName = "name"
+  }  +
+    new TStructSerializer +
+    new TypeSerializer +
+    new PTypeSerializer
+}
+
+abstract class PartitionReader {
+  def contextType: Type
+
+  def fullRowType: Type
+
+  def rowPType(requestedType: Type): PType
+
+  def emitStream[C](context: IR,
+    requestedType: Type,
+    emitter: Emit[C],
+    mb: EmitMethodBuilder[C],
+    region: Value[Region],
+    env0: Emit.E,
+    container: Option[AggContainer]): COption[SizedStream]
+}
+
+final case class ReadPartition(context: IR, rowType: Type, reader: PartitionReader) extends IR
 
 final case class ReadValue(path: IR, spec: AbstractTypedCodecSpec, requestedType: Type) extends IR
 final case class WriteValue(value: IR, pathPrefix: IR, spec: AbstractTypedCodecSpec) extends IR
