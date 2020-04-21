@@ -29,9 +29,9 @@ if __name__ == '__main__':
                  default_memory='7G',
                  default_cpu=2,
                  attributes={'output_file': output_file,
-                             'n_replicates': N_REPLICATES,
-                             'n_iters': N_ITERS,
-                             'image': BENCHMARK_IMAGE})
+                             'n_replicates': str(N_REPLICATES),
+                             'n_iters': str(N_ITERS),
+                             'image': str(BENCHMARK_IMAGE)})
 
     resource_tasks = {}
     for r in all_resources:
