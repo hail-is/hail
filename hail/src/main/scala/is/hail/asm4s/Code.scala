@@ -483,7 +483,7 @@ class VCode[+T](
 
   def check(): Unit = {
     /*
-    if (start == null) {
+    if (_start == null) {
       println(clearStack.mkString("\n"))
       println("-----")
       println(stack.mkString("\n"))
