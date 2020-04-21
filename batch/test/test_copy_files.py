@@ -3,15 +3,18 @@ import unittest
 import tempfile
 import subprocess as sp
 import uuid
+import copy
 import random
 import string
-import time
-from shlex import quote as shq
+import json
+from functools import wraps
 import google.oauth2.service_account
 from hailtop.auth import get_userinfo
 from hailtop.utils.os import _glob
+from hailtop.utils import async_to_blocking
 
 from batch.google_storage import GCS
+from batch.worker.copy_files import copy_files, OperationNotPermittedError
 
 # key_file = '/gsa-key/key.json'
 # project = os.environ['PROJECT']
@@ -25,9 +28,29 @@ tmp_bucket = f'gs://hail-jigold-59hi5/test_copy_files'
 credentials = google.oauth2.service_account.Credentials.from_service_account_file(key_file)
 gcs_client = GCS(None, project=project, credentials=credentials)
 
+rerun_gsutil = False
+batch_dry_run = True
+
+cd = os.path.dirname(os.path.abspath(__file__))
+prerun_gsutil_result_file = f'{cd}/resources/prerun_gsutil_results.json'
+
+if os.path.isfile(prerun_gsutil_result_file):
+    with open(prerun_gsutil_result_file, 'r') as f:
+        gsutil_results = json.loads(f.read())
+else:
+    with open(prerun_gsutil_result_file, 'w') as f:
+        f.write(json.dumps({}))
+    gsutil_results = {}
+
+
+def tearDownModule():
+    with open(prerun_gsutil_result_file, 'w') as f:
+        f.write(json.dumps(gsutil_results))
+
 
 class RemoteTemporaryDirectory:
-    def __init__(self):
+    def __init__(self, dry_run=False):
+        self.dry_run = dry_run
         token = uuid.uuid4().hex[:6]
         self.name = tmp_bucket + f'/{token}'
 
@@ -35,20 +58,8 @@ class RemoteTemporaryDirectory:
         return self.name
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        with Timer('remove remote temporary directory'):
+        if not self.dry_run:
             remove_remote_dir(self.name)
-
-
-class Timer:
-    def __init__(self, desc=None):
-        self.start = None
-        self.desc = desc
-
-    def __enter__(self):
-        self.start = time.time()
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        print(f'took {self.desc} {time.time() - self.start}s')
 
 
 def upload_files(src, dest):
@@ -61,7 +72,7 @@ def move_files(src, dest):
 
 def remove_remote_dir(path):
     path = path.rstrip('/') + '/'
-    sp.run(['gsutil', '-m', '-q', 'rm', '-r', path], stdout=sp.PIPE, stderr=sp.PIPE)
+    gcs_client._delete_gs_files(path)
 
 
 def touch_file(path, data=None):
@@ -74,163 +85,183 @@ def touch_file(path, data=None):
             file.write(data)
 
 
+def strip_dest_path(files, root):
+    return {f.replace(root, '') for f in files}
+
+
+def glob_local_files(dir):
+    try:
+        files = [path for path, _ in _glob(dir, recursive=True)]
+    except:
+        files = []
+    return strip_dest_path(files, dir)
+
+
+def glob_remote_files(dir):
+    try:
+        blobs = gcs_client._glob_gs_files(dir, recursive=True)
+    except:
+        blobs = []
+    files = {'gs://' + blob.bucket.name + '/' + blob.name for blob in blobs}
+    return strip_dest_path(files, dir)
+
+
 def cp_batch(src, dest, parallelism=1, min_partition_size='1Gi',
-             max_upload_partitions=32, max_download_partitions=32):
-    cmd = ['python3', '-u', '-m', 'batch.worker.copy_files',
-           '--key-file', key_file,
-           '--project', project,
-           '--parallelism', str(parallelism),
-           '--min-partition-size', min_partition_size,
-           '--max-upload-partitions', str(max_upload_partitions),
-           '--max-download-partitions', str(max_download_partitions),
-           '-f', src, dest]
-    print(' '.join(cmd))
-    with Timer('batch sp'):
-        result = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
-    return str(result.stdout), result.returncode
+             max_upload_partitions=32, max_download_partitions=32,
+             dry_run=False):
+    files = [(src, dest)]
+    coro = copy_files(files, key_file, project,
+                      parallelism=parallelism,
+                      min_partition_size=min_partition_size,
+                      max_upload_partitions=max_upload_partitions,
+                      max_download_partitions=max_download_partitions,
+                      dry_run=dry_run)
+    try:
+        files = async_to_blocking(coro)[0]  # only one src, dest pair
+        files = {dest for _, dest, _ in files}
+        return (files, None)
+    except Exception as err:
+        return ({}, err)
 
 
 def cp_gsutil(src, dest):
     cmd = ['gsutil', '-m', '-q', 'cp', '-r', src, dest]
-    print(' '.join(cmd))
-    with Timer('gsutil sp'):
-        result = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
-    return str(result.stdout), result.returncode
+    result = sp.run(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
+    return str(result.stdout), result.returncode, ' '.join(cmd)
 
 
-def glob_local_files(dir):
-    files = _glob(dir, recursive=True)
-    return {f.replace(dir, '') for f, _ in files}
+def _get_batch_results(src, dest, local_dir, remote_dir, versions, dry_run=True):
+    result = {}
+
+    if 'rr' in versions:
+        with RemoteTemporaryDirectory(dry_run=dry_run) as dest_dir:
+            rr_files, rr_err = cp_batch(f'{remote_dir}{src}', dest_dir + dest, dry_run=dry_run)
+            if not dry_run:
+                rr_files = glob_remote_files(dest_dir)
+            else:
+                rr_files = strip_dest_path(rr_files, dest_dir)
+            result['rr'] = {'files': rr_files, 'err': rr_err}
+
+    if 'rl' in versions:
+        with tempfile.TemporaryDirectory() as dest_dir:
+            rl_files, rl_err = cp_batch(f'{remote_dir}{src}', dest_dir + dest, dry_run=dry_run)
+            if not dry_run:
+                rl_files = glob_local_files(dest_dir)
+            else:
+                rl_files = strip_dest_path(rl_files, dest_dir)
+            result['rl'] = {'files': rl_files, 'err': rl_err}
+
+    if 'lr' in versions:
+        with RemoteTemporaryDirectory(dry_run=dry_run) as dest_dir:
+            lr_files, lr_err = cp_batch(f'{local_dir}{src}', dest_dir + dest, dry_run=dry_run)
+            if not dry_run:
+                lr_files = glob_remote_files(dest_dir)
+            else:
+                lr_files = strip_dest_path(lr_files, dest_dir)
+        result['lr'] = {'files': lr_files, 'err': lr_err}
+
+    if 'll' in versions:
+        with tempfile.TemporaryDirectory() as dest_dir:
+            ll_files, ll_err = cp_batch(f'{local_dir}{src}', dest_dir + dest, dry_run=dry_run)
+            if not dry_run:
+                ll_files = glob_local_files(dest_dir)
+            else:
+                ll_files = strip_dest_path(ll_files, dest_dir)
+        result['ll'] = {'files': ll_files, 'err': ll_err}
+
+    return result
 
 
-def glob_remote_files(dir):
-    blobs = gcs_client._glob_gs_files(dir, recursive=True)
-    files = {'gs://' + blob.bucket.name + '/' + blob.name for blob in blobs}
-    return {f.replace(dir, '') for f in files}
+def _get_gsutil_results(test_name, src, dest, local_dir, remote_dir, versions, use_cache=True):
+    result = {}
 
+    if use_cache and not rerun_gsutil:
+        test_result = gsutil_results.get(test_name)
+        if test_result and test_result['src'] == src and test_result['dest'] == dest:
+            tr = test_result['result']
+            for version in tr:
+                result[version] = copy.deepcopy(tr[version])
+                result[version]['files'] = set(result[version]['files'])
 
-def _copy_to_local(src, dest):
-    with Timer('copy batch with local temp dir'):
-        with tempfile.TemporaryDirectory() as batch_dest_dir:
-            batch_output, batch_rc = cp_batch(src, batch_dest_dir + dest)
-            with Timer('glob local files'):
-                batch_files = glob_local_files(batch_dest_dir)
+    if 'rr' in versions and 'rr' not in result:
+        with RemoteTemporaryDirectory() as dest_dir:
+            rr_output, rr_rc, rr_cmd = cp_gsutil(f'{remote_dir}{src}', dest_dir + dest)
+            rr_files = glob_remote_files(dest_dir)
+            result['rr'] = {'files': rr_files, 'output': rr_output, 'rc': rr_rc, 'cmd': rr_cmd}
 
-    with Timer('copy gsutil with local temp dir'):
-        with tempfile.TemporaryDirectory() as gsutil_dest_dir:
-            gsutil_output, gsutil_rc = cp_gsutil(src, gsutil_dest_dir + dest)
-            with Timer('glob local files'):
-                gsutil_files = glob_local_files(gsutil_dest_dir)
+    if 'rl' in versions and 'rl' not in result:
+        with tempfile.TemporaryDirectory() as dest_dir:
+            rl_output, rl_rc, rl_cmd = cp_gsutil(f'{remote_dir}{src}', dest_dir + dest)
+            rl_files = glob_local_files(dest_dir)
+            result['rl'] = {'files': rl_files, 'output': rl_output, 'rc': rl_rc, 'cmd': rl_cmd}
 
-    return {
-        'batch': {'files': batch_files, 'output': batch_output, 'rc': batch_rc},
-        'gsutil': {'files': gsutil_files, 'output': gsutil_output, 'rc': gsutil_rc}
+    if 'lr' in versions and 'lr' not in result:
+        with RemoteTemporaryDirectory() as dest_dir:
+            lr_output, lr_rc, lr_cmd = cp_gsutil(f'{local_dir}{src}', dest_dir + dest)
+            lr_files = glob_remote_files(dest_dir)
+            result['lr'] = {'files': lr_files, 'output': lr_output, 'rc': lr_rc, 'cmd': lr_cmd}
+
+    if 'll' in versions and 'll' not in result:
+        with tempfile.TemporaryDirectory() as dest_dir:
+            ll_output, ll_rc, ll_cmd = cp_gsutil(f'{local_dir}{src}', dest_dir + dest)
+            ll_files = glob_local_files(dest_dir)
+            result['ll'] = {'files': ll_files, 'output': ll_output, 'rc': ll_rc, 'cmd': ll_cmd}
+
+    result2 = copy.deepcopy(result)
+    for version in result2:
+        result2[version]['files'] = list(result2[version]['files'])
+    gsutil_results[test_name] = {
+        'src': src,
+        'dest': dest,
+        'result': result2
     }
 
-
-def _copy_to_remote(src, dest):
-    with Timer('copy batch with remote temp dir'):
-        with RemoteTemporaryDirectory() as batch_dest_dir:
-            batch_output, batch_rc = cp_batch(src, batch_dest_dir + dest)
-            with Timer('glob remote files'):
-                batch_files = glob_remote_files(batch_dest_dir)
-
-    with Timer('copy gsutil with remote temp dir'):
-        with RemoteTemporaryDirectory() as gsutil_dest_dir:
-            gsutil_output, gsutil_rc = cp_gsutil(src, gsutil_dest_dir + dest)
-            with Timer('glob remote files'):
-                gsutil_files = glob_remote_files(gsutil_dest_dir)
-
-    return {
-        'batch': {'files': batch_files, 'output': batch_output, 'rc': batch_rc},
-        'gsutil': {'files': gsutil_files, 'output': gsutil_output, 'rc': gsutil_rc}
-    }
+    return result
 
 
-def _run_copy_step(cp, src, dest):
-    result = cp(src, dest)
-    batch = result['batch']
-    gsutil = result['gsutil']
-    batch_error = batch['rc'] != 0
-    gsutil_error = gsutil['rc'] != 0
-    success = batch['files'] == gsutil['files'] and batch_error == gsutil_error
-    return {'success': success, 'result': result}
+def get_results(src, dest, versions=('rr', 'rl', 'lr', 'll'), use_cache=True, dry_run=batch_dry_run):
+    def wrap(fun):
+        @wraps(fun)
+        def wrapped(self, *args, **kwargs):
+            test_name = fun.__qualname__
+            g_result = _get_gsutil_results(test_name, src, dest, self.local_dir.name, self.remote_dir, versions, use_cache)
+            b_result = _get_batch_results(src, dest, self.local_dir.name, self.remote_dir, versions, dry_run=dry_run)
 
+            same = True
+            for v in versions:
+                g = g_result[v]
+                b = b_result[v]
+                same &= (g['files'] == b['files'])
+                same &= ((g['rc'] == 0 and b['err'] is None) or
+                         (g['rc'] != 0 and b['err'] is not None))
 
-def run_local_to_remote(src, dest):
-    assert not src.startswith('gs://')
-    return _run_copy_step(_copy_to_remote, src, dest)
-
-
-def run_remote_to_local(src, dest):
-    assert src.startswith('gs://')
-    return _run_copy_step(_copy_to_local, src, dest)
-
-
-def run_local_to_local(src, dest):
-    assert not src.startswith('gs://')
-    return _run_copy_step(_copy_to_local, src, dest)
-
-
-def run_remote_to_remote(src, dest):
-    assert src.startswith('gs://')
-    return _run_copy_step(_copy_to_remote, src, dest)
-
-
-def _run_batch_same_as_gsutil(local_dir, remote_dir, src, dest):
-    return {
-        'rr': run_remote_to_remote(f'{remote_dir}{src}', dest),
-        'rl': run_remote_to_local(f'{remote_dir}{src}', dest),
-        'lr': run_local_to_remote(f'{local_dir}{src}', dest),
-        'll': run_local_to_local(f'{local_dir}{src}', dest)
-    }
-
-
-def _get_output(result, version, method):
-    return result[version]['result'][method]['output']
-
-
-def _get_files(result, version, method):
-    return result[version]['result'][method]['files']
-
-
-def _get_rc(result, version, method):
-    return result[version]['result'][method]['rc']
-
-
-def _get_batch_gsutil_files_same(result):
-    return [result[t]['success'] for t in result]
+            return fun(self, b_result, g_result, same, *args, **kwargs)
+        return wrapped
+    return wrap
 
 
 class TestEmptyDirectory(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.local_dir = tempfile.TemporaryDirectory()
+        cls.remote_dir = None
+        # FIXME: figure out how to get an empty directory in remote
 
     @classmethod
     def tearDownClass(cls):
         cls.local_dir.cleanup()
 
-    def assert_batch_same_as_gsutil(self, src, dest):
-        result = {'ll': run_local_to_local(f'{self.local_dir.name}/', dest),
-                  'lr': run_local_to_remote(f'{self.local_dir.name}/', dest)}
-        assert all(_get_batch_gsutil_files_same(result)), str(result)
-        return result
+    @get_results('/', '/', ('ll', 'lr'))
+    def test_download_directory(self, batch_results, gsutil_results, same):
+        assert same
+        for v in batch_results:
+            assert isinstance(batch_results[v]['err'], FileNotFoundError)
 
-    def test_download_directory(self):
-        r = self.assert_batch_same_as_gsutil('/', '/')
-        assert 'FileNotFoundError' in _get_output(r, 'll', 'batch'), _get_output(r, 'll', 'batch')
-        assert 'FileNotFoundError' in _get_output(r, 'lr', 'batch'), _get_output(r, 'lr', 'batch')
-
-    def test_download_asterisk(self):
-        r = self.assert_batch_same_as_gsutil('/*', '/')
-        assert 'FileNotFoundError' in _get_output(r, 'll', 'batch'), _get_output(r, 'll', 'batch')
-        assert 'FileNotFoundError' in _get_output(r, 'lr', 'batch'), _get_output(r, 'lr', 'batch')
-
-    def test_download_double_asterisk(self):
-        result = run_local_to_local(f'{self.local_dir.name}/**', '/')
-        assert result['success'] != 0, str(result)
-        assert '** not supported' in result['result']['batch']['output'], result['result']['batch']['output']
+    @get_results('/*', '/', ('ll', 'lr'))
+    def test_download_asterisk(self, batch_results, gsutil_results, same):
+        assert same
+        for v in batch_results:
+            assert isinstance(batch_results[v]['err'], FileNotFoundError)
 
 
 class TestSingleFileTopLevel(unittest.TestCase):
@@ -247,51 +278,62 @@ class TestSingleFileTopLevel(unittest.TestCase):
         cls.local_dir.cleanup()
         remove_remote_dir(cls.remote_dir)
 
-    def assert_batch_same_as_gsutil(self, src, dest):
-        result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
-        assert all(_get_batch_gsutil_files_same(result)), str(result)
-        print(result)
-        return result
+    @get_results('/data/a', '/')
+    def test_download_file_by_name(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_file_by_name(self):
-        self.assert_batch_same_as_gsutil('/data/a', '/')
+    @get_results('/data/b', '/')
+    def test_download_file_not_exists(self, batch_results, gsutil_results, same):
+        assert same
+        for v in batch_results:
+            assert isinstance(batch_results[v]['err'], FileNotFoundError)
 
-    def test_download_file_not_exists(self):
-        result = self.assert_batch_same_as_gsutil('/data/b', '/')
-        assert 'FileNotFoundError' in _get_output(result, 'rr', 'batch'), _get_output(result, 'rr', 'batch')
-        assert 'FileNotFoundError' in _get_output(result, 'rl', 'batch'), _get_output(result, 'rl', 'batch')
-        assert 'FileNotFoundError' in _get_output(result, 'lr', 'batch'), _get_output(result, 'lr', 'batch')
-        assert 'FileNotFoundError' in _get_output(result, 'll', 'batch'), _get_output(result, 'll', 'batch')
+    @get_results('/data/a/', '/')
+    def test_download_file_by_name_with_slash(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_file_by_name_with_slash(self):
-        self.assert_batch_same_as_gsutil('/data/a/', '/')
+    @get_results('/data/', '/')
+    def test_download_directory(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_directory(self):
-        self.assert_batch_same_as_gsutil('/data/', '/')
+    @get_results('/data', '/')
+    def test_download_directory_without_slash(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_directory_without_slash(self):
-        self.assert_batch_same_as_gsutil('/data', '')
+    @get_results('/data/*', '/')
+    def test_download_single_wildcard(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_single_wildcard(self):
-        self.assert_batch_same_as_gsutil('/data/*', '/')
+    @get_results('/data/*/*', '/')
+    def test_download_multiple_wildcards(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_multiple_wildcards(self):
-        self.assert_batch_same_as_gsutil('/*/*', '/')
+    @get_results('/', '/', use_cache=False)
+    def test_download_top_level_directory(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_top_level_directory(self):
-        self.assert_batch_same_as_gsutil('/', '/')
+    @get_results('/data/a', '/b')
+    def test_download_file_by_name_with_rename(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_file_by_name_with_rename(self):
-        self.assert_batch_same_as_gsutil('/data/a', '/b')
+    @get_results('/data/*', '/b')
+    def test_download_file_by_wildcard_with_rename(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_file_by_wildcard_with_rename(self):
-        self.assert_batch_same_as_gsutil('/data/*', '/b')
+    @get_results('/data/a', '/foo/b')
+    def test_download_file_by_name_to_nonexistent_subdir(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_file_by_name_to_nonexistent_subdir(self):
-        self.assert_batch_same_as_gsutil('/data/a', '/foo/b')
+    @get_results('/data/*', '/foo/b')
+    def test_download_file_by_wildcard_to_nonexistent_subdir(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_file_by_wildcard_to_nonexistent_subdir(self):
-        self.assert_batch_same_as_gsutil('/data/*', '/foo/b')
+    @get_results('/**', '/', ('ll',))
+    def test_double_asterisk(self, batch_results, gsutil_results, same):
+        assert batch_results['ll']['files'] == set()
+        err = batch_results['ll']['err']
+        assert isinstance(err, NotImplementedError)
+        assert '** not supported' in err.args[0]
 
 
 class TestFileNestedInMultipleSubdirs(unittest.TestCase):
@@ -308,31 +350,33 @@ class TestFileNestedInMultipleSubdirs(unittest.TestCase):
         cls.local_dir.cleanup()
         remove_remote_dir(cls.remote_dir)
 
-    def assert_batch_same_as_gsutil(self, src, dest):
-        result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
-        assert all(_get_batch_gsutil_files_same(result)), str(result)
-        return result
+    @get_results('/data/a/b/c', '/')
+    def test_download_file_by_name(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_file_by_name(self):
-        self.assert_batch_same_as_gsutil('/data/a/b/c', '/')
+    @get_results('/data/a/b/c', '/foo')
+    def test_download_file_by_name_with_rename(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_file_by_name_with_rename(self):
-        self.assert_batch_same_as_gsutil('/data/a/b/c', '/foo')
+    @get_results('/data/', '/')
+    def test_download_directory_recursively(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_directory_recursively(self):
-        self.assert_batch_same_as_gsutil('/data/', '/')
+    @get_results('/data/*/b', '/')
+    def test_download_wildcard_subdir_without_slash(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_wildcard_subdir_without_slash(self):
-        self.assert_batch_same_as_gsutil('/data/*/b', '/')
+    @get_results('/data/*/b/', '/')
+    def test_download_wildcard_subdir_with_slash(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_wildcard_subdir_with_slash(self):
-        self.assert_batch_same_as_gsutil('/data/*/b/', '/')
+    @get_results('/data/*/*/', '/')
+    def test_download_double_wildcards(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_double_wildcards(self):
-        self.assert_batch_same_as_gsutil('/data/*/*/', '/')
-
-    def test_download_double_wildcards_plus_file_wildcard(self):
-        self.assert_batch_same_as_gsutil('/data/*/*/*', '/')
+    @get_results('/data/*/*/*', '/')
+    def test_download_double_wildcards_plus_file_wildcard(self, batch_results, gsutil_results, same):
+        assert same
 
 
 class TestDownloadMultipleFilesAtTopLevel(unittest.TestCase):
@@ -351,54 +395,54 @@ class TestDownloadMultipleFilesAtTopLevel(unittest.TestCase):
         cls.local_dir.cleanup()
         remove_remote_dir(cls.remote_dir)
 
-    def assert_batch_same_as_gsutil(self, src, dest):
-        result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
-        assert all(_get_batch_gsutil_files_same(result)), str(result)
-        return result
+    @get_results('/data/*', '/')
+    def test_download_file_asterisk(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_file_by_name(self):
-        self.assert_batch_same_as_gsutil('/data/a', '/')
+    @get_results('/data/*/', '/')
+    def test_download_file_asterisk_with_slash(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_file_with_rename(self):
-        self.assert_batch_same_as_gsutil('/data/a', '/b')
+    @get_results('/data/[ab]', '/')
+    def test_download_file_match_brackets(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_file_asterisk(self):
-        self.assert_batch_same_as_gsutil('/data/*', '/')
+    @get_results('/data/?', '/')
+    def test_download_file_question_mark(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_file_match_brackets(self):
-        self.assert_batch_same_as_gsutil('/data/[ab]', '/b')
+    @get_results('/data/??', '/')
+    def test_download_file_double_question_marks(self, batch_results, gsutil_results, same):
+        assert same
+        for v in batch_results:
+            assert isinstance(batch_results[v]['err'], FileNotFoundError)
 
-    def test_download_file_question_mark(self):
-        self.assert_batch_same_as_gsutil('/data/?', '/')
+    @get_results('/data/[ab]', '/b')
+    def test_download_multiple_files_to_single_file(self, batch_results, gsutil_results, same):
+        assert same
+        for v in batch_results:
+            assert isinstance(batch_results[v]['err'], NotADirectoryError)
 
-    def test_download_file_double_question_marks(self):
-        result = self.assert_batch_same_as_gsutil('/data/??', '/')
-        assert 'FileNotFoundError' in _get_output(result, 'rr', 'batch'), _get_output(result, 'rr', 'batch')
-        assert 'FileNotFoundError' in _get_output(result, 'rl', 'batch'), _get_output(result, 'rl', 'batch')
-        assert 'FileNotFoundError' in _get_output(result, 'lr', 'batch'), _get_output(result, 'lr', 'batch')
-        assert 'FileNotFoundError' in _get_output(result, 'll', 'batch'), _get_output(result, 'll', 'batch')
+    @get_results('/data/a', '/b/')
+    def test_download_file_invalid_dest_path_with_slash(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_multiple_files_to_single_file(self):
-        result = self.assert_batch_same_as_gsutil('/data/[ab]', '/b')
-        assert 'NotADirectoryError' in _get_output(result, 'rl', 'batch'), _get_output(result, 'rl', 'batch')
-        assert 'NotADirectoryError' in _get_output(result, 'll', 'batch'), _get_output(result, 'll', 'batch')
+        # assert 'skipping destination file ending with slash' in batch_results['rl']['err'].args(0)
+        # assert 'skipping destination file ending with slash' in _get_output(result, 'rl', 'batch'), _get_output(result, 'rl', 'batch')
+        #
+        # # it's unclear why gsutil doesn't just create the directory like it does if the destination is remote
+        # # it's also unclear why you don't get the same error as for the remote->local case
+        # assert 'IsADirectoryError' in _get_output(result, 'll', 'batch'), _get_output(result, 'll', 'batch')
 
-    def test_download_file_invalid_dest_path_with_slash(self):
-        result = self.assert_batch_same_as_gsutil('/data/a', '/b/')
-        assert 'skipping destination file ending with slash' in _get_output(result, 'rl', 'batch'), _get_output(result, 'rl', 'batch')
+    @get_results('/data/*', '/b/')
+    def test_download_file_invalid_dest_dir_with_wildcard(self, batch_results, gsutil_results, same):
+        assert same
 
-        # it's unclear why gsutil doesn't just create the directory like it does if the destination is remote
-        # it's also unclear why you don't get the same error as for the remote->local case
-        assert 'IsADirectoryError' in _get_output(result, 'll', 'batch'), _get_output(result, 'll', 'batch')
-
-    def test_download_file_invalid_dest_dir_with_wildcard(self):
-        result = self.assert_batch_same_as_gsutil('/data/*', '/b/')
-
-        assert 'destination must name a directory when matching multiple files' in _get_output(result, 'rl', 'batch'), _get_output(result, 'rl', 'batch')
-        assert 'NotADirectoryError' in _get_output(result, 'rl', 'batch'), _get_output(result, 'rl', 'batch')
-
-        assert 'destination must name a directory when matching multiple files' in _get_output(result, 'll', 'batch'), _get_output(result, 'll', 'batch')
-        assert 'NotADirectoryError' in _get_output(result, 'll', 'batch'), _get_output(result, 'll', 'batch')
+        # assert 'destination must name a directory when matching multiple files' in _get_output(result, 'rl', 'batch'), _get_output(result, 'rl', 'batch')
+        # assert 'NotADirectoryError' in _get_output(result, 'rl', 'batch'), _get_output(result, 'rl', 'batch')
+        #
+        # assert 'destination must name a directory when matching multiple files' in _get_output(result, 'll', 'batch'), _get_output(result, 'll', 'batch')
+        # assert 'NotADirectoryError' in _get_output(result, 'll', 'batch'), _get_output(result, 'll', 'batch')
 
 
 class TestDownloadFileWithEscapedWildcards(unittest.TestCase):
@@ -417,53 +461,27 @@ class TestDownloadFileWithEscapedWildcards(unittest.TestCase):
         cls.local_dir.cleanup()
         remove_remote_dir(cls.remote_dir)
 
-    def assert_batch_same_as_gsutil(self, src, dest):
-        result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
-        assert all(_get_batch_gsutil_files_same(result)), str(result)
-        return result
+    @get_results('/data/foo/', '/')
+    def test_download_all_files_recursively(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_all_files_recursively(self):
-        self.assert_batch_same_as_gsutil('/data/foo/', '/')
-
-    def test_download_directory_with_escaped_question_mark(self):
+    @get_results('/data/foo/b\\?r/dog/', '/')
+    def test_download_directory_with_escaped_question_mark(self, batch_results, gsutil_results, same):
         # gsutil does not have a mechanism for copying a path with an escaped wildcard
         # CommandException: No URLs matched: /var/folders/f_/ystbcjb13z78n85cyz6_jpl9sbv79d/T/tmpz9l9v9tf/data/foo/b\?r/dog/ CommandException: 1 file/object could not be transferred.
         expected = {'/dog/b'}
+        for v in batch_results:
+            assert batch_results[v]['files'] == expected
+            assert batch_results[v]['err'] is None
 
-        result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, '/data/foo/b\\?r/dog/', '/')
-        assert not all(_get_batch_gsutil_files_same(result)), str(result)
-
-        assert _get_files(result, 'rr', 'batch') == expected, _get_output(result, 'rr', 'batch')
-        assert _get_rc(result, 'rr', 'batch') == 0, _get_rc(result, 'rr', 'batch')
-
-        assert _get_files(result, 'rl', 'batch') == expected, _get_output(result, 'rl', 'batch')
-        assert _get_rc(result, 'rl', 'batch') == 0, _get_rc(result, 'rl', 'batch')
-
-        assert _get_files(result, 'lr', 'batch') == expected, _get_output(result, 'lr', 'batch')
-        assert _get_rc(result, 'lr', 'batch') == 0, _get_rc(result, 'lr', 'batch')
-
-        assert _get_files(result, 'll', 'batch') == expected, _get_output(result, 'll', 'batch')
-        assert _get_rc(result, 'll', 'batch') == 0, _get_rc(result, 'll', 'batch')
-
-    def test_download_directory_with_nonescaped_question_mark(self):
+    @get_results('/data/foo/b?r/dog/', '/')
+    def test_download_directory_with_nonescaped_question_mark(self, batch_results, gsutil_results, same):
         # gsutil refuses to copy a path with a wildcard in it
         # Cloud folder gs://hail-jigold-59hi5/testing-suite/9f347b/data/foo/b\?r/ contains a wildcard; gsutil does not currently support objects with wildcards in their name.
         expected = {'/dog/a', '/dog/b'}
-
-        result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, '/data/foo/b?r/dog/', '/')
-        assert not all(_get_batch_gsutil_files_same(result)), str(result)
-
-        assert _get_files(result, 'rr', 'batch') == expected, _get_output(result, 'rr', 'batch')
-        assert _get_rc(result, 'rr', 'batch') == 0, _get_rc(result, 'rr', 'batch')
-
-        assert _get_files(result, 'rl', 'batch') == expected, _get_output(result, 'rl', 'batch')
-        assert _get_rc(result, 'rl', 'batch') == 0, _get_rc(result, 'rl', 'batch')
-
-        assert _get_files(result, 'lr', 'batch') == expected, _get_output(result, 'lr', 'batch')
-        assert _get_rc(result, 'lr', 'batch') == 0, _get_rc(result, 'lr', 'batch')
-
-        assert _get_files(result, 'll', 'batch') == expected, _get_output(result, 'll', 'batch')
-        assert _get_rc(result, 'll', 'batch') == 0, _get_rc(result, 'll', 'batch')
+        for v in batch_results:
+            assert batch_results[v]['files'] == expected
+            assert batch_results[v]['err'] is None
 
 
 class TestDownloadFileWithSpaces(unittest.TestCase):
@@ -481,15 +499,17 @@ class TestDownloadFileWithSpaces(unittest.TestCase):
         cls.local_dir.cleanup()
         remove_remote_dir(cls.remote_dir)
 
-    def assert_batch_same_as_gsutil(self, src, dest):
-        result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
-        assert all(_get_batch_gsutil_files_same(result)), str(result)
+    @get_results('/data/', '/')
+    def test_download_directory(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_file_with_spaces(self):
-        self.assert_batch_same_as_gsutil('/data/foo/bar/dog/file with spaces.txt', '/')
+    @get_results('/data/foo/bar/dog/file with spaces.txt', '/')
+    def test_download_file_with_spaces(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_directory_with_spaces(self):
-        self.assert_batch_same_as_gsutil('/data/f o o/hello', '/')
+    @get_results('/data/f o o/hello', '/')
+    def test_directory_with_spaces(self, batch_results, gsutil_results, same):
+        assert same
 
 
 class TestDownloadComplicatedDirectory(unittest.TestCase):
@@ -509,15 +529,13 @@ class TestDownloadComplicatedDirectory(unittest.TestCase):
         cls.local_dir.cleanup()
         remove_remote_dir(cls.remote_dir)
 
-    def assert_batch_same_as_gsutil(self, src, dest):
-        result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
-        assert all(_get_batch_gsutil_files_same(result)), str(result)
+    @get_results('/data/', '/')
+    def test_download_all_files(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_all_files(self):
-        self.assert_batch_same_as_gsutil('/data/', '/')
-
-    def test_download_all_files_without_slash(self):
-        self.assert_batch_same_as_gsutil('/data', '/')
+    @get_results('/data', '/')
+    def test_download_all_files_without_slash(self, batch_results, gsutil_results, same):
+        assert same
 
 
 class TestNonEmptyFile(unittest.TestCase):
@@ -540,17 +558,17 @@ class TestNonEmptyFile(unittest.TestCase):
 
     def test_download_multiple_partitions(self):
         with tempfile.TemporaryDirectory() as dest_dir:
-            output, _ = cp_batch(f'{self.remote_dir}/data', f'{dest_dir}/data', parallelism=4, min_partition_size='4Ki')
+            err = cp_batch(f'{self.remote_dir}/data', f'{dest_dir}/data', parallelism=4, min_partition_size='4Ki')
             with open(f'{dest_dir}/data', 'r') as f:
-                assert f.read() == self.data, output
+                assert f.read() == self.data, err
 
     def test_upload_multiple_partitions(self):
         with RemoteTemporaryDirectory() as remote_dest_dir:
             with tempfile.TemporaryDirectory() as local_dest_dir:
-                output, _ = cp_batch(f'{self.local_dir.name}/data', f'{remote_dest_dir}/data', parallelism=4, min_partition_size='4Ki')
+                err = cp_batch(f'{self.local_dir.name}/data', f'{remote_dest_dir}/data', parallelism=4, min_partition_size='4Ki')
                 cp_batch(f'{remote_dest_dir}/data', f'{local_dest_dir}/data')
                 with open(f'{local_dest_dir}/data', 'r') as f:
-                    assert f.read() == self.data, output
+                    assert f.read() == self.data, err
 
 
 class TestDownloadFileDirectoryWithSameName(unittest.TestCase):
@@ -568,45 +586,33 @@ class TestDownloadFileDirectoryWithSameName(unittest.TestCase):
         cls.local_dir.cleanup()
         remove_remote_dir(cls.remote_dir)
 
-    def assert_batch_same_as_gsutil(self, src, dest):
-        result = _run_batch_same_as_gsutil(self.local_dir.name, self.remote_dir, src, dest)
-        assert all(_get_batch_gsutil_files_same(result)), str(result)
-        return result
+    @get_results('/data/foo/a', '/')
+    def test_download_file_by_name(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_file_by_name(self):
-        self.assert_batch_same_as_gsutil('/data/foo/a', '/')
+    @get_results('/data/foo/a/b', '/')
+    def test_download_file_by_name_in_subdir(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_file_by_name_in_subdir(self):
-        self.assert_batch_same_as_gsutil('/data/foo/a/b', '/')
+    @get_results('/data/foo/a/', '/', ('rr', 'rl'))
+    def test_download_directory_with_same_name_as_file(self, batch_results, gsutil_results, same):
+        assert batch_results['rr']['err'] is None
 
-    def test_download_directory_with_same_name_as_file(self):
-        src = '/data/foo/a/'
-        dest = '/'
+        err = batch_results['rl']['err']
+        assert isinstance(err, NotADirectoryError) or isinstance(err, FileExistsError)
 
-        rr = run_remote_to_remote(f'{self.remote_dir}{src}', dest)
-        rl = run_remote_to_local(f'{self.remote_dir}{src}', dest)
+    @get_results('/data/*/a', '/', ('rr', 'rl'))
+    def test_download_file_with_wildcard(self, batch_results, gsutil_results, same):
+        assert batch_results['rr']['err'] is None
 
-        assert rr['success'] and not rl['success']
-
-        rl_batch_output = rl['result']['batch']['output']
-        assert 'NotADirectory' in rl_batch_output or 'FileExistsError' in rl_batch_output, rl_batch_output
-
-    def test_download_file_with_wildcard(self):
-        src = '/data/*/a'
-        dest = '/'
-
-        rr = run_remote_to_remote(f'{self.remote_dir}{src}', dest)
-        rl = run_remote_to_local(f'{self.remote_dir}{src}', dest)
-
-        assert rr['success'] and not rl['success']
-
-        rl_batch_output = rl['result']['batch']['output']
-        assert 'NotADirectory' in rl_batch_output or 'FileExistsError' in rl_batch_output, rl_batch_output
+        err = batch_results['rl']['err']
+        assert isinstance(err, OperationNotPermittedError)
 
 
 class TestEmptyFileSlashWithSameNameAsDirectory(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        cls.local_dir = tempfile.TemporaryDirectory()
         token = uuid.uuid4().hex[:6]
         cls.remote_dir = f'{tmp_bucket}/{token}'
         gcs_client._write_gs_file_from_string(f'{cls.remote_dir}/data/bar/', 'bar')
@@ -616,43 +622,42 @@ class TestEmptyFileSlashWithSameNameAsDirectory(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        cls.local_dir.cleanup()
         remove_remote_dir(cls.remote_dir)
 
-    def assert_batch_same_as_gsutil(self, src, dest):
-        result = {'rr': run_remote_to_remote(f'{self.remote_dir}/data{src}', dest),
-                  'rl': run_remote_to_local(f'{self.remote_dir}/data{src}', dest)}
-        assert all(_get_batch_gsutil_files_same(result)), str(result)
-        print(result)
-        return result
+    @get_results('/data/foo/', '/', ('rr', 'rl'))
+    def test_download_single_file_with_slash(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_single_file_with_slash(self):
-        self.assert_batch_same_as_gsutil('/foo/', '/')
+    @get_results('/data/bar/', '/', ('rr', 'rl'))
+    def test_download_single_nonempty_file_with_slash(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_single_file_without_slash(self):
-        self.assert_batch_same_as_gsutil('/foo/a', '/')
+    @get_results('/data/foo/a', '/', ('rr', 'rl'))
+    def test_download_single_file_without_slash(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_directory(self):
+    @get_results('/data/', '/')
+    def test_download_directory(self, batch_results, gsutil_results, same):
         # gsutil doesn't copy files that end in a slash
         # https://github.com/GoogleCloudPlatform/gsutil/issues/444
         expected = {'/data/foo/', '/data/foo/a', '/data/foo/b', '/data/bar/'}
 
-        result = {'rr': run_remote_to_remote(f'{self.remote_dir}/data/', '/'),
-                  'rl': run_remote_to_local(f'{self.remote_dir}/data/', '/')}
+        assert batch_results['rr']['files'] == expected
+        assert batch_results['rr']['err'] is None
 
-        assert not result['rr']['success'], str(result['rr'])
-        assert _get_files(result, 'rr', 'batch') == expected, str(result['rr'])
-        assert _get_rc(result, 'rr', 'batch') == 0, str(result['rr'])
-
+        assert batch_results['rl']['files'] == set()
         # We refuse to copy all the files because the file ends in a slash
         # gsutil ignores it with return code 0
-        assert result['rl']['success'], str(result['rl'])
-        assert _get_files(result, 'rl', 'batch') == {}, str(result['rl'])
-        assert _get_rc(result, 'rl', 'batch') != 0, str(result['rl'])
+        assert isinstance(batch_results['rl']['err'], OperationNotPermittedError)
 
-    def test_download_directory_partial_name(self):
-        result = run_remote_to_remote(f'{self.remote_dir}/foo', '/')
-        assert result['success'], str(result)
+    @get_results('/data/foo', '/', ('rr',))
+    def test_download_directory_partial_name(self, batch_results, gsutil_results, same):
+        assert same
 
-    def test_download_wildcard(self):
-        result = run_remote_to_remote(f'{self.remote_dir}/f*', '/')
-        assert result['success'], str(result)
+    @get_results('/data/f*', '/', ('rr',))
+    def test_download_wildcard(self, batch_results, gsutil_results, same):
+        # I'm not sure the gsutil results are correct here
+        # It seems like we should either copy foo/ or nothing
+        # they copy /foo/a and /foo/b
+        assert same
