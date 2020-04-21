@@ -257,33 +257,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def anyMissing(mb: EmitMethodBuilder[_], aoff: Code[Long]): Code[Boolean] =
-    if (elementType.required)
-      false
-    else {
-      val n = mb.newLocal[Long]()
-      val ret = mb.newLocal[Boolean]()
-      val ptr = mb.newLocal[Long]()
-      val L = CodeLabel()
-      Code.memoize(aoff,"pcarr_any_missing_aoff") { aoff =>
-        Code(
-          n := aoff + ((loadLength(aoff) >>> 5) * 4 + 4).toL,
-          ptr := aoff + 4L,
-          L,
-          (ptr < n).mux(
-            Region.loadInt(ptr).cne(0).mux(
-              ret := true,
-              Code(
-                ptr := ptr + 4L,
-                L.goto)),
-            (Region.loadByte(ptr) >>>
-              (const(32) - (loadLength(aoff) | 31))).cne(0).mux(
-              ret := true,
-              ret := false)),
-          ret.load())
-      }
-    }
-
   def forEach(mb: EmitMethodBuilder[_], aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] = {
     val i = mb.newLocal[Int]()
     val n = mb.newLocal[Int]()

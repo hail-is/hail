@@ -989,6 +989,17 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(r.multiple_p_value, 0.6331017)
         self.assertAlmostEqual(r.n, 5)
 
+        # swapping the intercept and t.x
+        r = t.aggregate(hl.struct(linreg=hl.agg.linreg(t.y, [t.x, 1]))).linreg
+        self.assertAlmostEqual(r.beta[1], 0.14069227)
+        self.assertAlmostEqual(r.beta[0], 0.32744807)
+        self.assertAlmostEqual(r.standard_error[1], 0.59410817)
+        self.assertAlmostEqual(r.standard_error[0], 0.61833778)
+        self.assertAlmostEqual(r.t_stat[1], 0.23681254)
+        self.assertAlmostEqual(r.t_stat[0], 0.52956181)
+        self.assertAlmostEqual(r.p_value[1], 0.82805147)
+        self.assertAlmostEqual(r.p_value[0], 0.63310173)
+
         # weighted OLS
         t = t.add_index()
         r = t.aggregate(hl.struct(
