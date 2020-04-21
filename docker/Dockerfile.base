@@ -36,10 +36,14 @@ COPY docker/core-site.xml /spark-2.4.0-bin-hadoop2.7/conf/core-site.xml
 ENV SPARK_HOME /spark-2.4.0-bin-hadoop2.7
 ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 
+COPY hailpip /hailpip/
+RUN python3 -m pip install hailpip
+
 COPY docker/requirements.txt .
-RUN python3 -m pip install --no-cache-dir -U -r requirements.txt
+RUN python3 -m hailpip --no-cache-dir -U -r requirements.txt
 
 ENV PYTHONPATH "${PYTHONPATH:+${PYTHONPATH}:}$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.7-src.zip"
 ENV PYSPARK_PYTHON python3
 
 COPY pylintrc setup.cfg /
+

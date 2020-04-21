@@ -2,7 +2,7 @@ FROM {{ service_base_image.image }}
 
 COPY ci/setup.py ci/MANIFEST.in /ci/
 COPY ci/ci /ci/ci/
-RUN pip3 install --no-cache-dir /ci && \
+RUN python3 -m hailpip --no-cache-dir /ci && \
   rm -rf /ci
 
 EXPOSE 5000

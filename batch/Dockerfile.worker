@@ -6,19 +6,19 @@ RUN apt-get update && \
   rm -rf /var/lib/apt/lists/*
 
 COPY docker/requirements.txt .
-RUN python3 -m pip install --no-cache-dir -U -r requirements.txt
+RUN python3 -m hailpip --no-cache-dir -U -r requirements.txt
 
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/
-RUN python3 -m pip install --no-deps --no-cache-dir /hailtop \
+RUN python3 -m hailpip --no-deps --no-cache-dir /hailtop \
   && rm -rf /hailtop
 
 COPY gear/setup.py /gear/setup.py
 COPY gear/gear /gear/gear/
-RUN python3 -m pip install --no-deps --no-cache-dir /gear \
+RUN python3 -m hailpip --no-deps --no-cache-dir /gear \
   && rm -rf /gear
 
 COPY batch/setup.py batch/MANIFEST.in /batch/
 COPY batch/batch /batch/batch/
-RUN pip3 install --no-cache-dir /batch && \
+RUN python3 -m hailpip --no-cache-dir /batch && \
   rm -rf /batch
