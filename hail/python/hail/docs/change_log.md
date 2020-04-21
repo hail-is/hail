@@ -22,6 +22,20 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.38
+
+Released 2020-04-21
+
+### Critical Linreg Aggregator Correctness Bug
+
+- (hail#8575) Fixed a correctness bug in the linear regression aggregator. This was introduce in version 0.2.29.
+See https://discuss.hail.is/t/possible-incorrect-linreg-aggregator-results-in-0-2-29-0-2-37/1375 for more details.
+
+### Performance improvements
+- (hail#8558) Make `hl.experimental.export_entries_by_col` more fault tolerant.
+
+----
+
 ## Version 0.2.37
 
 Released 2020-04-14
