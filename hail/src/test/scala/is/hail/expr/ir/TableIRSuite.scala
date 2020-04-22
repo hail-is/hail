@@ -418,7 +418,7 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableRename() {
-    implicit val execStrats = ExecStrategy.lowering
+    implicit val execStrats = ExecStrategy.interpretOnly
     val before = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("foo" -> I32(0))))
     val t = TableRename(before, Map("idx" -> "idx_"), Map("foo" -> "foo_"))
     assert(t.typ == TableType(rowType = TStruct("idx_" -> TInt32), key = FastIndexedSeq("idx_"), globalType = TStruct("foo_" -> TInt32)))
@@ -429,29 +429,27 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableRenameLowering() {
-    implicit val execStrats = ExecStrategy.interpretOnly
+    implicit val execStrats = ExecStrategy.lowering
     val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
     val value = Row(FastIndexedSeq(0 until 10: _*).map(i => Row(i, "row" + i)), Row("global"))
 
-    val renameIR = TableRename(
-      TableParallelize(
-        Literal(
-          t,
-          value
-        )),
-      Map[String, String]("a" -> "c"),
-      Map.empty[String, String]
-    )
-    // Check that types have changed.
-    val loweredCollect = LowerTableIR.lower(collectNoKey(renameIR), DArrayLowering.All)
-    print(loweredCollect)
-//    val tableLowerer = new LowerTableIR(DArrayLowering.All)
-//    val foo = tableLowerer.lower(renameIR)
+    val renameIR =
+      TableRename(
+        TableParallelize(
+          Literal(
+            t,
+            value
+          )),
+        Map[String, String]("a" -> "c"),
+        Map[String, String]("x" -> "q")
+      )
+    val newRow = MakeStruct(Seq(("foo", GetField(Ref("row", renameIR.typ.rowType), "c")), ("bar", GetField(Ref("row", renameIR.typ.rowType), "b"))))
+    val mapped = TableMapRows(renameIR, newRow)
 
     // Check that values haven't changed.
     assertEvalsTo(
       collectNoKey(
-        renameIR
+        mapped
         ), value)
   }
 

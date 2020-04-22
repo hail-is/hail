@@ -233,8 +233,11 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
 
       case TableRename(child, rowMap, globalMap) =>
         val loweredChild = lower(child)
-        
-        loweredChild
+        val oldPart = loweredChild.partitioner
+        loweredChild.copy(
+          globalsField = globalMap.getOrElse(loweredChild.globalsField, loweredChild.globalsField),
+          partitioner = oldPart.copy(kType = oldPart.kType.rename(rowMap))
+        )
 
       case node =>
         throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(node) }")
