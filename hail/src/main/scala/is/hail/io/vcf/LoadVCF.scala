@@ -1430,7 +1430,7 @@ class PartitionedVCFRDD(
   fsBc: BroadcastValue[FS],
   file: String,
   @(transient@param) _partitions: Array[Partition]
-) extends RDD[String](SparkBackend.sc, Seq()) {
+) extends RDD[String](SparkBackend.sparkContext("PartitionedVCFRDD"), Seq()) {
   protected def getPartitions: Array[Partition] = _partitions
 
   def compute(split: Partition, context: TaskContext): Iterator[String] = {
@@ -1526,7 +1526,7 @@ object MatrixVCFReader {
       val localInputs = inputs
       val localArrayElementsRequired = params.arrayElementsRequired
       val localFilterAndReplace = params.filterAndReplace
-      SparkBackend.sc.parallelize(inputs.tail, math.max(1, inputs.length - 1)).foreach { file =>
+      SparkBackend.sparkContext("MatrixVCFReader.apply").parallelize(inputs.tail, math.max(1, inputs.length - 1)).foreach { file =>
         val fs = fsBc.value
         val hd = parseHeader(
           localCallFields, localFloatType, getHeaderLines(fs, file, localFilterAndReplace),
@@ -1784,7 +1784,7 @@ class VCFsReader(
     val localGenotypeSignature = header1.genotypeSignature
     val localVASignature = header1.vaSignature
 
-    SparkBackend.sc.parallelize(files, files.length).map { file =>
+    SparkBackend.sparkContext("VCFsReader.fileInfo").parallelize(files, files.length).map { file =>
       val fs = localBcFS.value
       val headerLines = getHeaderLines(fs, file, localFilterAndReplace)
       val header = parseHeader(

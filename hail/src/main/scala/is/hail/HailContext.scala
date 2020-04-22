@@ -56,7 +56,7 @@ object HailContext {
 
   def setFlag(flag: String, value: String): Unit = get.flags.set(flag, value)
 
-  def sparkBackend(): SparkBackend = get.sparkBackend()
+  def sparkBackend(op: String): SparkBackend = get.sparkBackend(op)
 
   def configureLogging(logFile: String, quiet: Boolean, append: Boolean, skipLoggingConfiguration: Boolean) {
     if (!skipLoggingConfiguration) {
@@ -439,7 +439,7 @@ object HailContext {
 
     val fsBc = fs.broadcast
 
-    new RDD[T](SparkBackend.sc, Nil) {
+    new RDD[T](SparkBackend.sparkContext("readPartition"), Nil) {
       def getPartitions: Array[Partition] =
         Array.tabulate(nPartitions)(i => FilePartition(i, partFiles(i)))
 
@@ -592,7 +592,7 @@ class HailContext private(
   val optimizerIterations: Int) {
   def stop(): Unit = HailContext.stop()
 
-  def sparkBackend(): SparkBackend = backend.asSpark()
+  def sparkBackend(op: String): SparkBackend = backend.asSpark(op)
 
   val flags: HailFeatureFlags = new HailFeatureFlags()
 
@@ -621,7 +621,7 @@ class HailContext private(
     maxLines: Int
   ): Map[String, Array[WithContext[String]]] = {
     val regexp = regex.r
-    SparkBackend.sc.textFilesLines(fs.globAll(files))
+    SparkBackend.sparkContext("fileAndLineCounts").textFilesLines(fs.globAll(files))
       .filter(line => regexp.findFirstIn(line.value).isDefined)
       .take(maxLines)
       .groupBy(_.source.file)

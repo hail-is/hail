@@ -36,7 +36,7 @@ case class CollectMatricesRDDPartition(index: Int, firstPartition: Int, blockPar
   def nBlocks: Int = blockPartitions.length
 }
 
-class CollectMatricesRDD(@transient var bms: IndexedSeq[BlockMatrix]) extends RDD[BDM[Double]](SparkBackend.sc, Nil) {
+class CollectMatricesRDD(@transient var bms: IndexedSeq[BlockMatrix]) extends RDD[BDM[Double]](SparkBackend.sparkContext("CollectMatricesRDD"), Nil) {
   private val nBlocks = bms.map(_.blocks.getNumPartitions)
   private val firstPartition = nBlocks.scan(0)(_ + _).init
 
@@ -93,7 +93,7 @@ object BlockMatrix {
   
   def apply(gp: GridPartitioner, piBlock: (GridPartitioner, Int) => ((Int, Int), BDM[Double])): BlockMatrix =
     new BlockMatrix(
-      new RDD[((Int, Int), BDM[Double])](SparkBackend.sc, Nil) {
+      new RDD[((Int, Int), BDM[Double])](SparkBackend.sparkContext("BlockMatrix.apply"), Nil) {
         override val partitioner = Some(gp)
   
         protected def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(pi =>
@@ -739,7 +739,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   def dot(lm: BDM[Double]): M = {
     require(nCols == lm.rows,
       s"incompatible matrix dimensions: ${ nRows } x ${ nCols } and ${ lm.rows } x ${ lm.cols }")
-    dot(BlockMatrix.fromBreezeMatrix(blocks.sparkContext, lm, blockSize))
+    dot(BlockMatrix.fromBreezeMatrix(lm, blockSize))
   }
 
   def transpose(): M = new BlockMatrix(new BlockMatrixTransposeRDD(this), blockSize, nCols, nRows)
@@ -1769,7 +1769,7 @@ class WriteBlocksRDD(
   rvd: RVD,
   parentPartStarts: Array[Long],
   entryField: String,
-  gp: GridPartitioner) extends RDD[(Int, String)](SparkBackend.sc, Nil) {
+  gp: GridPartitioner) extends RDD[(Int, String)](SparkBackend.sparkContext("WriteBlocksRDD"), Nil) {
 
   require(gp.nRows == parentPartStarts.last)
 
@@ -1920,7 +1920,7 @@ class BlockMatrixReadRowBlockedRDD(
   fsBc: BroadcastValue[FS],
   path: String,
   partitionRanges: IndexedSeq[NumericRange.Exclusive[Long]],
-  metadata: BlockMatrixMetadata) extends RDD[RVDContext => Iterator[Long]](SparkBackend.sc, Nil) {
+  metadata: BlockMatrixMetadata) extends RDD[RVDContext => Iterator[Long]](SparkBackend.sparkContext("BlockMatrixReadRowBlockedRDD"), Nil) {
 
   val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = metadata
   val gp = GridPartitioner(blockSize, nRows, nCols)

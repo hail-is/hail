@@ -1227,7 +1227,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val nToMerge = filesToMerge.length / 2
         log.info(s"Running combOp stage with $nToMerge tasks")
         fileStack += filesToMerge
-        filesToMerge = SparkBackend.sc.parallelize(0 until nToMerge, nToMerge)
+        filesToMerge = SparkBackend.sparkContext("TableMapRows.execute").parallelize(0 until nToMerge, nToMerge)
           .mapPartitions { it =>
             val i = it.next()
             assert(it.isEmpty)

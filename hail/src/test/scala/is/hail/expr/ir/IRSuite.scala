@@ -2973,7 +2973,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testCachedBlockMatrixIR() {
-    val cached = new BlockMatrixLiteral(BlockMatrix.fill(hc, 3, 7, 1))
+    val cached = new BlockMatrixLiteral(BlockMatrix.fill(3, 7, 1))
     val s = s"(JavaBlockMatrix __uid1)"
     val x2 = ExecuteContext.scoped() { ctx =>
       IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
@@ -3229,7 +3229,7 @@ class IRSuite extends HailSuite {
         |       (MakeStruct (locus  (Apply start Locus(GRCh37) (Ref __uid_3))))
         |       (MakeStruct (locus  (Apply end Locus(GRCh37) (Ref __uid_3)))) (True) (False))))
         |""".stripMargin)
-    val (v, _) = HailContext.sparkBackend().execute(ir, optimize = true)
+    val (v, _) = backend.execute(ir, optimize = true)
     assert(
       ir.typ.ordering.equiv(
         FastIndexedSeq(

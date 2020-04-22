@@ -176,7 +176,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
 }
 
 case class BlockMatrixPersistReader(id: String) extends BlockMatrixReader {
-  lazy val bm: BlockMatrix = HailContext.sparkBackend().bmCache.getPersistedBlockMatrix(id)
+  lazy val bm: BlockMatrix = HailContext.sparkBackend("BlockMatrixPersistReader").bmCache.getPersistedBlockMatrix(id)
   def pathsUsed: Seq[String] = FastSeq()
   lazy val fullType: BlockMatrixType = BlockMatrixType.fromBlockMatrix(bm)
   def apply(ctx: ExecuteContext): BlockMatrix = bm

@@ -216,7 +216,7 @@ class MatrixPLINKReader(
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val backend = ctx.backend
-    val sc = SparkBackend.sc
+    val sc = SparkBackend.sparkContext("MatrixPLINKReader.apply")
 
     val requestedType = tr.typ
     assert(PruneDeadFields.isSupertype(requestedType, fullType))

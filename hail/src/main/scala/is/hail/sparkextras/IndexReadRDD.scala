@@ -13,7 +13,7 @@ class IndexReadRDD[T: ClassTag](
   @transient val partFiles: Array[String],
   @transient val intervalBounds: Option[Array[Interval]],
   f: (IndexedFilePartition, TaskContext) => T
-) extends RDD[T](SparkBackend.sc, Nil) {
+) extends RDD[T](SparkBackend.sparkContext("IndexReadRDD"), Nil) {
   def getPartitions: Array[Partition] =
     Array.tabulate(partFiles.length) { i =>
       IndexedFilePartition(i, partFiles(i), intervalBounds.map(_(i)))

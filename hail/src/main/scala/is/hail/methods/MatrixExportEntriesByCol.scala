@@ -165,7 +165,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
     // clean up temporary files
     val temps = tempFolders.result()
     val fsBc = fs.broadcast
-    SparkBackend.sc.parallelize(temps, (temps.length / 32).max(1)).foreach { path =>
+    SparkBackend.sparkContext("MatrixExportEntriesByCol.execute").parallelize(temps, (temps.length / 32).max(1)).foreach { path =>
       fsBc.value.delete(path, recursive = true)
     }
 

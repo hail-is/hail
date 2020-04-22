@@ -272,7 +272,7 @@ object TextTableReader {
         duplicates.map { case (pre, post) => s"'$pre' -> '$post'" }.truncatable("\n  "))
     }
 
-    val rdd = SparkBackend.sc.textFilesLines(globbedFiles, nPartitions)
+    val rdd = SparkBackend.sparkContext("TextTableReader.readMetadata1").textFilesLines(globbedFiles, nPartitions)
       .filter { line =>
         !options.isComment(line.value) &&
           (!hasHeader || line.value != header) &&

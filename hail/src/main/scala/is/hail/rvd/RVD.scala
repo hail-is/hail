@@ -1471,7 +1471,7 @@ object RVD {
         throw new RuntimeException(s"Partitioner mismatch!\n  head:${ first.partitioner }\n  altr: ${ rvd.partitioner }")
     }
 
-    val sc = SparkBackend.sc
+    val sc = SparkBackend.sparkContext("writeRowsSplitFiles")
     val localTmpdir = execCtx.localTmpdir
     val fs = execCtx.fs
     val fsBc = fs.broadcast

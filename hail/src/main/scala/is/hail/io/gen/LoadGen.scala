@@ -129,7 +129,7 @@ object MatrixGENReader {
     val nSamples = samples.length
 
     // FIXME: can't specify multiple chromosomes
-    val results = params.files.map(f => LoadGen(f, params.sampleFile, SparkBackend.sc, fs, referenceGenome.map(_.broadcast), params.nPartitions,
+    val results = params.files.map(f => LoadGen(f, params.sampleFile, SparkBackend.sparkContext("MatrixGENReader.fromJValue"), fs, referenceGenome.map(_.broadcast), params.nPartitions,
       params.tolerance, params.chromosome, params.contigRecoding, params.skipInvalidLoci))
 
     val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
@@ -191,11 +191,12 @@ class MatrixGENReader(
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
+    val sc = SparkBackend.sparkContext("MatrixGENReader.apply")
     val rdd =
       if (tr.dropRows)
-        SparkBackend.sc.emptyRDD[(Annotation, Iterable[Annotation])]
+        sc.emptyRDD[(Annotation, Iterable[Annotation])]
       else
-        SparkBackend.sc.union(results.map(_.rdd))
+        sc.union(results.map(_.rdd))
 
     val requestedType = tr.typ
     val requestedRowType = requestedType.rowType

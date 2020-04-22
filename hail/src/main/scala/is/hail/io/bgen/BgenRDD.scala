@@ -155,7 +155,7 @@ private class BgenRDD(
   parts: Array[Partition],
   settings: BgenSettings,
   keys: RDD[Row]
-) extends RDD[RVDContext => Iterator[RegionValue]](SparkBackend.sc, if (keys == null) Nil else Seq(new OneToOneDependency(keys))) {
+) extends RDD[RVDContext => Iterator[RegionValue]](SparkBackend.sparkContext("BgenRDD"), if (keys == null) Nil else Seq(new OneToOneDependency(keys))) {
 
   protected def getPartitions: Array[Partition] = parts
 
