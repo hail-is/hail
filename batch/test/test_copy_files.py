@@ -16,14 +16,14 @@ from hailtop.utils import async_to_blocking
 from batch.google_storage import GCS
 from batch.worker.copy_files import copy_files, OperationNotPermittedError
 
-# key_file = '/gsa-key/key.json'
-# project = os.environ['PROJECT']
-# user = get_userinfo()
-# tmp_bucket = f'gs://{user["bucket_name"]}/test_copy_files'
+key_file = '/gsa-key/key.json'
+project = os.environ['PROJECT']
+user = get_userinfo()
+tmp_bucket = f'gs://{user["bucket_name"]}/test_copy_files'
 
-key_file = '/Users/jigold/.hail/key.json'
-project = 'hail-vdc'
-tmp_bucket = f'gs://hail-jigold-59hi5/test_copy_files'
+# key_file = '/Users/jigold/.hail/key.json'
+# project = 'hail-vdc'
+# tmp_bucket = f'gs://hail-jigold-59hi5/test_copy_files'
 
 credentials = google.oauth2.service_account.Credentials.from_service_account_file(key_file)
 gcs_client = GCS(None, project=project, credentials=credentials)
