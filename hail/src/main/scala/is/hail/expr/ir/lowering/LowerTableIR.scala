@@ -116,9 +116,9 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
       case TableParallelize(rowsAndGlobal, nPartitions) =>
         val nPartitionsAdj = nPartitions.getOrElse(16)
         val loweredRowsAndGlobal = lowerIR(rowsAndGlobal)
-
+        val elementsType = TArray(GetField(loweredRowsAndGlobal, "rows").typ.asInstanceOf[TArray].elementType)
         val contextType = TStruct(
-          "elements" -> TArray(GetField(loweredRowsAndGlobal, "rows").typ.asInstanceOf[TArray].elementType)
+          "elements" -> elementsType
         )
 
         val context = MakeStream((0 until nPartitionsAdj).map { partIdx =>
@@ -134,8 +134,11 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
             ),
             0
           )
-          val elements = ToArray(StreamTake(StreamDrop(ToStream(GetField(loweredRowsAndGlobal, "rows")), start), length))
-          MakeStruct(FastIndexedSeq("elements" -> elements))
+          val rowsId = genUID()
+          val streamMapId = genUID()
+          val elements = ToArray(StreamMap(StreamRange(start, start + length, 1), streamMapId, ArrayRef(Ref(rowsId, elementsType), Ref(streamMapId, TInt32))))
+          val elementsLet = Let(rowsId, GetField(loweredRowsAndGlobal, "rows"), elements)
+          MakeStruct(FastIndexedSeq("elements" -> elementsLet))
         }, TStream(contextType))
 
         TableStage(
