@@ -233,15 +233,22 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
 
       case TableRename(child, rowMap, globalMap) =>
         val loweredChild = lower(child)
-        val oldPart = loweredChild.partitioner
         val structId = genUID()
-        val oldStructType = loweredChild.body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
-        val newStructType = oldStructType.rename(rowMap)
+
+        val oldRowType = loweredChild.body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
+        val newRowType = oldRowType.rename(rowMap)
+
+        val oldGlobalType = loweredChild.broadcastVals.typ.asInstanceOf[TStruct].field(loweredChild.globalsField).typ.asInstanceOf[TStruct]
+        val newGlobalType = oldGlobalType.rename(globalMap)
+
+        val oldBroadcastType = loweredChild.broadcastVals.typ.asInstanceOf[TStruct]
+        val oldBroadcastGlobalIndex = oldBroadcastType.fieldIdx(loweredChild.globalsField)
+        val newBroadcastType = oldBroadcastType.updateKey(loweredChild.globalsField, oldBroadcastGlobalIndex, newGlobalType)
 
         loweredChild.copy(
-          //globalsField = globalMap.getOrElse(loweredChild.globalsField, loweredChild.globalsField),
-          partitioner = oldPart.copy(kType = oldPart.kType.rename(rowMap)),
-          body = StreamMap(loweredChild.body, structId, CastRename(Ref(structId, oldStructType), newStructType))
+          broadcastVals = CastRename(loweredChild.broadcastVals, newBroadcastType),
+          partitioner = loweredChild.partitioner.copy(kType = loweredChild.partitioner.kType.rename(rowMap)),
+          body = StreamMap(loweredChild.body, structId, CastRename(Ref(structId, oldRowType), newRowType))
         )
 
       case node =>

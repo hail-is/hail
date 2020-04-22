@@ -429,9 +429,10 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableRenameLowering() {
-    implicit val execStrats = ExecStrategy.lowering
-    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
-    val value = Row(FastIndexedSeq(0 until 10: _*).map(i => Row(i, "row" + i)), Row("global"))
+    implicit val execStrats = ExecStrategy.allRelational
+    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct(("x", TString), ("y", TInt32)))
+    val value = Row(FastIndexedSeq(0 until 10: _*).map(i => Row(i, "row" + i)), Row("globalVal", 3))
+    val adjustedValue = Row(FastIndexedSeq(0 until 10: _*).map(i => Row(i + 3, "row" + i)), Row("globalVal", 3))
 
     val renameIR =
       TableRename(
@@ -441,19 +442,19 @@ class TableIRSuite extends HailSuite {
             value
           )),
         Map[String, String]("a" -> "c"),
-        Map.empty[String, String]
+        Map[String, String]("y" -> "z")
       )
 
-    println(renameIR.typ.rowType)
-    val newRow = MakeStruct(Seq(("foo", GetField(Ref("row", renameIR.typ.rowType), "c")), ("bar", GetField(Ref("row", renameIR.typ.rowType), "b"))))
+    val newRow = MakeStruct(Seq(
+      ("foo", GetField(Ref("row", renameIR.typ.rowType), "c") + GetField(Ref("global", TStruct(("x", TString), ("z", TInt32))), "z")),
+      ("bar", GetField(Ref("row", renameIR.typ.rowType), "b")))
+    )
     val mapped = TableMapRows(renameIR, newRow)
-    println(mapped.typ.rowType)
 
-    // Check that values haven't changed.
     assertEvalsTo(
       collectNoKey(
         mapped
-        ), value)
+        ), adjustedValue)
   }
 
   @Test def testTableWrite() {
