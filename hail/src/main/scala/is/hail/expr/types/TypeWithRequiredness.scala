@@ -27,9 +27,9 @@ object TypeWithRequiredness {
 }
 
 
-abstract class BaseTypeWithRequiredness {
+sealed abstract class BaseTypeWithRequiredness {
   private[this] var _required: Boolean = true
-  protected[TypeWithRequiredness] var change = false
+  protected var change = false
 
   def required: Boolean = _required
   def children: Seq[BaseTypeWithRequiredness]
