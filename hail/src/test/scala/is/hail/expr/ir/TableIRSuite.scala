@@ -441,10 +441,13 @@ class TableIRSuite extends HailSuite {
             value
           )),
         Map[String, String]("a" -> "c"),
-        Map[String, String]("x" -> "q")
+        Map.empty[String, String]
       )
+
+    println(renameIR.typ.rowType)
     val newRow = MakeStruct(Seq(("foo", GetField(Ref("row", renameIR.typ.rowType), "c")), ("bar", GetField(Ref("row", renameIR.typ.rowType), "b"))))
     val mapped = TableMapRows(renameIR, newRow)
+    println(mapped.typ.rowType)
 
     // Check that values haven't changed.
     assertEvalsTo(

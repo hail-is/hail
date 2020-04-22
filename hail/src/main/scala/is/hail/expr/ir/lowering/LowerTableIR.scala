@@ -234,9 +234,14 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
       case TableRename(child, rowMap, globalMap) =>
         val loweredChild = lower(child)
         val oldPart = loweredChild.partitioner
+        val structId = genUID()
+        val oldStructType = loweredChild.body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
+        val newStructType = oldStructType.rename(rowMap)
+
         loweredChild.copy(
-          globalsField = globalMap.getOrElse(loweredChild.globalsField, loweredChild.globalsField),
-          partitioner = oldPart.copy(kType = oldPart.kType.rename(rowMap))
+          //globalsField = globalMap.getOrElse(loweredChild.globalsField, loweredChild.globalsField),
+          partitioner = oldPart.copy(kType = oldPart.kType.rename(rowMap)),
+          body = StreamMap(loweredChild.body, structId, CastRename(Ref(structId, oldStructType), newStructType))
         )
 
       case node =>
