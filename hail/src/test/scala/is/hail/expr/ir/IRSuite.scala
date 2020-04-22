@@ -2723,6 +2723,7 @@ class IRSuite extends HailSuite {
         TableRepartition(read, 10, RepartitionStrategy.COALESCE),
         TableHead(read, 10),
         TableTail(read, 10),
+        TableGroupWithinPartitions(read, "_grouped", 3),
         TableParallelize(
           MakeStruct(FastSeq(
             "rows" -> MakeArray(FastSeq(

@@ -192,6 +192,7 @@ class TableIRTests(unittest.TestCase):
                     ('foo', ir.NA(hl.tarray(hl.tint32)))])),
             ir.TableRange(100, 10),
             ir.TableRepartition(table_read, 10, ir.RepartitionStrategy.COALESCE),
+            ir.TableGroupWithinPartitions(table_read, 'grouped', 3),
             ir.TableUnion(
                 [ir.TableRange(100, 10), ir.TableRange(50, 10)]),
             ir.TableExplode(table_read, ['mset']),

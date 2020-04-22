@@ -1981,19 +1981,19 @@ case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval],
   }
 }
 
-case class TableGroupWithinPartitions(child: TableIR, n: Int) extends TableIR {
+case class TableGroupWithinPartitions(child: TableIR, name: String, n: Int) extends TableIR {
   lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
   override lazy val typ: TableType = TableType(
-    child.typ.keyType ++ TStruct(("grouped_fields", TArray(child.typ.rowType))),
+    child.typ.keyType ++ TStruct(name -> TArray(child.typ.rowType)),
     child.typ.key,
     child.typ.globalType)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
     val IndexedSeq(newChild: TableIR) = newChildren
-    TableGroupWithinPartitions(newChild, n)
+    TableGroupWithinPartitions(newChild, name, n)
   }
 
   override def execute(ctx: ExecuteContext): TableValue = {
