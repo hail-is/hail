@@ -159,7 +159,7 @@ class SparkBackend(Backend):
             self._jhc = hail_package.HailContext.apply(
                 self._jbackend, log, True, append, branching_factor, skip_logging_configuration, optimizer_iterations)
 
-        self._jsc = self._jhc.sc()
+        self._jsc = self._jbackend.sc()
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
         self._jspark_session = self._jbackend.sparkSession()
         self._spark_session = SparkSession(self.sc, self._jspark_session)
