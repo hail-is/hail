@@ -23,6 +23,26 @@ then
     exit 0
 fi
 
+if [ -f $WHEEL ]
+then
+    echo "wheel not found at $WHEEL"
+    exit 1
+fi
+
+hailctl_candidate_location=gs://hail-common/hailctl/dataproc/ci_test-dataproc/$HAIL_VERSION/
+hailctl_release_location=gs://hail-common/hailctl/dataproc/$HAIL_PIP_VERSION/
+
+if ! gsutil ls $hailctl_candidate_location
+then
+    echo "hailctl candidate resources do not exist at $hailctl_candidate_location"
+    exit 1
+fi
+
+if gsutil ls $hailctl_release_location
+then
+    echo "hailctl resources already present at $hailctl_release_location"
+    exit 1
+fi
 
 pip_versions_file=$(mktemp)
 pip install hail== 2>&1 \
@@ -53,7 +73,6 @@ then
     exit 1
 fi
 
-
 # push git tag
 git tag $HAIL_PIP_VERSION -m "Hail version $HAIL_PIP_VERSION."
 git push origin $HAIL_PIP_VERSION
@@ -67,6 +86,12 @@ curl -XPOST -H @$GITHUB_OAUTH_HEADER_FILE https://api.github.com/repos/hail-is/h
   "draft": false,
   "prerelease": false
 }'
+
+# deploy hailctl resources
+gsutil -m cp -r $hailctl_candidate_location $hailctl_release_location
+gsutil -m cp -r $WHEEL ${cloud_base}
+gsutil -m acl set -r public-read ${cloud_base}
+gsutil -m retention temp set ${cloud_base}*
 
 # deploy to PyPI
 twine upload $WHEEL
