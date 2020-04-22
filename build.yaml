@@ -1193,7 +1193,7 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /secret/ci-secrets
-   timeout: 1800
+   timeout: 2400
    scopes:
     - test
     - dev
