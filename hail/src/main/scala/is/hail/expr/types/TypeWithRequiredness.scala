@@ -123,24 +123,21 @@ case class RInterval(startType: TypeWithRequiredness, endType: TypeWithRequiredn
   }
 }
 
-case class RStruct(fields: Seq[(String, TypeWithRequiredness)]) extends TypeWithRequiredness {
-  val children: Seq[TypeWithRequiredness] = fields.map(_._2)
+class RBaseStruct(types: Seq[TypeWithRequiredness]) extends TypeWithRequiredness {
+  val children: Seq[TypeWithRequiredness] = types
+  def _unionLiteral(a: Annotation): Unit =
+    children.zip(a.asInstanceOf[Row].toSeq).foreach { case (r, f) => r.unionLiteral(f) }
+  def _unionPType(pType: PType): Unit =
+    pType.asInstanceOf[PBaseStruct].fields.foreach(f => children(f.index).fromPType(f.typ))
+}
+
+case class RStruct(fields: Seq[(String, TypeWithRequiredness)]) extends RBaseStruct(fields.map(_._2)) {
   val fieldType: Map[String, TypeWithRequiredness] = fields.toMap
   def field(name: String): TypeWithRequiredness = fieldType(name)
-
-  def _unionLiteral(a: Annotation): Unit =
-    children.zip(a.asInstanceOf[Row].toSeq).foreach { case (r, f) => r.unionLiteral(f) }
-  def _unionPType(pType: PType): Unit =
-    pType.asInstanceOf[PStruct].fields.foreach(f => children(f.index).fromPType(f.typ))
 }
-case class RTuple(fields: Seq[TypeWithRequiredness]) extends TypeWithRequiredness {
-  val children: Seq[TypeWithRequiredness] = fields
 
-  def _unionLiteral(a: Annotation): Unit =
-    children.zip(a.asInstanceOf[Row].toSeq).foreach { case (r, f) => r.unionLiteral(f) }
-  def _unionPType(pType: PType): Unit =
-    pType.asInstanceOf[PTuple].fields.foreach(f => children(f.index).fromPType(f.typ))
-}
+case class RTuple(fields: Seq[TypeWithRequiredness]) extends RBaseStruct(fields)
+
 case class RUnion(cases: Seq[(String, TypeWithRequiredness)]) extends TypeWithRequiredness {
   val children: Seq[TypeWithRequiredness] = cases.map(_._2)
   def _unionLiteral(a: Annotation): Unit = ???
