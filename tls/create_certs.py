@@ -13,12 +13,17 @@ parser = argparse.ArgumentParser(prog='create_certs.py',
                                  description='create hail certs')
 parser.add_argument('namespace', type=str, help='kubernetes namespace')
 parser.add_argument('config_file', type=str, help='YAML format config file')
+parser.add_argument('root_key_file', type=str, help='the root key file')
+parser.add_argument('root_cert_file', type=str, help='the root cert file')
 parser.add_argument('--check', help='just check the config file', action='store_true')
+
 args = parser.parse_args()
 namespace = args.namespace
 with open(args.config_file) as f:
     arg_config = yaml.safe_load(f)
 just_check = args.check
+root_key_file = args.root_key_file
+root_cert_file = args.root_cert_file
 
 
 def create_key_and_cert(p):
@@ -28,6 +33,7 @@ def create_key_and_cert(p):
     if unmanaged and namespace != 'default':
         return
     key_file = f'{name}-key.pem'
+    csr_file = f'{name}-csr.csr'
     cert_file = f'{name}-cert.pem'
     names = [
         domain,
@@ -35,27 +41,38 @@ def create_key_and_cert(p):
         f'{domain}.{namespace}.svc.cluster.local'
     ]
     sp.check_call([
+        'openssl', 'genrsa',
+        '-out', key_file,
+        '-nodes',  # no password, key itself is cleartext
+        '4096'
+    ])
+    sp.check_call([
         'openssl', 'req',
         '-new',
-        '-x509',
         '-subj', f'/CN={names[0]}',
         '-addext', f'subjectAltName = {",".join("DNS:" + n for n in names)}',
-        '-nodes',  # no password, key itself is cleartext
-        '-newkey', 'rsa:4096',
-        '-keyout', key_file,
-        '-out', cert_file
+        '-key', key_file,
+        '-out', csr_file
+    ])
+    sp.check_call([
+        'openssl', 'x509',
+        '-req',
+        '-in', csr_file,
+        '-CA', root_cert_file,
+        '-CAkey', root_key_file,
+        '-CAcreateserial',
+        '-out', cert_file,
+        '-days', 365
     ])
     return {'key': key_file, 'cert': cert_file}
 
 
-def create_trust(principal, trust_type, trusted_principals):
+def create_trust(principal, trust_type, trusted_principals):  # pylint: disable=unused-argument
     trust_file = f'{principal}-{trust_type}.pem'
     with open(trust_file, 'w') as out:
-        for p in trusted_principals:
-            with open(f'{p}-cert.pem', 'r') as cert:
-                shutil.copyfileobj(cert, out)
-            with open(f'previous-{p}-cert.pem', 'r') as previous_cert:
-                shutil.copyfileobj(previous_cert, out)
+        # FIXME: mTLS, only trust certain principals
+        with open(root_cert_file, 'r') as root_cert:
+            shutil.copyfileobj(root_cert, out)
     return trust_file
 
 

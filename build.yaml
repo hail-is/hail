@@ -130,12 +130,22 @@ steps:
      valueFrom: create_certs_image.image
    script: |
      set -ex
-     python3 create_certs.py {{ default_ns.name }} config.yaml
+     python3 create_certs.py \
+             {{ default_ns.name }} \
+             config.yaml \
+             /ssl-config-hail-root/hail-root-key.pem \
+             /ssl-config-hail-root/hail-root-cert.pem
    serviceAccount:
      name: admin
      namespace:
        valueFrom: default_ns.name
+   secrets:
+     - name: ssl-config-hail-root
+       namespace:
+         valueFrom: default_ns.name
+       mountPath: /ssl-config-hail-root
    dependsOn:
+     - default_ns
      - create_certs_image
      - default_ns
  - kind: runImage
