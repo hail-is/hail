@@ -1509,6 +1509,10 @@ steps:
      cp /pypi-credentials/pypirc $HOME/.pypirc
      printf 'Authorization: token ' > github-oauth
      cat /hail-ci-0-1-github-oauth-token/oauth-token >>github-oauth
+     printf '#!/bin/bash\necho ' > git-askpass
+     cat /hail-ci-0-1-github-oauth-token/oauth-token >>git-askpass
+     chmod 755 git-askpass
+     export GIT_ASKPASS=/io/git-askpass
 
      mkdir repo
      cd repo
