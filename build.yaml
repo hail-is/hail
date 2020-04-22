@@ -1148,6 +1148,8 @@ steps:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
    dependsOn:
+    - default_ns
+    - batch_pods_ns
     - copy_files
     - batch_image
  - kind: runImage
