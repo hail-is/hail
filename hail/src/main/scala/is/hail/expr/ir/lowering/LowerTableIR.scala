@@ -126,12 +126,7 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
           val numNonEmptyPartitions = If(numRows < nPartitionsAdj, numRows, nPartitionsAdj)
           val q = numRows floorDiv numNonEmptyPartitions
           val remainder = numRows - q * numNonEmptyPartitions
-          val length = If(numNonEmptyPartitions >= partIdx,
-            If(remainder > 0,
-              If(remainder > partIdx, q + 1, q),
-              q),
-            0
-          )
+          val length = (numRows - partIdx + nPartitionsAdj - 1) floorDiv nPartitionsAdj
           val start = If(numNonEmptyPartitions >= partIdx,
             If(remainder > 0,
               If(remainder < partIdx, q * partIdx + remainder, (q + 1) * partIdx),
