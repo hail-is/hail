@@ -190,24 +190,32 @@ case class RUnion(cases: Seq[(String, TypeWithRequiredness)]) extends TypeWithRe
 case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: Seq[(String, TypeWithRequiredness)], key: Seq[String]) extends BaseTypeWithRequiredness {
   val rowTypes: Seq[TypeWithRequiredness] = rowFields.map(_._2)
   val globalTypes: Seq[TypeWithRequiredness] = globalFields.map(_._2)
+  val keyFields: Set[String] = key.toSet
+  val valueFields: Set[String] = rowFields.map(_._1).filter(n => !keyFields.contains(n)).toSet
 
   val fieldMap: Map[String, TypeWithRequiredness] = (rowFields ++ globalFields).toMap
   def field(name: String): TypeWithRequiredness = fieldMap(name)
 
   val children: Seq[TypeWithRequiredness] = rowTypes ++ globalTypes
 
-  val rowRequired: RStruct = RStruct(rowFields)
-  val globalRequired: RStruct = RStruct(globalFields)
+  val rowType: RStruct = RStruct(rowFields)
+  val globalType: RStruct = RStruct(globalFields)
 
-  def unionRows(req: BaseTypeWithRequiredness): Unit = req match {
-    case r: RTable => rowFields.zip(r.rowFields).foreach { case ((_, r1), (_, r2)) => r1.unionFrom(r2) }
-    case r: RStruct => rowFields.zip(r.children).foreach { case ((_, r1), r2) => r1.unionFrom(r2) }
+  def unionRows(req: RStruct): Unit = rowFields.foreach { case (n, r) => r.unionFrom(req.field(n)) }
+  def unionRows(req: RTable): Unit = unionRows(req.rowType)
+
+  def unionGlobals(req: RStruct): Unit = globalFields.foreach { case (n, r) => r.unionFrom(req.field(n)) }
+  def unionGlobals(req: RTable): Unit = unionGlobals(req.globalType)
+
+  def unionKeys(req: RStruct): Unit = key.foreach { n => field(n).unionFrom(req.field(n)) }
+  def unionKeys(req: RTable): Unit = {
+    assert(key == req.key)
+    unionKeys(req.rowType)
   }
 
-  def unionGlobals(req: BaseTypeWithRequiredness): Unit = req match {
-    case r: RTable => globalFields.zip(r.globalFields).foreach { case ((_, r1), (_, r2)) => r1.unionFrom(r2) }
-    case r: RStruct => globalFields.zip(r.children).foreach { case ((_, r1), r2) => r1.unionFrom(r2) }
-  }
+  def unionValues(req: RStruct): Unit = valueFields.foreach { n => field(n).unionFrom(req.field(n)) }
+  def unionValues(req: RTable): Unit = unionValues(req.rowType)
+
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RTable = {
     assert(newChildren.length == rowFields.length + globalFields.length)
     val newRowFields = rowFields.zip(newChildren.take(rowFields.length)).map { case ((n, _), r: TypeWithRequiredness) => n -> r }
