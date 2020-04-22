@@ -159,6 +159,7 @@ object RStruct {
 case class RStruct(override val fields: Seq[RField]) extends RBaseStruct(fields) {
   val fieldType: Map[String, TypeWithRequiredness] = fields.map(f => f.name -> f.typ).toMap
   def field(name: String): TypeWithRequiredness = fieldType(name)
+  def hasField(name: String): Boolean = fieldType.contains(name)
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RStruct = {
     assert(newChildren.length == fields.length)
     RStruct(Array.tabulate(fields.length)(i => fields(i).name -> coerce[TypeWithRequiredness](newChildren(i))))
@@ -171,6 +172,7 @@ object RTuple {
 }
 
 case class RTuple(override val fields: Seq[RField]) extends RBaseStruct(fields) {
+  val types: Seq[TypeWithRequiredness] = fields.map(_.typ)
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RTuple = {
     assert(newChildren.length == fields.length)
     RTuple(newChildren.map(coerce[TypeWithRequiredness]))
@@ -201,19 +203,19 @@ case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: 
   val rowType: RStruct = RStruct(rowFields)
   val globalType: RStruct = RStruct(globalFields)
 
-  def unionRows(req: RStruct): Unit = rowFields.foreach { case (n, r) => r.unionFrom(req.field(n)) }
+  def unionRows(req: RStruct): Unit = rowFields.foreach { case (n, r) => if (req.hasField(n)) r.unionFrom(req.field(n)) }
   def unionRows(req: RTable): Unit = unionRows(req.rowType)
 
-  def unionGlobals(req: RStruct): Unit = globalFields.foreach { case (n, r) => r.unionFrom(req.field(n)) }
+  def unionGlobals(req: RStruct): Unit = globalFields.foreach { case (n, r) => if (req.hasField(n)) r.unionFrom(req.field(n)) }
   def unionGlobals(req: RTable): Unit = unionGlobals(req.globalType)
 
   def unionKeys(req: RStruct): Unit = key.foreach { n => field(n).unionFrom(req.field(n)) }
   def unionKeys(req: RTable): Unit = {
-    assert(key == req.key)
+    assert(key.zip(req.key).forall { case (k1, k2) => k1 == k2 } && key.length <= req.key.length)
     unionKeys(req.rowType)
   }
 
-  def unionValues(req: RStruct): Unit = valueFields.foreach { n => field(n).unionFrom(req.field(n)) }
+  def unionValues(req: RStruct): Unit = valueFields.foreach { n => if (req.hasField(n)) field(n).unionFrom(req.field(n)) }
   def unionValues(req: RTable): Unit = unionValues(req.rowType)
 
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RTable = {
