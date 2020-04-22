@@ -58,6 +58,7 @@ then
     exit 1
 fi
 
+
 # push git tag
 git tag $HAIL_PIP_VERSION -m "Hail version $HAIL_PIP_VERSION."
 git push origin $HAIL_PIP_VERSION
