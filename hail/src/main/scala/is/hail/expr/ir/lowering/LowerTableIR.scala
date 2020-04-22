@@ -234,7 +234,7 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
       case TableRename(child, rowMap, globalMap) =>
         val loweredChild = lower(child)
         
-        ???
+        loweredChild
 
       case node =>
         throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(node) }")

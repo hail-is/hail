@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
+import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.rvd.RVDPartitioner
@@ -417,7 +418,7 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableRename() {
-    implicit val execStrats = ExecStrategy.interpretOnly
+    implicit val execStrats = ExecStrategy.lowering
     val before = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("foo" -> I32(0))))
     val t = TableRename(before, Map("idx" -> "idx_"), Map("foo" -> "foo_"))
     assert(t.typ == TableType(rowType = TStruct("idx_" -> TInt32), key = FastIndexedSeq("idx_"), globalType = TStruct("foo_" -> TInt32)))
@@ -425,6 +426,33 @@ class TableIRSuite extends HailSuite {
     val after = Interpret(t, ctx)
     assert(beforeValue.globals.javaValue == after.globals.javaValue)
     assert(beforeValue.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
+  }
+
+  @Test def testTableRenameLowering() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
+    val value = Row(FastIndexedSeq(0 until 10: _*).map(i => Row(i, "row" + i)), Row("global"))
+
+    val renameIR = TableRename(
+      TableParallelize(
+        Literal(
+          t,
+          value
+        )),
+      Map[String, String]("a" -> "c"),
+      Map.empty[String, String]
+    )
+    // Check that types have changed.
+    val loweredCollect = LowerTableIR.lower(collectNoKey(renameIR), DArrayLowering.All)
+    print(loweredCollect)
+//    val tableLowerer = new LowerTableIR(DArrayLowering.All)
+//    val foo = tableLowerer.lower(renameIR)
+
+    // Check that values haven't changed.
+    assertEvalsTo(
+      collectNoKey(
+        renameIR
+        ), value)
   }
 
   @Test def testTableWrite() {
