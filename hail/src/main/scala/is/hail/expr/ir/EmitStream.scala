@@ -72,9 +72,11 @@ object COption {
       missing.mux(none, some(value))
   }
 
-  object None extends COption[Nothing] {
-    def apply(none: Code[Ctrl], some: Nothing => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] =
+  def none[A](dummy: A): COption[A] = new COption[A] {
+    def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+      val _ = some(dummy)
       none
+    }
   }
 
   def present[A](value: A): COption[A] = new COption[A] {
@@ -103,27 +105,19 @@ object COption {
   // Presumably 'fuse' dynamically chooses one or the other based on the same
   // boolean passed in 'useLeft. 'fuse' is needed because we don't require
   // a temporary.
-  def choose[A](useLeft: Code[Boolean], left: COption[A], right: COption[A], fuse: (A, A) => A): COption[A] =
-    (left, right) match {
-      case (COption.None, COption.None) => COption.None
-      case (_, COption.None) =>
-        left.filter(!useLeft)
-      case (COption.None, _) =>
-        right.filter(useLeft)
-      case _ => new COption[A] {
-        var l: Option[A] = scala.None
-        var r: Option[A] = scala.None
-        def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
-          val L = CodeLabel()
-          val M = CodeLabel()
-          val runLeft = left(Code(L, none), a => { l = Some(a); M.goto })
-          val runRight = right(L.goto, a => { r = Some(a); M.goto })
-          Code(
-            useLeft.mux(runLeft, runRight),
-            M, some(fuse(l.get, r.get)))
-        }
-      }
+  def choose[A](useLeft: Code[Boolean], left: COption[A], right: COption[A], fuse: (A, A) => A): COption[A] = new COption[A] {
+    var l: Option[A] = scala.None
+    var r: Option[A] = scala.None
+    def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+      val L = CodeLabel()
+      val M = CodeLabel()
+      val runLeft = left(Code(L, none), a => { l = Some(a); M.goto })
+      val runRight = right(L.goto, a => { r = Some(a); M.goto })
+      Code(
+        useLeft.mux(runLeft, runRight),
+        M, some(fuse(l.get, r.get)))
     }
+  }
 
   def fromEmitCode(et: EmitCode): COption[PCode] = new COption[PCode] {
     def apply(none: Code[Ctrl], some: PCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
@@ -131,17 +125,18 @@ object COption {
     }
   }
 
-  def toEmitCode(opt: COption[PCode], t: PType, mb: EmitMethodBuilder[_]): EmitCode = {
+  def toEmitCode(opt: COption[PCode], mb: EmitMethodBuilder[_]): EmitCode = {
     implicit val ctx = EmitStreamContext(mb)
-    val m = mb.newLocal[Boolean]()
-    val v = mb.newPLocal(t)
-    val L = CodeLabel()
+    val Lmissing = CodeLabel()
+    val Lpresent = CodeLabel()
+    var value: PCode = null
+    val setup = opt(Lmissing.goto, pc => { value = pc; Lpresent.goto })
+
+    assert(value != null)
     EmitCode(
-      Code(
-        opt(Code(m := true, L.goto),
-          a => Code(m := false, v := a, L.goto)),
-        L),
-      m, v.load())
+      Code._empty,
+      new CCode(setup.start, Lmissing.start, Lpresent.start),
+      value)
   }
 }
 
@@ -293,6 +288,18 @@ abstract class Stream[+A] { self =>
 
 object Stream {
   case class Source[+A](setup0: Code[Unit], close0: Code[Unit], setup: Code[Unit], close: Code[Unit], pull: Code[Ctrl])
+
+  def empty[A](dummy: A): Stream[A] = new Stream[A] {
+    def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
+      val _ = push(dummy)
+      Source[A](
+        setup0 = Code._empty,
+        close0 = Code._empty,
+        setup = Code._empty,
+        close = Code._empty,
+        pull = eos)
+    }
+  }
 
   def iota(mb: EmitMethodBuilder[_], start: Code[Int], step: Code[Int]): Stream[Code[Int]] = {
     val lstep = mb.newLocal[Int]("sr_lstep")
@@ -552,7 +559,7 @@ object EmitStream {
       }
     }
 
-    COption.toEmitCode(result, aTyp, mb)
+    COption.toEmitCode(result, mb)
   }
 
   def sequence(mb: EmitMethodBuilder[_], elemPType: PType, elements: IndexedSeq[EmitCode]): Stream[EmitCode] = new Stream[EmitCode] {
@@ -651,8 +658,11 @@ object EmitStream {
       }
 
       streamIR match {
-        case NA(_) =>
-          COption.None
+        case x@NA(_) =>
+          COption.none(SizedStream(
+            Code._empty,
+            coerce[PCanonicalStream](x.pType).defaultValue.stream,
+            Some(0)))
 
         case x@StreamRange(startIR, stopIR, stepIR) =>
           val eltType = coerce[PStream](x.pType).elementType
@@ -758,7 +768,7 @@ object EmitStream {
             SizedStream.unsized(stream)
           }
 
-        case In(n, PStream(eltType, _)) =>
+        case In(n, PCanonicalStream(eltType, _)) =>
           val xIter = mb.newLocal[Iterator[RegionValue]]()
 
           // this, Region, ...
@@ -976,7 +986,7 @@ object EmitStream {
                                    k(COption.fromEmitCode(elt)))
                             }
 
-                        COption.toEmitCode(optElt, t, mb)
+                        COption.toEmitCode(optElt, mb)
                       }
                     val bodyEnv = env.bind(names.zip(eltVars): _*)
                     val body = emitIR(bodyIR, env = bodyEnv)
@@ -1026,7 +1036,7 @@ object EmitStream {
           val optRightStream = emitStream(els, env)
 
           // TODO: set xCond in setup of choose, don't need CPS
-          condT.flatMapCPS[SizedStream] { (cond, _, k) =>
+          condT.flatMap[SizedStream] { cond =>
             val newOptStream = COption.choose[SizedStream](
               xCond,
               optLeftStream,
@@ -1044,7 +1054,7 @@ object EmitStream {
                   SizedStream(newSetup, newStream, newLen)
               })
 
-            Code(xCond := cond.tcode[Boolean], k(newOptStream))
+            newOptStream.addSetup(xCond := cond.tcode[Boolean])
           }
 
         case Let(name, valueIR, bodyIR) =>

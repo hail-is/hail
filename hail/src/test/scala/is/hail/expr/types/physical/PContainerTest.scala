@@ -132,6 +132,12 @@ class PContainerTest extends PhysicalTestUtils {
 
     assert(testHasMissingValues(sourceType, nullInByte(1, 0)) == false)
     assert(testHasMissingValues(sourceType, nullInByte(1, 1)) == true)
+    assert(testHasMissingValues(sourceType, nullInByte(2, 1)) == true)
+
+    for {
+      num <- Seq(2, 16, 31, 32, 33, 50, 63, 64, 65, 90, 127, 128, 129)
+        missing <- 1 to num
+    } assert(testHasMissingValues(sourceType, nullInByte(num, missing)) == true)
   }
 
   @Test def checkedConvertFromTest() {

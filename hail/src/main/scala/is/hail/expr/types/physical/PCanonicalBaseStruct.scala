@@ -7,6 +7,8 @@ import is.hail.expr.types.BaseStruct
 import is.hail.utils._
 
 abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct {
+  assert(types.forall(_.isRealizable))
+
   val (missingIdx: Array[Int], nMissing: Int) = BaseStruct.getMissingIndexAndCount(types.map(_.required))
   val nMissingBytes: Int = UnsafeUtils.packBitsToBytes(nMissing)
   val byteOffsets: Array[Long] = new Array[Long](size)

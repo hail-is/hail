@@ -114,6 +114,45 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
             throw new LowererUnsupportedOperation(s"can't lower a TableRead with reader $r.")
         }
 
+      case TableParallelize(rowsAndGlobal, nPartitions) =>
+        val nPartitionsAdj = nPartitions.getOrElse(16)
+        val loweredRowsAndGlobal = lowerIR(rowsAndGlobal)
+
+        val contextType = TStruct(
+          "elements" -> TArray(GetField(loweredRowsAndGlobal, "rows").typ.asInstanceOf[TArray].elementType)
+        )
+
+        val context = MakeStream((0 until nPartitionsAdj).map { partIdx =>
+          val numRows = ArrayLen(GetField(loweredRowsAndGlobal, "rows"))
+          val numNonEmptyPartitions = If(numRows < nPartitionsAdj, numRows, nPartitionsAdj)
+          val q = numRows floorDiv numNonEmptyPartitions
+          val remainder = numRows - q * numNonEmptyPartitions
+          val length = If(numNonEmptyPartitions >= partIdx,
+            If(remainder > 0,
+              If(remainder > partIdx, q + 1, q),
+              q),
+            0
+          )
+          val start = If(numNonEmptyPartitions >= partIdx,
+            If(remainder > 0,
+              If(remainder < partIdx, q * partIdx + remainder, (q + 1) * partIdx),
+              q * partIdx
+            ),
+            0
+          )
+          val elements = ToArray(StreamTake(StreamDrop(ToStream(GetField(loweredRowsAndGlobal, "rows")), start), length))
+          MakeStruct(FastIndexedSeq("elements" -> elements))
+        }, TStream(contextType))
+
+        TableStage(
+          SelectFields(loweredRowsAndGlobal, FastSeq("global")),
+          "global",
+          RVDPartitioner.unkeyed(nPartitionsAdj),
+          contextType,
+          context,
+          ToStream(GetField(Ref("context", contextType), "elements"))
+        )
+
       case TableRange(n, nPartitions) =>
         val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
         val partCounts = partition(n, nPartitionsAdj)

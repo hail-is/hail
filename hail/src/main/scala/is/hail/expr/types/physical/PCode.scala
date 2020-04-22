@@ -6,10 +6,16 @@ import is.hail.expr.ir._
 import is.hail.utils._
 import is.hail.variant.Genotype
 
-trait PValue {
+trait PValue { pValueSelf =>
   def pt: PType
 
   def get: PCode
+
+  def value: Value[_] = {
+    new Value[Any] {
+      override def get: Code[Any] = pValueSelf.get.code
+    }
+  }
 }
 
 trait PSettable extends PValue {
@@ -54,6 +60,8 @@ abstract class PCode { self =>
   def asLocus: PLocusCode = asInstanceOf[PLocusCode]
 
   def asCall: PCallCode = asInstanceOf[PCallCode]
+
+  def asStream: PCanonicalStreamCode = asInstanceOf[PCanonicalStreamCode]
 
   def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType): PCode = {
     PCode(destType,
@@ -109,7 +117,8 @@ object PCode {
       new PCanonicalLocusCode(pt, coerce[Long](code))
     case pt: PCanonicalCall =>
       new PCanonicalCallCode(pt, coerce[Int](code))
-
+    case pt: PCanonicalNDArray =>
+      new PCanonicalNDArrayCode(pt, coerce[Long](code))
     case _ =>
       new PPrimitiveCode(pt, code)
   }

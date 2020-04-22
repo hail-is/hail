@@ -42,6 +42,8 @@ final case class TStream(elementType: Type) extends TIterable {
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
+  override def isRealizable = false
+
   override def genNonmissingValue: Gen[Annotation] =
     throw new UnsupportedOperationException("Streams don't have associated annotations.")
 

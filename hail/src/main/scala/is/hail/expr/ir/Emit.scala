@@ -149,6 +149,17 @@ abstract class EmitValue {
   def get: EmitCode
 }
 
+class EmitUnrealizableValue(val pt: PType, private val ec: EmitCode) extends EmitValue {
+  assert(!pt.isRealizable)
+  private var used: Boolean = false
+
+  def get: EmitCode = {
+    assert(!used)
+    used = true
+    ec
+  }
+}
+
 object IEmitCode {
   def apply(cb: EmitCodeBuilder, m: Code[Boolean], pc: => PCode): IEmitCode = {
     val Lmissing = CodeLabel()
@@ -200,6 +211,24 @@ object EmitCode {
     iec.Lpresent.clear()
     setup.clear()
     newEC
+  }
+
+  def mapN(ecs: IndexedSeq[EmitCode], cb: EmitCodeBuilder)(f: IndexedSeq[PCode] => PCode): IEmitCode = {
+    val Lmissing = CodeLabel()
+    val Lpresent = CodeLabel()
+
+    val pcs = ecs.map { ec =>
+      val iec = ec.toI(cb)
+      cb.define(iec.Lmissing)
+      cb.goto(Lmissing)
+      cb.define(iec.Lpresent)
+
+      iec.pc
+    }
+    val pc = f(pcs)
+    cb.goto(Lpresent)
+
+    IEmitCode(Lmissing, Lpresent, pc)
   }
 
   def codeTupleTypes(pt: PType): IndexedSeq[TypeInfo[_]] = {
@@ -843,7 +872,7 @@ private class Emit[C](
             sorter.toRegion()))
         }
 
-        COption.toEmitCode(result, atyp, mb)
+        COption.toEmitCode(result, mb)
 
       case CastToArray(a) =>
         val et = emit(a)
@@ -970,7 +999,7 @@ private class Emit[C](
                 srvb.offset))))
         }
 
-        COption.toEmitCode(result, pt, mb)
+        COption.toEmitCode(result, mb)
 
       case ArrayZeros(length) =>
         val lengthTriplet = emit(length)
@@ -1016,7 +1045,7 @@ private class Emit[C](
             .fold(mb, xAcc := codeZ, foldBody, retTT())
         }
 
-        COption.toEmitCode(resOpt, accType, mb)
+        COption.toEmitCode(resOpt, mb)
 
       case x@StreamFold2(a, acc, valueName, seq, res) =>
         val eltType = coerce[PStream](a.pType).elementType
@@ -1053,7 +1082,7 @@ private class Emit[C](
               foldBody, computeRes())
         }
 
-        COption.toEmitCode(resOpt, res.pType, mb)
+        COption.toEmitCode(resOpt, mb)
 
       case x@RunAgg(body, result, _) =>
         val aggs = x.physicalSignatures
@@ -1328,32 +1357,24 @@ private class Emit[C](
       case NDArrayRef(nd, idxs) =>
         val ndt = emit(nd)
         val idxst = idxs.map(emit(_))
-        val childPType = coerce[PNDArray](nd.pType)
-        val ndAddress = mb.genFieldThisRef[Long]()
-        val overallMissing = mb.genFieldThisRef[Boolean]()
+        val ndPType = coerce[PNDArray](nd.pType)
 
-        val idxFields = idxst.map(_ => mb.genFieldThisRef[Long]())
-        val idxFieldsBinding = Code(
-          idxFields.zip(idxst).map { case (field, idxTriplet) =>
-            field := idxTriplet.value[Long]
-          })
+        EmitCode.fromI(mb) { cb =>
+          ndt.toI(cb).flatMap(cb) { case ndCode: PNDArrayCode =>
+            EmitCode.mapN(idxst, cb) { idxPCodes: IndexedSeq[PCode] =>
+              val memoizedIndices = idxPCodes.zipWithIndex.map { case (pc, idx) =>
+                pc.memoize(cb,s"ref_idx_$idx")
+              }
 
-        val setup = coerce[Unit](Code(
-          ndt.setup,
-          overallMissing := ndt.m,
+              val ndValue = ndCode.memoize(cb, "reffed_ndarray")
+              val idxValues = memoizedIndices.map(_.value.asInstanceOf[Value[Long]])
+              cb.append(ndValue.outOfBounds(idxValues, mb)
+                      .orEmpty(Code._fatal[Unit]("Index out of bounds")))
 
-          Code(idxst.map(_.setup)),
-          Code.foreach(idxst.map(_.m)){ idxMissingness =>
-            overallMissing := overallMissing || idxMissingness
-          }))
-
-        val value = Code(
-          ndAddress := ndt.value[Long],
-          idxFieldsBinding,
-          childPType.outOfBounds(idxFields, ndAddress, mb).orEmpty(Code._fatal[Unit]("Index out of bounds")),
-          childPType.loadElementToIRIntermediate(idxFields, ndAddress, mb))
-
-        EmitCode(setup, overallMissing, PCode(pt, value))
+              PCode(ndPType.elementType, ndValue.apply(idxValues, mb))
+            }
+          }
+        }
       case x@NDArrayReindex(child, indexMap) =>
         val childt = emit(child)
         val childPType = coerce[PNDArray](child.pType)
@@ -1922,7 +1943,7 @@ private class Emit[C](
           decodeResult))
         }
 
-        COption.toEmitCode(optRes, x.pType, mb)
+        COption.toEmitCode(optRes, mb)
 
       case x@TailLoop(name, args, body) =>
         val label = CodeLabel()

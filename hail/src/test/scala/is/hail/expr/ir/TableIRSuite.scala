@@ -15,6 +15,7 @@ class TableIRSuite extends HailSuite {
   def rangeKT: TableIR = TableKeyBy(TableRange(20, 4), FastIndexedSeq())
 
   def collect(tir: TableIR): TableCollect = TableCollect(TableKeyBy(tir, FastIndexedSeq()))
+  def collectNoKey(tir: TableIR): TableCollect = TableCollect(tir)
 
   implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.LoweredJVMCompile)
 
@@ -369,20 +370,37 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableParallelize() {
-    implicit val execStrats = ExecStrategy.interpretOnly
+    implicit val execStrats = ExecStrategy.allRelational
+    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
+    Array(1, 10, 17, 34, 103).foreach { length =>
+      val value = Row(FastIndexedSeq(0 until length: _*).map(i => Row(i, "row" + i)), Row("global"))
+      assertEvalsTo(
+        collectNoKey(
+          TableParallelize(
+            Literal(
+              t,
+              value
+            ))), value)
+    }
+  }
+
+  @Test def testTableParallelizeCount() {
+    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.allRelational
     val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
     val value = Row(FastIndexedSeq(Row(0, "row1"), Row(1, "row2")), Row("glob"))
 
     assertEvalsTo(
-      collect(
+      TableCount(
         TableParallelize(
           Literal(
             t,
             value
-          ))), value)
+          ))),
+      2L
+    )
   }
 
-  @Test def testShuffleAndJoinDoesntMemoryLeak() {
+    @Test def testShuffleAndJoinDoesntMemoryLeak() {
     implicit val execStrats = ExecStrategy.interpretOnly
     val row = Ref("row", TStruct("idx" -> TInt32))
     val t1 = TableRename(TableRange(1, 1), Map("idx" -> "idx_"), Map.empty)
