@@ -27,36 +27,43 @@ object TypeWithRequiredness {
 }
 
 
-abstract class TypeWithRequiredness {
+abstract class BaseTypeWithRequiredness {
   private[this] var _required: Boolean = true
   protected[TypeWithRequiredness] var change = false
 
   def required: Boolean = _required
+  def children: Seq[TypeWithRequiredness]
 
-  def nested: Seq[TypeWithRequiredness]
-  def _unionLiteral(a: Annotation): Unit
-  def _unionPType(pType: PType): Unit
-
-  def union(r: Boolean): Unit = {
-    change = !r && required
-  }
-
+  def union(r: Boolean): Unit = { change = !r && required }
   def maximize(): Unit = {
     change = required
-    nested.foreach(_.maximize())
+    children.foreach(_.maximize())
   }
 
-  def unionNested(req: TypeWithRequiredness): Unit =
-    nested.zip(req.nested).foreach { case (r1, r2) => r1.unionFrom(r2) }
+  def unionChildren(req: TypeWithRequiredness): Unit =
+    children.zip(req.children).foreach { case (r1, r2) => r1.unionFrom(r2) }
 
-  def unionNested(reqs: Seq[TypeWithRequiredness]): Unit = reqs.foreach(unionNested)
+  def unionChildren(reqs: Seq[TypeWithRequiredness]): Unit = reqs.foreach(unionChildren)
 
   def unionFrom(req: TypeWithRequiredness): Unit = {
     union(req.required)
-    unionNested(req)
+    unionChildren(req)
   }
 
   def unionFrom(reqs: Seq[TypeWithRequiredness]): Unit = reqs.foreach(unionFrom)
+
+  def probeChangedAndReset(): Boolean = {
+    var hasChanged = change
+    _required &= !change
+    change = false
+    children.foreach { r => hasChanged |= r.probeChangedAndReset() }
+    hasChanged
+  }
+}
+
+abstract class TypeWithRequiredness extends BaseTypeWithRequiredness {
+  def _unionLiteral(a: Annotation): Unit
+  def _unionPType(pType: PType): Unit
 
   def unionLiteral(a: Annotation): Unit = {
     if (a == null)
@@ -68,136 +75,16 @@ abstract class TypeWithRequiredness {
     union(pType.required)
     _unionPType(pType)
   }
-
-  def probeChangedAndReset(): Boolean = {
-    var hasChanged = change
-    _required &= !change
-    change = false
-    nested.foreach { r => hasChanged |= r.probeChangedAndReset() }
-    hasChanged
-  }
-//
-//  def pretty(t: Type, compact: Boolean = true): String = {
-//    val sb = new StringBuilder()
-//    pretty(t, sb, if (compact) -1 else 0)
-//    sb.result()
-//  }
-//
-//  def pretty(t: Type, sb: StringBuilder, indent: Int): Unit = {
-//    val compact = indent < 0
-//    if (!compact)
-//      sb ++= " " * indent
-//    if (required)
-//      sb += '+'
-//    t match {
-//      case t: TArray =>
-//        val Seq(elt) = nested
-//        sb ++= "TArray["
-//        if (compact)
-//          elt.pretty(t.elementType, sb, indent)
-//        else {
-//          sb += '\n'
-//          elt.pretty(t.elementType, sb, indent + 2)
-//        }
-//        sb += ']'
-//      case t: TStream =>
-//        val Seq(elt) = nested
-//        sb ++= "TStream["
-//        if (compact)
-//          elt.pretty(t.elementType, sb, indent)
-//        else {
-//          sb += '\n'
-//          elt.pretty(t.elementType, sb, indent + 2)
-//        }
-//        sb += ']'
-//      case t: TSet =>
-//        val Seq(elt) = nested
-//        sb ++= "TSet["
-//        if (compact)
-//          elt.pretty(t.elementType, sb, indent)
-//        else {
-//          sb += '\n'
-//          elt.pretty(t.elementType, sb, indent + 2)
-//        }
-//        sb += ']'
-//      case t: TDict =>
-//        val Seq(ValueRequiredness(_, Seq(kr, vr))) = nested
-//        sb ++= "TDict["
-//        if (compact) {
-//          vr.pretty(t.valueType, sb, indent)
-//          sb += ','
-//          kr.pretty(t.keyType, sb, indent)
-//        } else {
-//          sb += '\n'
-//          vr.pretty(t.valueType, sb, indent + 2)
-//          sb += '\n'
-//          kr.pretty(t.keyType, sb, indent + 2)
-//        }
-//        sb += ']'
-//      case t: TInterval =>
-//        val Seq(sr, er, _, _) = nested
-//        sb ++= "TInterval["
-//        if (compact) {
-//          sr.pretty(t.pointType, sb, indent)
-//          sb += ','
-//          er.pretty(t.pointType, sb, indent)
-//        } else {
-//          sb += '\n'
-//          sr.pretty(t.pointType, sb, indent + 2)
-//          sb += '\n'
-//          er.pretty(t.pointType, sb, indent + 2)
-//        }
-//        sb += ']'
-//      case t: TNDArray =>
-//        val Seq(elt) = nested
-//        sb ++= s"TNDArray[${ t.nDims },"
-//        if (compact)
-//          elt.pretty(t.elementType, sb, indent)
-//        else {
-//          sb += '\n'
-//          elt.pretty(t.elementType, sb, indent + 2)
-//        }
-//        sb += ']'
-//      case t: TStruct =>
-//        sb ++= s"TStruct["
-//        if (compact)
-//          t.fields.foreachBetween { case Field(n, ft, i) =>
-//            sb ++= n
-//            sb += ':'
-//            nested(i).pretty(ft, sb, indent)
-//          }(sb += ',')
-//        else
-//          t.fields.foreach { case Field(n, ft, i) =>
-//            sb += '\n'
-//            sb ++= n
-//            sb += ':'
-//            nested(i).pretty(ft, sb, indent + 2)
-//          }
-//        sb += ']'
-//      case t: TTuple =>
-//        sb ++= s"TTuple["
-//        if (compact)
-//          t.fields.foreachBetween { case Field(n, ft, i) =>
-//            nested(i).pretty(ft, sb, indent)
-//          }(sb += ',')
-//        else
-//          t.fields.foreach { case Field(n, ft, i) =>
-//            sb += '\n'
-//            nested(i).pretty(ft, sb, indent + 2)
-//          }
-//        sb += ']'
-//      case _ => sb ++= t.parsableString()
-//    }
 }
 
 case class RPrimitive() extends TypeWithRequiredness {
-  val nested: Seq[TypeWithRequiredness] = FastSeq.empty
+  val children: Seq[TypeWithRequiredness] = FastSeq.empty
   def _unionLiteral(a: Annotation): Unit = ()
   def _unionPType(pType: PType): Unit = ()
 }
 
 case class RIterable(elementType: TypeWithRequiredness) extends TypeWithRequiredness {
-  val nested: Seq[TypeWithRequiredness] = FastSeq(elementType)
+  val children: Seq[TypeWithRequiredness] = FastSeq(elementType)
   def _unionLiteral(a: Annotation): Unit =
     a.asInstanceOf[Iterable[_]].foreach(elt => elementType.unionLiteral(elt))
   def _unionPType(pType: PType): Unit = elementType.fromPType(pType.asInstanceOf[PIterable].elementType)
@@ -215,7 +102,7 @@ case class RDict(keyType: TypeWithRequiredness, valueType: TypeWithRequiredness)
   }
 }
 case class RNDArray(elementType: TypeWithRequiredness) extends TypeWithRequiredness {
-  val nested: Seq[TypeWithRequiredness] = FastSeq(elementType)
+  val children: Seq[TypeWithRequiredness] = FastSeq(elementType)
   def _unionLiteral(a: Annotation): Unit = ???
   def _unionPType(pType: PType): Unit = elementType.fromPType(pType.asInstanceOf[PNDArray].elementType)
   override def probeChangedAndReset(): Boolean = {
@@ -225,7 +112,7 @@ case class RNDArray(elementType: TypeWithRequiredness) extends TypeWithRequiredn
 }
 
 case class RInterval(startType: TypeWithRequiredness, endType: TypeWithRequiredness) extends TypeWithRequiredness {
-  val nested: Seq[TypeWithRequiredness] = FastSeq(startType, endType)
+  val children: Seq[TypeWithRequiredness] = FastSeq(startType, endType)
   def _unionLiteral(a: Annotation): Unit = {
     startType.unionLiteral(a.asInstanceOf[Interval].start)
     endType.unionLiteral(a.asInstanceOf[Interval].end)
@@ -237,50 +124,48 @@ case class RInterval(startType: TypeWithRequiredness, endType: TypeWithRequiredn
 }
 
 case class RStruct(fields: Seq[(String, TypeWithRequiredness)]) extends TypeWithRequiredness {
-  val nested: Seq[TypeWithRequiredness] = fields.map(_._2)
+  val children: Seq[TypeWithRequiredness] = fields.map(_._2)
   val fieldType: Map[String, TypeWithRequiredness] = fields.toMap
   def field(name: String): TypeWithRequiredness = fieldType(name)
 
   def _unionLiteral(a: Annotation): Unit =
-    nested.zip(a.asInstanceOf[Row].toSeq).foreach { case (r, f) => r.unionLiteral(f) }
+    children.zip(a.asInstanceOf[Row].toSeq).foreach { case (r, f) => r.unionLiteral(f) }
   def _unionPType(pType: PType): Unit =
-    pType.asInstanceOf[PStruct].fields.foreach(f => nested(f.index).fromPType(f.typ))
+    pType.asInstanceOf[PStruct].fields.foreach(f => children(f.index).fromPType(f.typ))
 }
 case class RTuple(fields: Seq[TypeWithRequiredness]) extends TypeWithRequiredness {
-  val nested: Seq[TypeWithRequiredness] = fields
+  val children: Seq[TypeWithRequiredness] = fields
 
   def _unionLiteral(a: Annotation): Unit =
-    nested.zip(a.asInstanceOf[Row].toSeq).foreach { case (r, f) => r.unionLiteral(f) }
+    children.zip(a.asInstanceOf[Row].toSeq).foreach { case (r, f) => r.unionLiteral(f) }
   def _unionPType(pType: PType): Unit =
-    pType.asInstanceOf[PTuple].fields.foreach(f => nested(f.index).fromPType(f.typ))
+    pType.asInstanceOf[PTuple].fields.foreach(f => children(f.index).fromPType(f.typ))
 }
 case class RUnion(cases: Seq[(String, TypeWithRequiredness)]) extends TypeWithRequiredness {
-  val nested: Seq[TypeWithRequiredness] = cases.map(_._2)
+  val children: Seq[TypeWithRequiredness] = cases.map(_._2)
   def _unionLiteral(a: Annotation): Unit = ???
   def _unionPType(pType: PType): Unit = ???
 }
 
-case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: Seq[(String, TypeWithRequiredness)], key: Seq[String]) extends TypeWithRequiredness {
+case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: Seq[(String, TypeWithRequiredness)], key: Seq[String]) extends BaseTypeWithRequiredness {
   val rowTypes: Seq[TypeWithRequiredness] = rowFields.map(_._2)
   val globalTypes: Seq[TypeWithRequiredness] = globalFields.map(_._2)
 
   val fieldMap: Map[String, TypeWithRequiredness] = (rowFields ++ globalFields).toMap
   def field(name: String): TypeWithRequiredness = fieldMap(name)
 
-  val nested: Seq[TypeWithRequiredness] = rowTypes ++ globalTypes
-  def _unionLiteral(a: Annotation): Unit = ???
-  def _unionPType(pType: PType): Unit = ???
+  val children: Seq[TypeWithRequiredness] = rowTypes ++ globalTypes
 
   val rowRequired: TypeWithRequiredness = RStruct(rowFields)
   val globalRequired: TypeWithRequiredness = RStruct(globalFields)
 
-  def unionRows(req: TypeWithRequiredness): Unit = req match {
+  def unionRows(req: BaseTypeWithRequiredness): Unit = req match {
     case r: RTable => rowFields.zip(r.rowFields).foreach { case ((_, r1), (_, r2)) => r1.unionFrom(r2) }
-    case r: RStruct => rowFields.zip(r.nested).foreach { case ((_, r1), r2) => r1.unionFrom(r2) }
+    case r: RStruct => rowFields.zip(r.children).foreach { case ((_, r1), r2) => r1.unionFrom(r2) }
   }
 
-  def unionGlobals(req: TypeWithRequiredness): Unit = req match {
+  def unionGlobals(req: BaseTypeWithRequiredness): Unit = req match {
     case r: RTable => globalFields.zip(r.globalFields).foreach { case ((_, r1), (_, r2)) => r1.unionFrom(r2) }
-    case r: RStruct => globalFields.zip(r.nested).foreach { case ((_, r1), r2) => r1.unionFrom(r2) }
+    case r: RStruct => globalFields.zip(r.children).foreach { case ((_, r1), r2) => r1.unionFrom(r2) }
   }
 }
