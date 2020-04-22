@@ -3,7 +3,6 @@ package is.hail.expr.ir
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.rvd.RVDPartitioner
