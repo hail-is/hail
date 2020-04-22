@@ -5,7 +5,7 @@ import is.hail.asm4s.Value
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions._
-import is.hail.expr.types.encoded.EType
+import is.hail.expr.types.encoded.{EType, ETypeSerializer}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
@@ -480,7 +480,8 @@ object PartitionReader {
   }  +
     new TStructSerializer +
     new TypeSerializer +
-    new PTypeSerializer
+    new PTypeSerializer +
+    new ETypeSerializer
 }
 
 abstract class PartitionReader {
