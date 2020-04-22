@@ -2,143 +2,51 @@ principals:
 - name: admin-pod
   domain: admin-pod
   kind: json
-  outgoing:
-  - auth
-  - batch
-  - batch-driver
-  - blog
-  - ci
-  - gateway
-  - internal-gateway
-  - notebook
-  - router
-  - router-resolver
-  - scorecard
-  - site
 - name: auth
   domain: auth
   kind: json
-  incoming:
-  - admin-pod
-  - batch
-  - ci
-  - notebook
-  - router
-  - ci-tests
-  - batch-tests
 - name: batch
   domain: batch
   kind: json
-  incoming:
-  - admin-pod
-  - router
-  - ci
-  - batch-tests
-  outgoing:
-  - auth
-  - ci
-  - batch-driver
 - name: batch-driver
   domain: batch-driver
   kind: json
-  incoming:
-  - admin-pod
-  - batch
-  - router
 - name: ci
   domain: ci
   kind: json
-  incoming:
-  - admin-pod
-  - router
-  - batch  # callbacks
-  - ci-tests
-  outgoing:
-  - auth
-  - batch
 - name: notebook
   domain: notebook
   kind: json
-  incoming:
-  - admin-pod
-  - image-fetcher
-  - router
-  outgoing:
-  - auth
 - name: gateway
   domain: gateway
   unmanged: True
   kind: nginx
-  incoming:
-  - admin-pod
-  outgoing:
-  - router-resolver
-  - router
 - name: router
   domain: router
   kind: nginx
-  incoming:
-  - admin-pod
-  - gateway
-  - internal-gateway
-  outgoing:
-  - auth
-  - batch
-  - batch-driver
-  - ci
-  - notebook
-  - blog
-  - scorecard
-  - site
 - name: site
   domain: site
   kind: nginx
-  incoming:
-  - admin-pod
-  - router
 - name: scorecard
   domain: scorecard
   kind: json
-  incoming:
-  - admin-pod
-  - router
 - name: image-fetcher
   domain: image-fetcher
   kind: curl
-  outgoing:
-  - notebook
 - name: blog
   domain: blog
   kind: nginx
-  incoming:
-  - admin-pod
-  - router
 - name: router-resolver
   domain: router-resolver
   unmanged: True
   kind: json
-  incoming:
-  - admin-pod
-  - internal-gateway
-  - gateway
 - name: internal-gateway
   domain: internal-gateway
   unmanged: True
   kind: nginx
-  incoming:
-  - admin-pod
-  outgoing:
-  - router-resolver
-  - router
 - name: batch-tests
   domain: batch-tests
   kind: json
-  outgoing:
-  - batch
-  - auth
 - name: ci-tests
   domain: ci-tests
   kind: json
-  outgoing:
-  - ci
-  - auth
