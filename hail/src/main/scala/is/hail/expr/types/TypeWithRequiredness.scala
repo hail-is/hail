@@ -142,24 +142,35 @@ case class RInterval(startType: TypeWithRequiredness, endType: TypeWithRequiredn
   }
 }
 
-abstract class RBaseStruct(types: Seq[TypeWithRequiredness]) extends TypeWithRequiredness {
-  val children: Seq[TypeWithRequiredness] = types
+
+case class RField(name: String, typ: TypeWithRequiredness, index: Int)
+abstract class RBaseStruct(val fields: Seq[RField]) extends TypeWithRequiredness {
+  val children: Seq[TypeWithRequiredness] = fields.map(_.typ)
   def _unionLiteral(a: Annotation): Unit =
     children.zip(a.asInstanceOf[Row].toSeq).foreach { case (r, f) => r.unionLiteral(f) }
   def _unionPType(pType: PType): Unit =
     pType.asInstanceOf[PBaseStruct].fields.foreach(f => children(f.index).fromPType(f.typ))
 }
 
-case class RStruct(fields: Seq[(String, TypeWithRequiredness)]) extends RBaseStruct(fields.map(_._2)) {
-  val fieldType: Map[String, TypeWithRequiredness] = fields.toMap
+object RStruct {
+  def apply(fields: Seq[(String, TypeWithRequiredness)]): RStruct =
+    RStruct(Array.tabulate(fields.length)(i => RField(fields(i)._1, fields(i)._2, i)))
+}
+case class RStruct(override val fields: Seq[RField]) extends RBaseStruct(fields) {
+  val fieldType: Map[String, TypeWithRequiredness] = fields.map(f => f.name -> f.typ).toMap
   def field(name: String): TypeWithRequiredness = fieldType(name)
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RStruct = {
     assert(newChildren.length == fields.length)
-    RStruct(Array.tabulate(fields.length)(i => fields(i)._1 -> coerce[TypeWithRequiredness](newChildren(i))))
+    RStruct(Array.tabulate(fields.length)(i => fields(i).name -> coerce[TypeWithRequiredness](newChildren(i))))
   }
 }
 
-case class RTuple(fields: Seq[TypeWithRequiredness]) extends RBaseStruct(fields) {
+object RTuple {
+  def apply(fields: Seq[TypeWithRequiredness]): RTuple =
+    RTuple(Array.tabulate(fields.length)(i => RField(s"$i", fields(i), i)))
+}
+
+case class RTuple(override val fields: Seq[RField]) extends RBaseStruct(fields) {
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RTuple = {
     assert(newChildren.length == fields.length)
     RTuple(newChildren.map(coerce[TypeWithRequiredness]))
@@ -185,8 +196,8 @@ case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: 
 
   val children: Seq[TypeWithRequiredness] = rowTypes ++ globalTypes
 
-  val rowRequired: TypeWithRequiredness = RStruct(rowFields)
-  val globalRequired: TypeWithRequiredness = RStruct(globalFields)
+  val rowRequired: RStruct = RStruct(rowFields)
+  val globalRequired: RStruct = RStruct(globalFields)
 
   def unionRows(req: BaseTypeWithRequiredness): Unit = req match {
     case r: RTable => rowFields.zip(r.rowFields).foreach { case ((_, r1), (_, r2)) => r1.unionFrom(r2) }
