@@ -372,6 +372,35 @@ object Interpret {
           if (size <= 0) fatal("StreamGrouped: nonpositive size")
           aValue.asInstanceOf[IndexedSeq[Any]].grouped(size).toFastIndexedSeq
         }
+      case StreamGroupedByKey(a, key) =>
+        val aValue = interpret(a, env, args)
+        if (aValue == null)
+          null
+        else {
+          val structType = a.typ.asInstanceOf[TStruct]
+          val seq = aValue.asInstanceOf[IndexedSeq[Row]]
+          if (seq.isEmpty)
+            FastIndexedSeq[IndexedSeq[Row]]()
+          else {
+            val outer = new ArrayBuilder[IndexedSeq[Row]]()
+            val inner = new ArrayBuilder[Row]()
+            val (_, getKey) = structType.select(key)
+            var curKey: Row = getKey(seq.head)
+
+            seq.foreach { elt =>
+              val nextKey = getKey(elt)
+              if (curKey != nextKey) {
+                outer += inner.result()
+                inner.clear()
+                curKey = nextKey
+              }
+              inner += elt
+            }
+            outer += inner.result()
+
+            outer.result()
+          }
+        }
       case StreamMap(a, name, body) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
