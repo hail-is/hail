@@ -122,7 +122,9 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
         )
 
         val context = MakeStream((0 until nPartitionsAdj).map { partIdx =>
-          val numRows = ArrayLen(GetField(loweredRowsAndGlobal, "rows"))
+          val rowsId = genUID()
+          val rowsRef = Ref(rowsId, elementsType)
+          val numRows = ArrayLen(rowsRef)
           val numNonEmptyPartitions = If(numRows < nPartitionsAdj, numRows, nPartitionsAdj)
           val q = numRows floorDiv numNonEmptyPartitions
           val remainder = numRows - q * numNonEmptyPartitions
@@ -134,9 +136,8 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
             ),
             0
           )
-          val rowsId = genUID()
           val streamMapId = genUID()
-          val elements = ToArray(StreamMap(StreamRange(start, start + length, 1), streamMapId, ArrayRef(Ref(rowsId, elementsType), Ref(streamMapId, TInt32))))
+          val elements = ToArray(StreamMap(StreamRange(start, start + length, 1), streamMapId, ArrayRef(rowsRef, Ref(streamMapId, TInt32))))
           val elementsLet = Let(rowsId, GetField(loweredRowsAndGlobal, "rows"), elements)
           MakeStruct(FastIndexedSeq("elements" -> elementsLet))
         }, TStream(contextType))
