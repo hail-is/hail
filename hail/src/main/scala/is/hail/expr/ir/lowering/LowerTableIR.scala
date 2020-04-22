@@ -122,20 +122,30 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
         )
 
         val context = MakeStream((0 until nPartitionsAdj).map { partIdx =>
-          val rowsId = genUID()
-          val rowsRef = Ref(rowsId, elementsType)
+          def idAndRef(typ: Type): (String, IR) = {
+            val id = genUID()
+            (id, Ref(id, typ))
+          }
+          val (rowsId, rowsRef) = idAndRef(elementsType)
           val numRows = ArrayLen(rowsRef)
           val numNonEmptyPartitions = If(numRows < nPartitionsAdj, numRows, nPartitionsAdj)
           val q = numRows floorDiv numNonEmptyPartitions
-          val remainder = numRows - q * numNonEmptyPartitions
+          val (qId, qRef) = idAndRef(TInt32)
+          val remainder = numRows - qRef * numNonEmptyPartitions
+          val (remainderId, remainderRef) = idAndRef(TInt32)
           val length = (numRows - partIdx + nPartitionsAdj - 1) floorDiv nPartitionsAdj
-          val start = If(numNonEmptyPartitions >= partIdx,
-            If(remainder > 0,
-              If(remainder < partIdx, q * partIdx + remainder, (q + 1) * partIdx),
-              q * partIdx
-            ),
-            0
-          )
+          val start =
+            Let(qId, q,
+              Let(remainderId, remainder,
+                If(numNonEmptyPartitions >= partIdx,
+                  If(remainderRef > 0,
+                    If(remainderRef < partIdx, qRef * partIdx + remainderRef, (qRef + 1) * partIdx),
+                    qRef * partIdx
+                  ),
+                  0
+                )
+              )
+            )
           val streamMapId = genUID()
           val elements = ToArray(StreamMap(StreamRange(start, start + length, 1), streamMapId, ArrayRef(rowsRef, Ref(streamMapId, TInt32))))
           val elementsLet = Let(rowsId, GetField(loweredRowsAndGlobal, "rows"), elements)
