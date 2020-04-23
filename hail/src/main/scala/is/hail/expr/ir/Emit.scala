@@ -1532,7 +1532,7 @@ class Emit[C](
             shapeSetup,
             answerPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
             outputPType.data.pType.stagedInitialize(answerPArrayAddress, (M * N).toI),
-            
+
             ((M cne 0L) && (N cne 0L) && (K cne 0L)).orEmpty(
               lPType.elementType match {
                 case PFloat32(_) =>
@@ -2244,24 +2244,32 @@ class Emit[C](
 
             Code.foreach(requestedShape) { requestedShapeElement => Code(
               tempShapeElement := requestedShapeElement,
-              (tempShapeElement <= 0L).mux(
+              (tempShapeElement < 0L).mux(
                 (tempShapeElement ceq -1L).mux(
                   hasNegativeOne.mux(
                     Code._fatal[Unit]("Can't infer shape, more than one -1"),
                     hasNegativeOne := true
                   ),
-                  Code._fatal[Unit]("Can't reshape, new shape must contain only positive numbers or -1")),
+                  Code._fatal[Unit]("Can't reshape, new shape must contain only nonnegative numbers or -1")),
                 runningProduct := runningProduct * tempShapeElement
               )
             ) },
-            hasNegativeOne.mux(
-              (numElements % runningProduct) > 0L,
-              numElements cne runningProduct
-            ).orEmpty(Code._fatal[Unit]("Can't reshape since requested shape is incompatible with number of elements")),
-            quotient := numElements / runningProduct,
-            Code(newShapeVars.zip(requestedShape).map { case (variable, shapeElement) =>
-              variable := (shapeElement ceq -1L).mux(quotient, shapeElement)
-            })
+            (runningProduct ceq 0L).mux(
+              hasNegativeOne.mux(
+                Code._fatal[Unit]("Can't reshape since requested shape is incompatible with number of elements"),
+                Code(newShapeVars.zip(requestedShape).map { case (variable, shapeElement) => variable := shapeElement})
+              ),
+              Code(
+                hasNegativeOne.mux(
+                  (numElements % runningProduct) > 0L,
+                  numElements cne runningProduct
+                ).orEmpty(Code._fatal[Unit]("Can't reshape since requested shape is incompatible with number of elements")),
+                quotient := numElements / runningProduct,
+                Code(newShapeVars.zip(requestedShape).map { case (variable, shapeElement) =>
+                  variable := (shapeElement ceq -1L).mux(quotient, shapeElement)
+                })
+              )
+            )
           ))
 
           (setupShape, newShapeVars)
