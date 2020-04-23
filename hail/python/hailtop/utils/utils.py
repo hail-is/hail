@@ -30,6 +30,10 @@ def first_extant_file(*files):
     return None
 
 
+def flatten(xxs):
+    return [x for xs in xxs for x in xs]
+
+
 def grouped(n, ls):
     while len(ls) != 0:
         group = ls[:n]

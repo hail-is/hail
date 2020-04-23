@@ -7,7 +7,7 @@ from .utils import (
     retry_long_running, run_if_changed, LoggingTimer,
     WaitableSharedPool, RETRY_FUNCTION_SCRIPT, sync_retry_transient_errors,
     retry_response_returning_functions,
-    first_extant_file)
+    first_extant_file, flatten)
 from .process import CalledProcessError, check_shell, check_shell_output
 from .tqdm import tqdm, TQDM_DEFAULT_DISABLE
 
@@ -16,6 +16,7 @@ __all__ = [
     'time_msecs_str',
     'humanize_timedelta_msecs',
     'unzip',
+    'flatten',
     'async_to_blocking',
     'blocking_to_async',
     'AsyncWorkerPool',
