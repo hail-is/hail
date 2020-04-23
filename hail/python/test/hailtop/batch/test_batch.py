@@ -306,11 +306,6 @@ class BatchTests(unittest.TestCase):
                 '/test-gsa-key/key.json'))
         bucket = gcs_client.bucket(bucket_name)
         if not bucket.blob('batch-tests/resources/hello (foo) spaces.txt').exists():
-            print('uploading 512 MB to GCS, this may take some time, but only '
-                  'happens once per-user')
-            bucket.blob('batch-tests/resources/random_file_512mb').upload_from_string(
-                os.urandom(512 * 1024 * 1024))
-            print('done.')
             bucket.blob('batch-tests/resources/hello.txt').upload_from_string(
                 'hello world')
             bucket.blob('batch-tests/resources/hello spaces.txt').upload_from_string(
