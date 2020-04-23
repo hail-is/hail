@@ -1504,7 +1504,6 @@ steps:
      set -ex
      cd /io
 
-     tar xvf wheel-container.tar
      gcloud auth activate-service-account --key-file=/ci-deploy-0-1--hail-is-hail/ci-deploy-0-1--hail-is-hail.json
      cp /pypi-credentials/pypirc $HOME/.pypirc
      printf 'Authorization: token ' > github-oauth
