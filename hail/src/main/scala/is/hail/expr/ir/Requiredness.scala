@@ -96,6 +96,14 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
 
   def addBindingRelations(node: BaseIR): Unit = {
     val refMap = usesAndDefs.uses(node).toArray.groupBy(_.t.name).mapValues(_.asInstanceOf[Array[RefEquality[BaseIR]]])
+    def addDeflessBinding(name: String, d: IR, req: BaseTypeWithRequiredness): Unit = {
+      if (refMap.contains(name)) {
+        val uses = refMap(name)
+        uses.foreach { u => defs.bind(u, Array(req)) }
+        dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses
+      }
+    }
+
     def addElementBinding(name: String, d: IR, makeOptional: Boolean = false): Unit = {
       if (refMap.contains(name)) {
         val uses = refMap(name)
@@ -215,7 +223,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case CollectDistributedArray(ctxs, globs, c, g, body) =>
         addElementBinding(c, ctxs)
         addBinding(g, globs)
-
       case TableAggregate(c, q) =>
         addTableBinding(c)
       case TableFilter(child, pred) =>
@@ -228,6 +235,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addTableBinding(child)
       case TableAggregateByKey(child, expr) =>
         addTableBinding(child)
+      case x@ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
+        addDeflessBinding(name, x, BaseTypeWithRequiredness(x.shuffleType))
       case _ => fatal(Pretty(node))
     }
   }
@@ -657,6 +666,20 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         coerce[RStruct](requiredness).field("global").unionFrom(lookup(c).globalType)
       case BlockMatrixToValueApply(child, GetElement(_)) => // BlockMatrix elements are all required
       case BlockMatrixCollect(child) =>  // BlockMatrix elements are all required
+      case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
+        requiredness.union(lookup(writer).required)
+        requiredness.unionFrom(lookup(readers))
+      case ShuffleWrite(id, rows) =>
+        requiredness.union(lookup(id).required)
+        requiredness.union(lookup(rows).required)
+      case ShufflePartitionBounds(id, nPartitions) =>
+        requiredness.union(lookup(id).required)
+        requiredness.union(lookup(nPartitions).required)
+        coerce[RIterable](requiredness).elementType.fromPType(coerce[TShuffle](id.typ).keyDecodedPType)
+      case ShuffleRead(id, keyRange) =>
+        requiredness.union(lookup(id).required)
+        requiredness.union(lookup(keyRange).required)
+        coerce[RIterable](requiredness).elementType.fromPType(coerce[TShuffle](id.typ).rowDecodedPType)
     }
     requiredness.probeChangedAndReset()
   }

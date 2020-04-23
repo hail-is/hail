@@ -1,12 +1,20 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{CodeOrdering, Region, RegionValue, StagedRegionValueBuilder}
+import is.hail.io._
+import is.hail.shuffler._
+import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
+import is.hail.types.virtual._
 import is.hail.types.physical._
+import is.hail.types.encoded._
 import is.hail.io.{AbstractTypedCodecSpec, InputBuffer}
 import is.hail.utils._
+import java.io.{ DataOutputStream, InputStream, OutputStream }
+import java.net.Socket
+import java.util.Base64
+import org.apache.log4j.Logger
 
 import scala.language.{existentials, higherKinds}
 import scala.reflect.ClassTag
@@ -1827,6 +1835,148 @@ object EmitStream {
                   .map(joinF)
 
               SizedStream(leftSetup, newStream, if (joinType == "left") leftLen else None)
+            }
+          }
+
+        case x@ShuffleRead(idIR, keyRangeIR) =>
+          val shuffleType = coerce[TShuffle](idIR.typ)
+          assert(shuffleType.rowDecodedPType == coerce[PStream](x.pType).elementType)
+          COption.fromEmitCode(emitIR(idIR)).flatMap { case (idt: PCanonicalShuffleCode) =>
+            COption.fromEmitCode(emitIR(keyRangeIR)).flatMap { case (keyRanget: PIntervalCode) =>
+              val intervalPhysicalType = keyRanget.pt
+
+              val uuidLocal = mb.newLocal[Long]("shuffleUUID")
+              val uuid = new PCanonicalShuffleSettable(idt.pt.asInstanceOf[PCanonicalShuffle], uuidLocal)
+              val keyRange = mb.newLocal[Long]("shuffleClientKeyRange")
+              val start = mb.newLocal[Long]("shuffleClientStart")
+              val startInclusive = mb.newLocal[Boolean]("shuffleClientStartInclusive")
+              val end = mb.newLocal[Long]("shuffleClientEnd")
+              val endInclusive = mb.newLocal[Boolean]("shuffleClientEndInclusive")
+              COption(
+                Code(
+                  uuidLocal := idt.tcode[Long],
+                  keyRange := keyRanget.tcode[Long],
+                  !intervalPhysicalType.startDefined(keyRange) || !intervalPhysicalType.endDefined(keyRange)),
+                keyRange
+              ).map { (keyRange: LocalRef[Long]) =>
+                  val code = new ArrayBuilder[Code[Unit]]()
+
+                  val startt = intervalPhysicalType.loadStart(keyRange)
+                  val startInclusivet = intervalPhysicalType.includesStart(keyRange)
+                  val endt = intervalPhysicalType.loadEnd(keyRange)
+                  val endInclusivet = intervalPhysicalType.includesEnd(keyRange)
+
+                  val codecSpec = shuffleType.rowCodecSpec
+                  val (rowPType, makeDecoder) = codecSpec.buildEmitDecoderF[Long](mb.ecb)
+                  assert(rowPType == shuffleType.rowDecodedPType)
+
+                  val keyType = coerce[TInterval](keyRangeIR.typ).pointType
+                  val keyPType = coerce[PInterval](keyRangeIR.pType).pointType
+                  assert(keyType == shuffleType.keyType)
+                  val keyCodecSpec = shuffleType.keyCodecSpec
+                  val makeKeyEncoder = keyCodecSpec.buildEmitEncoderF[Long](keyPType, mb.ecb)
+
+                  val (socket, in, out, log) = ShuffleClient.openConnection(code, mb, shuffleType)
+
+                  val decodeRow = makeDecoder(region, in)
+                  val encodeKey = (off: Value[Long]) => makeKeyEncoder(region, off, out)
+
+                  val uuidBytes = mb.newLocal[Array[Byte]]("shuffleClientUUIDBytes")
+                  val eosByte = mb.newLocal[Byte]("eosByte")
+
+                  val setup = Code(
+                    Code(
+                      Code(code.result()),
+                      log.info("CLNT get"),
+                      out.writeByte(Wire.GET),
+                      uuidBytes := uuid.loadBytes(),
+                      log.info(const("CLNT get to uuid ").concat(uuidToString(uuidBytes))),
+                      Wire.writeByteArray(out, uuidBytes)),
+                    Code(
+                      Code(
+                        start := startt,
+                        startInclusive := startInclusivet,
+                        encodeKey(start),
+                        out.writeByte(startInclusive.mux(1.toByte, 0.toByte)),
+                        log.info(const("CLNT wrote start key: ").concat(
+                          RegionCode.pretty(keyPType, start).concat(const(" isInclusive: ")).concat(
+                            startInclusive.toS)))),
+                      Code(
+                        end := endt,
+                        endInclusive := endInclusivet,
+                        encodeKey(end),
+                        out.writeByte(endInclusive.mux(1.toByte, 0.toByte)),
+                        log.info(const("CLNT wrote end key: ").concat(
+                          RegionCode.pretty(keyPType, end)).concat(const(" isInclusive: ")).concat(
+                          endInclusive.toS)),
+                        out.flush(),
+                        log.info("CLNT get flush"))))
+                  val close = Code(
+                    log.info("CLNT get sending EOS"),
+                    out.writeByte(Wire.EOS),
+                    out.flush(),
+                    eosByte := in.readByte(),
+                    Code._assert(eosByte.get.ceq(Wire.EOS), const("did not receive end of stream: ").concat(eosByte.get.toS)),
+                    log.info("CLNT get exiting cleanly"),
+                    socket.close())
+                  val stream = unfold[EmitCode](
+                    { (_, k) =>
+                      k(
+                        COption(
+                          in.readByte().ceq(0.toByte),
+                          EmitCode.present(
+                            rowPType, decodeRow)))
+                    },
+                    setup = Some(setup),
+                    close = Some(close))
+                  SizedStream.unsized(stream)
+              }
+            }
+          }
+
+      case x@ShufflePartitionBounds(idIR, nPartitionsIR) =>
+          val shuffleType = coerce[TShuffle](idIR.typ)
+          assert(shuffleType.keyDecodedPType == coerce[PStream](x.pType).elementType)
+          COption.fromEmitCode(emitIR(idIR)).flatMap { case (idt: PCanonicalShuffleCode) =>
+            COption.fromEmitCode(emitIR(nPartitionsIR)).map { case (nPartitionst: PCode) =>
+              val code = new ArrayBuilder[Code[Unit]]()
+              val uuidLocal = mb.newLocal[Long]("shuffleUUID")
+              val uuid = new PCanonicalShuffleSettable(idt.pt.asInstanceOf[PCanonicalShuffle], uuidLocal)
+              code += (uuidLocal := idt.tcode[Long])
+              val nPartitions = mb.newLocal[Int]("shuffleClientNPartitions")
+              code += (nPartitions := nPartitionst.tcode[Int])
+              val (keyDecodedPType, makeKeyDecoder) = shuffleType.keyCodecSpec.buildEmitDecoderF[Long](mb.ecb)
+              val (socket, in, out, log) = ShuffleClient.openConnection(code, mb, shuffleType)
+              val decodeKey = makeKeyDecoder(region, in)
+              val uuidBytes = mb.newLocal[Array[Byte]]("shuffleClientUUIDBytes")
+              val eosByte = mb.newLocal[Byte]("eosByte")
+              val setup = Code(
+                Code(code.result()),
+                log.info("CLNT partitionBounds"),
+                out.writeByte(Wire.PARTITION_BOUNDS),
+                uuidBytes := uuid.loadBytes(),
+                Wire.writeByteArray(out, uuidBytes),
+                out.writeInt(nPartitions),
+                out.flush())
+              val close = Code(
+                log.info("CLNT get sending EOS"),
+                out.writeByte(Wire.EOS),
+                out.flush(),
+                eosByte := in.readByte(),
+                Code._assert(eosByte.get.ceq(Wire.EOS), const("did not receive end of stream: ").concat(eosByte.get.toS)),
+                log.info("CLNT get exiting cleanly"),
+                socket.close())
+              val stream = unfold[EmitCode](
+                { (_, k) =>
+                  k(
+                    COption(
+                      in.readByte().ceq(0.toByte),
+                      EmitCode.present(
+                        keyDecodedPType, decodeKey)))
+                },
+                setup = Some(setup),
+                close = Some(close))
+              SizedStream.unsized(stream)
             }
           }
 

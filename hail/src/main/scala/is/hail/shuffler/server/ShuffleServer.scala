@@ -27,12 +27,12 @@ class Handler (
 
   def run(): Unit = {
     try {
-      log.info(s"SERV handle")
+      log.info(s"handle")
       try {
         var continue = true
         while (continue) {
           val op = in.readByte()
-          log.info(s"SERV operation ${op}")
+          log.info(s"operation ${op}")
             (op: @switch) match {
             case Wire.START => start()
             case Wire.PUT => put()
@@ -58,7 +58,7 @@ class Handler (
   def readShuffleUUID(): Shuffle = {
     val uuid = Wire.readByteArray(in)
     assert(uuid.length == Wire.ID_SIZE, s"${uuid.length} ${Wire.ID_SIZE}")
-    log.info(s"SERV uuid ${uuidToString(uuid)}")
+    log.info(s"uuid ${uuidToString(uuid)}")
     val shuffle = server.shuffles.get(uuid)
     if (shuffle == null) {
       throw new RuntimeException(s"shuffle does not exist $uuid")
@@ -67,41 +67,41 @@ class Handler (
   }
 
   def start(): Unit = {
-    log.info(s"SERV start")
+    log.info(s"start")
     val rowType = Wire.readTStruct(in)
-    log.info(s"SERV start got row type ${rowType}")
+    log.info(s"start got row type ${rowType}")
     val rowEType = Wire.readEBaseStruct(in)
-    log.info(s"SERV start got row encoded type ${rowEType}")
+    log.info(s"start got row encoded type ${rowEType}")
     val keyFields = Wire.readSortFieldArray(in)
-    log.info(s"SERV start got key fields ${keyFields.mkString("[", ",", "]")}")
+    log.info(s"start got key fields ${keyFields.mkString("[", ",", "]")}")
     val keyEType = Wire.readEBaseStruct(in)
-    log.info(s"SERV start got key encoded type ${keyEType}")
+    log.info(s"start got key encoded type ${keyEType}")
     val uuid = new Array[Byte](Wire.ID_SIZE)
     random.nextBytes(uuid)
-    server.shuffles.put(uuid, new Shuffle(uuid, keyFields, rowType, rowEType, keyEType))
+    server.shuffles.put(uuid, new Shuffle(uuid, TShuffle(keyFields, rowType, rowEType, keyEType)))
     Wire.writeByteArray(out, uuid)
-    log.info(s"SERV start wrote uuid")
+    log.info(s"start wrote uuid")
     out.flush()
-    log.info(s"SERV start flush")
-    log.info(s"SERV start done")
+    log.info(s"start flush")
+    log.info(s"start done")
   }
 
   def put(): Unit = {
-    log.info(s"SERV put")
+    log.info(s"put")
     val shuffle = readShuffleUUID()
     shuffle.put(in, out)
-    log.info(s"SERV put done")
+    log.info(s"put done")
   }
 
   def get(): Unit = {
-    log.info(s"SERV get")
+    log.info(s"get")
     val shuffle = readShuffleUUID()
     shuffle.get(in, out)
-    log.info(s"SERV get done")
+    log.info(s"get done")
   }
 
   def stop(): Unit = {
-    log.info(s"SERV stop")
+    log.info(s"stop")
     val uuid = Wire.readByteArray(in)
     assert(uuid.length == Wire.ID_SIZE, s"${uuid.length} ${Wire.ID_SIZE}")
     val shuffle = server.shuffles.remove(uuid)
@@ -110,14 +110,14 @@ class Handler (
     }
     out.writeByte(0.toByte)
     out.flush()
-    log.info(s"SERV stop done")
+    log.info(s"stop done")
   }
 
   def partitionBounds(): Unit = {
-    log.info(s"SERV partitionBounds")
+    log.info(s"partitionBounds")
     val shuffle = readShuffleUUID()
     shuffle.partitionBounds(in, out)
-    log.info(s"SERV partitionBounds done")
+    log.info(s"partitionBounds done")
   }
 
   def eos(): Unit = {
@@ -128,15 +128,12 @@ class Handler (
 
 class Shuffle (
   uuid: Array[Byte],
-  keyFields: Array[SortField],
-  rowType: TStruct,
-  rowEType: EBaseStruct,
-  keyEType: EBaseStruct
+  shuffleType: TShuffle
 ) extends AutoCloseable {
   private[this] val log = Logger.getLogger(getClass.getName)
   private[this] val rootRegion = Region()
   private[this] val ctx = new ExecuteContext("/tmp", "file:///tmp", null, null, rootRegion, new ExecutionTimer())
-  private[this] val codecs = new ShuffleCodecSpec(ctx, keyFields, rowType, rowEType, keyEType)
+  private[this] val codecs = new ShuffleCodecSpec(ctx, shuffleType)
   private[this] val store = new LSM(s"/tmp/${uuidToString(uuid)}", codecs)
 
   private[this] def makeRegion(): Region = {
@@ -175,7 +172,7 @@ class Shuffle (
     val end = keyDecoder.readRegionValue(region)
     val endInclusive = keyDecoder.readByte() == 1.toByte
 
-    log.info(s"SERV get start ${rvstr(codecs.keyDecodedPType, start)} ${startInclusive} end ${rvstr(codecs.keyDecodedPType, end)} ${endInclusive}")
+    log.info(s"get start ${rvstr(codecs.keyDecodedPType, start)} ${startInclusive} end ${rvstr(codecs.keyDecodedPType, end)} ${endInclusive}")
     val it = store.iterator(start, startInclusive)
     var continue = it.hasNext
     val inRange =
@@ -201,7 +198,7 @@ class Shuffle (
 
     val keyEncoder = codecs.makeKeyEncoder(out)
 
-    log.info(s"SERV partitionBounds ${nPartitions}")
+    log.info(s"partitionBounds ${nPartitions}")
     val keys = store.partitionKeys(nPartitions)
     assert((nPartitions == 0 && keys.length == 0) ||
       keys.length == nPartitions + 1)
@@ -210,10 +207,32 @@ class Shuffle (
   }
 }
 
+object ShuffleServer {
+  def main(args: Array[String]): Unit = {
+    if (args.length != 5) {
+      System.err.println(
+        "USAGE: java -jar /path/to/hail.jar is.hail.shuffler.server.ShuffleServer KEYSTORE KEYSTORE_PASSWORD TRUSTSTORE TRUSTSTORE_PASSWORD PORT")
+      System.exit(1)
+    }
+
+    val server = new ShuffleServer(sslContext(
+      args(0),
+      args(1),
+      "PKCS12",
+      args(2),
+      args(3),
+      "PKCS12"
+    ),
+      args(2).toInt)
+
+    using(server)(_.serve())
+  }
+}
+
 class ShuffleServer (
   ssl: SSLContext,
   port: Int
-) {
+) extends AutoCloseable {
   val log = Logger.getLogger(this.getClass.getName());
 
   val shuffles = new ConcurrentSkipListMap[Array[Byte], Shuffle](new SameLengthByteArrayComparator())
@@ -230,16 +249,16 @@ class ShuffleServer (
 
   def serve(): Unit = {
     try {
-      log.info(s"SERV serving on ${port}")
+      log.info(s"serving on ${port}")
       while (true) {
         val sock = ss.accept()
-        log.info(s"SERV accepted")
+        log.info(s"accepted")
         executor.execute(new Handler(this, sock))
       }
     } catch {
       case se: SocketException =>
         if (stopped) {
-          log.info(s"SERV exiting")
+          log.info(s"exiting")
           return
         } else {
           fatal("unexpected closed server socket", se)
@@ -248,9 +267,11 @@ class ShuffleServer (
   }
 
   def stop(): Unit = {
-    log.info(s"SERV stopping")
+    log.info(s"stopping")
     stopped = true
     ss.close()
     executor.shutdownNow()
   }
+
+  def close(): Unit = stop()
 }

@@ -40,7 +40,11 @@ object Interpretable {
         _: WriteMetadata |
         _: ReadValue |
         _: WriteValue |
-        _: NDArrayWrite => false
+        _: NDArrayWrite |
+        _: ShuffleWith |
+        _: ShuffleWrite |
+        _: ShufflePartitionBounds |
+        _: ShuffleRead => false
       case x: ApplyIR =>
         !Exists(x.body, {
           case n: IR => !Interpretable(n)

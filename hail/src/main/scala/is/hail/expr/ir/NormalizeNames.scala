@@ -216,6 +216,11 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         CollectDistributedArray(normalize(ctxs), normalize(globals), newC, newG, normalize(body, BindingEnv.eval(cname -> newC, gname -> newG)))
       case RelationalLet(name, value, body) =>
         RelationalLet(name, normalize(value, BindingEnv.empty), normalize(body))
+      case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
+        val newName = gen()
+        ShuffleWith(keyFields, rowType, rowEType, keyEType, newName,
+          normalize(writer, env.copy(eval = env.eval.bind(name, newName))),
+          normalize(readers, env.copy(eval = env.eval.bind(name, newName))))
       case _ =>
         Copy(ir, ir.children.map {
           case child: IR => normalize(child)

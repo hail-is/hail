@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.types.physical._
-import is.hail.types.virtual.{TNDArray, TVoid}
+import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.HailContext
 import is.hail.types.{RDict, RIterable, TypeWithRequiredness}
@@ -90,6 +90,7 @@ object InferPType {
     case NDArrayMap2(_, right, _, `name`, _) => coerce[PNDArray](right.pType).elementType
     case x@CollectDistributedArray(_, _, `name`, _, _) => x.decodedContextPType
     case x@CollectDistributedArray(_, _, _, `name`, _) => x.decodedGlobalPType
+    case x@ShuffleWith(_, _, _, _, `name`, _, _) => x.shufflePType
     case _ => throw new RuntimeException(s"$name not found in definition \n${ Pretty(defNode) }")
   }
 
@@ -106,7 +107,7 @@ object InferPType {
            | _: Cast | _: NA | _: Die | _: IsNA | _: ArrayZeros | _: ArrayLen | _: StreamLen
            | _: LowerBoundOnOrderedCollection | _: ApplyBinaryPrimOp
            | _: ApplyUnaryPrimOp | _: ApplyComparisonOp | _: WriteValue
-           | _: NDArrayAgg | _: ShuffleWrite | _: ShuffleStart | _: AggStateValue | _: CombOpValue | _: InitFromSerializedValue =>
+           | _: NDArrayAgg | _: ShuffleWrite | _: AggStateValue | _: CombOpValue | _: InitFromSerializedValue =>
         requiredness(node).canonicalPType(node.typ)
       case CastRename(v, typ) => v.pType.deepRename(typ)
       case x: BaseRef if usesAndDefs.free.contains(RefEquality(x)) =>
@@ -289,13 +290,22 @@ object InferPType {
       case x@RunAgg(body, result, signature) => result.pType
       case x@RunAggScan(array, name, init, seq, result, signature) =>
         PCanonicalStream(result.pType, array.pType.required)
-      case ShuffleGetPartitionBounds(_, _, keyFields, rowType, keyEType) =>
-        val keyPType = keyEType.decodedPType(rowType.typeAfterSelectNames(keyFields.map(_.field)))
-        PCanonicalArray(keyPType, requiredness(node).required)
-      case ShuffleRead(_, _, rowType, rowEType) =>
-        val rowPType = rowEType.decodedPType(rowType)
-        PCanonicalStream(rowPType, requiredness(node).required)
-      case _ => throw new RuntimeException(s"unsupported node:\n${Pretty(node)}")
+      case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
+        val r = requiredness(node)
+        readers.pType.setRequired(r.required)
+      case ShuffleWrite(id, rows) =>
+        val r = requiredness(node)
+        PCanonicalBinary(r.required)
+      case ShufflePartitionBounds(id, nPartitions) =>
+        val r = requiredness(node)
+        PCanonicalStream(
+          coerce[TShuffle](id.typ).keyDecodedPType,
+          r.required)
+      case ShuffleRead(id, keyRange) =>
+        val r = requiredness(node)
+        PCanonicalStream(
+          coerce[TShuffle](id.typ).rowDecodedPType,
+          r.required)
     }
     if (node.pType.virtualType != node.typ)
       throw new RuntimeException(s"pType.virtualType: ${node.pType.virtualType}, vType = ${node.typ}\n  ir=$node")

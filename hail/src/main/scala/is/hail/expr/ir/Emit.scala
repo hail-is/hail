@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.io._
+import java.net._
 
 import is.hail.annotations._
 import is.hail.asm4s.joinpoint.Ctrl
@@ -13,8 +14,10 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
+import is.hail.shuffler._
 import is.hail.{HailContext, lir}
 import is.hail.utils._
+import org.apache.log4j.Logger
 
 import scala.collection.mutable
 import scala.language.{existentials, postfixOps}
@@ -678,6 +681,9 @@ class Emit[C](
     def emitI(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
+    def emitStream(ir: IR): COption[EmitStream.SizedStream] =
+      EmitStream.emit(this, ir, mb, region, env, container)
+
     def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir: IR, mb, region, env, container, loopEnv)
 
@@ -884,6 +890,124 @@ class Emit[C](
       case AggStateValue(i, _) =>
         val AggContainer(_, sc, _) = container.get
         presentC(sc.states(i).serializeToRegion(cb, coerce[PBinary](pt), region))
+
+      case x@ShuffleWith(
+        keyFields,
+        rowType,
+        rowEType,
+        keyEType,
+        name,
+        writerIR,
+        readersIR
+      ) =>
+        val shuffleType = x.shuffleType
+        val shufflePType = x.shufflePType
+
+        val (socket, in, out, log) = ShuffleClient.openConnection(cb, shuffleType)
+
+        cb.append(log.info("CLNT start"))
+        cb.append(out.writeByte(Wire.START))
+        cb.append(Wire.writeTStruct(out, rowType))
+        cb.append(log.info("CLNT start wrote row type"))
+        cb.append(Wire.writeEBaseStruct(out, rowEType))
+        cb.append(log.info("CLNT start wrote row encoded type"))
+        cb.append(Wire.writeSortFieldArray(out, keyFields))
+        cb.append(log.info("CLNT start wrote key fields"))
+        cb.append(Wire.writeEBaseStruct(out, keyEType))
+        cb.append(log.info("CLNT start wrote key encoded type"))
+        cb.append(out.flush())
+        cb.append(log.info("CLNT start flush"))
+
+        val uuidBytes = mb.newLocal[Array[Byte]]("shuffleClientUUIDBytes")
+        cb.append(uuidBytes := Wire.readByteArray(in))
+        cb.append(Code._assert(uuidBytes.length.ceq(Wire.ID_SIZE),
+          uuidBytes.length.toS.concat(" ").concat(s"${Wire.ID_SIZE}")))
+        cb.append(out.writeByte(Wire.EOS))
+        cb.append(out.flush())
+        cb.append(Code._assert(in.readByte().ceq(Wire.EOS)))
+        cb.append(socket.close())
+        cb.append(log.info("CLNT start done"))
+
+        val uuidRV = new PCanonicalShuffleCode(
+          shufflePType, shufflePType.representation.allocate(region, Wire.ID_SIZE)
+        ).memoizeField(cb, name)
+        cb.append(shufflePType.representation.store(uuidRV.get.tcode[Long], uuidBytes))
+
+        val shuffleEnv = env.bind(name -> mb.newPresentEmitSettable(shufflePType, uuidRV))
+
+        emitI(writerIR, env = shuffleEnv).flatMap(cb) { case (successfulShuffleIds: PCode) =>
+          // just store it so the writer gets run
+          successfulShuffleIds.memoize(cb, "shuffleSuccessfulShuffleIds")
+          emitI(readersIR, env = shuffleEnv).map(cb) { case (_result: PCode) =>
+            val result = _result.memoize(cb, "shuffleResult")
+
+            val (socket, in, out, log) = ShuffleClient.openConnection(cb, shuffleType)
+
+            cb.append(log.info(const("CLNT shuffle done ").concat(uuidToString(uuidBytes))))
+            cb.append(out.writeByte(Wire.STOP))
+            cb.append(Wire.writeByteArray(out, uuidBytes))
+            cb.append(out.flush())
+            cb.append(Code._assert(in.readByte().ceq(0)))
+            cb.append(out.writeByte(Wire.EOS))
+            cb.append(out.flush())
+            cb.append(Code._assert(in.readByte().ceq(Wire.EOS)))
+            cb.append(socket.close())
+            cb.append(log.info(const("CLNT shuffle deleted ").concat(uuidToString(uuidBytes))))
+
+            result
+          }
+        }
+      case ShuffleWrite(idIR, rowsIR) =>
+        val shuffleType = coerce[TShuffle](idIR.typ)
+        emitI(idIR).flatMap(cb) { case (_uuid: PCanonicalShuffleCode) =>
+          val rowType = coerce[TStruct](coerce[TStream](rowsIR.typ).elementType)
+          val rowPType = coerce[PStruct](coerce[PStream](rowsIR.pType).elementType)
+
+          val (socket, in, out, log) = ShuffleClient.openConnection(cb, shuffleType)
+
+          val makeRowEncoder = shuffleType.rowCodecSpec.buildEmitEncoderF[Long](rowPType, mb.ecb)
+          val encodeRow = (row: Value[Long]) => makeRowEncoder(region, row, out)
+
+          val rowsWritten = mb.newLocal[Long]("shuffleClientRowsWritten")
+          cb.append(rowsWritten := 0)
+
+          val uuidBytes = mb.newLocal[Array[Byte]]("shuffleClientUUIDBytes")
+          val storedRow = mb.newLocal[Long]("row")
+
+          cb.append(log.info("CLNT put"))
+          cb.append(out.writeByte(Wire.PUT))
+          val uuid = _uuid.memoize(cb, "shuffleClientUUID")
+          cb.append(uuidBytes := uuid.loadBytes())
+          cb.append(log.info(const("CLNT put to uuid ").concat(uuidToString(uuidBytes))))
+          cb.append(Wire.writeByteArray(out, uuidBytes))
+          cb.append(emitStream(rowsIR).cases(mb)(
+            Code._assert(false, "rows stream was missing in shuffle write"),
+            { case (rows: EmitStream.SizedStream) =>
+              rows.getStream.forEach(mb, { case (row: EmitCode) =>
+                Code(
+                  row.setup,
+                  row.m.mux(
+                    Code._assert(false, "cannot handle empty rows in shuffle put"),
+                    Code(
+                      out.writeByte(1.toByte),
+                      storedRow := row.value[Long],
+                      encodeRow(storedRow),
+                      rowsWritten := rowsWritten + 1)))
+              })
+            }))
+          cb.append(out.writeByte(0.toByte))
+          cb.append(out.flush())
+          cb.append(Code._assert(in.readByte().ceq(0.toByte)))
+          cb.append(log.info(
+            const("CLNT put wrote ").concat(rowsWritten.toS).concat(" rows")))
+          cb.append(out.writeByte(Wire.EOS))
+          cb.append(out.flush())
+          cb.append(Code._assert(in.readByte().ceq(Wire.EOS)))
+          cb.append(socket.close())
+          cb.append(log.info("CLNT put done"))
+          // FIXME: server needs to send uuid for the successful partition
+          presentC(PCanonicalBinary(false).allocate(region, 0))
+        }
 
       case _ =>
         emitFallback(ir)

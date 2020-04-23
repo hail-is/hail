@@ -2,6 +2,7 @@ package is.hail.shuffler
 
 import java.util.Base64
 
+import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.types.encoded._
 import is.hail.types.physical._
@@ -34,6 +35,10 @@ object Wire {
     out.writeUTF(x.parsableString())
   }
 
+  def writeTStruct(out: OutputBufferValue, x: TStruct): Code[Unit] = {
+    out.writeUTF(x.parsableString)
+  }
+
   def serializeTStruct(x: TStruct): String = {
     x.parsableString()
   }
@@ -54,6 +59,14 @@ object Wire {
     IRParser.parsePType(x)
   }
 
+  def deserializePType(x: Code[String]): Code[PType] =
+    Code.invokeScalaObject1[String, PType](
+      Wire.getClass, "deserializePType", x)
+
+  def writeEType(out: OutputBufferValue, x: EType): Code[Unit] = {
+    out.writeUTF(x.parsableString())
+  }
+
   def writeEType(out: OutputBuffer, x: EType): Unit = {
     out.writeUTF(x.parsableString())
   }
@@ -68,6 +81,10 @@ object Wire {
 
   def deserializeEType(x: String): EType = {
     IRParser.parse(x, EType.eTypeParser)
+  }
+
+  def writeEBaseStruct(out: OutputBufferValue, x: EBaseStruct): Code[Unit] = {
+    out.writeUTF(x.parsableString())
   }
 
   def writeEBaseStruct(out: OutputBuffer, x: EBaseStruct): Unit = {
@@ -87,6 +104,10 @@ object Wire {
       i += 1
     }
   }
+
+  def writeStringArray(out: OutputBufferValue, x: Array[String]): Code[Unit] = Code(
+    out.writeInt(x.length),
+    Code(x.map(s => out.writeUTF(s))))
 
   def serializeStringArray(x: Array[String]): String = {
     val mb = new MemoryBuffer()
@@ -113,6 +134,12 @@ object Wire {
     mb.set(bytes)
     readStringArray(new MemoryInputBuffer(mb))
   }
+
+  def writeSortFieldArray(out: OutputBufferValue, x: Array[SortField]): Code[Unit] = Code(
+    out.writeInt(x.length),
+    Code(x.map(sf => Code(
+      out.writeUTF(sf.field),
+      out.writeByte(sf.sortOrder.serialize)))))
 
   def writeSortFieldArray(out: OutputBuffer, x: Array[SortField]): Unit = {
     out.writeInt(x.length)
@@ -141,9 +168,19 @@ object Wire {
     out.write(x)
   }
 
+  def writeByteArray(out: OutputBufferValue, _x: Value[Array[Byte]]): Code[Unit] = {
+    val x = new CodeArray(_x)
+    Code(
+      out.writeInt(x.length),
+      out.write(_x.get))
+  }
+
   def readByteArray(in: InputBuffer): Array[Byte] = {
     val n = in.readInt()
     in.readBytesArray(n)
   }
+
+  def readByteArray(in: InputBufferValue): Code[Array[Byte]] =
+    in.readBytesArray(in.readInt())
 }
 
