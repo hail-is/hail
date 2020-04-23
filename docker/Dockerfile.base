@@ -43,7 +43,7 @@ ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 COPY hailpip /hailpip/
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/
-RUN  python3 -m pip isntall --no-deps --no-cache-dir /hailtop \
+RUN  python3 -m pip install --no-deps --no-cache-dir /hailtop \
   && rm -rf /hailtop \
   && python3 -m pip install --no-cache-dir /hailpip \
   && rm -rf /hailpip
