@@ -1,21 +1,24 @@
 package is.hail.io.plink
 
+<<<<<<< HEAD
 import is.hail.HailContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixHybridReader, PruneDeadFields, TableRead, TableValue}
+=======
+import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.expr.ir.{ExecuteContext, GenericTableValue, LowerMatrixIR, MatrixHybridReader, TableRead, TableValue}
+>>>>>>> add GenericTableValue, use for plink import
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PBoolean, PCanonicalString, PCanonicalStruct, PFloat64}
+import is.hail.expr.types.physical.{PBoolean, PCanonicalString, PCanonicalStruct, PFloat64, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.vcf.LoadVCF
-import is.hail.rvd.RVD
-import is.hail.sparkextras.ContextRDD
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
-import is.hail.variant.{Locus, _}
-import is.hail.io.fs.FS
-import org.apache.hadoop.io.LongWritable
+import is.hail.variant._
+import is.hail.io.fs.{FS, Seekable}
+import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
-import org.json4s.{DefaultFormats, Extraction, Formats, JObject, JValue}
+import org.json4s.{DefaultFormats, Formats, JValue}
 
 case class FamFileConfig(isQuantPheno: Boolean = false,
   delimiter: String = "\\t",
@@ -25,15 +28,15 @@ object LoadPlink {
   def expectedBedSize(nSamples: Int, nVariants: Long): Long = 3 + nVariants * ((nSamples + 3) / 4)
 
   def parseBim(fs: FS, bimPath: String, a2Reference: Boolean = true,
-    contigRecoding: Map[String, String] = Map.empty[String, String]): Array[(String, Int, Double, String, String, String)] = {
+    contigRecoding: Map[String, String] = Map.empty[String, String]): Array[PlinkVariant] = {
     fs.readLines(bimPath)(_.map(_.map { line =>
       line.split("\\s+") match {
         case Array(contig, rsId, cmPos, bpPos, allele1, allele2) =>
           val recodedContig = contigRecoding.getOrElse(contig, contig)
           if (a2Reference)
-            (recodedContig, bpPos.toInt, cmPos.toDouble, allele2, allele1, rsId)
+            new PlinkVariant(recodedContig, bpPos.toInt, cmPos.toDouble, allele2, allele1, rsId)
           else
-            (recodedContig, bpPos.toInt, cmPos.toDouble, allele1, allele2, rsId)
+            new PlinkVariant(recodedContig, bpPos.toInt, cmPos.toDouble, allele1, allele2, rsId)
 
         case other => fatal(s"Invalid .bim line.  Expected 6 fields, found ${ other.length } ${ plural(other.length, "field") }")
       }
@@ -164,9 +167,25 @@ object MatrixPLINKReader {
     if (bedSize != LoadPlink.expectedBedSize(nSamples, nVariants))
       fatal("BED file size does not match expected number of bytes based on BIM and FAM files")
 
-    val requestedPartitions = params.nPartitions.getOrElse(backend.defaultParallelism)
-    if (bedSize < requestedPartitions)
-      fatal(s"The number of partitions requested ($requestedPartitions) is greater than the file size ($bedSize)")
+    var nPartitions = params.nPartitions match {
+      case Some(nPartitions) => nPartitions
+      case None =>
+        val blockSizeInB = params.blockSizeInMB.getOrElse(128) * 1024 * 1024
+        math.min(nVariants, (nVariants + blockSizeInB - 1) / blockSizeInB)
+    }
+    params.minPartitions match {
+      case Some(minPartitions) =>
+        if (nPartitions < minPartitions)
+          nPartitions = minPartitions
+      case None =>
+    }
+
+    val partSize = partition(nVariants, nPartitions)
+    val partScan = partSize.scanLeft(0)(_ + _)
+
+    val contexts = Array.tabulate[Any](nPartitions) { i =>
+      Row(params.bed, partScan(i), partScan(i + 1))
+    }
 
     val fullMatrixType: MatrixType = MatrixType(
       globalType = TStruct.empty,
@@ -180,7 +199,7 @@ object MatrixPLINKReader {
       rowKey = Array("locus", "alleles"),
       entryType = TStruct("GT" -> TCall))
 
-    new MatrixPLINKReader(params, referenceGenome, fullMatrixType, sampleInfo, variants)
+    new MatrixPLINKReader(params, referenceGenome, fullMatrixType, sampleInfo, variants, contexts)
   }
 }
 
@@ -188,7 +207,9 @@ case class MatrixPLINKReaderParameters(
   bed: String,
   bim: String,
   fam: String,
-  nPartitions: Option[Int] = None,
+  nPartitions: Option[Int],
+  blockSizeInMB: Option[Int],
+  minPartitions: Option[Int],
   delimiter: String,
   missing: String,
   quantPheno: Boolean,
@@ -197,12 +218,21 @@ case class MatrixPLINKReaderParameters(
   contigRecoding: Map[String, String],
   skipInvalidLoci: Boolean)
 
+class PlinkVariant(
+  val contig: String,
+  val pos: Int,
+  val cmPos: Double,
+  val ref: String,
+  val alt: String,
+  val rsid: String)
+
 class MatrixPLINKReader(
   val params: MatrixPLINKReaderParameters,
   referenceGenome: Option[ReferenceGenome],
   val fullMatrixType: MatrixType,
   sampleInfo: IndexedSeq[Row],
-  variants: Array[(String, Int, Double, String, String, String)]
+  variants: Array[PlinkVariant],
+  contexts: Array[Any]
 ) extends MatrixHybridReader {
   def pathsUsed: Seq[String] = FastSeq(params.bed, params.bim, params.fam)
 
@@ -214,108 +244,162 @@ class MatrixPLINKReader(
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    val backend = ctx.backend
-    val sc = SparkBackend.sparkContext("MatrixPLINKReader.apply")
+  def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
+    val fsBc = ctx.fsBc
 
-    val requestedType = tr.typ
-    assert(PruneDeadFields.isSupertype(requestedType, fullType))
+    val localA2Reference = params.a2Reference
+    val localSkipInvalidLoci = params.skipInvalidLoci
+    val localRG = referenceGenome
+    val variantsBc = ctx.backend.broadcast(variants)
+    val localNSamples = nSamples
 
-    val rvd = if (tr.dropRows)
-      RVD.empty(requestedType.canonicalRVDType)
-    else {
-      val variantsBc = ctx.backend.broadcast(variants)
-      sc.hadoopConfiguration.setInt("nSamples", nSamples)
-      sc.hadoopConfiguration.setBoolean("a2Reference", params.a2Reference)
+    val globals = Row(sampleInfo)
 
-      val crdd = ContextRDD.weaken(
-        sc.hadoopFile(
-          params.bed,
-          classOf[PlinkInputFormat],
-          classOf[LongWritable],
-          classOf[PlinkRecord],
-          params.nPartitions.getOrElse(backend.defaultParallelism)))
+    val contextType = TStruct(
+      "bed" -> TString,
+      "start" -> TInt64,
+      "end" -> TInt64)
 
-      val kType = requestedType.canonicalRVDType.kType
-      val rvRowType = requestedType.canonicalRowPType
+    /* RVD can't handle non-canonical row PTypes yet
 
-      val hasRsid = requestedType.rowType.hasField("rsid")
-      val hasCmPos = requestedType.rowType.hasField("cm_position")
+    val fullRowPType = PCanonicalStruct(true,
+      "locus" -> PCanonicalLocus.schemaFromRG(localRG, true),
+      "alleles" -> PCanonicalArray(PCanonicalString(true), true),
+      "rsid" -> PCanonicalString(true),
+      "cm_position" -> PFloat64(true),
+      LowerMatrixIR.entriesFieldName -> PCanonicalArray(PCanonicalStruct(true, "GT" -> PCanonicalCall()), true))
 
-      val (hasGT, dropSamples) = requestedType.rowType.fieldOption(LowerMatrixIR.entriesFieldName) match {
-        case Some(fd) => fd.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct].hasField("GT") -> false
-        case None => false -> true
-      }
+    val bodyPType = (requestedRowType: TStruct) => fullRowPType.subsetTo(requestedRowType).asInstanceOf[PStruct]
+     */
 
+    val bodyPType = (requestedRowType: TStruct) => PType.canonical(requestedRowType).setRequired(true).asInstanceOf[PStruct]
 
-      val skipInvalidLociLocal = params.skipInvalidLoci
-      val rgLocal = referenceGenome
+    val body = { (requestedType: TStruct) =>
+      val hasLocus = requestedType.hasField("locus")
+      val hasAlleles = requestedType.hasField("alleles")
+      val hasRsid = requestedType.hasField("rsid")
+      val hasCmPos = requestedType.hasField("cm_position")
 
-      val fastKeys = crdd.cmapPartitions { (ctx, it) =>
-        val rvb = ctx.rvb
+      val hasEntries = requestedType.hasField(LowerMatrixIR.entriesFieldName)
+      val hasGT = hasEntries && (requestedType.fieldType(LowerMatrixIR.entriesFieldName).asInstanceOf[TArray]
+        .elementType.asInstanceOf[TStruct].hasField("GT"))
 
-        it.flatMap { case (_, record) =>
-          val (contig, pos, _, ref, alt, _) = variantsBc.value(record.getKey)
-          if (skipInvalidLociLocal && !rgLocal.forall(_.isValidLocus(contig, pos)))
-            None
-          else {
-            rvb.start(kType)
-            rvb.startStruct()
-            rvb.addAnnotation(kType.types(0).virtualType, Locus.annotation(contig, pos, rgLocal))
-            rvb.startArray(2)
-            rvb.addString(ref)
-            rvb.addString(alt)
-            rvb.endArray()
-            rvb.endStruct()
+      val requestedPType = bodyPType(requestedType)
 
-            Some(rvb.end())
-          }
+      { (region: Region, context: Any) =>
+        val c = context.asInstanceOf[Row]
+        val bed = c.getString(0)
+        val start = c.getInt(1)
+        val end = c.getInt(2)
+
+        val blockLength = (localNSamples + 3) / 4
+
+        val rvb = new RegionValueBuilder(region)
+
+        val is = fsBc.value.open(bed)
+        TaskContext.get.addTaskCompletionListener { (context: TaskContext) =>
+          is.close()
         }
-      }
 
-      val rdd2 = crdd.cmapPartitions { (ctx, it) =>
-        val rvb = ctx.rvb
+        val offset = 3 + start * blockLength
+        is match {
+          case base: Seekable =>
+            base.seek(offset)
+          case base: org.apache.hadoop.fs.Seekable =>
+            base.seek(offset)
+        }
 
-        it.flatMap { case (_, record) =>
-          val (contig, pos, cmPos, ref, alt, rsid) = variantsBc.value(record.getKey)
+        val input = new Array[Byte](blockLength)
 
-          if (skipInvalidLociLocal && !rgLocal.forall(_.isValidLocus(contig, pos)))
+        val table = new Array[Int](4)
+        table(0) = if (localA2Reference) Call2.fromUnphasedDiploidGtIndex(2) else Call2.fromUnphasedDiploidGtIndex(0)
+        // 1 missing
+        table(2) = Call2.fromUnphasedDiploidGtIndex(1)
+        table(3) = if (localA2Reference) Call2.fromUnphasedDiploidGtIndex(0) else Call2.fromUnphasedDiploidGtIndex(2)
+
+        Iterator.range(start, end).flatMap { i =>
+          val variant = variantsBc.value(i)
+          val contig = variant.contig
+          val pos = variant.pos
+
+          is.readFully(input, 0, input.length)
+
+          if (localSkipInvalidLoci && !localRG.forall(_.isValidLocus(contig, pos)))
             None
           else {
-            rvb.start(rvRowType)
+            rvb.start(requestedPType)
             rvb.startStruct()
-            rvb.addAnnotation(kType.types(0).virtualType, Locus.annotation(contig, pos, rgLocal))
-            rvb.startArray(2)
-            rvb.addString(ref)
-            rvb.addString(alt)
-            rvb.endArray()
+
+            if (hasLocus) {
+              // addLocus
+              localRG.foreach(_.checkLocus(contig, pos))
+              rvb.startStruct()
+              rvb.addString(contig)
+              rvb.addInt(pos)
+              rvb.endStruct()
+            }
+
+            if (hasAlleles) {
+              rvb.startArray(2)
+              rvb.addString(variant.ref)
+              rvb.addString(variant.alt)
+              rvb.endArray()
+            }
+
             if (hasRsid)
-              rvb.addAnnotation(rvRowType.types(2).virtualType, rsid)
+              rvb.addString(variant.rsid)
             if (hasCmPos)
-              rvb.addDouble(cmPos)
-            if (!dropSamples)
-              record.getValue(rvb, hasGT)
+              rvb.addDouble(variant.cmPos)
+
+            if (hasEntries) {
+              rvb.startArray(localNSamples)
+              if (hasGT) {
+                var i = 0
+                while (i < localNSamples) {
+                  rvb.startStruct() // g
+                  val x = (input(i >> 2) >> ((i & 3) << 1)) & 3
+                  if (x == 1)
+                    rvb.setMissing()
+                  else
+                    rvb.addInt(table(x))
+                  rvb.endStruct() // g
+                  i += 1
+                }
+              } else {
+                var i = 0
+                while (i < localNSamples) {
+                  rvb.startStruct() // g
+                  rvb.endStruct() // g
+                  i += 1
+                }
+              }
+
+              rvb.endArray()
+            }
             rvb.endStruct()
 
             Some(rvb.end())
           }
         }
       }
-
-      RVD.coerce(ctx, requestedType.canonicalRVDType, rdd2, fastKeys)
     }
 
-    if (params.skipInvalidLoci && referenceGenome.isDefined) {
-      val nFiltered = rvd.count() - nVariants
-      if (nFiltered > 0)
-        info(s"Filtered out $nFiltered ${ plural(nFiltered, "variant") } that are inconsistent with reference genome '${ referenceGenome.get.name }'.")
-    }
+    val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
 
-
-    val globalValue = makeGlobalValue(ctx, requestedType, sampleInfo)
-
-    TableValue(ctx, requestedType, globalValue, rvd)
+    new GenericTableValue(
+      tt,
+      { (requestedGlobalsType: Type) =>
+        val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
+        subset(globals).asInstanceOf[Row]
+      },
+      contextType,
+      contexts,
+      bodyPType,
+      body)
   }
+
+  def apply(tr: TableRead, ctx: ExecuteContext): TableValue =
+    executeGeneric(ctx).toTableValue(ctx, tr.typ)
 
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats

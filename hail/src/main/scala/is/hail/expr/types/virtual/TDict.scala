@@ -74,4 +74,14 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   lazy val ordering: ExtendedOrdering =
     ExtendedOrdering.mapOrdering(elementType.ordering)
+
+  override def valueSubsetter(subtype: Type): Any => Any = {
+    val subdict = subtype.asInstanceOf[TDict]
+    assert(keyType == subdict.keyType)
+    if (valueType == subdict.valueType)
+      return identity
+
+    val subsetValue = valueType.valueSubsetter(subdict.valueType)
+    (a: Any) => a.asInstanceOf[Map[Any, Any]].mapValues(subsetValue)
+  }
 }

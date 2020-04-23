@@ -467,7 +467,7 @@ class MatrixBGENReader(
         partitioner,
         BgenRDD(ctx, partitions, settings, variants).toCRDDPtr)
 
-    val globalValue = makeGlobalValue(ctx, requestedType, sampleIds.map(Row(_)))
+    val globalValue = makeGlobalValue(ctx, requestedType.globalType, sampleIds.map(Row(_)))
 
     TableValue(ctx, tr.typ, globalValue, rvd)
   }

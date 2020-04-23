@@ -324,7 +324,7 @@ class TextMatrixReader(
       RVD.empty(requestedType.canonicalRVDType)
     else
       RVD.unkeyed(PCanonicalStruct.canonical(requestedType.rowType).setRequired(true).asInstanceOf[PStruct], rdd)
-    val globalValue = makeGlobalValue(ctx, requestedType, headerInfo.columnIdentifiers.map(Row(_)))
+    val globalValue = makeGlobalValue(ctx, requestedType.globalType, headerInfo.columnIdentifiers.map(Row(_)))
     TableValue(ctx, tr.typ, globalValue, rvd)
   }
 
