@@ -8,11 +8,6 @@ RUN apt-fast update && \
 COPY docker/service-base-requirements.txt .
 RUN python3 -m hailpip --no-cache-dir -U -r service-base-requirements.txt
 
-COPY hail/python/setup-hailtop.py /hailtop/setup.py
-COPY hail/python/hailtop /hailtop/hailtop/
-RUN python3 -m hailpip --no-deps --no-cache-dir /hailtop \
-  && rm -rf /hailtop
-
 COPY gear/setup.py /gear/setup.py
 COPY gear/gear /gear/gear/
 RUN python3 -m hailpip --no-deps --no-cache-dir /gear \

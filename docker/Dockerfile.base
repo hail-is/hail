@@ -41,7 +41,12 @@ ENV SPARK_HOME /spark-2.4.0-bin-hadoop2.7
 ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 
 COPY hailpip /hailpip/
-RUN python3 -m pip install --no-cache-dir -U /hailpip
+COPY hail/python/setup-hailtop.py /hailtop/setup.py
+COPY hail/python/hailtop /hailtop/hailtop/
+RUN  python3 -m pip isntall --no-deps --no-cache-dir /hailtop \
+  && rm -rf /hailtop \
+  && python3 -m pip install --no-cache-dir /hailpip \
+  && rm -rf /hailpip
 
 COPY docker/requirements.txt .
 RUN python3 -m hailpip --no-cache-dir -U -r requirements.txt
