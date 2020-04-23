@@ -448,7 +448,7 @@ object TypeCheck {
         assert(keyFields.map(_.field).toSet.size == keyFields.length)
         assert((keyFields.map(_.field).toSet - keyFields.toSet).size == 0)
         val keyType = TArray(rowType.typeAfterSelectNames(keyFields.map(_.field)))
-        assert(keyRange.typ == TArray(keyType))
+        assert(keyRange.typ == TInterval(keyType))
       case ShuffleDelete(id) =>
         assert(id.typ == TBinary)
     }
