@@ -600,17 +600,16 @@ object Interpret {
         child.execute(ctx).globals.safeJavaValue
       case TableCollect(child) =>
         val tv = child.execute(ctx)
-        Row(tv.rvd.collect().toFastIndexedSeq, tv.globals.safeJavaValue)
+        Row(tv.rvd.collect(ctx).toFastIndexedSeq, tv.globals.safeJavaValue)
       case TableMultiWrite(children, writer) =>
         val tvs = children.map(_.execute(ctx))
-        writer(tvs)
+        writer(ctx, tvs)
       case TableWrite(child, writer) =>
-        writer(child.execute(ctx))
+        writer(ctx, child.execute(ctx))
       case BlockMatrixWrite(child, writer) =>
-        val hc = HailContext.get
-        writer(hc, child.execute(ctx))
+        writer(ctx, child.execute(ctx))
       case BlockMatrixMultiWrite(blockMatrices, writer) =>
-        writer(blockMatrices.map(_.execute(ctx)))
+        writer(ctx.fs, blockMatrices.map(_.execute(ctx)))
       case UnpersistBlockMatrix(BlockMatrixRead(BlockMatrixPersistReader(id))) =>
         HailContext.sparkBackend().bmCache.unpersistBlockMatrix(id)
       case _: UnpersistBlockMatrix =>

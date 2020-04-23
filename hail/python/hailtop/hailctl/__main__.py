@@ -31,6 +31,9 @@ def print_help():
     subs.add_parser('curl',
                     help='Issue authenticated curl requests to Hail infrastructure.',
                     description='Issue authenticated curl requests to Hail infrastructure.')
+    subs.add_parser('config',
+                    help='Manage Hail configuration.',
+                    description='Manage Hail configuration.')
 
     main_parser.print_help()
 
@@ -107,6 +110,9 @@ def main():
         elif module == 'curl':
             from hailtop.hailctl.curl import main
             main(args)
+        elif module == 'config':
+            from hailtop.hailctl.config import cli
+            cli.main(args)
         elif module in ('-h', '--help', 'help'):
             print_help()
         else:

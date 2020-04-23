@@ -1,21 +1,20 @@
 package is.hail.io.plink
 
 import is.hail.HailContext
-import is.hail.annotations._
-import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, PruneDeadFields, TableRead, TableValue}
+import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixHybridReader, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PBoolean, PCanonicalString, PCanonicalStruct, PFloat64, PString, PStruct}
+import is.hail.expr.types.physical.{PBoolean, PCanonicalString, PCanonicalStruct, PFloat64}
 import is.hail.expr.types.virtual._
 import is.hail.io.vcf.LoadVCF
-import is.hail.rvd.{RVD, RVDContext, RVDType}
+import is.hail.rvd.RVD
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.{Locus, _}
 import is.hail.io.fs.FS
-import org.apache.hadoop
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.sql.Row
+import org.json4s.{DefaultFormats, Extraction, Formats, JObject, JValue}
 
 case class FamFileConfig(isQuantPheno: Boolean = false,
   delimiter: String = "\\t",
@@ -24,7 +23,7 @@ case class FamFileConfig(isQuantPheno: Boolean = false,
 object LoadPlink {
   def expectedBedSize(nSamples: Int, nVariants: Long): Long = 3 + nVariants * ((nSamples + 3) / 4)
 
-  def parseBim(bimPath: String, fs: FS, a2Reference: Boolean = true,
+  def parseBim(fs: FS, bimPath: String, a2Reference: Boolean = true,
     contigRecoding: Map[String, String] = Map.empty[String, String]): Array[(String, Int, Double, String, String, String)] = {
     fs.readLines(bimPath)(_.map(_.map { line =>
       line.split("\\s+") match {
@@ -44,8 +43,7 @@ object LoadPlink {
   val numericRegex =
     """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
 
-  def parseFam(filename: String, ffConfig: FamFileConfig,
-    fs: FS): (IndexedSeq[Row], PCanonicalStruct) = {
+  def parseFam(fs: FS, filename: String, ffConfig: FamFileConfig): (IndexedSeq[Row], PCanonicalStruct) = {
 
     val delimiter = unescapeString(ffConfig.delimiter)
 
@@ -119,99 +117,123 @@ object LoadPlink {
   }
 }
 
-case class MatrixPLINKReader(
+object MatrixPLINKReader {
+  def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixPLINKReader = {
+    val backend = ctx.backend
+    val fs = ctx.fs
+
+    implicit val formats: Formats = DefaultFormats
+    val params = jv.extract[MatrixPLINKReaderParameters]
+
+    val referenceGenome = params.rg.map(ReferenceGenome.getReference)
+    referenceGenome.foreach(_.validateContigRemap(params.contigRecoding))
+
+    val ffConfig = FamFileConfig(params.quantPheno, params.delimiter, params.missing)
+
+    val (sampleInfo, signature) = LoadPlink.parseFam(fs, params.fam, ffConfig)
+
+    val nameMap = Map("id" -> "s")
+    val saSignature = signature.copy(fields = signature.fields.map(f => f.copy(name = nameMap.getOrElse(f.name, f.name))))
+
+    val nSamples = sampleInfo.length
+    if (nSamples <= 0)
+      fatal("FAM file does not contain any samples")
+
+    val variants = LoadPlink.parseBim(fs, params.bim, params.a2Reference, params.contigRecoding)
+    val nVariants = variants.length
+    if (nVariants <= 0)
+      fatal("BIM file does not contain any variants")
+
+    info(s"Found $nSamples samples in fam file.")
+    info(s"Found $nVariants variants in bim file.")
+
+    using(fs.open(params.bed)) { dis =>
+      val b1 = dis.read()
+      val b2 = dis.read()
+      val b3 = dis.read()
+
+      if (b1 != 108 || b2 != 27)
+        fatal("First two bytes of BED file do not match PLINK magic numbers 108 & 27")
+
+      if (b3 == 0)
+        fatal("BED file is in individual major mode. First use plink with --make-bed to convert file to snp major mode before using Hail")
+    }
+
+    val bedSize = fs.getFileSize(params.bed)
+    if (bedSize != LoadPlink.expectedBedSize(nSamples, nVariants))
+      fatal("BED file size does not match expected number of bytes based on BIM and FAM files")
+
+    val requestedPartitions = params.nPartitions.getOrElse(backend.defaultParallelism)
+    if (bedSize < requestedPartitions)
+      fatal(s"The number of partitions requested ($requestedPartitions) is greater than the file size ($bedSize)")
+
+    val fullMatrixType: MatrixType = MatrixType(
+      globalType = TStruct.empty,
+      colKey = Array("s"),
+      colType = saSignature.virtualType,
+      rowType = TStruct(
+        "locus" -> TLocus.schemaFromRG(referenceGenome),
+        "alleles" -> TArray(TString),
+        "rsid" -> TString,
+        "cm_position" -> TFloat64),
+      rowKey = Array("locus", "alleles"),
+      entryType = TStruct("GT" -> TCall))
+
+    new MatrixPLINKReader(params, referenceGenome, fullMatrixType, sampleInfo, variants)
+  }
+}
+
+case class MatrixPLINKReaderParameters(
   bed: String,
   bim: String,
   fam: String,
   nPartitions: Option[Int] = None,
-  delimiter: String = "\\\\s+",
-  missing: String = "NA",
-  quantPheno: Boolean = false,
-  a2Reference: Boolean = true,
+  delimiter: String,
+  missing: String,
+  quantPheno: Boolean,
+  a2Reference: Boolean,
   rg: Option[String],
-  contigRecoding: Map[String, String] = Map.empty[String, String],
-  skipInvalidLoci: Boolean = false
+  contigRecoding: Map[String, String],
+  skipInvalidLoci: Boolean)
+
+class MatrixPLINKReader(
+  val params: MatrixPLINKReaderParameters,
+  referenceGenome: Option[ReferenceGenome],
+  val fullMatrixType: MatrixType,
+  sampleInfo: IndexedSeq[Row],
+  variants: Array[(String, Int, Double, String, String, String)]
 ) extends MatrixHybridReader {
+  def pathsUsed: Seq[String] = FastSeq(params.bed, params.bim, params.fam)
 
-  def pathsUsed: Seq[String] = FastSeq(bed, bim, fam)
+  def nSamples: Int = sampleInfo.length
 
-  private val hc = HailContext.get
-  private val sc = hc.sc
-  private val referenceGenome = rg.map(ReferenceGenome.getReference)
-  referenceGenome.foreach(_.validateContigRemap(contigRecoding))
-
-  val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
-
-  val (sampleInfo, signature) = LoadPlink.parseFam(fam, ffConfig, hc.fs)
-
-  val nameMap = Map("id" -> "s")
-  val saSignature = signature.copy(fields = signature.fields.map(f => f.copy(name = nameMap.getOrElse(f.name, f.name))))
-
-  val nSamples = sampleInfo.length
-  if (nSamples <= 0)
-    fatal("FAM file does not contain any samples")
-
-  val variants = LoadPlink.parseBim(bim, hc.fs, a2Reference, contigRecoding)
-  val nVariants = variants.length
-  if (nVariants <= 0)
-    fatal("BIM file does not contain any variants")
-
-  info(s"Found $nSamples samples in fam file.")
-  info(s"Found $nVariants variants in bim file.")
-
-  using(hc.fs.open(bed)) { dis =>
-    val b1 = dis.read()
-    val b2 = dis.read()
-    val b3 = dis.read()
-
-    if (b1 != 108 || b2 != 27)
-      fatal("First two bytes of BED file do not match PLINK magic numbers 108 & 27")
-
-    if (b3 == 0)
-      fatal("BED file is in individual major mode. First use plink with --make-bed to convert file to snp major mode before using Hail")
-  }
-
-  val bedSize = hc.fs.getFileSize(bed)
-  if (bedSize != LoadPlink.expectedBedSize(nSamples, nVariants))
-    fatal("BED file size does not match expected number of bytes based on BIM and FAM files")
-
-  if (bedSize < nPartitions.getOrElse(hc.sc.defaultMinPartitions))
-    fatal(s"The number of partitions requested (${ nPartitions.getOrElse(hc.sc.defaultMinPartitions) }) is greater than the file size ($bedSize)")
+  def nVariants: Long = variants.length
 
   val columnCount: Option[Int] = Some(nSamples)
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
-  val fullMatrixType: MatrixType = MatrixType(
-    globalType = TStruct.empty,
-    colKey = Array("s"),
-    colType = saSignature.virtualType,
-    rowType = TStruct(
-      "locus" -> TLocus.schemaFromRG(referenceGenome),
-      "alleles" -> TArray(TString),
-      "rsid" -> TString,
-      "cm_position" -> TFloat64),
-    rowKey = Array("locus", "alleles"),
-    entryType = TStruct("GT" -> TCall))
-
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
+    val backend = ctx.backend
+    val sc = HailContext.sc
+
     val requestedType = tr.typ
     assert(PruneDeadFields.isSupertype(requestedType, fullType))
 
     val rvd = if (tr.dropRows)
       RVD.empty(sc, requestedType.canonicalRVDType)
     else {
-      val variantsBc = hc.backend.broadcast(variants)
+      val variantsBc = ctx.backend.broadcast(variants)
       sc.hadoopConfiguration.setInt("nSamples", nSamples)
-      sc.hadoopConfiguration.setBoolean("a2Reference", a2Reference)
+      sc.hadoopConfiguration.setBoolean("a2Reference", params.a2Reference)
 
       val crdd = ContextRDD.weaken(
         sc.hadoopFile(
-          bed,
+          params.bed,
           classOf[PlinkInputFormat],
           classOf[LongWritable],
           classOf[PlinkRecord],
-          nPartitions.getOrElse(sc.defaultMinPartitions)))
+          params.nPartitions.getOrElse(backend.defaultParallelism)))
 
       val kType = requestedType.canonicalRVDType.kType
       val rvRowType = requestedType.canonicalRowPType
@@ -225,7 +247,7 @@ case class MatrixPLINKReader(
       }
 
 
-      val skipInvalidLociLocal = skipInvalidLoci
+      val skipInvalidLociLocal = params.skipInvalidLoci
       val rgLocal = referenceGenome
 
       val fastKeys = crdd.cmapPartitions { (ctx, it) =>
@@ -279,10 +301,10 @@ case class MatrixPLINKReader(
         }
       }
 
-      RVD.coerce(requestedType.canonicalRVDType, rdd2, fastKeys, ctx)
+      RVD.coerce(ctx, requestedType.canonicalRVDType, rdd2, fastKeys)
     }
 
-    if (skipInvalidLoci && referenceGenome.isDefined) {
+    if (params.skipInvalidLoci && referenceGenome.isDefined) {
       val nFiltered = rvd.count() - nVariants
       if (nFiltered > 0)
         info(s"Filtered out $nFiltered ${ plural(nFiltered, "variant") } that are inconsistent with reference genome '${ referenceGenome.get.name }'.")
@@ -291,6 +313,18 @@ case class MatrixPLINKReader(
 
     val globalValue = makeGlobalValue(ctx, requestedType, sampleInfo)
 
-    TableValue(requestedType, globalValue, rvd)
+    TableValue(ctx, requestedType, globalValue, rvd)
+  }
+
+  override def toJValue: JValue = {
+    implicit val formats: Formats = DefaultFormats
+    decomposeWithName(params, "MatrixPLINKReader")
+  }
+
+  override def hashCode(): Int = params.hashCode()
+
+  override def equals(that: Any): Boolean = that match {
+    case that: MatrixPLINKReader => params == that.params
+    case _ => false
   }
 }

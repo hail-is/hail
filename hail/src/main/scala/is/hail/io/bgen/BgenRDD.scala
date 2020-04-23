@@ -1,13 +1,15 @@
 package is.hail.io.bgen
 
+import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s.{AsmFunction4, AsmFunction5}
 import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.PruneDeadFields
+import is.hail.expr.ir.{ExecuteContext, PruneDeadFields}
 import is.hail.expr.types._
 import is.hail.expr.types.encoded.{EArray, EBaseStruct, EBinaryOptional, EBinaryRequired, EField, EInt32Optional, EInt32Required, EInt64Required}
 import is.hail.expr.types.physical.{PArray, PCall, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PFloat64Required, PInt32, PInt64, PLocus, PString, PStruct}
 import is.hail.expr.types.virtual.{Field, TArray, TInt64, TLocus, TString, TStruct, Type}
+import is.hail.io.fs.FS
 import is.hail.io.{AbstractTypedCodecSpec, BlockingBufferSpec, HadoopFSDataBinaryReader, LEB128BufferSpec, LZ4HCBlockBufferSpec, StreamBlockBufferSpec, TypedCodecSpec}
 import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}
 import is.hail.rvd._
@@ -124,12 +126,20 @@ case class BgenSettings(
 
 object BgenRDD {
   def apply(
-    sc: SparkContext,
+    ctx: ExecuteContext,
     partitions: Array[Partition],
     settings: BgenSettings,
     keys: RDD[Row]
   ): ContextRDD[RegionValue] = {
-    ContextRDD(new BgenRDD(sc, partitions, settings, keys))
+    val f = CompileDecoder(ctx, settings)
+    val indexBuilder = {
+      val (leafCodec, internalNodeCodec) = BgenSettings.indexCodecSpecs(settings.rg)
+      val (leafPType: PStruct, leafDec) = leafCodec.buildDecoder(ctx, leafCodec.encodedVirtualType)
+      val (intPType: PStruct, intDec) = internalNodeCodec.buildDecoder(ctx, internalNodeCodec.encodedVirtualType)
+      IndexReaderBuilder.withDecoders(leafDec, intDec, BgenSettings.indexKeyType(settings.rg), BgenSettings.indexAnnotationType, leafPType, intPType)
+    }
+
+    ContextRDD(new BgenRDD(f, indexBuilder, partitions, settings, keys))
   }
 
   private[bgen] def decompress(
@@ -139,18 +149,12 @@ object BgenRDD {
 }
 
 private class BgenRDD(
-  sc: SparkContext,
+  f: (Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long],
+  indexBuilder: (FS, String, Int) => IndexReader,
   parts: Array[Partition],
   settings: BgenSettings,
   keys: RDD[Row]
-) extends RDD[RVDContext => Iterator[RegionValue]](sc, if (keys == null) Nil else Seq(new OneToOneDependency(keys))) {
-  private[this] val f = CompileDecoder(settings)
-  private[this] val indexBuilder = {
-    val (leafCodec, internalNodeCodec) = BgenSettings.indexCodecSpecs(settings.rg)
-    val (leafPType: PStruct, leafDec) = leafCodec.buildDecoder(leafCodec.encodedVirtualType)
-    val (intPType: PStruct, intDec) = internalNodeCodec.buildDecoder(internalNodeCodec.encodedVirtualType)
-    IndexReaderBuilder.withDecoders(leafDec, intDec, BgenSettings.indexKeyType(settings.rg), BgenSettings.indexAnnotationType, leafPType, intPType)
-  }
+) extends RDD[RVDContext => Iterator[RegionValue]](HailContext.sc, if (keys == null) Nil else Seq(new OneToOneDependency(keys))) {
 
   protected def getPartitions: Array[Partition] = parts
 

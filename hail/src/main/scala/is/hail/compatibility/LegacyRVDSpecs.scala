@@ -6,6 +6,7 @@ import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.encoded._
 import is.hail.expr.types.virtual._
 import is.hail.io._
+import is.hail.io.fs.FS
 import is.hail.rvd.{AbstractRVDSpec, IndexSpec2, IndexedRVDSpec2, RVD, RVDPartitioner}
 import is.hail.utils.{FastIndexedSeq, Interval}
 import org.json4s.JValue
@@ -84,13 +85,12 @@ trait ShimRVDSpec extends AbstractRVDSpec {
   override def partitioner: RVDPartitioner = shim.partitioner
 
   override def read(
-    hc: HailContext,
+    ctx: ExecuteContext,
     path: String,
     requestedType: TStruct,
-    ctx: ExecuteContext,
     newPartitioner: Option[RVDPartitioner],
     filterIntervals: Boolean
-  ): RVD = shim.read(hc, path, requestedType, ctx, newPartitioner, filterIntervals)
+  ): RVD = shim.read(ctx, path, requestedType, newPartitioner, filterIntervals)
 
   override def typedCodecSpec: AbstractTypedCodecSpec = shim.typedCodecSpec
 

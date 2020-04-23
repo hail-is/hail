@@ -537,7 +537,7 @@ object InferPType {
         PCanonicalStream(child, child.required)
       case ReadValue(path, spec, requestedType) =>
         infer(path)
-        spec.buildDecoder(requestedType)._1
+        spec.decodedPType(requestedType)
       case WriteValue(value, pathPrefix, spec) =>
         infer(value)
         infer(pathPrefix)

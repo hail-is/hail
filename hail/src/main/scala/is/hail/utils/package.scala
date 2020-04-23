@@ -16,10 +16,10 @@ import org.apache.hadoop.mapred.FileSplit
 import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
 import org.apache.log4j.Level
 import org.apache.spark.{Partition, TaskContext}
-import org.json4s.JsonAST.JArray
+import org.json4s.JsonAST.{JArray, JString}
 import org.json4s.jackson.Serialization
 import org.json4s.reflect.TypeInfo
-import org.json4s.{Extraction, Formats, NoTypeHints, Serializer}
+import org.json4s.{Extraction, Formats, JObject, NoTypeHints, Serializer}
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
@@ -564,11 +564,7 @@ package object utils extends Logging
     s"${ ctx.stageId() }-${ ctx.partitionId() }-${ ctx.attemptNumber() }-$fileUUID"
   }
 
-  def partFile(d: Int, i: Int, ctx: TaskContext): String = {
-    val rng = new java.security.SecureRandom()
-    val fileUUID = new java.util.UUID(rng.nextLong(), rng.nextLong())
-    s"${ partFile(d, i) }-${ partSuffix(ctx) }"
-  }
+  def partFile(d: Int, i: Int, ctx: TaskContext): String = s"${ partFile(d, i) }-${ partSuffix(ctx) }"
 
   def mangle(strs: Array[String], formatter: Int => String = "_%d".format(_)): (Array[String], Array[(String, String)]) = {
     val b = new ArrayBuilder[String]
@@ -734,11 +730,11 @@ package object utils extends Logging
       dumpClassLoader(parent)
   }
 
-  def writeNativeFileReadMe(path: String): Unit = {
+  def writeNativeFileReadMe(fs: FS, path: String): Unit = {
     val hc = HailContext.get
     val dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss")
 
-    using(new OutputStreamWriter(hc.fs.create(path + "/README.txt"))) { out =>
+    using(new OutputStreamWriter(fs.create(path + "/README.txt"))) { out =>
       out.write(
         s"""This folder comprises a Hail (www.hail.is) native Table or MatrixTable.
            |  Written with version ${ hc.version }
@@ -825,6 +821,11 @@ package object utils extends Logging
       right
     else
       left.take(i)
+  }
+
+  def decomposeWithName(v: Any, name: String)(implicit formats: Formats): JObject = {
+    val jo = Extraction.decompose(v).asInstanceOf[JObject]
+    jo.merge(JObject("name" -> JString(name)))
   }
 }
 

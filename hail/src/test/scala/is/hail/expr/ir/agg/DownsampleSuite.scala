@@ -12,7 +12,7 @@ class DownsampleSuite extends HailSuite {
 
   @Test def testLargeRandom(): Unit = {
     val lt = PCanonicalArray(PCanonicalString())
-    val fb = EmitFunctionBuilder[Unit]("foo")
+    val fb = EmitFunctionBuilder[Unit](ctx, "foo")
     val cb = fb.ecb
     val ds1 = new DownsampleState(cb, lt, maxBufferSize = 4)
     val ds2 = new DownsampleState(cb, lt, maxBufferSize = 4)

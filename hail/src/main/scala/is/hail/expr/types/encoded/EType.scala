@@ -5,7 +5,7 @@ import java.util.Map.Entry
 import is.hail.HailContext
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder, IRParser, ParamType, PunctuationToken, TokenIterator, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, ParamType, PunctuationToken, TokenIterator, typeToTypeInfo}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.Type
 import is.hail.expr.types.{BaseType, Requiredness}
@@ -190,7 +190,7 @@ object EType {
   protected var encoderCacheMisses: Long = 0L
 
   // The 'entry point' for building an encoder from an EType and a PType
-  def buildEncoder(et: EType, pt: PType): () => EncoderAsmFunction = {
+  def buildEncoder(ctx: ExecuteContext, et: EType, pt: PType): () => EncoderAsmFunction = {
     val k = (et, pt)
     if (encoderCache.containsKey(k)) {
       encoderCacheHits += 1
@@ -200,7 +200,7 @@ object EType {
       encoderCacheMisses += 1
       log.info(s"encoder cache miss ($encoderCacheHits hits, $encoderCacheMisses misses, " +
         s"${ formatDouble(encoderCacheHits.toDouble / (encoderCacheHits + encoderCacheMisses), 3) })")
-      val fb = EmitFunctionBuilder[EncoderAsmFunction]("etypeEncode",
+      val fb = EmitFunctionBuilder[EncoderAsmFunction](ctx, "etypeEncode",
         Array(NotGenericTypeInfo[Long], NotGenericTypeInfo[OutputBuffer]),
         NotGenericTypeInfo[Unit])
       val mb = fb.apply_method
@@ -223,7 +223,7 @@ object EType {
   protected var decoderCacheHits: Long = 0L
   protected var decoderCacheMisses: Long = 0L
 
-  def buildDecoder(et: EType, t: Type): (PType, () => DecoderAsmFunction) = {
+  def buildDecoder(ctx: ExecuteContext, et: EType, t: Type): (PType, () => DecoderAsmFunction) = {
     val k = (et, t)
     if (decoderCache.containsKey(k)) {
       decoderCacheHits += 1
@@ -233,7 +233,7 @@ object EType {
       decoderCacheMisses += 1
       log.info(s"decoder cache miss ($decoderCacheHits hits, $decoderCacheMisses misses, " +
         s"${ formatDouble(decoderCacheHits.toDouble / (decoderCacheHits + decoderCacheMisses), 3) }")
-      val fb = EmitFunctionBuilder[DecoderAsmFunction]("etypeDecode",
+      val fb = EmitFunctionBuilder[DecoderAsmFunction](ctx, "etypeDecode",
         Array(NotGenericTypeInfo[Region], NotGenericTypeInfo[InputBuffer]),
         NotGenericTypeInfo[Long])
       val mb = fb.apply_method

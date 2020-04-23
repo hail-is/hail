@@ -1862,7 +1862,7 @@ class Emit[C](
         val parentCB = mb.ecb
 
         val functionID: String = {
-          val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]]("collect_distributed_array")
+          val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]](ctx, "collect_distributed_array")
           val bodyMB = bodyFB.genEmitMethod("cdaBody",
             Array[ParamType](typeInfo[Region], ctxType, gType),
             typeInfo[Long])

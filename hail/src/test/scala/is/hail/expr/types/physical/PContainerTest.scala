@@ -7,7 +7,7 @@ import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.utils._
 import org.testng.annotations.Test
 
-class PContainerTest extends HailSuite {
+class PContainerTest extends PhysicalTestUtils {
   def nullInByte(nElements: Int, missingElement: Int) = {
     IndexedSeq.tabulate(nElements)(i => {
       if (i == missingElement - 1)
@@ -23,7 +23,7 @@ class PContainerTest extends HailSuite {
 
     log.info(s"Testing $data")
 
-    val fb = EmitFunctionBuilder[Region, Long, Long]("not_empty")
+    val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "not_empty")
     val codeRegion = fb.getCodeParam[Region](1)
     val value = fb.getCodeParam[Long](2)
 
@@ -54,7 +54,7 @@ class PContainerTest extends HailSuite {
 
     log.info(s"Testing $data")
 
-    val fb = EmitFunctionBuilder[Long, Boolean]("not_empty")
+    val fb = EmitFunctionBuilder[Long, Boolean](ctx, "not_empty")
     val value = fb.getCodeParam[Long](1)
 
     fb.emit(Region.containsNonZeroBits(value + sourceType.lengthHeaderBytes, sourceType.loadLength(value).toL))
@@ -69,7 +69,7 @@ class PContainerTest extends HailSuite {
 
     log.info(s"\nTesting $data")
 
-    val fb = EmitFunctionBuilder[Long, Boolean]("not_empty")
+    val fb = EmitFunctionBuilder[Long, Boolean](ctx, "not_empty")
     val value = fb.getCodeParam[Long](1)
 
     fb.emit(sourceType.hasMissingValues(value))
@@ -183,51 +183,51 @@ class PContainerTest extends HailSuite {
   @Test def arrayCopyTest() {
     // Note: can't test where data is null due to ArrayStack.top semantics (ScalaToRegionValue: assert(size_ > 0))
     def runTests(deepCopy: Boolean, interpret: Boolean) {
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt64()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, 9),
+      copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt64()), IndexedSeq(1, 2, 3, 4, 5, 6, 7, 8, 9),
         expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
-
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32()), IndexedSeq(1, 2, 3, 4),
+      
+      copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32()), IndexedSeq(1, 2, 3, 4),
         deepCopy = deepCopy, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32()), IndexedSeq(1, 2, 3, 4),
+      copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32()), IndexedSeq(1, 2, 3, 4),
         deepCopy = deepCopy, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32()), IndexedSeq(1, null, 3, 4),
+      copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32()), IndexedSeq(1, null, 3, 4),
         deepCopy = deepCopy, interpret = interpret)
 
       // test upcast
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PInt32(true)), PCanonicalArray(PInt32()), IndexedSeq(1, 2, 3, 4),
+      copyTestExecutor(PCanonicalArray(PInt32(true)), PCanonicalArray(PInt32()), IndexedSeq(1, 2, 3, 4),
         deepCopy = deepCopy, interpret = interpret)
 
       // test mismatched top-level requiredeness, allowed because by source value address must be present and therefore non-null
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32(), true), IndexedSeq(1, 2, 3, 4),
+      copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32(), true), IndexedSeq(1, 2, 3, 4),
         deepCopy = deepCopy, interpret = interpret)
 
       // downcast disallowed
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32(true)), IndexedSeq(1, 2, 3, 4),
+      copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32(true)), IndexedSeq(1, 2, 3, 4),
         expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64(), true)),
+      copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64(), true)),
         FastIndexedSeq(FastIndexedSeq(20L), FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
         expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64(), true)),
+      copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64(), true)),
         FastIndexedSeq(FastIndexedSeq(20L), FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
         expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64(true))),
+      copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64(true))),
         FastIndexedSeq(FastIndexedSeq(20L), FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
         expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
 
       // test empty arrays
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32()), FastIndexedSeq(),
+      copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32()), FastIndexedSeq(),
         deepCopy = deepCopy, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PInt32(true)), PCanonicalArray(PInt32(true)), FastIndexedSeq(),
+      copyTestExecutor(PCanonicalArray(PInt32(true)), PCanonicalArray(PInt32(true)), FastIndexedSeq(),
         deepCopy = deepCopy, interpret = interpret)
 
       // test missing-only array
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PInt64()), PCanonicalArray(PInt64()),
+      copyTestExecutor(PCanonicalArray(PInt64()), PCanonicalArray(PInt64()),
         FastIndexedSeq(null), deepCopy = deepCopy, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64())),
+      copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64())),
         FastIndexedSeq(FastIndexedSeq(null)), deepCopy = deepCopy, interpret = interpret)
 
       // test 2D arrays
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64())),
+      copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64())),
         FastIndexedSeq(null, FastIndexedSeq(null), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
         deepCopy = deepCopy, interpret = interpret)
 
@@ -237,21 +237,21 @@ class PContainerTest extends HailSuite {
         FastIndexedSeq( FastIndexedSeq(1L,3L,31L,41L), FastIndexedSeq(0L,30L,17L,41L) )
       )
 
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64(true), true), true), true), PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64()))),
+      copyTestExecutor(PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64(true), true), true), true), PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64()))),
         complexNesting, deepCopy = deepCopy, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64(true), true), true)), PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64()))),
+      copyTestExecutor(PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64(true), true), true)), PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64()))),
         complexNesting, deepCopy = deepCopy, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64(true), true))), PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64()))),
+      copyTestExecutor(PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64(true), true))), PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64()))),
         complexNesting, deepCopy = deepCopy, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64(true)))), PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64()))),
+      copyTestExecutor(PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64(true)))), PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64()))),
         complexNesting, deepCopy = deepCopy, interpret = interpret)
-      PhysicalTestUtils.copyTestExecutor(PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64()))), PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64()))),
+      copyTestExecutor(PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64()))), PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64()))),
         complexNesting, deepCopy = deepCopy, interpret = interpret)
 
       val srcType = PCanonicalArray(PCanonicalStruct("a" -> PCanonicalArray(PInt32(true)), "b" -> PInt64()))
       val destType = PCanonicalArray(PCanonicalStruct("a" -> PCanonicalArray(PInt32()), "b" -> PInt64()))
       val expectedVal = IndexedSeq(Annotation(IndexedSeq(1,5,7,2,31415926), 31415926535897L))
-      PhysicalTestUtils.copyTestExecutor(srcType, destType, expectedVal, deepCopy = deepCopy, interpret = interpret)
+      copyTestExecutor(srcType, destType, expectedVal, deepCopy = deepCopy, interpret = interpret)
     }
 
     runTests(true, false)
@@ -263,13 +263,13 @@ class PContainerTest extends HailSuite {
 
   @Test def dictCopyTests() {
     def runTests(deepCopy: Boolean, interpret: Boolean) {
-      PhysicalTestUtils.copyTestExecutor(PCanonicalDict(PCanonicalString(), PInt32()), PCanonicalDict(PCanonicalString(), PInt32()), Map("test" -> 1),
+      copyTestExecutor(PCanonicalDict(PCanonicalString(), PInt32()), PCanonicalDict(PCanonicalString(), PInt32()), Map("test" -> 1),
         deepCopy = deepCopy, interpret = interpret)
 
-      PhysicalTestUtils.copyTestExecutor(PCanonicalDict(PCanonicalString(true), PInt32(true)), PCanonicalDict(PCanonicalString(), PInt32()), Map("test2" -> 2),
+      copyTestExecutor(PCanonicalDict(PCanonicalString(true), PInt32(true)), PCanonicalDict(PCanonicalString(), PInt32()), Map("test2" -> 2),
         deepCopy = deepCopy, interpret = interpret)
 
-      PhysicalTestUtils.copyTestExecutor(PCanonicalDict(PCanonicalString(), PInt32()), PCanonicalDict(PCanonicalString(true), PInt32()), Map("test3" -> 3),
+      copyTestExecutor(PCanonicalDict(PCanonicalString(), PInt32()), PCanonicalDict(PCanonicalString(true), PInt32()), Map("test3" -> 3),
         expectCompileErr = true, deepCopy = deepCopy, interpret = interpret)
     }
 
@@ -281,7 +281,7 @@ class PContainerTest extends HailSuite {
 
   @Test def setCopyTests() {
     def runTests(deepCopy: Boolean, interpret: Boolean) {
-      PhysicalTestUtils.copyTestExecutor(PCanonicalSet(PCanonicalString(true)), PCanonicalSet(PCanonicalString()), Set("1", "2"),
+      copyTestExecutor(PCanonicalSet(PCanonicalString(true)), PCanonicalSet(PCanonicalString()), Set("1", "2"),
         deepCopy = deepCopy, interpret = interpret)
     }
 

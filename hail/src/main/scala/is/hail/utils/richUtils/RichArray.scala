@@ -8,14 +8,14 @@ import is.hail.utils._
 object RichArray {
   val defaultBufSize: Int = 4096 << 3
   
-  def importFromDoubles(hc: HailContext, path: String, n: Int): Array[Double] = {
+  def importFromDoubles(fs: FS, path: String, n: Int): Array[Double] = {
     val a = new Array[Double](n)
-    importFromDoubles(hc, path, a, defaultBufSize)
+    importFromDoubles(fs, path, a, defaultBufSize)
     a
   }
   
-  def importFromDoubles(hc: HailContext, path: String, a: Array[Double], bufSize: Int): Unit = {
-    using(hc.fs.open(path)) { is =>
+  def importFromDoubles(fs: FS, path: String, a: Array[Double], bufSize: Int): Unit = {
+    using(fs.open(path)) { is =>
       val in = new DoubleInputBuffer(is, bufSize)
 
       in.readDoubles(a)

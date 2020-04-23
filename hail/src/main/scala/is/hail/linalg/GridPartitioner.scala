@@ -13,7 +13,7 @@ import scala.collection.mutable
   * @param nCols
   * @param maybeBlocks If exists, matrix is sparse and this contains a list of indices of blocks that are not all zero
   */
-case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks: Option[Array[Int]] = None) extends Partitioner {
+case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks: Option[IndexedSeq[Int]] = None) extends Partitioner {
   if (nRows == 0)
     fatal("block matrix must have at least one row")
   if (nCols == 0)
@@ -74,10 +74,8 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
         val union = (bis ++ bis2).distinct
         if (union.length == maxNBlocks)
           None
-        else {
-          scala.util.Sorting.quickSort(union)
-          Some(union)
-        }
+        else
+          Some(union.sorted)
       case _ => None
     })
   }
@@ -140,7 +138,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
     v(firstCol until firstCol + blockColNCols(j))
   }
 
-  def maybeBlockRows(): Option[Array[Int]] =
+  def maybeBlockRows(): Option[IndexedSeq[Int]] =
     maybeBlocks match {
       case Some(bis) =>
         val bisRow = bis.map(blockBlockRow).distinct
@@ -148,7 +146,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
       case None => None
     }
 
-  def maybeBlockCols(): Option[Array[Int]] =
+  def maybeBlockCols(): Option[IndexedSeq[Int]] =
     maybeBlocks match {
       case Some(bis) =>
         val bisCol = bis.map(blockBlockCol).distinct

@@ -168,7 +168,7 @@ case class LinearRegressionRowsSingle(
             }
           }
       }
-    TableValue(tableType, BroadcastRow.empty(ctx), newRVD)
+    TableValue(ctx, tableType, BroadcastRow.empty(ctx), newRVD)
   }
 }
 
@@ -357,7 +357,7 @@ case class LinearRegressionRowsChained(
             }
           }
       }
-    TableValue(tableType, BroadcastRow.empty(ctx), newRVD)
+    TableValue(ctx, tableType, BroadcastRow.empty(ctx), newRVD)
   }
 }
 

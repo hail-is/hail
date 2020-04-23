@@ -23,13 +23,13 @@ all_samples = ['HG00308', 'HG00592', 'HG02230', 'NA18534', 'NA20760',
 
 
 def test_1kg_chr22():
-    out_file = new_temp_file(suffix='mt')
+    out_file = new_temp_file(extension='mt')
 
     sample_names = all_samples[:5]
     paths = [os.path.join(resource('gvcfs'), '1kg_chr22', f'{s}.hg38.g.vcf.gz') for s in sample_names]
     vc.run_combiner(paths,
                     out_file=out_file,
-                    tmp_path=Env.hc().tmp_dir,
+                    tmp_path=Env.hc()._tmpdir,
                     branch_factor=2,
                     batch_size=2,
                     reference_genome='GRCh38')

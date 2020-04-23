@@ -56,7 +56,7 @@ class Env:
         if not Env._hc:
             from hail.context import init
             import sys
-            sys.stderr.write("Initializing Spark and Hail with default parameters...\n")
+            sys.stderr.write("Initializing Hail with default parameters...\n")
             init()
             assert Env._hc is not None
         return Env._hc

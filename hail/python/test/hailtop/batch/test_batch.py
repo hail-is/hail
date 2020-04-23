@@ -3,10 +3,14 @@ import os
 import subprocess as sp
 import tempfile
 from shlex import quote as shq
+import uuid
+import google.oauth2.service_account
+import google.cloud.storage
 
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
 from hailtop.batch.utils import arg_max
 from hailtop.utils import grouped
+from hailtop.auth import get_userinfo
 
 
 class LocalTests(unittest.TestCase):
@@ -291,9 +295,23 @@ class LocalTests(unittest.TestCase):
 
 class BatchTests(unittest.TestCase):
     def setUp(self):
-        self.backend = ServiceBackend('test')
-        self.gcs_input_dir = 'gs://hail-services/batch-testing/resources'
-        self.gcs_output_dir = os.environ.get('SCRATCH').rstrip('/') + '/output'
+        self.backend = ServiceBackend()
+        bucket_name = get_userinfo()['bucket_name']
+        token = uuid.uuid4()
+        self.gcs_input_dir = f'gs://{bucket_name}/batch-tests/resources'
+        self.gcs_output_dir = f'gs://{bucket_name}/batch-tests/{token}'
+        gcs_client = google.cloud.storage.Client(
+            project='hail-vdc',
+            credentials=google.oauth2.service_account.Credentials.from_service_account_file(
+                '/test-gsa-key/key.json'))
+        bucket = gcs_client.bucket(bucket_name)
+        if not bucket.blob('batch-tests/resources/hello (foo) spaces.txt').exists():
+            bucket.blob('batch-tests/resources/hello.txt').upload_from_string(
+                'hello world')
+            bucket.blob('batch-tests/resources/hello spaces.txt').upload_from_string(
+                'hello')
+            bucket.blob('batch-tests/resources/hello (foo) spaces.txt').upload_from_string(
+                'hello')
 
     def tearDown(self):
         self.backend.close()

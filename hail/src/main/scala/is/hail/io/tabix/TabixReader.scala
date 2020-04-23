@@ -8,7 +8,7 @@ import htsjdk.tribble.util.ParsingUtils
 import is.hail.io.compress.BGzipInputStream
 import is.hail.io.fs.FS
 import is.hail.utils._
-import org.apache.spark.broadcast.Broadcast
+import is.hail.backend.BroadcastValue
 
 import scala.collection.mutable
 import scala.language.implicitConversions
@@ -311,7 +311,7 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
 }
 
 final class TabixLineIterator(
-  private val bcFS: Broadcast[FS],
+  private val fsBc: BroadcastValue[FS],
   private val filePath: String,
   private val offsets: Array[TbiPair]
 )
@@ -319,7 +319,7 @@ final class TabixLineIterator(
 {
   private var i: Int = -1
   private var isEof = false
-  private var is = new BGzipInputStream(bcFS.value.open(filePath, checkCodec = false))
+  private var is = new BGzipInputStream(fsBc.value.open(filePath, checkCodec = false))
 
   private var buffer = new Array[Byte](1 << 16)  // gvcf block is 64k; this can decode an entire block with one call to read()
   private var bufferCursor: Int = 0

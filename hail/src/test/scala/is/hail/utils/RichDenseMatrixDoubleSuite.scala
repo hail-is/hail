@@ -10,30 +10,30 @@ class RichDenseMatrixDoubleSuite extends HailSuite {
   @Test
   def readWriteBDM() {
     val m = BDM.rand[Double](256, 129) // 33024 doubles
-    val fname = tmpDir.createTempFile("test")
+    val fname = ctx.createTmpPath("test")
 
-    m.write(hc, fname, bufferSpec = BlockMatrix.bufferSpec)
-    val m2 = RichDenseMatrixDouble.read(hc, fname, BlockMatrix.bufferSpec)
+    m.write(fs, fname, bufferSpec = BlockMatrix.bufferSpec)
+    val m2 = RichDenseMatrixDouble.read(fs, fname, BlockMatrix.bufferSpec)
 
     assert(m === m2)
   }
   
   @Test
   def testReadWriteDoubles(): Unit = {
-    val file = tmpDir.createTempFile("test")
+    val file = ctx.createTmpPath("test")
     val m = BDM.rand[Double](50, 100)
-    RichDenseMatrixDouble.exportToDoubles(hc.fs, file, m, forceRowMajor = false)
-    val m2 = RichDenseMatrixDouble.importFromDoubles(hc, file, 50, 100, rowMajor = false)
+    RichDenseMatrixDouble.exportToDoubles(fs, file, m, forceRowMajor = false)
+    val m2 = RichDenseMatrixDouble.importFromDoubles(fs, file, 50, 100, rowMajor = false)
     assert(m === m2)
     
-    val fileT = tmpDir.createTempFile("test2")
+    val fileT = ctx.createTmpPath("test2")
     val mT = m.t
-    RichDenseMatrixDouble.exportToDoubles(hc.fs, fileT, mT, forceRowMajor = true)
-    val lmT2 = RichDenseMatrixDouble.importFromDoubles(hc, fileT, 100, 50, rowMajor = true)
+    RichDenseMatrixDouble.exportToDoubles(fs, fileT, mT, forceRowMajor = true)
+    val lmT2 = RichDenseMatrixDouble.importFromDoubles(fs, fileT, 100, 50, rowMajor = true)
     assert(mT === mT)
     
     TestUtils.interceptFatal("Premature") {
-      RichDenseMatrixDouble.importFromDoubles(hc, fileT, 100, 100, rowMajor = true)
+      RichDenseMatrixDouble.importFromDoubles(fs, fileT, 100, 100, rowMajor = true)
     }
   }
 }

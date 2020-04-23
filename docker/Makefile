@@ -9,6 +9,12 @@ BASE_IMAGE = gcr.io/$(PROJECT)/base:$(shell docker images -q --no-trunc base:lat
 SERVICE_BASE_LATEST = gcr.io/$(PROJECT)/service-base:latest
 SERVICE_BASE_IMAGE = gcr.io/$(PROJECT)/service-base:$(shell docker images -q --no-trunc service-base:latest | sed -e 's,[^:]*:,,')
 
+HAIL_PUBLIC_LATEST = gcr.io/$(PROJECT)/hail-public:latest
+HAIL_PUBLIC_IMAGE = gcr.io/$(PROJECT)/hail-public:$(shell docker images -q --no-trunc hail-public:latest | sed -e 's,[^:]*:,,')
+
+GENETICS_PUBLIC_LATEST = gcr.io/$(PROJECT)/genetics-public:latest
+GENETICS_PUBLIC_IMAGE = gcr.io/$(PROJECT)/genetics-public:$(shell docker images -q --no-trunc genetics-public:latest | sed -e 's,[^:]*:,,')
+
 base-stmp: Dockerfile.base core-site.xml requirements.txt ../pylintrc ../setup.cfg
 	-docker pull ubuntu:18.04
 	-docker pull $(BASE_LATEST)
@@ -20,6 +26,24 @@ service-base:
 	-docker pull $(SERVICE_BASE_LATEST)
 	python3 ../ci/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile.service-base Dockerfile.service-base.out
 	docker build -t service-base -f Dockerfile.service-base.out --cache-from service-base,$(SERVICE_BASE_LATEST),base ..
+
+.PHONY: hail-public-image
+hail-public-image:
+	make -C ../hail wheel
+	cp ../hail/build/deploy/dist/hail-*-py3-none-any.whl hail/
+	cd hail && tar -cvf wheel-container.tar hail-*-py3-none-any.whl
+	-docker pull $(HAIL_PUBLIC_LATEST)
+	docker build hail -f hail/Dockerfile -t hail-public \
+     --cache-from hail-public,$(HAIL_PUBLIC_LATEST),ubuntu:18.04 \
+     hail
+
+.PHONY: genetics-public-image
+genetics-public-image: hail-public-image
+	python3 ../ci/jinja2_render.py '{"hail_public_image":{"image":"hail-public-image"}}' genetics/Dockerfile genetics/Dockerfile.out
+	-docker pull $(GENETICS_PUBLIC_LATEST)
+	docker build genetics -f genetics/Dockerfile.out -t genetics-public \
+    --cache-from genetics-public,$(GENETICS_PUBLIC_LATEST),hail-public,$(HAIL_PUBLIC_LATEST) \
+    genetics
 
 .PHONY: push
 push: build

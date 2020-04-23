@@ -121,6 +121,6 @@ case class LogisticRegression(
       }
     }
 
-    TableValue(tableType, BroadcastRow.empty(ctx), newRVD)
+    TableValue(ctx, tableType, BroadcastRow.empty(ctx), newRVD)
   }
 }

@@ -164,7 +164,7 @@ class MatrixIRSuite extends HailSuite {
     val globalType = TStruct(("__cols", TArray(colSig)))
     var tv = TableValue(ctx, rowSig, keyNames, rowRdd)
     tv = tv.copy(typ = tv.typ.copy(globalType = globalType), globals = BroadcastRow(ctx, Row(cdata.toFastIndexedSeq), globalType))
-    TableLiteral(tv, ctx)
+    TableLiteral(tv)
   }
 
   @Test def testCastTableToMatrix() {
@@ -258,15 +258,15 @@ class MatrixIRSuite extends HailSuite {
     params.foreach { case (n, strat) =>
       val rvd = Interpret(MatrixRepartition(range, n, strat), ctx, optimize = false).rvd
       assert(rvd.getNumPartitions == n, n -> strat)
-      val values = rvd.collect().map(r => r.getAs[Int](0))
+      val values = rvd.collect(ctx).map(r => r.getAs[Int](0))
       assert(values.isSorted && values.length == 11, n -> strat)
     }
   }
 
   @Test def testMatrixMultiWriteDifferentTypesRaisesError() {
-    val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
+    val vcf = is.hail.TestUtils.importVCF(ctx, "src/test/resources/sample.vcf")
     val range = rangeMatrix(10, 2, None)
-    val path = tmpDir.createLocalTempFile()
+    val path = ctx.createTmpPath("test")
     intercept[java.lang.IllegalArgumentException] {
       val ir = MatrixMultiWrite(FastIndexedSeq(vcf, range), MatrixNativeMultiWriter(path))
     }

@@ -1,3 +1,4 @@
+import os
 import errno
 import random
 import logging
@@ -161,7 +162,9 @@ class WaitableSharedPool:
         await self._done.wait()
 
 
-RETRYABLE_HTTP_STATUS_CODES = (408, 500, 502, 503, 504)
+RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504}
+if os.environ.get('HAIL_DONT_RETRY_500') == '1':
+    RETRYABLE_HTTP_STATUS_CODES.remove(500)
 
 
 def is_transient_error(e):

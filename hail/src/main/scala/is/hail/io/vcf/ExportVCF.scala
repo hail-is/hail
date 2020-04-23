@@ -3,7 +3,7 @@ package is.hail.io.vcf
 import is.hail
 import is.hail.HailContext
 import is.hail.annotations.Region
-import is.hail.expr.ir.MatrixValue
+import is.hail.expr.ir.{ExecuteContext, MatrixValue}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
@@ -216,8 +216,9 @@ object ExportVCF {
   def getAttributes(k1: String, k2: String, attributes: Option[VCFMetadata]): Option[VCFFieldAttributes] =
     getAttributes(k1, attributes).flatMap(_.get(k2))
 
-  def apply(mv: MatrixValue, path: String, append: Option[String],
+  def apply(ctx: ExecuteContext, mv: MatrixValue, path: String, append: Option[String],
     exportType: String, metadata: Option[VCFMetadata]) {
+    val fs = ctx.fs
 
     mv.typ.requireColKeyString()
     mv.typ.requireRowKeyVariant()
@@ -259,7 +260,6 @@ object ExportVCF {
 
     def header: String = {
       val sb = new StringBuilder()
-      val fs = HailContext.fs
 
       sb.append("##fileformat=VCFv4.2\n")
       sb.append(s"##hailversion=${ hail.HAIL_PRETTY_VERSION }\n")
@@ -364,10 +364,6 @@ object ExportVCF {
     val localEntriesIndex = mv.entriesIdx
     val localEntriesType = mv.entryArrayPType
 
-    val hc = HailContext.get
-    val fs = hc.fs
-    val tmpDir = hc.tmpDir
-
     mv.rvd.mapPartitions { (_, it) =>
       val sb = new StringBuilder
 
@@ -456,6 +452,6 @@ object ExportVCF {
 
         sb.result()
       }
-    }.writeTable(fs, path, tmpDir, Some(header), exportType = exportType)
+    }.writeTable(ctx, path, Some(header), exportType = exportType)
   }
 }

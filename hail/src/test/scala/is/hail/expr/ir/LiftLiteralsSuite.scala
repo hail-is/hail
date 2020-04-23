@@ -11,7 +11,7 @@ class LiftLiteralsSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.interpretOnly
 
   @Test def testNestedGlobalsRewrite() {
-    val tab = TableLiteral(TableRange(10, 1).execute(ctx), ctx)
+    val tab = TableLiteral(TableRange(10, 1).execute(ctx))
     val ir = TableGetGlobals(
       TableMapGlobals(
         tab,

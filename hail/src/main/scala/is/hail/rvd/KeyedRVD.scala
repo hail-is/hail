@@ -59,7 +59,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
           leftPart.rangeBounds ++ rightPart.rangeBounds)
       }
     }
-    val repartitionedLeft = rvd.repartition(newPartitioner, ctx)
+    val repartitionedLeft = rvd.repartition(ctx, newPartitioner)
     val compute: (OrderedRVIterator, OrderedRVIterator, Iterable[RegionValue] with Growable[RegionValue]) => Iterator[JoinedRegionValue] =
       (joinType: @unchecked) match {
         case "inner" => _.innerJoin(_, _)
@@ -83,10 +83,11 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
           OrderedRVIterator(lTyp, leftIt, ctx),
           OrderedRVIterator(rTyp, rightIt, ctx),
           new RegionValueArrayBuffer(rRowPType, sideBuffer)))
-    }.extendKeyPreservesPartitioning(joinedType.key, ctx)
+    }.extendKeyPreservesPartitioning(ctx, joinedType.key)
   }
 
   def orderedLeftIntervalJoin(
+    ctx: ExecuteContext,
     right: KeyedRVD,
     joiner: PStruct => (RVDType, (RVDContext, Iterator[Muple[RegionValue, Iterable[RegionValue]]]) => Iterator[RegionValue])
   ): RVD = {
@@ -95,7 +96,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     val lTyp = virtType
     val rTyp = right.virtType
 
-    rvd.intervalAlignAndZipPartitions(right.rvd) {
+    rvd.intervalAlignAndZipPartitions(ctx, right.rvd) {
       t: PStruct => {
         val (newTyp, f) = joiner(t)
 
@@ -109,6 +110,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
   }
 
   def orderedLeftIntervalJoinDistinct(
+    ctx: ExecuteContext,
     right: KeyedRVD,
     joiner: PStruct => (RVDType, (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue])
   ): RVD = {
@@ -117,7 +119,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     val lTyp = virtType
     val rTyp = right.virtType
 
-    rvd.intervalAlignAndZipPartitions(right.rvd) {
+    rvd.intervalAlignAndZipPartitions(ctx, right.rvd) {
       t: PStruct => {
         val (newTyp, f) = joiner(t)
 
@@ -159,8 +161,8 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
       right.rvd.partitioner.coarsenedRangeBounds(key)
     val newPartitioner = RVDPartitioner.generate(virtType.key, kType, ranges)
 
-    val repartitionedLeft = this.rvd.repartition(newPartitioner, ctx)
-    val repartitionedRight = right.rvd.repartition(newPartitioner, ctx)
+    val repartitionedLeft = this.rvd.repartition(ctx, newPartitioner)
+    val repartitionedRight = right.rvd.repartition(ctx, newPartitioner)
 
     val leftType = this.virtType
     val rightType = right.virtType
@@ -191,8 +193,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
       right.rvd.partitioner.coarsenedRangeBounds(key)
     val newPartitioner = RVDPartitioner.generate(virtType.key, kType, ranges)
 
-    val repartitionedLeft =
-      this.rvd.repartition(newPartitioner, ctx)
+    val repartitionedLeft = this.rvd.repartition(ctx, newPartitioner)
     val lType = this.virtType
     val rType = right.virtType
 

@@ -37,10 +37,10 @@ class VCFTests(unittest.TestCase):
     def test_import_export_same(self):
         for i in range(10):
             mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
-            f1 = new_temp_file(suffix='vcf.bgz')
+            f1 = new_temp_file(extension='vcf.bgz')
             hl.export_vcf(mt, f1)
             mt2 = hl.import_vcf(f1)
-            f2 = new_temp_file(suffix='vcf.bgz')
+            f2 = new_temp_file(extension='vcf.bgz')
             hl.export_vcf(mt2, f2)
             mt3 = hl.import_vcf(f2)
 
@@ -77,7 +77,7 @@ class VCFTests(unittest.TestCase):
             mt._force_count_rows()
 
     def test_not_identical_headers(self):
-        t = new_temp_file('vcf')
+        t = new_temp_file(extension='vcf')
         mt = hl.import_vcf(resource('sample.vcf'))
         hl.export_vcf(mt.filter_cols((mt.s != "C1048::HG02024") & (mt.s != "HG00255")), t)
 
@@ -259,14 +259,14 @@ class VCFTests(unittest.TestCase):
 
     def test_export_vcf_empty_format(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz')).select_entries()
-        tmp = new_temp_file(suffix="vcf")
+        tmp = new_temp_file(extension="vcf")
         hl.export_vcf(mt, tmp)
 
         assert hl.import_vcf(tmp)._same(mt)
 
     def test_export_vcf_no_gt(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz')).drop('GT')
-        tmp = new_temp_file(suffix="vcf")
+        tmp = new_temp_file(extension="vcf")
         hl.export_vcf(mt, tmp)
 
         assert hl.import_vcf(tmp)._same(mt)
@@ -275,7 +275,7 @@ class VCFTests(unittest.TestCase):
         mt = hl.import_vcf(resource('gvcfs/HG0096_excerpt.g.vcf'), reference_genome='GRCh38')
         self.assertEqual(mt.filter_rows(hl.len(mt.alleles) == 1).count_rows(), 5)
 
-        tmp = new_temp_file(suffix="vcf")
+        tmp = new_temp_file(extension="vcf")
         hl.export_vcf(mt, tmp)
         mt2 = hl.import_vcf(tmp, reference_genome='GRCh38')
         self.assertTrue(mt._same(mt2))
@@ -444,7 +444,7 @@ class VCFTests(unittest.TestCase):
 
     def test_same_bgzip(self):
         mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4)
-        f = new_temp_file(suffix='vcf.bgz')
+        f = new_temp_file(extension='vcf.bgz')
         hl.export_vcf(mt, f)
         assert hl.import_vcf(f)._same(mt)
 
@@ -453,7 +453,7 @@ class VCFTests(unittest.TestCase):
         mt = mt.key_cols_by(s='dummy')
         mt = mt.annotate_entries(GT=hl.unphased_diploid_gt_index_call(0))
         mt = mt.key_rows_by(locus=hl.locus('1', 100 - mt.row_idx), alleles=['A', 'T'])
-        f = new_temp_file(suffix='vcf')
+        f = new_temp_file(extension='vcf')
         hl.export_vcf(mt, f)
 
         last = 0
@@ -469,8 +469,8 @@ class VCFTests(unittest.TestCase):
     def test_empty_read_write(self):
         mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4).filter_rows(False)
 
-        out1 = new_temp_file(suffix='vcf')
-        out2 = new_temp_file(suffix='vcf.bgz')
+        out1 = new_temp_file(extension='vcf')
+        out2 = new_temp_file(extension='vcf.bgz')
 
         hl.export_vcf(mt, out1)
         hl.export_vcf(mt, out2)
@@ -484,7 +484,7 @@ class VCFTests(unittest.TestCase):
     def test_format_header(self):
         mt = hl.import_vcf(resource('sample2.vcf'))
         metadata = hl.get_vcf_metadata(resource('sample2.vcf'))
-        f = new_temp_file(suffix='vcf')
+        f = new_temp_file(extension='vcf')
         hl.export_vcf(mt, f, metadata=metadata)
 
         s = set()
@@ -503,7 +503,7 @@ class VCFTests(unittest.TestCase):
 
     def test_format_genotypes(self):
         mt = hl.import_vcf(resource('sample.vcf'))
-        f = new_temp_file(suffix='vcf')
+        f = new_temp_file(extension='vcf')
         hl.export_vcf(mt, f)
         with open(uri_path(f), 'r') as i:
             for line in i:
@@ -520,7 +520,7 @@ class VCFTests(unittest.TestCase):
 
     def test_contigs_header(self):
         mt = hl.import_vcf(resource('sample.vcf')).filter_cols(False)
-        f = new_temp_file(suffix='vcf')
+        f = new_temp_file(extension='vcf')
         hl.export_vcf(mt, f)
         with open(uri_path(f), 'r') as i:
             for line in i:
@@ -532,7 +532,7 @@ class VCFTests(unittest.TestCase):
 
     def test_metadata_argument(self):
         mt = hl.import_vcf(resource('multipleChromosomes.vcf'))
-        f = new_temp_file(suffix='vcf')
+        f = new_temp_file(extension='vcf')
         metadata = {
             'filter': {'LowQual': {'Description': 'Low quality'}},
             'format': {'GT': {'Description': 'Genotype call.', 'Number': 'foo'}},
@@ -1210,7 +1210,7 @@ class BGENTests(unittest.TestCase):
     def test_specify_different_index_file(self):
         sample_file = resource('random.sample')
         bgen_file = resource('random.bgen')
-        index_file = new_temp_file(suffix='idx2')
+        index_file = new_temp_file(extension='idx2')
         index_file_map = {bgen_file: index_file}
         hl.index_bgen(bgen_file, index_file_map=index_file_map)
         mt = hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file, index_file_map=index_file_map)
@@ -1352,7 +1352,7 @@ class LocusIntervalTests(unittest.TestCase):
         self.assertEqual(nint, i)
         self.assertEqual(t.interval.dtype.point_type, hl.tlocus('GRCh37'))
 
-        tmp_file = new_temp_file(prefix="test", suffix="interval_list")
+        tmp_file = new_temp_file(prefix="test", extension="interval_list")
         start = t.interval.start
         end = t.interval.end
         (t
@@ -1544,7 +1544,7 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt = mt.annotate_rows(row_str = hl.str(mt.row_idx))
         mt = mt.annotate_rows(row_float = hl.float(mt.row_idx))
 
-        path = new_temp_file(suffix='tsv')
+        path = new_temp_file(extension='tsv')
         mt.key_rows_by(*mt.row).x.export(path,
                                          missing=missing,
                                          delimiter=delimiter,
@@ -1642,7 +1642,7 @@ class ImportMatrixTableTests(unittest.TestCase):
         assert actual == ['T', 'TGG', 'A', None]
 
     def test_empty_import_matrix_table(self):
-        path = new_temp_file(suffix='tsv.bgz')
+        path = new_temp_file(extension='tsv.bgz')
         mt = hl.utils.range_matrix_table(0, 0)
         mt = mt.annotate_entries(x=1)
         mt.x.export(path)
@@ -1654,11 +1654,11 @@ class ImportMatrixTableTests(unittest.TestCase):
 
 class ImportTableTests(unittest.TestCase):
     def test_import_table_force_bgz(self):
-        f = new_temp_file(suffix=".bgz")
+        f = new_temp_file(extension="bgz")
         t = hl.utils.range_table(10, 5)
         t.export(f)
 
-        f2 = new_temp_file(suffix=".gz")
+        f2 = new_temp_file(extension="gz")
         run_command(["cp", uri_path(f), uri_path(f2)])
         t2 = hl.import_table(f2, force_bgz=True, impute=True).key_by('idx')
         self.assertTrue(t._same(t2))
@@ -1714,12 +1714,12 @@ class ImportTableTests(unittest.TestCase):
 
     def test_read_write_identity(self):
         ht = self.small_dataset_1()
-        f = new_temp_file(suffix='ht')
+        f = new_temp_file(extension='ht')
         ht.write(f)
         assert ht._same(hl.read_table(f))
     def test_read_write_identity_keyed(self):
         ht = self.small_dataset_1().key_by()
-        f = new_temp_file(suffix='ht')
+        f = new_temp_file(extension='ht')
         ht.write(f)
         assert ht._same(hl.read_table(f))
 

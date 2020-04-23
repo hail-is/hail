@@ -1,49 +1,44 @@
 package is.hail.io.reference
 
-import is.hail.HailContext
+import is.hail.backend.BroadcastValue
+import is.hail.expr.ir.ExecuteContext
 import is.hail.variant.{Locus, ReferenceGenome}
 import is.hail.utils._
-import org.apache.commons.io.IOUtils
 import is.hail.io.fs.FS
 
 import scala.collection.JavaConverters._
 import scala.collection.concurrent
 import scala.language.implicitConversions
 
-class SerializableHtsjdkLiftOver(val fs: FS, val chainFile: String) extends Serializable {
-  @transient lazy val value = {
-    val localChainFile = LiftOver.getLocalChainFileName(fs, chainFile)
-    new htsjdk.samtools.liftover.LiftOver(new java.io.File(localChainFile))
+class SerializableHtsjdkLiftOver(val tmpdir: String, val fsBc: BroadcastValue[FS], val chainFile: String) extends Serializable {
+  @transient lazy val value: htsjdk.samtools.liftover.LiftOver = {
+    val localChainFile = LiftOver.getLocalChainFile(tmpdir, fsBc.value, chainFile)
+    new htsjdk.samtools.liftover.LiftOver(new java.io.File(uriPath(localChainFile)))
   }
 }
 
 object LiftOver {
   private[this] val localChainFiles: concurrent.Map[String, String] = new concurrent.TrieMap()
 
-  def getLocalChainFileName(fs: FS, chainFile: String): String =
-    localChainFiles.getOrElseUpdate(chainFile, LiftOver.setup(fs, chainFile))
+  def getLocalChainFile(tmpdir: String, fs: FS, chainFile: String): String =
+    localChainFiles.getOrElseUpdate(chainFile, LiftOver.setup(tmpdir, fs, chainFile))
 
-  def setup(fs: FS, chainFile: String): String = {
-    val tmpDir = TempDir(fs)
-    val localChainFile = tmpDir.createLocalTempFile(extension = "chain")
-
-    using(fs.open(chainFile)) { in =>
-      using(fs.create(localChainFile)) { out =>
-        IOUtils.copy(in, out)
-      }}
+  def setup(tmpdir: String, fs: FS, chainFile: String): String = {
+    val localChainFile = ExecuteContext.createTmpPathNoCleanup(tmpdir, "lift-over", "chain")
+    fs.copyRecode(chainFile, localChainFile)
 
     if (!fs.exists(localChainFile))
       fatal(s"Error while copying chain file to local file system. Did not find '$localChainFile'.")
 
-    uriPath(localChainFile)
+    localChainFile
   }
 
-  def apply(hc: HailContext, chainFile: String): LiftOver =
-    new LiftOver(hc.fs, chainFile)
+  def apply(tmpdir: String, fs: FS, chainFile: String): LiftOver =
+    new LiftOver(tmpdir, fs.broadcast, chainFile)
 }
 
-class LiftOver(val fs: FS, val chainFile: String) extends Serializable {
-  val lo = new SerializableHtsjdkLiftOver(fs, chainFile)
+class LiftOver(val tmpdir: String, val fsBc: BroadcastValue[FS], val chainFile: String) extends Serializable {
+  val lo = new SerializableHtsjdkLiftOver(tmpdir, fsBc, chainFile)
 
   def queryInterval(interval: is.hail.utils.Interval, minMatch: Double = htsjdk.samtools.liftover.LiftOver.DEFAULT_LIFTOVER_MINMATCH): (is.hail.utils.Interval, Boolean) = {
     val start = interval.start.asInstanceOf[Locus]

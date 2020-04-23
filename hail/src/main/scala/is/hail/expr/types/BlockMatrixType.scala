@@ -26,7 +26,7 @@ object BlockMatrixSparsity {
     BlockMatrixSparsity(Some(builder.result().toFastIndexedSeq))
   }
 
-  def fromLinearBlocks(nCols: Long, nRows: Long, blockSize: Int, definedBlocks: Option[Array[Int]]): BlockMatrixSparsity = {
+  def fromLinearBlocks(nCols: Long, nRows: Long, blockSize: Int, definedBlocks: Option[IndexedSeq[Int]]): BlockMatrixSparsity = {
     val nColBlocks = BlockMatrixType.numBlocks(nCols, blockSize)
     definedBlocks.map { blocks =>
       BlockMatrixSparsity(blocks.map { linearIdx => java.lang.Math.floorDiv(linearIdx, nColBlocks) -> linearIdx % nColBlocks })

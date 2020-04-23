@@ -31,7 +31,7 @@ class TableIRSuite extends HailSuite {
   @Test def testRangeRead() {
     val original = TableKeyBy(TableMapGlobals(TableRange(10, 3), MakeStruct(FastIndexedSeq("foo" -> I32(57)))), FastIndexedSeq())
 
-    val path = tmpDir.createTempFile()
+    val path = ctx.createTmpPath("test-range-read", "ht")
     CompileAndEvaluate[Unit](ctx, TableWrite(original, TableNativeWriter(path, overwrite = true)), false)
 
     val read = TableIR.read(fs, path, false, None)
@@ -322,7 +322,7 @@ class TableIRSuite extends HailSuite {
       ctx,
       optimize = false)
     val partitionedLeft = left.copy(rvd = left.rvd
-      .repartition(if (!leftProject.contains(1)) leftPart else leftPart.coarsen(1), ctx)
+      .repartition(ctx, if (!leftProject.contains(1)) leftPart else leftPart.coarsen(1))
     )
 
     val (rightType, rightProjectF) = rowType.filter(f => !rightProject.contains(f.index))
@@ -337,14 +337,14 @@ class TableIRSuite extends HailSuite {
       optimize = false)
     val partitionedRight = right.copy(
       rvd = right.rvd
-        .repartition(if (!rightProject.contains(1)) rightPart else rightPart.coarsen(1), ctx))
+        .repartition(ctx, if (!rightProject.contains(1)) rightPart else rightPart.coarsen(1)))
 
     val (_, joinProjectF) = joinedType.filter(f => !leftProject.contains(f.index) && !rightProject.contains(f.index - 2))
     val joined = collect(
       TableJoin(
-        TableLiteral(partitionedLeft, ctx),
+        TableLiteral(partitionedLeft),
         TableRename(
-          TableLiteral(partitionedRight, ctx),
+          TableLiteral(partitionedRight),
           Array("A", "B", "C")
             .filter(partitionedRight.typ.rowType.hasField)
             .map(a => a -> (a + "_"))
@@ -362,8 +362,7 @@ class TableIRSuite extends HailSuite {
     val keyNames = FastIndexedSeq("field1", "field2")
     val tt = TableType(rowType = signature, key = keyNames, globalType = TStruct.empty)
     val base = TableLiteral(
-      TableValue(ctx, tt.rowType, tt.key, rdd),
-      ctx)
+      TableValue(ctx, tt.rowType, tt.key, rdd))
 
     // construct the table with a longer key, then copy the table to shorten the key in type, but not rvd
     val distinctCount = TableCount(TableDistinct(TableLiteral(tt.copy(key = FastIndexedSeq("field1")), base.rvd, base.enc, base.encodedGlobals)))
@@ -430,7 +429,7 @@ class TableIRSuite extends HailSuite {
   @Test def testTableWrite() {
     implicit val execStrats = ExecStrategy.interpretOnly
     val table = TableRange(5, 4)
-    val path = tmpDir.createLocalTempFile(extension = "ht")
+    val path = ctx.createTmpPath("test-table-write", "ht")
     Interpret[Unit](ctx, TableWrite(table, TableNativeWriter(path)))
     val before = table.execute(ctx)
     val after = Interpret(TableIR.read(fs, path), ctx, false)

@@ -6,7 +6,7 @@ import time
 import copy
 from shlex import quote as shq
 import webbrowser
-from hailtop.config import get_deploy_config
+from hailtop.config import get_deploy_config, get_user_config
 from hailtop.batch_client.client import BatchClient
 
 from .resource import InputResourceFile, JobResourceFile
@@ -203,13 +203,21 @@ class LocalBackend(Backend):
 
 
 class ServiceBackend(Backend):
-    """
-    Backend that executes batches on Hail's Batch Service on Google Cloud.
+    """Backend that executes batches on Hail's Batch Service on Google Cloud.
 
     Examples
     --------
 
     >>> service_backend = ServiceBackend('test')
+    >>> b = Batch(backend=service_backend)
+    >>> b.run() # doctest: +SKIP
+    >>> service_backend.close()
+
+    If the Hail configuration parameter batch/billing_project was previously set
+    with ``hailctl config set``, then one may elide the billing_project
+    parameter.
+
+    >>> service_backend = ServiceBackend()
     >>> b = Batch(backend=service_backend)
     >>> b.run() # doctest: +SKIP
     >>> service_backend.close()
@@ -220,7 +228,14 @@ class ServiceBackend(Backend):
         Name of billing project to use.
     """
 
-    def __init__(self, billing_project):
+    def __init__(self, billing_project=None):
+        if billing_project is None:
+            billing_project = get_user_config().get('batch', 'billing_project')
+        if billing_project is None:
+            raise ValueError(
+                f'the billing_project parameter of ServiceBackend must be set '
+                f'or run `hailctl config set batch/billing_project '
+                f'YOUR_BILLING_PROJECT`')
         self._batch_client = BatchClient(billing_project)
 
     def close(self):
