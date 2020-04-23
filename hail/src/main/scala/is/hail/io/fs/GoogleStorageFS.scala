@@ -20,7 +20,7 @@ object GoogleStorageFS {
   def containsWildcard(path: String): Boolean = {
     var i = 0
     while (i < path.length) {
-      var c = path(i)
+      val c = path(i)
       if (c == '\\') {
         i += 1
         if (i < path.length)
@@ -33,11 +33,11 @@ object GoogleStorageFS {
       i += 1
     }
 
-    return false
+    false
   }
 
   def getBucketPath(filename: String): (String, String) = {
-    val uri = new URI(filename)
+    val uri = new URI(filename).normalize()
 
     val scheme = uri.getScheme
     assert(scheme != null && scheme == "gs", uri.getScheme)
