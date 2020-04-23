@@ -362,6 +362,9 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
     (t, selectF)
   }
 
+  def typeAfterSelectNames(keep: IndexedSeq[String]): TStruct =
+    new TStruct(keep.map(i => fields(fieldIdx(i))))
+
   def typeAfterSelect(keep: IndexedSeq[Int]): TStruct =
     TStruct(keep.map(i => fieldNames(i) -> types(i)): _*)
 
