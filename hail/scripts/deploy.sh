@@ -23,6 +23,11 @@ then
     exit 0
 fi
 
+if [ -f $WHEEL ]
+then
+    echo "wheel not found at $WHEEL"
+    exit 1
+fi
 
 pip_versions_file=$(mktemp)
 pip install hail== 2>&1 \

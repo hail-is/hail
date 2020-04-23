@@ -1480,7 +1480,7 @@ steps:
      fi
 
      cd hail
-     make test-dataproc DEV_CLARIFIER=ci_test_dataproc
+     make test-dataproc DEV_CLARIFIER=ci_test_dataproc/
    dependsOn:
      - ci_utils_image
      - copy_files
@@ -1519,15 +1519,15 @@ steps:
      {{ code.checkout_script }}
      cd hail
 
+     make wheel upload-artifacts DEPLOY_REMOTE=origin
+
      bash scripts/deploy.sh $(cat /io/hail_pip_version) \
                             $(cat /io/hail_version) \
                             $(cat /io/git_version) \
                             origin \
-                            /io/hail-*-py3-none-any.whl \
+                            /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
                             /io/github-oauth
    inputs:
-     - from: /wheel-container.tar
-       to: /io/wheel-container.tar
      - from: /hail_version
        to: /io/hail_version
      - from: /hail_pip_version
