@@ -1532,40 +1532,42 @@ class Emit[C](
             shapeSetup,
             answerPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
             outputPType.data.pType.stagedInitialize(answerPArrayAddress, (M * N).toI),
-            lPType.elementType match {
-              case PFloat32(_) =>
-                Code.invokeScalaObject13[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method="sgemm",
-                  "N",
-                  "N",
-                  M.toI,
-                  N.toI,
-                  K.toI,
-                  1.0f,
-                  lPType.data.pType.firstElementOffset(leftDataAddress),
-                  LDA.toI,
-                  rPType.data.pType.firstElementOffset(rightDataAddress),
-                  LDB.toI,
-                  0.0f,
-                  outputPType.data.pType.firstElementOffset(answerPArrayAddress, (M * N).toI),
-                  LDC.toI
-                )
-              case PFloat64(_) =>
-                Code.invokeScalaObject13[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemm",
-                  "N",
-                  "N",
-                  M.toI,
-                  N.toI,
-                  K.toI,
-                  1.0,
-                  lPType.data.pType.firstElementOffset(leftDataAddress),
-                  LDA.toI,
-                  rPType.data.pType.firstElementOffset(rightDataAddress),
-                  LDB.toI,
-                  0.0,
-                  outputPType.data.pType.firstElementOffset(answerPArrayAddress, (M * N).toI),
-                  LDC.toI
-                )
-            },
+            
+            ((M cne 0L) && (N cne 0L) && (K cne 0L)).orEmpty(
+              lPType.elementType match {
+                case PFloat32(_) =>
+                  Code.invokeScalaObject13[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method="sgemm",
+                    "N",
+                    "N",
+                    M.toI,
+                    N.toI,
+                    K.toI,
+                    1.0f,
+                    lPType.data.pType.firstElementOffset(leftDataAddress),
+                    LDA.toI,
+                    rPType.data.pType.firstElementOffset(rightDataAddress),
+                    LDB.toI,
+                    0.0f,
+                    outputPType.data.pType.firstElementOffset(answerPArrayAddress, (M * N).toI),
+                    LDC.toI
+                  )
+                case PFloat64(_) =>
+                  Code.invokeScalaObject13[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemm",
+                    "N",
+                    "N",
+                    M.toI,
+                    N.toI,
+                    K.toI,
+                    1.0,
+                    lPType.data.pType.firstElementOffset(leftDataAddress),
+                    LDA.toI,
+                    rPType.data.pType.firstElementOffset(rightDataAddress),
+                    LDB.toI,
+                    0.0,
+                    outputPType.data.pType.firstElementOffset(answerPArrayAddress, (M * N).toI),
+                    LDC.toI
+                  )
+              }),
             outputPType.construct(outputPType.makeShapeBuilder(IndexedSeq(M, N)), outputPType.makeColumnMajorStridesBuilder(IndexedSeq(M, N), mb), answerPArrayAddress, mb)
           )
 
