@@ -1245,8 +1245,10 @@ steps:
    image:
      valueFrom: service_base_image.image
    script: |
+     set -ex
+
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
-     export SCRATCH=gs://hail-test-dmk9z/{{ token }}/batch
+     python3 -m hailtop.hailctl config set batch/billing_project test
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/test/hailtop/batch/
    inputs:
     - from: /repo/test
@@ -1264,7 +1266,7 @@ steps:
     - name: test-gsa-key
       namespace:
         valueFrom: batch_pods_ns.name
-      mountPath: /test-gsa-key      
+      mountPath: /test-gsa-key
    dependsOn:
     - default_ns
     - batch_pods_ns
@@ -1274,11 +1276,13 @@ steps:
  - kind: runImage
    name: test_batch_docs
    image:
-     valueFrom: base_image.image
+     valueFrom: service_base_image.image
    script: |
      set -ex
+
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      cd /io/hailtop/hailtop/batch
+     python3 -m hailtop.hailctl config set batch/billing_project test
      python3 -m pytest --instafail \
        --doctest-modules \
        --doctest-glob='*.rst' \
@@ -1295,7 +1299,7 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
-    - base_image
+    - service_base_image
     - copy_files
     - deploy_batch
    timeout: 1200
