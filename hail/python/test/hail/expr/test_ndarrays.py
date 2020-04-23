@@ -208,6 +208,9 @@ def test_ndarray_reshape():
     np_hypercube = np.arange(3 * 5 * 7 * 9).reshape((3, 5, 7, 9))
     hypercube = hl.nd.array(np_hypercube)
 
+    np_shape_zero = np.array([])
+    shape_zero = hl.nd.array(np_shape_zero)
+
     assert_ndarrays_eq(
         (single.reshape(()), np_single.reshape(())),
         (zero_dim.reshape(()), np_zero_dim.reshape(())),
@@ -220,7 +223,8 @@ def test_ndarray_reshape():
         (cube_to_rect, np_cube_to_rect),
         (cube_t_to_rect, np_cube_t_to_rect),
         (hypercube.reshape((5, 7, 9, 3)).reshape((7, 9, 3, 5)), np_hypercube.reshape((7, 9, 3, 5))),
-        (hypercube.reshape(hl.tuple([5, 7, 9, 3])), np_hypercube.reshape((5, 7, 9, 3)))
+        (hypercube.reshape(hl.tuple([5, 7, 9, 3])), np_hypercube.reshape((5, 7, 9, 3))),
+        (shape_zero.reshape((0, 5)), np_shape_zero.reshape((0, 5)))
     )
 
     assert hl.eval(hl.null(hl.tndarray(hl.tfloat, 2)).reshape((4, 5))) is None
@@ -457,6 +461,7 @@ def test_ndarray_matmul():
     np_five_dim_tensor = np.arange(7 * 5 * 1 * 5 * 3).reshape((7, 5, 1, 5, 3))
     np_ones_int32 = np.ones((4, 4), dtype=np.int32)
     np_ones_float64 = np.ones((4, 4), dtype=np.float64)
+    np_zero_by_four = np.array([]).reshape((0, 4))
 
     v = hl.nd.array(np_v)
     y = hl.nd.array(np_y)
@@ -473,6 +478,7 @@ def test_ndarray_matmul():
     five_dim_tensor = hl.nd.array(np_five_dim_tensor)
     ones_int32 = hl.nd.array(np_ones_int32)
     ones_float64 = hl.nd.array(np_ones_float64)
+    zero_by_four = hl.nd.array(np_zero_by_four)
 
     assert_ndarrays_eq(
         (v @ v, np_v @ np_v),
@@ -497,7 +503,8 @@ def test_ndarray_matmul():
         (m @ rect_prism, np_m @ np_rect_prism),
         (m @ rect_prism.T, np_m @ np_rect_prism.T),
         (broadcasted_mat @ rect_prism, np_broadcasted_mat @ np_rect_prism),
-        (six_dim_tensor @ five_dim_tensor, np_six_dim_tensor @ np_five_dim_tensor)
+        (six_dim_tensor @ five_dim_tensor, np_six_dim_tensor @ np_five_dim_tensor),
+        (zero_by_four @ ones_float64, np_zero_by_four, np_ones_float64)
     )
 
     assert hl.eval(hl.null(hl.tndarray(hl.tfloat64, 2)) @ hl.null(hl.tndarray(hl.tfloat64, 2))) is None
