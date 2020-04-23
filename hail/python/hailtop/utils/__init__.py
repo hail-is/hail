@@ -9,6 +9,7 @@ from .utils import (
     retry_response_returning_functions)
 from .process import CalledProcessError, check_shell, check_shell_output
 from .tqdm import tqdm, TQDM_DEFAULT_DISABLE
+from .os import AsyncOS
 
 __all__ = [
     'time_msecs',
@@ -38,5 +39,6 @@ __all__ = [
     'TQDM_DEFAULT_DISABLE',
     'RETRY_FUNCTION_SCRIPT',
     'sync_retry_transient_errors',
-    'retry_response_returning_functions'
+    'retry_response_returning_functions',
+    'AsyncOS'
 ]
