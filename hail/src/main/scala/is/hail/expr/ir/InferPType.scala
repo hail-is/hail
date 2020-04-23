@@ -643,7 +643,7 @@ object InferPType {
       case ShuffleWrite(_, _, _) =>
         PCanonicalBinary(true)
       case ShuffleGetPartitionBounds(_, _, keyFields, rowType, keyEType) =>
-        val keyPType = keyEType.decodedPType(rowType.typeAfterSelect(keyFields.map(_.field)))
+        val keyPType = keyEType.decodedPType(rowType.typeAfterSelectNames(keyFields.map(_.field)))
         PCanonicalArray(keyPType, true)
       case ShuffleRead(_, _, rowType, rowEType) =>
         val rowPType = rowEType.decodedPType(rowType)
