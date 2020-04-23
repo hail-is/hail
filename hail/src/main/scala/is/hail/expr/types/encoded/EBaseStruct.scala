@@ -287,7 +287,4 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
 
   def typeAfterSelect(keep: IndexedSeq[String]): EBaseStruct =
     EBaseStruct(keep.map(name => fields(fieldIdx(name))))
-
-  def typeAfterSelect(keep: IndexedSeq[Int]): EBaseStruct =
-    EBaseStruct(keep.map(i => fields(i)))
 }
