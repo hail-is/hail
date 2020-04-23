@@ -38,34 +38,6 @@ object LocusFunctions extends RegistryFunctions {
     }
   }
 
-  def emitVariant(r: EmitRegion, variant: Code[(Locus, IndexedSeq[String])], rt: PStruct): Code[Long] = {
-    val vlocal = r.mb.newLocal[(Locus, IndexedSeq[String])]()
-    val alocal = r.mb.newLocal[IndexedSeq[String]]()
-    val len = r.mb.newLocal[Int]()
-    val srvb = new StagedRegionValueBuilder(r, rt)
-    val addLocus = { srvb: StagedRegionValueBuilder =>
-      emitLocus(srvb, Code.checkcast[Locus](vlocal.getField[java.lang.Object]("_1")))
-    }
-    val addAlleles = { srvb: StagedRegionValueBuilder =>
-      Code(
-        srvb.start(len),
-        Code.whileLoop(srvb.arrayIdx < len,
-          srvb.addString(alocal.invoke[Int, String]("apply", srvb.arrayIdx)),
-          srvb.advance()))
-    }
-
-    Code(
-      vlocal := variant,
-      alocal := Code.checkcast[IndexedSeq[String]](vlocal.getField[java.lang.Object]("_2")),
-      len := alocal.invoke[Int]("size"),
-      srvb.start(),
-      srvb.addBaseStruct(types.coerce[PStruct](rt.field("locus").typ.fundamentalType), addLocus),
-      srvb.advance(),
-      srvb.addArray(rt.field("alleles").typ.asInstanceOf[PArray], addAlleles),
-      srvb.advance(),
-      srvb.offset)
-  }
-
   def emitInterval(r: EmitRegion, interval: Code[Interval], pt: PInterval): Code[Long] = {
     val srvb = new StagedRegionValueBuilder(r, pt)
     Code(emitInterval(srvb, interval, pt), srvb.offset)
@@ -163,12 +135,11 @@ object LocusFunctions extends RegistryFunctions {
     registerPCode1("contig", tlocus("T"), TString,
       (_: Type, x: PType) => x.asInstanceOf[PLocus].contigType) {
       case (r, rt, locus: PLocusCode) =>
-        locus.contig()
+        locus.contig(r.mb)
     }
 
-    registerCode1("position", tlocus("T"), TInt32, (_: Type, x: PType) => x.asInstanceOf[PLocus].positionType) {
-      case (r, rt, (locusT: PLocus, locus: Code[Long])) =>
-        locusT.position(locus)
+    registerPCode1("position", tlocus("T"), TInt32, (_: Type, x: PType) => x.asInstanceOf[PLocus].positionType) {
+      case (r, rt, locus: PLocusCode) => PCode(rt, locus.position())
     }
     registerLocusCode("isAutosomalOrPseudoAutosomal") { locus =>
       isAutosomal(locus) || ((inX(locus) || inY(locus)) && inPar(locus))
@@ -182,45 +153,41 @@ object LocusFunctions extends RegistryFunctions {
 
     registerPCode2("min_rep", tlocus("T"), TArray(TString), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString)), {
       (returnType: Type, _: PType, _: PType) => {
-        val locusPT = PCanonicalLocus(returnType.asInstanceOf[TStruct].field("locus").typ.asInstanceOf[TLocus].rg, true)
+        val locusPT = PBetterLocus(returnType.asInstanceOf[TStruct].field("locus").typ.asInstanceOf[TLocus].rg, true)
         PCanonicalStruct("locus" -> locusPT, "alleles" -> PCanonicalArray(PCanonicalString(true), true))
       }
     }) {
-      case (r, rt: PStruct, locus: PLocusCode, alleles: PIndexableCode) =>
-        val tuple = Code.invokeScalaObject2[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](
-          VariantMethods.getClass, "minRep",
-          locus.getLocusObj(),
-          Code.checkcast[IndexedSeq[String]](wrapArg(r, alleles.pt)(alleles.code).asInstanceOf[Code[AnyRef]]))
+      case (r: EmitRegion, rt: PStruct, locus: PLocusCode, alleles: PIndexableCode) => {
+        val code = EmitCodeBuilder.scopedCode(r.mb) { cb =>
+          val tuple = cb.newLocal("min_rep_tuple",
+            Code.invokeScalaObject2[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](
+              VariantMethods.getClass, "minRep",
+              locus.getLocusObj(cb.emb),
+              Code.checkcast[IndexedSeq[String]](
+                wrapArg(r, alleles.pt)(alleles.code).asInstanceOf[Code[AnyRef]])))
+          val newLocus = cb.newLocal("min_rep_new_locus",
+            Code.checkcast[Locus](tuple.getField[java.lang.Object]("_1")))
+          val newAlleles = cb.newLocal("min_rep_new_alleles",
+            Code.checkcast[IndexedSeq[String]](tuple.getField[java.lang.Object]("_2")))
+          val newLocusT = rt.field("locus").typ.asInstanceOf[PBetterLocus]
+          val newAllelesT = rt.field("alleles").typ.asInstanceOf[PArray]
 
-        val code = Code.memoize(tuple, "min_rep_tuple") { tuple =>
-          Code.memoize(
-            Code.checkcast[Locus](tuple.getField[java.lang.Object]("_1")), "min_rep_new_locus",
-            Code.checkcast[IndexedSeq[String]](tuple.getField[java.lang.Object]("_2")), "min_rep_new_alleles"
-          ) { (newLocus, newAlleles) =>
-            val newLocusT = rt.field("locus").typ
-            val newAllelesT = rt.field("alleles").typ.asInstanceOf[PArray]
-            val srvb = new StagedRegionValueBuilder(r, rt)
+          val srvb = new StagedRegionValueBuilder(r, rt)
+
+          cb += srvb.start()
+          cb += srvb.addLong(PBetterLocusCode.fromLocusObj(newLocusT, r.mb, newLocus).v)
+          cb += srvb.advance()
+          cb += srvb.addArray(newAllelesT, { allelesBuilder =>
             Code(
-              srvb.start(),
-              srvb.addBaseStruct(newLocusT.fundamentalType.asInstanceOf[PStruct], { locusBuilder =>
-                Code(
-                  locusBuilder.start(),
-                  locusBuilder.addString(newLocus.invoke[String]("contig")),
-                  locusBuilder.advance(),
-                  locusBuilder.addInt(newLocus.invoke[Int]("position")))
-              }),
-              srvb.advance(),
-              srvb.addArray(newAllelesT, { allelesBuilder =>
-                Code(
-                  allelesBuilder.start(newAlleles.invoke[Int]("size")),
-                  Code.whileLoop(allelesBuilder.arrayIdx < newAlleles.invoke[Int]("size"),
-                    allelesBuilder.addString(Code.checkcast[String](newAlleles.invoke[Int, java.lang.Object]("apply", allelesBuilder.arrayIdx))),
-                    allelesBuilder.advance()))
-              }),
-              srvb.offset)
-          }
+              allelesBuilder.start(newAlleles.invoke[Int]("size")),
+              Code.whileLoop(allelesBuilder.arrayIdx < newAlleles.invoke[Int]("size"),
+                allelesBuilder.addString(Code.checkcast[String](newAlleles.invoke[Int, java.lang.Object]("apply", allelesBuilder.arrayIdx))),
+                allelesBuilder.advance()))
+          })
+          srvb.offset
         }
         PCode(rt, code)
+      }
     }
 
     registerCode2("locus_windows_per_contig", TArray(TArray(TFloat64)), TFloat64, TTuple(TArray(TInt32), TArray(TInt32)), {
@@ -299,47 +266,66 @@ object LocusFunctions extends RegistryFunctions {
           srvb.end())
     }
 
-    registerCode1("Locus", TString, tlocus("T"), {
-      (returnType: Type, _: PType) => PCanonicalLocus(returnType.asInstanceOf[TLocus].rg)
-    }) {
-      case (r, rt: PLocus, (strT, locusoff: Code[Long])) =>
-        val slocus = asm4s.coerce[String](wrapArg(r, strT)(locusoff))
-        val locus = Code
-          .invokeScalaObject2[String, ReferenceGenome, Locus](
+    registerPCode1("Locus", TString, tlocus("T"), {
+      (returnType: Type, _: PType) => PBetterLocus(returnType.asInstanceOf[TLocus].rg)
+    }) { case (r, rt: PBetterLocus, str: PStringCode) =>
+      val slocus = str.loadString()
+      val locus = Code.invokeScalaObject2[String, ReferenceGenome, Locus](
           locusClass, "parse", slocus, rgCode(r.mb, rt.rg))
-        emitLocus(r, locus, rt)
+
+      PBetterLocusCode.fromLocusObj(rt, r.mb, locus)
     }
 
-    registerCode2("Locus", TString, TInt32, tlocus("T"), {
-      (returnType: Type, _: PType, _: PType) => PCanonicalLocus(returnType.asInstanceOf[TLocus].rg)
+    registerPCode2("Locus", TString, TInt32, tlocus("T"), {
+      (returnType: Type, _: PType, _: PType) => PBetterLocus(returnType.asInstanceOf[TLocus].rg)
     }) {
-      case (r, rt: PLocus, (contigT, contig: Code[Long]), (posT, pos: Code[Int])) =>
-        Code.memoize(asm4s.coerce[Long](contig), "locus_contig", asm4s.coerce[Int](pos), "locus_pos") { (contig, pos) =>
-          val srvb = new StagedRegionValueBuilder(r, rt)
-          val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
-          Code(
-            rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", scontig, pos),
-            srvb.start(),
-            srvb.addIRIntermediate(contigT)(contig),
-            srvb.advance(),
-            srvb.addInt(pos),
-            srvb.offset)
+      case (r, rt: PBetterLocus, contig: PStringCode, pos) =>
+        val code = EmitCodeBuilder.scopedCode[Long](r.mb) { cb =>
+          val rg = rgCode(r.mb, rt.rg)
+          val posv = cb.newLocalAny[Int]("locus_pos", pos.code)
+          val contigIdx = rg.invoke[String, Int, Int]("checkLocus", contig.loadString(), posv)
+
+          (contigIdx.toL << 32) | posv.toL
         }
+        new PBetterLocusCode(rt, code)
     }
 
-    registerCode1("LocusAlleles", TString, tvariant("T"), {
+    registerPCode1("LocusAlleles", TString, tvariant("T"), {
       (returnType: Type, _: PType) => {
         val lTyp = returnType.asInstanceOf[TStruct].field("locus").typ.asInstanceOf[TLocus]
-        PCanonicalStruct("locus" -> PCanonicalLocus(lTyp.rg, true), "alleles" -> PCanonicalArray(PCanonicalString(true), true))
+        PCanonicalStruct("locus" -> PBetterLocus(lTyp.rg, true),
+          "alleles" -> PCanonicalArray(PCanonicalString(true), true))
       }
     }) {
-      case (r, rt: PStruct, (strT, variantoff: Code[Long])) =>
-        val plocus = rt.types(0).asInstanceOf[PLocus]
-        val svar = asm4s.coerce[String](wrapArg(r, strT)(variantoff))
-        val variant = Code
-          .invokeScalaObject2[String, ReferenceGenome, (Locus, IndexedSeq[String])](
-          VariantMethods.getClass, "parse", svar, rgCode(r.mb, plocus.rg))
-        emitVariant(r, variant, rt)
+      case (r, rt: PStruct, ps: PStringCode) =>
+        val code = EmitCodeBuilder.scopedCode(r.mb) { cb =>
+          val srvb = new StagedRegionValueBuilder(r, rt)
+          val plocus = rt.types(0).asInstanceOf[PBetterLocus]
+          val svar = ps.loadString()
+          val variant = cb.newLocal("variant",
+              Code.invokeScalaObject2[String, ReferenceGenome, (Locus, IndexedSeq[String])](
+                VariantMethods.getClass, "parse", svar, rgCode(r.mb, plocus.rg)))
+
+          val array = cb.newLocal("array",
+            Code.checkcast[IndexedSeq[String]](variant.getField[java.lang.Object]("_2")))
+          val len = cb.newLocal("len", array.invoke[Int]("size"))
+          val addAlleles = { srvb: StagedRegionValueBuilder =>
+            Code(
+              srvb.start(len),
+              Code.whileLoop(srvb.arrayIdx < len,
+                srvb.addString(array.invoke[Int, String]("apply", srvb.arrayIdx)),
+                srvb.advance()))
+          }
+
+          cb += srvb.start()
+          val locus = Code.checkcast[Locus](variant.getField[java.lang.Object]("_1"))
+          cb += srvb.addLong(PBetterLocusCode.fromLocusObj(plocus, r.mb, locus).v)
+          cb += srvb.advance()
+          cb += srvb.addArray(rt.field("alleles").typ.asInstanceOf[PArray], addAlleles)
+          cb += srvb.advance()
+          srvb.offset
+        }
+        PCode(rt, code)
     }
 
     registerEmitCode2("LocusInterval", TString, TBoolean, tinterval("T"), {
@@ -388,19 +374,19 @@ object LocusFunctions extends RegistryFunctions {
         )
     }
 
-    registerCode1("globalPosToLocus", TInt64, tlocus("T"), {
+    registerPCode1("globalPosToLocus", TInt64, tlocus("T"), {
       (returnType: Type, _: PType) =>
-        PCanonicalLocus(returnType.asInstanceOf[TLocus].rg)
+        PBetterLocus(returnType.asInstanceOf[TLocus].rg)
     }) {
-      case (r, rt: PLocus, (globalPositionT, globalPosition: Code[Long])) =>
-        val locus = rgCode(r.mb, rt.rg).invoke[Long, Locus]("globalPosToLocus", globalPosition)
-        emitLocus(r, locus, rt)
+      case (r, rt: PBetterLocus, globalPosition) =>
+        val locus = rgCode(r.mb, rt.rg).invoke[Long, Locus]("globalPosToLocus", globalPosition.tcode[Long])
+        PBetterLocusCode.fromLocusObj(rt, r.mb, locus)
     }
 
-    registerCode1("locusToGlobalPos", tlocus("T"), TInt64, (_: Type, _: PType) => PInt64()) {
-      case (r, rt, (locusT: PLocus, locus: Code[Long])) =>
-        val locusObject = Code.checkcast[Locus](wrapArg(r, locusT)(locus).asInstanceOf[Code[AnyRef]])
-        unwrapReturn(r, rt)(rgCode(r.mb, locusT.rg).invoke[Locus, Long]("locusToGlobalPos", locusObject))
+    registerPCode1("locusToGlobalPos", tlocus("T"), TInt64, (_: Type, _: PType) => PInt64()) {
+      case (r, rt: PInt64, locus: PLocusCode) =>
+        val locusObject = locus.getLocusObj(r.mb)
+        PCode(rt, rgCode(r.mb, locus.rg).invoke[Locus, Long]("locusToGlobalPos", locusObject))
     }
 
     registerEmitCode2("liftoverLocus", tlocus("T"), TFloat64, TStruct("result" -> tv("U", "locus"), "is_negative_strand" -> TBoolean), {
