@@ -613,11 +613,17 @@ object EmitStream {
     }
   }
 
-  def groupBy(stream: Stream[PCode], eltType: PStruct, mkKey: PCode => Code[Long], comp: (PCode, Code[Long]) => Code[Boolean]): Stream[Stream[PCode]] = new Stream[Stream[PCode]] {
+  def groupBy(mb: EmitMethodBuilder[_], region: Value[Region], stream: Stream[PCode], eltType: PStruct, key: Array[String]): Stream[Stream[PCode]] = new Stream[Stream[PCode]] {
     def apply(outerEos: Code[Ctrl], outerPush: Stream[PCode] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[Stream[PCode]] = {
-      val xCurKey = ctx.mb.newLocal[Long]("st_grpby_curkey")
+      val keyType = eltType.selectFields(key)
+      val keyViewType = PSubsetStruct(eltType, key)
+      val ordering = keyType.codeOrdering(mb, keyViewType)
+
+      val xCurKey = ctx.mb.newPLocal("st_grpby_curkey", keyType)
       val xCurElt = ctx.mb.newPLocal("st_grpby_curelt", eltType)
       val xInOuter = ctx.mb.newLocal[Boolean]("st_grpby_io")
+      val xFirstPull = ctx.mb.newLocal[Boolean]("st_grpby_fp")
+
       val LchildPull = CodeLabel()
       val LouterPush = CodeLabel()
       val LinnerPush = CodeLabel()
@@ -628,7 +634,7 @@ object EmitStream {
         def apply(innerEos: Code[Ctrl], innerPush: PCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[PCode] = {
           val LinnerEos = CodeLabel()
 
-          childSource = self(
+          childSource = stream(
             xInOuter.mux(LouterEos.goto, LinnerEos.goto),
             { a: PCode =>
               Code(LinnerPush, innerPush(a))
@@ -638,12 +644,15 @@ object EmitStream {
                 // !xInOuter iff this element was requested by an inner stream.
                 // Else we are stepping to the beginning of the next group.
 
-                xInOuter.mux(
-                  (xCounter > xSize).mux(
-                    // first of a group
-                    Code(xCounter := 1, LouterPush.goto),
-                    LchildPull.goto),
-                  LinnerPush.goto))
+                (!xFirstPull && ordering.equivNonnull(xCurKey.tcode, xCurElt.tcode)).mux(
+                  xInOuter.mux(
+                    LchildPull.goto,
+                    LinnerPush.goto),
+                  Code(
+                    xCurKey := keyType.copyFromPValue(mb, region, new PSubsetStructCode(keyViewType, xCurElt.tcode)),
+                    xInOuter.mux(
+                      LouterPush.goto,
+                      LinnerEos.goto))))
             })
 
           Code(LinnerEos, innerEos)
@@ -657,26 +666,21 @@ object EmitStream {
             pull = xInOuter.mux(
               // xInOuter iff this is the first pull from inner stream,
               // in which case the element has already been produced
-              Code(
-                xInOuter := false,
-                xCounter.cne(1).orEmpty(Code._fatal[Unit](const("expected counter = 1"))),
-                LinnerPush.goto),
-              (xCounter < xSize).mux(
-                LchildPull.goto,
-                LinnerEos.goto)))
+              Code(xInOuter := false, LinnerPush.goto),
+              LchildPull.goto))
         }
       }
 
       Code(LouterPush, outerPush(inner))
       Code(LouterEos, outerEos)
 
-      Source[Stream[A]](
+      Source[Stream[PCode]](
         setup0 = childSource.setup0,
         close0 = childSource.close0,
         setup = Code(
           childSource.setup,
-          xSize := size,
-          xCounter := xSize),
+          xCurKey := keyType.defaultValue,
+          xFirstPull := true),
         close = childSource.close,
         pull = Code(xInOuter := true, LchildPull.goto))
     }
@@ -889,6 +893,20 @@ object EmitStream {
                 newStream,
                 len.map(l => ((l.toL + xS.toL - 1L) / xS.toL).toI)) // rounding up integer division
             }
+          }
+
+        case x@StreamGroupedByKey(a, key) =>
+          val innerType = coerce[PCanonicalStream](coerce[PStream](x.pType).elementType)
+          val eltType = coerce[PStruct](innerType.elementType)
+          val keyType = PSubsetStruct(eltType, key.toArray)
+          val optStream = emitStream(a, env)
+          optStream.flatMap { case SizedStream(setup, stream, len) =>
+            val nonMissingStream = stream.map()
+            val newStream = groupBy(mb, region, stream, eltType, key).map(inner => EmitCode(Code._empty, false, PCanonicalStreamCode(innerType, inner)))
+            SizedStream(
+              Code(setup, xS := s.tcode[Int], (xS <= 0).orEmpty(Code._fatal[Unit](const("StreamGrouped: nonpositive size")))),
+              newStream,
+              len.map(l => ((l.toL + xS.toL - 1L) / xS.toL).toI)) // rounding up integer division
           }
 
         case StreamMap(childIR, name, bodyIR) =>
