@@ -229,6 +229,18 @@ object InferType {
       case ReadValue(_, _, typ) => typ
       case WriteValue(value, pathPrefix, spec) => TString
       case LiftMeOut(child) => child.typ
+      case ShuffleStart(keyFields, rowType, rowEType) =>
+        TBinary
+      case ShuffleWrite(id, partitionId, rows) =>
+        TBinary
+      case ShuffleWritingFinished(id, successfulPartitionIds) =>
+        TVoid
+      case ShuffleGetPartitionBounds(id, nPartitions, rowType) =>
+        TArray(rowType)
+      case ShuffleRead(id, keyRange, rowType, rowEType) =>
+        TStream(rowType)
+      case ShuffleDelete(id) =>
+        TVoid
     }
   }
 }
