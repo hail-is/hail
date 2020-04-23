@@ -149,7 +149,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends Partition
 
   def contextType: Type = TString
 
-  def rowPType(requestedType: Type): PType = spec.buildDecoder(requestedType)._1
+  def rowPType(requestedType: Type): PType = spec.decodedPType(requestedType)
 
   def emitStream[C](context: IR,
     requestedType: Type,
