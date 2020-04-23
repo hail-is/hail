@@ -2255,7 +2255,7 @@ class Emit[C](
               )
             ) },
             (runningProduct ceq 0L).mux(
-              hasNegativeOne.mux(
+              (hasNegativeOne || (runningProduct cne numElements)).mux(
                 Code._fatal[Unit]("Can't reshape since requested shape is incompatible with number of elements"),
                 Code(newShapeVars.zip(requestedShape).map { case (variable, shapeElement) => variable := shapeElement})
               ),
