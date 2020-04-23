@@ -7,4 +7,6 @@ package object types {
   def coerce[T <: Type](x: Type): T = x.asInstanceOf[T]
 
   def coerce[T <: PType](x: PType): T = x.asInstanceOf[T]
+
+  def coerce[T <: BaseTypeWithRequiredness](x: BaseTypeWithRequiredness): T = x.asInstanceOf[T]
 }
