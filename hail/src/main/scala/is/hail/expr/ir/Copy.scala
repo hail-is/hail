@@ -314,9 +314,9 @@ object Copy {
       case CollectDistributedArray(_, _, cname, gname, _) =>
         assert(newChildren.length == 3)
         CollectDistributedArray(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], cname, gname, newChildren(2).asInstanceOf[IR])
-      case ReadPartition(path, spec, rowType) =>
+      case ReadPartition(context, rowType, reader) =>
         assert(newChildren.length == 1)
-        ReadPartition(newChildren(0).asInstanceOf[IR], spec, rowType)
+        ReadPartition(newChildren(0).asInstanceOf[IR], rowType, reader)
       case ReadValue(path, spec, requestedType) =>
         assert(newChildren.length == 1)
         ReadValue(newChildren(0).asInstanceOf[IR], spec, requestedType)

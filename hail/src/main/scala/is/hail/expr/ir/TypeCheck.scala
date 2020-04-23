@@ -417,7 +417,7 @@ object TypeCheck {
         assert(rowType.isRealizable)
         assert(context.typ == reader.contextType)
         assert(x.typ == TStream(rowType))
-        assert(PruneDeadFields.isSupertype(reader.fullRowType, rowType))
+        assert(PruneDeadFields.isSupertype(rowType, reader.fullRowType))
       case x@ReadValue(path, spec, requestedType) =>
         assert(path.typ == TString)
         assert(spec.encodedType.decodedPType(requestedType).virtualType == requestedType)
