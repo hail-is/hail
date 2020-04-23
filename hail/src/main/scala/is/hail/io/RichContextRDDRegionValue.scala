@@ -3,6 +3,7 @@ package is.hail.io
 import java.io._
 
 import is.hail.annotations._
+import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.physical._
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
@@ -60,6 +61,7 @@ object RichContextRDDRegionValue {
   }
 
   def writeSplitRegion(
+    localTmpdir: String,
     fs: FS,
     path: String,
     t: RVDType,
@@ -68,7 +70,7 @@ object RichContextRDDRegionValue {
     ctx: RVDContext,
     partDigits: Int,
     stageLocally: Boolean,
-    makeIndexWriter: (FS, String) => IndexWriter,
+    makeIndexWriter: (String) => IndexWriter,
     makeRowsEnc: (OutputStream) => Encoder,
     makeEntriesEnc: (OutputStream) => Encoder
   ): (String, Long) = {
@@ -82,8 +84,8 @@ object RichContextRDDRegionValue {
     val finalIdxPath = path + "/index/" + f + ".idx"
     val (rowsPartPath, entriesPartPath, idxPath) =
       if (stageLocally) {
-        val rowsPartPath = fs.getTemporaryFile("file:///tmp")
-        val entriesPartPath = fs.getTemporaryFile("file:///tmp")
+        val rowsPartPath = ExecuteContext.createTmpPathNoCleanup(localTmpdir, "write-split-staged-rows-part")
+        val entriesPartPath = ExecuteContext.createTmpPathNoCleanup(localTmpdir, "write-split-staged-entries-part")
         val idxPath = rowsPartPath + ".idx"
         context.addTaskCompletionListener { (context: TaskContext) =>
           fs.delete(rowsPartPath, recursive = false)
@@ -101,8 +103,7 @@ object RichContextRDDRegionValue {
         using(fs.create(entriesPartPath)) { entriesOS =>
           val trackedEntriesOS = new ByteTrackingOutputStream(entriesOS)
           using(makeEntriesEnc(trackedEntriesOS)) { entriesEN =>
-            using(makeIndexWriter(fs, idxPath)) { iw =>
-
+            using(makeIndexWriter(idxPath)) { iw =>
               var rowCount = 0L
 
               it.foreach { ptr =>
@@ -205,6 +206,7 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
     })
 
   def writeRows(
+    ctx: ExecuteContext,
     path: String,
     idxRelPath: String,
     t: RVDType,
@@ -212,12 +214,13 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
     encoding: AbstractTypedCodecSpec
   ): (Array[String], Array[Long]) = {
     crdd.writePartitions(
+      ctx,
       path,
       idxRelPath,
       stageLocally,
-      IndexWriter.builder(t.kType, +PCanonicalStruct()),
+      IndexWriter.builder(ctx, t.kType, +PCanonicalStruct()),
       RichContextRDDRegionValue.writeRowsPartition(
-        encoding.buildEncoder(t.rowType),
+        encoding.buildEncoder(ctx, t.rowType),
         t.kFieldIdx,
         t.rowType))
   }

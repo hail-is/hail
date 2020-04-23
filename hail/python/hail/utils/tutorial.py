@@ -1,6 +1,6 @@
 import hail as hl
 from .java import FatalError, Env, info
-from .misc import local_path_uri, new_local_temp_dir
+from .misc import new_temp_file, local_path_uri, new_local_temp_dir
 import os
 import zipfile
 from urllib.request import urlretrieve
@@ -27,9 +27,18 @@ def init_temp_dir():
         tmp_dir = new_local_temp_dir()
 
 
-def _mkdir(jhc, path):
-    if not Env.jutils().dirExists(jhc, path):
-        Env.jutils().mkdir(jhc, path)
+def _dir_exists(fs, path):
+    return fs.exists(path) and fs.is_dir(path)
+
+
+def _file_exists(fs, path):
+    return fs.exists(path) and fs.is_file(path)
+
+
+def _copy_to_tmp(fs, src, extension=None):
+    dst = new_temp_file(extension=extension)
+    fs.copy(src, dst)
+    return dst
 
 
 def get_1kg(output_dir, overwrite: bool = False):
@@ -47,9 +56,10 @@ def get_1kg(output_dir, overwrite: bool = False):
     overwrite
         If ``True``, overwrite any existing files/directories at `output_dir`.
     """
-    jhc = Env.backend()._jhc
+    fs = Env.fs()
 
-    _mkdir(jhc, output_dir)
+    if not _dir_exists(fs, output_dir):
+        fs.mkdir(output_dir)
 
     matrix_table_path = os.path.join(output_dir, '1kg.mt')
     vcf_path = os.path.join(output_dir, '1kg.vcf.bgz')
@@ -57,17 +67,17 @@ def get_1kg(output_dir, overwrite: bool = False):
     gene_annotations_path = os.path.join(output_dir, 'ensembl_gene_annotations.txt')
 
     if (overwrite
-            or not Env.jutils().dirExists(jhc, matrix_table_path)
-            or not Env.jutils().fileExists(jhc, sample_annotations_path)
-            or not Env.jutils().fileExists(jhc, vcf_path)
-            or not Env.jutils().fileExists(jhc, gene_annotations_path)):
+            or not _dir_exists(fs, matrix_table_path)
+            or not _file_exists(fs, sample_annotations_path)
+            or not _file_exists(fs, vcf_path)
+            or not _file_exists(fs, gene_annotations_path)):
         init_temp_dir()
         tmp_vcf = os.path.join(tmp_dir, '1kg.vcf.bgz')
         source = resources['1kg_matrix_table']
         info(f'downloading 1KG VCF ...\n'
              f'  Source: {source}')
         sync_retry_transient_errors(urlretrieve, resources['1kg_matrix_table'], tmp_vcf)
-        cluster_readable_vcf = Env.jutils().copyToTmp(jhc, local_path_uri(tmp_vcf), 'vcf')
+        cluster_readable_vcf = _copy_to_tmp(fs, local_path_uri(tmp_vcf), extension='vcf.bgz')
         info('importing VCF and writing to matrix table...')
         hl.import_vcf(cluster_readable_vcf, min_partitions=16).write(matrix_table_path, overwrite=True)
 
@@ -109,13 +119,13 @@ def get_movie_lens(output_dir, overwrite: bool = False):
     overwrite
         If ``True``, overwrite existing files/directories at those locations.
     """
+    fs = Env.fs()
 
-    jhc = Env.backend()._jhc
-
-    _mkdir(jhc, output_dir)
+    if not _dir_exists(fs, output_dir):
+        fs.mkdir(output_dir)
 
     paths = [os.path.join(output_dir, x) for x in ['movies.ht', 'ratings.ht', 'users.ht']]
-    if overwrite or any(not Env.jutils().dirExists(jhc, f) for f in paths):
+    if overwrite or any(not _dir_exists(fs, f) for f in paths):
         init_temp_dir()
         source = resources['movie_lens_100k']
         tmp_path = os.path.join(tmp_dir, 'ml-100k.zip')
@@ -125,16 +135,16 @@ def get_movie_lens(output_dir, overwrite: bool = False):
         with zipfile.ZipFile(tmp_path, 'r') as z:
             z.extractall(tmp_dir)
 
-        user_table_path = os.path.join(os.path.join(tmp_dir, 'ml-100k', 'u.user'))
-        movie_table_path = os.path.join(os.path.join(tmp_dir, 'ml-100k', 'u.item'))
-        ratings_table_path = os.path.join(os.path.join(tmp_dir, 'ml-100k', 'u.data'))
+        user_table_path = os.path.join(tmp_dir, 'ml-100k', 'u.user')
+        movie_table_path = os.path.join(tmp_dir, 'ml-100k', 'u.item')
+        ratings_table_path = os.path.join(tmp_dir, 'ml-100k', 'u.data')
         assert (os.path.exists(user_table_path))
         assert (os.path.exists(movie_table_path))
         assert (os.path.exists(ratings_table_path))
 
-        user_cluster_readable = Env.jutils().copyToTmp(jhc, local_path_uri(user_table_path), 'txt')
-        movie_cluster_readable = Env.jutils().copyToTmp(jhc, local_path_uri(movie_table_path), 'txt')
-        ratings_cluster_readable = Env.jutils().copyToTmp(jhc, local_path_uri(ratings_table_path), 'txt')
+        user_cluster_readable = _copy_to_tmp(fs, local_path_uri(user_table_path), extension='txt')
+        movie_cluster_readable = _copy_to_tmp(fs, local_path_uri(movie_table_path), 'txt')
+        ratings_cluster_readable = _copy_to_tmp(fs, local_path_uri(ratings_table_path), 'txt')
 
         [movies_path, ratings_path, users_path] = paths
 

@@ -19,7 +19,7 @@ class StagedRegionValueSuite extends HailSuite {
   def testCanonicalString() {
     val rt = PCanonicalString()
     val input = "hello"
-    val fb = EmitFunctionBuilder[Region, String, Long]("fb")
+    val fb = EmitFunctionBuilder[Region, String, Long](ctx, "fb")
     val srvb = new StagedRegionValueBuilder(fb.emb, rt)
 
     fb.emit(
@@ -61,7 +61,7 @@ class StagedRegionValueSuite extends HailSuite {
   def testInt() {
     val rt = PInt32()
     val input = 3
-    val fb = EmitFunctionBuilder[Region, Int, Long]("fb")
+    val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
     fb.emit(
@@ -99,7 +99,7 @@ class StagedRegionValueSuite extends HailSuite {
   def testArray() {
     val rt = PCanonicalArray(PInt32())
     val input = 3
-    val fb = EmitFunctionBuilder[Region, Int, Long]("fb")
+    val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
     fb.emit(
@@ -139,7 +139,7 @@ class StagedRegionValueSuite extends HailSuite {
   def testStruct() {
     val rt = PCanonicalStruct("a" -> PCanonicalString(), "b" -> PInt32())
     val input = 3
-    val fb = EmitFunctionBuilder[Region, Int, Long]("fb")
+    val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
     fb.emit(
@@ -181,7 +181,7 @@ class StagedRegionValueSuite extends HailSuite {
   def testArrayOfStruct() {
     val rt = PCanonicalArray(PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString()))
     val input = "hello"
-    val fb = EmitFunctionBuilder[Region, String, Long]("fb")
+    val fb = EmitFunctionBuilder[Region, String, Long](ctx, "fb")
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
     val struct = { ssb: StagedRegionValueBuilder =>
@@ -323,7 +323,7 @@ class StagedRegionValueSuite extends HailSuite {
   def testStructWithArray() {
     val rt = PCanonicalStruct("a" -> PCanonicalString(), "b" -> PCanonicalArray(PInt32()))
     val input = "hello"
-    val fb = EmitFunctionBuilder[Region, String, Long]("fb")
+    val fb = EmitFunctionBuilder[Region, String, Long](ctx, "fb")
     val codeInput = fb.getCodeParam[String](2)
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
@@ -388,7 +388,7 @@ class StagedRegionValueSuite extends HailSuite {
   def testMissingArray() {
     val rt = PCanonicalArray(PInt32())
     val input = 3
-    val fb = EmitFunctionBuilder[Region, Int, Long]("fb")
+    val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
     val codeInput = fb.getCodeParam[Int](2)
     val srvb = new StagedRegionValueBuilder(fb, rt)
 
@@ -433,7 +433,7 @@ class StagedRegionValueSuite extends HailSuite {
   @Test
   def testAddPrimitive() {
     val t = PCanonicalStruct("a" -> PInt32(), "b" -> PBoolean(), "c" -> PFloat64())
-    val fb = EmitFunctionBuilder[Region, Int, Boolean, Double, Long]("fb")
+    val fb = EmitFunctionBuilder[Region, Int, Boolean, Double, Long](ctx, "fb")
     val srvb = new StagedRegionValueBuilder(fb, t)
 
     fb.emit(
@@ -474,7 +474,7 @@ class StagedRegionValueSuite extends HailSuite {
         val copyOff = Region.scoped { srcRegion =>
           val src = ScalaToRegionValue(srcRegion, t, a)
 
-          val fb = EmitFunctionBuilder[Region, Long, Long]("deep_copy")
+          val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "deep_copy")
           fb.emit(
             StagedRegionValueBuilder.deepCopyFromOffset(
               EmitRegion.default(fb.apply_method),
@@ -549,7 +549,7 @@ class StagedRegionValueSuite extends HailSuite {
       val v1 = rvb.end()
       assert(SafeRow.read(valueT2, v1) == value)
 
-      val f1 = EmitFunctionBuilder[Long]("stagedCopy1")
+      val f1 = EmitFunctionBuilder[Long](ctx, "stagedCopy1")
       val srvb = new StagedRegionValueBuilder(f1.apply_method, t2, f1.partitionRegion)
       f1.emit(Code(
         srvb.start(),
@@ -559,7 +559,7 @@ class StagedRegionValueSuite extends HailSuite {
       val cp1 = f1.resultWithIndex()(0, r)()
       assert(SafeRow.read(t2, cp1) == Row(value))
 
-      val f2 = EmitFunctionBuilder[Long]("stagedCopy2")
+      val f2 = EmitFunctionBuilder[Long](ctx, "stagedCopy2")
       val srvb2 = new StagedRegionValueBuilder(f2.apply_method, t1, f2.partitionRegion)
       f2.emit(Code(
         srvb2.start(),

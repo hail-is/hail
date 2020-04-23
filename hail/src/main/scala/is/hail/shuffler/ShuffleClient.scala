@@ -3,6 +3,7 @@ package is.hail.shuffler
 import java.io._
 
 import is.hail.annotations._
+import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.virtual.TStruct
 import is.hail.io.TypedCodecSpec
 import is.hail.utils._
@@ -17,15 +18,18 @@ class ShuffleClient (
   host: String,
   port: Int
 ) {
-  val log = Logger.getLogger(getClass.getName())
+  // FIXME close
+  private[this] val ctx = new ExecuteContext("/tmp", "file:///tmp", null, null, Region(), new ExecutionTimer())
 
-  val sf = ssl.getSocketFactory()
+  val log = Logger.getLogger(getClass.getName)
+
+  val sf = ssl.getSocketFactory
   val s = sf.createSocket(host, port)
-  val in = new DataInputStream(s.getInputStream())
-  val out = new DataOutputStream(s.getOutputStream())
+  val in = new DataInputStream(s.getInputStream)
+  val out = new DataOutputStream(s.getOutputStream)
   log.info(s"CLNT connected to ${host}:${port}")
 
-  val keyedCodecSpec = new KeyedCodecSpec(t, codecSpec, key)
+  val keyedCodecSpec = new KeyedCodecSpec(ctx, t, codecSpec, key)
   import keyedCodecSpec._
 
   var uuid: Array[Byte] = null

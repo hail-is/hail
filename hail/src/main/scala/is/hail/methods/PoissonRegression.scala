@@ -99,6 +99,6 @@ case class PoissonRegression(
       }
     }
 
-    TableValue(tableType, BroadcastRow.empty(ctx), newRVD)
+    TableValue(ctx, tableType, BroadcastRow.empty(ctx), newRVD)
   }
 }

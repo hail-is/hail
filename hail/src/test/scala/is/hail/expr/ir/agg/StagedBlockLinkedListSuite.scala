@@ -1,23 +1,25 @@
 package is.hail.expr.ir.agg
 
+import is.hail.HailSuite
+
 import scala.collection.generic.Growable
 import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue, StagedRegionValueBuilder}
 import is.hail.asm4s.Code
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion, EmitCode}
+import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, EmitRegion}
 import is.hail.expr.types.physical._
 import is.hail.utils._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 import org.testng.Assert._
 
-class StagedBlockLinkedListSuite extends TestNGSuite {
+class StagedBlockLinkedListSuite extends HailSuite {
 
   class BlockLinkedList[E](region: Region, val elemPType: PType, initImmediately: Boolean = true)
       extends Growable[E] {
     val arrayPType = PCanonicalArray(elemPType)
 
     private val initF: Region => Long = {
-      val fb = EmitFunctionBuilder[Region, Long]("init")
+      val fb = EmitFunctionBuilder[Region, Long](ctx, "init")
       val cb = fb.ecb
       val sbll = new StagedBlockLinkedList(elemPType, cb)
 
@@ -33,7 +35,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
     }
 
     private val pushF: (Region, Long, E) => Unit = {
-      val fb = EmitFunctionBuilder[Region, Long, Long, Unit]("push")
+      val fb = EmitFunctionBuilder[Region, Long, Long, Unit](ctx, "push")
       val cb = fb.ecb
       val sbll = new StagedBlockLinkedList(elemPType, cb)
 
@@ -54,7 +56,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
     }
 
     private val appendF: (Region, Long, BlockLinkedList[E]) => Unit = {
-      val fb = EmitFunctionBuilder[Region, Long, Long, Unit]("append")
+      val fb = EmitFunctionBuilder[Region, Long, Long, Unit](ctx, "append")
       val cb = fb.ecb
       val sbll1 = new StagedBlockLinkedList(elemPType, cb)
       val sbll2 = new StagedBlockLinkedList(elemPType, cb)
@@ -76,7 +78,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
     }
 
     private val materializeF: (Region, Long) => IndexedSeq[E] = {
-      val fb = EmitFunctionBuilder[Region, Long, Long]("materialize")
+      val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "materialize")
       val cb = fb.ecb
       val sbll = new StagedBlockLinkedList(elemPType, cb)
 
@@ -98,7 +100,7 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
     }
 
     private val initWithDeepCopyF: (Region, BlockLinkedList[E]) => Long = {
-      val fb = EmitFunctionBuilder[Region, Long, Long]("init_with_copy")
+      val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "init_with_copy")
       val cb = fb.ecb
       val sbll2 = new StagedBlockLinkedList(elemPType, cb)
       val sbll1 = new StagedBlockLinkedList(elemPType, cb)

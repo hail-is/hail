@@ -1,8 +1,10 @@
 import atexit
 import datetime
+import string
 import difflib
 import shutil
 import tempfile
+import secrets
 from collections import defaultdict, Counter
 from random import Random
 import json
@@ -152,8 +154,17 @@ def local_path_uri(path):
     return 'file://' + path
 
 
-def new_temp_file(suffix=None, prefix=None, n_char=10):
-    return Env.backend()._jhc.getTemporaryFile(n_char, joption(prefix), joption(suffix))
+def new_temp_file(prefix=None, extension=None):
+    tmpdir = Env.hc()._tmpdir
+    alphabet = string.ascii_letters + string.digits
+    token = ''.join([secrets.choice(alphabet) for _ in range(22)])
+
+    f = token
+    if prefix is not None:
+        f = f'{prefix}-{f}'
+    if extension is not None:
+        f = f'{f}.{extension}'
+    return f'{tmpdir}/{f}'
 
 
 def new_local_temp_dir(suffix=None, prefix=None, dir=None):

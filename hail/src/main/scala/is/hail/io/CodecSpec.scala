@@ -4,7 +4,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, Output
 
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.asm4s.{Code, TypeInfo, Value}
-import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, ExecuteContext, typeToTypeInfo}
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
@@ -20,19 +20,21 @@ trait AbstractTypedCodecSpec extends Spec {
   type StagedEncoderF[T] = (Value[Region], Value[T], Value[OutputBuffer]) => Code[Unit]
   type StagedDecoderF[T] = (Value[Region], Value[InputBuffer]) => Code[T]
 
-  def buildEncoder(t: PType): (OutputStream) => Encoder
+  def buildEncoder(ctx: ExecuteContext, t: PType): (OutputStream) => Encoder
 
-  def buildDecoder(requestedType: Type): (PType, (InputStream) => Decoder)
+  def decodedPType(requestedType: Type): PType
 
-  def encode(t: PType, offset: Long): Array[Byte] = {
+  def buildDecoder(ctx: ExecuteContext, requestedType: Type): (PType, (InputStream) => Decoder)
+
+  def encode(ctx: ExecuteContext, t: PType, offset: Long): Array[Byte] = {
     val baos = new ByteArrayOutputStream()
-    using(buildEncoder(t)(baos))(_.writeRegionValue(offset))
+    using(buildEncoder(ctx, t)(baos))(_.writeRegionValue(offset))
     baos.toByteArray
   }
 
-  def decode(requestedType: Type, bytes: Array[Byte], region: Region): (PType, Long) = {
+  def decode(ctx: ExecuteContext, requestedType: Type, bytes: Array[Byte], region: Region): (PType, Long) = {
     val bais = new ByteArrayInputStream(bytes)
-    val (pt, dec) = buildDecoder(requestedType)
+    val (pt, dec) = buildDecoder(ctx, requestedType)
     (pt, dec(bais).readRegionValue(region))
   }
 
@@ -56,8 +58,8 @@ trait AbstractTypedCodecSpec extends Spec {
   }
 
   // FIXME: is there a better place for this to live?
-  def decodeRDD(requestedType: Type, bytes: RDD[Array[Byte]]): (PType, ContextRDD[Long]) = {
-    val (pt, dec) = buildDecoder(requestedType)
+  def decodeRDD(ctx: ExecuteContext, requestedType: Type, bytes: RDD[Array[Byte]]): (PType, ContextRDD[Long]) = {
+    val (pt, dec) = buildDecoder(ctx, requestedType)
     (pt, ContextRDD.weaken(bytes).cmapPartitions { (ctx, it) =>
       RegionValue.fromBytes(dec, ctx.region, it)
     })

@@ -76,9 +76,10 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
         val globalRef = genUID()
 
         reader match {
-          case r@TableNativeReader(path, None, _) =>
+          case r: TableNativeReader =>
+            val path = r.params.path
             val globalsPath = r.spec.globalsComponent.absolutePath(path)
-            val globalsSpec = AbstractRVDSpec.read(HailContext.get, globalsPath)
+            val globalsSpec = r.spec.globalsSpec
             val gPath = AbstractRVDSpec.partPath(globalsPath, globalsSpec.partFiles.head)
             val globals = ArrayRef(ToArray(ReadPartition(Str(gPath), globalsSpec.typedCodecSpec, gType)), 0)
 
@@ -92,7 +93,7 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
                 MakeStream(FastIndexedSeq(), TStream(typ.rowType)))
             } else {
               val rowsPath = r.spec.rowsComponent.absolutePath(path)
-              val rowsSpec = AbstractRVDSpec.read(HailContext.get, rowsPath)
+              val rowsSpec = r.spec.rowsSpec
               val partitioner = rowsSpec.partitioner
               val rSpec = rowsSpec.typedCodecSpec
               val ctxType = TStruct("path" -> TString)

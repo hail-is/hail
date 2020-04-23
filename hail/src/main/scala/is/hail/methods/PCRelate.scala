@@ -144,7 +144,7 @@ case class PCRelate(
   def execute(ctx: ExecuteContext, g: M, value: Any): TableValue = {
     val pcs = rowsToBDM(value.asInstanceOf[IndexedSeq[IndexedSeq[java.lang.Double]]])
     assert(pcs.rows == g.nCols)
-    val r = computeResult(g, pcs)
+    val r = computeResult(ctx, g, pcs)
     val rdd = PCRelate.toRowRdd(r, blockSize, minKinship, statistics)
     TableValue(ctx, sig, keys, rdd)
   }
@@ -155,23 +155,23 @@ case class PCRelate(
   def badgt(gt: Double): Boolean =
     gt != 0.0 && gt != 1.0 && gt != 2.0
 
-  private def writeRead(m: M): M = {
-    val file = hc.getTemporaryFile(suffix=Some("bm"))
-    m.write(hc.fs, file)
-    BlockMatrix.read(hc, file)
+  private def writeRead(ctx: ExecuteContext, m: M): M = {
+    val file = ctx.createTmpPath("pcrelate-write-read", "bm")
+    m.write(ctx, file)
+    BlockMatrix.read(ctx.fs, file)
   }
 
-  private def gram(m: M): M = {
+  private def gram(ctx: ExecuteContext, m: M): M = {
     val pm = m.cache()
-    writeRead(pm.T.dot(pm))
+    writeRead(ctx, pm.T.dot(pm))
   }
 
-  private[this] def cacheWhen(statisticsLevel: StatisticSubset)(m: M): M =
-    if (statistics >= statisticsLevel) writeRead(m) else m
+  private[this] def cacheWhen(statisticsLevel: StatisticSubset)(ctx: ExecuteContext, m: M): M =
+    if (statistics >= statisticsLevel) writeRead(ctx, m) else m
 
-  def computeResult(_blockedG: M, pcs: BDM[Double]): Result[M] = {
+  def computeResult(ctx: ExecuteContext, _blockedG: M, pcs: BDM[Double]): Result[M] = {
     val blockedG = _blockedG.cache()
-    val preMu = this.mu(blockedG, pcs)
+    val preMu = this.mu(ctx, blockedG, pcs)
     val mu = BlockMatrix.map2 { (g, mu) =>
       if (badgt(g) || badmu(mu))
         Double.NaN
@@ -179,17 +179,17 @@ case class PCRelate(
         mu
     } (blockedG, preMu)
     val variance = cacheWhen(PhiK2)(
-      mu.map(mu => if (java.lang.Double.isNaN(mu)) 0.0 else mu * (1.0 - mu)))
+      ctx, mu.map(mu => if (java.lang.Double.isNaN(mu)) 0.0 else mu * (1.0 - mu)))
 
     // write phi to cache and increase parallelism of multiplies before phi.diagonal()
-    val phi = writeRead(this.phi(mu, variance, blockedG))
+    val phi = writeRead(ctx, this.phi(ctx, mu, variance, blockedG))
 
     if (statistics >= PhiK2) {
       val k2 = cacheWhen(PhiK2K0)(
-        this.k2(phi, mu, variance, blockedG))
+        ctx, this.k2(ctx, phi, mu, variance, blockedG))
       if (statistics >= PhiK2K0) {
         val k0 = cacheWhen(PhiK2K0K1)(
-          this.k0(phi, mu, k2, blockedG, ibs0(blockedG, mu)))
+          ctx, this.k0(ctx, phi, mu, k2, blockedG, ibs0(ctx, blockedG, mu)))
         if (statistics >= PhiK2K0K1) {
           val k1 = 1.0 - (k2 + k0)
           Result(phi, k0, k1, k2)
@@ -206,29 +206,29 @@ case class PCRelate(
     * {@code pcs} is sample by numPCs
     *
     **/
-  private[methods] def mu(blockedG: M, pcs: BDM[Double]): M = {
+  private[methods] def mu(ctx: ExecuteContext, blockedG: M, pcs: BDM[Double]): M = {
     import breeze.linalg._
 
     val pcsWithIntercept = BDM.horzcat(BDM.ones[Double](pcs.rows, 1), pcs)
 
     val qr.QR(q, r) = qr.reduced(pcsWithIntercept)
 
-    val halfBeta = writeRead((inv(2.0 * r) * q.t).matrixMultiply(blockedG.T))
+    val halfBeta = writeRead(ctx, (inv(2.0 * r) * q.t).matrixMultiply(blockedG.T))
 
-    writeRead(pcsWithIntercept.matrixMultiply(halfBeta).T)
+    writeRead(ctx, pcsWithIntercept.matrixMultiply(halfBeta).T)
   }
 
-  private[methods] def phi(mu: M, variance: M, g: M): M = {
+  private[methods] def phi(ctx: ExecuteContext, mu: M, variance: M, g: M): M = {
     val centeredAF = BlockMatrix.map2 { (g, mu) =>
       if (java.lang.Double.isNaN(mu)) 0.0 else g / 2 - mu
     } (g, mu)
 
     val stddev = variance.sqrt()
 
-    gram(centeredAF) / gram(stddev)
+    gram(ctx, centeredAF) / gram(ctx, stddev)
   }
 
-  private[methods] def ibs0(g: M, mu: M): M = {
+  private[methods] def ibs0(ctx: ExecuteContext, g: M, mu: M): M = {
     val homalt =
       BlockMatrix.map2 { (g, mu) =>
         if (java.lang.Double.isNaN(mu) || g != 2.0) 0.0 else 1.0
@@ -239,12 +239,12 @@ case class PCRelate(
         if (java.lang.Double.isNaN(mu) || g != 0.0) 0.0 else 1.0
       } (g, mu)
 
-    val temp = writeRead(homalt.T.dot(homref))
+    val temp = writeRead(ctx, homalt.T.dot(homref))
 
     temp + temp.T
   }
 
-  private[methods] def k2(phi: M, mu: M, variance: M, g: M): M = {
+  private[methods] def k2(ctx: ExecuteContext, phi: M, mu: M, variance: M, g: M): M = {
     val twoPhi_ii = phi.diagonal().map(2.0 * _)
     val normalizedGD = g.map2WithIndex(mu, { case (_, i, g, mu) =>
       if (java.lang.Double.isNaN(mu))
@@ -258,17 +258,17 @@ case class PCRelate(
       }
     })
 
-    gram(normalizedGD) / gram(variance)
+    gram(ctx, normalizedGD) / gram(ctx, variance)
   }
 
-  private[methods] def k0(phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
+  private[methods] def k0(ctx: ExecuteContext, phi: M, mu: M, k2: M, g: M, ibs0: M): M = {
     val mu2 =
       mu.map(mu => if (java.lang.Double.isNaN(mu)) 0.0 else mu * mu)
 
     val oneMinusMu2 =
       mu.map(mu => if (java.lang.Double.isNaN(mu)) 0.0 else (1.0 - mu) * (1.0 - mu))
 
-    val temp = writeRead(mu2.T.dot(oneMinusMu2))
+    val temp = writeRead(ctx, mu2.T.dot(oneMinusMu2))
     val denom = temp + temp.T
 
     BlockMatrix.map4 { (phi: Double, denom: Double, k2: Double, ibs0: Double) =>

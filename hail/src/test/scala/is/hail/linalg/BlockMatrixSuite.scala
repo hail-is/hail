@@ -374,13 +374,13 @@ class BlockMatrixSuite extends HailSuite {
       9, 10, 11, 12,
       13, 14, 15, 16))
 
-    val fname = tmpDir.createTempFile("test")
-    m.write(hc.fs, fname)
-    assert(m.toBreezeMatrix() == BlockMatrix.read(hc, fname).toBreezeMatrix())
+    val fname = ctx.createTmpPath("test")
+    m.write(ctx, fname)
+    assert(m.toBreezeMatrix() == BlockMatrix.read(fs, fname).toBreezeMatrix())
 
-    val fname2 = tmpDir.createTempFile("test2")
-    m.write(hc.fs, fname2, forceRowMajor = true)
-    assert(m.toBreezeMatrix() == BlockMatrix.read(hc, fname2).toBreezeMatrix())
+    val fname2 = ctx.createTmpPath("test2")
+    m.write(ctx, fname2, forceRowMajor = true)
+    assert(m.toBreezeMatrix() == BlockMatrix.read(fs, fname2).toBreezeMatrix())
   }
 
   @Test
@@ -391,21 +391,21 @@ class BlockMatrixSuite extends HailSuite {
       9, 10, 11, 12,
       13, 14, 15, 16))
 
-    val fname = tmpDir.createTempFile("test")
-    m.T.write(hc.fs, fname)
-    assert(m.T.toBreezeMatrix() == BlockMatrix.read(hc, fname).toBreezeMatrix())
+    val fname = ctx.createTmpPath("test")
+    m.T.write(ctx, fname)
+    assert(m.T.toBreezeMatrix() == BlockMatrix.read(fs, fname).toBreezeMatrix())
 
-    val fname2 = tmpDir.createTempFile("test2")
-    m.T.write(hc.fs, fname2, forceRowMajor = true)
-    assert(m.T.toBreezeMatrix() == BlockMatrix.read(hc, fname2).toBreezeMatrix())
+    val fname2 = ctx.createTmpPath("test2")
+    m.T.write(ctx, fname2, forceRowMajor = true)
+    assert(m.T.toBreezeMatrix() == BlockMatrix.read(fs, fname2).toBreezeMatrix())
   }
 
   @Test
   def readWriteIdentityRandom() {
     forAll(blockMatrixGen()) { (m: BlockMatrix) =>
-      val fname = tmpDir.createTempFile("test")
-      m.write(hc.fs, fname)
-      assert(sameDoubleMatrixNaNEqualsNaN(m.toBreezeMatrix(), BlockMatrix.read(hc, fname).toBreezeMatrix()))
+      val fname = ctx.createTmpPath("test")
+      m.write(ctx, fname)
+      assert(sameDoubleMatrixNaNEqualsNaN(m.toBreezeMatrix(), BlockMatrix.read(fs, fname).toBreezeMatrix()))
       true
     }.check()
   }
@@ -708,9 +708,9 @@ class BlockMatrixSuite extends HailSuite {
     val lm = new BDM[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
 
     for {blockSize <- Seq(1, 2, 3, 5, 10, 11)} {
-      val fname = tmpDir.createTempFile("test")
-      lm.writeBlockMatrix(hc, fname, blockSize)
-      assert(lm === BlockMatrix.read(hc, fname).toBreezeMatrix())
+      val fname = ctx.createTmpPath("test")
+      lm.writeBlockMatrix(fs, fname, blockSize)
+      assert(lm === BlockMatrix.read(fs, fname).toBreezeMatrix())
     }
   }
 
@@ -740,7 +740,7 @@ class BlockMatrixSuite extends HailSuite {
     val expectedSignature = TStruct("i" -> TInt64, "j" -> TInt64, "entry" -> TFloat64)
 
     for {blockSize <- Seq(1, 4, 10)} {
-      val entriesLiteral = TableLiteral(toBM(lm, blockSize).entriesTable(ctx), ctx)
+      val entriesLiteral = TableLiteral(toBM(lm, blockSize).entriesTable(ctx))
       assert(entriesLiteral.typ.rowType == expectedSignature)
       val rows = CompileAndEvaluate[IndexedSeq[Row]](ctx,
         GetField(TableCollect(entriesLiteral), "rows"))
@@ -758,7 +758,7 @@ class BlockMatrixSuite extends HailSuite {
 
     val rows = CompileAndEvaluate[IndexedSeq[Row]](ctx, GetField(TableCollect(TableLiteral(bm
       .filterBlocks(Array(0, 1, 6))
-      .entriesTable(ctx), ctx)),
+      .entriesTable(ctx))),
       "rows"))
     val expected = rows
       .sortBy(r => (r.get(0).asInstanceOf[Long], r.get(1).asInstanceOf[Long]))
@@ -893,12 +893,12 @@ class BlockMatrixSuite extends HailSuite {
 
       assert(flm === fbm.toIndexedRowMatrix().toHailBlockMatrix().toBreezeMatrix())
       
-      val fname = tmpDir.createTempFile("test")
-      fbm.write(hc.fs, fname, forceRowMajor = true)
+      val fname = ctx.createTmpPath("test")
+      fbm.write(ctx, fname, forceRowMajor = true)
       
-      assert(RowMatrix.readBlockMatrix(hc, fname, Some(3)).toBreezeMatrix() === flm)
+      assert(RowMatrix.readBlockMatrix(fs, fname, Some(3)).toBreezeMatrix() === flm)
 
-      assert(filteredEquals(fbm, BlockMatrix.read(hc, fname)))
+      assert(filteredEquals(fbm, BlockMatrix.read(fs, fname)))
     }
   }
 

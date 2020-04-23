@@ -13,8 +13,7 @@ class TabixSuite extends HailSuite {
   val vcfGzFile = vcfFile + ".gz"
   val vcfGzTbiFile = vcfGzFile + ".tbi"
 
-  lazy val bcFS = hc.fsBc
-  lazy val reader = new TabixReader(vcfGzFile, hc.fs)
+  lazy val reader = new TabixReader(vcfGzFile, fs)
 
   @BeforeTest def initialize() {
     hc // reference to initialize
@@ -51,7 +50,7 @@ class TabixSuite extends HailSuite {
     for (chr <- Seq("1", "19", "X")) {
       val tid = reader.chr2tid(chr)
       val pairs = reader.queryPairs(tid, 1, 400);
-      val hailIter = new TabixLineIterator(bcFS, reader.filePath, pairs)
+      val hailIter = new TabixLineIterator(fsBc, reader.filePath, pairs)
       val htsIter = htsjdkrdr.query(chr, 1, 400);
       val hailStr = hailIter.next()
       val htsStr = htsIter.next()
@@ -66,7 +65,7 @@ class TabixSuite extends HailSuite {
     for (chr <- Seq("1", "19", "X")) {
       val tid = reader.chr2tid(chr)
       val pairs = reader.queryPairs(tid, 350, 400);
-      val hailIter = new TabixLineIterator(bcFS, reader.filePath, pairs)
+      val hailIter = new TabixLineIterator(fsBc, reader.filePath, pairs)
       val htsIter = htsjdkrdr.query(chr, 1, 400);
       val hailStr = hailIter.next()
       val htsStr = htsIter.next()
@@ -79,7 +78,7 @@ class TabixSuite extends HailSuite {
     for (chr <- Seq("1", "19", "X")) {
       val tid = reader.chr2tid(chr)
       val pairs = reader.queryPairs(tid, 100, 100);
-      val hailIter = new TabixLineIterator(bcFS, reader.filePath, pairs)
+      val hailIter = new TabixLineIterator(fsBc, reader.filePath, pairs)
       val htsIter = htsjdkrdr.query(chr, 100, 100);
       val hailStr = hailIter.next()
       val htsStr = htsIter.next()
@@ -92,7 +91,7 @@ class TabixSuite extends HailSuite {
     val vcfFile = "src/test/resources/sample.vcf.bgz"
     val chr = "20"
     val htsjdkrdr = new HtsjdkTabixReader(vcfFile)
-    val hailrdr = new TabixReader(vcfFile, hc.fs)
+    val hailrdr = new TabixReader(vcfFile, fs)
     val tid = hailrdr.chr2tid(chr)
 
     for ((start, end) <-
@@ -107,7 +106,7 @@ class TabixSuite extends HailSuite {
         (12703588, 16751726))) {
       val pairs = hailrdr.queryPairs(tid, start, end)
       val htsIter = htsjdkrdr.query(chr, start, end)
-      val hailIter = new TabixLineIterator(bcFS, hailrdr.filePath, pairs)
+      val hailIter = new TabixLineIterator(fsBc, hailrdr.filePath, pairs)
       var htsStr = htsIter.next()
       var test = false
       while (htsStr != null) {

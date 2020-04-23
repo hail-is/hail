@@ -362,7 +362,7 @@ case class LocalLDPrune(
       }
     })
 
-    TableValue(tableType, BroadcastRow.empty(ctx), sitesOnly)
+    TableValue(ctx, tableType, BroadcastRow.empty(ctx), sitesOnly)
   }
 }
 

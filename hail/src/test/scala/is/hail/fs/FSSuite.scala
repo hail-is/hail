@@ -1,12 +1,12 @@
 package is.hail.fs
 
-import java.io.{FileInputStream, FileNotFoundException}
+import java.io.FileNotFoundException
 
 import is.hail.HailSuite
-import is.hail.io.fs.{FS, FileStatus, GoogleStorageFS}
+import is.hail.expr.ir.ExecuteContext
+import is.hail.io.fs.{FS, FileStatus}
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
-import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 trait FSSuite {
@@ -29,7 +29,7 @@ trait FSSuite {
    */
   def r(s: String): String = s"$fsResourcesRoot$s"
 
-  def t(extension: String = ""): String = fs.getTemporaryFile(tmpdir, suffix = Some(extension))
+  def t(extension: String = null): String = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fs-suite-tmp", extension)
 
   def pathsRelRoot(root: String, statuses: Array[FileStatus]): Set[String] = {
     statuses.map { status =>
@@ -221,5 +221,5 @@ class HadoopFSSuite extends HailSuite with FSSuite {
   
   lazy val fsResourcesRoot: String = "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
   
-  lazy val tmpdir: String = tmpDir.createTempFile()
+  lazy val tmpdir: String = ctx.tmpdir
 }

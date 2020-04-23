@@ -23,7 +23,7 @@ class Tests(unittest.TestCase):
         dataset = get_dataset()
 
         def plinkify(ds, min=None, max=None):
-            vcf = utils.new_temp_file(prefix="plink", suffix="vcf")
+            vcf = utils.new_temp_file(prefix="plink", extension="vcf")
             plinkpath = utils.new_temp_file(prefix="plink")
             hl.export_vcf(ds, vcf)
             threshold_string = "{} {}".format("--min {}".format(min) if min else "",
@@ -78,7 +78,7 @@ class Tests(unittest.TestCase):
 
         sex = hl.impute_sex(ds.GT, include_par=True)
 
-        vcf_file = utils.uri_path(utils.new_temp_file(prefix="plink", suffix="vcf"))
+        vcf_file = utils.uri_path(utils.new_temp_file(prefix="plink", extension="vcf"))
         out_file = utils.uri_path(utils.new_temp_file(prefix="plink"))
 
         hl.export_vcf(ds, vcf_file)
@@ -1209,7 +1209,7 @@ class Tests(unittest.TestCase):
     @skip_unless_spark_backend()
     def test_pc_relate_against_R_truth(self):
         mt = hl.import_vcf(resource('pc_relate_bn_input.vcf.bgz'))
-        hail_kin = hl.pc_relate(mt.GT, 0.00, k=2).checkpoint(utils.new_temp_file(suffix='ht'))
+        hail_kin = hl.pc_relate(mt.GT, 0.00, k=2).checkpoint(utils.new_temp_file(extension='ht'))
 
         r_kin = hl.import_table(resource('pc_relate_r_truth.tsv.bgz'),
                                 types={'i': 'struct{s:str}',

@@ -37,11 +37,11 @@ class BlockMatrixIRSuite extends HailSuite {
 
   @Test def testBlockMatrixWriteRead() {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
-    val tempPath = tmpDir.createLocalTempFile()
+    val tempPath = ctx.createTmpPath("test-blockmatrix-write-read", "bm")
     Interpret[Unit](ctx, BlockMatrixWrite(ones,
       BlockMatrixNativeWriter(tempPath, false, false, false)))
 
-    assertBMEvalsTo(BlockMatrixRead(BlockMatrixNativeReader(tempPath)), BDM.fill[Double](N_ROWS, N_COLS)(1))
+    assertBMEvalsTo(BlockMatrixRead(BlockMatrixNativeReader(fs, tempPath)), BDM.fill[Double](N_ROWS, N_COLS)(1))
   }
 
   @Test def testBlockMatrixMap() {
@@ -118,7 +118,7 @@ class BlockMatrixIRSuite extends HailSuite {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
     val etype = EBlockMatrixNDArray(EFloat64Required, required = true)
     val path = "src/test/resources/blockmatrix_example/0/parts/part-0-28-0-0-0feb7ac2-ab02-6cd4-5547-bfcb94dacb33"
-    val matrix = BlockMatrix.read(hc, "src/test/resources/blockmatrix_example/0").toBreezeMatrix()
+    val matrix = BlockMatrix.read(fs, "src/test/resources/blockmatrix_example/0").toBreezeMatrix()
     val expected = Array.tabulate(2)(i => Array.tabulate(2)(j => matrix(i, j)).toFastIndexedSeq).toFastIndexedSeq
 
     val typ = TNDArray(TFloat64, Nat(2))
@@ -126,7 +126,7 @@ class BlockMatrixIRSuite extends HailSuite {
     val read = ReadValue(Str(path), spec, typ)
     assertNDEvals(read, expected)
     assertNDEvals(ReadValue(
-      WriteValue(read, Str(tmpDir.createLocalTempFile()), spec),
+      WriteValue(read, Str(ctx.createTmpPath("read-blockmatrix-ir", "hv")), spec),
       spec, typ), expected)
   }
 }

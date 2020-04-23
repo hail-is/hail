@@ -15,8 +15,6 @@ import hail as hl
 
 from typing import List
 
-_cached_importvcfs = None
-
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end,
                         reference_genome, skip_invalid_intervals):
@@ -884,7 +882,7 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
     -------
     :class:`.Table`
     """
-    type_and_data = json.loads(Env.jutils().importFamJSON(path, quant_pheno, delimiter, missing))
+    type_and_data = json.loads(Env.jutils().importFamJSON(Env.spark_backend('import_fam').fs._jfs, path, quant_pheno, delimiter, missing))
     typ = hl.dtype(type_and_data['type'])
     return hl.Table.parallelize(
         hl.tarray(typ)._convert_from_json_na(type_and_data['data']), typ, key=['id'])
@@ -934,10 +932,11 @@ def grep(regex, path, max_count=100, *, show=True):
     ---
     :obj:`dict` of :obj:`str` to :obj:`list` of :obj:`str`
     """
+    jfs = Env.spark_backend('grep').fs._jfs
     if show:
-        Env.backend()._jhc.grepPrint(regex, jindexed_seq_args(path), max_count)
+        Env.backend()._jhc.grepPrint(jfs, regex, jindexed_seq_args(path), max_count)
     else:
-        jarr = Env.backend()._jhc.grepReturn(regex, jindexed_seq_args(path), max_count)
+        jarr = Env.backend()._jhc.grepReturn(jfs, regex, jindexed_seq_args(path), max_count)
         return {x._1(): list(x._2()) for x in jarr}
 
 
@@ -2200,16 +2199,12 @@ def import_gvcfs(path,
 
     rg = reference_genome.name if reference_genome else None
 
-    global _cached_importvcfs
-    if _cached_importvcfs is None:
-        _cached_importvcfs = Env.hail().io.vcf.ImportVCFs
-
     if partitions is not None:
         partitions, partitions_type = hl.utils._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg), alleles=hl.tarray(hl.tstr)))
     else:
         partitions_type = None
 
-    vector_ref_s = _cached_importvcfs.pyApply(
+    vector_ref_s = Env.spark_backend('import_vcfs')._jbackend.pyImportVCFs(
         wrap_to_list(path),
         wrap_to_list(call_fields),
         entry_float_type._parsable_string(),

@@ -22,12 +22,12 @@ case class WrappedMatrixWriter(writer: MatrixWriter,
   entriesFieldName: String,
   colKey: IndexedSeq[String]) extends TableWriter {
   def path: String = writer.path
-  def apply(tv: TableValue): Unit = writer(tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
+  def apply(ctx: ExecuteContext, tv: TableValue): Unit = writer(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
 }
 
 abstract class MatrixWriter {
   def path: String
-  def apply(mv: MatrixValue): Unit
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit
 }
 
 case class MatrixNativeWriter(
@@ -38,7 +38,7 @@ case class MatrixNativeWriter(
   partitions: String = null,
   partitionsTypeStr: String = null
 ) extends MatrixWriter {
-  def apply(mv: MatrixValue): Unit = mv.write(path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr)
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = mv.write(ctx, path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr)
 }
 
 case class MatrixVCFWriter(
@@ -47,27 +47,27 @@ case class MatrixVCFWriter(
   exportType: String = ExportType.CONCATENATED,
   metadata: Option[VCFMetadata] = None
 ) extends MatrixWriter {
-  def apply(mv: MatrixValue): Unit = ExportVCF(mv, path, append, exportType, metadata)
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportVCF(ctx, mv, path, append, exportType, metadata)
 }
 
 case class MatrixGENWriter(
   path: String,
   precision: Int = 4
 ) extends MatrixWriter {
-  def apply(mv: MatrixValue): Unit = ExportGen(mv, path, precision)
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportGen(ctx, mv, path, precision)
 }
 
 case class MatrixBGENWriter(
   path: String,
   exportType: String
 ) extends MatrixWriter {
-  def apply(mv: MatrixValue): Unit = ExportBGEN(mv, path, exportType)
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportBGEN(ctx, mv, path, exportType)
 }
 
 case class MatrixPLINKWriter(
   path: String
 ) extends MatrixWriter {
-  def apply(mv: MatrixValue): Unit = ExportPlink(mv, path)
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportPlink(ctx, mv, path)
 }
 
 object MatrixNativeMultiWriter {
@@ -82,5 +82,5 @@ case class MatrixNativeMultiWriter(
   overwrite: Boolean = false,
   stageLocally: Boolean = false
 ) {
-  def apply(mvs: IndexedSeq[MatrixValue]): Unit = MatrixValue.writeMultiple(mvs, prefix, overwrite, stageLocally)
+  def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue]): Unit = MatrixValue.writeMultiple(ctx, mvs, prefix, overwrite, stageLocally)
 }

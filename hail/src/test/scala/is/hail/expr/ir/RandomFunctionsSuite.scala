@@ -92,8 +92,8 @@ class RandomFunctionsSuite extends HailSuite {
     val newPartitioner = mapped.partitioner.copy(rangeBounds=newRangeBounds)
 
     ExecuteContext.scoped() { ctx =>
-      val repartitioned = mapped.repartition(newPartitioner, ctx)
-      val cachedAndRepartitioned = mapped.cache().repartition(newPartitioner, ctx)
+      val repartitioned = mapped.repartition(ctx, newPartitioner)
+      val cachedAndRepartitioned = mapped.cache(ctx).repartition(ctx, newPartitioner)
 
       assert(mapped.toRows.collect() sameElements repartitioned.toRows.collect())
       assert(mapped.toRows.collect() sameElements cachedAndRepartitioned.toRows.collect())

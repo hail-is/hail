@@ -23,6 +23,7 @@ object ServiceBackend {
 
 class User(
   val username: String,
+  val tmpdir: String,
   val fs: GoogleStorageFS)
 
 class ServiceBackend() extends Backend {
@@ -30,7 +31,8 @@ class ServiceBackend() extends Backend {
 
   def addUser(username: String, key: String): Unit = {
     assert(!users.contains(username))
-    users += username -> new User(username, new GoogleStorageFS(key))
+    // FIXME
+    users += username -> new User(username, "/tmp", new GoogleStorageFS(key))
   }
 
   def removeUser(username: String): Unit = {
@@ -40,7 +42,7 @@ class ServiceBackend() extends Backend {
 
   def userContext[T](username: String)(f: (ExecuteContext) => T): T = {
     val user = users(username)
-    ExecuteContext.scoped(this, user.fs)(f)
+    ExecuteContext.scoped(user.tmpdir, "file:///tmp", this, user.fs)(f)
   }
 
   def defaultParallelism: Int = 10

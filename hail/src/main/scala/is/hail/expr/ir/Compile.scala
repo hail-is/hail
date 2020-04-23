@@ -48,7 +48,7 @@ object Compile {
     InferPType(ir, Env(params.map { case (n, pt) => n -> pt}: _*))
     val returnType = ir.pType
 
-    val fb = EmitFunctionBuilder[F]("Compiled",
+    val fb = EmitFunctionBuilder[F](ctx, "Compiled",
       CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) =>
         EmitParamType(pt)
       }, returnType)
@@ -110,7 +110,7 @@ object CompileWithAggregators2 {
     InferPType(ir, Env(params.map { case (n, pt) => n -> pt}: _*), aggSigs, null, null)
 
     val returnType = ir.pType
-    val fb = EmitFunctionBuilder[F]("CompiledWithAggs",
+    val fb = EmitFunctionBuilder[F](ctx, "CompiledWithAggs",
       CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) =>
         EmitParamType(pt)
       }, returnType)

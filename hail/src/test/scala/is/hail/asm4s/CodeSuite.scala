@@ -7,7 +7,7 @@ import org.testng.annotations.Test
 class CodeSuite extends HailSuite {
 
   @Test def testForLoop() {
-    val fb = EmitFunctionBuilder[Int]("foo")
+    val fb = EmitFunctionBuilder[Int](ctx, "foo")
     val mb = fb.apply_method
     val i = mb.newLocal[Int]()
     val sum = mb.newLocal[Int]()

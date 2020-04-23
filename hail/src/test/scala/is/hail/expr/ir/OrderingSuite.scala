@@ -34,7 +34,7 @@ class OrderingSuite extends HailSuite {
     sortOrder: SortOrder = Ascending
   ): AsmFunction3[Region, Long, Long, op.ReturnType] = {
     implicit val x = op.rtti
-    val fb = EmitFunctionBuilder[Region, Long, Long, op.ReturnType]("lifted")
+    val fb = EmitFunctionBuilder[Region, Long, Long, op.ReturnType](ctx, "lifted")
     val cv1 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](2))
     val cv2 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](3))
     fb.emit(fb.apply_method.getCodeOrdering(t, op)((const(false), cv1), (const(false), cv2)))
@@ -290,7 +290,7 @@ class OrderingSuite extends HailSuite {
         rvb.addAnnotation(TTuple(t), Row(elem))
         val eoff = rvb.end()
 
-        val fb = EmitFunctionBuilder[Region, Long, Long, Int]("binary_search")
+        val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search")
         val cregion = fb.getCodeParam[Region](1).load()
         val cset = fb.getCodeParam[Long](2)
         val cetuple = fb.getCodeParam[Long](3)
@@ -330,7 +330,7 @@ class OrderingSuite extends HailSuite {
         rvb.addAnnotation(ptuple.virtualType, Row(key))
         val eoff = rvb.end()
 
-        val fb = EmitFunctionBuilder[Region, Long, Long, Int]("binary_search_dict")
+        val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search_dict")
         val cregion = fb.getCodeParam[Region](1)
         val cdict = fb.getCodeParam[Long](2)
         val cktuple = fb.getCodeParam[Long](3)

@@ -38,13 +38,13 @@ object RichDenseMatrixDouble {
       offset = 0, majorStride = if (isTranspose) cols else rows, isTranspose = isTranspose)
   }
 
-  def read(hc: HailContext, path: String, bufferSpec: BufferSpec): BDM[Double] = {
-    using(new DataInputStream(hc.fs.open(path)))(is => read(is, bufferSpec))
+  def read(fs: FS, path: String, bufferSpec: BufferSpec): BDM[Double] = {
+    using(new DataInputStream(fs.open(path)))(is => read(is, bufferSpec))
   }
 
-  def importFromDoubles(hc: HailContext, path: String, nRows: Int, nCols: Int, rowMajor: Boolean): BDM[Double] = {
+  def importFromDoubles(fs: FS, path: String, nRows: Int, nCols: Int, rowMajor: Boolean): BDM[Double] = {
     require(nRows * nCols.toLong <= Int.MaxValue)
-    val data = RichArray.importFromDoubles(hc, path, nRows * nCols)
+    val data = RichArray.importFromDoubles(fs, path, nRows * nCols)
 
     RichDenseMatrixDouble(nRows, nCols, data, rowMajor)
   }
@@ -106,13 +106,12 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
     out.flush()
   }
 
-  def write(hc: HailContext, path: String, forceRowMajor: Boolean = false, bufferSpec: BufferSpec) {
-    using(hc.fs.create(path))(os => write(os, forceRowMajor, bufferSpec: BufferSpec))
+  def
+  write(fs: FS, path: String, forceRowMajor: Boolean = false, bufferSpec: BufferSpec) {
+    using(fs.create(path))(os => write(os, forceRowMajor, bufferSpec: BufferSpec))
   }
 
-  def writeBlockMatrix(hc: HailContext, path: String, blockSize: Int, forceRowMajor: Boolean = false, overwrite: Boolean = false) {
-    val fs = hc.fs
-    
+  def writeBlockMatrix(fs: FS, path: String, blockSize: Int, forceRowMajor: Boolean = false, overwrite: Boolean = false) {
     if (overwrite)
       fs.delete(path, recursive = true)
     else if (fs.exists(path))
@@ -132,9 +131,9 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
       val (blockNRows, blockNCols) = gp.blockDims(pi)
       val iOffset = i * blockSize
       val jOffset = j * blockSize
-      var block = m(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols)
+      val block = m(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols)
 
-      block.write(hc, filename, forceRowMajor, BlockMatrix.bufferSpec)
+      block.write(fs, filename, forceRowMajor, BlockMatrix.bufferSpec)
 
       f
     }

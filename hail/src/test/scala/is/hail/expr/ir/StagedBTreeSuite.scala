@@ -45,8 +45,8 @@ class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
 }
 
 object BTreeBackedSet {
-  def bulkLoad(region: Region, serialized: Array[Byte], n: Int): BTreeBackedSet = {
-    val fb = EmitFunctionBuilder[Region, InputBuffer, Long]("btree_bulk_load")
+  def bulkLoad(ctx: ExecuteContext, region: Region, serialized: Array[Byte], n: Int): BTreeBackedSet = {
+    val fb = EmitFunctionBuilder[Region, InputBuffer, Long](ctx, "btree_bulk_load")
     val cb = fb.ecb
     val root = fb.genFieldThisRef[Long]()
     val r = fb.genFieldThisRef[Region]()
@@ -71,18 +71,18 @@ object BTreeBackedSet {
     ))
 
     val inputBuffer = new StreamBufferSpec().buildInputBuffer(new ByteArrayInputStream(serialized))
-    val set = new BTreeBackedSet(region, n)
+    val set = new BTreeBackedSet(ctx, region, n)
     set.root = fb.resultWithIndex()(0, region)(region, inputBuffer)
     set
   }
 }
 
-class BTreeBackedSet(region: Region, n: Int) {
+class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
 
   var root: Long = 0
 
   private val newTreeF = {
-    val fb = EmitFunctionBuilder[Region, Long]("new_tree")
+    val fb = EmitFunctionBuilder[Region, Long](ctx, "new_tree")
     val cb = fb.ecb
     val root = fb.genFieldThisRef[Long]()
     val r = fb.genFieldThisRef[Region]()
@@ -97,7 +97,7 @@ class BTreeBackedSet(region: Region, n: Int) {
   }
 
   private val getF = {
-    val fb = EmitFunctionBuilder[Region, Long, Boolean, Long, Long]("get")
+    val fb = EmitFunctionBuilder[Region, Long, Boolean, Long, Long](ctx, "get")
     val cb = fb.ecb
     val root = fb.genFieldThisRef[Long]()
     val r = fb.genFieldThisRef[Region]()
@@ -118,7 +118,7 @@ class BTreeBackedSet(region: Region, n: Int) {
   }
 
   private val getResultsF = {
-    val fb = EmitFunctionBuilder[Region, Long, Array[java.lang.Long]]("get_results")
+    val fb = EmitFunctionBuilder[Region, Long, Array[java.lang.Long]](ctx, "get_results")
     val cb = fb.ecb
     val root = fb.genFieldThisRef[Long]()
     val r = fb.genFieldThisRef[Region]()
@@ -154,7 +154,7 @@ class BTreeBackedSet(region: Region, n: Int) {
   }
 
   private val bulkStoreF = {
-    val fb = EmitFunctionBuilder[Long, OutputBuffer, Unit]("bulk_store")
+    val fb = EmitFunctionBuilder[Long, OutputBuffer, Unit](ctx, "bulk_store")
     val cb = fb.ecb
     val root = fb.genFieldThisRef[Long]()
     val r = fb.genFieldThisRef[Region]()
@@ -224,7 +224,7 @@ class StagedBTreeSuite extends HailSuite {
         22 -> Gen.choose(-3, 3))
 
       for ((n, values) <- nodeSizeParams) {
-        val testSet = new BTreeBackedSet(region, n)
+        val testSet = new BTreeBackedSet(ctx, region, n)
 
         val sets = Gen.buildableOf[Array](Gen.zip(Gen.coin(.1), values)
           .map { case (m, v) => if (m) null else new java.lang.Long(v) })
@@ -243,7 +243,7 @@ class StagedBTreeSuite extends HailSuite {
             refSet.getElements.sortWith(lt) sameElements testSet.getElements.sortWith(lt)
           } && {
             val serialized = testSet.bulkStore
-            val testSet2 = BTreeBackedSet.bulkLoad(region, serialized, n)
+            val testSet2 = BTreeBackedSet.bulkLoad(ctx, region, serialized, n)
             refSet.getElements.sortWith(lt) sameElements testSet2.getElements.sortWith(lt)
           }
         }.check()
