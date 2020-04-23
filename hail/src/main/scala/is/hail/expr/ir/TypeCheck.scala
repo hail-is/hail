@@ -2,6 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.expr.types.physical.PStream
 import is.hail.expr.types.virtual._
+import is.hail.expr.types.encoded._
+import is.hail.expr.types.physical._
 import is.hail.utils._
 
 object TypeCheck {
@@ -424,6 +426,35 @@ object TypeCheck {
       case x@WriteValue(value, pathPrefix, spec) =>
         assert(pathPrefix.typ == TString)
       case LiftMeOut(_) =>
+      case ShuffleStart(keyFields, rowType, rowEType, keyEType) =>
+        assert(keyFields.map(_.field).toSet.size == keyFields.length)
+        assert((keyFields.map(_.field).toSet - keyFields.toSet).size == 0)
+        assert(rowEType._compatible(PType.canonical(rowType)))
+        val keyType = TArray(rowType.typeAfterSelectNames(keyFields.map(_.field)))
+        assert(keyEType._compatible(PType.canonical(keyType)))
+      case ShuffleWrite(id, partitionId, rows) =>
+        assert(id.typ == TBinary)
+        assert(partitionId.typ == TInt64)
+        assert(rows.typ.isInstanceOf[TStream])
+      case ShuffleWritingFinished(id, successfulPartitionIds) =>
+        assert(id.typ == TBinary)
+        assert(successfulPartitionIds.typ == TArray(TInt64))
+      case ShuffleGetPartitionBounds(id, nPartitions, keyFields, rowType, keyEType) =>
+        assert(id.typ == TBinary)
+        assert(nPartitions == TInt64)
+        assert(keyFields.map(_.field).toSet.size == keyFields.length)
+        assert((keyFields.map(_.field).toSet - keyFields.toSet).size == 0)
+        val keyType = TArray(rowType.typeAfterSelectNames(keyFields.map(_.field)))
+        assert(keyEType._compatible(PType.canonical(keyType)))
+      case ShuffleRead(id, keyRange, keyFields, rowType, rowEType) =>
+        assert(id.typ == TBinary)
+        assert(keyFields.map(_.field).toSet.size == keyFields.length)
+        assert((keyFields.map(_.field).toSet - keyFields.toSet).size == 0)
+        assert(rowEType._compatible(PType.canonical(rowType)))
+        val keyType = TArray(rowType.typeAfterSelectNames(keyFields.map(_.field)))
+        assert(keyRange.typ == TArray(keyType))
+      case ShuffleDelete(id) =>
+        assert(id.typ == TBinary)
     }
   }
 }

@@ -640,12 +640,19 @@ object InferPType {
         PType.canonical(ir.typ)
       case ShuffleStart(_, _, _, _) =>
         PCanonicalBinary(true)
-      case ShuffleWrite(_, _, _) =>
+      case ShuffleWrite(id, partitionId, rows) =>
+        infer(id)
+        infer(partitionId)
+        infer(rows)
         PCanonicalBinary(true)
-      case ShuffleGetPartitionBounds(_, _, keyFields, rowType, keyEType) =>
+      case ShuffleGetPartitionBounds(id, nPartitions, keyFields, rowType, keyEType) =>
+        infer(id)
+        infer(nPartitions)
         val keyPType = keyEType.decodedPType(rowType.typeAfterSelectNames(keyFields.map(_.field)))
         PCanonicalArray(keyPType, true)
-      case ShuffleRead(_, _, rowType, rowEType) =>
+      case ShuffleRead(id, keyRange, _, rowType, rowEType) =>
+        infer(id)
+        infer(keyRange)
         val rowPType = rowEType.decodedPType(rowType)
         PCanonicalStream(rowPType, true)
       case x if x.typ == TVoid =>

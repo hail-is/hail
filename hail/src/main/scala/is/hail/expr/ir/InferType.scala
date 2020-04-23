@@ -231,13 +231,13 @@ object InferType {
       case LiftMeOut(child) => child.typ
       case ShuffleStart(_, _, _, _) =>
         TBinary
-      case ShuffleWrite(id, partitionId, rows) =>
+      case ShuffleWrite(_, _, _) =>
         TBinary
-      case ShuffleWritingFinished(id, successfulPartitionIds) =>
+      case ShuffleWritingFinished(_, _) =>
         TVoid
-      case ShuffleGetPartitionBounds(_, _, _, rowType, _) =>
-        TArray(rowType)
-      case ShuffleRead(id, keyRange, rowType, rowEType) =>
+      case ShuffleGetPartitionBounds(_, _, keyFields, rowType, _) =>
+        TArray(rowType.typeAfterSelectNames(keyFields.map(_.field)))
+      case ShuffleRead(_, _, _, rowType, _) =>
         TStream(rowType)
       case ShuffleDelete(id) =>
         TVoid

@@ -528,6 +528,7 @@ final case class ShuffleGetPartitionBounds(
 final case class ShuffleRead(
   id: IR,
   keyRange: IR,
+  keyFields: Array[SortField],
   rowType: TStruct,
   rowEType: EBaseStruct
 ) extends IR
