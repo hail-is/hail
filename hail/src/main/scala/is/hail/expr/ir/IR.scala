@@ -502,7 +502,8 @@ class PrimitiveIR(val self: IR) extends AnyVal {
 final case class ShuffleStart(
   keyFields: Array[SortField],
   rowType: TStruct,
-  rowEType: EBaseStruct
+  rowEType: EBaseStruct,
+  keyEType: EBaseStruct
 ) extends IR
 
 final case class ShuffleWrite(
@@ -519,7 +520,9 @@ final case class ShuffleWritingFinished(
 final case class ShuffleGetPartitionBounds(
   id: IR,
   nPartitions: IR,
-  rowType: TBaseStruct
+  keyFields: Array[SortField],
+  rowType: TStruct,
+  keyEType: EBaseStruct
 ) extends IR
 
 final case class ShuffleRead(

@@ -638,6 +638,16 @@ object InferPType {
       case NDArrayAgg(nd, _) =>
         infer(nd)
         PType.canonical(ir.typ)
+      case ShuffleStart(_, _, _, _) =>
+        PCanonicalBinary(true)
+      case ShuffleWrite(_, _, _) =>
+        PCanonicalBinary(true)
+      case ShuffleGetPartitionBounds(_, _, keyFields, rowType, keyEType) =>
+        val keyPType = keyEType.decodedPType(rowType.typeAfterSelect(keyFields.map(_.field)))
+        PCanonicalArray(keyPType, true)
+      case ShuffleRead(_, _, rowType, rowEType) =>
+        val rowPType = rowEType.decodedPType(rowType)
+        PCanonicalStream(rowPType, true)
       case x if x.typ == TVoid =>
         x.children.foreach(c => infer(c.asInstanceOf[IR]))
         PVoid
