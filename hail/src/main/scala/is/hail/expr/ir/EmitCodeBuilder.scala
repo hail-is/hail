@@ -25,7 +25,7 @@ object EmitCodeBuilder {
   }
 }
 
-class EmitCodeBuilder(emb: EmitMethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
+class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
   def isOpenEnded: Boolean = {
     val last = code.end.last
     (last == null) || !last.isInstanceOf[is.hail.lir.ControlX]
@@ -37,7 +37,11 @@ class EmitCodeBuilder(emb: EmitMethodBuilder[_], var code: Code[Unit]) extends C
     code = Code(code, c)
   }
 
-  def result(): Code[Unit] = code
+  def result(): Code[Unit] = {
+    val tmp = code
+    code = Code._empty
+    tmp
+  }
 
   def assign(s: PSettable, v: PCode): Unit = {
     append(s := v)

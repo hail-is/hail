@@ -130,10 +130,10 @@ class ReferenceGenomeSuite extends HailSuite {
             val endPos = if (pos.contig != end.contig) rg.contigLength(pos.contig) else end.position
             sb ++= fr.reader.value.getSubsequenceAt(pos.contig, pos.position, endPos).getBaseString
             pos =
-              if (rg.contigsIndex(pos.contig) == rg.contigs.length - 1)
+              if (rg.contigsIndex.get(pos.contig) == rg.contigs.length - 1)
                 null
               else
-                Locus(rg.contigs(rg.contigsIndex(pos.contig) + 1), 1)
+                Locus(rg.contigs(rg.contigsIndex.get(pos.contig) + 1), 1)
           }
           sb.result()
         }

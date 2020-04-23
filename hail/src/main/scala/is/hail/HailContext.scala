@@ -60,19 +60,21 @@ object HailContext {
 
   def sc: SparkContext = get.sc
 
-  def configureLogging(logFile: String, quiet: Boolean, append: Boolean) {
-    val logProps = new Properties()
+  def configureLogging(logFile: String, quiet: Boolean, append: Boolean, skipLoggingConfiguration: Boolean) {
+    if (!skipLoggingConfiguration) {
+      val logProps = new Properties()
 
-    logProps.put("log4j.rootLogger", "INFO, logfile")
-    logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
-    logProps.put("log4j.appender.logfile.append", append.toString)
-    logProps.put("log4j.appender.logfile.file", logFile)
-    logProps.put("log4j.appender.logfile.threshold", "INFO")
-    logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
-    logProps.put("log4j.appender.logfile.layout.ConversionPattern", HailContext.logFormat)
+      logProps.put("log4j.rootLogger", "INFO, logfile")
+      logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
+      logProps.put("log4j.appender.logfile.append", append.toString)
+      logProps.put("log4j.appender.logfile.file", logFile)
+      logProps.put("log4j.appender.logfile.threshold", "INFO")
+      logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
+      logProps.put("log4j.appender.logfile.layout.ConversionPattern", HailContext.logFormat)
 
-    LogManager.resetConfiguration()
-    PropertyConfigurator.configure(logProps)
+      LogManager.resetConfiguration()
+      PropertyConfigurator.configure(logProps)
+    }
 
     if (!quiet)
       consoleLog.addAppender(new ConsoleAppender(new PatternLayout(HailContext.logFormat), "System.err"))
@@ -101,9 +103,10 @@ object HailContext {
     quiet: Boolean = false,
     append: Boolean = false,
     branchingFactor: Int = 50,
+    skipLoggingConfiguration: Boolean = false,
     optimizerIterations: Int = 3): HailContext = {
     if (theContext == null)
-      return HailContext(backend, logFile, quiet, append, branchingFactor, optimizerIterations)
+      return HailContext(backend, logFile, quiet, append, branchingFactor, skipLoggingConfiguration, optimizerIterations)
 
     if (theContext.logFile != logFile)
       warn(s"Requested logFile $logFile, but already initialized to ${ theContext.logFile }.  Ignoring requested setting.")
@@ -122,6 +125,7 @@ object HailContext {
     quiet: Boolean = false,
     append: Boolean = false,
     branchingFactor: Int = 50,
+    skipLoggingConfiguration: Boolean = false,
     optimizerIterations: Int = 3): HailContext = synchronized {
     require(theContext == null)
     checkJavaVersion()
@@ -134,7 +138,7 @@ object HailContext {
         DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD)
     }
 
-    configureLogging(logFile, quiet, append)
+    configureLogging(logFile, quiet, append, skipLoggingConfiguration)
 
     theContext = new HailContext(backend, logFile, branchingFactor, optimizerIterations)
 

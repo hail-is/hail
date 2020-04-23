@@ -137,5 +137,9 @@ class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBu
     code = Code(code, c)
   }
 
-  def result(): Code[Unit] = code
+  def result(): Code[Unit] = {
+    val tmp = code
+    code = Code._empty
+    tmp
+  }
 }

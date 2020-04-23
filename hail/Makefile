@@ -159,7 +159,7 @@ $(WHEEL): $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) $(PYT
 # if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
 ifndef DEPLOY_REMOTE
 DEV_CLARIFIER ?= $(shell whoami)-dev/
-CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
+CLOUD_SUB_FOLDER := $(HAIL_VERSION)
 UPLOAD_RETENTION =
 else
 CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)

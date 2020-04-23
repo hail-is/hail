@@ -28,6 +28,7 @@ class HailContext(object):
                       idempotent=bool,
                       global_seed=nullable(int),
                       spark_conf=nullable(dictof(str, str)),
+                      skip_logging_configuration=bool,
                       optimizer_iterations=nullable(int),
                       _backend=nullable(Backend))
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
@@ -35,7 +36,7 @@ class HailContext(object):
                  min_block_size=1, branching_factor=50, tmpdir=None, local_tmpdir=None,
                  default_reference="GRCh37", idempotent=False,
                  global_seed=6348563392232659379, spark_conf=None,
-                 optimizer_iterations=None, _backend=None):
+                 skip_logging_configuration=False, optimizer_iterations=None, _backend=None):
 
         if Env._hc:
             if idempotent:
@@ -72,7 +73,7 @@ class HailContext(object):
                 _backend = SparkBackend(
                     idempotent, sc, spark_conf, app_name, master, local, log,
                     quiet, append, min_block_size, branching_factor, tmpdir, local_tmpdir,
-                    optimizer_iterations)
+                    skip_logging_configuration, optimizer_iterations)
         self._backend = _backend
 
         self._warn_cols_order = True
@@ -141,6 +142,7 @@ class HailContext(object):
            idempotent=bool,
            global_seed=nullable(int),
            spark_conf=nullable(dictof(str, str)),
+           skip_logging_configuration=bool,
            local_tmpdir=nullable(str),
            _optimizer_iterations=nullable(int),
            _backend=nullable(Backend))
@@ -150,6 +152,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
          default_reference='GRCh37', idempotent=False,
          global_seed=6348563392232659379,
          spark_conf=None,
+         skip_logging_configuration=False,
          local_tmpdir=None,
          _optimizer_iterations=None,
          _backend=None):
@@ -222,6 +225,8 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         Global random seed.
     spark_conf : :obj:`dict[str, str]`, optional
         Spark configuration parameters.
+    skip_logging_configuration : :obj:`bool`
+        Skip logging configuration.
     local_tmpdir : obj:`str`, optional
         Local temporary directory.  Used on driver and executor nodes.
         Must use the file scheme.  Defaults to TMPDIR, or /tmp.
@@ -229,7 +234,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     HailContext(sc, app_name, master, local, log, quiet, append,
                 min_block_size, branching_factor, tmp_dir, local_tmpdir,
                 default_reference, idempotent, global_seed, spark_conf,
-                _optimizer_iterations,_backend)
+                skip_logging_configuration, _optimizer_iterations, _backend)
 
 
 def version():

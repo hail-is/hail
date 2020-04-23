@@ -46,13 +46,13 @@ abstract class PBaseStruct extends PType {
 
   val fields: IndexedSeq[PField]
 
-  lazy val allFieldsRequired: Boolean = types.forall(_.required)
-  lazy val fieldRequired: Array[Boolean] = types.map(_.required)
+  final lazy val fieldRequired: Array[Boolean] = types.map(_.required)
+  final lazy val allFieldsRequired: Boolean = fieldRequired.forall(_ == true)
 
-  lazy val fieldIdx: Map[String, Int] =
+  final lazy val fieldIdx: Map[String, Int] =
     fields.map(f => (f.name, f.index)).toMap
 
-  lazy val fieldNames: Array[String] = fields.map(_.name).toArray
+  final lazy val fieldNames: Array[String] = fields.map(_.name).toArray
 
   def fieldByName(name: String): PField = fields(fieldIdx(name))
 
