@@ -1518,6 +1518,12 @@ steps:
      {{ code.checkout_script }}
      cd hail
 
+     if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
+     then
+         echo "tag $HAIL_PIP_VERSION already exists"
+         exit 0
+     fi
+
      make wheel upload-artifacts DEPLOY_REMOTE=origin
 
      bash scripts/deploy.sh $(cat /io/hail_pip_version) \
