@@ -2688,7 +2688,7 @@ class IRSuite extends HailSuite {
       CollectDistributedArray(StreamRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32)),
       ReadPartition(Str("foo"),
         TStruct("foo" -> TInt32),
-        PartitionNativeReader(TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default), TStruct("foo" -> TInt32))),
+        PartitionNativeReader(TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default))),
       ReadValue(Str("foo"), TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default), TStruct("foo" -> TInt32)),
       WriteValue(I32(1), Str("foo"), TypedCodecSpec(PInt32(), BufferSpec.default)),
       LiftMeOut(I32(1)),

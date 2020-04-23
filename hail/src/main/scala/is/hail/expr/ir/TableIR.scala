@@ -164,7 +164,9 @@ object TableNativeReader {
   }
 }
 
-case class PartitionNativeReader(spec: AbstractTypedCodecSpec, fullRowType: TStruct) extends PartitionReader {
+case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends PartitionReader {
+  def fullRowType: Type = spec.encodedVirtualType
+
   def contextType: Type = TString
 
   def rowPType(requestedType: Type): PType = spec.buildDecoder(requestedType)._1
