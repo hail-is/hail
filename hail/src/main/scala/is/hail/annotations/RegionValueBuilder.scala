@@ -98,7 +98,7 @@ class RegionValueBuilder(var region: Region) {
       indexstk(0) = indexstk(0) + i
   }
 
-  def startBaseStruct(init: Boolean = true) {
+  def startBaseStruct(init: Boolean = true, setMissing: Boolean = false) {
     val t = currentType().asInstanceOf[PBaseStruct]
     if (typestk.isEmpty)
       allocateRoot()
@@ -109,7 +109,7 @@ class RegionValueBuilder(var region: Region) {
     indexstk.push(0)
 
     if (init)
-      t.initialize(off)
+      t.initialize(off, setMissing)
   }
 
   def endBaseStruct() {
@@ -122,9 +122,9 @@ class RegionValueBuilder(var region: Region) {
     advance()
   }
 
-  def startStruct(init: Boolean = true) {
+  def startStruct(init: Boolean = true, setMissing: Boolean = false) {
     assert(currentType().isInstanceOf[PStruct])
-    startBaseStruct(init)
+    startBaseStruct(init, setMissing)
   }
 
   def endStruct() {
@@ -206,7 +206,7 @@ class RegionValueBuilder(var region: Region) {
     val i = indexstk.top
     typestk.top match {
       case t: PBaseStruct =>
-        if (t.types(i).required)
+        if (t.fieldRequired(i))
           fatal(s"cannot set missing field for required type ${ t.types(i) }")
         t.setFieldMissing(offsetstk.top, i)
       case t: PArray =>

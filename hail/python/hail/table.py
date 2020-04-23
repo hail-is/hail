@@ -3216,13 +3216,13 @@ class Table(ExprContainer):
         left_value = Env.get_uid()
         l = self
         l = l.select_globals(**{left_global_value: l.globals})
-        l = l.select(**{left_value: l._value})
+        l = l.select(**{left_value: l._row})
 
         right_global_value = Env.get_uid()
         right_value = Env.get_uid()
         r = other
         r = r.select_globals(**{right_global_value: r.globals})
-        r = r.select(**{right_value: r._value})
+        r = r.select(**{right_value: r._row})
 
         t = l._zip_join(r)
 
@@ -3236,7 +3236,7 @@ class Table(ExprContainer):
             t = t.filter(~ _values_similar(t[left_value], t[right_value], tolerance, absolute))
             bad_rows = t.take(10)
             for r in bad_rows:
-                print(f'  {r[left_value]}, {r[right_value]}')
+                print(f'  Row mismatch:\n    L: {r[left_value]}\n    R: {r[right_value]}')
             return False
 
         return True

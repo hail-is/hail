@@ -5,7 +5,7 @@ import is.hail.asm4s.Value
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions._
-import is.hail.expr.types.encoded.{EType, ETypeSerializer}
+import is.hail.expr.types.encoded._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
@@ -29,7 +29,7 @@ sealed trait IR extends BaseIR {
       try {
         _typ = InferType(this)
       } catch {
-        case e: Throwable => throw new RuntimeException(s"typ: inference failure", e)
+        case e: Throwable => throw new RuntimeException(s"typ: inference failure: ${e.getMessage}", e)
       }
     _typ
   }
@@ -532,3 +532,40 @@ class PrimitiveIR(val self: IR) extends AnyVal {
   def <=(other: IR): IR = ApplyComparisonOp(LTEQ(self.typ, other.typ), self, other)
   def >=(other: IR): IR = ApplyComparisonOp(GTEQ(self.typ, other.typ), self, other)
 }
+
+final case class ShuffleStart(
+  keyFields: Array[SortField],
+  rowType: TStruct,
+  rowEType: EBaseStruct,
+  keyEType: EBaseStruct
+) extends IR
+
+final case class ShuffleWrite(
+  id: IR,
+  partitionId: IR,
+  rows: IR
+) extends IR
+
+final case class ShuffleWritingFinished(
+  id: IR,
+  successfulPartitionIds: IR
+) extends IR
+
+final case class ShuffleGetPartitionBounds(
+  id: IR,
+  nPartitions: IR,
+  keyFields: Array[SortField],
+  rowType: TStruct,
+  keyEType: EBaseStruct
+) extends IR
+
+final case class ShuffleRead(
+  id: IR,
+  keyRange: IR,
+  rowType: TStruct,
+  rowEType: EBaseStruct
+) extends IR
+
+final case class ShuffleDelete(
+  id: IR
+) extends IR

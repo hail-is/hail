@@ -39,8 +39,8 @@ class PSubsetStructSuite extends HailSuite {
 
     val view = PSubsetStruct(rt, "a", "c")
     assert(view.size == 2)
-    assert(view.field("a") == rt.field("a"))
-    assert(view.field("c") == rt.field("c"))
+    assert(view.fieldType("a") == rt.fieldType("a"))
+    assert(view.fieldType("c") == rt.fieldType("c"))
 
     val rtV = SafeRow.read(rt, rv.offset).asInstanceOf[Row]
     val viewV = SafeRow.read(view, rv.offset).asInstanceOf[Row]
