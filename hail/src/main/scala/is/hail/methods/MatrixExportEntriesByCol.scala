@@ -64,13 +64,18 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
           .toArray)
 
       val fsBc = fs.broadcast
+      val localTempDir = ctx.localTmpdir
       val partFolders = mv.rvd.crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
 
         val partFolder = partFileBase + partFile(d, i, TaskContext.get())
 
-        val fileHandles = Array.tabulate(endIdx - startIdx) { j =>
-          new OutputStreamWriter(fsBc.value.create(partFolder + "/" + j.toString + extension), "UTF-8")
+        val filePaths = Array.tabulate(endIdx - startIdx) { j =>
+          val finalPath = partFolder + "/" + j.toString + extension
+          val tempPath = ExecuteContext.createTmpPathNoCleanup(localTempDir, "EEBC", extension = extension)
+          (tempPath, finalPath)
         }
+
+        val fileHandles = filePaths.map { case (tmp, _) => new OutputStreamWriter(fsBc.value.create(tmp), "UTF-8") }
 
         if (i == 0) {
           // write headers
@@ -127,6 +132,10 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
         }
 
         fileHandles.foreach(_.close())
+        filePaths.foreach { case (tempFile, destination) =>
+          fsBc.value.copy(tempFile, destination, deleteSource = true)
+        }
+
         Iterator(partFolder)
       }.collect()
 
