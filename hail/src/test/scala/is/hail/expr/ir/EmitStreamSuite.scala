@@ -37,15 +37,18 @@ class EmitStreamSuite extends HailSuite {
     asmFn.apply
   }
 
-  def range(start: Code[Int], stop: Code[Int], name: String)(implicit ctx: EmitStreamContext): Stream[Code[Int]] =
+  def log(str: Code[String], enabled: Boolean = false): Code[Unit] =
+    if (enabled) Code._println(str) else Code._empty
+
+  def range(start: Code[Int], stop: Code[Int], name: String, print: Boolean = false)(implicit ctx: EmitStreamContext): Stream[Code[Int]] =
     Stream.range(ctx.mb, start, 1, stop - start).map(
       a => a,
-      setup0 = Some(Code._println(const(s"$name setup0"))),
-      setup = Some(Code._println(const(s"$name setup"))),
-      close0 = Some(Code._println(const(s"$name close0"))),
-      close = Some(Code._println(const(s"$name close"))))
+      setup0 = Some(log(const(s"$name setup0"), print)),
+      setup = Some(log(const(s"$name setup"), print)),
+      close0 = Some(log(const(s"$name close0"), print)),
+      close = Some(log(const(s"$name close"), print)))
 
-  class CheckedStream[T](_stream: Stream[T], name: String, mb: EmitMethodBuilder[_]) {
+  class CheckedStream[T](_stream: Stream[T], name: String, mb: EmitMethodBuilder[_], print: Boolean = false) {
     val outerBit = mb.newLocal[Boolean]()
     val innerBit = mb.newLocal[Boolean]()
     val innerCount = mb.newLocal[Int]()
@@ -58,20 +61,20 @@ class EmitStreamSuite extends HailSuite {
         Code._fatal[Unit](s"$name: pulled from when not setup")),
       setup0 = Some((!outerBit & !innerBit).mux(
         Code(outerBit := true,
-             Code._println(const(s"$name setup0"))),
+             log(const(s"$name setup0"), print)),
         Code._fatal[Unit](s"$name: setup0 run out of order"))),
       setup = Some((outerBit & !innerBit).mux(
         Code(innerBit := true,
              innerCount := innerCount.load + 1,
-             Code._println(const(s"$name setup"))),
+             log(const(s"$name setup"), print)),
         Code._fatal[Unit](s"$name: setup run out of order"))),
       close0 = Some((outerBit & !innerBit).mux(
         Code(outerBit := false,
-             Code._println(const(s"$name close0"))),
+             log(const(s"$name close0"), print)),
         Code._fatal[Unit](s"$name: close0 run out of order"))),
       close = Some((outerBit & innerBit).mux(
         Code(innerBit := false,
-             Code._println(const(s"$name close"))),
+             log(const(s"$name close"), print)),
         Code._fatal[Unit](s"$name: close run out of order"))))
 
     def assertClosed(expectedRuns: Code[Int]): Code[Unit] =
@@ -89,7 +92,7 @@ class EmitStreamSuite extends HailSuite {
         Code._empty)
   }
 
-  def checkedRange(start: Code[Int], stop: Code[Int], name: String, mb: EmitMethodBuilder[_]): CheckedStream[Code[Int]] = {
+  def checkedRange(start: Code[Int], stop: Code[Int], name: String, mb: EmitMethodBuilder[_], print: Boolean = false): CheckedStream[Code[Int]] = {
     val tstart = mb.newLocal[Int]()
     val len = mb.newLocal[Int]()
     val s = Stream.range(mb, tstart, 1, len)
@@ -97,7 +100,7 @@ class EmitStreamSuite extends HailSuite {
         f = x => x,
         setup0 = Some(Code(tstart := 0, len := 0)),
         setup = Some(Code(tstart := start, len := stop - tstart)))
-    new CheckedStream(s, name, mb)
+    new CheckedStream(s, name, mb, print)
   }
 
   @Test def testES2Range() {
@@ -106,7 +109,7 @@ class EmitStreamSuite extends HailSuite {
 
       Code(
         r.init,
-        r.stream.forEach(mb, i => Code._println(i.toS)),
+        r.stream.forEach(mb, i => log(i.toS)),
         r.assertClosed(1))
     }
     for (i <- 0 to 2) { f(i) }
@@ -120,7 +123,7 @@ class EmitStreamSuite extends HailSuite {
 
       Code(
         l.init, r.init,
-        z.forEach(mb, x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")"))),
+        z.forEach(mb, x => log(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")"))),
         l.assertClosed(1), r.assertClosed(1))
     }
     for {
@@ -139,7 +142,7 @@ class EmitStreamSuite extends HailSuite {
         inner = checkedRange(0, i, "inner", mb)
         inner.stream
       }
-      val run = outer.stream.flatMap(f).forEach(mb, i => Code._println(i.toS))
+      val run = outer.stream.flatMap(f).forEach(mb, i => log(i.toS))
 
       Code(
         outer.init, inner.init,
@@ -163,7 +166,7 @@ class EmitStreamSuite extends HailSuite {
       }
       val run = Stream
         .zip(l.stream, rOuter.stream.flatMap(f))
-        .forEach(mb, x => Code._println(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")")))
+        .forEach(mb, x => log(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")")))
 
       Code(
         l.init, rOuter.init, rInner.init,
@@ -190,7 +193,7 @@ class EmitStreamSuite extends HailSuite {
       }
       val checkedOuter = new CheckedStream(outer, "outer", mb)
       val run = checkedOuter.stream.forEach(mb, { inner =>
-        inner.forEach(mb, i => Code._println(i.toS))
+        inner.forEach(mb, i => log(i.toS))
       })
 
       Code(
@@ -215,7 +218,7 @@ class EmitStreamSuite extends HailSuite {
       }
       val checkedOuter = new CheckedStream(outer, "outer", mb)
       val run = checkedOuter.stream.forEach(mb, { inner =>
-        inner.forEach(mb, i => Code._println(i.toS))
+        inner.forEach(mb, i => log(i.toS))
       })
 
       Code(
@@ -238,7 +241,7 @@ class EmitStreamSuite extends HailSuite {
 
       Code(
         s1.init, s2.init, s3.init,
-        z.forEach(mb, x => Code._println(const("(").concat(x(0).toS).concat(", ").concat(x(1).toS).concat(", ").concat(x(2).toS).concat(")"))),
+        z.forEach(mb, x => log(const("(").concat(x(0).toS).concat(", ").concat(x(1).toS).concat(", ").concat(x(2).toS).concat(")"))),
         s1.assertClosed(1),
         s2.assertClosed(1),
         s3.assertClosed(1))
