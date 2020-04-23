@@ -1,6 +1,6 @@
  package is.hail.expr.ir
 
-import is.hail.annotations.{Region, RegionValue, StagedRegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region, RegionValue, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
@@ -617,7 +617,7 @@ object EmitStream {
     def apply(outerEos: Code[Ctrl], outerPush: Stream[PCode] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[Stream[PCode]] = {
       val keyType = eltType.selectFields(key)
       val keyViewType = PSubsetStruct(eltType, key)
-      val ordering = keyType.codeOrdering(mb, keyViewType)
+      val ordering = keyType.codeOrdering(mb, keyViewType).asInstanceOf[CodeOrdering { type T = Long }]
 
       val xCurKey = ctx.mb.newPLocal("st_grpby_curkey", keyType)
       val xCurElt = ctx.mb.newPLocal("st_grpby_curelt", eltType)
@@ -644,12 +644,12 @@ object EmitStream {
                 // !xInOuter iff this element was requested by an inner stream.
                 // Else we are stepping to the beginning of the next group.
 
-                (!xFirstPull && ordering.equivNonnull(xCurKey.tcode, xCurElt.tcode)).mux(
+                (!xFirstPull && ordering.equivNonnull(xCurKey.tcode[Long], xCurElt.tcode[Long])).mux(
                   xInOuter.mux(
                     LchildPull.goto,
                     LinnerPush.goto),
                   Code(
-                    xCurKey := keyType.copyFromPValue(mb, region, new PSubsetStructCode(keyViewType, xCurElt.tcode)),
+                    xCurKey := keyType.copyFromPValue(mb, region, new PSubsetStructCode(keyViewType, xCurElt.tcode[Long])),
                     xInOuter.mux(
                       LouterPush.goto,
                       LinnerEos.goto))))
@@ -898,15 +898,15 @@ object EmitStream {
         case x@StreamGroupedByKey(a, key) =>
           val innerType = coerce[PCanonicalStream](coerce[PStream](x.pType).elementType)
           val eltType = coerce[PStruct](innerType.elementType)
-          val keyType = PSubsetStruct(eltType, key.toArray)
           val optStream = emitStream(a, env)
-          optStream.flatMap { case SizedStream(setup, stream, len) =>
-            val nonMissingStream = stream.map()
-            val newStream = groupBy(mb, region, stream, eltType, key).map(inner => EmitCode(Code._empty, false, PCanonicalStreamCode(innerType, inner)))
-            SizedStream(
-              Code(setup, xS := s.tcode[Int], (xS <= 0).orEmpty(Code._fatal[Unit](const("StreamGrouped: nonpositive size")))),
-              newStream,
-              len.map(l => ((l.toL + xS.toL - 1L) / xS.toL).toI)) // rounding up integer division
+          optStream.map { ss =>
+            val nonMissingStream = ss.getStream.mapCPS[PCode] { (_, ec, k) =>
+              Code(ec.setup, ec.m.orEmpty(Code._fatal[Unit](const("expected non-missing"))), k(ec.pv))
+            }
+            val newStream = groupBy(mb, region, nonMissingStream, eltType, key.toArray)
+              .map(inner => EmitCode.present(PCanonicalStreamCode(innerType, inner.map(EmitCode.present))))
+
+            SizedStream.unsized(newStream)
           }
 
         case StreamMap(childIR, name, bodyIR) =>
