@@ -436,7 +436,7 @@ object TypeCheck {
         assert(rows.typ.isInstanceOf[TStream])
       case ShuffleWritingFinished(id, successfulPartitionIds) =>
         assert(id.typ == TBinary)
-        assert(successfulPartitionIds.typ == TArray(TInt64))
+        assert(successfulPartitionIds.typ == TArray(TBinary))
       case ShuffleGetPartitionBounds(id, nPartitions, keyFields, rowType, keyEType) =>
         assert(id.typ == TBinary)
         assert(nPartitions == TInt64)
