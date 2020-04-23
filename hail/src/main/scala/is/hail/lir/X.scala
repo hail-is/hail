@@ -653,7 +653,12 @@ class NewArrayX(val eti: TypeInfo[_]) extends ValueX {
 
 class NewInstanceX(val ti: TypeInfo[_]) extends ValueX
 
-class LdcX(val a: Any, val ti: TypeInfo[_]) extends ValueX
+class LdcX(val a: Any, val ti: TypeInfo[_]) extends ValueX {
+  assert(
+    a.isInstanceOf[String] || a.isInstanceOf[Double] || a.isInstanceOf[Float] || a.isInstanceOf[Int] || a.isInstanceOf[Long],
+    s"not a string, double, float, int, or long: {a}")
+
+}
 
 class MethodX(val op: Int, val method: MethodRef) extends ValueX {
   def ti: TypeInfo[_] = method.returnTypeInfo

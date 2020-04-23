@@ -331,9 +331,9 @@ package object asm4s {
 
   implicit def const(d: Double): Value[Double] = _const(d, DoubleInfo)
 
-  implicit def const(c: Char): Value[Char] = _const(c, CharInfo)
+  implicit def const(c: Char): Value[Char] = _const(c.toInt, CharInfo)
 
-  implicit def const(b: Byte): Value[Byte] = _const(b, ByteInfo)
+  implicit def const(b: Byte): Value[Byte] = _const(b.toInt, ByteInfo)
 
   implicit def strToCode(s: String): Code[String] = const(s)
 
