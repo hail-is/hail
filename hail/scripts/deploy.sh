@@ -23,6 +23,11 @@ then
     exit 0
 fi
 
+if [ -f $WHEEL ]
+then
+    echo "wheel not found at $WHEEL"
+    exit 1
+fi
 
 pip_versions_file=$(mktemp)
 pip install hail== 2>&1 \
@@ -73,7 +78,7 @@ twine upload $WHEEL
 
 # update docs sha
 cloud_sha_location=gs://hail-common/builds/0.2/latest-hash/cloudtools-5-spark-2.4.0.txt
-gsutil cp $docs_location $cloud_sha_location
+printf "$GIT_VERSION" | gsutil cp  - $cloud_sha_location
 gsutil acl set public-read $cloud_sha_location
 
 # deploy annotation db json

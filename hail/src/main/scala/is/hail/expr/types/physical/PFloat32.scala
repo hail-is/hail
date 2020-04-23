@@ -29,7 +29,7 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
       type T = Float
 
       def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
-        Code.invokeStatic[java.lang.Float, Float, Float, Int]("compare", x, y)
+        Code.invokeStatic2[java.lang.Float, Float, Float, Int]("compare", x, y)
 
       override def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x < y
 

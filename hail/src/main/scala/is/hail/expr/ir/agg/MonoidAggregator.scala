@@ -100,10 +100,10 @@ class ComparisonMonoid(val typ: PType, val functionName: String) extends StagedM
   def neutral: Option[Code[_]] = None
 
   private def cmp[T](v1: Code[T], v2: Code[T])(implicit tct: ClassTag[T]): Code[T] =
-    Code.invokeStatic[Math,T,T,T](functionName, v1, v2)
+    Code.invokeStatic2[Math,T,T,T](functionName, v1, v2)
 
   private def nancmp[T](v1: Code[T], v2: Code[T])(implicit tct: ClassTag[T]): Code[T] =
-    Code.invokeScalaObject[T,T,T](UtilFunctions.getClass, "nan" + functionName, v1, v2)
+    Code.invokeScalaObject2[T,T,T](UtilFunctions.getClass, "nan" + functionName, v1, v2)
 
   def apply(v1: Code[_], v2: Code[_]): Code[_] = typ match {
     case _: PInt32 => cmp[Int](coerce(v1), coerce(v2))

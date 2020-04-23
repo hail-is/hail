@@ -89,7 +89,7 @@ class ApproxCDFState(val cb: EmitClassBuilder[_]) extends AggregatorState {
         k := ib.readInt(),
         initialized.orEmpty(
           Code(
-            aggr := Code.invokeScalaObject[Int, InputBuffer, ApproxCDFStateManager](
+            aggr := Code.invokeScalaObject2[Int, InputBuffer, ApproxCDFStateManager](
               ApproxCDFStateManager.getClass, "deserializeFrom", k, ib),
             id := region.storeJavaObject(aggr)
           )

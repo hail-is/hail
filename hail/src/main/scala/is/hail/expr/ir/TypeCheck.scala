@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.types.physical.PStream
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 
@@ -103,6 +104,10 @@ object TypeCheck {
       case x@If(cond, cnsq, altr) =>
         assert(cond.typ == TBoolean)
         assert(x.typ == cnsq.typ && x.typ == altr.typ)
+        x.typ match {
+          case tstream: TStream => assert(tstream.elementType.isRealizable)
+          case _ =>
+        }
       case x@Let(_, _, body) =>
         assert(x.typ == body.typ)
       case x@AggLet(_, _, body, _) =>
@@ -146,6 +151,7 @@ object TypeCheck {
         }
       case x@MakeStream(args, typ) =>
         assert(typ != null)
+        assert(typ.elementType.isRealizable)
 
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
           s"at position $i type mismatch: ${ typ.elementType.parsableString() } ${ x.parsableString() }")
@@ -267,8 +273,9 @@ object TypeCheck {
         assert(x.typ.elementType == body.typ)
         assert(as.forall(_.typ.isInstanceOf[TStream]))
       case x@StreamFilter(a, name, cond) =>
-        assert(a.typ.isInstanceOf[TStream])
+        assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)
         assert(cond.typ == TBoolean)
+        assert(x.typ == a.typ)
       case x@StreamFlatMap(a, name, body) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(body.typ.isInstanceOf[TStream])
@@ -284,6 +291,7 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TStream])
         assert(body.typ == zero.typ)
         assert(coerce[TStream](x.typ).elementType == zero.typ)
+        assert(zero.typ.isRealizable)
       case x@StreamLeftJoinDistinct(left, right, l, r, compare, join) =>
         val ltyp = coerce[TStream](left.typ)
         val rtyp = coerce[TStream](right.typ)
@@ -373,6 +381,10 @@ object TypeCheck {
         assert(x.typ == fd.typ)
       case In(i, typ) =>
         assert(typ != null)
+        typ match {
+          case pstream: PStream => assert(pstream.elementType.isRealizable)
+          case _ =>
+        }
       case Die(msg, typ) =>
         assert(msg.typ == TString)
       case x@ApplyIR(fn, typeArgs, args) =>
@@ -402,6 +414,7 @@ object TypeCheck {
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
         assert(ctxs.typ.isInstanceOf[TStream])
       case x@ReadPartition(path, spec, rowType) =>
+        assert(rowType.isRealizable)
         assert(path.typ == TString)
         assert(x.typ == TStream(rowType))
         assert(spec.encodedType.decodedPType(rowType).virtualType == rowType)

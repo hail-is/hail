@@ -117,7 +117,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       ab.initialize()
     )(Array(
       garbage := 0,
-      maxGarbage := Code.invokeStatic[Math, Int, Int, Int]("max", maxSize * 2, 256)
+      maxGarbage := Code.invokeStatic2[Math, Int, Int, Int]("max", maxSize * 2, 256)
     ))
   }
 

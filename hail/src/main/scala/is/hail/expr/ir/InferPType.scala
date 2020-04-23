@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TNDArray, TVoid}
 import is.hail.utils._
+import is.hail.HailContext
 
 object InferPType {
 
@@ -82,14 +83,14 @@ object InferPType {
     ptypes.head match {
       case _: PStream =>
         val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PStream].elementType))
-        PStream(elementType, ptypes.forall(_.required))
+        PCanonicalStream(elementType, ptypes.forall(_.required))
       case _: PCanonicalArray =>
         val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PArray].elementType))
         PCanonicalArray(elementType, ptypes.forall(_.required))
       case _: PCanonicalSet =>
         val elementType = getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PSet].elementType))
         PCanonicalSet(elementType, ptypes.forall(_.required))
-      case x: PCanonicalStruct =>
+      case x: PStruct =>
         PCanonicalStruct(ptypes.forall(_.required), x.fieldNames.map(fieldName =>
           fieldName -> getNestedElementPTypesOfSameType(ptypes.map(_.asInstanceOf[PStruct].field(fieldName).typ))
         ): _*)
@@ -175,7 +176,7 @@ object InferPType {
         assert(start.pType isOfType step.pType)
 
         val allRequired = start.pType.required && stop.pType.required && step.pType.required
-        PStream(start.pType.setRequired(true), allRequired)
+        PCanonicalStream(start.pType.setRequired(true), allRequired)
       case ArrayZeros(length) =>
         infer(length)
         PCanonicalArray(PInt32(true), length.pType.required)
@@ -269,7 +270,7 @@ object InferPType {
       case ToStream(a) =>
         infer(a)
         val elt = coerce[PIterable](a.pType).elementType
-        PStream(elt, a.pType.required)
+        PCanonicalStream(elt, a.pType.required)
       case GroupByKey(collection) =>
         infer(collection)
         val elt = coerce[PBaseStruct](coerce[PStream](collection.pType).elementType)
@@ -289,7 +290,7 @@ object InferPType {
       case StreamMap(a, name, body) =>
         infer(a)
         infer(body, env.bind(name, a.pType.asInstanceOf[PStream].elementType))
-        PStream(body.pType, a.pType.required)
+        PCanonicalStream(body.pType, a.pType.required)
       case StreamZip(as, names, body, behavior) =>
         as.foreach(infer(_))
         val e = behavior match {
@@ -299,7 +300,7 @@ object InferPType {
             env.bindIterable(names.zip(as.map(a => a.pType.asInstanceOf[PStream].elementType)))
         }
         infer(body, e)
-        PStream(body.pType, as.forall(_.pType.required))
+        PCanonicalStream(body.pType, as.forall(_.pType.required))
       case StreamFilter(a, name, cond) =>
         infer(a)
         infer(cond, env = env.bind(name, a.pType.asInstanceOf[PStream].elementType))
@@ -309,7 +310,7 @@ object InferPType {
         infer(body, env.bind(name, a.pType.asInstanceOf[PStream].elementType))
 
         // Whether an array must return depends on a, but element requiredeness depends on body (null a elements elided)
-        PStream(coerce[PIterable](body.pType).elementType, a.pType.required)
+        PCanonicalStream(coerce[PIterable](body.pType).elementType, a.pType.required)
       case StreamFold(a, zero, accumName, valueName, body) =>
         infer(zero)
         infer(a)
@@ -367,7 +368,7 @@ object InferPType {
           resPType
         } else zero.pType
 
-        PStream(elementType = x.accPType)
+        PCanonicalStream(elementType = x.accPType)
       case StreamLeftJoinDistinct(lIR, rIR, lName, rName, compare, join) =>
         infer(lIR)
         infer(rIR)
@@ -376,7 +377,7 @@ object InferPType {
         infer(compare, e)
         infer(join, e)
 
-        PStream(join.pType, lIR.pType.required)
+        PCanonicalStream(join.pType, lIR.pType.required)
       case NDArrayShape(nd) =>
         infer(nd)
         val r = nd.pType.asInstanceOf[PNDArray].shape.pType
@@ -459,8 +460,12 @@ object InferPType {
         }: _ *)
       case SelectFields(old, fields) =>
         infer(old)
-        val tbs = coerce[PStruct](old.pType)
-        tbs.selectFields(fields.toFastIndexedSeq)
+        if(HailContext.getFlag("use_spicy_ptypes") != null) {
+          PSubsetStruct(coerce[PStruct](old.pType), fields:_*)
+        } else {
+          val tbs = coerce[PStruct](old.pType)
+          tbs.selectFields(fields.toFastIndexedSeq)
+        }
       case InsertFields(old, fields, fieldOrder) =>
         infer(old)
         val tbs = coerce[PStruct](old.pType)
@@ -529,7 +534,7 @@ object InferPType {
       case ReadPartition(rowIR, codecSpec, rowType) =>
         infer(rowIR)
         val child = codecSpec.buildDecoder(rowType)._1
-        PStream(child, child.required)
+        PCanonicalStream(child, child.required)
       case ReadValue(path, spec, requestedType) =>
         infer(path)
         spec.buildDecoder(requestedType)._1
@@ -541,7 +546,7 @@ object InferPType {
         if (irs.isEmpty) {
           PType.canonical(t, true).deepInnerRequired(true)
         } else {
-          PStream(getNestedElementPTypes(irs.map(theIR => {
+          PCanonicalStream(getNestedElementPTypes(irs.map(theIR => {
             infer(theIR)
             theIR.pType
           })), true)
@@ -625,7 +630,7 @@ object InferPType {
         val sigs = signature.indices.map { i => computePhysicalAgg(signature(i), inits(i), seqs(i)) }.toArray
         infer(result, env = e2, aggs = sigs, inits = null, seqs = null)
         x.physicalSignatures = sigs
-        PStream(result.pType, array.pType.required)
+        PCanonicalStream(result.pType, array.pType.required)
       case AggStateValue(i, sig) => PCanonicalBinary(true)
       case x if x.typ == TVoid =>
         x.children.foreach(c => infer(c.asInstanceOf[IR]))
@@ -633,6 +638,16 @@ object InferPType {
       case NDArrayAgg(nd, _) =>
         infer(nd)
         PType.canonical(ir.typ)
+      case ShuffleStart(_, _, _, _) =>
+        PCanonicalBinary(true)
+      case ShuffleWrite(_, _, _) =>
+        PCanonicalBinary(true)
+      case ShuffleGetPartitionBounds(_, _, keyFields, rowType, keyEType) =>
+        val keyPType = keyEType.decodedPType(rowType.typeAfterSelectNames(keyFields.map(_.field)))
+        PCanonicalArray(keyPType, true)
+      case ShuffleRead(_, _, rowType, rowEType) =>
+        val rowPType = rowEType.decodedPType(rowType)
+        PCanonicalStream(rowPType, true)
       case x if x.typ == TVoid =>
         x.children.foreach(c => infer(c.asInstanceOf[IR]))
         PVoid

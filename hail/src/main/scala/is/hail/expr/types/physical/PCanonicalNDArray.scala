@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder, UnsafeOrdering}
 import is.hail.asm4s.{Code, MethodBuilder, _}
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.expr.types.virtual.{TNDArray, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -127,7 +127,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     Region.loadIRIntermediate(data.pType.elementType)(getElementAddress(indices, ndAddress, mb))
   }
 
-  def outOfBounds(indices: IndexedSeq[Code[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Boolean] = {
+  def outOfBounds(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Boolean] = {
     val shapeTuple = new CodePTuple(shape.pType, new Value[Long] {
       def get: Code[Long] = shape.load(nd)
     })
@@ -220,4 +220,49 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     throw new NotImplementedError("constructAtAddress should only be called on fundamental types; PCanonicalNDarray is not fundamental")
+}
+
+object PCanonicalNDArraySettable {
+  def apply(cb: EmitCodeBuilder, pt: PCanonicalNDArray, name: String, sb: SettableBuilder): PCanonicalNDArraySettable = {
+    new PCanonicalNDArraySettable(pt, sb.newSettable(name))
+  }
+}
+
+class PCanonicalNDArraySettable(val pt: PCanonicalNDArray, val a: Settable[Long]) extends PNDArrayValue with PSettable {
+  //FIXME: Rewrite apply to not require a methodBuilder, meaning also rewrite loadElementToIRIntermediate
+  def apply(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Value[_] = {
+    assert(indices.size == pt.nDims)
+    new Value[Any] {
+      override def get: Code[Any] = pt.loadElementToIRIntermediate(indices, a, mb)
+    }
+  }
+
+  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
+
+  override def get: PCode = new PCanonicalNDArrayCode(pt, a)
+
+  override def store(pv: PCode): Code[Unit] = a := pv.asInstanceOf[PCanonicalNDArrayCode].a
+
+  override def outOfBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Boolean] = {
+    pt.outOfBounds(indices, a, mb)
+  }
+}
+
+class PCanonicalNDArrayCode(val pt: PCanonicalNDArray, val a: Code[Long]) extends PNDArrayCode {
+
+  override def code: Code[_] = a
+
+  override def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
+
+  override def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = ???
+
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PNDArrayValue = {
+    val s = PCanonicalNDArraySettable(cb, pt, name, sb)
+    cb.assign(s, this)
+    s
+  }
+
+  override def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue = memoize(cb, name, cb.localBuilder)
+
+  override def memoizeField(cb: EmitCodeBuilder, name: String): PValue = memoize(cb, name, cb.fieldBuilder)
 }

@@ -50,7 +50,7 @@ object IRSuite {
         override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(returnType, argTypes)
 
         def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: EmitCode*): EmitCode = {
-          assert(unify(super.typeArgs, args.map(_.pt.virtualType), rpt.virtualType))
+          assert(unify(FastSeq(), args.map(_.pt.virtualType), rpt.virtualType))
           impl(r, rpt, seed, args.toArray)
         }
       })
@@ -61,21 +61,21 @@ object IRSuite {
 
     def registerAll() {
       registerSeededWithMissingness("incr_s", TBoolean, TBoolean, null) { case (mb, rt,  _, l) =>
-        EmitCode(Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.setup),
+        EmitCode(Code(Code.invokeScalaObject0[Unit](outer.getClass, "incr"), l.setup),
           l.m,
           PCode(rt, l.v))
       }
 
       registerSeededWithMissingness("incr_m", TBoolean, TBoolean, null) { case (mb, rt, _, l) =>
         EmitCode(l.setup,
-          Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.m),
+          Code(Code.invokeScalaObject0[Unit](outer.getClass, "incr"), l.m),
           PCode(rt, l.v))
       }
 
       registerSeededWithMissingness("incr_v", TBoolean, TBoolean, null) { case (mb, rt, _, l) =>
         EmitCode(l.setup,
           l.m,
-          PCode(rt, Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.v)))
+          PCode(rt, Code(Code.invokeScalaObject0[Unit](outer.getClass, "incr"), l.v)))
       }
     }
   }
@@ -241,8 +241,8 @@ class IRSuite extends HailSuite {
       TStruct("bar" -> TBinary)))
     assertPType(CastRename(In(0, childPType), targetType), expectedPType)
 
-    expectedPType = PStream(PCanonicalStruct("foo2a" -> PCanonicalArray(PFloat64(true), true), "bar2a" -> PCanonicalBinary()))
-    childPType = PStream(PCanonicalStruct("q" -> PCanonicalArray(PFloat64(true), true), "yxxx" -> PCanonicalBinary()))
+    expectedPType = PCanonicalStream(PCanonicalStruct("foo2a" -> PCanonicalArray(PFloat64(true), true), "bar2a" -> PCanonicalBinary()))
+    childPType = PCanonicalStream(PCanonicalStruct("q" -> PCanonicalArray(PFloat64(true), true), "yxxx" -> PCanonicalBinary()))
     targetType = TStream(TStruct("foo2a" -> TArray(TFloat64), "bar2a" -> TBinary))
     assertPType(CastRename(In(0, childPType), targetType), expectedPType)
   }
@@ -1035,70 +1035,70 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testGetNestedPStream() {
-    var types = Seq(PStream(PInt32(true), true))
+    var types = Seq(PCanonicalStream(PInt32(true), true))
     var res  = InferPType.getNestedElementPTypes(types)
-    assert(res == PStream(PInt32(true), true))
+    assert(res == PCanonicalStream(PInt32(true), true))
 
-    types = Seq(PStream(PInt32(true), false))
+    types = Seq(PCanonicalStream(PInt32(true), false))
     res  = InferPType.getNestedElementPTypes(types)
-    assert(res == PStream(PInt32(true), false))
+    assert(res == PCanonicalStream(PInt32(true), false))
 
-    types = Seq(PStream(PInt32(false), true))
+    types = Seq(PCanonicalStream(PInt32(false), true))
     res  = InferPType.getNestedElementPTypes(types)
-    assert(res == PStream(PInt32(false), true))
+    assert(res == PCanonicalStream(PInt32(false), true))
 
-    types = Seq(PStream(PInt32(false), false))
+    types = Seq(PCanonicalStream(PInt32(false), false))
     res  = InferPType.getNestedElementPTypes(types)
-    assert(res == PStream(PInt32(false), false))
-
-    types = Seq(
-      PStream(PInt32(true), true),
-      PStream(PInt32(true), true)
-    )
-    res  = InferPType.getNestedElementPTypes(types)
-    assert(res == PStream(PInt32(true), true))
+    assert(res == PCanonicalStream(PInt32(false), false))
 
     types = Seq(
-      PStream(PInt32(false), true),
-      PStream(PInt32(true), true)
+      PCanonicalStream(PInt32(true), true),
+      PCanonicalStream(PInt32(true), true)
     )
     res  = InferPType.getNestedElementPTypes(types)
-    assert(res == PStream(PInt32(false), true))
+    assert(res == PCanonicalStream(PInt32(true), true))
 
     types = Seq(
-      PStream(PInt32(false), true),
-      PStream(PInt32(true), false)
+      PCanonicalStream(PInt32(false), true),
+      PCanonicalStream(PInt32(true), true)
     )
     res  = InferPType.getNestedElementPTypes(types)
-    assert(res == PStream(PInt32(false), false))
+    assert(res == PCanonicalStream(PInt32(false), true))
 
     types = Seq(
-      PStream(PStream(PInt32(true), true), true),
-      PStream(PStream(PInt32(true), true), true)
+      PCanonicalStream(PInt32(false), true),
+      PCanonicalStream(PInt32(true), false)
     )
     res  = InferPType.getNestedElementPTypes(types)
-    assert(res == PStream(PStream(PInt32(true), true), true))
+    assert(res == PCanonicalStream(PInt32(false), false))
 
     types = Seq(
-      PStream(PStream(PInt32(true), true), true),
-      PStream(PStream(PInt32(false), true), true)
+      PCanonicalStream(PCanonicalStream(PInt32(true), true), true),
+      PCanonicalStream(PCanonicalStream(PInt32(true), true), true)
     )
     res  = InferPType.getNestedElementPTypes(types)
-    assert(res == PStream(PStream(PInt32(false), true), true))
+    assert(res == PCanonicalStream(PCanonicalStream(PInt32(true), true), true))
 
     types = Seq(
-      PStream(PStream(PInt32(true), false), true),
-      PStream(PStream(PInt32(false), true), true)
+      PCanonicalStream(PCanonicalStream(PInt32(true), true), true),
+      PCanonicalStream(PCanonicalStream(PInt32(false), true), true)
     )
     res  = InferPType.getNestedElementPTypes(types)
-    assert(res == PStream(PStream(PInt32(false), false), true))
+    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), true), true))
 
     types = Seq(
-      PStream(PStream(PInt32(true), false), false),
-      PStream(PStream(PInt32(false), true), true)
+      PCanonicalStream(PCanonicalStream(PInt32(true), false), true),
+      PCanonicalStream(PCanonicalStream(PInt32(false), true), true)
     )
     res  = InferPType.getNestedElementPTypes(types)
-    assert(res == PStream(PStream(PInt32(false), false), false))
+    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), false), true))
+
+    types = Seq(
+      PCanonicalStream(PCanonicalStream(PInt32(true), false), false),
+      PCanonicalStream(PCanonicalStream(PInt32(false), true), true)
+    )
+    res  = InferPType.getNestedElementPTypes(types)
+    assert(res == PCanonicalStream(PCanonicalStream(PInt32(false), false), false))
   }
 
   @Test def testGetNestedElementPCanonicalDict() {
@@ -2417,7 +2417,6 @@ class IRSuite extends HailSuite {
         MakeStruct(FastSeq("a" -> 6, "b" -> 0.0, "c" -> 3L)),
         FastSeq("b", "a")),
       Row(0.0, 6))
-
   }
 
   @Test def testGetField() {

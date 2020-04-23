@@ -324,15 +324,15 @@ class DownsampleState(val cb: EmitClassBuilder[_], labelType: PArray, maxBufferS
   }
 
   def min(a: Code[Double], b: Code[Double]): Code[Double] =
-    Code.invokeStatic[java.lang.Double, Double, Double, Double]("min", a, b)
+    Code.invokeStatic2[java.lang.Double, Double, Double, Double]("min", a, b)
 
   def intMax(a: Code[Int], b: Code[Int]): Code[Int] =
-    Code.invokeStatic[java.lang.Integer, Int, Int, Int]("max", a, b)
+    Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("max", a, b)
 
   def max(a: Code[Double], b: Code[Double]): Code[Double] =
-    Code.invokeStatic[java.lang.Double, Double, Double, Double]("max", a, b)
+    Code.invokeStatic2[java.lang.Double, Double, Double, Double]("max", a, b)
 
-  def isFinite(a: Code[Double]): Code[Boolean] = Code.invokeStatic[java.lang.Double, Double, Boolean]("isFinite", a)
+  def isFinite(a: Code[Double]): Code[Boolean] = Code.invokeStatic1[java.lang.Double, Double, Boolean]("isFinite", a)
 
   def dumpBuffer(): Code[Unit] = {
     val name = "downsample_dump_buffer"

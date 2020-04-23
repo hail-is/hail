@@ -27,6 +27,7 @@ class HailContext(object):
                       idempotent=bool,
                       global_seed=nullable(int),
                       spark_conf=nullable(dictof(str, str)),
+                      skip_logging_configuration=bool,
                       optimizer_iterations=nullable(int),
                       _backend=nullable(Backend))
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
@@ -34,7 +35,7 @@ class HailContext(object):
                  min_block_size=1, branching_factor=50, tmp_dir=None,
                  default_reference="GRCh37", idempotent=False,
                  global_seed=6348563392232659379, spark_conf=None,
-                 optimizer_iterations=None, _backend=None):
+                 skip_logging_configuration=False, optimizer_iterations=None, _backend=None):
 
         if Env._hc:
             if idempotent:
@@ -63,7 +64,7 @@ class HailContext(object):
                 _backend = SparkBackend(
                     idempotent, sc, spark_conf, app_name, master, local, log,
                     quiet, append, min_block_size, branching_factor, tmp_dir,
-                    optimizer_iterations)
+                    skip_logging_configuration, optimizer_iterations)
             else:
                 raise ValueError(f'invalid value for HAIL_QUERY_BACKDEND: unknown backend: {backend_name}')
 
@@ -135,6 +136,7 @@ class HailContext(object):
            idempotent=bool,
            global_seed=nullable(int),
            spark_conf=nullable(dictof(str, str)),
+           skip_logging_configuration=bool,
            _optimizer_iterations=nullable(int),
            _backend=nullable(Backend))
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
@@ -143,6 +145,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
          default_reference='GRCh37', idempotent=False,
          global_seed=6348563392232659379,
          spark_conf=None,
+         skip_logging_configuration=False,
          _optimizer_iterations=None,
          _backend=None):
     """Initialize Hail and Spark.
@@ -214,11 +217,13 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         Global random seed.
     spark_conf : :obj:`dict[str, str]`, optional
         Spark configuration parameters.
+    skip_logging_configuration : :obj:`bool`
+        Skip logging configuration.
     """
     HailContext(sc, app_name, master, local, log, quiet, append,
                 min_block_size, branching_factor, tmp_dir,
                 default_reference, idempotent, global_seed, spark_conf,
-                _optimizer_iterations,_backend)
+                skip_logging_configuration, _optimizer_iterations, _backend)
 
 
 def version():

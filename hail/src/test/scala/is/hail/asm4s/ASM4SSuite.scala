@@ -406,7 +406,7 @@ class ASM4SSuite extends TestNGSuite {
     val fb2 = fb.cb.genDependentFunction[Int, Boolean]("DepF")
     val localF = fb.genFieldThisRef[AsmFunction1[Int, Boolean]]()
 
-    val wrappedInt = Code.invokeStatic[java.lang.Integer, Int, java.lang.Integer]("valueOf", 0)
+    val wrappedInt = Code.invokeStatic1[java.lang.Integer, Int, java.lang.Integer]("valueOf", 0)
     val rawOut = localF.load().invoke[java.lang.Object, java.lang.Object]("apply", wrappedInt)
 
     fb2.emit(true)
@@ -430,7 +430,7 @@ class ASM4SSuite extends TestNGSuite {
 
     def wrappedCall(c: Code[Int]) =
       localF.load().invoke[java.lang.Object, java.lang.Object]("apply",
-        Code.invokeStatic[java.lang.Integer, Int, java.lang.Integer]("valueOf", c))
+        Code.invokeStatic1[java.lang.Integer, Int, java.lang.Integer]("valueOf", c))
 
     fb2.emit(field2 + fb2.getArg[Int](1))
     fb.emit(Code(

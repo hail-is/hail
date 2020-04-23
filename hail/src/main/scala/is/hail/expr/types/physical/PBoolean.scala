@@ -27,7 +27,7 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
       type T = Boolean
 
       def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
-        Code.invokeStatic[java.lang.Boolean, Boolean, Boolean, Int]("compare", x, y)
+        Code.invokeStatic2[java.lang.Boolean, Boolean, Boolean, Int]("compare", x, y)
     }
   }
 

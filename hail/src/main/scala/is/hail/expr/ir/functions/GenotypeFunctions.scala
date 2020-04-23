@@ -10,7 +10,7 @@ import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, Type}
 object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
-    registerPCode("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: PType) => PInt32())
+    registerPCode1("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: PType) => PInt32())
     { case (r, rt, _pl: PIndexableCode) =>
       val code = EmitCodeBuilder.scopedCode(r.mb) { cb =>
         val pl = _pl.memoize(cb, "plv")
@@ -19,11 +19,9 @@ object GenotypeFunctions extends RegistryFunctions {
         val i = cb.newLocal[Int]("i", 0)
 
         cb.whileLoop(i < pl.loadLength(), {
-          val iec = pl.loadElement(cb, i)
-          cb += iec.Lmissing
-          cb += Code._fatal[Unit]("PL cannot have missing elements.")
-          cb += iec.Lpresent
-          val pli = cb.newLocal[Int]("pli", iec.pc.tcode[Int])
+          val value = pl.loadElement(cb, i)
+            .handle(cb, cb += Code._fatal[Unit]("PL cannot have missing elements."))
+          val pli = cb.newLocal[Int]("pli", value.tcode[Int])
           cb.ifx(pli < m, {
             cb.assign(m2, m)
             cb.assign(m, pli)
@@ -38,7 +36,7 @@ object GenotypeFunctions extends RegistryFunctions {
       PCode(rt, code)
     }
 
-    registerEmitCode("dosage", TArray(tv("N", "float64")), TFloat64,  (_: Type, _: PType) => PFloat64()
+    registerEmitCode1("dosage", TArray(tv("N", "float64")), TFloat64,  (_: Type, _: PType) => PFloat64()
     ) { case (r, rt, gp) =>
       EmitCode.fromI(r.mb) { cb =>
         gp.toI(cb).flatMap(cb) { case (gpc: PIndexableCode) =>

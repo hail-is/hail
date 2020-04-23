@@ -22,15 +22,15 @@ RUN apt-get update && \
 
 
 COPY requirements.txt .
-RUN pip3 install -r requirements.txt
+RUN pip3 -q install -r requirements.txt
 
-RUN pip3 install aiomysql
+RUN pip3 -q install aiomysql
 
 
 ARG HAIL_WHEEL
 COPY $HAIL_WHEEL .
-RUN pip3 install $HAIL_WHEEL
+RUN pip3 -q install $HAIL_WHEEL
 
 ARG BENCHMARK_WHEEL
 COPY $BENCHMARK_WHEEL .
-RUN pip3 install $BENCHMARK_WHEEL
+RUN pip3 -q install $BENCHMARK_WHEEL

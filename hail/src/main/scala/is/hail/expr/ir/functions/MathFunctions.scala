@@ -93,10 +93,10 @@ object MathFunctions extends RegistryFunctions {
     val jDoubleClass = classOf[java.lang.Double]    
 
     // numeric conversions
-    registerIR("toInt32", tnum("T"), TInt32)((_, x) => Cast((x), TInt32))
-    registerIR("toInt64", tnum("T"), TInt64)((_, x) => Cast(x, TInt64))
-    registerIR("toFloat32", tnum("T"), TFloat32)((_, x) => Cast(x, TFloat32))
-    registerIR("toFloat64", tnum("T"), TFloat64)((_, x) => Cast(x, TFloat64))
+    registerIR1("toInt32", tnum("T"), TInt32)((_, x) => Cast((x), TInt32))
+    registerIR1("toInt64", tnum("T"), TInt64)((_, x) => Cast(x, TInt64))
+    registerIR1("toFloat32", tnum("T"), TFloat32)((_, x) => Cast(x, TFloat32))
+    registerIR1("toFloat64", tnum("T"), TFloat64)((_, x) => Cast(x, TFloat64))
     
     registerScalaFunction("abs", Array(TInt32), TInt32, (_: Type, _: Seq[PType]) => PInt32())(mathPackageClass, "abs")
     registerScalaFunction("abs", Array(TInt64), TInt64, (_: Type, _: Seq[PType]) => PInt64())(mathPackageClass, "abs")
@@ -163,15 +163,15 @@ object MathFunctions extends RegistryFunctions {
     
     registerScalaFunction("approxEqual", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TBoolean, (_: Type, _: Seq[PType]) => PBoolean())(thisClass, "approxEqual")
 
-    registerWrappedScalaFunction("entropy", TString, TFloat64, (_: Type, _: PType) => PFloat64())(thisClass, "irentropy")
+    registerWrappedScalaFunction1("entropy", TString, TFloat64, (_: Type, _: PType) => PFloat64())(thisClass, "irentropy")
 
-    registerCode("fisher_exact_test", TInt32, TInt32, TInt32, TInt32, fetStruct.virtualType,
+    registerCode4("fisher_exact_test", TInt32, TInt32, TInt32, TInt32, fetStruct.virtualType,
       (_, _, _, _, _) => fetStruct
     ){ case (r, rt, (at, a), (bt, b), (ct, c), (dt, d)) =>
       val res = r.mb.newLocal[Array[Double]]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(Code(FastIndexedSeq(
-        res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "fisherExactTest", a, b, c, d),
+        res := Code.invokeScalaObject4[Int, Int, Int, Int, Array[Double]](statsPackageClass, "fisherExactTest", a, b, c, d),
         srvb.start(),
         srvb.addDouble(res(0)),
         srvb.advance(),
@@ -184,13 +184,13 @@ object MathFunctions extends RegistryFunctions {
         srvb.offset)
     }
     
-    registerCode("chi_squared_test", TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
+    registerCode4("chi_squared_test", TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
       (_, _, _, _, _) => chisqStruct
     ){ case (r, rt, (at, a), (bt, b), (ct, c), (dt, d))  =>
       val res = r.mb.newLocal[Array[Double]]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
-        res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chiSquaredTest", a, b, c, d),
+        res := Code.invokeScalaObject4[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chiSquaredTest", a, b, c, d),
         srvb.start(),
         srvb.addDouble(res(0)),
         srvb.advance(),
@@ -200,13 +200,13 @@ object MathFunctions extends RegistryFunctions {
       )
     }
 
-    registerCode("contingency_table_test", TInt32, TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
+    registerCode5("contingency_table_test", TInt32, TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
       (_, _, _, _, _, _) => chisqStruct
     ){ case (r, rt, (at, a), (bt, b), (ct, c), (dt, d), (mccT, min_cell_count)) =>
       val res = r.mb.newLocal[Array[Double]]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
-        res := Code.invokeScalaObject[Int, Int, Int, Int, Int, Array[Double]](statsPackageClass, "contingencyTableTest", a, b, c, d, min_cell_count),
+        res := Code.invokeScalaObject5[Int, Int, Int, Int, Int, Array[Double]](statsPackageClass, "contingencyTableTest", a, b, c, d, min_cell_count),
         srvb.start(),
         srvb.addDouble(res(0)),
         srvb.advance(),
@@ -216,12 +216,12 @@ object MathFunctions extends RegistryFunctions {
       )
     }
 
-    registerCode("hardy_weinberg_test", TInt32, TInt32, TInt32,
+    registerCode3("hardy_weinberg_test", TInt32, TInt32, TInt32,
       hweStruct.virtualType, (_, _, _, _) => hweStruct) { case (r, rt, (nhrT, nHomRef), (nhT, nHet), (nhvT, nHomVar)) =>
       val res = r.mb.newLocal[Array[Double]]()
       val srvb = new StagedRegionValueBuilder(r, rt)
       Code(
-        res := Code.invokeScalaObject[Int, Int, Int, Array[Double]](statsPackageClass, "hardyWeinbergTest", nHomRef, nHet, nHomVar),
+        res := Code.invokeScalaObject3[Int, Int, Int, Array[Double]](statsPackageClass, "hardyWeinbergTest", nHomRef, nHet, nHomVar),
         srvb.start(),
         srvb.addDouble(res(0)),
         srvb.advance(),

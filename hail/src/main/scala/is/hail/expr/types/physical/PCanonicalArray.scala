@@ -11,6 +11,8 @@ import is.hail.utils._
 
 // This is a pointer array, whose byteSize is the size of its pointer
 final case class PCanonicalArray(elementType: PType, required: Boolean = false) extends PArray {
+  assert(elementType.isRealizable)
+
   def _asIdent = s"array_of_${elementType.asIdent}"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
@@ -64,13 +66,13 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   private def _elementsOffset(length: Int): Long =
-    if (elementType.required)
+    if (elementRequired)
       UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
     else
       UnsafeUtils.roundUpAlignment(lengthHeaderBytes + nMissingBytes(length), elementType.alignment)
 
   private def _elementsOffset(length: Code[Int]): Code[Long] =
-    if (elementType.required)
+    if (elementRequired)
       UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
     else
       UnsafeUtils.roundUpAlignment(nMissingBytes(length).toL + lengthHeaderBytes, elementType.alignment)
@@ -90,10 +92,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def isElementDefined(aoff: Long, i: Int): Boolean =
-    elementType.required || !Region.loadBit(aoff + lengthHeaderBytes, i)
+    elementRequired || !Region.loadBit(aoff + lengthHeaderBytes, i)
 
   def isElementDefined(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
-    if (elementType.required)
+    if (elementRequired)
       true
     else
       !Region.loadBit(aoff + lengthHeaderBytes, i.toL)
@@ -105,23 +107,23 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     !isElementDefined(aoff, i)
 
   def setElementMissing(aoff: Long, i: Int) {
-    if (!elementType.required)
+    if (!elementRequired)
       Region.setBit(aoff + lengthHeaderBytes, i)
   }
 
   def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit] =
-    if (!elementType.required)
+    if (!elementRequired)
       Region.setBit(aoff + lengthHeaderBytes, i.toL)
     else
       Code._fatal[Unit](s"Required element cannot be missing")
 
   def setElementPresent(aoff: Long, i: Int) {
-    if (!elementType.required)
+    if (!elementRequired)
       Region.clearBit(aoff + lengthHeaderBytes, i.toLong)
   }
 
   def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit] =
-    if (!elementType.required)
+    if (!elementRequired)
       Region.clearBit(aoff + lengthHeaderBytes, i.toL)
     else
       Code._empty
@@ -208,12 +210,12 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def setAllMissingBits(aoff: Long, length: Int) {
-    if (!elementType.required)
+    if (!elementRequired)
       writeMissingness(aoff, length, -1)
   }
 
   def clearMissingBits(aoff: Long, length: Int) {
-    if (!elementType.required)
+    if (!elementRequired)
       writeMissingness(aoff, length, 0)
   }
 
@@ -226,7 +228,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Code[Unit] = {
-    if (elementType.required)
+    if (elementRequired)
       Region.storeInt(aoff, length)
     else
       Code.memoize(aoff, "staged_init_aoff",
@@ -256,33 +258,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         aoff)
     }
   }
-
-  def anyMissing(mb: EmitMethodBuilder[_], aoff: Code[Long]): Code[Boolean] =
-    if (elementType.required)
-      false
-    else {
-      val n = mb.newLocal[Long]()
-      val ret = mb.newLocal[Boolean]()
-      val ptr = mb.newLocal[Long]()
-      val L = CodeLabel()
-      Code.memoize(aoff,"pcarr_any_missing_aoff") { aoff =>
-        Code(
-          n := aoff + ((loadLength(aoff) >>> 5) * 4 + 4).toL,
-          ptr := aoff + 4L,
-          L,
-          (ptr < n).mux(
-            Region.loadInt(ptr).cne(0).mux(
-              ret := true,
-              Code(
-                ptr := ptr + 4L,
-                L.goto)),
-            (Region.loadByte(ptr) >>>
-              (const(32) - (loadLength(aoff) | 31))).cne(0).mux(
-              ret := true,
-              ret := false)),
-          ret.load())
-      }
-    }
 
   def forEach(mb: EmitMethodBuilder[_], aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] = {
     val i = mb.newLocal[Int]()
@@ -333,7 +308,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def hasMissingValues(srcAddress: Code[Long]): Code[Boolean] = {
-    if (elementType.required)
+    if (elementRequired)
       return const(false)
 
     Code.memoize(srcAddress, "pcarr_has_missing_vals_src") { srcAddress =>
@@ -344,7 +319,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def checkedConvertFrom(mb: EmitMethodBuilder[_], r: Value[Region], srcAddress: Code[Long], sourceType: PContainer, msg: String): Code[Long] = {
     assert(sourceType.elementType.isPrimitive && this.isOfType(sourceType))
 
-    if (sourceType.elementType.required == this.elementType.required)
+    if (sourceType.elementType.required == this.elementRequired)
       return srcAddress
 
     val a = mb.newLocal[Long]()
@@ -491,7 +466,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       } else
         srcAddress
     } else {
-      assert(elementType.required <= srcArray.elementType.required)
+      assert(elementRequired <= srcArray.elementRequired)
 
       val len = mb.newLocal[Int]()
       val srcAddrVar = mb.newLocal[Long]()
