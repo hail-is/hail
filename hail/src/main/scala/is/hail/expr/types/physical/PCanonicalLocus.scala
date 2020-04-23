@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.utils.FastIndexedSeq
 import is.hail.variant._
 
@@ -74,30 +74,21 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     assert(other isOfType this)
     new CodeOrderingCompareConsistentWithOthers {
       type T = Long
-      val bincmp = representation.fundamentalType.fieldType("contig").asInstanceOf[PBinary].codeOrdering(mb)
+      val bettercmp = PBetterLocus(rgBc, required).codeOrdering(mb, other)
 
       override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
-        val c1 = mb.newLocal[Long]("c1")
-        val c2 = mb.newLocal[Long]("c2")
-
-        val s1 = contigType.loadString(c1)
-        val s2 = contigType.loadString(c2)
-
-        val cmp = bincmp.compareNonnull(coerce[bincmp.T](c1), coerce[bincmp.T](c2))
-        val codeRG = mb.getReferenceGenome(rg)
-
-        Code.memoize(x, "plocus_code_ord_x", y, "plocus_code_ord_y") { (x, y) =>
-          val p1 = Region.loadInt(representation.fieldOffset(x, 1))
-          val p2 = Region.loadInt(representation.fieldOffset(y, 1))
-
-          Code(
-            c1 := representation.loadField(x, 0),
-            c2 := representation.loadField(y, 0),
-            cmp.ceq(0).mux(
-              Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", p1, p2),
-              codeRG.invoke[String, String, Int]("compare", s1, s2)))
-        }
+        bettercmp.compareNonnull(coerce[bettercmp.T](toBetterLocus(mb, x)), coerce[bettercmp.T](y))
       }
+    }
+  }
+
+  def toBetterLocus(mb: EmitMethodBuilder[_], address: Code[Long]): Code[Long] = {
+    Code.memoize(address, "to_better_locus_addr") { address =>
+      val s = contigType.loadString(contigAddr(address))
+      val rgc = mb.getReferenceGenome(rg)
+      val contigIdx = rgc.invoke[String, Int]("contigIndex", s)
+
+      (contigIdx.toL << 32) | (position(address).toL)
     }
   }
 }
@@ -115,20 +106,22 @@ class PCanonicalLocusSettable(
   val pt: PCanonicalLocus,
   val a: Settable[Long],
   _contig: Settable[Long],
-  val position: Settable[Int]
+  _position: Settable[Int]
 ) extends PLocusValue with PSettable {
   def get = new PCanonicalLocusCode(pt, a)
 
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, _contig, position)
+  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, _contig, _position)
 
   def store(pc: PCode): Code[Unit] = {
     Code(
       a := pc.asInstanceOf[PCanonicalLocusCode].a,
       _contig := pt.contigAddr(a),
-      position := pt.position(a))
+      _position := pt.position(a))
   }
 
-  def contig(): PStringCode = new PCanonicalStringCode(pt.contigType.asInstanceOf[PCanonicalString], _contig)
+  def contig(cb: EmitMethodBuilder[_]): PStringCode = new PCanonicalStringCode(pt.contigType, _contig)
+
+  def position(): Code[Int] = _position.get
 }
 
 class PCanonicalLocusCode(val pt: PCanonicalLocus, val a: Code[Long]) extends PLocusCode {
@@ -136,11 +129,11 @@ class PCanonicalLocusCode(val pt: PCanonicalLocus, val a: Code[Long]) extends PL
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def contig(): PStringCode = new PCanonicalStringCode(pt.contigType, pt.contigAddr(a))
+  def contig(mb: EmitMethodBuilder[_]): PStringCode = new PCanonicalStringCode(pt.contigType, pt.contigAddr(a))
 
   def position(): Code[Int] = pt.position(a)
 
-  def getLocusObj(): Code[Locus] = {
+  def getLocusObj(mb: EmitMethodBuilder[_]): Code[Locus] = {
     Code.memoize(a, "get_locus_code_memo") { a =>
       Code.invokeStatic2[Locus, String, Int, Locus]("apply",
         pt.contigType.loadString(pt.contigAddr(a)),

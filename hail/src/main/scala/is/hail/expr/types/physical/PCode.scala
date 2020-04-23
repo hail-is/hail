@@ -97,24 +97,35 @@ abstract class PCode { self =>
 
 object PCode {
   def apply(pt: PType, code: Code[_]): PCode = pt match {
+    // Collections
     case pt: PCanonicalArray =>
       new PCanonicalIndexableCode(pt, coerce[Long](code))
     case pt: PCanonicalSet =>
       new PCanonicalIndexableCode(pt, coerce[Long](code))
     case pt: PCanonicalDict =>
       new PCanonicalIndexableCode(pt, coerce[Long](code))
-    case pt: PSubsetStruct =>
-      new PSubsetStructCode(pt, coerce[Long](code))
+
+    // Structs
     case pt: PCanonicalBaseStruct =>
       new PCanonicalBaseStructCode(pt, coerce[Long](code))
+    case pt: PSubsetStruct =>
+      new PSubsetStructCode(pt, coerce[Long](code))
+
+    // 'Byte Arrays'
     case pt: PCanonicalBinary =>
       new PCanonicalBinaryCode(pt, coerce[Long](code))
     case pt: PCanonicalString =>
       new PCanonicalStringCode(pt, coerce[Long](code))
-    case pt: PCanonicalInterval =>
-      new PCanonicalIntervalCode(pt, coerce[Long](code))
+
+    // Locus types
     case pt: PCanonicalLocus =>
       new PCanonicalLocusCode(pt, coerce[Long](code))
+    case pt: PBetterLocus =>
+      new PBetterLocusCode(pt, coerce[Long](code))
+
+    // Others
+    case pt: PCanonicalInterval =>
+      new PCanonicalIntervalCode(pt, coerce[Long](code))
     case pt: PCanonicalCall =>
       new PCanonicalCallCode(pt, coerce[Int](code))
     case pt: PCanonicalNDArray =>
@@ -128,6 +139,7 @@ object PCode {
 
 object PSettable {
   def apply(sb: SettableBuilder, _pt: PType, name: String): PSettable = _pt match {
+    // Collections
     case pt: PCanonicalArray =>
       PCanonicalIndexableSettable(sb, pt, name)
     case pt: PCanonicalSet =>
@@ -135,13 +147,23 @@ object PSettable {
     case pt: PCanonicalDict =>
       PCanonicalIndexableSettable(sb, pt, name)
 
+    // Structs
     case pt: PCanonicalBaseStruct =>
       PCanonicalBaseStructSettable(sb, pt, name)
 
-    case pt: PCanonicalInterval =>
-      PCanonicalIntervalSettable(sb, pt, name)
+    // 'Byte arrays'
+    case pt: PCanonicalBinary =>
+      PCanonicalBinarySettable(sb, pt, name)
+
+    // Locus types
+    case pt: PBetterLocus =>
+      PBetterLocusSettable(sb, pt, name)
     case pt: PCanonicalLocus =>
       PCanonicalLocusSettable(sb, pt, name)
+
+    // Others
+    case pt: PCanonicalInterval =>
+      PCanonicalIntervalSettable(sb, pt, name)
     case pt: PCanonicalCall =>
       PCanonicalCallSettable(sb, pt, name)
 

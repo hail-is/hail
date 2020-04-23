@@ -433,6 +433,14 @@ class RegionValueBuilder(var region: Region) {
                 i += 1
               }
               endArray()
+            case is: Array[Annotation] =>
+              startArray(is.length)
+              var i = 0
+              while (i < is.length) {
+                addAnnotation(t.elementType, is(i))
+                i += 1
+              }
+              endArray()
           }
 
         case t: TBaseStruct =>

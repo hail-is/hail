@@ -81,6 +81,10 @@ class Classx[C](val name: String, val superName: String) {
     for (m <- methods) {
       val blocks = m.findBlocks()
       for (b <- blocks) {
+        // if (b.first == null) {
+        //   println(s"method: $m")
+        //   println(b.stack.mkString("\n"))
+        // }
         assert(b.first != null)
         assert(b.last.isInstanceOf[ControlX])
       }

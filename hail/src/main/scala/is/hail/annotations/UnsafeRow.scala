@@ -51,11 +51,17 @@ object UnsafeRow {
   def readString(boff: Long, t: PString): String =
     new String(readBinary(boff, t.fundamentalType))
 
-  def readLocus(offset: Long, t: PLocus): Locus = {
-    val ft = t.representation.asInstanceOf[PStruct]
-    Locus(
-      readString(ft.loadField(offset, 0), t.contigType),
-      Region.loadInt(ft.loadField(offset, 1)))
+  def readLocus(offset: Long, t: PLocus): Locus = t match {
+    case _: PCanonicalLocus =>
+      val ft = t.representation.asInstanceOf[PStruct]
+      Locus(
+        readString(ft.loadField(offset, 0), t.contigType),
+        Region.loadInt(ft.loadField(offset, 1)))
+
+    case t: PBetterLocus =>
+      val repr = Region.loadLong(offset)
+      val contigIdx = (repr >>> 32).toInt
+      Locus(t.rg.contigs(contigIdx), repr.toInt)
   }
 
   def readAnyRef(t: PType, region: Region, offset: Long): AnyRef = read(t, region, offset).asInstanceOf[AnyRef]

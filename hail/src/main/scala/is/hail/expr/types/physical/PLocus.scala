@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.expr.types.virtual.TLocus
 import is.hail.variant._
 
@@ -16,28 +16,28 @@ abstract class PLocus extends ComplexPType {
 
   def contigType: PString
 
-  def position(value: Code[Long]): Code[Int]
-
   def positionType: PInt32
 }
 
 abstract class PLocusValue extends PValue {
-  def contig(): PStringCode
+  def contig(mb: EmitMethodBuilder[_]): PStringCode
 
-  def position(): Value[Int]
+  def position(): Code[Int]
 
-  def getLocusObj(): Code[Locus] = Code.invokeStatic2[Locus, String, Int, Locus]("apply",
-    contig().loadString(), position())
+  def getLocusObj(mb: EmitMethodBuilder[_]): Code[Locus] =
+    Code.invokeStatic2[Locus, String, Int, Locus]("apply", contig(mb).loadString(), position())
 }
 
 abstract class PLocusCode extends PCode {
   def pt: PLocus
 
-  def contig(): PStringCode
+  def rg: ReferenceGenome = pt.rg
+
+  def contig(mb: EmitMethodBuilder[_]): PStringCode
 
   def position(): Code[Int]
 
-  def getLocusObj(): Code[Locus]
+  def getLocusObj(mb: EmitMethodBuilder[_]): Code[Locus]
 
   def memoize(cb: EmitCodeBuilder, name: String): PLocusValue
 

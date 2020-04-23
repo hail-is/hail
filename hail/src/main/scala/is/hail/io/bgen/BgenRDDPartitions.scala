@@ -254,9 +254,9 @@ object CompileDecoder {
           )),
         if (settings.rgBc.nonEmpty) {
           // verify the locus is valid before continuing
-          csettings.invoke[Option[ReferenceGenome]]("rg")
+          Code.toUnit(csettings.invoke[Option[ReferenceGenome]]("rg")
             .invoke[ReferenceGenome]("get")
-            .invoke[String, Int, Unit]("checkLocus", contigRecoded, position)
+            .invoke[String, Int, Int]("checkLocus", contigRecoded, position))
         } else {
           Code._empty // if locus is valid continue
         }

@@ -197,14 +197,17 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       fatal(s"Contig '$contig' is not in the reference genome '$name'.")
   }
 
-  def checkLocus(l: Locus): Unit = checkLocus(l.contig, l.position)
+  def checkLocus(l: Locus): Int = checkLocus(l.contig, l.position)
 
-  def checkLocus(contig: String, pos: Int): Unit = {
-    if (!isValidLocus(contig, pos)) {
-      if (!isValidContig(contig))
-        fatal(s"Invalid locus '$contig:$pos' found. Contig '$contig' is not in the reference genome '$name'.")
-      else
-        fatal(s"Invalid locus '$contig:$pos' found. Position '$pos' is not within the range [1-${contigLength(contig)}] for reference genome '$name'.")
+  def checkLocus(contig: String, pos: Int): Int = {
+    val idx = contigsIndex.get(contig)
+    if (idx != null) {
+        if (pos > 0 && pos <= contigLength(idx))
+          idx
+        else
+          fatal(s"Invalid locus '$contig:$pos' found. Position '$pos' is not within the range [1-${contigLength(idx)}] for reference genome '$name'.")
+    } else {
+      fatal(s"Invalid locus '$contig:$pos' found. Contig '$contig' is not in the reference genome '$name'.")
     }
   }
 
