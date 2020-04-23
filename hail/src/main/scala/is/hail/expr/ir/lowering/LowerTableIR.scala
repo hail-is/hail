@@ -81,7 +81,7 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
             val globalsPath = r.spec.globalsComponent.absolutePath(path)
             val globalsSpec = r.spec.globalsSpec
             val gPath = AbstractRVDSpec.partPath(globalsPath, globalsSpec.partFiles.head)
-            val globals = ArrayRef(ToArray(ReadPartition(Str(gPath), globalsSpec.typedCodecSpec, gType)), 0)
+            val globals = ArrayRef(ToArray(ReadPartition(Str(gPath), gType, PartitionNativeReader(globalsSpec.typedCodecSpec))), 0)
 
             if (dropRows) {
               TableStage(
@@ -105,7 +105,7 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
                   partitioner,
                   ctxType,
                   MakeStream(rowsSpec.partFiles.map(f => MakeStruct(FastIndexedSeq("path" -> Str(AbstractRVDSpec.partPath(rowsPath, f))))), TStream(ctxType)),
-                  ReadPartition(GetField(Ref("context", ctxType), "path"), rSpec, rowType))
+                  ReadPartition(GetField(Ref("context", ctxType), "path"), rowType, PartitionNativeReader(rSpec)))
               } else {
                 throw new LowererUnsupportedOperation("can't lower a table if sort is needed after read.")
               }

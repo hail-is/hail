@@ -239,14 +239,14 @@ class MatrixNativeReader(
       val partFiles = colsRVDSpec.absolutePartPaths(spec.colsSpec.rowsComponent.absolutePath(colsPath))
 
       val cols = if (partFiles.length == 1) {
-        ReadPartition(Str(partFiles.head), colsRVDSpec.typedCodecSpec, mr.typ.colType)
+        ReadPartition(Str(partFiles.head), mr.typ.colType, PartitionNativeReader(colsRVDSpec.typedCodecSpec))
       } else {
         val partNames = MakeArray(partFiles.map(Str), TArray(TString))
         val elt = Ref(genUID(), TString)
         StreamFlatMap(
           partNames,
           elt.name,
-          ReadPartition(elt, colsRVDSpec.typedCodecSpec, mr.typ.colType))
+          ReadPartition(elt, mr.typ.colType, PartitionNativeReader(colsRVDSpec.typedCodecSpec)))
       }
 
       TableMapGlobals(tr, InsertFields(

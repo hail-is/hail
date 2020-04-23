@@ -1177,11 +1177,11 @@ object IRParser {
         val name = identifier(it)
         env.irMap(name).asInstanceOf[IR]
       case "ReadPartition" =>
-        import AbstractRVDSpec.formats
-        val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]
         val rowType = coerce[TStruct](type_expr(env.typEnv)(it))
-        val path = ir_value_expr(env)(it)
-        ReadPartition(path, spec, rowType)
+        import PartitionReader.formats
+        val reader = JsonMethods.parse(string_literal(it)).extract[PartitionReader]
+        val context = ir_value_expr(env)(it)
+        ReadPartition(context, rowType, reader)
       case "ReadValue" =>
         import AbstractRVDSpec.formats
         val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]

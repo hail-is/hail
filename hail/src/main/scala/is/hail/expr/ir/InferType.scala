@@ -225,7 +225,7 @@ object InferType {
       case MatrixToValueApply(child, function) => function.typ(child.typ)
       case BlockMatrixToValueApply(child, function) => function.typ(child.typ)
       case CollectDistributedArray(_, _, _, _, body) => TArray(body.typ)
-      case ReadPartition(_, _, rowType) => TStream(rowType)
+      case ReadPartition(_, rowType, _) => TStream(rowType)
       case ReadValue(_, _, typ) => typ
       case WriteValue(value, pathPrefix, spec) => TString
       case LiftMeOut(child) => child.typ

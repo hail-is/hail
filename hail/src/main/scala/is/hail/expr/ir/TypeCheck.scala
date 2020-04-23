@@ -413,11 +413,11 @@ object TypeCheck {
       case UnpersistBlockMatrix(_) =>
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
         assert(ctxs.typ.isInstanceOf[TStream])
-      case x@ReadPartition(path, spec, rowType) =>
+      case x@ReadPartition(context, rowType, reader) =>
         assert(rowType.isRealizable)
-        assert(path.typ == TString)
+        assert(context.typ == reader.contextType)
         assert(x.typ == TStream(rowType))
-        assert(spec.encodedType.decodedPType(rowType).virtualType == rowType)
+        assert(PruneDeadFields.isSupertype(rowType, reader.fullRowType))
       case x@ReadValue(path, spec, requestedType) =>
         assert(path.typ == TString)
         assert(spec.encodedType.decodedPType(requestedType).virtualType == requestedType)

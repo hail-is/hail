@@ -6,6 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir
+import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, TableToTableFunction}
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
@@ -140,6 +141,47 @@ object TableNativeReader {
     implicit val formats: Formats = DefaultFormats + new NativeReaderOptionsSerializer()
     val params = jv.extract[TableNativeReaderParameters]
     TableNativeReader(fs, params)
+  }
+}
+
+case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends PartitionReader {
+  def fullRowType: Type = spec.encodedVirtualType
+
+  def contextType: Type = TString
+
+  def rowPType(requestedType: Type): PType = spec.decodedPType(requestedType)
+
+  def emitStream[C](context: IR,
+    requestedType: Type,
+    emitter: Emit[C],
+    mb: EmitMethodBuilder[C],
+    region: Value[Region],
+    env: Emit.E,
+    container: Option[AggContainer]): COption[SizedStream] = {
+
+    def emitIR(ir: IR, env: Emit.E = env, region: Value[Region] = region, container: Option[AggContainer] = container): EmitCode =
+      emitter.emitWithRegion(ir, mb, region, env, container)
+
+    val (eltType, dec) = spec.buildEmitDecoderF[Long](requestedType, mb.ecb)
+
+    COption.fromEmitCode(emitIR(context)).map { path =>
+      val pathString = path.asString.loadString()
+      val xRowBuf = mb.newLocal[InputBuffer]()
+      val stream = Stream.unfold[Code[Long]](
+        Code._empty,
+        Code._empty,
+        (_, k) =>
+          k(COption(
+            !xRowBuf.load().readByte().toZ,
+            dec(region, xRowBuf))))
+        .map(
+          EmitCode.present(eltType, _),
+          setup0 = None,
+          setup = Some(xRowBuf := spec
+            .buildCodeInputBuffer(mb.open(pathString, true))))
+
+      SizedStream.unsized(stream)
+    }
   }
 }
 

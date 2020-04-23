@@ -398,7 +398,7 @@ object EmitUtils {
   }
 }
 
-private class Emit[C](
+class Emit[C](
   val ctx: ExecuteContext,
   val cb: EmitClassBuilder[C]) { emitSelf =>
 

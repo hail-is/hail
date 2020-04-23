@@ -743,30 +743,8 @@ object EmitStream {
 
           COption.present(SizedStream(Code._empty, stream, Some(elements.length)))
 
-        case x@ReadPartition(pathIR, spec, requestedType) =>
-          val eltType = coerce[PStream](x.pType).elementType
-          val strType = coerce[PString](pathIR.pType)
-
-          val (_, dec) = spec.buildEmitDecoderF[Long](requestedType, mb.ecb)
-
-          COption.fromEmitCode(emitIR(pathIR)).map { path =>
-            val pathString = path.asString.loadString()
-            val xRowBuf = mb.newLocal[InputBuffer]()
-            val stream = unfold[Code[Long]](
-              Code._empty,
-              Code._empty,
-              (_, k) =>
-                k(COption(
-                  !xRowBuf.load().readByte().toZ,
-                  dec(region, xRowBuf))))
-            .map(
-              EmitCode.present(eltType, _),
-              setup0 = None,
-              setup = Some(xRowBuf := spec
-                .buildCodeInputBuffer(mb.open(pathString, true))))
-
-            SizedStream.unsized(stream)
-          }
+        case x@ReadPartition(context, rowType, reader) =>
+          reader.emitStream(context, rowType, emitter, mb, region, env, container)
 
         case In(n, PCanonicalStream(eltType, _)) =>
           val xIter = mb.newLocal[Iterator[RegionValue]]()

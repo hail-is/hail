@@ -417,8 +417,8 @@ object Pretty {
             case RelationalLetTable(name, _, _) => prettyIdentifier(name)
             case RelationalLetMatrixTable(name, _, _) => prettyIdentifier(name)
             case RelationalLetBlockMatrix(name, _, _) => prettyIdentifier(name)
-            case ReadPartition(_, spec, rowType) =>
-              s"${ prettyStringLiteral(spec.toString) } ${ rowType.parsableString() }"
+            case ReadPartition(_, rowType, reader) =>
+              s"${ rowType.parsableString() } ${ prettyStringLiteral(Serialization.write(reader)(PartitionReader.formats)) }"
             case ReadValue(_, spec, reqType) =>
               s"${ prettyStringLiteral(spec.toString) } ${ reqType.parsableString() }"
             case WriteValue(_, _, spec) => prettyStringLiteral(spec.toString)

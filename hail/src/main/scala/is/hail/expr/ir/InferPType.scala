@@ -531,9 +531,9 @@ object InferPType {
         infer(globalsIR)
         infer(bodyIR, env.bind(contextsName -> x.decodedContextPType, globalsName -> x.decodedGlobalPType))
         PCanonicalArray(x.decodedBodyPType, contextsIR.pType.required)
-      case ReadPartition(rowIR, codecSpec, rowType) =>
-        infer(rowIR)
-        val child = codecSpec.decodedPType(rowType)
+      case ReadPartition(context, rowType, reader) =>
+        infer(context)
+        val child = reader.rowPType(rowType)
         PCanonicalStream(child, child.required)
       case ReadValue(path, spec, requestedType) =>
         infer(path)
