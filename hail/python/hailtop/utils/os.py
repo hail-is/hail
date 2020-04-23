@@ -3,7 +3,7 @@ import shutil
 import glob
 from functools import wraps
 
-from .utils import blocking_to_async, flatten
+from .utils import blocking_to_async
 
 
 def make_parent_dirs(path):
