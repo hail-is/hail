@@ -313,7 +313,7 @@ class TableGroupWithinPartitions(TableIR):
         child_typ = self.child.typ
 
         self._type = hl.ttable(child_typ.global_type,
-                               child_typ.key_type.annotate(**{self.name: hl.tarray(child_typ.row_type)}),
+                               child_typ.key_type._insert_field(self.name, hl.tarray(child_typ.row_type)),
                                child_typ.row_key)
 
 
