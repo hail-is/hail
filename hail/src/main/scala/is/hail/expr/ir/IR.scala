@@ -529,7 +529,7 @@ final case class ShuffleRead(
   id: IR,
   keyRange: IR,
   rowType: TBaseStruct,
-  rowEType: EBaseStruct // same as the one in ShuffleStart, but with helps bookkeeping
+  rowEType: EBaseStruct
 ) extends IR
 
 final case class ShuffleDelete(
