@@ -17,6 +17,7 @@ case class ShuffledStage(child: TableStage)
 case class Binding(name: String, value: IR)
 
 case class TableStage(
+  letBindings: IndexedSeq[(String, IR)],
   broadcastVals: IR,
   globalsField: String,
   partitioner: RVDPartitioner,
@@ -24,8 +25,14 @@ case class TableStage(
   contexts: IR,
   body: IR) {
 
-  def toIR(bodyTransform: IR => IR): CollectDistributedArray =
-    CollectDistributedArray(contexts, broadcastVals, "context", "global", bodyTransform(body))
+  def toIR(bodyTransform: IR => IR): IR = {
+    val cda = CollectDistributedArray(contexts, broadcastVals, "context", "global", bodyTransform(body))
+    val wrappedCDA = letBindings.foldRight(cda: IR){case ((name, binding), soFar) =>
+      Let(name, binding, soFar)
+    }
+    println(Pretty(wrappedCDA))
+    wrappedCDA
+  }
 
   def broadcastRef: IR = Ref("global", broadcastVals.typ)
   def contextRef: IR = Ref("context", contextType)
@@ -85,6 +92,7 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
 
             if (dropRows) {
               TableStage(
+                IndexedSeq[(String, IR)](),
                 MakeStruct(FastIndexedSeq(globalRef -> globals)),
                 globalRef,
                 RVDPartitioner.empty(typ.keyType),
@@ -100,6 +108,7 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
 
               if (rowsSpec.key startsWith typ.key) {
                 TableStage(
+                  IndexedSeq[(String, IR)](),
                   MakeStruct(FastIndexedSeq(globalRef -> globals)),
                   globalRef,
                   partitioner,
@@ -115,28 +124,36 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
         }
 
       case TableParallelize(rowsAndGlobal, nPartitions) =>
+        def idAndRef(typ: Type): (String, IR) = {
+          val id = genUID()
+          (id, Ref(id, typ))
+        }
+
         val nPartitionsAdj = nPartitions.getOrElse(16)
         val loweredRowsAndGlobal = lowerIR(rowsAndGlobal)
+        val (loweredRowsAndGlobalID, loweredRowsAndGlobalRef) = idAndRef(loweredRowsAndGlobal.typ)
 
         val contextType = TStruct(
-          "elements" -> TArray(GetField(loweredRowsAndGlobal, "rows").typ.asInstanceOf[TArray].elementType)
+          "elements" -> TArray(GetField(loweredRowsAndGlobalRef, "rows").typ.asInstanceOf[TArray].elementType)
         )
+        val numRows = ArrayLen(GetField(loweredRowsAndGlobalRef, "rows"))
+
+        val numNonEmptyPartitions = If(numRows < nPartitionsAdj, numRows, nPartitionsAdj)
+        val (numNonEmptyPartitionsID, numNonEmptyPartitionsRef) = idAndRef(numNonEmptyPartitions.typ)
+
+        val q = numRows floorDiv numNonEmptyPartitionsRef
+        val (qID, qRef) = idAndRef(q.typ)
+
+        val remainder = numRows - qRef * numNonEmptyPartitionsRef
+        val (remainderID, remainderRef) = idAndRef(remainder.typ)
 
         val context = MakeStream((0 until nPartitionsAdj).map { partIdx =>
-          val numRows = ArrayLen(GetField(loweredRowsAndGlobal, "rows"))
-          val numNonEmptyPartitions = If(numRows < nPartitionsAdj, numRows, nPartitionsAdj)
-          val q = numRows floorDiv numNonEmptyPartitions
-          val remainder = numRows - q * numNonEmptyPartitions
-          val length = If(numNonEmptyPartitions >= partIdx,
-            If(remainder > 0,
-              If(remainder > partIdx, q + 1, q),
-              q),
-            0
-          )
-          val start = If(numNonEmptyPartitions >= partIdx,
-            If(remainder > 0,
-              If(remainder < partIdx, q * partIdx + remainder, (q + 1) * partIdx),
-              q * partIdx
+          val length = (numRows - partIdx + nPartitionsAdj - 1) floorDiv nPartitionsAdj
+
+          val start = If(numNonEmptyPartitionsRef >= partIdx,
+            If(remainderRef > 0,
+              If(remainderRef < partIdx, qRef * partIdx + remainderRef, (qRef + 1) * partIdx),
+              qRef * partIdx
             ),
             0
           )
@@ -145,6 +162,12 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
         }, TStream(contextType))
 
         TableStage(
+          IndexedSeq[(String, IR)](
+            (loweredRowsAndGlobalID, loweredRowsAndGlobal),
+            (numNonEmptyPartitionsID, numNonEmptyPartitions),
+            (qID, q),
+            (remainderID, remainder)
+          ),
           SelectFields(loweredRowsAndGlobal, FastSeq("global")),
           "global",
           RVDPartitioner.unkeyed(nPartitionsAdj),
@@ -169,6 +192,7 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
         val globalRef = genUID()
 
         TableStage(
+          IndexedSeq[(String, IR)](),
           MakeStruct(FastIndexedSeq(globalRef -> MakeStruct(Seq()))),
           globalRef,
           new RVDPartitioner(Array("idx"), tir.typ.rowType,
