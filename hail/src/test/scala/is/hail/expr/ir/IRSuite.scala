@@ -1777,7 +1777,7 @@ class IRSuite extends HailSuite {
   }
 
   def toNestedArray(stream: IR): IR = {
-    val innerType = coerce[TStream](stream.typ).elementType
+    val innerType = coerce[TStream](coerce[TStream](stream.typ).elementType)
     ToArray(StreamMap(stream, "inner", ToArray(Ref("inner", innerType))))
   }
 

@@ -377,7 +377,7 @@ object Interpret {
         if (aValue == null)
           null
         else {
-          val structType = a.typ.asInstanceOf[TStruct]
+          val structType = coerce[TStruct](coerce[TStream](a.typ).elementType)
           val seq = aValue.asInstanceOf[IndexedSeq[Row]]
           if (seq.isEmpty)
             FastIndexedSeq[IndexedSeq[Row]]()
@@ -398,7 +398,7 @@ object Interpret {
             }
             outer += inner.result()
 
-            outer.result()
+            outer.result().toFastIndexedSeq
           }
         }
       case StreamMap(a, name, body) =>

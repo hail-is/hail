@@ -622,29 +622,26 @@ object EmitStream {
       val xCurKey = ctx.mb.newPLocal("st_grpby_curkey", keyType)
       val xCurElt = ctx.mb.newPLocal("st_grpby_curelt", eltType)
       val xInOuter = ctx.mb.newLocal[Boolean]("st_grpby_io")
-      val xFirstPull = ctx.mb.newLocal[Boolean]("st_grpby_fp")
+      val xEOS = ctx.mb.newLocal[Boolean]("st_grpby_eos")
+      val xNextGrpReady = ctx.mb.newLocal[Boolean]("st_grpby_ngr")
 
       val LchildPull = CodeLabel()
       val LouterPush = CodeLabel()
       val LinnerPush = CodeLabel()
       val LouterEos = CodeLabel()
+      val LinnerEos = CodeLabel()
 
       var childSource: Source[PCode] = null
       val inner = new Stream[PCode] {
         def apply(innerEos: Code[Ctrl], innerPush: PCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[PCode] = {
-          val LinnerEos = CodeLabel()
-
           childSource = stream(
-            xInOuter.mux(LouterEos.goto, LinnerEos.goto),
+            xInOuter.mux(LouterEos.goto, Code(xEOS := true, LinnerEos.goto)),
             { a: PCode =>
-              Code(LinnerPush, innerPush(a))
-
               Code(
                 xCurElt := a,
                 // !xInOuter iff this element was requested by an inner stream.
                 // Else we are stepping to the beginning of the next group.
-
-                (!xFirstPull && ordering.equivNonnull(xCurKey.tcode[Long], xCurElt.tcode[Long])).mux(
+                (xCurKey.tcode[Long].cne(0L) && ordering.equivNonnull(xCurKey.tcode[Long], xCurElt.tcode[Long])).mux(
                   xInOuter.mux(
                     LchildPull.goto,
                     LinnerPush.goto),
@@ -652,9 +649,10 @@ object EmitStream {
                     xCurKey := keyType.copyFromPValue(mb, region, new PSubsetStructCode(keyViewType, xCurElt.tcode[Long])),
                     xInOuter.mux(
                       LouterPush.goto,
-                      LinnerEos.goto))))
+                      Code(xNextGrpReady := true, LinnerEos.goto)))))
             })
 
+          Code(LinnerPush, innerPush(xCurElt))
           Code(LinnerEos, innerEos)
           Code(LchildPull, childSource.pull)
 
@@ -680,9 +678,16 @@ object EmitStream {
         setup = Code(
           childSource.setup,
           xCurKey := keyType.defaultValue,
-          xFirstPull := true),
+          xEOS := false,
+          xNextGrpReady := false),
         close = childSource.close,
-        pull = Code(xInOuter := true, LchildPull.goto))
+        pull = Code(
+          xInOuter := true,
+          xEOS.mux(
+            LouterEos.goto,
+            xNextGrpReady.mux(
+              Code(xNextGrpReady := false, LouterPush.goto),
+              LchildPull.goto))))
     }
   }
 
