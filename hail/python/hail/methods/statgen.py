@@ -548,11 +548,11 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
     indices_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[0])
     ys_and_covs_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[1])
 
+    cov_nd = hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[cov_name] for cov_name in cov_field_names]))) if cov_field_names else hl.nd.zeros((hl.len(indices_to_keep), 0)) #TODO Double check shape
     ht = ht.annotate_globals(kept_samples=indices_to_keep,
                              __y_nd=hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[y_name] for y_name in y_field_names]))),
                              # TODO: When there are no covariates, can't call array.
-                             __cov_nd=hl.nd.array(ys_and_covs_to_keep.map(lambda struct: hl.array([struct[cov_name] for cov_name in cov_field_names]))))
-
+                             __cov_nd=cov_nd)
     k = builtins.len(covariates)
     #if d < 1:
     #    raise FatalError(f"{n} samples and {k + 1} covariates (including x) implies ${d} degrees of freedom.")
@@ -560,7 +560,7 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
     ht = ht.annotate(**{X_field_name: hl.nd.array(hl.map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples)), ht["grouped_fields"][entries_field_name])).T})
     ht = ht.annotate_globals(n=hl.len(ht.kept_samples))
     ht = ht.annotate_globals(d=ht.n-k-1)
-    ht = ht.annotate_globals(__cov_Qt=hl.if_else(k > 0, hl.nd.qr(ht.__cov_nd)[0].T, hl.nd.zeros((1, ht.n))))  # TODOD Why the hell does the zero matrix have 0 rows in Breeze? I'm probably handling this case wrong.
+    ht = ht.annotate_globals(__cov_Qt=hl.if_else(k > 0, hl.nd.qr(ht.__cov_nd)[0].T, hl.nd.zeros((0, ht.n))))
     ht = ht.annotate_globals(__Qty=ht.__cov_Qt @ ht.__y_nd)
     ht = ht.annotate_globals(__yyp=hl.nd.diagonal(ht.__y_nd.T @ ht.__y_nd) - hl.nd.diagonal(ht.__Qty.T @ ht.__Qty))
 
