@@ -99,20 +99,20 @@ class PruneSuite extends HailSuite {
     def fullType: TableType = tab.typ
   })
 
-  val mType = MatrixType(
+  lazy val mType = MatrixType(
     TStruct("g1" -> TInt32, "g2" -> TFloat64),
     FastIndexedSeq("ck"),
     TStruct("ck" -> TString, "c2" -> TInt32, "c3" -> TArray(TStruct("cc" -> TInt32))),
     FastIndexedSeq("rk"),
     TStruct("rk" -> TInt32, "r2" -> TStruct("x" -> TInt32), "r3" -> TArray(TStruct("rr" -> TInt32))),
     TStruct("e1" -> TFloat64, "e2" -> TFloat64))
-  val mat = MatrixLiteral(ctx,
+  lazy val mat = MatrixLiteral(ctx,
     mType,
     RVD.empty(sc, mType.canonicalTableType.canonicalRVDType),
     Row(1, 1.0),
     FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3)))))
 
-  val mr = MatrixRead(mat.typ, false, false, new MatrixReader {
+  lazy val mr = MatrixRead(mat.typ, false, false, new MatrixReader {
     def pathsUsed: Seq[String] = FastSeq()
 
     override def columnCount: Option[Int] = None
@@ -126,7 +126,7 @@ class PruneSuite extends HailSuite {
     def toJValue: JValue = ???
   })
 
-  val emptyTableDep = TableType(TStruct.empty, FastIndexedSeq(), TStruct.empty)
+  lazy val emptyTableDep = TableType(TStruct.empty, FastIndexedSeq(), TStruct.empty)
 
   def tableRefBoolean(tt: TableType, fields: String*): IR = {
     var let: IR = True()
