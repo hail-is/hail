@@ -85,7 +85,14 @@ hr {
 
 #hail-navbar.documentation-view {
   position: fixed;
+  height: 52px;
+  z-index: 999;
   width: 100%;
+}
+
+#hail-navbar.documentation-view #hail-container-fluid {
+  padding-left: 0px; /*bootstrap enforced style*/
+  padding-right: 0px;
 }
 
 @media screen and (max-width: 768px) {
