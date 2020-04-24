@@ -65,9 +65,10 @@ def get_client_ssl_context():
 
 
 def ssl_client_session(*args, **kwargs):
-    return TLSAIOHTTPClientSession(
-        get_client_ssl_context(),
-        aiohttp.ClientSession(*args, **kwargs))
+    assert 'connector' not in kwargs
+    return aiohttp.ClientSession(
+        *args, **kwargs,
+        connector=aiohttp.TCPConnector(ssl=get_client_ssl_context()))
 
 
 def ssl_requests_client_session(*args, **kwargs):
@@ -101,129 +102,3 @@ class TLSAdapter(HTTPAdapter):
             cert_file=self.ssl_cert,
             ca_certs=self.ssl_ca,
             assert_hostname=True)
-
-
-class TLSAIOHTTPClientSession:
-    def __init__(self, ssl_context, session):
-        self.ssl_context = ssl_context
-        self.session = session
-
-    def __del__(self):
-        self.session.__del__()
-
-    def request(self, *args, **kwargs):
-        if 'ssl' not in kwargs:
-            kwargs['ssl'] = self.ssl_context
-        return self.session.request(*args, **kwargs)
-
-    def ws_connect(self, *args, **kwargs):
-        if 'ssl' not in kwargs:
-            kwargs['ssl'] = self.ssl_context
-        return self.ws_connect(*args, **kwargs)
-
-    def get(self, *args, **kwargs):
-        if 'ssl' not in kwargs:
-            kwargs['ssl'] = self.ssl_context
-        return self.session.get(*args, **kwargs)
-
-    def options(self, *args, **kwargs):
-        if 'ssl' not in kwargs:
-            kwargs['ssl'] = self.ssl_context
-        return self.session.options(*args, **kwargs)
-
-    def head(self, *args, **kwargs):
-        if 'ssl' not in kwargs:
-            kwargs['ssl'] = self.ssl_context
-        return self.session.head(*args, **kwargs)
-
-    def post(self, *args, **kwargs):
-        if 'ssl' not in kwargs:
-            kwargs['ssl'] = self.ssl_context
-        return self.session.post(*args, **kwargs)
-
-    def put(self, *args, **kwargs):
-        if 'ssl' not in kwargs:
-            kwargs['ssl'] = self.ssl_context
-        return self.session.put(*args, **kwargs)
-
-    def patch(self, *args, **kwargs):
-        if 'ssl' not in kwargs:
-            kwargs['ssl'] = self.ssl_context
-        return self.session.patch(*args, **kwargs)
-
-    def delete(self, *args, **kwargs):
-        if 'ssl' not in kwargs:
-            kwargs['ssl'] = self.ssl_context
-        return self.session.delete(*args, **kwargs)
-
-    async def close(self):
-        return await self.session.close()
-
-    @property
-    def closed(self):
-        return self.session.closed()
-
-    @property
-    def connector(self):
-        return self.session.connector()
-
-    @property
-    def cookie_jar(self):
-        return self.session.cookie_jar()
-
-    @property
-    def version(self):
-        return self.session.version()
-
-    @property
-    def requote_redirect_url(self):
-        return self.session.requote_redirect_url()
-
-    @property
-    def timeout(self):
-        return self.session.timeout()
-
-    @property
-    def headers(self):
-        return self.session.headers()
-
-    @property
-    def skip_auto_headers(self):
-        return self.session.skip_auto_headers()
-
-    @property
-    def auth(self):
-        return self.session.auth()
-
-    @property
-    def json_serialize(self):
-        return self.session.json_serialize()
-
-    @property
-    def connector_owner(self):
-        return self.session.connector_owner()
-
-    @property
-    def raise_for_status(self):
-        return self.session.raise_for_status()
-
-    @property
-    def auto_decompress(self):
-        return self.session.auto_decompress()
-
-    @property
-    def trust_env(self):
-        return self.session.trust_env()
-
-    @property
-    def trace_configs(self):
-        return self.session.trace_configs()
-
-    def detach(self) -> None:
-        self.session.detach()
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.session.__aexit__(exc_type, exc_val, exc_tb)
