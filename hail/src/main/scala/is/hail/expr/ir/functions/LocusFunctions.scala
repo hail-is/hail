@@ -63,25 +63,6 @@ object LocusFunctions extends RegistryFunctions {
       srvb.advance()))
   }
 
-  def emitLiftoverLocus(r: EmitRegion, result: Code[(Locus, Boolean)], rt: PStruct): Code[Long] = {
-    val rlocal = r.mb.newLocal[(Locus, Boolean)]()
-    val blocal = r.mb.newLocal[Boolean]()
-    val srvb = new StagedRegionValueBuilder(r, rt)
-    val addLocus = { srvb: StagedRegionValueBuilder =>
-      emitLocus(srvb, Code.checkcast[Locus](rlocal.getField[java.lang.Object]("_1")))
-    }
-
-    Code(
-      rlocal := result,
-      blocal := Code.checkcast[java.lang.Boolean](rlocal.getField[java.lang.Object]("_2")).invoke[Boolean]("booleanValue"),
-      srvb.start(),
-      srvb.addBaseStruct(types.coerce[PStruct](rt.field("result").typ.fundamentalType), addLocus),
-      srvb.advance(),
-      srvb.addBoolean(blocal),
-      srvb.advance(),
-      srvb.offset)
-  }
-
   def emitLiftoverLocusInterval(r: EmitRegion, result: Code[(Interval, Boolean)], pt: PStruct): Code[Long] = {
     val rlocal = r.mb.newLocal[(Interval, Boolean)]()
     val ilocal = r.mb.newLocal[Interval]()
@@ -396,7 +377,7 @@ object LocusFunctions extends RegistryFunctions {
     registerEmitCode2("liftoverLocus", tlocus("T"), TFloat64, TStruct("result" -> tv("U", "locus"), "is_negative_strand" -> TBoolean), {
       (returnType: Type, _: PType, _: PType) => {
         val lTyp = returnType.asInstanceOf[TStruct].field("result").typ.asInstanceOf[TLocus]
-        PCanonicalStruct("result" -> PCanonicalLocus(lTyp.rg, true), "is_negative_strand" -> PBoolean(true))
+        PCanonicalStruct("result" -> PBetterLocus(lTyp.rg, true), "is_negative_strand" -> PBoolean(true))
       }
     }) {
       case (r, rt: PStruct, loc, minMatch) =>
@@ -408,11 +389,26 @@ object LocusFunctions extends RegistryFunctions {
         val tlocal = r.mb.newLocal[(Locus, Boolean)]()
         val lifted = rgCode(r.mb, srcRG).invoke[String, Locus, Double, (Locus, Boolean)]("liftoverLocus", destRG.name, locus, minMatch.value[Double])
 
+        val rlocal = r.mb.newLocal[(Locus, Boolean)]()
+        val blocal = r.mb.newLocal[Boolean]()
+        val srvb = new StagedRegionValueBuilder(r, rt)
+        val locus = PBetterLocusCode.fromLocusObj(rt.fieldType("result").asInstanceOf[PBetterLocus], r.mb,
+          Code.checkcast[Locus](rlocal.getField[java.lang.Object]("_1"))).v
+
+        val addr = Code(
+          rlocal := result,
+          blocal := Code.checkcast[java.lang.Boolean](rlocal.getField[java.lang.Object]("_2")).invoke[Boolean]("booleanValue"),
+          srvb.start(),
+          srvb.addLong(locus),
+          srvb.advance(),
+          srvb.addBoolean(blocal),
+          srvb.advance(),
+          srvb.offset)
+
         EmitCode(
           Code(loc.setup, minMatch.setup, tlocal := Code._null),
           loc.m || minMatch.m || Code(tlocal := lifted, tlocal.isNull),
-          PCode(rt, emitLiftoverLocus(r, tlocal, rt))
-        )
+          PCode(rt, addr))
     }
 
     registerEmitCode2("liftoverLocusInterval", tinterval("T"), TFloat64, TStruct("result" -> tinterval("U"), "is_negative_strand" -> TBoolean), {
