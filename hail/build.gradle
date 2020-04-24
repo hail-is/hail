@@ -26,33 +26,11 @@ repositories {
     maven { url "https://repo.spring.io/plugins-release/" }
 }
 
-String sparkVersion = System.getProperty("spark.version", "2.4.0")
-String breezeVersion = System.getProperty("breeze.version")
-String py4jVersion = System.getProperty("py4j.version")
-
-if (!(sparkVersion ==~ /^2\.[2-4].*/))
-    ant.fail('Hail does not support Spark version ' + sparkVersion + '. Hail team recommends version 2.4.0.')
-
-String scalaVersion = '2.11.8'
+String sparkVersion = "2.4.5"
+String breezeVersion = "0.13.2"
+String py4jVersion = "0.10.7"
+String scalaVersion = '2.11.12'
 String scalaMajorVersion = '2.11'
-
-if (py4jVersion == null || py4jVersion == '') {
-  if (sparkVersion == '2.2.0')
-    py4jVersion = '0.10.4'
-  else if (sparkVersion == '2.3.0')
-    py4jVersion = '0.10.6'
-  else
-    py4jVersion = '0.10.7'
-}
-
-if (breezeVersion == null || breezeVersion == '') {
-  if (sparkVersion == '2.2.0')
-    breezeVersion = '0.13.1'
-  else
-    breezeVersion = '0.13.2'
-}
-
-String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
 
 sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
