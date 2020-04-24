@@ -355,6 +355,35 @@ abstract class RegistryFunctions {
     })
   }
 
+  def registerIEmitCode(mname: String, aTypes: Array[Type], rType: Type, pt: (Type, Seq[PType]) => PType, typeParams: Array[Type] = Array.empty)
+    (impl: (EmitCodeBuilder, Value[Region], PType, Array[IEmitCode]) => IEmitCode) {
+    val _typeParams = typeParams
+    IRFunctionRegistry.addIRFunction(new IRFunctionWithMissingness {
+      override val name: String = mname
+
+      override val typeParams: Seq[Type] = _typeParams
+
+      override val argTypes: Seq[Type] = aTypes
+
+      override val returnType: Type = rType
+
+      override def returnPType(argTypes: Seq[PType], returnType: Type): PType =
+        if (pt == null) PType.canonical(returnType) else pt(returnType, argTypes)
+
+      override def apply(cb: EmitCodeBuilder, r: Value[Region], rpt: PType,
+          typeParams: Seq[Type], args: IEmitCode*): IEmitCode = {
+        assert(unify(typeParams, args.map(_.pt.virtualType), rpt.virtualType))
+        impl(cb, r, rpt, args.toArray)
+      }
+
+      override def apply(r: EmitRegion, rpt: PType, typeParams: Seq[Type], args: EmitCode*): EmitCode = {
+        EmitCode.fromI(r.mb) { cb =>
+          apply(cb, r.region, rpt, typeParams, args.map(_.toI(cb)): _*)
+        }
+      }
+    })
+  }
+
   def registerScalaFunction(mname: String, argTypes: Array[Type], rType: Type, pt: (Type, Seq[PType]) => PType)(cls: Class[_], method: String) {
     registerCode(mname, argTypes, rType, pt) { case (r, rt, _, args) =>
       val cts = argTypes.map(TypeToIRIntermediateClassTag(_).runtimeClass)
@@ -477,6 +506,11 @@ abstract class RegistryFunctions {
       a5: (PType, Code[A5]) @unchecked)) => impl(r, rt, a1, a2, a3, a4, a5)
     }
 
+  def registerIEmitCode1(mname: String, mt1: Type, rt: Type, pt: (Type, PType) => PType)
+    (impl: (EmitCodeBuilder, Value[Region], PType, IEmitCode) => IEmitCode): Unit =
+    registerIEmitCode(mname, Array(mt1), rt, unwrappedApply(pt)) { case (cb, r, rt, Array(a1)) =>
+      impl(cb, r, rt, a1)
+    }
 
   def registerEmitCode0(mname: String, rt: Type, pt: PType)(impl: EmitRegion => EmitCode): Unit =
     registerEmitCode(mname, Array[Type](), rt, (_: Type, _: Seq[PType]) => pt) { case (r, rt, Array()) => impl(r) }
@@ -644,6 +678,15 @@ abstract class IRFunctionWithMissingness extends IRFunction {
   def argTypes: Seq[Type]
 
   def apply(r: EmitRegion, rpt: PType, typeParams: Seq[Type], args: EmitCode*): EmitCode
+
+  def apply(cb: EmitCodeBuilder,
+    r: Value[Region],
+    rpt: PType,
+    typeParams: Seq[Type],
+    args: IEmitCode*
+  ): IEmitCode = {
+    ???
+  }
 
   def returnType: Type
 }
