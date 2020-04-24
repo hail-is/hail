@@ -108,7 +108,7 @@ async def callback(request):
 
 
 async def create_copy_paste_token(db, session_id, max_age_secs=300):
-    copy_paste_token = secret_alnum_string(64)
+    copy_paste_token = secret_alnum_string()
     await db.just_execute(
         "INSERT INTO copy_paste_tokens (id, session_id, max_age_secs) VALUES(%s, %s, %s);",
         (copy_paste_token, session_id, max_age_secs))

@@ -31,7 +31,10 @@ def first_extant_file(*files):
     return None
 
 
-def secret_alnum_string(n):
+def secret_alnum_string(n=22):
+    # 22 characters is math.log(62 ** 22, 2) == ~130 bits of randomness. OWASP
+    # recommends at least 128 bits:
+    # https://owasp.org/www-community/vulnerabilities/Insufficient_Session-ID_Length
     return ''.join([secrets.choice(
         'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     ) for _ in range(n)])
