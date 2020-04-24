@@ -1572,7 +1572,6 @@ steps:
    contextPath: docker/hail/
    publishAs: hail-public
    dependsOn:
-    - build_hail
     - copy_files
    inputs:
      - from: /hail_pip_version
