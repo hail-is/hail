@@ -144,9 +144,9 @@ object Copy {
       case StreamGrouped(_, _) =>
         assert(newChildren.length == 2)
         StreamGrouped(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case StreamGroupedByKey(_, key) =>
+      case StreamGroupByKey(_, key) =>
         assert(newChildren.length == 1)
-        StreamGroupedByKey(newChildren(0).asInstanceOf[IR], key)
+        StreamGroupByKey(newChildren(0).asInstanceOf[IR], key)
       case StreamMap(_, name, _) =>
         assert(newChildren.length == 2)
         StreamMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])

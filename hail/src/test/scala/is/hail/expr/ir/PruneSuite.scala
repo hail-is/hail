@@ -592,8 +592,8 @@ class PruneSuite extends HailSuite {
               TStream(TStream(justB)), Array(TStream(justB), null))
   }
 
-  @Test def testStreamGroupedByKeyMemo() {
-    checkMemo(StreamGroupedByKey(st, FastIndexedSeq("a")),
+  @Test def testStreamGroupByKeyMemo() {
+    checkMemo(StreamGroupByKey(st, FastIndexedSeq("a")),
               TStream(TStream(justB)), Array(TStream(TStruct("a" -> TInt32, "b" -> TInt32)), null))
   }
 
@@ -1111,10 +1111,10 @@ class PruneSuite extends HailSuite {
       })
   }
 
-  @Test def testStreamGroupedByKeyRebuild() {
-    checkRebuild(StreamGroupedByKey(MakeStream(Seq(NA(ts)), TStream(ts)), FastIndexedSeq("a")), TStream(TStream(subsetTS("b"))),
+  @Test def testStreamGroupByKeyRebuild() {
+    checkRebuild(StreamGroupByKey(MakeStream(Seq(NA(ts)), TStream(ts)), FastIndexedSeq("a")), TStream(TStream(subsetTS("b"))),
                  (_: BaseIR, r: BaseIR) => {
-                   val ir = r.asInstanceOf[StreamGroupedByKey]
+                   val ir = r.asInstanceOf[StreamGroupByKey]
                    ir.a.typ == TStream(subsetTS("a", "b"))
                  })
   }

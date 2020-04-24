@@ -372,7 +372,7 @@ object Interpret {
           if (size <= 0) fatal("StreamGrouped: nonpositive size")
           aValue.asInstanceOf[IndexedSeq[Any]].grouped(size).toFastIndexedSeq
         }
-      case StreamGroupedByKey(a, key) =>
+      case StreamGroupByKey(a, key) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
           null

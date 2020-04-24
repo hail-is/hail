@@ -961,7 +961,7 @@ object PruneDeadFields {
         unifyEnvs(
           memoizeValueIR(a, requestedType.asInstanceOf[TStream].elementType, memo),
           memoizeValueIR(size, size.typ, memo))
-      case StreamGroupedByKey(a, key) =>
+      case StreamGroupByKey(a, key) =>
         val reqStructT = coerce[TStruct](coerce[TStream](coerce[TStream](requestedType).elementType).elementType)
         val origStructT = coerce[TStruct](coerce[TStream](a.typ).elementType)
         memoizeValueIR(a, TStream(unify(origStructT, reqStructT, selectKey(origStructT, key))), memo)

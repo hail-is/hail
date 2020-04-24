@@ -900,7 +900,7 @@ object EmitStream {
             }
           }
 
-        case x@StreamGroupedByKey(a, key) =>
+        case x@StreamGroupByKey(a, key) =>
           val innerType = coerce[PCanonicalStream](coerce[PStream](x.pType).elementType)
           val eltType = coerce[PStruct](innerType.elementType)
           val optStream = emitStream(a, env)

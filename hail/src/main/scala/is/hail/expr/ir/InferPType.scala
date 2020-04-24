@@ -293,7 +293,7 @@ object InferPType {
         assert(size.pType isOfType PInt32())
         assert(a.pType.isInstanceOf[PStream])
         PCanonicalStream(a.pType.setRequired(true)).orMissing(a.pType.required && size.pType.required)
-      case StreamGroupedByKey(a, key) =>
+      case StreamGroupByKey(a, key) =>
         infer(a)
         val structType = a.pType.asInstanceOf[PStream].elementType.asInstanceOf[PStruct]
         assert(structType.required)

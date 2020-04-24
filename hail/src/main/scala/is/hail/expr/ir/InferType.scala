@@ -104,7 +104,7 @@ object InferType {
         a.typ
       case StreamGrouped(a, _) =>
         TStream(a.typ)
-      case StreamGroupedByKey(a, _) =>
+      case StreamGroupByKey(a, _) =>
         TStream(a.typ)
       case StreamMap(a, name, body) =>
         TStream(body.typ)

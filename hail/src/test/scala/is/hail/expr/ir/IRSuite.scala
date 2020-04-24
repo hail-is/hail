@@ -1808,7 +1808,7 @@ class IRSuite extends HailSuite {
                   FastIndexedSeq(FastIndexedSeq(), FastIndexedSeq()))
   }
 
-  @Test def testStreamGroupedByKey() {
+  @Test def testStreamGroupByKey() {
     val structType = TStruct("a" -> TInt32, "b" -> TInt32)
     val naa = NA(TStream(structType))
     val a = MakeStream(
@@ -1821,7 +1821,7 @@ class IRSuite extends HailSuite {
         MakeStruct(Seq("a" -> I32(4), "b" -> NA(TInt32)))),
       TStream(structType))
 
-    def group(a: IR): IR = StreamGroupedByKey(a, FastIndexedSeq("a"))
+    def group(a: IR): IR = StreamGroupByKey(a, FastIndexedSeq("a"))
     assertEvalsTo(toNestedArray(group(naa)), null)
     assertEvalsTo(toNestedArray(group(a)),
                   FastIndexedSeq(FastIndexedSeq(Row(3, 1), Row(3, 3)),

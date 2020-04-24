@@ -209,7 +209,7 @@ case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
     val Lafter = CodeLabel()
     cb.define(Lmissing)
     ifMissing
-    if (cb.isOpenEnded) cb.goto(Lafter)
+    cb.goto(Lafter)
     cb.define(Lpresent)
     ifPresent(pc)
     cb.define(Lafter)
