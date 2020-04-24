@@ -25,18 +25,17 @@ case class TableStage(
   contexts: IR,
   body: IR) {
 
-  def toIR(bodyTransform: IR => IR): IR = {
-    val cda = CollectDistributedArray(contexts, broadcastVals, "context", "global", bodyTransform(body))
-    val wrappedCDA = letBindings.foldRight(cda: IR){case ((name, binding), soFar) =>
-      Let(name, binding, soFar)
-    }
-    println(Pretty(wrappedCDA))
-    wrappedCDA
-  }
+  def toIR(bodyTransform: IR => IR): IR =
+    CollectDistributedArray(contexts, broadcastVals, "context", "global", bodyTransform(body))
 
   def broadcastRef: IR = Ref("global", broadcastVals.typ)
   def contextRef: IR = Ref("context", contextType)
   def globals: IR = GetField(broadcastRef, globalsField)
+  def wrapInBindings(body: IR): IR = {
+    letBindings.foldRight(body){case ((name, binding), soFar) =>
+      Let(name, binding, soFar)
+    }
+  }
 }
 
 object LowerTableIR {
@@ -50,19 +49,19 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
   def lower(ir: IR): IR = ir match {
       case TableCount(tableIR) =>
         val stage = lower(tableIR)
-        invoke("sum", TInt64, stage.toIR(node => Cast(ArrayLen(ToArray(node)), TInt64)))
+        stage.wrapInBindings(invoke("sum", TInt64, stage.toIR(node => Cast(ArrayLen(ToArray(node)), TInt64))))
 
       case TableGetGlobals(child) =>
         val stage = lower(child)
-        GetField(stage.broadcastVals, stage.globalsField)
+        stage.wrapInBindings(GetField(stage.broadcastVals, stage.globalsField))
 
       case TableCollect(child) =>
         val lowered = lower(child)
         val elt = genUID()
         val cda = lowered.toIR(x => ToArray(x))
-        MakeStruct(FastIndexedSeq(
+        lowered.wrapInBindings(MakeStruct(FastIndexedSeq(
           "rows" -> ToArray(StreamFlatMap(ToStream(cda), elt, ToStream(Ref(elt, cda.typ.asInstanceOf[TArray].elementType)))),
-          "global" -> GetField(lowered.broadcastVals, lowered.globalsField)))
+          "global" -> GetField(lowered.broadcastVals, lowered.globalsField))))
 
       case node if node.children.exists( _.isInstanceOf[TableIR] ) =>
         throw new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(node) }")
@@ -129,7 +128,7 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
           (id, Ref(id, typ))
         }
 
-        val nPartitionsAdj = nPartitions.getOrElse(16)
+        val nPartitionsAdj = nPartitions.getOrElse(2)
         val loweredRowsAndGlobal = lowerIR(rowsAndGlobal)
         val (loweredRowsAndGlobalID, loweredRowsAndGlobalRef) = idAndRef(loweredRowsAndGlobal.typ)
 
@@ -168,7 +167,7 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
             (qID, q),
             (remainderID, remainder)
           ),
-          SelectFields(loweredRowsAndGlobal, FastSeq("global")),
+          SelectFields(loweredRowsAndGlobalRef, FastSeq("global")),
           "global",
           RVDPartitioner.unkeyed(nPartitionsAdj),
           contextType,
