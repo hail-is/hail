@@ -128,7 +128,7 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
           (id, Ref(id, typ))
         }
 
-        val nPartitionsAdj = nPartitions.getOrElse(2)
+        val nPartitionsAdj = nPartitions.getOrElse(16)
         val loweredRowsAndGlobal = lowerIR(rowsAndGlobal)
         val (loweredRowsAndGlobalID, loweredRowsAndGlobalRef) = idAndRef(loweredRowsAndGlobal.typ)
 
@@ -156,7 +156,13 @@ class LowerTableIR(val typesToLower: DArrayLowering.Type) extends AnyVal {
             ),
             0
           )
-          val elements = ToArray(StreamTake(StreamDrop(ToStream(GetField(loweredRowsAndGlobal, "rows")), start), length))
+          val (startID, startRef) = idAndRef(TInt32)
+          val streamMapId = genUID()
+          val elements =
+            Let(startID, start,
+              ToArray(StreamMap(StreamRange(startRef, startRef + length, 1),
+                streamMapId, ArrayRef(GetField(loweredRowsAndGlobalRef, "rows"), Ref(streamMapId, TInt32))))
+            )
           MakeStruct(FastIndexedSeq("elements" -> elements))
         }, TStream(contextType))
 
