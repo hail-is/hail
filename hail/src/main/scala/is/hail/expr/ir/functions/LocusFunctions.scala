@@ -13,7 +13,7 @@ import is.hail.utils._
 
 object LocusFunctions extends RegistryFunctions {
 
-  def rgCode(mb: EmitMethodBuilder[_], rg: ReferenceGenome): Code[ReferenceGenome] =
+  def rgCode(mb: EmitMethodBuilder[_], rg: ReferenceGenome): Value[ReferenceGenome] =
     mb.getReferenceGenome(rg)
 
   def tlocus(name: String): Type = tv(name, "locus")
@@ -283,9 +283,13 @@ object LocusFunctions extends RegistryFunctions {
         val code = EmitCodeBuilder.scopedCode[Long](r.mb) { cb =>
           val rg = rgCode(r.mb, rt.rg)
           val posv = cb.newLocalAny[Int]("locus_pos", pos.code)
-          val contigIdx = rg.invoke[String, Int, Int]("checkLocus", contig.loadString(), posv)
+          val contigv = cb.newLocal[String]("contig", contig.loadString())
 
-          (contigIdx.toL << 32) | posv.toL
+          cb += rg.invoke[String, Int, Unit]("checkLocus", contigv, posv)
+
+          val idx = rg.invoke[String, Int]("contigIndex", contigv)
+
+          (idx.toL << 32) | posv.toL
         }
         new PBetterLocusCode(rt, code)
     }
