@@ -1,8 +1,8 @@
 package is.hail.utils
 
-import is.hail.HailContext
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.ExecuteContext
 import is.hail.io.fs.FS
 import org.apache.spark.rdd.RDD
@@ -15,7 +15,7 @@ object SpillingCollectIterator {
     val nPartitions = rdd.partitions.length
     val x = new SpillingCollectIterator(localTmpdir, fs, nPartitions, sizeLimit)
     val ctc = classTag[T]
-    HailContext.get.sc.runJob(
+    SparkBackend.sparkContext("SpillingCollectIterator.apply").runJob(
       rdd,
       (_, it: Iterator[T]) => it.toArray(ctc),
       0 until nPartitions,

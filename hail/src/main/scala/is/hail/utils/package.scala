@@ -127,8 +127,8 @@ package object utils extends Logging
 
   def triangle(n: Int): Int = (n * (n + 1)) / 2
 
-  def treeAggDepth(hc: HailContext, nPartitions: Int): Int =
-    (math.log(nPartitions) / math.log(hc.branchingFactor) + 0.5).toInt.max(1)
+  def treeAggDepth(nPartitions: Int): Int =
+    (math.log(nPartitions) / math.log(HailContext.get.branchingFactor) + 0.5).toInt.max(1)
 
   def simpleAssert(p: Boolean) {
     if (!p) throw new AssertionError
@@ -731,13 +731,12 @@ package object utils extends Logging
   }
 
   def writeNativeFileReadMe(fs: FS, path: String): Unit = {
-    val hc = HailContext.get
     val dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss")
 
     using(new OutputStreamWriter(fs.create(path + "/README.txt"))) { out =>
       out.write(
         s"""This folder comprises a Hail (www.hail.is) native Table or MatrixTable.
-           |  Written with version ${ hc.version }
+           |  Written with version ${ HailContext.get.version }
            |  Created at ${ dateFormat.format(new Date()) }""".stripMargin)
     }
   }

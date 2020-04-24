@@ -611,7 +611,7 @@ object Interpret {
       case BlockMatrixMultiWrite(blockMatrices, writer) =>
         writer(ctx.fs, blockMatrices.map(_.execute(ctx)))
       case UnpersistBlockMatrix(BlockMatrixRead(BlockMatrixPersistReader(id))) =>
-        HailContext.sparkBackend().bmCache.unpersistBlockMatrix(id)
+        HailContext.sparkBackend("interpret UnpersistBlockMatrix").bmCache.unpersistBlockMatrix(id)
       case _: UnpersistBlockMatrix =>
       case TableToValueApply(child, function) =>
         function.execute(ctx, child.execute(ctx))

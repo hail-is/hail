@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types.physical.{PArray, PCanonicalStruct, PStruct, PType}
 import is.hail.expr.types.virtual._
@@ -228,12 +229,11 @@ case class MatrixValue(
   def colsRVD(ctx: ExecuteContext): RVD = {
     // only used in exportPlink
     assert(typ.colKey.isEmpty)
-    val hc = HailContext.get
     val colPType = PType.canonical(typ.colType).setRequired(true).asInstanceOf[PStruct]
 
     RVD.coerce(ctx,
       typ.colsTableType.canonicalRVDType,
-      ContextRDD.parallelize(hc.sc, colValues.safeJavaValue)
+      ContextRDD.parallelize(colValues.safeJavaValue)
         .cmapPartitions { (ctx, it) => it.copyToRegion(ctx.region, colPType) })
   }
 

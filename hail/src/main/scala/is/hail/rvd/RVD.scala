@@ -4,6 +4,7 @@ import java.util
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PCanonicalStruct, PInt64, PStruct, PType}
@@ -315,7 +316,7 @@ class RVD(
       val newType = RVDType(newRowPType, typ.key)
       val keyInfo = RVD.getKeyInfo(newType, newType.key.length, RVD.getKeys(newType, shuffled))
       if (keyInfo.isEmpty)
-        return RVD.empty(sparkContext, typ)
+        return RVD.empty(typ)
       val newPartitioner = RVD.calculateKeyRanges(
         newType, keyInfo, shuffled.getNumPartitions, newType.key.length)
 
@@ -474,7 +475,7 @@ class RVD(
     require(n >= 0)
 
     if (n == 0)
-      return RVD.empty(sparkContext, typ)
+      return RVD.empty(typ)
 
     val (idxLast, nTake) = partitionCounts match {
       case Some(pcs) =>
@@ -513,7 +514,7 @@ class RVD(
     require(n >= 0)
 
     if (n == 0)
-      return RVD.empty(sparkContext, typ)
+      return RVD.empty(typ)
 
     val (idxFirst, nDrop) = partitionCounts match {
       case Some(pcs) =>
@@ -626,7 +627,7 @@ class RVD(
     info(s"reading ${ newPartitionIndices.length } of $nPartitions data partitions")
 
     if (newPartitionIndices.isEmpty)
-      RVD.empty(sparkContext, typ)
+      RVD.empty(typ)
     else {
       subsetPartitions(newPartitionIndices).filter(pred)
     }
@@ -654,7 +655,7 @@ class RVD(
     var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
 
     if (tree) {
-      val depth = treeAggDepth(HailContext.get, reduced.getNumPartitions)
+      val depth = treeAggDepth(reduced.getNumPartitions)
       val scale = math.max(
         math.ceil(math.pow(reduced.partitions.length, 1.0 / depth)).toInt,
         2)
@@ -1182,10 +1183,10 @@ class RVD(
 }
 
 object RVD {
-  def empty(sc: SparkContext, typ: RVDType): RVD = {
+  def empty(typ: RVDType): RVD = {
     RVD(typ,
       RVDPartitioner.empty(typ.kType.virtualType),
-      ContextRDD.empty[Long](sc))
+      ContextRDD.empty[Long]())
   }
 
   def unkeyed(rowType: PStruct, crdd: ContextRDD[Long]): RVD =
@@ -1289,7 +1290,6 @@ object RVD {
     keys: ContextRDD[Long]
   ): RVDCoercer = {
     type CRDD = ContextRDD[Long]
-    val sc = keys.sparkContext
 
     val unkeyedCoercer: RVDCoercer = new RVDCoercer(fullType) {
       def _coerce(typ: RVDType, crdd: CRDD): RVD = {
@@ -1302,7 +1302,7 @@ object RVD {
       return unkeyedCoercer
 
     val emptyCoercer: RVDCoercer = new RVDCoercer(fullType) {
-      def _coerce(typ: RVDType, crdd: CRDD): RVD = empty(sc, typ)
+      def _coerce(typ: RVDType, crdd: CRDD): RVD = empty(typ)
     }
 
     val numPartitions = keys.getNumPartitions
@@ -1471,7 +1471,7 @@ object RVD {
         throw new RuntimeException(s"Partitioner mismatch!\n  head:${ first.partitioner }\n  altr: ${ rvd.partitioner }")
     }
 
-    val sc = HailContext.sc
+    val sc = SparkBackend.sparkContext("writeRowsSplitFiles")
     val localTmpdir = execCtx.localTmpdir
     val fs = execCtx.fs
     val fsBc = fs.broadcast

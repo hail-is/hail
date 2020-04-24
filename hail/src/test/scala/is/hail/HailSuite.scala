@@ -39,7 +39,7 @@ class HailSuite extends TestNGSuite {
 
   @BeforeClass def ensureHailContextInitialized() { hc }
 
-  def backend: SparkBackend = hc.sparkBackend()
+  def backend: SparkBackend = hc.sparkBackend("HailSuite.backend")
 
   def sc: SparkContext = backend.sc
 
@@ -62,6 +62,6 @@ class HailSuite extends TestNGSuite {
   }
 
   def withExecuteContext[T]()(f: ExecuteContext => T): T = {
-    hc.sparkBackend().withExecuteContext()(f)
+    hc.sparkBackend("HailSuite.withExecuteContext").withExecuteContext()(f)
   }
 }

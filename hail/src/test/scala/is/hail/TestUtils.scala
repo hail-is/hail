@@ -156,7 +156,7 @@ object TestUtils {
   ): Any = {
     if (agg.isDefined || !env.isEmpty || !args.isEmpty)
       throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
-    HailContext.sparkBackend().jvmLowerAndExecute(x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter)._1
+    HailContext.sparkBackend("TestUtils.loweredExecute").jvmLowerAndExecute(x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter)._1
   }
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
@@ -334,7 +334,8 @@ object TestUtils {
 
     ExecuteContext.scoped() { ctx =>
       val filteredExecStrats: Set[ExecStrategy] =
-        if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
+        if (HailContext.backend.isInstanceOf[SparkBackend])
+          execStrats
         else {
           info("skipping interpret and non-lowering compile steps on non-spark backend")
           execStrats.intersect(ExecStrategy.backendOnly)

@@ -129,7 +129,6 @@ case class PCRelate(
   minKinship: Option[Double] = None,
   statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset)
   extends BlockMatrixToTableFunction with Serializable {
-  @transient private[this] val hc = HailContext.get
 
   import PCRelate._
 

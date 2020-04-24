@@ -2975,7 +2975,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testCachedBlockMatrixIR() {
-    val cached = new BlockMatrixLiteral(BlockMatrix.fill(hc, 3, 7, 1))
+    val cached = new BlockMatrixLiteral(BlockMatrix.fill(3, 7, 1))
     val s = s"(JavaBlockMatrix __uid1)"
     val x2 = ExecuteContext.scoped() { ctx =>
       IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
@@ -3097,8 +3097,8 @@ class IRSuite extends HailSuite {
 
     val t1 = TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct("g1" -> TInt32, "g2" -> TFloat64))
     val t2 = TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct("g3" -> TInt32, "g4" -> TFloat64))
-    val tab1 = TableLiteral(TableValue(ctx, t1, BroadcastRow(ctx, Row(1, 1.1), t1.globalType), RVD.empty(sc, t1.canonicalRVDType)))
-    val tab2 = TableLiteral(TableValue(ctx, t2, BroadcastRow(ctx, Row(2, 2.2), t2.globalType), RVD.empty(sc, t2.canonicalRVDType)))
+    val tab1 = TableLiteral(TableValue(ctx, t1, BroadcastRow(ctx, Row(1, 1.1), t1.globalType), RVD.empty(t1.canonicalRVDType)))
+    val tab2 = TableLiteral(TableValue(ctx, t2, BroadcastRow(ctx, Row(2, 2.2), t2.globalType), RVD.empty(t2.canonicalRVDType)))
 
     assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), Row(1, 1.1, 2, 2.2))
     assertEvalsTo(TableGetGlobals(TableMapGlobals(tab1, InsertFields(Ref("global", t1.globalType), Seq("g1" -> I32(3))))), Row(3, 1.1))
@@ -3231,7 +3231,7 @@ class IRSuite extends HailSuite {
         |       (MakeStruct (locus  (Apply start Locus(GRCh37) (Ref __uid_3))))
         |       (MakeStruct (locus  (Apply end Locus(GRCh37) (Ref __uid_3)))) (True) (False))))
         |""".stripMargin)
-    val (v, _) = HailContext.sparkBackend().execute(ir, optimize = true)
+    val (v, _) = backend.execute(ir, optimize = true)
     assert(
       ir.typ.ordering.equiv(
         FastIndexedSeq(
