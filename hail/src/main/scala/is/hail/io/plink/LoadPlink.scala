@@ -1,13 +1,7 @@
 package is.hail.io.plink
 
-<<<<<<< HEAD
-import is.hail.HailContext
-import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixHybridReader, PruneDeadFields, TableRead, TableValue}
-=======
 import is.hail.annotations.{Region, RegionValueBuilder}
-import is.hail.expr.ir.{ExecuteContext, GenericTableValue, LowerMatrixIR, MatrixHybridReader, TableRead, TableValue}
->>>>>>> add GenericTableValue, use for plink import
+import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PBoolean, PCanonicalString, PCanonicalStruct, PFloat64, PStruct, PType}
 import is.hail.expr.types.virtual._
