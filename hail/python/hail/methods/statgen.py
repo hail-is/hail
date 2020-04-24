@@ -592,6 +592,7 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
         res = res.annotate(**{f: res[f][0] for f in fields})
 
     #res._tir.is_sorted = True #TODO Not sure what's going on with sorting, throwing assertion error.
+    res = res.select_globals()
 
     return res
 

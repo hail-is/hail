@@ -110,7 +110,7 @@ class Tests(unittest.TestCase):
 
     linreg_functions = [hl.linear_regression_rows, hl.linear_regression_rows_nd]
 
-    def test_linreg(self):
+    def test_linreg_basic(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
                                  key='Sample')
@@ -122,27 +122,28 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_cols(pheno=phenos[mt.s].Pheno, cov=covs[mt.s])
         mt = mt.annotate_entries(x=mt.GT.n_alt_alleles()).cache()
 
-        t1 = hl.linear_regression_rows(
-            y=mt.pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2 + 1 - 1])
-        t1 = t1.select(p=t1.p_value)
+        for linreg_function in self.linreg_functions:
+            t1 = linreg_function(
+                y=mt.pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2 + 1 - 1])
+            t1 = t1.select(p=t1.p_value)
 
-        t2 = hl.linear_regression_rows(
-            y=mt.pheno, x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
-        t2 = t2.select(p=t2.p_value)
+            t2 = linreg_function(
+                y=mt.pheno, x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
+            t2 = t2.select(p=t2.p_value)
 
-        t3 = hl.linear_regression_rows(
-            y=[mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
-        t3 = t3.select(p=t3.p_value[0])
+            t3 = linreg_function(
+                y=[mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
+            t3 = t3.select(p=t3.p_value[0])
 
-        t4 = hl.linear_regression_rows(
-            y=[mt.pheno, mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
-        t4a = t4.select(p=t4.p_value[0])
-        t4b = t4.select(p=t4.p_value[1])
+            t4 = linreg_function(
+                y=[mt.pheno, mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
+            t4a = t4.select(p=t4.p_value[0])
+            t4b = t4.select(p=t4.p_value[1])
 
-        self.assertTrue(t1._same(t2))
-        self.assertTrue(t1._same(t3))
-        self.assertTrue(t1._same(t4a))
-        self.assertTrue(t1._same(t4b))
+            self.assertTrue(t1._same(t2))
+            self.assertTrue(t1._same(t3))
+            self.assertTrue(t1._same(t4a))
+            self.assertTrue(t1._same(t4b))
 
     def test_linreg_pass_through(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
@@ -337,26 +338,29 @@ class Tests(unittest.TestCase):
                                 types={'Pheno': hl.tfloat})
 
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        ht = hl.linear_regression_rows(y=pheno[mt.s].Pheno,
-                                       x=hl.pl_dosage(mt.PL),
-                                       covariates=[1.0] + list(covariates[mt.s].values()))
 
-        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
+        for linreg_function in self.linreg_functions:
 
-        self.assertAlmostEqual(results[1].beta, -0.29166985, places=6)
-        self.assertAlmostEqual(results[1].standard_error, 1.2996510, places=6)
-        self.assertAlmostEqual(results[1].t_stat, -0.22442167, places=6)
-        self.assertAlmostEqual(results[1].p_value, 0.84327106, places=6)
+            ht = linreg_function(y=pheno[mt.s].Pheno,
+                                 x=hl.pl_dosage(mt.PL),
+                                 covariates=[1.0] + list(covariates[mt.s].values()))
 
-        self.assertAlmostEqual(results[2].beta, -0.5499320, places=6)
-        self.assertAlmostEqual(results[2].standard_error, 0.3401110, places=6)
-        self.assertAlmostEqual(results[2].t_stat, -1.616919, places=6)
-        self.assertAlmostEqual(results[2].p_value, 0.24728705, places=6)
+            results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
-        self.assertAlmostEqual(results[3].beta, 1.09536219, places=6)
-        self.assertAlmostEqual(results[3].standard_error, 0.6901002, places=6)
-        self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
-        self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
+            self.assertAlmostEqual(results[1].beta, -0.29166985, places=6)
+            self.assertAlmostEqual(results[1].standard_error, 1.2996510, places=6)
+            self.assertAlmostEqual(results[1].t_stat, -0.22442167, places=6)
+            self.assertAlmostEqual(results[1].p_value, 0.84327106, places=6)
+
+            self.assertAlmostEqual(results[2].beta, -0.5499320, places=6)
+            self.assertAlmostEqual(results[2].standard_error, 0.3401110, places=6)
+            self.assertAlmostEqual(results[2].t_stat, -1.616919, places=6)
+            self.assertAlmostEqual(results[2].p_value, 0.24728705, places=6)
+
+            self.assertAlmostEqual(results[3].beta, 1.09536219, places=6)
+            self.assertAlmostEqual(results[3].standard_error, 0.6901002, places=6)
+            self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
+            self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
 
     def test_linear_regression_with_dosage(self):
 
@@ -368,27 +372,29 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'Pheno': hl.tfloat})
         mt = hl.import_gen(resource('regressionLinear.gen'), sample_file=resource('regressionLinear.sample'))
-        ht = hl.linear_regression_rows(y=pheno[mt.s].Pheno,
-                                       x=hl.gp_dosage(mt.GP),
-                                       covariates=[1.0] + list(covariates[mt.s].values()))
 
-        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
+        for linreg_function in self.linreg_functions:
+            ht = linreg_function(y=pheno[mt.s].Pheno,
+                                 x=hl.gp_dosage(mt.GP),
+                                 covariates=[1.0] + list(covariates[mt.s].values()))
 
-        self.assertAlmostEqual(results[1].beta, -0.29166985, places=4)
-        self.assertAlmostEqual(results[1].standard_error, 1.2996510, places=4)
-        self.assertAlmostEqual(results[1].t_stat, -0.22442167, places=6)
-        self.assertAlmostEqual(results[1].p_value, 0.84327106, places=6)
+            results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
-        self.assertAlmostEqual(results[2].beta, -0.5499320, places=4)
-        self.assertAlmostEqual(results[2].standard_error, 0.3401110, places=4)
-        self.assertAlmostEqual(results[2].t_stat, -1.616919, places=6)
-        self.assertAlmostEqual(results[2].p_value, 0.24728705, places=6)
+            self.assertAlmostEqual(results[1].beta, -0.29166985, places=4)
+            self.assertAlmostEqual(results[1].standard_error, 1.2996510, places=4)
+            self.assertAlmostEqual(results[1].t_stat, -0.22442167, places=6)
+            self.assertAlmostEqual(results[1].p_value, 0.84327106, places=6)
 
-        self.assertAlmostEqual(results[3].beta, 1.09536219, places=4)
-        self.assertAlmostEqual(results[3].standard_error, 0.6901002, places=4)
-        self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
-        self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
-        self.assertTrue(np.isnan(results[6].standard_error))
+            self.assertAlmostEqual(results[2].beta, -0.5499320, places=4)
+            self.assertAlmostEqual(results[2].standard_error, 0.3401110, places=4)
+            self.assertAlmostEqual(results[2].t_stat, -1.616919, places=6)
+            self.assertAlmostEqual(results[2].p_value, 0.24728705, places=6)
+
+            self.assertAlmostEqual(results[3].beta, 1.09536219, places=4)
+            self.assertAlmostEqual(results[3].standard_error, 0.6901002, places=4)
+            self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
+            self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
+            self.assertTrue(np.isnan(results[6].standard_error))
 
     def test_linear_regression_equivalence_between_ds_and_gt(self):
         """Test that linear regressions on data converted from dosage to genotype returns the same results"""
