@@ -146,44 +146,13 @@ def create_principal(principal, domain, kind, key, cert, unmanaged):
         sp.check_call(['kubectl', 'apply', '-f', k8s_secret.name])
 
 
-def download_previous_certs():
-    for p in arg_config['principals']:
-        name = p["name"]
-        unmanaged = p.get('unmanaged', False)
-        if unmanaged and namespace != 'default':
-            config_source_namespace = 'default'
-        else:
-            config_source_namespace = namespace
-        result = sp.run(
-            ['kubectl', 'get', 'secret', f'ssl-config-{name}',
-             f'--namespace={config_source_namespace}', '-o', 'json'],
-            stderr=sp.PIPE,
-            stdout=sp.PIPE)
-        if result.returncode == 1:
-            if f'Error from server (NotFound)' in result.stderr.decode():
-                cert = b''
-            else:
-                raise ValueError(f'something went wrong: {result.stderr.decode()}\n---\n{result.stdout.decode()}')
-        else:
-            secret = json.loads(result.stdout.decode())
-            cert = base64.standard_b64decode(secret['data'][f'{name}-cert.pem'])
-        with open(f'previous-{name}-cert.pem', 'wb') as f:
-            f.write(cert)
-
-
 assert 'principals' in arg_config, arg_config
-
-principal_by_name = {
-    p['name']: p
-    for p in arg_config['principals']
-}
 
 principal_by_name = {
     p['name']: {**p,
                 **create_key_and_cert(p)}
     for p in arg_config['principals']
 }
-download_previous_certs()
 for name, p in principal_by_name.items():
     create_principal(name,
                      p['domain'],
