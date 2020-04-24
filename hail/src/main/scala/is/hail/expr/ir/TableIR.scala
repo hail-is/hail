@@ -198,7 +198,7 @@ class TableNativeReader(
 
   val filterIntervals: Boolean = params.options.map(_.filterIntervals).getOrElse(false)
 
-  def partitionCounts: Option[IndexedSeq[Long]] = if (filterIntervals) Some(spec.partitionCounts) else None
+  def partitionCounts: Option[IndexedSeq[Long]] = if (filterIntervals) None else Some(spec.partitionCounts)
 
   def fullType: TableType = spec.table_type
 
