@@ -564,8 +564,8 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
     ht = ht.annotate_globals(__Qty=ht.__cov_Qt @ ht.__y_nd)
     ht = ht.annotate_globals(__yyp=hl.nd.diagonal(ht.__y_nd.T @ ht.__y_nd) - hl.nd.diagonal(ht.__Qty.T @ ht.__Qty))
 
-    ht = ht.annotate(sum_x_nd=(ht[X_field_name].T @ hl.nd.ones((ht.n,))))
-    ht = ht.transmute(sum_x=nd_to_array(ht.sum_x_nd))
+    sum_x_nd=ht[X_field_name].T @ hl.nd.ones((ht.n,))
+    ht = ht.annotate(sum_x=nd_to_array(sum_x_nd))
     ht = ht.annotate(__Qtx=ht.__cov_Qt @ ht[X_field_name])
     ht = ht.annotate(__ytx=ht.__y_nd.T @ ht[X_field_name])
     ht = ht.annotate(__xyp=ht.__ytx - (ht.__Qty.T @ ht.__Qtx))
@@ -586,6 +586,10 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
     res = res.explode(res.all_zipped)
     res = res.select(**{field: res.row.all_zipped[field] for field in res.row.all_zipped})
     res = res.key_by(*[res[key_field] for key_field in ht.key])
+
+    if not y_is_list:
+        fields = ['y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
+        res = res.annotate(**{f: res[f][0] for f in fields})
 
     #res._tir.is_sorted = True #TODO Not sure what's going on with sorting, throwing assertion error.
 

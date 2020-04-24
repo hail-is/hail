@@ -108,6 +108,8 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(hl.impute_sex(ds.GT)._same(hl.impute_sex(ds.GT, aaf='aaf')))
 
+    linreg_functions = [hl.linear_regression_rows, hl.linear_regression_rows_nd]
+
     def test_linreg(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -258,19 +260,20 @@ class Tests(unittest.TestCase):
 
 
     def test_linear_regression_without_intercept(self):
-        pheno = hl.import_table(resource('regressionLinear.pheno'),
-                                key='Sample',
-                                missing='0',
-                                types={'Pheno': hl.tfloat})
-        mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        ht = hl.linear_regression_rows(y=pheno[mt.s].Pheno,
-                                       x=mt.GT.n_alt_alleles(),
-                                       covariates=[])
-        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
-        self.assertAlmostEqual(results[1].beta, 1.5, places=6)
-        self.assertAlmostEqual(results[1].standard_error, 1.161895, places=6)
-        self.assertAlmostEqual(results[1].t_stat, 1.290994, places=6)
-        self.assertAlmostEqual(results[1].p_value, 0.25317, places=6)
+        for linreg_function in self.linreg_functions:
+            pheno = hl.import_table(resource('regressionLinear.pheno'),
+                                    key='Sample',
+                                    missing='0',
+                                    types={'Pheno': hl.tfloat})
+            mt = hl.import_vcf(resource('regressionLinear.vcf'))
+            ht = linreg_function(y=pheno[mt.s].Pheno,
+                                 x=mt.GT.n_alt_alleles(),
+                                 covariates=[])
+            results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
+            self.assertAlmostEqual(results[1].beta, 1.5, places=6)
+            self.assertAlmostEqual(results[1].standard_error, 1.161895, places=6)
+            self.assertAlmostEqual(results[1].t_stat, 1.290994, places=6)
+            self.assertAlmostEqual(results[1].p_value, 0.25317, places=6)
 
     # comparing to R:
     # y = c(1, 1, 2, 2, 2, 2)
@@ -291,35 +294,37 @@ class Tests(unittest.TestCase):
                                 types={'Pheno': hl.tfloat})
 
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        ht = hl.linear_regression_rows(y=pheno[mt.s].Pheno,
-                                       x=mt.GT.n_alt_alleles(),
-                                       covariates=[1.0] + list(covariates[mt.s].values()))
 
-        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
+        for linreg_function in self.linreg_functions:
+            ht = linreg_function(y=pheno[mt.s].Pheno,
+                                 x=mt.GT.n_alt_alleles(),
+                                 covariates=[1.0] + list(covariates[mt.s].values()))
 
-        self.assertAlmostEqual(results[1].beta, -0.28589421, places=6)
-        self.assertAlmostEqual(results[1].standard_error, 1.2739153, places=6)
-        self.assertAlmostEqual(results[1].t_stat, -0.22442167, places=6)
-        self.assertAlmostEqual(results[1].p_value, 0.84327106, places=6)
+            results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
-        self.assertAlmostEqual(results[2].beta, -0.5417647, places=6)
-        self.assertAlmostEqual(results[2].standard_error, 0.3350599, places=6)
-        self.assertAlmostEqual(results[2].t_stat, -1.616919, places=6)
-        self.assertAlmostEqual(results[2].p_value, 0.24728705, places=6)
+            self.assertAlmostEqual(results[1].beta, -0.28589421, places=6)
+            self.assertAlmostEqual(results[1].standard_error, 1.2739153, places=6)
+            self.assertAlmostEqual(results[1].t_stat, -0.22442167, places=6)
+            self.assertAlmostEqual(results[1].p_value, 0.84327106, places=6)
 
-        self.assertAlmostEqual(results[3].beta, 1.07367185, places=6)
-        self.assertAlmostEqual(results[3].standard_error, 0.6764348, places=6)
-        self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
-        self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
+            self.assertAlmostEqual(results[2].beta, -0.5417647, places=6)
+            self.assertAlmostEqual(results[2].standard_error, 0.3350599, places=6)
+            self.assertAlmostEqual(results[2].t_stat, -1.616919, places=6)
+            self.assertAlmostEqual(results[2].p_value, 0.24728705, places=6)
 
-        self.assertTrue(np.isnan(results[6].standard_error))
-        self.assertTrue(np.isnan(results[6].t_stat))
-        self.assertTrue(np.isnan(results[6].p_value))
+            self.assertAlmostEqual(results[3].beta, 1.07367185, places=6)
+            self.assertAlmostEqual(results[3].standard_error, 0.6764348, places=6)
+            self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
+            self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
 
-        self.assertTrue(np.isnan(results[7].standard_error))
-        self.assertTrue(np.isnan(results[8].standard_error))
-        self.assertTrue(np.isnan(results[9].standard_error))
-        self.assertTrue(np.isnan(results[10].standard_error))
+            self.assertTrue(np.isnan(results[6].standard_error))
+            self.assertTrue(np.isnan(results[6].t_stat))
+            self.assertTrue(np.isnan(results[6].p_value))
+
+            self.assertTrue(np.isnan(results[7].standard_error))
+            self.assertTrue(np.isnan(results[8].standard_error))
+            self.assertTrue(np.isnan(results[9].standard_error))
+            self.assertTrue(np.isnan(results[10].standard_error))
 
     def test_linear_regression_pl(self):
 
