@@ -1,3 +1,4 @@
+<div id='references' style='padding:15px'>
 # Hail-Powered Science
 
 The following is an incomplete list of scientific work enabled by Hail.
@@ -132,3 +133,4 @@ Otherwise, we welcome you to add additional examples by [editing this page direc
 
 *Footnote*
 In addition to software development, the Hail team engages in theoretical, algorithmic, and empirical research inspired by scientific collaboration. Examples include [Loss landscapes of regularized linear autoencoders](https://github.com/danielkunin/Regularized-Linear-Autoencoders), [Secure multi-party linear regression at plaintext speed](https://github.com/jbloom22/DASH), and [A synthetic-diploid benchmark for accurate variant-calling evaluation](https://www.nature.com/articles/s41592-018-0054-7).
+</div>
