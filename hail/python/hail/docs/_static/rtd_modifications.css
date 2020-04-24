@@ -85,13 +85,13 @@ hr {
 
 #hail-navbar.documentation-view {
   position: fixed;
-  z-index: 999;
-  padding: 0px 0.809em;
   width: 100%;
-  position: fixed;
 }
 
 @media screen and (max-width: 768px) {
+  html {
+    font-size: 87.5%; /*14px* w/browser default 16px*/
+  }
 
   /* Nav is absolutely broken on mobile and we already have breadcrumbs */
   .wy-nav-top {
@@ -101,5 +101,11 @@ hr {
   /* Fixed navbar obscures valuable vertical real estate on mobile */
   #hail-navbar.documentation-view {
     position: relative;
+  }
+}
+
+@media only screen and (max-width: 680px) {
+  html {
+    font-size: 81.25%;
   }
 }

@@ -216,10 +216,9 @@
 
   <script type="text/javascript">
     $.get('/index.html', function(data) {
-      $("#hail-navbar").replaceWith($("#hail-navbar", data).addClass("documentation-view"));
+      $("#hail-navbar").replaceWith($("<div>").html(data).find("#hail-navbar").addClass('documentation-view'));
     });
-  </script>
-
+  </script> 
   {%- block footer %} {% endblock %}
 
   <script type="text/javascript">

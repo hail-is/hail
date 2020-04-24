@@ -23,11 +23,12 @@
   padding: 10px 15px;
   margin: 0px;
   background-color: #fff;
-  height: 50px;
 }
 
-#hail-navbar * {
-  font-size: 0.75rem;
+.sticky {
+  position: sticky;
+  top: 0px;
+  z-index: 999;
 }
 
 #hail-navbar #hail-navbar-header {
@@ -39,9 +40,8 @@
 
 #hail-navbar #hail-container-fluid {
   margin: auto;
-  height: 100%;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
 }
 
 #hail-navbar #hail-menu {
@@ -58,17 +58,16 @@
 }
 
 #hail-navbar-brand {
-  margin-top: -8px;
+  margin-bottom: 2px;
 }
 
 #hail-navbar a {
   color: #444;
   text-decoration: none;
   outline: none;
-  background: inherit;
   /*defeat bootstrap focus background*/
   text-transform: uppercase;
-  font-family: inherit;
+  font-size: .75rem;
 }
 
 #hail-menu a:hover, #hail-menu a.active {
@@ -77,7 +76,7 @@
 }
 
 #hail-navbar #hail-menu .nav-item {
-  padding: 0.875rem;
+  padding: 0px 0.875rem 0px 0.875rem;
 }
 
 #hail-navbar #hail-menu .nav-item:last-child {
@@ -90,14 +89,15 @@
 
 @media (max-width: 767px) {
   #hail-navbar #hail-menu .nav-item {
-    padding: 0.875rem 18px;
+    padding: 12px 18px;
+  }
+
+  #hail-navbar a {
+    font-size: 1rem;
   }
   /* #hail-navbar-brand {
     margin-top:-3px;
   } */
-  #hail-navbar #hail-navbar-collapse .nav-item  a {
-    font-size: 1.25rem;
-  }
 
   #hail-navbar #hail-navbar-header {
     width: 100%;
@@ -112,12 +112,8 @@
     height: 100vh;
     left: 0px;
   }
-  /* #hail-navbar #hail-navbar-collapse .nav-item {
-    padding: 0.875rem 0px 0.875rem 0px;
-    display: block;
-  } */
   #hail-navbar #hail-navbar-collapse .nav-item:first-child {
-    padding-top: 2.625rem;
+    padding-top: 24px;
   }
 
   #hail-navbar #hail-menu {
@@ -129,11 +125,6 @@
     background: white;
     height: 100vh;
   }
-}
-
-#hail-navbar img#logo {
-  height: 30px;
-  border: 0;
 }
 
 #hail-navbar .dropdown-toggler:focus {
@@ -201,7 +192,6 @@
 
 #hail-navbar .navbar {
   position: relative;
-  min-height: 50px;
   margin-bottom: 20px;
   border: 1px solid transparent;
   border-radius: 4px;
@@ -213,19 +203,6 @@
   -webkit-box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
   -webkit-overflow-scrolling: touch;
-}
-
-#hail-navbar .container-fluid {
-  margin-right: auto;
-  margin-left: auto;
-  /* body text won't align else */
-  padding-left: 1px;
-  padding-right: 1px;
-}
-
-#hail-navbar #hail-navbar-header {
-  margin-right: 0px;
-  margin-left: 0px;
 }
 
 #hail-navbar .dropdown-menu {
@@ -265,7 +242,6 @@
   cursor: pointer;
   cursor: hand;
   padding-left:0px;
-  margin-top:-6px;
 }
 
 #hail-navbar #hail-container-fluid .navbar-toggler .icon-bar {

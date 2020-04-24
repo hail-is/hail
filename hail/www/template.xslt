@@ -27,12 +27,12 @@
                     ga('send', 'pageview');
                 </script>
             </head>
-            <div id="body" style='max-width: 100%'>
+            <body>
                 <nav class="navbar align-content-start justify-content-start sticky" id="hail-navbar">
                     <div class="container-fluid align-content-start justify-content-start d-flex" id="hail-container-fluid">
                         <div class="navbar-header" id="hail-navbar-header">
                             <a class="navbar-left" id="hail-navbar-brand" href="/">
-                                <img alt="Hail" id="logo" src="/hail-logo-cropped.png" />
+                                <img alt="Hail" height="30" id="logo" src="/hail-logo-cropped.png" />
                             </a>
                             <button type="button" id='navbar-toggler' class="navbar-toggler" data-toggle="collapse" data-target="#hail-navbar-collapse" aria-expanded="false">
                                 <span class="icon-bar"></span>
@@ -62,7 +62,7 @@
                                 </li>
                                 <li class="nav-item" style='margin-top:-2px'>
                                     <a href="https://github.com/hail-is/hail" class='img-link' target='_blank'>
-                                        <img width="20" src='./GitHub-Mark-64px.png'/>
+                                        <img width="20" src='/GitHub-Mark-64px.png'/>
                                     </a>
                                 </li>
                             </ul>
@@ -100,8 +100,6 @@
                         </script>
                     </div>
                 </nav>
-            </div>
-            <body>
                 <xsl:apply-templates select="body"/>
             </body>
         </html>

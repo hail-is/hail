@@ -85,45 +85,20 @@
         <script type="module">
             <![CDATA[
                 import Viz from "/vendors/vanta/viz.js";
-                let isScrolling;
-
-                let initialized = null;
-
-                let then = Date.now();
-                const scrollingListener = () => {
-                    // Clear our timeout throughout the scroll
-                    window.clearTimeout(isScrolling);
-
-                    const now = Date.now();
-                    isScrolling = setTimeout(() => {
-                    if (initialized) {
-                        window.removeEventListener("scroll", scrollingListener);
-                        window.clearTimeout(isScrolling);
-                        return;
-                    }
-
-                    new Viz({
-                        el: "#hero-background",
-                        mouseControls: false,
-                        touchControls: false,
-                        minHeight: 200.0,
-                        minWidth: 200.0,
-                        scale: 1.0,
-                        scaleMobile: 1.0,
-                        points: 11,
-                        maxDistance: 20,
-                        spacing: 15,
-                        backgroundColor: "#fff",
-                        color: "#283870",
-                    });
-
-                    isScrolling = null;
-                    initialized = true;
-                    }, now - then >= 400 ? 16 : 400);
-                }
-
-                scrollingListener();
-                window.addEventListener("scroll", scrollingListener, { passive: true });
+                new Viz({
+                    el: "#hero-background",
+                    mouseControls: false,
+                    touchControls: false,
+                    minHeight: 200.0,
+                    minWidth: 200.0,
+                    scale: 1.0,
+                    scaleMobile: 1.0,
+                    points: 11,
+                    maxDistance: 20,
+                    spacing: 15,
+                    backgroundColor: "#fff",
+                    color: "#283870",
+                });
             ]]>
         </script>
     </xsl:template>
