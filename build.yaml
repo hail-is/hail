@@ -1566,10 +1566,10 @@ steps:
    contextPath: docker/hail/
    publishAs: hail-public
    dependsOn:
-    - build_hail
+    - copy_files
    inputs:
-     - from: /wheel-container.tar
-       to: /wheel-container.tar
+     - from: /hail_pip_version
+       to: /hail_pip_version
    scopes:
     - dev
  - kind: runImage
