@@ -1,5 +1,3 @@
-import base64
-import secrets
 import logging
 import aiohttp
 from aiohttp import web
@@ -10,6 +8,7 @@ import google.oauth2.id_token
 import google.cloud.storage
 import google_auth_oauthlib.flow
 from hailtop.config import get_deploy_config
+from hailtop.utils import secret_alnum_string
 from gear import (
     setup_aiohttp_session,
     rest_authenticated_users_only, web_authenticated_developers_only,
@@ -109,7 +108,7 @@ async def callback(request):
 
 
 async def create_copy_paste_token(db, session_id, max_age_secs=300):
-    copy_paste_token = base64.b32encode(secrets.token_bytes(32)).decode('ascii')
+    copy_paste_token = secret_alnum_string(64)
     await db.just_execute(
         "INSERT INTO copy_paste_tokens (id, session_id, max_age_secs) VALUES(%s, %s, %s);",
         (copy_paste_token, session_id, max_age_secs))

@@ -4,7 +4,7 @@ import asyncio
 import logging
 import sortedcontainers
 import googleapiclient.errors
-from hailtop.utils import time_msecs
+from hailtop.utils import time_msecs, secret_alnum_string
 
 from ..batch_configuration import DEFAULT_NAMESPACE, BATCH_WORKER_IMAGE, \
     PROJECT
@@ -147,8 +147,7 @@ SET max_instances = %s, pool_size = %s;
     async def create_instance(self):
         while True:
             # 36 ** 5 = ~60M
-            suffix = ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789')
-                              for _ in range(5)])
+            suffix = secret_alnum_string(5)
             machine_name = f'{self.machine_name_prefix}{suffix}'
             if machine_name not in self.name_instance:
                 break

@@ -6,6 +6,7 @@ import asyncio
 import aiohttp
 from aiohttp import web
 import urllib3
+import secrets
 import socket
 import requests
 import google.auth.exceptions
@@ -28,6 +29,12 @@ def first_extant_file(*files):
         if f is not None and os.path.isfile(f):
             return f
     return None
+
+
+def secret_alnum_string(n):
+    return ''.join([secrets.choice(
+        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    ) for _ in range(n)])
 
 
 def grouped(n, ls):
