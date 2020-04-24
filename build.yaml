@@ -273,7 +273,6 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
-     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      # create accounts
      mkdir /user-tokens
      cat > create-session.py <<EOF
@@ -1104,7 +1103,6 @@ steps:
    image:
      valueFrom: service_base_image.image
    script: |
-     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
@@ -1212,7 +1210,6 @@ steps:
      valueFrom: test_ci_image.image
    script: |
      set -ex
-     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      export ORGANIZATION=hail-ci-test
      export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
      export NAMESPACE="{{ default_ns.name }}"
@@ -1247,7 +1244,6 @@ steps:
    script: |
      set -ex
 
-     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      python3 -m hailtop.hailctl config set batch/billing_project test
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/test/hailtop/batch/
    inputs:
@@ -1279,8 +1275,6 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
-
-     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      cd /io/hailtop/hailtop/batch
      python3 -m hailtop.hailctl config set batch/billing_project test
      python3 -m pytest --instafail \
