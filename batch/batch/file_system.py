@@ -1,33 +1,12 @@
 from abc import ABC, abstractmethod
 from functools import wraps
 import os
-import glob
 import google.oauth2.service_account
 
 from hailtop.utils import blocking_to_async
+import hailtop.utils.glob as hail_glob
 
 from .google_storage import GCS
-
-
-wildcards = ('*', '?', '[', ']', '{', '}')
-
-
-# need a custom escape because escaped characters are not treated properly with glob.escape
-def escape(path):
-    new_path = []
-    n = len(path)
-    i = 0
-    while i < n:
-        if i < n - 1 and path[i] == '\\' and path[i + 1] in wildcards:
-            new_path.append('[')
-            new_path.append(path[i + 1])
-            new_path.append(']')
-            i += 2
-            continue
-
-        new_path.append(path[i])
-        i += 1
-    return ''.join(new_path)
 
 
 class FileSystem(ABC):
@@ -35,11 +14,11 @@ class FileSystem(ABC):
         self.thread_pool = thread_pool
         self._wrapped_listdir = self._wrap(self._listdir)
         self._wrapped_mkdir = self._wrap(self._mkdir)
-        self._wrapped_glob = self._wrap(self._glob)
         self._wrapped_touch = self._wrap(self._touch)
         self._wrapped_exists = self._wrap(self._exists)
         self._wrapped_isfile = self._wrap(self._isfile)
         self._wrapped_isdir = self._wrap(self._isdir)
+        self._wrapped_glob = self._wrap(self._glob)
 
     def _wrap(self, fun):
         @wraps(fun)
@@ -56,9 +35,6 @@ class FileSystem(ABC):
     async def mkdir(self, path, create_parents=False):
         return await self._wrapped_mkdir(path, create_parents=create_parents)
 
-    async def glob(self, pattern, recursive=False):
-        return await self._wrapped_glob(pattern, recursive=recursive)
-
     async def touch(self, path, size=0):
         return await self._wrapped_touch(path, size=size)
 
@@ -71,16 +47,15 @@ class FileSystem(ABC):
     async def isdir(self, path):
         return await self._wrapped_isdir(path)
 
+    async def glob(self, pattern, recursive=False):
+        return await self._wrapped_glob(pattern, recursive=recursive)
+
     @abstractmethod
     def _listdir(self, path):
         pass
 
     @abstractmethod
     def _mkdir(self, path, create_parents=False):
-        pass
-
-    @abstractmethod
-    def _glob(self, pattern, recursive=False):
         pass
 
     @abstractmethod
@@ -99,6 +74,9 @@ class FileSystem(ABC):
     def _isdir(self, path):
         pass
 
+    def _glob(self, pattern, recursive=False):
+        return hail_glob.glob(self, pattern, recursive=recursive)
+
 
 class LocalFileSystem(FileSystem):
     def __init__(self, thread_pool):
@@ -109,18 +87,10 @@ class LocalFileSystem(FileSystem):
 
     def _mkdir(self, path, create_parents=False):
         if create_parents:
-            os.makedirs(path, exist_ok=True)
-        else:
-            os.mkdir(path)
-
-    def _glob(self, pattern, recursive=False):
-        # literal wildcards must be escaped in brackets \? => [?]
-        pattern = escape(pattern)
-        # glob.glob expands *, ? [], but ignores {}
-        return glob.glob(pattern, recursive=recursive)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+        os.mkdir(path)
 
     def _touch(self, path, size=0):
-
         with open(path, 'ab') as fp:
             fp.truncate(size)
 
@@ -144,9 +114,6 @@ class GoogleFileSystem(FileSystem):
         raise NotImplementedError
 
     def _mkdir(self, path, create_parents=False):
-        raise NotImplementedError
-
-    def _glob(self, pattern, recursive=False):
         raise NotImplementedError
 
     def _touch(self, path, size=0):
