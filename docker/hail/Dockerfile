@@ -3,8 +3,6 @@ FROM ubuntu:18.04
 ENV LANG C.UTF-8
 ENV MAKEFLAGS -j2
 
-COPY wheel-container.tar .
-
 RUN apt-get update && \
   apt-get -y install \
     curl \
@@ -16,9 +14,9 @@ RUN apt-get update && \
     unzip bzip2 zip tar \
     vim \
   && rm -rf /var/lib/apt/lists/*
-RUN tar xvf wheel-container.tar && \
-    pip3 --no-cache-dir install \
-      hail-*-py3-none-any.whl \
+COPY hail_pip_version /
+RUN pip3 --no-cache-dir install \
+      hail==$(cat /hail_pip_version) \
       ipython \
       matplotlib \
       numpy \
