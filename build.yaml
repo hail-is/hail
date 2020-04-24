@@ -1577,7 +1577,6 @@ steps:
      - from: /wheel-container.tar
        to: /wheel-container.tar
    scopes:
-    - deploy
     - dev
  - kind: runImage
    name: test_hail_public_image
@@ -1591,7 +1590,6 @@ steps:
    dependsOn:
      - hail_public_image
    scopes:
-    - deploy
     - dev
  - kind: buildImage
    name: genetics_public_image
@@ -1601,7 +1599,6 @@ steps:
    dependsOn:
     - hail_public_image
    scopes:
-    - deploy
     - dev
  - kind: runImage
    name: test_genetics_public_image
@@ -1615,5 +1612,4 @@ steps:
    dependsOn:
      - genetics_public_image
    scopes:
-    - deploy
     - dev
