@@ -84,7 +84,7 @@
         <script src="/vendors/vanta/threeR115.min.js"></script>
         <script type="module">
             <![CDATA[
-                import Viz from "/vendors/vanta/viz.js";
+                import Viz from "/vendors/vanta/viz.min.js";
                 new Viz({
                     el: "#hero-background",
                     mouseControls: false,

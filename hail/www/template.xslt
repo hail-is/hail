@@ -32,7 +32,7 @@
                     <div class="container-fluid align-content-start justify-content-start d-flex" id="hail-container-fluid">
                         <div class="navbar-header" id="hail-navbar-header">
                             <a class="navbar-left" id="hail-navbar-brand" href="/">
-                                <img alt="Hail" height="30" id="logo" src="/hail-logo-cropped.png" />
+                                <img alt="Hail" height="30" id="logo" src="/hail-logo-cropped-sm-opt.png" />
                             </a>
                             <button type="button" id='navbar-toggler' class="navbar-toggler" data-toggle="collapse" data-target="#hail-navbar-collapse" aria-expanded="false">
                                 <span class="icon-bar"></span>
