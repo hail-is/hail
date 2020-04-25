@@ -13,7 +13,7 @@
                 <meta charset="utf-8"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1"/>
                 <title><xsl:call-template name="page-title"/></title>
-                <link rel='shortcut icon' href='hail_logo_sq.ico' type='image/x-icon'/>
+                <link rel='shortcut icon' href='/hail_logo_sq-sm-opt.ico' type='image/x-icon'/>
                 <xsl:call-template name="meta-description"/>
                 <link rel="stylesheet" href="/style.css"/>
                 <link rel="stylesheet" href="/navbar.css"/>
