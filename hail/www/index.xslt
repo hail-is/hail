@@ -29,7 +29,7 @@
                     UK Biobank, TopMed, FinnGen, and Biobank Japan).
                 </p>
                 <p> The modern data science stack is driven by table-like data structures, often called dataframes (see <a href='https://pandas.pydata.org'>Pandas</a>).
-                    While convenient, dataframes don't scale to the sizes needed for genetics. Hail remedies this, introducing a new, scalable dataframe-like structure called <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTables</a>.
+                    While convenient, dataframes don't scale to the sizes needed for genetics. Hail remedies this, introducing a new, scalable dataframe-like structure called <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>.
                 </p>
                 <p>
                     The Hail MatrixTable enables the unification of data across a wide range of input formats (e.g. vcf, bgen, tsv, gtf, bed files), and supports efficient queries, even on petabyte-scale datasets. By leveraging MatrixTable, Hail provides a unified, scalable analysis platform for science.
