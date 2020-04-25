@@ -501,4 +501,30 @@ class SparkBackend(
       lmm.fit(ctx, pa_t, Option(a_t))
     }
   }
+
+  def parse_value_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): IR = {
+    withExecuteContext() { ctx =>
+      IRParser.parse_value_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
+    }
+  }
+
+  def parse_table_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): TableIR = {
+    withExecuteContext() { ctx =>
+      IRParser.parse_table_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
+    }
+  }
+
+  def parse_matrix_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): MatrixIR = {
+    withExecuteContext() { ctx =>
+      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
+    }
+  }
+
+  def parse_blockmatrix_ir(
+    s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]
+  ): BlockMatrixIR = {
+    withExecuteContext() { ctx =>
+      IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
+    }
+  }
 }

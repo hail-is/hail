@@ -1676,31 +1676,7 @@ object IRParser {
     parse_value_ir(s, IRParserEnvironment(ctx))
   }
 
-  def parse_value_ir(s: String): IR = {
-    ExecuteContext.scoped() { ctx =>
-      parse_value_ir(ctx, s)
-    }
-  }
-
-  def parse_value_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): IR = {
-    ExecuteContext.scoped() { ctx =>
-      parse_value_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
-    }
-  }
-
   def parse_table_ir(ctx: ExecuteContext, s: String): TableIR = parse_table_ir(s, IRParserEnvironment(ctx))
-
-  def parse_table_ir(s: String): TableIR = {
-    ExecuteContext.scoped() { ctx =>
-      parse_table_ir(ctx, s)
-    }
-  }
-
-  def parse_table_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): TableIR = {
-    ExecuteContext.scoped() { ctx =>
-      parse_table_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
-    }
-  }
 
   def parse_table_ir(s: String, env: IRParserEnvironment): TableIR = parse(s, table_ir(env))
 
@@ -1708,35 +1684,9 @@ object IRParser {
 
   def parse_matrix_ir(ctx: ExecuteContext, s: String): MatrixIR = parse_matrix_ir(s, IRParserEnvironment(ctx))
 
-  def parse_matrix_ir(s: String): MatrixIR = {
-    ExecuteContext.scoped() { ctx =>
-      parse_matrix_ir(ctx, s)
-    }
-  }
-
-  def parse_matrix_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): MatrixIR = {
-    ExecuteContext.scoped() { ctx =>
-      parse_matrix_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
-    }
-  }
-
   def parse_blockmatrix_ir(s: String, env: IRParserEnvironment): BlockMatrixIR = parse(s, blockmatrix_ir(env))
 
   def parse_blockmatrix_ir(ctx: ExecuteContext, s: String): BlockMatrixIR = parse_blockmatrix_ir(s, IRParserEnvironment(ctx))
-
-  def parse_blockmatrix_ir(s: String): BlockMatrixIR = {
-    ExecuteContext.scoped() { ctx =>
-      parse_blockmatrix_ir(ctx, s)
-    }
-  }
-
-  def parse_blockmatrix_ir(
-    s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]
-  ): BlockMatrixIR = {
-    ExecuteContext.scoped() { ctx =>
-      parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
-    }
-  }
 
   def parseType(code: String, env: TypeParserEnvironment): Type = parse(code, type_expr(env))
 

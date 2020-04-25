@@ -119,6 +119,7 @@ class ValueIRTests(unittest.TestCase):
 
         return value_irs
 
+    @skip_unless_spark_backend()
     def test_parses(self):
         env = {'c': hl.tbool,
                'a': hl.tarray(hl.tint32),
@@ -132,9 +133,8 @@ class ValueIRTests(unittest.TestCase):
                't': hl.ttuple(hl.tint32, hl.tint64, hl.tfloat64),
                'call': hl.tcall,
                'x': hl.tint32}
-        env = {name: t._parsable_string() for name, t in env.items()}
         for x in self.value_irs():
-            Env.hail().expr.ir.IRParser.parse_value_ir(str(x), env, {})
+            Env.spark_backend('ValueIRTests.test_parses')._parse_value_ir(str(x), env)
 
     def test_copies(self):
         for x in self.value_irs():
@@ -144,7 +144,6 @@ class ValueIRTests(unittest.TestCase):
 
 
 class TableIRTests(unittest.TestCase):
-
     def table_irs(self):
         b = ir.TrueIR()
         table_read = ir.TableRead(
@@ -209,9 +208,10 @@ class TableIRTests(unittest.TestCase):
 
         return table_irs
 
+    @skip_unless_spark_backend()
     def test_parses(self):
         for x in self.table_irs():
-            Env.hail().expr.ir.IRParser.parse_table_ir(str(x))
+            Env.spark_backend('TableIRTests.test_parses')._parse_table_ir(str(x))
 
 
 class MatrixIRTests(unittest.TestCase):
@@ -269,10 +269,11 @@ class MatrixIRTests(unittest.TestCase):
 
         return matrix_irs
 
+    @skip_unless_spark_backend()
     def test_parses(self):
         for x in self.matrix_irs():
             try:
-                Env.hail().expr.ir.IRParser.parse_matrix_ir(str(x))
+                Env.spark_backend('MatrixIRTests.test_parses')._parse_matrix_ir(str(x))
             except Exception as e:
                 raise ValueError(str(x)) from e
 
@@ -344,9 +345,10 @@ class BlockMatrixIRTests(unittest.TestCase):
             slice_bm
         ]
 
+    @skip_unless_spark_backend()
     def test_parses(self):
         for x in self.blockmatrix_irs():
-            Env.hail().expr.ir.IRParser.parse_blockmatrix_ir(str(x))
+            Env.spark_backend('BlockMatrixIRTests.test_parses')._parse_blockmatrix_ir(str(x))
 
 
 class ValueTests(unittest.TestCase):
