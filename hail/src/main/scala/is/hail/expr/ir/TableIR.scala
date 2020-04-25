@@ -1226,7 +1226,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
           extracted.postAggIR,
           Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ)))))
     assert(rTyp.virtualType == newRow.typ)
-
+    
     // 1. init op on all aggs and write out to initPath
     val initAgg = Region.scoped { aggRegion =>
       Region.scoped { fRegion =>

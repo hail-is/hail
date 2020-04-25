@@ -115,6 +115,19 @@ object CompileWithAggregators2 {
         EmitParamType(pt)
       }, returnType)
 
+    /*
+    {
+      def visit(x: IR): Unit = {
+        println(f"${ System.identityHashCode(x) }%08x    ${ x.getClass.getSimpleName } ${ x.pType }")
+        Children(x).foreach {
+          case c: IR => visit(c)
+        }
+      }
+
+      visit(ir)
+    }
+     */
+
     Emit(ctx, ir, fb, Some(aggSigs))
 
     val f = fb.resultWithIndex()
