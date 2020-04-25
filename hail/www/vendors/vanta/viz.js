@@ -67,7 +67,7 @@ class Viz {
     this.postInit = false;
     this.points = [];
 
-    this.animationInterval = null;
+    this.animationTimeout = null;
     this.animationLoop = this.animationLoop.bind(this);
 
     window.requestAnimationFrame(() => {
@@ -113,7 +113,7 @@ class Viz {
         return;
       }
 
-      clearInterval(this.animationInterval);
+      clearTimeout(this.animationTimeout);
     };
 
     let observer = new IntersectionObserver(intersectionCallback, { threshold: intersectionThreshold });
@@ -213,40 +213,43 @@ class Viz {
   }
 
   animationLoop(tInterval =  24) {
-    this.animationInterval =  window.setInterval(() => {
-      if(this.startedAnimation) {
-        return;
-      }
+    if(this.startedAnimation || !this.elOnscreen) {
+      return;
+    }
 
-      const now = Date.now();
-      const delta = now - this.then;
+    if(this.animationTimeout ) {
+      clearTimeout(this.animationTimeout);
+    }
 
-      if (this.elOnscreen && !this.isScrolling) {
-        if (delta > this.interval) {
-          this.onUpdate()
-          if (this.scene && this.camera) {
-            this.renderer.render(this.scene, this.camera)
-            // this.renderer.setClearColor(this.options.backgroundColor, this.options.backgroundAlpha)
-          }
+    const now = Date.now();
+    const delta = now - this.then;
+
+    if (!this.isScrolling) {
+      if (delta > this.interval) {
+        this.onUpdate()
+        if (this.scene && this.camera) {
+          this.renderer.render(this.scene, this.camera)
         }
       }
+    }
 
-      if(this.hidden) {
-        this.startedAnimation = true;
-        const started =  Date.now();
+    if(this.hidden) {
+      this.startedAnimation = true;
+      const started =  Date.now();
 
-        window.requestAnimationFrame(() => {
-          this.el.style.opacity = "1";
-          this.hidden = false;
-          this.startedAnimation = false;
-          console.info("done", Date.now() - started);
-        });
+      window.requestAnimationFrame(() => {
+        this.el.style.opacity = "1";
+        this.hidden = false;
+        this.startedAnimation = false;
+        console.info("done", Date.now() - started);
+      });
 
-        this.then = now - 1000 - (delta % this.interval);
-      } else {
-        this.then = now - (delta % this.interval);
-      }
-    }, tInterval);
+      this.then = now - 1000 - (delta % this.interval);
+    } else {
+      this.then = now - (delta % this.interval);
+    }
+
+    this.animationTimeout =  window.setTimeout(() => this.animationLoop(tInterval), tInterval);
   }
 
 
