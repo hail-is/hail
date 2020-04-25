@@ -1424,7 +1424,24 @@ class _tcall(HailType):
         return "Call"
 
     def _convert_from_json(self, x):
-        return hl.Call._from_java(hl.Call._call_jobject().parse(x))
+        if x == '-':
+            return Call([])
+        if x == '|-':
+            return Call([], phased=True)
+        if x[0] == '|':
+            return Call([int(x[1:])], phased=True)
+
+        n = len(x)
+        i = 0
+        while i < n:
+            c = x[i]
+            if c in '|/':
+                break
+
+        if i == n:
+            return Call([int(x)])
+
+        return Call([int(x[0:i]), int(x[i+1:])], phased=(c == '|'))
 
     def _convert_to_json(self, x):
         return str(x)

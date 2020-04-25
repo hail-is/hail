@@ -26,14 +26,6 @@ class Call(object):
      - :func:`.parse_call`
     """
 
-    _cached_jobject = None
-
-    @staticmethod
-    def _call_jobject():
-        if not Call._cached_jobject:
-            Call._cached_jobject = scala_object(Env.hail().variant, 'Call')
-        return Call._cached_jobject
-
     @typecheck_method(alleles=sequenceof(int),
                       phased=bool)
     def __init__(self, alleles, phased=False):
@@ -41,31 +33,36 @@ class Call(object):
             raise NotImplementedError("Calls with greater than 2 alleles are not supported.")
         self._phased = phased
         self._alleles = alleles
-        self._ploidy = len(alleles)
-        self._call = scala_object(Env.hail().variant, 'CallN').apply(alleles, phased)
-
-    @classmethod
-    def _from_java(cls, jc):
-        c = Call.__new__(cls)
-        c._call = jc
-        c._alleles = None
-        c._phased = None
-        c._ploidy = None
-        super(Call, c).__init__()
-        return c
 
     def __str__(self):
-        return Call._call_jobject().toString(self._call)
+        ploidy = self.ploidy
+        if ploidy == 0:
+            if self._phased:
+                return '|-'
+            return '-'
+
+        if ploidy == 1:
+            if self._phased:
+                return f'|{self._alleles[0]}'
+            return str(self.alleles[0])
+
+        assert ploidy == 2
+        a0 = self._alleles[0]
+        a1 = self._alleles[1]
+        if self._phased:
+            return f'{a0}|{a1}'
+        return f'{a0}/{a1}'
 
     def __repr__(self):
         return 'Call(alleles=%s, phased=%s)' % (self.alleles, self.phased)
 
     def __eq__(self, other):
-        return isinstance(other, Call) and self._call == other._call
+        return (isinstance(other, Call) and
+                self._phased == other._phased and
+                self.alleles == other._alleles)
 
     def __hash__(self):
-        # hash('Call') = 0x16f6c8bfbd18ab94
-        return hash(self._call) ^ 0x16f6c8bfbd18ab94
+        return hash(self._phased) ^ hash(self._call)
 
     def __getitem__(self, item):
         """Get the i*th* allele.
@@ -84,9 +81,6 @@ class Call(object):
         -------
         :obj:`list` of :obj:`int`
         """
-
-        if self._alleles is None:
-            self._alleles = jarray_to_list(Call._call_jobject().alleles(self._call))
         return self._alleles
 
     @property
@@ -97,10 +91,7 @@ class Call(object):
         -------
         :obj:`int`
         """
-
-        if not self._ploidy:
-            self._ploidy = Call._call_jobject().ploidy(self._call)
-        return self._ploidy
+        return len(self._alleles)
 
     @property
     def phased(self):
@@ -110,9 +101,6 @@ class Call(object):
         -------
         :obj:`bool`
         """
-
-        if not self._phased:
-            self._phased = Call._call_jobject().isPhased(self._call)
         return self._phased
 
     def is_haploid(self):
@@ -120,72 +108,98 @@ class Call(object):
 
         :rtype: bool
         """
-
-        return Call._call_jobject().isHaploid(self._call)
+        return self.ploidy == 1
 
     def is_diploid(self):
         """True if the ploidy == 2.
 
         :rtype: bool
         """
-
-        return Call._call_jobject().isDiploid(self._call)
+        return self.ploidy == 2
 
     def is_hom_ref(self):
         """True if the call has no alternate alleles.
 
         :rtype: bool
         """
+        if self.ploidy == 0:
+            return False
 
-        return Call._call_jobject().isHomRef(self._call)
+        return all(a == 0 for a in self._alleles)
 
     def is_het(self):
         """True if the call contains two different alleles.
 
         :rtype: bool
         """
-
-        return Call._call_jobject().isHet(self._call)
+        if self.ploidy < 2:
+            return False
+        return self._alleles[0] != self._alleles[1]
 
     def is_hom_var(self):
-        """True if the call contains two identical alternate alleles.
+        """True if the call contains identical alternate alleles.
 
         :rtype: bool
         """
+        n = self.ploidy
+        if n == 0:
+            return False
 
-        return Call._call_jobject().isHomVar(self._call)
+        a0 = self._alleles[0]
+        if a0 == 0:
+            return False
+
+        if n == 1:
+            return True
+
+        assert n == 2
+        return self._alleles[1] == a0
 
     def is_non_ref(self):
         """True if the call contains any non-reference alleles.
 
         :rtype: bool
         """
-
-        return Call._call_jobject().isNonRef(self._call)
+        return any(a > 0 for a in self._alleles)
 
     def is_het_non_ref(self):
         """True if the call contains two different alternate alleles.
 
         :rtype: bool
         """
+        n = self.ploidy
+        if n < 2:
+            return False
 
-        return Call._call_jobject().isHetNonRef(self._call)
+        assert n == 2
+        a0 = self._alleles[0]
+        a1 = self._alleles[1]
+        return a0 > 0 and a1 > 0 and a0 != a1
 
     def is_het_ref(self):
         """True if the call contains one reference and one alternate allele.
 
         :rtype: bool
         """
+        n = self.ploidy
+        if n < 2:
+            return False
 
-        return Call._call_jobject().isHetRef(self._call)
+        assert n == 2
+        a0 = self._alleles[0]
+        a1 = self._alleles[1]
+        return (a0 == 0 and a1 > 0) or (a0 > 0 and a1 == 0)
 
     def n_alt_alleles(self):
         """Returns the count of non-reference alleles.
 
         :rtype: int
         """
-
-        return Call._call_jobject().nNonRefAlleles(self._call)
+        n = 0
+        for a in self._alleles:
+            if a > 0:
+                n += 1
+        return n
 
     @typecheck_method(n_alleles=int)
     def one_hot_alleles(self, n_alleles):
@@ -222,7 +236,10 @@ class Call(object):
         -------
         :obj:`list` of :obj:`int`
         """
-        return jiterable_to_list(Call._call_jobject().oneHotAlleles(self._call, n_alleles))
+        r = [0] * n_alleles
+        for a in self._alleles:
+            r[a] += 1
+        return r
 
     def unphased_diploid_gt_index(self):
         """Return the genotype index for unphased, diploid calls.
@@ -235,4 +252,8 @@ class Call(object):
         if self.ploidy != 2 or self.phased:
             raise FatalError(
                 "'unphased_diploid_gt_index' is only valid for unphased, diploid calls. Found {}.".format(repr(self)))
-        return Call._call_jobject().unphasedDiploidGtIndex(self._call)
+        a0 = self._alleles[0]
+        a1 = self._alleles[1]
+        if a0 < a1:
+            a0, a1 = a1, a0
+        return a1 * (a1 + 1) / 2 + a0
