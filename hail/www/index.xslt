@@ -25,20 +25,14 @@
             </div>
             <div class="about-content">
                 <p> Hail is an open-source library that allows for the efficient exploration of genomic data.
-                    Successfully, it can be used to interrogate <b>biobank scale</b> genomic data such as the
-                    UK Biobank, TopMed, FinnGen, and Biobank Japan.
-                    We want to bring the idea of data frames to genetics by driving <b>modern data scaling</b>:
+                    It can be used to interrogate <b>biobank-scale</b> genomic data (e.g
+                    UK Biobank, TopMed, FinnGen, and Biobank Japan).
                 </p>
-                <p> Modern data science stack is driven by data frames where modern data science tools, e.g. Python:pandas
-                    and R:dplyr, for genomic data lack the data frame scalability offered by Hail.
-                    We want to bring efficient use of data frames to genomic analysis by offering the relatively effortless
-                    manipulation offered by the use of Hail <a href='/docs/0.2/overview/matrix_table.html?highlight=matrix%20table' target='_blank'>MatrixTables</a>.
+                <p> The modern data science stack is driven by table-like data structures, often called dataframes (see <a href='https://pandas.pydata.org'>Pandas</a>).
+                    While convenient, dataframes don't scale to the sizes needed for genetics. Hail remedies this, introducing a new, scalable dataframe-like structure called <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTables</a>.
                 </p>
                 <p>
-                    The Hail MatrixTable is a data frame abstraction that transcends data formats. Therefore, a MatrixTable is a
-                    format that allows for unified input formats e.g. vcf, bgen, tsv, gtf, bed files. Upon creating the unified
-                    input formats, Hail is a unified analytics platform which we want our users to feel comfortable in using to
-                    empower their science
+                    The Hail MatrixTable enables the unification of data across a wide range of input formats (e.g. vcf, bgen, tsv, gtf, bed files), and supports efficient queries, even on petabyte-scale datasets. By leveraging MatrixTable, Hail provides a unified, scalable analysis platform for science.
                 </p>
             </div>
         </div>
