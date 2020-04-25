@@ -1,7 +1,7 @@
 import unittest
 
 import hail as hl
-from .helpers import startTestHailContext, stopTestHailContext
+from .helpers import startTestHailContext, stopTestHailContext, skip_unless_spark_backend
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
