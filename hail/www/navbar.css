@@ -113,6 +113,7 @@
     background: #fff;
     height: 100vh;
     left: 0px;
+    z-index: 999;
   }
   #hail-navbar #hail-navbar-collapse .nav-item:first-child {
     padding-top: 24px;
