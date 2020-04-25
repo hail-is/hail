@@ -243,6 +243,7 @@
   cursor: pointer;
   cursor: hand;
   padding: 0px; /*to fix bootstrap override in docs*/
+  margin-right: 0px; /*to fix bootstrap override in docs*/
 }
 
 #hail-navbar #hail-container-fluid .navbar-toggler .icon-bar {
