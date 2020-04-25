@@ -91,13 +91,10 @@ class Viz {
             this.init();
             this.postInit = true;
             this.then = Date.now();
-
-            this.listen();
+            this.listen()
           });
-
-          window.requestAnimationFrame(() => this.resize(true));
-          window.requestAnimationFrame(() => this.el.style.opacity = "1");
           window.requestAnimationFrame(this.animationLoop);
+          setTimeout(() => window.requestAnimationFrame(() => this.el.style.opacity = "1"), 16);
         } catch (e) {
           if (this.renderer && this.renderer.domElement) {
             this.el.removeChild(this.renderer.domElement)
@@ -141,6 +138,8 @@ class Viz {
     }, false);
 
     this.mouse.dontshow = false;
+
+    // TODO: generalize this
     const d = document.getElementById('hero-content');
     const n = document.getElementById('hail-navbar');
 
@@ -198,7 +197,7 @@ class Viz {
       }
 
       this.resizeTimeout = null;
-    }, this.postInit ? 100 : 0);
+    }, 100);
   }
 
   animationLoop() {
@@ -308,6 +307,9 @@ class Viz {
         this.points.push(p1, p2);
       }
     }
+
+    this.renderer.setSize(this.el.offsetWidth, this.el.offsetHeight)
+    this.renderer.setPixelRatio(window.devicePixelRatio)
 
     const ambience = new THREE.AmbientLight(0xffffff, 0.75);
     this.camera = new THREE.PerspectiveCamera(25, this.el.offsetWidth / (this.el.offsetHeight), .01, 10000);
