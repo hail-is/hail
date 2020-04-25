@@ -112,8 +112,6 @@ class Viz {
         this.animationLoop(24);
         return;
       }
-
-      clearTimeout(this.animationTimeout);
     };
 
     let observer = new IntersectionObserver(intersectionCallback, { threshold: intersectionThreshold });
@@ -217,7 +215,7 @@ class Viz {
       return;
     }
 
-    if(this.animationTimeout ) {
+    if(this.animationTimeout) {
       clearTimeout(this.animationTimeout);
     }
 
@@ -249,7 +247,10 @@ class Viz {
       this.then = now - (delta % this.interval);
     }
 
-    this.animationTimeout =  window.setTimeout(() => this.animationLoop(tInterval), tInterval);
+    this.animationTimeout =  window.setTimeout(() => {
+      this.animationLoop(tInterval);
+      this.animationTimeout = null;
+    }, tInterval);
   }
 
 
