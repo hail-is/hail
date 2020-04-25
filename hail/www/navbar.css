@@ -20,6 +20,8 @@
 /*! normalize.css v3.0.3 | MIT License | github.com/necolas/normalize.css */
 
 #hail-navbar {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; /* necessary to prevent font override in docs*/
+  line-height: 1.6; /* necessary to prevent font override in docs*/
   padding: 10px 15px;
   margin: 0px;
   background-color: #fff;
@@ -238,16 +240,15 @@
   margin-left: auto;
   background: transparent;
   border: none;
-  padding-right: 0px;
   cursor: pointer;
   cursor: hand;
-  padding-left:0px;
+  padding: 0px; /*to fix bootstrap override in docs*/
 }
 
 #hail-navbar #hail-container-fluid .navbar-toggler .icon-bar {
   display: block;
   width: 22px;
-  height: 1px;
+  height: 3px;
   margin: 5px 0px;
   border-radius: 1px;
   border: 1px solid #444;

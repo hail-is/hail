@@ -7,6 +7,10 @@ html {
   font-size: 100%;
 }
 
+*  {
+  box-sizing: border-box;
+}
+
 .callout {
   padding: 1rem;
   border-radius: 3px;
