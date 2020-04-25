@@ -47,6 +47,8 @@ class Viz {
     if (!this.el.style.position == 'absolute') {
       this.el.style.position = 'absolute';
     }
+    this.el.style.opacity = 0;
+    this.hidden = true;
 
     this.mouse = { "x": 0, "y": 0, "rawY": 0, "updated": false, "updatedCount": -1, "ran": false };
 
@@ -65,6 +67,7 @@ class Viz {
     this.postInit = false;
     this.points = [];
 
+    this.animationInterval = null;
     this.animationLoop = this.animationLoop.bind(this);
 
     window.requestAnimationFrame(() => {
@@ -85,23 +88,32 @@ class Viz {
       // entries[0].isIntersecting incorrect in firefox
       this.elOnscreen = entries[0].intersectionRatio > intersectionThreshold;
       this.interval = 1000 / 16;
-      if (this.elOnscreen && this.postInit == false) {
-        try {
-          window.requestAnimationFrame(() => {
-            this.init();
-            this.postInit = true;
-            this.then = Date.now();
-            this.listen()
-          });
-          window.requestAnimationFrame(this.animationLoop);
-          setTimeout(() => window.requestAnimationFrame(() => this.el.style.opacity = "1"), 16);
-        } catch (e) {
-          if (this.renderer && this.renderer.domElement) {
-            this.el.removeChild(this.renderer.domElement)
+      if (this.elOnscreen) {
+        if(!this.postInit)  {
+          try {
+            window.requestAnimationFrame(() => {
+              this.init();
+              this.listen();
+              this.then = Date.now();
+              this.animationLoop(24);
+              this.postInit = true;
+            });
+          } catch (e) {
+            if (this.renderer && this.renderer.domElement) {
+              this.el.removeChild(this.renderer.domElement)
+            }
+            log.error(e);
+            return
           }
-          return
+
+          return;
         }
+
+        this.animationLoop(24);
+        return;
       }
+
+      clearInterval(this.animationInterval);
     };
 
     let observer = new IntersectionObserver(intersectionCallback, { threshold: intersectionThreshold });
@@ -200,26 +212,41 @@ class Viz {
     }, 100);
   }
 
-  animationLoop() {
-    const now = Date.now();
-    const delta = now - this.then;
-
-    if (this.elOnscreen && (!this.isScrolling || !this.postInit)) {
-      if (delta > this.interval) {
-        if (typeof this.onUpdate === "function") {
-          this.onUpdate()
-        }
-        if (this.scene && this.camera) {
-          this.renderer.render(this.scene, this.camera)
-          this.renderer.setClearColor(this.options.backgroundColor, this.options.backgroundAlpha)
-        }
-        if (this.fps && this.fps.update) this.fps.update()
-        if (typeof this.afterRender === "function") this.afterRender()
+  animationLoop(tInterval =  24) {
+    this.animationInterval =  window.setInterval(() => {
+      if(this.startedAnimation) {
+        return;
       }
-    }
 
-    this.then = now - (delta % this.interval);
-    return this.req = window.setTimeout(this.animationLoop, !this.elOnscreen ? 1000 : (this.postInit ? 24 : 0))
+      const now = Date.now();
+      const delta = now - this.then;
+
+      if (this.elOnscreen && !this.isScrolling) {
+        if (delta > this.interval) {
+          this.onUpdate()
+          if (this.scene && this.camera) {
+            this.renderer.render(this.scene, this.camera)
+            // this.renderer.setClearColor(this.options.backgroundColor, this.options.backgroundAlpha)
+          }
+        }
+      }
+
+      if(this.hidden) {
+        this.startedAnimation = true;
+        const started =  Date.now();
+
+        window.requestAnimationFrame(() => {
+          this.el.style.opacity = "1";
+          this.hidden = false;
+          this.startedAnimation = false;
+          console.info("done", Date.now() - started);
+        });
+
+        this.then = now - 1000 - (delta % this.interval);
+      } else {
+        this.then = now - (delta % this.interval);
+      }
+    }, tInterval);
   }
 
 
