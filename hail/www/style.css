@@ -521,11 +521,11 @@ img.rounded-image {
   flex-direction: column;
   z-index: 1;
   align-items: flex-start;
-  padding: 0px 0px 0px 50px;
+  padding: 0px 50px 0px 50px;
   background: #fff;
   box-shadow: 0px 0px 25px 20px rgba(255,255,255, 1);
   border-radius: 50px;
-  max-width: 43.5rem;
+  max-width: calc(44rem + 50px);
 }
 
 .clickable {
