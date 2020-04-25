@@ -14,7 +14,7 @@ HAIL_PUBLIC_IMAGE = gcr.io/$(PROJECT)/hail-public:$(shell docker images -q --no-
 
 GENETICS_PUBLIC_LATEST = gcr.io/$(PROJECT)/genetics-public:latest
 GENETICS_PUBLIC_IMAGE = gcr.io/$(PROJECT)/genetics-public:$(shell docker images -q --no-trunc genetics-public:latest | sed -e 's,[^:]*:,,')
- 
+
 .PHONY: base
 base: base-stmp
 
