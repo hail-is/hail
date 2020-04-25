@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.annotations.{BroadcastRow, Region}
 import is.hail.asm4s.Value
 import is.hail.backend.spark.SparkBackend
@@ -42,7 +41,7 @@ class GenericTableValueRDDPartition(
 class GenericTableValueRDD(
   @transient val contexts: IndexedSeq[Any],
   body: (Region, Any) => Iterator[Long]
-) extends RDD[RVDContext => Iterator[Long]](HailContext.sc, Nil) {
+) extends RDD[RVDContext => Iterator[Long]](SparkBackend.sparkContext("GenericTableValueRDD"), Nil) {
   def getPartitions: Array[Partition] = contexts.zipWithIndex.map { case (c, i) =>
     new GenericTableValueRDDPartition(i, c)
   }.toArray
