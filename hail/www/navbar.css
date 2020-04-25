@@ -237,13 +237,12 @@
 }
 
 #hail-navbar #hail-container-fluid .navbar-toggler {
-  margin-left: auto;
+  margin: 0px 0px 0px auto;
   background: transparent;
   border: none;
   cursor: pointer;
   cursor: hand;
   padding: 0px; /*to fix bootstrap override in docs*/
-  margin-right: 0px; /*to fix bootstrap override in docs*/
 }
 
 #hail-navbar #hail-container-fluid .navbar-toggler .icon-bar {
