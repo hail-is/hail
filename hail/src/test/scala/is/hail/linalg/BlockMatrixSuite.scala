@@ -896,7 +896,7 @@ class BlockMatrixSuite extends HailSuite {
       val fname = ctx.createTmpPath("test")
       fbm.write(ctx, fname, forceRowMajor = true)
       
-      assert(RowMatrix.readBlockMatrix(fs, fname, Some(3)).toBreezeMatrix() === flm)
+      assert(RowMatrix.readBlockMatrix(fs, fname, 3).toBreezeMatrix() === flm)
 
       assert(filteredEquals(fbm, BlockMatrix.read(fs, fname)))
     }
