@@ -327,7 +327,7 @@ object Simplify {
       val rw = fieldNames.foldLeft[IR](Let(name, old, rewrite(body))) { case (comb, fieldName) =>
         Let(newFieldRefs(fieldName).name, newFieldMap(fieldName), comb)
       }
-      FoldConstants(ForwardLets(rw)).asInstanceOf[IR]
+      ForwardLets[IR](rw)
 
     case SelectFields(old, fields) if coerce[TStruct](old.typ).fieldNames sameElements fields =>
       old
