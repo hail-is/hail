@@ -300,19 +300,20 @@ class TableKeyByAndAggregate(TableIR):
 
 
 class TableGroupWithinPartitions(TableIR):
-    def __init__(self, child, n):
+    def __init__(self, child, name, n):
         super().__init__(child)
         self.child = child
+        self.name = name
         self.n = n
 
     def head_str(self):
-        return f'{self.n}'
+        return f'{escape_str(self.name)} {self.n}'
 
     def _compute_type(self):
         child_typ = self.child.typ
 
         self._type = hl.ttable(child_typ.global_type,
-                               child_typ.key_type._concat(hl.tstruct(grouped_fields=hl.tarray(child_typ.row_type))),
+                               child_typ.key_type._insert_field(self.name, hl.tarray(child_typ.row_type)),
                                child_typ.row_key)
 
 
