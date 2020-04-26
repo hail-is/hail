@@ -1826,7 +1826,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
     val valueIR = Let(res, extracted.results, extracted.postAggIR)
     val keyType = prev.rvd.typ.kType
-    assert(keyType.virtualType == prev.typ.keyType)
+    assert(keyType.virtualType.fields.startsWith(prev.typ.keyType.fields))
 
     val key = Ref(genUID(), keyType.virtualType)
     val value = Ref(genUID(), valueIR.typ)
