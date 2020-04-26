@@ -1437,6 +1437,7 @@ class _tcall(HailType):
             c = x[i]
             if c in '|/':
                 break
+            i += 1
 
         if i == n:
             return Call([int(x)])
