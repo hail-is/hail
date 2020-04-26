@@ -30,11 +30,11 @@ class Env:
 
     @staticmethod
     def hail():
-        return spark_backend('Env.hail').hail_package()
+        return Env.spark_backend('Env.hail').hail_package()
 
     @staticmethod
     def jutils():
-        return spark_backend('Env.jutils').utils_package_object()
+        return Env.spark_backend('Env.jutils').utils_package_object()
 
     @staticmethod
     def hc():
