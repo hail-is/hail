@@ -479,8 +479,7 @@ class SparkBackend(
     pathIn: String, pathOut: String, delimiter: String, header: String, addIndex: Boolean, exportType: String,
     partitionSize: java.lang.Integer, entries: String): Unit = {
     withExecuteContext() { ctx =>
-      val rm = RowMatrix.readBlockMatrix(fs, pathIn,
-        if (partitionSize == null) None else Some(partitionSize))
+      val rm = RowMatrix.readBlockMatrix(fs, pathIn, partitionSize)
       entries match {
         case "full" =>
           rm.export(ctx, pathOut, delimiter, Option(header), addIndex, exportType)

@@ -6,7 +6,7 @@ from hail.linalg import BlockMatrix
 from hail.linalg.utils import _check_dims
 from hail.table import Table
 from hail.typecheck import *
-from hail.utils.java import Env, jnone, jsome, info
+from hail.utils.java import Env, info
 from hail.utils.misc import plural
 
 
@@ -736,12 +736,12 @@ class LinearMixedModel(object):
         elif partition_size <= 0:
             raise ValueError(f'partition_size must be positive, found {partition_size}')
 
-        jpa_t = Env.hail().linalg.RowMatrix.readBlockMatrix(jfs, pa_t_path, jsome(partition_size))
+        jpa_t = Env.hail().linalg.RowMatrix.readBlockMatrix(jfs, pa_t_path, partition_size)
 
         if a_t_path is None:
             maybe_ja_t = None
         else:
-            maybe_ja_t = Env.hail().linalg.RowMatrix.readBlockMatrix(jfs, a_t_path, jsome(partition_size))
+            maybe_ja_t = Env.hail().linalg.RowMatrix.readBlockMatrix(jfs, a_t_path, partition_size)
 
         return Table._from_java(backend._jbackend.pyFitLinearMixedModel(
             self._scala_model, jpa_t, maybe_ja_t))
@@ -842,8 +842,8 @@ class LinearMixedModel(object):
             self._ydy_alt,
             _jarray_from_ndarray(self._xdy_alt),
             _breeze_from_ndarray(self._xdx_alt),
-            jsome(_jarray_from_ndarray(self.y)) if self.low_rank else jnone(),
-            jsome(_breeze_from_ndarray(self.x)) if self.low_rank else jnone()
+            _jarray_from_ndarray(self.y) if self.low_rank else None,
+            _breeze_from_ndarray(self.x) if self.low_rank belse None
         )
 
     def _check_dof(self, f=None):

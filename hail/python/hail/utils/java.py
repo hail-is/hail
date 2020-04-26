@@ -14,9 +14,6 @@ class FatalError(Exception):
 
 
 class Env:
-    _jvm = None
-    _gateway = None
-    _hail_package = None
     _jutils = None
     _hc = None
     _counter = 0
@@ -32,24 +29,12 @@ class Env:
         return f"__uid_{str_base}{Env._counter}"
 
     @staticmethod
-    def jvm():
-        if not Env._jvm:
-            Env.hc()
-            assert Env._jvm is not None
-        return Env._jvm
-
-    @staticmethod
     def hail():
-        if not Env._hail_package:
-            Env._hail_package = getattr(Env.jvm(), 'is').hail
-
-        return Env._hail_package
+        return spark_backend('Env.hail').hail_package()
 
     @staticmethod
     def jutils():
-        if not Env._jutils:
-            Env._jutils = scala_package_object(Env.hail().utils)
-        return Env._jutils
+        return spark_backend('Env.jutils').utils_package_object()
 
     @staticmethod
     def hc():
@@ -110,38 +95,13 @@ def scala_package_object(jpackage):
     return scala_object(jpackage, 'package')
 
 
-def jnone():
-    return scala_object(Env.jvm().scala, 'None')
-
-
-def jsome(x):
-    return Env.jvm().scala.Some(x)
-
-
-def joption(x):
-    return jsome(x) if x else jnone()
-
-
-def from_option(x):
-    return x.get() if x.isDefined() else None
-
-
 def jindexed_seq(x):
     return Env.jutils().arrayListToISeq(x)
-
-
-def jset(x):
-    return Env.jutils().arrayListToSet(x)
 
 
 def jindexed_seq_args(x):
     args = [x] if isinstance(x, str) else x
     return jindexed_seq(args)
-
-
-def jset_args(x):
-    args = [x] if isinstance(x, str) else x
-    return jset(args)
 
 
 def jiterable_to_list(it):

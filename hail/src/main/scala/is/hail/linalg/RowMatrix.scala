@@ -32,13 +32,13 @@ object RowMatrix {
     partitionCounts
   }
 
-  def readBlockMatrix(fs: FS, uri: String, maybePartSize: Option[Int]): RowMatrix = {
+  def readBlockMatrix(fs: FS, uri: String, maybePartSize: java.lang.Integer): RowMatrix = {
     val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = BlockMatrix.readMetadata(fs, uri)
     if (nCols >= Int.MaxValue) {
       fatal(s"Number of columns must be less than 2^31, found $nCols")
     }
     val gp = GridPartitioner(blockSize, nRows, nCols, maybeFiltered)
-    val partSize = maybePartSize.getOrElse(blockSize)
+    val partSize: Int = if (maybePartSize != null) maybePartSize else blockSize
     val partitionCounts = computePartitionCounts(partSize, gp.nRows)
     RowMatrix(
       new ReadBlocksAsRowsRDD(fs.broadcast, uri, partFiles, partitionCounts, gp),

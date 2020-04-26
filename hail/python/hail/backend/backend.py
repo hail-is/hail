@@ -138,9 +138,6 @@ class SparkBackend(Backend):
         self._gateway = SparkContext._gateway
         self._jvm = SparkContext._jvm
 
-        Env._jvm = self._jvm
-        Env._gateway = self._gateway
-
         hail_package = getattr(self._jvm, 'is').hail
 
         self._hail_package = hail_package
