@@ -61,12 +61,6 @@ object BlockMatrixIR {
 abstract sealed class BlockMatrixIR extends BaseIR {
   def typ: BlockMatrixType
 
-  def pyExecute(): BlockMatrix = {
-    ExecuteContext.scoped() { ctx =>
-      Interpret(this, ctx, optimize = true)
-    }
-  }
-
   protected[ir] def execute(ctx: ExecuteContext): BlockMatrix =
     fatal("tried to execute unexecutable IR:\n" + Pretty(this))
 
