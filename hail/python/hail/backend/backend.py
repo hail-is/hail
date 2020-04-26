@@ -253,7 +253,7 @@ class SparkBackend(Backend):
         return dtype(jir.typ().toString())
 
     def table_type(self, tir):
-        jir = self._to_java_type_ir(tir)
+        jir = self._to_java_table_ir(tir)
         return ttable._from_java(jir.typ())
 
     def matrix_type(self, mir):
