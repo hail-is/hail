@@ -294,7 +294,7 @@ class SparkBackend(Backend):
         return json.loads(self._jhc.pyParseVCFMetadataJSON(self.fs._jfs, path))
 
     def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
-        self._jbackend.pyIndexBgen(files, index_file_map, joption(rg), contig_recoding, skip_invalid_loci)
+        self._jbackend.pyIndexBgen(files, index_file_map, rg, contig_recoding, skip_invalid_loci)
 
 
 class ServiceBackend(Backend):

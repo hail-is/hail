@@ -9,7 +9,7 @@ import hail
 from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, dictof
 from hail.utils import get_env_or_default
-from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler, warn
+from hail.utils.java import Env, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler, warn
 from hail.backend import Backend, ServiceBackend, SparkBackend
 
 

@@ -359,11 +359,11 @@ class SparkBackend(
   def pyIndexBgen(
     files: java.util.List[String],
     indexFileMap: java.util.Map[String, String],
-    rg: Option[String],
+    rg: String,
     contigRecoding: java.util.Map[String, String],
     skipInvalidLoci: Boolean) {
     withExecuteContext() { ctx =>
-      IndexBgen(ctx, files.asScala.toArray, indexFileMap.asScala.toMap, rg, contigRecoding.asScala.toMap, skipInvalidLoci)
+      IndexBgen(ctx, files.asScala.toArray, indexFileMap.asScala.toMap, Option(rg), contigRecoding.asScala.toMap, skipInvalidLoci)
     }
     info(s"Number of BGEN files indexed: ${ files.size() }")
   }
