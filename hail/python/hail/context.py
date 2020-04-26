@@ -123,7 +123,6 @@ class HailContext(object):
     def stop(self):
         self._backend.stop()
         self._backend = None
-        Env._jvm = None
         Env._hc = None
         uninstall_exception_handler()
         Env._dummy_table = None
