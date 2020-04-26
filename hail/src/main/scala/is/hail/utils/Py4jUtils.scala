@@ -146,7 +146,6 @@ trait Py4jUtils {
       TStruct("type" -> TString, "data" -> TArray(ptyp.virtualType)))
     JsonMethods.compact(jv)
   }
-
 }
 
 class HadoopPyReader(in: InputStream, buffSize: Int) {

@@ -843,7 +843,7 @@ class LinearMixedModel(object):
             _jarray_from_ndarray(self._xdy_alt),
             _breeze_from_ndarray(self._xdx_alt),
             _jarray_from_ndarray(self.y) if self.low_rank else None,
-            _breeze_from_ndarray(self.x) if self.low_rank belse None
+            _breeze_from_ndarray(self.x) if self.low_rank else None
         )
 
     def _check_dof(self, f=None):
