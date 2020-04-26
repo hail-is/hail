@@ -4,6 +4,7 @@ from pyspark.sql import SparkSession
 import abc
 import os
 import requests
+import py4j
 import pyspark
 from hail.utils.java import *
 from hail.expr.types import dtype

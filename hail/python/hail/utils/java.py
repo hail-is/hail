@@ -5,7 +5,6 @@ import sys
 import re
 from threading import Thread
 
-import py4j
 import hail
 
 
