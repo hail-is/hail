@@ -1425,11 +1425,11 @@ class _tcall(HailType):
 
     def _convert_from_json(self, x):
         if x == '-':
-            return Call([])
+            return hl.Call([])
         if x == '|-':
-            return Call([], phased=True)
+            return hl.Call([], phased=True)
         if x[0] == '|':
-            return Call([int(x[1:])], phased=True)
+            return hl.Call([int(x[1:])], phased=True)
 
         n = len(x)
         i = 0
@@ -1440,9 +1440,9 @@ class _tcall(HailType):
             i += 1
 
         if i == n:
-            return Call([int(x)])
+            return hl.Call([int(x)])
 
-        return Call([int(x[0:i]), int(x[i+1:])], phased=(c == '|'))
+        return hl.Call([int(x[0:i]), int(x[i+1:])], phased=(c == '|'))
 
     def _convert_to_json(self, x):
         return str(x)
