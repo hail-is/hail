@@ -16,8 +16,9 @@ RUN apt-get update && \
     jq \
     openjdk-8-jdk-headless \
     python \
-    python3 python3-pip \
+    python3.7 python3-pip python3.7-dev \
     liblapack3 && \
+  update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1 && \
   rm -rf /var/lib/apt/lists/*
 
 
