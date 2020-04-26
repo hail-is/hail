@@ -482,16 +482,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     else
       filteredBM.zeroRowIntervals(starts, stops)
   }
-
-  def filterRowIntervalsIR(startsAndStops: IR, blocksOnly: Boolean): BlockMatrix = {
-    val Row(starts, stops) = ExecuteContext.scoped() { ctx => CompileAndEvaluate[Row](ctx, startsAndStops) }
-
-    filterRowIntervals(
-      starts.asInstanceOf[IndexedSeq[Int]].map(_.toLong).toArray,
-      stops.asInstanceOf[IndexedSeq[Int]].map(_.toLong).toArray,
-      blocksOnly)
-  }
-
+  
   def zeroRowIntervals(starts: Array[Long], stops: Array[Long]): BlockMatrix = {    
     val backend = HailContext.backend
     val startBlockIndexBc = backend.broadcast(starts.map(gp.indexBlockIndex))
