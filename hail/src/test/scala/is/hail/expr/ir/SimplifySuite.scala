@@ -98,7 +98,8 @@ class SimplifySuite extends HailSuite {
 
     assert(Simplify(ir1) == InsertFields(r, FastSeq(("y", F64(0)), ("z", GetField(r, "x").toD)), Some(FastIndexedSeq("x", "y", "z"))))
     assert(Simplify(ir2) == InsertFields(r, FastSeq(("y", F64(0.0)), ("z", GetField(r, "x").toD + F64(0.0))), Some(FastIndexedSeq("x", "y", "z"))))
-    assert(Simplify(ir3) == InsertFields(Ref("something_else", TStruct.empty), FastSeq(("z", I32(0)))))
+
+    assert(Optimize[IR](ctx, ir3) == InsertFields(Ref("something_else", TStruct.empty), FastSeq(("z", I32(0)))))
 
     val shouldNotRewrite = Let("row2", InsertFields(r, FastSeq(("y", Ref("other", TFloat64)))), InsertFields(r2, FastSeq(("z", invoke("str", TString, r2)))))
 
