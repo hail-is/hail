@@ -4,11 +4,6 @@ import is.hail.expr.types.virtual.TStream
 import is.hail.utils.HailException
 
 object FoldConstants {
-  def apply(ir: BaseIR): BaseIR =
-    ExecuteContext.scoped() { ctx =>
-      foldConstants(ctx, ir)
-    }
-
   def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     ExecuteContext.scopedNewRegion(ctx) { ctx =>
       foldConstants(ctx, ir)

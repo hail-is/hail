@@ -324,10 +324,9 @@ object Simplify {
           }.toFastIndexedSeq)
       }
 
-      val rw = fieldNames.foldLeft[IR](Let(name, old, rewrite(body))) { case (comb, fieldName) =>
+      fieldNames.foldLeft[IR](Let(name, old, rewrite(body))) { case (comb, fieldName) =>
         Let(newFieldRefs(fieldName).name, newFieldMap(fieldName), comb)
       }
-      FoldConstants(ForwardLets(rw)).asInstanceOf[IR]
 
     case SelectFields(old, fields) if coerce[TStruct](old.typ).fieldNames sameElements fields =>
       old
