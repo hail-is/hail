@@ -35,18 +35,18 @@ class Call(object):
         self._alleles = alleles
 
     def __str__(self):
-        ploidy = self.ploidy
-        if ploidy == 0:
+        n = self.ploidy
+        if n == 0:
             if self._phased:
                 return '|-'
             return '-'
 
-        if ploidy == 1:
+        if n == 1:
             if self._phased:
                 return f'|{self._alleles[0]}'
-            return str(self.alleles[0])
+            return str(self._alleles[0])
 
-        assert ploidy == 2
+        assert n == 2
         a0 = self._alleles[0]
         a1 = self._alleles[1]
         if self._phased:
@@ -54,15 +54,15 @@ class Call(object):
         return f'{a0}/{a1}'
 
     def __repr__(self):
-        return 'Call(alleles=%s, phased=%s)' % (self.alleles, self.phased)
+        return 'Call(alleles=%s, phased=%s)' % (self._alleles, self._phased)
 
     def __eq__(self, other):
         return (isinstance(other, Call) and
                 self._phased == other._phased and
-                self.alleles == other._alleles)
+                self._alleles == other._alleles)
 
     def __hash__(self):
-        return hash(self._phased) ^ hash(self._call)
+        return hash(self._phased) ^ hash(tuple(self._alleles))
 
     def __getitem__(self, item):
         """Get the i*th* allele.
@@ -71,7 +71,7 @@ class Call(object):
         -------
         :obj:`int`
         """
-        return self.alleles[item]
+        return self._alleles[item]
 
     @property
     def alleles(self):
