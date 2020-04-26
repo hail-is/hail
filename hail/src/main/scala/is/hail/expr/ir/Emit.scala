@@ -474,13 +474,24 @@ class Emit[C](
 
         emitI(cond).consume(cb, {}, m => cb.ifx(m.tcode[Boolean], emitVoid(cnsq), emitVoid(altr)))
 
-      case Let(name, value, body) =>
-        val x = mb.newEmitField(name, value.pType)
-        val storeV = wrapToMethod(FastIndexedSeq(value)) { (_, _, ecV) =>
-          x := ecV
-        }
-        cb += storeV
-        emitVoid(body, env = env.bind(name, x))
+      case Let(name, value, body) => value.pType match {
+        case streamType: PCanonicalStream =>
+          val valuet = COption.toEmitCode(
+            emitStream(value)
+              .map(ss => PCanonicalStreamCode(streamType, ss.getStream)),
+            mb)
+          val bodyEnv = env.bind(name -> new EmitUnrealizableValue(streamType, valuet))
+
+          emitVoid(body, env = bodyEnv)
+
+        case valueType =>
+          val x = mb.newEmitField(name, valueType)
+          val storeV = wrapToMethod(FastIndexedSeq(value)) { (_, _, ecV) =>
+            x := ecV
+          }
+          cb += storeV
+          emitVoid(body, env = env.bind(name, x))
+      }
 
       case StreamFor(a, valueName, body) =>
         val eltType = a.pType.asInstanceOf[PStream].elementType
@@ -862,18 +873,27 @@ class Emit[C](
 
         EmitCode(setup, mout, out.load())
 
-      case Let(name, value, body) =>
-        val x = mb.newEmitField(name, value.pType)
-        val storeV = wrapToMethod(FastIndexedSeq(value)) { (_, _, ecV) =>
-          x := ecV
-        }
-        val bodyenv = env.bind(name, x)
-        val codeBody = emit(body, env = bodyenv)
-        val setup = Code(
-          storeV,
-          codeBody.setup)
+      case Let(name, value, body) => value.pType match {
+        case streamType: PCanonicalStream =>
+          val valuet = COption.toEmitCode(
+            emitStream(value)
+              .map(ss => PCanonicalStreamCode(streamType, ss.getStream)),
+            mb)
+          val bodyEnv = env.bind(name -> new EmitUnrealizableValue(streamType, valuet))
 
-        EmitCode(setup, codeBody.m, codeBody.pv)
+          emit(body, env = bodyEnv)
+
+        case valueType =>
+          val x = mb.newEmitField(name, valueType)
+          val storeV = wrapToMethod(FastIndexedSeq(value)) { (_, _, ecV) =>
+            x := ecV
+          }
+          val bodyenv = env.bind(name, x)
+          val codeBody = emit(body, env = bodyenv)
+
+          EmitCode(storeV, codeBody)
+      }
+
       case Ref(name, _) =>
         val ev = env.lookup(name)
         if (ev.pt != pt)

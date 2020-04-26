@@ -664,6 +664,15 @@ object EmitStream {
             coerce[PCanonicalStream](x.pType).defaultValue.stream,
             Some(0)))
 
+        case x@Ref(name, _) =>
+          val typ = coerce[PStream](x.pType)
+          val ev = env.lookup(name)
+          if (ev.pt != typ)
+            throw new RuntimeException(s"PValue type did not match inferred ptype:\n name: $name\n  pv: ${ ev.pt }\n  ir: $typ")
+          COption.fromEmitCode(ev.get).map { pc =>
+            SizedStream.unsized(pc.asStream.stream)
+          }
+
         case x@StreamRange(startIR, stopIR, stepIR) =>
           val eltType = coerce[PStream](x.pType).elementType
           val step = mb.genFieldThisRef[Int]("sr_step")
@@ -798,22 +807,55 @@ object EmitStream {
             }
           }
 
+        case x@StreamGrouped(a, size) =>
+          val innerType = coerce[PCanonicalStream](coerce[PStream](x.pType).elementType)
+          val optStream = emitStream(a, env)
+          val optSize = COption.fromEmitCode(emitIR(size))
+          val xS = mb.newLocal[Int]("st_n")
+          optStream.flatMap { case SizedStream(setup, stream, len) =>
+            optSize.map { s =>
+              val newStream = stream.grouped(xS).map(inner => EmitCode(Code._empty, false, PCanonicalStreamCode(innerType, inner)))
+              SizedStream(
+                Code(setup, xS := s.tcode[Int], (xS <= 0).orEmpty(Code._fatal[Unit](const("StreamGrouped: nonpositive size")))),
+                newStream,
+                len.map(l => ((l.toL + xS.toL - 1L) / xS.toL).toI)) // rounding up integer division
+            }
+          }
+
         case StreamMap(childIR, name, bodyIR) =>
-          val childEltType = coerce[PStream](childIR.pType).elementType
+          val eltType = coerce[PStream](childIR.pType).elementType
 
           val optStream = emitStream(childIR, env)
           optStream.map { case SizedStream(setup, stream, len) =>
-            val newStream = stream.map { eltt =>
-              val xElt = mb.newEmitField(name, childEltType)
-              val bodyenv = env.bind(name -> xElt)
-              val bodyt = emitIR(bodyIR, env = bodyenv)
+            val newStream = stream.map { eltt => (eltType, bodyIR.pType) match {
+              case (eltType: PCanonicalStream, bodyType: PCanonicalStream) =>
+                val bodyenv = env.bind(name -> new EmitUnrealizableValue(eltType, eltt))
 
-              EmitCode(
-                Code(xElt := eltt,
-                     bodyt.setup),
-                bodyt.m,
-                bodyt.pv)
-            }
+                COption.toEmitCode(
+                  emitStream(bodyIR, env = bodyenv)
+                    .map(ss => PCanonicalStreamCode(bodyType, ss.getStream)),
+                  mb)
+              case (eltType: PCanonicalStream, _) =>
+                val bodyenv = env.bind(name -> new EmitUnrealizableValue(eltType, eltt))
+
+                emitIR(bodyIR, env = bodyenv)
+              case (_, bodyType: PCanonicalStream) =>
+                val xElt = mb.newEmitField(name, eltType)
+                val bodyenv = env.bind(name -> xElt)
+
+                EmitCode(
+                  xElt := eltt,
+                  COption.toEmitCode(
+                    emitStream(bodyIR, env = bodyenv)
+                      .map(ss => PCanonicalStreamCode(bodyType, ss.getStream)),
+                    mb))
+              case _ =>
+                val xElt = mb.newEmitField(name, eltType)
+                val bodyenv = env.bind(name -> xElt)
+                val bodyt = emitIR(bodyIR, env = bodyenv)
+
+                EmitCode(xElt := eltt, bodyt)
+            }}
 
             SizedStream(setup, newStream, len)
           }
@@ -848,6 +890,7 @@ object EmitStream {
           }
 
         case StreamZip(as, names, bodyIR, behavior) =>
+          // FIXME: should make StreamZip support unrealizable element types
           val eltTypes = {
             val types = as.map(ir => coerce[PStream](ir.pType).elementType)
             behavior match {
@@ -992,14 +1035,19 @@ object EmitStream {
           val optOuter = emitStream(outerIR, env)
 
           optOuter.map { outer =>
-            val nested = outer.getStream.mapCPS[COption[Stream[EmitCode]]] { (ctx, elt, k) =>
-              val xElt = mb.newEmitField(name, outerEltType)
-              val innerEnv = env.bind(name -> xElt)
-              val optInner = emitStream(innerIR, innerEnv).map(ss => ss.stream.addSetup(ss.setup))
+            val nested = outer.getStream.map[COption[Stream[EmitCode]]] { elt =>
+              if (outerEltType.isRealizable) {
+                val xElt = mb.newEmitField(name, outerEltType)
+                val innerEnv = env.bind(name -> xElt)
+                val optInner = emitStream(innerIR, innerEnv).map(_.getStream)
 
-              Code(
-                xElt := elt,
-                k(optInner))
+                optInner.addSetup(xElt := elt)
+              } else {
+                val innerEnv = env.bind(name -> new EmitUnrealizableValue(outerEltType, elt))
+
+                emitStream(innerIR, innerEnv).map(_.getStream)
+              }
+
             }
 
             SizedStream.unsized(nested.flatten.flatten)
@@ -1013,7 +1061,6 @@ object EmitStream {
           val optLeftStream = emitStream(thn, env)
           val optRightStream = emitStream(els, env)
 
-          // TODO: set xCond in setup of choose, don't need CPS
           condT.flatMap[SizedStream] { cond =>
             val newOptStream = COption.choose[SizedStream](
               xCond,
@@ -1037,12 +1084,24 @@ object EmitStream {
 
         case Let(name, valueIR, bodyIR) =>
           val valueType = valueIR.pType
-          val xValue = mb.newEmitField(name, valueType)
 
-          val valuet = emitIR(valueIR)
-          val bodyEnv = env.bind(name -> xValue)
+          valueType match {
+            case streamType: PCanonicalStream =>
+              val valuet = COption.toEmitCode(
+                emitStream(valueIR, env)
+                  .map(ss => PCanonicalStreamCode(streamType, ss.getStream)),
+                mb)
+              val bodyEnv = env.bind(name -> new EmitUnrealizableValue(valueType, valuet))
 
-          emitStream(bodyIR, bodyEnv).addSetup(xValue := valuet)
+              emitStream(bodyIR, bodyEnv)
+
+            case _ =>
+              val xValue = mb.newEmitField(name, valueType)
+              val bodyEnv = env.bind(name -> xValue)
+              val valuet = emitIR(valueIR)
+
+              emitStream(bodyIR, bodyEnv).addSetup(xValue := valuet)
+          }
 
         case x@StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
           val eltType = coerce[PStream](childIR.pType).elementType

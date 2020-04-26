@@ -831,6 +831,17 @@ class IRSuite extends HailSuite {
         "x", Ref("x", TInt32) + Ref("q", TInt32))),
         "y", Ref("y", TInt32) + I32(3))),
       FastIndexedSeq(5, 6, 7, 8, 9))
+
+    // test let binding streams
+    assertEvalsTo(Let("s", MakeStream(Seq(I32(0), I32(5)), TStream(TInt32)), ToArray(Ref("s", TStream(TInt32)))),
+                  FastIndexedSeq(0, 5))
+    assertEvalsTo(Let("s", NA(TStream(TInt32)), ToArray(Ref("s", TStream(TInt32)))),
+                  null)
+    assertEvalsTo(
+      ToArray(Let("s",
+                  MakeStream(Seq(I32(0), I32(5)), TStream(TInt32)),
+                  StreamTake(Ref("s", TStream(TInt32)), I32(1)))),
+      FastIndexedSeq(0))
   }
 
   @Test def testMakeArray() {
@@ -1763,6 +1774,37 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(StreamDrop(a, I32(2))), FastIndexedSeq(7))
     assertEvalsTo(ToArray(StreamDrop(a, I32(5))), FastIndexedSeq())
     assertFatal(ToArray(StreamDrop(a, I32(-1))), "StreamDrop: negative num")
+  }
+
+  @Test def testStreamGrouped() {
+    val naa = NA(TStream(TInt32))
+    val a = MakeStream(Seq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
+
+    def toNestedArray(stream: IR): IR = {
+      val innerType = coerce[TStream](stream.typ).elementType
+      ToArray(StreamMap(stream, "inner", ToArray(Ref("inner", innerType))))
+    }
+
+    assertEvalsTo(toNestedArray(StreamGrouped(naa, I32(2))), null)
+    assertEvalsTo(toNestedArray(StreamGrouped(a, NA(TInt32))), null)
+    assertEvalsTo(toNestedArray(StreamGrouped(a, I32(1))), FastIndexedSeq(FastIndexedSeq(3), FastIndexedSeq(null), FastIndexedSeq(7)))
+    assertEvalsTo(toNestedArray(StreamGrouped(a, I32(2))), FastIndexedSeq(FastIndexedSeq(3, null), FastIndexedSeq(7)))
+    assertEvalsTo(toNestedArray(StreamGrouped(a, I32(5))), FastIndexedSeq(FastIndexedSeq(3, null, 7)))
+    assertFatal(toNestedArray(StreamGrouped(a, I32(0))), "StreamGrouped: nonpositive size")
+
+    val r = StreamRange(I32(0), I32(10), I32(1))
+
+    def takeFromEach(stream: IR, take: IR, fromEach: IR): IR = {
+      val innerType = coerce[TStream](stream.typ)
+      StreamMap(StreamGrouped(stream, fromEach), "inner", StreamTake(Ref("inner", innerType), take))
+    }
+
+    assertEvalsTo(toNestedArray(takeFromEach(r, I32(1), I32(3))),
+                  FastIndexedSeq(FastIndexedSeq(0), FastIndexedSeq(3), FastIndexedSeq(6), FastIndexedSeq(9)))
+    assertEvalsTo(toNestedArray(takeFromEach(r, I32(2), I32(3))),
+                  FastIndexedSeq(FastIndexedSeq(0, 1), FastIndexedSeq(3, 4), FastIndexedSeq(6, 7), FastIndexedSeq(9)))
+    assertEvalsTo(toNestedArray(takeFromEach(r, I32(0), I32(5))),
+                  FastIndexedSeq(FastIndexedSeq(), FastIndexedSeq()))
   }
 
   @Test def testStreamMap() {
