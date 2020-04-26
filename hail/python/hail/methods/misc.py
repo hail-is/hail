@@ -8,7 +8,7 @@ from hail.table import Table
 from hail.typecheck import *
 from hail.utils import Interval, Struct, new_temp_file
 from hail.utils.misc import plural
-from hail.utils.java import Env, joption, info
+from hail.utils.java import Env, info
 from hail.ir import *
 
 
@@ -152,7 +152,7 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
     mis_nodes = construct_expr(JavaIR(Env.hail().utils.Graph.pyMaximalIndependentSet(
         Env.spark_backend('maximal_independent_set')._to_java_ir(edges.collect(_localize=False)._ir),
         node_t._parsable_string(),
-        joption(tie_breaker_str))),
+        tie_breaker_str)),
                                hl.tset(node_t))
 
     nodes = edges.select(node = [edges.__i, edges.__j])
