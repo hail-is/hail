@@ -26,7 +26,8 @@ def define_function(f, *param_types, _name=None, type_args=()):
 
     r = CSERenderer(stop_at_jir=True)
     code = r(body._ir)
-    jbody = body._ir.parse(code, ref_map=dict(zip(param_names, param_types)), ir_map=r.jirs)
+    jbody = (Env.spark_backend('define_function')
+             ._parse_value_ir(code, ref_map=dict(zip(param_names, param_types)), ir_map=r.jirs))
 
     Env.hail().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
         mname,
