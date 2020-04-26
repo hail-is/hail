@@ -32,7 +32,16 @@ class Call(object):
         if len(alleles) > 2:
             raise NotImplementedError("Calls with greater than 2 alleles are not supported.")
         self._phased = phased
-        self._alleles = alleles
+        ploidy = len(alleles)
+        if ploidy < 2:
+            self._alleles = alleles
+        else:
+            assert ploidy == 2
+            a0 = alleles[0]
+            a1 = alleles[1]
+            if a1 < a0:
+                a0, a1 = a1, a0
+            self._alleles = [a0, a1]
 
     def __str__(self):
         n = self.ploidy
@@ -254,6 +263,5 @@ class Call(object):
                 "'unphased_diploid_gt_index' is only valid for unphased, diploid calls. Found {}.".format(repr(self)))
         a0 = self._alleles[0]
         a1 = self._alleles[1]
-        if a0 < a1:
-            a0, a1 = a1, a0
+        assert a0 <= a1
         return a1 * (a1 + 1) / 2 + a0
