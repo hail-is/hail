@@ -33,7 +33,7 @@ class Call(object):
             raise NotImplementedError("Calls with greater than 2 alleles are not supported.")
         self._phased = phased
         ploidy = len(alleles)
-        if ploidy < 2:
+        if phased or ploidy < 2:
             self._alleles = alleles
         else:
             assert ploidy == 2
