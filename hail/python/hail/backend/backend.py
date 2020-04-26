@@ -240,8 +240,6 @@ class SparkBackend(Backend):
         self._gateway = SparkContext._gateway
         self._jvm = SparkContext._jvm
 
-        install_exception_handler()
-
         hail_package = getattr(self._jvm, 'is').hail
 
         self._hail_package = hail_package
@@ -264,6 +262,10 @@ class SparkBackend(Backend):
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
         self._jspark_session = self._jbackend.sparkSession()
         self._spark_session = SparkSession(self.sc, self._jspark_session)
+
+        # This has to go after creating the SparkSession. Unclear why.
+        # Maybe it does its own patch?
+        install_exception_handler()
 
         from hail.context import version
 
