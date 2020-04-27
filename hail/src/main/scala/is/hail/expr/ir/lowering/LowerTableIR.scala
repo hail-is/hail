@@ -248,7 +248,8 @@ object LowerTableIR {
               Ref(sUID, TStream(child.typ.rowType)),
               "row",
               invoke("annotate", x.typ.rowType,
-                ArrayRef(ApplyAggOp(FastSeq(I32(1)), FastSeq(Ref("row", child.typ.rowType)), AggSignature(Take(), FastSeq(), FastSeq(TInt32))), I32(0)),
+                ArrayRef(ApplyAggOp(FastSeq(I32(1)), FastSeq(Ref("row", child.typ.rowType)),
+                  AggSignature(Take(), FastSeq(), FastSeq(TInt32))), I32(0)),  // FIXME: would prefer a First() agg op
                 expr
               )
             ))
