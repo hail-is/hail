@@ -85,6 +85,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def getFS: Code[FS] = ecb.getFS
 
+  def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = ecb.getObject(obj)
+
   def getSerializedAgg(i: Int): Code[Array[Byte]] = ecb.getSerializedAgg(i)
 
   def setSerializedAgg(i: Int, b: Code[Array[Byte]]): Code[Unit] = ecb.setSerializedAgg(i, b)
@@ -304,6 +306,9 @@ class EmitClassBuilder[C](
 
   private[this] var _fsField: Settable[FS] = _
 
+  private[this] var _objectsField: Settable[Array[AnyRef]] = _
+  private[this] var _objects: ArrayBuilder[AnyRef] = _
+
   private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
   private[this] var _backendField: Settable[BackendUtils] = _
 
@@ -397,6 +402,20 @@ class EmitClassBuilder[C](
 
     assert(_fsField != null)
     _fsField
+  }
+
+  def getObject[T <: AnyRef : TypeInfo](obj: T): Code[T] = {
+    if (_objectsField == null) {
+      cb.addInterface(typeInfo[FunctionWithObjects].iname)
+      _objectsField = genFieldThisRef[Array[AnyRef]]()
+      _objects = new ArrayBuilder[AnyRef]()
+      val mb = newEmitMethod("setObjects", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
+      mb.emit(_objectsField := mb.getCodeParam[Array[AnyRef]](1))
+    }
+
+    val i = _objects.size
+    _objects += obj
+    Code.checkcast[T](toCodeArray(_objectsField).apply(i))
   }
 
   def getPType(t: PType): Code[PType] = {
@@ -604,6 +623,12 @@ class EmitClassBuilder[C](
     val useBackend = _backendField != null
     val backend = if (useBackend) new BackendUtils(_mods.result()) else null
 
+    val objects =
+      if (_objects != null)
+        _objects.result()
+      else
+        null
+
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
 
@@ -628,6 +653,8 @@ class EmitClassBuilder[C](
           f.asInstanceOf[FunctionWithFS].addFS(localFS)
         if (useBackend)
           f.asInstanceOf[FunctionWithBackend].setBackend(backend)
+        if (objects != null)
+          f.asInstanceOf[FunctionWithObjects].setObjects(objects)
         if (hasLiterals)
           f.asInstanceOf[FunctionWithLiterals].addLiterals(literalsBc.value)
         if (nSerializedAggs != 0)
@@ -776,6 +803,10 @@ object EmitFunctionBuilder {
 
 trait FunctionWithFS {
   def addFS(fs: FS): Unit
+}
+
+trait FunctionWithObjects {
+  def setObjects(objects: Array[AnyRef]): Unit
 }
 
 trait FunctionWithAggRegion {

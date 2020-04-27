@@ -13,11 +13,15 @@ object LowerIR {
     case node if node.children.exists(n => n.isInstanceOf[BlockMatrixIR]) &&  node.children.forall(n => n.isInstanceOf[BlockMatrixIR] || n.isInstanceOf[IR] ) =>
       LowerBlockMatrixIR(ir, typesToLower, ctx)
 
-    case node if node.children.exists( _.isInstanceOf[MatrixIR] ) =>
-      throw new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(node) }")
+      case node if node.children.exists(n => n.isInstanceOf[BlockMatrixIR]) && node.children.forall(n => n.isInstanceOf[BlockMatrixIR] || n.isInstanceOf[IR]) =>
+        LowerBlockMatrixIR.lower(ctx, ir, typesToLower)
 
-    case node =>
-      throw new LowererUnsupportedOperation(s"Cannot lower: \n${ Pretty(node) }")
+      case node if node.children.exists(_.isInstanceOf[MatrixIR]) =>
+        throw new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(node) }")
+
+      case node =>
+        throw new LowererUnsupportedOperation(s"Cannot lower: \n${ Pretty(node) }")
+    }
   }
 }
 

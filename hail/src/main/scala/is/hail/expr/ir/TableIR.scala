@@ -124,7 +124,8 @@ abstract class TableReader {
     Extraction.decompose(this)(TableReader.formats)
   }
 
-  def lower(t: TableType): LoweredTableReader = throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lowerer not implemented")
+  def lower(ctx: ExecuteContext, requestedType: TableType): LoweredTableReader =
+    throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lowerer not implemented")
 }
 
 object TableNativeReader {
@@ -193,6 +194,8 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends Partition
       SizedStream.unsized(stream)
     }
   }
+
+  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
 case class TableNativeReaderParameters(
@@ -243,7 +246,11 @@ class TableNativeReader(
     case _ => false
   }
 
+<<<<<<< HEAD
   override def lower(t: TableType): LoweredTableReader = {
+=======
+  override def lower(ctx: ExecuteContext, t: TableType): LoweredTableReader = {
+>>>>>>> [query] plink reader: sort variants on master, no coerce
     val gType = t.globalType
     val rowType = t.rowType
 

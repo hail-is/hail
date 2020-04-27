@@ -688,17 +688,10 @@ object ReferenceGenome {
 
   def compare(contigsIndex: java.util.HashMap[String, Integer], c1: String, c2: String): Int = {
     val i1 = contigsIndex.get(c1)
+    assert(i1 != null)
     val i2 = contigsIndex.get(c2)
-    if (i1 == null)
-      if (i2 == null)
-        c1.compare(c2)
-      else
-        1
-    else
-      if (i2 == null)
-        -1
-      else
-        Integer.compare(i1.intValue(), i2.intValue())
+    assert(i2 != null)
+    Integer.compare(i1.intValue(), i2.intValue())
   }
 
   def compare(contigsIndex: java.util.HashMap[String, Integer], l1: Locus, l2: Locus): Int = {

@@ -40,6 +40,8 @@ trait PUnrealizable extends PType {
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     unsupported
+
+  def stackValueToAnnotation(c: Code[_]): Code[AnyRef] = unsupported
 }
 
 trait PUnrealizableCode extends PCode {
