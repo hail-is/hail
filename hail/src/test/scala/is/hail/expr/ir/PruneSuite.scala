@@ -453,7 +453,7 @@ class PruneSuite extends HailSuite {
   @Test def testCollectColsByKeyMemo() {
     val ccbk = MatrixCollectColsByKey(mat)
     checkMemo(ccbk,
-      subsetMatrixTable(ccbk.typ, "g.e2", "sa.c2"),
+      subsetMatrixTable(ccbk.typ, "g.e2", "sa.c2", "NO_COL_KEY"),
       Array(subsetMatrixTable(mat.typ, "g.e2", "sa.c2")))
   }
 

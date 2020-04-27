@@ -582,13 +582,15 @@ object PruneDeadFields {
         memoizeMatrixIR(child, unify(child.typ, requestedType), memo)
       case MatrixCollectColsByKey(child) =>
         val colKeySet = child.typ.colKey.toSet
+        val requestedColType = requestedType.colType
         val explodedDep = requestedType.copy(
           colKey = child.typ.colKey,
-          colType = TStruct(requestedType.colType.fields.map { f =>
+          colType = TStruct(child.typ.colType.fields.flatMap { f =>
             if (colKeySet.contains(f.name))
-              f.name -> f.typ
+              Some(f.name -> f.typ)
             else {
-              f.name -> f.typ.asInstanceOf[TArray].elementType
+              requestedColType.fieldOption(f.name)
+                .map(requestedField => f.name -> requestedField.typ.asInstanceOf[TArray].elementType)
             }
           }: _*),
           rowType = requestedType.rowType,
