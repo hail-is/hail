@@ -592,6 +592,11 @@ class PruneSuite extends HailSuite {
               TStream(TStream(justB)), Array(TStream(justB), null))
   }
 
+  @Test def testStreamGroupByKeyMemo() {
+    checkMemo(StreamGroupByKey(st, FastIndexedSeq("a")),
+              TStream(TStream(justB)), Array(TStream(TStruct("a" -> TInt32, "b" -> TInt32)), null))
+  }
+
   @Test def testStreamZipMemo() {
     val a2 = st.deepCopy()
     val a3 = st.deepCopy()
@@ -1104,6 +1109,14 @@ class PruneSuite extends HailSuite {
         val ir = r.asInstanceOf[StreamGrouped]
         ir.a.typ == TStream(subsetTS("b"))
       })
+  }
+
+  @Test def testStreamGroupByKeyRebuild() {
+    checkRebuild(StreamGroupByKey(MakeStream(Seq(NA(ts)), TStream(ts)), FastIndexedSeq("a")), TStream(TStream(subsetTS("b"))),
+                 (_: BaseIR, r: BaseIR) => {
+                   val ir = r.asInstanceOf[StreamGroupByKey]
+                   ir.a.typ == TStream(subsetTS("a", "b"))
+                 })
   }
 
   @Test def testStreamZipRebuild() {

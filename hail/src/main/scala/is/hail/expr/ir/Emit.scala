@@ -227,6 +227,8 @@ object EmitCode {
 
   def present(pt: PType, v: Code[_]): EmitCode = EmitCode(Code._empty, false, PCode(pt, v))
 
+  def present(pc: PCode): EmitCode = EmitCode(Code._empty, false, pc)
+
   def missing(pt: PType): EmitCode = EmitCode(Code._empty, true, pt.defaultValue)
 
   def fromI(mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => IEmitCode): EmitCode = {

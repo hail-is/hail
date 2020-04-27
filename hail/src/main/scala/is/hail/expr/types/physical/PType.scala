@@ -422,6 +422,8 @@ abstract class PType extends Serializable with Requiredness {
         PCanonicalTuple(t._types.map { f => f.copy(typ = f.typ.deepInnerRequired(true)) }, required)
       case t: PInterval =>
         PCanonicalInterval(t.pointType.deepInnerRequired(true), required)
+      case t: PStream =>
+        PCanonicalStream(t.elementType.deepInnerRequired(true), required)
       case t =>
         t.setRequired(required)
     }

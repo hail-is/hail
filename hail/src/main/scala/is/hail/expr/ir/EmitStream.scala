@@ -1,6 +1,6 @@
  package is.hail.expr.ir
 
-import is.hail.annotations.{Region, RegionValue, StagedRegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region, RegionValue, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
@@ -216,7 +216,7 @@ abstract class Stream[+A] { self =>
   def grouped(size: Code[Int]): Stream[Stream[A]] = new Stream[Stream[A]] {
     def apply(outerEos: Code[Ctrl], outerPush: Stream[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[Stream[A]] = {
       val xCounter = ctx.mb.newLocal[Int]("st_grp_ctr")
-      val xInOuter = ctx.mb.newLocal[Boolean]("st_grp_ff")
+      val xInOuter = ctx.mb.newLocal[Boolean]("st_grp_io")
       val xSize = ctx.mb.newLocal[Int]("st_grp_sz")
       val LchildPull = CodeLabel()
       val LouterPush = CodeLabel()
@@ -613,6 +613,84 @@ object EmitStream {
     }
   }
 
+  def groupBy(mb: EmitMethodBuilder[_], region: Value[Region], stream: Stream[PCode], eltType: PStruct, key: Array[String]): Stream[Stream[PCode]] = new Stream[Stream[PCode]] {
+    def apply(outerEos: Code[Ctrl], outerPush: Stream[PCode] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[Stream[PCode]] = {
+      val keyType = eltType.selectFields(key)
+      val keyViewType = PSubsetStruct(eltType, key)
+      val ordering = keyType.codeOrdering(mb, keyViewType).asInstanceOf[CodeOrdering { type T = Long }]
+
+      val xCurKey = ctx.mb.newPLocal("st_grpby_curkey", keyType)
+      val xCurElt = ctx.mb.newPLocal("st_grpby_curelt", eltType)
+      val xInOuter = ctx.mb.newLocal[Boolean]("st_grpby_io")
+      val xEOS = ctx.mb.newLocal[Boolean]("st_grpby_eos")
+      val xNextGrpReady = ctx.mb.newLocal[Boolean]("st_grpby_ngr")
+
+      val LchildPull = CodeLabel()
+      val LouterPush = CodeLabel()
+      val LinnerPush = CodeLabel()
+      val LouterEos = CodeLabel()
+      val LinnerEos = CodeLabel()
+
+      var childSource: Source[PCode] = null
+      val inner = new Stream[PCode] {
+        def apply(innerEos: Code[Ctrl], innerPush: PCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[PCode] = {
+          childSource = stream(
+            xInOuter.mux(LouterEos.goto, Code(xEOS := true, LinnerEos.goto)),
+            { a: PCode =>
+              Code(
+                xCurElt := a,
+                // !xInOuter iff this element was requested by an inner stream.
+                // Else we are stepping to the beginning of the next group.
+                (xCurKey.tcode[Long].cne(0L) && ordering.equivNonnull(xCurKey.tcode[Long], xCurElt.tcode[Long])).mux(
+                  xInOuter.mux(
+                    LchildPull.goto,
+                    LinnerPush.goto),
+                  Code(
+                    xCurKey := keyType.copyFromPValue(mb, region, new PSubsetStructCode(keyViewType, xCurElt.tcode[Long])),
+                    xInOuter.mux(
+                      LouterPush.goto,
+                      Code(xNextGrpReady := true, LinnerEos.goto)))))
+            })
+
+          Code(LinnerPush, innerPush(xCurElt))
+          Code(LinnerEos, innerEos)
+          Code(LchildPull, childSource.pull)
+
+          Source[PCode](
+            setup0 = Code._empty,
+            close0 = Code._empty,
+            setup = Code._empty,
+            close = Code._empty,
+            pull = xInOuter.mux(
+              // xInOuter iff this is the first pull from inner stream,
+              // in which case the element has already been produced
+              Code(xInOuter := false, LinnerPush.goto),
+              LchildPull.goto))
+        }
+      }
+
+      Code(LouterPush, outerPush(inner))
+      Code(LouterEos, outerEos)
+
+      Source[Stream[PCode]](
+        setup0 = childSource.setup0,
+        close0 = childSource.close0,
+        setup = Code(
+          childSource.setup,
+          xCurKey := keyType.defaultValue,
+          xEOS := false,
+          xNextGrpReady := false),
+        close = childSource.close,
+        pull = Code(
+          xInOuter := true,
+          xEOS.mux(
+            LouterEos.goto,
+            xNextGrpReady.mux(
+              Code(xNextGrpReady := false, LouterPush.goto),
+              LchildPull.goto))))
+    }
+  }
+
   def extendNA(mb: EmitMethodBuilder[_], eltType: PType, stream: Stream[EmitCode]): Stream[COption[EmitCode]] = new Stream[COption[EmitCode]] {
     def apply(eos: Code[Ctrl], push: COption[EmitCode] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[COption[EmitCode]] = {
       val atEnd = mb.newLocal[Boolean]()
@@ -820,6 +898,20 @@ object EmitStream {
                 newStream,
                 len.map(l => ((l.toL + xS.toL - 1L) / xS.toL).toI)) // rounding up integer division
             }
+          }
+
+        case x@StreamGroupByKey(a, key) =>
+          val innerType = coerce[PCanonicalStream](coerce[PStream](x.pType).elementType)
+          val eltType = coerce[PStruct](innerType.elementType)
+          val optStream = emitStream(a, env)
+          optStream.map { ss =>
+            val nonMissingStream = ss.getStream.mapCPS[PCode] { (_, ec, k) =>
+              Code(ec.setup, ec.m.orEmpty(Code._fatal[Unit](const("expected non-missing"))), k(ec.pv))
+            }
+            val newStream = groupBy(mb, region, nonMissingStream, eltType, key.toArray)
+              .map(inner => EmitCode.present(PCanonicalStreamCode(innerType, inner.map(EmitCode.present))))
+
+            SizedStream.unsized(newStream)
           }
 
         case StreamMap(childIR, name, bodyIR) =>
