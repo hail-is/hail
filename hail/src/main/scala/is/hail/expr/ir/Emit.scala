@@ -180,11 +180,14 @@ object IEmitCode {
     IEmitCode(Lmissing, Lpresent, resPc)
   }
 
-  def mapN(iecs: IndexedSeq[IEmitCode], cb: EmitCodeBuilder)(f: IndexedSeq[PCode] => PCode): IEmitCode = {
+  def sequence[T](seq: IndexedSeq[T], toIec: T => IEmitCode, cb: EmitCodeBuilder)
+      (f: IndexedSeq[PCode] => PCode): IEmitCode = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
 
-    val pcs = iecs.map { iec =>
+    val pcs = seq.map { elem =>
+      val iec = toIec(elem)
+
       cb.define(iec.Lmissing)
       cb.goto(Lmissing)
       cb.define(iec.Lpresent)
@@ -736,8 +739,7 @@ class Emit[C](
         val ndPType = coerce[PNDArray](nd.pType)
 
         ndt.flatMap(cb) { case ndCode: PNDArrayCode =>
-          val idxst = idxs.map(emitI(_))
-          IEmitCode.mapN(idxst, cb) { idxPCodes: IndexedSeq[PCode] =>
+          IEmitCode.sequence(idxs, (ir: IR) => emitI(ir), cb) { idxPCodes: IndexedSeq[PCode] =>
             val memoizedIndices = idxPCodes.zipWithIndex.map { case (pc, idx) =>
               pc.memoize(cb,s"ref_idx_$idx")
             }
