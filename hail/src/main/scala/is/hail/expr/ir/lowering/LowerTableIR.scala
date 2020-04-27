@@ -32,6 +32,69 @@ case class TableStage(
   def contextRef: IR = Ref("context", contextType)
 
   def globals: IR = GetField(broadcastRef, globalsField)
+
+  def adjustPartitionsTo(newPartitioner: RVDPartitioner): TableStage = {
+    require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
+    require(newPartitioner.kType.isPrefixOf(partitioner.kType))
+
+    val partitionMapping: IndexedSeq[Row] = newPartitioner.rangeBounds.map { i =>
+      Row(i, partitioner.queryInterval(i))
+    }
+    val partitionMappingType = TStruct(
+      "partitionBound" -> TInterval(partitioner.kType),
+      "parentPartitions" -> TArray(TInt32)
+    )
+
+    val prevContextUID = genUID()
+    val mappingUID = genUID()
+    val idxUID = genUID()
+    val newContexts = Let(
+      prevContextUID,
+      contexts,
+      ToArray(
+        StreamMap(
+          ToStream(
+            Literal(
+              TArray(partitionMappingType),
+              partitionMapping)),
+          mappingUID,
+          MakeStruct(
+            FastSeq(
+              "partitionBound" -> GetField(Ref(mappingUID, partitionMappingType), "partitionBound"),
+              "oldContexts" -> ToArray(
+                StreamMap(
+                  ToStream(GetField(Ref(mappingUID, partitionMappingType), "parentPartitions")),
+                  idxUID,
+                  ArrayRef(Ref(prevContextUID, contexts.typ.asInstanceOf[TArray]), Ref(idxUID, TInt32))
+                ))
+            )
+          )
+        ))
+    )
+
+    val intervalUID = genUID()
+    val eltUID = genUID()
+    val newBody = Let(
+      intervalUID,
+      GetField(contextRef, "partitionBound"),
+      StreamFilter(
+        StreamFlatMap(
+          ToStream(GetField(contextRef, "parentPartitions")),
+          "context",
+          body
+        ),
+        eltUID,
+        invoke("contains",
+          TBoolean,
+          Ref(intervalUID, partitioner.kType),
+          SelectFields(Ref(eltUID, body.typ.asInstanceOf[TStream].elementType), partitioner.kType.fieldNames)
+        )
+      ))
+
+    copy(partitioner = newPartitioner,
+      contexts = newContexts,
+      body = newBody)
+  }
 }
 
 object LowerTableIR {
@@ -171,6 +234,25 @@ object LowerTableIR {
                     BindingEnv.eval("global" -> GetField(oldbroadcast, loweredChild.globalsField))))))
 
           loweredChild.copy(broadcastVals = newBroadvastVals, globalsField = newGlobRef)
+
+        case x@TableAggregateByKey(child, expr) =>
+          val loweredChild = lower(child)
+
+          val repartitioned = loweredChild.adjustPartitionsTo(loweredChild.partitioner.strictify)
+
+          val sUID = genUID()
+          val newBody = StreamMap(
+            StreamGroupByKey(repartitioned.body, repartitioned.partitioner.kType.fieldNames),
+            sUID,
+            StreamAgg(
+              Ref(sUID, TStream(child.typ.rowType)),
+              "row",
+              invoke("annotate", x.typ.rowType,
+                ArrayRef(ApplyAggOp(FastSeq(I32(1)), FastSeq(Ref("row", child.typ.rowType)), AggSignature(Take(), FastSeq(), FastSeq(TInt32))), I32(0)),
+                expr
+              )
+            ))
+          repartitioned.copy(body = newBody)
 
         case TableFilter(child, cond) =>
           val loweredChild = lower(child)
