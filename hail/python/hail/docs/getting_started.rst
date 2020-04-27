@@ -27,18 +27,20 @@ of the C and C++ standard library:
 For all methods *other than using pip*, you will additionally need
 
 - `Spark 2.4.x <https://www.apache.org/dyn/closer.lua/spark/spark-2.4.0/spark-2.4.0-bin-hadoop2.7.tgz>`_,
-- a C++ compiler, and
-- lz4
+- a C++ compiler,
+- lz4,
+- a compatible BLAS installation such as the Intel MKL or OpenBLAS
 
-For the latter two, Debian users might try::
+For the latter three, Debian users might try::
 
-    sudo apt-get install g++ liblz4-dev
+    sudo apt-get install g++ liblz4-dev apt-get libopenblas liblapack3
 
 and Mac OS X users, might try::
 
     xcode-select --install
     brew install lz4
 
+Mac OS X already has compatible BLAS libraries.
 
 Installation
 ------------
@@ -101,6 +103,9 @@ command builds Hail for Spark 2.4.0, installs the Python library, and installs
 all the Python dependencies::
 
     make install-on-cluster HAIL_COMPILE_NATIVES=1 SPARK_VERSION=2.4.0
+    
+Moreover, every worker node of the cluster needs a compatible BLAS library, such
+as the Intel MKL or OpenBlas.
 
 An IPython shell which can run Hail backed by the cluster can be started with
 the following command::
