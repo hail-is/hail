@@ -1530,10 +1530,10 @@ class Emit[C](
 
           val multiplyViaDGEMM = Code(
             shapeSetup,
-            answerPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
-            outputPType.data.pType.stagedInitialize(answerPArrayAddress, (M * N).toI),
 
-            ((M cne 0L) && (N cne 0L) && (K cne 0L)).orEmpty(
+            ((M cne 0L) && (N cne 0L) && (K cne 0L)).mux(Code(
+              answerPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
+              outputPType.data.pType.stagedInitialize(answerPArrayAddress, (M * N).toI),
               lPType.elementType match {
                 case PFloat32(_) =>
                   Code.invokeScalaObject13[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method="sgemm",
@@ -1568,6 +1568,8 @@ class Emit[C](
                     LDC.toI
                   )
               }),
+              answerPArrayAddress := outputPType.data.pType.zeroes(mb, region, (M * N).toI)
+            ),
             outputPType.construct(outputPType.makeShapeBuilder(IndexedSeq(M, N)), outputPType.makeColumnMajorStridesBuilder(IndexedSeq(M, N), mb), answerPArrayAddress, mb)
           )
 

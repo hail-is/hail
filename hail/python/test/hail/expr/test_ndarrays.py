@@ -461,7 +461,7 @@ def test_ndarray_matmul():
     np_five_dim_tensor = np.arange(7 * 5 * 1 * 5 * 3).reshape((7, 5, 1, 5, 3))
     np_ones_int32 = np.ones((4, 4), dtype=np.int32)
     np_ones_float64 = np.ones((4, 4), dtype=np.float64)
-    np_zero_by_four = np.array([]).reshape((0, 4))
+    np_zero_by_four = np.array([], dtype=np.float64).reshape((0, 4))
 
     v = hl.nd.array(np_v)
     y = hl.nd.array(np_y)
@@ -504,7 +504,8 @@ def test_ndarray_matmul():
         (m @ rect_prism.T, np_m @ np_rect_prism.T),
         (broadcasted_mat @ rect_prism, np_broadcasted_mat @ np_rect_prism),
         (six_dim_tensor @ five_dim_tensor, np_six_dim_tensor @ np_five_dim_tensor),
-        (zero_by_four @ ones_float64, np_zero_by_four, np_ones_float64)
+        (zero_by_four @ ones_float64, np_zero_by_four, np_ones_float64),
+        (zero_by_four.transpose() @ zero_by_four, np_zero_by_four.transpose() @ np_zero_by_four)
     )
 
     assert hl.eval(hl.null(hl.tndarray(hl.tfloat64, 2)) @ hl.null(hl.tndarray(hl.tfloat64, 2))) is None
