@@ -7,6 +7,7 @@ object Interpretable {
     !ir.typ.isInstanceOf[TNDArray] &&
       (ir match {
       case
+        _: StreamMerge |
         _: RunAgg |
         _: InitOp |
         _: SeqOp |

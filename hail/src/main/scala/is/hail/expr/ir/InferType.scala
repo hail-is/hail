@@ -111,6 +111,9 @@ object InferType {
         TStream(a.typ)
       case StreamMap(a, name, body) =>
         TStream(body.typ)
+      case StreamMerge(l, r, key) =>
+        assert(l.typ == r.typ)
+        l.typ
       case StreamZip(as, _, body, _) =>
         TStream(body.typ)
       case StreamFilter(a, name, cond) =>

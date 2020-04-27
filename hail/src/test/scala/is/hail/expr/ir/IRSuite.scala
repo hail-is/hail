@@ -2452,6 +2452,94 @@ class IRSuite extends HailSuite {
       Row(null, null, 7)))
   }
 
+  @Test def testStreamMerge() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
+    def mergeRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], key: Int): IR = {
+      val typ = TStream(TStruct("k" -> TInt32, "sign" -> TInt32, "idx" -> TInt32))
+      ToArray(StreamMerge(
+        if (left == null)
+          NA(typ)
+        else
+          MakeStream(left.zipWithIndex.map { case (n, idx) =>
+            MakeStruct(FastIndexedSeq(
+              "k" -> (if (n == null) NA(TInt32) else I32(n)),
+              "sign" -> I32(1),
+              "idx" -> I32(idx)))
+          }, typ),
+        if (right == null)
+          NA(typ)
+        else
+          MakeStream(right.zipWithIndex.map { case (n, idx) =>
+            MakeStruct(FastIndexedSeq(
+              "k" -> (if (n == null) NA(TInt32) else I32(n)),
+              "sign" -> I32(-1),
+              "idx" -> I32(idx)))
+          }, typ),
+        FastIndexedSeq("k", "sign").take(key)))
+    }
+
+    assertEvalsTo(mergeRows(Array[Integer](1, 1, 2, 2, null, null), Array[Integer](0, 0, 1, 1, 3, 3, null, null), 1), FastIndexedSeq(
+      Row(0, -1, 0),
+      Row(0, -1, 1),
+      Row(1, 1, 0),
+      Row(1, 1, 1),
+      Row(1, -1, 2),
+      Row(1, -1, 3),
+      Row(2, 1, 2),
+      Row(2, 1, 3),
+      Row(3, -1, 4),
+      Row(3, -1, 5),
+      Row(null, 1, 4),
+      Row(null, 1, 5),
+      Row(null, -1, 6),
+      Row(null, -1, 7)))
+
+    // right stream ends first
+    assertEvalsTo(mergeRows(Array[Integer](1, 1, 2, 2), Array[Integer](0, 0, 1, 1), 1), FastIndexedSeq(
+      Row(0, -1, 0),
+      Row(0, -1, 1),
+      Row(1, 1, 0),
+      Row(1, 1, 1),
+      Row(1, -1, 2),
+      Row(1, -1, 3),
+      Row(2, 1, 2),
+      Row(2, 1, 3)))
+
+    // compare on two key fields
+    assertEvalsTo(mergeRows(Array[Integer](1, 1, 2, 2, null, null), Array[Integer](0, 0, 1, 1, 3, 3, null, null), 2), FastIndexedSeq(
+      Row(0, -1, 0),
+      Row(0, -1, 1),
+      Row(1, -1, 2),
+      Row(1, -1, 3),
+      Row(1, 1, 0),
+      Row(1, 1, 1),
+      Row(2, 1, 2),
+      Row(2, 1, 3),
+      Row(3, -1, 4),
+      Row(3, -1, 5),
+      Row(null, 1, 4),
+      Row(null, 1, 5),
+      Row(null, -1, 6),
+      Row(null, -1, 7)))
+
+    // right stream empty
+    assertEvalsTo(mergeRows(Array[Integer](1, 2, null), Array[Integer](), 1), FastIndexedSeq(
+      Row(1, 1, 0),
+      Row(2, 1, 1),
+      Row(null, 1, 2)))
+
+    // left stream empty
+    assertEvalsTo(mergeRows(Array[Integer](), Array[Integer](1, 2, null), 1), FastIndexedSeq(
+      Row(1, -1, 0),
+      Row(2, -1, 1),
+      Row(null, -1, 2)))
+
+    // one stream missing
+    assertEvalsTo(mergeRows(null, Array[Integer](1, 2, null), 1), null)
+    assertEvalsTo(mergeRows(Array[Integer](1, 2, null), null, 1), null)
+  }
+
   @Test def testDie() {
     assertFatal(Die("mumblefoo", TFloat64), "mble")
     assertFatal(Die(NA(TString), TFloat64), "message missing")
@@ -2863,6 +2951,10 @@ class IRSuite extends HailSuite {
       StreamTake(st, I32(10)),
       StreamDrop(st, I32(10)),
       StreamMap(st, "v", v),
+      StreamMerge(
+        StreamMap(StreamRange(0, 2, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
+        StreamMap(StreamRange(0, 3, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
+        FastSeq("x")),
       StreamZip(FastIndexedSeq(st, st), FastIndexedSeq("foo", "bar"), True(), ArrayZipBehavior.TakeMinLength),
       StreamFilter(st, "v", b),
       StreamFlatMap(sta, "v", ToStream(a)),

@@ -515,6 +515,75 @@ object Stream {
     }
   }
 
+  def merge(
+    mb: EmitMethodBuilder[_],
+    lElemType: PType, left: Stream[EmitCode],
+    rElemType: PType, right: Stream[EmitCode],
+    outElemType: PType, region: Value[Region],
+    comp: (EmitValue, EmitValue) => Code[Int]
+  ): Stream[EmitCode] = new Stream[EmitCode] {
+    def apply(eos: Code[Ctrl], push: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] = {
+      val pulledRight = mb.newLocal[Boolean]()
+      val rightEOS = mb.newLocal[Boolean]()
+      val leftEOS = mb.newLocal[Boolean]()
+      val lx = mb.newEmitLocal(lElemType) // last value received from left
+      val rx = mb.newEmitLocal(rElemType) // last value received from right
+      val outx = mb.newEmitLocal(outElemType) // value to push
+      val c = mb.newLocal[Int]()
+
+      val Leos = CodeLabel()
+      Code(Leos, eos)
+      val LpullRight = CodeLabel()
+      val Lpush = CodeLabel()
+
+      var rightSource: Source[EmitCode] = null
+      val leftSource = left(
+        eos = rightEOS.mux(
+          Leos.goto,
+          Code(
+            leftEOS := true,
+            c := 1,
+            pulledRight.mux(
+              Lpush.goto,
+              Code(pulledRight := true, LpullRight.goto)))),
+
+        push = a => {
+          val Lcompare = CodeLabel()
+
+          Code(Lcompare, c := comp(lx, rx), Lpush.goto)
+
+          rightSource = right(
+            eos = leftEOS.mux(
+              Leos.goto,
+              Code(rightEOS := true, c := -1, Lpush.goto)),
+            push = b => Code(
+              rx := b,
+              leftEOS.mux(Lpush.goto, Lcompare.goto)))
+
+          Code(Lpush,
+               (c <= 0).mux(outx := lx.castTo(mb, region, outElemType),
+                            outx := rx.castTo(mb, region, outElemType)),
+               push(outx))
+          Code(LpullRight, rightSource.pull)
+
+          Code(
+            lx := a,
+            pulledRight.mux(
+              rightEOS.mux(Lpush.goto, Lcompare.goto),
+              Code(pulledRight := true, LpullRight.goto)))
+        })
+
+      Source[EmitCode](
+        setup0 = Code(leftSource.setup0, rightSource.setup0),
+        close0 = Code(leftSource.close0, rightSource.close0),
+        setup = Code(pulledRight := false, leftEOS := false, rightEOS := false, c := 0, leftSource.setup, rightSource.setup),
+        close = Code(leftSource.close, rightSource.close),
+        pull = leftEOS.mux(
+          LpullRight.goto,
+          (rightEOS || c <= 0).mux(leftSource.pull, LpullRight.goto)))
+    }
+  }
+
   def outerJoinRightDistinct(
     mb: EmitMethodBuilder[_],
     lElemType: PType, left: Stream[EmitCode],
@@ -1088,6 +1157,37 @@ object EmitStream {
               }.flatten
 
             SizedStream.unsized(newStream)
+          }
+
+        case x@StreamMerge(leftIR, rightIR, key) =>
+          val lElemType = coerce[PStruct](coerce[PStream](leftIR.pType).elementType)
+          val rElemType = coerce[PStruct](coerce[PStream](rightIR.pType).elementType)
+          val outElemType = coerce[PStream](x.pType).elementType
+
+          val lKeyViewType = PSubsetStruct(lElemType, key: _*)
+          val rKeyViewType = PSubsetStruct(rElemType, key: _*)
+          val ordering = lKeyViewType.codeOrdering(mb, rKeyViewType, missingFieldsEqual = false).asInstanceOf[CodeOrdering { type T = Long }]
+
+          def compare(lelt: EmitValue, relt: EmitValue): Code[Int] = {
+            assert(lelt.pt == lElemType)
+            assert(relt.pt == rElemType)
+            ordering.compare((lelt.m, lelt.value[Long]), (relt.m, relt.value[Long]))
+          }
+
+          emitStream(leftIR, env).flatMap { case SizedStream(leftSetup, leftStream, leftLen) =>
+            emitStream(rightIR, env).map { case SizedStream(rightSetup, rightStream, rightLen) =>
+              val merged = merge(
+                mb,
+                lElemType, leftStream,
+                rElemType, rightStream,
+                outElemType, region,
+                compare)
+
+              SizedStream(
+                Code(leftSetup, rightSetup),
+                merged,
+                for (l <- leftLen; r <- rightLen) yield l + r)
+            }
           }
 
         case StreamZip(as, names, bodyIR, behavior) =>
