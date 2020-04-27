@@ -95,14 +95,9 @@ object LowerTableIR {
           }
 
         case TableParallelize(rowsAndGlobal, nPartitions) =>
-          def idAndRef(typ: Type): (String, IR) = {
-            val id = genUID()
-            (id, Ref(id, typ))
-          }
-
           val nPartitionsAdj = nPartitions.getOrElse(16)
           val loweredRowsAndGlobal = lowerIR(rowsAndGlobal)
-          val (loweredRowsAndGlobalID, loweredRowsAndGlobalRef) = idAndRef(loweredRowsAndGlobal.typ)
+          val loweredRowsAndGlobalRef = Ref(genUID(), loweredRowsAndGlobal.typ)
 
           val contextType = TStruct(
             "elements" -> TArray(GetField(loweredRowsAndGlobalRef, "rows").typ.asInstanceOf[TArray].elementType)
@@ -110,13 +105,13 @@ object LowerTableIR {
           val numRows = ArrayLen(GetField(loweredRowsAndGlobalRef, "rows"))
 
           val numNonEmptyPartitions = If(numRows < nPartitionsAdj, numRows, nPartitionsAdj)
-          val (numNonEmptyPartitionsID, numNonEmptyPartitionsRef) = idAndRef(numNonEmptyPartitions.typ)
+          val numNonEmptyPartitionsRef = Ref(genUID(), numNonEmptyPartitions.typ)
 
           val q = numRows floorDiv numNonEmptyPartitionsRef
-          val (qID, qRef) = idAndRef(q.typ)
+          val qRef = Ref(genUID(), q.typ)
 
           val remainder = numRows - qRef * numNonEmptyPartitionsRef
-          val (remainderID, remainderRef) = idAndRef(remainder.typ)
+          val remainderRef = Ref(genUID(), remainder.typ)
 
           val context = MakeStream((0 until nPartitionsAdj).map { partIdx =>
             val length = (numRows - partIdx + nPartitionsAdj - 1) floorDiv nPartitionsAdj
@@ -128,22 +123,21 @@ object LowerTableIR {
               ),
               0
             )
-            val (startID, startRef) = idAndRef(TInt32)
-            val streamMapId = genUID()
-            val elements =
-              Let(startID, start,
-                ToArray(StreamMap(StreamRange(startRef, startRef + length, 1),
-                  streamMapId, ArrayRef(GetField(loweredRowsAndGlobalRef, "rows"), Ref(streamMapId, TInt32))))
-              )
+            
+            val elements = bindIR(start) { startRef =>
+              ToArray(mapIR(rangeIR(startRef, startRef + length)) { elt =>
+                ArrayRef(GetField(loweredRowsAndGlobalRef, "rows"), elt)
+              })
+            }
             MakeStruct(FastIndexedSeq("elements" -> elements))
           }, TStream(contextType))
 
           TableStage(
             IndexedSeq[(String, IR)](
-              (loweredRowsAndGlobalID, loweredRowsAndGlobal),
-              (numNonEmptyPartitionsID, numNonEmptyPartitions),
-              (qID, q),
-              (remainderID, remainder)
+              (loweredRowsAndGlobalRef.name, loweredRowsAndGlobal),
+              (numNonEmptyPartitionsRef.name, numNonEmptyPartitions),
+              (qRef.name, q),
+              (remainderRef.name, remainder)
             ),
             SelectFields(loweredRowsAndGlobalRef, FastSeq("global")),
             "global",

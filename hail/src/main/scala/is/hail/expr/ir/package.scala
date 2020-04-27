@@ -111,6 +111,10 @@ package object ir {
     case TFloat64 => F64(0d)
   }
 
+  def bindIR(v: IR)(body: Ref => IR): IR = {
+    val ref = Ref(genUID(), v.typ)
+    Let(ref.name, v, body(ref))
+  }
 
   def mapIR(stream: IR)(f: IR => IR): IR = {
     val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
