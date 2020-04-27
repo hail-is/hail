@@ -389,17 +389,15 @@ object LocusFunctions extends RegistryFunctions {
         val tlocal = r.mb.newLocal[(Locus, Boolean)]()
         val lifted = rgCode(r.mb, srcRG).invoke[String, Locus, Double, (Locus, Boolean)]("liftoverLocus", destRG.name, locus, minMatch.value[Double])
 
-        val rlocal = r.mb.newLocal[(Locus, Boolean)]()
-        val blocal = r.mb.newLocal[Boolean]()
         val srvb = new StagedRegionValueBuilder(r, rt)
-        val locus = PBetterLocusCode.fromLocusObj(rt.fieldType("result").asInstanceOf[PBetterLocus], r.mb,
-          Code.checkcast[Locus](rlocal.getField[java.lang.Object]("_1"))).v
+        val blocal = r.mb.newLocal[Boolean]()
+        val locusv = PBetterLocusCode.fromLocusObj(rt.fieldType("result").asInstanceOf[PBetterLocus], r.mb,
+          Code.checkcast[Locus](tlocal.getField[java.lang.Object]("_1"))).v
 
         val addr = Code(
-          rlocal := result,
-          blocal := Code.checkcast[java.lang.Boolean](rlocal.getField[java.lang.Object]("_2")).invoke[Boolean]("booleanValue"),
+          blocal := Code.checkcast[java.lang.Boolean](tlocal.getField[java.lang.Object]("_2")).invoke[Boolean]("booleanValue"),
           srvb.start(),
-          srvb.addLong(locus),
+          srvb.addLong(locusv),
           srvb.advance(),
           srvb.addBoolean(blocal),
           srvb.advance(),
