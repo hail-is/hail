@@ -17,7 +17,7 @@ object PCanonicalLocus {
     "position" -> PInt32(required = true))
 
   def schemaFromRG(rg: Option[ReferenceGenome], required: Boolean = false): PType = rg match {
-    case Some(ref) => PCanonicalLocus(ref)
+    case Some(ref) => PCanonicalLocus(ref, required)
     case None => representation(required)
   }
 }

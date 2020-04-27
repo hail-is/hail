@@ -1434,11 +1434,11 @@ def test_group_within_partitions():
     t = hl.utils.range_table(10).repartition(2)
     t = t.annotate(sq=t.idx ** 2)
 
-    grouped1_collected = t._group_within_partitions(1).collect()
-    grouped2_collected = t._group_within_partitions(2).collect()
-    grouped3_collected = t._group_within_partitions(3).collect()
-    grouped5_collected = t._group_within_partitions(5).collect()
-    grouped6_collected = t._group_within_partitions(6).collect()
+    grouped1_collected = t._group_within_partitions("grouped_fields", 1).collect()
+    grouped2_collected = t._group_within_partitions("grouped_fields", 2).collect()
+    grouped3_collected = t._group_within_partitions("grouped_fields", 3).collect()
+    grouped5_collected = t._group_within_partitions("grouped_fields", 5).collect()
+    grouped6_collected = t._group_within_partitions("grouped_fields", 6).collect()
 
     assert len(grouped1_collected) == 10
     assert len(grouped2_collected) == 6
@@ -1452,7 +1452,7 @@ def test_group_within_partitions():
 
     # Testing after a filter
     ht = hl.utils.range_table(100).naive_coalesce(10)
-    filter_then_group = ht.filter(ht.idx % 2 == 0)._group_within_partitions(5).collect()
+    filter_then_group = ht.filter(ht.idx % 2 == 0)._group_within_partitions("grouped_fields", 5).collect()
     assert filter_then_group[0] == hl.Struct(idx=0, grouped_fields=[hl.Struct(idx=0), hl.Struct(idx=2), hl.Struct(idx=4), hl.Struct(idx=6), hl.Struct(idx=8)])
 
 
@@ -1460,7 +1460,7 @@ def test_group_within_partitions_after_explode():
     t = hl.utils.range_table(10).repartition(2)
     t = t.annotate(arr=hl.range(0, 20))
     t = t.explode(t.arr)
-    t = t._group_within_partitions(10)
+    t = t._group_within_partitions("grouped_fields", 10)
     assert(t._force_count() == 20)
 
 

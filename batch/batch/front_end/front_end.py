@@ -709,7 +709,12 @@ VALUES (%s, %s, %s);
 ''',
                                             (batch_id, spec_writer.token, start_job_id))
 
-            await insert()  # pylint: disable=no-value-for-parameter
+            try:
+                await insert()  # pylint: disable=no-value-for-parameter
+            except Exception as err:
+                raise ValueError(f'encountered exception while inserting a bunch'
+                                 f'jobs_args={json.dumps(jobs_args)}'
+                                 f'job_parents_args={json.dumps(job_parents_args)}') from err
     return web.Response()
 
 

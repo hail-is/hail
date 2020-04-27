@@ -1259,9 +1259,10 @@ object IRParser {
         val newKey = ir_value_expr(newEnv)(it)
         TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize)
       case "TableGroupWithinPartitions" =>
+        val name = identifier(it)
         val n = int32_literal(it)
         val child = table_ir(env)(it)
-        TableGroupWithinPartitions(child, n)
+        TableGroupWithinPartitions(child, name, n)
       case "TableRepartition" =>
         val n = int32_literal(it)
         val strategy = int32_literal(it)
@@ -1316,7 +1317,7 @@ object IRParser {
       case "TableRange" =>
         val n = int32_literal(it)
         val nPartitions = opt(it, int32_literal)
-        TableRange(n, nPartitions.getOrElse(HailContext.get.sc.defaultParallelism))
+        TableRange(n, nPartitions.getOrElse(HailContext.backend.defaultParallelism))
       case "TableUnion" =>
         val children = table_ir_children(env)(it)
         TableUnion(children)

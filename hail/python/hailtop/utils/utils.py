@@ -23,6 +23,13 @@ RETRY_FUNCTION_SCRIPT = """function retry() {
 }"""
 
 
+def first_extant_file(*files):
+    for f in files:
+        if f is not None and os.path.isfile(f):
+            return f
+    return None
+
+
 def grouped(n, ls):
     while len(ls) != 0:
         group = ls[:n]

@@ -11,7 +11,7 @@ import is.hail.io.fs.FS
 import scala.collection.mutable
 
 object ExecuteContext {
-  def scoped[T]()(f: ExecuteContext => T): T = HailContext.sparkBackend().withExecuteContext()(f)
+  def scoped[T]()(f: ExecuteContext => T): T = HailContext.sparkBackend("ExecuteContext.scoped").withExecuteContext()(f)
 
   def scoped[T](tmpdir: String, localTmpdir: String, backend: Backend, fs: FS)(f: ExecuteContext => T): T = {
     Region.scoped { r =>

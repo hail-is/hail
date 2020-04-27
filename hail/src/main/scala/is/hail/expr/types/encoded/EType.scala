@@ -269,11 +269,11 @@ object EType {
       case t: PBinary => EBinary(t.required)
       // FIXME(chrisvittal): turn this on when performance is adequate
       case t: PArray if t.elementType.fundamentalType.isOfType(PInt32(t.elementType.required)) &&
-          HailContext.get.flags.get("use_packed_int_encoding") != null =>
+          HailContext.getFlag("use_packed_int_encoding") != null =>
          EPackedIntArray(t.required, t.elementType.required)
       // FIXME(chrisvittal): Turn this on when it works
       case t: PArray if t.elementType.isInstanceOf[PBaseStruct] &&
-          HailContext.get.flags.get("use_column_encoding") != null =>
+          HailContext.getFlag("use_column_encoding") != null =>
         val et = t.elementType.asInstanceOf[PBaseStruct]
         ETransposedArrayOfStructs(
           et.fields.map(f => EField(f.name, defaultFromPType(f.typ), f.index)),

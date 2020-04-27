@@ -154,7 +154,7 @@ $(WHEEL): $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) $(PYT
 	    --exclude 'test/' \
 	    --exclude '*.log' \
 	    python/ build/deploy/
-	cd build/deploy; $(HAIL_PYTHON3) setup.py sdist bdist_wheel
+	cd build/deploy; $(HAIL_PYTHON3) setup.py -q sdist bdist_wheel
 
 # if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
 ifndef DEPLOY_REMOTE

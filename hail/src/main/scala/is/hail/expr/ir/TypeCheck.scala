@@ -265,6 +265,16 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TStream])
         assert(x.typ == a.typ)
         assert(num.typ == TInt32)
+      case x@StreamGrouped(a, size) =>
+        val ts = coerce[TStream](x.typ)
+        assert(a.typ.isInstanceOf[TStream])
+        assert(ts.elementType == a.typ)
+        assert(size.typ == TInt32)
+      case x@StreamGroupByKey(a, key) =>
+        val ts = coerce[TStream](x.typ)
+        assert(ts.elementType == a.typ)
+        val structType = coerce[TStruct](coerce[TStream](a.typ).elementType)
+        assert(key.forall(structType.hasField))
       case x@StreamMap(a, name, body) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(x.elementTyp == body.typ)

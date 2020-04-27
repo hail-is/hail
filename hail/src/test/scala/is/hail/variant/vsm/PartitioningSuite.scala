@@ -14,7 +14,7 @@ class PartitioningSuite extends HailSuite {
   @Test def testShuffleOnEmptyRDD() {
     val typ = TableType(TStruct("tidx" -> TInt32), FastIndexedSeq("tidx"), TStruct.empty)
     val t = TableLiteral(TableValue(ctx,
-      typ, BroadcastRow.empty(ctx), RVD.empty(sc, typ.canonicalRVDType)))
+      typ, BroadcastRow.empty(ctx), RVD.empty(typ.canonicalRVDType)))
     val rangeReader = ir.MatrixRangeReader(100, 10, Some(10))
     Interpret(
       MatrixAnnotateRowsTable(
@@ -31,7 +31,7 @@ class PartitioningSuite extends HailSuite {
 
     val nonEmptyRVD = tv.rvd
     val rvdType = nonEmptyRVD.typ
-    val emptyRVD = RVD.empty(hc.sc, rvdType)
+    val emptyRVD = RVD.empty(rvdType)
 
     ExecuteContext.scoped() { ctx =>
       emptyRVD.orderedJoin(nonEmptyRVD, "left", (_, it) => it.map(_._1), rvdType, ctx).count()

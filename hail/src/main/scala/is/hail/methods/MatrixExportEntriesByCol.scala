@@ -1,9 +1,10 @@
 package is.hail.methods
 
-import java.io.OutputStreamWriter
+import java.io.{BufferedOutputStream, OutputStreamWriter}
 
 import is.hail.HailContext
 import is.hail.annotations.{UnsafeIndexedSeq, UnsafeRow}
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.{ExecuteContext, MatrixValue}
 import is.hail.expr.ir.functions.MatrixToValueFunction
@@ -64,12 +65,19 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
           .toArray)
 
       val fsBc = fs.broadcast
+      val localTempDir = ctx.localTmpdir
       val partFolders = mv.rvd.crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
 
         val partFolder = partFileBase + partFile(d, i, TaskContext.get())
 
-        val fileHandles = Array.tabulate(endIdx - startIdx) { j =>
-          new OutputStreamWriter(fsBc.value.create(partFolder + "/" + j.toString + extension), "UTF-8")
+        val filePaths = Array.tabulate(endIdx - startIdx) { j =>
+          val finalPath = partFolder + "/" + j.toString + extension
+          val tempPath = ExecuteContext.createTmpPathNoCleanup(localTempDir, "EEBC", extension = extension)
+          (tempPath, finalPath)
+        }
+
+        val fileHandles = filePaths.map { case (tmp, _) =>
+          new OutputStreamWriter(new BufferedOutputStream(fsBc.value.create(tmp)), "UTF-8")
         }
 
         if (i == 0) {
@@ -126,7 +134,14 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
           ctx.region.clear()
         }
 
-        fileHandles.foreach(_.close())
+        fileHandles.foreach { f =>
+          f.flush()
+          f.close()
+        }
+        filePaths.foreach { case (tempFile, destination) =>
+          fsBc.value.copy(tempFile, destination, deleteSource = true)
+        }
+
         Iterator(partFolder)
       }.collect()
 
@@ -164,7 +179,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
     // clean up temporary files
     val temps = tempFolders.result()
     val fsBc = fs.broadcast
-    HailContext.get.sc.parallelize(temps, (temps.length / 32).max(1)).foreach { path =>
+    SparkBackend.sparkContext("MatrixExportEntriesByCol.execute").parallelize(temps, (temps.length / 32).max(1)).foreach { path =>
       fsBc.value.delete(path, recursive = true)
     }
 

@@ -6,7 +6,8 @@ from .utils import (
     collect_agen, retry_all_errors, retry_transient_errors,
     retry_long_running, run_if_changed, LoggingTimer,
     WaitableSharedPool, RETRY_FUNCTION_SCRIPT, sync_retry_transient_errors,
-    retry_response_returning_functions)
+    retry_response_returning_functions,
+    first_extant_file)
 from .process import CalledProcessError, check_shell, check_shell_output
 from .tqdm import tqdm, TQDM_DEFAULT_DISABLE
 
@@ -38,5 +39,6 @@ __all__ = [
     'TQDM_DEFAULT_DISABLE',
     'RETRY_FUNCTION_SCRIPT',
     'sync_retry_transient_errors',
-    'retry_response_returning_functions'
+    'retry_response_returning_functions',
+    'first_extant_file'
 ]

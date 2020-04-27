@@ -1,13 +1,14 @@
 import unittest
 
 import hail as hl
-from .helpers import startTestHailContext, stopTestHailContext
+from .helpers import startTestHailContext, stopTestHailContext, skip_unless_spark_backend
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
+    @skip_unless_spark_backend()
     def test_init_hail_context_twice(self):
         hl.init(idempotent=True)  # Should be no error
         hl.stop()

@@ -362,6 +362,45 @@ object Interpret {
           if (n < 0) fatal("StreamDrop: negative num")
           aValue.asInstanceOf[IndexedSeq[Any]].drop(n)
         }
+      case StreamGrouped(a, size) =>
+        val aValue = interpret(a, env, args)
+        val sizeValue = interpret(size, env, args)
+        if (aValue == null || sizeValue == null)
+          null
+        else {
+          val size = sizeValue.asInstanceOf[Int]
+          if (size <= 0) fatal("StreamGrouped: nonpositive size")
+          aValue.asInstanceOf[IndexedSeq[Any]].grouped(size).toFastIndexedSeq
+        }
+      case StreamGroupByKey(a, key) =>
+        val aValue = interpret(a, env, args)
+        if (aValue == null)
+          null
+        else {
+          val structType = coerce[TStruct](coerce[TStream](a.typ).elementType)
+          val seq = aValue.asInstanceOf[IndexedSeq[Row]]
+          if (seq.isEmpty)
+            FastIndexedSeq[IndexedSeq[Row]]()
+          else {
+            val outer = new ArrayBuilder[IndexedSeq[Row]]()
+            val inner = new ArrayBuilder[Row]()
+            val (_, getKey) = structType.select(key)
+            var curKey: Row = getKey(seq.head)
+
+            seq.foreach { elt =>
+              val nextKey = getKey(elt)
+              if (curKey != nextKey) {
+                outer += inner.result()
+                inner.clear()
+                curKey = nextKey
+              }
+              inner += elt
+            }
+            outer += inner.result()
+
+            outer.result().toFastIndexedSeq
+          }
+        }
       case StreamMap(a, name, body) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
@@ -611,7 +650,7 @@ object Interpret {
       case BlockMatrixMultiWrite(blockMatrices, writer) =>
         writer(ctx.fs, blockMatrices.map(_.execute(ctx)))
       case UnpersistBlockMatrix(BlockMatrixRead(BlockMatrixPersistReader(id))) =>
-        HailContext.sparkBackend().bmCache.unpersistBlockMatrix(id)
+        HailContext.sparkBackend("interpret UnpersistBlockMatrix").bmCache.unpersistBlockMatrix(id)
       case _: UnpersistBlockMatrix =>
       case TableToValueApply(child, function) =>
         function.execute(ctx, child.execute(ctx))

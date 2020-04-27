@@ -1,5 +1,7 @@
 package is.hail.sparkextras
 
+import is.hail.HailContext
+import is.hail.backend.spark.SparkBackend
 import is.hail.rvd.RVDContext
 import is.hail.utils._
 import is.hail.utils.PartitionCounts._
@@ -79,10 +81,8 @@ object ContextRDD {
     rdd: RDD[RVDContext => Iterator[T]]
   ): ContextRDD[T] = new ContextRDD(rdd)
 
-  def empty[T: ClassTag](
-    sc: SparkContext
-  ): ContextRDD[T] =
-    new ContextRDD(sc.emptyRDD[RVDContext => Iterator[T]])
+  def empty[T: ClassTag](): ContextRDD[T] =
+    new ContextRDD(SparkBackend.sparkContext("ContextRDD.empty").emptyRDD[RVDContext => Iterator[T]])
 
   def union[T: ClassTag](
     sc: SparkContext,
@@ -96,25 +96,22 @@ object ContextRDD {
     new ContextRDD(rdd.mapPartitions(it => Iterator.single((ctx: RVDContext) => it)))
 
   def textFilesLines(
-    sc: SparkContext,
     files: Array[String],
     nPartitions: Option[Int] = None,
     filterAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace()
   ): ContextRDD[WithContext[String]] =
     textFilesLines(
-      sc,
       files,
-      nPartitions.getOrElse(sc.defaultMinPartitions),
+      nPartitions.getOrElse(HailContext.backend.defaultParallelism),
       filterAndReplace)
 
   def textFilesLines(
-    sc: SparkContext,
     files: Array[String],
     nPartitions: Int,
     filterAndReplace: TextInputFilterAndReplace
   ): ContextRDD[WithContext[String]] =
     ContextRDD.weaken(
-      sc.textFilesLines(
+      SparkBackend.sparkContext("ContxtRDD.textFilesLines").textFilesLines(
         files,
         nPartitions)
         .mapPartitions(filterAndReplace.apply))
@@ -122,11 +119,11 @@ object ContextRDD {
   def parallelize[T: ClassTag](sc: SparkContext, data: Seq[T], nPartitions: Option[Int] = None): ContextRDD[T] =
     weaken(sc.parallelize(data, nPartitions.getOrElse(sc.defaultMinPartitions)))
 
-  def parallelize[T: ClassTag](sc: SparkContext, data: Seq[T], numSlices: Int): ContextRDD[T] =
-    weaken(sc.parallelize(data, numSlices))
+  def parallelize[T: ClassTag](data: Seq[T], numSlices: Int): ContextRDD[T] =
+    weaken(SparkBackend.sparkContext("ContextRDD.parallelize").parallelize(data, numSlices))
 
-  def parallelize[T: ClassTag](sc: SparkContext, data: Seq[T]): ContextRDD[T] =
-    weaken(sc.parallelize(data))
+  def parallelize[T: ClassTag](data: Seq[T]): ContextRDD[T] =
+    weaken(SparkBackend.sparkContext("ContextRDD.parallelize").parallelize(data))
 
   type ElementType[T] = RVDContext => Iterator[T]
 

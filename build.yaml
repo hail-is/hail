@@ -273,7 +273,6 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
-     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      # create accounts
      mkdir /user-tokens
      cat > create-session.py <<EOF
@@ -1058,6 +1057,8 @@ steps:
       script: /io/sql/add-instance-zone.sql
     - name: add-batches-time-created-index
       script: /io/sql/add-batches-time-created-index.sql
+    - name: change-test-worker-disk-size
+      script: /io/sql/change_test_worker_disk_size.py
    inputs:
     - from: /repo/batch/sql
       to: /io/
@@ -1104,7 +1105,6 @@ steps:
    image:
      valueFrom: service_base_image.image
    script: |
-     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
      export HAIL_BATCH_PODS_NAMESPACE={{ batch_pods_ns.name }}
@@ -1212,11 +1212,10 @@ steps:
      valueFrom: test_ci_image.image
    script: |
      set -ex
-     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      export ORGANIZATION=hail-ci-test
      export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
      export NAMESPACE="{{ default_ns.name }}"
-     python3 -m pytest --log-cli-level=INFO -s -vv --instafail /test/
+     python3 -m pytest --tb=no --log-cli-level=INFO -s -vvl --instafail /test/
    secrets:
     - name: gce-deploy-config
       namespace:
@@ -1230,7 +1229,7 @@ steps:
       namespace:
         valueFrom: batch_pods_ns.name
       mountPath: /secret/ci-secrets
-   timeout: 1200
+   timeout: 2400
    scopes:
     - test
     - dev
@@ -1247,7 +1246,6 @@ steps:
    script: |
      set -ex
 
-     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      python3 -m hailtop.hailctl config set batch/billing_project test
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail /io/test/test/hailtop/batch/
    inputs:
@@ -1279,8 +1277,6 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
-
-     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      cd /io/hailtop/hailtop/batch
      python3 -m hailtop.hailctl config set batch/billing_project test
      python3 -m pytest --instafail \
@@ -1572,10 +1568,12 @@ steps:
    contextPath: docker/hail/
    publishAs: hail-public
    dependsOn:
-    - build_hail
+    - copy_files
    inputs:
-     - from: /wheel-container.tar
-       to: /wheel-container.tar
+     - from: /hail_pip_version
+       to: /hail_pip_version
+   scopes:
+    - dev
  - kind: runImage
    name: test_hail_public_image
    image:
@@ -1587,6 +1585,8 @@ steps:
      gsutil --version
    dependsOn:
      - hail_public_image
+   scopes:
+    - dev
  - kind: buildImage
    name: genetics_public_image
    dockerFile: docker/genetics/Dockerfile
@@ -1594,6 +1594,8 @@ steps:
    publishAs: genetics-public
    dependsOn:
     - hail_public_image
+   scopes:
+    - dev
  - kind: runImage
    name: test_genetics_public_image
    image:
@@ -1605,3 +1607,5 @@ steps:
      plink2 --version
    dependsOn:
      - genetics_public_image
+   scopes:
+    - dev

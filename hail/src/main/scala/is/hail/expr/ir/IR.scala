@@ -204,6 +204,9 @@ final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, 
 
 final case class GroupByKey(collection: IR) extends IR
 
+final case class StreamGrouped(a: IR, groupSize: IR) extends IR
+final case class StreamGroupByKey(a: IR, key: IndexedSeq[String]) extends IR
+
 final case class StreamMap(a: IR, name: String, body: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
   def elementTyp: Type = typ.elementType

@@ -16,6 +16,7 @@ abstract class Backend {
 
   def stop(): Unit
 
-  def asSpark(): SparkBackend = fatal("SparkBackend needed for this operation.")
+  def asSpark(op: String): SparkBackend =
+    fatal(s"${ getClass.getSimpleName }: $op requires SparkBackend")
 }
 

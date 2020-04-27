@@ -64,7 +64,7 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
   def matrixMultiply(bm: BlockMatrix): BlockMatrix = {
     require(m.cols == bm.nRows,
       s"incompatible matrix dimensions: ${ m.rows } x ${ m.cols } and ${ bm.nRows } x ${ bm.nCols } ")
-    BlockMatrix.fromBreezeMatrix(bm.blocks.sparkContext, m, bm.blockSize).dot(bm)
+    BlockMatrix.fromBreezeMatrix(m, bm.blockSize).dot(bm)
   }
 
   def forceSymmetry() {

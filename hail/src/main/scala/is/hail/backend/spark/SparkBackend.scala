@@ -50,6 +50,8 @@ class SparkTaskContext(ctx: TaskContext) extends HailTaskContext {
 object SparkBackend {
   private var theSparkBackend: SparkBackend = _
 
+  def sparkContext(op: String): SparkContext = HailContext.sparkBackend("op").sc
+
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
 
@@ -241,7 +243,7 @@ class SparkBackend(
 
   def defaultParallelism: Int = sc.defaultParallelism
 
-  override def asSpark(): SparkBackend = this
+  override def asSpark(op: String): SparkBackend = this
 
   def stop(): Unit = SparkBackend.stop()
 
@@ -307,8 +309,8 @@ class SparkBackend(
     TypeCheck(ir)
     Validate(ir)
     try {
-      val lowerTable = HailContext.get.flags.get("lower") != null
-      val lowerBM = HailContext.get.flags.get("lower_bm") != null
+      val lowerTable = HailContext.getFlag("lower") != null
+      val lowerBM = HailContext.getFlag("lower_bm") != null
       _jvmLowerAndExecute(ctx, ir, optimize, lowerTable, lowerBM)
     } catch {
       case _: LowererUnsupportedOperation =>

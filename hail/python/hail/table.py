@@ -3421,7 +3421,7 @@ class Table(ExprContainer):
         return Table(TableMultiWayZipJoin(
             [t._tir for t in tables], data_field_name, global_field_name))
 
-    def _group_within_partitions(self, n):
-        return Table(TableGroupWithinPartitions(self._tir, n))
+    def _group_within_partitions(self, name, n):
+        return Table(TableGroupWithinPartitions(self._tir, name, n))
 
 table_type.set(Table)

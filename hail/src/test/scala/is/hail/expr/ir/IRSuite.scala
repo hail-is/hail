@@ -831,6 +831,17 @@ class IRSuite extends HailSuite {
         "x", Ref("x", TInt32) + Ref("q", TInt32))),
         "y", Ref("y", TInt32) + I32(3))),
       FastIndexedSeq(5, 6, 7, 8, 9))
+
+    // test let binding streams
+    assertEvalsTo(Let("s", MakeStream(Seq(I32(0), I32(5)), TStream(TInt32)), ToArray(Ref("s", TStream(TInt32)))),
+                  FastIndexedSeq(0, 5))
+    assertEvalsTo(Let("s", NA(TStream(TInt32)), ToArray(Ref("s", TStream(TInt32)))),
+                  null)
+    assertEvalsTo(
+      ToArray(Let("s",
+                  MakeStream(Seq(I32(0), I32(5)), TStream(TInt32)),
+                  StreamTake(Ref("s", TStream(TInt32)), I32(1)))),
+      FastIndexedSeq(0))
   }
 
   @Test def testMakeArray() {
@@ -1763,6 +1774,74 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(StreamDrop(a, I32(2))), FastIndexedSeq(7))
     assertEvalsTo(ToArray(StreamDrop(a, I32(5))), FastIndexedSeq())
     assertFatal(ToArray(StreamDrop(a, I32(-1))), "StreamDrop: negative num")
+  }
+
+  def toNestedArray(stream: IR): IR = {
+    val innerType = coerce[TStream](coerce[TStream](stream.typ).elementType)
+    ToArray(StreamMap(stream, "inner", ToArray(Ref("inner", innerType))))
+  }
+
+  @Test def testStreamGrouped() {
+    val naa = NA(TStream(TInt32))
+    val a = MakeStream(Seq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
+
+    assertEvalsTo(toNestedArray(StreamGrouped(naa, I32(2))), null)
+    assertEvalsTo(toNestedArray(StreamGrouped(a, NA(TInt32))), null)
+    assertEvalsTo(toNestedArray(StreamGrouped(MakeStream(Seq(), TStream(TInt32)), I32(2))), FastIndexedSeq())
+    assertEvalsTo(toNestedArray(StreamGrouped(a, I32(1))), FastIndexedSeq(FastIndexedSeq(3), FastIndexedSeq(null), FastIndexedSeq(7)))
+    assertEvalsTo(toNestedArray(StreamGrouped(a, I32(2))), FastIndexedSeq(FastIndexedSeq(3, null), FastIndexedSeq(7)))
+    assertEvalsTo(toNestedArray(StreamGrouped(a, I32(5))), FastIndexedSeq(FastIndexedSeq(3, null, 7)))
+    assertFatal(toNestedArray(StreamGrouped(a, I32(0))), "StreamGrouped: nonpositive size")
+
+    val r = StreamRange(I32(0), I32(10), I32(1))
+
+    def takeFromEach(stream: IR, take: IR, fromEach: IR): IR = {
+      val innerType = coerce[TStream](stream.typ)
+      StreamMap(StreamGrouped(stream, fromEach), "inner", StreamTake(Ref("inner", innerType), take))
+    }
+
+    assertEvalsTo(toNestedArray(takeFromEach(r, I32(1), I32(3))),
+                  FastIndexedSeq(FastIndexedSeq(0), FastIndexedSeq(3), FastIndexedSeq(6), FastIndexedSeq(9)))
+    assertEvalsTo(toNestedArray(takeFromEach(r, I32(2), I32(3))),
+                  FastIndexedSeq(FastIndexedSeq(0, 1), FastIndexedSeq(3, 4), FastIndexedSeq(6, 7), FastIndexedSeq(9)))
+    assertEvalsTo(toNestedArray(takeFromEach(r, I32(0), I32(5))),
+                  FastIndexedSeq(FastIndexedSeq(), FastIndexedSeq()))
+  }
+
+  @Test def testStreamGroupByKey() {
+    val structType = TStruct("a" -> TInt32, "b" -> TInt32)
+    val naa = NA(TStream(structType))
+    val a = MakeStream(
+      Seq(
+        MakeStruct(Seq("a" -> I32(3), "b" -> I32(1))),
+        MakeStruct(Seq("a" -> I32(3), "b" -> I32(3))),
+        MakeStruct(Seq("a" -> I32(1), "b" -> I32(2))),
+        MakeStruct(Seq("a" -> I32(1), "b" -> I32(4))),
+        MakeStruct(Seq("a" -> I32(1), "b" -> I32(6))),
+        MakeStruct(Seq("a" -> I32(4), "b" -> NA(TInt32)))),
+      TStream(structType))
+
+    def group(a: IR): IR = StreamGroupByKey(a, FastIndexedSeq("a"))
+    assertEvalsTo(toNestedArray(group(naa)), null)
+    assertEvalsTo(toNestedArray(group(a)),
+                  FastIndexedSeq(FastIndexedSeq(Row(3, 1), Row(3, 3)),
+                                 FastIndexedSeq(Row(1, 2), Row(1, 4), Row(1, 6)),
+                                 FastIndexedSeq(Row(4, null))))
+    assertEvalsTo(toNestedArray(group(MakeStream(Seq(), TStream(structType)))), FastIndexedSeq())
+
+    def takeFromEach(stream: IR, take: IR): IR = {
+      val innerType = coerce[TStream](stream.typ)
+      StreamMap(group(stream), "inner", StreamTake(Ref("inner", innerType), take))
+    }
+
+    assertEvalsTo(toNestedArray(takeFromEach(a, I32(1))),
+                  FastIndexedSeq(FastIndexedSeq(Row(3, 1)),
+                                 FastIndexedSeq(Row(1, 2)),
+                                 FastIndexedSeq(Row(4, null))))
+    assertEvalsTo(toNestedArray(takeFromEach(a, I32(2))),
+                  FastIndexedSeq(FastIndexedSeq(Row(3, 1), Row(3, 3)),
+                                 FastIndexedSeq(Row(1, 2), Row(1, 4)),
+                                 FastIndexedSeq(Row(4, null))))
   }
 
   @Test def testStreamMap() {
@@ -2739,6 +2818,7 @@ class IRSuite extends HailSuite {
         TableRepartition(read, 10, RepartitionStrategy.COALESCE),
         TableHead(read, 10),
         TableTail(read, 10),
+        TableGroupWithinPartitions(read, "_grouped", 3),
         TableParallelize(
           MakeStruct(FastSeq(
             "rows" -> MakeArray(FastSeq(
@@ -2975,7 +3055,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testCachedBlockMatrixIR() {
-    val cached = new BlockMatrixLiteral(BlockMatrix.fill(hc, 3, 7, 1))
+    val cached = new BlockMatrixLiteral(BlockMatrix.fill(3, 7, 1))
     val s = s"(JavaBlockMatrix __uid1)"
     val x2 = ExecuteContext.scoped() { ctx =>
       IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
@@ -3097,8 +3177,8 @@ class IRSuite extends HailSuite {
 
     val t1 = TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct("g1" -> TInt32, "g2" -> TFloat64))
     val t2 = TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct("g3" -> TInt32, "g4" -> TFloat64))
-    val tab1 = TableLiteral(TableValue(ctx, t1, BroadcastRow(ctx, Row(1, 1.1), t1.globalType), RVD.empty(sc, t1.canonicalRVDType)))
-    val tab2 = TableLiteral(TableValue(ctx, t2, BroadcastRow(ctx, Row(2, 2.2), t2.globalType), RVD.empty(sc, t2.canonicalRVDType)))
+    val tab1 = TableLiteral(TableValue(ctx, t1, BroadcastRow(ctx, Row(1, 1.1), t1.globalType), RVD.empty(t1.canonicalRVDType)))
+    val tab2 = TableLiteral(TableValue(ctx, t2, BroadcastRow(ctx, Row(2, 2.2), t2.globalType), RVD.empty(t2.canonicalRVDType)))
 
     assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), Row(1, 1.1, 2, 2.2))
     assertEvalsTo(TableGetGlobals(TableMapGlobals(tab1, InsertFields(Ref("global", t1.globalType), Seq("g1" -> I32(3))))), Row(3, 1.1))
@@ -3231,7 +3311,7 @@ class IRSuite extends HailSuite {
         |       (MakeStruct (locus  (Apply start Locus(GRCh37) (Ref __uid_3))))
         |       (MakeStruct (locus  (Apply end Locus(GRCh37) (Ref __uid_3)))) (True) (False))))
         |""".stripMargin)
-    val (v, _) = HailContext.sparkBackend().execute(ir, optimize = true)
+    val (v, _) = backend.execute(ir, optimize = true)
     assert(
       ir.typ.ordering.equiv(
         FastIndexedSeq(

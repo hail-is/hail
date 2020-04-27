@@ -14,7 +14,7 @@ PIP := $(HAIL_PYTHON3) -m pip
 BENCHMARK_WHEEL := python/dist/benchmark_hail-$(HAIL_VERSION)-py3-none-any.whl
 .PHONY: wheel
 wheel:
-	cd python/ && HAIL_BENCHMARK_VERSION=$(HAIL_VERSION) $(HAIL_PYTHON3) setup.py bdist_wheel
+	cd python/ && HAIL_BENCHMARK_VERSION=$(HAIL_VERSION) $(HAIL_PYTHON3) setup.py -q bdist_wheel
 
 .PHONY: install
 install: wheel

@@ -33,7 +33,7 @@ class LogStore:
 
     async def write_log_file(self, format_version, batch_id, job_id, attempt_id, task, data):
         path = self.log_path(format_version, batch_id, job_id, attempt_id, task)
-        return await self.gcs.write_gs_file(path, data)
+        return await self.gcs.write_gs_file_from_string(path, data)
 
     async def delete_batch_logs(self, batch_id):
         await self.gcs.delete_gs_files(
@@ -48,7 +48,7 @@ class LogStore:
 
     async def write_status_file(self, batch_id, job_id, attempt_id, status):
         path = self.status_path(batch_id, job_id, attempt_id)
-        return await self.gcs.write_gs_file(path, status)
+        return await self.gcs.write_gs_file_from_string(path, status)
 
     async def delete_status_file(self, batch_id, job_id, attempt_id):
         path = self.status_path(batch_id, job_id, attempt_id)
@@ -74,11 +74,11 @@ class LogStore:
 
     async def write_spec_file(self, batch_id, token, data_bytes, offsets_bytes):
         idx_path = self.specs_index_path(batch_id, token)
-        write1 = self.gcs.write_gs_file(idx_path, offsets_bytes,
-                                        content_type='application/octet-stream')
+        write1 = self.gcs.write_gs_file_from_string(idx_path, offsets_bytes,
+                                                    content_type='application/octet-stream')
 
         specs_path = self.specs_path(batch_id, token)
-        write2 = self.gcs.write_gs_file(specs_path, data_bytes)
+        write2 = self.gcs.write_gs_file_from_string(specs_path, data_bytes)
 
         await asyncio.gather(write1, write2)
 

@@ -14,8 +14,6 @@ import org.testng.annotations.{DataProvider, Test}
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-/*
-
 class PruneSuite extends HailSuite {
   @Test def testUnionType() {
     val base = TStruct(
@@ -101,20 +99,20 @@ class PruneSuite extends HailSuite {
     def fullType: TableType = tab.typ
   })
 
-  val mType = MatrixType(
+  lazy val mType = MatrixType(
     TStruct("g1" -> TInt32, "g2" -> TFloat64),
     FastIndexedSeq("ck"),
     TStruct("ck" -> TString, "c2" -> TInt32, "c3" -> TArray(TStruct("cc" -> TInt32))),
     FastIndexedSeq("rk"),
     TStruct("rk" -> TInt32, "r2" -> TStruct("x" -> TInt32), "r3" -> TArray(TStruct("rr" -> TInt32))),
     TStruct("e1" -> TFloat64, "e2" -> TFloat64))
-  val mat = MatrixLiteral(ctx,
+  lazy val mat = MatrixLiteral(ctx,
     mType,
-    RVD.empty(sc, mType.canonicalTableType.canonicalRVDType),
+    RVD.empty(mType.canonicalTableType.canonicalRVDType),
     Row(1, 1.0),
     FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3)))))
 
-  val mr = MatrixRead(mat.typ, false, false, new MatrixReader {
+  lazy val mr = MatrixRead(mat.typ, false, false, new MatrixReader {
     def pathsUsed: Seq[String] = FastSeq()
 
     override def columnCount: Option[Int] = None
@@ -128,7 +126,7 @@ class PruneSuite extends HailSuite {
     def toJValue: JValue = ???
   })
 
-  val emptyTableDep = TableType(TStruct.empty, FastIndexedSeq(), TStruct.empty)
+  lazy val emptyTableDep = TableType(TStruct.empty, FastIndexedSeq(), TStruct.empty)
 
   def tableRefBoolean(tt: TableType, fields: String*): IR = {
     var let: IR = True()
@@ -587,6 +585,16 @@ class PruneSuite extends HailSuite {
   @Test def testStreamMapMemo() {
     checkMemo(StreamMap(st, "foo", Ref("foo", ref.typ)),
       TStream(justB), Array(TStream(justB), null))
+  }
+
+  @Test def testStreamGroupedMemo() {
+    checkMemo(StreamGrouped(st, I32(2)),
+              TStream(TStream(justB)), Array(TStream(justB), null))
+  }
+
+  @Test def testStreamGroupByKeyMemo() {
+    checkMemo(StreamGroupByKey(st, FastIndexedSeq("a")),
+              TStream(TStream(justB)), Array(TStream(TStruct("a" -> TInt32, "b" -> TInt32)), null))
   }
 
   @Test def testStreamZipMemo() {
@@ -1095,6 +1103,22 @@ class PruneSuite extends HailSuite {
       })
   }
 
+  @Test def testStreamGroupedRebuild() {
+    checkRebuild(StreamGrouped(MakeStream(Seq(NA(ts)), TStream(ts)), I32(2)), TStream(TStream(subsetTS("b"))),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[StreamGrouped]
+        ir.a.typ == TStream(subsetTS("b"))
+      })
+  }
+
+  @Test def testStreamGroupByKeyRebuild() {
+    checkRebuild(StreamGroupByKey(MakeStream(Seq(NA(ts)), TStream(ts)), FastIndexedSeq("a")), TStream(TStream(subsetTS("b"))),
+                 (_: BaseIR, r: BaseIR) => {
+                   val ir = r.asInstanceOf[StreamGroupByKey]
+                   ir.a.typ == TStream(subsetTS("a", "b"))
+                 })
+  }
+
   @Test def testStreamZipRebuild() {
     val a2 = st.deepCopy()
     val a3 = st.deepCopy()
@@ -1354,5 +1378,3 @@ class PruneSuite extends HailSuite {
       a.seqOpArgs == FastIndexedSeq(MakeStruct(FastSeq(("y", y))), MakeStruct(FastSeq(("x", x), ("y", y))))})
   }
 }
-
- */

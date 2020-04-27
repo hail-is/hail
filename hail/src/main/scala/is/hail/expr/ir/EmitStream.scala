@@ -1,6 +1,6 @@
  package is.hail.expr.ir
 
-import is.hail.annotations.{Region, RegionValue, StagedRegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region, RegionValue, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
@@ -216,7 +216,7 @@ abstract class Stream[+A] { self =>
   def grouped(size: Code[Int]): Stream[Stream[A]] = new Stream[Stream[A]] {
     def apply(outerEos: Code[Ctrl], outerPush: Stream[A] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[Stream[A]] = {
       val xCounter = ctx.mb.newLocal[Int]("st_grp_ctr")
-      val xInOuter = ctx.mb.newLocal[Boolean]("st_grp_ff")
+      val xInOuter = ctx.mb.newLocal[Boolean]("st_grp_io")
       val xSize = ctx.mb.newLocal[Int]("st_grp_sz")
       val LchildPull = CodeLabel()
       val LouterPush = CodeLabel()
@@ -613,6 +613,84 @@ object EmitStream {
     }
   }
 
+  def groupBy(mb: EmitMethodBuilder[_], region: Value[Region], stream: Stream[PCode], eltType: PStruct, key: Array[String]): Stream[Stream[PCode]] = new Stream[Stream[PCode]] {
+    def apply(outerEos: Code[Ctrl], outerPush: Stream[PCode] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[Stream[PCode]] = {
+      val keyType = eltType.selectFields(key)
+      val keyViewType = PSubsetStruct(eltType, key)
+      val ordering = keyType.codeOrdering(mb, keyViewType).asInstanceOf[CodeOrdering { type T = Long }]
+
+      val xCurKey = ctx.mb.newPLocal("st_grpby_curkey", keyType)
+      val xCurElt = ctx.mb.newPLocal("st_grpby_curelt", eltType)
+      val xInOuter = ctx.mb.newLocal[Boolean]("st_grpby_io")
+      val xEOS = ctx.mb.newLocal[Boolean]("st_grpby_eos")
+      val xNextGrpReady = ctx.mb.newLocal[Boolean]("st_grpby_ngr")
+
+      val LchildPull = CodeLabel()
+      val LouterPush = CodeLabel()
+      val LinnerPush = CodeLabel()
+      val LouterEos = CodeLabel()
+      val LinnerEos = CodeLabel()
+
+      var childSource: Source[PCode] = null
+      val inner = new Stream[PCode] {
+        def apply(innerEos: Code[Ctrl], innerPush: PCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[PCode] = {
+          childSource = stream(
+            xInOuter.mux(LouterEos.goto, Code(xEOS := true, LinnerEos.goto)),
+            { a: PCode =>
+              Code(
+                xCurElt := a,
+                // !xInOuter iff this element was requested by an inner stream.
+                // Else we are stepping to the beginning of the next group.
+                (xCurKey.tcode[Long].cne(0L) && ordering.equivNonnull(xCurKey.tcode[Long], xCurElt.tcode[Long])).mux(
+                  xInOuter.mux(
+                    LchildPull.goto,
+                    LinnerPush.goto),
+                  Code(
+                    xCurKey := keyType.copyFromPValue(mb, region, new PSubsetStructCode(keyViewType, xCurElt.tcode[Long])),
+                    xInOuter.mux(
+                      LouterPush.goto,
+                      Code(xNextGrpReady := true, LinnerEos.goto)))))
+            })
+
+          Code(LinnerPush, innerPush(xCurElt))
+          Code(LinnerEos, innerEos)
+          Code(LchildPull, childSource.pull)
+
+          Source[PCode](
+            setup0 = Code._empty,
+            close0 = Code._empty,
+            setup = Code._empty,
+            close = Code._empty,
+            pull = xInOuter.mux(
+              // xInOuter iff this is the first pull from inner stream,
+              // in which case the element has already been produced
+              Code(xInOuter := false, LinnerPush.goto),
+              LchildPull.goto))
+        }
+      }
+
+      Code(LouterPush, outerPush(inner))
+      Code(LouterEos, outerEos)
+
+      Source[Stream[PCode]](
+        setup0 = childSource.setup0,
+        close0 = childSource.close0,
+        setup = Code(
+          childSource.setup,
+          xCurKey := keyType.defaultValue,
+          xEOS := false,
+          xNextGrpReady := false),
+        close = childSource.close,
+        pull = Code(
+          xInOuter := true,
+          xEOS.mux(
+            LouterEos.goto,
+            xNextGrpReady.mux(
+              Code(xNextGrpReady := false, LouterPush.goto),
+              LchildPull.goto))))
+    }
+  }
+
   def extendNA(mb: EmitMethodBuilder[_], eltType: PType, stream: Stream[EmitCode]): Stream[COption[EmitCode]] = new Stream[COption[EmitCode]] {
     def apply(eos: Code[Ctrl], push: COption[EmitCode] => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[COption[EmitCode]] = {
       val atEnd = mb.newLocal[Boolean]()
@@ -663,6 +741,15 @@ object EmitStream {
             Code._empty,
             coerce[PCanonicalStream](x.pType).defaultValue.stream,
             Some(0)))
+
+        case x@Ref(name, _) =>
+          val typ = coerce[PStream](x.pType)
+          val ev = env.lookup(name)
+          if (ev.pt != typ)
+            throw new RuntimeException(s"PValue type did not match inferred ptype:\n name: $name\n  pv: ${ ev.pt }\n  ir: $typ")
+          COption.fromEmitCode(ev.get).map { pc =>
+            SizedStream.unsized(pc.asStream.stream)
+          }
 
         case x@StreamRange(startIR, stopIR, stepIR) =>
           val eltType = coerce[PStream](x.pType).elementType
@@ -798,22 +885,69 @@ object EmitStream {
             }
           }
 
+        case x@StreamGrouped(a, size) =>
+          val innerType = coerce[PCanonicalStream](coerce[PStream](x.pType).elementType)
+          val optStream = emitStream(a, env)
+          val optSize = COption.fromEmitCode(emitIR(size))
+          val xS = mb.newLocal[Int]("st_n")
+          optStream.flatMap { case SizedStream(setup, stream, len) =>
+            optSize.map { s =>
+              val newStream = stream.grouped(xS).map(inner => EmitCode(Code._empty, false, PCanonicalStreamCode(innerType, inner)))
+              SizedStream(
+                Code(setup, xS := s.tcode[Int], (xS <= 0).orEmpty(Code._fatal[Unit](const("StreamGrouped: nonpositive size")))),
+                newStream,
+                len.map(l => ((l.toL + xS.toL - 1L) / xS.toL).toI)) // rounding up integer division
+            }
+          }
+
+        case x@StreamGroupByKey(a, key) =>
+          val innerType = coerce[PCanonicalStream](coerce[PStream](x.pType).elementType)
+          val eltType = coerce[PStruct](innerType.elementType)
+          val optStream = emitStream(a, env)
+          optStream.map { ss =>
+            val nonMissingStream = ss.getStream.mapCPS[PCode] { (_, ec, k) =>
+              Code(ec.setup, ec.m.orEmpty(Code._fatal[Unit](const("expected non-missing"))), k(ec.pv))
+            }
+            val newStream = groupBy(mb, region, nonMissingStream, eltType, key.toArray)
+              .map(inner => EmitCode.present(PCanonicalStreamCode(innerType, inner.map(EmitCode.present))))
+
+            SizedStream.unsized(newStream)
+          }
+
         case StreamMap(childIR, name, bodyIR) =>
-          val childEltType = coerce[PStream](childIR.pType).elementType
+          val eltType = coerce[PStream](childIR.pType).elementType
 
           val optStream = emitStream(childIR, env)
           optStream.map { case SizedStream(setup, stream, len) =>
-            val newStream = stream.map { eltt =>
-              val xElt = mb.newEmitField(name, childEltType)
-              val bodyenv = env.bind(name -> xElt)
-              val bodyt = emitIR(bodyIR, env = bodyenv)
+            val newStream = stream.map { eltt => (eltType, bodyIR.pType) match {
+              case (eltType: PCanonicalStream, bodyType: PCanonicalStream) =>
+                val bodyenv = env.bind(name -> new EmitUnrealizableValue(eltType, eltt))
 
-              EmitCode(
-                Code(xElt := eltt,
-                     bodyt.setup),
-                bodyt.m,
-                bodyt.pv)
-            }
+                COption.toEmitCode(
+                  emitStream(bodyIR, env = bodyenv)
+                    .map(ss => PCanonicalStreamCode(bodyType, ss.getStream)),
+                  mb)
+              case (eltType: PCanonicalStream, _) =>
+                val bodyenv = env.bind(name -> new EmitUnrealizableValue(eltType, eltt))
+
+                emitIR(bodyIR, env = bodyenv)
+              case (_, bodyType: PCanonicalStream) =>
+                val xElt = mb.newEmitField(name, eltType)
+                val bodyenv = env.bind(name -> xElt)
+
+                EmitCode(
+                  xElt := eltt,
+                  COption.toEmitCode(
+                    emitStream(bodyIR, env = bodyenv)
+                      .map(ss => PCanonicalStreamCode(bodyType, ss.getStream)),
+                    mb))
+              case _ =>
+                val xElt = mb.newEmitField(name, eltType)
+                val bodyenv = env.bind(name -> xElt)
+                val bodyt = emitIR(bodyIR, env = bodyenv)
+
+                EmitCode(xElt := eltt, bodyt)
+            }}
 
             SizedStream(setup, newStream, len)
           }
@@ -848,6 +982,7 @@ object EmitStream {
           }
 
         case StreamZip(as, names, bodyIR, behavior) =>
+          // FIXME: should make StreamZip support unrealizable element types
           val eltTypes = {
             val types = as.map(ir => coerce[PStream](ir.pType).elementType)
             behavior match {
@@ -992,14 +1127,19 @@ object EmitStream {
           val optOuter = emitStream(outerIR, env)
 
           optOuter.map { outer =>
-            val nested = outer.getStream.mapCPS[COption[Stream[EmitCode]]] { (ctx, elt, k) =>
-              val xElt = mb.newEmitField(name, outerEltType)
-              val innerEnv = env.bind(name -> xElt)
-              val optInner = emitStream(innerIR, innerEnv).map(ss => ss.stream.addSetup(ss.setup))
+            val nested = outer.getStream.map[COption[Stream[EmitCode]]] { elt =>
+              if (outerEltType.isRealizable) {
+                val xElt = mb.newEmitField(name, outerEltType)
+                val innerEnv = env.bind(name -> xElt)
+                val optInner = emitStream(innerIR, innerEnv).map(_.getStream)
 
-              Code(
-                xElt := elt,
-                k(optInner))
+                optInner.addSetup(xElt := elt)
+              } else {
+                val innerEnv = env.bind(name -> new EmitUnrealizableValue(outerEltType, elt))
+
+                emitStream(innerIR, innerEnv).map(_.getStream)
+              }
+
             }
 
             SizedStream.unsized(nested.flatten.flatten)
@@ -1013,7 +1153,6 @@ object EmitStream {
           val optLeftStream = emitStream(thn, env)
           val optRightStream = emitStream(els, env)
 
-          // TODO: set xCond in setup of choose, don't need CPS
           condT.flatMap[SizedStream] { cond =>
             val newOptStream = COption.choose[SizedStream](
               xCond,
@@ -1037,12 +1176,24 @@ object EmitStream {
 
         case Let(name, valueIR, bodyIR) =>
           val valueType = valueIR.pType
-          val xValue = mb.newEmitField(name, valueType)
 
-          val valuet = emitIR(valueIR)
-          val bodyEnv = env.bind(name -> xValue)
+          valueType match {
+            case streamType: PCanonicalStream =>
+              val valuet = COption.toEmitCode(
+                emitStream(valueIR, env)
+                  .map(ss => PCanonicalStreamCode(streamType, ss.getStream)),
+                mb)
+              val bodyEnv = env.bind(name -> new EmitUnrealizableValue(valueType, valuet))
 
-          emitStream(bodyIR, bodyEnv).addSetup(xValue := valuet)
+              emitStream(bodyIR, bodyEnv)
+
+            case _ =>
+              val xValue = mb.newEmitField(name, valueType)
+              val bodyEnv = env.bind(name -> xValue)
+              val valuet = emitIR(valueIR)
+
+              emitStream(bodyIR, bodyEnv).addSetup(xValue := valuet)
+          }
 
         case x@StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
           val eltType = coerce[PStream](childIR.pType).elementType

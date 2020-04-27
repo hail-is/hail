@@ -366,6 +366,7 @@ object Pretty {
                 prettyBooleanLiteral(isSorted)
             case TableRange(n, nPartitions) => s"$n $nPartitions"
             case TableRepartition(_, n, strategy) => s"$n $strategy"
+            case TableGroupWithinPartitions(_, name, n) => s"${ prettyIdentifier(name) } $n"
             case TableHead(_, n) => n.toString
             case TableTail(_, n) => n.toString
             case TableJoin(_, _, joinType, joinKey) => s"$joinType $joinKey"

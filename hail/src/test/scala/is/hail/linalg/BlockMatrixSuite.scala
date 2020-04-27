@@ -32,14 +32,14 @@ class BlockMatrixSuite extends HailSuite {
     val n = rows.length
     val m = if (n == 0) 0 else rows(0).length
 
-    BlockMatrix.fromBreezeMatrix(sc, new BDM[Double](m, n, rows.flatten.toArray).t, blockSize)
+    BlockMatrix.fromBreezeMatrix(new BDM[Double](m, n, rows.flatten.toArray).t, blockSize)
   }
 
   def toBM(lm: BDM[Double]): BlockMatrix =
     toBM(lm, BlockMatrix.defaultBlockSize)
 
   def toBM(lm: BDM[Double], blockSize: Int): BlockMatrix =
-    BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
+    BlockMatrix.fromBreezeMatrix(lm, blockSize)
 
   private val defaultBlockSize = choose(1, 1 << 6)
   private val defaultDims = nonEmptySquareOfAreaAtMostSize
@@ -361,7 +361,7 @@ class BlockMatrixSuite extends HailSuite {
     forAll(denseMatrix[Double]().flatMap { m =>
       Gen.zip(Gen.const(m), Gen.choose(math.sqrt(m.rows).toInt, m.rows + 16))
     }) { case (lm, blockSize) =>
-      assert(lm === BlockMatrix.fromBreezeMatrix(sc, lm, blockSize).toBreezeMatrix())
+      assert(lm === BlockMatrix.fromBreezeMatrix(lm, blockSize).toBreezeMatrix())
       true
     }.check()
   }
@@ -597,7 +597,7 @@ class BlockMatrixSuite extends HailSuite {
 
     for {blockSize <- Seq(1, 2, 3, 5, 10, 11)
     } {
-      val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
+      val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize)
       for {keep <- Seq(
         Array(0),
         Array(1),
@@ -621,7 +621,7 @@ class BlockMatrixSuite extends HailSuite {
 
     for {blockSize <- Seq(2, 3)
     } {
-      val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize).transpose()
+      val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize).transpose()
       for {keep <- Seq(
         Array(0),
         Array(1, 4, 5, 7, 8),
@@ -641,7 +641,7 @@ class BlockMatrixSuite extends HailSuite {
 
     for {blockSize <- Seq(2, 3)
     } {
-      val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
+      val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize)
       for {keep <- Seq(
         Array(0),
         Array(1, 4, 5, 7, 8),
@@ -661,7 +661,7 @@ class BlockMatrixSuite extends HailSuite {
 
     for {blockSize <- Seq(1, 2, 3, 5, 10, 11)
     } {
-      val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
+      val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize)
       for {keep <- Seq(
         Array(0),
         Array(1),
@@ -684,7 +684,7 @@ class BlockMatrixSuite extends HailSuite {
 
     for {blockSize <- Seq(1, 2, 3, 5, 10, 11)
     } {
-      val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize)
+      val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize)
       for {
         keepRows <- Seq(
           Array(1),
@@ -716,17 +716,17 @@ class BlockMatrixSuite extends HailSuite {
 
   @Test
   def randomTest() {
-    var lm1 = BlockMatrix.random(hc, 5, 10, 2, seed = 1, gaussian = false).toBreezeMatrix()
-    var lm2 = BlockMatrix.random(hc, 5, 10, 2, seed = 1, gaussian = false).toBreezeMatrix()
-    var lm3 = BlockMatrix.random(hc, 5, 10, 2, seed = 2, gaussian = false).toBreezeMatrix()
+    var lm1 = BlockMatrix.random(5, 10, 2, seed = 1, gaussian = false).toBreezeMatrix()
+    var lm2 = BlockMatrix.random(5, 10, 2, seed = 1, gaussian = false).toBreezeMatrix()
+    var lm3 = BlockMatrix.random(5, 10, 2, seed = 2, gaussian = false).toBreezeMatrix()
 
     assert(lm1 === lm2)
     assert(lm1 !== lm3)
     assert(lm1.data.forall(x => x >= 0 && x <= 1))
 
-    lm1 = BlockMatrix.random(hc, 5, 10, 2, seed = 1, gaussian = true).toBreezeMatrix()
-    lm2 = BlockMatrix.random(hc, 5, 10, 2, seed = 1, gaussian = true).toBreezeMatrix()
-    lm3 = BlockMatrix.random(hc, 5, 10, 2, seed = 2, gaussian = true).toBreezeMatrix()
+    lm1 = BlockMatrix.random(5, 10, 2, seed = 1, gaussian = true).toBreezeMatrix()
+    lm2 = BlockMatrix.random(5, 10, 2, seed = 1, gaussian = true).toBreezeMatrix()
+    lm3 = BlockMatrix.random(5, 10, 2, seed = 2, gaussian = true).toBreezeMatrix()
 
     assert(lm1 === lm2)
     assert(lm1 !== lm3)
@@ -770,7 +770,7 @@ class BlockMatrixSuite extends HailSuite {
   @Test
   def testPowSqrt(): Unit = {
     val lm = new BDM[Double](2, 3, Array(0.0, 1.0, 4.0, 9.0, 16.0, 25.0))
-    val bm = BlockMatrix.fromBreezeMatrix(sc, lm, blockSize = 2)
+    val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize = 2)
     val expected = new BDM[Double](2, 3, Array(0.0, 1.0, 2.0, 3.0, 4.0, 5.0))
     
     TestUtils.assertMatrixEqualityDouble(bm.pow(0.0).toBreezeMatrix(), BDM.fill(2, 3)(1.0))
@@ -808,7 +808,7 @@ class BlockMatrixSuite extends HailSuite {
   def filterRowsRectangleSum(): Unit = {
     val nRows = 10
     val nCols = 50
-    val bm = BlockMatrix.fill(hc, nRows, nCols, 2, 1)
+    val bm = BlockMatrix.fill(nRows, nCols, 2, 1)
     val banded = bm.filterBand(0, 0, false)
     val rowFilt = banded.filterRows((0L until nRows.toLong by 2L).toArray)
     val summed = rowFilt.rowSum().toBreezeMatrix().toArray
