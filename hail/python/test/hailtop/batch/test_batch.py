@@ -300,10 +300,13 @@ class BatchTests(unittest.TestCase):
         token = uuid.uuid4()
         self.gcs_input_dir = f'gs://{bucket_name}/batch-tests/resources'
         self.gcs_output_dir = f'gs://{bucket_name}/batch-tests/{token}'
-        gcs_client = google.cloud.storage.Client(
-            project='hail-vdc',
-            credentials=google.oauth2.service_account.Credentials.from_service_account_file(
-                '/test-gsa-key/key.json'))
+        in_cluster_key_file = '/test-gsa-key/key.json'
+        if os.path.exists(in_cluster_key_file):
+            credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+                in_cluster_key_file)
+        else:
+            credentials = None
+        gcs_client = google.cloud.storage.Client(project='hail-vdc', credentials=credentials)
         bucket = gcs_client.bucket(bucket_name)
         if not bucket.blob('batch-tests/resources/hello (foo) spaces.txt').exists():
             bucket.blob('batch-tests/resources/hello.txt').upload_from_string(
