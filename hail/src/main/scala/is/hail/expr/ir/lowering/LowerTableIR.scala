@@ -216,6 +216,31 @@ object LowerTableIR {
             withKeys
           }
 
+        case t@TableKeyBy(child, newKey, isSorted: Boolean) =>
+          val loweredChild = lower(child)
+          val nPreservedFields = loweredChild.partitioner.kType.fieldNames
+            .zip(newKey)
+            .takeWhile { case (l, r) => l == r }
+            .length
+
+          if (nPreservedFields == newKey.length)
+            loweredChild
+          else if (isSorted) {
+            val newPartitioner = loweredChild.partitioner
+              .coarsen(nPreservedFields)
+              .extendKey(t.typ.keyType)
+              loweredChild.(partitioner = newPartitioner)
+            else throw new LowererUnsupportedOperation("TableKeyBy with isSorted but a non-strict partitioner requires partitioner adjustments")
+          } else
+            ctx.backend.lowerDistributedSort(loweredChild, newKey.map(k => SortField(k, Ascending)))
+
+        case TableOrderBy(child, sortFields) =>
+          val loweredChild = lower(child)
+          if (TableOrderBy.isAlreadyOrdered(sortFields, loweredChild.partitioner.kType.fieldNames))
+            loweredChild
+          else
+            ctx.backend.lowerDistributedSort(loweredChild, sortFields)
+
         case TableExplode(child, path) =>
           lower(child).mapPartition { rows =>
             flatMapIR(rows) { row: Ref =>
