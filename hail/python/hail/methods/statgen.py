@@ -477,12 +477,10 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
     if is_chained:
         y_field_names = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
         y_dict = dict(zip(itertools.chain.from_iterable(y_field_names), itertools.chain.from_iterable(y)))
-        func = 'LinearRegressionRowsChained'
 
     else:
         y_field_names = list(f'__y_{i}' for i in range(len(y)))
         y_dict = dict(zip(y_field_names, y))
-        func = 'LinearRegressionRowsSingle'
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
@@ -517,14 +515,6 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
             return hl.range(hl.int32(mat.shape[0])).map(lambda i:
                                                         hl.range(hl.int32(mat.shape[1])).map(lambda j: (mat[i, j])))
 
-    def zip_to_struct(ht, struct_root_name, **kwargs):
-        mapping = list(kwargs.items())
-        sources = [pair[1] for pair in mapping]
-        dests = [pair[0] for pair in mapping]
-        ht = ht.annotate(**{struct_root_name: hl.zip(*sources)})
-        ht = ht.transmute(**{struct_root_name : ht[struct_root_name].map(lambda tup: hl.struct(**{dests[i]:tup[i] for i in range(len(dests))}))})
-        return ht
-
     # Given a hail array, get the mean of the nonmissing entries and return new array where the missing entries are the mean.
     def mean_impute(hl_array):
         non_missing_mean = hl.mean(hl_array, filter_missing=True)
@@ -533,16 +523,14 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
     def select_array_indices(hl_array, indices):
         return indices.map(lambda i: hl_array[i])
 
-    ht = mt._localize_entries(entries_field_name, sample_field_name)
+    ht_local = mt._localize_entries(entries_field_name, sample_field_name)
 
 
     # Now here, I want to transmute away the entries field name struct to get arrays
-    ht = ht.transmute(**{entries_field_name: ht[entries_field_name][x_field_name]})
+    ht = ht_local.transmute(**{entries_field_name: ht_local[entries_field_name][x_field_name]})
     just_before_grouping = ht
     # Now need to group everything
-    ht = ht._group_within_partitions(block_size)  # breaking point for show with filtering, idk why
-    just_after_grouping = ht
-
+    ht = ht._group_within_partitions("grouped_fields", block_size)  # breaking point for show with filtering, idk why
 
     ys_and_covs_to_keep_with_indices = hl.zip_with_index(ht[sample_field_name]).filter(lambda struct_with_index: all_defined(struct_with_index[1], y_field_names + cov_field_names))
     indices_to_keep = ys_and_covs_to_keep_with_indices.map(lambda pair: pair[0])
@@ -564,7 +552,7 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
     ht = ht.annotate_globals(__Qty=ht.__cov_Qt @ ht.__y_nd)
     ht = ht.annotate_globals(__yyp=hl.nd.diagonal(ht.__y_nd.T @ ht.__y_nd) - hl.nd.diagonal(ht.__Qty.T @ ht.__Qty))
 
-    sum_x_nd=ht[X_field_name].T @ hl.nd.ones((ht.n,))
+    sum_x_nd = ht[X_field_name].T @ hl.nd.ones((ht.n,))
     ht = ht.annotate(sum_x=nd_to_array(sum_x_nd))
     ht = ht.annotate(__Qtx=ht.__cov_Qt @ ht[X_field_name])
     ht = ht.annotate(__ytx=ht.__y_nd.T @ ht[X_field_name])
@@ -575,11 +563,19 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
     ht = ht.annotate(__t=ht.__b / ht.__se)
     ht = ht.annotate(__p=ht.__t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), ht.d, True, False)))
 
+    def zip_to_struct(ht, struct_root_name, **kwargs):
+        mapping = list(kwargs.items())
+        sources = [pair[1] for pair in mapping]
+        dests = [pair[0] for pair in mapping]
+        ht = ht.annotate(**{struct_root_name: hl.zip(*sources)})
+        ht = ht.transmute(**{struct_root_name : ht[struct_root_name].map(lambda tup: hl.struct(**{dests[i]:tup[i] for i in range(len(dests))}))})
+        return ht
+
     res = ht.key_by()
     key_fields = [key_field for key_field in ht.key]
     key_dict = {key_field: res.grouped_fields[key_field] for key_field in key_fields}
     linreg_fields_dict = {"sum_x": res.sum_x, "y_transpose_x": nd_to_array(res.__ytx.T), "beta": nd_to_array(res.__b.T),
-                          "standard_error": nd_to_array(res.__se.T), "t_stat":nd_to_array(res.__t.T), "p_value":nd_to_array(res.__p.T)}
+                          "standard_error": nd_to_array(res.__se.T), "t_stat": nd_to_array(res.__t.T), "p_value": nd_to_array(res.__p.T)}
     combined_dict = {**key_dict, **linreg_fields_dict}
     res = zip_to_struct(res, "all_zipped", **combined_dict)
 
