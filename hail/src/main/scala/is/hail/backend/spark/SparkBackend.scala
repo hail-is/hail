@@ -50,7 +50,7 @@ class SparkTaskContext(ctx: TaskContext) extends HailTaskContext {
 object SparkBackend {
   private var theSparkBackend: SparkBackend = _
 
-  def sparkContext(op: String): SparkContext = HailContext.sparkBackend("op").sc
+  def sparkContext(op: String): SparkContext = HailContext.sparkBackend(op).sc
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")

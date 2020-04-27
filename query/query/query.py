@@ -17,6 +17,16 @@ log = logging.getLogger('batch')
 routes = web.RouteTableDef()
 
 
+def java_to_web_response(jresp):
+    status = jresp.status()
+    value = jresp.value()
+    log.info(f'response status {status} value {value}')
+    if status in (400, 500):
+        return web.Response(status=status, text=value)
+    assert status == 200, status
+    return web.json_response(status=status, text=value)
+
+
 async def add_user(app, userdata):
     username = userdata['username']
     users = app['users']
@@ -53,9 +63,8 @@ async def execute(request, userdata):
     code = await request.json()
     log.info(f'execute: {code}')
     await add_user(app, userdata)
-    result = await blocking_to_async(thread_pool, blocking_execute, jbackend, userdata['username'], code)
-    log.info(f'result: {result}')
-    return web.json_response(text=result)
+    jresp = await blocking_to_async(thread_pool, blocking_execute, jbackend, userdata['username'], code)
+    return java_to_web_response(jresp)
 
 
 def blocking_value_type(jbackend, username, code):
@@ -71,9 +80,8 @@ async def value_type(request, userdata):
     code = await request.json()
     log.info(f'value type: {code}')
     await add_user(app, userdata)
-    result = await blocking_to_async(thread_pool, blocking_value_type, jbackend, userdata['username'], code)
-    log.info(f'result: {result}')
-    return web.json_response(text=result)
+    jresp = await blocking_to_async(thread_pool, blocking_value_type, jbackend, userdata['username'], code)
+    return java_to_web_response(jresp)
 
 
 def blocking_table_type(jbackend, username, code):
@@ -89,9 +97,8 @@ async def table_type(request, userdata):
     code = await request.json()
     log.info(f'table type: {code}')
     await add_user(app, userdata)
-    result = await blocking_to_async(thread_pool, blocking_table_type, jbackend, userdata['username'], code)
-    log.info(f'result: {result}')
-    return web.json_response(text=result)
+    jresp = await blocking_to_async(thread_pool, blocking_table_type, jbackend, userdata['username'], code)
+    return java_to_web_response(jresp)
 
 
 def blocking_matrix_type(jbackend, username, code):
@@ -107,9 +114,8 @@ async def matrix_type(request, userdata):
     code = await request.json()
     log.info(f'matrix type: {code}')
     await add_user(app, userdata)
-    result = await blocking_to_async(thread_pool, blocking_matrix_type, jbackend, userdata['username'], code)
-    log.info(f'result: {result}')
-    return web.json_response(text=result)
+    jresp = await blocking_to_async(thread_pool, blocking_matrix_type, jbackend, userdata['username'], code)
+    return java_to_web_response(jresp)
 
 
 def blocking_blockmatrix_type(jbackend, username, code):
@@ -125,9 +131,8 @@ async def blockmatrix_type(request, userdata):
     code = await request.json()
     log.info(f'blockmatrix type: {code}')
     await add_user(app, userdata)
-    result = await blocking_to_async(thread_pool, blocking_blockmatrix_type, jbackend, userdata['username'], code)
-    log.info(f'result: {result}')
-    return web.json_response(text=result)
+    jresp = await blocking_to_async(thread_pool, blocking_blockmatrix_type, jbackend, userdata['username'], code)
+    return java_to_web_response(jresp)
 
 
 def blocking_get_reference(app, data):

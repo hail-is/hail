@@ -332,8 +332,7 @@ class ServiceBackend(Backend):
             requests.post,
             f'{self.url}/execute', json=code, headers=self.headers)
         if resp.status_code == 400:
-            resp_json = resp.json()
-            raise FatalError(resp_json['message'])
+            raise FatalError(resp.text)
         resp.raise_for_status()
         resp_json = resp.json()
         typ = dtype(resp_json['type'])
@@ -348,8 +347,7 @@ class ServiceBackend(Backend):
             requests.post,
             f'{self.url}/type/{kind}', json=code, headers=self.headers)
         if resp.status_code == 400:
-            resp_json = resp.json()
-            raise FatalError(resp_json['message'])
+            raise FatalError(resp.text)
         resp.raise_for_status()
 
         return resp.json()
