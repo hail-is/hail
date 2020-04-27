@@ -1,4 +1,5 @@
 import hail as hl
+from test.hail.helpers import *
 
 
 UNBLOCKED_UNBUFFERED_SPEC = '{"name":"StreamBufferSpec"}'
@@ -17,6 +18,7 @@ def assert_round_trip_all_specs(exp):
     assert_round_trip(exp, BLOCKED_UNBUFFERED_SPEC)
 
 
+@skip_unless_spark_backend()
 def test_encode_basics():
     (_, b) = hl.experimental.encode(hl.literal(1), codec='{"name":"StreamBufferSpec"}')
     assert b.hex() == '01000000'
@@ -25,6 +27,7 @@ def test_encode_basics():
     assert b.hex() == 'ffffffff'
 
 
+@skip_unless_spark_backend()
 def test_decode_basics():
     result = hl.experimental.decode(hl.tint32,
                                     'PInt32',
@@ -39,10 +42,12 @@ def test_decode_basics():
     assert result == -1
 
 
+@skip_unless_spark_backend()
 def test_round_trip_basics():
     assert_round_trip_all_specs(hl.literal(1))
 
 
+@skip_unless_spark_backend()
 def test_complex_round_trips():
     assert_round_trip_all_specs(hl.struct())
     assert_round_trip_all_specs(hl.empty_array(hl.tint32))

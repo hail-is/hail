@@ -199,6 +199,21 @@ class SparkBackend(Backend):
         self.sc.stop()
         self.sc = None
 
+    def _parse_value_ir(self, code, ref_map={}, ir_map={}):
+        return self._jbackend.parse_value_ir(
+            code,
+            {k: t._parsable_string() for k, t in ref_map.items()},
+            ir_map)
+
+    def _parse_table_ir(self, code, ref_map={}, ir_map={}):
+        return self._jbackend.parse_table_ir(code, ref_map, ir_map)
+
+    def _parse_matrix_ir(self, code, ref_map={}, ir_map={}):
+        return self._jbackend.parse_matrix_ir(code, ref_map, ir_map)
+
+    def _parse_blockmatrix_ir(self, code, ref_map={}, ir_map={}):
+        return self._jbackend.parse_blockmatrix_ir(code, ref_map, ir_map)
+
     @property
     def fs(self):
         if self._fs is None:
@@ -206,15 +221,27 @@ class SparkBackend(Backend):
             self._fs = HadoopFS(self._utils_package_object, self._jbackend.fs())
         return self._fs
 
-    def _to_java_ir(self, ir):
+    def _to_java_ir(self, ir, parse):
         if not hasattr(ir, '_jir'):
             r = CSERenderer(stop_at_jir=True)
             # FIXME parse should be static
-            ir._jir = ir.parse(r(ir), ir_map=r.jirs)
+            ir._jir = parse(r(ir), ir_map=r.jirs)
         return ir._jir
 
+    def _to_java_value_ir(self, ir):
+        return self._to_java_ir(ir, self._parse_value_ir)
+
+    def _to_java_table_ir(self, ir):
+        return self._to_java_ir(ir, self._parse_table_ir)
+
+    def _to_java_matrix_ir(self, ir):
+        return self._to_java_ir(ir, self._parse_matrix_ir)
+
+    def _to_java_blockmatrix_ir(self, ir):
+        return self._to_java_ir(ir, self._parse_blockmatrix_ir)
+
     def execute(self, ir, timed=False):
-        jir = self._to_java_ir(ir)
+        jir = self._to_java_value_ir(ir)
         result = json.loads(self._jhc.backend().executeJSON(jir))
         value = ir.typ._from_json(result['value'])
         timings = result['timings']
@@ -222,31 +249,31 @@ class SparkBackend(Backend):
         return (value, timings) if timed else value
 
     def value_type(self, ir):
-        jir = self._to_java_ir(ir)
+        jir = self._to_java_value_ir(ir)
         return dtype(jir.typ().toString())
 
     def table_type(self, tir):
-        jir = self._to_java_ir(tir)
+        jir = self._to_java_table_ir(tir)
         return ttable._from_java(jir.typ())
 
     def matrix_type(self, mir):
-        jir = self._to_java_ir(mir)
+        jir = self._to_java_matrix_ir(mir)
         return tmatrix._from_java(jir.typ())
 
     def persist_table(self, t, storage_level):
-        return Table._from_java(self._jbackend.pyPersistTable(storage_level, self._to_java_ir(t._tir)))
+        return Table._from_java(self._jbackend.pyPersistTable(storage_level, self._to_java_table_ir(t._tir)))
 
     def unpersist_table(self, t):
-        return Table._from_java(self._to_java_ir(t._tir).pyUnpersist())
+        return Table._from_java(self._to_java_table_ir(t._tir).pyUnpersist())
 
     def persist_matrix_table(self, mt, storage_level):
-        return MatrixTable._from_java(self._jbackend.pyPersistMatrix(storage_level, self._to_java_ir(mt._mir)))
+        return MatrixTable._from_java(self._jbackend.pyPersistMatrix(storage_level, self._to_java_matrix_ir(mt._mir)))
 
     def unpersist_matrix_table(self, mt):
-        return MatrixTable._from_java(self._to_java_ir(mt._mir).pyUnpersist())
+        return MatrixTable._from_java(self._to_java_matrix_ir(mt._mir).pyUnpersist())
 
     def blockmatrix_type(self, bmir):
-        jir = self._to_java_ir(bmir)
+        jir = self._to_java_blockmatrix_ir(bmir)
         return tblockmatrix._from_java(jir.typ())
 
     def from_spark(self, df, key):
@@ -256,7 +283,7 @@ class SparkBackend(Backend):
         t = t.expand_types()
         if flatten:
             t = t.flatten()
-        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_ir(t._tir)), Env.spark_session()._wrapped)
+        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)), Env.spark_session()._wrapped)
 
     def to_pandas(self, t, flatten):
         return self.to_spark(t, flatten).toPandas()

@@ -228,7 +228,7 @@ class BlockMatrix(object):
         if self._cached_jbm is not None:
             return self._cached_jbm
         else:
-            self._cached_jbm = Env.spark_backend('BlockMatrix._jbm')._to_java_ir(self._bmir).pyExecute()
+            self._cached_jbm = Env.spark_backend('BlockMatrix._jbm')._to_java_blockmatrix_ir(self._bmir).pyExecute()
             return self._cached_jbm
 
     @classmethod
@@ -1194,7 +1194,7 @@ class BlockMatrix(object):
         -------
         :obj:`bool`
         """
-        return Env.backend()._to_java_ir(self._bmir).typ().isSparse()
+        return Env.backend()._to_java_blockmatrix_ir(self._bmir).typ().isSparse()
 
     @property
     def T(self):

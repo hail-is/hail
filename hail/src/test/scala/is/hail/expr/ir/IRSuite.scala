@@ -3009,21 +3009,21 @@ class IRSuite extends HailSuite {
   @Test(dataProvider = "tableIRs")
   def testTableIRParser(x: TableIR) {
     val s = Pretty(x, elideLiterals = false)
-    val x2 = IRParser.parse_table_ir(s)
+    val x2 = IRParser.parse_table_ir(ctx, s)
     assert(x2 == x)
   }
 
   @Test(dataProvider = "matrixIRs")
   def testMatrixIRParser(x: MatrixIR) {
     val s = Pretty(x, elideLiterals = false)
-    val x2 = IRParser.parse_matrix_ir(s)
+    val x2 = IRParser.parse_matrix_ir(ctx, s)
     assert(x2 == x)
   }
 
   @Test(dataProvider = "blockMatrixIRs")
   def testBlockMatrixIRParser(x: BlockMatrixIR) {
     val s = Pretty(x, elideLiterals = false)
-    val x2 = IRParser.parse_blockmatrix_ir(s)
+    val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
     assert(x2 == x)
   }
 
@@ -3298,12 +3298,12 @@ class IRSuite extends HailSuite {
     val lit = Literal(t, Row(1L))
 
     assert(IRParser.parseType(t.parsableString()) == t)
-    assert(IRParser.parse_value_ir(Pretty(lit, elideLiterals = false)) == lit)
+    assert(IRParser.parse_value_ir(ctx, Pretty(lit, elideLiterals = false)) == lit)
   }
 
   def regressionTestUnifyBug(): Unit = {
     // failed due to misuse of Type.unify
-    val ir = IRParser.parse_value_ir(
+    val ir = IRParser.parse_value_ir(ctx,
       """
         |(ToArray (StreamMap __uid_3
         |    (ToStream (Literal Array[Interval[Locus(GRCh37)]] "[{\"start\": {\"contig\": \"20\", \"position\": 10277621}, \"end\": {\"contig\": \"20\", \"position\": 11898992}, \"includeStart\": true, \"includeEnd\": false}]"))
