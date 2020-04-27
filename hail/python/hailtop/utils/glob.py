@@ -19,7 +19,7 @@ def escape(path):
             new_path.append(']')
             i += 2
             continue
-        if path[i] == '{' or  path[i] == '}':
+        if path[i] == '{' or path[i] == '}':
             raise NotImplementedError
         new_path.append(path[i])
         i += 1

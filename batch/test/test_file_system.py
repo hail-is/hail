@@ -88,6 +88,32 @@ class TestFileSystem(unittest.TestCase):
             assert set(self.fs._glob(f'{tmpdir}/b\\?r')) == {f'{tmpdir}/b?r'}
             assert set(self.fs._glob(f'{tmpdir}/b\\\\?r')) == {f'{tmpdir}/b\\?r'}
 
+    def test_nested_directory_structure(self):
+        with self.temp_dir() as tmpdir:
+            path1 = f'{tmpdir}/bar'
+            self.fs._mkdir(path1)
+            self.fs._touch(f'{path1}/d1')
+
+            path2 = f'{tmpdir}/baz'
+            self.fs._mkdir(path2)
+            self.fs._touch(f'{path2}/d2')
+
+            assert set(self.fs._listdir(f'{tmpdir}')) == {'bar', 'baz'}
+            assert set(self.fs._listdir(f'{tmpdir}/')) == {'bar', 'baz'}
+
+            assert set(self.fs._glob(f'{tmpdir}/*')) == {path1, path2}
+            assert set(self.fs._glob(f'{tmpdir}/*/*')) == {f'{path1}/d1', f'{path2}/d2'}
+            assert set(self.fs._glob(f'{tmpdir}/*/d*')) == {f'{path1}/d1', f'{path2}/d2'}
+            assert set(self.fs._glob(f'{tmpdir}/*/*2')) == {f'{path2}/d2'}
+            assert set(self.fs._glob(f'{tmpdir}/ba[r]/*')) == {f'{path1}/d1'}
+
+    def test_double_asterisks(self):
+        with self.temp_dir() as tmpdir:
+            path1 = f'{tmpdir}/bar'
+            self.fs._mkdir(path1)
+            self.fs._touch(f'{path1}/d1')
+            self.assertRaises(NotImplementedError, self.fs._glob, f'{tmpdir}/**')
+
 
 class TestLocalFileSystem(TestFileSystem):
     @classmethod
