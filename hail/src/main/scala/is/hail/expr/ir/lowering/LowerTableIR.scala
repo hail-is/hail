@@ -195,20 +195,20 @@ object LowerTableIR {
               GetField(Ref("context", contextType), "end"),
               I32(1)), i.name, MakeStruct(FastSeq("idx" -> i))))
 
-//        case TableMapGlobals(child, newGlobals) =>
-//          val loweredChild = lower(child)
-//          val oldbroadcast = Ref(genUID(), loweredChild.broadcastVals.typ)
-//          val newGlobRef = genUID()
-//          val newBroadvastVals =
-//            Let(
-//              oldbroadcast.name,
-//              loweredChild.broadcastVals,
-//              InsertFields(oldbroadcast,
-//                FastIndexedSeq(newGlobRef ->
-//                  Subst(lowerIR(newGlobals),
-//                    BindingEnv.eval("global" -> GetField(oldbroadcast, loweredChild.globalsField))))))
-//
-//          loweredChild.copy(broadcastVals = newBroadvastVals, globalsField = newGlobRef)
+        case TableMapGlobals(child, newGlobals) =>
+          val loweredChild = lower(child)
+          val oldbroadcast = Ref(genUID(), loweredChild.broadcastVals.typ)
+          val newGlobRef = genUID()
+          val newBroadvastVals =
+            Let(
+              oldbroadcast.name,
+              loweredChild.broadcastVals,
+              InsertFields(oldbroadcast,
+                FastIndexedSeq(newGlobRef ->
+                  Subst(lowerIR(newGlobals),
+                    BindingEnv.eval("global" -> GetField(oldbroadcast, loweredChild.globalsField))))))
+
+          loweredChild.copy(broadcastVals = newBroadvastVals, globalsField = newGlobRef)
 
         case TableFilter(child, cond) =>
           val loweredChild = lower(child)
@@ -263,7 +263,7 @@ object LowerTableIR {
         val cda = lowered.toIR(x => ToArray(x))
         lowered.wrapInBindings(MakeStruct(FastIndexedSeq(
           "rows" -> ToArray(StreamFlatMap(ToStream(cda), elt, ToStream(Ref(elt, cda.typ.asInstanceOf[TArray].elementType)))),
-          "global" -> GetField(lowered.broadcastRef, lowered.globalsField))))
+          "global" -> Ref(lowered.globalsField, child.typ.globalType))))
 
       case node if node.children.exists(_.isInstanceOf[TableIR]) =>
         throw new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(node) }")
