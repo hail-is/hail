@@ -1677,7 +1677,7 @@ class MatrixVCFReader(
           lines, rvdType.rowType, referenceGenome.map(_.broadcast), params.contigRecoding, params.arrayElementsRequired, params.skipInvalidLoci
         ))
 
-    val globalValue = makeGlobalValue(ctx, requestedType, sampleIDs.map(Row(_)))
+    val globalValue = makeGlobalValue(ctx, requestedType.globalType, sampleIDs.map(Row(_)))
 
     TableValue(ctx, requestedType, globalValue, rvd)
   }

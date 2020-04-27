@@ -250,7 +250,7 @@ class MatrixGENReader(
         }
       })
 
-    val globalValue = makeGlobalValue(ctx, requestedType, samples.map(Row(_)))
+    val globalValue = makeGlobalValue(ctx, requestedType.globalType, samples.map(Row(_)))
 
     TableValue(ctx, tr.typ, globalValue, rvd)
   }

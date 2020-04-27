@@ -1752,7 +1752,9 @@ def import_matrix_table(paths,
            a2_reference=bool,
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
-           skip_invalid_loci=bool)
+           skip_invalid_loci=bool,
+           n_partitions=nullable(int),
+           block_size=nullable(int))
 def import_plink(bed, bim, fam,
                  min_partitions=None,
                  delimiter='\\\\s+',
@@ -1761,7 +1763,9 @@ def import_plink(bed, bim, fam,
                  a2_reference=True,
                  reference_genome='default',
                  contig_recoding=None,
-                 skip_invalid_loci=False) -> MatrixTable:
+                 skip_invalid_loci=False,
+                 n_partitions=None,
+                 block_size=None) -> MatrixTable:
     """Import a PLINK dataset (BED, BIM, FAM) as a :class:`.MatrixTable`.
 
     Examples
@@ -1841,7 +1845,7 @@ def import_plink(bed, bim, fam,
         PLINK FAM file.
 
     min_partitions : :obj:`int`, optional
-        Number of partitions.
+        Minimum number of partitions.  Useful in conjunction with `block_size`.
 
     missing : :obj:`str`
         String used to denote missing values **only** for the phenotype field.
@@ -1871,9 +1875,17 @@ def import_plink(bed, bim, fam,
     skip_invalid_loci : :obj:`bool`
         If ``True``, skip loci that are not consistent with `reference_genome`.
 
+    n_partitions : :obj:`int`, optional
+        Number of partitions.  If both `n_partitions` and `block_size`
+        are specified, `n_partitions` will be used.
+
+    block_size : :obj:`int`, optional
+        Block size, in MB.  Default: 128MB blocks.
+
     Returns
     -------
     :class:`.MatrixTable`
+
     """
 
     if contig_recoding is None:
@@ -1887,9 +1899,10 @@ def import_plink(bed, bim, fam,
         else:
             contig_recoding = {}
 
-    reader = MatrixPLINKReader(bed, bim, fam, min_partitions, missing, delimiter,
-                               quant_pheno, a2_reference, reference_genome, contig_recoding,
-                               skip_invalid_loci)
+    reader = MatrixPLINKReader(bed, bim, fam,
+                               n_partitions, block_size, min_partitions,
+                               missing, delimiter, quant_pheno, a2_reference, reference_genome,
+                               contig_recoding, skip_invalid_loci)
     return MatrixTable(MatrixRead(reader, drop_cols=False, drop_rows=False))
 
 

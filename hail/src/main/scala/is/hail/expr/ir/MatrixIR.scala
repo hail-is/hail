@@ -128,24 +128,24 @@ abstract class MatrixHybridReader extends TableReader with MatrixReader {
     tr
   }
 
-  def makeGlobalValue(ctx: ExecuteContext, requestedType: TableType, values: => IndexedSeq[Row]): BroadcastRow = {
+  def makeGlobalValue(ctx: ExecuteContext, requestedType: TStruct, values: => IndexedSeq[Row]): BroadcastRow = {
     assert(fullType.globalType.size == 1)
-    val colType = requestedType.globalType.fieldOption(LowerMatrixIR.colsFieldName)
+    val colType = requestedType.fieldOption(LowerMatrixIR.colsFieldName)
       .map(fd => fd.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
 
     colType match {
       case Some(ct) =>
-        assert(requestedType.globalType.size == 1)
+        assert(requestedType.size == 1)
         val containedFields = ct.fieldNames.toSet
         val colValueIndices = fullMatrixType.colType.fields
           .filter(f => containedFields.contains(f.name))
           .map(_.index)
           .toArray
         val arr = values.map(r => Row.fromSeq(colValueIndices.map(r.get))).toFastIndexedSeq
-        BroadcastRow(ctx, Row(arr), requestedType.globalType)
+        BroadcastRow(ctx, Row(arr), requestedType)
       case None =>
-        assert(requestedType.globalType == TStruct.empty)
-        BroadcastRow(ctx, Row(), requestedType.globalType)
+        assert(requestedType == TStruct.empty)
+        BroadcastRow(ctx, Row(), requestedType)
     }
   }
 }

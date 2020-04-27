@@ -53,4 +53,9 @@ final case class TSet(elementType: Type) extends TContainer {
   override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf[Set](elementType.genValue)
 
   override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
+
+  override def valueSubsetter(subtype: Type): Any => Any = {
+    assert(elementType == subtype.asInstanceOf[TSet].elementType)
+    identity
+  }
 }

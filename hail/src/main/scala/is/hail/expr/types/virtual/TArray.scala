@@ -56,4 +56,12 @@ final case class TArray(elementType: Type) extends TContainer {
     ExtendedOrdering.iterableOrdering(elementType.ordering)
 
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
+
+  override def valueSubsetter(subtype: Type): Any => Any = {
+    if (this == subtype)
+      return identity
+
+    val subsetElem = elementType.valueSubsetter(subtype.asInstanceOf[TArray].elementType)
+    (a: Any) => a.asInstanceOf[IndexedSeq[Any]].map(subsetElem)
+  }
 }

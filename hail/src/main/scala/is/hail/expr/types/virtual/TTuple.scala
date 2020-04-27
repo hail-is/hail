@@ -1,16 +1,13 @@
 package is.hail.expr.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
-import is.hail.expr.types.physical.{PTuple, PTupleField}
 import is.hail.utils._
-
-import scala.collection.JavaConverters._
+import org.apache.spark.sql.Row
 
 object TTuple {
-
   val empty: TTuple = TTuple()
 
-  def apply(args: Type*): TTuple = TTuple(args.iterator.zipWithIndex.map { case (t, i) => TupleField(i, t)}.toArray)
+  def apply(args: Type*): TTuple = TTuple(args.iterator.zipWithIndex.map { case (t, i) => TupleField(i, t) }.toArray)
 }
 
 case class TupleField(index: Int, typ: Type)
@@ -86,5 +83,18 @@ final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
       this
     else
       TTuple(fundamentalFieldTypes)
+  }
+
+  override def valueSubsetter(subtype: Type): Any => Any = {
+    if (this == subtype)
+      return identity
+
+    val subTuple = subtype.asInstanceOf[TTuple]
+    val subsetFields = subTuple.fields.map(f => (fieldIndex(f.index), fields(f.index).typ.valueSubsetter(f.typ)))
+
+    { (a: Any) =>
+      val r = a.asInstanceOf[Row]
+      Row.fromSeq(subsetFields.map { case (i, subset) => subset(r.get(i)) })
+    }
   }
 }

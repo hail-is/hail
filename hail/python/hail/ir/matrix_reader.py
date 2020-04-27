@@ -272,15 +272,19 @@ class TextMatrixReader(MatrixReader):
 
 
 class MatrixPLINKReader(MatrixReader):
-    @typecheck_method(bed=str, bim=str, fam=str, min_partitions=nullable(int),
+    @typecheck_method(bed=str, bim=str, fam=str,
+                      n_partitions=nullable(int), block_size=nullable(int), min_partitions=nullable(int),
                       missing=str, delimiter=str, quant_pheno=bool,
                       a2_reference=bool, reference_genome=nullable(reference_genome_type),
                       contig_recoding=nullable(dictof(str, str)), skip_invalid_loci=bool)
-    def __init__(self, bed, bim, fam, min_partitions, missing, delimiter, quant_pheno, a2_reference,
-                 reference_genome, contig_recoding, skip_invalid_loci):
+    def __init__(self, bed, bim, fam, n_partitions, block_size, min_partitions,
+                 missing, delimiter, quant_pheno, a2_reference, reference_genome,
+                 contig_recoding, skip_invalid_loci):
         self.bed = bed
         self.bim = bim
         self.fam = fam
+        self.n_partitions = n_partitions
+        self.block_size = block_size
         self.min_partitions = min_partitions
         self.missing = missing
         self.delimiter = delimiter
@@ -295,7 +299,9 @@ class MatrixPLINKReader(MatrixReader):
                   'bed': self.bed,
                   'bim': self.bim,
                   'fam': self.fam,
-                  'nPartitions': self.min_partitions,
+                  'nPartitions': self.n_partitions,
+                  'blockSizeInMB': self.block_size,
+                  'minPartitions': self.min_partitions,
                   'missing': self.missing,
                   'delimiter': self.delimiter,
                   'quantPheno': self.quant_pheno,
