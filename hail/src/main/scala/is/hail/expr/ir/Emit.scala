@@ -1634,7 +1634,9 @@ class Emit[C](
         val K = new Value[Long] {
           def get: Code[Long] = (M < N).mux(M, N)
         }
-        val LDA = M // Possible stride tricks could change this in the future.
+        val LDA = new Value[Long] {
+          override def get: Code[Long] = (M > 1L).mux(M, 1L) // Possible stride tricks could change this in the future.
+        }
 
         def LWORK = Region.loadDouble(LWORKAddress).toI
 

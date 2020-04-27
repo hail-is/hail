@@ -595,10 +595,15 @@ def test_ndarray_qr():
         ndarray_h, ndarray_tau = hl.eval(hl.nd.qr(hl_ndarray, mode="raw"))
         np_ndarray_h, np_ndarray_tau = np.linalg.qr(np_ndarray, mode="raw")
 
-        rank = np.linalg.matrix_rank(np_ndarray)
+        # Can't ask for the rank of something that has a 0 in its shape.
+        if 0 in np_ndarray.shape:
+            assert ndarray_h.shape == np_ndarray_h.shape
+            assert ndarray_tau.shape == np_ndarray_tau.shape
+        else:
+            rank = np.linalg.matrix_rank(np_ndarray)
 
-        assert np.allclose(ndarray_h[:, :rank], np_ndarray_h[:, :rank])
-        assert np.allclose(ndarray_tau[:rank], np_ndarray_tau[:rank])
+            assert np.allclose(ndarray_h[:, :rank], np_ndarray_h[:, :rank])
+            assert np.allclose(ndarray_tau[:rank], np_ndarray_tau[:rank])
 
     def assert_r_equivalence(hl_ndarray, np_ndarray):
         assert np.allclose(hl.eval(hl.nd.qr(hl_ndarray, mode="r")), np.linalg.qr(np_ndarray, mode="r"))
@@ -607,21 +612,31 @@ def test_ndarray_qr():
         q, r = hl.eval(hl.nd.qr(hl_ndarray, mode="reduced"))
         nq, nr = np.linalg.qr(np_ndarray, mode="reduced")
 
-        rank = np.linalg.matrix_rank(np_ndarray)
+        # Can't ask for the rank of something that has a 0 in its shape.
+        if 0 in np_ndarray.shape:
+            assert q.shape == nq.shape
+            assert r.shape == nr.shape
+        else:
+            rank = np.linalg.matrix_rank(np_ndarray)
 
-        assert np.allclose(q[:, :rank], nq[:, :rank])
-        assert np.allclose(r, nr)
-        assert np.allclose(q @ r, np_ndarray)
+            assert np.allclose(q[:, :rank], nq[:, :rank])
+            assert np.allclose(r, nr)
+            assert np.allclose(q @ r, np_ndarray)
 
     def assert_complete_equivalence(hl_ndarray, np_ndarray):
         q, r = hl.eval(hl.nd.qr(hl_ndarray, mode="complete"))
         nq, nr = np.linalg.qr(np_ndarray, mode="complete")
 
-        rank = np.linalg.matrix_rank(np_ndarray)
+        # Can't ask for the rank of something that has a 0 in its shape.
+        if 0 in np_ndarray.shape:
+            assert q.shape == nq.shape
+            assert r.shape == nr.shape
+        else:
+            rank = np.linalg.matrix_rank(np_ndarray)
 
-        assert np.allclose(q[:, :rank], nq[:, :rank])
-        assert np.allclose(r, nr)
-        assert np.allclose(q @ r, np_ndarray)
+            assert np.allclose(q[:, :rank], nq[:, :rank])
+            assert np.allclose(r, nr)
+            assert np.allclose(q @ r, np_ndarray)
 
     def assert_same_qr(hl_ndarray, np_ndarray):
         assert_raw_equivalence(hl_ndarray, np_ndarray)
@@ -665,6 +680,11 @@ def test_ndarray_qr():
     single_element = hl.nd.array([1]).reshape((1, 1))
 
     assert_same_qr(single_element, np_single_element)
+
+    np_no_elements = np.array([]).reshape((0, 10))
+    no_elements = hl.nd.array(np_no_elements)
+
+    assert_same_qr(no_elements, np_no_elements)
 
     with pytest.raises(ValueError) as exc:
         hl.nd.qr(wiki_example, mode="invalid")
