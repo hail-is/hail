@@ -18,17 +18,24 @@ case class Binding(name: String, value: IR)
 
 case class TableStage(
   letBindings: IndexedSeq[(String, IR)],
-  broadcastVals: IR,
+  broadcastVals: IndexedSeq[Ref],
   globalsField: String,
   partitioner: RVDPartitioner,
   contextType: Type,
   contexts: IR,
   body: IR) {
 
-  def toIR(bodyTransform: IR => IR): IR =
-    CollectDistributedArray(contexts, broadcastVals, "context", "global", bodyTransform(body))
+  val broadcastValsIR = MakeStruct(broadcastVals.map(ref => (ref.name, ref)))
 
-  def broadcastRef: IR = Ref("global", broadcastVals.typ)
+  def toIR(bodyTransform: IR => IR): IR = {
+    val transformedBody = bodyTransform(body)
+    val bodyWrappedInBroadcastRefs = broadcastVals.foldRight(transformedBody) { case (ref, inner) =>
+      Let(ref.name, GetField(broadcastRef, ref.name), inner)
+    }
+    CollectDistributedArray(contexts, broadcastValsIR, "context", "global", bodyWrappedInBroadcastRefs)
+  }
+
+  def broadcastRef: IR = Ref("global", broadcastValsIR.typ)
 
   def contextRef: IR = Ref("context", contextType)
 
@@ -51,7 +58,7 @@ object LowerTableIR {
         case TableRead(typ, dropRows, reader) =>
           val gType = typ.globalType
           val rowType = typ.rowType
-          val globalRef = genUID()
+          val globalId = genUID()
 
           reader match {
             case r: TableNativeReader =>
@@ -63,9 +70,11 @@ object LowerTableIR {
 
               if (dropRows) {
                 TableStage(
-                  IndexedSeq[(String, IR)](),
-                  MakeStruct(FastIndexedSeq(globalRef -> globals)),
-                  globalRef,
+                  IndexedSeq[(String, IR)](
+                    (globalId, globals)
+                  ),
+                  FastIndexedSeq(Ref(globalId, globals.typ)),
+                  globalId,
                   RVDPartitioner.empty(typ.keyType),
                   TStruct.empty,
                   MakeStream(FastIndexedSeq(), TStream(TStruct.empty)),
@@ -79,9 +88,11 @@ object LowerTableIR {
 
                 if (rowsSpec.key startsWith typ.key) {
                   TableStage(
-                    IndexedSeq[(String, IR)](),
-                    MakeStruct(FastIndexedSeq(globalRef -> globals)),
-                    globalRef,
+                    IndexedSeq[(String, IR)](
+                      (globalId, globals)
+                    ),
+                    FastIndexedSeq(Ref(globalId, globals.typ)),
+                    globalId,
                     partitioner,
                     ctxType,
                     MakeStream(rowsSpec.partFiles.map(f => MakeStruct(FastIndexedSeq("path" -> Str(AbstractRVDSpec.partPath(rowsPath, f))))), TStream(ctxType)),
@@ -123,7 +134,7 @@ object LowerTableIR {
               ),
               0
             )
-            
+
             val elements = bindIR(start) { startRef =>
               ToArray(mapIR(rangeIR(startRef, startRef + length)) { elt =>
                 ArrayRef(GetField(loweredRowsAndGlobalRef, "rows"), elt)
@@ -132,15 +143,19 @@ object LowerTableIR {
             MakeStruct(FastIndexedSeq("elements" -> elements))
           }, TStream(contextType))
 
+          val globalsIR = GetField(loweredRowsAndGlobalRef, "global")
+          val globalsRef = Ref(genUID(), globalsIR.typ)
+
           TableStage(
             IndexedSeq[(String, IR)](
               (loweredRowsAndGlobalRef.name, loweredRowsAndGlobal),
+              (globalsRef.name, globalsIR),
               (numNonEmptyPartitionsRef.name, numNonEmptyPartitions),
               (qRef.name, q),
               (remainderRef.name, remainder)
             ),
-            SelectFields(loweredRowsAndGlobalRef, FastSeq("global")),
-            "global",
+            FastIndexedSeq(globalsRef),
+            globalsRef.name,
             RVDPartitioner.unkeyed(nPartitionsAdj),
             contextType,
             context,
@@ -160,12 +175,13 @@ object LowerTableIR {
 
           val i = Ref(genUID(), TInt32)
           val ranges = Array.tabulate(nPartitionsAdj) { i => partStarts(i) -> partStarts(i + 1) }
-          val globalRef = genUID()
+          val globalId = genUID()
+          val globalsIR = MakeStruct(Seq())
 
           TableStage(
-            IndexedSeq[(String, IR)](),
-            MakeStruct(FastIndexedSeq(globalRef -> MakeStruct(Seq()))),
-            globalRef,
+            IndexedSeq[(String, IR)]((globalId, globalsIR)),
+            FastIndexedSeq(Ref(globalId, globalsIR.typ)),
+            globalId,
             new RVDPartitioner(Array("idx"), tir.typ.rowType,
               ranges.map { case (start, end) =>
                 Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
@@ -179,20 +195,20 @@ object LowerTableIR {
               GetField(Ref("context", contextType), "end"),
               I32(1)), i.name, MakeStruct(FastSeq("idx" -> i))))
 
-        case TableMapGlobals(child, newGlobals) =>
-          val loweredChild = lower(child)
-          val oldbroadcast = Ref(genUID(), loweredChild.broadcastVals.typ)
-          val newGlobRef = genUID()
-          val newBroadvastVals =
-            Let(
-              oldbroadcast.name,
-              loweredChild.broadcastVals,
-              InsertFields(oldbroadcast,
-                FastIndexedSeq(newGlobRef ->
-                  Subst(lowerIR(newGlobals),
-                    BindingEnv.eval("global" -> GetField(oldbroadcast, loweredChild.globalsField))))))
-
-          loweredChild.copy(broadcastVals = newBroadvastVals, globalsField = newGlobRef)
+//        case TableMapGlobals(child, newGlobals) =>
+//          val loweredChild = lower(child)
+//          val oldbroadcast = Ref(genUID(), loweredChild.broadcastVals.typ)
+//          val newGlobRef = genUID()
+//          val newBroadvastVals =
+//            Let(
+//              oldbroadcast.name,
+//              loweredChild.broadcastVals,
+//              InsertFields(oldbroadcast,
+//                FastIndexedSeq(newGlobRef ->
+//                  Subst(lowerIR(newGlobals),
+//                    BindingEnv.eval("global" -> GetField(oldbroadcast, loweredChild.globalsField))))))
+//
+//          loweredChild.copy(broadcastVals = newBroadvastVals, globalsField = newGlobRef)
 
         case TableFilter(child, cond) =>
           val loweredChild = lower(child)
@@ -239,7 +255,7 @@ object LowerTableIR {
 
       case TableGetGlobals(child) =>
         val stage = lower(child)
-        stage.wrapInBindings(GetField(stage.broadcastVals, stage.globalsField))
+        stage.wrapInBindings(GetField(stage.broadcastRef, stage.globalsField))
 
       case TableCollect(child) =>
         val lowered = lower(child)
@@ -247,7 +263,7 @@ object LowerTableIR {
         val cda = lowered.toIR(x => ToArray(x))
         lowered.wrapInBindings(MakeStruct(FastIndexedSeq(
           "rows" -> ToArray(StreamFlatMap(ToStream(cda), elt, ToStream(Ref(elt, cda.typ.asInstanceOf[TArray].elementType)))),
-          "global" -> GetField(lowered.broadcastVals, lowered.globalsField))))
+          "global" -> GetField(lowered.broadcastRef, lowered.globalsField))))
 
       case node if node.children.exists(_.isInstanceOf[TableIR]) =>
         throw new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(node) }")

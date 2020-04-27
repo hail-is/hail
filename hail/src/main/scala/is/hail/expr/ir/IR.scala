@@ -29,7 +29,7 @@ sealed trait IR extends BaseIR {
       try {
         _typ = InferType(this)
       } catch {
-        case e: Throwable => throw new RuntimeException(s"typ: inference failure: ${e.getMessage}", e)
+        case e: Throwable => throw new RuntimeException(s"typ: inference failure:", e)
       }
     _typ
   }
