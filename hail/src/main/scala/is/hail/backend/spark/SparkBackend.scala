@@ -29,7 +29,7 @@ import scala.collection.JavaConverters._
 import java.io.PrintWriter
 
 import is.hail.io.vcf.VCFsReader
-import is.hail.linalg.RowMatrix
+import is.hail.linalg.{BlockMatrix, RowMatrix}
 import is.hail.stats.LinearMixedModel
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.storage.StorageLevel
@@ -525,6 +525,12 @@ class SparkBackend(
   ): BlockMatrixIR = {
     withExecuteContext() { ctx =>
       IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
+    }
+  }
+
+  def pyBlockMatrixExecute(bm: BlockMatrixIR): BlockMatrix = {
+    withExecuteContext() { ctx =>
+      Interpret(bm, ctx, optimize = true)
     }
   }
 }
