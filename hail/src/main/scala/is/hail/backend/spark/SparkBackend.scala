@@ -359,11 +359,11 @@ class SparkBackend(
   def pyIndexBgen(
     files: java.util.List[String],
     indexFileMap: java.util.Map[String, String],
-    rg: Option[String],
+    rg: String,
     contigRecoding: java.util.Map[String, String],
     skipInvalidLoci: Boolean) {
     withExecuteContext() { ctx =>
-      IndexBgen(ctx, files.asScala.toArray, indexFileMap.asScala.toMap, rg, contigRecoding.asScala.toMap, skipInvalidLoci)
+      IndexBgen(ctx, files.asScala.toArray, indexFileMap.asScala.toMap, Option(rg), contigRecoding.asScala.toMap, skipInvalidLoci)
     }
     info(s"Number of BGEN files indexed: ${ files.size() }")
   }
@@ -479,8 +479,7 @@ class SparkBackend(
     pathIn: String, pathOut: String, delimiter: String, header: String, addIndex: Boolean, exportType: String,
     partitionSize: java.lang.Integer, entries: String): Unit = {
     withExecuteContext() { ctx =>
-      val rm = RowMatrix.readBlockMatrix(fs, pathIn,
-        if (partitionSize == null) None else Some(partitionSize))
+      val rm = RowMatrix.readBlockMatrix(fs, pathIn, partitionSize)
       entries match {
         case "full" =>
           rm.export(ctx, pathOut, delimiter, Option(header), addIndex, exportType)

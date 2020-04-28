@@ -17,7 +17,7 @@ import numpy as np
 import hail
 import hail as hl
 from hail.typecheck import enumeration, typecheck, nullable
-from hail.utils.java import Env, joption, error
+from hail.utils.java import Env, error
 
 
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))

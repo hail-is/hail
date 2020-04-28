@@ -34,13 +34,13 @@ object Graph {
     m
   }
 
-  def pyMaximalIndependentSet(edgesIR: IR, nodeTypeStr: String, tieBreaker: Option[String]): IR = {
+  def pyMaximalIndependentSet(edgesIR: IR, nodeTypeStr: String, tieBreaker: String): IR = {
     val nodeType = IRParser.parseType(nodeTypeStr)
     ExecuteContext.scoped() { ctx =>
       val edges = Interpret[IndexedSeq[Row]](ctx, edgesIR).toArray
 
       val resultType = TSet(nodeType)
-      val result = maximalIndependentSet(ctx, edges, nodeType, tieBreaker)
+      val result = maximalIndependentSet(ctx, edges, nodeType, Option(tieBreaker))
       Literal(resultType, result)
     }
   }

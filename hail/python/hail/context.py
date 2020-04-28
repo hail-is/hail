@@ -9,7 +9,7 @@ import hail
 from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, dictof
 from hail.utils import get_env_or_default
-from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler, warn
+from hail.utils.java import Env, FatalError, warn
 from hail.backend import Backend, ServiceBackend, SparkBackend
 
 
@@ -112,7 +112,6 @@ class HailContext(object):
                                  '  the latest changes weekly.\n')
             sys.stderr.write(f'LOGGING: writing to {log}\n')
 
-        install_exception_handler()
         Env.set_seed(global_seed)
 
 
@@ -123,9 +122,7 @@ class HailContext(object):
     def stop(self):
         self._backend.stop()
         self._backend = None
-        Env._jvm = None
         Env._hc = None
-        uninstall_exception_handler()
         Env._dummy_table = None
         Env._seed_generator = None
         hail.ir.clear_session_functions()

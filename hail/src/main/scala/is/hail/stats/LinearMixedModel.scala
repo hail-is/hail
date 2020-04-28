@@ -20,10 +20,11 @@ case class LMMData(gamma: Double, residualSq: Double, py: BDV[Double], px: BDM[D
 object LinearMixedModel {
   def pyApply(gamma: Double, residualSq: Double, py: Array[Double], px: BDM[Double], d: Array[Double],
     ydy: Double, xdy: Array[Double], xdx: BDM[Double],
-    yOpt: Option[Array[Double]], xOpt: Option[BDM[Double]]): LinearMixedModel = {
+    // yOpt, xOpt can be null
+    yOpt: Array[Double], xOpt: BDM[Double]): LinearMixedModel = {
 
     new LinearMixedModel(
-      LMMData(gamma, residualSq, BDV(py), px, BDV(d), ydy, BDV(xdy), xdx, yOpt.map(BDV(_)), xOpt))
+      LMMData(gamma, residualSq, BDV(py), px, BDV(d), ydy, BDV(xdy), xdx, Option(yOpt).map(BDV(_)), Option(xOpt)))
   }
   
   private val rowType = PCanonicalStruct(true,
