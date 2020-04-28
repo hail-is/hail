@@ -525,6 +525,8 @@ class SparkBackend(
   ): BlockMatrixIR = {
     withExecuteContext() { ctx =>
       IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
+    }
+  }
 
   def pyBlockMatrixExecute(bm: BlockMatrixIR): BlockMatrix = {
     withExecuteContext() { ctx =>
