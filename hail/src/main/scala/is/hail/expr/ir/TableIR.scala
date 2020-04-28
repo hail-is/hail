@@ -9,6 +9,7 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, TableToTableFunction}
+import is.hail.expr.ir.lowering.LowererUnsupportedOperation
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -104,6 +105,12 @@ object TableReader {
   }
 }
 
+case class LoweredTableReader(
+  globals: IR,
+  partitioner: RVDPartitioner,
+  contexts: IR,
+  body: IR)
+
 abstract class TableReader {
   def pathsUsed: Seq[String]
 
@@ -116,6 +123,8 @@ abstract class TableReader {
   def toJValue: JValue = {
     Extraction.decompose(this)(TableReader.formats)
   }
+
+  def lower(t: TableType): LoweredTableReader = throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lowerer not implemented")
 }
 
 object TableNativeReader {
@@ -232,6 +241,35 @@ class TableNativeReader(
   override def equals(that: Any): Boolean = that match {
     case that: TableNativeReader => params == that.params
     case _ => false
+  }
+
+  override def lower(t: TableType): LoweredTableReader = {
+    val gType = t.globalType
+    val rowType = t.rowType
+
+    val globalsSpec = spec.globalsSpec
+    val globalsPath = spec.globalsComponent.absolutePath(params.path)
+    val globals = ArrayRef(ToArray(ReadPartition(Str(globalsSpec.absolutePartPaths(globalsPath).head), gType, PartitionNativeReader(globalsSpec.typedCodecSpec))), 0)
+
+    val rowsSpec = spec.rowsSpec
+    val rowsPath = spec.rowsComponent.absolutePath(params.path)
+    if (! (rowsSpec.key startsWith t.key))
+      throw new LowererUnsupportedOperation("Can't lower a table if sort is needed after read.")
+
+    val partitioner = rowsSpec.partitioner
+
+    val rSpec = rowsSpec.typedCodecSpec
+
+    val ctxType = TStruct("path" -> TString)
+    val contexts = MakeStream(rowsSpec.absolutePartPaths(rowsPath).map(partPath => MakeStruct(FastIndexedSeq("path" -> Str(partPath)))), TStream(ctxType))
+
+    val body = ReadPartition(GetField(Ref("context", ctxType), "path"), rowType, PartitionNativeReader(rSpec))
+
+    LoweredTableReader(
+      globals,
+      partitioner,
+      contexts,
+      body)
   }
 }
 
