@@ -10,88 +10,63 @@ from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, dictof
 from hail.utils import get_env_or_default
 from hail.utils.java import Env, FatalError, warn
-from hail.backend import Backend, ServiceBackend, SparkBackend
+from hail.backend import Backend
 
+
+def _get_tmpdir(tmpdir):
+    if tmpdir is None:
+        tmpdir = '/tmp'
+    return tmpdir
+
+
+def _get_local_tmpdir(local_tmpdir):
+    local_tmpdir = get_env_or_default(local_tmpdir, 'TMPDIR', 'file:///tmp')
+    r = urlparse(local_tmpdir)
+    if not r.scheme:
+        r = r._replace(scheme='file')
+    elif r.scheme != 'file':
+        raise ValueError('invalid local_tmpfile: must use scheme file, got scheme {r.scheme}')
+    return urlunparse(r)
+
+
+def _get_log(log):
+    if log is None:
+        py_version = version()
+        log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
+                                        suffix=f'-{py_version}.log')
+    return log
 
 class HailContext(object):
-    @typecheck_method(sc=nullable(SparkContext),
-                      app_name=str,
-                      master=nullable(str),
-                      local=str,
-                      log=nullable(str),
+    @typecheck_method(log=str,
                       quiet=bool,
                       append=bool,
-                      min_block_size=int,
-                      branching_factor=int,
-                      tmpdir=nullable(str), local_tmpdir=nullable(str),
+                      tmpdir=str,
+                      local_tmpdir=str,
                       default_reference=str,
-                      idempotent=bool,
                       global_seed=nullable(int),
-                      spark_conf=nullable(dictof(str, str)),
-                      skip_logging_configuration=bool,
-                      optimizer_iterations=nullable(int),
-                      _backend=nullable(Backend))
-    def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
-                 log=None, quiet=False, append=False,
-                 min_block_size=1, branching_factor=50, tmpdir=None, local_tmpdir=None,
-                 default_reference="GRCh37", idempotent=False,
-                 global_seed=6348563392232659379, spark_conf=None,
-                 skip_logging_configuration=False, optimizer_iterations=None, _backend=None):
+                      backend=Backend)
+    def __init__(self, log, quiet, append, tmpdir, local_tmpdir,
+                 default_reference, global_seed, backend):
+        assert not Env._hc
 
-        if Env._hc:
-            if idempotent:
-                return
-            else:
-                warn('Hail has already been initialized. If this call was intended to change configuration,'
-                     ' close the session with hl.stop() first.')
+        super(HailContext, self).__init__()
 
-        py_version = version()
-        
-        if log is None:
-            log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
-                                            suffix=f'-{py_version}.log')
         self._log = log
 
-        if tmpdir is None:
-            tmpdir = '/tmp'
         self._tmpdir = tmpdir
+        self._local_tmpdir = local_tmpdir
 
-        local_tmpdir = get_env_or_default(local_tmpdir, 'TMPDIR', 'file:///tmp')
-        r = urlparse(local_tmpdir)
-        if not r.scheme:
-            r = r._replace(scheme='file')
-        elif r.scheme != 'file':
-            raise ValueError('invalid local_tmpfile: must use scheme file, got scheme {r.scheme}')
-        self._local_tmpdir = urlunparse(r)
-
-        optimizer_iterations = get_env_or_default(optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
-
-        if _backend is None:
-            backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
-            if backend_name == 'service':
-                _backend = ServiceBackend()
-            elif backend_name == 'spark':
-                _backend = SparkBackend(
-                    idempotent, sc, spark_conf, app_name, master, local, log,
-                    quiet, append, min_block_size, branching_factor, tmpdir, local_tmpdir,
-                    skip_logging_configuration, optimizer_iterations)
-            else:
-                raise ValueError(f'invalid value for HAIL_QUERY_BACKDEND: unknown backend: {backend_name}')
-
-        self._backend = _backend
+        self._backend = backend
 
         self._warn_cols_order = True
         self._warn_entries_order = True
 
-        super(HailContext, self).__init__()
-
-        # do this at the end in case something errors, so we don't raise the above error without a real HC
         Env._hc = self
 
-        ReferenceGenome._from_config(_backend.get_reference('GRCh37'), True)
-        ReferenceGenome._from_config(_backend.get_reference('GRCh38'), True)
-        ReferenceGenome._from_config(_backend.get_reference('GRCm38'), True)
-        ReferenceGenome._from_config(_backend.get_reference('CanFam3'), True)
+        ReferenceGenome._from_config(self._backend.get_reference('GRCh37'), True)
+        ReferenceGenome._from_config(self._backend.get_reference('GRCh38'), True)
+        ReferenceGenome._from_config(self._backend.get_reference('GRCm38'), True)
+        ReferenceGenome._from_config(self._backend.get_reference('CanFam3'), True)
 
         if default_reference in ReferenceGenome._references:
             self._default_ref = ReferenceGenome._references[default_reference]
@@ -99,6 +74,7 @@ class HailContext(object):
             self._default_ref = ReferenceGenome.read(default_reference)
 
         if not quiet:
+            py_version = version()
             sys.stderr.write(
                 'Welcome to\n'
                 '     __  __     <>__\n'
@@ -112,6 +88,8 @@ class HailContext(object):
                                  '  the latest changes weekly.\n')
             sys.stderr.write(f'LOGGING: writing to {log}\n')
 
+        if global_seed is None:
+            global_seed = 6348563392232659379
         Env.set_seed(global_seed)
 
 
@@ -145,8 +123,7 @@ class HailContext(object):
            spark_conf=nullable(dictof(str, str)),
            skip_logging_configuration=bool,
            local_tmpdir=nullable(str),
-           _optimizer_iterations=nullable(int),
-           _backend=nullable(Backend))
+           _optimizer_iterations=nullable(int))
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
          log=None, quiet=False, append=False,
          min_block_size=0, branching_factor=50, tmp_dir='/tmp',
@@ -155,8 +132,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
          spark_conf=None,
          skip_logging_configuration=False,
          local_tmpdir=None,
-         _optimizer_iterations=None,
-         _backend=None):
+         _optimizer_iterations=None):
     """Initialize Hail and Spark.
 
     Examples
@@ -232,10 +208,56 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         Local temporary directory.  Used on driver and executor nodes.
         Must use the file scheme.  Defaults to TMPDIR, or /tmp.
     """
-    HailContext(sc, app_name, master, local, log, quiet, append,
-                min_block_size, branching_factor, tmp_dir, local_tmpdir,
-                default_reference, idempotent, global_seed, spark_conf,
-                skip_logging_configuration, _optimizer_iterations, _backend)
+    from hail.backend.spark_backend import SparkBackend
+
+    if Env._hc:
+        if idempotent:
+            return
+        else:
+            warn('Hail has already been initialized. If this call was intended to change configuration,'
+                 ' close the session with hl.stop() first.')
+
+    log = _get_log(log)
+    tmpdir = _get_tmpdir(tmp_dir)
+    local_tmpdir = _get_local_tmpdir(local_tmpdir)
+    optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
+
+    backend = SparkBackend(
+        idempotent, sc, spark_conf, app_name, master, local, log,
+        quiet, append, min_block_size, branching_factor, tmpdir, local_tmpdir,
+        skip_logging_configuration, optimizer_iterations)
+
+    HailContext(
+        log, quiet, append, tmp_dir, local_tmpdir, default_reference,
+        global_seed, backend)
+
+
+@typecheck(
+    log=nullable(str),
+    quiet=bool,
+    append=bool,
+    tmpdir=nullable(str),
+    local_tmpdir=nullable(str),
+    default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'),
+    global_seed=nullable(int))
+def init_service(
+        log=None,
+        quiet=False,
+        append=False,
+        tmpdir=None,
+        local_tmpdir=None,
+        default_reference='GRCh37',
+        global_seed=6348563392232659379):
+    from hail.backend.service_backend import ServiceBackend
+    backend = ServiceBackend()
+
+    log = _get_log(log)
+    tmpdir = _get_tmpdir(tmpdir)
+    local_tmpdir = _get_local_tmpdir(local_tmpdir)
+
+    HailContext(
+        log, quiet, append, tmpdir, local_tmpdir, default_reference,
+        global_seed, backend)
 
 
 def version():
