@@ -2237,7 +2237,7 @@ class Emit[C](
         def compatibleShape(numElements: Value[Long], requestedShape: IndexedSeq[Value[Long]]): (Code[Unit], IndexedSeq[Value[Long]]) = {
           val hasNegativeOne = mb.newLocal[Boolean]()
           val runningProduct = mb.newLocal[Long]()
-          val quotient = mb.newLocal[Long]()
+          val replacesNegativeOne = mb.newLocal[Long]()
           val tempShapeElement = mb.newLocal[Long]()
 
           val newShapeVars = requestedShape.indices.map(_ => mb.genFieldThisRef[Long]())
@@ -2257,22 +2257,17 @@ class Emit[C](
                   Code._fatal[Unit]("Can't reshape, new shape must contain only nonnegative numbers or -1")),
                 runningProduct := runningProduct * tempShapeElement
               )
-            ) },
-            (runningProduct ceq 0L).mux(
-              (hasNegativeOne || (runningProduct cne numElements)).mux(
-                Code._fatal[Unit]("Can't reshape since requested shape is incompatible with number of elements"),
-                Code(newShapeVars.zip(requestedShape).map { case (variable, shapeElement) => variable := shapeElement})
-              ),
-              Code(
-                hasNegativeOne.mux(
-                  (numElements % runningProduct) > 0L,
-                  numElements cne runningProduct
-                ).orEmpty(Code._fatal[Unit]("Can't reshape since requested shape is incompatible with number of elements")),
-                quotient := numElements / runningProduct,
-                Code(newShapeVars.zip(requestedShape).map { case (variable, shapeElement) =>
-                  variable := (shapeElement ceq -1L).mux(quotient, shapeElement)
-                })
-              )
+            )},
+
+            Code(
+              hasNegativeOne.mux(
+                (runningProduct ceq 0L) || (numElements % runningProduct) > 0L,
+                numElements cne runningProduct
+              ).orEmpty(Code._fatal[Unit]("Can't reshape since requested shape is incompatible with number of elements")),
+              replacesNegativeOne := (runningProduct ceq 0L).mux(0, numElements / runningProduct),
+              Code(newShapeVars.zip(requestedShape).map { case (variable, shapeElement) =>
+                variable := (shapeElement ceq -1L).mux(replacesNegativeOne, shapeElement)
+              })
             )
           ))
 
