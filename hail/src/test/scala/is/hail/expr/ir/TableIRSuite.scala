@@ -427,7 +427,6 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableMapGlobals(): Unit = {
-    implicit val execStrats = ExecStrategy.lowering
     val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
     val innerRowRef = Ref("row", t.field("rows").typ.asInstanceOf[TArray].elementType)
     val innerGlobalRef = Ref("global", t.field("global").typ)
