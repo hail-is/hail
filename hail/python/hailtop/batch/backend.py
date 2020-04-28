@@ -230,7 +230,7 @@ class ServiceBackend(Backend):
 
     def __init__(self, billing_project=None):
         if billing_project is None:
-            billing_project = get_user_config().get('batch', 'billing_project')
+            billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:
             raise ValueError(
                 f'the billing_project parameter of ServiceBackend must be set '
