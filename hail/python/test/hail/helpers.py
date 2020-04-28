@@ -111,9 +111,10 @@ def create_all_values_datasets():
     return (create_all_values_table(), create_all_values_matrix_table())
 
 def skip_unless_spark_backend():
+    from hl.backend.spark_backend import SparkBackend
     @decorator
     def wrapper(func, *args, **kwargs):
-        if isinstance(hl.utils.java.Env.backend(), hl.backend.SparkBackend):
+        if isinstance(hl.utils.java.Env.backend(), SparkBackend):
             return func(*args, **kwargs)
         else:
             raise unittest.SkipTest('requires Spark')
