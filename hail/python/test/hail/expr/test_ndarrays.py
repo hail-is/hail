@@ -208,6 +208,9 @@ def test_ndarray_reshape():
     np_hypercube = np.arange(3 * 5 * 7 * 9).reshape((3, 5, 7, 9))
     hypercube = hl.nd.array(np_hypercube)
 
+    np_shape_zero = np.array([])
+    shape_zero = hl.nd.array(np_shape_zero)
+
     assert_ndarrays_eq(
         (single.reshape(()), np_single.reshape(())),
         (zero_dim.reshape(()), np_zero_dim.reshape(())),
@@ -220,7 +223,9 @@ def test_ndarray_reshape():
         (cube_to_rect, np_cube_to_rect),
         (cube_t_to_rect, np_cube_t_to_rect),
         (hypercube.reshape((5, 7, 9, 3)).reshape((7, 9, 3, 5)), np_hypercube.reshape((7, 9, 3, 5))),
-        (hypercube.reshape(hl.tuple([5, 7, 9, 3])), np_hypercube.reshape((5, 7, 9, 3)))
+        (hypercube.reshape(hl.tuple([5, 7, 9, 3])), np_hypercube.reshape((5, 7, 9, 3))),
+        (shape_zero.reshape((0, 5)), np_shape_zero.reshape((0, 5))),
+        (shape_zero.reshape((-1, 5)), np_shape_zero.reshape((-1, 5)))
     )
 
     assert hl.eval(hl.null(hl.tndarray(hl.tfloat, 2)).reshape((4, 5))) is None
@@ -244,11 +249,15 @@ def test_ndarray_reshape():
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.literal(np_cube).reshape((0, 2, 2)))
-    assert "must contain only positive numbers or -1" in str(exc)
+    assert "requested shape is incompatible with number of elements" in str(exc)
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.literal(np_cube).reshape((2, 2, -2)))
-    assert "must contain only positive numbers or -1" in str(exc)
+    assert "must contain only nonnegative numbers or -1" in str(exc)
+
+    with pytest.raises(FatalError) as exc:
+        hl.eval(shape_zero.reshape((0, -1)))
+    assert "Can't reshape" in str(exc)
 
 
 @skip_unless_spark_backend()
@@ -457,6 +466,7 @@ def test_ndarray_matmul():
     np_five_dim_tensor = np.arange(7 * 5 * 1 * 5 * 3).reshape((7, 5, 1, 5, 3))
     np_ones_int32 = np.ones((4, 4), dtype=np.int32)
     np_ones_float64 = np.ones((4, 4), dtype=np.float64)
+    np_zero_by_four = np.array([], dtype=np.float64).reshape((0, 4))
 
     v = hl.nd.array(np_v)
     y = hl.nd.array(np_y)
@@ -473,6 +483,7 @@ def test_ndarray_matmul():
     five_dim_tensor = hl.nd.array(np_five_dim_tensor)
     ones_int32 = hl.nd.array(np_ones_int32)
     ones_float64 = hl.nd.array(np_ones_float64)
+    zero_by_four = hl.nd.array(np_zero_by_four)
 
     assert_ndarrays_eq(
         (v @ v, np_v @ np_v),
@@ -497,7 +508,9 @@ def test_ndarray_matmul():
         (m @ rect_prism, np_m @ np_rect_prism),
         (m @ rect_prism.T, np_m @ np_rect_prism.T),
         (broadcasted_mat @ rect_prism, np_broadcasted_mat @ np_rect_prism),
-        (six_dim_tensor @ five_dim_tensor, np_six_dim_tensor @ np_five_dim_tensor)
+        (six_dim_tensor @ five_dim_tensor, np_six_dim_tensor @ np_five_dim_tensor),
+        (zero_by_four @ ones_float64, np_zero_by_four, np_ones_float64),
+        (zero_by_four.transpose() @ zero_by_four, np_zero_by_four.transpose() @ np_zero_by_four)
     )
 
     assert hl.eval(hl.null(hl.tndarray(hl.tfloat64, 2)) @ hl.null(hl.tndarray(hl.tfloat64, 2))) is None
@@ -587,10 +600,15 @@ def test_ndarray_qr():
         ndarray_h, ndarray_tau = hl.eval(hl.nd.qr(hl_ndarray, mode="raw"))
         np_ndarray_h, np_ndarray_tau = np.linalg.qr(np_ndarray, mode="raw")
 
-        rank = np.linalg.matrix_rank(np_ndarray)
+        # Can't ask for the rank of something that has a 0 in its shape.
+        if 0 in np_ndarray.shape:
+            assert ndarray_h.shape == np_ndarray_h.shape
+            assert ndarray_tau.shape == np_ndarray_tau.shape
+        else:
+            rank = np.linalg.matrix_rank(np_ndarray)
 
-        assert np.allclose(ndarray_h[:, :rank], np_ndarray_h[:, :rank])
-        assert np.allclose(ndarray_tau[:rank], np_ndarray_tau[:rank])
+            assert np.allclose(ndarray_h[:, :rank], np_ndarray_h[:, :rank])
+            assert np.allclose(ndarray_tau[:rank], np_ndarray_tau[:rank])
 
     def assert_r_equivalence(hl_ndarray, np_ndarray):
         assert np.allclose(hl.eval(hl.nd.qr(hl_ndarray, mode="r")), np.linalg.qr(np_ndarray, mode="r"))
@@ -599,21 +617,31 @@ def test_ndarray_qr():
         q, r = hl.eval(hl.nd.qr(hl_ndarray, mode="reduced"))
         nq, nr = np.linalg.qr(np_ndarray, mode="reduced")
 
-        rank = np.linalg.matrix_rank(np_ndarray)
+        # Can't ask for the rank of something that has a 0 in its shape.
+        if 0 in np_ndarray.shape:
+            assert q.shape == nq.shape
+            assert r.shape == nr.shape
+        else:
+            rank = np.linalg.matrix_rank(np_ndarray)
 
-        assert np.allclose(q[:, :rank], nq[:, :rank])
-        assert np.allclose(r, nr)
-        assert np.allclose(q @ r, np_ndarray)
+            assert np.allclose(q[:, :rank], nq[:, :rank])
+            assert np.allclose(r, nr)
+            assert np.allclose(q @ r, np_ndarray)
 
     def assert_complete_equivalence(hl_ndarray, np_ndarray):
         q, r = hl.eval(hl.nd.qr(hl_ndarray, mode="complete"))
         nq, nr = np.linalg.qr(np_ndarray, mode="complete")
 
-        rank = np.linalg.matrix_rank(np_ndarray)
+        # Can't ask for the rank of something that has a 0 in its shape.
+        if 0 in np_ndarray.shape:
+            assert q.shape == nq.shape
+            assert r.shape == nr.shape
+        else:
+            rank = np.linalg.matrix_rank(np_ndarray)
 
-        assert np.allclose(q[:, :rank], nq[:, :rank])
-        assert np.allclose(r, nr)
-        assert np.allclose(q @ r, np_ndarray)
+            assert np.allclose(q[:, :rank], nq[:, :rank])
+            assert np.allclose(r, nr)
+            assert np.allclose(q @ r, np_ndarray)
 
     def assert_same_qr(hl_ndarray, np_ndarray):
         assert_raw_equivalence(hl_ndarray, np_ndarray)
@@ -657,6 +685,11 @@ def test_ndarray_qr():
     single_element = hl.nd.array([1]).reshape((1, 1))
 
     assert_same_qr(single_element, np_single_element)
+
+    np_no_elements = np.array([]).reshape((0, 10))
+    no_elements = hl.nd.array(np_no_elements)
+
+    assert_same_qr(no_elements, np_no_elements)
 
     with pytest.raises(ValueError) as exc:
         hl.nd.qr(wiki_example, mode="invalid")

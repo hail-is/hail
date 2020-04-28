@@ -1551,42 +1551,46 @@ class Emit[C](
 
           val multiplyViaDGEMM = Code(
             shapeSetup,
-            answerPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
-            outputPType.data.pType.stagedInitialize(answerPArrayAddress, (M * N).toI),
-            lPType.elementType match {
-              case PFloat32(_) =>
-                Code.invokeScalaObject13[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method="sgemm",
-                  "N",
-                  "N",
-                  M.toI,
-                  N.toI,
-                  K.toI,
-                  1.0f,
-                  lPType.data.pType.firstElementOffset(leftDataAddress),
-                  LDA.toI,
-                  rPType.data.pType.firstElementOffset(rightDataAddress),
-                  LDB.toI,
-                  0.0f,
-                  outputPType.data.pType.firstElementOffset(answerPArrayAddress, (M * N).toI),
-                  LDC.toI
-                )
-              case PFloat64(_) =>
-                Code.invokeScalaObject13[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemm",
-                  "N",
-                  "N",
-                  M.toI,
-                  N.toI,
-                  K.toI,
-                  1.0,
-                  lPType.data.pType.firstElementOffset(leftDataAddress),
-                  LDA.toI,
-                  rPType.data.pType.firstElementOffset(rightDataAddress),
-                  LDB.toI,
-                  0.0,
-                  outputPType.data.pType.firstElementOffset(answerPArrayAddress, (M * N).toI),
-                  LDC.toI
-                )
-            },
+
+            ((M cne 0L) && (N cne 0L) && (K cne 0L)).mux(Code(
+              answerPArrayAddress := outputPType.data.pType.allocate(region, (M * N).toI),
+              outputPType.data.pType.stagedInitialize(answerPArrayAddress, (M * N).toI),
+              lPType.elementType match {
+                case PFloat32(_) =>
+                  Code.invokeScalaObject13[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method="sgemm",
+                    "N",
+                    "N",
+                    M.toI,
+                    N.toI,
+                    K.toI,
+                    1.0f,
+                    lPType.data.pType.firstElementOffset(leftDataAddress),
+                    LDA.toI,
+                    rPType.data.pType.firstElementOffset(rightDataAddress),
+                    LDB.toI,
+                    0.0f,
+                    outputPType.data.pType.firstElementOffset(answerPArrayAddress, (M * N).toI),
+                    LDC.toI
+                  )
+                case PFloat64(_) =>
+                  Code.invokeScalaObject13[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemm",
+                    "N",
+                    "N",
+                    M.toI,
+                    N.toI,
+                    K.toI,
+                    1.0,
+                    lPType.data.pType.firstElementOffset(leftDataAddress),
+                    LDA.toI,
+                    rPType.data.pType.firstElementOffset(rightDataAddress),
+                    LDB.toI,
+                    0.0,
+                    outputPType.data.pType.firstElementOffset(answerPArrayAddress, (M * N).toI),
+                    LDC.toI
+                  )
+              }),
+              answerPArrayAddress := outputPType.data.pType.zeroes(mb, region, (M * N).toI)
+            ),
             outputPType.construct(outputPType.makeShapeBuilder(IndexedSeq(M, N)), outputPType.makeColumnMajorStridesBuilder(IndexedSeq(M, N), mb), answerPArrayAddress, mb)
           )
 
@@ -1596,8 +1600,6 @@ class Emit[C](
             override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
               val element = coerce[Any](elemMB.genFieldThisRef("matmul_element")(eVti))
               val k = elemMB.genFieldThisRef[Long]()
-
-              val innerMethod = elemMB.genEmitMethod("ndaMatMulLoop", FastIndexedSeq.empty[ParamType], eVti)
 
               val (lIndices: IndexedSeq[Value[Long]], rIndices: IndexedSeq[Value[Long]]) = (lPType.nDims, rPType.nDims, idxVars) match {
                 case (1, 1, Seq()) => (IndexedSeq(k), IndexedSeq(k))
@@ -1613,8 +1615,8 @@ class Emit[C](
                   (lStackVars :+ n :+ k, rStackVars :+ k :+  m)
               }
 
-              val lElem = lPType.loadElementToIRIntermediate(lIndices, leftND, innerMethod)
-              val rElem = rPType.loadElementToIRIntermediate(rIndices, rightND, innerMethod)
+              val lElem = lPType.loadElementToIRIntermediate(lIndices, leftND, elemMB)
+              val rElem = rPType.loadElementToIRIntermediate(rIndices, rightND, elemMB)
               val kLen = elemMB.genFieldThisRef[Long]()
 
               val loopCode = Code(
@@ -1625,8 +1627,7 @@ class Emit[C](
                   element := numericElementType.add(numericElementType.multiply(lElem, rElem), element),
                   k := k + 1L),
                 element)
-              innerMethod.emit(loopCode)
-              innerMethod.invokeCode[Unit]()
+              loopCode
             }
           }
           emitter.emit(mb, outputPType)
@@ -1654,7 +1655,9 @@ class Emit[C](
         val K = new Value[Long] {
           def get: Code[Long] = (M < N).mux(M, N)
         }
-        val LDA = M // Possible stride tricks could change this in the future.
+        val LDA = new Value[Long] {
+          override def get: Code[Long] = (M > 1L).mux(M, 1L) // Possible stride tricks could change this in the future.
+        }
 
         def LWORK = Region.loadDouble(LWORKAddress).toI
 
@@ -2255,7 +2258,7 @@ class Emit[C](
         def compatibleShape(numElements: Value[Long], requestedShape: IndexedSeq[Value[Long]]): (Code[Unit], IndexedSeq[Value[Long]]) = {
           val hasNegativeOne = mb.newLocal[Boolean]()
           val runningProduct = mb.newLocal[Long]()
-          val quotient = mb.newLocal[Long]()
+          val replacesNegativeOne = mb.newLocal[Long]()
           val tempShapeElement = mb.newLocal[Long]()
 
           val newShapeVars = requestedShape.indices.map(_ => mb.genFieldThisRef[Long]())
@@ -2266,24 +2269,27 @@ class Emit[C](
 
             Code.foreach(requestedShape) { requestedShapeElement => Code(
               tempShapeElement := requestedShapeElement,
-              (tempShapeElement <= 0L).mux(
+              (tempShapeElement < 0L).mux(
                 (tempShapeElement ceq -1L).mux(
                   hasNegativeOne.mux(
                     Code._fatal[Unit]("Can't infer shape, more than one -1"),
                     hasNegativeOne := true
                   ),
-                  Code._fatal[Unit]("Can't reshape, new shape must contain only positive numbers or -1")),
+                  Code._fatal[Unit]("Can't reshape, new shape must contain only nonnegative numbers or -1")),
                 runningProduct := runningProduct * tempShapeElement
               )
-            ) },
-            hasNegativeOne.mux(
-              (numElements % runningProduct) > 0L,
-              numElements cne runningProduct
-            ).orEmpty(Code._fatal[Unit]("Can't reshape since requested shape is incompatible with number of elements")),
-            quotient := numElements / runningProduct,
-            Code(newShapeVars.zip(requestedShape).map { case (variable, shapeElement) =>
-              variable := (shapeElement ceq -1L).mux(quotient, shapeElement)
-            })
+            )},
+
+            Code(
+              hasNegativeOne.mux(
+                (runningProduct ceq 0L) || (numElements % runningProduct) > 0L,
+                numElements cne runningProduct
+              ).orEmpty(Code._fatal[Unit]("Can't reshape since requested shape is incompatible with number of elements")),
+              replacesNegativeOne := (runningProduct ceq 0L).mux(0, numElements / runningProduct),
+              Code(newShapeVars.zip(requestedShape).map { case (variable, shapeElement) =>
+                variable := (shapeElement ceq -1L).mux(replacesNegativeOne, shapeElement)
+              })
+            )
           ))
 
           (setupShape, newShapeVars)
