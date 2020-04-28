@@ -155,15 +155,19 @@ object ExtractIntervalFilters {
           case (None, None) =>
             None
         }
-      case StreamFold(lit: Literal, False(), acc, value, body) =>
+      case StreamFold(ToStream(lit: Literal), False(), acc, value, body) =>
         body match {
           case ApplySpecial("lor", _, Seq(Ref(`acc`, _), ApplySpecial("contains", _, Seq(Ref(`value`, _), k), _)), _) if es.isFirstKey(k) =>
             assert(lit.typ.asInstanceOf[TContainer].elementType.isInstanceOf[TInterval])
             Some((True(),
               Interval.union(constValue(lit).asInstanceOf[Iterable[_]]
                 .filter(_ != null)
-                .map(_.asInstanceOf[Interval])
-                .toArray,
+                .map { v =>
+                  val i = v.asInstanceOf[Interval]
+                  Interval(
+                    IntervalEndpoint(Row(i.left.point), i.left.sign),
+                    IntervalEndpoint(Row(i.right.point), i.right.sign))
+                }.toArray,
                 es.iOrd)))
           case _ => None
         }

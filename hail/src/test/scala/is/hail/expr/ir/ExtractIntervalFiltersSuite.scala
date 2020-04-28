@@ -264,19 +264,22 @@ class ExtractIntervalFiltersSuite extends HailSuite {
 
   @Test def testIntervalListFold() {
     val inIntervals = FastIndexedSeq(
-      Interval(wrappedIntervalEndpoint(0, -1), wrappedIntervalEndpoint(10, -1)),
+      Interval(IntervalEndpoint(0, -1), IntervalEndpoint(10, -1)),
       null,
-      Interval(wrappedIntervalEndpoint(20, -1), wrappedIntervalEndpoint(25, -1)),
-      Interval(wrappedIntervalEndpoint(-10, -1), wrappedIntervalEndpoint(5, -1))
+      Interval(IntervalEndpoint(20, -1), IntervalEndpoint(25, -1)),
+      Interval(IntervalEndpoint(-10, -1), IntervalEndpoint(5, -1))
     )
 
     val ir = StreamFold(
-      Literal(TArray(TInterval(TInt32)), inIntervals),
+      ToStream(Literal(TArray(TInterval(TInt32)), inIntervals)),
       False(),
       "acc",
       "elt",
-      invoke("lor", TBoolean, Ref("acc", TBoolean), invoke("contains", TBoolean, Ref("elt", TInterval(TInt32)), k1))
-    )
+      invoke("lor", TBoolean,
+        Ref("acc", TBoolean),
+        invoke("contains", TBoolean, Ref("elt", TInterval(TInt32)), k1)))
+    TypeCheck(ir, BindingEnv(Env(ref1.name -> ref1.typ)))
+
     val (rw, intervals) = ExtractIntervalFilters.extractPartitionFilters(ir, ref1, ref1Key).get
     assert(rw == True())
     assert(intervals.toSeq == FastSeq(

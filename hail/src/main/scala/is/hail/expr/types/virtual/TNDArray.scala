@@ -94,13 +94,13 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 
-  def _typeCheck(a: Any): Boolean = throw new UnsupportedOperationException
+  def _typeCheck(a: Any): Boolean = representation._typeCheck(a)
 
   val ordering: ExtendedOrdering = null
 
   lazy val representation = TStruct(
-    ("shape", TTuple(Array.tabulate(nDims)(_ => TInt64):_*)),
-    ("strides", TTuple(Array.tabulate(nDims)(_ => TInt64):_*)),
+    ("shape", TTuple(Array.fill(nDims)(TInt64): _*)),
+    ("strides", TTuple(Array.fill(nDims)(TInt64): _*)),
     ("data", TArray(elementType))
   )
 }

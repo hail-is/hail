@@ -665,9 +665,7 @@ class tndarray(HailType):
         json_dict = {
             "shape": x.shape,
             "strides": strides,
-            "flags": 0,
-            "data": data,
-            "offset": 0
+            "data": data
         }
         return json_dict
 
