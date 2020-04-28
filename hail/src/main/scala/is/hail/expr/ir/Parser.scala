@@ -371,6 +371,11 @@ object IRParser {
         val rg = identifier(it)
         punctuation(it, ")")
         PCanonicalLocus(env.getReferenceGenome(rg), req)
+      case "PBetterLocus" =>
+        punctuation(it, "(")
+        val rg = identifier(it)
+        punctuation(it, ")")
+        PBetterLocus(env.getReferenceGenome(rg), req)
       case "PCCall" => PCanonicalCall(req)
       case "PCStream" =>
         punctuation(it, "[")
@@ -1717,4 +1722,3 @@ object IRParser {
 
   def parseMatrixType(code: String): MatrixType = parseMatrixType(code, TypeParserEnvironment.default)
 }
-

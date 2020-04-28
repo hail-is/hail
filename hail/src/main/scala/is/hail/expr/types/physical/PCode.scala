@@ -93,6 +93,15 @@ abstract class PCode { self =>
   def memoize(cb: EmitCodeBuilder, name: String): PValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PValue
+
+  def convert(to: PType, mb: EmitMethodBuilder[_], r: Value[Region]): PCode = {
+    assert(pt isOfType to)
+    to match {
+      case _: PCanonicalLocus => asLocus.toCanonical(mb, r)
+      case _: PBetterLocus => asLocus.toBetter(mb)
+      case _ => self
+    }
+  }
 }
 
 object PCode {

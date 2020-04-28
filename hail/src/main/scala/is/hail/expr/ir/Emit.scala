@@ -835,10 +835,11 @@ class Emit[C](
         def f(i: Int): Code[Unit] = {
           if (i < values.length) {
             val ec = emit(values(i))
+
             Code(ec.setup,
               ec.m.mux(
                 f(i + 1),
-                Code(mout := false, out := pt.copyFromPValue(mb, region, ec.pv))))
+                Code(mout := false, out := ec.pv.convert(pt, mb, region))))
           } else
             mout := true
         }

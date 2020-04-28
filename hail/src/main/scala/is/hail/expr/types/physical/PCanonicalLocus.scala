@@ -7,9 +7,9 @@ import is.hail.utils.FastIndexedSeq
 import is.hail.variant._
 
 object PCanonicalLocus {
-  def apply(rg: ReferenceGenome): PLocus = PCanonicalLocus(rg.broadcastRG)
+  def apply(rg: ReferenceGenome): PCanonicalLocus = PCanonicalLocus(rg.broadcastRG)
 
-  def apply(rg: ReferenceGenome, required: Boolean): PLocus = PCanonicalLocus(rg.broadcastRG, required)
+  def apply(rg: ReferenceGenome, required: Boolean): PCanonicalLocus = PCanonicalLocus(rg.broadcastRG, required)
 
   private def representation(required: Boolean = false): PStruct = PCanonicalStruct(
     required,
@@ -40,6 +40,8 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
   def contig(address: Long): String = contigType.loadString(contigAddr(address))
 
   lazy val contigType: PCanonicalString = representation.field("contig").typ.asInstanceOf[PCanonicalString]
+
+  private[physical] def positionAddr(address: Code[Long]): Code[Long] = representation.loadField(address, 1)
 
   def position(off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(off, 1))
 
@@ -119,7 +121,7 @@ class PCanonicalLocusSettable(
       _position := pt.position(a))
   }
 
-  def contig(cb: EmitMethodBuilder[_]): PStringCode = new PCanonicalStringCode(pt.contigType, _contig)
+  def contig(mb: EmitMethodBuilder[_]): PStringCode = new PCanonicalStringCode(pt.contigType, _contig)
 
   def position(): Code[Int] = _position.get
 }
