@@ -246,11 +246,7 @@ class TableNativeReader(
     case _ => false
   }
 
-<<<<<<< HEAD
-  override def lower(t: TableType): LoweredTableReader = {
-=======
   override def lower(ctx: ExecuteContext, t: TableType): LoweredTableReader = {
->>>>>>> [query] plink reader: sort variants on master, no coerce
     val gType = t.globalType
     val rowType = t.rowType
 

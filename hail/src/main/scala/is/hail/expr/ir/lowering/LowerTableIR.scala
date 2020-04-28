@@ -66,56 +66,27 @@ object LowerTableIR {
         throw new LowererUnsupportedOperation("found TableIR in lowering; lowering only BlockMatrixIRs.")
       tir match {
         case TableRead(typ, dropRows, reader) =>
-          val gType = typ.globalType
-          val rowType = typ.rowType
-          val globalId = genUID()
+          val lowered = reader.lower(ctx, typ)
+          val globalRef = genUID()
 
-          reader match {
-            case r: TableNativeReader =>
-              val path = r.params.path
-              val globalsPath = r.spec.globalsComponent.absolutePath(path)
-              val globalsSpec = r.spec.globalsSpec
-              val gPath = AbstractRVDSpec.partPath(globalsPath, globalsSpec.partFiles.head)
-              val globals = ArrayRef(ToArray(ReadPartition(Str(gPath), gType, PartitionNativeReader(globalsSpec.typedCodecSpec))), 0)
-              val globalRef = Ref(globalId, globals.typ)
-
-              if (dropRows) {
-                new TableStage(
-                  FastIndexedSeq[(String, IR)](globalId -> globals),
-                  Set(globalId),
-                  globalRef,
-                  RVDPartitioner.empty(typ.keyType),
-                  MakeStream(FastIndexedSeq(), TStream(TStruct.empty))) {
-                  def partition(ctxRef: Ref): IR = {
-                    MakeStream(FastIndexedSeq(), TStream(typ.rowType))
-                  }
-
-                }
-              } else {
-                val rowsPath = r.spec.rowsComponent.absolutePath(path)
-                val rowsSpec = r.spec.rowsSpec
-                val partitioner = rowsSpec.partitioner
-                val rSpec = rowsSpec.typedCodecSpec
-                val ctxType = TStruct("path" -> TString)
-
-                if (rowsSpec.key startsWith typ.key) {
-                  new TableStage(
-                    FastIndexedSeq[(String, IR)](globalId -> globals),
-                    Set(globalId),
-                    globalRef,
-                    partitioner,
-                    MakeStream(rowsSpec.partFiles.map(f => MakeStruct(FastIndexedSeq("path" -> Str(AbstractRVDSpec.partPath(rowsPath, f))))), TStream(ctxType))) {
-                    override def partition(ctxRef: Ref): IR = {
-                      ReadPartition(GetField(ctxRef, "path"), rowType, PartitionNativeReader(rSpec))
-                    }
-                  }
-                } else {
-                  throw new LowererUnsupportedOperation("can't lower a table if sort is needed after read.")
-                }
-              }
-            case r =>
-              throw new LowererUnsupportedOperation(s"can't lower a TableRead with reader $r.")
+          if (dropRows) {
+            TableStage(
+              MakeStruct(FastIndexedSeq(globalRef -> lowered.globals)),
+              globalRef,
+              RVDPartitioner.empty(typ.keyType),
+              TStruct.empty,
+              MakeStream(FastIndexedSeq(), TStream(TStruct.empty)),
+              MakeStream(FastIndexedSeq(), TStream(typ.rowType)))
+          } else {
+            TableStage(
+              MakeStruct(FastIndexedSeq(globalRef -> lowered.globals)),
+              globalRef,
+              lowered.partitioner,
+              lowered.contexts.typ.asInstanceOf[TStream].elementType,
+              lowered.contexts,
+              lowered.body)
           }
+
 
         case TableParallelize(rowsAndGlobal, nPartitions) =>
           val nPartitionsAdj = nPartitions.getOrElse(16)
