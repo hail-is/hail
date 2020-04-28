@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.expr.types.virtual.{TArray, TString}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils._
 import is.hail.variant._
 
 object PBetterLocus {
@@ -53,9 +53,10 @@ final case class PBetterLocus(rgBc: BroadcastRG, required: Boolean = false) exte
     PBetterLocus(this.rgBc, required)
 
   private[physical] def codeContigs(ecb: EmitClassBuilder[_]): PIndexableValue = {
+    val contigs = rg.contigs.toFastIndexedSeq
     ecb.addLiteral(
-      rg.contigs,
-      PType.literalPType(TArray(TString), rg.contigs.toSeq)
+      contigs,
+      PType.literalPType(TArray(TString), contigs)
     ).asInstanceOf[PIndexableValue]
   }
 }
