@@ -75,9 +75,6 @@ class ReferenceGenomeSuite extends HailSuite {
     assert(rg.compare("Y", "X") > 0)
     assert(rg.compare("Y", "MT") < 0)
 
-    assert(rg.compare("18", "SPQR") < 0)
-    assert(rg.compare("MT", "SPQR") < 0)
-
     // Test loci
     val l1 = Locus("1", 25)
     val l2 = Locus("1", 13000)
