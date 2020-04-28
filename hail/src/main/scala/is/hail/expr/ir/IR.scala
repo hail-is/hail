@@ -85,7 +85,6 @@ object Literal {
 final case class Literal(_typ: Type, value: Annotation) extends IR {
   require(!CanEmit(_typ))
   require(value != null)
-  // require(_typ.typeCheck(value))
 }
 
 final case class I32(x: Int) extends IR
