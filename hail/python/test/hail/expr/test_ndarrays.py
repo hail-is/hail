@@ -224,7 +224,8 @@ def test_ndarray_reshape():
         (cube_t_to_rect, np_cube_t_to_rect),
         (hypercube.reshape((5, 7, 9, 3)).reshape((7, 9, 3, 5)), np_hypercube.reshape((7, 9, 3, 5))),
         (hypercube.reshape(hl.tuple([5, 7, 9, 3])), np_hypercube.reshape((5, 7, 9, 3))),
-        (shape_zero.reshape((0, 5)), np_shape_zero.reshape((0, 5)))
+        (shape_zero.reshape((0, 5)), np_shape_zero.reshape((0, 5))),
+        (shape_zero.reshape((-1, 5)), np_shape_zero.reshape((-1, 5)))
     )
 
     assert hl.eval(hl.null(hl.tndarray(hl.tfloat, 2)).reshape((4, 5))) is None
@@ -253,6 +254,10 @@ def test_ndarray_reshape():
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.literal(np_cube).reshape((2, 2, -2)))
     assert "must contain only nonnegative numbers or -1" in str(exc)
+
+    with pytest.raises(FatalError) as exc:
+        hl.eval(shape_zero.reshape((0, -1)))
+    assert "Can't reshape" in str(exc)
 
 
 @skip_unless_spark_backend()
