@@ -11,7 +11,7 @@ import org.json4s.JsonAST.JObject
 import scala.language.implicitConversions
 
 case class IntervalEndpoint(point: Any, sign: Int) extends Serializable {
-  require(-1 <= sign && sign <= 1)
+  require(sign == -1 || sign == 1)
 
   def coarsenLeft(newKeyLen: Int): IntervalEndpoint =
     coarsen(newKeyLen, -1)
