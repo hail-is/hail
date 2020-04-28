@@ -426,6 +426,31 @@ class TableIRSuite extends HailSuite {
     assert(beforeValue.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
   }
 
+  @Test def testTableMapGlobals(): Unit = {
+    implicit val execStrats = ExecStrategy.lowering
+    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
+    val innerRowRef = Ref("row", t.field("rows").typ.asInstanceOf[TArray].elementType)
+    val innerGlobalRef = Ref("global", t.field("global").typ)
+    val length = 10
+    val value = Row(FastIndexedSeq(0 until length: _*).map(i => Row(i, "row" + i)), Row("global"))
+    val modifedValue = Row(FastIndexedSeq(0 until length: _*).map(i => Row(i, "global")), Row("newGlobals"))
+    assertEvalsTo(
+      collectNoKey(
+        TableMapGlobals(
+          TableMapRows(
+            TableParallelize(
+              Literal(
+                t,
+                value
+              )),
+            MakeStruct(FastIndexedSeq("a" -> GetField(innerRowRef, "a"), "b" -> GetField(innerGlobalRef, "x")))
+          ),
+          MakeStruct(FastIndexedSeq("x" -> Str("newGlobals")))
+        )
+      ),
+      modifedValue)
+  }
+
   @Test def testTableWrite() {
     implicit val execStrats = ExecStrategy.interpretOnly
     val table = TableRange(5, 4)

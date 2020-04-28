@@ -63,10 +63,10 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
   }
   var done = false
   private def normalizeIR(ir: IR, env: BindingEnv[String]): IR = {
-    if (!done) {
-      println(Pretty(ir))
-      done = true
-    }
+//    if (!done) {
+//      println(Pretty(ir))
+//      done = true
+//    }
 
     def normalize(ir: IR, env: BindingEnv[String] = env): IR = normalizeIR(ir, env)
 

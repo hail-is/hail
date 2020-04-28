@@ -194,21 +194,43 @@ object LowerTableIR {
               GetField(Ref("context", contextType), "start"),
               GetField(Ref("context", contextType), "end"),
               I32(1)), i.name, MakeStruct(FastSeq("idx" -> i))))
-
-        case TableMapGlobals(child, newGlobals) =>
-          val loweredChild = lower(child)
-          val oldbroadcast = Ref(genUID(), loweredChild.broadcastVals.typ)
-          val newGlobRef = genUID()
+/*
+          val oldbroadcast = Ref(genUID(), loweredChild.broadcastVals.typ) // Make a ref with a new name to the old broadcasted thing.
+          val newGlobRef = genUID() // new name for the globals part.
           val newBroadvastVals =
             Let(
               oldbroadcast.name,
               loweredChild.broadcastVals,
-              InsertFields(oldbroadcast,
+              InsertFields(oldbroadcast,  // Add one field, the new globals, to the ref to the old broadcasted thing
                 FastIndexedSeq(newGlobRef ->
-                  Subst(lowerIR(newGlobals),
+                  Subst(lowerIR(newGlobals), // Lower the new globals, then substitute inside it using a new binding environment
+                                             // where "global" is changed to refer to the field of the old thing.
                     BindingEnv.eval("global" -> GetField(oldbroadcast, loweredChild.globalsField))))))
+ */
+        case TableMapGlobals(child, newGlobals) =>
+          val loweredChild = lower(child)
+          val newGlobId = genUID()
+          // Append a new uid that maps to the new globals.
+          val loweredNewGlobals = lowerIR(newGlobals)
+          val newBroadcastVals = loweredChild.broadcastVals :+ Ref(newGlobId, loweredNewGlobals.typ)
+          println(s"newGlobId was $newGlobId")
+          println(s"lowere")
+          val newLetBinds = FastIndexedSeq((newGlobId, loweredNewGlobals)) ++ loweredChild.letBindings
 
-          loweredChild.copy(broadcastVals = newBroadvastVals, globalsField = newGlobRef)
+          val newTableStage = TableStage(
+            newLetBinds,
+            newBroadcastVals,
+            newGlobId,
+            loweredChild.partitioner,
+            loweredChild.contextType,
+            loweredChild.contexts,
+            loweredChild.body
+          )
+
+          println(s"newTableStage broadcastValsIR type = ${newTableStage.broadcastValsIR.typ}")
+          newTableStage
+
+          //loweredChild.copy(letBindings = newLetBinds, broadcastVals = newBroadcastVals, globalsField = newGlobId)
 
         case TableFilter(child, cond) =>
           val loweredChild = lower(child)
