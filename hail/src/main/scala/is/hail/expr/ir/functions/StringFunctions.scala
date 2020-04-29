@@ -277,7 +277,7 @@ object StringFunctions extends RegistryFunctions {
       (rType: Type, _: Seq[PType]) => PType.canonical(rType, true), typeParams = Array(tv("T"))) { case (er, resultType, Array(s: PStringCode)) =>
 
       PCode(resultType, StringFunctions.unwrapReturn(er, resultType)(
-        Code.invokeScalaObject[String, Type, Row](JSONAnnotationImpex.getClass, "irImportAnnotation",
+        Code.invokeScalaObject2[String, Type, Row](JSONAnnotationImpex.getClass, "irImportAnnotation",
           s.loadString(), er.mb.ecb.getType(resultType.virtualType.asInstanceOf[TTuple].types(0)))
       ))
     }
