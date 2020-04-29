@@ -142,6 +142,9 @@ def clone_or_fetch_script(repo):
 function clone() {{ ( set -e
     dir=$(mktemp -d)
     git clone {shq(repo)} $dir
+    echo $?
+    (cd $dir && g status)  # verify the clone actually worked
+    echo $?
     for x in $(ls -A $dir); do
         mv -- "$dir/$x" ./
     done
