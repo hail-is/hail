@@ -42,6 +42,8 @@ Released 2020-04-29
   of Log4j. Users may use this to configure their own logging.
 - (hail#8588) Users who manually build Python wheels will experience less
   unnecessary output when doing so.
+- (hail#8572) Add `hl.parse_json` which converts a string containing JSON into a
+  Hail object.
 
 ### Performance Improvements
 
