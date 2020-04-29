@@ -289,7 +289,7 @@ abstract class RegistryFunctions {
             srvb.advance())),
         srvb.offset)
     case t: TBaseStruct =>
-      (c: Code[_]) => Code.invokeScalaObject[Region, Row, PType, Long](
+      (c: Code[_]) => Code.invokeScalaObject3[Region, Row, PType, Long](
         RegistryHelpers.getClass, "stupidUnwrapStruct", r.region, coerce[Row](c), r.mb.ecb.getPType(pt))
   }
 
