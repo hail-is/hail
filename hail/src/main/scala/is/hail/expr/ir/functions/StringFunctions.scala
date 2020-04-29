@@ -11,6 +11,8 @@ import java.util.Locale
 import java.time.{Instant, ZoneId}
 import java.time.temporal.ChronoField
 
+import is.hail.expr.JSONAnnotationImpex
+import org.apache.spark.sql.Row
 import org.json4s.JValue
 import org.json4s.jackson.JsonMethods
 
@@ -268,7 +270,16 @@ object StringFunctions extends RegistryFunctions {
       case(_: Type, _: PType, _: PType, _: PType) => PCanonicalString()
     })(thisClass, "strftime")
     registerWrappedScalaFunction3("strptime", TString, TString, TString, TInt64, {
-      case(_: Type, _: PType, _: PType, _: PType) => PInt64()
+      case (_: Type, _: PType, _: PType, _: PType) => PInt64()
     })(thisClass, "strptime")
+
+    registerPCode("parse_json", Array(TString), TTuple(tv("T")),
+      (rType: Type, _: Seq[PType]) => PType.canonical(rType, true), typeParams = Array(tv("T"))) { case (er, resultType, Array(s: PStringCode)) =>
+
+      PCode(resultType, StringFunctions.unwrapReturn(er, resultType)(
+        Code.invokeScalaObject2[String, Type, Row](JSONAnnotationImpex.getClass, "irImportAnnotation",
+          s.loadString(), er.mb.ecb.getType(resultType.virtualType.asInstanceOf[TTuple].types(0)))
+      ))
+    }
   }
 }

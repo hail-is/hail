@@ -140,6 +140,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
 
     format
     json
+    parse_json
     hamming
     delimit
     entropy

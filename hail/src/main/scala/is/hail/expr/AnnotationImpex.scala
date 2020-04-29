@@ -136,6 +136,16 @@ object JSONAnnotationImpex {
       }
     }
 
+  def irImportAnnotation(s: String, t: Type): Row = {
+    try {
+      // wraps in a Row to handle returned missingness
+      Row(importAnnotation(JsonMethods.parse(s), t, true, null))
+    } catch {
+      case e: Throwable =>
+        fatal(s"Error parsing JSON:\n  type: $t\n  value: $s", e)
+    }
+  }
+
   def importAnnotation(jv: JValue, t: Type, padNulls: Boolean = true, warnContext: mutable.HashSet[String] = null): Annotation =
     importAnnotationInternal(jv, t, "<root>", padNulls, if (warnContext == null) new mutable.HashSet[String] else warnContext)
 

@@ -6,6 +6,7 @@ String functions
 
     format
     json
+    parse_json
     hamming
     delimit
     entropy
@@ -18,6 +19,7 @@ String functions
 
 .. autofunction:: format
 .. autofunction:: json
+.. autofunction:: parse_json
 .. autofunction:: hamming
 .. autofunction:: delimit
 .. autofunction:: entropy

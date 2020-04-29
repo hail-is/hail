@@ -9,6 +9,7 @@ import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.variant.Locus
+import org.apache.spark.sql.Row
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -161,6 +162,16 @@ object IRFunctionRegistry {
   }
 }
 
+object RegistryHelpers {
+  def stupidUnwrapStruct(r: Region, value: Row, ptype: PType): Long = {
+    assert(value != null)
+    val rvb = new RegionValueBuilder(r)
+    rvb.start(ptype.fundamentalType)
+    rvb.addAnnotation(ptype.virtualType, value)
+    rvb.end()
+  }
+}
+
 abstract class RegistryFunctions {
 
   def registerAll(): Unit
@@ -277,6 +288,9 @@ abstract class RegistryFunctions {
             v.isNull.mux(srvb.setMissing(), srvb.addString(v)),
             srvb.advance())),
         srvb.offset)
+    case t: TBaseStruct =>
+      (c: Code[_]) => Code.invokeScalaObject3[Region, Row, PType, Long](
+        RegistryHelpers.getClass, "stupidUnwrapStruct", r.region, coerce[Row](c), r.mb.ecb.getPType(pt))
   }
 
   def registerPCode(mname: String, aTypes: Array[Type], rType: Type, pt: (Type, Seq[PType]) => PType, typeParams: Array[Type] = Array.empty)

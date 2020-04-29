@@ -14,6 +14,8 @@ def register_functions():
     register_function(f"getReferenceSequenceFromValidLocus", (dtype("str"), dtype("int32"), dtype("int32"), dtype("int32"),), dtype("str"), (locusVar,))
     register_function(f"getReferenceSequence", (dtype("str"),dtype("int32"), dtype("int32"), dtype("int32"),), dtype("str"), (locusVar,))
 
+    register_function(f"parse_json", (dtype("str"),), dtype("tuple(?T)"), (dtype("?T"),))
+
     register_function("flatten", (dtype("array<array<?T>>"),), dtype("array<?T>"))
     register_function("difference", (dtype("set<?T>"),dtype("set<?T>"),), dtype("set<?T>"))
     register_function("median", (dtype("set<?T:numeric>"),), dtype("?T"))
