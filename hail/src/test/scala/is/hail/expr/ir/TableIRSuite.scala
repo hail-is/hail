@@ -522,7 +522,6 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableGroupWithinPartitions(): Unit = {
-    implicit val execStrats = ExecStrategy.interpretOnly
     val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
     val length = 6
     val value = Row(FastIndexedSeq(0 until length: _*).map(i => Row(i, "row" + i)), Row("global"))
