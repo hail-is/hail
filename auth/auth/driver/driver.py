@@ -14,7 +14,7 @@ import google.cloud.storage
 import googleapiclient.http
 import googleapiclient.discovery
 from hailtop.utils import blocking_to_async, time_msecs
-from gear import create_database_pool, create_session
+from gear import create_session, Database
 
 log = logging.getLogger('auth.driver')
 
@@ -140,25 +140,22 @@ class EventHandler:
 
 
 class SessionResource:
-    def __init__(self, dbpool, session_id=None):
-        self.dbpool = dbpool
+    def __init__(self, db, session_id=None):
+        self.db = db
         self.session_id = session_id
 
     async def create(self, user_id, *args, **kwargs):
-        self.session_id = await create_session(self.dbpool, user_id, *args, **kwargs)
+        self.session_id = await create_session(self.db, user_id, *args, **kwargs)
 
     async def delete(self):
         if self.session_id is None:
             return
 
-        async with self.dbpool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute(
-                    f'''
+        await self.db.just_execute(f'''
 DELETE FROM sessions
 WHERE session_id = %s;
 ''',
-                    (self.session_id,))
+                                   (self.session_id,))
         self.session_id = None
 
 
@@ -281,8 +278,8 @@ class BucketResource:
 
 
 class DatabaseResource:
-    def __init__(self, db_instance_pool, name=None):
-        self.db_instance_pool = db_instance_pool
+    def __init__(self, db_instance, name=None):
+        self.db_instance = db_instance
         self.name = name
         self.password = None
 
@@ -295,10 +292,7 @@ class DatabaseResource:
         await self._delete(name)
 
         self.password = secrets.token_urlsafe(16)
-        async with self.db_instance_pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute(
-                    f'''
+        await self.db_instance.just_execute(f'''
 CREATE DATABASE `{name}`;
 
 CREATE USER '{name}'@'%' IDENTIFIED BY '{self.password}';
@@ -346,21 +340,12 @@ database={config['db']}
             return
 
         # no DROP USER IF EXISTS in current db version
-        async with self.db_instance_pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute(
-                    f'SELECT 1 FROM mysql.user WHERE User = %s;', (name,))
-                row = await cursor.fetchone()
+        row = await self.db_instance.execute_and_fetchone(
+            f'SELECT 1 FROM mysql.user WHERE User = %s;', (name,))
         if row is not None:
-            async with self.db_instance_pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    await cursor.execute(
-                        f"DROP USER '{name}';")
+            await self.db_instance.just_execute(f"DROP USER '{name}';")
 
-        async with self.db_instance_pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute(
-                    f'DROP DATABASE IF EXISTS `{name}`;')
+        await self.db_instance.just_execute(f'DROP DATABASE IF EXISTS `{name}`;')
 
     async def delete(self):
         if self.name is None:
@@ -402,8 +387,8 @@ class K8sNamespaceResource:
 
 
 async def _create_user(app, user, cleanup):
-    db_instance_pool = app['db_instance_pool']
-    dbpool = app['dbpool']
+    db_instance = app['db_instance']
+    db = app['db']
     k8s_client = app['k8s_client']
     google_client = app['google_client']
 
@@ -421,7 +406,7 @@ async def _create_user(app, user, cleanup):
 
     tokens_secret_name = user['tokens_secret_name']
     if tokens_secret_name is None:
-        tokens_session = SessionResource(dbpool)
+        tokens_session = SessionResource(db)
         cleanup.append(tokens_session.delete)
         await tokens_session.create(user['id'], max_age_secs=None)
 
@@ -470,27 +455,24 @@ async def _create_user(app, user, cleanup):
         await namespace.create(namespace_name)
         updates['namespace_name'] = namespace_name
 
-        db = DatabaseResource(db_instance_pool)
-        cleanup.append(db.delete)
-        await db.create(ident)
+        db_resource = DatabaseResource(db_instance)
+        cleanup.append(db_resource.delete)
+        await db_resource.create(ident)
 
         db_secret = K8sSecretResource(k8s_client)
         cleanup.append(db_secret.delete)
         await db_secret.create(
-            'database-server-config', namespace_name, db.secret_data())
+            'database-server-config', namespace_name, db_resource.secret_data())
 
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            n_rows = await cursor.execute(
-                f'''
+    n_rows = await db.execute_update(f'''
 UPDATE users
 SET {', '.join([f'{k} = %({k})s' for k in updates])}
 WHERE id = %(id)s AND state = 'creating';
 ''',
-                {'id': user['id'], **updates})
-            if n_rows != 1:
-                assert n_rows == 0
-                raise DatabaseConflictError
+                                     {'id': user['id'], **updates})
+    if n_rows != 1:
+        assert n_rows == 0
+        raise DatabaseConflictError
 
 
 async def create_user(app, user):
@@ -510,8 +492,8 @@ async def create_user(app, user):
 
 
 async def delete_user(app, user):
-    db_instance_pool = app['db_instance_pool']
-    dbpool = app['dbpool']
+    db_instance = app['db_instance']
+    db = app['db']
     k8s_client = app['k8s_client']
     google_client = app['google_client']
 
@@ -546,36 +528,31 @@ async def delete_user(app, user):
         namespace = K8sNamespaceResource(k8s_client, namespace_name)
         await namespace.delete()
 
-        db = DatabaseResource(db_instance_pool, user['username'])
-        await db.delete()
+        db_resource = DatabaseResource(db_instance, user['username'])
+        await db_resource.delete()
 
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute(
-                '''
+    await db.just_execute('''
 DELETE FROM sessions WHERE user_id = %s;
 UPDATE users SET state = 'deleted' WHERE id = %s;
 ''',
-                (user['id'], user['id']))
+                          (user['id'], user['id']))
 
 
 async def update_users(app):
     log.info('in update_users')
 
-    dbpool = app['dbpool']
+    db = app['db']
 
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute('SELECT * FROM users WHERE state = %s;', 'creating')
-            creating_users = await cursor.fetchall()
+    creating_users = [
+        x async for x in
+        db.execute_and_fetchall('SELECT * FROM users WHERE state = %s;', 'creating')]
 
     for user in creating_users:
         await create_user(app, user)
 
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute('SELECT * FROM users WHERE state = %s;', 'deleting')
-            deleting_users = await cursor.fetchall()
+    deleting_users = [
+        x async for x in
+        db.execute_and_fetchall('SELECT * FROM users WHERE state = %s;', 'deleting')]
 
     for user in deleting_users:
         await delete_user(app, user)
@@ -586,33 +563,43 @@ async def update_users(app):
 async def async_main():
     app = {}
 
-    app['db_instance_pool'] = await create_database_pool(config_file='/database-server-config/sql-config.json')
+    try:
+        db = Database()
+        await db.async_init(maxsize=50)
+        app['db'] = db
 
-    app['dbpool'] = await create_database_pool()
+        db_instance = Database()
+        await db_instance.async_init(maxsize=50, config_file='/database-server-config/sql-config.json')
+        app['db_instance'] = db_instance
 
-    kube.config.load_incluster_config()
-    k8s_client = kube.client.CoreV1Api()
-    app['k8s_client'] = k8s_client
+        kube.config.load_incluster_config()
+        k8s_client = kube.client.CoreV1Api()
+        app['k8s_client'] = k8s_client
 
-    credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-        '/gsa-key/key.json',
-        scopes=[
-            'https://www.googleapis.com/auth/cloud-platform',
-            'https://www.googleapis.com/auth/devstorage.full_control'
-        ])
-    app['google_client'] = GoogleClient(credentials)
+        credentials = google.oauth2.service_account.Credentials.from_service_account_file(
+            '/gsa-key/key.json',
+            scopes=[
+                'https://www.googleapis.com/auth/cloud-platform',
+                'https://www.googleapis.com/auth/devstorage.full_control'
+            ])
+        app['google_client'] = GoogleClient(credentials)
 
-    users_changed_event = asyncio.Event()
-    app['users_changed_event'] = users_changed_event
+        users_changed_event = asyncio.Event()
+        app['users_changed_event'] = users_changed_event
 
-    async def users_changed_handler():
-        return await update_users(app)
+        async def users_changed_handler():
+            return await update_users(app)
 
-    user_creation_loop = EventHandler(
-        users_changed_handler,
-        event=users_changed_event,
-        min_delay_secs=1.0)
-    await user_creation_loop.start()
+        user_creation_loop = EventHandler(
+            users_changed_handler,
+            event=users_changed_event,
+            min_delay_secs=1.0)
+        await user_creation_loop.start()
 
-    while True:
-        await asyncio.sleep(10000)
+        while True:
+            await asyncio.sleep(10000)
+    finally:
+        if 'db' in app:
+            await app['db'].async_close()
+        if 'db_instance_pool' in app:
+            await app['db_instance_pool'].async_close()
