@@ -224,6 +224,14 @@ object LowerTableIR {
             Subst(newRow, BindingEnv(env, scan = Some(env)))
           })
 
+        case TableGroupWithinPartitions(child, name, n) =>
+          val loweredChild = lower(child)
+          loweredChild.mapPartition { part =>
+            val grouped =  StreamGrouped(part, n)
+            ???
+          }
+          ???
+
         case TableExplode(child, path) =>
           lower(child).mapPartition { rows =>
             flatMapIR(rows) { row: Ref =>
