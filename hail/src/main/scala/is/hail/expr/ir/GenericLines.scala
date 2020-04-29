@@ -52,8 +52,11 @@ object GenericLines {
         private var bufMark = 0
         private var bufPos = 0
 
-        // end really means first block >= end
-        private var endBlock = -1L
+        private var realEnd =
+          if (splitCompressed)
+            -1L  // end really means first block >= end
+          else
+            end
 
         private def loadBuffer(): Unit = {
           // compressed blocks can be empty
@@ -68,8 +71,8 @@ object GenericLines {
               bufMark = nRead
               assert(!splitCompressed || virtualOffsetBlockOffset(bufOffset) == 0)
 
-              if (endBlock == -1 && bufOffset >= end)
-                endBlock = bufOffset
+              if (realEnd == -1 && bufOffset >= end)
+                realEnd = bufOffset
             }
           }
         }
@@ -91,7 +94,7 @@ object GenericLines {
           assert(bufPos < bufMark)
 
           val offset = bufOffset + bufPos
-          if (split && endBlock != -1L && offset > endBlock) {
+          if (split && realEnd != -1L && offset > realEnd) {
             line = null
             return
           }
@@ -254,7 +257,7 @@ object GenericLines {
           fatal(s"Cowardly refusing to read file serially: ${ status.getPath }.")
 
         Iterator.single {
-          Row(0, status.getPath, 0, size, false)
+          Row(0, status.getPath, 0L, size, false)
         }
       }
     }

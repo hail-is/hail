@@ -7,10 +7,10 @@ import is.hail.utils._
 import htsjdk.samtools.util.BlockCompressedFilePointerUtil
 import is.hail.expr.ir.GenericLines
 import org.apache.commons.io.IOUtils
-import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.spark.sql.Row
 import org.apache.{hadoop => hd}
 import org.testng.annotations.Test
+import is.hail.TestUtils._
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -61,6 +61,17 @@ class BGzipCodecSuite extends HailSuite {
    */
   val compPath = "src/test/resources/bgz.test.sample.vcf.bgz"
 
+  def compareLines(lines2: IndexedSeq[String], lines: IndexedSeq[String]): Unit = {
+    val n2 = lines2.length
+    val n = lines.length
+    assert(n2 == n)
+    var i = 0
+    while (i < lines.length) {
+      assert(lines(i) == lines2(i))
+      i += 1
+    }
+  }
+
   @Test def testGenericLinesSimpleUncompressed() {
     val lines = Source.fromFile(uncompPath).getLines().toFastIndexedSeq
 
@@ -68,7 +79,7 @@ class BGzipCodecSuite extends HailSuite {
     while (i < 16) {
       val lines2 = GenericLines.collect(
         GenericLines.read(fs, Array(uncompPath), None, Some(i), false))
-      assert(lines2 == lines)
+      compareLines(lines2, lines)
       i += 1
     }
   }
@@ -80,7 +91,7 @@ class BGzipCodecSuite extends HailSuite {
     while (i < 16) {
       val lines2 = GenericLines.collect(
         GenericLines.read(fs, Array(compPath), None, Some(i), false))
-      assert(lines2 == lines)
+      compareLines(lines2, lines)
       i += 1
     }
   }
@@ -90,8 +101,14 @@ class BGzipCodecSuite extends HailSuite {
 
     // won't split, just run once
     val lines2 = GenericLines.collect(
-      GenericLines.read(fs, Array(gzPath), None, Some(7), false))
-    assert(lines2 == lines)
+      GenericLines.read(fs, Array(gzPath), None, Some(7), true))
+    compareLines(lines2, lines)
+  }
+
+  @Test def testGenericLinesRefuseGZ() {
+    interceptFatal("Cowardly refusing") {
+      GenericLines.read(fs, Array(gzPath), None, Some(7), false)
+    }
   }
 
   @Test def testGenericLinesRandom() {
@@ -119,12 +136,7 @@ class BGzipCodecSuite extends HailSuite {
           Row(i, compPath, splits(i), end, true)
         }
       val lines2 = GenericLines.collect(GenericLines.read(fs, contexts))
-      if (lines2.length != lines.length) {
-        println(lines.length)
-        println(lines2.length)
-        println(contexts)
-      }
-      assert(lines2 == lines)
+      compareLines(lines2, lines)
       true
     }
     p.check()
