@@ -464,15 +464,15 @@ async def _create_user(app, user, cleanup):
         await db_secret.create(
             'database-server-config', namespace_name, db_resource.secret_data())
 
-        n_rows = await db.execute_update(f'''
+    n_rows = await db.execute_update(f'''
 UPDATE users
 SET {', '.join([f'{k} = %({k})s' for k in updates])}
 WHERE id = %(id)s AND state = 'creating';
 ''',
-                                         {'id': user['id'], **updates})
-        if n_rows != 1:
-            assert n_rows == 0
-            raise DatabaseConflictError
+                                     {'id': user['id'], **updates})
+    if n_rows != 1:
+        assert n_rows == 0
+        raise DatabaseConflictError
 
 
 async def create_user(app, user):
