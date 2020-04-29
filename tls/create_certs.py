@@ -57,7 +57,7 @@ def create_key_and_cert(p):
         '-CAkey', root_key_file,
         '-CAcreateserial',
         '-out', cert_file,
-        '-days', 365
+        '-days', '365'
     ])
     return {'key': key_file, 'cert': cert_file}
 
