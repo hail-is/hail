@@ -552,7 +552,7 @@ async def update_users(app):
 
     deleting_users = [
         x async for x in
-        await db.execute_and_fetchall('SELECT * FROM users WHERE state = %s;', 'deleting')]
+        db.execute_and_fetchall('SELECT * FROM users WHERE state = %s;', 'deleting')]
 
     for user in deleting_users:
         await delete_user(app, user)
