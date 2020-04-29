@@ -4,7 +4,7 @@
 
 ### With a version like 0.x, is Hail ready for use in publications?
 
-Yes. The [semantic versioning standard](https://semver.org) uses 0.x (development) versions to 
+Yes. The [semantic versioning standard](https://semver.org) uses 0.x (development) versions to
 refer to software that is either "buggy" or "partial". While we don't view
 Hail as particularly buggy (especially compared to one-off untested
 scripts pervasive in bioinformatics!), Hail 0.2 is a partial realization
@@ -12,7 +12,7 @@ of a larger vision.
 
 ### What stability is guaranteed?
 
-We do not intentionally break back-compatibility of interfaces or file 
+We do not intentionally break back-compatibility of interfaces or file
 formats. This means that a script developed to run on Hail 0.2.5 should
 continue to work in every subsequent release within the 0.2 major version.
 **The exception to this rule is experimental functionality, denoted as
@@ -21,6 +21,47 @@ such in the reference documentation, which may change at any time**.
 Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
+
+## Version 0.2.39
+
+Released 2020-04-29
+
+### Bug fixes
+
+- (hail#8615) Fix contig ordering in the CanFam3 (dog) reference genome.
+- (hail#8622) Fix bug that causes inscrutable JVM Bytecode errors.
+- (hail#8645) Ease unnecessarily strict assertion that caused errors when
+  aggregating by key (e.g. `hl.experimental.spread`).
+- (hail#8621) `hl.nd.array` now supports arrays with no elements
+  (e.g. `hl.nd.array([]).reshape((0, 5))`) and, consequently, matmul with an
+  inner dimension of zero.
+
+### New features
+
+- (hail#8571) `hl.init(skip_logging_configuration=True)` will skip configuration
+  of Log4j. Users may use this to configure their own logging.
+- (hail#8588) Users who manually build Python wheels will experience less
+  unnecessary output when doing so.
+- (hail#8572) Add `hl.parse_json` which converts a string containing JSON into a
+  Hail object.
+
+### Performance Improvements
+
+- (hail#8535) Increase speed of `import_vcf`.
+- (hail#8618) Increase speed of Jupyter Notebook file listing and Notebook
+  creation when buckets contain many objects.
+- (hail#8613) `hl.experimental.export_entries_by_col` stages files for improved
+  reliability and performance.
+
+### Documentation
+- (hail#8619) Improve installation documentation to suggest better performing
+  LAPACK and BLAS libraries.
+- (hail#8647) Clarify that a LAPACK or BLAS library is a *requirement* for a
+  complete Hail installation.
+- (hail#8654) Add link to document describing the creation of a Microsoft Azure
+  HDInsight Hail cluster.
+
+---
 
 ## Version 0.2.38
 
@@ -145,7 +186,7 @@ Released 2020-02-27
 
 - (hail#8079) Using `connect` to open the jupyter notebook browser will no longer crash if your project contains requester-pays buckets.
 
---- 
+---
 
 ## Version 0.2.32
 
@@ -201,7 +242,7 @@ Released 2020-01-22
 - (hail#7867) Fix performance regression leading to extra scans of data when `order_by` and `key_by` appeared close together.
 - (hail#7901) Fix performance regression leading to extra scans of data when `group_by/aggregate` and `key_by` appeared close together.
 - (hail#7830) Improve performance of array arithmetic.
- 
+
 ### Bug fixes
 
 - (hail#7922) Fix still-not-well-understood serialization error about ApproxCDFCombiner.
@@ -216,7 +257,7 @@ Released 2020-01-22
 Released 2019-12-20
 
 ### Performance
-- (hail#7771) Fixed extreme performance regression in scans. 
+- (hail#7771) Fixed extreme performance regression in scans.
 - (hail#7764) Fixed `mt.entry_field.take` performance regression.
 
 ### New features
@@ -236,7 +277,7 @@ Released 2019-12-17
 - (hail#7732) Fixed incompatibility with old files leading to incorrect data read when filtering intervals after `read_matrix_table`.
 - (hail#7642) Fixed crash when constant-folding functions that throw errors.
 - (hail#7611) Fixed `hl.hadoop_ls` to handle glob patterns correctly.
-- (hail#7653) Fixed crash in `ld_prune` by unfiltering missing GTs. 
+- (hail#7653) Fixed crash in `ld_prune` by unfiltering missing GTs.
 
 ### Performance improvements
 - (hail#7719) Generate more efficient IR for `Table.flatten`.
@@ -257,7 +298,7 @@ Released 2019-12-17
 Released 2019-11-22
 
 ### Critical correctness bug fix
-- (hail#7588) Fixes a bug where filtering old matrix tables in newer versions of hail did not work as expected. Please update from 0.2.27. 
+- (hail#7588) Fixes a bug where filtering old matrix tables in newer versions of hail did not work as expected. Please update from 0.2.27.
 
 ### Bug fixes
 - (hail#7571) Don't set GQ to missing if PL is missing in `split_multi_hts`.
@@ -268,7 +309,7 @@ Released 2019-11-22
 - (hail#7575) Added `hl.version()` to quickly check hail version.
 
 ### `hailctl dataproc`
-- (hail#7586) `hailctl dataproc` now supports `--gcloud_configuration` option. 
+- (hail#7586) `hailctl dataproc` now supports `--gcloud_configuration` option.
 
 ### Documentation
 - (hail#7570) Hail has a cheatsheet for Tables now.
@@ -370,13 +411,13 @@ Released 2019-09-23
 ### Bug fixes
 - (hail#7066) Fixed generated code when methods from multiple reference genomes appear together.
 - (hail#7077) Fixed crash in `hl.agg.group_by`.
- 
+
 ### New features
 - (hail#7009) Introduced analysis pass in Python that mostly obviates the `hl.bind` and `hl.rbind` operators; idiomatic Python that generates Hail expressions will perform much better.
 - (hail#7076) Improved memory management in generated code, add additional log statements about allocated memory to improve debugging.
 - (hail#7085) Warn only once about schema mismatches during JSON import (used in VEP, Nirvana, and sometimes `import_table`.
 - (hail#7106) `hl.agg.call_stats` can now accept a number of alleles for its `alleles` parameter, useful when dealing with biallelic calls without the alleles array at hand.
- 
+
 ### Performance
 - (hail#7086) Improved performance of JSON import.
 - (hail#6981) Improved performance of Hail min/max/mean operators. Improved performance of `split_multi_hts` by an additional 33%.
@@ -447,7 +488,7 @@ Released 2019-08-19
   to ignore NaN.
 
 ### New features
-- (hail#6847) Added `hl.nanmin` and `hl.nanmax` functions. 
+- (hail#6847) Added `hl.nanmin` and `hl.nanmax` functions.
 
 -----
 
@@ -466,19 +507,19 @@ Released 2019-08-01
   combination of `Table.order_by` with `hl.desc` arguments and `show()`,
   leading to tables sorted in ascending, not descending order.
 - (hail#6770) Fixed assertion error caused by `Table.expand_types()`,
-  which was used by `Table.to_spark` and `Table.to_pandas`. 
+  which was used by `Table.to_spark` and `Table.to_pandas`.
 
 ### Performance Improvements
 
-- (hail#6666) Slightly improve performance of `hl.pca` and 
+- (hail#6666) Slightly improve performance of `hl.pca` and
   `hl.hwe_normalized_pca`.
-- (hail#6669) Improve performance of `hl.split_multi` and 
+- (hail#6669) Improve performance of `hl.split_multi` and
   `hl.split_multi_hts`.
 - (hail#6644) Optimize core code generation primitives, leading to
   across-the-board performance improvements.
-- (hail#6775) Fixed a major performance problem related to reading block 
+- (hail#6775) Fixed a major performance problem related to reading block
   matrices.
-  
+
 ### `hailctl dataproc`
 
 - (hail#6760) Fixed the address pointed at by `ui`  in `connect`, after
@@ -490,15 +531,15 @@ Released 2019-08-01
 ## Version 0.2.18
 
 Released 2019-07-12
-    
+
 ### Critical performance bug fix
 
-- (hail#6605) Resolved code generation issue leading a performance 
+- (hail#6605) Resolved code generation issue leading a performance
   regression of 1-3 orders of magnitude in Hail pipelines using
   constant strings or literals. This includes almost every pipeline!
   **This issue has exists in versions 0.2.15, 0.2.16, and 0.2.17, and
   any users on those versions should update as soon as possible.**
-  
+
 ### Bug fixes
 
 - (hail#6598) Fixed code generated by `MatrixTable.unfilter_entries` to
@@ -558,8 +599,8 @@ Released 2019-06-19
 
 ### `hailctl`
 
-- (hail#6357) Accommodated Google Dataproc bug causing cluster creation failures. 
- 
+- (hail#6357) Accommodated Google Dataproc bug causing cluster creation failures.
+
 ### Bug fixes
 
 - (hail#6378) Fixed problem in how `entry_float_type` was being handled in `import_vcf`.
@@ -577,7 +618,7 @@ getting back to frequent releases.
 
 Starting in 0.2.15, `pip` installations of Hail come bundled with a command-
 line tool, `hailctl`. This tool subsumes the functionality of `cloudtools`,
-which is now deprecated. See the 
+which is now deprecated. See the
 [release thread on the forum](https://discuss.hail.is/t/new-command-line-utility-hailctl/981)
 for more information.
 
@@ -738,7 +779,7 @@ Released 2019-03-06
 - (hail#5501) Exposed `MatrixTable.unfilter_entries`. See `filter_entries` documentation for more information.
 - (hail#5480) Added `n_cols` argument to `MatrixTable.head`.
 - (hail#5529) Added `Table.{semi_join, anti_join}` and `MatrixTable.{semi_join_rows, semi_join_cols, anti_join_rows, anti_join_cols}`.
-- (hail#5528) Added `{MatrixTable, Table}.checkpoint` methods as wrappers around `write` / `read_{matrix_table, table}`.  
+- (hail#5528) Added `{MatrixTable, Table}.checkpoint` methods as wrappers around `write` / `read_{matrix_table, table}`.
 
 ### Bug fixes
 
@@ -787,7 +828,7 @@ Released 2019-01-30
 
  - (hail#5149) Added bitwise transformation functions: `hl.bit_{and, or, xor, not, lshift, rshift}`.
  - (hail#5154) Added `hl.rbind` function, which is similar to `hl.bind` but expects a function as the last argument instead of the first.
- 
+
 ### Performance improvements
 
  - (hail#5107) Hail's Python interface generates tighter intermediate code, which should result in moderate performance improvements in many pipelines.
@@ -801,7 +842,7 @@ Released 2019-01-30
  - (hail#5173) Fix bug causing `Table.show` to throw an error when the table is empty (since 0.2.8).
  - (hail#5210) Fix bug causing `Table.show` to always print types, regardless of `types` argument (since 0.2.8).
  - (hail#5211) Fix bug causing `MatrixTable.make_table` to unintentionally discard non-key row fields (since 0.2.8).
- 
+
 -----
 
 ## Version 0.2.8
@@ -811,7 +852,7 @@ Released 2019-01-15
 ### New features
 
  - (hail#5072) Added multi-phenotype option to `hl.logistic_regression_rows`
- - (hail#5077) Added support for importing VCF floating-point FORMAT fields as `float32` as well as `float64`. 
+ - (hail#5077) Added support for importing VCF floating-point FORMAT fields as `float32` as well as `float64`.
 
 ### Performance improvements
 
@@ -849,7 +890,7 @@ Released 2018-12-17
  - (hail#4962) Expanded comparison operators (`==`, `!=`, `<`, `<=`, `>`, `>=`) to support expressions of every type.
  - (hail#4927) Expanded functionality of `Table.order_by` to support ordering by arbitrary expressions, instead of just top-level fields.
  - (hail#4926) Expanded default GRCh38 contig recoding behavior in `import_plink`.
-  
+
 ### Performance improvements
 
  - (hail#4952) Resolved lingering issues related to (hail#4909).
@@ -860,10 +901,10 @@ Released 2018-12-17
  - (hail#4857) Fixed bug in maximal_independent_set appearing when nodes were named something other than `i` and `j`.
  - (hail#4932) Fixed possible error in `export_plink` related to tolerance of writer process failure.
  - (hail#4920) Fixed bad error message in `Table.order_by`.
- 
+
 -----
 
-## Version 0.2.5 
+## Version 0.2.5
 
 Released 2018-12-07
 
@@ -876,7 +917,7 @@ Released 2018-12-07
 
 
 ### Performance improvements
- 
+
  - (hail#4907)(hail#4911) Addressed one aspect of bad scaling in enormous literal values (triggered by a list of 300,000 sample IDs) related to logging.
  - (hail#4909)(hail#4914) Fixed a check in Table/MatrixTable initialization that scaled O(n^2) with the total number of fields.
 
