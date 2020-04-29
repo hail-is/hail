@@ -116,9 +116,20 @@ package object ir {
     Let(ref.name, v, body(ref))
   }
 
-  def mapIR(stream: IR)(f: IR => IR): IR = {
+  def mapIR(stream: IR)(f: Ref => IR): IR = {
     val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
     StreamMap(stream, ref.name, f(ref))
+  }
+
+  def flatMapIR(stream: IR)(f: Ref => IR): IR = {
+    val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
+    StreamFlatMap(stream, ref.name, f(ref))
+  }
+
+  def foldIR(stream: IR, zero: IR)(f: (Ref, Ref) => IR): IR = {
+    val elt = Ref(genUID(), coerce[TStream](stream.typ).elementType)
+    val accum = Ref(genUID(), zero.typ)
+    StreamFold(stream, zero, accum.name, elt.name, f(accum, elt))
   }
 
   def rangeIR(n: IR): IR = StreamRange(0, n, 1)
