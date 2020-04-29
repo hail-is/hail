@@ -4,6 +4,7 @@ import argparse
 from . import login
 from . import logout
 from . import auth_list
+from . import copy_paste_login
 
 
 def parser():
@@ -16,6 +17,10 @@ def parser():
         'login',
         help='Obtain Hail credentials.',
         description='Obtain Hail credentials.')
+    copy_paste_login_parser = subparsers.add_parser(
+        'copy-paste-login',
+        help='Obtain Hail credentials with a copy paste token.',
+        description='Obtain Hail credentials with a copy paste token.')
     logout_parser = subparsers.add_parser(
         'logout',
         help='Revoke Hail credentials.',
@@ -27,6 +32,9 @@ def parser():
 
     login_parser.set_defaults(module='login')
     login.init_parser(login_parser)
+
+    copy_paste_login_parser.set_defaults(module='copy-paste-login')
+    copy_paste_login.init_parser(copy_paste_login_parser)
 
     logout_parser.set_defaults(module='logout')
     logout.init_parser(logout_parser)
@@ -43,6 +51,7 @@ def main(args):
         sys.exit(0)
     jmp = {
         'login': login,
+        'copy-paste-login': copy_paste_login,
         'logout': logout,
         'list': auth_list,
     }

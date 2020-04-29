@@ -532,6 +532,7 @@ async def on_startup(app):
 async def on_cleanup(app):
     blocking_pool = app['blocking_pool']
     blocking_pool.shutdown()
+    await app['db'].async_close()
 
 
 def run():

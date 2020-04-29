@@ -1,9 +1,10 @@
 import logging
 import asyncio
-import secrets
 import sortedcontainers
 
-from hailtop.utils import AsyncWorkerPool, WaitableSharedPool, retry_long_running, run_if_changed, time_msecs
+from hailtop.utils import (
+    AsyncWorkerPool, WaitableSharedPool, retry_long_running, run_if_changed,
+    time_msecs, secret_alnum_string)
 
 from ..batch import schedule_job, unschedule_job, mark_job_complete
 
@@ -370,7 +371,7 @@ LIMIT %s;
                 batch_id = record['batch_id']
                 job_id = record['job_id']
                 id = (batch_id, job_id)
-                attempt_id = ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(6)])
+                attempt_id = secret_alnum_string(6)
                 record['attempt_id'] = attempt_id
 
                 if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:

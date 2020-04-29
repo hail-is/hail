@@ -6,6 +6,7 @@ import asyncio
 import aiohttp
 from aiohttp import web
 import urllib3
+import secrets
 import socket
 import requests
 import google.auth.exceptions
@@ -28,6 +29,24 @@ def first_extant_file(*files):
         if f is not None and os.path.isfile(f):
             return f
     return None
+
+
+def secret_alnum_string(n=22, *, case=None):
+    # 22 characters is math.log(62 ** 22, 2) == ~130 bits of randomness. OWASP
+    # recommends at least 128 bits:
+    # https://owasp.org/www-community/vulnerabilities/Insufficient_Session-ID_Length
+    numbers = '0123456789'
+    upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    lower = 'abcdefghijklmnopqrstuvwxyz'
+    if case is None:
+        alphabet = numbers + upper + lower
+    elif case == 'upper':
+        alphabet = numbers + upper
+    elif case == 'lower':
+        alphabet = numbers + lower
+    else:
+        raise ValueError(f'invalid argument for case {case}')
+    return ''.join([secrets.choice(alphabet) for _ in range(n)])
 
 
 def grouped(n, ls):

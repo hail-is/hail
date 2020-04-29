@@ -11,5 +11,9 @@
       </a>
     </p>
     <p><b>Service Account: </b>{{ userdata['gsa_email'] }}</p>
+    <form action="{{ auth_base_url }}/copy-paste-token" method="post">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+      <button class="nb-create">Get a token for copy-paste login</button>
+    </form>
   </div>
 {% endblock %}

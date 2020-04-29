@@ -183,6 +183,8 @@ steps:
    migrations:
     - name: initial
       script: /io/sql/initial.sql
+    - name: copy-paste-tokens
+      script: /io/sql/copy-paste-tokens.sql
    inputs:
     - from: /repo/auth/sql
       to: /io/
@@ -282,16 +284,20 @@ steps:
      from hailtop.config import get_deploy_config
      from hailtop.auth import get_tokens
      from hailtop.utils import async_to_blocking
-     from gear import create_database_pool, insert_user, create_session
+     from gear import Database, insert_user, create_session
      async def main():
-         dbpool = await create_database_pool()
-         tokens = get_tokens()
-         user_spec = json.loads(sys.argv[1])
-         user_id = await insert_user(dbpool, user_spec)
-         deploy_config = get_deploy_config()
-         auth_ns = deploy_config.service_ns('auth')
-         tokens[auth_ns] = await create_session(dbpool, user_id)
-         tokens.write()
+         db = Database()
+         try:
+             await db.async_init()
+             tokens = get_tokens()
+             user_spec = json.loads(sys.argv[1])
+             user_id = await insert_user(db, user_spec)
+             deploy_config = get_deploy_config()
+             auth_ns = deploy_config.service_ns('auth')
+             tokens[auth_ns] = await create_session(db, user_id)
+             tokens.write()
+         finally:
+             await db.async_close()
      async_to_blocking(main())
      EOF
      # batch, auth gsa keys
@@ -960,6 +966,99 @@ steps:
     - auth_image
     - create_dummy_oauth2_client_secret
  - kind: runImage
+   name: test_auth_copy_paste_login
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+
+     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+
+     COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth /api/v1alpha/copy-paste-token -sSL -XPOST)
+     hailctl auth copy-paste-login "$COPY_PASTE_TOKEN" --namespace {{ default_ns.name }}
+
+     if hailctl auth copy-paste-login "$COPY_PASTE_TOKEN" --namespace {{ default_ns.name }}
+     then
+         echo "reusing a token should not work, but did"
+         exit 1
+     fi
+
+     COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth /api/v1alpha/copy-paste-token -sSL -XPOST)
+     python3 -c '
+     from hailtop.auth import copy_paste_login;
+     copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
+     '
+
+     python3 -c '
+     from hailtop.auth import copy_paste_login;
+     import aiohttp
+     try:
+         copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
+         print("reusing a token should not work, but did")
+         sys.exit(1)
+     except aiohttp.client_exceptions.ClientResponseError as exc:
+         assert(exc.status == 401)
+     '
+   secrets:
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+   dependsOn:
+    - default_ns
+    - create_accounts
+    - deploy_auth
+    - create_deploy_config
+    - batch_pods_ns
+    - service_base_image
+ - kind: runImage
+   name: test_auth_copy_paste_login_timeout
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+
+     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+
+     COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth /api/v1alpha/copy-paste-token -sSL -XPOST)
+     sleep $(( 5 * 60 + 1))
+     if hailctl auth copy-paste-login "$COPY_PASTE_TOKEN" --namespace {{ default_ns.name }}
+     then
+         echo "using an expired token should not work, but did"
+         exit 1
+     fi
+
+     python3 -c '
+     import aiohttp
+     from hailtop.auth import copy_paste_login;
+     try:
+         copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
+         print("using an expired token should not work, but did")
+         sys.exit(1)
+     except aiohttp.client_exceptions.ClientResponseError as exc:
+         assert(exc.status == 401)
+     '
+   secrets:
+    - name: test-tokens
+      namespace:
+        valueFrom: batch_pods_ns.name
+      mountPath: /user-tokens
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+   dependsOn:
+    - default_ns
+    - create_accounts
+    - deploy_auth
+    - create_deploy_config
+    - batch_pods_ns
+    - service_base_image
+ - kind: runImage
    name: delete_batch_tables
    image:
      valueFrom: service_base_image.image
@@ -1124,6 +1223,8 @@ steps:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
    dependsOn:
+    - create_deploy_config
+    - create_accounts
     - default_ns
     - batch_pods_ns
     - copy_files
@@ -1234,6 +1335,8 @@ steps:
     - test
     - dev
    dependsOn:
+    - create_deploy_config
+    - create_accounts
     - default_ns
     - batch_pods_ns
     - deploy_ci
@@ -1266,6 +1369,8 @@ steps:
         valueFrom: batch_pods_ns.name
       mountPath: /test-gsa-key
    dependsOn:
+    - create_deploy_config
+    - create_accounts
     - default_ns
     - batch_pods_ns
     - copy_files
@@ -1293,6 +1398,8 @@ steps:
         valueFrom: batch_pods_ns.name
       mountPath: /user-tokens
    dependsOn:
+    - create_deploy_config
+    - create_accounts
     - default_ns
     - batch_pods_ns
     - service_base_image
@@ -1333,6 +1440,10 @@ steps:
     - deploy_router
     - deploy_auth
     - notebook_database
+   wait:
+    - kind: Service
+      name: notebook
+      for: alive
  - kind: deploy
    name: deploy_image_fetcher
    namespace:

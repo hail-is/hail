@@ -1,0 +1,26 @@
+{% extends "layout.html" %}
+{% block title %}Copy Paste Token{% endblock %}
+{% block content %}
+  <div id="profile" class="vcentered">
+    <h1>{{ userdata['username'] }}</h1>
+    <h2>Copy Paste Token</h2>
+    <p>
+      This copy paste token is good for one use in the next five minutes.
+    </p>
+    <pre>{{ copy_paste_token }}</pre>
+    <p>
+      If you need to authenticate a Jupyter Notebook session (for example, a
+      Terra Jupyter Notebook), copy and paste this into your notebook:
+    </p>
+    <pre>from hailtop.auth import copy_paste_login; copy_paste_login('{{ copy_paste_token }}')</pre>
+    <p>
+      If you need to authenticate from a terminal, copy and paste this into your
+      terminal:
+    </p>
+    <pre>hailctl auth copy-paste-login "{{ copy_paste_token }}"</pre>
+    <form action="{{ auth_base_url }}/copy-paste-token" method="post">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+      <button class="nb-create">Create another token for copy-paste login</button>
+    </form>
+  </div>
+{% endblock %}

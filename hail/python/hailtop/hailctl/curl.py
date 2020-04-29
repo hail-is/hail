@@ -18,5 +18,4 @@ def main(args):
                for k, v in headers.items()
                for x in ['-H', f'{k}: {v}']]
     path = deploy_config.with_service(svc, ns).url(svc, path)
-    print('curl ' + ' '.join(headers) + ' ' + ' '.join(args[3:]) + ' ' + path)
     subprocess.check_call(['curl', *headers, *args[3:], path])

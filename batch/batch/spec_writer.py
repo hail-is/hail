@@ -1,5 +1,6 @@
-import secrets
 import logging
+
+from hailtop.utils import secret_alnum_string
 
 log = logging.getLogger('batch.spec_writer')
 
@@ -40,7 +41,7 @@ LIMIT 1;
     def __init__(self, log_store, batch_id):
         self.log_store = log_store
         self.batch_id = batch_id
-        self.token = ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(16)])
+        self.token = secret_alnum_string(16)
 
         self._data_bytes = bytearray()
         self._offsets_bytes = bytearray()
