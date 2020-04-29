@@ -520,4 +520,40 @@ class TableIRSuite extends HailSuite {
       Row()
     ))
   }
+
+  @Test def testTableGroupWithinPartitions(): Unit = {
+    implicit val execStrats = ExecStrategy.interpretOnly
+    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
+    val length = 6
+    val value = Row(FastIndexedSeq(0 until length: _*).map(i => Row(i, "row" + i)), Row("global"))
+    val rowsData = FastIndexedSeq(
+      Row(FastIndexedSeq(
+        Row(0, "row0"),
+        Row(1, "row1")
+      )),
+      Row(FastIndexedSeq(
+        Row(2, "row2")
+      )),
+      Row(FastIndexedSeq(
+        Row(3, "row3"),
+        Row(4, "row4")
+      )),
+      Row(FastIndexedSeq(
+        Row(5, "row5")
+      ))
+    )
+    val ans = Row(rowsData, Row("global"))
+    assertEvalsTo(
+      collectNoKey(
+        TableGroupWithinPartitions(
+          TableParallelize(
+            Literal(t, value),
+            Some(2)
+          ),
+          "grouped_fields",
+          2
+        )
+      ),
+      ans)
+  }
 }
