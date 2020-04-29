@@ -29,7 +29,7 @@ For all methods *other than using pip*, you will additionally need
 - `Spark 2.4.x <https://www.apache.org/dyn/closer.lua/spark/spark-2.4.0/spark-2.4.0-bin-hadoop2.7.tgz>`_,
 - a C++ compiler,
 - lz4,
-- a compatible BLAS installation such as the Intel MKL or OpenBLAS
+- a compatible BLAS and LAPACK installation such as the Intel MKL or OpenBLAS
 
 For the latter three, Debian users might try::
 
@@ -40,7 +40,7 @@ and Mac OS X users, might try::
     xcode-select --install
     brew install lz4
 
-Mac OS X already has compatible BLAS libraries.
+Mac OS X already has compatible BLAS and LAPACK libraries.
 
 Installation
 ------------
@@ -103,9 +103,9 @@ command builds Hail for Spark 2.4.0, installs the Python library, and installs
 all the Python dependencies::
 
     make install-on-cluster HAIL_COMPILE_NATIVES=1 SPARK_VERSION=2.4.0
-    
-Moreover, every worker node of the cluster needs a compatible BLAS library, such
-as the Intel MKL or OpenBlas.
+
+Moreover, every worker node of the cluster needs a compatible BLAS and LAPACK
+library, such as the Intel MKL or OpenBlas.
 
 An IPython shell which can run Hail backed by the cluster can be started with
 the following command::
@@ -220,10 +220,11 @@ If you see an error like the following:
 
     /usr/java/default/bin/java: symbol lookup error: /.../...netlib-native_system-linux-x86_64.so: undefined symbol: cblas_dgemv
 
-Then add extra Spark configuration Spark pointing to the directory where BLAS is installed:
+Then add extra Spark configuration Spark pointing to the directory where BLAS
+and LAPACK are installed:
 
 .. code-block:: text
 
-    --conf spark.executor.extraClassPath="/path/to/BLAS"
+    --conf spark.executor.extraClassPath="/path/to/BLAS:/path/to/LAPACK"
 
 See `netlib-java <https://github.com/fommil/netlib-java>`_ for more information.
