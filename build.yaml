@@ -147,7 +147,6 @@ steps:
    dependsOn:
      - default_ns
      - create_certs_image
-     - default_ns
  - kind: runImage
    name: check_gear
    image:
