@@ -608,7 +608,7 @@ class EmitClassBuilder[C](
       "FunctionBuilder emission should happen on master, but happened on worker")
 
     val n = cb.className.replace("/", ".")
-    val classesBytes = modb.classesBytes()
+    val classesBytes = modb.classesBytes(print)
 
     new ((Int, Region) => C) with java.io.Serializable {
       @transient @volatile private var theClass: Class[_] = null
