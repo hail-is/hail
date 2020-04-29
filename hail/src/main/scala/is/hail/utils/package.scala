@@ -642,6 +642,20 @@ package object utils extends Logging
     parts
   }
 
+  def partition(n: Long, k: Int): Array[Long] = {
+    if (k == 0) {
+      assert(n == 0)
+      return Array.empty[Long]
+    }
+
+    assert(n >= 0)
+    assert(k > 0)
+    val parts = Array.tabulate(k)(i => (n - i + k - 1) / k)
+    assert(parts.sum == n)
+    assert(parts.max - parts.min <= 1)
+    parts
+  }
+
   def matchErrorToNone[T, U](f: (T) => U): (T) => Option[U] = (x: T) => {
     try {
       Some(f(x))
@@ -825,6 +839,21 @@ package object utils extends Logging
   def decomposeWithName(v: Any, name: String)(implicit formats: Formats): JObject = {
     val jo = Extraction.decompose(v).asInstanceOf[JObject]
     jo.merge(JObject("name" -> JString(name)))
+  }
+
+  def makeVirtualOffset(fileOffset: Long, blockOffset: Int): Long = {
+    assert(fileOffset >= 0)
+    assert(blockOffset >= 0)
+    assert(blockOffset < 64 * 1024)
+    (fileOffset << 16) | blockOffset
+  }
+
+  def virtualOffsetBlockOffset(offset: Long): Int = {
+    (offset & 0xFFFF).toInt
+  }
+
+  def virtualOffsetCompressedOffset(offset: Long): Long = {
+    offset >> 16
   }
 }
 
