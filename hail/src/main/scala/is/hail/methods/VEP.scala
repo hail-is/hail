@@ -130,16 +130,19 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
     assert(tv.typ.key == FastIndexedSeq("locus", "alleles"))
     assert(tv.typ.rowType.size == 2)
 
+    val localConf = conf
+    val localVepSignature = vepSignature
+
     val csq = params.csq
-    val cmd = conf.command.map(s =>
+    val cmd = localConf.command.map(s =>
       if (s == "__OUTPUT_FORMAT_FLAG__")
         if (csq) "--vcf" else "--json"
       else
         s)
 
-    val csqHeader = if (csq) getCSQHeaderDefinition(cmd, conf.env) else None
+    val csqHeader = if (csq) getCSQHeaderDefinition(cmd, localConf.env) else None
 
-    val inputQuery = vepSignature.query("input")
+    val inputQuery = localVepSignature.query("input")
 
     val csqRegex = "CSQ=[^;^\\t]+".r
 
@@ -153,7 +156,7 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
       .mapPartitions { (_, it) =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
-        conf.env.foreach { case (key, value) =>
+        localConf.env.foreach { case (key, value) =>
           env.put(key, value)
         }
 
@@ -198,7 +201,7 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
                 } else {
                   try {
                     val jv = JsonMethods.parse(s)
-                    val a = JSONAnnotationImpex.importAnnotation(jv, vepSignature, warnContext = warnContext)
+                    val a = JSONAnnotationImpex.importAnnotation(jv, localVepSignature, warnContext = warnContext)
                     val variantString = inputQuery(a).asInstanceOf[String]
                     if (variantString == null)
                       fatal(s"VEP generated null variant string" +
