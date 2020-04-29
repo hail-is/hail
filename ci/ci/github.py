@@ -143,7 +143,7 @@ function clone() {{ ( set -e
     dir=$(mktemp -d)
     git clone {shq(repo)} $dir
     echo $?
-    (cd $dir && g status)  # verify the clone actually worked
+    (cd $dir && git status)  # verify the clone actually worked
     echo $?
     for x in $(ls -A $dir); do
         mv -- "$dir/$x" ./
