@@ -130,13 +130,14 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
     assert(tv.typ.key == FastIndexedSeq("locus", "alleles"))
     assert(tv.typ.rowType.size == 2)
 
+    val csq = params.csq
     val cmd = conf.command.map(s =>
       if (s == "__OUTPUT_FORMAT_FLAG__")
-        if (params.csq) "--vcf" else "--json"
+        if (csq) "--vcf" else "--json"
       else
         s)
 
-    val csqHeader = if (params.csq) getCSQHeaderDefinition(cmd, conf.env) else None
+    val csqHeader = if (csq) getCSQHeaderDefinition(cmd, conf.env) else None
 
     val inputQuery = vepSignature.query("input")
 
@@ -178,7 +179,7 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
             val kt = jt
               .filter(s => !s.isEmpty && s(0) != '#')
               .flatMap { s =>
-                if (params.csq) {
+                if (csq) {
                   val vepv@(vepLocus, vepAlleles) = variantFromInput(s)
                   nonStarToOriginalVariant.get(vepv) match {
                     case Some(v@(locus, alleles)) =>
