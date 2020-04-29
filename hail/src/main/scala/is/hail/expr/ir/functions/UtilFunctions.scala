@@ -159,14 +159,14 @@ object UtilFunctions extends RegistryFunctions {
           val s = asm4s.coerce[String](wrapArg(r, xT)(x))
           Code.invokeScalaObject1(thisClass, s"parse$name", s)(ctString, ct)
       }
-      registerEmitCode1(s"to${name}OrMissing", TString, t, (_: Type, xPT: PType) => rpt.setRequired(xPT.required)) {
-        case (r, rt, x) =>
-          val s = r.mb.newLocal[String]()
-          val m = r.mb.newLocal[Boolean]()
-          EmitCode(
-            Code(x.setup, m := x.m, s := m.mux(Code._null[String], asm4s.coerce[String](wrapArg(r, x.pt)(x.v)))),
-            (m || !Code.invokeScalaObject1[String, Boolean](thisClass, s"isValid$name", s)),
-            PCode(rt, Code.invokeScalaObject1(thisClass, s"parse$name", s)(ctString, ct)))
+      registerIEmitCode1(s"to${name}OrMissing", TString, t, (_: Type, xPT: PType) => rpt.setRequired(xPT.required)) {
+        case (cb, r, rt, x) =>
+          x.flatMap(cb) { case (sc: PStringCode) =>
+            val sv = cb.newLocal[String]("s", sc.loadString())
+            IEmitCode(cb,
+              !Code.invokeScalaObject1[String, Boolean](thisClass, s"isValid$name", sv),
+              PCode(rt, Code.invokeScalaObject1(thisClass, s"parse$name", sv)(ctString, ct)))
+          }
       }
     }
 
