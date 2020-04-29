@@ -204,9 +204,39 @@ object MatrixPLINKReader {
     val partSize = partition(nVariants, nPartitions)
     val partScan = partSize.scanLeft(0)(_ + _)
 
-    val contexts = Array.tabulate[Any](nPartitions) { i =>
-      Row(params.bed, partScan(i), partScan(i + 1))
+    val cb = new ArrayBuilder[Any]()
+    val ib = new ArrayBuilder[Interval]()
+
+    var p = 0
+    var prevEnd = 0
+    val lOrd = locusType.ordering
+    while (p < nPartitions) {
+      val start = prevEnd
+
+      var end = partScan(p + 1)
+      if (start < end) {
+        while (end + 1 < nVariants
+          && lOrd.equiv(variants(end).asInstanceOf[Row].get(0),
+            variants(end + 1).asInstanceOf[Row].get(0)))
+          end += 1
+        
+        cb += Row(params.bed, start, end)
+
+        ib += Interval(
+          variants(start).locusAlleles,
+          variants(end - 1).locusAlleles,
+          includesStart = true, includesEnd = true)
+
+        prevEnd = end
+      }
+
+      p += 1
     }
+    assert(prevEnd == nVariants)
+
+    val contexts = cb.result()
+
+    val partitioner = new RVDPartitioner(locusAllelesType, ib.result(), 0)
 
     val fullMatrixType: MatrixType = MatrixType(
       globalType = TStruct.empty,
@@ -220,19 +250,6 @@ object MatrixPLINKReader {
       rowKey = Array("locus", "alleles"),
       entryType = TStruct("GT" -> TCall))
     assert(locusAllelesType == fullMatrixType.rowKeyStruct)
-
-    val partitioner = new RVDPartitioner(
-      locusAllelesType,
-      Array.tabulate[Interval](nPartitions) { i =>
-        val first = partScan(i)
-        val last = partScan(i + 1) - 1
-        assert(first < last)
-        Interval(
-          variants(first).locusAlleles,
-          variants(last).locusAlleles,
-          includesStart = true, includesEnd = true)
-      },
-      0)
 
     new MatrixPLINKReader(params, referenceGenome, fullMatrixType, sampleInfo, variants, contexts, partitioner)
   }

@@ -596,7 +596,7 @@ class HailContext private(
 
   val flags: HailFeatureFlags = new HailFeatureFlags()
 
-  var checkRVDKeys: Boolean = true // false
+  var checkRVDKeys: Boolean = false
 
   private var nextVectorId: Int = 0
   val irVectors: mutable.Map[Int, Array[_ <: BaseIR]] = mutable.Map.empty[Int, Array[_ <: BaseIR]]

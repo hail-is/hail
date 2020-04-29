@@ -407,10 +407,6 @@ class RegionValueBuilder(var region: Region) {
     addRegionValue(t, uis.region, uis.aoff)
   }
 
-  def addLocus(l: Locus) {
-
-  }
-
   def addAnnotation(t: Type, a: Annotation) {
     if (a == null)
       setMissing()
