@@ -90,11 +90,11 @@ if role == 'Master':
 
     for e, value in env_to_set.items():
         safe_call('/bin/sh', '-c',
-                  'echo "export {}={}" | tee -a /etc/environment /usr/lib/spark/conf/spark-env.sh'.format(e, value))
+                  'set -ex; echo "export {}={}" | tee -a /etc/environment /usr/lib/spark/conf/spark-env.sh'.format(e, value))
 
     hail_jar = sp.check_output([
         '/bin/sh', '-c',
-        'pip3 show hail | grep Location | sed "s/Location: //"'
+        'set -ex; python3 -m pip show hail | grep Location | sed "s/Location: //"'
     ]).decode('ascii').strip() + '/hail/backend/hail-all-spark.jar'
 
     conf_to_set = [
