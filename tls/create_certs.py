@@ -39,7 +39,6 @@ def create_key_and_cert(p):
     sp.check_call([
         'openssl', 'genrsa',
         '-out', key_file,
-        '-nodes',  # no password, key itself is cleartext
         '4096'
     ])
     sp.check_call([
