@@ -6,7 +6,7 @@ setup(
     name='hailtop',
     version="0.0.1",
     author="Hail Team",
-    author_email="hail-team@broadinstitute.org",
+    author_email="hail@broadinstitute.org",
     description="Top level Hail module.",
     url="https://hail.is",
     project_urls={
