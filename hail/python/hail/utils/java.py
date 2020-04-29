@@ -1,9 +1,6 @@
-import json
-import socketserver
-import socket
+import os
 import sys
 import re
-from threading import Thread
 
 import hail
 
@@ -38,11 +35,18 @@ class Env:
     @staticmethod
     def hc():
         if not Env._hc:
-            from hail.context import init
             import sys
             sys.stderr.write("Initializing Hail with default parameters...\n")
-            init()
-            assert Env._hc is not None
+
+            backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
+            if backend_name == 'service':
+                from hail.context import init_service
+                init_service()
+            elif backend_name == 'spark':
+                from hail.context import init
+                init()
+
+        assert Env._hc is not None
         return Env._hc
 
     @staticmethod
@@ -51,8 +55,9 @@ class Env:
 
     @staticmethod
     def spark_backend(op):
+        from hail.backend.spark_backend import SparkBackend
         b = Env.backend()
-        if isinstance(b, hail.backend.SparkBackend):
+        if isinstance(b, SparkBackend):
             return b
         else:
             raise NotImplementedError(

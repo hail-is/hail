@@ -1,8 +1,5 @@
-from .backend import *
+from .backend import Backend
 
 __all__ = [
-    'Backend',
-    'LocalBackend',
-    'SparkBackend',
-    'ServiceBackend'
+    'Backend'
 ]
