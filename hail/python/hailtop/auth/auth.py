@@ -55,9 +55,10 @@ async def async_copy_paste_login(copy_paste_token, namespace=None):
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60),
             headers=headers) as session:
-        async with session.post(deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
-                                params={'copy_paste_token': copy_paste_token}) as resp:
-            resp = await resp.json()
+        resp = await request_retry_transient_errors(
+            session, 'POST', deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
+            params={'copy_paste_token': copy_paste_token})
+        resp = await resp.json()
     token = resp['token']
     username = resp['username']
 
