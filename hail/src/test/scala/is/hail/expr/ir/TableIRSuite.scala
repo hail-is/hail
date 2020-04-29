@@ -415,15 +415,33 @@ class TableIRSuite extends HailSuite {
     Interpret(TableJoin(t1, t2, "left"), ctx).rvd.count()
   }
 
-  @Test def testTableRename() {
-    implicit val execStrats = ExecStrategy.interpretOnly
-    val before = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("foo" -> I32(0))))
-    val t = TableRename(before, Map("idx" -> "idx_"), Map("foo" -> "foo_"))
-    assert(t.typ == TableType(rowType = TStruct("idx_" -> TInt32), key = FastIndexedSeq("idx_"), globalType = TStruct("foo_" -> TInt32)))
-    val beforeValue = Interpret(before, ctx)
-    val after = Interpret(t, ctx)
-    assert(beforeValue.globals.javaValue == after.globals.javaValue)
-    assert(beforeValue.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
+  @Test def testTableRename(): Unit = {
+    implicit val execStrats = ExecStrategy.lowering
+    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct(("x", TString), ("y", TInt32)))
+    val value = Row(FastIndexedSeq(0 until 10: _*).map(i => Row(i, "row" + i)), Row("globalVal", 3))
+    val adjustedValue = Row(FastIndexedSeq(0 until 10: _*).map(i => Row(i + 3, "row" + i)), Row("globalVal", 3))
+
+    val renameIR =
+      TableRename(
+        TableParallelize(
+          Literal(
+            t,
+            value
+          )),
+        Map[String, String]("a" -> "c"),
+        Map[String, String]("y" -> "z")
+      )
+
+    val newRow = MakeStruct(Seq(
+      ("foo", GetField(Ref("row", renameIR.typ.rowType), "c") + GetField(Ref("global", TStruct(("x", TString), ("z", TInt32))), "z")),
+      ("bar", GetField(Ref("row", renameIR.typ.rowType), "b")))
+    )
+    val mapped = TableMapRows(renameIR, newRow)
+
+    assertEvalsTo(
+      collectNoKey(
+        mapped
+      ), adjustedValue)
   }
 
   @Test def testTableMapGlobals(): Unit = {

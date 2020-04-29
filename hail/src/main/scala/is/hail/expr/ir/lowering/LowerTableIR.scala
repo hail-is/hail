@@ -245,6 +245,25 @@ object LowerTableIR {
             }
           }
 
+        case TableRename(child, rowMap, globalMap) =>
+          val loweredChild = lower(child)
+          val newGlobId = genUID()
+          val newGlobals = CastRename(loweredChild.globals, loweredChild.globals.typ.asInstanceOf[TStruct].rename(globalMap))
+          new TableStage(
+            loweredChild.letBindings :+ newGlobId -> newGlobals,
+            loweredChild.broadcastVals + newGlobId,
+            Ref(newGlobId, newGlobals.typ),
+            loweredChild.partitioner.copy(kType = loweredChild.partitioner.kType.rename(rowMap)),
+            loweredChild.contexts
+          ) {
+            override def partition(ctxRef: Ref): IR = {
+              val oldPartition = loweredChild.partition(ctxRef)
+              mapIR(oldPartition) { row =>
+                CastRename(row, row.typ.asInstanceOf[TStruct].rename(rowMap))
+              }
+            }
+          }
+
         case node =>
           throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(node) }")
       }
