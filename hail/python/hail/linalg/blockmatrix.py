@@ -221,14 +221,6 @@ class BlockMatrix(object):
 
     def __init__(self, bmir):
         self._bmir = bmir
-        self._cached_jbm = None
-
-    @property
-    def _jbm(self):
-        if self._cached_jbm is None:
-            self._cached_jbm = (Env.spark_backend('BlockMatrix._jbm')._jbackend
-                                .pyBlockMatrixExecute(self._bmir))
-        return self._cached_jbm
 
     @classmethod
     @typecheck_method(path=str)
