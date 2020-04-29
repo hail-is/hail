@@ -919,24 +919,42 @@ class EmitMethodBuilder[C](
     }
   }
 
+  private def _invoke[T](_args: Param*): Code[T] = {
+    val args = _args.map {
+      case cp: CodeParam =>
+        cp
+      case ep@EmitParam(EmitCode(setup, m, pv)) =>
+        if (pv.pt.required) {
+          ep
+        } else {
+          // Why can't this be a local? aren't we invoking it right after?
+          val mv = genFieldThisRef[Boolean](s"emitparam_m_${pv.pt._asIdent}")
+          EmitParam(EmitCode(Code(setup, mv := m), mv, PCode(pv.pt, mv.mux(defaultValue(pv.pt), pv.code))))
+        }
+    }
+
+    val setup = Code(args.map {
+      case CodeParam(_) => Code._empty
+      case EmitParam(ec) => ec.setup
+    })
+    Code(
+      setup,
+      mb.invoke(args.flatMap {
+        case CodeParam(c) => FastIndexedSeq(c)
+        case EmitParam(ec) =>
+          ec.codeTuple()
+      }: _*))
+  }
+
   def invokeCode[T](args: Param*): Code[T] = {
     assert(emitReturnType.isInstanceOf[CodeParamType])
-    mb.invoke(args.flatMap {
-      case CodeParam(c) => FastIndexedSeq(c)
-      case EmitParam(ec) =>
-        ec.codeTuple()
-    }: _*)
+    _invoke(args: _*)
   }
 
   def invokeEmit(args: Param*): EmitCode = {
     val pt = emitReturnType.asInstanceOf[EmitParamType].pt
     val r = Code.newLocal("invokeEmit_r")(pt.codeReturnType())
-
-    EmitCode(r := mb.invoke(args.flatMap {
-      case CodeParam(c) => FastIndexedSeq(c)
-      case EmitParam(ec) =>
-        ec.codeTuple()
-    }: _*),
+    EmitCode(r := _invoke(args: _*),
       EmitCode.fromCodeTuple(pt, Code.loadTuple(modb, EmitCode.codeTupleTypes(pt), r)))
   }
 
