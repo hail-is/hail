@@ -147,7 +147,7 @@ SET max_instances = %s, pool_size = %s;
     async def create_instance(self):
         while True:
             # 36 ** 5 = ~60M
-            suffix = secret_alnum_string(5)
+            suffix = secret_alnum_string(5, case='lower')
             machine_name = f'{self.machine_name_prefix}{suffix}'
             if machine_name not in self.name_instance:
                 break

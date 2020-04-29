@@ -31,13 +31,22 @@ def first_extant_file(*files):
     return None
 
 
-def secret_alnum_string(n=22):
+def secret_alnum_string(n=22, *, case=None):
     # 22 characters is math.log(62 ** 22, 2) == ~130 bits of randomness. OWASP
     # recommends at least 128 bits:
     # https://owasp.org/www-community/vulnerabilities/Insufficient_Session-ID_Length
-    return ''.join([secrets.choice(
-        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-    ) for _ in range(n)])
+    numbers = '0123456789'
+    upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    lower = 'abcdefghijklmnopqrstuvwxyz'
+    if case is None:
+        alphabet = numbers + upper + lower
+    elif case == 'upper':
+        alphabet = numbers + upper
+    elif case == 'lower':
+        alphabet = numbers + lower
+    else:
+        raise ValueError(f'invalid argument for case {case}')
+    return ''.join([secrets.choice(alphabet) for _ in range(n)])
 
 
 def grouped(n, ls):
