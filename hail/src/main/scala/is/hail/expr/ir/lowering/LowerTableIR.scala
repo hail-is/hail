@@ -19,7 +19,7 @@ abstract class TableStage(
   val broadcastVals: Set[String],
   val globals: IR,
   val partitioner: RVDPartitioner,
-  val contexts: IR) {
+  val contexts: IR) { self =>
 
   def partition(ctxRef: Ref): IR
 
@@ -55,6 +55,12 @@ abstract class TableStage(
       ctx.name, glob.name,
       broadcastVals.foldLeft(partition(ctx))((accum, name) => Let(name, GetField(glob, name), accum)))
     if (bind) wrapInBindings(cda) else cda
+  }
+
+  def castPartitioner(newPartitioner: RVDPartitioner): TableStage = {
+    new TableStage(letBindings, broadcastVals, globals, newPartitioner, contexts) {
+      def partition(ctxRef: Ref): IR = self.partition(ctxRef)
+    }
   }
 }
 
@@ -229,8 +235,7 @@ object LowerTableIR {
             val newPartitioner = loweredChild.partitioner
               .coarsen(nPreservedFields)
               .extendKey(t.typ.keyType)
-              loweredChild.(partitioner = newPartitioner)
-            else throw new LowererUnsupportedOperation("TableKeyBy with isSorted but a non-strict partitioner requires partitioner adjustments")
+            loweredChild.castPartitioner(newPartitioner)
           } else
             ctx.backend.lowerDistributedSort(loweredChild, newKey.map(k => SortField(k, Ascending)))
 
