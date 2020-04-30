@@ -1,6 +1,6 @@
 package is.hail.rvd
 
-import is.hail.annotations.ExtendedOrdering
+import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering}
 import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
 import is.hail.utils._
 import org.apache.commons.lang.builder.HashCodeBuilder
@@ -44,7 +44,7 @@ class RVDPartitioner(
   require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
   require(RVDPartitioner.isValid(kType, rangeBounds, allowedOverlap))
 
-  val kord: ExtendedOrdering = kType.ordering
+  val kord: ExtendedOrdering = PartitionBoundOrdering(kType)
   val intervalKeyLT: (Interval, Any) => Boolean = (i, k) => i.isBelowPosition(kord, k)
   val keyIntervalLT: (Any, Interval) => Boolean = (k, i) => i.isAbovePosition(kord, k)
   val intervalLT: (Interval, Interval) => Boolean = (i1, i2) => i1.isBelow(kord, i2)
@@ -302,7 +302,7 @@ object RVDPartitioner {
     intervals: IndexedSeq[Interval],
     allowedOverlap: Int
   ): RVDPartitioner = {
-    val kord = kType.ordering
+    val kord = PartitionBoundOrdering(kType)
     val eord = kord.intervalEndpointOrdering
     val iord = Interval.ordering(kord, startPrimary = true)
     val pk = allowedOverlap + 1
@@ -342,7 +342,8 @@ object RVDPartitioner {
     require(typ.kType.virtualType.relaxedTypeCheck(max))
     require(keys.forall(typ.kType.virtualType.relaxedTypeCheck))
 
-    val sortedKeys = keys.sorted(typ.kType.virtualType.ordering.toOrdering)
+    val kOrd = PartitionBoundOrdering(typ.kType.virtualType).toOrdering
+    val sortedKeys = keys.sorted(kOrd)
     val step = (sortedKeys.length - 1).toDouble / nPartitions
     val partitionEdges = Array.tabulate(nPartitions - 1) { i =>
       IntervalEndpoint(sortedKeys(((i + 1) * step).toInt), 1)
@@ -365,7 +366,7 @@ object RVDPartitioner {
   ): Boolean = {
     rangeBounds.isEmpty ||
       rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
-        val r = kType.ordering.intervalEndpointOrdering.lteqWithOverlap(allowedOverlap)(left.right, right.left)
+        val r = PartitionBoundOrdering(kType).intervalEndpointOrdering.lteqWithOverlap(allowedOverlap)(left.right, right.left)
         if (!r)
           log.info(s"invalid partitioner: !lteqWithOverlap($allowedOverlap)(${ left }.right, ${ right }.left)")
         r
