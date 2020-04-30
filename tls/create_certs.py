@@ -105,9 +105,6 @@ def create_nginx_config(principal, incoming_trust, outgoing_trust, key, cert):
 
 
 def create_curl_config(principal, incoming_trust, outgoing_trust, key, cert):
-    if os.stat(incoming_trust).st_size != 0:
-        raise ValueError(f'curl accepts no connections so incoming trust is '
-                         f'nonsensical, but was: {incoming_trust}')
     config_file = f'ssl-config.curlrc'
     with open(config_file, 'w') as out:
         out.write(f'key       /ssl-config/{key}\n')
