@@ -46,6 +46,19 @@ abstract class TableStage(
     }
   }
 
+  def mapContexts(f: IR => IR): TableStage = {
+    val outer = this
+    new TableStage(
+      letBindings,
+      broadcastVals,
+      globals,
+      partitioner,
+      f(contexts)
+    ) {
+      def partition(ctxRef: Ref): IR = outer.partition(ctxRef)
+    }
+  }
+
   def collect(bind: Boolean = true): IR = {
     val ctx = Ref(genUID(), types.coerce[TStream](contexts.typ).elementType)
     val broadcastRefs = MakeStruct(letBindings.filter { case (name, _) => broadcastVals.contains(name) })
@@ -188,7 +201,7 @@ object LowerTableIR {
           val env: Env[IR] = Env("row" -> row, "global" -> loweredChild.globals)
           loweredChild.mapPartition(rows => StreamFilter(rows, row.name, Subst(cond, BindingEnv(env))))
 
-        case TableHead(child, numRows) =>
+        case TableHead(child, targetNumRows) =>
           /*
           Looking at TableHead lowering, want to make sure I understand. You said on the ticket:
           "generate a while loop with CDA to compute the number of partitions necessary, then generate
@@ -203,9 +216,19 @@ object LowerTableIR {
           // Steps:
           // 1. Map the partitions to their sizes, collect
           val partitionSizeStage = loweredChild.mapPartition(rows => ArrayLen(ToArray(rows)))
-          val partitionSizeArray = partitionSizeStage.collect()
           // 2. Need to sum over this array for first time it's bigger than n.
-          ???
+          val numPartitionsNeeded = bindIR(partitionSizeStage.collect()) { partitionSizeArrayRef =>
+            bindIR(ArrayLen(partitionSizeArrayRef)) { numPartitions =>
+              val funcName = "howManyParts"
+              TailLoop(funcName, FastIndexedSeq("i" -> In(0, TInt32), "acc" -> In(1, TInt64)),
+                If( (Ref("i", TInt32) ceq numPartitions) || (Ref("acc", TInt64) >= targetNumRows) ,
+                  Ref("i", TInt32),
+                  Recur(funcName, FastIndexedSeq(Ref("i", TInt32) + 1, Ref("acc", TInt64) + Cast(ArrayRef(partitionSizeArrayRef, Ref("i", TInt32)), TInt64)), TInt32)
+                )
+              )
+            }
+          }
+          loweredChild.mapContexts(contexts => StreamTake(contexts, numPartitionsNeeded))
 
         case TableMapRows(child, newRow) =>
           if (ContainsScan(newRow))

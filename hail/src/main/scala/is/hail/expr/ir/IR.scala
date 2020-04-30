@@ -378,6 +378,7 @@ object In {
   def apply(i: Int, typ: Type): In = In(i, PType.canonical(typ))
 }
 
+// Function Input
 final case class In(i: Int, _typ: PType) extends IR
 
 // FIXME: should be type any
