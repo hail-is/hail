@@ -81,15 +81,9 @@
                 import Viz from "/vendors/vanta/viz.min.js";
                 new Viz({
                     el: "#hero-background",
-                    mouseControls: false,
-                    touchControls: false,
-                    minHeight: 200.0,
-                    minWidth: 200.0,
-                    scale: 1.0,
-                    scaleMobile: 1.0,
                     points: 11,
-                    maxDistance: 20,
-                    spacing: 15,
+                    maxDistance: 23,
+                    spacing: 20,
                     backgroundColor: "#fff",
                     color: "#283870",
                 });

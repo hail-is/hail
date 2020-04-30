@@ -1,4 +1,4 @@
-/*Modified from VantaJS, by Alex Kotlar copyright 2020. Original license follows:*/
+/*Modified from VantaJS, by Hail Team copyright 2020. Original license follows:*/
 /*Copyright 2020 Teng Bao
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
@@ -28,8 +28,6 @@ class Viz {
     }
 
     this.options = Object.assign({
-      scale: 1,
-      scaleMobile: 1,
       color: 0xff3f81,
       backgroundColor: 0xfffffff,
       points: 10,
@@ -236,7 +234,7 @@ class Viz {
       const started =  Date.now();
 
       window.requestAnimationFrame(() => {
-        this.el.style.opacity = "1";
+        this.el.style.opacity = .5;
         this.hidden = false;
         this.startedAnimation = false;
         console.info("done", Date.now() - started);
@@ -285,12 +283,11 @@ class Viz {
   }
 
   genPoint(x, y, z) {
-    const geometry = new THREE.SphereGeometry(0.25, 12, 12);
+    const geometry = new THREE.SphereGeometry(0.2, 12, 12);
     const material = new THREE.MeshLambertMaterial({
       color: this.options.color,
-      // blending: THREE.AdditiveBlending,
       transparent: true,
-      opacity: .2
+      opacity: .4
     });
     const sphere = new THREE.Mesh(geometry, material);
     sphere.position.set(x, y, z);
@@ -314,14 +311,11 @@ class Viz {
     geometry.computeBoundingSphere();
     geometry.setDrawRange(0, 0);
     const material = new THREE.LineBasicMaterial({
-      vertexColors: THREE.VertexColors,
-      // blending: THREE.AdditiveBlending,
-      transparent: true,
-      alphaTest: .1,
-      opacity: .2
+      vertexColors: THREE.VertexColors
     });
+    material.linewidth = 0.25;
 
-    this.linesMesh = new THREE.LineSegments(geometry, material)
+    this.linesMesh = new THREE.LineSegments(geometry, material);
     this.linesMesh.renderOrder = 2;
     group.add(this.linesMesh);
 
@@ -342,7 +336,6 @@ class Viz {
     this.renderer.setSize(this.el.offsetWidth, this.el.offsetHeight)
     this.renderer.setPixelRatio(window.devicePixelRatio)
 
-    const ambience = new THREE.AmbientLight(0xffffff, 0.75);
     this.camera = new THREE.PerspectiveCamera(25, this.el.offsetWidth / (this.el.offsetHeight), .01, 10000);
 
     this.camera.position.set(50, 100, 150);
@@ -350,7 +343,7 @@ class Viz {
 
     this.scene = new THREE.Scene();
     this.scene.add(this.camera)
-    this.scene.add(ambience);
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.75));
     this.scene.add(group);
   }
 
