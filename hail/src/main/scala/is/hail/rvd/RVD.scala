@@ -161,6 +161,7 @@ class RVD(
     val localType = typ
     val localKPType = typ.kType
 
+    val ord = PartitionBoundOrdering(localType.kType)
     new RVD(
       typ,
       partitioner,
@@ -198,7 +199,7 @@ class RVD(
             prevK.setSelect(localType.rowType, localType.kFieldIdx, ptr, deepCopy = true)
             kUR.set(prevK.value)
 
-            if (!partitionerBc.value.rangeBounds(i).contains(localType.kType.virtualType.ordering, kUR))
+            if (!partitionerBc.value.rangeBounds(i).contains(ord, kUR))
               fatal(
                 s"""RVD error! Unexpected key in partition $i
                    |  Range bounds for partition $i: ${ partitionerBc.value.rangeBounds(i) }
@@ -239,7 +240,7 @@ class RVD(
       val newType = typ.copy(key = newPartitioner.kType.fieldNames)
 
       val localRowPType = rowPType
-      val kOrdering = newType.kType.virtualType.ordering
+      val kOrdering = PartitionBoundOrdering(newType.kType.virtualType)
 
       val partBc = newPartitioner.broadcast(crdd.sparkContext)
       val enc = TypedCodecSpec(rowPType, BufferSpec.wireSpec)
@@ -841,6 +842,7 @@ class RVD(
         val outputFirstBc = sc.broadcast(outputFirst)
         val outputLastBc = sc.broadcast(outputLast)
 
+        val kOrd = PartitionBoundOrdering(localTyp.kType.virtualType)
         crdd.blocked(inputFirst, inputLast)
           .cmapPartitionsWithIndex { (i, ctx, it) =>
             val s = outputFirstBc.value(i)
@@ -852,7 +854,6 @@ class RVD(
               val fs = fsBc.value
               val bit = it.buffered
 
-              val kOrd = localTyp.kType.virtualType.ordering
               val extractKey: (Long) => Any = (ptr: Long) => {
                 val ur = new UnsafeRow(localRowPType, ctx.r, ptr)
                 Row.fromSeq(localTyp.kFieldIdx.map(i => ur.get(i)))
@@ -1137,7 +1138,7 @@ class RVD(
     }.run
 
     val nParts = getNumPartitions
-    val intervalOrd = rightTyp.kType.types(0).virtualType.ordering.toOrdering.asInstanceOf[Ordering[Interval]]
+    val intervalOrd = PartitionBoundOrdering(rightTyp.kType.types(0).virtualType).toOrdering.asInstanceOf[Ordering[Interval]]
     val sorted: RDD[((Int, Interval), Array[Byte])] = new ShuffledRDD(
       partitionKeyedIntervals,
       new Partitioner {
@@ -1239,7 +1240,8 @@ object RVD {
         None
     }.flatten
 
-    keyInfo.sortBy(_.min)(typ.kType.virtualType.ordering.toOrdering)
+    val kOrd = PartitionBoundOrdering(typ.kType.virtualType).toOrdering
+    keyInfo.sortBy(_.min)(kOrd  )
   }
 
   def coerce(
@@ -1402,7 +1404,7 @@ object RVD {
     assert(nPartitions > 0)
     assert(pInfo.nonEmpty)
 
-    val kord = typ.kType.virtualType.ordering.toOrdering
+    val kord = PartitionBoundOrdering(typ.kType.virtualType).toOrdering
     val min = pInfo.map(_.min).min(kord)
     val max = pInfo.map(_.max).max(kord)
     val samples = pInfo.flatMap(_.samples)

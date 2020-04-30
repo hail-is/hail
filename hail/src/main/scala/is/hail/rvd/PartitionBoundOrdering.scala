@@ -1,15 +1,17 @@
 package is.hail.rvd
 
 import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering}
-import is.hail.expr.types.virtual.TStruct
+import is.hail.expr.types.virtual._
 import is.hail.utils.IntervalEndpoint
 import org.apache.spark.sql.Row
 
 object PartitionBoundOrdering {
-  def apply(kType: TStruct): ExtendedOrdering = {
+  def apply(_kType: Type): ExtendedOrdering = {
+    val kType = _kType.asInstanceOf[TStruct]
     val fieldOrd = kType.types.map(_.ordering)
 
-    new ExtendedOrdering { outer =>
+    new ExtendedOrdering {
+      outer =>
       override def compareNonnull(x: T, y: T): Int = {
         val rx = x.asInstanceOf[Row]
         val ry = y.asInstanceOf[Row]
