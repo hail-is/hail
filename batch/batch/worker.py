@@ -30,7 +30,7 @@ from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes, \
     adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes
 from .semaphore import FIFOWeightedSemaphore
 from .log_store import LogStore
-from .globals import HTTP_CLIENT_MAX_SIZE
+from .globals import HTTP_CLIENT_MAX_SIZE, INSTANCE_VERSION
 from .batch_format_version import BatchFormatVersion
 
 # uvloop.install()
@@ -348,18 +348,17 @@ class Container:
                 self.container = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
                     create_container, config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
-            async with self.step('runtime', state=None):
-                async with self.step('starting'):
-                    await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-                        start_container, self.container)
+            async with self.step('starting'):
+                await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
+                    start_container, self.container)
 
-                timed_out = False
-                async with self.step('running'):
-                    try:
-                        async with async_timeout.timeout(self.timeout):
-                            await docker_call_retry(MAX_DOCKER_WAIT_SECS, f'{self}')(self.container.wait)
-                    except asyncio.TimeoutError:
-                        timed_out = True
+            timed_out = False
+            async with self.step('running'):
+                try:
+                    async with async_timeout.timeout(self.timeout):
+                        await docker_call_retry(MAX_DOCKER_WAIT_SECS, f'{self}')(self.container.wait)
+                except asyncio.TimeoutError:
+                    timed_out = True
 
             self.container_status = await self.get_container_status()
             log.info(f'{self}: container status {self.container_status}')
@@ -681,6 +680,7 @@ class Job:
             await c.delete()
 
     # {
+    #   version: int,
     #   worker: str,
     #   batch_id: int,
     #   job_id: int,
@@ -695,6 +695,7 @@ class Job:
     # }
     async def status(self):
         status = {
+            'version': INSTANCE_VERSION,
             'worker': NAME,
             'batch_id': self.batch_id,
             'job_id': self.job_spec['job_id'],
@@ -890,6 +891,7 @@ class Worker:
         db_status = job.format_version.db_status(full_status)
 
         status = {
+            'version': full_status['version'],
             'batch_id': full_status['batch_id'],
             'job_id': full_status['job_id'],
             'attempt_id': full_status['attempt_id'],
@@ -950,6 +952,7 @@ class Worker:
         full_status = await job.status()
 
         status = {
+            'version': full_status['version'],
             'batch_id': full_status['batch_id'],
             'job_id': full_status['job_id'],
             'attempt_id': full_status['attempt_id'],
