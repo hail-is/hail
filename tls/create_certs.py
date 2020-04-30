@@ -1,6 +1,4 @@
 import argparse
-import base64
-import os
 import json
 import yaml
 import shutil
