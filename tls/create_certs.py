@@ -57,6 +57,7 @@ def create_key_and_cert(p):
         # https://security.stackexchange.com/questions/150078/missing-x509-extensions-with-an-openssl-generated-certificate
         extfile.write(f'[v3_ca]')
         extfile.write(f'subjectAltName = {",".join("DNS:" + n for n in names)}\n')
+        extfile.flush()
         echo_check_call([
             'openssl', 'x509',
             '-req',
