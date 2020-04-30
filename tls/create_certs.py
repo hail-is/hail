@@ -50,7 +50,7 @@ def create_key_and_cert(p):
         '-key', key_file,
         '-out', csr_file
     ])
-    with tempfile.NamedTemporaryFile() as extfile:
+    with tempfile.NamedTemporaryFile(mode='w') as extfile:
         # this whole extfile nonsense is because OpenSSL has known, unfixed bugs
         # in the x509 command. These really ought to be in the CSR.
         # https://www.openssl.org/docs/man1.1.0/man1/x509.html#BUGS
