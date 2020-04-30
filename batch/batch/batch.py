@@ -6,7 +6,7 @@ import base64
 import traceback
 from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error
 
-from .globals import complete_states, tasks
+from .globals import complete_states, tasks, STATUS_FORMAT_VERSION
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
 from .utils import cost_from_msec_mcpu
@@ -377,6 +377,7 @@ async def schedule_job(app, record, instance):
         except Exception:
             log.exception('while making job config')
             status = {
+                'version': STATUS_FORMAT_VERSION,
                 'worker': None,
                 'batch_id': batch_id,
                 'job_id': job_id,

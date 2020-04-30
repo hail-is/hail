@@ -73,8 +73,20 @@ class BatchFormatVersion:
             return status
 
         job_status = {'status': status}
-        return [Job.exit_code(job_status),
-                Job.total_duration_msecs(job_status)]
+        ec = Job.exit_code(job_status)
+
+        status_version = status.get('version', 1)
+        if status_version == 1:
+            duration = Job.total_duration_msecs(job_status)
+        else:
+            start_time = status.get('start_time')
+            end_time = status.get('end_time')
+            if start_time and end_time:
+                duration = end_time - start_time
+            else:
+                duration = None
+
+        return [ec, duration]
 
     def get_status_exit_code_duration(self, status):
         if self.format_version == 1:
