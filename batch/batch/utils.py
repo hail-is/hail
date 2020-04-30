@@ -99,6 +99,12 @@ def adjust_cores_for_memory_request(cores_in_mcpu, memory_in_bytes, worker_type)
     return max(cores_in_mcpu, min_cores_mcpu)
 
 
+def adjust_cores_for_packability(cores_in_mcpu):
+    assert cores_in_mcpu != 0
+    power = max(-2, math.ceil(math.log2(cores_in_mcpu / 1000)))
+    return 2**power * 1000
+
+
 image_regex = re.compile(r"(?:.+/)?([^:]+)(:(.+))?")
 
 
