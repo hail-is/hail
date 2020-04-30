@@ -9,7 +9,8 @@ REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
-SPARK_VERSION := 2.4.0
+SCALA_VERSION = 2.11.12
+SPARK_VERSION := 2.4.5
 HAIL_MAJOR_MINOR_VERSION := 0.2
 HAIL_PATCH_VERSION := 39
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
@@ -46,7 +47,7 @@ WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
 
-GRADLE_ARGS += -Dspark.version=$(SPARK_VERSION) -Dpy4j.version$(PY4J_VERSION)
+GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION)
 
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
