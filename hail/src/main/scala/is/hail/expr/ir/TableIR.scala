@@ -109,7 +109,7 @@ case class LoweredTableReader(
   globals: IR,
   partitioner: RVDPartitioner,
   contexts: IR,
-  body: IR)
+  body: (IR) => IR)
 
 abstract class TableReader {
   def pathsUsed: Seq[String]
@@ -124,7 +124,8 @@ abstract class TableReader {
     Extraction.decompose(this)(TableReader.formats)
   }
 
-  def lower(t: TableType): LoweredTableReader = throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lowerer not implemented")
+  def lower(ctx: ExecuteContext, requestedType: TableType): LoweredTableReader =
+    throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lowerer not implemented")
 }
 
 object TableNativeReader {
@@ -193,6 +194,8 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends Partition
       SizedStream.unsized(stream)
     }
   }
+
+  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
 case class TableNativeReaderParameters(
@@ -243,7 +246,7 @@ class TableNativeReader(
     case _ => false
   }
 
-  override def lower(t: TableType): LoweredTableReader = {
+  override def lower(ctx: ExecuteContext, t: TableType): LoweredTableReader = {
     val gType = t.globalType
     val rowType = t.rowType
 
@@ -263,7 +266,7 @@ class TableNativeReader(
     val ctxType = TStruct("path" -> TString)
     val contexts = MakeStream(rowsSpec.absolutePartPaths(rowsPath).map(partPath => MakeStruct(FastIndexedSeq("path" -> Str(partPath)))), TStream(ctxType))
 
-    val body = ReadPartition(GetField(Ref("context", ctxType), "path"), rowType, PartitionNativeReader(rSpec))
+    val body = (ctx: IR) => ReadPartition(GetField(ctx, "path"), rowType, PartitionNativeReader(rSpec))
 
     LoweredTableReader(
       globals,

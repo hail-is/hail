@@ -10,7 +10,7 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.utils.{FastIndexedSeq, _}
-import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
+import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
 
 import scala.language.existentials
 
@@ -85,7 +85,6 @@ object Literal {
 final case class Literal(_typ: Type, value: Annotation) extends IR {
   require(!CanEmit(_typ))
   require(value != null)
-  // require(_typ.typeCheck(value))
 }
 
 final case class I32(x: Int) extends IR
@@ -502,6 +501,8 @@ abstract class PartitionReader {
     region: Value[Region],
     env0: Emit.E,
     container: Option[AggContainer]): COption[SizedStream]
+
+  def toJValue: JValue
 }
 
 final case class ReadPartition(context: IR, rowType: Type, reader: PartitionReader) extends IR
