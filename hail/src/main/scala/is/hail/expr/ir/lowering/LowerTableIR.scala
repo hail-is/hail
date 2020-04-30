@@ -14,6 +14,24 @@ case class ShuffledStage(child: TableStage)
 
 case class Binding(name: String, value: IR)
 
+object TableStage {
+  def apply(
+    globals: IR,
+    partitioner: RVDPartitioner,
+    contexts: IR,
+    body: (IR) => IR): TableStage = {
+    val globalsID = genUID()
+    new TableStage(
+      FastIndexedSeq(globalsID -> globals),
+      Set(globalsID),
+      Ref(globalsID, globals.typ),
+      partitioner,
+      contexts) {
+      def partition(ctxRef: Ref): IR = body(ctxRef)
+    }
+  }
+}
+
 abstract class TableStage(
   val letBindings: IndexedSeq[(String, IR)],
   val broadcastVals: Set[String],
@@ -145,29 +163,19 @@ object LowerTableIR {
         throw new LowererUnsupportedOperation("found TableIR in lowering; lowering only BlockMatrixIRs.")
       tir match {
         case TableRead(typ, dropRows, reader) =>
-          val lowered = reader.lower(ctx, typ)
-          val globalsID = genUID()
-
           if (dropRows) {
+            val globals = reader.lowerGlobals(ctx, typ.globalType)
+            val globalsID = genUID()
             new TableStage(
-              FastIndexedSeq(globalsID -> lowered.globals),
+              FastIndexedSeq(globalsID -> globals),
               Set(globalsID),
-              Ref(globalsID, lowered.globals.typ),
+              Ref(globalsID, globals.typ),
               RVDPartitioner.empty(typ.keyType),
               MakeStream(FastIndexedSeq(), TStream(TStruct.empty))) {
               def partition(ctxRef: Ref): IR = MakeStream(FastIndexedSeq(), TStream(typ.rowType))
             }
-          } else {
-            new TableStage(
-              FastIndexedSeq(globalsID -> lowered.globals),
-              Set(globalsID),
-              Ref(globalsID, lowered.globals.typ),
-              lowered.partitioner,
-              lowered.contexts) {
-              def partition(ctxRef: Ref): IR = lowered.body(ctxRef)
-            }
-          }
-
+          } else
+            reader.lower(ctx, typ)
 
         case TableParallelize(rowsAndGlobal, nPartitions) =>
           val nPartitionsAdj = nPartitions.getOrElse(16)

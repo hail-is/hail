@@ -5,10 +5,11 @@ import is.hail.annotations.{BroadcastRow, Region, UnsafeRow}
 import is.hail.asm4s.{Code, Value}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.EmitStream.SizedStream
+import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.types.TableType
 import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual.{TArray, TStruct, Type}
-import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
+import is.hail.rvd.{RVD, RVDCoercer, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.rdd.RDD
@@ -84,38 +85,104 @@ class GenericTableValueRDD(
   }
 }
 
+abstract class LoweredTableReaderCoercer {
+  def coerce(globals: IR,
+    contextType: Type,
+    contexts: IndexedSeq[Any],
+    body: IR => IR): TableStage
+}
+
 class GenericTableValue(
-  val t: TableType,
-  val partitioner: RVDPartitioner,
+  val fullTableType: TableType,
+  val partitioner: Option[RVDPartitioner],
   val globals: TStruct => Row,
   val contextType: Type,
-  val contexts: IndexedSeq[Any],
+  var contexts: IndexedSeq[Any],
   val bodyPType: TStruct => PStruct,
   val body: TStruct => (Region, Any) => Iterator[Long]) {
 
-  def toLoweredTableValue(requestedType: TableType): LoweredTableReader = {
-    LoweredTableReader(
-      Literal(requestedType.globalType, globals(requestedType.globalType)),
-      partitioner,
-      ToStream(Literal(TArray(contextType), contexts)),
-      (ctx: IR) => ReadPartition(ctx,
-        requestedType.rowType,
-        new PartitionIteratorLongReader(
-          t.rowType, contextType,
-          (requestedType: Type) => bodyPType(requestedType.asInstanceOf[TStruct]),
-          (requestedType: Type) => body(requestedType.asInstanceOf[TStruct]))))
+  var ltrCoercer: LoweredTableReaderCoercer = _
+  def getLTVCoercer(ctx: ExecuteContext): LoweredTableReaderCoercer = {
+    if (ltrCoercer == null) {
+      ltrCoercer = LoweredTableReader.makeCoercer(
+        ctx,
+        fullTableType.key,
+        1,
+        contextType,
+        contexts,
+        fullTableType.keyType,
+        bodyPType,
+        body)
+    }
+    ltrCoercer
+  }
+
+  def toTableStage(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+    val globalsIR = Literal(requestedType.globalType, globals(requestedType.globalType))
+    val requestedBody: (IR) => (IR) = (ctx: IR) => ReadPartition(ctx,
+      requestedType.rowType,
+      new PartitionIteratorLongReader(
+        fullTableType.rowType, contextType,
+        (requestedType: Type) => bodyPType(requestedType.asInstanceOf[TStruct]),
+        (requestedType: Type) => body(requestedType.asInstanceOf[TStruct])))
+    var p: RVDPartitioner = null
+    partitioner match {
+      case Some(partitioner) =>
+        p = partitioner
+      case None if requestedType.key.isEmpty =>
+        p = RVDPartitioner.unkeyed(contexts.length)
+      case None =>
+    }
+    if (p != null) {
+      val contextsIR = ToStream(Literal(TArray(contextType), contexts))
+      TableStage(globalsIR, p, contextsIR, requestedBody)
+    } else {
+      getLTVCoercer(ctx).coerce(
+        globalsIR,
+        contextType, contexts,
+        requestedBody)
+    }
   }
 
   def toContextRDD(requestedRowType: TStruct): ContextRDD[Long] =
     ContextRDD(new GenericTableValueRDD(contexts, body(requestedRowType)))
 
+  private[this] var rvdCoercer: RVDCoercer = _
+
+  def getRVDCoercer(ctx: ExecuteContext): RVDCoercer = {
+    if (rvdCoercer == null) {
+      rvdCoercer = RVD.makeCoercer(
+        ctx,
+        RVDType(bodyPType(fullTableType.rowType), fullTableType.key),
+        1,
+        toContextRDD(fullTableType.keyType))
+    }
+    rvdCoercer
+  }
+
   def toTableValue(ctx: ExecuteContext, requestedType: TableType): TableValue = {
+    val requestedRowType = requestedType.rowType
+    val requestedRowPType = bodyPType(requestedType.rowType)
+    val crdd = toContextRDD(requestedRowType)
+
+    val rvd = partitioner match {
+      case Some(partitioner) =>
+        RVD(
+          RVDType(requestedRowPType, fullTableType.key),
+          partitioner,
+          crdd)
+      case None if requestedType.key.isEmpty =>
+        RVD(
+          RVDType(requestedRowPType, fullTableType.key),
+          RVDPartitioner.unkeyed(contexts.length),
+          crdd)
+      case None =>
+        getRVDCoercer(ctx).coerce(RVDType(requestedRowPType, fullTableType.key), crdd)
+    }
+
     TableValue(ctx,
       requestedType,
       BroadcastRow(ctx, globals(requestedType.globalType), requestedType.globalType),
-      RVD(
-        RVDType(bodyPType(requestedType.rowType), t.key),
-        partitioner,
-        toContextRDD(requestedType.rowType)))
+      rvd)
   }
 }

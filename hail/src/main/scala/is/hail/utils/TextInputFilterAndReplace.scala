@@ -15,4 +15,23 @@ case class TextInputFilterAndReplace(filterPattern: Option[String] = None, findP
       iter = iter.map(c => c.map(_.replaceAll(find, replace)))
     iter
   }
+
+  def transformer(): String => String = {
+    if (fpRegex != null && find != null) {
+      (s: String) =>
+        if (fpRegex.findFirstIn(s).isEmpty)
+          null
+        else
+          s.replaceAll(find, replace)
+    } else if (fpRegex != null) {
+      (s: String) =>
+        if (fpRegex.findFirstIn(s).isEmpty)
+          s
+        else
+          null
+    } else if (find != null) {
+      (s: String) => s.replaceAll(find, replace)
+    } else
+      (s: String) => s
+  }
 }

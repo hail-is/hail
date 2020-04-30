@@ -1024,8 +1024,8 @@ class Emit[C](
         val vab = new StagedArrayBuilder(atyp.elementType, mb, 0)
         val sorter = new ArraySorter(EmitRegion(mb, region), vab)
 
-        val (array, compare, distinct, leftRightComparatorNames: Array[String]) = (x: @unchecked) match {
-          case ArraySort(a, l, r, comp) => (a, comp, Code._empty, Array(l, r))
+        val (array, lessThan, distinct, leftRightComparatorNames: Array[String]) = (x: @unchecked) match {
+          case ArraySort(a, l, r, lessThan) => (a, lessThan, Code._empty, Array(l, r))
           case ToSet(a) =>
             val discardNext = mb.genEmitMethod("discardNext",
               FastIndexedSeq[ParamType](typeInfo[Region], atyp.elementType, atyp.elementType), typeInfo[Boolean])
@@ -1033,9 +1033,9 @@ class Emit[C](
             InferPType(cmp2, Env.empty)
             val EmitCode(s, m, pv) = emitInMethod(cmp2, discardNext)
             discardNext.emit(Code(s, m || pv.tcode[Boolean]))
-            val compare = ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0
-            InferPType(compare, Env.empty)
-            (a, compare, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
+            val lessThan = ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0
+            InferPType(lessThan, Env.empty)
+            (a, lessThan, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
               EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
                 cb.invokeCode[Boolean](discardNext, r,
                   new EmitCode(Code._empty, m1, PCode(atyp.elementType, v1)),
@@ -1054,6 +1054,7 @@ class Emit[C](
             InferPType(cmp2, Env.empty)
             val EmitCode(s, m, pv) = emitInMethod(cmp2, discardNext)
             discardNext.emit(Code(s, m || pv.tcode[Boolean]))
+<<<<<<< HEAD
             val compare = (ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0).deepCopy()
             InferPType(compare, Env.empty)
             (a, compare, Code(sorter.pruneMissing, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
@@ -1062,15 +1063,23 @@ class Emit[C](
                   new EmitCode(Code._empty, m1, PCode(atyp.elementType, v1)),
                   new EmitCode(Code._empty, m2, PCode(atyp.elementType, v2)))
               }
+=======
+            val lessThan = (ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0).deepCopy()
+            InferPType(lessThan, Env.empty)
+            (a, lessThan, Code(sorter.pruneMissing, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
+              discardNext.invokeCode[Boolean](r,
+                new EmitCode(Code._empty, m1, PCode(atyp.elementType, v1)),
+                new EmitCode(Code._empty, m2, PCode(atyp.elementType, v2)))
+>>>>>>> lower import_vcf
             }), Array.empty[String])
         }
 
         val sort = vab.ti match {
-          case BooleanInfo => sorter.sort(makeDependentSortingFunction[Boolean](region, eltType, compare, env, leftRightComparatorNames))
-          case IntInfo => sorter.sort(makeDependentSortingFunction[Int](region, eltType, compare, env, leftRightComparatorNames))
-          case LongInfo => sorter.sort(makeDependentSortingFunction[Long](region, eltType, compare, env, leftRightComparatorNames))
-          case FloatInfo => sorter.sort(makeDependentSortingFunction[Float](region, eltType, compare, env, leftRightComparatorNames))
-          case DoubleInfo => sorter.sort(makeDependentSortingFunction[Double](region, eltType, compare, env, leftRightComparatorNames))
+          case BooleanInfo => sorter.sort(makeDependentSortingFunction[Boolean](region, eltType, lessThan, env, leftRightComparatorNames))
+          case IntInfo => sorter.sort(makeDependentSortingFunction[Int](region, eltType, lessThan, env, leftRightComparatorNames))
+          case LongInfo => sorter.sort(makeDependentSortingFunction[Long](region, eltType, lessThan, env, leftRightComparatorNames))
+          case FloatInfo => sorter.sort(makeDependentSortingFunction[Float](region, eltType, lessThan, env, leftRightComparatorNames))
+          case DoubleInfo => sorter.sort(makeDependentSortingFunction[Double](region, eltType, lessThan, env, leftRightComparatorNames))
         }
 
         val optStream = emitStream(array)

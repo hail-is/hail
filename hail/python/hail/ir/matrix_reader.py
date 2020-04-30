@@ -94,6 +94,8 @@ class MatrixVCFReader(MatrixReader):
                       call_fields=oneof(str, sequenceof(str)),
                       entry_float_type=enumeration(tfloat32, tfloat64),
                       header_file=nullable(str),
+                      n_partitions=nullable(int),
+                      block_size=nullable(int),
                       min_partitions=nullable(int),
                       reference_genome=nullable(reference_genome_type),
                       contig_recoding=nullable(dictof(str, str)),
@@ -109,6 +111,8 @@ class MatrixVCFReader(MatrixReader):
                  call_fields,
                  entry_float_type,
                  header_file,
+                 n_partitions,
+                 block_size,
                  min_partitions,
                  reference_genome,
                  contig_recoding,
@@ -121,6 +125,8 @@ class MatrixVCFReader(MatrixReader):
                  _partitions_json):
         self.path = wrap_to_list(path)
         self.header_file = header_file
+        self.n_partitions = n_partitions
+        self.block_size = block_size
         self.min_partitions = min_partitions
         self.call_fields = wrap_to_list(call_fields)
         self.entry_float_type = entry_float_type._parsable_string()
@@ -140,6 +146,8 @@ class MatrixVCFReader(MatrixReader):
                   'callFields': self.call_fields,
                   'entryFloatTypeName': self.entry_float_type,
                   'headerFile': self.header_file,
+                  'nPartitions': self.n_partitions,
+                  'blockSizeInMB': self.block_size,
                   'minPartitions': self.min_partitions,
                   'rg': self.reference_genome.name if self.reference_genome else None,
                   'contigRecoding': self.contig_recoding if self.contig_recoding else {},
