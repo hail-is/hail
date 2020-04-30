@@ -414,21 +414,31 @@ pre code {
 .button:focus {
   outline: none;
 }
-
-/*rgba(40, 56, 112, 0.3); is 283870 with opacity .3*/
-
 .about {
   display: flex;
   flex-direction: column;
   padding: 75px 50px;
-  border-bottom: 2px solid #444;
 }
 
-/* .about-content {
-  padding: 0px 50px;
-  flex-direction: column;
+.about-content.columns {
   display: flex;
-} */
+  align-content: center;
+  justify-content: flex-start;
+  /* padding: 15px; */
+}
+
+.about-content.columns > section {
+  justify-content: flex-start;
+}
+
+.about-content.columns p {
+  margin: 0px;
+    align-self: flex-start;
+}
+
+.about-content.columns > section:nth-child(2n) {
+  margin: 0px 100px;
+}
 
 .about-content p:first-child {
   margin-top: 0px;
@@ -439,54 +449,52 @@ pre code {
   margin-bottom: 0px;
 }
 
+.about.dark .about-content h4 {
+  display: table;
+    margin-top: 0px;
+    position: float!important;
+    padding-bottom: 5px;
+    color: #fff
+    /* border-bottom: 1px solid white; */
+}
 .about a {
   font-weight: 500;
 }
-
 .about.dark {
-  /* border: 50px solid rgba(255, 255, 255, .5);; */
-  color: #fff;
-  background-color: rgba(40, 56, 112, 0.95);
-  border: none;
-}
-
-.header-wrap {
-  /* padding-left: 20px; */
+  background-color: #2a3a8c;
+  /* border-top: 10px solid #2a3a8c; */
   position: relative;
-  margin-bottom: 50px;
-}
-
-/* .header-wrap:after {
-  margin: auto;
-  content: "";
-  position: absolute;
-  width: 100px;
-  bottom: -10px;
-  height: 2px;
-  left: calc(50% - 50px);
-  background: #444;
-} */
-
-.header-wrap h1 {
-  font-weight: 500;
-  margin:0px;
-}
-
-.about.dark h1 {
   color: #fff;
-}
-
-
-
-.dark .header-wrap:after {
-  background: #fff;
 }
 
 .about.dark a {
   color: #fff;
 }
 
-/*name because f*** bootstrap has a .rounded*/
+.about.dark a.button {
+  color: #444;
+}
+
+.about.dark a.button:hover {
+  color: #fff;
+}
+
+.header-wrap {
+  position: relative;
+  margin-bottom: 50px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.header-wrap h1 {
+  align-self: flex-start;
+  font-weight: 500;
+  margin: 0px;
+}
+
+.dark .header-wrap > * {
+  color: #fff;
+}
 
 img.rounded-image {
   background-color: #ffffff;

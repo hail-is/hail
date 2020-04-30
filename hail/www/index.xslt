@@ -10,68 +10,83 @@
         <div id="hero">
             <div id="hero-background"></div>
             <div id="hero-content">
-                <h1 id='logo-title'>Powering biobank-scale genetics</h1>
-                <subtitle id="logo-subtitle">An open-source language for bioinformatics that unifies your data</subtitle>
-                <div style="display: flex;" id="hero-button-container">
-                    <a class="button" href='/docs/0.2'>Learn</a>
-                    <a class="button" href='https://hail.zulipchat.com' target='_blank'>Chat with us</a>
-                </div>
+            <h1 id="logo-title">Powering biobank-scale genomics</h1>
+            <subtitle id="logo-subtitle">An open-source library for efficient genomic data exploration</subtitle>
+            <div style="display: flex;" id="hero-button-container">
+                <a class="button" href="/docs/0.2">Learn</a><a class="button" href="https://hail.zulipchat.com"
+                target="_blank">Chat with us</a>
+            </div>
             </div>
         </div>
         <div id="about" class="about dark">
-            <div class="header-wrap">
-                <h1>About</h1>
+            <div class="header-wrap" styel='justify-content: space-between'>
+            <h1>Features</h1>
+            <!-- <a class="button" href="#" target="_blank" style='align-self: flex-end;'>Learn More ></a> -->
+
             </div>
-            <div class="about-content">
-                <p> Hail is an open-source library that allows for the efficient exploration of genomic data.
-                    It can be used to interrogate <b>biobank-scale</b> genomic data (e.g
-                    UK Biobank, TopMed, FinnGen, and Biobank Japan).
-                </p>
-                <p> The modern data science stack is driven by table-like data structures, often called dataframes (see <a href='https://pandas.pydata.org'>Pandas</a>).
-                    While convenient, dataframes don't scale to the sizes needed for genetics. Hail remedies this, introducing a new, scalable dataframe-like structure called <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>.
-                </p>
+            <div class="about-content columns">
+            <section>
+                <h4>Explore Biobank Scale Data</h4>
                 <p>
-                    The Hail MatrixTable enables the unification of data across a wide range of input formats (e.g. vcf, bgen, tsv, gtf, bed files), and supports efficient queries, even on petabyte-scale datasets. By leveraging MatrixTable, Hail provides a unified, scalable analysis platform for science.
+                Hail is an open-source library that allows for the efficient exploration of genomic data.
+                It can be used to interrogate <b>biobank-scale</b> genomic data (e.g
+                UK Biobank, TopMed, FinnGen, and Biobank Japan).
                 </p>
+            </section>
+            <section>
+                <h4>Modern Data Scaling</h4>
+                The modern data science stack is driven by table-like data structures, often called dataframes (see <a
+                href="https://pandas.pydata.org">Pandas</a>).
+                While convenient, dataframes don't scale to the sizes needed for genetics. Hail remedies this,
+                introducing a new, scalable dataframe-like structure called <a
+                href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>.
+            </section>
+            <section>
+                <h4>Unified Input Formats</h4>
+                The Hail MatrixTable enables the unification of data across a wide range of input formats (e.g. vcf,
+                bgen, tsv, gtf, bed files), and supports efficient queries, even on petabyte-scale datasets. By
+                leveraging MatrixTable, Hail provides a unified, scalable analysis platform for science.
+            </section>
             </div>
         </div>
         <div class="about">
             <div class="header-wrap">
-                <h1>Acknowledgments</h1>
+            <h1>Acknowledgments</h1>
             </div>
             <div class="about-content">
-                <p>The Hail team has several sources of funding at the Broad Institute:</p>
-                <ul>
-                    <li>
-                        The Stanley Center for Psychiatric Research, which together with
-                        Neale Lab has provided an incredibly supportive and stimulating
-                        home.
-                    </li>
-                    <li>
-                        Principal Investigators Benjamin Neale and Daniel MacArthur, whose
-                        scientific leadership has been essential for solving the right
-                        problems.
-                    </li>
-                    <li>
-                        Jeremy Wertheimer, whose strategic advice and generous
-                        philanthropy have been essential for growing the impact of Hail.
-                    </li>
-                </ul>
-                <p>We are grateful for generous support from:</p>
-                <ul>
-                    <li>
-                        The National Institute of Diabetes and Digestive and Kidney
-                        Diseases
-                    </li>
-                    <li>The National Institute of Mental Health</li>
-                    <li>The National Human Genome Research Institute</li>
-                    <li>The Chan Zuckerburg Initiative</li>
-                </ul>
-                <p>We would like to thank 
-                    <a href='https://zulipchat.com/' target='_blank'>Zulip</a> for supporting open-source
-                    by providing free hosting, and YourKit, LLC for generously providing free licenses for 
-                    <a href='https://www.yourkit.com/java/profiler/'>YourKit Java Profiler</a> for open-source development.
-                </p>
+            <p>The Hail team has several sources of funding at the Broad Institute:</p>
+            <ul>
+                <li>
+                The Stanley Center for Psychiatric Research, which together with
+                Neale Lab has provided an incredibly supportive and stimulating
+                home.
+                </li>
+                <li>
+                Principal Investigators Benjamin Neale and Daniel MacArthur, whose
+                scientific leadership has been essential for solving the right
+                problems.
+                </li>
+                <li>
+                Jeremy Wertheimer, whose strategic advice and generous
+                philanthropy have been essential for growing the impact of Hail.
+                </li>
+            </ul>
+            <p>We are grateful for generous support from:</p>
+            <ul>
+                <li>
+                The National Institute of Diabetes and Digestive and Kidney
+                Diseases
+                </li>
+                <li>The National Institute of Mental Health</li>
+                <li>The National Human Genome Research Institute</li>
+                <li>The Chan Zuckerburg Initiative</li>
+            </ul>
+            <p>
+                We would like to thank
+                <a href="https://zulipchat.com/" target="_blank">Zulip</a> for supporting open-source
+                by providing free hosting, and YourKit, LLC for generously providing free licenses for
+                <a href="https://www.yourkit.com/java/profiler/">YourKit Java Profiler</a> for open-source development.
+            </p>
             </div>
         </div>
         <script src="/vendors/vanta/threeR115.min.js"></script>
