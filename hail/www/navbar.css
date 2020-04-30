@@ -167,7 +167,7 @@
 
 @media (min-width: 768px) {
   #hail-navbar #hail-navbar-collapse {
-    display: block!important;
+    display: block;
   }
   #hail-navbar .navbar-right .dropdown-menu {
     left: auto;

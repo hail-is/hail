@@ -370,7 +370,7 @@ pre code {
 #hero {
   width: 100%;
   height: calc(100vh - 50px);
-  min-height: 400px;
+  min-height: 480px;
   display: flex;
   justify-content: center;
   flex-direction: column;
