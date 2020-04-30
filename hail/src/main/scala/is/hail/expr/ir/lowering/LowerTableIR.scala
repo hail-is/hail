@@ -220,10 +220,15 @@ object LowerTableIR {
           val numPartitionsNeeded = bindIR(partitionSizeStage.collect()) { partitionSizeArrayRef =>
             bindIR(ArrayLen(partitionSizeArrayRef)) { numPartitions =>
               val funcName = "howManyParts"
-              TailLoop(funcName, FastIndexedSeq("i" -> In(0, TInt32), "acc" -> In(1, TInt64)),
-                If( (Ref("i", TInt32) ceq numPartitions) || (Ref("acc", TInt64) >= targetNumRows) ,
-                  Ref("i", TInt32),
-                  Recur(funcName, FastIndexedSeq(Ref("i", TInt32) + 1, Ref("acc", TInt64) + Cast(ArrayRef(partitionSizeArrayRef, Ref("i", TInt32)), TInt64)), TInt32)
+              val i: IR = Ref("i", TInt32)
+              val acc: IR = Ref("acc", TInt64)
+              TailLoop(funcName,
+                FastIndexedSeq("i" -> 0, "acc" -> 0L),
+                If( (i ceq numPartitions) || (acc >= targetNumRows) ,
+                  i,
+                  Recur(funcName,
+                    FastIndexedSeq(i + 1, acc + Cast(ArrayRef(partitionSizeArrayRef, i), TInt64)),
+                    TInt32)
                 )
               )
             }

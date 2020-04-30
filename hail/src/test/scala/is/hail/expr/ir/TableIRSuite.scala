@@ -408,12 +408,14 @@ class TableIRSuite extends HailSuite {
     }
     val value = makeData(10)
     val howManyRowsToTake = 4
+    val howManyInitialPartitions = 1
     val headdedValue = makeData(howManyRowsToTake)
     assertEvalsTo(
       collectNoKey(
         TableHead(
           TableParallelize(
-            Literal(t, value)
+            Literal(t, value),
+            Some(howManyInitialPartitions)
           ),
           howManyRowsToTake
         )
