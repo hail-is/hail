@@ -23,7 +23,7 @@ then
     exit 0
 fi
 
-if [ -e $WHEEL ]
+if [ ! -f $WHEEL ]
 then
     echo "wheel not found at $WHEEL"
     exit 1
