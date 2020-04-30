@@ -34,12 +34,16 @@ def create_key_and_cert(p):
         f'{domain}.{namespace}',
         f'{domain}.{namespace}.svc.cluster.local'
     ]
-    sp.check_call([
+
+    def echo_check_call(cmd):
+        print(" ".join(cmd))
+        sp.check_call(cmd)
+    echo_check_call([
         'openssl', 'genrsa',
         '-out', key_file,
         '4096'
     ])
-    sp.check_call([
+    echo_check_call([
         'openssl', 'req',
         '-new',
         '-subj', f'/CN={names[0]}',
@@ -47,7 +51,7 @@ def create_key_and_cert(p):
         '-key', key_file,
         '-out', csr_file
     ])
-    sp.check_call([
+    echo_check_call([
         'openssl', 'x509',
         '-req',
         '-in', csr_file,
