@@ -98,7 +98,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
 
   def createState(cb: EmitClassBuilder[_]): State = new CallStatsState(cb)
 
-  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
     val Array(nAlleles) = init
     val addr = state.cb.genFieldThisRef[Long]()
     val n = state.cb.genFieldThisRef[Int]()
@@ -127,7 +127,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
     ))
   }
 
-  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
     val Array(call) = seq
     assert(t == call.pv.pt)
 
@@ -158,7 +158,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
       mb.invokeCode(call.v)))
   }
 
-  def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
+  protected def _combOp(state: State, other: State): Code[Unit] = {
     val i = state.cb.genFieldThisRef[Int]()
     Code(
       other.nAlleles.cne(state.nAlleles).orEmpty(Code._fatal[Unit]("length mismatch")),
@@ -172,7 +172,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
   }
 
 
-  def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
+  protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] = {
     val alleleNumber = state.cb.genFieldThisRef[Int]()
     val i = state.cb.genFieldThisRef[Int]()
     val x = state.cb.genFieldThisRef[Int]()

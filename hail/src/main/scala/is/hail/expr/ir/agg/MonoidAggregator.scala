@@ -23,7 +23,7 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   def createState(cb: EmitClassBuilder[_]): State =
     new PrimitiveRVAState(Array(typ.setRequired(monoid.neutral.isDefined)), cb)
 
-  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
     assert(init.length == 0)
     val (mOpt, v, _) = state.fields(0)
     (mOpt, monoid.neutral) match {
@@ -32,7 +32,7 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     }
   }
 
-  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
     val Array(elt) = seq
     val (mOpt, v, _) = state.fields(0)
     val eltm = state.cb.genFieldThisRef[Boolean]()
@@ -44,13 +44,13 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     )
   }
 
-  def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
+  protected def _combOp(state: State, other: State): Code[Unit] = {
     val (m1, v1, _) = state.fields(0)
     val (m2, v2, _) = other.fields(0)
     combine(m1, v1, m2.map(_.load), v2.load)
   }
 
-  def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
+  protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] = {
     val (mOpt, v, _) = state.fields(0)
     mOpt match {
       case None => srvb.addIRIntermediate(typ)(v)

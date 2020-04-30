@@ -248,21 +248,21 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
 
   def createState(cb: EmitClassBuilder[_]): State = new DictState(cb, kt, StateTuple(nestedAggs.map(_.createState(cb))))
 
-  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
     val Array(inits) = init
     state.init(inits.setup)
   }
 
-  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
     val Array(key, seqs) = seq
     Code(key.setup, state.withContainer(key.m, key.v, seqs.setup))
   }
 
-  def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
+  protected def _combOp(state: State, other: State): Code[Unit] = {
     state.combine(other, state.nested.toCode(state.cb, "grouped_nested_comb", (i, s) => nestedAggs(i).combOp(s, other.nested(i))))
   }
 
-  def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
+  protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] =
     srvb.addArray(resultType.arrayFundamentalType, sab =>
       Code(
         sab.start(state.size),

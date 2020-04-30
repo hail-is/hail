@@ -113,7 +113,7 @@ class ApproxCDFAggregator extends StagedAggregator {
 
   def createState(cb: EmitClassBuilder[_]): State = new ApproxCDFState(cb)
 
-  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
     val Array(k) = init
     Code(
       k.setup,
@@ -123,7 +123,7 @@ class ApproxCDFAggregator extends StagedAggregator {
       ))
   }
 
-  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
     val Array(x) = seq
     Code(
       x.setup,
@@ -133,12 +133,12 @@ class ApproxCDFAggregator extends StagedAggregator {
       ))
   }
 
-  def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
+  protected def _combOp(state: State, other: State): Code[Unit] = {
     state.comb(other)
   }
 
 
-  def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
+  protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] = {
     state.result(srvb)
   }
 }

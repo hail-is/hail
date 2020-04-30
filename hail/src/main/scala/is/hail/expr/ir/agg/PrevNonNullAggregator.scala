@@ -14,12 +14,12 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
   def createState(cb: EmitClassBuilder[_]): State =
     new TypedRegionBackedAggState(typ.setRequired(false), cb)
 
-  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
     assert(init.length == 0)
     state.storeMissing()
   }
 
-  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
     val Array(elt: EmitCode) = seq
     val v = state.cb.genFieldThisRef()(typeToTypeInfo(typ))
     Code(
@@ -29,7 +29,7 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
     )
   }
 
-  def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
+  protected def _combOp(state: State, other: State): Code[Unit] = {
     val t = other.get()
     val v = state.cb.genFieldThisRef()(typeToTypeInfo(typ))
     Code(
@@ -38,7 +38,7 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
         Code(v := t.value, state.storeNonmissing(v))))
   }
 
-  def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
+  protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] = {
     val t = state.get()
     Code(
       t.setup,

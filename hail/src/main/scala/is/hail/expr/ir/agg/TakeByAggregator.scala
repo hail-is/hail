@@ -417,7 +417,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     }
   }
 
-  def combine(other: TakeByRVAS, dummy: Boolean): Code[Unit] = {
+  def combine(other: TakeByRVAS): Code[Unit] = {
     val mb = cb.genEmitMethod("take_by_combop", FastIndexedSeq[ParamType](), UnitInfo)
 
     val i = mb.newLocal[Int]("combine_i")
@@ -577,7 +577,7 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
   def createState(fb: EmitClassBuilder[_]): State =
     new TakeByRVAS(valueType, keyType, resultType, fb)
 
-  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
     assert(init.length == 1)
     val Array(sizeTriplet) = init
     Code(
@@ -587,7 +587,7 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
     )
   }
 
-  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
     val Array(value: EmitCode, key: EmitCode) = seq
     assert(value.pv.pt == valueType)
     assert(key.pv.pt == keyType)
@@ -598,8 +598,8 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
     )
   }
 
-  def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = state.combine(other, dummy)
+  protected def _combOp(state: State, other: State): Code[Unit] = state.combine(other)
 
-  def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
+  protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] =
     srvb.addIRIntermediate(resultType)(state.result(srvb.region, resultType))
 }

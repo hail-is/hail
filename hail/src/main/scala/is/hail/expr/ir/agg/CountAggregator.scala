@@ -12,27 +12,26 @@ object CountAggregator extends StagedAggregator {
 
   def createState(cb: EmitClassBuilder[_]): State = new PrimitiveRVAState(Array(PInt64(true)), cb)
 
-  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
     assert(init.length == 0)
     val (_, v, _) = state.fields(0)
     v.storeAny(0L)
   }
 
-  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
     assert(seq.length == 0)
     val (_, v, _) = state.fields(0)
     v.storeAny(coerce[Long](v) + 1L)
   }
 
-  def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
+  protected def _combOp(state: State, other: State): Code[Unit] = {
     val (_, v1, _) = state.fields(0)
     val (_, v2, _) = other.fields(0)
     v1.storeAny(coerce[Long](v1) + coerce[Long](v2))
   }
 
-  def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
+  protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] = {
     val (_, v, _) = state.fields(0)
     srvb.addLong(coerce[Long](v))
   }
 }
-

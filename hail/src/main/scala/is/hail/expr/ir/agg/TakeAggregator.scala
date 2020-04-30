@@ -75,7 +75,7 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val cb: EmitClassBuil
     )
   }
 
-  def combine(other: TakeRVAS, dummy: Boolean): Code[Unit] = {
+  def combine(other: TakeRVAS): Code[Unit] = {
     val j = cb.genFieldThisRef[Int]()
     val (eltJMissing, eltJ) = other.builder.loadElement(j)
 
@@ -91,7 +91,7 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val cb: EmitClassBuil
     )
   }
 
-  def result(srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
+  def result(srvb: StagedRegionValueBuilder): Code[Unit] = {
     srvb.addArray(resultType, { rvb =>
       val (eltIMissing, eltOffset) = builder.elementOffset(rvb.arrayIdx)
       Code(
@@ -124,7 +124,7 @@ class TakeAggregator(typ: PType) extends StagedAggregator {
   def createState(fb: EmitClassBuilder[_]): State =
     new TakeRVAS(typ, resultType, fb)
 
-  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
     assert(init.length == 1)
     val Array(sizeTriplet) = init
     Code(
@@ -134,12 +134,12 @@ class TakeAggregator(typ: PType) extends StagedAggregator {
     )
   }
 
-  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
     val Array(elt: EmitCode) = seq
     state.seqOp(elt)
   }
 
-  def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = state.combine(other, dummy)
+  protected def _combOp(state: State, other: State): Code[Unit] = state.combine(other)
 
-  def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = state.result(srvb, dummy)
+  protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] = state.result(srvb)
 }
