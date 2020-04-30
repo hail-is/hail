@@ -20,7 +20,7 @@ abstract class TableStage(
   val partitioner: RVDPartitioner,
   val contexts: IR) {
 
-  def partition (ctxRef: Ref): IR
+  def partition(ctxRef: Ref): IR
 
   def wrapInBindings(body: IR): IR = {
     letBindings.foldRight(body) { case ((name, binding), soFar) => Let(name, binding, soFar) }
@@ -67,24 +67,26 @@ object LowerTableIR {
       tir match {
         case TableRead(typ, dropRows, reader) =>
           val lowered = reader.lower(ctx, typ)
-          val globalRef = genUID()
+          val globalsID = genUID()
 
           if (dropRows) {
-            TableStage(
-              MakeStruct(FastIndexedSeq(globalRef -> lowered.globals)),
-              globalRef,
+            new TableStage(
+              FastIndexedSeq(globalsID -> lowered.globals),
+              Set(globalsID),
+              Ref(globalsID, lowered.globals.typ),
               RVDPartitioner.empty(typ.keyType),
-              TStruct.empty,
-              MakeStream(FastIndexedSeq(), TStream(TStruct.empty)),
-              MakeStream(FastIndexedSeq(), TStream(typ.rowType)))
+              MakeStream(FastIndexedSeq(), TStream(TStruct.empty))) {
+              def partition(ctxRef: Ref): IR = MakeStream(FastIndexedSeq(), TStream(typ.rowType))
+            }
           } else {
-            TableStage(
-              MakeStruct(FastIndexedSeq(globalRef -> lowered.globals)),
-              globalRef,
+            new TableStage(
+              FastIndexedSeq(globalsID -> lowered.globals),
+              Set(globalsID),
+              Ref(globalsID, lowered.globals.typ),
               lowered.partitioner,
-              lowered.contexts.typ.asInstanceOf[TStream].elementType,
-              lowered.contexts,
-              lowered.body)
+              lowered.contexts) {
+              def partition(ctxRef: Ref): IR = lowered.body(ctxRef)
+            }
           }
 
 

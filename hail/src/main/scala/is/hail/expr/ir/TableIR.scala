@@ -109,7 +109,7 @@ case class LoweredTableReader(
   globals: IR,
   partitioner: RVDPartitioner,
   contexts: IR,
-  body: IR)
+  body: (IR) => IR)
 
 abstract class TableReader {
   def pathsUsed: Seq[String]
@@ -266,7 +266,7 @@ class TableNativeReader(
     val ctxType = TStruct("path" -> TString)
     val contexts = MakeStream(rowsSpec.absolutePartPaths(rowsPath).map(partPath => MakeStruct(FastIndexedSeq("path" -> Str(partPath)))), TStream(ctxType))
 
-    val body = ReadPartition(GetField(Ref("context", ctxType), "path"), rowType, PartitionNativeReader(rSpec))
+    val body = (ctx: IR) => ReadPartition(GetField(ctx, "path"), rowType, PartitionNativeReader(rSpec))
 
     LoweredTableReader(
       globals,

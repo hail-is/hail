@@ -98,7 +98,7 @@ class GenericTableValue(
       Literal(requestedType.globalType, globals(requestedType.globalType)),
       partitioner,
       ToStream(Literal(TArray(contextType), contexts)),
-      ReadPartition(Ref("context", contextType),
+      (ctx: IR) => ReadPartition(ctx,
         requestedType.rowType,
         new PartitionIteratorLongReader(
           t.rowType, contextType,
