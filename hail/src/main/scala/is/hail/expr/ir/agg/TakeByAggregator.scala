@@ -377,44 +377,39 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       rebalanceUp(ab.size - 1))
   }
 
-  val seqOp: (Code[Boolean], Code[_], Code[Boolean], Code[_]) => Code[Unit] = {
-    val ki = typeToTypeInfo(keyType)
-    val vi = typeToTypeInfo(valueType)
+  val seqOp: (EmitCode, EmitCode) => Code[Unit] = {
     val mb = cb.genEmitMethod("take_by_seqop",
-      FastIndexedSeq[ParamType](BooleanInfo, vi, BooleanInfo, ki),
+      FastIndexedSeq[ParamType](valueType, keyType),
       UnitInfo)
 
-    val valueM = mb.getCodeParam[Boolean](1)
-    val value = mb.getCodeParam(2)(vi)
-    val keyM = mb.getCodeParam[Boolean](3)
-    val key = mb.getCodeParam(4)(ki)
+    val value = mb.getEmitParam(1)
+    val key = mb.getEmitParam(2)
 
     mb.emit(
       (maxSize > 0).orEmpty(
         (ab.size < maxSize).mux(
           Code(
-            stageAndIndexKey(keyM, key),
-            copyToStaging(value, valueM, keyStage),
+            stageAndIndexKey(key.m, key.v),
+            copyToStaging(value.v, value.m, keyStage),
             enqueueStaging()),
           Code(
             tempPtr := eltTuple.loadField(elementOffset(0), 0),
-            (compareKey((keyM, key), loadKey(tempPtr)) < 0)
+            (compareKey((key.m, key.v), loadKey(tempPtr)) < 0)
               .orEmpty(Code(
-                stageAndIndexKey(keyM, key),
-                copyToStaging(value, valueM, keyStage),
+                stageAndIndexKey(key.m, key.v),
+                copyToStaging(value.v, value.m, keyStage),
                 swapStaging(),
                 gc()))))))
 
-    val kmVar = cb.genFieldThisRef[Boolean]("km")
-    val vmVar = cb.genFieldThisRef[Boolean]("vm")
 
-    { (vm: Code[Boolean], v: Code[_], km: Code[Boolean], k: Code[_]) =>
-      Code(
-        vmVar := vm,
-        kmVar := km,
-        mb.invokeCode(vmVar, vmVar.mux(defaultValue(valueType), v), kmVar, kmVar.mux(defaultValue(keyType), k))
-      )
-    }
+    (v: EmitCode, k: EmitCode) => mb.invokeCode(v, k)
+  }
+
+  // for tests
+  def seqOp(vm: Code[Boolean], v: Code[_], km: Code[Boolean], k: Code[_]): Code[Unit] = {
+    val vec = EmitCode(Code._empty, vm, PCode(valueType, v))
+    val kec = EmitCode(Code._empty, km, PCode(keyType, k))
+    seqOp(vec, kec)
   }
 
   def combine(other: TakeByRVAS): Code[Unit] = {
@@ -591,11 +586,7 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
     val Array(value: EmitCode, key: EmitCode) = seq
     assert(value.pv.pt == valueType)
     assert(key.pv.pt == keyType)
-    Code(
-      value.setup,
-      key.setup,
-      state.seqOp(value.m, value.v, key.m, key.v)
-    )
+    state.seqOp(value, key)
   }
 
   protected def _combOp(state: State, other: State): Code[Unit] = state.combine(other)
