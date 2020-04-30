@@ -30,7 +30,7 @@ from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes, \
     adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes
 from .semaphore import FIFOWeightedSemaphore
 from .log_store import LogStore
-from .globals import HTTP_CLIENT_MAX_SIZE, INSTANCE_VERSION
+from .globals import HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION
 from .batch_format_version import BatchFormatVersion
 
 # uvloop.install()
@@ -695,7 +695,7 @@ class Job:
     # }
     async def status(self):
         status = {
-            'version': INSTANCE_VERSION,
+            'version': STATUS_FORMAT_VERSION,
             'worker': NAME,
             'batch_id': self.batch_id,
             'job_id': self.job_spec['job_id'],
