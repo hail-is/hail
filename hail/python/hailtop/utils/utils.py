@@ -24,6 +24,10 @@ RETRY_FUNCTION_SCRIPT = """function retry() {
 }"""
 
 
+def flatten(xxs):
+    return [x for xs in xxs for x in xs]
+
+
 def first_extant_file(*files):
     for f in files:
         if f is not None and os.path.isfile(f):
