@@ -239,6 +239,11 @@ table td {
   html {
     font-size: 81.25%;
   }
+
+  .about-content.columns {
+    max-height: 350px;
+    overflow: scroll;
+  }
 }
 
 @media print {
@@ -381,9 +386,6 @@ pre code {
   height: calc(100% - 50px);
   position: absolute;
   width: 100%;
-  /* background-image: url("./vanta-bg-4.png");
-  background-position: center;
-  background-repeat: no-repeat; */
   transition: opacity 1000ms ease-in-out;
   z-index:1;
 }
@@ -407,7 +409,6 @@ pre code {
   background-color: #283870;
   border-color: #283870;
   text-decoration: none;
-  /* transition:cubic-bezier(0.6, -0.28, 0.735, 0.045) */
   color: #ffff;
 }
 
@@ -424,7 +425,6 @@ pre code {
   display: flex;
   align-content: center;
   justify-content: flex-start;
-  /* padding: 15px; */
 }
 
 .about-content.columns > section {
@@ -437,7 +437,7 @@ pre code {
 }
 
 .about-content.columns > section:nth-child(2n) {
-  margin: 0px 100px;
+  margin: 0px 4rem;
 }
 
 .about-content p:first-child {
@@ -445,7 +445,6 @@ pre code {
 }
 
 .about-content p:last-child {
-  /* padding: 0px; */
   margin-bottom: 0px;
 }
 
@@ -455,14 +454,12 @@ pre code {
     position: float!important;
     padding-bottom: 5px;
     color: #fff
-    /* border-bottom: 1px solid white; */
 }
 .about a {
   font-weight: 500;
 }
 .about.dark {
   background-color: #2a3a8c;
-  /* border-top: 10px solid #2a3a8c; */
   position: relative;
   color: #fff;
 }
