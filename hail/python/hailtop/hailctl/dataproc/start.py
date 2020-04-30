@@ -134,7 +134,6 @@ REGION_TO_REPLICATE_MAPPING = {
     'australia-southeast1': 'aus-sydney'
 }
 
-SPARK_VERSION = '2.4.0'
 IMAGE_VERSION = '1.4-debian9'
 
 

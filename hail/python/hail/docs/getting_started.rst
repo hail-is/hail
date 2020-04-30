@@ -98,11 +98,12 @@ For Cloudera-specific instructions, see :ref:`running-on-a-cloudera-cluster`.
 
 For all other Spark clusters, you will need to build Hail from the source code.
 
-Hail should be built on the master node of the Spark cluster. The following
-command builds Hail for Spark 2.4.0, installs the Python library, and installs
-all the Python dependencies::
+Hail should be built on the master node of the Spark cluster. The
+following command builds Hail for Scala 2.11.12 and Spark 2.4.5,
+installs the Python library, and installs all the Python
+dependencies::
 
-    make install-on-cluster HAIL_COMPILE_NATIVES=1 SPARK_VERSION=2.4.0
+    make install-on-cluster HAIL_COMPILE_NATIVES=1 SCALA_VERSION=2.11.12 SPARK_VERSION=2.4.5
 
 Moreover, every worker node of the cluster needs a compatible BLAS and LAPACK
 library, such as the Intel MKL or OpenBlas.
@@ -179,7 +180,7 @@ the same as above, except:
    builds a Hail JAR for Cloudera's
    2.4.0 version of Spark::
 
-    make install-on-cluster HAIL_COMPILE_NATIVES=1 SPARK_VERSION=2.4.0.cloudera PY4J_VERSION=0.10.7
+    make install-on-cluster HAIL_COMPILE_NATIVES=1 SCALA_VERSION=2.11.12 SPARK_VERSION=2.4.0.cloudera
 
  - On a Cloudera cluster, ``SPARK_HOME`` should be set as:
    ``SPARK_HOME=/opt/cloudera/parcels/SPARK2/lib/spark2``,

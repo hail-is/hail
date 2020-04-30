@@ -26,12 +26,6 @@ repositories {
     maven { url "https://repo.spring.io/plugins-release/" }
 }
 
-String sparkVersion = "2.4.5"
-String breezeVersion = "0.13.2"
-String py4jVersion = "0.10.7"
-String scalaVersion = '2.11.12'
-String scalaMajorVersion = '2.11'
-
 sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
 sourceSets.test.runtimeClasspath += files("prebuilt/lib")
@@ -87,6 +81,7 @@ compileScala {
         "-Xlint:-infer-any",
         "-Xlint:-unsound-match"
     ]
+
     scalaCompileOptions.forkOptions.with {
         jvmArgs = ["-Xms512M",
                    "-Xmx4096M",
@@ -95,7 +90,46 @@ compileScala {
     }
 }
 
+project.ext {
+    cachedBreezeVersion = null
+    
+    sparkVersion = System.getProperty("spark.version", "2.4.5")
+    scalaVersion = System.getProperty("scala.version", "2.11.12")
+    scalaMajorVersion = (scalaVersion =~ /^\d+.\d+/)[0]
+}
+
+String breezeVersion() {
+  if (cachedBreezeVersion == null) {
+    def artifacts = configurations.justSpark.getResolvedConfiguration().getResolvedArtifacts()
+    artifacts.each { ResolvedArtifact artifact ->
+	def module = artifact.getModuleVersion().getId()
+	if (module.getGroup() == 'org.scalanlp'
+	  && module.getName() == 'breeze_' + scalaMajorVersion) {
+	    cachedBreezeVersion = module.getVersion()	    
+	}
+    }
+    if (cachedBreezeVersion == null) {
+      throw new RuntimeException('Unable to determine breeze library version')
+    }
+  }
+  return cachedBreezeVersion
+}
+
 configurations {
+    justSpark
+
+    all {
+        resolutionStrategy {
+            componentSelection {
+	      withModule('org.scalanlp:breeze-natives_' + scalaMajorVersion) { ComponentSelection selection ->
+		  if (selection.candidate.getVersion() != breezeVersion()) {
+		    selection.reject()
+		  }
+	      }
+	    }
+	}
+    }
+
     compile.extendsFrom bundled, unbundled
     testCompile.extendsFrom compile, hailTest
     hailJar.extendsFrom bundled
@@ -110,6 +144,8 @@ configurations {
 }
 
 dependencies {
+    justSpark 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
+
     unbundled 'org.scala-lang:scala-library:' + scalaVersion
     unbundled 'org.scala-lang:scala-reflect:' + scalaVersion
 
@@ -123,7 +159,7 @@ dependencies {
     unbundled 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
     unbundled 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
     bundled 'org.lz4:lz4-java:1.4.0'
-    bundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion) {
+    bundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':+') {
         transitive = false
     }
     bundled 'com.github.fommil.netlib:all:1.1.2'
