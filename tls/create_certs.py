@@ -47,20 +47,28 @@ def create_key_and_cert(p):
         'openssl', 'req',
         '-new',
         '-subj', f'/CN={names[0]}',
-        '-addext', f'subjectAltName = {",".join("DNS:" + n for n in names)}',
         '-key', key_file,
         '-out', csr_file
     ])
-    echo_check_call([
-        'openssl', 'x509',
-        '-req',
-        '-in', csr_file,
-        '-CA', root_cert_file,
-        '-CAkey', root_key_file,
-        '-CAcreateserial',
-        '-out', cert_file,
-        '-days', '365'
-    ])
+    with tempfile.NamedTemporaryFile() as extfile:
+        # this whole extfile nonsense is because OpenSSL has known, unfixed bugs
+        # in the x509 command. These really ought to be in the CSR.
+        # https://www.openssl.org/docs/man1.1.0/man1/x509.html#BUGS
+        # https://security.stackexchange.com/questions/150078/missing-x509-extensions-with-an-openssl-generated-certificate
+        extfile.write(f'[v3_ca]')
+        extfile.write(f'subjectAltName = {",".join("DNS:" + n for n in names)}\n')
+        echo_check_call([
+            'openssl', 'x509',
+            '-req',
+            '-in', csr_file,
+            '-CA', root_cert_file,
+            '-CAkey', root_key_file,
+            '-extensions', 'v3_ca',
+            '-extfile', extfile.name,
+            '-CAcreateserial',
+            '-out', cert_file,
+            '-days', '365'
+        ])
     return {'key': key_file, 'cert': cert_file}
 
 
