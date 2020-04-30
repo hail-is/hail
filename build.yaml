@@ -974,7 +974,12 @@ steps:
 
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
 
-     COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth /api/v1alpha/copy-paste-token -sSL -XPOST)
+     COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \
+                        auth /api/v1alpha/copy-paste-token \
+                        -fsSL \
+                        --retry 3 \
+                        --retry-delay 5 \
+                        -XPOST)
      hailctl auth copy-paste-login "$COPY_PASTE_TOKEN" --namespace {{ default_ns.name }}
 
      if hailctl auth copy-paste-login "$COPY_PASTE_TOKEN" --namespace {{ default_ns.name }}
@@ -983,7 +988,12 @@ steps:
          exit 1
      fi
 
-     COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth /api/v1alpha/copy-paste-token -sSL -XPOST)
+     COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \
+                        auth /api/v1alpha/copy-paste-token \
+                        -fsSL \
+                        --retry 3 \
+                        --retry-delay 5 \
+                        -XPOST)
      python3 -c '
      from hailtop.auth import copy_paste_login;
      copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
@@ -1024,7 +1034,12 @@ steps:
 
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
 
-     COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} auth /api/v1alpha/copy-paste-token -sSL -XPOST)
+     COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \
+                        auth /api/v1alpha/copy-paste-token \
+                        -fsSL \
+                        --retry 3 \
+                        --retry-delay 5 \
+                        -XPOST)
      sleep $(( 5 * 60 + 1))
      if hailctl auth copy-paste-login "$COPY_PASTE_TOKEN" --namespace {{ default_ns.name }}
      then
