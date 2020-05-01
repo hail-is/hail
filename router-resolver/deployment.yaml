@@ -108,7 +108,7 @@ metadata:
     app: router-resolver
 spec:
   ports:
-   - port: 80
+   - port: 443
      protocol: TCP
      targetPort: 5000
   selector:

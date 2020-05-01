@@ -3,6 +3,7 @@
 .*.crc
 *.pyc
 **/hail-*.log
+hail/.bloop/
 hail/.gradle/
 hail/.idea/
 hail/.pytest_cache/

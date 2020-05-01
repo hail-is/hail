@@ -9,9 +9,9 @@ metadata:
 spec:
   ports:
   - name: http
-    port: 443
+    port: 80
     protocol: TCP
-    targetPort: 443
+    targetPort: 80
   selector:
     app: internal-gateway
   loadBalancerIP: "{{ global.internal_ip }}"
