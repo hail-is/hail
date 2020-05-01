@@ -766,6 +766,25 @@ class Emit[C](
           }
         }
 
+      case x@ResultOp(start, _) =>
+        val newRegion = cb.newField("resultop_region", region)
+        val AggContainer(aggs, sc) = container.get
+        val srvb = new StagedRegionValueBuilder(cb.emb, x.pType, newRegion)
+        cb += srvb.start()
+
+        cb += mb.wrapVoids(
+          Array.tabulate(aggs.length) { j =>
+            val idx = start + j
+            val rvAgg = agg.Extract.getAgg(aggs(j), aggs(j).default)
+            Code(
+              rvAgg.result(sc.states(idx), srvb),
+              srvb.advance())
+          },
+          "aggs_result")
+        cb += sc.store
+
+        presentC(srvb.offset)
+
       case _ =>
         emitFallback(ir)
     }
@@ -1249,25 +1268,6 @@ class Emit[C](
           aggCleanup)
 
         EmitCode(aggregation, res)
-
-      case x@ResultOp(start, _) =>
-        val newRegion = mb.genFieldThisRef[Region]()
-        val AggContainer(aggs, sc) = container.get
-        val srvb = new StagedRegionValueBuilder(mb, x.pType, newRegion)
-        val addFields = mb.wrapVoids(Array.tabulate(aggs.length) { j =>
-          val idx = start + j
-          val rvAgg = agg.Extract.getAgg(aggs(j), aggs(j).default)
-          Code(
-            rvAgg.result(sc.states(idx), srvb),
-            srvb.advance())
-        }, "aggs_result")
-
-        present(pt, Code(
-          newRegion := region,
-          srvb.start(),
-          addFields,
-          sc.store,
-          srvb.offset))
 
       case x@CombOpValue(i, value, sig) =>
         throw new NotImplementedError("CombOpValue emitter cannot be implemented until physical type passed across serialization boundary. See PR #8142")
