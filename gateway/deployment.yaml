@@ -45,7 +45,7 @@ spec:
          volumeMounts:
           - mountPath: /etc/letsencrypt
             name: letsencrypt-config
-          - name: ssl-config-gatewayx
+          - name: ssl-config-gateway
             mountPath: /ssl-config
             readOnly: true
       volumes:
