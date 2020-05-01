@@ -45,10 +45,17 @@ spec:
          volumeMounts:
           - mountPath: /etc/letsencrypt
             name: letsencrypt-config
+          - name: ssl-config-gatewayx
+            mountPath: /ssl-config
+            readOnly: true
       volumes:
         - name: letsencrypt-config
           secret:
             secretName: letsencrypt-config
+        - name: ssl-config-gateway
+          secret:
+            optional: false
+            secretName: ssl-config-gateway
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler

@@ -5,6 +5,7 @@ import aiohttp
 import base64
 import traceback
 from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error
+from hailtop.ssl import ssl_client_session
 
 from .globals import complete_states, tasks, STATUS_FORMAT_VERSION
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
@@ -71,8 +72,13 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
 
     log.info(f'making callback for batch {batch_id}: {callback}')
 
+    if record['user'] == 'ci':
+        # only jobs from CI may use batch's TLS identity
+        make_client_session = ssl_client_session
+    else:
+        make_client_session = aiohttp.ClientSession
     try:
-        async with aiohttp.ClientSession(
+        async with make_client_session(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
             await session.post(callback, json=batch_record_to_dict(app, record))
             log.info(f'callback for batch {batch_id} successful')

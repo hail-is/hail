@@ -6,6 +6,7 @@ from aiohttp import web
 import aiohttp_session
 from hailtop.config import get_deploy_config
 from hailtop.utils import request_retry_transient_errors
+from hailtop.ssl import ssl_client_session
 
 log = logging.getLogger('gear.auth')
 
@@ -15,7 +16,7 @@ deploy_config = get_deploy_config()
 async def _userdata_from_session_id(session_id):
     headers = {'Authorization': f'Bearer {session_id}'}
     try:
-        async with aiohttp.ClientSession(
+        async with ssl_client_session(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
             resp = await request_retry_transient_errors(
                 session, 'GET', deploy_config.url('auth', '/api/v1alpha/userinfo'),
