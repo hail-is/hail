@@ -199,6 +199,8 @@ object Simplify {
 
     case ArrayLen(ArraySort(a, _, _, _)) => ArrayLen(ToArray(a))
 
+    case ArrayLen(ToArray(MakeStream(args, _))) => I32(args.length)
+      
     case ArrayRef(MakeArray(args, _), I32(i), _) if i >= 0 && i < args.length => args(i)
 
     case StreamFilter(a, _, True()) => a
