@@ -106,6 +106,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
 
   def lookup(node: IR): TypeWithRequiredness = coerce[TypeWithRequiredness](cache(node))
   def lookupAs[T <: TypeWithRequiredness](node: IR): T = coerce[T](cache(node))
+  def lookup(node: TableIR): RTable = coerce[RTable](cache(node))
 
   private def initializeState(node: BaseIR): Unit = if (!cache.contains(node)) {
     val re = RefEquality(node)
@@ -179,8 +180,19 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
     def addBinding(name: String, ds: IR): Unit =
       addBindings(name, Array(ds))
 
+    def addTableBinding(table: TableIR): Unit = {
+      if (refMap.contains("row"))
+        refMap("row").foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](lookup(table).rowType)) }
+      if (refMap.contains("global"))
+        refMap("global").foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](lookup(table).globalType)) }
+      val refs = refMap.getOrElse("row", Array()) ++ refMap.getOrElse("global", Array())
+      dependents.getOrElseUpdate(table, mutable.Set[RefEquality[BaseIR]]()) ++= refs
+    }
     node match {
+      case AggLet(name, value, body, isScan) => addBinding(name, value)
       case Let(name, value, body) => addBinding(name, value)
+      case RelationalLet(name, value, body) => addBinding(name, value)
+      case RelationalLetTable(name, value, body) => addBinding(name, value)
       case TailLoop(loopName, params, body) =>
         addBinding(loopName, body)
         val argDefs = Array.fill(params.length)(new ArrayBuilder[IR]())
@@ -260,15 +272,152 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case CollectDistributedArray(ctxs, globs, c, g, body) =>
         addElementBinding(c, ctxs)
         addBinding(g, globs)
+
+      case TableAggregate(c, q) =>
+        addTableBinding(c)
+      case TableFilter(child, pred) =>
+        addTableBinding(child)
+      case TableMapRows(child, newRow) =>
+        addTableBinding(child)
+      case TableMapGlobals(child, newGlobals) =>
+        addTableBinding(child)
+      case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
+        addTableBinding(child)
+      case TableAggregateByKey(child, expr) =>
+        addTableBinding(child)
     }
   }
 
   def analyze(node: BaseIR): Boolean = node match {
     case x: IR => analyzeIR(x)
-    case x: TableIR => fatal("Table nodes not yet supported.")
-    case x: BlockMatrixIR => fatal("BM nodes not yet supported.")
+    case x: TableIR => analyzeTable(x)
     case _ =>
-      fatal("MatrixTable must be lowered first.")
+      fatal("MatrixTable and BlockMatrix must be lowered first.")
+  }
+
+  def analyzeTable(node: TableIR): Boolean = {
+    val requiredness = lookup(node)
+    node match {
+      //statically known
+      case TableLiteral(typ, rvd, enc, encodedGlobals) =>
+        requiredness.rowType.fromPType(rvd.rowPType)
+        requiredness.globalType.fromPType(enc.encodedType.decodedPType(typ.globalType))
+      case TableRead(typ, dropRows, tr) =>
+        val (rowPType, globalPType) = tr.rowAndGlobalPTypes(ctx, typ)
+        requiredness.rowType.fromPType(rowPType)
+        requiredness.globalType.fromPType(globalPType)
+      case TableRange(_, _) =>
+
+      // pass through TableIR child
+      case TableKeyBy(child, _, _) => requiredness.unionFrom(lookup(child))
+      case TableFilter(child, _) => requiredness.unionFrom(lookup(child))
+      case TableHead(child, _) => requiredness.unionFrom(lookup(child))
+      case TableTail(child, _) => requiredness.unionFrom(lookup(child))
+      case TableRepartition(child, n, strategy) => requiredness.unionFrom(lookup(child))
+      case TableDistinct(child) => requiredness.unionFrom(lookup(child))
+      case TableOrderBy(child, sortFields) => requiredness.unionFrom(lookup(child))
+      case TableRename(child, rMap, gMap) => requiredness.unionFrom(lookup(child))
+      case TableFilterIntervals(child, intervals, keep) => requiredness.unionFrom(lookup(child))
+      case RelationalLetTable(name, value, body) => requiredness.unionFrom(lookup(body))
+
+      case TableParallelize(rowsAndGlobal, _) =>
+        val Seq(rowsReq: RIterable, globalReq: RStruct) = lookupAs[RBaseStruct](rowsAndGlobal).children
+        requiredness.unionRows(coerce[RStruct](rowsReq.elementType))
+        requiredness.unionGlobals(globalReq)
+      case TableMapRows(child, newRow) =>
+        requiredness.unionRows(lookupAs[RStruct](newRow))
+        requiredness.unionGlobals(lookup(child))
+      case TableMapGlobals(child, newGlobals) =>
+        requiredness.unionRows(lookup(child))
+        requiredness.unionGlobals(lookupAs[RStruct](newGlobals))
+      case TableExplode(child, path) =>
+        val childReq = lookup(child)
+        requiredness.unionGlobals(childReq)
+        var i = 0
+        var newFields: RStruct = requiredness.rowType
+        var childFields: RStruct = childReq.rowType
+        while (i < path.length) {
+          val explode = path(i)
+          newFields.fields.filter(f => f.name != explode)
+            .foreach(f => f.typ.unionFrom(childFields.field(f.name)))
+          newFields = coerce[RStruct](newFields.field(explode))
+          childFields = coerce[RStruct](newFields.field(explode))
+          i += 1
+        }
+        newFields.unionFrom(coerce[RIterable](childFields).elementType)
+      case TableUnion(children) =>
+        requiredness.unionFrom(lookup(children.head))
+        children.tail.foreach(c => requiredness.unionRows(lookup(c)))
+      case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
+        requiredness.unionKeys(lookupAs[RStruct](newKey))
+        requiredness.unionValues(lookupAs[RStruct](expr))
+        requiredness.unionGlobals(lookup(child))
+      case TableAggregateByKey(child, expr) =>
+        requiredness.unionKeys(lookup(child))
+        requiredness.unionValues(lookupAs[RStruct](expr))
+        requiredness.unionGlobals(lookup(child))
+      case TableJoin(left, right, joinType, _) =>
+        val leftReq = lookup(left)
+        val rightReq = lookup(right)
+
+        if (joinType != "right")
+          requiredness.unionKeys(leftReq)
+        if (joinType != "left")
+          requiredness.unionKeys(rightReq)
+
+        requiredness.unionValues(leftReq)
+        requiredness.unionValues(rightReq)
+
+        if (joinType == "outer" || joinType == "right")
+          leftReq.valueFields.foreach(n => requiredness.field(n).union(r = false))
+
+        if (joinType == "outer" || joinType == "left")
+          rightReq.valueFields.foreach(n => requiredness.field(n).union(r = false))
+
+        requiredness.unionGlobals(leftReq.globalType)
+        requiredness.unionGlobals(rightReq.globalType)
+
+      case TableIntervalJoin(left, right, root, product) =>
+        val lReq = lookup(left)
+        val rReq = lookup(right)
+        requiredness.unionKeys(lReq)
+        requiredness.valueFields.filter(_ != root)
+          .foreach(n => requiredness.field(n).unionFrom(lReq.field(n)))
+        val joinField = if (product)
+          requiredness.field(root).asInstanceOf[RIterable]
+            .elementType.asInstanceOf[RStruct]
+        else requiredness.field(root).asInstanceOf[RStruct]
+        rReq.valueFields.foreach { n => joinField.field(n).unionFrom(rReq.field(n)) }
+        requiredness.unionGlobals(lReq)
+
+      case TableZipUnchecked(left, right) =>
+        requiredness.unionRows(lookup(left))
+        requiredness.unionRows(lookup(right))
+        requiredness.unionGlobals(lookup(left))
+
+      case TableMultiWayZipJoin(children, valueName, globalName) =>
+        val valueStruct = coerce[RStruct](coerce[RIterable](requiredness.field(valueName)).elementType)
+        val globalStruct = coerce[RIterable](coerce[RIterable](requiredness.field(globalName)).elementType)
+        children.foreach { c =>
+          val cReq = lookup(c)
+          requiredness.unionKeys(cReq)
+          cReq.valueFields.foreach(n => valueStruct.field(n).unionFrom(cReq.field(n)))
+          globalStruct.unionFrom(cReq.globalType)
+        }
+      case TableLeftJoinRightDistinct(left, right, root) =>
+        val lReq = lookup(left)
+        val rReq = lookup(right)
+        requiredness.unionRows(lReq)
+        val joined = coerce[RStruct](requiredness.field(root))
+        rReq.valueFields.foreach(n => joined.field(n).unionFrom(rReq.field(n)))
+      case TableGroupWithinPartitions(child, name, n) =>
+        val cReq = lookup(child)
+        requiredness.unionKeys(cReq)
+        val valueStruct = coerce[RStruct](coerce[RIterable](requiredness.field(name)).elementType)
+        cReq.valueFields.foreach(n => valueStruct.field(n).unionFrom(cReq.field(n)))
+      case TableToTableApply(child, function) => requiredness.maximize() //FIXME: needs implementation
+    }
+    requiredness.probeChangedAndReset()
   }
 
   def analyzeIR(node: IR): Boolean = {
@@ -532,6 +681,22 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           wrapped.setSignature(newAggSig)
         else
           coerce[RIterable](requiredness).elementType.unionFrom(lookup(result))
+
+      case TableAggregate(c, q) => requiredness.unionFrom(lookup(q))
+      case TableGetGlobals(c) => requiredness.unionFrom(lookup(c).globalType)
+      case TableCollect(c) =>
+        val cReq = lookup(c)
+        val row = requiredness.asInstanceOf[RStruct].fieldType("rows").asInstanceOf[RIterable].elementType
+        val global = requiredness.asInstanceOf[RStruct].fieldType("global")
+        row.unionFrom(cReq.rowType)
+        global.unionFrom(cReq.globalType)
+      case TableToValueApply(c, f) =>
+        f.unionRequiredness(lookup(c), requiredness)
+      case TableGetGlobals(c) =>
+        requiredness.unionFrom(lookup(c).globalType)
+      case TableCollect(c) =>
+        coerce[RIterable](coerce[RStruct](requiredness).field("rows")).elementType.unionFrom(lookup(c).rowType)
+        coerce[RStruct](requiredness).field("global").unionFrom(lookup(c).globalType)
     }
     val aggScopeChanged = (node.isInstanceOf[RunAgg] || node.isInstanceOf[RunAggScan]) && (lookupAggState(node).probeChangedAndReset())
     requiredness.probeChangedAndReset() | aggScopeChanged
