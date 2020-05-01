@@ -161,7 +161,7 @@ class RVD(
     val localType = typ
     val localKPType = typ.kType
 
-    val ord = PartitionBoundOrdering(localType.kType)
+    val ord = PartitionBoundOrdering(localType.kType.virtualType)
     new RVD(
       typ,
       partitioner,
