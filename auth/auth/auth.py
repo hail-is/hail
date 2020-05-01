@@ -14,7 +14,7 @@ from gear import (
     setup_aiohttp_session,
     rest_authenticated_users_only, web_authenticated_developers_only,
     web_maybe_authenticated_user, web_authenticated_users_only, create_session,
-    check_csrf_token, transaction, Database
+    check_csrf_token, transaction, Database, AccessLogger
 )
 from web_common import (
     setup_aiohttp_jinja2, setup_common_static_routes, set_message,
@@ -358,4 +358,5 @@ def run():
     web.run_app(deploy_config.prefix_application(app, 'auth'),
                 host='0.0.0.0',
                 port=5000,
+                access_log_class=AccessLogger,
                 ssl_context=get_server_ssl_context())
