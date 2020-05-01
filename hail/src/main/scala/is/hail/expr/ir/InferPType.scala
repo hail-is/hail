@@ -145,7 +145,13 @@ object InferPType {
     }
     node._pType = node match {
       case x: IR if x.typ == TVoid => PVoid
-      case x: IR if r.contains(x) => coerce[TypeWithRequiredness](r.lookup(node)).canonicalPType(x.typ)
+      case x: IR if r.contains(x) => x match {
+        case a: AbstractApplyNode[_] =>
+          val pt = a.implementation.returnPType(a.args.map(_.pType), a.returnType)
+          assert(coerce[TypeWithRequiredness](r.lookup(node)).validPType(pt))
+          pt
+        case _ => coerce[TypeWithRequiredness](r.lookup(node)).canonicalPType(x.typ)
+      }
       case _ => throw new RuntimeException(s"unsupported node:\n${Pretty(node)}")
     }
   }
@@ -240,12 +246,6 @@ object InferPType {
         }
       case a: AbstractApplyNode[_] =>
         val pTypes = a.args.map(i => {
-          infer(i)
-          i.pType
-        })
-        a.implementation.returnPType(pTypes, a.returnType)
-      case a@ApplySpecial(_, _, args, _) =>
-        val pTypes = args.map(i => {
           infer(i)
           i.pType
         })
