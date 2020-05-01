@@ -83,8 +83,8 @@ class Test(unittest.TestCase):
             job = self.client.get_job(job['batch_id'], job['job_id'])
             job = job.status()
 
-            # runs at 100mcpu
-            job_msec_mcpu2 = 100 * max(job['status']['end_time'] - job['status']['start_time'], 0)
+            # runs at 250mcpu
+            job_msec_mcpu2 = 250 * max(job['status']['end_time'] - job['status']['start_time'], 0)
             # greater than in case there are multiple attempts
             assert job['msec_mcpu'] >= job_msec_mcpu2, batch
 
@@ -137,7 +137,7 @@ class Test(unittest.TestCase):
         builder = self.client.create_batch()
         resources = {'cpu': '0.1', 'memory': '10M'}
         j = builder.create_job('python:3.6-slim-stretch',
-                               ['python', '-c', 'x = "a" * 400 * 1000**2'],
+                               ['python', '-c', 'x = "a" * 1000**3'],
                                resources=resources)
         builder.submit()
         status = j.wait()

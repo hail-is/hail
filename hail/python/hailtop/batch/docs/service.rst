@@ -78,6 +78,11 @@ The sum of these costs is **$0.02170** per core per hour.
 
 .. note::
 
+    The amount of CPU reserved for a job is rounded up to powers of two with a minimum of 0.25 cores.
+    For example, a job requesting 5 cores will be rounded up to 8 cores.
+
+.. note::
+
     If a worker is preempted by google in the middle of running a job, you will be billed for
     the time the job was running up until the preemption time. The job will be rescheduled on
     a different worker and run again. Therefore, if a job takes 5 minutes to run, but was preempted

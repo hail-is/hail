@@ -28,7 +28,7 @@ from hailtop.config import DeployConfig
 from gear import configure_logging
 
 from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes, \
-    adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes
+    adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes, adjust_cores_for_packability
 from .semaphore import FIFOWeightedSemaphore
 from .log_store import LogStore
 from .globals import HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION
@@ -558,7 +558,10 @@ class Job:
         req_cpu_in_mcpu = parse_cpu_in_mcpu(job_spec['resources']['cpu'])
         req_memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
 
-        self.cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, WORKER_TYPE)
+        cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, WORKER_TYPE)
+        cpu_in_mcpu = adjust_cores_for_packability(cpu_in_mcpu)
+
+        self.cpu_in_mcpu = cpu_in_mcpu
         self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu, WORKER_TYPE)
 
         # create containers

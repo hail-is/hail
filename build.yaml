@@ -1273,7 +1273,7 @@ steps:
  - kind: runImage
    name: test_batch
    image:
-     valueFrom: service_base_image.image
+     valueFrom: batch_image.image
    script: |
      export HAIL_BASE_IMAGE={{ base_image.image }}
      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
@@ -1304,7 +1304,7 @@ steps:
     - batch_pods_ns
     - copy_files
     - base_image
-    - service_base_image
+    - batch_image
     - ci_utils_image
     - deploy_batch
  - kind: runImage
