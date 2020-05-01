@@ -166,7 +166,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   def createState(cb: EmitClassBuilder[_]): State = new ArrayElementState(cb, StateTuple(nestedAggs.map(_.createState(cb))))
 
   // inits all things
-  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
     if (knownLength) {
       val Array(len, inits) = init
       Code(state.init(inits.setup, initLen = false), len.setup,
@@ -178,7 +178,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   }
 
   // does a length check on arrays
-  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
     assert(seq.length == 1)
     val len = seq.head
     Code(
@@ -193,7 +193,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
         }))
   }
 
-  def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
+  protected def _combOp(state: State, other: State): Code[Unit] = {
     var check = state.checkLength(other.lenRef)
     if (!knownLength)
       check = (state.lenRef < 0).mux(state.initLength(other.lenRef), check)
@@ -207,7 +207,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
       state.nested.toCode(state.cb, "array_nested_comb", (i, s) => nestedAggs(i).combOp(s, other.nested(i))))
   }
 
-  def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
+  protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] =
     (state.lenRef < 0).mux(
       srvb.setMissing(),
       srvb.addArray(resultType, { sab =>
@@ -240,10 +240,10 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
   def createState(cb: EmitClassBuilder[_]): State =
     throw new UnsupportedOperationException(s"State must be created by ArrayElementLengthCheckAggregator")
 
-  def initOp(state: State, init: Array[EmitCode], dummy: Boolean): Code[Unit] =
+  protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] =
     throw new UnsupportedOperationException("State must be initialized by ArrayElementLengthCheckAggregator.")
 
-  def seqOp(state: State, seq: Array[EmitCode], dummy: Boolean): Code[Unit] = {
+  protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
     val Array(eltIdx, seqOps) = seq
     Code(
       eltIdx.setup,
@@ -259,9 +259,9 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
               state.store)))))
   }
 
-  def combOp(state: State, other: State, dummy: Boolean): Code[Unit] =
+  protected def _combOp(state: State, other: State): Code[Unit] =
     throw new UnsupportedOperationException("State must be combined by ArrayElementLengthCheckAggregator.")
 
-  def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
+  protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] =
     throw new UnsupportedOperationException("Result must be defined by ArrayElementLengthCheckAggregator.")
 }
