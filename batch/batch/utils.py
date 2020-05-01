@@ -100,7 +100,7 @@ def adjust_cores_for_memory_request(cores_in_mcpu, memory_in_bytes, worker_type)
 
 
 def adjust_cores_for_packability(cores_in_mcpu):
-    assert cores_in_mcpu != 0
+    cores_in_mcpu = max(1, cores_in_mcpu)
     power = max(-2, math.ceil(math.log2(cores_in_mcpu / 1000)))
     return int(2**power * 1000)
 

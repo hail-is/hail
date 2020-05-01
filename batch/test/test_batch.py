@@ -84,7 +84,7 @@ class Test(unittest.TestCase):
             job = self.client.get_job(job['batch_id'], job['job_id'])
             job = job.status()
 
-            # runs at 250mcpu (100mcpu rounds up to 250mcpu)
+            # runs at 250mcpu
             job_msec_mcpu2 = 250 * max(job['status']['end_time'] - job['status']['start_time'], 0)
             # greater than in case there are multiple attempts
             assert job['msec_mcpu'] >= job_msec_mcpu2, batch
