@@ -194,7 +194,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       // always required
       case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die =>
       case x if x.typ == TVoid =>
-      case ApplyComparisonOp(EQWithNA(_, _), _, _) | ApplyComparisonOp(NEQWithNA(_, _), _, _) =>
+      case ApplyComparisonOp(EQWithNA(_, _), _, _) | ApplyComparisonOp(NEQWithNA(_, _), _, _) | ApplyComparisonOp(Compare(_, _), _, _) =>
       case ApplyComparisonOp(op, l, r) =>
         fatal(s"non-strict comparison op $op must have explicit case")
       case TableCount(t) =>
@@ -238,9 +238,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         coerce[RDict](requiredness).keyType.unionFrom(keyType)
         coerce[RDict](requiredness).valueType.unionFrom(valueType)
       case LowerBoundOnOrderedCollection(collection, elem, _) =>
-        val cReq = lookupAs[RIterable](collection)
-        requiredness.unionFrom(cReq.elementType)
-        requiredness.union(cReq.required)
+        requiredness.union(lookup(collection).required)
       case GroupByKey(c) =>
         val cReq = lookupAs[RIterable](c)
         val Seq(k, v) = coerce[RBaseStruct](cReq.elementType).children
