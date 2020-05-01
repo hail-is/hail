@@ -12,10 +12,10 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
   assert(elemType.isCanonical)
   val resultType = PCanonicalArray(elemType, required = true)
 
-  class State(val cb: EmitClassBuilder[_]) extends AggregatorState {
-    val r = cb.genFieldThisRef[Region]()
+  class State(val kb: EmitClassBuilder[_]) extends AggregatorState {
+    val r = kb.genFieldThisRef[Region]()
     val region: Value[Region] = r
-    val bll = new StagedBlockLinkedList(elemType, cb)
+    val bll = new StagedBlockLinkedList(elemType, kb)
 
     def storageType = bll.storageType
     override def regionSize: Region.Size = Region.REGULAR
@@ -40,7 +40,7 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
         region.invalidate()))
 
     def copyFrom(src: Code[Long]): Code[Unit] = {
-      val copyBll = new StagedBlockLinkedList(elemType, cb)
+      val copyBll = new StagedBlockLinkedList(elemType, kb)
       Code(
         copyBll.load(src),
         bll.initWithDeepCopy(region, copyBll))
@@ -54,8 +54,8 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
     }
   }
 
-  def createState(cb: EmitClassBuilder[_]): State =
-    new State(cb)
+  def createState(kb: EmitClassBuilder[_]): State =
+    new State(kb)
 
   protected def _initOp(state: State, args: Array[EmitCode]): Code[Unit] = {
     assert(args.isEmpty)

@@ -7,22 +7,22 @@ import is.hail.expr.types.physical.{PBooleanRequired, PCanonicalStruct, PInt32Re
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 
-class ApproxCDFState(val cb: EmitClassBuilder[_]) extends AggregatorState {
+class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
   override val regionSize: Region.Size = Region.TINIER
 
-  private val r: Settable[Region] = cb.genFieldThisRef[Region]()
+  private val r: Settable[Region] = kb.genFieldThisRef[Region]()
   val region: Value[Region] = r
 
   val storageType: PStruct = PCanonicalStruct(true, ("id", PInt32Required), ("initialized", PBooleanRequired), ("k", PInt32Required))
-  private val aggr = cb.genFieldThisRef[ApproxCDFStateManager]("aggr")
+  private val aggr = kb.genFieldThisRef[ApproxCDFStateManager]("aggr")
 
-  private val initialized = cb.genFieldThisRef[Boolean]("initialized")
+  private val initialized = kb.genFieldThisRef[Boolean]("initialized")
   private val initializedOffset: Code[Long] => Code[Long] = storageType.loadField(_, "initialized")
 
-  private val id = cb.genFieldThisRef[Int]("id")
+  private val id = kb.genFieldThisRef[Int]("id")
   private val idOffset: Code[Long] => Code[Long] = storageType.loadField(_, "id")
 
-  private val k = cb.genFieldThisRef[Int]("k")
+  private val k = kb.genFieldThisRef[Int]("k")
   private val kOffset: Code[Long] => Code[Long] = storageType.loadField(_, "k")
 
   def init(k: Code[Int]): Code[Unit] = {
@@ -111,7 +111,7 @@ class ApproxCDFAggregator extends StagedAggregator {
 
   def resultType: PStruct = QuantilesAggregator.resultType
 
-  def createState(cb: EmitClassBuilder[_]): State = new ApproxCDFState(cb)
+  def createState(kb: EmitClassBuilder[_]): State = new ApproxCDFState(kb)
 
   protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
     val Array(k) = init

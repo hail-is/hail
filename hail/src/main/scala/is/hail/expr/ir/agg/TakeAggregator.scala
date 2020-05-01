@@ -7,13 +7,13 @@ import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 
-class TakeRVAS(val eltType: PType, val resultType: PArray, val cb: EmitClassBuilder[_]) extends AggregatorState {
-  private val r: ThisFieldRef[Region] = cb.genFieldThisRef[Region]()
+class TakeRVAS(val eltType: PType, val resultType: PArray, val kb: EmitClassBuilder[_]) extends AggregatorState {
+  private val r: ThisFieldRef[Region] = kb.genFieldThisRef[Region]()
   val region: Value[Region] = r
 
-  val builder = new StagedArrayBuilder(eltType, cb, region)
+  val builder = new StagedArrayBuilder(eltType, kb, region)
   val storageType: PCanonicalTuple = PCanonicalTuple(true, PInt32Required, builder.stateType)
-  private val maxSize = cb.genFieldThisRef[Int]()
+  private val maxSize = kb.genFieldThisRef[Int]()
   private val maxSizeOffset: Code[Long] => Code[Long] = storageType.loadField(_, 0)
   private val builderStateOffset: Code[Long] => Code[Long] = storageType.loadField(_, 1)
 
@@ -76,7 +76,7 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val cb: EmitClassBuil
   }
 
   def combine(other: TakeRVAS): Code[Unit] = {
-    val j = cb.genFieldThisRef[Int]()
+    val j = kb.genFieldThisRef[Int]()
     val (eltJMissing, eltJ) = other.builder.loadElement(j)
 
     Code(

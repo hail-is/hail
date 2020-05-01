@@ -20,8 +20,8 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   val typ: PType = monoid.typ
   val resultType: PType = typ.setRequired(monoid.neutral.isDefined)
 
-  def createState(cb: EmitClassBuilder[_]): State =
-    new PrimitiveRVAState(Array(typ.setRequired(monoid.neutral.isDefined)), cb)
+  def createState(kb: EmitClassBuilder[_]): State =
+    new PrimitiveRVAState(Array(typ.setRequired(monoid.neutral.isDefined)), kb)
 
   protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
     assert(init.length == 0)
@@ -35,8 +35,8 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
     val Array(elt) = seq
     val (mOpt, v, _) = state.fields(0)
-    val eltm = state.cb.genFieldThisRef[Boolean]()
-    val eltv = state.cb.genFieldThisRef()(typeToTypeInfo(typ))
+    val eltm = state.kb.genFieldThisRef[Boolean]()
+    val eltv = state.kb.genFieldThisRef()(typeToTypeInfo(typ))
     Code(elt.setup,
       eltm := elt.m,
       eltm.mux(Code._empty, eltv := elt.value),

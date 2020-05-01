@@ -87,8 +87,8 @@ class LinearRegressionAggregator(yt: PFloat64, xt: PCanonicalArray) extends Stag
 
   override def resultType: PType = LinearRegressionAggregator.resultType
 
-  def createState(cb: EmitClassBuilder[_]): State =
-    new TypedRegionBackedAggState(stateType, cb)
+  def createState(kb: EmitClassBuilder[_]): State =
+    new TypedRegionBackedAggState(stateType, kb)
 
   def initOpF(state: State)(mb: EmitMethodBuilder[_], k: Code[Int], k0: Code[Int]): Code[Unit] =
     Code.memoize(k, "lra_init_k", k0, "lra_init_k0") { (k, k0) =>
@@ -111,7 +111,7 @@ class LinearRegressionAggregator(yt: PFloat64, xt: PCanonicalArray) extends Stag
     }
 
   protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
-    val _initOpF = state.cb.wrapInEmitMethod[Int, Int, Unit]("linregInitOp", initOpF(state))
+    val _initOpF = state.kb.wrapInEmitMethod[Int, Int, Unit]("linregInitOp", initOpF(state))
     val Array(kt, k0t) = init
     (Code(kt.setup, kt.m) || Code(k0t.setup, k0t.m)).mux(
       Code._fatal[Unit]("linreg: init args may not be missing"),
@@ -164,7 +164,7 @@ class LinearRegressionAggregator(yt: PFloat64, xt: PCanonicalArray) extends Stag
   }
 
   protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
-    val _seqOpF = state.cb.wrapInEmitMethod[Double, Long, Unit]("linregSeqOp", seqOpF(state))
+    val _seqOpF = state.kb.wrapInEmitMethod[Double, Long, Unit]("linregSeqOp", seqOpF(state))
     val Array(y, x) = seq
     (Code(y.setup, y.m) || Code(x.setup, x.m)).mux(
       Code._empty,
@@ -208,11 +208,11 @@ class LinearRegressionAggregator(yt: PFloat64, xt: PCanonicalArray) extends Stag
   }
 
   protected def _combOp(state: State, other: State): Code[Unit] = {
-    state.cb.wrapInEmitMethod[Unit]("linregCombOp", combOpF(state, other))
+    state.kb.wrapInEmitMethod[Unit]("linregCombOp", combOpF(state, other))
   }
 
   protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] = {
-    val res = state.cb.genFieldThisRef[Long]()
+    val res = state.kb.genFieldThisRef[Long]()
     coerce[Unit](Code(
       res := Code.invokeScalaObject4[Region, Long, Long, Int, Long](LinearRegressionAggregator.getClass, "computeResult",
         srvb.region,

@@ -10,7 +10,7 @@ abstract class StagedAggregator {
 
   def resultType: PType
 
-  def createState(cb: EmitClassBuilder[_]): State
+  def createState(kb: EmitClassBuilder[_]): State
 
   protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit]
 

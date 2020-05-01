@@ -8,11 +8,11 @@ import is.hail.expr.types.physical._
 import is.hail.io._
 import is.hail.utils._
 
-class TypedKey(typ: PType, cb: EmitClassBuilder[_], region: Value[Region]) extends BTreeKey {
+class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) extends BTreeKey {
   val inline: Boolean = typ.isPrimitive
   val storageType: PTuple = PCanonicalTuple(false, if (inline) typ else PInt64(typ.required), PCanonicalTuple(false))
   val compType: PType = typ
-  private val kcomp = cb.getCodeOrdering(typ, CodeOrdering.compare, ignoreMissingness = false)
+  private val kcomp = kb.getCodeOrdering(typ, CodeOrdering.compare, ignoreMissingness = false)
 
   def isKeyMissing(src: Code[Long]): Code[Boolean] = storageType.isFieldMissing(src, 0)
   def loadKey(src: Code[Long]): Code[_] = Region.loadIRIntermediate(if (inline) typ else PInt64(typ.required))(storageType.fieldOffset(src, 0))
@@ -27,7 +27,7 @@ class TypedKey(typ: PType, cb: EmitClassBuilder[_], region: Value[Region]) exten
         if (typ.isPrimitive)
           Region.storeIRIntermediate(typ)(storageType.fieldOffset(dest, 0), v)
         else
-          Region.storeAddress(storageType.fieldOffset(dest, 0), StagedRegionValueBuilder.deepCopyFromOffset(cb, region, typ, coerce[Long](v)))
+          Region.storeAddress(storageType.fieldOffset(dest, 0), StagedRegionValueBuilder.deepCopyFromOffset(kb, region, typ, coerce[Long](v)))
       }
       if (!typ.required)
         m.mux(
@@ -56,11 +56,11 @@ class TypedKey(typ: PType, cb: EmitClassBuilder[_], region: Value[Region]) exten
   }
 }
 
-class AppendOnlySetState(val cb: EmitClassBuilder[_], t: PType) extends PointerBasedRVAState {
-  val root: Settable[Long] = cb.genFieldThisRef[Long]()
-  val size: Settable[Int] = cb.genFieldThisRef[Int]()
-  val key = new TypedKey(t, cb, region)
-  val tree = new AppendOnlyBTree(cb, key, region, root)
+class AppendOnlySetState(val kb: EmitClassBuilder[_], t: PType) extends PointerBasedRVAState {
+  val root: Settable[Long] = kb.genFieldThisRef[Long]()
+  val size: Settable[Int] = kb.genFieldThisRef[Int]()
+  val key = new TypedKey(t, kb, region)
+  val tree = new AppendOnlyBTree(kb, key, region, root)
   val et = EType.defaultFromPType(t)
 
   val typ: PStruct = PCanonicalStruct(
@@ -87,9 +87,9 @@ class AppendOnlySetState(val cb: EmitClassBuilder[_], t: PType) extends PointerB
     off := region.allocate(typ.alignment, typ.byteSize),
     size := 0, tree.init)
 
-  private val _elt = cb.genFieldThisRef[Long]()
-  private val _vm = cb.genFieldThisRef[Boolean]()
-  private val _vv = cb.genFieldThisRef()(typeToTypeInfo(t))
+  private val _elt = kb.genFieldThisRef[Long]()
+  private val _vm = kb.genFieldThisRef[Boolean]()
+  private val _vv = kb.genFieldThisRef()(typeToTypeInfo(t))
   def insert(vm: Code[Boolean], vv: Code[_]): Code[Unit] = {
     Code(
       vm.mux(
@@ -120,7 +120,7 @@ class AppendOnlySetState(val cb: EmitClassBuilder[_], t: PType) extends PointerB
     }
 
   def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
-    val kEnc = et.buildEncoderMethod(t, cb)
+    val kEnc = et.buildEncoderMethod(t, kb)
 
     { ob: Value[OutputBuffer] =>
       tree.bulkStore(ob) { (ob, src) =>
@@ -135,9 +135,9 @@ class AppendOnlySetState(val cb: EmitClassBuilder[_], t: PType) extends PointerB
   }
 
   def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
-    val kDec = et.buildDecoderMethod(t, cb)
-    val km = cb.genFieldThisRef[Boolean]("km")
-    val kv = cb.genFieldThisRef("kv")(typeToTypeInfo(t))
+    val kDec = et.buildDecoderMethod(t, kb)
+    val km = kb.genFieldThisRef[Boolean]("km")
+    val kv = kb.genFieldThisRef("kv")(typeToTypeInfo(t))
 
     { ib: Value[InputBuffer] =>
       Code(
@@ -159,7 +159,7 @@ class CollectAsSetAggregator(t: PType) extends StagedAggregator {
   assert(t.isCanonical)
   val resultType: PSet = PCanonicalSet(t)
 
-  def createState(cb: EmitClassBuilder[_]): State = new AppendOnlySetState(cb, t)
+  def createState(kb: EmitClassBuilder[_]): State = new AppendOnlySetState(kb, t)
 
   protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
     assert(init.length == 0)
