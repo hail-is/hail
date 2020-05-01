@@ -79,6 +79,8 @@ package object ir {
 
   private[ir] def coerce[T <: PType](x: PType): T = types.coerce[T](x)
 
+  private[ir] def coerce[T <: BaseTypeWithRequiredness](x: BaseTypeWithRequiredness): T = types.coerce[T](x)
+
   def invoke(name: String, rt: Type, typeArgs: Array[Type], args: IR*): IR = IRFunctionRegistry.lookupConversion(name, rt, typeArgs, args.map(_.typ)) match {
     case Some(f) => f(typeArgs, args)
     case None => fatal(s"no conversion found for $name(${typeArgs.mkString(", ")}, ${args.map(_.typ).mkString(", ")}) => $rt")

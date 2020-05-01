@@ -45,7 +45,7 @@ object ForwardLets {
 
     def rewrite(ir: IR, env: BindingEnv[IR]): IR = {
 
-      def shouldForward(value: IR, refs: mutable.Set[RefEquality[Ref]], base: IR): Boolean = {
+      def shouldForward(value: IR, refs: mutable.Set[RefEquality[BaseRef]], base: IR): Boolean = {
         value.isInstanceOf[Ref] ||
         value.isInstanceOf[In] ||
           (IsConstant(value) && !value.isInstanceOf[Str]) ||

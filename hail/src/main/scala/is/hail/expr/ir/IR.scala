@@ -5,6 +5,7 @@ import is.hail.asm4s.Value
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions._
+import is.hail.expr.types.{RStruct, RTable}
 import is.hail.expr.types.encoded._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -110,16 +111,22 @@ final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 
 final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) extends IR
 final case class Let(name: String, value: IR, body: IR) extends IR
-final case class Ref(name: String, var _typ: Type) extends IR
+
+sealed abstract class BaseRef extends IR {
+  def name: String
+  def _typ: Type
+}
+
+final case class Ref(name: String, var _typ: Type) extends BaseRef
 
 
 // Recur can't exist outside of loop
 // Loops can be nested, but we can't call outer loops in terms of inner loops so there can only be one loop "active" in a given context
 final case class TailLoop(name: String, params: IndexedSeq[(String, IR)], body: IR) extends IR
-final case class Recur(name: String, args: IndexedSeq[IR], _typ: Type) extends IR
+final case class Recur(name: String, args: IndexedSeq[IR], _typ: Type) extends BaseRef
 
 final case class RelationalLet(name: String, value: IR, body: IR) extends IR
-final case class RelationalRef(name: String, _typ: Type) extends IR
+final case class RelationalRef(name: String, _typ: Type) extends BaseRef
 
 final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends IR
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR
@@ -242,6 +249,7 @@ object StreamFold2 {
 
 final case class StreamFold2(a: IR, accum: IndexedSeq[(String, IR)], valueName: String, seq: IndexedSeq[IR], result: IR) extends IR {
   assert(accum.length == seq.length)
+  val nameIdx: Map[String, Int] = accum.map(_._1).zipWithIndex.toMap
   var accPTypes: IndexedSeq[PType] = null
 }
 
@@ -272,7 +280,7 @@ sealed trait NDArrayIR extends TypedIR[TNDArray, PNDArray] {
 object MakeNDArray {
   def fill(elt: IR, shape: IndexedSeq[Long], rowMajor: IR): MakeNDArray =
     MakeNDArray(
-      ToArray(StreamMap(StreamRange(0, shape.product, 1), genUID(), elt)),
+      ToArray(StreamMap(StreamRange(0, shape.product.toInt, 1), genUID(), elt)),
       MakeTuple.ordered(shape.map(I64)), rowMajor)
 }
 
