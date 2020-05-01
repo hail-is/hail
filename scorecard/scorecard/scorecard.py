@@ -9,7 +9,7 @@ import random
 import humanize
 import logging
 from hailtop.config import get_deploy_config
-from hailtop.ssl import get_server_ssl_context, ssl_client_session
+from hailtop.ssl import get_server_ssl_context
 from gear import setup_aiohttp_session, web_maybe_authenticated_user, AccessLogger
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
@@ -274,7 +274,7 @@ async def on_startup(app):
                                 '/secrets/scorecard-github-access-token.txt')
     with open(token_file, 'r') as f:
         token = f.read().strip()
-    session = ssl_client_session(
+    session = aiohttp.ClientSession(
         raise_for_status=True,
         timeout=aiohttp.ClientTimeout(total=60))
     gh_client = gidgethub.aiohttp.GitHubAPI(session, 'scorecard', oauth_token=token)
