@@ -274,7 +274,7 @@ async def on_startup(app):
                                 '/secrets/scorecard-github-access-token.txt')
     with open(token_file, 'r') as f:
         token = f.read().strip()
-    session = ssl_client_session(
+    session = aiohttp.ClientSession(
         raise_for_status=True,
         timeout=aiohttp.ClientTimeout(total=60))
     gh_client = gidgethub.aiohttp.GitHubAPI(session, 'scorecard', oauth_token=token)
