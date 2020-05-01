@@ -1,13 +1,14 @@
 #!/bin/bash
 
-set -ex
+set -e
 
 uname=$(uname -s)
 
 if [ $uname = "Linux" ]
-     stat -c "%a" $1
 then
+     stat -c "%a" $1
 elif [ $uname = "Darwin" ]
+then
      stat -f "%A" $1
 else
     echo "unsupported OS $uname"
