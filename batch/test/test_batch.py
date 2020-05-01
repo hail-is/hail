@@ -136,9 +136,9 @@ class Test(unittest.TestCase):
 
     def test_out_of_memory(self):
         builder = self.client.create_batch()
-        resources = {'cpu': '0.1', 'memory': '25M'}
+        resources = {'cpu': '0.1', 'memory': '10M'}
         j = builder.create_job('python:3.6-slim-stretch',
-                               ['python', '-c', 'x = "a" * 400 * 1000**2'],
+                               ['python', '-c', 'x = "a" * 1000**3'],
                                resources=resources)
         builder.submit()
         status = j.wait()
