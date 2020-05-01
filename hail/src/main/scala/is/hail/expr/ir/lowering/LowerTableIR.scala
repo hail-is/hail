@@ -3,6 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.expr.ir._
 import is.hail.expr.types
 import is.hail.expr.types.virtual._
+import is.hail.methods.NPartitionsTable
 import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner}
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -257,6 +258,10 @@ object LowerTableIR {
           MakeStruct(FastIndexedSeq(
             "rows" -> ToArray(flatMapIR(ToStream(lowered.collect(bind = false))) { elt => ToStream(elt) }),
             "global" -> lowered.globals)))
+
+      case TableToValueApply(child, NPartitionsTable()) =>
+        val lowered = lower(child)
+        ArrayLen(ToArray(lowered.contexts))
 
       case node if node.children.exists(_.isInstanceOf[TableIR]) =>
         throw new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(node) }")
