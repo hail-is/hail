@@ -4,6 +4,7 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TNDArray, TVoid}
 import is.hail.utils._
 import is.hail.HailContext
+import is.hail.expr.types.{BaseTypeWithRequiredness, TypeWithRequiredness}
 
 object InferPType {
 
@@ -118,15 +119,34 @@ object InferPType {
   def newBuilder[T](n: Int): AAB[T] = Array.fill(n)(new ArrayBuilder[RecursiveArrayBuilderElement[T]])
 
   def apply(ir: IR, env: Env[PType], aggs: Array[AggStatePhysicalSignature], inits: AAB[InitOp], seqs: AAB[SeqOp]): Unit = {
-    try {
-      _apply(ir, env, aggs, inits, seqs)
-    } catch {
-      case e: Exception =>
-        throw new RuntimeException(s"error while inferring IR:\n${Pretty(ir)}", e)
+    if (aggs == null && inits == null && seqs == null) {
+      val r = Requiredness.apply(ir, null) // Value IR inference doesn't need context
+      _inferWithRequiredness(ir, r)
+    } else {
+      try {
+        _apply(ir, env, aggs, inits, seqs)
+      } catch {
+        case e: Exception =>
+          throw new RuntimeException(s"error while inferring IR:\n${Pretty(ir)}", e)
+      }
+      VisitIR(ir) { case (node: IR) =>
+        if (node._pType == null)
+          throw new RuntimeException(s"ptype inference failure: node not inferred:\n${Pretty(node)}\n ** Full IR: **\n${Pretty(ir)}")
+      }
     }
-    VisitIR(ir) { case (node: IR) =>
-      if (node._pType == null)
-        throw new RuntimeException(s"ptype inference failure: node not inferred:\n${Pretty(node)}\n ** Full IR: **\n${Pretty(ir)}")
+  }
+
+  private def _inferWithRequiredness(node: IR, r: Memo[BaseTypeWithRequiredness]): Unit = {
+    if (node._pType != null)
+      throw new RuntimeException(node.toString)
+    node.children.foreach {
+      case x: IR => _inferWithRequiredness(x, r)
+      case c => throw new RuntimeException(s"unsupported node:\n${Pretty(c)}")
+    }
+    node._pType = node match {
+      case x: IR if x.typ == TVoid => PVoid
+      case x: IR if r.contains(x) => coerce[TypeWithRequiredness](r.lookup(node)).canonicalPType(x.typ)
+      case _ => throw new RuntimeException(s"unsupported node:\n${Pretty(node)}")
     }
   }
   private def _apply(ir: IR, env: Env[PType], aggs: Array[AggStatePhysicalSignature], inits: AAB[InitOp], seqs: AAB[SeqOp]): Unit = {
