@@ -28,9 +28,9 @@ from gear import configure_logging
 
 from .utils import parse_cpu_in_mcpu, parse_image_tag, parse_memory_in_bytes, \
     adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes
-from .semaphore import FIFOWeightedSemaphore, NullWeightedSemaphore
+from .semaphore import FIFOWeightedSemaphore
 from .log_store import LogStore
-from .globals import HTTP_CLIENT_MAX_SIZE
+from .globals import HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION
 from .batch_format_version import BatchFormatVersion
 
 # uvloop.install()
@@ -225,12 +225,6 @@ class Container:
             image += ':latest'
         self.image = image
 
-        req_cpu_in_mcpu = parse_cpu_in_mcpu(spec['cpu'])
-        req_memory_in_bytes = parse_memory_in_bytes(spec['memory'])
-
-        self.cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, WORKER_TYPE)
-        self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu, WORKER_TYPE)
-
         self.port = self.spec.get('port')
         self.host_port = None
 
@@ -246,8 +240,8 @@ class Container:
     def container_config(self):
         host_config = {
             'CpuPeriod': 100000,
-            'CpuQuota': self.cpu_in_mcpu * 100,
-            'Memory': self.memory_in_bytes
+            'CpuQuota': self.spec['cpu'] * 100,
+            'Memory': self.spec['memory']
         }
         config = {
             "AttachStdin": False,
@@ -318,7 +312,7 @@ class Container:
 
         return status
 
-    async def run(self, worker, cpu_sem):
+    async def run(self, worker):
         try:
             async with self.step('pulling'):
                 if self.image.startswith('gcr.io/'):
@@ -354,22 +348,17 @@ class Container:
                 self.container = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
                     create_container, config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
 
-            async with cpu_sem(self.cpu_in_mcpu, f'{self}'):
-                async with self.step('runtime', state=None):
-                    if self.name == 'main':
-                        asyncio.ensure_future(worker.post_job_started(self.job))
+            async with self.step('starting'):
+                await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
+                    start_container, self.container)
 
-                    async with self.step('starting'):
-                        await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-                            start_container, self.container)
-
-                    timed_out = False
-                    async with self.step('running'):
-                        try:
-                            async with async_timeout.timeout(self.timeout):
-                                await docker_call_retry(MAX_DOCKER_WAIT_SECS, f'{self}')(self.container.wait)
-                        except asyncio.TimeoutError:
-                            timed_out = True
+            timed_out = False
+            async with self.step('running'):
+                try:
+                    async with async_timeout.timeout(self.timeout):
+                        await docker_call_retry(MAX_DOCKER_WAIT_SECS, f'{self}')(self.container.wait)
+                except asyncio.TimeoutError:
+                    timed_out = True
 
             self.container_status = await self.get_container_status()
             log.info(f'{self}: container status {self.container_status}')
@@ -497,14 +486,14 @@ retry gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
 '''
 
 
-def copy_container(job, name, files, volume_mounts):
+def copy_container(job, name, files, volume_mounts, cpu, memory):
     sh_expression = copy(files)
     copy_spec = {
         'image': 'google/cloud-sdk:269.0.0-alpine',
         'name': name,
         'command': ['/bin/sh', '-c', sh_expression],
-        'cpu': '500m' if files else '100m',
-        'memory': '0.5Gi',
+        'cpu': cpu,
+        'memory': memory,
         'volume_mounts': volume_mounts
     }
     return Container(job, name, copy_spec)
@@ -531,6 +520,9 @@ class Job:
 
         self.state = 'pending'
         self.error = None
+
+        self.start_time = None
+        self.end_time = None
 
         pvc_size = job_spec.get('pvc_size')
         input_files = job_spec.get('input_files')
@@ -562,12 +554,19 @@ class Job:
         for item in job_spec.get('env', []):
             env.append(f'{item["name"]}={item["value"]}')
 
+        req_cpu_in_mcpu = parse_cpu_in_mcpu(job_spec['resources']['cpu'])
+        req_memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
+
+        self.cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, WORKER_TYPE)
+        self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu, WORKER_TYPE)
+
         # create containers
         containers = {}
 
         if input_files:
             containers['input'] = copy_container(
-                self, 'input', input_files, copy_volume_mounts)
+                self, 'input', input_files, copy_volume_mounts,
+                self.cpu_in_mcpu, self.memory_in_bytes)
 
         # main container
         main_spec = {
@@ -575,8 +574,8 @@ class Job:
             'image': job_spec['image'],
             'name': 'main',
             'env': env,
-            'cpu': job_spec['resources']['cpu'],
-            'memory': job_spec['resources']['memory'],
+            'cpu': self.cpu_in_mcpu,
+            'memory': self.memory_in_bytes,
             'volume_mounts': main_volume_mounts
         }
         port = job_spec.get('port')
@@ -589,7 +588,8 @@ class Job:
 
         if output_files:
             containers['output'] = copy_container(
-                self, 'output', output_files, copy_volume_mounts)
+                self, 'output', output_files, copy_volume_mounts,
+                self.cpu_in_mcpu, self.memory_in_bytes)
 
         self.containers = containers
 
@@ -606,67 +606,69 @@ class Job:
         return (self.batch_id, self.job_id)
 
     async def run(self, worker):
-        run_start_time = time_msecs()
+        async with worker.cpu_sem(self.cpu_in_mcpu, f'{self}'):
+            self.start_time = time_msecs()
 
-        try:
-            log.info(f'{self}: initializing')
-            self.state = 'initializing'
-
-            if self.mount_io:
-                os.makedirs(self.io_host_path())
-
-            if self.secrets:
-                for secret in self.secrets:
-                    populate_secret_host_path(self.secret_host_path(secret), secret['data'])
-
-            self.state = 'running'
-
-            input = self.containers.get('input')
-            if input:
-                log.info(f'{self}: running input')
-                await input.run(worker, worker.cpu_null_sem)
-                log.info(f'{self} input: {input.state}')
-
-            if not input or input.state == 'succeeded':
-                log.info(f'{self}: running main')
-
-                main = self.containers['main']
-                await main.run(worker, worker.cpu_sem)
-
-                log.info(f'{self} main: {main.state}')
-
-                output = self.containers.get('output')
-                if output:
-                    log.info(f'{self}: running output')
-                    await output.run(worker, worker.cpu_null_sem)
-                    log.info(f'{self} output: {output.state}')
-
-                if main.state != 'succeeded':
-                    self.state = main.state
-                elif output:
-                    self.state = output.state
-                else:
-                    self.state = 'succeeded'
-            else:
-                self.state = input.state
-        except Exception:
-            log.exception(f'while running {self}')
-
-            self.state = 'error'
-            self.error = traceback.format_exc()
-        finally:
-            run_end_time = time_msecs()
-            run_duration = run_end_time - run_start_time
-
-            if not self.deleted:
-                log.info(f'{self}: marking complete')
-                asyncio.ensure_future(worker.post_job_complete(self, run_duration))
-
-            log.info(f'{self}: cleaning up')
             try:
-                shutil.rmtree(self.scratch, ignore_errors=True)
+                asyncio.ensure_future(worker.post_job_started(self))
+
+                log.info(f'{self}: initializing')
+                self.state = 'initializing'
+
+                if self.mount_io:
+                    os.makedirs(self.io_host_path())
+
+                if self.secrets:
+                    for secret in self.secrets:
+                        populate_secret_host_path(self.secret_host_path(secret), secret['data'])
+
+                self.state = 'running'
+
+                input = self.containers.get('input')
+                if input:
+                    log.info(f'{self}: running input')
+                    await input.run(worker)
+                    log.info(f'{self} input: {input.state}')
+
+                if not input or input.state == 'succeeded':
+                    log.info(f'{self}: running main')
+
+                    main = self.containers['main']
+                    await main.run(worker)
+
+                    log.info(f'{self} main: {main.state}')
+
+                    output = self.containers.get('output')
+                    if output:
+                        log.info(f'{self}: running output')
+                        await output.run(worker)
+                        log.info(f'{self} output: {output.state}')
+
+                    if main.state != 'succeeded':
+                        self.state = main.state
+                    elif output:
+                        self.state = output.state
+                    else:
+                        self.state = 'succeeded'
+                else:
+                    self.state = input.state
             except Exception:
-                log.exception('while deleting volumes')
+                log.exception(f'while running {self}')
+
+                self.state = 'error'
+                self.error = traceback.format_exc()
+            finally:
+                self.end_time = time_msecs()
+
+                if not self.deleted:
+                    log.info(f'{self}: marking complete')
+                    asyncio.ensure_future(worker.post_job_complete(self))
+
+                log.info(f'{self}: cleaning up')
+                try:
+                    shutil.rmtree(self.scratch, ignore_errors=True)
+                except Exception:
+                    log.exception('while deleting volumes')
 
     async def get_log(self):
         return {name: await c.get_log() for name, c in self.containers.items()}
@@ -678,6 +680,7 @@ class Job:
             await c.delete()
 
     # {
+    #   version: int,
     #   worker: str,
     #   batch_id: int,
     #   job_id: int,
@@ -692,6 +695,7 @@ class Job:
     # }
     async def status(self):
         status = {
+            'version': STATUS_FORMAT_VERSION,
             'worker': NAME,
             'batch_id': self.batch_id,
             'job_id': self.job_spec['job_id'],
@@ -708,13 +712,8 @@ class Job:
         }
         status['container_statuses'] = cstatuses
 
-        main_timings = cstatuses['main']['timing']
-        if 'runtime' in main_timings:
-            status['start_time'] = main_timings['runtime'].get('start_time')
-            status['end_time'] = main_timings['runtime'].get('finish_time')
-        else:
-            status['start_time'] = None
-            status['end_time'] = None
+        status['start_time'] = self.start_time
+        status['end_time'] = self.end_time
 
         return status
 
@@ -727,7 +726,6 @@ class Worker:
         self.cores_mcpu = CORES * 1000
         self.last_updated = time_msecs()
         self.cpu_sem = FIFOWeightedSemaphore(self.cores_mcpu)
-        self.cpu_null_sem = NullWeightedSemaphore()
         self.pool = concurrent.futures.ThreadPoolExecutor()
         self.jobs = {}
 
@@ -877,7 +875,9 @@ class Worker:
                 await app_runner.cleanup()
                 log.info('cleaned up app runner')
 
-    async def post_job_complete_1(self, job, run_duration):
+    async def post_job_complete_1(self, job):
+        run_duration = job.end_time - job.start_time
+
         full_status = await retry_all_errors(f'error while getting status for {job}')(job.status)
 
         if job.format_version.has_full_status_in_gcs():
@@ -891,6 +891,7 @@ class Worker:
         db_status = job.format_version.db_status(full_status)
 
         status = {
+            'version': full_status['version'],
             'batch_id': full_status['batch_id'],
             'job_id': full_status['job_id'],
             'attempt_id': full_status['attempt_id'],
@@ -936,9 +937,9 @@ class Worker:
             # exponentially back off, up to (expected) max of 2m
             delay_secs = min(delay_secs * 2, 2 * 60.0)
 
-    async def post_job_complete(self, job, run_duration):
+    async def post_job_complete(self, job):
         try:
-            await self.post_job_complete_1(job, run_duration)
+            await self.post_job_complete_1(job)
         except Exception:
             log.exception(f'error while marking {job} complete', stack_info=True)
         finally:
@@ -951,6 +952,7 @@ class Worker:
         full_status = await job.status()
 
         status = {
+            'version': full_status['version'],
             'batch_id': full_status['batch_id'],
             'job_id': full_status['job_id'],
             'attempt_id': full_status['attempt_id'],
