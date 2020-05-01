@@ -55,16 +55,15 @@ def create_key_and_cert(p):
     # in the x509 command. These really ought to be in the CSR.
     # https://www.openssl.org/docs/man1.1.0/man1/x509.html#BUGS
     # https://security.stackexchange.com/questions/150078/missing-x509-extensions-with-an-openssl-generated-certificate
-    extfile.write(f'[v3_ca]')
     extfile.write(f'subjectAltName = {",".join("DNS:" + n for n in names)}\n')
     extfile.close()
+    echo_check_call(['cat', extfile.name])
     echo_check_call([
         'openssl', 'x509',
         '-req',
         '-in', csr_file,
         '-CA', root_cert_file,
         '-CAkey', root_key_file,
-        '-extensions', 'v3_ca',
         '-extfile', extfile.name,
         '-CAcreateserial',
         '-out', cert_file,
