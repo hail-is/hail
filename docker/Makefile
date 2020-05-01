@@ -21,11 +21,11 @@ base: base-stmp
 base-stmp: Dockerfile.base core-site.xml requirements.txt ../pylintrc ../setup.cfg
 	-docker pull ubuntu:18.04
 	-docker pull $(BASE_LATEST)
-	[ "$(shell stat -c "%a" Dockerfile.base)" = "644" ]
-	[ "$(shell stat -c "%a" core-site.xml)" = "644" ]
-	[ "$(shell stat -c "%a" requirements.txt)" = "644" ]
-	[ "$(shell stat -c "%a" ../pylintrc)" = "644" ]
-	[ "$(shell stat -c "%a" ../setup.cfg)" = "644" ]
+	[ "$(shell bash stat-permissions.sh Dockerfile.base)" = "644" ]
+	[ "$(shell bash stat-permissions.sh core-site.xml)" = "644" ]
+	[ "$(shell bash stat-permissions.sh requirements.txt)" = "644" ]
+	[ "$(shell bash stat-permissions.sh ../pylintrc)" = "644" ]
+	[ "$(shell bash stat-permissions.sh ../setup.cfg)" = "644" ]
 	docker build -t base -f Dockerfile.base --cache-from base,$(BASE_LATEST),ubuntu:18.04 ..
 	touch base-stmp
 
@@ -33,8 +33,8 @@ base-stmp: Dockerfile.base core-site.xml requirements.txt ../pylintrc ../setup.c
 service-base: base-stmp
 	-docker pull $(SERVICE_BASE_LATEST)
 	python3 ../ci/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile.service-base Dockerfile.service-base.out
-	[ "$(shell stat -c "%a" Dockerfile.service-base.out)" = "644" ]
-	[ "$(shell stat -c "%a" service-base-requirements.txt)" = "644" ]
+	[ "$(shell bash stat-permissions.sh Dockerfile.service-base.out)" = "644" ]
+	[ "$(shell bash stat-permissions.sh service-base-requirements.txt)" = "644" ]
 	docker build -t service-base -f Dockerfile.service-base.out --cache-from service-base,$(SERVICE_BASE_LATEST),base,ubuntu:18.04 ..
 
 .PHONY: hail-public-image
