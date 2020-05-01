@@ -27,7 +27,8 @@ lazy val root = (project in file(".")).
       "-deprecation",
       "-unchecked",
       "-Xlint:-infer-any",
-      "-Xlint:-unsound-match"
+      "-Xlint:-unsound-match",
+      "-target:jvm-1.8"
     ),
     libraryDependencies ++= Seq(
           "org.scalatest" %% "scalatest" % "3.0.3" % Test
