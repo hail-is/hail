@@ -754,6 +754,20 @@ class PruneSuite extends HailSuite {
         TArray(TStruct("a" -> TInt32))))
   }
 
+  @Test def testCDAMemo() {
+    val ctxT = TStruct("a" -> TInt32, "b" -> TString)
+    val globT = TStruct("c" -> TInt64, "d" -> TFloat64)
+    val x = CollectDistributedArray(
+      NA(TArray(ctxT)),
+      NA(globT),
+      "ctx",
+      "glob",
+      MakeTuple.ordered(FastSeq(Ref("ctx", ctxT), Ref("glob", globT))))
+
+    checkMemo(x, TArray(TTuple(ctxT.typeAfterSelectNames(Array("a")), globT.typeAfterSelectNames(Array("c")))),
+      Array(TArray(ctxT.typeAfterSelectNames(Array("a"))), globT.typeAfterSelectNames(Array("c")), null))
+  }
+
   @Test def testTableCountMemo() {
     checkMemo(TableCount(tab), TInt64, Array(subsetTable(tab.typ, "NO_KEY")))
   }
@@ -1221,6 +1235,29 @@ class PruneSuite extends HailSuite {
         ir.r.typ == TNDArray(TStruct(("b", TInt64)), Nat(1))
       })
   }
+
+  @Test def testCDARebuild() {
+    val ctxT = TStruct("a" -> TInt32, "b" -> TString)
+    val globT = TStruct("c" -> TInt64, "d" -> TFloat64)
+    val x = CollectDistributedArray(
+      NA(TArray(ctxT)),
+      NA(globT),
+      "ctx",
+      "glob",
+      MakeTuple.ordered(FastSeq(Ref("ctx", ctxT), Ref("glob", globT))))
+
+    val selectedCtxT = ctxT.typeAfterSelectNames(Array("a"))
+    val selectedGlobT = globT.typeAfterSelectNames(Array("c"))
+    checkRebuild(x, TArray(TTuple(selectedCtxT, selectedGlobT)), (_: BaseIR, r: BaseIR) => {
+      r == CollectDistributedArray(
+        NA(TArray(selectedCtxT)),
+        NA(selectedGlobT),
+        "ctx",
+        "glob",
+        MakeTuple.ordered(FastSeq(Ref("ctx", selectedCtxT), Ref("glob", selectedGlobT))))
+    })
+  }
+
 
   @Test def testTableAggregateRebuild() {
     val ta = TableAggregate(tr, tableRefBoolean(tr.typ, "row.2"))
