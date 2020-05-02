@@ -33,10 +33,10 @@ body {
   border-color: #ddd;
 }
 
-a, a code {
+/* a, a code {
   color: #444;
   text-decoration: none;
-}
+} */
 
 a:hover, a:hover code {
   color: #283870;
@@ -107,12 +107,38 @@ h6 {
   font-size: 0.9em;
 }
 
-code, samp, kbd {
+/* code, samp, kbd {
   color: #000;
   font-family: monospace, monospace;
   _font-family: 'courier new', monospace;
   padding: .15625em .25em;
-  /* 5/32, 1/4 */
+
+} */
+/* pre code {
+  display: block;
+  height: 19em;
+  padding: 1em;
+  overflow-y: auto;
+  overflow-x: hidden;
+} */
+
+section pre {
+  min-width: 300px;
+}
+
+code  *{
+  font-size: 87.5%;
+}
+.staggered .left pre + div, .staggered .right div + pre {
+  margin-left: 16.7%;
+}
+
+.hljs {
+  display: block;
+  overflow-x: auto;
+  padding: .5em;
+  color: #383a42;
+  background: #fafafa;
 }
 
 b, strong {
@@ -229,79 +255,6 @@ table td {
   vertical-align: top;
 }
 
-@media only screen and (max-width: 768px) {
-  html {
-    font-size: 87.5%; /*14px* w/browser default 16px*/
-  }
-}
-
-@media only screen and (max-width: 680px) {
-  html {
-    font-size: 81.25%;
-  }
-
-  .about-content.columns {
-    max-height: 350px;
-    overflow: scroll;
-  }
-}
-
-@media print {
-  * {
-    background: transparent !important;
-    color: black !important;
-    filter: none !important;
-    -ms-filter: none !important;
-  }
-  body {
-    font-size: 12pt;
-  }
-  #body {
-    max-width: 100%;
-  }
-  a, a:visited {
-    text-decoration: underline;
-  }
-  hr {
-    display: block;
-    height: 1px;
-    border: 0;
-    border-top: 1px solid;
-    border-bottom: 1px solid;
-    border-color: inherit;
-    margin: 1em 0;
-    padding: 0;
-  }
-  a[href]:after {
-    content: " (" attr(href) ")";
-  }
-  abbr[title]:after {
-    content: " (" attr(title) ")";
-  }
-  .ir a:after, a[href^="javascript:"]:after, a[href^="#"]:after {
-    content: "";
-  }
-  tr, img {
-    page-break-inside: avoid;
-  }
-  img {
-    max-width: 100% !important;
-  }
-  @page :left {
-    margin: 15mm 20mm 15mm 10mm;
-  }
-  @page :right {
-    margin: 15mm 10mm 15mm 20mm;
-  }
-  p, h2, h3 {
-    orphans: 3;
-    widows: 3;
-  }
-  h2, h3 {
-    page-break-after: avoid;
-  }
-}
-
 #banner:visited {
   text-decoration: none;
 }
@@ -313,25 +266,25 @@ table td {
 .sourceCode {
   border-color: inherit;
 }
-
+/* 
 pre, code {
   background-color: #f5f5f5;
-}
+} */
 
-pre, blockquote {
+/* pre, blockquote {
   border: 1px solid;
   border-color: inherit;
   padding-right: 1em;
   page-break-inside: avoid;
-}
-
+} */
+/* 
 code {
   white-space: pre-wrap;
   padding: 3px;
   border-radius: 4px;
-}
+} */
 
-pre {
+/* pre {
   display: block;
   padding: 9.5px;
   margin: 0 0 10px;
@@ -341,11 +294,11 @@ pre {
   word-break: break-all;
   word-wrap: break-word;
   border-radius: 4px;
-}
+} */
 
-pre code {
+/* pre code {
   padding: 0;
-}
+} */
 
 @keyframes in {
   0% {
@@ -403,6 +356,8 @@ pre code {
   background-color: #fff;
   border: 2px solid #444;
   padding: 10px 20px;
+  color: #444;
+  text-decoration: none;
 }
 
 .button:hover {
@@ -466,6 +421,15 @@ pre code {
 
 .about.dark a {
   color: #fff;
+}
+.about.dark a:hover {
+  color: #fff;
+  text-decoration-color: #fff;
+  text-decoration: underline;
+}
+
+.about.dark a.button:hover {
+  text-decoration: none;
 }
 
 .about.dark a.button {
@@ -533,6 +497,14 @@ img.rounded-image {
   max-width: calc(44rem + 100px);
 }
 
+#hero-content.wide {
+  display:block;
+  z-index: 1;
+  padding: 50px 100px 50px 50px;
+  box-shadow: none;
+  border-radius: 0px;
+  text-align: l;
+}
 .clickable {
   cursor: pointer;
   cursor: hand;
@@ -542,6 +514,34 @@ img.rounded-image {
   color: #283870;
 }
 
+.about.staggered section {
+  justify-content: space-between;
+  display: flex;
+  width: 100%;
+  padding-bottom: 10rem;
+  align-items: center;
+}
+
+.about.staggered section:last {
+  padding-bottom: 0px;
+}
+
+.about.staggered pre {
+  width: 500px;
+  background-color: #fafafa;
+  font-family: monospace!important;
+  padding: 2rem;
+  border-radius: 10px;
+}
+.about code[class*=language-], pre[class*=language-] {
+  font-family: monospace;
+}
+
+.about.staggered pre * {
+  font-size: 1rem;
+}
+
+/* Modified for Hail*/
 /*! normalize.css v8.0.1 | MIT License | github.com/necolas/normalize.css */
 
 /* Grouping content
@@ -549,6 +549,8 @@ img.rounded-image {
 
 a {
   background-color: transparent;
+  text-decoration: none;
+  color: inherit;
 }
 
 /**
@@ -564,13 +566,6 @@ strong {
  * 1. Correct the inheritance and scaling of font size in all browsers.
  * 2. Correct the odd `em` font sizing in all browsers.
  */
-
-code,
-kbd,
-samp {
-  font-family: monospace, monospace; /* 1 */
-  font-size: 1em; /* 2 */
-}
 
 /**
  * Add the correct font size in all browsers.
@@ -802,4 +797,99 @@ template {
 
 [hidden] {
   display: none;
+}
+
+/* more hail stuff */
+@media only screen and (min-width: 1680px) {
+  #non-home #hero-content {
+    width: 1680px;
+    max-width: 1600px;
+    padding-left: 10px;
+    align-self: center;
+  }
+
+  #non-home  .about.staggered {
+    width: 1680px;
+    padding: 75px 50px;
+    margin: auto;
+  }
+}
+
+@media only screen and (max-width: 950px) {
+  .about-content.columns > section:nth-child(2n) {
+    margin: 4rem 0;
+  }
+
+  .about-content.columns {
+    flex-direction: column;
+  }
+
+}
+
+@media only screen and (max-width: 800px) {
+  html {
+    font-size: 87.5%; /*14px* w/browser default 16px*/
+  }
+}
+
+@media only screen and (max-width: 680px) {
+  html {
+    font-size: 81.25%;
+  }
+}
+
+@media print {
+  * {
+    background: transparent !important;
+    color: black !important;
+    filter: none !important;
+    -ms-filter: none !important;
+  }
+  body {
+    font-size: 12pt;
+  }
+  #body {
+    max-width: 100%;
+  }
+  a, a:visited {
+    text-decoration: underline;
+  }
+  hr {
+    display: block;
+    height: 1px;
+    border: 0;
+    border-top: 1px solid;
+    border-bottom: 1px solid;
+    border-color: inherit;
+    margin: 1em 0;
+    padding: 0;
+  }
+  a[href]:after {
+    content: " (" attr(href) ")";
+  }
+  abbr[title]:after {
+    content: " (" attr(title) ")";
+  }
+  .ir a:after, a[href^="javascript:"]:after, a[href^="#"]:after {
+    content: "";
+  }
+  tr, img {
+    page-break-inside: avoid;
+  }
+  img {
+    max-width: 100% !important;
+  }
+  @page :left {
+    margin: 15mm 20mm 15mm 10mm;
+  }
+  @page :right {
+    margin: 15mm 10mm 15mm 20mm;
+  }
+  p, h2, h3 {
+    orphans: 3;
+    widows: 3;
+  }
+  h2, h3 {
+    page-break-after: avoid;
+  }
 }

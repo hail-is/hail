@@ -10,43 +10,40 @@
         <div id="hero">
             <div id="hero-background"></div>
             <div id="hero-content">
-            <h1 id="logo-title">Powering biobank-scale genomics</h1>
-            <subtitle id="logo-subtitle">An open-source library for efficient genomic data exploration</subtitle>
-            <div style="display: flex;" id="hero-button-container">
-                <a class="button" href="/docs/0.2">Learn</a><a class="button" href="https://hail.zulipchat.com"
-                target="_blank">Chat with us</a>
-            </div>
+                <h1 id="logo-title">Powering biobank-scale genomics</h1>
+                <subtitle id="logo-subtitle">An open-source library for scalable genomic data exploration</subtitle>
+                <div style="display: flex;" id="hero-button-container">
+                    <a class="button" href="/docs/0.2">Docs</a>
+                    <a class="button" href="https://hail.zulipchat.com" target="_blank">Chat with us</a>
+                </div>
             </div>
         </div>
         <div id="about" class="about dark">
             <div class="header-wrap" styel='justify-content: space-between'>
-            <h1>Features</h1>
-            <!-- <a class="button" href="#" target="_blank" style='align-self: flex-end;'>Learn More ></a> -->
-
+                <h1>Features</h1>
+                <!-- <a class="button" href="/tutorial.html" style='align-self: flex-end;'>Learn More ></a> -->
             </div>
             <div class="about-content columns">
-            <section>
-                <h4>Explore Biobank Scale Data</h4>
-                <p>
-                Hail is an open-source library that allows for the efficient exploration of genomic data.
-                It can be used to interrogate <b>biobank-scale</b> genomic data (e.g
-                UK Biobank, TopMed, FinnGen, and Biobank Japan).
-                </p>
-            </section>
-            <section>
-                <h4>Modern Data Scaling</h4>
-                The modern data science stack is driven by table-like data structures, often called dataframes (see <a
-                href="https://pandas.pydata.org">Pandas</a>).
-                While convenient, dataframes don't scale to the sizes needed for genetics. Hail remedies this,
-                introducing a new, scalable dataframe-like structure called <a
-                href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>.
-            </section>
-            <section>
-                <h4>Unified Input Formats</h4>
-                The Hail MatrixTable enables the unification of data across a wide range of input formats (e.g. vcf,
-                bgen, tsv, gtf, bed files), and supports efficient queries, even on petabyte-scale datasets. By
-                leveraging MatrixTable, Hail provides a unified, scalable analysis platform for science.
-            </section>
+                <section>
+                    <h4>Simplified Analysis</h4>
+                    <p> Hail is an open-source Python library that simplifies genomic data analysis.
+                        It provides powerful, easy-to-use data science tools that can be used to interrogate even 
+                        <b>biobank-scale</b> genomic data (e.g UK Biobank, TopMed, FinnGen, and Biobank Japan).
+                    </p>
+                </section>
+                <section>
+                    <h4>Genomic Dataframes</h4>
+                     Modern data science is driven by table-like data structures, often called dataframes (see 
+                    <a href="https://pandas.pydata.org">Pandas</a>).
+                    While convenient, they don't capture the structure of genetic data, which has row (variant) and column (genotype) groups.
+                    To remedy this, Hail introduces a distributed, dataframe-like structure called 
+                    <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>.
+                </section>
+                <section>
+                    <h4>Input Unification</h4>
+                    The <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">Hail MatrixTable</a> unifies a wide range of input formats (e.g. vcf, bgen, plink, tsv, gtf, bed files), and supports scalable queries, even on petabyte-size datasets.
+                    By leveraging MatrixTable, Hail provides an integrated, scalable analysis platform for science.
+                </section>
             </div>
         </div>
         <div class="about">
