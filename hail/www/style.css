@@ -126,9 +126,6 @@ section pre {
   min-width: 300px;
 }
 
-code  *{
-  font-size: 87.5%;
-}
 .staggered .left pre + div, .staggered .right div + pre {
   margin-left: 16.7%;
 }
@@ -266,39 +263,22 @@ table td {
 .sourceCode {
   border-color: inherit;
 }
-/* 
-pre, code {
-  background-color: #f5f5f5;
-} */
 
-/* pre, blockquote {
-  border: 1px solid;
-  border-color: inherit;
-  padding-right: 1em;
-  page-break-inside: avoid;
-} */
-/* 
-code {
-  white-space: pre-wrap;
-  padding: 3px;
-  border-radius: 4px;
-} */
-
-/* pre {
+pre.sourceCode {
   display: block;
-  padding: 9.5px;
-  margin: 0 0 10px;
-  font-size: .75rem;
-  line-height: 1.42857143;
-  color: #444;
-  word-break: break-all;
-  word-wrap: break-word;
-  border-radius: 4px;
-} */
+    padding: 9.5px;
+    margin: 0 0 10px;
+    font-size: 13px;
+    line-height: 1.42857143;
+    color: #333;
+    word-break: break-all;
+    word-wrap: break-word;
+    border-radius: 10px;
 
-/* pre code {
-  padding: 0;
-} */
+    padding-right: 1em;
+    page-break-inside: avoid;
+    background: #fafafa;
+}
 
 @keyframes in {
   0% {
