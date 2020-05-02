@@ -1,8 +1,7 @@
 package is.hail.expr.ir.agg
-
 import is.hail.annotations.{CodeOrdering, Region, RegionUtils, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ParamType, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ParamType, defaultValue, typeToTypeInfo}
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical._
 import is.hail.io._
@@ -55,8 +54,8 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     }
   }
 
-  def loadStates: Code[Unit] = container.load
-  def storeStates: Code[Unit] = container.store
+  def loadStates(cb: EmitCodeBuilder): Unit = container.load(cb)
+  def storeStates(cb: EmitCodeBuilder): Unit = container.store(cb)
   def copyStatesFrom(srcOff: Code[Long]): Code[Unit] = container.copyFrom(srcOff)
 
   def storeRegionIdx(off: Code[Long], idx: Code[Int]): Code[Unit] =
@@ -74,11 +73,12 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   def copy(src: Code[Long], dest: Code[Long]): Code[Unit] =
     Region.copyFrom(src, dest, storageType.byteSize)
 
-  def deepCopy(er: EmitRegion, dest: Code[Long], src: Code[Long]): Code[Unit] =
-    Code.memoize(src, "ga_deep_copy_src") { src =>
-      Code(StagedRegionValueBuilder.deepCopy(er, storageType, src, dest),
-        container.copyFrom(containerOffset(src)),
-        container.store)
+  def deepCopy(er: EmitRegion, dest: Code[Long], srcCode: Code[Long]): Code[Unit] =
+    EmitCodeBuilder.scopedVoid(er.mb) { cb =>
+      val src = cb.newLocal("ga_deep_copy_src", srcCode)
+      StagedRegionValueBuilder.deepCopy(er, storageType, src, dest)
+      cb += container.copyFrom(containerOffset(src))
+      container.store(cb)
     }
 
   def compKeys(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_])): Code[Int] =
@@ -133,7 +133,10 @@ class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
   def withContainer(km: Code[Boolean], kv: Code[_], seqOps: Code[Unit]): Code[Unit] =
     Code(loadContainer(km, kv), seqOps, keyed.storeStates)
 
-  override def createState: Code[Unit] = Code(super.createState, nested.createStates(kb))
+  override def createState(cb: EmitCodeBuilder): Unit = {
+    super.createState(cb)
+    nested.createStates(cb)
+  }
 
   override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] = {
     Code(super.load(regionLoader, src),
@@ -150,95 +153,95 @@ class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
       super.store(regionStorer, dest))
   }
 
-  def init(initOps: Code[Unit]): Code[Unit] = Code(
-    region.setNumParents(nStates),
-    off := region.allocate(typ.alignment, typ.byteSize),
-    initContainer.newState,
-    initOps,
-    initContainer.store,
-    size := 0,
-    tree.init)
+  def init(cb: EmitCodeBuilder, initOps: => Unit): Unit = {
+    cb += region.setNumParents(nStates)
+    cb += (off := region.allocate(typ.alignment, typ.byteSize))
+    initContainer.newState(cb)
+    initOps
+    initContainer.store(cb)
+    cb += (size := 0)
+    cb += tree.init
+  }
 
   def combine(other: DictState, comb: => Code[Unit]): Code[Unit] =
     other.foreach { (km, kv) => withContainer(km, kv, comb) }
 
   // loads container; does not update.
-  def foreach(f: (Code[Boolean], Code[_]) => Code[Unit]): Code[Unit] =
-    tree.foreach { kvOff =>
-      Code(
-        _elt := kvOff, keyed.loadStates,
-        f(keyed.isKeyMissing(_elt), keyed.loadKey(_elt)))
+  def foreach(f: (EmitCodeBuilder, Code[Boolean], Code[_]) => Code[Unit]): Code[Unit] =
+    tree.foreach { (cb, kvOff) =>
+      cb += (_elt := kvOff)
+      keyed.loadStates(cb)
+      f(cb, keyed.isKeyMissing(_elt), keyed.loadKey(_elt))
     }
 
-  def copyFromAddress(src: Code[Long]): Code[Unit] =
-    Code.memoize(src, "ga_copy_from_addr_src") { src =>
-      Code(
-        init(initContainer.copyFrom(typ.loadField(src, 0))),
-        size := Region.loadInt(typ.loadField(src, 1)),
-        tree.deepCopy(Region.loadAddress(typ.loadField(src, 2))))
-    }
+  def copyFromAddress(cb: EmitCodeBuilder, srcCode: Code[Long]): Unit = {
+    val src = cb.newLocal("ga_copy_from_addr_src", srcCode)
+    init(cb, initContainer.copyFrom(typ.loadField(src, 0)))
+    cb += (size := Region.loadInt(typ.loadField(src, 1)))
+    cb += tree.deepCopy(Region.loadAddress(typ.loadField(src, 2)))
+  }
 
-  def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
+  def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     val serializers = nested.states.map(_.serialize(codec))
     val kEnc = keyEType.buildEncoderMethod(keyType, kb)
     val km = kb.genFieldThisRef[Boolean]()
     val kv = kb.genFieldThisRef()(typeToTypeInfo(keyType))
 
-    { ob: Value[OutputBuffer] =>
-      Code(
-        initContainer.load,
-        nested.toCodeWithArgs(kb, "grouped_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+    { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
+      initContainer.load(cb)
+      cb += nested.toCodeWithArgs(kb, "grouped_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
           IndexedSeq(ob),
           { (i, _, args) =>
             Code.memoize(coerce[OutputBuffer](args.head), "ga_ser_init_ob") { ob => serializers(i)(ob) }
-          }),
-        tree.bulkStore(ob) { (ob: Value[OutputBuffer], kvOff: Code[Long]) =>
-          Code(
-            _elt := kvOff,
-            km := keyed.isKeyMissing(_elt),
-            kv.storeAny(keyed.loadKey(_elt)),
-            ob.writeBoolean(km),
-            (!km).orEmpty(kEnc.invokeCode(kv, ob)),
-            keyed.loadStates,
-            nested.toCodeWithArgs(kb, "grouped_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
-              Array(ob.get),
-              { (i, _, args) =>
-                Code.memoize(coerce[OutputBuffer](args.head), "ga_ser_init_ob") { ob => serializers(i)(ob) }
-              }))
-        })
+          })
+      tree.bulkStore(cb, ob) { (cb: EmitCodeBuilder, ob: Value[OutputBuffer], kvOff: Code[Long]) =>
+          cb += (_elt := kvOff)
+          cb += (km := keyed.isKeyMissing(_elt))
+          cb += (kv.storeAny(keyed.loadKey(_elt)))
+          cb += (ob.writeBoolean(km))
+          cb.ifx(!km, {
+            cb += kEnc.invokeCode(kv, ob)
+          })
+          keyed.loadStates(cb)
+          cb += nested.toCodeWithArgs(kb, "grouped_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+            Array(ob.get),
+            { (i, _, args) =>
+              Code.memoize(coerce[OutputBuffer](args.head), "ga_ser_init_ob") { ob => serializers(i)(ob) }
+            })
+        }
     }
   }
 
-  def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     val deserializers = nested.states.map(_.deserialize(codec))
     val kDec = keyEType.buildDecoderMethod(keyType, kb)
     val km = kb.genFieldThisRef[Boolean]()
     val kv = kb.genFieldThisRef()(typeToTypeInfo(keyType))
 
-    { ib: Value[InputBuffer] =>
-      Code(
-        init(nested.toCodeWithArgs(kb, "grouped_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
-          FastIndexedSeq(ib),
-          { (i, _, args) =>
-            Code.memoize(coerce[InputBuffer](args.head), "ga_deser_init_ib") { ib => deserializers(i)(ib) }
-          })),
-        tree.bulkLoad(ib) { (ib, koff) =>
-          Code(
-            _elt := koff,
-            km := ib.readBoolean(),
-            (!km).orEmpty(kv := kDec.invokeCode(region, ib)),
-            initElement(_elt, km, kv),
-            nested.toCodeWithArgs(kb, "grouped_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
-              FastIndexedSeq(ib),
-              { (i, _, args) =>
-                Code.memoize(coerce[InputBuffer](args.head), "ga_deser_ib") { ib => deserializers(i)(ib) }
-              }),
-            keyed.storeStates)
-        })
+    { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
+      init(cb, nested.toCodeWithArgs(kb, "grouped_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
+        FastIndexedSeq(ib),
+        { (i, _, args) =>
+          Code.memoize(coerce[InputBuffer](args.head), "ga_deser_init_ib") { ib => deserializers(i)(ib) }
+        }))
+      tree.bulkLoad(cb, ib) { (cb, ib, koff) =>
+          cb += (_elt := koff)
+          cb += (km := ib.readBoolean())
+          cb.ifx(!km, {
+            cb += (kv := kDec.invokeCode(region, ib))
+          })
+          cb += initElement(_elt, km, kv)
+          cb += nested.toCodeWithArgs(kb, "grouped_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
+            FastIndexedSeq(ib),
+            { (i, _, args) =>
+              Code.memoize(coerce[InputBuffer](args.head), "ga_deser_ib") { ib => deserializers(i)(ib) }
+            })
+          keyed.storeStates(cb)
+      }
     }
   }
 }
-
+/*
 class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends StagedAggregator {
   type State = DictState
 
@@ -284,3 +287,4 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
             sab.advance())
         }))
 }
+*/

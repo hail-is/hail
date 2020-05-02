@@ -34,8 +34,10 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
   })
   val container: TupleAggregatorState = new TupleAggregatorState(kb, nested, region, statesOffset(idx), regionOffset(idx))
 
-  override def createState: Code[Unit] = Code(
-    super.createState, nested.createStates(kb))
+  override def createState(cb: EmitCodeBuilder): Unit = {
+    super.createState(cb)
+    nested.createStates(cb)
+  }
 
   override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] = {
     Code(super.load(regionLoader, src),
@@ -163,7 +165,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   val resultEltType: PTuple = PCanonicalTuple(true, nestedAggs.map(_.resultType): _*)
   val resultType: PArray = PCanonicalArray(resultEltType, required = knownLength)
 
-  def createState(kb: EmitClassBuilder[_]): State = new ArrayElementState(kb, StateTuple(nestedAggs.map(_.createState(kb))))
+  def createState(cb: EmitCodeBuilder): State = new ArrayElementState(kb, StateTuple(nestedAggs.map(_.createState(cb))))
 
   // inits all things
   protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
@@ -237,7 +239,7 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
 
   def resultType: PType = PCanonicalArray(PCanonicalTuple(false, nestedAggs.map(_.resultType): _*))
 
-  def createState(kb: EmitClassBuilder[_]): State =
+  def createState(cb: EmitCodeBuilder): State =
     throw new UnsupportedOperationException(s"State must be created by ArrayElementLengthCheckAggregator")
 
   protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] =

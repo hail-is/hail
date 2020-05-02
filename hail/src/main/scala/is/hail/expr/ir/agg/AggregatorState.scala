@@ -14,7 +14,7 @@ trait AggregatorState {
 
   def regionSize: Int = Region.TINY
 
-  def createState: Code[Unit]
+  def createState(cb: EmitCodeBuilder): Unit
   def newState(off: Code[Long]): Code[Unit]
 
   def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit]
@@ -57,7 +57,8 @@ trait RegionBackedAggState extends AggregatorState {
 
   def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(const(regionSize))
 
-  def createState: Code[Unit] = region.isNull.mux(r := Region.stagedCreate(regionSize), Code._empty)
+  def createState(cb: EmitCodeBuilder): Unit =
+    cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize)))
 
   def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] = regionLoader(r)
 
@@ -138,7 +139,7 @@ class PrimitiveRVAState(val types: Array[PType], val kb: EmitClassBuilder[_]) ex
     Code(Array.tabulate(nFields)(i => f(i, fields(i))))
 
   def newState(off: Code[Long]): Code[Unit] = Code._empty
-  def createState: Code[Unit] = Code._empty
+  def createState(cb: EmitCodeBuilder): Unit = {}
 
   private[this] def loadVarsFromRegion(src: Code[Long]): Code[Unit] =
     foreachField {
@@ -202,15 +203,20 @@ case class StateTuple(states: Array[AggregatorState]) {
     states(i)
   }
 
-  def toCode(kb: EmitClassBuilder[_], prefix: String, f: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
-    kb.wrapVoids(Array.tabulate(nStates)((i: Int) => f(i, states(i))), prefix)
+  def toCode(cb: EmitCodeBuilder, prefix: String, f: (EmitCodeBuilder, Int, AggregatorState) => Unit): Unit =
+    cb.emb.wrapVoids(cb,
+      Array.tabulate(nStates) { (i: Int) =>
+        (cb: EmitCodeBuilder) => f(cb, i, states(i))
+      },
+      prefix
+    )
 
   def toCodeWithArgs(kb: EmitClassBuilder[_], prefix: String, argTypes: IndexedSeq[TypeInfo[_]], args: IndexedSeq[Code[_]],
     f: (Int, AggregatorState, Seq[Code[_]]) => Code[Unit]): Code[Unit] =
     kb.wrapVoidsWithArgs(Array.tabulate(nStates)((i: Int) => { args: Seq[Code[_]] => f(i, states(i), args) }), prefix, argTypes, args)
 
-  def createStates(kb: EmitClassBuilder[_]): Code[Unit] =
-    toCode(kb, "create_states", (i, s) => s.createState)
+  def createStates(cb: EmitCodeBuilder): Unit =
+    toCode(cb, "create_states", (cb, i, s) => s.createState(cb))
 }
 
 class TupleAggregatorState(val kb: EmitClassBuilder[_], val states: StateTuple, val topRegion: Value[Region], val off: Value[Long], val rOff: Value[Int] = const(0)) {
@@ -226,9 +232,15 @@ class TupleAggregatorState(val kb: EmitClassBuilder[_], val states: StateTuple, 
     Code(Array.tabulate(states.nStates)(i => f(i, states(i))))
 
   def newState(i: Int): Code[Unit] = states(i).newState(getStateOffset(i))
-  def newState: Code[Unit] = states.toCode(kb, "new_state", (i, s) => s.newState(getStateOffset(i)))
-  def load: Code[Unit] = states.toCode(kb, "load", (i, s) => s.load(getRegion(i), getStateOffset(i)))
-  def store: Code[Unit] = states.toCode(kb, "store", (i, s) => s.store(setRegion(i), getStateOffset(i)))
+
+  def newState(cb: EmitCodeBuilder): Unit = states.toCode(cb, "new_state", (cb, i, s) => cb += s.newState(getStateOffset(i)))
+
+  def load(cb: EmitCodeBuilder): Unit =
+    states.toCode(cb, "load", (cb, i, s) => cb += s.load(getRegion(i), getStateOffset(i)))
+
+  def store(cb: EmitCodeBuilder): Unit =
+    states.toCode(cb, "store", (cb, i, s) => cb += s.store(setRegion(i), getStateOffset(i)))
+
   def copyFrom(statesOffset: Code[Long]): Code[Unit] = {
     states.toCodeWithArgs(kb, "copy_from", Array[TypeInfo[_]](LongInfo),
       Array(statesOffset),

@@ -20,10 +20,11 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
     def storageType = bll.storageType
     override def regionSize: Region.Size = Region.REGULAR
 
-    def createState: Code[Unit] =
-      region.isNull.orEmpty(Code(
-        r := Region.stagedCreate(regionSize),
-        region.invalidate()))
+    def createState(cb: EmitCodeBuilder): Unit =
+      cb.ifx(region.isNull, {
+        cb.assign(r, region.stagedCreate(regionSize))
+        cb += region.invalidate()
+      })
 
     def newState(off: Code[Long]): Code[Unit] =
       region.getNewRegion(regionSize)
@@ -54,8 +55,7 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
     }
   }
 
-  def createState(kb: EmitClassBuilder[_]): State =
-    new State(kb)
+  def createState(cb: EmitCodeBuilder): State = new State(cb.emb.ecb)
 
   protected def _initOp(state: State, args: Array[EmitCode]): Code[Unit] = {
     assert(args.isEmpty)

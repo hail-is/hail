@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.expr.types.physical.{PBooleanRequired, PCanonicalStruct, PInt32Required, PStruct}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
@@ -48,7 +48,8 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
 
   def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(regionSize)
 
-  def createState: Code[Unit] = region.isNull.mux(r := Region.stagedCreate(regionSize), Code._empty)
+  def createState(cb: EmitCodeBuilder): Unit =
+    cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize)))
 
   override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     Code.memoize(src, "acdfa_load_src") { src =>
@@ -111,7 +112,7 @@ class ApproxCDFAggregator extends StagedAggregator {
 
   def resultType: PStruct = QuantilesAggregator.resultType
 
-  def createState(kb: EmitClassBuilder[_]): State = new ApproxCDFState(kb)
+  def createState(cb: EmitCodeBuilder): State = new ApproxCDFState(cb.emb.ecb)
 
   protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
     val Array(k) = init

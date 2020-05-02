@@ -96,7 +96,7 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
 
   def resultType: PStruct = CallStatsState.resultType
 
-  def createState(kb: EmitClassBuilder[_]): State = new CallStatsState(kb)
+  def createState(cb: EmitCodeBuilder): State = new CallStatsState(cb.emb.ecb)
 
   protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
     val Array(nAlleles) = init

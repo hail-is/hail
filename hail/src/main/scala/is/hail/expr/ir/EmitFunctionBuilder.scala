@@ -96,7 +96,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   def addModule(name: String, mod: (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit =
     ecb.addModule(name, mod)
 
-  def wrapVoids(x: Seq[Code[Unit]], prefix: String, size: Int = 32): Code[Unit] = ecb.wrapVoids(x, prefix, size)
+  def wrapVoids(cb: EmitCodeBuilder, x: Seq[EmitCodeBuilder => Unit], prefix: String, size: Int = 32): Unit =
+    ecb.wrapVoids(cb, x, prefix, size)
 
   def wrapVoidsWithArgs(x: Seq[Seq[Code[_]] => Code[Unit]],
     suffix: String,
@@ -328,8 +329,6 @@ class EmitClassBuilder[C](
     _aggSigs = aggSigs
     _aggRegion = genFieldThisRef[Region]("agg_top_region")
     _aggOff = genFieldThisRef[Long]("agg_off")
-    val states = agg.StateTuple(aggSigs.map(a => agg.Extract.getAgg(a, a.default).createState(this)).toArray)
-    _aggState = new agg.TupleAggregatorState(this, states, _aggRegion, _aggOff)
     _aggSerialized = genFieldThisRef[Array[Array[Byte]]]("agg_serialized")
 
     val newF = newEmitMethod("newAggState", FastIndexedSeq[ParamType](typeInfo[Region]), typeInfo[Unit])
@@ -339,22 +338,31 @@ class EmitClassBuilder[C](
     val setSer = newEmitMethod("setSerializedAgg", FastIndexedSeq[ParamType](typeInfo[Int], typeInfo[Array[Byte]]), typeInfo[Unit])
     val getSer = newEmitMethod("getSerializedAgg", FastIndexedSeq[ParamType](typeInfo[Int]), typeInfo[Array[Byte]])
 
-    newF.emit(
-      Code(_aggRegion := newF.getCodeParam[Region](1),
-        _aggState.topRegion.setNumParents(aggSigs.length),
-        _aggOff := _aggRegion.load().allocate(states.storageType.alignment, states.storageType.byteSize),
-        states.createStates(this),
-        _aggState.newState))
+    val (nfcode, states) = EmitCodeBuilder.scoped(newF) { cb =>
+      val states = agg.StateTuple(aggSigs.map(a => agg.Extract.getAgg(a, a.default).createState(cb)).toArray)
+      _aggState = new agg.TupleAggregatorState(this, states, _aggRegion, _aggOff)
+      cb += (_aggRegion := newF.getCodeParam[Region](1))
+      cb += _aggState.topRegion.setNumParents(aggSigs.length)
+      cb += (_aggOff := _aggRegion.load().allocate(states.storageType.alignment, states.storageType.byteSize))
+      states.createStates(cb)
+      _aggState.newState(cb)
 
-    setF.emit(
-      Code(
-        _aggRegion := setF.getCodeParam[Region](1),
-        _aggState.topRegion.setNumParents(aggSigs.length),
-        states.createStates(this),
-        _aggOff := setF.getCodeParam[Long](2),
-        _aggState.load))
+      states
+    }
 
-    getF.emit(Code(_aggState.store, _aggOff))
+    setF.emitWithBuilder { cb =>
+      cb += (_aggRegion := setF.getCodeParam[Region](1))
+      cb += _aggState.topRegion.setNumParents(aggSigs.length)
+      states.createStates(cb)
+      cb += (_aggOff := setF.getCodeParam[Long](2))
+      _aggState.load(cb)
+      Code._empty
+    }
+
+    getF.emitWithBuilder { cb =>
+      _aggState.store(cb)
+      _aggOff
+    }
 
     setNSer.emit(_aggSerialized := Code.newArray[Array[Byte]](setNSer.getCodeParam[Int](1)))
 
@@ -501,8 +509,17 @@ class EmitClassBuilder[C](
   ): CodeOrdering.F[op.ReturnType] =
     getCodeOrdering(t, t, sortOrder, op, ignoreMissingness)
 
-  def wrapVoids(x: Seq[Code[Unit]], prefix: String, size: Int = 32): Code[Unit] =
-    wrapVoidsWithArgs(x.map { c => (s: Seq[Code[_]]) => c }, prefix, FastIndexedSeq(), FastIndexedSeq(), size)
+  def wrapVoids(cb: EmitCodeBuilder, x: Seq[EmitCodeBuilder => Unit], prefix: String, size: Int = 32): Unit = {
+    x.grouped(size).zipWithIndex.foreach { case (codes, i) =>
+      val mb = genEmitMethod(prefix + s"_group$i", FastIndexedSeq(), CodeParamType(UnitInfo))
+      mb.emitWithBuilder { cb =>
+        codes.foreach { f =>
+          f(cb)
+        }
+        Code._empty
+      }
+    }
+  }
 
   def wrapVoidsWithArgs(x: Seq[Seq[Code[_]] => Code[Unit]],
     suffix: String,
