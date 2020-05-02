@@ -7,7 +7,7 @@ import org.apache.spark.sql.Row
 
 object PartitionBoundOrdering {
   def apply(_kType: Type): ExtendedOrdering = {
-    val kType = _kType.asInstanceOf[TStruct]
+    val kType = _kType.asInstanceOf[TBaseStruct]
     val fieldOrd = kType.types.map(_.ordering)
 
     new ExtendedOrdering {

@@ -1138,7 +1138,7 @@ class RVD(
     }.run
 
     val nParts = getNumPartitions
-    val intervalOrd = PartitionBoundOrdering(rightTyp.kType.types(0).virtualType).toOrdering.asInstanceOf[Ordering[Interval]]
+    val intervalOrd = rightTyp.kType.types(0).virtualType.ordering.toOrdering.asInstanceOf[Ordering[Interval]]
     val sorted: RDD[((Int, Interval), Array[Byte])] = new ShuffledRDD(
       partitionKeyedIntervals,
       new Partitioner {
