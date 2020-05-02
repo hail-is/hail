@@ -12,7 +12,7 @@ import is.hail.io._
 import is.hail.io.bgen.BgenSettings
 import is.hail.utils._
 import is.hail.io.fs.FS
-import is.hail.rvd.{AbstractIndexSpec, AbstractRVDSpec}
+import is.hail.rvd.{AbstractIndexSpec, AbstractRVDSpec, PartitionBoundOrdering}
 import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.spark.sql.Row
 import org.json4s.{Formats, NoTypeHints}
@@ -77,7 +77,7 @@ class IndexReader(fs: FS,
   val nKeys = metadata.nKeys
   val attributes = metadata.attributes
   val indexRelativePath = metadata.indexPath
-  val ordering = keyType.ordering
+  val ordering = PartitionBoundOrdering(keyType)
 
   private val is = fs.openNoCompression(path + "/" + indexRelativePath)
   private val leafDecoder = leafDecoderBuilder(is)
