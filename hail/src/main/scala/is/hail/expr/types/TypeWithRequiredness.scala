@@ -78,7 +78,7 @@ sealed abstract class TypeWithRequiredness extends BaseTypeWithRequiredness {
   def _unionPType(pType: PType): Unit
   def _validPType(pt: PType): Boolean
   def unionLiteral(a: Annotation): Unit =
-    if (a == null) union(true) else _unionLiteral(a)
+    if (a == null) union(false) else _unionLiteral(a)
 
   def fromPType(pType: PType): Unit = {
     union(pType.required)
