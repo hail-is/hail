@@ -92,13 +92,25 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
 
   override def _buildFundamentalEncoder(pt: PType, mb: EmitMethodBuilder[_], v: Value[_], out: Value[OutputBuffer]): Code[Unit] = {
     val ft = pt.asInstanceOf[PBaseStruct]
+    val vs = coerce[Long](v)
     val writeMissingBytes = if (ft.size == size) {
       val missingBytes = UnsafeUtils.packBitsToBytes(ft.nMissing)
       var c = Code._empty
-      if (nMissingBytes > 1)
-        c = Code(c, out.writeBytes(coerce[Long](v), missingBytes - 1))
-      if (nMissingBytes > 0)
-        c = Code(c, out.writeByte((Region.loadByte(coerce[Long](v) + (missingBytes.toLong - 1)).toI & const(EType.lowBitMask(ft.nMissing & 0x7))).toB))
+      ft match {
+        case ps: PCanonicalBaseStruct if ps.fieldRequired.sameElements(fields.map(_.typ.required))=>
+          if (nMissingBytes > 1)
+            c = Code(c, out.writeBytes(coerce[Long](v), missingBytes - 1))
+          if (nMissingBytes > 0)
+            c = Code(c, out.writeByte((Region.loadByte(vs + (missingBytes.toLong - 1)).toI & const(EType.lowBitMask(ft.nMissing & 0x7))).toB))
+        case _ =>
+          fields.filter(f => !f.typ.required)
+            .grouped(8)
+            .foreach { group =>
+              c = Code(c, out.writeByte(group.zipWithIndex.map { case (f, i) =>
+                ft.isFieldMissing(vs, f.index).toI << i
+              }.reduce(_ | _).toB))
+            }
+      }
       c
     } else {
       val groupSize = 64
@@ -201,14 +213,19 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
           val rf = t.field(f.name)
           val readElemF = f.typ.buildInplaceDecoder(rf.typ, mb.ecb)
           val rFieldAddr = t.fieldOffset(addrArg, rf.index)
-          if (f.typ.required)
-            readElemF(regionArg, rFieldAddr, inArg)
-          else
+          if (f.typ.required) {
+            var c = readElemF(regionArg, rFieldAddr, inArg)
+            if (!rf.typ.required) {
+              c = Code(t.setFieldPresent(addrArg, rf.index), c)
+            }
+            c
+          } else {
             Region.loadBit(mbytesArg, const(missingIdx(f.index).toLong)).mux(
               t.setFieldMissing(addrArg, rf.index),
               Code(
                 t.setFieldPresent(addrArg, rf.index),
                 readElemF(regionArg, rFieldAddr, inArg)))
+          }
         } else {
           val skip = f.typ.buildSkip(groupMB)
           if (f.typ.required)

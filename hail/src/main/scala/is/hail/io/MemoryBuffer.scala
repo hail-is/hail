@@ -148,4 +148,17 @@ final class MemoryBuffer extends Serializable {
     assert(pos + n <= end)
     pos += n
   }
+
+  def dumpHexBytes(from: Int = 0, to: Int = end): Unit = {
+    val bytes = (from until to).map { i =>
+      val x = (mem(i).toInt & 0xff).toHexString
+      if (x.length == 1) "0" + x
+      else x
+    } .mkString(" ")
+
+    val index = (from until to by 4).map(i => String.format("%1$-12s", i.toString)).mkString("")
+    println(s"bytes: $bytes")
+    println(s"index: $index")
+  }
 }
+
