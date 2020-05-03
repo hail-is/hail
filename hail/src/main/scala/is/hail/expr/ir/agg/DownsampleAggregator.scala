@@ -201,6 +201,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
           cb += binEnc.invokeCode(key.storageType.loadField(src, "bin"), ob)
           cb += pointEnc.invokeCode(key.storageType.loadField(src, "point"), ob)
         }
+        cb += ob.writeInt(DownsampleState.serializationEndMarker)
         Code._empty
       }
 
@@ -224,6 +225,10 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
         cb.assign(right, ib.readDouble())
         cb.assign(bottom, ib.readDouble())
         cb.assign(top, ib.readDouble())
+        cb.assign(bufferLeft, left)
+        cb.assign(bufferRight, right)
+        cb.assign(bufferBottom, bottom)
+        cb.assign(bufferTop, top)
         cb.assign(treeSize, ib.readInt())
         cb += tree.init
         tree.bulkLoad(cb, ib) { (cb, ib, destCode) =>
