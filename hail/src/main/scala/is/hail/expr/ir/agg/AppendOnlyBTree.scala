@@ -206,22 +206,22 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     val i = f.newLocal[Int]("aobt_foreach_i")
 
     f.emitWithBuilder { cb =>
-      cb.ifx(isLeaf(node), {
+      cb.ifx(!isLeaf(node), {
         cb += f.invokeCode(loadChild(node, -1))
-        cb.assign(i, 0)
-        val Lexit = CodeLabel()
-        (0 until maxElements).foreach { i =>
-          cb.ifx(hasKey(node, i), {
-            visitor(cb, loadKey(node, i))
-            cb.ifx(!isLeaf(node), {
-              f.invokeCode(loadChild(node, i))
-            })
-          }, {
-            cb.goto(Lexit)
-          })
-        }
-        cb.define(Lexit)
       })
+      cb.assign(i, 0)
+      val Lexit = CodeLabel()
+      (0 until maxElements).foreach { i =>
+        cb.ifx(hasKey(node, i), {
+          visitor(cb, loadKey(node, i))
+          cb.ifx(!isLeaf(node), {
+            f.invokeCode(loadChild(node, i))
+          })
+        }, {
+          cb.goto(Lexit)
+        })
+      }
+      cb.define(Lexit)
       Code._empty
     }
     cb += f.invokeCode(root)
