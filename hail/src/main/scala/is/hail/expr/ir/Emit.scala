@@ -578,8 +578,8 @@ class Emit[C](
         cb.assign(baos, Code.newInstance[ByteArrayOutputStream]())
         cb.assign(ob, spec.buildCodeOutputBuffer(baos))
         mb.wrapVoids(cb, serialize, "serialize_aggs")
-        cb += ob.invoke("flush")
-        cb += ob.invoke("close")
+        cb += ob.invoke[Unit]("flush")
+        cb += ob.invoke[Unit]("close")
         cb += mb.setSerializedAgg(sIdx, baos.invoke[Array[Byte]]("toByteArray"))
         sc.store(cb)
 

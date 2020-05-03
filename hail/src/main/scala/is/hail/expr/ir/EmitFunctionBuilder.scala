@@ -351,6 +351,8 @@ class EmitClassBuilder[C](
       states
     }
 
+    newF.emit(nfcode)
+
     setF.emitWithBuilder { cb =>
       cb += (_aggRegion := setF.getCodeParam[Region](1))
       cb += _aggState.topRegion.setNumParents(aggSigs.length)
