@@ -215,7 +215,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
         cb.ifx(hasKey(node, i), {
           visitor(cb, loadKey(node, i))
           cb.ifx(!isLeaf(node), {
-            f.invokeCode(loadChild(node, i))
+            cb += f.invokeCode(loadChild(node, i))
           })
         }, {
           cb.goto(Lexit)
@@ -268,7 +268,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     f.emitWithBuilder { cb =>
       cb += ob.writeBoolean(!isLeaf(node))
       cb.ifx(!isLeaf(node), {
-        f.invokeCode(loadChild(node, -1), ob)
+        cb += f.invokeCode(loadChild(node, -1), ob)
       })
       val Lexit = CodeLabel()
       (0 until maxElements).foreach { i =>
@@ -303,7 +303,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
       cb.ifx(isInternalNode, {
         cb += createNode(newNode)
         cb += setChild(node, -1, newNode)
-        f.invokeCode(newNode, ib)
+        cb += f.invokeCode(newNode, ib)
       })
       val Lexit = CodeLabel()
       (0 until maxElements).foreach { i =>
@@ -313,7 +313,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
           cb.ifx(isInternalNode, {
             cb += createNode(newNode)
             cb += setChild(node, i, newNode)
-            f.invokeCode(newNode, ib)
+            cb += f.invokeCode(newNode, ib)
           })
         }, {
           cb.goto(Lexit)
