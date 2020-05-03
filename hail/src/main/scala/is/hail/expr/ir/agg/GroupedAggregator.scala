@@ -46,7 +46,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
         StagedRegionValueBuilder.deepCopy(kb, region, kt, coerce[Long](kv), koff)
     if (!kt.required) {
       cb.ifx(km, { storageType.setFieldMissing(dest, 0) }, {
-        storageType.setFieldPresent(dest, 0)
+        cb += storageType.setFieldPresent(dest, 0)
         cb += storeK
       })
     } else {
@@ -79,7 +79,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   def deepCopy(er: EmitRegion, dest: Code[Long], srcCode: Code[Long]): Code[Unit] =
     EmitCodeBuilder.scopedVoid(er.mb) { cb =>
       val src = cb.newLocal("ga_deep_copy_src", srcCode)
-      StagedRegionValueBuilder.deepCopy(er, storageType, src, dest)
+      cb += StagedRegionValueBuilder.deepCopy(er, storageType, src, dest)
       container.copyFrom(cb, containerOffset(src))
       container.store(cb)
     }
@@ -289,7 +289,7 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
       state.foreach(cb) { (cb, km, kv) =>
         cb += sab.addBaseStruct(resultType.elementType, ssb => EmitCodeBuilder.scopedVoid(ssb.mb) { cb =>
           cb += ssb.start
-          cb.ifx(km, cb += ssb.setMissing, cb += ssb.addWithDeepCopy(kt, kv))
+          cb.ifx(km, cb += ssb.setMissing(), cb += ssb.addWithDeepCopy(kt, kv))
           cb += ssb.advance()
           cb += ssb.addBaseStruct(resultEltType, svb => EmitCodeBuilder.scopedVoid(svb.mb) { cb =>
             cb += svb.start()

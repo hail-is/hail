@@ -194,8 +194,7 @@ object Extract {
     case PhysicalAggSignature(PrevNonnull(), _, Seq(t)) =>
       new PrevNonNullAggregator(t.setRequired(false))
     case PhysicalAggSignature(Group(), _, Seq(kt, PVoid)) =>
-      ???
-      // new GroupedAggregator(PType.canonical(kt), aggSig.nested.get.map(a => getAgg(a, a.default)).toArray)
+      new GroupedAggregator(PType.canonical(kt), aggSig.nested.get.map(a => getAgg(a, a.default)).toArray)
     case PhysicalAggSignature(CollectAsSet(), _, Seq(t)) =>
       new CollectAsSetAggregator(PType.canonical(t))
     case PhysicalAggSignature(Collect(), _, Seq(t)) =>

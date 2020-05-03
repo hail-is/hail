@@ -226,14 +226,12 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   }
 
   protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
-    cb.ifx(state.lenRef < 0, {
-      cb += srvb.setMissing()
-    }, {
+    cb.ifx(state.lenRef < 0, { cb += srvb.setMissing() }, {
       cb += srvb.addArray(resultType, { sab =>
         EmitCodeBuilder.scopedVoid(sab.mb) { cb =>
           cb += sab.start(state.lenRef)
           cb.whileLoop(sab.arrayIdx < state.lenRef, {
-            sab.addBaseStruct(resultEltType, { ssb =>
+            cb += sab.addBaseStruct(resultEltType, { ssb =>
               EmitCodeBuilder.scopedVoid(ssb.mb) { cb =>
                 cb += ssb.start()
                 cb.assign(state.idx, sab.arrayIdx)
