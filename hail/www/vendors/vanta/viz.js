@@ -69,10 +69,9 @@ class Viz {
     this.animationLoop = this.animationLoop.bind(this);
 
     window.requestAnimationFrame(() => {
-      this.renderer = new THREE.WebGLRenderer({
-        alpha: true,
-        antialias: true,
-      });
+      let canvas = document.createElement('canvas');
+      let context = canvas.getContext('webgl', { alpha: true });
+      this.renderer = new THREE.WebGLRenderer({ canvas: canvas, context: context });
 
       this.el.appendChild(this.renderer.domElement);
     });
@@ -85,15 +84,15 @@ class Viz {
 
       // entries[0].isIntersecting incorrect in firefox
       this.elOnscreen = entries[0].intersectionRatio > intersectionThreshold;
-      this.interval = 1000 / 16;
+      this.interval = 1000 / 12;
       if (this.elOnscreen) {
-        if(!this.postInit)  {
+        if (!this.postInit) {
           try {
             window.requestAnimationFrame(() => {
               this.init();
               this.listen();
               this.then = Date.now();
-              this.animationLoop(24);
+              this.animationLoop();
               this.postInit = true;
             });
           } catch (e) {
@@ -107,7 +106,7 @@ class Viz {
           return;
         }
 
-        this.animationLoop(24);
+        this.animationLoop();
         return;
       }
     };
@@ -134,6 +133,7 @@ class Viz {
     });
 
     let timeout;
+    this.mouse.dontshow = false;
     window.addEventListener('mousemove', (e) => {
       if (timeout) {
         clearTimeout(timeout);
@@ -144,8 +144,6 @@ class Viz {
         timeout = null;
       }, this.mouse.dontshow ? 32 : 4);
     }, false);
-
-    this.mouse.dontshow = false;
 
     // TODO: generalize this
     const d = document.getElementById('hero-content');
@@ -205,15 +203,19 @@ class Viz {
       }
 
       this.resizeTimeout = null;
-    }, 100);
+    }, 128);
   }
 
-  animationLoop(tInterval =  24) {
-    if(this.startedAnimation || !this.elOnscreen) {
+  animationLoop(tInterval = 33) {
+    if (!this.hidden && !this.mouse.updated) {
       return;
     }
 
-    if(this.animationTimeout) {
+    if (this.startedAnimation || !this.elOnscreen) {
+      return;
+    }
+
+    if (this.animationTimeout) {
       clearTimeout(this.animationTimeout);
     }
 
@@ -221,18 +223,19 @@ class Viz {
     const delta = now - this.then;
 
     if (!this.isScrolling) {
-      if (delta > this.interval) {
+      if (this.hidden || delta > this.interval) {
         this.onUpdate()
         if (this.scene && this.camera) {
           this.renderer.render(this.scene, this.camera)
         }
+        this.mouse.updated = false;
       }
     }
 
-    if(this.hidden) {
+    if (this.hidden) {
       this.startedAnimation = true;
-      const started =  Date.now();
-
+      const started = Date.now();
+      console.info('updating')
       window.requestAnimationFrame(() => {
         this.el.style.opacity = .5;
         this.hidden = false;
@@ -245,7 +248,7 @@ class Viz {
       this.then = now - (delta % this.interval);
     }
 
-    this.animationTimeout =  window.setTimeout(() => {
+    this.animationTimeout = window.setTimeout(() => {
       this.animationLoop(tInterval);
       this.animationTimeout = null;
     }, tInterval);
@@ -279,6 +282,8 @@ class Viz {
       this.mouse.updatedCount = 0;
 
       this.rayCaster.setFromCamera(new THREE.Vector2(this.mouse.x, this.mouse.y), this.camera);
+
+      this.animationLoop();
     }
   }
 
@@ -354,6 +359,7 @@ class Viz {
 
     let dist, distToMouse, lineColor, p, p2, ang;
     let affected1 = 0;
+
     for (let i = 0; i < this.points.length; i++) {
       p = this.points[i];
 
@@ -382,42 +388,48 @@ class Viz {
 
       for (let j = i; j < this.points.length; j++) {
         p2 = this.points[j]
+
         dist = Math.sqrt(((p.position.x - p2.position.x) ** 2) + ((p.position.y - p2.position.y) ** 2) + ((p.position.z - p2.position.z) ** 2))
-        if (dist < this.options.maxDistance) {
-          if (affected1) {
-            lineColor = this.highlightColor;
-          } else {
-            let alpha = ((1.0 - (dist / this.options.maxDistance)));
-            if (alpha < 0) {
-              alpha = 0;
-            } else if (alpha > 1) {
-              alpha = 1;
-            }
-
-            lineColor = this.options.backgroundColor.clone().lerp(this.options.color, alpha);
-          }
-          this.linePositions[vertexpos++] = p.position.x;
-          this.linePositions[vertexpos++] = p.position.y;
-          this.linePositions[vertexpos++] = p.position.z;
-          this.linePositions[vertexpos++] = p2.position.x;
-          this.linePositions[vertexpos++] = p2.position.y;
-          this.linePositions[vertexpos++] = p2.position.z;
-
-
-          this.lineColors[colorpos++] = lineColor.r;
-          this.lineColors[colorpos++] = lineColor.g;
-          this.lineColors[colorpos++] = lineColor.b;
-          this.lineColors[colorpos++] = lineColor.r;
-          this.lineColors[colorpos++] = lineColor.g;
-          this.lineColors[colorpos++] = lineColor.b;
-
-          numConnected++;
+        if (dist >= this.options.maxDistance) {
+          continue;
         }
+
+        if (affected1) {
+          lineColor = this.highlightColor;
+        } else {
+          let alpha = ((1.0 - (dist / this.options.maxDistance)));
+          if (alpha < 0) {
+            alpha = 0;
+          } else if (alpha > 1) {
+            alpha = 1;
+          }
+
+          lineColor = this.options.backgroundColor.clone().lerp(this.options.color, alpha);
+        }
+
+        this.linePositions[vertexpos++] = p.position.x;
+        this.linePositions[vertexpos++] = p.position.y;
+        this.linePositions[vertexpos++] = p.position.z;
+        this.linePositions[vertexpos++] = p2.position.x;
+        this.linePositions[vertexpos++] = p2.position.y;
+        this.linePositions[vertexpos++] = p2.position.z;
+
+
+
+        this.lineColors[colorpos++] = lineColor.r;
+        this.lineColors[colorpos++] = lineColor.g;
+        this.lineColors[colorpos++] = lineColor.b;
+        this.lineColors[colorpos++] = lineColor.r;
+        this.lineColors[colorpos++] = lineColor.g;
+        this.lineColors[colorpos++] = lineColor.b;
+
+        numConnected++;
       }
     }
 
     this.linesMesh.geometry.setDrawRange(0, numConnected * 2);
     this.linesMesh.geometry.attributes.position.needsUpdate = true;
+
     this.linesMesh.geometry.attributes.color.needsUpdate = true;
   }
 }
