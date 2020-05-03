@@ -99,11 +99,12 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   def wrapVoids(cb: EmitCodeBuilder, x: Seq[EmitCodeBuilder => Unit], prefix: String, size: Int = 32): Unit =
     ecb.wrapVoids(cb, x, prefix, size)
 
-  def wrapVoidsWithArgs(x: Seq[Seq[Code[_]] => Code[Unit]],
+  def wrapVoidsWithArgs(cb: EmitCodeBuilder,
+    x: Seq[(EmitCodeBuilder, Seq[Code[_]]) => Unit],
     suffix: String,
     argTypes: IndexedSeq[TypeInfo[_]],
     args: IndexedSeq[Code[_]],
-    size: Int = 32): Code[Unit] = ecb.wrapVoidsWithArgs(x, suffix, argTypes, args, size)
+    size: Int = 32): Unit = ecb.wrapVoidsWithArgs(cb, x, suffix, argTypes, args, size)
 
   def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = ecb.getReferenceGenome(rg)
 
@@ -518,26 +519,33 @@ class EmitClassBuilder[C](
         }
         Code._empty
       }
+      cb += mb.invokeCode[Unit]()
     }
   }
 
-  def wrapVoidsWithArgs(x: Seq[Seq[Code[_]] => Code[Unit]],
+  def wrapVoidsWithArgs(cb: EmitCodeBuilder,
+    x: Seq[(EmitCodeBuilder, Seq[Code[_]]) => Unit],
     suffix: String,
     argInfo: IndexedSeq[TypeInfo[_]],
     args: IndexedSeq[Code[_]],
-    size: Int = 32): Code[Unit] = {
+    size: Int = 32
+  ): Unit = {
     val argTmps: IndexedSeq[Settable[Any]] = argInfo.zipWithIndex.map { case (ti, i) =>
-      new LocalRef(new lir.Local(null, s"wvwa_arg$i", ti)).asInstanceOf[Settable[Any]]
+      cb.newLocal(s"wvwa_arg$i")(ti).asInstanceOf[Settable[Any]]
     }
 
-    Code(
-      Code((argTmps, args).zipped.map { case (t, arg) => t.storeAny(arg) }),
-      Code(x.grouped(size).zipWithIndex.map { case (codes, i) =>
-        val mb = genEmitMethod(suffix + s"_group$i", argInfo.map(ai => CodeParamType(ai)), CodeParamType(UnitInfo))
-        val methodArgs = argInfo.zipWithIndex.map { case (ai, i) => mb.getCodeParam(i + 1)(ai) }
-        mb.emit(Code(codes.map(_.apply(methodArgs.map(_.get)))))
-        mb.invokeCode[Unit](argTmps.map(_.get: Param): _*)
-      }.toArray))
+    argTmps.zip(args).foreach { case (t, arg) => cb.assignAny(t, arg) }
+    x.grouped(size).zipWithIndex.foreach { case (codes, i) =>
+      val mb = genEmitMethod(suffix + s"_group$i", argInfo.map(ai => CodeParamType(ai)), CodeParamType(UnitInfo))
+      val methodArgs = argInfo.zipWithIndex.map { case (ai, i) => mb.getCodeParam(i + 1)(ai) }
+      mb.emitWithBuilder { cb =>
+        codes.foreach { f =>
+          f(cb, methodArgs.map(_.get))
+        }
+        Code._empty
+      }
+      cb += mb.invokeCode[Unit](argTmps.map(_.get: Param): _*)
+    }
   }
 
   def newEmitMethod(name: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] = {

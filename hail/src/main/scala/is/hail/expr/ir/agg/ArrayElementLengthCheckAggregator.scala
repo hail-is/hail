@@ -54,21 +54,24 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
       arrayType.stagedInitialize(aoff, lenRef),
       typ.setFieldPresent(off, 1))
 
-  def seq(init: Code[Unit], initPerElt: Code[Unit], seqOp: Code[Unit]): Code[Unit] =
-    Code(
-      init,
-      idx := 0,
-      Code.whileLoop(idx < lenRef,
-        initPerElt,
-        seqOp,
-        store,
-        idx := idx + 1))
+  def seq(cb: EmitCodeBuilder, init: => Unit, initPerElt: => Unit, seqOp: => Unit): Unit = {
+    init
+    cb.assign(idx, 0)
+    cb.whileLoop(idx < lenRef, {
+      initPerElt
+      seqOp
+      store(cb)
+      cb.assign(idx, idx + 1)
+    })
+  }
 
-  def seq(seqOp: Code[Unit]): Code[Unit] =
-    seq(initArray(), container.newState, seqOp)
 
-  def initLength(len: Code[Int]): Code[Unit] = {
-    Code(lenRef := len, seq(container.copyFrom(initContainer.off)))
+  def seq(cb: EmitCodeBuilder, seqOp: => Unit): Unit =
+    seq(cb, {cb += initArray()}, container.newState(cb), seqOp)
+
+  def initLength(cb: EmitCodeBuilder, len: Code[Int]): Unit = {
+    cb.assign(lenRef, len)
+    seq(cb, container.copyFrom(cb, initContainer.off))
   }
 
   def checkLength(len: Code[Int]): Code[Unit] = {
@@ -76,86 +79,87 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
       Code._fatal[Unit]("mismatched lengths in ArrayElementsAggregator "))
   }
 
-  def init(initOp: Code[Unit], initLen: Boolean): Code[Unit] = {
-    Code(
-      region.setNumParents(nStates),
-      off := region.allocate(typ.alignment, typ.byteSize),
-      initContainer.newState,
-      initOp,
-      initContainer.store,
-      if (initLen) typ.setFieldMissing(off, 1) else Code._empty)
+  def init(cb: EmitCodeBuilder, initOp: => Unit, initLen: Boolean): Unit = {
+    cb += region.setNumParents(nStates)
+    cb.assign(off, region.allocate(typ.alignment, typ.byteSize))
+    initContainer.newState(cb)
+    initOp
+    initContainer.store(cb)
+    if (initLen) {
+      cb += typ.setFieldMissing(off, 1)
+    }
   }
 
-  def loadInit: Code[Unit] = initContainer.load
+  def loadInit(cb: EmitCodeBuilder): Unit = initContainer.load(cb)
 
-  def load: Code[Unit] =
-    container.load
+  def load(cb: EmitCodeBuilder): Unit = container.load(cb)
 
-  def store: Code[Unit] =
-    container.store
+  def store(cb: EmitCodeBuilder): Unit = container.store(cb)
 
-  def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
+  def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     val serializers = nested.states.map(_.serialize(codec));
-    { ob: Value[OutputBuffer] =>
-      Code(
-        loadInit,
-        nested.toCodeWithArgs(kb, "array_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+    { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
+      loadInit(cb)
+      nested.toCodeWithArgs(cb, "array_nested_serialize_init", Array[TypeInfo[_]](classInfo[OutputBuffer]),
           FastIndexedSeq(ob),
-          { (i, _, args) =>
-            Code.memoize(coerce[OutputBuffer](args.head), "aelca_ser_init_ob") { ob => serializers(i)(ob) }
-          }),
-        ob.writeInt(lenRef),
-        idx := 0,
-        Code.whileLoop(idx < lenRef,
-          load,
-          nested.toCodeWithArgs(kb, "array_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
+          { (cb, i, _, args) =>
+            val ob = cb.newLocal("aelca_ser_init_ob", coerce[OutputBuffer](args.head))
+            serializers(i)(cb, ob)
+          })
+      cb += ob.writeInt(lenRef)
+      cb.assign(idx, 0)
+      cb.whileLoop(idx < lenRef, {
+        load(cb)
+        nested.toCodeWithArgs(cb, "array_nested_serialize", Array[TypeInfo[_]](classInfo[OutputBuffer]),
             FastIndexedSeq(ob),
-            { case (i, _, args) =>
-              Code.memoize(coerce[OutputBuffer](args.head), "aelca_ser_ob") { ob => serializers(i)(ob) }
-            }),
-          idx := idx + 1))
+            { case (cb, i, _, args) =>
+              val ob = cb.newLocal("aelca_ser_ob", coerce[OutputBuffer](args.head))
+              serializers(i)(cb, ob)
+            })
+        cb.assign(idx, idx + 1)
+      })
     }
   }
 
-  def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     val deserializers = nested.states.map(_.deserialize(codec));
-    { ib: Value[InputBuffer] =>
-      Code(
-        init(nested.toCodeWithArgs(kb, "array_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
-          FastIndexedSeq(ib),
-          { (i, _, args) =>
-            Code.memoize(coerce[InputBuffer](args.head), "aelca_deser_init_ib") { ib =>
-              deserializers(i)(ib)
-            }
-          }),
-          initLen = false),
-        lenRef := ib.readInt(),
-        (lenRef < 0).mux(
-          typ.setFieldMissing(off, 1),
-          seq(nested.toCodeWithArgs(kb, "array_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
+    { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
+      init(cb, nested.toCodeWithArgs(cb, "array_nested_deserialize_init", Array[TypeInfo[_]](classInfo[InputBuffer]),
+        FastIndexedSeq(ib),
+        { (cb, i, _, args) =>
+          val ib = cb.newLocal("aelca_deser_init_ib", coerce[InputBuffer](args.head))
+          deserializers(i)(cb, ib)
+        }),
+        initLen = false)
+      cb.assign(lenRef, ib.readInt())
+      cb.ifx(lenRef < 0, {
+        cb += typ.setFieldMissing(off, 1)
+      }, {
+        seq(cb, {
+          nested.toCodeWithArgs(cb, "array_nested_deserialize", Array[TypeInfo[_]](classInfo[InputBuffer]),
             FastIndexedSeq(ib),
-            { (i, _, args) =>
-              Code.memoize(coerce[InputBuffer](args.head), "aelca_deser_ib") { ib =>
-                deserializers(i)(ib)
-              }
-            }))))
+            { (cb, i, _, args) =>
+              val ib = cb.newLocal("aelca_deser_ib", coerce[InputBuffer](args.head))
+              deserializers(i)(cb, ib)
+            })
+        })
+      })
     }
   }
 
-  def copyFromAddress(src: Code[Long]): Code[Unit] = {
-    val srcOff = kb.genFieldThisRef[Long]()
+  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+    val srcOff = cb.newField("aelca_copyfromaddr_srcoff", src)
     val initOffset = typ.loadField(srcOff, 0)
     val eltOffset = arrayType.loadElement(typ.loadField(srcOff, 1), idx)
 
-    Code(
-      srcOff := src,
-      init(initContainer.copyFrom(initOffset), initLen = false),
-      typ.isFieldMissing(srcOff, 1).mux(
-        Code(typ.setFieldMissing(off, 1),
-          lenRef := -1),
-        Code(
-          lenRef := arrayType.loadLength(typ.loadField(srcOff, 1)),
-          seq(container.copyFrom(eltOffset)))))
+    init(cb, initContainer.copyFrom(cb, initOffset), initLen = false)
+    cb.ifx(typ.isFieldMissing(srcOff, 1), {
+      cb += typ.setFieldMissing(off, 1)
+      cb.assign(lenRef, -1)
+    }, {
+      cb.assign(lenRef, arrayType.loadLength(typ.loadField(srcOff, 1)))
+      seq(cb, container.copyFrom(cb, eltOffset))
+    })
   }
 }
 
@@ -165,69 +169,86 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   val resultEltType: PTuple = PCanonicalTuple(true, nestedAggs.map(_.resultType): _*)
   val resultType: PArray = PCanonicalArray(resultEltType, required = knownLength)
 
-  def createState(cb: EmitCodeBuilder): State = new ArrayElementState(kb, StateTuple(nestedAggs.map(_.createState(cb))))
+  def createState(cb: EmitCodeBuilder): State = new ArrayElementState(cb.emb.ecb, StateTuple(nestedAggs.map(_.createState(cb))))
 
   // inits all things
-  protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     if (knownLength) {
       val Array(len, inits) = init
-      Code(state.init(inits.setup, initLen = false), len.setup,
-        state.initLength(len.m.mux(Code._fatal[Int]("Array length can't be missing"), len.value[Int])))
+      state.init(cb, cb += inits.setup, initLen = false)
+      cb += len.setup
+      state.initLength(cb, len.m.mux(Code._fatal[Int]("Array length can't be missing"), len.value[Int]))
     } else {
       val Array(inits) = init
-      Code(state.init(inits.setup, initLen = true), state.lenRef := -1)
+      state.init(cb, cb += inits.setup, initLen = true)
+      cb.assign(state.lenRef, -1)
     }
   }
 
   // does a length check on arrays
-  protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     assert(seq.length == 1)
     val len = seq.head
-    Code(
-      len.setup,
-      len.m.mux(
-        Code._empty,
-        Code.memoize(len.value[Int], "aelca_seqop_len") { v =>
-          var check = state.checkLength(v)
-          if (!knownLength)
-            check = (state.lenRef < 0).mux(state.initLength(v), check)
-          check
-        }))
+    len.toI(cb).consume(cb, { /* do nothing */ }, { len =>
+      if (!knownLength) {
+        val v = cb.newLocal("aelca_seqop_len", len.tcode[Int])
+        cb.ifx(state.lenRef < 0, state.initLength(cb, v), cb += state.checkLength(v))
+      } else {
+        cb += state.checkLength(len.tcode[Int])
+      }
+    })
   }
 
-  protected def _combOp(state: State, other: State): Code[Unit] = {
-    var check = state.checkLength(other.lenRef)
-    if (!knownLength)
-      check = (state.lenRef < 0).mux(state.initLength(other.lenRef), check)
-
-    state.seq((other.lenRef < 0).mux(
-      (state.lenRef < 0).mux(
-        Code._empty,
-        other.initLength(state.lenRef)),
-      check),
-      Code(other.idx := state.idx, other.load, state.load),
-      state.nested.toCode(state.kb, "array_nested_comb", (i, s) => nestedAggs(i).combOp(s, other.nested(i))))
-  }
-
-  protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] =
-    (state.lenRef < 0).mux(
-      srvb.setMissing(),
-      srvb.addArray(resultType, { sab =>
-        Code(
-          sab.start(state.lenRef),
-          Code.whileLoop(sab.arrayIdx < state.lenRef,
-            sab.addBaseStruct(resultEltType, { ssb =>
-              Code(
-                ssb.start(),
-                state.idx := sab.arrayIdx,
-                state.load,
-                state.nested.toCode(state.kb, "array_nested_result", { (i, s) =>
-                  Code(nestedAggs(i).result(s, ssb), ssb.advance())
-                }))
-            }),
-            sab.advance()))
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+    state.seq(cb, {
+      cb.ifx(other.lenRef < 0, {
+        cb.ifx(state.lenRef >= 0, {
+          other.initLength(cb, state.lenRef)
+        })
+      }, {
+        if (!knownLength) {
+          cb.ifx(state.lenRef < 0, {
+            state.initLength(cb, other.lenRef)
+          }, {
+            cb += state.checkLength(other.lenRef)
+          })
+        } else {
+          cb += state.checkLength(other.lenRef)
+        }
       })
-    )
+    }, {
+      cb.assign(other.idx, state.idx)
+      other.load(cb)
+      state.load(cb)
+    }, {
+      state.nested.toCode(cb, "array_nested_comb", (cb, i, s) => nestedAggs(i).combOp(cb, s, other.nested(i)))
+    })
+  }
+
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
+    cb.ifx(state.lenRef < 0, {
+      cb += srvb.setMissing()
+    }, {
+      cb += srvb.addArray(resultType, { sab =>
+        EmitCodeBuilder.scopedVoid(sab.mb) { cb =>
+          cb += sab.start(state.lenRef)
+          cb.whileLoop(sab.arrayIdx < state.lenRef, {
+            sab.addBaseStruct(resultEltType, { ssb =>
+              EmitCodeBuilder.scopedVoid(ssb.mb) { cb =>
+                cb += ssb.start()
+                cb.assign(state.idx, sab.arrayIdx)
+                state.load(cb)
+                state.nested.toCode(cb, "array_nested_result", { (cb, i, s) =>
+                  nestedAggs(i).result(cb, s, ssb)
+                  cb += ssb.advance()
+                })
+              }
+            })
+            cb += sab.advance()
+          })
+        }
+      })
+    })
 }
 
 class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends StagedAggregator {
@@ -242,28 +263,27 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
   def createState(cb: EmitCodeBuilder): State =
     throw new UnsupportedOperationException(s"State must be created by ArrayElementLengthCheckAggregator")
 
-  protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] =
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit =
     throw new UnsupportedOperationException("State must be initialized by ArrayElementLengthCheckAggregator.")
 
-  protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(eltIdx, seqOps) = seq
-    Code(
-      eltIdx.setup,
-      eltIdx.m.mux(
-        Code._empty,
-        Code(
-          state.idx := eltIdx.value[Int],
-          (state.idx > state.lenRef || state.idx < 0).mux(
-            Code._fatal[Unit]("element idx out of bounds"),
-            Code(
-              state.load,
-              seqOps.setup,
-              state.store)))))
+    cb += eltIdx.setup
+    cb.ifx(!eltIdx.m, {
+      cb.assign(state.idx, eltIdx.value[Int])
+      cb.ifx(state.idx > state.lenRef || state.idx < 0, {
+        cb._fatal("element idx out of bounds")
+      }, {
+        state.load(cb)
+        cb += seqOps.setup
+        state.store(cb)
+      })
+    })
   }
 
-  protected def _combOp(state: State, other: State): Code[Unit] =
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit =
     throw new UnsupportedOperationException("State must be combined by ArrayElementLengthCheckAggregator.")
 
-  protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] =
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
     throw new UnsupportedOperationException("Result must be defined by ArrayElementLengthCheckAggregator.")
 }

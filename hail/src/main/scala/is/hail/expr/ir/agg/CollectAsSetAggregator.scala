@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder, EmitRegion, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, defaultValue, typeToTypeInfo}
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical._
 import is.hail.io._
@@ -103,15 +103,14 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], t: PType) extends PointerB
   }
 
   // loads container; does not update.
-  def foreach(f: (Code[Boolean], Code[_]) => Code[Unit]): Code[Unit] =
-    tree.foreach { eoff =>
-      Code.memoize(eoff, "casa_foreach_eoff") { eoff =>
-        f(key.isKeyMissing(eoff), key.loadKey(eoff))
-      }
+  def foreach(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Code[Boolean], Code[_]) => Unit): Unit =
+    tree.foreach(cb) { (cb, eoffCode) =>
+      val eoff = cb.newLocal("casa_foreach_eoff", eoffCode)
+      f(cb, key.isKeyMissing(eoff), key.loadKey(eoff))
     }
 
-  def copyFromAddress(src: Code[Long]): Code[Unit] =
-    Code.memoize(src, "aoss_copy_from_addr_src") { src =>
+  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit =
+    cb += Code.memoize(src, "aoss_copy_from_addr_src") { src =>
       Code(
         off := region.allocate(typ.alignment, typ.byteSize),
         size := Region.loadInt(typ.loadField(src, 0)),
@@ -119,36 +118,35 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], t: PType) extends PointerB
         tree.deepCopy(Region.loadAddress(typ.loadField(src, 1))))
     }
 
-  def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
+  def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     val kEnc = et.buildEncoderMethod(t, kb)
 
-    { ob: Value[OutputBuffer] =>
-      tree.bulkStore(ob) { (ob, src) =>
-        Code.memoize(src, "aoss_ser_src") { src =>
-          Code(
-            ob.writeBoolean(key.isKeyMissing(src)),
-            (!key.isKeyMissing(src)).orEmpty(
-              kEnc.invokeCode(key.loadKey(src), ob)))
-        }
+    { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
+      tree.bulkStore(cb, ob) { (cb, ob, srcCode) =>
+        val src = cb.newLocal("aoss_ser_src", srcCode)
+        cb += ob.writeBoolean(key.isKeyMissing(src))
+        cb.ifx(!key.isKeyMissing(src), {
+          cb += kEnc.invokeCode(key.loadKey(src), ob)
+        })
       }
     }
   }
 
-  def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     val kDec = et.buildDecoderMethod(t, kb)
     val km = kb.genFieldThisRef[Boolean]("km")
     val kv = kb.genFieldThisRef("kv")(typeToTypeInfo(t))
 
-    { ib: Value[InputBuffer] =>
-      Code(
-        init,
-        tree.bulkLoad(ib) { (ib, dest) =>
-          Code(
-            km := ib.readBoolean(),
-            (!km).orEmpty(kv.storeAny(kDec.invokeCode(region, ib))),
-            key.store(dest, km, kv),
-            size := size + 1)
+    { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
+      cb += init
+      tree.bulkLoad(cb, ib) { (cb, ib, dest) =>
+        cb.assign(km, ib.readBoolean())
+        cb.ifx(!km, {
+          cb += kv.storeAny(kDec.invokeCode(region, ib))
         })
+        cb += key.store(dest, km, kv)
+        cb.assign(size, size + 1)
+      }
     }
   }
 }
@@ -159,30 +157,33 @@ class CollectAsSetAggregator(t: PType) extends StagedAggregator {
   assert(t.isCanonical)
   val resultType: PSet = PCanonicalSet(t)
 
-  def createState(kb: EmitClassBuilder[_]): State = new AppendOnlySetState(kb, t)
+  def createState(cb: EmitCodeBuilder): State = new AppendOnlySetState(cb.emb.ecb, t)
 
-  protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)
-    state.init
+    cb += state.init
   }
 
-  protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(elt) = seq
-    Code(elt.setup, state.insert(elt.m, elt.v))
+    cb += Code(elt.setup, state.insert(elt.m, elt.v))
   }
 
-  protected def _combOp(state: State, other: State): Code[Unit] =
-    other.foreach { (km, kv) => state.insert(km, kv) }
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit =
+    other.foreach(cb) { (cb, km, kv) => cb += state.insert(km, kv) }
 
-  protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] =
-    srvb.addArray(resultType.arrayFundamentalType, sab =>
-      Code(
-        sab.start(state.size),
-        state.foreach { (km, kv) =>
-          Code(
-            km.mux(
-              sab.setMissing(),
-              sab.addWithDeepCopy(t, coerce[Long](kv))),
-            sab.advance())
-        }))
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
+    cb += srvb.addArray(resultType.arrayFundamentalType, { sab =>
+      EmitCodeBuilder.scopedVoid(sab.mb) { cb =>
+        cb += sab.start(state.size)
+        state.foreach(cb) { (cb, km, kv) =>
+          cb.ifx(km, {
+            cb += sab.setMissing()
+          }, {
+            cb += sab.addWithDeepCopy(t, coerce[Long](kv))
+          })
+          cb += sab.advance()
+        }
+      }
+    })
 }

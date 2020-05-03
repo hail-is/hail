@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitFunctionBuilder, ParamType, defaultValue, typeToTypeInfo}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType, defaultValue, typeToTypeInfo}
 import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
@@ -89,7 +89,11 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(regionSize)
 
-  def createState: Code[Unit] = region.isNull.mux(Code(r := Region.stagedCreate(regionSize), region.invalidate()), Code._empty)
+  def createState(cb: EmitCodeBuilder): Unit =
+    cb.ifx(region.isNull, {
+      cb.assign(r, Region.stagedCreate(regionSize))
+      cb += region.invalidate()
+    })
 
   override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     Code(
@@ -149,8 +153,8 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       ))
     }
 
-  def copyFrom(src: Code[Long]): Code[Unit] = {
-    Code.memoize(src, "tba_copy_from_src") { src =>
+  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+    cb += Code.memoize(src, "tba_copy_from_src") { src =>
       maybeGCCode(
         initStaging(),
         ab.copyFrom(storageType.fieldOffset(src, 0)),
@@ -161,9 +165,9 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     }
   }
 
-  def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] = {
-    { ob: Value[OutputBuffer] =>
-      maybeGCCode(
+  def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
+    { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
+      cb += maybeGCCode(
         ob.writeLong(maxIndex),
         ob.writeInt(maxSize),
         ab.serialize(codec)(ob),
@@ -174,9 +178,9 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     }
   }
 
-  def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
-    { (ib: Value[InputBuffer]) =>
-      maybeGCCode(
+  def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
+    { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
+      cb += maybeGCCode(
         maxIndex := ib.readLong(),
         maxSize := ib.readInt(),
         ab.deserialize(codec)(ib),
@@ -569,28 +573,28 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
 
   val resultType: PArray = PCanonicalArray(valueType, true)
 
-  def createState(fb: EmitClassBuilder[_]): State =
-    new TakeByRVAS(valueType, keyType, resultType, fb)
+  def createState(cb: EmitCodeBuilder): State =
+    new TakeByRVAS(valueType, keyType, resultType, cb.emb.ecb)
 
-  protected def _initOp(state: State, init: Array[EmitCode]): Code[Unit] = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 1)
     val Array(sizeTriplet) = init
-    Code(
+    cb += Code(
       sizeTriplet.setup,
       sizeTriplet.m.orEmpty(Code._fatal[Unit](s"argument 'n' for 'hl.agg.take' may not be missing")),
       state.initialize(coerce[Int](sizeTriplet.v))
     )
   }
 
-  protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(value: EmitCode, key: EmitCode) = seq
     assert(value.pv.pt == valueType)
     assert(key.pv.pt == keyType)
-    state.seqOp(value, key)
+    cb += state.seqOp(value, key)
   }
 
-  protected def _combOp(state: State, other: State): Code[Unit] = state.combine(other)
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = cb += state.combine(other)
 
-  protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] =
-    srvb.addIRIntermediate(resultType)(state.result(srvb.region, resultType))
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
+    cb += srvb.addIRIntermediate(resultType)(state.result(srvb.region, resultType))
 }

@@ -573,7 +573,7 @@ class Emit[C](
         val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
 
         val serialize = Array.range(start, start + sigs.length)
-          .map { idx => { (cb: EmitCodeBuilder) => cb += sc.states(idx).serialize(spec)(ob) } }
+          .map { idx => { (cb: EmitCodeBuilder) => sc.states(idx).serialize(spec)(cb, ob) } }
 
         cb.assign(baos, Code.newInstance[ByteArrayOutputStream]())
         cb.assign(ob, spec.buildCodeOutputBuffer(baos))
@@ -596,7 +596,7 @@ class Emit[C](
           .map(i => sc.newState(i)))
 
         val unserialize = Array.tabulate(ns) { j => { (cb: EmitCodeBuilder) =>
-          cb += deserializers(j)(ib)
+          deserializers(j)(cb, ib)
         }}
 
         cb += init

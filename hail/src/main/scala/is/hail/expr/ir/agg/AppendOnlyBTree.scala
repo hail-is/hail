@@ -200,23 +200,31 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
   def getOrElseInitialize(km: Code[Boolean], kv: Code[_]): Code[Long] =
     getF.invokeCode(root, km, kv)
 
-  def foreach(visitor: Code[Long] => Code[Unit]): Code[Unit] = {
+  def foreach(cb: EmitCodeBuilder)(visitor: (EmitCodeBuilder, Code[Long]) => Unit): Unit = {
     val f = kb.genEmitMethod("btree_foreach", FastIndexedSeq[ParamType](typeInfo[Long]), typeInfo[Unit])
     val node = f.getCodeParam[Long](1)
     val i = f.newLocal[Int]("aobt_foreach_i")
 
-    f.emit(Code(
-      (!isLeaf(node)).orEmpty(f.invokeCode(loadChild(node, -1))),
-      i := 0,
-      Array.range(0, maxElements)
-        .foldRight(Code._empty) { (i, cont) =>
-          hasKey(node, i).orEmpty(
-            Code(
-              visitor(loadKey(node, i)),
-              (!isLeaf(node)).orEmpty(f.invokeCode(loadChild(node, i))),
-              cont))
-        }))
-    f.invokeCode(root)
+    f.emitWithBuilder { cb =>
+      cb.ifx(isLeaf(node), {
+        cb += f.invokeCode(loadChild(node, -1))
+        cb.assign(i, 0)
+        val Lexit = CodeLabel()
+        (0 until maxElements).foreach { i =>
+          cb.ifx(hasKey(node, i), {
+            visitor(cb, loadKey(node, i))
+            cb.ifx(!isLeaf(node), {
+              f.invokeCode(loadChild(node, i))
+            })
+          }, {
+            cb.goto(Lexit)
+          })
+        }
+        cb.define(Lexit)
+      })
+      Code._empty
+    }
+    cb += f.invokeCode(root)
   }
 
   val deepCopy: Code[Long] => Code[Unit] = {

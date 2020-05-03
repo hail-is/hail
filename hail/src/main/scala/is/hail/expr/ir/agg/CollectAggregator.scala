@@ -22,7 +22,7 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
 
     def createState(cb: EmitCodeBuilder): Unit =
       cb.ifx(region.isNull, {
-        cb.assign(r, region.stagedCreate(regionSize))
+        cb.assign(r, Region.stagedCreate(regionSize))
         cb += region.invalidate()
       })
 
@@ -40,34 +40,35 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
         bll.store(dst),
         region.invalidate()))
 
-    def copyFrom(src: Code[Long]): Code[Unit] = {
+    def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
       val copyBll = new StagedBlockLinkedList(elemType, kb)
-      Code(
+      cb += Code(
         copyBll.load(src),
         bll.initWithDeepCopy(region, copyBll))
     }
 
-    def serialize(codec: BufferSpec): Value[OutputBuffer] => Code[Unit] =
-      bll.serialize(region, _)
+    def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
+      { (cb, ib) => cb += bll.serialize(region, ib) }
+    }
 
-    def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
-      { ib => Code(bll.init(region), bll.deserialize(region, ib)) }
+    def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
+      { (cb, ib) => cb += Code(bll.init(region), bll.deserialize(region, ib)) }
     }
   }
 
   def createState(cb: EmitCodeBuilder): State = new State(cb.emb.ecb)
 
-  protected def _initOp(state: State, args: Array[EmitCode]): Code[Unit] = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, args: Array[EmitCode]): Unit = {
     assert(args.isEmpty)
-    state.bll.init(state.region)
+    cb += state.bll.init(state.region)
   }
 
-  protected def _seqOp(state: State, seq: Array[EmitCode]): Code[Unit] =
-    state.bll.push(state.region, seq(0))
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit =
+    cb += state.bll.push(state.region, seq(0))
 
-  protected def _combOp(state: State, other: State): Code[Unit] =
-    state.bll.append(state.region, other.bll)
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit =
+    cb += state.bll.append(state.region, other.bll)
 
-  protected def _result(state: State, srvb: StagedRegionValueBuilder): Code[Unit] =
-    srvb.addArray(resultType, state.bll.writeToSRVB(_))
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
+    cb += srvb.addArray(resultType, state.bll.writeToSRVB(_))
 }
