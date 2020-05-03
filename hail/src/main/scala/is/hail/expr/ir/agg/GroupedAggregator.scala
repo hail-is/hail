@@ -45,7 +45,9 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
       else
         StagedRegionValueBuilder.deepCopy(kb, region, kt, coerce[Long](kv), koff)
     if (!kt.required) {
-      cb.ifx(km, { storageType.setFieldMissing(dest, 0) }, {
+      cb.ifx(km, {
+        cb += storageType.setFieldMissing(dest, 0)
+      }, {
         cb += storageType.setFieldPresent(dest, 0)
         cb += storeK
       })
