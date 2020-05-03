@@ -185,8 +185,8 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
 
     { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
       val mb = kb.genEmitMethod("downsample_serialize", FastIndexedSeq[ParamType](typeInfo[OutputBuffer]), UnitInfo)
-      val ob = mb.getCodeParam[OutputBuffer](1)
       mb.emitWithBuilder { cb =>
+        val ob = mb.getCodeParam[OutputBuffer](1)
         cb += dumpBuffer()
         cb += ob.writeInt(nDivisions)
         cb += ob.writeInt(treeSize)
