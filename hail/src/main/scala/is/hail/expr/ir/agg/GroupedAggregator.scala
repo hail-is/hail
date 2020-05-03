@@ -125,7 +125,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
   def loadContainer(cb: EmitCodeBuilder, kmc: Code[Boolean], kvc: Code[_]): Unit = {
     val km = cb.newLocal("ga_load_cont_km", kmc)
     val kv = cb.newLocalAny("ga_load_cont_kv", defaultValue(keyType))(typeToTypeInfo(keyType))
-    cb.ifx(km, {
+    cb.ifx(!km, {
       cb.assignAny(kv, kvc)
     })
     cb.assign(_elt, tree.getOrElseInitialize(km, kv))
