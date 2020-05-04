@@ -1197,7 +1197,7 @@ object EmitStream {
 
         case x@StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
           val eltType = coerce[PStream](childIR.pType).elementType
-          val accType = x.accPType
+          val accType = coerce[PStream](x.pType).elementType
 
           val streamOpt = emitStream(childIR, env)
           streamOpt.map { case SizedStream(setup, stream, len) =>

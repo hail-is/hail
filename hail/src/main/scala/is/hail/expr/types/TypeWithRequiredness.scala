@@ -40,8 +40,14 @@ sealed abstract class BaseTypeWithRequiredness {
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): BaseTypeWithRequiredness
   def toString: String
 
-  def deepCopy(): BaseTypeWithRequiredness =
-    copy(children.map(_.deepCopy()))
+  def minimalCopy(): BaseTypeWithRequiredness =
+    copy(children.map(_.minimalCopy()))
+
+  def deepCopy(): BaseTypeWithRequiredness = {
+    val r = minimalCopy()
+    r.unionFrom(this)
+    r
+  }
 
   protected[this] def _maximizeChildren(): Unit = children.foreach(_.maximize())
   protected[this] def _unionChildren(newChildren: Seq[BaseTypeWithRequiredness]): Unit = {

@@ -122,7 +122,9 @@ final case class Ref(name: String, var _typ: Type) extends BaseRef
 
 // Recur can't exist outside of loop
 // Loops can be nested, but we can't call outer loops in terms of inner loops so there can only be one loop "active" in a given context
-final case class TailLoop(name: String, params: IndexedSeq[(String, IR)], body: IR) extends IR
+final case class TailLoop(name: String, params: IndexedSeq[(String, IR)], body: IR) extends IR {
+  var argPTypes: IndexedSeq[PType] = null
+}
 final case class Recur(name: String, args: IndexedSeq[IR], _typ: Type) extends BaseRef
 
 final case class RelationalLet(name: String, value: IR, body: IR) extends IR
@@ -239,7 +241,9 @@ final case class StreamFilter(a: IR, name: String, cond: IR) extends IR {
 final case class StreamFlatMap(a: IR, name: String, body: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
 }
-final case class StreamFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
+final case class StreamFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR {
+  var accPType: PType = null
+}
 
 object StreamFold2 {
   def apply(a: StreamFold): StreamFold2 = {
@@ -253,9 +257,7 @@ final case class StreamFold2(a: IR, accum: IndexedSeq[(String, IR)], valueName: 
   var accPTypes: IndexedSeq[PType] = null
 }
 
-final case class StreamScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR {
-  var accPType: PType = null
-}
+final case class StreamScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
 
 final case class StreamFor(a: IR, valueName: String, body: IR) extends IR
 
