@@ -758,14 +758,14 @@ class PruneSuite extends HailSuite {
     val ctxT = TStruct("a" -> TInt32, "b" -> TString)
     val globT = TStruct("c" -> TInt64, "d" -> TFloat64)
     val x = CollectDistributedArray(
-      NA(TArray(ctxT)),
+      NA(TStream(ctxT)),
       NA(globT),
       "ctx",
       "glob",
       MakeTuple.ordered(FastSeq(Ref("ctx", ctxT), Ref("glob", globT))))
 
     checkMemo(x, TArray(TTuple(ctxT.typeAfterSelectNames(Array("a")), globT.typeAfterSelectNames(Array("c")))),
-      Array(TArray(ctxT.typeAfterSelectNames(Array("a"))), globT.typeAfterSelectNames(Array("c")), null))
+      Array(TStream(ctxT.typeAfterSelectNames(Array("a"))), globT.typeAfterSelectNames(Array("c")), null))
   }
 
   @Test def testTableCountMemo() {
@@ -1240,7 +1240,7 @@ class PruneSuite extends HailSuite {
     val ctxT = TStruct("a" -> TInt32, "b" -> TString)
     val globT = TStruct("c" -> TInt64, "d" -> TFloat64)
     val x = CollectDistributedArray(
-      NA(TArray(ctxT)),
+      NA(TStream(ctxT)),
       NA(globT),
       "ctx",
       "glob",
@@ -1250,7 +1250,7 @@ class PruneSuite extends HailSuite {
     val selectedGlobT = globT.typeAfterSelectNames(Array("c"))
     checkRebuild(x, TArray(TTuple(selectedCtxT, selectedGlobT)), (_: BaseIR, r: BaseIR) => {
       r == CollectDistributedArray(
-        NA(TArray(selectedCtxT)),
+        NA(TStream(selectedCtxT)),
         NA(selectedGlobT),
         "ctx",
         "glob",
