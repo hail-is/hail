@@ -119,20 +119,23 @@ object InferPType {
   def newBuilder[T](n: Int): AAB[T] = Array.fill(n)(new ArrayBuilder[RecursiveArrayBuilderElement[T]])
 
   def apply(ir: IR, env: Env[PType], aggs: Array[AggStatePhysicalSignature], inits: AAB[InitOp], seqs: AAB[SeqOp]): Unit = {
-    if (aggs == null && inits == null && seqs == null) {
+    try {
+      if (aggs != null || inits != null || seqs != null)
+          throw new NotImplementedError
       val r = Requiredness.apply(ir, null) // Value IR inference doesn't need context
       _inferWithRequiredness(ir, r)
-    } else {
-      try {
-        _apply(ir, env, aggs, inits, seqs)
-      } catch {
-        case e: Exception =>
-          throw new RuntimeException(s"error while inferring IR:\n${Pretty(ir)}", e)
-      }
-      VisitIR(ir) { case (node: IR) =>
-        if (node._pType == null)
-          throw new RuntimeException(s"ptype inference failure: node not inferred:\n${Pretty(node)}\n ** Full IR: **\n${Pretty(ir)}")
-      }
+    } catch {
+      case _: NotImplementedError =>
+        try {
+          _apply(ir, env, aggs, inits, seqs)
+        } catch {
+          case e: Exception =>
+            throw new RuntimeException(s"error while inferring IR:\n${Pretty(ir)}", e)
+        }
+        VisitIR(ir) { case (node: IR) =>
+          if (node._pType == null)
+            throw new RuntimeException(s"ptype inference failure: node not inferred:\n${Pretty(node)}\n ** Full IR: **\n${Pretty(ir)}")
+        }
     }
   }
 
