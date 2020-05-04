@@ -381,7 +381,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       rebalanceUp(ab.size - 1))
   }
 
-  val seqOp: (EmitCode, EmitCode) => Code[Unit] = {
+  val seqOp: (EmitCodeBuilder, EmitCode, EmitCode) => Unit = {
     val mb = kb.genEmitMethod("take_by_seqop",
       FastIndexedSeq[ParamType](valueType, keyType),
       UnitInfo)
@@ -405,15 +405,14 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
                 swapStaging(),
                 gc()))))))
 
-
-    (v: EmitCode, k: EmitCode) => mb.invokeCode(v, k)
+    (cb: EmitCodeBuilder, v: EmitCode, k: EmitCode) => cb.invokeVoid(mb, v, k)
   }
 
   // for tests
-  def seqOp(vm: Code[Boolean], v: Code[_], km: Code[Boolean], k: Code[_]): Code[Unit] = {
+  def seqOp(cb: EmitCodeBuilder, vm: Code[Boolean], v: Code[_], km: Code[Boolean], k: Code[_]): Unit = {
     val vec = EmitCode(Code._empty, vm, PCode(valueType, v))
     val kec = EmitCode(Code._empty, km, PCode(keyType, k))
-    seqOp(vec, kec)
+    seqOp(cb, vec, kec)
   }
 
   def combine(other: TakeByRVAS): Code[Unit] = {
@@ -590,7 +589,7 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
     val Array(value: EmitCode, key: EmitCode) = seq
     assert(value.pv.pt == valueType)
     assert(key.pv.pt == keyType)
-    cb += state.seqOp(value, key)
+    state.seqOp(cb, value, key)
   }
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = cb += state.combine(other)
