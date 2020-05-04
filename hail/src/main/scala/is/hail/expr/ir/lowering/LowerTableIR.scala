@@ -203,12 +203,9 @@ object LowerTableIR {
 
         case TableHead(child, targetNumRows) =>
           val loweredChild = lower(child)
-          // Steps:
-          // 1. Map the partitions to their sizes, collect
-          val partitionSizeStage = loweredChild.mapPartition(rows => ArrayLen(ToArray(rows)))
-          // 2. Need to sum over this array for first time it's bigger than n.
-          val partitionSizeArray = partitionSizeStage.collect()
+          val partitionSizeArray = loweredChild.mapPartition(rows => ArrayLen(ToArray(rows))).collect()
           val partitionSizeArrayRef = Ref(genUID(), partitionSizeArray.typ)
+
           val answerTuple = bindIR(ArrayLen(partitionSizeArrayRef)) { numPartitions =>
             val funcName = "howManyParts"
             val i: IR = Ref("i", TInt32)

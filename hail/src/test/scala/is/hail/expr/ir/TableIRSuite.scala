@@ -401,26 +401,31 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableHead(): Unit = {
-    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.lowering
     val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
     def makeData(length: Int): Row = {
       Row(FastIndexedSeq(0 until length: _*).map(i => Row(i, "row" + i)), Row("global"))
     }
-    val value = makeData(10)
-    val howManyRowsToTake = 4
-    val howManyInitialPartitions = 1
-    val headdedValue = makeData(howManyRowsToTake)
-    assertEvalsTo(
-      collectNoKey(
-        TableHead(
-          TableParallelize(
-            Literal(t, value),
-            Some(howManyInitialPartitions)
+    val numRowsToTakeArray = Array(0, 4, 7, 12)
+    val numInitialPartitionsArray = Array(1, 2, 6, 10, 13)
+    val initialDataLength = 10
+    val initialData = makeData(initialDataLength)
+
+    numRowsToTakeArray.foreach { howManyRowsToTake =>
+      val headData = makeData(Math.min(howManyRowsToTake, initialDataLength))
+      numInitialPartitionsArray.foreach { howManyInitialPartitions =>
+        assertEvalsTo(
+          collectNoKey(
+            TableHead(
+              TableParallelize(
+                Literal(t, initialData),
+                Some(howManyInitialPartitions)
+              ),
+              howManyRowsToTake
+            )
           ),
-          howManyRowsToTake
-        )
-      ),
-      headdedValue)
+          headData)
+      }
+    }
   }
 
 
