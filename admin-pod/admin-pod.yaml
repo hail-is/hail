@@ -12,6 +12,8 @@ spec:
       labels:
         app: admin-pod
     spec:
+      nodeSelector:
+        preemptible: "true"
       containers:
        - name: admin-pod
          command:

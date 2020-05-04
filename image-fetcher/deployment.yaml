@@ -18,6 +18,8 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      nodeSelector:
+        preemptible: "true"
       containers:
       - name: image-fetcher
         image: "{{ image_fetcher_image.image }}"
