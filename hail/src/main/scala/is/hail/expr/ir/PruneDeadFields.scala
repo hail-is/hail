@@ -1348,7 +1348,7 @@ object PruneDeadFields {
         assert(bodyEnv.agg.isEmpty)
 
         val cDep = bodyEnv.eval.lookupOption(cname) match {
-          case Some(ts) => TArray(unify[Type](coerce[TArray](contexts.typ).elementType, ts.result(): _*))
+          case Some(ts) => TStream(unify[Type](coerce[TStream](contexts.typ).elementType, ts.result(): _*))
           case None => minimal(contexts.typ)
         }
 
@@ -1867,7 +1867,7 @@ object PruneDeadFields {
       case CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val contexts2 = upcast(rebuildIR(contexts, env, memo), memo.requestedType.lookup(contexts).asInstanceOf[Type])
         val globals2 = upcast(rebuildIR(globals, env, memo), memo.requestedType.lookup(globals).asInstanceOf[Type])
-        val body2 = rebuildIR(body, BindingEnv(Env(cname -> contexts2.typ.asInstanceOf[TArray].elementType, gname -> globals2.typ)), memo)
+        val body2 = rebuildIR(body, BindingEnv(Env(cname -> contexts2.typ.asInstanceOf[TStream].elementType, gname -> globals2.typ)), memo)
         CollectDistributedArray(contexts2, globals2, cname, gname, body2)
       case _ =>
         ir.copy(ir.children.map {
