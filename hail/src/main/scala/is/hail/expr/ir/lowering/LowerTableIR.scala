@@ -203,7 +203,7 @@ object LowerTableIR {
               TailLoop(funcName, FastIndexedSeq("i" -> 0, "numLeft" -> targetNumRows),
                 If(i ceq numPartitions - 1,
                   makeAnswer(i + 1, numLeft),
-                  If( (numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64) ) <= 0L,
+                  If((numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64)) <= 0L,
                     makeAnswer(i + 1, numLeft),
                     Recur(funcName, FastIndexedSeq(i + 1, numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64)), TTuple(TInt32, TInt64))
                   )
