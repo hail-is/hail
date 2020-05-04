@@ -183,7 +183,7 @@ class RVDPartitioner(
 
   def coalesceRangeBounds(newPartEnd: IndexedSeq[Int]): RVDPartitioner = {
     val newRangeBounds = (-1 +: newPartEnd.init).zip(newPartEnd).map { case (s, e) =>
-      rangeBounds(s+1).hull(kType.ordering, rangeBounds(e))
+      rangeBounds(s+1).hull(kord, rangeBounds(e))
     }
     copy(rangeBounds = newRangeBounds)
   }

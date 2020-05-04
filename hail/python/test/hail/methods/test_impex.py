@@ -829,7 +829,7 @@ def generate_random_gen():
     hl.export_gen(mt, 'random', precision=4)
 
 
-class BGENTests(unittest.TestCase):
+class BGENTest0s(unittest.TestCase):
 
     def setUp(self) -> None:
         hl.index_bgen(resource('example.8bits.bgen'),

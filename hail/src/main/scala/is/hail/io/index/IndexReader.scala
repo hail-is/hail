@@ -5,7 +5,7 @@ import java.util
 import java.util.Map.Entry
 
 import is.hail.annotations._
-import is.hail.expr.types.virtual.{Type, TypeSerializer}
+import is.hail.expr.types.virtual.{TStruct, Type, TypeSerializer}
 import is.hail.expr.ir.{ExecuteContext, IRParser}
 import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.io._
@@ -77,7 +77,10 @@ class IndexReader(fs: FS,
   val nKeys = metadata.nKeys
   val attributes = metadata.attributes
   val indexRelativePath = metadata.indexPath
-  val ordering = PartitionBoundOrdering(keyType)
+  val ordering = keyType match {
+    case ts: TStruct => PartitionBoundOrdering(ts)
+    case t => t.ordering
+  }
 
   private val is = fs.openNoCompression(path + "/" + indexRelativePath)
   private val leafDecoder = leafDecoderBuilder(is)
