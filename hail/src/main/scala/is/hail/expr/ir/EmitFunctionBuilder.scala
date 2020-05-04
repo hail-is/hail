@@ -946,38 +946,15 @@ class EmitMethodBuilder[C](
     }
   }
 
-  private def _invoke[T](_args: Param*): Code[T] = {
-    EmitCodeBuilder.scopedCode(this) { cb =>
-      val args = _args.map {
-        case cp: CodeParam =>
-          cp
-        case EmitParam(EmitCode(setup, m, pv)) =>
-          cb += setup
-          if (pv.pt.required) {
-            cb += Code.toUnit(m) // side effects???, is this even possible
-            EmitParam(EmitCode.present(pv))
-          } else {
-            val mv = cb.newField[Boolean](s"emitparam_m_${pv.pt._asIdent}", m)
-            EmitParam(EmitCode(Code._empty, mv, PCode(pv.pt, mv.mux(defaultValue(pv.pt), pv.code))))
-          }
-      }
-      mb.invoke(args.flatMap {
-        case CodeParam(c) => FastIndexedSeq(c)
-        case EmitParam(ec) => ec.codeTuple()
-      }: _*)
-    }
-  }
-
+  // This method is unsafe. Attempts should be made to move to the CodeBuilder invoke
+  // methods which ensure that all parameters are properly initialized
   def invokeCode[T](args: Param*): Code[T] = {
     assert(emitReturnType.isInstanceOf[CodeParamType])
-    _invoke(args: _*)
-  }
-
-  def invokeEmit(args: Param*): EmitCode = {
-    val pt = emitReturnType.asInstanceOf[EmitParamType].pt
-    val r = Code.newLocal("invokeEmit_r")(pt.codeReturnType())
-    EmitCode(r := _invoke(args: _*),
-      EmitCode.fromCodeTuple(pt, Code.loadTuple(modb, EmitCode.codeTupleTypes(pt), r)))
+    assert(args.forall(_.isInstanceOf[CodeParam]), s"expected all code params, got : ${ args.mkString(", ") }")
+    mb.invoke(args.flatMap {
+      case CodeParam(c) => FastIndexedSeq(c)
+      case EmitParam(ec) => ec.codeTuple()
+    }: _*)
   }
 
   def newPSettable(sb: SettableBuilder, pt: PType, name: String = null): PSettable = PSettable(sb, pt, name)

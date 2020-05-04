@@ -409,8 +409,8 @@ object EmitUtils {
       val c = items.slice(start, end)
       newMB.emit(Code(c.map(_.emit(newMB))))
       new EstimableEmitter[C] {
-        def emit(mb: EmitMethodBuilder[C]): Code[Unit] = {
-          newMB.invokeCode[Unit](mb.getParamsList():_*)
+        def emit(mb: EmitMethodBuilder[C]): Code[Unit] = EmitCodeBuilder.scopedVoid(mb) { cb =>
+          cb.invokeVoid(newMB, mb.getParamsList():_*)
         }
 
         def estimatedSize: Int = 5
