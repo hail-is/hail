@@ -1219,7 +1219,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     val physicalAggs = extracted.getPhysicalAggs(
       ctx,
       Env("global" -> tv.globals.t),
-      Env("global" -> tv.globals.t, "row" -> tv.rvd.rowPType)
+      Env("global" -> tv.globals.decodedPType, "row" -> tv.rvd.rowPType)
     )
 
     val scanInitNeedsGlobals = Mentions(extracted.init, "global")
@@ -1711,7 +1711,7 @@ case class TableKeyByAndAggregate(
     val physicalAggs = extracted.getPhysicalAggs(
       ctx,
       Env("global" -> prev.globals.t),
-      Env("global" -> prev.globals.t, "row" -> prev.rvd.rowPType)
+      Env("global" -> prev.globals.decodedPType, "row" -> prev.rvd.rowPType)
     )
 
     val (_, makeInit) = ir.CompileWithAggregators2[AsmFunction2RegionLongUnit](ctx,
@@ -1849,7 +1849,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val physicalAggs = extracted.getPhysicalAggs(
       ctx,
       Env("global" -> prev.globals.t),
-      Env("global" -> prev.globals.t, "row" -> prev.rvd.rowPType)
+      Env("global" -> prev.globals.decodedPType, "row" -> prev.rvd.rowPType)
     )
 
     val (_, makeInit) = ir.CompileWithAggregators2[AsmFunction2RegionLongUnit](ctx,
