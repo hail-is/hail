@@ -122,14 +122,13 @@ object InferPType {
     try {
       if (aggs != null || inits != null || seqs != null || !env.isEmpty)
           throw new NotImplementedError
-      val (r, states) = Requiredness.apply(ir, null) // Value IR inference doesn't need context
-      println(Pretty(ir))
-      r.m.foreach { case (re, req) =>
+      val requiredness = Requiredness.apply(ir, null) // Value IR inference doesn't need context
+      requiredness.r.m.foreach { case (re, req) =>
           println()
           println(req)
           println(Pretty(re.t))
       }
-      _inferWithRequiredness(ir, r, states)
+      _inferWithRequiredness(ir, requiredness)
     } catch {
       case _: NotImplementedError =>
         try {
@@ -145,34 +144,34 @@ object InferPType {
     }
   }
 
-  private def _inferWithRequiredness(node: IR, r: Memo[BaseTypeWithRequiredness], states: Memo[Array[BaseTypeWithRequiredness]]): Unit = {
+  private def _inferWithRequiredness(node: IR, requiredness: RequirednessAnalysis): Unit = {
     if (node._pType != null)
       throw new RuntimeException(node.toString)
     node.children.foreach {
-      case x: IR => _inferWithRequiredness(x, r, states)
+      case x: IR => _inferWithRequiredness(x, requiredness)
       case c => throw new RuntimeException(s"unsupported node:\n${Pretty(c)}")
     }
     node._pType = node match {
       case x: IR if x.typ == TVoid => PVoid
-      case x: IR if r.contains(x) => x match {
+      case x: IR if requiredness.r.contains(x) => x match {
         case a: AbstractApplyNode[_] =>
           val pt = a.implementation.returnPType(a.args.map(_.pType), a.returnType)
-          assert(coerce[TypeWithRequiredness](r.lookup(node)).validPType(pt))
+          assert(coerce[TypeWithRequiredness](requiredness.r.lookup(node)).validPType(pt))
           pt
         case x@StreamFold(a, zero, accumName, valueName, body) =>
-          x.accPType = coerce[TypeWithRequiredness](states.lookup(x).head).canonicalPType(zero.typ)
-          coerce[TypeWithRequiredness](r.lookup(node)).canonicalPType(x.typ)
+          x.accPType = requiredness.states.lookup(x).head.canonicalPType(zero.typ)
+          coerce[TypeWithRequiredness](requiredness.r.lookup(node)).canonicalPType(x.typ)
         case x@StreamFold2(a, accum, valueName, seqs, result) =>
-          x.accPTypes = accum.zip(states.lookup(x)).map { case ((_, z), r) =>
-              coerce[TypeWithRequiredness](r).canonicalPType(z.typ)
+          x.accPTypes = accum.zip(requiredness.states.lookup(x)).map { case ((_, z), r) =>
+              r.canonicalPType(z.typ)
           }
-          coerce[TypeWithRequiredness](r.lookup(node)).canonicalPType(x.typ)
+          coerce[TypeWithRequiredness](requiredness.r.lookup(node)).canonicalPType(x.typ)
         case x@TailLoop(name, args, body) =>
-          x.argPTypes = args.zip(states.lookup(x)).map { case ((_, i), r) =>
-            coerce[TypeWithRequiredness](r).canonicalPType(i.typ)
+          x.argPTypes = args.zip(requiredness.states.lookup(x)).map { case ((_, i), r) =>
+            r.canonicalPType(i.typ)
           }
-          coerce[TypeWithRequiredness](r.lookup(node)).canonicalPType(x.typ)
-        case _ => coerce[TypeWithRequiredness](r.lookup(node)).canonicalPType(x.typ)
+          coerce[TypeWithRequiredness](requiredness.r.lookup(node)).canonicalPType(x.typ)
+        case _ => coerce[TypeWithRequiredness](requiredness.r.lookup(node)).canonicalPType(x.typ)
       }
       case _ => throw new RuntimeException(s"unsupported node:\n${Pretty(node)}")
     }

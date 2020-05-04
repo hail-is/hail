@@ -249,8 +249,8 @@ class RequirednessSuite extends HailSuite {
   @Test(dataProvider = "valueIR")
   def testRequiredness(node: IR, expected: PType): Unit = {
     TypeCheck(node)
-    val (m, _) = Requiredness.apply(node, ctx)
-    val actual = m.lookup(node).asInstanceOf[TypeWithRequiredness]
+    val res = Requiredness.apply(node, ctx)
+    val actual = res.r.lookup(node).asInstanceOf[TypeWithRequiredness]
     assert(actual.canonicalPType(node.typ) == expected, s"\n\n${Pretty(node)}: \n$actual\n\n${ dump(m) }")
   }
 }

@@ -8,7 +8,7 @@ import is.hail.utils._
 import scala.collection.mutable
 
 object Requiredness {
-  def apply(node: BaseIR, ctx: ExecuteContext): (Memo[BaseTypeWithRequiredness], Memo[Array[BaseTypeWithRequiredness]]) = {
+  def apply(node: BaseIR, ctx: ExecuteContext): RequirednessAnalysis = {
     val usesAndDefs = ComputeUsesAndDefs(node, includeApplyIR = true)
     val pass = new Requiredness(usesAndDefs, ctx)
     pass.initialize(node)
@@ -17,6 +17,8 @@ object Requiredness {
   }
 }
 
+case class RequirednessAnalysis(r: Memo[BaseTypeWithRequiredness], states: Memo[Array[TypeWithRequiredness]])
+
 class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   type State = Memo[BaseTypeWithRequiredness]
   private val cache = Memo.empty[BaseTypeWithRequiredness]
@@ -24,9 +26,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   private val q = mutable.Set[RefEquality[BaseIR]]()
 
   private val defs = Memo.empty[Array[BaseTypeWithRequiredness]]
-  private val states = Memo.empty[Array[BaseTypeWithRequiredness]]
+  private val states = Memo.empty[Array[TypeWithRequiredness]]
 
-  def result(): (Memo[BaseTypeWithRequiredness], Memo[Array[BaseTypeWithRequiredness]]) = cache -> states
+  def result(): RequirednessAnalysis = RequirednessAnalysis(cache, states)
 
   def lookup(node: IR): TypeWithRequiredness = coerce[TypeWithRequiredness](cache(node))
   def lookupAs[T <: TypeWithRequiredness](node: IR): T = coerce[T](cache(node))
@@ -100,7 +102,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         refMap(loopName).map(_.t).foreach { case Recur(_, args, _) =>
           argDefs.zip(args).foreach { case (ab, d) => ab += d }
         }
-        val s = Array.fill[BaseTypeWithRequiredness](params.length)(null)
+        val s = Array.fill[TypeWithRequiredness](params.length)(null)
         var i = 0
         while (i < params.length) {
           val (name, init) = params(i)
@@ -127,7 +129,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamFold(a, zero, accumName, valueName, body) =>
         addElementBinding(valueName, a)
         addBindings(accumName, Array[IR](zero, body))
-        states.bind(node, Array[BaseTypeWithRequiredness](lookup(
+        states.bind(node, Array[TypeWithRequiredness](lookup(
           refMap.get(accumName)
             .flatMap(refs => refs.headOption.map(_.t.asInstanceOf[IR]))
             .getOrElse(zero))))
@@ -136,7 +138,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addBindings(accumName, Array[IR](zero, body))
       case StreamFold2(a, accums, valueName, seq, result) =>
         addElementBinding(valueName, a)
-        val s = Array.fill[BaseTypeWithRequiredness](accums.length)(null)
+        val s = Array.fill[TypeWithRequiredness](accums.length)(null)
         var i = 0
         while (i < accums.length) {
           val (n, z) = accums(i)
