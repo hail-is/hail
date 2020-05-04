@@ -46,19 +46,6 @@ abstract class TableStage(
     }
   }
 
-  def mapContexts(f: IR => IR): TableStage = {
-    val outer = this
-    new TableStage(
-      letBindings,
-      broadcastVals,
-      globals,
-      partitioner,
-      f(contexts)
-    ) {
-      def partition(ctxRef: Ref): IR = outer.partition(ctxRef)
-    }
-  }
-
   def collect(bind: Boolean = true): IR = {
     val ctx = Ref(genUID(), types.coerce[TStream](contexts.typ).elementType)
     val broadcastRefs = MakeStruct(letBindings.filter { case (name, _) => broadcastVals.contains(name) })
