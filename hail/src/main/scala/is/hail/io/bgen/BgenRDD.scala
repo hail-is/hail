@@ -248,7 +248,7 @@ private class BgenRecordIteratorWithFilter(
   private[this] var isEnd = false
   private[this] var current: LeafChild = _
   private[this] var key: Annotation = _
-  private[this] val ordering = index.keyType.ordering
+  private[this] val ordering = PartitionBoundOrdering(index.keyType)
 
   def next(): Option[RegionValue] = {
     val recordOffset = current.recordOffset
