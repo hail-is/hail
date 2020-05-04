@@ -36,19 +36,17 @@ object GenotypeFunctions extends RegistryFunctions {
       PCode(rt, code)
     }
 
-    registerEmitCode1("dosage", TArray(tv("N", "float64")), TFloat64,  (_: Type, _: PType) => PFloat64()
-    ) { case (r, rt, gp) =>
-      EmitCode.fromI(r.mb) { cb =>
-        gp.toI(cb).flatMap(cb) { case (gpc: PIndexableCode) =>
-          val gpv = gpc.memoize(cb, "dosage_gp")
+    registerIEmitCode1("dosage", TArray(tv("N", "float64")), TFloat64,  (_: Type, _: PType) => PFloat64()
+    ) { case (cb, r, rt, gp) =>
+      gp.flatMap(cb) { case (gpc: PIndexableCode) =>
+        val gpv = gpc.memoize(cb, "dosage_gp")
 
-          cb.ifx(gpv.loadLength().cne(3),
-            cb._fatal(const("length of gp array must be 3, got ").concat(gpv.loadLength().toS)))
+        cb.ifx(gpv.loadLength().cne(3),
+          cb._fatal(const("length of gp array must be 3, got ").concat(gpv.loadLength().toS)))
 
-          gpv.loadElement(cb, 1).flatMap(cb) { (_1: PCode) =>
-            gpv.loadElement(cb, 2).map(cb) { (_2: PCode) =>
-              PCode(rt, _1.tcode[Double] + _2.tcode[Double] * 2.0)
-            }
+        gpv.loadElement(cb, 1).flatMap(cb) { (_1: PCode) =>
+          gpv.loadElement(cb, 2).map(cb) { (_2: PCode) =>
+            PCode(rt, _1.tcode[Double] + _2.tcode[Double] * 2.0)
           }
         }
       }
