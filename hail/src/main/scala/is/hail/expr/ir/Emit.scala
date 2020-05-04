@@ -1027,9 +1027,11 @@ class Emit[C](
             val compare = ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0
             InferPType(compare, Env.empty)
             (a, compare, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
-              discardNext.invokeCode[Boolean](r,
-                new EmitCode(Code._empty, m1, PCode(atyp.elementType, v1)),
-                new EmitCode(Code._empty, m2, PCode(atyp.elementType, v2)))
+              EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
+                cb.invokeCode[Boolean](discardNext, r,
+                  new EmitCode(Code._empty, m1, PCode(atyp.elementType, v1)),
+                  new EmitCode(Code._empty, m2, PCode(atyp.elementType, v2)))
+              }
             }, Array.empty[String])
           case ToDict(a) =>
             val elementType = a.pType.asInstanceOf[PStream].elementType
@@ -1046,9 +1048,11 @@ class Emit[C](
             val compare = (ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0).deepCopy()
             InferPType(compare, Env.empty)
             (a, compare, Code(sorter.pruneMissing, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
-              discardNext.invokeCode[Boolean](r,
-                new EmitCode(Code._empty, m1, PCode(atyp.elementType, v1)),
-                new EmitCode(Code._empty, m2, PCode(atyp.elementType, v2)))
+              EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
+                cb.invokeCode[Boolean](discardNext, r,
+                  new EmitCode(Code._empty, m1, PCode(atyp.elementType, v1)),
+                  new EmitCode(Code._empty, m2, PCode(atyp.elementType, v2)))
+              }
             }), Array.empty[String])
         }
 
@@ -1920,34 +1924,30 @@ class Emit[C](
           val t = new Emit(ctx, bodyFB.ecb).emit(m, bodyMB, env, None)
           bodyMB.emit(Code(t.setup, t.m.mux(Code._fatal[Long]("return cannot be missing"), t.v)))
 
-          val ctxIS = Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getCodeParam[Array[Byte]](2))
-          val gIS = Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getCodeParam[Array[Byte]](3))
+          bodyFB.emitWithBuilder { cb =>
+            val ctxIB = cb.newLocal[InputBuffer]("cda_ctx_ib", x.contextSpec.buildCodeInputBuffer(
+              Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getCodeParam[Array[Byte]](2))))
+            val gIB = cb.newLocal[InputBuffer]("cda_g_ib", x.globalSpec.buildCodeInputBuffer(
+              Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getCodeParam[Array[Byte]](3))))
 
-          val ctxOff = bodyFB.newLocal[Long]()
-          val gOff = bodyFB.newLocal[Long]()
-          val bOff = bodyFB.newLocal[Long]()
-          val bOS = bodyFB.newLocal[ByteArrayOutputStream]()
+            val ctxOff = cb.newLocal[Long]("cda_ctx_off", cDec(bodyFB.getCodeParam[Region](1), ctxIB))
+            val gOff = cb.newLocal[Long]("cda_g_off", gDec(bodyFB.getCodeParam[Region](1), gIB))
 
-          bodyFB.emit(Code(
-            ctxOff := Code.memoize(x.contextSpec.buildCodeInputBuffer(ctxIS), "cda_ctx_ib") { ib =>
-              cDec(bodyFB.getCodeParam[Region](1), ib)
-            },
-            gOff := Code.memoize(x.globalSpec.buildCodeInputBuffer(gIS), "cda_g_ib") { ib =>
-              gDec(bodyFB.getCodeParam[Region](1), ib)
-            },
-            bOff := bodyMB.invokeCode[Long](bodyFB.getCodeParam[Region](1),
+            val bOffCode = cb.invokeCode[Long](bodyMB, bodyFB.getCodeParam[Region](1),
               new EmitCode(Code._empty,
                 x.decodedContextPTuple.isFieldMissing(ctxOff, 0),
                 PCode(ctxType, Region.loadIRIntermediate(ctxType)(x.decodedContextPTuple.fieldOffset(ctxOff, 0)))),
               new EmitCode(Code._empty,
                 x.decodedGlobalPTuple.isFieldMissing(gOff, 0),
-                PCode(gType, Region.loadIRIntermediate(gType)(x.decodedGlobalPTuple.fieldOffset(gOff, 0))))),
-            bOS := Code.newInstance[ByteArrayOutputStream](),
-            bOB := x.bodySpec.buildCodeOutputBuffer(bOS),
-            bEnc(bodyFB.getCodeParam[Region](1), bOff, bOB),
-            bOB.invoke[Unit]("flush"),
-            bOB.invoke[Unit]("close"),
-            bOS.invoke[Array[Byte]]("toByteArray")))
+                PCode(gType, Region.loadIRIntermediate(gType)(x.decodedGlobalPTuple.fieldOffset(gOff, 0)))))
+            val bOff = cb.newLocal[Long]("cda_boff", bOffCode)
+            val bOS = cb.newLocal[ByteArrayOutputStream]("cda_baos", Code.newInstance[ByteArrayOutputStream]())
+            val bOB = cb.newLocal[OutputBuffer]("cda_ob", x.bodySpec.buildCodeOutputBuffer(bOS))
+            cb += bEnc(bodyFB.getCodeParam[Region](1), bOff, bOB)
+            cb += bOB.invoke[Unit]("flush")
+            cb += bOB.invoke[Unit]("close")
+            bOS.invoke[Array[Byte]]("toByteArray")
+          }
 
           val fID = genUID()
           parentCB.addModule(fID, bodyFB.resultWithIndex())
@@ -2155,7 +2155,7 @@ class Emit[C](
     val EmitCode(setup, m, v) = new Emit(ctx, f.ecb).emit(newIR, sort, newEnv, None)
 
     sort.emit(Code(setup, m.mux(Code._fatal[Boolean]("Result of sorting function cannot be missing."), v.code)))
-    f.apply_method.emit(sort.invokeCode[Boolean](fregion,
+    f.apply_method.emitWithBuilder(cb => cb.invokeCode[Boolean](sort, fregion,
       new EmitCode(Code._empty, false, PCode(elemPType, f.getCodeParam[T](1))),
       new EmitCode(Code._empty, false, PCode(elemPType, f.getCodeParam[T](2)))))
     f
@@ -2717,6 +2717,8 @@ abstract class NDArrayEmitter[C](
       )
     }
     innerMethod.emit(columnMajorLoops)
-    innerMethod.invokeCode[Unit](mb.getParamsList(): _*)
+    EmitCodeBuilder.scopedVoid(mb) { cb => // ugh.
+      cb.invokeVoid(innerMethod, mb.getParamsList(): _*)
+    }
   }
 }

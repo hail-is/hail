@@ -946,14 +946,16 @@ class EmitMethodBuilder[C](
     }
   }
 
-  // This method is unsafe. Attempts should be made to move to the CodeBuilder invoke
-  // methods which ensure that all parameters are properly initialized
   def invokeCode[T](args: Param*): Code[T] = {
     assert(emitReturnType.isInstanceOf[CodeParamType])
-    assert(args.forall(_.isInstanceOf[CodeParam]), s"expected all code params, got : ${ args.mkString(", ") }")
+    assert(args.forall(_.isInstanceOf[CodeParam]))
     mb.invoke(args.flatMap {
       case CodeParam(c) => FastIndexedSeq(c)
-      case EmitParam(ec) => ec.codeTuple()
+      // If you hit this assertion, it means that an EmitParam was passed to
+      // invokeCode. Code with EmitParams must be invoked using the EmitCodeBuilder
+      // interface to ensure that setup is run and missingness is evaluated for the
+      // EmitCode
+      case EmitParam(ec) => fatal("EmitParam passed to invokeCode")
     }: _*)
   }
 
