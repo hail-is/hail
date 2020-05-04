@@ -198,6 +198,24 @@ object LowerTableIR {
             Subst(newRow, BindingEnv(env, scan = Some(env)))
           })
 
+        case TableGroupWithinPartitions(child, groupedStructName, n) =>
+          val loweredChild = lower(child)
+          val keyFields = FastIndexedSeq(child.typ.keyType.fieldNames: _*)
+          loweredChild.mapPartition { part =>
+            val grouped =  StreamGrouped(part, n)
+            val groupedArrays = mapIR(grouped) (group => ToArray(group))
+            val withKeys = mapIR(groupedArrays) {group =>
+              bindIR(group) { groupRef =>
+                bindIR(ArrayRef(groupRef, 0)) { firstElement =>
+                  val firstElementKeys = keyFields.map(keyField => (keyField, GetField(firstElement, keyField)))
+                  val rowStructFields = firstElementKeys ++ FastIndexedSeq(groupedStructName -> groupRef)
+                  MakeStruct(rowStructFields)
+                }
+              }
+            }
+            withKeys
+          }
+
         case TableExplode(child, path) =>
           lower(child).mapPartition { rows =>
             flatMapIR(rows) { row: Ref =>
