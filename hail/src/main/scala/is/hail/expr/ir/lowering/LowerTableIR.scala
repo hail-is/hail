@@ -211,12 +211,15 @@ object LowerTableIR {
             val i: IR = Ref("i", TInt32)
             val numLeft: IR = Ref("numLeft", TInt64)
             def makeAnswer(howManyParts: IR, howManyFromLast: IR) = MakeTuple(FastIndexedSeq((0, howManyParts), (1, howManyFromLast)))
-            TailLoop(funcName, FastIndexedSeq("i" -> 0, "numLeft" -> targetNumRows),
-              If(i ceq numPartitions - 1,
-                makeAnswer(i + 1, numLeft),
-                If( (numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64) ) <= 0L,
+            If(numPartitions ceq 0,
+              makeAnswer(0, 0L),
+              TailLoop(funcName, FastIndexedSeq("i" -> 0, "numLeft" -> targetNumRows),
+                If(i ceq numPartitions - 1,
                   makeAnswer(i + 1, numLeft),
-                  Recur(funcName, FastIndexedSeq(i + 1, numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64)), TTuple(TInt32, TInt64))
+                  If( (numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64) ) <= 0L,
+                    makeAnswer(i + 1, numLeft),
+                    Recur(funcName, FastIndexedSeq(i + 1, numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64)), TTuple(TInt32, TInt64))
+                  )
                 )
               )
             )
