@@ -57,7 +57,7 @@ abstract class TableStage(
     if (bind) wrapInBindings(cda) else cda
   }
 
-  def castPartitioner(newPartitioner: RVDPartitioner): TableStage = {
+  def changePartitionerNoRepartition(newPartitioner: RVDPartitioner): TableStage = {
     new TableStage(letBindings, broadcastVals, globals, newPartitioner, contexts) {
       def partition(ctxRef: Ref): IR = self.partition(ctxRef)
     }
@@ -235,7 +235,7 @@ object LowerTableIR {
             val newPartitioner = loweredChild.partitioner
               .coarsen(nPreservedFields)
               .extendKey(t.typ.keyType)
-            loweredChild.castPartitioner(newPartitioner)
+            loweredChild.changePartitionerNoRepartition(newPartitioner)
           } else
             ctx.backend.lowerDistributedSort(loweredChild, newKey.map(k => SortField(k, Ascending)))
 
