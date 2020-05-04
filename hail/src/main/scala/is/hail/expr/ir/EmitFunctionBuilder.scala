@@ -521,7 +521,7 @@ class EmitClassBuilder[C](
         }
         Code._empty
       }
-      cb += mb.invokeCode[Unit]()
+      cb.invokeVoid(mb)
     }
   }
 
@@ -546,7 +546,7 @@ class EmitClassBuilder[C](
         }
         Code._empty
       }
-      cb += mb.invokeCode[Unit](argTmps.map(_.get: Param): _*)
+      cb.invokeVoid(mb, argTmps.map(_.get: Param): _*)
     }
   }
 
