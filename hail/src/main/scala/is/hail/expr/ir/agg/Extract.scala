@@ -17,13 +17,13 @@ import scala.language.{existentials, postfixOps}
 
 class UnsupportedExtraction(msg: String) extends Exception(msg)
 
-case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSignature]) {
+case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStatePhysicalSignature]) {
   val nAggs: Int = aggs.length
 
   def isCommutative: Boolean = {
     def aggCommutes(agg: AggStateSignature): Boolean = agg.m.keysIterator.forall(AggIsCommutative(_)) && agg.nested.forall(_.forall(aggCommutes))
 
-    aggs.forall(aggCommutes)
+    aggs.forall(a => aggCommutes(a.virtual))
   }
 
   def shouldTreeAggregate: Boolean = {
@@ -34,7 +34,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
       case _ => false
     }) || agg.nested.exists(_.exists(containsBigAggregator))
 
-    aggs.exists(containsBigAggregator)
+    aggs.exists(a => containsBigAggregator(a.virtual))
   }
 
   def deserializeSet(i: Int, i2: Int, spec: BufferSpec): IR =
@@ -101,23 +101,8 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSign
 
   def results: IR = ResultOp(0, aggs)
 
-  def getPhysicalAggs(ctx: ExecuteContext, initBindings: Env[PType], seqBindings: Env[PType]): Array[AggStatePhysicalSignature] = {
-    val initsAB = InferPType.newBuilder[InitOp](aggs.length)
-    val seqsAB = InferPType.newBuilder[SeqOp](aggs.length)
-    val init2 = LoweringPipeline.compileLowerer.apply(ctx, init, false).asInstanceOf[IR].noSharing
-    val seq2 = LoweringPipeline.compileLowerer.apply(ctx, seqPerElt, false).asInstanceOf[IR].noSharing
-    InferPType(init2, initBindings, null, inits = initsAB, null)
-    InferPType(seq2, seqBindings, null, null, seqs = seqsAB)
-
-    val pSigs = aggs.indices.map { i => InferPType.computePhysicalAgg(aggs(i), initsAB(i), seqsAB(i)) }.toArray
-
-    if (init2 eq init)
-      InferPType.clearPTypes(init2)
-    if (seq2 eq seqPerElt)
-      InferPType.clearPTypes(seq2)
-
-    pSigs
-  }
+  def getPhysicalAggs(ctx: ExecuteContext, initBindings: Env[PType], seqBindings: Env[PType]): Array[AggStatePhysicalSignature] =
+    aggs
 }
 
 object Extract {
@@ -212,37 +197,39 @@ object Extract {
     val ab = new ArrayBuilder[InitOp]()
     val seq = new ArrayBuilder[IR]()
     val let = new ArrayBuilder[AggLet]()
-    val ref = Ref(resultName, null)
-    val postAgg = extract(ir, ab, seq, let, ref)
+    val r = Requiredness.apply(ir, null)
+    InferPType.withAnalysis(ir, r)
+    val postAgg = extract(ir, ab, seq, let)
     val initOps = ab.result()
-    val rt = TTuple(initOps.map(_.aggSig.resultType): _*)
-    ref._typ = rt
-
-    Aggs(postAgg, Begin(initOps), addLets(Begin(seq.result()), let.result()), initOps.map(_.aggSig))
+    val rt = TTuple(initOps.map(_.aggSig.resultType.virtualType): _*)
+    InferPType.clearPTypes(ir)
+    Aggs(postAgg(Ref(resultName, rt)), Begin(initOps), addLets(Begin(seq.result()), let.result()), initOps.map(_.aggSig))
   }
 
-  private def extract(ir: IR, ab: ArrayBuilder[InitOp], seqBuilder: ArrayBuilder[IR], letBuilder: ArrayBuilder[AggLet], result: IR): IR = {
-    def extract(node: IR): IR = this.extract(node, ab, seqBuilder, letBuilder, result)
+  private def extract(ir: IR, ab: ArrayBuilder[InitOp], seqBuilder: ArrayBuilder[IR], letBuilder: ArrayBuilder[AggLet]): IR => IR = {
+    def extract(node: IR): IR => IR = this.extract(node, ab, seqBuilder, letBuilder)
 
     ir match {
       case Ref(name, typ) =>
         assert(typ.isRealizable)
-        ir
+        x => ir
       case x@AggLet(name, value, body, _) =>
         letBuilder += x
         extract(body)
       case x: ApplyAggOp =>
         val i = ab.length
         val sig = x.aggSig
-        val state = AggStateSignature(sig)
+
+        val state = AggStateSignature(sig).defaultSignature.toPhysical(x.initOpArgs.map(_.pType), x.seqOpArgs.map(_.pType)).singletonContainer
         val op = sig.op
-        ab += ((InitOp(i, x.initOpArgs, state, op)))
-        seqBuilder += SeqOp(i, x.seqOpArgs, state, op)
-        GetTupleElement(result, i)
+        ab += ((InitOp(i, x.initOpArgs.map(_.deepCopy()), state, op)))
+        seqBuilder += SeqOp(i, x.seqOpArgs.map(_.deepCopy()), state, op)
+        res: IR => GetTupleElement(res, i)
+
       case AggFilter(cond, aggIR, _) =>
         val newSeq = new ArrayBuilder[IR]()
         val newLet = new ArrayBuilder[AggLet]()
-        val transformed = this.extract(aggIR, ab, newSeq, newLet, result)
+        val transformed = this.extract(aggIR, ab, newSeq, newLet)
 
         seqBuilder += If(cond, addLets(Begin(newSeq.result()), newLet.result()), Begin(FastIndexedSeq[IR]()))
         transformed
@@ -250,7 +237,7 @@ object Extract {
       case AggExplode(array, name, aggBody, _) =>
         val newSeq = new ArrayBuilder[IR]()
         val newLet = new ArrayBuilder[AggLet]()
-        val transformed = this.extract(aggBody, ab, newSeq, newLet, result)
+        val transformed = this.extract(aggBody, ab, newSeq, newLet)
 
         val (dependent, independent) = partitionDependentLets(newLet.result(), name)
         letBuilder ++= independent
@@ -260,30 +247,27 @@ object Extract {
       case AggGroupBy(key, aggIR, _) =>
         val newAggs = new ArrayBuilder[InitOp]()
         val newSeq = new ArrayBuilder[IR]()
-        val newRef = Ref(genUID(), null)
-        val transformed = this.extract(aggIR, newAggs, newSeq, letBuilder, GetField(newRef, "value"))
+        val transformed = this.extract(aggIR, newAggs, newSeq, letBuilder)
 
         val i = ab.length
         val initOps = newAggs.result()
 
-        val rt = TDict(key.typ, TTuple(initOps.map(_.aggSig.resultType): _*))
-        newRef._typ = rt.elementType
+        val aggSig = PhysicalAggSignature(Group(), Array(PVoid), Array(key.pType, PVoid))
+        val groupedState = AggStatePhysicalSignature(Map(Group() -> aggSig), Group(), Some(initOps.map(_.aggSig)))
+        ab += InitOp(i, FastIndexedSeq(Begin(initOps)), groupedState, Group())
+        seqBuilder += SeqOp(i, FastIndexedSeq(key, Begin(newSeq.result().toFastIndexedSeq)), groupedState, Group())
 
-        // the void-typed init and seq args are side-effecting agg IRs (InitOp and SeqOp nodes for sub-aggs)
-        val groupSig = AggSignature(Group(), Seq(TVoid), FastSeq(key.typ, TVoid))
-        val aggSig = AggStateSignature(Map(Group() -> groupSig), Group(), Some(initOps.map(_.aggSig)))
-        ab += InitOp(i, FastIndexedSeq(Begin(initOps)), aggSig, Group())
-        seqBuilder += SeqOp(i, FastIndexedSeq(key, Begin(newSeq.result().toFastIndexedSeq)), aggSig, Group())
-
-        ToDict(StreamMap(ToStream(GetTupleElement(result, i)), newRef.name, MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed))))
-
+        { res: IR =>
+          ToDict(mapIR(ToStream(GetTupleElement(res, i))) { newRef =>
+            MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed(GetField(newRef, "value"))))
+          })
+        }
 
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
         val newAggs = new ArrayBuilder[InitOp]()
         val newSeq = new ArrayBuilder[IR]()
         val newLet = new ArrayBuilder[AggLet]()
-        val newRef = Ref(genUID(), null)
-        val transformed = this.extract(aggBody, newAggs, newSeq, newLet, newRef)
+        val transformed = this.extract(aggBody, newAggs, newSeq, newLet)
 
         val (dependent, independent) = partitionDependentLets(newLet.result(), elementName)
         letBuilder ++= independent
@@ -291,56 +275,172 @@ object Extract {
         val i = ab.length
         val initOps = newAggs.result()
 
-        val rt = TArray(TTuple(initOps.map(_.aggSig.resultType): _*))
-        newRef._typ = rt.elementType
-
-        // the void-typed init and seq args are side-effecting agg IRs (InitOp and SeqOp nodes for sub-aggs)
-        val aggSigCheck = AggSignature(
-          AggElementsLengthCheck(),
-          knownLength.map(l => FastSeq(l.typ)).getOrElse(FastSeq()) :+ TVoid,
-          FastSeq(TInt32))
-        val aggSig = AggSignature(AggElements(), FastSeq(), FastSeq(TInt32, TVoid))
-        val state = AggStateSignature(Map(AggElementsLengthCheck() -> aggSigCheck, AggElements() -> aggSig),
-          AggElementsLengthCheck(), Some(initOps.map(_.aggSig)))
-
-        val aRef = Ref(genUID(), a.typ)
-        val iRef = Ref(genUID(), TInt32)
+        val state = AggStatePhysicalSignature(Map(
+          AggElementsLengthCheck() -> PhysicalAggSignature(
+            AggElementsLengthCheck(),
+            knownLength.map(l => FastSeq(l.pType)).getOrElse(FastSeq()) :+ PVoid,
+            FastSeq(PInt32(a.pType.required))),
+          AggElements() -> PhysicalAggSignature(AggElements(),
+            FastIndexedSeq(),
+            FastIndexedSeq(PInt32(true), PVoid))
+        ), AggElementsLengthCheck(),
+          Some(initOps.map(_.aggSig)))
 
         ab += InitOp(i, knownLength.map(FastSeq(_)).getOrElse(FastSeq[IR]()) :+ Begin(initOps), state, AggElementsLengthCheck())
-        seqBuilder +=
-          Let(
-            aRef.name, a,
-            Begin(FastIndexedSeq(
-              SeqOp(i, FastIndexedSeq(ArrayLen(aRef)), state, AggElementsLengthCheck()),
-              StreamFor(
-                StreamRange(I32(0), ArrayLen(aRef), I32(1)),
-                iRef.name,
-                Let(
-                  elementName,
-                  ArrayRef(aRef, iRef),
-                  addLets(SeqOp(i,
-                    FastIndexedSeq(iRef, Begin(newSeq.result().toFastIndexedSeq)),
-                    state, AggElements()), dependent))))))
+        seqBuilder += bindIR(a) { aRef =>
+          Begin(FastIndexedSeq(
+            SeqOp(i, FastIndexedSeq(ArrayLen(aRef)), state, AggElementsLengthCheck()),
+            StreamFor(
+              StreamRange(I32(0), ArrayLen(aRef), I32(1)),
+              indexName,
+              Let(
+                elementName,
+                ArrayRef(aRef, Ref(indexName, TInt32)),
+                addLets(SeqOp(i,
+                  FastIndexedSeq(Ref(indexName, TInt32), Begin(newSeq.result().toFastIndexedSeq)),
+                  state, AggElements()), dependent)))))
+        }
 
-        val rUID = Ref(genUID(), rt)
-        Let(
-          rUID.name,
-          GetTupleElement(result, i),
-          ToArray(StreamMap(
-            StreamRange(0, ArrayLen(rUID), 1),
-            indexName,
-            Let(
-              newRef.name,
-              ArrayRef(rUID, Ref(indexName, TInt32)),
-              transformed))))
+        { res: IR =>
+          bindIR(GetTupleElement(res, i)) { rUID =>
+            ToArray(mapIR(StreamRange(0, ArrayLen(rUID), 1)) { idx =>
+              bindIR(ArrayRef(rUID, idx)) { nestedRes =>
+                transformed(nestedRes)
+              }
+            })
+          }
+        }
 
       case x: StreamAgg =>
         assert(!ContainsScan(x))
-        x
+        x => x
       case x: StreamAggScan =>
         assert(!ContainsAgg(x))
-        x
-      case _ => MapIR(extract)(ir)
+        x => x
+      case _ => x => MapIR(extract(_)(x))(ir)
     }
   }
+//
+//  private def extract(ir: IR, ab: ArrayBuilder[InitOp], seqBuilder: ArrayBuilder[IR], letBuilder: ArrayBuilder[AggLet], result: IR): IR = {
+//    def extract(node: IR): IR = this.extract(node, ab, seqBuilder, letBuilder, result)
+//
+//    ir match {
+//      case Ref(name, typ) =>
+//        assert(typ.isRealizable)
+//        ir
+//      case x@AggLet(name, value, body, _) =>
+//        letBuilder += x
+//        extract(body)
+//      case x: ApplyAggOp =>
+//        val i = ab.length
+//        val sig = x.aggSig
+//        val state = AggStateSignature(sig)
+//        val op = sig.op
+//        ab += ((InitOp(i, x.initOpArgs, state, op)))
+//        seqBuilder += SeqOp(i, x.seqOpArgs, state, op)
+//        GetTupleElement(result, i)
+//      case AggFilter(cond, aggIR, _) =>
+//        val newSeq = new ArrayBuilder[IR]()
+//        val newLet = new ArrayBuilder[AggLet]()
+//        val transformed = this.extract(aggIR, ab, newSeq, newLet, result)
+//
+//        seqBuilder += If(cond, addLets(Begin(newSeq.result()), newLet.result()), Begin(FastIndexedSeq[IR]()))
+//        transformed
+//
+//      case AggExplode(array, name, aggBody, _) =>
+//        val newSeq = new ArrayBuilder[IR]()
+//        val newLet = new ArrayBuilder[AggLet]()
+//        val transformed = this.extract(aggBody, ab, newSeq, newLet, result)
+//
+//        val (dependent, independent) = partitionDependentLets(newLet.result(), name)
+//        letBuilder ++= independent
+//        seqBuilder += StreamFor(array, name, addLets(Begin(newSeq.result()), dependent))
+//        transformed
+//
+//      case AggGroupBy(key, aggIR, _) =>
+//        val newAggs = new ArrayBuilder[InitOp]()
+//        val newSeq = new ArrayBuilder[IR]()
+//        val newRef = Ref(genUID(), null)
+//        val transformed = this.extract(aggIR, newAggs, newSeq, letBuilder, GetField(newRef, "value"))
+//
+//        val i = ab.length
+//        val initOps = newAggs.result()
+//
+//        val rt = TDict(key.typ, TTuple(initOps.map(_.aggSig.resultType): _*))
+//        newRef._typ = rt.elementType
+//
+//        // the void-typed init and seq args are side-effecting agg IRs (InitOp and SeqOp nodes for sub-aggs)
+//        val groupSig = AggSignature(Group(), Seq(TVoid), FastSeq(key.typ, TVoid))
+//        val aggSig = AggStateSignature(Map(Group() -> groupSig), Group(), Some(initOps.map(_.aggSig)))
+//        ab += InitOp(i, FastIndexedSeq(Begin(initOps)), aggSig, Group())
+//        seqBuilder += SeqOp(i, FastIndexedSeq(key, Begin(newSeq.result().toFastIndexedSeq)), aggSig, Group())
+//
+//        ToDict(StreamMap(ToStream(GetTupleElement(result, i)), newRef.name, MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed))))
+//
+//
+//      case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
+//        val newAggs = new ArrayBuilder[InitOp]()
+//        val newSeq = new ArrayBuilder[IR]()
+//        val newLet = new ArrayBuilder[AggLet]()
+//        val newRef = Ref(genUID(), null)
+//        val transformed = this.extract(aggBody, newAggs, newSeq, newLet, newRef)
+//
+//        val (dependent, independent) = partitionDependentLets(newLet.result(), elementName)
+//        letBuilder ++= independent
+//
+//        val i = ab.length
+//        val initOps = newAggs.result()
+//
+//        val rt = TArray(TTuple(initOps.map(_.aggSig.resultType): _*))
+//        newRef._typ = rt.elementType
+//
+//        // the void-typed init and seq args are side-effecting agg IRs (InitOp and SeqOp nodes for sub-aggs)
+//        val aggSigCheck = AggSignature(
+//          AggElementsLengthCheck(),
+//          knownLength.map(l => FastSeq(l.typ)).getOrElse(FastSeq()) :+ TVoid,
+//          FastSeq(TInt32))
+//        val aggSig = AggSignature(AggElements(), FastSeq(), FastSeq(TInt32, TVoid))
+//        val state = AggStateSignature(Map(AggElementsLengthCheck() -> aggSigCheck, AggElements() -> aggSig),
+//          AggElementsLengthCheck(), Some(initOps.map(_.aggSig)))
+//
+//        val aRef = Ref(genUID(), a.typ)
+//        val iRef = Ref(genUID(), TInt32)
+//
+//        ab += InitOp(i, knownLength.map(FastSeq(_)).getOrElse(FastSeq[IR]()) :+ Begin(initOps), state, AggElementsLengthCheck())
+//        seqBuilder +=
+//          Let(
+//            aRef.name, a,
+//            Begin(FastIndexedSeq(
+//              SeqOp(i, FastIndexedSeq(ArrayLen(aRef)), state, AggElementsLengthCheck()),
+//              StreamFor(
+//                StreamRange(I32(0), ArrayLen(aRef), I32(1)),
+//                iRef.name,
+//                Let(
+//                  elementName,
+//                  ArrayRef(aRef, iRef),
+//                  addLets(SeqOp(i,
+//                    FastIndexedSeq(iRef, Begin(newSeq.result().toFastIndexedSeq)),
+//                    state, AggElements()), dependent))))))
+//
+//        val rUID = Ref(genUID(), rt)
+//        Let(
+//          rUID.name,
+//          GetTupleElement(result, i),
+//          ToArray(StreamMap(
+//            StreamRange(0, ArrayLen(rUID), 1),
+//            indexName,
+//            Let(
+//              newRef.name,
+//              ArrayRef(rUID, Ref(indexName, TInt32)),
+//              transformed))))
+//
+//      case x: StreamAgg =>
+//        assert(!ContainsScan(x))
+//        x
+//      case x: StreamAggScan =>
+//        assert(!ContainsAgg(x))
+//        x
+//      case _ => MapIR(extract)(ir)
+//    }
+//  }
 }

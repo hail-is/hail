@@ -1236,9 +1236,8 @@ class Emit[C](
 
         COption.toEmitCode(resOpt, mb)
 
-      case x@RunAgg(body, result, _) =>
-        val aggs = x.physicalSignatures
-        val (newContainer, aggSetup, aggCleanup) = AggContainer.fromClassBuilder(aggs, mb.ecb, "run_agg")
+      case x@RunAgg(body, result, aggs) =>
+        val (newContainer, aggSetup, aggCleanup) = AggContainer.fromClassBuilder(aggs.toArray, mb.ecb, "run_agg")
         val codeBody = emitVoid(body, container = Some(newContainer))
         val codeRes = emit(result, container = Some(newContainer))
         val res = mb.newEmitField(result.pType)

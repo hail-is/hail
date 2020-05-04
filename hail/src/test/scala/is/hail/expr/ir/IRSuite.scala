@@ -2631,20 +2631,23 @@ class IRSuite extends HailSuite {
     val call = Ref("call", TCall)
 
     val collectSig = AggSignature(Collect(), Seq(), Seq(TInt32))
+    val collectState = PhysicalAggSignature(Collect(), Seq(), Seq(PInt32())).singletonContainer
 
     val sumSig = AggSignature(Sum(), Seq(), Seq(TInt64))
+    val sumState = PhysicalAggSignature(Sum(), Seq(), Seq(PInt64())).singletonContainer
 
     val callStatsSig = AggSignature(CallStats(), Seq(TInt32), Seq(TCall))
+    val callStatsState = PhysicalAggSignature(CallStats(), Seq(PInt32()), Seq(PCanonicalCall())).singletonContainer
 
     val takeBySig = AggSignature(TakeBy(), Seq(TInt32), Seq(TFloat64, TInt32))
 
     val countSig = AggSignature(Count(), Seq(), Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, countSig)
 
-    val groupSignature = AggStateSignature(
-      Map(Group() -> AggSignature(Group(), FastIndexedSeq(TVoid), FastIndexedSeq(TInt32, TVoid))),
+    val groupSignature = AggStatePhysicalSignature(
+      Map(Group() -> PhysicalAggSignature(Group(), FastIndexedSeq(PVoid), FastIndexedSeq(PInt32(), PVoid))),
       Group(),
-      Some(FastIndexedSeq(sumSig.singletonContainer)))
+      Some(FastIndexedSeq(sumState)))
 
     val table = TableRange(100, 10)
 
@@ -2715,13 +2718,13 @@ class IRSuite extends HailSuite {
       StreamAgg(st, "x", ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)),
       StreamAggScan(st, "x", ApplyScanOp(FastIndexedSeq.empty, FastIndexedSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)),
       RunAgg(Begin(FastSeq(
-        InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), sumSig)))), groupSignature, Group()),
-        SeqOp(0, FastSeq(I32(1), SeqOp(0, FastSeq(), sumSig)), groupSignature, Group()))),
+        InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), sumState, sumState.default)))), groupSignature, Group()),
+        SeqOp(0, FastSeq(I32(1), SeqOp(0, FastSeq(), sumState, sumState.default)), groupSignature, Group()))),
         AggStateValue(0, groupSignature), FastIndexedSeq(groupSignature)),
       RunAggScan(StreamRange(I32(0), I32(1), I32(1)),
         "foo",
-        InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), sumSig)))), groupSignature, Group()),
-        SeqOp(0, FastSeq(Ref("foo", TInt32), SeqOp(0, FastSeq(), sumSig)), groupSignature, Group()),
+        InitOp(0, FastIndexedSeq(Begin(FastIndexedSeq(InitOp(0, FastSeq(), sumState, sumState.default)))), groupSignature, Group()),
+        SeqOp(0, FastSeq(Ref("foo", TInt32), SeqOp(0, FastSeq(), sumState, sumState.default)), groupSignature, Group()),
         AggStateValue(0, groupSignature),
         FastIndexedSeq(groupSignature)
         ),
@@ -2731,12 +2734,12 @@ class IRSuite extends HailSuite {
       ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(I32(0)), collectSig),
       ApplyAggOp(FastIndexedSeq(I32(2)), FastIndexedSeq(call), callStatsSig),
       ApplyAggOp(FastIndexedSeq(I32(10)), FastIndexedSeq(F64(-2.11), I32(4)), takeBySig),
-      InitOp(0, FastIndexedSeq(I32(2)), AggStateSignature(callStatsSig), callStatsSig.op),
-      SeqOp(0, FastIndexedSeq(i), AggStateSignature(collectSig), collectSig.op),
-      CombOp(0, 1, collectSig.singletonContainer),
-      ResultOp(0, FastSeq(collectSig.singletonContainer)),
-      SerializeAggs(0, 0, BufferSpec.default, FastSeq(collectSig.singletonContainer)),
-      DeserializeAggs(0, 0, BufferSpec.default, FastSeq(collectSig.singletonContainer)),
+      InitOp(0, FastIndexedSeq(I32(2)), callStatsState, callStatsSig.op),
+      SeqOp(0, FastIndexedSeq(i), collectState, collectSig.op),
+      CombOp(0, 1, collectState),
+      ResultOp(0, FastSeq(collectState)),
+      SerializeAggs(0, 0, BufferSpec.default, FastSeq(collectState)),
+      DeserializeAggs(0, 0, BufferSpec.default, FastSeq(collectState)),
       Begin(FastIndexedSeq(Void())),
       MakeStruct(FastIndexedSeq("x" -> i)),
       SelectFields(s, FastIndexedSeq("x", "z")),

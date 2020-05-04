@@ -47,17 +47,19 @@ object Pretty {
 
     def prettyIdentifiers(x: IndexedSeq[String]): String = x.map(prettyIdentifier).mkString("(", " ", ")")
 
-    def prettySeq(xs: Seq[BaseIR], depth: Int) {
+    def basePrettySeq[T](xs: Seq[T], depth: Int, f: (T, Int) => Unit) {
       sb.append(" " * depth)
       sb += '('
       xs.foreach { x =>
         sb += '\n'
-        pretty(x, depth + 2)
+        f(x, depth + 2)
       }
       sb += ')'
     }
 
-    def prettyAggStateSignatures(sigs: Seq[AggStateSignature], depth: Int) = {
+    def prettySeq(xs: Seq[BaseIR], depth: Int): Unit = basePrettySeq(xs, depth, pretty)
+
+    def prettyAggStateSignatures(sigs: Seq[AggStatePhysicalSignature], depth: Int): Unit = {
       sb.append(" " * depth)
       sb += '('
       sigs.foreach { sig =>
@@ -66,12 +68,12 @@ object Pretty {
       }
       sb += ')'
     }
-    def prettyAggStateSignature(aggSig: AggStateSignature, depth: Int): Unit = {
+    def prettyAggStateSignature(aggSig: AggStatePhysicalSignature, depth: Int): Unit = {
       sb.append(" " * depth)
       sb += '('
       sb.append(prettyClass(aggSig.default))
       sb += '\n'
-      prettyAggSeq(aggSig.m.valuesIterator.toFastIndexedSeq, depth + 2)
+      prettyPhysicalAggSeq(aggSig.m.valuesIterator.toFastIndexedSeq, depth + 2)
       sb += ' '
       aggSig.nested match {
         case Some(states) => prettyAggStateSignatures(states, depth + 2)
@@ -80,25 +82,18 @@ object Pretty {
       sb += ')'
     }
 
-    def prettyAggSignature(aggSig: AggSignature, depth: Int): Unit = {
+    def prettyPhysicalAggSig(aggSig: PhysicalAggSignature, depth: Int): Unit = {
       sb.append(" " * depth)
       sb += '('
       sb.append(prettyClass(aggSig.op))
       sb += ' '
-      sb.append(aggSig.initOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))
-      sb.append(aggSig.seqOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))
+      sb.append(aggSig.physicalInitOpArgs.map(_.toString()).mkString(" (", " ", ")"))
+      sb.append(aggSig.physicalSeqOpArgs.map(_.toString()).mkString(" (", " ", ")"))
       sb += ')'
     }
 
-    def prettyAggSeq(sigs: Seq[AggSignature], depth: Int) {
-      sb.append(" " * depth)
-      sb += '('
-      sigs.foreach { x =>
-        sb += '\n'
-        prettyAggSignature(x, depth + 2)
-      }
-      sb += ')'
-    }
+    def prettyPhysicalAggSeq(sigs: Seq[PhysicalAggSignature], depth: Int): Unit =
+      basePrettySeq(sigs, depth, prettyPhysicalAggSig)
 
     def pretty(ir: BaseIR, depth: Int) {
       if (maxLen > 0 && sb.size > maxLen)
