@@ -208,25 +208,25 @@ object LowerTableIR {
           val partitionSizeStage = loweredChild.mapPartition(rows => ArrayLen(ToArray(rows)))
           // 2. Need to sum over this array for first time it's bigger than n.
           val partitionSizeArray = partitionSizeStage.collect()
-          val answerTuple = bindIR(partitionSizeArray) { partitionSizeArrayRef =>
-            bindIR(ArrayLen(partitionSizeArrayRef)) { numPartitions =>
-              val funcName = "howManyParts"
-              val i: IR = Ref("i", TInt32)
-              val numLeft: IR = Ref("numLeft", TInt64)
-              def makeAnswer(howManyParts: IR, howManyFromLast: IR) = MakeTuple(FastIndexedSeq((0, howManyParts), (1, howManyFromLast)))
-              TailLoop(funcName, FastIndexedSeq("i" -> 0, "numLeft" -> targetNumRows),
-                If(i ceq numPartitions - 1,
+          val partitionSizeArrayRef = Ref(genUID(), partitionSizeArray.typ)
+          val answerTuple = bindIR(ArrayLen(partitionSizeArrayRef)) { numPartitions =>
+            val funcName = "howManyParts"
+            val i: IR = Ref("i", TInt32)
+            val numLeft: IR = Ref("numLeft", TInt64)
+            def makeAnswer(howManyParts: IR, howManyFromLast: IR) = MakeTuple(FastIndexedSeq((0, howManyParts), (1, howManyFromLast)))
+            TailLoop(funcName, FastIndexedSeq("i" -> 0, "numLeft" -> targetNumRows),
+              If(i ceq numPartitions - 1,
+                makeAnswer(i + 1, numLeft),
+                If( (numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64) ) <= 0L,
                   makeAnswer(i + 1, numLeft),
-                  If( (numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64) ) <= 0L,
-                    makeAnswer(i + 1, numLeft),
-                    Recur(funcName, FastIndexedSeq(i + 1, numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64)), TTuple(TInt32, TInt64))
-                  )
+                  Recur(funcName, FastIndexedSeq(i + 1, numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64)), TTuple(TInt32, TInt64))
                 )
               )
-            }
+            )
           }
+
           new TableStage(
-            loweredChild.letBindings,
+            loweredChild.letBindings :+ partitionSizeArrayRef.name -> partitionSizeArray,
             loweredChild.broadcastVals,
             loweredChild.globals,
             loweredChild.partitioner,
@@ -240,7 +240,7 @@ object LowerTableIR {
                 val howManyFromEachPart = mapIR(rangeIR(numParts)) { idxRef =>
                   If(idxRef ceq (numParts - 1),
                     Cast(numElementsFromLastPart, TInt32),
-                    ArrayRef(partitionSizeArray, idxRef)
+                    ArrayRef(partitionSizeArrayRef, idxRef)
                   )
                 }
                 StreamZip(FastIndexedSeq(onlyNeededPartitions, howManyFromEachPart), FastIndexedSeq("part", "howMany"),
