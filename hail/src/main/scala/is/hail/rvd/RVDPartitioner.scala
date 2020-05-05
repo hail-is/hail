@@ -163,7 +163,8 @@ class RVDPartitioner(
   }
 
   def intersect(other: RVDPartitioner): RVDPartitioner = {
-    require(kType isIsomorphicTo other.kType)
+    if (!kType.isIsomorphicTo(other.kType))
+      throw new AssertionError(s"key types not isomorphic: $kType, ${other.kType}")
 
     new RVDPartitioner(kType, Interval.intersection(this.rangeBounds, other.rangeBounds, kord.intervalEndpointOrdering))
   }
