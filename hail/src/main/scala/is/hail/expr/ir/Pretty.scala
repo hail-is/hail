@@ -59,7 +59,7 @@ object Pretty {
 
     def prettySeq(xs: Seq[BaseIR], depth: Int): Unit = basePrettySeq(xs, depth, pretty)
 
-    def prettyAggStateSignatures(sigs: Seq[AggStatePhysicalSignature], depth: Int): Unit = {
+    def prettyAggStateSignatures(sigs: Seq[AggStateSignature], depth: Int): Unit = {
       sb.append(" " * depth)
       sb += '('
       sigs.foreach { sig =>
@@ -68,7 +68,7 @@ object Pretty {
       }
       sb += ')'
     }
-    def prettyAggStateSignature(aggSig: AggStatePhysicalSignature, depth: Int): Unit = {
+    def prettyAggStateSignature(aggSig: AggStateSignature, depth: Int): Unit = {
       sb.append(" " * depth)
       sb += '('
       sb.append(prettyClass(aggSig.default))

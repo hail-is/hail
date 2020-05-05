@@ -68,7 +68,7 @@ class SetupBuilder(mb: EmitMethodBuilder[_], var setup: Code[Unit]) {
 object Emit {
   type E = Env[EmitValue]
 
-  def apply[C](ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[C], aggs: Option[Array[AggStatePhysicalSignature]] = None) {
+  def apply[C](ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[C], aggs: Option[Array[AggStateSignature]] = None) {
     TypeCheck(ir)
 
     val mb = fb.apply_method
@@ -94,7 +94,7 @@ object Emit {
 }
 
 object AggContainer {
-  def fromVars(aggs: Array[AggStatePhysicalSignature], cb: EmitClassBuilder[_], region: Settable[Region], off: Settable[Long]): (AggContainer, Code[Unit], Code[Unit]) = {
+  def fromVars(aggs: Array[AggStateSignature], cb: EmitClassBuilder[_], region: Settable[Region], off: Settable[Long]): (AggContainer, Code[Unit], Code[Unit]) = {
     val states = agg.StateTuple(aggs.map(a => agg.Extract.getAgg(a, a.default).createState(cb)).toArray)
     val aggState = new agg.TupleAggregatorState(cb, states, region, off)
 
@@ -111,11 +111,11 @@ object AggContainer {
     (AggContainer(aggs, aggState), setup, cleanup)
   }
 
-  def fromClassBuilder[C](aggs: Array[AggStatePhysicalSignature], cb: EmitClassBuilder[C], varPrefix: String): (AggContainer, Code[Unit], Code[Unit]) =
+  def fromClassBuilder[C](aggs: Array[AggStateSignature], cb: EmitClassBuilder[C], varPrefix: String): (AggContainer, Code[Unit], Code[Unit]) =
     fromVars(aggs, cb, cb.genFieldThisRef[Region](s"${varPrefix}_top_region"), cb.genFieldThisRef[Long](s"${varPrefix}_off"))
 }
 
-case class AggContainer(aggs: Array[AggStatePhysicalSignature], container: agg.TupleAggregatorState) {
+case class AggContainer(aggs: Array[AggStateSignature], container: agg.TupleAggregatorState) {
 
   def nested(i: Int, init: Boolean): Option[AggContainer] = {
     aggs(i).nested.map { n =>

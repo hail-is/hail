@@ -613,16 +613,16 @@ object IRParser {
   def agg_op(it: TokenIterator): AggOp =
     AggOp.fromString(identifier(it))
 
-  def agg_state_psignature(env: TypeParserEnvironment)(it: TokenIterator): AggStatePhysicalSignature = {
+  def agg_state_psignature(env: TypeParserEnvironment)(it: TokenIterator): AggStateSignature = {
     punctuation(it, "(")
     val op = agg_op(it)
     val sigs = physical_agg_sigs(env)(it)
     val nested = opt(it, agg_state_psignatures(env)).map(_.toFastSeq)
     punctuation(it, ")")
-    AggStatePhysicalSignature(sigs.map(s => (s.op, s)).toMap, op, nested)
+    AggStateSignature(sigs.map(s => (s.op, s)).toMap, op, nested)
   }
 
-  def agg_state_psignatures(env: TypeParserEnvironment)(it: TokenIterator): Array[AggStatePhysicalSignature] = {
+  def agg_state_psignatures(env: TypeParserEnvironment)(it: TokenIterator): Array[AggStateSignature] = {
     punctuation(it, "(")
     val sigs = repUntil(it, agg_state_psignature(env), PunctuationToken(")"))
     punctuation(it, ")")

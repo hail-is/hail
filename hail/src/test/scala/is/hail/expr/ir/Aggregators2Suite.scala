@@ -16,7 +16,7 @@ import org.testng.annotations.Test
 class Aggregators2Suite extends HailSuite {
 
   def assertAggEqualsProcessed(
-    aggSig: AggStatePhysicalSignature,
+    aggSig: AggStateSignature,
     initOp: IR,
     seqOps: IndexedSeq[IR],
     expected: Any,
@@ -138,7 +138,7 @@ class Aggregators2Suite extends HailSuite {
   }
 
   def assertAggEquals(
-    aggSig: AggStatePhysicalSignature,
+    aggSig: AggStateSignature,
     initArgs: IndexedSeq[IR],
     seqArgs: IndexedSeq[IndexedSeq[IR]],
     expected: Any,
@@ -414,7 +414,7 @@ class Aggregators2Suite extends HailSuite {
     }
   }
 
-  def seqOpOverArray(aggIdx: Int, a: IR, seqOps: IR => IR, state: AggStatePhysicalSignature): IR = {
+  def seqOpOverArray(aggIdx: Int, a: IR, seqOps: IR => IR, state: AggStateSignature): IR = {
     val idx = Ref(genUID(), TInt32)
     val elt = Ref(genUID(), coerce[TArray](a.typ).elementType)
 
@@ -469,8 +469,8 @@ class Aggregators2Suite extends HailSuite {
   }
 
   @Test def testArrayElementsAgg() {
-    val aggSigs = FastIndexedSeq(pnnAggSig, countAggSig, sumAggSig).map(AggStatePhysicalSignature.apply)
-    val aeState = AggStatePhysicalSignature(Map(
+    val aggSigs = FastIndexedSeq(pnnAggSig, countAggSig, sumAggSig).map(AggStateSignature.apply)
+    val aeState = AggStateSignature(Map(
       AggElementsLengthCheck() -> PhysicalAggSignature(AggElementsLengthCheck(), FastSeq(PVoid), FastSeq(PInt32())),
       AggElements() -> PhysicalAggSignature(AggElements(), FastSeq(), FastSeq(PInt32(), PVoid))),
       AggElementsLengthCheck(), Some(aggSigs))
@@ -510,14 +510,14 @@ class Aggregators2Suite extends HailSuite {
   }
 
   @Test def testNestedArrayElementsAgg() {
-    val aggSigs = FastIndexedSeq(AggStatePhysicalSignature(sumAggSig))
-    val aeState1 = AggStatePhysicalSignature(Map(
+    val aggSigs = FastIndexedSeq(AggStateSignature(sumAggSig))
+    val aeState1 = AggStateSignature(Map(
       AggElementsLengthCheck() -> PhysicalAggSignature(AggElementsLengthCheck(), FastSeq(PVoid), FastSeq(PInt32())),
       AggElements() -> PhysicalAggSignature(AggElements(), FastSeq(), FastSeq(PInt32(), PVoid))),
       AggElementsLengthCheck(), Some(aggSigs))
 
     val aggSigs2 = FastIndexedSeq(aeState1)
-    val aeState2 = AggStatePhysicalSignature(Map(
+    val aeState2 = AggStateSignature(Map(
       AggElementsLengthCheck() -> PhysicalAggSignature(AggElementsLengthCheck(), FastSeq(PVoid), FastSeq(PInt32())),
       AggElements() -> PhysicalAggSignature(AggElements(), FastSeq(), FastSeq(PInt32(), PVoid))),
       AggElementsLengthCheck(), Some(aggSigs2))
@@ -554,8 +554,8 @@ class Aggregators2Suite extends HailSuite {
 
     val take = PhysicalAggSignature(Take(), FastSeq(PInt32()), FastSeq(PType.canonical(t)))
 
-    val aggSigs = FastIndexedSeq(AggStatePhysicalSignature(take))
-    val aeState = AggStatePhysicalSignature(Map(
+    val aggSigs = FastIndexedSeq(AggStateSignature(take))
+    val aeState = AggStateSignature(Map(
       AggElementsLengthCheck() -> PhysicalAggSignature(AggElementsLengthCheck(), FastSeq(PVoid), FastSeq(PInt32())),
       AggElements() -> PhysicalAggSignature(AggElements(), FastSeq(), FastSeq(PInt32(), PVoid))),
       AggElementsLengthCheck(), Some(aggSigs))
@@ -579,7 +579,7 @@ class Aggregators2Suite extends HailSuite {
 
     val kt = PCanonicalString()
     val group = PhysicalAggSignature(Group(), FastSeq(PVoid), FastSeq(kt, PVoid))
-    val grouped = AggStatePhysicalSignature(Map(Group() -> group), Group(), Some(FastSeq(pnnAggSig, countAggSig, sumAggSig).map(_.singletonContainer)))
+    val grouped = AggStateSignature(Map(Group() -> group), Group(), Some(FastSeq(pnnAggSig, countAggSig, sumAggSig).map(_.singletonContainer)))
 
     val initOpArgs = FastIndexedSeq(Begin(FastIndexedSeq(
       InitOp(0, FastIndexedSeq(), pnnAggSig),
@@ -607,8 +607,8 @@ class Aggregators2Suite extends HailSuite {
   @Test def testNestedGroup() {
     val kt = PCanonicalString()
     val group = PhysicalAggSignature(Group(), FastSeq(PVoid), FastSeq(kt, PVoid))
-    val grouped1 = AggStatePhysicalSignature(Map(Group() -> group), Group(), Some(FastSeq(pnnAggSig, countAggSig, sumAggSig).map(_.singletonContainer)))
-    val grouped2 = AggStatePhysicalSignature(Map(Group() -> group), Group(), Some(FastSeq(grouped1)))
+    val grouped1 = AggStateSignature(Map(Group() -> group), Group(), Some(FastSeq(pnnAggSig, countAggSig, sumAggSig).map(_.singletonContainer)))
+    val grouped2 = AggStateSignature(Map(Group() -> group), Group(), Some(FastSeq(grouped1)))
 
     val initOpArgs = FastIndexedSeq(
       InitOp(0, FastIndexedSeq(

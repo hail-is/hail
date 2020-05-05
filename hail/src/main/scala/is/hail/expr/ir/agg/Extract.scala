@@ -17,13 +17,13 @@ import scala.language.{existentials, postfixOps}
 
 class UnsupportedExtraction(msg: String) extends Exception(msg)
 
-case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStatePhysicalSignature]) {
+case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStateSignature]) {
   val nAggs: Int = aggs.length
 
   def isCommutative: Boolean = {
     def aggCommutes(agg: AggStateSignature): Boolean = agg.m.keysIterator.forall(AggIsCommutative(_)) && agg.nested.forall(_.forall(aggCommutes))
 
-    aggs.forall(a => aggCommutes(a.virtual))
+    aggs.forall(a => aggCommutes(a))
   }
 
   def shouldTreeAggregate: Boolean = {
@@ -34,7 +34,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStatePhys
       case _ => false
     }) || agg.nested.exists(_.exists(containsBigAggregator))
 
-    aggs.exists(a => containsBigAggregator(a.virtual))
+    aggs.exists(a => containsBigAggregator(a))
   }
 
   def deserializeSet(i: Int, i2: Int, spec: BufferSpec): IR =
@@ -45,7 +45,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStatePhys
 
   def eltOp(ctx: ExecuteContext): IR = seqPerElt
 
-  def deserialize(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): ((Region, Array[Byte]) => Long) = {
+  def deserialize(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStateSignature]): ((Region, Array[Byte]) => Long) = {
     val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
       physicalAggs,
       FastIndexedSeq(),
@@ -61,7 +61,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStatePhys
     }
   }
 
-  def serialize(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (Region, Long) => Array[Byte] = {
+  def serialize(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStateSignature]): (Region, Long) => Array[Byte] = {
     val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
       physicalAggs,
       FastIndexedSeq(),
@@ -76,7 +76,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStatePhys
     }
   }
 
-  def combOpF(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStatePhysicalSignature]): (Array[Byte], Array[Byte]) => Array[Byte] = {
+  def combOpF(ctx: ExecuteContext, spec: BufferSpec, physicalAggs: Array[AggStateSignature]): (Array[Byte], Array[Byte]) => Array[Byte] = {
     val (_, f) = ir.CompileWithAggregators2[AsmFunction1RegionUnit](ctx,
       physicalAggs ++ physicalAggs,
       FastIndexedSeq(),
@@ -101,7 +101,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggStatePhys
 
   def results: IR = ResultOp(0, aggs)
 
-  def getPhysicalAggs(ctx: ExecuteContext, initBindings: Env[PType], seqBindings: Env[PType]): Array[AggStatePhysicalSignature] =
+  def getPhysicalAggs(ctx: ExecuteContext, initBindings: Env[PType], seqBindings: Env[PType]): Array[AggStateSignature] =
     aggs
 }
 
@@ -135,9 +135,10 @@ object Extract {
     lets.foldRight[IR](ir) { case (al, comb) => Let(al.name, al.value, comb) }
   }
 
-  def compatible(sig1: AggStatePhysicalSignature, sig2: AggStatePhysicalSignature): Boolean = sig1.default == sig2.default
+  def compatible(sig1: AggStateSignature, sig2: AggStateSignature): Boolean = sig1.default == sig2.default
 
-  def getResultType(aggSig: AggStateSignature): Type = aggSig.defaultSignature match {
+  // Group() and AggElements() should never exist as AggSignatures.
+  def getResultType(aggSig: AggSignature): Type = aggSig match {
     case AggSignature(Sum(), _, Seq(t)) => t
     case AggSignature(Product(), _, Seq(t)) => t
     case AggSignature(Min(), _, Seq(t)) => t
@@ -153,11 +154,9 @@ object Extract {
       LinearRegressionAggregator.resultType.virtualType
     case AggSignature(ApproxCDF(), _, _) => QuantilesAggregator.resultType.virtualType
     case AggSignature(Downsample(), _, Seq(_, _, label)) => DownsampleAggregator.resultType
-    case AggSignature(AggElementsLengthCheck(), _, _) => TArray(TTuple(aggSig.nested.get.map(getResultType): _*))
-    case AggSignature(Group(), _, Seq(k, _)) =>  TDict(k, TTuple(aggSig.nested.get.map(getResultType): _*))
     case _ => throw new UnsupportedExtraction(aggSig.toString)  }
 
-  def getAgg(aggSig: AggStatePhysicalSignature, op: AggOp): StagedAggregator = aggSig.lookup(op) match {
+  def getAgg(aggSig: AggStateSignature, op: AggOp): StagedAggregator = aggSig.lookup(op) match {
     case PhysicalAggSignature(Sum(), _, Seq(t)) =>
       new SumAggregator(t)
     case PhysicalAggSignature(Product(), _, Seq(t)) =>
@@ -191,7 +190,7 @@ object Extract {
     case _ => throw new UnsupportedExtraction(aggSig.toString)
   }
 
-  def getPType(aggSig: AggStatePhysicalSignature): PType = getAgg(aggSig, aggSig.default).resultType
+  def getPType(aggSig: AggStateSignature): PType = getAgg(aggSig, aggSig.default).resultType
 
   def apply(ir: IR, resultName: String): Aggs = {
     val ab = new ArrayBuilder[InitOp]()
@@ -253,7 +252,7 @@ object Extract {
         val initOps = newAggs.result()
 
         val aggSig = PhysicalAggSignature(Group(), Array(PVoid), Array(key.pType, PVoid))
-        val groupedState = AggStatePhysicalSignature(Map(Group() -> aggSig), Group(), Some(initOps.map(_.aggSig)))
+        val groupedState = AggStateSignature(Map(Group() -> aggSig), Group(), Some(initOps.map(_.aggSig)))
         ab += InitOp(i, FastIndexedSeq(Begin(initOps)), groupedState, Group())
         seqBuilder += SeqOp(i, FastIndexedSeq(key, Begin(newSeq.result().toFastIndexedSeq)), groupedState, Group())
 
@@ -275,7 +274,7 @@ object Extract {
         val i = ab.length
         val initOps = newAggs.result()
 
-        val state = AggStatePhysicalSignature(Map(
+        val state = AggStateSignature(Map(
           AggElementsLengthCheck() -> PhysicalAggSignature(
             AggElementsLengthCheck(),
             knownLength.map(l => FastSeq(l.pType)).getOrElse(FastSeq()) :+ PVoid,

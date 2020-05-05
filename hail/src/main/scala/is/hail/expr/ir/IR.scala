@@ -351,18 +351,18 @@ object SeqOp {
 //final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSignature]) extends IR
 //final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSignature]) extends I
 
-final case class InitOp(i: Int, args: IndexedSeq[IR], aggSig: AggStatePhysicalSignature, op: AggOp) extends IR
-final case class SeqOp(i: Int, args: IndexedSeq[IR], aggSig: AggStatePhysicalSignature, op: AggOp) extends IR
-final case class CombOp(i1: Int, i2: Int, aggSig: AggStatePhysicalSignature) extends IR
-final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[AggStatePhysicalSignature]) extends IR
-final case class CombOpValue(i: Int, value: IR, aggSig: AggStatePhysicalSignature) extends IR
-final case class AggStateValue(i: Int, aggSig: AggStatePhysicalSignature) extends IR
+final case class InitOp(i: Int, args: IndexedSeq[IR], aggSig: AggStateSignature, op: AggOp) extends IR
+final case class SeqOp(i: Int, args: IndexedSeq[IR], aggSig: AggStateSignature, op: AggOp) extends IR
+final case class CombOp(i1: Int, i2: Int, aggSig: AggStateSignature) extends IR
+final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[AggStateSignature]) extends IR
+final case class CombOpValue(i: Int, value: IR, aggSig: AggStateSignature) extends IR
+final case class AggStateValue(i: Int, aggSig: AggStateSignature) extends IR
 
-final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStatePhysicalSignature]) extends IR
-final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStatePhysicalSignature]) extends IR
+final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSignature]) extends IR
+final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: BufferSpec, aggSigs: IndexedSeq[AggStateSignature]) extends IR
 
-final case class RunAgg(body: IR, result: IR, signature: IndexedSeq[AggStatePhysicalSignature]) extends IR
-final case class RunAggScan(array: IR, name: String, init: IR, seqs: IR, result: IR, signature: IndexedSeq[AggStatePhysicalSignature]) extends IR
+final case class RunAgg(body: IR, result: IR, signature: IndexedSeq[AggStateSignature]) extends IR
+final case class RunAggScan(array: IR, name: String, init: IR, seqs: IR, result: IR, signature: IndexedSeq[AggStateSignature]) extends IR
 
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: Seq[(String, IR)]) extends IR

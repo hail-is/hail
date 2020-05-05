@@ -5,16 +5,6 @@ import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual._
 import is.hail.utils.FastSeq
 
-object AggStateSignature {
-  def apply(sig: AggSignature): AggStateSignature = AggStateSignature(Map(sig.op -> sig), sig.op)
-}
-
-case class AggStateSignature(m: Map[AggOp, AggSignature], default: AggOp, nested: Option[Seq[AggStateSignature]] = None) {
-  lazy val defaultSignature: AggSignature = m(default)
-  lazy val resultType: Type = Extract.getResultType(this)
-  def lookup(op: AggOp): AggSignature = m(op)
-}
-
 object AggSignature {
   def prune(agg: AggSignature, requestedType: Type): AggSignature = agg match {
     case AggSignature(Collect(), Seq(), Seq(_)) =>
@@ -40,23 +30,18 @@ case class AggSignature(
     PhysicalAggSignature(op, initOpTypes, seqOpTypes)
   }
 
-  lazy val singletonContainer: AggStateSignature = AggStateSignature(Map(op -> this), op, None)
-
-  // only to be used with virtual non-nested signatures on ApplyAggOp and ApplyScanOp
-  lazy val returnType: Type = AggStateSignature(this).resultType
+  lazy val returnType: Type = Extract.getResultType(this)
 }
 
-case class AggStatePhysicalSignature(m: Map[AggOp, PhysicalAggSignature], default: AggOp, nested: Option[Seq[AggStatePhysicalSignature]] = None) {
+case class AggStateSignature(m: Map[AggOp, PhysicalAggSignature], default: AggOp, nested: Option[Seq[AggStateSignature]] = None) {
   lazy val resultType: PType = Extract.getPType(this)
   lazy val defaultSignature: PhysicalAggSignature = m(default)
-
-  lazy val virtual: AggStateSignature = AggStateSignature(m.map { case (op, p) => (op, p.virtual) }, default, nested.map(_.map(_.virtual)))
 
   def lookup(op: AggOp): PhysicalAggSignature = m(op)
 }
 
-object AggStatePhysicalSignature {
-  def apply(sig: PhysicalAggSignature): AggStatePhysicalSignature = AggStatePhysicalSignature(Map(sig.op -> sig), sig.op)
+object AggStateSignature {
+  def apply(sig: PhysicalAggSignature): AggStateSignature = AggStateSignature(Map(sig.op -> sig), sig.op)
 }
 
 case class PhysicalAggSignature(
@@ -68,7 +53,7 @@ case class PhysicalAggSignature(
   def seqOpArgs: Seq[Type] = physicalSeqOpArgs.map(_.virtualType)
 
   lazy val virtual: AggSignature = AggSignature(op, physicalInitOpArgs.map(_.virtualType), physicalSeqOpArgs.map(_.virtualType))
-  lazy val singletonContainer: AggStatePhysicalSignature = AggStatePhysicalSignature(Map(op -> this), op, None)
+  lazy val singletonContainer: AggStateSignature = AggStateSignature(Map(op -> this), op, None)
   def returnType: PType = singletonContainer.resultType
 }
 

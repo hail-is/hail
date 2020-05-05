@@ -11,7 +11,7 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, classTag}
 
-case class CodeCacheKey(aggSigs: IndexedSeq[AggStatePhysicalSignature], args: Seq[(String, PType)], body: IR)
+case class CodeCacheKey(aggSigs: IndexedSeq[AggStateSignature], args: Seq[(String, PType)], body: IR)
 
 case class CodeCacheValue(typ: PType, f: (Int, Region) => Any)
 
@@ -30,7 +30,7 @@ object Compile {
     val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
       Env(params.map { case (n, _) => n -> n }: _*))
-    val k = CodeCacheKey(FastIndexedSeq[AggStatePhysicalSignature](), params.map { case (n, pt) => (n, pt) }, normalizedBody)
+    val k = CodeCacheKey(FastIndexedSeq[AggStateSignature](), params.map { case (n, pt) => (n, pt) }, normalizedBody)
     codeCache.get(k) match {
       case Some(v) =>
         return (v.typ, v.f.asInstanceOf[(Int, Region) => F])
@@ -82,7 +82,7 @@ object CompileWithAggregators2 {
 
   def apply[F: TypeInfo](
     ctx: ExecuteContext,
-    aggSigs: Array[AggStatePhysicalSignature],
+    aggSigs: Array[AggStateSignature],
     params: IndexedSeq[(String, PType)],
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]], expectedCodeReturnType: TypeInfo[_],
     body: IR,

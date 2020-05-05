@@ -60,7 +60,7 @@ object InferPType {
 
   def newBuilder[T](n: Int): AAB[T] = Array.fill(n)(new ArrayBuilder[RecursiveArrayBuilderElement[T]])
 
-  def apply(ir: IR, env: Env[PType], aggs: Array[AggStatePhysicalSignature]): Unit = {
+  def apply(ir: IR, env: Env[PType], aggs: Array[AggStateSignature]): Unit = {
     try {
       if (aggs != null  || !env.isEmpty)
           throw new NotImplementedError
@@ -118,11 +118,11 @@ object InferPType {
       case _ => throw new RuntimeException(s"unsupported node:\n${Pretty(node)}")
     }
   }
-  private def _apply(ir: IR, env: Env[PType], aggs: Array[AggStatePhysicalSignature]): Unit = {
+  private def _apply(ir: IR, env: Env[PType], aggs: Array[AggStateSignature]): Unit = {
     if (ir._pType != null)
       throw new RuntimeException(ir.toString)
 
-    def infer(ir: IR, env: Env[PType] = env, aggs: Array[AggStatePhysicalSignature] = aggs): Unit = _apply(ir, env, aggs)
+    def infer(ir: IR, env: Env[PType] = env, aggs: Array[AggStateSignature] = aggs): Unit = _apply(ir, env, aggs)
 
     ir._pType = ir match {
       case I32(_) => PInt32(true)

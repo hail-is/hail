@@ -2644,7 +2644,7 @@ class IRSuite extends HailSuite {
     val countSig = AggSignature(Count(), Seq(), Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, countSig)
 
-    val groupSignature = AggStatePhysicalSignature(
+    val groupSignature = AggStateSignature(
       Map(Group() -> PhysicalAggSignature(Group(), FastIndexedSeq(PVoid), FastIndexedSeq(PInt32(), PVoid))),
       Group(),
       Some(FastIndexedSeq(sumState)))
