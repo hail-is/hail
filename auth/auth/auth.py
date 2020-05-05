@@ -9,7 +9,7 @@ import google.cloud.storage
 import google_auth_oauthlib.flow
 from hailtop.config import get_deploy_config
 from hailtop.utils import secret_alnum_string
-from hailtop.ssl import get_server_ssl_context
+from hailtop.tls import get_server_ssl_context
 from gear import (
     setup_aiohttp_session,
     rest_authenticated_users_only, web_authenticated_developers_only,

@@ -8,7 +8,7 @@ import numpy as np
 from gear import configure_logging
 from hailtop.auth import service_auth_headers
 from hailtop.config import get_deploy_config
-from hailtop.ssl import ssl_client_session
+from hailtop.tls import ssl_client_session
 
 configure_logging()
 log = logging.getLogger('nb-scale-test')
