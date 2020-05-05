@@ -169,7 +169,7 @@ class LocalBackend(Backend):
 
             if job._image:
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
-                cmd = " && ".join(job._command)
+                cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
                 memory = f'-m {job._memory}' if job._memory else ''
                 cpu = f'--cpus={job._cpu}' if job._cpu else ''
 
@@ -401,11 +401,12 @@ class ServiceBackend(Backend):
             make_local_tmpdir = f'mkdir -p {local_tmpdir}/{job._job_id}'
             job_command = [cmd.strip() for cmd in job._command]
 
+            prepared_job_command = (f'{{\n{x}\n}}' for x in job_command)
             cmd = f'''
 {bash_flags}
 {make_local_tmpdir}
 {"; ".join(symlinks)}
-{" && ".join(job_command)}
+{" && ".join(prepared_job_command)}
 '''
 
             if dry_run:
