@@ -61,3 +61,19 @@ def test_gvcf_subset_same_as_import_vcf():
     path = os.path.join(resource('gvcfs'), 'subset', f'HG00187.hg38.g.vcf.gz')
     [mt] = hl.import_gvcfs([path], vc.default_exome_intervals('GRCh38'), reference_genome='GRCh38')
     assert mt._same(hl.import_vcf(path, force_bgz=True, reference_genome='GRCh38').key_rows_by('locus'))
+
+def test_key_by_locus_alleles():
+    out_file = new_temp_file(extension='mt')
+
+    sample_names = all_samples[:5]
+    paths = [os.path.join(resource('gvcfs'), '1kg_chr22', f'{s}.hg38.g.vcf.gz') for s in sample_names]
+    vc.run_combiner(paths,
+                    out_file=out_file,
+                    tmp_path=Env.hc()._tmpdir,
+                    reference_genome='GRCh38',
+                    key_by_locus_and_alleles=True)
+
+    mt = hl.read_matrix_table(out_file)
+    assert(list(mt.row_key) == ['locus', 'alleles'])
+    mt._force_count_rows()
+
