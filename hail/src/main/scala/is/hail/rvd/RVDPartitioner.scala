@@ -1,7 +1,8 @@
 package is.hail.rvd
 
 import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering}
-import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
+import is.hail.expr.ir.Literal
+import is.hail.expr.types.virtual.{TArray, TBoolean, TInt32, TInterval, TStruct, TTuple}
 import is.hail.utils._
 import org.apache.commons.lang.builder.HashCodeBuilder
 import org.apache.spark.broadcast.Broadcast
@@ -267,6 +268,11 @@ class RVDPartitioner(
   def overlaps(query: Interval): Boolean = rangeBounds.containsOrdered(query, intervalLT)
 
   def isDisjointFrom(query: Interval): Boolean = !overlaps(query)
+
+  def partitionBoundsIRRepresentation: Literal = {
+    Literal(TArray(RVDPartitioner.intervalIRRepresentation(kType)),
+      rangeBounds.map(i => RVDPartitioner.intervalToIRRepresentation(i, kType.size)).toFastIndexedSeq)
+  }
 }
 
 object RVDPartitioner {
@@ -371,5 +377,21 @@ object RVDPartitioner {
           log.info(s"invalid partitioner: !lteqWithOverlap($allowedOverlap)(${ left }.right, ${ right }.left)")
         r
       }
+  }
+
+  def intervalIRRepresentation(ts: TStruct): TStruct = {
+    val endpointT = TTuple(ts, TInt32)
+    TStruct("left" -> endpointT, "right" -> endpointT, "includesLeft" -> TBoolean, "includesRight" -> TBoolean)
+  }
+
+  def intervalToIRRepresentation(interval: Interval, len: Int): Row = {
+    def processStruct(r: Row): Row = {
+      Row(Row.fromSeq((0 until len).map(i => if (i >= r.length) null else r.get(i))), r.length)
+    }
+
+    Row(processStruct(interval.left.point.asInstanceOf[Row]),
+      processStruct(interval.right.point.asInstanceOf[Row]),
+      interval.left.sign < 0,
+      interval.right.sign > 0)
   }
 }
