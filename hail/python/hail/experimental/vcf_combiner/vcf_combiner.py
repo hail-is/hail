@@ -9,7 +9,7 @@ from hail import MatrixTable, Table
 from hail.expr import StructExpression
 from hail.expr.expressions import expr_bool, expr_str
 from hail.genetics.reference_genome import reference_genome_type
-from hail.ir import Apply, TableMapRows, TopLevelReference
+from hail.ir import Apply, TableMapRows, MatrixKeyRowsBy, TopLevelReference
 from hail.typecheck import oneof, sequenceof, typecheck
 from hail.utils.java import info
 
@@ -458,7 +458,8 @@ def run_combiner(sample_paths: List[str],
                  batch_size: int = CombinerConfig.default_batch_size,
                  target_records: int = CombinerConfig.default_target_records,
                  overwrite: bool = False,
-                 reference_genome: str = 'default'):
+                 reference_genome: str = 'default',
+                 key_by_locus_and_alleles: bool = False):
     """Run the Hail VCF combiner, performing a hierarchical merge to create a combined sparse matrix table.
 
     Parameters
@@ -485,6 +486,8 @@ def run_combiner(sample_paths: List[str],
         Overwrite output file, if it exists.
     reference_genome : :obj:`str`
         Reference genome for GVCF import.
+    key_by_locus_and_alleles : :obj:`bool`
+        Key by both locus and alleles in the final output.
 
     Returns
     -------
@@ -550,6 +553,9 @@ def run_combiner(sample_paths: List[str],
                 assert n_jobs == 1
                 assert len(merge_mts) == 1
                 [final_mt] = merge_mts
+
+                if key_by_locus_and_alleles:
+                    final_mt = MatrixTable(MatrixKeyRowsBy(final_mt._mir, ['locus', 'alleles'], is_sorted=True))
                 final_mt.write(out_file, overwrite=overwrite)
                 new_files_to_merge = [out_file]
                 info(f"Finished phase {phase_i}/{n_phases}, job {job_i}/{len(phase.jobs)}, 100% of total I/O finished.")
