@@ -45,11 +45,11 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         usesAndDefs.uses.bind(re, xUses.free)
         dependents.getOrElseUpdate(x.body, mutable.Set[RefEquality[BaseIR]]()) += re
       case _ =>
-        node.children.foreach { c =>
-          initializeState(c)
-          if (node.typ != TVoid)
-            dependents.getOrElseUpdate(c, mutable.Set[RefEquality[BaseIR]]()) += re
-        }
+    }
+    node.children.foreach { c =>
+      initializeState(c)
+      if (node.typ != TVoid)
+        dependents.getOrElseUpdate(c, mutable.Set[RefEquality[BaseIR]]()) += re
     }
     if (node.typ != TVoid) {
       cache.bind(node, BaseTypeWithRequiredness(node.typ))
