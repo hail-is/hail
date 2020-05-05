@@ -123,11 +123,6 @@ object InferPType {
       if (aggs != null || inits != null || seqs != null || !env.isEmpty)
           throw new NotImplementedError
       val requiredness = Requiredness.apply(ir, null) // Value IR inference doesn't need context
-      requiredness.r.m.foreach { case (re, req) =>
-          println()
-          println(req)
-          println(Pretty(re.t))
-      }
       _inferWithRequiredness(ir, requiredness)
     } catch {
       case _: NotImplementedError =>
