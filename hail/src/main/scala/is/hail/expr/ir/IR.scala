@@ -401,8 +401,9 @@ final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR]) e
   var conversion: (Seq[Type], Seq[IR]) => IR = _
   var inline: Boolean = _
 
-  lazy val refs = args.map(a => Ref(genUID(), a.typ)).toArray
+  private lazy val refs = args.map(a => Ref(genUID(), a.typ)).toArray
   lazy val body: IR = conversion(typeArgs, refs).deepCopy()
+  lazy val refIdx: Map[String, Int] = refs.map(_.name).zipWithIndex.toMap
 
   lazy val explicitNode: IR = {
     // foldRight because arg1 should be at the top so it is evaluated first

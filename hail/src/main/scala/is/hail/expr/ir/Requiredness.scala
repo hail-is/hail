@@ -9,7 +9,7 @@ import scala.collection.mutable
 
 object Requiredness {
   def apply(node: BaseIR, ctx: ExecuteContext): RequirednessAnalysis = {
-    val usesAndDefs = ComputeUsesAndDefs(node, includeApplyIR = true)
+    val usesAndDefs = ComputeUsesAndDefs(node)
     val pass = new Requiredness(usesAndDefs, ctx)
     pass.initialize(node)
     pass.run()
@@ -37,8 +37,13 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
     val re = RefEquality(node)
     node match {
       case x: ApplyIR =>
-        initializeState(x.explicitNode)
-        dependents.getOrElseUpdate(x.explicitNode, mutable.Set[RefEquality[BaseIR]]()) += re
+        initializeState(x.body)
+        val xUses = ComputeUsesAndDefs(x.body, errorIfFreeVariables = false)
+        xUses.uses.m.foreach { case (re, uses) =>
+          usesAndDefs.uses.bind(re, uses)
+        }
+        usesAndDefs.uses.bind(re, xUses.free)
+        dependents.getOrElseUpdate(x.body, mutable.Set[RefEquality[BaseIR]]()) += re
       case _ =>
         node.children.foreach { c =>
           initializeState(c)
@@ -111,6 +116,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           i += 1
         }
         states.bind(node, s)
+      case x@ApplyIR(_, _, args) =>
+        x.refIdx.foreach { case (n, i) => addBinding(n, args(i)) }
       case ArraySort(a, l, r, c) =>
         addElementBinding(l, a)
         addElementBinding(r, a)
@@ -399,7 +406,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val oldReq = lookupAs[RTuple](o)
         requiredness.union(oldReq.required)
         requiredness.unionFrom(oldReq.fields(idx).typ)
-      case x: ApplyIR => requiredness.unionFrom(lookup(x.explicitNode))
+      case x: ApplyIR => requiredness.unionFrom(lookup(x.body))
       case x: AbstractApplyNode[_] => //FIXME: round-tripping via PTypes.
         val argP = x.args.map(a => lookup(a).canonicalPType(a.typ))
         requiredness.fromPType(x.implementation.returnPType(argP, x.returnType))
