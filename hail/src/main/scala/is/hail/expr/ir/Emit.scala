@@ -1169,9 +1169,6 @@ class Emit[C](
         EmitCode(lengthTriplet.setup, lengthTriplet.m, PCode(pt, result))
 
       case x@StreamFold(a, zero, accumName, valueName, body) =>
-        println(a.pType)
-        println(zero.pType)
-        println(body.pType)
         val eltType = coerce[PStream](a.pType).elementType
         val accType = x.accPType
 

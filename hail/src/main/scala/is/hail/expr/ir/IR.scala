@@ -401,7 +401,7 @@ final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR]) e
   var conversion: (Seq[Type], Seq[IR]) => IR = _
   var inline: Boolean = _
 
-  private lazy val refs = args.map(a => Ref(genUID(), a.typ)).toArray
+  lazy val refs = args.map(a => Ref(genUID(), a.typ)).toArray
   lazy val body: IR = conversion(typeArgs, refs).deepCopy()
 
   lazy val explicitNode: IR = {
