@@ -341,6 +341,11 @@ object Code {
     )
   }
 
+  def _assert(c: Code[Boolean]): Code[Unit] =
+    c.mux(Code._empty, Code._throw[AssertionError, Unit](Code.newInstance[AssertionError]()))
+
+  def _assert(c: Code[Boolean], message: Code[String]): Code[Unit] =
+    c.mux(Code._empty, Code._throw[AssertionError, Unit](Code.newInstance[AssertionError, java.lang.Object](message)))
 
   def checkcast[T](v: Code[_])(implicit tti: TypeInfo[T]): Code[T] =
     Code(v, lir.checkcast(tti.iname))
