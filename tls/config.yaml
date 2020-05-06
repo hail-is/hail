@@ -1,7 +1,7 @@
 principals:
 - name: admin-pod
   domain: admin-pod
-  kind: json
+  kind: curl
 - name: auth
   domain: auth
   kind: json
