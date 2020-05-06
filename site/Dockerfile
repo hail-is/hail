@@ -18,7 +18,6 @@ ADD hail.nginx.conf /etc/nginx/conf.d/hail.conf
 ADD nginx.conf /etc/nginx/
 
 ADD poll.sh /poll.sh
-ADD poll-0.1.sh /poll-0.1.sh
 ADD poll-0.2.sh /poll-0.2.sh
 ADD site.sh /site.sh
 
