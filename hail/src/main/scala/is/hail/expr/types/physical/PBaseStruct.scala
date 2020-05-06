@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
 import is.hail.check.Gen
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.utils._
 
 object PBaseStruct {
@@ -186,9 +186,9 @@ abstract class PBaseStructValue extends PValue {
 
   def isFieldMissing(fieldIdx: Int): Code[Boolean]
 
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode
+  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): COptionCode
 
-  def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadField(cb, pt.asInstanceOf[PBaseStruct].fieldIdx(fieldName))
+  def loadField(cb: EmitCodeBuilder, fieldName: String): COptionCode = loadField(cb, pt.asInstanceOf[PBaseStruct].fieldIdx(fieldName))
 }
 
 abstract class PBaseStructCode extends PCode {

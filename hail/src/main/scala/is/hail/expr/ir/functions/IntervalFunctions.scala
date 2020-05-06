@@ -33,11 +33,11 @@ object IntervalFunctions extends RegistryFunctions {
               srvb.start(),
               start.m.mux(
                 srvb.setMissing(),
-                srvb.addIRIntermediate(start.pt)(start.v)),
+                srvb.addIRIntermediate(start.valueType)(start.v)),
               srvb.advance(),
               end.m.mux(
                 srvb.setMissing(),
-                srvb.addIRIntermediate(end.pt)(end.v)),
+                srvb.addIRIntermediate(end.valueType)(end.v)),
               srvb.advance(),
               srvb.addBoolean(includesStart.value[Boolean]),
               srvb.advance(),
@@ -55,7 +55,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerEmitCode1("start", TInterval(tv("T")), tv("T"),
       (_: Type, x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
       case (r, rt, interval) =>
-        val intervalT = interval.pt.asInstanceOf[PInterval]
+        val intervalT = interval.valueType.asInstanceOf[PInterval]
         val iv = r.mb.newLocal[Long]()
         EmitCode(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
@@ -67,7 +67,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerEmitCode1("end", TInterval(tv("T")), tv("T"),
       (_: Type, x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
       case (r, rt, interval) =>
-        val intervalT = interval.pt.asInstanceOf[PInterval]
+        val intervalT = interval.valueType.asInstanceOf[PInterval]
         val iv = r.mb.newLocal[Long]()
         EmitCode(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
@@ -93,10 +93,10 @@ object IntervalFunctions extends RegistryFunctions {
     }) {
       case (r, rt, int, point) =>
         val mPoint = r.mb.newLocal[Boolean]()
-        val vPoint = r.mb.newLocal()(typeToTypeInfo(point.pt))
+        val vPoint = r.mb.newLocal()(typeToTypeInfo(point.valueType))
 
         val cmp = r.mb.newLocal[Int]()
-        val interval = new IRInterval(r, int.pt.asInstanceOf[PInterval], int.value[Long])
+        val interval = new IRInterval(r, int.valueType.asInstanceOf[PInterval], int.value[Long])
         val compare = interval.ordering(CodeOrdering.compare)
 
         val contains = Code(

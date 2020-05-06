@@ -144,15 +144,15 @@ object StringFunctions extends RegistryFunctions {
     registerEmitCode2("showStr", tv("T"), TInt32, TString, {
       (_: Type, _: PType, truncType: PType) => PCanonicalString(truncType.required)
     }) { case (r, rt, a, trunc) =>
-      val annotation = Code(a.setup, a.m).muxAny(Code._null(boxedTypeInfo(a.pt)), boxArg(r, a.pt)(a.v))
-      val str = r.mb.getType(a.pt.virtualType).invoke[Any, Int, String]("showStr", annotation, trunc.value[Int])
+      val annotation = Code(a.setup, a.m).muxAny(Code._null(boxedTypeInfo(a.valueType)), boxArg(r, a.valueType)(a.v))
+      val str = r.mb.getType(a.valueType.virtualType).invoke[Any, Int, String]("showStr", annotation, trunc.value[Int])
       EmitCode(trunc.setup, trunc.m, PCode(rt, unwrapReturn(r, rt)(str)))
     }
 
     registerEmitCode1("json", tv("T"), TString, (_: Type, _: PType) => PCanonicalString(true)) { case (r, rt, a) =>
-      val bti = boxedTypeInfo(a.pt)
-      val annotation = Code(a.setup, a.m).muxAny(Code._null(bti), boxArg(r, a.pt)(a.v))
-      val json = r.mb.getType(a.pt.virtualType).invoke[Any, JValue]("toJSON", annotation)
+      val bti = boxedTypeInfo(a.valueType)
+      val annotation = Code(a.setup, a.m).muxAny(Code._null(bti), boxArg(r, a.valueType)(a.v))
+      val json = r.mb.getType(a.valueType.virtualType).invoke[Any, JValue]("toJSON", annotation)
       val str = Code.invokeScalaObject1[JValue, String](JsonMethods.getClass, "compact", json)
       EmitCode(Code._empty, false, PCode(rt, unwrapReturn(r, rt)(str)))
     }
@@ -216,8 +216,8 @@ object StringFunctions extends RegistryFunctions {
       val missing = s.m || r.m || Code(
         out := Code.invokeScalaObject2[String, String, IndexedSeq[String]](
           thisClass, "firstMatchIn",
-          asm4s.coerce[String](wrapArg(er, s.pt)(s.value[Long])),
-          asm4s.coerce[String](wrapArg(er, r.pt)(r.value[Long]))),
+          asm4s.coerce[String](wrapArg(er, s.valueType)(s.value[Long])),
+          asm4s.coerce[String](wrapArg(er, r.valueType)(r.value[Long]))),
         out.isNull)
       val value =
         out.ifNull(
@@ -250,7 +250,7 @@ object StringFunctions extends RegistryFunctions {
 
             val m = v1.loadLength().cne(v2.loadLength())
 
-            IEmitCode(cb, m, {
+            COptionCode(cb, m, {
               cb.whileLoop(i < v1.loadLength(), {
                 cb.ifx(v1.loadByte(i).cne(v2.loadByte(i)),
                   cb.assign(n, n + 1))

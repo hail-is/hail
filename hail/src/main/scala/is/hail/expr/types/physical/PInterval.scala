@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations.{CodeOrdering, _}
 import is.hail.asm4s._
 import is.hail.check.Gen
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.expr.types.virtual.TInterval
 import is.hail.utils._
 
@@ -109,9 +109,9 @@ abstract class PIntervalValue extends PValue {
 
   def includesEnd(): Value[Boolean]
 
-  def loadStart(cb: EmitCodeBuilder): IEmitCode
+  def loadStart(cb: EmitCodeBuilder): COptionCode
 
-  def loadEnd(cb: EmitCodeBuilder): IEmitCode
+  def loadEnd(cb: EmitCodeBuilder): COptionCode
 }
 
 abstract class PIntervalCode extends PCode {

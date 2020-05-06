@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.expr.types.virtual.{TInterval, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -79,13 +79,13 @@ class PCanonicalIntervalSettable(
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, includesStart, includesEnd)
 
-  def loadStart(cb: EmitCodeBuilder): IEmitCode =
-    IEmitCode(cb,
+  def loadStart(cb: EmitCodeBuilder): COptionCode =
+    COptionCode(cb,
       !(pt.startDefined(a)),
       pt.pointType.load(pt.loadStart(a)))
 
-  def loadEnd(cb: EmitCodeBuilder): IEmitCode =
-    IEmitCode(cb,
+  def loadEnd(cb: EmitCodeBuilder): COptionCode =
+    COptionCode(cb,
       !(pt.endDefined(a)),
       pt.pointType.load(pt.loadEnd(a)))
 

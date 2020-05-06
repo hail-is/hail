@@ -5,7 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.expr.types.virtual.{TArray, Type}
 import is.hail.utils._
 
@@ -545,9 +545,9 @@ class PCanonicalIndexableSettable(
 
   def loadLength(): Value[Int] = length
 
-  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
+  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): COptionCode = {
     val iv = cb.newLocal("pcindval_i", i)
-    IEmitCode(cb,
+    COptionCode(cb,
       pt.isElementMissing(a, iv),
       pt.elementType.load(elementsAddress + iv.toL * pt.elementByteSize))
   }

@@ -50,7 +50,7 @@ object IRSuite {
         override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(returnType, argTypes)
 
         def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: EmitCode*): EmitCode = {
-          assert(unify(FastSeq(), args.map(_.pt.virtualType), rpt.virtualType))
+          assert(unify(FastSeq(), args.map(_.valueType.virtualType), rpt.virtualType))
           impl(r, rpt, seed, args.toArray)
         }
       })

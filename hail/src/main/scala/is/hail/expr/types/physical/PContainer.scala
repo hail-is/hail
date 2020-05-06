@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 
 abstract class PContainer extends PIterable {
   override def containsPointers: Boolean = true
@@ -97,7 +97,7 @@ abstract class PContainer extends PIterable {
 abstract class PIndexableValue extends PValue {
   def loadLength(): Value[Int]
 
-  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode
+  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): COptionCode
 }
 
 abstract class PIndexableCode extends PCode {

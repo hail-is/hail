@@ -14,4 +14,8 @@ case object PVoid extends PType with PUnrealizable {
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PVoid")
 
   def setRequired(required: Boolean) = PVoid
+
+  def mux(mb: EmitMethodBuilder[_], cond: Code[Boolean], ifT: PUnrealizableCode, ifF: PUnrealizableCode): PUnrealizableCode = {
+    ???
+  }
 }

@@ -349,7 +349,7 @@ abstract class RegistryFunctions {
         if (pt == null) PType.canonical(returnType) else pt(returnType, argTypes)
 
       override def apply(r: EmitRegion, rpt: PType, typeParams: Seq[Type], args: EmitCode*): EmitCode = {
-        assert(unify(typeParams, args.map(_.pt.virtualType), rpt.virtualType))
+        assert(unify(typeParams, args.map(_.valueType.virtualType), rpt.virtualType))
         impl(r, rpt, args.toArray)
       }
     })
@@ -535,9 +535,9 @@ abstract class RegistryFunctions {
 
       def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: EmitCode*): EmitCode = {
         val setup = Code(args.map(_.setup))
-        val rpt = returnPType(args.map(_.pt), returnType)
+        val rpt = returnPType(args.map(_.valueType), returnType)
         val missing: Code[Boolean] = if (args.isEmpty) false else args.map(_.m).reduce(_ || _)
-        val value = applySeeded(seed, r, rpt, args.map { a => (a.pt, a.v) }: _*)
+        val value = applySeeded(seed, r, rpt, args.map { a => (a.valueType, a.v) }: _*)
 
         EmitCode(setup, missing, PCode(rpt, value))
       }
@@ -614,7 +614,7 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
   def apply(r: EmitRegion, returnPType: PType, typeParams: Seq[Type], args: EmitCode*): EmitCode = {
     val setup = Code(args.map(_.setup))
     val missing = args.map(_.m).reduce(_ || _)
-    val value = apply(r, returnPType, typeParams, args.map { a => (a.pt, a.v) }: _*)
+    val value = apply(r, returnPType, typeParams, args.map { a => (a.valueType, a.v) }: _*)
 
     EmitCode(setup, missing, PCode(returnPType, value))
   }

@@ -866,14 +866,14 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def getStreamEmitParam(emitIndex: Int): COption[Code[Iterator[RegionValue]]] = {
+  def getStreamEmitParam(emitIndex: Int): COptionOld[Code[Iterator[RegionValue]]] = {
     assert(emitIndex != 0)
 
     val pt = emitParamTypes(emitIndex - 1).asInstanceOf[EmitParamType].pt
     assert(pt.isInstanceOf[PStream])
     val codeIndex = emitParamCodeIndex(emitIndex - 1)
 
-    new COption[Code[Iterator[RegionValue]]] {
+    new COptionOld[Code[Iterator[RegionValue]]] {
       def apply(none: Code[Ctrl], some: (Code[Iterator[RegionValue]]) => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
         mb.getArg[Boolean](codeIndex + 1).mux(
           none,
@@ -1079,7 +1079,7 @@ class DependentEmitFunctionBuilder[F](
   }
 
   def newDepEmitField(ec: EmitCode): EmitValue = {
-    val _pt = ec.pt
+    val _pt = ec.valueType
     val ti = typeToTypeInfo(_pt)
     val m = genFieldThisRef[Boolean]()
     val v = genFieldThisRef()(ti)

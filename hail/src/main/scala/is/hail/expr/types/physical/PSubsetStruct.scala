@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s.{Code, Settable, SettableBuilder, Value, coerce, const}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.expr.types.BaseStruct
 import is.hail.expr.types.virtual.TStruct
 import is.hail.utils._
@@ -163,8 +163,8 @@ class PSubsetStructSettable(val pt: PSubsetStruct, a: Settable[Long]) extends PB
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
-    IEmitCode(cb,
+  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): COptionCode = {
+    COptionCode(cb,
       pt.isFieldMissing(a, fieldIdx),
       pt.fields(fieldIdx).typ.load(pt.fieldOffset(a, fieldIdx)))
   }

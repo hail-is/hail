@@ -6,13 +6,12 @@ import is.hail.annotations._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.asm4s._
 import is.hail.backend.HailTaskContext
-import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
-import is.hail.{HailContext, lir}
+import is.hail.{HailContext, asm4s, lir}
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -162,62 +161,6 @@ class EmitUnrealizableValue(val pt: PType, private val ec: EmitCode) extends Emi
   }
 }
 
-/**
- * Notes on IEmitCode;
- *  1. It is the responsibility of the producers of IEmitCode to emit the relevant
- *     jumps for the Lmissing and Lpresent labels (cb.goto or similar)
- *  2. It is the responsibility of consumers to define these labels and to
- *     prevent the pcode from being used on any code path taken as a result of
- *     jumping to Lmissing.
- */
-object IEmitCode {
-  def apply(cb: EmitCodeBuilder, m: Code[Boolean], pc: => PCode): IEmitCode = {
-    val Lmissing = CodeLabel()
-    val Lpresent = CodeLabel()
-    cb.ifx(m, { cb.goto(Lmissing) })
-    val resPc: PCode = pc
-    cb.goto(Lpresent)
-    IEmitCode(Lmissing, Lpresent, resPc)
-  }
-}
-
-case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
-  def map(cb: EmitCodeBuilder)(f: (PCode) => PCode): IEmitCode = {
-    val Lpresent2 = CodeLabel()
-    cb.define(Lpresent)
-    val pc2 = f(pc)
-    cb.goto(Lpresent2)
-    IEmitCode(Lmissing, Lpresent2, pc2)
-  }
-
-  def flatMap(cb: EmitCodeBuilder)(f: (PCode) => IEmitCode): IEmitCode = {
-    cb.define(Lpresent)
-    val ec2 = f(pc)
-    cb.define(ec2.Lmissing)
-    cb.goto(Lmissing)
-    IEmitCode(Lmissing, ec2.Lpresent, ec2.pc)
-  }
-
-  def handle(cb: EmitCodeBuilder, ifMissing: => Unit): PCode = {
-    cb.define(Lmissing)
-    ifMissing
-    cb.define(Lpresent)
-    pc
-  }
-
-  def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (PCode) => Unit): Unit = {
-    val Lafter = CodeLabel()
-    cb.define(Lmissing)
-    ifMissing
-    cb.goto(Lafter)
-    cb.define(Lpresent)
-    ifPresent(pc)
-    cb.define(Lafter)
-  }
-
-  def pt: PType = pc.pt
-}
-
 object EmitCode {
   def apply(setup: Code[Unit], ec: EmitCode): EmitCode =
     new EmitCode(Code(setup, ec.setup), ec.m, ec.pv)
@@ -229,36 +172,20 @@ object EmitCode {
 
   def missing(pt: PType): EmitCode = EmitCode(Code._empty, true, pt.defaultValue)
 
-  def fromI(mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => IEmitCode): EmitCode = {
-    val cb = EmitCodeBuilder(mb)
-    val iec = f(cb)
-    val setup = cb.result()
-    val newEC = EmitCode(Code._empty,
-      new CCode(setup.start, iec.Lmissing.start, iec.Lpresent.start),
-      iec.pc)
-    iec.Lmissing.clear()
-    iec.Lpresent.clear()
-    setup.clear()
-    newEC
+  def fromI(mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => COptionCode): EmitCode = {
+    val start = new lir.Block
+    val cb = new EmitCodeBuilder(mb, start)
+    val opt = f(cb)
+    val missing = opt.missing
+    val present = opt.present
+
+    EmitCode(Code._empty,
+      new asm4s.CCode(start, missing.end, present.end.end),
+      present.value)
   }
 
-  def mapN(ecs: IndexedSeq[EmitCode], cb: EmitCodeBuilder)(f: IndexedSeq[PCode] => PCode): IEmitCode = {
-    val Lmissing = CodeLabel()
-    val Lpresent = CodeLabel()
-
-    val pcs = ecs.map { ec =>
-      val iec = ec.toI(cb)
-      cb.define(iec.Lmissing)
-      cb.goto(Lmissing)
-      cb.define(iec.Lpresent)
-
-      iec.pc
-    }
-    val pc = f(pcs)
-    cb.goto(Lpresent)
-
-    IEmitCode(Lmissing, Lpresent, pc)
-  }
+  def mapN(ecs: IndexedSeq[EmitCode], cb: EmitCodeBuilder)(f: IndexedSeq[PCode] => PCode): COptionCode =
+    COptionCode.mapN(ecs.map(ec => () => ec.toI(cb)), cb)(f)
 
   def codeTupleTypes(pt: PType): IndexedSeq[TypeInfo[_]] = {
     val ts = pt.codeTupleTypes()
@@ -277,7 +204,7 @@ object EmitCode {
 }
 
 case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
-  def pt: PType = pv.pt
+  def valueType: PType = pv.pt
 
   def v: Code[_] = pv.code
 
@@ -285,12 +212,9 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
 
   def map(f: PCode => PCode): EmitCode = new EmitCode(setup, m, pv = f(pv))
 
-  def toI(cb: EmitCodeBuilder): IEmitCode = {
-    val Lmissing = CodeLabel()
-    val Lpresent = CodeLabel()
+  def toI(cb: EmitCodeBuilder): COptionCode = {
     cb += setup
-    cb.ifx(m, { cb.goto(Lmissing) }, { cb.goto(Lpresent) })
-    IEmitCode(Lmissing, Lpresent, pv)
+    COptionCode(cb, m, pv)
   }
 
   def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType): EmitCode = {
@@ -302,7 +226,7 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
 
   def codeTuple(): IndexedSeq[Code[_]] = {
     val tc = pv.codeTuple()
-    if (pt.required)
+    if (valueType.required)
       tc
     else
       tc :+ m
@@ -453,13 +377,13 @@ private class Emit[C](
     def wrapToVoid(irs: Seq[IR], mb: EmitMethodBuilder[C] = mb, env: E = env, container: Option[AggContainer] = container): Code[Unit] =
       this.wrapToVoid(irs, mb, env, container)
 
-    def emitStream(ir: IR, mb: EmitMethodBuilder[C] = mb): COption[EmitStream.SizedStream] =
+    def emitStream(ir: IR, mb: EmitMethodBuilder[C] = mb): COptionOld[EmitStream.SizedStream] =
       EmitStream.emit(this, ir, mb, region, env, container)
 
     def emitVoid(ir: IR, cb: EmitCodeBuilder = cb, mb: EmitMethodBuilder[C] = mb, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir, mb, region, env, container, loopEnv)
 
-    def emitI(ir: IR, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+    def emitI(ir: IR, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): COptionCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
     (ir: @unchecked) match {
@@ -472,7 +396,7 @@ private class Emit[C](
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == TVoid && altr.typ == TVoid)
 
-        emitI(cond).consume(cb, {}, m => cb.ifx(m.tcode[Boolean], emitVoid(cnsq), emitVoid(altr)))
+        emitI(cond).consumeU(cb, {}, m => cb.ifx(m.tcode[Boolean], emitVoid(cnsq), emitVoid(altr)))
 
       case Let(name, value, body) =>
         val x = mb.newEmitField(name, value.pType)
@@ -576,42 +500,38 @@ private class Emit[C](
       case Die(m, typ) =>
         val cm = emitI(m)
         val msg = cb.newLocal[String]("exmsg", "<exception message missing>")
-        cm.consume(cb, {}, s => cb.assign(msg, s.asString.loadString()))
+        cm.consumeU(cb, {}, s => cb.assign(msg, s.asString.loadString()))
         cb._throw(Code.newInstance[HailException, String](msg))
     }
   }
 
-  private[ir] def emitI(ir: IR, cb: EmitCodeBuilder, env: E, container: Option[AggContainer]): IEmitCode =
+  private[ir] def emitI(ir: IR, cb: EmitCodeBuilder, env: E, container: Option[AggContainer]): COptionCode =
     emitI(ir, cb, cb.emb.getCodeParam[Region](1), env, container, None)
 
   private def emitI(ir: IR, cb: EmitCodeBuilder, region: Value[Region], env: E,
     container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]
-  ): IEmitCode = {
+  ): COptionCode = {
     val mb: EmitMethodBuilder[C] = cb.emb.asInstanceOf[EmitMethodBuilder[C]]
 
-    def emitI(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+    def emitI(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): COptionCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
     def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir: IR, mb, region, env, container, loopEnv)
 
-    def emitFallback(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+    def emitFallback(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): COptionCode =
       this.emit(ir, mb, region, env, container, loopEnv).toI(cb)
 
     val pt = ir.pType
 
     if (pt == PVoid) {
       emitVoid(ir)
-      return IEmitCode(CodeLabel(), CodeLabel(), PCode._empty)
+      return COption(pt).dummy
     }
 
-    def presentPC(pc: PCode): IEmitCode = {
-      val Lpresent = CodeLabel()
-      cb.goto(Lpresent)
-      IEmitCode(CodeLabel(), Lpresent, pc)
-    }
+    def presentPC(pc: PCode): COptionCode = COption.present(cb, pc)
 
-    def presentC(c: Code[_]): IEmitCode = presentPC(PCode(pt, c))
+    def presentC(c: Code[_]): COptionCode = presentPC(PCode(pt, c))
 
     (ir: @unchecked) match {
       case I32(x) =>
@@ -639,10 +559,10 @@ private class Emit[C](
         emitI(v)
 
       case NA(typ) =>
-        IEmitCode(cb, const(true), pt.defaultValue)
+        COptionCode(cb, const(true), pt.defaultValue)
       case IsNA(v) =>
         val m = cb.newLocal[Boolean]("isna")
-        emitI(v).consume(cb, cb.assign(m, const(true)), { _ => cb.assign(m, const(false)) })
+        emitI(v).consumeU(cb, cb.assign(m, const(true)), { _ => cb.assign(m, const(false)) })
         presentC(m)
 
       case x@ArrayRef(a, i, s) =>
@@ -654,9 +574,9 @@ private class Emit[C](
           case Str(s) => (c: Code[String]) => c.concat("\n----------\nPython traceback:\n").concat(s)
           case s =>
             (_c: Code[String]) => {
-              val ies = emitI(s)
               val c = cb.newLocal("array_ref_c", _c)
-              ies.consume(cb, {}, { pc =>
+              val ies = emitI(s)
+              ies.consumeU(cb, {}, { pc =>
                 cb.assign(c, c.concat("\n----------\nPython traceback:\n")
                         .concat(pc.asString.loadString()))
               })
@@ -785,7 +705,7 @@ private class Emit[C](
     def emitInMethod(ir: IR, mb: EmitMethodBuilder[C]): EmitCode =
       this.emit(ir, mb, Env.empty, container)
 
-    def emitI(ir: IR, cb: EmitCodeBuilder, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+    def emitI(ir: IR, cb: EmitCodeBuilder, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): COptionCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
     def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Code[Unit] = {
@@ -797,7 +717,7 @@ private class Emit[C](
     def wrapToMethod(irs: Seq[IR], mb: EmitMethodBuilder[C] = mb, env: E = env, container: Option[AggContainer] = container)(useValues: (EmitMethodBuilder[C], PType, EmitCode) => Code[Unit]): Code[Unit] =
       this.wrapToMethod(irs, mb, env, container)(useValues)
 
-    def emitStream(ir: IR): COption[EmitStream.SizedStream] =
+    def emitStream(ir: IR): COptionOld[EmitStream.SizedStream] =
       EmitStream.emit(this, ir, mb, region, env, container)
 
     def emitDeforestedNDArray(ir: IR): EmitCode =
@@ -981,7 +901,7 @@ private class Emit[C](
             sorter.toRegion()))
         }
 
-        COption.toEmitCode(result, mb)
+        COptionOld.toEmitCode(result, mb)
 
       case CastToArray(a) =>
         val et = emit(a)
@@ -1108,7 +1028,7 @@ private class Emit[C](
                 srvb.offset))))
         }
 
-        COption.toEmitCode(result, mb)
+        COptionOld.toEmitCode(result, mb)
 
       case ArrayZeros(length) =>
         val lengthTriplet = emit(length)
@@ -1130,7 +1050,7 @@ private class Emit[C](
         val accType = ir.pType
 
         val streamOpt = emitStream(a)
-        val resOpt: COption[PCode] = streamOpt.flatMapCPS { (ss, _ctx, ret) =>
+        val resOpt: COptionOld[PCode] = streamOpt.flatMapCPS { (ss, _ctx, ret) =>
           implicit val c = _ctx
 
           val xAcc = mb.newEmitField(accumName, accType)
@@ -1148,13 +1068,12 @@ private class Emit[C](
 
           val codeZ = emit(zero).map(accType.copyFromPValue(mb, region, _))
           def retTT(): Code[Ctrl] =
-            ret(COption.fromEmitCode(xAcc.get))
+            ret(COptionOld.fromEmitCode(xAcc.get))
 
-          ss.getStream
-            .fold(mb, xAcc := codeZ, foldBody, retTT())
+          ss.getStream.fold(mb, xAcc := codeZ, foldBody, retTT())
         }
 
-        COption.toEmitCode(resOpt, mb)
+        COptionOld.toEmitCode(resOpt, mb)
 
       case x@StreamFold2(a, acc, valueName, seq, res) =>
         val eltType = coerce[PStream](a.pType).elementType
@@ -1182,7 +1101,7 @@ private class Emit[C](
               accVars := tmpAccVars.load())
 
           def computeRes(): Code[Ctrl] =
-              ret(COption.fromEmitCode(codeR))
+              ret(COptionOld.fromEmitCode(codeR))
 
           ss.getStream
             .fold(mb, Code(accVars.zip(acc).map { case (v, (name, x)) =>
@@ -1191,7 +1110,7 @@ private class Emit[C](
               foldBody, computeRes())
         }
 
-        COption.toEmitCode(resOpt, mb)
+        COptionOld.toEmitCode(resOpt, mb)
 
       case x@RunAgg(body, result, _) =>
         val aggs = x.physicalSignatures
@@ -1944,8 +1863,8 @@ private class Emit[C](
             srvb.offset)
         }
 
-        def addContexts(ctxStream: SizedStream): Code[Unit] = ctxStream match {
-          case SizedStream(setup, stream, len) => Code(
+        def addContexts(ctxStream: EmitStream.SizedStream): Code[Unit] = ctxStream match {
+          case EmitStream.SizedStream(setup, stream, len) => Code(
             setup,
             ctxab.invoke[Int, Unit]("ensureCapacity", len.getOrElse(16)),
             stream.map(etToTuple(_, ctxType)).forEach(mb, { offset =>
@@ -1996,7 +1915,7 @@ private class Emit[C](
           decodeResult))
         }
 
-        COption.toEmitCode(optRes, mb)
+        COptionOld.toEmitCode(optRes, mb)
 
       case x@TailLoop(name, args, body) =>
         val label = CodeLabel()

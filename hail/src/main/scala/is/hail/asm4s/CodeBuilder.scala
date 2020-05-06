@@ -1,18 +1,19 @@
 package is.hail.asm4s
 
+import is.hail.expr.types.physical
+import is.hail.lir
+
 abstract class SettableBuilder {
   def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T]
 }
 
 object CodeBuilder {
-  def apply(mb: MethodBuilder[_]): CodeBuilder = new CodeBuilder(mb, Code._empty)
-
-  def apply(mb: MethodBuilder[_], code: Code[Unit]): CodeBuilder = new CodeBuilder(mb, code)
-
   def scoped[T](mb: MethodBuilder[_])(f: (CodeBuilder) => T): (Code[Unit], T) = {
-    val cb = CodeBuilder(mb)
+    val start = new lir.Block
+    val cb = new CodeBuilder(mb, start)
     val t = f(cb)
-    (cb.result(), t)
+
+    (new VCode(start, cb.getEnd, null), t)
   }
 
   def scopedCode[T](mb: MethodBuilder[_])(f: (CodeBuilder) => Code[T]): Code[T] = {
@@ -33,16 +34,18 @@ trait CodeBuilderLike {
 
   protected def uncheckedAppend(c: Code[Unit]): Unit
 
+  def define(L: CodeLabel): Unit
+
+  def clear(): Unit
+
+  def getEnd: lir.Block
+
+  def setEnd(newEnd: lir.Block): Unit
+
   def append(c: Code[Unit]): Unit = {
     assert(isOpenEnded)
     uncheckedAppend(c)
   }
-
-  def define(L: CodeLabel): Unit = {
-    uncheckedAppend(L)
-  }
-
-  def result(): Code[Unit]
 
   def localBuilder: SettableBuilder = mb.localBuilder
 
@@ -127,19 +130,32 @@ trait CodeBuilderLike {
   }
 }
 
-class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
+class CodeBuilder(val mb: MethodBuilder[_], var end: lir.Block) extends CodeBuilderLike {
   def isOpenEnded: Boolean = {
-    val last = code.end.last
-    (last == null) || !last.isInstanceOf[is.hail.lir.ControlX]
+    (end != null) && ((end.last == null) || !end.last.isInstanceOf[is.hail.lir.ControlX])
   }
+
+  def getEnd: lir.Block = {
+    val ret = end
+    clear()
+    ret
+  }
+
+  def setEnd(newEnd: lir.Block) {
+    assert(!isOpenEnded)
+    end = newEnd
+  }
+
+  def clear(): Unit = { end = null }
 
   def uncheckedAppend(c: Code[Unit]): Unit = {
-    code = Code(code, c)
+    end.append(lir.goto(c.start))
+    end = c.end
+    c.clear()
   }
 
-  def result(): Code[Unit] = {
-    val tmp = code
-    code = Code._empty
-    tmp
+  override def define(L: CodeLabel): Unit = {
+    if (isOpenEnded) append(L.goto)
+    end = L.end
   }
 }
