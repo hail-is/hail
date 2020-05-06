@@ -53,6 +53,12 @@ trait InputBuffer extends Closeable {
   def readDoubles(to: Array[Double]): Unit = readDoubles(to, 0, to.length)
 
   def readBoolean(): Boolean = readByte() != 0
+
+  def readUTF(): String = {
+    val n = readInt()
+    val a = readBytesArray(n)
+    new String(a, utfCharset)
+  }
 }
 
 trait InputBlockBuffer extends Spec with Closeable {
