@@ -33,6 +33,13 @@ abstract class TableStage(
     }
   }
 
+  def mapContexts(f: IR => IR): TableStage = {
+    val outer = this
+    new TableStage(letBindings, broadcastVals, globals, partitioner, f(contexts)) {
+      override def partition(ctxRef: Ref): IR = outer.partition(ctxRef)
+    }
+  }
+
   def mapGlobals(f: IR => IR): TableStage = {
     val newGlobals = f(globals)
     val newID = genUID()
@@ -190,23 +197,31 @@ object LowerTableIR {
 
         case TableHead(child, targetNumRows) =>
           val loweredChild = lower(child)
-          val partitionSizeArray = loweredChild.mapPartition(rows => ArrayLen(ToArray(rows))).collect()
+
+          val partitionSizeArrayFunc = genUID()
+          val howManyPartsToTry = Ref(genUID(), TInt32)
+          val partitionSizeArray = TailLoop(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry.name -> 4),
+            bindIR(loweredChild.mapContexts(ctxs => StreamTake(ctxs, howManyPartsToTry)).mapPartition(rows =>  ArrayLen(ToArray(rows))).collect()) { counts =>
+              If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (ArrayLen(ToArray(loweredChild.contexts)) <= ArrayLen(counts)),
+                counts,
+                Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry * 4), TArray(TInt32))
+              )
+            }
+          )
           val partitionSizeArrayRef = Ref(genUID(), partitionSizeArray.typ)
 
           val answerTuple = bindIR(ArrayLen(partitionSizeArrayRef)) { numPartitions =>
-            val funcName = "howManyParts"
-            val i: IR = Ref("i", TInt32)
-            val numLeft: IR = Ref("numLeft", TInt64)
+            val howManyPartsToKeep = genUID()
+            val i = Ref(genUID(), TInt32)
+            val numLeft = Ref(genUID(), TInt64)
             def makeAnswer(howManyParts: IR, howManyFromLast: IR) = MakeTuple(FastIndexedSeq((0, howManyParts), (1, howManyFromLast)))
+
             If(numPartitions ceq 0,
               makeAnswer(0, 0L),
-              TailLoop(funcName, FastIndexedSeq("i" -> 0, "numLeft" -> targetNumRows),
-                If(i ceq numPartitions - 1,
+              TailLoop(howManyPartsToKeep, FastIndexedSeq(i.name -> 0, numLeft.name -> targetNumRows),
+                If((i ceq numPartitions - 1) || ((numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64)) <= 0L),
                   makeAnswer(i + 1, numLeft),
-                  If((numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64)) <= 0L,
-                    makeAnswer(i + 1, numLeft),
-                    Recur(funcName, FastIndexedSeq(i + 1, numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64)), TTuple(TInt32, TInt64))
-                  )
+                  Recur(howManyPartsToKeep, FastIndexedSeq(i + 1, numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64)), TTuple(TInt32, TInt64))
                 )
               )
             )

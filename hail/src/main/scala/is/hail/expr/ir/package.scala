@@ -132,6 +132,10 @@ package object ir {
     StreamFold(stream, zero, accum.name, elt.name, f(accum, elt))
   }
 
+  def streamSumIR(stream: IR): IR = {
+    foldIR(stream, 0){ case (accum, elt) => accum + elt}
+  }
+
   def rangeIR(n: IR): IR = StreamRange(0, n, 1)
 
   def rangeIR(start: IR, stop: IR): IR = StreamRange(start, stop, 1)
