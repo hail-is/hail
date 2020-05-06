@@ -118,6 +118,12 @@ class IRSuite extends HailSuite {
     assertEvalsTo(False(), false)
   }
 
+  @Test def testBegin() {
+    assertEvalsTo(Begin(Seq(Void(), False())), false)
+    assertEvalsTo(Begin(Seq(Void(), F64(4.5))), 4.5)
+    assertEvalsTo(Begin(Seq(Void(), True())), true)
+  }
+
   @Test def testScalarInferPType() {
     assertPType(I32(5), PInt32(true))
     assertPType(I64(5), PInt64(true))
@@ -126,6 +132,8 @@ class IRSuite extends HailSuite {
     assertPType(Str("HELLO WORLD"), PCanonicalString(true))
     assertPType(True(), PBoolean(true))
     assertPType(False(), PBoolean(true))
+    assertPType(Begin(Seq(Void(), False())), PBoolean(true))
+    assertPType(Begin(Seq(Void(), I64(3))), PInt64(true))
   }
 
   @Test def testRefInferPtype() {
@@ -2738,6 +2746,8 @@ class IRSuite extends HailSuite {
       SerializeAggs(0, 0, BufferSpec.default, FastSeq(collectSig.singletonContainer)),
       DeserializeAggs(0, 0, BufferSpec.default, FastSeq(collectSig.singletonContainer)),
       Begin(FastIndexedSeq(Void())),
+      Begin(FastIndexedSeq(Void(), I32(5))),
+      Begin(FastIndexedSeq(Void(), Str("begin str"))),
       MakeStruct(FastIndexedSeq("x" -> i)),
       SelectFields(s, FastIndexedSeq("x", "z")),
       InsertFields(s, FastIndexedSeq("x" -> i)),

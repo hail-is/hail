@@ -766,6 +766,11 @@ class Emit[C](
           }
         }
 
+      case Begin(xs) =>
+        xs.init.foreach(emitVoid(_))
+        assert(xs.last.pType != TVoid)
+        emitI(xs.last)
+
       case _ =>
         emitFallback(ir)
     }

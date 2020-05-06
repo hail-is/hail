@@ -152,6 +152,9 @@ object InferPType {
         ir.pType.deepRename(t)
       case NA(t) =>
         PType.canonical(t).deepInnerRequired(false)
+      case Begin(xs) =>
+        xs.foreach(x => infer(x))
+        xs.last.pType
       case Die(msg, t) =>
         infer(msg)
         PType.canonical(t).deepInnerRequired(true)
