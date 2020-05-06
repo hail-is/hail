@@ -19,7 +19,7 @@ abstract class TableStage(
   val broadcastVals: Set[String],
   val globals: IR,
   val partitioner: RVDPartitioner,
-  val contexts: IR) {
+  val contexts: IR) { self =>
 
   def partition(ctxRef: Ref): IR
 
@@ -62,6 +62,12 @@ abstract class TableStage(
       ctx.name, glob.name,
       broadcastVals.foldLeft(partition(ctx))((accum, name) => Let(name, GetField(glob, name), accum)))
     if (bind) wrapInBindings(cda) else cda
+  }
+
+  def changePartitionerNoRepartition(newPartitioner: RVDPartitioner): TableStage = {
+    new TableStage(letBindings, broadcastVals, globals, newPartitioner, contexts) {
+      def partition(ctxRef: Ref): IR = self.partition(ctxRef)
+    }
   }
 }
 
@@ -286,6 +292,30 @@ object LowerTableIR {
             }
             withKeys
           }
+
+        case t@TableKeyBy(child, newKey, isSorted: Boolean) =>
+          val loweredChild = lower(child)
+          val nPreservedFields = loweredChild.partitioner.kType.fieldNames
+            .zip(newKey)
+            .takeWhile { case (l, r) => l == r }
+            .length
+
+          if (nPreservedFields == newKey.length)
+            loweredChild
+          else if (isSorted) {
+            val newPartitioner = loweredChild.partitioner
+              .coarsen(nPreservedFields)
+              .extendKey(t.typ.keyType)
+            loweredChild.changePartitionerNoRepartition(newPartitioner)
+          } else
+            ctx.backend.lowerDistributedSort(loweredChild, newKey.map(k => SortField(k, Ascending)))
+
+        case TableOrderBy(child, sortFields) =>
+          val loweredChild = lower(child)
+          if (TableOrderBy.isAlreadyOrdered(sortFields, loweredChild.partitioner.kType.fieldNames))
+            loweredChild
+          else
+            ctx.backend.lowerDistributedSort(loweredChild, sortFields)
 
         case TableExplode(child, path) =>
           lower(child).mapPartition { rows =>
