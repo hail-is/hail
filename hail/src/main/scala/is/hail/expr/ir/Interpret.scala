@@ -517,7 +517,12 @@ object Interpret {
         }
         ()
       case Begin(xs) =>
-        xs.foreach(x => interpret(x))
+        if (xs.length != 0) {
+          xs.init.foreach(x => interpret(x))
+          interpret(xs.last)
+        } else {
+          ()
+        }
       case MakeStruct(fields) =>
         Row.fromSeq(fields.map { case (name, fieldIR) => interpret(fieldIR, env, args) })
       case SelectFields(old, fields) =>
