@@ -111,6 +111,12 @@ package object ir {
     case TFloat64 => F64(0d)
   }
 
+  def bindIRs(values: IR*)(body: Seq[Ref] => IR): IR = {
+    val valuesArray = values.toArray
+    val refs = values.map(v => Ref(genUID(), v.typ))
+    values.indices.foldLeft(body(refs)) { case (acc, i) => Let(refs(i).name, valuesArray(i), acc) }
+  }
+
   def bindIR(v: IR)(body: Ref => IR): IR = {
     val ref = Ref(genUID(), v.typ)
     Let(ref.name, v, body(ref))
