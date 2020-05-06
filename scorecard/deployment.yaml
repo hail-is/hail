@@ -21,6 +21,9 @@ spec:
 {% endif %}
       nodeSelector:
         preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       containers:
       - name: scorecard
         image: "{{ scorecard_image.image }}"
