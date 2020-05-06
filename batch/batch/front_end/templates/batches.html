@@ -47,7 +47,7 @@
 	  <tr>
 	    <th>ID</th>
 	    <th>Name</th>
-	    <th>Created</th>
+	    <th>Submitted</th>
 	    <th>Completed</th>
 	    <th>State</th>
 	    <th>Jobs</th>
@@ -68,7 +68,11 @@
 	      {{ batch['attributes']['name'] }}
 	      {% endif %}
 	    </td>
-	    <td>{{ batch['time_created'] }}</td>
+	    <td>
+	      {% if 'time_closed' in batch and batch['time_closed'] is not none %}
+	      {{ batch['time_closed'] }}
+	      {% endif %}
+	    </td>
 	    <td>
 	      {% if 'time_completed' in batch and batch['time_completed'] is not none %}
 	      {{ batch['time_completed'] }}
