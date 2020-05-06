@@ -44,8 +44,12 @@ object InferType {
       case _: SerializeAggs => TVoid
       case _: DeserializeAggs => TVoid
       case Begin(xs) =>
-        assert(xs.init.forall(_.typ == TVoid))
-        xs.last.typ
+        if (xs.length == 0) {
+          TVoid
+        } else {
+          assert(xs.init.forall(_.typ == TVoid))
+          xs.last.typ
+        }
       case Die(_, t) => t
       case If(cond, cnsq, altr) =>
         assert(cond.typ == TBoolean)
