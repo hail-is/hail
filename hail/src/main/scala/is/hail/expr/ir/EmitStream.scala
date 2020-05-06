@@ -306,13 +306,12 @@ object Stream {
     val cur = mb.newLocal[Int]("sr_cur")
 
     unfold[Code[Int]](
-      init0 = Code._empty,
-      init = Code(lstep := step, cur := start - lstep),
       f = {
         case (_ctx, k) =>
           implicit val ctx = _ctx
           Code(cur := cur + lstep, k(COption.present(cur)))
-      })
+      },
+      setup = Some(Code(lstep := step, cur := start - lstep)))
   }
 
   def iotaL(mb: EmitMethodBuilder[_], start: Code[Long], step: Code[Int]): Stream[Code[Long]] = {
@@ -320,13 +319,12 @@ object Stream {
     val cur = mb.newLocal[Long]("sr_cur")
 
     unfold[Code[Long]](
-      init0 = Code._empty,
-      init = Code(lstep := step, cur := start - lstep.toL),
       f = {
         case (_ctx, k) =>
           implicit val ctx = _ctx
           Code(cur := cur + lstep.toL, k(COption.present(cur)))
-      })
+      },
+      setup = Some(Code(lstep := step, cur := start - lstep.toL)))
   }
 
   def range(mb: EmitMethodBuilder[_], start: Code[Int], step: Code[Int], len: Code[Int]): Stream[Code[Int]] =
@@ -338,16 +336,18 @@ object Stream {
       .take
 
   def unfold[A](
-    init0: Code[Unit],
-    init: Code[Unit],
-    f: (EmitStreamContext, COption[A] => Code[Ctrl]) => Code[Ctrl]
+    f: (EmitStreamContext, COption[A] => Code[Ctrl]) => Code[Ctrl],
+    setup0: Option[Code[Unit]] = None,
+    setup:  Option[Code[Unit]] = None,
+    close0: Option[Code[Unit]] = None,
+    close:  Option[Code[Unit]] = None
   ): Stream[A] = new Stream[A] {
     def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
       Source[A](
-        setup0 = init0,
-        close0 = Code._empty,
-        setup = init,
-        close = Code._empty,
+        setup0 = setup0.getOrElse(Code._empty),
+        close0 = close0.getOrElse(Code._empty),
+        setup = setup.getOrElse(Code._empty),
+        close = close.getOrElse(Code._empty),
         pull = f(ctx, _.apply(
           none = eos,
           some = a => push(a))))
@@ -839,8 +839,6 @@ object EmitStream {
           // this, Region, ...
           mb.getStreamEmitParam(2 + n).map { iter =>
             val stream = unfold[Code[RegionValue]](
-              Code._empty,
-              Code._empty,
               (_, k) => k(COption(
                 !xIter.load().hasNext,
                 xIter.load().next()))
