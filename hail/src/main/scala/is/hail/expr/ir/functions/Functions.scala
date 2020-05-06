@@ -1,4 +1,5 @@
 package is.hail.expr.ir.functions
+
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir._
@@ -29,7 +30,7 @@ object IRFunctionRegistry {
 
   val irRegistry: mutable.Map[String, mutable.Map[IRFunctionSignature, IRFunctionImplementation]] = new mutable.HashMap()
 
-  val codeRegistry: mutable.MultiMap[String, JVMFunction] =
+  val jvmRegistry: mutable.MultiMap[String, JVMFunction] =
     new mutable.HashMap[String, mutable.Set[JVMFunction]] with mutable.MultiMap[String, JVMFunction]
 
   private[this] def requireJavaIdentifier(name: String): Unit = {
@@ -39,7 +40,7 @@ object IRFunctionRegistry {
 
   def addJVMFunction(f: JVMFunction): Unit = {
     requireJavaIdentifier(f.name)
-    codeRegistry.addBinding(f.name, f)
+    jvmRegistry.addBinding(f.name, f)
   }
 
   def addIR(
@@ -83,10 +84,10 @@ object IRFunctionRegistry {
     typeParameters: Seq[Type],
     valueParameterTypes: Seq[Type]
   ): Unit = {
-    val functions = codeRegistry(name)
+    val functions = jvmRegistry(name)
     val toRemove = functions.filter(_.unify(typeParameters, valueParameterTypes, returnType)).toArray
     assert(toRemove.length == 1)
-    codeRegistry.removeBinding(name, toRemove.head)
+    jvmRegistry.removeBinding(name, toRemove.head)
   }
 
   def lookupFunction(
@@ -95,7 +96,7 @@ object IRFunctionRegistry {
     typeParameters: Seq[Type],
     valueParameterTypes: Seq[Type]
   ): Option[JVMFunction] = {
-    codeRegistry.lift(name).map { fs => fs.filter(t => t.unify(typeParameters, valueParameterTypes, returnType)).toSeq }.getOrElse(FastSeq()) match {
+    jvmRegistry.lift(name).map { fs => fs.filter(t => t.unify(typeParameters, valueParameterTypes, returnType)).toSeq }.getOrElse(FastSeq()) match {
       case Seq() => None
       case Seq(f) => Some(f)
       case _ => fatal(s"Multiple functions found that satisfy $name(${ valueParameterTypes.mkString(",") }).")
@@ -183,7 +184,7 @@ object IRFunctionRegistry {
         }
     }
 
-    codeRegistry.foreach { case (name, fns) =>
+    jvmRegistry.foreach { case (name, fns) =>
         fns.foreach { f =>
           println(s"""${
             if (f.isInstanceOf[SeededMissingObliviousJVMFunction])
