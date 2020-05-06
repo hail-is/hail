@@ -27,6 +27,9 @@ spec:
           resources:
             requests:
               memory: "1G"
+              cpu: "400m"
+            limits:
+              memory: "1G"
               cpu: "1"
           env:
            - name: HAIL_DEPLOY_CONFIG_FILE

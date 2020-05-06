@@ -48,7 +48,10 @@ spec:
           resources:
             requests:
               memory: "3.75G"
-              cpu: "1"
+              cpu: "800m"
+	    limits:
+	      memory: "3.75G"
+	      cpu: "1"
           readinessProbe:
             httpGet:
               path: /healthcheck
