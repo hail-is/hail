@@ -1949,7 +1949,7 @@ class Emit[C](
 
         val cEnc = x.contextSpec.buildEmitEncoderF[Long](x.contextPTuple, parentCB)
         val gEnc = x.globalSpec.buildEmitEncoderF[Long](x.globalPTuple, parentCB)
-        val (bRetPType, bDec) = x.bodySpec.buildEmitDecoderF[Long](x, parentCB)
+        val (bRetPType, bDec) = x.bodySpec.buildEmitDecoderF[Long](parentCB)
         assert(bRetPType == x.decodedBodyPTuple)
 
         val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
