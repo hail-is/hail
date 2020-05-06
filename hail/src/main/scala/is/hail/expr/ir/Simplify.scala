@@ -227,6 +227,8 @@ object Simplify {
 
     case ToStream(Let(name, value, ToArray(x))) if x.typ.isInstanceOf[TStream] => Let(name, value, x)
 
+    case ArrayLen(ToArray(s)) if s.typ.isInstanceOf[TStream] => foldIR(s, 0){ case (acc, _) => acc + 1}
+
     case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
 
     case GetField(MakeStruct(fields), name) =>
