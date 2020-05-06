@@ -1,6 +1,7 @@
 import secrets
 import logging
 import json
+import copy
 from functools import wraps
 import concurrent
 import asyncio
@@ -27,6 +28,8 @@ from ..batch_configuration import REFRESH_INTERVAL_IN_SECONDS, \
     WORKER_LOGS_BUCKET_NAME, PROJECT
 from ..google_compute import GServices
 from ..globals import HTTP_CLIENT_MAX_SIZE
+from ..utils import cost_from_msec_mcpu, json_to_value
+from ..resources import cost_from_resources
 
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
@@ -235,9 +238,11 @@ async def job_complete_1(request, instance):
     start_time = job_status['start_time']
     end_time = job_status['end_time']
     status = job_status['status']
+    resources = job_status.get('resources')
 
     await mark_job_complete(request.app, batch_id, job_id, attempt_id, instance.name,
-                            new_state, status, start_time, end_time, 'completed')
+                            new_state, status, start_time, end_time, 'completed',
+                            resources)
 
     await instance.mark_healthy()
 
@@ -258,8 +263,10 @@ async def job_started_1(request, instance):
     job_id = job_status['job_id']
     attempt_id = job_status['attempt_id']
     start_time = job_status['start_time']
+    resources = job_status.get('resources')
 
-    await mark_job_started(request.app, batch_id, job_id, attempt_id, instance, start_time)
+    await mark_job_started(request.app, batch_id, job_id, attempt_id, instance,
+                           start_time, resources)
 
     await instance.mark_healthy()
 
@@ -476,6 +483,144 @@ GROUP BY user;
         await asyncio.sleep(0.1)
 
 
+async def check_resource_aggregation(db):
+    def merge(r1, r2):
+        if r1 is None:
+            r1 = {}
+        if r2 is None:
+            r2 = {}
+
+        result = {}
+
+        def add_items(d):
+            for k, v in d.items():
+                if k not in result:
+                    result[k] = v
+                else:
+                    result[k] += v
+
+        add_items(r1)
+        add_items(r2)
+        return result
+
+    def seqop(result, k, v):
+        if k not in result:
+            result[k] = v
+        else:
+            result[k] = merge(result[k], v)
+
+    def fold(d, key_f):
+        if d is None:
+            d = {}
+        d = copy.deepcopy(d)
+        result = {}
+        for k, v in d.items():
+            seqop(result, key_f(k), v)
+        return result
+
+    @transaction(db, read_only=True)
+    async def check(tx):
+        attempt_resources = tx.execute_and_fetchall('''
+SELECT attempt_resources.batch_id, attempt_resources.job_id, attempt_resources.attempt_id,
+  JSON_OBJECTAGG(resource, quantity * COALESCE(end_time - start_time, 0)) as resources
+FROM attempt_resources
+JOIN attempts
+ON attempts.batch_id = attempt_resources.batch_id AND
+  attempts.job_id = attempt_resources.job_id AND
+  attempts.attempt_id = attempt_resources.attempt_id
+GROUP BY batch_id, job_id, attempt_id
+LOCK IN SHARE MODE;
+''')
+
+        agg_job_resources = tx.execute_and_fetchall('''
+SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) as resources
+FROM aggregated_job_resources
+GROUP BY batch_id, job_id
+LOCK IN SHARE MODE;
+''')
+
+        agg_batch_resources = tx.execute_and_fetchall('''
+SELECT batch_id, JSON_OBJECTAGG(resource, `usage`) as resources
+FROM aggregated_batch_resources
+GROUP BY batch_id
+LOCK IN SHARE MODE;
+''')
+
+        attempt_resources = {(record['batch_id'], record['job_id'], record['attempt_id']): json_to_value(record['resources'])
+                             async for record in attempt_resources}
+
+        agg_job_resources = {(record['batch_id'], record['job_id']): json_to_value(record['resources'])
+                             async for record in agg_job_resources}
+
+        agg_batch_resources = {record['batch_id']: json_to_value(record['resources'])
+                               async for record in agg_batch_resources}
+
+        attempt_by_batch_resources = fold(attempt_resources, lambda k: k[0])
+        attempt_by_job_resources = fold(attempt_resources, lambda k: (k[0], k[1]))
+        job_by_batch_resources = fold(agg_job_resources, lambda k: k[0])
+
+        assert attempt_by_batch_resources == agg_batch_resources
+        assert attempt_by_job_resources == agg_job_resources
+        assert job_by_batch_resources == agg_batch_resources
+
+    while True:
+        try:
+            await check()  # pylint: disable=no-value-for-parameter
+        except Exception:
+            log.exception('while checking resource aggregation')
+        await asyncio.sleep(10)
+
+
+async def check_cost(app, db):
+    @transaction(db, read_only=True)
+    async def check(tx):
+        agg_job_resources = tx.execute_and_fetchall('''
+SELECT *
+FROM jobs
+LEFT JOIN (
+  SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) as resources
+  FROM aggregated_job_resources
+  GROUP BY batch_id, job_id
+  LOCK IN SHARE MODE) AS t
+ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
+LOCK IN SHARE MODE;
+''')
+
+        agg_batch_resources = tx.execute_and_fetchall('''
+SELECT *
+FROM batches
+LEFT JOIN (
+  SELECT batch_id, JSON_OBJECTAGG(resource, `usage`) as resources
+  FROM aggregated_batch_resources
+  GROUP BY batch_id
+  LOCK IN SHARE MODE) AS t
+ON batches.id = t.batch_id
+LOCK IN SHARE MODE;
+''')
+
+        def assert_cost_same(id, msec_mcpu, resources):
+            cost_msec_mcpu = cost_from_msec_mcpu(app, msec_mcpu)
+            cost_resources = cost_from_resources(resources)
+            if cost_msec_mcpu != 0:
+                assert abs(cost_resources - cost_msec_mcpu) / cost_msec_mcpu <= 0.01, \
+                    (id, msec_mcpu, resources, cost_msec_mcpu, cost_resources)
+            else:
+                assert cost_resources == 0, (id, msec_mcpu, resources, cost_msec_mcpu, cost_resources)
+
+        async for record in agg_job_resources:
+            assert_cost_same((record['batch_id'], record['job_id']), record['msec_mcpu'], json_to_value(record['resources']))
+
+        async for record in agg_batch_resources:
+            assert_cost_same(record['batch_id'], record['msec_mcpu'], json_to_value(record['resources']))
+
+    while True:
+        try:
+            await check()  # pylint: disable=no-value-for-parameter
+        except Exception:
+            log.exception('while checking cost')
+        await asyncio.sleep(10)
+
+
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
@@ -534,6 +679,8 @@ async def on_startup(app):
     app['scheduler'] = scheduler
 
     # asyncio.ensure_future(check_incremental_loop(db))
+    asyncio.ensure_future(check_resource_aggregation(db))
+    asyncio.ensure_future(check_cost(app, db))
 
 
 async def on_cleanup(app):

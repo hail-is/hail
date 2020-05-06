@@ -1,4 +1,9 @@
+import json
+
 from hailtop.batch_client.aioclient import Job
+
+from .utils import cost_from_msec_mcpu
+from .resources import cost_from_resources
 
 
 class BatchFormatVersion:
@@ -94,3 +99,9 @@ class BatchFormatVersion:
             return (Job.exit_code(job_status), Job.total_duration_msecs(job_status))
         assert len(status) == 2
         return status
+
+    def cost(self, app, msec_mcpu, resources):
+        if self.format_version < 3:
+            assert msec_mcpu is not None
+            return cost_from_msec_mcpu(app, msec_mcpu)
+        return cost_from_resources(resources)

@@ -1,14 +1,26 @@
 import re
 import logging
 import math
+import json
 
 from .front_end.validate import CPU_REGEX, MEMORY_REGEX
 
 log = logging.getLogger('utils')
 
 
+def json_to_value(x):
+    if x is None:
+        return x
+    return json.loads(x)
+
+
 def cost_from_msec_mcpu(app, msec_mcpu):
-    worker_cores = app['worker_cores']
+    if msec_mcpu is None:
+        return 0
+
+    worker_type = app['worker_type']  # 'standard'
+    worker_cores = app['worker_cores']  # 16
+    worker_disk_size_gb = app['worker_disk_size_gb']  # 100
 
     # https://cloud.google.com/compute/all-pricing
 
@@ -17,19 +29,19 @@ def cost_from_msec_mcpu(app, msec_mcpu):
     # average number of days per month = 365.25 / 12 = 30.4375
     avg_n_days_per_month = 30.4375
 
-    disk_cost_per_instance_hour = 0.17 * app['worker_disk_size_gb'] / avg_n_days_per_month / 24
+    disk_cost_per_instance_hour = 0.17 * worker_disk_size_gb / avg_n_days_per_month / 24
 
     ip_cost_per_instance_hour = 0.004
 
     instance_cost_per_instance_hour = disk_cost_per_instance_hour + ip_cost_per_instance_hour
 
     # per core costs
-    if app['worker_type'] == 'standard':
+    if worker_type == 'standard':
         cpu_cost_per_core_hour = 0.01
-    elif app['worker_type'] == 'highcpu':
+    elif worker_type == 'highcpu':
         cpu_cost_per_core_hour = 0.0075
     else:
-        assert app['worker_type'] == 'highmem'
+        assert worker_type == 'highmem'
         cpu_cost_per_core_hour = 0.0125
 
     service_cost_per_core_hour = 0.01
@@ -83,7 +95,7 @@ def worker_memory_per_core_gb(worker_type):
 
 def worker_memory_per_core_bytes(worker_type):
     m = worker_memory_per_core_gb(worker_type)
-    return int(m * 1000**3)  # GCE memory/core are in GB not GiB
+    return int(m * 1024**3)
 
 
 def memory_bytes_to_cores_mcpu(memory_in_bytes, worker_type):

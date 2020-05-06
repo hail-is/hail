@@ -13,14 +13,16 @@ from hailtop.tls import ssl_client_session
 from .globals import complete_states, tasks, STATUS_FORMAT_VERSION
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL
-from .utils import cost_from_msec_mcpu
 from .batch_format_version import BatchFormatVersion
 from .spec_writer import SpecWriter
+from .utils import json_to_value
 
 log = logging.getLogger('batch')
 
 
 def batch_record_to_dict(app, record):
+    format_version = BatchFormatVersion(record['format_version'])
+
     if record['state'] == 'open':
         state = 'open'
     elif record['n_failed'] > 0:
@@ -71,7 +73,7 @@ def batch_record_to_dict(app, record):
     msec_mcpu = record['msec_mcpu']
     d['msec_mcpu'] = msec_mcpu
 
-    cost = cost_from_msec_mcpu(app, msec_mcpu)
+    cost = format_version.cost(app, record['msec_mcpu'], json_to_value(record.get('resources')))
     d['cost'] = f'${cost:.4f}'
 
     return d
@@ -82,6 +84,10 @@ async def notify_batch_job_complete(app, db, batch_id):
         '''
 SELECT *
 FROM batches
+LEFT JOIN (SELECT batch_id, JSON_OBJECTAGG(resource, `usage`) AS resources
+           FROM aggregated_batch_resources
+           GROUP BY batch_id) AS t
+ON batches.id = t.batch_id
 WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
    batches.`state` = 'complete'
 ''',
@@ -108,7 +114,7 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
 
 
 async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, new_state,
-                            status, start_time, end_time, reason):
+                            status, start_time, end_time, reason, resources):
     scheduler_state_changed = app['scheduler_state_changed']
     cancel_ready_state_changed = app['cancel_ready_state_changed']
     db = app['db']
@@ -142,6 +148,21 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
 
+    if attempt_id:
+        try:
+            resource_args = [(batch_id, job_id, attempt_id, resource['name'], resource['quantity'])
+                             for resource in resources]
+
+            await db.execute_many('''
+    INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource, quantity)
+    VALUES (%s, %s, %s, %s, %s)
+    ON DUPLICATE KEY UPDATE quantity = quantity;
+    ''',
+                                  resource_args)
+        except Exception:
+            log.exception(f'error while inserting resources for job {id}')
+            raise
+
     if rv['rc'] != 0:
         log.info(f'mark_job_complete returned {rv} for job {id}')
         return
@@ -157,7 +178,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
     await notify_batch_job_complete(app, db, batch_id)
 
 
-async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_time):
+async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_time, resources):
     db = app['db']
 
     id = (batch_id, job_id)
@@ -176,6 +197,20 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
 
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
+
+    try:
+        resource_args = [(batch_id, job_id, attempt_id, resource['name'], resource['quantity'])
+                         for resource in resources]
+
+        await db.execute_many('''
+INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource, quantity)
+VALUES (%s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE quantity = quantity;
+''',
+                              resource_args)
+    except Exception:
+        log.exception(f'error while inserting resources for job {id}')
+        raise
 
 
 def job_record_to_dict(app, record, name):
@@ -201,7 +236,7 @@ def job_record_to_dict(app, record, name):
     msec_mcpu = record['msec_mcpu']
     result['msec_mcpu'] = msec_mcpu
 
-    cost = cost_from_msec_mcpu(app, msec_mcpu)
+    cost = format_version.cost(app, record['msec_mcpu'], json_to_value(record.get('resources')))
     result['cost'] = f'${cost:.4f}'
 
     return result
@@ -419,9 +454,10 @@ async def schedule_job(app, record, instance):
                 await log_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
 
             db_status = format_version.db_status(status)
+            resources = []
 
             await mark_job_complete(app, batch_id, job_id, attempt_id, instance.name,
-                                    'Error', db_status, None, None, 'error')
+                                    'Error', db_status, None, None, 'error', resources)
             raise
 
         log.info(f'schedule job {id} on {instance}: made job config')

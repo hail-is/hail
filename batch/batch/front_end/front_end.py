@@ -29,7 +29,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 # import uvloop
 
 from ..utils import parse_cpu_in_mcpu, parse_memory_in_bytes, adjust_cores_for_memory_request, \
-    worker_memory_per_core_gb, cost_from_msec_mcpu, adjust_cores_for_packability
+    worker_memory_per_core_gb, cost_from_msec_mcpu, adjust_cores_for_packability, json_to_value
 from ..batch import batch_record_to_dict, job_record_to_dict
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
@@ -38,6 +38,7 @@ from ..batch_configuration import BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME, DEFAU
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
+from ..resources import cost_from_resources
 
 from .validate import ValidationError, validate_batch, validate_jobs
 
@@ -161,6 +162,10 @@ LEFT JOIN job_attributes
   ON jobs.batch_id = job_attributes.batch_id AND
      jobs.job_id = job_attributes.job_id AND
      job_attributes.`key` = 'name'
+LEFT JOIN (SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) AS resources
+           FROM aggregated_job_resources
+           GROUP BY batch_id, job_id) AS t
+ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
 WHERE {' AND '.join(where_conditions)}
 ORDER BY jobs.batch_id, jobs.job_id ASC
 LIMIT 50;
@@ -439,6 +444,10 @@ async def _query_batches(request, user):
     sql = f'''
 SELECT *
 FROM batches
+LEFT JOIN (SELECT batch_id, JSON_OBJECTAGG(resource, `usage`) AS resources
+           FROM aggregated_batch_resources
+           GROUP BY batch_id) AS t
+ON batches.id = t.batch_id
 WHERE {' AND '.join(where_conditions)}
 ORDER BY id DESC
 LIMIT 50;
@@ -803,6 +812,10 @@ async def _get_batch(app, batch_id, user):
     record = await db.select_and_fetchone(
         '''
 SELECT * FROM batches
+LEFT JOIN (SELECT batch_id, JSON_OBJECTAGG(resource, `usage`) AS resources
+           FROM aggregated_batch_resources
+           GROUP BY batch_id) AS t
+ON batches.id = t.batch_id
 WHERE user = %s AND id = %s AND NOT deleted;
 ''', (user, batch_id))
     if not record:
@@ -994,7 +1007,7 @@ async def _get_job(app, batch_id, job_id, user):
     db = app['db']
 
     record = await db.select_and_fetchone('''
-SELECT jobs.*, ip_address, format_version
+SELECT jobs.*, resources, ip_address, format_version
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -1002,6 +1015,10 @@ LEFT JOIN attempts
   ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
   ON attempts.instance_name = instances.name
+LEFT JOIN (SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) AS resources
+           FROM aggregated_job_resources
+           GROUP BY batch_id, job_id) AS t
+ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
 WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
                                           (user, batch_id, job_id))
@@ -1119,17 +1136,42 @@ async def _query_billing(request):
         return await parse_error(f'Invalid search; start must be earlier than end.')
 
     sql = f'''
-SELECT billing_project, user, CAST(COALESCE(SUM(msec_mcpu), 0) AS SIGNED) AS msec_mcpu
-FROM batches
-WHERE batches.`time_created` >= %s AND batches.`time_created` <= %s
-GROUP by billing_project, user;
+SELECT *
+FROM (SELECT billing_project, `user`
+      FROM batches
+      WHERE batches.`time_completed` >= %s AND batches.`time_completed` <= %s
+      GROUP BY billing_project, `user`
+      LOCK IN SHARE MODE) AS t1
+
+LEFT JOIN (SELECT billing_project, `user`, CAST(COALESCE(SUM(msec_mcpu), 0) AS SIGNED) AS msec_mcpu
+           FROM batches
+           WHERE batches.`time_completed` >= %s AND batches.`time_completed` <= %s AND batches.format_version < 3
+           GROUP BY billing_project, `user`
+           LOCK IN SHARE MODE) AS t2
+ON t1.billing_project = t2.billing_project AND t1.`user` = t2.`user`
+
+LEFT JOIN (SELECT billing_project, `user`, JSON_OBJECTAGG(`resource`, `usage`) as resources
+           FROM (SELECT billing_project, `user`, `resource`, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+                 FROM aggregated_batch_resources
+                 JOIN (SELECT id, billing_project, `user`
+                       FROM batches
+                       WHERE batches.`time_completed` >= %s AND batches.`time_completed` <= %s AND batches.format_version >= 3
+                       LOCK IN SHARE MODE) AS tmp1
+                 ON aggregated_batch_resources.batch_id = tmp1.id
+                 GROUP BY billing_project, `user`, `resource`
+                 LOCK IN SHARE MODE) AS tmp2
+           GROUP BY billing_project, `user`) AS t3
+ON t1.billing_project = t3.billing_project AND t1.`user` = t3.`user`;
 '''
-    sql_args = (start, end)
+
+    sql_args = (start, end, start, end, start, end)
 
     def billing_record_to_dict(app, record):
-        msec_mcpu = record['msec_mcpu']
-        record['cost'] = cost_from_msec_mcpu(app, msec_mcpu)
+        cost_msec_mcpu = cost_from_msec_mcpu(app, record['msec_mcpu'])
+        cost_resources = cost_from_resources(json_to_value(record['resources']))
+        record['cost'] = cost_msec_mcpu + cost_resources
         del record['msec_mcpu']
+        del record['resources']
         return record
 
     billing = [billing_record_to_dict(request.app, record)

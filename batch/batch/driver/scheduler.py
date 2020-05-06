@@ -196,9 +196,10 @@ LIMIT %s;
 
                 async def cancel_with_error_handling(app, batch_id, job_id, id):
                     try:
+                        resources = []
                         await mark_job_complete(
                             app, batch_id, job_id, None, None,
-                            'Cancelled', None, None, None, 'cancelled')
+                            'Cancelled', None, None, None, 'cancelled', resources)
                     except Exception:
                         log.info(f'error while cancelling job {id}', exc_info=True)
                 await waitable_pool.call(
