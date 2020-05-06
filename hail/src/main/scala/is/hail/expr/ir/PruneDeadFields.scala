@@ -138,55 +138,60 @@ object PruneDeadFields {
   def unifyBaseType(base: BaseType, children: BaseType*): BaseType = unifyBaseTypeSeq(base, children)
 
   def unifyBaseTypeSeq(base: BaseType, children: Seq[BaseType]): BaseType = {
-    if (children.isEmpty)
-      return minimalBT(base)
-    base match {
-      case tt: TableType =>
-        val ttChildren = children.map(_.asInstanceOf[TableType])
-        tt.copy(
-          key = unifyKey(ttChildren.map(_.key)),
-          rowType = unify(tt.rowType, ttChildren.map(_.rowType): _*),
-          globalType = unify(tt.globalType, ttChildren.map(_.globalType): _*)
-        )
-      case mt: MatrixType =>
-        val mtChildren = children.map(_.asInstanceOf[MatrixType])
-        mt.copy(
-          rowKey = unifyKey(mtChildren.map(_.rowKey)),
-          colKey = unifyKey(mtChildren.map(_.colKey)),
-          globalType = unifySeq(mt.globalType, mtChildren.map(_.globalType)),
-          rowType = unifySeq(mt.rowType, mtChildren.map(_.rowType)),
-          entryType = unifySeq(mt.entryType, mtChildren.map(_.entryType)),
-          colType = unifySeq(mt.colType, mtChildren.map(_.colType))
-        )
-      case t: Type =>
-        if (children.isEmpty)
-          return minimal(t)
-        t match {
-          case ts: TStruct =>
-            val subStructs = children.map(_.asInstanceOf[TStruct])
-            val subFields = ts.fields.map { f =>
-              f -> subStructs.flatMap(s => s.fieldOption(f.name))
-            }
-              .filter(_._2.nonEmpty)
-              .map { case (f, ss) => f.name -> unifySeq(f.typ, ss.map(_.typ)) }
-            TStruct(subFields: _*)
-          case tt: TTuple =>
-            val subTuples = children.map(_.asInstanceOf[TTuple])
-            TTuple(tt._types.map { fd => fd -> subTuples.flatMap(child => child.fieldIndex.get(fd.index).map(child.types)) }
-              .filter(_._2.nonEmpty)
-              .map { case (fd, fdChildren) => TupleField(fd.index, unifySeq(fd.typ, fdChildren)) })
-          case ta: TArray =>
-            TArray(unifySeq(ta.elementType, children.map(_.asInstanceOf[TArray].elementType)))
-          case ts: TStream =>
-            TStream(unifySeq(ts.elementType, children.map(_.asInstanceOf[TStream].elementType)))
-          case _ =>
-            if (!children.forall(_.asInstanceOf[Type] == t)) {
-              val badChildren = children.filter(c => c.asInstanceOf[Type] != t)
-                .map(c => "\n  child: " + c.asInstanceOf[Type].parsableString())
-              throw new RuntimeException(s"invalid unification:\n  base:  ${ t.parsableString() }${ badChildren.mkString("\n") }")
-            }
-            base
-        }
+    try {
+      if (children.isEmpty)
+        return minimalBT(base)
+      base match {
+        case tt: TableType =>
+          val ttChildren = children.map(_.asInstanceOf[TableType])
+          tt.copy(
+            key = unifyKey(ttChildren.map(_.key)),
+            rowType = unify(tt.rowType, ttChildren.map(_.rowType): _*),
+            globalType = unify(tt.globalType, ttChildren.map(_.globalType): _*)
+          )
+        case mt: MatrixType =>
+          val mtChildren = children.map(_.asInstanceOf[MatrixType])
+          mt.copy(
+            rowKey = unifyKey(mtChildren.map(_.rowKey)),
+            colKey = unifyKey(mtChildren.map(_.colKey)),
+            globalType = unifySeq(mt.globalType, mtChildren.map(_.globalType)),
+            rowType = unifySeq(mt.rowType, mtChildren.map(_.rowType)),
+            entryType = unifySeq(mt.entryType, mtChildren.map(_.entryType)),
+            colType = unifySeq(mt.colType, mtChildren.map(_.colType))
+          )
+        case t: Type =>
+          if (children.isEmpty)
+            return minimal(t)
+          t match {
+            case ts: TStruct =>
+              val subStructs = children.map(_.asInstanceOf[TStruct])
+              val subFields = ts.fields.map { f =>
+                f -> subStructs.flatMap(s => s.fieldOption(f.name))
+              }
+                .filter(_._2.nonEmpty)
+                .map { case (f, ss) => f.name -> unifySeq(f.typ, ss.map(_.typ)) }
+              TStruct(subFields: _*)
+            case tt: TTuple =>
+              val subTuples = children.map(_.asInstanceOf[TTuple])
+              TTuple(tt._types.map { fd => fd -> subTuples.flatMap(child => child.fieldIndex.get(fd.index).map(child.types)) }
+                .filter(_._2.nonEmpty)
+                .map { case (fd, fdChildren) => TupleField(fd.index, unifySeq(fd.typ, fdChildren)) })
+            case ta: TArray =>
+              TArray(unifySeq(ta.elementType, children.map(_.asInstanceOf[TArray].elementType)))
+            case ts: TStream =>
+              TStream(unifySeq(ts.elementType, children.map(_.asInstanceOf[TStream].elementType)))
+            case _ =>
+              if (!children.forall(_.asInstanceOf[Type] == t)) {
+                val badChildren = children.filter(c => c.asInstanceOf[Type] != t)
+                  .map(c => "\n  child: " + c.asInstanceOf[Type].parsableString())
+                throw new RuntimeException(s"invalid unification:\n  base:  ${ t.parsableString() }${ badChildren.mkString("\n") }")
+              }
+              base
+          }
+      }
+    } catch {
+      case e: RuntimeException =>
+        throw new RuntimeException(s"failed to unify children while unifying:\n  base:  ${ base }\n${ children.mkString("\n") }", e)
     }
   }
 
