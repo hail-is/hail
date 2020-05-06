@@ -51,6 +51,11 @@ class RowIntervalSuite extends HailSuite {
     assertContains(Interval(Row(0, 1), Row(0, 1, 4), true, true), Row(0, 1, 4))
     assertContains(Interval(Row(0, 1), Row(0, 1, 4), true, false), Row(0, 1, 4), shouldContain = false)
 
+    assertContains(Interval(Row(), Row(1, 2, 4), true, true), Row(1, 2, 4))
+    assertContains(Interval(Row(), Row(1, 2, 4), true, false), Row(1, 2, 4), shouldContain = false)
+    assertContains(Interval(Row(1, 2, 4), Row(), true, true), Row(1, 2, 4))
+    assertContains(Interval(Row(1, 2, 4), Row(), false, true), Row(1, 2, 4), shouldContain = false)
+
     assert(Interval(Row(0, 1, 5, 7), Row(2, 1, 4, 5), true, false).contains(pord, Row(0, 1, 6)))
     assert(!Interval(Row(0, 1, 5, 7), Row(2, 1, 4, 5), true, false).contains(pord, Row(0, 1, 5)))
     assert(!Interval(Row(0, 1, 5, 7), Row(2, 1, 4, 5), false, false).contains(pord, Row(0, 1, 5)))

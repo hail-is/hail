@@ -156,7 +156,7 @@ object IntervalFunctions extends RegistryFunctions {
       tv("T"), TBoolean) {
       case (_, interval, point) =>
 
-        def compareStructs(left: IR, right: IR, truncatedValue: Int): IR = {
+        def compareStructs(left: IR, right: IR): IR = {
           bindIRs(left, right) { case Seq(lTuple, r) =>
             bindIRs(GetTupleElement(lTuple, 0), GetTupleElement(lTuple, 1)) {
               case Seq(lValue, lLen) =>
@@ -165,7 +165,7 @@ object IntervalFunctions extends RegistryFunctions {
                 ts.fields.foldRight[IR](I32(0)) { case (f, acc) =>
                   If(
                     lLen ceq f.index,
-                    truncatedValue,
+                    0,
                     bindIR(ApplyComparisonOp(Compare(f.typ), GetField(lValue, f.name), GetField(r, f.name))) { c =>
                       If(c.cne(0), c, acc)
                     })
@@ -177,16 +177,12 @@ object IntervalFunctions extends RegistryFunctions {
         bindIRs(point, GetField(interval, "left"), GetField(interval, "right")) { case Seq(point, l, r) =>
 
 
-          val gtEqLeft = bindIR(compareStructs(l, point, 0)) { lc =>
-            If(lc > 0,
-              False(),
-              (lc < 0) || GetField(interval, "includesLeft"))
+          val gtEqLeft = bindIR(compareStructs(l, point)) { lc =>
+            (lc <= 0) && ((lc < 0) || GetField(interval, "includesLeft"))
           }
 
-          val ltEqRight = bindIR(compareStructs(r, point, 0)) { rc =>
-            If(rc < 0,
-              False(),
-              (rc > 0) || GetField(interval, "includesRight"))
+          val ltEqRight = bindIR(compareStructs(r, point)) { rc =>
+            (rc >= 0) && ((rc > 0) || GetField(interval, "includesRight"))
           }
           gtEqLeft && ltEqRight
         }
