@@ -36,27 +36,35 @@ object IRSuite {
 
   object TestFunctions extends RegistryFunctions {
 
-    def registerSeededWithMissingness(mname: String, aTypes: Array[Type], rType: Type, pt: (Type, Seq[PType]) => PType)(impl: (EmitRegion, PType, Long, Array[EmitCode]) => EmitCode) {
-      IRFunctionRegistry.addIRFunction(new SeededIRFunction {
-        val isDeterministic: Boolean = false
-
-        override val name: String = mname
-
-        override val argTypes: Seq[Type] = aTypes
-
-        override val returnType: Type = rType
-
-        override def returnPType(argTypes: Seq[PType], returnType: Type): PType = if (pt == null) PType.canonical(returnType) else pt(returnType, argTypes)
-
-        def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: EmitCode*): EmitCode = {
-          assert(unify(FastSeq(), args.map(_.pt.virtualType), rpt.virtualType))
-          impl(r, rpt, seed, args.toArray)
+    def registerSeededWithMissingness(
+      name: String,
+      valueParameterTypes: Array[Type],
+      returnType: Type,
+      calculateReturnType: (Type, Seq[PType]) => PType
+    )(
+      impl: (EmitRegion, PType, Long, Array[EmitCode]) => EmitCode
+    ) {
+      IRFunctionRegistry.addJVMFunction(
+        new SeededMissingnessAwareJVMFunction(name, valueParameterTypes, returnType, calculateReturnType) {
+          val isDeterministic: Boolean = false
+          def applySeeded(seed: Long, r: EmitRegion, returnPType: PType, args: EmitCode*): EmitCode = {
+            assert(unify(FastSeq(), args.map(_.pt.virtualType), returnPType.virtualType))
+            impl(r, returnPType, seed, args.toArray)
+          }
         }
-      })
+      )
     }
 
-    def registerSeededWithMissingness(mname: String, mt1: Type, rType: Type, pt: (Type, PType) => PType)(impl: (EmitRegion, PType, Long, EmitCode) => EmitCode): Unit =
-      registerSeededWithMissingness(mname, Array(mt1), rType, unwrappedApply(pt)) { case (r, rt, seed, Array(a1)) => impl(r, rt, seed, a1) }
+    def registerSeededWithMissingness(
+      name: String,
+      valueParameterType: Type,
+      returnType: Type,
+      calculateReturnType: (Type, PType) => PType
+    )(
+      impl: (EmitRegion, PType, Long, EmitCode) => EmitCode
+    ): Unit =
+      registerSeededWithMissingness(name, Array(valueParameterType), returnType, unwrappedApply(calculateReturnType)) {
+        case (r, rt, seed, Array(a1)) => impl(r, rt, seed, a1) }
 
     def registerAll() {
       registerSeededWithMissingness("incr_s", TBoolean, TBoolean, null) { case (mb, rt,  _, l) =>

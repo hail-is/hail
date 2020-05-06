@@ -35,17 +35,17 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
         rgCode(r.mb, typeArg.rg).invoke[String, Int]("contigLength", scontig)
     }
 
-    registerIR("getReferenceSequence", Array(TString, TInt32, TInt32, TInt32), TString, typeParams = Array(LocusFunctions.tlocus("R"))) {
+    registerIR("getReferenceSequence", Array(TString, TInt32, TInt32, TInt32), TString, typeParameters = Array(LocusFunctions.tlocus("R"))) {
       case (tl, Seq(contig, pos, before, after)) =>
         val getRef = IRFunctionRegistry.lookupConversion(
           name = "getReferenceSequenceFromValidLocus",
-          rt = TString,
-          typeParams = tl,
-          args = Seq(TString, TInt32, TInt32, TInt32)).get
+          returnType = TString,
+          typeParameters = tl,
+          arguments = Seq(TString, TInt32, TInt32, TInt32)).get
         val isValid = IRFunctionRegistry.lookupConversion(
           "isValidLocus",
           TBoolean,
-          typeParams = tl,
+          typeParameters = tl,
           Seq(TString, TInt32)).get
 
         val r = isValid(tl, Seq(contig, pos))
