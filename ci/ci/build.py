@@ -648,7 +648,7 @@ date
 set -x
 date
 
-until kubectl delete namespace {self._name}
+until kubectl delete namespace --ignore-not-found=true {self._name}
 do
     echo 'failed, will sleep 2 and retry'
     sleep 2
@@ -927,9 +927,9 @@ set -ex
 commands=$(mktemp)
 
 cat >$commands <<EOF
-DROP DATABASE \\`{self._name}\\`;
-DROP USER '{self.admin_username}';
-DROP USER '{self.user_username}';
+DROP DATABASE IF EXISTS \\`{self._name}\\`;
+DROP USER IF EXISTS '{self.admin_username}';
+DROP USER IF EXISTS '{self.user_username}';
 EOF
 
 until mysql --defaults-extra-file=/sql-config/sql-config.cnf <$commands
