@@ -25,8 +25,8 @@ final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: Buffer
   }
 
   def buildEncoder(ctx: ExecuteContext, t: PType): (OutputStream) => Encoder = {
-    val f = EType.buildEncoder(ctx, encodedType, t)
-    out: OutputStream => new CompiledEncoder(_bufferSpec.buildOutputBuffer(out), f)
+    val bufferToEncoder = encodedType.buildEncoder(ctx, t)
+    out: OutputStream => bufferToEncoder(_bufferSpec.buildOutputBuffer(out))
   }
 
   def decodedPType(requestedType: Type): PType = {
@@ -34,8 +34,8 @@ final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: Buffer
   }
 
   def buildDecoder(ctx: ExecuteContext, requestedType: Type): (PType, (InputStream) => Decoder) = {
-    val (rt, f) = EType.buildDecoder(ctx, encodedType, requestedType)
-    (rt, (in: InputStream) => new CompiledDecoder(_bufferSpec.buildInputBuffer(in), f))
+    val (rt, bufferToDecoder) = encodedType.buildDecoder(ctx, requestedType)
+    (rt, (in: InputStream) => bufferToDecoder(_bufferSpec.buildInputBuffer(in)))
   }
 
   def buildStructDecoder(ctx: ExecuteContext, requestedType: TStruct): (PStruct, (InputStream) => Decoder) = {
@@ -52,6 +52,9 @@ final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: Buffer
     val mb = encodedType.buildDecoderMethod(rt, cb)
     (rt, (region: Value[Region], buf: Value[InputBuffer]) => mb.invokeCode[T](region, buf))
   }
+
+  def buildEmitDecoderF[T](cb: EmitClassBuilder[_]): (PType, StagedDecoderF[T]) =
+    buildEmitDecoderF(_vType, cb)
 
   def buildEmitEncoderF[T](t: PType, cb: EmitClassBuilder[_]): StagedEncoderF[T] = {
     val mb = encodedType.buildEncoderMethod(t, cb)

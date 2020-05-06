@@ -407,9 +407,8 @@ sealed abstract class AbstractApplyNode[F <: IRFunction] extends IR {
   def returnType: Type
   def typeArgs: Seq[Type]
   def argTypes: Seq[Type] = args.map(_.typ)
-  lazy val implementation: F = IRFunctionRegistry.lookupFunction(function, returnType, typeArgs, argTypes)
-    .getOrElse(throw new RuntimeException(s"no function match for $function: ${ argTypes.map(_.parsableString()).mkString(", ") }"))
-      .asInstanceOf[F]
+  lazy val implementation: F = IRFunctionRegistry.lookupFunctionOrFail(function, returnType, typeArgs, argTypes)
+    .asInstanceOf[F]
 }
 
 final case class Apply(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[IRFunctionWithoutMissingness]

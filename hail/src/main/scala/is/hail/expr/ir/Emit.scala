@@ -611,7 +611,7 @@ class Emit[C](
       this.emitVoid(cb, ir: IR, mb, region, env, container, loopEnv)
 
     def emitFallback(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
-      this.emit(ir, mb, region, env, container, loopEnv).toI(cb)
+      this.emit(ir, mb, region, env, container, loopEnv, fallingBackFromEmitI = true).toI(cb)
 
     val pt = ir.pType
 
@@ -766,6 +766,12 @@ class Emit[C](
           }
         }
 
+      case Begin(xs) =>
+        assert(xs.length != 0)
+        xs.init.foreach(emitVoid(_))
+        assert(xs.last.pType != TVoid)
+        emitI(xs.last)
+
       case _ =>
         emitFallback(ir)
     }
@@ -810,7 +816,15 @@ class Emit[C](
   private[ir] def emitWithRegion(ir: IR, mb: EmitMethodBuilder[C], region: Value[Region], env: E, container: Option[AggContainer]): EmitCode =
     emit(ir, mb, region, env, container, None)
 
-  private def emit(ir: IR, mb: EmitMethodBuilder[C], region: Value[Region], env: E, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): EmitCode = {
+  private def emit(
+    ir: IR,
+    mb: EmitMethodBuilder[C],
+    region: Value[Region],
+    env: E,
+    container: Option[AggContainer],
+    loopEnv: Option[Env[LoopRef]],
+    fallingBackFromEmitI: Boolean = false
+  ): EmitCode = {
 
     def emit(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
       this.emit(ir, mb, region, env, container, loopEnv)
@@ -1891,9 +1905,9 @@ class Emit[C](
             Array[ParamType](typeInfo[Region], ctxType, gType),
             typeInfo[Long])
 
-          val (cRetPtype, cDec) = x.contextSpec.buildEmitDecoderF[Long](x.contextPTuple.virtualType, bodyFB.ecb)
+          val (cRetPtype, cDec) = x.contextSpec.buildEmitDecoderF[Long](bodyFB.ecb)
           assert(cRetPtype == x.decodedContextPTuple)
-          val (gRetPtype, gDec) = x.globalSpec.buildEmitDecoderF[Long](x.globalPTuple.virtualType, bodyFB.ecb)
+          val (gRetPtype, gDec) = x.globalSpec.buildEmitDecoderF[Long](bodyFB.ecb)
           assert(gRetPtype == x.decodedGlobalPTuple)
           val bEnc = x.bodySpec.buildEmitEncoderF[Long](x.bodyPTuple, bodyFB.ecb)
           val bOB = bodyFB.genFieldThisRef[OutputBuffer]()
@@ -1949,7 +1963,7 @@ class Emit[C](
 
         val cEnc = x.contextSpec.buildEmitEncoderF[Long](x.contextPTuple, parentCB)
         val gEnc = x.globalSpec.buildEmitEncoderF[Long](x.globalPTuple, parentCB)
-        val (bRetPType, bDec) = x.bodySpec.buildEmitDecoderF[Long](x.bodyPTuple.virtualType, parentCB)
+        val (bRetPType, bDec) = x.bodySpec.buildEmitDecoderF[Long](parentCB)
         assert(bRetPType == x.decodedBodyPTuple)
 
         val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
@@ -2096,7 +2110,11 @@ class Emit[C](
               ))
           ), m,
           PCode(x.pType, coerce[PString](x.pType).allocateAndStoreString(mb, region, pv)))
-        case _ => EmitCode.fromI(mb) { cb =>
+      case x =>
+        if (fallingBackFromEmitI) {
+          fatal(s"ir is not defined in emit or emitI $x")
+        }
+        EmitCode.fromI(mb) { cb =>
           emitI(ir, cb)
         }
     }

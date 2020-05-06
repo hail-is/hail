@@ -44,15 +44,15 @@ class PartitionIteratorLongReader(
       val it = mb.newLocal[Iterator[java.lang.Long]]("pilr_it")
 
       SizedStream.unsized(Stream.unfold[Code[Long]](
-        Code._empty,
-        it := mb.getObject(body(requestedType))
-          .invoke[java.lang.Object, java.lang.Object, Iterator[java.lang.Long]]("apply",
-            region,
-            Code.invokeScalaObject3[PType, Region, Long, java.lang.Object](UnsafeRow.getClass, "read",
-              mb.getPType(contextPC.pt), region, contextPC.tcode[Long])),
         (_, k) => k(COption(
           !it.get.hasNext,
-          Code.longValue(it.get.next()))))
+          Code.longValue(it.get.next()))),
+        setup = Some(
+          it := mb.getObject(body(requestedType))
+            .invoke[java.lang.Object, java.lang.Object, Iterator[java.lang.Long]]("apply",
+              region,
+              Code.invokeScalaObject3[PType, Region, Long, java.lang.Object](UnsafeRow.getClass, "read",
+                mb.getPType(contextPC.pt), region, contextPC.tcode[Long]))))
       .map(rv => EmitCode.present(eltPType, Region.loadIRIntermediate(eltPType)(rv))))
     }
   }
