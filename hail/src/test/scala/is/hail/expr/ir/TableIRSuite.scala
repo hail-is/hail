@@ -401,7 +401,6 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableHead(): Unit = {
-    implicit val execStrats = ExecStrategy.lowering
     val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
     def makeData(length: Int): Row = {
       Row(FastIndexedSeq(0 until length: _*).map(i => Row(i, "row" + i)), Row("global"))
