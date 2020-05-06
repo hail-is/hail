@@ -132,6 +132,10 @@ trait CodeBuilderLike {
   def _throw[T <: java.lang.Throwable](cerr: Code[T]): Unit = {
     append(Code._throw[T, Unit](cerr))
   }
+
+  def _return[T](retval: Code[T]): Unit = {
+    append(Code._return(retval))
+  }
 }
 
 class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
