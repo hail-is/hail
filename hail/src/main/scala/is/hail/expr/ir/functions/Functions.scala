@@ -140,11 +140,11 @@ object IRFunctionRegistry {
       .map { f =>
         { (irValueParametersTypes: Seq[Type], irArguments: Seq[IR]) =>
           f match {
-            case _: SeededMissingObliviousJVMFunction =>
+            case _: SeededJVMFunction =>
               ApplySeeded(name, irArguments.init, irArguments.last.asInstanceOf[I64].x, f.returnType.subst())
-            case _: UnseededMissingObliviousJVMFunction =>
+            case _: UnseededMissingnessObliviousJVMFunction =>
               Apply(name, irValueParametersTypes, irArguments, f.returnType.subst())
-            case _: MissingAwareJVMFunction =>
+            case _: UnseededMissingnessAwareJVMFunction =>
               ApplySpecial(name, irValueParametersTypes, irArguments, f.returnType.subst())
           }
         }
@@ -187,7 +187,7 @@ object IRFunctionRegistry {
     jvmRegistry.foreach { case (name, fns) =>
         fns.foreach { f =>
           println(s"""${
-            if (f.isInstanceOf[SeededMissingObliviousJVMFunction])
+            if (f.isInstanceOf[SeededJVMFunction])
               "register_seeded_function"
             else
               "register_function"
@@ -338,7 +338,7 @@ abstract class RegistryFunctions {
     impl: (EmitRegion, PType, Array[PCode]) => PCode
   ) {
     IRFunctionRegistry.addJVMFunction(
-      new UnseededMissingObliviousJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
+      new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
         override def apply(r: EmitRegion, returnPType: PType, typeParameters: Seq[Type], args: PCode*): PCode =
           impl(r, returnPType, args.toArray)
         override def apply(r: EmitRegion, returnPType: PType, typeParameters: Seq[Type], args: (PType, Code[_])*): Code[_] = {
@@ -359,7 +359,7 @@ abstract class RegistryFunctions {
   ) {
     val _typeParameters = typeParameters
     IRFunctionRegistry.addJVMFunction(
-      new UnseededMissingObliviousJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
+      new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
         override def apply(r: EmitRegion, returnPType: PType, typeParameters: Seq[Type], args: (PType, Code[_])*): Code[_] = {
           assert(unify(typeParameters, args.map(_._1.virtualType), returnPType.virtualType))
           impl(r, returnPType, typeParameters.toArray, args.toArray)
@@ -377,7 +377,7 @@ abstract class RegistryFunctions {
     impl: (EmitRegion,PType, Array[EmitCode]) => EmitCode
   ) {
     IRFunctionRegistry.addJVMFunction(
-      new MissingAwareJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
+      new UnseededMissingnessAwareJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
         override def apply(r: EmitRegion, rpt: PType, typeParameters: Seq[Type], args: EmitCode*): EmitCode = {
           assert(unify(typeParameters, args.map(_.pt.virtualType), rpt.virtualType))
           impl(r, rpt, args.toArray)
@@ -395,7 +395,7 @@ abstract class RegistryFunctions {
     impl: (EmitCodeBuilder, Value[Region], PType, Array[IEmitCode]) => IEmitCode
   ) {
     IRFunctionRegistry.addJVMFunction(
-      new MissingAwareJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
+      new UnseededMissingnessAwareJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
         override def apply(
           cb: EmitCodeBuilder,
           r: Value[Region],
@@ -598,7 +598,7 @@ abstract class RegistryFunctions {
     impl: (EmitRegion, PType, Long, Array[(PType, Code[_])]) => Code[_]
   ) {
     IRFunctionRegistry.addJVMFunction(
-      new SeededMissingObliviousJVMFunction(name, valueParameterTypes, returnType, calculateReturnPType) {
+      new SeededMissingnessObliviousJVMFunction(name, valueParameterTypes, returnType, calculateReturnPType) {
         val isDeterministic: Boolean = false
 
         def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: (PType, Code[_])*): Code[_] = {
@@ -672,24 +672,25 @@ sealed abstract class JVMFunction {
   }
 }
 
-abstract class MissingObliviousJVMFunction (
-  val missingnessObliviousReturnPType: (Type, Seq[PType]) => PType
-) extends JVMFunction {
-  override def returnPType(returnType: Type, valueParameterTypes: Seq[PType]): PType = {
+object MissingnessObliviousJVMFunction {
+  def returnPType(calculateReturnPType: (Type, Seq[PType]) => PType)(returnType: Type, valueParameterTypes: Seq[PType]): PType = {
     val returnPType =
-      if (missingnessObliviousReturnPType == null) PType.canonical(returnType)
-      else missingnessObliviousReturnPType(returnType, valueParameterTypes)
+      if (calculateReturnPType == null) PType.canonical(returnType)
+      else calculateReturnPType(returnType, valueParameterTypes)
     returnPType.setRequired(valueParameterTypes.forall(_.required))
   }
 }
 
-abstract class UnseededMissingObliviousJVMFunction (
+abstract class UnseededMissingnessObliviousJVMFunction (
   override val name: String,
   override val typeParameters: Seq[Type],
   override val valueParameterTypes: Seq[Type],
   override val returnType: Type,
   missingnessObliviousReturnPType: (Type, Seq[PType]) => PType
-) extends MissingObliviousJVMFunction(missingnessObliviousReturnPType) {
+) extends JVMFunction {
+  override def returnPType(returnType: Type, valueParameterTypes: Seq[PType]): PType =
+    MissingnessObliviousJVMFunction.returnPType(missingnessObliviousReturnPType)(returnType, valueParameterTypes)
+
   def apply(r: EmitRegion, returnPType: PType, typeParameters: Seq[Type], args: (PType, Code[_])*): Code[_]
 
   def apply(r: EmitRegion, returnPType: PType, typeParameters: Seq[Type], args: PCode*): PCode =
@@ -718,30 +719,13 @@ abstract class UnseededMissingObliviousJVMFunction (
   }
 }
 
-abstract class SeededMissingObliviousJVMFunction (
-  override val name: String,
-  override val valueParameterTypes: Seq[Type],
-  override val returnType: Type,
-  missingnessObliviousReturnPType: (Type, Seq[PType]) => PType
-) extends MissingObliviousJVMFunction(missingnessObliviousReturnPType) {
-  def typeParameters: Seq[Type] = Seq.empty[Type]
-
-  private[this] var seed: Long = _
-
-  def setSeed(s: Long): Unit = { seed = s }
-
-  def applySeeded(seed: Long, region: EmitRegion, rpt: PType, args: EmitCode*): EmitCode
-
-  def apply(region: EmitRegion, rpt: PType, typeParameters: Seq[Type], args: EmitCode*): EmitCode =
-    applySeeded(seed, region, rpt, args: _*)
-
-  def apply(region: EmitRegion, rpt: PType, args: EmitCode*): EmitCode =
-    applySeeded(seed, region, rpt, args: _*)
-
-  def isStrict: Boolean = false
+object MissingnessAwareJVMFunction {
+  def returnPType(calculateReturnPType: (Type, Seq[PType]) => PType)(returnType: Type, valueParameterTypes: Seq[PType]): PType=
+    if (calculateReturnPType == null) PType.canonical(returnType)
+    else calculateReturnPType(returnType, valueParameterTypes)
 }
 
-abstract class MissingAwareJVMFunction (
+abstract class UnseededMissingnessAwareJVMFunction (
   override val name: String,
   override val typeParameters: Seq[Type],
   override val valueParameterTypes: Seq[Type],
@@ -749,8 +733,7 @@ abstract class MissingAwareJVMFunction (
   missingnessAwareReturnPType: (Type, Seq[PType]) => PType
 ) extends JVMFunction {
   override def returnPType(returnType: Type, valueParameterTypes: Seq[PType]): PType =
-    if (missingnessAwareReturnPType == null) PType.canonical(returnType)
-    else missingnessAwareReturnPType(returnType, valueParameterTypes)
+    MissingnessAwareJVMFunction.returnPType(missingnessAwareReturnPType)(returnType, valueParameterTypes)
 
   def apply(cb: EmitCodeBuilder,
     r: Value[Region],
@@ -762,17 +745,12 @@ abstract class MissingAwareJVMFunction (
   }
 }
 
-abstract class SeededMissingAwareJVMFunction (
+abstract class SeededJVMFunction (
   override val name: String,
   override val valueParameterTypes: Seq[Type],
-  override val returnType: Type,
-  missingnessAwareReturnPType: (Type, Seq[PType]) => PType
+  override val returnType: Type
 ) extends JVMFunction {
   def typeParameters: Seq[Type] = Seq.empty[Type]
-
-  override def returnPType(returnType: Type, valueParameterTypes: Seq[PType]): PType =
-    if (missingnessAwareReturnPType == null) PType.canonical(returnType)
-    else missingnessAwareReturnPType(returnType, valueParameterTypes)
 
   private[this] var seed: Long = _
 
@@ -787,4 +765,24 @@ abstract class SeededMissingAwareJVMFunction (
     applySeeded(seed, region, rpt, args: _*)
 
   def isStrict: Boolean = false
+}
+
+abstract class SeededMissingnessObliviousJVMFunction (
+  override val name: String,
+  override val valueParameterTypes: Seq[Type],
+  override val returnType: Type,
+  missingnessObliviousReturnPType: (Type, Seq[PType]) => PType
+) extends SeededJVMFunction(name, valueParameterTypes, returnType) {
+  override def returnPType(returnType: Type, valueParameterTypes: Seq[PType]): PType =
+    MissingnessObliviousJVMFunction.returnPType(missingnessObliviousReturnPType)(returnType, valueParameterTypes)
+}
+
+abstract class SeededMissingnessAwareJVMFunction (
+  override val name: String,
+  override val valueParameterTypes: Seq[Type],
+  override val returnType: Type,
+  missingnessAwareReturnPType: (Type, Seq[PType]) => PType
+) extends SeededJVMFunction(name, valueParameterTypes, returnType) {
+  override def returnPType(returnType: Type, valueParameterTypes: Seq[PType]): PType =
+    MissingnessAwareJVMFunction.returnPType(missingnessAwareReturnPType)(returnType, valueParameterTypes)
 }

@@ -411,13 +411,13 @@ sealed abstract class AbstractApplyNode[F <: JVMFunction] extends IR {
       .asInstanceOf[F]
 }
 
-final case class Apply(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[UnseededMissingObliviousJVMFunction]
+final case class Apply(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[UnseededMissingnessObliviousJVMFunction]
 
-final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, returnType: Type) extends AbstractApplyNode[SeededMissingObliviousJVMFunction] {
+final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, returnType: Type) extends AbstractApplyNode[SeededJVMFunction] {
   val typeArgs: Seq[Type] = Seq.empty[Type]
 }
 
-final case class ApplySpecial(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[MissingAwareJVMFunction]
+final case class ApplySpecial(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[SeededMissingnessAwareJVMFunction]
 
 final case class LiftMeOut(child: IR) extends IR
 final case class TableCount(child: TableIR) extends IR
