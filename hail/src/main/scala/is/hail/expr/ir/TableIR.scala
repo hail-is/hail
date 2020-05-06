@@ -179,8 +179,6 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends Partition
       val pathString = path.asString.loadString()
       val xRowBuf = mb.newLocal[InputBuffer]()
       val stream = Stream.unfold[Code[Long]](
-        Code._empty,
-        Code._empty,
         (_, k) =>
           k(COption(
             !xRowBuf.load().readByte().toZ,
