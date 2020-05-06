@@ -417,7 +417,7 @@ final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, return
   val typeArgs: Seq[Type] = Seq.empty[Type]
 }
 
-final case class ApplySpecial(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[SeededMissingnessAwareJVMFunction]
+final case class ApplySpecial(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[UnseededMissingnessAwareJVMFunction]
 
 final case class LiftMeOut(child: IR) extends IR
 final case class TableCount(child: TableIR) extends IR
