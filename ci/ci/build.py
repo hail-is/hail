@@ -359,7 +359,7 @@ date
 gcloud -q auth activate-service-account \
   --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
 
-until gcloud -q container images untag {shq(self.image)}
+until {{ gcloud -q container images untag {shq(self.image)} || ! gcloud -q container images describe {shq(self.image)} }}
 do
     echo 'failed, will sleep 2 and retry'
     sleep 2
