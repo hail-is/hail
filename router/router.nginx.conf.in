@@ -197,7 +197,11 @@ server {
 
     location /rg_browser {
         proxy_pass http://ukbb-rg-browser.ukbb-rg;
-        include /etc/nginx/proxy.conf;
+        proxy_set_header Host              $http_host;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host  $updated_host;
+        proxy_set_header X-Forwarded-Proto $updated_scheme;
+        proxy_set_header X-Real-IP         $http_x_real_ip;
 
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -208,10 +212,15 @@ server {
 
     location / {
         proxy_pass http://ukbb-rg-static.ukbb-rg;
+        proxy_set_header Host              $http_host;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host  $updated_host;
+        proxy_set_header X-Forwarded-Proto $updated_scheme;
+        proxy_set_header X-Real-IP         $http_x_real_ip;
     }
 
-    listen 80;
-    listen [::]:80;
+    listen 443 ssl;
+    listen [::]:443 ssl;
 }
 
 server {
@@ -231,7 +240,11 @@ server {
 
     location / {
         proxy_pass http://query/;
-        include /etc/nginx/proxy.conf;
+        proxy_set_header Host              $http_host;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host  $updated_host;
+        proxy_set_header X-Forwarded-Proto $updated_scheme;
+        proxy_set_header X-Real-IP         $http_x_real_ip;
     }
 
     listen 80;
