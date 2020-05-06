@@ -9,7 +9,7 @@ import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.Type
 import is.hail.expr.types.{BaseType, Requiredness}
-import is.hail.io.{InputBuffer, OutputBuffer}
+import is.hail.io._
 import is.hail.utils._
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
@@ -26,6 +26,16 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   type StagedEncoder = (Code[_], Code[OutputBuffer]) => Code[Unit]
   type StagedDecoder[T] = (Code[Region], Code[InputBuffer]) => Code[T]
   type StagedInplaceDecoder = (Code[Region], Code[Long], Code[InputBuffer]) => Code[Unit]
+
+  final def buildEncoder(ctx: ExecuteContext, t: PType): (OutputBuffer) => Encoder = {
+    val f = EType.buildEncoder(ctx, this, t)
+    out: OutputBuffer => new CompiledEncoder(out, f)
+  }
+
+  final def buildDecoder(ctx: ExecuteContext, requestedType: Type): (PType, (InputBuffer) => Decoder) = {
+    val (rt, f) = EType.buildDecoder(ctx, this, requestedType)
+    (rt, (in: InputBuffer) => new CompiledDecoder(in, f))
+  }
 
   final def buildEncoder(pt: PType, cb: EmitClassBuilder[_]): StagedEncoder = {
     buildEncoderMethod(pt, cb).invokeCode(_, _)
