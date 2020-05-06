@@ -124,8 +124,14 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   def newEmitMethod(name: String, argsInfo: IndexedSeq[MaybeGenericTypeInfo[_]], returnInfo: MaybeGenericTypeInfo[_]): EmitMethodBuilder[C] =
     ecb.newEmitMethod(name, argsInfo, returnInfo)
 
+  def newStaticEmitMethod(name: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
+    ecb.newStaticEmitMethod(name, argsInfo, returnInfo)
+
   def genEmitMethod(baseName: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
     ecb.genEmitMethod(baseName, argsInfo, returnInfo)
+
+  def genStaticEmitMethod(baseName: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
+    ecb.genStaticEmitMethod(baseName, argsInfo, returnInfo)
 
   def getCodeOrdering(
     t1: PType, t2: PType, sortOrder: SortOrder, op: CodeOrdering.Op, ignoreMissingness: Boolean
@@ -557,7 +563,7 @@ class EmitClassBuilder[C](
     }
   }
 
-  def newEmitMethod(name: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] = {
+  private def getCodeArgsInfo(argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): (IndexedSeq[TypeInfo[_]], TypeInfo[_]) = {
     val codeArgsInfo = argsInfo.flatMap {
       case CodeParamType(ti) => FastIndexedSeq(ti)
       case EmitParamType(pt) => EmitCode.codeTupleTypes(pt)
@@ -574,6 +580,12 @@ class EmitClassBuilder[C](
         }
     }
 
+    (codeArgsInfo, codeReturnInfo)
+  }
+
+  def newEmitMethod(name: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] = {
+    val (codeArgsInfo, codeReturnInfo) = getCodeArgsInfo(argsInfo, returnInfo)
+
     new EmitMethodBuilder[C](
       argsInfo, returnInfo,
       this,
@@ -585,6 +597,15 @@ class EmitClassBuilder[C](
       argsInfo.map(ai => CodeParamType(ai.base)), CodeParamType(returnInfo.base),
       this,
       cb.newMethod(name, argsInfo, returnInfo))
+  }
+
+  def newStaticEmitMethod(name: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] = {
+    val (codeArgsInfo, codeReturnInfo) = getCodeArgsInfo(argsInfo, returnInfo)
+
+    new EmitMethodBuilder[C](
+      argsInfo, returnInfo,
+      this,
+      cb.newStaticMethod(name, codeArgsInfo, codeReturnInfo))
   }
 
   def genDependentFunction[F](baseName: String,
@@ -750,6 +771,9 @@ class EmitClassBuilder[C](
   def genEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, A5: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
     genEmitMethod(baseName, FastIndexedSeq[ParamType](typeInfo[A1], typeInfo[A2], typeInfo[A3], typeInfo[A4], typeInfo[A5]), typeInfo[R])
 
+  def genStaticEmitMethod(baseName: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
+    newStaticEmitMethod(genName("sm", baseName), argsInfo, returnInfo)
+
   def wrapInEmitMethod[R: TypeInfo](
     baseName: String,
     body: (EmitMethodBuilder[_]) => Code[R]): Code[R] = {
@@ -890,7 +914,7 @@ class EmitMethodBuilder[C](
   // EmitMethodBuilder methods
 
   // this, ...
-  private val emitParamCodeIndex = emitParamTypes.scanLeft(1) {
+  private val emitParamCodeIndex = emitParamTypes.scanLeft((!mb.isStatic).toInt) {
     case (i, CodeParamType(_)) =>
       i + 1
     case (i, EmitParamType(pt)) =>
@@ -898,21 +922,23 @@ class EmitMethodBuilder[C](
   }
 
   def getCodeParam[T: TypeInfo](emitIndex: Int): Settable[T] = {
-    if (emitIndex == 0)
+    if (emitIndex == 0 && !mb.isStatic)
       mb.getArg[T](0)
     else {
-      assert(emitParamTypes(emitIndex - 1).isInstanceOf[CodeParamType])
-      mb.getArg[T](emitParamCodeIndex(emitIndex - 1))
+      val static = (!mb.isStatic).toInt
+      assert(emitParamTypes(emitIndex - static).isInstanceOf[CodeParamType])
+      mb.getArg[T](emitParamCodeIndex(emitIndex - static))
     }
   }
 
   def getEmitParam(emitIndex: Int): EmitValue = {
-    assert(emitIndex != 0)
-    val _pt = emitParamTypes(emitIndex - 1).asInstanceOf[EmitParamType].pt
+    assert(mb.isStatic || emitIndex != 0)
+    val static = (!mb.isStatic).toInt
+    val _pt = emitParamTypes(emitIndex - static).asInstanceOf[EmitParamType].pt
     assert(!_pt.isInstanceOf[PStream])
 
     val ts = _pt.codeTupleTypes()
-    val codeIndex = emitParamCodeIndex(emitIndex - 1)
+    val codeIndex = emitParamCodeIndex(emitIndex - static)
 
     new EmitValue {
       val pt: PType = _pt
