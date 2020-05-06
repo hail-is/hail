@@ -264,7 +264,7 @@ object LowerTableIR {
         case x@TableAggregateByKey(child, expr) =>
           val loweredChild = lower(child)
 
-          loweredChild.adjustPartitionsTo(loweredChild.partitioner.strictify)
+          loweredChild.adjustPartitionsTo(loweredChild.partitioner.coarsen(child.typ.key.length).strictify)
             .mapPartition { partition =>
               val sUID = genUID()
 
