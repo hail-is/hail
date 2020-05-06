@@ -45,7 +45,7 @@ object IRSuite {
       impl: (EmitRegion, PType, Long, Array[EmitCode]) => EmitCode
     ) {
       IRFunctionRegistry.addJVMFunction(
-        new SeededMissingAwareJVMFunction(name, valueParameterTypes, returnType, calculateReturnType) {
+        new SeededMissingnessAwareJVMFunction(name, valueParameterTypes, returnType, calculateReturnType) {
           val isDeterministic: Boolean = false
           def applySeeded(seed: Long, r: EmitRegion, returnPType: PType, args: EmitCode*): EmitCode = {
             assert(unify(FastSeq(), args.map(_.pt.virtualType), returnPType.virtualType))
