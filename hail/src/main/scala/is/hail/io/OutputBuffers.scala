@@ -49,6 +49,8 @@ trait OutputBuffer extends Closeable {
 }
 
 trait OutputBlockBuffer extends Spec with Closeable {
+  def flush(): Unit
+
   def writeBlock(buf: Array[Byte], len: Int): Unit
 
   def getPos(): Long
@@ -185,6 +187,7 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
 
   def flush() {
     writeBlock()
+    out.flush()
   }
 
   def close() {
@@ -270,6 +273,10 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
 final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer {
   private val lenBuf = new Array[Byte](4)
 
+  def flush() {
+    out.flush()
+  }
+
   def close() {
     out.close()
   }
@@ -285,6 +292,10 @@ final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer
 
 final class LZ4OutputBlockBuffer(lz4: LZ4, blockSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
   private val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
+
+  def flush() {
+    out.flush()
+  }
 
   def close() {
     out.close()
