@@ -1741,3 +1741,19 @@ class GrepTests(unittest.TestCase):
                                                'HG00121_B_B\t966.4\t4822']}
 
         assert hl.grep('HG0012[0-1]', resource('*.tsv'), show=False) == expected
+
+
+def test_matrix_and_table_read_intervals_with_hidden_key():
+    f1 = new_temp_file()
+    f2 = new_temp_file()
+    f3 = new_temp_file()
+
+    mt = hl.utils.range_matrix_table(50, 5, 10)
+    mt = mt.key_rows_by(x=mt.row_idx, y=mt.row_idx + 2)
+    mt.write(f1)
+
+    hl.read_matrix_table(f1).key_rows_by('x').write(f2)
+    hl.read_matrix_table(f1).key_rows_by('x').rows().write(f3)
+
+    hl.read_matrix_table(f2, _intervals=[hl.Interval(0, 3)])._force_count_rows()
+    hl.read_table(f3, _intervals=[hl.Interval(0, 3)])._force_count()
