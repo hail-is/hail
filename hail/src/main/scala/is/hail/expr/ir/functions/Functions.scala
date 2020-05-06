@@ -77,6 +77,24 @@ object IRFunctionRegistry {
     }
   }
 
+  def lookupFunctionOrFail(name: String, rt: Type, typeParams: Seq[Type], argTypes: Seq[Type]): IRFunction = {
+    codeRegistry.lift(name) match {
+      case None =>
+        fatal(s"no functions found with the name ${name}")
+      case Some(functions) =>
+        functions.filter(t => t.unify(typeParams, argTypes, rt)).toSeq match {
+          case Seq() =>
+            val prettyFunctionSignature = s"$name[${ typeParams.mkString(", ") }](${ argTypes.mkString(", ") }): $rt"
+            val prettyMismatchedFunctionSignatures = functions.map(x => s"  $x").mkString("\n")
+            fatal(
+              s"No function found with the signature $prettyFunctionSignature.\n" +
+              s"However, there are other functions with that name:\n$prettyMismatchedFunctionSignatures")
+          case Seq(f) => f
+          case _ => fatal(s"Multiple functions found that satisfy $name(${ argTypes.mkString(", ") }).")
+        }
+    }
+  }
+
   def lookupIR(name: String, rt: Type, typeParams: Seq[Type], argTypes: Seq[Type]): Option[((Seq[Type], Seq[Type], Type, Boolean), (Seq[Type], Seq[IR]) => IR)] = {
     irRegistry.getOrElse(name, Map.empty).filter { case ((typeParamsFound: Seq[Type], argTypesFound: Seq[Type], _, _), _) =>
       typeParamsFound.length == typeParams.length && {
