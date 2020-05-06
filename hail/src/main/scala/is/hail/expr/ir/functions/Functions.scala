@@ -653,7 +653,7 @@ sealed abstract class IRFunction {
 
   def returnPType(argTypes: Seq[PType], returnType: Type): PType
 
-  override def toString: String = s"$name(${ argTypes.mkString(", ") }, ${ argTypes.mkString(", ") }): $returnType"
+  override def toString: String = s"$name[${ typeParams.mkString(", ") }](${ argTypes.mkString(", ") }): $returnType"
 
   def unify(typeParamsIn: Seq[Type], argTypesIn: Seq[Type], returnTypeIn: Type): Boolean = {
     val concrete = (typeParamsIn ++ argTypesIn) :+ returnTypeIn
