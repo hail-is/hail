@@ -468,7 +468,7 @@ class Emit[C](
       this.emitI(ir, cb, region, env, container, loopEnv)
 
     (ir: @unchecked) match {
-      case Void() | Literal(TVoid, ()) =>
+      case Void() =>
         Code._empty
 
       case Begin(xs) =>
