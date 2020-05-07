@@ -117,7 +117,12 @@ object AbstractRVDSpec {
     require(requestedType == requestedTypeLeft ++ requestedTypeRight)
     val requestedKey = specLeft.key.takeWhile(requestedTypeLeft.hasField)
     val partitioner = specLeft.partitioner
-    val tmpPartitioner = partitioner.intersect(newPartitioner.getOrElse(partitioner))
+
+    val extendedNewPartitioner = newPartitioner.map(_.extendKey(partitioner.kType))
+    val tmpPartitioner = extendedNewPartitioner match {
+      case Some(np) => np.intersect(partitioner)
+      case None => partitioner
+    }
 
     val parts = if (specLeft.key.isEmpty)
       specLeft.partFiles
@@ -135,7 +140,7 @@ object AbstractRVDSpec {
       requestedTypeLeft, requestedTypeRight)
     assert(t.virtualType == requestedType)
     val tmprvd = RVD(RVDType(t, requestedKey), tmpPartitioner.coarsen(requestedKey.length), crdd)
-    newPartitioner match {
+    extendedNewPartitioner match {
       case Some(part) if !filterIntervals => tmprvd.repartition(ctx, part.coarsen(requestedKey.length))
       case _ => tmprvd
     }
@@ -339,8 +344,9 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
   ): RVD = {
     newPartitioner match {
       case Some(np) =>
+        val extendedNP = np.extendKey(partitioner.kType)
         val requestedKey = key.takeWhile(requestedType.hasField)
-        val tmpPartitioner = partitioner.intersect(np)
+        val tmpPartitioner = partitioner.intersect(extendedNP)
 
         assert(key.nonEmpty)
         val parts = tmpPartitioner.rangeBounds.map { b => partFiles(partitioner.lowerBoundInterval(b)) }
@@ -352,7 +358,7 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
         if (filterIntervals)
           tmprvd
         else
-          tmprvd.repartition(ctx, np.coarsen(requestedKey.length))
+          tmprvd.repartition(ctx, extendedNP.coarsen(requestedKey.length))
       case None =>
         // indexed reads are costly; don't use an indexed read when possible
         super.read(ctx, path, requestedType, None, filterIntervals)
