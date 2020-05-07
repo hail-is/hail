@@ -348,7 +348,7 @@ object TypeCheck {
       case _: DeserializeAggs =>
       case Begin(xs) =>
         if (xs.length != 0) {
-          xs.dropRight(1).foreach { x =>
+          xs.init.foreach { x =>
             assert(x.typ == TVoid)
           }
         }
