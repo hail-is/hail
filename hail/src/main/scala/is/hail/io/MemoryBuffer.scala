@@ -20,6 +20,18 @@ final class MemoryBuffer extends Serializable {
     pos = 0
   }
 
+  def set(bytes: Array[Byte]): Unit = {
+    mem = bytes
+    pos = 0
+    end = bytes.length
+  }
+
+  def toByteArray(): Array[Byte] = {
+    val dst = new Array[Byte](end)
+    System.arraycopy(mem, 0, dst, 0, end);
+    dst
+  }
+
   def grow(n: Int) {
     mem = util.Arrays.copyOf(mem, math.max(capacity * 2, end + n))
   }
