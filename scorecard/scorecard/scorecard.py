@@ -9,7 +9,7 @@ import random
 import humanize
 import logging
 from hailtop.config import get_deploy_config
-from hailtop.ssl import get_server_ssl_context
+from hailtop.tls import get_server_ssl_context
 from gear import setup_aiohttp_session, web_maybe_authenticated_user, AccessLogger
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 

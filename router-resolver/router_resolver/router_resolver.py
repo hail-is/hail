@@ -6,7 +6,7 @@ import aiohttp_session
 from kubernetes_asyncio import client, config
 import logging
 from hailtop.auth import async_get_userinfo
-from hailtop.ssl import get_server_ssl_context
+from hailtop.tls import get_server_ssl_context
 from gear import configure_logging, setup_aiohttp_session
 
 uvloop.install()

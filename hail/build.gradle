@@ -273,6 +273,7 @@ tasks.withType(ShadowJar) {
     relocate 'org.objectweb', 'is.hail.relocated.org.objectweb'
     relocate 'org.codehaus.jackson', 'is.hail.relocated.org.codehaus.jackson'
     relocate 'org.apache.commons.lang3', 'is.hail.relocated.org.apache.commons.lang3'
+    relocate 'org.apache.commons.io', 'is.hail.relocated.org.apache.commons.io'
     relocate 'org.apache.httpcomponents', 'is.hail.relocated.org.apache.httpcomponents'
     // we should really shade indeed, but it has native libraries
     // relocate 'com.indeed', 'is.hail.relocated.com.indeed'

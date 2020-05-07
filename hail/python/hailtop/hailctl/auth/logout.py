@@ -3,7 +3,7 @@ import aiohttp
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import get_tokens, service_auth_headers
-from hailtop.ssl import ssl_client_session
+from hailtop.tls import ssl_client_session
 
 
 def init_parser(parser):  # pylint: disable=unused-argument

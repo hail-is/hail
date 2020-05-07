@@ -103,6 +103,29 @@ object IRFunctionRegistry {
     }
   }
 
+  def lookupFunctionOrFail(
+    name: String,
+    returnType: Type,
+    typeParameters: Seq[Type],
+    valueParameterTypes: Seq[Type]
+  ): IRFunction = {
+    jvmRegistry.lift(name) match {
+      case None =>
+        fatal(s"no functions found with the name ${name}")
+      case Some(functions) =>
+        functions.filter(t => t.unify(typeParameters, valueParameterTypes, returnType)).toSeq match {
+          case Seq() =>
+            val prettyFunctionSignature = s"$name[${ typeParameters.mkString(", ") }](${ valueParameterTypes.mkString(", ") }): $returnType"
+            val prettyMismatchedFunctionSignatures = functions.map(x => s"  $x").mkString("\n")
+            fatal(
+              s"No function found with the signature $prettyFunctionSignature.\n" +
+              s"However, there are other functions with that name:\n$prettyMismatchedFunctionSignatures")
+          case Seq(f) => f
+          case _ => fatal(s"Multiple functions found that satisfy $name(${ valueParameterTypes.mkString(", ") }).")
+        }
+    }
+  }
+
   def lookupIR(
     name: String,
     returnType: Type,

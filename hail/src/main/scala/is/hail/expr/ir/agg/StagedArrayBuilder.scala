@@ -69,7 +69,7 @@ class StagedArrayBuilder(eltType: PType, cb: EmitClassBuilder[_], region: Value[
   }
 
   def deserialize(codec: BufferSpec): Value[InputBuffer] => Code[Unit] = {
-    val (decType, dec) = TypedCodecSpec(eltArray, codec).buildEmitDecoderF[Long](eltArray.virtualType, cb)
+    val (decType, dec) = TypedCodecSpec(eltArray, codec).buildEmitDecoderF[Long](cb)
     assert(decType == eltArray)
 
     { (ib: Value[InputBuffer]) =>

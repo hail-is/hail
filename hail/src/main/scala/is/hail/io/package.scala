@@ -1,6 +1,7 @@
 package is.hail
 
 import java.io.OutputStreamWriter
+import java.nio.charset._
 
 import is.hail.expr.types.virtual.Type
 import is.hail.utils._
@@ -10,6 +11,8 @@ package object io {
   type VCFFieldAttributes = Map[String, String]
   type VCFAttributes = Map[String, VCFFieldAttributes]
   type VCFMetadata = Map[String, VCFAttributes]
+
+  val utfCharset = Charset.forName("UTF-8")
 
   def exportTypes(filename: String, fs: FS, info: Array[(String, Type)]) {
     val sb = new StringBuilder

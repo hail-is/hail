@@ -7,7 +7,7 @@ import scala.collection.mutable
 object ForwardLets {
   def apply[T <: BaseIR](ir0: T): T = {
     val ir1 = new NormalizeNames(_ => genUID(), allowFreeVariables = true).apply(ir0)
-    val UsesAndDefs(uses, defs) = ComputeUsesAndDefs(ir1, errorIfFreeVariables = false)
+    val UsesAndDefs(uses, defs, _) = ComputeUsesAndDefs(ir1, errorIfFreeVariables = false)
     val nestingDepth = NestingDepth(ir1)
 
     def rewriteTable(tir: TableIR): BaseIR = tir.copy(tir
@@ -45,7 +45,7 @@ object ForwardLets {
 
     def rewrite(ir: IR, env: BindingEnv[IR]): IR = {
 
-      def shouldForward(value: IR, refs: mutable.Set[RefEquality[Ref]], base: IR): Boolean = {
+      def shouldForward(value: IR, refs: mutable.Set[RefEquality[BaseRef]], base: IR): Boolean = {
         value.isInstanceOf[Ref] ||
         value.isInstanceOf[In] ||
           (IsConstant(value) && !value.isInstanceOf[Str]) ||
