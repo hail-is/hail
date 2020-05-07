@@ -1637,7 +1637,7 @@ class Table(ExprContainer):
                     value_uid = Env.get_uid()
                     join_table = join_table.annotate(**{value_uid: right.index(join_table.key)})
 
-                    #  FIXME: TableZipUnchecked would make this faster
+                    #  FIXME: Maybe zip join here?
                     join_table = join_table.group_by(*src.row_key).aggregate(**{uid:
                         hl.dict(hl.agg.collect(hl.tuple([hl.tuple([join_table[f] for f in foreign_key_annotates]),
                                                          join_table[value_uid]])))})
