@@ -135,3 +135,129 @@ abstract class ConsistentEmitCodeOrdering (
   def emitLt(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] = emitCompare(cb, lhs, rhs) < 0
   def emitLtEq(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] = emitCompare(cb, lhs, rhs) <= 0
 }
+
+class ContainerEmitCodeOrdering(
+  emodb: EmitModuleBuilder,
+  override val ptLhs: PContainer,
+  override val ptRhs: PContainer
+) extends EmitCodeOrdering(emodb, ptLhs, ptRhs) {
+  val elementOrdering = emodb.getCodeOrdering2(ptLhs.elementType, ptRhs.elementType)
+
+  private[this] def setup(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): (PIndexableValue, PIndexableValue) = {
+    val lhsv = lhs.asIndexable.memoize(cb, "container_ord_lhs")
+    val rhsv = rhs.asIndexable.memoize(cb, "container_ord_rhs")
+    lhsv -> rhsv
+  }
+
+  def loop(cb: EmitCodeBuilder, lhs: PIndexableValue, rhs: PIndexableValue)(
+    f: (EmitCode, EmitCode) => Unit
+  ): Unit = {
+    val i = cb.newLocal[Int]("i", 0)
+    val lim = lhs.loadLength().min(rhs.loadLength())
+    cb.whileLoop(i < lim, {
+      val left = EmitCode.fromI(cb.emb)(lhs.loadElement(_, i))
+      val right = EmitCode.fromI(cb.emb)(rhs.loadElement(_, i))
+      f(left, right)
+      cb.assign(i, i + 1)
+    })
+  }
+
+  def emitCompare(cb: EmitCodeBuilder, lhsc: PCode, rhsc: PCode): Code[Int] = {
+    val (lhs, rhs) = setup(cb, lhsc, rhsc)
+
+    val cmp = cb.newLocal[Int]("cmp", 0)
+
+    loop(cb, lhs, rhs) { (lhs, rhs) =>
+      cb.assign(cmp, elementOrdering.compare(cb, lhs, rhs))
+      cb.ifx(cmp.cne(0), cb._return(cmp))
+    }
+
+    cmp.ceq(0).mux(
+      Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", lhs.loadLength(), rhs.loadLength()),
+      cmp)
+  }
+
+  def emitEq(cb: EmitCodeBuilder, lhsc: PCode, rhsc: PCode): Code[Boolean] = {
+    val (lhs, rhs) = setup(cb, lhsc, rhsc)
+
+    cb.ifx(lhs.loadLength().cne(lhs.loadLength()), {
+      cb._return(false)
+    })
+
+    val equiv = cb.newLocal[Boolean]("eq", true)
+    loop(cb, lhs, rhs) { (lhs, rhs) =>
+      cb.assign(equiv, elementOrdering.equiv(cb, lhs, rhs))
+      cb.ifx(!equiv, cb._return(equiv))
+    }
+
+    equiv
+  }
+
+  def emitGt(cb: EmitCodeBuilder, lhsc: PCode, rhsc: PCode): Code[Boolean] = {
+    val (lhs, rhs) = setup(cb, lhsc, rhsc)
+    val gt = cb.newLocal("gt", false)
+    val eq = cb.newLocal("eq", true)
+
+    loop(cb, lhs, rhs) { (lhsEC, rhsEC) =>
+      val lhs = cb.memoize(lhsEC, "lhs_item")
+      val rhs = cb.memoize(rhsEC, "rhs_item")
+      cb.assign(gt, elementOrdering.gt(cb, lhs, rhs))
+      cb.assign(eq, !gt && elementOrdering.equiv(cb, lhs, rhs))
+
+      cb.ifx(!eq, cb._return(gt))
+    }
+
+    gt || (eq && lhs.loadLength() > rhs.loadLength())
+  }
+
+  def emitGtEq(cb: EmitCodeBuilder, lhsc: PCode, rhsc: PCode): Code[Boolean] = {
+    val (lhs, rhs) = setup(cb, lhsc, rhsc)
+    val gteq = cb.newLocal("gteq", true)
+    val eq = cb.newLocal("eq", true)
+
+    loop(cb, lhs, rhs) { (lhsEC, rhsEC) =>
+      val lhs = cb.memoize(lhsEC, "lhs_item")
+      val rhs = cb.memoize(rhsEC, "rhs_item")
+      cb.assign(gteq, elementOrdering.gteq(cb, lhs, rhs))
+      cb.assign(eq, elementOrdering.equiv(cb, lhs, rhs))
+
+      cb.ifx(!eq, cb._return(gteq))
+    }
+
+    gteq && (!eq || lhs.loadLength() >= rhs.loadLength)
+  }
+
+  def emitLt(cb: EmitCodeBuilder, lhsc: PCode, rhsc: PCode): Code[Boolean] = {
+    val (lhs, rhs) = setup(cb, lhsc, rhsc)
+    val lt = cb.newLocal("lt", false)
+    val eq = cb.newLocal("eq", true)
+
+    loop(cb, lhs, rhs) { (lhsEC, rhsEC) =>
+      val lhs = cb.memoize(lhsEC, "lhs_item")
+      val rhs = cb.memoize(rhsEC, "rhs_item")
+      cb.assign(lt, elementOrdering.lt(cb, lhs, rhs))
+      cb.assign(eq, !lt && elementOrdering.equiv(cb, lhs, rhs))
+
+      cb.ifx(!eq, cb._return(lt))
+    }
+
+    lt || (eq && lhs.loadLength() < rhs.loadLength)
+  }
+
+  def emitLtEq(cb: EmitCodeBuilder, lhsc: PCode, rhsc: PCode): Code[Boolean] = {
+    val (lhs, rhs) = setup(cb, lhsc, rhsc)
+    val lteq = cb.newLocal("lteq", true)
+    val eq = cb.newLocal("eq", true)
+
+    loop(cb, lhs, rhs) { (lhsEC, rhsEC) =>
+      val lhs = cb.memoize(lhsEC, "lhs_item")
+      val rhs = cb.memoize(rhsEC, "rhs_item")
+      cb.assign(lteq, elementOrdering.lteq(cb, lhs, rhs))
+      cb.assign(eq, elementOrdering.equiv(cb, lhs, rhs))
+
+      cb.ifx(!eq, cb._return(lteq))
+    }
+
+    lteq && (!eq || lhs.loadLength() <= rhs.loadLength)
+  }
+}
