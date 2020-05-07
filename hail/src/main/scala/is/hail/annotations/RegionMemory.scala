@@ -23,6 +23,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   def storeJavaObject(obj: AnyRef): Int = {
     val idx = jObjects.size
     jObjects += obj
+    pool.addJavaObject()
     idx
   }
 
@@ -113,7 +114,10 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     references.clearAndResize()
   }
 
-  private def freeObjects(): Unit = jObjects.clearAndSetMem(null)
+  private def freeObjects(): Unit = {
+    pool.removeJavaObjects(jObjects.size)
+    jObjects.clearAndSetMem(null)
+  }
 
   private def freeFullBlocks(): Unit = freeFullBlocks(pool.freeBlocks(blockSize))
 

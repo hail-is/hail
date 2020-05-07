@@ -23,6 +23,25 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   private val blocks: Array[Long] = Array(0L, 0L, 0L, 0L)
   private var totalAllocatedBytes: Long = 0L
   private var allocationEchoThreshold: Long = 256 * 1024
+  private var numJavaObjects: Long = 0L
+  private var maxNumJavaObjects: Long = 0L
+
+  def addJavaObject(): Unit = {
+    numJavaObjects += 1
+    if (numJavaObjects > maxNumJavaObjects) {
+      maxNumJavaObjects = numJavaObjects
+      if ((numJavaObjects >= 7000 && numJavaObjects <= 7010) ||
+        (numJavaObjects >= 14000 && numJavaObjects <= 14010) ||
+        (numJavaObjects >= 21000 && numJavaObjects <= 21010) ||
+        (numJavaObjects >= 28000 && numJavaObjects <= 28010) ||
+        (numJavaObjects >= 35000 && numJavaObjects <= 35010))
+        report("JObj threshold")
+    }
+  }
+
+  def removeJavaObjects(n: Int): Unit = {
+    numJavaObjects -= n
+  }
 
   def getTotalAllocatedBytes: Long = totalAllocatedBytes
 
@@ -115,7 +134,8 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     }
 
     log.info(s"RegionPool: $context: ${readableBytes(totalAllocatedBytes)} allocated (${readableBytes(inBlocks)} blocks / " +
-      s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), regions.size = ${regions.size}, thread $threadID: $threadName")
+      s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), regions.size = ${regions.size}, " +
+      s"$numJavaObjects current java objects, $maxNumJavaObjects max java objects, thread $threadID: $threadName")
 //    log.info("-----------STACK_TRACES---------")
 //    val stacks: String = regions.result().toIndexedSeq.flatMap(r => r.stackTrace.map((r.getTotalChunkMemory(), _))).foldLeft("")((a: String, b) => a + "\n" + b.toString())
 //    log.info(stacks)

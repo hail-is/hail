@@ -97,6 +97,32 @@ class IRSuite extends HailSuite {
     assert(node.pType == expected)
   }
 
+  @Test def testMemoryUsage() {
+    val nParts = 5
+    val mrr = MatrixRangeReader(nParts * 1000, 7000, Some(nParts))
+    var mt: MatrixIR = MatrixRead(mrr.fullMatrixType, false, false, mrr)
+    mt = MatrixMapEntries(
+      mt,
+      MakeStruct(Seq(
+        "x" ->
+          GetField(Ref("va", mrr.fullMatrixType.rowType), "row_idx") *
+          GetField(Ref("sa", mrr.fullMatrixType.colType), "col_idx"))))
+    mt = MatrixMapCols(
+      mt,
+      InsertFields(
+        Ref("sa", mrr.fullMatrixType.colType),
+        Seq(
+          "med" ->
+          ApplyAggOp(
+            IndexedSeq(I32(100)),
+            IndexedSeq(Cast(GetField(Ref("g", TStruct("x" -> TInt32)), "x"), TFloat64)),
+//            IndexedSeq(ApplyIR("toFloat64", Seq(TInt32), Seq(GetField(Ref("g", TStruct("x" -> TInt32)), "x")))),
+            AggSignature(ApproxCDF(), Seq(TInt32), Seq(TFloat64))))),
+      None)
+    val ir = TableCollect(TableKeyBy(MatrixColsTable(mt), IndexedSeq()))
+    assertEvalsTo(ir, null)(Set(ExecStrategy.Interpret))
+  }
+
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
   }
