@@ -79,6 +79,8 @@ package object ir {
 
   private[ir] def coerce[T <: PType](x: PType): T = types.coerce[T](x)
 
+  private[ir] def coerce[T <: BaseTypeWithRequiredness](x: BaseTypeWithRequiredness): T = types.coerce[T](x)
+
   def invoke(name: String, rt: Type, typeArgs: Array[Type], args: IR*): IR = IRFunctionRegistry.lookupConversion(name, rt, typeArgs, args.map(_.typ)) match {
     case Some(f) => f(typeArgs, args)
     case None => fatal(s"no conversion found for $name(${typeArgs.mkString(", ")}, ${args.map(_.typ).mkString(", ")}) => $rt")
@@ -111,6 +113,12 @@ package object ir {
     case TFloat64 => F64(0d)
   }
 
+  def bindIRs(values: IR*)(body: Seq[Ref] => IR): IR = {
+    val valuesArray = values.toArray
+    val refs = values.map(v => Ref(genUID(), v.typ))
+    values.indices.foldLeft(body(refs)) { case (acc, i) => Let(refs(i).name, valuesArray(i), acc) }
+  }
+
   def bindIR(v: IR)(body: Ref => IR): IR = {
     val ref = Ref(genUID(), v.typ)
     Let(ref.name, v, body(ref))
@@ -130,6 +138,10 @@ package object ir {
     val elt = Ref(genUID(), coerce[TStream](stream.typ).elementType)
     val accum = Ref(genUID(), zero.typ)
     StreamFold(stream, zero, accum.name, elt.name, f(accum, elt))
+  }
+
+  def streamSumIR(stream: IR): IR = {
+    foldIR(stream, 0){ case (accum, elt) => accum + elt}
   }
 
   def rangeIR(n: IR): IR = StreamRange(0, n, 1)

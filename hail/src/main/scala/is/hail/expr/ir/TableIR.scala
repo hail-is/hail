@@ -179,8 +179,6 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends Partition
       val pathString = path.asString.loadString()
       val xRowBuf = mb.newLocal[InputBuffer]()
       val stream = Stream.unfold[Code[Long]](
-        Code._empty,
-        Code._empty,
         (_, k) =>
           k(COption(
             !xRowBuf.load().readByte().toZ,
@@ -384,6 +382,13 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
 
   override def toJValue: JValue = {
     decomposeWithName(params, "TableFromBlockMatrixNativeReader")(TableReader.formats)
+  }
+}
+
+object TableRead {
+  def native(fs: FS, path: String): TableIR = {
+    val tr = TableNativeReader(fs, TableNativeReaderParameters(path, None))
+    TableRead(tr.fullType, false, tr)
   }
 }
 
@@ -1219,7 +1224,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     val physicalAggs = extracted.getPhysicalAggs(
       ctx,
       Env("global" -> tv.globals.t),
-      Env("global" -> tv.globals.t, "row" -> tv.rvd.rowPType)
+      Env("global" -> tv.globals.decodedPType, "row" -> tv.rvd.rowPType)
     )
 
     val scanInitNeedsGlobals = Mentions(extracted.init, "global")
@@ -1711,7 +1716,7 @@ case class TableKeyByAndAggregate(
     val physicalAggs = extracted.getPhysicalAggs(
       ctx,
       Env("global" -> prev.globals.t),
-      Env("global" -> prev.globals.t, "row" -> prev.rvd.rowPType)
+      Env("global" -> prev.globals.decodedPType, "row" -> prev.rvd.rowPType)
     )
 
     val (_, makeInit) = ir.CompileWithAggregators2[AsmFunction2RegionLongUnit](ctx,
@@ -1841,7 +1846,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
-    val prevRVD = prev.rvd
+    val prevRVD = prev.rvd.truncateKey(child.typ.key)
 
     val res = genUID()
     val extracted = agg.Extract(expr, res)
@@ -1849,7 +1854,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val physicalAggs = extracted.getPhysicalAggs(
       ctx,
       Env("global" -> prev.globals.t),
-      Env("global" -> prev.globals.t, "row" -> prev.rvd.rowPType)
+      Env("global" -> prev.globals.decodedPType, "row" -> prevRVD.rowPType)
     )
 
     val (_, makeInit) = ir.CompileWithAggregators2[AsmFunction2RegionLongUnit](ctx,
@@ -1861,13 +1866,12 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val (_, makeSeq) = ir.CompileWithAggregators2[AsmFunction3RegionLongLongUnit](ctx,
       physicalAggs,
       FastIndexedSeq(("global", prev.globals.t),
-        ("row", prev.rvd.rowPType)),
+        ("row", prevRVD.rowPType)),
       FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
       extracted.seqPerElt)
 
     val valueIR = Let(res, extracted.results, extracted.postAggIR)
-    val keyType = prev.rvd.typ.kType
-    assert(keyType.virtualType.fields.startsWith(prev.typ.keyType.fields))
+    val keyType = prevRVD.typ.kType
 
     val key = Ref(genUID(), keyType.virtualType)
     val value = Ref(genUID(), valueIR.typ)
@@ -1882,7 +1886,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     assert(rowType.virtualType == typ.rowType, s"$rowType, ${ typ.rowType }")
 
     val localChildRowType = prevRVD.rowPType
-    val keyIndices = prev.typ.keyFieldIdx
+    val keyIndices = prevRVD.typ.kFieldIdx
     val keyOrd = prevRVD.typ.kRowOrd
     val globalsBc = prev.globals.broadcast
 

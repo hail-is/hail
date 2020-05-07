@@ -5,7 +5,7 @@ import aiohttp
 import base64
 import traceback
 from hailtop.utils import time_msecs, sleep_and_backoff, is_transient_error
-from hailtop.ssl import ssl_client_session
+from hailtop.tls import ssl_client_session
 
 from .globals import complete_states, tasks, STATUS_FORMAT_VERSION
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \

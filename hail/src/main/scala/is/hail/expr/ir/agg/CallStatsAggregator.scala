@@ -73,7 +73,7 @@ class CallStatsState(val kb: EmitClassBuilder[_]) extends PointerBasedRVAState {
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     val (decType, dec) = TypedCodecSpec(CallStatsState.stateType, codec)
-      .buildEmitDecoderF[Long](CallStatsState.stateType.virtualType, kb)
+      .buildEmitDecoderF[Long](kb)
     assert(decType == CallStatsState.stateType)
 
     { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>

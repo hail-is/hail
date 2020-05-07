@@ -1341,6 +1341,26 @@ object PruneDeadFields {
         )
         memoizeMatrixIR(child, dep, memo)
         BindingEnv.empty
+      case CollectDistributedArray(contexts, globals, cname, gname, body) =>
+        val rArray = requestedType.asInstanceOf[TArray]
+        val bodyEnv = memoizeValueIR(body, rArray.elementType, memo)
+        assert(bodyEnv.scan.isEmpty)
+        assert(bodyEnv.agg.isEmpty)
+
+        val cDep = bodyEnv.eval.lookupOption(cname) match {
+          case Some(ts) => TStream(unify[Type](coerce[TStream](contexts.typ).elementType, ts.result(): _*))
+          case None => minimal(contexts.typ)
+        }
+
+        val gDep = bodyEnv.eval.lookupOption(gname) match {
+          case Some(ts) => unify[Type](globals.typ, ts.result(): _*)
+          case None => minimal(globals.typ)
+        }
+
+        unifyEnvs(
+          memoizeValueIR(contexts, cDep, memo),
+          memoizeValueIR(globals, gDep, memo)
+        )
       case _: IR =>
         val envs = ir.children.flatMap {
           case mir: MatrixIR =>
@@ -1844,6 +1864,11 @@ object PruneDeadFields {
           aggSig.copy(
             initOpArgs = initOpArgs2.map(_.typ),
             seqOpArgs = seqOpArgs2.map(_.typ)))
+      case CollectDistributedArray(contexts, globals, cname, gname, body) =>
+        val contexts2 = upcast(rebuildIR(contexts, env, memo), memo.requestedType.lookup(contexts).asInstanceOf[Type])
+        val globals2 = upcast(rebuildIR(globals, env, memo), memo.requestedType.lookup(globals).asInstanceOf[Type])
+        val body2 = rebuildIR(body, BindingEnv(Env(cname -> contexts2.typ.asInstanceOf[TStream].elementType, gname -> globals2.typ)), memo)
+        CollectDistributedArray(contexts2, globals2, cname, gname, body2)
       case _ =>
         ir.copy(ir.children.map {
           case valueIR: IR => rebuildIR(valueIR, env, memo) // FIXME: assert IR does not bind or change env

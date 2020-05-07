@@ -148,10 +148,10 @@ package object stats {
   }
   
   val fetStruct = PCanonicalStruct(
-    "p_value" -> PFloat64(),
-    "odds_ratio" -> PFloat64(),
-    "ci_95_lower" -> PFloat64(),
-    "ci_95_upper" -> PFloat64())
+    "p_value" -> PFloat64(required = true),
+    "odds_ratio" -> PFloat64(required = true),
+    "ci_95_lower" -> PFloat64(required = true),
+    "ci_95_upper" -> PFloat64(required = true))
 
   def fisherExactTest(a: Int, b: Int, c: Int, d: Int): Array[Double] =
     fisherExactTest(a, b, c, d, 1.0, 0.95, "two.sided")

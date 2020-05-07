@@ -20,7 +20,10 @@ spec:
       priorityClassName: production
 {% endif %}
       nodeSelector:
-        preemptible: "false"
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
       containers:
       - name: scorecard
         image: "{{ scorecard_image.image }}"
@@ -32,7 +35,7 @@ spec:
         resources:
           requests:
             memory: "500M"
-            cpu: "500m"
+            cpu: "100m"
         ports:
         - containerPort: 5000
         volumeMounts:

@@ -4,7 +4,7 @@ import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir._
 import is.hail.expr.types.physical.{PBoolean, PCanonicalInterval, PCode, PInterval, PIntervalCode, PType}
-import is.hail.expr.types.virtual.{TArray, TBoolean, TInt32, TInterval, Type}
+import is.hail.expr.types.virtual.{TArray, TBoolean, TInt32, TInterval, TString, TStruct, TTuple, Type}
 import is.hail.utils._
 
 object IntervalFunctions extends RegistryFunctions {
@@ -147,6 +147,45 @@ object IntervalFunctions extends RegistryFunctions {
           && invoke("contains", TBoolean, ArrayRef(intervals, Ref(uid2, TInt32)), value)))
           || ((Ref(uid, TInt32) < ArrayLen(intervals))
           && invoke("contains", TBoolean, ArrayRef(intervals, Ref(uid, TInt32)), value)))
+    }
+
+
+    val endpointT = TTuple(tv("T"), TInt32)
+    registerIR2("partitionIntervalContains",
+      TStruct("left" -> endpointT, "right" -> endpointT, "includesLeft" -> TBoolean, "includesRight" -> TBoolean),
+      tv("T"), TBoolean) {
+      case (_, interval, point) =>
+
+        def compareStructs(left: IR, right: IR): IR = {
+          bindIRs(left, right) { case Seq(lTuple, r) =>
+            bindIRs(GetTupleElement(lTuple, 0), GetTupleElement(lTuple, 1)) {
+              case Seq(lValue, lLen) =>
+                val ts = lValue.typ.asInstanceOf[TStruct]
+                assert(r.typ == ts)
+                ts.fields.foldRight[IR](I32(0)) { case (f, acc) =>
+                  If(
+                    lLen ceq f.index,
+                    0,
+                    bindIR(ApplyComparisonOp(Compare(f.typ), GetField(lValue, f.name), GetField(r, f.name))) { c =>
+                      If(c.cne(0), c, acc)
+                    })
+                }
+            }
+          }
+        }
+
+        bindIRs(point, GetField(interval, "left"), GetField(interval, "right")) { case Seq(point, l, r) =>
+
+
+          val gtEqLeft = bindIR(compareStructs(l, point)) { lc =>
+            (lc <= 0) && ((lc < 0) || GetField(interval, "includesLeft"))
+          }
+
+          val ltEqRight = bindIR(compareStructs(r, point)) { rc =>
+            (rc >= 0) && ((rc > 0) || GetField(interval, "includesRight"))
+          }
+          gtEqLeft && ltEqRight
+        }
     }
   }
 }

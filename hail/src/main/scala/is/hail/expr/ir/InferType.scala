@@ -133,7 +133,7 @@ object InferType {
         TStream(join.typ)
       case NDArrayShape(nd) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
-        ndType.representation.fieldType("shape").asInstanceOf[TTuple]
+        ndType.shapeType
       case NDArrayReshape(nd, shape) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
       case NDArrayConcat(nds, _) =>

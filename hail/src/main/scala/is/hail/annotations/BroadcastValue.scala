@@ -36,13 +36,18 @@ trait BroadcastRegionValue {
 
   def value: RegionValue
 
-  def t: PType
+  val t: PType
+
+  lazy val encoding = TypedCodecSpec(t, BufferSpec.wireSpec)
+
+  lazy val (decodedPType, makeDec) = {
+    val (pt, md) = encoding.buildDecoder(ctx, t.virtualType)
+    assert(pt.virtualType == t.virtualType)
+    (pt, md)
+  }
 
   lazy val broadcast: BroadcastValue[SerializableRegionValue] = {
-    val encoding = TypedCodecSpec(t, BufferSpec.wireSpec)
     val makeEnc = encoding.buildEncoder(ctx, t)
-    val (decodedPType, makeDec) = encoding.buildDecoder(ctx, t.virtualType)
-    assert(decodedPType == t)
 
     val baos = new ByteArrayOutputStream()
 

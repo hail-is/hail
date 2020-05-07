@@ -1,27 +1,60 @@
 package is.hail.utils
 
-import is.hail.expr.types.virtual.{TInt32, TTuple}
+import is.hail.{ExecStrategy, HailSuite}
+import is.hail.annotations.Region
+import is.hail.expr.types.virtual.{TBoolean, TInt32, TStruct, TTuple}
+import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
+import is.hail.TestUtils._
+import is.hail.expr.ir
+import is.hail.expr.ir.In
 
-class RowIntervalSuite extends TestNGSuite {
-  val pord = TTuple(TInt32, TInt32, TInt32).ordering
+class RowIntervalSuite extends HailSuite {
+  lazy val t = TStruct("a" -> TInt32, "b" -> TInt32, "c" -> TInt32)
+  lazy val pord = PartitionBoundOrdering(t)
+
+  def assertContains(i: Interval, point: Row, shouldContain: Boolean = true): Unit = {
+    val c = i.contains(pord, point)
+    if (shouldContain)
+      assert(c)
+    else
+      assert(!c)
+
+    val tt = t.truncate(point.length)
+    val irRepIntervalType = RVDPartitioner.intervalIRRepresentation(tt)
+    val intervalIRRep = RVDPartitioner.intervalToIRRepresentation(i.coarsen(tt.size), tt.size)
+
+    val in1 = In(0, irRepIntervalType)
+    val in2 = In(1, tt)
+
+    assertEvalsTo(
+      ir.invoke("partitionIntervalContains", TBoolean, in1, in2),
+      args = FastIndexedSeq((intervalIRRep, irRepIntervalType), (point, tt)),
+      shouldContain)(ExecStrategy.compileOnly)
+  }
 
   @Test def testContains() {
-    assert(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).contains(pord, Row(1, 1, 3)))
-    assert(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).contains(pord, Row(0, 1, 5)))
-    assert(!Interval(Row(0, 1, 5), Row(1, 2, 4), false, true).contains(pord, Row(0, 1, 5)))
-    assert(!Interval(Row(0, 1, 5), Row(1, 2, 4), true, false).contains(pord, Row(1, 2, 4)))
+    assertContains(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true), Row(1, 1, 3))
+    assertContains(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true), Row(0, 1, 5))
+    assertContains(Interval(Row(0, 1, 5), Row(1, 2, 4), false, true), Row(0, 1, 5), shouldContain = false)
+    assertContains(Interval(Row(0, 1, 5), Row(1, 2, 4), true, false), Row(1, 2, 4), shouldContain = false)
 
-    assert(Interval(Row(0, 1), Row(1, 2, 4), true, true).contains(pord, Row(0, 1, 5)))
-    assert(!Interval(Row(0, 1), Row(1, 2, 4), false, true).contains(pord, Row(0, 1, 5)))
-    assert(Interval(Row(0, 1), Row(0, 1, 4), true, true).contains(pord, Row(0, 1, 4)))
-    assert(!Interval(Row(0, 1), Row(0, 1, 4), true, false).contains(pord, Row(0, 1, 4)))
+    assertContains(Interval(Row(0, 1), Row(1, 2, 4), true, true), Row(0, 1, 5))
+    assertContains(Interval(Row(0, 1), Row(1, 2, 4), false, true), Row(0, 1, 5), shouldContain = false)
+    assertContains(Interval(Row(0, 1), Row(0, 1, 4), true, true), Row(0, 1, 4))
+    assertContains(Interval(Row(0, 1), Row(0, 1, 4), true, false), Row(0, 1, 4), shouldContain = false)
 
-    assert(Interval(Row(0, 1), Row(2, 1, 4), true, false).contains(pord, Row(1)))
-    assert(!Interval(Row(0, 1), Row(2, 1, 4), true, false).contains(pord, Row(0)))
-    assert(!Interval(Row(0, 1), Row(2, 1, 4), true, false).contains(pord, Row(2)))
+    assertContains(Interval(Row(0, 1), Row(1, 2, 4), true, true), Row(0, 1, 5))
+    assertContains(Interval(Row(0, 1), Row(1, 2, 4), false, true), Row(0, 1, 5), shouldContain = false)
+    assertContains(Interval(Row(0, 1), Row(0, 1, 4), true, true), Row(0, 1, 4))
+    assertContains(Interval(Row(0, 1), Row(0, 1, 4), true, false), Row(0, 1, 4), shouldContain = false)
+
+    assertContains(Interval(Row(), Row(1, 2, 4), true, true), Row(1, 2, 4))
+    assertContains(Interval(Row(), Row(1, 2, 4), true, false), Row(1, 2, 4), shouldContain = false)
+    assertContains(Interval(Row(1, 2, 4), Row(), true, true), Row(1, 2, 4))
+    assertContains(Interval(Row(1, 2, 4), Row(), false, true), Row(1, 2, 4), shouldContain = false)
 
     assert(Interval(Row(0, 1, 5, 7), Row(2, 1, 4, 5), true, false).contains(pord, Row(0, 1, 6)))
     assert(!Interval(Row(0, 1, 5, 7), Row(2, 1, 4, 5), true, false).contains(pord, Row(0, 1, 5)))

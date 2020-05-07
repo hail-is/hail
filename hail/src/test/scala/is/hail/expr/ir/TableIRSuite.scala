@@ -400,7 +400,36 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-    @Test def testShuffleAndJoinDoesntMemoryLeak() {
+  @Test def testTableHead(): Unit = {
+    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
+    def makeData(length: Int): Row = {
+      Row(FastIndexedSeq(0 until length: _*).map(i => Row(i, "row" + i)), Row("global"))
+    }
+    val numRowsToTakeArray = Array(0, 4, 7, 12)
+    val numInitialPartitionsArray = Array(1, 2, 6, 10, 13)
+    val initialDataLength = 10
+    val initialData = makeData(initialDataLength)
+
+    numRowsToTakeArray.foreach { howManyRowsToTake =>
+      val headData = makeData(Math.min(howManyRowsToTake, initialDataLength))
+      numInitialPartitionsArray.foreach { howManyInitialPartitions =>
+        assertEvalsTo(
+          collectNoKey(
+            TableHead(
+              TableParallelize(
+                Literal(t, initialData),
+                Some(howManyInitialPartitions)
+              ),
+              howManyRowsToTake
+            )
+          ),
+          headData)
+      }
+    }
+  }
+
+
+  @Test def testShuffleAndJoinDoesntMemoryLeak() {
     implicit val execStrats = ExecStrategy.interpretOnly
     val row = Ref("row", TStruct("idx" -> TInt32))
     val t1 = TableRename(TableRange(1, 1), Map("idx" -> "idx_"), Map.empty)
@@ -537,5 +566,52 @@ class TableIRSuite extends HailSuite {
       .map { case (x, idx) => Row(idx, x) }.init.toFastIndexedSeq,
       Row()
     ))
+  }
+
+  @Test def testTableGroupWithinPartitions(): Unit = {
+    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
+    val length = 6
+    val value = Row(FastIndexedSeq(0 until length: _*).map(i => Row(i, "row" + i)), Row("global"))
+    val rowsData = FastIndexedSeq(
+      Row(FastIndexedSeq(
+        Row(0, "row0"),
+        Row(1, "row1")
+      )),
+      Row(FastIndexedSeq(
+        Row(2, "row2")
+      )),
+      Row(FastIndexedSeq(
+        Row(3, "row3"),
+        Row(4, "row4")
+      )),
+      Row(FastIndexedSeq(
+        Row(5, "row5")
+      ))
+    )
+    val ans = Row(rowsData, Row("global"))
+    assertEvalsTo(
+      collectNoKey(
+        TableGroupWithinPartitions(
+          TableParallelize(
+            Literal(t, value),
+            Some(2)
+          ),
+          "grouped_fields",
+          2
+        )
+      ),
+      ans)
+  }
+
+  @Test def testTableAggregateByKey(): Unit = {
+    implicit val execStrats = ExecStrategy.interpretOnly
+    var tir = TableRead.native(fs, "src/test/resources/three_key.ht")
+    tir = TableKeyBy(tir, FastIndexedSeq("x", "y"), true)
+    tir = TableAggregateByKey(tir, MakeStruct(FastSeq(
+      ("sum", ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(GetField(Ref("row", tir.typ.rowType), "z").toL), AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64)))),
+      ("n", ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(), AggSignature(Count(), FastIndexedSeq(), FastIndexedSeq())))
+    )))
+    val ir = GetField(TableCollect(TableKeyBy(tir, FastIndexedSeq())), "rows")
+    assertEvalsTo(ir, (0 until 10).flatMap(i => (0 until i).map(j => Row(i, j, (0 until j).sum.toLong, j.toLong))).filter(_.getAs[Long](3) > 0))
   }
 }

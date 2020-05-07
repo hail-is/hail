@@ -274,7 +274,7 @@ class EmitClassBuilder[C](
     val litType = PCanonicalTuple(true, literals.map(_._1._1): _*)
     val spec = TypedCodecSpec(litType, BufferSpec.defaultUncompressed)
 
-    val (litRType, dec) = spec.buildEmitDecoderF[Long](litType.virtualType, this)
+    val (litRType, dec) = spec.buildEmitDecoderF[Long](this)
     assert(litRType == litType)
     cb.addInterface(typeInfo[FunctionWithLiterals].iname)
     val mb2 = newEmitMethod("addLiterals", FastIndexedSeq[ParamType](typeInfo[Array[Byte]]), typeInfo[Unit])

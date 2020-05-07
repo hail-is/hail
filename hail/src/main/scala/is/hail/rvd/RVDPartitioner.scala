@@ -1,7 +1,8 @@
 package is.hail.rvd
 
-import is.hail.annotations.ExtendedOrdering
-import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
+import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering}
+import is.hail.expr.ir.Literal
+import is.hail.expr.types.virtual.{TArray, TBoolean, TInt32, TInterval, TStruct, TTuple}
 import is.hail.utils._
 import org.apache.commons.lang.builder.HashCodeBuilder
 import org.apache.spark.broadcast.Broadcast
@@ -44,7 +45,7 @@ class RVDPartitioner(
   require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
   require(RVDPartitioner.isValid(kType, rangeBounds, allowedOverlap))
 
-  val kord: ExtendedOrdering = kType.ordering
+  val kord: ExtendedOrdering = PartitionBoundOrdering(kType)
   val intervalKeyLT: (Interval, Any) => Boolean = (i, k) => i.isBelowPosition(kord, k)
   val keyIntervalLT: (Any, Interval) => Boolean = (k, i) => i.isAbovePosition(kord, k)
   val intervalLT: (Interval, Interval) => Boolean = (i1, i2) => i1.isBelow(kord, i2)
@@ -163,7 +164,8 @@ class RVDPartitioner(
   }
 
   def intersect(other: RVDPartitioner): RVDPartitioner = {
-    require(kType isIsomorphicTo other.kType)
+    if (!kType.isIsomorphicTo(other.kType))
+      throw new AssertionError(s"key types not isomorphic: $kType, ${other.kType}")
 
     new RVDPartitioner(kType, Interval.intersection(this.rangeBounds, other.rangeBounds, kord.intervalEndpointOrdering))
   }
@@ -183,7 +185,7 @@ class RVDPartitioner(
 
   def coalesceRangeBounds(newPartEnd: IndexedSeq[Int]): RVDPartitioner = {
     val newRangeBounds = (-1 +: newPartEnd.init).zip(newPartEnd).map { case (s, e) =>
-      rangeBounds(s+1).hull(kType.ordering, rangeBounds(e))
+      rangeBounds(s+1).hull(kord, rangeBounds(e))
     }
     copy(rangeBounds = newRangeBounds)
   }
@@ -267,6 +269,11 @@ class RVDPartitioner(
   def overlaps(query: Interval): Boolean = rangeBounds.containsOrdered(query, intervalLT)
 
   def isDisjointFrom(query: Interval): Boolean = !overlaps(query)
+
+  def partitionBoundsIRRepresentation: Literal = {
+    Literal(TArray(RVDPartitioner.intervalIRRepresentation(kType)),
+      rangeBounds.map(i => RVDPartitioner.intervalToIRRepresentation(i, kType.size)).toFastIndexedSeq)
+  }
 }
 
 object RVDPartitioner {
@@ -302,7 +309,7 @@ object RVDPartitioner {
     intervals: IndexedSeq[Interval],
     allowedOverlap: Int
   ): RVDPartitioner = {
-    val kord = kType.ordering
+    val kord = PartitionBoundOrdering(kType)
     val eord = kord.intervalEndpointOrdering
     val iord = Interval.ordering(kord, startPrimary = true)
     val pk = allowedOverlap + 1
@@ -342,7 +349,8 @@ object RVDPartitioner {
     require(typ.kType.virtualType.relaxedTypeCheck(max))
     require(keys.forall(typ.kType.virtualType.relaxedTypeCheck))
 
-    val sortedKeys = keys.sorted(typ.kType.virtualType.ordering.toOrdering)
+    val kOrd = PartitionBoundOrdering(typ.kType.virtualType).toOrdering
+    val sortedKeys = keys.sorted(kOrd)
     val step = (sortedKeys.length - 1).toDouble / nPartitions
     val partitionEdges = Array.tabulate(nPartitions - 1) { i =>
       IntervalEndpoint(sortedKeys(((i + 1) * step).toInt), 1)
@@ -365,10 +373,26 @@ object RVDPartitioner {
   ): Boolean = {
     rangeBounds.isEmpty ||
       rangeBounds.zip(rangeBounds.tail).forall { case (left: Interval, right: Interval) =>
-        val r = kType.ordering.intervalEndpointOrdering.lteqWithOverlap(allowedOverlap)(left.right, right.left)
+        val r = PartitionBoundOrdering(kType).intervalEndpointOrdering.lteqWithOverlap(allowedOverlap)(left.right, right.left)
         if (!r)
           log.info(s"invalid partitioner: !lteqWithOverlap($allowedOverlap)(${ left }.right, ${ right }.left)")
         r
       }
+  }
+
+  def intervalIRRepresentation(ts: TStruct): TStruct = {
+    val endpointT = TTuple(ts, TInt32)
+    TStruct("left" -> endpointT, "right" -> endpointT, "includesLeft" -> TBoolean, "includesRight" -> TBoolean)
+  }
+
+  def intervalToIRRepresentation(interval: Interval, len: Int): Row = {
+    def processStruct(r: Row): Row = {
+      Row(Row.fromSeq((0 until len).map(i => if (i >= r.length) null else r.get(i))), r.length)
+    }
+
+    Row(processStruct(interval.left.point.asInstanceOf[Row]),
+      processStruct(interval.right.point.asInstanceOf[Row]),
+      interval.left.sign < 0,
+      interval.right.sign > 0)
   }
 }

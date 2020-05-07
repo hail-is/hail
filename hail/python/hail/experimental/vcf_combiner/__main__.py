@@ -24,6 +24,7 @@ def main():
     parser.add_argument('--batch-size', type=int, default=CombinerConfig.default_batch_size, help='Batch size.')
     parser.add_argument('--target-records', type=int, default=CombinerConfig.default_target_records, help='Target records per partition.')
     parser.add_argument('--overwrite', help='overwrite the output path', action='store_true')
+    parser.add_argument('--key-by-locus-and-alleles', help='Key by both locus and alleles in the final output.', action='store_true')
     parser.add_argument('--reference-genome', default='GRCh38', help='Reference genome.')
     args = parser.parse_args()
     hl.init(log=args.log)
@@ -41,7 +42,8 @@ def main():
                  branch_factor=args.branch_factor,
                  target_records=args.target_records,
                  overwrite=args.overwrite,
-                 reference_genome=args.reference_genome)
+                 reference_genome=args.reference_genome,
+                 key_by_locus_and_alleles=args.key_by_locus_and_alleles)
 
 
 if __name__ == '__main__':

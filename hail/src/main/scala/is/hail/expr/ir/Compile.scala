@@ -44,8 +44,7 @@ object Compile {
     ir = LoweringPipeline.compileLowerer.apply(ctx, ir, optimize).asInstanceOf[IR].noSharing
 
     TypeCheck(ir, BindingEnv.empty)
-
-    InferPType(ir, Env(params.map { case (n, pt) => n -> pt}: _*))
+    InferPType(ir, Env.empty[PType])
     val returnType = ir.pType
 
     val fb = EmitFunctionBuilder[F](ctx, "Compiled",
@@ -107,7 +106,7 @@ object CompileWithAggregators2 {
 
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](params.map { case (name, t) => name -> t.virtualType })))
 
-    InferPType(ir, Env(params.map { case (n, pt) => n -> pt}: _*), aggSigs, null, null)
+    InferPType(ir, Env.empty[PType], aggSigs, null, null)
 
     val returnType = ir.pType
     val fb = EmitFunctionBuilder[F](ctx, "CompiledWithAggs",

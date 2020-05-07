@@ -680,7 +680,7 @@ object Interpret {
           val physicalAggs = extracted.getPhysicalAggs(
             ctx,
             Env("global" -> value.globals.t),
-            Env("global" -> value.globals.t, "row" -> value.rvd.rowPType)
+            Env("global" -> value.globals.decodedPType, "row" -> value.rvd.rowPType)
           )
 
           val (_, initOp) = CompileWithAggregators2[AsmFunction2RegionLongUnit](ctx,
