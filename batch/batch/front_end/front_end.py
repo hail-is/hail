@@ -1120,7 +1120,7 @@ async def _query_billing(request):
     sql = f'''
 SELECT billing_project, user, CAST(COALESCE(SUM(msec_mcpu), 0) AS SIGNED) AS msec_mcpu
 FROM batches
-WHERE batches.`time_created` >= %s AND batches.`time_created` <= %s
+WHERE batches.`time_completed` >= %s AND batches.`time_completed` <= %s
 GROUP by billing_project, user;
 '''
     sql_args = (start, end)
