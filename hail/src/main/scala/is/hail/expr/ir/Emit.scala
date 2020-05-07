@@ -1892,9 +1892,9 @@ class Emit[C](
             Array[ParamType](typeInfo[Region], ctxType, gType),
             typeInfo[Long])
 
-          val (cRetPtype, cDec) = x.contextSpec.buildEmitDecoderF[Long](x.contextPTuple.virtualType, bodyFB.ecb)
+          val (cRetPtype, cDec) = x.contextSpec.buildEmitDecoderF[Long](bodyFB.ecb)
           assert(cRetPtype == x.decodedContextPTuple)
-          val (gRetPtype, gDec) = x.globalSpec.buildEmitDecoderF[Long](x.globalPTuple.virtualType, bodyFB.ecb)
+          val (gRetPtype, gDec) = x.globalSpec.buildEmitDecoderF[Long](bodyFB.ecb)
           assert(gRetPtype == x.decodedGlobalPTuple)
           val bEnc = x.bodySpec.buildEmitEncoderF[Long](x.bodyPTuple, bodyFB.ecb)
           val bOB = bodyFB.genFieldThisRef[OutputBuffer]()
@@ -1950,7 +1950,7 @@ class Emit[C](
 
         val cEnc = x.contextSpec.buildEmitEncoderF[Long](x.contextPTuple, parentCB)
         val gEnc = x.globalSpec.buildEmitEncoderF[Long](x.globalPTuple, parentCB)
-        val (bRetPType, bDec) = x.bodySpec.buildEmitDecoderF[Long](x.bodyPTuple.virtualType, parentCB)
+        val (bRetPType, bDec) = x.bodySpec.buildEmitDecoderF[Long](parentCB)
         assert(bRetPType == x.decodedBodyPTuple)
 
         val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
