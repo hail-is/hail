@@ -1848,7 +1848,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
-    val prevRVD = prev.rvd.truncateKey(child.typ.key.length)
+    val prevRVD = prev.rvd.truncateKey(child.typ.key)
 
     val res = genUID()
     val extracted = agg.Extract(expr, res)
@@ -1874,7 +1874,6 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
     val valueIR = Let(res, extracted.results, extracted.postAggIR)
     val keyType = prevRVD.typ.kType
-    assert(keyType.fieldNames.sameElements(child.typ.key))
 
     val key = Ref(genUID(), keyType.virtualType)
     val value = Ref(genUID(), valueIR.typ)
