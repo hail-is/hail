@@ -612,4 +612,7 @@ case class COptionCode(missing: CUnitCode, present: CRetCode) extends CCode {
 
   def getOrElse(cb: EmitCodeBuilder, orElse: PCode): PCode =
     consumeR(cb, orElse, v => v)
+
+  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType): COptionCode =
+    map(cb)(_.castTo(cb.emb, region, destType))
 }

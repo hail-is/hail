@@ -562,11 +562,24 @@ private class Emit[C](
         emitI(v)
 
       case NA(typ) =>
-        COptionCode(cb, const(true), pt.defaultValue)
+        COption.missing(cb, pt)
+
       case IsNA(v) =>
-        val m = cb.newLocal[Boolean]("isna")
-        emitI(v).consumeU(cb, cb.assign(m, const(true)), { _ => cb.assign(m, const(false)) })
-        presentC(m)
+        val m = emitI(v).consumeR(cb,
+          PCode(PBoolean(true), const(true)),
+          _ => PCode(PBoolean(true), const(false)))
+        presentPC(m)
+
+      case If(cond, cnsq, altr) =>
+        assert(cnsq.typ == altr.typ)
+
+        emitI(cond).flatMap(cb) { c: PCode =>
+          cb.ife(c.tcode[Boolean], {
+            emitI(cnsq).castTo(cb, region, ir.pType)
+          }, {
+            emitI(altr).castTo(cb, region, ir.pType)
+          })
+        }
 
       case x@ArrayRef(a, i, s) =>
         val errorTransformer: Code[String] => Code[String] = s match {
@@ -757,33 +770,6 @@ private class Emit[C](
           setup = f(0),
           m = mout,
           pv = out.get)
-
-      case If(cond, cnsq, altr) =>
-        assert(cnsq.typ == altr.typ)
-
-        val codeCond = emit(cond)
-        val out = mb.newPLocal(pt)
-        val mout = mb.newLocal[Boolean]()
-        val codeCnsq = emit(cnsq)
-        val codeAltr = emit(altr)
-
-        val setup = Code(
-          codeCond.setup,
-          codeCond.m.mux(
-            mout := true,
-            coerce[Boolean](codeCond.v).mux(
-              Code(codeCnsq.setup,
-                mout := codeCnsq.m,
-                mout.mux(
-                  Code._empty,
-                  out := ir.pType.copyFromPValue(mb, region, codeCnsq.pv))),
-              Code(codeAltr.setup,
-                mout := codeAltr.m,
-                mout.mux(
-                  Code._empty,
-                  out := ir.pType.copyFromPValue(mb, region, codeAltr.pv))))))
-
-        EmitCode(setup, mout, out.load())
 
       case Let(name, value, body) =>
         val x = mb.newEmitField(name, value.pType)
