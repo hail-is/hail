@@ -340,12 +340,13 @@ object LoopRef {
     val (loopArgs, tmpLoopArgs) = args.zipWithIndex.map { case ((name, pt), i) =>
       (mb.newEmitField(s"$name$i", pt), mb.newEmitField(s"tmp$name$i", pt))
     }.unzip
-    LoopRef(L, loopArgs, tmpLoopArgs)
+    LoopRef(L, args.map(_._2), loopArgs, tmpLoopArgs)
   }
 }
 
 case class LoopRef(
   L: CodeLabel,
+  loopTypes: IndexedSeq[PType],
   loopArgs: IndexedSeq[EmitSettable],
   tmpLoopArgs: IndexedSeq[EmitSettable])
 
@@ -1169,7 +1170,7 @@ class Emit[C](
 
       case x@StreamFold(a, zero, accumName, valueName, body) =>
         val eltType = coerce[PStream](a.pType).elementType
-        val accType = ir.pType
+        val accType = x.accPType
 
         val streamOpt = emitStream(a)
         val resOpt: COption[PCode] = streamOpt.flatMapCPS { (ss, _ctx, ret) =>
@@ -2024,7 +2025,8 @@ class Emit[C](
 
       case x@TailLoop(name, args, body) =>
         val label = CodeLabel()
-        val loopRef = LoopRef(mb, label, args.map { case (name, x) => (name, x.pType) })
+        val inits = args.zip(x.argPTypes)
+        val loopRef = LoopRef(mb, label, inits.map { case ((name, _), pt) => (name, pt) })
 
         val m = mb.genFieldThisRef[Boolean]()
         val v = mb.newPField(x.pType)
@@ -2038,16 +2040,19 @@ class Emit[C](
           bodyT.setup,
           m := bodyT.m,
           (!m).orEmpty(v := bodyT.pv))
+        val initArgs = loopRef.loopArgs := inits.map { case ((_, x), pt) =>
+          emit(x).castTo(mb, region, pt)
+        }
 
-        EmitCode(Code(loopRef.loopArgs := args.map { case (_, x) => emit(x) }, label, bodyF), m, v.load())
+        EmitCode(Code(initArgs, label, bodyF), m, v.load())
 
       case Recur(name, args, _) =>
         val loopRef = loopEnv.get.lookup(name)
 
         EmitCode(
           Code(
-            loopRef.tmpLoopArgs := args.map { arg =>
-              emit(arg, loopEnv = None)
+            loopRef.tmpLoopArgs := loopRef.loopTypes.zip(args).map { case (pt, arg) =>
+              emit(arg, loopEnv = None).castTo(mb, region, pt)
             },
             loopRef.loopArgs := loopRef.tmpLoopArgs.load(),
             loopRef.L.goto),

@@ -98,8 +98,10 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
 
   val ordering: ExtendedOrdering = null
 
+  lazy val shapeType: TTuple = TTuple(Array.fill(nDims)(TInt64): _*)
+
   lazy val representation = TStruct(
-    ("shape", TTuple(Array.fill(nDims)(TInt64): _*)),
+    ("shape", shapeType),
     ("strides", TTuple(Array.fill(nDims)(TInt64): _*)),
     ("data", TArray(elementType))
   )
