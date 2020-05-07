@@ -342,6 +342,7 @@ object Stream {
     close0: Option[Code[Unit]] = None,
     close:  Option[Code[Unit]] = None
   ): Stream[A] = new Stream[A] {
+    assert(f != null)
     def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A] = {
       Source[A](
         setup0 = setup0.getOrElse(Code._empty),
