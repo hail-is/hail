@@ -347,10 +347,8 @@ object TypeCheck {
       case _: SerializeAggs =>
       case _: DeserializeAggs =>
       case Begin(xs) =>
-        if (xs.length != 0) {
-          xs.dropRight(1).foreach { x =>
-            assert(x.typ == TVoid)
-          }
+        xs.dropRight(1).foreach { x =>
+          assert(x.typ == TVoid)
         }
       case x@ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
         assert(x.typ == aggSig.returnType)

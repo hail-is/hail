@@ -768,7 +768,6 @@ class Emit[C](
         }
 
       case Begin(xs) =>
-        assert(xs.length != 0)
         xs.init.foreach(emitVoid(_))
         assert(xs.last.pType != TVoid)
         emitI(xs.last)

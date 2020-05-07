@@ -195,12 +195,8 @@ object InferPType {
       case NA(t) =>
         PType.canonical(t).deepInnerRequired(false)
       case Begin(xs) =>
-        if (xs.length == 0) {
-          PVoid
-        } else {
-          xs.foreach(x => infer(x))
-          xs.last.pType
-        }
+        xs.foreach(x => infer(x))
+        xs.last.pType
       case Die(msg, t) =>
         infer(msg)
         PType.canonical(t).deepInnerRequired(true)

@@ -127,9 +127,9 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testBegin() {
-    assertEvalsTo(Begin(FastSeq(Void(), False())), false)
-    assertEvalsTo(Begin(FastSeq(Void(), F64(4.5))), 4.5)
-    assertEvalsTo(Begin(FastSeq(Void(), True())), true)
+    assertEvalsTo(Begin(Seq(Void(), False())), false)
+    assertEvalsTo(Begin(Seq(Void(), F64(4.5))), 4.5)
+    assertEvalsTo(Begin(Seq(Void(), True())), true)
   }
 
   @Test def testScalarInferPType() {
@@ -140,9 +140,8 @@ class IRSuite extends HailSuite {
     assertPType(Str("HELLO WORLD"), PCanonicalString(true))
     assertPType(True(), PBoolean(true))
     assertPType(False(), PBoolean(true))
-    assertPType(Begin(FastSeq()), PVoid)
-    assertPType(Begin(FastSeq(Void(), False())), PBoolean(true))
-    assertPType(Begin(FastSeq(Void(), I64(3))), PInt64(true))
+    assertPType(Begin(Seq(Void(), False())), PBoolean(true))
+    assertPType(Begin(Seq(Void(), I64(3))), PInt64(true))
   }
 
   @Test def testRefInferPtype() {
