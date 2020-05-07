@@ -602,4 +602,16 @@ class TableIRSuite extends HailSuite {
       ),
       ans)
   }
+
+  @Test def testTableAggregateByKey(): Unit = {
+    implicit val execStrats = ExecStrategy.interpretOnly
+    var tir = TableRead.native(fs, "src/test/resources/three_key.ht")
+    tir = TableKeyBy(tir, FastIndexedSeq("x", "y"), true)
+    tir = TableAggregateByKey(tir, MakeStruct(FastSeq(
+      ("sum", ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(GetField(Ref("row", tir.typ.rowType), "z").toL), AggSignature(Sum(), FastIndexedSeq(), FastIndexedSeq(TInt64)))),
+      ("n", ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(), AggSignature(Count(), FastIndexedSeq(), FastIndexedSeq())))
+    )))
+    val ir = GetField(TableCollect(TableKeyBy(tir, FastIndexedSeq())), "rows")
+    assertEvalsTo(ir, (0 until 10).flatMap(i => (0 until i).map(j => Row(i, j, (0 until j).sum.toLong, j.toLong))).filter(_.getAs[Long](3) > 0))
+  }
 }
