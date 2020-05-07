@@ -3,7 +3,7 @@ package is.hail.io.index
 import java.io.OutputStream
 
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
-import is.hail.expr.ir.ExecuteContext
+import is.hail.expr.ir.{CompiledIndexWriter, EmitClassBuilder, EmitFunctionBuilder, ExecuteContext, StagedIndexPartitionWriter}
 import is.hail.expr.types.encoded.EType
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
@@ -73,6 +73,7 @@ case class IndexNodeInfo(
 object IndexWriter {
   val version: SemanticVersion = SemanticVersion(1, 1, 0)
 
+  val spec: BufferSpec = BufferSpec.default
   def builder(
     ctx: ExecuteContext,
     keyType: PType,
@@ -80,30 +81,60 @@ object IndexWriter {
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any]
   ): String => IndexWriter = {
-    val fsBc = ctx.fsBc
-
-    val leafPType = LeafNodeBuilder.typ(keyType, annotationType)
-    val makeLeafEnc = TypedCodecSpec(leafPType, BufferSpec.default).buildEncoder(ctx, leafPType)
-
-    val intPType = InternalNodeBuilder.typ(keyType, annotationType)
-    val makeIntEnc = TypedCodecSpec(intPType, BufferSpec.default).buildEncoder(ctx, intPType)
-
-    { (path: String) =>
-      new IndexWriter(
-        fsBc.value,
-        path,
-        keyType,
-        annotationType,
-        makeLeafEnc,
-        makeIntEnc,
-        branchingFactor,
-        attributes)
+    val f = StagedIndexPartitionWriter.build(ctx, keyType, annotationType, branchingFactor, attributes);
+    { path: String =>
+      new CompiledIndexWriterAdapter(keyType, annotationType, f(path))
     }
+
+//    val fsBc = ctx.fsBc
+//
+//    val leafPType = LeafNodeBuilder.typ(keyType, annotationType)
+//    val makeLeafEnc = TypedCodecSpec(leafPType, spec).buildEncoder(ctx, leafPType)
+//
+//    val intPType = InternalNodeBuilder.typ(keyType, annotationType)
+//    val makeIntEnc = TypedCodecSpec(intPType, spec).buildEncoder(ctx, intPType)
+//
+//    { (path: String) =>
+//      new UnstagedIndexWriter(
+//        fsBc.value,
+//        path,
+//        keyType,
+//        annotationType,
+//        makeLeafEnc,
+//        makeIntEnc,
+//        branchingFactor,
+//        attributes)
+//    }
   }
 }
 
 
-class IndexWriter(
+abstract class IndexWriter extends AutoCloseable {
+  def +=(x: Annotation, offset: Long, annotation: Annotation): Unit
+
+  def close(): Unit
+}
+
+class CompiledIndexWriterAdapter(keyType: PType, valueType: PType, comp: CompiledIndexWriter) extends IndexWriter {
+  private val region = Region()
+  private val rvb = new RegionValueBuilder(region)
+  def +=(x: Annotation, offset: Long, annotation: Annotation): Unit = {
+    rvb.start(keyType)
+    rvb.addAnnotation(keyType.virtualType, x)
+    val koff = rvb.end()
+    rvb.start(valueType)
+    rvb.addAnnotation(valueType.virtualType, annotation)
+    val voff = rvb.end()
+    comp.apply(koff, offset, voff)
+  }
+
+  def close(): Unit = {
+    region.close()
+    comp.close()
+  }
+}
+
+class UnstagedIndexWriter(
   fs: FS,
   path: String,
   keyType: PType,
@@ -111,7 +142,7 @@ class IndexWriter(
   makeLeafEncoder: (OutputStream) => Encoder,
   makeInternalEncoder: (OutputStream) => Encoder,
   branchingFactor: Int = 4096,
-  attributes: Map[String, Any] = Map.empty[String, Any]) extends AutoCloseable {
+  attributes: Map[String, Any] = Map.empty[String, Any]) extends IndexWriter {
   require(branchingFactor > 1)
 
   private var elementIdx = 0L

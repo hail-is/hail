@@ -7,7 +7,7 @@ import is.hail.expr.types.TableType
 import is.hail.expr.types.physical.{PCanonicalStruct, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.io.fs.FS
-import is.hail.io.index.{IndexWriter, InternalNodeBuilder, LeafNodeBuilder}
+import is.hail.io.index.{IndexWriter, InternalNodeBuilder, LeafNodeBuilder, UnstagedIndexWriter}
 import is.hail.io._
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.utils._
@@ -122,7 +122,7 @@ object IndexBgen {
       .foreachPartition { it =>
         val partIdx = TaskContext.get.partitionId()
 
-        using(new IndexWriter(fsBc.value, indexFilePaths(partIdx), indexKeyType, annotationType,
+        using(new UnstagedIndexWriter(fsBc.value, indexFilePaths(partIdx), indexKeyType, annotationType,
           leafEnc, intEnc, attributes = attributes)) { iw =>
           it.foreach { r =>
             assert(r.getInt(fileIdxIdx) == partIdx)

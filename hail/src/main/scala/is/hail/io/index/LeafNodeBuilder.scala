@@ -16,14 +16,15 @@ object LeafNodeBuilder {
       "annotation" -> annotationType
     ), required = true))
 
-  def typ(keyType: PType, annotationType: PType) = PCanonicalStruct(
-    "first_idx" -> +PInt64(),
-    "keys" -> +PCanonicalArray(+PCanonicalStruct(
+  def arrayType(keyType: PType, annotationType: PType) =
+    PCanonicalArray(PCanonicalStruct(required = true,
       "key" -> keyType,
       "offset" -> +PInt64(),
-      "annotation" -> annotationType
-    ), required = true)
-  )
+      "annotation" -> annotationType), required = true)
+
+  def typ(keyType: PType, annotationType: PType) = PCanonicalStruct(
+    "first_idx" -> +PInt64(),
+    "keys" -> arrayType(keyType, annotationType))
 }
 
 class LeafNodeBuilder(keyType: PType, annotationType: PType, var firstIdx: Long) {
