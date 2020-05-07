@@ -150,7 +150,7 @@ object InferPType {
       case x: IR if x.typ == TVoid => PVoid
       case x: IR if requiredness.r.contains(x) => x match {
         case a: AbstractApplyNode[_] =>
-          val pt = a.implementation.returnPType(a.args.map(_.pType), a.returnType)
+          val pt = a.implementation.returnPType(a.returnType, a.args.map(_.pType))
           assert(coerce[TypeWithRequiredness](requiredness.r.lookup(node)).matchesPType(pt))
           pt
         case x@StreamFold(a, zero, accumName, valueName, body) =>
