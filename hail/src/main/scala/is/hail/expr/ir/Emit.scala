@@ -225,8 +225,7 @@ case class IEmitCode(Lmissing: CodeLabel, Lpresent: CodeLabel, pc: PCode) {
     pc
   }
 
-  def
-  consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (PCode) => Unit): Unit = {
+  def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (PCode) => Unit): Unit = {
     val Lafter = CodeLabel()
     cb.define(Lmissing)
     ifMissing

@@ -7,7 +7,7 @@ import is.hail.expr.types.TableType
 import is.hail.expr.types.physical.{PCanonicalStruct, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.io.fs.FS
-import is.hail.io.index.{IndexWriter, InternalNodeBuilder, LeafNodeBuilder, UnstagedIndexWriter}
+import is.hail.io.index.IndexWriter
 import is.hail.io._
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.utils._
@@ -109,21 +109,16 @@ object IndexBgen {
     val partitioner = new RVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
     val crvd = BgenRDD(ctx, partitions, settings, null).toCRDDPtr
 
-    val (leafCodec, intCodec) = BgenSettings.indexCodecSpecs(referenceGenome)
-    val leafPType = LeafNodeBuilder.typ(indexKeyType, annotationType)
-    val leafEnc = leafCodec.buildEncoder(ctx, leafPType)
-
-    val intPType = InternalNodeBuilder.typ(indexKeyType, annotationType)
-    val intEnc = intCodec.buildEncoder(ctx, intPType)
+    val makeIW = IndexWriter.builder(ctx, indexKeyType, annotationType, attributes = attributes)
 
     RVD.unkeyed(rowType, crvd)
       .repartition(ctx, partitioner, shuffle = true)
       .toRows
       .foreachPartition { it =>
         val partIdx = TaskContext.get.partitionId()
+        val idxPath = indexFilePaths(partIdx)
 
-        using(new UnstagedIndexWriter(fsBc.value, indexFilePaths(partIdx), indexKeyType, annotationType,
-          leafEnc, intEnc, attributes = attributes)) { iw =>
+        using(makeIW(idxPath)) { iw =>
           it.foreach { r =>
             assert(r.getInt(fileIdxIdx) == partIdx)
             iw += (Row(r(locusIdx), r(allelesIdx)), r.getLong(offsetIdx), Row())
