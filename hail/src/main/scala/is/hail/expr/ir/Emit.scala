@@ -214,7 +214,10 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
 
   def toI(cb: EmitCodeBuilder): COptionCode = {
     cb += setup
-    COptionCode(cb, m, pv)
+    if (cb.isOpenEnded)
+      COptionCode(cb, m, pv)
+    else
+      COption(valueType).dummy
   }
 
   def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType): EmitCode = {
