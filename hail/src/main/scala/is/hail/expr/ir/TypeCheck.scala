@@ -346,8 +346,8 @@ object TypeCheck {
       case CombOpValue(i, value, sig) => assert(value.typ == TBinary)
       case _: SerializeAggs =>
       case _: DeserializeAggs =>
-      case Begin(xs) =>
-        xs.dropRight(1).zipWithIndex.foreach { case (x, i) =>
+      case x@Begin(xs) =>
+        xs.foreach { x =>
           assert(x.typ == TVoid)
         }
       case x@ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>

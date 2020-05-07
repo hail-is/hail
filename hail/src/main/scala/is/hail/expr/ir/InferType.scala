@@ -43,9 +43,7 @@ object InferType {
       case _: CombOpValue => TVoid
       case _: SerializeAggs => TVoid
       case _: DeserializeAggs => TVoid
-      case Begin(xs) =>
-        assert(xs.init.forall(_.typ == TVoid))
-        xs.last.typ
+      case _: Begin => TVoid
       case Die(_, t) => t
       case If(cond, cnsq, altr) =>
         assert(cond.typ == TBoolean)
