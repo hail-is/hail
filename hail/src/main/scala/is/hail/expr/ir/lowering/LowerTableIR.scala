@@ -266,6 +266,89 @@ object LowerTableIR {
             }
           }
 
+        case TableTail(child, targetNumRows) =>
+          val loweredChild = lower(child)
+
+          val partitionSizeArrayFunc = genUID()
+          val howManyPartsToTry = Ref(genUID(), TInt32)
+          val partitionSizeArray =
+            bindIR(ArrayLen(ToArray(loweredChild.contexts))) { totalNumPartitions =>
+              TailLoop(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry.name -> 4),
+                bindIR(loweredChild.mapContexts(ctxs => StreamDrop(ctxs, maxIR(totalNumPartitions - howManyPartsToTry, 0))).mapPartition(rows => ArrayLen(ToArray(rows))).collect()) { counts =>
+                  If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (totalNumPartitions <= ArrayLen(counts)),
+                    counts,
+                    Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry * 4), TArray(TInt32))
+                  )
+                }
+              )
+            }
+          val partitionSizeArrayRef = Ref(genUID(), partitionSizeArray.typ)
+
+          val answerTuple = bindIR(ArrayLen(partitionSizeArrayRef)) { numPartitions =>
+            val howManyPartsToDrop = genUID()
+            val i = Ref(genUID(), TInt32)
+            val numLeft = Ref(genUID(), TInt64)
+            def makeAnswer(howManyParts: IR, howManyFromLast: IR) = MakeTuple(FastIndexedSeq((0, howManyParts), (1, howManyFromLast)))
+            if (targetNumRows == 0L) {
+              makeAnswer(numPartitions, 0L)
+            }
+            else {
+              If(numPartitions ceq 0,
+                makeAnswer(0, 0L),
+                TailLoop(howManyPartsToDrop, FastIndexedSeq(i.name -> (numPartitions), numLeft.name -> targetNumRows),
+                  //                If(numLeft ceq 0L,
+                  //                  makeAnswer(i, 0L),
+                  If((i ceq 1) || ((numLeft - Cast(ArrayRef(partitionSizeArrayRef, i - 1), TInt64)) <= 0L),
+                    makeAnswer(i - 1, numLeft),
+                    Recur(howManyPartsToDrop, FastIndexedSeq(i - 1, numLeft - Cast(ArrayRef(partitionSizeArrayRef, i - 1), TInt64)), TTuple(TInt32, TInt64))
+                  )
+                  //)
+                )
+              )
+            }
+          }
+
+          new TableStage(
+            loweredChild.letBindings :+ partitionSizeArrayRef.name -> partitionSizeArray,
+            loweredChild.broadcastVals,
+            loweredChild.globals,
+            loweredChild.partitioner,
+            {
+              val contexts = loweredChild.contexts
+              val contextElementType = contexts.typ.asInstanceOf[TStream].elementType
+              bindIR(answerTuple) { answerTupleRef =>
+                bindIR(ArrayLen(ToArray(loweredChild.contexts))) { totalNumPartitions =>
+                  val numPartsToDrop = GetTupleElement(answerTupleRef, 0)
+                  val numElementsFromFirstPart = GetTupleElement(answerTupleRef, 1)
+                  // Fuck, numPartsToDrop is how many to drop from the subsetted set of partitions.
+                  val realHowManyToDrop = numPartsToDrop + (totalNumPartitions - ArrayLen(partitionSizeArrayRef))
+                  val onlyNeededPartitions = StreamDrop(contexts, realHowManyToDrop)
+                  // The last problem. First part of answerTupleRef is how many parts to drop.
+                  val howManyFromEachPart = mapIR(rangeIR(totalNumPartitions - realHowManyToDrop)) { idxRef =>
+                    If(idxRef ceq 0,
+                      Cast(numElementsFromFirstPart, TInt32),
+                      ArrayRef(partitionSizeArrayRef, idxRef)
+                    )
+                  }
+                  StreamZip(FastIndexedSeq(onlyNeededPartitions, howManyFromEachPart, ToStream(partitionSizeArrayRef)), FastIndexedSeq("part", "howMany", "partLength"),
+                    MakeStruct(FastIndexedSeq(
+                      "numberToDrop" -> maxIR(0, Ref("partLength", TInt32) - Ref("howMany", TInt32)),
+                      "old" -> Ref("part", contextElementType))),
+                    ArrayZipBehavior.AssertSameLength
+                  )
+                }
+              }
+            }
+          ) {
+            override def partition(ctxRef: Ref): IR = {
+              bindIR(GetField(ctxRef, "old")) { oldRef =>
+                //ToStream(MakeArray(FastIndexedSeq(MakeStruct(FastIndexedSeq("a" -> GetField(ctxRef, "numberToDrop"), "b" -> Str("foo")))), TArray(TStruct("a" -> TInt32, "b" -> TString))))
+
+                StreamDrop(loweredChild.partition(oldRef), GetField(ctxRef, "numberToDrop"))
+              }
+            }
+          }
+
         case TableMapRows(child, newRow) =>
           if (ContainsScan(newRow))
             throw new LowererUnsupportedOperation(s"scans are not supported: \n${ Pretty(newRow) }")
