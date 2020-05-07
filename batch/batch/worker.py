@@ -20,7 +20,7 @@ from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
 from hailtop.utils import time_msecs, request_retry_transient_errors, RETRY_FUNCTION_SCRIPT, \
     sleep_and_backoff, retry_all_errors
-from hailtop.ssl import ssl_client_session
+from hailtop.tls import ssl_client_session
 
 # import uvloop
 

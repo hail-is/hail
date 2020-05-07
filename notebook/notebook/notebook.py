@@ -12,7 +12,7 @@ from kubernetes_asyncio import client, config
 import kubernetes_asyncio as kube
 
 from hailtop.config import get_deploy_config
-from hailtop.ssl import get_server_ssl_context, ssl_client_session
+from hailtop.tls import get_server_ssl_context, ssl_client_session
 from gear import setup_aiohttp_session, create_database_pool, \
     web_authenticated_users_only, web_maybe_authenticated_user, web_authenticated_developers_only, \
     check_csrf_token, AccessLogger

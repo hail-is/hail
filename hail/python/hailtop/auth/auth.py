@@ -2,7 +2,7 @@ import os
 import aiohttp
 from hailtop.config import get_deploy_config
 from hailtop.utils import async_to_blocking, request_retry_transient_errors
-from hailtop.ssl import ssl_client_session
+from hailtop.tls import ssl_client_session
 
 from .tokens import get_tokens
 

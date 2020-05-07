@@ -243,7 +243,7 @@ object UtilFunctions extends RegistryFunctions {
           Code.checkcast[Row](asm4s.coerce[java.lang.Object](wrapArg(r, argsT)(args)))))
     }
 
-    registerEmitCode2("land", TBoolean, TBoolean, TBoolean, (_: Type, _: PType, _: PType) => PBoolean()) {
+    registerEmitCode2("land", TBoolean, TBoolean, TBoolean, (_: Type, tl: PType, tr: PType) => PBoolean(tl.required && tr.required)) {
       case (er, rt, l, r) =>
         val lv = l.value[Boolean]
         val rv = r.value[Boolean]
@@ -273,7 +273,7 @@ object UtilFunctions extends RegistryFunctions {
           PCode(rt, w.ceq(10)))
     }
 
-    registerEmitCode2("lor", TBoolean, TBoolean, TBoolean, (_: Type, _: PType, _: PType) => PBoolean()) {
+    registerEmitCode2("lor", TBoolean, TBoolean, TBoolean, (_: Type, tl: PType, tr: PType) => PBoolean(tl.required && tr.required)) {
       case (er, rt, l, r) =>
         val lv = l.value[Boolean]
         val rv = r.value[Boolean]

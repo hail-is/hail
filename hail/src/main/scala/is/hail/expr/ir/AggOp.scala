@@ -69,7 +69,7 @@ case class PhysicalAggSignature(
 
   lazy val virtual: AggSignature = AggSignature(op, physicalInitOpArgs.map(_.virtualType), physicalSeqOpArgs.map(_.virtualType))
   lazy val singletonContainer: AggStatePhysicalSignature = AggStatePhysicalSignature(Map(op -> this), op, None)
-
+  def returnType: PType = singletonContainer.resultType
 }
 
 sealed trait AggOp {}
