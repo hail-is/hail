@@ -387,6 +387,13 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
   }
 }
 
+object TableRead {
+  def native(fs: FS, path: String): TableIR = {
+    val tr = TableNativeReader(fs, TableNativeReaderParameters(path, None))
+    TableRead(tr.fullType, false, tr)
+  }
+}
+
 case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends TableIR {
   assert(PruneDeadFields.isSupertype(typ, tr.fullType),
     s"\n  original:  ${ tr.fullType }\n  requested: $typ")
@@ -1841,7 +1848,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val prev = child.execute(ctx)
-    val prevRVD = prev.rvd
+    val prevRVD = prev.rvd.truncateKey(child.typ.key.length)
 
     val res = genUID()
     val extracted = agg.Extract(expr, res)
@@ -1849,7 +1856,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val physicalAggs = extracted.getPhysicalAggs(
       ctx,
       Env("global" -> prev.globals.t),
-      Env("global" -> prev.globals.decodedPType, "row" -> prev.rvd.rowPType)
+      Env("global" -> prev.globals.decodedPType, "row" -> prevRVD.rowPType)
     )
 
     val (_, makeInit) = ir.CompileWithAggregators2[AsmFunction2RegionLongUnit](ctx,
@@ -1861,13 +1868,13 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val (_, makeSeq) = ir.CompileWithAggregators2[AsmFunction3RegionLongLongUnit](ctx,
       physicalAggs,
       FastIndexedSeq(("global", prev.globals.t),
-        ("row", prev.rvd.rowPType)),
+        ("row", prevRVD.rowPType)),
       FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
       extracted.seqPerElt)
 
     val valueIR = Let(res, extracted.results, extracted.postAggIR)
-    val keyType = prev.rvd.typ.kType
-    assert(keyType.virtualType.fields.startsWith(prev.typ.keyType.fields))
+    val keyType = prevRVD.typ.kType
+    assert(keyType.fieldNames.sameElements(child.typ.key))
 
     val key = Ref(genUID(), keyType.virtualType)
     val value = Ref(genUID(), valueIR.typ)
@@ -1882,7 +1889,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     assert(rowType.virtualType == typ.rowType, s"$rowType, ${ typ.rowType }")
 
     val localChildRowType = prevRVD.rowPType
-    val keyIndices = prev.typ.keyFieldIdx
+    val keyIndices = prevRVD.typ.kFieldIdx
     val keyOrd = prevRVD.typ.kRowOrd
     val globalsBc = prev.globals.broadcast
 
