@@ -97,7 +97,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       val missingBytes = UnsafeUtils.packBitsToBytes(ft.nMissing)
       var c = Code._empty
       ft match {
-        case ps: PCanonicalBaseStruct if ps.fieldRequired.sameElements(fields.map(_.typ.required))=>
+        case ps: PCanonicalBaseStruct if ps.fieldRequired.sameElements(fields.map(_.typ.required)) =>
           if (nMissingBytes > 1)
             c = Code(c, out.writeBytes(coerce[Long](v), missingBytes - 1))
           if (nMissingBytes > 0)
