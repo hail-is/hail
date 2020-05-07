@@ -46,6 +46,13 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
   def genEmitClass[C](baseName: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
     newEmitClass[C](genName("C", baseName))
+
+  def getCodeOrdering2(ptLhs: PType, ptRhs: PType): EmitCodeOrdering = ordMap.getOrElseUpdate(ptLhs -> ptRhs, {
+    ptLhs.codeOrdering2(this, ptRhs)
+  })
+
+  private[this] val ordMap: mutable.Map[(PType, PType), EmitCodeOrdering] =
+    mutable.Map[(PType, PType), EmitCodeOrdering]()
 }
 
 trait WrappedEmitModuleBuilder {
