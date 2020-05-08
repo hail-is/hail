@@ -56,8 +56,7 @@ spec:
               memory: "3.75G"
               cpu: "1"
           readinessProbe:
-            httpGet:
-              path: /healthcheck
+            tcpSocket:
               port: 5000
             initialDelaySeconds: 5
             periodSeconds: 5
