@@ -153,7 +153,7 @@ class ContainerEmitCodeOrdering(
     f: (EmitCode, EmitCode) => Unit
   ): Unit = {
     val i = cb.newLocal[Int]("i", 0)
-    val lim = lhs.loadLength().min(rhs.loadLength())
+    val lim = cb.newLocal("lim", lhs.loadLength().min(rhs.loadLength()))
     cb.whileLoop(i < lim, {
       val left = EmitCode.fromI(cb.emb)(lhs.loadElement(_, i))
       val right = EmitCode.fromI(cb.emb)(rhs.loadElement(_, i))

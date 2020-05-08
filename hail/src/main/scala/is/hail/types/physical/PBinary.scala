@@ -5,7 +5,7 @@ import is.hail.annotations.{Region, UnsafeOrdering, _}
 import is.hail.asm4s._
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.expr.ir.{ConsistentEmitCodeOrdering, EmitCodeBuilder, EmitMethodBuilder, EmitModuleBuilder}
 import is.hail.types.virtual.TBinary
 
 abstract class PBinary extends PType {
@@ -31,6 +31,41 @@ abstract class PBinary extends PType {
         i += 1
       }
       Integer.compare(l1, l2)
+    }
+  }
+
+  override def codeOrdering2(modb: EmitModuleBuilder, other: PType): ConsistentEmitCodeOrdering = {
+    new ConsistentEmitCodeOrdering(modb, this, other) {
+      def emitCompare(cb: EmitCodeBuilder, lhsc: PCode, rhsc: PCode): Code[Int] = {
+        val lhs = lhsc.asInstanceOf[PBinaryCode].memoize(cb, "lhs")
+        val rhs = rhsc.asInstanceOf[PBinaryCode].memoize(cb, "rhs")
+
+        val lim = cb.newLocal[Int]("lim", lhs.loadLength().min(rhs.loadLength()))
+        val i = cb.newLocal[Int]("i", 0)
+        val cmp = cb.newLocal[Int]("cmp", 0)
+        cb.whileLoop(cmp.ceq(0) && i < lim, {
+          cb.assign(cmp, Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare",
+            Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", lhs.loadByte(i)),
+            Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", rhs.loadByte(i))))
+
+          cb.assign(i, i + 1)
+        })
+        cmp.ceq(0).mux(
+          Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", lhs.loadLength(), rhs.loadLength()),
+          cmp)
+      }
+
+      override def emitEq(cb: EmitCodeBuilder, lhsc: PCode, rhsc: PCode): Code[Boolean] = {
+        val lhs = cb.emb.newPresentEmitLocal("lhs", lhsc.pt)
+        val rhs = cb.emb.newPresentEmitLocal("rhs", rhsc.pt)
+        cb += (lhs := lhsc)
+        cb += (rhs := rhsc)
+        cb.ifx(lhs.pv.asInstanceOf[PBinaryCode].loadLength()
+            .ceq(rhs.pv.asInstanceOf[PBinaryCode].loadLength()),
+          cb._return(false))
+
+        compare(cb, lhs, rhs).ceq(0)
+      }
     }
   }
 
