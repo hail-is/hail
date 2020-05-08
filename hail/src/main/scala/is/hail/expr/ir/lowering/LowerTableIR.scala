@@ -337,8 +337,6 @@ object LowerTableIR {
           ) {
             override def partition(ctxRef: Ref): IR = {
               bindIR(GetField(ctxRef, "old")) { oldRef =>
-                //ToStream(MakeArray(FastIndexedSeq(MakeStruct(FastIndexedSeq("a" -> GetField(ctxRef, "numberToDrop"), "b" -> Str("foo")))), TArray(TStruct("a" -> TInt32, "b" -> TString))))
-
                 StreamDrop(loweredChild.partition(oldRef), GetField(ctxRef, "numberToDrop"))
               }
             }

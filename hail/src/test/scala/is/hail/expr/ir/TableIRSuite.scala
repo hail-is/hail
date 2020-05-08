@@ -430,7 +430,6 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableTail(): Unit = {
-    implicit val execStrats: Set[ExecStrategy] = ExecStrategy.lowering
     val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
     val numRowsToTakeArray = Array(0, 2, 7, 10, 12)
     val numInitialPartitionsArray = Array(1, 3, 6, 10, 13)
