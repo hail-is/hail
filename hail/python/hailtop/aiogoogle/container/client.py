@@ -15,8 +15,6 @@ class Client:
     #   'tags': []
     # }
     async def list_images(self, **kwargs):
-        print(kwargs)
-        print(self._session)
         async with await self._session.get(
                 f'https://gcr.io/v2/{self._project}/tags/list', **kwargs) as resp:
             return await resp.json()

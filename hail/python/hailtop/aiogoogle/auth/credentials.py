@@ -4,7 +4,6 @@ import json
 import time
 import jwt
 
-
 class Credentials(abc.ABC):
     @staticmethod
     def from_file(credentials_file):
@@ -39,6 +38,9 @@ class Credentials(abc.ABC):
         pass
 
 
+# protocol documented here:
+# https://developers.google.com/identity/protocols/oauth2/web-server#offline
+# studying `gcloud --log-http print-access-token` was also useful
 class ApplicationDefaultCredentials(Credentials):
     def __init__(self, credentials):
         self.credentials = credentials
@@ -58,6 +60,9 @@ class ApplicationDefaultCredentials(Credentials):
             return await resp.json()
 
 
+# protocol documented here:
+# https://developers.google.com/identity/protocols/oauth2/service-account
+# studying `gcloud --log-http print-access-token` was also useful
 class ServiceAccountCredentials(Credentials):
     def __init__(self, key):
         self.key = key

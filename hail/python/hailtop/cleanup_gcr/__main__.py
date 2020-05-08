@@ -85,7 +85,6 @@ class CleanupImages:
 async def main():
     logging.basicConfig(level=logging.INFO)
 
-    print(sys.argv)
     if len(sys.argv) != 2:
         raise ValueError('usage: cleanup_gcr <project>')
     project = sys.argv[1]
