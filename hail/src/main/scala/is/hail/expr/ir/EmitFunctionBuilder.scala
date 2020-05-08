@@ -999,6 +999,8 @@ class EmitMethodBuilder[C](
     newPresentEmitSettable(pt, newPField(name, pt))
 
   def emitWithBuilder[T](f: (EmitCodeBuilder) => Code[T]): Unit = emit(EmitCodeBuilder.scopedCode[T](this)(f))
+
+  def voidWithBuilder(f: (EmitCodeBuilder) => Unit): Unit = emit(EmitCodeBuilder.scopedVoid(this)(f))
 }
 
 trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
