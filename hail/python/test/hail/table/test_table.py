@@ -1463,6 +1463,13 @@ def test_group_within_partitions_after_explode():
     t = t._group_within_partitions("grouped_fields", 10)
     assert(t._force_count() == 20)
 
+def test_group_within_partitions_after_import_vcf():
+    gt_mt = hl.import_vcf(resource('small-gt.vcf'))
+    ht = gt_mt.rows()
+    ht = ht._group_within_partitions("grouped_fields", 16)
+    ht.collect() # Just testing import without segault
+    assert True
+
 
 def test_range_annotate_range():
     # tests left join right distinct requiredness

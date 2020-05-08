@@ -2047,7 +2047,7 @@ case class TableGroupWithinPartitions(child: TableIR, name: String, n: Int) exte
 
           val offsetArray = new Array[Long](blockSize) // May be longer than the amount of data
           var childIterationCount = 0
-          while (it.hasNext && childIterationCount != blockSize) {
+          while (childIterationCount != blockSize && it.hasNext) {
             val nextPtr = it.next()
             offsetArray(childIterationCount) = nextPtr
             childIterationCount += 1
