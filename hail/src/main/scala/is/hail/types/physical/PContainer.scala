@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.expr.ir.{ContainerEmitCodeOrdering, EmitCodeBuilder, EmitMethodBuilder, EmitModuleBuilder, IEmitCode}
 
 abstract class PContainer extends PIterable {
   override def containsPointers: Boolean = true
@@ -10,6 +10,9 @@ abstract class PContainer extends PIterable {
   def elementByteSize: Long
 
   def contentsAlignment: Long
+
+  override def codeOrdering2(modb: EmitModuleBuilder, other: PType): ContainerEmitCodeOrdering =
+    new ContainerEmitCodeOrdering(modb, this, other.asInstanceOf[PContainer])
 
   def loadLength(aoff: Long): Int
 
