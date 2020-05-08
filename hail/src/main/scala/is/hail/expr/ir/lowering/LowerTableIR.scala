@@ -70,15 +70,16 @@ abstract class TableStage(
     }
   }
 
-  def adjustPartitionsTo(newPartitioner: RVDPartitioner): TableStage = {
+  def repartitionNoShuffle(newPartitioner: RVDPartitioner): TableStage = {
     require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
     require(newPartitioner.kType.isPrefixOf(partitioner.kType))
 
+    val boundType = RVDPartitioner.intervalIRRepresentation(newPartitioner.kType)
     val partitionMapping: IndexedSeq[Row] = newPartitioner.rangeBounds.map { i =>
-      Row(i, partitioner.queryInterval(i))
+      Row(RVDPartitioner.intervalToIRRepresentation(i, newPartitioner.kType.size), partitioner.queryInterval(i))
     }
     val partitionMappingType = TStruct(
-      "partitionBound" -> TInterval(partitioner.kType),
+      "partitionBound" -> boundType,
       "parentPartitions" -> TArray(TInt32)
     )
 
@@ -87,26 +88,25 @@ abstract class TableStage(
     val idxUID = genUID()
     val newContexts = Let(
       prevContextUID,
-      contexts,
-      ToArray(
-        StreamMap(
-          ToStream(
-            Literal(
-              TArray(partitionMappingType),
-              partitionMapping)),
-          mappingUID,
-          MakeStruct(
-            FastSeq(
-              "partitionBound" -> GetField(Ref(mappingUID, partitionMappingType), "partitionBound"),
-              "oldContexts" -> ToArray(
-                StreamMap(
-                  ToStream(GetField(Ref(mappingUID, partitionMappingType), "parentPartitions")),
-                  idxUID,
-                  ArrayRef(Ref(prevContextUID, contexts.typ.asInstanceOf[TArray]), Ref(idxUID, TInt32))
-                ))
-            )
+      ToArray(contexts),
+      StreamMap(
+        ToStream(
+          Literal(
+            TArray(partitionMappingType),
+            partitionMapping)),
+        mappingUID,
+        MakeStruct(
+          FastSeq(
+            "partitionBound" -> GetField(Ref(mappingUID, partitionMappingType), "partitionBound"),
+            "oldContexts" -> ToArray(
+              StreamMap(
+                ToStream(GetField(Ref(mappingUID, partitionMappingType), "parentPartitions")),
+                idxUID,
+                ArrayRef(Ref(prevContextUID, TArray(contexts.typ.asInstanceOf[TStream].elementType)), Ref(idxUID, TInt32))
+              ))
           )
-        ))
+        )
+      )
     )
 
     val intervalUID = genUID()
@@ -114,20 +114,20 @@ abstract class TableStage(
     val prevContextUIDPartition = genUID()
     new TableStage(letBindings, broadcastVals, globals, newPartitioner, newContexts) {
       override def partition(ctxRef: Ref): IR = {
-        val body = self.partition(Ref(prevContextUIDPartition, contexts.typ.asInstanceOf[TStream].elementType))
+        val body = self.partition(Ref(prevContextUIDPartition, self.contexts.typ.asInstanceOf[TStream].elementType))
         Let(
           intervalUID,
           GetField(ctxRef, "partitionBound"),
           StreamFilter(
             StreamFlatMap(
-              ToStream(GetField(ctxRef, "parentPartitions")),
+              ToStream(GetField(ctxRef, "oldContexts")),
               prevContextUIDPartition,
               body
             ),
             eltUID,
-            invoke("contains",
+            invoke("partitionIntervalContains",
               TBoolean,
-              Ref(intervalUID, partitioner.kType),
+              Ref(intervalUID, boundType),
               SelectFields(Ref(eltUID, body.typ.asInstanceOf[TStream].elementType), partitioner.kType.fieldNames)
             )
           ))
@@ -264,7 +264,7 @@ object LowerTableIR {
         case x@TableAggregateByKey(child, expr) =>
           val loweredChild = lower(child)
 
-          loweredChild.adjustPartitionsTo(loweredChild.partitioner.coarsen(child.typ.key.length).strictify)
+          loweredChild.repartitionNoShuffle(loweredChild.partitioner.coarsen(child.typ.key.length).strictify)
             .mapPartition { partition =>
               val sUID = genUID()
 
@@ -274,12 +274,15 @@ object LowerTableIR {
                 StreamAgg(
                   Ref(sUID, TStream(child.typ.rowType)),
                   "row",
-                  invoke("annotate", x.typ.rowType,
-                    ArrayRef(ApplyAggOp(FastSeq(I32(1)), FastSeq(Ref("row", child.typ.rowType)),
-                      AggSignature(Take(), FastSeq(), FastSeq(TInt32))), I32(0)),  // FIXME: would prefer a First() agg op
-                    expr
-                  )
-                ))
+                  bindIRs(ArrayRef(ApplyAggOp(FastSeq(I32(1)), FastSeq(SelectFields(Ref("row", child.typ.rowType), child.typ.key)),
+                    AggSignature(Take(), FastSeq(TInt32), FastSeq(child.typ.keyType))), I32(0)), // FIXME: would prefer a First() agg op
+                    expr) { case Seq(key, value) =>
+                    MakeStruct(child.typ.key.map(k => (k, GetField(key, k))) ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
+                      (f, GetField(value, f))
+                    })
+                  }
+                )
+              )
             }
 
         case TableFilter(child, cond) =>
