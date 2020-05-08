@@ -525,10 +525,8 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
 
     ht_local = mt._localize_entries(entries_field_name, sample_field_name)
 
-
     # Now here, I want to transmute away the entries field name struct to get arrays
     ht = ht_local.transmute(**{entries_field_name: ht_local[entries_field_name][x_field_name]})
-    just_before_grouping = ht
     # Now need to group everything
     ht = ht._group_within_partitions("grouped_fields", block_size)  # breaking point for show with filtering, idk why
 
