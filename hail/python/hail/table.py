@@ -1671,10 +1671,10 @@ class Table(ExprContainer):
                 else:
                     def joiner(left: MatrixTable):
                         return MatrixTable(ir.MatrixAnnotateRowsTable(left._mir, right._tir, uid, all_matches))
-                    ast = ir.Join(ir.GetField(ir.TopLevelReference('va'), uid),
-                                  [uid],
-                                  exprs,
-                                  joiner)
+                ast = ir.Join(ir.GetField(ir.TopLevelReference('va'), uid),
+                              [uid],
+                              exprs,
+                              joiner)
                 return construct_expr(ast, new_schema, indices, aggregations)
             elif indices == src._col_indices and not (is_interval and all_matches):
                 all_uids = [uid]
