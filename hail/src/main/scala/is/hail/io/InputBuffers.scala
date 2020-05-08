@@ -2,6 +2,7 @@ package is.hail.io
 
 import java.io._
 import java.util
+import java.util.UUID
 
 import is.hail.annotations.{Memory, Region}
 import is.hail.io.compress.LZ4
@@ -261,6 +262,104 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
   def skipBytes(n: Int): Unit = in.skipBytes(n)
 
   def readDoubles(to: Array[Double], toOff: Int, n: Int): Unit = in.readDoubles(to, toOff, n)
+}
+
+final class TracingInputBuffer(
+  private[this] val in: InputBuffer
+) extends InputBuffer {
+  private[this] val filename = s"tracing-input-buffer-${UUID.randomUUID}"
+  private[this] val logfile = new FileOutputStream(filename, true)
+  log.info(s"tracing to $filename")
+
+  def close(): Unit = in.close()
+
+  def seek(offset: Long): Unit = ???
+
+  def readByte(): Byte = {
+    val x = in.readByte()
+    logfile.write(x)
+    x
+  }
+
+  override def read(buf: Array[Byte], toOff: Int, n: Int) = {
+    var i = 0
+    while (i < n) {
+      buf(toOff + i) = readByte()
+      i += 1
+    }
+  }
+
+  def readInt(): Int = {
+    val bytes = readBytesArray(4)
+    Memory.loadInt(bytes, 0)
+  }
+
+  def readLong(): Long = {
+    val bytes = readBytesArray(8)
+    Memory.loadLong(bytes, 0)
+  }
+
+  def readFloat(): Float = {
+    val bytes = readBytesArray(4)
+    Memory.loadFloat(bytes, 0)
+  }
+
+  def readDouble(): Double = {
+    val bytes = readBytesArray(8)
+    Memory.loadDouble(bytes, 0)
+  }
+
+  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = {
+    Region.storeBytes(toOff, readBytesArray(n))
+  }
+
+  def readBytesArray(n: Int): Array[Byte] = {
+    Array.tabulate(n)(_ => readByte())
+  }
+
+  override def skipBoolean(): Unit = skipByte()
+
+  def skipByte(): Unit = {
+    readBytesArray(1)
+  }
+
+  def skipInt(): Unit = {
+    readBytesArray(4)
+  }
+
+  def skipLong(): Unit = {
+    readBytesArray(8)
+  }
+
+  def skipFloat(): Unit = {
+    readBytesArray(4)
+  }
+
+  def skipDouble(): Unit = {
+    readBytesArray(8)
+  }
+
+  def skipBytes(n: Int): Unit = {
+    readBytesArray(n)
+  }
+
+  def readDoubles(to: Array[Double], off: Int, n: Int): Unit = {
+    var i = 0
+    while (i < n) {
+      to(off + i) = readDouble()
+      i += 1
+    }
+  }
+
+  override def readDoubles(to: Array[Double]): Unit = readDoubles(to, 0, to.length)
+
+  override def readBoolean(): Boolean = readByte() != 0
+
+  override def readUTF(): String = {
+    val s = in.readUTF()
+    logfile.write(s.getBytes(utfCharset))
+    s
+  }
 }
 
 final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBuffer {
