@@ -16,11 +16,11 @@ import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, dictof, anytype, \
     anyfunc, nullable, sequenceof, oneof, numeric, lazy, enumeration, \
     table_key_type
-from hail.utils.java import Env
+from hail.utils.java import Env, info, warn
 from hail.utils.misc import wrap_to_tuple, storage_level, plural, \
     get_nice_field_error, get_nice_attr_error, get_key_by_exprs, check_keys, \
-    get_select_exprs, check_annotate_exprs, process_joins, warn, \
-    filter_predicate_with_keep, info
+    get_select_exprs, check_annotate_exprs, process_joins, \
+    filter_predicate_with_keep
 import hail
 import hail as hl
 
