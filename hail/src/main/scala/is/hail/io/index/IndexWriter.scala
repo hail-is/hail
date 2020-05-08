@@ -65,14 +65,6 @@ case class IndexMetadata(
   attributes: Map[String, Any]
 ) extends AbstractIndexMetadata
 
-case class IndexNodeInfo(
-  indexFileOffset: Long,
-  firstIndex: Long,
-  firstKey: Annotation,
-  firstRecordOffset: Long,
-  firstAnnotation: Annotation
-)
-
 object IndexWriter {
   val version: SemanticVersion = SemanticVersion(1, 1, 0)
 

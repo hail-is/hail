@@ -131,6 +131,4 @@ trait Implicits {
   implicit def valueToRichCodeIterator[T](it: Value[Iterator[T]]): RichCodeIterator[T] = new RichCodeIterator[T](it)
 
   implicit def toRichCodeIntPacker(p: Code[IntPacker]): RichCodeIntPacker = new RichCodeIntPacker(p)
-
-  implicit def toRichCodeByteTrackingIS(os: Code[ByteTrackingOutputStream]): RichCodeByteTrackingOutputStream = new RichCodeByteTrackingOutputStream(os)
 }
