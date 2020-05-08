@@ -19,8 +19,7 @@ from hail.typecheck import typecheck, typecheck_method, dictof, anytype, \
 from hail.utils.java import Env, info, warn
 from hail.utils.misc import wrap_to_tuple, storage_level, plural, \
     get_nice_field_error, get_nice_attr_error, get_key_by_exprs, check_keys, \
-    get_select_exprs, check_annotate_exprs, process_joins, \
-    filter_predicate_with_keep
+    get_select_exprs, check_annotate_exprs, process_joins
 import hail
 import hail as hl
 
@@ -807,7 +806,7 @@ class Table(ExprContainer):
         analyze('Table.filter', expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
 
-        return cleanup(Table(ir.TableFilter(base._tir, filter_predicate_with_keep(expr._ir, keep))))
+        return cleanup(Table(ir.TableFilter(base._tir, ir.filter_predicate_with_keep(expr._ir, keep))))
 
     @typecheck_method(exprs=oneof(Expression, str),
                       named_exprs=anytype)
