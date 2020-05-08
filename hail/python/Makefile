@@ -1,6 +1,11 @@
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
+.PHONY: check-hail
+check-hail:
+	$(PYTHON) -m flake8 --config ../../setup.cfg hail
+	$(PYTHON) -m pylint --rcfile ../../pylintrc hail --score=n
+
 .PHONY: check
 check:
 	$(PYTHON) -m flake8 --config ../../setup.cfg hailtop
