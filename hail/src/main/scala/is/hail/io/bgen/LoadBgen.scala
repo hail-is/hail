@@ -6,7 +6,7 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.{ExecuteContext, IRParser, IRParserEnvironment, Interpret, MatrixHybridReader, Pretty, TableIR, TableRead, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.physical.{PCanonicalStruct, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.io.fs.{FS, FileStatus}
@@ -445,16 +445,30 @@ class MatrixBGENReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
+  private var _settings: BgenSettings = _
+
+  def getSettings(requestedType: TableType): BgenSettings = {
+    if (_settings == null || _settings.requestedType != requestedType) {
+      _settings = BgenSettings(
+        nSamples,
+        requestedType,
+        referenceGenome.map(_.broadcast),
+        indexAnnotationType)
+    }
+    _settings
+  }
+
+  def rowAndGlobalPTypes(context: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
+    val settings = getSettings(requestedType)
+    settings.rowPType -> PType.canonical(requestedType.globalType, required = true).asInstanceOf[PStruct]
+  }
+
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val requestedType = tr.typ
 
     assert(requestedType.keyType == indexKeyType)
 
-    val settings = BgenSettings(
-      nSamples,
-      requestedType,
-      referenceGenome.map(_.broadcast),
-      indexAnnotationType)
+    val settings = getSettings(requestedType)
 
     val rvdType = RVDType(coerce[PStruct](settings.rowPType.subsetTo(requestedType.rowType)),
       fullType.key.take(requestedType.key.length))
