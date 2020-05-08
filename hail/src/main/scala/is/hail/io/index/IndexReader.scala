@@ -210,33 +210,6 @@ class IndexReader(fs: FS,
     iterator(startIdx, endIdx)
   }
 
-  def dumpLeaf(node: LeafNode, depth: Int) {
-    val spaces = "  | " * depth
-    println(spaces + s"leaf node: first index=${ node.firstIndex }")
-    node.children.foreach { c =>
-      println(spaces + s"  - ${ c.key }")
-    }
-  }
-
-  def dumpInternal(node: InternalNode, level: Int, depth: Int) {
-    val spaces = "  | " * depth
-    println(spaces + s"internal node: level=$level, first index=${ node.firstIndex }")
-    node.children.foreach { c =>
-      println(spaces + "  - first key: " + (if (c.firstKey == null) "NA" else c.firstKey.toString))
-      if (level == 1)
-        dumpLeaf(readLeafNode(c.indexFileOffset), depth + 1)
-      else
-        dumpInternal(readInternalNode(c.indexFileOffset), level - 1, depth + 1)
-    }
-  }
-
-  def dump(): Unit = {
-    val root = readInternalNode(metadata.rootOffset)
-    println(s"height: $height")
-    println(s"nKeys: $nKeys")
-    dumpInternal(root, height - 1, depth = 0)
-  }
-
   def iterator: Iterator[LeafChild] = iterator(0, nKeys)
 
   def iterator(start: Long, end: Long) = new Iterator[LeafChild] {
