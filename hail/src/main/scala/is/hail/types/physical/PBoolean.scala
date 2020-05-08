@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering, _}
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{ConsistentEmitCodeOrdering, EmitCodeBuilder, EmitMethodBuilder, EmitModuleBuilder}
 import is.hail.types.virtual.TBoolean
 
 case object PBooleanOptional extends PBoolean(false)
@@ -18,6 +18,13 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(o1: Long, o2: Long): Int = {
       java.lang.Boolean.compare(Region.loadBoolean(o1), Region.loadBoolean(o2))
+    }
+  }
+
+  override def codeOrdering2(modb: EmitModuleBuilder, other: PType): ConsistentEmitCodeOrdering = {
+    new ConsistentEmitCodeOrdering(modb, this, other) {
+      def emitCompare(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Int] =
+        Code.invokeStatic2[java.lang.Boolean, Boolean, Boolean, Int]("compare", lhs.tcode[Boolean], rhs.tcode[Boolean])
     }
   }
 

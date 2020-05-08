@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{ConsistentEmitCodeOrdering, EmitCodeBuilder, EmitMethodBuilder, EmitModuleBuilder}
 import is.hail.types.virtual.TFloat64
 
 case object PFloat64Optional extends PFloat64(false)
@@ -20,6 +20,23 @@ class PFloat64(override val required: Boolean) extends PNumeric with PPrimitive 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(o1: Long, o2: Long): Int = {
       java.lang.Double.compare(Region.loadDouble(o1), Region.loadDouble(o2))
+    }
+  }
+
+  override def codeOrdering2(modb: EmitModuleBuilder, other: PType): ConsistentEmitCodeOrdering = {
+    new ConsistentEmitCodeOrdering(modb, this, other) {
+      def emitCompare(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Int] =
+        Code.invokeStatic2[java.lang.Double, Double, Double, Int]("compare", lhs.tcode[Double], rhs.tcode[Double])
+      override def emitEq(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] =
+        lhs.tcode[Double].ceq(rhs.tcode[Double])
+      override def emitGt(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] =
+        lhs.tcode[Double] > rhs.tcode[Double]
+      override def emitGtEq(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] =
+        lhs.tcode[Double] >= rhs.tcode[Double]
+      override def emitLt(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] =
+        lhs.tcode[Double] < rhs.tcode[Double]
+      override def emitLtEq(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] =
+        lhs.tcode[Double] <= rhs.tcode[Double]
     }
   }
 

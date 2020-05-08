@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering, _}
 import is.hail.asm4s.{Code, coerce, const, _}
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{ConsistentEmitCodeOrdering, EmitCodeBuilder, EmitMethodBuilder, EmitModuleBuilder}
 import is.hail.types.virtual.TInt64
 
 case object PInt64Optional extends PInt64(false)
@@ -18,6 +18,23 @@ class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(o1: Long, o2: Long): Int = {
       java.lang.Long.compare(Region.loadLong(o1), Region.loadLong(o2))
+    }
+  }
+
+  override def codeOrdering2(modb: EmitModuleBuilder, other: PType): ConsistentEmitCodeOrdering = {
+    new ConsistentEmitCodeOrdering(modb, this, other) {
+      def emitCompare(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Int] =
+        Code.invokeStatic2[java.lang.Long, Long, Long, Int]("compare", lhs.tcode[Long], rhs.tcode[Long])
+      override def emitEq(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] =
+        lhs.tcode[Long].ceq(rhs.tcode[Long])
+      override def emitGt(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] =
+        lhs.tcode[Long] > rhs.tcode[Long]
+      override def emitGtEq(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] =
+        lhs.tcode[Long] >= rhs.tcode[Long]
+      override def emitLt(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] =
+        lhs.tcode[Long] < rhs.tcode[Long]
+      override def emitLtEq(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Boolean] =
+        lhs.tcode[Long] <= rhs.tcode[Long]
     }
   }
 

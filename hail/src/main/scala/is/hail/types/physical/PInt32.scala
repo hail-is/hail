@@ -20,7 +20,7 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
     }
   }
 
-  override def codeOrdering2(modb: EmitModuleBuilder, other: PType): EmitCodeOrdering = {
+  override def codeOrdering2(modb: EmitModuleBuilder, other: PType): ConsistentEmitCodeOrdering = {
     new ConsistentEmitCodeOrdering(modb, this, other) {
       def emitCompare(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): Code[Int] =
         Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", lhs.tcode[Int], rhs.tcode[Int])
