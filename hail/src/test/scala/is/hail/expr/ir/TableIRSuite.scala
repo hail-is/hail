@@ -429,6 +429,35 @@ class TableIRSuite extends HailSuite {
     }
   }
 
+  @Test def testTableTail(): Unit = {
+    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)), "global" -> TStruct("x" -> TString))
+    val numRowsToTakeArray = Array(0, 2, 7, 10, 12)
+    val numInitialPartitionsArray = Array(1, 3, 6, 10, 13)
+    val initialDataLength = 10
+    def makeData(length: Int): Row = {
+      Row(FastIndexedSeq((initialDataLength - length) until initialDataLength: _*).map(i => Row(i, "row" + i)), Row("global"))
+    }
+    val initialData = makeData(initialDataLength)
+
+
+    numRowsToTakeArray.foreach { howManyRowsToTake =>
+      val headData = makeData(Math.min(howManyRowsToTake, initialDataLength))
+      numInitialPartitionsArray.foreach { howManyInitialPartitions =>
+        assertEvalsTo(
+          collectNoKey(
+            TableTail(
+              TableParallelize(
+                Literal(t, initialData),
+                Some(howManyInitialPartitions)
+              ),
+              howManyRowsToTake
+            )
+          ),
+          headData)
+      }
+    }
+  }
+
 
   @Test def testShuffleAndJoinDoesntMemoryLeak() {
     implicit val execStrats = ExecStrategy.interpretOnly
