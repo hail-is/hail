@@ -5,6 +5,7 @@ import time
 import logging
 from urllib.parse import urlencode
 import jwt
+from hailtop.utils import request_retry_transient_errors
 
 log = logging.getLogger(__name__)
 
@@ -52,7 +53,8 @@ class ApplicationDefaultCredentials(Credentials):
         self.credentials = credentials
 
     async def get_access_token(self, session):
-        async with session.post(
+        async with await request_retry_transient_errors(
+                session, 'POST',
                 'https://www.googleapis.com/oauth2/v4/token',
                 headers={
                     'content-type': 'application/x-www-form-urlencoded'
@@ -84,7 +86,8 @@ class ServiceAccountCredentials(Credentials):
             "iss": self.key['client_email']
         }
         encoded_assertion = jwt.encode(assertion, self.key['private_key'], algorithm='RS256')
-        async with session.post(
+        async with await request_retry_transient_errors(
+                session, 'POST',
                 'https://www.googleapis.com/oauth2/v4/token',
                 headers={
                     'content-type': 'application/x-www-form-urlencoded'

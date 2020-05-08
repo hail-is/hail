@@ -8,6 +8,8 @@ class Client:
             session = google_auth.Session(**kwargs)
         self._session = session
 
+    # list images:
+    # GET /tags/list
     # returns:
     # {
     #   'child': [<image>, ...],
@@ -15,11 +17,10 @@ class Client:
     #   'name': <project>,
     #   'tags': []
     # }
-    async def list_images(self, **kwargs):
-        async with await self._session.get(
-                f'https://gcr.io/v2/{self._project}/tags/list', **kwargs) as resp:
-            return await resp.json()
 
+    # list image tags:
+    # GET /{image}/tags/list
+    # returns:
     # {
     #   'child': [],
     #   'manifest': {<diget>: {
@@ -34,19 +35,21 @@ class Client:
     #   'name': '<project>/<image>',
     #   'tags': [<tag>, ...]
     # }
-    async def list_image_tags(self, image, **kwargs):
+
+    async def get(self, path, **kwargs):
         async with await self._session.get(
-                f'https://gcr.io/v2/{self._project}/{image}/tags/list', **kwargs) as resp:
+                f'https://gcr.io/v2/{self._project}{path}', **kwargs) as resp:
             return await resp.json()
 
-    async def delete_image_tag(self, image, tag, **kwargs):
-        async with await self._session.delete(
-                f'https://gcr.io/v2/{self._project}/{image}/manifests/{tag}', **kwargs):
-            pass
+    # delete image tag
+    # DELETE /{image}/manifests/{tag}
 
-    async def delete_image(self, image, digest, **kwargs):
+    # delete image digest
+    # DELETE /{image}/manifests/{digest}
+
+    async def delete(self, path, **kwargs):
         async with await self._session.delete(
-                f'https://gcr.io/v2/{self._project}/{image}/manifests/{digest}', **kwargs):
+                f'https://gcr.io/v2/{self._project}{path}', **kwargs):
             pass
 
     async def close(self):

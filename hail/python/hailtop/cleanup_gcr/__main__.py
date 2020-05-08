@@ -40,10 +40,10 @@ class CleanupImages:
         log.info(f'cleaning up digest {image}@{digest}')
 
         await self._executor.gather([
-            self._client.delete_image_tag(image, tag)
+            self._client.delete(f'/{image}/manifests/{tag}')
             for tag in tags])
 
-        await self._executor.submit(self._client.delete_image(image, digest))
+        await self._executor.submit(self._client.delete(f'/{image}/manifests/{digest}'))
 
         log.info(f'cleaned up digest  {image}@{digest}')
 
@@ -52,7 +52,7 @@ class CleanupImages:
 
         log.info(f'listing tags for {image}')
 
-        result = await self._executor.submit(self._client.list_image_tags(image))
+        result = await self._executor.submit(self._client.get(f'/{image}/tags/list'))
         manifests = result['manifest']
         manifests = [(digest, int(data['timeUploadedMs']) / 1000, data['tag']) for digest, data in manifests.items()]
 
@@ -73,7 +73,7 @@ class CleanupImages:
         log.info(f'cleaned up image  {image}')
 
     async def run(self):
-        images = await self._executor.submit(self._client.list_images())
+        images = await self._executor.submit(self._client.get(f'/tags/list'))
         await asyncio.gather(*[
             self.cleanup_image(image)
             for image in images['child']
