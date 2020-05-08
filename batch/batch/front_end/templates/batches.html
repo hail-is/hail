@@ -47,12 +47,15 @@
 	  <tr>
 	    <th>ID</th>
 	    <th>Name</th>
+	    <th>Submitted</th>
+	    <th>Completed</th>
 	    <th>State</th>
 	    <th>Jobs</th>
 	    <th>Pending</th>
 	    <th>Succeeded</th>
 	    <th>Failed</th>
 	    <th>Cancelled</th>
+	    <th>Duration</th>
 	    <th>Cost</th>
 	  </tr>
 	</thead>
@@ -65,12 +68,27 @@
 	      {{ batch['attributes']['name'] }}
 	      {% endif %}
 	    </td>
+	    <td>
+	      {% if 'time_closed' in batch and batch['time_closed'] is not none %}
+	      {{ batch['time_closed'] }}
+	      {% endif %}
+	    </td>
+	    <td>
+	      {% if 'time_completed' in batch and batch['time_completed'] is not none %}
+	      {{ batch['time_completed'] }}
+	      {% endif %}
+	    </td>
 	    <td>{{ batch['state'] }}</td>
 	    <td class="numeric-cell">{{ batch['n_jobs'] }}</td>
 	    <td class="numeric-cell">{{ batch['n_jobs'] - batch['n_completed'] }}</td>
 	    <td class="numeric-cell">{{ batch['n_succeeded'] }}</td>
 	    <td class="numeric-cell">{{ batch['n_failed'] }}</td>
 	    <td class="numeric-cell">{{ batch['n_cancelled'] }}</td>
+	    <td class="numeric-cell">
+		  {% if 'duration' in batch and batch['duration'] is not none %}
+		  {{ batch['duration'] }}
+		  {% endif %}
+	    </td>
 	    <td class="numeric-cell">
 	      {% if 'cost' in batch and batch['cost'] is not none %}
 	      {{ batch['cost'] }}
