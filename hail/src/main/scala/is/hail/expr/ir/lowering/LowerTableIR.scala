@@ -289,24 +289,17 @@ object LowerTableIR {
             val i = Ref(genUID(), TInt32)
             val numLeft = Ref(genUID(), TInt64)
             def makeAnswer(howManyParts: IR, howManyFromLast: IR) = MakeTuple(FastIndexedSeq((0, howManyParts), (1, howManyFromLast)))
-            if (targetNumRows == 0L) {
-              makeAnswer(numPartitions, 0L)
-            }
-            else {
-              If(numPartitions ceq 0,
-                makeAnswer(0, 0L),
-                TailLoop(howManyPartsToDrop, FastIndexedSeq(i.name -> (numPartitions), numLeft.name -> targetNumRows),
-                  //                If(numLeft ceq 0L,
-                  //                  makeAnswer(i, 0L),
-                  If((i ceq 1) || ((numLeft - Cast(ArrayRef(partitionSizeArrayRef, i - 1), TInt64)) <= 0L),
-                    makeAnswer(i - 1, numLeft),
-                    Recur(howManyPartsToDrop, FastIndexedSeq(i - 1, numLeft - Cast(ArrayRef(partitionSizeArrayRef, i - 1), TInt64)), TTuple(TInt32, TInt64))
-                  )
-                  //)
+
+            If(numPartitions ceq 0,
+              makeAnswer(0, 0L),
+              TailLoop(howManyPartsToDrop, FastIndexedSeq(i.name -> (numPartitions), numLeft.name -> targetNumRows),
+                If((i ceq 1) || ((numLeft - Cast(ArrayRef(partitionSizeArrayRef, i - 1), TInt64)) <= 0L),
+                  makeAnswer(i - 1, numLeft),
+                  Recur(howManyPartsToDrop, FastIndexedSeq(i - 1, numLeft - Cast(ArrayRef(partitionSizeArrayRef, i - 1), TInt64)), TTuple(TInt32, TInt64))
                 )
               )
-            }
-          }
+            )
+        }
 
           new TableStage(
             loweredChild.letBindings :+ partitionSizeArrayRef.name -> partitionSizeArray,
@@ -320,17 +313,15 @@ object LowerTableIR {
                 bindIR(ArrayLen(ToArray(loweredChild.contexts))) { totalNumPartitions =>
                   val numPartsToDrop = GetTupleElement(answerTupleRef, 0)
                   val numElementsFromFirstPart = GetTupleElement(answerTupleRef, 1)
-                  // Fuck, numPartsToDrop is how many to drop from the subsetted set of partitions.
                   val realHowManyToDrop = numPartsToDrop + (totalNumPartitions - ArrayLen(partitionSizeArrayRef))
                   val onlyNeededPartitions = StreamDrop(contexts, realHowManyToDrop)
-                  // The last problem. First part of answerTupleRef is how many parts to drop.
-                  val howManyFromEachPart = mapIR(rangeIR(totalNumPartitions - realHowManyToDrop)) { idxRef =>
+                  val howManyFromEachPart = mapIR(rangeIR(ArrayLen(ToArray(onlyNeededPartitions)))) { idxRef =>
                     If(idxRef ceq 0,
                       Cast(numElementsFromFirstPart, TInt32),
                       ArrayRef(partitionSizeArrayRef, idxRef)
                     )
                   }
-                  StreamZip(FastIndexedSeq(onlyNeededPartitions, howManyFromEachPart, ToStream(partitionSizeArrayRef)), FastIndexedSeq("part", "howMany", "partLength"),
+                  StreamZip(FastIndexedSeq(onlyNeededPartitions, howManyFromEachPart, StreamDrop(ToStream(partitionSizeArrayRef), numPartsToDrop)), FastIndexedSeq("part", "howMany", "partLength"),
                     MakeStruct(FastIndexedSeq(
                       "numberToDrop" -> maxIR(0, Ref("partLength", TInt32) - Ref("howMany", TInt32)),
                       "old" -> Ref("part", contextElementType))),
