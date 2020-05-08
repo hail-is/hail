@@ -9,7 +9,7 @@ from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
 from hailtop.utils import blocking_to_async, retry_transient_errors
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_server_ssl_context
-from gear import setup_aiohttp_session, rest_authenticated_users_only
+from gear import setup_aiohttp_session, rest_authenticated_users_only, AccessLogger
 
 uvloop.install()
 
