@@ -76,7 +76,7 @@ object IndexWriter {
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any]
   ): String => IndexWriter = {
-    val f = StagedIndexPartitionWriter.build(ctx, keyType, annotationType, branchingFactor, attributes);
+    val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor, attributes);
     { path: String =>
       new IndexWriter(keyType, annotationType, f(path))
     }
@@ -233,7 +233,7 @@ trait CompiledIndexWriter {
   def close(): Unit
 }
 
-object StagedIndexPartitionWriter {
+object StagedIndexWriter {
   def build(
     ctx: ExecuteContext,
     keyType: PType,
@@ -245,7 +245,7 @@ object StagedIndexPartitionWriter {
       FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Long], typeInfo[Long]),
       typeInfo[Unit])
     val cb = fb.ecb
-    val siw = new StagedIndexPartitionWriter(branchingFactor, keyType, annotationType, attributes, cb)
+    val siw = new StagedIndexWriter(branchingFactor, keyType, annotationType, attributes, cb)
 
     cb.newEmitMethod("init", FastIndexedSeq[ParamType](typeInfo[String]), typeInfo[Unit])
       .voidWithBuilder(cb => siw.init(cb, cb.emb.getCodeParam[String](1)))
@@ -267,7 +267,7 @@ object StagedIndexPartitionWriter {
   }
 }
 
-class StagedIndexPartitionWriter(branchingFactor: Int, keyType: PType, annotationType: PType, attributes: Map[String, Any], cb: EmitClassBuilder[_]) {
+class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PType, attributes: Map[String, Any], cb: EmitClassBuilder[_]) {
   require(branchingFactor > 1)
 
   private var elementIdx = cb.genFieldThisRef[Long]()
