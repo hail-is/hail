@@ -2,7 +2,12 @@ import abc
 import os
 import json
 import time
+import logging
+from urllib.parse import urlencode
 import jwt
+
+log = logging.getLogger(__name__)
+
 
 class Credentials(abc.ABC):
     @staticmethod

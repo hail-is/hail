@@ -1,4 +1,5 @@
-import aiogoogle.auth
+import hailtop.aiogoogle as aiogoogle
+import hailtop.aiogoogle.auth
 
 class Client:
     def __init__(self, project, *, session=None, **kwargs):

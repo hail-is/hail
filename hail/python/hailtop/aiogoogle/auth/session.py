@@ -1,4 +1,6 @@
+import aiohttp
 from .credentials import Credentials
+from .access_token import AccessToken
 
 class Session:
     def __init__(self, *, credentials=None, **kwargs):
