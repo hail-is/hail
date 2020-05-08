@@ -14,22 +14,22 @@ class AsyncIOExecutor:
     def __init__(self, parallelism):
         self._semaphore = asyncio.Semaphore(parallelism)
 
-    async def _run(self, fut, f, args, kwargs):
+    async def _run(self, fut, aw):
         async with self._semaphore:
             try:
-                fut.set_result(await f(*args, **kwargs))
+                fut.set_result(await aw)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as e:  # pylint: disable=broad-except
                 fut.set_exception(e)
 
-    def submit(self, f, *args, **kwargs):
+    def submit(self, aw):
         fut = asyncio.Future()
-        asyncio.ensure_future(self._run(fut, f, args, kwargs))
+        asyncio.ensure_future(self._run(fut, aw))
         return fut
 
-    async def gather(self, pfs):
-        futs = [self.submit(pf) for pf in pfs]
+    async def gather(self, aws):
+        futs = [self.submit(aw) for aw in aws]
         return [await fut for fut in futs]
 
 
@@ -42,10 +42,10 @@ class CleanupImages:
         log.info(f'cleaning up digest {image}@{digest}')
 
         await self._executor.gather([
-            functools.partial(self._client.delete_image_tag, image, tag)
+            self._client.delete_image_tag(image, tag)
             for tag in tags])
 
-        await self._executor.submit(self._client.delete_image, image, digest)
+        await self._executor.submit(self._client.delete_image(image, digest))
 
         log.info(f'cleaned up digest  {image}@{digest}')
 
@@ -54,7 +54,7 @@ class CleanupImages:
 
         log.info(f'listing tags for {image}')
 
-        result = await self._executor.submit(self._client.list_image_tags, image)
+        result = await self._executor.submit(self._client.list_image_tags(image))
         manifests = result['manifest']
         manifests = [(digest, int(data['timeUploadedMs']) / 1000, data['tag']) for digest, data in manifests.items()]
 
@@ -75,7 +75,7 @@ class CleanupImages:
         log.info(f'cleaned up image  {image}')
 
     async def run(self):
-        images = await self._executor.submit(self._client.list_images)
+        images = await self._executor.submit(self._client.list_images())
         await asyncio.gather(*[
             self.cleanup_image(image)
             for image in images['child']
