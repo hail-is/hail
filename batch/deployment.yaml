@@ -60,10 +60,15 @@ spec:
          - name: HAIL_SHOULD_PROFILE
            value: "1"
 {% endif %}
-         - name: HAIL_BATCH_BUCKET_NAME
 {% if deploy %}
+         - name: HAIL_BATCH_BUCKET_NAME
            value: hail-batch
+         - name: HAIL_WORKER_LOGS_BUCKET_NAME
+           value: hail-batch-worker-logs
 {% else %}
+         - name: HAIL_BATCH_BUCKET_NAME
+           value: hail-test-dmk9z
+         - name: HAIL_WORKER_LOGS_BUCKET_NAME
            value: hail-test-dmk9z
 {% endif %}
         ports:

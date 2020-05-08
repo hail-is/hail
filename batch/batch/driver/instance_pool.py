@@ -242,6 +242,7 @@ IP_ADDRESS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.intern
 PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
 
 BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/bucket_name")
+WORKER_LOGS_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_logs_bucket_name")
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 WORKER_TYPE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_type")
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
@@ -261,6 +262,7 @@ docker run \
     -e ACTIVATION_TOKEN=$ACTIVATION_TOKEN \
     -e IP_ADDRESS=$IP_ADDRESS \
     -e BUCKET_NAME=$BUCKET_NAME \
+    -e WORKER_LOGS_BUCKET_NAME=$WORKER_LOGS_BUCKET_NAME \
     -e INSTANCE_ID=$INSTANCE_ID \
     -e PROJECT=$PROJECT \
     -e WORKER_TYPE=$WORKER_TYPE \
@@ -282,12 +284,12 @@ done
                     'value': '''
 set -x
 
-BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/bucket_name")
+WORKER_LOGS_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_logs_bucket_name")
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 
 # this has to match LogStore.worker_log_path
-gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch/logs/$INSTANCE_ID/worker/$NAME/
+gsutil -m cp run.log worker.log /var/log/syslog gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/worker/$NAME/
 '''
                 }, {
                     'key': 'activation_token',
@@ -301,6 +303,9 @@ gsutil -m cp run.log worker.log /var/log/syslog gs://$BUCKET_NAME/batch/logs/$IN
                 }, {
                     'key': 'bucket_name',
                     'value': self.log_store.bucket_name
+                }, {
+                    'key': 'worker_logs_bucket_name',
+                    'value': self.log_store.worker_logs_bucket_name
                 }, {
                     'key': 'instance_id',
                     'value': self.log_store.instance_id
