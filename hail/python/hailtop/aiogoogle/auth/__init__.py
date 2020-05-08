@@ -3,5 +3,5 @@ from .access_token import AccessToken
 from .session import Session
 
 __all__ = [
-    'Credentials', 'AccessToken', 'Session'
+    'Credentials', 'ApplicationDefaultCredentials', 'ServiceAccountCredentials', 'AccessToken', 'Session'
 ]

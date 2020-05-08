@@ -24,6 +24,7 @@ class Credentials(abc.ABC):
 
         raise ValueError(f'unknown Google Cloud credentials type {credentials_type}')
 
+    @staticmethod
     def default_credentials():
         credentials_file = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
 
@@ -78,8 +79,8 @@ class ServiceAccountCredentials(Credentials):
         assertion = {
             "aud": "https://www.googleapis.com/oauth2/v4/token",
             "iat": now,
-            "scope": "https://www.googleapis.com/auth/cloud-platform",
-            "exp": now + 300, # 5m
+            "scope": scope,
+            "exp": now + 300,  # 5m
             "iss": self.key['client_email']
         }
         encoded_assertion = jwt.encode(assertion, self.key['private_key'], algorithm='RS256')

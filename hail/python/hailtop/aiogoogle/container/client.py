@@ -1,11 +1,11 @@
-import hailtop.aiogoogle as aiogoogle
-import hailtop.aiogoogle.auth
+import hailtop.aiogoogle.auth as google_auth
+
 
 class Client:
     def __init__(self, project, *, session=None, **kwargs):
         self._project = project
         if session is None:
-            session = aiogoogle.auth.Session(**kwargs)
+            session = google_auth.Session(**kwargs)
         self._session = session
 
     # returns:
@@ -41,12 +41,12 @@ class Client:
 
     async def delete_image_tag(self, image, tag, **kwargs):
         async with await self._session.delete(
-                f'https://gcr.io/v2/{self._project}/{image}/manifests/{tag}', **kwargs) as resp:
+                f'https://gcr.io/v2/{self._project}/{image}/manifests/{tag}', **kwargs):
             pass
 
     async def delete_image(self, image, digest, **kwargs):
         async with await self._session.delete(
-                f'https://gcr.io/v2/{self._project}/{image}/manifests/{digest}', **kwargs) as resp:
+                f'https://gcr.io/v2/{self._project}/{image}/manifests/{digest}', **kwargs):
             pass
 
     async def close(self):

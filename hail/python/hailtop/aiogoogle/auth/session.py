@@ -1,6 +1,8 @@
 import aiohttp
+from hailtop.utils import request_retry_transient_errors
 from .credentials import Credentials
 from .access_token import AccessToken
+
 
 class Session:
     def __init__(self, *, credentials=None, **kwargs):
@@ -16,14 +18,14 @@ class Session:
             kwargs['headers'].update(auth_headers)
         else:
             kwargs['headers'] = auth_headers
-        return await self._session.request(method, url, **kwargs)
+        return await request_retry_transient_errors(self._session, method, url, **kwargs)
 
     async def get(self, url, **kwargs):
         return await self.request('GET', url, **kwargs)
 
     async def post(self, url, **kwargs):
         return await self.request('POST', url, **kwargs)
-    
+
     async def put(self, url, **kwargs):
         return await self.request('PUT', url, **kwargs)
 
