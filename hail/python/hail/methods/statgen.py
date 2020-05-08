@@ -523,6 +523,9 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
     def select_array_indices(hl_array, indices):
         return indices.map(lambda i: hl_array[i])
 
+    def dot_rows_with_themselves(matrix):
+        return (matrix * matrix) @ hl.nd.ones(matrix.shape[1])
+
     ht_local = mt._localize_entries(entries_field_name, sample_field_name)
 
     # Now here, I want to transmute away the entries field name struct to get arrays
@@ -548,14 +551,14 @@ def linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) 
     ht = ht.annotate_globals(d=ht.n-k-1)
     ht = ht.annotate_globals(__cov_Qt=hl.if_else(k > 0, hl.nd.qr(ht.__cov_nd)[0].T, hl.nd.zeros((0, ht.n))))
     ht = ht.annotate_globals(__Qty=ht.__cov_Qt @ ht.__y_nd)
-    ht = ht.annotate_globals(__yyp=hl.nd.diagonal(ht.__y_nd.T @ ht.__y_nd) - hl.nd.diagonal(ht.__Qty.T @ ht.__Qty))
+    ht = ht.annotate_globals(__yyp=dot_rows_with_themselves(ht.__y_nd.T) - dot_rows_with_themselves(ht.__Qty.T))
 
     sum_x_nd = ht[X_field_name].T @ hl.nd.ones((ht.n,))
     ht = ht.annotate(sum_x=nd_to_array(sum_x_nd))
     ht = ht.annotate(__Qtx=ht.__cov_Qt @ ht[X_field_name])
     ht = ht.annotate(__ytx=ht.__y_nd.T @ ht[X_field_name])
     ht = ht.annotate(__xyp=ht.__ytx - (ht.__Qty.T @ ht.__Qtx))
-    ht = ht.annotate(__xxpRec=(hl.nd.diagonal(ht[X_field_name].T @ ht[X_field_name]) - hl.nd.diagonal(ht.__Qtx.T @ ht.__Qtx)).map(lambda entry: 1 / entry))
+    ht = ht.annotate(__xxpRec=(dot_rows_with_themselves(ht[X_field_name].T) - dot_rows_with_themselves(ht.__Qtx.T)).map(lambda entry: 1 / entry))
     ht = ht.annotate(__b=ht.__xyp * ht.__xxpRec)
     ht = ht.annotate(__se=((1.0/ht.d) * (ht.__yyp.reshape((-1, 1)) @ ht.__xxpRec.reshape((1, -1)) - (ht.__b * ht.__b))).map(lambda entry: hl.sqrt(entry)))
     ht = ht.annotate(__t=ht.__b / ht.__se)
