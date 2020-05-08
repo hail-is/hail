@@ -30,6 +30,19 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     jObjects(idx)
   }
 
+  def dumpMemoryInfo(): String = {
+    s"""
+       |Blocks Used = ${usedBlocks.size}, Chunks used = ${bigChunks.size}
+       |Block Info:
+       |  BlockSize = ${blockSize} ($blockByteSize bytes)
+       |  Current Block Info:
+       |    Current Block Address: ${currentBlock}
+       |    Offset Within Block:   ${offsetWithinBlock}
+       |  Used Blocks Info:
+       |    BlockStarts: ${usedBlocks.result().toIndexedSeq}
+       |""".stripMargin
+  }
+
   def allocateNewBlock(): Unit = {
     if (currentBlock != 0)
       usedBlocks += currentBlock
