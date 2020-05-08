@@ -1,7 +1,11 @@
 package is.hail.rvd
 
+import java.io.InputStream
+
 import is.hail.annotations._
+import is.hail.asm4s.AsmFunction3RegionLongLongLong
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir
 import is.hail.expr.ir.ExecuteContext
 import is.hail.expr.types.encoded.{EType, ETypeSerializer}
 import is.hail.expr.types.physical.{PCanonicalStruct, PInt64Optional, PInt64Required, PStruct, PType, PTypeSerializer}
@@ -107,15 +111,14 @@ object AbstractRVDSpec {
     specRight: AbstractRVDSpec,
     pathLeft: String,
     pathRight: String,
-    requestedType: TStruct,
-    requestedTypeLeft: TStruct,
-    requestedTypeRight: TStruct,
     newPartitioner: Option[RVDPartitioner],
-    filterIntervals: Boolean
+    filterIntervals: Boolean,
+    requestedType: Type,
+    leftRType: TStruct, rightRType: TStruct,
+    requestedKey: IndexedSeq[String],
+    fieldInserter: (ExecuteContext, PStruct, PStruct) => (PStruct, (Int, Region) => AsmFunction3RegionLongLongLong)
   ): RVD = {
     require(specRight.key.isEmpty)
-    require(requestedType == requestedTypeLeft ++ requestedTypeRight)
-    val requestedKey = specLeft.key.takeWhile(requestedTypeLeft.hasField)
     val partitioner = specLeft.partitioner
 
     val extendedNewPartitioner = newPartitioner.map(_.extendKey(partitioner.kType))
@@ -134,11 +137,15 @@ object AbstractRVDSpec {
       case _ => (None, None)
     }
 
-    val (t, crdd) = HailContext.readRowsSplit(ctx,
-      pathLeft, pathRight, isl, isr,
-      specLeft.typedCodecSpec, specRight.typedCodecSpec, parts, tmpPartitioner.rangeBounds,
-      requestedTypeLeft, requestedTypeRight)
+    val (leftPType: PStruct, makeLeftDec) = specLeft.typedCodecSpec.buildDecoder(ctx, leftRType)
+    val (rightPType: PStruct, makeRightDec) = specRight.typedCodecSpec.buildDecoder(ctx, rightRType)
+
+    val (t: PStruct, makeInserter) = fieldInserter(ctx, leftPType, rightPType)
     assert(t.virtualType == requestedType)
+    val crdd = HailContext.readRowsSplit(ctx,
+      pathLeft, pathRight, isl, isr,
+      parts, tmpPartitioner.rangeBounds,
+      makeLeftDec, makeRightDec, makeInserter)
     val tmprvd = RVD(RVDType(t, requestedKey), tmpPartitioner.coarsen(requestedKey.length), crdd)
     extendedNewPartitioner match {
       case Some(part) if !filterIntervals => tmprvd.repartition(ctx, part.coarsen(requestedKey.length))

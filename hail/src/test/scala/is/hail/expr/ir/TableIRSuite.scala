@@ -4,6 +4,7 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.rvd.RVDPartitioner
 import is.hail.utils._
@@ -515,6 +516,8 @@ class TableIRSuite extends HailSuite {
       override def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???
 
       override def partitionCounts: Option[IndexedSeq[Long]] = Some(FastIndexedSeq(1, 2, 3, 4))
+
+      def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = ???
 
       override def fullType: TableType = TableType(TStruct.empty, FastIndexedSeq(), TStruct.empty)
     }

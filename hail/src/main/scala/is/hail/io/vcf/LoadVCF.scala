@@ -1654,6 +1654,11 @@ class MatrixVCFReader(
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
+  def rowAndGlobalPTypes(context: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
+    coerce[PStruct](fullRVDType.rowType.subsetTo(requestedType.rowType)) ->
+      PType.canonical(requestedType.globalType).asInstanceOf[PStruct]
+  }
+
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val requestedType = tr.typ
     assert(PruneDeadFields.isSupertype(requestedType, fullType))
@@ -1662,8 +1667,9 @@ class MatrixVCFReader(
 
     val dropSamples = !requestedType.rowType.hasField(LowerMatrixIR.entriesFieldName)
     val localSampleIDs: Array[String] = if (dropSamples) Array.empty[String] else sampleIDs
+    val (rowPType, _) = rowAndGlobalPTypes(ctx, requestedType)
 
-    val rvdType = RVDType(coerce[PStruct](fullRVDType.rowType.subsetTo(requestedType.rowType)), requestedType.key)
+    val rvdType = RVDType(rowPType, requestedType.key)
     val rvd = if (tr.dropRows)
       RVD.empty(rvdType)
     else
